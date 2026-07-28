@@ -1,7 +1,7 @@
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, NotSet, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, NotSet, Order, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, Set,
 };
 
 use crate::models::warehouse::{self, Entity as WarehouseEntity};

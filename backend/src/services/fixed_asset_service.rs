@@ -1,14 +1,17 @@
 use crate::models::fixed_asset;
+// V15 P1 17.8-D4：资产盘点模型
+use crate::models::{fixed_asset_count, fixed_asset_count_item};
 // 批次 208 P2-5 修复（v12 复审）：硬编码 "active"/"inactive" 替换为 master_data 常量
 use crate::models::status::master_data;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 use crate::utils::sql_escape::safe_like_pattern;
 use chrono::NaiveDate;
+use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -176,21 +179,87 @@ impl FixedAssetService {
     ///
     /// 批次 118 P2-8 修复：删除从未接入业务的 `calculate_monthly_depreciation` 异步包装
     /// （depreciate 已直接调用此纯计算函数，预留的折旧预览 API 端点从未实现）。
+    ///
+    /// V15 P1 17.8-D1 扩展：新增 3 种折旧方法
+    /// - `straight_line`：平均年限法（原有，(原值 - 残值) / (使用年限 × 12)）
+    /// - `units_of_production`：工作量法（基于月工作量，使用 monthly_depreciation 字段预存）
+    /// - `sum_of_years_digits`：年数总和法（(原值 - 残值) × 剩余年数 / 年数总和 / 12）
+    /// - `double_declining_balance`：双倍余额递减法（净值 × 2 / 使用年限 / 12）
     fn calc_monthly_depreciation_for(asset: &fixed_asset::Model) -> Result<Decimal, AppError> {
         let residual_value = asset.salvage_value.unwrap_or(Decimal::ZERO);
+        let useful_life_years = asset.useful_life.unwrap_or_default();
 
         let monthly_depreciation = match asset.depreciation_method.as_deref() {
             Some("straight_line") | None => {
                 // 平均年限法：(原值 - 残值) / (使用年限 * 12)
-                // 使用年限缺失时按 0 处理 → 0 * 12 = 0 → 不折旧（业务接受）
-                // P3 维度 4 修复（批次 87）：月折旧补 round_dp(2) 防止累加误差
-                let useful_life_months = asset.useful_life.unwrap_or_default() as u32 * 12;
+                let useful_life_months = useful_life_years as u32 * 12;
                 if useful_life_months > 0 {
-                    ((asset.original_value - residual_value)
-                        / Decimal::from(useful_life_months))
-                    .round_dp(2)
+                    ((asset.original_value - residual_value) / Decimal::from(useful_life_months))
+                        .round_dp(2)
                 } else {
                     Decimal::ZERO
+                }
+            }
+            Some("units_of_production") => {
+                // V15 P1 17.8-D1：工作量法
+                // 月折旧额基于实际工作量计算，由前端按月录入到 asset.monthly_depreciation
+                // 字段（视为本月实际工作量对应的折旧额）
+                // 若未设置则按 0 处理（待月末录入工作量后重算）
+                asset.monthly_depreciation.unwrap_or(Decimal::ZERO)
+            }
+            Some("sum_of_years_digits") => {
+                // V15 P1 17.8-D1：年数总和法
+                // 年折旧率 = 剩余使用年数 / 年数总和
+                // 月折旧额 = (原值 - 残值) × 年折旧率 / 12
+                if useful_life_years <= 0 {
+                    Decimal::ZERO
+                } else {
+                    // 估算剩余年数：使用年限 - 已使用年数（基于累计折旧占比近似）
+                    let depreciable_amount = asset.original_value - residual_value;
+                    if depreciable_amount <= Decimal::ZERO {
+                        Decimal::ZERO
+                    } else {
+                        // 已折旧比例
+                        let depreciated_ratio = if depreciable_amount.is_zero() {
+                            Decimal::ZERO
+                        } else {
+                            asset.accumulated_depreciation / depreciable_amount
+                        };
+                        // 已使用年数（近似）
+                        let used_years = (depreciated_ratio * Decimal::from(useful_life_years))
+                            .to_usize()
+                            .unwrap_or(0);
+                        let remaining_years =
+                            useful_life_years.saturating_sub(used_years as i32).max(1);
+                        // 年数总和 = n + (n-1) + ... + 1 = n * (n+1) / 2
+                        let sum_of_years = useful_life_years * (useful_life_years + 1) / 2;
+                        if sum_of_years <= 0 {
+                            Decimal::ZERO
+                        } else {
+                            ((depreciable_amount * Decimal::from(remaining_years)
+                                / Decimal::from(sum_of_years))
+                                / Decimal::from(12))
+                            .round_dp(2)
+                        }
+                    }
+                }
+            }
+            Some("double_declining_balance") => {
+                // V15 P1 17.8-D1：双倍余额递减法
+                // 年折旧率 = 2 / 使用年限
+                // 月折旧额 = 净值 × 年折旧率 / 12
+                // 最后两年改为直线法（此处简化为：净值接近残值时返回 0）
+                if useful_life_years <= 0 {
+                    Decimal::ZERO
+                } else {
+                    let net_value = asset.net_value.unwrap_or(asset.original_value);
+                    // 净值接近残值时停止折旧
+                    if net_value <= residual_value {
+                        Decimal::ZERO
+                    } else {
+                        let annual_rate = Decimal::from(2) / Decimal::from(useful_life_years);
+                        ((net_value * annual_rate) / Decimal::from(12)).round_dp(2)
+                    }
                 }
             }
             Some(method) => {
@@ -245,7 +314,12 @@ impl FixedAssetService {
         // 净值 = 原值 - 累计折旧，不能低于残值
         let new_net_value = (original_value - new_accumulated).max(residual_value);
 
-        (actual_depreciation, new_accumulated, new_net_value, depreciable_cap)
+        (
+            actual_depreciation,
+            new_accumulated,
+            new_net_value,
+            depreciable_cap,
+        )
     }
 
     /// 插入折旧记录，唯一约束冲突转为业务校验错误
@@ -350,7 +424,10 @@ impl FixedAssetService {
         period: &str,
         user_id: i32,
     ) -> Result<(), AppError> {
-        info!("用户 {} 正在计提资产 {} 的 {} 折旧", user_id, asset_id, period);
+        info!(
+            "用户 {} 正在计提资产 {} 的 {} 折旧",
+            user_id, asset_id, period
+        );
 
         // 开启事务，状态门 + update 在同一事务内
         let txn = (*self.db).begin().await?;
@@ -397,7 +474,11 @@ impl FixedAssetService {
         txn.commit().await?;
         info!(
             "资产 {} 折旧计提成功，实际计提额：{}（月折旧额：{}，累计：{} -> {}）",
-            asset_id, actual_depreciation, monthly_depreciation, accumulated_depreciation, new_accumulated
+            asset_id,
+            actual_depreciation,
+            monthly_depreciation,
+            accumulated_depreciation,
+            new_accumulated
         );
         Ok(())
     }
@@ -407,6 +488,11 @@ impl FixedAssetService {
     /// 批次 85 v2 复审 P1-5 修复：状态门移入 txn + lock_exclusive 串行化
     /// 原实现状态门在 self.db 查询（get_by_id），txn 在状态门后才开始，存在 TOCTOU
     /// （并发 dispose/depreciate 会基于过期状态通过检查后重复写入）
+    ///
+    /// V15 P1 17.8-D3 扩展：处置时生成处置损益凭证
+    /// - 借：固定资产清理（资产净值）/ 累计折旧（已计提折旧）
+    /// - 贷：固定资产（原值）
+    /// - 借/贷：银行存款（处置收入）/ 营业外收入（处置收益）或 营业外支出（处置损失）
     pub async fn dispose(
         &self,
         asset_id: i32,
@@ -437,6 +523,8 @@ impl FixedAssetService {
 
         // 计算处置损益
         let net_book_value = asset.net_value.unwrap_or(Decimal::ZERO);
+        let accumulated_depreciation = asset.accumulated_depreciation;
+        let original_value = asset.original_value;
         // 批次 88 PH-3 占位符实现：计算结果持久化到 fixed_asset_disposals.gain_loss 列
         let disposal_gain_loss = req.disposal_value - net_book_value;
 
@@ -444,34 +532,190 @@ impl FixedAssetService {
         // v3 P1-1 修复：id: Set(0) 会覆盖 SERIAL 默认值导致第二次插入主键冲突，改为 Default::default()
         let disposal = crate::models::fixed_asset_disposal::ActiveModel {
             id: Default::default(),
-            disposal_no: Set(disposal_no),
+            disposal_no: Set(disposal_no.clone()),
             asset_id: Set(asset_id),
-            disposal_type: Set(req.disposal_type),
+            disposal_type: Set(req.disposal_type.clone()),
             disposal_date: Set(req.disposal_date),
             disposal_amount: Set(req.disposal_value), // 使用 disposal_amount
             gain_loss: Set(Some(disposal_gain_loss)), // 批次 88 PH-3：持久化处置损益
-            disposal_reason: Set(req.reason),         // 使用 disposal_reason
+            disposal_reason: Set(req.reason.clone()), // 使用 disposal_reason
             quantity: Set(1),                         // 处置数量默认为1
             status: Set("COMPLETED".to_string()),
-            remarks: Set(req.buyer_info), // 使用 remarks 存储买家信息
+            remarks: Set(req.buyer_info.clone()), // 使用 remarks 存储买家信息
             created_by: Set(user_id),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
         };
 
-        disposal.insert(&txn).await?;
+        let inserted_disposal = disposal.insert(&txn).await?;
+
+        // V15 P1 17.8-D3：生成处置损益凭证
+        Self::generate_disposal_voucher_txn(
+            &txn,
+            &inserted_disposal,
+            &asset,
+            original_value,
+            accumulated_depreciation,
+            net_book_value,
+            req.disposal_value,
+            disposal_gain_loss,
+            user_id,
+        )
+        .await?;
 
         // 更新资产状态
         let mut asset_active: crate::models::fixed_asset::ActiveModel = asset.into();
         asset_active.status = Set("disposed".to_string());
+        asset_active.disposal_date = Set(Some(req.disposal_date));
         asset_active.save(&txn).await?;
 
         // 提交事务
         txn.commit().await?;
 
         info!(
-            "资产 {} 处置成功，处置价值：{}",
-            asset_id, req.disposal_value
+            "资产 {} 处置成功，处置价值：{}，损益：{}",
+            asset_id, req.disposal_value, disposal_gain_loss
+        );
+        Ok(())
+    }
+
+    /// V15 P1 17.8-D3：生成固定资产处置损益凭证
+    ///
+    /// 凭证分录（以"固定资产清理"为中间科目）：
+    /// 1. 结转固定资产原值：
+    ///    - 借：固定资产清理 1606 = 资产净值
+    ///    - 借：累计折旧 1602 = 已计提累计折旧
+    ///    - 贷：固定资产 1601 = 原值
+    /// 2. 收到处置款项：
+    ///    - 借：银行存款 1002 = 处置收入
+    ///    - 贷：固定资产清理 1606 = 处置收入
+    /// 3. 结转处置损益：
+    ///    - 若收益（gain > 0）：借 固定资产清理 1606 / 贷 营业外收入 6301
+    ///    - 若损失（gain < 0）：借 营业外支出 6711 / 贷 固定资产清理 1606
+    async fn generate_disposal_voucher_txn(
+        txn: &sea_orm::DatabaseTransaction,
+        disposal: &crate::models::fixed_asset_disposal::Model,
+        asset: &fixed_asset::Model,
+        original_value: Decimal,
+        accumulated_depreciation: Decimal,
+        net_book_value: Decimal,
+        disposal_value: Decimal,
+        gain_loss: Decimal,
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        use crate::models::{voucher, voucher_item};
+
+        let voucher_no = format!("FAD-{}", disposal.disposal_no);
+        let summary = format!("固定资产处置-{}-{}", asset.asset_no, disposal.disposal_type);
+
+        // 创建凭证主表
+        let voucher_active = voucher::ActiveModel {
+            voucher_no: Set(voucher_no.clone()),
+            voucher_type: Set("transfer".to_string()),
+            voucher_date: Set(disposal.disposal_date),
+            source_type: Set(Some("fixed_asset_disposal".to_string())),
+            source_module: Set(Some("fixed_asset".to_string())),
+            source_bill_id: Set(Some(disposal.id)),
+            source_bill_no: Set(Some(disposal.disposal_no.clone())),
+            status: Set("DRAFT".to_string()),
+            attachment_count: Set(0),
+            created_by: Set(user_id),
+            ..Default::default()
+        };
+        let voucher_model = voucher_active.insert(txn).await?;
+
+        let mut line_no: i32 = 1;
+        let mut entries: Vec<(String, String, Decimal, Decimal)> = Vec::new();
+
+        // 1. 结转固定资产原值（借：固定资产清理 + 累计折旧，贷：固定资产）
+        entries.push((
+            "1606".to_string(),
+            "固定资产清理".to_string(),
+            net_book_value,
+            Decimal::ZERO,
+        ));
+        entries.push((
+            "1602".to_string(),
+            "累计折旧".to_string(),
+            accumulated_depreciation,
+            Decimal::ZERO,
+        ));
+        entries.push((
+            "1601".to_string(),
+            "固定资产".to_string(),
+            Decimal::ZERO,
+            original_value,
+        ));
+
+        // 2. 收到处置款项（借：银行存款，贷：固定资产清理）
+        if disposal_value > Decimal::ZERO {
+            entries.push((
+                "1002".to_string(),
+                "银行存款".to_string(),
+                disposal_value,
+                Decimal::ZERO,
+            ));
+            entries.push((
+                "1606".to_string(),
+                "固定资产清理".to_string(),
+                Decimal::ZERO,
+                disposal_value,
+            ));
+        }
+
+        // 3. 结转处置损益
+        if gain_loss > Decimal::ZERO {
+            // 收益：借 固定资产清理 / 贷 营业外收入
+            entries.push((
+                "1606".to_string(),
+                "固定资产清理".to_string(),
+                gain_loss,
+                Decimal::ZERO,
+            ));
+            entries.push((
+                "6301".to_string(),
+                "营业外收入".to_string(),
+                Decimal::ZERO,
+                gain_loss,
+            ));
+        } else if gain_loss < Decimal::ZERO {
+            // 损失：借 营业外支出 / 贷 固定资产清理
+            let loss = -gain_loss;
+            entries.push((
+                "6711".to_string(),
+                "营业外支出".to_string(),
+                loss,
+                Decimal::ZERO,
+            ));
+            entries.push((
+                "1606".to_string(),
+                "固定资产清理".to_string(),
+                Decimal::ZERO,
+                loss,
+            ));
+        }
+
+        // 插入所有分录
+        for (subject_code, subject_name, debit, credit) in entries {
+            let item_active = voucher_item::ActiveModel {
+                voucher_id: Set(voucher_model.id),
+                line_no: Set(line_no),
+                subject_code: Set(subject_code),
+                subject_name: Set(subject_name),
+                debit: Set(debit),
+                credit: Set(credit),
+                summary: Set(Some(summary.clone())),
+                ..Default::default()
+            };
+            item_active.insert(txn).await?;
+            line_no += 1;
+        }
+
+        info!(
+            "固定资产处置凭证已生成：voucher_no={}, voucher_id={}, 分录数={}",
+            voucher_no,
+            voucher_model.id,
+            line_no - 1
         );
         Ok(())
     }
@@ -620,9 +864,9 @@ impl FixedAssetService {
         use chrono::Datelike;
 
         // P3 维度 3 修复（批次 87）：消除嵌套 expect，常量日期必然合法
-        let purchase_date = asset.purchase_date.unwrap_or_else(|| {
-            chrono::NaiveDate::from_ymd_opt(2020, 1, 1).unwrap_or_default()
-        });
+        let purchase_date = asset
+            .purchase_date
+            .unwrap_or_else(|| chrono::NaiveDate::from_ymd_opt(2020, 1, 1).unwrap_or_default());
         // useful_life 缺失时按 0 年处理 → 不折旧（守卫见下）
         let useful_life_years = asset.useful_life.unwrap_or_default();
         let original_value = asset.original_value;
@@ -645,9 +889,8 @@ impl FixedAssetService {
         // 批次 87 P3 维度 4 修复保持一致，防止 36 月等不能整除时累加误差
         let useful_life_months = useful_life_years * 12;
         let depreciable_amount = original_value - residual_value;
-        let monthly_depreciation = (depreciable_amount
-            / rust_decimal::Decimal::from(useful_life_months))
-            .round_dp(2);
+        let monthly_depreciation =
+            (depreciable_amount / rust_decimal::Decimal::from(useful_life_months)).round_dp(2);
 
         // 总应计折旧 = 月折旧额 * min(已用月数, 总月数)
         let applicable_months = Ord::min(months_used, useful_life_months);
@@ -657,6 +900,392 @@ impl FixedAssetService {
         // 本次应计提 = 总应计折旧 - 已计提折旧
         let current_depreciation = total_depreciation - asset.accumulated_depreciation;
         Ok(current_depreciation.max(rust_decimal::Decimal::ZERO))
+    }
+
+    /// V15 P1 17.8-D2：月末自动计提折旧
+    ///
+    /// 供 cron/scheduler 月末调用，遍历所有 active 状态资产按指定期间计提折旧。
+    /// 单资产失败不中断整体流程，记录到 failures 列表返回，保证批处理韧性。
+    /// 幂等性由 `uk_fa_depreciation_records_asset_period` 唯一约束保证（重复计提会被跳过）。
+    pub async fn auto_monthly_depreciation(
+        &self,
+        period: &str,
+        user_id: i32,
+    ) -> Result<AutoDepreciationSummary, AppError> {
+        info!("自动计提折旧开始：期间={}, 触发人={}", period, user_id);
+
+        // 分页拉取所有 active 资产，避免一次性加载
+        let paginator = fixed_asset::Entity::find()
+            .filter(fixed_asset::Column::Status.eq(master_data::ACTIVE))
+            .paginate(&*self.db, 500);
+
+        let num_pages = paginator.num_pages().await?;
+        let mut total_scanned = 0u64;
+        let mut success_count = 0u64;
+        let mut skipped_count = 0u64;
+        let mut failures: Vec<AutoDepreciationFailure> = Vec::new();
+
+        for page_idx in 0..num_pages {
+            let page_items = paginator.fetch_page(page_idx).await?;
+            for asset in page_items {
+                total_scanned += 1;
+                let asset_id = asset.id;
+                let asset_no = asset.asset_no.clone();
+                match self.depreciate(asset_id, period, user_id).await {
+                    Ok(()) => success_count += 1,
+                    Err(e) => {
+                        // 区分"跳过"（零折旧/已足额）与真实失败
+                        let err_str = e.to_string();
+                        if err_str.contains("重复计提") || err_str.contains("已足额") {
+                            skipped_count += 1;
+                        } else {
+                            tracing::warn!(
+                                asset_id,
+                                asset_no = %asset_no,
+                                error = %err_str,
+                                "自动计提折旧单资产失败"
+                            );
+                            failures.push(AutoDepreciationFailure {
+                                asset_id,
+                                asset_no,
+                                error: err_str,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        let summary = AutoDepreciationSummary {
+            period: period.to_string(),
+            total_scanned,
+            success_count,
+            skipped_count,
+            failure_count: failures.len() as u64,
+            failures,
+        };
+        info!(
+            "自动计提折旧完成：期间={}, 扫描={}, 成功={}, 跳过={}, 失败={}",
+            period,
+            summary.total_scanned,
+            summary.success_count,
+            summary.skipped_count,
+            summary.failure_count
+        );
+        Ok(summary)
+    }
+
+    /// V15 P1 17.8-D4：创建资产盘点计划
+    ///
+    /// 按资产类别/存放地点筛选资产生成盘点计划，状态 DRAFT→COUNTING→COMPLETED。
+    pub async fn create_count_plan(
+        &self,
+        req: CreateCountPlanRequest,
+        user_id: i32,
+    ) -> Result<fixed_asset_count::Model, AppError> {
+        info!("用户 {} 正在创建资产盘点计划：{}", user_id, req.plan_name);
+
+        let txn = (*self.db).begin().await?;
+
+        let count_no = format!(
+            "FAC{}{:06}",
+            chrono::Utc::now().format("%Y%m%d"),
+            crate::utils::random::random_4_digit()
+        );
+
+        let count_date = req
+            .count_date
+            .unwrap_or_else(|| chrono::Utc::now().date_naive());
+
+        let plan = fixed_asset_count::ActiveModel {
+            count_no: Set(count_no.clone()),
+            plan_name: Set(req.plan_name.clone()),
+            count_date: Set(count_date),
+            asset_category: Set(req.asset_category.clone()),
+            use_location: Set(req.use_location.clone()),
+            status: Set("DRAFT".to_string()),
+            total_items: Set(0),
+            counted_items: Set(0),
+            surplus_items: Set(0),
+            shortage_items: Set(0),
+            notes: Set(req.notes.clone()),
+            created_by: Set(user_id),
+            ..Default::default()
+        }
+        .insert(&txn)
+        .await?;
+
+        // 按筛选条件拉取资产并生成盘点明细
+        let mut query =
+            fixed_asset::Entity::find().filter(fixed_asset::Column::Status.eq(master_data::ACTIVE));
+        if let Some(category) = &req.asset_category {
+            query = query.filter(fixed_asset::Column::AssetCategory.eq(category));
+        }
+        if let Some(location) = &req.use_location {
+            query = query.filter(fixed_asset::Column::UseLocation.eq(location));
+        }
+
+        let assets = query.all(&txn).await?;
+        let mut total_items = 0i32;
+        for asset in assets {
+            fixed_asset_count_item::ActiveModel {
+                count_id: Set(plan.id),
+                asset_id: Set(asset.id),
+                asset_no: Set(asset.asset_no.clone()),
+                asset_name: Set(asset.asset_name.clone()),
+                book_original_value: Set(asset.original_value),
+                book_net_value: Set(asset.net_value),
+                book_use_location: Set(asset.use_location.clone()),
+                actual_original_value: Set(None),
+                actual_net_value: Set(None),
+                actual_use_location: Set(None),
+                count_result: Set(None),
+                variance_type: Set(None),
+                variance_amount: Set(None),
+                remarks: Set(None),
+                ..Default::default()
+            }
+            .insert(&txn)
+            .await?;
+            total_items += 1;
+        }
+
+        // 回填 total_items
+        let mut plan_update: fixed_asset_count::ActiveModel = plan.clone().into();
+        plan_update.total_items = Set(total_items);
+        let plan_final = plan_update.update(&txn).await?;
+
+        txn.commit().await?;
+        info!(
+            "资产盘点计划创建成功：{}，明细 {} 项",
+            count_no, total_items
+        );
+        Ok(plan_final)
+    }
+
+    /// V15 P1 17.8-D4：录入盘点结果（单条）
+    ///
+    /// count_result: "consistent"=一致, "surplus"=盘盈, "shortage"=盘亏, "damaged"=毁损
+    pub async fn record_count_item(
+        &self,
+        count_id: i32,
+        asset_id: i32,
+        actual_original_value: Option<Decimal>,
+        actual_net_value: Option<Decimal>,
+        actual_use_location: Option<String>,
+        count_result: String,
+        remarks: Option<String>,
+        user_id: i32,
+    ) -> Result<fixed_asset_count_item::Model, AppError> {
+        info!(
+            "用户 {} 录入盘点结果：盘点单={}, 资产={}, 结果={}",
+            user_id, count_id, asset_id, count_result
+        );
+
+        let txn = (*self.db).begin().await?;
+
+        // 校验盘点单状态
+        let plan = fixed_asset_count::Entity::find_by_id(count_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("盘点计划不存在：{}", count_id)))?;
+
+        if plan.status == "COMPLETED" {
+            return Err(AppError::validation("盘点计划已完成，不可修改".to_string()));
+        }
+        // 自动将 DRAFT 切换为 COUNTING
+        if plan.status == "DRAFT" {
+            let mut plan_active: fixed_asset_count::ActiveModel = plan.into();
+            plan_active.status = Set("COUNTING".to_string());
+            plan_active.update(&txn).await?;
+        }
+
+        let item = fixed_asset_count_item::Entity::find()
+            .filter(fixed_asset_count_item::Column::CountId.eq(count_id))
+            .filter(fixed_asset_count_item::Column::AssetId.eq(asset_id))
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| {
+                AppError::not_found(format!(
+                    "盘点明细不存在：count_id={}, asset_id={}",
+                    count_id, asset_id
+                ))
+            })?;
+
+        let book_original = item.book_original_value;
+        let book_net = item.book_net_value.unwrap_or(Decimal::ZERO);
+        let actual_orig = actual_original_value.unwrap_or(book_original);
+        let actual_net = actual_net_value.unwrap_or(book_net);
+
+        // 计算差异类型与金额
+        let (variance_type, variance_amount) = match count_result.as_str() {
+            "consistent" => (None, None),
+            "surplus" => {
+                let v = (actual_orig - book_original).max(Decimal::ZERO);
+                (Some("surplus".to_string()), Some(v))
+            }
+            "shortage" => {
+                let v = (book_original - actual_orig).max(Decimal::ZERO);
+                (Some("shortage".to_string()), Some(v))
+            }
+            "damaged" => {
+                // 毁损：净值差异
+                let v = (book_net - actual_net).max(Decimal::ZERO);
+                (Some("damaged".to_string()), Some(v))
+            }
+            other => {
+                return Err(AppError::validation(format!(
+                    "不支持的盘点结果类型：{}",
+                    other
+                )));
+            }
+        };
+
+        let mut item_active: fixed_asset_count_item::ActiveModel = item.into();
+        item_active.actual_original_value = Set(Some(actual_orig));
+        item_active.actual_net_value = Set(Some(actual_net));
+        item_active.actual_use_location = Set(actual_use_location);
+        item_active.count_result = Set(Some(count_result));
+        item_active.variance_type = Set(variance_type);
+        item_active.variance_amount = Set(variance_amount);
+        item_active.remarks = Set(remarks);
+        item_active.counted_by = Set(Some(user_id));
+        item_active.counted_at = Set(Some(chrono::Utc::now()));
+        let updated = item_active.update(&txn).await?;
+
+        // 更新盘点单 counted_items
+        let counted = fixed_asset_count_item::Entity::find()
+            .filter(fixed_asset_count_item::Column::CountId.eq(count_id))
+            .filter(fixed_asset_count_item::Column::CountResult.is_not_null())
+            .count(&txn)
+            .await?;
+        let mut plan_active = fixed_asset_count::ActiveModel {
+            id: sea_orm::ActiveValue::Unchanged(count_id),
+            ..Default::default()
+        };
+        plan_active.counted_items = Set(counted as i32);
+        plan_active.update(&txn).await?;
+
+        txn.commit().await?;
+        Ok(updated)
+    }
+
+    /// V15 P1 17.8-D4：完成盘点并生成盘盈盘亏处理
+    ///
+    /// 统计盘盈/盘亏数量，将盘点单置为 COMPLETED。
+    /// 盘亏资产标记为 INACTIVE（待处置），盘盈资产需手工建档。
+    pub async fn complete_count_plan(
+        &self,
+        count_id: i32,
+        user_id: i32,
+    ) -> Result<CountCompletionSummary, AppError> {
+        info!("用户 {} 正在完成资产盘点计划：{}", user_id, count_id);
+
+        let txn = (*self.db).begin().await?;
+
+        let plan = fixed_asset_count::Entity::find_by_id(count_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("盘点计划不存在：{}", count_id)))?;
+
+        if plan.status == "COMPLETED" {
+            return Err(AppError::validation("盘点计划已完成".to_string()));
+        }
+
+        let items = fixed_asset_count_item::Entity::find()
+            .filter(fixed_asset_count_item::Column::CountId.eq(count_id))
+            .all(&txn)
+            .await?;
+
+        let mut surplus_count = 0i32;
+        let mut shortage_count = 0i32;
+        let mut damaged_count = 0i32;
+        let mut surplus_value = Decimal::ZERO;
+        let mut shortage_value = Decimal::ZERO;
+        let mut damaged_value = Decimal::ZERO;
+
+        for item in &items {
+            match item.variance_type.as_deref() {
+                Some("surplus") => {
+                    surplus_count += 1;
+                    surplus_value += item.variance_amount.unwrap_or(Decimal::ZERO);
+                }
+                Some("shortage") => {
+                    shortage_count += 1;
+                    shortage_value += item.variance_amount.unwrap_or(Decimal::ZERO);
+                    // 盘亏资产标记为 INACTIVE
+                    let asset = fixed_asset::Entity::find_by_id(item.asset_id)
+                        .one(&txn)
+                        .await?;
+                    if let Some(a) = asset {
+                        let mut a_active: fixed_asset::ActiveModel = a.into();
+                        a_active.status = Set(master_data::INACTIVE.to_string());
+                        a_active.update(&txn).await?;
+                    }
+                }
+                Some("damaged") => {
+                    damaged_count += 1;
+                    damaged_value += item.variance_amount.unwrap_or(Decimal::ZERO);
+                }
+                _ => {}
+            }
+        }
+
+        // 更新盘点单状态
+        let mut plan_active: fixed_asset_count::ActiveModel = plan.into();
+        plan_active.status = Set("COMPLETED".to_string());
+        plan_active.surplus_items = Set(surplus_count);
+        plan_active.shortage_items = Set(shortage_count + damaged_count);
+        plan_active.completed_at = Set(Some(chrono::Utc::now()));
+        plan_active.approved_by = Set(Some(user_id));
+        plan_active.update(&txn).await?;
+
+        txn.commit().await?;
+
+        let summary = CountCompletionSummary {
+            count_id,
+            total_items: items.len() as i32,
+            surplus_count,
+            shortage_count,
+            damaged_count,
+            surplus_value,
+            shortage_value,
+            damaged_value,
+        };
+        info!(
+            "资产盘点完成：count_id={}, 盘盈={}, 盘亏={}, 毁损={}",
+            count_id, surplus_count, shortage_count, damaged_count
+        );
+        Ok(summary)
+    }
+
+    /// V15 P1 17.8-D4：查询盘点计划列表
+    pub async fn list_count_plans(
+        &self,
+        page: i64,
+        page_size: i64,
+    ) -> Result<(Vec<fixed_asset_count::Model>, u64), AppError> {
+        let paginator = fixed_asset_count::Entity::find()
+            .order_by(fixed_asset_count::Column::Id, Order::Desc)
+            .paginate(&*self.db, page_size.clamp(1, 100) as u64);
+        let (plans, total) = paginate_with_total(paginator, page.clamp(1, 1000) as u64).await?;
+        Ok((plans, total))
+    }
+
+    /// V15 P1 17.8-D4：查询盘点明细
+    pub async fn list_count_items(
+        &self,
+        count_id: i32,
+    ) -> Result<Vec<fixed_asset_count_item::Model>, AppError> {
+        let items = fixed_asset_count_item::Entity::find()
+            .filter(fixed_asset_count_item::Column::CountId.eq(count_id))
+            .order_by(fixed_asset_count_item::Column::AssetId, Order::Asc)
+            .all(&*self.db)
+            .await?;
+        Ok(items)
     }
 }
 
@@ -670,6 +1299,47 @@ pub struct DepreciationResult {
     pub current_depreciation: rust_decimal::Decimal,
     pub net_value: rust_decimal::Decimal,
     pub depreciation_method: String,
+}
+
+/// V15 P1 17.8-D2：自动计提折旧摘要
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AutoDepreciationSummary {
+    pub period: String,
+    pub total_scanned: u64,
+    pub success_count: u64,
+    pub skipped_count: u64,
+    pub failure_count: u64,
+    pub failures: Vec<AutoDepreciationFailure>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AutoDepreciationFailure {
+    pub asset_id: i32,
+    pub asset_no: String,
+    pub error: String,
+}
+
+/// V15 P1 17.8-D4：创建盘点计划请求
+#[derive(Debug, Clone)]
+pub struct CreateCountPlanRequest {
+    pub plan_name: String,
+    pub asset_category: Option<String>,
+    pub use_location: Option<String>,
+    pub count_date: Option<NaiveDate>,
+    pub notes: Option<String>,
+}
+
+/// V15 P1 17.8-D4：盘点完成摘要
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct CountCompletionSummary {
+    pub count_id: i32,
+    pub total_items: i32,
+    pub surplus_count: i32,
+    pub shortage_count: i32,
+    pub damaged_count: i32,
+    pub surplus_value: Decimal,
+    pub shortage_value: Decimal,
+    pub damaged_value: Decimal,
 }
 
 #[cfg(test)]

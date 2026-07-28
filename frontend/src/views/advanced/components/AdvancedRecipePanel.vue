@@ -6,63 +6,63 @@
  * 数据与函数全部由父组件通过 props 传入
  * P9-3 批次 F 重构：移除 vue/no-mutating-props 抑制，改用本地 ref 镜像 + watch 防循环
  */
-import { ref, watch, nextTick } from 'vue'
-import { useI18n } from 'vue-i18n'
-import type { RecipeFormData, RecipeResult } from '../composables/useRcp'
+import { ref, watch, nextTick } from 'vue';
+import { useI18n } from 'vue-i18n';
+import type { RecipeFormData, RecipeResult } from '../composables/useRcp';
 
 const props = defineProps<{
   // 工艺推荐表单（由父组件管理，子组件通过 emit('update:recipeForm') 回写）
-  recipeForm: RecipeFormData
-  recipeLoading: boolean
-  recipeResult: RecipeResult | null
-  runRecipeOptimization: () => Promise<void>
-}>()
+  recipeForm: RecipeFormData;
+  recipeLoading: boolean;
+  recipeResult: RecipeResult | null;
+  runRecipeOptimization: () => Promise<void>;
+}>();
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 const emit = defineEmits<{
   // 整体回写表单
-  (e: 'update:recipeForm', form: RecipeFormData): void
-}>()
+  (e: 'update:recipeForm', form: RecipeFormData): void;
+}>();
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
-const localForm = ref<RecipeFormData>({ ...props.recipeForm })
+const localForm = ref<RecipeFormData>({ ...props.recipeForm });
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
-let syncing = false
+let syncing = false;
 
 // 外部 prop 变化时同步到 local
 watch(
   () => props.recipeForm,
   newForm => {
-    if (syncing) return
-    syncing = true
-    localForm.value = { ...newForm }
+    if (syncing) return;
+    syncing = true;
+    localForm.value = { ...newForm };
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
   { deep: true }
-)
+);
 
 // 本地变化时通知父组件
 watch(
   localForm,
   newForm => {
-    if (syncing) return
-    syncing = true
-    emit('update:recipeForm', { ...newForm })
+    if (syncing) return;
+    syncing = true;
+    emit('update:recipeForm', { ...newForm });
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
   { deep: true }
-)
+);
 
 function sourceLabel(source: string): string {
   return source === 'knn'
     ? t('advancedModule.recipe.sourceKnn')
-    : t('advancedModule.recipe.sourceFallback')
+    : t('advancedModule.recipe.sourceFallback');
 }
 </script>
 
@@ -77,7 +77,11 @@ function sourceLabel(source: string): string {
         <template #header
           ><div class="card-header">{{ $t('advancedModule.recipe.conditions') }}</div></template
         >
-        <el-form :model="localForm" label-width="100px" :aria-label="t('advancedModule.recipe.ariaConditions')">
+        <el-form
+          :model="localForm"
+          label-width="100px"
+          :aria-label="t('advancedModule.recipe.ariaConditions')"
+        >
           <el-form-item :label="$t('advancedModule.recipe.colorNo')" required>
             <el-input
               v-model="localForm.color_no"
@@ -90,11 +94,26 @@ function sourceLabel(source: string): string {
               :placeholder="$t('advancedModule.recipe.fabricPlaceholder')"
               style="width: 100%"
             >
-              <el-option :label="$t('advancedModule.recipe.fabricCotton')" :value="t('advancedModule.recipe.fabricCotton')" />
-              <el-option :label="$t('advancedModule.recipe.fabricPolyester')" :value="t('advancedModule.recipe.fabricPolyester')" />
-              <el-option :label="$t('advancedModule.recipe.fabricSilk')" :value="t('advancedModule.recipe.fabricSilk')" />
-              <el-option :label="$t('advancedModule.recipe.fabricWool')" :value="t('advancedModule.recipe.fabricWool')" />
-              <el-option :label="$t('advancedModule.recipe.fabricSynthetic')" :value="t('advancedModule.recipe.fabricSynthetic')" />
+              <el-option
+                :label="$t('advancedModule.recipe.fabricCotton')"
+                :value="t('advancedModule.recipe.fabricCotton')"
+              />
+              <el-option
+                :label="$t('advancedModule.recipe.fabricPolyester')"
+                :value="t('advancedModule.recipe.fabricPolyester')"
+              />
+              <el-option
+                :label="$t('advancedModule.recipe.fabricSilk')"
+                :value="t('advancedModule.recipe.fabricSilk')"
+              />
+              <el-option
+                :label="$t('advancedModule.recipe.fabricWool')"
+                :value="t('advancedModule.recipe.fabricWool')"
+              />
+              <el-option
+                :label="$t('advancedModule.recipe.fabricSynthetic')"
+                :value="t('advancedModule.recipe.fabricSynthetic')"
+              />
             </el-select>
           </el-form-item>
           <el-form-item :label="$t('advancedModule.recipe.dyeType')">

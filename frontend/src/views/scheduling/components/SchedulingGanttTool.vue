@@ -89,7 +89,7 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
+import { useI18n } from 'vue-i18n';
 import {
   ArrowLeft,
   Calendar,
@@ -98,46 +98,46 @@ import {
   OfficeBuilding,
   Refresh,
   Warning,
-} from '@element-plus/icons-vue'
+} from '@element-plus/icons-vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 排产甘特图数据类型（最少必要字段）
 interface GanttDataLite {
-  total_tasks?: number
-  conflict_count?: number
-  work_centers?: Array<unknown>
+  total_tasks?: number;
+  conflict_count?: number;
+  work_centers?: Array<unknown>;
 }
 
 // 排产甘特图工具栏属性
 defineProps<{
   // 甘特图数据
-  ganttData: GanttDataLite
+  ganttData: GanttDataLite;
   // 日期范围
-  dateRange: [Date, Date] | null
+  dateRange: [Date, Date] | null;
   // 日期范围文本
-  dateRangeText: string
+  dateRangeText: string;
   // 自动排程进行中
-  scheduling: boolean
-}>()
+  scheduling: boolean;
+}>();
 
 // 定义事件
 const emit = defineEmits<{
   // 返回
-  (e: 'back'): void
+  (e: 'back'): void;
   // 刷新
-  (e: 'refresh'): void
+  (e: 'refresh'): void;
   // 自动排程
-  (e: 'auto-schedule'): void
+  (e: 'auto-schedule'): void;
   // 日期变化
-  (e: 'date-change', value: [Date, Date] | null): void
-}>()
+  (e: 'date-change', value: [Date, Date] | null): void;
+}>();
 
 /** 日期范围变化 */
 const onDateChange = (v: [Date, Date] | null) => {
-  emit('date-change', v)
-  emit('refresh')
-}
+  emit('date-change', v);
+  emit('refresh');
+};
 </script>
 
 <style scoped>

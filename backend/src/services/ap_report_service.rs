@@ -65,11 +65,8 @@ impl ApReportService {
         use sea_orm::ConnectionTrait;
 
         // 规则 12 合规：全部参数使用 $N 参数化绑定
-        let mut params: Vec<sea_orm::Value> = vec![
-            start_date.into(),
-            end_date.into(),
-            "CANCELLED".into(),
-        ];
+        let mut params: Vec<sea_orm::Value> =
+            vec![start_date.into(), end_date.into(), "CANCELLED".into()];
         // supplier_id 为 Copy 类型，可直接 map 后 push
         let supplier_filter = supplier_id
             .map(|sid| {
@@ -110,8 +107,8 @@ impl ApReportService {
             ))
             .await
             .map_err(|e| AppError::internal(format!("应付统计报表主聚合查询失败: {}", e)))?;
-        let row = row
-            .ok_or_else(|| AppError::internal("应付统计报表主聚合查询无结果".to_string()))?;
+        let row =
+            row.ok_or_else(|| AppError::internal("应付统计报表主聚合查询无结果".to_string()))?;
 
         Ok(ApStatisticsMainAggregate {
             total_invoice_count: row.try_get_by_index::<i64>(0).unwrap_or(0),
@@ -265,7 +262,12 @@ impl ApReportService {
             sf = supplier_filter
         );
         let row = self
-            .fetch_daily_aggregate_row(&sql, params, "应付日报新增聚合查询失败", "应付日报新增聚合查询无结果")
+            .fetch_daily_aggregate_row(
+                &sql,
+                params,
+                "应付日报新增聚合查询失败",
+                "应付日报新增聚合查询无结果",
+            )
             .await?;
         let count: i64 = row.try_get_by_index::<i64>(0).unwrap_or(0);
         let amount: Decimal = row.try_get_by_index::<Decimal>(1).unwrap_or(Decimal::ZERO);
@@ -289,7 +291,12 @@ impl ApReportService {
             sf = supplier_filter
         );
         let row = self
-            .fetch_daily_aggregate_row(&sql, params, "应付日报到期聚合查询失败", "应付日报到期聚合查询无结果")
+            .fetch_daily_aggregate_row(
+                &sql,
+                params,
+                "应付日报到期聚合查询失败",
+                "应付日报到期聚合查询无结果",
+            )
             .await?;
         let count: i64 = row.try_get_by_index::<i64>(0).unwrap_or(0);
         let amount: Decimal = row.try_get_by_index::<Decimal>(1).unwrap_or(Decimal::ZERO);
@@ -313,7 +320,12 @@ impl ApReportService {
             sf = supplier_filter
         );
         let row = self
-            .fetch_daily_aggregate_row(&sql, params, "应付日报付款聚合查询失败", "应付日报付款聚合查询无结果")
+            .fetch_daily_aggregate_row(
+                &sql,
+                params,
+                "应付日报付款聚合查询失败",
+                "应付日报付款聚合查询无结果",
+            )
             .await?;
         let count: i64 = row.try_get_by_index::<i64>(0).unwrap_or(0);
         let amount: Decimal = row.try_get_by_index::<Decimal>(1).unwrap_or(Decimal::ZERO);
@@ -384,10 +396,7 @@ impl ApReportService {
     }
 
     /// 计算月报日期范围（月初第一天 + 月末最后一天）
-    fn compute_month_date_range(
-        year: i32,
-        month: u32,
-    ) -> Result<(NaiveDate, NaiveDate), AppError> {
+    fn compute_month_date_range(year: i32, month: u32) -> Result<(NaiveDate, NaiveDate), AppError> {
         let start_date = NaiveDate::from_ymd_opt(year, month, 1)
             .ok_or_else(|| AppError::bad_request("无效的日期参数"))?;
         let next_month_first = if month == 12 {
@@ -437,8 +446,7 @@ impl ApReportService {
             ))
             .await
             .map_err(|e| AppError::internal(format!("{}余额聚合查询失败: {}", label, e)))?;
-        let row = row
-            .ok_or_else(|| AppError::internal(format!("{}余额聚合查询无结果", label)))?;
+        let row = row.ok_or_else(|| AppError::internal(format!("{}余额聚合查询无结果", label)))?;
         Ok(row.try_get_by_index::<Decimal>(0).unwrap_or(Decimal::ZERO))
     }
 
@@ -474,8 +482,7 @@ impl ApReportService {
         use sea_orm::ConnectionTrait;
 
         // 规则 12 合规：全部参数使用 $N 参数化绑定
-        let mut params: Vec<sea_orm::Value> =
-            vec![today.into(), "PAID".into(), "CANCELLED".into()];
+        let mut params: Vec<sea_orm::Value> = vec![today.into(), "PAID".into(), "CANCELLED".into()];
         let supplier_filter = supplier_id
             .map(|sid| {
                 params.push(sid.into());
@@ -515,8 +522,8 @@ impl ApReportService {
             ))
             .await
             .map_err(|e| AppError::internal(format!("应付账龄报表聚合查询失败: {}", e)))?;
-        let row = row
-            .ok_or_else(|| AppError::internal("应付账龄报表聚合查询无结果".to_string()))?;
+        let row =
+            row.ok_or_else(|| AppError::internal("应付账龄报表聚合查询无结果".to_string()))?;
 
         Ok(AgingOverdueAggregate {
             b1_amt: row.try_get_by_index::<Decimal>(0).unwrap_or(Decimal::ZERO),
@@ -541,8 +548,7 @@ impl ApReportService {
     ) -> Result<AgingNotDueAggregate, AppError> {
         use sea_orm::ConnectionTrait;
 
-        let mut params: Vec<sea_orm::Value> =
-            vec![today.into(), "PAID".into(), "CANCELLED".into()];
+        let mut params: Vec<sea_orm::Value> = vec![today.into(), "PAID".into(), "CANCELLED".into()];
         let supplier_filter = supplier_id
             .map(|sid| {
                 params.push(sid.into());
@@ -566,8 +572,7 @@ impl ApReportService {
             ))
             .await
             .map_err(|e| AppError::internal(format!("未到期聚合查询失败: {}", e)))?;
-        let row = row
-            .ok_or_else(|| AppError::internal("未到期聚合查询无结果".to_string()))?;
+        let row = row.ok_or_else(|| AppError::internal("未到期聚合查询无结果".to_string()))?;
         Ok(AgingNotDueAggregate {
             amount: row.try_get_by_index::<Decimal>(0).unwrap_or(Decimal::ZERO),
             count: row.try_get_by_index::<i64>(1).unwrap_or(0),

@@ -69,30 +69,30 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useI18n } from 'vue-i18n'
-import UserTab from './tabs/UserTab.vue'
-import RoleTab from './tabs/RoleTab.vue'
-import DepartmentTab from './tabs/DepartmentTab.vue'
-import PermissionTab from './tabs/PermissionTab.vue'
-import DataPermissionTab from './tabs/DataPermissionTab.vue'
-import FieldPermissionTab from './tabs/FieldPermissionTab.vue'
-import NotificationTab from './tabs/NotificationTab.vue'
-import AuditTab from './tabs/AuditTab.vue'
-import WebhookTab from './tabs/WebhookTab.vue'
-import SystemUpdateTab from './tabs/SystemUpdateTab.vue'
-import CompanyTab from './tabs/CompanyTab.vue'
+import { ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import UserTab from './tabs/UserTab.vue';
+import RoleTab from './tabs/RoleTab.vue';
+import DepartmentTab from './tabs/DepartmentTab.vue';
+import PermissionTab from './tabs/PermissionTab.vue';
+import DataPermissionTab from './tabs/DataPermissionTab.vue';
+import FieldPermissionTab from './tabs/FieldPermissionTab.vue';
+import NotificationTab from './tabs/NotificationTab.vue';
+import AuditTab from './tabs/AuditTab.vue';
+import WebhookTab from './tabs/WebhookTab.vue';
+import SystemUpdateTab from './tabs/SystemUpdateTab.vue';
+import CompanyTab from './tabs/CompanyTab.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 当前激活的 Tab（懒加载由各子组件 onMounted 内部处理）
-const activeTab = ref('user')
+const activeTab = ref('user');
 
 // Tab 切换时仅记录当前 Tab 名；
 // 真实数据加载由各子组件内部的 onMounted 处理（拆分原则：状态本地化）。
 const handleTabChange = (tabName: string | number) => {
-  activeTab.value = String(tabName)
-}
+  activeTab.value = String(tabName);
+};
 </script>
 
 <style scoped>

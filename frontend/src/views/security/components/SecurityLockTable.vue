@@ -12,15 +12,52 @@
       </div>
     </template>
 
-    <el-table v-loading="loading" :data="data" border stripe :aria-label="t('security.lockTable.ariaLabel')">
-      <el-table-column type="index" :label="t('security.lockTable.column.index')" width="60" align="center" />
-      <el-table-column prop="username" :label="t('security.lockTable.column.username')" width="120" show-overflow-tooltip />
-      <el-table-column prop="lock_reason" :label="t('security.lockTable.column.lockReason')" min-width="200" show-overflow-tooltip />
-      <el-table-column prop="locked_at" :label="t('security.lockTable.column.lockedAt')" width="180" align="center" />
-      <el-table-column prop="unlock_at" :label="t('security.lockTable.column.unlockAt')" width="180" align="center" />
+    <el-table
+      v-loading="loading"
+      :data="data"
+      border
+      stripe
+      :aria-label="t('security.lockTable.ariaLabel')"
+    >
+      <el-table-column
+        type="index"
+        :label="t('security.lockTable.column.index')"
+        width="60"
+        align="center"
+      />
+      <el-table-column
+        prop="username"
+        :label="t('security.lockTable.column.username')"
+        width="120"
+        show-overflow-tooltip
+      />
+      <el-table-column
+        prop="lock_reason"
+        :label="t('security.lockTable.column.lockReason')"
+        min-width="200"
+        show-overflow-tooltip
+      />
+      <el-table-column
+        prop="locked_at"
+        :label="t('security.lockTable.column.lockedAt')"
+        width="180"
+        align="center"
+      />
+      <el-table-column
+        prop="unlock_at"
+        :label="t('security.lockTable.column.unlockAt')"
+        width="180"
+        align="center"
+      />
       <el-table-column :label="t('security.lockTable.column.action')" width="120" align="center">
         <template #default="{ row }">
-          <el-button type="primary" link size="small" @click="emit('unlock', row as LockedAccount)">{{ t('security.lockTable.button.unlock') }}</el-button>
+          <el-button
+            type="primary"
+            link
+            size="small"
+            @click="emit('unlock', row as LockedAccount)"
+            >{{ t('security.lockTable.button.unlock') }}</el-button
+          >
         </template>
       </el-table-column>
     </el-table>
@@ -28,13 +65,13 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import type { LockedAccount } from '@/api/security'
+import { useI18n } from 'vue-i18n';
+import type { LockedAccount } from '@/api/security';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-defineProps<{ data: LockedAccount[]; loading: boolean }>()
-const emit = defineEmits<{ unlock: [row: LockedAccount] }>()
+defineProps<{ data: LockedAccount[]; loading: boolean }>();
+const emit = defineEmits<{ unlock: [row: LockedAccount] }>();
 </script>
 
 <style scoped>

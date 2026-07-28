@@ -27,7 +27,7 @@
 //! `extract_issue_keyword`），单元测试可直接调用，避免依赖数据库。
 
 use rust_decimal::prelude::ToPrimitive;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
 use serde::{Deserialize, Serialize};
 
 use crate::models::quality_inspection_record::{
@@ -42,7 +42,7 @@ use super::{mean, AiAnalysisService};
 // =====================================================
 
 /// 质量预测请求
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct QualityPredRequest {
     /// 可选：限定产品 ID
     pub product_id: Option<i32>,
@@ -50,6 +50,16 @@ pub struct QualityPredRequest {
     pub inspection_type: Option<String>,
     /// 可选：时间窗口天数（默认 90 天，1-365）
     pub window_days: Option<i32>,
+    /// V15 P1 2.2：染料类型特征（活性/分散/酸性/还原等）
+    pub dye_type: Option<String>,
+    /// V15 P1 2.2：助剂类型特征（可选）
+    pub auxiliary_type: Option<String>,
+    /// V15 P1 2.2：温度范围特征（°C，可选，如 [60.0, 100.0] 表示 60-100°C）
+    pub temperature_range: Option<(f64, f64)>,
+    /// V15 P1 2.2：缸号特征（可选，按缸号过滤）
+    pub batch_no: Option<String>,
+    /// V15 P1 2.2：胚布来源特征（可选）
+    pub fabric_source: Option<String>,
 }
 
 /// 质量问题归因
@@ -105,6 +115,10 @@ pub struct QualityPredResponse {
     pub period_breakdown: Vec<PeriodStat>,
     /// 数据来源标识："history" | "fallback"
     pub source: String,
+    /// V15 P1 5.3：是否命中缓存（true 表示 5 分钟内相同入参已计算过）
+    pub cache_hit: bool,
+    /// V15 P1 9.1+9.5：是否为降级结果（true 表示推理超时或模型不可用时返回的兜底结果）
+    pub degraded: bool,
 }
 
 // =====================================================
@@ -132,6 +146,8 @@ pub(crate) const RISK_LEVEL_HIGH: f64 = 60.0;
 pub(crate) const RISK_LEVEL_MEDIUM: f64 = 30.0;
 /// 置信度上限对应的样本量（达到该样本数置信度封顶）
 pub(crate) const CONFIDENCE_FULL_SAMPLE: i64 = 30;
+/// V15 P1 6.2：质量预测记录上限（数据最小化，防止全表扫描 OOM）
+pub(crate) const QUALITY_RECORD_LIMIT: u64 = 50_000;
 
 /// 质量归因关键词库（中文常用术语）
 ///
@@ -312,56 +328,147 @@ fn round2(v: f64) -> f64 {
 
 impl AiAnalysisService {
     /// 质量预测主入口：标准化 → 拉取 → 聚合或退化
+    ///
+    /// V15 P1 5.2：通过 Semaphore permits=10 限制并发，防止 CPU 过载；
+    /// V15 P1 5.3：通过 moka 缓存（TTL 5min）避免相同入参重复计算；
+    /// V15 P1 5.1+9.1+9.5：通过 tokio::time::timeout（2s）包装算法执行，
+    ///   超时或模型不可用时返回降级结果（保守默认值 + degraded=true）。
     pub async fn predict_quality(
         &self,
         request: QualityPredRequest,
     ) -> Result<QualityPredResponse, AppError> {
-        let params = normalize_pred_params(request);
-
-        let records = self
-            .fetch_quality_records(
-                params.window_days,
-                params.product_id,
-                params.inspection_type.as_deref(),
-            )
-            .await?;
-
-        if (records.len() as i64) < MIN_HISTORY_RECORDS {
-            return Ok(build_fallback_response(
-                params.product_id,
-                &params.type_label,
-                params.window_days,
-            ));
+        // V15 P1 5.3：缓存键 = 入参指纹，命中时直接返回（cache_hit=true）
+        let cache_key = build_quality_cache_key(&request);
+        if let Some(mut cached) = self.quality_cache.get(&cache_key).await {
+            cached.cache_hit = true;
+            return Ok(cached);
         }
 
-        Ok(build_history_response(params, &records))
+        // V15 P1 5.2：获取并发许可，permit 在 scope 结束时自动释放
+        let _permit = self.acquire_inference_permit().await?;
+
+        let params = normalize_pred_params(request);
+
+        // V15 P1 5.1+9.5：算法执行包装在 timeout 中，超时返回降级结果
+        let timeout_dur = std::time::Duration::from_millis(super::AI_INFERENCE_TIMEOUT_MS);
+        let inference_result = tokio::time::timeout(
+            timeout_dur,
+            self.run_quality_inference(&params, cache_key.clone()),
+        )
+        .await;
+
+        match inference_result {
+            Ok(Ok(response)) => Ok(response),
+            // V15 P1 9.1：模型不可用（DB 错误等）→ 返回降级结果
+            Ok(Err(_e)) => {
+                tracing::warn!("AI 质量预测模型不可用，返回降级结果: {:?}", _e);
+                let degraded = build_degraded_response(
+                    params.product_id,
+                    &params.type_label,
+                    params.window_days,
+                    "AI 推理模型不可用，已降级为保守默认值".to_string(),
+                );
+                Ok(degraded)
+            }
+            // V15 P1 5.1+9.5：推理超时 → 返回降级结果
+            Err(_elapsed) => {
+                tracing::warn!(
+                    "AI 质量预测推理超时（>{}ms），返回降级结果",
+                    super::AI_INFERENCE_TIMEOUT_MS
+                );
+                let degraded = build_degraded_response(
+                    params.product_id,
+                    &params.type_label,
+                    params.window_days,
+                    format!(
+                        "AI 推理超时（>{}ms），已降级为保守默认值",
+                        super::AI_INFERENCE_TIMEOUT_MS
+                    ),
+                );
+                Ok(degraded)
+            }
+        }
+    }
+
+    /// V15 P1 5.1：实际算法执行（记录拉取 + 聚合 + 响应构建 + 缓存写入）
+    ///
+    /// 由 `predict_quality` 通过 `tokio::time::timeout` 包装调用，超时由外层处理。
+    async fn run_quality_inference(
+        &self,
+        params: &NormalizedPredParams,
+        cache_key: String,
+    ) -> Result<QualityPredResponse, AppError> {
+        let records = self.fetch_quality_records(params).await?;
+
+        let response = if (records.len() as i64) < MIN_HISTORY_RECORDS {
+            build_fallback_response(params.product_id, &params.type_label, params.window_days)
+        } else {
+            build_history_response((*params).clone(), &records)
+        };
+        self.quality_cache.insert(cache_key, response.clone()).await;
+        Ok(response)
     }
 
     /// 拉取指定时间窗口内的全部质量检验记录
     ///
-    /// 按 `product_id` / `inspection_type` 可选过滤；
+    /// V15 P1 2.2：按产品/检验类型/染料/助剂/温度/缸号/胚布来源可选过滤；
+    /// V15 P1 6.2：限制记录上限（QUALITY_RECORD_LIMIT）防止全表扫描 OOM；
+    /// V15 P1 6.1：返回前对 remark 字段做 PII 脱敏，避免 top_issues_json 泄露客户信息；
     /// 时间下界为 `today - window_days`。
     async fn fetch_quality_records(
         &self,
-        window_days: i32,
-        product_id: Option<i32>,
-        inspection_type: Option<&str>,
+        params: &NormalizedPredParams,
     ) -> Result<Vec<QualityInspectionModel>, AppError> {
-        let cutoff = chrono::Utc::now().date_naive() - chrono::Duration::days(window_days as i64);
+        let cutoff =
+            chrono::Utc::now().date_naive() - chrono::Duration::days(params.window_days as i64);
 
         let mut select = QualityInspectionEntity::find()
             .filter(crate::models::quality_inspection_record::Column::InspectionDate.gte(cutoff));
-        if let Some(pid) = product_id {
+        if let Some(pid) = params.product_id {
             select =
                 select.filter(crate::models::quality_inspection_record::Column::ProductId.eq(pid));
         }
-        if let Some(t) = inspection_type {
+        if let Some(t) = params.inspection_type.as_deref() {
             select = select
                 .filter(crate::models::quality_inspection_record::Column::InspectionType.eq(t));
         }
+        // V15 P1 2.2：面料行业特征过滤
+        if let Some(dye) = params.dye_type.as_deref() {
+            select =
+                select.filter(crate::models::quality_inspection_record::Column::DyeType.eq(dye));
+        }
+        if let Some(aux) = params.auxiliary_type.as_deref() {
+            select = select
+                .filter(crate::models::quality_inspection_record::Column::AuxiliaryType.eq(aux));
+        }
+        if let Some(batch) = params.batch_no.as_deref() {
+            select =
+                select.filter(crate::models::quality_inspection_record::Column::BatchNo.eq(batch));
+        }
+        if let Some(src) = params.fabric_source.as_deref() {
+            select = select
+                .filter(crate::models::quality_inspection_record::Column::FabricSource.eq(src));
+        }
+        if let Some((lo, hi)) = params.temperature_range {
+            let lo_dec = rust_decimal::Decimal::from_f64_retain(lo).unwrap_or_default();
+            let hi_dec = rust_decimal::Decimal::from_f64_retain(hi).unwrap_or_default();
+            select = select
+                .filter(crate::models::quality_inspection_record::Column::Temperature.gte(lo_dec))
+                .filter(crate::models::quality_inspection_record::Column::Temperature.lte(hi_dec));
+        }
 
-        let records = select.all(&*self.db).await?;
-        Ok(records)
+        let records = select.limit(QUALITY_RECORD_LIMIT).all(&*self.db).await?;
+        // V15 P1 6.1：对 remark 字段做 PII 脱敏（手机号/邮箱/身份证号），
+        // 关键词匹配在脱敏后的文本上执行，不影响归因准确性
+        Ok(records
+            .into_iter()
+            .map(|mut r| {
+                if let Some(remark) = r.remark.take() {
+                    r.remark = Some(crate::utils::field_mask::mask_text_pii(&remark));
+                }
+                r
+            })
+            .collect())
     }
 }
 
@@ -371,13 +478,20 @@ impl AiAnalysisService {
 
 /// `predict_quality` 入参标准化后的上下文
 ///
-/// 封装 `window_days` / `inspection_type` / `product_id` / `type_label`，
-/// 避免主函数散落 4 个局部变量；参考已有 `WageTotals` / `ApproveContext` 模式。
+/// 封装 `window_days` / `inspection_type` / `product_id` / `type_label` 及面料特征，
+/// 避免主函数散落局部变量；参考已有 `WageTotals` / `ApproveContext` 模式。
+#[derive(Clone)]
 struct NormalizedPredParams {
     window_days: i32,
     inspection_type: Option<String>,
     product_id: Option<i32>,
     type_label: String,
+    /// V15 P1 2.2：面料行业特征（染料/助剂/温度/缸号/胚布来源）
+    dye_type: Option<String>,
+    auxiliary_type: Option<String>,
+    temperature_range: Option<(f64, f64)>,
+    batch_no: Option<String>,
+    fabric_source: Option<String>,
 }
 
 /// 标准化 `predict_quality` 入参
@@ -394,11 +508,19 @@ fn normalize_pred_params(request: QualityPredRequest) -> NormalizedPredParams {
         .filter(|s| !s.is_empty());
     let product_id = request.product_id;
     let type_label = inspection_type.clone().unwrap_or_else(|| "all".to_string());
+    let trim_opt = |s: Option<String>| -> Option<String> {
+        s.map(|v| v.trim().to_string()).filter(|v| !v.is_empty())
+    };
     NormalizedPredParams {
         window_days,
         inspection_type,
         product_id,
         type_label,
+        dye_type: trim_opt(request.dye_type),
+        auxiliary_type: trim_opt(request.auxiliary_type),
+        temperature_range: request.temperature_range.filter(|(lo, hi)| lo <= hi),
+        batch_no: trim_opt(request.batch_no),
+        fabric_source: trim_opt(request.fabric_source),
     }
 }
 
@@ -426,6 +548,39 @@ fn build_fallback_response(
         recommendations,
         period_breakdown: Vec::new(),
         source: "fallback".to_string(),
+        cache_hit: false,
+        degraded: false,
+    }
+}
+
+/// V15 P1 9.1+9.5：构造推理超时/模型不可用时的降级响应
+///
+/// 与 `build_fallback_response` 区别：本函数用于异常场景（非算法退化），
+/// `degraded=true` 标识前端可展示"AI 服务降级"提示，source="degraded"。
+fn build_degraded_response(
+    product_id: Option<i32>,
+    type_label: &str,
+    window_days: i32,
+    _reason: String,
+) -> QualityPredResponse {
+    let recommendations = build_recommendations("中");
+    QualityPredResponse {
+        product_id,
+        inspection_type: type_label.to_string(),
+        window_days,
+        total_inspections: 0,
+        avg_qualification_rate: FALLBACK_QUALIFICATION_RATE,
+        trend: "无数据".to_string(),
+        trend_rate: 0.0,
+        risk_score: 30,
+        risk_level: "中".to_string(),
+        confidence: FALLBACK_CONFIDENCE,
+        top_issues: Vec::new(),
+        recommendations,
+        period_breakdown: Vec::new(),
+        source: "degraded".to_string(),
+        cache_hit: false,
+        degraded: true,
     }
 }
 
@@ -458,7 +613,31 @@ fn build_history_response(
         recommendations,
         period_breakdown,
         source: "history".to_string(),
+        cache_hit: false,
+        degraded: false,
     }
+}
+
+/// V15 P1 5.3：构建质量预测缓存键（入参指纹）
+///
+/// 由 product_id/inspection_type/window_days/dye_type/auxiliary_type/temperature_range/batch_no/fabric_source
+/// 拼接而成，相同入参 5 分钟内命中缓存。
+fn build_quality_cache_key(request: &QualityPredRequest) -> String {
+    let temp_range = request
+        .temperature_range
+        .map(|(lo, hi)| format!("{}_{}", lo, hi))
+        .unwrap_or_else(|| "none".to_string());
+    format!(
+        "quality_pred:{}|{}|{}|{}|{}|{}|{}|{}",
+        request.product_id.unwrap_or(0),
+        request.inspection_type.as_deref().unwrap_or("all"),
+        request.window_days.unwrap_or(90),
+        request.dye_type.as_deref().unwrap_or(""),
+        request.auxiliary_type.as_deref().unwrap_or(""),
+        temp_range,
+        request.batch_no.as_deref().unwrap_or(""),
+        request.fabric_source.as_deref().unwrap_or(""),
+    )
 }
 
 /// 按月分段统计
@@ -507,9 +686,7 @@ fn compute_recent_trend(records: &[QualityInspectionModel]) -> (String, f64, boo
     let previous_avg = mean_qualification_rate(
         &records
             .iter()
-            .filter(|r| {
-                r.inspection_date >= previous_cutoff && r.inspection_date < recent_cutoff
-            })
+            .filter(|r| r.inspection_date >= previous_cutoff && r.inspection_date < recent_cutoff)
             .cloned()
             .collect::<Vec<_>>(),
     );
@@ -613,6 +790,11 @@ mod tests {
             grade: None,
             color_no: None,
             dye_lot_no: None,
+            // V15 P1 2.2：面料行业特征字段（测试夹具不涉及，使用 None）
+            dye_type: None,
+            auxiliary_type: None,
+            temperature: None,
+            fabric_source: None,
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
         }

@@ -159,66 +159,66 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { ref, reactive, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
+import { Plus } from '@element-plus/icons-vue';
 import {
   getTradingPriceList,
   getTradingPrice,
   createTradingPrice,
   updateTradingPrice,
   type TradingPrice,
-} from '@/api/trading-price'
+} from '@/api/trading-price';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const purchasePrices = ref<TradingPrice[]>([])
-const purchasePriceLoading = ref(false)
+const purchasePrices = ref<TradingPrice[]>([]);
+const purchasePriceLoading = ref(false);
 
 const formatMoney = (amount: number | undefined) => {
-  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00'
-}
+  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00';
+};
 
 /** 采购价格状态 → i18n 标签（语言切换响应） */
 const getPriceStatusLabel = (status: string): string => {
   switch (status) {
     case 'active':
-      return t('trading.purchasePriceTab.statusActive')
+      return t('trading.purchasePriceTab.statusActive');
     case 'inactive':
-      return t('trading.purchasePriceTab.statusInactive')
+      return t('trading.purchasePriceTab.statusInactive');
     default:
-      return status
+      return status;
   }
-}
+};
 
 const fetchPurchasePrices = async () => {
-  purchasePriceLoading.value = true
+  purchasePriceLoading.value = true;
   try {
-    const res = await getTradingPriceList({ type: 'purchase' })
+    const res = await getTradingPriceList({ type: 'purchase' });
     const d = res.data as
       | { list?: TradingPrice[]; items?: TradingPrice[] }
       | TradingPrice[]
-      | undefined
+      | undefined;
     if (d && typeof d === 'object' && !Array.isArray(d)) {
-      purchasePrices.value = d.list || d.items || []
+      purchasePrices.value = d.list || d.items || [];
     } else {
-      purchasePrices.value = (d as TradingPrice[]) || []
+      purchasePrices.value = (d as TradingPrice[]) || [];
     }
   } catch (e) {
-    const err = e as { message?: string }
-    ElMessage.error(err.message || t('trading.purchasePriceTab.messageFetchFailed'))
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('trading.purchasePriceTab.messageFetchFailed'));
   } finally {
-    purchasePriceLoading.value = false
+    purchasePriceLoading.value = false;
   }
-}
+};
 
 // 批次 157c P1-1 修复：采购价格编辑/新建对话框接入 updateTradingPrice/createTradingPrice
-const priceDialogVisible = ref(false)
-const priceSubmitting = ref(false)
-const priceDialogTitle = ref(t('trading.purchasePriceTab.dialogTitleCreate'))
-const priceFormRef = ref<FormInstance>()
-const priceEditingId = ref<number | null>(null)
+const priceDialogVisible = ref(false);
+const priceSubmitting = ref(false);
+const priceDialogTitle = ref(t('trading.purchasePriceTab.dialogTitleCreate'));
+const priceFormRef = ref<FormInstance>();
+const priceEditingId = ref<number | null>(null);
 const priceForm = reactive<Omit<TradingPrice, 'id'>>({
   product_name: '',
   supplier_name: '',
@@ -228,7 +228,7 @@ const priceForm = reactive<Omit<TradingPrice, 'id'>>({
   effective_date: new Date().toISOString().slice(0, 10),
   expiry_date: '',
   status: 'active',
-})
+});
 const priceRules: FormRules = {
   product_name: [
     { required: true, message: t('trading.purchasePriceTab.validateProductName'), trigger: 'blur' },
@@ -250,78 +250,78 @@ const priceRules: FormRules = {
   status: [
     { required: true, message: t('trading.purchasePriceTab.validateStatus'), trigger: 'change' },
   ],
-}
+};
 
 const resetPriceForm = () => {
-  priceEditingId.value = null
-  priceForm.product_name = ''
-  priceForm.supplier_name = ''
-  priceForm.price = 0
-  priceForm.currency = 'CNY'
-  priceForm.unit = t('trading.purchasePriceTab.defaultUnit')
-  priceForm.effective_date = new Date().toISOString().slice(0, 10)
-  priceForm.expiry_date = ''
-  priceForm.status = 'active'
-}
+  priceEditingId.value = null;
+  priceForm.product_name = '';
+  priceForm.supplier_name = '';
+  priceForm.price = 0;
+  priceForm.currency = 'CNY';
+  priceForm.unit = t('trading.purchasePriceTab.defaultUnit');
+  priceForm.effective_date = new Date().toISOString().slice(0, 10);
+  priceForm.expiry_date = '';
+  priceForm.status = 'active';
+};
 
 const openPurchasePriceDialog = async (row?: TradingPrice) => {
-  resetPriceForm()
+  resetPriceForm();
   if (row) {
     try {
-      const res = await getTradingPrice(row.id)
-      const d = res.data
+      const res = await getTradingPrice(row.id);
+      const d = res.data;
       if (d) {
-        priceEditingId.value = d.id
-        priceForm.product_name = d.product_name
-        priceForm.supplier_name = d.supplier_name || ''
-        priceForm.price = d.price
-        priceForm.currency = d.currency
-        priceForm.unit = d.unit
-        priceForm.effective_date = d.effective_date
-        priceForm.expiry_date = d.expiry_date || ''
-        priceForm.status = d.status
+        priceEditingId.value = d.id;
+        priceForm.product_name = d.product_name;
+        priceForm.supplier_name = d.supplier_name || '';
+        priceForm.price = d.price;
+        priceForm.currency = d.currency;
+        priceForm.unit = d.unit;
+        priceForm.effective_date = d.effective_date;
+        priceForm.expiry_date = d.expiry_date || '';
+        priceForm.status = d.status;
       }
-      priceDialogTitle.value = t('trading.purchasePriceTab.dialogTitleEdit')
+      priceDialogTitle.value = t('trading.purchasePriceTab.dialogTitleEdit');
     } catch (e) {
-      const err = e as { message?: string }
-      ElMessage.error(err.message || t('trading.purchasePriceTab.messageFetchDetailFailed'))
-      return
+      const err = e as { message?: string };
+      ElMessage.error(err.message || t('trading.purchasePriceTab.messageFetchDetailFailed'));
+      return;
     }
   } else {
-    priceDialogTitle.value = t('trading.purchasePriceTab.dialogTitleCreate')
+    priceDialogTitle.value = t('trading.purchasePriceTab.dialogTitleCreate');
   }
-  priceDialogVisible.value = true
-}
+  priceDialogVisible.value = true;
+};
 
 const onSubmitPrice = async () => {
-  if (!priceFormRef.value) return
+  if (!priceFormRef.value) return;
   await priceFormRef.value.validate(async valid => {
-    if (!valid) return
-    priceSubmitting.value = true
+    if (!valid) return;
+    priceSubmitting.value = true;
     try {
       if (priceEditingId.value !== null) {
-        await updateTradingPrice(priceEditingId.value, { ...priceForm })
-        ElMessage.success(t('trading.purchasePriceTab.messageUpdateSuccess'))
+        await updateTradingPrice(priceEditingId.value, { ...priceForm });
+        ElMessage.success(t('trading.purchasePriceTab.messageUpdateSuccess'));
       } else {
-        await createTradingPrice({ ...priceForm, type: 'purchase' })
-        ElMessage.success(t('trading.purchasePriceTab.messageCreateSuccess'))
+        await createTradingPrice({ ...priceForm, type: 'purchase' });
+        ElMessage.success(t('trading.purchasePriceTab.messageCreateSuccess'));
       }
-      priceDialogVisible.value = false
-      fetchPurchasePrices()
+      priceDialogVisible.value = false;
+      fetchPurchasePrices();
     } catch (e) {
-      const err = e as { message?: string }
-      ElMessage.error(err.message || t('trading.purchasePriceTab.messageOperationFailed'))
+      const err = e as { message?: string };
+      ElMessage.error(err.message || t('trading.purchasePriceTab.messageOperationFailed'));
     } finally {
-      priceSubmitting.value = false
+      priceSubmitting.value = false;
     }
-  })
-}
+  });
+};
 
-defineExpose({ refresh: fetchPurchasePrices })
+defineExpose({ refresh: fetchPurchasePrices });
 
 onMounted(() => {
-  fetchPurchasePrices()
-})
+  fetchPurchasePrices();
+});
 </script>
 
 <style scoped>

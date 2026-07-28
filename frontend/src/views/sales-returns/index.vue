@@ -46,24 +46,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
-import { useI18n } from 'vue-i18n'
-import type { FormRules } from 'element-plus'
-import type { SalesReturn } from '@/api/sales-return'
-import { useSr } from './composables/useSr'
-import { useSrProc } from './composables/useSrProc'
-import ReturnsTable from './components/ReturnsTable.vue'
-import ReturnDetailDialog from './components/ReturnDetailDialog.vue'
-import ReturnEditDialog from './components/ReturnEditDialog.vue'
+import { ref, onMounted, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+import type { FormRules } from 'element-plus';
+import type { SalesReturn } from '@/api/sales-return';
+import { useSr } from './composables/useSr';
+import { useSrProc } from './composables/useSrProc';
+import ReturnsTable from './components/ReturnsTable.vue';
+import ReturnDetailDialog from './components/ReturnDetailDialog.vue';
+import ReturnEditDialog from './components/ReturnEditDialog.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const sr = useSr()
-const srProc = useSrProc(sr)
+const sr = useSr();
+const srProc = useSrProc(sr);
 
-const editDialogVisible = ref(false)
-const dialogMode = ref<'create' | 'edit'>('create')
-const submitLoading = ref(false)
+const editDialogVisible = ref(false);
+const dialogMode = ref<'create' | 'edit'>('create');
+const submitLoading = ref(false);
 
 const formRules = computed<FormRules>(() => ({
   salesOrderId: [
@@ -78,36 +78,36 @@ const formRules = computed<FormRules>(() => ({
   reason: [
     { required: true, message: t('salesReturns.index.ruleReasonRequired'), trigger: 'change' },
   ],
-}))
+}));
 
 const onCreate = () => {
-  dialogMode.value = 'create'
-  srProc.handleCreate()
-  editDialogVisible.value = true
-}
+  dialogMode.value = 'create';
+  srProc.handleCreate();
+  editDialogVisible.value = true;
+};
 
 const onEdit = (row: SalesReturn) => {
-  dialogMode.value = 'edit'
-  srProc.handleEdit(row)
-  editDialogVisible.value = true
-}
+  dialogMode.value = 'edit';
+  srProc.handleEdit(row);
+  editDialogVisible.value = true;
+};
 
 const onSubmit = async () => {
-  submitLoading.value = true
+  submitLoading.value = true;
   try {
-    const ok = await srProc.handleSubmit(dialogMode.value)
+    const ok = await srProc.handleSubmit(dialogMode.value);
     if (ok) {
-      editDialogVisible.value = false
-      await sr.loadReturns()
+      editDialogVisible.value = false;
+      await sr.loadReturns();
     }
   } finally {
-    submitLoading.value = false
+    submitLoading.value = false;
   }
-}
+};
 
 onMounted(() => {
-  sr.initLoad()
-})
+  sr.initLoad();
+});
 </script>
 
 <style scoped>

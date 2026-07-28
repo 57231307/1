@@ -12,17 +12,13 @@ use axum::{
 };
 use serde::Deserialize;
 
-use crate::models::{
-    chemical_category, chemical_lot, chemical_master, chemical_requisition,
-};
+use crate::models::{chemical_category, chemical_lot, chemical_master, chemical_requisition};
 use crate::services::chemical_service::{
-    ChemicalCategoryService, ChemicalLotService, ChemicalMasterService,
-    ChemicalRequisitionService,
-    ChemicalCategoryQuery, ChemicalLotQuery, ChemicalMasterQuery, ChemicalRequisitionQuery,
-    CreateChemicalCategoryRequest, CreateChemicalLotRequest,
-    CreateChemicalMasterRequest, CreateChemicalRequisitionRequest,
-    UpdateChemicalCategoryRequest, UpdateChemicalLotRequest,
-    UpdateChemicalMasterRequest, UpdateChemicalRequisitionRequest,
+    ChemicalCategoryQuery, ChemicalCategoryService, ChemicalLotQuery, ChemicalLotService,
+    ChemicalMasterQuery, ChemicalMasterService, ChemicalRequisitionQuery,
+    ChemicalRequisitionService, CreateChemicalCategoryRequest, CreateChemicalLotRequest,
+    CreateChemicalMasterRequest, CreateChemicalRequisitionRequest, UpdateChemicalCategoryRequest,
+    UpdateChemicalLotRequest, UpdateChemicalMasterRequest, UpdateChemicalRequisitionRequest,
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;

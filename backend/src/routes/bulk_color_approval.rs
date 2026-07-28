@@ -56,8 +56,5 @@ pub fn routes() -> Router<AppState> {
             "/:id/downgrade",
             post(bulk_color_approval_handler::downgrade),
         )
-        .route(
-            "/:id/scrap",
-            post(bulk_color_approval_handler::scrap),
-        )
+        .route("/:id/scrap", post(bulk_color_approval_handler::scrap))
 }

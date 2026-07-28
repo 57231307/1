@@ -76,11 +76,11 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import type { VoucherEntity } from '@/api/voucher'
-import { getStatusClass } from '../composables/vchrLstFmts'
+import { useI18n } from 'vue-i18n';
+import type { VoucherEntity } from '@/api/voucher';
+import { getStatusClass } from '../composables/vchrLstFmts';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 /**
  * 凭证详情对话框组件
@@ -88,15 +88,15 @@ const { t } = useI18n({ useScope: 'global' })
  */
 const props = defineProps<{
   // 对话框可见性
-  visible: boolean
+  visible: boolean;
   // 当前凭证详情
-  viewData: VoucherEntity | null
-}>()
+  viewData: VoucherEntity | null;
+}>();
 
 const emit = defineEmits<{
   // 关闭对话框
-  'update:visible': [v: boolean]
-}>()
+  'update:visible': [v: boolean];
+}>();
 
 /** 状态 → 国际化标签（语言切换时响应式刷新） */
 const getStatusLabel = (value: string) => {
@@ -104,20 +104,20 @@ const getStatusLabel = (value: string) => {
     draft: t('voucher.voucherListDetail.statusDraft'),
     approved: t('voucher.voucherListDetail.statusApproved'),
     posted: t('voucher.voucherListDetail.statusPosted'),
-  }
-  return map[value] || value
-}
+  };
+  return map[value] || value;
+};
 
 /** 凭证类型 → 国际化标签 */
 const getTypeLabel = (type: string) => {
   const map: Record<string, string> = {
     general: t('voucher.voucherListDetail.typeGeneral'),
     customized: t('voucher.voucherListDetail.typeCustomized'),
-  }
-  return map[type] || type
-}
+  };
+  return map[type] || type;
+};
 
-void props
+void props;
 </script>
 
 <style scoped>

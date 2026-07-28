@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 色卡发放记录 Model（V15 P0-F04 创建）
 //!
 //! 替代旧 color_card_borrow_records（已重命名为 _legacy）
@@ -27,6 +28,8 @@ pub struct Model {
     pub compensation_amount: Option<Decimal>,
     pub returned_by: Option<i64>,
     pub dye_lot_no: Option<String>,
+    /// V15 P1 10.3-1：关联销售订单 ID（NULL=非订单驱动发放，非 NULL=订单驱动发放）
+    pub sales_order_id: Option<i64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub is_deleted: bool,

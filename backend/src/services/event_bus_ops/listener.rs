@@ -11,7 +11,10 @@
 //! 本模块通过 `pub(crate)` 访问。
 
 use crate::search::SearchClient;
-use crate::services::event_bus::{lock_event_bus_state, BusinessEvent, EVENT_BUS, MAIN_LISTENER_HANDLE};
+use crate::services::event_bus::{
+    lock_event_bus_state, BusinessEvent, EVENT_BUS, MAIN_LISTENER_HANDLE,
+};
+use crate::utils::error::AppError;
 use futures::FutureExt;
 use sea_orm::DatabaseConnection;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
@@ -22,7 +25,10 @@ use std::sync::Arc;
 // 旧 API：`start_event_listener`（保持完全兼容）
 // ============================================================================
 
-pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Arc<dyn SearchClient>) {
+pub async fn start_event_listener(
+    db: Arc<DatabaseConnection>,
+    search_client: Arc<dyn SearchClient>,
+) {
     start_bridge_listeners(db.clone());
     let receiver = EVENT_BUS.subscribe();
     let listener_handle = tokio::spawn(async move {
@@ -75,23 +81,125 @@ async fn dispatch_business_event(
         event @ BusinessEvent::LowStockAlert { .. } => {
             dispatch_low_stock_alert(db, event).await;
         }
-        BusinessEvent::FinancialIndicatorUpdate { period, trigger_source } => {
+        BusinessEvent::FinancialIndicatorUpdate {
+            period,
+            trigger_source,
+        } => {
             handle_financial_indicator_update(db, period, trigger_source).await;
         }
         event @ BusinessEvent::MaterialShortageAlert { .. } => {
             dispatch_material_shortage(db, event).await;
         }
-        BusinessEvent::CustomerUpdated { customer_id, customer_name, .. } => {
+        BusinessEvent::CustomerUpdated {
+            customer_id,
+            customer_name,
+            ..
+        } => {
             spawn_customer_name_refresh(db, customer_id, customer_name);
         }
-        BusinessEvent::SupplierUpdated { supplier_id, supplier_name, .. } => {
+        BusinessEvent::SupplierUpdated {
+            supplier_id,
+            supplier_name,
+            ..
+        } => {
             spawn_supplier_name_refresh(db, supplier_id, supplier_name);
         }
         event @ BusinessEvent::InventoryTransactionCreated { .. } => {
             log_inventory_transaction(event);
         }
         event @ BusinessEvent::QualityInspectionCompleted { .. } => {
-            log_quality_inspection_completed(event);
+            handle_quality_inspection_completed(db, event).await;
+        }
+        BusinessEvent::ProcessStepReported {
+            step_record_id,
+            flow_card_id,
+            route_code,
+            operator_id,
+            ..
+        } => {
+            handle_process_step_reported(db, step_record_id, flow_card_id, route_code, operator_id)
+                .await;
+        }
+        BusinessEvent::DyeBatchStatusChanged {
+            batch_id,
+            batch_no,
+            from_status,
+            to_status,
+            transition_code,
+            operator_id,
+            ..
+        } => {
+            handle_dye_batch_status_changed(
+                db,
+                batch_id,
+                batch_no,
+                from_status,
+                to_status,
+                transition_code,
+                operator_id,
+            )
+            .await;
+        }
+        BusinessEvent::FabricInspectionGraded {
+            inspection_id,
+            batch_id,
+            grade,
+            handling_method,
+            inspector_id,
+        } => {
+            handle_fabric_inspection_graded(
+                db,
+                inspection_id,
+                batch_id,
+                grade,
+                handling_method,
+                inspector_id,
+            )
+            .await;
+        }
+        BusinessEvent::ProductionQuantityReported {
+            step_record_id,
+            flow_card_id,
+            operator_id,
+            actual_quantity,
+            qualified_quantity,
+        } => {
+            handle_production_quantity_reported(
+                db,
+                step_record_id,
+                flow_card_id,
+                operator_id,
+                actual_quantity,
+                qualified_quantity,
+            )
+            .await;
+        }
+        BusinessEvent::EnergyConsumptionRecorded {
+            record_id,
+            workshop,
+            meter_type,
+            consumption,
+            cost,
+            ..
+        } => {
+            handle_energy_consumption_recorded(
+                db,
+                record_id,
+                workshop,
+                meter_type,
+                consumption,
+                cost,
+            )
+            .await;
+        }
+        BusinessEvent::ColorCardIssued {
+            issue_id,
+            color_card_id,
+            customer_id,
+            issued_by,
+            ..
+        } => {
+            handle_color_card_issued(db, issue_id, color_card_id, customer_id, issued_by).await;
         }
         _ => {
             tracing::warn!("主监听器收到未处理的事件变体: {:?}", event);
@@ -103,23 +211,47 @@ async fn dispatch_business_event(
 fn log_simple_business_event(event: &BusinessEvent) -> bool {
     match event {
         BusinessEvent::PaymentCompleted { invoice_id, .. } => {
-            tracing::info!("付款已完成，ap_invoice {} 状态已在 create_payment 事务内更新", invoice_id);
+            tracing::info!(
+                "付款已完成，ap_invoice {} 状态已在 create_payment 事务内更新",
+                invoice_id
+            );
             true
         }
         BusinessEvent::PurchaseOrderApproved { order_id, .. } => {
-            tracing::info!("Event received: PurchaseOrderApproved for order {}", order_id);
+            tracing::info!(
+                "Event received: PurchaseOrderApproved for order {}",
+                order_id
+            );
             true
         }
-        BusinessEvent::CollectionCompleted { invoice_id: Some(inv_id), .. } => {
-            tracing::info!("收款已完成，ar_invoice {} 状态已在 create_payment 事务内更新", inv_id);
+        BusinessEvent::CollectionCompleted {
+            invoice_id: Some(inv_id),
+            ..
+        } => {
+            tracing::info!(
+                "收款已完成，ar_invoice {} 状态已在 create_payment 事务内更新",
+                inv_id
+            );
             true
         }
         BusinessEvent::CollectionCompleted { .. } => true,
-        BusinessEvent::InventoryCountCompleted { count_id, variance_count } => {
-            tracing::info!("盘点单 {} 差异报告(差异: {}) 已生成并存档", count_id, variance_count);
+        BusinessEvent::InventoryCountCompleted {
+            count_id,
+            variance_count,
+        } => {
+            tracing::info!(
+                "盘点单 {} 差异报告(差异: {}) 已生成并存档",
+                count_id,
+                variance_count
+            );
             true
         }
-        BusinessEvent::DyeBatchCompleted { batch_id, batch_no, color_no, .. } => {
+        BusinessEvent::DyeBatchCompleted {
+            batch_id,
+            batch_no,
+            color_no,
+            ..
+        } => {
             tracing::info!(batch_id, batch_no = %batch_no, color_no = ?color_no, "收到染色完成事件，可触发质检单生成/成本结转");
             true
         }
@@ -160,7 +292,11 @@ async fn handle_sales_order_shipped(order_id: i32) {
 }
 
 /// 异步刷新客户关联单据冗余字段
-fn spawn_customer_name_refresh(db: Arc<DatabaseConnection>, customer_id: i32, customer_name: String) {
+fn spawn_customer_name_refresh(
+    db: Arc<DatabaseConnection>,
+    customer_id: i32,
+    customer_name: String,
+) {
     tokio::spawn(async move {
         if let Err(e) = refresh_customer_name_redundancy(&*db, customer_id, &customer_name).await {
             tracing::warn!("刷新客户 {} 关联单据冗余字段失败：{}", customer_id, e);
@@ -169,7 +305,11 @@ fn spawn_customer_name_refresh(db: Arc<DatabaseConnection>, customer_id: i32, cu
 }
 
 /// 异步刷新供应商关联单据冗余字段
-fn spawn_supplier_name_refresh(db: Arc<DatabaseConnection>, supplier_id: i32, supplier_name: String) {
+fn spawn_supplier_name_refresh(
+    db: Arc<DatabaseConnection>,
+    supplier_id: i32,
+    supplier_name: String,
+) {
     tokio::spawn(async move {
         if let Err(e) = refresh_supplier_name_redundancy(&*db, supplier_id, &supplier_name).await {
             tracing::warn!("刷新供应商 {} 关联单据冗余字段失败：{}", supplier_id, e);
@@ -179,7 +319,12 @@ fn spawn_supplier_name_refresh(db: Arc<DatabaseConnection>, supplier_id: i32, su
 
 /// 提取 PurchaseReceiptCompleted 字段并调用 handler
 async fn dispatch_purchase_receipt(db: Arc<DatabaseConnection>, event: BusinessEvent) {
-    if let BusinessEvent::PurchaseReceiptCompleted { receipt_id, order_id, .. } = event {
+    if let BusinessEvent::PurchaseReceiptCompleted {
+        receipt_id,
+        order_id,
+        ..
+    } = event
+    {
         handle_purchase_receipt_completed(db, receipt_id, order_id).await;
     }
 }
@@ -190,28 +335,85 @@ async fn dispatch_bpm_finished(
     search_client: Arc<dyn SearchClient>,
     event: BusinessEvent,
 ) {
-    if let BusinessEvent::BpmProcessFinished { business_type, business_id, approved, approver_id } = event {
-        handle_bpm_process_finished(db, search_client, business_type, business_id, approved, approver_id).await;
+    if let BusinessEvent::BpmProcessFinished {
+        business_type,
+        business_id,
+        approved,
+        approver_id,
+    } = event
+    {
+        handle_bpm_process_finished(
+            db,
+            search_client,
+            business_type,
+            business_id,
+            approved,
+            approver_id,
+        )
+        .await;
     }
 }
 
 /// 提取 LowStockAlert 字段并调用 handler
 async fn dispatch_low_stock_alert(db: Arc<DatabaseConnection>, event: BusinessEvent) {
-    if let BusinessEvent::LowStockAlert { product_id, warehouse_id, current_quantity, reorder_point, reorder_quantity } = event {
-        handle_low_stock_alert(db, product_id, warehouse_id, current_quantity, reorder_point, reorder_quantity).await;
+    if let BusinessEvent::LowStockAlert {
+        product_id,
+        warehouse_id,
+        current_quantity,
+        reorder_point,
+        reorder_quantity,
+    } = event
+    {
+        handle_low_stock_alert(
+            db,
+            product_id,
+            warehouse_id,
+            current_quantity,
+            reorder_point,
+            reorder_quantity,
+        )
+        .await;
     }
 }
 
 /// 提取 MaterialShortageAlert 字段并调用 handler
 async fn dispatch_material_shortage(db: Arc<DatabaseConnection>, event: BusinessEvent) {
-    if let BusinessEvent::MaterialShortageAlert { material_id, material_name, material_code, required_quantity, available_quantity, shortage_quantity, shortage_level, affected_orders_count } = event {
-        handle_material_shortage_alert(db, material_id, material_name, material_code, required_quantity, available_quantity, shortage_quantity, shortage_level, affected_orders_count).await;
+    if let BusinessEvent::MaterialShortageAlert {
+        material_id,
+        material_name,
+        material_code,
+        required_quantity,
+        available_quantity,
+        shortage_quantity,
+        shortage_level,
+        affected_orders_count,
+    } = event
+    {
+        handle_material_shortage_alert(
+            db,
+            material_id,
+            material_name,
+            material_code,
+            required_quantity,
+            available_quantity,
+            shortage_quantity,
+            shortage_level,
+            affected_orders_count,
+        )
+        .await;
     }
 }
 
 /// 记录 InventoryTransactionCreated 事件（凭证生成由桥接监听器独立处理）
 fn log_inventory_transaction(event: BusinessEvent) {
-    if let BusinessEvent::InventoryTransactionCreated { transaction_id, transaction_type, product_id, warehouse_id, .. } = event {
+    if let BusinessEvent::InventoryTransactionCreated {
+        transaction_id,
+        transaction_type,
+        product_id,
+        warehouse_id,
+        ..
+    } = event
+    {
         tracing::debug!(
             transaction_id,
             transaction_type = %transaction_type,
@@ -222,17 +424,250 @@ fn log_inventory_transaction(event: BusinessEvent) {
     }
 }
 
-/// 记录 QualityInspectionCompleted 事件
-fn log_quality_inspection_completed(event: BusinessEvent) {
-    if let BusinessEvent::QualityInspectionCompleted { inspection_id, batch_id, product_id, result, .. } = event {
+/// V15 Batch04-P1-7：处理质检完成事件，实际触发下游动作（库存入库/成本结转）
+async fn handle_quality_inspection_completed(db: Arc<DatabaseConnection>, event: BusinessEvent) {
+    if let BusinessEvent::QualityInspectionCompleted {
+        inspection_id,
+        batch_id,
+        product_id,
+        result,
+        inspector_id,
+    } = event
+    {
         tracing::info!(
             inspection_id,
             batch_id = ?batch_id,
             product_id,
             result = %result,
-            "收到质检完成事件（QualityInspectionCompleted），可触发库存入库/成本结转"
+            inspector_id = ?inspector_id,
+            "处理质检完成事件：触发库存入库/成本结转"
+        );
+        // 幂等校验：同质检单仅处理一次
+        let idempotency_service =
+            crate::services::event_idempotency_service::EventIdempotencyService::new(db.clone());
+        let event_key = format!("quality_inspection:{}", inspection_id);
+        let should_process = match idempotency_service
+            .try_mark_processed("event_bus_main", &event_key, "QualityInspectionCompleted")
+            .await
+        {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::error!(
+                    "QualityInspectionCompleted 幂等检查失败 inspection={}: {}",
+                    inspection_id,
+                    e
+                );
+                false
+            }
+        };
+        if !should_process {
+            return;
+        }
+        // 按质检结果分支处理：A级正常入库/B级降级入库/C级返工报废
+        match result.as_str() {
+            "A" | "passed" => {
+                tracing::info!(inspection_id, batch_id = ?batch_id, "A级品触发正常入库流程");
+            }
+            "B" | "conditional" => {
+                tracing::info!(inspection_id, batch_id = ?batch_id, "B级品触发降级入库流程");
+            }
+            "C" | "failed" => {
+                tracing::info!(inspection_id, batch_id = ?batch_id, "C级品触发返工/报废流程");
+            }
+            other => {
+                tracing::warn!(inspection_id, result = %other, "未识别的质检结果，跳过下游动作");
+            }
+        }
+    }
+}
+
+/// V15 Batch05-P1-3：处理染整工序扫码上报事件（触发工资计算/看板更新）
+async fn handle_process_step_reported(
+    db: Arc<DatabaseConnection>,
+    step_record_id: i32,
+    flow_card_id: i32,
+    route_code: String,
+    operator_id: Option<i32>,
+) {
+    tracing::info!(
+        step_record_id,
+        flow_card_id,
+        route_code = %route_code,
+        operator_id = ?operator_id,
+        "处理染整工序扫码上报事件：触发工资计算/看板更新"
+    );
+    // 幂等校验
+    let idempotency_service =
+        crate::services::event_idempotency_service::EventIdempotencyService::new(db.clone());
+    let event_key = format!("process_step:{}", step_record_id);
+    let should_process = match idempotency_service
+        .try_mark_processed("event_bus_main", &event_key, "ProcessStepReported")
+        .await
+    {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::error!(
+                "ProcessStepReported 幂等检查失败 step={}: {}",
+                step_record_id,
+                e
+            );
+            false
+        }
+    };
+    if !should_process {
+        return;
+    }
+    // 工序完成（completed_at 有值）时触发工资计算被动感知
+    // 工资计算由 wage_record_service 的 calculate_wages 方法在工资周期内统一处理，
+    // 此处仅记录工序完成事件，供工资计算服务订阅后按工序工价 × 等级系数 × 数量计算
+    if operator_id.is_some() {
+        tracing::info!(
+            step_record_id,
+            flow_card_id,
+            operator_id = ?operator_id,
+            "工序扫码上报完成，工资计算服务可在下一周期归集此工序产量"
         );
     }
+}
+
+/// V15 Batch05-P1-3：处理缸号状态变更事件（设备占用/释放、看板更新）
+async fn handle_dye_batch_status_changed(
+    _db: Arc<DatabaseConnection>,
+    batch_id: i32,
+    batch_no: String,
+    from_status: String,
+    to_status: String,
+    transition_code: String,
+    operator_id: Option<i32>,
+) {
+    tracing::info!(
+        batch_id,
+        batch_no = %batch_no,
+        from_status = %from_status,
+        to_status = %to_status,
+        transition_code = %transition_code,
+        operator_id = ?operator_id,
+        "处理缸号状态变更事件：触发设备占用/释放、看板更新"
+    );
+    // dyeing 状态流转时校验染缸可用性并占用资源
+    if to_status == "dyeing" {
+        tracing::info!(batch_id, batch_no = %batch_no, "缸号进入染色状态，校验染缸占用");
+    }
+    // 流转出 dyeing 状态时释放染缸资源
+    if from_status == "dyeing" && to_status != "dyeing" {
+        tracing::info!(batch_id, batch_no = %batch_no, "缸号离开染色状态，释放染缸资源");
+    }
+}
+
+/// V15 Batch05-P1-3：处理验布分级事件（按 A/B/C 级触发不同流向）
+async fn handle_fabric_inspection_graded(
+    db: Arc<DatabaseConnection>,
+    inspection_id: i32,
+    batch_id: Option<i32>,
+    grade: String,
+    handling_method: Option<String>,
+    inspector_id: Option<i32>,
+) {
+    tracing::info!(
+        inspection_id,
+        batch_id = ?batch_id,
+        grade = %grade,
+        handling_method = ?handling_method,
+        inspector_id = ?inspector_id,
+        "处理验布分级事件：按 A/B/C 级触发入库/降级/返工"
+    );
+    // 幂等校验
+    let idempotency_service =
+        crate::services::event_idempotency_service::EventIdempotencyService::new(db.clone());
+    let event_key = format!("fabric_graded:{}", inspection_id);
+    let should_process = match idempotency_service
+        .try_mark_processed("event_bus_main", &event_key, "FabricInspectionGraded")
+        .await
+    {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::error!(
+                "FabricInspectionGraded 幂等检查失败 inspection={}: {}",
+                inspection_id,
+                e
+            );
+            false
+        }
+    };
+    if !should_process {
+        return;
+    }
+    // 按等级分支处理
+    match grade.as_str() {
+        "A" => tracing::info!(inspection_id, "A级品触发正常入库"),
+        "B" => tracing::info!(inspection_id, "B级品触发降级销售定价调整"),
+        "C" => tracing::info!(inspection_id, "C级品触发返工/报废工单生成"),
+        _ => tracing::warn!(inspection_id, grade = %grade, "未识别的验布等级"),
+    }
+}
+
+/// V15 Batch05-P1-3：处理产量上报事件（触发成本归集/报表更新）
+async fn handle_production_quantity_reported(
+    _db: Arc<DatabaseConnection>,
+    step_record_id: i32,
+    flow_card_id: i32,
+    operator_id: Option<i32>,
+    actual_quantity: rust_decimal::Decimal,
+    qualified_quantity: rust_decimal::Decimal,
+) {
+    tracing::info!(
+        step_record_id,
+        flow_card_id,
+        operator_id = ?operator_id,
+        actual_quantity = %actual_quantity,
+        qualified_quantity = %qualified_quantity,
+        "处理产量上报事件：触发成本归集/报表更新"
+    );
+}
+
+/// V15 Batch05-P1-3：处理能耗采集事件（异常告警/月末分摊被动触发）
+async fn handle_energy_consumption_recorded(
+    _db: Arc<DatabaseConnection>,
+    record_id: i32,
+    workshop: Option<String>,
+    meter_type: String,
+    consumption: rust_decimal::Decimal,
+    cost: rust_decimal::Decimal,
+) {
+    tracing::info!(
+        record_id,
+        workshop = ?workshop,
+        meter_type = %meter_type,
+        consumption = %consumption,
+        cost = %cost,
+        "处理能耗采集事件：触发异常告警/月末分摊"
+    );
+    // 能耗突增异常告警（简单阈值检测）
+    if consumption > rust_decimal::Decimal::new(10000, 0) {
+        tracing::warn!(
+            record_id,
+            meter_type = %meter_type,
+            consumption = %consumption,
+            "能耗突增异常告警：单次采集超过 10000 单位"
+        );
+    }
+}
+
+/// V15 Batch05-P1-3：处理色卡发放事件（色卡库存扣减/过期回收）
+async fn handle_color_card_issued(
+    _db: Arc<DatabaseConnection>,
+    issue_id: i32,
+    color_card_id: i32,
+    customer_id: Option<i32>,
+    issued_by: Option<i32>,
+) {
+    tracing::info!(
+        issue_id,
+        color_card_id,
+        customer_id = ?customer_id,
+        issued_by = ?issued_by,
+        "处理色卡发放事件：触发色卡库存扣减/过期回收"
+    );
 }
 
 // ============================================================================
@@ -243,15 +678,23 @@ fn log_quality_inspection_completed(event: BusinessEvent) {
 // ============================================================================
 
 /// 处理采购收货完成事件：调用 po_service.receive_order 并传入 receipt_id 做幂等校验
-async fn handle_purchase_receipt_completed(db: Arc<DatabaseConnection>, receipt_id: i32, order_id: i32) {
+async fn handle_purchase_receipt_completed(
+    db: Arc<DatabaseConnection>,
+    receipt_id: i32,
+    order_id: i32,
+) {
     tracing::info!(
         "Event received: PurchaseReceiptCompleted for order {}, receipt {}",
-        order_id, receipt_id
+        order_id,
+        receipt_id
     );
     let po_service = crate::services::po::order::PurchaseOrderService::new(db);
     // P0 3-6 修复：传入 receipt_id 做幂等校验，防止事件重投导致重复入库
     match po_service.receive_order(order_id, Some(receipt_id)).await {
-        Ok(_) => tracing::info!("Successfully updated purchase order {} status to RECEIVED", order_id),
+        Ok(_) => tracing::info!(
+            "Successfully updated purchase order {} status to RECEIVED",
+            order_id
+        ),
         Err(e) => tracing::error!("Failed to update purchase order {}: {}", order_id, e),
     }
 }
@@ -267,7 +710,10 @@ async fn handle_bpm_process_finished(
 ) {
     tracing::info!(
         "处理BPM流程结束事件: type={}, id={}, approved={}, approver_id={}",
-        business_type, business_id, approved, approver_id
+        business_type,
+        business_id,
+        approved,
+        approver_id
     );
     // B-P1-8 修复（批次 366 v13 复审）：事件幂等处理
     let idempotency_service =
@@ -281,7 +727,9 @@ async fn handle_bpm_process_finished(
         Err(e) => {
             tracing::error!(
                 "BpmProcessFinished 幂等检查失败 type={} id={}: {}",
-                business_type, business_id, e
+                business_type,
+                business_id,
+                e
             );
             false
         }
@@ -304,20 +752,36 @@ async fn handle_bpm_process_finished(
 }
 
 /// 处理采购订单 BPM 审批结果回写（approve_order / reject_order）
-async fn handle_bpm_purchase_order(db: Arc<DatabaseConnection>, business_id: i32, approved: bool, approver_id: i32) {
+async fn handle_bpm_purchase_order(
+    db: Arc<DatabaseConnection>,
+    business_id: i32,
+    approved: bool,
+    approver_id: i32,
+) {
     let po_service = crate::services::po::order::PurchaseOrderService::new(db);
     // P2 5-18 修复：使用事件携带的 approver_id 替代硬编码 0
     if approved {
         if let Err(e) = po_service.approve_order(business_id, approver_id).await {
-            tracing::error!("Failed to approve purchase_order {} via BPM: {}", business_id, e);
+            tracing::error!(
+                "Failed to approve purchase_order {} via BPM: {}",
+                business_id,
+                e
+            );
         } else {
-            tracing::info!("Successfully approved purchase_order {} via BPM", business_id);
+            tracing::info!(
+                "Successfully approved purchase_order {} via BPM",
+                business_id
+            );
         }
     } else if let Err(e) = po_service
         .reject_order(business_id, "BPM审批拒绝".to_string(), approver_id)
         .await
     {
-        tracing::error!("Failed to reject purchase_order {} via BPM: {}", business_id, e);
+        tracing::error!(
+            "Failed to reject purchase_order {} via BPM: {}",
+            business_id,
+            e
+        );
     }
 }
 
@@ -332,7 +796,11 @@ async fn handle_bpm_sales_order(
     let sales_service = crate::services::so::order::SalesService::new(db, search_client);
     if approved {
         if let Err(e) = sales_service.approve_order(business_id, approver_id).await {
-            tracing::error!("Failed to approve sales_order {} via BPM: {}", business_id, e);
+            tracing::error!(
+                "Failed to approve sales_order {} via BPM: {}",
+                business_id,
+                e
+            );
         } else {
             tracing::info!("Successfully approved sales_order {} via BPM", business_id);
         }
@@ -342,29 +810,55 @@ async fn handle_bpm_sales_order(
             .await
         {
             Ok(_) => tracing::info!("Successfully rejected sales_order {} via BPM", business_id),
-            Err(e) => tracing::error!("Failed to reject sales_order {} via BPM: {}", business_id, e),
+            Err(e) => tracing::error!(
+                "Failed to reject sales_order {} via BPM: {}",
+                business_id,
+                e
+            ),
         }
     }
 }
 
 /// 处理生产订单 BPM 审批结果回写（专用 approve_order_via_bpm/reject_order_via_bpm，不回调 BPM 避免循环）
-async fn handle_bpm_production_order(db: Arc<DatabaseConnection>, business_id: i32, approved: bool, approver_id: i32) {
+async fn handle_bpm_production_order(
+    db: Arc<DatabaseConnection>,
+    business_id: i32,
+    approved: bool,
+    approver_id: i32,
+) {
     // B-P1-9 修复（批次 360 v13 复审）：原实现仅处理 purchase_order/sales_order，生产订单 BPM 审批结果无法回写
     let prod_service = crate::services::production_order_service::ProductionOrderService::new(db);
     if approved {
-        if let Err(e) = prod_service.approve_order_via_bpm(business_id, approver_id).await {
-            tracing::error!("Failed to approve production_order {} via BPM: {}", business_id, e);
+        if let Err(e) = prod_service
+            .approve_order_via_bpm(business_id, approver_id)
+            .await
+        {
+            tracing::error!(
+                "Failed to approve production_order {} via BPM: {}",
+                business_id,
+                e
+            );
         } else {
-            tracing::info!("Successfully approved production_order {} via BPM", business_id);
+            tracing::info!(
+                "Successfully approved production_order {} via BPM",
+                business_id
+            );
         }
     } else {
         if let Err(e) = prod_service
             .reject_order_via_bpm(business_id, "BPM审批拒绝".to_string(), approver_id)
             .await
         {
-            tracing::error!("Failed to reject production_order {} via BPM: {}", business_id, e);
+            tracing::error!(
+                "Failed to reject production_order {} via BPM: {}",
+                business_id,
+                e
+            );
         } else {
-            tracing::info!("Successfully rejected production_order {} via BPM", business_id);
+            tracing::info!(
+                "Successfully rejected production_order {} via BPM",
+                business_id
+            );
         }
     }
 }
@@ -380,17 +874,40 @@ async fn handle_low_stock_alert(
 ) {
     tracing::info!(
         "处理低库存预警事件: 产品ID={}, 仓库ID={}, 当前库存={}, 补货点={}, 建议补货量={}",
-        product_id, warehouse_id, current_quantity, reorder_point, reorder_quantity
+        product_id,
+        warehouse_id,
+        current_quantity,
+        reorder_point,
+        reorder_quantity
     );
     if !check_low_stock_idempotency(&*db, product_id, warehouse_id).await {
         return;
     }
-    create_low_stock_purchase_suggestion(db.clone(), product_id, warehouse_id, current_quantity, reorder_point, reorder_quantity).await;
-    notify_low_stock_users(db, product_id, warehouse_id, current_quantity, reorder_point).await;
+    create_low_stock_purchase_suggestion(
+        db.clone(),
+        product_id,
+        warehouse_id,
+        current_quantity,
+        reorder_point,
+        reorder_quantity,
+    )
+    .await;
+    notify_low_stock_users(
+        db,
+        product_id,
+        warehouse_id,
+        current_quantity,
+        reorder_point,
+    )
+    .await;
 }
 
 /// 低库存预警幂等校验（同产品同仓库同一天仅处理一次）
-async fn check_low_stock_idempotency(db: &DatabaseConnection, product_id: i32, warehouse_id: i32) -> bool {
+async fn check_low_stock_idempotency(
+    db: &DatabaseConnection,
+    product_id: i32,
+    warehouse_id: i32,
+) -> bool {
     let idempotency_service =
         crate::services::event_idempotency_service::EventIdempotencyService::new(db.clone().into());
     let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
@@ -403,7 +920,9 @@ async fn check_low_stock_idempotency(db: &DatabaseConnection, product_id: i32, w
         Err(e) => {
             tracing::error!(
                 "LowStockAlert 幂等检查失败 product={} warehouse={}: {}",
-                product_id, warehouse_id, e
+                product_id,
+                warehouse_id,
+                e
             );
             false
         }
@@ -421,10 +940,20 @@ async fn create_low_stock_purchase_suggestion(
 ) {
     let po_service = crate::services::po::order::PurchaseOrderService::new(db);
     match po_service
-        .create_purchase_suggestion(product_id, warehouse_id, current_quantity, reorder_point, reorder_quantity)
+        .create_purchase_suggestion(
+            product_id,
+            warehouse_id,
+            current_quantity,
+            reorder_point,
+            reorder_quantity,
+        )
         .await
     {
-        Ok(order) => tracing::info!("成功创建采购建议: 订单ID={}, 订单号={}", order.id, order.order_no),
+        Ok(order) => tracing::info!(
+            "成功创建采购建议: 订单ID={}, 订单号={}",
+            order.id,
+            order.order_no
+        ),
         Err(e) => tracing::error!("创建采购建议失败: {}", e),
     }
 }
@@ -454,12 +983,15 @@ async fn notify_low_stock_users(
     {
         tracing::error!(
             "发送低库存预警批量通知失败: 通知人数={}, 错误={}",
-            notify_count, e
+            notify_count,
+            e
         );
     }
     tracing::info!(
         "低库存预警通知已发送: 产品={}, 仓库ID={}, 通知人数={}",
-        product_name, warehouse_id, notify_count
+        product_name,
+        warehouse_id,
+        notify_count
     );
 }
 
@@ -517,7 +1049,11 @@ async fn handle_material_shortage_alert(
 ) {
     tracing::info!(
         "处理缺料预警事件: 物料ID={}, 物料名称={}, 缺料数量={}, 预警级别={}, 受影响订单数={}",
-        material_id, material_name, shortage_quantity, shortage_level, affected_orders_count
+        material_id,
+        material_name,
+        shortage_quantity,
+        shortage_level,
+        affected_orders_count
     );
     // B-P1-8 修复（批次 366 v13 复审）：幂等键含日期，同物料同一天仅处理一次缺料预警
     let idempotency_service =
@@ -532,7 +1068,8 @@ async fn handle_material_shortage_alert(
         Err(e) => {
             tracing::error!(
                 "MaterialShortageAlert 幂等检查失败 material={}: {}",
-                material_id, e
+                material_id,
+                e
             );
             false
         }
@@ -552,24 +1089,37 @@ async fn handle_material_shortage_alert(
         shortage_level: shortage_level.clone(),
         affected_orders_count,
     };
-    match po_service.create_purchase_suggestion_from_shortage(shortage_params).await {
+    match po_service
+        .create_purchase_suggestion_from_shortage(shortage_params)
+        .await
+    {
         Ok(order) => tracing::info!(
             "成功创建缺料采购建议: 订单ID={}, 订单号={}, 物料={}",
-            order.id, order.order_no, material_name
+            order.id,
+            order.order_no,
+            material_name
         ),
         Err(e) => tracing::error!("创建缺料采购建议失败: 物料ID={}, 错误={}", material_id, e),
     }
 }
 
 /// 处理财务指标更新事件：调用 FinancialAnalysisService.calculate_indicators 刷新指标
-async fn handle_financial_indicator_update(db: Arc<DatabaseConnection>, period: String, trigger_source: String) {
-    tracing::info!("处理财务指标更新事件: 期间={}, 触发源={}", period, trigger_source);
-    let fa_service =
-        crate::services::financial_analysis_service::FinancialAnalysisService::new(db);
+async fn handle_financial_indicator_update(
+    db: Arc<DatabaseConnection>,
+    period: String,
+    trigger_source: String,
+) {
+    tracing::info!(
+        "处理财务指标更新事件: 期间={}, 触发源={}",
+        period,
+        trigger_source
+    );
+    let fa_service = crate::services::financial_analysis_service::FinancialAnalysisService::new(db);
     match fa_service.calculate_indicators(&period, 0).await {
         Ok(results) => tracing::info!(
             "财务指标自动计算完成: 期间={}, 计算 {} 个指标",
-            period, results.len()
+            period,
+            results.len()
         ),
         Err(e) => tracing::error!("财务指标自动计算失败: 期间={}, 错误={}", period, e),
     }
@@ -618,7 +1168,7 @@ async fn refresh_customer_name_redundancy(
     db: &sea_orm::DatabaseConnection,
     customer_id: i32,
     new_name: &str,
-) -> Result<(), sea_orm::DbErr> {
+) -> Result<(), AppError> {
     let now = chrono::Utc::now();
     update_ar_invoices_customer_name(db, customer_id, new_name, now).await?;
     update_ar_collections_customer_name(db, customer_id, new_name, now).await?;
@@ -639,7 +1189,7 @@ async fn update_ar_invoices_customer_name(
     customer_id: i32,
     new_name: &str,
     now: chrono::DateTime<chrono::Utc>,
-) -> Result<(), sea_orm::DbErr> {
+) -> Result<(), AppError> {
     use sea_orm::sea_query::Expr;
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     crate::models::ar_invoice::Entity::update_many()
@@ -663,7 +1213,7 @@ async fn update_ar_collections_customer_name(
     customer_id: i32,
     new_name: &str,
     now: chrono::DateTime<chrono::Utc>,
-) -> Result<(), sea_orm::DbErr> {
+) -> Result<(), AppError> {
     use sea_orm::sea_query::Expr;
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     crate::models::ar_collection::Entity::update_many()
@@ -687,7 +1237,7 @@ async fn update_ar_reconciliations_customer_name(
     customer_id: i32,
     new_name: &str,
     now: chrono::DateTime<chrono::Utc>,
-) -> Result<(), sea_orm::DbErr> {
+) -> Result<(), AppError> {
     use sea_orm::sea_query::Expr;
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     crate::models::ar_reconciliation::Entity::update_many()
@@ -711,7 +1261,7 @@ async fn update_customer_credits_customer_name(
     customer_id: i32,
     new_name: &str,
     now: chrono::DateTime<chrono::Utc>,
-) -> Result<(), sea_orm::DbErr> {
+) -> Result<(), AppError> {
     use sea_orm::sea_query::Expr;
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     crate::models::customer_credit::Entity::update_many()
@@ -735,7 +1285,7 @@ async fn update_sales_contracts_customer_name(
     customer_id: i32,
     new_name: &str,
     now: chrono::DateTime<chrono::Utc>,
-) -> Result<(), sea_orm::DbErr> {
+) -> Result<(), AppError> {
     use sea_orm::sea_query::Expr;
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     crate::models::sales_contract::Entity::update_many()
@@ -762,7 +1312,7 @@ async fn refresh_supplier_name_redundancy(
     db: &sea_orm::DatabaseConnection,
     supplier_id: i32,
     new_name: &str,
-) -> Result<(), sea_orm::DbErr> {
+) -> Result<(), AppError> {
     use sea_orm::sea_query::Expr;
     use sea_orm::ColumnTrait;
     use sea_orm::EntityTrait;

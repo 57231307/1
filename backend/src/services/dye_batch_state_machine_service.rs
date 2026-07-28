@@ -8,7 +8,7 @@
 //! 缸号回修记录 CRUD + 审批 + 开始回修 + 完成回修 + 取消回修；
 //! 缸号操作记录 CRUD + 按类型查询 + 按缸号查询。
 //!
-//! 14 种状态：pending_schedule 待排缸 / scheduled 已排缸 / preparing 备布中 / dyeing 进缸染色 / washing 皂洗 / fixing 固色 / dehydrating 脱水 / drying 烘干 / inspecting 验布 / stored 入库 / shipped 发货（终态）/ cancelled 取消（终态）/ terminated 终止（终态）/ rework 回修中（可回到 dyeing）。
+//! 16 种状态：pending_schedule 待排缸 / scheduled 已排缸 / preparing 备布中 / dyeing 进缸染色 / washing 皂洗 / fixing 固色 / dehydrating 脱水 / drying 烘干 / inspecting 验布 / stored 入库 / shipped 发货（终态）/ cancelled 取消（终态）/ terminated 终止（终态）/ rework 回修中（可回到 dyeing）/ on_hold 暂停（异常态，可恢复）/ failed 失败（终态）。
 //!
 //! 批次 490 D10-4a 拆分：本文件作为 facade，保留 4 个 Service struct + new 构造函数
 //! + 10 个 DTOs + 11 个纯验证函数 + 单元测试。4 个 Service 的业务方法 impl 块
@@ -31,7 +31,7 @@ use crate::utils::error::AppError;
 // 缸号状态机校验纯函数
 // ============================================================================
 
-/// 校验缸号生命周期状态是否合法（14 种状态）
+/// 校验缸号生命周期状态是否合法（16 种状态）
 pub fn validate_lifecycle_status(status: &str) -> Result<(), AppError> {
     let valid = [
         dye_batch_lifecycle_status::PENDING_SCHEDULE,
@@ -48,17 +48,19 @@ pub fn validate_lifecycle_status(status: &str) -> Result<(), AppError> {
         dye_batch_lifecycle_status::CANCELLED,
         dye_batch_lifecycle_status::TERMINATED,
         dye_batch_lifecycle_status::REWORK,
+        dye_batch_lifecycle_status::ON_HOLD,
+        dye_batch_lifecycle_status::FAILED,
     ];
     if !valid.contains(&status) {
         return Err(AppError::business(format!(
-            "缸号生命周期状态必须是 pending_schedule/scheduled/preparing/dyeing/washing/fixing/dehydrating/drying/inspecting/stored/shipped/cancelled/terminated/rework，当前: {}",
+            "缸号生命周期状态必须是 pending_schedule/scheduled/preparing/dyeing/washing/fixing/dehydrating/drying/inspecting/stored/shipped/cancelled/terminated/rework/on_hold/failed，当前: {}",
             status
         )));
     }
     Ok(())
 }
 
-/// 校验缸号流转操作代码是否合法（13 种操作）
+/// 校验缸号流转操作代码是否合法（16 种操作）
 pub fn validate_transition_code(code: &str) -> Result<(), AppError> {
     let valid = [
         dye_batch_transition_code::SCHEDULE,
@@ -74,10 +76,13 @@ pub fn validate_transition_code(code: &str) -> Result<(), AppError> {
         dye_batch_transition_code::CANCEL,
         dye_batch_transition_code::REWORK,
         dye_batch_transition_code::TERMINATE,
+        dye_batch_transition_code::HOLD,
+        dye_batch_transition_code::RESUME,
+        dye_batch_transition_code::FAIL,
     ];
     if !valid.contains(&code) {
         return Err(AppError::business(format!(
-            "缸号流转操作代码必须是 schedule/prepare/start_dyeing/wash/fix/dehydrate/dry/inspect/store/ship/cancel/rework/terminate，当前: {}",
+            "缸号流转操作代码必须是 schedule/prepare/start_dyeing/wash/fix/dehydrate/dry/inspect/store/ship/cancel/rework/terminate/hold/resume/fail，当前: {}",
             code
         )));
     }
@@ -138,172 +143,98 @@ pub fn validate_operation_type(op_type: &str) -> Result<(), AppError> {
     Ok(())
 }
 
-/// 判断是否终态（shipped/cancelled/terminated 不可再流转）
+/// 判断是否终态（shipped/cancelled/terminated/failed 不可再流转）
 pub fn is_terminal_status(status: &str) -> bool {
     matches!(
         status,
         dye_batch_lifecycle_status::SHIPPED
             | dye_batch_lifecycle_status::CANCELLED
             | dye_batch_lifecycle_status::TERMINATED
+            | dye_batch_lifecycle_status::FAILED
     )
 }
 
 /// 内置流转规则表（与 SQL 预置数据 dye_batch_state_rule 一致）
-///
-/// 返回 (from_status, to_status, transition_code) 三元组列表
 fn builtin_transition_rules() -> Vec<(&'static str, &'static str, &'static str)> {
+    use dye_batch_lifecycle_status::*;
+    use dye_batch_transition_code::*;
     vec![
-        // pending_schedule → scheduled / cancelled
+        // pending_schedule → scheduled / cancelled / failed
+        (PENDING_SCHEDULE, SCHEDULED, SCHEDULE),
+        (PENDING_SCHEDULE, CANCELLED, CANCEL),
+        (PENDING_SCHEDULE, FAILED, FAIL),
+        // scheduled → preparing / cancelled / terminated / on_hold / failed
+        (SCHEDULED, PREPARING, PREPARE),
+        (SCHEDULED, CANCELLED, CANCEL),
+        (SCHEDULED, TERMINATED, TERMINATE),
+        (SCHEDULED, ON_HOLD, HOLD),
+        (SCHEDULED, FAILED, FAIL),
+        // preparing → dyeing / cancelled / terminated / on_hold / failed
+        (PREPARING, DYEING, START_DYEING),
+        (PREPARING, CANCELLED, CANCEL),
+        (PREPARING, TERMINATED, TERMINATE),
+        (PREPARING, ON_HOLD, HOLD),
+        (PREPARING, FAILED, FAIL),
+        // dyeing → washing / cancelled / terminated / on_hold / failed
+        (DYEING, WASHING, WASH),
+        (DYEING, CANCELLED, CANCEL),
+        (DYEING, TERMINATED, TERMINATE),
+        (DYEING, ON_HOLD, HOLD),
+        (DYEING, FAILED, FAIL),
+        // washing → fixing / cancelled / on_hold / failed
+        (WASHING, FIXING, FIX),
+        (WASHING, CANCELLED, CANCEL),
+        (WASHING, ON_HOLD, HOLD),
+        (WASHING, FAILED, FAIL),
+        // fixing → dehydrating / cancelled / on_hold / failed
+        (FIXING, DEHYDRATING, DEHYDRATE),
+        (FIXING, CANCELLED, CANCEL),
+        (FIXING, ON_HOLD, HOLD),
+        (FIXING, FAILED, FAIL),
+        // dehydrating → drying / cancelled / on_hold / failed
+        (DEHYDRATING, DRYING, DRY),
+        (DEHYDRATING, CANCELLED, CANCEL),
+        (DEHYDRATING, ON_HOLD, HOLD),
+        (DEHYDRATING, FAILED, FAIL),
+        // drying → inspecting / cancelled / on_hold / failed
+        (DRYING, INSPECTING, INSPECT),
+        (DRYING, CANCELLED, CANCEL),
+        (DRYING, ON_HOLD, HOLD),
+        (DRYING, FAILED, FAIL),
+        // inspecting → stored / rework / cancelled / failed
+        (INSPECTING, STORED, STORE),
         (
-            dye_batch_lifecycle_status::PENDING_SCHEDULE,
-            dye_batch_lifecycle_status::SCHEDULED,
-            dye_batch_transition_code::SCHEDULE,
-        ),
-        (
-            dye_batch_lifecycle_status::PENDING_SCHEDULE,
-            dye_batch_lifecycle_status::CANCELLED,
-            dye_batch_transition_code::CANCEL,
-        ),
-        // scheduled → preparing / cancelled / terminated
-        (
-            dye_batch_lifecycle_status::SCHEDULED,
-            dye_batch_lifecycle_status::PREPARING,
-            dye_batch_transition_code::PREPARE,
-        ),
-        (
-            dye_batch_lifecycle_status::SCHEDULED,
-            dye_batch_lifecycle_status::CANCELLED,
-            dye_batch_transition_code::CANCEL,
-        ),
-        (
-            dye_batch_lifecycle_status::SCHEDULED,
-            dye_batch_lifecycle_status::TERMINATED,
-            dye_batch_transition_code::TERMINATE,
-        ),
-        // preparing → dyeing / cancelled / terminated
-        (
-            dye_batch_lifecycle_status::PREPARING,
-            dye_batch_lifecycle_status::DYEING,
-            dye_batch_transition_code::START_DYEING,
-        ),
-        (
-            dye_batch_lifecycle_status::PREPARING,
-            dye_batch_lifecycle_status::CANCELLED,
-            dye_batch_transition_code::CANCEL,
-        ),
-        (
-            dye_batch_lifecycle_status::PREPARING,
-            dye_batch_lifecycle_status::TERMINATED,
-            dye_batch_transition_code::TERMINATE,
-        ),
-        // dyeing → washing / cancelled / terminated
-        (
-            dye_batch_lifecycle_status::DYEING,
-            dye_batch_lifecycle_status::WASHING,
-            dye_batch_transition_code::WASH,
-        ),
-        (
-            dye_batch_lifecycle_status::DYEING,
-            dye_batch_lifecycle_status::CANCELLED,
-            dye_batch_transition_code::CANCEL,
-        ),
-        (
-            dye_batch_lifecycle_status::DYEING,
-            dye_batch_lifecycle_status::TERMINATED,
-            dye_batch_transition_code::TERMINATE,
-        ),
-        // washing → fixing / cancelled
-        (
-            dye_batch_lifecycle_status::WASHING,
-            dye_batch_lifecycle_status::FIXING,
-            dye_batch_transition_code::FIX,
-        ),
-        (
-            dye_batch_lifecycle_status::WASHING,
-            dye_batch_lifecycle_status::CANCELLED,
-            dye_batch_transition_code::CANCEL,
-        ),
-        // fixing → dehydrating / cancelled
-        (
-            dye_batch_lifecycle_status::FIXING,
-            dye_batch_lifecycle_status::DEHYDRATING,
-            dye_batch_transition_code::DEHYDRATE,
-        ),
-        (
-            dye_batch_lifecycle_status::FIXING,
-            dye_batch_lifecycle_status::CANCELLED,
-            dye_batch_transition_code::CANCEL,
-        ),
-        // dehydrating → drying / cancelled
-        (
-            dye_batch_lifecycle_status::DEHYDRATING,
-            dye_batch_lifecycle_status::DRYING,
-            dye_batch_transition_code::DRY,
-        ),
-        (
-            dye_batch_lifecycle_status::DEHYDRATING,
-            dye_batch_lifecycle_status::CANCELLED,
-            dye_batch_transition_code::CANCEL,
-        ),
-        // drying → inspecting / cancelled
-        (
-            dye_batch_lifecycle_status::DRYING,
-            dye_batch_lifecycle_status::INSPECTING,
-            dye_batch_transition_code::INSPECT,
-        ),
-        (
-            dye_batch_lifecycle_status::DRYING,
-            dye_batch_lifecycle_status::CANCELLED,
-            dye_batch_transition_code::CANCEL,
-        ),
-        // inspecting → stored / rework / cancelled
-        (
-            dye_batch_lifecycle_status::INSPECTING,
-            dye_batch_lifecycle_status::STORED,
-            dye_batch_transition_code::STORE,
-        ),
-        (
-            dye_batch_lifecycle_status::INSPECTING,
+            INSPECTING,
             dye_batch_lifecycle_status::REWORK,
             dye_batch_transition_code::REWORK,
         ),
+        (INSPECTING, CANCELLED, CANCEL),
+        (INSPECTING, FAILED, FAIL),
+        // stored → shipped / rework / cancelled / failed
+        (STORED, SHIPPED, SHIP),
         (
-            dye_batch_lifecycle_status::INSPECTING,
-            dye_batch_lifecycle_status::CANCELLED,
-            dye_batch_transition_code::CANCEL,
-        ),
-        // stored → shipped / rework / cancelled
-        (
-            dye_batch_lifecycle_status::STORED,
-            dye_batch_lifecycle_status::SHIPPED,
-            dye_batch_transition_code::SHIP,
-        ),
-        (
-            dye_batch_lifecycle_status::STORED,
+            STORED,
             dye_batch_lifecycle_status::REWORK,
             dye_batch_transition_code::REWORK,
         ),
-        (
-            dye_batch_lifecycle_status::STORED,
-            dye_batch_lifecycle_status::CANCELLED,
-            dye_batch_transition_code::CANCEL,
-        ),
-        // rework → dyeing / cancelled / terminated
-        (
-            dye_batch_lifecycle_status::REWORK,
-            dye_batch_lifecycle_status::DYEING,
-            dye_batch_transition_code::START_DYEING,
-        ),
-        (
-            dye_batch_lifecycle_status::REWORK,
-            dye_batch_lifecycle_status::CANCELLED,
-            dye_batch_transition_code::CANCEL,
-        ),
-        (
-            dye_batch_lifecycle_status::REWORK,
-            dye_batch_lifecycle_status::TERMINATED,
-            dye_batch_transition_code::TERMINATE,
-        ),
+        (STORED, CANCELLED, CANCEL),
+        (STORED, FAILED, FAIL),
+        // rework → dyeing / cancelled / terminated / failed
+        (dye_batch_lifecycle_status::REWORK, DYEING, START_DYEING),
+        (dye_batch_lifecycle_status::REWORK, CANCELLED, CANCEL),
+        (dye_batch_lifecycle_status::REWORK, TERMINATED, TERMINATE),
+        (dye_batch_lifecycle_status::REWORK, FAILED, FAIL),
+        // on_hold → 恢复到原工序（dyeing/washing/fixing/dehydrating/drying/scheduled/preparing）/ cancelled / failed
+        // V15 Batch05-P1-1：on_hold 可恢复到染整各工序继续流转
+        (ON_HOLD, DYEING, RESUME),
+        (ON_HOLD, WASHING, RESUME),
+        (ON_HOLD, FIXING, RESUME),
+        (ON_HOLD, DEHYDRATING, RESUME),
+        (ON_HOLD, DRYING, RESUME),
+        (ON_HOLD, SCHEDULED, RESUME),
+        (ON_HOLD, PREPARING, RESUME),
+        (ON_HOLD, CANCELLED, CANCEL),
+        (ON_HOLD, FAILED, FAIL),
     ]
 }
 
@@ -719,17 +650,33 @@ mod tests {
     #[test]
     fn 测试状态流转_合法流转() {
         // pending_schedule → scheduled（排缸）
-        assert!(is_valid_transition(Some("pending_schedule"), "scheduled", "schedule"));
+        assert!(is_valid_transition(
+            Some("pending_schedule"),
+            "scheduled",
+            "schedule"
+        ));
         // scheduled → preparing（备布）
-        assert!(is_valid_transition(Some("scheduled"), "preparing", "prepare"));
+        assert!(is_valid_transition(
+            Some("scheduled"),
+            "preparing",
+            "prepare"
+        ));
         // preparing → dyeing（进缸染色）
-        assert!(is_valid_transition(Some("preparing"), "dyeing", "start_dyeing"));
+        assert!(is_valid_transition(
+            Some("preparing"),
+            "dyeing",
+            "start_dyeing"
+        ));
         // dyeing → washing（皂洗）
         assert!(is_valid_transition(Some("dyeing"), "washing", "wash"));
         // washing → fixing（固色）
         assert!(is_valid_transition(Some("washing"), "fixing", "fix"));
         // fixing → dehydrating（脱水）
-        assert!(is_valid_transition(Some("fixing"), "dehydrating", "dehydrate"));
+        assert!(is_valid_transition(
+            Some("fixing"),
+            "dehydrating",
+            "dehydrate"
+        ));
         // dehydrating → drying（烘干）
         assert!(is_valid_transition(Some("dehydrating"), "drying", "dry"));
         // drying → inspecting（验布）
@@ -743,21 +690,45 @@ mod tests {
         // stored → rework（回修）
         assert!(is_valid_transition(Some("stored"), "rework", "rework"));
         // rework → dyeing（回修重新进缸）
-        assert!(is_valid_transition(Some("rework"), "dyeing", "start_dyeing"));
+        assert!(is_valid_transition(
+            Some("rework"),
+            "dyeing",
+            "start_dyeing"
+        ));
     }
 
     #[test]
     fn 测试状态流转_取消流转合法() {
         // 任意非终态 → cancelled
-        assert!(is_valid_transition(Some("pending_schedule"), "cancelled", "cancel"));
-        assert!(is_valid_transition(Some("scheduled"), "cancelled", "cancel"));
-        assert!(is_valid_transition(Some("preparing"), "cancelled", "cancel"));
+        assert!(is_valid_transition(
+            Some("pending_schedule"),
+            "cancelled",
+            "cancel"
+        ));
+        assert!(is_valid_transition(
+            Some("scheduled"),
+            "cancelled",
+            "cancel"
+        ));
+        assert!(is_valid_transition(
+            Some("preparing"),
+            "cancelled",
+            "cancel"
+        ));
         assert!(is_valid_transition(Some("dyeing"), "cancelled", "cancel"));
         assert!(is_valid_transition(Some("washing"), "cancelled", "cancel"));
         assert!(is_valid_transition(Some("fixing"), "cancelled", "cancel"));
-        assert!(is_valid_transition(Some("dehydrating"), "cancelled", "cancel"));
+        assert!(is_valid_transition(
+            Some("dehydrating"),
+            "cancelled",
+            "cancel"
+        ));
         assert!(is_valid_transition(Some("drying"), "cancelled", "cancel"));
-        assert!(is_valid_transition(Some("inspecting"), "cancelled", "cancel"));
+        assert!(is_valid_transition(
+            Some("inspecting"),
+            "cancelled",
+            "cancel"
+        ));
         assert!(is_valid_transition(Some("stored"), "cancelled", "cancel"));
         assert!(is_valid_transition(Some("rework"), "cancelled", "cancel"));
     }
@@ -765,10 +736,26 @@ mod tests {
     #[test]
     fn 测试状态流转_终止流转合法() {
         // scheduled/preparing/dyeing/rework → terminated
-        assert!(is_valid_transition(Some("scheduled"), "terminated", "terminate"));
-        assert!(is_valid_transition(Some("preparing"), "terminated", "terminate"));
-        assert!(is_valid_transition(Some("dyeing"), "terminated", "terminate"));
-        assert!(is_valid_transition(Some("rework"), "terminated", "terminate"));
+        assert!(is_valid_transition(
+            Some("scheduled"),
+            "terminated",
+            "terminate"
+        ));
+        assert!(is_valid_transition(
+            Some("preparing"),
+            "terminated",
+            "terminate"
+        ));
+        assert!(is_valid_transition(
+            Some("dyeing"),
+            "terminated",
+            "terminate"
+        ));
+        assert!(is_valid_transition(
+            Some("rework"),
+            "terminated",
+            "terminate"
+        ));
     }
 
     #[test]
@@ -777,25 +764,53 @@ mod tests {
         assert!(!is_valid_transition(Some("shipped"), "stored", "store"));
         assert!(!is_valid_transition(Some("shipped"), "cancelled", "cancel"));
         // cancelled 不可流转
-        assert!(!is_valid_transition(Some("cancelled"), "scheduled", "schedule"));
-        assert!(!is_valid_transition(Some("cancelled"), "terminated", "terminate"));
+        assert!(!is_valid_transition(
+            Some("cancelled"),
+            "scheduled",
+            "schedule"
+        ));
+        assert!(!is_valid_transition(
+            Some("cancelled"),
+            "terminated",
+            "terminate"
+        ));
         // terminated 不可流转
-        assert!(!is_valid_transition(Some("terminated"), "scheduled", "schedule"));
-        assert!(!is_valid_transition(Some("terminated"), "cancelled", "cancel"));
+        assert!(!is_valid_transition(
+            Some("terminated"),
+            "scheduled",
+            "schedule"
+        ));
+        assert!(!is_valid_transition(
+            Some("terminated"),
+            "cancelled",
+            "cancel"
+        ));
     }
 
     #[test]
     fn 测试状态流转_非法流转() {
         // pending_schedule 不能直接到 dyeing
-        assert!(!is_valid_transition(Some("pending_schedule"), "dyeing", "start_dyeing"));
+        assert!(!is_valid_transition(
+            Some("pending_schedule"),
+            "dyeing",
+            "start_dyeing"
+        ));
         // scheduled 不能直接到 washing
         assert!(!is_valid_transition(Some("scheduled"), "washing", "wash"));
         // dyeing 不能直接到 inspecting（必须经过 washing/fixing/dehydrating/drying）
-        assert!(!is_valid_transition(Some("dyeing"), "inspecting", "inspect"));
+        assert!(!is_valid_transition(
+            Some("dyeing"),
+            "inspecting",
+            "inspect"
+        ));
         // inspecting 不能直接到 shipped（必须经过 stored）
         assert!(!is_valid_transition(Some("inspecting"), "shipped", "ship"));
         // 操作代码不匹配
-        assert!(!is_valid_transition(Some("pending_schedule"), "scheduled", "prepare"));
+        assert!(!is_valid_transition(
+            Some("pending_schedule"),
+            "scheduled",
+            "prepare"
+        ));
     }
 
     #[test]
@@ -871,23 +886,34 @@ mod tests {
 
     #[test]
     fn 测试流转校验_合法返回Ok() {
-        assert!(validate_transition_with_rule(Some("pending_schedule"), "scheduled", "schedule").is_ok());
+        assert!(
+            validate_transition_with_rule(Some("pending_schedule"), "scheduled", "schedule")
+                .is_ok()
+        );
         assert!(validate_transition_with_rule(Some("dyeing"), "washing", "wash").is_ok());
         assert!(validate_transition_with_rule(Some("stored"), "shipped", "ship").is_ok());
     }
 
     #[test]
     fn 测试流转校验_非法返回Err() {
-        assert!(validate_transition_with_rule(Some("pending_schedule"), "dyeing", "start_dyeing").is_err());
+        assert!(
+            validate_transition_with_rule(Some("pending_schedule"), "dyeing", "start_dyeing")
+                .is_err()
+        );
         assert!(validate_transition_with_rule(Some("shipped"), "stored", "store").is_err());
     }
 
     #[test]
     fn 测试流转校验_非法状态返回Err() {
         // to_status 非法
-        assert!(validate_transition_with_rule(Some("pending_schedule"), "invalid", "schedule").is_err());
+        assert!(
+            validate_transition_with_rule(Some("pending_schedule"), "invalid", "schedule").is_err()
+        );
         // transition_code 非法
-        assert!(validate_transition_with_rule(Some("pending_schedule"), "scheduled", "invalid").is_err());
+        assert!(
+            validate_transition_with_rule(Some("pending_schedule"), "scheduled", "invalid")
+                .is_err()
+        );
     }
 
     // ===== 回修资格校验测试 =====

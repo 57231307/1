@@ -59,8 +59,8 @@ impl MrpEngineService {
         date_to: Option<NaiveDate>,
         only_shortage: bool,
     ) -> Result<Vec<MaterialRequirement>, AppError> {
-        let mut select =
-            MrpResultEntity::find().filter(crate::models::mrp_result::Column::Status.eq(mrp_status::PLANNED));
+        let mut select = MrpResultEntity::find()
+            .filter(crate::models::mrp_result::Column::Status.eq(mrp_status::PLANNED));
 
         if let Some(pid) = product_id {
             select = select.filter(crate::models::mrp_result::Column::ProductId.eq(pid));

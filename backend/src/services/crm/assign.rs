@@ -287,21 +287,28 @@ impl CrmAssignService {
         if req.reason.trim().is_empty() {
             return Err(AppError::validation("转移分配失败：转移原因不能为空"));
         }
-        let lead = self.fetch_lead_for_transfer(req.lead_id, req.to_user_id).await?;
+        let lead = self
+            .fetch_lead_for_transfer(req.lead_id, req.to_user_id)
+            .await?;
         let new_owner = self.fetch_and_validate_new_owner(req.to_user_id).await?;
         let from_user_id = lead.owner_id;
         let from_user_name = lead.owner_name.clone();
         let now = chrono::Utc::now();
         // 事务：更新归属人 + 写入转移历史
         let txn = (*self.db).begin().await?;
-        let updated = Self::apply_lead_owner_update(&txn, lead, &new_owner, operator_id, now).await?;
+        let updated =
+            Self::apply_lead_owner_update(&txn, lead, &new_owner, operator_id, now).await?;
         self.history_service
             .create_with_txn(
                 &txn,
                 operator_id,
                 operator_name,
                 Self::build_transfer_history_request(
-                    &updated, from_user_id, &from_user_name, &new_owner, &req,
+                    &updated,
+                    from_user_id,
+                    &from_user_name,
+                    &new_owner,
+                    &req,
                 ),
             )
             .await?;
@@ -310,7 +317,13 @@ impl CrmAssignService {
             "用户 {} 将线索 {} 从用户 {} 转移给用户 {}",
             operator_id, updated.id, from_user_id, new_owner.id
         );
-        Ok(Self::build_transfer_result(updated, from_user_id, from_user_name, new_owner, now))
+        Ok(Self::build_transfer_result(
+            updated,
+            from_user_id,
+            from_user_name,
+            new_owner,
+            now,
+        ))
     }
 
     /// 查询线索并校验可转移性：存在 + 未转化为客户 + 非自转
@@ -339,16 +352,11 @@ impl CrmAssignService {
     }
 
     /// 查询新归属人并校验：存在 + 活跃
-    async fn fetch_and_validate_new_owner(
-        &self,
-        to_user_id: i32,
-    ) -> Result<user::Model, AppError> {
+    async fn fetch_and_validate_new_owner(&self, to_user_id: i32) -> Result<user::Model, AppError> {
         let new_owner = user::Entity::find_by_id(to_user_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::validation(format!("新归属人用户 {} 不存在", to_user_id))
-            })?;
+            .ok_or_else(|| AppError::validation(format!("新归属人用户 {} 不存在", to_user_id)))?;
         if !new_owner.is_active {
             return Err(AppError::validation(format!(
                 "新归属人用户 {} 已停用，无法接收线索",
@@ -481,7 +489,11 @@ impl CrmAssignService {
                 operator_id,
                 operator_name,
                 Self::build_claim_history_request(
-                    &updated, from_user_id, &from_user_name, &claimer, operator_name,
+                    &updated,
+                    from_user_id,
+                    &from_user_name,
+                    &claimer,
+                    operator_name,
                 ),
             )
             .await?;
@@ -491,7 +503,13 @@ impl CrmAssignService {
             "用户 {} 通过抢单模式认领线索 {}，归属人从 {} 变更为 {}",
             operator_id, updated.id, from_user_id, claimer.id
         );
-        Ok(Self::build_claim_result(updated, from_user_id, from_user_name, claimer, now))
+        Ok(Self::build_claim_result(
+            updated,
+            from_user_id,
+            from_user_name,
+            claimer,
+            now,
+        ))
     }
 
     /// 校验认领人存在且活跃
@@ -534,10 +552,7 @@ impl CrmAssignService {
     }
 
     /// 校验线索可被认领：状态为 new 且非自转
-    fn validate_lead_for_claim(
-        lead: &crm_lead::Model,
-        user_id: i32,
-    ) -> Result<(), AppError> {
+    fn validate_lead_for_claim(lead: &crm_lead::Model, user_id: i32) -> Result<(), AppError> {
         if lead.lead_status.as_deref() != Some(lead_status::NEW) {
             return Err(AppError::validation(format!(
                 "线索 {} 当前状态为 {:?}，非 'new' 状态无法认领",

@@ -41,16 +41,16 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
+import { useI18n } from 'vue-i18n';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 统计字段类型
 interface LgsStats {
-  total: number
-  pending: number
-  inTransit: number
-  delivered: number
+  total: number;
+  pending: number;
+  inTransit: number;
+  delivered: number;
 }
 
 /**
@@ -58,8 +58,8 @@ interface LgsStats {
  */
 defineProps<{
   // 统计数据
-  stats: LgsStats
-}>()
+  stats: LgsStats;
+}>();
 </script>
 
 <style scoped>

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 能耗记录模型（energy_consumption_record 表）
 //!
 //! v14 批次 428：能耗管理贯通

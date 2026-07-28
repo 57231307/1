@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 染化料领用单模型（chemical_requisition 表）
 //!
 //! v14 批次 429：染化料主数据完善

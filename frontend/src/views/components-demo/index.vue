@@ -15,15 +15,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useI18n } from 'vue-i18n'
-import ChartsDemo from './ChartsDemo.vue'
-import BatchActionsDemo from './BatchActionsDemo.vue'
-import AdvancedFilterDemo from './AdvancedFilterDemo.vue'
+import { ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import ChartsDemo from './ChartsDemo.vue';
+import BatchActionsDemo from './BatchActionsDemo.vue';
+import AdvancedFilterDemo from './AdvancedFilterDemo.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const activeTab = ref('charts')
+const activeTab = ref('charts');
 </script>
 
 <style scoped>

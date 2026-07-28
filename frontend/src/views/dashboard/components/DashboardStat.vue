@@ -116,7 +116,7 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
+import { useI18n } from 'vue-i18n';
 import {
   Folder,
   Box,
@@ -126,13 +126,13 @@ import {
   Clock,
   Warning,
   TrendCharts,
-} from '@element-plus/icons-vue'
-import type { DashboardOverview } from '@/api/dashboard'
-import { formatNumber, formatCurrency } from '../composables/dbFmts'
+} from '@element-plus/icons-vue';
+import type { DashboardOverview } from '@/api/dashboard';
+import { formatNumber, formatCurrency } from '../composables/dbFmts';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-defineProps<{ stats: DashboardOverview }>()
+defineProps<{ stats: DashboardOverview }>();
 </script>
 
 <style scoped>

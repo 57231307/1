@@ -193,9 +193,11 @@ fn compute_material_requirements(
                     // 批次 97 P1-9 修复（v5 复审）：数量计算补 round_dp(4) 防止精度漂移
                     let qty_per_unit = (item.quantity * (Decimal::ONE + scrap_rate)).round_dp(4);
                     let total_for_product = (qty_per_unit * demand).round_dp(4);
-                    let entry = material_requirements
-                        .entry(item.material_id)
-                        .or_insert((Decimal::ZERO, item.unit.clone(), vec![]));
+                    let entry = material_requirements.entry(item.material_id).or_insert((
+                        Decimal::ZERO,
+                        item.unit.clone(),
+                        vec![],
+                    ));
                     entry.0 += total_for_product;
                     entry.2.push((*product_id, qty_per_unit));
                 }
@@ -274,10 +276,22 @@ fn sort_items_by_level(items: &mut [MaterialShortageItem]) {
 }
 
 /// 由缺料清单汇总统计指标并构造 ShortageSummary
-fn build_shortage_summary(total_materials: usize, items: Vec<MaterialShortageItem>) -> ShortageSummary {
-    let critical_count = items.iter().filter(|i| i.level == ShortageLevel::Critical).count() as i64;
-    let severe_count = items.iter().filter(|i| i.level == ShortageLevel::Severe).count() as i64;
-    let warning_count = items.iter().filter(|i| i.level == ShortageLevel::Warning).count() as i64;
+fn build_shortage_summary(
+    total_materials: usize,
+    items: Vec<MaterialShortageItem>,
+) -> ShortageSummary {
+    let critical_count = items
+        .iter()
+        .filter(|i| i.level == ShortageLevel::Critical)
+        .count() as i64;
+    let severe_count = items
+        .iter()
+        .filter(|i| i.level == ShortageLevel::Severe)
+        .count() as i64;
+    let warning_count = items
+        .iter()
+        .filter(|i| i.level == ShortageLevel::Warning)
+        .count() as i64;
     let affected: std::collections::HashSet<i32> = items
         .iter()
         .flat_map(|i| i.affected_orders.iter().map(|o| o.order_id))
@@ -305,7 +319,11 @@ impl MaterialShortageService {
     ) -> Result<ShortageSummary, AppError> {
         let _threshold = request.threshold.unwrap_or_default();
         let orders = self
-            .fetch_active_orders(request.product_ids.as_ref(), request.date_from, request.date_to)
+            .fetch_active_orders(
+                request.product_ids.as_ref(),
+                request.date_from,
+                request.date_to,
+            )
             .await?;
         if orders.is_empty() {
             return Ok(empty_shortage_summary());
@@ -709,9 +727,7 @@ impl MaterialShortageService {
     /// 加载预警阈值配置（V15 P0-B15：从 material_shortage_threshold_configs 单行表读取）
     ///
     /// 若 DB 中无行（理论上 migration m0068 默认插入了一行），降级返回默认值。
-    pub async fn load_threshold_config(
-        &self,
-    ) -> Result<ShortageThresholdConfig, AppError> {
+    pub async fn load_threshold_config(&self) -> Result<ShortageThresholdConfig, AppError> {
         let row = threshold_model::Entity::find_by_id(threshold_model::SINGLE_ROW_ID)
             .one(&*self.db)
             .await?;

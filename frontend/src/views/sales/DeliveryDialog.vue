@@ -56,10 +56,19 @@
         </el-col>
       </el-row>
       <el-form-item :label="t('sales.delivery.deliveryItems')">
-        <el-table :data="form.items" border style="width: 100%" :aria-label="t('sales.delivery.itemsTableAriaLabel')">
+        <el-table
+          :data="form.items"
+          border
+          style="width: 100%"
+          :aria-label="t('sales.delivery.itemsTableAriaLabel')"
+        >
           <el-table-column prop="product_name" :label="t('sales.delivery.product')" width="150" />
           <el-table-column prop="quantity" :label="t('sales.delivery.orderQuantity')" width="100" />
-          <el-table-column prop="delivered_quantity" :label="t('sales.delivery.delivered')" width="100" />
+          <el-table-column
+            prop="delivered_quantity"
+            :label="t('sales.delivery.delivered')"
+            width="100"
+          />
           <el-table-column :label="t('sales.delivery.currentDelivery')" width="120">
             <template #default="{ row }">
               <el-input-number
@@ -87,9 +96,9 @@
     </el-form>
     <template #footer>
       <el-button @click="emit('update:visible', false)">{{ t('sales.delivery.cancel') }}</el-button>
-      <el-button type="primary" :loading="submitting" @click="handleSubmit(form)"
-        >{{ t('sales.delivery.confirmDelivery') }}</el-button
-      >
+      <el-button type="primary" :loading="submitting" @click="handleSubmit(form)">{{
+        t('sales.delivery.confirmDelivery')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>
@@ -97,47 +106,47 @@
 <script setup lang="ts">
 // 注：form 由父组件通过 reactive() 创建并通过 prop 传入；
 // 子组件在用户交互时通过 emit('update:form', newForm) 整体覆盖，避免直接修改 prop。
-import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
+import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 interface DeliveryItem {
-  product_id: number
-  product_name: string
-  quantity: number
-  delivered_quantity: number
-  deliver_quantity: number
-  unit_price: number
-  remarks: string
+  product_id: number;
+  product_name: string;
+  quantity: number;
+  delivered_quantity: number;
+  deliver_quantity: number;
+  unit_price: number;
+  remarks: string;
 }
 
 interface DeliveryForm {
-  order_id: number
-  order_no: string
-  customer_name: string
-  delivery_date: string
-  warehouse_id: number | undefined
-  items: DeliveryItem[]
+  order_id: number;
+  order_no: string;
+  customer_name: string;
+  delivery_date: string;
+  warehouse_id: number | undefined;
+  items: DeliveryItem[];
 }
 
 const props = defineProps<{
-  visible: boolean
-  form: DeliveryForm
-  warehouses: { id: number; warehouse_name?: string; name?: string }[]
-  submitting?: boolean
-}>()
+  visible: boolean;
+  form: DeliveryForm;
+  warehouses: { id: number; warehouse_name?: string; name?: string }[];
+  submitting?: boolean;
+}>();
 
 const emit = defineEmits<{
-  'update:visible': [value: boolean]
-  'update:form': [value: DeliveryForm]
-  submit: [data: DeliveryForm]
-}>()
+  'update:visible': [value: boolean];
+  'update:form': [value: DeliveryForm];
+  submit: [data: DeliveryForm];
+}>();
 
 // 通过 emit 通知父组件更新 form 字段（顶层字段）
 const updateForm = <K extends keyof DeliveryForm>(key: K, value: DeliveryForm[K]) => {
-  emit('update:form', { ...props.form, [key]: value })
-}
+  emit('update:form', { ...props.form, [key]: value });
+};
 
 // 通过 emit 通知父组件更新 items 数组中的指定行
 const updateItem = <K extends keyof DeliveryItem>(
@@ -146,27 +155,25 @@ const updateItem = <K extends keyof DeliveryItem>(
   value: DeliveryItem[K]
 ) => {
   // 创建新的 items 数组（不可变更新），避免直接修改 prop.items
-  const newItems = props.form.items.map(item =>
-    item === row ? { ...item, [key]: value } : item
-  )
-  emit('update:form', { ...props.form, items: newItems })
-}
+  const newItems = props.form.items.map(item => (item === row ? { ...item, [key]: value } : item));
+  emit('update:form', { ...props.form, items: newItems });
+};
 
 const handleSubmit = (form: DeliveryForm) => {
   // 校验：确保必填项已填
   if (!form.warehouse_id) {
-    ElMessage.warning(t('sales.delivery.warehouseRequired'))
-    return
+    ElMessage.warning(t('sales.delivery.warehouseRequired'));
+    return;
   }
   if (!form.delivery_date) {
-    ElMessage.warning(t('sales.delivery.deliveryDateRequired'))
-    return
+    ElMessage.warning(t('sales.delivery.deliveryDateRequired'));
+    return;
   }
-  const hasDelivery = form.items.some(i => i.deliver_quantity > 0)
+  const hasDelivery = form.items.some(i => i.deliver_quantity > 0);
   if (!hasDelivery) {
-    ElMessage.warning(t('sales.delivery.atLeastOneDelivery'))
-    return
+    ElMessage.warning(t('sales.delivery.atLeastOneDelivery'));
+    return;
   }
-  emit('submit', form)
-}
+  emit('submit', form);
+};
 </script>

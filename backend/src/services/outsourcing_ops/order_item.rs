@@ -11,22 +11,18 @@
 //! - 创建时校验委外订单存在 + 物料存在
 
 use rust_decimal::Decimal;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 
-use crate::models::outsourcing_order::{
-    self, Entity as OrderEntity,
-};
+use crate::models::outsourcing_order::{self, Entity as OrderEntity};
 use crate::models::outsourcing_order_item::{
     self, ActiveModel as ItemActiveModel, Entity as ItemEntity, Model as ItemModel,
 };
 use crate::utils::error::AppError;
 
-use crate::services::outsourcing_service::OutsourcingOrderItemService;
 use crate::services::outsourcing_ops::types::{
     CreateOutsourcingOrderItemRequest, UpdateOutsourcingOrderItemRequest,
 };
+use crate::services::outsourcing_service::OutsourcingOrderItemService;
 
 impl OutsourcingOrderItemService {
     /// 创建委外发料明细
@@ -61,7 +57,10 @@ impl OutsourcingOrderItemService {
             .await?
             .is_none()
         {
-            return Err(AppError::business(format!("物料 {} 不存在", req.product_id)));
+            return Err(AppError::business(format!(
+                "物料 {} 不存在",
+                req.product_id
+            )));
         }
 
         let total_cost = req.quantity * req.unit_cost;
@@ -81,6 +80,7 @@ impl OutsourcingOrderItemService {
             unit_cost: Set(req.unit_cost),
             total_cost: Set(total_cost),
             inventory_transaction_id: Set(None),
+            greige_fabric_id: Set(req.greige_fabric_id),
             remarks: Set(req.remarks),
             created_at: Set(now),
             updated_at: Set(now),

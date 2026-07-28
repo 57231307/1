@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import {
   ElTable,
   ElTableColumn,
@@ -17,18 +17,18 @@ import {
   ElTabPane,
   ElStatistic,
   ElDescriptions,
-} from 'element-plus'
-import { PieChart, Clock, AlarmClock } from '@element-plus/icons-vue'
-import { getDashboardStats, type AuditStats, type AuditLog } from '@/api/omniAudit'
-import type { ApiResponse } from '@/types/api'
-import { useTableApi } from '@/composables/useTableApi'
+} from 'element-plus';
+import { PieChart, Clock, AlarmClock } from '@element-plus/icons-vue';
+import { getDashboardStats, type AuditStats, type AuditLog } from '@/api/omniAudit';
+import type { ApiResponse } from '@/types/api';
+import { useTableApi } from '@/composables/useTableApi';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const activeTab = ref('dashboard')
-const stats = ref<AuditStats | null>(null)
+const activeTab = ref('dashboard');
+const stats = ref<AuditStats | null>(null);
 // stats 独立加载状态（与 logs 的 useTableApi.loading 分离，避免双 tab 切换时互相干扰）
-const statsLoading = ref(false)
+const statsLoading = ref(false);
 
 const searchForm = ref({
   user_id: '',
@@ -38,7 +38,7 @@ const searchForm = ref({
   status: '',
   start_time: '',
   end_time: '',
-})
+});
 
 // 批次 273：接入 useTableApi，消除手写 logs/total/loading/pagination/loadLogs 重复
 // 修复 0-based 分页 bug：原 page-1 传 0 被后端 clamp(1,1000) 修正为 1，page=2 时传 1 offset=0，分页错乱
@@ -55,61 +55,61 @@ const {
   url: '/finance/audit/search',
   listKey: 'items',
   onError: () => ElMessage.error(t('omniAudit.index.messageLoadLogsFailed')),
-})
+});
 
-const viewDialogVisible = ref(false)
-const viewData = ref<AuditLog | null>(null)
+const viewDialogVisible = ref(false);
+const viewData = ref<AuditLog | null>(null);
 
 const statusOptions = [
   { label: t('omniAudit.index.optionAll'), value: '' },
   { label: t('omniAudit.index.optionSuccess'), value: 'SUCCESS' },
   { label: t('omniAudit.index.optionFailed'), value: 'FAILED' },
-]
+];
 
 const getStatusLabel = (value: string) => {
   const map: Record<string, string> = {
     '': t('omniAudit.index.optionAll'),
     SUCCESS: t('omniAudit.index.optionSuccess'),
     FAILED: t('omniAudit.index.optionFailed'),
-  }
-  return map[value] || value
-}
+  };
+  return map[value] || value;
+};
 
 const getStatusClass = (value: string) => {
-  return value === 'SUCCESS' ? 'status-success' : 'status-failed'
-}
+  return value === 'SUCCESS' ? 'status-success' : 'status-failed';
+};
 
 const loadStats = async () => {
-  statsLoading.value = true
+  statsLoading.value = true;
   try {
     // v11 批次 146 P1-3 修复：拦截器已返回 ApiResponse 完整对象，
     // res.data 即业务数据（AuditStats），无需 res.data!.data 双层访问
-    const res = await getDashboardStats()
-    stats.value = (res as ApiResponse<AuditStats> | undefined)?.data ?? null
+    const res = await getDashboardStats();
+    stats.value = (res as ApiResponse<AuditStats> | undefined)?.data ?? null;
   } catch (error) {
-    ElMessage.error(t('omniAudit.index.messageLoadStatsFailed'))
+    ElMessage.error(t('omniAudit.index.messageLoadStatsFailed'));
   } finally {
-    statsLoading.value = false
+    statsLoading.value = false;
   }
-}
+};
 
 // 批次 273：同步筛选条件到 useTableApi.queryParams 并刷新
 // useTableApi 自动 watch page/pageSize 变化触发重载，无需手动 loadLogs
 const syncQueryParams = () => {
-  setQueryParam('user_id', searchForm.value.user_id ? Number(searchForm.value.user_id) : undefined)
-  setQueryParam('event_type', searchForm.value.event_type || undefined)
-  setQueryParam('resource', searchForm.value.resource || undefined)
-  setQueryParam('action', searchForm.value.action || undefined)
-  setQueryParam('status', searchForm.value.status || undefined)
-  setQueryParam('start_time', searchForm.value.start_time || undefined)
-  setQueryParam('end_time', searchForm.value.end_time || undefined)
-}
+  setQueryParam('user_id', searchForm.value.user_id ? Number(searchForm.value.user_id) : undefined);
+  setQueryParam('event_type', searchForm.value.event_type || undefined);
+  setQueryParam('resource', searchForm.value.resource || undefined);
+  setQueryParam('action', searchForm.value.action || undefined);
+  setQueryParam('status', searchForm.value.status || undefined);
+  setQueryParam('start_time', searchForm.value.start_time || undefined);
+  setQueryParam('end_time', searchForm.value.end_time || undefined);
+};
 
 const handleSearch = () => {
-  syncQueryParams()
-  page.value = 1
-  loadLogs()
-}
+  syncQueryParams();
+  page.value = 1;
+  loadLogs();
+};
 
 const handleReset = () => {
   searchForm.value = {
@@ -120,28 +120,28 @@ const handleReset = () => {
     status: '',
     start_time: '',
     end_time: '',
-  }
-  syncQueryParams()
-  page.value = 1
-  loadLogs()
-}
+  };
+  syncQueryParams();
+  page.value = 1;
+  loadLogs();
+};
 
 // 分页（useTableApi 自动 watch page/pageSize 变化触发重载）
 const handlePageChange = (p: number) => {
-  page.value = p
-}
+  page.value = p;
+};
 
 const handlePageSizeChange = (s: number) => {
-  pageSize.value = s
-  page.value = 1
-}
+  pageSize.value = s;
+  page.value = 1;
+};
 
 const openViewDialog = (row: AuditLog) => {
-  viewData.value = row
-  viewDialogVisible.value = true
-}
+  viewData.value = row;
+  viewDialogVisible.value = true;
+};
 
-loadStats()
+loadStats();
 // 批次 273：useTableApi 构造时自动初始加载 logs，无需 setup 顶层调用 loadLogs
 </script>
 

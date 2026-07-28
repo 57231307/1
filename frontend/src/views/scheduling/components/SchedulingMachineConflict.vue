@@ -53,30 +53,30 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import type { ConflictItem } from '@/api/scheduling'
+import { useI18n } from 'vue-i18n';
+import type { ConflictItem } from '@/api/scheduling';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 排产冲突侧栏属性
 defineProps<{
   // 冲突列表
-  conflictList: ConflictItem[]
+  conflictList: ConflictItem[];
   // 冲突加载状态
-  conflictLoading: boolean
-}>()
+  conflictLoading: boolean;
+}>();
 
 // 定义事件
 const emit = defineEmits<{
   // 检测冲突
-  (e: 'detect'): void
-}>()
+  (e: 'detect'): void;
+}>();
 
 /** 格式化时间 */
 const formatTime = (t: string) => {
-  if (!t) return '-'
-  return t.replace('T', ' ').slice(0, 16)
-}
+  if (!t) return '-';
+  return t.replace('T', ' ').slice(0, 16);
+};
 </script>
 
 <style scoped>

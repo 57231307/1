@@ -5,9 +5,7 @@
 
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{
-    ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder,
-};
+use sea_orm::{ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder};
 
 use crate::handlers::inventory_stock_handler_dto::InventorySummaryItem;
 use crate::models::{inventory_stock, inventory_transaction};
@@ -219,8 +217,7 @@ impl InventoryStockService {
         // paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1。
         // 补 clamp(1, 1000) 防 DoS（恶意请求 page=999999 不会导致超大偏移查询）。
         let paginator = q.paginate(&*self.db, page_size);
-        let (transactions, total) =
-            paginate_with_total(paginator, page.clamp(1, 1000)).await?;
+        let (transactions, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 
         Ok((transactions, total))
     }
@@ -283,8 +280,7 @@ impl InventoryStockService {
         let paginator = query
             .into_model::<InventorySummaryQueryResult>()
             .paginate(&*self.db, params.page_size);
-        let (result, total) =
-            paginate_with_total(paginator, params.page.clamp(1, 1000)).await?;
+        let (result, total) = paginate_with_total(paginator, params.page.clamp(1, 1000)).await?;
 
         Ok((Self::map_summary_items(result), total))
     }
@@ -313,9 +309,7 @@ impl InventoryStockService {
     }
 
     /// 将查询结果转换为库存汇总条目
-    fn map_summary_items(
-        result: Vec<InventorySummaryQueryResult>,
-    ) -> Vec<InventorySummaryItem> {
+    fn map_summary_items(result: Vec<InventorySummaryQueryResult>) -> Vec<InventorySummaryItem> {
         result
             .into_iter()
             .map(|r| InventorySummaryItem {

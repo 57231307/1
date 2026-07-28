@@ -20,7 +20,8 @@ use crate::models::work_center::{
 use crate::utils::error::AppError;
 
 /// 工作中心 ID → 生产订单列表的映射
-type OrdersByWorkCenter = std::collections::HashMap<i32, Vec<crate::models::production_order::Model>>;
+type OrdersByWorkCenter =
+    std::collections::HashMap<i32, Vec<crate::models::production_order::Model>>;
 
 /// 可用产能查询结果
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -196,8 +197,7 @@ impl CapacityService {
         &self,
         work_center_id: Option<i32>,
     ) -> Result<Vec<crate::models::work_center::Model>, AppError> {
-        let mut wc_query = WorkCenterEntity::find()
-            .filter(WorkCenterColumn::Status.eq("ACTIVE"));
+        let mut wc_query = WorkCenterEntity::find().filter(WorkCenterColumn::Status.eq("ACTIVE"));
         if let Some(wc_id) = work_center_id {
             wc_query = wc_query.filter(WorkCenterColumn::Id.eq(wc_id));
         }
@@ -210,8 +210,7 @@ impl CapacityService {
         wc_ids: &[i32],
         date_from: Option<NaiveDate>,
         date_to: Option<NaiveDate>,
-    ) -> Result<OrdersByWorkCenter, AppError>
-    {
+    ) -> Result<OrdersByWorkCenter, AppError> {
         if wc_ids.is_empty() {
             return Ok(OrdersByWorkCenter::new());
         }
@@ -225,16 +224,15 @@ impl CapacityService {
             order_query = order_query.filter(ProductionOrderColumn::PlannedStartDate.lte(to));
         }
         let all_orders = order_query.all(&*self.db).await?;
-        let orders_by_wc = all_orders.into_iter().fold(
-            OrdersByWorkCenter::new(),
-            |mut acc, o| {
+        let orders_by_wc = all_orders
+            .into_iter()
+            .fold(OrdersByWorkCenter::new(), |mut acc, o| {
                 // work_center_id 为 Option<i32>，None 时丢弃
                 if let Some(wc_id) = o.work_center_id {
                     acc.entry(wc_id).or_default().push(o);
                 }
                 acc
-            },
-        );
+            });
         Ok(orders_by_wc)
     }
 
@@ -518,7 +516,7 @@ impl CapacityService {
     ) -> f64 {
         // 基础置信度：基于历史已完成订单数量
         let base_confidence: f64 = match historical_order_count {
-            0 => 0.30, // 无历史数据，仅基于当前产能估算
+            0 => 0.30,       // 无历史数据，仅基于当前产能估算
             1..=5 => 0.50,   // 历史数据较少
             6..=20 => 0.70,  // 历史数据适中
             21..=50 => 0.80, // 历史数据充足
@@ -684,7 +682,11 @@ mod tests {
     fn test_confidence_no_history() {
         let confidence = CapacityService::calculate_forecast_confidence(0, 30, true);
         // 基础 0.30 + 当前负荷 0.05 = 0.35，期限因子 0.92 → 0.322
-        assert!(confidence < 0.40, "无历史数据置信度应低于 0.40，实际: {}", confidence);
+        assert!(
+            confidence < 0.40,
+            "无历史数据置信度应低于 0.40，实际: {}",
+            confidence
+        );
     }
 
     /// 历史数据丰富且短期预测时置信度应较高
@@ -692,7 +694,11 @@ mod tests {
     fn test_confidence_rich_history_short_horizon() {
         let confidence = CapacityService::calculate_forecast_confidence(100, 7, true);
         // 基础 0.85 + 当前负荷 0.05 = 0.90，期限因子 1.00 → 0.90
-        assert!(confidence >= 0.85, "丰富历史+短期预测置信度应 >= 0.85，实际: {}", confidence);
+        assert!(
+            confidence >= 0.85,
+            "丰富历史+短期预测置信度应 >= 0.85，实际: {}",
+            confidence
+        );
     }
 
     /// 长期预测置信度应低于短期预测
@@ -726,10 +732,18 @@ mod tests {
     fn test_confidence_within_bounds() {
         // 最差情况：无历史 + 无负荷 + 超长期
         let min_confidence = CapacityService::calculate_forecast_confidence(0, 365, false);
-        assert!(min_confidence >= 0.10, "置信度下限应 >= 0.10，实际: {}", min_confidence);
+        assert!(
+            min_confidence >= 0.10,
+            "置信度下限应 >= 0.10，实际: {}",
+            min_confidence
+        );
 
         // 最好情况：丰富历史 + 有负荷 + 短期
         let max_confidence = CapacityService::calculate_forecast_confidence(1000, 1, true);
-        assert!(max_confidence <= 0.95, "置信度上限应 <= 0.95，实际: {}", max_confidence);
+        assert!(
+            max_confidence <= 0.95,
+            "置信度上限应 <= 0.95，实际: {}",
+            max_confidence
+        );
     }
 }

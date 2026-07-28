@@ -14,17 +14,15 @@
 //! - 订单状态回退：若所有发货单取消，订单 SHIPPED→APPROVED；部分取消 SHIPPED→PARTIAL_SHIPPED
 
 use rust_decimal::Decimal;
-use sea_orm::{
-    ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set, TransactionTrait,
-};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set, TransactionTrait};
 
+use crate::models::status::inventory_reservation as reservation_status;
+use crate::models::status::sales_delivery as delivery_status;
+use crate::models::status::sales_order as so_status;
 use crate::models::{
     inventory_reservation, inventory_stock, sales_delivery, sales_delivery_item, sales_order,
     sales_order_item,
 };
-use crate::models::status::inventory_reservation as reservation_status;
-use crate::models::status::sales_delivery as delivery_status;
-use crate::models::status::sales_order as so_status;
 use crate::utils::error::AppError;
 
 use super::super::order::SalesService;
@@ -72,8 +70,7 @@ impl SalesService {
                 .filter(inventory_reservation::Column::Status.eq(reservation_status::CONSUMED))
                 .col_expr(
                     inventory_reservation::Column::Status,
-                    sea_orm::sea_query::Expr::val(reservation_status::PENDING.to_string())
-                        .into(),
+                    sea_orm::sea_query::Expr::val(reservation_status::PENDING.to_string()).into(),
                 )
                 .col_expr(
                     inventory_reservation::Column::ReleasedAt,
@@ -193,13 +190,14 @@ impl SalesService {
         delivery_active.remarks = Set(Some(cancel_remark));
         delivery_active.updated_at = Set(now);
 
-        let updated_delivery = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &txn,
-            "auto_audit",
-            delivery_active,
-            Some(user_id),
-        )
-        .await?;
+        let updated_delivery =
+            crate::services::audit_log_service::AuditLogService::update_with_audit(
+                &txn,
+                "auto_audit",
+                delivery_active,
+                Some(user_id),
+            )
+            .await?;
 
         // 7. 判定订单状态是否需要回退
         self.revert_order_status_if_needed(order, order_id, user_id, now, &txn)

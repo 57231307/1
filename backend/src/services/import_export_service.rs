@@ -397,7 +397,10 @@ impl ImportExportService {
         let formats = ["%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%Y/%m/%d"];
         for _fmt in &formats {
             if let Ok(naive) = chrono::NaiveDateTime::parse_from_str(
-                &format!("{} 00:00:00", date_str.split(' ').next().unwrap_or(date_str)),
+                &format!(
+                    "{} 00:00:00",
+                    date_str.split(' ').next().unwrap_or(date_str)
+                ),
                 "%Y-%m-%d %H:%M:%S",
             ) {
                 return Some(chrono::DateTime::from_naive_utc_and_offset(
@@ -414,10 +417,7 @@ impl ImportExportService {
     /// `pub(crate)` 可见性：import_export_ops::export 子模块在 export_products/export_customers/
     /// export_inventory 中调用此方法计算最终 limit（取 query.limit 与 MAX_EXPORT_ROWS 的最小值）。
     pub(crate) fn get_export_limit(query: &ExportQuery) -> u64 {
-        query
-            .limit
-            .unwrap_or(MAX_EXPORT_ROWS)
-            .min(MAX_EXPORT_ROWS)
+        query.limit.unwrap_or(MAX_EXPORT_ROWS).min(MAX_EXPORT_ROWS)
     }
 }
 
@@ -469,7 +469,9 @@ mod tests {
         );
         let err_msg = result.err().unwrap().to_string();
         assert!(
-            err_msg.contains("最大行数") || err_msg.contains("MAX_EXCEL_ROWS") || err_msg.contains("上限"),
+            err_msg.contains("最大行数")
+                || err_msg.contains("MAX_EXCEL_ROWS")
+                || err_msg.contains("上限"),
             "漏洞 #8 单测：错误信息应包含'最大行数'或'上限'，实际：{}",
             err_msg
         );

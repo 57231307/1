@@ -28,8 +28,8 @@ use rskafka::record::{Record, RecordAndOffset};
 // 批次 357 v13 复审 baseline 清零：移除 unused import（Deserialize, Serialize 编译器报未使用）
 use tokio::sync::mpsc;
 
-use crate::config::settings::KafkaSettings;
 use super::event_kafka_payload::EventPayload;
+use crate::config::settings::KafkaSettings;
 use crate::services::event_bus::BusinessEvent;
 // 批次 353 v12 复审 P1-3：ShippedItem 仅在测试模块使用，加 #[cfg(test)] 避免非测试编译 unused_imports
 #[cfg(test)]
@@ -93,7 +93,6 @@ fn event_type_name(event: &BusinessEvent) -> &'static str {
         BusinessEvent::QualityInspectionCompleted { .. } => "QualityInspectionCompleted",
     }
 }
-
 
 /// Kafka 后端实现
 ///
@@ -219,10 +218,18 @@ impl KafkaBackend {
             .await
             .map_err(|e| KafkaError(format!("获取 partition 客户端失败: {}", e)))?;
 
+        // V15 P1 20.1-B 修复：注入 traceparent 到 Kafka 消息头，跨事件总线传递 trace 上下文
+        let mut headers = BTreeMap::new();
+        let traceparent = crate::observability::trace_context::traceparent_from_current_span();
+        headers.insert(
+            crate::observability::trace_context::TRACEPARENT_HEADER.to_string(),
+            traceparent.into_bytes(),
+        );
+
         let record = Record {
             key: None,
             value: Some(payload_json),
-            headers: BTreeMap::new(),
+            headers,
             timestamp: chrono::Utc::now(),
         };
 
@@ -308,7 +315,10 @@ async fn run_consumer_loop(
     loop {
         for partition in 0..partitions {
             if consecutive_failures >= MAX_FAILURES {
-                tracing::error!("Kafka 消费连续失败 {} 次，退出消费循环", consecutive_failures);
+                tracing::error!(
+                    "Kafka 消费连续失败 {} 次，退出消费循环",
+                    consecutive_failures
+                );
                 return Err(KafkaError("消费连续失败次数超过上限".to_string()));
             }
             let pc = match acquire_partition_client(&client, &config, partition).await {
@@ -321,13 +331,19 @@ async fn run_consumer_loop(
             if !initialised {
                 if let Err(e) = init_partition_offset(&pc, partition, &mut last_offsets).await {
                     consecutive_failures = consecutive_failures.saturating_add(1);
-                    tracing::error!("Kafka 拉取 partition {} earliest offset 失败: {}", partition, e);
+                    tracing::error!(
+                        "Kafka 拉取 partition {} earliest offset 失败: {}",
+                        partition,
+                        e
+                    );
                     continue;
                 }
             }
             initialised = true;
             let current_off = last_offsets[partition as usize];
-            let fetch_result = pc.fetch_records(current_off, 1_048_576..1_048_576, 1_000).await;
+            let fetch_result = pc
+                .fetch_records(current_off, 1_048_576..1_048_576, 1_000)
+                .await;
             match fetch_result {
                 Ok((records, _)) => {
                     consecutive_failures = 0;
@@ -392,6 +408,7 @@ async fn process_fetched_records(
 
 /// 处理单条 Kafka 记录：反序列化为 EventPayload 并转换为 BusinessEvent 后转发。
 /// 返回 true 表示消费通道已关闭，调用方应停止消费循环。
+/// V15 P1 20.1-B 修复：从消息头解析 traceparent 并记录 trace 关联日志。
 async fn process_kafka_record(
     record_and_off: RecordAndOffset,
     tx: &mpsc::Sender<BusinessEvent>,
@@ -400,6 +417,22 @@ async fn process_kafka_record(
         Some(b) => b,
         None => return false,
     };
+
+    // V15 P1 20.1-B 修复：从 Kafka 消息头提取 traceparent，关联生产方 trace 链路
+    let trace_id = record_and_off
+        .record
+        .headers
+        .get(crate::observability::trace_context::TRACEPARENT_HEADER)
+        .and_then(|v| std::str::from_utf8(v).ok())
+        .and_then(crate::observability::trace_context::TraceContext::from_traceparent)
+        .map(|ctx| ctx.trace_id);
+    if let Some(ref tid) = trace_id {
+        tracing::debug!(
+            trace_id = %tid,
+            "Kafka 消费消息：关联生产方 trace 链路"
+        );
+    }
+
     let payload: EventPayload = match serde_json::from_slice(&bytes) {
         Ok(p) => p,
         Err(e) => {

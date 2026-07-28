@@ -15,7 +15,7 @@
         <el-button @click="handleDepreciateAll">
           <el-icon><Refresh /></el-icon>{{ $t('fixedAssets.depreciate') }}
         </el-button>
-        <el-button @click="handleExport">
+        <el-button v-permission="'fixed_assets.export'" @click="handleExport">
           <el-icon><Download /></el-icon>{{ $t('fixedAssets.export') }}
         </el-button>
       </div>
@@ -353,10 +353,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { Plus, Refresh, Download } from '@element-plus/icons-vue'
+import { ref, reactive } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
+import { Plus, Refresh, Download } from '@element-plus/icons-vue';
 import {
   createAsset,
   updateAsset,
@@ -368,31 +368,31 @@ import {
   type FixedAssetCreateRequest,
   type FixedAssetUpdateRequest,
   type DisposalRequest,
-} from '@/api/asset'
-import { useUserStore } from '@/store/user'
-import { logger } from '@/utils/logger'
-import { exportFromBackend } from '@/utils/export'
+} from '@/api/asset';
+import { useUserStore } from '@/store/user';
+import { logger } from '@/utils/logger';
+import { exportFromBackend } from '@/utils/export';
 // 批次 278：迁移到 useTableApi composable，自动管理分页与 loading
-import { useTableApi } from '@/composables/useTableApi'
+import { useTableApi } from '@/composables/useTableApi';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const submitLoading = ref(false)
-const dialogVisible = ref(false)
-const formRef = ref<FormInstance>()
+const submitLoading = ref(false);
+const dialogVisible = ref(false);
+const formRef = ref<FormInstance>();
 
 // v3 复审 P1-2：资产处置对话框相关状态
-const disposalDialogVisible = ref(false)
-const disposalSubmitting = ref(false)
-const disposalFormRef = ref<FormInstance>()
-const disposalTargetId = ref<number | undefined>(undefined)
+const disposalDialogVisible = ref(false);
+const disposalSubmitting = ref(false);
+const disposalFormRef = ref<FormInstance>();
+const disposalTargetId = ref<number | undefined>(undefined);
 const disposalForm = reactive<DisposalRequest>({
   disposal_type: 'SALE',
   disposal_value: 0,
   disposal_date: new Date().toISOString().split('T')[0],
   reason: '',
   buyer_info: '',
-})
+});
 
 const disposalRules: FormRules = {
   disposal_type: [
@@ -419,7 +419,7 @@ const disposalRules: FormRules = {
       trigger: 'blur',
     },
   ],
-}
+};
 
 // 批次 278：筛选条件（仅保留业务字段，page/page_size 由 useTableApi 管理）
 const queryForm = reactive({
@@ -427,7 +427,7 @@ const queryForm = reactive({
   asset_name: '',
   category: '',
   status: '',
-})
+});
 
 // 批次 278：使用 useTableApi 管理资产列表分页
 const {
@@ -444,29 +444,29 @@ const {
   defaultPageSize: 20,
   onError: (err: unknown) => {
     if (err instanceof Error) {
-      ElMessage.error(err.message || t('fixedAssets.message.loadListFailed'))
+      ElMessage.error(err.message || t('fixedAssets.message.loadListFailed'));
     } else {
-      ElMessage.error(t('fixedAssets.message.loadListFailed'))
+      ElMessage.error(t('fixedAssets.message.loadListFailed'));
     }
   },
-})
+});
 
 // 批次 278：将筛选字段同步到 queryParams
 const syncQueryParams = () => {
-  setQueryParam('asset_code', queryForm.asset_code)
-  setQueryParam('asset_name', queryForm.asset_name)
-  setQueryParam('category', queryForm.category)
-  setQueryParam('status', queryForm.status)
-}
+  setQueryParam('asset_code', queryForm.asset_code);
+  setQueryParam('asset_name', queryForm.asset_name);
+  setQueryParam('category', queryForm.category);
+  setQueryParam('status', queryForm.status);
+};
 
 // 批次 278：分页变化处理函数
 const handlePageChange = (_p: number) => {
   // useTableApi 内部 watch page 自动触发刷新
-}
+};
 const handleSizeChange = (_s: number) => {
   // useTableApi 内部 watch pageSize 自动触发刷新
-  page.value = 1
-}
+  page.value = 1;
+};
 
 const form = reactive<FixedAssetCreateRequest & { id?: number }>({
   id: undefined,
@@ -480,7 +480,7 @@ const form = reactive<FixedAssetCreateRequest & { id?: number }>({
   depreciation_method: 'straight_line',
   location: '',
   custodian: '',
-})
+});
 
 const rules: FormRules = {
   asset_code: [
@@ -516,7 +516,7 @@ const rules: FormRules = {
       trigger: 'change',
     },
   ],
-}
+};
 
 const getCategoryLabel = (category: string) => {
   const map: Record<string, string> = {
@@ -525,101 +525,101 @@ const getCategoryLabel = (category: string) => {
     vehicle: t('fixedAssets.category.vehicle'),
     electronic: t('fixedAssets.category.electronic'),
     furniture: t('fixedAssets.category.furniture'),
-  }
-  return map[category] || category
-}
+  };
+  return map[category] || category;
+};
 
 const getStatusLabel = (status: string) => {
   const map: Record<string, string> = {
     in_use: t('fixedAssets.status.inUse'),
     idle: t('fixedAssets.status.idle'),
     disposed: t('fixedAssets.status.disposed'),
-  }
-  return map[status] || status
-}
+  };
+  return map[status] || status;
+};
 
 const getStatusType = (status: string) => {
   const map: Record<string, string> = {
     in_use: 'success',
     idle: 'warning',
     disposed: 'info',
-  }
-  return map[status] || 'info'
-}
+  };
+  return map[status] || 'info';
+};
 
 const handleSearch = () => {
   // 批次 278：同步筛选条件并重置到第一页
-  syncQueryParams()
-  page.value = 1
-  fetchAssets()
-}
+  syncQueryParams();
+  page.value = 1;
+  fetchAssets();
+};
 
 const handleReset = () => {
-  queryForm.asset_code = ''
-  queryForm.asset_name = ''
-  queryForm.category = ''
-  queryForm.status = ''
-  handleSearch()
-}
+  queryForm.asset_code = '';
+  queryForm.asset_name = '';
+  queryForm.category = '';
+  queryForm.status = '';
+  handleSearch();
+};
 
 const openDialog = (row?: FixedAsset) => {
-  formRef.value?.resetFields()
+  formRef.value?.resetFields();
   if (row) {
-    form.id = row.id
-    form.asset_code = row.asset_code
-    form.asset_name = row.asset_name
-    form.category = row.category
-    form.purchase_date = row.purchase_date
-    form.purchase_amount = row.purchase_amount
-    form.salvage_value = row.salvage_value
-    form.useful_life_months = row.useful_life_months
-    form.depreciation_method = row.depreciation_method
-    form.location = row.location
-    form.custodian = row.custodian
+    form.id = row.id;
+    form.asset_code = row.asset_code;
+    form.asset_name = row.asset_name;
+    form.category = row.category;
+    form.purchase_date = row.purchase_date;
+    form.purchase_amount = row.purchase_amount;
+    form.salvage_value = row.salvage_value;
+    form.useful_life_months = row.useful_life_months;
+    form.depreciation_method = row.depreciation_method;
+    form.location = row.location;
+    form.custodian = row.custodian;
   } else {
-    form.id = undefined
-    form.asset_code = ''
-    form.asset_name = ''
-    form.category = 'equipment'
-    form.purchase_date = new Date().toISOString().split('T')[0]
-    form.purchase_amount = 0
-    form.salvage_value = 0
-    form.useful_life_months = 60
-    form.depreciation_method = 'straight_line'
-    form.location = ''
-    form.custodian = ''
+    form.id = undefined;
+    form.asset_code = '';
+    form.asset_name = '';
+    form.category = 'equipment';
+    form.purchase_date = new Date().toISOString().split('T')[0];
+    form.purchase_amount = 0;
+    form.salvage_value = 0;
+    form.useful_life_months = 60;
+    form.depreciation_method = 'straight_line';
+    form.location = '';
+    form.custodian = '';
   }
-  dialogVisible.value = true
-}
+  dialogVisible.value = true;
+};
 
 const handleSubmit = async () => {
-  if (!formRef.value) return
+  if (!formRef.value) return;
   await formRef.value.validate(async valid => {
-    if (!valid) return
-    submitLoading.value = true
+    if (!valid) return;
+    submitLoading.value = true;
     try {
       if (form.id) {
         const updateData: FixedAssetUpdateRequest = {
           asset_name: form.asset_name,
           location: form.location,
           custodian: form.custodian,
-        }
-        await updateAsset(form.id, updateData)
-        ElMessage.success(t('fixedAssets.message.updateSuccess'))
+        };
+        await updateAsset(form.id, updateData);
+        ElMessage.success(t('fixedAssets.message.updateSuccess'));
       } else {
-        await createAsset(form)
-        ElMessage.success(t('fixedAssets.message.createSuccess'))
+        await createAsset(form);
+        ElMessage.success(t('fixedAssets.message.createSuccess'));
       }
-      dialogVisible.value = false
-      fetchAssets()
+      dialogVisible.value = false;
+      fetchAssets();
     } catch (e) {
-      const err = e as Error
-      ElMessage.error(err.message || t('fixedAssets.message.operationFailed'))
+      const err = e as Error;
+      ElMessage.error(err.message || t('fixedAssets.message.operationFailed'));
     } finally {
-      submitLoading.value = false
+      submitLoading.value = false;
     }
-  })
-}
+  });
+};
 
 const handleDelete = async (row: FixedAsset) => {
   try {
@@ -631,17 +631,17 @@ const handleDelete = async (row: FixedAsset) => {
         confirmButtonText: t('common.confirm'),
         cancelButtonText: t('common.cancel'),
       }
-    )
-    await deleteAssetApi(row.id)
-    ElMessage.success(t('fixedAssets.message.deleteSuccess'))
-    fetchAssets()
+    );
+    await deleteAssetApi(row.id);
+    ElMessage.success(t('fixedAssets.message.deleteSuccess'));
+    fetchAssets();
   } catch (e) {
     if (e !== 'cancel') {
-      const err = e as Error
-      ElMessage.error(err.message || t('fixedAssets.message.deleteFailed'))
+      const err = e as Error;
+      ElMessage.error(err.message || t('fixedAssets.message.deleteFailed'));
     }
   }
-}
+};
 
 const handleDepreciate = async (row: FixedAsset) => {
   try {
@@ -653,60 +653,60 @@ const handleDepreciate = async (row: FixedAsset) => {
         confirmButtonText: t('common.confirm'),
         cancelButtonText: t('common.cancel'),
       }
-    )
+    );
     // 批次 88 PH-2：补传当前期间（YYYY-MM 格式），后端按期间记录折旧明细
-    const currentPeriod = new Date().toISOString().slice(0, 7)
-    await depreciateAsset(row.id, currentPeriod)
-    ElMessage.success(t('fixedAssets.message.depreciateSuccess'))
-    fetchAssets()
+    const currentPeriod = new Date().toISOString().slice(0, 7);
+    await depreciateAsset(row.id, currentPeriod);
+    ElMessage.success(t('fixedAssets.message.depreciateSuccess'));
+    fetchAssets();
   } catch (e) {
     if (e !== 'cancel') {
-      const err = e as Error
-      ElMessage.error(err.message || t('fixedAssets.message.depreciateFailed'))
+      const err = e as Error;
+      ElMessage.error(err.message || t('fixedAssets.message.depreciateFailed'));
     }
   }
-}
+};
 
 // v3 复审 P1-2：打开资产处置对话框，记录待处置资产 ID 并重置表单
 const handleDispose = (row: FixedAsset) => {
-  disposalTargetId.value = row.id
-  disposalForm.disposal_type = 'SALE'
-  disposalForm.disposal_value = 0
-  disposalForm.disposal_date = new Date().toISOString().split('T')[0]
-  disposalForm.reason = ''
-  disposalForm.buyer_info = ''
-  disposalDialogVisible.value = true
-}
+  disposalTargetId.value = row.id;
+  disposalForm.disposal_type = 'SALE';
+  disposalForm.disposal_value = 0;
+  disposalForm.disposal_date = new Date().toISOString().split('T')[0];
+  disposalForm.reason = '';
+  disposalForm.buyer_info = '';
+  disposalDialogVisible.value = true;
+};
 
 // v3 复审 P1-2：提交资产处置请求，成功后刷新列表
 const submitDisposal = async () => {
-  if (!disposalFormRef.value || !disposalTargetId.value) return
+  if (!disposalFormRef.value || !disposalTargetId.value) return;
   // 提取到局部变量，避免闭包内 ref.value 重新推断为 number | undefined
-  const assetId = disposalTargetId.value
+  const assetId = disposalTargetId.value;
   await disposalFormRef.value.validate(async valid => {
-    if (!valid) return
-    disposalSubmitting.value = true
+    if (!valid) return;
+    disposalSubmitting.value = true;
     try {
-      await disposeAsset(assetId, { ...disposalForm })
-      ElMessage.success(t('fixedAssets.message.disposeSuccess'))
-      disposalDialogVisible.value = false
-      fetchAssets()
+      await disposeAsset(assetId, { ...disposalForm });
+      ElMessage.success(t('fixedAssets.message.disposeSuccess'));
+      disposalDialogVisible.value = false;
+      fetchAssets();
     } catch (e) {
-      const err = e as Error
-      ElMessage.error(err.message || t('fixedAssets.message.disposeFailed'))
+      const err = e as Error;
+      ElMessage.error(err.message || t('fixedAssets.message.disposeFailed'));
     } finally {
-      disposalSubmitting.value = false
+      disposalSubmitting.value = false;
     }
-  })
-}
+  });
+};
 
 // 批次 157a P1-1 修复：接入 batchDepreciateAssets API 实现批量计提折旧
 const handleDepreciateAll = async () => {
   if (assetList.value.length === 0) {
-    ElMessage.warning(t('fixedAssets.message.noDepreciableAsset'))
-    return
+    ElMessage.warning(t('fixedAssets.message.noDepreciableAsset'));
+    return;
   }
-  const currentPeriod = new Date().toISOString().slice(0, 7)
+  const currentPeriod = new Date().toISOString().slice(0, 7);
   try {
     const { value: inputPeriod } = await ElMessageBox.prompt(
       t('fixedAssets.message.batchDepreciatePrompt'),
@@ -718,19 +718,19 @@ const handleDepreciateAll = async () => {
         inputPattern: /^\d{4}-\d{2}$/,
         inputErrorMessage: t('fixedAssets.message.invalidPeriod'),
       }
-    )
-    const userStore = useUserStore()
-    const userId = userStore.userInfo?.id
+    );
+    const userStore = useUserStore();
+    const userId = userStore.userInfo?.id;
     if (!userId) {
-      ElMessage.error(t('fixedAssets.message.userNotFound'))
-      return
+      ElMessage.error(t('fixedAssets.message.userNotFound'));
+      return;
     }
     const assetIds = assetList.value
       .filter(a => a.status === 'in_use' || a.status === 'active')
-      .map(a => a.id)
+      .map(a => a.id);
     if (assetIds.length === 0) {
-      ElMessage.warning(t('fixedAssets.message.noInUseAsset'))
-      return
+      ElMessage.warning(t('fixedAssets.message.noInUseAsset'));
+      return;
     }
     await ElMessageBox.confirm(
       t('fixedAssets.message.batchDepreciateConfirm', {
@@ -743,21 +743,21 @@ const handleDepreciateAll = async () => {
         confirmButtonText: t('common.confirm'),
         cancelButtonText: t('common.cancel'),
       }
-    )
+    );
     await batchDepreciateAssets({
       asset_ids: assetIds,
       calculation_date: inputPeriod,
       user_id: userId,
-    })
-    ElMessage.success(t('fixedAssets.message.batchDepreciateSuccess', { count: assetIds.length }))
-    fetchAssets()
+    });
+    ElMessage.success(t('fixedAssets.message.batchDepreciateSuccess', { count: assetIds.length }));
+    fetchAssets();
   } catch (e) {
     if (e !== 'cancel') {
-      const err = e as Error
-      ElMessage.error(err.message || t('fixedAssets.message.batchDepreciateFailed'))
+      const err = e as Error;
+      ElMessage.error(err.message || t('fixedAssets.message.batchDepreciateFailed'));
     }
   }
-}
+};
 
 // V15 P0-S12 修复（Batch 475e）：迁移到后端导出，注入水印 + 审计日志
 const handleExport = async () => {
@@ -765,8 +765,8 @@ const handleExport = async () => {
     keyword: queryParams.value.keyword as string | undefined,
     status: queryParams.value.status as string | undefined,
     asset_category: queryParams.value.asset_category as string | undefined,
-  }
-  await exportFromBackend('/fixed-assets/export', params, 'fixed_assets_export')
-  logger.info(t('fixedAssets.message.exportSuccess'))
-}
+  };
+  await exportFromBackend('/fixed-assets/export', params, 'fixed_assets_export');
+  logger.info(t('fixedAssets.message.exportSuccess'));
+};
 </script>

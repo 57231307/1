@@ -18,8 +18,8 @@ pub mod voucher;
 
 // re-export DTOs，facade 通过 `pub use` 二次 re-export 保持外部引用路径不变
 pub use types::{
-    CreateOutsourcingOrderItemRequest, CreateOutsourcingOrderRequest, CreateOutsourcingReceiptRequest,
-    CreateOutsourcingVoucherRequest, OutsourcingOrderQuery, OutsourcingReceiptQuery,
-    OutsourcingVoucherQuery, UpdateOutsourcingOrderItemRequest, UpdateOutsourcingOrderRequest,
-    UpdateOutsourcingReceiptRequest,
+    CreateOutsourcingOrderItemRequest, CreateOutsourcingOrderRequest,
+    CreateOutsourcingReceiptRequest, CreateOutsourcingVoucherRequest, OutsourcingOrderQuery,
+    OutsourcingReceiptQuery, OutsourcingVoucherQuery, UpdateOutsourcingOrderItemRequest,
+    UpdateOutsourcingOrderRequest, UpdateOutsourcingReceiptRequest,
 };

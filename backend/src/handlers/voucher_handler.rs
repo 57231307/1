@@ -256,7 +256,8 @@ pub async fn post_voucher(
 }
 
 /// 获取凭证类型列表（v11 批次 155 P2-C：下沉到 VoucherService::available_voucher_types 静态配置化）
-pub async fn get_voucher_types() -> Json<ApiResponse<Vec<crate::services::voucher_service::VoucherTypeDefinition>>> {
+pub async fn get_voucher_types(
+) -> Json<ApiResponse<Vec<crate::services::voucher_service::VoucherTypeDefinition>>> {
     Json(ApiResponse::success(
         crate::services::voucher_service::VoucherService::available_voucher_types(),
     ))

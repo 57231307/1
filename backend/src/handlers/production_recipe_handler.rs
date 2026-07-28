@@ -84,7 +84,9 @@ pub async fn list(
     let (items, total) = recipe_service(&state)
         .list(svc_query, Some(&data_scope_ctx))
         .await?;
-    Ok(Json(ApiResponse::success_paginated(items, total, page, page_size)))
+    Ok(Json(ApiResponse::success_paginated(
+        items, total, page, page_size,
+    )))
 }
 
 /// POST /api/v1/erp/production-recipes - 创建大货处方

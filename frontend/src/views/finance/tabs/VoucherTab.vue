@@ -10,7 +10,11 @@
     <div class="page-header">
       <h2 class="page-title">{{ t('finance.voucherTab.pageTitle') }}</h2>
       <div class="header-actions">
-        <el-button v-permission="PERMISSIONS.VOUCHER_CREATE" type="primary" @click="openVoucherDialog()">
+        <el-button
+          v-permission="PERMISSIONS.VOUCHER_CREATE"
+          type="primary"
+          @click="openVoucherDialog()"
+        >
           <el-icon><Plus /></el-icon>
           {{ t('finance.voucherTab.buttonNewVoucher') }}
         </el-button>
@@ -28,15 +32,15 @@
     <VoucherFilter
       :query-params="vchr.queryParams"
       @fetch="vchr.handleSearch"
-      @update:query-params="(v) => Object.assign(vchr.queryParams, v)"
+      @update:query-params="v => Object.assign(vchr.queryParams, v)"
     />
 
     <VoucherTable
+      v-model:page="vchr.page"
+      v-model:page-size="vchr.pageSize"
       :vouchers="vchr.vouchers"
       :voucher-loading="vchr.voucherLoading"
       :voucher-total="vchr.voucherTotal"
-      v-model:page="vchr.page"
-      v-model:page-size="vchr.pageSize"
       :format-money="vchr.formatMoney"
       :get-voucher-status-label="vchr.getVchrStatusLabel"
       :get-voucher-status-type="vchr.getVchrStatusType"
@@ -60,7 +64,8 @@
       @add-entry="vchr.addEntry"
       @remove-entry="vchr.removeEntry"
       @submit-form="onSubmitForm"
-      @update:voucher-form="(v) => Object.assign(vchr.voucherForm, v)"
+      @update:voucher-form="v => Object.assign(vchr.voucherForm, v)"
+      @form-ref-ready="vchr.voucherFormRef = $event"
     />
 
     <VoucherDetail
@@ -74,63 +79,63 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, toRef } from 'vue'
-import { useI18n } from 'vue-i18n'
-import type { FormInstance } from 'element-plus'
-import { Plus, Printer, Download } from '@element-plus/icons-vue'
-import { useVchr } from './composables/useVchr'
-import { useVchrProc } from './composables/useVchrProc'
-import VoucherFilter from './components/VoucherFilter.vue'
-import VoucherTable from './components/VoucherTable.vue'
-import VoucherForm from './components/VoucherForm.vue'
-import VoucherDetail from './components/VoucherDetail.vue'
-import type { Voucher } from '@/api/finance'
+import { ref, onMounted, toRef } from 'vue';
+import { useI18n } from 'vue-i18n';
+import type { FormInstance } from 'element-plus';
+import { Plus, Printer, Download } from '@element-plus/icons-vue';
+import { useVchr } from './composables/useVchr';
+import { useVchrProc } from './composables/useVchrProc';
+import VoucherFilter from './components/VoucherFilter.vue';
+import VoucherTable from './components/VoucherTable.vue';
+import VoucherForm from './components/VoucherForm.vue';
+import VoucherDetail from './components/VoucherDetail.vue';
+import type { Voucher } from '@/api/finance';
 // Batch 468 P0-S28：引入权限码常量，与后端 vouchers 资源对齐
-import { PERMISSIONS } from '@/constants/permissions'
+import { PERMISSIONS } from '@/constants/permissions';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const vchr = useVchr()
+const vchr = useVchr();
 // 使用 toRef 包装 reactive 属性为 ref，保持 useVchrProc 内部能读取最新 vouchers
-const vchrProc = useVchrProc(toRef(vchr, 'vouchers'), vchr.fetchVouchers)
+const vchrProc = useVchrProc(toRef(vchr, 'vouchers'), vchr.fetchVouchers);
 // VoucherForm 需要 ref-like 的 voucherFormRef（{ value: FormInstance | undefined }），
 // reactive 会自动解包 ref，top-level ref 在模板中也会被解包，
 // 因此用 getter/setter 对象代理访问，避免被 vue-tsc 自动解包
 const voucherFormRefObj: { value: FormInstance | undefined } = {
   get value() {
-    return vchr.voucherFormRef
+    return vchr.voucherFormRef;
   },
   set value(v: FormInstance | undefined) {
-    vchr.voucherFormRef = v
+    vchr.voucherFormRef = v;
   },
-}
+};
 
-const voucherDialogVisible = ref(false)
-const voucherViewVisible = ref(false)
+const voucherDialogVisible = ref(false);
+const voucherViewVisible = ref(false);
 
 const openVoucherDialog = () => {
-  vchr.voucherFormRef?.resetFields()
-  vchr.voucherForm.voucher_date = new Date().toISOString().split('T')[0]
-  vchr.voucherForm.voucher_type = 'JZ'
+  vchr.voucherFormRef?.resetFields();
+  vchr.voucherForm.voucher_date = new Date().toISOString().split('T')[0];
+  vchr.voucherForm.voucher_type = 'JZ';
   vchr.voucherForm.entries = [
     { subject_id: undefined, debit: 0, credit: 0, summary: '' },
     { subject_id: undefined, debit: 0, credit: 0, summary: '' },
-  ]
-  voucherDialogVisible.value = true
-}
+  ];
+  voucherDialogVisible.value = true;
+};
 
 const onSubmitForm = async () => {
-  const ok = await vchr.submitVoucherForm()
-  if (ok) voucherDialogVisible.value = false
-}
+  const ok = await vchr.submitVoucherForm();
+  if (ok) voucherDialogVisible.value = false;
+};
 
 const onView = (row: Voucher) => {
-  vchr.viewVoucher(row)
-  voucherViewVisible.value = true
-}
+  vchr.viewVoucher(row);
+  voucherViewVisible.value = true;
+};
 
 // 列表由 useTableApi setup 自动加载，onMounted 仅加载辅助数据
 onMounted(() => {
-  vchr.fetchSubjects()
-})
+  vchr.fetchSubjects();
+});
 </script>

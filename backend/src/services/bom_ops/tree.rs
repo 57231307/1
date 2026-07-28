@@ -41,9 +41,7 @@ impl BomService {
                 let child_bom_map = self.fetch_child_bom_map(&items).await?;
                 for item in &items {
                     let child_node = match child_bom_map.get(&item.material_id) {
-                        Some(child_bom) => {
-                            self.get_bom_tree(child_bom.id, Some(depth - 1)).await?
-                        }
+                        Some(child_bom) => self.get_bom_tree(child_bom.id, Some(depth - 1)).await?,
                         None => Self::build_leaf_bom_node(item),
                     };
                     children.push(child_node);

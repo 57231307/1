@@ -22,36 +22,36 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElButton, ElTag } from 'element-plus'
-import V2Table from '@/components/V2Table/index.vue'
-import type { ColumnDef } from '@/components/V2Table/types'
-import type { ApprovalTask } from '@/api/bpm-enhanced'
+import { computed, h } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElButton, ElTag } from 'element-plus';
+import V2Table from '@/components/V2Table/index.vue';
+import type { ColumnDef } from '@/components/V2Table/types';
+import type { ApprovalTask } from '@/api/bpm-enhanced';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 /**
  * 审批已办任务表组件
  */
 defineProps<{
   // 任务列表
-  tasks: ApprovalTask[]
+  tasks: ApprovalTask[];
   // 加载状态
-  loading: boolean
+  loading: boolean;
   // 总数
-  total: number
+  total: number;
   // 当前页
-  page: number
+  page: number;
   // 每页条数
-  pageSize: number
-}>()
+  pageSize: number;
+}>();
 
 const emit = defineEmits<{
-  'view-chain': [row: ApprovalTask]
-  'update:page': [v: number]
-  'update:page-size': [v: number]
-}>()
+  'view-chain': [row: ApprovalTask];
+  'update:page': [v: number];
+  'update:page-size': [v: number];
+}>();
 
 /** 列定义：任务名称 / 流程名称 / 申请人 / 业务单号 / 审批时间 / 审批结果 / 审批意见 / 操作 */
 const columns = computed<ColumnDef<ApprovalTask>[]>(() => [
@@ -68,7 +68,12 @@ const columns = computed<ColumnDef<ApprovalTask>[]>(() => [
       h(
         ElTag,
         { type: row.result === 'approved' ? 'success' : 'danger', size: 'small' },
-        { default: () => (row.result === 'approved' ? t('bpm.approval.completedTable.approved') : t('bpm.approval.completedTable.rejected')) }
+        {
+          default: () =>
+            row.result === 'approved'
+              ? t('bpm.approval.completedTable.approved')
+              : t('bpm.approval.completedTable.rejected'),
+        }
       ),
   },
   { key: 'comment', title: t('bpm.approval.completedTable.comment'), minWidth: 200 },
@@ -83,7 +88,7 @@ const columns = computed<ColumnDef<ApprovalTask>[]>(() => [
         { default: () => t('bpm.approval.completedTable.viewChain') }
       ),
   },
-])
+]);
 </script>
 
 <style scoped>

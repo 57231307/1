@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 用户通知偏好设置模型
 
 use sea_orm::entity::prelude::*;

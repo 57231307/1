@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 染化料分类模型（chemical_category 表）
 //!
 //! v14 批次 429：染化料主数据完善

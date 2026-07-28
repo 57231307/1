@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use sea_orm::entity::prelude::*;
 use sea_orm::FromJsonQueryResult;
 use serde::{Deserialize, Serialize};
@@ -115,6 +116,18 @@ pub struct Model {
     /// condition 仅记录查询条件，用于快速筛选特定条件下的导出/查询审计记录
     #[sea_orm(column_type = "Text", nullable)]
     pub condition: Option<String>,
+    // ============ V15 P1-3-3 导出专属字段（m20260729 添加）============
+    /// 导出数据行数（仅 operation_type=EXPORT/PRINT 时有值），用于大批量导出识别
+    pub export_record_count: Option<i32>,
+    /// 导出时的筛选条件 JSON，用于追溯导出数据范围
+    #[sea_orm(column_type = "Text", nullable)]
+    pub export_query_filter: Option<String>,
+    /// 导出文件格式（xlsx/csv/pdf），格式合规审计
+    pub export_file_format: Option<String>,
+    /// 二级审批 token（敏感数据导出），10 分钟有效期
+    pub export_approval_token: Option<String>,
+    /// 导出文件水印中的用户名，二次泄露追溯
+    pub export_watermark_user: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

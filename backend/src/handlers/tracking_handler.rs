@@ -15,6 +15,9 @@ use crate::middleware::auth_context::AuthContext;
 use crate::services::tracking_service::{
     BehaviorInput, FunnelQuery, PageViewInput, StatsQuery, TrackingService, UserPathQuery,
 };
+use crate::services::user_consent_service::{
+    UserConsentService, CONSENT_TYPE_BEHAVIOR_TRACKING, CONSENT_TYPE_PAGE_VIEW_TRACKING,
+};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -78,7 +81,23 @@ pub struct FunnelRequest {
     pub date_to: Option<String>,
 }
 
+/// 缺陷 7.3 修复：校验用户是否同意指定 consent_type
+///
+/// 默认行为：未找到同意记录时返回 false（最小权限原则 + 合规优先）。
+/// 调用方应根据返回值决定是否真正持久化追踪数据。
+async fn is_tracking_allowed(
+    state: &AppState,
+    user_id: i32,
+    consent_type: &str,
+) -> Result<bool, AppError> {
+    let svc = UserConsentService::new(state.db.clone());
+    svc.is_consent_given(user_id, consent_type).await
+}
+
 /// 记录页面访问埋点（持久化到 page_views 表）
+///
+/// 缺陷 7.3 修复：在持久化前校验用户是否同意 page_view_tracking，
+/// 未同意时静默返回 success=true（不破坏前端 UX，但不写入明细数据）。
 pub async fn track_page_view(
     auth: AuthContext,
     State(state): State<AppState>,
@@ -87,6 +106,14 @@ pub async fn track_page_view(
     // v14 中风险安全修复：输入长度校验，防止超大字段触发 DoS
     req.validate()
         .map_err(|e| AppError::validation(format!("参数校验失败: {}", e)))?;
+
+    // 缺陷 7.3 修复：未同意 page_view_tracking 时静默跳过持久化
+    if !is_tracking_allowed(&state, auth.user_id, CONSENT_TYPE_PAGE_VIEW_TRACKING).await? {
+        return Ok(Json(ApiResponse::success(PageViewResponse {
+            success: true,
+        })));
+    }
+
     let service = TrackingService::new(state.db.clone());
     let input = PageViewInput {
         path: req.path,
@@ -98,7 +125,9 @@ pub async fn track_page_view(
         ip_address: req.ip_address,
     };
     service.record_page_view(input).await?;
-    Ok(Json(ApiResponse::success(PageViewResponse { success: true })))
+    Ok(Json(ApiResponse::success(PageViewResponse {
+        success: true,
+    })))
 }
 
 /// 页面访问统计（总量）
@@ -117,10 +146,7 @@ pub async fn get_page_view_stats(
 pub async fn get_page_view_stats_by_day(
     State(state): State<AppState>,
     Query(params): Query<StatsQuery>,
-) -> Result<
-    Json<ApiResponse<Vec<crate::services::tracking_service::DailyStats>>>,
-    AppError,
-> {
+) -> Result<Json<ApiResponse<Vec<crate::services::tracking_service::DailyStats>>>, AppError> {
     let service = TrackingService::new(state.db.clone());
     let date_from = parse_date_param(&params.date_from)?;
     let date_to = parse_date_param(&params.date_to)?;
@@ -139,21 +165,20 @@ pub struct PopularPagesQuery {
 pub async fn get_popular_pages(
     State(state): State<AppState>,
     Query(params): Query<PopularPagesQuery>,
-) -> Result<
-    Json<ApiResponse<Vec<crate::services::tracking_service::PopularPage>>>,
-    AppError,
-> {
+) -> Result<Json<ApiResponse<Vec<crate::services::tracking_service::PopularPage>>>, AppError> {
     let service = TrackingService::new(state.db.clone());
     let limit = params.limit.unwrap_or(20).clamp(1, 100);
     let date_from = parse_date_param(&params.date_from)?;
     let date_to = parse_date_param(&params.date_to)?;
-    let pages = service
-        .get_popular_pages(limit, date_from, date_to)
-        .await?;
+    let pages = service.get_popular_pages(limit, date_from, date_to).await?;
     Ok(Json(ApiResponse::success(pages)))
 }
 
 /// 记录用户行为
+///
+/// 缺陷 7.3 修复：在持久化前校验用户是否同意 behavior_tracking，
+/// 未同意时静默返回 success=true（不破坏前端 UX，但不写入明细数据）。
+/// 缺陷 7.4 修复：service 层对 event_data 递归脱敏后再持久化。
 pub async fn record_behavior(
     auth: AuthContext,
     State(state): State<AppState>,
@@ -162,6 +187,14 @@ pub async fn record_behavior(
     // v14 中风险安全修复：输入长度校验，防止超大字段触发 DoS
     req.validate()
         .map_err(|e| AppError::validation(format!("参数校验失败: {}", e)))?;
+
+    // 缺陷 7.3 修复：未同意 behavior_tracking 时静默跳过持久化
+    if !is_tracking_allowed(&state, auth.user_id, CONSENT_TYPE_BEHAVIOR_TRACKING).await? {
+        return Ok(Json(ApiResponse::success(PageViewResponse {
+            success: true,
+        })));
+    }
+
     let service = TrackingService::new(state.db.clone());
     let input = BehaviorInput {
         event_type: req.event_type,
@@ -173,7 +206,9 @@ pub async fn record_behavior(
         ip_address: req.ip_address,
     };
     service.record_behavior(input).await?;
-    Ok(Json(ApiResponse::success(PageViewResponse { success: true })))
+    Ok(Json(ApiResponse::success(PageViewResponse {
+        success: true,
+    })))
 }
 
 /// 漏斗分析
@@ -195,10 +230,7 @@ pub async fn get_funnel_analysis(
 pub async fn get_user_path(
     State(state): State<AppState>,
     Query(params): Query<UserPathQuery>,
-) -> Result<
-    Json<ApiResponse<Vec<crate::services::tracking_service::UserPathNode>>>,
-    AppError,
-> {
+) -> Result<Json<ApiResponse<Vec<crate::services::tracking_service::UserPathNode>>>, AppError> {
     let service = TrackingService::new(state.db.clone());
     let date_from = parse_date_param(&params.date_from)?;
     let date_to = parse_date_param(&params.date_to)?;
@@ -215,8 +247,9 @@ fn parse_date_param(s: &Option<String>) -> Result<Option<chrono::DateTime<chrono
             let dt = s
                 .parse::<chrono::DateTime<chrono::Utc>>()
                 .or_else(|_| {
-                    chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d")
-                        .map(|d| d.and_hms_opt(0, 0, 0).unwrap(/* 不变量：0,0,0 永远合法 */).and_utc())
+                    chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").map(
+                        |d| d.and_hms_opt(0, 0, 0).unwrap(/* 不变量：0,0,0 永远合法 */).and_utc(),
+                    )
                 })
                 .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?;
             Ok(Some(dt))

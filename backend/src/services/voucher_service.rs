@@ -134,15 +134,15 @@ pub struct VoucherDetail {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::services::test_common::setup_test_db;
     use crate::decs;
-    use crate::ymd;
     use crate::models::status::voucher as voucher_status;
+    use crate::services::test_common::setup_test_db;
+    use crate::utils::error::AppError;
+    use crate::ymd;
+    use chrono::Datelike;
     use chrono::Utc;
     use sea_orm::DatabaseConnection;
     use std::str::FromStr;
-    use chrono::Datelike;
-    use crate::utils::error::AppError;
 
     /// 构建测试用凭证分录请求夹具
     ///
@@ -234,9 +234,16 @@ mod tests {
     fn can_transition(from: &str, to: &str) -> bool {
         matches!(
             (from, to),
-            (voucher_status::VOUCHER_DRAFT, voucher_status::VOUCHER_SUBMITTED)
-                | (voucher_status::VOUCHER_SUBMITTED, voucher_status::VOUCHER_REVIEWED)
-                | (voucher_status::VOUCHER_REVIEWED, voucher_status::VOUCHER_POSTED)
+            (
+                voucher_status::VOUCHER_DRAFT,
+                voucher_status::VOUCHER_SUBMITTED
+            ) | (
+                voucher_status::VOUCHER_SUBMITTED,
+                voucher_status::VOUCHER_REVIEWED
+            ) | (
+                voucher_status::VOUCHER_REVIEWED,
+                voucher_status::VOUCHER_POSTED
+            )
         )
     }
 

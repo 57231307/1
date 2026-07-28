@@ -1,7 +1,11 @@
 use std::fs;
 use std::path::Path;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_subscriber::{
+    layer::{Layer, SubscriberExt},
+    util::SubscriberInitExt,
+    Registry,
+};
 
 /// 日志配置
 pub struct LogConfig {
@@ -9,162 +13,192 @@ pub struct LogConfig {
     pub log_level: String,
 }
 
+/// 装箱后的日志层（类型擦除，便于组合异构 layer）
+type BoxedLayer = Box<dyn Layer<Registry> + Send + Sync>;
+
 /// 初始化增强日志系统
 pub fn init_enhanced_logging(config: &LogConfig) -> Result<(), Box<dyn std::error::Error>> {
-    let is_container = std::path::Path::new("/.dockerenv").exists()
-        || std::env::var("KUBERNETES_SERVICE_HOST").is_ok();
-
-    if is_container {
-        let console_layer = tracing_subscriber::fmt::layer()
-            .with_writer(std::io::stdout)
-            .with_target(true);
-
-        tracing_subscriber::registry()
-            .with(
-                tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-                    format!("bingxi_backend={},tower_http=debug", config.log_level).into()
-                }),
-            )
-            .with(console_layer)
-            .init();
-
-        tracing::info!("增强日志系统初始化完成 (容器环境: stdout JSON 模式)");
+    if is_container_environment() {
+        init_container_logging(config);
         return Ok(());
     }
 
-    // 创建日志目录
+    init_host_logging(config)?;
+    Ok(())
+}
+
+fn is_container_environment() -> bool {
+    std::path::Path::new("/.dockerenv").exists() || std::env::var("KUBERNETES_SERVICE_HOST").is_ok()
+}
+
+fn init_container_logging(config: &LogConfig) {
+    // V15 P1 20.8-A：容器环境 stdout 使用 JSON 格式，便于 Loki/ELK 直接采集
+    let console_layer = tracing_subscriber::fmt::layer()
+        .with_writer(std::io::stdout)
+        .with_target(true)
+        .json();
+
+    tracing_subscriber::registry()
+        .with(create_env_filter(config))
+        .with(console_layer)
+        .init();
+
+    tracing::info!("增强日志系统初始化完成 (容器环境: stdout JSON 模式)");
+}
+
+fn init_host_logging(config: &LogConfig) -> Result<(), Box<dyn std::error::Error>> {
     let log_dir = Path::new(&config.log_dir);
+    create_log_directories(log_dir)?;
+
+    let (main_layer, error_layer) = create_main_layers(log_dir)?;
+    let audit_layers = create_audit_layers(log_dir)?;
+    let performance_layers = create_performance_layers(log_dir)?;
+    let security_layer = create_security_layer(log_dir)?;
+    let console_layer = tracing_subscriber::fmt::layer()
+        .with_writer(std::io::stdout)
+        .with_ansi(true)
+        .with_target(true)
+        .boxed();
+
+    // V15 P1 CI 修复：使用 Vec<BoxedLayer> 替代 tuple，避免异构 tuple 的 Layer<S> trait bound 不满足
+    // Vec<L> 实现 Layer<S>（当 L: Layer<S>），且 BoxedLayer = Box<dyn Layer<Registry> + Send + Sync>
+    // 各层均通过 .boxed() 类型擦除为 BoxedLayer，统一存入 Vec 后一次性 .with()
+    let layers: Vec<BoxedLayer> = vec![
+        create_env_filter(config).boxed(),
+        main_layer,
+        error_layer,
+        audit_layers,
+        performance_layers,
+        security_layer,
+        console_layer,
+    ];
+
+    tracing_subscriber::registry().with(layers).init();
+
+    log_initialization_info(config);
+    Ok(())
+}
+
+fn create_log_directories(log_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all(log_dir)?;
+    fs::create_dir_all(log_dir.join("audit"))?;
+    fs::create_dir_all(log_dir.join("security"))?;
+    fs::create_dir_all(log_dir.join("performance"))?;
+    Ok(())
+}
 
-    // 创建子目录
-    let audit_dir = log_dir.join("audit");
-    let security_dir = log_dir.join("security");
-    let performance_dir = log_dir.join("performance");
-    fs::create_dir_all(&audit_dir)?;
-    fs::create_dir_all(&security_dir)?;
-    fs::create_dir_all(&performance_dir)?;
+fn create_env_filter(config: &LogConfig) -> tracing_subscriber::EnvFilter {
+    tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| format!("bingxi_backend={},tower_http=debug", config.log_level).into())
+}
 
-    // 主日志文件
+fn create_main_layers(
+    log_dir: &Path,
+) -> Result<(BoxedLayer, BoxedLayer), Box<dyn std::error::Error>> {
     let main_appender = RollingFileAppender::new(Rotation::DAILY, log_dir, "bingxi_backend.log");
-
-    // 资金操作日志
-    let financial_appender =
-        RollingFileAppender::new(Rotation::DAILY, &audit_dir, "financial_audit.log");
-
-    // 权限变更日志
-    let permission_appender =
-        RollingFileAppender::new(Rotation::DAILY, &audit_dir, "permission_audit.log");
-
-    // 安全事件日志
-    let security_appender =
-        RollingFileAppender::new(Rotation::DAILY, &security_dir, "security_audit.log");
-
-    // 数据库操作日志
-    let database_appender =
-        RollingFileAppender::new(Rotation::DAILY, &audit_dir, "database_audit.log");
-
-    // 性能监控日志
-    let performance_appender =
-        RollingFileAppender::new(Rotation::DAILY, &performance_dir, "performance_audit.log");
-
-    // 业务操作日志
-    let business_appender =
-        RollingFileAppender::new(Rotation::DAILY, &audit_dir, "business_audit.log");
-
-    // 系统健康日志
-    let health_appender =
-        RollingFileAppender::new(Rotation::DAILY, &performance_dir, "system_health.log");
-
-    // 错误日志
     let error_appender = RollingFileAppender::new(Rotation::DAILY, log_dir, "error.log");
 
-    // 主日志层 - 排除所有审计日志 target
+    // V15 P1 20.8-A：文件层使用 JSON 格式，便于 ELK/Loki 直接索引结构化字段
     let main_layer = tracing_subscriber::fmt::layer()
         .with_writer(main_appender)
         .with_ansi(false)
         .with_target(true)
         .with_thread_ids(false)
         .with_file(false)
-        .with_line_number(false);
+        .with_line_number(false)
+        .json()
+        .boxed();
 
-    // 资金操作日志层
-    let financial_layer = tracing_subscriber::fmt::layer()
-        .with_writer(financial_appender)
-        .with_ansi(false)
-        .with_target(true);
-
-    // 权限变更日志层
-    let permission_layer = tracing_subscriber::fmt::layer()
-        .with_writer(permission_appender)
-        .with_ansi(false)
-        .with_target(true);
-
-    // 安全事件日志层
-    let security_layer = tracing_subscriber::fmt::layer()
-        .with_writer(security_appender)
-        .with_ansi(false)
-        .with_target(true);
-
-    // 数据库操作日志层
-    let database_layer = tracing_subscriber::fmt::layer()
-        .with_writer(database_appender)
-        .with_ansi(false)
-        .with_target(true);
-
-    // 性能监控日志层
-    let performance_layer = tracing_subscriber::fmt::layer()
-        .with_writer(performance_appender)
-        .with_ansi(false)
-        .with_target(true);
-
-    // 业务操作日志层
-    let business_layer = tracing_subscriber::fmt::layer()
-        .with_writer(business_appender)
-        .with_ansi(false)
-        .with_target(true);
-
-    // 系统健康日志层
-    let health_layer = tracing_subscriber::fmt::layer()
-        .with_writer(health_appender)
-        .with_ansi(false)
-        .with_target(true);
-
-    // 错误日志层
     let error_layer = tracing_subscriber::fmt::layer()
         .with_writer(error_appender)
         .with_ansi(false)
-        .with_target(true);
+        .with_target(true)
+        .json()
+        .boxed();
 
-    // 控制台输出层（仅开发环境）
-    let console_layer = tracing_subscriber::fmt::layer()
-        .with_writer(std::io::stdout)
-        .with_ansi(true)
-        .with_target(true);
+    Ok((main_layer, error_layer))
+}
 
-    // 初始化订阅者
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-                format!("bingxi_backend={},tower_http=debug", config.log_level).into()
-            }),
-        )
-        .with(main_layer)
-        .with(financial_layer)
-        .with(permission_layer)
-        .with(security_layer)
-        .with(database_layer)
-        .with(performance_layer)
-        .with(business_layer)
-        .with(health_layer)
-        .with(error_layer)
-        .with(console_layer)
-        .init();
+fn create_audit_layers(log_dir: &Path) -> Result<BoxedLayer, Box<dyn std::error::Error>> {
+    let audit_dir = log_dir.join("audit");
+    let financial_appender =
+        RollingFileAppender::new(Rotation::DAILY, &audit_dir, "financial_audit.log");
+    let permission_appender =
+        RollingFileAppender::new(Rotation::DAILY, &audit_dir, "permission_audit.log");
+    let database_appender =
+        RollingFileAppender::new(Rotation::DAILY, &audit_dir, "database_audit.log");
+    let business_appender =
+        RollingFileAppender::new(Rotation::DAILY, &audit_dir, "business_audit.log");
 
+    // V15 P1 CI 修复：各层独立 .boxed() 为 BoxedLayer，收集入 Vec 后统一装箱
+    // 避免 tuple .boxed() 在 sea_query 0.x 上的 trait bound 推导失败
+    let financial_layer: BoxedLayer = tracing_subscriber::fmt::layer()
+        .with_writer(financial_appender)
+        .with_ansi(false)
+        .with_target(true)
+        .boxed();
+    let permission_layer: BoxedLayer = tracing_subscriber::fmt::layer()
+        .with_writer(permission_appender)
+        .with_ansi(false)
+        .with_target(true)
+        .boxed();
+    let database_layer: BoxedLayer = tracing_subscriber::fmt::layer()
+        .with_writer(database_appender)
+        .with_ansi(false)
+        .with_target(true)
+        .boxed();
+    let business_layer: BoxedLayer = tracing_subscriber::fmt::layer()
+        .with_writer(business_appender)
+        .with_ansi(false)
+        .with_target(true)
+        .boxed();
+
+    Ok(vec![
+        financial_layer,
+        permission_layer,
+        database_layer,
+        business_layer,
+    ]
+    .boxed())
+}
+
+fn create_performance_layers(log_dir: &Path) -> Result<BoxedLayer, Box<dyn std::error::Error>> {
+    let performance_dir = log_dir.join("performance");
+    let performance_appender =
+        RollingFileAppender::new(Rotation::DAILY, &performance_dir, "performance_audit.log");
+    let health_appender =
+        RollingFileAppender::new(Rotation::DAILY, &performance_dir, "system_health.log");
+
+    let performance_layer: BoxedLayer = tracing_subscriber::fmt::layer()
+        .with_writer(performance_appender)
+        .with_ansi(false)
+        .with_target(true)
+        .boxed();
+    let health_layer: BoxedLayer = tracing_subscriber::fmt::layer()
+        .with_writer(health_appender)
+        .with_ansi(false)
+        .with_target(true)
+        .boxed();
+
+    Ok(vec![performance_layer, health_layer].boxed())
+}
+
+fn create_security_layer(log_dir: &Path) -> Result<BoxedLayer, Box<dyn std::error::Error>> {
+    let security_dir = log_dir.join("security");
+    let security_appender =
+        RollingFileAppender::new(Rotation::DAILY, &security_dir, "security_audit.log");
+
+    Ok(tracing_subscriber::fmt::layer()
+        .with_writer(security_appender)
+        .with_ansi(false)
+        .with_target(true)
+        .boxed())
+}
+
+fn log_initialization_info(config: &LogConfig) {
     tracing::info!("增强日志系统初始化完成");
     tracing::info!("日志目录: {}", config.log_dir);
     tracing::info!("审计日志: {}/audit/", config.log_dir);
     tracing::info!("安全日志: {}/security/", config.log_dir);
     tracing::info!("性能日志: {}/performance/", config.log_dir);
-
-    Ok(())
 }

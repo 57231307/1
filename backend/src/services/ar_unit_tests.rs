@@ -31,7 +31,9 @@ mod tests {
             }
         }
         fn aging_bucket(&self) -> &'static str {
-            if !self.is_overdue() { return "current"; }
+            if !self.is_overdue() {
+                return "current";
+            }
             let d = self.days_overdue();
             match d {
                 0..=30 => "0-30",

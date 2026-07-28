@@ -73,10 +73,10 @@ mod tests {
     use super::*;
     use crate::decs;
     // 批次 415：decs! 宏展开为 Decimal::from_str，需导入 FromStr trait
-    use std::str::FromStr;
     use crate::ymd;
     use chrono::Utc;
     use rust_decimal::Decimal;
+    use std::str::FromStr;
 
     /// 测试夹具：构造库存记录模型
     ///
@@ -130,11 +130,7 @@ mod tests {
     /// 测试夹具：复现库存不足错误消息
     ///
     /// 对应业务代码第 54-57 行的 format! 模板。
-    fn format_insufficient_error(
-        product_id: i32,
-        available: Decimal,
-        required: Decimal,
-    ) -> String {
+    fn format_insufficient_error(product_id: i32, available: Decimal, required: Decimal) -> String {
         format!(
             "调出仓库库存不足，产品 {}，当前库存：{}，需要调拨：{}",
             product_id, available, required
@@ -267,7 +263,10 @@ mod tests {
         let product_id = 42;
         let msg = format_insufficient_error(product_id, decs!("50"), decs!("100"));
 
-        assert!(msg.contains("产品 42"), "错误消息应包含产品 id，实际：{msg}");
+        assert!(
+            msg.contains("产品 42"),
+            "错误消息应包含产品 id，实际：{msg}"
+        );
     }
 
     /// 测试_库存不足错误消息_包含当前库存和需要调拨数量
@@ -348,10 +347,8 @@ mod tests {
         .collect();
 
         // 模拟 items：product 1 调拨 50，product 2 调拨 150，均充足
-        let items: Vec<(Option<i32>, Option<Decimal>)> = vec![
-            (Some(1), Some(decs!("50"))),
-            (Some(2), Some(decs!("150"))),
-        ];
+        let items: Vec<(Option<i32>, Option<Decimal>)> =
+            vec![(Some(1), Some(decs!("50"))), (Some(2), Some(decs!("150")))];
 
         let mut has_error = false;
         for (product_id_opt, quantity_opt) in items {

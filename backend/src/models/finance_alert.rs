@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 财务预警 Model（V15 P0-B04 Batch 481 创建）
 //!
 //! 表 finance_alerts：4 类财务预警（应收超额/库存积压/现金流不足/预算超支）

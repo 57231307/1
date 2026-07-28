@@ -9,9 +9,9 @@
  * 格式化日期时间（"YYYY-MM-DDTHH:mm:ss..." → "YYYY-MM-DD HH:mm"）
  */
 export const formatDateTime = (t: string): string => {
-  if (!t) return '-'
-  return t.replace('T', ' ').slice(0, 16)
-}
+  if (!t) return '-';
+  return t.replace('T', ' ').slice(0, 16);
+};
 
 /**
  * 排产任务状态类型映射（用于 el-tag :type）
@@ -23,9 +23,9 @@ export const getStatusType = (status: string): string => {
     running: 'warning',
     completed: 'success',
     conflict: 'danger',
-  }
-  return map[status] || 'info'
-}
+  };
+  return map[status] || 'info';
+};
 
 /**
  * 排产任务状态文本映射（用于 el-tag 显示）
@@ -37,15 +37,15 @@ export const getStatusLabel = (status: string): string => {
     running: '生产中',
     completed: '已完成',
     conflict: '冲突',
-  }
-  return map[status] || status
-}
+  };
+  return map[status] || status;
+};
 
 /**
  * 排产任务优先级类型映射（用于 el-tag :type）
  */
 export const getPriorityType = (priority: number): string => {
-  if (priority === 1) return 'danger'
-  if (priority === 2) return 'warning'
-  return 'info'
-}
+  if (priority === 1) return 'danger';
+  if (priority === 2) return 'warning';
+  return 'info';
+};

@@ -12,7 +12,12 @@
 <template>
   <div class="audit-log-view">
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="filterForm" :aria-label="$t('auditLog.filter.ariaLabel')" @submit.prevent="handleQuery">
+      <el-form
+        :inline="true"
+        :model="filterForm"
+        :aria-label="$t('auditLog.filter.ariaLabel')"
+        @submit.prevent="handleQuery"
+      >
         <el-form-item :label="$t('auditLog.filter.dateRange')">
           <el-date-picker
             v-model="filterForm.dateRange"
@@ -88,7 +93,7 @@
             <el-icon><Refresh /></el-icon>
             {{ $t('auditLog.filter.reset') }}
           </el-button>
-          <el-button type="success" @click="handleExport">
+          <el-button v-permission="'audit.log.export'" type="success" @click="handleExport">
             <el-icon><Download /></el-icon>
             {{ $t('auditLog.filter.exportCsv') }}
           </el-button>
@@ -123,7 +128,9 @@
     >
       <div v-if="currentDetail" class="detail-content">
         <el-descriptions :column="2" border>
-          <el-descriptions-item :label="$t('auditLog.detail.logId')">{{ currentDetail.id }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('auditLog.detail.logId')">{{
+            currentDetail.id
+          }}</el-descriptions-item>
           <el-descriptions-item :label="$t('auditLog.detail.operator')">
             {{ currentDetail.username ?? '-' }} (#{{ currentDetail.user_id ?? '-' }})
           </el-descriptions-item>
@@ -140,15 +147,27 @@
               {{ getSeverityLabel(currentDetail.severity ?? '') }}
             </el-tag>
           </el-descriptions-item>
-          <el-descriptions-item :label="$t('auditLog.detail.resourceType')">{{ currentDetail.resource_type ?? '-' }}</el-descriptions-item>
-          <el-descriptions-item :label="$t('auditLog.detail.resourceId')">{{ currentDetail.resource_id ?? '-' }}</el-descriptions-item>
-          <el-descriptions-item :label="$t('auditLog.detail.resourceName')">{{ currentDetail.resource_name ?? '-' }}</el-descriptions-item>
-          <el-descriptions-item :label="$t('auditLog.detail.requestMethod')">{{ currentDetail.request_method ?? '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('auditLog.detail.resourceType')">{{
+            currentDetail.resource_type ?? '-'
+          }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('auditLog.detail.resourceId')">{{
+            currentDetail.resource_id ?? '-'
+          }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('auditLog.detail.resourceName')">{{
+            currentDetail.resource_name ?? '-'
+          }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('auditLog.detail.requestMethod')">{{
+            currentDetail.request_method ?? '-'
+          }}</el-descriptions-item>
           <el-descriptions-item :label="$t('auditLog.detail.requestPath')" :span="2">
             {{ currentDetail.request_path ?? '-' }}
           </el-descriptions-item>
-          <el-descriptions-item :label="$t('auditLog.detail.requestTrace')">{{ currentDetail.request_id ?? '-' }}</el-descriptions-item>
-          <el-descriptions-item :label="$t('auditLog.detail.clientIp')">{{ currentDetail.ip_address ?? '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('auditLog.detail.requestTrace')">{{
+            currentDetail.request_id ?? '-'
+          }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('auditLog.detail.clientIp')">{{
+            currentDetail.ip_address ?? '-'
+          }}</el-descriptions-item>
           <el-descriptions-item label="User-Agent" :span="2">
             <el-text line-clamp="2">{{ currentDetail.user_agent ?? '-' }}</el-text>
           </el-descriptions-item>
@@ -172,26 +191,26 @@
  * 审计日志查看页（P13 批 1 P3-2）
  * - 后端路由：/api/v1/erp/audit-logs（list / detail / export）
  */
-import { ref, reactive, computed, h } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElTag, ElButton } from 'element-plus'
-import { Search, Refresh, Download } from '@element-plus/icons-vue'
-import V2Table from '@/components/V2Table/index.vue'
-import type { ColumnDef } from '@/components/V2Table/types'
-import { useTableApi } from '@/composables/useTableApi'
+import { ref, reactive, computed, h } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElTag, ElButton } from 'element-plus';
+import { Search, Refresh, Download } from '@element-plus/icons-vue';
+import V2Table from '@/components/V2Table/index.vue';
+import type { ColumnDef } from '@/components/V2Table/types';
+import { useTableApi } from '@/composables/useTableApi';
 import {
   getAuditLog,
   type AuditLogItem,
   type AuditLogDetail,
   type OperationType,
   type Severity,
-} from '@/api/audit'
+} from '@/api/audit';
 // V15 P0-S13 修复（Batch 475a）：审计日志导出改用后端带水印 xlsx 接口
 // 后端 GET /audit-logs/export 已就绪（admin 权限 + xlsx + 自审计 + 11 列）
 // 后端会注入水印（操作员/导出时间/导出条数），前端只需下载 Blob
-import { exportFromBackend } from '@/utils/export'
+import { exportFromBackend } from '@/utils/export';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // D05 Batch 4：操作类型/严重级别下拉选项改为 computed，使 t() 在语言切换时响应式求值
 const opTypeOptions = computed<{ value: OperationType; label: string }[]>(() => [
@@ -203,7 +222,7 @@ const opTypeOptions = computed<{ value: OperationType; label: string }[]>(() => 
   { value: 'EXPORT', label: t('auditLog.operationType.export') },
   { value: 'QUERY', label: t('auditLog.operationType.query') },
   { value: 'OTHER', label: t('auditLog.operationType.other') },
-])
+]);
 
 // D05 Batch 4：操作类型标签改为函数，使 t() 在每次渲染时响应式求值
 const getOpTypeLabel = (type: string) => {
@@ -216,16 +235,16 @@ const getOpTypeLabel = (type: string) => {
     EXPORT: t('auditLog.operationType.export'),
     QUERY: t('auditLog.operationType.query'),
     OTHER: t('auditLog.operationType.other'),
-  }
-  return labels[type] || type
-}
+  };
+  return labels[type] || type;
+};
 
 const severityOptions = computed<{ value: Severity; label: string }[]>(() => [
   { value: 'INFO', label: t('auditLog.severityLevel.info') },
   { value: 'WARN', label: t('auditLog.severityLevel.warn') },
   { value: 'ERROR', label: t('auditLog.severityLevel.error') },
   { value: 'CRITICAL', label: t('auditLog.severityLevel.critical') },
-])
+]);
 
 // D05 Batch 4：严重级别标签改为函数
 const getSeverityLabel = (severity: string) => {
@@ -234,9 +253,9 @@ const getSeverityLabel = (severity: string) => {
     WARN: t('auditLog.severityLevel.warn'),
     ERROR: t('auditLog.severityLevel.error'),
     CRITICAL: t('auditLog.severityLevel.critical'),
-  }
-  return labels[severity] || severity
-}
+  };
+  return labels[severity] || severity;
+};
 
 // 操作类型对应的 el-tag 颜色
 const OP_TYPE_TAG: Record<string, 'primary' | 'success' | 'warning' | 'info' | 'danger'> = {
@@ -248,7 +267,7 @@ const OP_TYPE_TAG: Record<string, 'primary' | 'success' | 'warning' | 'info' | '
   EXPORT: 'warning',
   QUERY: 'info',
   OTHER: 'info',
-}
+};
 
 // 严重级别对应的 el-tag 颜色
 const SEVERITY_TAG: Record<string, 'primary' | 'success' | 'warning' | 'info' | 'danger'> = {
@@ -256,7 +275,7 @@ const SEVERITY_TAG: Record<string, 'primary' | 'success' | 'warning' | 'info' | 
   WARN: 'warning',
   ERROR: 'danger',
   CRITICAL: 'danger',
-}
+};
 
 // 筛选表单
 const filterForm = reactive({
@@ -266,53 +285,46 @@ const filterForm = reactive({
   resource_type: '',
   request_id: '',
   keyword: '',
-})
+});
 
 // 批次 267：接入 useTableApi，消除手写 page/pageSize/total/loading + loadData 重复
 // API 返回 { items, total }，配置 listKey: 'items' 让 useTableApi 正确探测
-const {
-  data,
-  loading,
-  page,
-  pageSize,
-  total,
-  refresh,
-  setQueryParam,
-} = useTableApi<AuditLogItem>({
+const { data, loading, page, pageSize, total, refresh, setQueryParam } = useTableApi<AuditLogItem>({
   url: '/audit-logs',
   listKey: 'items',
   onError: () => ElMessage.error(t('auditLog.message.loadFailed')),
-})
+});
 
 // 详情抽屉
-const detailVisible = ref(false)
-const detailLoading = ref(false)
-const currentDetail = ref<AuditLogDetail | null>(null)
+const detailVisible = ref(false);
+const detailLoading = ref(false);
+const currentDetail = ref<AuditLogDetail | null>(null);
 
 // D05 Batch 4：表格列定义改为 computed，使 title 在语言切换时响应式求值
 const columns = computed<ColumnDef<AuditLogItem>[]>(() => [
   { key: 'id', title: 'ID', width: 70 },
-  { key: 'created_at', title: t('auditLog.table.operationTime'), width: 170, formatter: (row) => formatDateTime(row.created_at) },
+  {
+    key: 'created_at',
+    title: t('auditLog.table.operationTime'),
+    width: 170,
+    formatter: row => formatDateTime(row.created_at),
+  },
   {
     key: 'operation_type',
     title: t('auditLog.table.operationType'),
     width: 100,
-    renderCell: (row) =>
-      h(
-        ElTag,
-        { type: OP_TYPE_TAG[row.operation_type ?? ''] ?? 'info', size: 'small' },
-        () => getOpTypeLabel(row.operation_type ?? ''),
+    renderCell: row =>
+      h(ElTag, { type: OP_TYPE_TAG[row.operation_type ?? ''] ?? 'info', size: 'small' }, () =>
+        getOpTypeLabel(row.operation_type ?? '')
       ),
   },
   {
     key: 'severity',
     title: t('auditLog.table.severity'),
     width: 80,
-    renderCell: (row) =>
-      h(
-        ElTag,
-        { type: SEVERITY_TAG[row.severity ?? ''] ?? 'info', size: 'small' },
-        () => getSeverityLabel(row.severity ?? ''),
+    renderCell: row =>
+      h(ElTag, { type: SEVERITY_TAG[row.severity ?? ''] ?? 'info', size: 'small' }, () =>
+        getSeverityLabel(row.severity ?? '')
       ),
   },
   { key: 'username', title: t('auditLog.table.operator'), width: 110 },
@@ -326,7 +338,7 @@ const columns = computed<ColumnDef<AuditLogItem>[]>(() => [
     title: t('auditLog.table.operation'),
     width: 80,
     fixed: 'right',
-    renderCell: (row) =>
+    renderCell: row =>
       h(
         ElButton,
         {
@@ -334,14 +346,14 @@ const columns = computed<ColumnDef<AuditLogItem>[]>(() => [
           size: 'small',
           link: true,
           onClick: (e: Event) => {
-            e.stopPropagation()
-            handleViewDetail(row)
+            e.stopPropagation();
+            handleViewDetail(row);
           },
         },
-        () => t('auditLog.table.detail'),
+        () => t('auditLog.table.detail')
       ),
   },
-])
+]);
 
 /**
  * 批次 267：同步筛选条件到 useTableApi.queryParams 并刷新
@@ -349,86 +361,87 @@ const columns = computed<ColumnDef<AuditLogItem>[]>(() => [
  */
 const syncQueryParams = () => {
   // 先清空旧筛选，再写入新值（避免上次筛选残留）
-  setQueryParam('start_time', undefined)
-  setQueryParam('end_time', undefined)
-  setQueryParam('operation_type', undefined)
-  setQueryParam('severity', undefined)
-  setQueryParam('resource_type', undefined)
-  setQueryParam('request_id', undefined)
-  setQueryParam('keyword', undefined)
+  setQueryParam('start_time', undefined);
+  setQueryParam('end_time', undefined);
+  setQueryParam('operation_type', undefined);
+  setQueryParam('severity', undefined);
+  setQueryParam('resource_type', undefined);
+  setQueryParam('request_id', undefined);
+  setQueryParam('keyword', undefined);
 
   if (filterForm.dateRange && filterForm.dateRange.length === 2) {
-    setQueryParam('start_time', filterForm.dateRange[0])
-    setQueryParam('end_time', filterForm.dateRange[1])
+    setQueryParam('start_time', filterForm.dateRange[0]);
+    setQueryParam('end_time', filterForm.dateRange[1]);
   }
-  if (filterForm.operation_type) setQueryParam('operation_type', filterForm.operation_type)
-  if (filterForm.severity) setQueryParam('severity', filterForm.severity)
-  if (filterForm.resource_type.trim()) setQueryParam('resource_type', filterForm.resource_type.trim())
-  if (filterForm.request_id.trim()) setQueryParam('request_id', filterForm.request_id.trim())
-  if (filterForm.keyword.trim()) setQueryParam('keyword', filterForm.keyword.trim())
-}
+  if (filterForm.operation_type) setQueryParam('operation_type', filterForm.operation_type);
+  if (filterForm.severity) setQueryParam('severity', filterForm.severity);
+  if (filterForm.resource_type.trim())
+    setQueryParam('resource_type', filterForm.resource_type.trim());
+  if (filterForm.request_id.trim()) setQueryParam('request_id', filterForm.request_id.trim());
+  if (filterForm.keyword.trim()) setQueryParam('keyword', filterForm.keyword.trim());
+};
 
 /**
  * 查询按钮：同步筛选 + 重置到第一页 + 刷新
  */
 const handleQuery = () => {
-  syncQueryParams()
-  page.value = 1
-  refresh()
-}
+  syncQueryParams();
+  page.value = 1;
+  refresh();
+};
 
 /**
  * 重置筛选条件
  */
 const handleReset = () => {
-  filterForm.dateRange = []
-  filterForm.operation_type = ''
-  filterForm.severity = ''
-  filterForm.resource_type = ''
-  filterForm.request_id = ''
-  filterForm.keyword = ''
-  syncQueryParams()
-  page.value = 1
-  refresh()
-}
+  filterForm.dateRange = [];
+  filterForm.operation_type = '';
+  filterForm.severity = '';
+  filterForm.resource_type = '';
+  filterForm.request_id = '';
+  filterForm.keyword = '';
+  syncQueryParams();
+  page.value = 1;
+  refresh();
+};
 
 /**
  * 分页变化（useTableApi 自动 watch 重载，此处仅更新 page 值）
  */
 const handlePageChange = (p: number) => {
-  page.value = p
-}
+  page.value = p;
+};
 
 /**
  * 每页大小变化（useTableApi 自动 watch 重载，切回第一页）
  */
 const handleSizeChange = (s: number) => {
-  pageSize.value = s
-  page.value = 1
-}
+  pageSize.value = s;
+  page.value = 1;
+};
 
 /**
  * 行点击：打开详情
  */
 const handleRowClick = (row: AuditLogItem) => {
-  handleViewDetail(row)
-}
+  handleViewDetail(row);
+};
 
 /**
  * 打开详情
  */
 const handleViewDetail = async (row: AuditLogItem) => {
-  detailVisible.value = true
-  detailLoading.value = true
+  detailVisible.value = true;
+  detailLoading.value = true;
   try {
-    currentDetail.value = await getAuditLog(row.id)
+    currentDetail.value = await getAuditLog(row.id);
   } catch (err) {
-    ElMessage.error(t('auditLog.message.loadDetailFailed'))
-    detailVisible.value = false
+    ElMessage.error(t('auditLog.message.loadDetailFailed'));
+    detailVisible.value = false;
   } finally {
-    detailLoading.value = false
+    detailLoading.value = false;
   }
-}
+};
 
 /**
  * 导出 Excel：调用后端 /audit-logs/export 接口下载带水印 xlsx
@@ -448,36 +461,36 @@ const handleExport = async () => {
     resource_type: filterForm.resource_type.trim() || undefined,
     request_id: filterForm.request_id.trim() || undefined,
     keyword: filterForm.keyword.trim() || undefined,
-  }
+  };
   if (filterForm.dateRange && filterForm.dateRange.length === 2) {
-    params.start_time = filterForm.dateRange[0]
-    params.end_time = filterForm.dateRange[1]
+    params.start_time = filterForm.dateRange[0];
+    params.end_time = filterForm.dateRange[1];
   }
-  await exportFromBackend('/audit-logs/export', params, 'audit_logs_export')
-}
+  await exportFromBackend('/audit-logs/export', params, 'audit_logs_export');
+};
 
 /**
  * 格式化 JSON 字段（无值时显示占位符）
  */
 const formatJson = (v: unknown): string => {
-  if (v === null || v === undefined || v === '') return t('auditLog.detail.emptyValue')
+  if (v === null || v === undefined || v === '') return t('auditLog.detail.emptyValue');
   try {
-    return JSON.stringify(v, null, 2)
+    return JSON.stringify(v, null, 2);
   } catch {
-    return String(v)
+    return String(v);
   }
-}
+};
 
 /**
  * 格式化日期时间
  */
 const formatDateTime = (v: string | null | undefined): string => {
-  if (!v) return '-'
-  const d = new Date(v)
-  if (isNaN(d.getTime())) return v
-  const pad = (n: number) => n.toString().padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
-}
+  if (!v) return '-';
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return v;
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+};
 
 // 批次 267：useTableApi 构造时自动初始加载，无需 onMounted
 </script>

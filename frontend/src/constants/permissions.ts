@@ -30,7 +30,7 @@ export const ACTION = {
   EXPORT: 'export',
   IMPORT: 'import',
   PRINT: 'print',
-} as const
+} as const;
 
 // ============================================================================
 // 权限码常量（与后端 init_service.rs 权限矩阵对齐）
@@ -209,9 +209,9 @@ export const PERMISSIONS = {
   FINANCE_CREATE: 'finance:create',
   FINANCE_UPDATE: 'finance:update',
   FINANCE_DELETE: 'finance:delete',
-} as const
+} as const;
 
 // ============================================================================
 // 类型定义
 // ============================================================================
-export type PermissionCode = typeof PERMISSIONS[keyof typeof PERMISSIONS]
+export type PermissionCode = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

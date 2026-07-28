@@ -38,9 +38,7 @@ pub async fn convert_dual_unit(
     // 验证单位参数
     let from_unit = req.from_unit.to_lowercase();
     if from_unit != "meters" && from_unit != "kg" {
-        return Err(AppError::bad_request(
-            "无效的单位，必须是 'meters' 或 'kg'",
-        ));
+        return Err(AppError::bad_request("无效的单位，必须是 'meters' 或 'kg'"));
     }
 
     // 执行换算

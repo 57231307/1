@@ -27,7 +27,11 @@
         />
       </el-form-item>
       <el-form-item :label="t('scheduling.machineParam.form.priorityMode')">
-        <el-select v-model="scheduleParams.priority_mode" style="width: 100%">
+        <el-select
+          :model-value="scheduleParams.priority_mode"
+          style="width: 100%"
+          @update:model-value="emit('update:param', 'priority_mode', $event)"
+        >
           <el-option :label="t('scheduling.machineParam.option.priorityFifo')" value="fifo" />
           <el-option
             :label="t('scheduling.machineParam.option.priorityPriority')"
@@ -40,7 +44,11 @@
         </el-select>
       </el-form-item>
       <el-form-item :label="t('scheduling.machineParam.form.optimizationTarget')">
-        <el-select v-model="scheduleParams.optimization_target" style="width: 100%">
+        <el-select
+          :model-value="scheduleParams.optimization_target"
+          style="width: 100%"
+          @update:model-value="emit('update:param', 'optimization_target', $event)"
+        >
           <el-option :label="t('scheduling.machineParam.option.targetMinIdle')" value="min_idle" />
           <el-option
             :label="t('scheduling.machineParam.option.targetMinDelay')"
@@ -68,40 +76,42 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
+import { useI18n } from 'vue-i18n';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 排程参数类型
 interface ScheduleParams {
-  start_date: string
-  end_date: string
-  priority_mode: string
-  optimization_target: string
+  start_date: string;
+  end_date: string;
+  priority_mode: string;
+  optimization_target: string;
 }
 
 // 排产参数侧栏属性
 defineProps<{
   // 排程参数
-  scheduleParams: ScheduleParams
+  scheduleParams: ScheduleParams;
   // 日期范围
-  dateRange: [Date, Date] | null
+  dateRange: [Date, Date] | null;
   // 自动排程进行中
-  scheduling: boolean
-}>()
+  scheduling: boolean;
+}>();
 
 // 定义事件
 const emit = defineEmits<{
   // 自动排程
-  (e: 'auto-schedule'): void
+  (e: 'auto-schedule'): void;
   // 日期变化
-  (e: 'date-change', value: [Date, Date] | null): void
-}>()
+  (e: 'date-change', value: [Date, Date] | null): void;
+  // 参数变化（避免直接修改 prop，由父组件回写）
+  (e: 'update:param', key: keyof ScheduleParams, value: string): void;
+}>();
 
 /** 日期变化 */
 const onDateChange = (v: [Date, Date] | null) => {
-  emit('date-change', v)
-}
+  emit('date-change', v);
+};
 </script>
 
 <style scoped>

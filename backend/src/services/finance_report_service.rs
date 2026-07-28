@@ -8,9 +8,10 @@ use crate::models::{
     account_subject, assist_accounting_record, finance_payment, voucher, voucher_item,
 };
 use crate::utils::error::AppError;
+use crate::utils::incoterms::Incoterms2020;
 use rust_decimal::Decimal;
 use sea_orm::{
-    sea_query::Expr, ColumnTrait, DatabaseConnection, EntityTrait, JoinType,
+    sea_query::Expr, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, JoinType,
     QueryFilter, QueryOrder, QuerySelect, RelationTrait,
 };
 use serde::{Deserialize, Serialize};
@@ -167,12 +168,9 @@ impl FinanceReportService {
         // 计算后未使用（死代码）；预收账款从客户信用额度取数（业务口径与会计口径混淆）。
         // 修复：按中国企业会计准则科目编码从已过账凭证分录累计借贷方差额取余额。
         let report_date = chrono::Utc::now().date_naive();
-        let (cash_total, ar_total, inventory_total, fixed_asset_total) = self
-            .fetch_all_asset_balances(report_date)
-            .await?;
-        let (ap_total, advance_total) = self
-            .fetch_all_liability_balances(report_date)
-            .await?;
+        let (cash_total, ar_total, inventory_total, fixed_asset_total) =
+            self.fetch_all_asset_balances(report_date).await?;
+        let (ap_total, advance_total) = self.fetch_all_liability_balances(report_date).await?;
         Ok(Self::build_balance_sheet_response(
             cash_total,
             ar_total,
@@ -500,7 +498,9 @@ impl FinanceReportService {
         end_date: chrono::NaiveDate,
     ) -> Result<(Vec<ReportItem>, Decimal), AppError> {
         let cash_receipts = finance_payment::Entity::find()
-            .filter(finance_payment::Column::Status.eq(crate::models::status::common::STATUS_COMPLETED))
+            .filter(
+                finance_payment::Column::Status.eq(crate::models::status::common::STATUS_COMPLETED),
+            )
             .filter(finance_payment::Column::PaymentDate.gte(start_date))
             .filter(finance_payment::Column::PaymentDate.lte(end_date))
             .select_only()
@@ -512,7 +512,9 @@ impl FinanceReportService {
             .unwrap_or(Decimal::ZERO);
 
         let cash_payments = finance_payment::Entity::find()
-            .filter(finance_payment::Column::Status.eq(crate::models::status::common::STATUS_PENDING))
+            .filter(
+                finance_payment::Column::Status.eq(crate::models::status::common::STATUS_PENDING),
+            )
             .filter(finance_payment::Column::PaymentDate.gte(start_date))
             .filter(finance_payment::Column::PaymentDate.lte(end_date))
             .select_only()
@@ -624,7 +626,9 @@ impl FinanceReportService {
         let period_str = period.unwrap_or_else(|| chrono::Utc::now().format("%Y-%m").to_string());
 
         let subjects = account_subject::Entity::find()
-            .filter(account_subject::Column::Status.eq(crate::models::status::common::STATUS_ACTIVE))
+            .filter(
+                account_subject::Column::Status.eq(crate::models::status::common::STATUS_ACTIVE),
+            )
             .all(self.db.as_ref())
             .await?;
 
@@ -674,13 +678,9 @@ impl FinanceReportService {
     ) -> Result<GeneralLedger, AppError> {
         let (subject_name, opening_balance) =
             Self::fetch_ledger_subject_opening(self.db.as_ref(), &subject_code).await?;
-        let rows = Self::fetch_ledger_voucher_rows(
-            self.db.as_ref(),
-            &subject_code,
-            start_date,
-            end_date,
-        )
-        .await?;
+        let rows =
+            Self::fetch_ledger_voucher_rows(self.db.as_ref(), &subject_code, start_date, end_date)
+                .await?;
         let (entries, closing_balance, total_debit, total_credit) =
             Self::build_general_ledger_entries(rows, opening_balance);
         Ok(GeneralLedger {
@@ -720,7 +720,17 @@ impl FinanceReportService {
         subject_code: &str,
         start_date: chrono::NaiveDate,
         end_date: chrono::NaiveDate,
-    ) -> Result<Vec<(chrono::NaiveDate, String, i32, Option<String>, Decimal, Decimal)>, AppError> {
+    ) -> Result<
+        Vec<(
+            chrono::NaiveDate,
+            String,
+            i32,
+            Option<String>,
+            Decimal,
+            Decimal,
+        )>,
+        AppError,
+    > {
         Ok(voucher_item::Entity::find()
             .join(JoinType::InnerJoin, voucher_item::Relation::Voucher.def())
             .filter(voucher_item::Column::SubjectCode.eq(subject_code))
@@ -740,7 +750,14 @@ impl FinanceReportService {
 
     /// 构建总账条目并累计余额与借贷合计
     fn build_general_ledger_entries(
-        rows: Vec<(chrono::NaiveDate, String, i32, Option<String>, Decimal, Decimal)>,
+        rows: Vec<(
+            chrono::NaiveDate,
+            String,
+            i32,
+            Option<String>,
+            Decimal,
+            Decimal,
+        )>,
         opening_balance: Decimal,
     ) -> (Vec<GeneralLedgerEntry>, Decimal, Decimal, Decimal) {
         let mut entries: Vec<GeneralLedgerEntry> = Vec::with_capacity(rows.len());
@@ -836,15 +853,15 @@ impl FinanceReportService {
         end_date: chrono::NaiveDate,
     ) -> Result<(chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>), AppError> {
         let start = chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
-            start_date
-                .and_hms_opt(0, 0, 0)
-                .ok_or_else(|| AppError::internal("批次 95 P3-2: 起始日期时间构造失败".to_string()))?,
+            start_date.and_hms_opt(0, 0, 0).ok_or_else(|| {
+                AppError::internal("批次 95 P3-2: 起始日期时间构造失败".to_string())
+            })?,
             chrono::Utc,
         );
         let end = chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
-            end_date
-                .and_hms_opt(23, 59, 59)
-                .ok_or_else(|| AppError::internal("批次 95 P3-2: 结束日期时间构造失败".to_string()))?,
+            end_date.and_hms_opt(23, 59, 59).ok_or_else(|| {
+                AppError::internal("批次 95 P3-2: 结束日期时间构造失败".to_string())
+            })?,
             chrono::Utc,
         );
         Ok((start, end))
@@ -910,9 +927,7 @@ impl FinanceReportService {
             .filter(voucher_item::Column::SubjectCode.starts_with(&subject_prefix))
             .filter(voucher::Column::VoucherDate.gte(start_date))
             .filter(voucher::Column::VoucherDate.lte(end_date))
-            .filter(
-                voucher::Column::Status.eq(crate::models::status::voucher::VOUCHER_POSTED),
-            )
+            .filter(voucher::Column::Status.eq(crate::models::status::voucher::VOUCHER_POSTED))
             .order_by_asc(voucher::Column::VoucherDate)
             .order_by_asc(voucher::Column::VoucherNo)
             .order_by_asc(voucher_item::Column::LineNo)
@@ -954,8 +969,12 @@ impl FinanceReportService {
         if parts.len() != 2 {
             return Err(AppError::validation("period 格式必须为 YYYY-MM"));
         }
-        let year: i32 = parts[0].parse().map_err(|_| AppError::validation("period 年份无效"))?;
-        let month: u32 = parts[1].parse().map_err(|_| AppError::validation("period 月份无效"))?;
+        let year: i32 = parts[0]
+            .parse()
+            .map_err(|_| AppError::validation("period 年份无效"))?;
+        let month: u32 = parts[1]
+            .parse()
+            .map_err(|_| AppError::validation("period 月份无效"))?;
         if !(1..=12).contains(&month) {
             return Err(AppError::validation("period 月份必须在 1-12 之间"));
         }
@@ -969,6 +988,123 @@ impl FinanceReportService {
         // 复用前缀穿透方法（subject_code 作为前缀，支持一级科目下所有明细）
         self.drill_down_by_subject_prefix(subject_code, start_date, end_date)
             .await
+    }
+
+    /// V15 P1 batch-19 缺陷 23.5.4：术语使用月报
+    /// 按月份 + incoterm 聚合 sales_quotations 的报价单数与金额，支持合规审查
+    pub async fn get_incoterm_monthly_report(
+        &self,
+        year: i32,
+        month: u32,
+    ) -> Result<IncotermMonthlyReport, AppError> {
+        if !(1..=12).contains(&month) {
+            return Err(AppError::validation("month 必须在 1-12 之间"));
+        }
+        let (start_date, end_date) = Self::compute_incoterm_month_range(year, month)?;
+
+        // 规则 12 合规：参数化绑定，禁止字符串拼接
+        let sql = r#"
+            SELECT
+                price_terms AS incoterm_code,
+                COUNT(*) AS quotation_count,
+                COALESCE(SUM(total_amount), 0) AS total_amount,
+                COALESCE(SUM(freight_cost), 0) AS total_freight_cost,
+                COALESCE(SUM(insurance_cost), 0) AS total_insurance_cost,
+                COALESCE(SUM(duty_cost), 0) AS total_duty_cost
+            FROM sales_quotations
+            WHERE quotation_date >= $1
+              AND quotation_date <= $2
+              AND status <> $3
+            GROUP BY price_terms
+            ORDER BY total_amount DESC
+        "#;
+
+        let params: Vec<sea_orm::Value> = vec![
+            start_date.into(),
+            end_date.into(),
+            crate::models::status::sales::quotation::CANCELLED.into(),
+        ];
+
+        let rows: Vec<sea_orm::QueryResult> = self
+            .db
+            .query_all(sea_orm::Statement::from_sql_and_values(
+                sea_orm::DatabaseBackend::Postgres,
+                sql,
+                params,
+            ))
+            .await
+            .map_err(|e| AppError::internal(format!("术语月报聚合查询失败: {}", e)))?;
+
+        let mut raw_rows: Vec<(String, i64, Decimal, Decimal, Decimal, Decimal)> =
+            Vec::with_capacity(rows.len());
+        let mut total_amount = Decimal::ZERO;
+        let mut total_quotations: i64 = 0;
+        for row in rows {
+            let code: String = row.try_get_by_index::<String>(0).unwrap_or_default();
+            let count: i64 = row.try_get_by_index::<i64>(1).unwrap_or(0);
+            let amount: Decimal = row.try_get_by_index::<Decimal>(2).unwrap_or(Decimal::ZERO);
+            let freight: Decimal = row.try_get_by_index::<Decimal>(3).unwrap_or(Decimal::ZERO);
+            let insurance: Decimal = row.try_get_by_index::<Decimal>(4).unwrap_or(Decimal::ZERO);
+            let duty: Decimal = row.try_get_by_index::<Decimal>(5).unwrap_or(Decimal::ZERO);
+            total_amount += amount;
+            total_quotations += count;
+            raw_rows.push((code, count, amount, freight, insurance, duty));
+        }
+
+        // 构建带百分比的统计条目（保持 SQL 按金额降序的顺序）
+        let items: Vec<IncotermStatItem> = raw_rows
+            .into_iter()
+            .map(|(code, count, amount, freight, insurance, duty)| {
+                let description = Incoterms2020::from_code(&code)
+                    .map(|t| t.description().to_string())
+                    .unwrap_or_else(|_| format!("未知术语: {}", code));
+                let amount_percentage = if total_amount > Decimal::ZERO {
+                    (amount / total_amount * Decimal::from(100)).round_dp_with_strategy(
+                        2,
+                        rust_decimal::RoundingStrategy::MidpointAwayFromZero,
+                    )
+                } else {
+                    Decimal::ZERO
+                };
+                IncotermStatItem {
+                    incoterm_code: code,
+                    incoterm_description: description,
+                    quotation_count: count,
+                    total_amount: amount,
+                    total_freight_cost: freight,
+                    total_insurance_cost: insurance,
+                    total_duty_cost: duty,
+                    amount_percentage,
+                }
+            })
+            .collect();
+
+        Ok(IncotermMonthlyReport {
+            year,
+            month,
+            total_quotations,
+            total_amount,
+            items,
+        })
+    }
+
+    /// 计算术语月报的日期范围（月初第一天 + 月末最后一天）
+    fn compute_incoterm_month_range(
+        year: i32,
+        month: u32,
+    ) -> Result<(chrono::NaiveDate, chrono::NaiveDate), AppError> {
+        let start_date = chrono::NaiveDate::from_ymd_opt(year, month, 1)
+            .ok_or_else(|| AppError::bad_request("无效的日期参数"))?;
+        let next_month_first = if month == 12 {
+            chrono::NaiveDate::from_ymd_opt(year + 1, 1, 1)
+        } else {
+            chrono::NaiveDate::from_ymd_opt(year, month + 1, 1)
+        }
+        .ok_or_else(|| AppError::bad_request("无效的日期参数"))?;
+        let end_date = next_month_first
+            .pred_opt()
+            .ok_or_else(|| AppError::bad_request("无效的日期参数"))?;
+        Ok((start_date, end_date))
     }
 }
 
@@ -991,4 +1127,40 @@ pub struct VoucherItemDetail {
     pub source_module: Option<String>,
     pub source_bill_id: Option<i32>,
     pub source_bill_no: Option<String>,
+}
+
+/// V15 P1 batch-19 缺陷 23.5.4：Incoterms 术语使用月报条目
+#[derive(Debug, Serialize, Deserialize)]
+pub struct IncotermStatItem {
+    /// Incoterms 代码（如 FOB / CIF / DDP）
+    pub incoterm_code: String,
+    /// 中文业务描述
+    pub incoterm_description: String,
+    /// 报价单数量
+    pub quotation_count: i64,
+    /// 报价总金额
+    pub total_amount: Decimal,
+    /// 运费成本合计
+    pub total_freight_cost: Decimal,
+    /// 保险费成本合计
+    pub total_insurance_cost: Decimal,
+    /// 关税成本合计
+    pub total_duty_cost: Decimal,
+    /// 金额占比（%）
+    pub amount_percentage: Decimal,
+}
+
+/// V15 P1 batch-19 缺陷 23.5.4：Incoterms 术语使用月报
+#[derive(Debug, Serialize, Deserialize)]
+pub struct IncotermMonthlyReport {
+    /// 年份
+    pub year: i32,
+    /// 月份
+    pub month: u32,
+    /// 报价单总数
+    pub total_quotations: i64,
+    /// 报价总金额
+    pub total_amount: Decimal,
+    /// 按术语聚合的统计列表（按金额降序）
+    pub items: Vec<IncotermStatItem>,
 }

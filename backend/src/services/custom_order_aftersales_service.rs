@@ -6,7 +6,10 @@
 
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, Set,
+};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use thiserror::Error;
@@ -109,6 +112,7 @@ impl CustomOrderAfterSalesService {
             quality_issue_id: Set(dto.quality_issue_id),
             created_at: Set(now),
             updated_at: Set(now),
+            ..Default::default()
         };
         let result = active.insert(&*self.db).await?;
         Ok(result)
@@ -197,17 +201,18 @@ impl CustomOrderAfterSalesService {
 
         // 校验：禁止重复触发（已关联 quality_issue_id 的工单不允许再次触发）
         if let Some(existing_qi_id) = existing.quality_issue_id {
-            return Err(AfterSalesError::AlreadyLinked(after_sales_id, existing_qi_id));
+            return Err(AfterSalesError::AlreadyLinked(
+                after_sales_id,
+                existing_qi_id,
+            ));
         }
 
         // 严重程度推断：优先使用 severity_override，否则按售后类型自动推断
-        let severity = severity_override.unwrap_or_else(|| {
-            match existing.issue_type.as_str() {
-                "complaint" | "refund" => "high".to_string(),
-                "repair" => "medium".to_string(),
-                "exchange" => "low".to_string(),
-                _ => "medium".to_string(),
-            }
+        let severity = severity_override.unwrap_or_else(|| match existing.issue_type.as_str() {
+            "complaint" | "refund" => "high".to_string(),
+            "repair" => "medium".to_string(),
+            "exchange" => "low".to_string(),
+            _ => "medium".to_string(),
         });
 
         let now = Utc::now();
@@ -229,6 +234,7 @@ impl CustomOrderAfterSalesService {
             status: Set("open".to_string()),
             created_at: Set(now),
             updated_at: Set(now),
+            ..Default::default()
         };
         let inserted_issue = new_issue.insert(&*self.db).await?;
 
@@ -253,8 +259,7 @@ impl CustomOrderAfterSalesService {
         page: u64,
         page_size: u64,
     ) -> Result<(Vec<after_sales::Model>, u64), AfterSalesError> {
-        let query = Entity::find()
-            .filter(after_sales::Column::CustomOrderId.eq(order_id));
+        let query = Entity::find().filter(after_sales::Column::CustomOrderId.eq(order_id));
 
         let paginator = query
             .order_by_desc(after_sales::Column::OpenedAt)
@@ -265,10 +270,7 @@ impl CustomOrderAfterSalesService {
     }
 
     /// 按 ID 获取
-    pub async fn get_by_id(
-        &self,
-        id: i64,
-    ) -> Result<after_sales::Model, AfterSalesError> {
+    pub async fn get_by_id(&self, id: i64) -> Result<after_sales::Model, AfterSalesError> {
         Entity::find_by_id(id)
             .one(&*self.db)
             .await?

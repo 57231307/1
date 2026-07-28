@@ -26,15 +26,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useI18n } from 'vue-i18n'
-import SubjectTab from './tabs/SubjectTab.vue'
-import VoucherTab from './tabs/VoucherTab.vue'
+import { ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import SubjectTab from './tabs/SubjectTab.vue';
+import VoucherTab from './tabs/VoucherTab.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 当前激活的 Tab；数据懒加载由各子组件 onMounted 内部处理
-const activeTab = ref('subject')
+const activeTab = ref('subject');
 </script>
 
 <style scoped>

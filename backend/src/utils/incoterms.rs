@@ -9,11 +9,7 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Incoterms 2020 贸易术语枚举（11 种全量）
-///
-/// 按 Incoterms 2020 官方分类（按适用运输方式）：
-/// - 任意运输方式（含多式联运）：EXW / FCA / CPT / CIP / DAP / DPU / DDP
-/// - 海运/内河运输：FAS / FOB / CFR / CIF
+/// Incoterms 2020 贸易术语枚举（11 种全量，按适用运输方式分类）
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum Incoterms2020 {
@@ -79,11 +75,7 @@ impl Incoterms2020 {
         }
     }
 
-    /// 是否包含保险
-    ///
-    /// Incoterms 2020 包含保险的术语：CIF / CIP / DDP
-    /// - CIF/CIP：卖方为买方投保运输保险（强制）
-    /// - DDP：卖方承担所有费用含保险（虽未强制投保但实务默认包含）
+    /// 是否包含保险（CIF / CIP / DDP 强制或默认包含保险）
     pub fn includes_insurance(&self) -> bool {
         matches!(
             self,
@@ -91,12 +83,12 @@ impl Incoterms2020 {
         )
     }
 
-    /// 是否包含运费
-    ///
-    /// Incoterms 2020 不含运费的术语：EXW / FCA / FAS（卖方仅负责交付到指定地点或船边，不支付主运费）
-    /// 其他术语均含运费
+    /// 是否包含运费（EXW / FCA / FAS 不含主运费，其他术语均含）
     pub fn includes_freight(&self) -> bool {
-        !matches!(self, Incoterms2020::Exw | Incoterms2020::Fca | Incoterms2020::Fas)
+        !matches!(
+            self,
+            Incoterms2020::Exw | Incoterms2020::Fca | Incoterms2020::Fas
+        )
     }
 
     /// 是否需要卖方支付关税（仅 DDP）
@@ -108,11 +100,17 @@ impl Incoterms2020 {
     pub fn description(&self) -> &'static str {
         match self {
             Incoterms2020::Exw => "工厂交货（买方承担几乎所有费用和风险）",
-            Incoterms2020::Fca => "货交承运人（集装箱贸易最常用，卖方在指定地点将货物交付给买方指定的承运人）",
-            Incoterms2020::Cpt => "运费付至（卖方支付运费到目的地，风险在货交第一承运人时转移给买方）",
+            Incoterms2020::Fca => {
+                "货交承运人（集装箱贸易最常用，卖方在指定地点将货物交付给买方指定的承运人）"
+            }
+            Incoterms2020::Cpt => {
+                "运费付至（卖方支付运费到目的地，风险在货交第一承运人时转移给买方）"
+            }
             Incoterms2020::Cip => "运费+保险付至（同 CPT，卖方另付保险，常用于空运/快递）",
             Incoterms2020::Dap => "目的地交货（卖方承担运费到目的地，不含卸货不含关税）",
-            Incoterms2020::Dpu => "目的地卸货交货（同 DAP，但卖方负责卸货，唯一要求卖方卸货的术语）",
+            Incoterms2020::Dpu => {
+                "目的地卸货交货（同 DAP，但卖方负责卸货，唯一要求卖方卸货的术语）"
+            }
             Incoterms2020::Ddp => "完税后交货（卖方承担所有费用包括关税，卖方责任最大的术语）",
             Incoterms2020::Fas => "船边交货（卖方将货物置于船边即完成交货，海运专用）",
             Incoterms2020::Fob => "装运港船上交货（卖方承担装船前费用和风险，海运专用）",
@@ -121,9 +119,7 @@ impl Incoterms2020 {
         }
     }
 
-    /// 风险转移点描述（Incoterms 2020 关键合规字段）
-    ///
-    /// 用于报价单 PDF 显示，明确买卖双方风险划分点
+    /// 风险转移点描述（用于报价单 PDF 显示，明确买卖双方风险划分点）
     pub fn risk_transfer_point(&self) -> &'static str {
         match self {
             Incoterms2020::Exw => "卖方工厂（买方提货后风险归买方）",
@@ -140,9 +136,7 @@ impl Incoterms2020 {
         }
     }
 
-    /// 是否仅适用海运/内河运输
-    ///
-    /// FAS / FOB / CFR / CIF 仅适用海运；其他术语可适用任意运输方式
+    /// 是否仅适用海运/内河运输（FAS / FOB / CFR / CIF 仅海运，其他可任意运输方式）
     pub fn is_sea_only(&self) -> bool {
         matches!(
             self,

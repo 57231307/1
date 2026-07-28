@@ -30,16 +30,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useI18n } from 'vue-i18n'
-import InvoiceTab from './tabs/InvoiceTab.vue'
-import ReconciliationTab from './tabs/ReconciliationTab.vue'
-import FundTab from './tabs/FundTab.vue'
+import { ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import InvoiceTab from './tabs/InvoiceTab.vue';
+import ReconciliationTab from './tabs/ReconciliationTab.vue';
+import FundTab from './tabs/FundTab.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 当前激活的 Tab；数据懒加载由各子组件 onMounted 内部处理
-const activeTab = ref('invoice')
+const activeTab = ref('invoice');
 </script>
 
 <style scoped>

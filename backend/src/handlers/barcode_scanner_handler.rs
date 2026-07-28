@@ -1,4 +1,3 @@
-
 use axum::{extract::Query, extract::State, Json};
 use chrono::Utc;
 use sea_orm::{
@@ -148,7 +147,7 @@ pub async fn scan_history(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // 页码采用 1-based 约定，与全局分页契约保持一致
     let page = params.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
-    // v11 批次 36 修复：page_size clamp 防止 DoS（用户传超大值导致内存爆炸）
+                                                        // v11 批次 36 修复：page_size clamp 防止 DoS（用户传超大值导致内存爆炸）
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
     let mut query = inventory_piece::Entity::find();
@@ -178,7 +177,9 @@ pub async fn scan_history(
     let total = paginator.num_items().await?;
     // fetch_page 接收 0-based 页码，需将 1-based page 转换
     // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-    let items = paginator.fetch_page(page.clamp(1, 1000).saturating_sub(1)).await?;
+    let items = paginator
+        .fetch_page(page.clamp(1, 1000).saturating_sub(1))
+        .await?;
 
     info!(
         "扫码历史查询 page={} page_size={} total={}",

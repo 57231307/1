@@ -101,13 +101,8 @@ pub async fn list_requests(
         }
     }
 
-    let result = serde_json::to_value(PaginatedResponse::new(
-        items_json,
-        total,
-        page,
-        page_size,
-    ))
-    .map_err(|e| AppError::internal(e.to_string()))?;
+    let result = serde_json::to_value(PaginatedResponse::new(items_json, total, page, page_size))
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(result)))
 }

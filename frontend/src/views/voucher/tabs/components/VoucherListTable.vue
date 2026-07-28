@@ -131,12 +131,12 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import { Edit, Delete, View, Refresh, Check } from '@element-plus/icons-vue'
-import type { VoucherEntity } from '@/api/voucher'
-import { getStatusClass, formatAmount } from '../composables/vchrLstFmts'
+import { useI18n } from 'vue-i18n';
+import { Edit, Delete, View, Refresh, Check } from '@element-plus/icons-vue';
+import type { VoucherEntity } from '@/api/voucher';
+import { getStatusClass, formatAmount } from '../composables/vchrLstFmts';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 /**
  * 凭证列表表格组件
@@ -145,35 +145,35 @@ const { t } = useI18n({ useScope: 'global' })
  */
 const props = defineProps<{
   // 列表数据
-  tableData: VoucherEntity[]
+  tableData: VoucherEntity[];
   // 加载中
-  loading: boolean
+  loading: boolean;
   // 总数
-  total: number
+  total: number;
   // 当前页码
-  page: number
+  page: number;
   // 每页大小
-  pageSize: number
-}>()
+  pageSize: number;
+}>();
 
 const emit = defineEmits<{
   // 查看
-  view: [row: VoucherEntity]
+  view: [row: VoucherEntity];
   // 编辑
-  edit: [row: VoucherEntity]
+  edit: [row: VoucherEntity];
   // 审核
-  approve: [row: VoucherEntity]
+  approve: [row: VoucherEntity];
   // 记账
-  post: [row: VoucherEntity]
+  post: [row: VoucherEntity];
   // 反记账
-  unpost: [row: VoucherEntity]
+  unpost: [row: VoucherEntity];
   // 删除
-  delete: [row: VoucherEntity]
+  delete: [row: VoucherEntity];
   // 翻页
-  'update:page': [page: number]
+  'update:page': [page: number];
   // 每页大小
-  'update:page-size': [size: number]
-}>()
+  'update:page-size': [size: number];
+}>();
 
 /** 状态 → 国际化标签（语言切换时响应式刷新） */
 const getStatusLabel = (value: string) => {
@@ -181,18 +181,18 @@ const getStatusLabel = (value: string) => {
     draft: t('voucher.voucherListTable.statusDraft'),
     approved: t('voucher.voucherListTable.statusApproved'),
     posted: t('voucher.voucherListTable.statusPosted'),
-  }
-  return map[value] || value
-}
+  };
+  return map[value] || value;
+};
 
 /** 凭证类型 → 国际化标签 */
 const getTypeLabel = (type: string) => {
   const map: Record<string, string> = {
     general: t('voucher.voucherListTable.typeGeneral'),
     customized: t('voucher.voucherListTable.typeCustomized'),
-  }
-  return map[type] || type
-}
+  };
+  return map[type] || type;
+};
 
-void props
+void props;
 </script>

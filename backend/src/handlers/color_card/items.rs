@@ -29,13 +29,10 @@ pub async fn list_color_items(
 ) -> Result<Json<ApiResponse<PagedResponse<ColorItemInfo>>>, AppError> {
     let service = ColorCardItemService::from_state(&state);
     let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
-    // v11 批次 36 修复：page_size clamp 防止 DoS
+                                                       // v11 批次 36 修复：page_size clamp 防止 DoS
     let page_size = query.page_size.unwrap_or(100).clamp(1, 100);
 
-    let (items, total) = service
-        .list(id, page, page_size)
-        .await
-        .map_err(item_err)?;
+    let (items, total) = service.list(id, page, page_size).await.map_err(item_err)?;
 
     let infos: Vec<ColorItemInfo> = items.into_iter().map(item_to_info).collect();
 
@@ -69,10 +66,7 @@ pub async fn update_color_item(
 ) -> Result<Json<ApiResponse<ColorItemInfo>>, AppError> {
     let service = ColorCardItemService::from_state(&state);
 
-    let updated = service
-        .update(id, item_id, dto)
-        .await
-        .map_err(item_err)?;
+    let updated = service.update(id, item_id, dto).await.map_err(item_err)?;
     Ok(Json(ApiResponse::success(item_to_info(updated))))
 }
 
@@ -84,10 +78,7 @@ pub async fn delete_color_item(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = ColorCardItemService::from_state(&state);
 
-    service
-        .delete(id, item_id)
-        .await
-        .map_err(item_err)?;
+    service.delete(id, item_id).await.map_err(item_err)?;
     Ok(Json(ApiResponse::success(())))
 }
 
@@ -97,8 +88,7 @@ pub async fn batch_import_items(
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(dto): Json<BatchImportItemsDto>,
-) -> Result<Json<ApiResponse<crate::models::color_card_item_dto::BatchImportResponse>>, AppError>
-{
+) -> Result<Json<ApiResponse<crate::models::color_card_item_dto::BatchImportResponse>>, AppError> {
     let service = ColorCardItemService::from_state(&state);
 
     let result = service

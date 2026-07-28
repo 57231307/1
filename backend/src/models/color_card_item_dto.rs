@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 色卡仓储管理 - 色号 DTO
 //!
 //! 设计依据：docs/superpowers/specs/2026-06-16-color-card-design.md §4

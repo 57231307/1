@@ -2,49 +2,49 @@
  * 统一 API 响应结构
  */
 export interface ApiResponse<T = unknown> {
-  code: number
-  message: string
-  data: T
-  timestamp?: string
+  code: number;
+  message: string;
+  data: T;
+  timestamp?: string;
   /**
    * 分页总数（可选，仅列表分页接口由后端顶层返回）。
    * 后端 PaginatedResponse<T> 的 total 字段在 data 内部，
    * 部分历史接口也可能在顶层冗余返回 total 用于前端快速读取。
    */
-  total?: number
+  total?: number;
 }
 
 /**
  * 分页响应结构（对应后端 PaginatedResponse<T>，作为 ApiResponse.data 字段的内容）
  */
 export interface PaginatedResponse<T = unknown> {
-  items: T[]
-  total: number
-  page: number
-  page_size: number
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
 }
 
 /**
  * 错误响应结构
  */
 export interface ErrorResponse {
-  code: number
-  message: string
-  error?: string
+  code: number;
+  message: string;
+  error?: string;
   /**
    * 字段级验证错误详情
    * FE-P2-1 修复（批次 388 v13 复审）：原 Record<string, unknown> 过于宽泛，
    * 细化为字段名→错误消息数组的标准验证错误格式
    */
-  details?: Record<string, string | string[]>
-  timestamp: string
+  details?: Record<string, string | string[]>;
+  timestamp: string;
 }
 
 /**
  * 空响应（仅返回状态）
  */
 export interface EmptyResponse {
-  code: number
-  message: string
-  timestamp: string
+  code: number;
+  message: string;
+  timestamp: string;
 }

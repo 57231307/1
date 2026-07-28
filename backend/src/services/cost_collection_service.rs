@@ -299,9 +299,7 @@ impl CostCollectionService {
     }
 
     /// 聚合成本归集记录的各项合计值
-    fn aggregate_cost_totals(
-        collections: &[cost_collection::Model],
-    ) -> CostTotals {
+    fn aggregate_cost_totals(collections: &[cost_collection::Model]) -> CostTotals {
         let mut totals = CostTotals::default();
         for c in collections {
             totals.direct_material += c.direct_material;

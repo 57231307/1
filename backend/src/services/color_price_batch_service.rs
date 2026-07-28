@@ -214,10 +214,12 @@ impl ColorPriceBatchService {
         let new_status = match dto.decision.as_str() {
             approval::APPROVED => approval::APPROVED,
             approval::REJECTED => approval::REJECTED,
-            _ => return Err(BatchError::Validation(format!(
-                "无效的审批决定: {}（允许: APPROVED / REJECTED）",
-                dto.decision
-            ))),
+            _ => {
+                return Err(BatchError::Validation(format!(
+                    "无效的审批决定: {}（允许: APPROVED / REJECTED）",
+                    dto.decision
+                )))
+            }
         };
 
         // 找到最近一次历史（在事务内查询以避免脏读）
@@ -280,4 +282,3 @@ fn calculate_new_price(
         ))),
     }
 }
-

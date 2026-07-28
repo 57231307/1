@@ -190,7 +190,10 @@ impl PurchaseOrderService {
             warehouse_id: Set(warehouse_id),
             department_id: Set(department_id),
             purchaser_id: Set(user_id),
-            currency: Set(req.currency.clone().unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string())),
+            currency: Set(req
+                .currency
+                .clone()
+                .unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string())),
             exchange_rate: Set(req.exchange_rate.unwrap_or(Decimal::new(1, 0))),
             order_status: Set(status::purchase_order::DRAFT.to_string()),
             payment_terms: Set(req.payment_terms.clone()),
@@ -231,7 +234,10 @@ impl PurchaseOrderService {
         for material_id in &product_ids {
             if !existing_product_ids.contains(material_id) {
                 tracing::error!("Transaction rolled back: 物料 ID {} 不存在", material_id);
-                return Err(AppError::bad_request(format!("物料 ID {} 不存在", material_id)));
+                return Err(AppError::bad_request(format!(
+                    "物料 ID {} 不存在",
+                    material_id
+                )));
             }
         }
         Ok(())

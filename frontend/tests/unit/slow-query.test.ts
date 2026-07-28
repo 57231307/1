@@ -7,35 +7,35 @@
  * （useTableApi 内部调用 request.get(url, {params})）
  * getSlowQueryStats / refreshSlowQueries 仍由 @/api/slow-query 提供
  */
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
-import { nextTick } from 'vue'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { mount, flushPromises } from '@vue/test-utils';
+import { nextTick } from 'vue';
 
 // i18n 由 tests/setup.ts 全局注入（config.global.plugins）
 
 // 模块级 mock：跨测试共享
-const mockRequestGet = vi.fn()
-const mockGetSlowQueryStats = vi.fn()
-const mockRefreshSlowQueries = vi.fn()
+const mockRequestGet = vi.fn();
+const mockGetSlowQueryStats = vi.fn();
+const mockRefreshSlowQueries = vi.fn();
 
 // 批次 267：mock @/api/request（useTableApi 内部调用 request.get）
 vi.mock('@/api/request', () => ({
   request: {
     get: (...args: unknown[]) => mockRequestGet(...args),
   },
-}))
+}));
 
 // 保留 getSlowQueryStats / refreshSlowQueries mock（仍由 @/api/slow-query 提供）
 vi.mock('@/api/slow-query', () => ({
   getSlowQueryStats: (...args: unknown[]) => mockGetSlowQueryStats(...args),
   refreshSlowQueries: (...args: unknown[]) => mockRefreshSlowQueries(...args),
-}))
+}));
 
 // 局部 mock element-plus：保留真实 export
-vi.mock('element-plus', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('element-plus')>()
-  return { ...actual }
-})
+vi.mock('element-plus', async importOriginal => {
+  const actual = await importOriginal<typeof import('element-plus')>();
+  return { ...actual };
+});
 
 // mock V2Table：避免依赖 el-table-v2 / ElAutoResizer 真实渲染
 vi.mock('@/components/V2Table/index.vue', () => ({
@@ -45,9 +45,9 @@ vi.mock('@/components/V2Table/index.vue', () => ({
     emits: ['page-change', 'size-change'],
     template: '<div class="v2-table-mock" />',
   },
-}))
+}));
 
-import SlowQueryView from '@/views/system/slow-query/index.vue'
+import SlowQueryView from '@/views/system/slow-query/index.vue';
 
 const sampleItems = [
   {
@@ -68,7 +68,7 @@ const sampleItems = [
     database_name: 'bingxi_erp',
     captured_at: '2026-06-18T08:05:00Z',
   },
-]
+];
 
 const sampleStats = {
   top10: [
@@ -89,13 +89,13 @@ const sampleStats = {
   ],
   total_count: 2,
   time_range: '近 7 天',
-}
+};
 
 describe('SlowQueryView（P13 批 1 B-慢查询审计）', () => {
   beforeEach(() => {
-    mockRequestGet.mockReset()
-    mockGetSlowQueryStats.mockReset()
-    mockRefreshSlowQueries.mockReset()
+    mockRequestGet.mockReset();
+    mockGetSlowQueryStats.mockReset();
+    mockRefreshSlowQueries.mockReset();
 
     // 批次 267：mock request.get 返回 ApiResponse 包装结构
     mockRequestGet.mockResolvedValue({
@@ -107,78 +107,78 @@ describe('SlowQueryView（P13 批 1 B-慢查询审计）', () => {
         page: 1,
         page_size: 20,
       },
-    })
-    mockGetSlowQueryStats.mockResolvedValue(sampleStats as any)
+    });
+    mockGetSlowQueryStats.mockResolvedValue(sampleStats as any);
     mockRefreshSlowQueries.mockResolvedValue({
       inserted: 3,
       message: '本次采集写入 3 条慢查询记录',
-    } as any)
-  })
+    } as any);
+  });
 
   afterEach(() => {
-    vi.restoreAllMocks()
-  })
+    vi.restoreAllMocks();
+  });
 
   /** 挂载即触发首屏加载（useTableApi 自动加载 list + onMounted 加载 stats） */
   it('挂载时自动加载首屏数据并发送分页参数', async () => {
     const wrapper = mount(SlowQueryView, {
       global: {},
-    })
-    await flushPromises()
+    });
+    await flushPromises();
     // useTableApi 自动调用 request.get
-    expect(mockRequestGet).toHaveBeenCalledTimes(1)
-    expect(mockGetSlowQueryStats).toHaveBeenCalledTimes(1)
-    const params = mockRequestGet.mock.calls[0][1].params
-    expect(params.page).toBe(1)
-    expect(params.page_size).toBe(20)
-    expect(wrapper.find('.slow-query-view').exists()).toBe(true)
-  })
+    expect(mockRequestGet).toHaveBeenCalledTimes(1);
+    expect(mockGetSlowQueryStats).toHaveBeenCalledTimes(1);
+    const params = mockRequestGet.mock.calls[0][1].params;
+    expect(params.page).toBe(1);
+    expect(params.page_size).toBe(20);
+    expect(wrapper.find('.slow-query-view').exists()).toBe(true);
+  });
 
   /** 点击查询按钮：将筛选条件传入 API 并回到第一页 */
   it('点击查询按钮会把筛选条件传入 API', async () => {
     const wrapper = mount(SlowQueryView, {
       global: {},
-    })
-    await flushPromises()
-    mockRequestGet.mockClear()
+    });
+    await flushPromises();
+    mockRequestGet.mockClear();
 
-    const vm = wrapper.vm as any
-    vm.filterForm.min_duration = 200
-    vm.filterForm.keyword = 'users'
-    vm.filterForm.dateRange = ['2026-06-18T00:00:00Z', '2026-06-18T23:59:59Z']
-    await nextTick()
+    const vm = wrapper.vm as any;
+    vm.filterForm.min_duration = 200;
+    vm.filterForm.keyword = 'users';
+    vm.filterForm.dateRange = ['2026-06-18T00:00:00Z', '2026-06-18T23:59:59Z'];
+    await nextTick();
 
-    await vm.handleQuery()
-    await flushPromises()
+    await vm.handleQuery();
+    await flushPromises();
 
-    expect(mockRequestGet).toHaveBeenCalledTimes(1)
-    const params = mockRequestGet.mock.calls[0][1].params
-    expect(params.min_duration).toBe(200)
-    expect(params.keyword).toBe('users')
-    expect(params.start_time).toBe('2026-06-18T00:00:00Z')
-    expect(params.end_time).toBe('2026-06-18T23:59:59Z')
-    expect(params.page).toBe(1)
-  })
+    expect(mockRequestGet).toHaveBeenCalledTimes(1);
+    const params = mockRequestGet.mock.calls[0][1].params;
+    expect(params.min_duration).toBe(200);
+    expect(params.keyword).toBe('users');
+    expect(params.start_time).toBe('2026-06-18T00:00:00Z');
+    expect(params.end_time).toBe('2026-06-18T23:59:59Z');
+    expect(params.page).toBe(1);
+  });
 
   /** 点击手动刷新按钮：调用 refreshSlowQueries 并重新加载 */
   it('点击手动刷新按钮触发 refreshSlowQueries 并重新加载', async () => {
     const wrapper = mount(SlowQueryView, {
       global: {},
-    })
-    await flushPromises()
+    });
+    await flushPromises();
     // 清掉首屏调用计数，便于精确断言后续调用
-    mockRequestGet.mockClear()
-    mockGetSlowQueryStats.mockClear()
-    mockRefreshSlowQueries.mockClear()
+    mockRequestGet.mockClear();
+    mockGetSlowQueryStats.mockClear();
+    mockRefreshSlowQueries.mockClear();
 
-    const vm = wrapper.vm as any
-    await vm.handleRefresh()
-    await flushPromises()
+    const vm = wrapper.vm as any;
+    await vm.handleRefresh();
+    await flushPromises();
 
     // refresh 调用一次
-    expect(mockRefreshSlowQueries).toHaveBeenCalledTimes(1)
+    expect(mockRefreshSlowQueries).toHaveBeenCalledTimes(1);
     // refresh 后会重新加载 list（request.get）+ stats
-    expect(mockRequestGet).toHaveBeenCalledTimes(1)
-    expect(mockGetSlowQueryStats).toHaveBeenCalledTimes(1)
-  })
-})
+    expect(mockRequestGet).toHaveBeenCalledTimes(1);
+    expect(mockGetSlowQueryStats).toHaveBeenCalledTimes(1);
+  });
+});

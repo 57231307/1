@@ -5,6 +5,7 @@ use axum::{
 };
 use serde::Deserialize;
 
+use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::PageRequest;
 use crate::models::inventory_transfer;
 use crate::services::inv::{
@@ -14,7 +15,6 @@ use crate::services::inv::{
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::response::ApiResponse;
-use crate::middleware::auth_context::AuthContext;
 
 /// 查询参数
 #[derive(Debug, Deserialize)]
@@ -96,7 +96,9 @@ pub async fn create_transfer(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let transfer_service = InventoryTransferService::new(state.db.clone());
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
-    let transfer = transfer_service.create_transfer(request, auth.user_id).await?;
+    let transfer = transfer_service
+        .create_transfer(request, auth.user_id)
+        .await?;
     let transfer_json = serde_json::to_value(transfer)
         .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_message(

@@ -83,31 +83,31 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import { Edit } from '@element-plus/icons-vue'
-import type { SalesTarget } from '@/api/sales-analysis'
-import { formatCurrency, getProgressColor, getTargetStatusType } from '../composables/saFmts'
+import { useI18n } from 'vue-i18n';
+import { Edit } from '@element-plus/icons-vue';
+import type { SalesTarget } from '@/api/sales-analysis';
+import { formatCurrency, getProgressColor, getTargetStatusType } from '../composables/saFmts';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-defineProps<{ data: SalesTarget[] }>()
-const emit = defineEmits<{ 'edit-target': [] }>()
+defineProps<{ data: SalesTarget[] }>();
+const emit = defineEmits<{ 'edit-target': [] }>();
 
 /** 销售目标状态码 → i18n 标签（语言切换响应） */
 const getTargetStatusLabel = (status: string): string => {
   switch (status) {
     case 'COMPLETED':
-      return t('salesAnalysis.target.statusCompleted')
+      return t('salesAnalysis.target.statusCompleted');
     case 'IN_PROGRESS':
-      return t('salesAnalysis.target.statusInProgress')
+      return t('salesAnalysis.target.statusInProgress');
     case 'PARTIAL':
-      return t('salesAnalysis.target.statusPartial')
+      return t('salesAnalysis.target.statusPartial');
     case 'NOT_STARTED':
-      return t('salesAnalysis.target.statusNotStarted')
+      return t('salesAnalysis.target.statusNotStarted');
     default:
-      return status
+      return status;
   }
-}
+};
 </script>
 
 <style scoped>

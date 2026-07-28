@@ -59,19 +59,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { Plus, Printer, Download } from '@element-plus/icons-vue'
-import type { SalesContract } from '@/api/sales-contract'
-import { useSc } from './composables/useSc'
-import { useScProc } from './composables/useScProc'
-import SalesContractFilter from './components/SalesContractFilter.vue'
-import SalesContractTable from './components/SalesContractTable.vue'
-import SalesContractForm from './components/SalesContractForm.vue'
+import { ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { Plus, Printer, Download } from '@element-plus/icons-vue';
+import type { SalesContract } from '@/api/sales-contract';
+import { useSc } from './composables/useSc';
+import { useScProc } from './composables/useScProc';
+import SalesContractFilter from './components/SalesContractFilter.vue';
+import SalesContractTable from './components/SalesContractTable.vue';
+import SalesContractForm from './components/SalesContractForm.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const sc = useSc()
+const sc = useSc();
 const scProc = useScProc({
   getList: sc.getList,
   // V15 P0-S12 修复（Batch 475d）：传入当前筛选条件，用于后端导出
@@ -81,39 +81,39 @@ const scProc = useScProc({
     status: sc.queryParams.status as string | undefined,
     customer_id: sc.queryParams.customer_id as number | undefined,
   }),
-})
+});
 
 // 对话框可见性本地 ref
-const dialogVisible = ref(false)
+const dialogVisible = ref(false);
 
 /** 新建合同 */
 const onCreate = () => {
-  sc.prepareCreate()
-  dialogVisible.value = true
-}
+  sc.prepareCreate();
+  dialogVisible.value = true;
+};
 
 /** 编辑合同 */
 const onEdit = (row: SalesContract) => {
-  sc.prepareEdit(row)
-  dialogVisible.value = true
-}
+  sc.prepareEdit(row);
+  dialogVisible.value = true;
+};
 
 /** 提交表单 */
 const onSubmitForm = async () => {
-  const ok = await sc.handleSubmitForm()
-  if (ok) dialogVisible.value = false
-}
+  const ok = await sc.handleSubmitForm();
+  if (ok) dialogVisible.value = false;
+};
 
 /** 日期范围变化 */
 const onDateChange = (v: [Date, Date] | null) => {
-  sc.dateRange = v
-  sc.handleDateChange()
-}
+  sc.dateRange = v;
+  sc.handleDateChange();
+};
 
 // 列表由 useTableApi setup 自动加载，onMounted 仅加载辅助数据
 onMounted(() => {
-  sc.getCustomers()
-})
+  sc.getCustomers();
+});
 </script>
 
 <style scoped>

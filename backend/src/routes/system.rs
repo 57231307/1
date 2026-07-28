@@ -16,16 +16,12 @@ use axum::{
 };
 
 use crate::handlers::{
-    ai_extend_handler, bpm_definition_handler, bpm_handler, dashboard_handler, export_approval_handler,
-    health_handler, init_handler, system_update_handler,
+    ai_extend_handler, bpm_definition_handler, bpm_handler, dashboard_handler,
+    export_approval_handler, health_handler, init_handler, system_update_handler,
 };
 use crate::websocket;
 
-/// WebSocket 路由（path 前缀 /ws）
-///
-/// 关键路径：通知模块 WebSocket
-/// - `POST /ws/ticket`：签发一次性短时票据（需 JWT 认证，v12 P1-4 修复）
-/// - `GET /ws/notifications`：通知实时推送（鉴权通过一次性票据）
+/// WebSocket 路由（/ws/ticket 签发票据 + /ws/notifications 通知推送）
 pub fn ws() -> Router<AppState> {
     Router::new()
         .route(
@@ -105,11 +101,8 @@ pub fn system_update() -> Router<AppState> {
         )
 }
 
-/// BPM 工作流引擎路由（path 前缀 /bpm）
-///
-/// 注意：内部 path 已加 `/process`、`/tasks`、`/instances` 等子前缀，
-/// 避免与 system_update() 的 `/status` 冲突；同时也避免与 health()、init() 同前缀。
-pub fn bpm() -> Router<AppState> {
+/// BPM 流程与任务路由（/bpm/process、/bpm/tasks、/bpm/business-relation、/bpm/visualization）
+fn bpm_process_task_routes() -> Router<AppState> {
     Router::new()
         .route("/bpm/process/start", post(bpm_handler::start_process))
         .route("/bpm/tasks/approve", post(bpm_handler::approve_task))
@@ -128,6 +121,17 @@ pub fn bpm() -> Router<AppState> {
             get(bpm_handler::get_process_visualization),
         )
         .route(
+            "/bpm/tasks/:task_id/transfer",
+            post(bpm_handler::transfer_task),
+        )
+        .route("/bpm/tasks/:task_id/urge", post(bpm_handler::urge_task))
+        .route("/bpm/approval/execute", post(bpm_handler::execute_approval))
+}
+
+/// BPM 流程实例路由（/bpm/instances）
+fn bpm_instance_routes() -> Router<AppState> {
+    Router::new()
+        .route(
             "/bpm/instances/:instance_id/approval-chain",
             get(bpm_handler::get_approval_chain),
         )
@@ -144,6 +148,11 @@ pub fn bpm() -> Router<AppState> {
             "/bpm/instances/:instance_id/cancel",
             post(bpm_handler::cancel_instance),
         )
+}
+
+/// BPM 监控路由（/bpm/monitor）
+fn bpm_monitor_routes() -> Router<AppState> {
+    Router::new()
         .route("/bpm/monitor/stats", get(bpm_handler::get_monitor_stats))
         .route(
             "/bpm/monitor/pending-tasks",
@@ -153,12 +162,11 @@ pub fn bpm() -> Router<AppState> {
             "/bpm/monitor/instances",
             get(bpm_handler::list_instances_for_monitor),
         )
-        .route(
-            "/bpm/tasks/:task_id/transfer",
-            post(bpm_handler::transfer_task),
-        )
-        .route("/bpm/tasks/:task_id/urge", post(bpm_handler::urge_task))
-        .route("/bpm/approval/execute", post(bpm_handler::execute_approval))
+}
+
+/// BPM 流程定义/版本/模板路由（/bpm/definitions、/bpm/versions、/bpm/templates）
+fn bpm_definition_routes() -> Router<AppState> {
+    Router::new()
         // 批次 67（P1 1-2 修复）：BPM 流程定义/版本/模板管理路由
         // 原 stub 占位未注册，现 service 层已实现真实逻辑
         .route(
@@ -199,6 +207,15 @@ pub fn bpm() -> Router<AppState> {
         )
 }
 
+/// BPM 工作流引擎路由（合并流程任务/实例/监控/定义版本模板）
+pub fn bpm() -> Router<AppState> {
+    Router::new()
+        .merge(bpm_process_task_routes())
+        .merge(bpm_instance_routes())
+        .merge(bpm_monitor_routes())
+        .merge(bpm_definition_routes())
+}
+
 /// 健康检查路由（path 前缀 /health）
 pub fn health() -> Router<AppState> {
     Router::new()
@@ -207,14 +224,10 @@ pub fn health() -> Router<AppState> {
         .route("/health/liveness", get(health_handler::liveness_check))
 }
 
-/// 审计日志查询路由（path 前缀 /audit-logs）
-///
-/// P13 批 1 P3-2 增强版：
-/// - GET /audit-logs          列表（分页 + 多维筛选）
-/// - GET /audit-logs/:id      详情
-/// - GET /audit-logs/export   CSV 导出
+/// 审计日志查询路由（/audit-logs：列表/详情/CSV 导出/前端打印埋点）
 pub fn audit_logs() -> Router<AppState> {
     use crate::handlers::audit_log_handler;
+    use axum::routing::post;
     Router::new()
         .route("/audit-logs", get(audit_log_handler::list_audit_logs))
         .route(
@@ -222,14 +235,14 @@ pub fn audit_logs() -> Router<AppState> {
             get(audit_log_handler::export_audit_logs),
         )
         .route("/audit-logs/:id", get(audit_log_handler::get_audit_log))
+        // V15 P1-5-3：前端打印审计埋点端点（POST，已认证用户均可上报）
+        .route(
+            "/audit-logs/record-print",
+            post(audit_log_handler::record_print_event),
+        )
 }
 
-/// 慢查询审计路由（path 前缀 /slow-queries）
-///
-/// P13 批 1 B-慢查询审计：
-/// - GET    /slow-queries          列表（分页 + 多维筛选）
-/// - GET    /slow-queries/stats    TOP 10 聚合统计
-/// - POST   /slow-queries/refresh  手动触发一次采集
+/// 慢查询审计路由（/slow-queries：列表/统计/手动采集）
 pub fn slow_queries() -> Router<AppState> {
     use crate::handlers::slow_query_handler;
     Router::new()
@@ -244,12 +257,7 @@ pub fn slow_queries() -> Router<AppState> {
         )
 }
 
-/// 初始化路由（path 前缀 /init）
-///
-/// P1 修复（bug.md #3）：对"高危"初始化接口（`initialize`/`initialize-with-db` 系列）
-/// 应用 [`init_token_middleware`]，要求请求方提供 `X-Init-Token` 请求头（与服务端
-/// `INIT_TOKEN` 环境变量一致）才能调用。仅状态查询（`/status`）和已加 admin 二次校验
-/// 的接口（`/test-database`、`/task-status`）不受此中间件约束。
+/// 初始化路由（/init，高危接口需 X-Init-Token 头校验）
 pub fn init() -> Router<AppState> {
     // 高危初始化接口子路由：必须通过 INIT_TOKEN 校验
     let protected = Router::new()
@@ -278,15 +286,7 @@ pub fn init() -> Router<AppState> {
     protected.merge(public)
 }
 
-/// AI 分析深化路由（path 前缀 /ai）— P2-4
-///
-/// 16 个端点：工艺优化 7 + 质量预测 7 + 看板/健康检查 2
-///
-/// V15 P0-S26：AI 端点权限码注册（对应 PERMISSION_RESOURCES 中 ai-* 资源）
-/// 权限映射：/ai/process-optimizations* → ai-process-opt:read/write，
-/// /ai/quality-predictions* → ai-quality-pred:read/write，
-/// /ai/summary → ai-summary:read，
-/// /ai/health → 无权限码（健康检查，公开）
+/// AI 分析深化路由（/ai，16 端点：工艺优化/质量预测/看板健康检查）
 pub fn ai() -> Router<AppState> {
     Router::new()
         // 工艺优化
@@ -312,6 +312,16 @@ pub fn ai() -> Router<AppState> {
             "/ai/process-optimizations/:id/apply",
             post(ai_extend_handler::apply_process_optimization),
         )
+        // V15 P1 1.3+8.1：工艺优化→化验室打样集成
+        .route(
+            "/ai/process-optimizations/:id/push-to-lab-dip",
+            post(ai_extend_handler::push_to_lab_dip),
+        )
+        // V15 P1 8.2：工艺优化→生产执行集成
+        .route(
+            "/ai/process-optimizations/:id/link-to-production",
+            post(ai_extend_handler::link_to_production),
+        )
         // 质量预测
         .route(
             "/ai/quality-predictions",
@@ -335,21 +345,17 @@ pub fn ai() -> Router<AppState> {
             "/ai/quality-predictions/:id/acknowledge",
             post(ai_extend_handler::acknowledge_quality_prediction),
         )
+        // V15 P1 2.1+8.3：质量预测实际结果回填（对账）
+        .route(
+            "/ai/quality-predictions/:id/actual-result",
+            post(ai_extend_handler::record_actual_quality_result),
+        )
         // 看板 / 健康检查
         .route("/ai/summary", get(ai_extend_handler::ai_summary))
         .route("/ai/health", get(ai_extend_handler::ai_health))
 }
 
-/// V15 P0-S14 敏感数据导出二级审批路由（path 前缀 /export-approvals）
-///
-/// 7 个端点：创建 / 列表 / 详情 / 审批通过 / 审批拒绝 / 取消 / 校验 token
-///
-/// 权限映射：
-/// - 创建审批请求 → export-approval:create
-/// - 列表/详情查询 → export-approval:read
-/// - 审批通过/拒绝 → export-approval:approve
-/// - 取消 → export-approval:create（仅申请人本人）
-/// - 校验 token → export-approval:read（导出 handler 内部调用）
+/// V15 P0-S14 敏感数据导出二级审批路由（/export-approvals，7 端点）
 pub fn export_approval() -> Router<AppState> {
     Router::new()
         .route(
@@ -379,12 +385,7 @@ pub fn export_approval() -> Router<AppState> {
         )
 }
 
-/// 系统域统一入口
-///
-/// 子 router path 已加独立前缀，merge 时 path+method 互不重叠。
-///
-/// P1-13/14/15 修复（2026-06-25 综合审计）：补挂载 audit_logs() 与 slow_queries()，
-/// 消除 audit_log_handler / slow_query_handler 全文件死代码。
+/// 系统域统一入口（子 router path 已加独立前缀，merge 安全）
 pub fn routes() -> Router<AppState> {
     Router::new()
         .merge(dashboard())

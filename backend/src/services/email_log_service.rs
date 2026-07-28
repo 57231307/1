@@ -5,7 +5,7 @@
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    Set,
+    QuerySelect, Set,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -18,6 +18,12 @@ use crate::models::status::email_log;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 
+/// 缺陷 6.2 修复：最大重试次数（超过此值转入 FAILED 死信状态）
+pub const MAX_RETRY_COUNT: i32 = 3;
+
+/// 缺陷 6.2 修复：指数退避间隔（秒）— 第 1 次 60s / 第 2 次 300s / 第 3 次 1800s
+const BACKOFF_INTERVAL_SECS: &[i64] = &[60, 300, 1800];
+
 /// 创建邮件发送记录请求
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateEmailLogRequest {
@@ -28,6 +34,12 @@ pub struct CreateEmailLogRequest {
     pub subject: String,
     pub body: Option<String>,
     pub template_id: Option<i32>,
+    /// 缺陷 6.1 修复：HTML 正文（异步队列调度时区分 HTML 与纯文本）
+    pub html_content: Option<String>,
+    /// 缺陷 6.1 修复：纯文本正文
+    pub text_content: Option<String>,
+    /// 缺陷 6.3 修复：附件 JSON 数组 [{filename, content_base64, content_type}]
+    pub attachments: Option<serde_json::Value>,
 }
 
 /// 邮件发送记录查询参数
@@ -50,10 +62,7 @@ impl EmailLogService {
     }
 
     /// 创建邮件发送记录
-    pub async fn create(
-        &self,
-        req: CreateEmailLogRequest,
-    ) -> Result<EmailLogModel, AppError> {
+    pub async fn create(&self, req: CreateEmailLogRequest) -> Result<EmailLogModel, AppError> {
         let now = Utc::now();
         let active_model = ActiveModel {
             id: Default::default(),
@@ -71,6 +80,10 @@ impl EmailLogService {
             retry_count: Set(0),
             created_at: Set(now),
             updated_at: Set(now),
+            next_retry_at: Set(None),
+            attachments: Set(req.attachments),
+            html_content: Set(req.html_content),
+            text_content: Set(req.text_content),
         };
 
         let model = active_model.insert(&*self.db).await?;
@@ -106,22 +119,92 @@ impl EmailLogService {
         Ok(updated)
     }
 
-    /// 累加邮件重试计数并将状态重置为 PENDING，供重试调度任务识别待重试邮件
+    /// 累加邮件重试计数并按指数退避设置 next_retry_at。
+    /// 缺陷 6.2 修复：retry_count >= MAX_RETRY_COUNT 时转入 FAILED 死信状态，不再重试。
     pub async fn increment_retry(&self, id: i32) -> Result<(), AppError> {
         let model = EmailLogEntity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found("邮件记录不存在"))?;
 
-        let retry_count = model.retry_count + 1;
-        let mut active_model: ActiveModel = model.into();
-        active_model.retry_count = Set(retry_count);
-        active_model.status = Set(email_log::PENDING.to_string());
-        active_model.updated_at = Set(Utc::now());
+        let new_retry_count = model.retry_count + 1;
+        let now = Utc::now();
 
+        // 缺陷 6.2 修复：超过最大重试次数 → FAILED 死信状态
+        if new_retry_count >= MAX_RETRY_COUNT {
+            let mut active_model: ActiveModel = model.into();
+            active_model.retry_count = Set(new_retry_count);
+            active_model.status = Set(email_log::FAILED.to_string());
+            active_model.next_retry_at = Set(None);
+            active_model.updated_at = Set(now);
+            active_model.update(&*self.db).await?;
+            tracing::warn!(
+                email_log_id = id,
+                retry_count = new_retry_count,
+                max_retries = MAX_RETRY_COUNT,
+                "邮件重试次数已达上限，转入 FAILED 死信状态"
+            );
+            return Ok(());
+        }
+
+        // 缺陷 6.2 修复：指数退避 — 第 1 次 60s / 第 2 次 300s / 第 3 次 1800s
+        let backoff_idx = (new_retry_count as usize)
+            .saturating_sub(1)
+            .min(BACKOFF_INTERVAL_SECS.len().saturating_sub(1));
+        let backoff_secs = BACKOFF_INTERVAL_SECS[backoff_idx];
+        let next_retry_at = now + chrono::Duration::seconds(backoff_secs);
+
+        let mut active_model: ActiveModel = model.into();
+        active_model.retry_count = Set(new_retry_count);
+        active_model.status = Set(email_log::PENDING.to_string());
+        active_model.next_retry_at = Set(Some(next_retry_at));
+        active_model.updated_at = Set(now);
         active_model.update(&*self.db).await?;
 
+        tracing::info!(
+            email_log_id = id,
+            retry_count = new_retry_count,
+            backoff_secs,
+            next_retry_at = %next_retry_at,
+            "邮件重试已调度"
+        );
         Ok(())
+    }
+
+    /// 缺陷 6.1/6.2 修复：查询待发送邮件（PENDING + next_retry_at 已到或为 NULL + retry_count < MAX）
+    /// 供后台 email_queue_worker 调度使用。
+    pub async fn list_pending_for_retry(&self, limit: u64) -> Result<Vec<EmailLogModel>, AppError> {
+        let now = Utc::now();
+        let emails = EmailLogEntity::find()
+            .filter(crate::models::email_log::Column::Status.eq(email_log::PENDING))
+            .filter(crate::models::email_log::Column::RetryCount.lt(MAX_RETRY_COUNT))
+            .filter(
+                crate::models::email_log::Column::NextRetryAt
+                    .is_null()
+                    .or(crate::models::email_log::Column::NextRetryAt.lte(now)),
+            )
+            .order_by_asc(crate::models::email_log::Column::CreatedAt)
+            .limit(limit)
+            .all(&*self.db)
+            .await?;
+        Ok(emails)
+    }
+
+    /// 缺陷 6.1 修复：标记邮件为发送中（防止 worker 并发重复发送同一封邮件）
+    pub async fn mark_as_sending(&self, id: i32) -> Result<bool, AppError> {
+        let now = Utc::now();
+        // 乐观锁：仅当当前状态为 PENDING 时才更新为 SENDING
+        let result = crate::models::email_log::Entity::update_many()
+            .filter(crate::models::email_log::Column::Id.eq(id))
+            .filter(crate::models::email_log::Column::Status.eq(email_log::PENDING))
+            .set(crate::models::email_log::ActiveModel {
+                status: Set("SENDING".to_string()),
+                updated_at: Set(now),
+                ..Default::default()
+            })
+            .exec(self.db.as_ref())
+            .await?;
+        Ok(result.rows_affected > 0)
     }
 
     /// 获取邮件发送记录详情
@@ -132,10 +215,7 @@ impl EmailLogService {
     }
 
     /// 查询邮件发送记录列表
-    pub async fn list(
-        &self,
-        query: EmailLogQuery,
-    ) -> Result<(Vec<EmailLogModel>, u64), AppError> {
+    pub async fn list(&self, query: EmailLogQuery) -> Result<(Vec<EmailLogModel>, u64), AppError> {
         let page = query.page.unwrap_or(1);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
@@ -165,9 +245,7 @@ impl EmailLogService {
 
     /// 获取发送统计
     pub async fn get_statistics(&self) -> Result<EmailStatistics, AppError> {
-        let total = EmailLogEntity::find()
-            .count(&*self.db)
-            .await?;
+        let total = EmailLogEntity::find().count(&*self.db).await?;
 
         let sent = EmailLogEntity::find()
             .filter(crate::models::email_log::Column::Status.eq(email_log::SENT))

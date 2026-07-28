@@ -1,4 +1,3 @@
-
 use crate::middleware::auth_context::AuthContext;
 use crate::models::sales_price;
 use crate::services::sales_price_service::{
@@ -12,12 +11,12 @@ use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkCon
 // V15 P0-S11：导出审计日志写入所需依赖
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
-use std::sync::Arc;
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
 use serde::Deserialize;
+use std::sync::Arc;
 use tracing::info;
 
 // V15 P0-S12 修复（Batch 475d）：派生 Clone，export_prices 需要 clone 后覆盖分页参数用于全量导出
@@ -244,9 +243,9 @@ fn build_price_row(obj: &serde_json::Map<String, serde_json::Value>) -> Vec<Stri
 fn build_prices_table(prices_json: Vec<serde_json::Value>) -> Result<XlsxTable, AppError> {
     let mut rows: Vec<Vec<String>> = Vec::with_capacity(prices_json.len());
     for p in prices_json {
-        let obj = p.as_object().ok_or_else(|| {
-            AppError::internal("销售价格序列化失败：期望 JSON 对象")
-        })?;
+        let obj = p
+            .as_object()
+            .ok_or_else(|| AppError::internal("销售价格序列化失败：期望 JSON 对象"))?;
         rows.push(build_price_row(obj));
     }
     Ok(XlsxTable {

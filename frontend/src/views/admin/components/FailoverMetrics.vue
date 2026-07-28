@@ -23,43 +23,43 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 const props = defineProps<{
-  health: { database: string; cache: string }
-}>()
+  health: { database: string; cache: string };
+}>();
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 const STATE_LABEL_KEYS: Record<string, string> = {
   primary: 'adminFailover.statePrimary',
   backup: 'adminFailover.stateBackup',
   both_down: 'adminFailover.stateBothDown',
   error: 'adminFailover.stateError',
-}
+};
 
 function stateLabel(state: string): string {
-  return STATE_LABEL_KEYS[state] ? t(STATE_LABEL_KEYS[state]) : t('adminFailover.stateUnknown')
+  return STATE_LABEL_KEYS[state] ? t(STATE_LABEL_KEYS[state]) : t('adminFailover.stateUnknown');
 }
 
-const databaseLabel = computed(() => stateLabel(props.health.database))
-const cacheLabel = computed(() => stateLabel(props.health.cache))
+const databaseLabel = computed(() => stateLabel(props.health.database));
+const cacheLabel = computed(() => stateLabel(props.health.cache));
 
-const databaseClass = computed(() => stateClass(props.health.database))
-const cacheClass = computed(() => stateClass(props.health.cache))
+const databaseClass = computed(() => stateClass(props.health.database));
+const cacheClass = computed(() => stateClass(props.health.cache));
 
 function stateClass(state: string): string {
   switch (state) {
     case 'primary':
-      return 'is-primary'
+      return 'is-primary';
     case 'backup':
-      return 'is-backup'
+      return 'is-backup';
     case 'both_down':
     case 'error':
-      return 'is-down'
+      return 'is-down';
     default:
-      return 'is-unknown'
+      return 'is-unknown';
   }
 }
 </script>

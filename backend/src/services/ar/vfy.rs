@@ -16,17 +16,18 @@
 // 重新导出 Service 结构体与测试中使用的 DTO，保持 `crate::services::ar::vfy::*` 路径稳定
 // 其余 DTO（AgingBucket/AgingReport/AutoMatchResult/CustomerAgingSummary/GenerateReconciliationRequest）
 // 已由 ar/mod.rs 定义并通过 services/mod.rs re-export，无需在此重复 re-export
+#[allow(unused_imports)]
 pub use super::{ArReconciliationService, AutoMatchRequest};
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::services::test_common::setup_test_db;
     use crate::decs;
-    use crate::ymd;
-    use crate::models::status::{ar, common};
     use crate::models::status::ar as ar_status;
+    use crate::models::status::{ar, common};
+    use crate::services::test_common::setup_test_db;
     use crate::utils::error::AppError;
+    use crate::ymd;
     use rust_decimal::Decimal;
     use std::sync::Arc;
 

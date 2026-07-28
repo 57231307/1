@@ -170,10 +170,7 @@ async fn init_redis_rate_limiter() -> Option<Arc<tokio::sync::Mutex<ConnectionMa
                 Some(Arc::new(tokio::sync::Mutex::new(conn)))
             }
             Err(e) => {
-                tracing::warn!(
-                    "Redis 连接失败 ({:?})，分布式限流回退到内存限流",
-                    e
-                );
+                tracing::warn!("Redis 连接失败 ({:?})，分布式限流回退到内存限流", e);
                 None
             }
         },
@@ -185,8 +182,7 @@ async fn init_redis_rate_limiter() -> Option<Arc<tokio::sync::Mutex<ConnectionMa
 }
 
 /// 获取或初始化 Redis 限流客户端
-async fn get_redis_rate_limiter(
-) -> Option<Arc<tokio::sync::Mutex<ConnectionManager>>> {
+async fn get_redis_rate_limiter() -> Option<Arc<tokio::sync::Mutex<ConnectionManager>>> {
     REDIS_RATE_LIMITER
         .get_or_init(init_redis_rate_limiter)
         .await
@@ -219,7 +215,9 @@ async fn check_redis_rate_limit(
     let count: i64 = conn.incr(key, 1i64).await?;
     if count == 1 {
         // 第一次请求时设置过期时间（避免长尾 key）
-        let _: () = conn.expire(key, window.as_secs() as i64).await?;
+        // 注：turbofish ::<_, ()> 显式指定 RV=() 以满足 never type fallback 约束，
+        // 同时避免 clippy::let_unit_value 警告（无 let _: () 绑定）
+        conn.expire::<_, ()>(key, window.as_secs() as i64).await?;
     }
     Ok(Some((count as usize) <= max_requests))
 }
@@ -241,11 +239,7 @@ pub(crate) async fn check_rate_limit(
             memory_limiter.check(key)
         }
         Err(e) => {
-            tracing::warn!(
-                "Redis 限流检查失败 {:?}，回退到内存限流 key={}",
-                e,
-                key
-            );
+            tracing::warn!("Redis 限流检查失败 {:?}，回退到内存限流 key={}", e, key);
             memory_limiter.check(key)
         }
     }
@@ -269,7 +263,9 @@ pub async fn rate_limit_by_ip(
             tracing::warn!(
                 "限流中间件无法识别客户端 IP（X-Real-IP / X-Forwarded-For / ConnectInfo 均缺失），拒绝请求"
             );
-            Err(AppError::bad_request("无法识别客户端 IP，请通过反向代理访问"))
+            Err(AppError::bad_request(
+                "无法识别客户端 IP，请通过反向代理访问",
+            ))
         } else {
             Ok(extracted)
         }
@@ -284,13 +280,7 @@ pub async fn rate_limit_by_ip(
     let rate_key = format!("rate:{}:{}", ip, user_id);
 
     // 漏洞 #6 修复：分布式优先，失败回退内存
-    let allowed = check_rate_limit(
-        &rate_key,
-        180,
-        Duration::from_secs(60),
-        &GLOBAL_LIMITER,
-    )
-    .await;
+    let allowed = check_rate_limit(&rate_key, 180, Duration::from_secs(60), &GLOBAL_LIMITER).await;
 
     if !allowed {
         tracing::warn!("Rate limit exceeded for {}", rate_key);
@@ -314,7 +304,9 @@ pub async fn anti_brute_force(req: Request<Body>, next: Next) -> Result<Response
             tracing::warn!(
                 "防暴力中间件无法识别客户端 IP（X-Real-IP / X-Forwarded-For / ConnectInfo 均缺失），拒绝请求"
             );
-            Err(AppError::bad_request("无法识别客户端 IP，请通过反向代理访问"))
+            Err(AppError::bad_request(
+                "无法识别客户端 IP，请通过反向代理访问",
+            ))
         } else {
             Ok(extracted)
         }
@@ -402,9 +394,6 @@ mod tests {
         // 等待窗口过期
         tokio::time::sleep(Duration::from_millis(150)).await;
         // 窗口重置后又允许
-        assert!(
-            limiter.check(key),
-            "窗口过期后计数应重置并放行"
-        );
+        assert!(limiter.check(key), "窗口过期后计数应重置并放行");
     }
 }

@@ -10,4 +10,4 @@ export {
   mockBusinessApi,
   applyAuthMocks,
   waitForPageReady,
-} from '../fixtures/auth'
+} from '../fixtures/auth';

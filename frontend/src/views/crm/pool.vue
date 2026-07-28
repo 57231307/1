@@ -9,7 +9,9 @@
       <div class="header-left">
         <h1 class="page-title">{{ t('crmPool.title') }}</h1>
         <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/' }">{{ t('crmPool.breadcrumb.home') }}</el-breadcrumb-item>
+          <el-breadcrumb-item :to="{ path: '/' }">{{
+            t('crmPool.breadcrumb.home')
+          }}</el-breadcrumb-item>
           <el-breadcrumb-item>{{ t('crmPool.breadcrumb.crm') }}</el-breadcrumb-item>
           <el-breadcrumb-item>{{ t('crmPool.breadcrumb.pool') }}</el-breadcrumb-item>
         </el-breadcrumb>
@@ -27,7 +29,12 @@
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryParams" class="filter-form" :aria-label="t('crmPool.filter.ariaLabel')">
+      <el-form
+        :inline="true"
+        :model="queryParams"
+        class="filter-form"
+        :aria-label="t('crmPool.filter.ariaLabel')"
+      >
         <el-form-item :label="t('crmPool.filter.keyword')">
           <el-input
             v-model="queryParams.keyword"
@@ -92,18 +99,48 @@
           min-width="150"
           show-overflow-tooltip
         />
-        <el-table-column prop="contact_person" :label="t('crmPool.table.contactPerson')" width="100" show-overflow-tooltip />
-        <el-table-column prop="phone" :label="t('crmPool.table.phone')" width="120" show-overflow-tooltip />
-        <el-table-column prop="customer_type" :label="t('crmPool.table.type')" width="100" align="center">
+        <el-table-column
+          prop="contact_person"
+          :label="t('crmPool.table.contactPerson')"
+          width="100"
+          show-overflow-tooltip
+        />
+        <el-table-column
+          prop="phone"
+          :label="t('crmPool.table.phone')"
+          width="120"
+          show-overflow-tooltip
+        />
+        <el-table-column
+          prop="customer_type"
+          :label="t('crmPool.table.type')"
+          width="100"
+          align="center"
+        >
           <template #default="{ row }">
             <el-tag :type="getCustomerTypeTag(row.customer_type)" size="small">
               {{ getCustomerTypeLabel(row.customer_type) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="released_at" :label="t('crmPool.table.releasedAt')" width="160" align="center" />
-        <el-table-column prop="released_by_name" :label="t('crmPool.table.releasedBy')" width="100" show-overflow-tooltip />
-        <el-table-column prop="days_in_pool" :label="t('crmPool.table.daysInPool')" width="100" align="center">
+        <el-table-column
+          prop="released_at"
+          :label="t('crmPool.table.releasedAt')"
+          width="160"
+          align="center"
+        />
+        <el-table-column
+          prop="released_by_name"
+          :label="t('crmPool.table.releasedBy')"
+          width="100"
+          show-overflow-tooltip
+        />
+        <el-table-column
+          prop="days_in_pool"
+          :label="t('crmPool.table.daysInPool')"
+          width="100"
+          align="center"
+        >
           <template #default="{ row }">
             <el-tag :type="getDaysTag(row.days_in_pool)" size="small">
               {{ row.days_in_pool }} {{ t('crmPool.table.daysUnit') }}
@@ -116,14 +153,19 @@
           min-width="150"
           show-overflow-tooltip
         />
-        <el-table-column :label="t('crmPool.table.operation')" width="240" align="center" fixed="right">
+        <el-table-column
+          :label="t('crmPool.table.operation')"
+          width="240"
+          align="center"
+          fixed="right"
+        >
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="openClaimDialog(row)"
-              >{{ t('crmPool.table.claim') }}</el-button
-            >
-            <el-button type="primary" link size="small" @click="openTransferDialog(row)"
-              >{{ t('crmPool.table.transfer') }}</el-button
-            >
+            <el-button type="primary" link size="small" @click="openClaimDialog(row)">{{
+              t('crmPool.table.claim')
+            }}</el-button>
+            <el-button type="primary" link size="small" @click="openTransferDialog(row)">{{
+              t('crmPool.table.transfer')
+            }}</el-button>
             <el-button
               v-if="row.previous_owner_id"
               type="warning"
@@ -175,30 +217,30 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
-import { Plus, Back, Search, Refresh } from '@element-plus/icons-vue'
-import { getUserList, type User } from '@/api/user'
-import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
-import { logger } from '@/utils/logger'
-import { type PoolCustomer } from '@/api/crm-enhanced'
-import { useTableApi } from '@/composables/useTableApi'
-import ClaimDialogTab from './tabs/ClaimDialogTab.vue'
-import TransferDialogTab from './tabs/TransferDialogTab.vue'
-import ReleaseDialogTab from './tabs/ReleaseDialogTab.vue'
+import { ref, reactive, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
+import { Plus, Back, Search, Refresh } from '@element-plus/icons-vue';
+import { getUserList, type User } from '@/api/user';
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
+import { logger } from '@/utils/logger';
+import { type PoolCustomer } from '@/api/crm-enhanced';
+import { useTableApi } from '@/composables/useTableApi';
+import ClaimDialogTab from './tabs/ClaimDialogTab.vue';
+import TransferDialogTab from './tabs/TransferDialogTab.vue';
+import ReleaseDialogTab from './tabs/ReleaseDialogTab.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const hasLoaded = createLazyLoader()
+const hasLoaded = createLazyLoader();
 
-const router = useRouter()
+const router = useRouter();
 const queryParams = reactive({
   keyword: '',
   customer_type: '',
   daysInPool: '',
-})
+});
 
 // 批次 269：接入 useTableApi，消除手写分页重复 + 修复原硬编码参数 bug
 const {
@@ -212,97 +254,97 @@ const {
 } = useTableApi<PoolCustomer>({
   url: '/crm/pool',
   onError: (e: unknown) => logger.warn(t('crmPool.message.loadFailed'), String(e)),
-})
+});
 
-const users = ref<User[]>([])
+const users = ref<User[]>([]);
 
-const claimDialogVisible = ref(false)
-const transferDialogVisible = ref(false)
-const releaseDialogVisible = ref(false)
-const currentCustomerId = ref<number | null>(null)
-const currentCustomerName = ref('')
+const claimDialogVisible = ref(false);
+const transferDialogVisible = ref(false);
+const releaseDialogVisible = ref(false);
+const currentCustomerId = ref<number | null>(null);
+const currentCustomerName = ref('');
 
 const fetchUsers = async () => {
   try {
-    const res = await getUserList()
-    users.value = res.data?.list || []
+    const res = await getUserList();
+    users.value = res.data?.list || [];
   } catch (error) {
-    users.value = []
+    users.value = [];
   }
-}
+};
 
 const handleQuery = () => {
-  setQueryParam('keyword', queryParams.keyword || undefined)
-  setQueryParam('customer_type', queryParams.customer_type || undefined)
-  page.value = 1
-  getList()
-}
+  setQueryParam('keyword', queryParams.keyword || undefined);
+  setQueryParam('customer_type', queryParams.customer_type || undefined);
+  page.value = 1;
+  getList();
+};
 
 const handleReset = () => {
-  queryParams.keyword = ''
-  queryParams.customer_type = ''
-  queryParams.daysInPool = ''
-  handleQuery()
-}
+  queryParams.keyword = '';
+  queryParams.customer_type = '';
+  queryParams.daysInPool = '';
+  handleQuery();
+};
 
 const openClaimDialog = (row: { id: number; customer_name: string }) => {
-  currentCustomerId.value = row.id
-  currentCustomerName.value = row.customer_name
-  claimDialogVisible.value = true
-}
+  currentCustomerId.value = row.id;
+  currentCustomerName.value = row.customer_name;
+  claimDialogVisible.value = true;
+};
 
 const openTransferDialog = (row: { id: number; customer_name: string }) => {
-  currentCustomerId.value = row.id
-  currentCustomerName.value = row.customer_name
-  transferDialogVisible.value = true
-}
+  currentCustomerId.value = row.id;
+  currentCustomerName.value = row.customer_name;
+  transferDialogVisible.value = true;
+};
 
 const openReleaseDialog = (row: { id: number; customer_name: string }) => {
-  currentCustomerId.value = row.id
-  currentCustomerName.value = row.customer_name
-  releaseDialogVisible.value = true
-}
+  currentCustomerId.value = row.id;
+  currentCustomerName.value = row.customer_name;
+  releaseDialogVisible.value = true;
+};
 
 const handleClaimSelected = () => {
-  ElMessage.info(t('crmPool.message.selectToClaim'))
-}
+  ElMessage.info(t('crmPool.message.selectToClaim'));
+};
 
 const handleSelectionChange = () => {
   // 选区变化
-}
+};
 
 const handleSizeChange = (val: number) => {
-  pageSize.value = val
-  page.value = 1
-}
+  pageSize.value = val;
+  page.value = 1;
+};
 
 const handleCurrentChange = (val: number) => {
-  page.value = val
-}
+  page.value = val;
+};
 
 const getCustomerTypeLabel = (type: string) => {
   const labelMap: Record<string, string> = {
     normal: t('crmPool.customerType.normal'),
     vip: t('crmPool.customerType.vip'),
     wholesale: t('crmPool.customerType.wholesale'),
-  }
-  return labelMap[type] || type
-}
+  };
+  return labelMap[type] || type;
+};
 
 const getCustomerTypeTag = (type: string) => {
-  const typeMap: Record<string, string> = { normal: '', vip: 'warning', wholesale: 'success' }
-  return typeMap[type] || ''
-}
+  const typeMap: Record<string, string> = { normal: '', vip: 'warning', wholesale: 'success' };
+  return typeMap[type] || '';
+};
 
 const getDaysTag = (days: number) => {
-  if (days > 90) return 'danger'
-  if (days > 30) return 'warning'
-  return 'success'
-}
+  if (days > 90) return 'danger';
+  if (days > 30) return 'warning';
+  return 'success';
+};
 
 onMounted(() => {
-  loadIfNot('users', fetchUsers, hasLoaded)
-})
+  loadIfNot('users', fetchUsers, hasLoaded);
+});
 </script>
 
 <style scoped>

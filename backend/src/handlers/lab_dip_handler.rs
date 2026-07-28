@@ -59,7 +59,10 @@ pub struct LabDipRequestListQuery {
 pub async fn list_requests(
     State(state): State<AppState>,
     Query(query): Query<LabDipRequestListQuery>,
-) -> Result<Json<ApiResponse<crate::utils::response::PaginatedResponse<lab_dip_request::Model>>>, AppError> {
+) -> Result<
+    Json<ApiResponse<crate::utils::response::PaginatedResponse<lab_dip_request::Model>>>,
+    AppError,
+> {
     let page = query.page.unwrap_or(1).clamp(1, 1000);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
@@ -72,7 +75,9 @@ pub async fn list_requests(
     };
 
     let (items, total) = request_service(&state).list(svc_query).await?;
-    Ok(Json(ApiResponse::success_paginated(items, total, page, page_size)))
+    Ok(Json(ApiResponse::success_paginated(
+        items, total, page, page_size,
+    )))
 }
 
 /// GET /api/v1/erp/lab-dip/requests/:id - 查询打样通知单详情
@@ -91,7 +96,10 @@ pub async fn create_request(
     Json(req): Json<CreateLabDipRequestRequest>,
 ) -> Result<Json<ApiResponse<lab_dip_request::Model>>, AppError> {
     let created = request_service(&state).create(req).await?;
-    Ok(Json(ApiResponse::success_with_message(created, "打样通知单创建成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        created,
+        "打样通知单创建成功",
+    )))
 }
 
 /// PUT /api/v1/erp/lab-dip/requests/:id - 更新打样通知单
@@ -102,7 +110,10 @@ pub async fn update_request(
     Json(req): Json<UpdateLabDipRequestRequest>,
 ) -> Result<Json<ApiResponse<lab_dip_request::Model>>, AppError> {
     let updated = request_service(&state).update(id, req).await?;
-    Ok(Json(ApiResponse::success_with_message(updated, "打样通知单更新成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "打样通知单更新成功",
+    )))
 }
 
 /// DELETE /api/v1/erp/lab-dip/requests/:id - 软删除打样通知单
@@ -112,7 +123,10 @@ pub async fn delete_request(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     request_service(&state).delete(id).await?;
-    Ok(Json(ApiResponse::success_with_message((), "打样通知单删除成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "打样通知单删除成功",
+    )))
 }
 
 /// POST /api/v1/erp/lab-dip/requests/:id/start-sampling - 开始打样（pending → sampling）
@@ -122,7 +136,10 @@ pub async fn start_sampling(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<lab_dip_request::Model>>, AppError> {
     let updated = request_service(&state).start_sampling(id).await?;
-    Ok(Json(ApiResponse::success_with_message(updated, "已开始打样")))
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "已开始打样",
+    )))
 }
 
 /// POST /api/v1/erp/lab-dip/requests/:id/submit - 送客户确认（sampling → submitted）
@@ -132,7 +149,10 @@ pub async fn submit_to_customer(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<lab_dip_request::Model>>, AppError> {
     let updated = request_service(&state).submit_to_customer(id).await?;
-    Ok(Json(ApiResponse::success_with_message(updated, "已送客户确认")))
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "已送客户确认",
+    )))
 }
 
 /// 客户确认 OK 样请求体
@@ -152,7 +172,10 @@ pub async fn approve_ok_sample(
     let updated = request_service(&state)
         .approve_ok_sample(id, req.sample_id, req.comment)
         .await?;
-    Ok(Json(ApiResponse::success_with_message(updated, "OK 样确认成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "OK 样确认成功",
+    )))
 }
 
 /// 客户要求重打请求体
@@ -171,7 +194,10 @@ pub async fn reject_and_redo(
     let updated = request_service(&state)
         .reject_and_redo(id, req.comment)
         .await?;
-    Ok(Json(ApiResponse::success_with_message(updated, "已标记需重打")))
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "已标记需重打",
+    )))
 }
 
 /// POST /api/v1/erp/lab-dip/requests/:id/restart - 重新打样（rejected → sampling）
@@ -181,7 +207,10 @@ pub async fn restart_sampling(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<lab_dip_request::Model>>, AppError> {
     let updated = request_service(&state).restart_sampling(id).await?;
-    Ok(Json(ApiResponse::success_with_message(updated, "已重新开始打样")))
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "已重新开始打样",
+    )))
 }
 
 /// 完成建库请求体
@@ -200,7 +229,10 @@ pub async fn complete_request(
     let updated = request_service(&state)
         .complete(id, req.production_recipe_id)
         .await?;
-    Ok(Json(ApiResponse::success_with_message(updated, "已建库完成")))
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "已建库完成",
+    )))
 }
 
 // ============================================================================
@@ -232,7 +264,10 @@ pub async fn create_sample(
     Json(req): Json<CreateLabDipSampleRequest>,
 ) -> Result<Json<ApiResponse<lab_dip_sample::Model>>, AppError> {
     let created = sample_service(&state).create(req).await?;
-    Ok(Json(ApiResponse::success_with_message(created, "打样小样创建成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        created,
+        "打样小样创建成功",
+    )))
 }
 
 /// PUT /api/v1/erp/lab-dip/samples/:id - 更新打样小样
@@ -243,7 +278,10 @@ pub async fn update_sample(
     Json(req): Json<UpdateLabDipSampleRequest>,
 ) -> Result<Json<ApiResponse<lab_dip_sample::Model>>, AppError> {
     let updated = sample_service(&state).update(id, req).await?;
-    Ok(Json(ApiResponse::success_with_message(updated, "打样小样更新成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "打样小样更新成功",
+    )))
 }
 
 /// DELETE /api/v1/erp/lab-dip/samples/:id - 软删除小样
@@ -253,7 +291,10 @@ pub async fn delete_sample(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     sample_service(&state).delete(id).await?;
-    Ok(Json(ApiResponse::success_with_message((), "打样小样删除成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "打样小样删除成功",
+    )))
 }
 
 /// POST /api/v1/erp/lab-dip/samples/:id/matching - 记录对色结果
@@ -265,8 +306,13 @@ pub async fn record_matching_result(
     Path(id): Path<i32>,
     Json(req): Json<RecordMatchingResultRequest>,
 ) -> Result<Json<ApiResponse<lab_dip_sample::Model>>, AppError> {
-    let updated = sample_service(&state).record_matching_result(id, req).await?;
-    Ok(Json(ApiResponse::success_with_message(updated, "对色结果记录成功")))
+    let updated = sample_service(&state)
+        .record_matching_result(id, req)
+        .await?;
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "对色结果记录成功",
+    )))
 }
 
 // ============================================================================
@@ -300,7 +346,10 @@ pub async fn create_resample(
     Json(req): Json<CreateResampleRequest>,
 ) -> Result<Json<ApiResponse<lab_dip_resample::Model>>, AppError> {
     let created = resample_service(&state).create(req).await?;
-    Ok(Json(ApiResponse::success_with_message(created, "复样记录创建成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        created,
+        "复样记录创建成功",
+    )))
 }
 
 /// POST /api/v1/erp/lab-dip/resamples/:id/result - 记录复样结果
@@ -313,7 +362,10 @@ pub async fn record_resample_result(
     Json(req): Json<RecordResampleResultRequest>,
 ) -> Result<Json<ApiResponse<lab_dip_resample::Model>>, AppError> {
     let updated = resample_service(&state).record_result(id, req).await?;
-    Ok(Json(ApiResponse::success_with_message(updated, "复样结果记录成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "复样结果记录成功",
+    )))
 }
 
 /// POST /api/v1/erp/lab-dip/resamples/:id/tech-card - 开具染色技术卡
@@ -326,5 +378,8 @@ pub async fn issue_tech_card(
     Json(req): Json<IssueTechCardRequest>,
 ) -> Result<Json<ApiResponse<lab_dip_resample::Model>>, AppError> {
     let updated = resample_service(&state).issue_tech_card(id, req).await?;
-    Ok(Json(ApiResponse::success_with_message(updated, "染色技术卡开具成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "染色技术卡开具成功",
+    )))
 }

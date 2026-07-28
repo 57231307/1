@@ -56,7 +56,12 @@ impl PurchaseOrderService {
 
         // 遍历明细执行入库（更新/创建库存 + 记录流水 + 更新明细已入库数量）
         Self::process_all_item_receipts(
-            &txn, &order_items, &product_map, &stock_map, &order, &mut pending_events,
+            &txn,
+            &order_items,
+            &product_map,
+            &stock_map,
+            &order,
+            &mut pending_events,
         )
         .await?;
 
@@ -84,10 +89,11 @@ impl PurchaseOrderService {
         pending_events: &mut Vec<BusinessEvent>,
     ) -> Result<(), AppError> {
         for item in order_items {
-            let product = product_map
-                .get(&item.product_id)
-                .ok_or_else(|| AppError::not_found(format!("产品 ID {} 不存在", item.product_id)))?;
-            Self::process_item_receipt(txn, item, product, stock_map, order, pending_events).await?;
+            let product = product_map.get(&item.product_id).ok_or_else(|| {
+                AppError::not_found(format!("产品 ID {} 不存在", item.product_id))
+            })?;
+            Self::process_item_receipt(txn, item, product, stock_map, order, pending_events)
+                .await?;
         }
         Ok(())
     }
@@ -165,8 +171,7 @@ impl PurchaseOrderService {
         let product_map: std::collections::HashMap<i32, product::Model> =
             products.into_iter().map(|p| (p.id, p)).collect();
 
-        let stock_product_ids: Vec<i32> =
-            order_items.iter().map(|item| item.product_id).collect();
+        let stock_product_ids: Vec<i32> = order_items.iter().map(|item| item.product_id).collect();
         let existing_stocks = if stock_product_ids.is_empty() {
             Vec::new()
         } else {
@@ -176,8 +181,10 @@ impl PurchaseOrderService {
                 .all(txn)
                 .await?
         };
-        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> =
-            existing_stocks.into_iter().map(|s| (s.product_id, s)).collect();
+        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> = existing_stocks
+            .into_iter()
+            .map(|s| (s.product_id, s))
+            .collect();
 
         Ok((order_items, product_map, stock_map))
     }
@@ -199,12 +206,24 @@ impl PurchaseOrderService {
 
         let existing_stock = stock_map.get(&item.product_id).cloned();
         let (before_meters, before_kg) = Self::update_or_create_stock(
-            txn, item, product, existing_stock, order, receive_meters, receive_alt,
+            txn,
+            item,
+            product,
+            existing_stock,
+            order,
+            receive_meters,
+            receive_alt,
         )
         .await?;
 
         let txn_event = Self::record_stock_transaction(
-            txn, item, order, before_meters, before_kg, receive_meters, receive_alt,
+            txn,
+            item,
+            order,
+            before_meters,
+            before_kg,
+            receive_meters,
+            receive_alt,
         )
         .await?;
         if let Some(ev) = txn_event {
@@ -248,7 +267,13 @@ impl PurchaseOrderService {
             }
             None => {
                 // v14 批次 418 修复 D-P0-4：从采购订单明细获取真实缸号/色号/批号
-                let args = Self::build_stock_fabric_args(item, product, order, receive_meters, receive_alt);
+                let args = Self::build_stock_fabric_args(
+                    item,
+                    product,
+                    order,
+                    receive_meters,
+                    receive_alt,
+                );
                 crate::services::inventory_stock_service::InventoryStockService::create_stock_fabric_txn(txn, args)
                     .await
                     .map_err(|e| {
@@ -296,7 +321,12 @@ impl PurchaseOrderService {
         receive_alt: Decimal,
     ) -> Result<Option<BusinessEvent>, AppError> {
         let args = Self::build_transaction_args(
-            item, order, before_meters, before_kg, receive_meters, receive_alt,
+            item,
+            order,
+            before_meters,
+            before_kg,
+            receive_meters,
+            receive_alt,
         );
         let (_, txn_event) = crate::services::inventory_stock_service::InventoryStockService::record_transaction_txn(txn, args)
             .await
@@ -421,7 +451,8 @@ impl PurchaseOrderService {
         Self::validate_order_for_item(&order, user_id)?;
         let item = Self::build_order_item_active(order_id, req, &txn).await?;
         // 事务内调用 _txn 变体，保证明细写与重算原子性；透传 user_id 用于审计日志
-        self.calculate_order_total_txn(order_id, &txn, user_id).await?;
+        self.calculate_order_total_txn(order_id, &txn, user_id)
+            .await?;
         txn.commit().await?;
         Ok(item)
     }
@@ -575,7 +606,8 @@ impl PurchaseOrderService {
 
         // 6. 更新订单总金额（事务内调用 _txn 变体，保证明细写与重算原子性）
         // 批次 94 P2-10：透传 user_id 用于审计日志
-        self.calculate_order_total_txn(order.id, &txn, user_id).await?;
+        self.calculate_order_total_txn(order.id, &txn, user_id)
+            .await?;
 
         txn.commit().await?;
 
@@ -624,7 +656,8 @@ impl PurchaseOrderService {
 
         // 6. 更新订单总金额（事务内调用 _txn 变体，保证明细写与重算原子性）
         // 批次 94 P2-10：透传 user_id 用于审计日志
-        self.calculate_order_total_txn(order.id, &txn, user_id).await?;
+        self.calculate_order_total_txn(order.id, &txn, user_id)
+            .await?;
 
         txn.commit().await?;
 
@@ -688,14 +721,11 @@ impl PurchaseOrderService {
     ///
     /// 批次 19（2026-06-28）：改为便捷入口，内部 begin + 调 _txn + commit。
     /// 已在事务内的调用方应直接调用 calculate_order_total_txn 以复用事务。
-    pub async fn calculate_order_total(
-        &self,
-        order_id: i32,
-        user_id: i32,
-    ) -> Result<(), AppError> {
+    pub async fn calculate_order_total(&self, order_id: i32, user_id: i32) -> Result<(), AppError> {
         let txn = (*self.db).begin().await?;
         // 批次 94 P2-10：透传 user_id 用于审计日志
-        self.calculate_order_total_txn(order_id, &txn, user_id).await?;
+        self.calculate_order_total_txn(order_id, &txn, user_id)
+            .await?;
         txn.commit().await?;
         Ok(())
     }

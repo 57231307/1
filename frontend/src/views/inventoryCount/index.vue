@@ -38,55 +38,55 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { getWarehouseList, type Warehouse } from '@/api/warehouse'
-import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
-import { logger } from '@/utils/logger'
-import type { InventoryCountEntity } from '@/api/inventoryCount'
-import CountListTab from './tabs/CountListTab.vue'
-import CountFormDialogTab from './tabs/CountFormDialogTab.vue'
-import CountDetailDialogTab from './tabs/CountDetailDialogTab.vue'
+import { ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { getWarehouseList, type Warehouse } from '@/api/warehouse';
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
+import { logger } from '@/utils/logger';
+import type { InventoryCountEntity } from '@/api/inventoryCount';
+import CountListTab from './tabs/CountListTab.vue';
+import CountFormDialogTab from './tabs/CountFormDialogTab.vue';
+import CountDetailDialogTab from './tabs/CountDetailDialogTab.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const formDialogVisible = ref(false)
-const dialogMode = ref<'create' | 'edit' | 'view'>('create')
-const currentRow = ref<InventoryCountEntity | null>(null)
+const formDialogVisible = ref(false);
+const dialogMode = ref<'create' | 'edit' | 'view'>('create');
+const currentRow = ref<InventoryCountEntity | null>(null);
 
-const detailDialogVisible = ref(false)
-const detailRow = ref<InventoryCountEntity | null>(null)
+const detailDialogVisible = ref(false);
+const detailRow = ref<InventoryCountEntity | null>(null);
 
-const warehouses = ref<Warehouse[]>([])
+const warehouses = ref<Warehouse[]>([]);
 
 const openForm = (mode: 'create' | 'edit' | 'view', row: InventoryCountEntity | null) => {
-  currentRow.value = row
-  dialogMode.value = mode
-  formDialogVisible.value = true
-}
+  currentRow.value = row;
+  dialogMode.value = mode;
+  formDialogVisible.value = true;
+};
 
 const openDetail = (row: InventoryCountEntity) => {
-  detailRow.value = row
-  detailDialogVisible.value = true
-}
+  detailRow.value = row;
+  detailDialogVisible.value = true;
+};
 
 const handleSubmitted = () => {
   // 子组件已通过 emit 触发刷新
-}
+};
 
 const fetchWarehouses = async () => {
   try {
-    const res = await getWarehouseList({ page: 1, page_size: 1000 })
-    warehouses.value = (res.data?.list as Warehouse[] | undefined) || []
+    const res = await getWarehouseList({ page: 1, page_size: 1000 });
+    warehouses.value = (res.data?.list as Warehouse[] | undefined) || [];
   } catch (error) {
-    logger.error(t('inventoryCount.index.messageFetchWarehouseFailure'), (error as Error).message)
+    logger.error(t('inventoryCount.index.messageFetchWarehouseFailure'), (error as Error).message);
   }
-}
+};
 
-const hasLoaded = createLazyLoader()
+const hasLoaded = createLazyLoader();
 onMounted(() => {
-  loadIfNot('warehouses', fetchWarehouses, hasLoaded)
-})
+  loadIfNot('warehouses', fetchWarehouses, hasLoaded);
+});
 </script>
 
 <style scoped>

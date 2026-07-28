@@ -103,11 +103,7 @@ async fn blacklist_and_revoke_token(
             .cache
             .get_token_blacklist()
             .set(token.to_string(), true, Some(ttl));
-        crate::services::auth_service::revoke_jti(
-            &claims.session_id,
-            claims.exp.timestamp(),
-        )
-        .await;
+        crate::services::auth_service::revoke_jti(&claims.session_id, claims.exp.timestamp()).await;
         tracing::info!(
             "Token blacklisted + JTI revoked for user {} (session_id={})",
             claims.username,

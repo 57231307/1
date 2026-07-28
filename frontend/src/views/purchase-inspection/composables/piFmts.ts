@@ -13,7 +13,7 @@ export const STATUS_TYPE_MAP: Record<string, string> = {
   pending: 'warning',
   completed: 'success',
   rejected: 'danger',
-}
+};
 
 /**
  * 检验单状态到中文标签
@@ -23,7 +23,7 @@ export const STATUS_TEXT_MAP: Record<string, string> = {
   pending: '待检验',
   completed: '已完成',
   rejected: '已拒绝',
-}
+};
 
 /**
  * 检验结果到 el-tag 类型
@@ -32,7 +32,7 @@ export const RESULT_TYPE_MAP: Record<string, string> = {
   pass: 'success',
   fail: 'danger',
   partial: 'warning',
-}
+};
 
 /**
  * 检验结果到中文标签
@@ -41,32 +41,32 @@ export const RESULT_TEXT_MAP: Record<string, string> = {
   pass: '合格',
   fail: '不合格',
   partial: '部分合格',
-}
+};
 
 /**
  * 获取状态类型
  */
 export function getStatusType(status: string): string {
-  return STATUS_TYPE_MAP[status] || 'info'
+  return STATUS_TYPE_MAP[status] || 'info';
 }
 
 /**
  * 获取状态文本
  */
 export function getStatusText(status: string): string {
-  return STATUS_TEXT_MAP[status] || status
+  return STATUS_TEXT_MAP[status] || status;
 }
 
 /**
  * 获取结果类型
  */
 export function getResultType(result: string): string {
-  return RESULT_TYPE_MAP[result] || 'info'
+  return RESULT_TYPE_MAP[result] || 'info';
 }
 
 /**
  * 获取结果文本
  */
 export function getResultText(result: string): string {
-  return RESULT_TEXT_MAP[result] || result
+  return RESULT_TEXT_MAP[result] || result;
 }

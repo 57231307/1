@@ -75,12 +75,8 @@ impl VoucherService {
             now: chrono::Utc::now(),
         };
 
-        self.insert_assist_records_for_items(
-            txn,
-            &items,
-            &subject_id_by_code,
-            &ctx,
-        ).await?;
+        self.insert_assist_records_for_items(txn, &items, &subject_id_by_code, &ctx)
+            .await?;
 
         info!("辅助核算记录写入成功 voucher_id={}", voucher_id);
         Ok(())
@@ -123,10 +119,7 @@ impl VoucherService {
                 .filter(account_subject::Column::Code.is_in(subject_codes))
                 .all(txn)
                 .await?;
-            Ok(subjects
-                .iter()
-                .map(|s| (s.code.clone(), s.id))
-                .collect())
+            Ok(subjects.iter().map(|s| (s.code.clone(), s.id)).collect())
         }
     }
 
@@ -160,12 +153,7 @@ impl VoucherService {
             let account_subject_id = self.lookup_subject_id(subject_id_by_code, item).await?;
             let five_dimension_id = self.build_five_dimension_id(item);
 
-            let record = self.build_assist_record(
-                item,
-                account_subject_id,
-                five_dimension_id,
-                ctx,
-            );
+            let record = self.build_assist_record(item, account_subject_id, five_dimension_id, ctx);
 
             record.insert(txn).await?;
         }

@@ -22,18 +22,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { Clock, CircleCheck, Warning, Timer } from '@element-plus/icons-vue'
+import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { Clock, CircleCheck, Warning, Timer } from '@element-plus/icons-vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 统计字段类型
 interface BpmApprovalStats {
-  pending: number
-  completed: number
-  urgent: number
-  avgTime: number
+  pending: number;
+  completed: number;
+  urgent: number;
+  avgTime: number;
 }
 
 /**
@@ -41,16 +41,40 @@ interface BpmApprovalStats {
  */
 const props = defineProps<{
   // 统计数据
-  stats: BpmApprovalStats
-}>()
+  stats: BpmApprovalStats;
+}>();
 
 // 统计卡片配置（响应式求值，随语言切换更新）
 const statCards = computed(() => [
-  { key: 'pending', label: t('bpm.approval.stat.pending'), value: props.stats.pending, icon: Clock, cls: 'pending-icon' },
-  { key: 'completed', label: t('bpm.approval.stat.completed'), value: props.stats.completed, icon: CircleCheck, cls: 'completed-icon' },
-  { key: 'urgent', label: t('bpm.approval.stat.urgent'), value: props.stats.urgent, icon: Warning, cls: 'urgent-icon' },
-  { key: 'avgTime', label: t('bpm.approval.stat.avgTime'), value: props.stats.avgTime, icon: Timer, cls: 'avg-icon' },
-])
+  {
+    key: 'pending',
+    label: t('bpm.approval.stat.pending'),
+    value: props.stats.pending,
+    icon: Clock,
+    cls: 'pending-icon',
+  },
+  {
+    key: 'completed',
+    label: t('bpm.approval.stat.completed'),
+    value: props.stats.completed,
+    icon: CircleCheck,
+    cls: 'completed-icon',
+  },
+  {
+    key: 'urgent',
+    label: t('bpm.approval.stat.urgent'),
+    value: props.stats.urgent,
+    icon: Warning,
+    cls: 'urgent-icon',
+  },
+  {
+    key: 'avgTime',
+    label: t('bpm.approval.stat.avgTime'),
+    value: props.stats.avgTime,
+    icon: Timer,
+    cls: 'avg-icon',
+  },
+]);
 </script>
 
 <style scoped>

@@ -9,7 +9,9 @@
     :model-value="visible"
     :title="form?.id ? t('apiGateway.keyForm.editTitle') : t('apiGateway.keyForm.createTitle')"
     width="600px"
-    :aria-label="form?.id ? t('apiGateway.keyForm.editAriaLabel') : t('apiGateway.keyForm.createAriaLabel')"
+    :aria-label="
+      form?.id ? t('apiGateway.keyForm.editAriaLabel') : t('apiGateway.keyForm.createAriaLabel')
+    "
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <el-form
@@ -67,19 +69,23 @@
       </el-row>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">{{ t('apiGateway.keyForm.cancel') }}</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="emit('submit')">{{ t('apiGateway.keyForm.confirm') }}</el-button>
+      <el-button @click="emit('update:visible', false)">{{
+        t('apiGateway.keyForm.cancel')
+      }}</el-button>
+      <el-button type="primary" :loading="submitLoading" @click="emit('submit')">{{
+        t('apiGateway.keyForm.confirm')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
-import { useI18n } from 'vue-i18n'
-import type { FormInstance, FormRules } from 'element-plus'
-import type { ApiKey } from '@/api/api-gateway'
+import { ref, watch, nextTick } from 'vue';
+import { useI18n } from 'vue-i18n';
+import type { FormInstance, FormRules } from 'element-plus';
+import type { ApiKey } from '@/api/api-gateway';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 /**
  * API 密钥新建/编辑对话框
@@ -89,70 +95,70 @@ const { t } = useI18n({ useScope: 'global' })
  */
 const props = defineProps<{
   // 对话框可见性
-  visible: boolean
+  visible: boolean;
   // 表单实例（批次 281：改为可选，通过 v-model:formRef 双向同步）
-  formRef?: FormInstance | undefined
+  formRef?: FormInstance | undefined;
   // 表单数据（由父组件管理，子组件通过 emit 回写）
-  form?: Partial<ApiKey>
+  form?: Partial<ApiKey>;
   // 提交中状态
-  submitLoading: boolean
+  submitLoading: boolean;
   // 校验规则
-  rules: FormRules
+  rules: FormRules;
   // 权限文本（父组件通过 v-model 双向同步）
-  permissionsText: string
-}>()
+  permissionsText: string;
+}>();
 
 const emit = defineEmits<{
-  'update:visible': [v: boolean]
+  'update:visible': [v: boolean];
   // 批次 281：通过 emit 通知父组件 formRef 变化（替代原 props.formRef.value 写回）
-  'update:formRef': [value: FormInstance | undefined]
-  'update:permissionsText': [v: string]
+  'update:formRef': [value: FormInstance | undefined];
+  'update:permissionsText': [v: string];
   // 整体回写表单（父组件监听此事件并 Object.assign 到自己的 form）
-  'update:form': [form: Partial<ApiKey>]
-  submit: []
-}>()
+  'update:form': [form: Partial<ApiKey>];
+  submit: [];
+}>();
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
-const localForm = ref<Partial<ApiKey>>({ ...(props.form ?? {}) })
+const localForm = ref<Partial<ApiKey>>({ ...(props.form ?? {}) });
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
-let syncing = false
+let syncing = false;
 
 // 外部 prop 变化时同步到 local（如父组件打开新建/编辑时填充数据）
 watch(
   () => props.form,
   newForm => {
-    if (syncing) return
-    syncing = true
-    localForm.value = { ...(newForm ?? {}) }
+    if (syncing) return;
+    syncing = true;
+    localForm.value = { ...(newForm ?? {}) };
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
   { deep: true }
-)
+);
 
 // 本地变化时通知父组件（用户输入）
 watch(
   localForm,
   newForm => {
-    if (syncing) return
-    syncing = true
-    emit('update:form', { ...newForm })
+    if (syncing) return;
+    syncing = true;
+    emit('update:form', { ...newForm });
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
   { deep: true }
-)
+);
 
 // 批次 281：将 el-form 的 ref 实例通过 emit 通知父组件（替代原 props.formRef.value 写回）
-const formRefValue = ref<FormInstance | undefined>(undefined)
+const formRefValue = ref<FormInstance | undefined>(undefined);
 watch(
   formRefValue,
   val => {
-    if (val) emit('update:formRef', val)
+    if (val) emit('update:formRef', val);
   },
   { immediate: true, flush: 'post' }
-)
+);
 </script>

@@ -53,9 +53,9 @@ impl PurchaseReceiptService {
         let mut order_item_map = order_item_map;
         for item in items {
             if let Some(order_item_id) = item.order_item_id {
-                let order_item = order_item_map.remove(&order_item_id).ok_or_else(|| {
-                    AppError::not_found(format!("订单明细 {}", order_item_id))
-                })?;
+                let order_item = order_item_map
+                    .remove(&order_item_id)
+                    .ok_or_else(|| AppError::not_found(format!("订单明细 {}", order_item_id)))?;
                 let new_received = order_item.received_quantity + item.quantity;
                 let new_received_alt =
                     order_item.received_quantity_alt + item.quantity_alt.unwrap_or_default();

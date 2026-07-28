@@ -151,8 +151,12 @@ pub async fn auto_schedule(
         .unwrap_or_else(|| "priority".to_string());
     let req = AutoScheduleRequest {
         work_center_ids: payload.work_center_ids,
-        start_date: payload.start_date.unwrap_or_else(|| chrono::Utc::now().naive_utc().date()),
-        end_date: payload.start_date.unwrap_or_else(|| chrono::Utc::now().naive_utc().date())
+        start_date: payload
+            .start_date
+            .unwrap_or_else(|| chrono::Utc::now().naive_utc().date()),
+        end_date: payload
+            .start_date
+            .unwrap_or_else(|| chrono::Utc::now().naive_utc().date())
             + chrono::Duration::days(30),
         algo: strategy.clone(),
     };
@@ -221,8 +225,16 @@ pub async fn get_gantt_data(
             })
             .collect(),
         date_range: DateRangeResponse {
-            start: gantt_data.date_range.as_ref().map(|d| d.start).unwrap_or_else(|| chrono::Utc::now().naive_utc().date()),
-            end: gantt_data.date_range.as_ref().map(|d| d.end).unwrap_or_else(|| chrono::Utc::now().naive_utc().date()),
+            start: gantt_data
+                .date_range
+                .as_ref()
+                .map(|d| d.start)
+                .unwrap_or_else(|| chrono::Utc::now().naive_utc().date()),
+            end: gantt_data
+                .date_range
+                .as_ref()
+                .map(|d| d.end)
+                .unwrap_or_else(|| chrono::Utc::now().naive_utc().date()),
         },
     };
 
@@ -334,11 +346,8 @@ pub async fn adjust_schedule_task(
     let format_date = |d: chrono::NaiveDate| -> String {
         // P3 维度 3 修复（批次 87）：消除 expect panic，常量 (0,0,0) 必然合法，用 unwrap_or_default 兜底
         // CI 修复：用 unwrap_or_default 替代 unwrap_or_else(T::default)（clippy::unwrap_or_default 建议）
-        let time =
-            chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap_or_default();
-        chrono::NaiveDateTime::new(d, time)
-            .and_utc()
-            .to_rfc3339()
+        let time = chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap_or_default();
+        chrono::NaiveDateTime::new(d, time).and_utc().to_rfc3339()
     };
     let response = serde_json::json!({
         "id": detail.order_id,

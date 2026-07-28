@@ -45,60 +45,60 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { ref, watch, nextTick } from 'vue';
+import { useI18n } from 'vue-i18n';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 过滤表单字段类型
 interface FilterForm {
-  order_no: string
-  status: string
+  order_no: string;
+  status: string;
 }
 
 const props = defineProps<{
-  form: FilterForm
-}>()
+  form: FilterForm;
+}>();
 
 const emit = defineEmits<{
-  search: []
-  reset: []
-  'update:form': [form: FilterForm]
-}>()
+  search: [];
+  reset: [];
+  'update:form': [form: FilterForm];
+}>();
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
-const localForm = ref<FilterForm>({ ...props.form })
+const localForm = ref<FilterForm>({ ...props.form });
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
-let syncing = false
+let syncing = false;
 
 // 外部 prop 变化时同步到 local
 watch(
   () => props.form,
   newForm => {
-    if (syncing) return
-    syncing = true
-    localForm.value = { ...newForm }
+    if (syncing) return;
+    syncing = true;
+    localForm.value = { ...newForm };
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
   { deep: true }
-)
+);
 
 // 本地变化时通知父组件
 watch(
   localForm,
   newForm => {
-    if (syncing) return
-    syncing = true
-    emit('update:form', { ...newForm })
+    if (syncing) return;
+    syncing = true;
+    emit('update:form', { ...newForm });
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
   { deep: true }
-)
+);
 </script>
 
 <style scoped>

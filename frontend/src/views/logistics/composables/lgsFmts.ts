@@ -6,7 +6,7 @@
  */
 
 /** el-tag 类型联合（与 element-plus TagProps.type 对齐） */
-type TagType = 'primary' | 'success' | 'warning' | 'info' | 'danger'
+type TagType = 'primary' | 'success' | 'warning' | 'info' | 'danger';
 
 /**
  * 状态对应的 el-tag 类型
@@ -17,14 +17,14 @@ const STATUS_TYPE_MAP: Record<string, TagType> = {
   in_transit: 'primary',
   delivered: 'success',
   cancelled: 'danger',
-}
+};
 
 /**
  * 获取运单状态 el-tag 类型
  */
 export const getStatusType = (status: string): TagType => {
-  return STATUS_TYPE_MAP[status] || 'info'
-}
+  return STATUS_TYPE_MAP[status] || 'info';
+};
 
 /**
  * 状态中文文本
@@ -35,18 +35,18 @@ const STATUS_TEXT_MAP: Record<string, string> = {
   in_transit: '运输中',
   delivered: '已签收',
   cancelled: '已取消',
-}
+};
 
 /**
  * 获取运单状态中文文本
  */
 export const getStatusText = (status: string): string => {
-  return STATUS_TEXT_MAP[status] || status
-}
+  return STATUS_TEXT_MAP[status] || status;
+};
 
 /**
  * 格式化运费显示（带人民币符号）
  */
 export const formatFreight = (fee: number | undefined | null): string => {
-  return `¥${fee || 0}`
-}
+  return `¥${fee || 0}`;
+};

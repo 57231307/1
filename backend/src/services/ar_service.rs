@@ -29,13 +29,9 @@ use std::sync::Arc;
 // 批次 488 D10-1 拆分：re-export 保持外部引用路径 `crate::services::ar_service::CreateArPaymentParams` 不变
 pub use crate::services::ar_ops::CreateArPaymentParams;
 
-/// 应收账款服务
-///
-/// struct 定义保留在 facade，impl 块按职责分散到 `ar_ops/` 子模块。
+/// 应收账款服务（facade，impl 块分散到 `ar_ops/` 子模块）
 pub struct ArService {
-    /// 数据库连接句柄
-    ///
-    /// `pub(crate)` 可见性：ar_ops 兄弟模块的 impl 块需直接访问此字段。
+    /// 数据库连接句柄（`pub(crate)` 供 ar_ops 兄弟模块访问）
     pub(crate) db: Arc<DatabaseConnection>,
 }
 
@@ -206,11 +202,10 @@ mod tests {
                 Decimal::new(50, 0),
             ],
         );
-        assert_eq!(allocations, vec![
-            Decimal::new(100, 0),
-            Decimal::new(200, 0),
-            Decimal::ZERO,
-        ]);
+        assert_eq!(
+            allocations,
+            vec![Decimal::new(100, 0), Decimal::new(200, 0), Decimal::ZERO,]
+        );
         assert_eq!(remaining, Decimal::ZERO);
 
         // 场景 2：收款金额 = 150，3 张发票未收金额 [100, 200, 50]
@@ -223,11 +218,10 @@ mod tests {
                 Decimal::new(50, 0),
             ],
         );
-        assert_eq!(allocations, vec![
-            Decimal::new(100, 0),
-            Decimal::new(50, 0),
-            Decimal::ZERO,
-        ]);
+        assert_eq!(
+            allocations,
+            vec![Decimal::new(100, 0), Decimal::new(50, 0), Decimal::ZERO,]
+        );
         assert_eq!(remaining, Decimal::ZERO);
 
         // 场景 3：收款金额 = 500，2 张发票未收金额 [100, 200]
@@ -236,10 +230,10 @@ mod tests {
             Decimal::new(500, 0),
             &[Decimal::new(100, 0), Decimal::new(200, 0)],
         );
-        assert_eq!(allocations, vec![
-            Decimal::new(100, 0),
-            Decimal::new(200, 0),
-        ]);
+        assert_eq!(
+            allocations,
+            vec![Decimal::new(100, 0), Decimal::new(200, 0),]
+        );
         assert_eq!(remaining, Decimal::new(200, 0));
     }
 
@@ -248,8 +242,8 @@ mod tests {
     /// 验证 ArService 能在 SQLite 内存数据库上实例化（new 不触发 DB 操作）
     #[tokio::test]
     async fn 测试_服务实例化_SQLite内存数据库() {
-        let db_url = std::env::var("TEST_DATABASE_URL")
-            .unwrap_or_else(|_| "sqlite::memory:".to_string());
+        let db_url =
+            std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
         let db = Database::connect(&db_url)
             .await
             .expect("测试夹具：数据库连接失败");

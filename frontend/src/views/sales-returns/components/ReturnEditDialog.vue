@@ -212,86 +212,86 @@
 </template>
 
 <script setup lang="ts">
-import { deepClone } from '@/utils'
-import { ref, watch, reactive } from 'vue'
-import { useI18n } from 'vue-i18n'
-import type { FormInstance, FormRules } from 'element-plus'
+import { deepClone } from '@/utils';
+import { ref, watch, reactive } from 'vue';
+import { useI18n } from 'vue-i18n';
+import type { FormInstance, FormRules } from 'element-plus';
 // v11 批次 174 P2-1 修复：从 useSr 导入具体类型替代 any
 import type {
   ReturnForm,
   SalesOrderOption,
   CustomerOption,
   ProductOption,
-} from '../composables/useSr'
+} from '../composables/useSr';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps<{
-  visible: boolean
-  dialogMode: 'create' | 'edit'
-  formData: ReturnForm
-  salesOrderList: SalesOrderOption[]
-  customerList: CustomerOption[]
-  productList: ProductOption[]
-  formRules: FormRules
-  submitLoading: boolean
-}>()
+  visible: boolean;
+  dialogMode: 'create' | 'edit';
+  formData: ReturnForm;
+  salesOrderList: SalesOrderOption[];
+  customerList: CustomerOption[];
+  productList: ProductOption[];
+  formRules: FormRules;
+  submitLoading: boolean;
+}>();
 
 const emit = defineEmits<{
-  (e: 'update:visible', val: boolean): void
-  (e: 'submit', data: ReturnForm): void
-  (e: 'salesOrderChange', orderId: number): void
-  (e: 'addItem'): void
-  (e: 'removeItem', index: number): void
-  (e: 'calculate'): void
-  (e: 'dialogClose'): void
-}>()
+  (e: 'update:visible', val: boolean): void;
+  (e: 'submit', data: ReturnForm): void;
+  (e: 'salesOrderChange', orderId: number): void;
+  (e: 'addItem'): void;
+  (e: 'removeItem', index: number): void;
+  (e: 'calculate'): void;
+  (e: 'dialogClose'): void;
+}>();
 
-const formRef = ref<FormInstance>()
+const formRef = ref<FormInstance>();
 
 // 浅拷贝 props.formData 到 local（避免直接修改 prop）
 // v11 批次 174 P2-1 修复：reactive<any>({}) 改为 reactive<Partial<ReturnForm>>({})
-const localFormData = reactive<Partial<ReturnForm>>({})
+const localFormData = reactive<Partial<ReturnForm>>({});
 watch(
   () => props.formData,
   newVal => {
     // v11 批次 174 P2-1 修复：使用 keyof ReturnForm 断言避免 string 索引错误
     Object.keys(localFormData).forEach(k => {
-      delete (localFormData as Record<string, unknown>)[k]
-    })
-    Object.assign(localFormData, deepClone(newVal))
+      delete (localFormData as Record<string, unknown>)[k];
+    });
+    Object.assign(localFormData, deepClone(newVal));
   },
   { immediate: true, deep: true }
-)
+);
 
 const onClose = (val: boolean) => {
-  emit('update:visible', val)
-}
+  emit('update:visible', val);
+};
 
 const onSubmit = () => {
   // v11 批次 174 P2-1 修复：localFormData 是 Partial<ReturnForm>，emit 期望 ReturnForm
-  emit('submit', localFormData as ReturnForm)
-}
+  emit('submit', localFormData as ReturnForm);
+};
 
 const onSalesOrderChange = (orderId: number) => {
-  emit('salesOrderChange', orderId)
-}
+  emit('salesOrderChange', orderId);
+};
 
 const onAddItem = () => {
-  emit('addItem')
-}
+  emit('addItem');
+};
 
 const onRemoveItem = (index: number) => {
-  emit('removeItem', index)
-}
+  emit('removeItem', index);
+};
 
 const onCalculate = () => {
-  emit('calculate')
-}
+  emit('calculate');
+};
 
 const onDialogClose = () => {
-  emit('dialogClose')
-}
+  emit('dialogClose');
+};
 
-defineExpose({ formRef })
+defineExpose({ formRef });
 </script>

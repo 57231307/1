@@ -36,16 +36,12 @@ pub const PUBLIC_PATHS: &[&str] = &[
 /// 2. **业务端点（如 `/dashboard`、`/sales`、`/inventory` 等）必须经过 JWT 验证**
 /// 3. 任何新增条目都必须经过安全评审
 pub fn is_public_path(path: &str) -> bool {
-    // 低危 #3 修复：精确匹配 + 子路径匹配，防止 starts_with 误匹配
-    // 例：原 /api/v1/erp/auth/logout 会匹配 /api/v1/erp/auth/logout-bypass
-    // 修复后只匹配：
-    //   - 精确路径：/api/v1/erp/auth/logout
-    //   - 子路径：  /api/v1/erp/auth/logout/callback
+    // P1-03-2 修复：严格精确匹配，删除子路径前缀匹配
+    // 原 starts_with + 子路径匹配会放行 /api/v1/erp/auth/login/anything 等子路径，
+    // 若未来新增 /api/v1/erp/auth/login/{id} 等业务接口将绕过认证。
+    // 改为仅精确匹配，如确需子路径公开，单独显式登记到 PUBLIC_PATHS。
     let clean_path = path.split(['?', '#']).next().unwrap_or(path);
-    PUBLIC_PATHS.iter().any(|p| {
-        clean_path == *p
-            || (clean_path.starts_with(p) && clean_path[p.len()..].starts_with('/'))
-    })
+    PUBLIC_PATHS.contains(&clean_path)
 }
 
 #[cfg(test)]
@@ -65,9 +61,7 @@ mod tests {
         assert!(is_public_path("/api/v1/erp/auth/login"));
         assert!(is_public_path("/api/v1/erp/auth/refresh"));
         // 批次 110 P0-1：Webhook 回调端点公开（HMAC 签名验证替代认证）
-        assert!(is_public_path(
-            "/api/v1/erp/webhooks/integrations/callback"
-        ));
+        assert!(is_public_path("/api/v1/erp/webhooks/integrations/callback"));
         // 批次 261 修复：initialize 系列高危接口放行 JWT 认证（由 init_token_middleware 认证）
         assert!(is_public_path("/api/v1/erp/init/initialize"));
         assert!(is_public_path("/api/v1/erp/init/initialize-with-db"));
@@ -92,14 +86,17 @@ mod tests {
         assert!(!is_public_path("/api/v1/erp/auth/logout"));
     }
 
-    /// 低危 #3 修复：精确匹配防止 starts_with 误匹配
+    /// P1-03-2 修复：严格精确匹配，子路径不再放行
     #[test]
-    fn test_public_paths_strict_prefix() {
-        // 子路径应匹配（合法）
-        assert!(is_public_path("/api/v1/erp/auth/login/sub"));
-        // query string 后的子路径应匹配
+    fn test_public_paths_strict_exact() {
+        // 精确路径匹配
+        assert!(is_public_path("/api/v1/erp/auth/login"));
+        // query string 后仍匹配（query 已 split 去除）
         assert!(is_public_path("/api/v1/erp/auth/login?next=/dashboard"));
-        // 路径变体（-xxx）不应匹配
+        // 子路径不再匹配（P1-03-2 修复：删除子路径放行）
+        assert!(!is_public_path("/api/v1/erp/auth/login/sub"));
+        assert!(!is_public_path("/api/v1/erp/auth/login/callback"));
+        // 路径变体（-xxx）不匹配
         assert!(!is_public_path("/api/v1/erp/auth/login-bypass"));
         assert!(!is_public_path("/health-extra"));
         assert!(!is_public_path("/readyz"));

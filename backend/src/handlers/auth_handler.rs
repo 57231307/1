@@ -1,5 +1,6 @@
 use crate::middleware::audit_context::AuditContext;
 // v9 P1-G 修复：移除未使用的 AuthContext import
+use super::auth_handler_session::record_login_attempt;
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::auth_service::AuthService;
@@ -11,7 +12,6 @@ use crate::utils::admin_checker::ADMIN_ROLE_CODE;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
-use super::auth_handler_session::record_login_attempt;
 use axum::{
     extract::{Extension, State},
     http::HeaderMap,
@@ -20,10 +20,10 @@ use axum::{
 };
 use axum_extra::extract::cookie::{Cookie, SameSite};
 use chrono::{Duration as ChronoDuration, Utc};
-use time::Duration as CookieDuration;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use time::Duration as CookieDuration;
 use utoipa::ToSchema;
 use validator::Validate;
 
@@ -94,6 +94,9 @@ pub struct UserInfo {
     /// 批次 29 v7 P0-5 修复：avatar 字段当前 users 表无对应列，暂返回 None。
     /// TODO(tech-debt): 后续若新增 avatar 列，需在此处补全查询。
     pub avatar: Option<String>,
+    /// P1-08-1：用户协议/隐私政策同意时间
+    #[schema(value_type = Option<String>, format = DateTime)]
+    pub agreed_to_terms_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 impl UserInfo {
@@ -125,6 +128,7 @@ impl UserInfo {
             // 批次 29 v7 P0-5：users 表当前无 real_name / avatar 列，暂返回 None
             real_name: None,
             avatar: None,
+            agreed_to_terms_at: user.agreed_to_terms_at,
         }
     }
 
@@ -243,15 +247,48 @@ pub async fn login(
         .await
     {
         Ok((token, user)) => {
-            verify_totp_challenge(&state, &user, &payload, &client_ip, &user_agent, &payload.username).await?;
-            record_login_success(&state, &user, &payload.username, &client_ip, &user_agent, &audit_ctx).await;
-            handle_login_success(&state, &payload, &audit_ctx, jar, token, user, &client_ip, &user_agent, &auth_service).await
+            verify_totp_challenge(
+                &state,
+                &user,
+                &payload,
+                &client_ip,
+                &user_agent,
+                &payload.username,
+            )
+            .await?;
+            record_login_success(
+                &state,
+                &user,
+                &payload.username,
+                &client_ip,
+                &user_agent,
+                &audit_ctx,
+            )
+            .await;
+            handle_login_success(
+                &state,
+                &payload,
+                &audit_ctx,
+                jar,
+                token,
+                user,
+                &client_ip,
+                &user_agent,
+                &auth_service,
+            )
+            .await
         }
         Err(e) => {
             let app_err = AppError::unauthorized(e.to_string());
             handle_login_failure(
-                &state, &payload, &client_ip, &user_agent, &app_err,
-                audit_ctx, recent_user_failures, recent_ip_failures,
+                &state,
+                &payload,
+                &client_ip,
+                &user_agent,
+                &app_err,
+                audit_ctx,
+                recent_user_failures,
+                recent_ip_failures,
             )
             .await;
             Err(app_err)
@@ -321,10 +358,7 @@ fn validate_login_payload(payload: &LoginRequest) -> Result<(), AppError> {
 }
 
 /// 提取客户端 IP：优先复用 AuditContext 中间件已提取的 IP，回退到 headers-only 降级路径。
-fn extract_client_ip(
-    audit_ctx: &Option<Extension<AuditContext>>,
-    headers: &HeaderMap,
-) -> String {
+fn extract_client_ip(audit_ctx: &Option<Extension<AuditContext>>, headers: &HeaderMap) -> String {
     audit_ctx
         .as_ref()
         .map(|e| e.0.ip_address.clone())
@@ -419,12 +453,24 @@ async fn verify_totp_challenge(
     let totp_service = TotpService::new(state.db.clone());
     if let Some(ref totp_token) = payload.totp_token {
         verify_totp_token_path(
-            state, user, username, client_ip, user_agent, totp_token, &totp_service,
+            state,
+            user,
+            username,
+            client_ip,
+            user_agent,
+            totp_token,
+            &totp_service,
         )
         .await
     } else if let Some(ref recovery_code) = payload.recovery_code {
         verify_recovery_code_path(
-            state, user, username, client_ip, user_agent, recovery_code, &totp_service,
+            state,
+            user,
+            username,
+            client_ip,
+            user_agent,
+            recovery_code,
+            &totp_service,
         )
         .await
     } else {
@@ -517,7 +563,10 @@ async fn record_login_success(
     user_agent: &str,
     audit_ctx: &Option<Extension<AuditContext>>,
 ) {
-    record_login_attempt(state, username, user.id, client_ip, user_agent, "SUCCESS", None).await;
+    record_login_attempt(
+        state, username, user.id, client_ip, user_agent, "SUCCESS", None,
+    )
+    .await;
 
     let security_log = build_success_security_log(username, client_ip, user_agent);
     enhanced_logger::EnhancedLogger::log_login_security(&security_log);
@@ -606,10 +655,7 @@ fn build_unknown_device_info() -> DeviceInfo {
 }
 
 /// 构建登录失败 SecurityInfo（含 risk_level / risk_factors / blocked / require_captcha 判定）。
-fn build_failure_security_info(
-    recent_user_failures: u64,
-    recent_ip_failures: u64,
-) -> SecurityInfo {
+fn build_failure_security_info(recent_user_failures: u64, recent_ip_failures: u64) -> SecurityInfo {
     let risk_level = if recent_user_failures >= 3 {
         "HIGH"
     } else {
@@ -635,10 +681,7 @@ fn build_failure_security_info(
 }
 
 /// 构建登录成功审计事件（OperationType::Login / Severity::Info）。
-fn build_success_audit_event(
-    user: &crate::models::user::Model,
-    username: &str,
-) -> AuditEvent {
+fn build_success_audit_event(user: &crate::models::user::Model, username: &str) -> AuditEvent {
     AuditEvent {
         user_id: Some(user.id),
         username: Some(username.to_string()),
@@ -730,19 +773,35 @@ fn build_login_cookies(
     let is_production = crate::utils::config::is_production();
     // access_token: httpOnly 防 XSS 窃取，SameSite=Strict 防跨站请求携带
     let access_cookie = build_session_cookie(
-        "access_token", token.clone(), is_production, true, CookieDuration::minutes(30),
+        "access_token",
+        token.clone(),
+        is_production,
+        true,
+        CookieDuration::minutes(30),
     );
     // refresh_token: httpOnly，2 天有效期（P2 7-9：原 7 天窗口过长缩短至 2 天）
     let refresh_cookie = build_session_cookie(
-        "refresh_token", refresh_token, is_production, true, CookieDuration::days(2),
+        "refresh_token",
+        refresh_token,
+        is_production,
+        true,
+        CookieDuration::days(2),
     );
     // csrf_token: http_only=false 以便前端 JS 读取注入 X-CSRF-Token 头
     let csrf_cookie = build_session_cookie(
-        "csrf_token", csrf_token, is_production, false, CookieDuration::days(7),
+        "csrf_token",
+        csrf_token,
+        is_production,
+        false,
+        CookieDuration::days(7),
     );
     // legacy jwt Cookie（httpOnly）：兼容旧客户端，新代码读 access_token
     let legacy_jwt_cookie = build_session_cookie(
-        "jwt", token, is_production, true, CookieDuration::minutes(30),
+        "jwt",
+        token,
+        is_production,
+        true,
+        CookieDuration::minutes(30),
     );
     jar.add(access_cookie)
         .add(refresh_cookie)
@@ -784,8 +843,14 @@ async fn handle_login_success(
     let user_info = UserInfo::build_with_permissions(state.db.as_ref(), &user).await;
     let permissions = user_info.permissions.clone();
 
-    let (csrf_token, session_id) =
-        prepare_csrf_state(state, &token, audit_ctx, client_ip, &user, &payload.username)?;
+    let (csrf_token, session_id) = prepare_csrf_state(
+        state,
+        &token,
+        audit_ctx,
+        client_ip,
+        &user,
+        &payload.username,
+    )?;
 
     // 生成 refresh_token：JWT 形式（P1 7-1 修复），session_id 与 access_token 共享
     let refresh_token = auth_service
@@ -793,8 +858,7 @@ async fn handle_login_success(
         .map_err(|e| AppError::internal(format!("生成刷新令牌失败：{}", e)))?;
 
     // 批次 198 P0-2：检查密码是否过期（password_changed_at 为 None 时不强制过期，兼容存量用户）
-    let policy_svc =
-        crate::services::auth::password_policy_service::PasswordPolicyService::new();
+    let policy_svc = crate::services::auth::password_policy_service::PasswordPolicyService::new();
     let password_expired = user
         .password_changed_at
         .map(|t| policy_svc.is_expired(t))
@@ -852,6 +916,7 @@ mod tests {
                 is_totp_enabled: false,
                 real_name: Some("测试用户".to_string()),
                 avatar: None,
+                agreed_to_terms_at: None,
             },
             permissions: vec![
                 "user.list:read".to_string(),
@@ -937,7 +1002,9 @@ mod tests {
     fn test_login_response_field_whitelist() {
         let response = build_test_login_response();
         let json = serde_json::to_value(&response).expect("LoginResponse 序列化失败");
-        let obj = json.as_object().expect("LoginResponse 应序列化为 JSON 对象");
+        let obj = json
+            .as_object()
+            .expect("LoginResponse 应序列化为 JSON 对象");
 
         let actual_fields: std::collections::HashSet<&String> = obj.keys().collect();
         let expected_fields: std::collections::HashSet<&str> =

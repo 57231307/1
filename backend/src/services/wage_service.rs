@@ -113,7 +113,7 @@ pub fn determine_grade_ratio(grade: &str, rate_model: &RateModel) -> Decimal {
 /// 业务规则：
 /// - 计件工资 = 合格产量 × 计件单价 × 等级系数
 /// - 计时工资 = 工时（分钟） × 计时单价 × 等级系数
-/// - 应得工资 = 计件工资 + 计时工资（根据 wage_type 选择）
+/// - 应得工资 = 计件工资 + 计时工资 + 加班费（根据 wage_type 选择）
 ///
 /// 参数：
 /// - rate: 工价方案
@@ -163,6 +163,43 @@ pub fn calculate_wage_for_step(
 
     let wage_amount = piece_wage + time_wage;
     (grade, grade_ratio, piece_wage, time_wage, wage_amount)
+}
+
+/// V15 P1-08-22 加班费计算（《劳动法》第 44 条）
+///
+/// 业务规则：
+/// - 工作日加班：按计时单价的 1.5 倍计算
+/// - 休息日加班：按计时单价的 2 倍计算（不能安排补休时）
+/// - 法定节假日加班：按计时单价的 3 倍计算
+/// - 加班费 = (weekday_ot × 1.5 + weekend_ot × 2 + holiday_ot × 3) × time_price × grade_ratio / 60
+///   （time_price 单位为元/分钟，故除以 60 转换为小时费率更直观，但此处直接用分钟费率）
+///
+/// 参数：
+/// - rate: 工价方案（取 time_price 与 grade_ratio）
+/// - grade_ratio: 等级系数（与计件/计时工资一致）
+/// - weekday_overtime_minutes: 工作日加班工时（分钟）
+/// - weekend_overtime_minutes: 休息日加班工时（分钟）
+/// - holiday_overtime_minutes: 法定节假日加班工时（分钟）
+///
+/// 返回：加班费总额（Decimal）
+pub fn calculate_overtime_pay(
+    rate: &RateModel,
+    grade_ratio: Decimal,
+    weekday_overtime_minutes: i32,
+    weekend_overtime_minutes: i32,
+    holiday_overtime_minutes: i32,
+) -> Decimal {
+    // 《劳动法》第 44 条加班倍率
+    let weekday_ot_multiplier = Decimal::new(15, 1); // 1.5
+    let weekend_ot_multiplier = Decimal::new(2, 0); // 2.0
+    let holiday_ot_multiplier = Decimal::new(3, 0); // 3.0
+
+    let weekday_ot = Decimal::from(weekday_overtime_minutes) * weekday_ot_multiplier;
+    let weekend_ot = Decimal::from(weekend_overtime_minutes) * weekend_ot_multiplier;
+    let holiday_ot = Decimal::from(holiday_overtime_minutes) * holiday_ot_multiplier;
+
+    let total_ot_minutes = weekday_ot + weekend_ot + holiday_ot;
+    total_ot_minutes * rate.time_price * grade_ratio
 }
 
 /// 解析工序记录的工人 IDs（逗号分隔字符串 → HashSet）
@@ -339,8 +376,8 @@ impl WageCalculationService {
 mod tests {
     use super::*;
     use crate::models::status::wage_rate_status;
-    use rust_decimal::Decimal;
     use rust_decimal::prelude::ToPrimitive;
+    use rust_decimal::Decimal;
 
     // ===== compute_qualification_rate 合格率计算 =====
 
@@ -349,10 +386,8 @@ mod tests {
     /// 验证 actual=100, qualified=95 时合格率为 95%。
     #[test]
     fn 测试_合格率计算_正常情况() {
-        let rate = compute_qualification_rate(
-            Some(Decimal::new(100, 0)),
-            Some(Decimal::new(95, 0)),
-        );
+        let rate =
+            compute_qualification_rate(Some(Decimal::new(100, 0)), Some(Decimal::new(95, 0)));
         assert_eq!(rate, Decimal::new(95, 0));
     }
 
@@ -361,10 +396,8 @@ mod tests {
     /// 验证 actual=100, qualified=100 时合格率为 100%。
     #[test]
     fn 测试_合格率计算_全合格() {
-        let rate = compute_qualification_rate(
-            Some(Decimal::new(100, 0)),
-            Some(Decimal::new(100, 0)),
-        );
+        let rate =
+            compute_qualification_rate(Some(Decimal::new(100, 0)), Some(Decimal::new(100, 0)));
         assert_eq!(rate, Decimal::new(100, 0));
     }
 
@@ -484,10 +517,7 @@ mod tests {
             determine_grade_ratio(QUALITY_GRADE_B, &rate),
             Decimal::new(8, 1)
         );
-        assert_eq!(
-            determine_grade_ratio(QUALITY_GRADE_C, &rate),
-            Decimal::ZERO
-        );
+        assert_eq!(determine_grade_ratio(QUALITY_GRADE_C, &rate), Decimal::ZERO);
         // 未知等级返回 0
         assert_eq!(determine_grade_ratio("X", &rate), Decimal::ZERO);
     }

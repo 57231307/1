@@ -23,7 +23,9 @@
               <CircleCloseFilled v-else />
             </el-icon>
             <span>{{ item.name }}</span>
-            <span class="check-status">{{ item.status ? $t('setupPage.envCheck.pass') : $t('setupPage.envCheck.fail') }}</span>
+            <span class="check-status">{{
+              item.status ? $t('setupPage.envCheck.pass') : $t('setupPage.envCheck.fail')
+            }}</span>
           </div>
         </div>
         <div class="step-actions">
@@ -60,7 +62,11 @@
             <el-input v-model="dbConfig.username" placeholder="bingxi" />
           </el-form-item>
           <el-form-item :label="$t('setupPage.db.password')" prop="password">
-            <el-input v-model="dbConfig.password" type="password" :placeholder="$t('setupPage.db.passwordPlaceholder')" />
+            <el-input
+              v-model="dbConfig.password"
+              type="password"
+              :placeholder="$t('setupPage.db.passwordPlaceholder')"
+            />
           </el-form-item>
           <el-form-item :label="$t('setupPage.db.initToken')" prop="init_token">
             <el-input
@@ -75,7 +81,9 @@
           <el-button type="primary" :loading="testing" @click="testConnection">
             {{ testing ? $t('setupPage.db.testing') : $t('setupPage.db.testConnection') }}
           </el-button>
-          <el-button type="primary" :disabled="!dbConnected" @click="nextStep">{{ $t('setupPage.envCheck.next') }}</el-button>
+          <el-button type="primary" :disabled="!dbConnected" @click="nextStep">{{
+            $t('setupPage.envCheck.next')
+          }}</el-button>
         </div>
       </div>
 
@@ -94,7 +102,11 @@
             <el-input v-model="adminConfig.username" placeholder="admin" />
           </el-form-item>
           <el-form-item :label="$t('setupPage.admin.password')" prop="password">
-            <el-input v-model="adminConfig.password" type="password" :placeholder="$t('setupPage.db.passwordPlaceholder')" />
+            <el-input
+              v-model="adminConfig.password"
+              type="password"
+              :placeholder="$t('setupPage.db.passwordPlaceholder')"
+            />
           </el-form-item>
           <el-form-item :label="$t('setupPage.admin.confirmPassword')" prop="confirmPassword">
             <el-input
@@ -109,7 +121,9 @@
         </el-form>
         <div class="step-actions">
           <el-button @click="prevStep">{{ $t('setupPage.envCheck.prev') }}</el-button>
-          <el-button type="primary" :disabled="!isAdminValid" @click="nextStep">{{ $t('setupPage.envCheck.next') }}</el-button>
+          <el-button type="primary" :disabled="!isAdminValid" @click="nextStep">{{
+            $t('setupPage.envCheck.next')
+          }}</el-button>
         </div>
       </div>
 
@@ -121,13 +135,21 @@
           <ul>
             <li>{{ $t('setupPage.complete.createSchema') }}</li>
             <li>{{ $t('setupPage.complete.initData') }}</li>
-            <li>{{ $t('setupPage.complete.createAdminWithName', { name: adminConfig.username }) }}</li>
+            <li>
+              {{ $t('setupPage.complete.createAdminWithName', { name: adminConfig.username }) }}
+            </li>
           </ul>
         </div>
         <div class="step-actions">
           <el-button @click="prevStep">{{ $t('setupPage.envCheck.prev') }}</el-button>
           <el-button type="primary" :loading="installing" :disabled="installed" @click="install">
-            {{ installing ? $t('setupPage.complete.installing') : installed ? $t('setupPage.complete.installed') : $t('setupPage.complete.startInstall') }}
+            {{
+              installing
+                ? $t('setupPage.complete.installing')
+                : installed
+                  ? $t('setupPage.complete.installed')
+                  : $t('setupPage.complete.startInstall')
+            }}
           </el-button>
         </div>
       </div>
@@ -140,7 +162,9 @@
         <h3>{{ $t('setupPage.complete.successTitle') }}</h3>
         <p>{{ $t('setupPage.complete.successDesc') }}</p>
         <div class="step-actions">
-          <el-button type="primary" @click="goToLogin">{{ $t('setupPage.complete.goToLogin') }}</el-button>
+          <el-button type="primary" @click="goToLogin">{{
+            $t('setupPage.complete.goToLogin')
+          }}</el-button>
         </div>
       </div>
     </div>
@@ -148,35 +172,47 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { useI18n } from 'vue-i18n'
-import { CircleCheckFilled, CircleCloseFilled } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
-import type { FormItemRule } from 'element-plus'
-import { logger } from '@/utils/logger'
+import { ref, computed } from 'vue';
+import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
+import { CircleCheckFilled, CircleCloseFilled } from '@element-plus/icons-vue';
+import { ElMessage } from 'element-plus';
+import type { FormItemRule } from 'element-plus';
+import { logger } from '@/utils/logger';
 
-const router = useRouter()
-const { t } = useI18n({ useScope: 'global' })
+const router = useRouter();
+const { t } = useI18n({ useScope: 'global' });
 
-const currentStep = ref(0)
-const checking = ref(false)
-const testing = ref(false)
-const installing = ref(false)
-const installed = ref(false)
-const dbConnected = ref(false)
+const currentStep = ref(0);
+const checking = ref(false);
+const testing = ref(false);
+const installing = ref(false);
+const installed = ref(false);
+const dbConnected = ref(false);
 
 // 环境检查
 const envChecks = ref([
-  { name: t('setupPage.envChecks.backendApi'), status: false, detail: t('setupPage.envChecks.detail.backendApi') },
-  { name: t('setupPage.envChecks.disk'), status: false, detail: t('setupPage.envChecks.detail.disk') },
-  { name: t('setupPage.envChecks.memory'), status: false, detail: t('setupPage.envChecks.detail.memory') },
-])
+  {
+    name: t('setupPage.envChecks.backendApi'),
+    status: false,
+    detail: t('setupPage.envChecks.detail.backendApi'),
+  },
+  {
+    name: t('setupPage.envChecks.disk'),
+    status: false,
+    detail: t('setupPage.envChecks.detail.disk'),
+  },
+  {
+    name: t('setupPage.envChecks.memory'),
+    status: false,
+    detail: t('setupPage.envChecks.detail.memory'),
+  },
+]);
 
-const allChecksPassed = computed(() => envChecks.value.every(item => item.status))
+const allChecksPassed = computed(() => envChecks.value.every(item => item.status));
 
 // 数据库配置
-const dbFormRef = ref()
+const dbFormRef = ref();
 const dbConfig = ref({
   host: 'localhost',
   port: '5432',
@@ -187,25 +223,31 @@ const dbConfig = ref({
   // 后端 init_token_middleware 强制要求 X-Init-Token 头匹配环境变量 INIT_TOKEN，
   // 否则返回 401（fail-secure）。原 Setup.vue 未传此头导致首次部署初始化必然失败。
   init_token: '',
-})
+});
 const dbRules = {
   host: [{ required: true, message: t('setupPage.validation.hostRequired'), trigger: 'blur' }],
   port: [{ required: true, message: t('setupPage.validation.portRequired'), trigger: 'blur' }],
   name: [{ required: true, message: t('setupPage.validation.nameRequired'), trigger: 'blur' }],
-  username: [{ required: true, message: t('setupPage.validation.usernameRequired'), trigger: 'blur' }],
-  init_token: [{ required: true, message: t('setupPage.validation.initTokenRequired'), trigger: 'blur' }],
-}
+  username: [
+    { required: true, message: t('setupPage.validation.usernameRequired'), trigger: 'blur' },
+  ],
+  init_token: [
+    { required: true, message: t('setupPage.validation.initTokenRequired'), trigger: 'blur' },
+  ],
+};
 
 // 管理员配置
-const adminFormRef = ref()
+const adminFormRef = ref();
 const adminConfig = ref({
   username: 'admin',
   password: '',
   confirmPassword: '',
   email: 'admin@example.com',
-})
+});
 const adminRules = {
-  username: [{ required: true, message: t('setupPage.validation.adminUsernameRequired'), trigger: 'blur' }],
+  username: [
+    { required: true, message: t('setupPage.validation.adminUsernameRequired'), trigger: 'blur' },
+  ],
   password: [
     { required: true, message: t('setupPage.validation.passwordRequired'), trigger: 'blur' },
     { min: 6, message: t('setupPage.validation.passwordMinLength'), trigger: 'blur' },
@@ -215,16 +257,16 @@ const adminRules = {
     {
       validator: ((_rule: unknown, value: string, callback: (error?: Error) => void) => {
         if (value !== adminConfig.value.password) {
-          callback(new Error(t('setupPage.validation.passwordMismatch')))
+          callback(new Error(t('setupPage.validation.passwordMismatch')));
         } else {
-          callback()
+          callback();
         }
       }) as FormItemRule['validator'],
       trigger: 'blur',
     },
   ],
   email: [{ type: 'email', message: t('setupPage.validation.emailInvalid'), trigger: 'blur' }],
-}
+};
 
 const isAdminValid = computed(() => {
   return (
@@ -232,66 +274,66 @@ const isAdminValid = computed(() => {
     adminConfig.value.password &&
     adminConfig.value.password === adminConfig.value.confirmPassword &&
     adminConfig.value.password.length >= 6
-  )
-})
+  );
+});
 
 // 检查环境
 async function checkEnvironment() {
-  checking.value = true
+  checking.value = true;
   try {
     // 检查后端API服务
-    const healthRes = await fetch('/health')
-    const healthData = await healthRes.json()
-    envChecks.value[0].status = healthRes.ok && healthData.status === 'healthy'
+    const healthRes = await fetch('/health');
+    const healthData = await healthRes.json();
+    envChecks.value[0].status = healthRes.ok && healthData.status === 'healthy';
 
     // 检查磁盘空间（通过健康检查接口的checks）
     if (healthData.checks && healthData.checks.disk) {
-      envChecks.value[1].status = healthData.checks.disk.status === 'healthy'
+      envChecks.value[1].status = healthData.checks.disk.status === 'healthy';
     } else {
-      envChecks.value[1].status = true
+      envChecks.value[1].status = true;
     }
 
     // 检查系统内存（通过健康检查接口的checks）
     if (healthData.checks && healthData.checks.memory) {
-      envChecks.value[2].status = healthData.checks.memory.status === 'healthy'
+      envChecks.value[2].status = healthData.checks.memory.status === 'healthy';
     } else {
-      envChecks.value[2].status = true
+      envChecks.value[2].status = true;
     }
   } catch (error) {
-    logger.error(t('setupPage.message.envCheckFailed'), error)
+    logger.error(t('setupPage.message.envCheckFailed'), error);
   } finally {
-    checking.value = false
+    checking.value = false;
   }
 }
 
 // 测试数据库连接
 async function testConnection() {
-  testing.value = true
+  testing.value = true;
   try {
     const res = await fetch('/api/v1/erp/init/test-database', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dbConfig.value),
-    })
-    const data = await res.json()
+    });
+    const data = await res.json();
     if (data.code === 200 && data.data?.success) {
-      dbConnected.value = true
-      ElMessage.success(t('setupPage.message.dbConnectSuccess'))
+      dbConnected.value = true;
+      ElMessage.success(t('setupPage.message.dbConnectSuccess'));
     } else {
-      dbConnected.value = false
-      ElMessage.error(data.data?.message || data.message || t('setupPage.message.dbConnectFailed'))
+      dbConnected.value = false;
+      ElMessage.error(data.data?.message || data.message || t('setupPage.message.dbConnectFailed'));
     }
   } catch (error) {
-    dbConnected.value = false
-    ElMessage.error(t('setupPage.message.dbConnectFailed'))
+    dbConnected.value = false;
+    ElMessage.error(t('setupPage.message.dbConnectFailed'));
   } finally {
-    testing.value = false
+    testing.value = false;
   }
 }
 
 // 安装系统
 async function install() {
-  installing.value = true
+  installing.value = true;
   try {
     // 批次 24 v6 P0-3 修复：添加 X-Init-Token 请求头。
     // 后端 init_token_middleware 强制校验此头与 INIT_TOKEN 环境变量匹配，
@@ -308,36 +350,36 @@ async function install() {
         admin_password: adminConfig.value.password,
         admin_email: adminConfig.value.email,
       }),
-    })
-    const data = await res.json()
+    });
+    const data = await res.json();
     if (data.success) {
-      installed.value = true
-      ElMessage.success(t('setupPage.message.installSuccess'))
-      currentStep.value = 4
+      installed.value = true;
+      ElMessage.success(t('setupPage.message.installSuccess'));
+      currentStep.value = 4;
     } else {
-      ElMessage.error(data.message || t('setupPage.message.installFailed'))
+      ElMessage.error(data.message || t('setupPage.message.installFailed'));
     }
   } catch (error) {
-    ElMessage.error(t('setupPage.message.installFailed'))
+    ElMessage.error(t('setupPage.message.installFailed'));
   } finally {
-    installing.value = false
+    installing.value = false;
   }
 }
 
 function nextStep() {
-  currentStep.value++
+  currentStep.value++;
 }
 
 function prevStep() {
-  currentStep.value--
+  currentStep.value--;
 }
 
 function goToLogin() {
-  router.push('/login')
+  router.push('/login');
 }
 
 // 初始化检查
-checkEnvironment()
+checkEnvironment();
 </script>
 
 <style scoped>

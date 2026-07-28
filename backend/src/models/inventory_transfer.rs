@@ -1,6 +1,4 @@
 #![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
-
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
@@ -25,6 +23,17 @@ pub struct Model {
     pub received_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    // P1 batch-18 缺陷 6.1：调拨分级审批
+    #[sea_orm(column_name = "approval_level")]
+    pub approval_level: Option<String>,
+    #[sea_orm(column_name = "approved_by_role")]
+    pub approved_by_role: Option<String>,
+    #[sea_orm(
+        column_name = "total_amount",
+        column_type = "Decimal(Some((14, 2)))",
+        default_value = "0"
+    )]
+    pub total_amount: Decimal,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -58,3 +67,28 @@ impl Related<super::inventory_transfer_item::Entity> for Entity {
 }
 
 impl ActiveModelBehavior for ActiveModel {}
+
+/// 缺陷 6.1：调拨审批层级常量
+pub const APPROVAL_LEVEL_L1: &str = "L1";
+pub const APPROVAL_LEVEL_L2: &str = "L2";
+pub const APPROVAL_LEVEL_L3: &str = "L3";
+
+/// 缺陷 6.1：调拨金额阈值（元）- L1: < 1万；L2: 1万-10万；L3: > 10万
+/// 注：Decimal::new 非 const fn，使用函数返回避免 const 上下文限制
+pub fn l1_amount_threshold() -> Decimal {
+    Decimal::new(10000, 0)
+}
+pub fn l2_amount_threshold() -> Decimal {
+    Decimal::new(100000, 0)
+}
+
+/// 缺陷 6.1：根据调拨总金额计算审批层级
+pub fn determine_approval_level(total_amount: Decimal) -> &'static str {
+    if total_amount >= l2_amount_threshold() {
+        APPROVAL_LEVEL_L3
+    } else if total_amount >= l1_amount_threshold() {
+        APPROVAL_LEVEL_L2
+    } else {
+        APPROVAL_LEVEL_L1
+    }
+}

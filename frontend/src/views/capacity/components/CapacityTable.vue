@@ -69,31 +69,31 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import { Refresh } from '@element-plus/icons-vue'
-import type { WorkCenter } from '@/api/capacity'
-import { getStatusType, getLoadRateType } from '../composables/cpFmts'
+import { useI18n } from 'vue-i18n';
+import { Refresh } from '@element-plus/icons-vue';
+import type { WorkCenter } from '@/api/capacity';
+import { getStatusType, getLoadRateType } from '../composables/cpFmts';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 状态码 → 本地化标签（响应式：随语言切换自动更新）
 const getStatusLabel = (status: string) => {
-  return t(`capacityModule.workCenterStatus.${status}`) || status
-}
+  return t(`capacityModule.workCenterStatus.${status}`) || status;
+};
 
 defineProps<{
-  data: WorkCenter[]
-  tableLoading: boolean
-  total: number
-  page: number
-  pageSize: number
-}>()
+  data: WorkCenter[];
+  tableLoading: boolean;
+  total: number;
+  page: number;
+  pageSize: number;
+}>();
 
 const emit = defineEmits<{
-  refresh: []
-  'update:page': [v: number]
-  'update:size': [v: number]
-}>()
+  refresh: [];
+  'update:page': [v: number];
+  'update:size': [v: number];
+}>();
 </script>
 
 <style scoped>

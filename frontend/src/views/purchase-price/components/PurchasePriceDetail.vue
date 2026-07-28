@@ -12,13 +12,21 @@
     @update:model-value="onVisibleChange"
   >
     <el-descriptions :column="2" border>
-      <el-descriptions-item :label="t('purchasePrice.detail.label.productName')">{{ viewData.product_name }}</el-descriptions-item>
-      <el-descriptions-item :label="t('purchasePrice.detail.label.supplier')">{{ viewData.supplier_name }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchasePrice.detail.label.productName')">{{
+        viewData.product_name
+      }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchasePrice.detail.label.supplier')">{{
+        viewData.supplier_name
+      }}</el-descriptions-item>
       <el-descriptions-item :label="t('purchasePrice.detail.label.price')">{{
         formatCurrency(viewData.price || 0)
       }}</el-descriptions-item>
-      <el-descriptions-item :label="t('purchasePrice.detail.label.currency')">{{ viewData.currency }}</el-descriptions-item>
-      <el-descriptions-item :label="t('purchasePrice.detail.label.unit')">{{ viewData.unit }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchasePrice.detail.label.currency')">{{
+        viewData.currency
+      }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchasePrice.detail.label.unit')">{{
+        viewData.unit
+      }}</el-descriptions-item>
       <el-descriptions-item :label="t('purchasePrice.detail.label.minOrderQty')">{{
         viewData.min_order_qty || '-'
       }}</el-descriptions-item>
@@ -30,7 +38,9 @@
           getStatusLabel(viewData.status || '')
         }}</el-tag>
       </el-descriptions-item>
-      <el-descriptions-item :label="t('purchasePrice.detail.label.effectiveDate')">{{ viewData.effective_date }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchasePrice.detail.label.effectiveDate')">{{
+        viewData.effective_date
+      }}</el-descriptions-item>
       <el-descriptions-item :label="t('purchasePrice.detail.label.expiryDate')">{{
         viewData.expiry_date || '-'
       }}</el-descriptions-item>
@@ -42,29 +52,29 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
+import { useI18n } from 'vue-i18n';
 import {
   formatCurrency,
   getPriceTypeLabel,
   getStatusType,
   getStatusLabel,
-} from '../composables/ppFmts'
+} from '../composables/ppFmts';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 查看详情数据类型
 interface PpViewData {
-  product_name?: string
-  supplier_name?: string
-  price?: number
-  currency?: string
-  unit?: string
-  min_order_qty?: number
-  price_type?: string
-  status?: string
-  effective_date?: string
-  expiry_date?: string
-  remarks?: string
+  product_name?: string;
+  supplier_name?: string;
+  price?: number;
+  currency?: string;
+  unit?: string;
+  min_order_qty?: number;
+  price_type?: string;
+  status?: string;
+  effective_date?: string;
+  expiry_date?: string;
+  remarks?: string;
 }
 
 /**
@@ -72,17 +82,17 @@ interface PpViewData {
  */
 defineProps<{
   // 对话框可见性
-  visible: boolean
+  visible: boolean;
   // 详情数据
-  viewData: PpViewData
-}>()
+  viewData: PpViewData;
+}>();
 
 const emit = defineEmits<{
-  'update:visible': [v: boolean]
-}>()
+  'update:visible': [v: boolean];
+}>();
 
 /** 关闭对话框 */
 const onVisibleChange = (v: boolean) => {
-  emit('update:visible', v)
-}
+  emit('update:visible', v);
+};
 </script>

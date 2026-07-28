@@ -217,10 +217,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { ref, reactive, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
+import { Plus } from '@element-plus/icons-vue';
 import {
   getReportList,
   createReport,
@@ -228,28 +228,28 @@ import {
   deleteReport as deleteReportApi,
   executeFinancialReport,
   type FinancialReport,
-} from '@/api/financial-analysis'
-import { logger } from '@/utils/logger'
+} from '@/api/financial-analysis';
+import { logger } from '@/utils/logger';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const loading = ref(false)
-const submitLoading = ref(false)
-const dialogVisible = ref(false)
-const reports = ref<FinancialReport[]>([])
-const formRef = ref<FormInstance>()
+const loading = ref(false);
+const submitLoading = ref(false);
+const dialogVisible = ref(false);
+const reports = ref<FinancialReport[]>([]);
+const formRef = ref<FormInstance>();
 
 const queryForm = reactive({
   reportType: '',
   period: new Date().toISOString().slice(0, 7),
-})
+});
 
 const form = reactive<Partial<FinancialReport>>({
   id: undefined,
   reportName: '',
   reportType: 'profitability',
   period: new Date().toISOString().slice(0, 7),
-})
+});
 
 const rules: FormRules = {
   reportName: [
@@ -266,125 +266,125 @@ const rules: FormRules = {
       trigger: 'change',
     },
   ],
-}
+};
 
 /** 报表类型 → i18n 标签（语言切换响应） */
 const getReportTypeLabel = (type?: string) => {
   switch (type) {
     case 'profitability':
-      return t('financialAnalysis.analysisListTab.optionProfitability')
+      return t('financialAnalysis.analysisListTab.optionProfitability');
     case 'solvency':
-      return t('financialAnalysis.analysisListTab.optionSolvency')
+      return t('financialAnalysis.analysisListTab.optionSolvency');
     case 'operation':
-      return t('financialAnalysis.analysisListTab.optionOperation')
+      return t('financialAnalysis.analysisListTab.optionOperation');
     case 'development':
-      return t('financialAnalysis.analysisListTab.optionDevelopment')
+      return t('financialAnalysis.analysisListTab.optionDevelopment');
     default:
-      return type || '-'
+      return type || '-';
   }
-}
+};
 
 /** 报表状态 → i18n 标签（语言切换响应） */
 const getStatusLabel = (status?: string) => {
   switch (status) {
     case 'draft':
-      return t('financialAnalysis.analysisListTab.statusDraft')
+      return t('financialAnalysis.analysisListTab.statusDraft');
     case 'executed':
-      return t('financialAnalysis.analysisListTab.statusExecuted')
+      return t('financialAnalysis.analysisListTab.statusExecuted');
     case 'failed':
-      return t('financialAnalysis.analysisListTab.statusFailed')
+      return t('financialAnalysis.analysisListTab.statusFailed');
     default:
-      return status || '-'
+      return status || '-';
   }
-}
+};
 
 const getStatusType = (status?: string) => {
   const map: Record<string, string> = {
     draft: 'info',
     executed: 'success',
     failed: 'danger',
-  }
-  return map[status || ''] || 'info'
-}
+  };
+  return map[status || ''] || 'info';
+};
 
 const fetchReports = async () => {
-  loading.value = true
+  loading.value = true;
   try {
-    const res = await getReportList(queryForm)
+    const res = await getReportList(queryForm);
     const d = (res as { data?: unknown }).data as
       | {
-          list?: FinancialReport[]
-          items?: FinancialReport[]
-          data?: FinancialReport[]
-          total?: number
+          list?: FinancialReport[];
+          items?: FinancialReport[];
+          data?: FinancialReport[];
+          total?: number;
         }
-      | FinancialReport[]
+      | FinancialReport[];
     if (Array.isArray(d)) {
-      reports.value = d
+      reports.value = d;
     } else {
-      reports.value = d?.list || d?.items || []
+      reports.value = d?.list || d?.items || [];
     }
   } catch (e) {
-    const err = e as Error
-    logger.error(t('financialAnalysis.analysisListTab.logFetchFailed'), err)
-    ElMessage.error(err.message || t('financialAnalysis.analysisListTab.messageFetchFailed'))
+    const err = e as Error;
+    logger.error(t('financialAnalysis.analysisListTab.logFetchFailed'), err);
+    ElMessage.error(err.message || t('financialAnalysis.analysisListTab.messageFetchFailed'));
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 
 const handleAnalyze = () => {
-  fetchReports()
-}
+  fetchReports();
+};
 
 const openCreateDialog = () => {
-  form.id = undefined
-  form.reportName = ''
-  form.reportType = 'profitability'
-  form.period = new Date().toISOString().slice(0, 7)
-  dialogVisible.value = true
-}
+  form.id = undefined;
+  form.reportName = '';
+  form.reportType = 'profitability';
+  form.period = new Date().toISOString().slice(0, 7);
+  dialogVisible.value = true;
+};
 
 const editReport = (row: FinancialReport) => {
-  Object.assign(form, row)
-  dialogVisible.value = true
-}
+  Object.assign(form, row);
+  dialogVisible.value = true;
+};
 
 const handleSubmit = async () => {
-  if (!formRef.value) return
+  if (!formRef.value) return;
   await formRef.value.validate(async valid => {
-    if (!valid) return
-    submitLoading.value = true
+    if (!valid) return;
+    submitLoading.value = true;
     try {
       if (form.id) {
-        await updateReport(form.id, form)
-        ElMessage.success(t('financialAnalysis.analysisListTab.messageUpdateSuccess'))
+        await updateReport(form.id, form);
+        ElMessage.success(t('financialAnalysis.analysisListTab.messageUpdateSuccess'));
       } else {
-        await createReport(form)
-        ElMessage.success(t('financialAnalysis.analysisListTab.messageCreateSuccess'))
+        await createReport(form);
+        ElMessage.success(t('financialAnalysis.analysisListTab.messageCreateSuccess'));
       }
-      dialogVisible.value = false
-      fetchReports()
+      dialogVisible.value = false;
+      fetchReports();
     } catch (e) {
-      const err = e as Error
-      ElMessage.error(err.message || t('financialAnalysis.analysisListTab.messageOperationFailed'))
+      const err = e as Error;
+      ElMessage.error(err.message || t('financialAnalysis.analysisListTab.messageOperationFailed'));
     } finally {
-      submitLoading.value = false
+      submitLoading.value = false;
     }
-  })
-}
+  });
+};
 
 const executeReport = async (row: FinancialReport) => {
-  if (row.id === undefined) return
+  if (row.id === undefined) return;
   try {
-    await executeFinancialReport(row.id)
-    ElMessage.success(t('financialAnalysis.analysisListTab.messageExecuteSuccess'))
-    fetchReports()
+    await executeFinancialReport(row.id);
+    ElMessage.success(t('financialAnalysis.analysisListTab.messageExecuteSuccess'));
+    fetchReports();
   } catch (e) {
-    const err = e as Error
-    ElMessage.error(err.message || t('financialAnalysis.analysisListTab.messageExecuteFailed'))
+    const err = e as Error;
+    ElMessage.error(err.message || t('financialAnalysis.analysisListTab.messageExecuteFailed'));
   }
-}
+};
 
 // 批次 157b P1-1 修复：展示报表详情（无独立 getReport API，使用行数据展示）
 const viewReport = async (row: FinancialReport) => {
@@ -398,38 +398,38 @@ const viewReport = async (row: FinancialReport) => {
     t('financialAnalysis.analysisListTab.detailExecutedAt', { value: row.executedAt || '-' }),
     t('financialAnalysis.analysisListTab.detailCreatedAt', { value: row.createdAt || '-' }),
     t('financialAnalysis.analysisListTab.detailUpdatedAt', { value: row.updatedAt || '-' }),
-  ]
+  ];
   await ElMessageBox.alert(
     lines.join('\n'),
     t('financialAnalysis.analysisListTab.dialogTitleDetail'),
     {
       confirmButtonText: t('financialAnalysis.analysisListTab.buttonClose'),
     }
-  )
-}
+  );
+};
 
 const deleteReport = async (row: FinancialReport) => {
-  if (row.id === undefined) return
+  if (row.id === undefined) return;
   try {
     await ElMessageBox.confirm(
       t('financialAnalysis.analysisListTab.confirmDeleteMessage', { name: row.reportName }),
       t('financialAnalysis.analysisListTab.dialogTitleDeleteConfirm'),
       { type: 'warning' }
-    )
-    await deleteReportApi(row.id)
-    ElMessage.success(t('financialAnalysis.analysisListTab.messageDeleteSuccess'))
-    fetchReports()
+    );
+    await deleteReportApi(row.id);
+    ElMessage.success(t('financialAnalysis.analysisListTab.messageDeleteSuccess'));
+    fetchReports();
   } catch (e) {
     if (e !== 'cancel') {
-      const err = e as Error
-      ElMessage.error(err.message || t('financialAnalysis.analysisListTab.messageDeleteFailed'))
+      const err = e as Error;
+      ElMessage.error(err.message || t('financialAnalysis.analysisListTab.messageDeleteFailed'));
     }
   }
-}
+};
 
 onMounted(() => {
-  fetchReports()
-})
+  fetchReports();
+});
 </script>
 
 <style scoped>

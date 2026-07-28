@@ -7,9 +7,15 @@
 <template>
   <el-dialog
     :model-value="visible"
-    :title="form?.id ? t('apiGateway.endpointForm.editTitle') : t('apiGateway.endpointForm.createTitle')"
+    :title="
+      form?.id ? t('apiGateway.endpointForm.editTitle') : t('apiGateway.endpointForm.createTitle')
+    "
     width="700px"
-    :aria-label="form?.id ? t('apiGateway.endpointForm.editAriaLabel') : t('apiGateway.endpointForm.createAriaLabel')"
+    :aria-label="
+      form?.id
+        ? t('apiGateway.endpointForm.editAriaLabel')
+        : t('apiGateway.endpointForm.createAriaLabel')
+    "
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <el-form
@@ -34,7 +40,9 @@
             <el-select
               :model-value="localForm.method"
               style="width: 100%"
-              @update:model-value="(v: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH') => (localForm.method = v)"
+              @update:model-value="
+                (v: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH') => (localForm.method = v)
+              "
             >
               <el-option label="GET" value="GET" />
               <el-option label="POST" value="POST" />
@@ -122,19 +130,23 @@
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">{{ t('apiGateway.endpointForm.cancel') }}</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="emit('submit')">{{ t('apiGateway.endpointForm.confirm') }}</el-button>
+      <el-button @click="emit('update:visible', false)">{{
+        t('apiGateway.endpointForm.cancel')
+      }}</el-button>
+      <el-button type="primary" :loading="submitLoading" @click="emit('submit')">{{
+        t('apiGateway.endpointForm.confirm')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
-import { useI18n } from 'vue-i18n'
-import type { FormInstance, FormRules } from 'element-plus'
-import type { ApiEndpoint } from '@/api/api-gateway'
+import { ref, watch, nextTick } from 'vue';
+import { useI18n } from 'vue-i18n';
+import type { FormInstance, FormRules } from 'element-plus';
+import type { ApiEndpoint } from '@/api/api-gateway';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 /**
  * 接口新建/编辑对话框组件
@@ -144,76 +156,76 @@ const { t } = useI18n({ useScope: 'global' })
  */
 const props = defineProps<{
   // 对话框可见性
-  visible: boolean
+  visible: boolean;
   // 表单实例（批次 281：改为可选，通过 v-model:formRef 双向同步）
-  formRef?: FormInstance | undefined
+  formRef?: FormInstance | undefined;
   // 表单数据（由父组件管理，子组件通过 emit 回写）
-  form?: Partial<ApiEndpoint>
+  form?: Partial<ApiEndpoint>;
   // 提交中状态
-  submitLoading: boolean
+  submitLoading: boolean;
   // 校验规则
-  rules: FormRules
+  rules: FormRules;
   // 权限文本（父组件通过 v-model 双向同步）
-  authorizationText: string
+  authorizationText: string;
   // 请求 Schema 文本（父组件通过 v-model 双向同步）
-  requestSchemaText: string
+  requestSchemaText: string;
   // 响应 Schema 文本（父组件通过 v-model 双向同步）
-  responseSchemaText: string
-}>()
+  responseSchemaText: string;
+}>();
 
 const emit = defineEmits<{
-  'update:visible': [v: boolean]
+  'update:visible': [v: boolean];
   // 批次 281：通过 emit 通知父组件 formRef 变化（替代原 props.formRef.value 写回）
-  'update:formRef': [value: FormInstance | undefined]
-  'update:authorizationText': [v: string]
-  'update:requestSchemaText': [v: string]
-  'update:responseSchemaText': [v: string]
+  'update:formRef': [value: FormInstance | undefined];
+  'update:authorizationText': [v: string];
+  'update:requestSchemaText': [v: string];
+  'update:responseSchemaText': [v: string];
   // 整体回写表单（父组件监听此事件并 Object.assign 到自己的 form）
-  'update:form': [form: Partial<ApiEndpoint>]
-  submit: []
-}>()
+  'update:form': [form: Partial<ApiEndpoint>];
+  submit: [];
+}>();
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
-const localForm = ref<Partial<ApiEndpoint>>({ ...(props.form ?? {}) })
+const localForm = ref<Partial<ApiEndpoint>>({ ...(props.form ?? {}) });
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
-let syncing = false
+let syncing = false;
 
 // 外部 prop 变化时同步到 local（如父组件打开新建/编辑时填充数据）
 watch(
   () => props.form,
   newForm => {
-    if (syncing) return
-    syncing = true
-    localForm.value = { ...(newForm ?? {}) }
+    if (syncing) return;
+    syncing = true;
+    localForm.value = { ...(newForm ?? {}) };
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
   { deep: true }
-)
+);
 
 // 本地变化时通知父组件（用户输入）
 watch(
   localForm,
   newForm => {
-    if (syncing) return
-    syncing = true
-    emit('update:form', { ...newForm })
+    if (syncing) return;
+    syncing = true;
+    emit('update:form', { ...newForm });
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
   { deep: true }
-)
+);
 
 // 批次 281：将 el-form 的 ref 实例通过 emit 通知父组件（替代原 props.formRef.value 写回）
-const formRefValue = ref<FormInstance | undefined>(undefined)
+const formRefValue = ref<FormInstance | undefined>(undefined);
 watch(
   formRefValue,
   val => {
-    if (val) emit('update:formRef', val)
+    if (val) emit('update:formRef', val);
   },
   { immediate: true, flush: 'post' }
-)
+);
 </script>

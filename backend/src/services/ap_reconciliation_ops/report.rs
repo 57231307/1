@@ -46,21 +46,22 @@ impl ApReconciliationService {
         let mut summary_map: std::collections::HashMap<i32, SupplierApSummary> =
             std::collections::HashMap::new();
         for invoice in invoices {
-            let entry = summary_map
-                .entry(invoice.supplier_id)
-                .or_insert_with(|| SupplierApSummary {
-                    supplier_id: invoice.supplier_id,
-                    supplier_code: String::new(),
-                    supplier_name: String::new(),
-                    total_invoice_count: 0,
-                    total_invoice_amount: Decimal::ZERO,
-                    total_paid_amount: Decimal::ZERO,
-                    total_unpaid_amount: Decimal::ZERO,
-                    paid_invoice_count: 0,
-                    partial_paid_invoice_count: 0,
-                    overdue_invoice_count: 0,
-                    overdue_amount: Decimal::ZERO,
-                });
+            let entry =
+                summary_map
+                    .entry(invoice.supplier_id)
+                    .or_insert_with(|| SupplierApSummary {
+                        supplier_id: invoice.supplier_id,
+                        supplier_code: String::new(),
+                        supplier_name: String::new(),
+                        total_invoice_count: 0,
+                        total_invoice_amount: Decimal::ZERO,
+                        total_paid_amount: Decimal::ZERO,
+                        total_unpaid_amount: Decimal::ZERO,
+                        paid_invoice_count: 0,
+                        partial_paid_invoice_count: 0,
+                        overdue_invoice_count: 0,
+                        overdue_amount: Decimal::ZERO,
+                    });
 
             entry.total_invoice_count += 1;
             entry.total_invoice_amount += invoice.amount;

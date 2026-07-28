@@ -196,48 +196,48 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
-import type { FormInstance, FormRules } from 'element-plus'
+import { ref, onMounted, reactive } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
+import type { FormInstance, FormRules } from 'element-plus';
 import {
   getGreigeFabricList,
   createGreigeFabric,
   updateGreigeFabric,
   deleteGreigeFabric,
   type GreigeFabric,
-} from '@/api/greige-fabric'
-import { getSupplierList, type Supplier } from '@/api/supplier'
-import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
+} from '@/api/greige-fabric';
+import { getSupplierList, type Supplier } from '@/api/supplier';
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const loading = ref(false)
-const submitLoading = ref(false)
-const dialogVisible = ref(false)
-const dialogMode = ref<'create' | 'edit'>('create')
-const formRef = ref<FormInstance>()
+const loading = ref(false);
+const submitLoading = ref(false);
+const dialogVisible = ref(false);
+const dialogMode = ref<'create' | 'edit'>('create');
+const formRef = ref<FormInstance>();
 // v11 批次 181 P2-1 修复：使用 API 的 GreigeFabric 类型，替代本地 GreigeFabricRow
-const greigeList = ref<GreigeFabric[]>([])
+const greigeList = ref<GreigeFabric[]>([]);
 // v11 批次 181 P2-1 修复：使用 Supplier 类型，替代本地 WarehouseOption
-const supplierList = ref<Supplier[]>([])
+const supplierList = ref<Supplier[]>([]);
 
 // 表单数据类型，与 GreigeFabric 对齐（id 创建时为空，编辑时由后端返回）
 interface GreigeFabricForm {
-  id?: number
-  fabric_code: string
-  fabric_name: string
-  fabric_type: string
-  supplier_id: number
-  supplier_name: string
-  width: number
-  weight: number
-  unit: string
-  composition: string
-  quantity: number
-  min_order_quantity: number
-  status: 'active' | 'inactive'
-  description: string
+  id?: number;
+  fabric_code: string;
+  fabric_name: string;
+  fabric_type: string;
+  supplier_id: number;
+  supplier_name: string;
+  width: number;
+  weight: number;
+  unit: string;
+  composition: string;
+  quantity: number;
+  min_order_quantity: number;
+  status: 'active' | 'inactive';
+  description: string;
 }
 
 const formData = reactive<GreigeFabricForm>({
@@ -254,7 +254,7 @@ const formData = reactive<GreigeFabricForm>({
   min_order_quantity: 0,
   status: 'active',
   description: '',
-})
+});
 
 const formRules: FormRules = {
   fabric_code: [
@@ -273,36 +273,36 @@ const formRules: FormRules = {
   status: [
     { required: true, message: t('greigeFabrics.index.ruleStatusRequired'), trigger: 'change' },
   ],
-}
+};
 
 const loadGreigeFabrics = async () => {
-  loading.value = true
+  loading.value = true;
   try {
-    const res = await getGreigeFabricList()
+    const res = await getGreigeFabricList();
     // v11 批次 181 P2-1 修复：API 返回 GreigeFabric[]，前端直接使用，无需类型转换
-    greigeList.value = res.data || []
+    greigeList.value = res.data || [];
   } catch (error) {
-    ElMessage.error(t('greigeFabrics.index.messageLoadListFailed'))
+    ElMessage.error(t('greigeFabrics.index.messageLoadListFailed'));
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 
 const loadSuppliers = async () => {
   try {
     // v11 批次 181 P2-1 修复：使用 supplier API 替代 warehouse API
     // getSupplierList 返回 { list: Supplier[]; total: number }，提取 list 字段
-    const res = await getSupplierList()
-    const d = res.data
+    const res = await getSupplierList();
+    const d = res.data;
     if (d && typeof d === 'object' && 'list' in d) {
-      supplierList.value = d.list || []
+      supplierList.value = d.list || [];
     } else {
-      supplierList.value = []
+      supplierList.value = [];
     }
   } catch (error) {
-    ElMessage.error(t('greigeFabrics.index.messageLoadSuppliersFailed'))
+    ElMessage.error(t('greigeFabrics.index.messageLoadSuppliersFailed'));
   }
-}
+};
 
 const resetForm = () => {
   Object.assign(formData, {
@@ -320,19 +320,19 @@ const resetForm = () => {
     min_order_quantity: 0,
     status: 'active',
     description: '',
-  })
-}
+  });
+};
 
 const handleCreate = () => {
-  dialogMode.value = 'create'
-  resetForm()
-  dialogVisible.value = true
-}
+  dialogMode.value = 'create';
+  resetForm();
+  dialogVisible.value = true;
+};
 
 const handleEdit = (row: GreigeFabric) => {
-  dialogMode.value = 'edit'
+  dialogMode.value = 'edit';
   // 同步供应商名称展示
-  const supplier = supplierList.value.find(s => s.id === row.supplier_id)
+  const supplier = supplierList.value.find(s => s.id === row.supplier_id);
   Object.assign(formData, {
     id: row.id,
     fabric_code: row.fabric_code,
@@ -348,69 +348,69 @@ const handleEdit = (row: GreigeFabric) => {
     min_order_quantity: row.min_order_quantity,
     status: row.status,
     description: row.description,
-  })
-  dialogVisible.value = true
-}
+  });
+  dialogVisible.value = true;
+};
 
 const handleDelete = async (row: GreigeFabric) => {
-  if (!row.id) return
+  if (!row.id) return;
 
   try {
-    await deleteGreigeFabric(row.id)
-    ElMessage.success(t('greigeFabrics.index.messageDeleteSuccess'))
-    await loadGreigeFabrics()
+    await deleteGreigeFabric(row.id);
+    ElMessage.success(t('greigeFabrics.index.messageDeleteSuccess'));
+    await loadGreigeFabrics();
   } catch (error) {
-    ElMessage.error(t('greigeFabrics.index.messageDeleteFailed'))
+    ElMessage.error(t('greigeFabrics.index.messageDeleteFailed'));
   }
-}
+};
 
 const handleSubmit = async () => {
-  if (!formRef.value) return
+  if (!formRef.value) return;
 
   await formRef.value.validate(async (valid: boolean) => {
-    if (!valid) return
+    if (!valid) return;
 
-    submitLoading.value = true
+    submitLoading.value = true;
     try {
       // 同步 supplier_name 到表单数据
-      const supplier = supplierList.value.find(s => s.id === formData.supplier_id)
+      const supplier = supplierList.value.find(s => s.id === formData.supplier_id);
       if (supplier) {
-        formData.supplier_name = supplier.supplier_name
+        formData.supplier_name = supplier.supplier_name;
       }
 
       if (dialogMode.value === 'create') {
         // v11 批次 181 P2-1 修复：GreigeFabricForm 与 Partial<GreigeFabric> 字段一致，直接传入
-        await createGreigeFabric(formData)
-        ElMessage.success(t('greigeFabrics.index.messageCreateSuccess'))
+        await createGreigeFabric(formData);
+        ElMessage.success(t('greigeFabrics.index.messageCreateSuccess'));
       } else {
         // edit 模式下 formData.id 由 handleEdit 从 row.id 赋值
-        await updateGreigeFabric(formData.id!, formData)
-        ElMessage.success(t('greigeFabrics.index.messageUpdateSuccess'))
+        await updateGreigeFabric(formData.id!, formData);
+        ElMessage.success(t('greigeFabrics.index.messageUpdateSuccess'));
       }
-      dialogVisible.value = false
-      await loadGreigeFabrics()
+      dialogVisible.value = false;
+      await loadGreigeFabrics();
     } catch (error) {
       ElMessage.error(
         dialogMode.value === 'create'
           ? t('greigeFabrics.index.messageCreateFailed')
           : t('greigeFabrics.index.messageUpdateFailed')
-      )
+      );
     } finally {
-      submitLoading.value = false
+      submitLoading.value = false;
     }
-  })
-}
+  });
+};
 
 const handleDialogClose = () => {
-  formRef.value?.resetFields()
-}
+  formRef.value?.resetFields();
+};
 
-const hasLoaded = createLazyLoader()
+const hasLoaded = createLazyLoader();
 
 onMounted(() => {
-  loadGreigeFabrics()
-  loadIfNot('suppliers', loadSuppliers, hasLoaded)
-})
+  loadGreigeFabrics();
+  loadIfNot('suppliers', loadSuppliers, hasLoaded);
+});
 </script>
 
 <style scoped>

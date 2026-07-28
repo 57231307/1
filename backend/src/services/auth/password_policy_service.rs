@@ -9,6 +9,7 @@
 //! 本服务不重复实现锁定逻辑。
 
 use crate::models::password_history;
+use crate::utils::error::AppError;
 use crate::utils::password_validator::{PasswordPolicy, PasswordValidationResult};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
@@ -95,7 +96,9 @@ impl PasswordPolicyService {
         let mut result = self.validate(password).await;
         if history.contains(new_hash) {
             result.is_valid = false;
-            result.errors.push("密码不能与最近使用过的密码相同".to_string());
+            result
+                .errors
+                .push("密码不能与最近使用过的密码相同".to_string());
         }
         result
     }
@@ -119,7 +122,7 @@ impl PasswordPolicyService {
         &self,
         db: &DatabaseConnection,
         user_id: i32,
-    ) -> Result<PasswordHistory, sea_orm::DbErr> {
+    ) -> Result<PasswordHistory, AppError> {
         let rows = password_history::Entity::find()
             .filter(password_history::Column::UserId.eq(user_id))
             .order_by_desc(password_history::Column::CreatedAt)
@@ -140,7 +143,7 @@ impl PasswordPolicyService {
         db: &DatabaseConnection,
         user_id: i32,
         password_hash: String,
-    ) -> Result<(), sea_orm::DbErr> {
+    ) -> Result<(), AppError> {
         let now = chrono::Utc::now();
         let active = password_history::ActiveModel {
             user_id: sea_orm::Set(user_id),
@@ -157,9 +160,8 @@ impl PasswordPolicyService {
 pub fn is_common_password(password: &str) -> bool {
     let lower = password.to_lowercase();
     const COMMON: &[&str] = &[
-        "password", "123456", "qwerty", "admin", "root",
-        "letmein", "welcome", "monkey", "dragon", "111111",
-        "000000", "abc123", "admin123", "passw0rd", "iloveyou",
+        "password", "123456", "qwerty", "admin", "root", "letmein", "welcome", "monkey", "dragon",
+        "111111", "000000", "abc123", "admin123", "passw0rd", "iloveyou",
     ];
     COMMON.iter().any(|c| lower.contains(c))
 }
@@ -195,8 +197,8 @@ pub fn strength_feedback_zh(result: &PasswordValidationResult) -> String {
 /// 构建默认 HashSet 用于快速密码查询（运行时使用）
 pub fn build_password_blacklist() -> HashSet<String> {
     const BLACKLIST: &[&str] = &[
-        "password", "123456", "qwerty", "admin", "root", "toor",
-        "letmein", "welcome", "111111", "000000", "abc123",
+        "password", "123456", "qwerty", "admin", "root", "toor", "letmein", "welcome", "111111",
+        "000000", "abc123",
     ];
     BLACKLIST.iter().map(|s| s.to_string()).collect()
 }

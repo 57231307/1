@@ -26,10 +26,7 @@ pub struct UnlockAccountDto {
 /// 安全原因：原 `check_lock_status`、`unlock_account`、`unlock_account_by_id`
 /// 三个 handler 仅使用 `_auth: AuthContext`（下划线前缀表示参数被忽略），
 /// 导致任意登录用户均可查询他人锁定状态或解锁任意账号，属水平/垂直越权。
-async fn require_admin_role(
-    state: &AppState,
-    auth: &AuthContext,
-) -> Result<(), AppError> {
+async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), AppError> {
     let role_id = auth
         .role_id
         .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行该操作"))?;

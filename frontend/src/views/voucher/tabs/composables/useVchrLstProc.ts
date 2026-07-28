@@ -4,20 +4,21 @@
  * 封装凭证打印、导出、审核、记账、反记账、删除等流程性方法
  * 行为完全保持一致（仅结构重构）
  */
-import { ElMessage, ElMessageBox } from 'element-plus'
-import printJS from 'print-js'
+import { ElMessageBox } from 'element-plus';
+import { msg } from '@/utils/message';
+import printJS from 'print-js';
 import {
   deleteVoucher,
   approveVoucher,
   postVoucher,
   unpostVoucher,
   type VoucherEntity,
-} from '@/api/voucher'
-import { getStatusLabel, getTypeLabel } from './vchrLstFmts'
-import { exportToExcel } from '@/utils/export'
+} from '@/api/voucher';
+import { getStatusLabel, getTypeLabel } from './vchrLstFmts';
+import { exportToExcel } from '@/utils/export';
 
 /** 接收的列表数据（支持 ref 和 plain value） */
-type ContractListLike = { value: VoucherEntity[] } | VoucherEntity[]
+type ContractListLike = { value: VoucherEntity[] } | VoucherEntity[];
 
 /**
  * 创建凭证流程操作方法集合
@@ -27,12 +28,12 @@ type ContractListLike = { value: VoucherEntity[] } | VoucherEntity[]
 export function useVchrLstProc(tableData: ContractListLike, loadData: () => Promise<void>) {
   /** 取出底层数组（兼容 ref 和 plain value） */
   const getList = (): VoucherEntity[] => {
-    return Array.isArray(tableData) ? tableData : tableData.value
-  }
+    return Array.isArray(tableData) ? tableData : tableData.value;
+  };
 
   /** 打印当前列表 */
   const handlePrint = () => {
-    const list = getList()
+    const list = getList();
     const printData = list.map((item, index) => ({
       序号: index + 1,
       凭证号: item.voucher_no,
@@ -42,7 +43,7 @@ export function useVchrLstProc(tableData: ContractListLike, loadData: () => Prom
       借方金额: `¥${item.total_debit}`,
       贷方金额: `¥${item.total_credit}`,
       状态: getStatusLabel(item.status),
-    }))
+    }));
     printJS({
       printable: printData,
       properties: Object.keys(printData[0] || {}) as string[],
@@ -52,12 +53,12 @@ export function useVchrLstProc(tableData: ContractListLike, loadData: () => Prom
       headerStyle: 'font-size: 18px; font-weight: bold; margin-bottom: 20px;',
       gridHeaderStyle: 'font-weight: bold; background-color: #f5f7fa;',
       gridStyle: 'border-collapse: collapse; width: 100%;',
-    } as never)
-  }
+    } as never);
+  };
 
   /** 导出 Excel（规则 3：禁止 CSV 作为最终交付格式） */
   const handleExport = () => {
-    const list = getList()
+    const list = getList();
     exportToExcel({
       filename: '会计凭证',
       format: 'excel',
@@ -83,68 +84,68 @@ export function useVchrLstProc(tableData: ContractListLike, loadData: () => Prom
           formatter: (value: unknown) => getStatusLabel(value as VoucherEntity['status']),
         },
       ],
-    })
-  }
+    });
+  };
 
   /** 删除凭证 */
   const handleDelete = async (row: VoucherEntity) => {
     if (row.status === 'posted') {
-      ElMessage.warning('已记账的凭证不能删除')
-      return
+      msg.warning('postedVoucherCannotDelete');
+      return;
     }
     try {
       await ElMessageBox.confirm('确定要删除这个凭证吗？', '提示', {
         type: 'warning',
-      })
-      await deleteVoucher(row.id!)
-      ElMessage.success('删除成功')
-      await loadData()
+      });
+      await deleteVoucher(row.id!);
+      msg.success('deleteSuccess');
+      await loadData();
     } catch (error) {
-      ElMessage.info('取消删除')
+      msg.info('deleteCancelled');
     }
-  }
+  };
 
   /** 审核凭证 */
   const handleApprove = async (row: VoucherEntity) => {
     try {
       await ElMessageBox.confirm('确定要审核这个凭证吗？', '提示', {
         type: 'warning',
-      })
-      await approveVoucher(row.id!)
-      ElMessage.success('审核成功')
-      await loadData()
+      });
+      await approveVoucher(row.id!);
+      msg.success('auditSuccess');
+      await loadData();
     } catch (error) {
-      ElMessage.info('取消操作')
+      msg.info('operationCancelled');
     }
-  }
+  };
 
   /** 记账凭证 */
   const handlePost = async (row: VoucherEntity) => {
     try {
       await ElMessageBox.confirm('确定要记账这个凭证吗？', '提示', {
         type: 'warning',
-      })
-      await postVoucher(row.id!)
-      ElMessage.success('记账成功')
-      await loadData()
+      });
+      await postVoucher(row.id!);
+      msg.success('bookSuccess');
+      await loadData();
     } catch (error) {
-      ElMessage.info('取消操作')
+      msg.info('operationCancelled');
     }
-  }
+  };
 
   /** 反记账 */
   const handleUnpost = async (row: VoucherEntity) => {
     try {
       await ElMessageBox.confirm('确定要反记账这个凭证吗？', '提示', {
         type: 'warning',
-      })
-      await unpostVoucher(row.id!)
-      ElMessage.success('反记账成功')
-      await loadData()
+      });
+      await unpostVoucher(row.id!);
+      msg.success('unbookSuccess');
+      await loadData();
     } catch (error) {
-      ElMessage.info('取消操作')
+      msg.info('operationCancelled');
     }
-  }
+  };
 
   return {
     handlePrint,
@@ -153,5 +154,5 @@ export function useVchrLstProc(tableData: ContractListLike, loadData: () => Prom
     handleApprove,
     handlePost,
     handleUnpost,
-  }
+  };
 }

@@ -179,78 +179,78 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
-import { useI18n } from 'vue-i18n'
-import type { Customer } from '@/api/customer'
+import { ref, watch, nextTick } from 'vue';
+import { useI18n } from 'vue-i18n';
+import type { Customer } from '@/api/customer';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 interface ScFormData {
-  id?: number
-  contract_no: string
-  contract_name: string
-  customer_id: number | undefined
-  contract_type: string
-  total_amount: number
-  signed_date: string
-  effective_date: string
-  expiry_date: string
-  payment_terms: string
-  payment_method: string
-  delivery_date: string
-  delivery_location: string
-  remarks: string
+  id?: number;
+  contract_no: string;
+  contract_name: string;
+  customer_id: number | undefined;
+  contract_type: string;
+  total_amount: number;
+  signed_date: string;
+  effective_date: string;
+  expiry_date: string;
+  payment_terms: string;
+  payment_method: string;
+  delivery_date: string;
+  delivery_location: string;
+  remarks: string;
 }
 
 /**
  * 销售合同新建/编辑对话框组件
  */
 const props = defineProps<{
-  visible: boolean
-  title: string
+  visible: boolean;
+  title: string;
   // 表单数据（由父组件管理，子组件通过 emit('update:formData') 回写）
-  formData: ScFormData
-  customers: Customer[]
-}>()
+  formData: ScFormData;
+  customers: Customer[];
+}>();
 
 const emit = defineEmits<{
-  'update:visible': [v: boolean]
-  submit: []
+  'update:visible': [v: boolean];
+  submit: [];
   // 整体回写表单
-  'update:formData': [formData: ScFormData]
-}>()
+  'update:formData': [formData: ScFormData];
+}>();
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
-const localFormData = ref<ScFormData>({ ...props.formData })
+const localFormData = ref<ScFormData>({ ...props.formData });
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
-let syncing = false
+let syncing = false;
 
 // 外部 prop 变化时同步到 local
 watch(
   () => props.formData,
   newForm => {
-    if (syncing) return
-    syncing = true
-    localFormData.value = { ...newForm }
+    if (syncing) return;
+    syncing = true;
+    localFormData.value = { ...newForm };
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
   { deep: true }
-)
+);
 
 // 本地变化时通知父组件
 watch(
   localFormData,
   newForm => {
-    if (syncing) return
-    syncing = true
-    emit('update:formData', { ...newForm })
+    if (syncing) return;
+    syncing = true;
+    emit('update:formData', { ...newForm });
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
   { deep: true }
-)
+);
 </script>

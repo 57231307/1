@@ -12,38 +12,38 @@ export const METHOD_TYPE_MAP: Record<string, string> = {
   PUT: 'warning',
   DELETE: 'danger',
   PATCH: 'info',
-}
+};
 
 /** 接口状态 → 中文标签 */
 export const EP_STATUS_LABEL_MAP: Record<string, string> = {
   active: '启用',
   inactive: '停用',
   deprecated: '废弃',
-}
+};
 
 /** 接口状态 → el-tag 类型 */
 export const EP_STATUS_TYPE_MAP: Record<string, string> = {
   active: 'success',
   inactive: 'info',
   deprecated: 'warning',
-}
+};
 
 /** 密钥状态 → 中文标签 */
 export const KEY_STATUS_LABEL_MAP: Record<string, string> = {
   active: '启用',
   inactive: '停用',
   expired: '已过期',
-}
+};
 
 /** 密钥状态 → el-tag 类型 */
 export const KEY_STATUS_TYPE_MAP: Record<string, string> = {
   active: 'success',
   inactive: 'info',
   expired: 'warning',
-}
+};
 
 /** API Key 脱敏（仅保留前 4 后 4） */
 export const maskApiKey = (key: string) => {
-  if (!key || key.length < 8) return '***'
-  return key.substring(0, 4) + '****' + key.substring(key.length - 4)
-}
+  if (!key || key.length < 8) return '***';
+  return key.substring(0, 4) + '****' + key.substring(key.length - 4);
+};

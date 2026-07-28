@@ -1,6 +1,4 @@
 #![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
-
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
@@ -75,6 +73,46 @@ pub struct Model {
 
     /// 乐观锁版本号
     pub version: i32,
+
+    // P1 batch-18 缺陷 7.1：补货策略字段
+    /// 补货策略：reorder_point（订货点法）/ eoq（经济订货量）/ mrp（物料需求计划）
+    #[sea_orm(default_value = "reorder_point")]
+    pub replenishment_strategy: String,
+}
+
+// P1 batch-18 缺陷 7.1：补货策略常量
+pub const REPLENISHMENT_REORDER_POINT: &str = "reorder_point";
+pub const REPLENISHMENT_EOQ: &str = "eoq";
+pub const REPLENISHMENT_MRP: &str = "mrp";
+
+/// P1 batch-18 缺陷 7.1：根据补货策略计算建议采购量
+/// - reorder_point：固定补货量 = reorder_quantity
+/// - eoq：经济订货量 = √(2 * 年需求 * 订货成本 / 单位存储成本)
+/// - mrp：由 MRP 引擎按 BOM 展开，此处返回缺口量（reorder_quantity 兜底）
+pub fn compute_replenishment_qty(
+    strategy: &str,
+    reorder_quantity: Decimal,
+    annual_demand: Option<Decimal>,
+    order_cost: Option<Decimal>,
+    holding_cost: Option<Decimal>,
+) -> Decimal {
+    match strategy {
+        REPLENISHMENT_EOQ => {
+            let d = annual_demand.unwrap_or(Decimal::ZERO);
+            let s = order_cost.unwrap_or(Decimal::ZERO);
+            let h = holding_cost.unwrap_or(Decimal::ZERO);
+            if d.is_zero() || s.is_zero() || h.is_zero() {
+                return reorder_quantity;
+            }
+            let two_ds = Decimal::from(2) * d * s;
+            let eoq = (two_ds / h).to_string();
+            let sqrt_val: f64 = eoq.parse().unwrap_or(0.0);
+            let result = sqrt_val.sqrt();
+            Decimal::try_from(result).unwrap_or(reorder_quantity)
+        }
+        REPLENISHMENT_MRP => reorder_quantity,
+        _ => reorder_quantity,
+    }
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

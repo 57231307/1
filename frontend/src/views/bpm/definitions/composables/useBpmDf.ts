@@ -7,17 +7,17 @@
  *
  * 注意：返回值使用 reactive({...}) 包装，父组件可直接访问字段（自动解包 ref）
  */
-import { ref, reactive } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ref, reactive } from 'vue';
+import { ElMessage } from 'element-plus';
 // D14 Batch 5b：原 bpmEnhancedApi 对象已转风格 B 函数
 import {
   getBpmVersionList,
   type ProcessDefinition,
   type ProcessNode,
   type ProcessVersion,
-} from '@/api/bpm-enhanced'
-import { logger } from '@/utils/logger'
-import { useTableApi } from '@/composables/useTableApi'
+} from '@/api/bpm-enhanced';
+import { logger } from '@/utils/logger';
+import { useTableApi } from '@/composables/useTableApi';
 
 /** BPM 流程定义主业务 composable（集中管理列表、分页、过滤、节点、版本） */
 export function useBpmDf() {
@@ -34,23 +34,23 @@ export function useBpmDf() {
     url: '/bpm/definitions',
     defaultParams: { keyword: '', category: '' },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : '获取流程定义列表失败'
-      logger.error(msg)
-      ElMessage.error(msg)
+      const msg = err instanceof Error ? err.message : '获取流程定义列表失败';
+      logger.error(msg);
+      ElMessage.error(msg);
     },
-  })
+  });
 
   // 表单对话框
-  const dialogVisible = ref(false)
-  const isEdit = ref(false)
-  const submitLoading = ref(false)
+  const dialogVisible = ref(false);
+  const isEdit = ref(false);
+  const submitLoading = ref(false);
   const formData = reactive<{
-    id?: number
-    process_key: string
-    process_name: string
-    description: string
-    category: string
-    nodes: ProcessNode[]
+    id?: number;
+    process_key: string;
+    process_name: string;
+    description: string;
+    category: string;
+    nodes: ProcessNode[];
   }>({
     id: undefined,
     process_key: '',
@@ -58,41 +58,41 @@ export function useBpmDf() {
     description: '',
     category: 'finance',
     nodes: [],
-  })
+  });
 
   // 版本对话框
-  const versionDialogVisible = ref(false)
-  const versionLoading = ref(false)
-  const currentDefinition = ref<ProcessDefinition | null>(null)
-  const versions = ref<ProcessVersion[]>([])
+  const versionDialogVisible = ref(false);
+  const versionLoading = ref(false);
+  const currentDefinition = ref<ProcessDefinition | null>(null);
+  const versions = ref<ProcessVersion[]>([]);
 
   // 模板对话框
-  const templateDialogVisible = ref(false)
-  const templateLoading = ref(false)
+  const templateDialogVisible = ref(false);
+  const templateLoading = ref(false);
   const templateForm = reactive<{
-    template_name: string
-    category: string
-    description: string
+    template_name: string;
+    category: string;
+    description: string;
   }>({
     template_name: '',
     category: 'finance',
     description: '',
-  })
+  });
 
   /** 加载版本 */
   const fetchVersions = async (definitionId: number) => {
-    versionLoading.value = true
+    versionLoading.value = true;
     try {
-      const res = await getBpmVersionList(definitionId)
-      versions.value = (res.data || []) as ProcessVersion[]
+      const res = await getBpmVersionList(definitionId);
+      versions.value = (res.data || []) as ProcessVersion[];
     } catch (error) {
-      const msg = error instanceof Error ? error.message : '获取版本列表失败'
-      logger.error(msg)
-      ElMessage.error(msg)
+      const msg = error instanceof Error ? error.message : '获取版本列表失败';
+      logger.error(msg);
+      ElMessage.error(msg);
     } finally {
-      versionLoading.value = false
+      versionLoading.value = false;
     }
-  }
+  };
 
   // 使用 reactive 包装，父组件可直接访问字段
   return reactive({
@@ -120,5 +120,5 @@ export function useBpmDf() {
     templateForm,
     // 方法
     fetchVersions,
-  })
+  });
 }

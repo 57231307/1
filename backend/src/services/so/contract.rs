@@ -6,8 +6,8 @@
 //!
 //! 拆分自原 `sales_service.rs`。
 
-use crate::models::{customer, sales_order};
 use crate::models::status::sales_order as so_status;
+use crate::models::{customer, sales_order};
 use crate::services::so::order::SalesService;
 use crate::utils::error::AppError;
 use sea_orm::{EntityTrait, QuerySelect, Set, TransactionTrait};
@@ -64,12 +64,13 @@ impl SalesService {
         txn.commit().await?;
 
         // B-P1-4 修复（批次 361 v13 复审）：commit 后发布 SalesOrderRejected 事件
-        crate::services::event_bus::EVENT_BUS
-            .publish(crate::services::event_bus::BusinessEvent::SalesOrderRejected {
+        crate::services::event_bus::EVENT_BUS.publish(
+            crate::services::event_bus::BusinessEvent::SalesOrderRejected {
                 order_id,
                 customer_id: customer_id_for_event,
                 user_id,
-            });
+            },
+        );
 
         Ok(())
     }

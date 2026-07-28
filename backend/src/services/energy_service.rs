@@ -34,16 +34,27 @@ use crate::utils::error::AppError;
 
 // 批次 488 D10-2a 拆分：re-export 4 个业务 Service 及其 DTOs，保持外部引用路径不变
 pub use crate::services::energy_ops::{
-    // meter
-    CreateMeterRequest, EnergyMeterService, MeterQuery, UpdateMeterRequest,
-    // consumption
-    ConsumptionQuery, CreateConsumptionRequest, EnergyConsumptionService,
-    UpdateConsumptionRequest,
-    // allocation_rule
-    CreateRuleRequest, EnergyAllocationRuleService, RuleQuery, UpdateRuleRequest,
     // allocation_record
-    AllocationRecordQuery, CreateAllocationRecordRequest, EnergyAllocationRecordService,
-    MonthlyAllocationRequest, UpdateAllocationRecordRequest,
+    AllocationRecordQuery,
+    // consumption
+    ConsumptionQuery,
+    CreateAllocationRecordRequest,
+    CreateConsumptionRequest,
+    // meter
+    CreateMeterRequest,
+    // allocation_rule
+    CreateRuleRequest,
+    EnergyAllocationRecordService,
+    EnergyAllocationRuleService,
+    EnergyConsumptionService,
+    EnergyMeterService,
+    MeterQuery,
+    MonthlyAllocationRequest,
+    RuleQuery,
+    UpdateAllocationRecordRequest,
+    UpdateConsumptionRequest,
+    UpdateMeterRequest,
+    UpdateRuleRequest,
 };
 
 // ============================================================================
@@ -55,10 +66,7 @@ pub use crate::services::energy_ops::{
 /// 业务规则：
 /// - 若当前读数 < 上次读数，返回 0（可能是表计回零或异常）
 /// - 否则返回差值
-pub fn compute_consumption(
-    previous_reading: Decimal,
-    current_reading: Decimal,
-) -> Decimal {
+pub fn compute_consumption(previous_reading: Decimal, current_reading: Decimal) -> Decimal {
     if current_reading < previous_reading {
         return Decimal::ZERO;
     }
@@ -74,10 +82,7 @@ pub fn compute_total_cost(consumption: Decimal, unit_price: Decimal) -> Decimal 
 ///
 /// 业务规则：
 /// - 若总依据量为 0，返回 0（避免除零）
-pub fn compute_allocation_ratio(
-    basis_value: Decimal,
-    total_basis_value: Decimal,
-) -> Decimal {
+pub fn compute_allocation_ratio(basis_value: Decimal, total_basis_value: Decimal) -> Decimal {
     if total_basis_value <= Decimal::ZERO {
         return Decimal::ZERO;
     }
@@ -93,10 +98,7 @@ pub fn compute_allocated_consumption(
 }
 
 /// 计算分摊成本（总成本 × 分摊比例）
-pub fn compute_allocated_cost(
-    total_cost: Decimal,
-    allocation_ratio: Decimal,
-) -> Decimal {
+pub fn compute_allocated_cost(total_cost: Decimal, allocation_ratio: Decimal) -> Decimal {
     total_cost * allocation_ratio
 }
 
@@ -132,8 +134,7 @@ pub fn check_consumption_exceeds_standard(
     }
     let threshold = standard_consumption_per_unit * (Decimal::ONE + tolerance);
     let deviation = if actual_unit_consumption > standard_consumption_per_unit {
-        (actual_unit_consumption - standard_consumption_per_unit)
-            / standard_consumption_per_unit
+        (actual_unit_consumption - standard_consumption_per_unit) / standard_consumption_per_unit
             * Decimal::new(100, 0)
     } else {
         Decimal::ZERO
@@ -241,10 +242,7 @@ mod tests {
 
     #[test]
     fn 测试计算单位能耗_正常() {
-        let result = compute_unit_consumption(
-            Decimal::new(300, 0),
-            Some(Decimal::new(100, 0)),
-        );
+        let result = compute_unit_consumption(Decimal::new(300, 0), Some(Decimal::new(100, 0)));
         assert_eq!(result, Some(Decimal::new(3, 0)));
     }
 

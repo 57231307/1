@@ -12,9 +12,10 @@ use crate::models::status::crm_lead as lead_status;
 use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 use crate::utils::xlsx_export::XlsxTable;
+use sea_orm::sea_query::{extension::postgres::PgExpr, Expr};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
-    Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set, TransactionTrait,
 };
 
 use super::cust::CrmService;
@@ -146,7 +147,9 @@ impl CrmService {
 
         let total = paginator.num_items().await?;
         // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-        let items: Vec<crm_lead::Model> = paginator.fetch_page(page.clamp(1, 1000).saturating_sub(1)).await?;
+        let items: Vec<crm_lead::Model> = paginator
+            .fetch_page(page.clamp(1, 1000).saturating_sub(1))
+            .await?;
 
         Ok(serde_json::json!({
             "data": items,
@@ -222,9 +225,7 @@ impl CrmService {
                     lead.lead_status.clone().unwrap_or_default(),
                     lead.owner_name.clone(),
                     lead.priority.clone().unwrap_or_default(),
-                    lead.created_at
-                        .map(|t| t.to_rfc3339())
-                        .unwrap_or_default(),
+                    lead.created_at.map(|t| t.to_rfc3339()).unwrap_or_default(),
                 ]
             })
             .collect();
@@ -237,9 +238,7 @@ impl CrmService {
     }
 
     /// 读取 xlsx 字节，返回首个 sheet 的数据行（已跳过表头）
-    async fn read_xlsx_rows(
-        file_bytes: Vec<u8>,
-    ) -> Result<Vec<Vec<calamine::Data>>, AppError> {
+    async fn read_xlsx_rows(file_bytes: Vec<u8>) -> Result<Vec<Vec<calamine::Data>>, AppError> {
         use calamine::{open_workbook_auto_from_rs, Reader};
         use std::io::Cursor;
 
@@ -358,7 +357,8 @@ impl CrmService {
         if let Some(ctx) = data_scope {
             if !check_resource_owner(ctx, Some(lead.owner_id), None) {
                 return Err(AppError::permission_denied(format!(
-                    "无权访问线索 {}（数据范围限制）", lead_id
+                    "无权访问线索 {}（数据范围限制）",
+                    lead_id
                 )));
             }
         }
@@ -511,7 +511,10 @@ impl CrmService {
         user_id: i32,
     ) -> customer::ActiveModel {
         let customer_code = format!("C{}", chrono::Utc::now().timestamp());
-        let customer_type = req.customer_type.clone().unwrap_or_else(|| "POTENTIAL".to_string());
+        let customer_type = req
+            .customer_type
+            .clone()
+            .unwrap_or_else(|| "POTENTIAL".to_string());
         customer::ActiveModel {
             id: Default::default(),
             customer_code: Set(customer_code),
@@ -630,4 +633,404 @@ impl CrmService {
             "customer_name": new_customer.customer_name,
         }))
     }
+
+    /// V15 P1 18.1-D1：线索评分
+    ///
+    /// 基于来源/行为/demographics 多维加权评分（0-100）：
+    /// - 来源维度（最高 30 分）：REFERRAL=30, EXHIBITION=25, WEBSITE=20, AD=15, OTHER=10
+    /// - 行为维度（最高 40 分）：有预估金额 +15，有产品兴趣 +10，有需求描述 +10，有交付日期 +5
+    /// - demographics 维度（最高 30 分）：有公司名 +10，有手机号 +10，有邮箱 +5，有职位 +5
+    /// 评分写入 crm_lead.rating 列，>60 标记为高优先级。
+    pub async fn score_lead(&self, lead_id: i32) -> Result<LeadScoreResult, AppError> {
+        let lead = crm_lead::Entity::find_by_id(lead_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("线索不存在：{}", lead_id)))?;
+
+        let mut score: i32 = 0;
+        let mut breakdown = serde_json::Map::new();
+
+        // 来源维度（最高 30 分）
+        let source_score = match lead.lead_source.as_str() {
+            "REFERRAL" => 30,
+            "EXHIBITION" => 25,
+            "WEBSITE" => 20,
+            "AD" => 15,
+            _ => 10,
+        };
+        score += source_score;
+        breakdown.insert(
+            "source".into(),
+            serde_json::json!({"score": source_score, "lead_source": lead.lead_source.clone()}),
+        );
+
+        // 行为维度（最高 40 分）
+        let mut behavior_score = 0;
+        if lead.estimated_amount.is_some() {
+            behavior_score += 15;
+        }
+        if lead.product_interest.is_some() {
+            behavior_score += 10;
+        }
+        if lead.requirement_desc.is_some() {
+            behavior_score += 10;
+        }
+        if lead.expected_delivery_date.is_some() {
+            behavior_score += 5;
+        }
+        score += behavior_score;
+        breakdown.insert(
+            "behavior".into(),
+            serde_json::json!({"score": behavior_score}),
+        );
+
+        // demographics 维度（最高 30 分）
+        let mut demo_score = 0;
+        if lead.company_name.is_some() {
+            demo_score += 10;
+        }
+        if lead.mobile_phone.is_some() {
+            demo_score += 10;
+        }
+        if lead.email.is_some() {
+            demo_score += 5;
+        }
+        if lead.contact_title.is_some() {
+            demo_score += 5;
+        }
+        score += demo_score;
+        breakdown.insert(
+            "demographics".into(),
+            serde_json::json!({"score": demo_score}),
+        );
+
+        // 评分封顶 100
+        let final_score = score.min(100);
+
+        // 更新线索评分与优先级
+        let mut lead_active: crm_lead::ActiveModel = lead.into();
+        lead_active.rating = Set(Some(final_score));
+        // 评分 >60 标记为高优先级，>80 标记为紧急
+        let new_priority = if final_score >= 80 {
+            "urgent"
+        } else if final_score >= 60 {
+            "high"
+        } else if final_score >= 30 {
+            "medium"
+        } else {
+            "low"
+        };
+        lead_active.priority = Set(Some(new_priority.to_string()));
+        lead_active.updated_at = Set(Some(chrono::Utc::now()));
+        lead_active.update(&*self.db).await?;
+
+        Ok(LeadScoreResult {
+            lead_id,
+            score: final_score,
+            priority: new_priority.to_string(),
+            breakdown: serde_json::Value::Object(breakdown),
+        })
+    }
+
+    /// V15 P1 18.1-D2：线索去重检测
+    ///
+    /// 按手机号/公司名检测重复线索，返回重复组列表。
+    /// 手机号完全匹配或公司名完全匹配（忽略前后空格+大小写）视为重复。
+    pub async fn detect_duplicate_leads(
+        &self,
+        mobile_phone: Option<&str>,
+        company_name: Option<&str>,
+    ) -> Result<Vec<DuplicateLeadGroup>, AppError> {
+        let mut groups: Vec<DuplicateLeadGroup> = Vec::new();
+
+        // 按手机号去重
+        if let Some(mobile) = mobile_phone {
+            if !mobile.trim().is_empty() {
+                let leads = crm_lead::Entity::find()
+                    .filter(crm_lead::Column::MobilePhone.eq(mobile))
+                    .filter(crm_lead::Column::LeadStatus.is_not_null())
+                    .all(&*self.db)
+                    .await?;
+                if leads.len() > 1 {
+                    groups.push(DuplicateLeadGroup {
+                        match_key: format!("mobile:{}", mobile),
+                        match_type: "mobile_phone".to_string(),
+                        lead_ids: leads.iter().map(|l| l.id).collect(),
+                        lead_nos: leads.iter().map(|l| l.lead_no.clone()).collect(),
+                        company_names: leads
+                            .iter()
+                            .map(|l| l.company_name.clone().unwrap_or_default())
+                            .collect(),
+                        count: leads.len() as i32,
+                    });
+                }
+            }
+        }
+
+        // 按公司名去重（忽略大小写）
+        if let Some(company) = company_name {
+            let company_trimmed = company.trim();
+            if !company_trimmed.is_empty() {
+                let leads = crm_lead::Entity::find()
+                    .filter(Expr::col(crm_lead::Column::CompanyName).ilike(company_trimmed))
+                    .all(&*self.db)
+                    .await?;
+                if leads.len() > 1 {
+                    groups.push(DuplicateLeadGroup {
+                        match_key: format!("company:{}", company_trimmed),
+                        match_type: "company_name".to_string(),
+                        lead_ids: leads.iter().map(|l| l.id).collect(),
+                        lead_nos: leads.iter().map(|l| l.lead_no.clone()).collect(),
+                        company_names: leads
+                            .iter()
+                            .map(|l| l.company_name.clone().unwrap_or_default())
+                            .collect(),
+                        count: leads.len() as i32,
+                    });
+                }
+            }
+        }
+
+        Ok(groups)
+    }
+
+    /// V15 P1 18.1-D2：合并重复线索
+    ///
+    /// 将多个重复线索合并到主线索（保留主线索数据，副线索标记为 lost 并记录合并原因）。
+    pub async fn merge_leads(
+        &self,
+        master_lead_id: i32,
+        duplicate_lead_ids: Vec<i32>,
+        user_id: i32,
+    ) -> Result<MergeResult, AppError> {
+        let txn = self.db.begin().await?;
+
+        // 校验主线索存在
+        let master = crm_lead::Entity::find_by_id(master_lead_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("主线索不存在：{}", master_lead_id)))?;
+
+        let mut merged_count = 0i32;
+        let mut merged_lead_nos = Vec::new();
+
+        for dup_id in &duplicate_lead_ids {
+            if *dup_id == master_lead_id {
+                continue;
+            }
+            let dup_lead = crm_lead::Entity::find_by_id(*dup_id)
+                .lock_exclusive()
+                .one(&txn)
+                .await?;
+            if let Some(dup) = dup_lead {
+                let mut dup_active: crm_lead::ActiveModel = dup.into();
+                dup_active.lead_status = Set(Some("lost".to_string()));
+                dup_active.lost_reason = Set(Some(format!(
+                    "合并到主线索 {} ({})",
+                    master.lead_no, master_lead_id
+                )));
+                dup_active.updated_at = Set(Some(chrono::Utc::now()));
+                dup_active.updated_by = Set(Some(user_id));
+                let updated = dup_active.update(&txn).await?;
+                merged_lead_nos.push(updated.lead_no);
+                merged_count += 1;
+            }
+        }
+
+        txn.commit().await?;
+
+        Ok(MergeResult {
+            master_lead_id,
+            master_lead_no: master.lead_no.clone(),
+            merged_count,
+            merged_lead_nos,
+        })
+    }
+
+    /// V15 P1 18.1-D3：转化漏斗报表
+    ///
+    /// 统计线索→商机→客户→订单各阶段数量与转化率。
+    pub async fn lead_funnel_report(
+        &self,
+        start_date: Option<chrono::NaiveDate>,
+        end_date: Option<chrono::NaiveDate>,
+    ) -> Result<LeadFunnelReport, AppError> {
+        use crate::models::{crm_opportunity, sales_order};
+
+        // 线索总数
+        let mut lead_query = crm_lead::Entity::find();
+        if let Some(start) = start_date {
+            lead_query = lead_query.filter(crm_lead::Column::CreatedAt.gte(
+                chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
+                    start.and_hms_opt(0, 0, 0).unwrap_or_default(),
+                    chrono::Utc,
+                ),
+            ));
+        }
+        if let Some(end) = end_date {
+            lead_query = lead_query.filter(crm_lead::Column::CreatedAt.lte(
+                chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
+                    end.and_hms_opt(23, 59, 59).unwrap_or_default(),
+                    chrono::Utc,
+                ),
+            ));
+        }
+        let total_leads = lead_query.clone().count(&*self.db).await?;
+
+        // 已转化线索数
+        let converted_leads = lead_query
+            .filter(crm_lead::Column::LeadStatus.eq("converted"))
+            .count(&*self.db)
+            .await?;
+
+        // 商机总数
+        let mut opp_query = crm_opportunity::Entity::find();
+        if let Some(start) = start_date {
+            opp_query =
+                opp_query.filter(crm_opportunity::Column::CreatedAt.gte(chrono::DateTime::<
+                    chrono::Utc,
+                >::from_naive_utc_and_offset(
+                    start.and_hms_opt(0, 0, 0).unwrap_or_default(),
+                    chrono::Utc,
+                )));
+        }
+        if let Some(end) = end_date {
+            opp_query =
+                opp_query.filter(crm_opportunity::Column::CreatedAt.lte(chrono::DateTime::<
+                    chrono::Utc,
+                >::from_naive_utc_and_offset(
+                    end.and_hms_opt(23, 59, 59).unwrap_or_default(),
+                    chrono::Utc,
+                )));
+        }
+        let total_opportunities = opp_query.clone().count(&*self.db).await?;
+
+        // 已成交商机数
+        let won_opportunities = opp_query
+            .filter(crm_opportunity::Column::OpportunityStage.eq("CLOSED_WON"))
+            .count(&*self.db)
+            .await?;
+
+        // 客户总数
+        let mut cust_query = customer::Entity::find();
+        if let Some(start) = start_date {
+            cust_query = cust_query.filter(customer::Column::CreatedAt.gte(
+                chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
+                    start.and_hms_opt(0, 0, 0).unwrap_or_default(),
+                    chrono::Utc,
+                ),
+            ));
+        }
+        if let Some(end) = end_date {
+            cust_query = cust_query.filter(customer::Column::CreatedAt.lte(
+                chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
+                    end.and_hms_opt(23, 59, 59).unwrap_or_default(),
+                    chrono::Utc,
+                ),
+            ));
+        }
+        let total_customers = cust_query.count(&*self.db).await?;
+
+        // 订单总数
+        let mut order_query = sales_order::Entity::find();
+        if let Some(start) = start_date {
+            order_query =
+                order_query.filter(sales_order::Column::CreatedAt.gte(chrono::DateTime::<
+                    chrono::Utc,
+                >::from_naive_utc_and_offset(
+                    start.and_hms_opt(0, 0, 0).unwrap_or_default(),
+                    chrono::Utc,
+                )));
+        }
+        if let Some(end) = end_date {
+            order_query =
+                order_query.filter(sales_order::Column::CreatedAt.lte(chrono::DateTime::<
+                    chrono::Utc,
+                >::from_naive_utc_and_offset(
+                    end.and_hms_opt(23, 59, 59).unwrap_or_default(),
+                    chrono::Utc,
+                )));
+        }
+        let total_orders = order_query.count(&*self.db).await?;
+
+        // 计算转化率
+        let lead_to_opp_rate = if total_leads > 0 {
+            (total_opportunities as f64 / total_leads as f64) * 100.0
+        } else {
+            0.0
+        };
+        let opp_to_customer_rate = if total_opportunities > 0 {
+            (total_customers as f64 / total_opportunities as f64) * 100.0
+        } else {
+            0.0
+        };
+        let opp_to_order_rate = if total_opportunities > 0 {
+            (total_orders as f64 / total_opportunities as f64) * 100.0
+        } else {
+            0.0
+        };
+        let overall_conversion_rate = if total_leads > 0 {
+            (total_customers as f64 / total_leads as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        Ok(LeadFunnelReport {
+            total_leads: total_leads as i64,
+            converted_leads: converted_leads as i64,
+            total_opportunities: total_opportunities as i64,
+            won_opportunities: won_opportunities as i64,
+            total_customers: total_customers as i64,
+            total_orders: total_orders as i64,
+            lead_to_opp_rate,
+            opp_to_customer_rate,
+            opp_to_order_rate,
+            overall_conversion_rate,
+        })
+    }
+}
+
+/// V15 P1 18.1-D1：线索评分结果
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct LeadScoreResult {
+    pub lead_id: i32,
+    pub score: i32,
+    pub priority: String,
+    pub breakdown: serde_json::Value,
+}
+
+/// V15 P1 18.1-D2：重复线索组
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DuplicateLeadGroup {
+    pub match_key: String,
+    pub match_type: String,
+    pub lead_ids: Vec<i32>,
+    pub lead_nos: Vec<String>,
+    pub company_names: Vec<String>,
+    pub count: i32,
+}
+
+/// V15 P1 18.1-D2：合并结果
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct MergeResult {
+    pub master_lead_id: i32,
+    pub master_lead_no: String,
+    pub merged_count: i32,
+    pub merged_lead_nos: Vec<String>,
+}
+
+/// V15 P1 18.1-D3：线索转化漏斗报表
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct LeadFunnelReport {
+    pub total_leads: i64,
+    pub converted_leads: i64,
+    pub total_opportunities: i64,
+    pub won_opportunities: i64,
+    pub total_customers: i64,
+    pub total_orders: i64,
+    pub lead_to_opp_rate: f64,
+    pub opp_to_customer_rate: f64,
+    pub opp_to_order_rate: f64,
+    pub overall_conversion_rate: f64,
 }

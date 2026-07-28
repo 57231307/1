@@ -174,7 +174,12 @@ fn check_memory() -> HealthCheckItem {
     let used_ratio = used as f64 / total as f64;
     let used_mb = used / 1024 / 1024;
     let total_mb = total / 1024 / 1024;
-    let message = format!("内存使用 {}/{} MB ({:.0}%)", used_mb, total_mb, used_ratio * 100.0);
+    let message = format!(
+        "内存使用 {}/{} MB ({:.0}%)",
+        used_mb,
+        total_mb,
+        used_ratio * 100.0
+    );
 
     let status = if used_ratio > 0.90 {
         "unhealthy"
@@ -227,7 +232,9 @@ fn check_disk() -> HealthCheckItem {
     let total_gb = total / 1024 / 1024 / 1024;
     let message = format!(
         "磁盘使用 {}/{} GB ({:.0}%)",
-        used_gb, total_gb, used_ratio * 100.0
+        used_gb,
+        total_gb,
+        used_ratio * 100.0
     );
 
     let status = if used_ratio > 0.90 {

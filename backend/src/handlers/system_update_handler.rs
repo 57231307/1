@@ -13,18 +13,9 @@ use axum::{
 use std::path::PathBuf;
 use tokio::fs;
 
-/// P0 7-2 修复：要求调用者具备 admin 角色，否则拒绝并记录审计日志
-///
-/// 安全原因：原 `download_and_update`、`upload_and_update`、`rollback_version`、
-/// `apply_local_update` 四个 handler 完全未注入 `AuthContext`，仅靠全局
-/// `permission_middleware` 做 RBAC，缺少 handler 层深度防御。
-/// 系统更新属高危操作（涉及二进制替换、版本回滚，可导致 RCE），
-/// 必须在 handler 层显式校验 admin 角色，防止权限中间件被绕过或配置错误时
-/// 任意登录用户上传/应用恶意更新包。
-async fn require_admin_role(
-    state: &AppState,
-    auth: &AuthContext,
-) -> Result<(), AppError> {
+/// P0 7-2 修复：要求调用者具备 admin 角色，否则拒绝并记录审计日志。
+/// 系统更新属高危操作（二进制替换/版本回滚可致 RCE），需 handler 层显式校验防中间件被绕过。
+async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), AppError> {
     let role_id = auth
         .role_id
         .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行该操作"))?;
@@ -182,23 +173,41 @@ pub async fn get_update_status() -> Json<ApiResponse<UpdateStatusResponse>> {
 pub async fn upload_and_update(
     State(state): State<AppState>,
     auth: AuthContext,
-    mut multipart: Multipart,
+    multipart: Multipart,
 ) -> Result<Json<ApiResponse<UpdateResult>>, AppError> {
     // P0 7-2 修复：上传并应用更新包属高危操作（可导致 RCE），仅 admin 可执行
     require_admin_role(&state, &auth).await?;
 
-    let mut update_file_path: Option<PathBuf> = None;
+    let update_file = extract_update_file_from_multipart(multipart).await?;
 
+    let service = SystemUpdateService::new();
+    match service.apply_update(&update_file).await {
+        Ok(message) => {
+            let new_version = service.get_current_version();
+            Ok(Json(ApiResponse::success_with_message(
+                UpdateResult {
+                    success: true,
+                    message,
+                    new_version: Some(new_version),
+                },
+                "更新应用成功",
+            )))
+        }
+        Err(e) => Err(map_update_error(e)),
+    }
+}
+
+/// 从 multipart 中提取并保存 zip 更新包
+async fn extract_update_file_from_multipart(mut multipart: Multipart) -> Result<PathBuf, AppError> {
+    let mut update_file_path: Option<PathBuf> = None;
     const MAX_UPDATE_SIZE: usize = 100 * 1024 * 1024;
+    let temp_dir = std::env::temp_dir();
 
     while let Some(field) = multipart.next_field().await.unwrap_or(None) {
         let file_name = field.file_name().unwrap_or("update.zip").to_string();
-
         if file_name.ends_with(".zip") {
             let safe_filename = format!("update_{}.zip", uuid::Uuid::new_v4());
-            let temp_dir = std::env::temp_dir();
             let save_path = temp_dir.join(&safe_filename);
-
             let data = field
                 .bytes()
                 .await
@@ -222,64 +231,56 @@ pub async fn upload_and_update(
                 .map_err(|e| AppError::internal(format!("文件保存失败：{}", e)))?;
 
             // 路径遍历防护：验证保存路径在预期目录内
-            let canonical_save_path = save_path.canonicalize().map_err(|e| {
-                // L-5 修复（批次 375 v13 复审）：清理失败不再吞错，记录 warn 日志
-                if let Err(rm_err) = std::fs::remove_file(&save_path) {
-                    tracing::warn!(error = %rm_err, "清理已写入文件失败（可忽略）");
-                }
-                AppError::bad_request(format!("无效的文件路径：{}", e))
-            })?;
-
-            let canonical_temp_dir = temp_dir.canonicalize().map_err(|e| {
-                // L-5 修复（批次 375 v13 复审）：清理失败不再吞错，记录 warn 日志
-                if let Err(rm_err) = std::fs::remove_file(&save_path) {
-                    tracing::warn!(error = %rm_err, "清理已写入文件失败（可忽略）");
-                }
-                AppError::internal(format!("临时目录错误：{}", e))
-            })?;
-
-            if !canonical_save_path.starts_with(&canonical_temp_dir) {
-                // L-5 修复（批次 375 v13 复审）：清理失败不再吞错，记录 warn 日志
-                if let Err(rm_err) = std::fs::remove_file(&save_path) {
-                    tracing::warn!(error = %rm_err, "清理已写入文件失败（可忽略）");
-                }
-                return Err(AppError::bad_request("检测到路径遍历攻击".to_string()));
-            }
+            validate_zip_path_safety(&save_path, &temp_dir)?;
 
             update_file_path = Some(save_path);
         }
     }
 
-    let update_file =
-        update_file_path.ok_or_else(|| AppError::bad_request("未找到更新包文件".to_string()))?;
+    update_file_path.ok_or_else(|| AppError::bad_request("未找到更新包文件".to_string()))
+}
 
-    let service = SystemUpdateService::new();
+/// 校验保存路径在临时目录内，防止路径遍历
+fn validate_zip_path_safety(
+    save_path: &PathBuf,
+    temp_dir: &std::path::Path,
+) -> Result<(), AppError> {
+    let canonical_save_path = save_path.canonicalize().map_err(|e| {
+        cleanup_file(save_path);
+        AppError::bad_request(format!("无效的文件路径：{}", e))
+    })?;
 
-    match service.apply_update(&update_file).await {
-        Ok(message) => {
-            let new_version = service.get_current_version();
-            Ok(Json(ApiResponse::success_with_message(
-                UpdateResult {
-                    success: true,
-                    message,
-                    new_version: Some(new_version),
-                },
-                "更新应用成功",
-            )))
+    let canonical_temp_dir = temp_dir.canonicalize().map_err(|e| {
+        cleanup_file(save_path);
+        AppError::internal(format!("临时目录错误：{}", e))
+    })?;
+
+    if !canonical_save_path.starts_with(&canonical_temp_dir) {
+        cleanup_file(save_path);
+        return Err(AppError::bad_request("检测到路径遍历攻击".to_string()));
+    }
+    Ok(())
+}
+
+/// 清理已写入的临时文件（失败可忽略）
+fn cleanup_file(path: &PathBuf) {
+    if let Err(rm_err) = std::fs::remove_file(path) {
+        tracing::warn!(error = %rm_err, "清理已写入文件失败（可忽略）");
+    }
+}
+
+/// 将 UpdateError 映射为 AppError
+fn map_update_error(e: UpdateError) -> AppError {
+    let message = e.to_string();
+    match e {
+        UpdateError::IoError(_)
+        | UpdateError::UnzipError(_)
+        | UpdateError::BackupError(_)
+        | UpdateError::NetworkError(_) => AppError::internal(message),
+        UpdateError::ValidationError(_) | UpdateError::VersionError(_) => {
+            AppError::bad_request(message)
         }
-        Err(e) => {
-            let message = e.to_string();
-            Err(match e {
-                UpdateError::IoError(_)
-                | UpdateError::UnzipError(_)
-                | UpdateError::BackupError(_)
-                | UpdateError::NetworkError(_) => AppError::internal(message),
-                UpdateError::ValidationError(_) | UpdateError::VersionError(_) => {
-                    AppError::bad_request(message)
-                }
-                UpdateError::AlreadyUpdating => AppError::business(message),
-            })
-        }
+        UpdateError::AlreadyUpdating => AppError::business(message),
     }
 }
 
@@ -422,27 +423,21 @@ mod tests {
 
     use super::*;
 
-    /// 测试_verify_zip_magic合法ZIP
-    ///
-    /// 场景：以 PK\x03\x04 开头的合法 ZIP 数据应返回 true
+    /// 测试_verify_zip_magic合法ZIP：PK\x03\x04 开头应返回 true。
     #[test]
     fn 测试_verify_zip_magic合法ZIP() {
         let data = [0x50, 0x4B, 0x03, 0x04, 0x00, 0x00];
         assert!(verify_zip_magic(&data), "合法 ZIP 头应返回 true");
     }
 
-    /// 测试_verify_zip_magic空数据
-    ///
-    /// 场景：空切片应返回 false（无法匹配 4 字节前缀）
+    /// 测试_verify_zip_magic空数据：空切片应返回 false（无法匹配 4 字节前缀）。
     #[test]
     fn 测试_verify_zip_magic空数据() {
         let data: [u8; 0] = [];
         assert!(!verify_zip_magic(&data), "空数据应返回 false");
     }
 
-    /// 测试_verify_zip_magic非ZIP文件
-    ///
-    /// 场景：JPEG 文件头 [FF D8 FF E0] 应返回 false
+    /// 测试_verify_zip_magic非ZIP文件：JPEG/PNG 文件头应返回 false。
     #[test]
     fn 测试_verify_zip_magic非ZIP文件() {
         let jpeg_header = [0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x00];
@@ -453,9 +448,7 @@ mod tests {
         assert!(!verify_zip_magic(&png_header), "PNG 头应返回 false");
     }
 
-    /// 测试_verify_zip_magic部分匹配
-    ///
-    /// 场景：仅前 3 字节匹配（缺第 4 字节 0x04）应返回 false
+    /// 测试_verify_zip_magic部分匹配：仅前 3 字节匹配或不足 4 字节应返回 false。
     #[test]
     fn 测试_verify_zip_magic部分匹配() {
         let partial = [0x50, 0x4B, 0x03, 0x00]; // 第 4 字节不匹配
@@ -465,18 +458,17 @@ mod tests {
         assert!(!verify_zip_magic(&partial2), "仅 3 字节应返回 false");
     }
 
-    /// 测试_verify_zip_magic恰好4字节
-    ///
-    /// 场景：恰好 4 字节 [0x50, 0x4B, 0x03, 0x04] 应返回 true
+    /// 测试_verify_zip_magic恰好4字节：[0x50, 0x4B, 0x03, 0x04] 应返回 true。
     #[test]
     fn 测试_verify_zip_magic恰好4字节() {
         let exact = [0x50, 0x4B, 0x03, 0x04];
-        assert!(verify_zip_magic(&exact), "恰好 4 字节合法 ZIP 头应返回 true");
+        assert!(
+            verify_zip_magic(&exact),
+            "恰好 4 字节合法 ZIP 头应返回 true"
+        );
     }
 
-    /// 测试_VersionResponse和UpdateResult构造
-    ///
-    /// 验证 VersionResponse 和 UpdateResult 结构体能正确构造并设置字段
+    /// 测试_VersionResponse和UpdateResult构造：验证结构体能正确构造并设置字段。
     #[test]
     fn 测试_VersionResponse和UpdateResult构造() {
         // VersionResponse 构造

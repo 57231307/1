@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 坏账准备计提 Model（V15 P0-B01 Batch 481 创建）
 //!
 //! 表 bad_debt_provisions：按客户+期间+账龄桶记录坏账准备计提与转回

@@ -5,10 +5,11 @@
  * 行为完全保持一致（仅结构重构）
  * 批次 281：接入 useTableApi，移除手写 logs/logTotal/logLoading/logQuery + fetchLogs
  */
-import { ref, reactive } from 'vue'
-import { ElMessage } from 'element-plus'
-import { type ApiLog } from '@/api/api-gateway'
-import { useTableApi } from '@/composables/useTableApi'
+import { ref, reactive } from 'vue';
+import { ElMessage } from 'element-plus';
+import { msg } from '@/utils/message';
+import { type ApiLog } from '@/api/api-gateway';
+import { useTableApi } from '@/composables/useTableApi';
 
 /**
  * 调用日志 composable
@@ -26,16 +27,18 @@ export function useApiLog() {
   } = useTableApi<ApiLog>({
     url: '/api-gateway/logs',
     onError: (err: unknown) =>
-      ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取日志失败'),
-  })
+      ElMessage.error(
+        (err instanceof Error ? err.message : String(err)) || msg.translate('loadApiLogFailed')
+      ),
+  });
 
-  const logDetailVisible = ref(false)
-  const currentLog = ref<ApiLog | null>(null)
+  const logDetailVisible = ref(false);
+  const currentLog = ref<ApiLog | null>(null);
 
   const viewLogDetail = (row: ApiLog) => {
-    currentLog.value = row
-    logDetailVisible.value = true
-  }
+    currentLog.value = row;
+    logDetailVisible.value = true;
+  };
 
   // 批次 281：reactive 包装返回值，ref 自动解包，父组件无需 .value
   // logQuery 是 ref<Record>，reactive 解包后为 reactive 对象，子组件可直接 Object.assign 修改属性
@@ -58,5 +61,5 @@ export function useApiLog() {
     logDetailVisible,
     currentLog,
     viewLogDetail,
-  })
+  });
 }

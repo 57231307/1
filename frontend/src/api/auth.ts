@@ -1,14 +1,14 @@
-import { request } from './request'
-import type { ApiResponse, LoginRequest, LoginResponse, UserInfo } from '@/types/api'
+import { request } from './request';
+import type { ApiResponse, LoginRequest, LoginResponse, UserInfo } from '@/types/api';
 // Wave B-3：CSRF Token 由后端写入非 httpOnly Cookie，前端从 document.cookie 读取
 // 这里重新导出 storage.ts 中的工具，保留外部调用方（request.ts / user.ts）的 API 一致性
-export { loadCsrfToken, clearCsrfToken } from '@/utils/storage'
+export { loadCsrfToken, clearCsrfToken } from '@/utils/storage';
 
 /**
  * 登录响应扩展：包含后端返回的 CSRF Token（保留向后兼容）
  * 注意：新版流程下，csrf_token 也通过 Set-Cookie 头写入，前端只读取不存 localStorage
  */
-type LoginResponseWithCsrf = LoginResponse & { csrf_token?: string }
+type LoginResponseWithCsrf = LoginResponse & { csrf_token?: string };
 
 /**
  * 刷新 Token 响应：批次 29 v7 P0-2 修复，对齐后端 RefreshTokenResponse
@@ -16,22 +16,22 @@ type LoginResponseWithCsrf = LoginResponse & { csrf_token?: string }
  * - 仅返回 csrf_token（前端读取用于后续请求头）和 expires_in（用于过期前预刷新）
  */
 interface RefreshTokenResponse {
-  csrf_token?: string
-  expires_in?: number
+  csrf_token?: string;
+  expires_in?: number;
 }
 
 export async function login(data: LoginRequest): Promise<LoginResponse> {
-  const res = await request.post<LoginResponseWithCsrf>('/auth/login', data)
+  const res = await request.post<LoginResponseWithCsrf>('/auth/login', data);
   // Wave B-3：不再写 localStorage。Cookie 由后端 Set-Cookie 自动写入。
   // 转换为标准 LoginResponse（去除 csrf_token 字段）
-  const { csrf_token: _csrf, ...payload } = res
-  void _csrf
-  return payload
+  const { csrf_token: _csrf, ...payload } = res;
+  void _csrf;
+  return payload;
 }
 
 export function logout(): Promise<void> {
   // Wave B-3：登出由后端通过 Set-Cookie + max-age=0 清除所有登录态 Cookie
-  return request.post<void>('/auth/logout')
+  return request.post<void>('/auth/logout');
 }
 
 /**
@@ -43,14 +43,16 @@ export function logout(): Promise<void> {
  * 批次 29 v7 P0-2 修复：返回类型移除 token 字段，对齐后端 RefreshTokenResponse。
  * access_token 通过 httpOnly Cookie 传递，前端不可读也不应读。
  */
-export async function refreshToken(_refreshToken: string): Promise<{ csrf_token?: string; expires_in?: number }> {
-  const res = await request.post<RefreshTokenResponse>('/auth/refresh', {})
+export async function refreshToken(
+  _refreshToken: string
+): Promise<{ csrf_token?: string; expires_in?: number }> {
+  const res = await request.post<RefreshTokenResponse>('/auth/refresh', {});
   // Cookie 已由后端 Set-Cookie 写入，前端无需再保存
-  return res
+  return res;
 }
 
 export function getUserInfo(): Promise<UserInfo> {
-  return request.get<UserInfo>('/auth/me')
+  return request.get<UserInfo>('/auth/me');
 }
 
 /**
@@ -58,8 +60,8 @@ export function getUserInfo(): Promise<UserInfo> {
  * 后端使用 totp_rs 的 get_qr_base64() 直接产出 PNG，前端无需引入 qrcode npm 包
  */
 export interface TotpSetupResponse {
-  secret: string
-  qr_code: string
+  secret: string;
+  qr_code: string;
 }
 
 /**
@@ -68,7 +70,7 @@ export interface TotpSetupResponse {
  * 返回后端生成的密钥 + base64 QR 码图片
  */
 export function setupTotp(): Promise<ApiResponse<TotpSetupResponse>> {
-  return request.get<ApiResponse<TotpSetupResponse>>('/auth/totp/setup')
+  return request.get<ApiResponse<TotpSetupResponse>>('/auth/totp/setup');
 }
 
 /**
@@ -77,7 +79,7 @@ export function setupTotp(): Promise<ApiResponse<TotpSetupResponse>> {
  * 后端：验证通过则将 is_totp_enabled 置为 true
  */
 export function enableTotp(token: string): Promise<ApiResponse<boolean>> {
-  return request.post<ApiResponse<boolean>>('/auth/totp/enable', { token })
+  return request.post<ApiResponse<boolean>>('/auth/totp/enable', { token });
 }
 
 /**
@@ -89,5 +91,5 @@ export function enableTotp(token: string): Promise<ApiResponse<boolean>> {
  * 返回字符串数组，前端仅负责展示与提示用户保存。
  */
 export function generateRecoveryCodes(): Promise<ApiResponse<string[]>> {
-  return request.post<ApiResponse<string[]>>('/auth/totp/recovery-codes', {})
+  return request.post<ApiResponse<string[]>>('/auth/totp/recovery-codes', {});
 }

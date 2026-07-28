@@ -4,9 +4,10 @@
  * 提供排产自动排程的执行 + 冲突展示流程
  * 行为完全保持一致（仅结构重构）
  */
-import { reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
-import { autoSchedule, type SchedulingParams, type ConflictItem } from '@/api/scheduling'
+import { reactive, ref } from 'vue';
+import { ElMessage } from 'element-plus';
+import { msg } from '@/utils/message';
+import { autoSchedule, type SchedulingParams, type ConflictItem } from '@/api/scheduling';
 
 // v11 批次 181 P2-1 修复：定义 deps 类型替代 any
 // 注：useSchG 返回 reactive 对象，字段会被自动解包
@@ -14,11 +15,11 @@ import { autoSchedule, type SchedulingParams, type ConflictItem } from '@/api/sc
 // - 需要重新赋值的字段（conflictList, conflictDialogVisible, autoScheduleDialogVisible）
 //   使用 setter 函数，确保修改反映到原 reactive 对象
 interface SchGDeps {
-  fetchGanttData: () => Promise<void>
-  scheduleForm: SchedulingParams
-  setAutoScheduleDialogVisible: (v: boolean) => void
-  setConflictList: (v: ConflictItem[]) => void
-  setConflictDialogVisible: (v: boolean) => void
+  fetchGanttData: () => Promise<void>;
+  scheduleForm: SchedulingParams;
+  setAutoScheduleDialogVisible: (v: boolean) => void;
+  setConflictList: (v: ConflictItem[]) => void;
+  setConflictDialogVisible: (v: boolean) => void;
 }
 
 /**
@@ -27,38 +28,39 @@ interface SchGDeps {
  */
 export function useSchGProc(deps: SchGDeps) {
   // 自动排程进行中
-  const scheduling = ref(false)
+  const scheduling = ref(false);
 
   /** 确认执行自动排程 */
   const confirmAutoSchedule = async () => {
-    scheduling.value = true
+    scheduling.value = true;
     try {
-      const res = await autoSchedule(deps.scheduleForm)
-      const result = res.data
+      const res = await autoSchedule(deps.scheduleForm);
+      const result = res.data;
       // 安全检查：防止后端返回 data 为 null 时崩溃
-      if (!result) return
-      ElMessage.success(
-        `排程完成: ${result.scheduled_count} 个任务已排程, ${result.conflict_count} 个冲突`
-      )
+      if (!result) return;
+      msg.success('scheduleComplete', {
+        scheduledCount: result.scheduled_count,
+        conflictCount: result.conflict_count,
+      });
       // v11 批次 181 P2-1 修复：使用 setter 函数正确更新 reactive 对象的字段
-      deps.setAutoScheduleDialogVisible(false)
+      deps.setAutoScheduleDialogVisible(false);
       if (result.conflict_count > 0) {
-        deps.setConflictList(result.conflicts)
-        deps.setConflictDialogVisible(true)
+        deps.setConflictList(result.conflicts);
+        deps.setConflictDialogVisible(true);
       }
-      await deps.fetchGanttData()
+      await deps.fetchGanttData();
     } catch (error: unknown) {
       // v11 批次 181 P2-1 修复：catch (error: any) 改为 catch (error: unknown) + 类型守卫
-      const errMsg = error instanceof Error ? error.message : String(error)
-      ElMessage.error(errMsg || '自动排程失败')
+      const errMsg = error instanceof Error ? error.message : String(error);
+      ElMessage.error(errMsg || msg.translate('autoScheduleFailed'));
     } finally {
-      scheduling.value = false
+      scheduling.value = false;
     }
-  }
+  };
 
   // 使用 reactive 包装
   return reactive({
     scheduling,
     confirmAutoSchedule,
-  })
+  });
 }

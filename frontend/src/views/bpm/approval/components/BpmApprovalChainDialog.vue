@@ -23,8 +23,12 @@
               {{ $t('bpm.approval.chainDialog.approver') }}：{{ node.approver_name }}
             </div>
             <div v-if="node.approved_at" class="node-time">{{ node.approved_at }}</div>
-            <div v-if="node.comment" class="node-comment">{{ $t('bpm.approval.chainDialog.comment') }}：{{ node.comment }}</div>
-            <div v-if="node.duration" class="node-duration">{{ $t('bpm.approval.chainDialog.durationText', { minutes: node.duration }) }}</div>
+            <div v-if="node.comment" class="node-comment">
+              {{ $t('bpm.approval.chainDialog.comment') }}：{{ node.comment }}
+            </div>
+            <div v-if="node.duration" class="node-duration">
+              {{ $t('bpm.approval.chainDialog.durationText', { minutes: node.duration }) }}
+            </div>
           </div>
         </div>
         <div v-if="index < chain.length - 1" class="chain-arrow">
@@ -37,29 +41,29 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import { ArrowDown } from '@element-plus/icons-vue'
-import type { ApprovalChainNode } from '@/api/bpm-enhanced'
-import { getNodeStatusClass } from '../composables/bpmApFmts'
+import { useI18n } from 'vue-i18n';
+import { ArrowDown } from '@element-plus/icons-vue';
+import type { ApprovalChainNode } from '@/api/bpm-enhanced';
+import { getNodeStatusClass } from '../composables/bpmApFmts';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 /**
  * 审批链对话框组件
  */
 defineProps<{
   // 对话框可见性
-  visible: boolean
+  visible: boolean;
   // 审批链节点列表
-  chain: ApprovalChainNode[]
-}>()
+  chain: ApprovalChainNode[];
+}>();
 
 const emit = defineEmits<{
-  'update:visible': [v: boolean]
-}>()
+  'update:visible': [v: boolean];
+}>();
 
 // 透传格式化函数
-const getNodeStatusClassFmt = getNodeStatusClass
+const getNodeStatusClassFmt = getNodeStatusClass;
 
 // 节点类型名称（响应式求值，随语言切换更新）
 const getNodeTypeNameFmt = (type: string) => {
@@ -69,9 +73,9 @@ const getNodeTypeNameFmt = (type: string) => {
     approval: t('bpm.nodeType.approval'),
     condition: t('bpm.nodeType.condition'),
     notify: t('bpm.nodeType.notify'),
-  }
-  return map[type] || type
-}
+  };
+  return map[type] || type;
+};
 </script>
 
 <style scoped>

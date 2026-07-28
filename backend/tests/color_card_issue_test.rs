@@ -21,11 +21,23 @@ mod tests {
 
     #[test]
     fn test_issue_status_from_str() {
-        assert_eq!(IssueStatus::from_str("issued").unwrap(), IssueStatus::Issued);
-        assert_eq!(IssueStatus::from_str("returned").unwrap(), IssueStatus::Returned);
+        assert_eq!(
+            IssueStatus::from_str("issued").unwrap(),
+            IssueStatus::Issued
+        );
+        assert_eq!(
+            IssueStatus::from_str("returned").unwrap(),
+            IssueStatus::Returned
+        );
         assert_eq!(IssueStatus::from_str("lost").unwrap(), IssueStatus::Lost);
-        assert_eq!(IssueStatus::from_str("damaged").unwrap(), IssueStatus::Damaged);
-        assert_eq!(IssueStatus::from_str("cancelled").unwrap(), IssueStatus::Cancelled);
+        assert_eq!(
+            IssueStatus::from_str("damaged").unwrap(),
+            IssueStatus::Damaged
+        );
+        assert_eq!(
+            IssueStatus::from_str("cancelled").unwrap(),
+            IssueStatus::Cancelled
+        );
         assert!(IssueStatus::from_str("invalid").is_err());
     }
 

@@ -60,7 +60,8 @@ impl FinanceInvoiceService {
         if let (Some(ctx), Some(inv)) = (data_scope, &invoice) {
             if !check_resource_owner(ctx, inv.created_by, None) {
                 return Err(AppError::permission_denied(format!(
-                    "无权访问发票 {}（数据范围限制）", id
+                    "无权访问发票 {}（数据范围限制）",
+                    id
                 )));
             }
         }
@@ -126,10 +127,12 @@ impl FinanceInvoiceService {
     pub async fn delete_invoice(&self, id: i32, user_id: i32) -> Result<(), AppError> {
         // P0 8-3 修复：delete 操作补审计日志
         // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
-        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
-            FinanceInvoice,
-            _,
-        >(self.db.as_ref(), "finance_invoice", id, Some(user_id))
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<FinanceInvoice, _>(
+            self.db.as_ref(),
+            "finance_invoice",
+            id,
+            Some(user_id),
+        )
         .await
     }
 

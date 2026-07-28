@@ -18,7 +18,7 @@
 # 认证方式优先级：BINGXI_SSH_KEY（密钥，推荐）> BINGXI_SSH_PASS（密码，过渡回退）
 # ==============================================================================
 
-set -e
+set -euo pipefail
 
 # 批次 24 v6 P0-1 修复：移除硬编码生产服务器 IP 默认值。
 # 原默认值 111.230.99.236 暴露了真实生产 IP，攻击者扫描 GitHub 即可获取。
@@ -156,7 +156,7 @@ deploy_remote() {
 
         # 创建目录
         mkdir -p /opt/bingxi-erp/backend
-        mkdir -p /opt/bingxi/frontend/dist
+        mkdir -p /opt/bingxi-erp/frontend/dist
         mkdir -p /etc/bingxi
 
         # 创建系统用户和组（修复 bingxi 用户不存在导致服务无法启动）
@@ -250,9 +250,9 @@ deploy_remote() {
         chmod +x /opt/bingxi-erp/backend/server /opt/bingxi-erp/backend/bingxi 2>/dev/null || true
 
         # 部署前端
-        rm -rf /opt/bingxi/frontend/dist/*
-        cp -r /tmp/bingxi-deploy/frontend/dist/* /opt/bingxi/frontend/dist/
-        chown -R www-data:www-data /opt/bingxi/frontend/dist
+        rm -rf /opt/bingxi-erp/frontend/dist/*
+        cp -r /tmp/bingxi-deploy/frontend/dist/* /opt/bingxi-erp/frontend/dist/
+        chown -R www-data:www-data /opt/bingxi-erp/frontend/dist
 
         # 生成 config.yaml (关键修复)
         # 批次 401 优化：密钥已在前面自动生成并 source 到环境变量，

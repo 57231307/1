@@ -112,8 +112,12 @@ impl OmniAuditEngine {
                 // 批次 7（2026-06-28）：单次消息处理 panic 隔离，确保单次 panic 不退出循环
                 // 防御性 catch_unwind：避免调用链路未来 panic 导致整个审计引擎 spawn 死亡
                 let result = AssertUnwindSafe(async {
-                    Self::process_single_message(db_clone.as_ref(), secret_key_clone.as_bytes(), msg)
-                        .await;
+                    Self::process_single_message(
+                        db_clone.as_ref(),
+                        secret_key_clone.as_bytes(),
+                        msg,
+                    )
+                    .await;
                 })
                 .catch_unwind()
                 .await;

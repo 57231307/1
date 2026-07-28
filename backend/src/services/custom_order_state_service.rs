@@ -5,7 +5,10 @@
 //! 创建时间: 2026-06-17
 
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set, TransactionTrait,
+};
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -77,10 +80,14 @@ impl CustomOrderStateService {
 
         self.validate_gate_before_advance(&order, next).await?;
 
-        let updated = self.update_order_status(&order, next, next_str.clone()).await?;
+        let updated = self
+            .update_order_status(&order, next, next_str.clone())
+            .await?;
 
-        self.complete_current_node(order_id, operator_id, notes.clone()).await?;
-        self.start_next_node(order_id, operator_id, &next_str).await?;
+        self.complete_current_node(order_id, operator_id, notes.clone())
+            .await?;
+        self.start_next_node(order_id, operator_id, &next_str)
+            .await?;
 
         Ok(updated)
     }
@@ -123,7 +130,10 @@ impl CustomOrderStateService {
         Ok(())
     }
 
-    async fn validate_yarn_purchasing_gate(&self, order: &custom_order::Model) -> Result<(), StateError> {
+    async fn validate_yarn_purchasing_gate(
+        &self,
+        order: &custom_order::Model,
+    ) -> Result<(), StateError> {
         let quotation_id = order.quotation_id.ok_or_else(|| {
             StateError::GateValidation(
                 "推进到生产阶段前必须关联报价单（quotation_id 不能为空）".to_string(),
@@ -183,7 +193,10 @@ impl CustomOrderStateService {
             n_active.status = Set(node_status::COMPLETED.to_string());
             n_active.actual_end_date = Set(Some(Utc::now()));
             n_active.updated_at = Set(Utc::now());
-            n_active.update(&*self.db).await.map_err(StateError::Database)?;
+            n_active
+                .update(&*self.db)
+                .await
+                .map_err(StateError::Database)?;
 
             let log = LogActive {
                 id: Default::default(),
@@ -220,7 +233,10 @@ impl CustomOrderStateService {
             n_active.actual_start_date = Set(Some(Utc::now()));
             n_active.operator_id = Set(Some(operator_id));
             n_active.updated_at = Set(Utc::now());
-            n_active.update(&*self.db).await.map_err(StateError::Database)?;
+            n_active
+                .update(&*self.db)
+                .await
+                .map_err(StateError::Database)?;
         }
 
         Ok(())
@@ -283,10 +299,7 @@ impl CustomOrderStateService {
     }
 
     /// 列出指定订单的工艺日志
-    pub async fn list_logs(
-        &self,
-        order_id: i64,
-    ) -> Result<Vec<process_log::Model>, StateError> {
+    pub async fn list_logs(&self, order_id: i64) -> Result<Vec<process_log::Model>, StateError> {
         // 获取所有节点
         let nodes = NodeEntity::find()
             .filter(process_node::Column::CustomOrderId.eq(order_id))

@@ -13,9 +13,7 @@ use crate::models::bom_item::{Entity as BomItemEntity, Model as BomItemModel};
 use crate::models::status::common;
 use crate::utils::error::AppError;
 
-use super::types::{
-    ExplodeBomArgs, MaterialRequirement, MrpExplodeQuery, RequirementCalcParams,
-};
+use super::types::{ExplodeBomArgs, MaterialRequirement, MrpExplodeQuery, RequirementCalcParams};
 use crate::services::mrp_engine_service::MrpEngineService;
 
 impl MrpEngineService {
@@ -39,9 +37,8 @@ impl MrpEngineService {
         // 损耗率>0时按 (1 + scrap/100) 放大数量，保留4位精度
         if let Some(scrap_rate) = scrap_rate {
             if scrap_rate > Decimal::ZERO {
-                return (base_quantity
-                    * (Decimal::ONE + (scrap_rate / Decimal::from(100))))
-                .round_dp(4);
+                return (base_quantity * (Decimal::ONE + (scrap_rate / Decimal::from(100))))
+                    .round_dp(4);
             }
         }
         base_quantity
@@ -57,14 +54,16 @@ impl MrpEngineService {
         &self,
         item: BomItemModel,
         args: &ExplodeBomArgs<'_>,
-        stock_cache: &mut std::collections::HashMap<i32, crate::services::mrp_engine_ops::types::StockInfo>,
+        stock_cache: &mut std::collections::HashMap<
+            i32,
+            crate::services::mrp_engine_ops::types::StockInfo,
+        >,
     ) -> Result<Option<MaterialRequirement>, AppError> {
         // 批次 97 P1-11 修复（v5 复审）：数量计算补 round_dp(4) 防止精度漂移
         let base_quantity = (args.parent_quantity * item.quantity).round_dp(4);
         let quantity_with_scrap =
             Self::calculate_quantity_with_scrap(base_quantity, item.scrap_rate);
-        let material_date =
-            Self::calculate_material_date(args.required_date, args.current_level);
+        let material_date = Self::calculate_material_date(args.required_date, args.current_level);
 
         // v16 批次 43 修复：使用缓存查询库存，避免递归中重复查询
         let stock_info = self
@@ -97,7 +96,10 @@ impl MrpEngineService {
         args: ExplodeBomArgs<'_>,
         results: &mut Vec<MaterialRequirement>,
         // v16 批次 43 修复：传入共享库存缓存，避免递归中重复查询同一产品的库存
-        stock_cache: &mut std::collections::HashMap<i32, crate::services::mrp_engine_ops::types::StockInfo>,
+        stock_cache: &mut std::collections::HashMap<
+            i32,
+            crate::services::mrp_engine_ops::types::StockInfo,
+        >,
     ) -> Result<(), AppError> {
         if args.current_level > args.max_level {
             return Ok(());
@@ -155,8 +157,10 @@ impl MrpEngineService {
         let mut requirements = Vec::new();
 
         // v16 批次 43 修复：创建库存缓存，递归展开 BOM 时共享缓存避免重复查询
-        let mut stock_cache: std::collections::HashMap<i32, crate::services::mrp_engine_ops::types::StockInfo> =
-            std::collections::HashMap::new();
+        let mut stock_cache: std::collections::HashMap<
+            i32,
+            crate::services::mrp_engine_ops::types::StockInfo,
+        > = std::collections::HashMap::new();
 
         self.explode_bom_recursive(
             ExplodeBomArgs {

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 催收任务 Model（V15 P0-B03 Batch 481 创建）
 //!
 //! 表 collection_tasks：按账龄自动生成催收任务，分配销售员，记录催收结果

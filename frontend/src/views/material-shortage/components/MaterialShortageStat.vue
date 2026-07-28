@@ -61,19 +61,19 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import { Warning, CircleClose, WarningFilled, Clock } from '@element-plus/icons-vue'
-import type { MaterialShortageSummary } from '@/api/material-shortage'
+import { useI18n } from 'vue-i18n';
+import { Warning, CircleClose, WarningFilled, Clock } from '@element-plus/icons-vue';
+import type { MaterialShortageSummary } from '@/api/material-shortage';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 /**
  * 统计卡片组件
  */
 defineProps<{
   // 汇总数据
-  summary: MaterialShortageSummary
-}>()
+  summary: MaterialShortageSummary;
+}>();
 </script>
 
 <style scoped>

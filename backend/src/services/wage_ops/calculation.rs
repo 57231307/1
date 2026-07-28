@@ -34,8 +34,8 @@ use crate::utils::error::AppError;
 
 // 复用 facade 的纯函数（保持单一来源，避免逻辑重复）
 use crate::services::wage_service::{
-    calculate_wage_for_step, compute_qualification_rate, naive_date_to_date_time_tz,
-    naive_date_to_end_of_day_tz, parse_worker_ids, parse_worker_names,
+    calculate_overtime_pay, calculate_wage_for_step, compute_qualification_rate,
+    naive_date_to_date_time_tz, naive_date_to_end_of_day_tz, parse_worker_ids, parse_worker_names,
     split_wage_among_workers, CalculateWageRequest, WageCalculationService,
 };
 
@@ -56,6 +56,8 @@ struct StepWageComputed {
     piece_wage: Decimal,
     time_wage: Decimal,
     wage_amount: Decimal,
+    /// V15 P1-08-22 加班费（《劳动法》第 44 条）
+    overtime_pay: Decimal,
 }
 
 /// 工人工资明细创建上下文：封装 step/rate/computed 等参数消除 too_many_arguments 警告
@@ -116,10 +118,7 @@ impl WageCalculationService {
     }
 
     /// 加载工资记录并校验：仅 draft 状态可计算
-    async fn validate_wage_record(
-        &self,
-        wage_record_id: i32,
-    ) -> Result<RecordModel, AppError> {
+    async fn validate_wage_record(&self, wage_record_id: i32) -> Result<RecordModel, AppError> {
         let record = RecordEntity::find_by_id(wage_record_id)
             .filter(wage_record::Column::IsDeleted.eq(false))
             .one(&*self.db)
@@ -244,12 +243,23 @@ impl WageCalculationService {
             step.qualified_quantity,
             step.duration_minutes,
         );
+
+        // V15 P1-08-22 加班费计算（《劳动法》第 44 条）
+        // 当前 process_step_record 未记录加班工时（overtime 字段待后续批次扩展），
+        // 此处加班工时默认为 0，加班费为 0。calculate_overtime_pay 函数已就绪，
+        // 当 process_step_record 增加加班工时字段后可直接接入。
+        let overtime_pay = calculate_overtime_pay(rate, grade_ratio, 0, 0, 0);
+
+        // 应得工资 = 计件工资 + 计时工资 + 加班费
+        let wage_amount_with_overtime = wage_amount + overtime_pay;
+
         let computed = StepWageComputed {
             grade,
             grade_ratio,
             piece_wage,
             time_wage,
-            wage_amount,
+            wage_amount: wage_amount_with_overtime,
+            overtime_pay,
         };
 
         // 4. 按工人 IDs 分配工资（多人共同完成时按人均分配）
@@ -284,9 +294,14 @@ impl WageCalculationService {
         let per_worker_piece = split_wage_among_workers(ctx.computed.piece_wage, worker_count);
         let per_worker_time = split_wage_among_workers(ctx.computed.time_wage, worker_count);
         let per_worker_amount = split_wage_among_workers(ctx.computed.wage_amount, worker_count);
+        let per_worker_overtime_pay =
+            split_wage_among_workers(ctx.computed.overtime_pay, worker_count);
 
         for (idx, &worker_id) in ctx.worker_ids.iter().enumerate() {
             let worker_name = ctx.worker_names.get(idx).cloned();
+
+            // V15 P1-08-22 加班工时按人均分配（当前 process_step_record 未记录加班工时，默认 0）
+            let per_worker_duration = ctx.step.duration_minutes.unwrap_or(0) / worker_count as i32;
 
             let detail = DetailActiveModel {
                 id: Default::default(),
@@ -304,8 +319,9 @@ impl WageCalculationService {
                 equipment_name: Set(ctx.step.equipment_name.clone()),
                 wage_type: Set(ctx.rate.wage_type.clone()),
                 grade: Set(ctx.computed.grade.clone()),
-                actual_quantity: Set(ctx.step.actual_quantity.unwrap_or(Decimal::ZERO)
-                    / Decimal::from(worker_count)),
+                actual_quantity: Set(
+                    ctx.step.actual_quantity.unwrap_or(Decimal::ZERO) / Decimal::from(worker_count)
+                ),
                 qualified_quantity: Set(ctx.step.qualified_quantity.unwrap_or(Decimal::ZERO)
                     / Decimal::from(worker_count)),
                 qualification_rate: Set(compute_qualification_rate(
@@ -315,7 +331,13 @@ impl WageCalculationService {
                 piece_price: Set(ctx.rate.piece_price),
                 time_price: Set(ctx.rate.time_price),
                 grade_ratio: Set(ctx.computed.grade_ratio),
-                duration_minutes: Set(ctx.step.duration_minutes.unwrap_or(0) / worker_count as i32),
+                duration_minutes: Set(per_worker_duration),
+                // V15 P1-08-22 加班合规字段（《劳动法》第 44 条）
+                // 当前 process_step_record 未记录加班工时，默认 0；待后续批次扩展后接入真实数据
+                weekday_overtime_minutes: Set(0),
+                weekend_overtime_minutes: Set(0),
+                holiday_overtime_minutes: Set(0),
+                overtime_pay: Set(per_worker_overtime_pay),
                 piece_wage: Set(per_worker_piece),
                 time_wage: Set(per_worker_time),
                 wage_amount: Set(per_worker_amount),
@@ -327,9 +349,10 @@ impl WageCalculationService {
             detail.insert(&*self.db).await?;
             totals.detail_count += 1;
             totals.total_amount += per_worker_amount;
-            totals.total_qualified += ctx.step.qualified_quantity.unwrap_or(Decimal::ZERO)
-                / Decimal::from(worker_count);
-            totals.total_minutes += (ctx.step.duration_minutes.unwrap_or(0) as i64) / worker_count as i64;
+            totals.total_qualified +=
+                ctx.step.qualified_quantity.unwrap_or(Decimal::ZERO) / Decimal::from(worker_count);
+            totals.total_minutes +=
+                (ctx.step.duration_minutes.unwrap_or(0) as i64) / worker_count as i64;
             totals.worker_set.insert(worker_id);
             totals.step_set.insert(ctx.step.id);
         }

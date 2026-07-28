@@ -82,13 +82,14 @@ impl InventoryCountService {
         let txn = (*self.db).begin().await?;
 
         // 生成盘点单号：IC{YYYYMMDD}{3位流水}
-        let count_no = crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
-            &txn,
-            "IC",
-            inventory_count::Entity,
-            inventory_count::Column::CountNo,
-        )
-        .await?;
+        let count_no =
+            crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
+                &txn,
+                "IC",
+                inventory_count::Entity,
+                inventory_count::Column::CountNo,
+            )
+            .await?;
 
         // 查询仓库下的库存快照（按 stock_ids 过滤或全量）
         let stocks = self
@@ -352,14 +353,17 @@ impl InventoryCountService {
             .all(&txn)
             .await?;
         let mut item_map: std::collections::HashMap<i32, inventory_count_item::Model> =
-            existing_items.into_iter().map(|it| (it.stock_id, it)).collect();
+            existing_items
+                .into_iter()
+                .map(|it| (it.stock_id, it))
+                .collect();
 
         let mut counted = 0i32;
         let mut variance = 0i32;
         for input in items {
-            let item_model = item_map
-                .get(&input.stock_id)
-                .ok_or_else(|| AppError::not_found(format!("库存 {} 不在盘点明细中", input.stock_id)))?;
+            let item_model = item_map.get(&input.stock_id).ok_or_else(|| {
+                AppError::not_found(format!("库存 {} 不在盘点明细中", input.stock_id))
+            })?;
             let difference = input.quantity_actual - item_model.quantity_before;
             let mut active: inventory_count_item::ActiveModel = item_model.clone().into();
             active.quantity_actual = Set(input.quantity_actual);
@@ -409,10 +413,14 @@ impl InventoryCountService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("盘点单 {} 不存在", count_id)))?;
         if count_model.status != count_status::PENDING {
-            return Err(AppError::business("只有待盘点状态的盘点单可以提交审批".to_string()));
+            return Err(AppError::business(
+                "只有待盘点状态的盘点单可以提交审批".to_string(),
+            ));
         }
         if count_model.counted_items == 0 {
-            return Err(AppError::business("盘点单尚未录入任何实盘数量，无法提交审批".to_string()));
+            return Err(AppError::business(
+                "盘点单尚未录入任何实盘数量，无法提交审批".to_string(),
+            ));
         }
         let mut active: inventory_count::ActiveModel = count_model.into();
         active.status = Set("in_review".to_string());
@@ -434,7 +442,9 @@ impl InventoryCountService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("盘点单 {} 不存在", count_id)))?;
         if count_model.status != "in_review" {
-            return Err(AppError::business("只有待审批状态的盘点单可以审批通过".to_string()));
+            return Err(AppError::business(
+                "只有待审批状态的盘点单可以审批通过".to_string(),
+            ));
         }
         Ok(count_model)
     }
@@ -443,10 +453,13 @@ impl InventoryCountService {
     async fn load_items_with_stocks(
         txn: &sea_orm::DatabaseTransaction,
         count_id: i32,
-    ) -> Result<(
-        Vec<inventory_count_item::Model>,
-        std::collections::HashMap<i32, inventory_stock::Model>,
-    ), AppError> {
+    ) -> Result<
+        (
+            Vec<inventory_count_item::Model>,
+            std::collections::HashMap<i32, inventory_stock::Model>,
+        ),
+        AppError,
+    > {
         let items = inventory_count_item::Entity::find()
             .filter(inventory_count_item::Column::CountId.eq(count_id))
             .all(txn)
@@ -555,10 +568,7 @@ impl InventoryCountService {
     }
 
     /// 驳回审批，盘点单退回 pending 状态
-    pub async fn reject_count(
-        &self,
-        count_id: i32,
-    ) -> Result<inventory_count::Model, AppError> {
+    pub async fn reject_count(&self, count_id: i32) -> Result<inventory_count::Model, AppError> {
         let txn = (*self.db).begin().await?;
         let count_model = inventory_count::Entity::find_by_id(count_id)
             .lock_exclusive()
@@ -566,7 +576,9 @@ impl InventoryCountService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("盘点单 {} 不存在", count_id)))?;
         if count_model.status != "in_review" {
-            return Err(AppError::business("只有待审批状态的盘点单可以驳回".to_string()));
+            return Err(AppError::business(
+                "只有待审批状态的盘点单可以驳回".to_string(),
+            ));
         }
         let mut active: inventory_count::ActiveModel = count_model.into();
         active.status = Set(count_status::PENDING.to_string());

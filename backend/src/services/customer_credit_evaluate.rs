@@ -5,7 +5,7 @@ use rust_decimal::Decimal;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
 use super::customer_credit_service::{
-    CreditEvaluationResult, EvaluationFactor, CustomerCreditService,
+    CreditEvaluationResult, CustomerCreditService, EvaluationFactor,
 };
 
 /// 信用评估核心逻辑（评估算法 + 私有因子计算 + 单元测试）
@@ -22,9 +22,8 @@ impl CustomerCreditService {
             .parse::<NaiveDate>()
             .map_err(|_| AppError::validation("日期格式错误"))?;
 
-        let (customer, customer_name, credit_history) = self
-            .load_customer_credit_and_name(customer_id)
-            .await?;
+        let (customer, customer_name, credit_history) =
+            self.load_customer_credit_and_name(customer_id).await?;
         let created_at = customer.created_at.format("%Y-%m-%d %H:%M:%S").to_string();
         let (factors, total_score) = self
             .compute_evaluation_factors(customer_id, created_at, eval_date, &credit_history)
@@ -46,21 +45,12 @@ impl CustomerCreditService {
     async fn load_customer_credit_and_name(
         &self,
         customer_id: i32,
-    ) -> Result<
-        (
-            customer_credit::Model,
-            String,
-            Vec<customer_credit::Model>,
-        ),
-        AppError,
-    > {
+    ) -> Result<(customer_credit::Model, String, Vec<customer_credit::Model>), AppError> {
         let customer = customer_credit::Entity::find()
             .filter(customer_credit::Column::CustomerId.eq(customer_id))
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::not_found(format!("客户 {} 的信用评级不存在", customer_id))
-            })?;
+            .ok_or_else(|| AppError::not_found(format!("客户 {} 的信用评级不存在", customer_id)))?;
         let customer_name = crate::models::customer::Entity::find_by_id(customer_id)
             .one(&*self.db)
             .await
@@ -549,6 +539,9 @@ mod tests {
         // 模拟使用 50000
         let used = Decimal::from(50000);
         let utilization = used / model.credit_limit;
-        assert_eq!(utilization, Decimal::try_from(0.5).expect("P9-1: 测试夹具 Decimal::try_from"));
+        assert_eq!(
+            utilization,
+            Decimal::try_from(0.5).expect("P9-1: 测试夹具 Decimal::try_from")
+        );
     }
 }

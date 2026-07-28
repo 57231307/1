@@ -15,27 +15,21 @@ use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use tracing::info;
 
-/// 采购退货凭证构造上下文
-///
-/// 拆分 create_purchase_return_voucher 时引入，避免元组返回。
+/// 采购退货凭证构造上下文（拆分 create_purchase_return_voucher 时引入，避免元组返回）
 struct PurchaseReturnVoucherContext {
     product_name: String,
     warehouse_name: String,
     cost_price: Decimal,
 }
 
-/// 生产领料凭证构造上下文
-///
-/// 拆分 create_production_issue_voucher 时引入，避免元组返回。
+/// 生产领料凭证构造上下文（拆分 create_production_issue_voucher 时引入，避免元组返回）
 struct ProductionIssueVoucherContext {
     product_name: String,
     warehouse_name: String,
     cost_price: Decimal,
 }
 
-/// 销售退货凭证构造上下文
-///
-/// 拆分 create_sales_return_voucher 时引入，避免元组返回。
+/// 销售退货凭证构造上下文（拆分 create_sales_return_voucher 时引入，避免元组返回）
 struct SalesReturnVoucherContext {
     product_name: String,
     warehouse_name: String,
@@ -105,18 +99,59 @@ impl InventoryFinanceBridgeService {
             .await
             .unwrap_or_else(|_| format!("仓库{}", warehouse_id));
         let summary = self.build_purchase_receipt_summary(
-            &product_name, quantity_meters, quantity_kg, batch_no, color_no, &warehouse_name,
+            &product_name,
+            quantity_meters,
+            quantity_kg,
+            batch_no,
+            color_no,
+            &warehouse_name,
         );
+        // V15 Batch05-P1-5：采购入库使用实际采购单价计算金额（移动加权平均法依据）
+        // 优先从 purchase_order_item 获取实际单价，获取失败时降级为 product.cost_price
+        let purchase_unit_price = self
+            .fetch_purchase_unit_price(source_bill_id, product_id)
+            .await
+            .unwrap_or(cost_price);
         // P3 维度 4 修复（批次 87）：金额计算补 round_dp(2) 精度归一化
-        let amount = (cost_price * quantity_meters).round_dp(2);
+        let amount = (purchase_unit_price * quantity_meters).round_dp(2);
         let voucher_request = self.build_purchase_receipt_voucher_request(BridgeVoucherArgs {
-            source_bill_type, source_bill_no, source_bill_id,
-            batch_no, color_no, summary: &summary, amount,
-            quantity_meters, quantity_kg,
+            source_bill_type,
+            source_bill_no,
+            source_bill_id,
+            batch_no,
+            color_no,
+            summary: &summary,
+            amount,
+            quantity_meters,
+            quantity_kg,
         });
         let voucher_service = VoucherService::new(self.db.clone());
         // 批次 356 v13 复审 F-P0-2 修复：create → create_and_post 自动过账，触发科目余额回写
-        let voucher = voucher_service.create_and_post(voucher_request, user_id).await?;
+        let voucher = voucher_service
+            .create_and_post(voucher_request, user_id)
+            .await?;
+
+        // V15 Batch05-P1-5：采购入库后更新 product.cost_price 为移动加权平均成本
+        // 此后销售出库凭证将使用更新后的 cost_price（即移动加权平均成本）计算主营业务成本
+        // 失败时仅 warn 不阻断（凭证已生成，cost_price 未更新可由运维人工修正）
+        if purchase_unit_price > Decimal::ZERO {
+            if let Err(e) = self
+                .update_moving_average_cost(
+                    product_id,
+                    quantity_meters,
+                    purchase_unit_price,
+                    cost_price,
+                )
+                .await
+            {
+                tracing::warn!(
+                    product_id,
+                    error = %e,
+                    "V15 Batch05-P1-5: 移动加权平均成本更新失败，凭证已生成但 cost_price 未更新"
+                );
+            }
+        }
+
         info!(
             "自动生成采购入库凭证: 凭证号={}, 交易关联: 批次={}, 色号={}",
             voucher.voucher_no, batch_no, color_no
@@ -201,6 +236,8 @@ impl InventoryFinanceBridgeService {
             ));
         }
         // P2 5-12 修复：合并产品名称+成本价为单次查询
+        // V15 Batch05-P1-5：cost_price 为采购入库时维护的移动加权平均成本
+        // （由 create_purchase_receipt_voucher 调用 update_moving_average_cost 持续更新）
         let (product_name, cost_price) = self
             .get_product_info(args.product_id)
             .await
@@ -211,17 +248,25 @@ impl InventoryFinanceBridgeService {
             .unwrap_or_else(|_| format!("仓库{}", args.warehouse_id));
         let summary = format!(
             "销售出库：{} {}米 {}公斤 批次:{} 色号:{} 仓库:{}",
-            product_name, args.quantity_meters, args.quantity_kg, args.batch_no, args.color_no, warehouse_name
+            product_name,
+            args.quantity_meters,
+            args.quantity_kg,
+            args.batch_no,
+            args.color_no,
+            warehouse_name
         );
         // P3 维度 4 修复（批次 87）：金额计算补 round_dp(2) 精度归一化
         let amount = (cost_price * args.quantity_meters).round_dp(2);
         let voucher_request = Self::build_delivery_voucher_request(&args, summary, amount);
         let voucher_service = VoucherService::new(self.db.clone());
         // created_by 缺失时拒绝生成凭证，避免财务记录归到 user_id=0 系统用户
-        let user_id = args.created_by
+        let user_id = args
+            .created_by
             .ok_or_else(|| AppError::validation("缺少创建用户ID，无法生成财务凭证"))?;
         // 批次 356 v13 复审 F-P0-2 修复：create → create_and_post 自动过账，触发科目余额回写
-        let voucher = voucher_service.create_and_post(voucher_request, user_id).await?;
+        let voucher = voucher_service
+            .create_and_post(voucher_request, user_id)
+            .await?;
         info!(
             "自动生成销售出库凭证: 凭证号={}, 交易关联: 批次={}, 色号={}",
             voucher.voucher_no, args.batch_no, args.color_no
@@ -300,10 +345,23 @@ impl InventoryFinanceBridgeService {
         self.validate_quantity_meters(quantity_meters)?;
         let user_id = self.validate_created_by(created_by)?;
 
-        let (product_name, cost_price) = self.get_product_info(product_id).await.unwrap_or_else(|_| (format!("产品{}", product_id), Decimal::ZERO));
-        let warehouse_name = self.get_warehouse_name(warehouse_id).await.unwrap_or_else(|_| format!("仓库{}", warehouse_id));
+        let (product_name, cost_price) = self
+            .get_product_info(product_id)
+            .await
+            .unwrap_or_else(|_| (format!("产品{}", product_id), Decimal::ZERO));
+        let warehouse_name = self
+            .get_warehouse_name(warehouse_id)
+            .await
+            .unwrap_or_else(|_| format!("仓库{}", warehouse_id));
 
-        let summary = self.build_adjustment_summary(product_name, quantity_meters, quantity_kg, batch_no, color_no, warehouse_name);
+        let summary = self.build_adjustment_summary(
+            product_name,
+            quantity_meters,
+            quantity_kg,
+            batch_no,
+            color_no,
+            warehouse_name,
+        );
         let amount = (cost_price * quantity_meters.abs()).round_dp(2);
 
         let voucher_request = if quantity_meters > Decimal::ZERO {
@@ -334,14 +392,17 @@ impl InventoryFinanceBridgeService {
             self.build_shortage_voucher_request(&args)
         };
 
-        self.create_and_log_voucher(voucher_request, user_id, batch_no, color_no).await?;
+        self.create_and_log_voucher(voucher_request, user_id, batch_no, color_no)
+            .await?;
 
         Ok(())
     }
 
     fn validate_quantity_meters(&self, quantity_meters: Decimal) -> Result<(), AppError> {
         if quantity_meters.is_zero() {
-            return Err(AppError::validation("quantity_meters 不能为 0，无法计算单价"));
+            return Err(AppError::validation(
+                "quantity_meters 不能为 0，无法计算单价",
+            ));
         }
         Ok(())
     }
@@ -447,7 +508,9 @@ impl InventoryFinanceBridgeService {
         color_no: &str,
     ) -> Result<(), AppError> {
         let voucher_service = VoucherService::new(self.db.clone());
-        let voucher = voucher_service.create_and_post(voucher_request, user_id).await?;
+        let voucher = voucher_service
+            .create_and_post(voucher_request, user_id)
+            .await?;
 
         info!(
             "自动生成库存调整凭证: 凭证号={}, 交易关联: 批次={}, 色号={}",
@@ -608,8 +671,12 @@ impl InventoryFinanceBridgeService {
     ) -> CreateVoucherRequest {
         let summary = format!(
             "生产领料：{} {}米 {}公斤 批次:{} 色号:{} 仓库:{}",
-            ctx.product_name, args.quantity_meters, args.quantity_kg,
-            args.batch_no, args.color_no, ctx.warehouse_name
+            ctx.product_name,
+            args.quantity_meters,
+            args.quantity_kg,
+            args.batch_no,
+            args.color_no,
+            ctx.warehouse_name
         );
         let amount = (ctx.cost_price * args.quantity_meters).round_dp(2);
         CreateVoucherRequest {
@@ -668,7 +735,9 @@ impl InventoryFinanceBridgeService {
         let user_id = Self::resolve_voucher_user_id(args.created_by)?;
         let voucher_service = VoucherService::new(self.db.clone());
         // 批次 356 v13 复审 F-P0-2 修复：create → create_and_post 自动过账
-        let voucher = voucher_service.create_and_post(voucher_request, user_id).await?;
+        let voucher = voucher_service
+            .create_and_post(voucher_request, user_id)
+            .await?;
         info!(
             "自动生成生产领料凭证: 凭证号={}, 交易关联: 批次={}, 色号={}",
             voucher.voucher_no, args.batch_no, args.color_no
@@ -704,8 +773,12 @@ impl InventoryFinanceBridgeService {
     ) -> CreateVoucherRequest {
         let summary = format!(
             "采购退货：{} {}米 {}公斤 批次:{} 色号:{} 仓库:{}",
-            ctx.product_name, args.quantity_meters, args.quantity_kg,
-            args.batch_no, args.color_no, ctx.warehouse_name
+            ctx.product_name,
+            args.quantity_meters,
+            args.quantity_kg,
+            args.batch_no,
+            args.color_no,
+            ctx.warehouse_name
         );
         let amount = (ctx.cost_price * args.quantity_meters.abs()).round_dp(2);
         CreateVoucherRequest {
@@ -808,8 +881,12 @@ impl InventoryFinanceBridgeService {
     ) -> CreateVoucherRequest {
         let summary = format!(
             "销售退货：{} {}米 {}公斤 批次:{} 色号:{} 仓库:{}",
-            ctx.product_name, args.quantity_meters, args.quantity_kg,
-            args.batch_no, args.color_no, ctx.warehouse_name
+            ctx.product_name,
+            args.quantity_meters,
+            args.quantity_kg,
+            args.batch_no,
+            args.color_no,
+            ctx.warehouse_name
         );
         let amount = (ctx.cost_price * args.quantity_meters.abs()).round_dp(2);
         CreateVoucherRequest {
@@ -921,5 +998,84 @@ impl InventoryFinanceBridgeService {
             );
         }
         Ok((product.name, cost_price))
+    }
+
+    /// 获取采购订单实际单价（V15 Batch05-P1-5：移动加权平均法依据实际采购价）
+    /// 通过 source_bill_id（采购订单 ID）+ product_id 查询 purchase_order_item.unit_price
+    async fn fetch_purchase_unit_price(
+        &self,
+        source_bill_id: Option<i32>,
+        product_id: i32,
+    ) -> Option<Decimal> {
+        use crate::models::purchase_order_item;
+        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+
+        let po_id = source_bill_id?;
+        let item = purchase_order_item::Entity::find()
+            .filter(purchase_order_item::Column::OrderId.eq(po_id))
+            .filter(purchase_order_item::Column::ProductId.eq(product_id))
+            .one(&*self.db)
+            .await
+            .ok()
+            .flatten()?;
+        if item.unit_price > Decimal::ZERO {
+            Some(item.unit_price)
+        } else {
+            None
+        }
+    }
+
+    /// 更新产品移动加权平均成本（V15 Batch05-P1-5）：new_cost = (before_qty*old_cost + received_qty*received_price) / (before_qty + received_qty)
+    pub(crate) async fn update_moving_average_cost(
+        &self,
+        product_id: i32,
+        received_qty: Decimal,
+        received_unit_price: Decimal,
+        old_cost_price: Decimal,
+    ) -> Result<Decimal, AppError> {
+        use crate::models::inventory_stock;
+        use crate::models::product;
+        use sea_orm::{ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter};
+
+        // 查询当前产品库存总量（已包含本次入库数量）
+        let stocks = inventory_stock::Entity::find()
+            .filter(inventory_stock::Column::ProductId.eq(product_id))
+            .all(&*self.db)
+            .await?;
+        let current_qty: Decimal = stocks
+            .iter()
+            .fold(Decimal::ZERO, |acc, s| acc + s.quantity_on_hand);
+
+        // before_qty = current_qty - received_qty（本次入库前的库存数量，下限 0）
+        let before_qty = (current_qty - received_qty).max(Decimal::ZERO);
+        let before_amount = before_qty * old_cost_price;
+        let received_amount = received_qty * received_unit_price;
+        let total_qty = before_qty + received_qty;
+        if total_qty <= Decimal::ZERO {
+            return Ok(old_cost_price);
+        }
+        // round_dp(4) 保留 4 位小数精度，避免循环 truncation 误差累积
+        let new_cost = ((before_amount + received_amount) / total_qty).round_dp(4);
+
+        // 更新 product.cost_price（移动加权平均成本）
+        let product_model = product::Entity::find_by_id(product_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("产品不存在: {}", product_id)))?;
+        let mut active_model: product::ActiveModel = product_model.into();
+        active_model.cost_price = Set(Some(new_cost));
+        active_model.updated_at = Set(chrono::Utc::now());
+        active_model.update(&*self.db).await?;
+
+        tracing::info!(
+            product_id,
+            before_qty = %before_qty,
+            received_qty = %received_qty,
+            old_cost = %old_cost_price,
+            received_price = %received_unit_price,
+            new_cost = %new_cost,
+            "V15 Batch05-P1-5: 移动加权平均成本已更新"
+        );
+        Ok(new_cost)
     }
 }

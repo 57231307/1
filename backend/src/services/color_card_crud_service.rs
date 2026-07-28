@@ -54,10 +54,7 @@ impl ColorCardCrudService {
     }
 
     /// 创建色卡
-    pub async fn create(
-        &self,
-        dto: CreateColorCardDto,
-    ) -> Result<color_card::Model, CrudError> {
+    pub async fn create(&self, dto: CreateColorCardDto) -> Result<color_card::Model, CrudError> {
         // 1. 业务校验
         Self::validate_card_type(&dto.card_type)?;
 
@@ -128,10 +125,7 @@ impl ColorCardCrudService {
     }
 
     /// 按 ID 查询
-    pub async fn get_by_id(
-        &self,
-        id: i64,
-    ) -> Result<color_card::Model, CrudError> {
+    pub async fn get_by_id(&self, id: i64) -> Result<color_card::Model, CrudError> {
         ColorCardEntity::find_by_id(id)
             .one(&*self.db)
             .await?

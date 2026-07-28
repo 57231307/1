@@ -49,7 +49,6 @@ const DANGEROUS_PATTERNS: &[&str] = &[
     "OR 1=1#",
     "AND 1=1--",
     "AND 1=1#",
-
     // 堆查询 / 多语句注入
     "'; DROP TABLE",
     "'; DELETE FROM",
@@ -60,17 +59,14 @@ const DANGEROUS_PATTERNS: &[&str] = &[
     "'; TRUNCATE TABLE",
     "'; EXEC ",
     "'; EXECUTE ",
-
     // UNION 注入
     "UNION SELECT",
     "UNION ALL SELECT",
     "UNION DISTINCT SELECT",
-
     // SQL 注释（用于截断查询）
     "-- ",
     "/*",
     "*/",
-
     // 存储过程 / 命令执行
     "xp_cmdshell",
     "sp_executesql",
@@ -78,7 +74,6 @@ const DANGEROUS_PATTERNS: &[&str] = &[
     "EXECUTE sp_",
     "EXEC xp_",
     "EXECUTE xp_",
-
     // 信息 schema 探测
     "INFORMATION_SCHEMA.TABLES",
     "INFORMATION_SCHEMA.COLUMNS",
@@ -87,21 +82,18 @@ const DANGEROUS_PATTERNS: &[&str] = &[
     "sysobjects",
     "syscolumns",
     "sqlite_master",
-
     // 文件操作
     "LOAD_FILE(",
     "INTO OUTFILE",
     "INTO DUMPFILE",
     "COPY FROM",
     "COPY TO",
-
     // 时间盲注函数
     "SLEEP(",
     "pg_sleep(",
     "WAITFOR DELAY",
     "BENCHMARK(",
     "DBMS_PIPE.RECEIVE_MESSAGE",
-
     // 常用注入函数（编码/字符串绕过）
     "CHAR(",
     "CONCAT(",
@@ -114,14 +106,12 @@ const DANGEROUS_PATTERNS: &[&str] = &[
     "HEX(",
     "CAST(",
     "CONVERT(",
-
     // 布尔盲注常用函数
     "IFNULL(",
     "NULLIF(",
     "ISNULL(",
     "COALESCE(",
     "CASE WHEN",
-
     // 布尔/时间盲注的常见探测模式
     "' AND SLEEP(",
     "\" AND SLEEP(",
@@ -169,12 +159,10 @@ pub async fn sql_injection_audit_middleware(
     if is_text_body {
         // 拆分请求体用于审计
         let (parts, body) = req.into_parts();
-        let body_bytes = to_bytes(body, MAX_BODY_AUDIT_SIZE)
-            .await
-            .map_err(|e| {
-                tracing::warn!("【SQL 注入审计】读取请求体失败: {}", e);
-                AppError::BadRequest("请求体读取失败".to_string())
-            })?;
+        let body_bytes = to_bytes(body, MAX_BODY_AUDIT_SIZE).await.map_err(|e| {
+            tracing::warn!("【SQL 注入审计】读取请求体失败: {}", e);
+            AppError::BadRequest("请求体读取失败".to_string())
+        })?;
 
         // 审计请求体内容
         if let Ok(body_str) = std::str::from_utf8(&body_bytes) {

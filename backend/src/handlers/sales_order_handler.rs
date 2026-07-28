@@ -80,6 +80,13 @@ pub async fn list_orders(
                     &permission.allowed_fields,
                     &permission.hidden_fields,
                 );
+                // P1-08-5：非管理员对销售订单列表手机号/邮箱脱敏
+                for order in list.iter_mut() {
+                    *order = crate::utils::field_mask::mask_contact_fields_for_role(
+                        order.clone(),
+                        Some(role_id),
+                    );
+                }
             }
         } else if role_id != 1 {
             // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
@@ -97,6 +104,28 @@ pub async fn list_orders(
                         obj.remove("total_amount");
                         obj.remove("paid_amount");
                         obj.remove("balance_amount");
+
+                        // P1-08-5：手机号/邮箱脱敏（移除金额字段后仍需脱敏联系电话）
+                        if let Some(phone) = obj.get("contact_phone").and_then(|v| v.as_str()) {
+                            if !phone.is_empty() {
+                                obj.insert(
+                                    "contact_phone".to_string(),
+                                    serde_json::Value::String(
+                                        crate::utils::field_mask::mask_phone(phone),
+                                    ),
+                                );
+                            }
+                        }
+                        if let Some(email) = obj.get("contact_email").and_then(|v| v.as_str()) {
+                            if !email.is_empty() {
+                                obj.insert(
+                                    "contact_email".to_string(),
+                                    serde_json::Value::String(
+                                        crate::utils::field_mask::mask_email(email),
+                                    ),
+                                );
+                            }
+                        }
 
                         if let Some(items) = obj.get_mut("items").and_then(|i| i.as_array_mut()) {
                             for item in items {
@@ -144,6 +173,9 @@ pub async fn get_order(
                 &permission.allowed_fields,
                 &permission.hidden_fields,
             );
+            // P1-08-5：非管理员对销售订单详情手机号/邮箱脱敏
+            order_json =
+                crate::utils::field_mask::mask_contact_fields_for_role(order_json, Some(role_id));
         } else if role_id != 1 {
             // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
             if let Some(obj) = order_json.as_object_mut() {
@@ -154,6 +186,24 @@ pub async fn get_order(
                 obj.remove("total_amount");
                 obj.remove("paid_amount");
                 obj.remove("balance_amount");
+
+                // P1-08-5：手机号/邮箱脱敏
+                if let Some(phone) = obj.get("contact_phone").and_then(|v| v.as_str()) {
+                    if !phone.is_empty() {
+                        obj.insert(
+                            "contact_phone".to_string(),
+                            serde_json::Value::String(crate::utils::field_mask::mask_phone(phone)),
+                        );
+                    }
+                }
+                if let Some(email) = obj.get("contact_email").and_then(|v| v.as_str()) {
+                    if !email.is_empty() {
+                        obj.insert(
+                            "contact_email".to_string(),
+                            serde_json::Value::String(crate::utils::field_mask::mask_email(email)),
+                        );
+                    }
+                }
 
                 if let Some(items) = obj.get_mut("items").and_then(|i| i.as_array_mut()) {
                     for item in items {
@@ -219,7 +269,9 @@ pub async fn update_order(
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
     // V15 P0-S02：IDOR 防护——更新前先校验资源归属（复用 P0-S01 的 get_order_detail + data_scope_ctx）
     let data_scope_ctx = auth.to_data_scope_context();
-    sales_service.get_order_detail(id, Some(&data_scope_ctx)).await?;
+    sales_service
+        .get_order_detail(id, Some(&data_scope_ctx))
+        .await?;
     // 批次 94 P2-10：传入真实操作人 user_id 用于审计日志
     let order = sales_service
         .update_order(id, auth.user_id, request)
@@ -242,7 +294,9 @@ pub async fn delete_order(
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
     // V15 P0-S02：IDOR 防护——删除前先校验资源归属（复用 P0-S01 的 get_order_detail + data_scope_ctx）
     let data_scope_ctx = auth.to_data_scope_context();
-    sales_service.get_order_detail(id, Some(&data_scope_ctx)).await?;
+    sales_service
+        .get_order_detail(id, Some(&data_scope_ctx))
+        .await?;
     // 批次 94 P2-10：传入真实操作人 user_id 用于审计日志
     sales_service.delete_order(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
@@ -298,7 +352,13 @@ pub async fn approve_order(
         if let Some(created_by) = order.created_by {
             // 批次 94 P2-11：原 let _ = 静默吞错，通知发送失败时无任何日志，改为 warn 日志记录
             if let Err(e) = event_service
-                .notify_order_approved(created_by, &order.order_no, order.id, auth.user_id, &auth.username)
+                .notify_order_approved(
+                    created_by,
+                    &order.order_no,
+                    order.id,
+                    auth.user_id,
+                    &auth.username,
+                )
                 .await
             {
                 tracing::warn!("批次 94 P2-11：订单审批通知发送失败: {}", e);
@@ -422,6 +482,7 @@ use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
 // V15 P0-S11：导出审计日志写入所需依赖
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
+use crate::utils::export_concurrency::ExportConcurrencyGuard;
 use std::sync::Arc;
 
 /// 导出销售订单
@@ -430,6 +491,9 @@ pub async fn export_orders(
     auth: AuthContext,
     Query(query): Query<SalesOrderQuery>,
 ) -> Result<axum::response::Response, AppError> {
+    // V15 P1-9-1：全局导出并发控制（RAII 守卫，函数退出自动递减）
+    let _guard = ExportConcurrencyGuard::acquire()?;
+
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
     // V15 P0-S11：提前 clone 查询条件用于审计日志（避免 service 调用 move 后 borrow of moved value）
@@ -457,6 +521,16 @@ pub async fn export_orders(
         rows.push(record.iter().map(|s| s.to_string()).collect());
     }
     let row_count = rows.len();
+
+    // V15 P1-9-3：销售订单导出条数上限（计划 13.9.1 要求单次 ≤ 10000 条）
+    const MAX_SALES_ORDER_EXPORT_ROWS: usize = 10_000;
+    if row_count > MAX_SALES_ORDER_EXPORT_ROWS {
+        return Err(AppError::bad_request(format!(
+            "销售订单导出条数 {} 超过上限 {}，请缩小筛选范围后重试",
+            row_count, MAX_SALES_ORDER_EXPORT_ROWS
+        )));
+    }
+
     let table = XlsxTable {
         sheet_name: "销售订单".to_string(),
         headers,

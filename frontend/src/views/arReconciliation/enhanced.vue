@@ -55,68 +55,68 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { useArRec } from './composables/useArRec'
-import { useArDisp } from './composables/useArDisp'
-import { useArChart } from './composables/useArChart'
-import { type AutoReconciliationResult } from '@/api/ar-reconciliation-enhanced'
-import { getCustomerSelectList } from '@/api/customer'
-import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
-import { logger } from '@/utils/logger'
-import ArReconciliationFilter from './components/ArReconciliationFilter.vue'
-import ArReconciliationCharts from './components/ArReconciliationCharts.vue'
-import ArReconciliationTable from './components/ArReconciliationTable.vue'
-import ArReconciliationDetail from './components/ArReconciliationDetail.vue'
-import ArReconciliationConfirm from './components/ArReconciliationConfirm.vue'
-import ArReconciliationDispute from './components/ArReconciliationDispute.vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { useArRec } from './composables/useArRec';
+import { useArDisp } from './composables/useArDisp';
+import { useArChart } from './composables/useArChart';
+import { type AutoReconciliationResult } from '@/api/ar-reconciliation-enhanced';
+import { getCustomerSelectList } from '@/api/customer';
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
+import { logger } from '@/utils/logger';
+import ArReconciliationFilter from './components/ArReconciliationFilter.vue';
+import ArReconciliationCharts from './components/ArReconciliationCharts.vue';
+import ArReconciliationTable from './components/ArReconciliationTable.vue';
+import ArReconciliationDetail from './components/ArReconciliationDetail.vue';
+import ArReconciliationConfirm from './components/ArReconciliationConfirm.vue';
+import ArReconciliationDispute from './components/ArReconciliationDispute.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const arrec = useArRec()
-const ardisp = useArDisp(arrec.loadData)
-const arChart = useArChart()
+const arrec = useArRec();
+const ardisp = useArDisp(arrec.loadData);
+const arChart = useArChart();
 
 // 客户下拉选项（保留原版数据结构与懒加载行为，模板未直接引用）
-const customerOptions = ref<{ label: string; value: number }[]>([])
+const customerOptions = ref<{ label: string; value: number }[]>([]);
 
-const hasLoaded = createLazyLoader()
+const hasLoaded = createLazyLoader();
 
 /** 触发搜索并刷新账龄分析 */
 const onSearch = async () => {
-  await arrec.handleSearch()
-  await arChart.loadAgingAnalysis(arrec.searchForm.value.end_date)
-}
+  await arrec.handleSearch();
+  await arChart.loadAgingAnalysis(arrec.searchForm.value.end_date);
+};
 
 /** 顶部按钮触发争议对话框（无行数据） */
 const onOpenDispute = () => {
-  ardisp.openDisputeDialog({ id: 0 } as unknown as AutoReconciliationResult)
-}
+  ardisp.openDisputeDialog({ id: 0 } as unknown as AutoReconciliationResult);
+};
 
 /** 加载客户下拉数据 */
 const loadCustomers = async () => {
   try {
     // v11 批次 146 P1-4 修复：改用 customer.ts 统一封装的 getCustomerSelectList，
     // 避免绕过 API 层直接调用 request.get，并正确处理 PaginatedResponse → {label, value}[] 映射
-    customerOptions.value = await getCustomerSelectList()
+    customerOptions.value = await getCustomerSelectList();
   } catch {
-    logger.warn(t('arReconciliationModule.loadCustomersFailed'))
+    logger.warn(t('arReconciliationModule.loadCustomersFailed'));
   }
-}
+};
 
 onBeforeUnmount(() => {
-  arChart.disposeCharts()
-})
+  arChart.disposeCharts();
+});
 
 onMounted(() => {
-  arrec.loadData()
+  arrec.loadData();
   loadIfNot(
     'agingAnalysis',
     () => arChart.loadAgingAnalysis(arrec.searchForm.value.end_date),
     hasLoaded
-  )
-  loadIfNot('customers', loadCustomers, hasLoaded)
-})
+  );
+  loadIfNot('customers', loadCustomers, hasLoaded);
+});
 </script>
 
 <style scoped>

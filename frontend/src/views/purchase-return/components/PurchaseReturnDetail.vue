@@ -11,10 +11,18 @@
     @update:model-value="onVisibleChange"
   >
     <el-descriptions :column="2" border>
-      <el-descriptions-item :label="t('purchaseReturn.detail.label.returnNo')">{{ detailData.returnNo }}</el-descriptions-item>
-      <el-descriptions-item :label="t('purchaseReturn.detail.label.purchaseOrderNo')">{{ detailData.purchaseOrderNo }}</el-descriptions-item>
-      <el-descriptions-item :label="t('purchaseReturn.detail.label.supplier')">{{ detailData.supplierName }}</el-descriptions-item>
-      <el-descriptions-item :label="t('purchaseReturn.detail.label.returnDate')">{{ detailData.returnDate }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchaseReturn.detail.label.returnNo')">{{
+        detailData.returnNo
+      }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchaseReturn.detail.label.purchaseOrderNo')">{{
+        detailData.purchaseOrderNo
+      }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchaseReturn.detail.label.supplier')">{{
+        detailData.supplierName
+      }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchaseReturn.detail.label.returnDate')">{{
+        detailData.returnDate
+      }}</el-descriptions-item>
       <el-descriptions-item :label="t('purchaseReturn.detail.label.returnAmount')">
         <span class="amount">¥{{ detailData.totalAmount || 0 }}</span>
       </el-descriptions-item>
@@ -32,41 +40,65 @@
     </el-descriptions>
 
     <el-divider content-position="left">{{ t('purchaseReturn.detail.itemsTitle') }}</el-divider>
-    <el-table :data="detailData.items || []" border :aria-label="t('purchaseReturn.detail.aria.itemsTable')">
-      <el-table-column prop="productName" :label="t('purchaseReturn.detail.column.productName')" min-width="150" />
-      <el-table-column prop="quantity" :label="t('purchaseReturn.detail.column.quantity')" width="100" />
-      <el-table-column prop="unitPrice" :label="t('purchaseReturn.detail.column.unitPrice')" width="100" />
-      <el-table-column prop="amount" :label="t('purchaseReturn.detail.column.amount')" width="120" />
-      <el-table-column prop="reason" :label="t('purchaseReturn.detail.column.reason')" min-width="150" />
+    <el-table
+      :data="detailData.items || []"
+      border
+      :aria-label="t('purchaseReturn.detail.aria.itemsTable')"
+    >
+      <el-table-column
+        prop="productName"
+        :label="t('purchaseReturn.detail.column.productName')"
+        min-width="150"
+      />
+      <el-table-column
+        prop="quantity"
+        :label="t('purchaseReturn.detail.column.quantity')"
+        width="100"
+      />
+      <el-table-column
+        prop="unitPrice"
+        :label="t('purchaseReturn.detail.column.unitPrice')"
+        width="100"
+      />
+      <el-table-column
+        prop="amount"
+        :label="t('purchaseReturn.detail.column.amount')"
+        width="120"
+      />
+      <el-table-column
+        prop="reason"
+        :label="t('purchaseReturn.detail.column.reason')"
+        min-width="150"
+      />
     </el-table>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import type { PurchaseReturn } from '@/api/purchase-return'
-import { getStatusType, getStatusText } from '../composables/prRtnFmts'
+import { useI18n } from 'vue-i18n';
+import type { PurchaseReturn } from '@/api/purchase-return';
+import { getStatusType, getStatusText } from '../composables/prRtnFmts';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 采购退货详情对话框属性
 defineProps<{
   // 对话框可见性
-  visible: boolean
+  visible: boolean;
   // 详情数据
-  detailData: PurchaseReturn
-}>()
+  detailData: PurchaseReturn;
+}>();
 
 // 定义事件
 const emit = defineEmits<{
   // 关闭
-  (e: 'update:visible', value: boolean): void
-}>()
+  (e: 'update:visible', value: boolean): void;
+}>();
 
 /** 关闭对话框 */
 const onVisibleChange = (v: boolean) => {
-  emit('update:visible', v)
-}
+  emit('update:visible', v);
+};
 </script>
 
 <style scoped>

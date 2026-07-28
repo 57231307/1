@@ -1,6 +1,4 @@
 #![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
-
 //! 库存匹数 Model
 //!
 //! 库存匹数模块
@@ -69,7 +67,6 @@ pub struct Model {
     pub barcode: Option<String>,
 
     // ========== v14 批次 416：迁移 032 补齐的 DB 缺失字段 ==========
-
     /// 产品 ID（外键，通过 dye_lot_id 可间接关联，但 Rust 模型直接引用便于查询）
     pub product_id: i32,
 

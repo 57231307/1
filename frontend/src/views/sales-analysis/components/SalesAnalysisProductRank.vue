@@ -61,20 +61,20 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import type { ProductRanking } from '@/api/sales-analysis'
-import { formatCurrency } from '../composables/saFmts'
+import { useI18n } from 'vue-i18n';
+import type { ProductRanking } from '@/api/sales-analysis';
+import { formatCurrency } from '../composables/saFmts';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 排名类型（v-model 通过 model-value + update:model-value 实现）
-const emit = defineEmits<{ 'update:type': [v: string] }>()
+const emit = defineEmits<{ 'update:type': [v: string] }>();
 defineProps<{
-  data: ProductRanking[]
-  type: string
-}>()
+  data: ProductRanking[];
+  type: string;
+}>();
 
-const updateType = (v: string) => emit('update:type', v)
+const updateType = (v: string) => emit('update:type', v);
 </script>
 
 <style scoped>

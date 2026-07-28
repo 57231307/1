@@ -14,7 +14,7 @@ export const statusColorMap: Record<string, string> = {
   running: '#e6a23c',
   completed: '#67c23a',
   conflict: '#f56c6c',
-}
+};
 
 /**
  * 排产任务状态文本映射（用于图例/工具提示）
@@ -25,12 +25,12 @@ export const statusLabelMap: Record<string, string> = {
   running: '生产中',
   completed: '已完成',
   conflict: '冲突',
-}
+};
 
 /**
  * 格式化时间（"YYYY-MM-DDTHH:mm:ss..." → "YYYY-MM-DD HH:mm"）
  */
 export const formatTime = (t: string): string => {
-  if (!t) return '-'
-  return t.replace('T', ' ').slice(0, 16)
-}
+  if (!t) return '-';
+  return t.replace('T', ' ').slice(0, 16);
+};

@@ -1,4 +1,3 @@
-
 use axum::{
     extract::{Path, Query, State},
     Json,
@@ -127,7 +126,9 @@ pub async fn list_locations(
 
     let paginator = query_builder.paginate(&*state.db, page_size);
     // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-    let locations = paginator.fetch_page(page.clamp(1, 1000).saturating_sub(1)).await?;
+    let locations = paginator
+        .fetch_page(page.clamp(1, 1000).saturating_sub(1))
+        .await?;
     let total = paginator.num_items().await?;
 
     let locations_json: Vec<serde_json::Value> = locations
@@ -247,10 +248,12 @@ pub async fn delete_location(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     // P0 8-3 修复：delete 操作补审计日志
     // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
-    crate::services::audit_log_service::AuditLogService::delete_with_audit::<
-        LocationEntity,
-        _,
-    >(&*state.db, "warehouse_location", id, Some(auth.user_id))
+    crate::services::audit_log_service::AuditLogService::delete_with_audit::<LocationEntity, _>(
+        &*state.db,
+        "warehouse_location",
+        id,
+        Some(auth.user_id),
+    )
     .await?;
     Ok(Json(ApiResponse::success_with_message((), "库位删除成功")))
 }
@@ -313,14 +316,12 @@ fn build_warehouse_row(obj: &serde_json::Map<String, serde_json::Value>) -> Vec<
 }
 
 /// 构造仓库列表 xlsx 表格
-fn build_warehouses_table(
-    warehouses_json: Vec<serde_json::Value>,
-) -> Result<XlsxTable, AppError> {
+fn build_warehouses_table(warehouses_json: Vec<serde_json::Value>) -> Result<XlsxTable, AppError> {
     let mut rows: Vec<Vec<String>> = Vec::with_capacity(warehouses_json.len());
     for w in warehouses_json {
-        let obj = w.as_object().ok_or_else(|| {
-            AppError::internal("仓库序列化失败：期望 JSON 对象")
-        })?;
+        let obj = w
+            .as_object()
+            .ok_or_else(|| AppError::internal("仓库序列化失败：期望 JSON 对象"))?;
         rows.push(build_warehouse_row(obj));
     }
     Ok(XlsxTable {

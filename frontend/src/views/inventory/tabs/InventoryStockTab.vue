@@ -6,7 +6,12 @@
 <template>
   <div>
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="localQuery" class="filter-form" :aria-label="t('inventory.stockTab.filterAria')">
+      <el-form
+        :inline="true"
+        :model="localQuery"
+        class="filter-form"
+        :aria-label="t('inventory.stockTab.filterAria')"
+      >
         <el-form-item :label="t('inventory.stockTab.keyword')">
           <el-input
             v-model="localQuery.keyword"
@@ -73,50 +78,50 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { Search, Refresh } from '@element-plus/icons-vue'
-import V2Table from '@/components/V2Table/index.vue'
-import { useTableColumns } from '@/composables/useTableColumns'
+import { reactive, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { Search, Refresh } from '@element-plus/icons-vue';
+import V2Table from '@/components/V2Table/index.vue';
+import { useTableColumns } from '@/composables/useTableColumns';
 // v11 批次 160 P2-7 修复：导入具体接口类型替代 any[]
-import type { InventoryStock } from '@/api/inventory'
-import type { Warehouse } from '@/api/warehouse'
+import type { InventoryStock } from '@/api/inventory';
+import type { Warehouse } from '@/api/warehouse';
 
 // 接入 i18n，替换硬编码中文文案
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 export interface StockQuery {
-  page: number
-  page_size: number
-  keyword: string
-  warehouse_id: number | undefined
-  status: string
+  page: number;
+  page_size: number;
+  keyword: string;
+  warehouse_id: number | undefined;
+  status: string;
 }
 
 const props = defineProps<{
-  stocks: InventoryStock[]
-  total: number
-  loading: boolean
-  queryParams: StockQuery
-  warehouses: Warehouse[]
-}>()
+  stocks: InventoryStock[];
+  total: number;
+  loading: boolean;
+  queryParams: StockQuery;
+  warehouses: Warehouse[];
+}>();
 
 const emit = defineEmits<{
-  view: [row: InventoryStock]
-  query: []
-  reset: []
-  'update:queryParams': [value: StockQuery]
-}>()
+  view: [row: InventoryStock];
+  query: [];
+  reset: [];
+  'update:queryParams': [value: StockQuery];
+}>();
 
-const localQuery = reactive<StockQuery>({ ...props.queryParams })
+const localQuery = reactive<StockQuery>({ ...props.queryParams });
 
 watch(
   () => props.queryParams,
   newParams => {
-    Object.assign(localQuery, newParams)
+    Object.assign(localQuery, newParams);
   },
   { deep: true }
-)
+);
 
 // 状态标签映射函数化响应式求值
 const getStatusText = (status: string) => {
@@ -124,12 +129,17 @@ const getStatusText = (status: string) => {
     normal: t('inventory.stockTab.statusNormal'),
     warning: t('inventory.stockTab.statusWarning'),
     frozen: t('inventory.stockTab.statusFrozen'),
-  }
-  return textMap[status] || status
-}
+  };
+  return textMap[status] || status;
+};
 
 const { columns: stockColumns } = useTableColumns<InventoryStock>([
-  { key: 'product_code', title: t('inventory.stockTab.colProductCode'), width: 140, sortable: true },
+  {
+    key: 'product_code',
+    title: t('inventory.stockTab.colProductCode'),
+    width: 140,
+    sortable: true,
+  },
   { key: 'product_name', title: t('inventory.stockTab.colProductName'), width: 200 },
   { key: 'warehouse_name', title: t('inventory.stockTab.colWarehouse'), width: 120 },
   { key: 'batch_no', title: t('inventory.stockTab.colBatchNo'), width: 120 },
@@ -139,7 +149,8 @@ const { columns: stockColumns } = useTableColumns<InventoryStock>([
     title: t('inventory.stockTab.colQuantity'),
     width: 120,
     align: 'right',
-    formatter: (row: InventoryStock) => (row.quantity != null ? row.quantity.toLocaleString() : '-'),
+    formatter: (row: InventoryStock) =>
+      row.quantity != null ? row.quantity.toLocaleString() : '-',
   },
   {
     key: 'status',
@@ -149,17 +160,17 @@ const { columns: stockColumns } = useTableColumns<InventoryStock>([
     formatter: (row: InventoryStock) => getStatusText(row.status),
   },
   { key: 'location', title: t('inventory.stockTab.colLocation'), width: 100 },
-])
+]);
 
 const handlePageChange = (newPage: number) => {
-  emit('update:queryParams', { ...localQuery, page: newPage })
-  emit('query')
-}
+  emit('update:queryParams', { ...localQuery, page: newPage });
+  emit('query');
+};
 
 const handleSizeChange = (newSize: number) => {
-  emit('update:queryParams', { ...localQuery, page_size: newSize, page: 1 })
-  emit('query')
-}
+  emit('update:queryParams', { ...localQuery, page_size: newSize, page: 1 });
+  emit('query');
+};
 </script>
 
 <style scoped>

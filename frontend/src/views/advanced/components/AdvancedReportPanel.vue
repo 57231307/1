@@ -6,30 +6,30 @@
  * 数据与函数全部由父组件通过 props 传入
  */
 // v11 批次 180 P2-1 修复：从 useRpt 导入具体类型替代 any
-import { useI18n } from 'vue-i18n'
-import type { ReportTemplate, ReportColumn } from '../composables/useRpt'
+import { useI18n } from 'vue-i18n';
+import type { ReportTemplate, ReportColumn } from '../composables/useRpt';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 interface Props {
-  reportTemplates: ReportTemplate[]
-  reportLoading: boolean
-  reportResultVisible: boolean
-  reportData: unknown[]
-  reportColumns: ReportColumn[]
-  executeReport: (row: ReportTemplate) => Promise<void>
-  exportReport: (row: ReportTemplate, format: string) => Promise<void>
+  reportTemplates: ReportTemplate[];
+  reportLoading: boolean;
+  reportResultVisible: boolean;
+  reportData: unknown[];
+  reportColumns: ReportColumn[];
+  executeReport: (row: ReportTemplate) => Promise<void>;
+  exportReport: (row: ReportTemplate, format: string) => Promise<void>;
 }
 
-defineProps<Props>()
+defineProps<Props>();
 
 /**
  * 关闭报表结果弹窗（通过 emit 通知父组件）
  */
 const emit = defineEmits<{
-  (e: 'update:report-result-visible', value: boolean): void
-}>()
-const closeReportResult = () => emit('update:report-result-visible', false)
+  (e: 'update:report-result-visible', value: boolean): void;
+}>();
+const closeReportResult = () => emit('update:report-result-visible', false);
 </script>
 
 <template>

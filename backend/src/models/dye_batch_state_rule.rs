@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 缸号状态流转规则模型（dye_batch_state_rule 表）
 //!
 //! v14 批次 432：缸号全生命周期状态机

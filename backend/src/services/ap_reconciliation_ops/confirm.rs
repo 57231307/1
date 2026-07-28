@@ -84,7 +84,8 @@ impl ApReconciliationService {
         user_id: i32,
     ) {
         let voucher_req = Self::build_confirm_voucher_request(reconciliation);
-        let voucher_service = crate::services::voucher_service::VoucherService::new(self.db.clone());
+        let voucher_service =
+            crate::services::voucher_service::VoucherService::new(self.db.clone());
         if let Err(e) = voucher_service.create_and_post(voucher_req, user_id).await {
             tracing::warn!(
                 "对账单 {} 确认成功，但生成对账确认凭证失败：{}",
@@ -166,7 +167,8 @@ impl ApReconciliationService {
         // 3. 提出争议
         let now = Utc::now();
         let mut reconciliation_active: ap_reconciliation::ActiveModel = reconciliation.into();
-        reconciliation_active.reconciliation_status = Set(reconciliation_status::DISPUTED.to_string());
+        reconciliation_active.reconciliation_status =
+            Set(reconciliation_status::DISPUTED.to_string());
         reconciliation_active.disputed_by = Set(Some(user_id));
         reconciliation_active.disputed_at = Set(Some(now));
         reconciliation_active.disputed_reason = Set(Some(reason));

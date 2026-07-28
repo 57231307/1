@@ -25,8 +25,7 @@ impl MigrationTrait for Migration {
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let sql =
-            include_str!("../../migrations/20260629000001_create_crm_recycle_rules/down.sql");
+        let sql = include_str!("../../migrations/20260629000001_create_crm_recycle_rules/down.sql");
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
         }

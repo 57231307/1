@@ -57,6 +57,18 @@ pub struct CreateGreigeFabricRequest {
     pub production_date: Option<chrono::NaiveDate>,
     pub quantity_meters: Option<f64>,
     pub quantity_kg: Option<f64>,
+    /// 缺陷 1.1：关联采购订单ID
+    pub purchase_order_id: Option<i32>,
+    /// 缺陷 1.1：关联采购入库单ID
+    pub purchase_receipt_id: Option<i32>,
+    /// 缺陷 1.2：安全库存（公斤）
+    pub safety_stock: Option<f64>,
+    /// 缺陷 1.2：订货点（公斤）
+    pub reorder_point: Option<f64>,
+    /// 缺陷 1.2：最大库存（公斤）
+    pub max_stock_point: Option<f64>,
+    /// 缺陷 1.2：补货量（公斤）
+    pub reorder_quantity: Option<f64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -74,6 +86,11 @@ pub struct UpdateGreigeFabricRequest {
     pub status: Option<String>,
     pub quality_grade: Option<String>,
     pub remarks: Option<String>,
+    /// 缺陷 1.2：安全库存配置
+    pub safety_stock: Option<f64>,
+    pub reorder_point: Option<f64>,
+    pub max_stock_point: Option<f64>,
+    pub reorder_quantity: Option<f64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -84,6 +101,8 @@ pub struct StockInRequest {
     pub length_m: f64,
     pub quality_grade: Option<String>,
     pub remarks: Option<String>,
+    /// 缺陷 1.1：入库时关联采购入库单ID
+    pub purchase_receipt_id: Option<i32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -131,7 +150,9 @@ pub async fn list_greige_fabrics(
     let paginator = q.paginate(&*state.db, page_size);
     let total = paginator.num_items().await?;
     // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-    let fabrics = paginator.fetch_page(page.clamp(1, 1000).saturating_sub(1)).await?;
+    let fabrics = paginator
+        .fetch_page(page.clamp(1, 1000).saturating_sub(1))
+        .await?;
     Ok(Json(ApiResponse::success_paginated(
         fabrics, total, page, page_size,
     )))
@@ -189,12 +210,21 @@ pub async fn create_greige_fabric(
         purchase_date: Set(req.purchase_date),
         remarks: Set(req.remarks),
         created_by: Set(req.created_by),
+        purchase_order_id: Set(req.purchase_order_id),
+        purchase_receipt_id: Set(req.purchase_receipt_id),
+        safety_stock: Set(req.safety_stock.and_then(Decimal::from_f64_retain)),
+        reorder_point: Set(req.reorder_point.and_then(Decimal::from_f64_retain)),
+        max_stock_point: Set(req.max_stock_point.and_then(Decimal::from_f64_retain)),
+        reorder_quantity: Set(req.reorder_quantity.and_then(Decimal::from_f64_retain)),
         created_at: Set(crate::utils::date_utils::utc_now_fixed()),
         updated_at: Set(crate::utils::date_utils::utc_now_fixed()),
     };
 
     let created = fabric.insert(&*state.db).await?;
-    Ok(Json(ApiResponse::success_with_message(created, "坯布创建成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        created,
+        "坯布创建成功",
+    )))
 }
 
 pub async fn update_greige_fabric(
@@ -248,11 +278,27 @@ pub async fn update_greige_fabric(
     if let Some(remarks) = req.remarks {
         fabric.remarks = Set(Some(remarks));
     }
+    // 缺陷 1.2：安全库存配置更新
+    if let Some(safety) = req.safety_stock {
+        fabric.safety_stock = Set(Decimal::from_f64_retain(safety));
+    }
+    if let Some(reorder) = req.reorder_point {
+        fabric.reorder_point = Set(Decimal::from_f64_retain(reorder));
+    }
+    if let Some(max_stock) = req.max_stock_point {
+        fabric.max_stock_point = Set(Decimal::from_f64_retain(max_stock));
+    }
+    if let Some(reorder_qty) = req.reorder_quantity {
+        fabric.reorder_quantity = Set(Decimal::from_f64_retain(reorder_qty));
+    }
 
     fabric.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
     let updated = fabric.update(&*state.db).await?;
-    Ok(Json(ApiResponse::success_with_message(updated, "坯布更新成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "坯布更新成功",
+    )))
 }
 
 pub async fn delete_greige_fabric(
@@ -328,10 +374,41 @@ pub async fn stock_in(
     if let Some(remarks) = req.remarks {
         fabric.remarks = Set(Some(remarks));
     }
+    // 缺陷 1.1：入库时关联采购入库单
+    if let Some(receipt_id) = req.purchase_receipt_id {
+        fabric.purchase_receipt_id = Set(Some(receipt_id));
+    }
     fabric.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
     let updated = fabric.update(&*state.db).await?;
-    Ok(Json(ApiResponse::success_with_message(updated, "坯布入库成功")))
+
+    // 缺陷 1.2：入库后检查安全库存预警
+    let current_weight_decimal = updated.weight_kg.unwrap_or(Decimal::ZERO);
+    let reorder_point = updated.reorder_point.unwrap_or(Decimal::ZERO);
+    let safety_stock = updated.safety_stock.unwrap_or(Decimal::ZERO);
+    let max_stock = updated.max_stock_point.unwrap_or(Decimal::ZERO);
+    if reorder_point > Decimal::ZERO && current_weight_decimal <= reorder_point {
+        tracing::warn!(
+            fabric_id = updated.id,
+            current_weight = %current_weight_decimal,
+            reorder_point = %reorder_point,
+            safety_stock = %safety_stock,
+            "胚布库存低于订货点，触发补货建议"
+        );
+    }
+    if max_stock > Decimal::ZERO && current_weight_decimal > max_stock {
+        tracing::warn!(
+            fabric_id = updated.id,
+            current_weight = %current_weight_decimal,
+            max_stock = %max_stock,
+            "胚布库存超过最大库存点"
+        );
+    }
+
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "坯布入库成功",
+    )))
 }
 
 pub async fn stock_out(
@@ -404,7 +481,10 @@ pub async fn stock_out(
     }
 
     let updated = update_fabric.update(&*state.db).await?;
-    Ok(Json(ApiResponse::success_with_message(updated, "坯布出库成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "坯布出库成功",
+    )))
 }
 
 pub async fn get_greige_by_supplier(

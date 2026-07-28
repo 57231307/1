@@ -1,6 +1,4 @@
 #![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
-
 //! 工序流转记录模型（process_step_record 表）
 //!
 //! v14 批次 425：流转卡条码与车间工序流转

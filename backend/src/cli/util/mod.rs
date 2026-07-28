@@ -148,14 +148,14 @@ pub async fn run(cmd: UtilCommand) -> Result<(), Box<dyn std::error::Error>> {
                 eprintln!("❌ 备份失败，请检查日志");
                 std::process::exit(1);
             }
-        },
+        }
         UtilCommand::Restore { file } => {
             // L-1 修复（批次 367 v13 复审）：恢复失败时输出错误并退出，避免吞错
             if !backup::cmd_restore(&file) {
                 eprintln!("❌ 恢复失败，请检查日志");
                 std::process::exit(1);
             }
-        },
+        }
         UtilCommand::Health => service::cmd_health(),
         UtilCommand::Upgrade { version, no_backup } => upgrade::cmd_upgrade(version, no_backup),
         UtilCommand::Deploy { package } => upgrade::cmd_deploy(&package),
@@ -172,6 +172,27 @@ pub async fn run(cmd: UtilCommand) -> Result<(), Box<dyn std::error::Error>> {
 /// 获取安装目录 (支持环境变量覆盖)
 pub(crate) fn get_install_dir() -> String {
     std::env::var("BINGXI_INSTALL_DIR").unwrap_or_else(|_| "/opt/bingxi-erp".to_string())
+}
+
+/// 校验当前进程是否以 root 权限运行（V15 P1 25.2-C 修复）
+/// 升级/部署/回滚/备份/恢复命令操作 systemd 服务与系统目录，必须 root 权限。
+pub(crate) fn require_root() {
+    // 通过 `id -u` 获取有效用户 ID，0 表示 root；避免引入 libc/nix 依赖
+    match run_cmd("id", &["-u"]) {
+        Ok(out) => {
+            let uid = out.trim();
+            if uid != "0" {
+                eprintln!(
+                    "❌ 错误：此命令必须以 root 权限运行（请使用 sudo，当前 uid={}）",
+                    uid
+                );
+                std::process::exit(1);
+            }
+        }
+        Err(_) => {
+            eprintln!("⚠️ 警告：无法校验 root 权限（id 命令不可用），继续执行");
+        }
+    }
 }
 
 /// 获取日志目录 (支持环境变量覆盖)
@@ -237,7 +258,6 @@ pub(crate) fn build_release_url(version: &str) -> String {
         GITHUB_REPO, version, version
     )
 }
-
 
 /// 带镜像源的下载 (自动尝试多个镜像)
 pub(crate) fn download_with_mirrors(url: &str, output: &str, timeout: u32) -> bool {

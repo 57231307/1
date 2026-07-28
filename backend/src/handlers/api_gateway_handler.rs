@@ -14,9 +14,12 @@ use axum::{
     Json,
 };
 use chrono::Utc;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect,
+};
 use serde::Deserialize;
 use serde_json::{json, Value};
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect};
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::{api_endpoint, log_api_access};
@@ -251,7 +254,10 @@ pub async fn create_api_endpoint(
         method: sea_orm::Set(method),
         description: sea_orm::Set(req.description),
         module: sea_orm::Set(req.module),
-        status: sea_orm::Set(req.status.unwrap_or_else(|| master_data::ACTIVE.to_string())),
+        status: sea_orm::Set(
+            req.status
+                .unwrap_or_else(|| master_data::ACTIVE.to_string()),
+        ),
         rate_limit: sea_orm::Set(req.rate_limit.unwrap_or(0)),
         timeout: sea_orm::Set(req.timeout.unwrap_or(30000)),
         authentication: sea_orm::Set(req.authentication.unwrap_or(true)),
@@ -350,10 +356,7 @@ pub async fn delete_api_endpoint(
     api_endpoint::Entity::delete_by_id(id)
         .exec(&*state.db)
         .await?;
-    Ok(Json(ApiResponse::success_with_message(
-        (),
-        "端点删除成功",
-    )))
+    Ok(Json(ApiResponse::success_with_message((), "端点删除成功")))
 }
 
 // ============== logs 查询（复用 log_api_accesses 表） ==============
@@ -643,10 +646,7 @@ pub async fn delete_api_key(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = ApiKeyService::new(state.db.clone());
     service.revoke_api_key(id, Some(&state.cache)).await?;
-    Ok(Json(ApiResponse::success_with_message(
-        (),
-        "密钥已撤销",
-    )))
+    Ok(Json(ApiResponse::success_with_message((), "密钥已撤销")))
 }
 
 /// POST /api-gateway/keys/:id/regenerate — 重新生成 API 密钥

@@ -52,35 +52,85 @@ const CSRF_INVALID_MSG: &str = "CSRF Token 无效或已过期";
 /// 业务错误消息：CSRF Token 绑定的 IP 与请求 IP 不一致（Wave 3 #7）
 const CSRF_IP_MISMATCH_MSG: &str = "CSRF Token IP 不匹配";
 
-/// 从请求中提取客户端 IP（Wave 3 #7）
-///
-/// P3 维度 12 修复（批次 87）：复用 audit_context::extract_client_ip helper，
-/// 消除重复实现。原内部三级降级链（X-Real-IP → X-Forwarded-For → ConnectInfo → unknown）
-/// 已提取为公开 helper，本函数仅作转发保留以减少调用方改动。
-///
-/// 失败时的"unknown"与 [cache::consume_csrf_token] 的 IP 比对语义：
-/// 若登录时也是 unknown（无 IP header 场景），则能正常消费；
-/// 若登录时有 IP 但消费时 unknown，则触发 IP 不匹配（符合预期：IP 失配即拒绝）。
+/// 从请求中提取客户端 IP（Wave 3 #7）：转发至 audit_context helper
 fn extract_client_ip(request: &Request<Body>) -> String {
     extract_client_ip_helper(request)
 }
 
-/// CSRF 验证中间件
-///
-/// 校验策略：
-/// 1. 跳过方法：GET / HEAD / OPTIONS（HTTP 语义无副作用）。
-/// 2. 公开路径非安全方法：要求自定义请求头防御（L-1 修复）。
-///    - 公开路径的 POST/PUT/PATCH/DELETE 不强制 CSRF Token（登录/刷新等场景），
-///      但要求至少携带一个自定义请求头（`X-Requested-With` 或 `X-CSRF-Token`），
-///      以阻止简单表单提交型 CSRF 攻击（简单表单无法设置自定义头）。
-/// 3. 非公开路径非安全方法：要求 `X-CSRF-Token` 头存在且与
-///    [AppCache::consume_csrf_token] 匹配，
-///    且请求 IP 与 token 绑定的 IP 一致（Wave 3 #7）。
-///
-/// 失败响应：
-/// - 缺失头 → 403 + `{success:false, code:CSRF_TOKEN_MISSING, message:"CSRF Token 缺失"}`
-/// - 无效/过期 → 403 + `{success:false, code:CSRF_TOKEN_INVALID, message:"CSRF Token 无效或已过期"}`
-/// - IP 不匹配 → 403 + `{success:false, code:CSRF_IP_MISMATCH, message:"CSRF Token IP 不匹配"}`
+/// 判断是否为无副作用的 HTTP 安全方法（GET/HEAD/OPTIONS）
+fn is_safe_method(method: &Method) -> bool {
+    matches!(*method, Method::GET | Method::HEAD | Method::OPTIONS)
+}
+
+/// 公开路径 L-1 防御：要求携带 X-Requested-With 或 X-CSRF-Token 自定义请求头
+fn check_public_path_header(
+    request: &Request<Body>,
+    path: &str,
+    method: &Method,
+) -> Result<(), Response> {
+    let has_xhr = request
+        .headers()
+        .get("x-requested-with")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.eq_ignore_ascii_case("XMLHttpRequest"))
+        .unwrap_or(false);
+    let has_csrf = request.headers().contains_key(CSRF_HDR_NAME);
+
+    if !has_xhr && !has_csrf {
+        tracing::warn!(
+            path = %path,
+            method = %method,
+            "CSRF 验证失败：公开端点的非安全方法缺少自定义请求头（L-1 防御）"
+        );
+        return Err(csrf_error_response(
+            CODE_MISS,
+            "缺少必要的请求头，请使用 AJAX 方式请求",
+        ));
+    }
+    Ok(())
+}
+
+/// 从请求头提取并清理 CSRF Token（去空白、过滤空串）
+fn extract_csrf_token(request: &Request<Body>) -> Option<String> {
+    request
+        .headers()
+        .get(CSRF_HDR_NAME)
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+/// 一次性消费 CSRF Token，含 IP 绑定校验（Wave 3 #7）
+fn consume_csrf_token(
+    state: &AppState,
+    token: &str,
+    client_ip: &str,
+    path: &str,
+    method: &Method,
+) -> Result<(), Response> {
+    match state.cache.consume_csrf_token(token, client_ip) {
+        CsrfConsumeResult::Ok => Ok(()),
+        CsrfConsumeResult::IpMismatch => {
+            tracing::warn!(
+                path = %path,
+                method = %method,
+                client_ip = %client_ip,
+                "CSRF 验证失败：Token 绑定的 IP 与请求 IP 不一致（Wave 3 #7 防御）"
+            );
+            Err(csrf_error_response(CODE_IP_MM, CSRF_IP_MISMATCH_MSG))
+        }
+        CsrfConsumeResult::NotFound => {
+            tracing::warn!(
+                path = %path,
+                method = %method,
+                "CSRF 验证失败：Token 不存在或已被消费/过期"
+            );
+            Err(csrf_error_response(CODE_INVAL, CSRF_INVALID_MSG))
+        }
+    }
+}
+
+/// CSRF 验证中间件：跳过安全方法，公开路径要求自定义请求头，非公开路径校验 Token + IP
 pub async fn csrf_middleware(
     State(state): State<AppState>,
     request: Request<Body>,
@@ -90,48 +140,18 @@ pub async fn csrf_middleware(
     let path = request.uri().path().to_string();
 
     // 1. 跳过无副作用方法
-    if matches!(method, Method::GET | Method::HEAD | Method::OPTIONS) {
+    if is_safe_method(&method) {
         return Ok(next.run(request).await);
     }
 
     // 2. 公开路径：L-1 修复 - 要求自定义请求头（防御简单表单提交 CSRF）
     if is_public_path(&path) {
-        // 检查是否有自定义请求头（二选一即可）
-        // - X-Requested-With: XMLHttpRequest（传统 AJAX 请求标识
-        // - X-CSRF-Token: （完整 CSRF Token（如果前端已经有也放行）
-        let has_xhr = request
-            .headers()
-            .get("x-requested-with")
-            .and_then(|v| v.to_str().ok())
-            .map(|s| s.eq_ignore_ascii_case("XMLHttpRequest"))
-            .unwrap_or(false);
-        let has_csrf = request.headers().contains_key(CSRF_HDR_NAME);
-
-        if !has_xhr && !has_csrf {
-            tracing::warn!(
-                path = %path,
-                method = %method,
-                "CSRF 验证失败：公开端点的非安全方法缺少自定义请求头（L-1 防御）"
-            );
-            return Err(csrf_error_response(
-                CODE_MISS,
-                "缺少必要的请求头，请使用 AJAX 方式请求",
-            ));
-        }
-
-        // 公开路径通过自定义头检查后放行（不强制消费 CSRF Token）
+        check_public_path_header(&request, &path, &method)?;
         return Ok(next.run(request).await);
     }
 
     // 3. 提取并校验 CSRF Token 头
-    let token_opt = request
-        .headers()
-        .get(CSRF_HDR_NAME)
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty());
-
-    let token = match token_opt {
+    let token = match extract_csrf_token(&request) {
         Some(t) => t,
         None => {
             tracing::warn!(
@@ -143,40 +163,14 @@ pub async fn csrf_middleware(
         }
     };
 
-    // 4. 提取客户端 IP（Wave 3 #7）
+    // 4. 提取客户端 IP + 一次性消费 token（Wave 3 #7 含 IP 校验）
     let client_ip = extract_client_ip(&request);
-
-    // 5. 一次性消费：成功匹配后立即从缓存中移除（Wave 3 #7 含 IP 校验）
-    match state.cache.consume_csrf_token(&token, &client_ip) {
-        CsrfConsumeResult::Ok => {
-            // 通过：继续处理请求
-        }
-        CsrfConsumeResult::IpMismatch => {
-            tracing::warn!(
-                path = %path,
-                method = %method,
-                client_ip = %client_ip,
-                "CSRF 验证失败：Token 绑定的 IP 与请求 IP 不一致（Wave 3 #7 防御）"
-            );
-            return Err(csrf_error_response(CODE_IP_MM, CSRF_IP_MISMATCH_MSG));
-        }
-        CsrfConsumeResult::NotFound => {
-            tracing::warn!(
-                path = %path,
-                method = %method,
-                "CSRF 验证失败：Token 不存在或已被消费/过期"
-            );
-            return Err(csrf_error_response(CODE_INVAL, CSRF_INVALID_MSG));
-        }
-    }
+    consume_csrf_token(&state, &token, &client_ip, &path, &method)?;
 
     Ok(next.run(request).await)
 }
 
-/// 构造 403 CSRF 错误响应
-///
-/// 响应体结构遵循项目统一 JSON 格式：
-/// `{success: false, code: <业务码>, message: <描述>, data: null}`
+/// 构造 403 CSRF 错误响应（统一 JSON 格式）
 fn csrf_error_response(code: &str, message: &str) -> Response {
     let body = json!({
         "success": false,

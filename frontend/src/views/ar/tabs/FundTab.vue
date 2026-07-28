@@ -208,11 +208,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
-import type { FormInstance, FormRules } from 'element-plus'
+import { ref, reactive, computed, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
+import { Plus } from '@element-plus/icons-vue';
+import type { FormInstance, FormRules } from 'element-plus';
 import {
   getFundAccountList,
   createFundAccount,
@@ -220,24 +220,24 @@ import {
   withdrawFund as withdrawFundApi,
   freezeFund as freezeFundApi,
   type FundAccount,
-} from '@/api/fund'
+} from '@/api/fund';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const funds = ref<FundAccount[]>([])
-const fundLoading = ref(false)
-const fundSubmitLoading = ref(false)
-const fundOperationLoading = ref(false)
-const fundDialogVisible = ref(false)
-const fundOperationDialogVisible = ref(false)
-const fundFormRef = ref<FormInstance>()
+const funds = ref<FundAccount[]>([]);
+const fundLoading = ref(false);
+const fundSubmitLoading = ref(false);
+const fundOperationLoading = ref(false);
+const fundDialogVisible = ref(false);
+const fundOperationDialogVisible = ref(false);
+const fundFormRef = ref<FormInstance>();
 
-const fundOperationType = ref('')
-const fundOperationTitle = ref('')
-const fundOperationAmount = ref(0)
-const fundOperationReason = ref('')
-const fundOperationRemark = ref('')
-const currentFundAccount = ref<FundAccount | null>(null)
+const fundOperationType = ref('');
+const fundOperationTitle = ref('');
+const fundOperationAmount = ref(0);
+const fundOperationReason = ref('');
+const fundOperationRemark = ref('');
+const currentFundAccount = ref<FundAccount | null>(null);
 
 const fundForm = reactive({
   account_code: '',
@@ -245,7 +245,7 @@ const fundForm = reactive({
   account_type: 'bank',
   bank_name: '',
   bank_account: '',
-})
+});
 
 const fundRules: FormRules = {
   account_code: [
@@ -257,11 +257,11 @@ const fundRules: FormRules = {
   account_type: [
     { required: true, message: t('arModule.fund.accountTypeRequired'), trigger: 'change' },
   ],
-}
+};
 
 const formatMoney = (amount: number) => {
-  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00'
-}
+  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00';
+};
 
 const getAccountTypeLabel = (type: string) => {
   const keyMap: Record<string, string> = {
@@ -269,138 +269,140 @@ const getAccountTypeLabel = (type: string) => {
     cash: 'arModule.fund.typeCash',
     alipay: 'arModule.fund.typeAlipay',
     wechat: 'arModule.fund.typeWechat',
-  }
-  const key = keyMap[type]
-  return key ? t(key) : type
-}
+  };
+  const key = keyMap[type];
+  return key ? t(key) : type;
+};
 
-const totalBalance = computed(() => funds.value.reduce((sum, f) => sum + (f.balance || 0), 0))
-const totalFrozen = computed(() => funds.value.reduce((sum, f) => sum + (f.frozen_balance || 0), 0))
+const totalBalance = computed(() => funds.value.reduce((sum, f) => sum + (f.balance || 0), 0));
+const totalFrozen = computed(() =>
+  funds.value.reduce((sum, f) => sum + (f.frozen_balance || 0), 0)
+);
 const totalAvailable = computed(() =>
   funds.value.reduce((sum, f) => sum + (f.available_balance || 0), 0)
-)
+);
 
 const fetchFunds = async () => {
-  fundLoading.value = true
+  fundLoading.value = true;
   try {
-    const res = await getFundAccountList()
+    const res = await getFundAccountList();
     const d = res.data as
       | { list?: FundAccount[]; items?: FundAccount[]; data?: FundAccount[] }
-      | FundAccount[]
-    funds.value = Array.isArray(d) ? d : d?.list || d?.items || []
+      | FundAccount[];
+    funds.value = Array.isArray(d) ? d : d?.list || d?.items || [];
   } catch (error) {
-    const err = error as Error
-    ElMessage.error(err.message || t('arModule.fund.fetchListFailed'))
+    const err = error as Error;
+    ElMessage.error(err.message || t('arModule.fund.fetchListFailed'));
   } finally {
-    fundLoading.value = false
+    fundLoading.value = false;
   }
-}
+};
 
 const openFundDialog = () => {
-  fundFormRef.value?.resetFields()
-  fundForm.account_code = ''
-  fundForm.account_name = ''
-  fundForm.account_type = 'bank'
-  fundForm.bank_name = ''
-  fundForm.bank_account = ''
-  fundDialogVisible.value = true
-}
+  fundFormRef.value?.resetFields();
+  fundForm.account_code = '';
+  fundForm.account_name = '';
+  fundForm.account_type = 'bank';
+  fundForm.bank_name = '';
+  fundForm.bank_account = '';
+  fundDialogVisible.value = true;
+};
 
 const submitFund = async () => {
-  const valid = await fundFormRef.value?.validate()
-  if (!valid) return
+  const valid = await fundFormRef.value?.validate();
+  if (!valid) return;
 
-  fundSubmitLoading.value = true
+  fundSubmitLoading.value = true;
   try {
-    await createFundAccount(fundForm)
-    ElMessage.success(t('common.success'))
-    fundDialogVisible.value = false
-    fetchFunds()
+    await createFundAccount(fundForm);
+    ElMessage.success(t('common.success'));
+    fundDialogVisible.value = false;
+    fetchFunds();
   } catch (error) {
-    const err = error as Error
-    ElMessage.error(err.message || t('common.failed'))
+    const err = error as Error;
+    ElMessage.error(err.message || t('common.failed'));
   } finally {
-    fundSubmitLoading.value = false
+    fundSubmitLoading.value = false;
   }
-}
+};
 
 const depositFund = (row: FundAccount) => {
-  currentFundAccount.value = row
-  fundOperationType.value = 'deposit'
-  fundOperationTitle.value = t('arModule.fund.depositTitle')
-  fundOperationAmount.value = 0
-  fundOperationRemark.value = ''
-  fundOperationDialogVisible.value = true
-}
+  currentFundAccount.value = row;
+  fundOperationType.value = 'deposit';
+  fundOperationTitle.value = t('arModule.fund.depositTitle');
+  fundOperationAmount.value = 0;
+  fundOperationRemark.value = '';
+  fundOperationDialogVisible.value = true;
+};
 
 const withdrawFund = (row: FundAccount) => {
-  currentFundAccount.value = row
-  fundOperationType.value = 'withdraw'
-  fundOperationTitle.value = t('arModule.fund.withdrawTitle')
-  fundOperationAmount.value = 0
-  fundOperationRemark.value = ''
-  fundOperationDialogVisible.value = true
-}
+  currentFundAccount.value = row;
+  fundOperationType.value = 'withdraw';
+  fundOperationTitle.value = t('arModule.fund.withdrawTitle');
+  fundOperationAmount.value = 0;
+  fundOperationRemark.value = '';
+  fundOperationDialogVisible.value = true;
+};
 
 const freezeFund = (row: FundAccount) => {
-  currentFundAccount.value = row
-  fundOperationType.value = 'freeze'
-  fundOperationTitle.value = t('arModule.fund.freezeTitle')
-  fundOperationAmount.value = 0
-  fundOperationReason.value = ''
-  fundOperationRemark.value = ''
-  fundOperationDialogVisible.value = true
-}
+  currentFundAccount.value = row;
+  fundOperationType.value = 'freeze';
+  fundOperationTitle.value = t('arModule.fund.freezeTitle');
+  fundOperationAmount.value = 0;
+  fundOperationReason.value = '';
+  fundOperationRemark.value = '';
+  fundOperationDialogVisible.value = true;
+};
 
 const submitFundOperation = async () => {
   if (fundOperationAmount.value <= 0) {
-    ElMessage.warning(t('arModule.fund.invalidAmount'))
-    return
+    ElMessage.warning(t('arModule.fund.invalidAmount'));
+    return;
   }
 
-  if (!currentFundAccount.value) return
+  if (!currentFundAccount.value) return;
 
-  fundOperationLoading.value = true
+  fundOperationLoading.value = true;
   try {
     if (fundOperationType.value === 'deposit') {
       await depositFundApi(
         currentFundAccount.value.id,
         fundOperationAmount.value,
         fundOperationRemark.value
-      )
-      ElMessage.success(t('arModule.fund.depositSuccess'))
+      );
+      ElMessage.success(t('arModule.fund.depositSuccess'));
     } else if (fundOperationType.value === 'withdraw') {
       await withdrawFundApi(
         currentFundAccount.value.id,
         fundOperationAmount.value,
         fundOperationRemark.value
-      )
-      ElMessage.success(t('arModule.fund.withdrawSuccess'))
+      );
+      ElMessage.success(t('arModule.fund.withdrawSuccess'));
     } else if (fundOperationType.value === 'freeze') {
       if (!fundOperationReason.value) {
-        ElMessage.warning(t('arModule.fund.reasonRequired'))
-        return
+        ElMessage.warning(t('arModule.fund.reasonRequired'));
+        return;
       }
       await freezeFundApi(
         currentFundAccount.value.id,
         fundOperationAmount.value,
         fundOperationReason.value
-      )
-      ElMessage.success(t('arModule.fund.freezeSuccess'))
+      );
+      ElMessage.success(t('arModule.fund.freezeSuccess'));
     }
-    fundOperationDialogVisible.value = false
-    fetchFunds()
+    fundOperationDialogVisible.value = false;
+    fetchFunds();
   } catch (error) {
-    const err = error as Error
-    ElMessage.error(err.message || t('common.failed'))
+    const err = error as Error;
+    ElMessage.error(err.message || t('common.failed'));
   } finally {
-    fundOperationLoading.value = false
+    fundOperationLoading.value = false;
   }
-}
+};
 
 onMounted(() => {
-  fetchFunds()
-})
+  fetchFunds();
+});
 </script>
 
 <style scoped>

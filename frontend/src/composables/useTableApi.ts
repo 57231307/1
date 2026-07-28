@@ -3,48 +3,48 @@
  * 任务编号: Wave 4 P2-1 PR-1
  * 关联 spec: docs/superpowers/specs/2026-06-16-wave4-p2-1-design.md 第四章
  */
-import { ref, watch } from 'vue'
-import type { Ref } from 'vue'
-import { request } from '@/api/request'
-import type { ApiResponse } from '@/types/api'
+import { ref, watch } from 'vue';
+import type { Ref } from 'vue';
+import { request } from '@/api/request';
+import type { ApiResponse } from '@/types/api';
 
 /**
  * 表格接口响应的可识别字段
  * 后端部分接口使用 list/顶层，部分使用 data.items/嵌套
  */
 interface ListResponsePayload {
-  data?: unknown
-  list?: unknown
-  items?: unknown
-  results?: unknown
-  total?: number
-  count?: number
+  data?: unknown;
+  list?: unknown;
+  items?: unknown;
+  results?: unknown;
+  total?: number;
+  count?: number;
 }
 
 export interface UseTableApiOptions {
-  url: string
+  url: string;
   // v11 批次 172 P2-1 修复：Record<string, any> 改为 Record<string, unknown>
-  defaultParams?: Record<string, unknown>
-  defaultPageSize?: number
-  pageKey?: string
-  pageSizeKey?: string
-  totalKey?: string
-  listKey?: string
-  retryCount?: number
-  retryDelay?: number
-  onError?: (err: unknown) => void
+  defaultParams?: Record<string, unknown>;
+  defaultPageSize?: number;
+  pageKey?: string;
+  pageSizeKey?: string;
+  totalKey?: string;
+  listKey?: string;
+  retryCount?: number;
+  retryDelay?: number;
+  onError?: (err: unknown) => void;
 }
 
 export interface UseTableApiReturn<T = unknown> {
-  data: Ref<T[]>
-  total: Ref<number>
-  loading: Ref<boolean>
-  page: Ref<number>
-  pageSize: Ref<number>
-  queryParams: Ref<Record<string, unknown>>
-  refresh: () => Promise<void>
-  reset: () => void
-  setQueryParam: (key: string, value: unknown) => void
+  data: Ref<T[]>;
+  total: Ref<number>;
+  loading: Ref<boolean>;
+  page: Ref<number>;
+  pageSize: Ref<number>;
+  queryParams: Ref<Record<string, unknown>>;
+  refresh: () => Promise<void>;
+  reset: () => void;
+  setQueryParam: (key: string, value: unknown) => void;
 }
 
 /**
@@ -54,9 +54,8 @@ export interface UseTableApiReturn<T = unknown> {
 export function useTableApi<T = unknown>(
   optionsOrUrl: UseTableApiOptions | string
 ): UseTableApiReturn<T> {
-  const options: UseTableApiOptions = typeof optionsOrUrl === 'string'
-    ? { url: optionsOrUrl }
-    : optionsOrUrl
+  const options: UseTableApiOptions =
+    typeof optionsOrUrl === 'string' ? { url: optionsOrUrl } : optionsOrUrl;
 
   const {
     url,
@@ -69,15 +68,15 @@ export function useTableApi<T = unknown>(
     retryCount = 2,
     retryDelay = 1000,
     onError,
-  } = options
+  } = options;
 
-  const data = ref<T[]>([]) as Ref<T[]>
-  const total = ref(0)
-  const loading = ref(false)
-  const page = ref(1)
-  const pageSize = ref(defaultPageSize)
+  const data = ref<T[]>([]) as Ref<T[]>;
+  const total = ref(0);
+  const loading = ref(false);
+  const page = ref(1);
+  const pageSize = ref(defaultPageSize);
   // v11 批次 172 P2-1 修复：ref<Record<string, any>> 改为 Record<string, unknown>
-  const queryParams = ref<Record<string, unknown>>({ ...defaultParams })
+  const queryParams = ref<Record<string, unknown>>({ ...defaultParams });
 
   /**
    * 从响应中探测 list 和 total 字段
@@ -86,90 +85,90 @@ export function useTableApi<T = unknown>(
    */
   // v11 批次 172 P2-1 修复：payload: any 改为 payload: ListResponsePayload | unknown[]
   const detectList = (payload: ListResponsePayload | unknown[]): T[] => {
-    if (Array.isArray(payload)) return payload as T[]
+    if (Array.isArray(payload)) return payload as T[];
     // 优先按 listKey 指定的字段名取
-    const obj = payload as ListResponsePayload
+    const obj = payload as ListResponsePayload;
     if (listKey && Array.isArray(obj?.[listKey as keyof ListResponsePayload])) {
-      return obj[listKey as keyof ListResponsePayload] as unknown as T[]
+      return obj[listKey as keyof ListResponsePayload] as unknown as T[];
     }
-    if (Array.isArray(obj?.list)) return obj.list as unknown as T[]
-    if (Array.isArray(obj?.items)) return obj.items as unknown as T[]
-    if (Array.isArray(obj?.data)) return obj.data as unknown as T[]
-    if (Array.isArray(obj?.results)) return obj.results as unknown as T[]
-    return []
-  }
+    if (Array.isArray(obj?.list)) return obj.list as unknown as T[];
+    if (Array.isArray(obj?.items)) return obj.items as unknown as T[];
+    if (Array.isArray(obj?.data)) return obj.data as unknown as T[];
+    if (Array.isArray(obj?.results)) return obj.results as unknown as T[];
+    return [];
+  };
 
   const detectTotal = (payload: ListResponsePayload | unknown[]): number => {
-    const obj: ListResponsePayload = Array.isArray(payload) ? {} : payload
+    const obj: ListResponsePayload = Array.isArray(payload) ? {} : payload;
     if (typeof obj?.[totalKey as keyof ListResponsePayload] === 'number') {
-      return obj[totalKey as keyof ListResponsePayload] as number
+      return obj[totalKey as keyof ListResponsePayload] as number;
     }
-    if (typeof obj?.total === 'number') return obj.total
-    if (typeof obj?.count === 'number') return obj.count
-    return 0
-  }
+    if (typeof obj?.total === 'number') return obj.total;
+    if (typeof obj?.count === 'number') return obj.count;
+    return 0;
+  };
 
   /**
    * 核心请求函数（带重试）
    */
   const fetchData = async (attempt = 0): Promise<void> => {
-    loading.value = true
+    loading.value = true;
     try {
       // v11 批次 172 P2-1 修复：params: Record<string, any> 改为 Record<string, unknown>
       const params: Record<string, unknown> = {
         ...queryParams.value,
         [pageKey]: page.value,
         [pageSizeKey]: pageSize.value,
-      }
+      };
       // 表格接口响应：ApiResponse 包装的 list/total 或裸 list/total
-      const res = await request.get<ApiResponse<ListResponsePayload | T[]> | ListResponsePayload | T[]>(
-        url,
-        { params }
-      )
+      const res = await request.get<
+        ApiResponse<ListResponsePayload | T[]> | ListResponsePayload | T[]
+      >(url, { params });
       // 兼容三种返回：ApiResponse 包装 / 裸 list / 裸对象
       // 批次 277：当 res.data 是裸数组（如 `{ data: T[], total: number }`）时，
       // 需要把 res 外层的 total/count 保留到 payload，否则 detectTotal 会丢失总数。
-      const resObj = res as ListResponsePayload
-      const raw: ListResponsePayload | T[] = (res as { data?: unknown })?.data ?? (res as ListResponsePayload | T[])
+      const resObj = res as ListResponsePayload;
+      const raw: ListResponsePayload | T[] =
+        (res as { data?: unknown })?.data ?? (res as ListResponsePayload | T[]);
       const payload: ListResponsePayload = Array.isArray(raw)
         ? { data: raw, total: resObj?.total, count: resObj?.count }
-        : (raw ?? {})
-      data.value = detectList(payload) as T[]
-      total.value = detectTotal(payload)
+        : (raw ?? {});
+      data.value = detectList(payload) as T[];
+      total.value = detectTotal(payload);
     } catch (err) {
       if (attempt < retryCount) {
-        await new Promise(r => setTimeout(r, retryDelay))
-        return fetchData(attempt + 1)
+        await new Promise(r => setTimeout(r, retryDelay));
+        return fetchData(attempt + 1);
       }
-      onError?.(err)
-      throw err
+      onError?.(err);
+      throw err;
     } finally {
-      loading.value = false
+      loading.value = false;
     }
-  }
+  };
 
   const refresh = async (): Promise<void> => {
-    await fetchData()
-  }
+    await fetchData();
+  };
 
   const reset = (): void => {
-    queryParams.value = { ...defaultParams }
-    page.value = 1
-    pageSize.value = defaultPageSize
-  }
+    queryParams.value = { ...defaultParams };
+    page.value = 1;
+    pageSize.value = defaultPageSize;
+  };
 
   // v11 批次 172 P2-1 修复：value: any 改为 value: unknown
   const setQueryParam = (key: string, value: unknown): void => {
-    queryParams.value = { ...queryParams.value, [key]: value }
-  }
+    queryParams.value = { ...queryParams.value, [key]: value };
+  };
 
   // 监听分页变化自动加载
   watch([page, pageSize], () => {
-    fetchData()
-  })
+    fetchData();
+  });
 
   // 初始加载
-  fetchData()
+  fetchData();
 
   return {
     data,
@@ -181,5 +180,5 @@ export function useTableApi<T = unknown>(
     refresh,
     reset,
     setQueryParam,
-  }
+  };
 }

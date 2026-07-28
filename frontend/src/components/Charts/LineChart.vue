@@ -12,30 +12,30 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useI18n } from 'vue-i18n'
-import type { EChartsOption, ECharts } from 'echarts'
-import BaseChart from './BaseChart.vue'
+import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import type { EChartsOption, ECharts } from 'echarts';
+import BaseChart from './BaseChart.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 interface LineData {
-  name: string
-  data: (number | null)[]
-  smooth?: boolean
-  areaStyle?: boolean
-  [key: string]: unknown
+  name: string;
+  data: (number | null)[];
+  smooth?: boolean;
+  areaStyle?: boolean;
+  [key: string]: unknown;
 }
 
 interface Props {
-  xAxisData?: string[]
-  series?: LineData[]
-  title?: string
-  height?: string
-  loading?: boolean
-  autoResize?: boolean
-  showArea?: boolean
-  smooth?: boolean
+  xAxisData?: string[];
+  series?: LineData[];
+  title?: string;
+  height?: string;
+  loading?: boolean;
+  autoResize?: boolean;
+  showArea?: boolean;
+  smooth?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -47,14 +47,14 @@ const props = withDefaults(defineProps<Props>(), {
   autoResize: true,
   showArea: false,
   smooth: true,
-})
+});
 
 const emit = defineEmits<{
-  ready: [instance: ECharts]
-  click: [params: Record<string, unknown>]
-}>()
+  ready: [instance: ECharts];
+  click: [params: Record<string, unknown>];
+}>();
 
-const chartRef = ref()
+const chartRef = ref();
 
 const chartOption = computed<EChartsOption>(() => {
   const seriesConfig = props.series.map(item => ({
@@ -63,7 +63,7 @@ const chartOption = computed<EChartsOption>(() => {
     data: item.data,
     smooth: item.smooth ?? props.smooth,
     areaStyle: (item.areaStyle ?? props.showArea) ? {} : undefined,
-  }))
+  }));
 
   return {
     title: props.title ? { text: props.title, left: 'center' } : undefined,
@@ -77,8 +77,8 @@ const chartOption = computed<EChartsOption>(() => {
     },
     yAxis: { type: 'value' },
     series: seriesConfig,
-  }
-})
+  };
+});
 
-defineExpose({ getChart: () => chartRef.value?.getChart() })
+defineExpose({ getChart: () => chartRef.value?.getChart() });
 </script>

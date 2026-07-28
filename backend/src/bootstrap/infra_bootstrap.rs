@@ -51,6 +51,29 @@ pub fn init_env_and_logging() -> Result<AppSettings, Box<dyn std::error::Error>>
     );
     info!("日志目录：{}", settings.log.dir);
 
+    // V15 Batch05-P1-2：面料行业配置启动期提示
+    let fi = &settings.fabric_industry;
+    info!(
+        vat_count = fi.dyehouse_vat_count,
+        price_base = fi.process_unit_price_base,
+        allocation_rule = %fi.energy_allocation_rule,
+        grade_threshold_a = fi.quality_grade_threshold_a,
+        grade_threshold_b = fi.quality_grade_threshold_b,
+        grade_threshold_c = fi.quality_grade_threshold_c,
+        status_timeout_secs = fi.dyebatch_status_timeout_secs,
+        "面料行业配置（fabric_industry）"
+    );
+    if fi.dyehouse_vat_count <= 0 {
+        tracing::warn!(
+            "面料行业配置 DYEHOUSE_VAT_COUNT 未设置或为 0，排缸算法与产能统计将不可用（生产环境请配置染缸总数）"
+        );
+    }
+    if fi.process_unit_price_base <= 0.0 {
+        tracing::warn!(
+            "面料行业配置 PROCESS_UNIT_PRICE_BASE 未设置或为 0，工序单价将退化为 0（生产环境请配置工序单价基准）"
+        );
+    }
+
     Ok(settings)
 }
 

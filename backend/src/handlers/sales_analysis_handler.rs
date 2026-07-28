@@ -9,8 +9,8 @@ use crate::services::sales_analysis_service::{
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
-use crate::utils::ApiResponse;
 use crate::utils::xlsx_export::xlsx_response;
+use crate::utils::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
     Json,
@@ -91,7 +91,10 @@ pub async fn get_rankings(
 
     let service = SalesAnalysisService::new(state.db.clone());
     let rankings = service
-        .get_rankings(params.period.as_deref(), params.limit.unwrap_or(10).clamp(1, 100))
+        .get_rankings(
+            params.period.as_deref(),
+            params.limit.unwrap_or(10).clamp(1, 100),
+        )
         .await?;
     info!("销售排名查询成功，共 {} 条记录", rankings.len());
 

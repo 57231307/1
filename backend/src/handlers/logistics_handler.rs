@@ -4,16 +4,18 @@ use axum::{
 };
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set, TransactionTrait};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set, TransactionTrait,
+};
 use serde::Deserialize;
 
+use crate::middleware::auth_context::AuthContext;
 use crate::models::ar_invoice;
 use crate::models::logistics_waybill;
 use crate::models::sales_order;
 use crate::models::status::common as common_status;
 use crate::models::status::logistics_waybill as waybill_status;
 use crate::models::status::sales_order as so_status;
-use crate::middleware::auth_context::AuthContext;
 use crate::services::ar_invoice_service::ArInvoiceService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -68,6 +70,7 @@ pub async fn create_waybill(
         sign_remark: Set(None),
         created_at: Set(Utc::now()),
         updated_at: Set(Utc::now()),
+        ..Default::default()
     };
 
     let inserted = new_waybill.insert(&txn).await?;
@@ -86,13 +89,23 @@ pub async fn create_waybill(
 
 pub async fn list_waybills(
     State(state): State<AppState>,
-) -> Result<Json<ApiResponse<Vec<logistics_waybill::Model>>>, AppError> {
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
     let waybills = logistics_waybill::Entity::find()
         .order_by_desc(logistics_waybill::Column::CreatedAt)
         .all(&*state.db)
         .await?;
 
-    Ok(Json(ApiResponse::success(waybills)))
+    // P1-08-5：非管理员对运单列表司机手机号脱敏
+    let waybills_json: Vec<serde_json::Value> = waybills
+        .into_iter()
+        .map(|w| {
+            let v = serde_json::to_value(w).unwrap_or(serde_json::Value::Null);
+            crate::utils::field_mask::mask_contact_fields_for_role(v, auth.role_id)
+        })
+        .collect();
+
+    Ok(Json(ApiResponse::success(waybills_json)))
 }
 
 #[derive(Deserialize)]
@@ -232,13 +245,18 @@ pub async fn sign_waybill(
 pub async fn get_waybill(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-) -> Result<Json<ApiResponse<logistics_waybill::Model>>, AppError> {
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let waybill = logistics_waybill::Entity::find_by_id(id)
         .one(&*state.db)
         .await?
         .ok_or_else(|| AppError::not_found("运单不存在"))?;
 
-    Ok(Json(ApiResponse::success(waybill)))
+    // P1-08-5：非管理员对运单详情司机手机号脱敏
+    let value = serde_json::to_value(&waybill).unwrap_or(serde_json::Value::Null);
+    let value = crate::utils::field_mask::mask_contact_fields_for_role(value, auth.role_id);
+
+    Ok(Json(ApiResponse::success(value)))
 }
 
 pub async fn delete_waybill(

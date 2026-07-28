@@ -16,7 +16,8 @@ use validator::Validate;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::color_price_dto::{
     ApproveColorPriceDto, BatchAdjustPriceDto, ColorPriceDetail, ColorPriceListItem,
-    CreateColorPriceDto, ListColorPricesQuery, PagedResponse, PriceCalcRequest, UpdateColorPriceDto,
+    CreateColorPriceDto, ListColorPricesQuery, PagedResponse, PriceCalcRequest,
+    UpdateColorPriceDto,
 };
 use crate::models::color_price_history_dto::PriceHistoryItem;
 use crate::models::color_price_tier_dto::CreatePriceTierDto;
@@ -235,10 +236,7 @@ pub async fn approve_color_price(
     let user_id = auth.user_id as i64;
     let service = ColorPriceBatchService::from_state(&state);
 
-    let m = service
-        .approve(id, user_id, dto)
-        .await
-        .map_err(batch_err)?;
+    let m = service.approve(id, user_id, dto).await.map_err(batch_err)?;
     Ok(Json(ApiResponse::success(model_to_detail(m))))
 }
 
@@ -254,7 +252,9 @@ pub async fn get_color_price_history(
 ) -> Result<Json<ApiResponse<PagedResponse<PriceHistoryItem>>>, AppError> {
     let service = ColorPriceHistoryService::from_state(&state);
 
-    let (items, total) = service.list_by_price(id, 1, 100).await
+    let (items, total) = service
+        .list_by_price(id, 1, 100)
+        .await
         .map_err(|e| AppError::database(e.to_string()))?;
     let page_items: Vec<PriceHistoryItem> = items
         .into_iter()
@@ -302,7 +302,9 @@ pub async fn calculate_color_price(
             .map_err(|_| AppError::validation("无效的数量".to_string()))?,
         season: req.season,
         product_category_id: req.product_category_id,
-        currency: req.currency.unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string()),
+        currency: req
+            .currency
+            .unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string()),
         calc_date: req.calc_date,
     };
     let result = crate::utils::price_calculator::calculate_price(&state.db, &calc_req)
@@ -337,11 +339,10 @@ pub async fn list_tiers(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = ColorPriceTierService::from_state(&state);
 
-    let items = service
-        .list_by_price(price_id)
-        .await
-        .map_err(tier_err)?;
-    Ok(Json(ApiResponse::success(json!({ "items": items, "total": items.len() }))))
+    let items = service.list_by_price(price_id).await.map_err(tier_err)?;
+    Ok(Json(ApiResponse::success(
+        json!({ "items": items, "total": items.len() }),
+    )))
 }
 
 /// POST /api/v1/erp/color-prices/tiers - 新建阶梯价
@@ -365,7 +366,10 @@ pub async fn delete_tier(
     let service = ColorPriceTierService::from_state(&state);
 
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
-    service.delete(tier_id, auth.user_id).await.map_err(tier_err)?;
+    service
+        .delete(tier_id, auth.user_id)
+        .await
+        .map_err(tier_err)?;
     Ok(Json(ApiResponse::success(json!({ "deleted": tier_id }))))
 }
 

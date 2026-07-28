@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 坏账核销审批 Model（V15 P0-B02 Batch 481 创建）
 //!
 //! 表 bad_debt_writeoffs：二级审批流（申请人→财务经理→总经理）+ 核销执行

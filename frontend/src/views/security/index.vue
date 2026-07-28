@@ -11,7 +11,9 @@
       <div class="header-left">
         <h1 class="page-title">{{ t('security.index.title') }}</h1>
         <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/' }">{{ t('security.index.breadcrumb.home') }}</el-breadcrumb-item>
+          <el-breadcrumb-item :to="{ path: '/' }">{{
+            t('security.index.breadcrumb.home')
+          }}</el-breadcrumb-item>
           <el-breadcrumb-item>{{ t('security.index.breadcrumb.system') }}</el-breadcrumb-item>
           <el-breadcrumb-item>{{ t('security.index.breadcrumb.current') }}</el-breadcrumb-item>
         </el-breadcrumb>
@@ -34,13 +36,13 @@
       :total="sec.total"
       :query-params="sec.queryParams"
       @fetch="secProc.handleQuery(sec)"
-      @update:query-params="(v) => Object.assign(sec.queryParams, v)"
+      @update:query-params="v => Object.assign(sec.queryParams, v)"
     />
 
     <SecurityLockTable
       :data="sec.lockedAccounts"
       :loading="sec.lockLoading"
-      @unlock="(row) => secProc.handleUnlock(row, sec)"
+      @unlock="row => secProc.handleUnlock(row, sec)"
     />
 
     <SecurityAlertTable :data="sec.securityAlerts" :loading="sec.alertLoading" />
@@ -48,28 +50,28 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { Download } from '@element-plus/icons-vue'
-import { useSec } from './composables/useSec'
-import { useSecProc } from './composables/useSecProc'
-import SecurityStat from './components/SecurityStat.vue'
-import SecurityLogTable from './components/SecurityLogTable.vue'
-import SecurityLockTable from './components/SecurityLockTable.vue'
-import SecurityAlertTable from './components/SecurityAlertTable.vue'
+import { onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { Download } from '@element-plus/icons-vue';
+import { useSec } from './composables/useSec';
+import { useSecProc } from './composables/useSecProc';
+import SecurityStat from './components/SecurityStat.vue';
+import SecurityLogTable from './components/SecurityLogTable.vue';
+import SecurityLockTable from './components/SecurityLockTable.vue';
+import SecurityAlertTable from './components/SecurityAlertTable.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 业务状态
-const sec = useSec()
-const secProc = useSecProc()
+const sec = useSec();
+const secProc = useSecProc();
 
 // 批次 282：移除 getLoginLogs（useTableApi setup 自动加载），保留其他 3 个非分页 fetch
 onMounted(() => {
-  sec.getStats()
-  sec.getLockedAccounts()
-  sec.getSecurityAlerts()
-})
+  sec.getStats();
+  sec.getLockedAccounts();
+  sec.getSecurityAlerts();
+});
 </script>
 
 <style scoped>

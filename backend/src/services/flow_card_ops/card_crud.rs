@@ -81,11 +81,7 @@ impl FlowCardService {
     }
 
     /// 更新流转卡（仅 pending 状态可更新）
-    pub async fn update(
-        &self,
-        id: i32,
-        req: UpdateFlowCardRequest,
-    ) -> Result<CardModel, AppError> {
+    pub async fn update(&self, id: i32, req: UpdateFlowCardRequest) -> Result<CardModel, AppError> {
         let model = self.get_by_id(id).await?;
         Self::validate_can_update(&model.status)?;
 
@@ -187,7 +183,9 @@ impl FlowCardService {
             .filter(production_flow_card::Column::IsDeleted.eq(false))
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::not_found(format!("缸号 {} 对应的流转卡不存在", dye_lot_no)))?;
+            .ok_or_else(|| {
+                AppError::not_found(format!("缸号 {} 对应的流转卡不存在", dye_lot_no))
+            })?;
         Ok(model)
     }
 

@@ -57,6 +57,27 @@ struct BalanceSummary {
     accounts_payable: Decimal,
     sales_revenue: Decimal,
     purchase_cost: Decimal,
+    // V15 P1 17.5-D2/D3/D4 扩展字段
+    /// 毛利 = 销售收入 - 主营业务成本
+    gross_profit: Decimal,
+    /// 营业利润 = 毛利 - 销售费用 - 管理费用 - 财务费用 + 投资收益
+    operating_profit: Decimal,
+    /// 净利润 = 营业利润 + 营业外收入 - 营业外支出 - 所得税
+    net_profit: Decimal,
+    /// 所有者权益合计（4xxx）
+    total_equity: Decimal,
+    /// 销售费用（6601）
+    selling_expenses: Decimal,
+    /// 管理费用（6602）
+    administrative_expenses: Decimal,
+    /// 财务费用（6603）
+    financial_expenses: Decimal,
+    /// 营业外收入（6301）
+    non_operating_income: Decimal,
+    /// 营业外支出（6711）
+    non_operating_expenses: Decimal,
+    /// 所得税费用（6801）
+    income_tax_expense: Decimal,
 }
 
 type SubjectMap = std::collections::HashMap<i32, crate::models::account_subject::Model>;
@@ -109,12 +130,34 @@ fn classify_balance_entry(code: &str, net_balance: Decimal, summary: &mut Balanc
         if code == "2202" {
             summary.accounts_payable += liability_balance;
         }
+    } else if code.starts_with('4') {
+        // V15 P1 17.5-D2：所有者权益合计（4xxx）
+        summary.total_equity += (-net_balance).max(Decimal::ZERO);
     } else if code.starts_with('6') {
         if code.starts_with("6001") {
             summary.sales_revenue += (-net_balance).max(Decimal::ZERO);
         }
         if code.starts_with("6401") {
             summary.purchase_cost += net_balance.max(Decimal::ZERO);
+        }
+        // V15 P1 17.5-D3：费用类科目
+        if code.starts_with("6601") {
+            summary.selling_expenses += net_balance.max(Decimal::ZERO);
+        }
+        if code.starts_with("6602") {
+            summary.administrative_expenses += net_balance.max(Decimal::ZERO);
+        }
+        if code.starts_with("6603") {
+            summary.financial_expenses += net_balance.max(Decimal::ZERO);
+        }
+        if code.starts_with("6301") {
+            summary.non_operating_income += (-net_balance).max(Decimal::ZERO);
+        }
+        if code.starts_with("6711") {
+            summary.non_operating_expenses += net_balance.max(Decimal::ZERO);
+        }
+        if code.starts_with("6801") {
+            summary.income_tax_expense += net_balance.max(Decimal::ZERO);
         }
     }
 }
@@ -292,7 +335,11 @@ impl FinancialAnalysisService {
         let results = self
             .compute_indicator_results(period, user_id, &summary, &indicator_defs)
             .await?;
-        info!("财务指标计算完成，期间: {}，共计算 {} 个指标", period, results.len());
+        info!(
+            "财务指标计算完成，期间: {}，共计算 {} 个指标",
+            period,
+            results.len()
+        );
         Ok(results)
     }
 
@@ -307,7 +354,10 @@ impl FinancialAnalysisService {
             .all(&*self.db)
             .await?;
         // P3 维度 6 修复（批次 87）：补 LIMIT 兜底防止全表加载
-        let subjects = account_subject::Entity::find().limit(10_000).all(&*self.db).await?;
+        let subjects = account_subject::Entity::find()
+            .limit(10_000)
+            .all(&*self.db)
+            .await?;
         let subject_map = subjects.into_iter().map(|s| (s.id, s)).collect();
         Ok((balances, subject_map))
     }
@@ -349,16 +399,47 @@ impl FinancialAnalysisService {
         indicator_defs: &[financial_analysis::Model],
     ) -> Result<Vec<financial_analysis_result::Model>, AppError> {
         let ratios: [(&str, Option<Decimal>, Option<Decimal>); 5] = [
-            ("CURRENT_RATIO", Self::safe_div(summary.current_assets, summary.current_liabilities), Some(Decimal::from(2))),
-            ("QUICK_RATIO", Self::safe_div(summary.current_assets - summary.inventory, summary.current_liabilities), Some(Decimal::from(1))),
-            ("DEBT_ASSET_RATIO", Self::safe_div(summary.total_liabilities, summary.total_assets), Some(Decimal::new(60, 2))),
-            ("AR_TURNOVER_RATIO", Self::safe_div(summary.sales_revenue, summary.accounts_receivable), None),
-            ("AP_TURNOVER_RATIO", Self::safe_div(summary.purchase_cost, summary.accounts_payable), None),
+            (
+                "CURRENT_RATIO",
+                Self::safe_div(summary.current_assets, summary.current_liabilities),
+                Some(Decimal::from(2)),
+            ),
+            (
+                "QUICK_RATIO",
+                Self::safe_div(
+                    summary.current_assets - summary.inventory,
+                    summary.current_liabilities,
+                ),
+                Some(Decimal::from(1)),
+            ),
+            (
+                "DEBT_ASSET_RATIO",
+                Self::safe_div(summary.total_liabilities, summary.total_assets),
+                Some(Decimal::new(60, 2)),
+            ),
+            (
+                "AR_TURNOVER_RATIO",
+                Self::safe_div(summary.sales_revenue, summary.accounts_receivable),
+                None,
+            ),
+            (
+                "AP_TURNOVER_RATIO",
+                Self::safe_div(summary.purchase_cost, summary.accounts_payable),
+                None,
+            ),
         ];
         let mut results = Vec::new();
         for (code, value, threshold) in ratios {
-            self.try_save_indicator(indicator_defs, code, period, value, threshold, user_id, &mut results)
-                .await?;
+            self.try_save_indicator(
+                indicator_defs,
+                code,
+                period,
+                value,
+                threshold,
+                user_id,
+                &mut results,
+            )
+            .await?;
         }
         Ok(results)
     }
@@ -368,7 +449,10 @@ impl FinancialAnalysisService {
         if denominator.is_zero() {
             None
         } else {
-            Some((numerator / denominator).round_dp_with_strategy(4, RoundingStrategy::MidpointAwayFromZero))
+            Some(
+                (numerator / denominator)
+                    .round_dp_with_strategy(4, RoundingStrategy::MidpointAwayFromZero),
+            )
         }
     }
 
@@ -519,4 +603,381 @@ impl FinancialAnalysisService {
         let result = active.insert(&*self.db).await?;
         Ok(result)
     }
+
+    /// V15 P1 17.5-D2：杜邦分析
+    ///
+    /// ROE = 净利率 × 总资产周转率 × 权益乘数
+    /// - 净利率 = 净利润 / 销售收入
+    /// - 总资产周转率 = 销售收入 / 总资产
+    /// - 权益乘数 = 总资产 / 所有者权益
+    ///
+    /// 返回杜邦分析结果，包含各分解指标与最终 ROE
+    pub async fn dupont_analysis(
+        &self,
+        period: &str,
+        user_id: i32,
+    ) -> Result<DuPontAnalysisResult, AppError> {
+        info!("开始杜邦分析，期间: {}", period);
+        let (balances, subject_map) = self.fetch_period_balances(period).await?;
+        let mut summary = aggregate_balance_summary(&balances, &subject_map);
+        if summary.sales_revenue.is_zero() {
+            summary.sales_revenue = self.fallback_sales_revenue_from_ar().await?;
+        }
+        // 计算派生指标
+        summary.gross_profit = summary.sales_revenue - summary.purchase_cost;
+        summary.operating_profit = summary.gross_profit
+            - summary.selling_expenses
+            - summary.administrative_expenses
+            - summary.financial_expenses;
+        summary.net_profit = summary.operating_profit + summary.non_operating_income
+            - summary.non_operating_expenses
+            - summary.income_tax_expense;
+
+        let net_margin = Self::safe_div(summary.net_profit, summary.sales_revenue);
+        let asset_turnover = Self::safe_div(summary.sales_revenue, summary.total_assets);
+        let equity_multiplier = Self::safe_div(summary.total_assets, summary.total_equity);
+        let roe = match (net_margin, asset_turnover, equity_multiplier) {
+            (Some(nm), Some(at), Some(em)) => Some(nm * at * em),
+            _ => None,
+        };
+
+        let result = DuPontAnalysisResult {
+            period: period.to_string(),
+            net_margin,
+            asset_turnover,
+            equity_multiplier,
+            roe,
+            net_profit: summary.net_profit,
+            sales_revenue: summary.sales_revenue,
+            total_assets: summary.total_assets,
+            total_equity: summary.total_equity,
+        };
+
+        // 持久化 ROE 指标结果
+        if let Some(roe_value) = roe {
+            self.ensure_dupont_indicator_definitions(user_id).await?;
+            let roe_indicator = financial_analysis::Entity::find()
+                .filter(financial_analysis::Column::IndicatorCode.eq("ROE"))
+                .one(&*self.db)
+                .await?;
+            if let Some(indicator) = roe_indicator {
+                let _ = self
+                    .save_indicator_result("dupont", period, indicator.id, roe_value, None, user_id)
+                    .await?;
+            }
+        }
+        Ok(result)
+    }
+
+    /// V15 P1 17.5-D3：盈利能力比率计算
+    ///
+    /// 计算毛利率、净利率、营业利润率三项盈利能力指标：
+    /// - 毛利率 = (销售收入 - 主营业务成本) / 销售收入
+    /// - 营业利润率 = 营业利润 / 销售收入
+    /// - 净利率 = 净利润 / 销售收入
+    pub async fn calculate_profitability_ratios(
+        &self,
+        period: &str,
+        user_id: i32,
+    ) -> Result<Vec<financial_analysis_result::Model>, AppError> {
+        info!("开始盈利能力比率计算，期间: {}", period);
+        let (balances, subject_map) = self.fetch_period_balances(period).await?;
+        let mut summary = aggregate_balance_summary(&balances, &subject_map);
+        if summary.sales_revenue.is_zero() {
+            summary.sales_revenue = self.fallback_sales_revenue_from_ar().await?;
+        }
+        summary.gross_profit = summary.sales_revenue - summary.purchase_cost;
+        summary.operating_profit = summary.gross_profit
+            - summary.selling_expenses
+            - summary.administrative_expenses
+            - summary.financial_expenses;
+        summary.net_profit = summary.operating_profit + summary.non_operating_income
+            - summary.non_operating_expenses
+            - summary.income_tax_expense;
+
+        let ratios: [(&str, Option<Decimal>, Option<Decimal>); 3] = [
+            (
+                "GROSS_MARGIN",
+                Self::safe_div(summary.gross_profit, summary.sales_revenue),
+                Some(Decimal::new(30, 2)),
+            ),
+            (
+                "OPERATING_MARGIN",
+                Self::safe_div(summary.operating_profit, summary.sales_revenue),
+                Some(Decimal::new(15, 2)),
+            ),
+            (
+                "NET_MARGIN",
+                Self::safe_div(summary.net_profit, summary.sales_revenue),
+                Some(Decimal::new(10, 2)),
+            ),
+        ];
+
+        // 确保指标定义存在
+        self.ensure_profitability_indicator_definitions(user_id)
+            .await?;
+        let indicator_defs = self.ensure_indicator_definitions(user_id).await?;
+        let mut results = Vec::new();
+        for (code, value, target) in ratios {
+            self.try_save_indicator(
+                &indicator_defs,
+                code,
+                period,
+                value,
+                target,
+                user_id,
+                &mut results,
+            )
+            .await?;
+        }
+        Ok(results)
+    }
+
+    /// V15 P1 17.5-D4：发展能力比率计算
+    ///
+    /// 计算收入增长率、利润增长率、资产增长率：
+    /// - 收入增长率 = (本期收入 - 上期收入) / 上期收入 × 100%
+    /// - 利润增长率 = (本期净利润 - 上期净利润) / 上期净利润 × 100%
+    /// - 资产增长率 = (本期总资产 - 上期总资产) / 上期总资产 × 100%
+    pub async fn calculate_development_ratios(
+        &self,
+        period: &str,
+        user_id: i32,
+    ) -> Result<Vec<financial_analysis_result::Model>, AppError> {
+        info!("开始发展能力比率计算，期间: {}", period);
+        let (current_balances, subject_map) = self.fetch_period_balances(period).await?;
+        let mut current = aggregate_balance_summary(&current_balances, &subject_map);
+        if current.sales_revenue.is_zero() {
+            current.sales_revenue = self.fallback_sales_revenue_from_ar().await?;
+        }
+        current.gross_profit = current.sales_revenue - current.purchase_cost;
+        current.operating_profit = current.gross_profit
+            - current.selling_expenses
+            - current.administrative_expenses
+            - current.financial_expenses;
+        current.net_profit = current.operating_profit + current.non_operating_income
+            - current.non_operating_expenses
+            - current.income_tax_expense;
+
+        // 获取上期期间
+        let prior_period = Self::prior_period(period)?;
+        let (prior_balances, _) = self.fetch_period_balances(&prior_period).await?;
+        let prior = aggregate_balance_summary(&prior_balances, &subject_map);
+
+        let revenue_growth = Self::calc_growth_rate(current.sales_revenue, prior.sales_revenue);
+        let profit_growth = Self::calc_growth_rate(current.net_profit, prior.net_profit);
+        let asset_growth = Self::calc_growth_rate(current.total_assets, prior.total_assets);
+
+        let ratios: [(&str, Option<Decimal>, Option<Decimal>); 3] = [
+            (
+                "REVENUE_GROWTH_RATE",
+                revenue_growth,
+                Some(Decimal::new(10, 2)),
+            ),
+            (
+                "PROFIT_GROWTH_RATE",
+                profit_growth,
+                Some(Decimal::new(10, 2)),
+            ),
+            ("ASSET_GROWTH_RATE", asset_growth, Some(Decimal::new(10, 2))),
+        ];
+
+        self.ensure_development_indicator_definitions(user_id)
+            .await?;
+        let indicator_defs = self.ensure_indicator_definitions(user_id).await?;
+        let mut results = Vec::new();
+        for (code, value, target) in ratios {
+            self.try_save_indicator(
+                &indicator_defs,
+                code,
+                period,
+                value,
+                target,
+                user_id,
+                &mut results,
+            )
+            .await?;
+        }
+        Ok(results)
+    }
+
+    /// 计算增长率 = (本期 - 上期) / 上期 × 100%
+    fn calc_growth_rate(current: Decimal, prior: Decimal) -> Option<Decimal> {
+        if prior.is_zero() {
+            return None;
+        }
+        Some(
+            ((current - prior) / prior * Decimal::from(100))
+                .round_dp_with_strategy(2, RoundingStrategy::MidpointAwayFromZero),
+        )
+    }
+
+    /// 计算上期期间（YYYY-MM → 上一个月）
+    fn prior_period(period: &str) -> Result<String, AppError> {
+        let parts: Vec<&str> = period.split('-').collect();
+        if parts.len() != 2 {
+            return Err(AppError::validation(
+                "期间格式错误，应为 YYYY-MM".to_string(),
+            ));
+        }
+        let year: i32 = parts[0]
+            .parse()
+            .map_err(|_| AppError::validation("年份解析错误"))?;
+        let month: u32 = parts[1]
+            .parse()
+            .map_err(|_| AppError::validation("月份解析错误"))?;
+        if month == 1 {
+            Ok(format!("{:04}-12", year - 1))
+        } else {
+            Ok(format!("{:04}-{:02}", year, month - 1))
+        }
+    }
+
+    /// V15 P1 17.5-D2：确保 ROE 指标定义存在
+    async fn ensure_dupont_indicator_definitions(&self, _user_id: i32) -> Result<(), AppError> {
+        let definitions = vec![(
+            "ROE",
+            "净资产收益率",
+            "盈利能力",
+            "净利率 × 总资产周转率 × 权益乘数",
+            "%",
+        )];
+        for (code, name, type_, formula, unit) in definitions {
+            let existing = financial_analysis::Entity::find()
+                .filter(financial_analysis::Column::IndicatorCode.eq(code))
+                .one(&*self.db)
+                .await?;
+            if existing.is_none() {
+                let active = financial_analysis::ActiveModel {
+                    indicator_name: Set(name.to_string()),
+                    indicator_code: Set(code.to_string()),
+                    indicator_type: Set(type_.to_string()),
+                    formula: Set(Some(formula.to_string())),
+                    unit: Set(Some(unit.to_string())),
+                    status: Set(master_data::ACTIVE.to_string()),
+                    remark: Set(None),
+                    ..Default::default()
+                };
+                active.insert(&*self.db).await?;
+            }
+        }
+        Ok(())
+    }
+
+    /// V15 P1 17.5-D3：确保盈利能力指标定义存在
+    async fn ensure_profitability_indicator_definitions(
+        &self,
+        _user_id: i32,
+    ) -> Result<(), AppError> {
+        let definitions = vec![
+            (
+                "GROSS_MARGIN",
+                "毛利率",
+                "盈利能力",
+                "(销售收入 - 主营业务成本) / 销售收入",
+                "%",
+            ),
+            (
+                "OPERATING_MARGIN",
+                "营业利润率",
+                "盈利能力",
+                "营业利润 / 销售收入",
+                "%",
+            ),
+            ("NET_MARGIN", "净利率", "盈利能力", "净利润 / 销售收入", "%"),
+        ];
+        for (code, name, type_, formula, unit) in definitions {
+            let existing = financial_analysis::Entity::find()
+                .filter(financial_analysis::Column::IndicatorCode.eq(code))
+                .one(&*self.db)
+                .await?;
+            if existing.is_none() {
+                let active = financial_analysis::ActiveModel {
+                    indicator_name: Set(name.to_string()),
+                    indicator_code: Set(code.to_string()),
+                    indicator_type: Set(type_.to_string()),
+                    formula: Set(Some(formula.to_string())),
+                    unit: Set(Some(unit.to_string())),
+                    status: Set(master_data::ACTIVE.to_string()),
+                    remark: Set(None),
+                    ..Default::default()
+                };
+                active.insert(&*self.db).await?;
+            }
+        }
+        Ok(())
+    }
+
+    /// V15 P1 17.5-D4：确保发展能力指标定义存在
+    async fn ensure_development_indicator_definitions(
+        &self,
+        _user_id: i32,
+    ) -> Result<(), AppError> {
+        let definitions = vec![
+            (
+                "REVENUE_GROWTH_RATE",
+                "收入增长率",
+                "发展能力",
+                "(本期收入 - 上期收入) / 上期收入 × 100%",
+                "%",
+            ),
+            (
+                "PROFIT_GROWTH_RATE",
+                "利润增长率",
+                "发展能力",
+                "(本期净利润 - 上期净利润) / 上期净利润 × 100%",
+                "%",
+            ),
+            (
+                "ASSET_GROWTH_RATE",
+                "资产增长率",
+                "发展能力",
+                "(本期总资产 - 上期总资产) / 上期总资产 × 100%",
+                "%",
+            ),
+        ];
+        for (code, name, type_, formula, unit) in definitions {
+            let existing = financial_analysis::Entity::find()
+                .filter(financial_analysis::Column::IndicatorCode.eq(code))
+                .one(&*self.db)
+                .await?;
+            if existing.is_none() {
+                let active = financial_analysis::ActiveModel {
+                    indicator_name: Set(name.to_string()),
+                    indicator_code: Set(code.to_string()),
+                    indicator_type: Set(type_.to_string()),
+                    formula: Set(Some(formula.to_string())),
+                    unit: Set(Some(unit.to_string())),
+                    status: Set(master_data::ACTIVE.to_string()),
+                    remark: Set(None),
+                    ..Default::default()
+                };
+                active.insert(&*self.db).await?;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// V15 P1 17.5-D2：杜邦分析结果
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DuPontAnalysisResult {
+    /// 期间
+    pub period: String,
+    /// 净利率 = 净利润 / 销售收入
+    pub net_margin: Option<Decimal>,
+    /// 总资产周转率 = 销售收入 / 总资产
+    pub asset_turnover: Option<Decimal>,
+    /// 权益乘数 = 总资产 / 所有者权益
+    pub equity_multiplier: Option<Decimal>,
+    /// 净资产收益率 ROE = 净利率 × 总资产周转率 × 权益乘数
+    pub roe: Option<Decimal>,
+    /// 净利润
+    pub net_profit: Decimal,
+    /// 销售收入
+    pub sales_revenue: Decimal,
+    /// 总资产
+    pub total_assets: Decimal,
+    /// 所有者权益
+    pub total_equity: Decimal,
 }

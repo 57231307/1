@@ -24,6 +24,7 @@ use crate::models::energy_allocation_record::{
 };
 use crate::models::energy_allocation_rule::Model as RuleModel;
 use crate::models::process_step_record::{self, Entity as StepEntity};
+use crate::models::production_flow_card::{self, Entity as FlowCardEntity};
 use crate::models::status::energy_allocation_basis;
 use crate::models::status::energy_record_status;
 use crate::utils::error::AppError;
@@ -35,9 +36,7 @@ use crate::services::energy_service::{
 };
 
 // 跨 service 协作：月末分摊方法参数引用兄弟 service 类型
-use crate::services::energy_ops::{
-    EnergyAllocationRuleService, EnergyConsumptionService,
-};
+use crate::services::energy_ops::{EnergyAllocationRuleService, EnergyConsumptionService};
 
 /// 创建分摊记录请求
 #[derive(Debug, Clone, Deserialize)]
@@ -107,7 +106,7 @@ pub struct MonthlyAllocationRequest {
 /// 工时分组键（用于 monthly_allocation_by_duration 内部分组，避免复杂元组类型）
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct DurationGroupKey {
-    /// 缸号（简化：暂用 equipment_name）
+    /// 缸号（V15 Batch04-P1-4：从 production_flow_card.dye_lot_no 查询，原 equipment_name 简化已修复）
     dye_lot_no: Option<String>,
     /// 工序路线 ID
     route_id: Option<i32>,
@@ -147,14 +146,13 @@ impl EnergyAllocationRecordService {
 
         // 计算分摊比例、消耗量、成本（若未提供）
         let allocation_ratio = req.allocation_ratio.unwrap_or(Decimal::ONE);
-        let allocated_consumption = req
-            .allocated_consumption
-            .unwrap_or_else(|| compute_allocated_consumption(req.total_consumption, allocation_ratio));
+        let allocated_consumption = req.allocated_consumption.unwrap_or_else(|| {
+            compute_allocated_consumption(req.total_consumption, allocation_ratio)
+        });
         let allocated_cost = req
             .allocated_cost
             .unwrap_or_else(|| compute_allocated_cost(req.total_cost, allocation_ratio));
-        let unit_consumption =
-            compute_unit_consumption(allocated_consumption, req.output_quantity);
+        let unit_consumption = compute_unit_consumption(allocated_consumption, req.output_quantity);
 
         let allocation_no = Self::generate_allocation_no();
         let now = crate::utils::date_utils::utc_now_fixed();
@@ -317,10 +315,7 @@ impl EnergyAllocationRecordService {
     }
 
     /// 按编号查询
-    pub async fn get_by_no(
-        &self,
-        allocation_no: &str,
-    ) -> Result<AllocationRecordModel, AppError> {
+    pub async fn get_by_no(&self, allocation_no: &str) -> Result<AllocationRecordModel, AppError> {
         AllocationRecordEntity::find()
             .filter(energy_allocation_record::Column::AllocationNo.eq(allocation_no))
             .filter(energy_allocation_record::Column::IsDeleted.eq(false))
@@ -411,10 +406,9 @@ impl EnergyAllocationRecordService {
             let total_cost = summary.total_cost;
 
             // 2. 按缸号+工序分组统计工时
-            let grouped_duration = Self::group_step_duration_by_key(
-                &self.db, req.period_start, req.period_end,
-            )
-            .await?;
+            let grouped_duration =
+                Self::group_step_duration_by_key(&self.db, req.period_start, req.period_end)
+                    .await?;
 
             let total_duration: i32 = grouped_duration.values().sum();
             if total_duration == 0 {
@@ -440,9 +434,15 @@ impl EnergyAllocationRecordService {
                 };
 
                 let active = Self::build_allocation_record(
-                    &req, &workshop, &meter_type,
-                    total_consumption, total_cost,
-                    &key, duration, total_duration_decimal, &rule,
+                    &req,
+                    &workshop,
+                    &meter_type,
+                    total_consumption,
+                    total_cost,
+                    &key,
+                    duration,
+                    total_duration_decimal,
+                    &rule,
                 );
 
                 let result = active
@@ -470,12 +470,33 @@ impl EnergyAllocationRecordService {
             .all(db)
             .await?;
 
+        // V15 Batch04-P1-4：批量查询流转卡，获取真实 dye_lot_no（原 equipment_name 简化已修复）
+        let flow_card_ids: std::collections::HashSet<i32> =
+            step_records.iter().map(|s| s.flow_card_id).collect();
+        let flow_card_map: std::collections::HashMap<i32, Option<String>> =
+            if flow_card_ids.is_empty() {
+                std::collections::HashMap::new()
+            } else {
+                let flow_cards = FlowCardEntity::find()
+                    .filter(
+                        production_flow_card::Column::Id
+                            .is_in(flow_card_ids.into_iter().collect::<Vec<_>>()),
+                    )
+                    .filter(production_flow_card::Column::IsDeleted.eq(false))
+                    .all(db)
+                    .await?;
+                flow_cards
+                    .into_iter()
+                    .map(|fc| (fc.id, fc.dye_lot_no))
+                    .collect()
+            };
+
         let mut grouped_duration: std::collections::HashMap<DurationGroupKey, i32> =
             std::collections::HashMap::new();
 
         for step in step_records {
-            // 缸号通过 flow_card 关联查询（简化：暂用 equipment_name 作为车间归属）
-            let dye_lot_no = step.equipment_name.clone();
+            // V15 Batch04-P1-4：dye_lot_no 从 production_flow_card 查询，不再误用 equipment_name
+            let dye_lot_no = flow_card_map.get(&step.flow_card_id).cloned().flatten();
             let route_id = step.process_route_id;
             let route_code = Some(step.route_code.clone());
             let key = DurationGroupKey {

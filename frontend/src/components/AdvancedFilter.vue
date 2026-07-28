@@ -148,62 +148,62 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Plus, Delete, Folder, Download, ArrowDown } from '@element-plus/icons-vue'
-import { useI18n } from 'vue-i18n'
+import { ref, computed } from 'vue';
+import { ElMessage } from 'element-plus';
+import { Plus, Delete, Folder, Download, ArrowDown } from '@element-plus/icons-vue';
+import { useI18n } from 'vue-i18n';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 /** 过滤值类型（支持文本、数字、布尔、空值） */
-export type FilterValue = string | number | boolean | null
+export type FilterValue = string | number | boolean | null;
 
 export interface FilterField {
-  key: string
-  label: string
-  type?: 'text' | 'number' | 'date' | 'select' | 'boolean'
-  options?: { label: string; value: string | number | boolean }[]
+  key: string;
+  label: string;
+  type?: 'text' | 'number' | 'date' | 'select' | 'boolean';
+  options?: { label: string; value: string | number | boolean }[];
 }
 
 export interface FilterOperator {
-  label: string
-  value: string
-  applicableTypes?: string[]
+  label: string;
+  value: string;
+  applicableTypes?: string[];
 }
 
 export interface FilterCondition {
-  field: string
-  operator: string
-  value: FilterValue
+  field: string;
+  operator: string;
+  value: FilterValue;
 }
 
 export interface FilterGroup {
-  logic: 'AND' | 'OR'
-  items: FilterCondition[]
+  logic: 'AND' | 'OR';
+  items: FilterCondition[];
 }
 
 export interface SavedScheme {
-  id: string
-  name: string
-  groups: FilterGroup[]
-  createdAt: string
+  id: string;
+  name: string;
+  groups: FilterGroup[];
+  createdAt: string;
 }
 
 interface Props {
-  fields?: FilterField[]
-  operators?: FilterOperator[]
-  savedSchemes?: SavedScheme[]
+  fields?: FilterField[];
+  operators?: FilterOperator[];
+  savedSchemes?: SavedScheme[];
 }
 
 const props = withDefaults(defineProps<Props>(), {
   fields: () => [],
   operators: () => [],
   savedSchemes: () => [],
-})
+});
 
 /// 默认字段需在 setup 内求值（withDefaults 会被 hoist，不能引用 t）
 const effectiveFields = computed<FilterField[]>(() => {
-  if (props.fields.length) return props.fields
+  if (props.fields.length) return props.fields;
   return [
     { key: 'name', label: t('common.filter.defaultField.name'), type: 'text' },
     {
@@ -217,17 +217,17 @@ const effectiveFields = computed<FilterField[]>(() => {
     },
     { key: 'date', label: t('common.filter.defaultField.date'), type: 'date' },
     { key: 'amount', label: t('common.filter.defaultField.amount'), type: 'number' },
-  ]
-})
+  ];
+});
 
 const emit = defineEmits<{
-  apply: [filters: FilterGroup[]]
-  reset: []
-  schemeSaved: [scheme: SavedScheme]
-  schemeLoaded: [scheme: SavedScheme]
+  apply: [filters: FilterGroup[]];
+  reset: [];
+  schemeSaved: [scheme: SavedScheme];
+  schemeLoaded: [scheme: SavedScheme];
   /** 条件组逻辑运算符切换（批次 253 修复：原 handleLogicChange 为空函数） */
-  logicChange: [groupIndex: number, logic: 'AND' | 'OR', filters: FilterGroup[]]
-}>()
+  logicChange: [groupIndex: number, logic: 'AND' | 'OR', filters: FilterGroup[]];
+}>();
 
 const defaultOperators = computed<FilterOperator[]>(() => [
   {
@@ -260,35 +260,35 @@ const defaultOperators = computed<FilterOperator[]>(() => [
     value: 'notNull',
     applicableTypes: ['text', 'number', 'date'],
   },
-])
+]);
 
 const conditions = ref<FilterGroup[]>([
   {
     logic: 'AND',
     items: [{ field: '', operator: '', value: '' }],
   },
-])
+]);
 
-const showSaveDialog = ref(false)
-const newSchemeName = ref('')
+const showSaveDialog = ref(false);
+const newSchemeName = ref('');
 
 const isValid = computed(() => {
-  return conditions.value.every(group => group.items.every(item => item.field && item.operator))
-})
+  return conditions.value.every(group => group.items.every(item => item.field && item.operator));
+});
 
 const getAvailableOperators = (fieldKey: string): FilterOperator[] => {
-  if (props.operators.length > 0) return props.operators
-  const field = effectiveFields.value.find(f => f.key === fieldKey)
-  if (!field) return defaultOperators.value
+  if (props.operators.length > 0) return props.operators;
+  const field = effectiveFields.value.find(f => f.key === fieldKey);
+  if (!field) return defaultOperators.value;
   return defaultOperators.value.filter(
     op => !op.applicableTypes || op.applicableTypes.includes(field.type || 'text')
-  )
-}
+  );
+};
 
 const handleFieldChange = (condition: FilterCondition) => {
-  condition.operator = ''
-  condition.value = ''
-}
+  condition.operator = '';
+  condition.value = '';
+};
 
 /// 条件组逻辑运算符切换处理（批次 253 修复：原为空函数，逻辑切换无响应）
 ///
@@ -296,61 +296,61 @@ const handleFieldChange = (condition: FilterCondition) => {
 /// 1. emit logicChange 事件让父组件可响应（如自动重新查询或更新预览）
 /// 2. 显示轻量级提示让用户知道逻辑已切换
 const handleLogicChange = (groupIndex: number) => {
-  const group = conditions.value[groupIndex]
-  if (!group) return
-  emit('logicChange', groupIndex, group.logic, conditions.value)
+  const group = conditions.value[groupIndex];
+  if (!group) return;
+  emit('logicChange', groupIndex, group.logic, conditions.value);
   ElMessage.info({
     message: t('common.filter.logicSwitched', { index: groupIndex + 1, logic: group.logic }),
     duration: 1500,
-  })
-}
+  });
+};
 
 const getValueInput = (condition: FilterCondition) => {
   if (['null', 'notNull'].includes(condition.operator)) {
-    return 'span'
+    return 'span';
   }
-  const field = effectiveFields.value.find(f => f.key === condition.field)
-  if (!field) return 'el-input'
+  const field = effectiveFields.value.find(f => f.key === condition.field);
+  if (!field) return 'el-input';
 
   switch (field.type) {
     case 'number':
-      return 'el-input-number'
+      return 'el-input-number';
     case 'date':
-      return 'el-date-picker'
+      return 'el-date-picker';
     case 'select':
-      return 'el-select'
+      return 'el-select';
     case 'boolean':
-      return 'el-switch'
+      return 'el-switch';
     default:
-      return 'el-input'
+      return 'el-input';
   }
-}
+};
 
 const addCondition = (groupIndex: number) => {
-  conditions.value[groupIndex].items.push({ field: '', operator: '', value: '' })
-}
+  conditions.value[groupIndex].items.push({ field: '', operator: '', value: '' });
+};
 
 const removeCondition = (groupIndex: number, condIndex: number) => {
-  conditions.value[groupIndex].items.splice(condIndex, 1)
-}
+  conditions.value[groupIndex].items.splice(condIndex, 1);
+};
 
 const addGroup = () => {
   conditions.value.push({
     logic: 'AND',
     items: [{ field: '', operator: '', value: '' }],
-  })
-}
+  });
+};
 
 const removeGroup = (groupIndex: number) => {
   if (conditions.value.length > 1) {
-    conditions.value.splice(groupIndex, 1)
+    conditions.value.splice(groupIndex, 1);
   }
-}
+};
 
 const handleApply = () => {
-  emit('apply', conditions.value)
-  ElMessage.success(t('common.filter.applySuccess'))
-}
+  emit('apply', conditions.value);
+  ElMessage.success(t('common.filter.applySuccess'));
+};
 
 const handleReset = () => {
   conditions.value = [
@@ -358,34 +358,34 @@ const handleReset = () => {
       logic: 'AND',
       items: [{ field: '', operator: '', value: '' }],
     },
-  ]
-  emit('reset')
-}
+  ];
+  emit('reset');
+};
 
 const saveScheme = () => {
   if (!newSchemeName.value.trim()) {
-    ElMessage.warning(t('common.filter.pleaseInputSchemeName'))
-    return
+    ElMessage.warning(t('common.filter.pleaseInputSchemeName'));
+    return;
   }
   const scheme: SavedScheme = {
     id: Date.now().toString(),
     name: newSchemeName.value,
     groups: JSON.parse(JSON.stringify(conditions.value)),
     createdAt: new Date().toISOString(),
-  }
-  emit('schemeSaved', scheme)
-  showSaveDialog.value = false
-  newSchemeName.value = ''
-  ElMessage.success(t('common.filter.schemeSaved'))
-}
+  };
+  emit('schemeSaved', scheme);
+  showSaveDialog.value = false;
+  newSchemeName.value = '';
+  ElMessage.success(t('common.filter.schemeSaved'));
+};
 
 const loadScheme = (scheme: SavedScheme) => {
-  conditions.value = JSON.parse(JSON.stringify(scheme.groups))
-  emit('schemeLoaded', scheme)
-  ElMessage.success(t('common.filter.schemeLoaded', { name: scheme.name }))
-}
+  conditions.value = JSON.parse(JSON.stringify(scheme.groups));
+  emit('schemeLoaded', scheme);
+  ElMessage.success(t('common.filter.schemeLoaded', { name: scheme.name }));
+};
 
-defineExpose({ conditions, isValid })
+defineExpose({ conditions, isValid });
 </script>
 
 <style scoped>

@@ -7,57 +7,57 @@
  * 2. 保留 P2-3 价值：estimatedRowHeight prop 参数化（页面级行高调优）
  * 3. 单一来源：所有 V2Table 相关类型在此文件导出，避免散落
  */
-import type { VNode } from 'vue'
+import type { VNode } from 'vue';
 
 /** 排序列方向 */
-export type SortOrder = 'asc' | 'desc'
+export type SortOrder = 'asc' | 'desc';
 
 /// 列定义（泛型 T 为行数据类型，由调用方通过 data prop 自动推导）
 export interface ColumnDef<T = unknown> {
   /** 数据字段名 */
-  key: string
+  key: string;
   /** 列标题 */
-  title: string
+  title: string;
   /** 固定宽度（像素，可选） */
-  width?: number
+  width?: number;
   /** 最小宽度（像素） */
-  minWidth?: number
+  minWidth?: number;
   /** 固定列方向 */
-  fixed?: 'left' | 'right'
+  fixed?: 'left' | 'right';
   /** 是否可排序 */
-  sortable?: boolean
+  sortable?: boolean;
   /** 对齐方式 */
-  align?: 'left' | 'center' | 'right'
+  align?: 'left' | 'center' | 'right';
   /// 格式化函数（接收整行 row，返回字符串用于显示）
-  formatter?: (row: T) => string
+  formatter?: (row: T) => string;
   /// 自定义渲染（返回 VNode，优先级高于 formatter）
-  renderCell?: (row: T) => VNode
+  renderCell?: (row: T) => VNode;
   /** 是否隐藏 */
-  hidden?: boolean
+  hidden?: boolean;
 }
 
 /// V2Table 组件 Props（泛型 T 为行数据类型）
 export interface V2TableProps<T = unknown> {
   /** 列定义 */
-  columns: ColumnDef<T>[]
+  columns: ColumnDef<T>[];
   /** 表格数据 */
-  data: T[]
+  data: T[];
   /** 加载状态 */
-  loading?: boolean
+  loading?: boolean;
   /** 总数（用于内置分页，未传则不渲染分页） */
-  total?: number
+  total?: number;
   /** 当前页码（1-based） */
-  page?: number
+  page?: number;
   /** 每页条数 */
-  pageSize?: number
+  pageSize?: number;
   /** 每页条数选项 */
-  pageSizes?: number[]
+  pageSizes?: number[];
   /** 表格高度（像素或字符串） */
-  height?: number | string
+  height?: number | string;
   /** 行 key 字段名 */
-  rowKey?: string
+  rowKey?: string;
   /** 空数据文案 */
-  emptyText?: string
+  emptyText?: string;
   /// 估算行高（像素），P2-3 价值保留，默认 48
-  estimatedRowHeight?: number
+  estimatedRowHeight?: number;
 }

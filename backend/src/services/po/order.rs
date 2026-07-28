@@ -100,10 +100,10 @@ impl PurchaseOrderService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::decs;
     use crate::models::status;
     use crate::services::test_common::setup_test_db;
     use crate::utils::error::AppError;
-    use crate::decs;
     use crate::ymd;
     use rust_decimal::Decimal;
     use std::str::FromStr;
@@ -179,7 +179,10 @@ mod tests {
         // 默认税率常量与 create_order_items 中 unwrap_or(Decimal::new(13, 2)) 一致
         let default_tax_percent = Decimal::new(13, 2);
         // 1000 * 0.13 / 100 = 1.30
-        assert_eq!(calc_tax_amount(decs!("1000"), default_tax_percent), decs!("1.30"));
+        assert_eq!(
+            calc_tax_amount(decs!("1000"), default_tax_percent),
+            decs!("1.30")
+        );
     }
 
     /// 测试_税额计算_自定义税率场景
@@ -196,10 +199,7 @@ mod tests {
     /// 验证税率为 0 时税额为 0
     #[test]
     fn 测试_税额计算_零税率场景() {
-        assert_eq!(
-            calc_tax_amount(decs!("1000"), Decimal::ZERO),
-            Decimal::ZERO
-        );
+        assert_eq!(calc_tax_amount(decs!("1000"), Decimal::ZERO), Decimal::ZERO);
     }
 
     /// 测试_税额计算_精度归一化

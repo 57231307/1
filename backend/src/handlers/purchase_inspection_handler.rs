@@ -234,16 +234,9 @@ pub async fn update_inspection_item(
     };
 
     let service = PurchaseInspectionService::new(state.db.clone());
-    let item = service
-        .update_inspection_item(id, item_id, svc_req)
-        .await?;
+    let item = service.update_inspection_item(id, item_id, svc_req).await?;
 
-    tracing::info!(
-        "用户 {} 更新质检单 {} 的明细 {}",
-        auth.user_id,
-        id,
-        item_id
-    );
+    tracing::info!("用户 {} 更新质检单 {} 的明细 {}", auth.user_id, id, item_id);
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(&item)?,
@@ -263,12 +256,7 @@ pub async fn delete_inspection_item(
     let deleted = service.delete_inspection_item(id, item_id).await?;
 
     if deleted {
-        tracing::info!(
-            "用户 {} 删除质检单 {} 的明细 {}",
-            auth.user_id,
-            id,
-            item_id
-        );
+        tracing::info!("用户 {} 删除质检单 {} 的明细 {}", auth.user_id, id, item_id);
     }
 
     Ok(Json(ApiResponse::success_with_message(

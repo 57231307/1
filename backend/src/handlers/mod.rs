@@ -183,3 +183,5 @@ pub mod collection_task_handler;
 pub mod finance_alert_handler;
 // P0-D17（Batch 488）：OA 公告 handler
 pub mod oa_announcement_handler;
+// V15 P1 batch-16 缺陷 7.3：用户隐私同意 handler（opt-in/opt-out/查询）
+pub mod privacy_consent_handler;

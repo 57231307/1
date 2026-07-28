@@ -275,13 +275,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, provide } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import StandardTab from './tabs/StandardTab.vue'
-import RecordTab from './tabs/RecordTab.vue'
-import DefectTab from './tabs/DefectTab.vue'
+import { ref, reactive, onMounted, provide } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
+import StandardTab from './tabs/StandardTab.vue';
+import RecordTab from './tabs/RecordTab.vue';
+import DefectTab from './tabs/DefectTab.vue';
 import {
   getQualityStandardList,
   createQualityStandard,
@@ -297,61 +297,61 @@ import {
   type QualityStandard,
   type QualityRecord,
   type Defect,
-} from '@/api/quality'
+} from '@/api/quality';
 
 // v11 批次 173 P2-1 修复：el-tag type 类型
-type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger'
+type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger';
 
 // v11 批次 161 P2-5 修复：后端已支持分页（返回 PaginatedResponse 含 items+total），
 // RecordTab 通过 useTableApi 自动消费分页元数据，无需在此维护分页状态
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 为 StandardTab/RecordTab 提供 actions（inject('qualityActions')）
 // 注意：provide 移到所有函数定义之后，避免 hoisting 问题（vue-tsc 报 used before declaration）
-const activeTab = ref('standard')
-const standards = ref<QualityStandard[]>([])
-const records = ref<QualityRecord[]>([])
-const defects = ref<Defect[]>([])
-const standardLoading = ref(false)
-const recordLoading = ref(false)
-const defectLoading = ref(false)
+const activeTab = ref('standard');
+const standards = ref<QualityStandard[]>([]);
+const records = ref<QualityRecord[]>([]);
+const defects = ref<Defect[]>([]);
+const standardLoading = ref(false);
+const recordLoading = ref(false);
+const defectLoading = ref(false);
 
 const fetchStandards = async () => {
-  standardLoading.value = true
+  standardLoading.value = true;
   try {
     // v11 批次 173 P2-1 修复：const res: any 改为直接使用 API 返回类型
-    const res = await getQualityStandardList()
+    const res = await getQualityStandardList();
     // 安全检查：防止后端返回 data 为 null 时崩溃
-    standards.value = res.data || []
+    standards.value = res.data || [];
   } finally {
-    standardLoading.value = false
+    standardLoading.value = false;
   }
-}
+};
 
 const fetchRecords = async () => {
-  recordLoading.value = true
+  recordLoading.value = true;
   try {
     // v11 批次 161 P2-5 修复：后端返回 PaginatedResponse（items + total）
-    const res = await getQualityRecordList({ page: 1, page_size: 10 })
-    const data = res.data
-    records.value = data?.items || []
+    const res = await getQualityRecordList({ page: 1, page_size: 10 });
+    const data = res.data;
+    records.value = data?.items || [];
   } finally {
-    recordLoading.value = false
+    recordLoading.value = false;
   }
-}
+};
 
 const fetchDefects = async () => {
-  defectLoading.value = true
+  defectLoading.value = true;
   try {
     // v11 批次 173 P2-1 修复：const res: any 改为直接使用 API 返回类型
-    const res = await getDefectList()
+    const res = await getDefectList();
     // 安全检查：防止后端返回 data 为 null 时崩溃
-    defects.value = res.data || []
+    defects.value = res.data || [];
   } finally {
-    defectLoading.value = false
+    defectLoading.value = false;
   }
-}
+};
 
 const getStandardStatusLabel = (status: string) => {
   const map: Record<string, string> = {
@@ -359,9 +359,9 @@ const getStandardStatusLabel = (status: string) => {
     approved: t('quality.standardStatus.approved'),
     published: t('quality.standardStatus.published'),
     rejected: t('quality.standardStatus.rejected'),
-  }
-  return map[status] || status
-}
+  };
+  return map[status] || status;
+};
 
 const getStandardStatusType = (status: string): TagType => {
   // v11 批次 173 P2-1 修复：Record<string, any> 改为 Record<string, TagType>
@@ -370,14 +370,14 @@ const getStandardStatusType = (status: string): TagType => {
     approved: 'warning',
     published: 'success',
     rejected: 'danger',
-  }
-  return map[status] || 'info'
-}
+  };
+  return map[status] || 'info';
+};
 
-const standardDialogVisible = ref(false)
-const standardFormRef = ref<FormInstance>()
-const standardSubmitLoading = ref(false)
-const attachmentsText = ref('')
+const standardDialogVisible = ref(false);
+const standardFormRef = ref<FormInstance>();
+const standardSubmitLoading = ref(false);
+const attachmentsText = ref('');
 const standardForm = reactive({
   id: 0,
   standard_code: '',
@@ -387,7 +387,7 @@ const standardForm = reactive({
   status: 'draft' as const,
   content: '',
   attachments: [] as string[],
-})
+});
 const standardFormRules: FormRules = {
   standard_code: [
     { required: true, message: t('quality.validation.standardCodeRequired'), trigger: 'blur' },
@@ -398,12 +398,12 @@ const standardFormRules: FormRules = {
   type: [{ required: true, message: t('quality.validation.typeRequired'), trigger: 'change' }],
   version: [{ required: true, message: t('quality.validation.versionRequired'), trigger: 'blur' }],
   content: [{ required: true, message: t('quality.validation.contentRequired'), trigger: 'blur' }],
-}
+};
 
 const openStandardDialog = (row?: QualityStandard) => {
   if (row) {
-    Object.assign(standardForm, row)
-    attachmentsText.value = JSON.stringify(row.attachments || [], null, 2)
+    Object.assign(standardForm, row);
+    attachmentsText.value = JSON.stringify(row.attachments || [], null, 2);
   } else {
     Object.assign(standardForm, {
       id: 0,
@@ -414,87 +414,87 @@ const openStandardDialog = (row?: QualityStandard) => {
       status: 'draft',
       content: '',
       attachments: [],
-    })
-    attachmentsText.value = ''
+    });
+    attachmentsText.value = '';
   }
-  standardDialogVisible.value = true
-}
+  standardDialogVisible.value = true;
+};
 
 const submitStandard = async () => {
-  if (!standardFormRef.value) return
+  if (!standardFormRef.value) return;
   await standardFormRef.value.validate(async valid => {
-    if (!valid) return
+    if (!valid) return;
 
-    standardSubmitLoading.value = true
+    standardSubmitLoading.value = true;
     try {
       if (attachmentsText.value) {
         try {
-          standardForm.attachments = JSON.parse(attachmentsText.value)
+          standardForm.attachments = JSON.parse(attachmentsText.value);
         } catch (e) {
-          ElMessage.error(t('quality.message.attachmentsFormatError'))
-          return
+          ElMessage.error(t('quality.message.attachmentsFormatError'));
+          return;
         }
       }
       if (standardForm.id) {
-        await updateQualityStandard(standardForm.id, standardForm as Partial<QualityStandard>)
+        await updateQualityStandard(standardForm.id, standardForm as Partial<QualityStandard>);
       } else {
-        await createQualityStandard(standardForm as Partial<QualityStandard>)
+        await createQualityStandard(standardForm as Partial<QualityStandard>);
       }
-      ElMessage.success(t('quality.message.operationSuccess'))
-      standardDialogVisible.value = false
-      fetchStandards()
+      ElMessage.success(t('quality.message.operationSuccess'));
+      standardDialogVisible.value = false;
+      fetchStandards();
     } catch (e: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
       ElMessage.error(
         (e instanceof Error ? e.message : String(e)) || t('quality.message.operationFailed')
-      )
+      );
     } finally {
-      standardSubmitLoading.value = false
+      standardSubmitLoading.value = false;
     }
-  })
-}
+  });
+};
 
-const approveDialogVisible = ref(false)
-const approveFormRef = ref<FormInstance>()
-const approveSubmitLoading = ref(false)
-const approveStandardItem = ref<QualityStandard | null>(null)
-const approveForm = reactive({ approval_comment: '' })
+const approveDialogVisible = ref(false);
+const approveFormRef = ref<FormInstance>();
+const approveSubmitLoading = ref(false);
+const approveStandardItem = ref<QualityStandard | null>(null);
+const approveForm = reactive({ approval_comment: '' });
 const approveFormRules: FormRules = {
   approval_comment: [
     { required: true, message: t('quality.validation.approvalCommentRequired'), trigger: 'blur' },
   ],
-}
+};
 
 const approveStandard = async (row: QualityStandard) => {
-  approveStandardItem.value! = row
-  approveForm.approval_comment = ''
-  approveDialogVisible.value = true
-}
+  approveStandardItem.value! = row;
+  approveForm.approval_comment = '';
+  approveDialogVisible.value = true;
+};
 
 const confirmApprove = async () => {
-  if (!approveFormRef.value || !approveStandardItem.value!) return
+  if (!approveFormRef.value || !approveStandardItem.value!) return;
   await approveFormRef.value.validate(async valid => {
-    if (!valid) return
+    if (!valid) return;
 
-    approveSubmitLoading.value = true
+    approveSubmitLoading.value = true;
     try {
-      await approveQualityStandard(approveStandardItem.value!.id)
-      ElMessage.success(t('quality.message.approveSuccess'))
-      approveDialogVisible.value = false
-      fetchStandards()
+      await approveQualityStandard(approveStandardItem.value!.id);
+      ElMessage.success(t('quality.message.approveSuccess'));
+      approveDialogVisible.value = false;
+      fetchStandards();
     } catch (e: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
       ElMessage.error(
         (e instanceof Error ? e.message : String(e)) || t('quality.message.operationFailed')
-      )
+      );
     } finally {
-      approveSubmitLoading.value = false
+      approveSubmitLoading.value = false;
     }
-  })
-}
+  });
+};
 
 const rejectStandard = async () => {
-  if (!approveStandardItem.value!) return
+  if (!approveStandardItem.value!) return;
   try {
     const reason = await ElMessageBox.prompt(
       t('quality.message.rejectPrompt'),
@@ -506,48 +506,48 @@ const rejectStandard = async () => {
         inputPlaceholder: t('quality.message.rejectPlaceholder'),
         inputType: 'textarea',
       }
-    )
+    );
     // 批次 157d-2 修复：接入 rejectQualityStandard API
     await rejectQualityStandard(approveStandardItem.value!.id, {
       reject_reason: reason.value || undefined,
-    })
-    ElMessage.success(t('quality.message.rejectSuccess'))
-    approveDialogVisible.value = false
-    fetchStandards()
+    });
+    ElMessage.success(t('quality.message.rejectSuccess'));
+    approveDialogVisible.value = false;
+    fetchStandards();
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
     if (e !== 'cancel')
       ElMessage.error(
         (e instanceof Error ? e.message : String(e)) || t('quality.message.operationFailed')
-      )
+      );
   }
-}
+};
 
-const versionHistoryVisible = ref(false)
-const versionHistoryLoading = ref(false)
-const versionHistoryList = ref<QualityStandard[]>([])
+const versionHistoryVisible = ref(false);
+const versionHistoryLoading = ref(false);
+const versionHistoryList = ref<QualityStandard[]>([]);
 
 const viewVersionHistory = async (row: QualityStandard) => {
-  versionHistoryLoading.value = true
+  versionHistoryLoading.value = true;
   try {
     // v11 批次 173 P2-1 修复：const res: any 改为直接使用 API 返回类型
-    const res = await getQualityStandardVersions(row.id)
+    const res = await getQualityStandardVersions(row.id);
     // 安全检查：防止后端返回 data 为 null 时崩溃
-    versionHistoryList.value = res.data || []
-    versionHistoryVisible.value = true
+    versionHistoryList.value = res.data || [];
+    versionHistoryVisible.value = true;
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
     ElMessage.error(
       (e instanceof Error ? e.message : String(e)) || t('quality.message.fetchVersionHistoryFailed')
-    )
+    );
   } finally {
-    versionHistoryLoading.value = false
+    versionHistoryLoading.value = false;
   }
-}
+};
 
-const recordDialogVisible = ref(false)
-const recordFormRef = ref<FormInstance>()
-const recordSubmitLoading = ref(false)
+const recordDialogVisible = ref(false);
+const recordFormRef = ref<FormInstance>();
+const recordSubmitLoading = ref(false);
 const recordForm = reactive({
   id: 0,
   record_no: '',
@@ -560,11 +560,11 @@ const recordForm = reactive({
   result: 'pending' as const,
   defects: [] as Defect[],
   remark: '',
-})
+});
 
 const openRecordDialog = (row?: QualityRecord) => {
   if (row) {
-    Object.assign(recordForm, row)
+    Object.assign(recordForm, row);
   } else {
     Object.assign(recordForm, {
       id: 0,
@@ -578,46 +578,46 @@ const openRecordDialog = (row?: QualityRecord) => {
       result: 'pending',
       defects: [],
       remark: '',
-    })
+    });
   }
-  recordDialogVisible.value = true
-}
+  recordDialogVisible.value = true;
+};
 
 const submitRecord = async () => {
-  recordSubmitLoading.value = true
+  recordSubmitLoading.value = true;
   try {
     if (recordForm.id) {
       // 批次 94 P2-12 修复：原占位"更新功能待实现"，现接入真实更新 API
-      await updateQualityRecord(recordForm.id, recordForm as Partial<QualityRecord>)
+      await updateQualityRecord(recordForm.id, recordForm as Partial<QualityRecord>);
     } else {
-      await createQualityRecord(recordForm as Partial<QualityRecord>)
+      await createQualityRecord(recordForm as Partial<QualityRecord>);
     }
-    ElMessage.success(t('quality.message.operationSuccess'))
-    recordDialogVisible.value = false
-    fetchRecords()
+    ElMessage.success(t('quality.message.operationSuccess'));
+    recordDialogVisible.value = false;
+    fetchRecords();
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
     ElMessage.error(
       (e instanceof Error ? e.message : String(e)) || t('quality.message.operationFailed')
-    )
+    );
   } finally {
-    recordSubmitLoading.value = false
+    recordSubmitLoading.value = false;
   }
-}
+};
 
-const hasLoaded = createLazyLoader()
+const hasLoaded = createLazyLoader();
 
 onMounted(() => {
-  fetchStandards()
-  loadIfNot('records', fetchRecords, hasLoaded)
-  loadIfNot('defects', fetchDefects, hasLoaded)
-})
+  fetchStandards();
+  loadIfNot('records', fetchRecords, hasLoaded);
+  loadIfNot('defects', fetchDefects, hasLoaded);
+});
 
 // provide 必须在所有函数定义之后，避免 hoisting 问题
 provide('qualityActions', {
   openStandardDialog,
   openRecordDialog,
-})
+});
 </script>
 
 <style scoped>

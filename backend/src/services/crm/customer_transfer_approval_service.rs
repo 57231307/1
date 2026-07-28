@@ -22,12 +22,12 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::info;
 
+use crate::models::status::crm_lead as lead_status;
 use crate::models::{
-    customer_transfer_approval::{self, Entity as TransferApprovalEntity},
     crm_lead::{self, Entity as CrmLeadEntity},
     customer::Entity as CustomerEntity,
+    customer_transfer_approval::{self, Entity as TransferApprovalEntity},
 };
-use crate::models::status::crm_lead as lead_status;
 use crate::services::crm::assign::{CrmAssignService, TransferLeadRequest};
 use crate::utils::error::AppError;
 
@@ -136,10 +136,7 @@ pub struct CustomerTransferApprovalService {
 impl CustomerTransferApprovalService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         let assign_service = CrmAssignService::new(db.clone());
-        Self {
-            db,
-            assign_service,
-        }
+        Self { db, assign_service }
     }
 
     /// 创建转移审批申请
@@ -156,7 +153,9 @@ impl CustomerTransferApprovalService {
         applicant_name: &str,
     ) -> Result<TransferApprovalDto, AppError> {
         Self::validate_create_request(&req)?;
-        let lead = self.fetch_and_validate_lead(req.lead_id, req.to_user_id).await?;
+        let lead = self
+            .fetch_and_validate_lead(req.lead_id, req.to_user_id)
+            .await?;
         Self::ensure_no_pending_approval(&*self.db, req.lead_id).await?;
         let is_large_customer = self.check_large_customer(&lead).await?;
         let max_level = if is_large_customer { 2 } else { 1 };
@@ -459,7 +458,10 @@ impl CustomerTransferApprovalService {
         active.updated_at = Set(chrono::Utc::now());
         let updated = active.update(&*self.db).await?;
 
-        info!("用户 {} 取消转移审批单 {}", operator_id, updated.approval_no);
+        info!(
+            "用户 {} 取消转移审批单 {}",
+            operator_id, updated.approval_no
+        );
         Ok(updated.into())
     }
 
@@ -493,9 +495,8 @@ impl CustomerTransferApprovalService {
             .paginate(&*self.db, page_size);
 
         let total = paginator.num_items().await?;
-        let items: Vec<customer_transfer_approval::Model> = paginator
-            .fetch_page(page.saturating_sub(1))
-            .await?;
+        let items: Vec<customer_transfer_approval::Model> =
+            paginator.fetch_page(page.saturating_sub(1)).await?;
 
         let dtos = items.into_iter().map(Into::into).collect();
         Ok((dtos, total))
@@ -525,7 +526,8 @@ impl CustomerTransferApprovalService {
                 if c.customer_type == "vip" {
                     return Ok(true);
                 }
-                let threshold = rust_decimal::Decimal::from(DEFAULT_LARGE_CUSTOMER_CREDIT_THRESHOLD);
+                let threshold =
+                    rust_decimal::Decimal::from(DEFAULT_LARGE_CUSTOMER_CREDIT_THRESHOLD);
                 if c.credit_limit > threshold {
                     return Ok(true);
                 }

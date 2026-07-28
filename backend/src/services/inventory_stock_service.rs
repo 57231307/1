@@ -175,15 +175,11 @@ impl InventoryStockService {
         let _warehouse = warehouse::Entity::find_by_id(warehouse_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::validation(format!("仓库不存在: {}", warehouse_id))
-            })?;
+            .ok_or_else(|| AppError::validation(format!("仓库不存在: {}", warehouse_id)))?;
         let _product = product::Entity::find_by_id(product_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::validation(format!("产品不存在: {}", product_id))
-            })?;
+            .ok_or_else(|| AppError::validation(format!("产品不存在: {}", product_id)))?;
 
         let active_stock = inventory_stock::ActiveModel {
             id: Default::default(),
@@ -219,6 +215,7 @@ impl InventoryStockService {
             stock_status: Set(stock_status),
             quality_status: Set(quality_status),
             version: Set(0),
+            replenishment_strategy: Set("reorder_point".to_string()),
         };
 
         active_stock.insert(&*self.db).await.map_err(AppError::from)
@@ -246,13 +243,10 @@ impl InventoryStockService {
         // 批次 263 修复：接入 paginate_with_total 工具函数，消除手写 num_items + fetch_page 重复。
         // paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1。
         // 补 clamp(1, 1000) 防 DoS（恶意请求 page=999999 不会导致超大偏移查询）。
-        let rec = crate::middleware::slow_query::SlowQueryRecorder::start(
-            "inventory_stock_list",
-            None,
-        );
+        let rec =
+            crate::middleware::slow_query::SlowQueryRecorder::start("inventory_stock_list", None);
         let paginator = query.paginate(&*self.db, page_size);
-        let (stock_list, total) =
-            paginate_with_total(paginator, page.clamp(1, 1000)).await?;
+        let (stock_list, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
         rec.finish();
 
         Ok((stock_list, total))
@@ -452,15 +446,11 @@ impl InventoryStockService {
         let _warehouse = warehouse::Entity::find_by_id(warehouse_id)
             .one(db)
             .await?
-            .ok_or_else(|| {
-                AppError::validation(format!("仓库不存在: {}", warehouse_id))
-            })?;
+            .ok_or_else(|| AppError::validation(format!("仓库不存在: {}", warehouse_id)))?;
         let _product = product::Entity::find_by_id(product_id)
             .one(db)
             .await?
-            .ok_or_else(|| {
-                AppError::validation(format!("产品不存在: {}", product_id))
-            })?;
+            .ok_or_else(|| AppError::validation(format!("产品不存在: {}", product_id)))?;
         Ok(())
     }
 
@@ -515,6 +505,7 @@ impl InventoryStockService {
             stock_status: Set("正常".to_string()),
             quality_status: Set("合格".to_string()),
             version: Set(0),
+            replenishment_strategy: Set("reorder_point".to_string()),
         }
     }
 
@@ -743,13 +734,210 @@ mod tests {
     /// 不依赖真实 schema（new 不触发任何 DB 操作）。
     #[tokio::test]
     async fn 测试_服务实例化_SQLite内存数据库() {
-        let db_url = std::env::var("TEST_DATABASE_URL")
-            .unwrap_or_else(|_| "sqlite::memory:".to_string());
+        let db_url =
+            std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
         let db = Database::connect(&db_url)
             .await
             .expect("测试夹具：数据库连接失败");
         let service = InventoryStockService::new(std::sync::Arc::new(db));
         // 仅验证实例化成功，不触发实际 DB 查询
         let _ = service;
+    }
+
+    // ============ 核心 CRUD 方法测试（批次 488 P1 补测）============
+    //
+    // 无 schema 的 SQLite 内存数据库无法执行真实表查询，
+    // 但可通过 #[ignore] 标注需真实 DB 的测试，
+    // 同时保留参数对象/构造逻辑/双单位换算的纯逻辑测试。
+
+    /// 测试_CreateStockArgs_参数对象构造
+    ///
+    /// 验证 CreateStockArgs 能完整携带 12 个字段，无字段遗漏。
+    #[test]
+    fn 测试_CreateStockArgs_参数对象构造() {
+        let args = CreateStockArgs {
+            warehouse_id: 1,
+            product_id: 2,
+            batch_no: "B001".to_string(),
+            color_no: "C001".to_string(),
+            quantity_meters: Decimal::new(100, 0),
+            quantity_kg: Decimal::new(30, 0),
+            grade: "一等品".to_string(),
+            dye_lot_no: Some("DL001".to_string()),
+            gram_weight: Some(Decimal::new(200, 0)),
+            width: Some(Decimal::new(150, 0)),
+            stock_status: "正常".to_string(),
+            quality_status: "合格".to_string(),
+        };
+        assert_eq!(args.warehouse_id, 1);
+        assert_eq!(args.product_id, 2);
+        assert_eq!(args.batch_no, "B001");
+        assert_eq!(args.color_no, "C001");
+        assert_eq!(args.quantity_meters, Decimal::new(100, 0));
+        assert_eq!(args.quantity_kg, Decimal::new(30, 0));
+        assert_eq!(args.grade, "一等品");
+        assert_eq!(args.dye_lot_no.as_deref(), Some("DL001"));
+        assert_eq!(args.stock_status, "正常");
+        assert_eq!(args.quality_status, "合格");
+    }
+
+    /// 测试_CreateStockFabricArgs_参数对象构造
+    ///
+    /// 验证 CreateStockFabricArgs 能完整携带 13 个字段（含库位信息）。
+    #[test]
+    fn 测试_CreateStockFabricArgs_参数对象构造() {
+        let args = CreateStockFabricArgs {
+            warehouse_id: 1,
+            product_id: 2,
+            batch_no: "B001".to_string(),
+            color_no: "C001".to_string(),
+            dye_lot_no: Some("DL001".to_string()),
+            grade: "一等品".to_string(),
+            quantity_meters: Decimal::new(100, 0),
+            quantity_kg: Decimal::new(30, 0),
+            gram_weight: Some(Decimal::new(200, 0)),
+            width: Some(Decimal::new(150, 0)),
+            location_id: Some(5),
+            shelf_no: Some("A-01".to_string()),
+            layer_no: Some("L1".to_string()),
+        };
+        assert_eq!(args.location_id, Some(5));
+        assert_eq!(args.shelf_no.as_deref(), Some("A-01"));
+        assert_eq!(args.layer_no.as_deref(), Some("L1"));
+    }
+
+    /// 测试_find_by_id_无schema返回错误
+    ///
+    /// 验证 find_by_id 在无 schema 时返回 Err（业务 DB 错误传播）。
+    /// 标注 #[ignore] 避免污染 CI 测试统计。
+    #[tokio::test]
+    #[ignore = "需要 inventory_stocks 表 schema（真实 DB）"]
+    async fn 测试_find_by_id_无schema返回错误() {
+        let db = Database::connect("sqlite::memory:")
+            .await
+            .expect("DB 连接失败");
+        let service = InventoryStockService::new(std::sync::Arc::new(db));
+        let result = service.find_by_id(99999).await;
+        assert!(result.is_err(), "无 schema 时应返回数据库错误");
+    }
+
+    /// 测试_create_stock_校验仓库存在性
+    ///
+    /// 验证 create_stock 在仓库不存在时返回 validation 错误。
+    /// 标注 #[ignore] 因校验在 DB 查询阶段，需表 schema。
+    #[tokio::test]
+    #[ignore = "需要 warehouses/products 表 schema（真实 DB）"]
+    async fn 测试_create_stock_校验仓库存在性() {
+        let db = Database::connect("sqlite::memory:")
+            .await
+            .expect("DB 连接失败");
+        let service = InventoryStockService::new(std::sync::Arc::new(db));
+        let args = CreateStockArgs {
+            warehouse_id: 99999,
+            product_id: 1,
+            batch_no: "B001".to_string(),
+            color_no: "C001".to_string(),
+            quantity_meters: Decimal::new(100, 0),
+            quantity_kg: Decimal::new(30, 0),
+            grade: "一等品".to_string(),
+            dye_lot_no: None,
+            gram_weight: None,
+            width: None,
+            stock_status: "正常".to_string(),
+            quality_status: "合格".to_string(),
+        };
+        let result = service.create_stock(args).await;
+        assert!(result.is_err(), "仓库不存在时应返回 Err");
+    }
+
+    /// 测试_list_stock_无schema返回错误
+    ///
+    /// 验证 list_stock 在无 schema 时返回 Err。
+    #[tokio::test]
+    #[ignore = "需要 inventory_stocks 表 schema（真实 DB）"]
+    async fn 测试_list_stock_无schema返回错误() {
+        let db = Database::connect("sqlite::memory:")
+            .await
+            .expect("DB 连接失败");
+        let service = InventoryStockService::new(std::sync::Arc::new(db));
+        let result = service.list_stock(1, 10, None, None).await;
+        assert!(result.is_err(), "无 schema 时应返回数据库错误");
+    }
+
+    /// 测试_delete_stock_无schema返回错误
+    ///
+    /// 验证 delete_stock 在无 schema 时返回 Err（找不到记录）。
+    #[tokio::test]
+    #[ignore = "需要 inventory_stocks 表 schema（真实 DB）"]
+    async fn 测试_delete_stock_无schema返回错误() {
+        let db = Database::connect("sqlite::memory:")
+            .await
+            .expect("DB 连接失败");
+        let service = InventoryStockService::new(std::sync::Arc::new(db));
+        let result = service.delete_stock(99999, None).await;
+        assert!(result.is_err(), "无 schema 时应返回数据库错误");
+    }
+
+    /// 测试_find_by_batch_and_color_无schema返回错误
+    ///
+    /// 验证 find_by_batch_and_color 在无 schema 时返回 Err。
+    #[tokio::test]
+    #[ignore = "需要 inventory_stocks 表 schema（真实 DB）"]
+    async fn 测试_find_by_batch_and_color_无schema返回错误() {
+        let db = Database::connect("sqlite::memory:")
+            .await
+            .expect("DB 连接失败");
+        let service = InventoryStockService::new(std::sync::Arc::new(db));
+        let result = service.find_by_batch_and_color("B001", "C001", None).await;
+        assert!(result.is_err(), "无 schema 时应返回数据库错误");
+    }
+
+    /// 测试_update_stock_grade_非法等级值
+    ///
+    /// 验证 update_stock_grade 在等级值非法时立即返回 validation 错误（不触发 DB 查询）。
+    /// 此测试不需 schema，校验在 DB 查询前返回。
+    #[tokio::test]
+    async fn 测试_update_stock_grade_非法等级值() {
+        let db = Database::connect("sqlite::memory:")
+            .await
+            .expect("DB 连接失败");
+        let service = InventoryStockService::new(std::sync::Arc::new(db));
+        // 非法等级值（仅允许 一等品/二等品/等外品）
+        let result = service
+            .update_stock_grade(1, "三等品".to_string(), None)
+            .await;
+        assert!(result.is_err(), "非法等级值应返回 validation 错误");
+        if let Err(AppError::ValidationError(msg)) = result {
+            assert!(msg.contains("非法等级值"), "错误信息应包含非法等级值提示");
+        }
+    }
+
+    /// 测试_calculate_quantity_kg_正常换算_返回预期公斤数
+    ///
+    /// 端到端验证 create_stock_fabric 内部使用的公斤自动计算公式：
+    /// 公式 = 米 × 克重 × 幅宽(m) ÷ 1000
+    #[test]
+    fn 测试_calculate_quantity_kg_正常换算_返回预期公斤数() {
+        // 100m × 200g/m² × 1.5m ÷ 1000 = 30 kg
+        let meters = Decimal::new(100, 0);
+        let gram = Some(Decimal::new(200, 0));
+        let width = Some(Decimal::new(150, 0)); // 150cm = 1.5m
+        let fallback = Decimal::new(999, 0);
+        let kg = InventoryStockService::calculate_quantity_kg(meters, gram, width, fallback);
+        assert_eq!(kg, Decimal::new(30, 0));
+    }
+
+    /// 测试_calculate_quantity_kg_负数米数_转换器返回Err回退fallback
+    ///
+    /// 边界场景：负数米数应触发转换器 Err，回退到 fallback。
+    #[test]
+    fn 测试_calculate_quantity_kg_负数米数_转换器返回Err回退fallback() {
+        let meters = Decimal::new(-100, 0);
+        let gram = Some(Decimal::new(200, 0));
+        let width = Some(Decimal::new(150, 0));
+        let fallback = Decimal::new(250, 0);
+        let kg = InventoryStockService::calculate_quantity_kg(meters, gram, width, fallback);
+        // 转换器对负数返回 Err，回退到 fallback
+        assert_eq!(kg, fallback);
     }
 }

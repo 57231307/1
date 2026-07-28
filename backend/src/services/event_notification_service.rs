@@ -85,6 +85,7 @@ impl EventNotificationService {
             action_url: Some(format!("/inventory/stock/{}", product_id)),
             sender_id: None,
             sender_name: Some("系统".to_string()),
+            dedup_key: Some(format!("inventory_alert:{}", product_id)),
         }
     }
 
@@ -161,6 +162,7 @@ impl EventNotificationService {
                     action_url: Some(format!("/sales/orders/{}", order_id)),
                     sender_id: None,
                     sender_name: Some("系统".to_string()),
+                    dedup_key: Some(format!("order_submitted:{}", order_id)),
                 })
                 .await?;
         }
@@ -203,6 +205,7 @@ impl EventNotificationService {
                     action_url: Some(format!("/sales/orders/{}", order_id)),
                     sender_id: Some(approver_id),
                     sender_name: Some(approver_name.to_string()),
+                    dedup_key: Some(format!("order_approved:{}", order_id)),
                 })
                 .await?;
         }
@@ -238,6 +241,7 @@ impl EventNotificationService {
                     action_url: Some(format!("/sales/orders/{}", order_id)),
                     sender_id: None,
                     sender_name: Some("系统".to_string()),
+                    dedup_key: Some(format!("order_shipped:{}", order_id)),
                 })
                 .await?;
         }
@@ -280,6 +284,7 @@ impl EventNotificationService {
                     action_url: Some(format!("/sales/orders/{}", order_id)),
                     sender_id: None,
                     sender_name: Some("系统".to_string()),
+                    dedup_key: Some(format!("order_completed:{}", order_id)),
                 })
                 .await?;
         }
@@ -343,6 +348,7 @@ impl EventNotificationService {
                 action_url: None,
                 sender_id: Some(approver_id),
                 sender_name: Some(approver_name.to_string()),
+                dedup_key: Some(format!("approval_result:{}:{}", task_title, approver_id)),
             })
             .await?;
         Ok(())
@@ -415,9 +421,13 @@ impl EventNotificationService {
                 .get(&user_id)
                 .map(|s| {
                     (
-                        UserNotificationSettingService::should_send_email_from_setting(s, "INVENTORY"),
+                        UserNotificationSettingService::should_send_email_from_setting(
+                            s,
+                            "INVENTORY",
+                        ),
                         UserNotificationSettingService::should_send_internal_from_setting(
-                            s, "INVENTORY",
+                            s,
+                            "INVENTORY",
                         ),
                     )
                 })
@@ -439,6 +449,7 @@ impl EventNotificationService {
                         action_url: Some(format!("/inventory/stock/{}", product_id)),
                         sender_id: None,
                         sender_name: Some("系统".to_string()),
+                        dedup_key: Some(format!("inventory_alert:{}", product_id)),
                     })
                     .await?;
             }
@@ -486,6 +497,7 @@ impl EventNotificationService {
                     action_url: Some(format!("/inventory/stock/{}", product_id)),
                     sender_id: None,
                     sender_name: Some("系统".to_string()),
+                    dedup_key: None,
                 })
                 .await?;
         }
@@ -537,6 +549,7 @@ impl EventNotificationService {
                     action_url: Some(format!("/purchases/orders/{}", order_id)),
                     sender_id: None,
                     sender_name: Some("系统".to_string()),
+                    dedup_key: None,
                 })
                 .await?;
         }
@@ -586,6 +599,7 @@ impl EventNotificationService {
                     action_url: Some(format!("/purchases/orders/{}", order_id)),
                     sender_id: None,
                     sender_name: Some("系统".to_string()),
+                    dedup_key: None,
                 })
                 .await?;
         }
@@ -638,6 +652,7 @@ impl EventNotificationService {
                     action_url: Some(format!("/finance/invoices/{}", invoice_id)),
                     sender_id: None,
                     sender_name: Some("系统".to_string()),
+                    dedup_key: None,
                 })
                 .await?;
         }
@@ -684,6 +699,7 @@ impl EventNotificationService {
                     action_url: Some(format!("/finance/payment-requests/{}", request_id)),
                     sender_id: None,
                     sender_name: Some("系统".to_string()),
+                    dedup_key: None,
                 })
                 .await?;
         }
@@ -726,6 +742,7 @@ impl EventNotificationService {
                         action_url: None,
                         sender_id: None,
                         sender_name: Some("系统管理员".to_string()),
+                        dedup_key: None,
                     })
                     .await?;
             }
@@ -770,6 +787,7 @@ impl EventNotificationService {
                         action_url: payload.action_url.clone(),
                         sender_id: None,
                         sender_name: Some("系统".to_string()),
+                        dedup_key: None,
                     })
                     .await?;
             }

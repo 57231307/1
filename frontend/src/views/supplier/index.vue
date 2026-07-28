@@ -11,7 +11,9 @@
       <div class="header-left">
         <h1 class="page-title">{{ t('supplier.index.title') }}</h1>
         <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/' }">{{ t('supplier.index.breadcrumb.home') }}</el-breadcrumb-item>
+          <el-breadcrumb-item :to="{ path: '/' }">{{
+            t('supplier.index.breadcrumb.home')
+          }}</el-breadcrumb-item>
           <el-breadcrumb-item>{{ t('supplier.index.breadcrumb.basicData') }}</el-breadcrumb-item>
           <el-breadcrumb-item>{{ t('supplier.index.breadcrumb.supplier') }}</el-breadcrumb-item>
         </el-breadcrumb>
@@ -22,11 +24,11 @@
           <el-icon><Plus /></el-icon>
           {{ t('supplier.index.button.create') }}
         </el-button>
-        <el-button @click="handlePrint">
+        <el-button v-permission="'supplier.print'" @click="handlePrint">
           <el-icon><Printer /></el-icon>
           {{ t('supplier.index.button.print') }}
         </el-button>
-        <el-button @click="handleExport">
+        <el-button v-permission="'supplier.export'" @click="handleExport">
           <el-icon><Download /></el-icon>
           {{ t('supplier.index.button.export') }}
         </el-button>
@@ -56,7 +58,7 @@
       :mode="dialogMode"
       :form-data="formData"
       :submit-loading="submitLoading"
-      @update:form-data="(v) => Object.assign(formData, v)"
+      @update:form-data="v => Object.assign(formData, v)"
       @close="resetForm"
       @submit="handleSubmit"
     />
@@ -64,34 +66,40 @@
 </template>
 
 <script setup lang="ts">
-import SupplierList from './SupplierList.vue'
-import SupplierDialog from './SupplierDialog.vue'
-import { ref, reactive, computed } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Download, Printer } from '@element-plus/icons-vue'
-import { deleteSupplier, updateSupplier, createSupplier, type Supplier, type SupplierQueryParams } from '@/api/supplier'
+import SupplierList from './SupplierList.vue';
+import SupplierDialog from './SupplierDialog.vue';
+import { ref, reactive, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { Plus, Download, Printer } from '@element-plus/icons-vue';
+import {
+  deleteSupplier,
+  updateSupplier,
+  createSupplier,
+  type Supplier,
+  type SupplierQueryParams,
+} from '@/api/supplier';
 // V15 P0-S12 + P0-S15 修复（Batch 474）：供应商导出改用后端带水印 xlsx 接口
-import { exportFromBackend } from '@/utils/export'
-import { printData } from '@/utils/print'
-import { useTableApi } from '@/composables/useTableApi'
+import { exportFromBackend } from '@/utils/export';
+import { printData } from '@/utils/print';
+import { useTableApi } from '@/composables/useTableApi';
 // Batch 468 P0-S28：引入权限码常量，与后端 suppliers 资源对齐
-import { PERMISSIONS } from '@/constants/permissions'
+import { PERMISSIONS } from '@/constants/permissions';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const submitLoading = ref(false)
-const dialogVisible = ref(false)
-const isEdit = ref(false)
-const dialogRef = ref<InstanceType<typeof SupplierDialog>>()
+const submitLoading = ref(false);
+const dialogVisible = ref(false);
+const isEdit = ref(false);
+const dialogRef = ref<InstanceType<typeof SupplierDialog>>();
 // SupplierList 通过 dialog-mode prop 接收的当前模式（add/edit/view）
-const dialogMode = ref<'add' | 'edit' | 'view'>('add')
+const dialogMode = ref<'add' | 'edit' | 'view'>('add');
 
 const queryParams = reactive({
   keyword: '',
   grade: '',
   status: '',
-})
+});
 
 // 批次 277：接入 useTableApi，消除手写 suppliers/total/loading/fetchData 重复
 // useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
@@ -106,30 +114,33 @@ const {
 } = useTableApi<Supplier>({
   url: '/purchase/suppliers',
   onError: (err: unknown) =>
-    ElMessage.error((err instanceof Error ? err.message : String(err)) || t('supplier.index.message.fetchListFailed')),
-})
+    ElMessage.error(
+      (err instanceof Error ? err.message : String(err)) ||
+        t('supplier.index.message.fetchListFailed')
+    ),
+});
 
 // 批次 277：同步筛选条件到 useTableApi.queryParams 并刷新（SupplierList 仍通过 props 接收 queryParams）
 const syncQueryParams = () => {
-  setQueryParam('keyword', queryParams.keyword || undefined)
-  setQueryParam('grade', queryParams.grade || undefined)
-  setQueryParam('status', queryParams.status || undefined)
-}
+  setQueryParam('keyword', queryParams.keyword || undefined);
+  setQueryParam('grade', queryParams.grade || undefined);
+  setQueryParam('status', queryParams.status || undefined);
+};
 
 // 批次 277：搜索时先同步筛选条件再刷新
 const handleSearch = () => {
-  syncQueryParams()
-  page.value = 1
-  fetchData()
-}
+  syncQueryParams();
+  page.value = 1;
+  fetchData();
+};
 
 // 批次 277：SupplierList 子组件分页变化时同步到 useTableApi 的 page/pageSize
 // SupplierList 通过 update:query-params emit 包含 page/page_size 的 queryParams
 const handleQueryParamsUpdate = (v: SupplierQueryParams) => {
-  Object.assign(queryParams, v)
-  if (v.page) page.value = v.page
-  if (v.page_size) pageSize.value = v.page_size
-}
+  Object.assign(queryParams, v);
+  if (v.page) page.value = v.page;
+  if (v.page_size) pageSize.value = v.page_size;
+};
 
 // 表单数据由父组件维护（避免 SupplierDialog 子组件直接 mutation prop）
 // SupplierDialog 接收 formData prop + 通过 ref.resetForm() 同步
@@ -155,86 +166,94 @@ const formData = reactive({
   grade: '',
   status: 'active',
   remarks: '',
-})
+});
 
-const dialogTitle = computed(() => (isEdit.value ? t('supplier.index.dialog.editTitle') : t('supplier.index.dialog.createTitle')))
+const dialogTitle = computed(() =>
+  isEdit.value ? t('supplier.index.dialog.editTitle') : t('supplier.index.dialog.createTitle')
+);
 
 const handleReset = () => {
-  queryParams.keyword = ''
-  queryParams.grade = ''
-  queryParams.status = ''
-  syncQueryParams()
-  page.value = 1
-  fetchData()
-}
+  queryParams.keyword = '';
+  queryParams.grade = '';
+  queryParams.status = '';
+  syncQueryParams();
+  page.value = 1;
+  fetchData();
+};
 
 /** 重置表单（通过 ref 调用 SupplierDialog.resetForm） */
 const resetForm = () => {
-  dialogRef.value?.resetForm()
-}
+  dialogRef.value?.resetForm();
+};
 
 const handleCreate = () => {
-  resetForm()
-  isEdit.value = false
-  dialogMode.value = 'add'
-  dialogVisible.value = true
-}
+  resetForm();
+  isEdit.value = false;
+  dialogMode.value = 'add';
+  dialogVisible.value = true;
+};
 
 const handleAdd = () => {
-  handleCreate()
-}
+  handleCreate();
+};
 
 const handleView = (row: Supplier) => {
-  resetForm()
-  Object.assign(formData, row)
-  isEdit.value = false
-  dialogMode.value = 'view'
-  dialogVisible.value = true
-}
+  resetForm();
+  Object.assign(formData, row);
+  isEdit.value = false;
+  dialogMode.value = 'view';
+  dialogVisible.value = true;
+};
 
 const handleEdit = (row: Supplier) => {
-  resetForm()
-  Object.assign(formData, row)
-  isEdit.value = true
-  dialogMode.value = 'edit'
-  dialogVisible.value = true
-}
+  resetForm();
+  Object.assign(formData, row);
+  isEdit.value = true;
+  dialogMode.value = 'edit';
+  dialogVisible.value = true;
+};
 
 const handleDelete = async (row: Supplier) => {
   try {
     await ElMessageBox.confirm(
       t('supplier.index.message.deleteConfirm', { name: row.supplier_name }),
       t('supplier.index.message.deleteTitle'),
-      { type: 'warning' },
-    )
-    await deleteSupplier(row.id)
-    ElMessage.success(t('supplier.index.message.deleteSuccess'))
-    fetchData()
+      { type: 'warning' }
+    );
+    await deleteSupplier(row.id);
+    ElMessage.success(t('supplier.index.message.deleteSuccess'));
+    fetchData();
   } catch (error: unknown) {
     if (error !== 'cancel') {
-      ElMessage.error((error instanceof Error ? error.message : String(error)) || t('supplier.index.message.deleteFailed'))
+      ElMessage.error(
+        (error instanceof Error ? error.message : String(error)) ||
+          t('supplier.index.message.deleteFailed')
+      );
     }
   }
-}
+};
 
 const handleSubmit = async () => {
-  submitLoading.value = true
+  submitLoading.value = true;
   try {
     if (isEdit.value) {
-      await updateSupplier(formData.id!, formData)
-      ElMessage.success(t('supplier.index.message.updateSuccess'))
+      await updateSupplier(formData.id!, formData);
+      ElMessage.success(t('supplier.index.message.updateSuccess'));
     } else {
-      await createSupplier(formData)
-      ElMessage.success(t('supplier.index.message.createSuccess'))
+      await createSupplier(formData);
+      ElMessage.success(t('supplier.index.message.createSuccess'));
     }
-    dialogVisible.value = false
-    fetchData()
+    dialogVisible.value = false;
+    fetchData();
   } catch (error: unknown) {
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('supplier.index.message.operationFailed'))
+    ElMessage.error(
+      (error instanceof Error ? error.message : String(error)) ||
+        t('supplier.index.message.operationFailed')
+    );
   } finally {
-    submitLoading.value = false
+    submitLoading.value = false;
   }
-}
+};
 
 const handleExport = async () => {
   // V15 P0-S12 + P0-S15 修复（Batch 474）：改用后端带水印 xlsx 接口
@@ -246,29 +265,41 @@ const handleExport = async () => {
     keyword: queryParams.keyword || undefined,
     grade: queryParams.grade || undefined,
     status: queryParams.status || undefined,
-  }
-  await exportFromBackend('/purchase/suppliers/export', params, 'suppliers_export')
-}
+  };
+  await exportFromBackend('/purchase/suppliers/export', params, 'suppliers_export');
+};
 
 const handlePrint = () => {
   printData({
     title: t('supplier.index.print.title'),
+    resourceType: 'supplier',
     columns: [
-      { key: 'supplier_code', title: t('supplier.index.print.column.supplierCode'), width: '100px' },
+      {
+        key: 'supplier_code',
+        title: t('supplier.index.print.column.supplierCode'),
+        width: '100px',
+      },
       { key: 'supplier_name', title: t('supplier.index.print.column.supplierName') },
-      { key: 'contact_phone', title: t('supplier.index.print.column.contactPhone'), width: '120px' },
+      {
+        key: 'contact_phone',
+        title: t('supplier.index.print.column.contactPhone'),
+        width: '120px',
+      },
       { key: 'grade', title: t('supplier.index.print.column.grade'), width: '60px' },
       { key: 'supplier_type', title: t('supplier.index.print.column.type'), width: '80px' },
       {
         key: 'status',
         title: t('supplier.index.print.column.status'),
         width: '60px',
-        formatter: v => (v === 'active' ? t('supplier.index.print.statusActive') : t('supplier.index.print.statusInactive')),
+        formatter: v =>
+          v === 'active'
+            ? t('supplier.index.print.statusActive')
+            : t('supplier.index.print.statusInactive'),
       },
     ],
     data: suppliers.value as unknown as Record<string, unknown>[],
-  })
-}
+  });
+};
 </script>
 
 <style scoped>

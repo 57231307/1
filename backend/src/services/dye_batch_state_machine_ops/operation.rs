@@ -73,7 +73,10 @@ impl DyeBatchOperationService {
     }
 
     /// 按目标缸号查询
-    pub async fn list_by_batch(&self, target_batch_id: i32) -> Result<Vec<OperationModel>, AppError> {
+    pub async fn list_by_batch(
+        &self,
+        target_batch_id: i32,
+    ) -> Result<Vec<OperationModel>, AppError> {
         let items = OperationEntity::find()
             .filter(dye_batch_operation::Column::TargetBatchId.eq(target_batch_id))
             .order_by_desc(dye_batch_operation::Column::OperationAt)

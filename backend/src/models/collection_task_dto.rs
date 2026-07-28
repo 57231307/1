@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 催收任务 DTO（V15 P0-B03 Batch 481 创建）
 
 use chrono::NaiveDate;

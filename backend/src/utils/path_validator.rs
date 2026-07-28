@@ -53,8 +53,8 @@ pub fn validate_dir_recursive(dir: &Path, base: &Path, depth: usize) -> Result<(
         let entry = entry.map_err(|e| format!("读取目录项失败: {}", e))?;
         let path = entry.path();
         // canonicalize 解析符号链接，防止通过符号链接逃逸
-        let canonical = std::fs::canonicalize(&path)
-            .map_err(|e| format!("解析路径失败 {:?}: {}", path, e))?;
+        let canonical =
+            std::fs::canonicalize(&path).map_err(|e| format!("解析路径失败 {:?}: {}", path, e))?;
         if !canonical.starts_with(base) {
             return Err(format!(
                 "检测到路径穿越攻击：文件 {:?} 不在安全目录范围内",

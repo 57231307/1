@@ -152,11 +152,11 @@ impl PurchaseReceiptService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::services::test_common::setup_test_db;
+    use crate::decs;
     use crate::services::purchase_receipt_dto::{
         UpdatePurchaseReceiptRequest, UpdateReceiptItemRequest,
     };
-    use crate::decs;
+    use crate::services::test_common::setup_test_db;
     use crate::ymd;
     use sea_orm::DatabaseConnection;
     use std::sync::Arc;

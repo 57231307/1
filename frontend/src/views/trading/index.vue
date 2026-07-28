@@ -38,17 +38,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useI18n } from 'vue-i18n'
-import PurchaseContractTab from './tabs/PurchaseContractTab.vue'
-import PurchasePriceTab from './tabs/PurchasePriceTab.vue'
-import SalesContractTab from './tabs/SalesContractTab.vue'
-import SalesPriceTab from './tabs/SalesPriceTab.vue'
-import SalesReturnTab from './tabs/SalesReturnTab.vue'
+import { ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import PurchaseContractTab from './tabs/PurchaseContractTab.vue';
+import PurchasePriceTab from './tabs/PurchasePriceTab.vue';
+import SalesContractTab from './tabs/SalesContractTab.vue';
+import SalesPriceTab from './tabs/SalesPriceTab.vue';
+import SalesReturnTab from './tabs/SalesReturnTab.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const activeTab = ref('purchase-contract')
+const activeTab = ref('purchase-contract');
 </script>
 
 <style scoped>

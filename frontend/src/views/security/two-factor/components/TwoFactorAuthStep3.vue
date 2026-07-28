@@ -49,44 +49,44 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { Key, InfoFilled } from '@element-plus/icons-vue'
-import type { FormInstance, FormRules } from 'element-plus'
-import { verifyRules } from '../composables/tfaFmts'
+import { reactive, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { Key, InfoFilled } from '@element-plus/icons-vue';
+import type { FormInstance, FormRules } from 'element-plus';
+import { verifyRules } from '../composables/tfaFmts';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 自包含的表单状态（避免 prop mutation 问题）
-const formRef = ref<FormInstance>()
-const form = reactive({ token: '' })
-const errorMsg = ref<string>('')
-const rules: FormRules = verifyRules
+const formRef = ref<FormInstance>();
+const form = reactive({ token: '' });
+const errorMsg = ref<string>('');
+const rules: FormRules = verifyRules;
 
 // 暴露给父组件的验证方法
 const validate = (): Promise<{ valid: boolean; token: string }> => {
   return new Promise(resolve => {
     if (!formRef.value) {
-      resolve({ valid: false, token: '' })
-      return
+      resolve({ valid: false, token: '' });
+      return;
     }
     formRef.value.validate((valid: boolean) => {
-      resolve({ valid, token: form.token })
-    })
-  })
-}
+      resolve({ valid, token: form.token });
+    });
+  });
+};
 
 // 暴露给父组件的设置错误方法
 const setError = (msg: string) => {
-  errorMsg.value = msg
-}
+  errorMsg.value = msg;
+};
 
 // 暴露给父组件的清除错误方法
 const clearError = () => {
-  errorMsg.value = ''
-}
+  errorMsg.value = '';
+};
 
-defineExpose({ validate, setError, clearError, formRef, form, errorMsg })
+defineExpose({ validate, setError, clearError, formRef, form, errorMsg });
 </script>
 
 <style scoped>

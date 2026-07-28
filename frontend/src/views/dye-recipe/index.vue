@@ -325,10 +325,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Download, Search, Refresh } from '@element-plus/icons-vue'
+import { ref, reactive } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { Plus, Download, Search, Refresh } from '@element-plus/icons-vue';
 import {
   createDyeRecipe,
   updateDyeRecipe,
@@ -336,19 +336,19 @@ import {
   submitDyeRecipe,
   getRecipeVersions,
   exportDyeRecipes,
-} from '@/api/dye-recipe'
-import type { DyeRecipe } from '@/api/dye-recipe'
-import { logger } from '@/utils/logger'
-import { useTableApi } from '@/composables/useTableApi'
+} from '@/api/dye-recipe';
+import type { DyeRecipe } from '@/api/dye-recipe';
+import { logger } from '@/utils/logger';
+import { useTableApi } from '@/composables/useTableApi';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 查询参数（筛选条件，分页由 useTableApi 管理）
 const queryParams = reactive({
   keyword: '',
   color_no: '',
   status: '',
-})
+});
 
 // 批次 271：接入 useTableApi，消除手写 page/pageSize/total/loading + getList 重复
 // useTableApi 自动管理分页状态、loading、数据加载，自动 watch page/pageSize 变化触发重载
@@ -363,17 +363,17 @@ const {
 } = useTableApi<DyeRecipe>({
   url: '/production/dye-recipes',
   onError: (e: unknown) => logger.error(t('dyeRecipe.index.messageFetchFailed'), String(e)),
-})
+});
 
 // 对话框
-const dialogVisible = ref(false)
-const dialogTitle = ref('')
-const formRef = ref()
-const isView = ref(false)
+const dialogVisible = ref(false);
+const dialogTitle = ref('');
+const formRef = ref();
+const isView = ref(false);
 
 // 版本历史
-const versionVisible = ref(false)
-const versionList = ref<DyeRecipe[]>([])
+const versionVisible = ref(false);
+const versionList = ref<DyeRecipe[]>([]);
 
 // 表单数据
 const formData = reactive({
@@ -384,7 +384,7 @@ const formData = reactive({
   color_name: '',
   content: '',
   remarks: '',
-})
+});
 
 // 表单验证规则
 const formRules = {
@@ -401,37 +401,37 @@ const formRules = {
     { required: true, message: t('dyeRecipe.index.ruleColorNameRequired'), trigger: 'blur' },
   ],
   content: [{ required: true, message: t('dyeRecipe.index.ruleContentRequired'), trigger: 'blur' }],
-}
+};
 
 // 批次 271：同步筛选条件到 useTableApi.queryParams 并刷新
 // useTableApi 自动 watch page/pageSize 变化触发重载，无需手动 getList
 const syncQueryParams = () => {
-  setQueryParam('keyword', queryParams.keyword || undefined)
-  setQueryParam('color_no', queryParams.color_no || undefined)
-  setQueryParam('status', queryParams.status || undefined)
-}
+  setQueryParam('keyword', queryParams.keyword || undefined);
+  setQueryParam('color_no', queryParams.color_no || undefined);
+  setQueryParam('status', queryParams.status || undefined);
+};
 
 // 查询
 const handleQuery = () => {
-  syncQueryParams()
-  page.value = 1
-  refresh()
-}
+  syncQueryParams();
+  page.value = 1;
+  refresh();
+};
 
 // 重置
 const handleReset = () => {
-  queryParams.keyword = ''
-  queryParams.color_no = ''
-  queryParams.status = ''
-  syncQueryParams()
-  page.value = 1
-  refresh()
-}
+  queryParams.keyword = '';
+  queryParams.color_no = '';
+  queryParams.status = '';
+  syncQueryParams();
+  page.value = 1;
+  refresh();
+};
 
 // 新建
 const handleCreate = () => {
-  dialogTitle.value = t('dyeRecipe.index.titleCreate')
-  isView.value = false
+  dialogTitle.value = t('dyeRecipe.index.titleCreate');
+  isView.value = false;
   Object.assign(formData, {
     id: undefined,
     recipe_no: '',
@@ -440,25 +440,25 @@ const handleCreate = () => {
     color_name: '',
     content: '',
     remarks: '',
-  })
-  dialogVisible.value = true
-}
+  });
+  dialogVisible.value = true;
+};
 
 // 查看（v14 P0-3 修复：实现只读查看功能，原 handler 为空导致业务失效）
 const handleView = (row: DyeRecipe) => {
-  dialogTitle.value = t('dyeRecipe.index.titleView')
-  isView.value = true
-  Object.assign(formData, row)
-  dialogVisible.value = true
-}
+  dialogTitle.value = t('dyeRecipe.index.titleView');
+  isView.value = true;
+  Object.assign(formData, row);
+  dialogVisible.value = true;
+};
 
 // 编辑
 const handleEdit = (row: DyeRecipe) => {
-  dialogTitle.value = t('dyeRecipe.index.titleEdit')
-  isView.value = false
-  Object.assign(formData, row)
-  dialogVisible.value = true
-}
+  dialogTitle.value = t('dyeRecipe.index.titleEdit');
+  isView.value = false;
+  Object.assign(formData, row);
+  dialogVisible.value = true;
+};
 
 // 提交审批
 const handleSubmit = async (row: DyeRecipe) => {
@@ -467,14 +467,14 @@ const handleSubmit = async (row: DyeRecipe) => {
       t('dyeRecipe.index.messageConfirmSubmit'),
       t('dyeRecipe.index.titlePrompt'),
       { type: 'warning' }
-    )
-    await submitDyeRecipe(row.id)
-    ElMessage.success(t('dyeRecipe.index.messageSubmitSuccess'))
-    refresh()
+    );
+    await submitDyeRecipe(row.id);
+    ElMessage.success(t('dyeRecipe.index.messageSubmitSuccess'));
+    refresh();
   } catch (error) {
-    logger.error(t('dyeRecipe.index.messageSubmitFailed'), error)
+    logger.error(t('dyeRecipe.index.messageSubmitFailed'), error);
   }
-}
+};
 
 // 审批
 const handleApprove = async (row: DyeRecipe) => {
@@ -483,79 +483,79 @@ const handleApprove = async (row: DyeRecipe) => {
       t('dyeRecipe.index.messageConfirmApprove'),
       t('dyeRecipe.index.titlePrompt'),
       { type: 'warning' }
-    )
-    await approveDyeRecipe(row.id)
-    ElMessage.success(t('dyeRecipe.index.messageApproveSuccess'))
-    refresh()
+    );
+    await approveDyeRecipe(row.id);
+    ElMessage.success(t('dyeRecipe.index.messageApproveSuccess'));
+    refresh();
   } catch (error) {
-    logger.error(t('dyeRecipe.index.messageApproveFailed'), error)
+    logger.error(t('dyeRecipe.index.messageApproveFailed'), error);
   }
-}
+};
 
 // 版本历史
 const handleVersion = async (row: DyeRecipe) => {
   try {
-    const res = await getRecipeVersions(row.id)
-    versionList.value = res.data || []
-    versionVisible.value = true
+    const res = await getRecipeVersions(row.id);
+    versionList.value = res.data || [];
+    versionVisible.value = true;
   } catch (error) {
-    logger.error(t('dyeRecipe.index.messageVersionFailed'), error)
+    logger.error(t('dyeRecipe.index.messageVersionFailed'), error);
   }
-}
+};
 
 // 查看版本（v14 中风险修复：实现版本详情查看逻辑，原 handler 为空导致功能失效）
 const handleViewVersion = (row: DyeRecipe) => {
-  versionVisible.value = false
-  dialogTitle.value = t('dyeRecipe.index.titleViewVersion', { version: row.version })
-  isView.value = true
-  Object.assign(formData, row)
-  dialogVisible.value = true
-}
+  versionVisible.value = false;
+  dialogTitle.value = t('dyeRecipe.index.titleViewVersion', { version: row.version });
+  isView.value = true;
+  Object.assign(formData, row);
+  dialogVisible.value = true;
+};
 
 // 导出
 const handleExport = async () => {
   try {
-    const res = await exportDyeRecipes(queryParams)
-    const url = window.URL.createObjectURL(new Blob([res]))
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', t('dyeRecipe.index.exportFileName'))
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    window.URL.revokeObjectURL(url)
-    ElMessage.success(t('dyeRecipe.index.messageExportSuccess'))
+    const res = await exportDyeRecipes(queryParams);
+    const url = window.URL.createObjectURL(new Blob([res]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', t('dyeRecipe.index.exportFileName'));
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    ElMessage.success(t('dyeRecipe.index.messageExportSuccess'));
   } catch (error) {
-    logger.error(t('dyeRecipe.index.messageExportFailed'), error)
+    logger.error(t('dyeRecipe.index.messageExportFailed'), error);
   }
-}
+};
 
 // 提交表单
 const handleSubmitForm = async () => {
   try {
-    await formRef.value?.validate()
+    await formRef.value?.validate();
     if (formData.id) {
-      await updateDyeRecipe(formData.id, formData)
+      await updateDyeRecipe(formData.id, formData);
     } else {
-      await createDyeRecipe(formData)
+      await createDyeRecipe(formData);
     }
-    ElMessage.success(t('dyeRecipe.index.messageSaveSuccess'))
-    dialogVisible.value = false
-    refresh()
+    ElMessage.success(t('dyeRecipe.index.messageSaveSuccess'));
+    dialogVisible.value = false;
+    refresh();
   } catch (error) {
-    logger.error(t('dyeRecipe.index.messageFormValidateFailed'), error)
+    logger.error(t('dyeRecipe.index.messageFormValidateFailed'), error);
   }
-}
+};
 
 // 分页（useTableApi 自动 watch page/pageSize 变化触发重载）
 const handleSizeChange = (val: number) => {
-  pageSize.value = val
-  page.value = 1
-}
+  pageSize.value = val;
+  page.value = 1;
+};
 
 const handleCurrentChange = (val: number) => {
-  page.value = val
-}
+  page.value = val;
+};
 
 // 获取状态类型
 const getStatusType = (status: string) => {
@@ -564,9 +564,9 @@ const getStatusType = (status: string) => {
     PENDING: 'warning',
     APPROVED: 'success',
     INACTIVE: 'danger',
-  }
-  return map[status] || 'info'
-}
+  };
+  return map[status] || 'info';
+};
 
 // 获取状态标签（响应式求值）
 const getStatusLabel = (status: string) => {
@@ -575,9 +575,9 @@ const getStatusLabel = (status: string) => {
     PENDING: t('dyeRecipe.index.optionPending'),
     APPROVED: t('dyeRecipe.index.optionApproved'),
     INACTIVE: t('dyeRecipe.index.optionInactive'),
-  }
-  return map[status] || status
-}
+  };
+  return map[status] || status;
+};
 
 // 批次 271：useTableApi 构造时自动初始加载，无需 onMounted 调用 getList
 </script>

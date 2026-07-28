@@ -20,7 +20,7 @@
       :filter-form="olv.filterForm"
       @query="olv.handleQuery"
       @reset="olv.handleReset"
-      @update:filter-form="(v) => Object.assign(olv.filterForm, v)"
+      @update:filter-form="v => Object.assign(olv.filterForm, v)"
     />
 
     <SalesOrderTable
@@ -55,64 +55,64 @@
       v-model:visible="olv.deliveryDialogVisible"
       :form="olv.deliveryForm"
       :warehouses="olv.warehouses"
-      @update:form="(v) => Object.assign(olv.deliveryForm, v)"
+      @update:form="v => Object.assign(olv.deliveryForm, v)"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { Plus } from '@element-plus/icons-vue'
-import type { SalesOrder } from '@/api/sales'
-import { useOlv } from '../composables/useOlv'
-import { useOlvProc } from '../composables/useOlvProc'
-import SalesOrderStat from '../components/SalesOrderStat.vue'
-import SalesOrderFilter from '../components/SalesOrderFilter.vue'
-import SalesOrderTable from '../components/SalesOrderTable.vue'
-import OrderFormDialog from '../OrderFormDialog.vue'
-import OrderViewDialog from '../OrderViewDialog.vue'
-import DeliveryDialog from '../DeliveryDialog.vue'
+import { ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { Plus } from '@element-plus/icons-vue';
+import type { SalesOrder } from '@/api/sales';
+import { useOlv } from '../composables/useOlv';
+import { useOlvProc } from '../composables/useOlvProc';
+import SalesOrderStat from '../components/SalesOrderStat.vue';
+import SalesOrderFilter from '../components/SalesOrderFilter.vue';
+import SalesOrderTable from '../components/SalesOrderTable.vue';
+import OrderFormDialog from '../OrderFormDialog.vue';
+import OrderViewDialog from '../OrderViewDialog.vue';
+import DeliveryDialog from '../DeliveryDialog.vue';
 // Batch 468 P0-S28：引入权限码常量，与后端 sales-orders 资源对齐
-import { PERMISSIONS } from '@/constants/permissions'
+import { PERMISSIONS } from '@/constants/permissions';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const olv = useOlv()
+const olv = useOlv();
 const olvProc = useOlvProc({
   refresh: olv.refresh,
-})
+});
 
 // 表单对话框可见性本地 ref
-const formDialogVisible = ref(false)
+const formDialogVisible = ref(false);
 
 /** 新建订单 */
 const onCreate = () => {
-  olv.prepareCreate()
-  formDialogVisible.value = true
-}
+  olv.prepareCreate();
+  formDialogVisible.value = true;
+};
 
 /** 查看详情 */
 const onView = (row: SalesOrder) => {
-  olv.currentOrder = row
-  olv.viewDialogVisible = true
-}
+  olv.currentOrder = row;
+  olv.viewDialogVisible = true;
+};
 
 /** 打开发货对话框 */
 const onDelivery = (row: SalesOrder) => {
-  olv.prepareDelivery(row)
-  olv.deliveryDialogVisible = true
-}
+  olv.prepareDelivery(row);
+  olv.deliveryDialogVisible = true;
+};
 
 /** 提交订单表单 */
 const onFormSubmit = async () => {
-  const ok = await olvProc.handleFormSubmit(olv.formData)
-  if (ok) formDialogVisible.value = false
-}
+  const ok = await olvProc.handleFormSubmit(olv.formData);
+  if (ok) formDialogVisible.value = false;
+};
 
 onMounted(() => {
-  olv.initLoad()
-})
+  olv.initLoad();
+});
 </script>
 
 <style scoped>

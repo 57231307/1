@@ -1,6 +1,4 @@
 #![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
-
 //! 打样小样模型（lab_dip_sample 表）
 //!
 //! v14 批次 423B：化验室打样流程贯通

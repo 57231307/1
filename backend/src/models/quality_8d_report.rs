@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 // V15 P0-F20 Batch 480：8D 质量管理流程报告实体
 //
 // 与 quality_issues 表一对一关联（uq_q8d_quality_issue_id 唯一索引）

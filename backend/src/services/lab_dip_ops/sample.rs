@@ -57,10 +57,7 @@ impl LabDipSampleService {
     }
 
     /// 校验通知单存在且处于 sampling 状态
-    async fn validate_and_get_request(
-        &self,
-        request_id: i32,
-    ) -> Result<RequestModel, AppError> {
+    async fn validate_and_get_request(&self, request_id: i32) -> Result<RequestModel, AppError> {
         let request = RequestEntity::find_by_id(request_id)
             .filter(lab_dip_request::Column::IsDeleted.eq(false))
             .one(&*self.db)

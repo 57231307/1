@@ -202,10 +202,7 @@ impl AuthService {
     ///
     /// Argon2id（m=64MB, t=3, p=4）单次哈希耗时 50-100ms，同步调用会阻塞 async runtime。
     /// 生产 async 上下文必须使用此异步版本；测试夹具可继续使用同步版本。
-    pub async fn verify_password_async(
-        password: String,
-        hash: String,
-    ) -> Result<bool, AuthError> {
+    pub async fn verify_password_async(password: String, hash: String) -> Result<bool, AuthError> {
         tokio::task::spawn_blocking(move || Self::verify_password(&password, &hash))
             .await
             .map_err(|e| AuthError::HashingError(format!("spawn_blocking join 失败: {}", e)))?

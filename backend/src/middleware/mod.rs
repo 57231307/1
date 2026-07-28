@@ -1,6 +1,8 @@
 pub mod audit_context;
 pub mod auth;
 pub mod auth_context;
+// V15 P1 20.6-B：API 网关熔断中间件（滑动窗口 5s，失败率 > 50% 触发 open）
+pub mod circuit_breaker;
 pub mod csrf;
 pub mod metrics;
 pub mod omni_audit;

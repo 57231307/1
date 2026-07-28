@@ -419,10 +419,10 @@ impl CurrencyService {
 /// L5 修复（v8 复审）：常见 ISO 4217 币种码白名单
 /// 防止任意 3 字母组合通过校验（如 "ZZZ"）
 const SUPPORTED_CURRENCY_CODES: &[&str] = &[
-    "USD", "EUR", "CNY", "JPY", "GBP", "AUD", "CAD", "CHF", "HKD", "SGD",
-    "KRW", "INR", "BRL", "RUB", "ZAR", "MXN", "NZD", "SEK", "NOK", "DKK",
-    "PLN", "CZK", "HUF", "TRY", "ILS", "AED", "SAR", "THB", "IDR", "MYR",
-    "PHP", "VND", "TWD", "KZT", "UAH", "RON", "BGN", "HRK", "ISK", "MTL",
+    "USD", "EUR", "CNY", "JPY", "GBP", "AUD", "CAD", "CHF", "HKD", "SGD", "KRW", "INR", "BRL",
+    "RUB", "ZAR", "MXN", "NZD", "SEK", "NOK", "DKK", "PLN", "CZK", "HUF", "TRY", "ILS", "AED",
+    "SAR", "THB", "IDR", "MYR", "PHP", "VND", "TWD", "KZT", "UAH", "RON", "BGN", "HRK", "ISK",
+    "MTL",
 ];
 
 /// 校验 ISO 4217 币种码：必须为 3 个大写字母且在常见币种白名单中

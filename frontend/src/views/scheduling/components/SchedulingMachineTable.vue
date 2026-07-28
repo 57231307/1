@@ -124,54 +124,54 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import type { ScheduleTask } from '@/api/scheduling'
-import { Refresh } from '@element-plus/icons-vue'
-import { formatDateTime, getStatusType, getPriorityType } from '../composables/schMFmts'
+import { useI18n } from 'vue-i18n';
+import type { ScheduleTask } from '@/api/scheduling';
+import { Refresh } from '@element-plus/icons-vue';
+import { formatDateTime, getStatusType, getPriorityType } from '../composables/schMFmts';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 /** 状态标签映射（响应式 i18n，覆盖 schMFmts 静态版本） */
-const getStatusLabel = (status: string): string => t(`scheduling.machineTable.status.${status}`)
+const getStatusLabel = (status: string): string => t(`scheduling.machineTable.status.${status}`);
 
 // 排产工单列表属性
 defineProps<{
   // 工单列表
-  taskList: ScheduleTask[]
+  taskList: ScheduleTask[];
   // 加载状态
-  taskLoading: boolean
+  taskLoading: boolean;
   // 总数
-  total: number
+  total: number;
   // 当前页
-  currentPage: number
+  currentPage: number;
   // 每页大小
-  pageSize: number
+  pageSize: number;
   // 筛选状态
-  filterStatus: string
-}>()
+  filterStatus: string;
+}>();
 
 // 定义事件（object 形式，Vue 3.3+ 语法，与 I-3 第 1 批保持一致）
 const emit = defineEmits<{
   // 调整
-  adjust: [row: ScheduleTask]
+  adjust: [row: ScheduleTask];
   // 冲突详情
-  'conflict-detail': [row: ScheduleTask]
+  'conflict-detail': [row: ScheduleTask];
   // 刷新
-  refresh: []
+  refresh: [];
   // 筛选变化
-  'filter-change': []
+  'filter-change': [];
   // 筛选值变化
-  'update:filterStatus': [value: string]
+  'update:filterStatus': [value: string];
   // 当前页变化
-  'update:currentPage': [value: number]
+  'update:currentPage': [value: number];
   // 每页大小变化
-  'update:pageSize': [value: number]
-}>()
+  'update:pageSize': [value: number];
+}>();
 
 /** 筛选值变化 */
 const onFilterChange = (v: string) => {
-  emit('update:filterStatus', v)
-}
+  emit('update:filterStatus', v);
+};
 </script>
 
 <style scoped>

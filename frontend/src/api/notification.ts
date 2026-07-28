@@ -1,86 +1,86 @@
-import { request } from './request'
-import type { ApiResponse, QueryParams } from '@/types/api'
+import { request } from './request';
+import type { ApiResponse, QueryParams } from '@/types/api';
 
 export interface NotificationQueryParams extends QueryParams {
-  status?: string
-  notificationType?: string
+  status?: string;
+  notificationType?: string;
 }
 
 export interface Notification {
-  id?: number
-  title?: string
-  content?: string
-  status?: string
-  notificationType?: string
-  businessType?: string
-  businessId?: number
-  createdAt?: string
-  readAt?: string
+  id?: number;
+  title?: string;
+  content?: string;
+  status?: string;
+  notificationType?: string;
+  businessType?: string;
+  businessId?: number;
+  createdAt?: string;
+  readAt?: string;
 }
 
 export interface NotificationSetting {
-  id?: number
-  businessType?: string
-  enableInternal?: boolean
-  enableEmail?: boolean
-  enableSms?: boolean
+  id?: number;
+  businessType?: string;
+  enableInternal?: boolean;
+  enableEmail?: boolean;
+  enableSms?: boolean;
 }
 
 export interface BatchOperationRequest {
-  ids: number[]
+  ids: number[];
 }
 
 export interface UpdateSettingRequest {
-  businessType: string
-  enableInternal: boolean
-  enableEmail: boolean
-  enableSms: boolean
+  businessType: string;
+  enableInternal: boolean;
+  enableEmail: boolean;
+  enableSms: boolean;
 }
 
 export function getNotificationList(
   params?: NotificationQueryParams
 ): Promise<ApiResponse<{ list: Notification[]; total: number }>> {
-  return request.get('/notifications/', { params })
+  return request.get('/notifications/', { params });
 }
 
 export function getNotification(id: number): Promise<ApiResponse<Notification>> {
-  return request.get(`/notifications/${id}`)
+  return request.get(`/notifications/${id}`);
 }
 
 export function getUnreadCount(): Promise<ApiResponse<number>> {
-  return request.get('/notifications/unread-count')
+  return request.get('/notifications/unread-count');
 }
 
 export function markAsRead(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/notifications/${id}/read`)
+  return request.post(`/notifications/${id}/read`);
 }
 
 export function batchMarkAsRead(data: BatchOperationRequest): Promise<ApiResponse<void>> {
-  return request.post('/notifications/batch-read', data)
+  return request.post('/notifications/batch-read', data);
 }
 
 export function markAllAsRead(): Promise<ApiResponse<void>> {
-  return request.post('/notifications/read-all')
+  return request.post('/notifications/read-all');
 }
 
 export function deleteNotification(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/notifications/${id}`)
+  return request.delete(`/notifications/${id}`);
 }
 
 export function getSettings(): Promise<ApiResponse<NotificationSetting[]>> {
-  return request.get('/notifications/settings')
+  return request.get('/notifications/settings');
 }
 
 export function updateSetting(
   data: UpdateSettingRequest
 ): Promise<ApiResponse<NotificationSetting>> {
-  return request.put('/notifications/settings', data)
+  return request.put('/notifications/settings', data);
 }
 
 /** WebSocket 票据响应（v12 P1-4：一次性短时票据替代 URL query JWT） */
 export interface WsTicketResponse {
-  ticket: string
-  expires_in: number
+  ticket: string;
+  expires_in: number;
 }
 
 /**
@@ -95,5 +95,5 @@ export interface WsTicketResponse {
  * 票据一次性消费，即使泄露也无法复用。
  */
 export function getWsTicket(): Promise<WsTicketResponse> {
-  return request.post<WsTicketResponse>('/ws/ticket')
+  return request.post<WsTicketResponse>('/ws/ticket');
 }

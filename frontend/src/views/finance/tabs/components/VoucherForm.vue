@@ -47,10 +47,17 @@
         </el-col>
       </el-row>
       <el-divider>{{ t('finance.voucherForm.dividerEntries') }}</el-divider>
-      <el-table :data="localVoucherForm.entries" stripe :aria-label="t('finance.voucherForm.entriesAriaLabel')">
+      <el-table
+        :data="localVoucherForm.entries"
+        stripe
+        :aria-label="t('finance.voucherForm.entriesAriaLabel')"
+      >
         <el-table-column :label="t('finance.voucherForm.columnSummary')" min-width="150">
           <template #default="{ row }">
-            <el-input v-model="row.summary" :placeholder="t('finance.voucherForm.placeholderSummary')" />
+            <el-input
+              v-model="row.summary"
+              :placeholder="t('finance.voucherForm.placeholderSummary')"
+            />
           </template>
         </el-table-column>
         <el-table-column :label="t('finance.voucherForm.columnSubject')" min-width="200">
@@ -88,53 +95,60 @@
         </el-table-column>
         <el-table-column :label="t('finance.voucherForm.columnAction')" width="80">
           <template #default="{ $index }">
-            <el-button type="danger" link size="small" @click="emit('remove-entry', $index)"
-              >{{ t('finance.voucherForm.buttonDelete') }}</el-button
-            >
+            <el-button type="danger" link size="small" @click="emit('remove-entry', $index)">{{
+              t('finance.voucherForm.buttonDelete')
+            }}</el-button>
           </template>
         </el-table-column>
       </el-table>
       <div class="entry-footer">
-        <el-button type="primary" link @click="emit('add-entry')">{{ t('finance.voucherForm.buttonAddEntry') }}</el-button>
+        <el-button type="primary" link @click="emit('add-entry')">{{
+          t('finance.voucherForm.buttonAddEntry')
+        }}</el-button>
         <div class="entry-summary">
           <span>{{ t('finance.voucherForm.labelDebitTotal') }}: {{ formatMoney(totalDebit) }}</span>
-          <span>{{ t('finance.voucherForm.labelCreditTotal') }}: {{ formatMoney(totalCredit) }}</span>
-          <span :class="{ 'text-red': !isBalanced }">{{ isBalanced ? t('finance.voucherForm.textBalanced') : t('finance.voucherForm.textNotBalanced') }}</span>
+          <span
+            >{{ t('finance.voucherForm.labelCreditTotal') }}: {{ formatMoney(totalCredit) }}</span
+          >
+          <span :class="{ 'text-red': !isBalanced }">{{
+            isBalanced
+              ? t('finance.voucherForm.textBalanced')
+              : t('finance.voucherForm.textNotBalanced')
+          }}</span>
         </div>
       </div>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">{{ t('finance.voucherForm.buttonCancel') }}</el-button>
-      <el-button
-        type="primary"
-        :loading="voucherSubmitLoading"
-        @click="emit('submit-form')"
-        >{{ t('finance.voucherForm.buttonConfirm') }}</el-button
-      >
+      <el-button @click="emit('update:visible', false)">{{
+        t('finance.voucherForm.buttonCancel')
+      }}</el-button>
+      <el-button type="primary" :loading="voucherSubmitLoading" @click="emit('submit-form')">{{
+        t('finance.voucherForm.buttonConfirm')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { deepClone } from '@/utils'
-import { ref, watch, nextTick } from 'vue'
-import { useI18n } from 'vue-i18n'
-import type { FormInstance, FormRules } from 'element-plus'
-import type { AccountSubject } from '@/api/finance'
+import { deepClone } from '@/utils';
+import { ref, watch, nextTick } from 'vue';
+import { useI18n } from 'vue-i18n';
+import type { FormInstance, FormRules } from 'element-plus';
+import type { AccountSubject } from '@/api/finance';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 interface VoucherEntry {
-  subject_id: number | undefined
-  debit: number
-  credit: number
-  summary: string
+  subject_id: number | undefined;
+  debit: number;
+  credit: number;
+  summary: string;
 }
 
 interface VoucherForm {
-  voucher_date: string
-  voucher_type: string
-  entries: VoucherEntry[]
+  voucher_date: string;
+  voucher_type: string;
+  entries: VoucherEntry[];
 }
 
 /**
@@ -143,83 +157,85 @@ interface VoucherForm {
  */
 const props = defineProps<{
   // 对话框可见性
-  visible: boolean
+  visible: boolean;
   // 表单实例 ref（父组件持有的 FormInstance 引用包装对象）
-  voucherFormRef: { value: FormInstance | undefined }
+  voucherFormRef: { value: FormInstance | undefined };
   // 表单数据（由父组件管理，子组件通过 emit 回写）
-  voucherForm: VoucherForm
+  voucherForm: VoucherForm;
   // 提交中状态
-  voucherSubmitLoading: boolean
+  voucherSubmitLoading: boolean;
   // 校验规则
-  voucherRules: FormRules
+  voucherRules: FormRules;
   // 叶子科目列表
-  leafSubjects: AccountSubject[]
+  leafSubjects: AccountSubject[];
   // 借贷合计
-  totalDebit: number
-  totalCredit: number
+  totalDebit: number;
+  totalCredit: number;
   // 是否平衡
-  isBalanced: boolean
+  isBalanced: boolean;
   // 金额格式化
-  formatMoney: (amount: number) => string
-}>()
+  formatMoney: (amount: number) => string;
+}>();
 
 const emit = defineEmits<{
   // 关闭对话框
-  (e: 'update:visible', v: boolean): void
+  (e: 'update:visible', v: boolean): void;
   // 添加分录
-  (e: 'add-entry'): void
+  (e: 'add-entry'): void;
   // 删除分录
-  (e: 'remove-entry', index: number): void
+  (e: 'remove-entry', index: number): void;
   // 提交表单
-  (e: 'submit-form'): void
+  (e: 'submit-form'): void;
   // 整体回写表单（父组件监听此事件并 Object.assign 到自己的 voucherForm）
-  (e: 'update:voucherForm', voucherForm: VoucherForm): void
-}>()
+  (e: 'update:voucherForm', voucherForm: VoucherForm): void;
+  // el-form 实例就绪（替代直接修改 prop voucherFormRef.value）
+  (e: 'form-ref-ready', val: FormInstance): void;
+}>();
 
-// 将 el-form 的 ref 实例同步到父组件传入的 voucherFormRef.value
-const formRefValue = ref<FormInstance | undefined>(undefined)
+// 将 el-form 的 ref 实例通过 emit 通知父组件（避免直接修改 prop 触发 vue/no-mutating-props）
+const formRefValue = ref<FormInstance | undefined>(undefined);
 watch(
   formRefValue,
-  (val) => {
-    if (val) props.voucherFormRef.value = val
+  val => {
+    if (val) emit('form-ref-ready', val);
   },
-  { immediate: true, flush: 'post' },
-)
+  { immediate: true, flush: 'post' }
+);
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
 // 注意：表单内有 entries 数组，需要深拷贝以保证本地修改与父组件解耦
-const localVoucherForm = ref<VoucherForm>(deepClone(props.voucherForm))
+const localVoucherForm = ref<VoucherForm>(deepClone(props.voucherForm));
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
-let syncing = false
+let syncing = false;
 
 // 外部 prop 变化时同步到 local（如父组件打开对话框时填充数据）
 watch(
   () => props.voucherForm,
-  (newForm) => {
-    if (syncing) return
-    syncing = true
-    localVoucherForm.value = deepClone(newForm)
+  newForm => {
+    if (syncing) return;
+    syncing = true;
+    localVoucherForm.value = deepClone(newForm);
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
-  { deep: true },
-)
+  { deep: true }
+);
 
 // 本地变化时通知父组件（用户输入）
 watch(
   localVoucherForm,
-  (newForm) => {
-    if (syncing) return
-    syncing = true
-    emit('update:voucherForm', deepClone(newForm))
+  newForm => {
+    if (syncing) return;
+    syncing = true;
+    emit('update:voucherForm', deepClone(newForm));
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
-  { deep: true },
-)
+  { deep: true }
+);
 </script>
 
 <style scoped>

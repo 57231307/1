@@ -191,9 +191,7 @@ impl DyeBatchCostBridgeServiceInternal {
             output_quantity_kg: None,
         };
 
-        let result = cost_service
-            .create(req, completed_by.unwrap_or(0))
-            .await?;
+        let result = cost_service.create(req, completed_by.unwrap_or(0)).await?;
 
         info!(
             collection_no = %result.collection_no,

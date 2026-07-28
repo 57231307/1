@@ -1,0 +1,99 @@
+/**
+ * V15 P1-20-15 全局 CSS 变量主题（支持亮色/暗黑模式切换 P1-20-16）
+ *
+ * 使用方式：在 main.ts 中 import '@/styles/theme.css'
+ * Element Plus 变量覆盖见 :root 块；自定义业务变量见 --bx-* 前缀。
+ */
+
+/* 亮色主题（默认） */
+:root {
+  /* 业务布局色 */
+  --bx-aside-bg: #304156;
+  --bx-aside-logo-bg: #263445;
+  --bx-header-bg: #ffffff;
+  --bx-content-bg: #f0f2f5;
+  --bx-header-shadow: rgba(0, 21, 41, 0.08);
+  --bx-text-light: #ffffff;
+  --bx-shadow-blur: 4px;
+
+  /* 业务语义色（与 Element Plus 对齐） */
+  --bx-color-primary: #409eff;
+  --bx-color-success: #67c23a;
+  --bx-color-warning: #e6a23c;
+  --bx-color-danger: #f56c6c;
+  --bx-color-info: #909399;
+
+  /* 文字色 */
+  --bx-text-primary: #303133;
+  --bx-text-regular: #606266;
+  --bx-text-secondary: #909399;
+  --bx-text-placeholder: #c0c4cc;
+
+  /* 边框色 */
+  --bx-border-base: #dcdfe6;
+  --bx-border-light: #e4e7ed;
+  --bx-border-lighter: #ebeef5;
+  --bx-border-extra-light: #f2f6fc;
+
+  /* 背景色 */
+  --bx-bg-base: #ffffff;
+  --bx-bg-page: #f0f2f5;
+  --bx-bg-overlay: #ffffff;
+
+  /* 字号 */
+  --bx-font-size-base: 14px;
+  --bx-font-size-small: 13px;
+  --bx-font-size-large: 16px;
+
+  /* 圆角 */
+  --bx-border-radius-base: 4px;
+  --bx-border-radius-small: 2px;
+  --bx-border-radius-round: 20px;
+  --bx-border-radius-circle: 100%;
+
+  /* 阴影 */
+  --bx-box-shadow-light: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  --bx-box-shadow-base: 0 2px 4px rgba(0, 0, 0, 0.12), 0 0 6px rgba(0, 0, 0, 0.04);
+  --bx-box-shadow-dark: 0 2px 4px rgba(0, 0, 0, 0.12), 0 0 6px rgba(0, 0, 0, 0.12);
+}
+
+/* 暗黑主题（V15 P1-20-16） */
+html.dark {
+  /* 业务布局色 */
+  --bx-aside-bg: #1d1e1f;
+  --bx-aside-logo-bg: #141414;
+  --bx-header-bg: #1d1e1f;
+  --bx-content-bg: #141414;
+  --bx-header-shadow: rgba(0, 0, 0, 0.3);
+  --bx-text-light: #e5eaf3;
+  --bx-shadow-blur: 6px;
+
+  /* 业务语义色（暗黑模式调整亮度） */
+  --bx-color-primary: #409eff;
+  --bx-color-success: #67c23a;
+  --bx-color-warning: #e6a23c;
+  --bx-color-danger: #f56c6c;
+  --bx-color-info: #73767a;
+
+  /* 文字色 */
+  --bx-text-primary: #e5eaf3;
+  --bx-text-regular: #cfd3dc;
+  --bx-text-secondary: #a3a6ad;
+  --bx-text-placeholder: #8d9095;
+
+  /* 边框色 */
+  --bx-border-base: #4c4d4f;
+  --bx-border-light: #414243;
+  --bx-border-lighter: #303030;
+  --bx-border-extra-light: #262727;
+
+  /* 背景色 */
+  --bx-bg-base: #1d1e1f;
+  --bx-bg-page: #141414;
+  --bx-bg-overlay: #1d1e1f;
+
+  /* 阴影 */
+  --bx-box-shadow-light: 0 2px 12px 0 rgba(0, 0, 0, 0.3);
+  --bx-box-shadow-base: 0 2px 4px rgba(0, 0, 0, 0.3);
+  --bx-box-shadow-dark: 0 2px 4px rgba(0, 0, 0, 0.4);
+}

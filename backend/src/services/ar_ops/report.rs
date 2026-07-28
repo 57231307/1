@@ -33,9 +33,8 @@ impl ArService {
     ) -> Result<serde_json::Value, AppError> {
         // 规则 12 合规：全部参数使用参数化绑定，禁止字符串拼接
         let today = Utc::now().date_naive();
-        let (sql, params) = Self::build_statistics_sql_and_params(
-            start_date, end_date, customer_id, today,
-        );
+        let (sql, params) =
+            Self::build_statistics_sql_and_params(start_date, end_date, customer_id, today);
 
         let row: Option<sea_orm::QueryResult> = self
             .db
@@ -47,8 +46,7 @@ impl ArService {
             .await
             .map_err(|e| AppError::internal(format!("统计报表聚合查询失败: {}", e)))?;
 
-        let row = row
-            .ok_or_else(|| AppError::internal("统计报表聚合查询无结果".to_string()))?;
+        let row = row.ok_or_else(|| AppError::internal("统计报表聚合查询无结果".to_string()))?;
 
         let total_invoices: i64 = row.try_get_by_index::<i64>(0).unwrap_or(0);
         let total_amount: Decimal = row.try_get_by_index::<Decimal>(1).unwrap_or(Decimal::ZERO);
@@ -315,8 +313,7 @@ impl ArService {
             .await
             .map_err(|e| AppError::internal(format!("账龄报表聚合查询失败: {}", e)))?;
 
-        let row = result
-            .ok_or_else(|| AppError::internal("账龄报表聚合查询无结果".to_string()))?;
+        let row = result.ok_or_else(|| AppError::internal("账龄报表聚合查询无结果".to_string()))?;
 
         let (not_due, bucket_0_30, bucket_31_60, bucket_61_90, bucket_90_plus, invoice_count) =
             Self::parse_aging_row(&row);

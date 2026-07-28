@@ -3,19 +3,19 @@
  * PurchaseTop - 采购管理页顶部（标题 + 面包屑 + 操作按钮）
  * 任务编号: P13 批 1 B3 I-1（拆分 purchase/index.vue 页头）
  */
-import { useI18n } from 'vue-i18n'
-import { Plus, Printer, Download } from '@element-plus/icons-vue'
+import { useI18n } from 'vue-i18n';
+import { Plus, Printer, Download } from '@element-plus/icons-vue';
 
 // 接入 i18n，替换硬编码中文文案
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 interface Props {
-  onCreate: () => void
-  onPrint: () => void
-  onExport: () => void
+  onCreate: () => void;
+  onPrint: () => void;
+  onExport: () => void;
 }
 
-defineProps<Props>()
+defineProps<Props>();
 </script>
 
 <template>
@@ -23,7 +23,9 @@ defineProps<Props>()
     <div class="header-left">
       <h1 class="page-title">{{ t('purchase.top.title') }}</h1>
       <el-breadcrumb separator="/">
-        <el-breadcrumb-item :to="{ path: '/' }">{{ t('purchase.top.breadcrumbHome') }}</el-breadcrumb-item>
+        <el-breadcrumb-item :to="{ path: '/' }">{{
+          t('purchase.top.breadcrumbHome')
+        }}</el-breadcrumb-item>
         <el-breadcrumb-item>{{ t('purchase.top.breadcrumbPurchase') }}</el-breadcrumb-item>
         <el-breadcrumb-item>{{ t('purchase.top.breadcrumbOrder') }}</el-breadcrumb-item>
       </el-breadcrumb>

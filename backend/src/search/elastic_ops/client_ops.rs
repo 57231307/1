@@ -1,6 +1,8 @@
 //! ElasticClient 文档操作与 SearchClient trait 实现（构造器留在 facade）
 use async_trait::async_trait;
 use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 use crate::search::elastic::{
     ClientInner, ElasticClient, SearchClient, SearchError, SearchHit, SearchQuery, SearchResult,
@@ -10,22 +12,18 @@ impl ElasticClient {
     /// 已索引文档数（mock 内存计数 / real ES _count API）
     pub async fn doc_count(&self, index: &str) -> usize {
         match &self.inner {
-            ClientInner::Mock(storage) => {
-                storage
-                    .lock()
-                    .await
-                    .get(index)
-                    .map(|m| m.len())
-                    .unwrap_or(0)
-            }
+            ClientInner::Mock(storage) => storage
+                .lock()
+                .await
+                .get(index)
+                .map(|m| m.len())
+                .unwrap_or(0),
             ClientInner::Real { base_url, http } => {
                 let url = format!("{}/{}/_count", base_url, index);
                 match http.get(&url).send().await {
                     Ok(resp) if resp.status().is_success() => {
                         let body: serde_json::Value = resp.json().await.unwrap_or_default();
-                        body.get("count")
-                            .and_then(|v| v.as_u64())
-                            .unwrap_or(0) as usize
+                        body.get("count").and_then(|v| v.as_u64()).unwrap_or(0) as usize
                     }
                     _ => 0,
                 }
@@ -53,12 +51,9 @@ impl SearchClient for ElasticClient {
             }
             ClientInner::Real { base_url, http } => {
                 let url = format!("{}/{}/_doc/{}", base_url, index, id);
-                let resp = http
-                    .put(&url)
-                    .json(doc)
-                    .send()
-                    .await
-                    .map_err(|e| SearchError::Connection(format!("ES index_doc 请求失败: {}", e)))?;
+                let resp = http.put(&url).json(doc).send().await.map_err(|e| {
+                    SearchError::Connection(format!("ES index_doc 请求失败: {}", e))
+                })?;
                 if !resp.status().is_success() {
                     let status = resp.status();
                     let body = resp.text().await.unwrap_or_default();
@@ -78,156 +73,9 @@ impl SearchClient for ElasticClient {
         query: &SearchQuery,
     ) -> Result<SearchResult<serde_json::Value>, SearchError> {
         match &self.inner {
-            ClientInner::Mock(storage) => {
-                let storage = storage.lock().await;
-                let docs = storage.get(index).cloned().unwrap_or_default();
-
-                let mut hits: Vec<SearchHit<serde_json::Value>> = docs
-                    .iter()
-                    .filter(|(_, v)| match &query.q {
-                        Some(q) => serde_json::to_string(v)
-                            .map(|s| s.contains(q))
-                            .unwrap_or(false),
-                        None => true,
-                    })
-                    .map(|(id, value)| SearchHit {
-                        id: id.clone(),
-                        score: 1.0,
-                        source: value.clone(),
-                        highlight: None,
-                    })
-                    .collect();
-
-                let total = hits.len() as i64;
-                let from = query.from.max(0) as usize;
-                let size = query.size.max(0) as usize;
-                let end = (from + size).min(hits.len());
-                if from < hits.len() {
-                    hits = hits.split_off(from);
-                    hits.truncate(end - from);
-                } else {
-                    hits.clear();
-                }
-
-                Ok(SearchResult {
-                    total,
-                    hits,
-                    took_ms: 1,
-                })
-            }
+            ClientInner::Mock(storage) => Self::search_mock(storage, index, query).await,
             ClientInner::Real { base_url, http } => {
-                // 构建 ES Query DSL
-                let mut body = serde_json::json!({
-                    "from": query.from.max(0),
-                    "size": query.size.max(0),
-                });
-
-                if let Some(q) = &query.q {
-                    if !q.is_empty() {
-                        body["query"] = serde_json::json!({
-                            "multi_match": {
-                                "query": q,
-                                "fields": ["*"]
-                            }
-                        });
-                    }
-                }
-
-                // 添加精确过滤条件
-                if !query.filters.is_empty() {
-                    let filters: Vec<serde_json::Value> = query
-                        .filters
-                        .iter()
-                        .map(|(k, v)| serde_json::json!({ "term": { k: v } }))
-                        .collect();
-                    body["query"] = if body.get("query").is_some() {
-                        let existing = body["query"].clone();
-                        serde_json::json!({
-                            "bool": {
-                                "must": [existing],
-                                "filter": filters
-                            }
-                        })
-                    } else {
-                        serde_json::json!({ "bool": { "filter": filters } })
-                    };
-                }
-
-                if query.highlight {
-                    body["highlight"] = serde_json::json!({
-                        "fields": { "*": {} }
-                    });
-                }
-
-                let url = format!("{}/{}/_search", base_url, index);
-                let resp = http
-                    .post(&url)
-                    .json(&body)
-                    .send()
-                    .await
-                    .map_err(|e| SearchError::Connection(format!("ES search 请求失败: {}", e)))?;
-
-                if !resp.status().is_success() {
-                    let status = resp.status();
-                    let err_body = resp.text().await.unwrap_or_default();
-                    return Err(SearchError::Search(format!(
-                        "ES search 失败 (status={}): {}",
-                        status, err_body
-                    )));
-                }
-
-                let result: serde_json::Value = resp
-                    .json()
-                    .await
-                    .map_err(|e| SearchError::Search(format!("ES search 响应解析失败: {}", e)))?;
-
-                let took_ms = result
-                    .get("took")
-                    .and_then(|v| v.as_i64())
-                    .unwrap_or(0);
-                let total = result
-                    .get("hits")
-                    .and_then(|h| h.get("total"))
-                    .and_then(|t| t.get("value"))
-                    .and_then(|v| v.as_i64())
-                    .unwrap_or(0);
-
-                let hits: Vec<SearchHit<serde_json::Value>> = result
-                    .get("hits")
-                    .and_then(|h| h.get("hits"))
-                    .and_then(|h| h.as_array())
-                    .map(|arr| {
-                        arr.iter()
-                            .map(|hit| {
-                                let id = hit
-                                    .get("_id")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("")
-                                    .to_string();
-                                let score = hit
-                                    .get("_score")
-                                    .and_then(|v| v.as_f64())
-                                    .unwrap_or(0.0);
-                                let source = hit.get("_source").cloned().unwrap_or_default();
-                                let highlight = hit
-                                    .get("highlight")
-                                    .map(|h| serde_json::from_value(h.clone()).unwrap_or_default());
-                                SearchHit {
-                                    id,
-                                    score,
-                                    source,
-                                    highlight,
-                                }
-                            })
-                            .collect()
-                    })
-                    .unwrap_or_default();
-
-                Ok(SearchResult {
-                    total,
-                    hits,
-                    took_ms,
-                })
+                Self::search_real(base_url, http, index, query).await
             }
         }
     }
@@ -243,11 +91,9 @@ impl SearchClient for ElasticClient {
             }
             ClientInner::Real { base_url, http } => {
                 let url = format!("{}/{}/_doc/{}", base_url, index, id);
-                let resp = http
-                    .delete(&url)
-                    .send()
-                    .await
-                    .map_err(|e| SearchError::Connection(format!("ES delete_doc 请求失败: {}", e)))?;
+                let resp = http.delete(&url).send().await.map_err(|e| {
+                    SearchError::Connection(format!("ES delete_doc 请求失败: {}", e))
+                })?;
                 // ES DELETE 返回 404 表示文档不存在，视为成功（幂等删除）
                 if !resp.status().is_success() && resp.status().as_u16() != 404 {
                     let status = resp.status();
@@ -310,10 +156,9 @@ impl SearchClient for ElasticClient {
                     )));
                 }
 
-                let result: serde_json::Value = resp
-                    .json()
-                    .await
-                    .map_err(|e| SearchError::Search(format!("ES bulk_index 响应解析失败: {}", e)))?;
+                let result: serde_json::Value = resp.json().await.map_err(|e| {
+                    SearchError::Search(format!("ES bulk_index 响应解析失败: {}", e))
+                })?;
 
                 let count = result
                     .get("items")
@@ -339,5 +184,176 @@ impl SearchClient for ElasticClient {
     /// trait 方法委托给 ElasticClient::doc_count 固有方法
     async fn doc_count(&self, index: &str) -> usize {
         ElasticClient::doc_count(self, index).await
+    }
+}
+
+impl ElasticClient {
+    /// Mock 模式搜索：内存关键字过滤 + from/size 分页
+    async fn search_mock(
+        storage: &Arc<Mutex<HashMap<String, HashMap<String, serde_json::Value>>>>,
+        index: &str,
+        query: &SearchQuery,
+    ) -> Result<SearchResult<serde_json::Value>, SearchError> {
+        let storage = storage.lock().await;
+        let docs = storage.get(index).cloned().unwrap_or_default();
+
+        let mut hits: Vec<SearchHit<serde_json::Value>> = docs
+            .iter()
+            .filter(|(_, v)| match &query.q {
+                Some(q) => serde_json::to_string(v)
+                    .map(|s| s.contains(q))
+                    .unwrap_or(false),
+                None => true,
+            })
+            .map(|(id, value)| SearchHit {
+                id: id.clone(),
+                score: 1.0,
+                source: value.clone(),
+                highlight: None,
+            })
+            .collect();
+
+        let total = hits.len() as i64;
+        let from = query.from.max(0) as usize;
+        let size = query.size.max(0) as usize;
+        let end = (from + size).min(hits.len());
+        if from < hits.len() {
+            hits = hits.split_off(from);
+            hits.truncate(end - from);
+        } else {
+            hits.clear();
+        }
+
+        Ok(SearchResult {
+            total,
+            hits,
+            took_ms: 1,
+        })
+    }
+
+    /// Real ES 搜索：构建 DSL → POST /_search → 解析响应
+    async fn search_real(
+        base_url: &str,
+        http: &reqwest::Client,
+        index: &str,
+        query: &SearchQuery,
+    ) -> Result<SearchResult<serde_json::Value>, SearchError> {
+        let body = Self::build_es_query_body(query);
+        let url = format!("{}/{}/_search", base_url, index);
+        let resp = http
+            .post(&url)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| SearchError::Connection(format!("ES search 请求失败: {}", e)))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let err_body = resp.text().await.unwrap_or_default();
+            return Err(SearchError::Search(format!(
+                "ES search 失败 (status={}): {}",
+                status, err_body
+            )));
+        }
+
+        let result: serde_json::Value = resp
+            .json()
+            .await
+            .map_err(|e| SearchError::Search(format!("ES search 响应解析失败: {}", e)))?;
+
+        Self::parse_es_search_result(result)
+    }
+
+    /// 构建 ES Query DSL：from/size + multi_match + term filter + highlight
+    fn build_es_query_body(query: &SearchQuery) -> serde_json::Value {
+        let mut body = serde_json::json!({
+            "from": query.from.max(0),
+            "size": query.size.max(0),
+        });
+
+        if let Some(q) = &query.q {
+            if !q.is_empty() {
+                body["query"] = serde_json::json!({
+                    "multi_match": {
+                        "query": q,
+                        "fields": ["*"]
+                    }
+                });
+            }
+        }
+
+        if !query.filters.is_empty() {
+            let filters: Vec<serde_json::Value> = query
+                .filters
+                .iter()
+                .map(|(k, v)| serde_json::json!({ "term": { k: v } }))
+                .collect();
+            body["query"] = if body.get("query").is_some() {
+                let existing = body["query"].clone();
+                serde_json::json!({
+                    "bool": {
+                        "must": [existing],
+                        "filter": filters
+                    }
+                })
+            } else {
+                serde_json::json!({ "bool": { "filter": filters } })
+            };
+        }
+
+        if query.highlight {
+            body["highlight"] = serde_json::json!({
+                "fields": { "*": {} }
+            });
+        }
+
+        body
+    }
+
+    /// 解析 ES /_search 响应为 SearchResult（took/total/hits/highlight）
+    fn parse_es_search_result(
+        result: serde_json::Value,
+    ) -> Result<SearchResult<serde_json::Value>, SearchError> {
+        let took_ms = result.get("took").and_then(|v| v.as_i64()).unwrap_or(0);
+        let total = result
+            .get("hits")
+            .and_then(|h| h.get("total"))
+            .and_then(|t| t.get("value"))
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0);
+
+        let hits: Vec<SearchHit<serde_json::Value>> = result
+            .get("hits")
+            .and_then(|h| h.get("hits"))
+            .and_then(|h| h.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .map(|hit| {
+                        let id = hit
+                            .get("_id")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
+                        let score = hit.get("_score").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                        let source = hit.get("_source").cloned().unwrap_or_default();
+                        let highlight = hit
+                            .get("highlight")
+                            .map(|h| serde_json::from_value(h.clone()).unwrap_or_default());
+                        SearchHit {
+                            id,
+                            score,
+                            source,
+                            highlight,
+                        }
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        Ok(SearchResult {
+            total,
+            hits,
+            took_ms,
+        })
     }
 }

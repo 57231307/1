@@ -7,7 +7,9 @@
 #[cfg(test)]
 mod tests {
     use bingxi_backend::models::status::sales_delivery;
-    use bingxi_backend::services::so::delivery::{validate_dye_lot_consistency, ShipOrderItemRequest};
+    use bingxi_backend::services::so::delivery::{
+        validate_dye_lot_consistency, ShipOrderItemRequest,
+    };
     use rust_decimal::Decimal;
 
     /// 构造 ShipOrderItemRequest 测试夹具
@@ -68,10 +70,7 @@ mod tests {
     /// 验证所有 item 都没有 dye_lot_no 时返回 Ok（无缸号约束）。
     #[test]
     fn 测试_validate_dye_lot_consistency_无缸号通过() {
-        let items = vec![
-            make_item(1, None),
-            make_item(2, None),
-        ];
+        let items = vec![make_item(1, None), make_item(2, None)];
         let result = validate_dye_lot_consistency(&items);
         assert!(result.is_ok(), "无缸号应通过校验");
     }
@@ -95,10 +94,7 @@ mod tests {
     /// 验证同一产品的多个 item 使用不同缸号时返回 Err（违反缸号一致性约束）。
     #[test]
     fn 测试_validate_dye_lot_consistency_同产品不同缸号失败() {
-        let items = vec![
-            make_item(1, Some("DL001")),
-            make_item(1, Some("DL002")),
-        ];
+        let items = vec![make_item(1, Some("DL001")), make_item(1, Some("DL002"))];
         let result = validate_dye_lot_consistency(&items);
         assert!(
             result.is_err(),
@@ -111,10 +107,7 @@ mod tests {
     /// 验证不同产品使用不同缸号时返回 Ok（缸号约束仅针对同产品）。
     #[test]
     fn 测试_validate_dye_lot_consistency_不同产品不同缸号通过() {
-        let items = vec![
-            make_item(1, Some("DL001")),
-            make_item(2, Some("DL002")),
-        ];
+        let items = vec![make_item(1, Some("DL001")), make_item(2, Some("DL002"))];
         let result = validate_dye_lot_consistency(&items);
         assert!(result.is_ok(), "不同产品不同缸号应通过校验");
     }
@@ -124,10 +117,7 @@ mod tests {
     /// 验证 dye_lot_no 为空字符串时被忽略（不参与一致性校验）。
     #[test]
     fn 测试_validate_dye_lot_consistency_空字符串缸号忽略() {
-        let items = vec![
-            make_item(1, Some("")),
-            make_item(1, Some("DL001")),
-        ];
+        let items = vec![make_item(1, Some("")), make_item(1, Some("DL001"))];
         let result = validate_dye_lot_consistency(&items);
         assert!(result.is_ok(), "空字符串缸号应被忽略");
     }

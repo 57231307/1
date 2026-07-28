@@ -13,8 +13,8 @@ use sea_orm::{ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, Quer
 use crate::models::{purchase_receipt, purchase_receipt_item};
 use crate::services::purchase_receipt_service::PurchaseReceiptService;
 // 批次 258 修复：接入 paginate_with_total 统一分页逻辑
-use crate::utils::pagination::paginate_with_total;
 use crate::utils::error::AppError;
+use crate::utils::pagination::paginate_with_total;
 
 impl PurchaseReceiptService {
     /// 获取入库单列表（分页）

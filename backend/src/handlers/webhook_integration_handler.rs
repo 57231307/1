@@ -280,7 +280,12 @@ pub async fn send_wechat_message(
 
     // M-4 修复（v9 复审）：trigger_webhook 内部校验所有权
     let delivery = service
-        .trigger_webhook(auth.user_id, req.integration_id, "wechat_message", &payload.to_string())
+        .trigger_webhook(
+            auth.user_id,
+            req.integration_id,
+            "wechat_message",
+            &payload.to_string(),
+        )
         .await?;
 
     let result = WebhookSendResult {
@@ -344,7 +349,12 @@ pub async fn send_dingtalk_message(
     let service = WebhookService::new(state.db.clone());
 
     let delivery = service
-        .trigger_webhook(auth.user_id, req.integration_id, "dingtalk_message", &payload.to_string())
+        .trigger_webhook(
+            auth.user_id,
+            req.integration_id,
+            "dingtalk_message",
+            &payload.to_string(),
+        )
         .await?;
 
     let result = WebhookSendResult {
@@ -389,26 +399,22 @@ pub async fn handle_generic_callback(
     let req: WebhookCallbackRequest = serde_json::from_str(&body)
         .map_err(|e| AppError::validation(format!("无效的 JSON 格式：{}", e)))?;
 
-    // 批次 110 P0-3：将完整 payload 写入结构化日志（替代原仅记录 event_type 的占位实现）
-    // 第三方平台回调通常是异步业务事件的入口，payload 内含业务关键字段（订单号/付款号/状态变更等）。
-    // 在未独立持久化到 webhook_logs 表前，先通过 tracing 输出到日志聚合系统，便于：
-    // 1) 调用方核对回执摘要是否与发送内容一致
-    // 2) 业务侧通过日志检索回溯第三方回调历史
-    // 3) 后续接入 webhook_logs 表时可作为数据源迁移
-    tracing::info!(
-        event_type = %req.event_type,
-        payload = %req.payload,
-        "Webhook 签名验证通过，已接收第三方回调事件"
-    );
-
-    // 计算 payload 摘要：序列化字节大小 + 顶层字段名（若为 Object）
+    // P1-03-4 修复：仅记录 payload 摘要（event_type + size + keys），不记录完整 payload
+    // 原 tracing::info!(payload = %req.payload) 完整记录 payload 到日志，
+    // 第三方回调 payload 可能含敏感业务数据（订单金额/客户信息/付款凭证等），
+    // 违反规则 11"日志中禁止记录敏感信息明文"。日志聚合系统通常权限较低，易引发数据泄露。
     let payload_size = req.payload.to_string().len();
     let payload_keys: Vec<String> = match &req.payload {
-        serde_json::Value::Object(map) => {
-            map.keys().take(10).cloned().collect()
-        }
+        serde_json::Value::Object(map) => map.keys().take(10).cloned().collect(),
         _ => Vec::new(),
     };
+
+    tracing::info!(
+        event_type = %req.event_type,
+        payload_size,
+        payload_keys = ?payload_keys,
+        "Webhook 签名验证通过，已接收第三方回调事件"
+    );
 
     let result = WebhookCallbackResult {
         received: true,

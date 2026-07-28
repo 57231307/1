@@ -63,11 +63,11 @@
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { Plus, Printer, Download } from '@element-plus/icons-vue'
+import { reactive } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { Plus, Printer, Download } from '@element-plus/icons-vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 /**
  * 凭证列表过滤与操作栏组件
@@ -76,21 +76,21 @@ const { t } = useI18n({ useScope: 'global' })
  */
 const props = defineProps<{
   // 查询条件（由父组件 useTableApi 管理，类型放宽为 Record 兼容 useTableApi）
-  queryParams: Record<string, unknown>
-}>()
+  queryParams: Record<string, unknown>;
+}>();
 
 const emit = defineEmits<{
   // 触发查询（父组件监听后调用 handleSearch 重置页码并加载）
-  (e: 'fetch'): void
+  (e: 'fetch'): void;
   // 同步查询条件到父组件
-  (e: 'update:queryParams', params: Record<string, unknown>): void
+  (e: 'update:queryParams', params: Record<string, unknown>): void;
   // 新增凭证
-  (e: 'add'): void
+  (e: 'add'): void;
   // 打印
-  (e: 'print'): void
+  (e: 'print'): void;
   // 导出
-  (e: 'export'): void
-}>()
+  (e: 'export'): void;
+}>();
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
 const localQuery = reactive({
@@ -99,22 +99,22 @@ const localQuery = reactive({
   voucher_date_end: props.queryParams.voucher_date_end as string,
   type: props.queryParams.type as string,
   status: props.queryParams.status as string,
-})
+});
 
 /** 查询：先同步筛选条件到父组件，再触发 fetch */
 const handleSearch = () => {
-  emit('update:queryParams', { ...localQuery })
-  emit('fetch')
-}
+  emit('update:queryParams', { ...localQuery });
+  emit('fetch');
+};
 
 /** 重置：清空本地筛选条件，同步后触发 fetch */
 const handleReset = () => {
-  localQuery.voucher_no = ''
-  localQuery.voucher_date_start = ''
-  localQuery.voucher_date_end = ''
-  localQuery.type = ''
-  localQuery.status = ''
-  emit('update:queryParams', { ...localQuery })
-  emit('fetch')
-}
+  localQuery.voucher_no = '';
+  localQuery.voucher_date_start = '';
+  localQuery.voucher_date_end = '';
+  localQuery.type = '';
+  localQuery.status = '';
+  emit('update:queryParams', { ...localQuery });
+  emit('fetch');
+};
 </script>

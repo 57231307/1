@@ -18,6 +18,17 @@ StartLimitBurst=5
 
 LimitNOFILE=65535
 
+# V15 P1 25.4-G 修复：优雅停机配置
+# KillSignal=SIGTERM：明确使用 SIGTERM 触发优雅停机（main.rs 已注册 signal handler
+#   完成 in-flight 请求排空、数据库连接池关闭、审计日志 flush）
+# KillMode=mixed：仅向主进程发送信号，子任务由主进程的 graceful shutdown 统一管理
+# TimeoutStopSec=30s：给服务 30 秒完成优雅停机（默认 90s 过长，5s 过短不足以 flush 审计）
+# FinalKillSignal=SIGKILL：超时后强制终止，防止僵尸进程占用端口
+KillSignal=SIGTERM
+KillMode=mixed
+TimeoutStopSec=30s
+FinalKillSignal=SIGKILL
+
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=bingxi-backend

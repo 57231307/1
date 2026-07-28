@@ -5,16 +5,17 @@
  * 行为完全保持一致（仅结构重构）
  * 批次 281：接入 useTableApi，移除手写 keys/keyTotal/keyLoading/keyQuery + fetchKeys
  */
-import { ref, reactive } from 'vue'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { ref, reactive } from 'vue';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
+import { msg } from '@/utils/message';
 import {
   createApiKey,
   updateApiKey,
   deleteApiKey,
   regenerateApiKey,
   type ApiKey,
-} from '@/api/api-gateway'
-import { useTableApi } from '@/composables/useTableApi'
+} from '@/api/api-gateway';
+import { useTableApi } from '@/composables/useTableApi';
 
 /**
  * 密钥管理 composable
@@ -32,15 +33,17 @@ export function useApiKey() {
   } = useTableApi<ApiKey>({
     url: '/api-gateway/keys',
     onError: (err: unknown) =>
-      ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取密钥失败'),
-  })
+      ElMessage.error(
+        (err instanceof Error ? err.message : String(err)) || msg.translate('loadApiKeyFailed')
+      ),
+  });
 
-  const showKeyMap = ref<Record<number, boolean>>({})
+  const showKeyMap = ref<Record<number, boolean>>({});
 
-  const keyDialogVisible = ref(false)
-  const keyFormRef = ref<FormInstance>()
-  const keySubmitLoading = ref(false)
-  const permissionsText = ref('')
+  const keyDialogVisible = ref(false);
+  const keyFormRef = ref<FormInstance>();
+  const keySubmitLoading = ref(false);
+  const permissionsText = ref('');
   const keyForm = reactive<Partial<ApiKey>>({
     id: undefined,
     key_name: '',
@@ -49,20 +52,20 @@ export function useApiKey() {
     rate_limit: 100,
     expires_at: '',
     status: 'active',
-  })
+  });
 
   const keyRules: FormRules = {
     key_name: [{ required: true, message: '请输入密钥名称', trigger: 'blur' }],
-  }
+  };
 
   const toggleShowKey = (id: number) => {
-    showKeyMap.value[id] = !showKeyMap.value[id]
-  }
+    showKeyMap.value[id] = !showKeyMap.value[id];
+  };
 
   const openKeyDialog = (row?: ApiKey) => {
     if (row) {
-      Object.assign(keyForm, row)
-      permissionsText.value = (row.permissions || []).join(',')
+      Object.assign(keyForm, row);
+      permissionsText.value = (row.permissions || []).join(',');
     } else {
       Object.assign(keyForm, {
         id: undefined,
@@ -72,63 +75,71 @@ export function useApiKey() {
         rate_limit: 100,
         expires_at: '',
         status: 'active',
-      })
-      permissionsText.value = ''
+      });
+      permissionsText.value = '';
     }
-    keyDialogVisible.value = true
-  }
+    keyDialogVisible.value = true;
+  };
 
   const handleKeySubmit = async () => {
-    if (!keyFormRef.value) return
+    if (!keyFormRef.value) return;
     await keyFormRef.value.validate(async valid => {
-      if (!valid) return
+      if (!valid) return;
 
-      keySubmitLoading.value = true
+      keySubmitLoading.value = true;
       try {
         keyForm.permissions = permissionsText.value
           ? permissionsText.value.split(',').map((s: string) => s.trim())
-          : []
+          : [];
         if (keyForm.id) {
-          await updateApiKey(keyForm.id, keyForm)
+          await updateApiKey(keyForm.id, keyForm);
         } else {
-          await createApiKey(keyForm)
+          await createApiKey(keyForm);
         }
-        ElMessage.success('操作成功')
-        keyDialogVisible.value = false
-        await fetchKeys()
+        msg.success('operationSuccess');
+        keyDialogVisible.value = false;
+        await fetchKeys();
       } catch (error: unknown) {
-        ElMessage.error((error instanceof Error ? error.message : String(error)) || '操作失败')
+        ElMessage.error(
+          (error instanceof Error ? error.message : String(error)) ||
+            msg.translate('operationFailed')
+        );
       } finally {
-        keySubmitLoading.value = false
+        keySubmitLoading.value = false;
       }
-    })
-  }
+    });
+  };
 
   const handleDeleteKey = async (row: ApiKey) => {
     try {
-      await ElMessageBox.confirm('确定要删除此密钥吗？', '确认删除', { type: 'warning' })
-      await deleteApiKey(row.id)
-      ElMessage.success('删除成功')
-      await fetchKeys()
+      await ElMessageBox.confirm('确定要删除此密钥吗？', '确认删除', { type: 'warning' });
+      await deleteApiKey(row.id);
+      msg.success('deleteSuccess');
+      await fetchKeys();
     } catch (error: unknown) {
       if (error !== 'cancel')
-        ElMessage.error((error instanceof Error ? error.message : String(error)) || '删除失败')
+        ElMessage.error(
+          (error instanceof Error ? error.message : String(error)) || msg.translate('deleteFailed')
+        );
     }
-  }
+  };
 
   const handleRegenerateKey = async (row: ApiKey) => {
     try {
       await ElMessageBox.confirm('确定要重新生成此密钥吗？旧密钥将立即失效。', '确认重新生成', {
         type: 'warning',
-      })
-      await regenerateApiKey(row.id)
-      ElMessage.success('重新生成成功')
-      await fetchKeys()
+      });
+      await regenerateApiKey(row.id);
+      msg.success('regenerateSuccess');
+      await fetchKeys();
     } catch (error: unknown) {
       if (error !== 'cancel')
-        ElMessage.error((error instanceof Error ? error.message : String(error)) || '重新生成失败')
+        ElMessage.error(
+          (error instanceof Error ? error.message : String(error)) ||
+            msg.translate('regenerateFailed')
+        );
     }
-  }
+  };
 
   /** 查看密钥详情 */
   const viewKeyDetail = (row: ApiKey) => {
@@ -136,26 +147,29 @@ export function useApiKey() {
       `应用 ID: ${row.key_name}\n密钥值: ${row.api_key || '（已隐藏）'}\n过期时间: ${row.expires_at || '永久'}`,
       '密钥详情',
       { type: 'info' }
-    )
-  }
+    );
+  };
 
   /** 切换密钥启用/停用状态 */
   const handleToggleKey = async (row: ApiKey) => {
-    const nextStatus: ApiKey['status'] = row.status === 'active' ? 'inactive' : 'active'
+    const nextStatus: ApiKey['status'] = row.status === 'active' ? 'inactive' : 'active';
     try {
       await ElMessageBox.confirm(
         `确定要${nextStatus === 'active' ? '启用' : '停用'}此密钥吗？`,
         '提示',
         { type: 'warning' }
-      )
-      await updateApiKey(row.id, { status: nextStatus })
-      ElMessage.success('操作成功')
-      await fetchKeys()
+      );
+      await updateApiKey(row.id, { status: nextStatus });
+      msg.success('operationSuccess');
+      await fetchKeys();
     } catch (error: unknown) {
       if (error !== 'cancel')
-        ElMessage.error((error instanceof Error ? error.message : String(error)) || '操作失败')
+        ElMessage.error(
+          (error instanceof Error ? error.message : String(error)) ||
+            msg.translate('operationFailed')
+        );
     }
-  }
+  };
 
   return reactive({
     keys,
@@ -179,5 +193,5 @@ export function useApiKey() {
     handleRegenerateKey,
     viewKeyDetail,
     handleToggleKey,
-  })
+  });
 }

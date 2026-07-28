@@ -6,95 +6,113 @@
 <template>
   <el-dialog
     v-model="visible"
-    :title="operationType === 'occupy' ? t('customerCredit.amount.title.occupy') : t('customerCredit.amount.title.release')"
+    :title="
+      operationType === 'occupy'
+        ? t('customerCredit.amount.title.occupy')
+        : t('customerCredit.amount.title.release')
+    "
     width="500px"
     :aria-label="t('customerCredit.amount.ariaLabel')"
   >
-    <el-form ref="formRef" :model="form" :rules="rules" label-width="120px" :aria-label="t('customerCredit.amount.formAriaLabel')">
+    <el-form
+      ref="formRef"
+      :model="form"
+      :rules="rules"
+      label-width="120px"
+      :aria-label="t('customerCredit.amount.formAriaLabel')"
+    >
       <el-form-item :label="t('customerCredit.amount.label.amount')" prop="amount">
         <el-input-number v-model="form.amount" :min="0" style="width: 100%" />
       </el-form-item>
     </el-form>
     <template #footer>
       <el-button @click="visible = false">{{ t('customerCredit.amount.button.cancel') }}</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ t('customerCredit.amount.button.confirm') }}</el-button>
+      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{
+        t('customerCredit.amount.button.confirm')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
-import type { FormInstance, FormRules } from 'element-plus'
-import { occupyCredit, releaseCredit } from '@/api/customer-credit'
-import { logger } from '@/utils/logger'
+import { ref, reactive, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
+import type { FormInstance, FormRules } from 'element-plus';
+import { occupyCredit, releaseCredit } from '@/api/customer-credit';
+import { logger } from '@/utils/logger';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 interface Props {
-  modelValue: boolean
-  customerId: number | null
-  operationType: 'occupy' | 'release'
+  modelValue: boolean;
+  customerId: number | null;
+  operationType: 'occupy' | 'release';
 }
 
 interface Emits {
-  (e: 'update:modelValue', val: boolean): void
-  (e: 'submitted'): void
+  (e: 'update:modelValue', val: boolean): void;
+  (e: 'submitted'): void;
 }
 
-const props = defineProps<Props>()
-const emit = defineEmits<Emits>()
+const props = defineProps<Props>();
+const emit = defineEmits<Emits>();
 
-const visible = ref(props.modelValue)
-const submitLoading = ref(false)
-const formRef = ref<FormInstance>()
+const visible = ref(props.modelValue);
+const submitLoading = ref(false);
+const formRef = ref<FormInstance>();
 
 const form = reactive({
   amount: 0,
-})
+});
 
 const rules: FormRules = {
-  amount: [{ required: true, message: t('customerCredit.amount.validation.amountRequired'), trigger: 'blur' }],
-}
+  amount: [
+    {
+      required: true,
+      message: t('customerCredit.amount.validation.amountRequired'),
+      trigger: 'blur',
+    },
+  ],
+};
 
 watch(
   () => props.modelValue,
   val => {
-    visible.value = val
+    visible.value = val;
     if (val) {
-      form.amount = 0
+      form.amount = 0;
     }
   }
-)
+);
 
 watch(visible, val => {
-  emit('update:modelValue', val)
-})
+  emit('update:modelValue', val);
+});
 
 const handleSubmit = async () => {
-  if (!formRef.value || !props.customerId) return
+  if (!formRef.value || !props.customerId) return;
   try {
-    await formRef.value.validate()
-    submitLoading.value = true
+    await formRef.value.validate();
+    submitLoading.value = true;
     if (props.operationType === 'occupy') {
       await occupyCredit(props.customerId, {
         amount: form.amount,
         business_type: 'manual',
         business_id: 0,
-      })
+      });
     } else {
-      await releaseCredit(props.customerId, 0)
+      await releaseCredit(props.customerId, 0);
     }
-    ElMessage.success(t('customerCredit.amount.message.success'))
-    visible.value = false
-    emit('submitted')
+    ElMessage.success(t('customerCredit.amount.message.success'));
+    visible.value = false;
+    emit('submitted');
   } catch (error) {
-    const err = error as Error
-    ElMessage.error(err.message || t('customerCredit.amount.message.failed'))
-    logger.warn(t('customerCredit.amount.log.failed'), err.message)
+    const err = error as Error;
+    ElMessage.error(err.message || t('customerCredit.amount.message.failed'));
+    logger.warn(t('customerCredit.amount.log.failed'), err.message);
   } finally {
-    submitLoading.value = false
+    submitLoading.value = false;
   }
-}
+};
 </script>

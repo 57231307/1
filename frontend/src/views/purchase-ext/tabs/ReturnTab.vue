@@ -12,15 +12,31 @@
       </el-button>
     </div>
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="returnQuery" :aria-label="t('purchaseExt.returnTab.filterAria')">
+      <el-form
+        :inline="true"
+        :model="returnQuery"
+        :aria-label="t('purchaseExt.returnTab.filterAria')"
+      >
         <el-form-item :label="t('purchaseExt.returnTab.returnNo')">
-          <el-input v-model="returnQuery.returnNo" :placeholder="t('purchaseExt.returnTab.returnNoPlaceholder')" clearable />
+          <el-input
+            v-model="returnQuery.returnNo"
+            :placeholder="t('purchaseExt.returnTab.returnNoPlaceholder')"
+            clearable
+          />
         </el-form-item>
         <el-form-item :label="t('purchaseExt.returnTab.supplier')">
-          <el-input v-model="returnQuery.supplierName" :placeholder="t('purchaseExt.returnTab.supplierNamePlaceholder')" clearable />
+          <el-input
+            v-model="returnQuery.supplierName"
+            :placeholder="t('purchaseExt.returnTab.supplierNamePlaceholder')"
+            clearable
+          />
         </el-form-item>
         <el-form-item :label="t('purchaseExt.returnTab.status')">
-          <el-select v-model="returnQuery.status" :placeholder="t('purchaseExt.returnTab.statusPlaceholder')" clearable>
+          <el-select
+            v-model="returnQuery.status"
+            :placeholder="t('purchaseExt.returnTab.statusPlaceholder')"
+            clearable
+          >
             <el-option :label="t('purchaseExt.returnTab.statusDraft')" value="draft" />
             <el-option :label="t('purchaseExt.returnTab.statusPending')" value="pending" />
             <el-option :label="t('purchaseExt.returnTab.statusApproved')" value="approved" />
@@ -29,35 +45,72 @@
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="fetchPurchaseReturns">{{ t('purchaseExt.returnTab.query') }}</el-button>
+          <el-button type="primary" @click="fetchPurchaseReturns">{{
+            t('purchaseExt.returnTab.query')
+          }}</el-button>
           <el-button @click="resetReturnQuery">{{ t('purchaseExt.returnTab.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
     <el-card shadow="hover">
-      <el-table v-loading="returnLoading" :data="purchaseReturns" stripe :aria-label="t('purchaseExt.returnTab.listAria')">
-        <el-table-column prop="returnNo" :label="t('purchaseExt.returnTab.colReturnNo')" width="140" />
-        <el-table-column prop="supplierName" :label="t('purchaseExt.returnTab.colSupplier')" min-width="150" />
-        <el-table-column prop="purchaseOrderNo" :label="t('purchaseExt.returnTab.colOrderNo')" width="140" />
-        <el-table-column prop="returnDate" :label="t('purchaseExt.returnTab.colReturnDate')" width="120" />
-        <el-table-column prop="totalAmount" :label="t('purchaseExt.returnTab.colTotalAmount')" width="120" align="right">
+      <el-table
+        v-loading="returnLoading"
+        :data="purchaseReturns"
+        stripe
+        :aria-label="t('purchaseExt.returnTab.listAria')"
+      >
+        <el-table-column
+          prop="returnNo"
+          :label="t('purchaseExt.returnTab.colReturnNo')"
+          width="140"
+        />
+        <el-table-column
+          prop="supplierName"
+          :label="t('purchaseExt.returnTab.colSupplier')"
+          min-width="150"
+        />
+        <el-table-column
+          prop="purchaseOrderNo"
+          :label="t('purchaseExt.returnTab.colOrderNo')"
+          width="140"
+        />
+        <el-table-column
+          prop="returnDate"
+          :label="t('purchaseExt.returnTab.colReturnDate')"
+          width="120"
+        />
+        <el-table-column
+          prop="totalAmount"
+          :label="t('purchaseExt.returnTab.colTotalAmount')"
+          width="120"
+          align="right"
+        >
           <template #default="{ row }">
             {{ formatMoney(row.totalAmount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="status" :label="t('purchaseExt.returnTab.colStatus')" width="100" align="center">
+        <el-table-column
+          prop="status"
+          :label="t('purchaseExt.returnTab.colStatus')"
+          width="100"
+          align="center"
+        >
           <template #default="{ row }">
             <el-tag :type="getReturnStatusType(row.status)" size="small">
               {{ getReturnStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createdBy" :label="t('purchaseExt.returnTab.colCreator')" width="100" />
+        <el-table-column
+          prop="createdBy"
+          :label="t('purchaseExt.returnTab.colCreator')"
+          width="100"
+        />
         <el-table-column :label="t('purchaseExt.returnTab.colOperation')" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" link @click="viewReturn(row as unknown as PurchaseReturn)"
-              >{{ t('purchaseExt.returnTab.view') }}</el-button
-            >
+            <el-button size="small" link @click="viewReturn(row as unknown as PurchaseReturn)">{{
+              t('purchaseExt.returnTab.view')
+            }}</el-button>
             <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
             <el-button
               v-if="row.status === 'draft'"
@@ -75,11 +128,21 @@
     <!-- 退货编辑对话框 -->
     <el-dialog
       v-model="returnDialogVisible"
-      :title="returnForm.id ? t('purchaseExt.returnTab.editTitle') : t('purchaseExt.returnTab.createTitle')"
+      :title="
+        returnForm.id
+          ? t('purchaseExt.returnTab.editTitle')
+          : t('purchaseExt.returnTab.createTitle')
+      "
       width="800px"
       :aria-label="t('purchaseExt.returnTab.dialogAria')"
     >
-      <el-form ref="returnFormRef" :model="returnForm" :rules="returnRules" label-width="100px" :aria-label="t('purchaseExt.returnTab.formAria')">
+      <el-form
+        ref="returnFormRef"
+        :model="returnForm"
+        :rules="returnRules"
+        label-width="100px"
+        :aria-label="t('purchaseExt.returnTab.formAria')"
+      >
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item :label="t('purchaseExt.returnTab.returnNo')" prop="returnNo">
@@ -88,14 +151,20 @@
           </el-col>
           <el-col :span="12">
             <el-form-item :label="t('purchaseExt.returnTab.supplierName')" prop="supplierName">
-              <el-input v-model="returnForm.supplierName" :placeholder="t('purchaseExt.returnTab.supplierNamePlaceholder')" />
+              <el-input
+                v-model="returnForm.supplierName"
+                :placeholder="t('purchaseExt.returnTab.supplierNamePlaceholder')"
+              />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item :label="t('purchaseExt.returnTab.orderNo')" prop="purchaseOrderNo">
-              <el-input v-model="returnForm.purchaseOrderNo" :placeholder="t('purchaseExt.returnTab.orderNoPlaceholder')" />
+              <el-input
+                v-model="returnForm.purchaseOrderNo"
+                :placeholder="t('purchaseExt.returnTab.orderNoPlaceholder')"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -113,25 +182,51 @@
           <el-input v-model="returnForm.reason" type="textarea" />
         </el-form-item>
         <el-divider>{{ t('purchaseExt.returnTab.detailDivider') }}</el-divider>
-        <el-table :data="returnForm.items" border style="width: 100%" :aria-label="t('purchaseExt.returnTab.detailEditAria')">
-          <el-table-column prop="productName" :label="t('purchaseExt.returnTab.colProductName')" min-width="150">
+        <el-table
+          :data="returnForm.items"
+          border
+          style="width: 100%"
+          :aria-label="t('purchaseExt.returnTab.detailEditAria')"
+        >
+          <el-table-column
+            prop="productName"
+            :label="t('purchaseExt.returnTab.colProductName')"
+            min-width="150"
+          >
             <template #default="{ row }">
-              <el-input v-model="row.productName" :placeholder="t('purchaseExt.returnTab.productNamePlaceholder')" />
+              <el-input
+                v-model="row.productName"
+                :placeholder="t('purchaseExt.returnTab.productNamePlaceholder')"
+              />
             </template>
           </el-table-column>
-          <el-table-column prop="productCode" :label="t('purchaseExt.returnTab.colProductCode')" width="120">
+          <el-table-column
+            prop="productCode"
+            :label="t('purchaseExt.returnTab.colProductCode')"
+            width="120"
+          >
             <template #default="{ row }">
-              <el-input v-model="row.productCode" :placeholder="t('purchaseExt.returnTab.productCodePlaceholder')" />
+              <el-input
+                v-model="row.productCode"
+                :placeholder="t('purchaseExt.returnTab.productCodePlaceholder')"
+              />
             </template>
           </el-table-column>
-          <el-table-column prop="quantity" :label="t('purchaseExt.returnTab.colQuantity')" width="100">
+          <el-table-column
+            prop="quantity"
+            :label="t('purchaseExt.returnTab.colQuantity')"
+            width="100"
+          >
             <template #default="{ row }">
               <el-input-number v-model="row.quantity" :min="0" style="width: 100%" />
             </template>
           </el-table-column>
           <el-table-column prop="unit" :label="t('purchaseExt.returnTab.colUnit')" width="80">
             <template #default="{ row }">
-              <el-input v-model="row.unit" :placeholder="t('purchaseExt.returnTab.unitPlaceholder')" />
+              <el-input
+                v-model="row.unit"
+                :placeholder="t('purchaseExt.returnTab.unitPlaceholder')"
+              />
             </template>
           </el-table-column>
           <el-table-column prop="price" :label="t('purchaseExt.returnTab.colPrice')" width="100">
@@ -144,35 +239,51 @@
               {{ formatMoney((row.quantity || 0) * (row.price || 0)) }}
             </template>
           </el-table-column>
-          <el-table-column prop="reason" :label="t('purchaseExt.returnTab.colReason')" min-width="120">
+          <el-table-column
+            prop="reason"
+            :label="t('purchaseExt.returnTab.colReason')"
+            min-width="120"
+          >
             <template #default="{ row }">
-              <el-input v-model="row.reason" :placeholder="t('purchaseExt.returnTab.reasonPlaceholder')" />
+              <el-input
+                v-model="row.reason"
+                :placeholder="t('purchaseExt.returnTab.reasonPlaceholder')"
+              />
             </template>
           </el-table-column>
           <el-table-column :label="t('purchaseExt.returnTab.colOperation')" width="80">
             <template #default="{ $index }">
-              <el-button size="small" link type="danger" @click="removeReturnItem($index)"
-                >{{ t('purchaseExt.returnTab.delete') }}</el-button
-              >
+              <el-button size="small" link type="danger" @click="removeReturnItem($index)">{{
+                t('purchaseExt.returnTab.delete')
+              }}</el-button>
             </template>
           </el-table-column>
         </el-table>
-        <el-button type="primary" link style="margin-top: 8px" @click="addReturnItem"
-          >{{ t('purchaseExt.returnTab.addProduct') }}</el-button
-        >
+        <el-button type="primary" link style="margin-top: 8px" @click="addReturnItem">{{
+          t('purchaseExt.returnTab.addProduct')
+        }}</el-button>
       </el-form>
       <template #footer>
-        <el-button @click="returnDialogVisible = false">{{ t('purchaseExt.returnTab.cancelBtn') }}</el-button>
-        <el-button type="primary" :loading="returnSubmitLoading" @click="submitReturn"
-          >{{ t('purchaseExt.returnTab.confirmBtn') }}</el-button
-        >
+        <el-button @click="returnDialogVisible = false">{{
+          t('purchaseExt.returnTab.cancelBtn')
+        }}</el-button>
+        <el-button type="primary" :loading="returnSubmitLoading" @click="submitReturn">{{
+          t('purchaseExt.returnTab.confirmBtn')
+        }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 退货详情对话框 -->
-    <el-dialog v-model="returnViewVisible" :title="t('purchaseExt.returnTab.viewTitle')" width="800px" :aria-label="t('purchaseExt.returnTab.viewDialogAria')">
+    <el-dialog
+      v-model="returnViewVisible"
+      :title="t('purchaseExt.returnTab.viewTitle')"
+      width="800px"
+      :aria-label="t('purchaseExt.returnTab.viewDialogAria')"
+    >
       <el-descriptions :column="2" border :aria-label="t('purchaseExt.returnTab.viewDetailAria')">
-        <el-descriptions-item :label="t('purchaseExt.returnTab.returnNo')">{{ currentReturn?.returnNo }}</el-descriptions-item>
+        <el-descriptions-item :label="t('purchaseExt.returnTab.returnNo')">{{
+          currentReturn?.returnNo
+        }}</el-descriptions-item>
         <el-descriptions-item :label="t('purchaseExt.returnTab.colSupplier')">{{
           currentReturn?.supplierName
         }}</el-descriptions-item>
@@ -190,39 +301,74 @@
             {{ getReturnStatusLabel(currentReturn?.status) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item :label="t('purchaseExt.returnTab.colCreator')">{{ currentReturn?.createdBy }}</el-descriptions-item>
-        <el-descriptions-item :label="t('purchaseExt.returnTab.approver')">{{ currentReturn?.approved_by }}</el-descriptions-item>
+        <el-descriptions-item :label="t('purchaseExt.returnTab.colCreator')">{{
+          currentReturn?.createdBy
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('purchaseExt.returnTab.approver')">{{
+          currentReturn?.approved_by
+        }}</el-descriptions-item>
       </el-descriptions>
       <el-divider>{{ t('purchaseExt.returnTab.reasonDivider') }}</el-divider>
       <p>{{ currentReturn?.reason }}</p>
       <el-divider>{{ t('purchaseExt.returnTab.detailDivider') }}</el-divider>
-      <el-table :data="currentReturn?.items || []" stripe :aria-label="t('purchaseExt.returnTab.detailListAria')">
-        <el-table-column prop="productName" :label="t('purchaseExt.returnTab.colProductName')" min-width="150" />
-        <el-table-column prop="productCode" :label="t('purchaseExt.returnTab.colProductCode')" width="120" />
-        <el-table-column prop="quantity" :label="t('purchaseExt.returnTab.colQuantity')" width="100" align="right" />
+      <el-table
+        :data="currentReturn?.items || []"
+        stripe
+        :aria-label="t('purchaseExt.returnTab.detailListAria')"
+      >
+        <el-table-column
+          prop="productName"
+          :label="t('purchaseExt.returnTab.colProductName')"
+          min-width="150"
+        />
+        <el-table-column
+          prop="productCode"
+          :label="t('purchaseExt.returnTab.colProductCode')"
+          width="120"
+        />
+        <el-table-column
+          prop="quantity"
+          :label="t('purchaseExt.returnTab.colQuantity')"
+          width="100"
+          align="right"
+        />
         <el-table-column prop="unit" :label="t('purchaseExt.returnTab.colUnit')" width="80" />
-        <el-table-column prop="price" :label="t('purchaseExt.returnTab.colPrice')" width="100" align="right">
+        <el-table-column
+          prop="price"
+          :label="t('purchaseExt.returnTab.colPrice')"
+          width="100"
+          align="right"
+        >
           <template #default="{ row }">
             {{ formatMoney(row.price) }}
           </template>
         </el-table-column>
-        <el-table-column prop="amount" :label="t('purchaseExt.returnTab.colAmount')" width="100" align="right">
+        <el-table-column
+          prop="amount"
+          :label="t('purchaseExt.returnTab.colAmount')"
+          width="100"
+          align="right"
+        >
           <template #default="{ row }">
             {{ formatMoney(row.amount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="reason" :label="t('purchaseExt.returnTab.colReason')" min-width="120" />
+        <el-table-column
+          prop="reason"
+          :label="t('purchaseExt.returnTab.colReason')"
+          min-width="120"
+        />
       </el-table>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
-import type { FormInstance, FormRules } from 'element-plus'
+import { reactive, ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
+import { Plus } from '@element-plus/icons-vue';
+import type { FormInstance, FormRules } from 'element-plus';
 import {
   getPurchaseReturnList,
   getPurchaseReturnById,
@@ -230,22 +376,22 @@ import {
   createPurchaseReturn,
   type PurchaseReturn,
   type PurchaseReturnItem,
-} from '@/api/purchase-return'
+} from '@/api/purchase-return';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const purchaseReturns = ref<PurchaseReturn[]>([])
-const returnLoading = ref(false)
+const purchaseReturns = ref<PurchaseReturn[]>([]);
+const returnLoading = ref(false);
 
 const returnQuery = reactive({
   returnNo: '',
   supplierName: '',
   status: '',
-})
+});
 
 const formatMoney = (amount: number | undefined) => {
-  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00'
-}
+  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00';
+};
 
 const getReturnStatusLabel = (status?: string) => {
   const map: Record<string, string> = {
@@ -254,9 +400,9 @@ const getReturnStatusLabel = (status?: string) => {
     approved: t('purchaseExt.returnTab.statusApproved'),
     rejected: t('purchaseExt.returnTab.statusRejected'),
     completed: t('purchaseExt.returnTab.statusCompleted'),
-  }
-  return map[status || ''] || status || ''
-}
+  };
+  return map[status || ''] || status || '';
+};
 
 const getReturnStatusType = (status?: string) => {
   const map: Record<string, string> = {
@@ -265,33 +411,33 @@ const getReturnStatusType = (status?: string) => {
     approved: 'success',
     rejected: 'danger',
     completed: 'success',
-  }
-  return map[status || ''] || 'info'
-}
+  };
+  return map[status || ''] || 'info';
+};
 
 const fetchPurchaseReturns = async () => {
-  returnLoading.value = true
+  returnLoading.value = true;
   try {
-    const res = await getPurchaseReturnList(returnQuery)
-    purchaseReturns.value = res.data?.list || []
+    const res = await getPurchaseReturnList(returnQuery);
+    purchaseReturns.value = res.data?.list || [];
   } catch (error) {
-    const err = error as { message?: string }
-    ElMessage.error(err.message || t('purchaseExt.returnTab.fetchFailed'))
+    const err = error as { message?: string };
+    ElMessage.error(err.message || t('purchaseExt.returnTab.fetchFailed'));
   } finally {
-    returnLoading.value = false
+    returnLoading.value = false;
   }
-}
+};
 
 const resetReturnQuery = () => {
-  returnQuery.returnNo = ''
-  returnQuery.supplierName = ''
-  returnQuery.status = ''
-  fetchPurchaseReturns()
-}
+  returnQuery.returnNo = '';
+  returnQuery.supplierName = '';
+  returnQuery.status = '';
+  fetchPurchaseReturns();
+};
 
-const returnDialogVisible = ref(false)
-const returnFormRef = ref<FormInstance>()
-const returnSubmitLoading = ref(false)
+const returnDialogVisible = ref(false);
+const returnFormRef = ref<FormInstance>();
+const returnSubmitLoading = ref(false);
 const returnForm = reactive({
   id: 0,
   returnNo: '',
@@ -304,20 +450,24 @@ const returnForm = reactive({
   reason: '',
   status: 'draft' as 'draft' | 'pending' | 'approved' | 'rejected' | 'completed',
   items: [] as PurchaseReturnItem[],
-})
+});
 
 const returnRules: FormRules = {
   returnNo: [{ required: true, message: t('purchaseExt.returnTab.ruleReturnNo'), trigger: 'blur' }],
-  supplierName: [{ required: true, message: t('purchaseExt.returnTab.ruleSupplierName'), trigger: 'blur' }],
-  returnDate: [{ required: true, message: t('purchaseExt.returnTab.ruleReturnDate'), trigger: 'change' }],
+  supplierName: [
+    { required: true, message: t('purchaseExt.returnTab.ruleSupplierName'), trigger: 'blur' },
+  ],
+  returnDate: [
+    { required: true, message: t('purchaseExt.returnTab.ruleReturnDate'), trigger: 'change' },
+  ],
   reason: [{ required: true, message: t('purchaseExt.returnTab.ruleReason'), trigger: 'blur' }],
-}
+};
 
 const openReturnDialog = async (row?: PurchaseReturn) => {
   if (row) {
-    const res = await getPurchaseReturnById(row.id!)
+    const res = await getPurchaseReturnById(row.id!);
     // 安全检查：防止后端返回 data 为 null 时崩溃
-    if (res.data) Object.assign(returnForm, res.data)
+    if (res.data) Object.assign(returnForm, res.data);
   } else {
     Object.assign(returnForm, {
       id: 0,
@@ -344,43 +494,43 @@ const openReturnDialog = async (row?: PurchaseReturn) => {
           reason: '',
         },
       ],
-    })
+    });
   }
-  returnDialogVisible.value = true
-}
+  returnDialogVisible.value = true;
+};
 
 const submitReturn = async () => {
-  const valid = await returnFormRef.value?.validate()
-  if (!valid) return
+  const valid = await returnFormRef.value?.validate();
+  if (!valid) return;
 
-  returnSubmitLoading.value = true
+  returnSubmitLoading.value = true;
   try {
     if (returnForm.id) {
-      await updatePurchaseReturn(returnForm.id, returnForm)
-      ElMessage.success(t('purchaseExt.returnTab.updateSuccess'))
+      await updatePurchaseReturn(returnForm.id, returnForm);
+      ElMessage.success(t('purchaseExt.returnTab.updateSuccess'));
     } else {
-      await createPurchaseReturn(returnForm)
-      ElMessage.success(t('purchaseExt.returnTab.createSuccess'))
+      await createPurchaseReturn(returnForm);
+      ElMessage.success(t('purchaseExt.returnTab.createSuccess'));
     }
-    returnDialogVisible.value = false
-    fetchPurchaseReturns()
+    returnDialogVisible.value = false;
+    fetchPurchaseReturns();
   } catch (error) {
-    const err = error as { message?: string }
-    ElMessage.error(err.message || t('purchaseExt.returnTab.operationFailed'))
+    const err = error as { message?: string };
+    ElMessage.error(err.message || t('purchaseExt.returnTab.operationFailed'));
   } finally {
-    returnSubmitLoading.value = false
+    returnSubmitLoading.value = false;
   }
-}
+};
 
-const returnViewVisible = ref(false)
-const currentReturn = ref<PurchaseReturn | null>(null)
+const returnViewVisible = ref(false);
+const currentReturn = ref<PurchaseReturn | null>(null);
 
 const viewReturn = async (row: PurchaseReturn) => {
-  const res = await getPurchaseReturnById(row.id!)
+  const res = await getPurchaseReturnById(row.id!);
   // 安全检查：防止后端返回 data 为 null 时崩溃
-  if (res.data) currentReturn.value = res.data
-  returnViewVisible.value = true
-}
+  if (res.data) currentReturn.value = res.data;
+  returnViewVisible.value = true;
+};
 
 const addReturnItem = () => {
   returnForm.items.push({
@@ -392,18 +542,18 @@ const addReturnItem = () => {
     quantity: 0,
     unitPrice: 0,
     reason: '',
-  } as PurchaseReturnItem)
-}
+  } as PurchaseReturnItem);
+};
 
 const removeReturnItem = (index: number) => {
   if (returnForm.items.length > 1) {
-    returnForm.items.splice(index, 1)
+    returnForm.items.splice(index, 1);
   }
-}
+};
 
-defineExpose({ refresh: fetchPurchaseReturns })
+defineExpose({ refresh: fetchPurchaseReturns });
 
 onMounted(() => {
-  fetchPurchaseReturns()
-})
+  fetchPurchaseReturns();
+});
 </script>

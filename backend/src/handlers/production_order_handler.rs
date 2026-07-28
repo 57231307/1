@@ -70,9 +70,7 @@ pub struct UpdateProductionOrderStatusDto {
 /// P1-2f 修复（批次 81 v1 复审）：生产订单状态白名单校验
 /// 仅允许以下状态值，避免任意字符串写入数据库
 /// 白名单与 production_order_service::validate_status_transition 保持一致
-fn validate_production_order_status(
-    status: &str,
-) -> Result<(), validator::ValidationError> {
+fn validate_production_order_status(status: &str) -> Result<(), validator::ValidationError> {
     const ALLOWED: &[&str] = &[
         "DRAFT",
         "SCHEDULED",
@@ -549,7 +547,8 @@ fn build_production_order_row(r: ProductionOrderResponse) -> Vec<String> {
         r.product_id.to_string(),
         r.planned_quantity.to_string(),
         r.actual_quantity.map_or(String::new(), |v| v.to_string()),
-        r.planned_start_date.map_or(String::new(), |d| d.to_string()),
+        r.planned_start_date
+            .map_or(String::new(), |d| d.to_string()),
         r.planned_end_date.map_or(String::new(), |d| d.to_string()),
         r.status,
         r.priority.to_string(),
@@ -635,9 +634,7 @@ pub async fn export_production_orders(
         page_size: 10000,
     };
 
-    let (models, _total) = service
-        .list(query_params, Some(&data_scope_ctx))
-        .await?;
+    let (models, _total) = service.list(query_params, Some(&data_scope_ctx)).await?;
 
     let row_count = models.len();
     let responses = convert_orders_to_responses(models);

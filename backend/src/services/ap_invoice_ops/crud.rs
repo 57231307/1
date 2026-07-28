@@ -22,12 +22,12 @@ use sea_orm::{
 };
 
 use crate::models::ap_invoice;
+use crate::services::ap_invoice_service::{
+    ApInvoiceListQuery, ApInvoiceService, CreateApInvoiceRequest, UpdateApInvoiceRequest,
+    DEFAULT_BASE_CURRENCY_EXCHANGE_RATE,
+};
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
-use crate::services::ap_invoice_service::{
-    ApInvoiceListQuery, ApInvoiceService, CreateApInvoiceRequest, DEFAULT_BASE_CURRENCY_EXCHANGE_RATE,
-    UpdateApInvoiceRequest,
-};
 
 impl ApInvoiceService {
     /// 手工创建应付单
@@ -64,13 +64,19 @@ impl ApInvoiceService {
             due_date: Set(req
                 .due_date
                 .unwrap_or_else(|| chrono::Utc::now().date_naive())),
-            payment_terms: Set(req.payment_terms.unwrap_or(crate::constants::DEFAULT_PAYMENT_TERMS_DAYS)),
+            payment_terms: Set(req
+                .payment_terms
+                .unwrap_or(crate::constants::DEFAULT_PAYMENT_TERMS_DAYS)),
             amount: Set(req.amount.unwrap_or(Decimal::ZERO)),
             paid_amount: Set(Decimal::ZERO),
             unpaid_amount: Set(req.amount.unwrap_or(Decimal::ZERO)),
             invoice_status: Set(crate::models::status::common::STATUS_DRAFT.to_string()),
-            currency: Set(req.currency.unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string())),
-            exchange_rate: Set(req.exchange_rate.unwrap_or(DEFAULT_BASE_CURRENCY_EXCHANGE_RATE)),
+            currency: Set(req
+                .currency
+                .unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string())),
+            exchange_rate: Set(req
+                .exchange_rate
+                .unwrap_or(DEFAULT_BASE_CURRENCY_EXCHANGE_RATE)),
             tax_amount: Set(req.tax_amount.unwrap_or(Decimal::ZERO)),
             notes: Set(req.notes),
             attachment_urls: Set(req.attachment_urls),
@@ -216,7 +222,8 @@ impl ApInvoiceService {
         // 3. 审核应付单
         let now = Utc::now();
         let mut invoice_active: ap_invoice::ActiveModel = invoice.into();
-        invoice_active.invoice_status = Set(crate::models::status::ap_invoice::INVOICE_AUDITED.to_string());
+        invoice_active.invoice_status =
+            Set(crate::models::status::ap_invoice::INVOICE_AUDITED.to_string());
         invoice_active.approved_by = Set(Some(user_id));
         invoice_active.approved_at = Set(Some(now));
         invoice_active.updated_at = Set(now);
@@ -274,7 +281,8 @@ impl ApInvoiceService {
         // 3. 更新状态
         let now = Utc::now();
         let mut invoice_active: ap_invoice::ActiveModel = invoice.into();
-        invoice_active.invoice_status = Set(crate::models::status::payment::PAYMENT_PAID.to_string());
+        invoice_active.invoice_status =
+            Set(crate::models::status::payment::PAYMENT_PAID.to_string());
         invoice_active.updated_at = Set(now);
 
         // 批次 97 P1-2 修复：原 Some(0) 占位符改为真实操作人 user_id
@@ -331,7 +339,8 @@ impl ApInvoiceService {
         // 4. 取消应付单
         let now = Utc::now();
         let mut invoice_active: ap_invoice::ActiveModel = invoice.into();
-        invoice_active.invoice_status = Set(crate::models::status::common::STATUS_CANCELLED.to_string());
+        invoice_active.invoice_status =
+            Set(crate::models::status::common::STATUS_CANCELLED.to_string());
         invoice_active.cancelled_by = Set(Some(user_id));
         invoice_active.cancelled_at = Set(Some(now));
         invoice_active.cancelled_reason = Set(Some(reason));

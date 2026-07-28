@@ -45,27 +45,27 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import type { InventoryCountEntity } from '@/api/inventoryCount'
+import { useI18n } from 'vue-i18n';
+import type { InventoryCountEntity } from '@/api/inventoryCount';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 interface Props {
-  modelValue: boolean
-  currentRow: InventoryCountEntity | null
+  modelValue: boolean;
+  currentRow: InventoryCountEntity | null;
 }
 
 interface Emits {
-  (e: 'update:modelValue', val: boolean): void
+  (e: 'update:modelValue', val: boolean): void;
 }
 
-defineProps<Props>()
-const emit = defineEmits<Emits>()
+defineProps<Props>();
+const emit = defineEmits<Emits>();
 
 /** 状态标签函数化：优先 i18n，未知状态回退到原始 status 字符串 */
 const getStatusLabel = (status: string) => {
-  const key = `inventoryCount.detailDialogTab.statusLabel.${status}`
-  const translated = t(key)
-  return translated === key ? status : translated
-}
+  const key = `inventoryCount.detailDialogTab.statusLabel.${status}`;
+  const translated = t(key);
+  return translated === key ? status : translated;
+};
 </script>

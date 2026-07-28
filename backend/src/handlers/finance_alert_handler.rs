@@ -148,10 +148,7 @@ pub async fn create_alert(
     Json(req): Json<CreateAlertRequest>,
 ) -> Result<Json<ApiResponse<AlertInfo>>, AppError> {
     let service = FinanceAlertService::from_state(&state);
-    let record = service
-        .create_alert(req)
-        .await
-        .map_err(finance_alert_err)?;
+    let record = service.create_alert(req).await.map_err(finance_alert_err)?;
     Ok(Json(ApiResponse::success(record.into())))
 }
 
@@ -185,10 +182,7 @@ pub async fn get_alert(
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<AlertInfo>>, AppError> {
     let service = FinanceAlertService::from_state(&state);
-    let record = service
-        .get_alert(id)
-        .await
-        .map_err(finance_alert_err)?;
+    let record = service.get_alert(id).await.map_err(finance_alert_err)?;
     Ok(Json(ApiResponse::success(record.into())))
 }
 

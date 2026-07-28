@@ -11,10 +11,10 @@
         <el-button type="primary" @click="openInvoiceDialog()">
           <el-icon><Plus /></el-icon> {{ $t('apModule.invoice.create') }}
         </el-button>
-        <el-button @click="handlePrintInvoices">
+        <el-button v-permission="'ap.invoice.print'" @click="handlePrintInvoices">
           <el-icon><Printer /></el-icon> {{ $t('common.print') }}
         </el-button>
-        <el-button @click="handleExportInvoices">
+        <el-button v-permission="'ap.invoice.export'" @click="handleExportInvoices">
           <el-icon><Download /></el-icon> {{ $t('common.export') }}
         </el-button>
       </div>
@@ -229,12 +229,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Printer, Download } from '@element-plus/icons-vue'
-import printJS from 'print-js'
-import type { FormInstance, FormRules } from 'element-plus'
+import { ref, reactive, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { Plus, Printer, Download } from '@element-plus/icons-vue';
+import printJS from 'print-js';
+import type { FormInstance, FormRules } from 'element-plus';
 import {
   getAPInvoiceList,
   getAPInvoice,
@@ -243,26 +243,26 @@ import {
   cancelAPInvoice,
   getAPInvoiceStatusText,
   type APInvoice,
-} from '@/api/ap-invoice'
-import { exportFromBackend } from '@/utils/export'
-import { logger } from '@/utils/logger'
-import type { Supplier } from '@/api/supplier'
+} from '@/api/ap-invoice';
+import { exportFromBackend } from '@/utils/export';
+import { logger } from '@/utils/logger';
+import type { Supplier } from '@/api/supplier';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const invoices = ref<APInvoice[]>([])
-const invoiceLoading = ref(false)
-const suppliers = ref<Supplier[]>([])
+const invoices = ref<APInvoice[]>([]);
+const invoiceLoading = ref(false);
+const suppliers = ref<Supplier[]>([]);
 
 const invoiceQuery = reactive({
   supplier_name: '',
   invoice_no: '',
   status: '',
-})
+});
 
 const formatMoney = (amount: number | undefined) => {
-  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00'
-}
+  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00';
+};
 
 const getInvoiceStatusType = (status: string) => {
   const map: Record<string, string> = {
@@ -270,9 +270,9 @@ const getInvoiceStatusType = (status: string) => {
     approved: 'primary',
     verified: 'success',
     cancelled: 'danger',
-  }
-  return map[status] || 'info'
-}
+  };
+  return map[status] || 'info';
+};
 
 const getInvoiceStatusLabel = (status: string) => {
   const keyMap: Record<string, string> = {
@@ -280,43 +280,43 @@ const getInvoiceStatusLabel = (status: string) => {
     approved: 'apModule.invoice.statusApproved',
     verified: 'apModule.invoice.statusVerified',
     cancelled: 'apModule.invoice.statusCancelled',
-  }
-  const key = keyMap[status]
-  if (key) return t(key)
-  return getAPInvoiceStatusText(status) || status
-}
+  };
+  const key = keyMap[status];
+  if (key) return t(key);
+  return getAPInvoiceStatusText(status) || status;
+};
 
 const fetchInvoices = async () => {
-  invoiceLoading.value = true
+  invoiceLoading.value = true;
   try {
-    const res = await getAPInvoiceList(invoiceQuery)
+    const res = await getAPInvoiceList(invoiceQuery);
     const d = res.data as
       | { list?: APInvoice[]; items?: APInvoice[]; data?: APInvoice[] }
       | APInvoice[]
-      | undefined
+      | undefined;
     if (d && typeof d === 'object' && !Array.isArray(d)) {
-      invoices.value = d.list || d.items || d.data || []
+      invoices.value = d.list || d.items || d.data || [];
     } else {
-      invoices.value = (d as APInvoice[]) || []
+      invoices.value = (d as APInvoice[]) || [];
     }
   } catch (e) {
-    const err = e as { message?: string }
-    ElMessage.error(err.message || t('apModule.invoice.fetchListFailed'))
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('apModule.invoice.fetchListFailed'));
   } finally {
-    invoiceLoading.value = false
+    invoiceLoading.value = false;
   }
-}
+};
 
 const resetInvoiceQuery = () => {
-  invoiceQuery.supplier_name = ''
-  invoiceQuery.invoice_no = ''
-  invoiceQuery.status = ''
-  fetchInvoices()
-}
+  invoiceQuery.supplier_name = '';
+  invoiceQuery.invoice_no = '';
+  invoiceQuery.status = '';
+  fetchInvoices();
+};
 
-const invoiceDialogVisible = ref(false)
-const invoiceFormRef = ref<FormInstance>()
-const invoiceSubmitLoading = ref(false)
+const invoiceDialogVisible = ref(false);
+const invoiceFormRef = ref<FormInstance>();
+const invoiceSubmitLoading = ref(false);
 const invoiceForm = reactive({
   supplier_id: undefined as number | undefined,
   invoice_no: '',
@@ -325,7 +325,7 @@ const invoiceForm = reactive({
   invoice_amount: 0,
   tax_amount: 0,
   remark: '',
-})
+});
 
 const invoiceRules: FormRules = {
   supplier_id: [
@@ -340,7 +340,7 @@ const invoiceRules: FormRules = {
   invoice_amount: [
     { required: true, message: t('apModule.invoice.invoiceAmountRequired'), trigger: 'blur' },
   ],
-}
+};
 
 const openInvoiceDialog = () => {
   Object.assign(invoiceForm, {
@@ -351,35 +351,35 @@ const openInvoiceDialog = () => {
     invoice_amount: 0,
     tax_amount: 0,
     remark: '',
-  })
-  invoiceDialogVisible.value = true
-}
+  });
+  invoiceDialogVisible.value = true;
+};
 
 const submitInvoice = async () => {
-  const valid = await invoiceFormRef.value?.validate()
-  if (!valid) return
-  invoiceSubmitLoading.value = true
+  const valid = await invoiceFormRef.value?.validate();
+  if (!valid) return;
+  invoiceSubmitLoading.value = true;
   try {
-    await createAPInvoice(invoiceForm)
-    ElMessage.success(t('common.success'))
-    invoiceDialogVisible.value = false
-    fetchInvoices()
+    await createAPInvoice(invoiceForm);
+    ElMessage.success(t('common.success'));
+    invoiceDialogVisible.value = false;
+    fetchInvoices();
   } catch (e) {
-    const err = e as { message?: string }
-    ElMessage.error(err.message || t('common.failed'))
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
   } finally {
-    invoiceSubmitLoading.value = false
+    invoiceSubmitLoading.value = false;
   }
-}
+};
 
 // 批次 157a P1-1 修复：接入 getAPInvoice API 展示应付发票详情
 const viewInvoice = async (row: APInvoice) => {
   try {
-    const res = await getAPInvoice(row.id)
-    const d = res.data
+    const res = await getAPInvoice(row.id);
+    const d = res.data;
     if (!d) {
-      ElMessage.warning(t('apModule.invoice.notFoundDetail'))
-      return
+      ElMessage.warning(t('apModule.invoice.notFoundDetail'));
+      return;
     }
     const lines = [
       t('apModule.invoice.detailNo', { value: d.invoice_no }),
@@ -392,15 +392,15 @@ const viewInvoice = async (row: APInvoice) => {
       t('apModule.invoice.detailUnverified', { value: formatMoney(d.unverified_amount) }),
       t('apModule.invoice.detailStatus', { value: getInvoiceStatusLabel(d.status) }),
       t('apModule.invoice.detailRemark', { value: d.remark || '-' }),
-    ]
+    ];
     await ElMessageBox.alert(lines.join('\n'), t('apModule.invoice.detailTitle'), {
       confirmButtonText: t('common.close'),
-    })
+    });
   } catch (e) {
-    const err = e as { message?: string }
-    ElMessage.error(err.message || t('apModule.invoice.fetchDetailFailed'))
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('apModule.invoice.fetchDetailFailed'));
   }
-}
+};
 
 const approveInvoice = async (row: APInvoice) => {
   try {
@@ -408,17 +408,17 @@ const approveInvoice = async (row: APInvoice) => {
       t('apModule.invoice.approveConfirm'),
       t('apModule.invoice.approveTitle'),
       { type: 'info' }
-    )
-    await approveAPInvoice(row.id)
-    ElMessage.success(t('apModule.invoice.approveSuccess'))
-    fetchInvoices()
+    );
+    await approveAPInvoice(row.id);
+    ElMessage.success(t('apModule.invoice.approveSuccess'));
+    fetchInvoices();
   } catch (e) {
     if (e !== 'cancel') {
-      const err = e as { message?: string }
-      ElMessage.error(err.message || t('common.failed'))
+      const err = e as { message?: string };
+      ElMessage.error(err.message || t('common.failed'));
     }
   }
-}
+};
 
 const cancelInvoice = async (row: APInvoice) => {
   try {
@@ -426,23 +426,23 @@ const cancelInvoice = async (row: APInvoice) => {
       t('apModule.invoice.cancelConfirm'),
       t('apModule.invoice.cancelTitle'),
       { type: 'warning' }
-    )
-    await cancelAPInvoice(row.id)
-    ElMessage.success(t('apModule.invoice.cancelSuccess'))
-    fetchInvoices()
+    );
+    await cancelAPInvoice(row.id);
+    ElMessage.success(t('apModule.invoice.cancelSuccess'));
+    fetchInvoices();
   } catch (e) {
     if (e !== 'cancel') {
-      const err = e as { message?: string }
-      ElMessage.error(err.message || t('common.failed'))
+      const err = e as { message?: string };
+      ElMessage.error(err.message || t('common.failed'));
     }
   }
-}
+};
 
 // 批次 157a P1-1 修复：实现应付发票打印（参考 ar 模块 printJS 实现）
 const handlePrintInvoices = () => {
   if (invoices.value.length === 0) {
-    ElMessage.warning(t('apModule.invoice.noPrintData'))
-    return
+    ElMessage.warning(t('apModule.invoice.noPrintData'));
+    return;
   }
   const printData = invoices.value.map((item, index) => ({
     [t('apModule.invoice.colSeq')]: index + 1,
@@ -452,7 +452,7 @@ const handlePrintInvoices = () => {
     [t('apModule.invoice.taxAmount')]: `¥${item.tax_amount}`,
     [t('common.status')]: getInvoiceStatusLabel(item.status),
     [t('apModule.invoice.invoiceDate')]: item.invoice_date,
-  }))
+  }));
   printJS({
     printable: printData,
     properties: Object.keys(printData[0] || {}) as string[],
@@ -462,35 +462,35 @@ const handlePrintInvoices = () => {
     headerStyle: 'font-size: 18px; font-weight: bold; margin-bottom: 20px;',
     gridHeaderStyle: 'font-weight: bold; background-color: #f5f7fa;',
     gridStyle: 'border-collapse: collapse; width: 100%;',
-  } as never)
-}
+  } as never);
+};
 
 // 批次 157a P1-1 修复：实现应付发票导出（规则 3：使用 .xlsx 格式，非 CSV）
 // V15 P0-S12 修复（Batch 475e）：迁移到后端导出，注入水印 + 审计日志
 const handleExportInvoices = async () => {
   const params: Record<string, unknown> = {
     invoice_status: invoiceQuery.status || undefined,
-  }
-  await exportFromBackend('/ap/invoices/export', params, 'ap_invoices_export')
-  logger.info(t('apModule.invoice.exportedLog'))
-}
+  };
+  await exportFromBackend('/ap/invoices/export', params, 'ap_invoices_export');
+  logger.info(t('apModule.invoice.exportedLog'));
+};
 
 const fetchSuppliers = async () => {
   try {
-    const res = await getAPInvoiceList({} as never)
-    void res
+    const res = await getAPInvoiceList({} as never);
+    void res;
   } catch (_e) {
     // suppliers 实际应通过 supplierApi 加载；此处保持空列表不影响主流程
   }
-  suppliers.value = []
-}
+  suppliers.value = [];
+};
 
-defineExpose({ refresh: fetchInvoices })
+defineExpose({ refresh: fetchInvoices });
 
 onMounted(() => {
-  fetchInvoices()
-  fetchSuppliers()
-})
+  fetchInvoices();
+  fetchSuppliers();
+});
 </script>
 
 <style scoped>

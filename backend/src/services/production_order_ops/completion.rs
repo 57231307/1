@@ -174,10 +174,10 @@ impl ProductionOrderService {
             cost_object_type: Some("production_order".to_string()),
             cost_object_id: Some(updated.id),
             cost_object_no: Some(updated.order_no.clone()),
-            batch_no: None,
-            color_no: None,
-            // v14 批次 422 T-P1-6：按缸号核算成本（生产订单当前无缸号，后续批次补全）
-            dye_lot_no: None,
+            batch_no: updated.batch_no.clone(),
+            color_no: updated.color_no.clone(),
+            // V15 Batch05-P1-4：按缸号核算成本（生产订单已含 dye_lot_no 字段，从订单读取传入成本归集）
+            dye_lot_no: updated.dye_lot_no.clone(),
             workshop: None,
             direct_material: total_material_cost,
             direct_labor: Decimal::ZERO,
@@ -209,8 +209,7 @@ impl ProductionOrderService {
     ) -> Result<ProductionOrderModel, AppError> {
         let txn = self.db.begin().await?;
 
-        let model =
-            Self::lock_and_validate_order_for_completion_txn(&txn, id).await?;
+        let model = Self::lock_and_validate_order_for_completion_txn(&txn, id).await?;
         let active_model = Self::build_completed_active_model(model, actual_quantity);
         let updated = active_model.update(&txn).await?;
 
@@ -306,8 +305,17 @@ impl ProductionOrderService {
 
         if let Some(bom) = bom {
             let bom_items = Self::lookup_bom_items(txn, bom.id).await?;
-            let stock_map = Self::batch_load_stock_records(txn, &bom_items, default_warehouse).await?;
-            Self::deduct_for_each_bom_item(txn, order, default_warehouse, production_qty, &bom_items, &stock_map).await
+            let stock_map =
+                Self::batch_load_stock_records(txn, &bom_items, default_warehouse).await?;
+            Self::deduct_for_each_bom_item(
+                txn,
+                order,
+                default_warehouse,
+                production_qty,
+                &bom_items,
+                &stock_map,
+            )
+            .await
         } else {
             Ok(Vec::new())
         }
@@ -341,19 +349,17 @@ impl ProductionOrderService {
         txn: &sea_orm::DatabaseTransaction,
         bom_items: &[crate::models::bom_item::Model],
         default_warehouse: &crate::models::warehouse::Model,
-    ) -> Result<std::collections::HashMap<i32, crate::models::inventory_stock::Model>, AppError> {
+    ) -> Result<std::collections::HashMap<i32, crate::models::inventory_stock::Model>, AppError>
+    {
         let material_ids: Vec<i32> = bom_items.iter().map(|b| b.material_id).collect();
 
         if material_ids.is_empty() {
             Ok(std::collections::HashMap::new())
         } else {
             let stocks = InventoryStockEntity::find()
+                .filter(crate::models::inventory_stock::Column::ProductId.is_in(material_ids))
                 .filter(
-                    crate::models::inventory_stock::Column::ProductId.is_in(material_ids),
-                )
-                .filter(
-                    crate::models::inventory_stock::Column::WarehouseId
-                        .eq(default_warehouse.id),
+                    crate::models::inventory_stock::Column::WarehouseId.eq(default_warehouse.id),
                 )
                 .lock_exclusive()
                 .all(txn)
@@ -413,7 +419,9 @@ impl ProductionOrderService {
                 qty_after_meters,
                 qty_after_kg,
                 order,
-            ).await? {
+            )
+            .await?
+            {
                 pending_events.push(ev);
             }
         }
@@ -512,14 +520,27 @@ impl ProductionOrderService {
             .await?;
 
         let txn_event = match existing_stock {
-            Some(stock_record) => Self::update_existing_finished_stock_txn(
-                txn, order, default_warehouse, &product, stock_record, production_qty,
-            )
-            .await?,
-            None => Self::create_new_finished_stock_txn(
-                txn, order, default_warehouse, &product, production_qty,
-            )
-            .await?,
+            Some(stock_record) => {
+                Self::update_existing_finished_stock_txn(
+                    txn,
+                    order,
+                    default_warehouse,
+                    &product,
+                    stock_record,
+                    production_qty,
+                )
+                .await?
+            }
+            None => {
+                Self::create_new_finished_stock_txn(
+                    txn,
+                    order,
+                    default_warehouse,
+                    &product,
+                    production_qty,
+                )
+                .await?
+            }
         };
 
         if let Some(ev) = txn_event {
@@ -572,7 +593,8 @@ impl ProductionOrderService {
             qty_after_kg,
         };
 
-        Self::record_production_output_txn(txn, order, default_warehouse, production_qty, record).await
+        Self::record_production_output_txn(txn, order, default_warehouse, production_qty, record)
+            .await
     }
 
     /// P0-D08 拆分：创建新成品库存记录并记录 PRODUCTION_OUTPUT 流水
@@ -583,7 +605,9 @@ impl ProductionOrderService {
         product: &crate::models::product::Model,
         production_qty: Decimal,
     ) -> Result<Option<BusinessEvent>, AppError> {
-        use crate::services::inventory_stock_service::{CreateStockFabricArgs, InventoryStockService};
+        use crate::services::inventory_stock_service::{
+            CreateStockFabricArgs, InventoryStockService,
+        };
         let kg = if let (Some(gw), Some(w)) = (product.gram_weight, product.width) {
             production_qty * gw * w / Decimal::new(100000, 0)
         } else {
@@ -596,7 +620,10 @@ impl ProductionOrderService {
             CreateStockFabricArgs {
                 warehouse_id: default_warehouse.id,
                 product_id: order.product_id,
-                batch_no: order.batch_no.clone().unwrap_or_else(|| order.order_no.clone()),
+                batch_no: order
+                    .batch_no
+                    .clone()
+                    .unwrap_or_else(|| order.order_no.clone()),
                 color_no: order.color_no.clone().unwrap_or_default(),
                 dye_lot_no: order.dye_lot_no.clone(),
                 grade: "一等品".to_string(),
@@ -623,7 +650,8 @@ impl ProductionOrderService {
             qty_after_kg: kg,
         };
 
-        Self::record_production_output_txn(txn, order, default_warehouse, production_qty, record).await
+        Self::record_production_output_txn(txn, order, default_warehouse, production_qty, record)
+            .await
     }
 
     /// P0-D08 拆分：记录 PRODUCTION_OUTPUT 库存流水（P0 5-2：返回事件由调用方收集后 commit 后统一 publish）

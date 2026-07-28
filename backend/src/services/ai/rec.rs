@@ -19,12 +19,16 @@ use crate::models::inventory_stock::{
 };
 use crate::models::inventory_transaction::Entity as InventoryTransactionEntity;
 use crate::models::sales_order_item::Entity as SalesOrderItemEntity;
+use crate::services::mrp_engine_service::{MrpEngineService, RequirementCalcParams};
 use crate::utils::error::AppError;
 
 use super::{
     mean, std_deviation, AbcClassification, AiAnalysisService, InventorySuggestion,
     InventoryTurnover, SmartRecommendation,
 };
+
+/// V15 P1 8.4：AI 补货推荐与 MRP 引擎对账差异阈值（>20% 触发人工复核）
+const MRP_RECONCILE_DIFF_THRESHOLD: f64 = 0.20;
 
 /// 共现统计结果（拆分复杂元组返回类型，避免 clippy::type_complexity）
 struct CoOccurrenceStats {
@@ -63,18 +67,30 @@ impl AiAnalysisService {
         let current = stock.quantity_available.to_f64().unwrap_or(0.0);
 
         // 计算出库统计：avg/std/安全库存/再订货点/建议量
-        let (_avg_daily_demand, _demand_std, safety_stock, reorder_point, reorder_quantity, suggested) =
-            self.compute_demand_stats(pid, outbound_qtys, transactions, abc);
+        let (
+            _avg_daily_demand,
+            _demand_std,
+            safety_stock,
+            reorder_point,
+            reorder_quantity,
+            suggested,
+        ) = self.compute_demand_stats(pid, outbound_qtys, transactions, abc);
 
-        let reason = Self::build_suggestion_reason(current, abc, safety_stock, reorder_point, reorder_quantity, suggested);
+        let reason = Self::build_suggestion_reason(
+            current,
+            abc,
+            safety_stock,
+            reorder_point,
+            reorder_quantity,
+            suggested,
+        );
 
         InventorySuggestion {
             product_id: pid,
             current_stock: stock.quantity_available,
             suggested_stock: Decimal::try_from(suggested.max(0.0)).unwrap_or(Decimal::ZERO),
             reorder_point: Decimal::try_from(reorder_point.max(0.0)).unwrap_or(Decimal::ZERO),
-            reorder_quantity: Decimal::try_from(reorder_quantity.max(0.0))
-                .unwrap_or(Decimal::ZERO),
+            reorder_quantity: Decimal::try_from(reorder_quantity.max(0.0)).unwrap_or(Decimal::ZERO),
             reason,
         }
     }
@@ -200,20 +216,80 @@ impl AiAnalysisService {
 
         let mut suggestions = Vec::new();
 
+        // V15 P1 8.4：初始化 MRP 引擎用于补货推荐与 MRP 对账
+        let mrp_svc = MrpEngineService::new(self.db.clone());
+
         for stock in stocks {
             let pid = stock.product_id;
             let abc = abc_map.get(&pid).copied().unwrap_or("C");
 
-            let suggestion = self.compute_inventory_suggestion(
+            let mut suggestion = self.compute_inventory_suggestion(
                 &stock,
                 outbound_by_product.get(&pid),
                 &transactions,
                 abc,
             );
+
+            // V15 P1 8.4：补货推荐与 MRP 引擎对账，差异 > 20% 时在 reason 标注人工复核
+            if let Err(e) = self
+                .reconcile_suggestion_with_mrp(&mrp_svc, &mut suggestion)
+                .await
+            {
+                tracing::debug!("MRP 对账失败 product_id={}: {:?}", pid, e);
+            }
+
             suggestions.push(suggestion);
         }
 
         Ok(suggestions)
+    }
+
+    /// V15 P1 8.4：补货推荐与 MRP 引擎结果对账
+    ///
+    /// 调用 MRP `calculate_requirement` 计算同期间 MRP 缺货量，
+    /// 与 AI `reorder_quantity` 比较；差异 > 20% 时在 reason 字段追加"与 MRP 差异 X%，建议人工复核"。
+    async fn reconcile_suggestion_with_mrp(
+        &self,
+        mrp_svc: &MrpEngineService,
+        suggestion: &mut InventorySuggestion,
+    ) -> Result<(), AppError> {
+        // 入参：以 AI 建议的 reorder_quantity 作为 MRP required_quantity，需求日期=今日+7天（与 lead_time=7 对齐）
+        let required_qty = suggestion.reorder_quantity;
+        if required_qty <= Decimal::ZERO {
+            return Ok(());
+        }
+        let required_date = chrono::Utc::now().date_naive() + Duration::days(7);
+        let params = RequirementCalcParams {
+            product_id: suggestion.product_id,
+            required_quantity: required_qty,
+            required_date,
+            source_type: "ai_reconcile".to_string(),
+            source_id: None,
+            consider_safety_stock: true,
+            consider_in_transit: true,
+            bom_level: 0,
+        };
+
+        // 调用 MRP 计算同期间缺货量
+        let mrp_req = mrp_svc.calculate_requirement(params).await?;
+        let ai_qty = required_qty.to_f64().unwrap_or(0.0);
+        let mrp_shortage = mrp_req.shortage_quantity.to_f64().unwrap_or(0.0);
+
+        // 差异百分比 = |AI - MRP| / max(AI, MRP, 1)
+        if ai_qty <= 0.0 && mrp_shortage <= 0.0 {
+            return Ok(());
+        }
+        let denom = ai_qty.max(mrp_shortage).max(1.0);
+        let diff_pct = ((ai_qty - mrp_shortage).abs() / denom) * 100.0;
+
+        if diff_pct > MRP_RECONCILE_DIFF_THRESHOLD * 100.0 {
+            suggestion.reason = format!(
+                "{} | 与 MRP 差异 {:.0}%，建议人工复核",
+                suggestion.reason, diff_pct
+            );
+        }
+
+        Ok(())
     }
 
     /// ABC 分类分析
@@ -319,7 +395,8 @@ impl AiAnalysisService {
         days: i64,
     ) -> Result<Vec<InventoryTurnover>, AppError> {
         let start_date = Utc::now().date_naive() - Duration::days(days);
-        let transactions = Self::fetch_turnover_transactions(&*self.db, product_id, start_date).await?;
+        let transactions =
+            Self::fetch_turnover_transactions(&*self.db, product_id, start_date).await?;
         let stocks = Self::fetch_turnover_stocks(&*self.db, product_id).await?;
         let outbound_map = Self::aggregate_outbound_by_product(&transactions);
         let stock_map = Self::aggregate_stock_by_product(&stocks);
@@ -572,10 +649,8 @@ impl AiAnalysisService {
         let mut assoc_scores: Vec<(i32, i32, f64, String)> = Vec::new();
         for ((p1, p2), &count) in co_occurrence {
             let support = count as f64 / total;
-            let conf1 = count as f64
-                / product_count.get(p1).copied().unwrap_or(1).max(1) as f64;
-            let _conf2 = count as f64
-                / product_count.get(p2).copied().unwrap_or(1).max(1) as f64;
+            let conf1 = count as f64 / product_count.get(p1).copied().unwrap_or(1).max(1) as f64;
+            let _conf2 = count as f64 / product_count.get(p2).copied().unwrap_or(1).max(1) as f64;
             if support > 0.05 && conf1 > 0.3 {
                 let lift = support
                     / ((product_count.get(p1).unwrap_or(&0).to_f64().unwrap_or(0.0) / total)
@@ -586,7 +661,10 @@ impl AiAnalysisService {
                     lift,
                     format!(
                         "产品 {} 与产品 {} 经常一起被购买 (共现率={:.0}%, 提升度={:.2})",
-                        p1, p2, conf1 * 100.0, lift
+                        p1,
+                        p2,
+                        conf1 * 100.0,
+                        lift
                     ),
                 ));
             }
@@ -622,8 +700,7 @@ impl AiAnalysisService {
         let mut query = SalesOrderItemEntity::find()
             .filter(crate::models::sales_order_item::Column::CreatedAt.gte(start));
         if let Some(end) = end {
-            query =
-                query.filter(crate::models::sales_order_item::Column::CreatedAt.lt(end));
+            query = query.filter(crate::models::sales_order_item::Column::CreatedAt.lt(end));
         }
         Ok(query.all(db).await?)
     }

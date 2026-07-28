@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 业务模式配置主表模型（business_mode_config 表）
 //!
 //! v14 批次 431：多业务模式支持

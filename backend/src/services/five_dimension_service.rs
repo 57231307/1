@@ -145,7 +145,9 @@ impl FiveDimensionService {
                 .unwrap_or_else(|| "未知产品".to_string());
             let stats = stats_map
                 .entry(five_dimension_id.clone())
-                .or_insert_with(|| Self::new_stats_entry(&stock, &product_name, &five_dimension_id));
+                .or_insert_with(|| {
+                    Self::new_stats_entry(&stock, &product_name, &five_dimension_id)
+                });
             Self::update_stats_with_stock(stats, &stock);
         }
         stats_map

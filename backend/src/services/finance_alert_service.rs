@@ -32,9 +32,7 @@ use crate::models::finance_alert_dto::{
 use crate::models::fund_account;
 use crate::models::inventory_stock;
 use crate::models::notification::{NotificationPriority, NotificationType};
-use crate::services::notification_service::{
-    CreateNotificationRequest, NotificationService,
-};
+use crate::services::notification_service::{CreateNotificationRequest, NotificationService};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
@@ -170,7 +168,9 @@ impl FinanceAlertService {
                 let alert_no = format!("FA-{}-{:04}", today.format("%Y%m%d"), created.len() + 1);
                 let active = Self::build_alert_active(&cand, &alert_no, now, triggered_by);
                 let model = active.insert(&txn).await?;
-                let model = self.attach_notification(&txn, model, now, triggered_by).await?;
+                let model = self
+                    .attach_notification(&txn, model, now, triggered_by)
+                    .await?;
                 created.push(model);
             }
         }
@@ -180,12 +180,11 @@ impl FinanceAlertService {
     }
 
     /// 解析扫描类型（None=全部 4 类）
-    fn parse_scan_types(
-        req: &TriggerScanRequest,
-    ) -> Result<Vec<AlertType>, FinanceAlertError> {
+    fn parse_scan_types(req: &TriggerScanRequest) -> Result<Vec<AlertType>, FinanceAlertError> {
         match req.alert_type.as_deref() {
-            Some(t) => Ok(vec![AlertType::parse_str(t)
-                .ok_or_else(|| FinanceAlertError::Validation(format!("非法 alert_type: {}", t)))?]),
+            Some(t) => Ok(vec![AlertType::parse_str(t).ok_or_else(|| {
+                FinanceAlertError::Validation(format!("非法 alert_type: {}", t))
+            })?]),
             None => Ok(vec![
                 AlertType::ArOverdue,
                 AlertType::InventoryBacklog,
@@ -205,10 +204,10 @@ impl FinanceAlertService {
                 .filter(finance_alert::Column::AlertType.eq(cand.alert_type.as_str()))
                 .filter(finance_alert::Column::TargetModule.eq(module))
                 .filter(finance_alert::Column::TargetId.eq(target_id))
-                .filter(
-                    finance_alert::Column::Status
-                        .is_in([AlertStatus::Active.as_str(), AlertStatus::Acknowledged.as_str()]),
-                )
+                .filter(finance_alert::Column::Status.is_in([
+                    AlertStatus::Active.as_str(),
+                    AlertStatus::Acknowledged.as_str(),
+                ]))
                 .one(txn)
                 .await?;
             Ok(existing.is_some())
@@ -274,6 +273,7 @@ impl FinanceAlertService {
             action_url: Some(format!("/finance/alerts/{}", model.id)),
             sender_id: None,
             sender_name: Some("系统财务预警".to_string()),
+            dedup_key: None,
         };
         let notif_service = NotificationService::new(self.db.clone());
         match notif_service.create_notification(notif_req).await {
@@ -320,9 +320,11 @@ impl FinanceAlertService {
         for inv in invoices {
             let overdue_days = (today - inv.due_date).num_days();
             let customer_id = inv.customer_id as i64;
-            let entry = customer_map
-                .entry(customer_id)
-                .or_insert((Decimal::ZERO, 0, inv.customer_name.clone()));
+            let entry = customer_map.entry(customer_id).or_insert((
+                Decimal::ZERO,
+                0,
+                inv.customer_name.clone(),
+            ));
             entry.0 += inv.unpaid_amount;
             if overdue_days > entry.1 {
                 entry.1 = overdue_days;
@@ -439,9 +441,7 @@ impl FinanceAlertService {
     ) -> Result<Vec<AlertCandidate>, FinanceAlertError> {
         let executions = budget_execution::Entity::find()
             .filter(budget_execution::Column::ExecutionType.eq("使用"))
-            .filter(
-                budget_execution::Column::Amount.gt(budget_overrun_amount_threshold()),
-            )
+            .filter(budget_execution::Column::Amount.gt(budget_overrun_amount_threshold()))
             .all(txn)
             .await?;
 
@@ -648,10 +648,7 @@ impl FinanceAlertService {
         }
         if let Some(v) = query.status {
             if !["active", "acknowledged", "resolved", "expired"].contains(&v.as_str()) {
-                return Err(FinanceAlertError::Validation(format!(
-                    "非法 status: {}",
-                    v
-                )));
+                return Err(FinanceAlertError::Validation(format!("非法 status: {}", v)));
             }
             select = select.filter(finance_alert::Column::Status.eq(v));
         }

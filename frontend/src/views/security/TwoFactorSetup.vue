@@ -11,9 +11,15 @@
     <div class="page-header">
       <h1 class="page-title">{{ t('security.twoFactorSetup.title') }}</h1>
       <el-breadcrumb separator="/">
-        <el-breadcrumb-item :to="{ path: '/' }">{{ t('security.twoFactorSetup.breadcrumb.home') }}</el-breadcrumb-item>
-        <el-breadcrumb-item>{{ t('security.twoFactorSetup.breadcrumb.system') }}</el-breadcrumb-item>
-        <el-breadcrumb-item>{{ t('security.twoFactorSetup.breadcrumb.current') }}</el-breadcrumb-item>
+        <el-breadcrumb-item :to="{ path: '/' }">{{
+          t('security.twoFactorSetup.breadcrumb.home')
+        }}</el-breadcrumb-item>
+        <el-breadcrumb-item>{{
+          t('security.twoFactorSetup.breadcrumb.system')
+        }}</el-breadcrumb-item>
+        <el-breadcrumb-item>{{
+          t('security.twoFactorSetup.breadcrumb.current')
+        }}</el-breadcrumb-item>
       </el-breadcrumb>
     </div>
 
@@ -35,10 +41,7 @@
           :username="tfa.username"
           @copy-secret="tfaProc.handleCopySecret(tfa)"
         />
-        <TwoFactorAuthStep3
-          v-show="tfa.currentStep === 2"
-          ref="tfaStep3Ref"
-        />
+        <TwoFactorAuthStep3 v-show="tfa.currentStep === 2" ref="tfaStep3Ref" />
         <TwoFactorAuthStep4
           v-show="tfa.currentStep === 3"
           :recovery-codes="tfa.recoveryCodes"
@@ -56,12 +59,7 @@
           {{ t('security.twoFactorSetup.button.next') }}
           <el-icon><ArrowRight /></el-icon>
         </el-button>
-        <el-button
-          v-else
-          type="primary"
-          :loading="tfa.enableLoading"
-          @click="onVerify"
-        >
+        <el-button v-else type="primary" :loading="tfa.enableLoading" @click="onVerify">
           {{ t('security.twoFactorSetup.button.verifyAndEnable') }}
           <el-icon><Check /></el-icon>
         </el-button>
@@ -78,32 +76,32 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ArrowLeft, ArrowRight, Check } from '@element-plus/icons-vue'
-import { useTfa } from './two-factor/composables/useTfa'
-import { useTfaProc, type TwoFactorAuthStep3Instance } from './two-factor/composables/useTfaProc'
-import TwoFactorAuthStepBar from './two-factor/components/TwoFactorAuthStepBar.vue'
-import TwoFactorAuthStep1 from './two-factor/components/TwoFactorAuthStep1.vue'
-import TwoFactorAuthStep2 from './two-factor/components/TwoFactorAuthStep2.vue'
-import TwoFactorAuthStep3 from './two-factor/components/TwoFactorAuthStep3.vue'
-import TwoFactorAuthStep4 from './two-factor/components/TwoFactorAuthStep4.vue'
+import { onMounted, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ArrowLeft, ArrowRight, Check } from '@element-plus/icons-vue';
+import { useTfa } from './two-factor/composables/useTfa';
+import { useTfaProc, type TwoFactorAuthStep3Instance } from './two-factor/composables/useTfaProc';
+import TwoFactorAuthStepBar from './two-factor/components/TwoFactorAuthStepBar.vue';
+import TwoFactorAuthStep1 from './two-factor/components/TwoFactorAuthStep1.vue';
+import TwoFactorAuthStep2 from './two-factor/components/TwoFactorAuthStep2.vue';
+import TwoFactorAuthStep3 from './two-factor/components/TwoFactorAuthStep3.vue';
+import TwoFactorAuthStep4 from './two-factor/components/TwoFactorAuthStep4.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 业务状态
-const tfa = useTfa()
-const tfaProc = useTfaProc()
+const tfa = useTfa();
+const tfaProc = useTfaProc();
 
 // TwoFactorAuthStep3 子组件 ref（用于调其 validate() 和 setError() 方法）
-const tfaStep3Ref = ref<TwoFactorAuthStep3Instance | null>(null)
+const tfaStep3Ref = ref<TwoFactorAuthStep3Instance | null>(null);
 
 // Step 3 验证事件
-const onVerify = () => tfaProc.handleVerifyAndEnable(tfa, tfaStep3Ref.value)
+const onVerify = () => tfaProc.handleVerifyAndEnable(tfa, tfaStep3Ref.value);
 
 onMounted(() => {
-  tfaProc.initOnMount()
-})
+  tfaProc.initOnMount();
+});
 </script>
 
 <style scoped>

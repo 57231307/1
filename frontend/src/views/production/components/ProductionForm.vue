@@ -97,81 +97,81 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
-import { useI18n } from 'vue-i18n'
-import type { FormInstance, FormRules } from 'element-plus'
+import { ref, watch, nextTick } from 'vue';
+import { useI18n } from 'vue-i18n';
+import type { FormInstance, FormRules } from 'element-plus';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 订单表单字段类型
 interface OrderForm {
-  id?: number | undefined
-  order_no?: string
-  product_id?: number | undefined
-  planned_quantity?: number | undefined
-  scheduled_start_date?: string
-  scheduled_end_date?: string
-  priority?: number
-  work_center_id?: number | undefined
-  remark?: string
-  status?: string
+  id?: number | undefined;
+  order_no?: string;
+  product_id?: number | undefined;
+  planned_quantity?: number | undefined;
+  scheduled_start_date?: string;
+  scheduled_end_date?: string;
+  priority?: number;
+  work_center_id?: number | undefined;
+  remark?: string;
+  status?: string;
 }
 
 const props = defineProps<{
-  visible: boolean
-  form: OrderForm
-  loading: boolean
-  rules: FormRules
-}>()
+  visible: boolean;
+  form: OrderForm;
+  loading: boolean;
+  rules: FormRules;
+}>();
 
 const emit = defineEmits<{
-  'update:visible': [v: boolean]
-  submit: []
-  'update:form': [form: OrderForm]
-}>()
+  'update:visible': [v: boolean];
+  submit: [];
+  'update:form': [form: OrderForm];
+}>();
 
-const formRef = ref<FormInstance>()
+const formRef = ref<FormInstance>();
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
-const localForm = ref<OrderForm>({ ...props.form })
+const localForm = ref<OrderForm>({ ...props.form });
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
-let syncing = false
+let syncing = false;
 
 // 外部 prop 变化时同步到 local
 watch(
   () => props.form,
   newForm => {
-    if (syncing) return
-    syncing = true
-    localForm.value = { ...newForm }
+    if (syncing) return;
+    syncing = true;
+    localForm.value = { ...newForm };
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
   { deep: true }
-)
+);
 
 // 本地变化时通知父组件
 watch(
   localForm,
   newForm => {
-    if (syncing) return
-    syncing = true
-    emit('update:form', { ...newForm })
+    if (syncing) return;
+    syncing = true;
+    emit('update:form', { ...newForm });
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
   { deep: true }
-)
+);
 
 /** 点击确定：先校验再发 submit */
 const onSubmit = async () => {
-  if (!formRef.value) return
+  if (!formRef.value) return;
   await formRef.value.validate(async (valid: boolean) => {
-    if (!valid) return
-    emit('submit')
-  })
-}
+    if (!valid) return;
+    emit('submit');
+  });
+};
 </script>

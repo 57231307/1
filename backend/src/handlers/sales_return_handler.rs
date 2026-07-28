@@ -228,7 +228,13 @@ pub async fn update_return_item(
     let service = SalesReturnService::new(state.db.clone());
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     let item = service
-        .update_return_item(item_id, req.quantity, req.unit_price, req.reason, auth.user_id)
+        .update_return_item(
+            item_id,
+            req.quantity,
+            req.unit_price,
+            req.reason,
+            auth.user_id,
+        )
         .await?;
     Ok(Json(ApiResponse::success(item)))
 }

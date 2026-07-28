@@ -32,10 +32,10 @@ use std::str::FromStr;
 use std::sync::Arc;
 use thiserror::Error;
 
-use crate::models::quality_8d_report::{self, ActiveModel, Entity};
 use crate::models::quality_8d_dto::{
     AdvanceStepPayload, CloseEightDRequest, ListEightDQuery, StartEightDRequest,
 };
+use crate::models::quality_8d_report::{self, ActiveModel, Entity};
 use crate::models::quality_issue;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -277,7 +277,12 @@ impl QualityEightDService {
                 active.d1_team_members = Set(Some(team_members.clone()));
                 Some(EightDStatus::D1Team)
             }
-            (EightDStatus::D1Team, AdvanceStepPayload::D2Problem { problem_description }) => {
+            (
+                EightDStatus::D1Team,
+                AdvanceStepPayload::D2Problem {
+                    problem_description,
+                },
+            ) => {
                 active.d2_date = Set(Some(now));
                 active.d2_problem_description = Set(Some(problem_description.clone()));
                 Some(EightDStatus::D2Problem)
@@ -299,21 +304,40 @@ impl QualityEightDService {
         payload: &AdvanceStepPayload,
     ) -> Option<EightDStatus> {
         match (current, payload) {
-            (EightDStatus::D3Interim, AdvanceStepPayload::D4RootCause { method, detail, summary }) => {
+            (
+                EightDStatus::D3Interim,
+                AdvanceStepPayload::D4RootCause {
+                    method,
+                    detail,
+                    summary,
+                },
+            ) => {
                 active.d4_date = Set(Some(now));
                 active.d4_root_cause_method = Set(Some(method.as_str().to_string()));
                 active.d4_root_cause_detail = Set(Some(detail.clone()));
                 active.d4_root_cause_summary = Set(Some(summary.clone()));
                 Some(EightDStatus::D4RootCause)
             }
-            (EightDStatus::D4RootCause, AdvanceStepPayload::D5Permanent { permanent_action, action_owner, due_date }) => {
+            (
+                EightDStatus::D4RootCause,
+                AdvanceStepPayload::D5Permanent {
+                    permanent_action,
+                    action_owner,
+                    due_date,
+                },
+            ) => {
                 active.d5_date = Set(Some(now));
                 active.d5_permanent_action = Set(Some(permanent_action.clone()));
                 active.d5_action_owner = Set(Some(action_owner.clone()));
                 active.d5_due_date = Set(Some(*due_date));
                 Some(EightDStatus::D5Permanent)
             }
-            (EightDStatus::D5Permanent, AdvanceStepPayload::D6Verify { verification_result }) => {
+            (
+                EightDStatus::D5Permanent,
+                AdvanceStepPayload::D6Verify {
+                    verification_result,
+                },
+            ) => {
                 active.d6_date = Set(Some(now));
                 active.d6_verification_result = Set(Some(verification_result.clone()));
                 // D6 验证通过即视为 D5 永久措施已完成

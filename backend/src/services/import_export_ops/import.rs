@@ -142,6 +142,7 @@ impl ImportExportService {
             supplier_id: Set(None),
             is_batch_managed: Set(None),
             batch_level: Set(None),
+            ..Default::default()
         };
 
         active_model.insert(&*self.db).await?;

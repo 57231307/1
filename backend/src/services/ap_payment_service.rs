@@ -319,18 +319,20 @@ impl ApPaymentService {
     ) -> Result<std::collections::HashMap<i32, ap_invoice::Model>, AppError> {
         // v16 批次 44 修复：循环外批量查询并锁定所有关联的应付单
         let invoice_ids: Vec<i32> = items.iter().map(|item| item.invoice_id).collect();
-        Ok(if total_apply_amount <= Decimal::ZERO || invoice_ids.is_empty() {
-            std::collections::HashMap::new()
-        } else {
-            ap_invoice::Entity::find()
-                .filter(ap_invoice::Column::Id.is_in(invoice_ids))
-                .lock_exclusive()
-                .all(txn)
-                .await?
-                .into_iter()
-                .map(|inv| (inv.id, inv))
-                .collect()
-        })
+        Ok(
+            if total_apply_amount <= Decimal::ZERO || invoice_ids.is_empty() {
+                std::collections::HashMap::new()
+            } else {
+                ap_invoice::Entity::find()
+                    .filter(ap_invoice::Column::Id.is_in(invoice_ids))
+                    .lock_exclusive()
+                    .all(txn)
+                    .await?
+                    .into_iter()
+                    .map(|inv| (inv.id, inv))
+                    .collect()
+            },
+        )
     }
 
     /// 按比例分摊付款金额到单个应付单并更新状态（带审计），完全结清时收集到 fully_paid。
@@ -358,7 +360,10 @@ impl ApPaymentService {
                 .paid_amount
                 .checked_add(paid_amount)
                 .unwrap_or(inv.paid_amount);
-            inv.unpaid_amount = inv.amount.checked_sub(inv.paid_amount).unwrap_or(inv.amount);
+            inv.unpaid_amount = inv
+                .amount
+                .checked_sub(inv.paid_amount)
+                .unwrap_or(inv.amount);
 
             // 更新应付状态
             let became_fully_paid = inv.unpaid_amount <= Decimal::ZERO;
@@ -389,9 +394,14 @@ impl ApPaymentService {
     /// 确认付款后生成付款凭证（非阻断，失败仅 warn）。
     async fn generate_payment_voucher(&self, payment: &ap_payment::Model, user_id: i32) {
         let voucher_req = Self::build_payment_voucher_request(payment);
-        let voucher_service = crate::services::voucher_service::VoucherService::new(self.db.clone());
+        let voucher_service =
+            crate::services::voucher_service::VoucherService::new(self.db.clone());
         if let Err(e) = voucher_service.create_and_post(voucher_req, user_id).await {
-            tracing::warn!("付款单 {} 确认成功，但生成付款凭证失败：{}", payment.payment_no, e);
+            tracing::warn!(
+                "付款单 {} 确认成功，但生成付款凭证失败：{}",
+                payment.payment_no,
+                e
+            );
         }
     }
 
@@ -416,7 +426,12 @@ impl ApPaymentService {
             color_no: None,
             items: vec![
                 Self::build_voucher_debit_item(payment_amount, &payment_no, payment.supplier_id),
-                Self::build_voucher_credit_item(payment_amount, &payment_no, credit_code, credit_name),
+                Self::build_voucher_credit_item(
+                    payment_amount,
+                    &payment_no,
+                    credit_code,
+                    credit_name,
+                ),
             ],
         }
     }
@@ -501,7 +516,8 @@ impl ApPaymentService {
     /// 预算核销（非阻断，失败仅 warn）。
     async fn write_off_payment_budget(&self, payment: &ap_payment::Model, user_id: i32) {
         let department_id = self.resolve_budget_department_id(payment).await;
-        self.execute_budget_write_off(payment, department_id, user_id).await;
+        self.execute_budget_write_off(payment, department_id, user_id)
+            .await;
     }
 
     /// 解析付款关联的预算部门 ID（付款申请→应付单→采购入库单→部门）。
@@ -552,8 +568,14 @@ impl ApPaymentService {
         department_id: i32,
         user_id: i32,
     ) {
-        let budget_service = crate::services::budget_management_service::BudgetManagementService::new(self.db.clone());
-        match budget_service.get_available_plan_by_department(department_id).await {
+        let budget_service =
+            crate::services::budget_management_service::BudgetManagementService::new(
+                self.db.clone(),
+            );
+        match budget_service
+            .get_available_plan_by_department(department_id)
+            .await
+        {
             Ok(Some(plan)) => match budget_service
                 .write_off_budget(
                     department_id,
@@ -567,17 +589,22 @@ impl ApPaymentService {
             {
                 Ok(_) => tracing::info!(
                     "付款单 {} 预算核销成功，部门ID={}, 方案ID={}, 金额={}",
-                    payment.payment_no, department_id, plan.id, payment.payment_amount
+                    payment.payment_no,
+                    department_id,
+                    plan.id,
+                    payment.payment_amount
                 ),
                 Err(e) => tracing::warn!("付款单 {} 预算核销失败：{}", payment.payment_no, e),
             },
             Ok(None) => tracing::warn!(
                 "付款单 {} 未找到部门 {} 的预算方案，跳过预算核销",
-                payment.payment_no, department_id
+                payment.payment_no,
+                department_id
             ),
             Err(e) => tracing::warn!(
                 "付款单 {} 查询预算方案失败：{}，跳过预算核销",
-                payment.payment_no, e
+                payment.payment_no,
+                e
             ),
         }
     }
@@ -610,7 +637,8 @@ impl ApPaymentService {
         if let Some(ctx) = data_scope {
             if !check_resource_owner(ctx, Some(payment.created_by), None) {
                 return Err(AppError::permission_denied(format!(
-                    "无权访问付款单 {}（数据范围限制）", id
+                    "无权访问付款单 {}（数据范围限制）",
+                    id
                 )));
             }
         }
@@ -678,7 +706,10 @@ impl ApPaymentService {
 
         // 查询已审批的付款申请
         let requests = query
-            .filter(ap_payment_request::Column::ApprovalStatus.eq(crate::models::status::common::STATUS_APPROVED))
+            .filter(
+                ap_payment_request::Column::ApprovalStatus
+                    .eq(crate::models::status::common::STATUS_APPROVED),
+            )
             .filter(ap_payment_request::Column::ExpectedPaymentDate.between(start_date, end_date))
             .order_by(ap_payment_request::Column::ExpectedPaymentDate, Order::Asc)
             .all(&*self.db)

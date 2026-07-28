@@ -15,9 +15,7 @@ use axum::extract::{Query, State};
 use axum::Json;
 use serde::{Deserialize, Serialize};
 
-use crate::search::{
-    indices, CustomerDoc, DocType, ProductDoc, SalesOrderDoc, SearchQuery,
-};
+use crate::search::{indices, CustomerDoc, DocType, ProductDoc, SalesOrderDoc, SearchQuery};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -165,11 +163,7 @@ pub async fn search_products(
 pub async fn list_doc_types(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
-    let types = vec![
-        DocType::SalesOrder,
-        DocType::Customer,
-        DocType::Product,
-    ];
+    let types = vec![DocType::SalesOrder, DocType::Customer, DocType::Product];
     let mut result: Vec<serde_json::Value> = Vec::with_capacity(types.len());
     for t in &types {
         let count = state.search_client.doc_count(t.index()).await;

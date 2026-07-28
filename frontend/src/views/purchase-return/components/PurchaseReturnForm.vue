@@ -11,10 +11,19 @@
     :aria-label="isEdit ? t('purchaseReturn.form.aria.edit') : t('purchaseReturn.form.aria.create')"
     @update:model-value="onVisibleChange"
   >
-    <el-form ref="formRef" :model="localFormData" :rules="formRules" label-width="100px" :aria-label="t('purchaseReturn.form.aria.form')">
+    <el-form
+      ref="formRef"
+      :model="localFormData"
+      :rules="formRules"
+      label-width="100px"
+      :aria-label="t('purchaseReturn.form.aria.form')"
+    >
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item :label="t('purchaseReturn.form.label.purchaseOrder')" prop="purchaseOrderId">
+          <el-form-item
+            :label="t('purchaseReturn.form.label.purchaseOrder')"
+            prop="purchaseOrderId"
+          >
             <el-select
               v-model="localFormData.purchaseOrderId"
               :placeholder="t('purchaseReturn.form.placeholder.purchaseOrder')"
@@ -63,8 +72,16 @@
       <el-button type="primary" size="small" class="mb-10" @click="onAddItem">
         {{ t('purchaseReturn.form.button.addItem') }}
       </el-button>
-      <el-table :data="localFormData.items" border :aria-label="t('purchaseReturn.form.aria.itemsTable')">
-        <el-table-column prop="productName" :label="t('purchaseReturn.form.column.productName')" min-width="150">
+      <el-table
+        :data="localFormData.items"
+        border
+        :aria-label="t('purchaseReturn.form.aria.itemsTable')"
+      >
+        <el-table-column
+          prop="productName"
+          :label="t('purchaseReturn.form.column.productName')"
+          min-width="150"
+        >
           <template #default="{ row }">
             <el-select
               v-model="row.productId"
@@ -81,12 +98,20 @@
             </el-select>
           </template>
         </el-table-column>
-        <el-table-column prop="quantity" :label="t('purchaseReturn.form.column.quantity')" width="120">
+        <el-table-column
+          prop="quantity"
+          :label="t('purchaseReturn.form.column.quantity')"
+          width="120"
+        >
           <template #default="{ row }">
             <el-input-number v-model="row.quantity" :min="1" size="small" />
           </template>
         </el-table-column>
-        <el-table-column prop="unitPrice" :label="t('purchaseReturn.form.column.unitPrice')" width="120">
+        <el-table-column
+          prop="unitPrice"
+          :label="t('purchaseReturn.form.column.unitPrice')"
+          width="120"
+        >
           <template #default="{ row }">
             <el-input-number v-model="row.unitPrice" :min="0" :precision="2" size="small" />
           </template>
@@ -96,172 +121,180 @@
             <span>¥{{ (row.quantity * row.unitPrice).toFixed(2) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="reason" :label="t('purchaseReturn.form.column.reason')" min-width="150">
+        <el-table-column
+          prop="reason"
+          :label="t('purchaseReturn.form.column.reason')"
+          min-width="150"
+        >
           <template #default="{ row }">
             <el-input v-model="row.reason" size="small" />
           </template>
         </el-table-column>
         <el-table-column :label="t('purchaseReturn.form.column.action')" width="80">
           <template #default="{ $index }">
-            <el-button size="small" type="danger" @click="onRemoveItem($index)">{{ t('purchaseReturn.form.button.delete') }}</el-button>
+            <el-button size="small" type="danger" @click="onRemoveItem($index)">{{
+              t('purchaseReturn.form.button.delete')
+            }}</el-button>
           </template>
         </el-table-column>
       </el-table>
     </el-form>
     <template #footer>
       <el-button @click="onCancel">{{ t('purchaseReturn.form.button.cancel') }}</el-button>
-      <el-button type="primary" :loading="submitting" @click="onSubmit">{{ t('purchaseReturn.form.button.submit') }}</el-button>
+      <el-button type="primary" :loading="submitting" @click="onSubmit">{{
+        t('purchaseReturn.form.button.submit')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { deepClone } from '@/utils'
-import { ref, watch, nextTick } from 'vue'
-import { useI18n } from 'vue-i18n'
-import type { FormInstance } from 'element-plus'
-import type { PurchaseReturnItem } from '@/api/purchase-return'
+import { deepClone } from '@/utils';
+import { ref, watch, nextTick } from 'vue';
+import { useI18n } from 'vue-i18n';
+import type { FormInstance } from 'element-plus';
+import type { PurchaseReturnItem } from '@/api/purchase-return';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 采购订单数据结构
 interface PurchaseOrder {
-  id: number
-  order_no: string
+  id: number;
+  order_no: string;
 }
 
 // 产品数据结构
 interface Product {
-  id: number
-  name: string
-  price: number
+  id: number;
+  name: string;
+  price: number;
 }
 
 // 表单数据类型（所有字段可选，兼容 Partial<PurchaseReturn>）
 interface FormDataType {
-  id?: number | undefined
-  purchaseOrderId?: number | undefined
-  returnDate?: string
-  reason?: string
-  remarks?: string
-  items?: Partial<PurchaseReturnItem>[]
+  id?: number | undefined;
+  purchaseOrderId?: number | undefined;
+  returnDate?: string;
+  reason?: string;
+  remarks?: string;
+  items?: Partial<PurchaseReturnItem>[];
 }
 
 // 表单校验规则类型
 interface FormRules {
-  purchaseOrderId: Array<{ required: boolean; message: string; trigger: string }>
-  returnDate: Array<{ required: boolean; message: string; trigger: string }>
-  reason: Array<{ required: boolean; message: string; trigger: string }>
+  purchaseOrderId: Array<{ required: boolean; message: string; trigger: string }>;
+  returnDate: Array<{ required: boolean; message: string; trigger: string }>;
+  reason: Array<{ required: boolean; message: string; trigger: string }>;
 }
 
 const props = defineProps<{
   // 对话框可见性
-  visible: boolean
+  visible: boolean;
   // 是否编辑模式
-  isEdit: boolean
+  isEdit: boolean;
   // 表单数据（由父组件管理，子组件通过 emit('update:formData') 回写）
-  formData: FormDataType
+  formData: FormDataType;
   // 表单校验规则
-  formRules: FormRules
+  formRules: FormRules;
   // 采购订单列表
-  purchaseOrders: PurchaseOrder[]
+  purchaseOrders: PurchaseOrder[];
   // 产品列表
-  products: Product[]
+  products: Product[];
   // 提交中
-  submitting?: boolean
-}>()
+  submitting?: boolean;
+}>();
 
 // 定义事件
 const emit = defineEmits<{
   // 关闭
-  (e: 'update:visible', value: boolean): void
+  (e: 'update:visible', value: boolean): void;
   // 提交
-  (e: 'submit'): void
+  (e: 'submit'): void;
   // 采购订单变化
-  (e: 'order-change', orderId: number): void
+  (e: 'order-change', orderId: number): void;
   // 产品变化
-  (e: 'product-change', row: Partial<PurchaseReturnItem>, productId: number): void
+  (e: 'product-change', row: Partial<PurchaseReturnItem>, productId: number): void;
   // 添加明细
-  (e: 'add-item'): void
+  (e: 'add-item'): void;
   // 删除明细
-  (e: 'remove-item', index: number): void
+  (e: 'remove-item', index: number): void;
   // 整体回写表单数据（父组件监听此事件并 Object.assign 到自己的 formData）
-  (e: 'update:formData', formData: FormDataType): void
-}>()
+  (e: 'update:formData', formData: FormDataType): void;
+}>();
 
 // 表单引用
-const formRef = ref<FormInstance>()
+const formRef = ref<FormInstance>();
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
 // 注意：表单内有 items 数组，需要深拷贝以保证本地修改与父组件解耦
-const localFormData = ref<FormDataType>(deepClone(props.formData))
+const localFormData = ref<FormDataType>(deepClone(props.formData));
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
-let syncing = false
+let syncing = false;
 
 // 外部 prop 变化时同步到 local（如父组件编辑/新建时填充数据）
 watch(
   () => props.formData,
-  (newData) => {
-    if (syncing) return
-    syncing = true
-    localFormData.value = deepClone(newData)
+  newData => {
+    if (syncing) return;
+    syncing = true;
+    localFormData.value = deepClone(newData);
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
-  { deep: true },
-)
+  { deep: true }
+);
 
 // 本地变化时通知父组件（用户输入）
 watch(
   localFormData,
-  (newData) => {
-    if (syncing) return
-    syncing = true
-    emit('update:formData', deepClone(newData))
+  newData => {
+    if (syncing) return;
+    syncing = true;
+    emit('update:formData', deepClone(newData));
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
-  { deep: true },
-)
+  { deep: true }
+);
 
 /** 关闭对话框 */
 const onVisibleChange = (v: boolean) => {
-  emit('update:visible', v)
-}
+  emit('update:visible', v);
+};
 
 /** 取消 */
 const onCancel = () => {
-  emit('update:visible', false)
-}
+  emit('update:visible', false);
+};
 
 /** 提交 */
 const onSubmit = async () => {
-  await formRef.value?.validate()
-  emit('submit')
-}
+  await formRef.value?.validate();
+  emit('submit');
+};
 
 /** 采购订单变化 */
 const onOrderChange = (orderId: number) => {
-  emit('order-change', orderId)
-}
+  emit('order-change', orderId);
+};
 
 /** 产品变化 */
 const onProductChange = (row: Partial<PurchaseReturnItem>, productId: number) => {
-  emit('product-change', row, productId)
-}
+  emit('product-change', row, productId);
+};
 
 /** 添加明细 */
 const onAddItem = () => {
-  emit('add-item')
-}
+  emit('add-item');
+};
 
 /** 删除明细 */
 const onRemoveItem = (index: number) => {
-  emit('remove-item', index)
-}
+  emit('remove-item', index);
+};
 </script>
 
 <style scoped>

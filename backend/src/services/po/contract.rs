@@ -358,10 +358,7 @@ impl PurchaseOrderService {
         {
             Ok(records) => {
                 if records.is_empty() {
-                    tracing::info!(
-                        order_id = order_id,
-                        "采购订单无预算占用记录，无需释放预算"
-                    );
+                    tracing::info!(order_id = order_id, "采购订单无预算占用记录，无需释放预算");
                 }
                 Some(records)
             }

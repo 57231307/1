@@ -34,7 +34,10 @@ impl ArReconciliationService {
             .await?
             .ok_or_else(|| AppError::not_found("对账单不存在"))?;
 
-        let status = model.reconciliation_status.as_deref().unwrap_or(ar_status::RECONCILIATION_DRAFT);
+        let status = model
+            .reconciliation_status
+            .as_deref()
+            .unwrap_or(ar_status::RECONCILIATION_DRAFT);
         if status == ar_status::RECONCILIATION_CONFIRMED {
             return Err(AppError::business("对账单已确认，不可重复确认".to_string()));
         }
@@ -45,7 +48,8 @@ impl ArReconciliationService {
         }
 
         let mut active_model: ActiveModel = model.into();
-        active_model.reconciliation_status = Set(Some(ar_status::RECONCILIATION_CONFIRMED.to_string()));
+        active_model.reconciliation_status =
+            Set(Some(ar_status::RECONCILIATION_CONFIRMED.to_string()));
         active_model.confirmed_by_customer = Set(Some(true));
         active_model.confirmed_by = Set(Some(user_id));
         active_model.confirmed_at = Set(Some(Utc::now()));
@@ -84,7 +88,10 @@ impl ArReconciliationService {
             .await?
             .ok_or_else(|| AppError::not_found("对账单不存在"))?;
 
-        let status = model.reconciliation_status.as_deref().unwrap_or(ar_status::RECONCILIATION_DRAFT);
+        let status = model
+            .reconciliation_status
+            .as_deref()
+            .unwrap_or(ar_status::RECONCILIATION_DRAFT);
         if status == ar_status::RECONCILIATION_CONFIRMED {
             return Err(AppError::business("对账单已确认，不可提出争议".to_string()));
         }
@@ -93,7 +100,8 @@ impl ArReconciliationService {
         }
 
         let mut active_model: ActiveModel = model.into();
-        active_model.reconciliation_status = Set(Some(ar_status::RECONCILIATION_DISPUTED.to_string()));
+        active_model.reconciliation_status =
+            Set(Some(ar_status::RECONCILIATION_DISPUTED.to_string()));
         active_model.dispute_reason = Set(Some(reason.clone()));
         active_model.updated_at = Set(Utc::now());
 

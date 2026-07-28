@@ -27,14 +27,14 @@ use tokio::sync::Mutex;
 /// 每个权限资源均可配置这 11 个操作权限码，
 /// "*" 为通配符，表示拥有该资源的全部操作权限。
 pub const PERMISSION_ACTIONS: &[&str] = &[
-    "read",   // 读取/查询
-    "create", // 新建/创建
-    "update", // 修改/更新
-    "delete", // 删除
-    "print",  // 打印
-    "export", // 导出
-    "import", // 导入
-    "audit",  // 审核
+    "read",    // 读取/查询
+    "create",  // 新建/创建
+    "update",  // 修改/更新
+    "delete",  // 删除
+    "print",   // 打印
+    "export",  // 导出
+    "import",  // 导入
+    "audit",   // 审核
     "approve", // 审批通过
     "reject",  // 审批驳回
     "*",       // 通配符（全部操作）
@@ -46,57 +46,147 @@ pub const PERMISSION_ACTIONS: &[&str] = &[
 /// IAM/产品目录/库存/销售/采购/生产/质量/财务/CRM/物流/人力/安全/IT/系统/分析/通知/集成
 pub const PERMISSION_RESOURCES: &[&str] = &[
     // ===== IAM 与组织域 =====
-    "users", "roles", "departments", "permissions", "field-permissions",
+    "users",
+    "roles",
+    "departments",
+    "permissions",
+    "field-permissions",
     // ===== 产品目录域 =====
-    "products", "categories", "warehouses", "boms",
-    "chemicals", "chemical-categories", "chemical-lots", "chemical-requisitions",
+    "products",
+    "categories",
+    "warehouses",
+    "boms",
+    "chemicals",
+    "chemical-categories",
+    "chemical-lots",
+    "chemical-requisitions",
     // ===== 库存仓储域 =====
-    "inventory", "stock", "piece-split", "transfers", "adjustments",
-    "reservations", "counts", "batches", "stock-alerts",
+    "inventory",
+    "stock",
+    "piece-split",
+    "transfers",
+    "adjustments",
+    "reservations",
+    "counts",
+    "batches",
+    "stock-alerts",
     // ===== 销售域 =====
-    "orders", "fabric-orders", "sales-contracts", "sales-prices", "sales-returns",
-    "quotations", "custom-orders", "color-cards", "color-prices",
+    "orders",
+    "fabric-orders",
+    "sales-contracts",
+    "sales-prices",
+    "sales-returns",
+    "quotations",
+    "custom-orders",
+    "color-cards",
+    "color-prices",
     // ===== 采购域 =====
-    "purchase-orders", "purchase-receipts", "purchase-returns", "purchase-contracts",
-    "purchase-prices", "suppliers", "supplier-evaluations",
+    "purchase-orders",
+    "purchase-receipts",
+    "purchase-returns",
+    "purchase-contracts",
+    "purchase-prices",
+    "suppliers",
+    "supplier-evaluations",
     // ===== 生产域（面料行业深化）=====
-    "production-orders", "dye-batches", "dye-recipes", "dye-batch-lifecycle-logs",
-    "dye-batch-state-rules", "dye-batch-reworks", "dye-batch-operations",
-    "greige-fabrics", "lab-dip", "production-recipes", "process-routes", "flow-cards",
-    "outsourcing-orders", "outsourcing-receipts", "outsourcing-vouchers",
-    "business-modes", "business-mode-links",
-    "mrp", "mrp-history", "capacity", "scheduling", "material-shortage",
+    "production-orders",
+    "dye-batches",
+    "dye-recipes",
+    "dye-batch-lifecycle-logs",
+    "dye-batch-state-rules",
+    "dye-batch-reworks",
+    "dye-batch-operations",
+    "greige-fabrics",
+    "lab-dip",
+    "production-recipes",
+    "process-routes",
+    "flow-cards",
+    "outsourcing-orders",
+    "outsourcing-receipts",
+    "outsourcing-vouchers",
+    "business-modes",
+    "business-mode-links",
+    "mrp",
+    "mrp-history",
+    "capacity",
+    "scheduling",
+    "material-shortage",
     // ===== 质量域 =====
-    "quality-inspections", "quality-issues", "quality-standards",
-    "fabric-inspections", "fabric-defects",
+    "quality-inspections",
+    "quality-issues",
+    "quality-standards",
+    "fabric-inspections",
+    "fabric-defects",
     // ===== 财务域 =====
-    "vouchers", "subjects", "fixed-assets", "budgets", "cost-collections",
-    "ar", "ap", "gl", "financial-analysis", "fund-management", "fund-transfers",
-    "currencies", "exchange-rates", "ar-reconciliations", "accounting-periods",
-    "wages", "wage-rates", "wage-records",
+    "vouchers",
+    "subjects",
+    "fixed-assets",
+    "budgets",
+    "cost-collections",
+    "ar",
+    "ap",
+    "gl",
+    "financial-analysis",
+    "fund-management",
+    "fund-transfers",
+    "currencies",
+    "exchange-rates",
+    "ar-reconciliations",
+    "accounting-periods",
+    "wages",
+    "wage-rates",
+    "wage-records",
     // ===== 能耗域 =====
-    "energy-meters", "energy-consumptions", "energy-rules", "energy-allocations",
+    "energy-meters",
+    "energy-consumptions",
+    "energy-rules",
+    "energy-allocations",
     // ===== CRM 域 =====
-    "crm-leads", "crm-opportunities", "crm-customers", "customers", "customer-credits",
+    "crm-leads",
+    "crm-opportunities",
+    "crm-customers",
+    "customers",
+    "customer-credits",
     "five-dimension",
     // ===== 物流与贸易域 =====
-    "logistics", "ship-orders", "incoterms",
+    "logistics",
+    "ship-orders",
+    "incoterms",
     // ===== 人力资源域 =====
     "employees",
     // ===== 安全环保域 =====
-    "safety-records", "environmental-records", "equipment", "maintenance-records",
+    "safety-records",
+    "environmental-records",
+    "equipment",
+    "maintenance-records",
     // ===== 分析与报表域 =====
-    "reports", "bi-analysis", "dashboard", "sales-analysis",
+    "reports",
+    "bi-analysis",
+    "dashboard",
+    "sales-analysis",
     // ===== 通知与 OA 域 =====
-    "notifications", "email-templates", "email-records", "oa-announcements",
+    "notifications",
+    "email-templates",
+    "email-records",
+    "oa-announcements",
     "business-trace",
     // ===== 系统域 =====
-    "system-config", "audit-logs", "slow-queries", "print-templates",
-    "data-import", "permissions-audit",
+    "system-config",
+    "audit-logs",
+    "slow-queries",
+    "print-templates",
+    "data-import",
+    "permissions-audit",
     // ===== AI 智能域（V15 P0-S26 新增）=====
     // 对应 routes/analytics.rs ai() + advanced() AI 端点 + routes/system.rs ai_extend 端点
-    "ai-forecast", "ai-inventory-opt", "ai-anomaly", "ai-recommendation",
-    "ai-recipe-opt", "ai-quality-pred", "ai-process-opt", "ai-summary",
+    "ai-forecast",
+    "ai-inventory-opt",
+    "ai-anomaly",
+    "ai-recommendation",
+    "ai-recipe-opt",
+    "ai-quality-pred",
+    "ai-process-opt",
+    "ai-summary",
 ];
 
 /// 初始化任务状态（L-24 修复：补充终态与恢复路径文档）

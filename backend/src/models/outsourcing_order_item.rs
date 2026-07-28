@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 委外加工发料明细模型（outsourcing_order_item 表）
 //!
 //! v14 批次 430：委托加工物资贯通
@@ -46,6 +47,8 @@ pub struct Model {
     pub total_cost: Decimal,
     /// 关联库存流水 ID（可空）
     pub inventory_transaction_id: Option<i32>,
+    /// 缺陷 2.1：关联胚布ID（精确到卷/匹级追溯）
+    pub greige_fabric_id: Option<i32>,
     /// 备注
     pub remarks: Option<String>,
 
@@ -82,6 +85,15 @@ pub enum Relation {
         on_delete = "SetNull"
     )]
     Warehouse,
+    /// 缺陷 2.1：关联胚布（精确到卷/匹级追溯）
+    #[sea_orm(
+        belongs_to = "super::greige_fabric::Entity",
+        from = "Column::GreigeFabricId",
+        to = "super::greige_fabric::Column::Id",
+        on_update = "Cascade",
+        on_delete = "SetNull"
+    )]
+    GreigeFabric,
 }
 
 impl Related<super::outsourcing_order::Entity> for Entity {
@@ -99,6 +111,12 @@ impl Related<super::product::Entity> for Entity {
 impl Related<super::warehouse::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Warehouse.def()
+    }
+}
+
+impl Related<super::greige_fabric::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::GreigeFabric.def()
     }
 }
 

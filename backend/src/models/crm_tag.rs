@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! CRM 标签字典 Model
 //!
 //! 批次 122 v8 复审 P1 修复：替代 crm_customer_handler list_tags 硬编码 5 个标签 +

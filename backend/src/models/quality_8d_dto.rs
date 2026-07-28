@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 // V15 P0-F20 Batch 480：8D 质量管理流程 DTO
 //
 // 包含：
@@ -69,17 +70,11 @@ impl RootCauseMethod {
 #[serde(tag = "step", rename_all = "snake_case")]
 pub enum AdvanceStepPayload {
     /// d0_plan → d1_team
-    D1Team {
-        team_members: String,
-    },
+    D1Team { team_members: String },
     /// d1_team → d2_problem
-    D2Problem {
-        problem_description: String,
-    },
+    D2Problem { problem_description: String },
     /// d2_problem → d3_interim
-    D3Interim {
-        interim_action: String,
-    },
+    D3Interim { interim_action: String },
     /// d3_interim → d4_root_cause
     D4RootCause {
         method: RootCauseMethod,
@@ -97,17 +92,11 @@ pub enum AdvanceStepPayload {
         due_date: NaiveDate,
     },
     /// d5_permanent → d6_verify
-    D6Verify {
-        verification_result: String,
-    },
+    D6Verify { verification_result: String },
     /// d6_verify → d7_prevent
-    D7Prevent {
-        prevention_action: String,
-    },
+    D7Prevent { prevention_action: String },
     /// d7_prevent → d8_recognize
-    D8Recognize {
-        closure_summary: String,
-    },
+    D8Recognize { closure_summary: String },
 }
 
 /// 列表查询参数

@@ -26,14 +26,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useI18n } from 'vue-i18n'
-import AccountTab from './tabs/AccountTab.vue'
-import TransferTab from './tabs/TransferTab.vue'
+import { ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import AccountTab from './tabs/AccountTab.vue';
+import TransferTab from './tabs/TransferTab.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const activeTab = ref('account')
+const activeTab = ref('account');
 </script>
 
 <style scoped>

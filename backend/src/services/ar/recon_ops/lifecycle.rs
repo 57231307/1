@@ -75,14 +75,13 @@ impl ArReconciliationService {
         active_model.updated_at = Set(Utc::now());
 
         // 批次 92 P3-9：user_id 从 handler AuthContext 注入
-        let updated =
-            crate::services::audit_log_service::AuditLogService::update_with_audit(
-                &txn,
-                "auto_audit",
-                active_model,
-                Some(user_id),
-            )
-            .await?;
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active_model,
+            Some(user_id),
+        )
+        .await?;
 
         txn.commit().await?;
 
@@ -96,7 +95,8 @@ impl ArReconciliationService {
         Self::validate_close_status(&model)?;
 
         let mut active_model: ActiveModel = model.into();
-        active_model.reconciliation_status = Set(Some(ar_status::RECONCILIATION_CLOSED.to_string()));
+        active_model.reconciliation_status =
+            Set(Some(ar_status::RECONCILIATION_CLOSED.to_string()));
         active_model.updated_at = Set(Utc::now());
         let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
@@ -129,7 +129,9 @@ impl ArReconciliationService {
             .reconciliation_status
             .as_deref()
             .unwrap_or(ar_status::RECONCILIATION_DRAFT);
-        if status != ar_status::RECONCILIATION_CONFIRMED && status != ar_status::RECONCILIATION_DISPUTED {
+        if status != ar_status::RECONCILIATION_CONFIRMED
+            && status != ar_status::RECONCILIATION_DISPUTED
+        {
             return Err(AppError::business(
                 "只有已确认或有争议的对账单可以关闭".to_string(),
             ));
@@ -200,7 +202,8 @@ impl ArReconciliationService {
     /// 生成对账确认凭证（失败仅 warn 不阻断主流程）
     async fn create_close_voucher(&self, result: &ReconciliationModel, user_id: i32) {
         let voucher_req = Self::build_close_voucher_request(result);
-        let voucher_service = crate::services::voucher_service::VoucherService::new(self.db.clone());
+        let voucher_service =
+            crate::services::voucher_service::VoucherService::new(self.db.clone());
         if let Err(e) = voucher_service.create_and_post(voucher_req, user_id).await {
             tracing::warn!(
                 "AR 对账单 {} 关闭成功，但生成对账确认凭证失败：{}",
@@ -258,14 +261,13 @@ impl ArReconciliationService {
         }
 
         // 批次 92 P3-9：user_id 从 handler AuthContext 注入
-        let updated =
-            crate::services::audit_log_service::AuditLogService::update_with_audit(
-                &txn,
-                "auto_audit",
-                active_model,
-                Some(user_id),
-            )
-            .await?;
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active_model,
+            Some(user_id),
+        )
+        .await?;
 
         txn.commit().await?;
 

@@ -66,7 +66,13 @@ pub async fn create_webhook(
     let events: Vec<&str> = req.events.iter().map(|s| s.as_str()).collect();
 
     match service
-        .create_webhook(auth.user_id, &req.name, &req.url, &events, req.secret.as_deref())
+        .create_webhook(
+            auth.user_id,
+            &req.name,
+            &req.url,
+            &events,
+            req.secret.as_deref(),
+        )
         .await
     {
         Ok(webhook) => Ok(Json(ApiResponse::success(WebhookResponse::from(webhook)))),
@@ -104,7 +110,10 @@ pub async fn delete_webhook(
     let service = WebhookService::new(state.db);
 
     match service.delete_webhook(auth.user_id, id).await {
-        Ok(()) => Ok(Json(ApiResponse::success_with_message((), biz_msg::DELETE_OK))),
+        Ok(()) => Ok(Json(ApiResponse::success_with_message(
+            (),
+            biz_msg::DELETE_OK,
+        ))),
         Err(e) => {
             tracing::error!("删除 Webhook 失败: {}", e);
             Err(AppError::internal("删除 Webhook 失败"))
@@ -213,7 +222,10 @@ pub async fn retry_webhook(
 
     // M-4 修复：trigger_webhook 内部会再次校验所有权（双重保障）
     // 使用原始 payload 和事件类型重投
-    match service.trigger_webhook(auth.user_id, id, last_event, last_payload).await {
+    match service
+        .trigger_webhook(auth.user_id, id, last_event, last_payload)
+        .await
+    {
         Ok(mut result) => {
             // SSRF 缓解：重试接口同样不回显目标响应体
             result.response_body = Some("出于安全原因，已隐藏响应内容".to_string());
@@ -344,7 +356,10 @@ mod tests {
         // 系统级 webhook 对所有用户都应允许访问
         // verify_ownership 逻辑：if let Some(owner_id) = webhook.user_id { ... }
         // None 不进入 if 块，即允许访问
-        assert!(system_webhook_user_id.is_none(), "系统级 webhook user_id 应为 None");
+        assert!(
+            system_webhook_user_id.is_none(),
+            "系统级 webhook user_id 应为 None"
+        );
         // 两个不同用户都应能访问（逻辑上 None 跳过所有权检查）
         let _ = (user_a, user_b); // 避免未使用变量警告
     }
@@ -365,8 +380,9 @@ mod tests {
         }
 
         // 非所有者访问 — 应拒绝
-        let is_owner = webhook_user_id.map(|oid| oid == requester_id).unwrap_or(true);
+        let is_owner = webhook_user_id
+            .map(|oid| oid == requester_id)
+            .unwrap_or(true);
         assert!(!is_owner, "非所有者应被拒绝");
     }
 }
-

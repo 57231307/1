@@ -147,14 +147,22 @@ impl TrackingService {
     }
 
     /// 记录用户行为
+    ///
+    /// 缺陷 7.4 修复：在持久化前对 event_data 中的敏感字段（手机号/邮箱/身份证/银行卡）
+    /// 应用脱敏函数，避免明文 PII 写入 user_behaviors.event_data JSONB 字段。
     pub async fn record_behavior(&self, input: BehaviorInput) -> Result<(), AppError> {
+        // 缺陷 7.4 修复：对 event_data 递归脱敏后再持久化
+        let event_data = input
+            .event_data
+            .map(crate::utils::field_mask::desensitize_json);
+
         let active = user_behavior::ActiveModel {
             id: Default::default(),
             session_id: Set(input.session_id),
             user_id: Set(input.user_id),
             event_type: Set(input.event_type),
             event_target: Set(input.event_target),
-            event_data: Set(input.event_data),
+            event_data: Set(event_data),
             path: Set(input.path),
             ip_address: Set(input.ip_address),
             occurred_at: Set(Utc::now()),
@@ -293,7 +301,9 @@ impl TrackingService {
         for i in 0..query.steps.len() {
             // 统计按时间顺序访问过 steps[0..=i] 的会话数
             let steps_slice = &query.steps[..=i];
-            let count = self.count_sessions_with_sequence(steps_slice, date_from, date_to).await?;
+            let count = self
+                .count_sessions_with_sequence(steps_slice, date_from, date_to)
+                .await?;
             step_counts.push(count);
         }
 
@@ -352,10 +362,7 @@ impl TrackingService {
 
             current_sessions = Some(match current_sessions {
                 None => sessions,
-                Some(prev) => prev
-                    .into_iter()
-                    .filter(|s| sessions.contains(s))
-                    .collect(),
+                Some(prev) => prev.into_iter().filter(|s| sessions.contains(s)).collect(),
             });
         }
 
@@ -397,8 +404,9 @@ fn parse_date(s: &Option<String>) -> Result<Option<DateTime<Utc>>, AppError> {
             let dt = s
                 .parse::<DateTime<Utc>>()
                 .or_else(|_| {
-                    NaiveDate::parse_from_str(s, "%Y-%m-%d")
-                        .map(|d| d.and_hms_opt(0, 0, 0).unwrap(/* 不变量：0,0,0 永远合法 */).and_utc())
+                    NaiveDate::parse_from_str(s, "%Y-%m-%d").map(
+                        |d| d.and_hms_opt(0, 0, 0).unwrap(/* 不变量：0,0,0 永远合法 */).and_utc(),
+                    )
                 })
                 .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?;
             Ok(Some(dt))

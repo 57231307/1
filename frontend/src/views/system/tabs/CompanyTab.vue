@@ -72,7 +72,9 @@
           </el-col>
         </el-row>
         <el-form-item>
-          <el-button type="primary" :loading="companySubmitLoading" @click="saveCompanyInfo">{{ t('system.company.button.save') }}</el-button>
+          <el-button type="primary" :loading="companySubmitLoading" @click="saveCompanyInfo">{{
+            t('system.company.button.save')
+          }}</el-button>
           <el-button @click="resetCompanyForm">{{ t('system.company.button.reset') }}</el-button>
         </el-form-item>
       </el-form>
@@ -81,35 +83,35 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
-import type { FormInstance, FormRules } from 'element-plus'
+import { reactive, ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
+import type { FormInstance, FormRules } from 'element-plus';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 interface CompanyForm {
-  company_name: string
-  company_short_name: string
-  credit_code: string
-  legal_representative: string
-  registered_capital: number
-  establishment_date: string
-  phone: string
-  fax: string
-  email: string
-  website: string
-  address: string
-  bank_name: string
-  bank_account: string
-  taxpayer_type: string
-  tax_registration_number: string
-  logo: string
-  remarks: string
+  company_name: string;
+  company_short_name: string;
+  credit_code: string;
+  legal_representative: string;
+  registered_capital: number;
+  establishment_date: string;
+  phone: string;
+  fax: string;
+  email: string;
+  website: string;
+  address: string;
+  bank_name: string;
+  bank_account: string;
+  taxpayer_type: string;
+  tax_registration_number: string;
+  logo: string;
+  remarks: string;
 }
 
-const companyFormRef = ref<FormInstance>()
-const companySubmitLoading = ref(false)
+const companyFormRef = ref<FormInstance>();
+const companySubmitLoading = ref(false);
 const companyForm = reactive<CompanyForm>({
   company_name: '',
   company_short_name: '',
@@ -128,30 +130,32 @@ const companyForm = reactive<CompanyForm>({
   tax_registration_number: '',
   logo: '',
   remarks: '',
-})
+});
 
 const companyRules: FormRules = {
-  company_name: [{ required: true, message: t('system.company.message.requiredName'), trigger: 'blur' }],
-}
+  company_name: [
+    { required: true, message: t('system.company.message.requiredName'), trigger: 'blur' },
+  ],
+};
 
 const fetchCompanyInfo = async () => {
   try {
-    const s = localStorage.getItem('company_info')
-    if (s) Object.assign(companyForm, JSON.parse(s))
+    const s = localStorage.getItem('company_info');
+    if (s) Object.assign(companyForm, JSON.parse(s));
   } catch (_e) {
     // 静默：本地存储读取失败时使用表单默认值
   }
-}
+};
 
 const saveCompanyInfo = async () => {
-  if (!companyFormRef.value) return
+  if (!companyFormRef.value) return;
   try {
-    const valid = await companyFormRef.value.validate()
-    if (!valid) return
+    const valid = await companyFormRef.value.validate();
+    if (!valid) return;
   } catch (_e) {
-    return
+    return;
   }
-  companySubmitLoading.value = true
+  companySubmitLoading.value = true;
   try {
     // FE-P2-4 修复（v12 前端复审）：过滤敏感字段，仅缓存非敏感信息到 localStorage
     // 敏感字段（credit_code/legal_representative/bank_name/bank_account/tax_registration_number 等）
@@ -166,24 +170,24 @@ const saveCompanyInfo = async () => {
       address: companyForm.address,
       logo: companyForm.logo,
       remarks: companyForm.remarks,
-    }
-    localStorage.setItem('company_info', JSON.stringify(nonSensitiveFields))
-    ElMessage.success(t('system.company.message.saveSuccess'))
+    };
+    localStorage.setItem('company_info', JSON.stringify(nonSensitiveFields));
+    ElMessage.success(t('system.company.message.saveSuccess'));
   } catch (e) {
-    const err = e as { message?: string }
-    ElMessage.error(err.message || t('system.company.message.saveFailed'))
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('system.company.message.saveFailed'));
   } finally {
-    companySubmitLoading.value = false
+    companySubmitLoading.value = false;
   }
-}
+};
 
 const resetCompanyForm = () => {
-  companyFormRef.value?.resetFields()
-}
+  companyFormRef.value?.resetFields();
+};
 
-defineExpose({ refresh: fetchCompanyInfo })
+defineExpose({ refresh: fetchCompanyInfo });
 
 onMounted(() => {
-  fetchCompanyInfo()
-})
+  fetchCompanyInfo();
+});
 </script>

@@ -43,84 +43,84 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { getProductCategoryList, type Product, type ProductCategory } from '@/api/product'
-import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
-import { logger } from '@/utils/logger'
-import ProductListTab from './tabs/ProductListTab.vue'
-import ProductFormDialogTab from './tabs/ProductFormDialogTab.vue'
-import ImportDialogTab from './tabs/ImportDialogTab.vue'
-import CategoryDialogTab from './tabs/CategoryDialogTab.vue'
+import { ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { getProductCategoryList, type Product, type ProductCategory } from '@/api/product';
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
+import { logger } from '@/utils/logger';
+import ProductListTab from './tabs/ProductListTab.vue';
+import ProductFormDialogTab from './tabs/ProductFormDialogTab.vue';
+import ImportDialogTab from './tabs/ImportDialogTab.vue';
+import CategoryDialogTab from './tabs/CategoryDialogTab.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const formDialogVisible = ref(false)
-const formDialogTitle = ref(t('product.index.titleCreate'))
-const dialogMode = ref<'create' | 'edit' | 'view'>('create')
-const currentRow = ref<Product | null>(null)
-const importDialogVisible = ref(false)
-const categoryDialogVisible = ref(false)
+const formDialogVisible = ref(false);
+const formDialogTitle = ref(t('product.index.titleCreate'));
+const dialogMode = ref<'create' | 'edit' | 'view'>('create');
+const currentRow = ref<Product | null>(null);
+const importDialogVisible = ref(false);
+const categoryDialogVisible = ref(false);
 
-const categories = ref<ProductCategory[]>([])
+const categories = ref<ProductCategory[]>([]);
 
 const openForm = (mode: 'create' | 'edit' | 'view', row: Product | null) => {
-  currentRow.value = row
-  dialogMode.value = mode
+  currentRow.value = row;
+  dialogMode.value = mode;
   formDialogTitle.value =
     mode === 'create'
       ? t('product.index.titleCreate')
       : mode === 'edit'
         ? t('product.index.titleEdit')
-        : t('product.index.titleView')
-  formDialogVisible.value = true
-}
+        : t('product.index.titleView');
+  formDialogVisible.value = true;
+};
 
 const openImport = () => {
-  importDialogVisible.value = true
-}
+  importDialogVisible.value = true;
+};
 
 const openCategory = () => {
-  categoryDialogVisible.value = true
-}
+  categoryDialogVisible.value = true;
+};
 
 const handleSubmitted = () => {
   // 子组件已通过 emit 触发刷新
-}
+};
 
 const buildTree = (items: ProductCategory[]): ProductCategory[] => {
-  const map = new Map<number, ProductCategory>()
-  const tree: ProductCategory[] = []
+  const map = new Map<number, ProductCategory>();
+  const tree: ProductCategory[] = [];
   items.forEach(item => {
-    map.set(item.id, { ...item, children: [] })
-  })
+    map.set(item.id, { ...item, children: [] });
+  });
   items.forEach(item => {
-    const node = map.get(item.id)
-    if (!node) return
+    const node = map.get(item.id);
+    if (!node) return;
     if (item.parent_id && map.has(item.parent_id)) {
-      const parent = map.get(item.parent_id)
-      if (parent?.children) parent.children.push(node)
+      const parent = map.get(item.parent_id);
+      if (parent?.children) parent.children.push(node);
     } else {
-      tree.push(node)
+      tree.push(node);
     }
-  })
-  return tree
-}
+  });
+  return tree;
+};
 
 const fetchCategories = async () => {
   try {
-    const res = await getProductCategoryList()
-    categories.value = (res.data as ProductCategory[] | undefined) || []
-    void buildTree(categories.value)
+    const res = await getProductCategoryList();
+    categories.value = (res.data as ProductCategory[] | undefined) || [];
+    void buildTree(categories.value);
   } catch (error) {
-    logger.error(t('product.index.messageFetchCategoriesFailed'), (error as Error).message)
+    logger.error(t('product.index.messageFetchCategoriesFailed'), (error as Error).message);
   }
-}
+};
 
-const hasLoaded = createLazyLoader()
+const hasLoaded = createLazyLoader();
 onMounted(() => {
-  loadIfNot('productCategories', fetchCategories, hasLoaded)
-})
+  loadIfNot('productCategories', fetchCategories, hasLoaded);
+});
 </script>
 
 <style scoped>

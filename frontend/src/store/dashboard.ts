@@ -1,5 +1,5 @@
-import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { defineStore } from 'pinia';
+import { ref } from 'vue';
 import {
   getDashboardOverview,
   getDashboardSalesStats,
@@ -7,8 +7,8 @@ import {
   type DashboardOverview,
   type SalesStatistics,
   type InventoryStatistics,
-} from '@/api/dashboard'
-import { logger } from '@/utils/logger'
+} from '@/api/dashboard';
+import { logger } from '@/utils/logger';
 
 export const useDashboardStore = defineStore('dashboard', () => {
   const stats = ref<DashboardOverview>({
@@ -21,44 +21,44 @@ export const useDashboardStore = defineStore('dashboard', () => {
     lowStockProducts: 0,
     monthSales: 0,
     recentActivities: [],
-  })
+  });
 
-  const salesStatistics = ref<SalesStatistics>({})
-  const inventoryStatistics = ref<InventoryStatistics>({})
-  const loading = ref(false)
+  const salesStatistics = ref<SalesStatistics>({});
+  const inventoryStatistics = ref<InventoryStatistics>({});
+  const loading = ref(false);
 
   const fetchStats = async () => {
-    loading.value = true
+    loading.value = true;
     try {
-      const res = await getDashboardOverview()
+      const res = await getDashboardOverview();
       // 仅在后端返回有效数据时更新，防止 data 为 null 时崩溃
-      if (res.data) stats.value = res.data
+      if (res.data) stats.value = res.data;
     } catch (error) {
-      logger.error('获取仪表盘概览失败:', error)
+      logger.error('获取仪表盘概览失败:', error);
     } finally {
-      loading.value = false
+      loading.value = false;
     }
-  }
+  };
 
   const fetchSalesStats = async () => {
     try {
-      const res = await getDashboardSalesStats()
+      const res = await getDashboardSalesStats();
       // 仅在后端返回有效数据时更新，防止 data 为 null 时崩溃
-      if (res.data) salesStatistics.value = res.data
+      if (res.data) salesStatistics.value = res.data;
     } catch (error) {
-      logger.error('获取销售统计失败:', error)
+      logger.error('获取销售统计失败:', error);
     }
-  }
+  };
 
   const fetchInventoryStats = async () => {
     try {
-      const res = await getDashboardInventoryStats()
+      const res = await getDashboardInventoryStats();
       // 仅在后端返回有效数据时更新，防止 data 为 null 时崩溃
-      if (res.data) inventoryStatistics.value = res.data
+      if (res.data) inventoryStatistics.value = res.data;
     } catch (error) {
-      logger.error('获取库存统计失败:', error)
+      logger.error('获取库存统计失败:', error);
     }
-  }
+  };
 
   return {
     stats,
@@ -68,5 +68,5 @@ export const useDashboardStore = defineStore('dashboard', () => {
     fetchStats,
     fetchSalesStats,
     fetchInventoryStats,
-  }
-})
+  };
+});

@@ -1,6 +1,4 @@
 #![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
-
 //! 生产订单 Model
 //!
 //! 生产订单模块，用于管理面料行业的生产任务
@@ -107,6 +105,10 @@ pub struct Model {
     /// 原批次 ID（仅 rework 订单使用，记录返工对应的原 dye_batch id）
     /// normal 订单此字段为 NULL
     pub original_batch_id: Option<i32>,
+
+    // P1 batch-18 缺陷 9.1：排程基于缸号批量约束
+    /// 排程批量键（按 dye_lot_no 聚合，同缸号订单合并为一个排程单元）
+    pub schedule_batch_key: Option<String>,
 
     /// 创建人 ID
     pub created_by: i32,

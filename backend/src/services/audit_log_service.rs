@@ -38,7 +38,8 @@ impl AuditLogService {
     /// 创建审计日志服务（L-32 修复：启动后台消费者 task）
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         // 创建 unbounded channel
-        let (sender, mut receiver) = mpsc::unbounded_channel::<(AuditEvent, Option<AuditContext>)>();
+        let (sender, mut receiver) =
+            mpsc::unbounded_channel::<(AuditEvent, Option<AuditContext>)>();
 
         // 启动后台消费者 task
         let db_clone = db.clone();
@@ -178,8 +179,10 @@ impl AuditLogService {
         <<E as EntityTrait>::PrimaryKey as sea_orm::PrimaryKeyTrait>::ValueType: From<i32>,
     {
         // 获取主键
-        let pk_col = E::PrimaryKey::iter().next()
-            .ok_or_else(|| AppError::business("Entity has no primary key"))?.into_column();
+        let pk_col = E::PrimaryKey::iter()
+            .next()
+            .ok_or_else(|| AppError::business("Entity has no primary key"))?
+            .into_column();
         let pk_val_unwrapped = active_model
             .get(pk_col)
             .into_value()
@@ -266,6 +269,7 @@ impl AuditLogService {
             after_snapshot: ActiveValue::Set(after_snapshot.map(audit_log::AuditValue)),
             // V15 P0-S19 补齐：update_with_audit 无 query string，condition 为 None
             condition: ActiveValue::Set(None),
+            ..Default::default()
         }
     }
 
@@ -286,17 +290,14 @@ impl AuditLogService {
     where
         E: EntityTrait,
         C: ConnectionTrait,
-        <E as EntityTrait>::Model:
-            Serialize + serde::de::DeserializeOwned + Sync + Send + Clone,
+        <E as EntityTrait>::Model: Serialize + serde::de::DeserializeOwned + Sync + Send + Clone,
         <<E as EntityTrait>::PrimaryKey as sea_orm::PrimaryKeyTrait>::ValueType: From<i32>,
     {
         // 1. 查询 old_value 快照（删除前）
         let old_model = E::find_by_id(record_id)
             .one(db)
             .await?
-            .ok_or_else(|| {
-                AppError::not_found(format!("{} 记录不存在", resource_type))
-            })?;
+            .ok_or_else(|| AppError::not_found(format!("{} 记录不存在", resource_type)))?;
 
         let before_snapshot = serde_json::to_value(&old_model).ok();
         let record_id_str = record_id.to_string();
@@ -311,14 +312,8 @@ impl AuditLogService {
         }
 
         // 3. 写审计日志（Delete 操作，before_snapshot 保留删除前快照）
-        Self::insert_delete_audit_log(
-            db,
-            resource_type,
-            &record_id_str,
-            user_id,
-            before_snapshot,
-        )
-        .await
+        Self::insert_delete_audit_log(db, resource_type, &record_id_str, user_id, before_snapshot)
+            .await
     }
 
     /// `delete_with_audit` 的 `i64` 主键变体（如 color_price_tier / crm_recycle_rule）
@@ -331,17 +326,14 @@ impl AuditLogService {
     where
         E: EntityTrait,
         C: ConnectionTrait,
-        <E as EntityTrait>::Model:
-            Serialize + serde::de::DeserializeOwned + Sync + Send + Clone,
+        <E as EntityTrait>::Model: Serialize + serde::de::DeserializeOwned + Sync + Send + Clone,
         <<E as EntityTrait>::PrimaryKey as sea_orm::PrimaryKeyTrait>::ValueType: From<i64>,
     {
         // 1. 查询 old_value 快照（删除前）
         let old_model = E::find_by_id(record_id)
             .one(db)
             .await?
-            .ok_or_else(|| {
-                AppError::not_found(format!("{} 记录不存在", resource_type))
-            })?;
+            .ok_or_else(|| AppError::not_found(format!("{} 记录不存在", resource_type)))?;
 
         let before_snapshot = serde_json::to_value(&old_model).ok();
         let record_id_str = record_id.to_string();
@@ -356,14 +348,8 @@ impl AuditLogService {
         }
 
         // 3. 写审计日志
-        Self::insert_delete_audit_log(
-            db,
-            resource_type,
-            &record_id_str,
-            user_id,
-            before_snapshot,
-        )
-        .await
+        Self::insert_delete_audit_log(db, resource_type, &record_id_str, user_id, before_snapshot)
+            .await
     }
 
     /// 内部辅助：写入 DELETE 类型的审计日志（before_snapshot 保留删除前快照）
@@ -393,22 +379,17 @@ impl AuditLogService {
             request_body: ActiveValue::Set(None),
             response_status: ActiveValue::Set(None),
             duration_ms: ActiveValue::Set(None),
-            old_value: ActiveValue::Set(
-                before_snapshot.clone().map(audit_log::AuditValue),
-            ),
+            old_value: ActiveValue::Set(before_snapshot.clone().map(audit_log::AuditValue)),
             new_value: ActiveValue::Set(None),
             created_at: ActiveValue::Set(Some(Utc::now())),
-            operation_type: ActiveValue::Set(Some(
-                OperationType::Delete.as_str().to_string(),
-            )),
+            operation_type: ActiveValue::Set(Some(OperationType::Delete.as_str().to_string())),
             severity: ActiveValue::Set(Some(Severity::Info.as_str().to_string())),
             request_id: ActiveValue::Set(None),
-            before_snapshot: ActiveValue::Set(
-                before_snapshot.map(audit_log::AuditValue),
-            ),
+            before_snapshot: ActiveValue::Set(before_snapshot.map(audit_log::AuditValue)),
             after_snapshot: ActiveValue::Set(None),
             // V15 P0-S19 补齐：delete_with_audit 无 query string，condition 为 None
             condition: ActiveValue::Set(None),
+            ..Default::default()
         };
         log.insert(db).await?;
         Ok(())
@@ -482,6 +463,7 @@ fn build_active_model(event: &AuditEvent, ctx: Option<&AuditContext>) -> audit_l
         after_snapshot: ActiveValue::Set(event.after_snapshot.clone().map(audit_log::AuditValue)),
         // V15 P0-S19 补齐：AuditEvent 未携带 query string，condition 为 None
         condition: ActiveValue::Set(None),
+        ..Default::default()
     }
 }
 

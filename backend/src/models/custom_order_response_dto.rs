@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 定制订单响应 DTO
 //!
 //! 设计依据：docs/superpowers/specs/2026-06-16-custom-order-design.md

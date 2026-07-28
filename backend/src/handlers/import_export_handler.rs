@@ -24,11 +24,10 @@ use crate::services::import_export_service::{
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
+use crate::utils::export_concurrency::ExportConcurrencyGuard;
 use crate::utils::response::ApiResponse;
 
-/// CSV 导入请求
-///
-/// 安全约束：data 字段使用 validator crate 做长度上限校验（10MB），
+/// CSV 导入请求（data 字段 validator 校验上限 10MB）。
 /// 防止已认证用户发送超大请求触发 OOM DoS。
 #[derive(Debug, Deserialize, Validate)]
 pub struct CsvImportRequest {
@@ -39,10 +38,8 @@ pub struct CsvImportRequest {
     pub data: String, // CSV 格式的字符串
 }
 
-/// Excel 导入请求
-///
-/// 安全约束：data 行数使用 validator crate 做上限校验（1 万行），
-/// 单元格/列数限制由 handler 入口早期校验 + service 层 defense-in-depth 双重把关。
+/// Excel 导入请求（data 行数 validator 校验上限 1 万行）。
+/// 单元格/列数限制由 handler 入口 + service 层 defense-in-depth 双重把关。
 #[derive(Debug, Deserialize, Validate)]
 pub struct ExcelImportRequest {
     pub import_type: String,
@@ -100,7 +97,9 @@ pub async fn import_csv(
         if let Err(e) = service.update_import_task(task_id, &fail_result).await {
             tracing::warn!(error = %e, task_id, "更新导入任务记录为 failed 状态失败");
         }
-        return Ok(Json(ApiResponse::success(serde_json::to_value(fail_result)?)));
+        return Ok(Json(ApiResponse::success(serde_json::to_value(
+            fail_result,
+        )?)));
     }
 
     // 执行实际导入
@@ -127,21 +126,55 @@ pub async fn import_excel(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // 安全漏洞 #8 修复：DTO 校验失败（行数超过 1 万行）→ 友好错误
     req.validate()?;
+    // handler 入口早期校验行列数与单元格长度
+    validate_excel_data(&req.data)?;
 
-    // 安全漏洞 #8 修复：handler 入口早期校验
-    // - 行数：DTO 校验已覆盖；本处冗余判断以防 validator crate 未来 API 变化
-    // - 列数 / 单元格长度：validator crate 的 `length` 不直接支持嵌套 Vec，
-    //   在 handler 入口做精确校验并返回友好中文错误
+    let service = ImportExportService::new(state.db.clone());
+    let template = ImportExportService::get_import_template(&req.import_type)?;
+
+    // 批次 127 v8 复审 P2 修复：导入前创建任务记录（status=running）
+    let task_id = service
+        .create_import_task(&req.import_type, req.data.len() as u64, auth.user_id)
+        .await?;
+
+    let errors = ImportExportService::validate_import_data(&req.data, &template);
+    if !errors.is_empty() {
+        let fail_result = ImportResult {
+            imported: 0,
+            failed: req.data.len() as u64,
+            errors,
+        };
+        return finish_import_validation_failure(&service, task_id, fail_result).await;
+    }
+
+    // 执行实际导入
+    let result = service
+        .import_data(&req.import_type, &req.data, auth.user_id)
+        .await?;
+
+    // 导入完成：更新任务记录
+    if let Err(e) = service.update_import_task(task_id, &result).await {
+        tracing::warn!(error = %e, task_id, "更新导入任务记录为完成状态失败");
+    }
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(result)?,
+        "导入完成",
+    )))
+}
+
+/// 校验 Excel 数据行列数与单元格长度上限
+fn validate_excel_data(data: &[Vec<String>]) -> Result<(), AppError> {
     use crate::services::import_export_service::{MAX_CELL_LEN, MAX_EXCEL_COLS, MAX_EXCEL_ROWS};
 
-    if req.data.len() > MAX_EXCEL_ROWS {
+    if data.len() > MAX_EXCEL_ROWS {
         return Err(AppError::validation(format!(
             "Excel 数据超过 {} 行上限：当前 {} 行",
             MAX_EXCEL_ROWS,
-            req.data.len()
+            data.len()
         )));
     }
-    for (row_idx, row) in req.data.iter().enumerate() {
+    for (row_idx, row) in data.iter().enumerate() {
         if row.len() > MAX_EXCEL_COLS {
             return Err(AppError::validation(format!(
                 "Excel 第 {} 行列数超过 {} 列上限：当前 {} 列",
@@ -162,47 +195,21 @@ pub async fn import_excel(
             }
         }
     }
+    Ok(())
+}
 
-    let service = ImportExportService::new(state.db.clone());
-
-    // 获取导入模板
-    let template = ImportExportService::get_import_template(&req.import_type)?;
-
-    // 批次 127 v8 复审 P2 修复：导入前创建任务记录（status=running）
-    let task_id = service
-        .create_import_task(&req.import_type, req.data.len() as u64, auth.user_id)
-        .await?;
-
-    // 验证数据
-    let errors = ImportExportService::validate_import_data(&req.data, &template);
-
-    if !errors.is_empty() {
-        // 验证失败：更新任务记录为 failed 状态
-        let fail_result = ImportResult {
-            imported: 0,
-            failed: req.data.len() as u64,
-            errors,
-        };
-        if let Err(e) = service.update_import_task(task_id, &fail_result).await {
-            tracing::warn!(error = %e, task_id, "更新导入任务记录为 failed 状态失败");
-        }
-        return Ok(Json(ApiResponse::success(serde_json::to_value(fail_result)?)));
+/// 验证失败时更新任务为 failed 并返回失败结果
+async fn finish_import_validation_failure(
+    service: &ImportExportService,
+    task_id: i32,
+    fail_result: ImportResult,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    if let Err(e) = service.update_import_task(task_id, &fail_result).await {
+        tracing::warn!(error = %e, task_id, "更新导入任务记录为 failed 状态失败");
     }
-
-    // 执行实际导入
-    let result = service
-        .import_data(&req.import_type, &req.data, auth.user_id)
-        .await?;
-
-    // 导入完成：更新任务记录
-    if let Err(e) = service.update_import_task(task_id, &result).await {
-        tracing::warn!(error = %e, task_id, "更新导入任务记录为完成状态失败");
-    }
-
-    Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(result)?,
-        "导入完成",
-    )))
+    Ok(Json(ApiResponse::success(serde_json::to_value(
+        fail_result,
+    )?)))
 }
 
 /// GET /api/v1/erp/import/templates/:import_type - 下载导入模板
@@ -241,6 +248,9 @@ pub async fn export_csv(
     Path(export_type): Path<String>,
     Query(query): Query<ExportQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // V15 P1-9-1：全局导出并发控制（RAII 守卫，函数退出自动递减）
+    let _guard = ExportConcurrencyGuard::acquire()?;
+
     let service = ImportExportService::new(state.db.clone());
 
     let (headers, data) = service.export_data(&export_type, &query).await?;
@@ -298,6 +308,9 @@ pub async fn export_excel_type(
     Path(export_type): Path<String>,
     Query(query): Query<ExportQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // V15 P1-9-1：全局导出并发控制（RAII 守卫，函数退出自动递减）
+    let _guard = ExportConcurrencyGuard::acquire()?;
+
     let service = ImportExportService::new(state.db.clone());
 
     let (headers, data) = service.export_data(&export_type, &query).await?;

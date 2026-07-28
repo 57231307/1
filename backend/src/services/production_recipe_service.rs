@@ -166,9 +166,10 @@ impl ProductionRecipeService {
                 ratio
             )));
         }
-        let denominator = parts[1].trim().parse::<Decimal>().map_err(|_| {
-            AppError::business(format!("浴比数值解析失败：{}", parts[1]))
-        })?;
+        let denominator = parts[1]
+            .trim()
+            .parse::<Decimal>()
+            .map_err(|_| AppError::business(format!("浴比数值解析失败：{}", parts[1])))?;
         if denominator <= Decimal::ZERO {
             return Err(AppError::business("浴比数值必须大于 0"));
         }
@@ -180,7 +181,9 @@ impl ProductionRecipeService {
     /// 真实业务公式：用量 = 浓度% × 布重 × 浴比 / 100
     /// 其中浓度%为对布重百分比（owf%），浴比为 "1:N" 中的 N
     /// 加成系数用于修正小样→大货得色差异（默认 1.00）
-    pub fn calculate_amounts(req: CalculateAmountsRequest) -> Result<Vec<RecipeMaterialItem>, AppError> {
+    pub fn calculate_amounts(
+        req: CalculateAmountsRequest,
+    ) -> Result<Vec<RecipeMaterialItem>, AppError> {
         if req.fabric_weight <= Decimal::ZERO {
             return Err(AppError::business("备布重量必须大于 0"));
         }
@@ -219,7 +222,9 @@ impl ProductionRecipeService {
     ///         approved → closed
     pub fn validate_status_transition(current: &str, new: &str) -> Result<(), AppError> {
         let valid = match current {
-            recipe_status::DRAFT => matches!(new, recipe_status::APPROVED | recipe_status::CANCELLED),
+            recipe_status::DRAFT => {
+                matches!(new, recipe_status::APPROVED | recipe_status::CANCELLED)
+            }
             recipe_status::APPROVED => matches!(new, recipe_status::CLOSED),
             recipe_status::CLOSED => false,    // 终态
             recipe_status::CANCELLED => false, // 终态
@@ -270,7 +275,8 @@ pub struct CreateProductionRecipeAdditionRequest {
     pub dye_batch_id: Option<i32>,
     /// 加料原因：色差/助剂不足/工艺调整
     pub addition_reason: Option<String>,
-    pub addition_detail: Option<Vec<crate::models::production_recipe_addition::AdditionMaterialItem>>,
+    pub addition_detail:
+        Option<Vec<crate::models::production_recipe_addition::AdditionMaterialItem>>,
     pub total_cost: Option<Decimal>,
     pub remarks: Option<String>,
     pub issued_by: Option<i32>,
@@ -339,8 +345,8 @@ impl ProductionRecipeAdditionService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rust_decimal::Decimal;
     use rust_decimal::prelude::FromPrimitive;
+    use rust_decimal::Decimal;
 
     /// 测试大货处方单号生成格式：PR-YYYYMMDDHHMMSS-NNN
     #[test]

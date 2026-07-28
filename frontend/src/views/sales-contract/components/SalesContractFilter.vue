@@ -68,57 +68,57 @@
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { Search, Refresh } from '@element-plus/icons-vue'
-import type { Customer } from '@/api/customer'
+import { reactive } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { Search, Refresh } from '@element-plus/icons-vue';
+import type { Customer } from '@/api/customer';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 /**
  * 销售合同过滤栏组件（批次 284：localQuery + handleSearch/handleReset 模式，保留 dateRange/date-change）
  */
 const props = defineProps<{
   // 查询参数（由父组件管理，子组件通过 emit('update:queryParams') 回写）
-  queryParams: Record<string, unknown>
+  queryParams: Record<string, unknown>;
   // 客户列表
-  customers: Customer[]
+  customers: Customer[];
   // 日期范围（特殊处理：日期范围需转换为 signed_date_from/signed_date_to）
-  dateRange: [Date, Date] | null
-}>()
+  dateRange: [Date, Date] | null;
+}>();
 
 const emit = defineEmits<{
   // 触发加载
-  fetch: []
+  fetch: [];
   // 整体回写查询参数
-  'update:queryParams': [value: Record<string, unknown>]
+  'update:queryParams': [value: Record<string, unknown>];
   // 日期变化（特殊处理：由父组件转换为 signed_date_from/signed_date_to）
-  'date-change': [v: [Date, Date] | null]
-}>()
+  'date-change': [v: [Date, Date] | null];
+}>();
 
 // 本地查询条件（筛选字段，不含分页参数）
 const localQuery = reactive<{ keyword: string; customer_id: number | undefined; status: string }>({
   keyword: (props.queryParams.keyword as string) ?? '',
   customer_id: props.queryParams.customer_id as number | undefined,
   status: (props.queryParams.status as string) ?? '',
-})
+});
 
 /** 搜索：先同步筛选条件到父组件，再触发加载 */
 const handleSearch = () => {
-  emit('update:queryParams', { ...localQuery })
-  emit('fetch')
-}
+  emit('update:queryParams', { ...localQuery });
+  emit('fetch');
+};
 
 /** 重置：清空筛选条件 + 通知父组件清空日期范围 + 同步 + 触发加载 */
 const handleReset = () => {
-  localQuery.keyword = ''
-  localQuery.customer_id = undefined
-  localQuery.status = ''
-  emit('update:queryParams', { ...localQuery })
+  localQuery.keyword = '';
+  localQuery.customer_id = undefined;
+  localQuery.status = '';
+  emit('update:queryParams', { ...localQuery });
   // 日期范围特殊处理：重置时通知父组件清空 dateRange
-  emit('date-change', null)
-  emit('fetch')
-}
+  emit('date-change', null);
+  emit('fetch');
+};
 </script>
 
 <style scoped>

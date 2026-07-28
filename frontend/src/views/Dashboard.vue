@@ -46,23 +46,23 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { useDb } from './dashboard/composables/useDb'
-import DashboardStat from './dashboard/components/DashboardStat.vue'
-import DashboardTrend from './dashboard/components/DashboardTrend.vue'
-import DashboardPie from './dashboard/components/DashboardPie.vue'
-import DashboardActivityTable from './dashboard/components/DashboardActivityTable.vue'
+import { onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { useDb } from './dashboard/composables/useDb';
+import DashboardStat from './dashboard/components/DashboardStat.vue';
+import DashboardTrend from './dashboard/components/DashboardTrend.vue';
+import DashboardPie from './dashboard/components/DashboardPie.vue';
+import DashboardActivityTable from './dashboard/components/DashboardActivityTable.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 业务状态
-const db = useDb()
+const db = useDb();
 
 onMounted(async () => {
-  await db.fetchDashboardData()
-  await db.fetchChartData()
-})
+  await db.fetchDashboardData();
+  await db.fetchChartData();
+});
 </script>
 
 <style scoped>

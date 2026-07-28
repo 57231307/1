@@ -6,46 +6,46 @@
  * 数据与函数全部由父组件通过 props 传入
  */
 // v11 批次 171 P2-1 修复：从 useAi 导入接口类型，替代 any
-import { useI18n } from 'vue-i18n'
+import { useI18n } from 'vue-i18n';
 import type {
   ForecastResult,
   InventoryResult,
   AnomalyItem,
   RecommendationItem,
-} from '../composables/useAi'
+} from '../composables/useAi';
 
 interface Props {
-  forecastPeriod: string
-  forecastLoading: boolean
-  forecastResult: ForecastResult | null
-  runSalesForecast: () => Promise<void>
-  inventoryLoading: boolean
-  inventoryResult: InventoryResult | null
-  runInventoryOptimization: () => Promise<void>
-  anomalyType: string
-  anomalyLoading: boolean
-  anomalyResult: AnomalyItem[] | null
-  runAnomalyDetection: () => Promise<void>
-  recommendLoading: boolean
-  recommendationResult: RecommendationItem[] | null
-  getRecommendations: () => Promise<void>
-  formatMoney: (amount: number) => string
+  forecastPeriod: string;
+  forecastLoading: boolean;
+  forecastResult: ForecastResult | null;
+  runSalesForecast: () => Promise<void>;
+  inventoryLoading: boolean;
+  inventoryResult: InventoryResult | null;
+  runInventoryOptimization: () => Promise<void>;
+  anomalyType: string;
+  anomalyLoading: boolean;
+  anomalyResult: AnomalyItem[] | null;
+  runAnomalyDetection: () => Promise<void>;
+  recommendLoading: boolean;
+  recommendationResult: RecommendationItem[] | null;
+  getRecommendations: () => Promise<void>;
+  formatMoney: (amount: number) => string;
 }
 
-defineProps<Props>()
+defineProps<Props>();
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 function priorityLabel(priority: string): string {
-  if (priority === 'high') return t('advancedModule.ai.priorityHigh')
-  if (priority === 'medium') return t('advancedModule.ai.priorityMedium')
-  return t('advancedModule.ai.priorityLow')
+  if (priority === 'high') return t('advancedModule.ai.priorityHigh');
+  if (priority === 'medium') return t('advancedModule.ai.priorityMedium');
+  return t('advancedModule.ai.priorityLow');
 }
 
 const emit = defineEmits<{
-  (e: 'update:forecastPeriod', value: string): void
-  (e: 'update:anomalyType', value: string): void
-}>()
+  (e: 'update:forecastPeriod', value: string): void;
+  (e: 'update:anomalyType', value: string): void;
+}>();
 </script>
 
 <template>
@@ -109,7 +109,11 @@ const emit = defineEmits<{
         <el-empty v-if="!inventoryResult" :description="$t('advancedModule.ai.clickToGenerate')" />
         <div v-else>
           <el-alert type="success" :title="inventoryResult.summary" show-icon class="mb-10" />
-          <el-table :data="inventoryResult.items" stripe :aria-label="t('advancedModule.ai.ariaInventoryOptList')">
+          <el-table
+            :data="inventoryResult.items"
+            stripe
+            :aria-label="t('advancedModule.ai.ariaInventoryOptList')"
+          >
             <el-table-column
               prop="product_name"
               :label="$t('advancedModule.ai.colProduct')"
@@ -170,7 +174,11 @@ const emit = defineEmits<{
         </el-form>
         <el-empty v-if="!anomalyResult" :description="$t('advancedModule.ai.clickToDetect')" />
         <div v-else>
-          <el-table :data="anomalyResult" stripe :aria-label="t('advancedModule.ai.ariaAnomalyResultList')">
+          <el-table
+            :data="anomalyResult"
+            stripe
+            :aria-label="t('advancedModule.ai.ariaAnomalyResultList')"
+          >
             <el-table-column prop="item" :label="$t('advancedModule.ai.colItem')" width="150" />
             <el-table-column prop="type" :label="$t('advancedModule.ai.colType')" width="100">
               <template #default="{ row }">

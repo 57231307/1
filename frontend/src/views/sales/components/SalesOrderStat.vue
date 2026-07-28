@@ -41,16 +41,16 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
+import { useI18n } from 'vue-i18n';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 销售订单统计类型
 interface OlvStats {
-  totalCount: number
-  pendingCount: number
-  approvedCount: number
-  totalAmount: number
+  totalCount: number;
+  pendingCount: number;
+  approvedCount: number;
+  totalAmount: number;
 }
 
 /**
@@ -58,8 +58,8 @@ interface OlvStats {
  */
 defineProps<{
   // 统计数据
-  stats: OlvStats
-}>()
+  stats: OlvStats;
+}>();
 </script>
 
 <style scoped>

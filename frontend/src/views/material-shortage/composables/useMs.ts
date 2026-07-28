@@ -8,16 +8,17 @@
  *
  * 注意：返回值使用 reactive({...}) 包装，父组件可直接访问字段（自动解包 ref）
  */
-import { ref, reactive } from 'vue'
-import { ElMessage } from 'element-plus'
-import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
+import { ref, reactive } from 'vue';
+import { ElMessage } from 'element-plus';
+import { msg } from '@/utils/message';
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import {
   getMaterialShortageSummary,
   type MaterialShortageSummary,
   type MaterialShortage,
-} from '@/api/material-shortage'
-import { useTableApi } from '@/composables/useTableApi'
-import { logger } from '@/utils/logger'
+} from '@/api/material-shortage';
+import { useTableApi } from '@/composables/useTableApi';
+import { logger } from '@/utils/logger';
 
 /**
  * 物料短缺主业务 composable
@@ -25,11 +26,11 @@ import { logger } from '@/utils/logger'
  */
 export function useMs() {
   // 过滤
-  const filterSeverity = ref('')
-  const filterStatus = ref('')
+  const filterSeverity = ref('');
+  const filterStatus = ref('');
 
   // 加载状态
-  const checking = ref(false)
+  const checking = ref(false);
 
   // 列表数据接入 useTableApi
   // 缺料列表 API 返回 ApiResponse<PageResult<MaterialShortage>>，
@@ -50,28 +51,28 @@ export function useMs() {
       status: '',
     },
     onError: (err: unknown) => {
-      logger.error('获取缺料列表失败', err)
-      ElMessage.error('获取缺料列表失败')
+      logger.error('获取缺料列表失败', err);
+      msg.error('loadMaterialShortageFailed');
     },
-  })
+  });
 
   // 数据
-  const summary = ref<MaterialShortageSummary>({} as MaterialShortageSummary)
+  const summary = ref<MaterialShortageSummary>({} as MaterialShortageSummary);
 
   /**
    * 加载汇总
    */
   const fetchSummary = async () => {
     try {
-      const res = await getMaterialShortageSummary()
-      summary.value = (res.data || {}) as MaterialShortageSummary
+      const res = await getMaterialShortageSummary();
+      summary.value = (res.data || {}) as MaterialShortageSummary;
     } catch (error) {
-      const msg = error instanceof Error ? error.message : '获取缺料汇总失败'
-      logger.error(msg)
-      ElMessage.error(msg)
-      summary.value = {} as MaterialShortageSummary
+      const errMsg = error instanceof Error ? error.message : '获取缺料汇总失败';
+      logger.error(errMsg);
+      ElMessage.error(errMsg);
+      summary.value = {} as MaterialShortageSummary;
     }
-  }
+  };
 
   /** 同步 filterSeverity/filterStatus 到 queryParams */
   const syncFilterToQuery = () => {
@@ -79,11 +80,11 @@ export function useMs() {
       ...queryParams.value,
       severity: filterSeverity.value,
       status: filterStatus.value,
-    }
-  }
+    };
+  };
 
   // 懒加载标记
-  const hasLoaded = createLazyLoader()
+  const hasLoaded = createLazyLoader();
 
   // 使用 reactive 包装，父组件可直接访问字段
   return reactive({
@@ -109,5 +110,5 @@ export function useMs() {
     hasLoaded,
     // 兼容旧名
     loadIfNot,
-  })
+  });
 }

@@ -21,7 +21,7 @@ use crate::middleware::auth_context::AuthContext;
 use crate::models::collection_task;
 use crate::models::collection_task_dto::{
     AutoGenerateTasksRequest, CancelTaskRequest, CreateTaskRequest, ListTaskQuery,
-    RecordContactRequest, ReassignTaskRequest,
+    ReassignTaskRequest, RecordContactRequest,
 };
 use crate::services::collection_task_service::{CollectionTaskError, CollectionTaskService};
 use crate::utils::app_state::AppState;
@@ -220,9 +220,6 @@ pub async fn cancel_task(
     Json(req): Json<CancelTaskRequest>,
 ) -> Result<Json<ApiResponse<TaskInfo>>, AppError> {
     let service = CollectionTaskService::from_state(&state);
-    let record = service
-        .cancel(id, req)
-        .await
-        .map_err(collection_task_err)?;
+    let record = service.cancel(id, req).await.map_err(collection_task_err)?;
     Ok(Json(ApiResponse::success(record.into())))
 }

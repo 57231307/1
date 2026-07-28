@@ -17,7 +17,7 @@
     <BpmDefinitionFilter
       :query-params="bpmDf.queryParams"
       @fetch="bpmDfProc.handleSearch"
-      @update:query-params="(v) => Object.assign(bpmDf.queryParams, v)"
+      @update:query-params="v => Object.assign(bpmDf.queryParams, v)"
     />
 
     <BpmDefinitionTable
@@ -41,7 +41,7 @@
       @add-node="handleAddNode"
       @remove-node="handleRemoveNode"
       @submit="bpmDfProc.handleSubmit"
-      @update:form-data="(v) => Object.assign(bpmDf.formData, v)"
+      @update:form-data="v => Object.assign(bpmDf.formData, v)"
     />
 
     <BpmDefinitionVersionDialog
@@ -59,28 +59,28 @@
       :form-data="bpmDf.templateForm"
       :rules="templateRules"
       @submit="bpmDfProc.handleSaveAsTemplate"
-      @update:form-data="(v) => Object.assign(bpmDf.templateForm, v)"
+      @update:form-data="v => Object.assign(bpmDf.templateForm, v)"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { type FormRules } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
-import { useBpmDf } from './definitions/composables/useBpmDf'
-import { useBpmDfProc } from './definitions/composables/useBpmDfProc'
-import BpmDefinitionFilter from './definitions/components/BpmDefinitionFilter.vue'
-import BpmDefinitionTable from './definitions/components/BpmDefinitionTable.vue'
-import BpmDefinitionForm from './definitions/components/BpmDefinitionForm.vue'
-import BpmDefinitionVersionDialog from './definitions/components/BpmDefinitionVersionDialog.vue'
-import BpmDefinitionTemplateDialog from './definitions/components/BpmDefinitionTemplateDialog.vue'
+import { reactive } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { type FormRules } from 'element-plus';
+import { Plus } from '@element-plus/icons-vue';
+import { useBpmDf } from './definitions/composables/useBpmDf';
+import { useBpmDfProc } from './definitions/composables/useBpmDfProc';
+import BpmDefinitionFilter from './definitions/components/BpmDefinitionFilter.vue';
+import BpmDefinitionTable from './definitions/components/BpmDefinitionTable.vue';
+import BpmDefinitionForm from './definitions/components/BpmDefinitionForm.vue';
+import BpmDefinitionVersionDialog from './definitions/components/BpmDefinitionVersionDialog.vue';
+import BpmDefinitionTemplateDialog from './definitions/components/BpmDefinitionTemplateDialog.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 业务状态
-const bpmDf = useBpmDf()
+const bpmDf = useBpmDf();
 const bpmDfProc = useBpmDfProc({
   definitions: bpmDf.definitions,
   loading: bpmDf.loading,
@@ -100,20 +100,42 @@ const bpmDfProc = useBpmDfProc({
   templateForm: bpmDf.templateForm,
   fetchDefinitions: bpmDf.fetchDefinitions,
   fetchVersions: bpmDf.fetchVersions,
-})
+});
 
 // 表单验证规则
 const formRules = reactive<FormRules>({
-  process_key: [{ required: true, message: t('bpm.definitions.formRules.processKeyRequired'), trigger: 'blur' }],
-  process_name: [{ required: true, message: t('bpm.definitions.formRules.processNameRequired'), trigger: 'blur' }],
-  category: [{ required: true, message: t('bpm.definitions.formRules.categoryRequired'), trigger: 'change' }],
-})
+  process_key: [
+    { required: true, message: t('bpm.definitions.formRules.processKeyRequired'), trigger: 'blur' },
+  ],
+  process_name: [
+    {
+      required: true,
+      message: t('bpm.definitions.formRules.processNameRequired'),
+      trigger: 'blur',
+    },
+  ],
+  category: [
+    { required: true, message: t('bpm.definitions.formRules.categoryRequired'), trigger: 'change' },
+  ],
+});
 
 // 模板表单验证规则
 const templateRules = reactive<FormRules>({
-  template_name: [{ required: true, message: t('bpm.definitions.templateRules.templateNameRequired'), trigger: 'blur' }],
-  category: [{ required: true, message: t('bpm.definitions.templateRules.categoryRequired'), trigger: 'change' }],
-})
+  template_name: [
+    {
+      required: true,
+      message: t('bpm.definitions.templateRules.templateNameRequired'),
+      trigger: 'blur',
+    },
+  ],
+  category: [
+    {
+      required: true,
+      message: t('bpm.definitions.templateRules.categoryRequired'),
+      trigger: 'change',
+    },
+  ],
+});
 
 /** 添加节点 */
 const handleAddNode = () => {
@@ -123,13 +145,13 @@ const handleAddNode = () => {
     name: t('bpm.definitions.nodePrefix', { index: bpmDf.formData.nodes.length + 1 }),
     assignee_type: 'user',
     assignee_value: '',
-  })
-}
+  });
+};
 
 /** 删除节点 */
 const handleRemoveNode = (index: number) => {
-  bpmDf.formData.nodes.splice(index, 1)
-}
+  bpmDf.formData.nodes.splice(index, 1);
+};
 </script>
 
 <style scoped>

@@ -74,34 +74,34 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import { Calendar, Clock, Cpu, Loading, TrendCharts, Warning } from '@element-plus/icons-vue'
+import { useI18n } from 'vue-i18n';
+import { Calendar, Clock, Cpu, Loading, TrendCharts, Warning } from '@element-plus/icons-vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 统计数据类型
 interface Stats {
-  pending: number
-  scheduled: number
-  running: number
-  conflicts: number
+  pending: number;
+  scheduled: number;
+  running: number;
+  conflicts: number;
 }
 
 // 排产管理工具栏属性
 defineProps<{
   // 统计数据
-  stats: Stats
+  stats: Stats;
   // 自动排程进行中
-  scheduling: boolean
-}>()
+  scheduling: boolean;
+}>();
 
 // 定义事件
 const emit = defineEmits<{
   // 自动排程
-  (e: 'auto-schedule'): void
+  (e: 'auto-schedule'): void;
   // 跳转到甘特图
-  (e: 'goto-gantt'): void
-}>()
+  (e: 'goto-gantt'): void;
+}>();
 </script>
 
 <style scoped>

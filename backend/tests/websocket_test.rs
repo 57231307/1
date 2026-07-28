@@ -67,8 +67,12 @@ mod tests {
 
     #[test]
     fn test_ws_message_serialize_ping_pong() {
-        let ping = WsMessage::Ping { timestamp: 1234567890 };
-        let pong = WsMessage::Pong { timestamp: 1234567890 };
+        let ping = WsMessage::Ping {
+            timestamp: 1234567890,
+        };
+        let pong = WsMessage::Pong {
+            timestamp: 1234567890,
+        };
         let ping_json = serde_json::to_string(&ping).unwrap();
         let pong_json = serde_json::to_string(&pong).unwrap();
         assert!(ping_json.contains("ping"));

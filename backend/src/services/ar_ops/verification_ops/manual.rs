@@ -517,8 +517,9 @@ impl ArService {
         user_id: i32,
     ) -> Result<ar_reconciliation::Model, AppError> {
         let mut rec_active: ar_reconciliation::ActiveModel = reconciliation.into();
-        rec_active.reconciliation_status =
-            Set(Some(crate::models::status::ar::RECONCILIATION_CANCELLED.to_string()));
+        rec_active.reconciliation_status = Set(Some(
+            crate::models::status::ar::RECONCILIATION_CANCELLED.to_string(),
+        ));
         rec_active.confirmed_by = Set(None);
         rec_active.confirmed_at = Set(None);
         rec_active.updated_at = Set(now);

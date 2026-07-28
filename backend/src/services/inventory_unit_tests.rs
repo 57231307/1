@@ -80,15 +80,21 @@ mod tests {
     #[test]
     fn 测试_低库存预警() {
         // 中文测试名：测试低库存预警规则
-        let rule = LowStockRule { min_qty: Decimal::from(20) };
+        let rule = LowStockRule {
+            min_qty: Decimal::from(20),
+        };
         let low = StockRow {
-            product_id: 1, warehouse_id: 1,
-            quantity: Decimal::from(25), reserved: Decimal::from(20),
+            product_id: 1,
+            warehouse_id: 1,
+            quantity: Decimal::from(25),
+            reserved: Decimal::from(20),
             unit_cost: Decimal::from(5),
         };
         let normal = StockRow {
-            product_id: 2, warehouse_id: 1,
-            quantity: Decimal::from(100), reserved: Decimal::from(10),
+            product_id: 2,
+            warehouse_id: 1,
+            quantity: Decimal::from(100),
+            reserved: Decimal::from(10),
             unit_cost: Decimal::from(5),
         };
         assert!(rule.is_low(&low));
@@ -109,9 +115,27 @@ mod tests {
     fn 测试_库存按仓库汇总() {
         // 中文测试名：测试库存按仓库汇总
         let stocks = vec![
-            StockRow { product_id: 1, warehouse_id: 1, quantity: Decimal::from(10), reserved: Decimal::ZERO, unit_cost: Decimal::from(5) },
-            StockRow { product_id: 2, warehouse_id: 1, quantity: Decimal::from(20), reserved: Decimal::ZERO, unit_cost: Decimal::from(8) },
-            StockRow { product_id: 1, warehouse_id: 2, quantity: Decimal::from(5), reserved: Decimal::ZERO, unit_cost: Decimal::from(5) },
+            StockRow {
+                product_id: 1,
+                warehouse_id: 1,
+                quantity: Decimal::from(10),
+                reserved: Decimal::ZERO,
+                unit_cost: Decimal::from(5),
+            },
+            StockRow {
+                product_id: 2,
+                warehouse_id: 1,
+                quantity: Decimal::from(20),
+                reserved: Decimal::ZERO,
+                unit_cost: Decimal::from(8),
+            },
+            StockRow {
+                product_id: 1,
+                warehouse_id: 2,
+                quantity: Decimal::from(5),
+                reserved: Decimal::ZERO,
+                unit_cost: Decimal::from(5),
+            },
         ];
         let mut by_warehouse: HashMap<i64, Decimal> = HashMap::new();
         for s in &stocks {

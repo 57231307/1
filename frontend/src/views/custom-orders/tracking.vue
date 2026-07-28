@@ -96,42 +96,42 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
-import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
-import { getTimeline, CUSTOM_ORDER_STATUS_COLORS as STATUS_COLORS } from '@/api/custom-order'
+import { ref, computed, onMounted, watch } from 'vue';
+import { useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
+import { getTimeline, CUSTOM_ORDER_STATUS_COLORS as STATUS_COLORS } from '@/api/custom-order';
 import type {
   TimelineProcessNode,
   NodeLog,
   CustomOrderProcessNode,
   OrderTimeline,
-} from '@/api/custom-order'
-import logger from '@/utils/logger'
+} from '@/api/custom-order';
+import logger from '@/utils/logger';
 
-const route = useRoute()
-const { t } = useI18n({ useScope: 'global' })
-const loading = ref(false)
+const route = useRoute();
+const { t } = useI18n({ useScope: 'global' });
+const loading = ref(false);
 // 时间线响应数据（getTimeline 返回的 res.data 结构）
-const timeline = ref<OrderTimeline | null>(null)
-const orderId = computed(() => Number(route.params.id))
+const timeline = ref<OrderTimeline | null>(null);
+const orderId = computed(() => Number(route.params.id));
 
 const allLogs = computed(() => {
   // 提取到局部变量以便 TypeScript 正确进行 null 收窄
-  const tl = timeline.value
-  if (!tl?.nodes) return []
+  const tl = timeline.value;
+  if (!tl?.nodes) return [];
   return tl.nodes
     .flatMap((n: TimelineProcessNode) =>
       (n.logs || []).map((l: NodeLog) => ({ ...l, node_name: n.node_name }))
     )
     .sort(
       (a: NodeLog, b: NodeLog) => new Date(b.log_time).getTime() - new Date(a.log_time).getTime()
-    )
-})
+    );
+});
 
 function formatDate(d: string | Date | null | undefined) {
-  if (!d) return ''
-  return new Date(d).toLocaleString('zh-CN')
+  if (!d) return '';
+  return new Date(d).toLocaleString('zh-CN');
 }
 
 // 订单状态标签映射函数（i18n）
@@ -145,9 +145,9 @@ const getStatusLabel = (status: string): string => {
     after_sales: t('customOrders.status.afterSales'),
     completed: t('customOrders.status.completed'),
     cancelled: t('customOrders.status.cancelled'),
-  }
-  return map[status] || status
-}
+  };
+  return map[status] || status;
+};
 
 // 节点状态标签映射函数（i18n）
 const getNodeStatusText = (s: string): string => {
@@ -156,9 +156,9 @@ const getNodeStatusText = (s: string): string => {
     in_progress: t('customOrders.tracking.nodeStatusInProgress'),
     completed: t('customOrders.tracking.nodeStatusCompleted'),
     blocked: t('customOrders.tracking.nodeStatusBlocked'),
-  }
-  return map[s] || s
-}
+  };
+  return map[s] || s;
+};
 
 function getBarColor(s: string) {
   const map: Record<string, string> = {
@@ -166,41 +166,41 @@ function getBarColor(s: string) {
     in_progress: '#409eff',
     completed: '#67c23a',
     blocked: '#f56c6c',
-  }
-  return map[s] || '#909399'
+  };
+  return map[s] || '#909399';
 }
 
 function getLogColor(action: string) {
-  if (action === 'complete') return 'success'
-  if (action === 'block') return 'danger'
-  if (action === 'start' || action === 'resume') return 'primary'
-  return 'info'
+  if (action === 'complete') return 'success';
+  if (action === 'block') return 'danger';
+  if (action === 'start' || action === 'resume') return 'primary';
+  return 'info';
 }
 
 function getBarWidth(node: CustomOrderProcessNode) {
-  if (node.status === 'completed') return '100%'
-  if (node.status === 'in_progress') return '60%'
-  if (node.status === 'blocked') return '40%'
-  return '0%'
+  if (node.status === 'completed') return '100%';
+  if (node.status === 'in_progress') return '60%';
+  if (node.status === 'blocked') return '40%';
+  return '0%';
 }
 
 async function loadData() {
-  const id = orderId.value
-  if (!id) return
-  loading.value = true
+  const id = orderId.value;
+  if (!id) return;
+  loading.value = true;
   try {
-    const res = await getTimeline(id)
-    timeline.value = res.data || null
+    const res = await getTimeline(id);
+    timeline.value = res.data || null;
   } catch (e) {
-    logger.error(t('customOrders.tracking.messageLoadFailed'), e)
-    ElMessage.error(t('customOrders.tracking.messageLoadFailed'))
+    logger.error(t('customOrders.tracking.messageLoadFailed'), e);
+    ElMessage.error(t('customOrders.tracking.messageLoadFailed'));
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
-watch(() => route.params.id, loadData)
-onMounted(loadData)
+watch(() => route.params.id, loadData);
+onMounted(loadData);
 </script>
 
 <style scoped>

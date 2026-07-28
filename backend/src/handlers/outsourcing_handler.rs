@@ -15,13 +15,15 @@ use axum::{
 };
 use serde::Deserialize;
 
-use crate::models::{outsourcing_order, outsourcing_order_item, outsourcing_receipt, outsourcing_voucher};
+use crate::models::{
+    outsourcing_order, outsourcing_order_item, outsourcing_receipt, outsourcing_voucher,
+};
 use crate::services::outsourcing_service::{
     CreateOutsourcingOrderItemRequest, CreateOutsourcingOrderRequest,
-    CreateOutsourcingReceiptRequest, CreateOutsourcingVoucherRequest,
-    OutsourcingOrderItemService, OutsourcingOrderQuery, OutsourcingOrderService,
-    OutsourcingReceiptQuery, OutsourcingReceiptService, OutsourcingVoucherQuery,
-    OutsourcingVoucherService, UpdateOutsourcingOrderItemRequest, UpdateOutsourcingOrderRequest,
+    CreateOutsourcingReceiptRequest, CreateOutsourcingVoucherRequest, OutsourcingOrderItemService,
+    OutsourcingOrderQuery, OutsourcingOrderService, OutsourcingReceiptQuery,
+    OutsourcingReceiptService, OutsourcingVoucherQuery, OutsourcingVoucherService,
+    UpdateOutsourcingOrderItemRequest, UpdateOutsourcingOrderRequest,
     UpdateOutsourcingReceiptRequest,
 };
 use crate::utils::app_state::AppState;

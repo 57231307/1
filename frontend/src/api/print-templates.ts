@@ -1,75 +1,75 @@
-import { request } from './request'
-import type { ApiResponse, QueryParams } from '@/types/api'
+import { request } from './request';
+import type { ApiResponse, QueryParams } from '@/types/api';
 
 export interface PrintTemplate {
-  id: number
-  template_code: string
-  template_name: string
-  description: string
-  module: 'sales' | 'purchase' | 'inventory' | 'finance' | 'production' | 'logistics'
-  type: 'order' | 'invoice' | 'receipt' | 'label' | 'report' | 'custom'
-  paper_size: 'A4' | 'A5' | 'B5' | 'Letter' | 'Custom'
-  orientation: 'portrait' | 'landscape'
-  content: string
-  css_styles: string
-  variables: Record<string, unknown>
-  status: 'active' | 'inactive'
-  is_default: boolean
-  created_by: number
-  created_by_name: string
-  created_at: string
-  updated_at: string
+  id: number;
+  template_code: string;
+  template_name: string;
+  description: string;
+  module: 'sales' | 'purchase' | 'inventory' | 'finance' | 'production' | 'logistics';
+  type: 'order' | 'invoice' | 'receipt' | 'label' | 'report' | 'custom';
+  paper_size: 'A4' | 'A5' | 'B5' | 'Letter' | 'Custom';
+  orientation: 'portrait' | 'landscape';
+  content: string;
+  css_styles: string;
+  variables: Record<string, unknown>;
+  status: 'active' | 'inactive';
+  is_default: boolean;
+  created_by: number;
+  created_by_name: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export function getPrintTemplateList(params?: QueryParams): Promise<ApiResponse<PrintTemplate[]>> {
-  return request.get('/print-templates', { params })
+  return request.get('/print-templates', { params });
 }
 
 export function getPrintTemplate(id: number): Promise<ApiResponse<PrintTemplate>> {
-  return request.get(`/print-templates/${id}`)
+  return request.get(`/print-templates/${id}`);
 }
 
 export function createPrintTemplate(
   data: Partial<PrintTemplate>
 ): Promise<ApiResponse<PrintTemplate>> {
-  return request.post('/print-templates', data)
+  return request.post('/print-templates', data);
 }
 
 export function updatePrintTemplate(
   id: number,
   data: Partial<PrintTemplate>
 ): Promise<ApiResponse<PrintTemplate>> {
-  return request.put(`/print-templates/${id}`, data)
+  return request.put(`/print-templates/${id}`, data);
 }
 
 export function deletePrintTemplate(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/print-templates/${id}`)
+  return request.delete(`/print-templates/${id}`);
 }
 
 // P2-16 修复（批次 86 v2 复审）：previewPrintTemplate ApiResponse<any> → 显式接口
 
 /** 打印模板预览结果 */
 export interface PrintTemplatePreviewResult {
-  html: string
-  variables: Record<string, unknown>
-  [key: string]: unknown
+  html: string;
+  variables: Record<string, unknown>;
+  [key: string]: unknown;
 }
 
 export function previewPrintTemplate(
   id: number,
   data?: Record<string, unknown>
 ): Promise<ApiResponse<PrintTemplatePreviewResult>> {
-  return request.post(`/print-templates/${id}/preview`, data)
+  return request.post(`/print-templates/${id}/preview`, data);
 }
 
 export function printTemplate(id: number, data: Record<string, unknown>): Promise<void> {
-  return request.post(`/print-templates/${id}/print`, data)
+  return request.post(`/print-templates/${id}/print`, data);
 }
 
 export function setDefaultPrintTemplate(id: number): Promise<ApiResponse<void>> {
-  return request.put(`/print-templates/${id}/set-default`)
+  return request.put(`/print-templates/${id}/set-default`);
 }
 
 export function copyPrintTemplate(id: number): Promise<ApiResponse<PrintTemplate>> {
-  return request.post(`/print-templates/${id}/copy`)
+  return request.post(`/print-templates/${id}/copy`);
 }

@@ -54,9 +54,7 @@ mod tests {
     #[tokio::test]
     async fn test_slice_invalid_dimension() {
         let service = make_service().await;
-        let result = service
-            .slice("invalid", &serde_json::json!({}))
-            .await;
+        let result = service.slice("invalid", &serde_json::json!({})).await;
         assert!(result.is_err(), "无效维度应返回 Err");
     }
 
@@ -109,10 +107,7 @@ mod tests {
     #[ignore = "需要 PostgreSQL 测试数据库"]
     async fn test_pivot() {
         let service = make_service().await;
-        let result = service
-            .pivot("time", "product", "amount")
-            .await
-            .unwrap();
+        let result = service.pivot("time", "product", "amount").await.unwrap();
         assert_eq!(result["row"], "time");
         assert_eq!(result["col"], "product");
         assert_eq!(result["measure"], "amount");
@@ -161,10 +156,7 @@ mod tests {
     #[ignore = "需要 PostgreSQL 测试数据库"]
     async fn test_drilldown_month_to_day() {
         let service = make_service().await;
-        let data = service
-            .drilldown_month_to_day(2026, 6)
-            .await
-            .unwrap();
+        let data = service.drilldown_month_to_day(2026, 6).await.unwrap();
         assert_eq!(data.len(), 30);
     }
 

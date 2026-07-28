@@ -6,9 +6,9 @@ use axum::{
     extract::{Query, State},
     Json,
 };
-use serde::Deserialize;
-use std::sync::Arc;
+use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::middleware::auth_context::AuthContext;
@@ -44,6 +44,20 @@ pub struct SendEmailRequest {
     // 当 template_id 和 template_params 同时提供时，加载模板并用 params 替换 {{key}} 占位符
     // template_params 应为 JSON 对象（如 {"name": "张三", "order_no": "ORD001"}）
     pub template_params: Option<serde_json::Value>,
+    /// 缺陷 6.3 修复：附件列表（文件名 + base64 编码内容 + content_type）
+    /// 客户端上传附件时，content_base64 必须为标准 Base64 编码字符串
+    pub attachments: Option<Vec<AttachmentDto>>,
+}
+
+/// 缺陷 6.3 修复：附件 DTO（客户端上传格式）
+#[derive(Debug, Deserialize, Serialize)]
+pub struct AttachmentDto {
+    /// 文件名（含扩展名）
+    pub filename: String,
+    /// 文件内容 Base64 编码字符串
+    pub content_base64: String,
+    /// MIME 类型（可选，未提供时根据文件名扩展名推断）
+    pub content_type: Option<String>,
 }
 
 // 邮件模板 CRUD Handler（通过宏生成）
@@ -57,6 +71,11 @@ crate::define_tuple_crud_handlers!(
 );
 
 /// POST /api/v1/erp/email/send - 发送邮件
+///
+/// 缺陷 6.1 修复：邮件改为异步队列模式 —
+/// - 入队时仅写 email_logs 表（PENDING 状态）+ 立即返回 PENDING 响应
+/// - 后台 email_queue_worker 每 60 秒扫描 PENDING 邮件并实际发送
+/// - 失败时按指数退避（1min/5min/30min）重试，超过 3 次转入 FAILED 死信
 pub async fn send_email(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -67,27 +86,87 @@ pub async fn send_email(
     // M-1 修复：每用户每小时发送配额检查
     check_email_rate_limit(&state, auth.user_id).await?;
 
-    let email_service = state
-        .email_service
-        .as_ref()
-        .ok_or_else(|| AppError::business("邮件服务未配置"))?;
-
     // v11 批次 151 P2-A：接入 template_params 模板参数渲染
     let mut req = req;
     apply_template_rendering(&state, &mut req).await?;
 
-    let log_service = EmailLogService::new(state.db.clone());
-    let log_id = create_email_log(&log_service, &auth, &req).await?;
-    let message = build_email_message(req);
+    // 缺陷 6.3 修复：附件解码 + 大小/扩展名校验 + ClamAV 病毒扫描
+    let attachment_payload = decode_and_validate_attachments(&req).await?;
 
-    send_email_and_update_status(email_service, &log_service, message, log_id, &auth.username).await
+    // 缺陷 6.1 修复：写入 email_logs（PENDING 状态）后立即返回，实际发送由后台 worker 执行
+    let log_service = EmailLogService::new(state.db.clone());
+    let log = log_service
+        .create(CreateEmailLogRequest {
+            user_id: Some(auth.user_id),
+            recipients: req.to.clone(),
+            cc: req.cc.clone(),
+            bcc: req.bcc.clone(),
+            subject: req.subject.clone(),
+            body: req.html_content.clone().or(req.text_content.clone()),
+            template_id: req.template_id,
+            html_content: req.html_content.clone(),
+            text_content: req.text_content.clone(),
+            attachments: attachment_payload.clone(),
+        })
+        .await?;
+
+    tracing::info!(
+        email_log_id = log.id,
+        user = %auth.username,
+        recipients = ?req.to,
+        "邮件已入队（PENDING），将由后台 worker 异步发送"
+    );
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::json!({
+            "message_id": log.id,
+            "status": "PENDING",
+            "queued_at": chrono::Utc::now().to_rfc3339(),
+        }),
+        "邮件已入队，将由后台 worker 异步发送",
+    )))
+}
+
+/// 缺陷 6.3 修复：解码并校验附件
+/// - Base64 解码客户端上传的附件内容
+/// - 调用 `validate_attachments` 进行大小/扩展名/病毒扫描校验
+/// - 通过后返回 JSON 数组形式的附件载荷（持久化到 email_logs.attachments）
+async fn decode_and_validate_attachments(
+    req: &SendEmailRequest,
+) -> Result<Option<serde_json::Value>, AppError> {
+    let attachments = match &req.attachments {
+        Some(a) if !a.is_empty() => a,
+        _ => return Ok(None),
+    };
+
+    use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+    use base64::Engine;
+    use std::collections::HashMap;
+
+    let mut file_map: HashMap<String, Vec<u8>> = HashMap::new();
+    let mut json_arr = Vec::with_capacity(attachments.len());
+
+    for att in attachments {
+        let content = BASE64_STANDARD.decode(&att.content_base64).map_err(|e| {
+            AppError::validation(format!("附件 '{}' Base64 解码失败: {}", att.filename, e))
+        })?;
+        file_map.insert(att.filename.clone(), content.clone());
+
+        json_arr.push(serde_json::json!({
+            "filename": att.filename,
+            "content_base64": att.content_base64,
+            "content_type": att.content_type.clone(),
+        }));
+    }
+
+    // 缺陷 6.3 修复：调用 EmailService::validate_attachments 进行大小/扩展名/病毒扫描校验
+    crate::services::email_service::validate_attachments(&file_map).await?;
+
+    Ok(Some(serde_json::Value::Array(json_arr)))
 }
 
 /// 校验仅 admin 角色可调用 send_email（M-1 修复）。
-async fn check_send_email_permission(
-    state: &AppState,
-    auth: &AuthContext,
-) -> Result<(), AppError> {
+async fn check_send_email_permission(state: &AppState, auth: &AuthContext) -> Result<(), AppError> {
     let role_id = auth
         .role_id
         .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行该操作"))?;
@@ -158,80 +237,6 @@ async fn apply_template_rendering(
         ));
     }
     Ok(())
-}
-
-/// 创建邮件发送记录（PENDING 状态）。
-async fn create_email_log(
-    log_service: &EmailLogService,
-    auth: &AuthContext,
-    req: &SendEmailRequest,
-) -> Result<i32, AppError> {
-    let log = log_service
-        .create(CreateEmailLogRequest {
-            user_id: Some(auth.user_id),
-            recipients: req.to.clone(),
-            cc: req.cc.clone(),
-            bcc: req.bcc.clone(),
-            subject: req.subject.clone(),
-            body: req.html_content.clone().or(req.text_content.clone()),
-            template_id: req.template_id,
-        })
-        .await?;
-    Ok(log.id)
-}
-
-/// 构建邮件消息（消费 req 的 cc/bcc/html_content/text_content 字段）。
-fn build_email_message(req: SendEmailRequest) -> crate::services::email_service::EmailMessage {
-    crate::services::email_service::EmailMessage {
-        to: req.to,
-        cc: req.cc,
-        bcc: req.bcc,
-        subject: req.subject,
-        html_content: req.html_content,
-        text_content: req.text_content,
-        attachments: None,
-    }
-}
-
-/// 发送邮件并更新日志状态（成功→SENT，失败→FAILED 并累加重试计数）。
-async fn send_email_and_update_status(
-    email_service: &Arc<crate::services::email_service::EmailService>,
-    log_service: &EmailLogService,
-    message: crate::services::email_service::EmailMessage,
-    log_id: i32,
-    username: &str,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let recipients = message.to.clone();
-    match email_service.send_email(message).await {
-        Ok(_) => {
-            log_service
-                .update_status(log_id, "SENT", None, Some(uuid::Uuid::new_v4().to_string()))
-                .await?;
-            tracing::info!("用户 {} 发送邮件成功，收件人: {:?}", username, recipients);
-            Ok(Json(ApiResponse::success_with_message(
-                serde_json::json!({
-                    "message_id": log_id,
-                    "status": "SENT",
-                    "sent_at": chrono::Utc::now().to_rfc3339(),
-                }),
-                "邮件发送成功",
-            )))
-        }
-        Err(e) => {
-            log_service
-                .update_status(log_id, "FAILED", Some(e.to_string()), None)
-                .await?;
-            // v11 批次 154c P2-A：发送失败时累加重试计数，供重试调度任务识别待重试邮件
-            if let Err(retry_err) = log_service.increment_retry(log_id).await {
-                tracing::warn!(
-                    error = %retry_err,
-                    email_log_id = log_id,
-                    "累加邮件重试计数失败（不影响本次失败响应）"
-                );
-            }
-            Err(e)
-        }
-    }
 }
 
 /// GET /api/v1/erp/email/records - 获取邮件发送记录

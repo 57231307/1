@@ -90,10 +90,7 @@ impl ReportSubscriptionScheduler {
             return Ok(0);
         }
 
-        info!(
-            "报表订阅调度器：扫描到 {} 条到期订阅，开始处理",
-            count
-        );
+        info!("报表订阅调度器：扫描到 {} 条到期订阅，开始处理", count);
 
         for sub in due_subscriptions {
             // 单条订阅失败不影响其他订阅执行
@@ -162,10 +159,7 @@ impl ReportSubscriptionScheduler {
     }
 
     /// 从订阅 `recipients`（JSON 数组）提取邮箱列表。
-    fn extract_recipients(
-        &self,
-        sub: &ReportSubscriptionModel,
-    ) -> Result<Vec<String>, AppError> {
+    fn extract_recipients(&self, sub: &ReportSubscriptionModel) -> Result<Vec<String>, AppError> {
         let recipients: Vec<String> = match &sub.recipients {
             serde_json::Value::Array(arr) => arr
                 .iter()
@@ -245,8 +239,7 @@ impl ReportSubscriptionScheduler {
             let interval = std::time::Duration::from_secs(interval_secs);
             info!(
                 interval_secs,
-                "报表订阅调度器：后台任务已启动（每 {} 秒扫描一次到期订阅）",
-                interval_secs
+                "报表订阅调度器：后台任务已启动（每 {} 秒扫描一次到期订阅）", interval_secs
             );
 
             loop {

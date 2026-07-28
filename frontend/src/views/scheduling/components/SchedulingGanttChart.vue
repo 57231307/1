@@ -36,105 +36,105 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { useI18n } from 'vue-i18n'
-import * as echarts from 'echarts'
+import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { useI18n } from 'vue-i18n';
+import * as echarts from 'echarts';
 import type {
   ECharts,
   ECElementEvent,
   CustomSeriesRenderItemParams,
   CustomSeriesRenderItemAPI,
-} from 'echarts'
+} from 'echarts';
 // CallbackDataParams 不从 'echarts' 主包导出，需从官方类型定义文件导入
-import type { CallbackDataParams } from 'echarts/types/dist/shared'
-import type { GanttData, ScheduleTask } from '@/api/scheduling'
-import { statusColorMap, formatTime } from '../composables/schGFmts'
+import type { CallbackDataParams } from 'echarts/types/dist/shared';
+import type { GanttData, ScheduleTask } from '@/api/scheduling';
+import { statusColorMap, formatTime } from '../composables/schGFmts';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 /** 状态标签映射（响应式 i18n） */
-const getStatusLabel = (status: string): string => t(`scheduling.ganttChart.status.${status}`)
+const getStatusLabel = (status: string): string => t(`scheduling.ganttChart.status.${status}`);
 
 /// 甘特图自定义 series 数据项（业务数据结构，附加 taskData 用于回调访问）
 interface GanttSeriesItem {
-  name: string
-  value: [number, number, number, number]
-  itemStyle: { color: string }
-  taskData: ScheduleTask
+  name: string;
+  value: [number, number, number, number];
+  itemStyle: { color: string };
+  taskData: ScheduleTask;
 }
 
 /// ECharts CustomSeriesRenderItemParamsCoordSys 类型仅声明了 type 字段，
 /// 但 cartesian2d 坐标系实际包含 x/y/width/height（ECharts 类型定义不完整）
 interface CartesianCoordSys {
-  type: string
-  x: number
-  y: number
-  width: number
-  height: number
+  type: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 // 排产甘特图容器属性
 const props = defineProps<{
   // 甘特图数据
-  ganttData: GanttData
+  ganttData: GanttData;
   // 加载状态
-  loading: boolean
-}>()
+  loading: boolean;
+}>();
 
 // 定义事件
 const emit = defineEmits<{
   // 任务点击
-  (e: 'task-click', task: ScheduleTask): void
-}>()
+  (e: 'task-click', task: ScheduleTask): void;
+}>();
 
 // 图表 DOM 引用
-const chartRef = ref<HTMLElement | null>(null)
+const chartRef = ref<HTMLElement | null>(null);
 // ECharts 实例
-let chart: ECharts | null = null
+let chart: ECharts | null = null;
 
 /** 渲染甘特图 */
 const renderChart = (data: GanttData) => {
-  if (!chartRef.value) return
+  if (!chartRef.value) return;
   if (!chart) {
-    chart = echarts.init(chartRef.value)
+    chart = echarts.init(chartRef.value);
   }
 
-  const startDate = new Date(data.date_range.start)
-  const endDate = new Date(data.date_range.end)
-  const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
+  const startDate = new Date(data.date_range.start);
+  const endDate = new Date(data.date_range.end);
+  const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
-  const dates: string[] = []
+  const dates: string[] = [];
   for (let i = 0; i < days; i++) {
-    const d = new Date(startDate)
-    d.setDate(d.getDate() + i)
-    dates.push(`${d.getMonth() + 1}/${d.getDate()}`)
+    const d = new Date(startDate);
+    d.setDate(d.getDate() + i);
+    dates.push(`${d.getMonth() + 1}/${d.getDate()}`);
   }
 
-  const categories = data.work_centers.map(wc => wc.name)
+  const categories = data.work_centers.map(wc => wc.name);
 
-  const seriesData: GanttSeriesItem[] = []
+  const seriesData: GanttSeriesItem[] = [];
   data.work_centers.forEach(wc => {
     wc.tasks.forEach(task => {
-      const start = new Date(task.start_time).getTime()
-      const end = new Date(task.end_time).getTime()
-      const color = task.has_conflict ? statusColorMap.conflict : statusColorMap[task.status]
+      const start = new Date(task.start_time).getTime();
+      const end = new Date(task.end_time).getTime();
+      const color = task.has_conflict ? statusColorMap.conflict : statusColorMap[task.status];
       seriesData.push({
         name: task.order_no,
         value: [categories.indexOf(wc.name), start, end, task.duration_hours],
         itemStyle: { color },
         taskData: task,
-      })
-    })
-  })
+      });
+    });
+  });
 
   const option = {
     tooltip: {
       formatter: (params: CallbackDataParams) => {
-        const item = params.data as GanttSeriesItem
-        const tdata = item.taskData
+        const item = params.data as GanttSeriesItem;
+        const tdata = item.taskData;
         const conflictText = tdata.has_conflict
           ? `<div style="color: #f56c6c; margin-top: 4px">${t('scheduling.ganttChart.tooltip.conflict')}: ${tdata.conflict_details || t('scheduling.ganttChart.tooltip.conflictDefault')}</div>`
-          : ''
+          : '';
         return `
           <div style="padding: 8px">
             <div style="font-weight: bold; margin-bottom: 4px">${tdata.order_no}</div>
@@ -146,7 +146,7 @@ const renderChart = (data: GanttData) => {
             <div>${t('scheduling.ganttChart.tooltip.duration')}: ${tdata.duration_hours}h</div>
             ${conflictText}
           </div>
-        `
+        `;
       },
     },
     grid: { left: 120, right: 40, top: 40, bottom: 40, containLabel: false },
@@ -171,16 +171,16 @@ const renderChart = (data: GanttData) => {
       {
         type: 'custom',
         renderItem: (params: CustomSeriesRenderItemParams, api: CustomSeriesRenderItemAPI) => {
-          const catIndex = api.value(0) as number
-          const start = api.coord([api.value(1) as number, catIndex])
-          const end = api.coord([api.value(2) as number, catIndex])
+          const catIndex = api.value(0) as number;
+          const start = api.coord([api.value(1) as number, catIndex]);
+          const end = api.coord([api.value(2) as number, catIndex]);
           // ECharts 类型定义 size() 是可选方法，返回 number | number[]，
           // 实际使用 cartesian2d 坐标系时一定存在且返回 number[]（[width, height]）
-          const sizeResult = api.size ? api.size([0, 1]) : [0, 0]
-          const height = (Array.isArray(sizeResult) ? sizeResult[1] : sizeResult) * 0.6
+          const sizeResult = api.size ? api.size([0, 1]) : [0, 0];
+          const height = (Array.isArray(sizeResult) ? sizeResult[1] : sizeResult) * 0.6;
           // ECharts CustomSeriesRenderItemParamsCoordSys 类型仅声明 type 字段，
           // cartesian2d 坐标系实际包含 x/y/width/height（类型定义不完整，需断言）
-          const coordSys = params.coordSys as CartesianCoordSys
+          const coordSys = params.coordSys as CartesianCoordSys;
           const rectShape = echarts.graphic.clipRectByRect(
             {
               x: start[0],
@@ -194,7 +194,7 @@ const renderChart = (data: GanttData) => {
               width: coordSys.width,
               height: coordSys.height,
             }
-          )
+          );
           return (
             rectShape && {
               type: 'rect',
@@ -202,7 +202,7 @@ const renderChart = (data: GanttData) => {
               shape: rectShape,
               style: api.style(),
             }
-          )
+          );
         },
         encode: {
           x: [1, 2],
@@ -212,45 +212,45 @@ const renderChart = (data: GanttData) => {
         itemStyle: { borderRadius: 4 },
       },
     ],
-  }
+  };
 
-  chart.setOption(option, true)
+  chart.setOption(option, true);
 
   chart.on('click', (params: ECElementEvent) => {
     // ECElementEvent.data 类型为 OptionDataItem，断言为业务数据项（seriesData 由本组件构造，类型确定）
-    const item = params.data as GanttSeriesItem | undefined
+    const item = params.data as GanttSeriesItem | undefined;
     if (item?.taskData) {
-      emit('task-click', item.taskData)
+      emit('task-click', item.taskData);
     }
-  })
-}
+  });
+};
 
 /** resize 处理 */
-const handleResize = () => chart?.resize()
+const handleResize = () => chart?.resize();
 
 /** 监听数据变化重新渲染 */
 watch(
   () => props.ganttData,
   newData => {
     if (newData) {
-      nextTick(() => renderChart(newData))
+      nextTick(() => renderChart(newData));
     }
   },
   { deep: true }
-)
+);
 
 onMounted(() => {
   nextTick(() => {
-    if (props.ganttData) renderChart(props.ganttData)
-  })
-  window.addEventListener('resize', handleResize)
-})
+    if (props.ganttData) renderChart(props.ganttData);
+  });
+  window.addEventListener('resize', handleResize);
+});
 
 onBeforeUnmount(() => {
-  chart?.dispose()
-  chart = null
-  window.removeEventListener('resize', handleResize)
-})
+  chart?.dispose();
+  chart = null;
+  window.removeEventListener('resize', handleResize);
+});
 </script>
 
 <style scoped>

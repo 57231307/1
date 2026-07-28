@@ -9,6 +9,7 @@ use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::crm::cust::CrmService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
+use crate::utils::export_concurrency::ExportConcurrencyGuard;
 use crate::utils::messages::biz_msg;
 use crate::utils::response::ApiResponse;
 use axum::{
@@ -16,6 +17,7 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
+use serde_json::Value;
 use std::sync::Arc;
 use validator::Validate;
 
@@ -71,7 +73,9 @@ pub async fn list_leads(
                 );
             }
         } else if role_id != 1 {
-            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
+            // P1-08-5 修复：默认字段脱敏（保留前 3 后 4 / 首字母 + ***），而非直接 remove
+            // 原 remove 导致业务无法识别客户（如需回拨电话），实际使用中可能被绕过。
+            // 脱敏后业务仍可识别客户身份，同时满足个人信息保护法最小必要原则。
             let mut list_opt = value.get_mut("list");
             if list_opt.is_none() {
                 list_opt = value.get_mut("data");
@@ -79,8 +83,18 @@ pub async fn list_leads(
             if let Some(list) = list_opt.and_then(|v| v.as_array_mut()) {
                 for lead in list {
                     if let Some(obj) = lead.as_object_mut() {
-                        obj.remove("contact_phone");
-                        obj.remove("email");
+                        if let Some(phone) = obj.get("contact_phone").and_then(|v| v.as_str()) {
+                            obj.insert(
+                                "contact_phone".to_string(),
+                                Value::String(crate::utils::field_mask::mask_phone(phone)),
+                            );
+                        }
+                        if let Some(email) = obj.get("email").and_then(|v| v.as_str()) {
+                            obj.insert(
+                                "email".to_string(),
+                                Value::String(crate::utils::field_mask::mask_email(email)),
+                            );
+                        }
                         obj.remove("address");
                     }
                 }
@@ -101,6 +115,9 @@ pub async fn export_leads(
     State(state): State<AppState>,
     Query(query): Query<LeadQuery>,
 ) -> Result<axum::response::Response, AppError> {
+    // V15 P1-9-1：全局导出并发控制（RAII 守卫，函数退出自动递减）
+    let _guard = ExportConcurrencyGuard::acquire()?;
+
     let service = CrmService::new(state.db.clone());
     let table = service.export_leads(query).await?;
     let row_count = table.rows.len();
@@ -161,6 +178,14 @@ pub async fn import_leads(
                 MAX_IMPORT_SIZE / 1024 / 1024
             )));
         }
+        // P1-03-5 修复：增加 xlsx magic bytes 校验
+        // xlsx 本质为 ZIP 文件，前 4 字节应为 50 4B 03 04。
+        // 后缀校验可被绕过（如 .xlsx 实为可执行脚本），magic 校验防 zip 炸弹/XXE/恶意文件。
+        if !verify_xlsx_magic(&data) {
+            return Err(AppError::bad_request(
+                "文件内容不是有效的 xlsx 格式（magic bytes 校验失败）".to_string(),
+            ));
+        }
         file_bytes = Some(data.to_vec());
     }
 
@@ -168,6 +193,12 @@ pub async fn import_leads(
     let service = CrmService::new(state.db.clone());
     let result = service.import_leads(bytes, auth.user_id).await?;
     Ok(Json(ApiResponse::success(result)))
+}
+
+/// P1-03-5 新增：校验 xlsx 文件 magic bytes
+/// xlsx 是 OOXML 格式（实际为 ZIP），前 4 字节应为 50 4B 03 04（PK\x03\x04）。
+fn verify_xlsx_magic(data: &[u8]) -> bool {
+    data.starts_with(&[0x50, 0x4B, 0x03, 0x04])
 }
 
 pub async fn get_lead(
@@ -195,10 +226,20 @@ pub async fn get_lead(
                 &permission.hidden_fields,
             );
         } else if role_id != 1 {
-            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
+            // P1-08-5 修复：详情接口脱敏而非 remove
             if let Some(obj) = value.as_object_mut() {
-                obj.remove("contact_phone");
-                obj.remove("email");
+                if let Some(phone) = obj.get("contact_phone").and_then(|v| v.as_str()) {
+                    obj.insert(
+                        "contact_phone".to_string(),
+                        Value::String(crate::utils::field_mask::mask_phone(phone)),
+                    );
+                }
+                if let Some(email) = obj.get("email").and_then(|v| v.as_str()) {
+                    obj.insert(
+                        "email".to_string(),
+                        Value::String(crate::utils::field_mask::mask_email(email)),
+                    );
+                }
                 obj.remove("address");
             }
         }
@@ -251,7 +292,9 @@ pub async fn update_lead_status(
 
     let service = CrmService::new(state.db.clone());
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
-    service.update_lead_status(id, &payload.status, auth.user_id).await?;
+    service
+        .update_lead_status(id, &payload.status, auth.user_id)
+        .await?;
     Ok(Json(ApiResponse::success("状态更新成功".to_string())))
 }
 
@@ -328,6 +371,9 @@ pub async fn export_opportunities(
     State(state): State<AppState>,
     Query(query): Query<OpportunityQuery>,
 ) -> Result<axum::response::Response, AppError> {
+    // V15 P1-9-1：全局导出并发控制（RAII 守卫，函数退出自动递减）
+    let _guard = ExportConcurrencyGuard::acquire()?;
+
     let service = CrmService::new(state.db.clone());
     let table = service.export_opportunities(query).await?;
     let row_count = table.rows.len();
@@ -367,9 +413,7 @@ pub async fn get_opportunity(
     let service = CrmService::new(state.db.clone());
     // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
     let data_scope_ctx = auth.to_data_scope_context();
-    let res = service
-        .get_opportunity(id, Some(&data_scope_ctx))
-        .await?;
+    let res = service.get_opportunity(id, Some(&data_scope_ctx)).await?;
     let mut value =
         serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
 
@@ -459,8 +503,8 @@ pub async fn close_opportunity_as_lost(
     let res = service
         .close_as_lost(id, req.lost_reason, auth.user_id)
         .await?;
-    let value = serde_json::to_value(res)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let value =
+        serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -522,9 +566,7 @@ pub async fn get_customer_360(
     let service = CrmService::new(state.db.clone());
     // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
     let data_scope_ctx = auth.to_data_scope_context();
-    let value = service
-        .get_customer_360(id, Some(&data_scope_ctx))
-        .await?;
+    let value = service.get_customer_360(id, Some(&data_scope_ctx)).await?;
     Ok(Json(ApiResponse::success(value)))
 }
 

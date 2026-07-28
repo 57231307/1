@@ -234,7 +234,10 @@ pub async fn delete_accounting_period(
 
     let active: accounting_period::ActiveModel = period.into();
     active.delete(state.db.as_ref()).await?;
-    Ok(Json(ApiResponse::success_with_message((), biz_msg::DELETE_OK)))
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        biz_msg::DELETE_OK,
+    )))
 }
 
 // ============================================================================

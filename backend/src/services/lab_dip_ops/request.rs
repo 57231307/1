@@ -24,7 +24,9 @@ use sea_orm::{
 use crate::models::lab_dip_request::{
     self, ActiveModel as RequestActiveModel, Entity as RequestEntity, Model as RequestModel,
 };
-use crate::models::lab_dip_sample::{self, ActiveModel as SampleActiveModel, Entity as SampleEntity};
+use crate::models::lab_dip_sample::{
+    self, ActiveModel as SampleActiveModel, Entity as SampleEntity,
+};
 use crate::models::status::lab_dip_request as req_status;
 use crate::models::status::lab_dip_sample as sample_status;
 use crate::utils::error::AppError;
@@ -48,7 +50,9 @@ impl LabDipRequestService {
 
         // 业务校验：对色光源必填（真实业务强制）
         if req.light_source.trim().is_empty() {
-            return Err(AppError::business("对色光源必填（D65/TL84/U3000/CWF/A 等）"));
+            return Err(AppError::business(
+                "对色光源必填（D65/TL84/U3000/CWF/A 等）",
+            ));
         }
 
         // 业务校验：交期不能早于今天
@@ -270,7 +274,9 @@ impl LabDipRequestService {
             .filter(lab_dip_sample::Column::IsDeleted.eq(false))
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::business(format!("小样 {} 不存在或不属于该通知单", sample_id)))?;
+            .ok_or_else(|| {
+                AppError::business(format!("小样 {} 不存在或不属于该通知单", sample_id))
+            })?;
 
         // 事务：更新通知单状态 + 更新选中样状态 + 更新其他样状态
         let now = crate::utils::date_utils::utc_now_fixed();
@@ -295,7 +301,11 @@ impl LabDipRequestService {
     }
 
     /// 状态流转：客户要求重打（submitted → rejected）
-    pub async fn reject_and_redo(&self, id: i32, comment: String) -> Result<RequestModel, AppError> {
+    pub async fn reject_and_redo(
+        &self,
+        id: i32,
+        comment: String,
+    ) -> Result<RequestModel, AppError> {
         let model = self.get_by_id(id).await?;
         Self::validate_status_transition(&model.status, req_status::REJECTED)?;
 
@@ -320,7 +330,11 @@ impl LabDipRequestService {
     }
 
     /// 状态流转：完成建库（approved → completed，复样通过后调用）
-    pub async fn complete(&self, id: i32, production_recipe_id: i32) -> Result<RequestModel, AppError> {
+    pub async fn complete(
+        &self,
+        id: i32,
+        production_recipe_id: i32,
+    ) -> Result<RequestModel, AppError> {
         let model = self.get_by_id(id).await?;
         Self::validate_status_transition(&model.status, req_status::COMPLETED)?;
 

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 销售报价单更新 DTO
 //!
 //! 更新场景：仅在 draft / rejected 状态下允许修改主表字段。

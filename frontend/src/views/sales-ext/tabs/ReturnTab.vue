@@ -363,11 +363,11 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
-import type { FormInstance, FormRules } from 'element-plus'
+import { reactive, ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
+import { Plus } from '@element-plus/icons-vue';
+import type { FormInstance, FormRules } from 'element-plus';
 import {
   getSalesReturnList,
   getSalesReturnById,
@@ -375,24 +375,24 @@ import {
   createSalesReturn,
   type SalesReturn,
   type SalesReturnItem,
-} from '@/api/sales-return'
+} from '@/api/sales-return';
 // Batch 462 P0-S24：引入权限码常量，与后端 sales-returns 资源对齐
-import { PERMISSIONS } from '@/constants/permissions'
+import { PERMISSIONS } from '@/constants/permissions';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const salesReturns = ref<SalesReturn[]>([])
-const returnLoading = ref(false)
+const salesReturns = ref<SalesReturn[]>([]);
+const returnLoading = ref(false);
 
 const returnQuery = reactive({
   returnNo: '',
   customerName: '',
   status: '',
-})
+});
 
 const formatMoney = (amount: number | undefined) => {
-  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00'
-}
+  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00';
+};
 
 const getReturnStatusLabel = (status?: string) => {
   const map: Record<string, string> = {
@@ -401,9 +401,9 @@ const getReturnStatusLabel = (status?: string) => {
     approved: t('salesExt.returnTab.statusApproved'),
     rejected: t('salesExt.returnTab.statusRejected'),
     completed: t('salesExt.returnTab.statusCompleted'),
-  }
-  return map[status || ''] || status || ''
-}
+  };
+  return map[status || ''] || status || '';
+};
 
 const getReturnStatusType = (status?: string) => {
   const map: Record<string, string> = {
@@ -412,42 +412,42 @@ const getReturnStatusType = (status?: string) => {
     approved: 'success',
     rejected: 'danger',
     completed: 'success',
-  }
-  return map[status || ''] || 'info'
-}
+  };
+  return map[status || ''] || 'info';
+};
 
 const fetchSalesReturns = async () => {
-  returnLoading.value = true
+  returnLoading.value = true;
   try {
-    const res = await getSalesReturnList(returnQuery)
+    const res = await getSalesReturnList(returnQuery);
     const d = res.data as
       | { list?: SalesReturn[]; items?: SalesReturn[]; data?: SalesReturn[] }
       | SalesReturn[]
-      | undefined
+      | undefined;
     if (d && typeof d === 'object' && !Array.isArray(d)) {
-      salesReturns.value = d.list || d.items || d.data || []
+      salesReturns.value = d.list || d.items || d.data || [];
     } else {
-      salesReturns.value = (d as SalesReturn[]) || []
+      salesReturns.value = (d as SalesReturn[]) || [];
     }
   } catch (error) {
-    const err = error as { message?: string }
-    ElMessage.error(err.message || t('salesExt.returnTab.messageFetchFailed'))
+    const err = error as { message?: string };
+    ElMessage.error(err.message || t('salesExt.returnTab.messageFetchFailed'));
   } finally {
-    returnLoading.value = false
+    returnLoading.value = false;
   }
-}
+};
 
 const resetReturnQuery = () => {
-  returnQuery.returnNo = ''
-  returnQuery.customerName = ''
-  returnQuery.status = ''
-  fetchSalesReturns()
-}
+  returnQuery.returnNo = '';
+  returnQuery.customerName = '';
+  returnQuery.status = '';
+  fetchSalesReturns();
+};
 
 // 扩展指令（批次 86）：补全退货编辑表单状态与提交逻辑，替换原占位符
-const returnDialogVisible = ref(false)
-const returnFormRef = ref<FormInstance>()
-const returnSubmitLoading = ref(false)
+const returnDialogVisible = ref(false);
+const returnFormRef = ref<FormInstance>();
+const returnSubmitLoading = ref(false);
 const returnForm = reactive({
   id: 0,
   returnNo: '',
@@ -459,7 +459,7 @@ const returnForm = reactive({
   reason: '',
   status: 'draft',
   items: [] as SalesReturnItem[],
-})
+});
 
 const returnRules: FormRules = {
   returnNo: [{ required: true, message: t('salesExt.returnTab.ruleReturnNo'), trigger: 'blur' }],
@@ -470,13 +470,13 @@ const returnRules: FormRules = {
     { required: true, message: t('salesExt.returnTab.ruleReturnDate'), trigger: 'change' },
   ],
   reason: [{ required: true, message: t('salesExt.returnTab.ruleReason'), trigger: 'blur' }],
-}
+};
 
 const openReturnDialog = async (row?: SalesReturn) => {
   if (row) {
-    const res = await getSalesReturnById(row.id!)
+    const res = await getSalesReturnById(row.id!);
     // 安全检查：防止后端返回 data 为 null 时崩溃
-    if (res.data) Object.assign(returnForm, res.data)
+    if (res.data) Object.assign(returnForm, res.data);
   } else {
     Object.assign(returnForm, {
       id: 0,
@@ -498,33 +498,33 @@ const openReturnDialog = async (row?: SalesReturn) => {
           reason: '',
         } as SalesReturnItem,
       ],
-    })
+    });
   }
-  returnDialogVisible.value = true
-}
+  returnDialogVisible.value = true;
+};
 
 const submitReturn = async () => {
-  const valid = await returnFormRef.value?.validate()
-  if (!valid) return
+  const valid = await returnFormRef.value?.validate();
+  if (!valid) return;
 
-  returnSubmitLoading.value = true
+  returnSubmitLoading.value = true;
   try {
     if (returnForm.id) {
-      await updateSalesReturn(returnForm.id, returnForm)
-      ElMessage.success(t('salesExt.returnTab.messageUpdateSuccess'))
+      await updateSalesReturn(returnForm.id, returnForm);
+      ElMessage.success(t('salesExt.returnTab.messageUpdateSuccess'));
     } else {
-      await createSalesReturn(returnForm)
-      ElMessage.success(t('salesExt.returnTab.messageCreateSuccess'))
+      await createSalesReturn(returnForm);
+      ElMessage.success(t('salesExt.returnTab.messageCreateSuccess'));
     }
-    returnDialogVisible.value = false
-    fetchSalesReturns()
+    returnDialogVisible.value = false;
+    fetchSalesReturns();
   } catch (error) {
-    const err = error as { message?: string }
-    ElMessage.error(err.message || t('salesExt.returnTab.messageOperationFailed'))
+    const err = error as { message?: string };
+    ElMessage.error(err.message || t('salesExt.returnTab.messageOperationFailed'));
   } finally {
-    returnSubmitLoading.value = false
+    returnSubmitLoading.value = false;
   }
-}
+};
 
 const addReturnItem = () => {
   returnForm.items.push({
@@ -534,32 +534,32 @@ const addReturnItem = () => {
     quantity: 0,
     unitPrice: 0,
     reason: '',
-  } as SalesReturnItem)
-}
+  } as SalesReturnItem);
+};
 
 const removeReturnItem = (index: number) => {
   if (returnForm.items.length > 1) {
-    returnForm.items.splice(index, 1)
+    returnForm.items.splice(index, 1);
   }
-}
+};
 
-const returnViewVisible = ref(false)
-const currentReturn = ref<SalesReturn | null>(null)
+const returnViewVisible = ref(false);
+const currentReturn = ref<SalesReturn | null>(null);
 
 const viewReturn = async (row: SalesReturn) => {
   try {
-    const res = await getSalesReturnById(row.id!)
-    currentReturn.value = res.data || row
-    returnViewVisible.value = true
+    const res = await getSalesReturnById(row.id!);
+    currentReturn.value = res.data || row;
+    returnViewVisible.value = true;
   } catch (_e) {
-    currentReturn.value = row
-    returnViewVisible.value = true
+    currentReturn.value = row;
+    returnViewVisible.value = true;
   }
-}
+};
 
-defineExpose({ refresh: fetchSalesReturns })
+defineExpose({ refresh: fetchSalesReturns });
 
 onMounted(() => {
-  fetchSalesReturns()
-})
+  fetchSalesReturns();
+});
 </script>

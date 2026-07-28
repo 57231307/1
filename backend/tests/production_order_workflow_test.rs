@@ -142,10 +142,7 @@ mod tests {
         let db = setup_test_db().await;
         let svc = ProductionOrderService::new(Arc::new(db));
         let result = svc.submit_for_approval(1, 1, "测试用户").await;
-        assert!(
-            result.is_err(),
-            "空 DB 上 submit_for_approval 应返回 Err"
-        );
+        assert!(result.is_err(), "空 DB 上 submit_for_approval 应返回 Err");
     }
 
     /// 测试_ProductionOrderService_approve_order_空DB返回Err
@@ -156,10 +153,7 @@ mod tests {
         let db = setup_test_db().await;
         let svc = ProductionOrderService::new(Arc::new(db));
         let result = svc.approve_order(1, 1, "测试用户", true, None).await;
-        assert!(
-            result.is_err(),
-            "空 DB 上 approve_order 应返回 Err"
-        );
+        assert!(result.is_err(), "空 DB 上 approve_order 应返回 Err");
     }
 
     // ===== 完整业务流程测试（需要真实 PostgreSQL，标记 ignore）=====
@@ -171,8 +165,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "需要 PostgreSQL 测试数据库 + 前置产品/工作中心数据"]
     async fn 测试_生产订单全流程_创建到完成() {
-        let db_url = std::env::var("TEST_DATABASE_URL")
-            .expect("需设置 TEST_DATABASE_URL 环境变量");
+        let db_url = std::env::var("TEST_DATABASE_URL").expect("需设置 TEST_DATABASE_URL 环境变量");
         let db = Database::connect(&db_url).await.expect("DB 连接失败");
         let svc = ProductionOrderService::new(Arc::new(db));
 
@@ -204,7 +197,11 @@ mod tests {
 
         // 5. 开工（SCHEDULED → IN_PROGRESS）
         let order = svc
-            .update_status(order.id, production::PRODUCTION_IN_PROGRESS.to_string(), None)
+            .update_status(
+                order.id,
+                production::PRODUCTION_IN_PROGRESS.to_string(),
+                None,
+            )
             .await
             .expect("开工失败");
         assert_eq!(order.status, production::PRODUCTION_IN_PROGRESS);

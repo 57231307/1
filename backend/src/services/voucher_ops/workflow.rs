@@ -14,7 +14,9 @@
 //! - post 完成后发布 FinancialIndicatorUpdate 事件
 
 use chrono::Datelike;
-use sea_orm::{ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, QuerySelect, TransactionTrait};
+use sea_orm::{
+    ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, QuerySelect, TransactionTrait,
+};
 use tracing::info;
 
 use crate::models::{voucher, voucher_item};
@@ -50,7 +52,8 @@ impl VoucherService {
         self.validate_voucher(id).await?;
 
         let mut active_model: voucher::ActiveModel = voucher.into_active_model();
-        active_model.status = sea_orm::Set(crate::models::status::voucher::VOUCHER_SUBMITTED.to_string());
+        active_model.status =
+            sea_orm::Set(crate::models::status::voucher::VOUCHER_SUBMITTED.to_string());
 
         // 批次 11（2026-06-28）：事务包裹"凭证状态更新 + 审计日志"，保证原子性
         // 原 update_with_audit(&*self.db, ...) 内部 2 次独立写入非原子，
@@ -91,7 +94,8 @@ impl VoucherService {
         self.validate_voucher(id).await?;
 
         let mut active_model: voucher::ActiveModel = voucher.into_active_model();
-        active_model.status = sea_orm::Set(crate::models::status::voucher::VOUCHER_REVIEWED.to_string());
+        active_model.status =
+            sea_orm::Set(crate::models::status::voucher::VOUCHER_REVIEWED.to_string());
         active_model.reviewed_by = sea_orm::Set(Some(user_id));
         active_model.reviewed_at = sea_orm::Set(Some(chrono::Utc::now()));
 
@@ -149,7 +153,8 @@ impl VoucherService {
 
         // 3. 更新凭证状态
         let mut active_model: voucher::ActiveModel = voucher.into_active_model();
-        active_model.status = sea_orm::Set(crate::models::status::voucher::VOUCHER_POSTED.to_string());
+        active_model.status =
+            sea_orm::Set(crate::models::status::voucher::VOUCHER_POSTED.to_string());
         active_model.posted_by = sea_orm::Set(Some(user_id));
         active_model.posted_at = sea_orm::Set(Some(chrono::Utc::now()));
         let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(

@@ -10,7 +10,9 @@
       <div class="header-left">
         <h1 class="page-title">{{ pageTitle }}</h1>
         <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/' }">{{ $t('bpm.breadcrumb.home') }}</el-breadcrumb-item>
+          <el-breadcrumb-item :to="{ path: '/' }">{{
+            $t('bpm.breadcrumb.home')
+          }}</el-breadcrumb-item>
           <el-breadcrumb-item>{{ $t('bpm.approval.breadcrumb.approval') }}</el-breadcrumb-item>
           <el-breadcrumb-item>{{ $t('bpm.approval.breadcrumb.center') }}</el-breadcrumb-item>
         </el-breadcrumb>
@@ -22,11 +24,11 @@
     <el-tabs v-model="activeTab" @tab-change="handleTabChange">
       <el-tab-pane :label="tabPendingLabel" name="pending">
         <BpmApprovalPendingTable
+          v-model:page="bpmAp.pendingPage"
+          v-model:page-size="bpmAp.pendingPageSize"
           :tasks="bpmAp.pendingTasks"
           :loading="bpmAp.pendingLoading"
           :total="bpmAp.pendingTotal"
-          v-model:page="bpmAp.pendingPage"
-          v-model:page-size="bpmAp.pendingPageSize"
           @approve="bpmApProc.handleApprove"
           @reject="bpmApProc.handleReject"
           @transfer="bpmApProc.handleTransfer"
@@ -36,11 +38,11 @@
 
       <el-tab-pane :label="tabCompletedLabel" name="completed">
         <BpmApprovalCompletedTable
+          v-model:page="bpmAp.completedPage"
+          v-model:page-size="bpmAp.completedPageSize"
           :tasks="bpmAp.completedTasks"
           :loading="bpmAp.completedLoading"
           :total="bpmAp.completedTotal"
-          v-model:page="bpmAp.completedPage"
-          v-model:page-size="bpmAp.completedPageSize"
           @view-chain="bpmApProc.handleViewChain"
         />
       </el-tab-pane>
@@ -53,7 +55,7 @@
       :submit-loading="bpmApProc.submitLoading"
       :approve-form="bpmApProc.approveForm"
       @confirm="bpmApProc.confirmApproval"
-      @update:approve-form="(v) => Object.assign(bpmApProc.approveForm, v)"
+      @update:approve-form="v => Object.assign(bpmApProc.approveForm, v)"
     />
 
     <BpmApprovalTransferDialog
@@ -63,7 +65,7 @@
       :form="bpmApProc.transferForm"
       :rules="bpmApProc.transferRules"
       @confirm="bpmApProc.confirmTransfer"
-      @update:form="(v) => Object.assign(bpmApProc.transferForm, v)"
+      @update:form="v => Object.assign(bpmApProc.transferForm, v)"
     />
 
     <BpmApprovalChainDialog
@@ -74,38 +76,38 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { useBpmAp } from './composables/useBpmAp'
-import { useBpmApProc } from './composables/useBpmApProc'
-import BpmApprovalStat from './components/BpmApprovalStat.vue'
-import BpmApprovalPendingTable from './components/BpmApprovalPendingTable.vue'
-import BpmApprovalCompletedTable from './components/BpmApprovalCompletedTable.vue'
-import BpmApprovalApprovalDialog from './components/BpmApprovalApprovalDialog.vue'
-import BpmApprovalTransferDialog from './components/BpmApprovalTransferDialog.vue'
-import BpmApprovalChainDialog from './components/BpmApprovalChainDialog.vue'
+import { ref, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { useBpmAp } from './composables/useBpmAp';
+import { useBpmApProc } from './composables/useBpmApProc';
+import BpmApprovalStat from './components/BpmApprovalStat.vue';
+import BpmApprovalPendingTable from './components/BpmApprovalPendingTable.vue';
+import BpmApprovalCompletedTable from './components/BpmApprovalCompletedTable.vue';
+import BpmApprovalApprovalDialog from './components/BpmApprovalApprovalDialog.vue';
+import BpmApprovalTransferDialog from './components/BpmApprovalTransferDialog.vue';
+import BpmApprovalChainDialog from './components/BpmApprovalChainDialog.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 当前激活的 Tab
-const activeTab = ref('pending')
+const activeTab = ref('pending');
 
 // 主业务 + 流程
-const bpmAp = useBpmAp()
+const bpmAp = useBpmAp();
 const bpmApProc = useBpmApProc({
   fetchPendingTasks: bpmAp.fetchPendingTasks,
-})
+});
 
 // 页面标题与 Tab 标签（响应式求值，随语言切换更新）
-const pageTitle = computed(() => t('bpm.approval.title'))
-const tabPendingLabel = computed(() => t('bpm.approval.tab.pending'))
-const tabCompletedLabel = computed(() => t('bpm.approval.tab.completed'))
+const pageTitle = computed(() => t('bpm.approval.title'));
+const tabPendingLabel = computed(() => t('bpm.approval.tab.pending'));
+const tabCompletedLabel = computed(() => t('bpm.approval.tab.completed'));
 
 /** 切换 Tab 重新加载 */
 const handleTabChange = (tab: string | number) => {
-  if (tab === 'pending') bpmAp.fetchPendingTasks()
-  else if (tab === 'completed') bpmAp.fetchCompletedTasks()
-}
+  if (tab === 'pending') bpmAp.fetchPendingTasks();
+  else if (tab === 'completed') bpmAp.fetchCompletedTasks();
+};
 </script>
 
 <style scoped>

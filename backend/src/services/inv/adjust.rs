@@ -9,4 +9,3 @@
 //!
 //! 实际库存调整单据请使用：
 //! - `crate::services::inventory_adjustment_service::InventoryAdjustmentService`
-

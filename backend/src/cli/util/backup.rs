@@ -1,6 +1,6 @@
 //! 备份与恢复子命令实现：Backup / Restore
 
-use super::{get_backup_dir, get_install_dir, require_env, run_cmd, timestamp};
+use super::{get_backup_dir, get_install_dir, require_env, require_root, run_cmd, timestamp};
 use std::fs;
 
 // 批次 322 v9 复审低危修复：路径校验逻辑已抽取到共享模块 `utils::path_validator`，
@@ -20,6 +20,8 @@ fn get_systemd_dir() -> String {
 /// L4 修复（v8 复审）：函数返回 bool 表示是否成功，便于调用方（如 upgrade）根据结果决定后续流程
 /// 返回 true 表示备份成功，false 表示备份失败（错误已在函数内打印）
 pub(super) fn cmd_backup(backup_type: &str) -> bool {
+    // V15 P1 25.2-C 修复：备份命令必须 root 权限（写入系统目录、访问 .env）
+    require_root();
     // 批次 323 修复：timestamp() 返回 u64，转为 String 以便传给 compress_backup(&str)
     let ts = timestamp().to_string();
     let backup_dir = format!("{}/{}", get_backup_dir(), ts);
@@ -86,7 +88,9 @@ fn backup_database(backup_dir: &str) -> bool {
     // P0-1 修复（v9 复审）：数据库是核心数据，pg_dump 失败必须中止备份
     if let Err(e) = run_cmd(
         "pg_dump",
-        &["-h", &db_host, "-U", &db_user, "-d", &db_name, "-f", &db_file],
+        &[
+            "-h", &db_host, "-U", &db_user, "-d", &db_name, "-f", &db_file,
+        ],
     ) {
         println!("[ERROR] 数据库备份失败，终止备份: {}", e);
         return false;
@@ -125,10 +129,7 @@ fn backup_config_files(backup_dir: &str) {
 /// 规则 12 合规：设置备份文件权限为 0o600，防止 .env 敏感信息泄露。
 fn compress_backup(tar_file: &str, ts: &str) {
     println!("\n压缩备份...");
-    if let Err(e) = run_cmd(
-        "tar",
-        &["-czf", tar_file, "-C", &get_backup_dir(), ts],
-    ) {
+    if let Err(e) = run_cmd("tar", &["-czf", tar_file, "-C", &get_backup_dir(), ts]) {
         println!("[ERROR] 压缩失败: {}", e);
         return;
     }
@@ -146,6 +147,8 @@ fn compress_backup(tar_file: &str, ts: &str) {
 /// L4 修复（v8 复审）：函数返回 bool 表示是否成功，便于调用方根据结果决定后续流程
 /// 返回 true 表示恢复成功，false 表示恢复失败（错误已在函数内打印）
 pub(super) fn cmd_restore(file: &str) -> bool {
+    // V15 P1 25.2-C 修复：恢复命令必须 root 权限（覆盖系统目录、数据库写入）
+    require_root();
     println!("=== 恢复数据 ===\n");
     println!("备份文件: {}", file);
 
@@ -286,7 +289,9 @@ fn restore_database(db_file: &str) -> bool {
     // P1 修复（v9 复审）：数据库是核心数据，psql 恢复失败必须中止
     if let Err(e) = run_cmd(
         "psql",
-        &["-h", &db_host, "-U", &db_user, "-d", &db_name, "-f", db_file],
+        &[
+            "-h", &db_host, "-U", &db_user, "-d", &db_name, "-f", db_file,
+        ],
     ) {
         println!("[ERROR] 数据库恢复失败，终止恢复: {}", e);
         return false;

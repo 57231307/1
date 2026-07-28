@@ -48,11 +48,15 @@ impl ProductionOrderService {
             .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
 
         // 验证状态转换是否合法
-        Self::validate_status_transition(&model.status, crate::models::status::production::PRODUCTION_PENDING_APPROVAL)?;
+        Self::validate_status_transition(
+            &model.status,
+            crate::models::status::production::PRODUCTION_PENDING_APPROVAL,
+        )?;
 
         // 更新状态为审批中
         let mut active_model: ActiveModel = model.into();
-        active_model.status = Set(crate::models::status::production::PRODUCTION_PENDING_APPROVAL.to_string());
+        active_model.status =
+            Set(crate::models::status::production::PRODUCTION_PENDING_APPROVAL.to_string());
         active_model.updated_at = Set(Utc::now());
 
         let updated = active_model.update(&txn).await?;
@@ -166,11 +170,17 @@ impl ProductionOrderService {
         opinion: Option<String>,
     ) {
         let bpm_service = crate::services::bpm_service::BpmService::new(self.db.clone());
-        let action = if approved { "approve".to_string() } else { "reject".to_string() };
+        let action = if approved {
+            "approve".to_string()
+        } else {
+            "reject".to_string()
+        };
         let Ok(Some(instance)) = bpm_service
             .get_process_by_business("production_order", id)
             .await
-        else { return };
+        else {
+            return;
+        };
         let Ok(task_list) = bpm_service
             .query_user_tasks(crate::models::dto::bpm_dto::TaskQuery {
                 user_id: Some(user_id),
@@ -179,9 +189,13 @@ impl ProductionOrderService {
                 page_size: Some(10),
             })
             .await
-        else { return };
+        else {
+            return;
+        };
         for task in task_list.data {
-            if task.instance_id != instance.id { continue; }
+            if task.instance_id != instance.id {
+                continue;
+            }
             if let Err(e) = bpm_service
                 .approve_task(
                     crate::models::dto::bpm_dto::ApproveTaskRequest {

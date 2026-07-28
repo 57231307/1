@@ -144,7 +144,10 @@ impl ApPaymentRequestService {
             payment_method: Set(req.payment_method.clone()),
             request_amount: Set(req.request_amount),
             approval_status: Set(crate::models::status::common::STATUS_DRAFT.to_string()),
-            currency: Set(req.currency.clone().unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string())),
+            currency: Set(req
+                .currency
+                .clone()
+                .unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string())),
             exchange_rate: Set(req.exchange_rate.unwrap_or(Decimal::new(1, 0))),
             expected_payment_date: Set(req.expected_payment_date),
             bank_name: Set(req.bank_name.clone()),
@@ -330,7 +333,8 @@ impl ApPaymentRequestService {
         // 4. 提交付款申请
         let now = Utc::now();
         let mut request_active: ap_payment_request::ActiveModel = request.into();
-        request_active.approval_status = Set(crate::models::status::ap_payment_request::APPROVAL_APPROVING.to_string());
+        request_active.approval_status =
+            Set(crate::models::status::ap_payment_request::APPROVAL_APPROVING.to_string());
         request_active.submitted_by = Set(Some(user_id));
         request_active.submitted_at = Set(Some(now));
         request_active.updated_at = Set(now);
@@ -365,7 +369,8 @@ impl ApPaymentRequestService {
             .ok_or_else(|| AppError::not_found(format!("付款申请 {}", id)))?;
 
         // 2. 检查状态
-        if request.approval_status != crate::models::status::ap_payment_request::APPROVAL_APPROVING {
+        if request.approval_status != crate::models::status::ap_payment_request::APPROVAL_APPROVING
+        {
             return Err(AppError::business(format!(
                 "付款申请状态为{}，不可审批",
                 request.approval_status
@@ -379,7 +384,8 @@ impl ApPaymentRequestService {
         // 4. 审批通过
         let now = Utc::now();
         let mut request_active: ap_payment_request::ActiveModel = request.into();
-        request_active.approval_status = Set(crate::models::status::common::STATUS_APPROVED.to_string());
+        request_active.approval_status =
+            Set(crate::models::status::common::STATUS_APPROVED.to_string());
         request_active.approved_by = Set(Some(user_id));
         request_active.approved_at = Set(Some(now));
         request_active.updated_at = Set(now);
@@ -415,7 +421,8 @@ impl ApPaymentRequestService {
             .ok_or_else(|| AppError::not_found(format!("付款申请 {}", id)))?;
 
         // 2. 检查状态
-        if request.approval_status != crate::models::status::ap_payment_request::APPROVAL_APPROVING {
+        if request.approval_status != crate::models::status::ap_payment_request::APPROVAL_APPROVING
+        {
             return Err(AppError::business(format!(
                 "付款申请状态为{}，不可拒绝",
                 request.approval_status
@@ -425,7 +432,8 @@ impl ApPaymentRequestService {
         // 3. 拒绝付款申请
         let now = Utc::now();
         let mut request_active: ap_payment_request::ActiveModel = request.into();
-        request_active.approval_status = Set(crate::models::status::ap_payment_request::APPROVAL_REJECTED.to_string());
+        request_active.approval_status =
+            Set(crate::models::status::ap_payment_request::APPROVAL_REJECTED.to_string());
         request_active.rejected_by = Set(Some(user_id));
         request_active.rejected_at = Set(Some(now));
         request_active.rejected_reason = Set(Some(reason));
@@ -461,7 +469,8 @@ impl ApPaymentRequestService {
         if let Some(ctx) = data_scope {
             if !check_resource_owner(ctx, Some(request.created_by), None) {
                 return Err(AppError::permission_denied(format!(
-                    "无权访问付款申请 {}（数据范围限制）", id
+                    "无权访问付款申请 {}（数据范围限制）",
+                    id
                 )));
             }
         }

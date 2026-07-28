@@ -37,25 +37,25 @@
 
 <script setup lang="ts">
 // 贸易条款编辑器脚本
-import { ref } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { Plus } from '@element-plus/icons-vue'
-import { TERM_TYPE_LABELS, type CreateQuotationTermDto, type TermType } from '@/api/quotation'
+import { ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { Plus } from '@element-plus/icons-vue';
+import { TERM_TYPE_LABELS, type CreateQuotationTermDto, type TermType } from '@/api/quotation';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps<{
-  modelValue: CreateQuotationTermDto[]
-}>()
+  modelValue: CreateQuotationTermDto[];
+}>();
 const emit = defineEmits<{
-  (e: 'update:modelValue', value: CreateQuotationTermDto[]): void
-}>()
+  (e: 'update:modelValue', value: CreateQuotationTermDto[]): void;
+}>();
 
-const activeTab = ref<TermType>('logistics')
+const activeTab = ref<TermType>('logistics');
 
 /** 获取指定类型的条款 */
 function getTerms(type: TermType): CreateQuotationTermDto[] {
-  return props.modelValue.filter(t => t.term_type === type)
+  return props.modelValue.filter(t => t.term_type === type);
 }
 
 /** 添加条款 */
@@ -65,28 +65,28 @@ function handleAdd(type: TermType) {
     term_key: '',
     term_value: '',
     sequence: props.modelValue.length,
-  }
-  emit('update:modelValue', [...props.modelValue, newTerm])
+  };
+  emit('update:modelValue', [...props.modelValue, newTerm]);
 }
 
 /** 删除条款 */
 function handleRemove(type: TermType, idxInType: number) {
-  const arr = [...props.modelValue]
+  const arr = [...props.modelValue];
   // 找到 type 类型中的第 idxInType 个
-  let found = -1
-  let count = 0
+  let found = -1;
+  let count = 0;
   for (let i = 0; i < arr.length; i++) {
     if (arr[i].term_type === type) {
       if (count === idxInType) {
-        found = i
-        break
+        found = i;
+        break;
       }
-      count++
+      count++;
     }
   }
   if (found >= 0) {
-    arr.splice(found, 1)
-    emit('update:modelValue', arr)
+    arr.splice(found, 1);
+    emit('update:modelValue', arr);
   }
 }
 </script>

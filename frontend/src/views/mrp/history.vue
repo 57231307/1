@@ -199,13 +199,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { ElMessage } from 'element-plus'
-import { useI18n } from 'vue-i18n'
-import { getMrpResult, type MrpHistoryRecord, type MrpCalculationResult } from '../../api/mrp'
-import { useTableApi } from '@/composables/useTableApi'
+import { ref } from 'vue';
+import { ElMessage } from 'element-plus';
+import { useI18n } from 'vue-i18n';
+import { getMrpResult, type MrpHistoryRecord, type MrpCalculationResult } from '../../api/mrp';
+import { useTableApi } from '@/composables/useTableApi';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 /**
  * 状态类型映射（el-tag type）
@@ -215,9 +215,9 @@ const STATUS_TYPE_MAP: Record<string, string> = {
   calculating: 'warning',
   completed: 'success',
   failed: 'danger',
-}
+};
 
-const getStatusType = (status: string) => STATUS_TYPE_MAP[status] || 'info'
+const getStatusType = (status: string) => STATUS_TYPE_MAP[status] || 'info';
 
 /**
  * 状态标签映射（基于 i18n）
@@ -228,12 +228,12 @@ const getStatusLabel = (status: string) => {
     calculating: t('mrp.history.statusCalculating'),
     completed: t('mrp.history.statusCompleted'),
     failed: t('mrp.history.statusFailed'),
-  }
-  return map[status] || status
-}
+  };
+  return map[status] || status;
+};
 
-const resultVisible = ref(false)
-const currentResult = ref<MrpCalculationResult | null>(null)
+const resultVisible = ref(false);
+const currentResult = ref<MrpCalculationResult | null>(null);
 
 // 批次 274：接入 useTableApi，消除手写 historyList/total/loading/queryForm.page/page_size + fetchHistory 重复
 // useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
@@ -248,32 +248,34 @@ const {
   listKey: 'list',
   onError: (e: unknown) => {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-    ElMessage.error((e instanceof Error ? e.message : String(e)) || t('mrp.history.fetchListError'))
+    ElMessage.error(
+      (e instanceof Error ? e.message : String(e)) || t('mrp.history.fetchListError')
+    );
   },
-})
+});
 
 // 分页（useTableApi 自动 watch page/pageSize 变化触发重载）
 const handleSizeChange = (s: number) => {
-  pageSize.value = s
-  page.value = 1
-}
+  pageSize.value = s;
+  page.value = 1;
+};
 
 const handleCurrentChange = (p: number) => {
-  page.value = p
-}
+  page.value = p;
+};
 
 const viewResult = async (row: MrpHistoryRecord) => {
   try {
-    const res = await getMrpResult(row.id)
-    currentResult.value = res.data || null
-    resultVisible.value = true
+    const res = await getMrpResult(row.id);
+    currentResult.value = res.data || null;
+    resultVisible.value = true;
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
     ElMessage.error(
       (e instanceof Error ? e.message : String(e)) || t('mrp.history.fetchResultError')
-    )
+    );
   }
-}
+};
 
 // 批次 274：useTableApi 构造时自动初始加载，无需 onMounted 调用 fetchHistory
 </script>

@@ -161,12 +161,12 @@
 // 报价单列表页脚本
 // - 列表加载
 // - 行操作：查看/编辑/转订单/取消
-import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
-import { useTableApi } from '@/composables/useTableApi'
+import { ref, reactive, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { Plus } from '@element-plus/icons-vue';
+import { useTableApi } from '@/composables/useTableApi';
 import {
   cancelQuotation,
   convertQuotation,
@@ -174,26 +174,26 @@ import {
   QUOTATION_STATUS_TAG_TYPES,
   type QuotationResponseDto,
   type QuotationStatus,
-} from '@/api/quotation'
-import { getCustomerList } from '@/api/customer'
+} from '@/api/quotation';
+import { getCustomerList } from '@/api/customer';
 
 /** el-tag 类型联合（与 element-plus TagProps.type 对齐） */
-type TagType = '' | 'success' | 'warning' | 'info' | 'danger'
+type TagType = '' | 'success' | 'warning' | 'info' | 'danger';
 
 /** 计算状态对应的 el-tag 类型 */
 function tagType(s: QuotationStatus): TagType {
-  return (QUOTATION_STATUS_TAG_TYPES[s] || '') as TagType
+  return (QUOTATION_STATUS_TAG_TYPES[s] || '') as TagType;
 }
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const router = useRouter()
-const customers = ref<Array<{ id: number; customer_name?: string; name?: string }>>([])
+const router = useRouter();
+const customers = ref<Array<{ id: number; customer_name?: string; name?: string }>>([]);
 
 const filters = reactive({
   customer_id: undefined as number | undefined,
   status: undefined as QuotationStatus | undefined,
-})
+});
 
 // 批次 268：接入 useTableApi，消除手写 pagination + loadData 重复
 // API 返回兼容数组或 { list/items, total }，useTableApi detectList 自动探测
@@ -211,36 +211,36 @@ const {
     ElMessage.error(
       (e instanceof Error ? e.message : String(e)) || t('quotations.list.loadFailed')
     ),
-})
+});
 
 /** 同步筛选条件到 useTableApi.queryParams */
 function syncQueryParams() {
-  setQueryParam('customer_id', filters.customer_id)
-  setQueryParam('status', filters.status)
+  setQueryParam('customer_id', filters.customer_id);
+  setQueryParam('status', filters.status);
 }
 
 /** 加载客户下拉 */
 async function loadCustomers() {
   try {
-    const res = await getCustomerList({ page: 1, page_size: 1000 })
+    const res = await getCustomerList({ page: 1, page_size: 1000 });
     // getCustomerList 返回 ApiResponse<{ list: Customer[]; total: number }>，
     // res.data.list 即客户数组，无需 as any
-    customers.value = res.data?.list || []
+    customers.value = res.data?.list || [];
   } catch {
-    customers.value = []
+    customers.value = [];
   }
 }
 
 function handleSearch() {
-  syncQueryParams()
-  page.value = 1
-  loadData()
+  syncQueryParams();
+  page.value = 1;
+  loadData();
 }
 
 function handleReset() {
-  filters.customer_id = undefined
-  filters.status = undefined
-  handleSearch()
+  filters.customer_id = undefined;
+  filters.status = undefined;
+  handleSearch();
 }
 
 // 批次 268：分页变化（useTableApi 自动 watch 重载，此处无需手动调用）
@@ -249,16 +249,16 @@ function onPageChange(_p: number) {
 }
 
 function onSizeChange(s: number) {
-  pageSize.value = s
-  page.value = 1
+  pageSize.value = s;
+  page.value = 1;
 }
 
 function goDetail(row: QuotationResponseDto) {
-  router.push(`/quotations/${row.id}`)
+  router.push(`/quotations/${row.id}`);
 }
 
 function goEdit(row: QuotationResponseDto) {
-  router.push(`/quotations/${row.id}/edit`)
+  router.push(`/quotations/${row.id}/edit`);
 }
 
 async function handleCancel(row: QuotationResponseDto) {
@@ -269,13 +269,13 @@ async function handleCancel(row: QuotationResponseDto) {
       {
         type: 'warning',
       }
-    )
+    );
   } catch {
-    return
+    return;
   }
-  await cancelQuotation(row.id)
-  ElMessage.success(t('quotations.list.cancelSuccess'))
-  loadData()
+  await cancelQuotation(row.id);
+  ElMessage.success(t('quotations.list.cancelSuccess'));
+  loadData();
 }
 
 async function handleConvert(row: QuotationResponseDto) {
@@ -284,33 +284,33 @@ async function handleConvert(row: QuotationResponseDto) {
       t('quotations.list.convertConfirmText', { no: row.quotation_no }),
       t('quotations.list.convertConfirmTitle'),
       { type: 'warning' }
-    )
+    );
   } catch {
-    return
+    return;
   }
-  const res = await convertQuotation(row.id)
-  const order = res.data
-  ElMessage.success(t('quotations.list.convertSuccess', { id: order?.id }))
+  const res = await convertQuotation(row.id);
+  const order = res.data;
+  ElMessage.success(t('quotations.list.convertSuccess', { id: order?.id }));
   if (order?.id) {
-    router.push(`/sales/orders/${order.id}`)
+    router.push(`/sales/orders/${order.id}`);
   } else {
-    loadData()
+    loadData();
   }
 }
 
 /** 金额格式化（保留 2 位 + 千分位） */
 function formatAmount(value?: number): string {
-  if (value === undefined || value === null) return '0.00'
+  if (value === undefined || value === null) return '0.00';
   return Number(value).toLocaleString('zh-CN', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  })
+  });
 }
 
 // 批次 268：useTableApi 构造时自动初始加载列表，onMounted 仅加载客户下拉
 onMounted(() => {
-  loadCustomers()
-})
+  loadCustomers();
+});
 </script>
 
 <style scoped>

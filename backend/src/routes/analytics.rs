@@ -16,12 +16,12 @@ use axum::{
 };
 
 use crate::handlers::{
-    advanced, ai_analysis_handler, api_gateway_handler,
-    assist_accounting_handler, audit_enhanced_handler, barcode_scanner_handler,
-    business_trace_handler, data_permission_handler, dual_unit_converter_handler, email_handler,
-    import_export_handler, login_security_handler, notification_handler, report_engine_handler,
-    report_enhanced_handler, tracking_handler, user_notification_setting_handler,
-    webhook_handler, webhook_integration_handler,
+    advanced, ai_analysis_handler, api_gateway_handler, assist_accounting_handler,
+    audit_enhanced_handler, barcode_scanner_handler, business_trace_handler,
+    data_permission_handler, dual_unit_converter_handler, email_handler, import_export_handler,
+    login_security_handler, notification_handler, privacy_consent_handler, report_engine_handler,
+    report_enhanced_handler, tracking_handler, user_notification_setting_handler, webhook_handler,
+    webhook_integration_handler,
 };
 
 /// 双计量单位路由
@@ -261,10 +261,7 @@ pub fn webhook_integrations() -> Router<AppState> {
             get(webhook_integration_handler::list_integrations)
                 .post(webhook_integration_handler::create_integration),
         )
-        .route(
-            "/:id",
-            put(webhook_integration_handler::update_integration),
-        )
+        .route("/:id", put(webhook_integration_handler::update_integration))
         .route(
             "/integration/:id",
             delete(webhook_integration_handler::delete_integration),
@@ -340,10 +337,7 @@ pub fn webhooks() -> Router<AppState> {
             "/",
             get(webhook_handler::list_webhooks).post(webhook_handler::create_webhook),
         )
-        .route(
-            "/:id",
-            delete(webhook_handler::delete_webhook),
-        )
+        .route("/:id", delete(webhook_handler::delete_webhook))
         .route("/:id/test", post(webhook_handler::test_webhook))
         .route("/:id/retry", post(webhook_handler::retry_webhook))
         .route("/:id/logs", get(webhook_handler::get_webhook_logs))
@@ -600,13 +594,30 @@ pub fn tracking() -> Router<AppState> {
             "/page-view/stats/by-day",
             get(tracking_handler::get_page_view_stats_by_day),
         )
-        .route(
-            "/popular-pages",
-            get(tracking_handler::get_popular_pages),
-        )
+        .route("/popular-pages", get(tracking_handler::get_popular_pages))
         .route("/behavior", post(tracking_handler::record_behavior))
         .route("/funnel", post(tracking_handler::get_funnel_analysis))
         .route("/user-path", get(tracking_handler::get_user_path))
+}
+
+/// 隐私同意路由（V15 P1 batch-16 缺陷 7.3）
+///
+/// 提供端点：
+/// - GET  /consents — 查询当前用户的所有/指定 consent_type 状态
+/// - POST /consents — 记录单类型同意/退出决定
+/// - POST /opt-in-all — 一键同意全部追踪（首次登录确认后调用）
+/// - POST /opt-out-all — 一键退出全部追踪（行使撤回权）
+///
+/// 合规依据：《个人信息保护法》第 14 条（同意原则）+ 第 16 条（撤回权）+ GDPR 第 7 条
+pub fn privacy() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/consents",
+            get(privacy_consent_handler::get_consent_status),
+        )
+        .route("/consents", post(privacy_consent_handler::record_consent))
+        .route("/opt-in-all", post(privacy_consent_handler::opt_in_all))
+        .route("/opt-out-all", post(privacy_consent_handler::opt_out_all))
 }
 
 /// 分析域统一入口
@@ -631,6 +642,8 @@ pub fn routes() -> Router<AppState> {
         .merge(reports())
         .nest("/trading", trading())
         .merge(tracking())
+        // V15 P1 batch-16 缺陷 7.3：隐私同意路由（nest 到 /api/v1/erp/privacy）
+        .nest("/privacy", privacy())
         // 内部有 `GET /` 重复的子 router 走 nest 加独立前缀
         .nest("/reports/enhanced", reports_enhanced())
         .nest("/webhooks/integrations", webhook_integrations())

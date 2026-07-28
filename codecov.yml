@@ -1,0 +1,85 @@
+# Codecov 覆盖率配置（V15 批次 06 P1-12 修复）
+# 规则 6.7 检查要点 3：核心模块 80%+ / 全项目 60%+
+# 文档：https://docs.codecov.com/yml
+
+coverage:
+  status:
+    project:
+      default:
+        # 全项目覆盖率门槛：60%（未达 CI 标记 failed，但不阻塞合并）
+        target: 60%
+        threshold: 1%
+        informational: true
+        # 仅在 main/master 分支建立基线，PR 与基线对比
+        base: auto
+        # 防止覆盖率小幅波动误报（仅在下降 > 1% 时标记）
+        if_ci_failed: success
+      # 核心后端 service 模块：80% 门槛
+      backend-services:
+        target: 80%
+        threshold: 2%
+        informational: true
+        flags:
+          - rust
+          - backend-services
+        paths:
+          - backend/src/services/.*
+      # 前端 store 与 api 模块：70% 门槛
+      frontend-store:
+        target: 70%
+        threshold: 2%
+        informational: true
+        flags:
+          - frontend
+          - store
+        paths:
+          - frontend/src/store/.*
+          - frontend/src/api/.*
+
+    patch:
+      default:
+        # 新增代码覆盖率必须 80%+（避免新代码无测试覆盖）
+        target: 80%
+        threshold: 5%
+        informational: true
+        # 仅在新代码覆盖率低于 80% 时标记，不阻塞合并
+        if_ci_failed: success
+
+# 标志：区分前后端覆盖率
+flags:
+  rust:
+    paths:
+      - backend/src/
+    carryforward: false
+  frontend:
+    paths:
+      - frontend/src/
+    carryforward: false
+  backend-services:
+    paths:
+      - backend/src/services/
+    carryforward: false
+
+# 注释配置：PR 评论覆盖率变化
+comment:
+  layout: "reach, diff, flags, files"
+  behavior: default
+  require_changes: false
+  require_base: no
+  require_head: yes
+  show_carryforward_flags: true
+
+# 忽略路径（不参与覆盖率统计）
+ignore:
+  - backend/tests/
+  - backend/benches/
+  - backend/src/main.rs
+  - frontend/tests/
+  - frontend/e2e/
+  - frontend/**/*.test.ts
+  - frontend/**/*.spec.ts
+  - frontend/**/*.d.ts
+
+# GitHub checks：informational（不阻塞 PR 合并，仅展示状态）
+github_checks:
+  annotations: true

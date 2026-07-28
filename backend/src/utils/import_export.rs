@@ -310,7 +310,10 @@ mod tests {
 
     #[test]
     fn test_field_validator_integer() {
-        assert_eq!(FieldValidator::integer("42", "数量").expect("P9-1: 整数校验"), 42);
+        assert_eq!(
+            FieldValidator::integer("42", "数量").expect("P9-1: 整数校验"),
+            42
+        );
         assert!(FieldValidator::integer("abc", "数量").is_err());
     }
 

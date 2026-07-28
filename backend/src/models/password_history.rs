@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 密码历史 Entity（批次 158 v11 真实接入 PasswordPolicyService）
 //!
 //! 对应数据库表：password_histories

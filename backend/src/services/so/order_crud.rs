@@ -12,6 +12,7 @@
 //! 通过 `crate::services::so::order::SalesService` 路径访问。
 
 use super::order::SalesService;
+use crate::models::status::sales_order as so_status;
 use crate::models::{
     ar_invoice::{self},
     customer, product, sales_order,
@@ -19,11 +20,8 @@ use crate::models::{
     sales_order_item,
     sales_order_item::Entity as SalesOrderItemEntity,
 };
-use crate::models::status::sales_order as so_status;
 use crate::search::{SalesOrderDoc, SalesOrderItemDoc};
-use crate::services::so::{
-    CreateSalesOrderRequest, SalesOrderDetail, UpdateSalesOrderRequest,
-};
+use crate::services::so::{CreateSalesOrderRequest, SalesOrderDetail, UpdateSalesOrderRequest};
 use crate::utils::error::AppError;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, TransactionTrait,
@@ -414,9 +412,7 @@ impl SalesService {
             tax_amount += &amounts.item_tax;
             total_amount += &amounts.item_total;
             item_models.push(Self::build_sales_order_item_active_model(
-                &item_req,
-                order_id,
-                &amounts,
+                &item_req, order_id, &amounts,
             ));
         }
         if !item_models.is_empty() {
@@ -482,10 +478,7 @@ impl SalesService {
             customer_id,
             order_amount
         );
-        if let Ok(Some(warning)) = credit_service
-            .check_credit_warning(customer_id)
-            .await
-        {
+        if let Ok(Some(warning)) = credit_service.check_credit_warning(customer_id).await {
             tracing::warn!("信用预警: {}", warning);
         }
         Ok(())
@@ -607,7 +600,8 @@ impl SalesService {
             order_update.status = sea_orm::ActiveValue::Set(status.clone());
         }
         if let Some(shipping_address) = &request.shipping_address {
-            order_update.shipping_address = sea_orm::ActiveValue::Set(Some(shipping_address.clone()));
+            order_update.shipping_address =
+                sea_orm::ActiveValue::Set(Some(shipping_address.clone()));
         }
         if let Some(billing_address) = &request.billing_address {
             order_update.billing_address = sea_orm::ActiveValue::Set(Some(billing_address.clone()));
@@ -709,7 +703,11 @@ impl SalesService {
 
         // 批次 125 v8 复审 P1 修复：PG 事务提交后删除 ES 文档（最终一致性）
         // 销售订单是硬删除，ES 文档也需删除（与客户软删除不同）
-        if let Err(e) = self.search_syncer.delete_sales_order(&order_no_for_es).await {
+        if let Err(e) = self
+            .search_syncer
+            .delete_sales_order(&order_no_for_es)
+            .await
+        {
             tracing::warn!(
                 error = %e,
                 order_id = order_id,

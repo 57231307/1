@@ -3,10 +3,32 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- V15 P1-20-1 PWA 支持：manifest + theme-color -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#409eff" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="秉羲ERP" />
+    <meta name="description" content="面料行业 ERP 管理系统 - 染整/色卡/销售/财务/库存全链路管理" />
     <title>秉羲 ERP</title>
   </head>
   <body>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
+    <!-- V15 P1-20-1 PWA Service Worker 注册（生产环境生效，开发环境跳过避免热更新冲突） -->
+    <script>
+      if ('serviceWorker' in navigator && location.protocol === 'https:') {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker
+            .register('/sw.js', { scope: '/' })
+            .then((reg) => {
+              console.info('[PWA] Service Worker registered:', reg.scope);
+            })
+            .catch((err) => {
+              console.warn('[PWA] Service Worker registration failed:', err);
+            });
+        });
+      }
+    </script>
   </body>
 </html>

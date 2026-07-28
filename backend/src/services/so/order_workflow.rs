@@ -74,12 +74,13 @@ impl SalesService {
         txn.commit().await?;
 
         // B-P1-4 修复（批次 361 v13 复审）：commit 后发布 SalesOrderCancelled 事件
-        crate::services::event_bus::EVENT_BUS
-            .publish(crate::services::event_bus::BusinessEvent::SalesOrderCancelled {
+        crate::services::event_bus::EVENT_BUS.publish(
+            crate::services::event_bus::BusinessEvent::SalesOrderCancelled {
                 order_id,
                 customer_id: customer_id_for_event,
                 user_id,
-            });
+            },
+        );
 
         self.get_order_detail(order_id, None).await
     }
@@ -95,14 +96,21 @@ impl SalesService {
         let order = self.lookup_order_for_submit(&txn, order_id).await?;
         self.validate_order_status(&order)?;
 
-        let total_amount_decimal = order.total_amount.to_string().parse::<rust_decimal::Decimal>().unwrap_or_else(|_| rust_decimal::Decimal::from(0));
-        self.validate_customer_credit(&txn, order.customer_id, total_amount_decimal).await?;
-        self.validate_customer_active(&txn, order.customer_id).await?;
+        let total_amount_decimal = order
+            .total_amount
+            .to_string()
+            .parse::<rust_decimal::Decimal>()
+            .unwrap_or_else(|_| rust_decimal::Decimal::from(0));
+        self.validate_customer_credit(&txn, order.customer_id, total_amount_decimal)
+            .await?;
+        self.validate_customer_active(&txn, order.customer_id)
+            .await?;
 
         let order = self.update_order_to_pending(&txn, order, user_id).await?;
         txn.commit().await?;
 
-        self.start_bpm_process(order_id, user_id, &order.order_no).await?;
+        self.start_bpm_process(order_id, user_id, &order.order_no)
+            .await?;
         self.publish_submitted_event(order_id, order.customer_id, user_id);
 
         Ok(order)
@@ -246,12 +254,13 @@ impl SalesService {
     }
 
     fn publish_submitted_event(&self, order_id: i32, customer_id: i32, user_id: i32) {
-        crate::services::event_bus::EVENT_BUS
-            .publish(crate::services::event_bus::BusinessEvent::SalesOrderSubmitted {
+        crate::services::event_bus::EVENT_BUS.publish(
+            crate::services::event_bus::BusinessEvent::SalesOrderSubmitted {
                 order_id,
                 customer_id,
                 user_id,
-            });
+            },
+        );
     }
 
     /// 审核订单：通过或拒绝
@@ -335,12 +344,13 @@ impl SalesService {
     }
 
     fn publish_approval_event(&self, order_id: i32, customer_id: i32, user_id: i32) {
-        crate::services::event_bus::EVENT_BUS
-            .publish(crate::services::event_bus::BusinessEvent::SalesOrderApproved {
+        crate::services::event_bus::EVENT_BUS.publish(
+            crate::services::event_bus::BusinessEvent::SalesOrderApproved {
                 order_id,
                 customer_id,
                 user_id,
-            });
+            },
+        );
     }
 
     async fn fetch_order_items_for_approval(
@@ -422,7 +432,8 @@ impl SalesService {
         order_id: i32,
         order_items: &[crate::models::sales_order_item::Model],
     ) {
-        let mrp_service = crate::services::mrp_engine_service::MrpEngineService::new(self.db.clone());
+        let mrp_service =
+            crate::services::mrp_engine_service::MrpEngineService::new(self.db.clone());
         let required_date = chrono::Utc::now().date_naive() + chrono::Duration::days(7);
         for item in order_items {
             if let Err(e) = mrp_service
@@ -489,12 +500,13 @@ impl SalesService {
         txn.commit().await?;
 
         // B-P1-4 修复（批次 361 v13 复审）：commit 后发布 SalesOrderCompleted 事件
-        crate::services::event_bus::EVENT_BUS
-            .publish(crate::services::event_bus::BusinessEvent::SalesOrderCompleted {
+        crate::services::event_bus::EVENT_BUS.publish(
+            crate::services::event_bus::BusinessEvent::SalesOrderCompleted {
                 order_id,
                 customer_id: order.customer_id,
                 user_id,
-            });
+            },
+        );
 
         Ok(order)
     }
@@ -503,15 +515,15 @@ impl SalesService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::services::test_common::setup_test_db;
     use crate::decs;
+    use crate::services::test_common::setup_test_db;
     // 批次 415：decs! 宏展开为 Decimal::from_str，需导入 FromStr trait
-    use std::str::FromStr;
-    use crate::ymd;
     use crate::search::{ElasticClient, SearchClient};
+    use crate::ymd;
     use chrono::Utc;
     use rust_decimal::Decimal;
     use sea_orm::DatabaseConnection;
+    use std::str::FromStr;
     use std::sync::Arc;
 
     /// 构建测试用销售订单模型夹具
@@ -572,7 +584,10 @@ mod tests {
     /// 复现 submit_order 的状态校验门（不涉及数据库）
     fn submit_order_status_gate(status: &str) -> Result<(), AppError> {
         if status != so_status::DRAFT {
-            return Err(AppError::business(format!("订单状态为 {}，无法提交", status)));
+            return Err(AppError::business(format!(
+                "订单状态为 {}，无法提交",
+                status
+            )));
         }
         Ok(())
     }
@@ -580,7 +595,10 @@ mod tests {
     /// 复现 approve_order 的状态校验门（不涉及数据库）
     fn approve_order_status_gate(status: &str) -> Result<(), AppError> {
         if status != so_status::PENDING {
-            return Err(AppError::business(format!("订单状态为 {}，无法审核", status)));
+            return Err(AppError::business(format!(
+                "订单状态为 {}，无法审核",
+                status
+            )));
         }
         Ok(())
     }
@@ -588,7 +606,10 @@ mod tests {
     /// 复现 complete_order 的状态校验门（不涉及数据库）
     fn complete_order_status_gate(status: &str) -> Result<(), AppError> {
         if ![so_status::SHIPPED, so_status::PARTIAL_SHIPPED].contains(&status) {
-            return Err(AppError::business(format!("订单状态为 {}，无法完成", status)));
+            return Err(AppError::business(format!(
+                "订单状态为 {}，无法完成",
+                status
+            )));
         }
         Ok(())
     }
@@ -731,10 +752,7 @@ mod tests {
         let should_reject = customer_status != master_data::ACTIVE;
         assert!(should_reject);
 
-        let err = AppError::business(format!(
-            "客户状态为 {}，不允许提交订单",
-            customer_status
-        ));
+        let err = AppError::business(format!("客户状态为 {}，不允许提交订单", customer_status));
         match err {
             AppError::BusinessError(msg) => {
                 assert!(msg.contains(master_data::INACTIVE));

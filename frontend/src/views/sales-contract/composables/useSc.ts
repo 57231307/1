@@ -5,14 +5,15 @@
  * 业务流程（提交审批/审批/执行/打印/导出）由 useScProc 提供
  * 批次 284：contractList 接入 useTableApi，移除手写分页/加载逻辑
  */
-import { ref, reactive } from 'vue'
-import { ElMessage } from 'element-plus'
-import { createSalesContract, updateSalesContract, type SalesContract } from '@/api/sales-contract'
+import { ref, reactive } from 'vue';
+import { ElMessage } from 'element-plus';
+import { msg } from '@/utils/message';
+import { createSalesContract, updateSalesContract, type SalesContract } from '@/api/sales-contract';
 // D14 Batch 5b：原 customerApi 对象已转风格 B 函数
-import { getCustomerList, type Customer } from '@/api/customer'
-import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
-import { logger } from '@/utils/logger'
-import { useTableApi } from '@/composables/useTableApi'
+import { getCustomerList, type Customer } from '@/api/customer';
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
+import { logger } from '@/utils/logger';
+import { useTableApi } from '@/composables/useTableApi';
 
 /**
  * 销售合同 composable
@@ -42,19 +43,19 @@ export function useSc() {
     },
     onError: (err: unknown) => {
       // 使用类型守卫安全提取错误信息
-      const errMsg = err instanceof Error ? err.message : ''
-      ElMessage.error(errMsg || '获取销售合同列表失败')
+      const errMsg = err instanceof Error ? err.message : '';
+      ElMessage.error(errMsg || msg.translate('loadSalesContractListFailed'));
     },
-  })
+  });
 
   // 日期范围（SalesContractFilter 通过 date-change emit 回传，保留特殊处理）
-  const dateRange = ref<[Date, Date] | null>(null)
+  const dateRange = ref<[Date, Date] | null>(null);
 
   // 客户列表
-  const customers = ref<Customer[]>([])
+  const customers = ref<Customer[]>([]);
 
   // 对话框
-  const dialogTitle = ref('')
+  const dialogTitle = ref('');
 
   // 表单数据
   const formData = reactive({
@@ -72,39 +73,39 @@ export function useSc() {
     delivery_date: '',
     delivery_location: '',
     remarks: '',
-  })
+  });
 
   // 懒加载标记
-  const hasLoaded = createLazyLoader()
+  const hasLoaded = createLazyLoader();
 
   /** 处理日期范围变化（批次 284：改为 setQueryParam + page=1 + refresh） */
   const handleDateChange = () => {
     if (dateRange.value) {
-      setQueryParam('signed_date_from', dateRange.value[0].toISOString().split('T')[0])
-      setQueryParam('signed_date_to', dateRange.value[1].toISOString().split('T')[0])
+      setQueryParam('signed_date_from', dateRange.value[0].toISOString().split('T')[0]);
+      setQueryParam('signed_date_to', dateRange.value[1].toISOString().split('T')[0]);
     } else {
-      setQueryParam('signed_date_from', '')
-      setQueryParam('signed_date_to', '')
+      setQueryParam('signed_date_from', '');
+      setQueryParam('signed_date_to', '');
     }
-    page.value = 1
-    getList()
-  }
+    page.value = 1;
+    getList();
+  };
 
   /** 获取客户列表 */
   const getCustomers = async () => {
     try {
-      const res = await getCustomerList()
-      customers.value = res.data?.list || []
+      const res = await getCustomerList();
+      customers.value = res.data?.list || [];
     } catch (error) {
-      logger.error('获取客户列表失败:', error)
+      logger.error('获取客户列表失败:', error);
     }
-  }
+  };
 
   /** 查询 */
   const handleQuery = () => {
-    page.value = 1
-    getList()
-  }
+    page.value = 1;
+    getList();
+  };
 
   /** 重置 */
   const handleReset = () => {
@@ -114,15 +115,15 @@ export function useSc() {
       status: '',
       signed_date_from: '',
       signed_date_to: '',
-    }
-    dateRange.value = null
-    page.value = 1
-    getList()
-  }
+    };
+    dateRange.value = null;
+    page.value = 1;
+    getList();
+  };
 
   /** 准备新建表单（父组件需自行打开对话框） */
   const prepareCreate = () => {
-    dialogTitle.value = '新建销售合同'
+    dialogTitle.value = '新建销售合同';
     Object.assign(formData, {
       id: undefined,
       contract_no: '',
@@ -138,39 +139,39 @@ export function useSc() {
       delivery_date: '',
       delivery_location: '',
       remarks: '',
-    })
-  }
+    });
+  };
 
   /** 准备编辑表单（父组件需自行打开对话框） */
   const prepareEdit = (row: SalesContract) => {
-    dialogTitle.value = '编辑销售合同'
-    Object.assign(formData, row)
-  }
+    dialogTitle.value = '编辑销售合同';
+    Object.assign(formData, row);
+  };
 
   /** 提交表单 */
   const handleSubmitForm = async () => {
     try {
       if (formData.id) {
-        await updateSalesContract(formData.id, formData)
+        await updateSalesContract(formData.id, formData);
       } else {
-        await createSalesContract(formData)
+        await createSalesContract(formData);
       }
-      ElMessage.success('保存成功')
-      await getList()
-      return true
+      msg.success('saveSuccess');
+      await getList();
+      return true;
     } catch (error: unknown) {
       // 使用类型守卫安全提取错误信息
       if (error instanceof Error && error.message) {
-        ElMessage.error(error.message || '操作失败')
+        ElMessage.error(error.message || msg.translate('operationFailed'));
       }
-      return false
+      return false;
     }
-  }
+  };
 
   /** 初始化加载辅助数据（懒加载客户，列表由 useTableApi setup 自动加载） */
   const initLoad = () => {
-    loadIfNot('customers', getCustomers, hasLoaded)
-  }
+    loadIfNot('customers', getCustomers, hasLoaded);
+  };
 
   // 使用 reactive 包装，访问字段时自动解包 ref
   return reactive({
@@ -198,7 +199,7 @@ export function useSc() {
     handleSubmitForm,
     // 初始化
     initLoad,
-  })
+  });
 }
 
-export type ScLazyLoader = Record<string, boolean>
+export type ScLazyLoader = Record<string, boolean>;

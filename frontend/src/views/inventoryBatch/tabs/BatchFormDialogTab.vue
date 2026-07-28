@@ -101,36 +101,36 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, computed } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
-import type { FormInstance, FormRules } from 'element-plus'
+import { ref, reactive, watch, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
+import type { FormInstance, FormRules } from 'element-plus';
 import {
   createBatch,
   updateBatch,
   type CreateBatchRequest,
   type UpdateBatchRequest,
   type InventoryBatch,
-} from '@/api/inventoryBatch'
-import { logger } from '@/utils/logger'
+} from '@/api/inventoryBatch';
+import { logger } from '@/utils/logger';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 interface Props {
-  modelValue: boolean
-  currentRow: InventoryBatch | null
+  modelValue: boolean;
+  currentRow: InventoryBatch | null;
 }
 
 interface Emits {
-  (e: 'update:modelValue', val: boolean): void
-  (e: 'submitted'): void
+  (e: 'update:modelValue', val: boolean): void;
+  (e: 'submitted'): void;
 }
 
-const props = defineProps<Props>()
-const emit = defineEmits<Emits>()
+const props = defineProps<Props>();
+const emit = defineEmits<Emits>();
 
-const formRef = ref<FormInstance>()
-const submitLoading = ref(false)
+const formRef = ref<FormInstance>();
+const submitLoading = ref(false);
 
 const formData = reactive({
   id: 0,
@@ -146,7 +146,7 @@ const formData = reactive({
   warehouseId: 0,
   warehouseName: '',
   productionDate: '',
-})
+});
 
 /** 校验规则：computed 确保语言切换后规则消息响应式更新 */
 const formRules = computed<FormRules>(() => ({
@@ -164,57 +164,59 @@ const formRules = computed<FormRules>(() => ({
       trigger: 'blur',
     },
   ],
-}))
+}));
 
 const resetForm = () => {
-  formData.id = 0
-  formData.batchNo = ''
-  formData.productName = ''
-  formData.colorNo = ''
-  formData.dyeLotNo = ''
-  formData.grade = t('inventoryBatch.batchFormDialog.optionGradeFirst')
-  formData.quantityMeters = 0
-  formData.quantityKg = 0
-  formData.gramWeight = 0
-  formData.width = 0
-  formData.warehouseId = 0
-  formData.warehouseName = ''
-  formData.productionDate = ''
-}
+  formData.id = 0;
+  formData.batchNo = '';
+  formData.productName = '';
+  formData.colorNo = '';
+  formData.dyeLotNo = '';
+  formData.grade = t('inventoryBatch.batchFormDialog.optionGradeFirst');
+  formData.quantityMeters = 0;
+  formData.quantityKg = 0;
+  formData.gramWeight = 0;
+  formData.width = 0;
+  formData.warehouseId = 0;
+  formData.warehouseName = '';
+  formData.productionDate = '';
+};
 
 watch(
   () => props.modelValue,
   val => {
     if (val) {
       if (props.currentRow) {
-        Object.assign(formData, props.currentRow)
+        Object.assign(formData, props.currentRow);
       } else {
-        resetForm()
+        resetForm();
       }
     }
   }
-)
+);
 
 const handleSubmit = async () => {
-  if (!formRef.value) return
+  if (!formRef.value) return;
   await formRef.value.validate(async valid => {
-    if (!valid) return
-    submitLoading.value = true
+    if (!valid) return;
+    submitLoading.value = true;
     try {
       if (formData.id) {
-        await updateBatch(formData.id, formData as unknown as UpdateBatchRequest)
+        await updateBatch(formData.id, formData as unknown as UpdateBatchRequest);
       } else {
-        await createBatch(formData as unknown as CreateBatchRequest)
+        await createBatch(formData as unknown as CreateBatchRequest);
       }
-      ElMessage.success(t('inventoryBatch.batchFormDialog.messageSuccess'))
-      emit('update:modelValue', false)
-      emit('submitted')
+      ElMessage.success(t('inventoryBatch.batchFormDialog.messageSuccess'));
+      emit('update:modelValue', false);
+      emit('submitted');
     } catch (error) {
-      ElMessage.error((error as Error).message || t('inventoryBatch.batchFormDialog.messageFailed'))
-      logger.error(t('inventoryBatch.batchFormDialog.messageSaveFailed'), (error as Error).message)
+      ElMessage.error(
+        (error as Error).message || t('inventoryBatch.batchFormDialog.messageFailed')
+      );
+      logger.error(t('inventoryBatch.batchFormDialog.messageSaveFailed'), (error as Error).message);
     } finally {
-      submitLoading.value = false
+      submitLoading.value = false;
     }
-  })
-}
+  });
+};
 </script>

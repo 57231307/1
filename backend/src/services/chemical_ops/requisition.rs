@@ -268,9 +268,7 @@ impl ChemicalRequisitionService {
             .filter(chemical_requisition::Column::IsDeleted.eq(false))
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::not_found(format!("领用单号 {} 不存在", requisition_no))
-            })
+            .ok_or_else(|| AppError::not_found(format!("领用单号 {} 不存在", requisition_no)))
     }
 
     /// 分页查询
@@ -278,8 +276,8 @@ impl ChemicalRequisitionService {
         &self,
         query: ChemicalRequisitionQuery,
     ) -> Result<(Vec<RequisitionModel>, u64), AppError> {
-        let mut q = RequisitionEntity::find()
-            .filter(chemical_requisition::Column::IsDeleted.eq(false));
+        let mut q =
+            RequisitionEntity::find().filter(chemical_requisition::Column::IsDeleted.eq(false));
         if let Some(v) = query.requisition_type {
             q = q.filter(chemical_requisition::Column::RequisitionType.eq(v));
         }

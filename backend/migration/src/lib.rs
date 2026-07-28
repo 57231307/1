@@ -1,3 +1,35 @@
+//! 数据库迁移模块（m0001-m0074）。
+//!
+//! ## V15 P1 25.4-J 迁移兼容性规范（蓝绿部署保障）
+//!
+//! 蓝绿部署时新旧版本同时运行，schema 不兼容会导致旧版本写入失败。
+//! 所有新增迁移必须遵守以下规则：
+//!
+//! 1. **新增字段**：必须 `NULLABLE` 或带 `DEFAULT` 值。
+//!    - ✅ `ALTER TABLE t ADD COLUMN c VARCHAR NULL;`
+//!    - ✅ `ALTER TABLE t ADD COLUMN c BOOLEAN NOT NULL DEFAULT FALSE;`
+//!    - ❌ `ALTER TABLE t ADD COLUMN c VARCHAR NOT NULL;`（旧版本 INSERT 无此字段会失败）
+//!
+//! 2. **删除字段**：必须先废弃一个版本（先标记 deprecated，下一个版本再删除）。
+//!    - 版本 N：应用层停止读写该字段
+//!    - 版本 N+1：迁移删除该字段
+//!
+//! 3. **重命名字段**：必须分两步执行（跨两个版本）。
+//!    - 版本 N：新增字段 + 应用层双写（old + new）
+//!    - 版本 N+1：数据迁移 + 应用层切换读 new
+//!    - 版本 N+2：删除 old 字段
+//!
+//! 4. **修改字段类型**：必须分步执行（兼容中间态）。
+//!    - 版本 N：新增兼容类型字段 + 双写
+//!    - 版本 N+1：数据迁移
+//!    - 版本 N+2：应用层切换 + 删除旧字段
+//!
+//! 5. **新增约束（NOT NULL / CHECK / FK）**：必须先确保现有数据满足约束，
+//!    且 `ALTER TABLE ADD CONSTRAINT` 在事务中执行（失败可回滚）。
+//!
+//! 启动时 `bootstrap::service_bootstrap::check_migration_compatibility` 会查询
+//! `information_schema.columns` 检测违反规则 1 的 NOT NULL 无 DEFAULT 字段并 warn。
+
 pub use sea_orm_migration::prelude::*;
 
 pub mod m0001_initial_schema;
@@ -115,6 +147,35 @@ pub mod m0066_add_after_sales_quality_issue_id;
 pub mod m0067_add_logistics_waybill_sign_fields;
 // Batch 484 P0-B15：缺料预警持久化（material_shortage_alerts + threshold_configs 两表）
 pub mod m0068_create_material_shortage_tables;
+// V15 批次 15 P1：补齐 supplier_evaluation_records 评估记录表迁移
+pub mod m0069_create_supplier_evaluation_records;
+// V15 P1 Batch-10 12.1：user_role 关联表（多对多，支持一个用户多角色）
+pub mod m0070_create_user_role;
+// V15 P1 Batch-09 10.3-1：color_card_issues 增加 sales_order_id 字段（订单驱动发放色卡场景）
+pub mod m0071_add_sales_order_id_to_color_card_issues;
+// V15 P1 Batch-10 12.6：permission_delegations 表（权限委托时限化 + 审计）
+pub mod m0072_create_permission_delegations;
+// V15 P1 Batch-10 12.2：role_relations 表（角色继承与互斥校验）
+pub mod m0073_create_role_relations;
+// V15 P1 迁移整合：执行 V15 P1 批次的 SQL 迁移文件（051-055）
+pub mod m0074_v15_p1_integrate_sql_migrations;
+// V15 P1 batch-16 缺陷 6.1/6.2/6.3：邮件异步队列 + 重试 + 附件（email_logs 新增 next_retry_at/attachments/html_content/text_content）
+pub mod m0075_add_email_queue_fields;
+// V15 P1 batch-11 缺陷 3-3：audit_logs 表导出专属字段（export_record_count/export_query_filter/export_file_format/export_approval_token/export_watermark_user）
+pub mod m0076_add_export_audit_fields;
+// V15 P1 batch-16 缺陷 7.2/7.3/8.3/8.4：OA 公告可见性 + 用户隐私同意 + 行为日志归档
+pub mod m0077_add_oa_visibility_consent_retention;
+// V15 P1 batch-18 缺陷 1.1/1.2/2.1/4.2/4.3/6.1/7.1/10.1/11.1/3.3：胚布采购关联 + 安全库存 + 委外胚布 + 8D根因 + 分级审批 + 补货策略 + 产能模型 + 工作中心实体
+pub mod m0078_batch18_greige_outsourcing_quality_scheduling;
+// V15 P1 batch-15 17.3-D5：催收模板表（话术标准化）
+pub mod m0080_create_collection_templates;
+// V15 P1 batch-15 17.8-D4：固定资产盘点表（盘点计划-执行-差异闭环）
+pub mod m0081_create_fixed_asset_counts;
+// V15 P1 batch-15 18.4-D2/D3：CRM 团队协作 + 数据共享时效
+pub mod m0082_create_customer_team_and_share;
+// V15 P1 batch-08 法律合规修复（环保/劳动/财税法律合规）：
+// 缺陷 10/13/14/15/18/19/21/23/24 统一迁移
+pub mod m0079_batch08_compliance_legal_env_tax_labor;
 
 pub struct Migrator;
 
@@ -192,6 +253,20 @@ impl MigratorTrait for Migrator {
             Box::new(m0066_add_after_sales_quality_issue_id::Migration),
             Box::new(m0067_add_logistics_waybill_sign_fields::Migration),
             Box::new(m0068_create_material_shortage_tables::Migration),
+            Box::new(m0069_create_supplier_evaluation_records::Migration),
+            Box::new(m0070_create_user_role::Migration),
+            Box::new(m0071_add_sales_order_id_to_color_card_issues::Migration),
+            Box::new(m0072_create_permission_delegations::Migration),
+            Box::new(m0073_create_role_relations::Migration),
+            Box::new(m0074_v15_p1_integrate_sql_migrations::Migration),
+            Box::new(m0075_add_email_queue_fields::Migration),
+            Box::new(m0076_add_export_audit_fields::Migration),
+            Box::new(m0077_add_oa_visibility_consent_retention::Migration),
+            Box::new(m0078_batch18_greige_outsourcing_quality_scheduling::Migration),
+            Box::new(m0079_batch08_compliance_legal_env_tax_labor::Migration),
+            Box::new(m0080_create_collection_templates::Migration),
+            Box::new(m0081_create_fixed_asset_counts::Migration),
+            Box::new(m0082_create_customer_team_and_share::Migration),
         ]
     }
 }

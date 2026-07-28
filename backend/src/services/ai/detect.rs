@@ -102,7 +102,10 @@ impl AiAnalysisService {
     async fn fetch_all_stocks(
         &self,
     ) -> Result<Vec<crate::models::inventory_stock::Model>, AppError> {
-        Ok(InventoryStockEntity::find().limit(10_000).all(&*self.db).await?)
+        Ok(InventoryStockEntity::find()
+            .limit(10_000)
+            .all(&*self.db)
+            .await?)
     }
 
     /// 从交易记录中聚合每日出库量（供 optimize_inventory 调用，跨子模块）
@@ -152,7 +155,11 @@ fn detect_sales_zscore_anomalies(
 ) -> Vec<AnomalyDetection> {
     let mut anomalies = Vec::new();
     for (pid, daily_map) in product_daily_sales {
-        anomalies.extend(detect_sales_anomalies_for_product(*pid, daily_map, check_start));
+        anomalies.extend(detect_sales_anomalies_for_product(
+            *pid,
+            daily_map,
+            check_start,
+        ));
     }
     anomalies
 }
@@ -183,7 +190,9 @@ fn detect_sales_anomalies_for_product(
         if let Some(&value) = daily_map.get(&date) {
             if std_val > 0.0 {
                 let z_score = (value - mean_val) / std_val;
-                if let Some(anomaly) = build_sales_zscore_anomaly(pid, date, value, mean_val, z_score) {
+                if let Some(anomaly) =
+                    build_sales_zscore_anomaly(pid, date, value, mean_val, z_score)
+                {
                     anomalies.push(anomaly);
                 }
             }
@@ -217,7 +226,12 @@ fn build_sales_zscore_anomaly(
             entity_type: "SALES".to_string(),
             entity_id: pid,
             anomaly_type: "DROP".to_string(),
-            severity: if z_score < -3.5 { "CRITICAL" } else { "WARNING" }.to_string(),
+            severity: if z_score < -3.5 {
+                "CRITICAL"
+            } else {
+                "WARNING"
+            }
+            .to_string(),
             description: format!(
                 "产品 {} 在 {} 销售量异常突降: {:.0} (均值={:.0}, Z-score={:.2})",
                 pid, date, value, mean_val, z_score
@@ -270,7 +284,10 @@ fn build_inventory_iqr_anomaly(
             stock,
             "ZERO_STOCK",
             "CRITICAL",
-            format!("产品 {} 库存为零，仓库={}", stock.product_id, stock.warehouse_id),
+            format!(
+                "产品 {} 库存为零，仓库={}",
+                stock.product_id, stock.warehouse_id
+            ),
         ))
     }
     // 库存异常低 (IQR 下界)

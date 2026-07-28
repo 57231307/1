@@ -60,6 +60,15 @@ pub struct CreateProductRequest {
     pub finish: Option<String>,
     pub min_order_quantity: Option<f64>,
     pub lead_time: Option<i32>,
+    // V15 P1 合规字段（《产品质量法》第 27 条）
+    #[validate(length(max = 50, message = "执行标准号长度不能超过50个字符"))]
+    pub execution_standard: Option<String>,
+    #[validate(length(max = 200, message = "生产厂名长度不能超过200个字符"))]
+    pub factory_name: Option<String>,
+    #[validate(length(max = 500, message = "生产厂址长度不能超过500个字符"))]
+    pub factory_address: Option<String>,
+    #[validate(length(max = 10, message = "产品等级长度不能超过10个字符"))]
+    pub product_grade: Option<String>,
 }
 
 /// 更新产品请求（面料行业版）
@@ -94,6 +103,15 @@ pub struct UpdateProductRequest {
     pub finish: Option<String>,
     pub min_order_quantity: Option<f64>,
     pub lead_time: Option<i32>,
+    // V15 P1 合规字段（《产品质量法》第 27 条）
+    #[validate(length(max = 50, message = "执行标准号长度不能超过50个字符"))]
+    pub execution_standard: Option<String>,
+    #[validate(length(max = 200, message = "生产厂名长度不能超过200个字符"))]
+    pub factory_name: Option<String>,
+    #[validate(length(max = 500, message = "生产厂址长度不能超过500个字符"))]
+    pub factory_address: Option<String>,
+    #[validate(length(max = 10, message = "产品等级长度不能超过10个字符"))]
+    pub product_grade: Option<String>,
 }
 
 // ========== 色号管理相关结构体 ==========
@@ -218,7 +236,8 @@ pub async fn create_product(
 
     let product = product_service
         .create_product(CreateProductArgs {
-            name: req.name
+            name: req
+                .name
                 .unwrap_or_else(|| format!("产品_{}", chrono::Utc::now().timestamp())),
             code,
             category_id: req.category_id,
@@ -227,7 +246,9 @@ pub async fn create_product(
             standard_price: req.standard_price,
             cost_price: req.cost_price,
             description: req.description,
-            status: req.status.unwrap_or_else(|| master_data::ACTIVE.to_string()),
+            status: req
+                .status
+                .unwrap_or_else(|| master_data::ACTIVE.to_string()),
             product_type: req.product_type.unwrap_or_else(|| "成品".to_string()),
             fabric_composition: req.fabric_composition,
             yarn_count: req.yarn_count,
@@ -238,6 +259,10 @@ pub async fn create_product(
             finish: req.finish,
             min_order_quantity: req.min_order_quantity,
             lead_time: req.lead_time,
+            execution_standard: req.execution_standard,
+            factory_name: req.factory_name,
+            factory_address: req.factory_address,
+            product_grade: req.product_grade,
         })
         .await?;
 
@@ -281,6 +306,10 @@ pub async fn update_product(
             finish: req.finish,
             min_order_quantity: req.min_order_quantity,
             lead_time: req.lead_time,
+            execution_standard: req.execution_standard,
+            factory_name: req.factory_name,
+            factory_address: req.factory_address,
+            product_grade: req.product_grade,
             // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
             user_id: auth.user_id,
         })

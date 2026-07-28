@@ -40,8 +40,7 @@ pub fn sha256_hex(data: &[u8]) -> String {
 ///   若触发会导致审计引擎整个 spawn 任务死亡。
 /// - 改为返回 Result，让调用方决定降级策略，消除 panic 风险。
 pub fn hmac_sha256_hex(key: &[u8], data: &[u8]) -> Result<String, String> {
-    let mut mac = HmacSha256::new_from_slice(key)
-        .map_err(|e| format!("HMAC 初始化失败: {}", e))?;
+    let mut mac = HmacSha256::new_from_slice(key).map_err(|e| format!("HMAC 初始化失败: {}", e))?;
     mac.update(data);
     let result = mac.finalize().into_bytes();
     Ok(hex::encode(result))

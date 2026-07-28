@@ -335,10 +335,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { Plus, Money } from '@element-plus/icons-vue'
+import { ref, reactive } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
+import { Plus, Money } from '@element-plus/icons-vue';
 import {
   createFundAccount,
   updateFundAccount,
@@ -346,21 +346,21 @@ import {
   withdrawFund,
   FUND_ACCOUNT_STATUS,
   type FundAccount,
-} from '@/api/fund'
+} from '@/api/fund';
 // 批次 278：迁移到 useTableApi composable，自动管理分页与 loading
-import { useTableApi } from '@/composables/useTableApi'
+import { useTableApi } from '@/composables/useTableApi';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const submitLoading = ref(false)
-const dialogVisible = ref(false)
-const detailVisible = ref(false)
-const operationVisible = ref(false)
-const dialogType = ref<'create' | 'edit'>('create')
-const operationType = ref<'deposit' | 'withdraw'>('deposit')
-const currentAccount = ref<FundAccount | null>(null)
-const accountFormRef = ref<FormInstance>()
-const operationFormRef = ref<FormInstance>()
+const submitLoading = ref(false);
+const dialogVisible = ref(false);
+const detailVisible = ref(false);
+const operationVisible = ref(false);
+const dialogType = ref<'create' | 'edit'>('create');
+const operationType = ref<'deposit' | 'withdraw'>('deposit');
+const currentAccount = ref<FundAccount | null>(null);
+const accountFormRef = ref<FormInstance>();
+const operationFormRef = ref<FormInstance>();
 
 // 批次 278：使用 useTableApi 管理账户列表分页
 const {
@@ -375,21 +375,21 @@ const {
   defaultPageSize: 20,
   onError: (err: unknown) => {
     if (err instanceof Error) {
-      ElMessage.error(err.message || t('fund.accountTab.messageFetchFailed'))
+      ElMessage.error(err.message || t('fund.accountTab.messageFetchFailed'));
     } else {
-      ElMessage.error(t('fund.accountTab.messageFetchFailed'))
+      ElMessage.error(t('fund.accountTab.messageFetchFailed'));
     }
   },
-})
+});
 
 // 批次 278：分页变化处理函数
 const handlePageChange = (_p: number) => {
   // useTableApi 内部 watch page 自动触发刷新
-}
+};
 const handleSizeChange = (_s: number) => {
   // useTableApi 内部 watch pageSize 自动触发刷新
-  page.value = 1
-}
+  page.value = 1;
+};
 
 const accountForm = reactive<Partial<FundAccount>>({
   account_no: '',
@@ -402,12 +402,12 @@ const accountForm = reactive<Partial<FundAccount>>({
   balance: 0,
   status: 'active',
   remark: '',
-})
+});
 
 const operationForm = reactive({
   amount: 0,
   remark: '',
-})
+});
 
 const accountRules: FormRules = {
   account_no: [
@@ -420,48 +420,48 @@ const accountRules: FormRules = {
     { required: true, message: t('fund.accountTab.validateAccountType'), trigger: 'change' },
   ],
   status: [{ required: true, message: t('fund.accountTab.validateStatus'), trigger: 'change' }],
-}
+};
 
 const operationRules: FormRules = {
   amount: [{ required: true, message: t('fund.accountTab.validateAmount'), trigger: 'blur' }],
-}
+};
 
 /** 账户状态 → i18n 标签（语言切换响应） */
 const getAccountStatusLabel = (status: string): string => {
   switch (status) {
     case 'active':
-      return t('fund.accountTab.statusActiveLabel')
+      return t('fund.accountTab.statusActiveLabel');
     case 'inactive':
-      return t('fund.accountTab.statusInactiveLabel')
+      return t('fund.accountTab.statusInactiveLabel');
     case 'frozen':
-      return t('fund.accountTab.statusFrozenLabel')
+      return t('fund.accountTab.statusFrozenLabel');
     default:
-      return status
+      return status;
   }
-}
+};
 
 /** 账户类型 → i18n 标签（语言切换响应） */
 const getAccountTypeLabel = (type: string): string => {
   switch (type) {
     case 'cash':
-      return t('fund.accountTab.accountTypeCash')
+      return t('fund.accountTab.accountTypeCash');
     case 'bank':
-      return t('fund.accountTab.accountTypeBank')
+      return t('fund.accountTab.accountTypeBank');
     case 'virtual':
-      return t('fund.accountTab.accountTypeVirtual')
+      return t('fund.accountTab.accountTypeVirtual');
     default:
-      return type
+      return type;
   }
-}
+};
 
 const openDialog = (type: 'create' | 'edit', row?: FundAccount) => {
-  dialogType.value = type
-  resetForm()
+  dialogType.value = type;
+  resetForm();
   if (type === 'edit' && row) {
-    Object.assign(accountForm, row)
+    Object.assign(accountForm, row);
   }
-  dialogVisible.value = true
-}
+  dialogVisible.value = true;
+};
 
 const resetForm = () => {
   Object.assign(accountForm, {
@@ -476,85 +476,85 @@ const resetForm = () => {
     balance: 0,
     status: 'active',
     remark: '',
-  })
-  accountFormRef.value?.clearValidate()
-}
+  });
+  accountFormRef.value?.clearValidate();
+};
 
 const handleSubmitForm = async () => {
-  if (!accountFormRef.value) return
+  if (!accountFormRef.value) return;
   await accountFormRef.value.validate(async valid => {
-    if (!valid) return
-    submitLoading.value = true
+    if (!valid) return;
+    submitLoading.value = true;
     try {
       if (dialogType.value === 'create') {
-        await createFundAccount(accountForm)
-        ElMessage.success(t('fund.accountTab.messageCreateSuccess'))
+        await createFundAccount(accountForm);
+        ElMessage.success(t('fund.accountTab.messageCreateSuccess'));
       } else {
         if (accountForm.id) {
-          await updateFundAccount(accountForm.id, accountForm)
-          ElMessage.success(t('fund.accountTab.messageUpdateSuccess'))
+          await updateFundAccount(accountForm.id, accountForm);
+          ElMessage.success(t('fund.accountTab.messageUpdateSuccess'));
         }
       }
-      dialogVisible.value = false
-      fetchAccounts()
+      dialogVisible.value = false;
+      fetchAccounts();
     } catch (e) {
-      const err = e as Error
-      ElMessage.error(err.message || t('fund.accountTab.messageOperationFailed'))
+      const err = e as Error;
+      ElMessage.error(err.message || t('fund.accountTab.messageOperationFailed'));
     } finally {
-      submitLoading.value = false
+      submitLoading.value = false;
     }
-  })
-}
+  });
+};
 
 const viewDetail = (row: FundAccount) => {
-  currentAccount.value = row
-  detailVisible.value = true
-}
+  currentAccount.value = row;
+  detailVisible.value = true;
+};
 
 const handleDeposit = (row: FundAccount) => {
-  currentAccount.value = row
-  operationType.value = 'deposit'
-  operationForm.amount = 0
-  operationForm.remark = ''
-  operationVisible.value = true
-}
+  currentAccount.value = row;
+  operationType.value = 'deposit';
+  operationForm.amount = 0;
+  operationForm.remark = '';
+  operationVisible.value = true;
+};
 
 const handleWithdraw = (row: FundAccount) => {
-  currentAccount.value = row
-  operationType.value = 'withdraw'
-  operationForm.amount = 0
-  operationForm.remark = ''
-  operationVisible.value = true
-}
+  currentAccount.value = row;
+  operationType.value = 'withdraw';
+  operationForm.amount = 0;
+  operationForm.remark = '';
+  operationVisible.value = true;
+};
 
 const handleOperationSubmit = async () => {
-  if (!operationFormRef.value || !currentAccount.value) return
+  if (!operationFormRef.value || !currentAccount.value) return;
   await operationFormRef.value.validate(async valid => {
-    if (!valid) return
-    submitLoading.value = true
+    if (!valid) return;
+    submitLoading.value = true;
     try {
-      const isDeposit = operationType.value === 'deposit'
-      const action = isDeposit ? depositFund : withdrawFund
-      await action(currentAccount.value!.id, operationForm.amount, operationForm.remark)
+      const isDeposit = operationType.value === 'deposit';
+      const action = isDeposit ? depositFund : withdrawFund;
+      await action(currentAccount.value!.id, operationForm.amount, operationForm.remark);
       ElMessage.success(
         isDeposit
           ? t('fund.accountTab.messageDepositSuccess')
           : t('fund.accountTab.messageWithdrawSuccess')
-      )
-      operationVisible.value = false
-      fetchAccounts()
+      );
+      operationVisible.value = false;
+      fetchAccounts();
     } catch (e) {
-      const err = e as Error
-      ElMessage.error(err.message || t('fund.accountTab.messageOperationFailed'))
+      const err = e as Error;
+      ElMessage.error(err.message || t('fund.accountTab.messageOperationFailed'));
     } finally {
-      submitLoading.value = false
+      submitLoading.value = false;
     }
-  })
-}
+  });
+};
 
 const openTransferDialog = (_fromAccount?: FundAccount) => {
-  ElMessage.info(t('fund.accountTab.messageGotoTransfer'))
-}
+  ElMessage.info(t('fund.accountTab.messageGotoTransfer'));
+};
 
 const handleDelete = async (row: FundAccount) => {
   try {
@@ -566,14 +566,14 @@ const handleDelete = async (row: FundAccount) => {
         confirmButtonText: t('fund.accountTab.buttonConfirm'),
         cancelButtonText: t('fund.accountTab.buttonCancel'),
       }
-    )
-    ElMessage.success(t('fund.accountTab.messageDeleteSuccess'))
-    fetchAccounts()
+    );
+    ElMessage.success(t('fund.accountTab.messageDeleteSuccess'));
+    fetchAccounts();
   } catch (e) {
     if (e !== 'cancel') {
-      const err = e as Error
-      ElMessage.error(err.message || t('fund.accountTab.messageDeleteFailed'))
+      const err = e as Error;
+      ElMessage.error(err.message || t('fund.accountTab.messageDeleteFailed'));
     }
   }
-}
+};
 </script>

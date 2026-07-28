@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 通知消息模型
 //!
 //! 存储系统内的通知消息，支持站内信、邮件、短信等多种通知类型
@@ -22,6 +23,9 @@ pub enum NotificationType {
     /// 系统通知
     #[sea_orm(string_value = "SYSTEM")]
     System,
+    /// 缺陷 5.1 修复：Webhook 渠道（推送到外部系统如企业微信/钉钉/Slack）
+    #[sea_orm(string_value = "WEBHOOK")]
+    Webhook,
 }
 
 /// 通知优先级
@@ -97,6 +101,8 @@ pub struct Model {
     pub created_at: DateTime<Utc>,
     /// 更新时间
     pub updated_at: DateTime<Utc>,
+    /// 缺陷 5.2 修复：去重键（如 `inventory_alert:product_id:warehouse_id`），5 分钟窗口内相同 dedup_key 跳过
+    pub dedup_key: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

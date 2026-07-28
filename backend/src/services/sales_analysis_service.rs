@@ -292,7 +292,9 @@ impl SalesAnalysisService {
 
         let limit = params.limit.unwrap_or(10);
         // v11 批次 152 P2-A：接入 dimension_type，默认 "product"
-        let dimension_type = params.dimension_type.unwrap_or_else(|| "product".to_string());
+        let dimension_type = params
+            .dimension_type
+            .unwrap_or_else(|| "product".to_string());
 
         let mut query = sales_analysis::Entity::find()
             .filter(sales_analysis::Column::DimensionType.eq(dimension_type));
@@ -345,7 +347,9 @@ impl SalesAnalysisService {
 
         let limit = params.limit.unwrap_or(10);
         // v11 批次 152 P2-A：接入 dimension_type，默认 "customer"
-        let dimension_type = params.dimension_type.unwrap_or_else(|| "customer".to_string());
+        let dimension_type = params
+            .dimension_type
+            .unwrap_or_else(|| "customer".to_string());
 
         let mut query = sales_analysis::Entity::find()
             .filter(sales_analysis::Column::DimensionType.eq(dimension_type));
@@ -400,7 +404,9 @@ impl SalesAnalysisService {
             .await?;
 
         let target_amount = req.target_amount.unwrap_or(Decimal::ZERO);
-        let status = req.status.unwrap_or_else(|| master_data::ACTIVE.to_string());
+        let status = req
+            .status
+            .unwrap_or_else(|| master_data::ACTIVE.to_string());
 
         let updated = if let Some(existing_model) = existing {
             let mut active: sales_analysis::ActiveModel = existing_model.clone().into();

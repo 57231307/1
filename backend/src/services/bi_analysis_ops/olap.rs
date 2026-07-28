@@ -15,7 +15,9 @@
 use sea_orm::{FromQueryResult, Statement};
 
 use crate::services::bi_analysis_ops::types::PivotRow;
-use crate::services::bi_analysis_service::{dec_to_f64, dim_to_expr, measure_to_expr, BiAnalysisService};
+use crate::services::bi_analysis_service::{
+    dec_to_f64, dim_to_expr, measure_to_expr, BiAnalysisService,
+};
 use crate::utils::error::AppError;
 
 impl BiAnalysisService {
@@ -57,10 +59,7 @@ impl BiAnalysisService {
     ///
     /// 解析 filters 中的 date_from/date_to/customer_ids/product_ids 等条件，
     /// 返回符合所有条件的订单聚合数据。当前实现：返回指定日期范围内的按日聚合。
-    pub async fn dice(
-        &self,
-        filters: &serde_json::Value,
-    ) -> Result<serde_json::Value, AppError> {
+    pub async fn dice(&self, filters: &serde_json::Value) -> Result<serde_json::Value, AppError> {
         // 解析可选的日期范围
         let date_from = filters
             .get("date_from")
@@ -119,16 +118,10 @@ impl BiAnalysisService {
     fn validate_pivot_params(row_dim: &str, col_dim: &str, measure: &str) -> Result<(), AppError> {
         let valid_dims = ["customer", "product", "region", "category", "time"];
         if !valid_dims.contains(&row_dim) {
-            return Err(AppError::validation(format!(
-                "不支持的行维度: {}",
-                row_dim
-            )));
+            return Err(AppError::validation(format!("不支持的行维度: {}", row_dim)));
         }
         if !valid_dims.contains(&col_dim) {
-            return Err(AppError::validation(format!(
-                "不支持的列维度: {}",
-                col_dim
-            )));
+            return Err(AppError::validation(format!("不支持的列维度: {}", col_dim)));
         }
         if row_dim == col_dim {
             return Err(AppError::validation("行维度与列维度不能相同"));
@@ -136,10 +129,7 @@ impl BiAnalysisService {
 
         let valid_measures = ["total_amount", "order_count", "quantity", "profit_amount"];
         if !valid_measures.contains(&measure) {
-            return Err(AppError::validation(format!(
-                "不支持的度量: {}",
-                measure
-            )));
+            return Err(AppError::validation(format!("不支持的度量: {}", measure)));
         }
         Ok(())
     }
@@ -203,11 +193,8 @@ impl BiAnalysisService {
             scope_sql = scope_sql,
         );
 
-        let stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
-            sql,
-            scope_values,
-        );
+        let stmt =
+            Statement::from_sql_and_values(sea_orm::DatabaseBackend::Postgres, sql, scope_values);
 
         PivotRow::find_by_statement(stmt)
             .all(&*self.db)
@@ -227,8 +214,7 @@ impl BiAnalysisService {
             std::collections::BTreeMap::new();
         let mut col_set: std::collections::BTreeMap<String, String> =
             std::collections::BTreeMap::new();
-        let mut matrix: std::collections::HashMap<String, f64> =
-            std::collections::HashMap::new();
+        let mut matrix: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
 
         for r in rows {
             let row_key = r.row_key.unwrap_or_default();

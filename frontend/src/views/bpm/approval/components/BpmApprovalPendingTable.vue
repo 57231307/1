@@ -22,40 +22,40 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElButton, ElTag } from 'element-plus'
-import V2Table from '@/components/V2Table/index.vue'
-import type { ColumnDef } from '@/components/V2Table/types'
-import type { ApprovalTask } from '@/api/bpm-enhanced'
-import { isOverdue, getPriorityType } from '../composables/bpmApFmts'
+import { computed, h } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElButton, ElTag } from 'element-plus';
+import V2Table from '@/components/V2Table/index.vue';
+import type { ColumnDef } from '@/components/V2Table/types';
+import type { ApprovalTask } from '@/api/bpm-enhanced';
+import { isOverdue, getPriorityType } from '../composables/bpmApFmts';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 /**
  * 审批待办任务表组件
  */
 defineProps<{
   // 任务列表
-  tasks: ApprovalTask[]
+  tasks: ApprovalTask[];
   // 加载状态
-  loading: boolean
+  loading: boolean;
   // 总数
-  total: number
+  total: number;
   // 当前页
-  page: number
+  page: number;
   // 每页条数
-  pageSize: number
-}>()
+  pageSize: number;
+}>();
 
 const emit = defineEmits<{
-  approve: [row: ApprovalTask]
-  reject: [row: ApprovalTask]
-  transfer: [row: ApprovalTask]
-  'view-chain': [row: ApprovalTask]
-  'update:page': [v: number]
-  'update:page-size': [v: number]
-}>()
+  approve: [row: ApprovalTask];
+  reject: [row: ApprovalTask];
+  transfer: [row: ApprovalTask];
+  'view-chain': [row: ApprovalTask];
+  'update:page': [v: number];
+  'update:page-size': [v: number];
+}>();
 
 // 优先级显示文本（响应式求值，随语言切换更新）
 const getPriorityTextFmt = (priority: string) => {
@@ -63,9 +63,9 @@ const getPriorityTextFmt = (priority: string) => {
     high: t('bpm.priority.high'),
     medium: t('bpm.priority.medium'),
     low: t('bpm.priority.low'),
-  }
-  return map[priority] || priority
-}
+  };
+  return map[priority] || priority;
+};
 
 /** 操作列渲染：同意 / 拒绝 / 转交 / 审批链 */
 const renderActionCell = (row: ApprovalTask) =>
@@ -90,7 +90,7 @@ const renderActionCell = (row: ApprovalTask) =>
       { type: 'info', link: true, size: 'small', onClick: () => emit('view-chain', row) },
       { default: () => t('bpm.approval.pendingTable.viewChain') }
     ),
-  ])
+  ]);
 
 /** 列定义：任务名称固定左侧，操作列固定右侧 */
 const columns = computed<ColumnDef<ApprovalTask>[]>(() => [
@@ -105,9 +105,9 @@ const columns = computed<ColumnDef<ApprovalTask>[]>(() => [
     width: 160,
     renderCell: (row: ApprovalTask) => {
       if (row.due_date) {
-        return h('span', { class: { overdue: isOverdue(row.due_date) } }, row.due_date)
+        return h('span', { class: { overdue: isOverdue(row.due_date) } }, row.due_date);
       }
-      return h('span', '-')
+      return h('span', '-');
     },
   },
   {
@@ -118,7 +118,12 @@ const columns = computed<ColumnDef<ApprovalTask>[]>(() => [
       h(
         ElTag,
         {
-          type: getPriorityType(row.priority) as 'success' | 'warning' | 'info' | 'primary' | 'danger',
+          type: getPriorityType(row.priority) as
+            | 'success'
+            | 'warning'
+            | 'info'
+            | 'primary'
+            | 'danger',
           size: 'small',
         },
         { default: () => getPriorityTextFmt(row.priority) }
@@ -131,7 +136,7 @@ const columns = computed<ColumnDef<ApprovalTask>[]>(() => [
     fixed: 'right',
     renderCell: renderActionCell,
   },
-])
+]);
 </script>
 
 <style scoped>

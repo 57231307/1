@@ -6,12 +6,25 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    :title="formData.id ? t('fabric.recipeFormDialog.titleEdit') : t('fabric.recipeFormDialog.titleCreate')"
+    :title="
+      formData.id
+        ? t('fabric.recipeFormDialog.titleEdit')
+        : t('fabric.recipeFormDialog.titleCreate')
+    "
     width="700px"
-    :aria-label="formData.id ? t('fabric.recipeFormDialog.titleEdit') : t('fabric.recipeFormDialog.titleCreate')"
+    :aria-label="
+      formData.id
+        ? t('fabric.recipeFormDialog.titleEdit')
+        : t('fabric.recipeFormDialog.titleCreate')
+    "
     @update:model-value="(val: boolean) => emit('update:modelValue', val)"
   >
-    <el-form ref="formRef" :model="formData" label-width="100px" :aria-label="t('fabric.recipeFormDialog.formAriaLabel')">
+    <el-form
+      ref="formRef"
+      :model="formData"
+      label-width="100px"
+      :aria-label="t('fabric.recipeFormDialog.formAriaLabel')"
+    >
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item :label="t('fabric.recipeFormDialog.labelRecipeNo')" prop="recipe_no">
@@ -46,37 +59,41 @@
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:modelValue', false)">{{ t('fabric.common.cancel') }}</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ t('fabric.common.confirm') }}</el-button>
+      <el-button @click="emit('update:modelValue', false)">{{
+        t('fabric.common.cancel')
+      }}</el-button>
+      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{
+        t('fabric.common.confirm')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
-import type { FormInstance } from 'element-plus'
-import { createDyeRecipe, updateDyeRecipe, type DyeRecipe } from '@/api/dye-recipe'
-import { logger } from '@/utils/logger'
+import { ref, reactive, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
+import type { FormInstance } from 'element-plus';
+import { createDyeRecipe, updateDyeRecipe, type DyeRecipe } from '@/api/dye-recipe';
+import { logger } from '@/utils/logger';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 interface Props {
-  modelValue: boolean
-  currentRow: DyeRecipe | null
+  modelValue: boolean;
+  currentRow: DyeRecipe | null;
 }
 
 interface Emits {
-  (e: 'update:modelValue', val: boolean): void
-  (e: 'submitted'): void
+  (e: 'update:modelValue', val: boolean): void;
+  (e: 'submitted'): void;
 }
 
-const props = defineProps<Props>()
-const emit = defineEmits<Emits>()
+const props = defineProps<Props>();
+const emit = defineEmits<Emits>();
 
-const formRef = ref<FormInstance>()
-const submitLoading = ref(false)
+const formRef = ref<FormInstance>();
+const submitLoading = ref(false);
 
 const formData = reactive({
   id: 0,
@@ -87,49 +104,49 @@ const formData = reactive({
   version: '1.0',
   content: '',
   status: 'draft' as 'draft' | 'approved' | 'obsolete',
-})
+});
 
 const resetForm = () => {
-  formData.id = 0
-  formData.recipe_no = ''
-  formData.recipe_name = ''
-  formData.color_name = ''
-  formData.fabric_type = ''
-  formData.version = '1.0'
-  formData.content = ''
-  formData.status = 'draft'
-}
+  formData.id = 0;
+  formData.recipe_no = '';
+  formData.recipe_name = '';
+  formData.color_name = '';
+  formData.fabric_type = '';
+  formData.version = '1.0';
+  formData.content = '';
+  formData.status = 'draft';
+};
 
 watch(
   () => props.modelValue,
   val => {
     if (val) {
       if (props.currentRow) {
-        Object.assign(formData, props.currentRow)
+        Object.assign(formData, props.currentRow);
       } else {
-        resetForm()
+        resetForm();
       }
     }
   }
-)
+);
 
 const handleSubmit = async () => {
-  submitLoading.value = true
+  submitLoading.value = true;
   try {
     if (formData.id) {
-      await updateDyeRecipe(formData.id, formData as unknown as Partial<DyeRecipe>)
+      await updateDyeRecipe(formData.id, formData as unknown as Partial<DyeRecipe>);
     } else {
-      await createDyeRecipe(formData as unknown as Partial<DyeRecipe>)
+      await createDyeRecipe(formData as unknown as Partial<DyeRecipe>);
     }
-    ElMessage.success(t('fabric.common.success'))
-    emit('update:modelValue', false)
-    emit('submitted')
+    ElMessage.success(t('fabric.common.success'));
+    emit('update:modelValue', false);
+    emit('submitted');
   } catch (error) {
-    const err = error as Error
-    ElMessage.error(err.message || t('fabric.common.failed'))
-    logger.error(t('fabric.recipeFormDialog.saveFailed'), err.message)
+    const err = error as Error;
+    ElMessage.error(err.message || t('fabric.common.failed'));
+    logger.error(t('fabric.recipeFormDialog.saveFailed'), err.message);
   } finally {
-    submitLoading.value = false
+    submitLoading.value = false;
   }
-}
+};
 </script>

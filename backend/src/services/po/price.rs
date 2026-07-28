@@ -105,14 +105,22 @@ impl PurchaseOrderService {
             .insert(&txn)
             .await?;
         Self::create_shortage_order_item(
-            &txn, order.id, &product, &params, suggested_quantity, priority,
+            &txn,
+            order.id,
+            &product,
+            &params,
+            suggested_quantity,
+            priority,
         )
         .await?;
         txn.commit().await?;
         tracing::info!(
             "创建缺料预警采购建议: 订单号={}, 物料={} ({})，建议采购量={}, 优先级={}",
-            order.order_no, params.material_name, params.material_code,
-            suggested_quantity, priority
+            order.order_no,
+            params.material_name,
+            params.material_code,
+            suggested_quantity,
+            priority
         );
         Ok(order)
     }
@@ -333,7 +341,10 @@ impl PurchaseOrderService {
         txn.commit().await?;
         tracing::info!(
             "创建库存预警采购建议: 订单号={}, 产品={}, 仓库={}, 建议采购量={}",
-            order.order_no, product.name, warehouse.name, reorder_quantity
+            order.order_no,
+            product.name,
+            warehouse.name,
+            reorder_quantity
         );
         Ok(order)
     }

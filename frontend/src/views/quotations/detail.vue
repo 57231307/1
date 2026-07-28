@@ -197,10 +197,10 @@
 // - 加载报价单
 // - 按钮按状态显示
 // - 提交/批准/拒绝/转订单/取消
-import { ref, computed, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ref, computed, onMounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   getQuotation,
   submitQuotation,
@@ -216,114 +216,114 @@ import {
   type TermType,
   type QuotationTermResponseDto,
   type ConvertResponse,
-} from '@/api/quotation'
+} from '@/api/quotation';
 
 /** el-tag 类型联合（与 element-plus TagProps.type 对齐） */
-type TagType = '' | 'success' | 'warning' | 'info' | 'danger'
+type TagType = '' | 'success' | 'warning' | 'info' | 'danger';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const route = useRoute()
-const router = useRouter()
-const loading = ref(false)
-const quotation = ref<QuotationResponseDto | null>(null)
+const route = useRoute();
+const router = useRouter();
+const loading = ref(false);
+const quotation = ref<QuotationResponseDto | null>(null);
 
 /** 加载详情 */
 async function loadData() {
-  const id = Number(route.params.id)
-  if (!id) return
-  loading.value = true
+  const id = Number(route.params.id);
+  if (!id) return;
+  loading.value = true;
   try {
-    const res = await getQuotation(id)
-    quotation.value = res.data as QuotationResponseDto
+    const res = await getQuotation(id);
+    quotation.value = res.data as QuotationResponseDto;
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
     ElMessage.error(
       (e instanceof Error ? e.message : String(e)) || t('quotations.detail.loadFailed')
-    )
-    quotation.value = null
+    );
+    quotation.value = null;
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 /** 按钮可见性（按状态） */
 const canEdit = computed(
   () => quotation.value && ['draft', 'rejected'].includes(quotation.value.status)
-)
+);
 const canSubmit = computed(
   () => quotation.value && ['draft', 'rejected'].includes(quotation.value.status)
-)
-const canApprove = computed(() => quotation.value?.status === 'pending_approval')
-const canConvert = computed(() => quotation.value?.status === 'approved')
+);
+const canApprove = computed(() => quotation.value?.status === 'pending_approval');
+const canConvert = computed(() => quotation.value?.status === 'approved');
 const canCancel = computed(
   () =>
     quotation.value &&
     ['draft', 'pending_approval', 'rejected', 'approved'].includes(quotation.value.status)
-)
+);
 
 /** 贸易条款按类型分组 */
 const groupedTerms = computed(() => {
-  if (!quotation.value?.terms) return {} as Record<TermType, QuotationTermResponseDto[]>
-  const groups: Record<string, QuotationTermResponseDto[]> = {}
+  if (!quotation.value?.terms) return {} as Record<TermType, QuotationTermResponseDto[]>;
+  const groups: Record<string, QuotationTermResponseDto[]> = {};
   for (const t of quotation.value.terms) {
-    if (!groups[t.term_type]) groups[t.term_type] = []
-    groups[t.term_type].push(t)
+    if (!groups[t.term_type]) groups[t.term_type] = [];
+    groups[t.term_type].push(t);
   }
-  return groups as Record<TermType, QuotationTermResponseDto[]>
-})
+  return groups as Record<TermType, QuotationTermResponseDto[]>;
+});
 
-const hasTerms = computed(() => quotation.value?.terms && quotation.value.terms.length > 0)
+const hasTerms = computed(() => quotation.value?.terms && quotation.value.terms.length > 0);
 
 function statusLabel(s: QuotationStatus): string {
-  return QUOTATION_STATUS_LABELS[s] || s
+  return QUOTATION_STATUS_LABELS[s] || s;
 }
 
 function tagType(s: QuotationStatus): TagType {
-  return (QUOTATION_STATUS_TAG_TYPES[s] || '') as TagType
+  return (QUOTATION_STATUS_TAG_TYPES[s] || '') as TagType;
 }
 
 function termTypeLabel(type: TermType): string {
-  return TERM_TYPE_LABELS[type] || type
+  return TERM_TYPE_LABELS[type] || type;
 }
 
 function formatAmount(value?: number): string {
-  if (value === undefined || value === null) return '0.00'
+  if (value === undefined || value === null) return '0.00';
   return Number(value).toLocaleString('zh-CN', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  })
+  });
 }
 
 /** 提交审批 */
 async function handleSubmit() {
-  if (!quotation.value) return
-  await submitQuotation(quotation.value.id)
-  ElMessage.success(t('quotations.detail.submitSuccess'))
-  loadData()
+  if (!quotation.value) return;
+  await submitQuotation(quotation.value.id);
+  ElMessage.success(t('quotations.detail.submitSuccess'));
+  loadData();
 }
 
 /** 批准 */
 async function handleApprove() {
-  if (!quotation.value) return
+  if (!quotation.value) return;
   try {
     await ElMessageBox.confirm(
       t('quotations.detail.approveConfirmText'),
       t('quotations.detail.approveConfirmTitle'),
       { type: 'warning' }
-    )
+    );
   } catch {
-    return
+    return;
   }
-  await approveQuotation(quotation.value.id)
-  ElMessage.success(t('quotations.detail.approveSuccess'))
-  loadData()
+  await approveQuotation(quotation.value.id);
+  ElMessage.success(t('quotations.detail.approveSuccess'));
+  loadData();
 }
 
 /** 拒绝 */
 async function handleReject() {
-  if (!quotation.value) return
-  let reason = ''
+  if (!quotation.value) return;
+  let reason = '';
   try {
     const { value } = await ElMessageBox.prompt(
       t('quotations.detail.rejectPromptText'),
@@ -333,56 +333,56 @@ async function handleReject() {
           v && v.trim() ? true : t('quotations.detail.rejectReasonRequired'),
         inputErrorMessage: t('quotations.detail.rejectReasonRequired'),
       }
-    )
-    reason = value
+    );
+    reason = value;
   } catch {
-    return
+    return;
   }
-  await rejectQuotation(quotation.value.id, reason)
-  ElMessage.success(t('quotations.detail.rejectSuccess'))
-  loadData()
+  await rejectQuotation(quotation.value.id, reason);
+  ElMessage.success(t('quotations.detail.rejectSuccess'));
+  loadData();
 }
 
 /** 转销售订单 */
 async function handleConvert() {
-  if (!quotation.value) return
+  if (!quotation.value) return;
   try {
     await ElMessageBox.confirm(
       t('quotations.detail.convertConfirmText', { no: quotation.value.quotation_no }),
       t('quotations.detail.convertConfirmTitle'),
       { type: 'warning' }
-    )
+    );
   } catch {
-    return
+    return;
   }
-  const res = await convertQuotation(quotation.value.id)
-  const order: ConvertResponse | undefined = res.data
-  ElMessage.success(t('quotations.detail.convertSuccess', { id: order?.id }))
+  const res = await convertQuotation(quotation.value.id);
+  const order: ConvertResponse | undefined = res.data;
+  ElMessage.success(t('quotations.detail.convertSuccess', { id: order?.id }));
   if (order?.id) {
-    router.push(`/sales/orders/${order.id}`)
+    router.push(`/sales/orders/${order.id}`);
   } else {
-    loadData()
+    loadData();
   }
 }
 
 /** 取消 */
 async function handleCancel() {
-  if (!quotation.value) return
+  if (!quotation.value) return;
   try {
     await ElMessageBox.confirm(
       t('quotations.detail.cancelConfirmText', { no: quotation.value.quotation_no }),
       t('quotations.detail.cancelConfirmTitle'),
       { type: 'warning' }
-    )
+    );
   } catch {
-    return
+    return;
   }
-  await cancelQuotation(quotation.value.id)
-  ElMessage.success(t('quotations.detail.cancelSuccess'))
-  loadData()
+  await cancelQuotation(quotation.value.id);
+  ElMessage.success(t('quotations.detail.cancelSuccess'));
+  loadData();
 }
 
-onMounted(loadData)
+onMounted(loadData);
 </script>
 
 <style scoped>

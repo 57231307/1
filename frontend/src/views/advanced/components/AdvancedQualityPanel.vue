@@ -6,58 +6,58 @@
  * 数据与函数全部由父组件通过 props 传入
  * P9-3 批次 F 重构：移除 vue/no-mutating-props 抑制，改用本地 ref 镜像 + watch 防循环
  */
-import { ref, watch, nextTick } from 'vue'
-import { useI18n } from 'vue-i18n'
-import type { QualityFormData, QualityResult } from '../composables/useQlt'
+import { ref, watch, nextTick } from 'vue';
+import { useI18n } from 'vue-i18n';
+import type { QualityFormData, QualityResult } from '../composables/useQlt';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps<{
   // 质量预测表单（由父组件管理，子组件通过 emit('update:qualityForm') 回写）
-  qualityForm: QualityFormData
-  qualityLoading: boolean
-  qualityResult: QualityResult | null
-  runQualityPrediction: () => Promise<void>
-}>()
+  qualityForm: QualityFormData;
+  qualityLoading: boolean;
+  qualityResult: QualityResult | null;
+  runQualityPrediction: () => Promise<void>;
+}>();
 
 const emit = defineEmits<{
   // 整体回写表单
-  (e: 'update:qualityForm', form: QualityFormData): void
-}>()
+  (e: 'update:qualityForm', form: QualityFormData): void;
+}>();
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
-const localForm = ref<QualityFormData>({ ...props.qualityForm })
+const localForm = ref<QualityFormData>({ ...props.qualityForm });
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
-let syncing = false
+let syncing = false;
 
 // 外部 prop 变化时同步到 local
 watch(
   () => props.qualityForm,
   newForm => {
-    if (syncing) return
-    syncing = true
-    localForm.value = { ...newForm }
+    if (syncing) return;
+    syncing = true;
+    localForm.value = { ...newForm };
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
   { deep: true }
-)
+);
 
 // 本地变化时通知父组件
 watch(
   localForm,
   newForm => {
-    if (syncing) return
-    syncing = true
-    emit('update:qualityForm', { ...newForm })
+    if (syncing) return;
+    syncing = true;
+    emit('update:qualityForm', { ...newForm });
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
   { deep: true }
-)
+);
 </script>
 
 <template>
@@ -93,10 +93,22 @@ watch(
               style="width: 100%"
             >
               <el-option :label="t('advancedModule.quality.typeAll')" value="" />
-              <el-option :label="t('advancedModule.quality.typeIncoming')" :value="t('advancedModule.quality.typeIncoming')" />
-              <el-option :label="t('advancedModule.quality.typeInprocess')" :value="t('advancedModule.quality.typeInprocess')" />
-              <el-option :label="t('advancedModule.quality.typeFinal')" :value="t('advancedModule.quality.typeFinal')" />
-              <el-option :label="t('advancedModule.quality.typeOutgoing')" :value="t('advancedModule.quality.typeOutgoing')" />
+              <el-option
+                :label="t('advancedModule.quality.typeIncoming')"
+                :value="t('advancedModule.quality.typeIncoming')"
+              />
+              <el-option
+                :label="t('advancedModule.quality.typeInprocess')"
+                :value="t('advancedModule.quality.typeInprocess')"
+              />
+              <el-option
+                :label="t('advancedModule.quality.typeFinal')"
+                :value="t('advancedModule.quality.typeFinal')"
+              />
+              <el-option
+                :label="t('advancedModule.quality.typeOutgoing')"
+                :value="t('advancedModule.quality.typeOutgoing')"
+              />
             </el-select>
           </el-form-item>
           <el-form-item :label="t('advancedModule.quality.timeWindow')">
@@ -170,7 +182,10 @@ watch(
               >
                 {{ qualityResult.trend }}
                 <span
-                  v-if="qualityResult.trend_rate !== 0 && qualityResult.trend !== t('advancedModule.quality.trendNoData')"
+                  v-if="
+                    qualityResult.trend_rate !== 0 &&
+                    qualityResult.trend !== t('advancedModule.quality.trendNoData')
+                  "
                   style="margin-left: 4px"
                 >
                   ({{ qualityResult.trend_rate > 0 ? '+' : '' }}{{ qualityResult.trend_rate }}pp)

@@ -4,19 +4,19 @@
 
 /** 数字千分位格式化 */
 export const formatNumber = (num: number | undefined) => {
-  if (!num) return '0'
-  return num.toLocaleString()
-}
+  if (!num) return '0';
+  return num.toLocaleString();
+};
 
 /** 货币格式化（Intl 人民币） */
 export const formatCurrency = (amount: number | undefined) => {
-  if (!amount) return '¥0'
+  if (!amount) return '¥0';
   return new Intl.NumberFormat('zh-CN', {
     style: 'currency',
     currency: 'CNY',
     minimumFractionDigits: 0,
-  }).format(amount)
-}
+  }).format(amount);
+};
 
 /** 活动类型 → ElTag type */
 export const getActivityTypeColor = (type: string) => {
@@ -26,6 +26,6 @@ export const getActivityTypeColor = (type: string) => {
     库存: 'info',
     审批: 'primary',
     系统: 'danger',
-  }
-  return typeMap[type] || 'info'
-}
+  };
+  return typeMap[type] || 'info';
+};

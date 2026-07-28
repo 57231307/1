@@ -13,31 +13,33 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
-import * as echarts from 'echarts'
-import type { ECharts } from 'echarts'
-import type { ChartData } from '@/api/dashboard'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import * as echarts from 'echarts';
+import type { ECharts } from 'echarts';
+import type { ChartData } from '@/api/dashboard';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 饼图数据
-const props = defineProps<{ data: ChartData[] }>()
+const props = defineProps<{ data: ChartData[] }>();
 
 // ECharts 实例 + 容器 ref
-const chartRef = ref<HTMLElement>()
-let pieChart: ECharts | null = null
-let resizeHandler: (() => void) | null = null
+const chartRef = ref<HTMLElement>();
+let pieChart: ECharts | null = null;
+let resizeHandler: (() => void) | null = null;
 
 // 渲染 ECharts 饼图
 const renderChart = (distribution: ChartData[]) => {
-  if (!chartRef.value) return
+  if (!chartRef.value) return;
   if (!pieChart) {
-    pieChart = echarts.init(chartRef.value)
-    resizeHandler = () => pieChart?.resize()
-    window.addEventListener('resize', resizeHandler)
+    pieChart = echarts.init(chartRef.value);
+    resizeHandler = () => pieChart?.resize();
+    window.addEventListener('resize', resizeHandler);
   }
-  const data = distribution?.length ? distribution : [{ label: t('dashboard.pie.empty'), value: 0 }]
+  const data = distribution?.length
+    ? distribution
+    : [{ label: t('dashboard.pie.empty'), value: 0 }];
   pieChart.setOption({
     tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
     legend: { orient: 'vertical', left: 'left' },
@@ -53,32 +55,32 @@ const renderChart = (distribution: ChartData[]) => {
         data: data.map(d => ({ name: d.label, value: d.value })),
       },
     ],
-  })
-}
+  });
+};
 
 // 监听数据变化
 watch(
   () => props.data,
   newData => {
-    renderChart(newData || [])
+    renderChart(newData || []);
   },
   { immediate: true, deep: true }
-)
+);
 
 // 挂载后渲染
 onMounted(() => {
-  renderChart(props.data || [])
-})
+  renderChart(props.data || []);
+});
 
 // 卸载前清理
 onBeforeUnmount(() => {
-  pieChart?.dispose()
-  pieChart = null
+  pieChart?.dispose();
+  pieChart = null;
   if (resizeHandler) {
-    window.removeEventListener('resize', resizeHandler)
-    resizeHandler = null
+    window.removeEventListener('resize', resizeHandler);
+    resizeHandler = null;
   }
-})
+});
 </script>
 
 <style scoped>

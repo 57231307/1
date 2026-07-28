@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 质量异常 DTO
 //!
 //! 设计依据：docs/superpowers/specs/2026-06-16-custom-order-design.md

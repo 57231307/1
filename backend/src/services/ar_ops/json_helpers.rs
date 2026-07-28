@@ -5,9 +5,7 @@
 
 use serde_json::json;
 
-use crate::models::{
-    ar_collection, ar_invoice, ar_reconciliation, ar_reconciliation_item,
-};
+use crate::models::{ar_collection, ar_invoice, ar_reconciliation, ar_reconciliation_item};
 
 /// 收款单 → JSON
 pub(super) fn collection_to_json(c: ar_collection::Model) -> serde_json::Value {

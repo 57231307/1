@@ -2,7 +2,8 @@
 # 秉羲 ERP 系统部署脚本
 # 用途：在服务器上部署系统 (全新部署 / 更新部署)
 
-set -e
+# V15 P1 25.1-A 修复：set -euo pipefail 严格模式（原仅 set -e，未定义变量和管道错误被吞）
+set -euo pipefail
 
 # 颜色定义
 RED='\033[0;31m'
@@ -21,7 +22,7 @@ FRONTEND_DIR="/opt/bingxi-erp/frontend/dist"
 # deploy.sh 用 /etc/bingxi-erp/.env 导致 systemd 找不到环境文件，后端无法启动
 CONFIG_DIR="/etc/bingxi"
 BACKUP_DIR="$DEPLOY_DIR/backups"
-LOG_DIR="$DEPLOY_DIR/logs"
+LOG_DIR="$DEPLOY_DIR/backend/logs"
 ENV_FILE="$CONFIG_DIR/.env"
 CONFIG_FILE="$BACKEND_DIR/config.yaml"
 

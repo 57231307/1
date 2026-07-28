@@ -9,9 +9,13 @@
       <div class="header-left">
         <h1 class="page-title">{{ t('crmOpportunities.title') }}</h1>
         <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/' }">{{ t('crmOpportunities.breadcrumb.home') }}</el-breadcrumb-item>
+          <el-breadcrumb-item :to="{ path: '/' }">{{
+            t('crmOpportunities.breadcrumb.home')
+          }}</el-breadcrumb-item>
           <el-breadcrumb-item>{{ t('crmOpportunities.breadcrumb.crm') }}</el-breadcrumb-item>
-          <el-breadcrumb-item>{{ t('crmOpportunities.breadcrumb.opportunities') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{
+            t('crmOpportunities.breadcrumb.opportunities')
+          }}</el-breadcrumb-item>
         </el-breadcrumb>
       </div>
       <div class="header-actions">
@@ -27,7 +31,12 @@
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryParams" class="filter-form" :aria-label="t('crmOpportunities.filter.ariaLabel')">
+      <el-form
+        :inline="true"
+        :model="queryParams"
+        class="filter-form"
+        :aria-label="t('crmOpportunities.filter.ariaLabel')"
+      >
         <el-form-item :label="t('crmOpportunities.filter.keyword')">
           <el-input
             v-model="queryParams.keyword"
@@ -90,37 +99,95 @@
     </el-card>
 
     <el-card shadow="hover" class="table-card">
-      <el-table v-loading="loading" :data="opportunityList" border stripe :aria-label="t('crmOpportunities.table.ariaLabel')">
-        <el-table-column type="index" :label="t('crmOpportunities.table.index')" width="60" align="center" />
-        <el-table-column prop="opportunity_no" :label="t('crmOpportunities.table.opportunityNo')" width="120" show-overflow-tooltip />
+      <el-table
+        v-loading="loading"
+        :data="opportunityList"
+        border
+        stripe
+        :aria-label="t('crmOpportunities.table.ariaLabel')"
+      >
+        <el-table-column
+          type="index"
+          :label="t('crmOpportunities.table.index')"
+          width="60"
+          align="center"
+        />
+        <el-table-column
+          prop="opportunity_no"
+          :label="t('crmOpportunities.table.opportunityNo')"
+          width="120"
+          show-overflow-tooltip
+        />
         <el-table-column
           prop="opportunity_name"
           :label="t('crmOpportunities.table.opportunityName')"
           min-width="150"
           show-overflow-tooltip
         />
-        <el-table-column prop="customer_name" :label="t('crmOpportunities.table.customer')" width="150" show-overflow-tooltip />
-        <el-table-column prop="estimated_amount" :label="t('crmOpportunities.table.estimatedAmount')" width="120" align="right">
+        <el-table-column
+          prop="customer_name"
+          :label="t('crmOpportunities.table.customer')"
+          width="150"
+          show-overflow-tooltip
+        />
+        <el-table-column
+          prop="estimated_amount"
+          :label="t('crmOpportunities.table.estimatedAmount')"
+          width="120"
+          align="right"
+        >
           <template #default="{ row }">
             {{ formatCurrency(row.estimated_amount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="win_probability" :label="t('crmOpportunities.table.winProbability')" width="100" align="center">
+        <el-table-column
+          prop="win_probability"
+          :label="t('crmOpportunities.table.winProbability')"
+          width="100"
+          align="center"
+        >
           <template #default="{ row }"> {{ row.win_probability }}% </template>
         </el-table-column>
-        <el-table-column prop="opportunity_stage" :label="t('crmOpportunities.table.stage')" width="120" align="center">
+        <el-table-column
+          prop="opportunity_stage"
+          :label="t('crmOpportunities.table.stage')"
+          width="120"
+          align="center"
+        >
           <template #default="{ row }">
             <el-tag :type="getStageType(row.opportunity_stage)">{{
               getStageLabel(row.opportunity_stage)
             }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="expected_close_date" :label="t('crmOpportunities.table.expectedCloseDate')" width="120" align="center" />
-        <el-table-column prop="owner_name" :label="t('crmOpportunities.table.owner')" width="100" show-overflow-tooltip />
-        <el-table-column prop="last_follow_up_date" :label="t('crmOpportunities.table.lastFollowUp')" width="120" align="center" />
-        <el-table-column :label="t('crmOpportunities.table.operation')" width="250" align="center" fixed="right">
+        <el-table-column
+          prop="expected_close_date"
+          :label="t('crmOpportunities.table.expectedCloseDate')"
+          width="120"
+          align="center"
+        />
+        <el-table-column
+          prop="owner_name"
+          :label="t('crmOpportunities.table.owner')"
+          width="100"
+          show-overflow-tooltip
+        />
+        <el-table-column
+          prop="last_follow_up_date"
+          :label="t('crmOpportunities.table.lastFollowUp')"
+          width="120"
+          align="center"
+        />
+        <el-table-column
+          :label="t('crmOpportunities.table.operation')"
+          width="250"
+          align="center"
+          fixed="right"
+        >
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleView(row)">{{ t('crmOpportunities.table.view') }}</el-button>
+            <el-button type="primary" link size="small" @click="handleView(row)">{{
+              t('crmOpportunities.table.view')
+            }}</el-button>
             <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
             <el-button
               v-if="row.opportunity_stage !== 'WON' && row.opportunity_stage !== 'LOST'"
@@ -189,7 +256,12 @@
     />
 
     <!-- 商机详情对话框（批次 95 P3-19 修复：参考 SalesPriceView.vue 的 el-descriptions 模式） -->
-    <el-dialog v-model="viewDialogVisible" :title="t('crmOpportunities.viewDialog.title')" width="640px" :aria-label="t('crmOpportunities.viewDialog.ariaLabel')">
+    <el-dialog
+      v-model="viewDialogVisible"
+      :title="t('crmOpportunities.viewDialog.title')"
+      width="640px"
+      :aria-label="t('crmOpportunities.viewDialog.ariaLabel')"
+    >
       <el-descriptions v-if="viewData" :column="2" border>
         <el-descriptions-item :label="t('crmOpportunities.viewDialog.opportunityNo')">{{
           viewData.opportunity_no
@@ -238,36 +310,32 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Download, Search, Refresh } from '@element-plus/icons-vue'
-import {
-  updateOpportunity,
-  exportOpportunities,
-  type Opportunity,
-} from '@/api/crm'
-import { getUserList, type User } from '@/api/user'
-import { getCustomerList, type Customer } from '@/api/customer'
-import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
-import { logger } from '@/utils/logger'
-import { useTableApi } from '@/composables/useTableApi'
-import OpportunityFormTab from './tabs/OpportunityFormTab.vue'
-import OpportunityFollowTab from './tabs/OpportunityFollowTab.vue'
+import { ref, reactive, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { Plus, Download, Search, Refresh } from '@element-plus/icons-vue';
+import { updateOpportunity, exportOpportunities, type Opportunity } from '@/api/crm';
+import { getUserList, type User } from '@/api/user';
+import { getCustomerList, type Customer } from '@/api/customer';
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
+import { logger } from '@/utils/logger';
+import { useTableApi } from '@/composables/useTableApi';
+import OpportunityFormTab from './tabs/OpportunityFormTab.vue';
+import OpportunityFollowTab from './tabs/OpportunityFollowTab.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const hasLoaded = createLazyLoader()
+const hasLoaded = createLazyLoader();
 
 // 实际接口字段名与类型定义不完全一致，扩展包含 UI 展示所需字段
 interface OpportunityRow extends Opportunity {
-  opportunity_name?: string
+  opportunity_name?: string;
   // v11 批次 141 修复：opportunity_stage 已从 Opportunity 继承（字面量联合类型），不再重复声明
-  owner_name?: string
-  last_follow_up_date?: string
-  priority?: string
+  owner_name?: string;
+  last_follow_up_date?: string;
+  priority?: string;
   // 批次 95 P3-19 修复：补充列表/详情展示所需字段（后端返回，类型定义缺失）
-  win_probability?: number
+  win_probability?: number;
 }
 
 const queryParams = reactive({
@@ -275,7 +343,7 @@ const queryParams = reactive({
   opportunity_stage: '',
   owner_id: '',
   priority: '',
-})
+});
 
 // 批次 269：接入 useTableApi，消除手写分页重复
 const {
@@ -289,151 +357,162 @@ const {
 } = useTableApi<OpportunityRow>({
   url: '/crm/opportunities',
   onError: (e: unknown) => logger.warn(t('crmOpportunities.message.loadFailed'), String(e)),
-})
+});
 
-const users = ref<User[]>([])
-const customers = ref<Customer[]>([])
+const users = ref<User[]>([]);
+const customers = ref<Customer[]>([]);
 
-const formDialogVisible = ref(false)
-const formDialogTitle = ref('')
-const currentRow = ref<OpportunityRow | null>(null)
-const followDialogVisible = ref(false)
-const currentFollowId = ref<number | null>(null)
+const formDialogVisible = ref(false);
+const formDialogTitle = ref('');
+const currentRow = ref<OpportunityRow | null>(null);
+const followDialogVisible = ref(false);
+const currentFollowId = ref<number | null>(null);
 
 // 查看详情对话框状态（批次 95 P3-19 修复）
-const viewDialogVisible = ref(false)
-const viewData = ref<OpportunityRow | null>(null)
+const viewDialogVisible = ref(false);
+const viewData = ref<OpportunityRow | null>(null);
 
 const fetchUsers = async () => {
   try {
-    const res = await getUserList()
-    users.value = res.data?.list || []
+    const res = await getUserList();
+    users.value = res.data?.list || [];
   } catch (error) {
-    users.value = []
+    users.value = [];
   }
-}
+};
 
 const fetchCustomers = async () => {
   try {
-    const res = await getCustomerList()
-    customers.value = res.data?.list || []
+    const res = await getCustomerList();
+    customers.value = res.data?.list || [];
   } catch (error) {
-    customers.value = []
+    customers.value = [];
   }
-}
+};
 
 const handleQuery = () => {
-  setQueryParam('keyword', queryParams.keyword || undefined)
-  setQueryParam('opportunity_stage', queryParams.opportunity_stage || undefined)
-  setQueryParam('owner_id', queryParams.owner_id || undefined)
-  setQueryParam('priority', queryParams.priority || undefined)
-  page.value = 1
-  getList()
-}
+  setQueryParam('keyword', queryParams.keyword || undefined);
+  setQueryParam('opportunity_stage', queryParams.opportunity_stage || undefined);
+  setQueryParam('owner_id', queryParams.owner_id || undefined);
+  setQueryParam('priority', queryParams.priority || undefined);
+  page.value = 1;
+  getList();
+};
 
 const handleReset = () => {
-  queryParams.keyword = ''
-  queryParams.opportunity_stage = ''
-  queryParams.owner_id = ''
-  queryParams.priority = ''
-  handleQuery()
-}
+  queryParams.keyword = '';
+  queryParams.opportunity_stage = '';
+  queryParams.owner_id = '';
+  queryParams.priority = '';
+  handleQuery();
+};
 
 const openCreateDialog = () => {
-  currentRow.value = null
-  formDialogTitle.value = t('crmOpportunities.dialog.createTitle')
-  formDialogVisible.value = true
-}
+  currentRow.value = null;
+  formDialogTitle.value = t('crmOpportunities.dialog.createTitle');
+  formDialogVisible.value = true;
+};
 
 const openEditDialog = (row: OpportunityRow) => {
-  currentRow.value = row
-  formDialogTitle.value = t('crmOpportunities.dialog.editTitle')
-  formDialogVisible.value = true
-}
+  currentRow.value = row;
+  formDialogTitle.value = t('crmOpportunities.dialog.editTitle');
+  formDialogVisible.value = true;
+};
 
 const openFollowDialog = (row: OpportunityRow) => {
-  currentFollowId.value = row.id
-  followDialogVisible.value = true
-}
+  currentFollowId.value = row.id;
+  followDialogVisible.value = true;
+};
 
 const handleFormSubmitted = () => {
-  formDialogVisible.value = false
-  getList()
-}
+  formDialogVisible.value = false;
+  getList();
+};
 
 // 查看详情（批次 95 P3-19 修复：打开详情对话框展示商机完整信息）
 const handleView = (row: OpportunityRow) => {
-  viewData.value = row
-  viewDialogVisible.value = true
-}
+  viewData.value = row;
+  viewDialogVisible.value = true;
+};
 
 const handleWin = async (row: OpportunityRow) => {
   try {
-    await ElMessageBox.confirm(t('crmOpportunities.message.winConfirm', { name: row.opportunity_name }), t('crmOpportunities.message.tip'), {
-      type: 'warning',
-    })
+    await ElMessageBox.confirm(
+      t('crmOpportunities.message.winConfirm', { name: row.opportunity_name }),
+      t('crmOpportunities.message.tip'),
+      {
+        type: 'warning',
+      }
+    );
     // v11 批次 141 修复：原占位假成功，现接入真实状态变更 API
     // 后端 UpdateOpportunityRequest 字段名为 opportunity_stage，阶段值大写
-    await updateOpportunity(row.id, { opportunity_stage: 'CLOSED_WON' })
-    ElMessage.success(t('crmOpportunities.message.winSuccess'))
-    getList()
+    await updateOpportunity(row.id, { opportunity_stage: 'CLOSED_WON' });
+    ElMessage.success(t('crmOpportunities.message.winSuccess'));
+    getList();
   } catch (error) {
     if (error !== 'cancel') {
-      logger.warn(t('crmOpportunities.message.winFailed'), (error as Error).message)
-      ElMessage.error(t('crmOpportunities.message.winFailed'))
+      logger.warn(t('crmOpportunities.message.winFailed'), (error as Error).message);
+      ElMessage.error(t('crmOpportunities.message.winFailed'));
     }
   }
-}
+};
 
 const handleLost = async (row: OpportunityRow) => {
   try {
-    await ElMessageBox.confirm(t('crmOpportunities.message.lostConfirm', { name: row.opportunity_name }), t('crmOpportunities.message.tip'), {
-      type: 'warning',
-    })
+    await ElMessageBox.confirm(
+      t('crmOpportunities.message.lostConfirm', { name: row.opportunity_name }),
+      t('crmOpportunities.message.tip'),
+      {
+        type: 'warning',
+      }
+    );
     // v11 批次 141 修复：原占位假成功，现接入真实状态变更 API
     // 后端 UpdateOpportunityRequest 字段名为 opportunity_stage，阶段值大写
-    await updateOpportunity(row.id, { opportunity_stage: 'CLOSED_LOST' })
-    ElMessage.success(t('crmOpportunities.message.lostSuccess'))
-    getList()
+    await updateOpportunity(row.id, { opportunity_stage: 'CLOSED_LOST' });
+    ElMessage.success(t('crmOpportunities.message.lostSuccess'));
+    getList();
   } catch (error) {
     if (error !== 'cancel') {
-      logger.warn(t('crmOpportunities.message.lostFailed'), (error as Error).message)
-      ElMessage.error(t('crmOpportunities.message.lostFailed'))
+      logger.warn(t('crmOpportunities.message.lostFailed'), (error as Error).message);
+      ElMessage.error(t('crmOpportunities.message.lostFailed'));
     }
   }
-}
+};
 
 // v11 批次 141 修复：原占位假成功，现接入真实导出 API 并触发浏览器下载
 const handleExport = async () => {
   try {
-    const blob = await exportOpportunities(queryParams)
-    const url = window.URL.createObjectURL(new Blob([blob]))
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', `${t('crmOpportunities.message.exportFilename')}_${new Date().toISOString().split('T')[0]}.xlsx`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    window.URL.revokeObjectURL(url)
-    ElMessage.success(t('crmOpportunities.message.exportSuccess'))
+    const blob = await exportOpportunities(queryParams);
+    const url = window.URL.createObjectURL(new Blob([blob]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute(
+      'download',
+      `${t('crmOpportunities.message.exportFilename')}_${new Date().toISOString().split('T')[0]}.xlsx`
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    ElMessage.success(t('crmOpportunities.message.exportSuccess'));
   } catch (error) {
-    logger.error(t('crmOpportunities.message.exportFailed'), error)
-    ElMessage.error(t('crmOpportunities.message.exportFailed'))
+    logger.error(t('crmOpportunities.message.exportFailed'), error);
+    ElMessage.error(t('crmOpportunities.message.exportFailed'));
   }
-}
+};
 
 const handleSizeChange = (val: number) => {
-  pageSize.value = val
-  page.value = 1
-}
+  pageSize.value = val;
+  page.value = 1;
+};
 
 const handleCurrentChange = (val: number) => {
-  page.value = val
-}
+  page.value = val;
+};
 
 const formatCurrency = (value: number) => {
-  return value ? `¥${value.toFixed(2)}` : '¥0.00'
-}
+  return value ? `¥${value.toFixed(2)}` : '¥0.00';
+};
 
 const getStageType = (stage: string) => {
   const typeMap: Record<string, string> = {
@@ -443,9 +522,9 @@ const getStageType = (stage: string) => {
     NEGOTIATION: 'primary',
     WON: 'success',
     LOST: 'danger',
-  }
-  return typeMap[stage] || 'info'
-}
+  };
+  return typeMap[stage] || 'info';
+};
 
 const getStageLabel = (stage: string) => {
   const labelMap: Record<string, string> = {
@@ -455,15 +534,15 @@ const getStageLabel = (stage: string) => {
     NEGOTIATION: t('crmOpportunities.stage.negotiation'),
     WON: t('crmOpportunities.stage.won'),
     LOST: t('crmOpportunities.stage.lost'),
-  }
-  return labelMap[stage] || stage
-}
+  };
+  return labelMap[stage] || stage;
+};
 
 onMounted(() => {
   // useTableApi 已自动初始加载，此处仅懒加载用户/客户下拉数据
-  loadIfNot('users', fetchUsers, hasLoaded)
-  loadIfNot('customers', fetchCustomers, hasLoaded)
-})
+  loadIfNot('users', fetchUsers, hasLoaded);
+  loadIfNot('customers', fetchCustomers, hasLoaded);
+});
 </script>
 
 <style scoped>

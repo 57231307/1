@@ -23,7 +23,12 @@
           <div class="lock-content">
             <div>{{ $t('login.failedAttempts', { count: lockInfo.failedAttempts }) }}</div>
             <div v-if="lockInfo.remainingMinutes > 0" class="lock-countdown">
-              {{ $t('login.remainingTime', { minutes: lockInfo.remainingMinutes, seconds: lockInfo.remainingSeconds }) }}
+              {{
+                $t('login.remainingTime', {
+                  minutes: lockInfo.remainingMinutes,
+                  seconds: lockInfo.remainingSeconds,
+                })
+              }}
             </div>
           </div>
         </template>
@@ -61,6 +66,21 @@
             @keyup.enter="handleLogin"
           />
         </el-form-item>
+        <!-- P1-08-1 修复：用户协议与隐私政策勾选，满足《个人信息保护法》第 14 条同意要求 -->
+        <el-form-item prop="agreedToTerms">
+          <el-checkbox v-model="loginForm.agreedToTerms" size="default">
+            <span class="terms-text">
+              {{ $t('login.agreeTo') }}
+              <a href="#/terms" target="_blank" class="terms-link">{{
+                $t('login.userAgreement')
+              }}</a>
+              {{ $t('login.and') }}
+              <a href="#/privacy" target="_blank" class="terms-link">{{
+                $t('login.privacyPolicy')
+              }}</a>
+            </span>
+          </el-checkbox>
+        </el-form-item>
         <el-form-item>
           <el-button
             type="primary"
@@ -79,34 +99,48 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onUnmounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { useUserStore } from '@/store/user'
-import { checkLockStatus } from '@/api/security'
-import { logger } from '@/utils/logger'
+import { reactive, ref, onUnmounted } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
+import { useUserStore } from '@/store/user';
+import { checkLockStatus } from '@/api/security';
+import { logger } from '@/utils/logger';
 
-const router = useRouter()
-const route = useRoute()
-const userStore = useUserStore()
+const router = useRouter();
+const route = useRoute();
+const userStore = useUserStore();
 /* 批次 23 v5 P0-1：useScope: 'global' 确保读取根 i18n messages（资源在 i18n/index.ts 全局注册） */
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const formRef = ref<FormInstance>()
-const loading = ref(false)
+const formRef = ref<FormInstance>();
+const loading = ref(false);
 
 const loginForm = reactive({
   username: '',
   password: '',
-})
+  agreedToTerms: false,
+});
 
 const rules: FormRules = {
   /* 批次 23 v5 P0-1：校验提示走 i18n。注意 rules 在 setup 初始化时一次性求值，切换语言后不会自动刷新；
      如需动态响应语言切换，可将 message 改为函数形式，留作后续迭代优化。 */
   username: [{ required: true, message: t('login.usernameRequired'), trigger: 'blur' }],
   password: [{ required: true, message: t('login.passwordRequired'), trigger: 'blur' }],
-}
+  // P1-08-1：用户协议勾选校验
+  agreedToTerms: [
+    {
+      validator: (_rule, value, callback) => {
+        if (!value) {
+          callback(new Error(t('login.pleaseAgreeToTerms')));
+        } else {
+          callback();
+        }
+      },
+      trigger: 'change',
+    },
+  ],
+};
 
 /** 账号锁定信息 */
 const lockInfo = reactive({
@@ -116,100 +150,100 @@ const lockInfo = reactive({
   remainingSeconds: 0,
   maxAttempts: 5,
   lockEndAt: 0, // 时间戳
-})
+});
 
 /** 倒计时定时器 */
-let countdownTimer: number | null = null
+let countdownTimer: number | null = null;
 
 /**
  * 处理账号锁定状态：设置 isLocked + 启动倒计时
  */
 const applyLockStatus = (status: {
-  is_locked: boolean
-  failed_attempts: number
-  locked_until: string | null
-  max_attempts: number
+  is_locked: boolean;
+  failed_attempts: number;
+  locked_until: string | null;
+  max_attempts: number;
 }) => {
   if (status.is_locked && status.locked_until) {
-    const endTime = new Date(status.locked_until).getTime()
-    const now = Date.now()
+    const endTime = new Date(status.locked_until).getTime();
+    const now = Date.now();
     if (endTime > now) {
-      lockInfo.isLocked = true
-      lockInfo.failedAttempts = status.failed_attempts
-      lockInfo.maxAttempts = status.max_attempts
-      lockInfo.lockEndAt = endTime
-      startCountdown()
+      lockInfo.isLocked = true;
+      lockInfo.failedAttempts = status.failed_attempts;
+      lockInfo.maxAttempts = status.max_attempts;
+      lockInfo.lockEndAt = endTime;
+      startCountdown();
     } else {
       // 已过期，清空锁定状态
-      clearLockInfo()
+      clearLockInfo();
     }
   } else {
-    clearLockInfo()
+    clearLockInfo();
   }
-}
+};
 
 /** 清空锁定信息 */
 const clearLockInfo = () => {
-  lockInfo.isLocked = false
-  lockInfo.failedAttempts = 0
-  lockInfo.remainingMinutes = 0
-  lockInfo.remainingSeconds = 0
-  lockInfo.lockEndAt = 0
+  lockInfo.isLocked = false;
+  lockInfo.failedAttempts = 0;
+  lockInfo.remainingMinutes = 0;
+  lockInfo.remainingSeconds = 0;
+  lockInfo.lockEndAt = 0;
   if (countdownTimer !== null) {
-    window.clearInterval(countdownTimer)
-    countdownTimer = null
+    window.clearInterval(countdownTimer);
+    countdownTimer = null;
   }
-}
+};
 
 /** 启动倒计时 */
 const startCountdown = () => {
   if (countdownTimer !== null) {
-    window.clearInterval(countdownTimer)
+    window.clearInterval(countdownTimer);
   }
   const update = () => {
-    const remainMs = lockInfo.lockEndAt - Date.now()
+    const remainMs = lockInfo.lockEndAt - Date.now();
     if (remainMs <= 0) {
-      clearLockInfo()
-      ElMessage.info(t('login.unlocked'))
-      return
+      clearLockInfo();
+      ElMessage.info(t('login.unlocked'));
+      return;
     }
-    lockInfo.remainingMinutes = Math.floor(remainMs / 60000)
-    lockInfo.remainingSeconds = Math.floor((remainMs % 60000) / 1000)
-  }
-  update()
-  countdownTimer = window.setInterval(update, 1000)
-}
+    lockInfo.remainingMinutes = Math.floor(remainMs / 60000);
+    lockInfo.remainingSeconds = Math.floor((remainMs % 60000) / 1000);
+  };
+  update();
+  countdownTimer = window.setInterval(update, 1000);
+};
 
 /**
  * 用户名输入框失焦：预检查账号是否已被锁定
  */
 const handleUsernameBlur = async () => {
-  if (!loginForm.username || loginForm.username.length < 3) return
+  if (!loginForm.username || loginForm.username.length < 3) return;
   try {
-    const res = await checkLockStatus(loginForm.username)
+    const res = await checkLockStatus(loginForm.username);
     if (res.data) {
-      applyLockStatus(res.data)
+      applyLockStatus(res.data);
     }
   } catch (error) {
     // 检查失败不影响主流程
-    logger.warn(`${t('login.precheckLockStatusFailed')}:`, error)
+    logger.warn(`${t('login.precheckLockStatusFailed')}:`, error);
   }
-}
+};
 
 /**
  * 登录失败时尝试检查锁定状态（响应 401 后由错误处理自动调用）
  */
 const refreshLockStatus = async () => {
-  if (!loginForm.username) return
+  if (!loginForm.username) return;
   try {
-    const res = await checkLockStatus(loginForm.username)
+    const res = await checkLockStatus(loginForm.username);
     if (res.data) {
-      applyLockStatus(res.data)
+      applyLockStatus(res.data);
     }
   } catch (error) {
-    logger.warn(`${t('login.refreshLockStatusFailed')}:`, error)
+    logger.warn(`${t('login.refreshLockStatusFailed')}:`, error);
   }
-}
+};
 
 /**
  * 批次 22 v5 P0-2 修复：安全重定向白名单校验
@@ -222,28 +256,28 @@ const refreshLockStatus = async () => {
  * @returns 安全的内部跳转路径
  */
 function safeRedirect(raw: unknown): string {
-  if (typeof raw !== 'string' || !raw) return '/'
-  if (/^(https?:)?\/\//i.test(raw)) return '/'
-  if (/^\\\\/i.test(raw)) return '/'
-  if (!raw.startsWith('/')) return '/'
-  if (raw.startsWith('//') || raw.startsWith('/\\')) return '/'
-  return raw
+  if (typeof raw !== 'string' || !raw) return '/';
+  if (/^(https?:)?\/\//i.test(raw)) return '/';
+  if (/^\\\\/i.test(raw)) return '/';
+  if (!raw.startsWith('/')) return '/';
+  if (raw.startsWith('//') || raw.startsWith('/\\')) return '/';
+  return raw;
 }
 
 async function handleLogin() {
-  const form = formRef.value
-  if (!form) return
+  const form = formRef.value;
+  if (!form) return;
 
   await form.validate(async valid => {
-    if (!valid) return
+    if (!valid) return;
     if (lockInfo.isLocked) {
-      ElMessage.warning(t('login.lockedAlert', { minutes: lockInfo.remainingMinutes }))
-      return
+      ElMessage.warning(t('login.lockedAlert', { minutes: lockInfo.remainingMinutes }));
+      return;
     }
 
-    loading.value = true
+    loading.value = true;
     try {
-      const loginResult = await userStore.login(loginForm)
+      const loginResult = await userStore.login(loginForm);
 
       // FE-P-2 修复（2026-06-26 第二次审计第二优先级）：
       // permissions 已在 userStore.login() 中合并到 userInfo，
@@ -251,54 +285,50 @@ async function handleLogin() {
       // 原 permissionStore 写入路径是死代码（无读取方），已移除。
 
       // 登录成功清空锁定提示
-      clearLockInfo()
-      ElMessage.success(t('login.success'))
+      clearLockInfo();
+      ElMessage.success(t('login.success'));
 
       // 批次 198 P0-2：密码过期引导改密（后端 password_expired=true 表示超过 90 天未修改）
       // 批次 389 FE-P2-3：密码过期文案改用 i18n（passwordExpired* 系列 key）
       if (loginResult?.password_expired) {
-        ElMessageBox.confirm(
-          t('login.passwordExpiredMessage'),
-          t('login.passwordExpiredTitle'),
-          {
-            confirmButtonText: t('login.passwordExpiredConfirm'),
-            cancelButtonText: t('login.passwordExpiredLater'),
-            type: 'warning',
-          },
-        )
+        ElMessageBox.confirm(t('login.passwordExpiredMessage'), t('login.passwordExpiredTitle'), {
+          confirmButtonText: t('login.passwordExpiredConfirm'),
+          cancelButtonText: t('login.passwordExpiredLater'),
+          type: 'warning',
+        })
           .then(() => {
-            router.push({ path: '/system/security' })
+            router.push({ path: '/system/security' });
           })
           .catch(() => {
             // 用户选择稍后提醒，仍允许进入系统（不阻塞业务），但日志已记录
-            const redirect = safeRedirect(route.query.redirect)
-            router.push(redirect)
-          })
-        return
+            const redirect = safeRedirect(route.query.redirect);
+            router.push(redirect);
+          });
+        return;
       }
 
       // 批次 22 v5 P0-2：使用 safeRedirect 校验跳转目标，防止 Open Redirect
-      const redirect = safeRedirect(route.query.redirect)
-      router.push(redirect)
+      const redirect = safeRedirect(route.query.redirect);
+      router.push(redirect);
     } catch (error: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      const message = error instanceof Error ? error.message : String(error)
-      ElMessage.error(message || t('login.failedFallback'))
+      const message = error instanceof Error ? error.message : String(error);
+      ElMessage.error(message || t('login.failedFallback'));
       // 登录失败后异步检查账号是否被锁定
-      refreshLockStatus()
+      refreshLockStatus();
     } finally {
-      loading.value = false
+      loading.value = false;
     }
-  })
+  });
 }
 
 /** 组件卸载时清理定时器 */
 onUnmounted(() => {
   if (countdownTimer !== null) {
-    window.clearInterval(countdownTimer)
-    countdownTimer = null
+    window.clearInterval(countdownTimer);
+    countdownTimer = null;
   }
-})
+});
 </script>
 
 <style scoped>
@@ -332,5 +362,16 @@ onUnmounted(() => {
   margin-top: 4px;
   color: #f56c6c;
   font-weight: 500;
+}
+.terms-text {
+  font-size: 13px;
+  color: #606266;
+}
+.terms-link {
+  color: #409eff;
+  text-decoration: none;
+}
+.terms-link:hover {
+  text-decoration: underline;
 }
 </style>

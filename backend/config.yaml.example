@@ -55,6 +55,8 @@ log:
   # ⚠️ 生产环境建议设置为 info 或 warn
   level: "info"
   dir: "./logs"
+  # V15 P1 20.8-B：日志文件保留天数（默认 90 天），过期文件由 LogCleanupService 自动清理
+  retention_days: 90
 
 cors:
   # ⚠️ 生产环境必须配置实际域名，移除所有 localhost
@@ -87,6 +89,25 @@ slow_query:
   interval_secs: 300       # 采集间隔（秒）
   threshold_ms: 100.0      # 慢查询阈值（毫秒），超过此值的 SQL 才会被记录
   limit_rows: 100          # 单次采集最大行数
+
+# 面料行业配置（V15 Batch05-P1-2：6 个核心配置项）
+# 依据：V15 审计报告 类五 P1（batch-05 维度 5.5：配置依赖闭环 缺陷项 1）
+# 优先级：环境变量 > config.yaml fabric_industry 段 > 默认值
+# 环境变量覆盖：DYEHOUSE_VAT_COUNT / PROCESS_UNIT_PRICE_BASE / ENERGY_ALLOCATION_RULE
+#               QUALITY_GRADE_THRESHOLD_A/B/C / DYEBATCH_STATUS_TIMEOUT
+fabric_industry:
+  # 染缸设备数（染厂染缸总数，影响排缸算法和产能统计，生产环境建议 > 0）
+  dyehouse_vat_count: 0
+  # 工序单价基准（默认工序单价，元/件，可按客户/订单覆盖）
+  process_unit_price_base: 0.0
+  # 能耗分摊规则（duration 按工时 / quantity 按产量 / weight 按重量）
+  energy_allocation_rule: "duration"
+  # 质量分级阈值（A/B/C 级，默认 95/80/60）
+  quality_grade_threshold_a: 95.0
+  quality_grade_threshold_b: 80.0
+  quality_grade_threshold_c: 60.0
+  # 缸号状态机超时（秒，超过此阈值触发异常告警，默认 14400=4 小时）
+  dyebatch_status_timeout_secs: 14400
 
 # 批次 398 修复：env 字段现已接入 is_production() 判定链路
 # AppSettings::new() 启动时若 APP_ENV 环境变量未设置，会将此字段同步到 APP_ENV

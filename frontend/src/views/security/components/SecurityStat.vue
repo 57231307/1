@@ -62,13 +62,13 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import { User, Warning, Lock, Bell } from '@element-plus/icons-vue'
-import type { SecurityStats } from '@/api/security'
+import { useI18n } from 'vue-i18n';
+import { User, Warning, Lock, Bell } from '@element-plus/icons-vue';
+import type { SecurityStats } from '@/api/security';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-defineProps<{ stats: SecurityStats }>()
+defineProps<{ stats: SecurityStats }>();
 </script>
 
 <style scoped>

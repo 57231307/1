@@ -801,9 +801,10 @@ pub async fn create_dispute(
 
     // 批次 109 P3：customer_id 校验 — 若提供则校验与对账单的客户一致性，防止跨客户操作
     if let Some(req_customer_id) = req.customer_id {
-        let reconciliation = service.get_by_id(reconciliation_id).await?.ok_or_else(|| {
-            AppError::not_found(format!("对账单 {} 不存在", reconciliation_id))
-        })?;
+        let reconciliation = service
+            .get_by_id(reconciliation_id)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("对账单 {} 不存在", reconciliation_id)))?;
         if reconciliation.customer_id != req_customer_id {
             return Err(AppError::bad_request(format!(
                 "客户 ID 不匹配：对账单 {} 属于客户 {}，请求中客户 ID 为 {}",

@@ -333,16 +333,22 @@ mod tests {
 
     #[test]
     fn 测试低库存检查_低于再订货点但高于安全库存() {
-        let (below_safety, below_reorder) =
-            check_low_stock(Decimal::new(15, 0), Decimal::new(10, 0), Decimal::new(20, 0));
+        let (below_safety, below_reorder) = check_low_stock(
+            Decimal::new(15, 0),
+            Decimal::new(10, 0),
+            Decimal::new(20, 0),
+        );
         assert!(!below_safety);
         assert!(below_reorder);
     }
 
     #[test]
     fn 测试低库存检查_正常库存() {
-        let (below_safety, below_reorder) =
-            check_low_stock(Decimal::new(50, 0), Decimal::new(10, 0), Decimal::new(20, 0));
+        let (below_safety, below_reorder) = check_low_stock(
+            Decimal::new(50, 0),
+            Decimal::new(10, 0),
+            Decimal::new(20, 0),
+        );
         assert!(!below_safety);
         assert!(!below_reorder);
     }

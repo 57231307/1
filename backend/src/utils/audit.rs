@@ -52,8 +52,12 @@ pub async fn log_security_event(
     extra: Option<&str>,
     audit_ctx: Option<&AuditContext>,
 ) {
-    let ip_address = audit_ctx.map(|c| c.ip_address.as_str()).unwrap_or("unknown");
-    let user_agent = audit_ctx.map(|c| c.user_agent.as_str()).unwrap_or("unknown");
+    let ip_address = audit_ctx
+        .map(|c| c.ip_address.as_str())
+        .unwrap_or("unknown");
+    let user_agent = audit_ctx
+        .map(|c| c.user_agent.as_str())
+        .unwrap_or("unknown");
 
     // 当前实现仅输出结构化日志；后续可在此追加 DB 写入
     tracing::warn!(

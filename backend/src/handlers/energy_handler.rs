@@ -9,20 +9,27 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 use serde::Deserialize;
+use std::sync::Arc;
 
-use crate::models::{energy_allocation_record, energy_allocation_rule, energy_consumption_record, energy_meter};
+use crate::middleware::auth_context::AuthContext;
+use crate::models::audit_log::{OperationType, Severity};
+use crate::models::{
+    energy_allocation_record, energy_allocation_rule, energy_consumption_record, energy_meter,
+};
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::energy_service::{
-    AllocationRecordQuery, ConsumptionQuery,
-    CreateAllocationRecordRequest, CreateConsumptionRequest,
-    CreateMeterRequest, CreateRuleRequest, EnergyAllocationRecordService,
-    EnergyAllocationRuleService, EnergyConsumptionService,
-    EnergyMeterService, MeterQuery, MonthlyAllocationRequest, RuleQuery,
-    UpdateAllocationRecordRequest, UpdateConsumptionRequest, UpdateMeterRequest, UpdateRuleRequest,
+    AllocationRecordQuery, ConsumptionQuery, CreateAllocationRecordRequest,
+    CreateConsumptionRequest, CreateMeterRequest, CreateRuleRequest, EnergyAllocationRecordService,
+    EnergyAllocationRuleService, EnergyConsumptionService, EnergyMeterService, MeterQuery,
+    MonthlyAllocationRequest, RuleQuery, UpdateAllocationRecordRequest, UpdateConsumptionRequest,
+    UpdateMeterRequest, UpdateRuleRequest,
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
+use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
 
 // ============================================================================
 // 辅助函数
@@ -481,4 +488,199 @@ pub async fn monthly_allocation(
         .monthly_allocation_by_duration(req, &consumption_svc, &rule_svc)
         .await?;
     Ok(Json(ApiResponse::success(results)))
+}
+
+/// GET /api/v1/erp/energy-consumptions/export - 导出能耗记录（xlsx）
+pub async fn export_energy_consumptions(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(query): Query<ConsumptionListQuery>,
+) -> Result<axum::response::Response, AppError> {
+    let mut q = energy_consumption_record::Entity::find()
+        .filter(energy_consumption_record::Column::IsDeleted.eq(false));
+    if let Some(v) = query.meter_id {
+        q = q.filter(energy_consumption_record::Column::MeterId.eq(v));
+    }
+    if let Some(v) = &query.meter_type {
+        q = q.filter(energy_consumption_record::Column::MeterType.eq(v));
+    }
+    if let Some(v) = &query.workshop {
+        q = q.filter(energy_consumption_record::Column::Workshop.eq(v));
+    }
+    if let Some(v) = &query.dye_lot_no {
+        q = q.filter(energy_consumption_record::Column::DyeLotNo.eq(v));
+    }
+    if let Some(v) = query.process_route_id {
+        q = q.filter(energy_consumption_record::Column::ProcessRouteId.eq(v));
+    }
+    if let Some(v) = query.equipment_id {
+        q = q.filter(energy_consumption_record::Column::EquipmentId.eq(v));
+    }
+    if let Some(v) = &query.status {
+        q = q.filter(energy_consumption_record::Column::Status.eq(v));
+    }
+    if let Some(v) = &query.recording_method {
+        q = q.filter(energy_consumption_record::Column::RecordingMethod.eq(v));
+    }
+    q = q.order_by_desc(energy_consumption_record::Column::RecordedAt);
+
+    let records = q.all(&*state.db).await?;
+    let table = build_energy_consumption_xlsx_table(&records);
+    let row_count = records.len();
+
+    let event = build_energy_export_audit_event(
+        &auth,
+        row_count,
+        "energy_consumption",
+        "energy_consumptions_export.xlsx",
+        "/api/v1/erp/energy-consumptions/export",
+    );
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
+
+    build_xlsx_response(&table, "energy_consumptions_export")
+}
+
+/// 构造能耗记录导出表格
+fn build_energy_consumption_xlsx_table(records: &[energy_consumption_record::Model]) -> XlsxTable {
+    XlsxTable {
+        sheet_name: "能耗记录".to_string(),
+        headers: vec![
+            "ID".to_string(),
+            "记录编号".to_string(),
+            "能源类型".to_string(),
+            "车间".to_string(),
+            "单位".to_string(),
+            "上次读数".to_string(),
+            "当前读数".to_string(),
+            "消耗量".to_string(),
+            "单价".to_string(),
+            "总成本".to_string(),
+            "缸号".to_string(),
+            "录入方式".to_string(),
+            "状态".to_string(),
+            "录入时间".to_string(),
+        ],
+        rows: records
+            .iter()
+            .map(|r| {
+                vec![
+                    r.id.to_string(),
+                    r.record_no.clone(),
+                    r.meter_type.clone(),
+                    r.workshop.clone().unwrap_or_default(),
+                    r.unit.clone(),
+                    r.previous_reading.to_string(),
+                    r.current_reading.to_string(),
+                    r.consumption.to_string(),
+                    r.unit_price.to_string(),
+                    r.total_cost.to_string(),
+                    r.dye_lot_no.clone().unwrap_or_default(),
+                    r.recording_method.clone(),
+                    r.status.clone(),
+                    r.recorded_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+                ]
+            })
+            .collect(),
+    }
+}
+
+/// 构造能耗导出审计事件
+fn build_energy_export_audit_event(
+    auth: &AuthContext,
+    row_count: usize,
+    resource_type: &str,
+    resource_name: &str,
+    request_path: &str,
+) -> AuditEvent {
+    AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some(resource_type.to_string()),
+        resource_id: None,
+        resource_name: Some(resource_name.to_string()),
+        description: Some(format!(
+            "用户 {} 导出能耗数据（共 {} 条）",
+            auth.username, row_count
+        )),
+        request_method: Some("GET".to_string()),
+        request_path: Some(request_path.to_string()),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "format": "xlsx",
+            "total": row_count,
+        })),
+    }
+}
+
+/// GET /api/v1/erp/energy-allocations/export - 导出能耗分摊记录（xlsx）
+pub async fn export_energy_allocations(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(query): Query<AllocationRecordListQuery>,
+) -> Result<axum::response::Response, AppError> {
+    let q = energy_allocation_record::Entity::find()
+        .filter(energy_allocation_record::Column::IsDeleted.eq(false))
+        .order_by_desc(energy_allocation_record::Column::CreatedAt);
+
+    let records = q.all(&*state.db).await?;
+    let _ = query;
+    let table = build_energy_allocation_xlsx_table(&records);
+    let row_count = records.len();
+
+    let event = build_energy_export_audit_event(
+        &auth,
+        row_count,
+        "energy_allocation_record",
+        "energy_allocations_export.xlsx",
+        "/api/v1/erp/energy-allocations/export",
+    );
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
+
+    build_xlsx_response(&table, "energy_allocations_export")
+}
+
+/// 构造能耗分摊记录导出表格
+fn build_energy_allocation_xlsx_table(records: &[energy_allocation_record::Model]) -> XlsxTable {
+    XlsxTable {
+        sheet_name: "能耗分摊".to_string(),
+        headers: vec![
+            "ID".to_string(),
+            "分摊单号".to_string(),
+            "能源类型".to_string(),
+            "车间".to_string(),
+            "缸号".to_string(),
+            "工单ID".to_string(),
+            "工序路线ID".to_string(),
+            "分摊金额".to_string(),
+            "状态".to_string(),
+            "周期开始".to_string(),
+            "周期结束".to_string(),
+        ],
+        rows: records
+            .iter()
+            .map(|r| {
+                vec![
+                    r.id.to_string(),
+                    r.allocation_no.clone(),
+                    r.meter_type.clone(),
+                    r.workshop.clone().unwrap_or_default(),
+                    r.dye_lot_no.clone().unwrap_or_default(),
+                    r.production_order_id
+                        .map(|i| i.to_string())
+                        .unwrap_or_default(),
+                    r.process_route_id
+                        .map(|i| i.to_string())
+                        .unwrap_or_default(),
+                    r.total_cost.to_string(),
+                    r.status.clone(),
+                    r.period_start.format("%Y-%m-%d %H:%M:%S").to_string(),
+                    r.period_end.format("%Y-%m-%d %H:%M:%S").to_string(),
+                ]
+            })
+            .collect(),
+    }
 }

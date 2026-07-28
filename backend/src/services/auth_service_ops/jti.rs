@@ -68,10 +68,7 @@ async fn init_redis_jti_blacklist() -> Option<Arc<tokio::sync::Mutex<ConnectionM
                 Some(Arc::new(tokio::sync::Mutex::new(conn)))
             }
             Err(e) => {
-                tracing::warn!(
-                    "JTI 黑名单 Redis 连接失败 ({:?})，回退到进程内存储",
-                    e
-                );
+                tracing::warn!("JTI 黑名单 Redis 连接失败 ({:?})，回退到进程内存储", e);
                 None
             }
         },
@@ -107,7 +104,10 @@ pub async fn revoke_jti(jti: &str, expires_at: i64) {
 
         let write_result: Result<(), redis::RedisError> = async {
             let mut conn = conn_arc.lock().await;
-            let _: () = conn.set_ex(&key, expires_at.to_string(), ttl_secs).await?;
+            // 注：turbofish ::<_, _, ()> 显式指定 RV=() 以满足 never type fallback 约束，
+            // 同时避免 clippy::let_unit_value 警告（无 let _: () 绑定）
+            conn.set_ex::<_, _, ()>(&key, expires_at.to_string(), ttl_secs)
+                .await?;
             Ok(())
         }
         .await;
@@ -154,11 +154,7 @@ pub async fn is_jti_revoked(jti: &str) -> bool {
         match check_result {
             Ok(exists) => return exists,
             Err(e) => {
-                tracing::warn!(
-                    "JTI 查 Redis 失败 ({:?})，回退到进程内检查；jti={}",
-                    e,
-                    jti
-                );
+                tracing::warn!("JTI 查 Redis 失败 ({:?})，回退到进程内检查；jti={}", e, jti);
                 // 降级：查内存
             }
         }
@@ -300,10 +296,7 @@ pub async fn cleanup_revoked_users() -> usize {
             table.len()
         );
     } else {
-        tracing::debug!(
-            "用户吊销记录清理完成：无过期记录（当前{}条）",
-            table.len()
-        );
+        tracing::debug!("用户吊销记录清理完成：无过期记录（当前{}条）", table.len());
     }
     removed
 }

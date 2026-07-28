@@ -106,11 +106,24 @@ impl SystemUpdateService {
         let mut archive =
             zip::ZipArchive::new(file).map_err(|e| UpdateError::UnzipError(e.to_string()))?;
 
+        // P1-03-6 修复：累计总解压大小，超过 500MB 视为 zip bomb 拒绝
+        const MAX_TOTAL_EXTRACT_SIZE: u64 = 500 * 1024 * 1024;
+        let mut total_extracted: u64 = 0;
+
         for i in 0..archive.len() {
             let mut zip_entry = archive
                 .by_index(i)
                 .map_err(|e| UpdateError::UnzipError(e.to_string()))?;
-            extract_zip_entry(&mut zip_entry, &extract_dir)?;
+            let copied = extract_zip_entry(&mut zip_entry, &extract_dir)?;
+            total_extracted = total_extracted
+                .checked_add(copied)
+                .ok_or_else(|| UpdateError::ValidationError("解压大小累计溢出".to_string()))?;
+            if total_extracted > MAX_TOTAL_EXTRACT_SIZE {
+                return Err(UpdateError::ValidationError(format!(
+                    "总解压大小超过限制 ({}MB)，疑似 zip bomb",
+                    MAX_TOTAL_EXTRACT_SIZE / 1024 / 1024
+                )));
+            }
         }
 
         Ok(extract_dir)

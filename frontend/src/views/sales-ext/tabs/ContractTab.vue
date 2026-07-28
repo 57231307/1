@@ -389,11 +389,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
-import type { FormInstance, FormRules } from 'element-plus'
+import { ref, reactive, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { Plus } from '@element-plus/icons-vue';
+import type { FormInstance, FormRules } from 'element-plus';
 import {
   getSalesContractList,
   getSalesContract,
@@ -404,16 +404,16 @@ import {
   cancelSalesContract,
   type SalesContract,
   type ContractItem as SalesContractItem,
-} from '@/api/sales-contract'
+} from '@/api/sales-contract';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const salesContracts = ref<SalesContract[]>([])
-const contractLoading = ref(false)
+const salesContracts = ref<SalesContract[]>([]);
+const contractLoading = ref(false);
 
 const formatMoney = (amount: number | undefined) => {
-  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00'
-}
+  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00';
+};
 
 const getContractStatusLabel = (status?: string) => {
   const map: Record<string, string> = {
@@ -422,9 +422,9 @@ const getContractStatusLabel = (status?: string) => {
     active: t('salesExt.contractTab.statusActive'),
     completed: t('salesExt.contractTab.statusCompleted'),
     cancelled: t('salesExt.contractTab.statusCancelled'),
-  }
-  return map[status || ''] || status || ''
-}
+  };
+  return map[status || ''] || status || '';
+};
 
 const getContractStatusType = (status?: string) => {
   const map: Record<string, string> = {
@@ -433,26 +433,26 @@ const getContractStatusType = (status?: string) => {
     active: 'primary',
     completed: 'success',
     cancelled: 'danger',
-  }
-  return map[status || ''] || 'info'
-}
+  };
+  return map[status || ''] || 'info';
+};
 
 const fetchSalesContracts = async () => {
-  contractLoading.value = true
+  contractLoading.value = true;
   try {
-    const res = await getSalesContractList()
-    salesContracts.value = res.data?.list || []
+    const res = await getSalesContractList();
+    salesContracts.value = res.data?.list || [];
   } catch (error) {
-    const err = error as { message?: string }
-    ElMessage.error(err.message || t('salesExt.contractTab.messageFetchFailed'))
+    const err = error as { message?: string };
+    ElMessage.error(err.message || t('salesExt.contractTab.messageFetchFailed'));
   } finally {
-    contractLoading.value = false
+    contractLoading.value = false;
   }
-}
+};
 
-const contractDialogVisible = ref(false)
-const contractFormRef = ref<FormInstance>()
-const contractSubmitLoading = ref(false)
+const contractDialogVisible = ref(false);
+const contractFormRef = ref<FormInstance>();
+const contractSubmitLoading = ref(false);
 const contractForm = reactive({
   id: 0,
   contract_no: '',
@@ -467,7 +467,7 @@ const contractForm = reactive({
   items: [] as SalesContractItem[],
   payment_terms: '',
   delivery_terms: '',
-})
+});
 
 const contractRules: FormRules = {
   contract_no: [
@@ -482,13 +482,13 @@ const contractRules: FormRules = {
   total_amount: [
     { required: true, message: t('salesExt.contractTab.ruleTotalAmount'), trigger: 'blur' },
   ],
-}
+};
 
 const openContractDialog = async (row?: SalesContract) => {
   if (row) {
-    const res = await getSalesContract(row.id)
+    const res = await getSalesContract(row.id);
     // 安全检查：防止后端返回 data 为 null 时崩溃
-    if (res.data) Object.assign(contractForm, res.data)
+    if (res.data) Object.assign(contractForm, res.data);
   } else {
     Object.assign(contractForm, {
       id: 0,
@@ -517,42 +517,42 @@ const openContractDialog = async (row?: SalesContract) => {
       ],
       payment_terms: '',
       delivery_terms: '',
-    })
+    });
   }
-  contractDialogVisible.value = true
-}
+  contractDialogVisible.value = true;
+};
 
 const submitContract = async () => {
-  const valid = await contractFormRef.value?.validate()
-  if (!valid) return
-  contractSubmitLoading.value = true
+  const valid = await contractFormRef.value?.validate();
+  if (!valid) return;
+  contractSubmitLoading.value = true;
   try {
     if (contractForm.id) {
-      await updateSalesContract(contractForm.id, contractForm)
-      ElMessage.success(t('salesExt.contractTab.messageUpdateSuccess'))
+      await updateSalesContract(contractForm.id, contractForm);
+      ElMessage.success(t('salesExt.contractTab.messageUpdateSuccess'));
     } else {
-      await createSalesContract(contractForm)
-      ElMessage.success(t('salesExt.contractTab.messageCreateSuccess'))
+      await createSalesContract(contractForm);
+      ElMessage.success(t('salesExt.contractTab.messageCreateSuccess'));
     }
-    contractDialogVisible.value = false
-    fetchSalesContracts()
+    contractDialogVisible.value = false;
+    fetchSalesContracts();
   } catch (error) {
-    const err = error as { message?: string }
-    ElMessage.error(err.message || t('salesExt.contractTab.messageOperationFailed'))
+    const err = error as { message?: string };
+    ElMessage.error(err.message || t('salesExt.contractTab.messageOperationFailed'));
   } finally {
-    contractSubmitLoading.value = false
+    contractSubmitLoading.value = false;
   }
-}
+};
 
-const contractViewVisible = ref(false)
-const currentContract = ref<SalesContract | null>(null)
+const contractViewVisible = ref(false);
+const currentContract = ref<SalesContract | null>(null);
 
 const viewContract = async (row: SalesContract) => {
-  const res = await getSalesContract(row.id)
+  const res = await getSalesContract(row.id);
   // 安全检查：防止后端返回 data 为 null 时崩溃
-  if (res.data) currentContract.value = res.data
-  contractViewVisible.value = true
-}
+  if (res.data) currentContract.value = res.data;
+  contractViewVisible.value = true;
+};
 
 const approveContract = async (row: SalesContract) => {
   try {
@@ -560,17 +560,17 @@ const approveContract = async (row: SalesContract) => {
       t('salesExt.contractTab.confirmApprove'),
       t('salesExt.contractTab.confirmTitle'),
       { type: 'info' }
-    )
-    await approveSalesContract(row.id)
-    ElMessage.success(t('salesExt.contractTab.messageApproveSuccess'))
-    fetchSalesContracts()
+    );
+    await approveSalesContract(row.id);
+    ElMessage.success(t('salesExt.contractTab.messageApproveSuccess'));
+    fetchSalesContracts();
   } catch (error) {
     if (error !== 'cancel') {
-      const err = error as { message?: string }
-      ElMessage.error(err.message || t('salesExt.contractTab.messageOperationFailed'))
+      const err = error as { message?: string };
+      ElMessage.error(err.message || t('salesExt.contractTab.messageOperationFailed'));
     }
   }
-}
+};
 
 const executeContract = async (row: SalesContract) => {
   try {
@@ -578,17 +578,17 @@ const executeContract = async (row: SalesContract) => {
       t('salesExt.contractTab.confirmExecute'),
       t('salesExt.contractTab.confirmTitle'),
       { type: 'info' }
-    )
-    await executeSalesContract(row.id)
-    ElMessage.success(t('salesExt.contractTab.messageExecuteSuccess'))
-    fetchSalesContracts()
+    );
+    await executeSalesContract(row.id);
+    ElMessage.success(t('salesExt.contractTab.messageExecuteSuccess'));
+    fetchSalesContracts();
   } catch (error) {
     if (error !== 'cancel') {
-      const err = error as { message?: string }
-      ElMessage.error(err.message || t('salesExt.contractTab.messageOperationFailed'))
+      const err = error as { message?: string };
+      ElMessage.error(err.message || t('salesExt.contractTab.messageOperationFailed'));
     }
   }
-}
+};
 
 const cancelContract = async (row: SalesContract) => {
   try {
@@ -596,17 +596,17 @@ const cancelContract = async (row: SalesContract) => {
       t('salesExt.contractTab.confirmCancel'),
       t('salesExt.contractTab.confirmTitle'),
       { type: 'warning' }
-    )
-    await cancelSalesContract(row.id)
-    ElMessage.success(t('salesExt.contractTab.messageCancelSuccess'))
-    fetchSalesContracts()
+    );
+    await cancelSalesContract(row.id);
+    ElMessage.success(t('salesExt.contractTab.messageCancelSuccess'));
+    fetchSalesContracts();
   } catch (error) {
     if (error !== 'cancel') {
-      const err = error as { message?: string }
-      ElMessage.error(err.message || t('salesExt.contractTab.messageOperationFailed'))
+      const err = error as { message?: string };
+      ElMessage.error(err.message || t('salesExt.contractTab.messageOperationFailed'));
     }
   }
-}
+};
 
 const addContractItem = () => {
   contractForm.items.push({
@@ -620,18 +620,18 @@ const addContractItem = () => {
     price: 0,
     amount: 0,
     remark: '',
-  })
-}
+  });
+};
 
 const removeContractItem = (index: number) => {
   if (contractForm.items.length > 1) {
-    contractForm.items.splice(index, 1)
+    contractForm.items.splice(index, 1);
   }
-}
+};
 
-defineExpose({ refresh: fetchSalesContracts })
+defineExpose({ refresh: fetchSalesContracts });
 
 onMounted(() => {
-  fetchSalesContracts()
-})
+  fetchSalesContracts();
+});
 </script>

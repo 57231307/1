@@ -16,9 +16,7 @@ use thiserror::Error;
 
 use crate::models::color_card::{self, Entity as ColorCardEntity};
 use crate::models::color_card_item::{self, ActiveModel as ItemActive, Entity as ItemEntity};
-use crate::models::color_card_item_dto::{
-    BatchImportError, BatchImportResponse, ColorItemDto,
-};
+use crate::models::color_card_item_dto::{BatchImportError, BatchImportResponse, ColorItemDto};
 // 批次 211 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
 use crate::utils::app_state::AppState;
@@ -215,11 +213,7 @@ impl ColorCardItemService {
     }
 
     /// 删除色号
-    pub async fn delete(
-        &self,
-        color_card_id: i64,
-        item_id: i64,
-    ) -> Result<(), ItemError> {
+    pub async fn delete(&self, color_card_id: i64, item_id: i64) -> Result<(), ItemError> {
         let existing = ItemEntity::find_by_id(item_id)
             .filter(color_card_item::Column::ColorCardId.eq(color_card_id))
             .one(&*self.db)

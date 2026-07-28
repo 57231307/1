@@ -389,26 +389,176 @@ impl QualityInspectionService {
 
         let unqualified_no = format!("UQ{:08}", record_id);
 
+        // P1 batch-18 缺陷 5.3：报废走二级审批初始状态 pending_fin
+        // 其他处理方式（rework/downgrade_sale）保持 not_required
+        let scrap_status = if req.handling_method == HANDLING_SCRAP {
+            unqualified_product::SCRAP_PENDING_FIN.to_string()
+        } else {
+            unqualified_product::SCRAP_NOT_REQUIRED.to_string()
+        };
+
         let active_model = unqualified_product::ActiveModel {
             unqualified_no: Set(unqualified_no),
             inspection_id: Set(Some(record_id)),
             product_id: Set(record.product_id),
-            batch_no: Set(record.batch_no),
+            batch_no: Set(record.batch_no.clone()),
             unqualified_qty: Set(req.unqualified_qty),
             unqualified_reason: Set(req.unqualified_reason),
-            handling_method: Set(req.handling_method),
+            handling_method: Set(req.handling_method.clone()),
             handling_status: Set("pending".to_string()),
             handling_by: Set(None),
             handling_at: Set(None),
             remark: Set(req.remark),
-            grade: Set(Some(grade)),
+            grade: Set(Some(grade.clone())),
             handling_result: Set(req.handling_result),
+            stock_grade_synced: Set(false),
+            stock_id: Set(None),
+            scrap_approval_status: Set(scrap_status),
+            approver_id_fin: Set(None),
+            approver_id_gm: Set(None),
+            approved_at_fin: Set(None),
+            approved_at_gm: Set(None),
+            scrap_loss_amount: Set(None),
             ..Default::default()
         };
 
         let result = active_model.insert(&*self.db).await?;
         info!("不合格品处理记录创建成功：{}", result.unqualified_no);
+
+        // P1 batch-18 缺陷 5.1：B 级降级时同步更新 inventory_stocks.grade
+        // 防止降级后销售按 A 级定价造成定价错误
+        if req.handling_method == HANDLING_DOWNGRADE_SALE && grade == QUALITY_GRADE_B {
+            if let Err(e) = self.sync_stock_grade_for_downgrade(&result).await {
+                tracing::warn!(
+                    unqualified_id = result.id,
+                    error = %e,
+                    "缺陷 5.1：降级联动库存等级失败（不阻断主流程，降级为 warn）"
+                );
+            }
+        }
+
         Ok(result)
+    }
+
+    /// 缺陷 5.1：B 级降级同步库存等级（按 product_id + batch_no + color_no + dye_lot_no 定位库存记录）
+    async fn sync_stock_grade_for_downgrade(
+        &self,
+        unqualified: &unqualified_product::Model,
+    ) -> Result<(), AppError> {
+        use crate::models::inventory_stock::{self as stock_model, Entity as StockEntity};
+
+        let stock = StockEntity::find()
+            .filter(stock_model::Column::ProductId.eq(unqualified.product_id))
+            .filter(
+                stock_model::Column::BatchNo.eq(unqualified.batch_no.clone().unwrap_or_default()),
+            )
+            .one(&*self.db)
+            .await?;
+
+        if let Some(s) = stock {
+            let stock_id = s.id;
+            let mut active: stock_model::ActiveModel = s.into();
+            // B 级降级后库存等级标记为"二等品"
+            active.grade = Set("二等品".to_string());
+            active.updated_at = Set(chrono::Utc::now());
+            let _updated = active.update(&*self.db).await?;
+
+            // 标记不合格品记录的同步状态
+            let mut unq_active: unqualified_product::ActiveModel = unqualified.clone().into();
+            unq_active.stock_grade_synced = Set(true);
+            unq_active.stock_id = Set(Some(stock_id));
+            unq_active.updated_at = Set(chrono::Utc::now());
+            let _ = unq_active.update(&*self.db).await?;
+            info!(
+                unqualified_id = unqualified.id,
+                stock_id, "缺陷 5.1：B 级降级同步库存等级为二等品成功"
+            );
+        }
+        Ok(())
+    }
+
+    /// 缺陷 5.3：报废财务审批
+    pub async fn approve_scrap_financial(
+        &self,
+        unqualified_id: i32,
+        approver_id: i32,
+        approved: bool,
+    ) -> Result<unqualified_product::Model, AppError> {
+        let existing = unqualified_product::Entity::find_by_id(unqualified_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found("不合格品记录不存在"))?;
+        if existing.handling_method != HANDLING_SCRAP {
+            return Err(AppError::business("非报废处理不可走报废审批流程"));
+        }
+        if existing.scrap_approval_status != unqualified_product::SCRAP_PENDING_FIN {
+            return Err(AppError::business(format!(
+                "当前审批状态 {} 不允许财务审批",
+                existing.scrap_approval_status
+            )));
+        }
+        let mut active: unqualified_product::ActiveModel = existing.into();
+        if approved {
+            active.scrap_approval_status = Set(unqualified_product::SCRAP_PENDING_GM.to_string());
+            active.approver_id_fin = Set(Some(approver_id));
+            active.approved_at_fin = Set(Some(chrono::Utc::now()));
+        } else {
+            active.scrap_approval_status = Set(unqualified_product::SCRAP_REJECTED.to_string());
+            active.approver_id_fin = Set(Some(approver_id));
+            active.handling_status = Set("rejected".to_string());
+        }
+        active.updated_at = Set(chrono::Utc::now());
+        let updated = active.update(&*self.db).await?;
+        info!(
+            unqualified_id,
+            approver_id, approved, "缺陷 5.3：报废财务审批完成"
+        );
+        Ok(updated)
+    }
+
+    /// 缺陷 5.3：报废总经理审批（最终审批，通过后写入报废损失金额）
+    pub async fn approve_scrap_gm(
+        &self,
+        unqualified_id: i32,
+        approver_id: i32,
+        approved: bool,
+        scrap_loss_amount: Option<rust_decimal::Decimal>,
+    ) -> Result<unqualified_product::Model, AppError> {
+        let existing = unqualified_product::Entity::find_by_id(unqualified_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found("不合格品记录不存在"))?;
+        if existing.handling_method != HANDLING_SCRAP {
+            return Err(AppError::business("非报废处理不可走报废审批流程"));
+        }
+        if existing.scrap_approval_status != unqualified_product::SCRAP_PENDING_GM {
+            return Err(AppError::business(format!(
+                "当前审批状态 {} 不允许总经理审批（需先完成财务审批）",
+                existing.scrap_approval_status
+            )));
+        }
+        let mut active: unqualified_product::ActiveModel = existing.into();
+        if approved {
+            active.scrap_approval_status = Set(unqualified_product::SCRAP_APPROVED.to_string());
+            active.approver_id_gm = Set(Some(approver_id));
+            active.approved_at_gm = Set(Some(chrono::Utc::now()));
+            active.handling_status = Set("approved".to_string());
+            // 总经理审批通过后写入报废损失金额（后续成本核算使用）
+            if let Some(amount) = scrap_loss_amount {
+                active.scrap_loss_amount = Set(Some(amount));
+            }
+        } else {
+            active.scrap_approval_status = Set(unqualified_product::SCRAP_REJECTED.to_string());
+            active.approver_id_gm = Set(Some(approver_id));
+            active.handling_status = Set("rejected".to_string());
+        }
+        active.updated_at = Set(chrono::Utc::now());
+        let updated = active.update(&*self.db).await?;
+        info!(
+            unqualified_id,
+            approver_id, approved, "缺陷 5.3：报废总经理审批完成"
+        );
+        Ok(updated)
     }
 
     pub async fn get_defects_list(
@@ -432,7 +582,6 @@ impl QualityInspectionService {
 
         Ok((defects, total))
     }
-
 }
 
 #[cfg(test)]
@@ -449,15 +598,9 @@ mod tests {
     #[test]
     fn 测试_质检分级_A级_合格率达标() {
         // 边界：恰好 95% → A 级
-        assert_eq!(
-            determine_quality_grade(Some(decs!("95"))),
-            QUALITY_GRADE_A
-        );
+        assert_eq!(determine_quality_grade(Some(decs!("95"))), QUALITY_GRADE_A);
         // 高于 95% → A 级
-        assert_eq!(
-            determine_quality_grade(Some(decs!("100"))),
-            QUALITY_GRADE_A
-        );
+        assert_eq!(determine_quality_grade(Some(decs!("100"))), QUALITY_GRADE_A);
         assert_eq!(
             determine_quality_grade(Some(decs!("99.5"))),
             QUALITY_GRADE_A
@@ -470,15 +613,9 @@ mod tests {
     #[test]
     fn 测试_质检分级_B级_让步接收区间() {
         // 边界：恰好 80% → B 级
-        assert_eq!(
-            determine_quality_grade(Some(decs!("80"))),
-            QUALITY_GRADE_B
-        );
+        assert_eq!(determine_quality_grade(Some(decs!("80"))), QUALITY_GRADE_B);
         // 区间内 → B 级
-        assert_eq!(
-            determine_quality_grade(Some(decs!("85"))),
-            QUALITY_GRADE_B
-        );
+        assert_eq!(determine_quality_grade(Some(decs!("85"))), QUALITY_GRADE_B);
         assert_eq!(
             determine_quality_grade(Some(decs!("94.99"))),
             QUALITY_GRADE_B
@@ -495,11 +632,11 @@ mod tests {
             determine_quality_grade(Some(decs!("79.99"))),
             QUALITY_GRADE_C
         );
+        assert_eq!(determine_quality_grade(Some(decs!("50"))), QUALITY_GRADE_C);
         assert_eq!(
-            determine_quality_grade(Some(decs!("50"))),
+            determine_quality_grade(Some(Decimal::ZERO)),
             QUALITY_GRADE_C
         );
-        assert_eq!(determine_quality_grade(Some(Decimal::ZERO)), QUALITY_GRADE_C);
     }
 
     /// 测试_质检分级_None视为零合格率
@@ -518,7 +655,9 @@ mod tests {
     #[test]
     fn 测试_等级处理方式校验_A级品无需不合格处理() {
         // A 级 + 任意处理方式 → 拒绝
-        assert!(validate_handling_method_by_grade(QUALITY_GRADE_A, HANDLING_DOWNGRADE_SALE).is_err());
+        assert!(
+            validate_handling_method_by_grade(QUALITY_GRADE_A, HANDLING_DOWNGRADE_SALE).is_err()
+        );
         assert!(validate_handling_method_by_grade(QUALITY_GRADE_A, HANDLING_REWORK).is_err());
         assert!(validate_handling_method_by_grade(QUALITY_GRADE_A, HANDLING_SCRAP).is_err());
 
@@ -532,7 +671,9 @@ mod tests {
     #[test]
     fn 测试_等级处理方式校验_B级品必须降级销售() {
         // B 级 + 降级销售 → 放行
-        assert!(validate_handling_method_by_grade(QUALITY_GRADE_B, HANDLING_DOWNGRADE_SALE).is_ok());
+        assert!(
+            validate_handling_method_by_grade(QUALITY_GRADE_B, HANDLING_DOWNGRADE_SALE).is_ok()
+        );
         // B 级 + 返工/报废 → 拒绝
         assert!(validate_handling_method_by_grade(QUALITY_GRADE_B, HANDLING_REWORK).is_err());
         assert!(validate_handling_method_by_grade(QUALITY_GRADE_B, HANDLING_SCRAP).is_err());
@@ -551,9 +692,12 @@ mod tests {
         assert!(validate_handling_method_by_grade(QUALITY_GRADE_C, HANDLING_REWORK).is_ok());
         assert!(validate_handling_method_by_grade(QUALITY_GRADE_C, HANDLING_SCRAP).is_ok());
         // C 级 + 降级销售 → 拒绝
-        assert!(validate_handling_method_by_grade(QUALITY_GRADE_C, HANDLING_DOWNGRADE_SALE).is_err());
+        assert!(
+            validate_handling_method_by_grade(QUALITY_GRADE_C, HANDLING_DOWNGRADE_SALE).is_err()
+        );
 
-        let err = validate_handling_method_by_grade(QUALITY_GRADE_C, HANDLING_DOWNGRADE_SALE).unwrap_err();
+        let err = validate_handling_method_by_grade(QUALITY_GRADE_C, HANDLING_DOWNGRADE_SALE)
+            .unwrap_err();
         assert!(err.to_string().contains("C 级"));
         assert!(err.to_string().contains("返工"));
         assert!(err.to_string().contains("报废"));

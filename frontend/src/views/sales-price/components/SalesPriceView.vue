@@ -55,25 +55,25 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import { formatCurrency, getStatusType } from '../composables/spFmts'
+import { useI18n } from 'vue-i18n';
+import { formatCurrency, getStatusType } from '../composables/spFmts';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 查看详情数据类型
 interface SpViewData {
-  product_name?: string
-  customer_name?: string
-  price?: number
-  currency?: string
-  unit?: string
-  min_order_qty?: number
-  price_type?: string
-  price_level?: string
-  effective_date?: string
-  expiry_date?: string
-  status?: string
-  remarks?: string
+  product_name?: string;
+  customer_name?: string;
+  price?: number;
+  currency?: string;
+  unit?: string;
+  min_order_qty?: number;
+  price_type?: string;
+  price_level?: string;
+  effective_date?: string;
+  expiry_date?: string;
+  status?: string;
+  remarks?: string;
 }
 
 /**
@@ -81,14 +81,14 @@ interface SpViewData {
  */
 defineProps<{
   // 对话框可见性
-  visible: boolean
+  visible: boolean;
   // 详情数据
-  viewData: SpViewData
-}>()
+  viewData: SpViewData;
+}>();
 
 const emit = defineEmits<{
-  'update:visible': [v: boolean]
-}>()
+  'update:visible': [v: boolean];
+}>();
 
 /** 获取价格类型标签（i18n 响应式） */
 const getPriceTypeLabel = (type: string) => {
@@ -96,9 +96,9 @@ const getPriceTypeLabel = (type: string) => {
     STANDARD: t('salesPrice.view.priceTypeStandard'),
     AGREED: t('salesPrice.view.priceTypeAgreed'),
     PROMOTION: t('salesPrice.view.priceTypePromotion'),
-  }
-  return map[type] || type
-}
+  };
+  return map[type] || type;
+};
 
 /** 获取销售价格状态标签（i18n 响应式） */
 const getStatusLabel = (status: string) => {
@@ -107,12 +107,12 @@ const getStatusLabel = (status: string) => {
     active: t('salesPrice.view.statusActive'),
     expired: t('salesPrice.view.statusExpired'),
     inactive: t('salesPrice.view.statusInactive'),
-  }
-  return map[status] || status
-}
+  };
+  return map[status] || status;
+};
 
 /** 关闭对话框 */
 const onVisibleChange = (v: boolean) => {
-  emit('update:visible', v)
-}
+  emit('update:visible', v);
+};
 </script>

@@ -1,11 +1,17 @@
+#![allow(dead_code)]
 pub mod customer;
 pub mod customer_contact;
 pub mod customer_followup;
 // V15 P0-S08 修复：CRM 公海规则配置 + 客户转移审批
 pub mod customer_pool_rule;
 pub mod customer_transfer_approval;
+// V15 P1 batch-15 18.4-D2/D3：CRM 团队协作 + 数据共享时效
+pub mod customer_team_member;
+pub mod customer_share;
 pub mod department;
 pub mod dto;
+// V15 P1 batch-19 缺陷 23.1.2：用户部门关联表（一人多部门，主部门+兼职）
+pub mod user_department;
 pub mod finance_invoice;
 pub mod finance_payment;
 pub mod inventory_adjustment;
@@ -26,6 +32,10 @@ pub mod product_color;
 pub mod role;
 pub mod role_permission;
 pub mod role_conflict;
+// V15 P1 12.2：角色关系表（继承 + 互斥）
+pub mod role_relation;
+// V15 P1 12.6：权限委托表
+pub mod permission_delegation;
 // V15 P0-S06：权限变更审计 model
 pub mod permission_change_audit;
 pub mod sales_order;
@@ -51,6 +61,10 @@ pub mod mrp_result;
 pub mod production_order;
 pub mod scheduling_result;
 pub mod work_center;
+// P1 batch-18 缺陷 11.1：工作中心关联实体表（设备/人员/班次）
+pub mod work_center_equipment;
+pub mod work_center_shift;
+pub mod work_center_worker;
 // 应收对账与多币种模块
 pub mod ar_reconciliation;
 pub mod ar_reconciliation_item;
@@ -139,6 +153,9 @@ pub mod sales_delivery_item;
 pub mod fixed_asset_disposal;
 // 批次 88 PH-2：固定资产折旧期间记录模块
 pub mod fixed_asset_depreciation_record;
+// V15 P1 17.8-D4：固定资产盘点单/明细
+pub mod fixed_asset_count;
+pub mod fixed_asset_count_item;
 // 资金转账记录模块
 pub mod fund_transfer_record;
 // 面料行业核心模块
@@ -204,6 +221,8 @@ pub mod crm_opportunity;
 // 批次 122 v8 复审 P1 修复：CRM 标签字典表（替代 list_tags 硬编码 + create_tag/delete_tag 假实现）
 pub mod crm_tag;
 pub mod logistics_waybill;
+// V15 P1 batch-19 缺陷 23.4.2：物流跟踪事件历史表
+pub mod logistics_tracking_event;
 pub mod omni_audit_log;
 pub mod sales_return;
 pub mod sales_return_item;
@@ -248,14 +267,17 @@ pub mod log_system;
 pub mod system_version;
 // 公告模块
 pub mod oa_announcement;
+// 缺陷 4.1 修复：仪表板布局配置（用户自定义卡片）
+pub mod dashboard_layout;
 // 颜色编码映射模块
 pub mod color_code_mapping;
 // 批次追溯日志模块
 pub mod batch_trace_log;
 // 批次染缸映射模块
 pub mod batch_dye_lot;
-// 匹数映射模块
-pub mod piece_mapping;
+// V15 P1-3: 面料物理指标检测记录（十项指标）
+pub mod fabric_physical_test_record;
+// 缺陷 3.3 修复：piece_mapping 模型已删除（改用 inventory_piece.parent_piece_id 作为唯一映射机制）
 // 成本模块
 // P1P2模块
 // 应收账龄分析模块
@@ -313,6 +335,11 @@ pub mod seasonal_price_rule_dto;
 // P2-4 AI 分析深化（工艺优化 + 质量预测）模型
 pub mod ai_process_optimization;
 pub mod ai_quality_prediction;
+// V15 P1 批次14：AI 模型版本管理 + 评估 + 决策日志 + 准确率报告
+pub mod ai_model_version;
+pub mod ai_model_evaluation;
+pub mod ai_decision_log;
+pub mod ai_quality_accuracy_report;
 // v14 批次 431：多业务模式支持（业务模式配置 + 流程步骤 + 规则 + 单据关联）
 pub mod business_mode_config;
 pub mod business_mode_flow_step;
@@ -332,6 +359,30 @@ pub mod bad_debt_dto;
 // V15 P0-B03 Batch 481：催收任务 Model + DTO
 pub mod collection_task;
 pub mod collection_task_dto;
+// V15 P1 17.3-D5：催收模板 Model（话术标准化）
+pub mod collection_template;
 // V15 P0-B04 Batch 481：财务预警 Model + DTO
 pub mod finance_alert;
 pub mod finance_alert_dto;
+// V15 P1 batch-16 缺陷 7.3：用户隐私同意记录 Model（user_consents 表）
+pub mod user_consent;
+// V15 P1 batch-08 法律合规修复（环保/劳动/财税法律合规）：
+// 缺陷 14：出口退税相关模型
+pub mod export_customs_declaration;
+pub mod foreign_exchange_verification;
+pub mod export_refund_declaration;
+// 缺陷 15：污染物排放记录（环保税核算基础）
+pub mod pollutant_discharge_record;
+// 缺陷 18：排污许可证
+pub mod pollution_permit;
+// 缺陷 19：污染物监测记录 + 固废处置联单
+pub mod pollutant_monitoring_record;
+pub mod solid_waste_disposal_record;
+// 缺陷 21：劳动合同
+pub mod labor_contract;
+// 缺陷 23：社保公积金缴纳记录
+pub mod social_insurance_record;
+// 缺陷 24：职业健康（危害监测 + 体检档案 + PPE 发放）
+pub mod occupational_hazard_monitoring;
+pub mod occupational_health_exam;
+pub mod ppe_distribution_record;

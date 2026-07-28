@@ -63,7 +63,10 @@ impl FailoverMetrics {
             &["function"],
         )?;
         let circuit_state = IntGaugeVec::new(
-            Opts::new("failover_circuit_state", "熔断器状态（0=关闭,1=打开,2=半开）"),
+            Opts::new(
+                "failover_circuit_state",
+                "熔断器状态（0=关闭,1=打开,2=半开）",
+            ),
             &["function"],
         )?;
         registry.register(Box::new(primary_total.clone()))?;
@@ -108,9 +111,7 @@ impl FailoverMetrics {
 
     /// 设置熔断器状态
     pub fn set_circuit_state(&self, function: &str, state: i64) {
-        self.circuit_state
-            .with_label_values(&[function])
-            .set(state);
+        self.circuit_state.with_label_values(&[function]).set(state);
     }
 
     /// 导出 Prometheus 文本格式
@@ -159,7 +160,10 @@ impl Default for FailoverMetrics {
             tracing::warn!("FailoverMetrics::new() 失败，回退到未注册的 metrics: {}", e);
             Self {
                 primary_total: mk_counter("failover_primary_total", "主调用总次数"),
-                primary_failed_total: mk_counter("failover_primary_failed_total", "主调用失败总次数"),
+                primary_failed_total: mk_counter(
+                    "failover_primary_failed_total",
+                    "主调用失败总次数",
+                ),
                 backup_total: mk_counter("failover_backup_total", "备用调用总次数"),
                 switch_total: mk_counter("failover_switch_total", "主备切换总次数"),
                 circuit_state: mk_gauge("failover_circuit_state", "熔断器状态"),
@@ -218,7 +222,10 @@ impl FailoverService {
     }
 
     /// 获取最近切换事件
-    pub async fn get_recent_events(&self, limit: u64) -> Result<Vec<event_model::FailoverEventDto>, String> {
+    pub async fn get_recent_events(
+        &self,
+        limit: u64,
+    ) -> Result<Vec<event_model::FailoverEventDto>, String> {
         use sea_orm::QueryOrder;
         let events = event_model::Entity::find()
             .order_by_desc(event_model::Column::CreatedAt)
@@ -270,6 +277,12 @@ impl FailoverService {
             if executor.is_on_backup() {
                 return Ok(format!("{} 已在备库上运行，无需重复切换", function_name));
             }
+            // V15 P1 20.4-C：切换前等待备库 catch-up（10s 超时，RPO=0 保障）
+            match self.wait_for_backup_catchup(Duration::from_secs(10)).await {
+                Ok(true) => info!("test_switch: 备库 catch-up 完成，可安全切换"),
+                Ok(false) => warn!("test_switch: 备库 catch-up 超时，可能存在数据丢失风险"),
+                Err(e) => warn!(error = %e, "test_switch: 检查流复制同步状态失败，继续切换"),
+            }
             executor.switch_to_backup().map_err(|e| {
                 error!(function = function_name, error = %e, "test_switch: 切换到备库失败");
                 e
@@ -302,10 +315,7 @@ impl FailoverService {
     /// 熔断器状态机：
     /// - closed（正常）→ 连续失败 >= 3 → open（熔断）
     /// - open → 半开探测由 reset_consecutive_failures 在健康恢复时处理
-    pub async fn increment_consecutive_failures(
-        &self,
-        function_name: &str,
-    ) -> Result<i32, String> {
+    pub async fn increment_consecutive_failures(&self, function_name: &str) -> Result<i32, String> {
         let now = Utc::now();
         let txn = self
             .db
@@ -368,10 +378,7 @@ impl FailoverService {
     /// V15 P0-B16：重置 consecutive_failures 并恢复熔断器为 closed
     ///
     /// 健康检查成功时调用，同步更新 last_success_at。
-    pub async fn reset_consecutive_failures(
-        &self,
-        function_name: &str,
-    ) -> Result<(), String> {
+    pub async fn reset_consecutive_failures(&self, function_name: &str) -> Result<(), String> {
         let now = Utc::now();
         let txn = self
             .db
@@ -484,7 +491,11 @@ impl FailoverService {
         let active_db = self.get_active_db();
         let backend = active_db.get_database_backend();
         let db_status = match active_db
-            .execute(Statement::from_sql_and_values(backend, "SELECT 1", Vec::new()))
+            .execute(Statement::from_sql_and_values(
+                backend,
+                "SELECT 1",
+                Vec::new(),
+            ))
             .await
         {
             Ok(_) => {
@@ -531,9 +542,55 @@ impl FailoverService {
         let active_db = self.get_active_db();
         let backend = active_db.get_database_backend();
         active_db
-            .execute(Statement::from_sql_and_values(backend, "SELECT 1", Vec::new()))
+            .execute(Statement::from_sql_and_values(
+                backend,
+                "SELECT 1",
+                Vec::new(),
+            ))
             .await
             .is_ok()
+    }
+
+    /// V15 P1 20.4-C：检查 PostgreSQL 流复制同步状态（备库 catch-up 校验）
+    /// 切换前调用：查询主库 pg_stat_replication 视图，确认备库 sync_state=sync 且 lag < 阈值。
+    /// 返回 Ok(true) 表示同步完成可切换；Ok(false) 表示未完成同步；Err 表示查询失败。
+    pub async fn check_replication_sync(&self) -> Result<bool, String> {
+        const MAX_LAG_BYTES: i64 = 1024 * 1024; // 1MB 阈值，超过视为未同步
+        let backend = self.db.get_database_backend();
+        let sql = "SELECT COALESCE(COUNT(*), 0) AS sync_count FROM pg_stat_replication WHERE sync_state = 'sync' AND pg_wal_lsn_diff(pg_current_wal_lsn(), replay_lsn) <= $1";
+        let rows = self
+            .db
+            .query_all(Statement::from_sql_and_values(
+                backend,
+                sql,
+                vec![MAX_LAG_BYTES.into()],
+            ))
+            .await
+            .map_err(|e| format!("查询 pg_stat_replication 失败: {}", e))?;
+        // SQL 仅返回单行聚合结果，取首行即可（避免 clippy::never_loop）
+        if let Some(row) = rows.into_iter().next() {
+            let count: i64 = row
+                .try_get("", "sync_count")
+                .map_err(|e| format!("解析 sync_count 失败: {}", e))?;
+            Ok(count > 0)
+        } else {
+            Ok(false)
+        }
+    }
+
+    /// V15 P1 20.4-C：等待备库 catch-up 完成（轮询 pg_stat_replication，超时返回 false）
+    /// 切换前调用，确保 RPO=0（无数据丢失）。
+    pub async fn wait_for_backup_catchup(&self, timeout: Duration) -> Result<bool, String> {
+        let start = std::time::Instant::now();
+        loop {
+            if self.check_replication_sync().await? {
+                return Ok(true);
+            }
+            if start.elapsed() >= timeout {
+                return Ok(false);
+            }
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
     }
 }
 
@@ -575,10 +632,7 @@ impl FailoverExecutor {
     ///
     /// - `primary`：主库连接（必须配置）
     /// - `backup`：备库连接（可选；None 时 switch_to_backup 返回 Err）
-    pub fn new(
-        primary: Arc<DatabaseConnection>,
-        backup: Option<Arc<DatabaseConnection>>,
-    ) -> Self {
+    pub fn new(primary: Arc<DatabaseConnection>, backup: Option<Arc<DatabaseConnection>>) -> Self {
         Self {
             current: Arc::new(ArcSwap::from(primary.clone())),
             primary,

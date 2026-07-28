@@ -23,19 +23,19 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import { SEVERITY_LEVELS } from '../composables/msFmts'
-import type { MaterialShortageSummary } from '@/api/material-shortage'
+import { useI18n } from 'vue-i18n';
+import { SEVERITY_LEVELS } from '../composables/msFmts';
+import type { MaterialShortageSummary } from '@/api/material-shortage';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 /**
  * 严重程度进度卡片
  */
 const props = defineProps<{
   // 汇总数据
-  summary: MaterialShortageSummary
-}>()
+  summary: MaterialShortageSummary;
+}>();
 
 /**
  * 严重程度标签映射（基于 i18n）
@@ -46,9 +46,9 @@ const getSeverityLabel = (severity: string) => {
     high: t('materialShortage.severity.high'),
     medium: t('materialShortage.severity.medium'),
     low: t('materialShortage.severity.low'),
-  }
-  return map[severity] || severity
-}
+  };
+  return map[severity] || severity;
+};
 
 /**
  * 获取某严重程度的数量
@@ -59,19 +59,19 @@ const getCount = (severity: string) => {
     high: props.summary.high_count || 0,
     medium: props.summary.medium_count || 0,
     low: props.summary.low_count || 0,
-  }
-  return map[severity] || 0
-}
+  };
+  return map[severity] || 0;
+};
 
 /**
  * 获取某严重程度的占比
  */
 const getPercentage = (severity: string) => {
-  const count = getCount(severity)
-  const total = props.summary.total_shortage_count || 0
-  if (total === 0) return 0
-  return Math.round((count / total) * 100)
-}
+  const count = getCount(severity);
+  const total = props.summary.total_shortage_count || 0;
+  if (total === 0) return 0;
+  return Math.round((count / total) * 100);
+};
 </script>
 
 <style scoped>

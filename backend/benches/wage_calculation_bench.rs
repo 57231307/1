@@ -8,9 +8,7 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use rust_decimal::Decimal;
 
 use bingxi_backend::models::process_wage_rate::Model as RateModel;
-use bingxi_backend::services::wage_service::{
-    calculate_wage_for_step, compute_qualification_rate,
-};
+use bingxi_backend::services::wage_service::{calculate_wage_for_step, compute_qualification_rate};
 
 /// 构造测试用 RateModel（计件工价，A 级全额 1.0）
 fn sample_rate() -> RateModel {

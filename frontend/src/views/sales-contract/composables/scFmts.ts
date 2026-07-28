@@ -12,7 +12,7 @@ const STATUS_TYPE_MAP: Record<string, string> = {
   active: 'success',
   completed: 'success',
   cancelled: 'danger',
-}
+};
 
 /** 状态 → 中文标签 */
 const STATUS_LABEL_MAP: Record<string, string> = {
@@ -21,15 +21,15 @@ const STATUS_LABEL_MAP: Record<string, string> = {
   active: '执行中',
   completed: '已完成',
   cancelled: '已取消',
-}
+};
 
 /** 获取合同状态 el-tag 类型 */
-export const getStatusType = (status: string) => STATUS_TYPE_MAP[status] || 'info'
+export const getStatusType = (status: string) => STATUS_TYPE_MAP[status] || 'info';
 
 /** 获取合同状态中文标签 */
-export const getStatusLabel = (status: string) => STATUS_LABEL_MAP[status] || status
+export const getStatusLabel = (status: string) => STATUS_LABEL_MAP[status] || status;
 
 /** 格式化货币（人民币） */
 export const formatCurrency = (value: number) => {
-  return value ? `¥${value.toFixed(2)}` : '¥0.00'
-}
+  return value ? `¥${value.toFixed(2)}` : '¥0.00';
+};

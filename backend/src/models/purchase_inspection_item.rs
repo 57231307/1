@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 采购质检明细 Model
 //!
 //! 批次 131 v9 复审 P0 修复：替代 purchase_inspection_handler 4 个明细 CRUD 端点占位。

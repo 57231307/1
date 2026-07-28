@@ -190,16 +190,7 @@ pub async fn export_report(
     let service = ReportEngineService::new(state.db.clone());
 
     let _export_format: ExportFormat = query.format.parse().unwrap_or(ExportFormat::Csv);
-
-    // 解析 filters_json 与 date_range（与 execute_report 一致）
-    // 批次 407 修复：filters_json 解析失败时不能返回空列表，否则会忽略用户过滤条件可能泄露越权数据，改为返回验证错误
-    let filters = query
-        .filters_json
-        .as_deref()
-        .map(serde_json::from_str::<Vec<crate::services::report::ReportFilter>>)
-        .transpose()
-        .map_err(|e| AppError::validation(format!("filters_json 格式无效: {}", e)))?
-        .unwrap_or_default();
+    let filters = parse_export_filters(query.filters_json.as_deref())?;
     let date_range = parse_date_range(query.date_start.as_deref(), query.date_end.as_deref());
 
     // 先执行报表获取数据
@@ -212,64 +203,74 @@ pub async fn export_report(
         use_cache: Some(false),
     };
 
-    match service.execute_report(req).await {
-        Ok(data) => {
-            let template_name = query.template_id.clone();
-            let format_str = query.format.clone();
-            match service
-                .export_report(&data, &format_str, &template_name)
-                .await
-            {
-                Ok(bytes) => {
-                    let data_str = String::from_utf8_lossy(&bytes).to_string();
-                    let response = ExportReportResponse {
-                        data: data_str,
-                        format: query.format.clone(),
-                        filename: format!("{}.{}", query.template_id, query.format),
-                    };
+    let data = service.execute_report(req).await.map_err(|e| {
+        tracing::error!("执行报表失败: {}", e);
+        AppError::internal(format!("执行报表失败: {}", e))
+    })?;
 
-                    // V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
-                    let event = AuditEvent {
-                        user_id: Some(auth.user_id),
-                        username: Some(auth.username.clone()),
-                        operation_type: OperationType::Export,
-                        severity: Severity::Info,
-                        resource_type: Some("report".to_string()),
-                        resource_id: None,
-                        resource_name: Some(format!(
-                            "{}.{}",
-                            query.template_id, query.format
-                        )),
-                        description: Some(format!(
-                            "用户 {} 导出报表 {}（格式：{}，大小：{} 字节）",
-                            auth.username, query.template_id, query.format, bytes.len()
-                        )),
-                        request_method: Some("GET".to_string()),
-                        request_path: Some("/api/v1/erp/reports/export".to_string()),
-                        before_snapshot: None,
-                        after_snapshot: Some(serde_json::json!({
-                            "template_id": query.template_id,
-                            "format": query.format,
-                            "size": bytes.len(),
-                            "date_start": query.date_start,
-                            "date_end": query.date_end,
-                        })),
-                    };
-                    let svc = Arc::new(AuditLogService::new(state.db.clone()));
-                    svc.record_async(event, None);
+    let template_name = query.template_id.clone();
+    let format_str = query.format.clone();
+    let bytes = service
+        .export_report(&data, &format_str, &template_name)
+        .await
+        .map_err(|e| {
+            tracing::error!("导出报表失败: {}", e);
+            AppError::internal(format!("导出报表失败: {}", e))
+        })?;
 
-                    Ok(Json(ApiResponse::success(response)))
-                }
-                Err(e) => {
-                    tracing::error!("导出报表失败: {}", e);
-                    Err(AppError::internal(format!("导出报表失败: {}", e)))
-                }
-            }
-        }
-        Err(e) => {
-            tracing::error!("执行报表失败: {}", e);
-            Err(AppError::internal(format!("执行报表失败: {}", e)))
-        }
+    let response = ExportReportResponse {
+        data: String::from_utf8_lossy(&bytes).to_string(),
+        format: query.format.clone(),
+        filename: format!("{}.{}", query.template_id, query.format),
+    };
+
+    // V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
+    let event = build_export_audit_event(&auth, &query, bytes.len());
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
+
+    Ok(Json(ApiResponse::success(response)))
+}
+
+/// 解析 filters_json，失败返回验证错误避免越权数据泄露
+fn parse_export_filters(
+    filters_json: Option<&str>,
+) -> Result<Vec<crate::services::report::ReportFilter>, AppError> {
+    match filters_json {
+        Some(json) => serde_json::from_str(json)
+            .map_err(|e| AppError::validation(format!("filters_json 格式无效: {}", e))),
+        None => Ok(Vec::new()),
+    }
+}
+
+/// 构造导出报表审计事件
+fn build_export_audit_event(
+    auth: &AuthContext,
+    query: &ExportReportQuery,
+    bytes_len: usize,
+) -> AuditEvent {
+    AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some("report".to_string()),
+        resource_id: None,
+        resource_name: Some(format!("{}.{}", query.template_id, query.format)),
+        description: Some(format!(
+            "用户 {} 导出报表 {}（格式：{}，大小：{} 字节）",
+            auth.username, query.template_id, query.format, bytes_len
+        )),
+        request_method: Some("GET".to_string()),
+        request_path: Some("/api/v1/erp/reports/export".to_string()),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "template_id": query.template_id,
+            "format": query.format,
+            "size": bytes_len,
+            "date_start": query.date_start,
+            "date_end": query.date_end,
+        })),
     }
 }
 
@@ -313,7 +314,9 @@ pub async fn aggregate_report(
         "报表聚合查询开始"
     );
     match service.aggregate_data(aggregate_request).await {
-        Ok(results) => Ok(Json(ApiResponse::success(build_aggregate_response(results)))),
+        Ok(results) => Ok(Json(ApiResponse::success(build_aggregate_response(
+            results,
+        )))),
         Err(e) => {
             tracing::error!("数据聚合失败: {}", e);
             Err(AppError::internal(format!("数据聚合失败: {}", e)))
@@ -365,9 +368,7 @@ fn build_report_filters(filters: Option<Vec<FilterRequest>>) -> Vec<ReportFilter
 }
 
 /// 将 AggregateReportRequest 转换为 AggregateRequest
-fn build_aggregate_request(
-    req: AggregateReportRequest,
-) -> Result<AggregateRequest, AppError> {
+fn build_aggregate_request(req: AggregateReportRequest) -> Result<AggregateRequest, AppError> {
     let data_source = parse_data_source(&req.data_source)?;
     let aggregation_type = parse_aggregation_type(&req.aggregation_type)?;
     let filters = build_report_filters(req.filters);
@@ -446,10 +447,8 @@ pub async fn clear_report_cache(
     Ok(Json(ApiResponse::success(response)))
 }
 
-/// 解析日期范围字符串为 DateRange
-///
-/// 同时提供 start 和 end（YYYY-MM-DD）时返回 Some(DateRange)，否则返回 None。
-/// 解析失败时返回 None（不阻塞查询）。
+/// 解析日期范围字符串为 DateRange（同时提供 start 和 end 时返回 Some，否则/解析失败返回 None）。
+/// 不阻塞查询。
 fn parse_date_range(
     start: Option<&str>,
     end: Option<&str>,
@@ -465,9 +464,8 @@ fn parse_date_range(
     })
 }
 
-/// POST /api/v1/erp/report-engine/templates - 创建自定义报表模板
-///
-/// v11 批次 154 P2-A：接入 CreateTemplateRequest，调用 create_custom_template 写入 DB
+/// POST /api/v1/erp/report-engine/templates - 创建自定义报表模板。
+/// v11 批次 154 P2-A：接入 CreateTemplateRequest，调用 create_custom_template 写入 DB。
 pub async fn create_custom_template(
     State(state): State<AppState>,
     auth: AuthContext,

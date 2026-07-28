@@ -22,15 +22,15 @@
 </template>
 
 <script setup lang="ts">
-import { h, computed } from 'vue'
-import { ElButton, ElTag } from 'element-plus'
-import { useI18n } from 'vue-i18n'
-import V2Table from '@/components/V2Table/index.vue'
-import type { ColumnDef } from '@/components/V2Table/types'
-import type { LogisticsWaybill } from '@/api/logistics'
-import { getStatusType, formatFreight } from '../composables/lgsFmts'
+import { h, computed } from 'vue';
+import { ElButton, ElTag } from 'element-plus';
+import { useI18n } from 'vue-i18n';
+import V2Table from '@/components/V2Table/index.vue';
+import type { ColumnDef } from '@/components/V2Table/types';
+import type { LogisticsWaybill } from '@/api/logistics';
+import { getStatusType, formatFreight } from '../composables/lgsFmts';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 /**
  * 物流运单列表组件（批次 287：page/pageSize props + v-model 绑定分页）
@@ -38,33 +38,33 @@ const { t } = useI18n({ useScope: 'global' })
  */
 defineProps<{
   // 列表数据
-  data: LogisticsWaybill[]
+  data: LogisticsWaybill[];
   // 加载状态
-  loading: boolean
+  loading: boolean;
   // 总数
-  total: number
+  total: number;
   // 当前页
-  page: number
+  page: number;
   // 每页条数
-  pageSize: number
-}>()
+  pageSize: number;
+}>();
 
 const emit = defineEmits<{
-  view: [row: LogisticsWaybill]
-  edit: [row: LogisticsWaybill]
-  ship: [row: LogisticsWaybill]
-  'update-status': [row: LogisticsWaybill]
-  delete: [row: LogisticsWaybill]
-  'update:page': [v: number]
-  'update:page-size': [v: number]
-}>()
+  view: [row: LogisticsWaybill];
+  edit: [row: LogisticsWaybill];
+  ship: [row: LogisticsWaybill];
+  'update-status': [row: LogisticsWaybill];
+  delete: [row: LogisticsWaybill];
+  'update:page': [v: number];
+  'update:page-size': [v: number];
+}>();
 
 /** 状态文本：优先 i18n，未知状态回退到原始 status 字符串 */
 const statusText = (status: string): string => {
-  const key = `logistics.common.status.${status}`
-  const translated = t(key)
-  return translated === key ? status : translated
-}
+  const key = `logistics.common.status.${status}`;
+  const translated = t(key);
+  return translated === key ? status : translated;
+};
 
 /** 列定义：保持与原 el-table 列完全一致；computed 确保 locale 切换时表头响应式更新 */
 const columns = computed<ColumnDef<LogisticsWaybill>[]>(() => [
@@ -79,7 +79,7 @@ const columns = computed<ColumnDef<LogisticsWaybill>[]>(() => [
     key: 'freight_fee',
     title: t('logistics.table.column.freight'),
     width: 100,
-    formatter: (row) => formatFreight(row.freight_fee),
+    formatter: row => formatFreight(row.freight_fee),
   },
   { key: 'expected_arrival', title: t('logistics.table.column.expectedArrival'), width: 120 },
   {
@@ -88,12 +88,8 @@ const columns = computed<ColumnDef<LogisticsWaybill>[]>(() => [
     title: t('logistics.table.column.status'),
     width: 100,
     align: 'center',
-    renderCell: (row) =>
-      h(
-        ElTag,
-        { type: getStatusType(row.status) },
-        { default: () => statusText(row.status) }
-      ),
+    renderCell: row =>
+      h(ElTag, { type: getStatusType(row.status) }, { default: () => statusText(row.status) }),
   },
   {
     // 操作列：根据 row.status 条件渲染按钮（查看 / 编辑 / 发货 / 更新状态 / 删除）
@@ -101,14 +97,14 @@ const columns = computed<ColumnDef<LogisticsWaybill>[]>(() => [
     title: t('logistics.table.column.action'),
     width: 250,
     fixed: 'right',
-    renderCell: (row) => {
+    renderCell: row => {
       const buttons = [
         h(
           ElButton,
           { size: 'small', onClick: () => emit('view', row) },
           { default: () => t('logistics.table.action.view') }
         ),
-      ]
+      ];
       // 待发货状态：显示编辑 / 发货 / 删除
       if (row.status === 'pending') {
         buttons.push(
@@ -127,7 +123,7 @@ const columns = computed<ColumnDef<LogisticsWaybill>[]>(() => [
             { size: 'small', type: 'danger', onClick: () => emit('delete', row) },
             { default: () => t('logistics.table.action.delete') }
           )
-        )
+        );
       }
       // 已发货 / 运输中：显示更新状态
       if (row.status === 'shipped' || row.status === 'in_transit') {
@@ -137,12 +133,12 @@ const columns = computed<ColumnDef<LogisticsWaybill>[]>(() => [
             { size: 'small', type: 'warning', onClick: () => emit('update-status', row) },
             { default: () => t('logistics.table.action.updateStatus') }
           )
-        )
+        );
       }
-      return h('div', { class: 'action-cell' }, buttons)
+      return h('div', { class: 'action-cell' }, buttons);
     },
   },
-])
+]);
 </script>
 
 <style scoped>

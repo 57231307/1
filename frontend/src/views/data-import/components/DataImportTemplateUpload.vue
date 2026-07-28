@@ -38,45 +38,45 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { ElMessage } from 'element-plus'
-import { useI18n } from 'vue-i18n'
+import { ref } from 'vue';
+import { ElMessage } from 'element-plus';
+import { useI18n } from 'vue-i18n';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 /**
  * 文件上传对话框
  */
 defineProps<{
   // 可见性
-  visible: boolean
+  visible: boolean;
   // 上传加载状态
-  loading: boolean
-}>()
+  loading: boolean;
+}>();
 
 const emit = defineEmits<{
-  'update:visible': [v: boolean]
-  submit: []
+  'update:visible': [v: boolean];
+  submit: [];
   // 文件超出限制
-  exceed: []
+  exceed: [];
   // 文件变化
-  'file-change': [file: { raw?: File }]
-}>()
+  'file-change': [file: { raw?: File }];
+}>();
 
 // 上传组件 ref
-const uploadRef = ref<{ clearFiles: () => void } | null>(null)
+const uploadRef = ref<{ clearFiles: () => void } | null>(null);
 
 // 暴露给父组件访问
-defineExpose({ uploadRef })
+defineExpose({ uploadRef });
 
 /** 文件超出限制 */
 const handleExceed = () => {
-  ElMessage.warning(t('dataImport.upload.exceedLimit'))
-  emit('exceed')
-}
+  ElMessage.warning(t('dataImport.upload.exceedLimit'));
+  emit('exceed');
+};
 
 /** 文件变化 */
 const handleFileChange = (file: { raw?: File }) => {
-  emit('file-change', file)
-}
+  emit('file-change', file);
+};
 </script>

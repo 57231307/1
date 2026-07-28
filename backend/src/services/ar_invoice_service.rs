@@ -89,7 +89,11 @@ impl ArInvoiceService {
 
         let invoice_no = self.generate_invoice_no().await?;
         let active_model = Self::build_ar_invoice_active_model(
-            req, invoice_no, customer_id, invoice_amount, user_id,
+            req,
+            invoice_no,
+            customer_id,
+            invoice_amount,
+            user_id,
         );
         let result = active_model.insert(&txn).await?;
         txn.commit().await?;
@@ -99,9 +103,7 @@ impl ArInvoiceService {
     }
 
     /// 校验创建应收单请求（客户ID + 金额 + 精度）
-    fn validate_create_request(
-        req: &CreateArInvoiceRequest,
-    ) -> Result<(i32, Decimal), AppError> {
+    fn validate_create_request(req: &CreateArInvoiceRequest) -> Result<(i32, Decimal), AppError> {
         let customer_id = req
             .customer_id
             .ok_or_else(|| AppError::validation("客户ID不能为空"))?;
@@ -151,7 +153,9 @@ impl ArInvoiceService {
             color_no: sea_orm::Set(req.color_no),
             sales_order_no: sea_orm::Set(req.sales_order_no),
             status: sea_orm::Set(crate::models::status::common::STATUS_DRAFT.to_string()),
-            approval_status: sea_orm::Set(crate::models::status::common::STATUS_PENDING.to_string()),
+            approval_status: sea_orm::Set(
+                crate::models::status::common::STATUS_PENDING.to_string(),
+            ),
             created_by: sea_orm::Set(user_id),
             ..Default::default()
         }
@@ -191,9 +195,7 @@ impl ArInvoiceService {
             .one(txn)
             .await?;
         if exists.is_some() {
-            return Err(AppError::business(
-                "该退货单已生成红字应收单，请勿重复创建",
-            ));
+            return Err(AppError::business("该退货单已生成红字应收单，请勿重复创建"));
         }
 
         // 在外部事务内生成单号（避免 savepoint 锁提前释放）
@@ -233,7 +235,9 @@ impl ArInvoiceService {
             color_no: sea_orm::Set(req.color_no),
             sales_order_no: sea_orm::Set(req.sales_order_no),
             status: sea_orm::Set(crate::models::status::common::STATUS_DRAFT.to_string()),
-            approval_status: sea_orm::Set(crate::models::status::common::STATUS_PENDING.to_string()),
+            approval_status: sea_orm::Set(
+                crate::models::status::common::STATUS_PENDING.to_string(),
+            ),
             created_by: sea_orm::Set(user_id),
             ..Default::default()
         };
@@ -420,8 +424,10 @@ impl ArInvoiceService {
         }
 
         let mut active_invoice: ar_invoice::ActiveModel = invoice.into();
-        active_invoice.status = sea_orm::ActiveValue::Set(crate::models::status::common::STATUS_APPROVED.to_string());
-        active_invoice.approval_status = sea_orm::ActiveValue::Set(crate::models::status::common::STATUS_APPROVED.to_string());
+        active_invoice.status =
+            sea_orm::ActiveValue::Set(crate::models::status::common::STATUS_APPROVED.to_string());
+        active_invoice.approval_status =
+            sea_orm::ActiveValue::Set(crate::models::status::common::STATUS_APPROVED.to_string());
         active_invoice.reviewed_by = sea_orm::ActiveValue::Set(Some(user_id));
         active_invoice.reviewed_at = sea_orm::ActiveValue::Set(Some(Utc::now()));
         active_invoice.updated_at = sea_orm::ActiveValue::Set(Utc::now());
@@ -444,11 +450,7 @@ impl ArInvoiceService {
     /// `user_id` 为触发本次状态变更的操作人 ID，用于审计日志透传。
     /// 通常由事件总线监听 `CollectionCompleted` 事件后调用，
     /// 事件 payload 携带收款操作人 ID。
-    pub async fn mark_as_paid(
-        &self,
-        id: i32,
-        user_id: i32,
-    ) -> Result<ar_invoice::Model, AppError> {
+    pub async fn mark_as_paid(&self, id: i32, user_id: i32) -> Result<ar_invoice::Model, AppError> {
         // 批次 11（2026-06-28）：事务包裹"状态变更 + 审计日志"，保证原子性
         // 批次 22（2026-06-28 v5 P0-2）：状态门查询加 lock_exclusive 串行化并发 mark_as_paid
         // 原实现状态门无锁，两并发 mark_as_paid 均通过状态检查后基于过期状态写入，
@@ -484,8 +486,8 @@ impl ArInvoiceService {
         // 根据 received_amount vs invoice_amount 判断最终状态：
         // - received_amount >= invoice_amount → PAID（已收齐）
         // - received_amount > 0 但 < invoice_amount → PARTIAL_PAID（部分收款）
-        let new_status = Self::derive_paid_status(invoice.received_amount, invoice.invoice_amount)
-            .to_string();
+        let new_status =
+            Self::derive_paid_status(invoice.received_amount, invoice.invoice_amount).to_string();
         active_invoice.status = sea_orm::ActiveValue::Set(new_status);
         active_invoice.updated_at = sea_orm::ActiveValue::Set(Utc::now());
 
@@ -553,9 +555,9 @@ mod tests {
     use super::*;
     use crate::decs;
     // 批次 415：decs! 宏展开为 Decimal::from_str，需导入 FromStr trait
-    use std::str::FromStr;
     use crate::models::status::payment::{PAYMENT_PAID, PAYMENT_PARTIAL_PAID};
     use rust_decimal::Decimal;
+    use std::str::FromStr;
 
     // ========== derive_paid_status 纯函数测试 ==========
 
@@ -566,7 +568,10 @@ mod tests {
     fn 测试_推导付款状态_已收金额大于发票金额_返回PAID() {
         let received = decs!("123.45");
         let invoice = decs!("100.00");
-        assert_eq!(ArInvoiceService::derive_paid_status(received, invoice), PAYMENT_PAID);
+        assert_eq!(
+            ArInvoiceService::derive_paid_status(received, invoice),
+            PAYMENT_PAID
+        );
     }
 
     /// 测试_推导付款状态_已收金额等于发票金额_边界返回PAID
@@ -576,7 +581,10 @@ mod tests {
     fn 测试_推导付款状态_已收金额等于发票金额_边界返回PAID() {
         let received = decs!("100.00");
         let invoice = decs!("100.00");
-        assert_eq!(ArInvoiceService::derive_paid_status(received, invoice), PAYMENT_PAID);
+        assert_eq!(
+            ArInvoiceService::derive_paid_status(received, invoice),
+            PAYMENT_PAID
+        );
     }
 
     /// 测试_推导付款状态_已收金额为零_返回PARTIAL_PAID
@@ -612,6 +620,9 @@ mod tests {
     fn 测试_推导付款状态_已收金额和发票金额均为零_边界返回PAID() {
         let received = Decimal::ZERO;
         let invoice = Decimal::ZERO;
-        assert_eq!(ArInvoiceService::derive_paid_status(received, invoice), PAYMENT_PAID);
+        assert_eq!(
+            ArInvoiceService::derive_paid_status(received, invoice),
+            PAYMENT_PAID
+        );
     }
 }

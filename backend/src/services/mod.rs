@@ -7,6 +7,8 @@ pub mod auth;
 pub mod batch_service;
 // P4-1 性能优化 - 进程内 LRU 缓存
 pub mod cache_service;
+// V15 批次 07 P1-7 修复：CacheBackend trait + Mock 实现（单测不依赖真实 Redis/moka）
+pub mod cache_backend;
 // 批次 106 修复：performance_optimizer 模块已删除（死代码样板，能力已被 utils/n_plus_one + cache_service + slow_query 中间件覆盖）
 // P3-4 数据仓库/BI 关键路径 demo
 pub mod bi_analysis_service;
@@ -31,6 +33,8 @@ pub mod test_common;
 pub mod business_trace_service;
 pub mod crm;
 pub mod customer_service;
+// 拆分：customer_service.rs facade 的业务实现子模块（crud / query / contact / update / types）
+pub mod customer_ops;
 pub mod dashboard_service;
 pub mod department_service;
 pub mod finance_invoice_service;
@@ -92,6 +96,10 @@ pub mod product_service;
 // 批次 D10 拆分：product_service.rs facade 的业务实现子模块（sync/crud/color/import_export）
 pub mod product_ops;
 pub mod role_permission_service;
+// V15 P1 12.2：角色关系服务（继承 + 互斥）
+pub mod role_relation_service;
+// V15 P1 12.6：权限委托服务
+pub mod permission_delegation_service;
 pub mod so;
 pub mod user_service;
 pub mod warehouse_service;
@@ -172,6 +180,8 @@ pub mod sales_return_service;
 // 销售报价单 Service（P12 批 1 P0 port PR-2：DTO + 基础 Service）
 pub mod quotation_pricing_service;
 pub mod quotation_service;
+// D11 拆分：quotation_service.rs facade 的业务实现子模块（crud/update/lifecycle/calc/types）
+pub mod quotation_ops;
 // 销售报价单转销售订单 Service（P12 批 1 P0 port PR-4：审批流 + 报价转订单 + 集成测试）
 pub mod quotation_convert_service;
 pub mod system_update_service;
@@ -198,6 +208,8 @@ pub mod ai;
 pub mod report;
 // P2-4 AI 分析深化（工艺优化 + 质量预测）持久化
 pub mod ai_extend_service;
+// V15 P1 batch-14：AI 模型管理与审计（模型版本/评估/漂移/决策日志/对账）
+pub mod ai_model_management_service;
 // V15 P0-S14 敏感数据导出二级审批
 pub mod export_approval_service;
 // 扩展能力模块
@@ -231,6 +243,10 @@ pub mod report_template_service;
 pub mod email_template_service;
 // 邮件发送记录模块
 pub mod email_log_service;
+// V15 P1 batch-16 缺陷 6.1/6.2/6.3：邮件队列后台 Worker（扫描 PENDING + 重试 + 附件发送）
+pub mod email_queue_worker;
+// V15 P1 10-1/10-2：导出合规审查服务（每日定时扫描 + 6 类异常导出行为识别）
+pub mod export_compliance_service;
 // 分配历史模块
 pub mod assignment_history_service;
 // 报表订阅模块
@@ -243,6 +259,10 @@ pub mod export_service;
 pub mod print_service;
 // 审计日志清理服务
 pub mod audit_cleanup_service;
+/// P1 20.8-B：日志 90 天保留期清理
+pub mod log_cleanup_service;
+/// P1 batch-18 缺陷 7.2：库存告警通知调度器
+pub mod stock_alert_notification_scheduler;
 // 敏感操作告警服务
 pub mod sensitive_action_alert;
 // 增强日志服务
@@ -264,6 +284,8 @@ pub mod color_card_crud_service;
 pub mod color_card_item_service;
 // V15 P0-F04：新增 color_card_issue_service（替代 color_card_borrow_service）
 pub mod color_card_issue_service;
+// V15 P1 10.5-1：色卡发放过期检查定时任务（每日 02:00 扫描过期记录）
+pub mod color_card_issue_scheduler;
 pub mod color_card_scan_service;
 // P0-5 面料多色号定价扩展服务
 pub mod color_price_crud_service;
@@ -289,3 +311,24 @@ pub mod collection_task_service;
 pub mod finance_alert_service;
 // P0-D17（Batch 488）：OA 公告 service（CRUD + 发布/归档状态转换）
 pub mod oa_announcement_service;
+// V15 P1 batch-16 缺陷 7.3：用户隐私同意服务（记录/查询/opt-in/opt-out）
+pub mod user_consent_service;
+// V15 P1 batch-16 缺陷 8.3/8.4：追踪数据 90 天保留策略服务（page_views/user_behaviors 归档清理）
+pub mod tracking_cleanup_service;
+// V15 P1 batch-08 法律合规修复（环保/劳动/财税法律合规）：
+// 缺陷 10：合同电子签章服务（《电子签名法》合规，SHA-256 防篡改）
+pub mod contract_signature_service;
+// 缺陷 14：出口退税（免抵退）核算服务（财税[2012]39号）
+pub mod export_refund_service;
+// 缺陷 15：环保税核算服务（《环境保护税法》污染当量数 + 适用税额）
+pub mod environmental_tax_service;
+// 缺陷 18：排污许可证管理服务（《排污许可管理条例》到期三级预警）
+pub mod pollution_permit_service;
+// 缺陷 19：环境监测与固废处置服务（废水/废气/固废排放合规校验）
+pub mod pollution_monitoring_service;
+// 缺陷 21：劳动合同电子化管理服务（《劳动合同法》试用期合规校验 + 到期预警）
+pub mod labor_contract_service;
+// 缺陷 23：社保公积金扣缴服务（《社会保险法》五险一金计算 + 缴费基数合规校验）
+pub mod social_insurance_service;
+// 缺陷 24：职业健康合规服务（《职业病防治法》危害因素检测 + 体检档案 + PPE 发放）
+pub mod occupational_health_service;

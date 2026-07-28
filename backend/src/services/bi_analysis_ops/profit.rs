@@ -17,7 +17,7 @@ use sea_orm::{FromQueryResult, Statement};
 use crate::services::bi_analysis_ops::types::{
     KpiCurrentMetrics, KpiRow, KpiSummary, MoMRow, ProfitAnalysis, ProfitRow, YoYRow,
 };
-use crate::services::bi_analysis_service::{dec_to_f64, BiAnalysisService};
+use crate::services::bi_analysis_service::{build_bi_cache_key, dec_to_f64, BiAnalysisService};
 use crate::utils::error::AppError;
 
 impl BiAnalysisService {
@@ -26,6 +26,12 @@ impl BiAnalysisService {
     /// 聚合全部有效订单的销售额、成本、利润。
     /// 利润 = 销售额 - 成本，成本 = SUM(sales_order_items.quantity * products.cost_price)。
     pub async fn profit_analysis(&self) -> Result<ProfitAnalysis, AppError> {
+        // 缺陷 3.1 修复：先查缓存，命中则直接返回
+        let cache_key = build_bi_cache_key(&self.data_scope, &["profit_analysis"]);
+        if let Some(cached) = self.try_get_cache::<ProfitAnalysis>(&cache_key) {
+            return Ok(cached);
+        }
+
         // V15 P0-B10：注入数据范围过滤（sales_orders 别名为 s）
         let (scope_sql, scope_values) = self.scope_sql("s", 1);
 
@@ -49,15 +55,9 @@ impl BiAnalysisService {
 
         let mut values: Vec<sea_orm::Value> = Vec::new();
         values.extend(scope_values);
-        let stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
-            sql,
-            values,
-        );
+        let stmt = Statement::from_sql_and_values(sea_orm::DatabaseBackend::Postgres, sql, values);
 
-        let row: Option<ProfitRow> = ProfitRow::find_by_statement(stmt)
-            .one(&*self.db)
-            .await?;
+        let row: Option<ProfitRow> = ProfitRow::find_by_statement(stmt).one(&*self.db).await?;
 
         let row = row.unwrap_or(ProfitRow {
             total_revenue: None,
@@ -80,30 +80,44 @@ impl BiAnalysisService {
             0.0
         };
 
-        Ok(ProfitAnalysis {
+        let result = ProfitAnalysis {
             total_revenue,
             total_cost,
             total_profit,
             gross_margin,
             order_count,
             avg_order_value,
-        })
+        };
+
+        // 缺陷 3.1 修复：写入缓存供后续相同查询命中
+        self.set_cache(&cache_key, &result);
+        Ok(result)
     }
 
     /// 核心 KPI：聚合总销售额/订单数/客户数/客单价，并计算同比/环比增长率
     pub async fn kpi_summary(&self) -> Result<KpiSummary, AppError> {
+        // 缺陷 3.1 修复：先查缓存，命中则直接返回
+        let cache_key = build_bi_cache_key(&self.data_scope, &["kpi_summary"]);
+        if let Some(cached) = self.try_get_cache::<KpiSummary>(&cache_key) {
+            return Ok(cached);
+        }
+
         let now = chrono::Utc::now();
         let current = self.fetch_current_kpi().await?;
         let yoy_growth = self.fetch_yoy_growth(now).await?;
         let mom_growth = self.fetch_mom_growth(now).await?;
-        Ok(KpiSummary {
+        let result = KpiSummary {
             total_sales: current.total_sales,
             order_count: current.order_count,
             customer_count: current.customer_count,
             avg_order_value: current.avg_order_value,
             yoy_growth,
             mom_growth,
-        })
+        };
+
+        // 缺陷 3.1 修复：写入缓存供后续相同查询命中
+        self.set_cache(&cache_key, &result);
+        Ok(result)
     }
 
     /// 查询当前周期 KPI（总销售额/订单数/客户数/客单价），注入数据范围过滤
@@ -123,11 +137,7 @@ impl BiAnalysisService {
         );
         let mut values: Vec<sea_orm::Value> = Vec::new();
         values.extend(scope_values);
-        let stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
-            sql,
-            values,
-        );
+        let stmt = Statement::from_sql_and_values(sea_orm::DatabaseBackend::Postgres, sql, values);
         let row: KpiRow = KpiRow::find_by_statement(stmt)
             .one(&*self.db)
             .await?
@@ -176,14 +186,8 @@ impl BiAnalysisService {
         let mut values = vec![this_year.into(), month.into(), last_year.into()];
         values.extend(scope_values_1);
         values.extend(scope_values_2);
-        let stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
-            sql,
-            values,
-        );
-        let row: Option<YoYRow> = YoYRow::find_by_statement(stmt)
-            .one(&*self.db)
-            .await?;
+        let stmt = Statement::from_sql_and_values(sea_orm::DatabaseBackend::Postgres, sql, values);
+        let row: Option<YoYRow> = YoYRow::find_by_statement(stmt).one(&*self.db).await?;
         let (this_year_sales, last_year_sales) = if let Some(r) = row {
             (dec_to_f64(r.this_year), dec_to_f64(r.last_year))
         } else {
@@ -201,7 +205,11 @@ impl BiAnalysisService {
     async fn fetch_mom_growth(&self, now: chrono::DateTime<chrono::Utc>) -> Result<f64, AppError> {
         let this_year = now.format("%Y").to_string();
         let month = now.format("%m").to_string();
-        let last_month = if now.month() == 1 { 12 } else { now.month() - 1 };
+        let last_month = if now.month() == 1 {
+            12
+        } else {
+            now.month() - 1
+        };
         let last_month_year = if now.month() == 1 {
             (this_year.parse::<i32>().unwrap_or(2026) - 1).to_string()
         } else {
@@ -235,14 +243,8 @@ impl BiAnalysisService {
         ];
         values.extend(scope_values_1);
         values.extend(scope_values_2);
-        let stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
-            sql,
-            values,
-        );
-        let row: Option<MoMRow> = MoMRow::find_by_statement(stmt)
-            .one(&*self.db)
-            .await?;
+        let stmt = Statement::from_sql_and_values(sea_orm::DatabaseBackend::Postgres, sql, values);
+        let row: Option<MoMRow> = MoMRow::find_by_statement(stmt).one(&*self.db).await?;
         let (this_month_sales, last_month_sales) = if let Some(r) = row {
             (dec_to_f64(r.this_month), dec_to_f64(r.last_month))
         } else {

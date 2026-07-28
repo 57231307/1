@@ -192,10 +192,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
-import { useI18n } from 'vue-i18n'
+import { ref, reactive, onMounted } from 'vue';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
+import { Plus } from '@element-plus/icons-vue';
+import { useI18n } from 'vue-i18n';
 import {
   getCurrencyList,
   createCurrency,
@@ -204,18 +204,18 @@ import {
   type Currency,
   type CreateCurrencyRequest,
   type CreateExchangeRateRequest,
-} from '@/api/currency'
+} from '@/api/currency';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const loading = ref(false)
-const submitLoading = ref(false)
-const rateSubmitLoading = ref(false)
-const dialogVisible = ref(false)
-const rateDialogVisible = ref(false)
-const currencyList = ref<Currency[]>([])
-const formRef = ref<FormInstance>()
-const rateFormRef = ref<FormInstance>()
+const loading = ref(false);
+const submitLoading = ref(false);
+const rateSubmitLoading = ref(false);
+const dialogVisible = ref(false);
+const rateDialogVisible = ref(false);
+const currencyList = ref<Currency[]>([]);
+const formRef = ref<FormInstance>();
+const rateFormRef = ref<FormInstance>();
 
 const form = reactive<CreateCurrencyRequest>({
   code: '',
@@ -223,7 +223,7 @@ const form = reactive<CreateCurrencyRequest>({
   symbol: '',
   isBase: false,
   precision: 2,
-})
+});
 
 const rateForm = reactive<CreateExchangeRateRequest>({
   fromCurrency: '',
@@ -231,12 +231,12 @@ const rateForm = reactive<CreateExchangeRateRequest>({
   rate: 1,
   effectiveDate: new Date().toISOString().split('T')[0],
   source: '',
-})
+});
 
 const rules: FormRules = {
   code: [{ required: true, message: t('currency.dialog.codeRequired'), trigger: 'blur' }],
   name: [{ required: true, message: t('currency.dialog.nameRequired'), trigger: 'blur' }],
-}
+};
 
 const rateRules: FormRules = {
   fromCurrency: [
@@ -249,112 +249,112 @@ const rateRules: FormRules = {
   effectiveDate: [
     { required: true, message: t('currency.rateDialog.effectiveDateRequired'), trigger: 'change' },
   ],
-}
+};
 
 /**
  * 状态标签映射（基于 i18n）
  */
 const getStatusLabel = (isActive: boolean) => {
-  return isActive ? t('currency.table.statusActive') : t('currency.table.statusInactive')
-}
+  return isActive ? t('currency.table.statusActive') : t('currency.table.statusInactive');
+};
 
 const fetchCurrencies = async () => {
-  loading.value = true
+  loading.value = true;
   try {
-    const res = await getCurrencyList()
+    const res = await getCurrencyList();
     const d = (res as { data?: unknown }).data as
       | Currency[]
-      | { items?: Currency[]; data?: Currency[]; list?: Currency[] }
-    currencyList.value = Array.isArray(d) ? d : d?.items || d?.data || d?.list || []
+      | { items?: Currency[]; data?: Currency[]; list?: Currency[] };
+    currencyList.value = Array.isArray(d) ? d : d?.items || d?.data || d?.list || [];
   } catch (e) {
-    const err = e as Error
-    ElMessage.error(err.message || t('currency.message.fetchListFailed'))
+    const err = e as Error;
+    ElMessage.error(err.message || t('currency.message.fetchListFailed'));
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 
 const openDialog = () => {
-  formRef.value?.resetFields()
-  form.code = ''
-  form.name = ''
-  form.symbol = ''
-  form.isBase = false
-  form.precision = 2
-  dialogVisible.value = true
-}
+  formRef.value?.resetFields();
+  form.code = '';
+  form.name = '';
+  form.symbol = '';
+  form.isBase = false;
+  form.precision = 2;
+  dialogVisible.value = true;
+};
 
 const handleSubmit = async () => {
-  if (!formRef.value) return
+  if (!formRef.value) return;
   await formRef.value.validate(async valid => {
-    if (!valid) return
-    submitLoading.value = true
+    if (!valid) return;
+    submitLoading.value = true;
     try {
-      await createCurrency(form)
-      ElMessage.success(t('currency.message.createSuccess'))
-      dialogVisible.value = false
-      fetchCurrencies()
+      await createCurrency(form);
+      ElMessage.success(t('currency.message.createSuccess'));
+      dialogVisible.value = false;
+      fetchCurrencies();
     } catch (e) {
-      const err = e as Error
-      ElMessage.error(err.message || t('currency.message.createFailed'))
+      const err = e as Error;
+      ElMessage.error(err.message || t('currency.message.createFailed'));
     } finally {
-      submitLoading.value = false
+      submitLoading.value = false;
     }
-  })
-}
+  });
+};
 
 const openRateDialog = (defaultFromCode?: string) => {
-  rateFormRef.value?.resetFields()
-  rateForm.fromCurrency = defaultFromCode || ''
-  rateForm.toCurrency = ''
-  rateForm.rate = 1
-  rateForm.effectiveDate = new Date().toISOString().split('T')[0]
-  rateForm.source = ''
-  rateDialogVisible.value = true
-}
+  rateFormRef.value?.resetFields();
+  rateForm.fromCurrency = defaultFromCode || '';
+  rateForm.toCurrency = '';
+  rateForm.rate = 1;
+  rateForm.effectiveDate = new Date().toISOString().split('T')[0];
+  rateForm.source = '';
+  rateDialogVisible.value = true;
+};
 
 const handleRateSubmit = async () => {
-  if (!rateFormRef.value) return
+  if (!rateFormRef.value) return;
   await rateFormRef.value.validate(async valid => {
-    if (!valid) return
-    rateSubmitLoading.value = true
+    if (!valid) return;
+    rateSubmitLoading.value = true;
     try {
-      await createExchangeRate(rateForm)
-      ElMessage.success(t('currency.message.rateCreateSuccess'))
-      rateDialogVisible.value = false
+      await createExchangeRate(rateForm);
+      ElMessage.success(t('currency.message.rateCreateSuccess'));
+      rateDialogVisible.value = false;
     } catch (e) {
-      const err = e as Error
-      ElMessage.error(err.message || t('currency.message.rateCreateFailed'))
+      const err = e as Error;
+      ElMessage.error(err.message || t('currency.message.rateCreateFailed'));
     } finally {
-      rateSubmitLoading.value = false
+      rateSubmitLoading.value = false;
     }
-  })
-}
+  });
+};
 
 // 批次 157d-1 修复：接入 setBaseCurrency API
 const setBase = async (row: Currency) => {
   if (!row.id) {
-    ElMessage.warning(t('currency.message.currencyIdMissing'))
-    return
+    ElMessage.warning(t('currency.message.currencyIdMissing'));
+    return;
   }
   try {
     await ElMessageBox.confirm(
       t('currency.message.setBaseConfirm', { code: row.code, name: row.name }),
       t('currency.message.setBaseTitle'),
       { type: 'warning' }
-    )
-    await setBaseCurrency(row.id)
-    ElMessage.success(t('currency.message.setBaseSuccess'))
-    fetchCurrencies()
+    );
+    await setBaseCurrency(row.id);
+    ElMessage.success(t('currency.message.setBaseSuccess'));
+    fetchCurrencies();
   } catch (error) {
     if (error !== 'cancel') {
-      const err = error as Error
-      ElMessage.error(err.message || t('currency.message.setBaseFailed'))
+      const err = error as Error;
+      ElMessage.error(err.message || t('currency.message.setBaseFailed'));
     }
   }
-}
+};
 
 onMounted(() => {
-  fetchCurrencies()
-})
+  fetchCurrencies();
+});
 </script>

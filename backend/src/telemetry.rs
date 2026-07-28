@@ -52,22 +52,23 @@ pub fn service_version() -> &'static str {
 /// L-40 修复（批次 379 v13 复审）：使用 LazyLock 消除 silent default，
 /// 首次调用时打印当前值；生产环境未设置时 warn，开发环境未设置时 info。
 pub fn deployment_environment() -> String {
-    static DEPLOYMENT_ENV: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
-        match env::var("ENV") {
+    static DEPLOYMENT_ENV: std::sync::LazyLock<String> =
+        std::sync::LazyLock::new(|| match env::var("ENV") {
             Ok(v) => {
                 tracing::info!(value = %v, "ENV 已设置");
                 v
             }
             Err(_) => {
                 if crate::utils::config::is_production() {
-                    tracing::warn!("生产环境未设置 ENV，使用默认值 dev（建议显式设置 ENV=production）");
+                    tracing::warn!(
+                        "生产环境未设置 ENV，使用默认值 dev（建议显式设置 ENV=production）"
+                    );
                 } else {
                     tracing::info!("ENV 未设置，使用默认值 dev");
                 }
                 "dev".to_string()
             }
-        }
-    });
+        });
     DEPLOYMENT_ENV.clone()
 }
 
@@ -75,8 +76,8 @@ pub fn deployment_environment() -> String {
 /// L-40 修复（批次 379 v13 复审）：使用 LazyLock 消除 silent default，
 /// 首次调用时打印当前值；生产环境未设置时 warn，开发环境未设置时 info。
 pub fn otlp_endpoint() -> String {
-    static OTLP_ENDPOINT: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
-        match env::var("OTEL_EXPORTER_OTLP_ENDPOINT") {
+    static OTLP_ENDPOINT: std::sync::LazyLock<String> = std::sync::LazyLock::new(
+        || match env::var("OTEL_EXPORTER_OTLP_ENDPOINT") {
             Ok(v) => {
                 tracing::info!("OTEL_EXPORTER_OTLP_ENDPOINT 已设置");
                 v
@@ -85,12 +86,14 @@ pub fn otlp_endpoint() -> String {
                 if crate::utils::config::is_production() {
                     tracing::warn!("生产环境未设置 OTEL_EXPORTER_OTLP_ENDPOINT，使用默认值 http://localhost:4317（生产环境建议配置可达的 OTLP Collector）");
                 } else {
-                    tracing::info!("OTEL_EXPORTER_OTLP_ENDPOINT 未设置，使用默认值 http://localhost:4317");
+                    tracing::info!(
+                        "OTEL_EXPORTER_OTLP_ENDPOINT 未设置，使用默认值 http://localhost:4317"
+                    );
                 }
                 "http://localhost:4317".to_string()
             }
-        }
-    });
+        },
+    );
     OTLP_ENDPOINT.clone()
 }
 
@@ -382,7 +385,10 @@ mod tests {
     #[test]
     fn test_metric_names_constants() {
         assert_eq!(metric_names::HTTP_REQUESTS_TOTAL, "http_requests_total");
-        assert_eq!(metric_names::HTTP_REQUEST_DURATION, "http_request_duration_seconds");
+        assert_eq!(
+            metric_names::HTTP_REQUEST_DURATION,
+            "http_request_duration_seconds"
+        );
     }
 
     #[test]

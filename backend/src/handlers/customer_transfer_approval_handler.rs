@@ -17,8 +17,7 @@ use axum::{
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::crm::customer_transfer_approval_service::{
-    ApproveRequest, ApprovalQuery, CreateTransferApprovalRequest,
-    CustomerTransferApprovalService,
+    ApprovalQuery, ApproveRequest, CreateTransferApprovalRequest, CustomerTransferApprovalService,
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -143,11 +142,7 @@ pub async fn director_approve(
         .director_approve(req, auth.user_id, &auth.username)
         .await?;
 
-    tracing::info!(
-        "总监 {} 审批转移单 {}",
-        auth.username,
-        result.approval_no
-    );
+    tracing::info!("总监 {} 审批转移单 {}", auth.username, result.approval_no);
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(result)?,

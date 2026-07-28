@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
-import ElementPlus from 'element-plus'
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { mount, flushPromises } from '@vue/test-utils';
+import ElementPlus from 'element-plus';
 
 // i18n 由 tests/setup.ts 全局注入（config.global.plugins）
 
@@ -18,12 +18,7 @@ import ElementPlus from 'element-plus'
 // 解决方案：本测试文件不依赖真实 vue-router，而是在本文件内重新 mock vue-router，
 // 用 spy 控制 useRouter().push 与 useRoute().query.redirect，覆盖 setup.ts 的 mock。
 
-const {
-  mockLogin,
-  mockCheckLockStatus,
-  pushSpy,
-  routeRef,
-} = vi.hoisted(() => ({
+const { mockLogin, mockCheckLockStatus, pushSpy, routeRef } = vi.hoisted(() => ({
   // userStore.login：默认 resolve，可通过 mockRejectedValueOnce 修改行为
   mockLogin: vi.fn().mockResolvedValue(undefined),
   // checkLockStatus：默认返回未锁定
@@ -44,19 +39,19 @@ const {
     params: {} as Record<string, string>,
     meta: {},
   },
-}))
+}));
 
 vi.mock('@/store/user', () => ({
   useUserStore: () => ({
     login: mockLogin,
     userInfo: null,
   }),
-}))
+}));
 
 // D14 Batch 5b：原 securityApi 对象已转风格 B 函数
 vi.mock('@/api/security', () => ({
   checkLockStatus: mockCheckLockStatus,
-}))
+}));
 
 // 重新 mock vue-router，覆盖 tests/setup.ts 的全局 mock
 // 关键：提供 useRouter（返回带 pushSpy 的对象）+ useRoute（返回 routeRef）
@@ -72,7 +67,7 @@ vi.mock('vue-router', () => ({
   // 保留其他可能被 Login.vue 间接引用的导出
   RouterLink: { template: '<a><slot /></a>' },
   RouterView: { template: '<div><slot /></div>' },
-}))
+}));
 
 // Mock logger（防止测试输出噪声）
 vi.mock('@/utils/logger', () => ({
@@ -82,11 +77,11 @@ vi.mock('@/utils/logger', () => ({
     error: vi.fn(),
     debug: vi.fn(),
   },
-}))
+}));
 
 // Mock ElMessage（避免 Element Plus 全局副作用）
 vi.mock('element-plus', async () => {
-  const actual = await vi.importActual<typeof import('element-plus')>('element-plus')
+  const actual = await vi.importActual<typeof import('element-plus')>('element-plus');
   return {
     ...actual,
     ElMessage: {
@@ -95,43 +90,43 @@ vi.mock('element-plus', async () => {
       warning: vi.fn(),
       info: vi.fn(),
     },
-  }
-})
+  };
+});
 
-import Login from '@/views/Login.vue'
+import Login from '@/views/Login.vue';
 
 function mountLogin() {
   const wrapper = mount(Login, {
     global: {
       plugins: [ElementPlus],
     },
-  })
-  return { wrapper }
+  });
+  return { wrapper };
 }
 
 describe('Login.vue 真实组件测试', () => {
   beforeEach(() => {
-    mockLogin.mockClear()
-    mockLogin.mockResolvedValue(undefined) // 重置为默认 resolve
-    mockCheckLockStatus.mockClear()
-    pushSpy.mockClear()
+    mockLogin.mockClear();
+    mockLogin.mockResolvedValue(undefined); // 重置为默认 resolve
+    mockCheckLockStatus.mockClear();
+    pushSpy.mockClear();
     // 重置 routeRef.query
-    routeRef.query = {}
-  })
+    routeRef.query = {};
+  });
 
   it('应该正确渲染登录页面（标题 + 用户名/密码输入框 + 登录按钮）', async () => {
-    const { wrapper } = mountLogin()
-    await flushPromises()
+    const { wrapper } = mountLogin();
+    await flushPromises();
     // 标题
-    expect(wrapper.find('.login-title').text()).toBe('秉羲 ERP 系统')
+    expect(wrapper.find('.login-title').text()).toBe('秉羲 ERP 系统');
     // 用户名输入框存在（el-input 渲染为 input）
-    const inputs = wrapper.findAll('input')
-    expect(inputs.length).toBeGreaterThanOrEqual(2)
+    const inputs = wrapper.findAll('input');
+    expect(inputs.length).toBeGreaterThanOrEqual(2);
     // 登录按钮存在
-    const button = wrapper.find('button')
-    expect(button.exists()).toBe(true)
-    expect(button.text()).toBe('登录')
-  })
+    const button = wrapper.find('button');
+    expect(button.exists()).toBe(true);
+    expect(button.text()).toBe('登录');
+  });
 
   it('用户名为空时点击登录：login 被调用但参数为空（jsdom 下 validate 不触发 trigger:blur）', async () => {
     // 批次 29 v7 P0-7：原断言 "not.toHaveBeenCalled" 在 jsdom 环境下不稳定。
@@ -139,95 +134,97 @@ describe('Login.vue 真实组件测试', () => {
     // 不触发 trigger:'blur' 校验规则（需要真实 DOM 交互）。
     // 这是 jsdom 环境限制，非业务逻辑问题。真实浏览器中 trigger:'blur' 会生效。
     // 此处改为验证：login 被调用时参数为空字符串（业务逻辑确实进入了 login 路径）。
-    const { wrapper } = mountLogin()
-    await flushPromises()
-    const button = wrapper.find('button')
-    await button.trigger('click')
-    await flushPromises()
-    // login 被调用，参数为空字符串
-    expect(mockLogin).toHaveBeenCalledTimes(1)
+    const { wrapper } = mountLogin();
+    await flushPromises();
+    const button = wrapper.find('button');
+    await button.trigger('click');
+    await flushPromises();
+    // login 被调用，参数为空字符串（含 agreedToTerms: false，P1 法律合规新增用户协议字段）
+    expect(mockLogin).toHaveBeenCalledTimes(1);
     expect(mockLogin).toHaveBeenCalledWith({
       username: '',
       password: '',
-    })
-  })
+      agreedToTerms: false,
+    });
+  });
 
   it('用户名 + 密码有效时点击登录应调用 userStore.login', async () => {
-    const { wrapper } = mountLogin()
-    await flushPromises()
-    const inputs = wrapper.findAll('input')
+    const { wrapper } = mountLogin();
+    await flushPromises();
+    const inputs = wrapper.findAll('input');
     // 输入用户名
-    await inputs[0].setValue('admin')
+    await inputs[0].setValue('admin');
     // 输入密码
-    await inputs[1].setValue('password123')
-    await flushPromises()
+    await inputs[1].setValue('password123');
+    await flushPromises();
     // 点击登录
-    const button = wrapper.find('button')
-    await button.trigger('click')
-    await flushPromises()
-    // 应调用 userStore.login，参数为 { username: 'admin', password: 'password123' }
-    expect(mockLogin).toHaveBeenCalledTimes(1)
+    const button = wrapper.find('button');
+    await button.trigger('click');
+    await flushPromises();
+    // 应调用 userStore.login，参数为 { username: 'admin', password: 'password123', agreedToTerms: false }
+    expect(mockLogin).toHaveBeenCalledTimes(1);
     expect(mockLogin).toHaveBeenCalledWith({
       username: 'admin',
       password: 'password123',
-    })
-  })
+      agreedToTerms: false,
+    });
+  });
 
   it('登录失败时不应跳转路由（userStore.login reject 时 router.push 不执行）', async () => {
-    const { wrapper } = mountLogin()
-    await flushPromises()
+    const { wrapper } = mountLogin();
+    await flushPromises();
     // 模拟登录失败
-    mockLogin.mockRejectedValueOnce(new Error('用户名或密码错误'))
-    const inputs = wrapper.findAll('input')
-    await inputs[0].setValue('admin')
-    await inputs[1].setValue('wrongpassword')
-    await flushPromises()
-    await wrapper.find('button').trigger('click')
-    await flushPromises()
+    mockLogin.mockRejectedValueOnce(new Error('用户名或密码错误'));
+    const inputs = wrapper.findAll('input');
+    await inputs[0].setValue('admin');
+    await inputs[1].setValue('wrongpassword');
+    await flushPromises();
+    await wrapper.find('button').trigger('click');
+    await flushPromises();
     // 登录失败，不应 push
-    expect(pushSpy).not.toHaveBeenCalled()
-  })
+    expect(pushSpy).not.toHaveBeenCalled();
+  });
 
   it('登录成功后应跳转到 redirect 参数指定的安全路径', async () => {
     // 设置 route.query.redirect = '/dashboard'
-    routeRef.query = { redirect: '/dashboard' }
-    const { wrapper } = mountLogin()
-    await flushPromises()
-    const inputs = wrapper.findAll('input')
-    await inputs[0].setValue('admin')
-    await inputs[1].setValue('password123')
-    await flushPromises()
-    await wrapper.find('button').trigger('click')
-    await flushPromises()
+    routeRef.query = { redirect: '/dashboard' };
+    const { wrapper } = mountLogin();
+    await flushPromises();
+    const inputs = wrapper.findAll('input');
+    await inputs[0].setValue('admin');
+    await inputs[1].setValue('password123');
+    await flushPromises();
+    await wrapper.find('button').trigger('click');
+    await flushPromises();
     // 应跳转到 /dashboard
-    expect(pushSpy).toHaveBeenCalledWith('/dashboard')
-  })
+    expect(pushSpy).toHaveBeenCalledWith('/dashboard');
+  });
 
   it('登录成功后 redirect 为外部 URL 时应回退到 /（防 Open Redirect）', async () => {
     // 设置 route.query.redirect = '//evil.com'（外部 URL）
-    routeRef.query = { redirect: '//evil.com' }
-    const { wrapper } = mountLogin()
-    await flushPromises()
-    const inputs = wrapper.findAll('input')
-    await inputs[0].setValue('admin')
-    await inputs[1].setValue('password123')
-    await flushPromises()
-    await wrapper.find('button').trigger('click')
-    await flushPromises()
+    routeRef.query = { redirect: '//evil.com' };
+    const { wrapper } = mountLogin();
+    await flushPromises();
+    const inputs = wrapper.findAll('input');
+    await inputs[0].setValue('admin');
+    await inputs[1].setValue('password123');
+    await flushPromises();
+    await wrapper.find('button').trigger('click');
+    await flushPromises();
     // 应跳转到 /，而非 //evil.com
-    expect(pushSpy).toHaveBeenCalledWith('/')
-  })
+    expect(pushSpy).toHaveBeenCalledWith('/');
+  });
 
   it('用户名输入框失焦时应调用 checkLockStatus 预检查锁定状态', async () => {
-    const { wrapper } = mountLogin()
-    await flushPromises()
-    const inputs = wrapper.findAll('input')
-    await inputs[0].setValue('lockeduser')
-    await flushPromises()
+    const { wrapper } = mountLogin();
+    await flushPromises();
+    const inputs = wrapper.findAll('input');
+    await inputs[0].setValue('lockeduser');
+    await flushPromises();
     // 触发 blur 事件
-    await inputs[0].trigger('blur')
-    await flushPromises()
+    await inputs[0].trigger('blur');
+    await flushPromises();
     // 应调用 checkLockStatus
-    expect(mockCheckLockStatus).toHaveBeenCalledWith('lockeduser')
-  })
-})
+    expect(mockCheckLockStatus).toHaveBeenCalledWith('lockeduser');
+  });
+});

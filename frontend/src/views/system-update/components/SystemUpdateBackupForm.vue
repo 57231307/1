@@ -12,12 +12,13 @@
     :aria-label="t('systemUpdate.backupForm.dialogAriaLabel')"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form :model="localForm" label-width="100px" :aria-label="t('systemUpdate.backupForm.formAriaLabel')">
+    <el-form
+      :model="localForm"
+      label-width="100px"
+      :aria-label="t('systemUpdate.backupForm.formAriaLabel')"
+    >
       <el-form-item :label="t('systemUpdate.backupForm.labelBackupType')" prop="backup_type">
-        <el-select
-          v-model="localForm.backup_type"
-          style="width: 100%"
-        >
+        <el-select v-model="localForm.backup_type" style="width: 100%">
           <el-option :label="t('systemUpdate.backupForm.optionFull')" value="full" />
           <el-option :label="t('systemUpdate.backupForm.optionIncremental')" value="incremental" />
           <el-option :label="t('systemUpdate.backupForm.optionDatabase')" value="database" />
@@ -34,26 +35,25 @@
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">{{ t('systemUpdate.backupForm.buttonCancel') }}</el-button>
-      <el-button
-        type="primary"
-        :loading="submitLoading"
-        @click="emit('submit')"
-        >{{ t('systemUpdate.backupForm.buttonStartBackup') }}</el-button
-      >
+      <el-button @click="emit('update:visible', false)">{{
+        t('systemUpdate.backupForm.buttonCancel')
+      }}</el-button>
+      <el-button type="primary" :loading="submitLoading" @click="emit('submit')">{{
+        t('systemUpdate.backupForm.buttonStartBackup')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { ref, watch, nextTick } from 'vue';
+import { useI18n } from 'vue-i18n';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 interface BackupForm {
-  backup_type: 'full' | 'incremental' | 'database' | 'files'
-  description: string
+  backup_type: 'full' | 'incremental' | 'database' | 'files';
+  description: string;
 }
 
 /**
@@ -61,53 +61,53 @@ interface BackupForm {
  */
 const props = defineProps<{
   // 对话框可见性
-  visible: boolean
+  visible: boolean;
   // 备份表单（由父组件管理，子组件通过 emit('update:form') 回写）
-  form: BackupForm
+  form: BackupForm;
   // 提交中状态
-  submitLoading: boolean
-}>()
+  submitLoading: boolean;
+}>();
 
 const emit = defineEmits<{
   // 关闭对话框
-  'update:visible': [v: boolean]
+  'update:visible': [v: boolean];
   // 提交表单
-  submit: []
+  submit: [];
   // 整体回写表单
-  'update:form': [form: BackupForm]
-}>()
+  'update:form': [form: BackupForm];
+}>();
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
-const localForm = ref<BackupForm>({ ...props.form })
+const localForm = ref<BackupForm>({ ...props.form });
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
-let syncing = false
+let syncing = false;
 
 // 外部 prop 变化时同步到 local
 watch(
   () => props.form,
-  (newForm) => {
-    if (syncing) return
-    syncing = true
-    localForm.value = { ...newForm }
+  newForm => {
+    if (syncing) return;
+    syncing = true;
+    localForm.value = { ...newForm };
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
-  { deep: true },
-)
+  { deep: true }
+);
 
 // 本地变化时通知父组件
 watch(
   localForm,
-  (newForm) => {
-    if (syncing) return
-    syncing = true
-    emit('update:form', { ...newForm })
+  newForm => {
+    if (syncing) return;
+    syncing = true;
+    emit('update:form', { ...newForm });
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
-  { deep: true },
-)
+  { deep: true }
+);
 </script>

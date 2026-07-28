@@ -38,15 +38,15 @@
 </template>
 
 <script setup lang="ts">
-import { Clock, Refresh } from '@element-plus/icons-vue'
-import { useI18n } from 'vue-i18n'
-import type { Activity } from '@/api/dashboard'
-import { getActivityTypeColor } from '../composables/dbFmts'
+import { Clock, Refresh } from '@element-plus/icons-vue';
+import { useI18n } from 'vue-i18n';
+import type { Activity } from '@/api/dashboard';
+import { getActivityTypeColor } from '../composables/dbFmts';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-defineProps<{ data: Activity[] }>()
-const emit = defineEmits<{ refresh: [] }>()
+defineProps<{ data: Activity[] }>();
+const emit = defineEmits<{ refresh: [] }>();
 </script>
 
 <style scoped>

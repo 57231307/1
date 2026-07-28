@@ -173,21 +173,46 @@ mod tests {
     #[test]
     fn test_next_status_normal_progression() {
         // P9-1: 用 match 处理 Result，失败时立即 panic 并说明 P9-1
-        let unwrap_p9 = |res: Result<CustomOrderStatus, StateMachineError>, ctx: &str| -> CustomOrderStatus {
-            match res {
-                Ok(s) => s,
-                Err(e) => panic!("P9-1: 测试夹具 {ctx} 状态机返回错误: {e}"),
-            }
-        };
+        let unwrap_p9 =
+            |res: Result<CustomOrderStatus, StateMachineError>, ctx: &str| -> CustomOrderStatus {
+                match res {
+                    Ok(s) => s,
+                    Err(e) => panic!("P9-1: 测试夹具 {ctx} 状态机返回错误: {e}"),
+                }
+            };
         // V15 P0-B11：新增 lab_dip / quotation 状态，draft → lab_dip → quotation → yarn_purchasing
-        assert_eq!(unwrap_p9(next_status("draft"), "draft"), CustomOrderStatus::LabDip);
-        assert_eq!(unwrap_p9(next_status("lab_dip"), "lab_dip"), CustomOrderStatus::Quotation);
-        assert_eq!(unwrap_p9(next_status("quotation"), "quotation"), CustomOrderStatus::YarnPurchasing);
-        assert_eq!(unwrap_p9(next_status("yarn_purchasing"), "yarn_purchasing"), CustomOrderStatus::Dyeing);
-        assert_eq!(unwrap_p9(next_status("dyeing"), "dyeing"), CustomOrderStatus::Finishing);
-        assert_eq!(unwrap_p9(next_status("finishing"), "finishing"), CustomOrderStatus::Delivery);
-        assert_eq!(unwrap_p9(next_status("delivery"), "delivery"), CustomOrderStatus::AfterSales);
-        assert_eq!(unwrap_p9(next_status("after_sales"), "after_sales"), CustomOrderStatus::Completed);
+        assert_eq!(
+            unwrap_p9(next_status("draft"), "draft"),
+            CustomOrderStatus::LabDip
+        );
+        assert_eq!(
+            unwrap_p9(next_status("lab_dip"), "lab_dip"),
+            CustomOrderStatus::Quotation
+        );
+        assert_eq!(
+            unwrap_p9(next_status("quotation"), "quotation"),
+            CustomOrderStatus::YarnPurchasing
+        );
+        assert_eq!(
+            unwrap_p9(next_status("yarn_purchasing"), "yarn_purchasing"),
+            CustomOrderStatus::Dyeing
+        );
+        assert_eq!(
+            unwrap_p9(next_status("dyeing"), "dyeing"),
+            CustomOrderStatus::Finishing
+        );
+        assert_eq!(
+            unwrap_p9(next_status("finishing"), "finishing"),
+            CustomOrderStatus::Delivery
+        );
+        assert_eq!(
+            unwrap_p9(next_status("delivery"), "delivery"),
+            CustomOrderStatus::AfterSales
+        );
+        assert_eq!(
+            unwrap_p9(next_status("after_sales"), "after_sales"),
+            CustomOrderStatus::Completed
+        );
     }
 
     #[test]

@@ -261,7 +261,7 @@ impl BpmService {
                     bpm_task::Entity,
                     bpm_task::Column::TaskNo,
                 )
-                .await?
+                .await?,
             ),
             node_id: Set(next_node
                 .get("id")
@@ -435,6 +435,7 @@ impl BpmService {
                         action_url: Some(format!("/bpm/tasks/{}", task_id)),
                         sender_id: None,
                         sender_name: Some("系统".to_string()),
+                        dedup_key: None,
                     },
                 )
                 .await

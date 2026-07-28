@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 通知设置模型
 //!
 //! 存储用户的通知偏好设置
@@ -23,6 +24,8 @@ pub struct Model {
     pub enable_email: bool,
     /// 是否启用短信
     pub enable_sms: bool,
+    /// 缺陷 5.1 修复：是否启用 Webhook（推送到外部系统）
+    pub enable_webhook: bool,
     /// 创建时间
     pub created_at: DateTime<Utc>,
     /// 更新时间

@@ -1,4 +1,3 @@
-
 use crate::models::api_key::{self, ActiveModel as ApiKeyActiveModel, Entity as ApiKey};
 use crate::utils::cache::{AppCache, Cache};
 use crate::utils::error::AppError;
@@ -100,11 +99,7 @@ impl ApiKeyService {
     /// 修复策略：撤销时通过 `key_hash` 写入黑名单，未来 API Key 认证中间件
     /// 可通过 [`Self::is_api_key_revoked`] 检查是否已撤销。
     /// TTL 7 天后自动失效（与典型 API Key 生命周期对齐）。
-    pub async fn revoke_api_key(
-        &self,
-        id: i32,
-        cache: Option<&AppCache>,
-    ) -> Result<(), AppError> {
+    pub async fn revoke_api_key(&self, id: i32, cache: Option<&AppCache>) -> Result<(), AppError> {
         let key = ApiKey::find_by_id(id)
             .one(self.db.as_ref())
             .await?
@@ -118,9 +113,11 @@ impl ApiKeyService {
         // 漏洞 #5 修复：将 key_hash 加入黑名单缓存，TTL 7 天
         if let Some(cache) = cache {
             let blacklist_key = format!("{}{}", API_KEY_BLACKLIST_PREFIX, key.key_hash);
-            cache
-                .get_token_blacklist()
-                .set(blacklist_key, true, Some(Duration::from_secs(API_KEY_BLACKLIST_TTL_SECS)));
+            cache.get_token_blacklist().set(
+                blacklist_key,
+                true,
+                Some(Duration::from_secs(API_KEY_BLACKLIST_TTL_SECS)),
+            );
             tracing::info!(
                 "API 密钥已撤销并加入黑名单：id={}, key_prefix={}",
                 id,
@@ -129,10 +126,7 @@ impl ApiKeyService {
         } else {
             // 调用方未传入 cache：仅 DB 标记 is_active=false，黑名单失效
             // 保留 warn 日志便于运维发现未接管的调用方
-            tracing::warn!(
-                "API 密钥撤销时未传入 AppCache，黑名单失效：id={}",
-                id
-            );
+            tracing::warn!("API 密钥撤销时未传入 AppCache，黑名单失效：id={}", id);
         }
 
         Ok(())
@@ -183,7 +177,10 @@ impl ApiKeyService {
         }
         active_model.updated_at = Set(Utc::now());
 
-        active_model.update(self.db.as_ref()).await.map_err(AppError::from)
+        active_model
+            .update(self.db.as_ref())
+            .await
+            .map_err(AppError::from)
     }
 
     /// 重新生成 API 密钥（批次 91 P0-1）

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 缸号操作记录模型（dye_batch_operation 表）
 //!
 //! v14 批次 432：缸号全生命周期状态机

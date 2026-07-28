@@ -15,9 +15,11 @@ use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySe
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::models::{ap_invoice, ap_payment, ap_reconciliation};
 use crate::models::supplier;
-use crate::services::ap_reconciliation_ops::types::{AutoReconciliationResult, GenerateReconciliationRequest};
+use crate::models::{ap_invoice, ap_payment, ap_reconciliation};
+use crate::services::ap_reconciliation_ops::types::{
+    AutoReconciliationResult, GenerateReconciliationRequest,
+};
 use crate::services::ap_reconciliation_service::ApReconciliationService;
 use crate::utils::error::AppError;
 
@@ -34,20 +36,12 @@ impl ApReconciliationService {
         let supplier_ids: Vec<i32> = suppliers.iter().map(|s| s.id).collect();
 
         // v12 批次 39 修复：批量预加载所有供应商的发票数和付款数，避免 for_each_concurrent 内逐个 count（N+1，2N 次查询）
-        let invoice_counts = Self::fetch_invoice_counts_by_supplier(
-            &*self.db,
-            &supplier_ids,
-            start_date,
-            end_date,
-        )
-        .await?;
-        let payment_counts = Self::fetch_payment_counts_by_supplier(
-            &*self.db,
-            &supplier_ids,
-            start_date,
-            end_date,
-        )
-        .await?;
+        let invoice_counts =
+            Self::fetch_invoice_counts_by_supplier(&*self.db, &supplier_ids, start_date, end_date)
+                .await?;
+        let payment_counts =
+            Self::fetch_payment_counts_by_supplier(&*self.db, &supplier_ids, start_date, end_date)
+                .await?;
 
         let results = Arc::new(Mutex::new(Vec::new()));
 
@@ -109,10 +103,13 @@ impl ApReconciliationService {
             .all(db)
             .await?
             .into_iter()
-            .fold(std::collections::HashMap::<i32, usize>::new(), |mut acc, inv| {
-                *acc.entry(inv.supplier_id).or_default() += 1;
-                acc
-            }))
+            .fold(
+                std::collections::HashMap::<i32, usize>::new(),
+                |mut acc, inv| {
+                    *acc.entry(inv.supplier_id).or_default() += 1;
+                    acc
+                },
+            ))
     }
 
     async fn fetch_payment_counts_by_supplier(
@@ -131,10 +128,13 @@ impl ApReconciliationService {
             .all(db)
             .await?
             .into_iter()
-            .fold(std::collections::HashMap::<i32, usize>::new(), |mut acc, pay| {
-                *acc.entry(pay.supplier_id).or_default() += 1;
-                acc
-            }))
+            .fold(
+                std::collections::HashMap::<i32, usize>::new(),
+                |mut acc, pay| {
+                    *acc.entry(pay.supplier_id).or_default() += 1;
+                    acc
+                },
+            ))
     }
 
     fn build_auto_reconciliation_request(
@@ -146,7 +146,10 @@ impl ApReconciliationService {
             supplier_id: sup.id,
             start_date,
             end_date,
-            notes: Some(format!("Auto-generated reconciliation for {}", sup.supplier_name)),
+            notes: Some(format!(
+                "Auto-generated reconciliation for {}",
+                sup.supplier_name
+            )),
         }
     }
 
@@ -224,12 +227,9 @@ impl ApReconciliationService {
                 invoice_count,
                 payment_count,
             ),
-            Err(e) => Self::build_failure_reconciliation_result(
-                supplier_id,
-                start_date,
-                end_date,
-                e,
-            ),
+            Err(e) => {
+                Self::build_failure_reconciliation_result(supplier_id, start_date, end_date, e)
+            }
         }
     }
 }

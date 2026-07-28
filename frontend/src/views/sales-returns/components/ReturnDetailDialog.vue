@@ -71,20 +71,20 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import { getStatusType, formatAmount } from '../composables/srFmts'
-import type { SalesReturn } from '@/api/sales-return'
+import { useI18n } from 'vue-i18n';
+import { getStatusType, formatAmount } from '../composables/srFmts';
+import type { SalesReturn } from '@/api/sales-return';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 defineProps<{
-  visible: boolean
-  currentReturn: SalesReturn | null
-}>()
+  visible: boolean;
+  currentReturn: SalesReturn | null;
+}>();
 
 const emit = defineEmits<{
-  (e: 'update:visible', val: boolean): void
-}>()
+  (e: 'update:visible', val: boolean): void;
+}>();
 
 /** 获取退货状态标签（i18n 响应式） */
 const getStatusLabel = (status: string) => {
@@ -93,11 +93,11 @@ const getStatusLabel = (status: string) => {
     APPROVED: t('salesReturns.detailDialog.statusApproved'),
     REJECTED: t('salesReturns.detailDialog.statusRejected'),
     COMPLETED: t('salesReturns.detailDialog.statusCompleted'),
-  }
-  return map[status] || status
-}
+  };
+  return map[status] || status;
+};
 
 const onClose = (val: boolean) => {
-  emit('update:visible', val)
-}
+  emit('update:visible', val);
+};
 </script>

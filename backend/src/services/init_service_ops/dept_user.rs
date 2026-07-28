@@ -116,6 +116,7 @@ impl InitService {
             password_changed_at: Set(Some(chrono::Utc::now())),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
+            ..Default::default()
         };
 
         user.insert(self.db.as_ref())
@@ -130,8 +131,7 @@ impl InitService {
         new_password: &str,
     ) -> Result<(), InitError> {
         // 1) 密码强度校验（与 AuthService::hash_password 行为对齐，复用 password_validator 模块）
-        let password_check =
-            crate::utils::password_validator::validate_password(new_password);
+        let password_check = crate::utils::password_validator::validate_password(new_password);
         if !password_check.is_valid {
             return Err(InitError::ValidationError(
                 crate::utils::password_validator::get_password_feedback(&password_check),
@@ -145,9 +145,7 @@ impl InitService {
             match e {
                 AppError::NotFound(_) => InitError::UserNotFound,
                 AppError::DatabaseError(msg) => InitError::DatabaseError(msg),
-                other => {
-                    InitError::DatabaseError(format!("查询用户失败: {}", other))
-                }
+                other => InitError::DatabaseError(format!("查询用户失败: {}", other)),
             }
         })?;
 

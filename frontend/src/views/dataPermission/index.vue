@@ -184,10 +184,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
+import { ref, reactive, onMounted, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import {
   getRoleDataPermissionList,
   setDataPermission,
@@ -199,38 +199,38 @@ import {
   type CustomCondition,
   type AllowedFields,
   type HiddenFields,
-} from '@/api/data-permission'
-import { getRoleList } from '@/api/role'
+} from '@/api/data-permission';
+import { getRoleList } from '@/api/role';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const roleList = ref<Array<{ id: number; name: string }>>([])
-const selectedRoleId = ref('1')
-const permissionList = ref<DataPermissionRole[]>([])
-const scopeTypeList = ref<ScopeType[]>([])
+const roleList = ref<Array<{ id: number; name: string }>>([]);
+const selectedRoleId = ref('1');
+const permissionList = ref<DataPermissionRole[]>([]);
+const scopeTypeList = ref<ScopeType[]>([]);
 
 // v11 P1-5 修复：动态加载角色列表，避免硬编码
 const fetchRoles = async () => {
   try {
-    const res = await getRoleList()
+    const res = await getRoleList();
     if (res.data && Array.isArray(res.data)) {
-      roleList.value = res.data.map(r => ({ id: r.id, name: r.name }))
+      roleList.value = res.data.map(r => ({ id: r.id, name: r.name }));
       if (roleList.value.length > 0) {
-        selectedRoleId.value = String(roleList.value[0].id)
+        selectedRoleId.value = String(roleList.value[0].id);
       }
     }
   } catch (e) {
-    const err = e as Error
+    const err = e as Error;
     ElMessage.error(
       `${t('dataPermission.index.messageLoadRolesFailed')}${err.message || t('dataPermission.index.messageUnknownError')}`
-    )
+    );
   }
-}
+};
 
-const permissionDialogVisible = ref(false)
-const isEdit = ref(false)
-const submitLoading = ref(false)
-const permissionFormRef = ref()
+const permissionDialogVisible = ref(false);
+const isEdit = ref(false);
+const submitLoading = ref(false);
+const permissionFormRef = ref();
 
 const permissionForm = reactive({
   roleId: undefined as number | undefined,
@@ -239,7 +239,7 @@ const permissionForm = reactive({
   customCondition: '',
   allowedFields: '',
   hiddenFields: '',
-})
+});
 
 const permissionRules = {
   resourceType: [
@@ -252,50 +252,50 @@ const permissionRules = {
   scopeType: [
     { required: true, message: t('dataPermission.index.ruleScopeTypeRequired'), trigger: 'change' },
   ],
-}
+};
 
 const currentRoleName = computed(() => {
-  const role = roleList.value.find(r => String(r.id) === selectedRoleId.value)
-  return role ? role.name : ''
-})
+  const role = roleList.value.find(r => String(r.id) === selectedRoleId.value);
+  return role ? role.name : '';
+});
 
 const fetchPermissions = async () => {
   try {
-    const res = await getRoleDataPermissionList(parseInt(selectedRoleId.value))
+    const res = await getRoleDataPermissionList(parseInt(selectedRoleId.value));
     if (res.data) {
       // 安全检查：防止后端返回 data 为 null 时崩溃
-      permissionList.value = res.data || []
+      permissionList.value = res.data || [];
     }
   } catch (e) {
-    ElMessage.error(t('dataPermission.index.messageLoadPermissionsFailed'))
+    ElMessage.error(t('dataPermission.index.messageLoadPermissionsFailed'));
   }
-}
+};
 
 const fetchScopeTypes = async () => {
   try {
-    const res = await getScopeTypeList()
+    const res = await getScopeTypeList();
     if (res.data && Array.isArray(res.data) && res.data.length > 0) {
-      scopeTypeList.value = res.data
+      scopeTypeList.value = res.data;
     } else {
-      scopeTypeList.value = DEFAULT_SCOPE_TYPES
+      scopeTypeList.value = DEFAULT_SCOPE_TYPES;
     }
   } catch (e) {
     // v11 P1-5 修复：API 失败时使用 API 层常量兜底，并告知用户
-    scopeTypeList.value = DEFAULT_SCOPE_TYPES
-    const err = e as Error
+    scopeTypeList.value = DEFAULT_SCOPE_TYPES;
+    const err = e as Error;
     ElMessage.warning(
       `${t('dataPermission.index.messageLoadScopeTypesFailed')}${err.message || t('dataPermission.index.messageUnknownError')}`
-    )
+    );
   }
-}
+};
 
 const handleSelectRole = (roleId: string) => {
-  selectedRoleId.value = roleId
-  fetchPermissions()
-}
+  selectedRoleId.value = roleId;
+  fetchPermissions();
+};
 
 const handleAddPermission = () => {
-  isEdit.value = false
+  isEdit.value = false;
   Object.assign(permissionForm, {
     roleId: parseInt(selectedRoleId.value),
     resourceType: '',
@@ -303,12 +303,12 @@ const handleAddPermission = () => {
     customCondition: '',
     allowedFields: '',
     hiddenFields: '',
-  })
-  permissionDialogVisible.value = true
-}
+  });
+  permissionDialogVisible.value = true;
+};
 
 const handleEditPermission = (row: DataPermissionRole) => {
-  isEdit.value = true
+  isEdit.value = true;
   Object.assign(permissionForm, {
     roleId: row.roleId,
     resourceType: row.resourceType,
@@ -316,17 +316,17 @@ const handleEditPermission = (row: DataPermissionRole) => {
     customCondition: row.customCondition || '',
     allowedFields: row.allowedFields || '',
     hiddenFields: row.hiddenFields || '',
-  })
-  permissionDialogVisible.value = true
-}
+  });
+  permissionDialogVisible.value = true;
+};
 
 const handleSavePermission = async () => {
-  if (!permissionFormRef.value) return
+  if (!permissionFormRef.value) return;
 
   await permissionFormRef.value.validate(async (valid: boolean) => {
-    if (!valid) return
+    if (!valid) return;
 
-    submitLoading.value = true
+    submitLoading.value = true;
     try {
       await setDataPermission({
         roleId: permissionForm.roleId!,
@@ -341,23 +341,23 @@ const handleSavePermission = async () => {
         hiddenFields: permissionForm.hiddenFields
           ? (permissionForm.hiddenFields as unknown as HiddenFields)
           : undefined,
-      })
-      ElMessage.success(t('dataPermission.index.messageSaveSuccess'))
-      permissionDialogVisible.value = false
-      fetchPermissions()
+      });
+      ElMessage.success(t('dataPermission.index.messageSaveSuccess'));
+      permissionDialogVisible.value = false;
+      fetchPermissions();
     } catch (e: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
       ElMessage.error(
         (e instanceof Error ? e.message : String(e)) || t('dataPermission.index.messageSaveFailed')
-      )
+      );
     } finally {
-      submitLoading.value = false
+      submitLoading.value = false;
     }
-  })
-}
+  });
+};
 
 const handleDeletePermission = async (row: DataPermissionRole) => {
-  if (!row.roleId || !row.resourceType) return
+  if (!row.roleId || !row.resourceType) return;
 
   try {
     await ElMessageBox.confirm(
@@ -368,30 +368,30 @@ const handleDeletePermission = async (row: DataPermissionRole) => {
         cancelButtonText: t('dataPermission.index.buttonCancel'),
         type: 'warning',
       }
-    )
+    );
 
-    await deleteDataPermissionByRole(row.roleId, row.resourceType)
-    ElMessage.success(t('dataPermission.index.messageDeleteSuccess'))
-    fetchPermissions()
+    await deleteDataPermissionByRole(row.roleId, row.resourceType);
+    ElMessage.success(t('dataPermission.index.messageDeleteSuccess'));
+    fetchPermissions();
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
     if (e !== 'cancel') {
       ElMessage.error(
         (e instanceof Error ? e.message : String(e)) ||
           t('dataPermission.index.messageDeleteFailed')
-      )
+      );
     }
   }
-}
+};
 
-const hasLoaded = createLazyLoader()
+const hasLoaded = createLazyLoader();
 
 onMounted(async () => {
   // 先加载角色列表（fetchRoles 会更新 selectedRoleId），再加载权限和范围类型
-  await fetchRoles()
-  fetchPermissions()
-  loadIfNot('scopeTypes', fetchScopeTypes, hasLoaded)
-})
+  await fetchRoles();
+  fetchPermissions();
+  loadIfNot('scopeTypes', fetchScopeTypes, hasLoaded);
+});
 </script>
 
 <style scoped>

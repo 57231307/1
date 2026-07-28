@@ -9,7 +9,7 @@ export {
   approveAPInvoice,
   cancelAPInvoice,
   type APInvoice,
-} from './ap'
+} from './ap';
 
 /**
  * 应付发票状态文本映射
@@ -20,6 +20,6 @@ export function getAPInvoiceStatusText(status: string): string {
     approved: '已审核',
     verified: '已核销',
     cancelled: '已取消',
-  }
-  return map[status] || status
+  };
+  return map[status] || status;
 }

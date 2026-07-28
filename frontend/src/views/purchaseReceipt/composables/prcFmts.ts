@@ -12,23 +12,23 @@ const STATUS_OPTIONS: { label: string; value: string }[] = [
   { label: '全部', value: '' },
   { label: '草稿', value: 'draft' },
   { label: '已审核', value: 'approved' },
-]
+];
 
 /**
  * 获取入库单状态中文标签
  */
 export const getStatusLabel = (value: string): string => {
-  return STATUS_OPTIONS.find(s => s.value === value)?.label || value
-}
+  return STATUS_OPTIONS.find(s => s.value === value)?.label || value;
+};
 
 /**
  * 获取入库单状态 css 类名
  */
 export const getStatusClass = (value: string): string => {
-  return value === 'draft' ? 'status-draft' : 'status-approved'
-}
+  return value === 'draft' ? 'status-draft' : 'status-approved';
+};
 
 /**
  * 暴露状态选项
  */
-export { STATUS_OPTIONS }
+export { STATUS_OPTIONS };

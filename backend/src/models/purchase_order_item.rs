@@ -1,6 +1,4 @@
 #![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
-
 //! 采购订单明细 Model
 //! 用于记录采购订单的明细项
 
@@ -85,7 +83,6 @@ pub struct Model {
     // ========== v14 批次 417：面料行业追溯字段（D-P1-6） ==========
     // 注：SQL 表使用旧命名 color_code/lot_no，保持与 DB 列名一致
     // 术语统一（color_no/dye_lot_no）将在后续术语统一批次处理
-
     /// 色号（SQL 列名：color_code，面料行业追溯字段）
     pub color_code: Option<String>,
 

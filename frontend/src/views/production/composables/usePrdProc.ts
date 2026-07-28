@@ -7,19 +7,20 @@
  * 设计说明：通过 callbacks 接收 usePrd 的状态引用（Reactive 包装层）；
  * 由于 usePrd 返回 reactive({...})，父组件传入 prd.data 等会自动解包为值
  */
-import { reactive } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { reactive } from 'vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { msg } from '@/utils/message';
 import {
   deleteProductionOrder,
   updateProductionOrderStatus,
   type ProductionOrder,
   PRODUCTION_ORDER_STATUS,
-} from '@/api/production'
-import { getStatusLabel } from './prdFmts'
-import { escapeHtml } from '@/utils/print'
+} from '@/api/production';
+import { getStatusLabel } from './prdFmts';
+import { escapeHtml } from '@/utils/print';
 // V15 P0-S12 修复（Batch 475c）：导出改用后端带水印 xlsx 接口
 // 后端 GET /production-orders/orders/export 已就绪（含行级数据权限 + 异步审计日志 + 水印）
-import { exportFromBackend } from '@/utils/export'
+import { exportFromBackend } from '@/utils/export';
 
 /**
  * 流程回调（接收 usePrd 返回的状态，自动解包后的值类型）
@@ -29,11 +30,11 @@ import { exportFromBackend } from '@/utils/export'
  */
 interface PrdCallbacks {
   // 列表数据
-  data: ProductionOrder[]
+  data: ProductionOrder[];
   // 刷新列表
-  refresh: () => Promise<void>
+  refresh: () => Promise<void>;
   // V15 P0-S12 修复（Batch 475c）：获取当前筛选条件（status/product_id），用于导出
-  getQueryParams?: () => { status?: string; product_id?: number }
+  getQueryParams?: () => { status?: string; product_id?: number };
 }
 
 /**
@@ -49,17 +50,17 @@ export function usePrdProc(cb: PrdCallbacks) {
         } 吗？`,
         '确认',
         { type: 'warning' }
-      )
-      await updateProductionOrderStatus(row.id, status)
-      ElMessage.success('状态更新成功')
-      await cb.refresh()
+      );
+      await updateProductionOrderStatus(row.id, status);
+      msg.success('statusUpdateSuccess');
+      await cb.refresh();
     } catch (e: unknown) {
       if (e !== 'cancel') {
-        const err = e as { message?: string }
-        ElMessage.error(err.message || '状态更新失败')
+        const err = e as { message?: string };
+        ElMessage.error(err.message || msg.translate('statusUpdateFailed'));
       }
     }
-  }
+  };
 
   /** 删除订单 */
   const handleDelete = async (row: ProductionOrder) => {
@@ -68,17 +69,17 @@ export function usePrdProc(cb: PrdCallbacks) {
         type: 'warning',
         confirmButtonText: '确定',
         cancelButtonText: '取消',
-      })
-      await deleteProductionOrder(row.id)
-      ElMessage.success('删除成功')
-      await cb.refresh()
+      });
+      await deleteProductionOrder(row.id);
+      msg.success('deleteSuccess');
+      await cb.refresh();
     } catch (e: unknown) {
       if (e !== 'cancel') {
-        const err = e as { message?: string }
-        ElMessage.error(err.message || '删除失败')
+        const err = e as { message?: string };
+        ElMessage.error(err.message || msg.translate('deleteFailed'));
       }
     }
-  }
+  };
 
   /**
    * 导出 Excel（V15 P0-S12 修复 Batch 475c）
@@ -89,23 +90,23 @@ export function usePrdProc(cb: PrdCallbacks) {
    */
   const handleExport = async () => {
     if (cb.data.length === 0) {
-      ElMessage.warning('没有可导出的数据')
-      return
+      msg.warning('noDataToExport');
+      return;
     }
-    const filters = cb.getQueryParams?.() ?? {}
+    const filters = cb.getQueryParams?.() ?? {};
     const params: Record<string, unknown> = {
       status: filters.status || undefined,
       product_id: filters.product_id,
-    }
-    await exportFromBackend('/production-orders/orders/export', params, 'production_orders_export')
-  }
+    };
+    await exportFromBackend('/production-orders/orders/export', params, 'production_orders_export');
+  };
 
   /** 打印 */
   const handlePrint = () => {
-    const printWindow = window.open('', '_blank')
+    const printWindow = window.open('', '_blank');
     if (!printWindow) {
-      ElMessage.error('无法打开打印窗口')
-      return
+      msg.error('printWindowBlocked');
+      return;
     }
     const rows = cb.data
       .map(
@@ -120,14 +121,14 @@ export function usePrdProc(cb: PrdCallbacks) {
     </tr>
   `
       )
-      .join('')
+      .join('');
     printWindow.document.write(`<html><head><meta charset="utf-8"><title>生产订单</title>
     <style>@media print{@page{size:landscape;}}body{font-family:"Microsoft YaHei",sans-serif;font-size:12px;}h1{text-align:center;}table{width:100%;border-collapse:collapse;margin-top:12px;}th,td{border:1px solid #333;padding:6px 8px;}th{background:#f5f5f5;}.meta{text-align:center;color:#666;font-size:11px;}</style></head><body>
     <h1>生产订单列表</h1><div class="meta">打印日期: ${new Date().toISOString().split('T')[0]} | 共 ${cb.data.length} 条</div>
-    <table><thead><tr><th>订单编号</th><th>产品名称</th><th>计划数量</th><th>实际数量</th><th>计划开始</th><th>计划结束</th><th>状态</th><th>优先级</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
-    printWindow.document.close()
-    printWindow.onload = () => printWindow.print()
-  }
+    <table><thead><tr><th>订单编号</th><th>产品名称</th><th>计划数量</th><th>实际数量</th><th>计划开始</th><th>计划结束</th><th>状态</th><th>优先级</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
+    printWindow.document.close();
+    printWindow.onload = () => printWindow.print();
+  };
 
   // 使用 reactive 包装，访问字段时自动解包 ref
   return reactive({
@@ -135,5 +136,5 @@ export function usePrdProc(cb: PrdCallbacks) {
     handleDelete,
     handleExport,
     handlePrint,
-  })
+  });
 }

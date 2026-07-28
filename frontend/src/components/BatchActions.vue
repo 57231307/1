@@ -2,7 +2,8 @@
   <div v-if="selectedRows.length > 0" class="batch-actions">
     <div class="batch-actions-bar">
       <span class="selected-info">
-        {{ t('common.batchActions.selectedPrefix') }}<strong>{{ selectedRows.length }}</strong>{{ t('common.batchActions.selectedSuffix') }}
+        {{ t('common.batchActions.selectedPrefix') }}<strong>{{ selectedRows.length }}</strong
+        >{{ t('common.batchActions.selectedSuffix') }}
       </span>
       <el-space wrap>
         <el-button
@@ -15,7 +16,9 @@
           <el-icon v-if="action.icon"><component :is="action.icon" /></el-icon>
           {{ action.label }}
         </el-button>
-        <el-button type="info" @click="handleClear">{{ t('common.batchActions.clearSelection') }}</el-button>
+        <el-button type="info" @click="handleClear">{{
+          t('common.batchActions.clearSelection')
+        }}</el-button>
       </el-space>
     </div>
 
@@ -43,8 +46,12 @@
         />
       </div>
       <template #footer>
-        <el-button @click="confirmDialogVisible = false">{{ t('common.batchActions.cancel') }}</el-button>
-        <el-button type="primary" :loading="executing" @click="executeAction"> {{ t('common.batchActions.confirmExecute') }} </el-button>
+        <el-button @click="confirmDialogVisible = false">{{
+          t('common.batchActions.cancel')
+        }}</el-button>
+        <el-button type="primary" :loading="executing" @click="executeAction">
+          {{ t('common.batchActions.confirmExecute') }}
+        </el-button>
       </template>
     </el-dialog>
 
@@ -74,47 +81,47 @@
 </template>
 
 <script setup lang="ts" generic="T">
-import { ref, computed, type Component } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Delete, Check, Edit } from '@element-plus/icons-vue'
-import { useI18n } from 'vue-i18n'
-import { logger } from '@/utils/logger'
+import { ref, computed, type Component } from 'vue';
+import { ElMessage } from 'element-plus';
+import { Delete, Check, Edit } from '@element-plus/icons-vue';
+import { useI18n } from 'vue-i18n';
+import { logger } from '@/utils/logger';
 
 // v11 批次 182 P2-1 修复：通用组件保持泛化，icon 类型用 ComponentType，rows 用 unknown
 // FE-P2-2 修复（批次 388 v13 复审）：改造为泛型组件 generic="T"，
 // selectedRows/handler/emit 全部使用 T[] 替代 unknown[]
 
 export interface BatchActionItem<T = unknown> {
-  key: string
-  label: string
-  type?: 'primary' | 'success' | 'warning' | 'danger' | 'info'
-  icon?: Component
-  confirm?: boolean
-  confirmTitle?: string
-  confirmMessage?: string
-  warningMessage?: string
-  handler?: (rows: T[]) => Promise<void> | void
-  disabled?: boolean
+  key: string;
+  label: string;
+  type?: 'primary' | 'success' | 'warning' | 'danger' | 'info';
+  icon?: Component;
+  confirm?: boolean;
+  confirmTitle?: string;
+  confirmMessage?: string;
+  warningMessage?: string;
+  handler?: (rows: T[]) => Promise<void> | void;
+  disabled?: boolean;
 }
 
 interface Props {
-  selectedRows: T[]
-  actions?: BatchActionItem<T>[]
-  showProgress?: boolean
+  selectedRows: T[];
+  actions?: BatchActionItem<T>[];
+  showProgress?: boolean;
 }
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 const props = withDefaults(defineProps<Props>(), {
   actions: () => [],
   showProgress: true,
-})
+});
 
 const emit = defineEmits<{
-  clear: []
-  action: [key: string, rows: T[]]
-  complete: [key: string, success: boolean]
-}>()
+  clear: [];
+  action: [key: string, rows: T[]];
+  complete: [key: string, success: boolean];
+}>();
 
 const defaultActions = computed<BatchActionItem<T>[]>(() => [
   {
@@ -145,87 +152,89 @@ const defaultActions = computed<BatchActionItem<T>[]>(() => [
     icon: Edit,
     handler: async () => {},
   },
-])
+]);
 
 const computedActions = computed(() => {
-  if (props.actions.length > 0) return props.actions
-  return defaultActions.value
-})
+  if (props.actions.length > 0) return props.actions;
+  return defaultActions.value;
+});
 
-const confirmDialogVisible = ref(false)
-const progressDialogVisible = ref(false)
-const currentAction = ref<BatchActionItem<T> | null>(null)
-const executing = ref(false)
-const progressPercent = ref(0)
-const progressStatus = ref<'success' | 'exception' | ''>('')
-const progressText = ref('')
+const confirmDialogVisible = ref(false);
+const progressDialogVisible = ref(false);
+const currentAction = ref<BatchActionItem<T> | null>(null);
+const executing = ref(false);
+const progressPercent = ref(0);
+const progressStatus = ref<'success' | 'exception' | ''>('');
+const progressText = ref('');
 
 const handleAction = async (action: BatchActionItem<T>) => {
-  currentAction.value = action
+  currentAction.value = action;
 
   if (action.confirm) {
-    confirmDialogVisible.value = true
+    confirmDialogVisible.value = true;
   } else {
-    await executeAction()
+    await executeAction();
   }
-}
+};
 
 const executeAction = async () => {
-  if (!currentAction.value) return
+  if (!currentAction.value) return;
 
-  confirmDialogVisible.value = false
-  executing.value = true
+  confirmDialogVisible.value = false;
+  executing.value = true;
 
   if (props.showProgress) {
-    progressDialogVisible.value = true
-    progressPercent.value = 0
-    progressStatus.value = ''
-    progressText.value = t('common.batchActions.executing')
+    progressDialogVisible.value = true;
+    progressPercent.value = 0;
+    progressStatus.value = '';
+    progressText.value = t('common.batchActions.executing');
   }
 
   try {
-    const total = props.selectedRows.length
-    let completed = 0
+    const total = props.selectedRows.length;
+    let completed = 0;
 
     if (props.showProgress) {
-      const items = [...props.selectedRows]
+      const items = [...props.selectedRows];
       for (const item of items) {
         try {
-          await currentAction.value.handler?.([item])
+          await currentAction.value.handler?.([item]);
         } catch (e) {
-          logger.error(`${t('common.batchActions.processItemFailed')}:`, String(e))
+          logger.error(`${t('common.batchActions.processItemFailed')}:`, String(e));
         }
-        completed++
-        progressPercent.value = Math.round((completed / total) * 100)
-        progressText.value = t('common.batchActions.completed', { completed, total })
+        completed++;
+        progressPercent.value = Math.round((completed / total) * 100);
+        progressText.value = t('common.batchActions.completed', { completed, total });
       }
     } else {
-      await currentAction.value.handler?.(props.selectedRows)
-      progressPercent.value = 100
+      await currentAction.value.handler?.(props.selectedRows);
+      progressPercent.value = 100;
     }
 
-    progressStatus.value = 'success'
-    progressText.value = t('common.batchActions.executeComplete')
-    emit('complete', currentAction.value.key, true)
-    ElMessage.success(t('common.batchActions.operationSuccess'))
-    handleClear()
+    progressStatus.value = 'success';
+    progressText.value = t('common.batchActions.executeComplete');
+    emit('complete', currentAction.value.key, true);
+    ElMessage.success(t('common.batchActions.operationSuccess'));
+    handleClear();
   } catch (error: unknown) {
     // v11 批次 182 P2-1 修复：catch (error: any) 改为 catch (error: unknown) + 类型守卫
-    const errMsg = error instanceof Error ? error.message : String(error)
-    progressStatus.value = 'exception'
-    progressText.value = t('common.batchActions.executeFailed', { error: errMsg || t('common.batchActions.unknownError') })
-    emit('complete', currentAction.value.key, false)
-    ElMessage.error(t('common.batchActions.operationFailed'))
+    const errMsg = error instanceof Error ? error.message : String(error);
+    progressStatus.value = 'exception';
+    progressText.value = t('common.batchActions.executeFailed', {
+      error: errMsg || t('common.batchActions.unknownError'),
+    });
+    emit('complete', currentAction.value.key, false);
+    ElMessage.error(t('common.batchActions.operationFailed'));
   } finally {
-    executing.value = false
+    executing.value = false;
   }
-}
+};
 
 const handleClear = () => {
-  emit('clear')
-}
+  emit('clear');
+};
 
-defineExpose({ confirmDialogVisible, progressDialogVisible })
+defineExpose({ confirmDialogVisible, progressDialogVisible });
 </script>
 
 <style scoped>

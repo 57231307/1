@@ -35,12 +35,9 @@ impl InventoryFinanceBridgeService {
                 // 批次 8（2026-06-28）：单次事件处理 panic 隔离
                 // 库存财务桥接监听器 panic 会导致库存交易不再生成会计凭证，
                 // 财务报表与库存数据不一致。
-                let result = AssertUnwindSafe(Self::handle_inventory_event_safe(
-                    db.clone(),
-                    event,
-                ))
-                .catch_unwind()
-                .await;
+                let result = AssertUnwindSafe(Self::handle_inventory_event_safe(db.clone(), event))
+                    .catch_unwind()
+                    .await;
                 if let Err(panic_payload) = result {
                     let panic_msg = panic_payload
                         .downcast_ref::<String>()
@@ -142,7 +139,9 @@ impl InventoryFinanceBridgeService {
         // 重复消费 InventoryTransactionCreated 会导致重复生成会计凭证 + 重复过账，
         // 科目余额累加失真。使用 transaction_id 作为幂等键，处理前检查是否已处理。
         let idempotency_service =
-            crate::services::event_idempotency_service::EventIdempotencyService::new(self.db.clone());
+            crate::services::event_idempotency_service::EventIdempotencyService::new(
+                self.db.clone(),
+            );
         let consumer_id = "inventory_finance_bridge";
         let event_key = format!("inventory_txn:{}", transaction_id);
         let event_type = "InventoryTransactionCreated";

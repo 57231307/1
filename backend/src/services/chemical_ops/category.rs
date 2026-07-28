@@ -28,7 +28,10 @@ use crate::services::chemical_service::{validate_chemical_type, ChemicalCategory
 
 impl ChemicalCategoryService {
     /// 创建染化料分类
-    pub async fn create(&self, req: CreateChemicalCategoryRequest) -> Result<CategoryModel, AppError> {
+    pub async fn create(
+        &self,
+        req: CreateChemicalCategoryRequest,
+    ) -> Result<CategoryModel, AppError> {
         validate_chemical_type(&req.category_type)?;
 
         // 校验父分类存在（若提供）
@@ -151,8 +154,7 @@ impl ChemicalCategoryService {
         &self,
         query: ChemicalCategoryQuery,
     ) -> Result<(Vec<CategoryModel>, u64), AppError> {
-        let mut q = CategoryEntity::find()
-            .filter(chemical_category::Column::IsDeleted.eq(false));
+        let mut q = CategoryEntity::find().filter(chemical_category::Column::IsDeleted.eq(false));
         if let Some(v) = query.parent_id {
             q = q.filter(chemical_category::Column::ParentId.eq(v));
         }

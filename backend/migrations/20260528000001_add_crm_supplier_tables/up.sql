@@ -211,6 +211,33 @@ CREATE INDEX IF NOT EXISTS "idx_supplier_evaluation_indicators_status" ON "suppl
 COMMENT ON TABLE "supplier_evaluation_indicators" IS '供应商评估指标表';
 
 -- ============================================
+-- 7.1 供应商评估记录表（P1 修复：补齐 model 层对应表的 migration）
+-- 对应 model：backend/src/models/supplier_evaluation_record.rs
+-- 记录每次评估的指标得分明细，关联 supplier_evaluation_indicators
+-- ============================================
+CREATE TABLE IF NOT EXISTS "supplier_evaluation_records" (
+    "id" SERIAL PRIMARY KEY,
+    "supplier_id" INTEGER NOT NULL,
+    "evaluation_period" VARCHAR(50) NOT NULL,
+    "indicator_id" INTEGER NOT NULL,
+    "score" DECIMAL(10,2) NOT NULL,
+    "max_score" INTEGER,
+    "weighted_score" DECIMAL(10,2),
+    "evaluator_id" INTEGER,
+    "evaluation_date" DATE,
+    "remark" TEXT,
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "fk_supplier_evaluation_records_supplier" FOREIGN KEY ("supplier_id") REFERENCES "suppliers" ("id"),
+    CONSTRAINT "fk_supplier_evaluation_records_indicator" FOREIGN KEY ("indicator_id") REFERENCES "supplier_evaluation_indicators" ("id"),
+    CONSTRAINT "chk_supplier_eval_score" CHECK ("score" >= 0)
+);
+
+CREATE INDEX IF NOT EXISTS "idx_supplier_evaluation_records_supplier" ON "supplier_evaluation_records" ("supplier_id");
+CREATE INDEX IF NOT EXISTS "idx_supplier_evaluation_records_indicator" ON "supplier_evaluation_records" ("indicator_id");
+CREATE INDEX IF NOT EXISTS "idx_supplier_evaluation_records_period" ON "supplier_evaluation_records" ("evaluation_period");
+COMMENT ON TABLE "supplier_evaluation_records" IS '供应商评估记录表';
+
+-- ============================================
 -- 8. 采购合同表
 -- ============================================
 CREATE TABLE IF NOT EXISTS "purchase_contracts" (

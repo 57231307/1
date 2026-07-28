@@ -20,14 +20,14 @@
  */
 
 export interface LazyLoadState {
-  [key: string]: boolean
+  [key: string]: boolean;
 }
 
 /**
  * 创建懒加载状态对象
  */
 export function createLazyLoader(): LazyLoadState {
-  return {}
+  return {};
 }
 
 /**
@@ -42,8 +42,8 @@ export function loadIfNot(
   state: LazyLoadState
 ): void {
   if (!state[key]) {
-    state[key] = true
-    loadFn()
+    state[key] = true;
+    loadFn();
   }
 }
 
@@ -51,12 +51,12 @@ export function loadIfNot(
  * 重置某个 key 的加载状态（用于刷新）
  */
 export function resetLoad(key: string, state: LazyLoadState): void {
-  state[key] = false
+  state[key] = false;
 }
 
 /**
  * 标记为已加载
  */
 export function markLoaded(key: string, state: LazyLoadState): void {
-  state[key] = true
+  state[key] = true;
 }

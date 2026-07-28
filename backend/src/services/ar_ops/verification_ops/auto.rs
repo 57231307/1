@@ -90,7 +90,9 @@ impl ArService {
             .await?;
         // 查询所有已确认未核销收款（按客户 + 日期）
         let payments = ar_collection::Entity::find()
-            .filter(ar_collection::Column::Status.eq(crate::models::status::ar::COLLECTION_CONFIRMED))
+            .filter(
+                ar_collection::Column::Status.eq(crate::models::status::ar::COLLECTION_CONFIRMED),
+            )
             .order_by(ar_collection::Column::CustomerId, Order::Asc)
             .order_by(ar_collection::Column::CollectionDate, Order::Asc)
             .all(txn)
@@ -159,9 +161,7 @@ impl ArService {
                 continue;
             }
             // 创建核销单
-            let customer_name = cust_invoices
-                .first()
-                .and_then(|i| i.customer_name.clone());
+            let customer_name = cust_invoices.first().and_then(|i| i.customer_name.clone());
             let reconciliation = self
                 .create_payment_reconciliation_record(
                     customer_id,
@@ -215,7 +215,9 @@ impl ArService {
             total_invoices: Set(total_amount),
             total_collections: Set(total_amount),
             closing_balance: Set(Decimal::ZERO),
-            reconciliation_status: Set(Some(crate::models::status::ar::RECONCILIATION_CLOSED.to_string())),
+            reconciliation_status: Set(Some(
+                crate::models::status::ar::RECONCILIATION_CLOSED.to_string(),
+            )),
             confirmed_by: Set(Some(user_id)),
             confirmed_at: Set(Some(now)),
             created_by: Set(Some(user_id)),
@@ -405,7 +407,8 @@ impl ArService {
     /// 累加发票核销金额并更新状态（PAID / PARTIAL_PAID）
     fn update_invoice_state(invoice: &mut ar_invoice::Model, verify_amount: Decimal) {
         invoice.received_amount += verify_amount;
-        invoice.unpaid_amount = (invoice.invoice_amount - invoice.received_amount).max(Decimal::ZERO);
+        invoice.unpaid_amount =
+            (invoice.invoice_amount - invoice.received_amount).max(Decimal::ZERO);
         invoice.status = if invoice.unpaid_amount == Decimal::ZERO {
             crate::models::status::payment::PAYMENT_PAID.to_string()
         } else {

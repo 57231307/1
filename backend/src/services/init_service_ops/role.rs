@@ -128,25 +128,104 @@ impl InitService {
             // 管理层 → all
             ("总经理", "gm", "全公司最高管理权限", "all"),
             ("副总经理", "deputy_gm", "分管副总管理权限", "all"),
+            // V15 P1 Batch-10 12.1：补齐 super_admin 角色（系统配置与运维，区别于业务 admin）
+            (
+                "超级管理员",
+                "super_admin",
+                "系统级配置与运维管理（仅用于系统配置）",
+                "all",
+            ),
             // 销售域
             ("销售经理", "sales_manager", "销售业务管理与审批", "dept"),
             ("销售代表", "sales_rep", "销售订单录入与客户跟进", "self"),
+            // V15 P1 Batch-10 12.1：补齐 sales 角色（审计计划 12.1.4 要求的简短别名）
+            (
+                "销售员",
+                "sales",
+                "销售基础操作（订单录入与客户跟进）",
+                "self",
+            ),
+            // V15 P1 Batch-10 12.1：补齐 customer_service 角色
+            ("客户服务", "customer_service", "客户服务与售后跟进", "self"),
             // 采购域
             ("采购经理", "purchase_manager", "采购业务管理与审批", "dept"),
-            ("采购员", "purchase_clerk", "采购订单录入与供应商对接", "self"),
-            ("寻源专员", "sourcing_specialist", "供应商开发与寻源询价", "self"),
+            (
+                "采购员",
+                "purchase_clerk",
+                "采购订单录入与供应商对接",
+                "self",
+            ),
+            (
+                "寻源专员",
+                "sourcing_specialist",
+                "供应商开发与寻源询价",
+                "self",
+            ),
             // 库存仓储域
-            ("库存经理", "inventory_manager", "库存管理与调拨审批", "dept"),
-            ("仓库管理员", "warehouse_keeper", "仓库收发货与库存操作", "self"),
+            (
+                "库存经理",
+                "inventory_manager",
+                "库存管理与调拨审批",
+                "dept",
+            ),
+            (
+                "仓库管理员",
+                "warehouse_keeper",
+                "仓库收发货与库存操作",
+                "self",
+            ),
+            // V15 P1 Batch-10 12.1：补齐 warehouse_manager / warehouse 简短别名
+            (
+                "仓库经理",
+                "warehouse_manager",
+                "仓库业务管理与调拨审批",
+                "dept",
+            ),
+            ("仓库员", "warehouse", "仓库收发货与库存操作", "self"),
             // 生产域（面料行业深化）
-            ("生产经理", "production_manager", "生产计划与排程管理", "dept"),
+            (
+                "生产经理",
+                "production_manager",
+                "生产计划与排程管理",
+                "dept",
+            ),
             ("染色主管", "dyeing_master", "染色生产与配方管理", "self"),
-            ("后整理主管", "finishing_master", "定型预缩柔软等后整理工序", "self"),
-            ("化验室技术员", "lab_technician", "打样配方开发与颜色管理", "self"),
-            ("染色配方主管", "dye_recipe_master", "染色配方管理与审批发布", "self"),
-            ("胚布管理员", "greige_manager", "胚布采购库存与委托加工", "self"),
-            ("染化料管理员", "chemical_manager", "染料助剂化学品采购存储领用", "self"),
-            ("设备维护主管", "maintenance_supervisor", "设备管理与维修计划", "self"),
+            (
+                "后整理主管",
+                "finishing_master",
+                "定型预缩柔软等后整理工序",
+                "self",
+            ),
+            (
+                "化验室技术员",
+                "lab_technician",
+                "打样配方开发与颜色管理",
+                "self",
+            ),
+            (
+                "染色配方主管",
+                "dye_recipe_master",
+                "染色配方管理与审批发布",
+                "self",
+            ),
+            (
+                "胚布管理员",
+                "greige_manager",
+                "胚布采购库存与委托加工",
+                "self",
+            ),
+            (
+                "染化料管理员",
+                "chemical_manager",
+                "染料助剂化学品采购存储领用",
+                "self",
+            ),
+            (
+                "设备维护主管",
+                "maintenance_supervisor",
+                "设备管理与维修计划",
+                "self",
+            ),
         ];
         tuples
             .iter()
@@ -159,9 +238,19 @@ impl InitService {
     fn build_back_business_roles(now: chrono::DateTime<chrono::Utc>) -> Vec<role::ActiveModel> {
         let tuples: &[(&str, &str, &str, &str)] = &[
             // 质量域
-            ("质量管理经理", "qc_manager", "质量体系管理与8D流程协调", "dept"),
+            (
+                "质量管理经理",
+                "qc_manager",
+                "质量体系管理与8D流程协调",
+                "dept",
+            ),
             ("质检员", "quality_inspector", "质量检验与异常处理", "self"),
-            ("验布员", "fabric_inspector", "面料检验与十项物理指标检测", "self"),
+            (
+                "验布员",
+                "fabric_inspector",
+                "面料检验与十项物理指标检测",
+                "self",
+            ),
             // 财务域
             ("财务经理", "finance_manager", "财务管理与凭证审批", "dept"),
             ("会计", "accountant", "会计凭证录入与对账", "self"),
@@ -171,13 +260,28 @@ impl InitService {
             ("CRM经理", "crm_manager", "CRM管理与客户分配", "dept"),
             ("CRM专员", "crm_rep", "线索跟进与商机管理", "self"),
             // 物流域
-            ("物流协调员", "logistics_coordinator", "运单管理与物流跟踪", "self"),
-            ("报关专员", "customs_specialist", "进出口报关与贸易合规", "self"),
+            (
+                "物流协调员",
+                "logistics_coordinator",
+                "运单管理与物流跟踪",
+                "self",
+            ),
+            (
+                "报关专员",
+                "customs_specialist",
+                "进出口报关与贸易合规",
+                "self",
+            ),
             // 人力资源域
             ("人事经理", "hr_manager", "员工管理与考勤工资审批", "dept"),
             ("人事专员", "hr_specialist", "员工档案与考勤录入", "self"),
             // 安全环保域
-            ("安全环保专员", "safety_officer", "安全生产与环保合规", "self"),
+            (
+                "安全环保专员",
+                "safety_officer",
+                "安全生产与环保合规",
+                "self",
+            ),
             // IT/数据域
             ("系统管理员", "system_admin", "系统配置与用户管理", "all"),
             ("数据分析师", "data_analyst", "BI报表与数据分析", "all"),

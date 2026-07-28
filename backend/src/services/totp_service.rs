@@ -140,10 +140,7 @@ impl TotpService {
     /// - 明文仅在生成时返回一次，后续无法获取
     /// - 哈希使用 argon2id（与密码哈希同算法）
     /// - 每次生成会覆盖旧恢复码
-    pub async fn generate_recovery_codes(
-        &self,
-        user_id: i32,
-    ) -> Result<Vec<String>, AppError> {
+    pub async fn generate_recovery_codes(&self, user_id: i32) -> Result<Vec<String>, AppError> {
         use argon2::password_hash::rand_core::{OsRng, RngCore};
         use argon2::password_hash::{PasswordHasher, SaltString};
         use argon2::{Algorithm as ArgonAlgorithm, Argon2, Params, Version};
@@ -204,11 +201,7 @@ impl TotpService {
     ///
     /// 验证恢复码是否匹配，匹配成功后消耗该恢复码（从列表中删除）。
     /// 返回 true 表示验证成功，false 表示恢复码无效。
-    pub async fn verify_recovery_code(
-        &self,
-        user_id: i32,
-        code: &str,
-    ) -> Result<bool, AppError> {
+    pub async fn verify_recovery_code(&self, user_id: i32, code: &str) -> Result<bool, AppError> {
         use argon2::password_hash::{PasswordHash, PasswordVerifier};
         use argon2::Argon2;
 

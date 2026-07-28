@@ -198,8 +198,7 @@ pub async fn list_bulk_color_approvals(
     _auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ListBulkColorApprovalQuery>,
-) -> Result<Json<ApiResponse<BulkColorApprovalPagedResponse<BulkColorApprovalInfo>>>, AppError>
-{
+) -> Result<Json<ApiResponse<BulkColorApprovalPagedResponse<BulkColorApprovalInfo>>>, AppError> {
     let service = BulkColorApprovalService::from_state(&state);
     let page = query.page.unwrap_or(1).clamp(1, 1000);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 200);
@@ -207,14 +206,12 @@ pub async fn list_bulk_color_approvals(
     let (items, total) = service.list(query).await.map_err(bca_err)?;
     let infos: Vec<BulkColorApprovalInfo> = items.into_iter().map(Into::into).collect();
 
-    Ok(Json(ApiResponse::success(
-        BulkColorApprovalPagedResponse {
-            items: infos,
-            total,
-            page,
-            page_size,
-        },
-    )))
+    Ok(Json(ApiResponse::success(BulkColorApprovalPagedResponse {
+        items: infos,
+        total,
+        page,
+        page_size,
+    })))
 }
 
 /// GET /api/v1/erp/bulk-color-approvals/:id - 批色记录详情
@@ -326,6 +323,9 @@ pub async fn scrap(
     Json(dto): Json<ScrapDto>,
 ) -> Result<Json<ApiResponse<BulkColorApprovalInfo>>, AppError> {
     let service = BulkColorApprovalService::from_state(&state);
-    let record = service.scrap(id, dto.reject_reason).await.map_err(bca_err)?;
+    let record = service
+        .scrap(id, dto.reject_reason)
+        .await
+        .map_err(bca_err)?;
     Ok(Json(ApiResponse::success(record.into())))
 }

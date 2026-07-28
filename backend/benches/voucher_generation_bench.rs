@@ -11,9 +11,7 @@ use bingxi_backend::services::voucher_service::VoucherService;
 /// 基准：available_voucher_types 单次调用
 fn bench_available_voucher_types(c: &mut Criterion) {
     c.bench_function("available_voucher_types_单次调用", |b| {
-        b.iter(|| {
-            black_box(VoucherService::available_voucher_types())
-        })
+        b.iter(|| black_box(VoucherService::available_voucher_types()))
     });
 }
 

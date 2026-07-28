@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { ref, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import {
   ElTable,
   ElTableColumn,
@@ -20,33 +20,28 @@ import {
   ElResult,
   ElDivider,
   ElPagination,
-} from 'element-plus'
-import { Search, Box, Refresh } from '@element-plus/icons-vue'
-import {
-  scanToShip,
-  scanInventory,
-  type ScanData,
-  type ScanHistory,
-} from '@/api/barcode-scanner'
-import type { ApiResponse } from '@/types/api'
-import { useTableApi } from '@/composables/useTableApi'
-import { logger } from '@/utils/logger'
+} from 'element-plus';
+import { Search, Box, Refresh } from '@element-plus/icons-vue';
+import { scanToShip, scanInventory, type ScanData, type ScanHistory } from '@/api/barcode-scanner';
+import type { ApiResponse } from '@/types/api';
+import { useTableApi } from '@/composables/useTableApi';
+import { logger } from '@/utils/logger';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const activeTab = ref('scan')
-const barcodeInput = ref('')
-const orderId = ref(0)
-const scanResult = ref<ScanData | null>(null)
-const scanMessage = ref('')
-const scanSuccess = ref(false)
+const activeTab = ref('scan');
+const barcodeInput = ref('');
+const orderId = ref(0);
+const scanResult = ref<ScanData | null>(null);
+const scanMessage = ref('');
+const scanSuccess = ref(false);
 // scan/ship tab 独立 loading（不接入 useTableApi）
-const scanLoading = ref(false)
+const scanLoading = ref(false);
 
 const shipForm = ref({
   orderId: 0,
   barcode: '',
-})
+});
 
 // 批次 390：history tab 接入 useTableApi，修复 0-based 分页 bug
 // 原代码第 118 行 getScanHistory(pagination.value.page - 1, ...) 为 0-based 分页，
@@ -64,75 +59,79 @@ const {
   url: '/scanner/history',
   defaultPageSize: 20,
   onError: (err: unknown) => {
-    logger.error(t('barcodeScanner.message.fetchHistoryFailed'), err)
-    ElMessage.error(t('barcodeScanner.message.fetchHistoryFailed'))
+    logger.error(t('barcodeScanner.message.fetchHistoryFailed'), err);
+    ElMessage.error(t('barcodeScanner.message.fetchHistoryFailed'));
   },
-})
+});
 
 const statusOptions = computed(() => [
   { label: t('barcodeScanner.status.inStock'), value: 'IN_STOCK' },
   { label: t('barcodeScanner.status.shipped'), value: 'SHIPPED' },
   { label: t('barcodeScanner.status.scrapped'), value: 'SCRAPPED' },
-])
+]);
 
 const getStatusLabel = (value: string) => {
-  return statusOptions.value.find(s => s.value === value)?.label || value
-}
+  return statusOptions.value.find(s => s.value === value)?.label || value;
+};
 
 const handleScan = async () => {
   if (!barcodeInput.value.trim()) {
-    ElMessage.warning(t('barcodeScanner.message.barcodeRequired'))
-    return
+    ElMessage.warning(t('barcodeScanner.message.barcodeRequired'));
+    return;
   }
-  scanLoading.value = true
+  scanLoading.value = true;
   try {
     // v11 批次 146 P1-3 修复：拦截器已返回 ApiResponse 完整对象，
     // res.data 即业务数据（ScanResult/ScanData），无需 res.data!.data 双层访问
-    const res = await scanInventory(barcodeInput.value)
-    const data = (res as ApiResponse<ScanData> | undefined)?.data
-    scanResult.value = data ?? null
-    scanSuccess.value = true
-    scanMessage.value = t('barcodeScanner.message.scanSuccess')
+    const res = await scanInventory(barcodeInput.value);
+    const data = (res as ApiResponse<ScanData> | undefined)?.data;
+    scanResult.value = data ?? null;
+    scanSuccess.value = true;
+    scanMessage.value = t('barcodeScanner.message.scanSuccess');
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    scanSuccess.value = false
-    scanMessage.value = (error as { response?: { data?: { message?: string } } }).response?.data?.message || t('barcodeScanner.message.scanFailed')
-    scanResult.value = null
+    scanSuccess.value = false;
+    scanMessage.value =
+      (error as { response?: { data?: { message?: string } } }).response?.data?.message ||
+      t('barcodeScanner.message.scanFailed');
+    scanResult.value = null;
   } finally {
-    scanLoading.value = false
+    scanLoading.value = false;
   }
-}
+};
 
 const handleScanToShip = async () => {
   if (!barcodeInput.value.trim()) {
-    ElMessage.warning(t('barcodeScanner.message.barcodeRequired'))
-    return
+    ElMessage.warning(t('barcodeScanner.message.barcodeRequired'));
+    return;
   }
   if (!orderId.value) {
-    ElMessage.warning(t('barcodeScanner.message.orderIdRequired'))
-    return
+    ElMessage.warning(t('barcodeScanner.message.orderIdRequired'));
+    return;
   }
-  scanLoading.value = true
+  scanLoading.value = true;
   try {
     // v11 批次 146 P1-3 修复：拦截器已返回 ApiResponse 完整对象，
     // res.data 即业务数据（ScanToShipResponse），无需 res.data!.data 双层访问
     const res = await scanToShip({
       barcode: barcodeInput.value,
       order_id: Number(orderId.value),
-    })
-    const data = (res as ApiResponse<{ message?: string }> | undefined)?.data
-    scanSuccess.value = true
-    scanMessage.value = data?.message || t('barcodeScanner.message.shipSuccess')
-    scanResult.value = null
-    barcodeInput.value = ''
+    });
+    const data = (res as ApiResponse<{ message?: string }> | undefined)?.data;
+    scanSuccess.value = true;
+    scanMessage.value = data?.message || t('barcodeScanner.message.shipSuccess');
+    scanResult.value = null;
+    barcodeInput.value = '';
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    scanSuccess.value = false
-    scanMessage.value = (error as { response?: { data?: { message?: string } } }).response?.data?.message || t('barcodeScanner.message.shipFailed')
+    scanSuccess.value = false;
+    scanMessage.value =
+      (error as { response?: { data?: { message?: string } } }).response?.data?.message ||
+      t('barcodeScanner.message.shipFailed');
   } finally {
-    scanLoading.value = false
+    scanLoading.value = false;
   }
-}
+};
 
 // 批次 390：history tab 由 useTableApi setup 自动加载，无需手动调 loadHistory()
 </script>
@@ -170,18 +169,36 @@ const handleScanToShip = async () => {
             <ElDivider />
             <h4>{{ $t('barcodeScanner.scan.pieceInfo') }}</h4>
             <ElDescriptions :column="3" border>
-              <ElDescriptionsItem :label="$t('barcodeScanner.detail.barcode')">{{ scanResult.barcode }}</ElDescriptionsItem>
-              <ElDescriptionsItem :label="$t('barcodeScanner.detail.pieceNo')">{{ scanResult.piece_no }}</ElDescriptionsItem>
-              <ElDescriptionsItem :label="$t('barcodeScanner.detail.productId')">{{ scanResult.product_id }}</ElDescriptionsItem>
+              <ElDescriptionsItem :label="$t('barcodeScanner.detail.barcode')">{{
+                scanResult.barcode
+              }}</ElDescriptionsItem>
+              <ElDescriptionsItem :label="$t('barcodeScanner.detail.pieceNo')">{{
+                scanResult.piece_no
+              }}</ElDescriptionsItem>
+              <ElDescriptionsItem :label="$t('barcodeScanner.detail.productId')">{{
+                scanResult.product_id
+              }}</ElDescriptionsItem>
               <ElDescriptionsItem :label="$t('barcodeScanner.detail.productName')">{{
                 scanResult.product_name
               }}</ElDescriptionsItem>
-              <ElDescriptionsItem :label="$t('barcodeScanner.detail.batchNo')">{{ scanResult.batch_no }}</ElDescriptionsItem>
-              <ElDescriptionsItem :label="$t('barcodeScanner.detail.colorNo')">{{ scanResult.color_no }}</ElDescriptionsItem>
-              <ElDescriptionsItem :label="$t('barcodeScanner.detail.grade')">{{ scanResult.grade }}</ElDescriptionsItem>
-              <ElDescriptionsItem :label="$t('barcodeScanner.detail.quantityMeters')">{{ scanResult.quantity_meters }}</ElDescriptionsItem>
-              <ElDescriptionsItem :label="$t('barcodeScanner.detail.quantityKg')">{{ scanResult.quantity_kg }}</ElDescriptionsItem>
-              <ElDescriptionsItem :label="$t('barcodeScanner.detail.warehouseId')">{{ scanResult.warehouse_id }}</ElDescriptionsItem>
+              <ElDescriptionsItem :label="$t('barcodeScanner.detail.batchNo')">{{
+                scanResult.batch_no
+              }}</ElDescriptionsItem>
+              <ElDescriptionsItem :label="$t('barcodeScanner.detail.colorNo')">{{
+                scanResult.color_no
+              }}</ElDescriptionsItem>
+              <ElDescriptionsItem :label="$t('barcodeScanner.detail.grade')">{{
+                scanResult.grade
+              }}</ElDescriptionsItem>
+              <ElDescriptionsItem :label="$t('barcodeScanner.detail.quantityMeters')">{{
+                scanResult.quantity_meters
+              }}</ElDescriptionsItem>
+              <ElDescriptionsItem :label="$t('barcodeScanner.detail.quantityKg')">{{
+                scanResult.quantity_kg
+              }}</ElDescriptionsItem>
+              <ElDescriptionsItem :label="$t('barcodeScanner.detail.warehouseId')">{{
+                scanResult.warehouse_id
+              }}</ElDescriptionsItem>
               <ElDescriptionsItem :label="$t('barcodeScanner.detail.warehouseName')">{{
                 scanResult.warehouse_name
               }}</ElDescriptionsItem>
@@ -202,7 +219,11 @@ const handleScanToShip = async () => {
 
       <ElTabPane :label="$t('barcodeScanner.tabs.ship')" name="ship">
         <ElCard :title="$t('barcodeScanner.ship.cardTitle')" class="scan-card">
-          <ElForm :model="shipForm" label-width="100px" :aria-label="$t('barcodeScanner.ship.formAriaLabel')">
+          <ElForm
+            :model="shipForm"
+            label-width="100px"
+            :aria-label="$t('barcodeScanner.ship.formAriaLabel')"
+          >
             <ElRow :gutter="20">
               <ElCol :span="8">
                 <ElFormItem :label="$t('barcodeScanner.ship.orderId')">
@@ -256,7 +277,9 @@ const handleScanToShip = async () => {
 
       <ElTabPane :label="$t('barcodeScanner.tabs.history')" name="history">
         <div class="filter-actions" style="margin-bottom: 20px">
-          <ElButton @click="loadHistory"> <Refresh /> {{ $t('barcodeScanner.history.refresh') }} </ElButton>
+          <ElButton @click="loadHistory">
+            <Refresh /> {{ $t('barcodeScanner.history.refresh') }}
+          </ElButton>
         </div>
 
         <ElTable
@@ -270,8 +293,16 @@ const handleScanToShip = async () => {
         >
           <ElTableColumn prop="id" :label="$t('barcodeScanner.history.id')" width="80" />
           <ElTableColumn prop="barcode" :label="$t('barcodeScanner.history.barcode')" width="180" />
-          <ElTableColumn prop="piece_no" :label="$t('barcodeScanner.history.pieceNo')" width="150" />
-          <ElTableColumn prop="scan_type" :label="$t('barcodeScanner.history.scanType')" width="120" />
+          <ElTableColumn
+            prop="piece_no"
+            :label="$t('barcodeScanner.history.pieceNo')"
+            width="150"
+          />
+          <ElTableColumn
+            prop="scan_type"
+            :label="$t('barcodeScanner.history.scanType')"
+            width="120"
+          />
           <ElTableColumn prop="result" :label="$t('barcodeScanner.history.result')" width="150" />
           <ElTableColumn prop="created_at" :label="$t('barcodeScanner.history.time')" width="180" />
         </ElTable>

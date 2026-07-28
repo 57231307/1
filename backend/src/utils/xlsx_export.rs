@@ -17,7 +17,7 @@
 use crate::utils::error::AppError;
 use axum::http::{header, HeaderValue};
 use axum::response::Response;
-use rust_xlsxwriter::{Format, FormatAlign, FormatBorder, Workbook};
+use rust_xlsxwriter::{Format, FormatAlign, FormatBorder, Workbook, Worksheet};
 
 /// xlsx 表格数据（标题行 + 数据行）
 pub struct XlsxTable {
@@ -29,10 +29,7 @@ pub struct XlsxTable {
     pub rows: Vec<Vec<String>>,
 }
 
-/// V15 P0-S15 新增：导出水印配置（合规审计与防篡改）
-///
-/// 字段全部为 `Option<String>`，允许调用方按需填充；任何字段为 `None` 时
-/// 该维度水印信息将省略（不显示占位符）。水印行整体为空时跳过插入。
+/// 导出水印配置（合规审计与防篡改），字段全为 Option，任一为 None 则省略该维度
 #[derive(Debug, Clone, Default)]
 pub struct WatermarkConfig {
     /// 操作员用户名（来自 AuthContext.username）
@@ -46,9 +43,7 @@ pub struct WatermarkConfig {
 }
 
 impl WatermarkConfig {
-    /// 渲染为单行水印文本（用 4 空格分隔各维度）
-    ///
-    /// 任一字段存在即输出；全部为 None 时返回 None（调用方据此决定是否插入水印行）。
+    /// 渲染为单行水印文本（用 4 空格分隔各维度），全为 None 时返回 None
     pub fn render(&self) -> Option<String> {
         let mut parts: Vec<String> = Vec::new();
         if let Some(op) = &self.operator {
@@ -71,13 +66,7 @@ impl WatermarkConfig {
     }
 }
 
-/// 从 XlsxTable 构建 xlsx 字节流
-///
-/// 自动应用：
-/// - 标题行加粗 + 浅灰背景
-/// - 全表边框
-/// - 冻结首行
-/// - 列宽自适应（基于内容长度估算）
+/// 从 XlsxTable 构建 xlsx 字节流（标题加粗+冻结首行+列宽自适应+全表边框）
 pub fn build_xlsx(table: &XlsxTable) -> Result<Vec<u8>, AppError> {
     let mut workbook = Workbook::new();
     let worksheet = workbook
@@ -85,70 +74,25 @@ pub fn build_xlsx(table: &XlsxTable) -> Result<Vec<u8>, AppError> {
         .set_name(&table.sheet_name)
         .map_err(|e| AppError::internal(format!("xlsx 工作表名称错误: {}", e)))?;
 
-    // 标题行格式：加粗 + 浅灰背景 + 边框 + 居中对齐
-    let header_format = Format::new()
-        .set_bold()
-        .set_background_color("#E0E0E0")
-        .set_border(FormatBorder::Thin)
-        .set_align(FormatAlign::Center)
-        .set_align(FormatAlign::VerticalCenter);
+    let header_format = make_header_format();
+    let data_format = make_data_format();
 
-    // 数据行格式：边框 + 垂直居中
-    let data_format = Format::new()
-        .set_border(FormatBorder::Thin)
-        .set_align(FormatAlign::VerticalCenter);
+    write_header_row(worksheet, 0, &table.headers, &header_format)?;
+    write_data_rows(worksheet, 1, &table.rows, &data_format)?;
 
-    // 写入标题行
-    for (col, header) in table.headers.iter().enumerate() {
-        worksheet
-            .write_with_format(0, col as u16, header, &header_format)
-            .map_err(|e| AppError::internal(format!("xlsx 写入标题失败: {}", e)))?;
-    }
-
-    // 写入数据行
-    for (row_idx, row) in table.rows.iter().enumerate() {
-        for (col, cell) in row.iter().enumerate() {
-            worksheet
-                .write_with_format((row_idx + 1) as u32, col as u16, cell, &data_format)
-                .map_err(|e| AppError::internal(format!("xlsx 写入数据失败: {}", e)))?;
-        }
-    }
-
-    // 冻结首行
     worksheet
         .set_freeze_panes(1, 0)
         .map_err(|e| AppError::internal(format!("xlsx 冻结首行失败: {}", e)))?;
 
-    // 列宽自适应（基于内容长度估算，最大 50，最小 10）
-    for col in 0..table.headers.len() {
-        let max_len = table
-            .rows
-            .iter()
-            .map(|row| {
-                row.get(col)
-                    .map(|s| s.chars().count())
-                    .unwrap_or(0)
-            })
-            .max()
-            .unwrap_or(0);
-        let header_len = table.headers.get(col).map(|s| s.chars().count()).unwrap_or(0);
-        let width = ((max_len.max(header_len) as f64) * 1.2 + 2.0).clamp(10.0, 50.0);
-        worksheet
-            .set_column_width(col as u16, width)
-            .map_err(|e| AppError::internal(format!("xlsx 设置列宽失败: {}", e)))?;
-    }
+    set_column_widths(worksheet, &table.headers, &table.rows)?;
 
-    // 保存到内存
     let bytes = workbook
         .save_to_buffer()
         .map_err(|e| AppError::internal(format!("xlsx 保存失败: {}", e)))?;
     Ok(bytes)
 }
 
-/// 构造 xlsx 下载响应
-///
-/// - Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
-/// - Content-Disposition: attachment; filename="<filename>.xlsx"
+/// 构造 xlsx 下载响应（含 Content-Type 和 Content-Disposition 头）
 pub fn xlsx_response(bytes: Vec<u8>, filename: &str) -> Response {
     let mut response = Response::new(bytes.into());
     let headers = response.headers_mut();
@@ -171,21 +115,7 @@ pub fn build_xlsx_response(table: &XlsxTable, filename: &str) -> Result<Response
     Ok(xlsx_response(bytes, filename))
 }
 
-/// V15 P0-S15 新增：带水印的 xlsx 构建
-///
-/// 在 `build_xlsx` 基础上，于标题行上方插入 1 行水印信息（合并所有列），
-/// 记录操作员、客户端 IP、导出时间戳。水印行格式：
-/// - 浅黄色背景（#FFF7CC）
-/// - 红色字体（#CC0000）
-/// - 居中对齐 + 加粗
-///
-/// 布局调整：
-/// - 第 0 行：水印信息（合并所有列）
-/// - 第 1 行：标题行（原第 0 行）
-/// - 第 2 行起：数据行（原第 1 行起）
-/// - 冻结前 2 行（水印行 + 标题行）
-///
-/// 当 `watermark.render()` 返回 None 时退化为 `build_xlsx` 行为。
+/// 带水印的 xlsx 构建：标题行上方插入水印行，render() 为 None 时退化为 build_xlsx
 pub fn build_xlsx_with_watermark(
     table: &XlsxTable,
     watermark: &WatermarkConfig,
@@ -201,95 +131,24 @@ pub fn build_xlsx_with_watermark(
         .set_name(&table.sheet_name)
         .map_err(|e| AppError::internal(format!("xlsx 工作表名称错误: {}", e)))?;
 
-    // 水印行格式：浅黄背景 + 红色字体 + 居中 + 加粗 + 边框
-    let watermark_format = Format::new()
-        .set_bold()
-        .set_font_color("#CC0000")
-        .set_background_color("#FFF7CC")
-        .set_border(FormatBorder::Thin)
-        .set_align(FormatAlign::Center)
-        .set_align(FormatAlign::VerticalCenter);
+    let watermark_format = make_watermark_format();
+    let header_format = make_header_format();
+    let data_format = make_data_format();
 
-    // 标题行格式：加粗 + 浅灰背景 + 边框 + 居中对齐
-    let header_format = Format::new()
-        .set_bold()
-        .set_background_color("#E0E0E0")
-        .set_border(FormatBorder::Thin)
-        .set_align(FormatAlign::Center)
-        .set_align(FormatAlign::VerticalCenter);
+    write_watermark_row(
+        worksheet,
+        &watermark_text,
+        table.headers.len(),
+        &watermark_format,
+    )?;
+    write_header_row(worksheet, 1, &table.headers, &header_format)?;
+    write_data_rows(worksheet, 2, &table.rows, &data_format)?;
 
-    // 数据行格式：边框 + 垂直居中
-    let data_format = Format::new()
-        .set_border(FormatBorder::Thin)
-        .set_align(FormatAlign::VerticalCenter);
-
-    // 第 0 行：水印信息（写入 A1 单元格，其余列仍写入空字符串保持边框完整）
-    worksheet
-        .write_with_format(0, 0, &watermark_text, &watermark_format)
-        .map_err(|e| AppError::internal(format!("xlsx 写入水印失败: {}", e)))?;
-    // 水印行其余列写入空字符串以应用边框（视觉上一行完整）
-    for col in 1..table.headers.len() {
-        worksheet
-            .write_with_format(0, col as u16, "", &watermark_format)
-            .map_err(|e| AppError::internal(format!("xlsx 写入水印占位失败: {}", e)))?;
-    }
-    // 合并水印行所有列（视觉上一行合并单元格）
-    if table.headers.len() > 1 {
-        worksheet
-            .merge_range(
-                0,
-                0,
-                0,
-                (table.headers.len() - 1) as u16,
-                &watermark_text,
-                &watermark_format,
-            )
-            .map_err(|e| AppError::internal(format!("xlsx 合并水印行失败: {}", e)))?;
-    }
-
-    // 第 1 行：标题行
-    for (col, header) in table.headers.iter().enumerate() {
-        worksheet
-            .write_with_format(1, col as u16, header, &header_format)
-            .map_err(|e| AppError::internal(format!("xlsx 写入标题失败: {}", e)))?;
-    }
-
-    // 第 2 行起：数据行
-    for (row_idx, row) in table.rows.iter().enumerate() {
-        for (col, cell) in row.iter().enumerate() {
-            worksheet
-                .write_with_format((row_idx + 2) as u32, col as u16, cell, &data_format)
-                .map_err(|e| AppError::internal(format!("xlsx 写入数据失败: {}", e)))?;
-        }
-    }
-
-    // 冻结前 2 行（水印行 + 标题行）
     worksheet
         .set_freeze_panes(2, 0)
         .map_err(|e| AppError::internal(format!("xlsx 冻结前 2 行失败: {}", e)))?;
 
-    // 列宽自适应（基于内容长度估算，最大 50，最小 10）
-    // V15 P0-S15：水印文本长度也参与列宽估算，避免水印行被截断
-    for col in 0..table.headers.len() {
-        let max_len = table
-            .rows
-            .iter()
-            .map(|row| {
-                row.get(col)
-                    .map(|s| s.chars().count())
-                    .unwrap_or(0)
-            })
-            .max()
-            .unwrap_or(0);
-        let header_len = table.headers.get(col).map(|s| s.chars().count()).unwrap_or(0);
-        // 水印文本总长度按列数均分估算（每列至少容纳平均长度）
-        let watermark_len = watermark_text.chars().count() / table.headers.len().max(1);
-        let width = ((max_len.max(header_len).max(watermark_len) as f64) * 1.2 + 2.0)
-            .clamp(10.0, 50.0);
-        worksheet
-            .set_column_width(col as u16, width)
-            .map_err(|e| AppError::internal(format!("xlsx 设置列宽失败: {}", e)))?;
-    }
+    set_watermark_column_widths(worksheet, &table.headers, &table.rows, &watermark_text)?;
 
     let bytes = workbook
         .save_to_buffer()
@@ -297,9 +156,7 @@ pub fn build_xlsx_with_watermark(
     Ok(bytes)
 }
 
-/// V15 P0-S15 新增：带水印的 xlsx 一站式响应构造
-///
-/// 等价于 `build_xlsx_with_watermark` + `xlsx_response`。
+/// 带水印的 xlsx 一站式响应构造（等价于 build_xlsx_with_watermark + xlsx_response）
 pub fn build_xlsx_response_with_watermark(
     table: &XlsxTable,
     filename: &str,
@@ -307,6 +164,138 @@ pub fn build_xlsx_response_with_watermark(
 ) -> Result<Response, AppError> {
     let bytes = build_xlsx_with_watermark(table, watermark)?;
     Ok(xlsx_response(bytes, filename))
+}
+
+// ----------------------------------------------------------------------
+// 内部辅助函数
+// ----------------------------------------------------------------------
+
+/// 构建标题行格式（加粗 + 浅灰背景 + 边框 + 居中）
+fn make_header_format() -> Format {
+    Format::new()
+        .set_bold()
+        .set_background_color("#E0E0E0")
+        .set_border(FormatBorder::Thin)
+        .set_align(FormatAlign::Center)
+        .set_align(FormatAlign::VerticalCenter)
+}
+
+/// 构建数据行格式（边框 + 垂直居中）
+fn make_data_format() -> Format {
+    Format::new()
+        .set_border(FormatBorder::Thin)
+        .set_align(FormatAlign::VerticalCenter)
+}
+
+/// 构建水印行格式（浅黄背景 + 红色字体 + 居中 + 加粗 + 边框）
+fn make_watermark_format() -> Format {
+    Format::new()
+        .set_bold()
+        .set_font_color("#CC0000")
+        .set_background_color("#FFF7CC")
+        .set_border(FormatBorder::Thin)
+        .set_align(FormatAlign::Center)
+        .set_align(FormatAlign::VerticalCenter)
+}
+
+/// 在指定行写入标题行
+fn write_header_row(
+    worksheet: &mut Worksheet,
+    row: u32,
+    headers: &[String],
+    format: &Format,
+) -> Result<(), AppError> {
+    for (col, header) in headers.iter().enumerate() {
+        worksheet
+            .write_with_format(row, col as u16, header, format)
+            .map_err(|e| AppError::internal(format!("xlsx 写入标题失败: {}", e)))?;
+    }
+    Ok(())
+}
+
+/// 从指定行起写入数据行
+fn write_data_rows(
+    worksheet: &mut Worksheet,
+    start_row: u32,
+    rows: &[Vec<String>],
+    format: &Format,
+) -> Result<(), AppError> {
+    for (row_idx, row) in rows.iter().enumerate() {
+        for (col, cell) in row.iter().enumerate() {
+            worksheet
+                .write_with_format(start_row + row_idx as u32, col as u16, cell, format)
+                .map_err(|e| AppError::internal(format!("xlsx 写入数据失败: {}", e)))?;
+        }
+    }
+    Ok(())
+}
+
+/// 写入水印行（含占位边框与合并单元格）
+fn write_watermark_row(
+    worksheet: &mut Worksheet,
+    watermark_text: &str,
+    headers_len: usize,
+    format: &Format,
+) -> Result<(), AppError> {
+    worksheet
+        .write_with_format(0, 0, watermark_text, format)
+        .map_err(|e| AppError::internal(format!("xlsx 写入水印失败: {}", e)))?;
+    for col in 1..headers_len {
+        worksheet
+            .write_with_format(0, col as u16, "", format)
+            .map_err(|e| AppError::internal(format!("xlsx 写入水印占位失败: {}", e)))?;
+    }
+    if headers_len > 1 {
+        worksheet
+            .merge_range(0, 0, 0, (headers_len - 1) as u16, watermark_text, format)
+            .map_err(|e| AppError::internal(format!("xlsx 合并水印行失败: {}", e)))?;
+    }
+    Ok(())
+}
+
+/// 设置列宽自适应（基于内容长度估算，最大 50，最小 10）
+fn set_column_widths(
+    worksheet: &mut Worksheet,
+    headers: &[String],
+    rows: &[Vec<String>],
+) -> Result<(), AppError> {
+    for col in 0..headers.len() {
+        let max_len = rows
+            .iter()
+            .map(|row| row.get(col).map(|s| s.chars().count()).unwrap_or(0))
+            .max()
+            .unwrap_or(0);
+        let header_len = headers.get(col).map(|s| s.chars().count()).unwrap_or(0);
+        let width = ((max_len.max(header_len) as f64) * 1.2 + 2.0).clamp(10.0, 50.0);
+        worksheet
+            .set_column_width(col as u16, width)
+            .map_err(|e| AppError::internal(format!("xlsx 设置列宽失败: {}", e)))?;
+    }
+    Ok(())
+}
+
+/// 设置列宽自适应（水印文本长度参与估算，避免水印行被截断）
+fn set_watermark_column_widths(
+    worksheet: &mut Worksheet,
+    headers: &[String],
+    rows: &[Vec<String>],
+    watermark_text: &str,
+) -> Result<(), AppError> {
+    for col in 0..headers.len() {
+        let max_len = rows
+            .iter()
+            .map(|row| row.get(col).map(|s| s.chars().count()).unwrap_or(0))
+            .max()
+            .unwrap_or(0);
+        let header_len = headers.get(col).map(|s| s.chars().count()).unwrap_or(0);
+        let watermark_len = watermark_text.chars().count() / headers.len().max(1);
+        let width =
+            ((max_len.max(header_len).max(watermark_len) as f64) * 1.2 + 2.0).clamp(10.0, 50.0);
+        worksheet
+            .set_column_width(col as u16, width)
+            .map_err(|e| AppError::internal(format!("xlsx 设置列宽失败: {}", e)))?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -413,7 +402,11 @@ mod tests {
         assert!(result.is_ok());
         let bytes = result.unwrap();
         // xlsx 文件最小约 4KB（带水印应略大）
-        assert!(bytes.len() > 4000, "xlsx 带水印文件大小异常: {}", bytes.len());
+        assert!(
+            bytes.len() > 4000,
+            "xlsx 带水印文件大小异常: {}",
+            bytes.len()
+        );
         assert_eq!(&bytes[0..2], b"PK");
     }
 

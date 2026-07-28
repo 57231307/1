@@ -17,11 +17,11 @@ use axum::{
 };
 
 use crate::handlers::{
-    capacity_handler, cost_collection_handler, dye_batch_handler, dye_batch_state_machine_handler,
-    dye_recipe_handler, fabric_inspection_handler, flow_card_handler, greige_fabric_handler,
-    lab_dip_handler, missing_handlers, mrp_handler, outsourcing_handler,
-    production_order_handler, production_recipe_handler, quality_inspection_handler, wage_handler,
-    energy_handler, business_mode_handler,
+    business_mode_handler, capacity_handler, cost_collection_handler, dye_batch_handler,
+    dye_batch_state_machine_handler, dye_recipe_handler, energy_handler, fabric_inspection_handler,
+    flow_card_handler, greige_fabric_handler, lab_dip_handler, missing_handlers, mrp_handler,
+    outsourcing_handler, production_order_handler, production_recipe_handler,
+    quality_inspection_handler, wage_handler,
 };
 
 /// 缸号管理路由（path 前缀 /dye-batches）
@@ -307,6 +307,8 @@ pub fn wages() -> Router<AppState> {
         .route("/wage-records", get(wage_handler::list_wage_records))
         .route("/wage-records", post(wage_handler::create_wage_record))
         .route("/wage-records/by-no/:no", get(wage_handler::get_wage_record_by_no))
+        // V15 P1-08-7：工资记录导出 xlsx（必须在 :id 路由之前注册以避免路径冲突）
+        .route("/wage-records/export", get(wage_handler::export_wage_records))
         .route("/wage-records/:id", get(wage_handler::get_wage_record))
         .route("/wage-records/:id", put(wage_handler::update_wage_record))
         .route("/wage-records/:id", delete(wage_handler::delete_wage_record))
@@ -317,6 +319,7 @@ pub fn wages() -> Router<AppState> {
         .route("/wage-records/:id/cancel", post(wage_handler::cancel_wage_record))
         // ===== 工资明细 =====
         .route("/wage-records/:id/details", get(wage_handler::list_wage_details))
+        .route("/wage-records/:id/details/export", get(wage_handler::export_wage_details))
         .route("/wage-details/by-worker/:worker_id", get(wage_handler::list_wage_details_by_worker))
 }
 
@@ -341,6 +344,8 @@ pub fn energy() -> Router<AppState> {
         .route("/energy-consumptions", get(energy_handler::list_energy_consumptions))
         .route("/energy-consumptions", post(energy_handler::create_energy_consumption))
         .route("/energy-consumptions/by-no/:no", get(energy_handler::get_energy_consumption_by_no))
+        // V15 P1-08-7：能耗记录导出 xlsx（必须在 :id 路由之前注册以避免路径冲突）
+        .route("/energy-consumptions/export", get(energy_handler::export_energy_consumptions))
         .route("/energy-consumptions/:id", get(energy_handler::get_energy_consumption))
         .route("/energy-consumptions/:id", put(energy_handler::update_energy_consumption))
         .route("/energy-consumptions/:id", delete(energy_handler::delete_energy_consumption))
@@ -362,6 +367,8 @@ pub fn energy() -> Router<AppState> {
         .route("/energy-allocations", get(energy_handler::list_energy_allocations))
         .route("/energy-allocations", post(energy_handler::create_energy_allocation))
         .route("/energy-allocations/by-no/:no", get(energy_handler::get_energy_allocation_by_no))
+        // V15 P1-08-7：能耗分摊记录导出 xlsx（必须在 :id 路由之前注册以避免路径冲突）
+        .route("/energy-allocations/export", get(energy_handler::export_energy_allocations))
         .route("/energy-allocations/:id", get(energy_handler::get_energy_allocation))
         .route("/energy-allocations/:id", put(energy_handler::update_energy_allocation))
         .route("/energy-allocations/:id", delete(energy_handler::delete_energy_allocation))

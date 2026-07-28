@@ -9,9 +9,7 @@
 
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
 use tracing::info;
 
 use crate::models::ar_collection;
@@ -43,12 +41,18 @@ impl ArReconciliationService {
         let reconciliation_no = generate_reconciliation_no(&txn).await?;
 
         let invoices = Self::fetch_invoices_for_reconciliation(
-            &txn, req.customer_id, req.start_date, req.end_date,
+            &txn,
+            req.customer_id,
+            req.start_date,
+            req.end_date,
         )
         .await?;
 
         let collections = Self::fetch_collections_for_reconciliation(
-            &txn, req.customer_id, req.start_date, req.end_date,
+            &txn,
+            req.customer_id,
+            req.start_date,
+            req.end_date,
         )
         .await?;
 

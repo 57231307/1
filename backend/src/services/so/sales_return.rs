@@ -8,4 +8,3 @@
 //! 1. `impl SalesService` 复用 `services::so::order::SalesService`
 //! 2. 添加销售退货单、退货审批、退货入库等方法
 //! 3. 保持 `crate::impl_generate_no!` 单据号生成器宏的复用模式
-

@@ -120,13 +120,14 @@ impl BpmService {
 
         // P1 3-6 修复（批次 60）：改用 DocumentNumberGenerator 保证并发唯一性
         // 原实现基于时间戳 + business_id，同秒并发 + 同 business_id 会产生重复单号
-        let instance_no = crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
-            &txn,
-            "BPM",
-            bpm_process_instance::Entity,
-            bpm_process_instance::Column::InstanceNo,
-        )
-        .await?;
+        let instance_no =
+            crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
+                &txn,
+                "BPM",
+                bpm_process_instance::Entity,
+                bpm_process_instance::Column::InstanceNo,
+            )
+            .await?;
         let instance_model = bpm_process_instance::ActiveModel {
             process_definition_id: Set(definition.id),
             instance_no: Set(instance_no.clone()),
@@ -180,7 +181,10 @@ impl BpmService {
 
         // 仅允许未结束的实例撤回
         let cur_status = instance.status.as_deref().unwrap_or("");
-        if cur_status == instance_status::COMPLETED || cur_status == instance_status::TERMINATED || cur_status == instance_status::CANCELLED {
+        if cur_status == instance_status::COMPLETED
+            || cur_status == instance_status::TERMINATED
+            || cur_status == instance_status::CANCELLED
+        {
             return Err(AppError::validation("流程已结束，无法撤回"));
         }
 

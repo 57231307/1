@@ -53,109 +53,113 @@
 </template>
 
 <script setup lang="ts">
-import { ref, provide } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { stockInGreigeFabric, stockOutGreigeFabric, type GreigeFabric } from '@/api/greige-fabric'
-import { getSupplierList, type Supplier } from '@/api/supplier'
-import type { DyeBatch } from '@/api/dye-batch'
-import type { DyeRecipe as ApiDyeRecipe } from '@/api/dye-recipe'
-import { logger } from '@/utils/logger'
-import DyeTab from './tabs/DyeTab.vue'
-import GreigeTab from './tabs/GreigeTab.vue'
-import RecipeTab from './tabs/RecipeTab.vue'
-import DyeFormDialogTab from './tabs/DyeFormDialogTab.vue'
-import GreigeFormDialogTab from './tabs/GreigeFormDialogTab.vue'
-import RecipeFormDialogTab from './tabs/RecipeFormDialogTab.vue'
+import { ref, provide } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { stockInGreigeFabric, stockOutGreigeFabric, type GreigeFabric } from '@/api/greige-fabric';
+import { getSupplierList, type Supplier } from '@/api/supplier';
+import type { DyeBatch } from '@/api/dye-batch';
+import type { DyeRecipe as ApiDyeRecipe } from '@/api/dye-recipe';
+import { logger } from '@/utils/logger';
+import DyeTab from './tabs/DyeTab.vue';
+import GreigeTab from './tabs/GreigeTab.vue';
+import RecipeTab from './tabs/RecipeTab.vue';
+import DyeFormDialogTab from './tabs/DyeFormDialogTab.vue';
+import GreigeFormDialogTab from './tabs/GreigeFormDialogTab.vue';
+import RecipeFormDialogTab from './tabs/RecipeFormDialogTab.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const activeTab = ref('dye')
+const activeTab = ref('dye');
 
-const dyeDialogVisible = ref(false)
-const currentDyeRow = ref<DyeBatch | null>(null)
-const greigeFabrics = ref<GreigeFabric[]>([])
+const dyeDialogVisible = ref(false);
+const currentDyeRow = ref<DyeBatch | null>(null);
+const greigeFabrics = ref<GreigeFabric[]>([]);
 
-const greigeDialogVisible = ref(false)
-const currentGreigeRow = ref<GreigeFabric | null>(null)
-const suppliers = ref<Supplier[]>([])
+const greigeDialogVisible = ref(false);
+const currentGreigeRow = ref<GreigeFabric | null>(null);
+const suppliers = ref<Supplier[]>([]);
 
-const recipeDialogVisible = ref(false)
-const currentRecipeRow = ref<ApiDyeRecipe | null>(null)
+const recipeDialogVisible = ref(false);
+const currentRecipeRow = ref<ApiDyeRecipe | null>(null);
 
 const fetchGreigeFabrics = async () => {
   try {
-    const { getGreigeFabricList } = await import('@/api/greige-fabric')
-    const res = await getGreigeFabricList()
-    greigeFabrics.value = (res.data as GreigeFabric[] | undefined) || []
+    const { getGreigeFabricList } = await import('@/api/greige-fabric');
+    const res = await getGreigeFabricList();
+    greigeFabrics.value = (res.data as GreigeFabric[] | undefined) || [];
   } catch (error) {
-    const err = error as Error
-    logger.error(t('fabric.index.fetchGreigeFabricsFailed'), err.message)
+    const err = error as Error;
+    logger.error(t('fabric.index.fetchGreigeFabricsFailed'), err.message);
   }
-}
+};
 
 const fetchSuppliers = async () => {
   try {
-    const res = await getSupplierList()
-    suppliers.value = (res.data?.list as Supplier[] | undefined) || []
+    const res = await getSupplierList();
+    suppliers.value = (res.data?.list as Supplier[] | undefined) || [];
   } catch (error) {
-    const err = error as Error
-    logger.error(t('fabric.index.fetchSuppliersFailed'), err.message)
+    const err = error as Error;
+    logger.error(t('fabric.index.fetchSuppliersFailed'), err.message);
   }
-}
+};
 
 const openDyeDialog = (row: DyeBatch | null) => {
-  currentDyeRow.value = row
-  dyeDialogVisible.value = true
-  fetchGreigeFabrics()
-}
+  currentDyeRow.value = row;
+  dyeDialogVisible.value = true;
+  fetchGreigeFabrics();
+};
 
 const openGreigeDialog = (row: GreigeFabric | null) => {
-  currentGreigeRow.value = row
-  greigeDialogVisible.value = true
-  fetchSuppliers()
-}
+  currentGreigeRow.value = row;
+  greigeDialogVisible.value = true;
+  fetchSuppliers();
+};
 
 const openRecipeDialog = (row: ApiDyeRecipe | null) => {
-  currentRecipeRow.value = row
-  recipeDialogVisible.value = true
-}
+  currentRecipeRow.value = row;
+  recipeDialogVisible.value = true;
+};
 
 const handleStock = async (type: 'in' | 'out', row: GreigeFabric) => {
-  const title = type === 'in' ? t('fabric.index.stockInTitle') : t('fabric.index.stockOutTitle')
+  const title = type === 'in' ? t('fabric.index.stockInTitle') : t('fabric.index.stockOutTitle');
   try {
     const { value } = await ElMessageBox.prompt(
       type === 'in' ? t('fabric.index.promptStockIn') : t('fabric.index.promptStockOut'),
       title
-    )
-    const qty = parseFloat(value)
+    );
+    const qty = parseFloat(value);
     if (isNaN(qty) || qty <= 0) {
-      ElMessage.error(t('fabric.index.messageQuantityMustBePositive'))
-      return
+      ElMessage.error(t('fabric.index.messageQuantityMustBePositive'));
+      return;
     }
     if (type === 'in') {
-      await stockInGreigeFabric(row.id, { quantity: qty })
+      await stockInGreigeFabric(row.id, { quantity: qty });
     } else {
-      await stockOutGreigeFabric(row.id, { quantity: qty })
+      await stockOutGreigeFabric(row.id, { quantity: qty });
     }
-    ElMessage.success(type === 'in' ? t('fabric.index.messageStockInSuccess') : t('fabric.index.messageStockOutSuccess'))
+    ElMessage.success(
+      type === 'in'
+        ? t('fabric.index.messageStockInSuccess')
+        : t('fabric.index.messageStockOutSuccess')
+    );
   } catch (error) {
     if (error !== 'cancel') {
-      const err = error as Error
-      ElMessage.error(err.message || t('fabric.common.failed'))
+      const err = error as Error;
+      ElMessage.error(err.message || t('fabric.common.failed'));
     }
   }
-}
+};
 
 const handleSubmitted = () => {
   // 各 Tab 内部已通过 emit 触发刷新
-}
+};
 
 provide('fabricActions', {
   openDyeDialog,
   openGreigeDialog,
   openRecipeDialog,
-})
+});
 </script>
 
 <style scoped>

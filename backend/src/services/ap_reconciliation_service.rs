@@ -12,6 +12,7 @@ use std::sync::Arc;
 // 重新导出 DTOs（迁移至 ap_reconciliation_ops::types），保持外部引用路径不变
 // 外部仍可通过 crate::services::ap_reconciliation_service::{GenerateReconciliationRequest, ...} 访问
 // 仅 re-export facade 测试与外部 handler 实际使用的 DTO，避免 unused imports 警告
+#[allow(unused_imports)]
 pub use crate::services::ap_reconciliation_ops::types::{
     AutoReconciliationResult, GenerateReconciliationRequest,
 };
@@ -40,11 +41,11 @@ impl ApReconciliationService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::services::test_common::setup_test_db;
     use crate::decs;
-    use crate::ymd;
     use crate::models::status::{common, payment};
+    use crate::services::test_common::setup_test_db;
     use crate::utils::error::AppError;
+    use crate::ymd;
     use chrono::{NaiveDate, Utc};
     use rust_decimal::Decimal;
     use std::str::FromStr;
@@ -531,9 +532,7 @@ mod tests {
         let db = setup_test_db().await;
         let service = ApReconciliationService::new(Arc::new(db));
 
-        let result = service
-            .get_list(None, None, None, None, 1, 10)
-            .await;
+        let result = service.get_list(None, None, None, None, 1, 10).await;
         // L-17 修复（批次 377 v13 复审）：原 let _ = result 无断言，改为 is_err 断言
         // 无 schema 时为 Err；有 schema 无记录时为 Ok((vec![], 0))
         assert!(result.is_err(), "无 schema 时应返回数据库错误");
@@ -613,7 +612,7 @@ mod tests {
 
         assert!(sample_no.starts_with("REC"));
         assert_eq!(sample_no.len(), 3 + 8 + 3); // REC + 8位日期 + 3位序号 = 14
-                                                 // 业务文档示例：REC20260315001
+                                                // 业务文档示例：REC20260315001
         let doc_example = "REC20260315001";
         assert_eq!(doc_example.len(), 14);
         assert!(doc_example.starts_with("REC"));

@@ -17,8 +17,8 @@ use std::sync::Arc;
 // 重新导出 DTOs（迁移至 ap_invoice_ops::types），保持外部引用路径不变
 // 外部仍可通过 crate::services::ap_invoice_service::{CreateApInvoiceRequest, ...} 访问
 pub use crate::services::ap_invoice_ops::types::{
-    AgingAnalysisItem, ApInvoiceStatistics, BalanceSummary, CreateApInvoiceRequest,
-    StatusStatItem, UpdateApInvoiceRequest,
+    AgingAnalysisItem, ApInvoiceStatistics, BalanceSummary, CreateApInvoiceRequest, StatusStatItem,
+    UpdateApInvoiceRequest,
 };
 
 // 批次 102 v6 P3-2 修复：状态字符串常量化，引用 crate::models::status
@@ -181,7 +181,10 @@ mod tests {
         assert_eq!(status::common::STATUS_CANCELLED, "CANCELLED");
 
         // 防御性断言：AP 专属 AUDITED 不应与通用 APPROVED 混淆
-        assert_ne!(status::ap_invoice::INVOICE_AUDITED, status::common::STATUS_APPROVED);
+        assert_ne!(
+            status::ap_invoice::INVOICE_AUDITED,
+            status::common::STATUS_APPROVED
+        );
     }
 
     /// 测试_汇率校验函数_合法与非法值
@@ -192,7 +195,10 @@ mod tests {
     #[test]
     fn 测试_汇率校验函数_合法与非法值() {
         // 非法值应拒绝
-        assert!(validate_exchange_rate(&Decimal::ZERO).is_err(), "汇率 0 应拒绝");
+        assert!(
+            validate_exchange_rate(&Decimal::ZERO).is_err(),
+            "汇率 0 应拒绝"
+        );
         assert!(
             validate_exchange_rate(&Decimal::new(-1, 0)).is_err(),
             "负汇率应拒绝"

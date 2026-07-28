@@ -2,8 +2,8 @@
 //!
 //! 销售退货服务层，负责销售退货的核心业务逻辑
 
-use crate::models::{inventory_stock, product, sales_return, sales_return_item};
 use crate::models::status::sales_return as sr_status;
+use crate::models::{inventory_stock, product, sales_return, sales_return_item};
 // V15 P0-S01：行级数据权限工具
 use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
@@ -346,8 +346,7 @@ impl SalesReturnService {
         let txn = (*self.db).begin().await?;
 
         // 1. lock_exclusive + 状态校验 + 获取明细
-        let (return_order, items) =
-            Self::validate_and_lock_submitted_txn(&txn, return_id).await?;
+        let (return_order, items) = Self::validate_and_lock_submitted_txn(&txn, return_id).await?;
 
         // 2. 更新退货单总金额
         // 批次 94 P2-10：透传 user_id 用于审计日志
@@ -376,10 +375,7 @@ impl SalesReturnService {
             EVENT_BUS.publish(event);
         }
 
-        tracing::info!(
-            "成功自动生成红字应收单 (退货单 {})",
-            return_order.return_no
-        );
+        tracing::info!("成功自动生成红字应收单 (退货单 {})", return_order.return_no);
 
         Ok(return_order)
     }
@@ -421,7 +417,10 @@ impl SalesReturnService {
     ) -> Result<
         (
             std::collections::HashMap<i32, product::Model>,
-            std::collections::HashMap<(i32, String, String, Option<String>), inventory_stock::Model>,
+            std::collections::HashMap<
+                (i32, String, String, Option<String>),
+                inventory_stock::Model,
+            >,
         ),
         AppError,
     > {
@@ -440,21 +439,23 @@ impl SalesReturnService {
             .await?;
         // v14 批次 419 修复 T-P0-5：stock_map 改为四维索引 (product_id, color_no, batch_no, dye_lot_no)，
         // 避免同一产品多缸号库存时 HashMap 覆盖导致库存错配
-        let stock_map: std::collections::HashMap<(i32, String, String, Option<String>), inventory_stock::Model> =
-            stocks
-                .into_iter()
-                .map(|s| {
+        let stock_map: std::collections::HashMap<
+            (i32, String, String, Option<String>),
+            inventory_stock::Model,
+        > = stocks
+            .into_iter()
+            .map(|s| {
+                (
                     (
-                        (
-                            s.product_id,
-                            s.color_no.clone(),
-                            s.batch_no.clone(),
-                            s.dye_lot_no.clone(),
-                        ),
-                        s,
-                    )
-                })
-                .collect();
+                        s.product_id,
+                        s.color_no.clone(),
+                        s.batch_no.clone(),
+                        s.dye_lot_no.clone(),
+                    ),
+                    s,
+                )
+            })
+            .collect();
 
         Ok((product_map, stock_map))
     }
@@ -466,7 +467,10 @@ impl SalesReturnService {
         return_order: &sales_return::Model,
         item: &sales_return_item::Model,
         product_map: &std::collections::HashMap<i32, product::Model>,
-        stock_map: &std::collections::HashMap<(i32, String, String, Option<String>), inventory_stock::Model>,
+        stock_map: &std::collections::HashMap<
+            (i32, String, String, Option<String>),
+            inventory_stock::Model,
+        >,
         user_id: i32,
     ) -> Result<Option<BusinessEvent>, AppError> {
         // 获取商品信息
@@ -512,8 +516,7 @@ impl SalesReturnService {
             &grade,
             user_id,
         );
-        let (_, txn_event) =
-            InventoryStockService::record_transaction_txn(txn, args).await?;
+        let (_, txn_event) = InventoryStockService::record_transaction_txn(txn, args).await?;
         Ok(txn_event)
     }
 
@@ -878,7 +881,8 @@ impl SalesReturnService {
 
         // 更新退货单总金额
         // 批次 94 P2-10：透传 user_id 用于审计日志
-        self.update_return_totals(item.return_id, &txn, user_id).await?;
+        self.update_return_totals(item.return_id, &txn, user_id)
+            .await?;
 
         txn.commit().await?;
         Ok(item)
@@ -908,7 +912,8 @@ impl SalesReturnService {
 
         // 更新退货单总金额
         // 批次 94 P2-10：透传 user_id 用于审计日志
-        self.update_return_totals(item.return_id, &txn, user_id).await?;
+        self.update_return_totals(item.return_id, &txn, user_id)
+            .await?;
 
         txn.commit().await?;
         Ok(())

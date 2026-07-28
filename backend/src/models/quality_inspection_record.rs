@@ -1,6 +1,4 @@
 #![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
-
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -52,6 +50,18 @@ pub struct Model {
     pub color_no: Option<String>,
     #[sea_orm(column_name = "dye_lot_no")]
     pub dye_lot_no: Option<String>,
+    /// V15 P1 2.2：染料类型特征
+    #[sea_orm(column_name = "dye_type")]
+    pub dye_type: Option<String>,
+    /// V15 P1 2.2：助剂类型特征
+    #[sea_orm(column_name = "auxiliary_type")]
+    pub auxiliary_type: Option<String>,
+    /// V15 P1 2.2：染色温度（°C）
+    #[sea_orm(column_name = "temperature")]
+    pub temperature: Option<Decimal>,
+    /// V15 P1 2.2：胚布来源
+    #[sea_orm(column_name = "fabric_source")]
+    pub fabric_source: Option<String>,
     #[sea_orm(column_name = "created_at")]
     pub created_at: DateTime<Utc>,
     #[sea_orm(column_name = "updated_at")]

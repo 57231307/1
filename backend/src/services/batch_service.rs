@@ -9,8 +9,8 @@ use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::utils::error::AppError;
 use sea_orm::DatabaseConnection;
 use sea_orm::DatabaseTransaction;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use sea_orm::TransactionTrait;
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -126,9 +126,7 @@ impl BatchService {
                     });
                     let failed = errors.len();
                     // 审计日志记录在主连接上（非事务），确保回滚后仍可追溯
-                    Self::record_batch_create_audit(
-                        &self.db, user_id, &requests, 0, &errors, true,
-                    );
+                    Self::record_batch_create_audit(&self.db, user_id, &requests, 0, &errors, true);
                     return Ok(BatchResult {
                         success: false,
                         total: requests.len(),
@@ -144,9 +142,7 @@ impl BatchService {
         txn.commit().await?;
 
         // P1 8-4 修复：批量创建完成后记录汇总审计日志
-        Self::record_batch_create_audit(
-            &self.db, user_id, &requests, created, &errors, false,
-        );
+        Self::record_batch_create_audit(&self.db, user_id, &requests, created, &errors, false);
 
         Ok(BatchResult {
             success: true,
@@ -203,6 +199,7 @@ impl BatchService {
             supplier_id: sea_orm::ActiveValue::NotSet,
             is_batch_managed: sea_orm::ActiveValue::NotSet,
             batch_level: sea_orm::ActiveValue::NotSet,
+            ..Default::default()
         }
     }
 
@@ -284,14 +281,18 @@ impl BatchService {
         for (index, req) in requests.iter().enumerate() {
             // 从批量查询结果中获取产品，避免循环内逐条查询
             // 错误元组 (message, is_not_found)：is_not_found 区分两种失败描述
-            let outcome: Result<product::Model, (String, bool)> = match product_map.get(&req.id).cloned() {
-                Some(product_model) => {
-                    let product: product::ActiveModel = product_model.into();
-                    let product = Self::apply_incremental_updates(product, req);
-                    product.update(&txn).await.map_err(|e| (e.to_string(), false))
-                }
-                None => Err((format!("产品 ID {} 不存在", req.id), true)),
-            };
+            let outcome: Result<product::Model, (String, bool)> =
+                match product_map.get(&req.id).cloned() {
+                    Some(product_model) => {
+                        let product: product::ActiveModel = product_model.into();
+                        let product = Self::apply_incremental_updates(product, req);
+                        product
+                            .update(&txn)
+                            .await
+                            .map_err(|e| (e.to_string(), false))
+                    }
+                    None => Err((format!("产品 ID {} 不存在", req.id), true)),
+                };
             match outcome {
                 Ok(model) => {
                     updated += 1;
@@ -300,7 +301,10 @@ impl BatchService {
                 Err((msg, is_not_found)) => {
                     // P2 2-9 修复：事务内任一失败则整体回滚，避免部分写入
                     // 事务 drop 自动回滚（不再调用 txn.rollback()，&DatabaseTransaction 引用无法调用）
-                    errors.push(BatchError { index, message: msg });
+                    errors.push(BatchError {
+                        index,
+                        message: msg,
+                    });
                     let ctx = Self::build_failure_ctx(
                         user_id,
                         requests.len(),
@@ -343,10 +347,7 @@ impl BatchService {
             .filter(product::Column::Id.is_in(batch_ids))
             .all(txn)
             .await?;
-        Ok(existing_products
-            .into_iter()
-            .map(|p| (p.id, p))
-            .collect())
+        Ok(existing_products.into_iter().map(|p| (p.id, p)).collect())
     }
 
     /// 应用增量更新到 ActiveModel（只更新请求中提供的字段）
@@ -464,7 +465,12 @@ impl BatchService {
     /// 记录批量更新成功的汇总审计日志
     ///
     /// 批次 488 D08-1 拆分：从主函数提取审计日志构建，主函数仅做协调。
-    fn record_success_audit(user_id: i32, total: usize, updated: usize, db: Arc<DatabaseConnection>) {
+    fn record_success_audit(
+        user_id: i32,
+        total: usize,
+        updated: usize,
+        db: Arc<DatabaseConnection>,
+    ) {
         let event = AuditEvent {
             user_id: Some(user_id),
             username: None,

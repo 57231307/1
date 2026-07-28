@@ -14,13 +14,7 @@ use serde::Deserialize;
 use validator::Validate;
 
 /// P0 8-5 修复：omni_audit 查询接口要求 admin 角色
-///
-/// 安全原因：get_dashboard_stats 和 search_logs 查询全系统审计日志，
-/// 含敏感操作记录，必须限制为 admin 角色。
-async fn require_admin_role(
-    state: &AppState,
-    auth: &AuthContext,
-) -> Result<(), AppError> {
+async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), AppError> {
     let role_id = auth
         .role_id
         .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法查询审计日志"))?;
@@ -58,11 +52,6 @@ pub struct TrackEventRequest {
 }
 
 /// 接收前端发来的 UI 埋点事件
-///
-/// P2 7-13 修复：原 auth: Option<AuthContext> 允许匿名调用，无速率限制，
-/// 可被注入垃圾审计日志污染 omni_audit_logs 表。
-/// 改为 auth: AuthContext 要求登录态，匿名请求由 auth_middleware 返回 401 拦截。
-/// 速率限制由全局 rate_limit_by_ip 中间件提供（已在 main.rs 挂载）。
 pub async fn track_event(
     auth: AuthContext,
     State(state): State<AppState>,
@@ -115,15 +104,6 @@ pub async fn track_event(
 }
 
 /// 获取审计可视化大屏统计数据
-///
-/// P2 8-11 修复：原 get_dashboard_stats 仅 total_events 真实查询，
-/// ui_clicks_today / api_calls_today / security_alerts_today 全部硬编码为 0，
-/// 大屏数据完全失真。
-///
-/// 新实现按以下启发式区分事件来源：
-/// - ui_clicks_today：request_method IS NULL（track_event 上报的 UI 事件不带请求方法）
-/// - api_calls_today：request_method IS NOT NULL（omni_audit_middleware 拦截的 HTTP 请求）
-/// - security_alerts_today：response_status = 403（DENIED）或 >= 500（FAILED）
 pub async fn get_dashboard_stats(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -164,95 +144,20 @@ pub async fn get_dashboard_stats(
     Ok(Json(ApiResponse::success(stats)))
 }
 
-/// 复杂条件检索审计日志
-///
-/// P2 8-10 修复：原 search_logs 完全忽略 AuditQueryFilter 过滤条件，
-/// SQL 固定 `SELECT * ORDER BY id DESC LIMIT`，审计查询形同虚设。
-/// 新实现根据 filter 动态构造 WHERE 子句，支持 user_id/event_type/
-/// start_date/end_date/keyword 五个维度的组合过滤。
-///
-/// P2 8-12 修复：原 search_logs 用 `SELECT *` 返回所有字段，含
-/// request_body/payload 等敏感数据。新实现改为显式字段列表，敏感字段
-/// （request_body/user_agent/ip_address）仅在 filter.include_sensitive=true
-/// 时返回。审计大屏默认 false，admin 显式传 include_sensitive=true 才返回。
+// 复杂条件检索审计日志（P2 8-10/8-12 修复：动态 WHERE + 显式字段列表，敏感字段按需返回）
 pub async fn search_logs(
     State(state): State<AppState>,
     auth: AuthContext,
     Query(filter): Query<AuditQueryFilter>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    // P0 8-5 修复：审计日志检索含全系统操作记录，仅限 admin
     require_admin_role(&state, &auth).await?;
-
     use sea_orm::ConnectionTrait;
 
-    // P3 8-17 修复：page 上限 1000，防止深度分页全表扫描
-    // 批次 95 P3-3~8 修复：补下限 1，防止 page=0 被接受（用 clamp 避免 clamp-like 警告）
-    let page: u64 = filter.page.unwrap_or(1).clamp(1, 1000);
-    let page_size: u64 = filter.page_size.unwrap_or(20).clamp(1, 100);
-    let offset: u64 = page.saturating_sub(1) * page_size;
+    let (_page, page_size, offset) = compute_pagination(&filter);
+    let (start_date, end_date) = compute_date_range(&filter);
+    let (where_sql, where_params, param_idx) = build_where_clause(&filter, start_date, end_date);
+    let select_fields = build_select_fields(filter.include_sensitive);
 
-    // P3 8-17 修复：强制日期范围限制（默认近 30 天），防止全表扫描
-    let now = chrono::Utc::now().date_naive();
-    let default_start = now - chrono::Duration::days(30);
-    let start_date = filter.start_date.unwrap_or(default_start);
-    let end_date = filter.end_date.unwrap_or(now);
-
-    // P2 8-10 修复：动态构造 WHERE 子句
-    let mut where_clauses: Vec<String> = Vec::new();
-    // WHERE 子句绑定的参数（不含 LIMIT/OFFSET），用于 count 查询复用
-    let mut where_params: Vec<sea_orm::Value> = Vec::new();
-    let mut param_idx = 1u32;
-
-    if let Some(user_id) = filter.user_id {
-        where_clauses.push(format!("user_id = ${}", param_idx));
-        where_params.push(user_id.into());
-        param_idx += 1;
-    }
-    if let Some(ref event_type) = filter.event_type {
-        where_clauses.push(format!("module = ${}", param_idx));
-        where_params.push(event_type.clone().into());
-        param_idx += 1;
-    }
-    // P3 8-17 修复：日期范围改为强制（已在上文设置默认值近 30 天）
-    where_clauses.push(format!("created_at >= ${}::date", param_idx));
-    where_params.push(start_date.into());
-    param_idx += 1;
-    where_clauses.push(format!("created_at < (${}::date + INTERVAL '1 day')", param_idx));
-    where_params.push(end_date.into());
-    param_idx += 1;
-    if let Some(ref keyword) = filter.keyword {
-        // keyword 模糊匹配 description / resource_name / username 三个文本字段
-        // 注意三个 ILIKE 共用同一个占位符 $param_idx，故只需绑定一次
-        where_clauses.push(format!(
-            "(description ILIKE ${} OR resource_name ILIKE ${} OR username ILIKE ${})",
-            param_idx, param_idx, param_idx
-        ));
-        // 批次 94 P2-3 修复：LIKE 模式注入，转义 % _ \ 特殊字符
-        let kw = safe_like_pattern(keyword);
-        where_params.push(kw.into());
-        param_idx += 1;
-    }
-
-    let where_sql = if where_clauses.is_empty() {
-        String::new()
-    } else {
-        format!(" WHERE {}", where_clauses.join(" AND "))
-    };
-
-    // P2 8-12 修复：显式字段列表，敏感字段仅在 include_sensitive=true 时返回
-    let sensitive_fields = if filter.include_sensitive {
-        ", request_body, user_agent, ip_address"
-    } else {
-        ""
-    };
-    let select_fields = format!(
-        "id, trace_id, user_id, username, module, action, resource_type, resource_id, \
-         resource_name, description, request_method, request_path, response_status, \
-         duration_ms, created_at{}",
-        sensitive_fields
-    );
-
-    // 列表查询 SQL（WHERE 参数 + LIMIT/OFFSET 参数）
     let list_sql = format!(
         "SELECT {} FROM omni_audit_logs{} ORDER BY id DESC LIMIT ${} OFFSET ${}",
         select_fields,
@@ -274,87 +179,155 @@ pub async fn search_logs(
 
     let mut items = Vec::new();
     for row in rows {
-        // 批次 403 修复：DB 字段读取失败应传播错误而非吞掉，避免审计数据失真。
-        // schema 中多数字段允许 NULL（user_id/username/resource_*/description 等），
-        // 用 Option<T> 读取区分"NULL 值"（合法，转为默认值）和"读取错误"（传播 500）。
-        // 仅 module/action/created_at 为 NOT NULL，读取失败直接传播错误。
-        let id = row.try_get_by_index::<i64>(0)
-            .map_err(|e| AppError::internal(format!("审计日志读取 id 失败: {}", e)))?;
-        let trace_id = row.try_get::<Option<String>>("", "trace_id")
-            .map_err(|e| AppError::internal(format!("审计日志读取 trace_id 失败: {}", e)))?
-            .unwrap_or_default();
-        let user_id = row.try_get::<Option<i32>>("", "user_id")
-            .map_err(|e| AppError::internal(format!("审计日志读取 user_id 失败: {}", e)))?
-            .unwrap_or(0);
-        let username = row.try_get::<Option<String>>("", "username")
-            .map_err(|e| AppError::internal(format!("审计日志读取 username 失败: {}", e)))?
-            .unwrap_or_default();
-        let module = row.try_get::<String>("", "module")
-            .map_err(|e| AppError::internal(format!("审计日志读取 module 失败: {}", e)))?;
-        let action = row.try_get::<String>("", "action")
-            .map_err(|e| AppError::internal(format!("审计日志读取 action 失败: {}", e)))?;
-        let resource_type = row.try_get::<Option<String>>("", "resource_type")
-            .map_err(|e| AppError::internal(format!("审计日志读取 resource_type 失败: {}", e)))?
-            .unwrap_or_default();
-        let resource_id = row.try_get::<Option<String>>("", "resource_id")
-            .map_err(|e| AppError::internal(format!("审计日志读取 resource_id 失败: {}", e)))?
-            .unwrap_or_default();
-        let resource_name = row.try_get::<Option<String>>("", "resource_name")
-            .map_err(|e| AppError::internal(format!("审计日志读取 resource_name 失败: {}", e)))?
-            .unwrap_or_default();
-        let description = row.try_get::<Option<String>>("", "description")
-            .map_err(|e| AppError::internal(format!("审计日志读取 description 失败: {}", e)))?
-            .unwrap_or_default();
-        let request_method = row.try_get::<Option<String>>("", "request_method")
-            .map_err(|e| AppError::internal(format!("审计日志读取 request_method 失败: {}", e)))?
-            .unwrap_or_default();
-        let request_path = row.try_get::<Option<String>>("", "request_path")
-            .map_err(|e| AppError::internal(format!("审计日志读取 request_path 失败: {}", e)))?
-            .unwrap_or_default();
-        let response_status = row.try_get::<Option<i32>>("", "response_status")
-            .map_err(|e| AppError::internal(format!("审计日志读取 response_status 失败: {}", e)))?
-            .unwrap_or(0);
-        let duration_ms = row.try_get::<Option<i32>>("", "duration_ms")
-            .map_err(|e| AppError::internal(format!("审计日志读取 duration_ms 失败: {}", e)))?
-            .unwrap_or(0);
-        let created_at = row.try_get::<String>("", "created_at")
-            .map_err(|e| AppError::internal(format!("审计日志读取 created_at 失败: {}", e)))?;
-
-        let mut item = serde_json::json!({
-            "id": id,
-            "trace_id": trace_id,
-            "user_id": user_id,
-            "username": username,
-            "module": module,
-            "action": action,
-            "resource_type": resource_type,
-            "resource_id": resource_id,
-            "resource_name": resource_name,
-            "description": description,
-            "request_method": request_method,
-            "request_path": request_path,
-            "response_status": response_status,
-            "duration_ms": duration_ms,
-            "created_at": created_at,
-        });
-        if filter.include_sensitive {
-            let request_body = row.try_get::<Option<String>>("", "request_body")
-                .map_err(|e| AppError::internal(format!("审计日志读取 request_body 失败: {}", e)))?
-                .unwrap_or_default();
-            let user_agent = row.try_get::<Option<String>>("", "user_agent")
-                .map_err(|e| AppError::internal(format!("审计日志读取 user_agent 失败: {}", e)))?
-                .unwrap_or_default();
-            let ip_address = row.try_get::<Option<String>>("", "ip_address")
-                .map_err(|e| AppError::internal(format!("审计日志读取 ip_address 失败: {}", e)))?
-                .unwrap_or_default();
-            item["request_body"] = serde_json::Value::String(request_body);
-            item["user_agent"] = serde_json::Value::String(user_agent);
-            item["ip_address"] = serde_json::Value::String(ip_address);
-        }
-        items.push(item);
+        items.push(row_to_json(&row, filter.include_sensitive)?);
     }
 
-    // P2 8-10 修复：count_sql 复用 WHERE 子句和参数，确保分页 total 与列表数据一致
+    let total = query_total_count(&state, &where_sql, where_params).await?;
+    let res = serde_json::json!({ "items": items, "total": total });
+    Ok(Json(ApiResponse::success(res)))
+}
+
+// 计算分页参数：page 上限 1000，page_size 上限 100，防止深度分页全表扫描
+fn compute_pagination(filter: &AuditQueryFilter) -> (u64, u64, u64) {
+    let page: u64 = filter.page.unwrap_or(1).clamp(1, 1000);
+    let page_size: u64 = filter.page_size.unwrap_or(20).clamp(1, 100);
+    let offset: u64 = page.saturating_sub(1) * page_size;
+    (page, page_size, offset)
+}
+
+// 计算日期范围：默认近 30 天，防止全表扫描
+fn compute_date_range(filter: &AuditQueryFilter) -> (chrono::NaiveDate, chrono::NaiveDate) {
+    let now = chrono::Utc::now().date_naive();
+    let default_start = now - chrono::Duration::days(30);
+    let start_date = filter.start_date.unwrap_or(default_start);
+    let end_date = filter.end_date.unwrap_or(now);
+    (start_date, end_date)
+}
+
+// 根据 filter 动态构造 WHERE 子句和绑定参数，返回 (where_sql, where_params, next_param_idx)
+fn build_where_clause(
+    filter: &AuditQueryFilter,
+    start_date: chrono::NaiveDate,
+    end_date: chrono::NaiveDate,
+) -> (String, Vec<sea_orm::Value>, u32) {
+    let mut where_clauses: Vec<String> = Vec::new();
+    let mut where_params: Vec<sea_orm::Value> = Vec::new();
+    let mut param_idx = 1u32;
+    if let Some(user_id) = filter.user_id {
+        where_clauses.push(format!("user_id = ${}", param_idx));
+        where_params.push(user_id.into());
+        param_idx += 1;
+    }
+    if let Some(ref event_type) = filter.event_type {
+        where_clauses.push(format!("module = ${}", param_idx));
+        where_params.push(event_type.clone().into());
+        param_idx += 1;
+    }
+    where_clauses.push(format!("created_at >= ${}::date", param_idx));
+    where_params.push(start_date.into());
+    param_idx += 1;
+    where_clauses.push(format!(
+        "created_at < (${}::date + INTERVAL '1 day')",
+        param_idx
+    ));
+    where_params.push(end_date.into());
+    param_idx += 1;
+    if let Some(ref keyword) = filter.keyword {
+        // 三个 ILIKE 共用同一占位符，只需绑定一次
+        where_clauses.push(format!(
+            "(description ILIKE ${} OR resource_name ILIKE ${} OR username ILIKE ${})",
+            param_idx, param_idx, param_idx
+        ));
+        let kw = safe_like_pattern(keyword);
+        where_params.push(kw.into());
+        param_idx += 1;
+    }
+    let where_sql = if where_clauses.is_empty() {
+        String::new()
+    } else {
+        format!(" WHERE {}", where_clauses.join(" AND "))
+    };
+    (where_sql, where_params, param_idx)
+}
+
+// 构建查询字段列表：敏感字段仅在 include_sensitive=true 时返回
+fn build_select_fields(include_sensitive: bool) -> String {
+    let sensitive_fields = if include_sensitive {
+        ", request_body, user_agent, ip_address"
+    } else {
+        ""
+    };
+    format!(
+        "id, trace_id, user_id, username, module, action, resource_type, resource_id, \
+         resource_name, description, request_method, request_path, response_status, \
+         duration_ms, created_at{}",
+        sensitive_fields
+    )
+}
+
+// 读取可选字符串字段，失败时返回带字段名的错误
+fn get_opt_string(row: &sea_orm::QueryResult, field: &str) -> Result<String, AppError> {
+    row.try_get::<Option<String>>("", field)
+        .map_err(|e| AppError::internal(format!("审计日志读取 {} 失败: {}", field, e)))
+        .map(|v| v.unwrap_or_default())
+}
+
+// 读取可选整数字段，失败时返回带字段名的错误
+fn get_opt_int(row: &sea_orm::QueryResult, field: &str) -> Result<i32, AppError> {
+    row.try_get::<Option<i32>>("", field)
+        .map_err(|e| AppError::internal(format!("审计日志读取 {} 失败: {}", field, e)))
+        .map(|v| v.unwrap_or(0))
+}
+
+// 将查询行转为 JSON 对象，include_sensitive 控制是否包含敏感字段
+fn row_to_json(
+    row: &sea_orm::QueryResult,
+    include_sensitive: bool,
+) -> Result<serde_json::Value, AppError> {
+    let id = row
+        .try_get_by_index::<i64>(0)
+        .map_err(|e| AppError::internal(format!("审计日志读取 id 失败: {}", e)))?;
+    let module = row
+        .try_get::<String>("", "module")
+        .map_err(|e| AppError::internal(format!("审计日志读取 module 失败: {}", e)))?;
+    let action = row
+        .try_get::<String>("", "action")
+        .map_err(|e| AppError::internal(format!("审计日志读取 action 失败: {}", e)))?;
+    let created_at = row
+        .try_get::<String>("", "created_at")
+        .map_err(|e| AppError::internal(format!("审计日志读取 created_at 失败: {}", e)))?;
+    let mut item = serde_json::json!({
+        "id": id,
+        "trace_id": get_opt_string(row, "trace_id")?,
+        "user_id": get_opt_int(row, "user_id")?,
+        "username": get_opt_string(row, "username")?,
+        "module": module,
+        "action": action,
+        "resource_type": get_opt_string(row, "resource_type")?,
+        "resource_id": get_opt_string(row, "resource_id")?,
+        "resource_name": get_opt_string(row, "resource_name")?,
+        "description": get_opt_string(row, "description")?,
+        "request_method": get_opt_string(row, "request_method")?,
+        "request_path": get_opt_string(row, "request_path")?,
+        "response_status": get_opt_int(row, "response_status")?,
+        "duration_ms": get_opt_int(row, "duration_ms")?,
+        "created_at": created_at,
+    });
+    if include_sensitive {
+        item["request_body"] = serde_json::Value::String(get_opt_string(row, "request_body")?);
+        item["user_agent"] = serde_json::Value::String(get_opt_string(row, "user_agent")?);
+        item["ip_address"] = serde_json::Value::String(get_opt_string(row, "ip_address")?);
+    }
+    Ok(item)
+}
+
+// 执行 COUNT 查询返回总数，复用 WHERE 子句和参数确保分页 total 与列表数据一致
+async fn query_total_count(
+    state: &AppState,
+    where_sql: &str,
+    where_params: Vec<sea_orm::Value>,
+) -> Result<u64, AppError> {
+    use sea_orm::ConnectionTrait;
     let count_sql = format!("SELECT COUNT(*) as total FROM omni_audit_logs{}", where_sql);
     let count_result = (*state.db)
         .query_one(sea_orm::Statement::from_sql_and_values(
@@ -363,15 +336,8 @@ pub async fn search_logs(
             where_params,
         ))
         .await?;
-    let total: u64 = match count_result {
+    Ok(match count_result {
         Some(r) => r.try_get::<i64>("", "total").unwrap_or(0) as u64,
         None => 0,
-    };
-
-    let res = serde_json::json!({
-        "items": items,
-        "total": total,
-    });
-
-    Ok(Json(ApiResponse::success(res)))
+    })
 }

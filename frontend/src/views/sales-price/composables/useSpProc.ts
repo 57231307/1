@@ -4,18 +4,19 @@
  * 封装销售价格审批/查看/历史/导出等流程性方法
  * 行为完全保持一致（仅结构重构）
  */
-import { ref, reactive } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ref, reactive } from 'vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { msg } from '@/utils/message';
 import {
   approveSalesPrice,
   getPriceHistory,
   getPricingStrategyList,
   type SalesPrice,
   type PricingStrategy,
-} from '@/api/sales-price'
+} from '@/api/sales-price';
 // V15 P0-S12 修复（Batch 475d）：导出改用后端带水印 xlsx 接口
 // 后端 GET /sales/sales-prices/export 已就绪（含异步审计日志 + 水印）
-import { exportFromBackend } from '@/utils/export'
+import { exportFromBackend } from '@/utils/export';
 
 /**
  * 刷新回调
@@ -24,9 +25,9 @@ import { exportFromBackend } from '@/utils/export'
  * 保证导出数据与当前列表筛选一致（product_id/status）
  */
 interface RefreshCallbacks {
-  getList: () => Promise<void>
+  getList: () => Promise<void>;
   // V15 P0-S12 修复（Batch 475d）：获取当前筛选条件（product_id/status），用于导出
-  getQueryParams?: () => { product_id?: number; status?: string }
+  getQueryParams?: () => { product_id?: number; status?: string };
 }
 
 /**
@@ -34,69 +35,69 @@ interface RefreshCallbacks {
  */
 export function useSpProc(refresh: RefreshCallbacks) {
   // 查看详情对话框状态
-  const viewDialogVisible = ref(false)
+  const viewDialogVisible = ref(false);
   // v11 批次 174 P2-1 修复：ref<any>({}) 改为 ref<SalesPrice>，初始空对象通过断言
-  const viewData = ref<SalesPrice>({} as SalesPrice)
+  const viewData = ref<SalesPrice>({} as SalesPrice);
 
   // 历史记录对话框状态
-  const historyVisible = ref(false)
-  const historyList = ref<SalesPrice[]>([])
+  const historyVisible = ref(false);
+  const historyList = ref<SalesPrice[]>([]);
 
   // 价格策略对话框状态（批次 95 P3-17 修复）
-  const strategyVisible = ref(false)
-  const strategyList = ref<PricingStrategy[]>([])
-  const strategyLoading = ref(false)
+  const strategyVisible = ref(false);
+  const strategyList = ref<PricingStrategy[]>([]);
+  const strategyLoading = ref(false);
 
   /** 审批 */
   const handleApprove = async (row: SalesPrice) => {
     try {
-      await ElMessageBox.confirm('确认审批通过该价格？', '提示', { type: 'warning' })
-      await approveSalesPrice(row.id)
-      ElMessage.success('审批成功')
-      await refresh.getList()
+      await ElMessageBox.confirm('确认审批通过该价格？', '提示', { type: 'warning' });
+      await approveSalesPrice(row.id);
+      msg.success('approveSuccess');
+      await refresh.getList();
     } catch (error: unknown) {
       // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
       if (error !== 'cancel') {
-        const errMsg = error instanceof Error ? error.message : String(error)
-        if (errMsg) ElMessage.error(errMsg || '审批失败')
+        const errMsg = error instanceof Error ? error.message : String(error);
+        if (errMsg) ElMessage.error(errMsg || msg.translate('approveFailed'));
       }
     }
-  }
+  };
 
   /** 查看详情（弹出对话框） */
   const handleView = (row: SalesPrice) => {
-    viewData.value = row
-    viewDialogVisible.value = true
-  }
+    viewData.value = row;
+    viewDialogVisible.value = true;
+  };
 
   /** 历史记录 */
   const handleHistory = async (row: SalesPrice) => {
     try {
-      const res = await getPriceHistory(row.product_id)
-      historyList.value = res.data || []
-      historyVisible.value = true
+      const res = await getPriceHistory(row.product_id);
+      historyList.value = res.data || [];
+      historyVisible.value = true;
     } catch (error: unknown) {
       // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
-      const errMsg = error instanceof Error ? error.message : String(error)
-      ElMessage.error(errMsg || '获取历史记录失败')
+      const errMsg = error instanceof Error ? error.message : String(error);
+      ElMessage.error(errMsg || msg.translate('loadHistoryFailed'));
     }
-  }
+  };
 
   /** 价格策略（批次 95 P3-17 修复：拉取策略列表并打开对话框） */
   const handleStrategy = async () => {
-    strategyVisible.value = true
-    strategyLoading.value = true
+    strategyVisible.value = true;
+    strategyLoading.value = true;
     try {
-      const res = await getPricingStrategyList()
-      strategyList.value = res.data || []
+      const res = await getPricingStrategyList();
+      strategyList.value = res.data || [];
     } catch (error: unknown) {
       // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
-      const errMsg = error instanceof Error ? error.message : String(error)
-      ElMessage.error(errMsg || '获取价格策略失败')
+      const errMsg = error instanceof Error ? error.message : String(error);
+      ElMessage.error(errMsg || msg.translate('loadPriceStrategyFailed'));
     } finally {
-      strategyLoading.value = false
+      strategyLoading.value = false;
     }
-  }
+  };
 
   /**
    * 导出 Excel（V15 P0-S12 修复 Batch 475d）
@@ -106,13 +107,13 @@ export function useSpProc(refresh: RefreshCallbacks) {
    * 传入当前列表筛选条件（product_id/status），保证导出与列表一致
    */
   const handleExport = async () => {
-    const filters = refresh.getQueryParams?.() ?? {}
+    const filters = refresh.getQueryParams?.() ?? {};
     const params: Record<string, unknown> = {
       product_id: filters.product_id,
       status: filters.status || undefined,
-    }
-    await exportFromBackend('/sales/sales-prices/export', params, 'sales_prices_export')
-  }
+    };
+    await exportFromBackend('/sales/sales-prices/export', params, 'sales_prices_export');
+  };
 
   // 使用 reactive 包装，访问字段时自动解包 ref
   return reactive({
@@ -132,5 +133,5 @@ export function useSpProc(refresh: RefreshCallbacks) {
     // 流程
     handleApprove,
     handleExport,
-  })
+  });
 }

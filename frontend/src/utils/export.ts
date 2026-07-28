@@ -1,40 +1,69 @@
-import axios from 'axios'
-import type { AxiosResponse } from 'axios'
-import { ElMessage } from 'element-plus'
+import axios from 'axios';
+import type { AxiosResponse } from 'axios';
+import { msg } from '@/utils/message';
 
 /** 导出列定义，使用泛型支持类型安全的字段访问 */
 export interface ExportColumn<T extends Record<string, unknown> = Record<string, unknown>> {
-  key: keyof T & string
-  title: string
-  formatter?: (value: unknown, row: T) => string
+  key: keyof T & string;
+  title: string;
+  formatter?: (value: unknown, row: T) => string;
 }
 
 /** 导出选项，使用泛型约束数据类型 */
 export interface ExportOptions<T extends Record<string, unknown> = Record<string, unknown>> {
-  filename: string
-  columns: ExportColumn<T>[]
-  data: T[]
+  filename: string;
+  columns: ExportColumn<T>[];
+  data: T[];
   /** 导出格式，默认 excel（规则 3：禁止 CSV 作为最终交付） */
-  format?: 'excel'
+  format?: 'excel';
+  /** V15 P1-4-3：资源类型标识（用于永久禁止导出黑名单校验，可选） */
+  resourceType?: string;
+}
+
+/**
+ * V15 P1-4-3：永久禁止导出的资源黑名单
+ *
+ * 以下资源为企业核心技术机密，永久禁止通过前端本地导出：
+ * - lab_dip：化验室 OK 样配方
+ * - production_recipe：大货处方
+ * - flow_card：流转卡条码
+ *
+ * 若需导出上述资源，必须走后端二级审批流程（approval_token），
+ * 前端 exportToExcel 在调用时校验资源类型，命中黑名单直接拒绝。
+ */
+const EXPORT_BLOCKED_RESOURCE_TYPES: readonly string[] = [
+  'lab_dip',
+  'production_recipe',
+  'flow_card',
+];
+
+/**
+ * V15 P1-4-3：检查资源类型是否在永久禁止导出黑名单中
+ *
+ * @param resourceType 资源类型标识（与后端权限码 resource_type 对应）
+ * @returns true 表示禁止导出，false 表示允许
+ */
+export function isExportBlocked(resourceType: string): boolean {
+  return EXPORT_BLOCKED_RESOURCE_TYPES.includes(resourceType);
 }
 
 function generateExcelHTML<T extends Record<string, unknown>>(
   columns: ExportColumn<T>[],
   data: T[]
 ): string {
-  const headers = columns.map(col => `<th>${col.title}</th>`).join('')
+  const headers = columns.map(col => `<th>${col.title}</th>`).join('');
   const rows = data
     .map(row => {
       const cells = columns
         .map(col => {
-          const value = row[col.key]
-          const formatted = col.formatter ? col.formatter(value, row) : String(value ?? '')
-          return `<td>${formatted}</td>`
+          const value = row[col.key];
+          const formatted = col.formatter ? col.formatter(value, row) : String(value ?? '');
+          return `<td>${formatted}</td>`;
         })
-        .join('')
-      return `<tr>${cells}</tr>`
+        .join('');
+      return `<tr>${cells}</tr>`;
     })
-    .join('')
+    .join('');
   return `
     <html xmlns:o="urn:schemas-microsoft-com:office:office"
           xmlns:x="urn:schemas-microsoft-com:office:excel"
@@ -62,19 +91,19 @@ function generateExcelHTML<T extends Record<string, unknown>>(
         <tbody>${rows}</tbody>
       </table>
     </body>
-  `
+  `;
 }
 
 function downloadFile(content: string, filename: string, mimeType: string) {
-  const BOM = '\uFEFF'
-  const blob = new Blob([BOM + content], { type: mimeType })
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(link.href)
+  const BOM = '\uFEFF';
+  const blob = new Blob([BOM + content], { type: mimeType });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(link.href);
 }
 
 /**
@@ -82,21 +111,29 @@ function downloadFile(content: string, filename: string, mimeType: string) {
  *
  * 历史背景：原 exportToExcel 生成 .xls HTML 格式，无水印、无审计、无合规保障，
  * 已被 P0-S12 列为 P0 阻塞级问题。新接入后端的资源应改用 exportFromBackend。
+ *
+ * V15 P1-4-3：新增 resourceType 参数，命中永久禁止导出黑名单时直接拒绝。
  */
 export function exportToExcel<T extends Record<string, unknown>>(options: ExportOptions<T>) {
-  const { filename, columns, data } = options
+  const { filename, columns, data, resourceType } = options;
   if (!data || data.length === 0) {
-    ElMessage.warning('没有可导出的数据')
-    return
+    msg.warning('noDataToExport');
+    return;
   }
-  const htmlContent = generateExcelHTML(columns, data)
-  const date = new Date().toISOString().split('T')[0]
-  downloadFile(htmlContent, `${filename}_${date}.xls`, 'application/vnd.ms-excel;charset=utf-8;')
-  ElMessage.success('导出成功')
+  // V15 P1-4-3：永久禁止导出资源黑名单校验（lab_dip/production_recipe/flow_card）
+  if (resourceType && isExportBlocked(resourceType)) {
+    msg.error('exportBlockedResource', { resource: resourceType });
+    console.warn(`[P1-4-3] 资源 ${resourceType} 已被永久禁止导出（核心技术机密）`);
+    return;
+  }
+  const htmlContent = generateExcelHTML(columns, data);
+  const date = new Date().toISOString().split('T')[0];
+  downloadFile(htmlContent, `${filename}_${date}.xls`, 'application/vnd.ms-excel;charset=utf-8;');
+  msg.exportOk();
 }
 
 export function exportData<T extends Record<string, unknown>>(options: ExportOptions<T>) {
-  exportToExcel(options)
+  exportToExcel(options);
 }
 
 /**
@@ -119,7 +156,7 @@ const exportAxios = axios.create({
   headers: {
     'X-Requested-With': 'XMLHttpRequest',
   },
-})
+});
 
 /**
  * V15 P0-S12 + P0-S15 修复（Batch 474）：从后端下载带水印的 xlsx 文件
@@ -144,26 +181,26 @@ export async function exportFromBackend<TParams extends Record<string, unknown>>
     const response: AxiosResponse<Blob> = await exportAxios.get<Blob>(apiPath, {
       params,
       responseType: 'blob',
-    })
+    });
     // V15 P0-S12：从 Content-Disposition 提取文件名（后端返回 filename="customers_export_xxx.xlsx"）
-    const disposition = response.headers?.['content-disposition'] || ''
-    const matched = /filename="?([^";]+)"?/.exec(disposition)
+    const disposition = response.headers?.['content-disposition'] || '';
+    const matched = /filename="?([^";]+)"?/.exec(disposition);
     const downloadName =
-      matched?.[1] || `${filename}_${new Date().toISOString().replace(/[:.]/g, '')}.xlsx`
+      matched?.[1] || `${filename}_${new Date().toISOString().replace(/[:.]/g, '')}.xlsx`;
 
-    const blob = response.data
-    const link = document.createElement('a')
-    link.href = URL.createObjectURL(blob)
-    link.download = downloadName
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(link.href)
-    ElMessage.success('导出成功')
+    const blob = response.data;
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = downloadName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+    msg.exportOk();
   } catch (err) {
-    // V15 P0-S12：错误用 ElMessage 表达（与 exportToExcel 行为一致）
-    const msg = err instanceof Error ? err.message : '导出失败'
-    ElMessage.error(`导出失败：${msg}`)
-    throw err
+    // V15 P0-S12：错误用 msg 表达（与 exportToExcel 行为一致）
+    const errDetail = err instanceof Error ? err.message : msg.translate('exportFailed');
+    msg.error('exportFailedReason', { reason: errDetail });
+    throw err;
   }
 }

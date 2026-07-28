@@ -46,15 +46,18 @@ module.exports = {
     'no-debugger': 'warn',
     'no-unused-vars': 'off', // 使用 TypeScript 的规则
 
-    // Prettier 规则
+    // Prettier 规则（与 .prettierrc 保持一致，避免 standalone prettier 与 ESLint 插件配置冲突）
     'prettier/prettier': [
       'error',
       {
-        semi: false,
+        semi: true,
         singleQuote: true,
+        tabWidth: 2,
         printWidth: 100,
         trailingComma: 'es5',
-        endOfLine: 'auto',
+        bracketSpacing: true,
+        arrowParens: 'avoid',
+        endOfLine: 'lf',
       },
     ],
   },
@@ -89,4 +92,4 @@ module.exports = {
     defineExpose: 'readonly',
     withDefaults: 'readonly',
   },
-}
+};

@@ -12,7 +12,13 @@
     :aria-label="title"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form ref="formRef" :model="localData" :rules="formRules" label-width="100px" :aria-label="t('sales.orderForm.formAriaLabel')">
+    <el-form
+      ref="formRef"
+      :model="localData"
+      :rules="formRules"
+      label-width="100px"
+      :aria-label="t('sales.orderForm.formAriaLabel')"
+    >
       <el-divider content-position="left">{{ t('sales.orderForm.basicInfo') }}</el-divider>
       <el-row :gutter="20">
         <el-col :span="12">
@@ -56,12 +62,19 @@
         </el-col>
         <el-col :span="12">
           <el-form-item :label="t('sales.orderForm.contactPerson')" prop="contact_person">
-            <el-input v-model="localData.contact_person" :placeholder="t('sales.orderForm.contactPersonPlaceholder')" />
+            <el-input
+              v-model="localData.contact_person"
+              :placeholder="t('sales.orderForm.contactPersonPlaceholder')"
+            />
           </el-form-item>
         </el-col>
       </el-row>
       <el-form-item :label="t('sales.orderForm.contactPhone')" prop="contact_phone">
-        <el-input v-model="localData.contact_phone" :placeholder="t('sales.orderForm.contactPhonePlaceholder')" style="width: 50%" />
+        <el-input
+          v-model="localData.contact_phone"
+          :placeholder="t('sales.orderForm.contactPhonePlaceholder')"
+          style="width: 50%"
+        />
       </el-form-item>
       <el-form-item :label="t('sales.orderForm.deliveryAddress')" prop="delivery_address">
         <el-input
@@ -74,7 +87,12 @@
 
       <el-divider content-position="left">{{ t('sales.orderForm.orderItems') }}</el-divider>
       <div class="order-items">
-        <el-table :data="localData.items" border style="width: 100%" :aria-label="t('sales.orderForm.itemsTableAriaLabel')">
+        <el-table
+          :data="localData.items"
+          border
+          style="width: 100%"
+          :aria-label="t('sales.orderForm.itemsTableAriaLabel')"
+        >
           <el-table-column :label="t('sales.orderForm.product')" width="200">
             <template #default="{ row, $index }">
               <el-select
@@ -120,9 +138,9 @@
           </el-table-column>
           <el-table-column :label="t('sales.orderForm.operation')" width="80">
             <template #default="{ $index }">
-              <el-button type="danger" link size="small" @click="removeItem($index)"
-                >{{ t('sales.orderForm.delete') }}</el-button
-              >
+              <el-button type="danger" link size="small" @click="removeItem($index)">{{
+                t('sales.orderForm.delete')
+              }}</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -133,7 +151,12 @@
 
       <el-divider content-position="left">{{ t('sales.orderForm.otherInfo') }}</el-divider>
       <el-form-item :label="t('sales.orderForm.remark')">
-        <el-input v-model="localData.remark" type="textarea" :rows="3" :placeholder="t('sales.orderForm.remarkPlaceholder')" />
+        <el-input
+          v-model="localData.remark"
+          type="textarea"
+          :rows="3"
+          :placeholder="t('sales.orderForm.remarkPlaceholder')"
+        />
       </el-form-item>
       <el-row :gutter="20">
         <el-col :span="8">
@@ -156,64 +179,68 @@
       </el-row>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">{{ t('sales.orderForm.cancel') }}</el-button>
-      <el-button type="primary" :loading="submitting" @click="handleSubmit">{{ t('sales.orderForm.confirm') }}</el-button>
+      <el-button @click="emit('update:visible', false)">{{
+        t('sales.orderForm.cancel')
+      }}</el-button>
+      <el-button type="primary" :loading="submitting" @click="handleSubmit">{{
+        t('sales.orderForm.confirm')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { deepClone } from '@/utils'
-import { ref, reactive, watch, computed } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
-import type { FormInstance, FormRules } from 'element-plus'
-import type { Customer } from '@/api/customer'
-import type { Product } from '@/api/product'
+import { deepClone } from '@/utils';
+import { ref, reactive, watch, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
+import { Plus } from '@element-plus/icons-vue';
+import type { FormInstance, FormRules } from 'element-plus';
+import type { Customer } from '@/api/customer';
+import type { Product } from '@/api/product';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 interface OrderItemForm {
-  id: number
-  product_id: number | undefined
-  product_name: string
-  product_code: string
-  quantity: number
-  unit: string
-  unit_price: number
-  subtotal: number
+  id: number;
+  product_id: number | undefined;
+  product_name: string;
+  product_code: string;
+  quantity: number;
+  unit: string;
+  unit_price: number;
+  subtotal: number;
 }
 
 interface OrderForm {
-  id?: number
-  customer_id: number | undefined
-  customer_name: string
-  order_date: Date | string
-  required_date: string
-  contact_person: string
-  contact_phone: string
-  delivery_address: string
-  remark: string
-  items: OrderItemForm[]
-  total_amount?: number
+  id?: number;
+  customer_id: number | undefined;
+  customer_name: string;
+  order_date: Date | string;
+  required_date: string;
+  contact_person: string;
+  contact_phone: string;
+  delivery_address: string;
+  remark: string;
+  items: OrderItemForm[];
+  total_amount?: number;
 }
 
 const props = defineProps<{
-  visible: boolean
-  title: string
-  formData: OrderForm
-  customers: Customer[]
-  products: Product[]
-  submitting?: boolean
-}>()
+  visible: boolean;
+  title: string;
+  formData: OrderForm;
+  customers: Customer[];
+  products: Product[];
+  submitting?: boolean;
+}>();
 
 const emit = defineEmits<{
-  'update:visible': [value: boolean]
-  submit: [data: OrderForm]
-}>()
+  'update:visible': [value: boolean];
+  submit: [data: OrderForm];
+}>();
 
-const formRef = ref<FormInstance>()
+const formRef = ref<FormInstance>();
 
 // 本地数据副本：避免 vue/no-mutating-props 警告；
 // watch 监听 props.formData 变化以同步父组件重置
@@ -229,52 +256,66 @@ const localData = reactive<OrderForm>({
   remark: '',
   items: [],
   total_amount: 0,
-})
+});
 
 watch(
   () => props.formData,
   newData => {
-    Object.assign(localData, deepClone(newData))
+    Object.assign(localData, deepClone(newData));
   },
   { deep: true, immediate: true }
-)
+);
 
 const formRules = computed<FormRules>(() => ({
-  customer_id: [{ required: true, message: t('sales.orderForm.customerRequired'), trigger: 'change' }],
-  order_date: [{ required: true, message: t('sales.orderForm.orderDateRequired'), trigger: 'change' }],
-  required_date: [{ required: true, message: t('sales.orderForm.requiredDateRequired'), trigger: 'change' }],
-  contact_person: [{ required: true, message: t('sales.orderForm.contactPersonRequired'), trigger: 'blur' }],
+  customer_id: [
+    { required: true, message: t('sales.orderForm.customerRequired'), trigger: 'change' },
+  ],
+  order_date: [
+    { required: true, message: t('sales.orderForm.orderDateRequired'), trigger: 'change' },
+  ],
+  required_date: [
+    { required: true, message: t('sales.orderForm.requiredDateRequired'), trigger: 'change' },
+  ],
+  contact_person: [
+    { required: true, message: t('sales.orderForm.contactPersonRequired'), trigger: 'blur' },
+  ],
   contact_phone: [
     { required: true, message: t('sales.orderForm.contactPhoneRequired'), trigger: 'blur' },
-    { pattern: /^1[3-9]\d{9}$/, message: t('sales.orderForm.contactPhoneInvalid'), trigger: 'blur' },
+    {
+      pattern: /^1[3-9]\d{9}$/,
+      message: t('sales.orderForm.contactPhoneInvalid'),
+      trigger: 'blur',
+    },
   ],
-  delivery_address: [{ required: true, message: t('sales.orderForm.deliveryAddressRequired'), trigger: 'blur' }],
-}))
+  delivery_address: [
+    { required: true, message: t('sales.orderForm.deliveryAddressRequired'), trigger: 'blur' },
+  ],
+}));
 
 const handleCustomerChange = (customerId: number) => {
-  const customer = props.customers.find(c => c.id === customerId)
+  const customer = props.customers.find(c => c.id === customerId);
   if (customer) {
-    localData.customer_name = customer.customer_name
+    localData.customer_name = customer.customer_name;
   }
-}
+};
 
 const handleProductSelect = (index: number, _v: number) => {
-  const product = props.products.find(p => p.id === localData.items[index].product_id)
+  const product = props.products.find(p => p.id === localData.items[index].product_id);
   if (product) {
-    localData.items[index].product_name = product.product_name
-    localData.items[index].product_code = product.product_code
-    localData.items[index].unit_price = product.price || 0
-    calculateSubtotal(localData.items[index])
+    localData.items[index].product_name = product.product_name;
+    localData.items[index].product_code = product.product_code;
+    localData.items[index].unit_price = product.price || 0;
+    calculateSubtotal(localData.items[index]);
   }
-}
+};
 
 const calculateSubtotal = (item: OrderItemForm) => {
-  item.subtotal = (item.quantity || 0) * (item.unit_price || 0)
-}
+  item.subtotal = (item.quantity || 0) * (item.unit_price || 0);
+};
 
 const calculateTotal = () => {
-  return localData.items.reduce((sum, item) => sum + (item.subtotal || 0), 0)
-}
+  return localData.items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
+};
 
 const addItem = () => {
   localData.items.push({
@@ -286,37 +327,37 @@ const addItem = () => {
     unit: t('sales.orderForm.defaultUnit'),
     unit_price: 0,
     subtotal: 0,
-  })
-}
+  });
+};
 
 const removeItem = (index: number) => {
   if (localData.items.length > 1) {
-    localData.items.splice(index, 1)
+    localData.items.splice(index, 1);
   } else {
-    ElMessage.warning(t('sales.orderForm.atLeastOneItem'))
+    ElMessage.warning(t('sales.orderForm.atLeastOneItem'));
   }
-}
+};
 
 const handleSubmit = async () => {
-  if (!formRef.value) return
+  if (!formRef.value) return;
   try {
-    await formRef.value.validate()
+    await formRef.value.validate();
     const validItems = localData.items.filter(
       item => item.product_id && item.quantity > 0 && item.unit_price > 0
-    )
+    );
     if (validItems.length === 0) {
-      ElMessage.warning(t('sales.orderForm.addValidItem'))
-      return
+      ElMessage.warning(t('sales.orderForm.addValidItem'));
+      return;
     }
-    localData.total_amount = calculateTotal()
-    emit('submit', localData)
+    localData.total_amount = calculateTotal();
+    emit('submit', localData);
   } catch (error) {
-    const err = error as { message?: string }
+    const err = error as { message?: string };
     if (err.message) {
-      ElMessage.error(err.message || t('sales.orderForm.operationFailed'))
+      ElMessage.error(err.message || t('sales.orderForm.operationFailed'));
     }
   }
-}
+};
 </script>
 
 <style scoped>

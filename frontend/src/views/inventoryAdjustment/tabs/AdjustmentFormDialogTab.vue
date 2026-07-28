@@ -135,41 +135,41 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
-import type { FormInstance } from 'element-plus'
-import { Plus, Delete } from '@element-plus/icons-vue'
+import { ref, reactive, watch, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
+import type { FormInstance } from 'element-plus';
+import { Plus, Delete } from '@element-plus/icons-vue';
 import {
   createInventoryAdjustment,
   updateInventoryAdjustment,
   generateInventoryAdjustmentNo,
   type InventoryAdjustmentEntity,
-} from '@/api/inventoryAdjustment'
-import type { Warehouse } from '@/api/warehouse'
-import type { Product } from '@/api/product'
-import { logger } from '@/utils/logger'
+} from '@/api/inventoryAdjustment';
+import type { Warehouse } from '@/api/warehouse';
+import type { Product } from '@/api/product';
+import { logger } from '@/utils/logger';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 interface Props {
-  modelValue: boolean
-  currentRow: InventoryAdjustmentEntity | null
-  warehouses: Warehouse[]
-  products: Product[]
-  mode: 'create' | 'edit' | 'view'
+  modelValue: boolean;
+  currentRow: InventoryAdjustmentEntity | null;
+  warehouses: Warehouse[];
+  products: Product[];
+  mode: 'create' | 'edit' | 'view';
 }
 
 interface Emits {
-  (e: 'update:modelValue', val: boolean): void
-  (e: 'submitted'): void
+  (e: 'update:modelValue', val: boolean): void;
+  (e: 'submitted'): void;
 }
 
-const props = defineProps<Props>()
-const emit = defineEmits<Emits>()
+const props = defineProps<Props>();
+const emit = defineEmits<Emits>();
 
-const formRef = ref<FormInstance>()
-const submitLoading = ref(false)
+const formRef = ref<FormInstance>();
+const submitLoading = ref(false);
 
 const formData = reactive({
   id: 0,
@@ -180,86 +180,92 @@ const formData = reactive({
   status: 'pending' as 'pending' | 'approved' | 'rejected',
   total_amount: 0,
   items: [{ product_id: 0, quantity: 1, cost_price: 0, amount: 0, remark: '' }] as {
-    product_id: number
-    quantity: number
-    cost_price: number
-    amount: number
-    remark: string
+    product_id: number;
+    quantity: number;
+    cost_price: number;
+    amount: number;
+    remark: string;
   }[],
-})
+});
 
 const resetForm = () => {
-  formData.id = 0
-  formData.adjust_no = ''
-  formData.adjust_date = new Date().toISOString().split('T')[0]
-  formData.warehouse_id = undefined
-  formData.reason = ''
-  formData.status = 'pending'
-  formData.total_amount = 0
-  formData.items = [{ product_id: 0, quantity: 1, cost_price: 0, amount: 0, remark: '' }]
-}
+  formData.id = 0;
+  formData.adjust_no = '';
+  formData.adjust_date = new Date().toISOString().split('T')[0];
+  formData.warehouse_id = undefined;
+  formData.reason = '';
+  formData.status = 'pending';
+  formData.total_amount = 0;
+  formData.items = [{ product_id: 0, quantity: 1, cost_price: 0, amount: 0, remark: '' }];
+};
 
 const addItem = () => {
-  formData.items.push({ product_id: 0, quantity: 1, cost_price: 0, amount: 0, remark: '' })
-}
+  formData.items.push({ product_id: 0, quantity: 1, cost_price: 0, amount: 0, remark: '' });
+};
 const removeItem = (index: number) => {
-  if (formData.items.length > 1) formData.items.splice(index, 1)
-}
+  if (formData.items.length > 1) formData.items.splice(index, 1);
+};
 
 const generateNo = async () => {
   try {
-    const res = await generateInventoryAdjustmentNo()
-    formData.adjust_no = res.data?.adjustment_no || ''
+    const res = await generateInventoryAdjustmentNo();
+    formData.adjust_no = res.data?.adjustment_no || '';
   } catch (error) {
-    logger.error(t('inventoryAdjustment.formDialogTab.messageGenerateNoFailed'), (error as Error).message)
+    logger.error(
+      t('inventoryAdjustment.formDialogTab.messageGenerateNoFailed'),
+      (error as Error).message
+    );
   }
-}
+};
 
 watch(
   () => props.modelValue,
   async val => {
     if (val) {
       if (props.currentRow) {
-        Object.assign(formData, props.currentRow)
+        Object.assign(formData, props.currentRow);
         if (!formData.items || formData.items.length === 0) {
-          formData.items = [{ product_id: 0, quantity: 1, cost_price: 0, amount: 0, remark: '' }]
+          formData.items = [{ product_id: 0, quantity: 1, cost_price: 0, amount: 0, remark: '' }];
         }
       } else {
-        resetForm()
-        await generateNo()
+        resetForm();
+        await generateNo();
       }
     }
   }
-)
+);
 
 onMounted(() => {
   if (props.modelValue && !props.currentRow) {
-    generateNo()
+    generateNo();
   }
-})
+});
 
 const handleSubmit = async () => {
-  submitLoading.value = true
+  submitLoading.value = true;
   try {
     formData.total_amount = formData.items.reduce(
       (sum, item) => sum + item.cost_price * item.quantity,
       0
-    )
+    );
     if (formData.id) {
-      await updateInventoryAdjustment(formData.id, formData as Partial<InventoryAdjustmentEntity>)
+      await updateInventoryAdjustment(formData.id, formData as Partial<InventoryAdjustmentEntity>);
     } else {
-      await createInventoryAdjustment(formData as Partial<InventoryAdjustmentEntity>)
+      await createInventoryAdjustment(formData as Partial<InventoryAdjustmentEntity>);
     }
-    ElMessage.success(t('inventoryAdjustment.formDialogTab.messageSuccess'))
-    emit('update:modelValue', false)
-    emit('submitted')
+    ElMessage.success(t('inventoryAdjustment.formDialogTab.messageSuccess'));
+    emit('update:modelValue', false);
+    emit('submitted');
   } catch (error) {
     ElMessage.error(
       (error as Error).message || t('inventoryAdjustment.formDialogTab.messageFailed')
-    )
-    logger.error(t('inventoryAdjustment.formDialogTab.messageSaveFailed'), (error as Error).message)
+    );
+    logger.error(
+      t('inventoryAdjustment.formDialogTab.messageSaveFailed'),
+      (error as Error).message
+    );
   } finally {
-    submitLoading.value = false
+    submitLoading.value = false;
   }
-}
+};
 </script>

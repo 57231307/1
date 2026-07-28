@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 质量/染色状态常量分组
 //!
 //! 批次 490 D10-3b 拆分：从 models/status.rs 抽取的质量/染色/验布/缸号生命周期状态常量子模块组。
@@ -197,9 +198,10 @@ pub mod fabric_grade {
 /// v14 批次 432：缸号全生命周期状态机
 ///
 /// 依据：面料行业真实业务调研文档 §12.7 缸号状态机 + §3.2 缸号全生命周期追踪
-/// 14 种状态：待排缸→已排缸→备布中→进缸染色→皂洗→固色→脱水→烘干→验布→入库→发货 + 取消/终止/回修
-/// 终态：shipped 发货 / cancelled 取消 / terminated 终止
+/// 16 种状态：待排缸→已排缸→备布中→进缸染色→皂洗→固色→脱水→烘干→验布→入库→发货 + 取消/终止/回修 + 暂停/失败
+/// 终态：shipped 发货 / cancelled 取消 / terminated 终止 / failed 失败
 /// 回修：rework 可回到 dyeing 重新进缸
+/// 异常态（V15 Batch05-P1-1）：on_hold 暂停（设备故障/染料异常，可恢复）/ failed 失败（彻底失败，需返工或报废）
 pub mod dye_batch_lifecycle_status {
     /// 待排缸：缸号已创建，等待排缸
     pub const PENDING_SCHEDULE: &str = "pending_schedule";
@@ -229,6 +231,10 @@ pub mod dye_batch_lifecycle_status {
     pub const TERMINATED: &str = "terminated";
     /// 回修中：回修订单重新进缸，可回到 dyeing
     pub const REWORK: &str = "rework";
+    /// 暂停：设备故障/染料异常/停电等临时挂起，待恢复后继续流转（V15 Batch05-P1-1）
+    pub const ON_HOLD: &str = "on_hold";
+    /// 失败：彻底失败，需返工或报废（终态，V15 Batch05-P1-1）
+    pub const FAILED: &str = "failed";
 }
 
 /// v14 批次 432：缸号全生命周期状态机
@@ -261,6 +267,12 @@ pub mod dye_batch_transition_code {
     pub const REWORK: &str = "rework";
     /// 终止：scheduled/preparing/dyeing/rework → terminated（终态）
     pub const TERMINATE: &str = "terminate";
+    /// 暂停：dyeing/washing/fixing/dehydrating/drying → on_hold（V15 Batch05-P1-1）
+    pub const HOLD: &str = "hold";
+    /// 恢复：on_hold → dyeing/washing/fixing/dehydrating/drying（V15 Batch05-P1-1）
+    pub const RESUME: &str = "resume";
+    /// 失败：任意非终态 → failed（终态，V15 Batch05-P1-1）
+    pub const FAIL: &str = "fail";
 }
 
 /// v14 批次 432：缸号全生命周期状态机

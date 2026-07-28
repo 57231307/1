@@ -19,8 +19,8 @@ use crate::utils::error::AppError;
 use crate::utils::xlsx_export::XlsxTable;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
-    Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set, TransactionTrait,
 };
 
 use super::cust::CrmService;
@@ -84,7 +84,9 @@ impl CrmService {
 
         // V15 P0-B08：赢率自动计算
         // 用户未传 win_probability 时，按阶段默认赢率填充；显式传值时保留用户输入
-        let win_probability = req.win_probability.or_else(|| default_win_probability_by_stage(&opportunity_stage));
+        let win_probability = req
+            .win_probability
+            .or_else(|| default_win_probability_by_stage(&opportunity_stage));
 
         let opportunity = crm_opportunity::ActiveModel {
             id: Default::default(),
@@ -153,7 +155,9 @@ impl CrmService {
 
         let total = paginator.num_items().await?;
         // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-        let items: Vec<crm_opportunity::Model> = paginator.fetch_page(page.clamp(1, 1000).saturating_sub(1)).await?;
+        let items: Vec<crm_opportunity::Model> = paginator
+            .fetch_page(page.clamp(1, 1000).saturating_sub(1))
+            .await?;
 
         Ok(serde_json::json!({
             "data": items,
@@ -208,7 +212,9 @@ impl CrmService {
                     opp.opportunity_name.clone(),
                     opp.customer_id.to_string(),
                     opp.opportunity_stage.clone().unwrap_or_default(),
-                    opp.estimated_amount.map(|d| d.to_string()).unwrap_or_default(),
+                    opp.estimated_amount
+                        .map(|d| d.to_string())
+                        .unwrap_or_default(),
                     opp.actual_amount.map(|d| d.to_string()).unwrap_or_default(),
                     opp.expected_close_date
                         .map(|d| d.to_string())
@@ -246,7 +252,8 @@ impl CrmService {
         if let Some(ctx) = data_scope {
             if !check_resource_owner(ctx, Some(opportunity.owner_id), None) {
                 return Err(AppError::permission_denied(format!(
-                    "无权访问商机 {}（数据范围限制）", opportunity_id
+                    "无权访问商机 {}（数据范围限制）",
+                    opportunity_id
                 )));
             }
         }
@@ -590,4 +597,394 @@ impl CrmService {
 
         Ok(opportunity)
     }
+
+    /// V15 P1 18.2-D3：预测准确率分析
+    ///
+    /// 月度预测准确率 = 实际成交金额 / 预测金额 × 100%
+    /// 预测金额 = 当月 expected_close_date 的商机 estimated_amount 之和
+    /// 实际成交金额 = 当月 actual_close_date 且 CLOSED_WON 的商机 actual_amount 之和
+    pub async fn forecast_accuracy(
+        &self,
+        year: i32,
+        month: u32,
+    ) -> Result<ForecastAccuracyResult, AppError> {
+        use chrono::NaiveDate;
+
+        let month_start = NaiveDate::from_ymd_opt(year, month, 1)
+            .ok_or_else(|| AppError::validation("无效的年月参数"))?;
+        let month_end = if month == 12 {
+            NaiveDate::from_ymd_opt(year + 1, 1, 1)
+        } else {
+            NaiveDate::from_ymd_opt(year, month + 1, 1)
+        }
+        .unwrap_or(month_start);
+
+        // 预测金额：当月预计成交的商机预估金额之和
+        let forecast_opps = crm_opportunity::Entity::find()
+            .filter(crm_opportunity::Column::ExpectedCloseDate.gte(month_start))
+            .filter(crm_opportunity::Column::ExpectedCloseDate.lt(month_end))
+            .all(&*self.db)
+            .await?;
+
+        let forecast_amount: Decimal = forecast_opps
+            .iter()
+            .map(|o| o.estimated_amount.unwrap_or(Decimal::ZERO))
+            .sum();
+        let forecast_count = forecast_opps.len() as i64;
+
+        // 实际成交金额：当月实际成交的商机金额之和
+        let won_opps = crm_opportunity::Entity::find()
+            .filter(crm_opportunity::Column::ActualCloseDate.gte(month_start))
+            .filter(crm_opportunity::Column::ActualCloseDate.lt(month_end))
+            .filter(crm_opportunity::Column::OpportunityStage.eq(opp_status::CLOSED_WON))
+            .all(&*self.db)
+            .await?;
+
+        let actual_amount: Decimal = won_opps
+            .iter()
+            .map(|o| {
+                o.actual_amount
+                    .unwrap_or(o.estimated_amount.unwrap_or(Decimal::ZERO))
+            })
+            .sum();
+        let won_count = won_opps.len() as i64;
+
+        // 准确率 = 实际 / 预测
+        let accuracy_rate = if forecast_amount > Decimal::ZERO {
+            let rate = actual_amount / forecast_amount;
+            // 转为 f64 百分比
+            rate.to_string().parse::<f64>().unwrap_or(0.0) * 100.0
+        } else {
+            0.0
+        };
+
+        Ok(ForecastAccuracyResult {
+            year,
+            month,
+            forecast_amount,
+            forecast_count,
+            actual_amount,
+            won_count,
+            accuracy_rate,
+        })
+    }
+
+    /// V15 P1 18.2-D4：加权销售预测
+    ///
+    /// 加权预测金额 = 商机金额 × 赢率（win_probability / 100）
+    /// 返回所有 open 状态商机的加权预测汇总与明细。
+    pub async fn weighted_forecast(
+        &self,
+        owner_id: Option<i32>,
+    ) -> Result<WeightedForecastResult, AppError> {
+        let mut query = crm_opportunity::Entity::find();
+        if let Some(oid) = owner_id {
+            query = query.filter(crm_opportunity::Column::OwnerId.eq(oid));
+        }
+
+        let all_opps = query.all(&*self.db).await?;
+        // 排除已关闭的商机（在 Rust 中过滤，兼容 NULL stage）
+        let opps: Vec<&crm_opportunity::Model> = all_opps
+            .iter()
+            .filter(|o| {
+                o.opportunity_stage.as_deref() != Some(opp_status::CLOSED_WON)
+                    && o.opportunity_stage.as_deref() != Some(opp_status::CLOSED_LOST)
+            })
+            .collect();
+
+        let mut total_estimated = Decimal::ZERO;
+        let mut total_weighted = Decimal::ZERO;
+        let mut details: Vec<WeightedForecastItem> = Vec::new();
+
+        for opp in &opps {
+            let estimated = opp.estimated_amount.unwrap_or(Decimal::ZERO);
+            let win_prob = opp.win_probability.unwrap_or(Decimal::ZERO);
+            // 加权金额 = 金额 × 赢率 / 100
+            let weighted = estimated * win_prob / Decimal::from(100);
+            total_estimated += estimated;
+            total_weighted += weighted;
+            details.push(WeightedForecastItem {
+                opportunity_id: opp.id,
+                opportunity_no: opp.opportunity_no.clone(),
+                opportunity_name: opp.opportunity_name.clone(),
+                stage: opp.opportunity_stage.clone().unwrap_or_default(),
+                estimated_amount: estimated,
+                win_probability: win_prob,
+                weighted_amount: weighted,
+                expected_close_date: opp.expected_close_date,
+            });
+        }
+
+        Ok(WeightedForecastResult {
+            total_opportunities: opps.len() as i64,
+            total_estimated_amount: total_estimated,
+            total_weighted_amount: total_weighted,
+            details,
+        })
+    }
+
+    /// V15 P1 18.5-D1：CRM 专用转化率分析
+    ///
+    /// 按月统计商机各阶段转化率，识别转化瓶颈。
+    pub async fn conversion_rate_analysis(
+        &self,
+        months_back: u32,
+    ) -> Result<ConversionRateAnalysis, AppError> {
+        let now = chrono::Utc::now();
+        let start = now
+            .checked_sub_signed(chrono::Duration::days((months_back as i64) * 30))
+            .unwrap_or(now);
+
+        let all_opps = crm_opportunity::Entity::find()
+            .filter(crm_opportunity::Column::CreatedAt.gte(start))
+            .all(&*self.db)
+            .await?;
+
+        let total = all_opps.len() as i64;
+        let mut stage_counts: std::collections::HashMap<String, i64> =
+            std::collections::HashMap::new();
+        let mut won_count = 0i64;
+        let mut lost_count = 0i64;
+
+        for opp in &all_opps {
+            let stage = opp
+                .opportunity_stage
+                .clone()
+                .unwrap_or_else(|| "UNKNOWN".to_string());
+            *stage_counts.entry(stage).or_insert(0) += 1;
+            if opp.opportunity_stage.as_deref() == Some(opp_status::CLOSED_WON) {
+                won_count += 1;
+            } else if opp.opportunity_stage.as_deref() == Some(opp_status::CLOSED_LOST) {
+                lost_count += 1;
+            }
+        }
+
+        let closed_total = won_count + lost_count;
+        let win_rate = if closed_total > 0 {
+            (won_count as f64 / closed_total as f64) * 100.0
+        } else {
+            0.0
+        };
+        let conversion_rate = if total > 0 {
+            (won_count as f64 / total as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        // 阶段分布
+        let stage_distribution: Vec<StageCount> = stage_counts
+            .into_iter()
+            .map(|(stage, count)| StageCount { stage, count })
+            .collect();
+
+        Ok(ConversionRateAnalysis {
+            period_start: start,
+            period_end: now,
+            total_opportunities: total,
+            won_count,
+            lost_count,
+            open_count: total - won_count - lost_count,
+            win_rate,
+            conversion_rate,
+            stage_distribution,
+        })
+    }
+
+    /// V15 P1 18.5-D2：完整销售漏斗报表
+    ///
+    /// 线索→商机→报价→订单→回款 完整漏斗，各阶段数量与金额。
+    pub async fn sales_funnel_report(
+        &self,
+        start_date: Option<chrono::NaiveDate>,
+        end_date: Option<chrono::NaiveDate>,
+    ) -> Result<SalesFunnelReport, AppError> {
+        use crate::models::{crm_lead, sales_quotation};
+
+        let (start_dt, end_dt) = match (start_date, end_date) {
+            (Some(s), Some(e)) => (
+                Some(chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
+                    s.and_hms_opt(0, 0, 0).unwrap_or_default(),
+                    chrono::Utc,
+                )),
+                Some(chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
+                    e.and_hms_opt(23, 59, 59).unwrap_or_default(),
+                    chrono::Utc,
+                )),
+            ),
+            _ => (None, None),
+        };
+
+        // 1. 线索数
+        let mut lead_q = crm_lead::Entity::find();
+        if let (Some(s), Some(e)) = (start_dt, end_dt) {
+            lead_q = lead_q
+                .filter(crm_lead::Column::CreatedAt.gte(s))
+                .filter(crm_lead::Column::CreatedAt.lte(e));
+        }
+        let lead_count = lead_q.count(&*self.db).await?;
+
+        // 2. 商机数与金额
+        let mut opp_q = crm_opportunity::Entity::find();
+        if let (Some(s), Some(e)) = (start_dt, end_dt) {
+            opp_q = opp_q
+                .filter(crm_opportunity::Column::CreatedAt.gte(s))
+                .filter(crm_opportunity::Column::CreatedAt.lte(e));
+        }
+        let opps = opp_q.clone().all(&*self.db).await?;
+        let opp_count = opps.len() as i64;
+        let opp_amount: Decimal = opps
+            .iter()
+            .map(|o| o.estimated_amount.unwrap_or(Decimal::ZERO))
+            .sum();
+
+        // 3. 已成交商机数与金额
+        let won_opps: Vec<&crm_opportunity::Model> = opps
+            .iter()
+            .filter(|o| o.opportunity_stage.as_deref() == Some(opp_status::CLOSED_WON))
+            .collect();
+        let won_count = won_opps.len() as i64;
+        let won_amount: Decimal = won_opps
+            .iter()
+            .map(|o| {
+                o.actual_amount
+                    .unwrap_or(o.estimated_amount.unwrap_or(Decimal::ZERO))
+            })
+            .sum();
+
+        // 4. 报价数
+        let mut quot_q = sales_quotation::Entity::find();
+        if let (Some(_s), Some(_e)) = (start_dt, end_dt) {
+            quot_q = quot_q
+                .filter(sales_quotation::Column::QuotationDate.gte(start_date.unwrap()))
+                .filter(sales_quotation::Column::QuotationDate.lte(end_date.unwrap()));
+        }
+        let quotation_count = quot_q.count(&*self.db).await?;
+
+        // 5. 订单数与金额
+        let mut order_q = sales_order::Entity::find();
+        if let (Some(s), Some(e)) = (start_dt, end_dt) {
+            order_q = order_q
+                .filter(sales_order::Column::CreatedAt.gte(s))
+                .filter(sales_order::Column::CreatedAt.lte(e));
+        }
+        let orders = order_q.all(&*self.db).await?;
+        let order_count = orders.len() as i64;
+        let order_amount: Decimal = orders.iter().map(|o| o.total_amount).sum();
+
+        // 6. 回款金额（已付款金额）
+        let collected_amount: Decimal = orders.iter().map(|o| o.paid_amount).sum();
+
+        // 转化率
+        let lead_to_opp = if lead_count > 0 {
+            (opp_count as f64 / lead_count as f64) * 100.0
+        } else {
+            0.0
+        };
+        let opp_to_quotation = if opp_count > 0 {
+            (quotation_count as f64 / opp_count as f64) * 100.0
+        } else {
+            0.0
+        };
+        let opp_to_order = if opp_count > 0 {
+            (order_count as f64 / opp_count as f64) * 100.0
+        } else {
+            0.0
+        };
+        let order_to_collection = if order_amount > Decimal::ZERO {
+            (collected_amount / order_amount)
+                .to_string()
+                .parse::<f64>()
+                .unwrap_or(0.0)
+                * 100.0
+        } else {
+            0.0
+        };
+
+        Ok(SalesFunnelReport {
+            lead_count,
+            opportunity_count: opp_count,
+            opportunity_amount: opp_amount,
+            quotation_count,
+            won_count,
+            won_amount,
+            order_count,
+            order_amount,
+            collected_amount,
+            lead_to_opp_rate: lead_to_opp,
+            opp_to_quotation_rate: opp_to_quotation,
+            opp_to_order_rate: opp_to_order,
+            order_to_collection_rate: order_to_collection,
+        })
+    }
+}
+
+/// V15 P1 18.2-D3：预测准确率结果
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ForecastAccuracyResult {
+    pub year: i32,
+    pub month: u32,
+    pub forecast_amount: Decimal,
+    pub forecast_count: i64,
+    pub actual_amount: Decimal,
+    pub won_count: i64,
+    pub accuracy_rate: f64,
+}
+
+/// V15 P1 18.2-D4：加权预测结果
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct WeightedForecastResult {
+    pub total_opportunities: i64,
+    pub total_estimated_amount: Decimal,
+    pub total_weighted_amount: Decimal,
+    pub details: Vec<WeightedForecastItem>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct WeightedForecastItem {
+    pub opportunity_id: i32,
+    pub opportunity_no: String,
+    pub opportunity_name: String,
+    pub stage: String,
+    pub estimated_amount: Decimal,
+    pub win_probability: Decimal,
+    pub weighted_amount: Decimal,
+    pub expected_close_date: Option<chrono::NaiveDate>,
+}
+
+/// V15 P1 18.5-D1：转化率分析结果
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ConversionRateAnalysis {
+    pub period_start: chrono::DateTime<chrono::Utc>,
+    pub period_end: chrono::DateTime<chrono::Utc>,
+    pub total_opportunities: i64,
+    pub won_count: i64,
+    pub lost_count: i64,
+    pub open_count: i64,
+    pub win_rate: f64,
+    pub conversion_rate: f64,
+    pub stage_distribution: Vec<StageCount>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct StageCount {
+    pub stage: String,
+    pub count: i64,
+}
+
+/// V15 P1 18.5-D2：销售漏斗报表
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SalesFunnelReport {
+    pub lead_count: u64,
+    pub opportunity_count: i64,
+    pub opportunity_amount: Decimal,
+    pub quotation_count: u64,
+    pub won_count: i64,
+    pub won_amount: Decimal,
+    pub order_count: i64,
+    pub order_amount: Decimal,
+    pub collected_amount: Decimal,
+    pub lead_to_opp_rate: f64,
+    pub opp_to_quotation_rate: f64,
+    pub opp_to_order_rate: f64,
+    pub order_to_collection_rate: f64,
 }

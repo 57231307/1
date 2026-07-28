@@ -15,17 +15,17 @@
  */
 function readCookie(name: string): string | null {
   if (typeof document === 'undefined' || !document.cookie) {
-    return null
+    return null;
   }
-  const target = `${name}=`
-  const parts = document.cookie.split(';')
+  const target = `${name}=`;
+  const parts = document.cookie.split(';');
   for (const raw of parts) {
-    const cookie = raw.trim()
+    const cookie = raw.trim();
     if (cookie.startsWith(target)) {
-      return decodeURIComponent(cookie.substring(target.length))
+      return decodeURIComponent(cookie.substring(target.length));
     }
   }
-  return null
+  return null;
 }
 
 /**
@@ -33,7 +33,7 @@ function readCookie(name: string): string | null {
  * - 失败返回 null，由调用方决定是否发起请求
  */
 export function getCsrfToken(): string | null {
-  return readCookie('csrf_token')
+  return readCookie('csrf_token');
 }
 
 /**
@@ -41,7 +41,7 @@ export function getCsrfToken(): string | null {
  * 实际行为与 getCsrfToken 完全相同（从非 httpOnly Cookie 读取）
  */
 export function loadCsrfToken(): string | null {
-  return getCsrfToken()
+  return getCsrfToken();
 }
 
 /**

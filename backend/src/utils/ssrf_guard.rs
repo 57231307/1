@@ -124,7 +124,9 @@ pub fn validate_url(url_str: &str) -> Result<(), AppError> {
 /// # 返回
 /// - `Ok((host, addrs))`：URL 安全，host 为 URL 主机名，addrs 为校验通过的地址列表
 /// - `Err(AppError)`：URL 不安全或解析失败
-pub fn validate_url_and_resolve(url_str: &str) -> Result<(String, Vec<std::net::SocketAddr>), AppError> {
+pub fn validate_url_and_resolve(
+    url_str: &str,
+) -> Result<(String, Vec<std::net::SocketAddr>), AppError> {
     // 1. 解析 URL
     let parsed = url::Url::parse(url_str)
         .map_err(|e| AppError::validation(format!("URL 格式无效: {}", e)))?;
@@ -307,7 +309,9 @@ mod tests {
     #[test]
     fn test_ipv4_loopback_blocked() {
         assert!(is_blocked_ip(&IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))));
-        assert!(is_blocked_ip(&IpAddr::V4(Ipv4Addr::new(127, 255, 255, 255))));
+        assert!(is_blocked_ip(&IpAddr::V4(Ipv4Addr::new(
+            127, 255, 255, 255
+        ))));
     }
 
     #[test]
@@ -320,14 +324,18 @@ mod tests {
         assert!(is_blocked_ip(&IpAddr::V4(Ipv4Addr::new(172, 31, 255, 255))));
         // 192.168.0.0/16
         assert!(is_blocked_ip(&IpAddr::V4(Ipv4Addr::new(192, 168, 0, 1))));
-        assert!(is_blocked_ip(&IpAddr::V4(Ipv4Addr::new(192, 168, 255, 255))));
+        assert!(is_blocked_ip(&IpAddr::V4(Ipv4Addr::new(
+            192, 168, 255, 255
+        ))));
     }
 
     #[test]
     fn test_ipv4_link_local_blocked() {
         // 169.254.0.0/16（含云元数据 169.254.169.254）
         assert!(is_blocked_ip(&IpAddr::V4(Ipv4Addr::new(169, 254, 0, 1))));
-        assert!(is_blocked_ip(&IpAddr::V4(Ipv4Addr::new(169, 254, 169, 254))));
+        assert!(is_blocked_ip(&IpAddr::V4(Ipv4Addr::new(
+            169, 254, 169, 254
+        ))));
     }
 
     #[test]
@@ -337,7 +345,9 @@ mod tests {
 
     #[test]
     fn test_ipv4_broadcast_blocked() {
-        assert!(is_blocked_ip(&IpAddr::V4(Ipv4Addr::new(255, 255, 255, 255))));
+        assert!(is_blocked_ip(&IpAddr::V4(Ipv4Addr::new(
+            255, 255, 255, 255
+        ))));
     }
 
     #[test]
@@ -351,7 +361,9 @@ mod tests {
     fn test_ipv4_cgnat_blocked() {
         // 100.64.0.0/10
         assert!(is_blocked_ip(&IpAddr::V4(Ipv4Addr::new(100, 64, 0, 1))));
-        assert!(is_blocked_ip(&IpAddr::V4(Ipv4Addr::new(100, 127, 255, 255))));
+        assert!(is_blocked_ip(&IpAddr::V4(Ipv4Addr::new(
+            100, 127, 255, 255
+        ))));
     }
 
     // ============ IPv6 黑名单测试 ============
@@ -375,8 +387,12 @@ mod tests {
     #[test]
     fn test_ipv6_ula_blocked() {
         // fc00::/7（含 fd00::/8）
-        assert!(is_blocked_ip(&IpAddr::V6(Ipv6Addr::new(0xfc00, 0, 0, 0, 0, 0, 0, 1))));
-        assert!(is_blocked_ip(&IpAddr::V6(Ipv6Addr::new(0xfd00, 0, 0, 0, 0, 0, 0, 1))));
+        assert!(is_blocked_ip(&IpAddr::V6(Ipv6Addr::new(
+            0xfc00, 0, 0, 0, 0, 0, 0, 1
+        ))));
+        assert!(is_blocked_ip(&IpAddr::V6(Ipv6Addr::new(
+            0xfd00, 0, 0, 0, 0, 0, 0, 1
+        ))));
     }
 
     #[test]

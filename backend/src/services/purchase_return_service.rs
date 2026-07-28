@@ -207,8 +207,7 @@ impl PurchaseReturnService {
         // 在 commit 成功后统一 publish，避免事务回滚时幻事件
         let mut pending_events: Vec<BusinessEvent> = Vec::new();
 
-        let return_order =
-            Self::load_and_validate_return_for_approval(&txn, return_id).await?;
+        let return_order = Self::load_and_validate_return_for_approval(&txn, return_id).await?;
         let return_order =
             Self::update_return_status_to_approved(&txn, return_order, user_id).await?;
 
@@ -302,10 +301,13 @@ impl PurchaseReturnService {
     async fn load_return_items_with_stock_map(
         txn: &sea_orm::DatabaseTransaction,
         return_order: &purchase_return::Model,
-    ) -> Result<(
-        Vec<purchase_return_item::Model>,
-        std::collections::HashMap<i32, inventory_stock::Model>,
-    ), AppError> {
+    ) -> Result<
+        (
+            Vec<purchase_return_item::Model>,
+            std::collections::HashMap<i32, inventory_stock::Model>,
+        ),
+        AppError,
+    > {
         let items = purchase_return_item::Entity::find()
             .filter(purchase_return_item::Column::ReturnId.eq(return_order.id))
             .all(txn)
@@ -314,8 +316,7 @@ impl PurchaseReturnService {
         let stock_map: std::collections::HashMap<i32, inventory_stock::Model> =
             match return_order.warehouse_id {
                 Some(warehouse_id) => {
-                    let product_ids: Vec<i32> =
-                        items.iter().map(|item| item.product_id).collect();
+                    let product_ids: Vec<i32> = items.iter().map(|item| item.product_id).collect();
                     if product_ids.is_empty() {
                         std::collections::HashMap::new()
                     } else {
@@ -440,11 +441,7 @@ impl PurchaseReturnService {
             .auto_generate_from_return(return_id, user_id)
             .await
         {
-            tracing::error!(
-                "自动生成应付账单失败 (退货单 {}): {}",
-                return_no,
-                e
-            );
+            tracing::error!("自动生成应付账单失败 (退货单 {}): {}", return_no, e);
             // 记录失败但不阻断流程，可以后续手动重试
         } else {
             tracing::info!("成功自动生成应付账单 (退货单 {})", return_no);
@@ -765,10 +762,19 @@ impl PurchaseReturnService {
         // 解析请求字段并计算金额
         let (quantity, unit_price, discount_percent, tax_percent) =
             Self::resolve_item_params(&req, &item);
-        let amounts = Self::compute_item_amounts(quantity, unit_price, discount_percent, tax_percent);
+        let amounts =
+            Self::compute_item_amounts(quantity, unit_price, discount_percent, tax_percent);
 
         // 构建 ActiveModel
-        let active_item = Self::build_update_item_active(item, req, quantity, unit_price, discount_percent, tax_percent, amounts);
+        let active_item = Self::build_update_item_active(
+            item,
+            req,
+            quantity,
+            unit_price,
+            discount_percent,
+            tax_percent,
+            amounts,
+        );
 
         let updated_item = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,

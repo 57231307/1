@@ -1,7 +1,6 @@
 #![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
-
 use chrono::{DateTime, Utc};
+use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -41,6 +40,27 @@ pub struct Model {
     pub created_at: DateTime<Utc>,
     #[sea_orm(column_name = "updated_at")]
     pub updated_at: DateTime<Utc>,
+    // P1 batch-18 缺陷 5.1：降级联动库存等级同步标记
+    #[sea_orm(column_name = "stock_grade_synced", default_value = false)]
+    pub stock_grade_synced: bool,
+    #[sea_orm(column_name = "stock_id")]
+    pub stock_id: Option<i32>,
+    // P1 batch-18 缺陷 5.3：报废二级审批（财务+总经理）
+    #[sea_orm(column_name = "scrap_approval_status", default_value = "not_required")]
+    pub scrap_approval_status: String,
+    #[sea_orm(column_name = "approver_id_fin")]
+    pub approver_id_fin: Option<i32>,
+    #[sea_orm(column_name = "approver_id_gm")]
+    pub approver_id_gm: Option<i32>,
+    #[sea_orm(column_name = "approved_at_fin")]
+    pub approved_at_fin: Option<DateTime<Utc>>,
+    #[sea_orm(column_name = "approved_at_gm")]
+    pub approved_at_gm: Option<DateTime<Utc>>,
+    #[sea_orm(
+        column_name = "scrap_loss_amount",
+        column_type = "Decimal(Some((12, 2)))"
+    )]
+    pub scrap_loss_amount: Option<Decimal>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -48,4 +68,9 @@ pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}
 
-use rust_decimal::Decimal;
+/// 缺陷 5.3：报废审批状态常量
+pub const SCRAP_NOT_REQUIRED: &str = "not_required";
+pub const SCRAP_PENDING_FIN: &str = "pending_fin";
+pub const SCRAP_PENDING_GM: &str = "pending_gm";
+pub const SCRAP_APPROVED: &str = "approved";
+pub const SCRAP_REJECTED: &str = "rejected";

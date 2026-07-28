@@ -18,7 +18,6 @@
 //! 兼容说明：原 `crate::services::ar::*` 路径需要由上层
 //! `services/mod.rs` 通过 `pub use super::ar::*;` 重新导出以保持向后兼容。
 
-
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use sea_orm::{ConnectionTrait, DatabaseConnection, TransactionTrait};

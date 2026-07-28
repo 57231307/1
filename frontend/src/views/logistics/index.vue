@@ -21,7 +21,7 @@
       :date-range="lgs.dateRange"
       @fetch="lgs.handleQuery"
       @date-change="lgs.handleDateChange"
-      @update:query-params="(v) => Object.assign(lgs.queryParams, v)"
+      @update:query-params="v => Object.assign(lgs.queryParams, v)"
     />
 
     <LogisticsTable
@@ -45,42 +45,39 @@
       :form="lgs.formData"
       :rules="lgs.formRules"
       @submit="lgsProc.handleSubmit"
-      @update:form="(v) => Object.assign(lgs.formData, v)"
+      @update:form="v => Object.assign(lgs.formData, v)"
     />
 
-    <LogisticsDetail
-      v-model:visible="lgs.detailDialogVisible"
-      :detail="lgs.detailData"
-    />
+    <LogisticsDetail v-model:visible="lgs.detailDialogVisible" :detail="lgs.detailData" />
 
     <LogisticsStatDialog
       v-model:visible="lgs.statusDialogVisible"
       :form="lgs.statusForm"
       :statuses="lgsProc.availableStatuses"
       @submit="lgsProc.handleStatusSubmit"
-      @update:form="(v) => Object.assign(lgs.statusForm, v)"
+      @update:form="v => Object.assign(lgs.statusForm, v)"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
-import { Plus } from '@element-plus/icons-vue'
-import { useLgs } from './composables/useLgs'
-import { useLgsProc } from './composables/useLgsProc'
-import LogisticsStat from './components/LogisticsStat.vue'
-import LogisticsFilter from './components/LogisticsFilter.vue'
-import LogisticsTable from './components/LogisticsTable.vue'
-import LogisticsForm from './components/LogisticsForm.vue'
-import LogisticsDetail from './components/LogisticsDetail.vue'
-import LogisticsStatDialog from './components/LogisticsStatDialog.vue'
+import { onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
+import { Plus } from '@element-plus/icons-vue';
+import { useLgs } from './composables/useLgs';
+import { useLgsProc } from './composables/useLgsProc';
+import LogisticsStat from './components/LogisticsStat.vue';
+import LogisticsFilter from './components/LogisticsFilter.vue';
+import LogisticsTable from './components/LogisticsTable.vue';
+import LogisticsForm from './components/LogisticsForm.vue';
+import LogisticsDetail from './components/LogisticsDetail.vue';
+import LogisticsStatDialog from './components/LogisticsStatDialog.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 业务状态（reactive 包装，父组件可直接访问字段）
-const lgs = useLgs()
+const lgs = useLgs();
 const lgsProc = useLgsProc({
   detailDialogVisible: lgs.detailDialogVisible,
   detailData: lgs.detailData,
@@ -91,15 +88,15 @@ const lgsProc = useLgsProc({
   statusForm: lgs.statusForm,
   statusDialogVisible: lgs.statusDialogVisible,
   fetchData: lgs.fetchData,
-})
+});
 
 // 懒加载标记
-const hasLoaded = createLazyLoader()
+const hasLoaded = createLazyLoader();
 
 // 列表由 useTableApi setup 自动加载，onMounted 仅加载辅助数据（关联订单）
 onMounted(() => {
-  loadIfNot('orders', lgs.fetchOrders, hasLoaded)
-})
+  loadIfNot('orders', lgs.fetchOrders, hasLoaded);
+});
 </script>
 
 <style scoped>

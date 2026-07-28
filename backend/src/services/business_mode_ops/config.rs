@@ -22,18 +22,20 @@ use sea_orm::{
 use crate::models::business_mode_config::{
     self, ActiveModel as ConfigActiveModel, Entity as ConfigEntity, Model as ConfigModel,
 };
-use crate::models::business_mode_flow_step::{self, Entity as FlowStepEntity, Model as FlowStepModel};
+use crate::models::business_mode_flow_step::{
+    self, Entity as FlowStepEntity, Model as FlowStepModel,
+};
 use crate::models::business_mode_order_link::{self, Entity as OrderLinkEntity};
 use crate::models::business_mode_rule::{self, Entity as RuleEntity, Model as RuleModel};
 use crate::utils::error::AppError;
 
-use crate::services::business_mode_service::{
-    check_module_consistency, validate_cost_method, validate_inventory_type, validate_material_source,
-    validate_mode_category, validate_mode_code, validate_settlement_method,
-    BusinessModeConfigService,
-};
 use crate::services::business_mode_ops::types::{
     BusinessModeConfigQuery, CreateBusinessModeConfigRequest, UpdateBusinessModeConfigRequest,
+};
+use crate::services::business_mode_service::{
+    check_module_consistency, validate_cost_method, validate_inventory_type,
+    validate_material_source, validate_mode_category, validate_mode_code,
+    validate_settlement_method, BusinessModeConfigService,
 };
 
 /// 更新时用于一致性校验的最终值聚合
@@ -163,10 +165,7 @@ impl BusinessModeConfigService {
     }
 
     /// 应用基础字段（无校验）
-    fn apply_basic_fields(
-        active: &mut ConfigActiveModel,
-        req: &UpdateBusinessModeConfigRequest,
-    ) {
+    fn apply_basic_fields(active: &mut ConfigActiveModel, req: &UpdateBusinessModeConfigRequest) {
         if let Some(v) = &req.mode_name {
             active.mode_name = Set(v.clone());
         }
@@ -304,12 +303,30 @@ impl BusinessModeConfigService {
             return Err(AppError::business("未启用的业务模式不可设置为默认"));
         }
 
+        let mode_id = model.id;
+        let mode_code = model.mode_code.clone();
+        let mode_name = model.mode_name.clone();
+        let changed_by = model.created_by.unwrap_or(0);
+
         self.clear_other_defaults(id).await?;
 
         let mut active: ConfigActiveModel = model.into();
         active.is_default = Set(true);
         active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
-        active.update(&*self.db).await?;
+        let updated = active.update(&*self.db).await?;
+
+        // V15 Batch04-P1-6：发布默认业务模式变更事件，供下游订阅（如订单默认模式同步、报表默认口径切换）
+        if updated.is_default {
+            crate::services::event_bus::EVENT_BUS.publish(
+                crate::services::event_bus::BusinessEvent::BusinessModeChanged {
+                    mode_id,
+                    mode_code,
+                    mode_name,
+                    changed_by,
+                },
+            );
+            tracing::info!(mode_id, "默认业务模式变更事件已发布");
+        }
         Ok(())
     }
 
@@ -328,10 +345,7 @@ impl BusinessModeConfigService {
     }
 
     /// 获取业务模式详情（含规则）
-    pub async fn get_with_rules(
-        &self,
-        id: i32,
-    ) -> Result<(ConfigModel, Vec<RuleModel>), AppError> {
+    pub async fn get_with_rules(&self, id: i32) -> Result<(ConfigModel, Vec<RuleModel>), AppError> {
         let model = self.get_by_id(id).await?;
         let rules = RuleEntity::find()
             .filter(business_mode_rule::Column::ModeId.eq(id))
@@ -362,8 +376,7 @@ impl BusinessModeConfigService {
         &self,
         query: BusinessModeConfigQuery,
     ) -> Result<(Vec<ConfigModel>, u64), AppError> {
-        let mut q = ConfigEntity::find()
-            .filter(business_mode_config::Column::IsDeleted.eq(false));
+        let mut q = ConfigEntity::find().filter(business_mode_config::Column::IsDeleted.eq(false));
         if let Some(v) = query.mode_code {
             q = q.filter(business_mode_config::Column::ModeCode.eq(v));
         }
