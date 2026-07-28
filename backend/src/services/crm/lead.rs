@@ -12,7 +12,7 @@ use crate::models::status::crm_lead as lead_status;
 use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 use crate::utils::xlsx_export::XlsxTable;
-use sea_orm::sea_query::extension::postgres::PgExpr;
+use sea_orm::sea_query::{extension::postgres::PgExpr, Expr};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
     QuerySelect, Set, TransactionTrait,
@@ -772,7 +772,7 @@ impl CrmService {
             let company_trimmed = company.trim();
             if !company_trimmed.is_empty() {
                 let leads = crm_lead::Entity::find()
-                    .filter(crm_lead::Column::CompanyName.ilike(company_trimmed))
+                    .filter(Expr::col(crm_lead::Column::CompanyName).ilike(company_trimmed))
                     .all(&*self.db)
                     .await?;
                 if leads.len() > 1 {

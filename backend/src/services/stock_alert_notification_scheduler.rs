@@ -153,11 +153,7 @@ impl StockAlertNotificationScheduler {
         use crate::models::user::{Column as UserColumn, Entity as UserEntity};
 
         let roles = match RoleEntity::find()
-            .filter(role_model::Column::Code.is_in(vec![
-                "admin",
-                "manager",
-                "warehouse_manager",
-            ]))
+            .filter(role_model::Column::Code.is_in(vec!["admin", "manager", "warehouse_manager"]))
             .all(&*self.db)
             .await
         {

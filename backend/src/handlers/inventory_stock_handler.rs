@@ -539,7 +539,8 @@ pub async fn export_stock(
         .await?;
     let row_count = stock_list.len();
 
-    let stock_responses: Vec<StockResponse> = stock_list.into_iter().map(to_stock_response).collect();
+    let stock_responses: Vec<StockResponse> =
+        stock_list.into_iter().map(to_stock_response).collect();
     let mut stock_json = serialize_stock_responses(stock_responses)?;
     apply_data_permission_filter(&state, &auth, &mut stock_json).await;
 

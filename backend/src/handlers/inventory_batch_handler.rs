@@ -4,7 +4,7 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, TransactionTrait};
+use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
 use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;

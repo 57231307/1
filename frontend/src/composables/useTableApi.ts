@@ -132,7 +132,7 @@ export function useTableApi<T = unknown>(
         (res as { data?: unknown })?.data ?? (res as ListResponsePayload | T[]);
       const payload: ListResponsePayload = Array.isArray(raw)
         ? { data: raw, total: resObj?.total, count: resObj?.count }
-        : raw ?? {};
+        : (raw ?? {});
       data.value = detectList(payload) as T[];
       total.value = detectTotal(payload);
     } catch (err) {

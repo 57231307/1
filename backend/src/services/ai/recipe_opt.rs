@@ -382,7 +382,7 @@ impl AiAnalysisService {
 
         let k = request.k.unwrap_or(5);
         if k == 0 {
-            let mut resp =
+            let resp =
                 Self::build_fallback_response(0, "k=0，已强制走典型参数表".to_string(), Vec::new());
             self.recipe_cache.insert(cache_key, resp.clone()).await;
             return Ok(resp);

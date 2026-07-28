@@ -816,7 +816,7 @@ impl CrmService {
 
         // 1. 线索数
         let mut lead_q = crm_lead::Entity::find();
-        if let (Some(s), Some(e)) = (start_dt, end_dt) {
+        if let (Some(_s), Some(_e)) = (start_dt, end_dt) {
             lead_q = lead_q
                 .filter(crm_lead::Column::CreatedAt.gte(s))
                 .filter(crm_lead::Column::CreatedAt.lte(e));
@@ -825,7 +825,7 @@ impl CrmService {
 
         // 2. 商机数与金额
         let mut opp_q = crm_opportunity::Entity::find();
-        if let (Some(s), Some(e)) = (start_dt, end_dt) {
+        if let (Some(_s), Some(_e)) = (start_dt, end_dt) {
             opp_q = opp_q
                 .filter(crm_opportunity::Column::CreatedAt.gte(s))
                 .filter(crm_opportunity::Column::CreatedAt.lte(e));
@@ -853,7 +853,7 @@ impl CrmService {
 
         // 4. 报价数
         let mut quot_q = sales_quotation::Entity::find();
-        if let (Some(s), Some(e)) = (start_dt, end_dt) {
+        if let (Some(_s), Some(_e)) = (start_dt, end_dt) {
             quot_q = quot_q
                 .filter(sales_quotation::Column::QuotationDate.gte(start_date.unwrap()))
                 .filter(sales_quotation::Column::QuotationDate.lte(end_date.unwrap()));
@@ -862,7 +862,7 @@ impl CrmService {
 
         // 5. 订单数与金额
         let mut order_q = sales_order::Entity::find();
-        if let (Some(s), Some(e)) = (start_dt, end_dt) {
+        if let (Some(_s), Some(_e)) = (start_dt, end_dt) {
             order_q = order_q
                 .filter(sales_order::Column::CreatedAt.gte(s))
                 .filter(sales_order::Column::CreatedAt.lte(e));

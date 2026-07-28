@@ -60,18 +60,20 @@ fn init_host_logging(config: &LogConfig) -> Result<(), Box<dyn std::error::Error
         .with_target(true)
         .boxed();
 
-    // 使用 tuple 组合所有 layer，各 layer 均为 Layer<Registry>，避免 .with() 链式调用产生不兼容类型
-    tracing_subscriber::registry()
-        .with((
-            create_env_filter(config),
-            main_layer,
-            error_layer,
-            audit_layers,
-            performance_layers,
-            security_layer,
-            console_layer,
-        ))
-        .init();
+    // V15 P1 CI 修复：使用 Vec<BoxedLayer> 替代 tuple，避免异构 tuple 的 Layer<S> trait bound 不满足
+    // Vec<L> 实现 Layer<S>（当 L: Layer<S>），且 BoxedLayer = Box<dyn Layer<Registry> + Send + Sync>
+    // 各层均通过 .boxed() 类型擦除为 BoxedLayer，统一存入 Vec 后一次性 .with()
+    let layers: Vec<BoxedLayer> = vec![
+        create_env_filter(config).boxed(),
+        main_layer,
+        error_layer,
+        audit_layers,
+        performance_layers,
+        security_layer,
+        console_layer,
+    ];
+
+    tracing_subscriber::registry().with(layers).init();
 
     log_initialization_info(config);
     Ok(())
@@ -90,7 +92,9 @@ fn create_env_filter(config: &LogConfig) -> tracing_subscriber::EnvFilter {
         .unwrap_or_else(|_| format!("bingxi_backend={},tower_http=debug", config.log_level).into())
 }
 
-fn create_main_layers(log_dir: &Path) -> Result<(BoxedLayer, BoxedLayer), Box<dyn std::error::Error>> {
+fn create_main_layers(
+    log_dir: &Path,
+) -> Result<(BoxedLayer, BoxedLayer), Box<dyn std::error::Error>> {
     let main_appender = RollingFileAppender::new(Rotation::DAILY, log_dir, "bingxi_backend.log");
     let error_appender = RollingFileAppender::new(Rotation::DAILY, log_dir, "error.log");
 
@@ -126,25 +130,30 @@ fn create_audit_layers(log_dir: &Path) -> Result<BoxedLayer, Box<dyn std::error:
     let business_appender =
         RollingFileAppender::new(Rotation::DAILY, &audit_dir, "business_audit.log");
 
-    let financial_layer = tracing_subscriber::fmt::layer()
+    // V15 P1 CI 修复：各层独立 .boxed() 为 BoxedLayer，收集入 Vec 后统一装箱
+    // 避免 tuple .boxed() 在 sea_query 0.x 上的 trait bound 推导失败
+    let financial_layer: BoxedLayer = tracing_subscriber::fmt::layer()
         .with_writer(financial_appender)
         .with_ansi(false)
-        .with_target(true);
-    let permission_layer = tracing_subscriber::fmt::layer()
+        .with_target(true)
+        .boxed();
+    let permission_layer: BoxedLayer = tracing_subscriber::fmt::layer()
         .with_writer(permission_appender)
         .with_ansi(false)
-        .with_target(true);
-    let database_layer = tracing_subscriber::fmt::layer()
+        .with_target(true)
+        .boxed();
+    let database_layer: BoxedLayer = tracing_subscriber::fmt::layer()
         .with_writer(database_appender)
         .with_ansi(false)
-        .with_target(true);
-    let business_layer = tracing_subscriber::fmt::layer()
+        .with_target(true)
+        .boxed();
+    let business_layer: BoxedLayer = tracing_subscriber::fmt::layer()
         .with_writer(business_appender)
         .with_ansi(false)
-        .with_target(true);
+        .with_target(true)
+        .boxed();
 
-    // tuple 组合 4 个 audit layer 后装箱为单一 BoxedLayer
-    Ok((financial_layer, permission_layer, database_layer, business_layer).boxed())
+    Ok(vec![financial_layer, permission_layer, database_layer, business_layer].boxed())
 }
 
 fn create_performance_layers(log_dir: &Path) -> Result<BoxedLayer, Box<dyn std::error::Error>> {
@@ -154,16 +163,18 @@ fn create_performance_layers(log_dir: &Path) -> Result<BoxedLayer, Box<dyn std::
     let health_appender =
         RollingFileAppender::new(Rotation::DAILY, &performance_dir, "system_health.log");
 
-    let performance_layer = tracing_subscriber::fmt::layer()
+    let performance_layer: BoxedLayer = tracing_subscriber::fmt::layer()
         .with_writer(performance_appender)
         .with_ansi(false)
-        .with_target(true);
-    let health_layer = tracing_subscriber::fmt::layer()
+        .with_target(true)
+        .boxed();
+    let health_layer: BoxedLayer = tracing_subscriber::fmt::layer()
         .with_writer(health_appender)
         .with_ansi(false)
-        .with_target(true);
+        .with_target(true)
+        .boxed();
 
-    Ok((performance_layer, health_layer).boxed())
+    Ok(vec![performance_layer, health_layer].boxed())
 }
 
 fn create_security_layer(log_dir: &Path) -> Result<BoxedLayer, Box<dyn std::error::Error>> {
