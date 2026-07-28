@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::models::product_color_price;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 
 /// 客户等级（影响折扣）

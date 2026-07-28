@@ -52,7 +52,7 @@ impl ColorPriceCrudService {
     }
 
     /// 从 AppState 构造
-    pub fn from_state(state: &crate::utils::app_state::AppState) -> Self {
+    pub fn from_state(state: &crate::container::AppState) -> Self {
         Self {
             db: state.db.clone(),
         }

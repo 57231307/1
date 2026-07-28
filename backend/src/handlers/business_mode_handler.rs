@@ -23,7 +23,7 @@ use crate::services::business_mode_service::{
     UpdateBusinessModeConfigRequest, UpdateBusinessModeFlowStepRequest,
     UpdateBusinessModeOrderLinkRequest, UpdateBusinessModeRuleRequest,
 };
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 

@@ -3,7 +3,7 @@ use crate::services::supplier_service::{
     CreateContactRequest, CreateQualificationRequest, CreateSupplierRequest, SupplierQueryParams,
     SupplierService, UpdateContactRequest, UpdateSupplierRequest,
 };
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 // V15 P0-S15/P0-S12 补齐（Batch 474）：导出端点使用水印版 xlsx 工具

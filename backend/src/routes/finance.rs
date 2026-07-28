@@ -32,7 +32,7 @@ use crate::handlers::{
     financial_analysis_handler, fixed_asset_handler, fund_management_handler, missing_handlers,
     omni_audit_handler, voucher_handler,
 };
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 
 /// 财务支付与发票路由（/payments、/invoices）
 fn finance_payment_invoice_routes() -> Router<AppState> {

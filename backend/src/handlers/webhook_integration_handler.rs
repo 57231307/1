@@ -5,7 +5,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

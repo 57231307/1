@@ -19,7 +19,7 @@ use crate::models::inventory_count_item;
 use crate::services::inventory_count_service::{
     CountItemInput, CreateCountRequest, InventoryCountService, UpdateCountRequest,
 };
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{

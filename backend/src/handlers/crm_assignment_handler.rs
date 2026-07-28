@@ -16,7 +16,7 @@ use crate::services::crm::assign::{
     AutoAssignRequest, ClaimLeadRequest, CrmAssignService, TransferLeadRequest,
 };
 use crate::services::crm::cust::CrmService;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

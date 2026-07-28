@@ -22,7 +22,7 @@ use crate::services::dye_batch_state_machine_service::{
     DyeBatchStateRuleService, LifecycleLogQuery, OperationQuery, ReworkQuery, StateRuleQuery,
     UpdateReworkRequest, UpdateStateRuleRequest,
 };
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 

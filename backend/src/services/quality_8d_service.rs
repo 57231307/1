@@ -37,7 +37,7 @@ use crate::models::quality_8d_dto::{
 };
 use crate::models::quality_8d_report::{self, ActiveModel, Entity};
 use crate::models::quality_issue;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 

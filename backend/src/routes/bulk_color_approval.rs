@@ -28,7 +28,7 @@ use axum::{
 };
 
 use crate::handlers::bulk_color_approval_handler;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 
 /// 大货批色审批路由（nest 到 /api/v1/erp/bulk-color-approvals）
 pub fn routes() -> Router<AppState> {

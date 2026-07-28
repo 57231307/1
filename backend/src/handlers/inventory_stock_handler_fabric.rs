@@ -4,7 +4,7 @@
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::inventory_stock_service::{CreateStockFabricArgs, InventoryStockService};
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::dual_unit_converter::DualUnitConverter;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;

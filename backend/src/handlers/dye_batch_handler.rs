@@ -15,7 +15,7 @@ use crate::middleware::auth_context::AuthContext;
 use crate::models::audit_log::{OperationType, Severity};
 use crate::models::dye_batch;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};

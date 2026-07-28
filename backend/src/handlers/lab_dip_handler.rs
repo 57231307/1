@@ -18,7 +18,7 @@ use crate::services::lab_dip_service::{
     RecordMatchingResultRequest, RecordResampleResultRequest, UpdateLabDipRequestRequest,
     UpdateLabDipSampleRequest,
 };
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

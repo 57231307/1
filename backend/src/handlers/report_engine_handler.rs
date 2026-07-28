@@ -11,7 +11,7 @@ use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::report::{
     AggregateRequest, AggregationType, DataSource, ExportFormat, ReportEngineService, ReportFilter,
 };
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use std::sync::Arc;

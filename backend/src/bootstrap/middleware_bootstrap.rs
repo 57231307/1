@@ -20,7 +20,7 @@ use crate::middleware::permission::permission_middleware;
 use crate::middleware::rate_limit::rate_limit_by_ip;
 use crate::middleware::request_validator::request_logging_middleware;
 use crate::routes::create_router;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 
 // ============================================================================
 // 安全漏洞 #8 修复：HTTP 请求体大小限制常量

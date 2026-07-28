@@ -7,7 +7,7 @@ use crate::services::purchase_inspection_service::{
     CompleteInspectionRequest, CreateInspectionItemRequest, CreatePurchaseInspectionRequest,
     PurchaseInspectionService, UpdateInspectionItemRequest, UpdatePurchaseInspectionRequest,
 };
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{

@@ -19,7 +19,7 @@ use axum::{extract::State, Json};
 
 use crate::services::ai::quality_pred::{QualityPredRequest, QualityPredResponse};
 use crate::services::ai::AiAnalysisService;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

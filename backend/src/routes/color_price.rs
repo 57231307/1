@@ -11,7 +11,7 @@ use axum::{
 };
 
 use crate::handlers::color_price_handler;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 
 /// 面料多色号定价扩展路由（nest 到 /api/v1/erp/color-prices）
 pub fn routes() -> Router<AppState> {

@@ -26,7 +26,7 @@ use crate::models::collection_task_dto::{
     ReassignTaskRequest, RecordContactRequest,
 };
 use crate::models::collection_template;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 

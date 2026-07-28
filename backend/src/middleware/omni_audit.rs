@@ -13,7 +13,7 @@ use crate::middleware::auth_context::AuthContext;
 use crate::middleware::public_routes::is_public_path;
 use crate::services::omni_audit_service::OmniAuditMessage;
 use crate::services::sensitive_action_alert::SensitiveActionAlert;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 
 /// 请求元数据：从请求中提取的方法/URI/查询串/常见 Header
 struct RequestMeta {

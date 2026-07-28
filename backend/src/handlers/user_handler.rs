@@ -7,7 +7,7 @@ use crate::services::auth_service::{self, AuthService};
 use crate::services::role_permission_service::RolePermissionService;
 use crate::services::user_service::UserService;
 use crate::utils::admin_checker::is_admin_role;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::audit::{self, SecurityEvent};
 use crate::utils::error::AppError;
 use crate::utils::password_validator::validate_password;

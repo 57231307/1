@@ -16,7 +16,7 @@ use crate::services::ar::{
     GenerateReconciliationRequest, ReconciliationQuery, UpdateReconciliationRequest,
 };
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use std::sync::Arc;

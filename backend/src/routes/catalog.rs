@@ -7,7 +7,7 @@
 //! `routes()` 入口用 `merge` 组合时不会出现 path+method 重叠，
 //! 避免 axum 0.7 `Overlapping method route` panic。
 
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use axum::{
     routing::{delete, get, post, put},
     Router,

@@ -141,5 +141,5 @@ fn shutdown_resources(shutdown_handles: &mut BootstrapShutdownHandles) {
     crate::bootstrap::service_bootstrap::shutdown_main_background_tasks();
 
     // L-26 修复：关闭 AppState 后台任务（审计清理 + 用户吊销清理）
-    crate::utils::app_state::shutdown_app_state_background_tasks();
+    crate::container::shutdown_app_state_background_tasks();
 }

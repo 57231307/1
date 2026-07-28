@@ -18,7 +18,7 @@ use crate::services::report_template_service::{
     CreateReportTemplateRequest, ReportTemplateQuery, ReportTemplateService,
     UpdateReportTemplateRequest,
 };
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

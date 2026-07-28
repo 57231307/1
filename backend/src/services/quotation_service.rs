@@ -7,7 +7,7 @@ use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 use thiserror::Error;
 
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 
 /// 业务错误

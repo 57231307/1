@@ -10,7 +10,7 @@ use crate::services::purchase_receipt_dto::{
     UpdateReceiptItemRequest,
 };
 use crate::services::purchase_receipt_service::PurchaseReceiptService;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::response::{ApiResponse, PaginatedResponse};

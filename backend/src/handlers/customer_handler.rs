@@ -9,7 +9,7 @@ use validator::Validate;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::PageRequest;
 use crate::services::customer_service::{CreateCustomerArgs, CustomerService, UpdateCustomerArgs};
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::data_permission::{DataPermissionFilter, DEFAULT_HIDDEN_FIELDS};
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;

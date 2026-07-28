@@ -5,7 +5,7 @@ use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::fixed_asset_service::{
     CreateAssetRequest, DepreciationResult, DisposalRequest, FixedAssetService,
 };
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
 use crate::utils::ApiResponse;

@@ -12,7 +12,7 @@ use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::greige_fabric;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 

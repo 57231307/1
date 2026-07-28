@@ -17,7 +17,7 @@ use axum::{
 };
 
 use crate::handlers::quality_8d_handler;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 
 /// 8D 质量管理流程路由（nest 到 /api/v1/erp/quality-8d-reports）
 pub fn routes() -> Router<AppState> {

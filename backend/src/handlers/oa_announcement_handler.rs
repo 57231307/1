@@ -21,7 +21,7 @@ use crate::services::oa_announcement_service::{
     CreateOaAnnouncementRequest, OaAnnouncementQuery, OaAnnouncementService,
     UpdateOaAnnouncementRequest,
 };
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

@@ -21,7 +21,7 @@ use serde::Deserialize;
 
 use crate::services::ai::recipe_opt::{RecipeOptRequest, RecipeOptResponse};
 use crate::services::ai::AiAnalysisService;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

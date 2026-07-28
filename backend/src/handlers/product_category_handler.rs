@@ -1,4 +1,4 @@
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use axum::{extract::State, Json};
 use serde::Deserialize;
 use validator::Validate;

@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::models::purchase_contract::Entity as PurchaseContractEntity;
 use crate::models::purchase_price::Entity as PurchasePriceEntity;
 use crate::models::sales_return::Entity as SalesReturnEntity;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

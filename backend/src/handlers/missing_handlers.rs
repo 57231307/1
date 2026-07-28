@@ -26,7 +26,7 @@ use crate::services::crm::recycle_rule::{
     CreateRecycleRulePayload, RecycleRule, RecycleRuleService, UpdateRecycleRulePayload,
 };
 use crate::services::mrp_engine_service::MrpEngineService;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::messages::biz_msg;
 use crate::utils::response::ApiResponse;

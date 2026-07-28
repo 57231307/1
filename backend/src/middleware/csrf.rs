@@ -19,7 +19,7 @@
 
 use crate::middleware::audit_context::extract_client_ip as extract_client_ip_helper;
 use crate::middleware::public_routes::is_public_path;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::cache::CsrfConsumeResult;
 use axum::{
     body::Body,

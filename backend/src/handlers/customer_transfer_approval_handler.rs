@@ -19,7 +19,7 @@ use crate::middleware::auth_context::AuthContext;
 use crate::services::crm::customer_transfer_approval_service::{
     ApprovalQuery, ApproveRequest, CreateTransferApprovalRequest, CustomerTransferApprovalService,
 };
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

@@ -3,7 +3,7 @@ use crate::services::field_permission_service::{
     CreateFieldPermissionRequest, FieldPermissionService, UpdateFieldPermissionRequest,
 };
 use crate::utils::admin_checker::is_admin_role;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{

@@ -24,7 +24,7 @@ use crate::services::ai_extend_service::{
     AcknowledgeQualityPredDto, AiExtendService, ApplyProcessOptDto, CreateProcessOptDto,
     CreateQualityPredDto, ListProcessOptQuery, ListQualityPredQuery,
 };
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

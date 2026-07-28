@@ -19,7 +19,7 @@ use std::sync::Arc;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::slow_query::{self, SlowQueryDto, SlowQueryStatDto};
 use crate::services::slow_query_collector::SlowQueryCollector;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use crate::utils::sql_escape::safe_like_pattern;

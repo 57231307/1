@@ -4,7 +4,7 @@ use crate::services::customer_credit_service::{
     CreditEvaluationResult, CreditLimitAdjustmentRequest, CreditQueryParams, CreditRatingRequest,
     CustomerCreditService,
 };
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{

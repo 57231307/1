@@ -17,7 +17,7 @@ use crate::models::status::common as common_status;
 use crate::models::status::logistics_waybill as waybill_status;
 use crate::models::status::sales_order as so_status;
 use crate::services::ar_invoice_service::ArInvoiceService;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

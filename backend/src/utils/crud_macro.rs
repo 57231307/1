@@ -53,7 +53,7 @@ macro_rules! define_crud_handlers {
         $id_ty:ty
     ) => {
         pub async fn list(
-            axum::extract::State(state): axum::extract::State<$crate::utils::app_state::AppState>,
+            axum::extract::State(state): axum::extract::State<$crate::container::AppState>,
             _auth: $crate::middleware::auth_context::AuthContext,
             axum::extract::Query(params): axum::extract::Query<$query_params>,
         ) -> Result<
@@ -71,7 +71,7 @@ macro_rules! define_crud_handlers {
         }
 
         pub async fn get(
-            axum::extract::State(state): axum::extract::State<$crate::utils::app_state::AppState>,
+            axum::extract::State(state): axum::extract::State<$crate::container::AppState>,
             _auth: $crate::middleware::auth_context::AuthContext,
             axum::extract::Path(id): axum::extract::Path<$id_ty>,
         ) -> Result<
@@ -86,7 +86,7 @@ macro_rules! define_crud_handlers {
         }
 
         pub async fn create(
-            axum::extract::State(state): axum::extract::State<$crate::utils::app_state::AppState>,
+            axum::extract::State(state): axum::extract::State<$crate::container::AppState>,
             _auth: $crate::middleware::auth_context::AuthContext,
             axum::Json(req): axum::Json<$create_req>,
         ) -> Result<
@@ -107,7 +107,7 @@ macro_rules! define_crud_handlers {
         }
 
         pub async fn update(
-            axum::extract::State(state): axum::extract::State<$crate::utils::app_state::AppState>,
+            axum::extract::State(state): axum::extract::State<$crate::container::AppState>,
             auth: $crate::middleware::auth_context::AuthContext,
             axum::extract::Path(id): axum::extract::Path<$id_ty>,
             axum::Json(req): axum::Json<$update_req>,
@@ -130,7 +130,7 @@ macro_rules! define_crud_handlers {
         }
 
         pub async fn delete(
-            axum::extract::State(state): axum::extract::State<$crate::utils::app_state::AppState>,
+            axum::extract::State(state): axum::extract::State<$crate::container::AppState>,
             auth: $crate::middleware::auth_context::AuthContext,
             axum::extract::Path(id): axum::extract::Path<$id_ty>,
         ) -> Result<
@@ -163,7 +163,7 @@ macro_rules! define_tuple_crud_handlers {
     ) => {
         /// 列表查询
         pub async fn list(
-            axum::extract::State(state): axum::extract::State<$crate::utils::app_state::AppState>,
+            axum::extract::State(state): axum::extract::State<$crate::container::AppState>,
             _auth: $crate::middleware::auth_context::AuthContext,
             axum::extract::Query(params): axum::extract::Query<$query_params>,
         ) -> Result<
@@ -182,7 +182,7 @@ macro_rules! define_tuple_crud_handlers {
 
         /// 详情查询（自动处理未找到场景）
         pub async fn get(
-            axum::extract::State(state): axum::extract::State<$crate::utils::app_state::AppState>,
+            axum::extract::State(state): axum::extract::State<$crate::container::AppState>,
             _auth: $crate::middleware::auth_context::AuthContext,
             axum::extract::Path(id): axum::extract::Path<$id_ty>,
         ) -> Result<
@@ -201,7 +201,7 @@ macro_rules! define_tuple_crud_handlers {
 
         /// 创建（自动注入 user_id）
         pub async fn create(
-            axum::extract::State(state): axum::extract::State<$crate::utils::app_state::AppState>,
+            axum::extract::State(state): axum::extract::State<$crate::container::AppState>,
             auth: $crate::middleware::auth_context::AuthContext,
             axum::Json(req): axum::Json<$create_req>,
         ) -> Result<
@@ -223,7 +223,7 @@ macro_rules! define_tuple_crud_handlers {
 
         /// 更新
         pub async fn update(
-            axum::extract::State(state): axum::extract::State<$crate::utils::app_state::AppState>,
+            axum::extract::State(state): axum::extract::State<$crate::container::AppState>,
             _auth: $crate::middleware::auth_context::AuthContext,
             axum::extract::Path(id): axum::extract::Path<$id_ty>,
             axum::Json(req): axum::Json<$update_req>,
@@ -246,7 +246,7 @@ macro_rules! define_tuple_crud_handlers {
 
         /// 删除
         pub async fn delete(
-            axum::extract::State(state): axum::extract::State<$crate::utils::app_state::AppState>,
+            axum::extract::State(state): axum::extract::State<$crate::container::AppState>,
             _auth: $crate::middleware::auth_context::AuthContext,
             axum::extract::Path(id): axum::extract::Path<$id_ty>,
         ) -> Result<

@@ -7,7 +7,7 @@ use crate::models::dto::crm_dto::{
 };
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::crm::cust::CrmService;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::export_concurrency::ExportConcurrencyGuard;
 use crate::utils::messages::biz_msg;

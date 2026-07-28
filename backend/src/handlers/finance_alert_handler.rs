@@ -23,7 +23,7 @@ use crate::models::finance_alert_dto::{
     TriggerScanRequest,
 };
 use crate::services::finance_alert_service::{FinanceAlertError, FinanceAlertService};
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

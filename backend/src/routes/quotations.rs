@@ -11,7 +11,7 @@ use axum::{
 };
 
 use crate::handlers::quotation_handler;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 
 /// 销售报价单路由（nest 到 /api/v1/erp/quotations）
 pub fn routes() -> Router<AppState> {

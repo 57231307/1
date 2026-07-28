@@ -15,7 +15,7 @@
 //! 只暴露 CRM 增强版特有的子路径（`/customers/enhanced`、`/customers/:id/tags` 等），
 //! 基础 CRUD 由 `customers()` 统一提供。
 
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use axum::{
     routing::{delete, get, post, put},
     Router,

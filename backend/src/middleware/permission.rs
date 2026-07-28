@@ -4,7 +4,7 @@ use crate::models::audit_log::{OperationType, Severity};
 use crate::models::role_permission;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::utils::admin_checker;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::path_utils::{
     is_known_resource_segment, is_module_prefix, resolve_module_prefixed_resource,
 };

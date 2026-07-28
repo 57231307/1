@@ -11,7 +11,7 @@ use crate::middleware::auth_context::AuthContext;
 use crate::models::inventory_piece;
 // 批次 236 v13 P1-1：库存裁片状态常量接入（规则 0）
 use crate::models::status::inventory_piece as piece_status;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

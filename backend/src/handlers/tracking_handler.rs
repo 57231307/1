@@ -18,7 +18,7 @@ use crate::services::tracking_service::{
 use crate::services::user_consent_service::{
     UserConsentService, CONSENT_TYPE_BEHAVIOR_TRACKING, CONSENT_TYPE_PAGE_VIEW_TRACKING,
 };
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{

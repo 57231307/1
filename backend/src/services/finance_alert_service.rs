@@ -33,7 +33,7 @@ use crate::models::fund_account;
 use crate::models::inventory_stock;
 use crate::models::notification::{NotificationPriority, NotificationType};
 use crate::services::notification_service::{CreateNotificationRequest, NotificationService};
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 

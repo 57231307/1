@@ -19,7 +19,7 @@ use crate::services::email_template_service::{
     CreateEmailTemplateRequest, EmailTemplateQuery, EmailTemplateService,
     UpdateEmailTemplateRequest,
 };
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

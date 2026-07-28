@@ -39,7 +39,7 @@ use crate::handlers::{
 };
 use crate::middleware::sql_injection_audit::sql_injection_audit_middleware;
 use crate::services::metrics_service::create_metrics_router;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 
 // 14 个业务域子模块
 // 注：源文件名为 static.rs，但 `static` 是 Rust 关键字，用 #[path] 重映射为 static_routes 模块名

@@ -15,7 +15,7 @@ use crate::services::five_dimension_service::{
     FiveDimensionQuery, FiveDimensionSearchParams as ServiceFiveDimensionSearchParams,
     FiveDimensionService,
 };
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

@@ -14,7 +14,7 @@ use crate::models::dto::bpm_dto::{
     ProcessDefinitionQuery, TemplateQuery, UpdateProcessDefinitionRequest,
 };
 use crate::services::bpm_service::BpmService;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::messages::biz_msg;
 use crate::utils::response::ApiResponse;

@@ -24,7 +24,7 @@ use crate::models::collection_task_dto::{
     ReassignTaskRequest, RecordContactRequest,
 };
 use crate::services::collection_task_service::{CollectionTaskError, CollectionTaskService};
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

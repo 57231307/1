@@ -36,7 +36,7 @@ use crate::models::bad_debt_provision::{
 use crate::models::bad_debt_writeoff::{
     self, ActiveModel as WriteoffActiveModel, Entity as WriteoffEntity,
 };
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 

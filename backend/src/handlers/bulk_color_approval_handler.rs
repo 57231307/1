@@ -31,7 +31,7 @@ use crate::services::bulk_color_approval_service::{
     ApprovalReportRow, ApprovalStatistics, BulkColorApprovalError, BulkColorApprovalService,
     CreateBulkColorApprovalParams, CutSampleParams, ListBulkColorApprovalQuery,
 };
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

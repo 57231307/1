@@ -26,7 +26,7 @@ use crate::models::color_card::{self, Entity as ColorCardEntity};
 use crate::models::color_card_issue::{self, ActiveModel as IssueActive, Entity as IssueEntity};
 use crate::models::customer::Entity as CustomerEntity;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 
 /// 业务错误
 #[derive(Debug, Error)]

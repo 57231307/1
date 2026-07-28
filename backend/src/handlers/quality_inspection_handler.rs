@@ -6,7 +6,7 @@ use crate::services::quality_inspection_service::{
     CreateInspectionRecordRequest, CreateQualityInspectionStandardRequest,
     ProcessUnqualifiedRequest, QualityInspectionService,
 };
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 // V15 P0-S12/P0-S15 修复（Batch 475d）：导出端点使用水印版 xlsx 工具

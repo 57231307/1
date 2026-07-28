@@ -2,7 +2,7 @@ use crate::middleware::auth_context::AuthContext;
 use crate::services::omni_audit_query_service::{AuditQueryFilter, AuditStats};
 use crate::services::omni_audit_service::OmniAuditMessage;
 use crate::utils::admin_checker::is_admin_role;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use crate::utils::sql_escape::safe_like_pattern;

@@ -11,7 +11,7 @@ use axum::{
 };
 
 use crate::handlers::custom_order_handler;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 
 /// 定制订单路由（nest 到 /api/v1/erp/custom-orders）
 pub fn routes() -> Router<AppState> {

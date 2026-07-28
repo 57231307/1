@@ -3,7 +3,7 @@
 use crate::middleware::auth_context::AuthContext;
 use crate::services::system_update_service::{LocalRelease, SystemUpdateService, UpdateError};
 use crate::utils::admin_checker::is_admin_role;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{

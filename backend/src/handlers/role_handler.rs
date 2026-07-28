@@ -7,7 +7,7 @@ use crate::services::role_permission_service::{
     AssignPermissionRequest, CreateRoleRequest, UpdateRoleRequest,
 };
 use crate::utils::admin_checker::{clear_admin_role_cache, is_admin_role, ADMIN_ROLE_CODE};
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{

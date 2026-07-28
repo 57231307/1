@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::services::currency_service::{
     ConversionResult, CurrencyService, ExchangeRateHistoryModel,
 };
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

@@ -4,7 +4,7 @@ use crate::middleware::auth_context::AuthContext;
 use crate::services::batch_service::{
     BatchCreateProductRequest, BatchService, BatchUpdateProductRequest,
 };
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{extract::State, Json};

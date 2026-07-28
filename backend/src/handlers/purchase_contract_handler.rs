@@ -3,7 +3,7 @@ use crate::models::purchase_contract;
 use crate::services::purchase_contract_service::{
     CreateContractRequest, ExecuteContractRequest, PurchaseContractService,
 };
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{

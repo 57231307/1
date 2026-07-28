@@ -9,7 +9,7 @@
 //! - 内部 path 有重复（`GET /`、相同 `GET /templates` 等）的子 router 走 `nest` 加独立前缀
 //! - nest 后的最终 path 与前端保持一致（如 `/reports/enhanced/...`）
 
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use axum::{
     routing::{delete, get, post, put},
     Router,

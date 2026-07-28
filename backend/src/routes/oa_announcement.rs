@@ -19,7 +19,7 @@ use axum::{
 };
 
 use crate::handlers::oa_announcement_handler;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 
 /// OA 公告路由（nest 到 /api/v1/erp/oa-announcements）
 pub fn routes() -> Router<AppState> {

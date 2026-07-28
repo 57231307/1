@@ -19,7 +19,7 @@ use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::dye_recipe_service::{
     CreateDyeRecipeRequest, DyeRecipeQuery, DyeRecipeService, UpdateDyeRecipeRequest,
 };
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};

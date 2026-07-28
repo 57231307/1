@@ -6,7 +6,7 @@ use crate::middleware::audit_context::AuditContext;
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::auth_service::AuthService;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::cache::Cache;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;

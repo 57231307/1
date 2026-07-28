@@ -15,7 +15,7 @@ use crate::models::financial_analysis;
 use crate::services::financial_analysis_service::{
     CreateIndicatorRequest, FinancialAnalysisService, IndicatorQueryParams,
 };
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

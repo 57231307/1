@@ -6,7 +6,7 @@ use crate::services::init_service::{
     get_init_tasks, DatabaseConfig, InitRequest, InitService, InitStatus, InitTaskStatus,
 };
 use crate::utils::admin_checker::is_admin_role;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::audit::{self, SecurityEvent};
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -473,7 +473,7 @@ mod tests {
     //! 直接构造 AuthContext 验证 handler 内部逻辑，不依赖真实 DB；用 oneshot + AppState::default() 隔离依赖
 
     use super::*;
-    use crate::utils::app_state::AppState;
+    use crate::container::AppState;
     use axum::{
         body::Body,
         http::{Request, StatusCode},

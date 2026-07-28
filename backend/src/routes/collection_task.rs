@@ -18,7 +18,7 @@ use axum::{
 };
 
 use crate::handlers::collection_task_handler;
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 
 /// 催收任务路由（nest 到 /api/v1/erp/collection-tasks）
 pub fn routes() -> Router<AppState> {

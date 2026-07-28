@@ -9,7 +9,7 @@ use std::time::Duration;
 use crate::middleware::auth_context::AuthContext;
 use crate::middleware::rate_limit::{check_rate_limit, MemoryRateLimiter};
 use crate::services::webhook_service::{WebhookDeliveryResult, WebhookService};
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::messages::biz_msg;
 use crate::utils::response::ApiResponse;

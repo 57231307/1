@@ -14,7 +14,7 @@ use crate::middleware::auth_context::AuthContext;
 use crate::services::bom_service::{
     BomQuery, BomService, CreateBomItemRequest, CreateBomRequest, UpdateBomRequest,
 };
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 

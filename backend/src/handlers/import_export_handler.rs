@@ -22,7 +22,7 @@ use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::import_export_service::{
     ExportQuery, ImportExportService, ImportResult, MAX_CSV_BYTES,
 };
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::export_concurrency::ExportConcurrencyGuard;
 use crate::utils::response::ApiResponse;

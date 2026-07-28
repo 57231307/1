@@ -33,7 +33,7 @@ use crate::services::color_price_crud_service::{ColorPriceCrudService, CrudError
 use crate::services::color_price_history_service::ColorPriceHistoryService;
 use crate::services::color_price_seasonal_service::{ColorPriceSeasonalService, SeasonalError};
 use crate::services::color_price_tier_service::{ColorPriceTierService, TierError};
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
