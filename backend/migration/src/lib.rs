@@ -173,6 +173,8 @@ pub mod m0080_create_collection_templates;
 pub mod m0081_create_fixed_asset_counts;
 // V15 P1 batch-15 18.4-D2/D3：CRM 团队协作 + 数据共享时效
 pub mod m0082_create_customer_team_and_share;
+// V15 P1 batch-16 缺陷 1.1/4.1：报表模板版本管理 + 仪表板自定义卡片持久化
+pub mod m0083_create_report_template_versions;
 // V15 P1 batch-08 法律合规修复（环保/劳动/财税法律合规）：
 // 缺陷 10/13/14/15/18/19/21/23/24 统一迁移
 pub mod m0079_batch08_compliance_legal_env_tax_labor;
@@ -267,6 +269,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0080_create_collection_templates::Migration),
             Box::new(m0081_create_fixed_asset_counts::Migration),
             Box::new(m0082_create_customer_team_and_share::Migration),
+            Box::new(m0083_create_report_template_versions::Migration),
         ]
     }
 }

@@ -2,12 +2,17 @@
 //!
 //! 设计依据：审计报告 batch-16 P0-16-1 — `report_subscription` 表有 `next_run_at`
 //! 字段但无后台调度任务触发，订阅即使配置了也不会自动执行。
+//! P1 batch-16 缺陷 2.3 修复：接入 ReportSubscriptionService::mark_run_failed /
+//! mark_run_success，实现指数退避重试与死信队列。
 //!
 //! 实现要点：
 //! - 每 60 秒（可配 `REPORT_SUBSCRIPTION_SCHEDULER_INTERVAL_SECS`）扫描
 //!   `is_enabled=true AND status='ACTIVE' AND next_run_at <= now()` 的订阅；
 //! - 对每条订阅发送 HTML 邮件通知（含报表查看链接），更新 `last_run_at` /
 //!   `last_run_status` / `last_run_error` / `run_count` / `next_run_at`；
+//! - 缺陷 2.3 修复：成功调用 `mark_run_success`（清零 retry_count），
+//!   失败调用 `mark_run_failed`（按 1min/5min/30min 指数退避，超过 3 次转死信）；
+//! - 缺陷 2.3 修复：每轮同时扫描 `next_retry_at <= now` 的待重试订阅；
 //! - 邮件服务通过 `EmailService::from_env()` 创建，未配置时跳过邮件发送但
 //!   仍更新订阅执行状态（避免 next_run_at 永远停留在过去）；
 //! - 默认启用，可通过 `REPORT_SUBSCRIPTION_SCHEDULER_ENABLED=false` 关闭。
@@ -19,15 +24,15 @@ use std::sync::Arc;
 
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect, Set,
+    ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
 };
 use tracing::{info, warn};
 
 use crate::models::report_subscription::{
-    ActiveModel, Column, Entity as ReportSubscriptionEntity, Model as ReportSubscriptionModel,
+    Column, Entity as ReportSubscriptionEntity, Model as ReportSubscriptionModel,
 };
 use crate::services::email_service::EmailService;
+use crate::services::report_subscription_service::ReportSubscriptionService;
 use crate::utils::error::AppError;
 
 /// 默认扫描间隔（秒）— 每分钟扫描一次到期订阅
@@ -69,13 +74,14 @@ impl ReportSubscriptionScheduler {
         }
     }
 
-    /// 执行一次扫描：查询到期订阅并逐个处理。
+    /// 执行一次扫描：查询到期订阅 + 待重试订阅，逐个处理。
     ///
     /// 返回本次扫描处理的订阅数量。
     pub async fn run_once(&self) -> Result<u64, AppError> {
         let now = Utc::now();
+        let svc = ReportSubscriptionService::new(self.db.clone());
 
-        // 查询到期订阅：启用 + 活跃 + next_run_at <= now
+        // 1. 查询到期订阅：启用 + 活跃 + next_run_at <= now
         let due_subscriptions = ReportSubscriptionEntity::find()
             .filter(Column::IsEnabled.eq(true))
             .filter(Column::Status.eq("ACTIVE"))
@@ -85,12 +91,19 @@ impl ReportSubscriptionScheduler {
             .all(&*self.db)
             .await?;
 
-        let count = due_subscriptions.len() as u64;
+        // 2. 缺陷 2.3 修复：查询待重试订阅（next_retry_at <= now AND status = ACTIVE）
+        let retry_subscriptions = svc.list_due_retries().await.unwrap_or_default();
+
+        let count = (due_subscriptions.len() + retry_subscriptions.len()) as u64;
         if count == 0 {
             return Ok(0);
         }
 
-        info!("报表订阅调度器：扫描到 {} 条到期订阅，开始处理", count);
+        info!(
+            "报表订阅调度器：扫描到 {} 条到期订阅 + {} 条待重试订阅，开始处理",
+            due_subscriptions.len(),
+            retry_subscriptions.len()
+        );
 
         for sub in due_subscriptions {
             // 单条订阅失败不影响其他订阅执行
@@ -99,16 +112,34 @@ impl ReportSubscriptionScheduler {
                     subscription_id = sub.id,
                     subscription_name = %sub.name,
                     error = %e,
-                    "报表订阅执行失败"
+                    "报表订阅执行失败，触发 mark_run_failed 重试机制"
                 );
-                if let Err(update_err) = self
-                    .update_subscription_status(sub.id, false, Some(format!("{}", e)))
-                    .await
-                {
+                // 缺陷 2.3 修复：调用 service.mark_run_failed 触发指数退避重试
+                if let Err(update_err) = svc.mark_run_failed(sub.id, format!("{}", e)).await {
                     warn!(
                         subscription_id = sub.id,
                         error = %update_err,
-                        "更新订阅失败状态时再次失败"
+                        "mark_run_failed 调用失败"
+                    );
+                }
+            }
+        }
+
+        // 缺陷 2.3 修复：处理待重试订阅
+        for sub in retry_subscriptions {
+            if let Err(e) = self.execute_subscription(&sub).await {
+                warn!(
+                    subscription_id = sub.id,
+                    subscription_name = %sub.name,
+                    retry_count = sub.retry_count,
+                    error = %e,
+                    "重试执行失败，继续调用 mark_run_failed（可能转入死信状态）"
+                );
+                if let Err(update_err) = svc.mark_run_failed(sub.id, format!("{}", e)).await {
+                    warn!(
+                        subscription_id = sub.id,
+                        error = %update_err,
+                        "mark_run_failed 调用失败"
                     );
                 }
             }
@@ -118,7 +149,7 @@ impl ReportSubscriptionScheduler {
         Ok(count)
     }
 
-    /// 执行单条订阅：发送邮件通知 + 更新订阅状态。
+    /// 执行单条订阅：发送邮件通知 + 调用 mark_run_success 更新订阅状态。
     async fn execute_subscription(&self, sub: &ReportSubscriptionModel) -> Result<(), AppError> {
         let now = Utc::now();
         let recipients = self.extract_recipients(sub)?;
@@ -152,8 +183,9 @@ impl ReportSubscriptionScheduler {
             }
         }
 
-        // 更新订阅状态为成功
-        self.update_subscription_status(sub.id, true, None).await?;
+        // 缺陷 2.3 修复：调用 service.mark_run_success 清零 retry_count 并更新 next_run_at
+        let svc = ReportSubscriptionService::new(self.db.clone());
+        svc.mark_run_success(sub.id).await?;
 
         Ok(())
     }
@@ -174,39 +206,6 @@ impl ReportSubscriptionScheduler {
             _ => Vec::new(),
         };
         Ok(recipients)
-    }
-
-    /// 更新订阅执行状态：last_run_at / last_run_status / last_run_error / run_count / next_run_at。
-    async fn update_subscription_status(
-        &self,
-        id: i32,
-        success: bool,
-        error: Option<String>,
-    ) -> Result<(), AppError> {
-        let existing = ReportSubscriptionEntity::find_by_id(id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("订阅 {} 不存在", id)))?;
-
-        // 在 Model 转为 ActiveModel 之前调用 calculate_next_run（Model 方法）
-        let next_run = existing.calculate_next_run();
-        let new_run_count = existing.run_count + 1;
-        let now = Utc::now();
-
-        let mut active_model: ActiveModel = existing.into();
-        active_model.last_run_at = Set(Some(now));
-        active_model.last_run_status = Set(Some(if success {
-            "success".to_string()
-        } else {
-            "failed".to_string()
-        }));
-        active_model.last_run_error = Set(error);
-        active_model.run_count = Set(new_run_count);
-        active_model.next_run_at = Set(next_run);
-        active_model.updated_at = Set(now);
-
-        active_model.update(&*self.db).await?;
-        Ok(())
     }
 
     /// 启动后台调度任务（参考 RecycleExecutor 模式）。
@@ -239,7 +238,7 @@ impl ReportSubscriptionScheduler {
             let interval = std::time::Duration::from_secs(interval_secs);
             info!(
                 interval_secs,
-                "报表订阅调度器：后台任务已启动（每 {} 秒扫描一次到期订阅）", interval_secs
+                "报表订阅调度器：后台任务已启动（每 {} 秒扫描一次到期订阅 + 待重试订阅）", interval_secs
             );
 
             loop {

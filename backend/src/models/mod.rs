@@ -244,6 +244,8 @@ pub mod field_permission;
 // 报表模板模块
 pub mod report_subscription;
 pub mod report_template;
+// 缺陷 1.1 修复：报表模板历史版本（支持回滚）
+pub mod report_template_version;
 // 邮件模块
 pub mod email_log;
 pub mod email_template;
