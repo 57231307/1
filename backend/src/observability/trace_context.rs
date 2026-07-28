@@ -178,6 +178,17 @@ pub fn traceparent_from_current_span() -> String {
     to_traceparent(&ctx)
 }
 
+/// 从当前 span 注入 traceparent 到出站 HTTP 请求头（V15 P1 20.1-A 修复）
+///
+/// 便捷函数：供 reqwest 调用前使用，无需手动构建 TraceContext。
+/// 内部调用 `traceparent_from_current_span()` 生成 traceparent 字符串后注入。
+pub fn inject_traceparent_from_current_span(headers: &mut reqwest::header::HeaderMap) {
+    let value = traceparent_from_current_span();
+    if let Ok(hv) = reqwest::header::HeaderValue::from_str(&value) {
+        headers.insert(TRACEPARENT_HEADER, hv);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

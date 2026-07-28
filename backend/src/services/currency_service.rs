@@ -308,8 +308,14 @@ impl CurrencyService {
             .build()
             .map_err(|e| AppError::business(format!("HTTP 客户端构建失败: {}", e)))?;
 
+        // V15 P1 20.1-A：注入 traceparent 到汇率 API 出站请求
+        let traceparent = crate::observability::trace_context::traceparent_from_current_span();
         let response = client
             .get(&url)
+            .header(
+                crate::observability::trace_context::TRACEPARENT_HEADER,
+                traceparent,
+            )
             .send()
             .await
             .map_err(|e| AppError::business(format!("汇率API请求失败: {}", e)))?;

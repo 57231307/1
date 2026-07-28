@@ -130,27 +130,30 @@ fn create_audit_layers(log_dir: &Path) -> Result<BoxedLayer, Box<dyn std::error:
     let business_appender =
         RollingFileAppender::new(Rotation::DAILY, &audit_dir, "business_audit.log");
 
-    // V15 P1 CI 修复：各层独立 .boxed() 为 BoxedLayer，收集入 Vec 后统一装箱
-    // 避免 tuple .boxed() 在 sea_query 0.x 上的 trait bound 推导失败
+    // V15 P1 20.8-A：审计层使用 JSON 格式，便于 ELK/Loki 直接索引结构化字段
     let financial_layer: BoxedLayer = tracing_subscriber::fmt::layer()
         .with_writer(financial_appender)
         .with_ansi(false)
         .with_target(true)
+        .json()
         .boxed();
     let permission_layer: BoxedLayer = tracing_subscriber::fmt::layer()
         .with_writer(permission_appender)
         .with_ansi(false)
         .with_target(true)
+        .json()
         .boxed();
     let database_layer: BoxedLayer = tracing_subscriber::fmt::layer()
         .with_writer(database_appender)
         .with_ansi(false)
         .with_target(true)
+        .json()
         .boxed();
     let business_layer: BoxedLayer = tracing_subscriber::fmt::layer()
         .with_writer(business_appender)
         .with_ansi(false)
         .with_target(true)
+        .json()
         .boxed();
 
     Ok(vec![
@@ -169,15 +172,18 @@ fn create_performance_layers(log_dir: &Path) -> Result<BoxedLayer, Box<dyn std::
     let health_appender =
         RollingFileAppender::new(Rotation::DAILY, &performance_dir, "system_health.log");
 
+    // V15 P1 20.8-A：性能层使用 JSON 格式
     let performance_layer: BoxedLayer = tracing_subscriber::fmt::layer()
         .with_writer(performance_appender)
         .with_ansi(false)
         .with_target(true)
+        .json()
         .boxed();
     let health_layer: BoxedLayer = tracing_subscriber::fmt::layer()
         .with_writer(health_appender)
         .with_ansi(false)
         .with_target(true)
+        .json()
         .boxed();
 
     Ok(vec![performance_layer, health_layer].boxed())
@@ -188,10 +194,12 @@ fn create_security_layer(log_dir: &Path) -> Result<BoxedLayer, Box<dyn std::erro
     let security_appender =
         RollingFileAppender::new(Rotation::DAILY, &security_dir, "security_audit.log");
 
+    // V15 P1 20.8-A：安全层使用 JSON 格式
     Ok(tracing_subscriber::fmt::layer()
         .with_writer(security_appender)
         .with_ansi(false)
         .with_target(true)
+        .json()
         .boxed())
 }
 
