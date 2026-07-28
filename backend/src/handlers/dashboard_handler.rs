@@ -4,7 +4,7 @@ use axum::{
 };
 use chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use serde::Deserialize;
-use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::dashboard_layout::{self, Entity as DashboardLayoutEntity};

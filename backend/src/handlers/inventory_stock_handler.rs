@@ -222,7 +222,7 @@ pub async fn list_stock(
     auth: AuthContext,
     Query(params): Query<ListStockParams>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<serde_json::Value>>>, AppError> {
-    params.validate().map_err(AppError::validation)?;
+    params.validate().map_err(|e| AppError::validation(e.to_string()))?;
 
     let service = InventoryStockService::new(state.db.clone());
     let page = params.page.unwrap_or(1).clamp(1, 1000);
@@ -232,7 +232,7 @@ pub async fn list_stock(
         .list_stock(page, page_size, params.warehouse_id, params.product_id)
         .await?;
 
-    let stock_responses = stock_list.into_iter().map(to_stock_response).collect();
+    let stock_responses: Vec<_> = stock_list.into_iter().map(to_stock_response).collect();
 
     send_inventory_alerts(&state, &stock_responses).await;
 
@@ -288,7 +288,7 @@ async fn send_inventory_alerts(state: &AppState, stock_responses: &[StockRespons
 
 async fn load_alert_products(db: &DatabaseConnection, product_ids: &[i32]) -> std::collections::HashMap<i32, product::Model> {
     match product::Entity::find()
-        .filter(product::Column::Id.is_in(product_ids))
+        .filter(product::Column::Id.is_in(product_ids.iter().copied()))
         .all(db)
         .await
     {
@@ -422,7 +422,7 @@ async fn load_low_stock_product_map(
     // 改为 match 记录 warn 日志后降级为空集合（跳过本轮预警通知）
     // ConnectionTrait 为 DatabaseConnection 实现，需 db.as_ref() 解引用 Arc
     let products = match product::Entity::find()
-        .filter(product::Column::Id.is_in(product_ids))
+        .filter(product::Column::Id.is_in(product_ids.iter().copied()))
         .all(db.as_ref())
         .await
     {
@@ -500,7 +500,7 @@ pub async fn export_stock(
     auth: AuthContext,
     Query(params): Query<ListStockParams>,
 ) -> Result<axum::response::Response, AppError> {
-    params.validate().map_err(AppError::validation)?;
+    params.validate().map_err(|e| AppError::validation(e.to_string()))?;
 
     let service = InventoryStockService::new(state.db.clone());
     let (stock_list, _total) = service.list_stock(1, 10000, params.warehouse_id, params.product_id).await?;

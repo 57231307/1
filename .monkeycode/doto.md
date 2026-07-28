@@ -2,7 +2,22 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-28（P0 全部完成已归档到 doto-su.md；P1 修复进行中：P1-A + P1-B1 + P1-B2 + P1-C + **P1 面料行业深化 2 批次（batch-04 + batch-05）22 项 P1 已完成** + **P1-D 法律合规 batch-08 P1-08-22 加班工时 + batch-20 前端架构 10 项 P1（含 P1-20-2 移动端侧边栏抽屉化）已完成** + **P1-batch13/14 类十五业务主体 1 项 P1（已并入 P1-C）+ 类十六 AI 模块 24 项 P1 已完成** + **P1-Batch16 隐私合规 5 项 P1（缺陷 7.2/7.3/7.4/8.3/8.4）已完成** + **P1-batch11/12 类十三打印导出 14 项 P1 + 类十四权限维度 14 项 P1 已完成** + **P1-08 法律合规 batch-08 第二批 11 项 P1（缺陷 7/8/9/10/13/14/15/18/19/21/23/24）已完成** 待 CI 验证）
+> 最近整理：2026-07-28（**P1 PR #758 CI 真实状态核查：7 项 FAIL 未全绿，PR OPEN/BLOCKED 未合并，分支 fix/p0-d08-d09-d10-batch-resume 未删除，修改不正确**）
+>
+> **CI 失败清单（PR #758，运行 #30320573270，2026-07-28 01:33 UTC）**：
+> - 🔧 Rust 格式检查 FAIL：`backend/tests/sales_delivery_workflow_test.rs`、`backend/tests/test_csrf_middleware.rs`、`backend/tests/websocket_test.rs` 等测试文件格式差异
+> - 🔍 Rust Clippy FAIL：编译错误 + 多个 unused import warning
+> - 🏗️ Rust 后端构建 FAIL：30+ 类编译错误（详见下方 0.0 节）
+> - 🔍 前端 ESLint FAIL：大量 prettier/prettier 格式错误 + 1 处 Parsing error（Unterminated string literal）+ vue/no-mutating-props 错误
+> - 🔬 前端类型检查 FAIL：`src/views/businessTrace/index.vue(224,18): error TS2322`
+> - 🧪 前端测试 FAIL：76/76 测试通过，但 CI step FAIL（疑为覆盖率或 Vue warn 阻塞）
+> - 🔧 前端格式检查 FAIL
+>
+> **PR 状态**：#758 OPEN/BLOCKED/MERGEABLE，base=main，head=fix/p0-d08-d09-d10-batch-resume，未合并
+> **分支状态**：fix/p0-d08-d09-d10-batch-resume 本地+远程均存在，未删除
+> **工作区状态**：dashboard_handler.rs + inventory_stock_handler.rs 2 文件本地修改未提交（修改方向正确但未 push）
+>
+> P0 全部完成已归档到 doto-su.md；P1 修复进行中（详见 doto-su.md 与 CHANGELOG.md）；原整理内容：P0 全部完成已归档到 doto-su.md；P1 修复进行中：P1-A + P1-B1 + P1-B2 + P1-C + **P1 面料行业深化 2 批次（batch-04 + batch-05）22 项 P1 已完成** + **P1-D 法律合规 batch-08 P1-08-22 加班工时 + batch-20 前端架构 10 项 P1（含 P1-20-2 移动端侧边栏抽屉化）已完成** + **P1-batch13/14 类十五业务主体 1 项 P1（已并入 P1-C）+ 类十六 AI 模块 24 项 P1 已完成** + **P1-Batch16 隐私合规 5 项 P1（缺陷 7.2/7.3/7.4/8.3/8.4）已完成** + **P1-batch11/12 类十三打印导出 14 项 P1 + 类十四权限维度 14 项 P1 已完成** + **P1-08 法律合规 batch-08 第二批 11 项 P1（缺陷 7/8/9/10/13/14/15/18/19/21/23/24）已完成** 待 CI 验证）
 
 ---
 
