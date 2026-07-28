@@ -1,6 +1,6 @@
-//! 大货批色审批 Handler（V15 P0-F15/F16/F17 创建）
+//! 大货批色审批 Handler（V15 P0-F15/F16/F17 创建，P1-10 扩展）
 //!
-//! 实现 9 个 HTTP 端点：
+//! 实现 16 个 HTTP 端点：
 //!   - 列表/详情（GET）
 //!   - 创建批色记录（POST）
 //!   - 剪大货样（POST /:id/cut-sample）— P0-F16
@@ -8,6 +8,13 @@
 //!   - 客户批色确认 通过/拒绝/返工（POST /:id/approve|reject|rework）— P0-F17
 //!   - 降级（POST /:id/downgrade）
 //!   - 报废（POST /:id/scrap）
+//!   - 状态变更历史（GET /:id/history）— P1-10
+//!   - pending 超时提醒列表（GET /reminders/pending）— P1-10
+//!   - 客户跟进提醒列表（GET /reminders/followups）— P1-10
+//!   - 发送 pending 提醒（POST /reminders/send-pending）— P1-10
+//!   - 发送客户跟进提醒（POST /reminders/send-followups）— P1-10
+//!   - 批色报表（GET /report）— P1-10
+//!   - 批色统计 KPI（GET /statistics）— P1-10
 
 use axum::{
     extract::{Path, Query, State},
@@ -19,9 +26,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::bulk_color_approval;
+use crate::models::bulk_color_approval_history;
 use crate::services::bulk_color_approval_service::{
-    BulkColorApprovalError, BulkColorApprovalService, CreateBulkColorApprovalParams,
-    CutSampleParams, ListBulkColorApprovalQuery,
+    ApprovalReportRow, ApprovalStatistics, BulkColorApprovalError, BulkColorApprovalService,
+    CreateBulkColorApprovalParams, CutSampleParams, ListBulkColorApprovalQuery,
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -149,6 +157,63 @@ pub struct BulkColorApprovalPagedResponse<T> {
     pub total: u64,
     pub page: u64,
     pub page_size: u64,
+}
+
+/// P1-10：批色状态变更历史响应 DTO
+#[derive(Debug, Serialize, Clone)]
+pub struct BulkColorApprovalHistoryInfo {
+    pub id: i64,
+    pub bulk_color_approval_id: i64,
+    pub from_status: Option<String>,
+    pub to_status: String,
+    pub operator_id: Option<i32>,
+    pub reason: Option<String>,
+    pub snapshot: Option<serde_json::Value>,
+    pub created_at: DateTime<Utc>,
+}
+
+impl From<bulk_color_approval_history::Model> for BulkColorApprovalHistoryInfo {
+    fn from(m: bulk_color_approval_history::Model) -> Self {
+        Self {
+            id: m.id,
+            bulk_color_approval_id: m.bulk_color_approval_id,
+            from_status: m.from_status,
+            to_status: m.to_status,
+            operator_id: m.operator_id,
+            reason: m.reason,
+            snapshot: m.snapshot,
+            created_at: m.created_at,
+        }
+    }
+}
+
+/// P1-10：提醒查询参数（threshold_hours 默认 72 小时 = 3 天）
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct ReminderQuery {
+    pub threshold_hours: Option<i64>,
+}
+
+/// P1-10：提醒发送结果
+#[derive(Debug, Serialize, Clone)]
+pub struct ReminderSendResult {
+    pub sent_count: usize,
+    pub threshold_hours: i64,
+}
+
+/// P1-10：批色报表查询参数
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+pub struct ReportQuery {
+    pub from_date: Option<DateTime<Utc>>,
+    pub to_date: Option<DateTime<Utc>>,
+    pub customer_id: Option<i64>,
+    pub product_id: Option<i32>,
+}
+
+/// P1-10：批色统计查询参数
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+pub struct StatisticsQuery {
+    pub from_date: Option<DateTime<Utc>>,
+    pub to_date: Option<DateTime<Utc>>,
 }
 
 // ==================== 错误转换 ====================
@@ -328,4 +393,132 @@ pub async fn scrap(
         .await
         .map_err(bca_err)?;
     Ok(Json(ApiResponse::success(record.into())))
+}
+
+// ==================== P1-10 扩展端点：提醒/报表/统计/历史 ====================
+
+/// GET /api/v1/erp/bulk-color-approvals/:id/history - 批色状态变更历史追溯
+pub async fn list_history(
+    _auth: AuthContext,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<ApiResponse<Vec<BulkColorApprovalHistoryInfo>>>, AppError> {
+    let service = BulkColorApprovalService::from_state(&state);
+    let rows = service.list_history(id).await.map_err(bca_err)?;
+    let infos: Vec<BulkColorApprovalHistoryInfo> =
+        rows.into_iter().map(Into::into).collect();
+    Ok(Json(ApiResponse::success(infos)))
+}
+
+/// GET /api/v1/erp/bulk-color-approvals/reminders/pending - pending 超时未剪样提醒列表
+pub async fn list_pending_reminders(
+    _auth: AuthContext,
+    State(state): State<AppState>,
+    Query(query): Query<ReminderQuery>,
+) -> Result<Json<ApiResponse<BulkColorApprovalPagedResponse<BulkColorApprovalInfo>>>, AppError> {
+    let service = BulkColorApprovalService::from_state(&state);
+    let threshold_hours = query.threshold_hours.unwrap_or(72);
+    let items = service
+        .list_pending_reminders(threshold_hours)
+        .await
+        .map_err(bca_err)?;
+    let total = items.len() as u64;
+    let infos: Vec<BulkColorApprovalInfo> = items.into_iter().map(Into::into).collect();
+    Ok(Json(ApiResponse::success(BulkColorApprovalPagedResponse {
+        items: infos,
+        total,
+        page: 1,
+        page_size: total.max(1),
+    })))
+}
+
+/// GET /api/v1/erp/bulk-color-approvals/reminders/followups - 客户跟进超时提醒列表
+pub async fn list_customer_followups(
+    _auth: AuthContext,
+    State(state): State<AppState>,
+    Query(query): Query<ReminderQuery>,
+) -> Result<Json<ApiResponse<BulkColorApprovalPagedResponse<BulkColorApprovalInfo>>>, AppError> {
+    let service = BulkColorApprovalService::from_state(&state);
+    let threshold_hours = query.threshold_hours.unwrap_or(72);
+    let items = service
+        .list_customer_followups(threshold_hours)
+        .await
+        .map_err(bca_err)?;
+    let total = items.len() as u64;
+    let infos: Vec<BulkColorApprovalInfo> = items.into_iter().map(Into::into).collect();
+    Ok(Json(ApiResponse::success(BulkColorApprovalPagedResponse {
+        items: infos,
+        total,
+        page: 1,
+        page_size: total.max(1),
+    })))
+}
+
+/// POST /api/v1/erp/bulk-color-approvals/reminders/send-pending - 发送 pending 超时提醒
+pub async fn send_pending_reminders(
+    _auth: AuthContext,
+    State(state): State<AppState>,
+    Query(query): Query<ReminderQuery>,
+) -> Result<Json<ApiResponse<ReminderSendResult>>, AppError> {
+    let service = BulkColorApprovalService::from_state(&state);
+    let threshold_hours = query.threshold_hours.unwrap_or(72);
+    let sent_count = service
+        .send_pending_reminders(threshold_hours, &state.notification_service)
+        .await
+        .map_err(bca_err)?;
+    Ok(Json(ApiResponse::success(ReminderSendResult {
+        sent_count,
+        threshold_hours,
+    })))
+}
+
+/// POST /api/v1/erp/bulk-color-approvals/reminders/send-followups - 发送客户跟进提醒
+pub async fn send_customer_followup_reminders(
+    _auth: AuthContext,
+    State(state): State<AppState>,
+    Query(query): Query<ReminderQuery>,
+) -> Result<Json<ApiResponse<ReminderSendResult>>, AppError> {
+    let service = BulkColorApprovalService::from_state(&state);
+    let threshold_hours = query.threshold_hours.unwrap_or(72);
+    let sent_count = service
+        .send_customer_followup_reminders(threshold_hours, &state.notification_service)
+        .await
+        .map_err(bca_err)?;
+    Ok(Json(ApiResponse::success(ReminderSendResult {
+        sent_count,
+        threshold_hours,
+    })))
+}
+
+/// GET /api/v1/erp/bulk-color-approvals/report - 批色报表（按客户/产品/时间段统计通过率）
+pub async fn report(
+    _auth: AuthContext,
+    State(state): State<AppState>,
+    Query(query): Query<ReportQuery>,
+) -> Result<Json<ApiResponse<Vec<ApprovalReportRow>>>, AppError> {
+    let service = BulkColorApprovalService::from_state(&state);
+    let rows = service
+        .report_by_dimensions(
+            query.from_date,
+            query.to_date,
+            query.customer_id,
+            query.product_id,
+        )
+        .await
+        .map_err(bca_err)?;
+    Ok(Json(ApiResponse::success(rows)))
+}
+
+/// GET /api/v1/erp/bulk-color-approvals/statistics - 批色统计 KPI（平均 ΔE/通过率/退回率/降级率）
+pub async fn statistics(
+    _auth: AuthContext,
+    State(state): State<AppState>,
+    Query(query): Query<StatisticsQuery>,
+) -> Result<Json<ApiResponse<ApprovalStatistics>>, AppError> {
+    let service = BulkColorApprovalService::from_state(&state);
+    let stats = service
+        .get_statistics(query.from_date, query.to_date)
+        .await
+        .map_err(bca_err)?;
+    Ok(Json(ApiResponse::success(stats)))
 }

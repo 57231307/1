@@ -2,6 +2,7 @@
 //!
 //! 替代旧 borrow.rs（已废弃）
 //! 实现 7 个 HTTP 端点：发放/归还/遗失/损坏/取消/列表/详情
+//! V15 P1 10.4-1/2/3：端点级角色权限矩阵 + 数据权限隔离 + 审计日志
 
 use axum::{
     extract::{Path, Query, State},
@@ -9,7 +10,6 @@ use axum::{
 };
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -20,6 +20,7 @@ use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::color_card_issue_service::{
     ColorCardIssueService, IssueError, IssueParams, ListIssuesQuery,
 };
+use crate::services::role_permission_service::RolePermissionService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -134,6 +135,50 @@ pub fn issue_err(e: IssueError) -> AppError {
     }
 }
 
+// ==================== V15 P1 10.4-1：权限校验辅助 ====================
+
+/// 校验当前用户是否持有 color_card_issue:<action> 权限
+/// admin 角色由 RolePermissionService.check_permission 内部绕过
+async fn require_issue_permission(
+    state: &AppState,
+    auth: &AuthContext,
+    action: &str,
+) -> Result<(), AppError> {
+    let role_id = auth.role_id.ok_or_else(|| {
+        AppError::permission_denied("用户未分配角色，无法执行色卡发放操作")
+    })?;
+    let svc = RolePermissionService::new(state.db.clone());
+    let allowed = svc
+        .check_permission(role_id, "color_card_issue", action, None)
+        .await
+        .map_err(|e| AppError::internal(e.to_string()))?;
+    if !allowed {
+        return Err(AppError::permission_denied(format!(
+            "没有 color_card_issue:{} 权限",
+            action
+        )));
+    }
+    Ok(())
+}
+
+/// V15 P1 10.4-2：判定用户是否可查看成本字段（compensation_amount）
+/// 持有 color_card_issue:export 视为可查看成本（admin 自动通过）
+async fn can_view_cost_amount(state: &AppState, auth: &AuthContext) -> bool {
+    let Some(role_id) = auth.role_id else {
+        return false;
+    };
+    let svc = RolePermissionService::new(state.db.clone());
+    svc.check_permission(role_id, "color_card_issue", "export", None)
+        .await
+        .unwrap_or(false)
+}
+
+/// V15 P1 10.4-2：获取用户的数据范围字符串（"all"/"dept"/"self"）
+/// 未加载时按 "self" 处理（最小权限原则）
+fn effective_data_scope(auth: &AuthContext) -> &str {
+    auth.data_scope.as_deref().unwrap_or("self")
+}
+
 // ==================== Handler 端点 ====================
 
 /// POST /api/v1/erp/color-cards/issues - 发放色卡
@@ -142,6 +187,9 @@ pub async fn issue_color_card(
     State(state): State<AppState>,
     Json(dto): Json<IssueColorCardDto>,
 ) -> Result<Json<ApiResponse<IssueRecordInfo>>, AppError> {
+    // V15 P1 10.4-1：角色权限矩阵校验（admin/仓库员/仓库经理/销售经理）
+    require_issue_permission(&state, &auth, "create").await?;
+
     let user_id = auth.user_id as i64;
     let service = ColorCardIssueService::from_state(&state);
 
@@ -159,6 +207,10 @@ pub async fn issue_color_card(
 
     let record = service.issue(params).await.map_err(issue_err)?;
 
+    // V15 P1 10.4-3：审计日志（best-effort，不阻塞业务）
+    let audit_svc = Arc::new(AuditLogService::new(state.db.clone()));
+    service.record_issue_audit(audit_svc, "issue", auth.user_id, &auth.username, &record, None);
+
     Ok(Json(ApiResponse::success(record.into())))
 }
 
@@ -169,81 +221,157 @@ pub async fn return_issue(
     Path(record_id): Path<i64>,
     Json(dto): Json<ReturnColorCardDto>,
 ) -> Result<Json<ApiResponse<IssueRecordInfo>>, AppError> {
+    // V15 P1 10.4-1：角色权限矩阵校验（admin/仓库员/仓库经理）
+    require_issue_permission(&state, &auth, "return").await?;
+
     let user_id = auth.user_id as i64;
     let service = ColorCardIssueService::from_state(&state);
+
+    // V15 P1 10.4-3：变更前快照（用于审计 before_snapshot）
+    let before = service
+        .get_by_id(record_id)
+        .await
+        .ok()
+        .map(|r| serde_json::json!({
+            "issue_id": r.id,
+            "status": r.status,
+            "actual_return_date": r.actual_return_date,
+        }));
 
     let record = service
         .return_card(record_id, user_id, dto.actual_return_date, dto.remark)
         .await
         .map_err(issue_err)?;
 
+    let audit_svc = Arc::new(AuditLogService::new(state.db.clone()));
+    service.record_issue_audit(audit_svc, "return", auth.user_id, &auth.username, &record, before);
+
     Ok(Json(ApiResponse::success(record.into())))
 }
 
 /// POST /api/v1/erp/color-cards/issues/:record_id/lost - 登记遗失
 pub async fn mark_issue_lost(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(record_id): Path<i64>,
     Json(dto): Json<MarkLostDto>,
 ) -> Result<Json<ApiResponse<IssueRecordInfo>>, AppError> {
+    // V15 P1 10.4-1：角色权限矩阵校验（admin/仓库员/仓库经理）
+    require_issue_permission(&state, &auth, "lost").await?;
+
     let service = ColorCardIssueService::from_state(&state);
+
+    let before = service
+        .get_by_id(record_id)
+        .await
+        .ok()
+        .map(|r| serde_json::json!({
+            "issue_id": r.id,
+            "status": r.status,
+            "compensation_amount": r.compensation_amount,
+        }));
 
     let record = service
         .mark_lost(record_id, dto.compensation_amount, dto.remark)
         .await
         .map_err(issue_err)?;
 
+    let audit_svc = Arc::new(AuditLogService::new(state.db.clone()));
+    service.record_issue_audit(audit_svc, "lost", auth.user_id, &auth.username, &record, before);
+
     Ok(Json(ApiResponse::success(record.into())))
 }
 
 /// POST /api/v1/erp/color-cards/issues/:record_id/damaged - 标记损坏
 pub async fn mark_issue_damaged(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(record_id): Path<i64>,
     Json(dto): Json<MarkDamagedDto>,
 ) -> Result<Json<ApiResponse<IssueRecordInfo>>, AppError> {
+    // V15 P1 10.4-1：角色权限矩阵校验（admin/仓库员/仓库经理）
+    require_issue_permission(&state, &auth, "damaged").await?;
+
     let service = ColorCardIssueService::from_state(&state);
+
+    let before = service
+        .get_by_id(record_id)
+        .await
+        .ok()
+        .map(|r| serde_json::json!({
+            "issue_id": r.id,
+            "status": r.status,
+            "compensation_amount": r.compensation_amount,
+        }));
 
     let record = service
         .mark_damaged(record_id, dto.compensation_amount, dto.remark)
         .await
         .map_err(issue_err)?;
 
+    let audit_svc = Arc::new(AuditLogService::new(state.db.clone()));
+    service.record_issue_audit(audit_svc, "damaged", auth.user_id, &auth.username, &record, before);
+
     Ok(Json(ApiResponse::success(record.into())))
 }
 
 /// POST /api/v1/erp/color-cards/issues/:record_id/cancel - 取消发放
 pub async fn cancel_issue(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(record_id): Path<i64>,
     Json(dto): Json<CancelIssueDto>,
 ) -> Result<Json<ApiResponse<IssueRecordInfo>>, AppError> {
+    // V15 P1 10.4-1：角色权限矩阵校验（admin/仓库经理）
+    require_issue_permission(&state, &auth, "cancel").await?;
+
     let service = ColorCardIssueService::from_state(&state);
+
+    let before = service
+        .get_by_id(record_id)
+        .await
+        .ok()
+        .map(|r| serde_json::json!({
+            "issue_id": r.id,
+            "status": r.status,
+            "remark": r.remark,
+        }));
 
     let record = service
         .cancel_issue(record_id, dto.remark)
         .await
         .map_err(issue_err)?;
 
+    let audit_svc = Arc::new(AuditLogService::new(state.db.clone()));
+    service.record_issue_audit(audit_svc, "cancel", auth.user_id, &auth.username, &record, before);
+
     Ok(Json(ApiResponse::success(record.into())))
 }
 
 /// GET /api/v1/erp/color-cards/issues - 发放记录列表
 pub async fn list_issues(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ListIssuesQuery>,
 ) -> Result<Json<ApiResponse<IssuePagedResponse<IssueRecordInfo>>>, AppError> {
+    // V15 P1 10.4-1：列表查看权限校验
+    require_issue_permission(&state, &auth, "read").await?;
+
     let service = ColorCardIssueService::from_state(&state);
     let page = query.page.unwrap_or(1).clamp(1, 1000);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
-    let (items, total) = service.list_records(query).await.map_err(issue_err)?;
+    // V15 P1 10.4-2：按 data_scope 过滤数据（销售只看自己客户）
+    let scope = effective_data_scope(&auth);
+    let (items, total) = service
+        .list_records_with_data_scope(query, auth.user_id, scope)
+        .await
+        .map_err(issue_err)?;
 
-    let infos: Vec<IssueRecordInfo> = items.into_iter().map(Into::into).collect();
+    // V15 P1 10.4-2：cost_amount 按权限脱敏（无 export 权限的用户隐藏 compensation_amount）
+    let can_view_cost = can_view_cost_amount(&state, &auth).await;
+    let masked = ColorCardIssueService::mask_cost_amount(items, can_view_cost);
+    let infos: Vec<IssueRecordInfo> = masked.into_iter().map(Into::into).collect();
     Ok(Json(ApiResponse::success(IssuePagedResponse {
         items: infos,
         total,
@@ -254,12 +382,21 @@ pub async fn list_issues(
 
 /// GET /api/v1/erp/color-cards/issues/:record_id - 发放记录详情
 pub async fn get_issue(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(record_id): Path<i64>,
 ) -> Result<Json<ApiResponse<IssueRecordInfo>>, AppError> {
+    // V15 P1 10.4-1：详情查看权限校验
+    require_issue_permission(&state, &auth, "read").await?;
+
     let service = ColorCardIssueService::from_state(&state);
-    let record = service.get_by_id(record_id).await.map_err(issue_err)?;
+    let mut record = service.get_by_id(record_id).await.map_err(issue_err)?;
+
+    // V15 P1 10.4-2：单条记录同样按权限脱敏 cost_amount
+    let can_view_cost = can_view_cost_amount(&state, &auth).await;
+    if !can_view_cost {
+        record.compensation_amount = None;
+    }
     Ok(Json(ApiResponse::success(record.into())))
 }
 
@@ -269,28 +406,19 @@ pub async fn export_issue_records(
     auth: AuthContext,
     Query(query): Query<ListIssuesQuery>,
 ) -> Result<axum::response::Response, AppError> {
-    let mut q =
-        color_card_issue::Entity::find().filter(color_card_issue::Column::IsDeleted.eq(false));
-    if let Some(v) = query.color_card_id {
-        q = q.filter(color_card_issue::Column::ColorCardId.eq(v));
-    }
-    if let Some(v) = query.customer_id {
-        q = q.filter(color_card_issue::Column::CustomerId.eq(v));
-    }
-    if let Some(v) = query.status.clone() {
-        q = q.filter(color_card_issue::Column::Status.eq(v));
-    }
-    if let Some(v) = query.from_date {
-        q = q.filter(color_card_issue::Column::IssuedAt.gte(v));
-    }
-    if let Some(v) = query.to_date {
-        q = q.filter(color_card_issue::Column::IssuedAt.lte(v));
-    }
-    q = q.order_by_desc(color_card_issue::Column::IssuedAt);
+    // V15 P1 10.4-1：导出权限校验（admin/仓库经理/销售经理/成本会计）
+    require_issue_permission(&state, &auth, "export").await?;
 
-    let records = q.all(&*state.db).await?;
-    let table = build_issue_records_xlsx_table(&records);
+    // V15 P1 10.4-2：导出同样按 data_scope 过滤数据
+    let service = ColorCardIssueService::from_state(&state);
+    let scope = effective_data_scope(&auth);
+    let (records, _total) = service
+        .list_records_with_data_scope(query.clone(), auth.user_id, scope)
+        .await
+        .map_err(issue_err)?;
     let row_count = records.len();
+
+    let table = build_issue_records_xlsx_table(&records);
 
     let event = AuditEvent {
         user_id: Some(auth.user_id),

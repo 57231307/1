@@ -178,6 +178,11 @@ pub mod m0083_create_report_template_versions;
 // V15 P1 batch-08 法律合规修复（环保/劳动/财税法律合规）：
 // 缺陷 10/13/14/15/18/19/21/23/24 统一迁移
 pub mod m0079_batch08_compliance_legal_env_tax_labor;
+// V15 P1 batch-09 缺陷 10.4-1/10.4-2：补齐非 admin 角色的 color_card_issue:export 权限
+// 为 sales_manager / warehouse_manager / cost_accountant 授予导出+成本字段查看权限
+pub mod m0084_add_color_card_issue_export_permissions;
+// V15 P1-10 batch-10：大货批色状态变更历史表（每次状态变更全量快照，支持追溯/责任/合规审计）
+pub mod m0085_create_bulk_color_approval_history;
 
 pub struct Migrator;
 
@@ -270,6 +275,8 @@ impl MigratorTrait for Migrator {
             Box::new(m0081_create_fixed_asset_counts::Migration),
             Box::new(m0082_create_customer_team_and_share::Migration),
             Box::new(m0083_create_report_template_versions::Migration),
+            Box::new(m0084_add_color_card_issue_export_permissions::Migration),
+            Box::new(m0085_create_bulk_color_approval_history::Migration),
         ]
     }
 }
