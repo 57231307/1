@@ -126,6 +126,7 @@ impl InventoryStockService {
             stock_status: Set("正常".to_string()),
             quality_status: Set("合格".to_string()),
             version: Set(0),
+            replenishment_strategy: Set("reorder_point".to_string()),
         };
 
         active_stock.insert(txn).await.map_err(AppError::from)

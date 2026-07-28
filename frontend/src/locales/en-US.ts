@@ -1437,6 +1437,7 @@ export default {
     checkFailed: 'Check failed',
     sendNotificationFailed: 'Failed to send notification',
     markFailed: 'Mark failed',
+    exportBlockedResource: 'Resource {resource} export is blocked',
   },
   aiExtend: {
     qualityPrediction: {

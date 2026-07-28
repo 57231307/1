@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 缸号管理模型（染色批次管理）
 
 use rust_decimal::Decimal;

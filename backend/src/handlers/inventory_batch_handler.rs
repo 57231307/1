@@ -166,6 +166,7 @@ pub async fn create_batch(
         bin_location: Set(None),
         version: Set(0),
         quantity_shipped: Set(Decimal::ZERO),
+        replenishment_strategy: Set("reorder_point".to_string()),
     };
 
     let created = batch
@@ -409,5 +410,6 @@ fn build_new_target_batch(
         layer_no: Set(None),
         version: Set(0),
         quantity_shipped: Set(Decimal::ZERO),
+        replenishment_strategy: Set("reorder_point".to_string()),
     }
 }

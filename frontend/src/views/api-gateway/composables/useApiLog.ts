@@ -27,7 +27,10 @@ export function useApiLog() {
   } = useTableApi<ApiLog>({
     url: '/api-gateway/logs',
     onError: (err: unknown) =>
-      ElMessage.error((err instanceof Error ? err.message : String(err)) || msg.translate('loadApiLogFailed')),
+      ElMessage.error(
+        (err instanceof Error ? err.message : String(err)) ||
+        msg.translate('loadApiLogFailed')
+      ),
   });
 
   const logDetailVisible = ref(false);

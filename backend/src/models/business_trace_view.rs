@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 业务追溯查询视图模型
 
 use chrono::{DateTime, Utc};

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 导入任务记录 Model
 //!
 //! 批次 127 v8 复审 P2 修复：替代 import_export_handler list_import_tasks 空列表占位 +

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 主备隔离配置表 Model
 
 use chrono::{DateTime, Utc};

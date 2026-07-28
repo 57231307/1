@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! BPM 流程实例 Model
 
 use chrono::{DateTime, Utc};

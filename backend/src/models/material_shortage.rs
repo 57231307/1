@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 缺料预警持久化 Model
 //!
 //! P0-B15（Batch 484）：修复审计报告 batch-18 §8.1 缺陷

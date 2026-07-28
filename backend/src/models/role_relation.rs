@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 角色关系 Model（V15 P1 12.2）
 //!
 //! 支持角色继承（inherit）与互斥（mutual_exclusive）关系

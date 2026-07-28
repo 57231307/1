@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 污染物监测记录模型（pollutant_monitoring_records 表）
 //!
 //! V15 P1 batch-08 缺陷 19：废水/废气/固废排放监测

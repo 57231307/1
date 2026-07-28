@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 主备隔离状态表 Model
 //!
 //! 记录每个功能（database / cache）当前的主备实时状态。

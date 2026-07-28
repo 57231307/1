@@ -43,7 +43,10 @@ export function useSysUpdProc(refresh: RefreshCallbacks) {
     } catch (error: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
       if (error !== 'cancel')
-        ElMessage.error((error instanceof Error ? error.message : String(error)) || msg.translate('downloadFailed'));
+        ElMessage.error(
+          (error instanceof Error ? error.message : String(error))
+            || msg.translate('downloadFailed')
+        );
     }
   };
 
@@ -62,7 +65,9 @@ export function useSysUpdProc(refresh: RefreshCallbacks) {
     } catch (error: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
       if (error !== 'cancel')
-        ElMessage.error((error instanceof Error ? error.message : String(error)) || msg.translate('installFailed'));
+        ElMessage.error(
+          (error instanceof Error ? error.message : String(error)) || msg.translate('installFailed')
+        );
     }
   };
 
@@ -76,7 +81,9 @@ export function useSysUpdProc(refresh: RefreshCallbacks) {
     } catch (error: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
       if (error !== 'cancel')
-        ElMessage.error((error instanceof Error ? error.message : String(error)) || msg.translate('cancelFailed'));
+        ElMessage.error(
+          (error instanceof Error ? error.message : String(error)) || msg.translate('cancelFailed')
+        );
     }
   };
 
@@ -92,7 +99,10 @@ export function useSysUpdProc(refresh: RefreshCallbacks) {
     } catch (error: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
       if (error !== 'cancel')
-        ElMessage.error((error instanceof Error ? error.message : String(error)) || msg.translate('rollbackFailed'));
+        ElMessage.error(
+          (error instanceof Error ? error.message : String(error))
+            || msg.translate('rollbackFailed')
+        );
     }
   };
 
@@ -106,7 +116,9 @@ export function useSysUpdProc(refresh: RefreshCallbacks) {
     } catch (error: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
       if (error !== 'cancel')
-        ElMessage.error((error instanceof Error ? error.message : String(error)) || msg.translate('deleteFailed'));
+        ElMessage.error(
+          (error instanceof Error ? error.message : String(error)) || msg.translate('deleteFailed')
+        );
     }
   };
 
@@ -122,7 +134,9 @@ export function useSysUpdProc(refresh: RefreshCallbacks) {
     } catch (error: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
       if (error !== 'cancel')
-        ElMessage.error((error instanceof Error ? error.message : String(error)) || msg.translate('restoreFailed'));
+        ElMessage.error(
+          (error instanceof Error ? error.message : String(error)) || msg.translate('restoreFailed')
+        );
     }
   };
 
@@ -137,7 +151,9 @@ export function useSysUpdProc(refresh: RefreshCallbacks) {
       msg.success('backupDownloaded');
     } catch (error: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      ElMessage.error((error instanceof Error ? error.message : String(error)) || msg.translate('downloadFailed'));
+      ElMessage.error(
+        (error instanceof Error ? error.message : String(error)) || msg.translate('downloadFailed')
+      );
     }
   };
 

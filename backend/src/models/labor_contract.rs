@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 劳动合同模型（labor_contracts 表）
 //!
 //! V15 P1 batch-08 缺陷 21：劳动合同电子化管理

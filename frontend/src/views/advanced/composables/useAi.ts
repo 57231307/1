@@ -89,7 +89,9 @@ export function useAi() {
       msg.success('predictionComplete');
     } catch (e: unknown) {
       // v11 批次 171 P2-1 修复：catch (e: any) 改为 unknown + 类型守卫
-      ElMessage.error((e instanceof Error ? e.message : String(e)) || msg.translate('predictionFailed'));
+      ElMessage.error(
+        (e instanceof Error ? e.message : String(e)) || msg.translate('predictionFailed')
+      );
     } finally {
       forecastLoading.value = false;
     }
@@ -105,7 +107,9 @@ export function useAi() {
       inventoryResult.value = res.data;
       msg.success('optimizationSuggestionsGenerated');
     } catch (e: unknown) {
-      ElMessage.error((e instanceof Error ? e.message : String(e)) || msg.translate('generationFailed'));
+      ElMessage.error(
+        (e instanceof Error ? e.message : String(e)) || msg.translate('generationFailed')
+      );
     } finally {
       inventoryLoading.value = false;
     }
@@ -123,7 +127,9 @@ export function useAi() {
       anomalyResult.value = res.data;
       msg.success('detectionComplete');
     } catch (e: unknown) {
-      ElMessage.error((e instanceof Error ? e.message : String(e)) || msg.translate('detectionFailed'));
+      ElMessage.error(
+        (e instanceof Error ? e.message : String(e)) || msg.translate('detectionFailed')
+      );
     } finally {
       anomalyLoading.value = false;
     }

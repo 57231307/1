@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 大货处方模型（production_recipe 表）
 //!
 //! v14 批次 424：大货处方与加料处方流程

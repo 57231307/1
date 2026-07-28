@@ -67,9 +67,9 @@ export function useMs() {
       const res = await getMaterialShortageSummary();
       summary.value = (res.data || {}) as MaterialShortageSummary;
     } catch (error) {
-      const msg = error instanceof Error ? error.message : '获取缺料汇总失败';
-      logger.error(msg);
-      ElMessage.error(msg);
+      const errMsg = error instanceof Error ? error.message : '获取缺料汇总失败';
+      logger.error(errMsg);
+      ElMessage.error(errMsg);
       summary.value = {} as MaterialShortageSummary;
     }
   };

@@ -53,7 +53,9 @@ export const useCp = () => {
       // 安全检查：防止后端返回 data 为 null 时崩溃
       if (res.data) summary.value = res.data;
     } catch (error: unknown) {
-      ElMessage.error((error instanceof Error ? error.message : '') || msg.translate('loadCapacityOverviewFailed'));
+      ElMessage.error(
+        (error instanceof Error ? error.message : '') || msg.translate('loadCapacityOverviewFailed')
+      );
       summary.value = {} as CapacitySummary;
     }
   };
@@ -68,7 +70,9 @@ export const useCp = () => {
       // 安全检查：防止后端返回 data 为 null 时崩溃
       if (res.data) trendData.value = res.data;
     } catch (error: unknown) {
-      ElMessage.error((error instanceof Error ? error.message : '') || msg.translate('loadCapacityTrendFailed'));
+      ElMessage.error(
+        (error instanceof Error ? error.message : '') || msg.translate('loadCapacityTrendFailed')
+      );
     }
   };
 
@@ -80,7 +84,10 @@ export const useCp = () => {
       // 安全检查：防止后端返回 data 为 null 时崩溃
       if (res.data) bottlenecks.value = res.data;
     } catch (error: unknown) {
-      ElMessage.error((error instanceof Error ? error.message : '') || msg.translate('loadBottleneckAnalysisFailed'));
+      ElMessage.error(
+        (error instanceof Error ? error.message : '')
+          || msg.translate('loadBottleneckAnalysisFailed')
+      );
       bottlenecks.value = [];
     } finally {
       bottleneckLoading.value = false;

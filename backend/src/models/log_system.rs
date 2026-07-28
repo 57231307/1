@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 系统日志 Model
 //!
 //! 系统日志模块

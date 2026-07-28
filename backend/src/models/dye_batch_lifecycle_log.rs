@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 缸号生命周期日志模型（dye_batch_lifecycle_log 表）
 //!
 //! v14 批次 432：缸号全生命周期状态机

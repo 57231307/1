@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 工序质量反馈单模型（process_quality_feedback 表）
 //!
 //! v14 批次 425：流转卡条码与车间工序流转

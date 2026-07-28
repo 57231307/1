@@ -106,7 +106,8 @@ export function useVchrProc(vouchers: { value: Voucher[] }, fetchVouchers: () =>
         <td>${escapeHtml(item.voucher_no)}</td><td>${escapeHtml(item.voucher_date)}</td><td>${escapeHtml(item.voucher_type)}</td>
         <td style="text-align:right">${formatMoney(item.total_debit)}</td>
         <td style="text-align:right">${formatMoney(item.total_credit)}</td>
-        <td>${escapeHtml(getVchrStatusLabel(item.status))}</td><td>${escapeHtml(item.created_by_name || '-')}</td>
+        <td>${escapeHtml(getVchrStatusLabel(item.status))}</td><td>${escapeHtml(item.created_by_name
+          || '-')}</td>
       </tr>
     `
       )

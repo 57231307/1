@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 排污许可证模型（pollution_permits 表）
 //!
 //! V15 P1 batch-08 缺陷 18：排污许可证登记

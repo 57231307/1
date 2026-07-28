@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 客户信用 Entity
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;

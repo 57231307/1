@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! BPM/CRM/合同状态常量分组
 //!
 //! 批次 490 D10-3b 拆分：从 models/status.rs 抽取的 BPM/CRM/合同/预算/物流状态常量子模块组。

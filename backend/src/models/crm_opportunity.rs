@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! CRM 商机 Model
 //!
 //! CRM 商机模块

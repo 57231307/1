@@ -142,9 +142,9 @@ export function useDiProc(cb: DiCallbacks) {
         templateDialogVisible.value = false;
         await cb.fetchTemplates();
       } catch (error: unknown) {
-        const msg = error instanceof Error ? error.message : '操作失败';
-        logger.error(msg);
-        ElMessage.error(msg);
+        const errMsg = error instanceof Error ? error.message : '操作失败';
+        logger.error(errMsg);
+        ElMessage.error(errMsg);
       } finally {
         templateSubmitLoading.value = false;
       }
@@ -162,9 +162,9 @@ export function useDiProc(cb: DiCallbacks) {
       await cb.fetchTemplates();
     } catch (error: unknown) {
       if (error !== 'cancel') {
-        const msg = error instanceof Error ? error.message : '删除失败';
-        logger.error(msg);
-        ElMessage.error(msg);
+        const errMsg = error instanceof Error ? error.message : '删除失败';
+        logger.error(errMsg);
+        ElMessage.error(errMsg);
       }
     }
   };
@@ -181,9 +181,9 @@ export function useDiProc(cb: DiCallbacks) {
       link.click();
       msg.success('templateDownloaded');
     } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : '下载失败';
-      logger.error(msg);
-      ElMessage.error(msg);
+      const errMsg = error instanceof Error ? error.message : '下载失败';
+      logger.error(errMsg);
+      ElMessage.error(errMsg);
     }
   };
 
@@ -227,9 +227,9 @@ export function useDiProc(cb: DiCallbacks) {
       await cb.fetchTasks();
       cb.activeTab = 'tasks';
     } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : '导入失败';
-      logger.error(msg);
-      ElMessage.error(msg);
+      const errMsg = error instanceof Error ? error.message : '导入失败';
+      logger.error(errMsg);
+      ElMessage.error(errMsg);
     } finally {
       uploadLoading.value = false;
     }
@@ -246,9 +246,9 @@ export function useDiProc(cb: DiCallbacks) {
       await cb.fetchTasks();
     } catch (error: unknown) {
       if (error !== 'cancel') {
-        const msg = error instanceof Error ? error.message : '取消失败';
-        logger.error(msg);
-        ElMessage.error(msg);
+        const errMsg = error instanceof Error ? error.message : '取消失败';
+        logger.error(errMsg);
+        ElMessage.error(errMsg);
       }
     }
   };
@@ -262,9 +262,9 @@ export function useDiProc(cb: DiCallbacks) {
       msg.success('taskRestarted');
       await cb.fetchTasks();
     } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : '重试失败';
-      logger.error(msg);
-      ElMessage.error(msg);
+      const errMsg = error instanceof Error ? error.message : '重试失败';
+      logger.error(errMsg);
+      ElMessage.error(errMsg);
     }
   };
 
@@ -280,9 +280,9 @@ export function useDiProc(cb: DiCallbacks) {
       link.click();
       msg.success('errorLogDownloaded');
     } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : '下载失败';
-      logger.error(msg);
-      ElMessage.error(msg);
+      const errMsg = error instanceof Error ? error.message : '下载失败';
+      logger.error(errMsg);
+      ElMessage.error(errMsg);
     }
   };
 

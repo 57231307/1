@@ -646,6 +646,7 @@ impl InventoryTransferService {
             quality_status: sea_orm::ActiveValue::Set("合格".to_string()),
             version: sea_orm::ActiveValue::Set(0),
             quantity_shipped: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
+            replenishment_strategy: sea_orm::ActiveValue::Set("reorder_point".to_string()),
         }
     }
 

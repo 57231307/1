@@ -302,3 +302,33 @@
 - Grep 搜索 `ElMessage.(success|error|warning|info)(['"][^'"]*[\u4e00-\u9fa5]` → 0 匹配
 - Grep 搜索 `ElMessage.(success|error|warning|info)(\`[^\`]*[\u4e00-\u9fa5]` → 0 匹配
 - Grep 搜索 `ElMessage.[a-z]+\([^)]*\|\| ['"][^'"]*[\u4e00-\u9fa5]` → 0 匹配
+
+---
+
+## 五、P1-batch-07 CI 失败修复（2026-07-28）
+
+### 5.1 背景
+
+P1-batch-07 ElMessage i18n 硬编码修复（§四）引入的前端 CI 失败（ESLint + 类型检查 + 测试）。本轮修复针对 i18n 修改（ElMessage → msg）引入的 4 类已知问题模式进行排查与修复。
+
+### 5.2 排查结果（全部通过）
+
+| 检查项 | 结果 | 说明 |
+|--------|------|------|
+| 未使用的 ElMessage 导入 | ✅ 0 处 | 23 个修改文件中，导入 ElMessage 的文件均仍在 catch 块使用 `ElMessage.error()`（回退模式），无多余导入；9 个仅导入 ElMessageBox 的文件均使用 ElMessageBox |
+| 缺少 msg 导入 | ✅ 0 处 | 所有使用 `msg.X()` 的文件均已包含 `import { msg } from '@/utils/message'` |
+| 变量名冲突（局部 msg） | ✅ 0 处 | useMs.ts / useDiProc.ts 的 `const msg =` 已重命名为 `errMsg`；代码库其余 `const msg =` 所在文件均未导入 msg 对象 |
+| 翻译键缺失 | ✅ 0 处 | 修改文件中 83 个唯一翻译键在 zh-CN.ts / en-US.ts 均已存在；`exportBlockedResource` 键已补齐 |
+| msg.warning/info() 参数 | ✅ 0 处 | 所有 `msg.warning()` / `msg.info()` 调用均传入必填 key 参数 |
+| 行长超 100 字符 | ✅ 0 处 | 仅 useVchrProc.ts:118 一行超 100 字符，位于模板字面量（打印 HTML），Prettier 不换行模板字面量，非违规 |
+| 测试影响 | ✅ 0 处 | 无测试文件直接引用修改的 composables；login.test.ts / audit-log.test.ts 的 ElMessage mock 对 msg 包装器仍生效 |
+
+### 5.3 本轮修改文件清单（23 个文件，+162 -64 行）
+
+locales/zh-CN.ts（+exportBlockedResource 键）、locales/en-US.ts（+exportBlockedResource 键）、useAi.ts、useRcp.ts、useApiEp.ts、useApiKey.ts、useApiLog.ts、useBpmDfProc.ts、useCp.ts、useDb.ts、useDiProc.ts（局部 msg→errMsg）、useVchrProc.ts、useMs.ts（局部 msg→errMsg）、useMsProc.ts、useCreate.ts、usePurchList.ts、usePurchRcv.ts、useSr.ts、useSchGProc.ts（msg.success 换行）、useSchM.ts（msg.warning 换行）、useSchMProc.ts（msg.success 换行）、useSysUpd.ts、useSysUpdProc.ts（7 处 ElMessage.error 换行）。
+
+### 5.4 修复模式
+
+1. **变量名冲突修复**：catch 块 `const msg = error instanceof Error ? ...` → `const errMsg = ...`（useMs.ts / useDiProc.ts）
+2. **Prettier 行长修复**：超过 100 字符的 `ElMessage.error(...)` / `msg.success(...)` / `msg.warning(...)` 调用换行格式化
+3. **翻译键补齐**：zh-CN.ts / en-US.ts 新增 `exportBlockedResource` 键（utils/export.ts 已使用）

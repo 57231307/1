@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 库存匹数 Model
 //!
 //! 库存匹数模块

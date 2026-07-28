@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use sea_orm::entity::prelude::*;
 use sea_orm::FromJsonQueryResult;
 use serde::{Deserialize, Serialize};

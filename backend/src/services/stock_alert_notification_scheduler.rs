@@ -153,7 +153,7 @@ impl StockAlertNotificationScheduler {
 
     /// 拉取 admin/manager 角色用户 ID 列表（与 event_bus_ops::listener::fetch_admin_manager_user_ids 对齐）。
     async fn fetch_admin_manager_user_ids(&self) -> Vec<i32> {
-        use crate::models::user_role::{self as user_role_model, Entity as UserRoleEntity};
+        use crate::models::user::{Entity as UserEntity, Column as UserColumn};
         use crate::models::role::{self as role_model, Entity as RoleEntity};
 
         let roles = match RoleEntity::find()
@@ -176,19 +176,19 @@ impl StockAlertNotificationScheduler {
         }
         let role_ids: Vec<i32> = roles.iter().map(|r| r.id).collect();
 
-        let user_roles = match UserRoleEntity::find()
-            .filter(user_role_model::Column::RoleId.is_in(role_ids))
+        let users = match UserEntity::find()
+            .filter(UserColumn::RoleId.is_in(role_ids))
             .all(&*self.db)
             .await
         {
-            Ok(urs) => urs,
+            Ok(us) => us,
             Err(e) => {
-                warn!(error = %e, "库存告警通知：拉取用户角色关联失败，返回空列表");
+                warn!(error = %e, "库存告警通知：拉取用户列表失败，返回空列表");
                 return Vec::new();
             }
         };
 
-        let mut user_ids: Vec<i32> = user_roles.iter().map(|ur| ur.user_id).collect();
+        let mut user_ids: Vec<i32> = users.iter().map(|u| u.id).collect();
         user_ids.sort_unstable();
         user_ids.dedup();
         user_ids

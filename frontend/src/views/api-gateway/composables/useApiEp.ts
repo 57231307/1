@@ -32,7 +32,10 @@ export function useApiEp() {
   } = useTableApi<ApiEndpoint>({
     url: '/api-gateway/endpoints',
     onError: (err: unknown) =>
-      ElMessage.error((err instanceof Error ? err.message : String(err)) || msg.translate('loadApiEndpointFailed')),
+      ElMessage.error(
+        (err instanceof Error ? err.message : String(err)) ||
+        msg.translate('loadApiEndpointFailed')
+      ),
   });
 
   const endpointDialogVisible = ref(false);
@@ -125,7 +128,10 @@ export function useApiEp() {
         endpointDialogVisible.value = false;
         await fetchEndpoints();
       } catch (error: unknown) {
-        ElMessage.error((error instanceof Error ? error.message : String(error)) || msg.translate('operationFailed'));
+        ElMessage.error(
+          (error instanceof Error ? error.message : String(error))
+            || msg.translate('operationFailed')
+        );
       } finally {
         endpointSubmitLoading.value = false;
       }
@@ -140,7 +146,9 @@ export function useApiEp() {
       await fetchEndpoints();
     } catch (error: unknown) {
       if (error !== 'cancel')
-        ElMessage.error((error instanceof Error ? error.message : String(error)) || msg.translate('deleteFailed'));
+        ElMessage.error(
+          (error instanceof Error ? error.message : String(error)) || msg.translate('deleteFailed')
+        );
     }
   };
 

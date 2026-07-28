@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 污染物排放记录模型（pollutant_discharge_records 表）
 //!
 //! V15 P1 batch-08 缺陷 15：环保税核算

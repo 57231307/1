@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 职业健康体检档案模型（occupational_health_exams 表）
 //!
 //! V15 P1 batch-08 缺陷 24：职业健康合规

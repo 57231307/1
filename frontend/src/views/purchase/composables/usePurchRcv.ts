@@ -88,7 +88,9 @@ export function usePurchRcv(onSuccess: () => void) {
       receiveDialogVisible.value = false;
       onSuccess();
     } catch (error: unknown) {
-      ElMessage.error((error instanceof Error ? error.message : '') || msg.translate('receiveFailed'));
+      ElMessage.error(
+        (error instanceof Error ? error.message : '') || msg.translate('receiveFailed')
+      );
     }
   };
 

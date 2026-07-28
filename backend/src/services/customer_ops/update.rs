@@ -11,6 +11,7 @@
 //! redis_cache 调用（update 路径上的缓存失效）保留在 publish_customer_updated_side_effects 内。
 
 use chrono::Utc;
+use rust_decimal::Decimal;
 use sea_orm::{EntityTrait, QuerySelect, Set, TransactionTrait};
 
 use crate::models::customer::{self, Entity as CustomerEntity};

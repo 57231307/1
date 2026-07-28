@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 pub mod customer;
 pub mod customer_contact;
 pub mod customer_followup;

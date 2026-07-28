@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 社保公积金缴纳记录模型（social_insurance_records 表）
 //!
 //! V15 P1 batch-08 缺陷 23：社保公积金扣缴

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 染色配方管理模型
 
 use rust_decimal::Decimal;

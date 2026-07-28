@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! BOM物料清单 Model
 //!
 //! BOM（Bill of Materials）物料清单模块

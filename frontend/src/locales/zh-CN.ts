@@ -1436,6 +1436,7 @@ export default {
     checkFailed: '检查失败',
     sendNotificationFailed: '发送通知失败',
     markFailed: '标记失败',
+    exportBlockedResource: '资源 {resource} 已被禁止导出',
   },
   aiExtend: {
     qualityPrediction: {

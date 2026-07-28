@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 生产流转卡模型（production_flow_card 表）
 //!
 //! v14 批次 425：流转卡条码与车间工序流转

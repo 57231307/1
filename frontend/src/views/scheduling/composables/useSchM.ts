@@ -165,7 +165,10 @@ export function useSchM() {
 
   /** 显示冲突详情（轻量提示） */
   const showConflictDetail = (task: ScheduleTask) => {
-    msg.warning('scheduleConflict', { orderNo: task.order_no, details: task.conflict_details || msg.translate('timeOverlap') });
+    msg.warning('scheduleConflict', {
+      orderNo: task.order_no,
+      details: task.conflict_details || msg.translate('timeOverlap'),
+    });
   };
 
   /** 初始化加载（列表由 useTableApi setup 自动加载，此处仅懒加载冲突） */

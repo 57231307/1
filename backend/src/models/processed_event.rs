@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 事件幂等去重 Entity
 //!
 //! 对应数据库表：processed_events

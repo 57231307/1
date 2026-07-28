@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 批次追溯日志 Model
 //!
 //! 批次追溯日志模块（V15 P1 扩展：dye_lot_no/color_no/product_id 字段 + 全链路 operation_type）

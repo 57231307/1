@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 职业危害因素检测记录模型（occupational_hazard_monitorings 表）
 //!
 //! V15 P1 batch-08 缺陷 24：职业健康合规

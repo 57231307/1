@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 大货批色审批 Model（V15 P0-F15 创建）
 //!
 //! 表 bulk_color_approval：记录面料大货的批色流程

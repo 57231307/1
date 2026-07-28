@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 固定资产 Entity
 use chrono::{DateTime, NaiveDate, Utc};
 use sea_orm::entity::prelude::*;

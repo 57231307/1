@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 催收模板 Model（V15 P1 17.3-D5）
 //!
 //! 表 collection_templates：催收话术模板，按催收类型/逾期阶段配置标准化话术

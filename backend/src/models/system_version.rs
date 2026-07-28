@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 系统版本信息模型
 
 use sea_orm::entity::prelude::*;

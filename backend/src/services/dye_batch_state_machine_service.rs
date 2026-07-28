@@ -203,19 +203,19 @@ fn builtin_transition_rules() -> Vec<(&'static str, &'static str, &'static str)>
         (DRYING, FAILED, FAIL),
         // inspecting → stored / rework / cancelled / failed
         (INSPECTING, STORED, STORE),
-        (INSPECTING, REWORK, REWORK),
+        (INSPECTING, dye_batch_lifecycle_status::REWORK, dye_batch_transition_code::REWORK),
         (INSPECTING, CANCELLED, CANCEL),
         (INSPECTING, FAILED, FAIL),
         // stored → shipped / rework / cancelled / failed
         (STORED, SHIPPED, SHIP),
-        (STORED, REWORK, REWORK),
+        (STORED, dye_batch_lifecycle_status::REWORK, dye_batch_transition_code::REWORK),
         (STORED, CANCELLED, CANCEL),
         (STORED, FAILED, FAIL),
         // rework → dyeing / cancelled / terminated / failed
-        (REWORK, DYEING, START_DYEING),
-        (REWORK, CANCELLED, CANCEL),
-        (REWORK, TERMINATED, TERMINATE),
-        (REWORK, FAILED, FAIL),
+        (dye_batch_lifecycle_status::REWORK, DYEING, START_DYEING),
+        (dye_batch_lifecycle_status::REWORK, CANCELLED, CANCEL),
+        (dye_batch_lifecycle_status::REWORK, TERMINATED, TERMINATE),
+        (dye_batch_lifecycle_status::REWORK, FAILED, FAIL),
         // on_hold → 恢复到原工序（dyeing/washing/fixing/dehydrating/drying/scheduled/preparing）/ cancelled / failed
         // V15 Batch05-P1-1：on_hold 可恢复到染整各工序继续流转
         (ON_HOLD, DYEING, RESUME),

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! MRP计算结果 Model
 //!
 //! 物料需求计划计算结果存储

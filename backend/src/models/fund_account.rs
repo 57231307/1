@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 资金账户 Model
 //!
 //! 资金账户模块

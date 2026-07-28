@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 能源计量设备模型（energy_meter 表）
 //!
 //! v14 批次 428：能耗管理贯通

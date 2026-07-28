@@ -79,7 +79,9 @@ export function useRcp() {
       if (res.data) recipeResult.value = res.data;
       msg.success('recommendationGenerated');
     } catch (e: unknown) {
-      ElMessage.error((e instanceof Error ? e.message : '') || msg.translate('recommendationFailed'));
+      ElMessage.error(
+        (e instanceof Error ? e.message : '') || msg.translate('recommendationFailed')
+      );
     } finally {
       recipeLoading.value = false;
     }

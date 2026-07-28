@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 财务预警 DTO（V15 P0-B04 Batch 481 创建）
 
 use rust_decimal::Decimal;

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 固废处置联单模型（solid_waste_disposal_records 表）
 //!
 //! V15 P1 batch-08 缺陷 19：固废处置联单制度

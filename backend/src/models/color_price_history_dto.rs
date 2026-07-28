@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 面料多色号定价扩展 - 价格历史 DTO
 //!
 //! 设计依据：docs/superpowers/specs/2026-06-16-color-price-extension-design.md §4

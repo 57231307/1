@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 疵点明细模型（fabric_defect_record 表）
 //!
 //! v14 批次 426：验布打卷流程贯通

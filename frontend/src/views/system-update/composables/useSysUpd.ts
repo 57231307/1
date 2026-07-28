@@ -40,7 +40,10 @@ export function useSysUpd() {
   } = useTableApi<SystemVersion>({
     url: '/system-update/versions',
     onError: (err: unknown) =>
-      ElMessage.error((err instanceof Error ? err.message : String(err)) || msg.translate('loadVersionListFailed')),
+      ElMessage.error(
+        (err instanceof Error ? err.message : String(err)) ||
+        msg.translate('loadVersionListFailed')
+      ),
   });
 
   // 更新任务 - 接入 useTableApi（批次 283）
@@ -54,7 +57,10 @@ export function useSysUpd() {
   } = useTableApi<UpdateTask>({
     url: '/system-update/tasks',
     onError: (err: unknown) =>
-      ElMessage.error((err instanceof Error ? err.message : String(err)) || msg.translate('loadTaskListFailed')),
+      ElMessage.error(
+        (err instanceof Error ? err.message : String(err)) ||
+        msg.translate('loadTaskListFailed')
+      ),
   });
 
   // 系统备份 - 接入 useTableApi（批次 283）
@@ -68,7 +74,10 @@ export function useSysUpd() {
   } = useTableApi<SystemBackup>({
     url: '/system-update/backups',
     onError: (err: unknown) =>
-      ElMessage.error((err instanceof Error ? err.message : String(err)) || msg.translate('loadBackupListFailed')),
+      ElMessage.error(
+        (err instanceof Error ? err.message : String(err)) ||
+        msg.translate('loadBackupListFailed')
+      ),
   });
 
   // 备份表单
@@ -102,7 +111,10 @@ export function useSysUpd() {
         msg.info('alreadyLatestVersion');
       }
     } catch (error: unknown) {
-      ElMessage.error((error instanceof Error ? error.message : String(error)) || msg.translate('checkUpdateFailed'));
+      ElMessage.error(
+        (error instanceof Error ? error.message : String(error))
+          || msg.translate('checkUpdateFailed')
+      );
     }
   };
 
@@ -121,7 +133,10 @@ export function useSysUpd() {
       await fetchBackups();
       return true;
     } catch (error: unknown) {
-      ElMessage.error((error instanceof Error ? error.message : String(error)) || msg.translate('createBackupFailed'));
+      ElMessage.error(
+        (error instanceof Error ? error.message : String(error))
+          || msg.translate('createBackupFailed')
+      );
       return false;
     } finally {
       backupSubmitLoading.value = false;

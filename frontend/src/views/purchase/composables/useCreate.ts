@@ -136,7 +136,9 @@ export function useCreate(products: () => Product[], onSuccess: () => void) {
       createDialogVisible.value = false;
       onSuccess();
     } catch (error: unknown) {
-      ElMessage.error((error instanceof Error ? error.message : '') || msg.translate('createFailed'));
+      ElMessage.error(
+        (error instanceof Error ? error.message : '') || msg.translate('createFailed')
+      );
     }
   };
 

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 委外加工会计分录凭证模型（outsourcing_voucher 表）
 //!
 //! v14 批次 430：委托加工物资贯通

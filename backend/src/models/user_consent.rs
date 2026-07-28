@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 用户隐私同意记录 Model（V15 P1 batch-16 缺陷 7.3）
 //!
 //! 表 user_consents：记录用户对行为追踪/页面访问/Cookie/营销邮件的同意与退出

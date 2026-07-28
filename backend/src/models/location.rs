@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 库位 Model
 //!
 //! 仓库库位管理模块

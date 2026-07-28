@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! API 访问日志 Model
 //!
 //! API 访问日志模块

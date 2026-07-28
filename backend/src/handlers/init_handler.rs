@@ -12,8 +12,10 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::extract::Query;
 use axum::{extract::State, Extension, Json};
+use sea_orm::DatabaseConnection;
 use serde::Serialize;
 use std::collections::HashMap;
+use std::sync::Arc;
 use utoipa::ToSchema;
 
 #[derive(Debug, serde::Deserialize)]

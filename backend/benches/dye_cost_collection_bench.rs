@@ -47,7 +47,11 @@ fn sample_items() -> Vec<RecipeMaterialItem> {
 /// 基准：parse_liquor_ratio 浴比解析
 fn bench_parse_liquor_ratio(c: &mut Criterion) {
     c.bench_function("parse_liquor_ratio_标准格式", |b| {
-        b.iter(|| black_box(ProductionRecipeService::parse_liquor_ratio(black_box("1:8"))))
+        b.iter(|| {
+            black_box(ProductionRecipeService::parse_liquor_ratio(black_box(
+                "1:8",
+            )))
+        })
     });
 }
 
@@ -62,7 +66,9 @@ fn bench_calculate_amounts(c: &mut Criterion) {
 
     c.bench_function("calculate_amounts_10种物料", |b| {
         b.iter(|| {
-            black_box(ProductionRecipeService::calculate_amounts(black_box(req.clone())))
+            black_box(ProductionRecipeService::calculate_amounts(black_box(
+                req.clone(),
+            )))
         })
     });
 }

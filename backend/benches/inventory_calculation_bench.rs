@@ -61,9 +61,7 @@ fn bench_batch_calculate_quantity_kg(c: &mut Criterion) {
     c.bench_function("批量计算1000条库存公斤数", |b| {
         b.iter(|| {
             let total: Decimal = black_box(records.iter())
-                .map(|(m, g, w, f)| {
-                    InventoryStockService::calculate_quantity_kg(*m, *g, *w, *f)
-                })
+                .map(|(m, g, w, f)| InventoryStockService::calculate_quantity_kg(*m, *g, *w, *f))
                 .sum();
             black_box(total)
         })

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 预算方案 Entity
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! OA 公告 Model
 //!
 //! OA 公告模块（D17/Batch 488 已接入 service/handler/routes 三件套）

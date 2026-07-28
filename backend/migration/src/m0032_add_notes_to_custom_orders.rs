@@ -21,7 +21,8 @@ impl MigrationTrait for Migration {
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let sql = include_str!("../../migrations/20260703000001_add_notes_to_custom_orders/down.sql");
+        let sql =
+            include_str!("../../migrations/20260703000001_add_notes_to_custom_orders/down.sql");
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
         }

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! BOM明细 Model
 //!
 //! BOM物料清单明细项

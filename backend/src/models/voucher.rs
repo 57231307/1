@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 凭证 Entity
 //!
 //! 对应数据库表：vouchers

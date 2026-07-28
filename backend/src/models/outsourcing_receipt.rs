@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 委外收回入库单模型（outsourcing_receipt 表）
 //!
 //! v14 批次 430：委托加工物资贯通

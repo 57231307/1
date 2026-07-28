@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 工作中心-班次关联 Model
 //!
 //! P1 batch-18 缺陷 11.1：建立工作中心-班次关联表，替代硬编码 default_shifts_for_type

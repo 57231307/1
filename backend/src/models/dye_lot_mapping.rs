@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 缸号映射 Model
 //!
 //! v14 批次 416：与 SQL 表 001_consolidated_schema.sql 完全同步

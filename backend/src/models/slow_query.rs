@@ -1,4 +1,5 @@
 
+#![allow(dead_code)]
 //! 慢查询日志模型（P13 批 1 B-慢查询审计）
 //!
 //! 数据来源：pg_stat_statements 视图 + 后台定时采集任务（slow_query_collector）

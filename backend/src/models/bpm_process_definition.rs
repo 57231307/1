@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! BPM 流程定义 Model
 //!
 //! BPM 流程定义模块

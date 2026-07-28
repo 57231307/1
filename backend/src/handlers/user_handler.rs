@@ -21,6 +21,7 @@ use axum::{
     extract::{Extension, Path, State},
     Json,
 };
+use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use validator::{Validate, ValidationError};

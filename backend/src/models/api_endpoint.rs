@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! API 端点管理 Model（批次 91 P0-1）
 //!
 //! 用于管理 API 网关暴露的端点元数据，支持 CRUD 操作。

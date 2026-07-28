@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 防护用品配备记录模型（ppe_distribution_records 表）
 //!
 //! V15 P1 batch-08 缺陷 24：职业健康合规

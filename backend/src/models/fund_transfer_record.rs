@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 资金转账记录 Model
 
 use chrono::NaiveDate;

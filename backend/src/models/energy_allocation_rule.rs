@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 能耗分摊规则模型（energy_allocation_rule 表）
 //!
 //! v14 批次 428：能耗管理贯通

@@ -33,7 +33,10 @@ export function useApiKey() {
   } = useTableApi<ApiKey>({
     url: '/api-gateway/keys',
     onError: (err: unknown) =>
-      ElMessage.error((err instanceof Error ? err.message : String(err)) || msg.translate('loadApiKeyFailed')),
+      ElMessage.error(
+        (err instanceof Error ? err.message : String(err)) ||
+        msg.translate('loadApiKeyFailed')
+      ),
   });
 
   const showKeyMap = ref<Record<number, boolean>>({});
@@ -98,7 +101,10 @@ export function useApiKey() {
         keyDialogVisible.value = false;
         await fetchKeys();
       } catch (error: unknown) {
-        ElMessage.error((error instanceof Error ? error.message : String(error)) || msg.translate('operationFailed'));
+        ElMessage.error(
+          (error instanceof Error ? error.message : String(error))
+            || msg.translate('operationFailed')
+        );
       } finally {
         keySubmitLoading.value = false;
       }
@@ -113,7 +119,9 @@ export function useApiKey() {
       await fetchKeys();
     } catch (error: unknown) {
       if (error !== 'cancel')
-        ElMessage.error((error instanceof Error ? error.message : String(error)) || msg.translate('deleteFailed'));
+        ElMessage.error(
+          (error instanceof Error ? error.message : String(error)) || msg.translate('deleteFailed')
+        );
     }
   };
 
@@ -127,7 +135,10 @@ export function useApiKey() {
       await fetchKeys();
     } catch (error: unknown) {
       if (error !== 'cancel')
-        ElMessage.error((error instanceof Error ? error.message : String(error)) || msg.translate('regenerateFailed'));
+        ElMessage.error(
+          (error instanceof Error ? error.message : String(error))
+            || msg.translate('regenerateFailed')
+        );
     }
   };
 
@@ -154,7 +165,10 @@ export function useApiKey() {
       await fetchKeys();
     } catch (error: unknown) {
       if (error !== 'cancel')
-        ElMessage.error((error instanceof Error ? error.message : String(error)) || msg.translate('operationFailed'));
+        ElMessage.error(
+          (error instanceof Error ? error.message : String(error))
+            || msg.translate('operationFailed')
+        );
     }
   };
 

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 打样小样模型（lab_dip_sample 表）
 //!
 //! v14 批次 423B：化验室打样流程贯通

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 复样记录模型（lab_dip_resample 表）
 //!
 //! v14 批次 423B：化验室打样流程贯通

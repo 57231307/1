@@ -14,7 +14,8 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let sql = include_str!("../../migrations/20260701000001_add_signature_to_omni_audit_logs/up.sql");
+        let sql =
+            include_str!("../../migrations/20260701000001_add_signature_to_omni_audit_logs/up.sql");
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
         }
@@ -22,7 +23,9 @@ impl MigrationTrait for Migration {
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let sql = include_str!("../../migrations/20260701000001_add_signature_to_omni_audit_logs/down.sql");
+        let sql = include_str!(
+            "../../migrations/20260701000001_add_signature_to_omni_audit_logs/down.sql"
+        );
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
         }

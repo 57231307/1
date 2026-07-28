@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 // V15 P0-F20 Batch 480：8D 质量管理流程 DTO
 //
 // 包含：

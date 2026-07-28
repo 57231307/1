@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 单据-业务模式关联模型（business_mode_order_link 表）
 //!
 //! v14 批次 431：多业务模式支持

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 工序工价模型（process_wage_rate 表）
 //!
 //! v14 批次 427：产量工资核算贯通

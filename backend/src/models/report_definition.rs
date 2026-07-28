@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 报表定义 Model
 //!
 //! 报表定义模块

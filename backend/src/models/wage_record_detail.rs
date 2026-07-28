@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 工资明细模型（wage_record_detail 表）
 //!
 //! v14 批次 427：产量工资核算贯通

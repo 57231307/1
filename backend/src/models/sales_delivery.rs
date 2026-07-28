@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 销售交货 Model
 //!
 //! 销售交货模块

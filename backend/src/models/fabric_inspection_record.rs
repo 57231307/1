@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 验布记录模型（fabric_inspection_record 表）
 //!
 //! v14 批次 426：验布打卷流程贯通

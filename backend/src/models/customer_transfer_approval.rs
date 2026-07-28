@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 客户转移审批 Model
 //!
 //! V15 P0-S08 修复：CRM 客户转移多级审批流

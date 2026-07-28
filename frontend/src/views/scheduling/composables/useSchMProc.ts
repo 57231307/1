@@ -59,7 +59,10 @@ export function useSchMProc(deps: SchMDeps) {
       const result = res.data;
       // 安全检查：防止后端返回 data 为 null 时崩溃
       if (!result) return;
-      msg.success('scheduleComplete', { scheduledCount: result.scheduled_count, conflictCount: result.conflict_count });
+      msg.success('scheduleComplete', {
+        scheduledCount: result.scheduled_count,
+        conflictCount: result.conflict_count,
+      });
       if (result.conflict_count > 0) {
         // v11 批次 181 P2-1 修复：使用 setter 函数正确更新 reactive 对象的 conflictList
         deps.setConflictList(result.conflicts);

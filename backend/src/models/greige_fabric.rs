@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 坯布管理模型（原料布匹管理）
 
 use chrono::NaiveDate;

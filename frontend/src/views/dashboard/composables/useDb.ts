@@ -35,7 +35,8 @@ export const useDb = () => {
     } catch (error: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
       ElMessage.error(
-        (error instanceof Error ? error.message : String(error)) || msg.translate('loadDashboardDataFailed')
+        (error instanceof Error ? error.message : String(error))
+          || msg.translate('loadDashboardDataFailed')
       );
       stats.value = {};
     }

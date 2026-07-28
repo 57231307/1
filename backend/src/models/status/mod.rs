@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 业务状态常量模块
 //!
 //! 批次 100 P3-A 修复（v5 复审）：抽取 4 个 service 文件中的硬编码状态字符串为常量，
@@ -29,7 +30,7 @@
 mod general;
 // production 需为 pub：调用方直接访问 status::production::PRODUCTION_*（文件名与原始内部模块名相同）
 pub mod production;
-mod sales;
+pub mod sales;
 mod purchase_inventory;
 mod finance;
 mod bpm_crm_contract;

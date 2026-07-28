@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 外汇核销单模型（foreign_exchange_verifications 表）
 //!
 //! V15 P1 batch-08 缺陷 14：出口退税（免抵退）核算

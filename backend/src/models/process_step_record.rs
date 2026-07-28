@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! 工序流转记录模型（process_step_record 表）
 //!
 //! v14 批次 425：流转卡条码与车间工序流转
