@@ -60,6 +60,47 @@
 
 ---
 
+## 📦 V15 P1 归档：P1-B3 法律合规扩展（PR #765）
+
+### 任务概述
+
+- **PR**：#765（待 CI 验证）
+- **范围**：脱敏扩展到 customer/supplier/logistics handler（PR #758 已完成）+ 规则 4 注释精简全量修复
+- **变更**：405 文件 +1876 -7735（删除 5859 行冗余 `///` 注释）
+
+### 规则 4 注释精简（405 文件，约 1525 处）
+
+| 目录 | 文件数 | 压缩处数 |
+|------|--------|----------|
+| handlers/routes/middleware/websocket/telemetry | 81 | 236 |
+| services | 219 | 1260 |
+| utils | 10 | 27 |
+| migration | 2 | 2 |
+| .monkeycode 文档 | 3 | — |
+
+**压缩策略**：
+- 提取 `///` 块中所有行的文本内容（跳过空分隔行 `///`）
+- 段落内多行用空格拼接，段落间用 `；` 分隔
+- ≤120 字符 → 1 行；>120 字符 → 在标点处拆分为 2 行
+- 88% 压缩为 1 行，11% 为 2 行
+- 保留全部语义信息（函数用途/参数/返回值/业务规则）
+
+**质量保证**：
+- 仅修改 `///` doc 注释，不触碰代码逻辑
+- `//!` 模块注释不受规则 4 约束，未修改
+- `//` 行内注释不受规则 4 约束，未修改
+- 清理 `：；`/`；；`/`；）` 等机械拼接瑕疵 104 文件
+- Grep 验证 0 处剩余违规
+- `redis_cache.rs` cache_key 注释按规则 20 修正（与实现一致）
+
+### 脱敏扩展（PR #758 已完成）
+
+- `customer_handler.rs`：list_customers/get_customer 接入 mask_contact_fields_for_role
+- `supplier_handler.rs`：list_suppliers/get_supplier 接入 mask_contact_fields_batch_for_role
+- `logistics_handler.rs`：list_waybills/get_waybill 接入 mask_contact_fields_for_role
+
+---
+
 ## 📦 V15 P1 归档：P1-09 色卡发放 + P1-10 大货批色 + P1-19 报表 BI + P1-25 部署升级（PR #763）
 
 ### 任务概述
