@@ -201,9 +201,8 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
       await cb.fetchDefinitions();
     } catch (error) {
       if (error !== 'cancel') {
-        const errMsg = error instanceof Error ? 
-          error.message
-          : msg.translate('createVersionFailed');
+        const errMsg =
+          error instanceof Error ? error.message : msg.translate('createVersionFailed');
         logger.error(errMsg);
         ElMessage.error(errMsg);
       }
@@ -220,9 +219,8 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
       }
       await cb.fetchDefinitions();
     } catch (error) {
-      const errMsg = error instanceof Error ? 
-        error.message
-        : msg.translate('activateVersionFailed');
+      const errMsg =
+        error instanceof Error ? error.message : msg.translate('activateVersionFailed');
       logger.error(errMsg);
       ElMessage.error(errMsg);
     }

@@ -67,7 +67,6 @@ pub struct Model {
     pub barcode: Option<String>,
 
     // ========== v14 批次 416：迁移 032 补齐的 DB 缺失字段 ==========
-
     /// 产品 ID（外键，通过 dye_lot_id 可间接关联，但 Rust 模型直接引用便于查询）
     pub product_id: i32,
 

@@ -33,12 +33,12 @@ pub use super::{
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::services::test_common::setup_test_db;
     use crate::decs;
-    use crate::ymd;
     use crate::models::ar_reconciliation::Model as ReconciliationModel;
     use crate::models::status::ar as status_ar;
+    use crate::services::test_common::setup_test_db;
     use crate::utils::error::AppError;
+    use crate::ymd;
     use chrono::Utc;
     use rust_decimal::Decimal;
     use sea_orm::DatabaseConnection;
@@ -315,9 +315,9 @@ mod tests {
             recon_status::DISPUTED,
             recon_status::CLOSED,
         ] {
-            let model = make_reconciliation_model(2, decs!("1000"), decs!("500"), decs!("300"), status);
-            let can_delete =
-                model.reconciliation_status.as_deref() == Some(recon_status::DRAFT);
+            let model =
+                make_reconciliation_model(2, decs!("1000"), decs!("500"), decs!("300"), status);
+            let can_delete = model.reconciliation_status.as_deref() == Some(recon_status::DRAFT);
             assert!(!can_delete, "状态 {} 不应允许删除", status);
         }
 
@@ -349,9 +349,9 @@ mod tests {
             recon_status::DISPUTED,
             recon_status::CLOSED,
         ] {
-            let model = make_reconciliation_model(2, decs!("1000"), decs!("500"), decs!("300"), status);
-            let can_send =
-                model.reconciliation_status.as_deref() == Some(recon_status::DRAFT);
+            let model =
+                make_reconciliation_model(2, decs!("1000"), decs!("500"), decs!("300"), status);
+            let can_send = model.reconciliation_status.as_deref() == Some(recon_status::DRAFT);
             assert!(!can_send, "状态 {} 不应允许发送", status);
         }
 
@@ -377,7 +377,10 @@ mod tests {
             decs!("300"),
             recon_status::CONFIRMED,
         );
-        let status = model_confirmed.reconciliation_status.as_deref().unwrap_or(recon_status::DRAFT);
+        let status = model_confirmed
+            .reconciliation_status
+            .as_deref()
+            .unwrap_or(recon_status::DRAFT);
         let can_close = status == recon_status::CONFIRMED || status == recon_status::DISPUTED;
         assert!(can_close);
 
@@ -389,7 +392,10 @@ mod tests {
             decs!("300"),
             recon_status::DISPUTED,
         );
-        let status = model_disputed.reconciliation_status.as_deref().unwrap_or(recon_status::DRAFT);
+        let status = model_disputed
+            .reconciliation_status
+            .as_deref()
+            .unwrap_or(recon_status::DRAFT);
         let can_close = status == recon_status::CONFIRMED || status == recon_status::DISPUTED;
         assert!(can_close);
 
@@ -411,9 +417,11 @@ mod tests {
             decs!("300"),
             recon_status::DRAFT,
         );
-        let status = model_draft.reconciliation_status.as_deref().unwrap_or(recon_status::DRAFT);
-        let should_reject =
-            status != recon_status::CONFIRMED && status != recon_status::DISPUTED;
+        let status = model_draft
+            .reconciliation_status
+            .as_deref()
+            .unwrap_or(recon_status::DRAFT);
+        let should_reject = status != recon_status::CONFIRMED && status != recon_status::DISPUTED;
         assert!(should_reject);
 
         // sent 状态：拒绝关闭
@@ -424,9 +432,11 @@ mod tests {
             decs!("300"),
             recon_status::SENT,
         );
-        let status = model_sent.reconciliation_status.as_deref().unwrap_or(recon_status::DRAFT);
-        let should_reject =
-            status != recon_status::CONFIRMED && status != recon_status::DISPUTED;
+        let status = model_sent
+            .reconciliation_status
+            .as_deref()
+            .unwrap_or(recon_status::DRAFT);
+        let should_reject = status != recon_status::CONFIRMED && status != recon_status::DISPUTED;
         assert!(should_reject);
 
         // closed 状态：拒绝关闭（已关闭不可再关闭）
@@ -437,9 +447,11 @@ mod tests {
             decs!("300"),
             recon_status::CLOSED,
         );
-        let status = model_closed.reconciliation_status.as_deref().unwrap_or(recon_status::DRAFT);
-        let should_reject =
-            status != recon_status::CONFIRMED && status != recon_status::DISPUTED;
+        let status = model_closed
+            .reconciliation_status
+            .as_deref()
+            .unwrap_or(recon_status::DRAFT);
+        let should_reject = status != recon_status::CONFIRMED && status != recon_status::DISPUTED;
         assert!(should_reject);
 
         // None 状态：unwrap_or("draft")，应拒绝
@@ -480,7 +492,11 @@ mod tests {
             recon_status::CLOSED,
         ];
         for status in &path1 {
-            assert!(allowed_statuses.contains(status), "路径1状态 {} 应合法", status);
+            assert!(
+                allowed_statuses.contains(status),
+                "路径1状态 {} 应合法",
+                status
+            );
         }
 
         // 路径 2：draft → sent → disputed → closed
@@ -491,7 +507,11 @@ mod tests {
             recon_status::CLOSED,
         ];
         for status in &path2 {
-            assert!(allowed_statuses.contains(status), "路径2状态 {} 应合法", status);
+            assert!(
+                allowed_statuses.contains(status),
+                "路径2状态 {} 应合法",
+                status
+            );
         }
 
         // 验证 send 门控：仅 draft → sent
@@ -593,7 +613,10 @@ mod tests {
             model.period_start.format("%Y-%m-%d").to_string(),
             "2026-01-01"
         );
-        assert_eq!(model.period_end.format("%Y-%m-%d").to_string(), "2026-01-31");
+        assert_eq!(
+            model.period_end.format("%Y-%m-%d").to_string(),
+            "2026-01-31"
+        );
     }
 
     // ===== 服务实例化测试 =====

@@ -20,8 +20,8 @@
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
-    Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set, TransactionTrait,
 };
 
 use crate::models::production_order::{
@@ -37,7 +37,9 @@ use crate::models::product::Entity as ProductEntity;
 use crate::models::sales_order::Entity as SalesOrderEntity;
 use crate::models::work_center::Entity as WorkCenterEntity;
 
-use super::types::{CreateProductionOrderRequest, ProductionOrderQuery, UpdateProductionOrderRequest};
+use super::types::{
+    CreateProductionOrderRequest, ProductionOrderQuery, UpdateProductionOrderRequest,
+};
 use crate::services::production_order_service::ProductionOrderService;
 
 impl ProductionOrderService {
@@ -115,19 +117,28 @@ impl ProductionOrderService {
         new_status: &str,
     ) -> Result<(), AppError> {
         let valid_transitions = std::collections::HashMap::from([
-            (crate::models::status::common::STATUS_DRAFT, vec![
+            (
+                crate::models::status::common::STATUS_DRAFT,
+                vec![
+                    crate::models::status::production::PRODUCTION_SCHEDULED,
+                    crate::models::status::production::PRODUCTION_PENDING_APPROVAL,
+                    crate::models::status::common::STATUS_CANCELLED,
+                ],
+            ),
+            (
                 crate::models::status::production::PRODUCTION_SCHEDULED,
-                crate::models::status::production::PRODUCTION_PENDING_APPROVAL,
-                crate::models::status::common::STATUS_CANCELLED,
-            ]),
-            (crate::models::status::production::PRODUCTION_SCHEDULED, vec![
+                vec![
+                    crate::models::status::production::PRODUCTION_IN_PROGRESS,
+                    crate::models::status::common::STATUS_CANCELLED,
+                ],
+            ),
+            (
                 crate::models::status::production::PRODUCTION_IN_PROGRESS,
-                crate::models::status::common::STATUS_CANCELLED,
-            ]),
-            (crate::models::status::production::PRODUCTION_IN_PROGRESS, vec![
-                crate::models::status::common::STATUS_COMPLETED,
-                crate::models::status::common::STATUS_CANCELLED,
-            ]),
+                vec![
+                    crate::models::status::common::STATUS_COMPLETED,
+                    crate::models::status::common::STATUS_CANCELLED,
+                ],
+            ),
             (crate::models::status::common::STATUS_COMPLETED, vec![]),
             (crate::models::status::common::STATUS_CANCELLED, vec![]),
             (
@@ -173,7 +184,8 @@ impl ProductionOrderService {
         let order_no = self.resolve_order_no(req.order_no.as_deref()).await?;
         let active_model = Self::build_create_active_model(order_no, &req);
         let model = self.insert_production_order(active_model).await?;
-        self.trigger_mrp_for_order(&model, req.planned_end_date).await;
+        self.trigger_mrp_for_order(&model, req.planned_end_date)
+            .await;
         Ok(model)
     }
 
@@ -250,17 +262,14 @@ impl ProductionOrderService {
         &self,
         active: ActiveModel,
     ) -> Result<ProductionOrderModel, AppError> {
-        active
-            .insert(&*self.db)
-            .await
-            .map_err(|e| {
-                let err_str = e.to_string();
-                if err_str.contains("unique constraint") || err_str.contains("duplicate") {
-                    AppError::validation("订单号已存在，请稍后重试")
-                } else {
-                    AppError::database(e.to_string())
-                }
-            })
+        active.insert(&*self.db).await.map_err(|e| {
+            let err_str = e.to_string();
+            if err_str.contains("unique constraint") || err_str.contains("duplicate") {
+                AppError::validation("订单号已存在，请稍后重试")
+            } else {
+                AppError::database(e.to_string())
+            }
+        })
     }
 
     /// 触发 MRP 物料需求计算（失败 warn 不阻塞主流程，订单已创建可后续重算）
@@ -269,7 +278,8 @@ impl ProductionOrderService {
         model: &ProductionOrderModel,
         planned_end_date: Option<chrono::NaiveDate>,
     ) {
-        let mrp_service = crate::services::mrp_engine_service::MrpEngineService::new(self.db.clone());
+        let mrp_service =
+            crate::services::mrp_engine_service::MrpEngineService::new(self.db.clone());
         let required_date = planned_end_date
             .unwrap_or_else(|| chrono::Utc::now().date_naive() + chrono::Duration::days(7));
         if let Err(e) = mrp_service
@@ -530,7 +540,10 @@ impl ProductionOrderService {
             .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
 
         // 验证是否可以取消（状态门在 txn 内，基于 lock_exclusive 读出的 model）
-        Self::validate_status_transition(&model.status, crate::models::status::common::STATUS_CANCELLED)?;
+        Self::validate_status_transition(
+            &model.status,
+            crate::models::status::common::STATUS_CANCELLED,
+        )?;
 
         let mut active_model: ActiveModel = model.into();
         active_model.status = Set(crate::models::status::common::STATUS_CANCELLED.to_string());
@@ -578,8 +591,8 @@ impl ProductionOrderService {
         self.check_capacity_for_scheduling(&model, id, &status)
             .await?;
         let audit_user_id = model.created_by;
-        let updated = Self::apply_status_update_with_audit(&txn, model, status, audit_user_id)
-            .await?;
+        let updated =
+            Self::apply_status_update_with_audit(&txn, model, status, audit_user_id).await?;
         txn.commit().await?;
         Ok(updated)
     }

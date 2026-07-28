@@ -99,24 +99,12 @@
         </el-tab-pane>
 
         <!-- 工艺节点 -->
-        <el-tab-pane
-          :label="
-            t('customOrders.detail.tabProcessNodes', { count: (order.process_nodes || []).length })
-          "
-          name="nodes"
-        >
+        <el-tab-pane :label="tabProcessNodesLabel" name="nodes">
           <ProcessFlow :nodes="order.process_nodes || []" />
         </el-tab-pane>
 
         <!-- 质量异常 -->
-        <el-tab-pane
-          :label="
-            t('customOrders.detail.tabQualityIssues', {
-              count: (order.quality_issues || []).length,
-            })
-          "
-          name="issues"
-        >
+        <el-tab-pane :label="tabQualityIssuesLabel" name="issues">
           <QualityCheck
             :order-id="order.id"
             :issues="order.quality_issues || []"
@@ -125,12 +113,7 @@
         </el-tab-pane>
 
         <!-- 售后 -->
-        <el-tab-pane
-          :label="
-            t('customOrders.detail.tabAfterSales', { count: (order.after_sales || []).length })
-          "
-          name="aftersales"
-        >
+        <el-tab-pane :label="tabAfterSalesLabel" name="aftersales">
           <AfterSalesPanel
             :order-id="order.id"
             :after-sales="order.after_sales || []"
@@ -143,7 +126,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -167,6 +150,23 @@ const { t } = useI18n({ useScope: 'global' });
 const loading = ref(false);
 const order = ref<CustomOrderDetail | null>(null);
 const activeTab = ref('info');
+
+// Tab label 计算属性（避免模板中跨行 :label 导致 ESLint 解析错误）
+const tabProcessNodesLabel = computed(() =>
+  t('customOrders.detail.tabProcessNodes', {
+    count: (order.value?.process_nodes || []).length,
+  })
+);
+const tabQualityIssuesLabel = computed(() =>
+  t('customOrders.detail.tabQualityIssues', {
+    count: (order.value?.quality_issues || []).length,
+  })
+);
+const tabAfterSalesLabel = computed(() =>
+  t('customOrders.detail.tabAfterSales', {
+    count: (order.value?.after_sales || []).length,
+  })
+);
 
 // 状态标签映射函数（i18n）
 const getStatusLabel = (status: string): string => {

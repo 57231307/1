@@ -124,8 +124,7 @@ impl BusinessMetrics {
             register_security_metrics(registry)?;
         let (file_uploads, report_executions, ai_predictions) =
             register_business_feature_metrics(registry)?;
-        let (http_request_size_bytes, http_response_size_bytes) =
-            register_http_metrics(registry)?;
+        let (http_request_size_bytes, http_response_size_bytes) = register_http_metrics(registry)?;
 
         Ok(Self {
             orders_total,
@@ -196,7 +195,11 @@ impl BusinessMetrics {
         let hits = self.cache_hits.get() as f64;
         let misses = self.cache_misses.get() as f64;
         let total = hits + misses;
-        if total == 0.0 { 0.0 } else { hits / total }
+        if total == 0.0 {
+            0.0
+        } else {
+            hits / total
+        }
     }
 
     // ===== 登录便捷方法 =====
@@ -215,7 +218,9 @@ impl BusinessMetrics {
     /// 记录慢查询
     pub fn record_slow_query(&self, label: &str, duration_secs: f64) {
         self.slow_queries.with_label_values(&[label]).inc();
-        self.slow_query_duration.with_label_values(&[label]).observe(duration_secs);
+        self.slow_query_duration
+            .with_label_values(&[label])
+            .observe(duration_secs);
     }
 
     // ===== 安全便捷方法 =====
@@ -257,17 +262,20 @@ fn register_business_core_metrics(
     let inventory_value = IntGauge::new("erp_inventory_value_total", "Inventory value (fen)")?;
     registry.register(Box::new(inventory_value.clone()))?;
 
-    Ok((orders_total, users_active, ar_balance, ap_balance, inventory_value))
+    Ok((
+        orders_total,
+        users_active,
+        ar_balance,
+        ap_balance,
+        inventory_value,
+    ))
 }
 
 /// 注册会话与缓存指标
 fn register_session_cache_metrics(
     registry: &Registry,
 ) -> Result<(IntGauge, IntCounter, IntCounter, IntCounterVec, IntCounter), prometheus::Error> {
-    let sessions_active = IntGauge::new(
-        "erp_sessions_active",
-        "Number of active user sessions",
-    )?;
+    let sessions_active = IntGauge::new("erp_sessions_active", "Number of active user sessions")?;
     registry.register(Box::new(sessions_active.clone()))?;
 
     let cache_hits = IntCounter::new("erp_cache_hits_total", "Cache hit count")?;
@@ -282,11 +290,16 @@ fn register_session_cache_metrics(
     )?;
     registry.register(Box::new(login_attempts.clone()))?;
 
-    let login_lockouts =
-        IntCounter::new("erp_login_lockouts_total", "Number of account lockouts")?;
+    let login_lockouts = IntCounter::new("erp_login_lockouts_total", "Number of account lockouts")?;
     registry.register(Box::new(login_lockouts.clone()))?;
 
-    Ok((sessions_active, cache_hits, cache_misses, login_attempts, login_lockouts))
+    Ok((
+        sessions_active,
+        cache_hits,
+        cache_misses,
+        login_attempts,
+        login_lockouts,
+    ))
 }
 
 /// 注册性能指标：慢查询/DB 连接池
@@ -308,10 +321,7 @@ fn register_performance_metrics(
     )?;
     registry.register(Box::new(slow_query_duration.clone()))?;
 
-    let db_pool_size = IntGauge::new(
-        "erp_db_pool_size",
-        "Current database connection pool size",
-    )?;
+    let db_pool_size = IntGauge::new("erp_db_pool_size", "Current database connection pool size")?;
     registry.register(Box::new(db_pool_size.clone()))?;
 
     let db_pool_overflow = IntCounter::new(
@@ -320,17 +330,20 @@ fn register_performance_metrics(
     )?;
     registry.register(Box::new(db_pool_overflow.clone()))?;
 
-    Ok((slow_queries, slow_query_duration, db_pool_size, db_pool_overflow))
+    Ok((
+        slow_queries,
+        slow_query_duration,
+        db_pool_size,
+        db_pool_overflow,
+    ))
 }
 
 /// 注册安全指标：WebSocket/限流/告警/SQL 注入
 fn register_security_metrics(
     registry: &Registry,
 ) -> Result<(IntGauge, IntCounterVec, IntCounterVec, IntCounter), prometheus::Error> {
-    let ws_connections = IntGauge::new(
-        "erp_websocket_connections",
-        "Active WebSocket connections",
-    )?;
+    let ws_connections =
+        IntGauge::new("erp_websocket_connections", "Active WebSocket connections")?;
     registry.register(Box::new(ws_connections.clone()))?;
 
     let rate_limit_blocked = IntCounterVec::new(
@@ -354,7 +367,12 @@ fn register_security_metrics(
     )?;
     registry.register(Box::new(sql_injection_blocked.clone()))?;
 
-    Ok((ws_connections, rate_limit_blocked, security_alerts, sql_injection_blocked))
+    Ok((
+        ws_connections,
+        rate_limit_blocked,
+        security_alerts,
+        sql_injection_blocked,
+    ))
 }
 
 /// 注册业务功能指标：文件上传/报表/AI 预测
@@ -383,9 +401,7 @@ fn register_business_feature_metrics(
 }
 
 /// 注册 HTTP 增强指标：请求/响应体大小
-fn register_http_metrics(
-    registry: &Registry,
-) -> Result<(Histogram, Histogram), prometheus::Error> {
+fn register_http_metrics(registry: &Registry) -> Result<(Histogram, Histogram), prometheus::Error> {
     let http_request_size_bytes = Histogram::with_opts(HistogramOpts::new(
         "http_request_size_bytes",
         "HTTP request body size in bytes",
@@ -406,7 +422,8 @@ fn register_http_metrics(
 /// 批次 106 P1-2 修复：原 pub fn 改为 #[cfg(test)]，避免生产代码死代码。
 /// 生产环境通过 `MetricsService::new()` 内部构造 BusinessMetrics 并注册到同一 Registry。
 #[cfg(test)]
-pub fn build_registry_and_metrics() -> Result<(std::sync::Arc<Registry>, BusinessMetrics), prometheus::Error> {
+pub fn build_registry_and_metrics(
+) -> Result<(std::sync::Arc<Registry>, BusinessMetrics), prometheus::Error> {
     let registry = std::sync::Arc::new(Registry::new());
     let metrics = BusinessMetrics::new(&registry)?;
     Ok((registry, metrics))
@@ -428,7 +445,11 @@ mod tests {
         let (registry, _m) = build_metrics();
         let families = registry.gather();
         // 至少 20+ 个指标家族
-        assert!(families.len() >= 20, "指标家族数应 >= 20，实际: {}", families.len());
+        assert!(
+            families.len() >= 20,
+            "指标家族数应 >= 20，实际: {}",
+            families.len()
+        );
     }
 
     #[test]

@@ -51,12 +51,12 @@ impl ProductionOrderService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::services::test_common::setup_test_db;
     use crate::decs;
-    use crate::ymd;
     use crate::models::status::common;
     use crate::models::status::production;
+    use crate::services::test_common::setup_test_db;
     use crate::utils::error::AppError;
+    use crate::ymd;
     use rust_decimal::Decimal;
     use std::str::FromStr;
 
@@ -356,10 +356,8 @@ mod tests {
     /// 测试_状态转换_未知源状态被拒绝
     #[test]
     fn 测试_状态转换_未知源状态被拒绝() {
-        let result = ProductionOrderService::validate_status_transition(
-            "UNKNOWN",
-            common::STATUS_DRAFT,
-        );
+        let result =
+            ProductionOrderService::validate_status_transition("UNKNOWN", common::STATUS_DRAFT);
         assert!(result.is_err());
     }
 

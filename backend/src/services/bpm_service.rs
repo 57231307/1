@@ -21,9 +21,8 @@ use std::sync::Arc;
 // 原实现每次调用 evaluate_bpm_condition 都执行 Regex::new，涉及 NFA→DFA 构造开销。
 // BPM 审批是中频操作，每次审批可能扫描多条带条件的边，重复编译正则是性能瓶颈。
 // 批次 404 修复：正则编译失败时优雅降级（条件匹配返回 false 而非 panic）。
-static BPM_CONDITION_RE: std::sync::LazyLock<Option<regex::Regex>> = std::sync::LazyLock::new(|| {
-    regex::Regex::new(r"\$\{(\w+)\}\s*(==|!=|>|<|>=|<=)\s*(.+)").ok()
-});
+static BPM_CONDITION_RE: std::sync::LazyLock<Option<regex::Regex>> =
+    std::sync::LazyLock::new(|| regex::Regex::new(r"\$\{(\w+)\}\s*(==|!=|>|<|>=|<=)\s*(.+)").ok());
 
 /// 评估 BPM 边条件表达式
 /// 支持的条件格式:
@@ -31,7 +30,10 @@ static BPM_CONDITION_RE: std::sync::LazyLock<Option<regex::Regex>> = std::sync::
 /// - `${status} == 'APPROVED'` - 变量字符串比较
 ///
 /// `pub(crate)`：bpm_ops::task 子模块的 `try_advance_to_next_node` 调用。
-pub(crate) fn evaluate_bpm_condition(condition: &str, variables: &Option<serde_json::Value>) -> bool {
+pub(crate) fn evaluate_bpm_condition(
+    condition: &str,
+    variables: &Option<serde_json::Value>,
+) -> bool {
     let vars = match variables {
         Some(v) => v,
         None => return false,
@@ -44,7 +46,10 @@ pub(crate) fn evaluate_bpm_condition(condition: &str, variables: &Option<serde_j
 
     // 提取变量名和比较操作: ${var_name} operator value（使用全局编译的正则）
     // 批次 404 修复：正则编译失败时优雅降级（返回 None → 条件不匹配）
-    if let Some(caps) = BPM_CONDITION_RE.as_ref().and_then(|re| re.captures(condition)) {
+    if let Some(caps) = BPM_CONDITION_RE
+        .as_ref()
+        .and_then(|re| re.captures(condition))
+    {
         let var_name = caps.get(1).map(|m| m.as_str()).unwrap_or("");
         let operator = caps.get(2).map(|m| m.as_str()).unwrap_or("");
         let expected_value = caps.get(3).map(|m| m.as_str()).unwrap_or("").trim();
@@ -86,7 +91,10 @@ pub(crate) fn evaluate_bpm_condition(condition: &str, variables: &Option<serde_j
         }
     } else {
         // 安全修复：无法解析的条件时 fail-closed（默认拒绝），防止审批被绕过
-        tracing::warn!("无法解析 BPM 条件表达式: {}，默认拒绝（fail-closed）", condition);
+        tracing::warn!(
+            "无法解析 BPM 条件表达式: {}，默认拒绝（fail-closed）",
+            condition
+        );
         false
     }
 }
@@ -127,8 +135,7 @@ impl BpmService {
                     .iter()
                     .find(|e| e.get("source").and_then(|s| s.as_str()) == Some(start_id))
                 {
-                    let target_id =
-                        edge.get("target").and_then(|t| t.as_str()).unwrap_or("");
+                    let target_id = edge.get("target").and_then(|t| t.as_str()).unwrap_or("");
                     first_task_node = nodes
                         .iter()
                         .find(|n| n.get("id").and_then(|i| i.as_str()) == Some(target_id));

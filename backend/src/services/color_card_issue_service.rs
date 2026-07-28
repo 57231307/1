@@ -230,10 +230,7 @@ impl ColorCardIssueService {
     }
 
     /// 闸门 3+5：校验客户信用额度 > 0 且状态为 active
-    async fn check_customer_credit_and_status(
-        &self,
-        customer_id: i64,
-    ) -> Result<(), IssueError> {
+    async fn check_customer_credit_and_status(&self, customer_id: i64) -> Result<(), IssueError> {
         let customer = CustomerEntity::find_by_id(customer_id as i32)
             .one(&*self.db)
             .await?
@@ -299,10 +296,7 @@ impl ColorCardIssueService {
     }
 
     /// 创建发放记录（5 道闸门校验通过后，事务内插入记录并扣减色卡库存，V15 P0-F10）
-    pub async fn issue(
-        &self,
-        params: IssueParams,
-    ) -> Result<color_card_issue::Model, IssueError> {
+    pub async fn issue(&self, params: IssueParams) -> Result<color_card_issue::Model, IssueError> {
         // 5 道闸门校验（校验阶段不持锁）
         self.validate_issue_gates(
             params.color_card_id,
@@ -363,13 +357,15 @@ impl ColorCardIssueService {
 
         // V15 Batch05-P1-3：发布 ColorCardIssued 事件（色卡库存扣减/过期回收/客户对色反馈）
         // 严格在事务 commit 之后发布，避免事件先于数据持久化被消费端读到
-        crate::services::event_bus::EVENT_BUS.publish(crate::services::event_bus::BusinessEvent::ColorCardIssued {
-            issue_id: result.id as i32,
-            color_card_id: result.color_card_id as i32,
-            customer_id: result.customer_id.map(|x| x as i32),
-            issued_by: result.issued_by.map(|x| x as i32),
-            issued_at: result.issued_at,
-        });
+        crate::services::event_bus::EVENT_BUS.publish(
+            crate::services::event_bus::BusinessEvent::ColorCardIssued {
+                issue_id: result.id as i32,
+                color_card_id: result.color_card_id as i32,
+                customer_id: result.customer_id.map(|x| x as i32),
+                issued_by: result.issued_by.map(|x| x as i32),
+                issued_at: result.issued_at,
+            },
+        );
 
         Ok(result)
     }
@@ -589,10 +585,7 @@ impl ColorCardIssueService {
     }
 
     /// 按 ID 查询
-    pub async fn get_by_id(
-        &self,
-        record_id: i64,
-    ) -> Result<color_card_issue::Model, IssueError> {
+    pub async fn get_by_id(&self, record_id: i64) -> Result<color_card_issue::Model, IssueError> {
         IssueEntity::find_by_id(record_id)
             .one(&*self.db)
             .await?
@@ -637,7 +630,9 @@ impl ColorCardIssueService {
             .paginate(&*self.db, page_size);
 
         let total = paginator.num_items().await?;
-        let items = paginator.fetch_page(page.clamp(1, 1000).saturating_sub(1)).await?;
+        let items = paginator
+            .fetch_page(page.clamp(1, 1000).saturating_sub(1))
+            .await?;
         Ok((items, total))
     }
 
@@ -795,7 +790,11 @@ impl ColorCardIssueService {
                 Severity::Info,
                 format!(
                     "用户 {} 发放色卡（issue_id={}，色卡ID={}，客户ID={}，数量={}）",
-                    operator_name, record.id, record.color_card_id, record.customer_id, record.issue_qty
+                    operator_name,
+                    record.id,
+                    record.color_card_id,
+                    record.customer_id,
+                    record.issue_qty
                 ),
             ),
             "return" => (
@@ -811,10 +810,7 @@ impl ColorCardIssueService {
                 Severity::Warn,
                 format!(
                     "用户 {} 登记色卡遗失（issue_id={}，色卡ID={}，赔付={:?}）",
-                    operator_name,
-                    record.id,
-                    record.color_card_id,
-                    record.compensation_amount
+                    operator_name, record.id, record.color_card_id, record.compensation_amount
                 ),
             ),
             "damaged" => (
@@ -894,11 +890,23 @@ mod tests {
 
     #[test]
     fn 测试_issue_status_from_str_合法字符串解析成功() {
-        assert_eq!(IssueStatus::from_str("issued").unwrap(), IssueStatus::Issued);
-        assert_eq!(IssueStatus::from_str("returned").unwrap(), IssueStatus::Returned);
+        assert_eq!(
+            IssueStatus::from_str("issued").unwrap(),
+            IssueStatus::Issued
+        );
+        assert_eq!(
+            IssueStatus::from_str("returned").unwrap(),
+            IssueStatus::Returned
+        );
         assert_eq!(IssueStatus::from_str("lost").unwrap(), IssueStatus::Lost);
-        assert_eq!(IssueStatus::from_str("damaged").unwrap(), IssueStatus::Damaged);
-        assert_eq!(IssueStatus::from_str("cancelled").unwrap(), IssueStatus::Cancelled);
+        assert_eq!(
+            IssueStatus::from_str("damaged").unwrap(),
+            IssueStatus::Damaged
+        );
+        assert_eq!(
+            IssueStatus::from_str("cancelled").unwrap(),
+            IssueStatus::Cancelled
+        );
     }
 
     #[test]
@@ -935,7 +943,10 @@ mod tests {
             IssueStatus::Cancelled,
         ];
         let terminal_count = all_statuses.iter().filter(|s| s.is_terminal()).count();
-        assert_eq!(terminal_count, 4, "应有 4 个终态（returned/lost/damaged/cancelled）");
+        assert_eq!(
+            terminal_count, 4,
+            "应有 4 个终态（returned/lost/damaged/cancelled）"
+        );
         let non_terminal_count = all_statuses.iter().filter(|s| !s.is_terminal()).count();
         assert_eq!(non_terminal_count, 1, "应有 1 个非终态（issued）");
     }

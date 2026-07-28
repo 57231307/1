@@ -13,8 +13,8 @@
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, Set,
-    TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    Set, TransactionTrait,
 };
 use std::sync::Arc;
 
@@ -72,8 +72,8 @@ impl QuotationConvertService {
 
         // 5. 创建销售订单草稿
         let now = Utc::now();
-        let order = Self::create_order_from_quotation(&quotation, user_id, order_no, now, &txn)
-            .await?;
+        let order =
+            Self::create_order_from_quotation(&quotation, user_id, order_no, now, &txn).await?;
 
         // 6. 复制明细
         Self::copy_quotation_items_to_order(&items, &quotation, order.id, now, &txn).await?;
@@ -252,9 +252,7 @@ impl QuotationConvertService {
     }
 
     /// 生成销售订单号：SO + YYYYMMDD + 4 位当日序号
-    async fn generate_order_no_static<C>(
-        txn: &C,
-    ) -> Result<String, AppError>
+    async fn generate_order_no_static<C>(txn: &C) -> Result<String, AppError>
     where
         C: sea_orm::ConnectionTrait,
     {

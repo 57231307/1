@@ -21,8 +21,7 @@ pub fn init_enhanced_logging(config: &LogConfig) -> Result<(), Box<dyn std::erro
 }
 
 fn is_container_environment() -> bool {
-    std::path::Path::new("/.dockerenv").exists()
-        || std::env::var("KUBERNETES_SERVICE_HOST").is_ok()
+    std::path::Path::new("/.dockerenv").exists() || std::env::var("KUBERNETES_SERVICE_HOST").is_ok()
 }
 
 fn init_container_logging(config: &LogConfig) {
@@ -76,12 +75,19 @@ fn create_log_directories(log_dir: &Path) -> Result<(), Box<dyn std::error::Erro
 }
 
 fn create_env_filter(config: &LogConfig) -> tracing_subscriber::EnvFilter {
-    tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-        format!("bingxi_backend={},tower_http=debug", config.log_level).into()
-    })
+    tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| format!("bingxi_backend={},tower_http=debug", config.log_level).into())
 }
 
-fn create_main_layers(log_dir: &Path) -> Result<(tracing_subscriber::fmt::Layer<()>, tracing_subscriber::fmt::Layer<()>), Box<dyn std::error::Error>> {
+fn create_main_layers(
+    log_dir: &Path,
+) -> Result<
+    (
+        tracing_subscriber::fmt::Layer<()>,
+        tracing_subscriber::fmt::Layer<()>,
+    ),
+    Box<dyn std::error::Error>,
+> {
     let main_appender = RollingFileAppender::new(Rotation::DAILY, log_dir, "bingxi_backend.log");
     let error_appender = RollingFileAppender::new(Rotation::DAILY, log_dir, "error.log");
 
@@ -104,35 +110,87 @@ fn create_main_layers(log_dir: &Path) -> Result<(tracing_subscriber::fmt::Layer<
     Ok((main_layer, error_layer))
 }
 
-fn create_audit_layers(log_dir: &Path) -> Result<tracing_subscriber::layer::Layered<tracing_subscriber::fmt::Layer<()>, tracing_subscriber::layer::Layered<tracing_subscriber::fmt::Layer<()>, tracing_subscriber::layer::Layered<tracing_subscriber::fmt::Layer<()>, tracing_subscriber::fmt::Layer<()>>>>, Box<dyn std::error::Error>> {
+fn create_audit_layers(
+    log_dir: &Path,
+) -> Result<
+    tracing_subscriber::layer::Layered<
+        tracing_subscriber::fmt::Layer<()>,
+        tracing_subscriber::layer::Layered<
+            tracing_subscriber::fmt::Layer<()>,
+            tracing_subscriber::layer::Layered<
+                tracing_subscriber::fmt::Layer<()>,
+                tracing_subscriber::fmt::Layer<()>,
+            >,
+        >,
+    >,
+    Box<dyn std::error::Error>,
+> {
     let audit_dir = log_dir.join("audit");
-    let financial_appender = RollingFileAppender::new(Rotation::DAILY, &audit_dir, "financial_audit.log");
-    let permission_appender = RollingFileAppender::new(Rotation::DAILY, &audit_dir, "permission_audit.log");
-    let database_appender = RollingFileAppender::new(Rotation::DAILY, &audit_dir, "database_audit.log");
-    let business_appender = RollingFileAppender::new(Rotation::DAILY, &audit_dir, "business_audit.log");
+    let financial_appender =
+        RollingFileAppender::new(Rotation::DAILY, &audit_dir, "financial_audit.log");
+    let permission_appender =
+        RollingFileAppender::new(Rotation::DAILY, &audit_dir, "permission_audit.log");
+    let database_appender =
+        RollingFileAppender::new(Rotation::DAILY, &audit_dir, "database_audit.log");
+    let business_appender =
+        RollingFileAppender::new(Rotation::DAILY, &audit_dir, "business_audit.log");
 
-    let financial_layer = tracing_subscriber::fmt::layer().with_writer(financial_appender).with_ansi(false).with_target(true);
-    let permission_layer = tracing_subscriber::fmt::layer().with_writer(permission_appender).with_ansi(false).with_target(true);
-    let database_layer = tracing_subscriber::fmt::layer().with_writer(database_appender).with_ansi(false).with_target(true);
-    let business_layer = tracing_subscriber::fmt::layer().with_writer(business_appender).with_ansi(false).with_target(true);
+    let financial_layer = tracing_subscriber::fmt::layer()
+        .with_writer(financial_appender)
+        .with_ansi(false)
+        .with_target(true);
+    let permission_layer = tracing_subscriber::fmt::layer()
+        .with_writer(permission_appender)
+        .with_ansi(false)
+        .with_target(true);
+    let database_layer = tracing_subscriber::fmt::layer()
+        .with_writer(database_appender)
+        .with_ansi(false)
+        .with_target(true);
+    let business_layer = tracing_subscriber::fmt::layer()
+        .with_writer(business_appender)
+        .with_ansi(false)
+        .with_target(true);
 
-    Ok(financial_layer.with(permission_layer).with(database_layer).with(business_layer))
+    Ok(financial_layer
+        .with(permission_layer)
+        .with(database_layer)
+        .with(business_layer))
 }
 
-fn create_performance_layers(log_dir: &Path) -> Result<tracing_subscriber::layer::Layered<tracing_subscriber::fmt::Layer<()>, tracing_subscriber::fmt::Layer<()>>, Box<dyn std::error::Error>> {
+fn create_performance_layers(
+    log_dir: &Path,
+) -> Result<
+    tracing_subscriber::layer::Layered<
+        tracing_subscriber::fmt::Layer<()>,
+        tracing_subscriber::fmt::Layer<()>,
+    >,
+    Box<dyn std::error::Error>,
+> {
     let performance_dir = log_dir.join("performance");
-    let performance_appender = RollingFileAppender::new(Rotation::DAILY, &performance_dir, "performance_audit.log");
-    let health_appender = RollingFileAppender::new(Rotation::DAILY, &performance_dir, "system_health.log");
+    let performance_appender =
+        RollingFileAppender::new(Rotation::DAILY, &performance_dir, "performance_audit.log");
+    let health_appender =
+        RollingFileAppender::new(Rotation::DAILY, &performance_dir, "system_health.log");
 
-    let performance_layer = tracing_subscriber::fmt::layer().with_writer(performance_appender).with_ansi(false).with_target(true);
-    let health_layer = tracing_subscriber::fmt::layer().with_writer(health_appender).with_ansi(false).with_target(true);
+    let performance_layer = tracing_subscriber::fmt::layer()
+        .with_writer(performance_appender)
+        .with_ansi(false)
+        .with_target(true);
+    let health_layer = tracing_subscriber::fmt::layer()
+        .with_writer(health_appender)
+        .with_ansi(false)
+        .with_target(true);
 
     Ok(performance_layer.with(health_layer))
 }
 
-fn create_security_layer(log_dir: &Path) -> Result<tracing_subscriber::fmt::Layer<()>, Box<dyn std::error::Error>> {
+fn create_security_layer(
+    log_dir: &Path,
+) -> Result<tracing_subscriber::fmt::Layer<()>, Box<dyn std::error::Error>> {
     let security_dir = log_dir.join("security");
-    let security_appender = RollingFileAppender::new(Rotation::DAILY, &security_dir, "security_audit.log");
+    let security_appender =
+        RollingFileAppender::new(Rotation::DAILY, &security_dir, "security_audit.log");
 
     Ok(tracing_subscriber::fmt::layer()
         .with_writer(security_appender)

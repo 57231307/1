@@ -13,7 +13,9 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use validator::Validate;
 
-use crate::models::user_consent::{ActiveModel, Entity as UserConsentEntity, Model as UserConsentModel};
+use crate::models::user_consent::{
+    ActiveModel, Entity as UserConsentEntity, Model as UserConsentModel,
+};
 use crate::utils::error::AppError;
 
 /// 同意类型枚举常量（与 DB CHECK 约束一致）
@@ -89,7 +91,8 @@ impl UserConsentService {
         ip_address: Option<String>,
         user_agent: Option<String>,
     ) -> Result<UserConsentModel, AppError> {
-        req.validate().map_err(|e| AppError::validation(e.to_string()))?;
+        req.validate()
+            .map_err(|e| AppError::validation(e.to_string()))?;
         Self::validate_consent_type(&req.consent_type)?;
 
         let now = Utc::now();
@@ -164,7 +167,11 @@ impl UserConsentService {
     /// 缺陷 7.3 修复：判断用户是否同意指定类型的采集
     ///
     /// 默认行为：未找到同意记录时返回 false（最小权限原则 + 合规优先）
-    pub async fn is_consent_given(&self, user_id: i32, consent_type: &str) -> Result<bool, AppError> {
+    pub async fn is_consent_given(
+        &self,
+        user_id: i32,
+        consent_type: &str,
+    ) -> Result<bool, AppError> {
         let consent = self.get_current_consent(user_id, consent_type).await?;
         Ok(consent.map(|c| c.consent_given).unwrap_or(false))
     }

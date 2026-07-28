@@ -78,7 +78,11 @@ impl ChemicalMasterService {
         }
         let now = crate::utils::date_utils::utc_now_fixed();
         let unit = req.unit.clone().unwrap_or_else(|| "kg".to_string());
-        let msds_updated_at = if req.msds_url.is_some() { Some(now) } else { None };
+        let msds_updated_at = if req.msds_url.is_some() {
+            Some(now)
+        } else {
+            None
+        };
         Ok(ChemicalCreateValues {
             standard_price,
             cost_price,
@@ -417,9 +421,7 @@ impl ChemicalMasterService {
             .filter(chemical_master::Column::IsDeleted.eq(false))
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::not_found(format!("染化料编码 {} 不存在", chemical_code))
-            })
+            .ok_or_else(|| AppError::not_found(format!("染化料编码 {} 不存在", chemical_code)))
     }
 
     /// 分页查询
@@ -427,8 +429,7 @@ impl ChemicalMasterService {
         &self,
         query: ChemicalMasterQuery,
     ) -> Result<(Vec<MasterModel>, u64), AppError> {
-        let mut q = MasterEntity::find()
-            .filter(chemical_master::Column::IsDeleted.eq(false));
+        let mut q = MasterEntity::find().filter(chemical_master::Column::IsDeleted.eq(false));
         if let Some(v) = query.chemical_type {
             q = q.filter(chemical_master::Column::ChemicalType.eq(v));
         }

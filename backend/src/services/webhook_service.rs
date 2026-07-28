@@ -1,4 +1,3 @@
-
 use crate::models::webhook::{self, ActiveModel as WebhookActiveModel, Entity as Webhook};
 use crate::utils::error::AppError;
 use chrono::Utc;
@@ -305,8 +304,8 @@ impl WebhookService {
         if let Some(secret) = secret {
             match crate::utils::webhook_signature::sign_webhook_payload(body, secret) {
                 Ok(signature) => {
-                    request = request
-                        .header("X-Webhook-Signature", format!("sha256={}", signature));
+                    request =
+                        request.header("X-Webhook-Signature", format!("sha256={}", signature));
                 }
                 Err(e) => {
                     // 规则 12 合规：日志只记录主机名，不记录完整 URL，防止 URL 中的敏感参数泄露
@@ -378,21 +377,13 @@ impl WebhookService {
     /// 返回 webhooks 表中的执行状态字段（last_triggered_at / last_status / retry_count）。
     /// 当前未独立持久化调用日志（无 webhook_logs 表），返回 webhook 自身的执行状态汇总。
     /// M-4 修复（v9 复审）：新增 user_id 参数，获取前校验所有权
-    pub async fn get_webhook(
-        &self,
-        user_id: i32,
-        id: i32,
-    ) -> Result<webhook::Model, AppError> {
+    pub async fn get_webhook(&self, user_id: i32, id: i32) -> Result<webhook::Model, AppError> {
         self.verify_ownership(user_id, id).await
     }
 
     /// 删除 Webhook
     /// M-4 修复（v9 复审）：新增 user_id 参数，删除前校验所有权
-    pub async fn delete_webhook(
-        &self,
-        user_id: i32,
-        id: i32,
-    ) -> Result<(), AppError> {
+    pub async fn delete_webhook(&self, user_id: i32, id: i32) -> Result<(), AppError> {
         let webhook = self.verify_ownership(user_id, id).await?;
 
         let mut active_model: WebhookActiveModel = webhook.into();

@@ -28,7 +28,11 @@ pub struct Model {
     pub approval_level: Option<String>,
     #[sea_orm(column_name = "approved_by_role")]
     pub approved_by_role: Option<String>,
-    #[sea_orm(column_name = "total_amount", column_type = "Decimal(Some((14, 2)))", default_value = "0")]
+    #[sea_orm(
+        column_name = "total_amount",
+        column_type = "Decimal(Some((14, 2)))",
+        default_value = "0"
+    )]
     pub total_amount: Decimal,
 }
 

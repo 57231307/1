@@ -76,7 +76,11 @@ fn verify_sha256(release_url: &str, download_path: &str) -> bool {
         }
     };
     // sha256sum 文件格式：`<hash>  <filename>`，取第一个空白前字段
-    let expected = expected_raw.split_whitespace().next().unwrap_or("").to_lowercase();
+    let expected = expected_raw
+        .split_whitespace()
+        .next()
+        .unwrap_or("")
+        .to_lowercase();
     if expected.is_empty() {
         println!("[WARN] .sha256 文件内容为空，跳过校验");
         return true;
@@ -88,7 +92,11 @@ fn verify_sha256(release_url: &str, download_path: &str) -> bool {
             return false;
         }
     };
-    let computed_hash = computed.split_whitespace().next().unwrap_or("").to_lowercase();
+    let computed_hash = computed
+        .split_whitespace()
+        .next()
+        .unwrap_or("")
+        .to_lowercase();
     if computed_hash == expected {
         println!("[OK] SHA256 校验通过");
         true
@@ -107,7 +115,10 @@ fn check_schema_compatibility() -> bool {
     // 调用 bingxi migrate status 检查迁移状态
     let bingxi_bin = format!("{}/backend/bingxi", get_install_dir());
     if !std::path::Path::new(&bingxi_bin).exists() {
-        println!("[WARN] 未找到 bingxi CLI（{}），跳过 schema 校验", bingxi_bin);
+        println!(
+            "[WARN] 未找到 bingxi CLI（{}），跳过 schema 校验",
+            bingxi_bin
+        );
         return true;
     }
     match run_cmd(&bingxi_bin, &["migrate", "status"]) {
@@ -120,7 +131,10 @@ fn check_schema_compatibility() -> bool {
         }
         Err(e) => {
             // fail-open：迁移状态检查失败不阻塞升级（升级后会自动执行 migrate run）
-            println!("[WARN] schema 版本校验失败（fail-open，升级后仍会执行迁移）: {}", e);
+            println!(
+                "[WARN] schema 版本校验失败（fail-open，升级后仍会执行迁移）: {}",
+                e
+            );
             true
         }
     }
@@ -153,12 +167,18 @@ fn rollback_database_schema() {
     println!("回滚数据库 schema...");
     let bingxi_bin = format!("{}/backend/bingxi", get_install_dir());
     if !std::path::Path::new(&bingxi_bin).exists() {
-        println!("[WARN] 未找到 bingxi CLI（{}），跳过 schema 回滚", bingxi_bin);
+        println!(
+            "[WARN] 未找到 bingxi CLI（{}），跳过 schema 回滚",
+            bingxi_bin
+        );
         return;
     }
     match run_cmd(&bingxi_bin, &["migrate", "rollback"]) {
         Ok(_) => println!("[OK] 数据库 schema 回滚完成"),
-        Err(e) => println!("[WARN] 数据库 schema 回滚失败（旧二进制可能兼容新 schema）: {}", e),
+        Err(e) => println!(
+            "[WARN] 数据库 schema 回滚失败（旧二进制可能兼容新 schema）: {}",
+            e
+        ),
     }
 }
 
@@ -185,15 +205,23 @@ fn start_post_deploy_monitor() {
         let url = "http://127.0.0.1:8082/health";
         let mut consecutive_failures: u8 = 0;
         for _ in 0..POST_DEPLOY_MONITOR_RETRIES {
-            std::thread::sleep(std::time::Duration::from_secs(POST_DEPLOY_MONITOR_INTERVAL_SECS));
+            std::thread::sleep(std::time::Duration::from_secs(
+                POST_DEPLOY_MONITOR_INTERVAL_SECS,
+            ));
             if run_cmd("curl", &["-fsSL", "-m", "3", url]).is_ok() {
                 return; // 健康检查通过，监控结束
             }
             consecutive_failures += 1;
-            println!("[WARN] 部署后健康检查失败（{}/{}）", consecutive_failures, POST_DEPLOY_MONITOR_RETRIES);
+            println!(
+                "[WARN] 部署后健康检查失败（{}/{}）",
+                consecutive_failures, POST_DEPLOY_MONITOR_RETRIES
+            );
         }
         // 连续失败触发自动回滚
-        println!("[ERROR] 部署后连续 {} 次健康检查失败，触发自动回滚", consecutive_failures);
+        println!(
+            "[ERROR] 部署后连续 {} 次健康检查失败，触发自动回滚",
+            consecutive_failures
+        );
         let server_old = format!("{}/backend/server.old", get_install_dir());
         if std::path::Path::new(&server_old).exists() {
             cmd_rollback();
@@ -209,12 +237,9 @@ fn start_post_deploy_monitor() {
 
 /// 检测当前是否为蓝绿部署模式（systemd template 已安装）。
 fn is_blue_green_mode() -> bool {
-    run_cmd(
-        "systemctl",
-        &["list-unit-files", BLUE_GREEN_TEMPLATE],
-    )
-    .map(|s| s.contains("bingxi-backend@"))
-    .unwrap_or(false)
+    run_cmd("systemctl", &["list-unit-files", BLUE_GREEN_TEMPLATE])
+        .map(|s| s.contains("bingxi-backend@"))
+        .unwrap_or(false)
 }
 
 /// 获取当前活跃实例名（`blue` 或 `green`）。
@@ -470,7 +495,10 @@ fn cmd_rollback_blue_green(server_old: &str, bingxi_old: &str) {
 
     println!("\n[OK] 蓝绿回滚成功");
     println!("新活跃实例: {} ({})", inactive, instance_port(&inactive));
-    println!("旧实例 {} 已停止（如需重启新版本可手动启动）", active_service);
+    println!(
+        "旧实例 {} 已停止（如需重启新版本可手动启动）",
+        active_service
+    );
 }
 
 fn restore_rollback_binaries(server_old: &str, bingxi_old: &str, active_service: &str) -> bool {
@@ -768,7 +796,8 @@ fn switch_nginx_and_stop_active(
 /// P0-D15：蓝绿模式部署（零停机），任一关键步骤失败立即中止以保持活跃实例服务
 fn deploy_release_blue_green(package: &str) {
     println!("=== 蓝绿部署模式（零停机）===");
-    let (active, inactive, active_service, inactive_service) = match resolve_blue_green_instances() {
+    let (active, inactive, active_service, inactive_service) = match resolve_blue_green_instances()
+    {
         Ok(v) => v,
         Err(()) => return,
     };
@@ -801,10 +830,14 @@ fn deploy_release_blue_green(package: &str) {
     cleanup_temp(temp_dir);
     // V15 P1 25.3-H 修复：部署后自动执行数据库迁移（蓝绿模式下，新实例启动前执行迁移）
     if !run_database_migration() {
-        println!("[ERROR] 数据库迁移失败，终止部署（活跃实例 {} 继续服务）", active_service);
+        println!(
+            "[ERROR] 数据库迁移失败，终止部署（活跃实例 {} 继续服务）",
+            active_service
+        );
         return;
     }
-    if let Err(()) = start_inactive_and_health_check(&inactive, &inactive_service, &active_service) {
+    if let Err(()) = start_inactive_and_health_check(&inactive, &inactive_service, &active_service)
+    {
         return;
     }
     if let Err(()) = switch_nginx_and_stop_active(&inactive, &active_service, &inactive_service) {
@@ -891,8 +924,8 @@ fn prepare_random_temp_dir() -> Result<String, String> {
 /// 先列出 tar 内容并校验路径，防止恶意文件在校验前写入磁盘（Tar Slip 防护）。
 fn validate_tar_contents(package: &str) -> Result<(), String> {
     println!("校验更新包内容...");
-    let tar_list = run_cmd("tar", &["-tf", package])
-        .map_err(|e| format!("列出更新包内容失败: {}", e))?;
+    let tar_list =
+        run_cmd("tar", &["-tf", package]).map_err(|e| format!("列出更新包内容失败: {}", e))?;
     for line in tar_list.lines() {
         let path = line.trim();
         if path.is_empty() || path == "./" {
@@ -911,8 +944,7 @@ fn validate_tar_contents(package: &str) -> Result<(), String> {
 /// 解压到随机临时目录并做二次校验（canonicalize 解析符号链接，双重防护）。
 fn extract_package_and_validate(package: &str, temp_dir: &str) -> Result<String, String> {
     println!("解压更新包...");
-    run_cmd("tar", &["-xzf", package, "-C", temp_dir])
-        .map_err(|e| format!("解压失败: {}", e))?;
+    run_cmd("tar", &["-xzf", package, "-C", temp_dir]).map_err(|e| format!("解压失败: {}", e))?;
     // 批次 322 v9 复审低危修复：改用共享模块 utils::path_validator::validate_extracted_paths
     let extract_dir = format!("{}/bingxi-erp", temp_dir);
     validate_extracted_paths(&extract_dir).map_err(|e| format!("安全校验失败: {}", e))?;
@@ -924,8 +956,7 @@ fn backup_old_files_legacy(install_dir: &str) -> Result<(), String> {
     println!("备份旧文件...");
     let ts = timestamp();
     let old_backup = format!("{}/old.{}", install_dir, ts);
-    run_cmd("mkdir", &["-p", &old_backup])
-        .map_err(|e| format!("创建旧文件备份目录失败: {}", e))?;
+    run_cmd("mkdir", &["-p", &old_backup]).map_err(|e| format!("创建旧文件备份目录失败: {}", e))?;
     let server_src = format!("{}/backend/server", install_dir);
     let bingxi_src = format!("{}/backend/bingxi", install_dir);
     if let Err(e) = run_cmd("cp", &["-r", &server_src, &old_backup]) {
@@ -944,8 +975,10 @@ fn copy_new_backend(extract_dir: &str, install_dir: &str) -> Result<(), String> 
     let new_bingxi = format!("{}/backend/bingxi", extract_dir);
     let dst_server = format!("{}/backend/server", install_dir);
     let dst_bingxi = format!("{}/backend/bingxi", install_dir);
-    run_cmd("cp", &["-r", &new_server, &dst_server]).map_err(|e| format!("覆盖 server 失败: {}", e))?;
-    run_cmd("cp", &["-r", &new_bingxi, &dst_bingxi]).map_err(|e| format!("覆盖 bingxi 失败: {}", e))?;
+    run_cmd("cp", &["-r", &new_server, &dst_server])
+        .map_err(|e| format!("覆盖 server 失败: {}", e))?;
+    run_cmd("cp", &["-r", &new_bingxi, &dst_bingxi])
+        .map_err(|e| format!("覆盖 bingxi 失败: {}", e))?;
     run_cmd("chmod", &["+x", &dst_server]).map_err(|e| format!("chmod server 失败: {}", e))?;
     run_cmd("chmod", &["+x", &dst_bingxi]).map_err(|e| format!("chmod bingxi 失败: {}", e))?;
     Ok(())
@@ -959,7 +992,8 @@ fn copy_new_frontend(extract_dir: &str, install_dir: &str) -> Result<(), String>
         println!("[WARN] 清理旧前端 dist 失败（继续 mv 覆盖）: {}", e);
     }
     let new_dist = format!("{}/frontend/dist", extract_dir);
-    run_cmd("mv", &[&new_dist, &frontend_dist]).map_err(|e| format!("移动新前端 dist 失败: {}", e))?;
+    run_cmd("mv", &[&new_dist, &frontend_dist])
+        .map_err(|e| format!("移动新前端 dist 失败: {}", e))?;
     Ok(())
 }
 
@@ -983,6 +1017,9 @@ fn start_service_and_check() {
     } else {
         println!("[ERROR] HTTP 健康检查失败，服务可能未就绪，请检查日志");
         println!("  可执行 `curl -fsSL http://127.0.0.1:8082/health` 手动验证");
-        println!("  或执行 `journalctl -u {} -n 100 --no-pager` 查看服务日志", super::SERVICE_NAME);
+        println!(
+            "  或执行 `journalctl -u {} -n 100 --no-pager` 查看服务日志",
+            super::SERVICE_NAME
+        );
     }
 }

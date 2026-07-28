@@ -5,7 +5,10 @@
 //! 创建时间: 2026-06-17
 
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, Set, TransactionTrait,
+};
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -153,7 +156,10 @@ impl CustomOrderQualityService {
     }
 
     /// 缺陷 4.3：标记永久措施完成
-    pub async fn complete_permanent_action(&self, id: i64) -> Result<quality_issue::Model, AppError> {
+    pub async fn complete_permanent_action(
+        &self,
+        id: i64,
+    ) -> Result<quality_issue::Model, AppError> {
         let existing = Entity::find_by_id(id)
             .one(&*self.db)
             .await?
@@ -221,8 +227,7 @@ impl CustomOrderQualityService {
         page: u64,
         page_size: u64,
     ) -> Result<(Vec<quality_issue::Model>, u64), QualityError> {
-        let query = Entity::find()
-            .filter(quality_issue::Column::CustomOrderId.eq(order_id));
+        let query = Entity::find().filter(quality_issue::Column::CustomOrderId.eq(order_id));
 
         let paginator = query
             .order_by_desc(quality_issue::Column::DiscoveredAt)
@@ -231,5 +236,4 @@ impl CustomOrderQualityService {
         let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
         Ok((items, total))
     }
-
 }

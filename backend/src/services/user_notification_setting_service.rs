@@ -187,10 +187,8 @@ impl UserNotificationSettingService {
             .filter(user_notification_setting::Column::UserId.is_in(user_ids.to_vec()))
             .all(&*self.db)
             .await?;
-        let mut map: std::collections::HashMap<i32, user_notification_setting::Model> = existing
-            .into_iter()
-            .map(|s| (s.user_id, s))
-            .collect();
+        let mut map: std::collections::HashMap<i32, user_notification_setting::Model> =
+            existing.into_iter().map(|s| (s.user_id, s)).collect();
         // 为缺失的用户创建默认设置
         use std::collections::hash_map::Entry;
         let now = chrono::Utc::now();

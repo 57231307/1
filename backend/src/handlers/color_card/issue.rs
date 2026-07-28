@@ -154,6 +154,7 @@ pub async fn issue_color_card(
         purpose: dto.purpose,
         remark: dto.remark,
         dye_lot_no: dto.dye_lot_no,
+        sales_order_id: None,
     };
 
     let record = service.issue(params).await.map_err(issue_err)?;
@@ -268,8 +269,8 @@ pub async fn export_issue_records(
     auth: AuthContext,
     Query(query): Query<ListIssuesQuery>,
 ) -> Result<axum::response::Response, AppError> {
-    let mut q = color_card_issue::Entity::find()
-        .filter(color_card_issue::Column::IsDeleted.eq(false));
+    let mut q =
+        color_card_issue::Entity::find().filter(color_card_issue::Column::IsDeleted.eq(false));
     if let Some(v) = query.color_card_id {
         q = q.filter(color_card_issue::Column::ColorCardId.eq(v));
     }

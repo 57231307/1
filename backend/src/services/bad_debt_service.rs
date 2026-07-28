@@ -30,8 +30,12 @@ use crate::models::bad_debt_dto::{
     ApproveWriteoffRequest, CancelWriteoffRequest, CreateWriteoffRequest, ListProvisionQuery,
     ListWriteoffQuery, RejectWriteoffRequest, ReverseProvisionRequest, RunProvisionRequest,
 };
-use crate::models::bad_debt_provision::{self, ActiveModel as ProvisionActiveModel, Entity as ProvisionEntity};
-use crate::models::bad_debt_writeoff::{self, ActiveModel as WriteoffActiveModel, Entity as WriteoffEntity};
+use crate::models::bad_debt_provision::{
+    self, ActiveModel as ProvisionActiveModel, Entity as ProvisionEntity,
+};
+use crate::models::bad_debt_writeoff::{
+    self, ActiveModel as WriteoffActiveModel, Entity as WriteoffEntity,
+};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
@@ -684,8 +688,14 @@ impl BadDebtService {
             select = select.filter(bad_debt_writeoff::Column::ArInvoiceId.eq(v));
         }
         if let Some(v) = query.approval_status {
-            if !["pending", "finance_approved", "approved", "rejected", "cancelled"]
-                .contains(&v.as_str())
+            if ![
+                "pending",
+                "finance_approved",
+                "approved",
+                "rejected",
+                "cancelled",
+            ]
+            .contains(&v.as_str())
             {
                 return Err(BadDebtError::Validation(format!(
                     "非法 approval_status: {}",

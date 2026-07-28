@@ -5,9 +5,7 @@
 //! - `get_pending_tasks_for_monitor`：获取待处理任务列表（分页）
 //! - `list_instances_for_monitor`：获取流程实例列表（分页，可按状态过滤）
 
-use sea_orm::{
-    ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
-};
+use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect};
 
 use crate::models::dto::PageResponse;
 use crate::models::status::bpm_instance as instance_status;
@@ -96,7 +94,8 @@ impl BpmService {
         page_size: u64,
     ) -> Result<PageResponse<bpm_task::Model>, AppError> {
         // P0 3-4 修复：任务状态写入为小写，查询用小写匹配
-        let stmt = bpm_task::Entity::find().filter(bpm_task::Column::Status.eq(task_status::PENDING));
+        let stmt =
+            bpm_task::Entity::find().filter(bpm_task::Column::Status.eq(task_status::PENDING));
 
         let paginator = stmt.paginate(&*self.db, page_size);
         let total = paginator.num_items().await?;

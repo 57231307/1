@@ -347,7 +347,9 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         let msg = format!("{}", err);
-        assert!(msg.contains("报价单不存在") || msg.contains("not found") || msg.contains("不存在"));
+        assert!(
+            msg.contains("报价单不存在") || msg.contains("not found") || msg.contains("不存在")
+        );
     }
 
     // ============ update 状态机校验测试 ============

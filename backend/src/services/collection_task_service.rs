@@ -23,7 +23,7 @@ use crate::models::ar_invoice;
 use crate::models::collection_task::{self, ActiveModel, Entity};
 use crate::models::collection_task_dto::{
     AutoGenerateTasksRequest, CancelTaskRequest, CreateTaskRequest, ListTaskQuery,
-    RecordContactRequest, ReassignTaskRequest,
+    ReassignTaskRequest, RecordContactRequest,
 };
 use crate::models::collection_template;
 use crate::utils::app_state::AppState;
@@ -174,12 +174,14 @@ impl CollectionTaskService {
                 continue;
             }
             let customer_id = inv.customer_id as i64;
-            let aggr = map.entry(customer_id).or_insert_with(|| CustomerOverdueAggr {
-                customer_id,
-                ar_invoice_id: Some(inv.id),
-                total_overdue: Decimal::ZERO,
-                max_overdue_days: 0,
-            });
+            let aggr = map
+                .entry(customer_id)
+                .or_insert_with(|| CustomerOverdueAggr {
+                    customer_id,
+                    ar_invoice_id: Some(inv.id),
+                    total_overdue: Decimal::ZERO,
+                    max_overdue_days: 0,
+                });
             aggr.total_overdue += inv.unpaid_amount;
             if overdue_days > aggr.max_overdue_days {
                 aggr.max_overdue_days = overdue_days;
@@ -197,10 +199,10 @@ impl CollectionTaskService {
     ) -> Result<bool, CollectionTaskError> {
         let existing = Entity::find()
             .filter(collection_task::Column::CustomerId.eq(customer_id))
-            .filter(
-                collection_task::Column::Status
-                    .is_in([TaskStatus::Pending.as_str(), TaskStatus::InProgress.as_str()]),
-            )
+            .filter(collection_task::Column::Status.is_in([
+                TaskStatus::Pending.as_str(),
+                TaskStatus::InProgress.as_str(),
+            ]))
             .one(txn)
             .await?;
         Ok(existing.is_some())
@@ -276,12 +278,27 @@ impl CollectionTaskService {
     /// V15 P1 17.3-D5：渲染模板占位符
     ///
     /// 支持占位符：{overdue_days} / {overdue_amount} / {customer_name} / {date}
-    fn render_template(content: &str, overdue_days: i32, overdue_amount: Decimal, customer_name: Option<&str>) -> String {
+    fn render_template(
+        content: &str,
+        overdue_days: i32,
+        overdue_amount: Decimal,
+        customer_name: Option<&str>,
+    ) -> String {
         let mut rendered = content
             .replace("{overdue_days}", overdue_days.to_string().as_str())
-            .replace("{overdue_amount}", format!("{:.2}", overdue_amount).as_str())
+            .replace(
+                "{overdue_amount}",
+                format!("{:.2}", overdue_amount).as_str(),
+            )
             .replace("{customer_name}", customer_name.unwrap_or("客户"))
-            .replace("{date}", chrono::Utc::now().date_naive().format("%Y-%m-%d").to_string().as_str());
+            .replace(
+                "{date}",
+                chrono::Utc::now()
+                    .date_naive()
+                    .format("%Y-%m-%d")
+                    .to_string()
+                    .as_str(),
+            );
         rendered = rendered.replace("\\n", "\n");
         rendered
     }
@@ -320,7 +337,8 @@ impl CollectionTaskService {
             }
             seq += 1;
             let task_no = format!("CT-{}-{:03}", today.format("%Y%m%d"), seq);
-            let mut active = Self::build_new_task_active(&aggr, task_no, due_date, assigned_by, now);
+            let mut active =
+                Self::build_new_task_active(&aggr, task_no, due_date, assigned_by, now);
             // V15 P1 17.3-D5：匹配模板并渲染话术
             let task_type = TaskType::from_overdue_days(aggr.max_overdue_days);
             if let Some(tpl) = self
@@ -409,12 +427,7 @@ impl CollectionTaskService {
                 .find_template_for_task(&txn, &req.task_type, req.overdue_days)
                 .await?;
             tpl.map(|t| {
-                Self::render_template(
-                    &t.content,
-                    req.overdue_days,
-                    req.overdue_amount,
-                    None,
-                )
+                Self::render_template(&t.content, req.overdue_days, req.overdue_amount, None)
             })
         };
         let active = ActiveModel {

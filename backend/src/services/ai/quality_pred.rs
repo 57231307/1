@@ -351,9 +351,11 @@ impl AiAnalysisService {
 
         // V15 P1 5.1+9.5：算法执行包装在 timeout 中，超时返回降级结果
         let timeout_dur = std::time::Duration::from_millis(super::AI_INFERENCE_TIMEOUT_MS);
-        let inference_result =
-            tokio::time::timeout(timeout_dur, self.run_quality_inference(&params, cache_key.clone()))
-                .await;
+        let inference_result = tokio::time::timeout(
+            timeout_dur,
+            self.run_quality_inference(&params, cache_key.clone()),
+        )
+        .await;
 
         match inference_result {
             Ok(Ok(response)) => Ok(response),
@@ -370,12 +372,18 @@ impl AiAnalysisService {
             }
             // V15 P1 5.1+9.5：推理超时 → 返回降级结果
             Err(_elapsed) => {
-                tracing::warn!("AI 质量预测推理超时（>{}ms），返回降级结果", super::AI_INFERENCE_TIMEOUT_MS);
+                tracing::warn!(
+                    "AI 质量预测推理超时（>{}ms），返回降级结果",
+                    super::AI_INFERENCE_TIMEOUT_MS
+                );
                 let degraded = build_degraded_response(
                     params.product_id,
                     &params.type_label,
                     params.window_days,
-                    format!("AI 推理超时（>{}ms），已降级为保守默认值", super::AI_INFERENCE_TIMEOUT_MS),
+                    format!(
+                        "AI 推理超时（>{}ms），已降级为保守默认值",
+                        super::AI_INFERENCE_TIMEOUT_MS
+                    ),
                 );
                 Ok(degraded)
             }
@@ -397,9 +405,7 @@ impl AiAnalysisService {
         } else {
             build_history_response(params.clone(), &records)
         };
-        self.quality_cache
-            .insert(cache_key, response.clone())
-            .await;
+        self.quality_cache.insert(cache_key, response.clone()).await;
         Ok(response)
     }
 
@@ -419,8 +425,8 @@ impl AiAnalysisService {
         let mut select = QualityInspectionEntity::find()
             .filter(crate::models::quality_inspection_record::Column::InspectionDate.gte(cutoff));
         if let Some(pid) = params.product_id {
-            select = select
-                .filter(crate::models::quality_inspection_record::Column::ProductId.eq(pid));
+            select =
+                select.filter(crate::models::quality_inspection_record::Column::ProductId.eq(pid));
         }
         if let Some(t) = params.inspection_type.as_deref() {
             select = select
@@ -428,22 +434,20 @@ impl AiAnalysisService {
         }
         // V15 P1 2.2：面料行业特征过滤
         if let Some(dye) = params.dye_type.as_deref() {
-            select = select
-                .filter(crate::models::quality_inspection_record::Column::DyeType.eq(dye));
+            select =
+                select.filter(crate::models::quality_inspection_record::Column::DyeType.eq(dye));
         }
         if let Some(aux) = params.auxiliary_type.as_deref() {
-            select = select.filter(
-                crate::models::quality_inspection_record::Column::AuxiliaryType.eq(aux),
-            );
+            select = select
+                .filter(crate::models::quality_inspection_record::Column::AuxiliaryType.eq(aux));
         }
         if let Some(batch) = params.batch_no.as_deref() {
-            select = select
-                .filter(crate::models::quality_inspection_record::Column::BatchNo.eq(batch));
+            select =
+                select.filter(crate::models::quality_inspection_record::Column::BatchNo.eq(batch));
         }
         if let Some(src) = params.fabric_source.as_deref() {
-            select = select.filter(
-                crate::models::quality_inspection_record::Column::FabricSource.eq(src),
-            );
+            select = select
+                .filter(crate::models::quality_inspection_record::Column::FabricSource.eq(src));
         }
         if let Some((lo, hi)) = params.temperature_range {
             let lo_dec = rust_decimal::Decimal::from_f64_retain(lo).unwrap_or_default();
@@ -453,10 +457,7 @@ impl AiAnalysisService {
                 .filter(crate::models::quality_inspection_record::Column::Temperature.lte(hi_dec));
         }
 
-        let records = select
-            .limit(QUALITY_RECORD_LIMIT)
-            .all(&*self.db)
-            .await?;
+        let records = select.limit(QUALITY_RECORD_LIMIT).all(&*self.db).await?;
         // V15 P1 6.1：对 remark 字段做 PII 脱敏（手机号/邮箱/身份证号），
         // 关键词匹配在脱敏后的文本上执行，不影响归因准确性
         Ok(records
@@ -684,9 +685,7 @@ fn compute_recent_trend(records: &[QualityInspectionModel]) -> (String, f64, boo
     let previous_avg = mean_qualification_rate(
         &records
             .iter()
-            .filter(|r| {
-                r.inspection_date >= previous_cutoff && r.inspection_date < recent_cutoff
-            })
+            .filter(|r| r.inspection_date >= previous_cutoff && r.inspection_date < recent_cutoff)
             .cloned()
             .collect::<Vec<_>>(),
     );

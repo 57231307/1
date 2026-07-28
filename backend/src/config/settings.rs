@@ -277,10 +277,7 @@ impl AppSettings {
             .add_source(config::Environment::default().separator("__"))
             .build()
             .map_err(|e| {
-                ConfigError::Message(format!(
-                    "无法加载配置（配置文件 + 环境变量均失败）：{}",
-                    e
-                ))
+                ConfigError::Message(format!("无法加载配置（配置文件 + 环境变量均失败）：{}", e))
             })
     }
 

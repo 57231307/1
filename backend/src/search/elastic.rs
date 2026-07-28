@@ -192,10 +192,7 @@ impl ElasticClient {
     /// 创建真实客户端（reqwest 直连 ES REST API，SSRF 校验失败则 fail-fast 退出）
     pub fn real(url: String) -> Self {
         Self::try_real(url).unwrap_or_else(|e| {
-            eprintln!(
-                "Elasticsearch URL SSRF 校验失败: {}，服务无法启动",
-                e
-            );
+            eprintln!("Elasticsearch URL SSRF 校验失败: {}，服务无法启动", e);
             std::process::exit(1);
         })
     }
@@ -237,9 +234,8 @@ pub async fn ensure_indices(base_url: &str) -> Result<(), SearchError> {
 
     // SSRF 校验：解析 URL → 协议白名单 → 主机名黑名单 → IP 黑名单 → DNS 解析 + IP 校验
     // 返回 (host, safe_addrs)，调用方使用 resolve_to_addrs 固定连接 IP
-    let (host, safe_addrs) = ssrf_guard::validate_url_and_resolve(base_url).map_err(|e| {
-        SearchError::Connection(format!("ES base_url SSRF 校验失败: {}", e))
-    })?;
+    let (host, safe_addrs) = ssrf_guard::validate_url_and_resolve(base_url)
+        .map_err(|e| SearchError::Connection(format!("ES base_url SSRF 校验失败: {}", e)))?;
 
     let http = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
@@ -254,17 +250,12 @@ pub async fn ensure_indices(base_url: &str) -> Result<(), SearchError> {
         (indices::PRODUCTS, products_mapping()),
     ] {
         let url = format!("{}/{}", base_url, index);
-        let resp = http
-            .put(&url)
-            .json(&mapping)
-            .send()
-            .await
-            .map_err(|e| {
-                SearchError::Connection(format!(
-                    "ES ensure_indices 请求失败 (index={}): {}",
-                    index, e
-                ))
-            })?;
+        let resp = http.put(&url).json(&mapping).send().await.map_err(|e| {
+            SearchError::Connection(format!(
+                "ES ensure_indices 请求失败 (index={}): {}",
+                index, e
+            ))
+        })?;
 
         let status = resp.status();
         // 200 表示创建成功，400 表示索引已存在
@@ -429,7 +420,10 @@ mod tests {
             customer_name: "ACME".to_string(),
             total_amount: 1000.0,
             status: "approved".to_string(),
-            created_at: crate::ymd!(2026, 6, 17).and_hms_opt(10, 0, 0).unwrap().and_utc(),
+            created_at: crate::ymd!(2026, 6, 17)
+                .and_hms_opt(10, 0, 0)
+                .unwrap()
+                .and_utc(),
             items: vec![],
         };
         let json = serde_json::to_string(&doc).unwrap();
@@ -480,7 +474,10 @@ mod tests {
             customer_name: "Test".to_string(),
             total_amount: 100.0,
             status: "draft".to_string(),
-            created_at: crate::ymd!(2026, 6, 17).and_hms_opt(0, 0, 0).unwrap().and_utc(),
+            created_at: crate::ymd!(2026, 6, 17)
+                .and_hms_opt(0, 0, 0)
+                .unwrap()
+                .and_utc(),
             items: vec![],
         };
         let value = serde_json::to_value(&doc).unwrap();
@@ -501,7 +498,10 @@ mod tests {
                 customer_name: format!("客户 {}", i),
                 total_amount: 100.0 * i as f64,
                 status: "draft".to_string(),
-                created_at: crate::ymd!(2026, 6, 17).and_hms_opt(0, 0, 0).unwrap().and_utc(),
+                created_at: crate::ymd!(2026, 6, 17)
+                    .and_hms_opt(0, 0, 0)
+                    .unwrap()
+                    .and_utc(),
                 items: vec![],
             };
             let value = serde_json::to_value(&doc).unwrap();
@@ -511,10 +511,8 @@ mod tests {
                 .unwrap();
         }
         let query = SearchQuery::new().with_keyword("客户");
-        let result: SearchResult<serde_json::Value> = client
-            .search(indices::SALES_ORDERS, &query)
-            .await
-            .unwrap();
+        let result: SearchResult<serde_json::Value> =
+            client.search(indices::SALES_ORDERS, &query).await.unwrap();
         assert!(result.total > 0);
     }
 
@@ -532,7 +530,10 @@ mod tests {
             tier: "C".to_string(),
         };
         let value = serde_json::to_value(&doc).unwrap();
-        client.index_doc(indices::CUSTOMERS, "1", &value).await.unwrap();
+        client
+            .index_doc(indices::CUSTOMERS, "1", &value)
+            .await
+            .unwrap();
         assert_eq!(client.doc_count(indices::CUSTOMERS).await, 1);
         client.delete_doc(indices::CUSTOMERS, "1").await.unwrap();
         assert_eq!(client.doc_count(indices::CUSTOMERS).await, 0);
@@ -573,7 +574,10 @@ mod tests {
             customer_name: "Test".to_string(),
             total_amount: 100.0,
             status: "approved".to_string(),
-            created_at: crate::ymd!(2026, 6, 17).and_hms_opt(0, 0, 0).unwrap().and_utc(),
+            created_at: crate::ymd!(2026, 6, 17)
+                .and_hms_opt(0, 0, 0)
+                .unwrap()
+                .and_utc(),
             items: vec![],
         };
         syncer.sync_sales_order(&order).await.unwrap();
@@ -609,10 +613,7 @@ mod tests {
     #[test]
     fn test_try_real_reject_localhost() {
         let result = ElasticClient::try_real("http://localhost:9200".to_string());
-        assert!(
-            result.is_err(),
-            "try_real 必须拒绝 localhost 主机名"
-        );
+        assert!(result.is_err(), "try_real 必须拒绝 localhost 主机名");
     }
 
     /// 测试 try_real 拒绝 RFC1918 私有网络 IP
@@ -659,30 +660,21 @@ mod tests {
     #[test]
     fn test_try_real_reject_invalid_url() {
         let result = ElasticClient::try_real("not-a-url".to_string());
-        assert!(
-            result.is_err(),
-            "try_real 必须拒绝格式无效的 URL"
-        );
+        assert!(result.is_err(), "try_real 必须拒绝格式无效的 URL");
     }
 
     /// 测试 try_real 拒绝 IPv6 loopback（::1）
     #[test]
     fn test_try_real_reject_ipv6_loopback() {
         let result = ElasticClient::try_real("http://[::1]:9200".to_string());
-        assert!(
-            result.is_err(),
-            "try_real 必须拒绝 IPv6 loopback（::1）"
-        );
+        assert!(result.is_err(), "try_real 必须拒绝 IPv6 loopback（::1）");
     }
 
     /// 测试 try_real 拒绝 .local 后缀主机名（mDNS）
     #[test]
     fn test_try_real_reject_local_suffix() {
         let result = ElasticClient::try_real("http://es.local:9200".to_string());
-        assert!(
-            result.is_err(),
-            "try_real 必须拒绝 .local 后缀主机名"
-        );
+        assert!(result.is_err(), "try_real 必须拒绝 .local 后缀主机名");
     }
 
     /// 测试 ensure_indices 拒绝 loopback IP
@@ -706,10 +698,7 @@ mod tests {
     #[tokio::test]
     async fn test_ensure_indices_reject_localhost() {
         let result = ensure_indices("http://localhost:9200").await;
-        assert!(
-            result.is_err(),
-            "ensure_indices 必须拒绝 localhost 主机名"
-        );
+        assert!(result.is_err(), "ensure_indices 必须拒绝 localhost 主机名");
     }
 
     /// 测试 ensure_indices 拒绝 RFC1918 私有网络 IP
@@ -748,9 +737,6 @@ mod tests {
     #[tokio::test]
     async fn test_ensure_indices_reject_invalid_url() {
         let result = ensure_indices("not-a-url").await;
-        assert!(
-            result.is_err(),
-            "ensure_indices 必须拒绝格式无效的 URL"
-        );
+        assert!(result.is_err(), "ensure_indices 必须拒绝格式无效的 URL");
     }
 }

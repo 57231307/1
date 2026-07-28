@@ -15,15 +15,16 @@ use std::sync::Arc;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::audit_log::{OperationType, Severity};
-use crate::models::{energy_allocation_record, energy_allocation_rule, energy_consumption_record, energy_meter};
+use crate::models::{
+    energy_allocation_record, energy_allocation_rule, energy_consumption_record, energy_meter,
+};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::energy_service::{
-    AllocationRecordQuery, ConsumptionQuery,
-    CreateAllocationRecordRequest, CreateConsumptionRequest,
-    CreateMeterRequest, CreateRuleRequest, EnergyAllocationRecordService,
-    EnergyAllocationRuleService, EnergyConsumptionService,
-    EnergyMeterService, MeterQuery, MonthlyAllocationRequest, RuleQuery,
-    UpdateAllocationRecordRequest, UpdateConsumptionRequest, UpdateMeterRequest, UpdateRuleRequest,
+    AllocationRecordQuery, ConsumptionQuery, CreateAllocationRecordRequest,
+    CreateConsumptionRequest, CreateMeterRequest, CreateRuleRequest, EnergyAllocationRecordService,
+    EnergyAllocationRuleService, EnergyConsumptionService, EnergyMeterService, MeterQuery,
+    MonthlyAllocationRequest, RuleQuery, UpdateAllocationRecordRequest, UpdateConsumptionRequest,
+    UpdateMeterRequest, UpdateRuleRequest,
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -643,9 +644,7 @@ pub async fn export_energy_allocations(
 }
 
 /// 构造能耗分摊记录导出表格
-fn build_energy_allocation_xlsx_table(
-    records: &[energy_allocation_record::Model],
-) -> XlsxTable {
+fn build_energy_allocation_xlsx_table(records: &[energy_allocation_record::Model]) -> XlsxTable {
     XlsxTable {
         sheet_name: "能耗分摊".to_string(),
         headers: vec![
@@ -678,12 +677,8 @@ fn build_energy_allocation_xlsx_table(
                         .unwrap_or_default(),
                     r.total_cost.to_string(),
                     r.status.clone(),
-                    r.period_start
-                        .format("%Y-%m-%d %H:%M:%S")
-                        .to_string(),
-                    r.period_end
-                        .format("%Y-%m-%d %H:%M:%S")
-                        .to_string(),
+                    r.period_start.format("%Y-%m-%d %H:%M:%S").to_string(),
+                    r.period_end.format("%Y-%m-%d %H:%M:%S").to_string(),
                 ]
             })
             .collect(),

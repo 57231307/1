@@ -73,7 +73,8 @@ impl InventoryReservationService {
         }
 
         let mut reservation_update: inventory_reservation::ActiveModel = reservation.into();
-        reservation_update.status = sea_orm::ActiveValue::Set(reservation_status::LOCKED.to_string());
+        reservation_update.status =
+            sea_orm::ActiveValue::Set(reservation_status::LOCKED.to_string());
         reservation_update.updated_at = sea_orm::ActiveValue::Set(Utc::now());
 
         let result = reservation_update
@@ -101,7 +102,9 @@ impl InventoryReservationService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("库存预留 {} 未找到", reservation_id)))?;
 
-        if reservation.status != reservation_status::LOCKED && reservation.status != reservation_status::PENDING {
+        if reservation.status != reservation_status::LOCKED
+            && reservation.status != reservation_status::PENDING
+        {
             return Err(AppError::business(format!(
                 "预留状态为{}，只有已锁定或待处理状态的预留可以释放",
                 reservation.status
@@ -109,7 +112,8 @@ impl InventoryReservationService {
         }
 
         let mut reservation_update: inventory_reservation::ActiveModel = reservation.into();
-        reservation_update.status = sea_orm::ActiveValue::Set(reservation_status::RELEASED.to_string());
+        reservation_update.status =
+            sea_orm::ActiveValue::Set(reservation_status::RELEASED.to_string());
         reservation_update.released_at = sea_orm::ActiveValue::Set(Some(Utc::now()));
         reservation_update.updated_at = sea_orm::ActiveValue::Set(Utc::now());
 
@@ -236,8 +240,8 @@ impl InventoryReservationService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::services::test_common::setup_test_db;
     use crate::decs;
+    use crate::services::test_common::setup_test_db;
     use crate::ymd;
     use rust_decimal::Decimal;
     use std::str::FromStr;
@@ -522,7 +526,9 @@ mod tests {
         let service = InventoryReservationService::new(Arc::new(db));
 
         // 无 inventory_reservations 表 schema，分页查询应返回数据库错误
-        let result = service.list_reservations(0, 10, None, None, None, None).await;
+        let result = service
+            .list_reservations(0, 10, None, None, None, None)
+            .await;
         assert!(result.is_err());
     }
 }

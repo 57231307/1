@@ -71,7 +71,12 @@ impl InventoryTransferService {
         let stock_map = Self::load_ship_stock_map(&txn, &transfer, &items).await?;
         for item in items {
             Self::apply_ship_item_deduction(
-                &txn, &transfer, &stock_map, item, &mut pending_events, transfer_id,
+                &txn,
+                &transfer,
+                &stock_map,
+                item,
+                &mut pending_events,
+                transfer_id,
             )
             .await?;
         }
@@ -147,13 +152,23 @@ impl InventoryTransferService {
         let (new_quantity_meters, new_quantity_kg) =
             Self::compute_ship_new_quantities(stock_model, item.quantity);
         Self::update_stock_with_optimistic_lock_for_ship(
-            txn, stock_model.id, stock_model.version, item.quantity,
-            new_quantity_meters, new_quantity_kg, item.product_id,
+            txn,
+            stock_model.id,
+            stock_model.version,
+            item.quantity,
+            new_quantity_meters,
+            new_quantity_kg,
+            item.product_id,
         )
         .await?;
         let inserted = Self::build_and_insert_transfer_out_transaction(
-            txn, transfer, &item, stock_model,
-            new_quantity_meters, new_quantity_kg, transfer_id,
+            txn,
+            transfer,
+            &item,
+            stock_model,
+            new_quantity_meters,
+            new_quantity_kg,
+            transfer_id,
         )
         .await?;
         pending_events.push(Self::build_inventory_transaction_created_event(&inserted));
@@ -225,7 +240,10 @@ impl InventoryTransferService {
     /// 校验乐观锁更新影响行数（0 行=并发冲突）
     fn ensure_rows_affected(rows: u64, product_id: i32) -> Result<(), AppError> {
         if rows == 0 {
-            tracing::error!("Transaction will rollback on drop: 产品 {} 并发冲突", product_id);
+            tracing::error!(
+                "Transaction will rollback on drop: 产品 {} 并发冲突",
+                product_id
+            );
             return Err(AppError::business(format!(
                 "产品 {} 库存记录已被其他用户修改，请重试",
                 product_id
@@ -436,7 +454,10 @@ impl InventoryTransferService {
                 .await?
         };
         let source_stock_map: std::collections::HashMap<i32, inventory_stock::Model> =
-            source_stocks.into_iter().map(|s| (s.product_id, s)).collect();
+            source_stocks
+                .into_iter()
+                .map(|s| (s.product_id, s))
+                .collect();
         Ok((stock_map, source_stock_map))
     }
 
@@ -459,11 +480,13 @@ impl InventoryTransferService {
         pending_events: &mut Vec<crate::services::event_bus::BusinessEvent>,
         transfer_id: i32,
     ) -> Result<(), AppError> {
-        let stock_model = stock_map.get(&item.product_id).ok_or_else(|| {
-            AppError::business(format!("产品 {} 库存记录缺失", item.product_id))
-        })?;
+        let stock_model = stock_map
+            .get(&item.product_id)
+            .ok_or_else(|| AppError::business(format!("产品 {} 库存记录缺失", item.product_id)))?;
         let (quantity_meters, quantity_kg, expected_version) = (
-            stock_model.quantity_meters, stock_model.quantity_kg, stock_model.version,
+            stock_model.quantity_meters,
+            stock_model.quantity_kg,
+            stock_model.version,
         );
         let batch_no = stock_model.batch_no.clone();
         let color_no = stock_model.color_no.clone();
@@ -479,21 +502,33 @@ impl InventoryTransferService {
         let new_quantity_kg = (quantity_kg + (item.quantity * source_kg_per_meter)).round_dp(4);
 
         Self::update_existing_stock_with_optimistic_lock(
-            txn, stock_model.id, expected_version, item.quantity,
-            new_quantity_meters, new_quantity_kg, item.product_id,
+            txn,
+            stock_model.id,
+            expected_version,
+            item.quantity,
+            new_quantity_meters,
+            new_quantity_kg,
+            item.product_id,
         )
         .await?;
 
         let transaction = Self::build_transfer_in_transaction(TransferInTxnFields {
             product_id: item.product_id,
             warehouse_id: transfer.to_warehouse_id,
-            batch_no: &batch_no, color_no: &color_no,
-            dye_lot_no: dye_lot_no.as_deref(), grade: &grade,
-            quantity_meters: item.quantity, quantity_kg: rust_decimal::Decimal::ZERO,
-            quantity_before_meters: Some(quantity_meters), quantity_before_kg: Some(quantity_kg),
-            quantity_after_meters: Some(new_quantity_meters), quantity_after_kg: Some(new_quantity_kg),
+            batch_no: &batch_no,
+            color_no: &color_no,
+            dye_lot_no: dye_lot_no.as_deref(),
+            grade: &grade,
+            quantity_meters: item.quantity,
+            quantity_kg: rust_decimal::Decimal::ZERO,
+            quantity_before_meters: Some(quantity_meters),
+            quantity_before_kg: Some(quantity_kg),
+            quantity_after_meters: Some(new_quantity_meters),
+            quantity_after_kg: Some(new_quantity_kg),
             notes: &format!("调拨入库 - 调拨单号: {}", transfer.transfer_no),
-            created_by: transfer.created_by, transfer_id, transfer_no: &transfer.transfer_no,
+            created_by: transfer.created_by,
+            transfer_id,
+            transfer_no: &transfer.transfer_no,
         });
         let inserted = transaction.insert(txn).await?;
         pending_events.push(Self::build_inventory_transaction_created_event(&inserted));
@@ -547,7 +582,10 @@ impl InventoryTransferService {
         if update_result.rows_affected == 0 {
             // 不在此处显式 rollback：txn 为共享引用，无法 take ownership。
             // 错误向上传播至 receive_transfer 主函数返回时，DatabaseTransaction drop 会自动回滚未提交事务。
-            tracing::error!("Transaction will rollback on drop: 产品 {} 并发冲突", product_id);
+            tracing::error!(
+                "Transaction will rollback on drop: 产品 {} 并发冲突",
+                product_id
+            );
             return Err(AppError::business(format!(
                 "产品 {} 库存记录已被其他用户修改，请重试",
                 product_id
@@ -570,27 +608,41 @@ impl InventoryTransferService {
         let batch_no = s.map(|s| s.batch_no.clone()).unwrap_or_default();
         let color_no = s.map(|s| s.color_no.clone()).unwrap_or_default();
         let dye_lot_no = s.and_then(|s| s.dye_lot_no.clone());
-        let grade = s.map(|s| s.grade.clone()).unwrap_or_else(|| "一等品".to_string());
+        let grade = s
+            .map(|s| s.grade.clone())
+            .unwrap_or_else(|| "一等品".to_string());
         let gram_weight = s.and_then(|s| s.gram_weight);
         let width = s.and_then(|s| s.width);
         let production_date = s.and_then(|s| s.production_date);
         let expiry_date = s.and_then(|s| s.expiry_date);
-        let source_kg_per_meter = s.map(Self::compute_source_kg_per_meter).unwrap_or(rust_decimal::Decimal::ZERO);
+        let source_kg_per_meter = s
+            .map(Self::compute_source_kg_per_meter)
+            .unwrap_or(rust_decimal::Decimal::ZERO);
 
         let new_stock = Self::build_new_stock_active_model(
-            transfer.to_warehouse_id, &item,
+            transfer.to_warehouse_id,
+            &item,
             NewStockFabricFields {
-                batch_no: &batch_no, color_no: &color_no,
-                dye_lot_no: dye_lot_no.as_deref(), grade: &grade,
-                gram_weight, width, production_date, expiry_date, source_kg_per_meter,
+                batch_no: &batch_no,
+                color_no: &color_no,
+                dye_lot_no: dye_lot_no.as_deref(),
+                grade: &grade,
+                gram_weight,
+                width,
+                production_date,
+                expiry_date,
+                source_kg_per_meter,
             },
         );
         new_stock.insert(txn).await?;
 
         let transaction = Self::build_transfer_in_transaction(TransferInTxnFields {
-            product_id: item.product_id, warehouse_id: transfer.to_warehouse_id,
-            batch_no: &batch_no, color_no: &color_no,
-            dye_lot_no: dye_lot_no.as_deref(), grade: &grade,
+            product_id: item.product_id,
+            warehouse_id: transfer.to_warehouse_id,
+            batch_no: &batch_no,
+            color_no: &color_no,
+            dye_lot_no: dye_lot_no.as_deref(),
+            grade: &grade,
             quantity_meters: item.quantity,
             quantity_kg: (item.quantity * source_kg_per_meter).round_dp(4),
             quantity_before_meters: Some(rust_decimal::Decimal::ZERO),
@@ -598,7 +650,9 @@ impl InventoryTransferService {
             quantity_after_meters: Some(item.quantity),
             quantity_after_kg: Some((item.quantity * source_kg_per_meter).round_dp(4)),
             notes: &format!("调拨入库（新建库存） - 调拨单号: {}", transfer.transfer_no),
-            created_by: transfer.created_by, transfer_id, transfer_no: &transfer.transfer_no,
+            created_by: transfer.created_by,
+            transfer_id,
+            transfer_no: &transfer.transfer_no,
         });
         let inserted = transaction.insert(txn).await?;
         pending_events.push(Self::build_inventory_transaction_created_event(&inserted));

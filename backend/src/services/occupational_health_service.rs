@@ -8,11 +8,11 @@
 //! - 职业健康体检档案（上岗前/在岗期间/离岗时），在岗期间体检到期提醒
 //! - PPE 个人防护用品发放记录，到期/回收状态管理
 
-use crate::models::occupational_health_exam::{
-    self, ActiveModel as ExamActiveModel, Entity as ExamEntity, Model as ExamModel,
-};
 use crate::models::occupational_hazard_monitoring::{
     self, ActiveModel as HazardActiveModel, Entity as HazardEntity, Model as HazardModel,
+};
+use crate::models::occupational_health_exam::{
+    self, ActiveModel as ExamActiveModel, Entity as ExamEntity, Model as ExamModel,
 };
 use crate::models::ppe_distribution_record::{
     self, ActiveModel as PpeActiveModel, Entity as PpeEntity, Model as PpeModel,
@@ -140,7 +140,10 @@ pub enum ExamExpiryWarningLevel {
 
 impl ExamExpiryWarningLevel {
     pub fn needs_warning(&self) -> bool {
-        matches!(self, Self::Expired | Self::Critical | Self::Warning | Self::Notice)
+        matches!(
+            self,
+            Self::Expired | Self::Critical | Self::Warning | Self::Notice
+        )
     }
 }
 
@@ -166,16 +169,16 @@ impl OccupationalHazardLimitReference {
     pub fn get_limit(hazard_type: &str, hazard_name: &str) -> Option<Decimal> {
         match (hazard_type, hazard_name) {
             // 化学有害因素（GBZ 2.1）
-            ("chemical", "苯") | ("chemical", "benzene") => Some(Decimal::new(6, 0)),    // 6 mg/m³
+            ("chemical", "苯") | ("chemical", "benzene") => Some(Decimal::new(6, 0)), // 6 mg/m³
             ("chemical", "甲醛") | ("chemical", "formaldehyde") => Some(Decimal::new(5, 1)), // 0.5 mg/m³
             ("chemical", "甲苯") | ("chemical", "toluene") => Some(Decimal::new(50, 0)), // 50 mg/m³
             ("chemical", "二甲苯") | ("chemical", "xylene") => Some(Decimal::new(50, 0)), // 50 mg/m³
             // 物理因素（GBZ 2.2）
-            ("physical", "噪声") | ("physical", "noise") => Some(Decimal::new(85, 0)),   // 85 dB
-            ("physical", "高温") | ("physical", "heat") => Some(Decimal::new(35, 0)),     // 35℃（综合温度）
+            ("physical", "噪声") | ("physical", "noise") => Some(Decimal::new(85, 0)), // 85 dB
+            ("physical", "高温") | ("physical", "heat") => Some(Decimal::new(35, 0)), // 35℃（综合温度）
             // 粉尘（总尘）
-            ("dust", "棉尘") | ("dust", "cotton_dust") => Some(Decimal::new(1, 0)),       // 1 mg/m³
-            ("dust", "矽尘") | ("dust", "silica") => Some(Decimal::new(1, 0)),            // 1 mg/m³（含10%以上游离二氧化硅）
+            ("dust", "棉尘") | ("dust", "cotton_dust") => Some(Decimal::new(1, 0)), // 1 mg/m³
+            ("dust", "矽尘") | ("dust", "silica") => Some(Decimal::new(1, 0)), // 1 mg/m³（含10%以上游离二氧化硅）
             _ => None,
         }
     }
@@ -206,7 +209,8 @@ impl OccupationalHealthService {
         }
 
         // 自动判定是否超标
-        let (is_exceeding, exceeding_ratio) = Self::check_exceedance(req.measured_value, req.limit_value);
+        let (is_exceeding, exceeding_ratio) =
+            Self::check_exceedance(req.measured_value, req.limit_value);
 
         let now = crate::utils::date_utils::utc_now_fixed();
         let active = HazardActiveModel {
@@ -256,10 +260,12 @@ impl OccupationalHealthService {
         let mut query = HazardEntity::find();
 
         if let Some(hazard_type) = &params.hazard_type {
-            query = query.filter(occupational_hazard_monitoring::Column::HazardType.eq(hazard_type));
+            query =
+                query.filter(occupational_hazard_monitoring::Column::HazardType.eq(hazard_type));
         }
         if let Some(hazard_name) = &params.hazard_name {
-            query = query.filter(occupational_hazard_monitoring::Column::HazardName.eq(hazard_name));
+            query =
+                query.filter(occupational_hazard_monitoring::Column::HazardName.eq(hazard_name));
         }
         if params.only_exceeding.unwrap_or(false) {
             query = query.filter(occupational_hazard_monitoring::Column::IsExceeding.eq(true));

@@ -62,7 +62,9 @@ impl SystemUpdateService {
         // 原 L1 修复仅添加重定向限制，未用 resolve_to_addrs 防 DNS Rebinding
         // 攻击者可在 DNS 解析后修改记录指向内网 IP（DNS Rebinding TOCTOU）
         let (api_host, api_safe_addrs) = crate::utils::ssrf_guard::validate_url_and_resolve(&url)
-            .map_err(|e| UpdateError::NetworkError(format!("GitHub API URL SSRF 校验失败: {}", e)))?;
+            .map_err(|e| {
+            UpdateError::NetworkError(format!("GitHub API URL SSRF 校验失败: {}", e))
+        })?;
 
         let client = reqwest::Client::builder()
             .user_agent("BingxiERP/1.0")

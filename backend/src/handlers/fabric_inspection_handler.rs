@@ -70,7 +70,9 @@ pub async fn list_inspections(
     };
 
     let (items, total) = inspection_service(&state).list(svc_query).await?;
-    Ok(Json(ApiResponse::success_paginated(items, total, page, page_size)))
+    Ok(Json(ApiResponse::success_paginated(
+        items, total, page, page_size,
+    )))
 }
 
 /// GET /api/v1/erp/fabric-inspections/:id - 查询验布记录详情
@@ -97,7 +99,10 @@ pub async fn create_inspection(
     Json(req): Json<CreateInspectionRequest>,
 ) -> Result<Json<ApiResponse<fabric_inspection_record::Model>>, AppError> {
     let created = inspection_service(&state).create(req).await?;
-    Ok(Json(ApiResponse::success_with_message(created, "验布记录创建成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        created,
+        "验布记录创建成功",
+    )))
 }
 
 /// PUT /api/v1/erp/fabric-inspections/:id - 更新验布记录（仅 pending 状态）
@@ -107,7 +112,10 @@ pub async fn update_inspection(
     Json(req): Json<UpdateInspectionRequest>,
 ) -> Result<Json<ApiResponse<fabric_inspection_record::Model>>, AppError> {
     let updated = inspection_service(&state).update(id, req).await?;
-    Ok(Json(ApiResponse::success_with_message(updated, "验布记录更新成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "验布记录更新成功",
+    )))
 }
 
 /// DELETE /api/v1/erp/fabric-inspections/:id - 软删除验布记录（仅 pending 状态）
@@ -116,7 +124,10 @@ pub async fn delete_inspection(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     inspection_service(&state).delete(id).await?;
-    Ok(Json(ApiResponse::success_with_message((), "验布记录删除成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "验布记录删除成功",
+    )))
 }
 
 /// POST /api/v1/erp/fabric-inspections/:id/start - 开始验布（pending → inspecting）
@@ -125,7 +136,10 @@ pub async fn start_inspection(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<fabric_inspection_record::Model>>, AppError> {
     let updated = inspection_service(&state).start_inspection(id).await?;
-    Ok(Json(ApiResponse::success_with_message(updated, "已开始验布")))
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "已开始验布",
+    )))
 }
 
 /// POST /api/v1/erp/fabric-inspections/:id/grade - 评级（inspecting → graded）
@@ -135,7 +149,10 @@ pub async fn grade_inspection(
     Json(req): Json<GradeInspectionRequest>,
 ) -> Result<Json<ApiResponse<fabric_inspection_record::Model>>, AppError> {
     let updated = inspection_service(&state).grade_inspection(id, req).await?;
-    Ok(Json(ApiResponse::success_with_message(updated, "验布评级完成")))
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "验布评级完成",
+    )))
 }
 
 /// POST /api/v1/erp/fabric-inspections/:id/roll - 打卷入库（graded → rolled）
@@ -145,7 +162,10 @@ pub async fn roll_fabric(
     Json(req): Json<RollFabricRequest>,
 ) -> Result<Json<ApiResponse<fabric_inspection_record::Model>>, AppError> {
     let updated = inspection_service(&state).roll_fabric(id, req).await?;
-    Ok(Json(ApiResponse::success_with_message(updated, "打卷入库成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "打卷入库成功",
+    )))
 }
 
 /// POST /api/v1/erp/fabric-inspections/:id/close - 关闭归档（rolled → closed）
@@ -154,7 +174,10 @@ pub async fn close_inspection(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<fabric_inspection_record::Model>>, AppError> {
     let updated = inspection_service(&state).close_inspection(id).await?;
-    Ok(Json(ApiResponse::success_with_message(updated, "验布记录已关闭归档")))
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "验布记录已关闭归档",
+    )))
 }
 
 // ============================================================================
@@ -166,7 +189,9 @@ pub async fn list_defects_by_inspection(
     State(state): State<AppState>,
     Path(inspection_id): Path<i32>,
 ) -> Result<Json<ApiResponse<Vec<fabric_defect_record::Model>>>, AppError> {
-    let defects = defect_service(&state).list_by_inspection(inspection_id).await?;
+    let defects = defect_service(&state)
+        .list_by_inspection(inspection_id)
+        .await?;
     Ok(Json(ApiResponse::success(defects)))
 }
 
@@ -185,7 +210,10 @@ pub async fn create_defect(
     Json(req): Json<CreateDefectRequest>,
 ) -> Result<Json<ApiResponse<fabric_defect_record::Model>>, AppError> {
     let created = defect_service(&state).create(req).await?;
-    Ok(Json(ApiResponse::success_with_message(created, "疵点明细添加成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        created,
+        "疵点明细添加成功",
+    )))
 }
 
 /// DELETE /api/v1/erp/fabric-defects/:id - 删除疵点明细（仅 inspecting 状态）
@@ -194,5 +222,8 @@ pub async fn delete_defect(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     defect_service(&state).delete(id).await?;
-    Ok(Json(ApiResponse::success_with_message((), "疵点明细删除成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "疵点明细删除成功",
+    )))
 }

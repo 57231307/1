@@ -8,13 +8,15 @@
 //! - 排程结果保存
 
 use super::scheduling_service::SchedulingService;
-use crate::models::production_order::{Entity as ProductionOrderEntity, Model as ProductionOrderModel};
+use crate::models::production_order::{
+    Entity as ProductionOrderEntity, Model as ProductionOrderModel,
+};
 use crate::models::scheduling_result::ActiveModel as SchedulingActiveModel;
 use crate::models::work_center::{Entity as WorkCenterEntity, Model as WorkCenterModel};
 use crate::services::capacity_service::WorkCenterCapacity;
 use crate::services::scheduling_service::{
-    AutoScheduleRequest, AutoScheduleResult, DateRange, GanttData, ScheduleConflict, ScheduleDetail,
-    WorkCenterInfo,
+    AutoScheduleRequest, AutoScheduleResult, DateRange, GanttData, ScheduleConflict,
+    ScheduleDetail, WorkCenterInfo,
 };
 use crate::utils::error::AppError;
 use chrono::{Duration, NaiveDate, Utc};
@@ -103,10 +105,9 @@ impl SchedulingService {
         scheduled_details: &mut Vec<ScheduleDetail>,
     ) -> bool {
         let quantity = order.planned_quantity;
-        let wc_id =
-            order
-                .work_center_id
-                .unwrap_or_else(|| work_centers.first().map(|wc| wc.id).unwrap_or(0));
+        let wc_id = order
+            .work_center_id
+            .unwrap_or_else(|| work_centers.first().map(|wc| wc.id).unwrap_or(0));
         if wc_id == 0 || !wc_capacity.contains_key(&wc_id) {
             conflicts.push(Self::build_no_work_center_conflict(order));
             return false;
@@ -115,9 +116,14 @@ impl SchedulingService {
         if quantity.is_zero() {
             return false;
         }
-        let available = wc_available_capacity.get(&wc_id).copied().unwrap_or(Decimal::ZERO);
+        let available = wc_available_capacity
+            .get(&wc_id)
+            .copied()
+            .unwrap_or(Decimal::ZERO);
         if quantity > available {
-            conflicts.push(Self::build_capacity_insufficient_conflict(order, wc_id, cap, available));
+            conflicts.push(Self::build_capacity_insufficient_conflict(
+                order, wc_id, cap, available,
+            ));
             return false;
         }
         wc_available_capacity.insert(wc_id, available - quantity);
@@ -131,8 +137,19 @@ impl SchedulingService {
         if has_overlap {
             conflicts.push(Self::build_time_overlap_conflict(order, wc_id, cap));
         }
-        schedule.push((assigned_start, assigned_end, order.id, order.order_no.clone()));
-        scheduled_details.push(Self::build_scheduled_detail(order, wc_id, cap, assigned_start, assigned_end));
+        schedule.push((
+            assigned_start,
+            assigned_end,
+            order.id,
+            order.order_no.clone(),
+        ));
+        scheduled_details.push(Self::build_scheduled_detail(
+            order,
+            wc_id,
+            cap,
+            assigned_start,
+            assigned_end,
+        ));
         true
     }
 
@@ -378,9 +395,11 @@ impl SchedulingService {
             status: Set("DRAFT".to_string()),
             total_orders: Set(result.total_orders.unwrap_or(0)),
             scheduled_orders: Set(result.scheduled_count),
-            unscheduled_orders: Set(
-                result.unscheduled_orders.as_ref().map(|v| v.len() as i32).unwrap_or(0),
-            ),
+            unscheduled_orders: Set(result
+                .unscheduled_orders
+                .as_ref()
+                .map(|v| v.len() as i32)
+                .unwrap_or(0)),
             conflict_count: Set(result.conflicts.len() as i32),
             schedule_start_date: Set(start_date),
             schedule_end_date: Set(end_date),
@@ -528,9 +547,7 @@ fn sort_orders_by_strategy(
 }
 
 /// 构造工作中心产能映射（id -> WorkCenterCapacity）。
-fn build_wc_capacity_map(
-    work_centers: &[WorkCenterModel],
-) -> HashMap<i32, WorkCenterCapacity> {
+fn build_wc_capacity_map(work_centers: &[WorkCenterModel]) -> HashMap<i32, WorkCenterCapacity> {
     let mut map = HashMap::new();
     for wc in work_centers {
         let daily_cap = wc.daily_capacity.unwrap_or(Decimal::new(100, 0));

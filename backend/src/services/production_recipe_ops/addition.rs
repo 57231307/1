@@ -103,10 +103,7 @@ impl ProductionRecipeAdditionService {
     }
 
     /// 按大货处方查询加料单列表
-    pub async fn list_by_recipe(
-        &self,
-        recipe_id: i32,
-    ) -> Result<Vec<AdditionModel>, AppError> {
+    pub async fn list_by_recipe(&self, recipe_id: i32) -> Result<Vec<AdditionModel>, AppError> {
         let items = AdditionEntity::find()
             .filter(production_recipe_addition::Column::ProductionRecipeId.eq(recipe_id))
             .filter(production_recipe_addition::Column::IsDeleted.eq(false))
@@ -124,8 +121,8 @@ impl ProductionRecipeAdditionService {
         let page = query.page.unwrap_or(1).max(1);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
-        let mut q = AdditionEntity::find()
-            .filter(production_recipe_addition::Column::IsDeleted.eq(false));
+        let mut q =
+            AdditionEntity::find().filter(production_recipe_addition::Column::IsDeleted.eq(false));
 
         if let Some(rid) = query.production_recipe_id {
             q = q.filter(production_recipe_addition::Column::ProductionRecipeId.eq(rid));

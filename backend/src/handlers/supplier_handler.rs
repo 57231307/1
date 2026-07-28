@@ -1,4 +1,3 @@
-
 use crate::middleware::auth_context::AuthContext;
 use crate::services::supplier_service::{
     CreateContactRequest, CreateQualificationRequest, CreateSupplierRequest, SupplierQueryParams,
@@ -8,9 +7,7 @@ use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 // V15 P0-S15/P0-S12 补齐（Batch 474）：导出端点使用水印版 xlsx 工具
-use crate::utils::xlsx_export::{
-    build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable,
-};
+use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
 use axum::{
     extract::{Path, Query, State},
     Json,
@@ -28,17 +25,23 @@ pub async fn list_suppliers(
     let service = SupplierService::new(state.db.clone());
     // V15 P0-S01：提取行级数据权限上下文
     let data_scope_ctx = auth.to_data_scope_context();
-    let result = service.list_suppliers(params, Some(&data_scope_ctx)).await?;
+    let result = service
+        .list_suppliers(params, Some(&data_scope_ctx))
+        .await?;
 
     let mut value = serde_json::to_value(result).map_err(AppError::from)?;
     // P1-08-5：非管理员对供应商列表手机号/邮箱脱敏（含 contacts 子数组）
-    value = crate::utils::field_mask::mask_contact_fields_batch_for_role(value, auth.role_id, "list");
-    value = crate::utils::field_mask::mask_contact_fields_batch_for_role(value, auth.role_id, "items");
-    value = crate::utils::field_mask::mask_contact_fields_batch_for_role(value, auth.role_id, "data");
+    value =
+        crate::utils::field_mask::mask_contact_fields_batch_for_role(value, auth.role_id, "list");
+    value =
+        crate::utils::field_mask::mask_contact_fields_batch_for_role(value, auth.role_id, "items");
+    value =
+        crate::utils::field_mask::mask_contact_fields_batch_for_role(value, auth.role_id, "data");
     // 顶层若为数组也脱敏
     if let Some(arr) = value.as_array_mut() {
         for item in arr.iter_mut() {
-            *item = crate::utils::field_mask::mask_contact_fields_for_role(item.clone(), auth.role_id);
+            *item =
+                crate::utils::field_mask::mask_contact_fields_for_role(item.clone(), auth.role_id);
         }
     }
 

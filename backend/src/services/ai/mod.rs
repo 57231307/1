@@ -11,7 +11,6 @@
 //! 兼容说明：原 `crate::services::ai::*` 路径需要由上层
 //! `services/mod.rs` 通过 `pub use super::ai::*;` 重新导出以保持向后兼容。
 
-
 use moka::future::Cache;
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;

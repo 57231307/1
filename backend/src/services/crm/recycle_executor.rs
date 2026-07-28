@@ -158,16 +158,10 @@ impl RecycleExecutor {
                 tracing::info!("[RecycleExecutor] 定时任务触发");
                 match self.run_once().await {
                     Ok(count) => {
-                        tracing::info!(
-                            "[RecycleExecutor] 定时任务完成，回收 {} 条线索",
-                            count
-                        );
+                        tracing::info!("[RecycleExecutor] 定时任务完成，回收 {} 条线索", count);
                     }
                     Err(e) => {
-                        tracing::warn!(
-                            "[RecycleExecutor] 定时任务失败：{}，下次循环继续",
-                            e
-                        );
+                        tracing::warn!("[RecycleExecutor] 定时任务失败：{}，下次循环继续", e);
                     }
                 }
                 tokio::time::sleep(interval).await;

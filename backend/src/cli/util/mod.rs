@@ -148,14 +148,14 @@ pub async fn run(cmd: UtilCommand) -> Result<(), Box<dyn std::error::Error>> {
                 eprintln!("❌ 备份失败，请检查日志");
                 std::process::exit(1);
             }
-        },
+        }
         UtilCommand::Restore { file } => {
             // L-1 修复（批次 367 v13 复审）：恢复失败时输出错误并退出，避免吞错
             if !backup::cmd_restore(&file) {
                 eprintln!("❌ 恢复失败，请检查日志");
                 std::process::exit(1);
             }
-        },
+        }
         UtilCommand::Health => service::cmd_health(),
         UtilCommand::Upgrade { version, no_backup } => upgrade::cmd_upgrade(version, no_backup),
         UtilCommand::Deploy { package } => upgrade::cmd_deploy(&package),
@@ -182,7 +182,10 @@ pub(crate) fn require_root() {
         Ok(out) => {
             let uid = out.trim();
             if uid != "0" {
-                eprintln!("❌ 错误：此命令必须以 root 权限运行（请使用 sudo，当前 uid={}）", uid);
+                eprintln!(
+                    "❌ 错误：此命令必须以 root 权限运行（请使用 sudo，当前 uid={}）",
+                    uid
+                );
                 std::process::exit(1);
             }
         }
@@ -255,7 +258,6 @@ pub(crate) fn build_release_url(version: &str) -> String {
         GITHUB_REPO, version, version
     )
 }
-
 
 /// 带镜像源的下载 (自动尝试多个镜像)
 pub(crate) fn download_with_mirrors(url: &str, output: &str, timeout: u32) -> bool {

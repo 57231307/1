@@ -15,103 +15,136 @@ use sea_orm_migration::prelude::*;
 /// 整合迁移条目：(名称, up.sql 内容)
 const UNREFERENCED_MIGRATIONS: &[(&str, &str)] = &[
     // 20260616 系列（容灾表）
-    ("20260616000005_create_failover_tables", include_str!(
-        "../../migrations/20260616000005_create_failover_tables/up.sql"
-    )),
+    (
+        "20260616000005_create_failover_tables",
+        include_str!("../../migrations/20260616000005_create_failover_tables/up.sql"),
+    ),
     // 20260617 系列（定制订单/工艺/质量/售后/色卡/AI/维度表）
-    ("20260617000001_create_custom_orders", include_str!(
-        "../../migrations/20260617000001_create_custom_orders/up.sql"
-    )),
-    ("20260617000002_create_process_nodes", include_str!(
-        "../../migrations/20260617000002_create_process_nodes/up.sql"
-    )),
-    ("20260617000003_create_process_logs", include_str!(
-        "../../migrations/20260617000003_create_process_logs/up.sql"
-    )),
-    ("20260617000004_create_quality_issues", include_str!(
-        "../../migrations/20260617000004_create_quality_issues/up.sql"
-    )),
-    ("20260617000005_create_after_sales", include_str!(
-        "../../migrations/20260617000005_create_after_sales/up.sql"
-    )),
-    ("20260617000006_create_color_cards", include_str!(
-        "../../migrations/20260617000006_create_color_cards/up.sql"
-    )),
-    ("20260617000007_create_color_card_items", include_str!(
-        "../../migrations/20260617000007_create_color_card_items/up.sql"
-    )),
-    ("20260617000008_create_color_card_borrow_records", include_str!(
-        "../../migrations/20260617000008_create_color_card_borrow_records/up.sql"
-    )),
-    ("20260617000009_create_ai_process_optimizations", include_str!(
-        "../../migrations/20260617000009_create_ai_process_optimizations/up.sql"
-    )),
-    ("20260617000010_create_ai_quality_predictions", include_str!(
-        "../../migrations/20260617000010_create_ai_quality_predictions/up.sql"
-    )),
-    ("20260617000011_create_sales_facts", include_str!(
-        "../../migrations/20260617000011_create_sales_facts/up.sql"
-    )),
-    ("20260617000012_create_dim_products", include_str!(
-        "../../migrations/20260617000012_create_dim_products/up.sql"
-    )),
-    ("20260617000013_create_dim_customers", include_str!(
-        "../../migrations/20260617000013_create_dim_customers/up.sql"
-    )),
-    ("20260617000014_create_dim_dates", include_str!(
-        "../../migrations/20260617000014_create_dim_dates/up.sql"
-    )),
+    (
+        "20260617000001_create_custom_orders",
+        include_str!("../../migrations/20260617000001_create_custom_orders/up.sql"),
+    ),
+    (
+        "20260617000002_create_process_nodes",
+        include_str!("../../migrations/20260617000002_create_process_nodes/up.sql"),
+    ),
+    (
+        "20260617000003_create_process_logs",
+        include_str!("../../migrations/20260617000003_create_process_logs/up.sql"),
+    ),
+    (
+        "20260617000004_create_quality_issues",
+        include_str!("../../migrations/20260617000004_create_quality_issues/up.sql"),
+    ),
+    (
+        "20260617000005_create_after_sales",
+        include_str!("../../migrations/20260617000005_create_after_sales/up.sql"),
+    ),
+    (
+        "20260617000006_create_color_cards",
+        include_str!("../../migrations/20260617000006_create_color_cards/up.sql"),
+    ),
+    (
+        "20260617000007_create_color_card_items",
+        include_str!("../../migrations/20260617000007_create_color_card_items/up.sql"),
+    ),
+    (
+        "20260617000008_create_color_card_borrow_records",
+        include_str!("../../migrations/20260617000008_create_color_card_borrow_records/up.sql"),
+    ),
+    (
+        "20260617000009_create_ai_process_optimizations",
+        include_str!("../../migrations/20260617000009_create_ai_process_optimizations/up.sql"),
+    ),
+    (
+        "20260617000010_create_ai_quality_predictions",
+        include_str!("../../migrations/20260617000010_create_ai_quality_predictions/up.sql"),
+    ),
+    (
+        "20260617000011_create_sales_facts",
+        include_str!("../../migrations/20260617000011_create_sales_facts/up.sql"),
+    ),
+    (
+        "20260617000012_create_dim_products",
+        include_str!("../../migrations/20260617000012_create_dim_products/up.sql"),
+    ),
+    (
+        "20260617000013_create_dim_customers",
+        include_str!("../../migrations/20260617000013_create_dim_customers/up.sql"),
+    ),
+    (
+        "20260617000014_create_dim_dates",
+        include_str!("../../migrations/20260617000014_create_dim_dates/up.sql"),
+    ),
     // 20260618 系列（增强版销售报价/色价历史/梯度/客户色价/季节性价格）
-    ("20260618000001_create_sales_quotations", include_str!(
-        "../../migrations/20260618000001_create_sales_quotations/up.sql"
-    )),
-    ("20260618000001_extend_product_color_prices", include_str!(
-        "../../migrations/20260618000001_extend_product_color_prices/up.sql"
-    )),
-    ("20260618000002_create_color_price_history", include_str!(
-        "../../migrations/20260618000002_create_color_price_history/up.sql"
-    )),
-    ("20260618000002_create_sales_quotation_items", include_str!(
-        "../../migrations/20260618000002_create_sales_quotation_items/up.sql"
-    )),
-    ("20260618000003_create_color_price_tiers", include_str!(
-        "../../migrations/20260618000003_create_color_price_tiers/up.sql"
-    )),
-    ("20260618000003_create_sales_quotation_terms", include_str!(
-        "../../migrations/20260618000003_create_sales_quotation_terms/up.sql"
-    )),
-    ("20260618000004_create_customer_color_prices", include_str!(
-        "../../migrations/20260618000004_create_customer_color_prices/up.sql"
-    )),
-    ("20260618000005_create_seasonal_price_rules", include_str!(
-        "../../migrations/20260618000005_create_seasonal_price_rules/up.sql"
-    )),
+    (
+        "20260618000001_create_sales_quotations",
+        include_str!("../../migrations/20260618000001_create_sales_quotations/up.sql"),
+    ),
+    (
+        "20260618000001_extend_product_color_prices",
+        include_str!("../../migrations/20260618000001_extend_product_color_prices/up.sql"),
+    ),
+    (
+        "20260618000002_create_color_price_history",
+        include_str!("../../migrations/20260618000002_create_color_price_history/up.sql"),
+    ),
+    (
+        "20260618000002_create_sales_quotation_items",
+        include_str!("../../migrations/20260618000002_create_sales_quotation_items/up.sql"),
+    ),
+    (
+        "20260618000003_create_color_price_tiers",
+        include_str!("../../migrations/20260618000003_create_color_price_tiers/up.sql"),
+    ),
+    (
+        "20260618000003_create_sales_quotation_terms",
+        include_str!("../../migrations/20260618000003_create_sales_quotation_terms/up.sql"),
+    ),
+    (
+        "20260618000004_create_customer_color_prices",
+        include_str!("../../migrations/20260618000004_create_customer_color_prices/up.sql"),
+    ),
+    (
+        "20260618000005_create_seasonal_price_rules",
+        include_str!("../../migrations/20260618000005_create_seasonal_price_rules/up.sql"),
+    ),
     // 20260706 系列（TOTP/库存对齐/跟踪/预算）
-    ("20260706000001_add_totp_recovery_codes_to_users", include_str!(
-        "../../migrations/20260706000001_add_totp_recovery_codes_to_users/up.sql"
-    )),
-    ("20260706000002_align_inventory_count_schema", include_str!(
-        "../../migrations/20260706000002_align_inventory_count_schema/up.sql"
-    )),
-    ("20260706000003_create_tracking_tables", include_str!(
-        "../../migrations/20260706000003_create_tracking_tables/up.sql"
-    )),
-    ("20260706000004_add_max_stock_point_to_inventory_stocks", include_str!(
-        "../../migrations/20260706000004_add_max_stock_point_to_inventory_stocks/up.sql"
-    )),
-    ("20260706000005_extend_budget_management", include_str!(
-        "../../migrations/20260706000005_extend_budget_management/up.sql"
-    )),
+    (
+        "20260706000001_add_totp_recovery_codes_to_users",
+        include_str!("../../migrations/20260706000001_add_totp_recovery_codes_to_users/up.sql"),
+    ),
+    (
+        "20260706000002_align_inventory_count_schema",
+        include_str!("../../migrations/20260706000002_align_inventory_count_schema/up.sql"),
+    ),
+    (
+        "20260706000003_create_tracking_tables",
+        include_str!("../../migrations/20260706000003_create_tracking_tables/up.sql"),
+    ),
+    (
+        "20260706000004_add_max_stock_point_to_inventory_stocks",
+        include_str!(
+            "../../migrations/20260706000004_add_max_stock_point_to_inventory_stocks/up.sql"
+        ),
+    ),
+    (
+        "20260706000005_extend_budget_management",
+        include_str!("../../migrations/20260706000005_extend_budget_management/up.sql"),
+    ),
     // 20260707 系列（仓库容量/API密钥描述/密码历史）
-    ("20260707000001_add_capacity_to_warehouses", include_str!(
-        "../../migrations/20260707000001_add_capacity_to_warehouses/up.sql"
-    )),
-    ("20260707000002_add_description_to_api_keys", include_str!(
-        "../../migrations/20260707000002_add_description_to_api_keys/up.sql"
-    )),
-    ("20260707000003_create_password_histories", include_str!(
-        "../../migrations/20260707000003_create_password_histories/up.sql"
-    )),
+    (
+        "20260707000001_add_capacity_to_warehouses",
+        include_str!("../../migrations/20260707000001_add_capacity_to_warehouses/up.sql"),
+    ),
+    (
+        "20260707000002_add_description_to_api_keys",
+        include_str!("../../migrations/20260707000002_add_description_to_api_keys/up.sql"),
+    ),
+    (
+        "20260707000003_create_password_histories",
+        include_str!("../../migrations/20260707000003_create_password_histories/up.sql"),
+    ),
 ];
 
 /// 修复 SQL 中 BIGINT 外键类型不匹配问题
@@ -158,9 +191,9 @@ impl MigrationTrait for Migration {
             if !sql.trim().is_empty() {
                 // 修复 BIGINT 外键类型不匹配后再执行
                 let fixed_sql = fix_fk_types(sql);
-                db.execute_unprepared(&fixed_sql).await.map_err(|e| {
-                    DbErr::Custom(format!("执行整合迁移 {} 失败: {}", name, e))
-                })?;
+                db.execute_unprepared(&fixed_sql)
+                    .await
+                    .map_err(|e| DbErr::Custom(format!("执行整合迁移 {} 失败: {}", name, e)))?;
             }
         }
         Ok(())

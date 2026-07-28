@@ -302,6 +302,8 @@ pub async fn execute_approval(
         attachment_urls: None,
     };
     // P0 8-4 修复：传入真实认证用户 user_id 用于审计追溯（防止代审追溯丢失）
-    service.approve_task(approve_req, Some(auth.user_id)).await?;
+    service
+        .approve_task(approve_req, Some(auth.user_id))
+        .await?;
     Ok(Json(ApiResponse::success("审批执行成功".to_string())))
 }

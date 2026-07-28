@@ -251,43 +251,33 @@ mod tests {
     /// 测试_validate_transition_with_rule_合法流转通过
     #[test]
     fn 测试_validate_transition_with_rule_合法流转通过() {
+        assert!(validate_transition_with_rule(
+            Some(status::PENDING_SCHEDULE),
+            status::SCHEDULED,
+            code::SCHEDULE,
+        )
+        .is_ok());
         assert!(
-            validate_transition_with_rule(
-                Some(status::PENDING_SCHEDULE),
-                status::SCHEDULED,
-                code::SCHEDULE,
-            )
-            .is_ok()
-        );
-        assert!(
-            validate_transition_with_rule(
-                Some(status::DYEING),
-                status::WASHING,
-                code::WASH,
-            )
-            .is_ok()
+            validate_transition_with_rule(Some(status::DYEING), status::WASHING, code::WASH,)
+                .is_ok()
         );
     }
 
     /// 测试_validate_transition_with_rule_非法流转失败
     #[test]
     fn 测试_validate_transition_with_rule_非法流转失败() {
-        assert!(
-            validate_transition_with_rule(
-                Some(status::PENDING_SCHEDULE),
-                status::SHIPPED,
-                code::SHIP,
-            )
-            .is_err()
-        );
-        assert!(
-            validate_transition_with_rule(
-                Some(status::SHIPPED),
-                status::STORED,
-                code::INSPECT,
-            )
-            .is_err()
-        );
+        assert!(validate_transition_with_rule(
+            Some(status::PENDING_SCHEDULE),
+            status::SHIPPED,
+            code::SHIP,
+        )
+        .is_err());
+        assert!(validate_transition_with_rule(
+            Some(status::SHIPPED),
+            status::STORED,
+            code::INSPECT,
+        )
+        .is_err());
     }
 
     // ===== 完整业务流程测试（需要真实 PostgreSQL，标记 ignore）=====

@@ -30,11 +30,9 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::info;
 
-use crate::models::{
-    customer, customer_share, customer_team_member, user,
-};
 use crate::models::customer_share as share_model;
 use crate::models::customer_team_member as team_model;
+use crate::models::{customer, customer_share, customer_team_member, user};
 use crate::utils::error::AppError;
 
 // =====================================================
@@ -200,7 +198,9 @@ impl CustomerTeamShareService {
         }
 
         // 3. 校验角色合法性
-        let team_role = req.team_role.unwrap_or_else(|| team_model::TEAM_ROLE_MEMBER.to_string());
+        let team_role = req
+            .team_role
+            .unwrap_or_else(|| team_model::TEAM_ROLE_MEMBER.to_string());
         Self::validate_team_role(&team_role)?;
 
         // 4. primary 唯一性校验
@@ -364,7 +364,9 @@ impl CustomerTeamShareService {
     /// 校验团队角色合法性
     fn validate_team_role(role: &str) -> Result<(), AppError> {
         match role {
-            team_model::TEAM_ROLE_PRIMARY | team_model::TEAM_ROLE_MEMBER | team_model::TEAM_ROLE_ASSISTANT => Ok(()),
+            team_model::TEAM_ROLE_PRIMARY
+            | team_model::TEAM_ROLE_MEMBER
+            | team_model::TEAM_ROLE_ASSISTANT => Ok(()),
             _ => Err(AppError::validation(format!(
                 "无效的团队角色：{}，必须是 primary/member/assistant",
                 role
@@ -445,7 +447,9 @@ impl CustomerTeamShareService {
         let to_user = user::Entity::find_by_id(req.shared_to_user_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::validation(format!("被共享方用户 {} 不存在", req.shared_to_user_id)))?;
+            .ok_or_else(|| {
+                AppError::validation(format!("被共享方用户 {} 不存在", req.shared_to_user_id))
+            })?;
         if !to_user.is_active {
             return Err(AppError::validation(format!(
                 "被共享方用户 {} 已停用，无法共享",
@@ -463,7 +467,9 @@ impl CustomerTeamShareService {
             .await?;
 
         // 5. 校验权限类型合法性
-        let permission = req.permission.unwrap_or_else(|| share_model::SHARE_PERMISSION_VIEW.to_string());
+        let permission = req
+            .permission
+            .unwrap_or_else(|| share_model::SHARE_PERMISSION_VIEW.to_string());
         Self::validate_share_permission_type(&permission)?;
 
         // 6. 唯一性校验：同一客户不能对同一用户重复 active 共享
@@ -482,13 +488,15 @@ impl CustomerTeamShareService {
 
         // 7. 计算过期时间
         let now = Utc::now();
-        let expire_at = req.duration_days.map(|days| now + Duration::days(days as i64));
+        let expire_at = req
+            .duration_days
+            .map(|days| now + Duration::days(days as i64));
 
         // 8. 查询操作人姓名
-        let operator = user::Entity::find_by_id(operator_id)
-            .one(&*self.db)
-            .await?;
-        let operator_name = operator.map(|u| u.username).unwrap_or_else(|| format!("用户{}", operator_id));
+        let operator = user::Entity::find_by_id(operator_id).one(&*self.db).await?;
+        let operator_name = operator
+            .map(|u| u.username)
+            .unwrap_or_else(|| format!("用户{}", operator_id));
 
         let share = customer_share::ActiveModel {
             id: Default::default(),
@@ -553,7 +561,9 @@ impl CustomerTeamShareService {
                 let full_share = customer_share::Entity::find()
                     .filter(customer_share::Column::CustomerId.eq(share.customer_id))
                     .filter(customer_share::Column::SharedToUserId.eq(operator_id))
-                    .filter(customer_share::Column::Permission.eq(share_model::SHARE_PERMISSION_FULL))
+                    .filter(
+                        customer_share::Column::Permission.eq(share_model::SHARE_PERMISSION_FULL),
+                    )
                     .filter(customer_share::Column::Status.eq(share_model::SHARE_STATUS_ACTIVE))
                     .one(&*self.db)
                     .await?;
@@ -685,7 +695,9 @@ impl CustomerTeamShareService {
 
         info!("自动过期清理：本次过期 {} 条共享记录", count);
 
-        Ok(ExpireResult { expired_count: count })
+        Ok(ExpireResult {
+            expired_count: count,
+        })
     }
 
     /// 校验共享权限类型合法性

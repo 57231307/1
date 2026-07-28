@@ -7,8 +7,8 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::middleware::auth_context::AuthContext;
@@ -147,9 +147,9 @@ async fn decode_and_validate_attachments(
     let mut json_arr = Vec::with_capacity(attachments.len());
 
     for att in attachments {
-        let content = BASE64_STANDARD
-            .decode(&att.content_base64)
-            .map_err(|e| AppError::validation(format!("附件 '{}' Base64 解码失败: {}", att.filename, e)))?;
+        let content = BASE64_STANDARD.decode(&att.content_base64).map_err(|e| {
+            AppError::validation(format!("附件 '{}' Base64 解码失败: {}", att.filename, e))
+        })?;
         file_map.insert(att.filename.clone(), content.clone());
 
         json_arr.push(serde_json::json!({
@@ -166,10 +166,7 @@ async fn decode_and_validate_attachments(
 }
 
 /// 校验仅 admin 角色可调用 send_email（M-1 修复）。
-async fn check_send_email_permission(
-    state: &AppState,
-    auth: &AuthContext,
-) -> Result<(), AppError> {
+async fn check_send_email_permission(state: &AppState, auth: &AuthContext) -> Result<(), AppError> {
     let role_id = auth
         .role_id
         .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行该操作"))?;

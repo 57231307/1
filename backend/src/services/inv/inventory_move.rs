@@ -10,8 +10,8 @@
 //! 注意：文件名 `inventory_move.rs`（非 `move.rs`），因为 `move` 是 Rust 关键字。
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, Order,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
 };
 
 use crate::models::dto::PageRequest;
@@ -240,26 +240,18 @@ impl InventoryTransferService {
         for item_req in items {
             // P1 batch-18 缺陷 6.2：校验色号/缸号 - 染色布必须提供 dye_lot_no
             // 白坯布（color_no 含"白"或为"WHITE"）允许 dye_lot_no 为空
-            let color_no = item_req
-                .color_no
-                .clone()
-                .unwrap_or_default();
+            let color_no = item_req.color_no.clone().unwrap_or_default();
             let dye_lot_no = item_req.dye_lot_no.clone();
             let is_white_fabric = color_no.is_empty()
                 || color_no.contains('白')
                 || color_no.eq_ignore_ascii_case("white");
-            if !is_white_fabric
-                && dye_lot_no.as_deref().map_or(true, |s| s.is_empty())
-            {
+            if !is_white_fabric && dye_lot_no.as_deref().map_or(true, |s| s.is_empty()) {
                 return Err(AppError::validation(format!(
                     "缺陷 6.2：染色布调拨明细必须提供缸号（color_no={} 但 dye_lot_no 为空）",
                     color_no
                 )));
             }
-            let batch_no = item_req
-                .batch_no
-                .clone()
-                .unwrap_or_default();
+            let batch_no = item_req.batch_no.clone().unwrap_or_default();
             if batch_no.is_empty() {
                 return Err(AppError::validation(
                     "缺陷 6.2：调拨明细缺少批号（batch_no 必填）",
@@ -526,11 +518,13 @@ impl InventoryTransferService {
         // 更新调拨单状态
         let mut transfer_update: inventory_transfer::ActiveModel = transfer.into();
         if approved {
-            transfer_update.status = sea_orm::ActiveValue::Set(transfer_status::APPROVED.to_string());
+            transfer_update.status =
+                sea_orm::ActiveValue::Set(transfer_status::APPROVED.to_string());
             transfer_update.approved_by = sea_orm::ActiveValue::NotSet; // 实际应从认证信息获取
             transfer_update.approved_at = sea_orm::ActiveValue::Set(Some(chrono::Utc::now()));
         } else {
-            transfer_update.status = sea_orm::ActiveValue::Set(transfer_status::REJECTED.to_string());
+            transfer_update.status =
+                sea_orm::ActiveValue::Set(transfer_status::REJECTED.to_string());
         }
         if let Some(n) = notes {
             transfer_update.notes = sea_orm::ActiveValue::Set(Some(n));

@@ -197,8 +197,7 @@ fn count_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/counts",
-            get(inventory_count_handler::list_counts)
-                .post(inventory_count_handler::create_count),
+            get(inventory_count_handler::list_counts).post(inventory_count_handler::create_count),
         )
         .route(
             "/counts/:id",

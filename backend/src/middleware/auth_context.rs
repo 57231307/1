@@ -145,4 +145,3 @@ impl OptionalAuthContext {
 
 /// 认证上下文提取器类型别名（使用 Extension）
 pub type Auth = axum::extract::Extension<AuthContext>;
-

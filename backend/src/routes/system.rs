@@ -16,8 +16,8 @@ use axum::{
 };
 
 use crate::handlers::{
-    ai_extend_handler, bpm_definition_handler, bpm_handler, dashboard_handler, export_approval_handler,
-    health_handler, init_handler, system_update_handler,
+    ai_extend_handler, bpm_definition_handler, bpm_handler, dashboard_handler,
+    export_approval_handler, health_handler, init_handler, system_update_handler,
 };
 use crate::websocket;
 

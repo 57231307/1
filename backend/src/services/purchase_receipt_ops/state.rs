@@ -10,7 +10,9 @@
 //! - `confirm_receipt` 调用 `purchase_receipt_private` 中的 update_order_received_quantity / update_inventory_txn（已 `pub`，跨 impl 块可访问）
 //! - `confirm_receipt` 调用 facade 的纯函数 `build_confirmed_receipt_active_model`（`pub(crate)`）
 
-use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QuerySelect, TransactionTrait};
+use sea_orm::{
+    ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QuerySelect, TransactionTrait,
+};
 
 use crate::models::{purchase_receipt, purchase_receipt_item, status};
 use crate::services::event_bus::EVENT_BUS;

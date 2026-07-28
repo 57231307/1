@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-28（**P1 PR #758 CI 真实状态核查：7 项 FAIL 未全绿，PR OPEN/BLOCKED 未合并，分支 fix/p0-d08-d09-d10-batch-resume 未删除，修改不正确**）
+> 最近整理：2026-07-28（**P1 PR #758 CI 真实状态核查：7 项 FAIL 未全绿，PR OPEN/BLOCKED 未合并，分支 fix/p0-d08-d09-d10-batch-resume 未删除，修改不正确**；**Model 字段缺失编译错误已修复：18 处初始化位置补 ..Default::default()/None，涉及 7 文件**）
 >
 > **CI 失败清单（PR #758，运行 #30320573270，2026-07-28 01:33 UTC）**：
 > - 🔧 Rust 格式检查 FAIL：`backend/tests/sales_delivery_workflow_test.rs`、`backend/tests/test_csrf_middleware.rs`、`backend/tests/websocket_test.rs` 等测试文件格式差异

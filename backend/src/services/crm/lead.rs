@@ -12,9 +12,10 @@ use crate::models::status::crm_lead as lead_status;
 use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 use crate::utils::xlsx_export::XlsxTable;
+use sea_orm::sea_query::PgExpr;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
-    Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set, TransactionTrait,
 };
 
 use super::cust::CrmService;
@@ -146,7 +147,9 @@ impl CrmService {
 
         let total = paginator.num_items().await?;
         // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-        let items: Vec<crm_lead::Model> = paginator.fetch_page(page.clamp(1, 1000).saturating_sub(1)).await?;
+        let items: Vec<crm_lead::Model> = paginator
+            .fetch_page(page.clamp(1, 1000).saturating_sub(1))
+            .await?;
 
         Ok(serde_json::json!({
             "data": items,
@@ -222,9 +225,7 @@ impl CrmService {
                     lead.lead_status.clone().unwrap_or_default(),
                     lead.owner_name.clone(),
                     lead.priority.clone().unwrap_or_default(),
-                    lead.created_at
-                        .map(|t| t.to_rfc3339())
-                        .unwrap_or_default(),
+                    lead.created_at.map(|t| t.to_rfc3339()).unwrap_or_default(),
                 ]
             })
             .collect();
@@ -237,9 +238,7 @@ impl CrmService {
     }
 
     /// 读取 xlsx 字节，返回首个 sheet 的数据行（已跳过表头）
-    async fn read_xlsx_rows(
-        file_bytes: Vec<u8>,
-    ) -> Result<Vec<Vec<calamine::Data>>, AppError> {
+    async fn read_xlsx_rows(file_bytes: Vec<u8>) -> Result<Vec<Vec<calamine::Data>>, AppError> {
         use calamine::{open_workbook_auto_from_rs, Reader};
         use std::io::Cursor;
 
@@ -358,7 +357,8 @@ impl CrmService {
         if let Some(ctx) = data_scope {
             if !check_resource_owner(ctx, Some(lead.owner_id), None) {
                 return Err(AppError::permission_denied(format!(
-                    "无权访问线索 {}（数据范围限制）", lead_id
+                    "无权访问线索 {}（数据范围限制）",
+                    lead_id
                 )));
             }
         }
@@ -511,7 +511,10 @@ impl CrmService {
         user_id: i32,
     ) -> customer::ActiveModel {
         let customer_code = format!("C{}", chrono::Utc::now().timestamp());
-        let customer_type = req.customer_type.clone().unwrap_or_else(|| "POTENTIAL".to_string());
+        let customer_type = req
+            .customer_type
+            .clone()
+            .unwrap_or_else(|| "POTENTIAL".to_string());
         customer::ActiveModel {
             id: Default::default(),
             customer_code: Set(customer_code),
@@ -656,7 +659,10 @@ impl CrmService {
             _ => 10,
         };
         score += source_score;
-        breakdown.insert("source".into(), serde_json::json!({"score": source_score, "lead_source": lead.lead_source.clone()}));
+        breakdown.insert(
+            "source".into(),
+            serde_json::json!({"score": source_score, "lead_source": lead.lead_source.clone()}),
+        );
 
         // 行为维度（最高 40 分）
         let mut behavior_score = 0;
@@ -673,7 +679,10 @@ impl CrmService {
             behavior_score += 5;
         }
         score += behavior_score;
-        breakdown.insert("behavior".into(), serde_json::json!({"score": behavior_score}));
+        breakdown.insert(
+            "behavior".into(),
+            serde_json::json!({"score": behavior_score}),
+        );
 
         // demographics 维度（最高 30 分）
         let mut demo_score = 0;
@@ -690,7 +699,10 @@ impl CrmService {
             demo_score += 5;
         }
         score += demo_score;
-        breakdown.insert("demographics".into(), serde_json::json!({"score": demo_score}));
+        breakdown.insert(
+            "demographics".into(),
+            serde_json::json!({"score": demo_score}),
+        );
 
         // 评分封顶 100
         let final_score = score.min(100);
@@ -745,7 +757,10 @@ impl CrmService {
                         match_type: "mobile_phone".to_string(),
                         lead_ids: leads.iter().map(|l| l.id).collect(),
                         lead_nos: leads.iter().map(|l| l.lead_no.clone()).collect(),
-                        company_names: leads.iter().map(|l| l.company_name.clone().unwrap_or_default()).collect(),
+                        company_names: leads
+                            .iter()
+                            .map(|l| l.company_name.clone().unwrap_or_default())
+                            .collect(),
                         count: leads.len() as i32,
                     });
                 }
@@ -766,7 +781,10 @@ impl CrmService {
                         match_type: "company_name".to_string(),
                         lead_ids: leads.iter().map(|l| l.id).collect(),
                         lead_nos: leads.iter().map(|l| l.lead_no.clone()).collect(),
-                        company_names: leads.iter().map(|l| l.company_name.clone().unwrap_or_default()).collect(),
+                        company_names: leads
+                            .iter()
+                            .map(|l| l.company_name.clone().unwrap_or_default())
+                            .collect(),
                         count: leads.len() as i32,
                     });
                 }
@@ -843,20 +861,20 @@ impl CrmService {
         // 线索总数
         let mut lead_query = crm_lead::Entity::find();
         if let Some(start) = start_date {
-            lead_query = lead_query.filter(
-                crm_lead::Column::CreatedAt.gte(chrono::DateTime::from_naive_utc_and_offset(
+            lead_query = lead_query.filter(crm_lead::Column::CreatedAt.gte(
+                chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
                     start.and_hms_opt(0, 0, 0).unwrap_or_default(),
                     chrono::Utc,
-                )),
-            );
+                ),
+            ));
         }
         if let Some(end) = end_date {
-            lead_query = lead_query.filter(
-                crm_lead::Column::CreatedAt.lte(chrono::DateTime::from_naive_utc_and_offset(
+            lead_query = lead_query.filter(crm_lead::Column::CreatedAt.lte(
+                chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
                     end.and_hms_opt(23, 59, 59).unwrap_or_default(),
                     chrono::Utc,
-                )),
-            );
+                ),
+            ));
         }
         let total_leads = lead_query.clone().count(&*self.db).await?;
 
@@ -869,20 +887,22 @@ impl CrmService {
         // 商机总数
         let mut opp_query = crm_opportunity::Entity::find();
         if let Some(start) = start_date {
-            opp_query = opp_query.filter(
-                crm_opportunity::Column::CreatedAt.gte(chrono::DateTime::from_naive_utc_and_offset(
+            opp_query =
+                opp_query.filter(crm_opportunity::Column::CreatedAt.gte(chrono::DateTime::<
+                    chrono::Utc,
+                >::from_naive_utc_and_offset(
                     start.and_hms_opt(0, 0, 0).unwrap_or_default(),
                     chrono::Utc,
-                )),
-            );
+                )));
         }
         if let Some(end) = end_date {
-            opp_query = opp_query.filter(
-                crm_opportunity::Column::CreatedAt.lte(chrono::DateTime::from_naive_utc_and_offset(
+            opp_query =
+                opp_query.filter(crm_opportunity::Column::CreatedAt.lte(chrono::DateTime::<
+                    chrono::Utc,
+                >::from_naive_utc_and_offset(
                     end.and_hms_opt(23, 59, 59).unwrap_or_default(),
                     chrono::Utc,
-                )),
-            );
+                )));
         }
         let total_opportunities = opp_query.clone().count(&*self.db).await?;
 
@@ -895,40 +915,42 @@ impl CrmService {
         // 客户总数
         let mut cust_query = customer::Entity::find();
         if let Some(start) = start_date {
-            cust_query = cust_query.filter(
-                customer::Column::CreatedAt.gte(chrono::DateTime::from_naive_utc_and_offset(
+            cust_query = cust_query.filter(customer::Column::CreatedAt.gte(
+                chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
                     start.and_hms_opt(0, 0, 0).unwrap_or_default(),
                     chrono::Utc,
-                )),
-            );
+                ),
+            ));
         }
         if let Some(end) = end_date {
-            cust_query = cust_query.filter(
-                customer::Column::CreatedAt.lte(chrono::DateTime::from_naive_utc_and_offset(
+            cust_query = cust_query.filter(customer::Column::CreatedAt.lte(
+                chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
                     end.and_hms_opt(23, 59, 59).unwrap_or_default(),
                     chrono::Utc,
-                )),
-            );
+                ),
+            ));
         }
         let total_customers = cust_query.count(&*self.db).await?;
 
         // 订单总数
         let mut order_query = sales_order::Entity::find();
         if let Some(start) = start_date {
-            order_query = order_query.filter(
-                sales_order::Column::CreatedAt.gte(chrono::DateTime::from_naive_utc_and_offset(
+            order_query =
+                order_query.filter(sales_order::Column::CreatedAt.gte(chrono::DateTime::<
+                    chrono::Utc,
+                >::from_naive_utc_and_offset(
                     start.and_hms_opt(0, 0, 0).unwrap_or_default(),
                     chrono::Utc,
-                )),
-            );
+                )));
         }
         if let Some(end) = end_date {
-            order_query = order_query.filter(
-                sales_order::Column::CreatedAt.lte(chrono::DateTime::from_naive_utc_and_offset(
+            order_query =
+                order_query.filter(sales_order::Column::CreatedAt.lte(chrono::DateTime::<
+                    chrono::Utc,
+                >::from_naive_utc_and_offset(
                     end.and_hms_opt(23, 59, 59).unwrap_or_default(),
                     chrono::Utc,
-                )),
-            );
+                )));
         }
         let total_orders = order_query.count(&*self.db).await?;
 

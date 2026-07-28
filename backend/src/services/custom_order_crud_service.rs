@@ -12,8 +12,12 @@ use sea_orm::{
 use std::sync::Arc;
 use thiserror::Error;
 
-use crate::models::custom_order::{self, ActiveModel as CustomOrderActive, Entity as CustomOrderEntity};
-use crate::models::custom_order_create_dto::{CancelCustomOrderDto, CreateCustomOrderDto, UpdateCustomOrderDto};
+use crate::models::custom_order::{
+    self, ActiveModel as CustomOrderActive, Entity as CustomOrderEntity,
+};
+use crate::models::custom_order_create_dto::{
+    CancelCustomOrderDto, CreateCustomOrderDto, UpdateCustomOrderDto,
+};
 use crate::models::process_node::{self, ActiveModel as NodeActive, Entity as NodeEntity};
 use crate::models::status::custom_order as co_status;
 use crate::utils::app_state::AppState;
@@ -77,7 +81,8 @@ impl CustomOrderCrudService {
 
         // 5. 自动生成 5 阶段工艺节点
         for (node_type, node_name, sequence) in default_process_nodes() {
-            let node = Self::build_process_node_active(result.id, node_type, node_name, sequence, now);
+            let node =
+                Self::build_process_node_active(result.id, node_type, node_name, sequence, now);
             node.insert(&txn).await?;
         }
 
@@ -114,7 +119,9 @@ impl CustomOrderCrudService {
             actual_delivery_date: Set(None),
             sales_order_id: Set(dto.sales_order_id),
             total_amount: Set(dto.total_amount),
-            currency: Set(dto.currency.unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string())),
+            currency: Set(dto
+                .currency
+                .unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string())),
             created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
@@ -188,10 +195,7 @@ impl CustomOrderCrudService {
     }
 
     /// 按 ID 查询
-    pub async fn get_by_id(
-        &self,
-        id: i64,
-    ) -> Result<custom_order::Model, CrudError> {
+    pub async fn get_by_id(&self, id: i64) -> Result<custom_order::Model, CrudError> {
         CustomOrderEntity::find_by_id(id)
             .one(&*self.db)
             .await?

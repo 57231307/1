@@ -10,7 +10,8 @@
 //! - 固废处置联单管理（危废转移联单制度）
 
 use crate::models::pollutant_monitoring_record::{
-    self, ActiveModel as MonitoringActiveModel, Entity as MonitoringEntity, Model as MonitoringModel,
+    self, ActiveModel as MonitoringActiveModel, Entity as MonitoringEntity,
+    Model as MonitoringModel,
 };
 use crate::models::solid_waste_disposal_record::{
     self, ActiveModel as WasteActiveModel, Entity as WasteEntity, Model as WasteModel,
@@ -99,14 +100,14 @@ impl PollutionLimitReference {
     pub fn get_limit(monitoring_type: &str, pollutant_name: &str) -> Option<Decimal> {
         match (monitoring_type, pollutant_name) {
             // 废水排放限值（GB 4287-2012 纺织染整工业水污染物排放标准）
-            ("wastewater", "COD") | ("wastewater", "cod") => Some(Decimal::new(80, 0)),       // 80 mg/L
-            ("wastewater", "氨氮") | ("wastewater", "NH3-N") => Some(Decimal::new(10, 0)),   // 10 mg/L
+            ("wastewater", "COD") | ("wastewater", "cod") => Some(Decimal::new(80, 0)), // 80 mg/L
+            ("wastewater", "氨氮") | ("wastewater", "NH3-N") => Some(Decimal::new(10, 0)), // 10 mg/L
             ("wastewater", "色度") | ("wastewater", "chromaticity") => Some(Decimal::new(50, 0)), // 50 倍
             // 废气排放限值
-            ("exhaust", "VOCs") | ("exhaust", "vocs") => Some(Decimal::new(60, 0)),          // 60 mg/m³
+            ("exhaust", "VOCs") | ("exhaust", "vocs") => Some(Decimal::new(60, 0)), // 60 mg/m³
             // 厂界噪声（GB 12348）
-            ("noise", "厂界昼间") | ("noise", "daytime") => Some(Decimal::new(65, 0)),        // 65 dB
-            ("noise", "厂界夜间") | ("noise", "nighttime") => Some(Decimal::new(55, 0)),      // 55 dB
+            ("noise", "厂界昼间") | ("noise", "daytime") => Some(Decimal::new(65, 0)), // 65 dB
+            ("noise", "厂界夜间") | ("noise", "nighttime") => Some(Decimal::new(55, 0)), // 55 dB
             _ => None,
         }
     }
@@ -137,7 +138,8 @@ impl PollutionMonitoringService {
         }
 
         // 自动判定是否超标
-        let (is_exceeding, exceeding_ratio) = Self::check_exceedance(req.measured_value, req.limit_value);
+        let (is_exceeding, exceeding_ratio) =
+            Self::check_exceedance(req.measured_value, req.limit_value);
 
         let now = crate::utils::date_utils::utc_now_fixed();
         let active = MonitoringActiveModel {
@@ -186,10 +188,12 @@ impl PollutionMonitoringService {
         let mut query = MonitoringEntity::find();
 
         if let Some(monitoring_type) = &params.monitoring_type {
-            query = query.filter(pollutant_monitoring_record::Column::MonitoringType.eq(monitoring_type));
+            query = query
+                .filter(pollutant_monitoring_record::Column::MonitoringType.eq(monitoring_type));
         }
         if let Some(pollutant_name) = &params.pollutant_name {
-            query = query.filter(pollutant_monitoring_record::Column::PollutantName.eq(pollutant_name));
+            query =
+                query.filter(pollutant_monitoring_record::Column::PollutantName.eq(pollutant_name));
         }
         if params.only_exceeding.unwrap_or(false) {
             query = query.filter(pollutant_monitoring_record::Column::IsExceeding.eq(true));
@@ -302,7 +306,8 @@ impl PollutionMonitoringService {
         let mut active: WasteActiveModel = waste.into();
         active.status = Set(status.to_string());
         if status == "disposed" {
-            active.disposal_date = Set(disposal_date.or_else(|| Some(chrono::Local::now().date_naive())));
+            active.disposal_date =
+                Set(disposal_date.or_else(|| Some(chrono::Local::now().date_naive())));
         }
         active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
         let updated = active.update(&*self.db).await?;
@@ -407,10 +412,8 @@ mod tests {
 
     #[test]
     fn test_check_exceedance_normal() {
-        let (is_exceeding, ratio) = PollutionMonitoringService::check_exceedance(
-            Decimal::new(50, 0),
-            Decimal::new(80, 0),
-        );
+        let (is_exceeding, ratio) =
+            PollutionMonitoringService::check_exceedance(Decimal::new(50, 0), Decimal::new(80, 0));
         assert!(!is_exceeding);
         assert_eq!(ratio, None);
     }
@@ -418,10 +421,8 @@ mod tests {
     #[test]
     fn test_check_exceedance_at_limit() {
         // 实测值等于限值不算超标
-        let (is_exceeding, ratio) = PollutionMonitoringService::check_exceedance(
-            Decimal::new(80, 0),
-            Decimal::new(80, 0),
-        );
+        let (is_exceeding, ratio) =
+            PollutionMonitoringService::check_exceedance(Decimal::new(80, 0), Decimal::new(80, 0));
         assert!(!is_exceeding);
         assert_eq!(ratio, None);
     }
@@ -429,10 +430,8 @@ mod tests {
     #[test]
     fn test_check_exceedance_exceeded() {
         // 实测 120，限值 80 → 超标 0.5 倍
-        let (is_exceeding, ratio) = PollutionMonitoringService::check_exceedance(
-            Decimal::new(120, 0),
-            Decimal::new(80, 0),
-        );
+        let (is_exceeding, ratio) =
+            PollutionMonitoringService::check_exceedance(Decimal::new(120, 0), Decimal::new(80, 0));
         assert!(is_exceeding);
         assert_eq!(ratio, Some(Decimal::new(5, 1))); // 0.5
     }

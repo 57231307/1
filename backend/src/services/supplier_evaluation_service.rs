@@ -8,8 +8,8 @@ use crate::utils::pagination::paginate_with_total;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -315,10 +315,8 @@ impl SupplierEvaluationService {
     fn group_records_by_supplier(
         records: &[supplier_evaluation_record::Model],
     ) -> std::collections::HashMap<i32, Vec<&supplier_evaluation_record::Model>> {
-        let mut map: std::collections::HashMap<
-            i32,
-            Vec<&supplier_evaluation_record::Model>,
-        > = std::collections::HashMap::new();
+        let mut map: std::collections::HashMap<i32, Vec<&supplier_evaluation_record::Model>> =
+            std::collections::HashMap::new();
         for record in records {
             map.entry(record.supplier_id).or_default().push(record);
         }
@@ -378,16 +376,16 @@ impl SupplierEvaluationService {
                 Decimal::ZERO
             };
             let rating_label = Self::rating_label_from_score(average_score);
-            let latest_evaluation_date = recs
-                .iter()
-                .filter_map(|r| r.evaluation_date)
-                .max()
-                .map(|d| {
-                    DateTime::<Utc>::from_naive_utc_and_offset(
-                        d.and_hms_opt(0, 0, 0).unwrap_or_default(),
-                        Utc,
-                    )
-                });
+            let latest_evaluation_date =
+                recs.iter()
+                    .filter_map(|r| r.evaluation_date)
+                    .max()
+                    .map(|d| {
+                        DateTime::<Utc>::from_naive_utc_and_offset(
+                            d.and_hms_opt(0, 0, 0).unwrap_or_default(),
+                            Utc,
+                        )
+                    });
             rankings.push(SupplierScoreResponse {
                 supplier_id: *supplier_id,
                 average_score,

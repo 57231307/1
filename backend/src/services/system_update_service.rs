@@ -184,9 +184,9 @@ pub(crate) fn extract_zip_entry(
     extract_dir: &Path,
 ) -> Result<u64, UpdateError> {
     // P1-03-6 修复：返回单文件解压字节数，供调用方累计总解压大小防 zip bomb
-    let filepath = zip_entry.enclosed_name().ok_or_else(|| {
-        UpdateError::ValidationError("更新包中包含无效的文件路径".to_string())
-    })?;
+    let filepath = zip_entry
+        .enclosed_name()
+        .ok_or_else(|| UpdateError::ValidationError("更新包中包含无效的文件路径".to_string()))?;
 
     let outpath = extract_dir.join(filepath);
 
@@ -323,7 +323,10 @@ mod tests {
     /// M8 测试：validate_download_url 合法 GitHub URL 通过
     #[test]
     fn test_validate_download_url_valid() {
-        assert!(validate_download_url("https://github.com/57231307/1/releases/download/v1.0.0/pkg.zip").is_ok());
+        assert!(validate_download_url(
+            "https://github.com/57231307/1/releases/download/v1.0.0/pkg.zip"
+        )
+        .is_ok());
         assert!(validate_download_url("https://objects.githubusercontent.com/assets/123").is_ok());
     }
 

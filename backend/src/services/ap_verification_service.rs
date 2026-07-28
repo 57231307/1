@@ -450,14 +450,8 @@ impl ApVerificationService {
 
         // 4. 创建核销明细并更新应付单
         let mut invoice_map = invoice_map;
-        Self::process_verify_items(
-            &txn,
-            req.items,
-            verification.id,
-            &mut invoice_map,
-            user_id,
-        )
-        .await?;
+        Self::process_verify_items(&txn, req.items, verification.id, &mut invoice_map, user_id)
+            .await?;
 
         txn.commit().await?;
 

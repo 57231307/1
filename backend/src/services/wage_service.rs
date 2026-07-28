@@ -376,8 +376,8 @@ impl WageCalculationService {
 mod tests {
     use super::*;
     use crate::models::status::wage_rate_status;
-    use rust_decimal::Decimal;
     use rust_decimal::prelude::ToPrimitive;
+    use rust_decimal::Decimal;
 
     // ===== compute_qualification_rate 合格率计算 =====
 
@@ -386,10 +386,8 @@ mod tests {
     /// 验证 actual=100, qualified=95 时合格率为 95%。
     #[test]
     fn 测试_合格率计算_正常情况() {
-        let rate = compute_qualification_rate(
-            Some(Decimal::new(100, 0)),
-            Some(Decimal::new(95, 0)),
-        );
+        let rate =
+            compute_qualification_rate(Some(Decimal::new(100, 0)), Some(Decimal::new(95, 0)));
         assert_eq!(rate, Decimal::new(95, 0));
     }
 
@@ -398,10 +396,8 @@ mod tests {
     /// 验证 actual=100, qualified=100 时合格率为 100%。
     #[test]
     fn 测试_合格率计算_全合格() {
-        let rate = compute_qualification_rate(
-            Some(Decimal::new(100, 0)),
-            Some(Decimal::new(100, 0)),
-        );
+        let rate =
+            compute_qualification_rate(Some(Decimal::new(100, 0)), Some(Decimal::new(100, 0)));
         assert_eq!(rate, Decimal::new(100, 0));
     }
 
@@ -521,10 +517,7 @@ mod tests {
             determine_grade_ratio(QUALITY_GRADE_B, &rate),
             Decimal::new(8, 1)
         );
-        assert_eq!(
-            determine_grade_ratio(QUALITY_GRADE_C, &rate),
-            Decimal::ZERO
-        );
+        assert_eq!(determine_grade_ratio(QUALITY_GRADE_C, &rate), Decimal::ZERO);
         // 未知等级返回 0
         assert_eq!(determine_grade_ratio("X", &rate), Decimal::ZERO);
     }

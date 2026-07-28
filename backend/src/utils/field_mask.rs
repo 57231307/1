@@ -51,11 +51,9 @@ pub fn mask_text_pii(text: &str) -> String {
         .unwrap_or_else(|_| regex::Regex::new(r"^$").unwrap());
     result = email_re.replace_all(&result, "***@***.***").to_string();
     // 身份证号：17 位数字 + 1 位数字/X
-    let id_re = regex::Regex::new(r"\d{17}[\dXx]")
-        .unwrap_or_else(|_| regex::Regex::new(r"^$").unwrap());
-    result = id_re
-        .replace_all(&result, "******************")
-        .to_string();
+    let id_re =
+        regex::Regex::new(r"\d{17}[\dXx]").unwrap_or_else(|_| regex::Regex::new(r"^$").unwrap());
+    result = id_re.replace_all(&result, "******************").to_string();
     result
 }
 
@@ -250,7 +248,11 @@ mod tests {
     fn test_mask_text_pii_phone() {
         let input = "客户电话 13812348888 反馈色差";
         let masked = mask_text_pii(input);
-        assert!(!masked.contains("13812348888"), "手机号应被脱敏，实际 {}", masked);
+        assert!(
+            !masked.contains("13812348888"),
+            "手机号应被脱敏，实际 {}",
+            masked
+        );
         assert!(masked.contains("色差"), "非 PII 文本应保留");
     }
 

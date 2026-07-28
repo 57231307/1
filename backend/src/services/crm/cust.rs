@@ -158,7 +158,8 @@ impl CrmService {
         if let Some(ctx) = data_scope {
             if !check_resource_owner(ctx, customer_info.created_by, None) {
                 return Err(AppError::permission_denied(format!(
-                    "无权访问客户 {} 的 360 视图（数据范围限制）", customer_id
+                    "无权访问客户 {} 的 360 视图（数据范围限制）",
+                    customer_id
                 )));
             }
         }
@@ -209,7 +210,8 @@ impl CrmService {
                 .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", customer_id)))?;
             if !check_resource_owner(ctx, customer_info.created_by, None) {
                 return Err(AppError::permission_denied(format!(
-                    "无权访问客户 {} 的跟进记录（数据范围限制）", customer_id
+                    "无权访问客户 {} 的跟进记录（数据范围限制）",
+                    customer_id
                 )));
             }
         }
@@ -221,7 +223,9 @@ impl CrmService {
 
         let total = paginator.num_items().await?;
         // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-        let items: Vec<customer_followup::Model> = paginator.fetch_page(page.clamp(1, 1000).saturating_sub(1)).await?;
+        let items: Vec<customer_followup::Model> = paginator
+            .fetch_page(page.clamp(1, 1000).saturating_sub(1))
+            .await?;
         Ok(serde_json::json!({
             "items": items,
             "total": total,
@@ -255,11 +259,7 @@ impl CrmService {
             .next_follow_date
             .as_ref()
             .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok())
-            .map(|d| {
-                d.and_hms_opt(0, 0, 0)
-                    .unwrap_or_default()
-                    .and_utc()
-            });
+            .map(|d| d.and_hms_opt(0, 0, 0).unwrap_or_default().and_utc());
 
         let follow_up = customer_followup::ActiveModel {
             id: Set(uuid::Uuid::new_v4().to_string()),
@@ -291,16 +291,19 @@ impl CrmService {
             .await?;
 
         // R: Recency - 最近一次订单距今天数（orders 已按 CreatedAt 倒序，first 即最近）
-        let r_score = orders.first().map(|order| {
-            let days_since = (chrono::Utc::now() - order.created_at).num_days();
-            match days_since {
-                0..=30 => 5.0,
-                31..=60 => 4.0,
-                61..=90 => 3.0,
-                91..=180 => 2.0,
-                _ => 1.0,
-            }
-        }).unwrap_or(1.0);
+        let r_score = orders
+            .first()
+            .map(|order| {
+                let days_since = (chrono::Utc::now() - order.created_at).num_days();
+                match days_since {
+                    0..=30 => 5.0,
+                    31..=60 => 4.0,
+                    61..=90 => 3.0,
+                    91..=180 => 2.0,
+                    _ => 1.0,
+                }
+            })
+            .unwrap_or(1.0);
 
         // F: Frequency - 历史订单数
         let order_count = orders.len() as u64;
@@ -341,7 +344,10 @@ impl CrmService {
             .select_only()
             .column(SalesOrderColumn::CustomerId)
             .column_as(Expr::col(SalesOrderColumn::Id).count(), "order_count")
-            .column_as(Expr::col(SalesOrderColumn::CreatedAt).max(), "last_order_at")
+            .column_as(
+                Expr::col(SalesOrderColumn::CreatedAt).max(),
+                "last_order_at",
+            )
             .column_as(
                 Expr::col(SalesOrderColumn::TotalAmount).sum(),
                 "total_amount",
@@ -414,12 +420,8 @@ impl CrmService {
         for cid in &customer_ids {
             let (order_count, last_order_at, total_amount) =
                 order_map.get(cid).copied().unwrap_or((0, None, 0.0));
-            let score = Self::compute_rfm_score_for_customer(
-                order_count,
-                last_order_at,
-                total_amount,
-                now,
-            );
+            let score =
+                Self::compute_rfm_score_for_customer(order_count, last_order_at, total_amount, now);
             counts.add_score(score);
         }
         Ok(serde_json::json!({

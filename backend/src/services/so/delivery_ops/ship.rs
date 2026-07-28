@@ -14,11 +14,11 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set, TransactionTrait,
 };
 
+use crate::models::status::sales_delivery as delivery_status;
+use crate::models::status::sales_order as so_status;
 use crate::models::{
     sales_delivery, sales_delivery_item, sales_order, sales_order_item, warehouse,
 };
-use crate::models::status::sales_delivery as delivery_status;
-use crate::models::status::sales_order as so_status;
 use crate::utils::error::AppError;
 
 use super::super::delivery::{ShipOrderItemRequest, ShipOrderRequest};
@@ -123,8 +123,11 @@ impl SalesService {
             .await?
             .ok_or_else(|| AppError::not_found("仓库不存在"))?;
         // P1 3-7/5-1 修复（批次 62）：保存发货明细快照用于事件发布
-        let shipped_items_snapshot: Vec<(i32, rust_decimal::Decimal)> =
-            request.items.iter().map(|i| (i.product_id, i.quantity)).collect();
+        let shipped_items_snapshot: Vec<(i32, rust_decimal::Decimal)> = request
+            .items
+            .iter()
+            .map(|i| (i.product_id, i.quantity))
+            .collect();
         self.check_inventory(request.order_id, &request.items, txn)
             .await?;
         Ok(ShipOrderContext {
@@ -182,14 +185,19 @@ impl SalesService {
         user_id: i32,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<ShipmentItemsResult, AppError> {
-        let order_item_map: std::collections::HashMap<i32, &sales_order_item::Model> =
-            ctx.order_items.iter().map(|oi| (oi.product_id, oi)).collect();
+        let order_item_map: std::collections::HashMap<i32, &sales_order_item::Model> = ctx
+            .order_items
+            .iter()
+            .map(|oi| (oi.product_id, oi))
+            .collect();
         let mut delivery_items_to_insert: Vec<sales_delivery_item::ActiveModel> = Vec::new();
-        let mut pending_inventory_events: Vec<crate::services::event_bus::BusinessEvent> = Vec::new();
+        let mut pending_inventory_events: Vec<crate::services::event_bus::BusinessEvent> =
+            Vec::new();
         let mut delivery_total_amount = Decimal::ZERO;
         let mut delivery_total_tax = Decimal::ZERO;
         for item in &request.items {
-            let (unit_price, line_amount, line_tax) = Self::compute_line_amounts(&order_item_map, item);
+            let (unit_price, line_amount, line_tax) =
+                Self::compute_line_amounts(&order_item_map, item);
             delivery_items_to_insert.push(Self::build_delivery_item(
                 item,
                 delivery.id,
@@ -199,9 +207,16 @@ impl SalesService {
             delivery_total_amount += line_amount;
             delivery_total_tax += line_tax;
             let (qty_before, qty_after, stock_color_no, stock_dye_lot_no) = self
-                .reduce_inventory(item.product_id, ctx.warehouse.id, item.quantity, request.order_id, txn)
+                .reduce_inventory(
+                    item.product_id,
+                    ctx.warehouse.id,
+                    item.quantity,
+                    request.order_id,
+                    txn,
+                )
                 .await?;
-            let quantity_kg = Self::compute_quantity_kg(&ctx.product_map, item.product_id, item.quantity);
+            let quantity_kg =
+                Self::compute_quantity_kg(&ctx.product_map, item.product_id, item.quantity);
             let args = Self::build_record_transaction_args(
                 item,
                 request,
@@ -221,8 +236,13 @@ impl SalesService {
             if let Some(ev) = txn_event {
                 pending_inventory_events.push(ev);
             }
-            Self::update_order_item_shipped_qty(txn, request.order_id, item.product_id, item.quantity)
-                .await?;
+            Self::update_order_item_shipped_qty(
+                txn,
+                request.order_id,
+                item.product_id,
+                item.quantity,
+            )
+            .await?;
         }
         if !delivery_items_to_insert.is_empty() {
             sales_delivery_item::Entity::insert_many(delivery_items_to_insert)
@@ -400,12 +420,9 @@ impl SalesService {
             let customer = crate::models::customer::Entity::find_by_id(ship_customer_id)
                 .one(txn)
                 .await?
-                .ok_or_else(|| {
-                    AppError::not_found(format!("客户 {} 不存在", ship_customer_id))
-                })?;
+                .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", ship_customer_id)))?;
             let payment_terms = customer.payment_terms;
-            let ar_service =
-                crate::services::ar::ArReconciliationService::new(self.db.clone());
+            let ar_service = crate::services::ar::ArReconciliationService::new(self.db.clone());
             ar_service
                 .create_receivable(
                     ship_customer_id,
@@ -453,12 +470,13 @@ impl SalesService {
         // P1 5-1 修复（批次 62）：commit 后发布 SalesOrderShipped 事件
         // 事件发布必须在 commit 之后，避免消费者读到未提交数据。
         // 监听器（event_bus.rs）消费此事件触发财务指标刷新（5-2 修复）。
-        crate::services::event_bus::EVENT_BUS
-            .publish(crate::services::event_bus::BusinessEvent::SalesOrderShipped {
+        crate::services::event_bus::EVENT_BUS.publish(
+            crate::services::event_bus::BusinessEvent::SalesOrderShipped {
                 order_id: post_ctx.ship_order_id,
                 customer_id: post_ctx.ship_customer_id,
                 items: post_ctx.ship_items_for_event,
-            });
+            },
+        );
     }
 
     /// 判断订单是否全额发货（所有明细 shipped_quantity >= quantity）
@@ -495,11 +513,7 @@ impl SalesService {
         let voucher_service =
             crate::services::voucher_service::VoucherService::new(self.db.clone());
         if let Err(e) = voucher_service.create_and_post(voucher_req, user_id).await {
-            tracing::warn!(
-                "发货单 {} 收入凭证生成失败：{}",
-                delivery.delivery_no,
-                e
-            );
+            tracing::warn!("发货单 {} 收入凭证生成失败：{}", delivery.delivery_no, e);
         }
     }
 

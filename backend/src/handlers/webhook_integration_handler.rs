@@ -280,7 +280,12 @@ pub async fn send_wechat_message(
 
     // M-4 修复（v9 复审）：trigger_webhook 内部校验所有权
     let delivery = service
-        .trigger_webhook(auth.user_id, req.integration_id, "wechat_message", &payload.to_string())
+        .trigger_webhook(
+            auth.user_id,
+            req.integration_id,
+            "wechat_message",
+            &payload.to_string(),
+        )
         .await?;
 
     let result = WebhookSendResult {
@@ -344,7 +349,12 @@ pub async fn send_dingtalk_message(
     let service = WebhookService::new(state.db.clone());
 
     let delivery = service
-        .trigger_webhook(auth.user_id, req.integration_id, "dingtalk_message", &payload.to_string())
+        .trigger_webhook(
+            auth.user_id,
+            req.integration_id,
+            "dingtalk_message",
+            &payload.to_string(),
+        )
         .await?;
 
     let result = WebhookSendResult {
@@ -395,9 +405,7 @@ pub async fn handle_generic_callback(
     // 违反规则 11"日志中禁止记录敏感信息明文"。日志聚合系统通常权限较低，易引发数据泄露。
     let payload_size = req.payload.to_string().len();
     let payload_keys: Vec<String> = match &req.payload {
-        serde_json::Value::Object(map) => {
-            map.keys().take(10).cloned().collect()
-        }
+        serde_json::Value::Object(map) => map.keys().take(10).cloned().collect(),
         _ => Vec::new(),
     };
 

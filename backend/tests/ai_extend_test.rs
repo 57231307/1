@@ -93,26 +93,29 @@ fn test_feedback_score_boundaries() {
 fn test_endpoint_path_list() {
     let paths = vec![
         // 工艺优化（5）
-        ("POST",   "/api/v1/erp/ai/process-optimizations"),
-        ("GET",    "/api/v1/erp/ai/process-optimizations"),
-        ("GET",    "/api/v1/erp/ai/process-optimizations/{id}"),
-        ("POST",   "/api/v1/erp/ai/process-optimizations/{id}/apply"),
+        ("POST", "/api/v1/erp/ai/process-optimizations"),
+        ("GET", "/api/v1/erp/ai/process-optimizations"),
+        ("GET", "/api/v1/erp/ai/process-optimizations/{id}"),
+        ("POST", "/api/v1/erp/ai/process-optimizations/{id}/apply"),
         ("DELETE", "/api/v1/erp/ai/process-optimizations/{id}"),
         // 质量预测（5）
-        ("POST",   "/api/v1/erp/ai/quality-predictions"),
-        ("GET",    "/api/v1/erp/ai/quality-predictions"),
-        ("GET",    "/api/v1/erp/ai/quality-predictions/{id}"),
-        ("POST",   "/api/v1/erp/ai/quality-predictions/{id}/acknowledge"),
+        ("POST", "/api/v1/erp/ai/quality-predictions"),
+        ("GET", "/api/v1/erp/ai/quality-predictions"),
+        ("GET", "/api/v1/erp/ai/quality-predictions/{id}"),
+        (
+            "POST",
+            "/api/v1/erp/ai/quality-predictions/{id}/acknowledge",
+        ),
         ("DELETE", "/api/v1/erp/ai/quality-predictions/{id}"),
         // 看板 / 健康（2）
-        ("GET",    "/api/v1/erp/ai/summary"),
-        ("GET",    "/api/v1/erp/ai/health"),
+        ("GET", "/api/v1/erp/ai/summary"),
+        ("GET", "/api/v1/erp/ai/health"),
         // 批量（2）
-        ("POST",   "/api/v1/erp/ai/process-optimizations/batch"),
-        ("POST",   "/api/v1/erp/ai/quality-predictions/batch"),
+        ("POST", "/api/v1/erp/ai/process-optimizations/batch"),
+        ("POST", "/api/v1/erp/ai/quality-predictions/batch"),
         // 按色号布类 / 按产品历史（2）
-        ("GET",    "/api/v1/erp/ai/process-optimizations/by-color"),
-        ("GET",    "/api/v1/erp/ai/quality-predictions/by-product"),
+        ("GET", "/api/v1/erp/ai/process-optimizations/by-color"),
+        ("GET", "/api/v1/erp/ai/quality-predictions/by-product"),
     ];
     assert_eq!(paths.len(), 16, "P2-4 必须实现 16 个端点");
 }

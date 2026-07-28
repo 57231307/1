@@ -109,7 +109,10 @@ impl ReportSubscriptionService {
         }
         for email in &req.recipients {
             if !is_valid_email(email) {
-                return Err(AppError::validation(format!("收件人邮箱格式无效: {}", email)));
+                return Err(AppError::validation(format!(
+                    "收件人邮箱格式无效: {}",
+                    email
+                )));
             }
         }
 

@@ -33,13 +33,13 @@ use crate::models::status::outsourcing_receipt_status;
 use crate::models::status::outsourcing_voucher_type;
 use crate::utils::error::AppError;
 
-use crate::services::outsourcing_service::{
-    classify_loss, compute_abnormal_loss_amount, compute_loss_rate, compute_standard_loss_rate,
-    compute_total_cost, compute_unit_cost, validate_order_type, OutsourcingOrderService,
-};
 use crate::services::outsourcing_ops::types::{
     CreateOutsourcingOrderRequest, CreateOutsourcingReceiptRequest, OutsourcingOrderQuery,
     UpdateOutsourcingOrderRequest,
+};
+use crate::services::outsourcing_service::{
+    classify_loss, compute_abnormal_loss_amount, compute_loss_rate, compute_standard_loss_rate,
+    compute_total_cost, compute_unit_cost, validate_order_type, OutsourcingOrderService,
 };
 
 /// 收回损耗与成本计算结果（record_receipt 内部传递）
@@ -80,7 +80,10 @@ impl OutsourcingOrderService {
             .await?
             .is_none()
         {
-            return Err(AppError::business(format!("委外加工厂 {} 不存在", req.supplier_id)));
+            return Err(AppError::business(format!(
+                "委外加工厂 {} 不存在",
+                req.supplier_id
+            )));
         }
         if let Some(order_id) = req.production_order_id {
             if crate::models::production_order::Entity::find_by_id(order_id)
@@ -112,7 +115,10 @@ impl OutsourcingOrderService {
             .await?
             .is_some()
         {
-            return Err(AppError::business(format!("委外订单号 {} 已存在", order_no)));
+            return Err(AppError::business(format!(
+                "委外订单号 {} 已存在",
+                order_no
+            )));
         }
         Ok(())
     }
@@ -668,8 +674,7 @@ impl OutsourcingOrderService {
         let updated = active.update(&*self.db).await?;
 
         // V15 Batch04-P1-5：发布委外结算事件，供成本归集/应付账款订阅
-        let normal_loss = (updated.loss_quantity - updated.abnormal_loss_amount)
-            .max(Decimal::ZERO);
+        let normal_loss = (updated.loss_quantity - updated.abnormal_loss_amount).max(Decimal::ZERO);
         crate::services::event_bus::EVENT_BUS.publish(
             crate::services::event_bus::BusinessEvent::OutsourcingOrderSettled {
                 order_id: updated.id,
@@ -760,8 +765,7 @@ impl OutsourcingOrderService {
         &self,
         query: OutsourcingOrderQuery,
     ) -> Result<(Vec<OrderModel>, u64), AppError> {
-        let mut q = OrderEntity::find()
-            .filter(outsourcing_order::Column::IsDeleted.eq(false));
+        let mut q = OrderEntity::find().filter(outsourcing_order::Column::IsDeleted.eq(false));
         if let Some(v) = query.order_type {
             q = q.filter(outsourcing_order::Column::OrderType.eq(v));
         }

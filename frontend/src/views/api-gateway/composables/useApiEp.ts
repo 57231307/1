@@ -33,8 +33,7 @@ export function useApiEp() {
     url: '/api-gateway/endpoints',
     onError: (err: unknown) =>
       ElMessage.error(
-        (err instanceof Error ? err.message : String(err)) ||
-        msg.translate('loadApiEndpointFailed')
+        (err instanceof Error ? err.message : String(err)) || msg.translate('loadApiEndpointFailed')
       ),
   });
 
@@ -129,8 +128,8 @@ export function useApiEp() {
         await fetchEndpoints();
       } catch (error: unknown) {
         ElMessage.error(
-          (error instanceof Error ? error.message : String(error))
-            || msg.translate('operationFailed')
+          (error instanceof Error ? error.message : String(error)) ||
+            msg.translate('operationFailed')
         );
       } finally {
         endpointSubmitLoading.value = false;

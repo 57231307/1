@@ -178,7 +178,10 @@ impl CacheService {
         self.key_index.write().await.insert(key.clone());
         // P2 5-17 修复：记录 per-key 自定义过期时间戳
         let deadline = Instant::now() + ttl;
-        self.custom_expirations.write().await.insert(key.clone(), deadline);
+        self.custom_expirations
+            .write()
+            .await
+            .insert(key.clone(), deadline);
         // 注意：moka 顶层只支持统一 TTL，这里仍用 insert 写入
         // per-entry TTL 通过 get 时的过期检查实现
         self.inner.insert(key, value).await;
@@ -298,7 +301,10 @@ mod tests {
     #[tokio::test]
     async fn 测试_cache_set_get() {
         // 中文测试名：测试 cache set 后能 get 到
-        let cache = CacheService::builder().capacity(100).ttl(Duration::from_secs(10)).build();
+        let cache = CacheService::builder()
+            .capacity(100)
+            .ttl(Duration::from_secs(10))
+            .build();
         cache.set("k1".to_string(), b"v1".to_vec()).await;
         let got = cache.get("k1").await;
         assert_eq!(got, Some(b"v1".to_vec()));
@@ -307,7 +313,10 @@ mod tests {
     #[tokio::test]
     async fn 测试_cache_miss() {
         // 中文测试名：测试 cache miss 返回 None 并更新统计
-        let cache = CacheService::builder().capacity(100).ttl(Duration::from_secs(10)).build();
+        let cache = CacheService::builder()
+            .capacity(100)
+            .ttl(Duration::from_secs(10))
+            .build();
         let got = cache.get("not-exist").await;
         assert_eq!(got, None);
         let stats = cache.stats().await;
@@ -317,7 +326,10 @@ mod tests {
     #[tokio::test]
     async fn 测试_cache_hit_ratio() {
         // 中文测试名：测试 cache 命中率计算
-        let cache = CacheService::builder().capacity(100).ttl(Duration::from_secs(10)).build();
+        let cache = CacheService::builder()
+            .capacity(100)
+            .ttl(Duration::from_secs(10))
+            .build();
         cache.set("k1".to_string(), b"v1".to_vec()).await;
         let _ = cache.get("k1").await; // hit
         let _ = cache.get("k1").await; // hit
@@ -340,9 +352,16 @@ mod tests {
     #[tokio::test]
     async fn 测试_cache_invalidate_prefix_仅清除匹配前缀() {
         // P2 5-16 修复测试：invalidate_prefix 应仅清除匹配前缀的 key，保留其他 key
-        let cache = CacheService::builder().capacity(100).ttl(Duration::from_secs(60)).build();
-        cache.set("inventory:stock:1".to_string(), b"v1".to_vec()).await;
-        cache.set("inventory:stock:2".to_string(), b"v2".to_vec()).await;
+        let cache = CacheService::builder()
+            .capacity(100)
+            .ttl(Duration::from_secs(60))
+            .build();
+        cache
+            .set("inventory:stock:1".to_string(), b"v1".to_vec())
+            .await;
+        cache
+            .set("inventory:stock:2".to_string(), b"v2".to_vec())
+            .await;
         cache.set("sales:order:1".to_string(), b"v3".to_vec()).await;
 
         // 失效 inventory 前缀
@@ -358,9 +377,14 @@ mod tests {
     #[tokio::test]
     async fn 测试_cache_set_with_ttl_短期过期() {
         // P2 5-17 修复测试：set_with_ttl 应使用自定义 TTL，过期后 get 返回 None
-        let cache = CacheService::builder().capacity(100).ttl(Duration::from_secs(60)).build();
+        let cache = CacheService::builder()
+            .capacity(100)
+            .ttl(Duration::from_secs(60))
+            .build();
         // 设置 50ms TTL
-        cache.set_with_ttl("k1".to_string(), b"v1".to_vec(), Duration::from_millis(50)).await;
+        cache
+            .set_with_ttl("k1".to_string(), b"v1".to_vec(), Duration::from_millis(50))
+            .await;
 
         // 立即读取应命中
         assert_eq!(cache.get("k1").await, Some(b"v1".to_vec()));
@@ -376,8 +400,13 @@ mod tests {
     async fn 测试_cache_set_with_ttl_长于默认_ttl() {
         // P2 5-17 修复测试：set_with_ttl 的 TTL 长于默认 TTL 时，应按自定义 TTL 存活
         // 注意：moka 默认 TTL 仍会生效，此测试验证自定义 TTL 在默认 TTL 内有效
-        let cache = CacheService::builder().capacity(100).ttl(Duration::from_secs(60)).build();
-        cache.set_with_ttl("k1".to_string(), b"v1".to_vec(), Duration::from_secs(30)).await;
+        let cache = CacheService::builder()
+            .capacity(100)
+            .ttl(Duration::from_secs(60))
+            .build();
+        cache
+            .set_with_ttl("k1".to_string(), b"v1".to_vec(), Duration::from_secs(30))
+            .await;
         // 立即读取应命中
         assert_eq!(cache.get("k1").await, Some(b"v1".to_vec()));
     }
@@ -385,10 +414,15 @@ mod tests {
     #[tokio::test]
     async fn 测试_cache_set_后_set_with_ttl_覆盖_ttl() {
         // P2 5-17 修复测试：set 后再 set_with_ttl 应使用自定义 TTL
-        let cache = CacheService::builder().capacity(100).ttl(Duration::from_secs(60)).build();
+        let cache = CacheService::builder()
+            .capacity(100)
+            .ttl(Duration::from_secs(60))
+            .build();
         cache.set("k1".to_string(), b"v1".to_vec()).await;
         // set_with_ttl 覆盖，设置 50ms TTL
-        cache.set_with_ttl("k1".to_string(), b"v2".to_vec(), Duration::from_millis(50)).await;
+        cache
+            .set_with_ttl("k1".to_string(), b"v2".to_vec(), Duration::from_millis(50))
+            .await;
         assert_eq!(cache.get("k1").await, Some(b"v2".to_vec()));
 
         tokio::time::sleep(Duration::from_millis(80)).await;
@@ -399,9 +433,14 @@ mod tests {
     #[tokio::test]
     async fn 测试_cache_set_with_ttl_后_set_清除自定义_ttl() {
         // P2 5-17 修复测试：set_with_ttl 后再 set 应清除自定义 TTL（回归默认 TTL）
-        let cache = CacheService::builder().capacity(100).ttl(Duration::from_secs(60)).build();
+        let cache = CacheService::builder()
+            .capacity(100)
+            .ttl(Duration::from_secs(60))
+            .build();
         // 先设置 50ms TTL
-        cache.set_with_ttl("k1".to_string(), b"v1".to_vec(), Duration::from_millis(50)).await;
+        cache
+            .set_with_ttl("k1".to_string(), b"v1".to_vec(), Duration::from_millis(50))
+            .await;
         // 再用 set 覆盖（应清除自定义 TTL，使用默认 60s TTL）
         cache.set("k1".to_string(), b"v2".to_vec()).await;
 
@@ -431,7 +470,11 @@ mod tests {
 
         // 验证 Prometheus 指标：erp_cache_hits_total == 1, erp_cache_misses_total == 1
         assert_eq!(metrics.cache_hits.get(), 1, "cache_hits 应为 1（一次命中）");
-        assert_eq!(metrics.cache_misses.get(), 1, "cache_misses 应为 1（一次未命中）");
+        assert_eq!(
+            metrics.cache_misses.get(),
+            1,
+            "cache_misses 应为 1（一次未命中）"
+        );
     }
 
     /// V15 批次 07 P1-8 修复测试：未注入 metrics 时，缓存功能正常，不 panic

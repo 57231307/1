@@ -12,9 +12,7 @@
 use std::sync::Arc;
 
 use chrono::Utc;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 use serde::Deserialize;
 
 use crate::models::role_relation::{self, relation_type, Entity as RoleRelationEntity};
@@ -95,10 +93,7 @@ impl RoleRelationService {
     ///
     /// # 返回
     /// 返回该角色直接和间接继承的所有子角色编码列表（不含自身）
-    pub async fn get_inherited_role_codes(
-        &self,
-        role_code: &str,
-    ) -> Result<Vec<String>, AppError> {
+    pub async fn get_inherited_role_codes(&self, role_code: &str) -> Result<Vec<String>, AppError> {
         let mut result = Vec::new();
         let mut visited = std::collections::HashSet::new();
         visited.insert(role_code.to_string());

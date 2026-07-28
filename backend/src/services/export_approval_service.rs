@@ -21,8 +21,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::models::export_approval_request::{
-    ActiveModel as ExportApprovalActiveModel, ApprovalStatus, Column, Entity,
-    ExportParams, Model, RiskLevel, sensitive_resources,
+    sensitive_resources, ActiveModel as ExportApprovalActiveModel, ApprovalStatus, Column, Entity,
+    ExportParams, Model, RiskLevel,
 };
 use crate::utils::error::AppError;
 
@@ -130,9 +130,7 @@ impl ExportApprovalService {
             .unwrap_or_else(|| "xlsx".to_string())
             .to_lowercase();
         if !matches!(file_format.as_str(), "xlsx" | "pdf" | "csv") {
-            return Err(AppError::validation(
-                "file_format 仅支持 xlsx/pdf/csv",
-            ));
+            return Err(AppError::validation("file_format 仅支持 xlsx/pdf/csv"));
         }
         Ok(file_format)
     }
@@ -428,10 +426,7 @@ impl ExportApprovalService {
     }
 
     /// 审批请求列表查询
-    pub async fn list_requests(
-        &self,
-        q: ListApprovalQuery,
-    ) -> Result<ApprovalListVo, AppError> {
+    pub async fn list_requests(&self, q: ListApprovalQuery) -> Result<ApprovalListVo, AppError> {
         let page = q.page.unwrap_or(1).clamp(1, 1000);
         let page_size = q.page_size.unwrap_or(20).clamp(1, 100);
 
@@ -451,9 +446,7 @@ impl ExportApprovalService {
         let paginator = select
             .order_by_desc(Column::CreatedAt)
             .paginate(&*self.db, page_size);
-        let items = paginator
-            .fetch_page(page.saturating_sub(1))
-            .await?;
+        let items = paginator.fetch_page(page.saturating_sub(1)).await?;
 
         Ok(ApprovalListVo {
             items,

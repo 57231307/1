@@ -102,7 +102,6 @@ pub async fn inventory_transfer_print_html(
     Ok(html)
 }
 
-
 /// 打印模板列表响应
 #[derive(serde::Serialize)]
 pub struct PrintTemplateDto {
@@ -141,7 +140,8 @@ fn builtin_print_templates() -> Vec<PrintTemplateDto> {
             id: 3,
             name: "采购订单打印模板".to_string(),
             doc_type: "purchase_order".to_string(),
-            template_content: "标准采购订单打印模板（含供应商信息、采购明细、金额合计）".to_string(),
+            template_content: "标准采购订单打印模板（含供应商信息、采购明细、金额合计）"
+                .to_string(),
             is_default: true,
             created_at: "2026-01-01T00:00:00Z".to_string(),
         },
@@ -149,7 +149,8 @@ fn builtin_print_templates() -> Vec<PrintTemplateDto> {
             id: 4,
             name: "采购收货单打印模板".to_string(),
             doc_type: "purchase_receipt".to_string(),
-            template_content: "标准采购收货单打印模板（含收货明细、质检结果、入库确认）".to_string(),
+            template_content: "标准采购收货单打印模板（含收货明细、质检结果、入库确认）"
+                .to_string(),
             is_default: true,
             created_at: "2026-01-01T00:00:00Z".to_string(),
         },
@@ -274,11 +275,7 @@ mod tests {
             "voucher",
         ];
         for t in &expected {
-            assert!(
-                doc_types.contains(&t),
-                "应包含单据类型 {}",
-                t
-            );
+            assert!(doc_types.contains(&t), "应包含单据类型 {}", t);
         }
 
         // 名称不应为空

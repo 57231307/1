@@ -72,17 +72,14 @@ impl BiAnalysisService {
         );
         let mut values = vec![(year as i64).into()];
         values.extend(scope_values);
-        let stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
-            sql,
-            values,
-        );
+        let stmt = Statement::from_sql_and_values(sea_orm::DatabaseBackend::Postgres, sql, values);
         Ok(TimeSeriesRow::find_by_statement(stmt).all(db).await?)
     }
 
     /// 构建 12 个月完整时间序列，缺失月份补 0
     fn fill_year_month_points(rows: Vec<TimeSeriesRow>, year: i32) -> Vec<TimeSeriesPoint> {
-        let mut period_map: std::collections::HashMap<String, TimeSeriesPoint> = std::collections::HashMap::new();
+        let mut period_map: std::collections::HashMap<String, TimeSeriesPoint> =
+            std::collections::HashMap::new();
         for r in rows {
             let revenue = dec_to_f64(r.total_amount);
             let cost = dec_to_f64(r.profit_amount);
@@ -130,11 +127,7 @@ impl BiAnalysisService {
         let sql = Self::build_month_drilldown_sql(&scope_sql);
         let mut values = vec![(year as i64).into(), (month as i64).into()];
         values.extend(scope_values);
-        let stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
-            sql,
-            values,
-        );
+        let stmt = Statement::from_sql_and_values(sea_orm::DatabaseBackend::Postgres, sql, values);
         let rows = TimeSeriesRow::find_by_statement(stmt)
             .all(&*self.db)
             .await?;
@@ -263,11 +256,7 @@ impl BiAnalysisService {
 
         let mut values = vec![customer_id.into()];
         values.extend(scope_values);
-        let stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
-            sql,
-            values,
-        );
+        let stmt = Statement::from_sql_and_values(sea_orm::DatabaseBackend::Postgres, sql, values);
 
         let rows = CustomerOrderRow::find_by_statement(stmt)
             .all(&*self.db)
@@ -323,11 +312,7 @@ impl BiAnalysisService {
 
         let mut values = vec![product_id.into()];
         values.extend(scope_values);
-        let stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
-            sql,
-            values,
-        );
+        let stmt = Statement::from_sql_and_values(sea_orm::DatabaseBackend::Postgres, sql, values);
 
         let rows = ProductOrderRow::find_by_statement(stmt)
             .all(&*self.db)

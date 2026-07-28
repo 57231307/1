@@ -301,7 +301,9 @@ impl TrackingService {
         for i in 0..query.steps.len() {
             // 统计按时间顺序访问过 steps[0..=i] 的会话数
             let steps_slice = &query.steps[..=i];
-            let count = self.count_sessions_with_sequence(steps_slice, date_from, date_to).await?;
+            let count = self
+                .count_sessions_with_sequence(steps_slice, date_from, date_to)
+                .await?;
             step_counts.push(count);
         }
 
@@ -360,10 +362,7 @@ impl TrackingService {
 
             current_sessions = Some(match current_sessions {
                 None => sessions,
-                Some(prev) => prev
-                    .into_iter()
-                    .filter(|s| sessions.contains(s))
-                    .collect(),
+                Some(prev) => prev.into_iter().filter(|s| sessions.contains(s)).collect(),
             });
         }
 
@@ -405,8 +404,9 @@ fn parse_date(s: &Option<String>) -> Result<Option<DateTime<Utc>>, AppError> {
             let dt = s
                 .parse::<DateTime<Utc>>()
                 .or_else(|_| {
-                    NaiveDate::parse_from_str(s, "%Y-%m-%d")
-                        .map(|d| d.and_hms_opt(0, 0, 0).unwrap(/* 不变量：0,0,0 永远合法 */).and_utc())
+                    NaiveDate::parse_from_str(s, "%Y-%m-%d").map(
+                        |d| d.and_hms_opt(0, 0, 0).unwrap(/* 不变量：0,0,0 永远合法 */).and_utc(),
+                    )
                 })
                 .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?;
             Ok(Some(dt))

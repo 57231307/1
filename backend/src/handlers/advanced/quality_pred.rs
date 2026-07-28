@@ -63,6 +63,7 @@ pub async fn quality_prediction(
         product_id: payload.product_id,
         inspection_type,
         window_days: Some(window_days),
+        ..Default::default()
     };
 
     let response = service.predict_quality(request).await?;
@@ -81,6 +82,7 @@ mod tests {
             product_id: Some(1),
             inspection_type: Some("成品".to_string()),
             window_days: Some(90),
+            ..Default::default()
         };
         assert_eq!(req.product_id, Some(1));
         assert_eq!(req.inspection_type.as_deref(), Some("成品"));

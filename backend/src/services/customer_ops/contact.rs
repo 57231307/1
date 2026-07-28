@@ -141,7 +141,7 @@ impl CustomerService {
         Ok(())
     }
 
-/// 取消指定客户的所有主联系人状态（事务内，保证"每客户最多一个主联系人"约束）
+    /// 取消指定客户的所有主联系人状态（事务内，保证"每客户最多一个主联系人"约束）
     pub(crate) async fn clear_primary_contacts_txn(
         &self,
         customer_id: i32,

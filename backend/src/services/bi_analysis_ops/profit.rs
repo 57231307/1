@@ -55,15 +55,9 @@ impl BiAnalysisService {
 
         let mut values: Vec<sea_orm::Value> = Vec::new();
         values.extend(scope_values);
-        let stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
-            sql,
-            values,
-        );
+        let stmt = Statement::from_sql_and_values(sea_orm::DatabaseBackend::Postgres, sql, values);
 
-        let row: Option<ProfitRow> = ProfitRow::find_by_statement(stmt)
-            .one(&*self.db)
-            .await?;
+        let row: Option<ProfitRow> = ProfitRow::find_by_statement(stmt).one(&*self.db).await?;
 
         let row = row.unwrap_or(ProfitRow {
             total_revenue: None,
@@ -143,11 +137,7 @@ impl BiAnalysisService {
         );
         let mut values: Vec<sea_orm::Value> = Vec::new();
         values.extend(scope_values);
-        let stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
-            sql,
-            values,
-        );
+        let stmt = Statement::from_sql_and_values(sea_orm::DatabaseBackend::Postgres, sql, values);
         let row: KpiRow = KpiRow::find_by_statement(stmt)
             .one(&*self.db)
             .await?
@@ -196,14 +186,8 @@ impl BiAnalysisService {
         let mut values = vec![this_year.into(), month.into(), last_year.into()];
         values.extend(scope_values_1);
         values.extend(scope_values_2);
-        let stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
-            sql,
-            values,
-        );
-        let row: Option<YoYRow> = YoYRow::find_by_statement(stmt)
-            .one(&*self.db)
-            .await?;
+        let stmt = Statement::from_sql_and_values(sea_orm::DatabaseBackend::Postgres, sql, values);
+        let row: Option<YoYRow> = YoYRow::find_by_statement(stmt).one(&*self.db).await?;
         let (this_year_sales, last_year_sales) = if let Some(r) = row {
             (dec_to_f64(r.this_year), dec_to_f64(r.last_year))
         } else {
@@ -221,7 +205,11 @@ impl BiAnalysisService {
     async fn fetch_mom_growth(&self, now: chrono::DateTime<chrono::Utc>) -> Result<f64, AppError> {
         let this_year = now.format("%Y").to_string();
         let month = now.format("%m").to_string();
-        let last_month = if now.month() == 1 { 12 } else { now.month() - 1 };
+        let last_month = if now.month() == 1 {
+            12
+        } else {
+            now.month() - 1
+        };
         let last_month_year = if now.month() == 1 {
             (this_year.parse::<i32>().unwrap_or(2026) - 1).to_string()
         } else {
@@ -255,14 +243,8 @@ impl BiAnalysisService {
         ];
         values.extend(scope_values_1);
         values.extend(scope_values_2);
-        let stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
-            sql,
-            values,
-        );
-        let row: Option<MoMRow> = MoMRow::find_by_statement(stmt)
-            .one(&*self.db)
-            .await?;
+        let stmt = Statement::from_sql_and_values(sea_orm::DatabaseBackend::Postgres, sql, values);
+        let row: Option<MoMRow> = MoMRow::find_by_statement(stmt).one(&*self.db).await?;
         let (this_month_sales, last_month_sales) = if let Some(r) = row {
             (dec_to_f64(r.this_month), dec_to_f64(r.last_month))
         } else {

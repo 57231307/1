@@ -56,7 +56,10 @@ pub struct Model {
     pub approved_at_fin: Option<DateTime<Utc>>,
     #[sea_orm(column_name = "approved_at_gm")]
     pub approved_at_gm: Option<DateTime<Utc>>,
-    #[sea_orm(column_name = "scrap_loss_amount", column_type = "Decimal(Some((12, 2)))")]
+    #[sea_orm(
+        column_name = "scrap_loss_amount",
+        column_type = "Decimal(Some((12, 2)))"
+    )]
     pub scrap_loss_amount: Option<Decimal>,
 }
 

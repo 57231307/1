@@ -7,11 +7,11 @@ use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 use crate::utils::sql_escape::safe_like_pattern;
 use chrono::NaiveDate;
-use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
+use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -194,9 +194,8 @@ impl FixedAssetService {
                 // 平均年限法：(原值 - 残值) / (使用年限 * 12)
                 let useful_life_months = useful_life_years as u32 * 12;
                 if useful_life_months > 0 {
-                    ((asset.original_value - residual_value)
-                        / Decimal::from(useful_life_months))
-                    .round_dp(2)
+                    ((asset.original_value - residual_value) / Decimal::from(useful_life_months))
+                        .round_dp(2)
                 } else {
                     Decimal::ZERO
                 }
@@ -227,20 +226,17 @@ impl FixedAssetService {
                             asset.accumulated_depreciation / depreciable_amount
                         };
                         // 已使用年数（近似）
-                        let used_years = (depreciated_ratio
-                            * Decimal::from(useful_life_years))
-                        .to_usize()
-                        .unwrap_or(0);
-                        let remaining_years = useful_life_years
-                            .saturating_sub(used_years as i32)
-                            .max(1);
+                        let used_years = (depreciated_ratio * Decimal::from(useful_life_years))
+                            .to_usize()
+                            .unwrap_or(0);
+                        let remaining_years =
+                            useful_life_years.saturating_sub(used_years as i32).max(1);
                         // 年数总和 = n + (n-1) + ... + 1 = n * (n+1) / 2
                         let sum_of_years = useful_life_years * (useful_life_years + 1) / 2;
                         if sum_of_years <= 0 {
                             Decimal::ZERO
                         } else {
-                            ((depreciable_amount
-                                * Decimal::from(remaining_years)
+                            ((depreciable_amount * Decimal::from(remaining_years)
                                 / Decimal::from(sum_of_years))
                                 / Decimal::from(12))
                             .round_dp(2)
@@ -261,8 +257,7 @@ impl FixedAssetService {
                     if net_value <= residual_value {
                         Decimal::ZERO
                     } else {
-                        let annual_rate =
-                            Decimal::from(2) / Decimal::from(useful_life_years);
+                        let annual_rate = Decimal::from(2) / Decimal::from(useful_life_years);
                         ((net_value * annual_rate) / Decimal::from(12)).round_dp(2)
                     }
                 }
@@ -319,7 +314,12 @@ impl FixedAssetService {
         // 净值 = 原值 - 累计折旧，不能低于残值
         let new_net_value = (original_value - new_accumulated).max(residual_value);
 
-        (actual_depreciation, new_accumulated, new_net_value, depreciable_cap)
+        (
+            actual_depreciation,
+            new_accumulated,
+            new_net_value,
+            depreciable_cap,
+        )
     }
 
     /// 插入折旧记录，唯一约束冲突转为业务校验错误
@@ -424,7 +424,10 @@ impl FixedAssetService {
         period: &str,
         user_id: i32,
     ) -> Result<(), AppError> {
-        info!("用户 {} 正在计提资产 {} 的 {} 折旧", user_id, asset_id, period);
+        info!(
+            "用户 {} 正在计提资产 {} 的 {} 折旧",
+            user_id, asset_id, period
+        );
 
         // 开启事务，状态门 + update 在同一事务内
         let txn = (*self.db).begin().await?;
@@ -471,7 +474,11 @@ impl FixedAssetService {
         txn.commit().await?;
         info!(
             "资产 {} 折旧计提成功，实际计提额：{}（月折旧额：{}，累计：{} -> {}）",
-            asset_id, actual_depreciation, monthly_depreciation, accumulated_depreciation, new_accumulated
+            asset_id,
+            actual_depreciation,
+            monthly_depreciation,
+            accumulated_depreciation,
+            new_accumulated
         );
         Ok(())
     }
@@ -531,7 +538,7 @@ impl FixedAssetService {
             disposal_date: Set(req.disposal_date),
             disposal_amount: Set(req.disposal_value), // 使用 disposal_amount
             gain_loss: Set(Some(disposal_gain_loss)), // 批次 88 PH-3：持久化处置损益
-            disposal_reason: Set(req.reason.clone()),         // 使用 disposal_reason
+            disposal_reason: Set(req.reason.clone()), // 使用 disposal_reason
             quantity: Set(1),                         // 处置数量默认为1
             status: Set("COMPLETED".to_string()),
             remarks: Set(req.buyer_info.clone()), // 使用 remarks 存储买家信息
@@ -599,10 +606,7 @@ impl FixedAssetService {
         use crate::models::{voucher, voucher_item};
 
         let voucher_no = format!("FAD-{}", disposal.disposal_no);
-        let summary = format!(
-            "固定资产处置-{}-{}",
-            asset.asset_no, disposal.disposal_type
-        );
+        let summary = format!("固定资产处置-{}-{}", asset.asset_no, disposal.disposal_type);
 
         // 创建凭证主表
         let voucher_active = voucher::ActiveModel {
@@ -861,9 +865,9 @@ impl FixedAssetService {
         use chrono::Datelike;
 
         // P3 维度 3 修复（批次 87）：消除嵌套 expect，常量日期必然合法
-        let purchase_date = asset.purchase_date.unwrap_or_else(|| {
-            chrono::NaiveDate::from_ymd_opt(2020, 1, 1).unwrap_or_default()
-        });
+        let purchase_date = asset
+            .purchase_date
+            .unwrap_or_else(|| chrono::NaiveDate::from_ymd_opt(2020, 1, 1).unwrap_or_default());
         // useful_life 缺失时按 0 年处理 → 不折旧（守卫见下）
         let useful_life_years = asset.useful_life.unwrap_or_default();
         let original_value = asset.original_value;
@@ -886,9 +890,8 @@ impl FixedAssetService {
         // 批次 87 P3 维度 4 修复保持一致，防止 36 月等不能整除时累加误差
         let useful_life_months = useful_life_years * 12;
         let depreciable_amount = original_value - residual_value;
-        let monthly_depreciation = (depreciable_amount
-            / rust_decimal::Decimal::from(useful_life_months))
-            .round_dp(2);
+        let monthly_depreciation =
+            (depreciable_amount / rust_decimal::Decimal::from(useful_life_months)).round_dp(2);
 
         // 总应计折旧 = 月折旧额 * min(已用月数, 总月数)
         let applicable_months = Ord::min(months_used, useful_life_months);
@@ -964,7 +967,11 @@ impl FixedAssetService {
         };
         info!(
             "自动计提折旧完成：期间={}, 扫描={}, 成功={}, 跳过={}, 失败={}",
-            period, summary.total_scanned, summary.success_count, summary.skipped_count, summary.failure_count
+            period,
+            summary.total_scanned,
+            summary.success_count,
+            summary.skipped_count,
+            summary.failure_count
         );
         Ok(summary)
     }
@@ -977,10 +984,7 @@ impl FixedAssetService {
         req: CreateCountPlanRequest,
         user_id: i32,
     ) -> Result<fixed_asset_count::Model, AppError> {
-        info!(
-            "用户 {} 正在创建资产盘点计划：{}",
-            user_id, req.plan_name
-        );
+        info!("用户 {} 正在创建资产盘点计划：{}", user_id, req.plan_name);
 
         let txn = (*self.db).begin().await?;
 
@@ -990,7 +994,9 @@ impl FixedAssetService {
             crate::utils::random::random_4_digit()
         );
 
-        let count_date = req.count_date.unwrap_or_else(|| chrono::Utc::now().date_naive());
+        let count_date = req
+            .count_date
+            .unwrap_or_else(|| chrono::Utc::now().date_naive());
 
         let plan = fixed_asset_count::ActiveModel {
             count_no: Set(count_no.clone()),
@@ -1011,9 +1017,8 @@ impl FixedAssetService {
         .await?;
 
         // 按筛选条件拉取资产并生成盘点明细
-        let mut query = fixed_asset::Entity::find().filter(
-            fixed_asset::Column::Status.eq(master_data::ACTIVE),
-        );
+        let mut query =
+            fixed_asset::Entity::find().filter(fixed_asset::Column::Status.eq(master_data::ACTIVE));
         if let Some(category) = &req.asset_category {
             query = query.filter(fixed_asset::Column::AssetCategory.eq(category));
         }
@@ -1104,7 +1109,10 @@ impl FixedAssetService {
             .one(&txn)
             .await?
             .ok_or_else(|| {
-                AppError::not_found(format!("盘点明细不存在：count_id={}, asset_id={}", count_id, asset_id))
+                AppError::not_found(format!(
+                    "盘点明细不存在：count_id={}, asset_id={}",
+                    count_id, asset_id
+                ))
             })?;
 
         let book_original = item.book_original_value;
@@ -1264,8 +1272,7 @@ impl FixedAssetService {
         let paginator = fixed_asset_count::Entity::find()
             .order_by(fixed_asset_count::Column::Id, Order::Desc)
             .paginate(&*self.db, page_size.clamp(1, 100) as u64);
-        let (plans, total) =
-            paginate_with_total(paginator, page.clamp(1, 1000) as u64).await?;
+        let (plans, total) = paginate_with_total(paginator, page.clamp(1, 1000) as u64).await?;
         Ok((plans, total))
     }
 

@@ -13,7 +13,9 @@ use axum::{
 };
 use serde::Deserialize;
 
-use crate::models::{dye_batch_lifecycle_log, dye_batch_operation, dye_batch_rework, dye_batch_state_rule};
+use crate::models::{
+    dye_batch_lifecycle_log, dye_batch_operation, dye_batch_rework, dye_batch_state_rule,
+};
 use crate::services::dye_batch_state_machine_service::{
     CreateOperationRequest, CreateReworkRequest, CreateStateRuleRequest, CreateTransitionRequest,
     DyeBatchLifecycleLogService, DyeBatchOperationService, DyeBatchReworkService,
@@ -164,9 +166,7 @@ pub async fn record_transition(
     State(state): State<AppState>,
     Json(req): Json<CreateTransitionRequest>,
 ) -> Result<Json<ApiResponse<dye_batch_lifecycle_log::Model>>, AppError> {
-    let model = lifecycle_log_service(&state)
-        .record_transition(req)
-        .await?;
+    let model = lifecycle_log_service(&state).record_transition(req).await?;
     Ok(Json(ApiResponse::success(model)))
 }
 
@@ -403,9 +403,7 @@ pub async fn list_operations_by_batch(
     State(state): State<AppState>,
     Path(batch_id): Path<i32>,
 ) -> Result<Json<ApiResponse<Vec<dye_batch_operation::Model>>>, AppError> {
-    let items = operation_service(&state)
-        .list_by_batch(batch_id)
-        .await?;
+    let items = operation_service(&state).list_by_batch(batch_id).await?;
     Ok(Json(ApiResponse::success(items)))
 }
 

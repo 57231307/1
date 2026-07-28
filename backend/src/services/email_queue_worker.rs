@@ -114,7 +114,10 @@ impl EmailQueueWorker {
                     .update_status(
                         email_log.id,
                         "FAILED",
-                        Some("邮件服务未配置（EMAIL_PROVIDER/EMAIL_API_KEY/EMAIL_FROM 缺失）".to_string()),
+                        Some(
+                            "邮件服务未配置（EMAIL_PROVIDER/EMAIL_API_KEY/EMAIL_FROM 缺失）"
+                                .to_string(),
+                        ),
                         None,
                     )
                     .await?;
@@ -168,10 +171,7 @@ impl EmailQueueWorker {
     }
 
     /// 从 EmailLogModel 构造 EmailMessage，包含附件解码
-    fn build_email_message(
-        &self,
-        email_log: &EmailLogModel,
-    ) -> Result<EmailMessage, AppError> {
+    fn build_email_message(&self, email_log: &EmailLogModel) -> Result<EmailMessage, AppError> {
         use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
         use base64::Engine;
         use std::collections::HashMap;
@@ -212,12 +212,12 @@ impl EmailQueueWorker {
                         .and_then(|v| v.as_str())
                         .unwrap_or("");
                     if !content_base64.is_empty() {
-                        let content = BASE64_STANDARD
-                            .decode(content_base64)
-                            .map_err(|e| AppError::internal(format!(
+                        let content = BASE64_STANDARD.decode(content_base64).map_err(|e| {
+                            AppError::internal(format!(
                                 "附件 '{}' Base64 解码失败: {}",
                                 filename, e
-                            )))?;
+                            ))
+                        })?;
                         map.insert(filename, content);
                     }
                 }

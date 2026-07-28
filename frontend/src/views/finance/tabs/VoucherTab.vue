@@ -65,6 +65,7 @@
       @remove-entry="vchr.removeEntry"
       @submit-form="onSubmitForm"
       @update:voucher-form="v => Object.assign(vchr.voucherForm, v)"
+      @form-ref-ready="vchr.voucherFormRef = $event"
     />
 
     <VoucherDetail

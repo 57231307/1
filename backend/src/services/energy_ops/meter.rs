@@ -127,11 +127,7 @@ impl EnergyMeterService {
     }
 
     /// 更新计量设备
-    pub async fn update(
-        &self,
-        id: i32,
-        req: UpdateMeterRequest,
-    ) -> Result<MeterModel, AppError> {
+    pub async fn update(&self, id: i32, req: UpdateMeterRequest) -> Result<MeterModel, AppError> {
         let model = self.get_by_id(id).await?;
 
         let mut active: MeterActiveModel = model.into();
@@ -214,10 +210,7 @@ impl EnergyMeterService {
     }
 
     /// 分页查询
-    pub async fn list(
-        &self,
-        query: MeterQuery,
-    ) -> Result<(Vec<MeterModel>, u64), AppError> {
+    pub async fn list(&self, query: MeterQuery) -> Result<(Vec<MeterModel>, u64), AppError> {
         let mut q = MeterEntity::find().filter(energy_meter::Column::IsDeleted.eq(false));
         if let Some(v) = query.meter_type {
             q = q.filter(energy_meter::Column::MeterType.eq(v));

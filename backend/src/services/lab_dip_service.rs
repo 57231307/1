@@ -169,23 +169,67 @@ mod tests {
     #[test]
     fn test_request_status_transition_valid() {
         // 合法流转
-        assert!(LabDipRequestService::validate_status_transition(req_status::PENDING, req_status::SAMPLING).is_ok());
-        assert!(LabDipRequestService::validate_status_transition(req_status::SAMPLING, req_status::SUBMITTED).is_ok());
-        assert!(LabDipRequestService::validate_status_transition(req_status::SUBMITTED, req_status::APPROVED).is_ok());
-        assert!(LabDipRequestService::validate_status_transition(req_status::SUBMITTED, req_status::REJECTED).is_ok());
-        assert!(LabDipRequestService::validate_status_transition(req_status::REJECTED, req_status::SAMPLING).is_ok());
-        assert!(LabDipRequestService::validate_status_transition(req_status::APPROVED, req_status::COMPLETED).is_ok());
+        assert!(LabDipRequestService::validate_status_transition(
+            req_status::PENDING,
+            req_status::SAMPLING
+        )
+        .is_ok());
+        assert!(LabDipRequestService::validate_status_transition(
+            req_status::SAMPLING,
+            req_status::SUBMITTED
+        )
+        .is_ok());
+        assert!(LabDipRequestService::validate_status_transition(
+            req_status::SUBMITTED,
+            req_status::APPROVED
+        )
+        .is_ok());
+        assert!(LabDipRequestService::validate_status_transition(
+            req_status::SUBMITTED,
+            req_status::REJECTED
+        )
+        .is_ok());
+        assert!(LabDipRequestService::validate_status_transition(
+            req_status::REJECTED,
+            req_status::SAMPLING
+        )
+        .is_ok());
+        assert!(LabDipRequestService::validate_status_transition(
+            req_status::APPROVED,
+            req_status::COMPLETED
+        )
+        .is_ok());
     }
 
     /// 测试打样通知单状态流转非法
     #[test]
     fn test_request_status_transition_invalid() {
         // 非法流转
-        assert!(LabDipRequestService::validate_status_transition(req_status::PENDING, req_status::SUBMITTED).is_err());
-        assert!(LabDipRequestService::validate_status_transition(req_status::PENDING, req_status::APPROVED).is_err());
-        assert!(LabDipRequestService::validate_status_transition(req_status::SAMPLING, req_status::APPROVED).is_err());
-        assert!(LabDipRequestService::validate_status_transition(req_status::APPROVED, req_status::SAMPLING).is_err());
-        assert!(LabDipRequestService::validate_status_transition(req_status::COMPLETED, req_status::SAMPLING).is_err());
+        assert!(LabDipRequestService::validate_status_transition(
+            req_status::PENDING,
+            req_status::SUBMITTED
+        )
+        .is_err());
+        assert!(LabDipRequestService::validate_status_transition(
+            req_status::PENDING,
+            req_status::APPROVED
+        )
+        .is_err());
+        assert!(LabDipRequestService::validate_status_transition(
+            req_status::SAMPLING,
+            req_status::APPROVED
+        )
+        .is_err());
+        assert!(LabDipRequestService::validate_status_transition(
+            req_status::APPROVED,
+            req_status::SAMPLING
+        )
+        .is_err());
+        assert!(LabDipRequestService::validate_status_transition(
+            req_status::COMPLETED,
+            req_status::SAMPLING
+        )
+        .is_err());
     }
 
     /// 测试通知单更新状态校验

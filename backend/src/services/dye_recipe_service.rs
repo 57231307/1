@@ -17,7 +17,9 @@ use sea_orm::{
 use serde::Deserialize;
 use std::sync::Arc;
 
-use crate::models::dye_recipe::{self, ActiveModel, Entity as DyeRecipeEntity, Model as DyeRecipeModel};
+use crate::models::dye_recipe::{
+    self, ActiveModel, Entity as DyeRecipeEntity, Model as DyeRecipeModel,
+};
 use crate::models::status::dye_recipe as recipe_status;
 use crate::utils::error::AppError;
 
@@ -101,7 +103,9 @@ impl DyeRecipeService {
     /// 已停用 → 已审核
     pub fn validate_status_transition(current: &str, new: &str) -> Result<(), AppError> {
         let valid = match current {
-            recipe_status::DRAFT => matches!(new, recipe_status::APPROVED | recipe_status::DISABLED),
+            recipe_status::DRAFT => {
+                matches!(new, recipe_status::APPROVED | recipe_status::DISABLED)
+            }
             recipe_status::APPROVED => matches!(new, recipe_status::DISABLED),
             recipe_status::DISABLED => matches!(new, recipe_status::APPROVED),
             _ => false,
@@ -118,9 +122,7 @@ impl DyeRecipeService {
     /// 校验配方是否允许删除（已审核的配方不允许删除）
     pub fn validate_can_delete(status: Option<&str>) -> Result<(), AppError> {
         if status == Some(recipe_status::APPROVED) {
-            return Err(AppError::business(
-                "已审核的配方不允许删除，请先停用",
-            ));
+            return Err(AppError::business("已审核的配方不允许删除，请先停用"));
         }
         Ok(())
     }
@@ -508,8 +510,9 @@ mod tests {
     /// 测试状态流转：未知状态（非法）
     #[test]
     fn test_status_transition_unknown_status() {
-        assert!(DyeRecipeService::validate_status_transition("未知", recipe_status::APPROVED)
-            .is_err());
+        assert!(
+            DyeRecipeService::validate_status_transition("未知", recipe_status::APPROVED).is_err()
+        );
     }
 
     /// 测试删除校验：已审核配方不允许删除

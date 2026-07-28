@@ -20,10 +20,12 @@ use crate::models::business_mode_order_link::{
 };
 use crate::utils::error::AppError;
 
-use crate::services::business_mode_service::{validate_document_type, BusinessModeOrderLinkService};
 use crate::services::business_mode_ops::types::{
     BusinessModeOrderLinkQuery, CreateBusinessModeOrderLinkRequest,
     UpdateBusinessModeOrderLinkRequest,
+};
+use crate::services::business_mode_service::{
+    validate_document_type, BusinessModeOrderLinkService,
 };
 
 impl BusinessModeOrderLinkService {

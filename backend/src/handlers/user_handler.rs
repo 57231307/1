@@ -28,10 +28,7 @@ use validator::{Validate, ValidationError};
 
 /// H-1 修复：用户管理 admin 校验 + 限制非 admin 修改 role_id
 /// 安全原因：防止低权限用户通过 create_user/update_user 指定 role_id 提权
-async fn require_admin_role(
-    state: &AppState,
-    auth: &AuthContext,
-) -> Result<(), AppError> {
+async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), AppError> {
     let role_id = auth
         .role_id
         .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行该操作"))?;
@@ -160,9 +157,7 @@ pub async fn get_user(
             None,
         )
         .await;
-        return Err(AppError::permission_denied(
-            "仅管理员可查询其他用户信息",
-        ));
+        return Err(AppError::permission_denied("仅管理员可查询其他用户信息"));
     }
 
     let user_service = UserService::new(state.db.clone());
@@ -307,9 +302,7 @@ pub async fn update_user(
         if is_admin_role(&state.db, new_role_id).await
             && !is_admin_role(&state.db, auth.role_id.unwrap_or(-1)).await
         {
-            return Err(AppError::permission_denied(
-                "禁止将用户角色改为 admin 角色",
-            ));
+            return Err(AppError::permission_denied("禁止将用户角色改为 admin 角色"));
         }
     }
 
@@ -361,9 +354,7 @@ pub async fn update_user(
             );
         }
         // 3. 失效该用户的角色权限缓存（避免 5 分钟 TTL 内使用旧权限放行）
-        crate::middleware::permission::invalidate_permission_cache(
-            old_user.role_id.unwrap_or(0),
-        );
+        crate::middleware::permission::invalidate_permission_cache(old_user.role_id.unwrap_or(0));
         if let Some(new_role_id) = req.role_id {
             crate::middleware::permission::invalidate_permission_cache(new_role_id);
         }
@@ -550,11 +541,7 @@ fn build_delete_audit_event(
 }
 
 /// v11 批次 156 P2-D：双写 log_security_event（结构化告警，与 AuditLogService 落库互补）。
-async fn log_user_deleted_security_event(
-    auth: &AuthContext,
-    existing_user: &user::Model,
-    id: i32,
-) {
+async fn log_user_deleted_security_event(auth: &AuthContext, existing_user: &user::Model, id: i32) {
     audit::log_security_event(
         audit::SecurityEvent::UserDeleted,
         auth.user_id,
@@ -597,18 +584,20 @@ pub async fn change_password(
 
     let old_hash_fingerprint = compute_hash_fingerprint(&user.password_hash);
 
-    let is_valid = AuthService::verify_password_async(req.old_password.clone(), user.password_hash.clone())
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let is_valid =
+        AuthService::verify_password_async(req.old_password.clone(), user.password_hash.clone())
+            .await
+            .map_err(|e| AppError::internal(e.to_string()))?;
 
     if !is_valid {
         record_audit_failure(&state.db, &auth, &audit_ctx, "原密码不正确");
         return Err(AppError::unauthorized("原密码不正确"));
     }
 
-    let is_same = AuthService::verify_password_async(req.new_password.clone(), user.password_hash.clone())
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let is_same =
+        AuthService::verify_password_async(req.new_password.clone(), user.password_hash.clone())
+            .await
+            .map_err(|e| AppError::internal(e.to_string()))?;
 
     if is_same {
         return Err(AppError::bad_request("新密码不能与原密码相同"));
@@ -623,19 +612,43 @@ pub async fn change_password(
         .map_err(|e| AppError::internal(e.to_string()))?;
 
     let policy_svc = crate::services::auth::password_policy_service::PasswordPolicyService::new();
-    if let Err(e) = validate_password_history(policy_svc.as_ref(), state.db.as_ref(), auth.user_id, &req.new_password, &new_password_hash).await {
+    if let Err(e) = validate_password_history(
+        &policy_svc,
+        state.db.as_ref(),
+        auth.user_id,
+        &req.new_password,
+        &new_password_hash,
+    )
+    .await
+    {
         return Err(e);
     }
 
     let new_hash_fingerprint = compute_hash_fingerprint(&new_password_hash);
 
     update_password_and_revoke(state.db.as_ref(), &user, &new_password_hash, auth.user_id).await?;
-    save_password_history(policy_svc.as_ref(), state.db.as_ref(), auth.user_id, &user.password_hash, auth.user_id).await;
+    save_password_history(
+        &policy_svc,
+        state.db.as_ref(),
+        auth.user_id,
+        &user.password_hash,
+        auth.user_id,
+    )
+    .await;
 
-    record_audit_success(&state.db, &auth, &audit_ctx, &old_hash_fingerprint, &new_hash_fingerprint);
+    record_audit_success(
+        &state.db,
+        &auth,
+        &audit_ctx,
+        &old_hash_fingerprint,
+        &new_hash_fingerprint,
+    );
 
     Ok(Json(ApiResponse::success_with_message(
-        ChangePasswordResponse { success: true, message: "密码修改成功".to_string() },
+        ChangePasswordResponse {
+            success: true,
+            message: "密码修改成功".to_string(),
+        },
         "密码修改成功，请使用新密码重新登录",
     )))
 }
@@ -647,7 +660,12 @@ fn compute_hash_fingerprint(password_hash: &str) -> String {
     format!("{:x}", hasher.finalize())[..8].to_string()
 }
 
-fn record_audit_failure(db: &Arc<DatabaseConnection>, auth: &AuthContext, audit_ctx: &Option<Extension<AuditContext>>, reason: &str) {
+fn record_audit_failure(
+    db: &Arc<DatabaseConnection>,
+    auth: &AuthContext,
+    audit_ctx: &Option<Extension<AuditContext>>,
+    reason: &str,
+) {
     let event = AuditEvent {
         user_id: Some(auth.user_id),
         username: Some(auth.username.clone()),
@@ -673,9 +691,13 @@ async fn validate_password_history(
     new_password: &str,
     new_password_hash: &str,
 ) -> Result<(), AppError> {
-    let history = policy_svc.load_history_from_db(db, user_id).await
+    let history = policy_svc
+        .load_history_from_db(db, user_id)
+        .await
         .map_err(|e| AppError::internal(format!("加载密码历史失败: {}", e)))?;
-    let history_result = policy_svc.validate_with_history(new_password, new_password_hash, &history).await;
+    let history_result = policy_svc
+        .validate_with_history(new_password, new_password_hash, &history)
+        .await;
     if !history_result.is_valid {
         if let Some(history_err) = history_result.errors.iter().find(|e| e.contains("历史")) {
             return Err(AppError::bad_request(history_err.clone()));
@@ -710,12 +732,21 @@ async fn save_password_history(
     old_password_hash: &str,
     auth_user_id: i32,
 ) {
-    if let Err(e) = policy_svc.save_to_db(db, user_id, old_password_hash.to_string()).await {
+    if let Err(e) = policy_svc
+        .save_to_db(db, user_id, old_password_hash.to_string())
+        .await
+    {
         tracing::warn!(user_id = auth_user_id, error = %e, "[SECURITY] 密码历史持久化失败（不影响密码修改主流程）");
     }
 }
 
-fn record_audit_success(db: &Arc<DatabaseConnection>, auth: &AuthContext, audit_ctx: &Option<Extension<AuditContext>>, old_fingerprint: &str, new_fingerprint: &str) {
+fn record_audit_success(
+    db: &Arc<DatabaseConnection>,
+    auth: &AuthContext,
+    audit_ctx: &Option<Extension<AuditContext>>,
+    old_fingerprint: &str,
+    new_fingerprint: &str,
+) {
     let event = AuditEvent {
         user_id: Some(auth.user_id),
         username: Some(auth.username.clone()),
@@ -727,8 +758,12 @@ fn record_audit_success(db: &Arc<DatabaseConnection>, auth: &AuthContext, audit_
         description: Some("用户修改密码成功".to_string()),
         request_method: Some("PUT".to_string()),
         request_path: Some("/api/v1/erp/users/change-password".to_string()),
-        before_snapshot: Some(serde_json::json!({ "action": "change_password", "hash_fingerprint": old_fingerprint })),
-        after_snapshot: Some(serde_json::json!({ "action": "change_password", "status": "success", "hash_fingerprint": new_fingerprint })),
+        before_snapshot: Some(
+            serde_json::json!({ "action": "change_password", "hash_fingerprint": old_fingerprint }),
+        ),
+        after_snapshot: Some(
+            serde_json::json!({ "action": "change_password", "status": "success", "hash_fingerprint": new_fingerprint }),
+        ),
     };
     let svc = Arc::new(AuditLogService::new(db.clone()));
     svc.record_async(event, audit_ctx.as_ref().map(|e| e.0));

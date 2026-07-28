@@ -42,13 +42,7 @@ pub async fn create_approval_request(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let svc = ExportApprovalService::new(state.db);
     let model = svc
-        .create_request(
-            auth.user_id,
-            auth.username.clone(),
-            None,
-            None,
-            body,
-        )
+        .create_request(auth.user_id, auth.username.clone(), None, None, body)
         .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
@@ -92,13 +86,7 @@ pub async fn approve_request(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let svc = ExportApprovalService::new(state.db);
     let model = svc
-        .approve(
-            id,
-            auth.user_id,
-            auth.username.clone(),
-            None,
-            body,
-        )
+        .approve(id, auth.user_id, auth.username.clone(), None, body)
         .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
@@ -113,13 +101,7 @@ pub async fn reject_request(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let svc = ExportApprovalService::new(state.db);
     let model = svc
-        .reject(
-            id,
-            auth.user_id,
-            auth.username.clone(),
-            None,
-            body,
-        )
+        .reject(id, auth.user_id, auth.username.clone(), None, body)
         .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }

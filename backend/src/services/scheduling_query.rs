@@ -10,21 +10,23 @@
 
 use super::scheduling_service::SchedulingService;
 use crate::models::production_order::Entity as ProductionOrderEntity;
-use crate::models::scheduling_result::{ActiveModel as SchedulingActiveModel, Entity as SchedulingResultEntity};
+use crate::models::scheduling_result::{
+    ActiveModel as SchedulingActiveModel, Entity as SchedulingResultEntity,
+};
 use crate::models::status::common;
 use crate::models::status::production;
 use crate::models::status::scheduling as scheduling_status;
 use crate::models::work_center::{Entity as WorkCenterEntity, Model as WorkCenterModel};
+use crate::services::scheduling_service::{
+    DateRange, GanttData, GanttItemDto, ScheduleDetail, ScheduledOrder, ScheduledOrderQuery,
+    WorkCenterInfo,
+};
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
-use crate::services::scheduling_service::{
-    DateRange, GanttData, GanttItemDto, ScheduleDetail, ScheduledOrder,
-    ScheduledOrderQuery, WorkCenterInfo,
-};
 use chrono::{NaiveDate, Utc};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    TransactionTrait,
 };
 
 /// P9-2 标记：排程查询子模块路径
@@ -51,8 +53,7 @@ impl SchedulingService {
             "排程甘特图数据查询开始"
         );
         let orders = Self::fetch_gantt_orders(&*self.db, work_center_id).await?;
-        let scheduled_details =
-            Self::build_scheduled_details(&orders, date_from, date_to);
+        let scheduled_details = Self::build_scheduled_details(&orders, date_from, date_to);
         let work_centers = Self::fetch_work_centers(&*self.db, &orders).await?;
         Ok(self.build_gantt_data(&scheduled_details, &work_centers))
     }
@@ -268,7 +269,8 @@ impl SchedulingService {
             if let Ok(details) = serde_json::from_value::<Vec<ScheduleDetail>>(details_json.clone())
             {
                 if !details.is_empty() {
-                    self.apply_schedule_details_to_orders(&txn, &details).await?;
+                    self.apply_schedule_details_to_orders(&txn, &details)
+                        .await?;
                 }
             }
         }

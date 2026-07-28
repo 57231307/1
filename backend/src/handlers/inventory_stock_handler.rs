@@ -1,4 +1,3 @@
-
 use crate::middleware::auth_context::AuthContext;
 use crate::models::inventory_stock::Model as InventoryStock;
 use crate::models::product;
@@ -222,7 +221,9 @@ pub async fn list_stock(
     auth: AuthContext,
     Query(params): Query<ListStockParams>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<serde_json::Value>>>, AppError> {
-    params.validate().map_err(|e| AppError::validation(e.to_string()))?;
+    params
+        .validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
 
     let service = InventoryStockService::new(state.db.clone());
     let page = params.page.unwrap_or(1).clamp(1, 1000);
@@ -262,7 +263,9 @@ fn to_stock_response(stock: InventoryStock) -> StockResponse {
 }
 
 async fn send_inventory_alerts(state: &AppState, stock_responses: &[StockResponse]) {
-    let Some(ref event_service) = state.event_notification_service else { return };
+    let Some(ref event_service) = state.event_notification_service else {
+        return;
+    };
 
     let alert_product_ids: Vec<i32> = stock_responses
         .iter()
@@ -286,7 +289,10 @@ async fn send_inventory_alerts(state: &AppState, stock_responses: &[StockRespons
     }
 }
 
-async fn load_alert_products(db: &DatabaseConnection, product_ids: &[i32]) -> std::collections::HashMap<i32, product::Model> {
+async fn load_alert_products(
+    db: &DatabaseConnection,
+    product_ids: &[i32],
+) -> std::collections::HashMap<i32, product::Model> {
     match product::Entity::find()
         .filter(product::Column::Id.is_in(product_ids.iter().copied()))
         .all(db)
@@ -307,38 +313,61 @@ async fn send_alert_for_stock(
     stock: &StockResponse,
 ) {
     if let Some(ref s) = setting {
-        if let Err(e) = event_service.notify_inventory_alert_with_setting(
-            0, s, &product.name, product.id,
-            &stock.quantity_on_hand.to_string(),
-            &stock.reorder_point.to_string(),
-        ).await {
+        if let Err(e) = event_service
+            .notify_inventory_alert_with_setting(
+                0,
+                s,
+                &product.name,
+                product.id,
+                &stock.quantity_on_hand.to_string(),
+                &stock.reorder_point.to_string(),
+            )
+            .await
+        {
             tracing::warn!("批次 94 P2-11：库存预警通知(with_setting)发送失败: {}", e);
         }
     } else {
-        if let Err(e) = event_service.notify_inventory_alert(
-            0, &product.name, product.id,
-            &stock.quantity_on_hand.to_string(),
-            &stock.reorder_point.to_string(),
-        ).await {
+        if let Err(e) = event_service
+            .notify_inventory_alert(
+                0,
+                &product.name,
+                product.id,
+                &stock.quantity_on_hand.to_string(),
+                &stock.reorder_point.to_string(),
+            )
+            .await
+        {
             tracing::warn!("批次 94 P2-11：库存预警通知发送失败: {}", e);
         }
     }
 }
 
-fn serialize_stock_responses(stock_responses: Vec<StockResponse>) -> Result<Vec<serde_json::Value>, AppError> {
+fn serialize_stock_responses(
+    stock_responses: Vec<StockResponse>,
+) -> Result<Vec<serde_json::Value>, AppError> {
     stock_responses
         .into_iter()
         .map(|s| serde_json::to_value(s).map_err(AppError::from))
         .collect()
 }
 
-async fn apply_data_permission_filter(state: &AppState, auth: &AuthContext, stock_json: &mut Vec<serde_json::Value>) {
+async fn apply_data_permission_filter(
+    state: &AppState,
+    auth: &AuthContext,
+    stock_json: &mut Vec<serde_json::Value>,
+) {
     let Some(role_id) = auth.role_id else { return };
 
-    match state.data_permission_service.get_role_data_permission(role_id, "inventory_stock").await {
+    match state
+        .data_permission_service
+        .get_role_data_permission(role_id, "inventory_stock")
+        .await
+    {
         Ok(Some(permission)) => {
             state.data_permission_service.filter_fields_batch(
-                stock_json, &permission.allowed_fields, &permission.hidden_fields,
+                stock_json,
+                &permission.allowed_fields,
+                &permission.hidden_fields,
             );
         }
         Ok(None) => {
@@ -500,17 +529,24 @@ pub async fn export_stock(
     auth: AuthContext,
     Query(params): Query<ListStockParams>,
 ) -> Result<axum::response::Response, AppError> {
-    params.validate().map_err(|e| AppError::validation(e.to_string()))?;
+    params
+        .validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
 
     let service = InventoryStockService::new(state.db.clone());
-    let (stock_list, _total) = service.list_stock(1, 10000, params.warehouse_id, params.product_id).await?;
+    let (stock_list, _total) = service
+        .list_stock(1, 10000, params.warehouse_id, params.product_id)
+        .await?;
     let row_count = stock_list.len();
 
     let mut stock_json = serialize_stock_responses(stock_list)?;
     apply_data_permission_filter(&state, &auth, &mut stock_json).await;
 
     let table = build_stock_xlsx_table(&stock_json)?;
-    let filename = format!("inventory_stock_export_{}", chrono::Utc::now().format("%Y%m%d_%H%M%S"));
+    let filename = format!(
+        "inventory_stock_export_{}",
+        chrono::Utc::now().format("%Y%m%d_%H%M%S")
+    );
 
     record_export_audit(&state.db, &auth, &filename, row_count, &params);
     let watermark = build_export_watermark(&auth, row_count);
@@ -520,15 +556,23 @@ pub async fn export_stock(
 
 fn build_stock_xlsx_table(stock_json: &[serde_json::Value]) -> Result<XlsxTable, AppError> {
     let headers = vec![
-        "ID".to_string(), "仓库ID".to_string(), "产品ID".to_string(),
-        "在库量".to_string(), "可用量".to_string(), "预留量".to_string(),
-        "库位".to_string(), "创建时间".to_string(), "更新时间".to_string(),
+        "ID".to_string(),
+        "仓库ID".to_string(),
+        "产品ID".to_string(),
+        "在库量".to_string(),
+        "可用量".to_string(),
+        "预留量".to_string(),
+        "库位".to_string(),
+        "创建时间".to_string(),
+        "更新时间".to_string(),
     ];
 
     let rows = stock_json
         .iter()
         .map(|stock| {
-            let obj = stock.as_object().ok_or_else(|| AppError::internal("库存序列化失败：期望 JSON 对象"))?;
+            let obj = stock
+                .as_object()
+                .ok_or_else(|| AppError::internal("库存序列化失败：期望 JSON 对象"))?;
             Ok(vec![
                 get_json_str(obj, "id"),
                 get_json_str(obj, "warehouse_id"),
@@ -543,20 +587,34 @@ fn build_stock_xlsx_table(stock_json: &[serde_json::Value]) -> Result<XlsxTable,
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    Ok(XlsxTable { sheet_name: "库存列表".to_string(), headers, rows })
+    Ok(XlsxTable {
+        sheet_name: "库存列表".to_string(),
+        headers,
+        rows,
+    })
 }
 
 fn get_json_str(obj: &serde_json::Map<String, serde_json::Value>, key: &str) -> String {
     obj.get(key)
         .map(|v| {
-            if v.is_null() { String::new() }
-            else if v.is_string() { v.as_str().unwrap_or("").to_string() }
-            else { v.to_string() }
+            if v.is_null() {
+                String::new()
+            } else if v.is_string() {
+                v.as_str().unwrap_or("").to_string()
+            } else {
+                v.to_string()
+            }
         })
         .unwrap_or_default()
 }
 
-fn record_export_audit(db: &Arc<DatabaseConnection>, auth: &AuthContext, filename: &str, row_count: usize, params: &ListStockParams) {
+fn record_export_audit(
+    db: &Arc<DatabaseConnection>,
+    auth: &AuthContext,
+    filename: &str,
+    row_count: usize,
+    params: &ListStockParams,
+) {
     let event = AuditEvent {
         user_id: Some(auth.user_id),
         username: Some(auth.username.clone()),
@@ -565,7 +623,10 @@ fn record_export_audit(db: &Arc<DatabaseConnection>, auth: &AuthContext, filenam
         resource_type: Some("inventory_stock".to_string()),
         resource_id: None,
         resource_name: Some(format!("{}.xlsx", filename)),
-        description: Some(format!("用户 {} 导出库存列表（共 {} 条）", auth.username, row_count)),
+        description: Some(format!(
+            "用户 {} 导出库存列表（共 {} 条）",
+            auth.username, row_count
+        )),
         request_method: Some("GET".to_string()),
         request_path: Some("/api/v1/erp/inventory/stock/export".to_string()),
         before_snapshot: None,

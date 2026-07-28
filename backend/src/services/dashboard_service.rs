@@ -163,7 +163,11 @@ pub struct DashboardService {
 
 impl DashboardService {
     pub fn new(db: Arc<DatabaseConnection>, cache: Arc<AppCache>) -> Self {
-        Self { db, cache, data_scope: None }
+        Self {
+            db,
+            cache,
+            data_scope: None,
+        }
     }
 
     /// 缺陷 4.3 修复：创建带数据范围上下文的仪表板服务（按角色控制可见卡片）
@@ -172,7 +176,11 @@ impl DashboardService {
         cache: Arc<AppCache>,
         ctx: DataScopeContext,
     ) -> Self {
-        Self { db, cache, data_scope: Some(ctx) }
+        Self {
+            db,
+            cache,
+            data_scope: Some(ctx),
+        }
     }
 
     /// 按起止日期生成概览缓存键
@@ -182,8 +190,12 @@ impl DashboardService {
     ) -> String {
         format!(
             "dashboard:overview:{}-{}",
-            start_date.map(|d| d.to_rfc3339()).unwrap_or("all".to_string()),
-            end_date.map(|d| d.to_rfc3339()).unwrap_or("all".to_string())
+            start_date
+                .map(|d| d.to_rfc3339())
+                .unwrap_or("all".to_string()),
+            end_date
+                .map(|d| d.to_rfc3339())
+                .unwrap_or("all".to_string())
         )
     }
 
@@ -214,10 +226,10 @@ impl DashboardService {
         let total_products_fut = product::Entity::find().count(db);
         let total_warehouses_fut = warehouse::Entity::find().count(db);
         let mut total_orders_q = sales_order::Entity::find();
-        let mut pending_orders_q = sales_order::Entity::find()
-            .filter(sales_order::Column::Status.eq("pending"));
-        let mut monthly_sales_q = sales_order::Entity::find()
-            .filter(sales_order::Column::OrderDate.gte(start_of_month));
+        let mut pending_orders_q =
+            sales_order::Entity::find().filter(sales_order::Column::Status.eq("pending"));
+        let mut monthly_sales_q =
+            sales_order::Entity::find().filter(sales_order::Column::OrderDate.gte(start_of_month));
         let mut total_sales_q = sales_order::Entity::find();
 
         // 缺陷 4.3 修复：Self_/Dept 范围仅统计自己的订单
@@ -225,14 +237,14 @@ impl DashboardService {
             use crate::utils::data_scope::DataScope;
             match ctx.scope {
                 DataScope::Self_ | DataScope::Dept => {
-                    total_orders_q = total_orders_q
-                        .filter(sales_order::Column::CreatedBy.eq(ctx.user_id));
-                    pending_orders_q = pending_orders_q
-                        .filter(sales_order::Column::CreatedBy.eq(ctx.user_id));
-                    monthly_sales_q = monthly_sales_q
-                        .filter(sales_order::Column::CreatedBy.eq(ctx.user_id));
-                    total_sales_q = total_sales_q
-                        .filter(sales_order::Column::CreatedBy.eq(ctx.user_id));
+                    total_orders_q =
+                        total_orders_q.filter(sales_order::Column::CreatedBy.eq(ctx.user_id));
+                    pending_orders_q =
+                        pending_orders_q.filter(sales_order::Column::CreatedBy.eq(ctx.user_id));
+                    monthly_sales_q =
+                        monthly_sales_q.filter(sales_order::Column::CreatedBy.eq(ctx.user_id));
+                    total_sales_q =
+                        total_sales_q.filter(sales_order::Column::CreatedBy.eq(ctx.user_id));
                 }
                 DataScope::All => {}
             }
@@ -335,8 +347,12 @@ impl DashboardService {
     ) -> String {
         format!(
             "dashboard:sales:{}-{}",
-            start_date.map(|d| d.to_rfc3339()).unwrap_or("all".to_string()),
-            end_date.map(|d| d.to_rfc3339()).unwrap_or("all".to_string())
+            start_date
+                .map(|d| d.to_rfc3339())
+                .unwrap_or("all".to_string()),
+            end_date
+                .map(|d| d.to_rfc3339())
+                .unwrap_or("all".to_string())
         )
     }
 
@@ -391,7 +407,9 @@ impl DashboardService {
             let week_key = format!("{}-{:02}", iso.year(), iso.week());
             *weekly_map.entry(week_key).or_insert_with(|| Decimal::ZERO) += amount;
             let month_key = format!("{}-{:02}", date.year(), date.month());
-            *monthly_map.entry(month_key).or_insert_with(|| Decimal::ZERO) += amount;
+            *monthly_map
+                .entry(month_key)
+                .or_insert_with(|| Decimal::ZERO) += amount;
         }
         let weekly_sales: Vec<SalesDataPoint> = weekly_map
             .into_iter()
@@ -475,11 +493,7 @@ impl DashboardService {
             None => return Ok(vec![]),
         };
         let (sql, params) = Self::append_date_filters(base_sql, start_date, end_date);
-        let stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
-            sql,
-            params,
-        );
+        let stmt = Statement::from_sql_and_values(sea_orm::DatabaseBackend::Postgres, sql, params);
         let rows = SalesByDimensionRow::find_by_statement(stmt)
             .all(self.db.as_ref())
             .await?;
@@ -490,7 +504,8 @@ impl DashboardService {
     /// dimension 为代码内常量，非用户输入，不存在 SQL 注入风险
     fn build_dimension_sql(dimension: &str) -> Option<String> {
         match dimension {
-            "customer" => Some(r#"
+            "customer" => Some(
+                r#"
                 SELECT
                     COALESCE(c.customer_name, '未关联客户') as name,
                     COALESCE(SUM(s.total_amount), 0) as total_amount,
@@ -498,8 +513,11 @@ impl DashboardService {
                 FROM sales_orders s
                 LEFT JOIN customers c ON c.id = s.customer_id
                 WHERE s.status NOT IN ('CANCELLED', 'DRAFT')
-            "#.to_string()),
-            "product" => Some(r#"
+            "#
+                .to_string(),
+            ),
+            "product" => Some(
+                r#"
                 SELECT
                     COALESCE(p.name, '未关联产品') as name,
                     COALESCE(SUM(si.total_amount), 0) as total_amount,
@@ -509,8 +527,11 @@ impl DashboardService {
                     AND s.status NOT IN ('CANCELLED', 'DRAFT')
                 LEFT JOIN products p ON p.id = si.product_id
                 WHERE 1=1
-            "#.to_string()),
-            "salesperson" => Some(r#"
+            "#
+                .to_string(),
+            ),
+            "salesperson" => Some(
+                r#"
                 SELECT
                     COALESCE(u.username, '未关联销售员') as name,
                     COALESCE(SUM(s.total_amount), 0) as total_amount,
@@ -518,7 +539,9 @@ impl DashboardService {
                 FROM sales_orders s
                 LEFT JOIN users u ON u.id = s.created_by
                 WHERE s.status NOT IN ('CANCELLED', 'DRAFT')
-            "#.to_string()),
+            "#
+                .to_string(),
+            ),
             _ => None,
         }
     }
@@ -591,10 +614,7 @@ impl DashboardService {
     }
 
     /// 库存统计：尝试从缓存读取（命中且反序列化成功时返回）
-    fn read_inventory_cache(
-        cache: &AppCache,
-        cache_key: &str,
-    ) -> Option<InventoryStatistics> {
+    fn read_inventory_cache(cache: &AppCache, cache_key: &str) -> Option<InventoryStatistics> {
         let cache_key_string = cache_key.to_string();
         let cached = cache.get_dashboard_cache().get(&cache_key_string)?;
         serde_json::from_value(cached).ok()
@@ -635,13 +655,12 @@ impl DashboardService {
             .group_by(inventory_stock::Column::WarehouseId)
             .into_tuple::<(i32, Option<Decimal>)>()
             .all(db);
-        let (total_quantity_opt, _low_stock_count, _zero_stock_count, warehouse_distribution) =
-            tokio::try_join!(
-                total_quantity_fut,
-                low_stock_count_fut,
-                zero_stock_count_fut,
-                warehouse_distribution_fut,
-            )?;
+        let (total_quantity_opt, _low_stock_count, _zero_stock_count, warehouse_distribution) = tokio::try_join!(
+            total_quantity_fut,
+            low_stock_count_fut,
+            zero_stock_count_fut,
+            warehouse_distribution_fut,
+        )?;
         Ok((
             total_quantity_opt.flatten().unwrap_or(Decimal::ZERO),
             warehouse_distribution,
@@ -655,9 +674,11 @@ impl DashboardService {
         statistics: &InventoryStatistics,
     ) {
         if let Ok(statistics_json) = serde_json::to_value(statistics) {
-            cache
-                .get_dashboard_cache()
-                .set(cache_key, statistics_json, Some(Duration::from_secs(300)));
+            cache.get_dashboard_cache().set(
+                cache_key,
+                statistics_json,
+                Some(Duration::from_secs(300)),
+            );
         }
     }
 
@@ -815,11 +836,7 @@ impl DashboardService {
             .map(|range| {
                 let qty = row_map.get(*range).copied().unwrap_or(Decimal::ZERO);
                 let percentage = if total > Decimal::ZERO {
-                    (qty / total)
-                        .to_string()
-                        .parse::<f64>()
-                        .unwrap_or(0.0)
-                        * 100.0
+                    (qty / total).to_string().parse::<f64>().unwrap_or(0.0) * 100.0
                 } else {
                     0.0
                 };

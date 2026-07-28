@@ -12,10 +12,12 @@ use serde::Deserialize;
 use validator::Validate;
 
 use crate::middleware::auth_context::AuthContext;
-use crate::models::custom_order_create_dto::{CancelCustomOrderDto, CreateCustomOrderDto, UpdateCustomOrderDto};
+use crate::models::custom_order_create_dto::{
+    CancelCustomOrderDto, CreateCustomOrderDto, UpdateCustomOrderDto,
+};
 use crate::models::custom_order_response_dto::{
-    CustomOrderDetail, CustomOrderListItem, PagedResponse, ProcessNodeInfo, ProcessNodeWithLogs,
-    ProcessTimeline, QualityIssueInfo, AfterSalesInfo, ProcessLogInfo,
+    AfterSalesInfo, CustomOrderDetail, CustomOrderListItem, PagedResponse, ProcessLogInfo,
+    ProcessNodeInfo, ProcessNodeWithLogs, ProcessTimeline, QualityIssueInfo,
 };
 use crate::models::custom_order_update_dto::{
     AddProcessLogDto, AdvanceNodeDto, CreateProcessNodeDto, UpdateProcessNodeDto,
@@ -104,7 +106,9 @@ fn quality_err(e: crate::services::custom_order_quality_service::QualityError) -
     }
 }
 
-fn aftersales_err(e: crate::services::custom_order_aftersales_service::AfterSalesError) -> AppError {
+fn aftersales_err(
+    e: crate::services::custom_order_aftersales_service::AfterSalesError,
+) -> AppError {
     use crate::services::custom_order_aftersales_service::AfterSalesError::*;
     match e {
         NotFound => AppError::not_found("售后工单不存在"),
@@ -189,10 +193,7 @@ pub async fn create_custom_order(
     // 激活 CreateCustomOrderDto 的 Validate 注解，校验入参
     dto.validate()?;
 
-    let created = service
-        .create_draft(dto, user_id)
-        .await
-        .map_err(crud_err)?;
+    let created = service.create_draft(dto, user_id).await.map_err(crud_err)?;
 
     Ok(Json(ApiResponse::success(CustomOrderListItem {
         id: created.id,
@@ -226,10 +227,7 @@ pub async fn get_custom_order(
     let after_svc = CustomOrderAfterSalesService::from_state(&state);
 
     let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
-    let nodes = crud_svc
-        .list_process_nodes(id)
-        .await
-        .map_err(crud_err)?;
+    let nodes = crud_svc.list_process_nodes(id).await.map_err(crud_err)?;
     let (issues, _) = quality_svc
         .list_by_order(id, 1, 100)
         .await
@@ -270,9 +268,7 @@ pub async fn get_custom_order(
 }
 
 /// 转换流程节点列表为响应 DTO
-fn map_process_nodes(
-    nodes: Vec<crate::models::process_node::Model>,
-) -> Vec<ProcessNodeInfo> {
+fn map_process_nodes(nodes: Vec<crate::models::process_node::Model>) -> Vec<ProcessNodeInfo> {
     nodes
         .into_iter()
         .map(|n| ProcessNodeInfo {
@@ -292,9 +288,7 @@ fn map_process_nodes(
 }
 
 /// 转换质量问题列表为响应 DTO
-fn map_quality_issues(
-    issues: Vec<crate::models::quality_issue::Model>,
-) -> Vec<QualityIssueInfo> {
+fn map_quality_issues(issues: Vec<crate::models::quality_issue::Model>) -> Vec<QualityIssueInfo> {
     issues
         .into_iter()
         .map(|i| QualityIssueInfo {
@@ -311,11 +305,8 @@ fn map_quality_issues(
 }
 
 /// 转换售后记录列表为响应 DTO
-fn map_after_sales(
-    list: Vec<crate::models::after_sales::Model>,
-) -> Vec<AfterSalesInfo> {
-    list
-        .into_iter()
+fn map_after_sales(list: Vec<crate::models::after_sales::Model>) -> Vec<AfterSalesInfo> {
+    list.into_iter()
         .map(|a| AfterSalesInfo {
             id: a.id,
             issue_type: a.issue_type,
@@ -369,10 +360,7 @@ pub async fn cancel_custom_order(
 ) -> Result<Json<ApiResponse<CustomOrderListItem>>, AppError> {
     let user_id = auth.user_id as i64;
     let service = CustomOrderCrudService::from_state(&state);
-    let updated = service
-        .cancel(id, dto, user_id)
-        .await
-        .map_err(crud_err)?;
+    let updated = service.cancel(id, dto, user_id).await.map_err(crud_err)?;
     Ok(Json(ApiResponse::success(CustomOrderListItem {
         id: updated.id,
         order_no: updated.order_no,
@@ -441,10 +429,7 @@ pub async fn add_process_node(
     let service = CustomOrderProcessService::from_state(&state);
     // 激活 CreateProcessNodeDto 的 Validate 注解，校验入参
     dto.validate()?;
-    let node = service
-        .add_node(id, dto)
-        .await
-        .map_err(process_err)?;
+    let node = service.add_node(id, dto).await.map_err(process_err)?;
     Ok(Json(ApiResponse::success(ProcessNodeInfo {
         id: node.id,
         node_type: node.node_type,
@@ -468,10 +453,7 @@ pub async fn update_process_node(
     Json(dto): Json<UpdateProcessNodeDto>,
 ) -> Result<Json<ApiResponse<ProcessNodeInfo>>, AppError> {
     let service = CustomOrderProcessService::from_state(&state);
-    let node = service
-        .update_node(nid, dto)
-        .await
-        .map_err(process_err)?;
+    let node = service.update_node(nid, dto).await.map_err(process_err)?;
     Ok(Json(ApiResponse::success(ProcessNodeInfo {
         id: node.id,
         node_type: node.node_type,
@@ -495,10 +477,7 @@ pub async fn advance_process_node(
     Json(dto): Json<AdvanceNodeDto>,
 ) -> Result<Json<ApiResponse<ProcessNodeInfo>>, AppError> {
     let service = CustomOrderProcessService::from_state(&state);
-    let node = service
-        .advance_node(nid, dto)
-        .await
-        .map_err(process_err)?;
+    let node = service.advance_node(nid, dto).await.map_err(process_err)?;
     Ok(Json(ApiResponse::success(ProcessNodeInfo {
         id: node.id,
         node_type: node.node_type,
@@ -524,10 +503,7 @@ pub async fn get_timeline(
     let process_svc = CustomOrderProcessService::from_state(&state);
 
     let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
-    let timeline_data = process_svc
-        .get_timeline(id)
-        .await
-        .map_err(process_err)?;
+    let timeline_data = process_svc.get_timeline(id).await.map_err(process_err)?;
 
     let nodes: Vec<ProcessNodeWithLogs> = timeline_data
         .into_iter()
@@ -590,10 +566,7 @@ pub async fn report_quality_issue(
     // URL 中的 id 与 body 中 custom_order_id 一致时，使用 URL 的 id 作为权威
     dto.custom_order_id = _id;
     let service = CustomOrderQualityService::from_state(&state);
-    let issue = service
-        .report_issue(dto)
-        .await
-        .map_err(quality_err)?;
+    let issue = service.report_issue(dto).await.map_err(quality_err)?;
     Ok(Json(ApiResponse::success(QualityIssueInfo {
         id: issue.id,
         issue_type: issue.issue_type,
@@ -744,10 +717,7 @@ pub async fn update_after_sales(
     Json(dto): Json<UpdateAfterSalesDto>,
 ) -> Result<Json<ApiResponse<AfterSalesInfo>>, AppError> {
     let service = CustomOrderAfterSalesService::from_state(&state);
-    let after = service
-        .update(id, dto)
-        .await
-        .map_err(aftersales_err)?;
+    let after = service.update(id, dto).await.map_err(aftersales_err)?;
     Ok(Json(ApiResponse::success(AfterSalesInfo {
         id: after.id,
         issue_type: after.issue_type,

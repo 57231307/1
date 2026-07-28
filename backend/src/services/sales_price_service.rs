@@ -5,8 +5,8 @@ use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel,
-    Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, Order,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -100,7 +100,9 @@ impl SalesPriceService {
             customer_id: Set(req.customer_id),
             customer_type: Set(req.customer_type),
             price: Set(req.price),
-            currency: Set(req.currency.unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string())),
+            currency: Set(req
+                .currency
+                .unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string())),
             min_order_qty: Set(req.min_order_qty.unwrap_or_default()),
             effective_date: Set(req
                 .effective_date
@@ -258,10 +260,7 @@ impl SalesPriceService {
         page: u64,
         page_size: u64,
     ) -> Result<(Vec<sales_price::Model>, u64), AppError> {
-        info!(
-            "查询销售价格策略列表，页码：{}，每页：{}",
-            page, page_size
-        );
+        info!("查询销售价格策略列表，页码：{}，每页：{}", page, page_size);
 
         let paginator = sales_price::Entity::find()
             .filter(sales_price::Column::Status.eq(master_data::ACTIVE.to_string()))

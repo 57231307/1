@@ -348,7 +348,11 @@ fn build_audit_message(
     resource_id: &Option<String>,
 ) -> OmniAuditMessage {
     let truncated_response = truncate_text(ctx.response_body, 2000);
-    let error_msg = if !ctx.status_code.is_success() { Some(truncated_response.clone()) } else { None };
+    let error_msg = if !ctx.status_code.is_success() {
+        Some(truncated_response.clone())
+    } else {
+        None
+    };
     let payload = build_audit_payload(ctx, &truncated_response);
     // V15 P1-7-1：按 method+path+query 分类操作类型（PRINT/EXPORT/DOWNLOAD/READ/CREATE/UPDATE/DELETE）
     let event_type = classify_operation(&ctx.meta.method, &ctx.meta.uri, &ctx.meta.query_string);
@@ -363,7 +367,12 @@ fn build_audit_message(
         resource_type: Some(module.to_string()),
         resource_id: resource_id.clone(),
         resource_name: None,
-        description: Some(format!("{} {} - {}", ctx.meta.method, ctx.meta.uri, ctx.status_code.as_u16())),
+        description: Some(format!(
+            "{} {} - {}",
+            ctx.meta.method,
+            ctx.meta.uri,
+            ctx.status_code.as_u16()
+        )),
         payload: Some(payload),
         ip_address: ctx.ip_address.clone(),
         user_agent: ctx.meta.user_agent.clone(),
@@ -375,7 +384,11 @@ fn build_audit_message(
         error_msg,
         old_value: None,
         new_value: None,
-        condition: if ctx.meta.query_string.is_empty() { None } else { Some(ctx.meta.query_string.clone()) },
+        condition: if ctx.meta.query_string.is_empty() {
+            None
+        } else {
+            Some(ctx.meta.query_string.clone())
+        },
     }
 }
 

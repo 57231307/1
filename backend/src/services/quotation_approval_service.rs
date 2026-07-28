@@ -15,12 +15,18 @@ use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
     // 批次 357 v13 复审 baseline 清零：移除 unused import ActiveModelTrait
-    DatabaseConnection, EntityTrait, QuerySelect, Set, TransactionTrait,
+    DatabaseConnection,
+    EntityTrait,
+    QuerySelect,
+    Set,
+    TransactionTrait,
 };
 use std::sync::Arc;
 
 use crate::models::dto::bpm_dto::StartProcessRequest;
-use crate::models::sales_quotation::{self, ActiveModel as QuotationActive, Entity as QuotationEntity};
+use crate::models::sales_quotation::{
+    self, ActiveModel as QuotationActive, Entity as QuotationEntity,
+};
 use crate::services::bpm_service::BpmService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -100,7 +106,11 @@ impl QuotationApprovalService {
     /// self_approve：lock_exclusive + 状态检查（P1-9 修复）
     /// submit_to_bpm：lock_exclusive + 状态检查（已有）
     /// 因此 submit 的预检查无 lock 是可接受的，最终一致性由子方法保证
-    pub async fn submit(&self, quotation_id: i64, user_id: i32) -> Result<sales_quotation::Model, AppError> {
+    pub async fn submit(
+        &self,
+        quotation_id: i64,
+        user_id: i32,
+    ) -> Result<sales_quotation::Model, AppError> {
         let quotation = QuotationEntity::find_by_id(quotation_id)
             .one(&*self.db)
             .await?
@@ -410,7 +420,9 @@ impl QuotationApprovalService {
         let Ok(Some(instance)) = bpm_service
             .get_process_by_business("quotation", updated.id as i32)
             .await
-        else { return; };
+        else {
+            return;
+        };
         let Ok(tasks) = bpm_service
             .query_user_tasks(crate::models::dto::bpm_dto::TaskQuery {
                 user_id: Some(approver_id),
@@ -419,7 +431,9 @@ impl QuotationApprovalService {
                 page_size: Some(10),
             })
             .await
-        else { return; };
+        else {
+            return;
+        };
         for task in tasks.data {
             if task.instance_id != instance.id {
                 continue;
@@ -455,8 +469,14 @@ mod tests {
 
     #[test]
     fn test_approver_role_small_amount_is_salesperson() {
-        assert_eq!(ApproverRole::from_amount(dec!(50000)), ApproverRole::Salesperson);
-        assert_eq!(ApproverRole::from_amount(dec!(99999)), ApproverRole::Salesperson);
+        assert_eq!(
+            ApproverRole::from_amount(dec!(50000)),
+            ApproverRole::Salesperson
+        );
+        assert_eq!(
+            ApproverRole::from_amount(dec!(99999)),
+            ApproverRole::Salesperson
+        );
     }
 
     #[test]

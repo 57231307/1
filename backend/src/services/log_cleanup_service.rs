@@ -172,10 +172,8 @@ mod tests {
 
     /// 构造唯一临时目录：/tmp/bingxi_log_cleanup_test_<uuid>
     fn make_temp_dir() -> PathBuf {
-        let dir = std::env::temp_dir().join(format!(
-            "bingxi_log_cleanup_test_{}",
-            uuid::Uuid::new_v4()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("bingxi_log_cleanup_test_{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(&dir).expect("创建临时目录失败");
         dir
     }
@@ -220,8 +218,7 @@ mod tests {
     fn cleanup_missing_dir_returns_zero() {
         let missing = Path::new("/nonexistent/bingxi_log_cleanup_test_missing_dir");
         let cutoff = SystemTime::now();
-        let deleted =
-            LogCleanupService::cleanup_dir_recursive(missing, cutoff).expect("应返回 0");
+        let deleted = LogCleanupService::cleanup_dir_recursive(missing, cutoff).expect("应返回 0");
         assert_eq!(deleted, 0);
     }
 }

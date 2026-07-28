@@ -8,12 +8,10 @@ import type {
   ColorCardDetail,
   ColorItemInfo,
   IssueRecordInfo,
-} from '@/api/color-card'
+} from '@/api/color-card';
 
 /** 创建颜色项 mock（单个颜色信息） */
-export function createColorItemMock(
-  overrides: Partial<ColorItemInfo> = {},
-): ColorItemInfo {
+export function createColorItemMock(overrides: Partial<ColorItemInfo> = {}): ColorItemInfo {
   return {
     id: 1,
     color_code: '18-1664',
@@ -32,14 +30,14 @@ export function createColorItemMock(
     hex_value: '#DC3232',
     sequence: 1,
     ...overrides,
-  }
+  };
 }
 
 /** 创建色卡列表项 mock（在用状态，可通过 overrides 覆盖） */
 export function createColorCardListItemMock(
-  overrides: Partial<ColorCardListItem> = {},
+  overrides: Partial<ColorCardListItem> = {}
 ): ColorCardListItem {
-  const now = new Date().toISOString()
+  const now = new Date().toISOString();
   return {
     id: 1,
     card_no: 'CC2026001',
@@ -54,28 +52,28 @@ export function createColorCardListItemMock(
     issued_quantity: 2,
     created_at: now,
     ...overrides,
-  }
+  };
 }
 
 /** 创建已归档色卡 mock */
 export function createArchivedColorCardMock(
-  overrides: Partial<ColorCardListItem> = {},
+  overrides: Partial<ColorCardListItem> = {}
 ): ColorCardListItem {
-  return createColorCardListItemMock({ status: 'archived', ...overrides })
+  return createColorCardListItemMock({ status: 'archived', ...overrides });
 }
 
 /** 创建遗失色卡 mock */
 export function createLostColorCardMock(
-  overrides: Partial<ColorCardListItem> = {},
+  overrides: Partial<ColorCardListItem> = {}
 ): ColorCardListItem {
-  return createColorCardListItemMock({ status: 'lost', ...overrides })
+  return createColorCardListItemMock({ status: 'lost', ...overrides });
 }
 
 /** 创建色卡明细 mock（含颜色项列表） */
 export function createColorCardDetailMock(
-  overrides: Partial<ColorCardDetail> = {},
+  overrides: Partial<ColorCardDetail> = {}
 ): ColorCardDetail {
-  const now = new Date().toISOString()
+  const now = new Date().toISOString();
   return {
     ...createColorCardListItemMock(),
     description: '测试色卡详情',
@@ -94,14 +92,12 @@ export function createColorCardDetailMock(
     ],
     updated_at: now,
     ...overrides,
-  }
+  };
 }
 
 /** 创建色卡发放记录 mock（已发放状态） */
-export function createIssueRecordMock(
-  overrides: Partial<IssueRecordInfo> = {},
-): IssueRecordInfo {
-  const now = new Date().toISOString()
+export function createIssueRecordMock(overrides: Partial<IssueRecordInfo> = {}): IssueRecordInfo {
+  const now = new Date().toISOString();
   return {
     id: 1,
     color_card_id: 1,
@@ -116,36 +112,36 @@ export function createIssueRecordMock(
     created_at: now,
     updated_at: now,
     ...overrides,
-  }
+  };
 }
 
 /** 创建已归还的发放记录 mock */
 export function createReturnedIssueRecordMock(
-  overrides: Partial<IssueRecordInfo> = {},
+  overrides: Partial<IssueRecordInfo> = {}
 ): IssueRecordInfo {
-  const now = new Date().toISOString()
+  const now = new Date().toISOString();
   return createIssueRecordMock({
     status: 'returned',
     actual_return_date: now.slice(0, 10),
     returned_by: 2,
     ...overrides,
-  })
+  });
 }
 
 /** 创建遗失发放记录 mock（含赔偿金额） */
 export function createLostIssueRecordMock(
-  overrides: Partial<IssueRecordInfo> = {},
+  overrides: Partial<IssueRecordInfo> = {}
 ): IssueRecordInfo {
   return createIssueRecordMock({
     status: 'lost',
     compensation_amount: 500,
     ...overrides,
-  })
+  });
 }
 
 /** 创建色卡列表 mock（默认 3 个不同状态） */
 export function createColorCardListMock(count = 3): ColorCardListItem[] {
-  const statuses = ['active', 'archived', 'lost']
+  const statuses = ['active', 'archived', 'lost'];
   return Array.from({ length: count }, (_, i) =>
     createColorCardListItemMock({
       id: i + 1,
@@ -153,6 +149,6 @@ export function createColorCardListMock(count = 3): ColorCardListItem[] {
       card_name: `测试色卡${i + 1}`,
       status: statuses[i % statuses.length] ?? 'active',
       total_colors: (i + 1) * 2,
-    }),
-  )
+    })
+  );
 }

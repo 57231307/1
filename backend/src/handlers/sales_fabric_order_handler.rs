@@ -1,4 +1,3 @@
-
 use axum::{
     extract::{Path, Query, State},
     Json,
@@ -9,9 +8,9 @@ use sea_orm::{
 };
 use serde::Deserialize;
 
+use crate::middleware::auth_context::AuthContext;
 use crate::models::sales_order;
 use crate::models::sales_order_item;
-use crate::middleware::auth_context::AuthContext;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
@@ -121,7 +120,9 @@ pub async fn list_fabric_orders(
         .order_by(sales_order::Column::CreatedAt, Order::Desc)
         .paginate(&*state.db, page_size);
     // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-    let orders = paginator.fetch_page(page.clamp(1, 1000).saturating_sub(1)).await?;
+    let orders = paginator
+        .fetch_page(page.clamp(1, 1000).saturating_sub(1))
+        .await?;
     let total = paginator.num_items().await?;
 
     let orders_json: Vec<serde_json::Value> = orders
@@ -272,7 +273,11 @@ fn validate_price_precision(
 /// 计算订单总金额与总数量（P2-11 修复：字段已是 Decimal，无需 from_f64_retain 转换）。
 fn calculate_order_totals(
     items: &[FabricOrderItemRequest],
-) -> (rust_decimal::Decimal, rust_decimal::Decimal, rust_decimal::Decimal) {
+) -> (
+    rust_decimal::Decimal,
+    rust_decimal::Decimal,
+    rust_decimal::Decimal,
+) {
     use rust_decimal::Decimal;
 
     let mut total_amount = Decimal::ZERO;

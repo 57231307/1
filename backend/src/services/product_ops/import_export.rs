@@ -45,10 +45,8 @@ impl ProductService {
 
         // 构建 CSV 表头与行数据
         let headers = Self::build_product_csv_headers();
-        let rows: Vec<std::collections::HashMap<String, String>> = products
-            .iter()
-            .map(Self::build_product_csv_row)
-            .collect();
+        let rows: Vec<std::collections::HashMap<String, String>> =
+            products.iter().map(Self::build_product_csv_row).collect();
 
         // 生成 CSV 字节流
         crate::utils::import_export::CsvImporter::generate(&headers, &rows)
@@ -90,15 +88,22 @@ impl ProductService {
             "类别ID".to_string(),
             p.category_id.map(|id| id.to_string()).unwrap_or_default(),
         );
-        row.insert("规格型号".to_string(), p.specification.clone().unwrap_or_default());
+        row.insert(
+            "规格型号".to_string(),
+            p.specification.clone().unwrap_or_default(),
+        );
         row.insert("计量单位".to_string(), p.unit.clone());
         row.insert(
             "标准价格".to_string(),
-            p.standard_price.map(|price| price.to_string()).unwrap_or_default(),
+            p.standard_price
+                .map(|price| price.to_string())
+                .unwrap_or_default(),
         );
         row.insert(
             "成本价格".to_string(),
-            p.cost_price.map(|price| price.to_string()).unwrap_or_default(),
+            p.cost_price
+                .map(|price| price.to_string())
+                .unwrap_or_default(),
         );
         row.insert(
             "面料成分".to_string(),
@@ -114,7 +119,10 @@ impl ProductService {
             "克重".to_string(),
             p.gram_weight.map(|g| g.to_string()).unwrap_or_default(),
         );
-        row.insert("组织结构".to_string(), p.structure.clone().unwrap_or_default());
+        row.insert(
+            "组织结构".to_string(),
+            p.structure.clone().unwrap_or_default(),
+        );
         row.insert("后整理".to_string(), p.finish.clone().unwrap_or_default());
         row.insert(
             "最小起订量".to_string(),
@@ -127,7 +135,10 @@ impl ProductService {
             p.lead_time.map(|l| l.to_string()).unwrap_or_default(),
         );
         row.insert("状态".to_string(), p.status.clone());
-        row.insert("产品描述".to_string(), p.description.clone().unwrap_or_default());
+        row.insert(
+            "产品描述".to_string(),
+            p.description.clone().unwrap_or_default(),
+        );
         row
     }
 
@@ -309,12 +320,7 @@ impl ProductService {
         if let Err(e) =
             FieldValidator::enum_value(product_type, "产品类型", &["坯布", "成品布", "辅料"])
         {
-            result.add_error(
-                row_num,
-                "产品类型".to_string(),
-                e,
-                product_type.to_string(),
-            );
+            result.add_error(row_num, "产品类型".to_string(), e, product_type.to_string());
             return None;
         }
         Some(product_type.to_string())
@@ -433,10 +439,7 @@ impl ProductService {
     }
 
     /// 从产品 CSV 数据导入
-    pub async fn import_products_from_csv(
-        &self,
-        data: &[u8],
-    ) -> Result<ImportResult, AppError> {
+    pub async fn import_products_from_csv(&self, data: &[u8]) -> Result<ImportResult, AppError> {
         let records = CsvImporter::parse(data)?;
         let mut result = ImportResult::new();
 

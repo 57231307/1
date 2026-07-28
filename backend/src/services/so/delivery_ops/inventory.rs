@@ -10,8 +10,8 @@
 use rust_decimal::Decimal;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set};
 
-use crate::models::{inventory_reservation, inventory_stock};
 use crate::models::status::inventory_reservation as reservation_status;
+use crate::models::{inventory_reservation, inventory_stock};
 use crate::utils::error::AppError;
 
 use super::super::delivery::ShipOrderItemRequest;
@@ -102,8 +102,7 @@ impl SalesService {
         let product_ids: Vec<i32> = items.iter().map(|i| i.product_id).collect();
         let existing_ids =
             Self::query_existing_reservation_ids(order_id, &product_ids, txn).await?;
-        let stock_map =
-            Self::query_locked_stock_map(&product_ids, &existing_ids, txn).await?;
+        let stock_map = Self::query_locked_stock_map(&product_ids, &existing_ids, txn).await?;
         let reservations = Self::build_and_lock_reservations(
             order_id,
             items,
@@ -178,15 +177,9 @@ impl SalesService {
                 tracing::info!("产品 {} 已存在预留记录，跳过创建", item.product_id);
                 continue;
             }
-            let stock = stock_map
-                .get(&item.product_id)
-                .cloned()
-                .ok_or_else(|| {
-                    AppError::business(format!(
-                        "产品 {} 没有库存记录，无法锁定",
-                        item.product_id
-                    ))
-                })?;
+            let stock = stock_map.get(&item.product_id).cloned().ok_or_else(|| {
+                AppError::business(format!("产品 {} 没有库存记录，无法锁定", item.product_id))
+            })?;
             Self::check_stock_sufficient(&stock, item)?;
             reservations.push(Self::build_reservation_active_model(
                 order_id, item, user_id, &stock,
@@ -355,7 +348,12 @@ impl SalesService {
         // 供调用方在库存流水中记录真实缸号/色号，替代原 None/空字符串硬编码
         let qty_before = stock.quantity_available;
         let qty_after = qty_before - quantity;
-        Ok((qty_before, qty_after, stock.color_no.clone(), stock.dye_lot_no.clone()))
+        Ok((
+            qty_before,
+            qty_after,
+            stock.color_no.clone(),
+            stock.dye_lot_no.clone(),
+        ))
     }
 
     /// 释放订单的库存预留记录

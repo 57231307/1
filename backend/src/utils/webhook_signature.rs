@@ -47,8 +47,8 @@ pub fn verify_webhook_signature(
 ) -> Result<bool, crate::utils::error::AppError> {
     // P1-B 修复：复用 sign_webhook_payload 计算签名，确保出站/入站使用同一份算法
     // 批次 117 P1-5：sign_webhook_payload 返回 Result，签名计算失败时返回 401
-    let computed = sign_webhook_payload(payload, secret)
-        .map_err(crate::utils::error::AppError::internal)?;
+    let computed =
+        sign_webhook_payload(payload, secret).map_err(crate::utils::error::AppError::internal)?;
 
     // 常量时间比较，防止时序攻击
     use subtle::ConstantTimeEq;

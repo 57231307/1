@@ -15,7 +15,9 @@
 //! - v16 批次 45 修复：批量 lock 查询现有余额避免 N+1
 
 use chrono::Datelike;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, QuerySelect};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, QuerySelect,
+};
 use tracing::info;
 
 use crate::models::{account_subject, voucher, voucher_item};
@@ -46,8 +48,7 @@ impl VoucherService {
         let subjects = Self::fetch_subjects_for_items(&items, txn).await?;
         let balance_map = Self::aggregate_balance_by_subject(&items, &subjects)?;
         let subject_ids: Vec<i32> = balance_map.keys().copied().collect();
-        let existing_balances =
-            Self::fetch_existing_balances(&subject_ids, &period, txn).await?;
+        let existing_balances = Self::fetch_existing_balances(&subject_ids, &period, txn).await?;
         let ctx = BalanceUpdateContext {
             subjects,
             balance_map,
@@ -196,7 +197,10 @@ impl VoucherService {
     async fn dispatch_balance_updates(
         balance_map: std::collections::HashMap<i32, (Decimal, Decimal)>,
         subject_by_id: &std::collections::HashMap<i32, &account_subject::Model>,
-        balance_record_map: &mut std::collections::HashMap<i32, crate::models::account_balance::Model>,
+        balance_record_map: &mut std::collections::HashMap<
+            i32,
+            crate::models::account_balance::Model,
+        >,
         period: &str,
         user_id: i32,
         txn: &sea_orm::DatabaseTransaction,
@@ -212,12 +216,22 @@ impl VoucherService {
             // v16 批次 45 修复：从批量查询结果获取余额记录（带行锁）
             if let Some(balance) = balance_record_map.remove(&subject_id) {
                 Self::update_existing_balance(
-                    balance, debit_amount, credit_amount, balance_direction, user_id, txn,
+                    balance,
+                    debit_amount,
+                    credit_amount,
+                    balance_direction,
+                    user_id,
+                    txn,
                 )
                 .await?;
             } else {
                 Self::create_new_balance(
-                    subject_id, period, debit_amount, credit_amount, balance_direction, txn,
+                    subject_id,
+                    period,
+                    debit_amount,
+                    credit_amount,
+                    balance_direction,
+                    txn,
                 )
                 .await?;
             }

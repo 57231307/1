@@ -28,10 +28,10 @@ pub enum CalcError {
 pub fn customer_level_discount(level: Option<&str>) -> Decimal {
     match level {
         // P0 6-2 修复：scale 3 → 2（原 0.095 应为 0.95，导致价格被错误地缩小 10 倍）
-        Some("VIP") => Decimal::new(95, 2),     // 0.95（95 折）
-        Some("GOLD") => Decimal::new(90, 2),    // 0.90（9 折）
-        Some("SILVER") => Decimal::new(95, 2),  // 0.95（95 折）
-        _ => Decimal::new(100, 2),              // 1.00（100%，NORMAL/无折扣）
+        Some("VIP") => Decimal::new(95, 2),    // 0.95（95 折）
+        Some("GOLD") => Decimal::new(90, 2),   // 0.90（9 折）
+        Some("SILVER") => Decimal::new(95, 2), // 0.95（95 折）
+        _ => Decimal::new(100, 2),             // 1.00（100%，NORMAL/无折扣）
     }
 }
 
@@ -40,7 +40,9 @@ pub async fn calculate_price(
     db: &DatabaseConnection,
     req: &PriceCalcRequest,
 ) -> Result<PriceCalcResult, CalcError> {
-    let calc_date = req.calc_date.unwrap_or_else(|| chrono::Utc::now().date_naive());
+    let calc_date = req
+        .calc_date
+        .unwrap_or_else(|| chrono::Utc::now().date_naive());
     let mut breakdown: Vec<PriceCalcStep> = Vec::new();
     let base_price = find_base_price(db, req).await?;
     let mut current = base_price;
@@ -141,16 +143,16 @@ async fn apply_tier_step(
         step: "阶梯价".to_string(),
         before: current,
         after: tier,
-        rule: format!("数量 {} 命中阶梯价 {:.2} {}", req.quantity, tier, req.currency),
+        rule: format!(
+            "数量 {} 命中阶梯价 {:.2} {}",
+            req.quantity, tier, req.currency
+        ),
     };
     Ok(Some((tier, step)))
 }
 
 /// 应用客户等级折扣步骤
-fn apply_level_step(
-    req: &PriceCalcRequest,
-    current: Decimal,
-) -> Option<(Decimal, PriceCalcStep)> {
+fn apply_level_step(req: &PriceCalcRequest, current: Decimal) -> Option<(Decimal, PriceCalcStep)> {
     let lvl = req.customer_level.as_deref()?;
     let before = current;
     let discount = customer_level_discount(Some(lvl));
@@ -189,7 +191,10 @@ async fn apply_seasonal_step(
         step: "季节调价".to_string(),
         before,
         after,
-        rule: format!("{} 规则 {} {:.4}", season, adj.adjustment_type, adj.adjustment_value),
+        rule: format!(
+            "{} 规则 {} {:.4}",
+            season, adj.adjustment_type, adj.adjustment_value
+        ),
     };
     Ok(Some((after, step)))
 }
@@ -336,7 +341,10 @@ async fn find_seasonal_adjustment(
         );
     }
 
-    let row = q.order_by_desc(seasonal_price_rule::Column::CreatedAt).one(db).await?;
+    let row = q
+        .order_by_desc(seasonal_price_rule::Column::CreatedAt)
+        .one(db)
+        .await?;
     Ok(row)
 }
 

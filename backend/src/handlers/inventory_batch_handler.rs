@@ -1,4 +1,3 @@
-
 use axum::{
     extract::{Path, Query, State},
     Json,
@@ -93,7 +92,9 @@ pub async fn list_batches(
         .await
         .map_err(|e| AppError::database(format!("获取批次列表失败：{}", e)))?;
 
-    let total = paginator.num_items().await
+    let total = paginator
+        .num_items()
+        .await
         .map_err(|e| AppError::database(format!("获取批次总数失败：{}", e)))?;
     let paginated = PaginatedResponse::new(batches, total, page, page_size);
     Ok(Json(ApiResponse::success(paginated)))

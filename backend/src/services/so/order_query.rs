@@ -10,11 +10,7 @@
 
 use super::order::SalesService;
 use crate::models::dto::PageRequest;
-use crate::models::{
-    sales_order,
-    sales_order::Entity as SalesOrderEntity,
-    sales_order_item,
-};
+use crate::models::{sales_order, sales_order::Entity as SalesOrderEntity, sales_order_item};
 use crate::services::so::{SalesOrderDetail, SalesOrderItemDetail};
 use crate::utils::data_scope::{apply_data_scope, DataScopeContext};
 use crate::utils::error::AppError;
@@ -304,7 +300,11 @@ impl SalesService {
 
         let item_details = Self::build_item_details(items, &products);
 
-        Ok(Self::build_order_detail(order, customer.as_ref(), item_details))
+        Ok(Self::build_order_detail(
+            order,
+            customer.as_ref(),
+            item_details,
+        ))
     }
 
     /// 行级数据权限校验（IDOR 防护）

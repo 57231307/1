@@ -28,10 +28,7 @@ impl ColorCardScanService {
     }
 
     /// 按色号编码扫码查询（全局搜索）
-    pub async fn scan_by_code(
-        &self,
-        color_code: &str,
-    ) -> Result<ScanResult, AppError> {
+    pub async fn scan_by_code(&self, color_code: &str) -> Result<ScanResult, AppError> {
         // 查找色号 + 关联色卡
         let (item, card) = self.fetch_color_item_and_card(color_code).await?;
 
@@ -140,10 +137,7 @@ impl ColorCardScanService {
     }
 
     /// 按色号 ID 扫码查询
-    pub async fn scan_by_id(
-        &self,
-        item_id: i64,
-    ) -> Result<ScanResult, AppError> {
+    pub async fn scan_by_id(&self, item_id: i64) -> Result<ScanResult, AppError> {
         let item = ItemEntity::find_by_id(item_id)
             .one(&*self.db)
             .await

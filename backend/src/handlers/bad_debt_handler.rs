@@ -195,7 +195,10 @@ pub async fn run_provision(
     Json(req): Json<RunProvisionRequest>,
 ) -> Result<Json<ApiResponse<RunProvisionResponse>>, AppError> {
     let service = BadDebtService::from_state(&state);
-    let created = service.run_monthly_provision(req, auth.user_id).await.map_err(bad_debt_err)?;
+    let created = service
+        .run_monthly_provision(req, auth.user_id)
+        .await
+        .map_err(bad_debt_err)?;
     let count = created.len();
     let infos: Vec<ProvisionInfo> = created.into_iter().map(Into::into).collect();
     Ok(Json(ApiResponse::success(RunProvisionResponse {

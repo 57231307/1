@@ -5,11 +5,11 @@ use crate::models::status::voucher::VOUCHER_POSTED;
 use crate::utils::error::AppError;
 use chrono::{TimeZone, Utc};
 use rust_decimal::Decimal;
+use sea_orm::sea_query::Expr;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
     QuerySelect, RelationTrait, Set, TransactionTrait,
 };
-use sea_orm::sea_query::Expr;
 
 crate::define_service!(AccountingPeriodService);
 
@@ -89,18 +89,19 @@ impl AccountingPeriodService {
         self.check_unposted_vouchers_txn(&txn, period.start_date, period.end_date)
             .await?;
         // F-P1-1 修复（批次 360 v13 复审）：试算平衡校验兜底
-        let (total_debit, total_credit) =
-            self.check_trial_balance_txn(&txn, period.start_date, period.end_date).await?;
+        let (total_debit, total_credit) = self
+            .check_trial_balance_txn(&txn, period.start_date, period.end_date)
+            .await?;
         if total_debit != total_credit {
             // V15 P1 17.1-D1：试算不平衡，事务回滚自动恢复 OPEN
             return Err(AppError::business(format!(
                 "试算不平衡：本期借方总额 {} ≠ 贷方总额 {}，差额 {}，无法关闭期间",
-                total_debit, total_credit, total_debit - total_credit
+                total_debit,
+                total_credit,
+                total_debit - total_credit
             )));
         }
-        let closed_period = self
-            .mark_period_closed_txn(&txn, &period, user_id)
-            .await?;
+        let closed_period = self.mark_period_closed_txn(&txn, &period, user_id).await?;
         // F-P1-1 修复（批次 384 v13 复审）：期末余额结转到下期期初
         let (next_year, next_month) = calc_next_period(period.year, period.period);
         let current_period_str = format!("{:04}-{:02}", period.year, period.period);
@@ -195,7 +196,10 @@ impl AccountingPeriodService {
         txn.commit().await?;
         tracing::info!(
             "用户 {} 反结账期间 {}（{}），原因：{}",
-            user_id, period_id, reopened.period_name, reason
+            user_id,
+            period_id,
+            reopened.period_name,
+            reason
         );
         Ok(reopened)
     }
@@ -223,7 +227,8 @@ impl AccountingPeriodService {
         if year_periods.len() != 12 {
             return Err(AppError::business(format!(
                 "年结失败：年度 {} 仅有 {} 个期间，需 12 个月完整",
-                year, year_periods.len()
+                year,
+                year_periods.len()
             )));
         }
         for p in &year_periods {
@@ -274,7 +279,10 @@ impl AccountingPeriodService {
         txn.commit().await?;
         tracing::info!(
             "用户 {} 完成年度 {} 年结：结转 {} 个科目，未分配利润调整 {}",
-            user_id, year, transfer_result.transferred_subjects, transfer_result.retained_earnings_adjustment
+            user_id,
+            year,
+            transfer_result.transferred_subjects,
+            transfer_result.retained_earnings_adjustment
         );
         Ok(serde_json::json!({
             "year": year,
@@ -355,14 +363,16 @@ impl AccountingPeriodService {
                 let code = &subj.code;
                 if code.starts_with('6') {
                     // 收入类：贷方余额，结转后借记收入科目、贷记未分配利润
-                    let credit_balance = balance.ending_balance_credit - balance.ending_balance_debit;
+                    let credit_balance =
+                        balance.ending_balance_credit - balance.ending_balance_debit;
                     if credit_balance != Decimal::ZERO {
                         net_profit += credit_balance;
                         transferred_count += 1;
                     }
                 } else if code.starts_with('5') {
                     // 成本费用类：借方余额，结转后借记未分配利润、贷记费用科目
-                    let debit_balance = balance.ending_balance_debit - balance.ending_balance_credit;
+                    let debit_balance =
+                        balance.ending_balance_debit - balance.ending_balance_credit;
                     if debit_balance != Decimal::ZERO {
                         net_profit -= debit_balance;
                         transferred_count += 1;
@@ -410,7 +420,9 @@ impl AccountingPeriodService {
         }
         // V15 P1 17.1-D1：CLOSING 状态拒绝重复结账（防止并发结账）
         if period.status == period_closing::CLOSING {
-            return Err(AppError::business("期间正在结账中（CLOSING），不能重复发起结账".to_string()));
+            return Err(AppError::business(
+                "期间正在结账中（CLOSING），不能重复发起结账".to_string(),
+            ));
         }
         Ok(period)
     }
@@ -481,7 +493,10 @@ impl AccountingPeriodService {
             .filter(voucher::Column::VoucherDate.lte(end_date))
             .select_only()
             .column_as(Expr::col(voucher_item::Column::Debit).sum(), "total_debit")
-            .column_as(Expr::col(voucher_item::Column::Credit).sum(), "total_credit")
+            .column_as(
+                Expr::col(voucher_item::Column::Credit).sum(),
+                "total_credit",
+            )
             .into_tuple()
             .one(txn)
             .await?;
@@ -520,10 +535,7 @@ impl AccountingPeriodService {
             .await?;
 
         if current_balances.is_empty() {
-            tracing::info!(
-                "期间 {} 无余额记录，期末结转跳过",
-                current_period
-            );
+            tracing::info!("期间 {} 无余额记录，期末结转跳过", current_period);
             return Ok(());
         }
 
@@ -532,13 +544,8 @@ impl AccountingPeriodService {
         let mut updated_count = 0u64;
 
         for balance in current_balances {
-            let inserted = Self::upsert_next_period_balance_txn(
-                txn,
-                &balance,
-                next_period,
-                now,
-            )
-            .await?;
+            let inserted =
+                Self::upsert_next_period_balance_txn(txn, &balance, next_period, now).await?;
             if inserted {
                 inserted_count += 1;
             } else {
@@ -582,10 +589,8 @@ impl AccountingPeriodService {
             let mut active: account_balance::ActiveModel = existing.into();
             active.initial_balance_debit = Set(balance.ending_balance_debit);
             active.initial_balance_credit = Set(balance.ending_balance_credit);
-            active.ending_balance_debit =
-                Set(balance.ending_balance_debit + next_period_debit);
-            active.ending_balance_credit =
-                Set(balance.ending_balance_credit + next_period_credit);
+            active.ending_balance_debit = Set(balance.ending_balance_debit + next_period_debit);
+            active.ending_balance_credit = Set(balance.ending_balance_credit + next_period_credit);
             active.updated_at = Set(now);
             active.update(txn).await?;
             Ok(false)
@@ -705,8 +710,8 @@ struct YearEndTransferResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::services::test_common::setup_test_db;
     use crate::decs;
+    use crate::services::test_common::setup_test_db;
     use crate::ymd;
     use chrono::NaiveDate;
     use sea_orm::DatabaseConnection;
@@ -721,14 +726,22 @@ mod tests {
     /// 复现 init_first_period 与 close_period 中的纯算法逻辑：
     /// `if month == 12 { 1 } else { month + 1 }`
     fn calc_next_month(month: u32) -> u32 {
-        if month == 12 { 1 } else { month + 1 }
+        if month == 12 {
+            1
+        } else {
+            month + 1
+        }
     }
 
     /// 测试夹具：计算下个月所属年份
     /// 复现 init_first_period 与 close_period 中的纯算法逻辑：
     /// `if month == 12 { year + 1 } else { year }`
     fn calc_next_month_year(month: u32, year: i32) -> i32 {
-        if month == 12 { year + 1 } else { year }
+        if month == 12 {
+            year + 1
+        } else {
+            year
+        }
     }
 
     /// 测试夹具：格式化期间名称

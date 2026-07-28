@@ -1,4 +1,3 @@
-
 use crate::models::finance_payment;
 use crate::models::status::finance_payment as payment_status;
 // V15 P0-S01：行级数据权限工具
@@ -49,7 +48,8 @@ impl FinancePaymentService {
         if let Some(ctx) = data_scope {
             if !check_resource_owner(ctx, payment.created_by, None) {
                 return Err(AppError::permission_denied(format!(
-                    "无权访问付款 {}（数据范围限制）", id
+                    "无权访问付款 {}（数据范围限制）",
+                    id
                 )));
             }
         }
@@ -107,10 +107,7 @@ impl FinancePaymentService {
             updated_at: Set(Utc::now()),
         };
 
-        let result = active_payment
-            .insert(&txn)
-            .await
-            .map_err(AppError::from)?;
+        let result = active_payment.insert(&txn).await.map_err(AppError::from)?;
 
         txn.commit().await?;
 
@@ -148,5 +145,4 @@ impl FinancePaymentService {
 
         Ok((payments, total))
     }
-
 }

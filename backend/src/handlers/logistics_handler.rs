@@ -4,16 +4,18 @@ use axum::{
 };
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set, TransactionTrait};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set, TransactionTrait,
+};
 use serde::Deserialize;
 
+use crate::middleware::auth_context::AuthContext;
 use crate::models::ar_invoice;
 use crate::models::logistics_waybill;
 use crate::models::sales_order;
 use crate::models::status::common as common_status;
 use crate::models::status::logistics_waybill as waybill_status;
 use crate::models::status::sales_order as so_status;
-use crate::middleware::auth_context::AuthContext;
 use crate::services::ar_invoice_service::ArInvoiceService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -68,6 +70,7 @@ pub async fn create_waybill(
         sign_remark: Set(None),
         created_at: Set(Utc::now()),
         updated_at: Set(Utc::now()),
+        ..Default::default()
     };
 
     let inserted = new_waybill.insert(&txn).await?;

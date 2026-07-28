@@ -8,7 +8,9 @@ use sea_orm::{
     ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QuerySelect, Set, TransactionTrait,
 };
 
-use crate::models::sales_quotation::{self, ActiveModel as QuotationActive, Entity as QuotationEntity};
+use crate::models::sales_quotation::{
+    self, ActiveModel as QuotationActive, Entity as QuotationEntity,
+};
 use crate::models::status::quotation as quotation_status;
 use crate::services::quotation_service::{QuotationService, ServiceError};
 use crate::utils::error::AppError;
@@ -16,11 +18,7 @@ use crate::utils::error::AppError;
 impl QuotationService {
     /// 取消报价单（任意非 converted 状态可取消）
     /// 批次 26 v6 P1：状态门+update 移入 txn+lock_exclusive 串行化并发；批次 94 用 update_with_audit 记审计
-    pub async fn cancel(
-        &self,
-        id: i64,
-        user_id: i64,
-    ) -> Result<sales_quotation::Model, AppError> {
+    pub async fn cancel(&self, id: i64, user_id: i64) -> Result<sales_quotation::Model, AppError> {
         let txn = (*self.db).begin().await?;
         let existing = QuotationEntity::find_by_id(id)
             .lock_exclusive()

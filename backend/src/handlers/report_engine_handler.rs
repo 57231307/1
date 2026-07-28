@@ -314,7 +314,9 @@ pub async fn aggregate_report(
         "报表聚合查询开始"
     );
     match service.aggregate_data(aggregate_request).await {
-        Ok(results) => Ok(Json(ApiResponse::success(build_aggregate_response(results)))),
+        Ok(results) => Ok(Json(ApiResponse::success(build_aggregate_response(
+            results,
+        )))),
         Err(e) => {
             tracing::error!("数据聚合失败: {}", e);
             Err(AppError::internal(format!("数据聚合失败: {}", e)))
@@ -366,9 +368,7 @@ fn build_report_filters(filters: Option<Vec<FilterRequest>>) -> Vec<ReportFilter
 }
 
 /// 将 AggregateReportRequest 转换为 AggregateRequest
-fn build_aggregate_request(
-    req: AggregateReportRequest,
-) -> Result<AggregateRequest, AppError> {
+fn build_aggregate_request(req: AggregateReportRequest) -> Result<AggregateRequest, AppError> {
     let data_source = parse_data_source(&req.data_source)?;
     let aggregation_type = parse_aggregation_type(&req.aggregation_type)?;
     let filters = build_report_filters(req.filters);

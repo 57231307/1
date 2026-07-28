@@ -15,8 +15,8 @@
 use sea_orm::{DatabaseConnection, FromQueryResult, Statement};
 
 use crate::services::bi_analysis_ops::types::{
-    CategoryStatRow, CustomerRank, CustomerRankRow, ProductRank, ProductRankRow, RegionStat,
-    RegionStatRow, TimeSeriesPoint, TimeSeriesRow, TotalRow, CategoryStat,
+    CategoryStat, CategoryStatRow, CustomerRank, CustomerRankRow, ProductRank, ProductRankRow,
+    RegionStat, RegionStatRow, TimeSeriesPoint, TimeSeriesRow, TotalRow,
 };
 use crate::services::bi_analysis_service::{build_bi_cache_key, dec_to_f64, BiAnalysisService};
 use crate::utils::data_scope::{build_data_scope_sql, DataScopeContext};
@@ -40,7 +40,12 @@ impl BiAnalysisService {
         // 缺陷 3.1 修复：先查缓存，命中则直接返回
         let cache_key = build_bi_cache_key(
             &self.data_scope,
-            &["sales_by_time", &start_date.to_string(), &end_date.to_string(), granularity],
+            &[
+                "sales_by_time",
+                &start_date.to_string(),
+                &end_date.to_string(),
+                granularity,
+            ],
         );
         if let Some(cached) = self.try_get_cache::<Vec<TimeSeriesPoint>>(&cache_key) {
             return Ok(cached);
@@ -79,11 +84,7 @@ impl BiAnalysisService {
 
         let mut values = vec![start_date.into(), end_date.into()];
         values.extend(scope_values);
-        let stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
-            sql,
-            values,
-        );
+        let stmt = Statement::from_sql_and_values(sea_orm::DatabaseBackend::Postgres, sql, values);
 
         let rows = TimeSeriesRow::find_by_statement(stmt)
             .all(&*self.db)
@@ -127,17 +128,12 @@ impl BiAnalysisService {
     /// 按客户聚合销售
     ///
     /// 返回销售额 TOP N 客户排行，percentage = 客户销售额 / 全部销售额 * 100。
-    pub async fn sales_by_customer(
-        &self,
-        limit: i64,
-    ) -> Result<Vec<CustomerRank>, AppError> {
+    pub async fn sales_by_customer(&self, limit: i64) -> Result<Vec<CustomerRank>, AppError> {
         let limit = limit.clamp(1, 100);
 
         // 缺陷 3.1 修复：先查缓存，命中则直接返回
-        let cache_key = build_bi_cache_key(
-            &self.data_scope,
-            &["sales_by_customer", &limit.to_string()],
-        );
+        let cache_key =
+            build_bi_cache_key(&self.data_scope, &["sales_by_customer", &limit.to_string()]);
         if let Some(cached) = self.try_get_cache::<Vec<CustomerRank>>(&cache_key) {
             return Ok(cached);
         }
@@ -180,11 +176,7 @@ impl BiAnalysisService {
         );
         let mut values = vec![limit.into()];
         values.extend(scope_values);
-        let stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
-            sql,
-            values,
-        );
+        let stmt = Statement::from_sql_and_values(sea_orm::DatabaseBackend::Postgres, sql, values);
         Ok(CustomerRankRow::find_by_statement(stmt).all(db).await?)
     }
 
@@ -193,7 +185,8 @@ impl BiAnalysisService {
         db: &DatabaseConnection,
         scope_ctx: &DataScopeContext,
     ) -> Result<f64, AppError> {
-        let (total_scope_sql, total_scope_values) = build_data_scope_sql(scope_ctx, "sales_orders", 1);
+        let (total_scope_sql, total_scope_values) =
+            build_data_scope_sql(scope_ctx, "sales_orders", 1);
         let total_sql = format!(
             r#"SELECT COALESCE(SUM(total_amount), 0) as total FROM sales_orders
                WHERE status NOT IN ('CANCELLED', 'DRAFT') {scope_sql}"#,
@@ -206,9 +199,7 @@ impl BiAnalysisService {
             total_sql,
             total_values,
         );
-        let total_row: Option<TotalRow> = TotalRow::find_by_statement(total_stmt)
-            .one(db)
-            .await?;
+        let total_row: Option<TotalRow> = TotalRow::find_by_statement(total_stmt).one(db).await?;
         Ok(total_row.map(|r| dec_to_f64(r.total)).unwrap_or(0.0))
     }
 
@@ -236,17 +227,12 @@ impl BiAnalysisService {
     /// 按产品聚合销售
     ///
     /// 返回销售额 TOP N 产品排行，关联 product_categories 获取品类名。
-    pub async fn sales_by_product(
-        &self,
-        limit: i64,
-    ) -> Result<Vec<ProductRank>, AppError> {
+    pub async fn sales_by_product(&self, limit: i64) -> Result<Vec<ProductRank>, AppError> {
         let limit = limit.clamp(1, 100);
 
         // 缺陷 3.1 修复：先查缓存，命中则直接返回
-        let cache_key = build_bi_cache_key(
-            &self.data_scope,
-            &["sales_by_product", &limit.to_string()],
-        );
+        let cache_key =
+            build_bi_cache_key(&self.data_scope, &["sales_by_product", &limit.to_string()]);
         if let Some(cached) = self.try_get_cache::<Vec<ProductRank>>(&cache_key) {
             return Ok(cached);
         }
@@ -278,11 +264,7 @@ impl BiAnalysisService {
 
         let mut values = vec![limit.into()];
         values.extend(scope_values);
-        let stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
-            sql,
-            values,
-        );
+        let stmt = Statement::from_sql_and_values(sea_orm::DatabaseBackend::Postgres, sql, values);
 
         let rows = ProductRankRow::find_by_statement(stmt)
             .all(&*self.db)
@@ -338,11 +320,7 @@ impl BiAnalysisService {
 
         let mut values: Vec<sea_orm::Value> = Vec::new();
         values.extend(scope_values);
-        let stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
-            sql,
-            values,
-        );
+        let stmt = Statement::from_sql_and_values(sea_orm::DatabaseBackend::Postgres, sql, values);
 
         let rows = RegionStatRow::find_by_statement(stmt)
             .all(&*self.db)
@@ -395,20 +373,13 @@ impl BiAnalysisService {
 
         let mut values: Vec<sea_orm::Value> = Vec::new();
         values.extend(scope_values);
-        let stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
-            sql,
-            values,
-        );
+        let stmt = Statement::from_sql_and_values(sea_orm::DatabaseBackend::Postgres, sql, values);
 
         let rows = CategoryStatRow::find_by_statement(stmt)
             .all(&*self.db)
             .await?;
 
-        let total: f64 = rows
-            .iter()
-            .map(|r| dec_to_f64(r.total_amount))
-            .sum();
+        let total: f64 = rows.iter().map(|r| dec_to_f64(r.total_amount)).sum();
 
         let results = rows
             .into_iter()

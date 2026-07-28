@@ -19,8 +19,8 @@ use crate::utils::error::AppError;
 use crate::utils::xlsx_export::XlsxTable;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
-    Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set, TransactionTrait,
 };
 
 use super::cust::CrmService;
@@ -84,7 +84,9 @@ impl CrmService {
 
         // V15 P0-B08：赢率自动计算
         // 用户未传 win_probability 时，按阶段默认赢率填充；显式传值时保留用户输入
-        let win_probability = req.win_probability.or_else(|| default_win_probability_by_stage(&opportunity_stage));
+        let win_probability = req
+            .win_probability
+            .or_else(|| default_win_probability_by_stage(&opportunity_stage));
 
         let opportunity = crm_opportunity::ActiveModel {
             id: Default::default(),
@@ -153,7 +155,9 @@ impl CrmService {
 
         let total = paginator.num_items().await?;
         // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-        let items: Vec<crm_opportunity::Model> = paginator.fetch_page(page.clamp(1, 1000).saturating_sub(1)).await?;
+        let items: Vec<crm_opportunity::Model> = paginator
+            .fetch_page(page.clamp(1, 1000).saturating_sub(1))
+            .await?;
 
         Ok(serde_json::json!({
             "data": items,
@@ -208,7 +212,9 @@ impl CrmService {
                     opp.opportunity_name.clone(),
                     opp.customer_id.to_string(),
                     opp.opportunity_stage.clone().unwrap_or_default(),
-                    opp.estimated_amount.map(|d| d.to_string()).unwrap_or_default(),
+                    opp.estimated_amount
+                        .map(|d| d.to_string())
+                        .unwrap_or_default(),
                     opp.actual_amount.map(|d| d.to_string()).unwrap_or_default(),
                     opp.expected_close_date
                         .map(|d| d.to_string())
@@ -246,7 +252,8 @@ impl CrmService {
         if let Some(ctx) = data_scope {
             if !check_resource_owner(ctx, Some(opportunity.owner_id), None) {
                 return Err(AppError::permission_denied(format!(
-                    "无权访问商机 {}（数据范围限制）", opportunity_id
+                    "无权访问商机 {}（数据范围限制）",
+                    opportunity_id
                 )));
             }
         }
@@ -635,7 +642,10 @@ impl CrmService {
 
         let actual_amount: Decimal = won_opps
             .iter()
-            .map(|o| o.actual_amount.unwrap_or(o.estimated_amount.unwrap_or(Decimal::ZERO)))
+            .map(|o| {
+                o.actual_amount
+                    .unwrap_or(o.estimated_amount.unwrap_or(Decimal::ZERO))
+            })
             .sum();
         let won_count = won_opps.len() as i64;
 
@@ -731,12 +741,16 @@ impl CrmService {
             .await?;
 
         let total = all_opps.len() as i64;
-        let mut stage_counts: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+        let mut stage_counts: std::collections::HashMap<String, i64> =
+            std::collections::HashMap::new();
         let mut won_count = 0i64;
         let mut lost_count = 0i64;
 
         for opp in &all_opps {
-            let stage = opp.opportunity_stage.clone().unwrap_or_else(|| "UNKNOWN".to_string());
+            let stage = opp
+                .opportunity_stage
+                .clone()
+                .unwrap_or_else(|| "UNKNOWN".to_string());
             *stage_counts.entry(stage).or_insert(0) += 1;
             if opp.opportunity_stage.as_deref() == Some(opp_status::CLOSED_WON) {
                 won_count += 1;
@@ -803,18 +817,25 @@ impl CrmService {
         // 1. 线索数
         let mut lead_q = crm_lead::Entity::find();
         if let (Some(s), Some(e)) = (start_dt, end_dt) {
-            lead_q = lead_q.filter(crm_lead::Column::CreatedAt.gte(s)).filter(crm_lead::Column::CreatedAt.lte(e));
+            lead_q = lead_q
+                .filter(crm_lead::Column::CreatedAt.gte(s))
+                .filter(crm_lead::Column::CreatedAt.lte(e));
         }
         let lead_count = lead_q.count(&*self.db).await?;
 
         // 2. 商机数与金额
         let mut opp_q = crm_opportunity::Entity::find();
         if let (Some(s), Some(e)) = (start_dt, end_dt) {
-            opp_q = opp_q.filter(crm_opportunity::Column::CreatedAt.gte(s)).filter(crm_opportunity::Column::CreatedAt.lte(e));
+            opp_q = opp_q
+                .filter(crm_opportunity::Column::CreatedAt.gte(s))
+                .filter(crm_opportunity::Column::CreatedAt.lte(e));
         }
         let opps = opp_q.clone().all(&*self.db).await?;
         let opp_count = opps.len() as i64;
-        let opp_amount: Decimal = opps.iter().map(|o| o.estimated_amount.unwrap_or(Decimal::ZERO)).sum();
+        let opp_amount: Decimal = opps
+            .iter()
+            .map(|o| o.estimated_amount.unwrap_or(Decimal::ZERO))
+            .sum();
 
         // 3. 已成交商机数与金额
         let won_opps: Vec<&crm_opportunity::Model> = opps
@@ -824,20 +845,27 @@ impl CrmService {
         let won_count = won_opps.len() as i64;
         let won_amount: Decimal = won_opps
             .iter()
-            .map(|o| o.actual_amount.unwrap_or(o.estimated_amount.unwrap_or(Decimal::ZERO)))
+            .map(|o| {
+                o.actual_amount
+                    .unwrap_or(o.estimated_amount.unwrap_or(Decimal::ZERO))
+            })
             .sum();
 
         // 4. 报价数
         let mut quot_q = sales_quotation::Entity::find();
         if let (Some(s), Some(e)) = (start_dt, end_dt) {
-            quot_q = quot_q.filter(sales_quotation::Column::QuotationDate.gte(start_date.unwrap())).filter(sales_quotation::Column::QuotationDate.lte(end_date.unwrap()));
+            quot_q = quot_q
+                .filter(sales_quotation::Column::QuotationDate.gte(start_date.unwrap()))
+                .filter(sales_quotation::Column::QuotationDate.lte(end_date.unwrap()));
         }
         let quotation_count = quot_q.count(&*self.db).await?;
 
         // 5. 订单数与金额
         let mut order_q = sales_order::Entity::find();
         if let (Some(s), Some(e)) = (start_dt, end_dt) {
-            order_q = order_q.filter(sales_order::Column::CreatedAt.gte(s)).filter(sales_order::Column::CreatedAt.lte(e));
+            order_q = order_q
+                .filter(sales_order::Column::CreatedAt.gte(s))
+                .filter(sales_order::Column::CreatedAt.lte(e));
         }
         let orders = order_q.all(&*self.db).await?;
         let order_count = orders.len() as i64;
@@ -847,12 +875,30 @@ impl CrmService {
         let collected_amount: Decimal = orders.iter().map(|o| o.paid_amount).sum();
 
         // 转化率
-        let lead_to_opp = if lead_count > 0 { (opp_count as f64 / lead_count as f64) * 100.0 } else { 0.0 };
-        let opp_to_quotation = if opp_count > 0 { (quotation_count as f64 / opp_count as f64) * 100.0 } else { 0.0 };
-        let opp_to_order = if opp_count > 0 { (order_count as f64 / opp_count as f64) * 100.0 } else { 0.0 };
+        let lead_to_opp = if lead_count > 0 {
+            (opp_count as f64 / lead_count as f64) * 100.0
+        } else {
+            0.0
+        };
+        let opp_to_quotation = if opp_count > 0 {
+            (quotation_count as f64 / opp_count as f64) * 100.0
+        } else {
+            0.0
+        };
+        let opp_to_order = if opp_count > 0 {
+            (order_count as f64 / opp_count as f64) * 100.0
+        } else {
+            0.0
+        };
         let order_to_collection = if order_amount > Decimal::ZERO {
-            (collected_amount / order_amount).to_string().parse::<f64>().unwrap_or(0.0) * 100.0
-        } else { 0.0 };
+            (collected_amount / order_amount)
+                .to_string()
+                .parse::<f64>()
+                .unwrap_or(0.0)
+                * 100.0
+        } else {
+            0.0
+        };
 
         Ok(SalesFunnelReport {
             lead_count,

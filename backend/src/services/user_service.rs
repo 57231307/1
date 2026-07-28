@@ -12,7 +12,6 @@
 //! - 软删除机制（不物理删除数据）
 //! - 密码哈希由调用方处理，本模块不处理明文密码
 
-
 use crate::models::user;
 // 批次 209 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
@@ -158,6 +157,7 @@ impl UserService {
             password_changed_at: Set(Some(chrono::Utc::now())),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
+            ..Default::default()
         };
 
         let created = active_user
@@ -370,7 +370,8 @@ impl UserService {
         if let Some(status_val) = status {
             let becoming_active = status_val == master_data::ACTIVE;
             user.is_active = Set(becoming_active);
-            self.handle_user_status_change(user_id, becoming_active).await;
+            self.handle_user_status_change(user_id, becoming_active)
+                .await;
         }
         user.updated_at = Set(chrono::Utc::now());
 
@@ -534,8 +535,8 @@ impl UserService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::services::test_common::setup_test_db;
     use crate::models::status::master_data;
+    use crate::services::test_common::setup_test_db;
 
     /// 构造用户模型夹具（复用于多个测试，遵循规则 6 避免硬编码）
     fn make_user_model(id: i32, username: &str, is_active: bool) -> user::Model {

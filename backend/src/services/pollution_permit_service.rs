@@ -188,7 +188,10 @@ impl PollutionPermitService {
     pub async fn revoke(&self, id: i32, _operator_id: i32) -> Result<PermitModel, AppError> {
         let permit = self.get_by_id(id).await?;
         if permit.status == "revoked" {
-            return Err(AppError::business(format!("许可证 {} 已吊销，不可重复操作", permit.permit_no)));
+            return Err(AppError::business(format!(
+                "许可证 {} 已吊销，不可重复操作",
+                permit.permit_no
+            )));
         }
 
         let mut active: PermitActiveModel = permit.into();

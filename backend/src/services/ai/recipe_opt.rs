@@ -124,9 +124,13 @@ pub(crate) fn is_dye_fabric_compatible(dye_type: &str, fabric_type: &str) -> boo
         return true;
     }
     let supported: &[&str] = match dye.as_str() {
-        "reactive" | "活性" => &["cotton", "棉", "棉布", "rayon", "黏胶", "粘胶", "hemp", "麻"],
+        "reactive" | "活性" => &[
+            "cotton", "棉", "棉布", "rayon", "黏胶", "粘胶", "hemp", "麻",
+        ],
         "disperse" | "分散" => &["polyester", "涤纶", "pet", "acetate", "醋酸"],
-        "acid" | "酸性" => &["silk", "丝绸", "真丝", "wool", "羊毛", "nylon", "锦纶", "尼龙"],
+        "acid" | "酸性" => &[
+            "silk", "丝绸", "真丝", "wool", "羊毛", "nylon", "锦纶", "尼龙",
+        ],
         "vat" | "还原" => &["cotton", "棉", "棉布", "hemp", "麻"],
         "direct" | "直接" => &["cotton", "棉", "棉布", "rayon", "黏胶", "hemp", "麻"],
         "cationic" | "阳离子" => &["acrylic", "腈纶"],
@@ -378,11 +382,8 @@ impl AiAnalysisService {
 
         let k = request.k.unwrap_or(5);
         if k == 0 {
-            let mut resp = Self::build_fallback_response(
-                0,
-                "k=0，已强制走典型参数表".to_string(),
-                Vec::new(),
-            );
+            let mut resp =
+                Self::build_fallback_response(0, "k=0，已强制走典型参数表".to_string(), Vec::new());
             self.recipe_cache.insert(cache_key, resp.clone()).await;
             return Ok(resp);
         }
@@ -410,10 +411,14 @@ impl AiAnalysisService {
             }
             // V15 P1 5.1+9.5：推理超时 → 返回降级结果
             Err(_elapsed) => {
-                tracing::warn!("AI 工艺优化推理超时（>{}ms），返回降级结果", super::AI_INFERENCE_TIMEOUT_MS);
-                let degraded = Self::build_degraded_response(
-                    format!("AI 推理超时（>{}ms），已降级为典型参数表", super::AI_INFERENCE_TIMEOUT_MS),
+                tracing::warn!(
+                    "AI 工艺优化推理超时（>{}ms），返回降级结果",
+                    super::AI_INFERENCE_TIMEOUT_MS
                 );
+                let degraded = Self::build_degraded_response(format!(
+                    "AI 推理超时（>{}ms），已降级为典型参数表",
+                    super::AI_INFERENCE_TIMEOUT_MS
+                ));
                 Ok(degraded)
             }
         }
@@ -466,10 +471,7 @@ impl AiAnalysisService {
             .all(&*self.db)
             .await
             .map_err(AppError::from)?;
-        Ok(raw
-            .into_iter()
-            .map(sanitize_recipe_for_inference)
-            .collect())
+        Ok(raw.into_iter().map(sanitize_recipe_for_inference).collect())
     }
 
     /// 计算候选配方的相似度，过滤 0 分并按降序排序
@@ -720,9 +722,9 @@ mod tests {
                     color_no: "BL-301",
                     fabric_type: "棉",
                     dye_type: "活性染料",
-                    temperature: 60.0 + i as f64,        // 60, 61, 62, 63, 64
-                    time_minutes: 40 + i * 2,             // 40, 42, 44, 46, 48
-                    ph: 6.0 + (i as f64) * 0.1, // 6.0, 6.1, 6.2, 6.3, 6.4
+                    temperature: 60.0 + i as f64, // 60, 61, 62, 63, 64
+                    time_minutes: 40 + i * 2,     // 40, 42, 44, 46, 48
+                    ph: 6.0 + (i as f64) * 0.1,   // 6.0, 6.1, 6.2, 6.3, 6.4
                     liquor: 10.0,
                 })
             })
@@ -787,9 +789,36 @@ mod tests {
     #[test]
     fn test_temperature_recommendation() {
         // 3 条历史：50 / 60 / 70，权重 1.0 / 1.3 / 0.5
-        let r1 = make_recipe(RecipeFixture { recipe_no: "R-1", color_no: "BL-301", fabric_type: "棉", dye_type: "活性染料", temperature: 50.0, time_minutes: 30, ph: 7.0, liquor: 10.0 });
-        let r2 = make_recipe(RecipeFixture { recipe_no: "R-2", color_no: "BL-301", fabric_type: "棉", dye_type: "活性染料", temperature: 60.0, time_minutes: 40, ph: 7.0, liquor: 10.0 });
-        let r3 = make_recipe(RecipeFixture { recipe_no: "R-3", color_no: "BL-301", fabric_type: "棉", dye_type: "活性染料", temperature: 70.0, time_minutes: 50, ph: 7.0, liquor: 10.0 });
+        let r1 = make_recipe(RecipeFixture {
+            recipe_no: "R-1",
+            color_no: "BL-301",
+            fabric_type: "棉",
+            dye_type: "活性染料",
+            temperature: 50.0,
+            time_minutes: 30,
+            ph: 7.0,
+            liquor: 10.0,
+        });
+        let r2 = make_recipe(RecipeFixture {
+            recipe_no: "R-2",
+            color_no: "BL-301",
+            fabric_type: "棉",
+            dye_type: "活性染料",
+            temperature: 60.0,
+            time_minutes: 40,
+            ph: 7.0,
+            liquor: 10.0,
+        });
+        let r3 = make_recipe(RecipeFixture {
+            recipe_no: "R-3",
+            color_no: "BL-301",
+            fabric_type: "棉",
+            dye_type: "活性染料",
+            temperature: 70.0,
+            time_minutes: 50,
+            ph: 7.0,
+            liquor: 10.0,
+        });
         let hits: Vec<(f64, &DyeRecipeModel)> = vec![(1.0, &r1), (1.3, &r2), (0.5, &r3)];
 
         let agg = weighted_average_params(&hits).expect("应当能聚合");
@@ -852,18 +881,45 @@ mod tests {
         assert!(should_use_knn(3), "3 条应走 k-NN");
 
         // 4.3 输入异常（color_no 全空字符串）
-        let r = make_recipe(RecipeFixture { recipe_no: "R-1", color_no: "", fabric_type: "棉", dye_type: "活性染料", temperature: 60.0, time_minutes: 45, ph: 7.0, liquor: 10.0 });
+        let r = make_recipe(RecipeFixture {
+            recipe_no: "R-1",
+            color_no: "",
+            fabric_type: "棉",
+            dye_type: "活性染料",
+            temperature: 60.0,
+            time_minutes: 45,
+            ph: 7.0,
+            liquor: 10.0,
+        });
         let s = compute_similarity("BL-301", "棉", Some("活性染料"), &r);
         assert!((s - 0.0).abs() < 0.001, "候选 color 为空时相似度应为 0.0");
 
         // 4.4 完全不同 color_no → 相似度为 0
-        let r2 = make_recipe(RecipeFixture { recipe_no: "R-2", color_no: "RD-999", fabric_type: "涤纶", dye_type: "分散染料", temperature: 130.0, time_minutes: 30, ph: 5.5, liquor: 8.0 });
+        let r2 = make_recipe(RecipeFixture {
+            recipe_no: "R-2",
+            color_no: "RD-999",
+            fabric_type: "涤纶",
+            dye_type: "分散染料",
+            temperature: 130.0,
+            time_minutes: 30,
+            ph: 5.5,
+            liquor: 8.0,
+        });
         let s2 = compute_similarity("BL-301", "棉", Some("活性染料"), &r2);
         assert!((s2 - 0.0).abs() < 0.001, "完全无关候选相似度应为 0.0");
 
         // 4.5 颜色前缀 3 位匹配 → 0.7
         //   标准化后 "BL301" 与 "BL310" 前 3 位均为 "BL3"，触发 0.7 分
-        let r3 = make_recipe(RecipeFixture { recipe_no: "R-3", color_no: "BL-310", fabric_type: "棉", dye_type: "活性染料", temperature: 60.0, time_minutes: 45, ph: 7.0, liquor: 10.0 });
+        let r3 = make_recipe(RecipeFixture {
+            recipe_no: "R-3",
+            color_no: "BL-310",
+            fabric_type: "棉",
+            dye_type: "活性染料",
+            temperature: 60.0,
+            time_minutes: 45,
+            ph: 7.0,
+            liquor: 10.0,
+        });
         let s3 = compute_similarity("BL-301", "棉", Some("活性染料"), &r3);
         // 0.7 (color 前缀) + 0.2 (fabric) + 0.1 (dye) = 1.0
         assert!((s3 - 1.0).abs() < 0.001, "BL 前缀匹配应为 1.0，实际 {}", s3);
@@ -907,7 +963,11 @@ mod tests {
         };
         let sanitized = sanitize_recipe_for_inference(recipe);
         let remark = sanitized.remarks.expect("脱敏后 remark 应保留");
-        assert!(!remark.contains("13812348888"), "手机号应被脱敏，实际 {}", remark);
+        assert!(
+            !remark.contains("13812348888"),
+            "手机号应被脱敏，实际 {}",
+            remark
+        );
         assert!(remark.contains("色差"), "非 PII 文本应保留");
         let name = sanitized.color_name.expect("脱敏后 color_name 应保留");
         assert!(!name.contains("13812348888"), "color_name 中手机号应被脱敏");

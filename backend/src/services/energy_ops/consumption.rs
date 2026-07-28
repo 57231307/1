@@ -17,16 +17,16 @@ use crate::models::energy_consumption_record::{
     self, ActiveModel as ConsumptionActiveModel, Entity as ConsumptionEntity,
     Model as ConsumptionModel,
 };
-use crate::models::energy_meter::{
-    self, ActiveModel as MeterActiveModel, Entity as MeterEntity,
-};
+use crate::models::energy_meter::{self, ActiveModel as MeterActiveModel, Entity as MeterEntity};
 use crate::models::process_route::Entity as RouteEntity;
 use crate::models::status::energy_record_status;
 use crate::models::status::energy_recording_method;
 use crate::utils::error::AppError;
 
 // 复用 facade 的纯函数校验与计算（保持单一来源，避免逻辑重复）
-use crate::services::energy_service::{compute_consumption, compute_total_cost, validate_meter_type};
+use crate::services::energy_service::{
+    compute_consumption, compute_total_cost, validate_meter_type,
+};
 
 /// 创建能耗记录请求
 #[derive(Debug, Clone, Deserialize)]
@@ -126,31 +126,42 @@ impl EnergyConsumptionService {
     }
 
     /// 创建能耗记录（校验引用 + 计算消耗量 + 写入 + 同步计量设备读数）
-    pub async fn create(&self, req: CreateConsumptionRequest) -> Result<ConsumptionModel, AppError> {
+    pub async fn create(
+        &self,
+        req: CreateConsumptionRequest,
+    ) -> Result<ConsumptionModel, AppError> {
         self.validate_create_request(&req).await?;
         let calc = Self::compute_consumption_metrics(&req)?;
         let recording_method = Self::resolve_recording_method(req.recording_method.as_deref())?;
 
         let record_no = Self::generate_record_no();
         let now = crate::utils::date_utils::utc_now_fixed();
-        let active = Self::build_consumption_active_model(&req, &calc, recording_method, record_no, now);
+        let active =
+            Self::build_consumption_active_model(&req, &calc, recording_method, record_no, now);
         let result = active
             .insert(&*self.db)
             .await
             .map_err(|e| AppError::database(format!("能耗记录创建失败: {}", e)))?;
 
-        self.sync_meter_readings(req.meter_id, calc.previous_reading, calc.current_reading, now)
-            .await?;
+        self.sync_meter_readings(
+            req.meter_id,
+            calc.previous_reading,
+            calc.current_reading,
+            now,
+        )
+        .await?;
 
         // V15 Batch05-P1-3：发布 EnergyConsumptionRecorded 事件（能耗异常告警/月末分摊被动触发）
-        crate::services::event_bus::EVENT_BUS.publish(crate::services::event_bus::BusinessEvent::EnergyConsumptionRecorded {
-            record_id: result.id,
-            workshop: result.workshop.clone(),
-            meter_type: result.meter_type.clone(),
-            consumption: result.consumption,
-            cost: result.total_cost,
-            recorded_at: result.recorded_at.with_timezone(&chrono::Utc),
-        });
+        crate::services::event_bus::EVENT_BUS.publish(
+            crate::services::event_bus::BusinessEvent::EnergyConsumptionRecorded {
+                record_id: result.id,
+                workshop: result.workshop.clone(),
+                meter_type: result.meter_type.clone(),
+                consumption: result.consumption,
+                cost: result.total_cost,
+                recorded_at: result.recorded_at.with_timezone(&chrono::Utc),
+            },
+        );
 
         Ok(result)
     }
@@ -181,7 +192,9 @@ impl EnergyConsumptionService {
     }
 
     /// 计算能耗指标（读数 + 消耗量 + 单价 + 总成本）
-    fn compute_consumption_metrics(req: &CreateConsumptionRequest) -> Result<ConsumptionMetrics, AppError> {
+    fn compute_consumption_metrics(
+        req: &CreateConsumptionRequest,
+    ) -> Result<ConsumptionMetrics, AppError> {
         let previous_reading = req.previous_reading.unwrap_or(Decimal::ZERO);
         let current_reading = req.current_reading.unwrap_or(Decimal::ZERO);
         let consumption = compute_consumption(previous_reading, current_reading);
@@ -198,8 +211,9 @@ impl EnergyConsumptionService {
 
     /// 解析录入方式（默认 manual，校验值域 manual/iot/auto_calc）
     fn resolve_recording_method(method: Option<&str>) -> Result<String, AppError> {
-        let recording_method =
-            method.unwrap_or(energy_recording_method::MANUAL).to_string();
+        let recording_method = method
+            .unwrap_or(energy_recording_method::MANUAL)
+            .to_string();
         if recording_method != energy_recording_method::MANUAL
             && recording_method != energy_recording_method::IOT
             && recording_method != energy_recording_method::AUTO_CALC
@@ -260,7 +274,9 @@ impl EnergyConsumptionService {
         current_reading: Decimal,
         now: chrono::DateTime<chrono::FixedOffset>,
     ) -> Result<(), AppError> {
-        let Some(meter_id) = meter_id else { return Ok(()) };
+        let Some(meter_id) = meter_id else {
+            return Ok(());
+        };
         if let Some(meter) = MeterEntity::find_by_id(meter_id)
             .filter(energy_meter::Column::IsDeleted.eq(false))
             .one(&*self.db)
@@ -298,15 +314,9 @@ impl EnergyConsumptionService {
         let mut active: ConsumptionActiveModel = model.into();
 
         // 重新计算消耗量和总成本（若读数变更）
-        let previous_reading = req
-            .previous_reading
-            .unwrap_or(original_previous_reading);
-        let current_reading = req
-            .current_reading
-            .unwrap_or(original_current_reading);
-        let unit_price = req
-            .unit_price
-            .unwrap_or(original_unit_price);
+        let previous_reading = req.previous_reading.unwrap_or(original_previous_reading);
+        let current_reading = req.current_reading.unwrap_or(original_current_reading);
+        let unit_price = req.unit_price.unwrap_or(original_unit_price);
 
         if req.previous_reading.is_some() || req.current_reading.is_some() {
             let consumption = compute_consumption(previous_reading, current_reading);
@@ -371,7 +381,11 @@ impl EnergyConsumptionService {
     }
 
     /// 确认能耗记录（draft → confirmed）
-    pub async fn confirm(&self, id: i32, _confirmed_by: Option<i32>) -> Result<ConsumptionModel, AppError> {
+    pub async fn confirm(
+        &self,
+        id: i32,
+        _confirmed_by: Option<i32>,
+    ) -> Result<ConsumptionModel, AppError> {
         let model = self.get_by_id(id).await?;
         if model.status != energy_record_status::DRAFT {
             return Err(AppError::business(format!(

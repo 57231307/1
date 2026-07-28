@@ -49,7 +49,7 @@ const backwardForm = ref({
   batch_no: '',
 });
 
-const stageStatusMap: Record<string, string> = {
+const stageStatusMap: Record<string, '' | 'error' | 'success' | 'process' | 'finish' | 'wait'> = {
   PURCHASE_RECEIPT: 'success',
   INVENTORY_IN: 'success',
   PRODUCTION_INPUT: 'process',

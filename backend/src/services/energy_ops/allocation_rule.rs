@@ -92,9 +92,7 @@ impl EnergyAllocationRuleService {
             let _route = RouteEntity::find_by_id(route_id)
                 .one(&*self.db)
                 .await?
-                .ok_or_else(|| {
-                    AppError::business(format!("工序路线 {} 不存在", route_id))
-                })?;
+                .ok_or_else(|| AppError::business(format!("工序路线 {} 不存在", route_id)))?;
         }
 
         // 校验失效日期
@@ -142,11 +140,7 @@ impl EnergyAllocationRuleService {
     }
 
     /// 更新分摊规则（仅 draft 状态可更新）
-    pub async fn update(
-        &self,
-        id: i32,
-        req: UpdateRuleRequest,
-    ) -> Result<RuleModel, AppError> {
+    pub async fn update(&self, id: i32, req: UpdateRuleRequest) -> Result<RuleModel, AppError> {
         let model = self.get_by_id(id).await?;
         if model.status != energy_rule_status::DRAFT {
             return Err(AppError::business(format!(
@@ -271,8 +265,7 @@ impl EnergyAllocationRuleService {
 
     /// 分页查询
     pub async fn list(&self, query: RuleQuery) -> Result<(Vec<RuleModel>, u64), AppError> {
-        let mut q = RuleEntity::find()
-            .filter(energy_allocation_rule::Column::IsDeleted.eq(false));
+        let mut q = RuleEntity::find().filter(energy_allocation_rule::Column::IsDeleted.eq(false));
         if let Some(v) = query.meter_type {
             q = q.filter(energy_allocation_rule::Column::MeterType.eq(v));
         }

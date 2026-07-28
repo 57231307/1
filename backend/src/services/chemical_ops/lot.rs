@@ -285,12 +285,8 @@ impl ChemicalLotService {
     }
 
     /// 分页查询
-    pub async fn list(
-        &self,
-        query: ChemicalLotQuery,
-    ) -> Result<(Vec<LotModel>, u64), AppError> {
-        let mut q = LotEntity::find()
-            .filter(chemical_lot::Column::IsDeleted.eq(false));
+    pub async fn list(&self, query: ChemicalLotQuery) -> Result<(Vec<LotModel>, u64), AppError> {
+        let mut q = LotEntity::find().filter(chemical_lot::Column::IsDeleted.eq(false));
         if let Some(v) = query.chemical_id {
             q = q.filter(chemical_lot::Column::ChemicalId.eq(v));
         }

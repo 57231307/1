@@ -13,12 +13,12 @@ use serde::{Deserialize, Serialize};
 use crate::middleware::auth_context::AuthContext;
 use crate::models::product_color_price;
 // 批次 158 v11 真实接入：审批状态常量替代字符串字面量
-use crate::models::status::approval;
 use crate::models::quotation_create_dto::CreateQuotationDto;
 use crate::models::quotation_response_dto::{
     QuotationItemResponseDto, QuotationResponseDto, QuotationTermResponseDto,
 };
 use crate::models::quotation_update_dto::UpdateQuotationDto;
+use crate::models::status::approval;
 use crate::services::quotation_approval_service::QuotationApprovalService;
 use crate::services::quotation_convert_service::QuotationConvertService;
 use crate::services::quotation_pricing_service::{PricingContext, QuotationPricingService};
@@ -117,10 +117,8 @@ pub async fn list_quotations(
         )
         .await?;
 
-    let dtos: Vec<QuotationResponseDto> = items
-        .into_iter()
-        .map(QuotationResponseDto::from)
-        .collect();
+    let dtos: Vec<QuotationResponseDto> =
+        items.into_iter().map(QuotationResponseDto::from).collect();
 
     Ok(Json(ApiResponse::success(ListQuotationsResponse {
         list: dtos,
@@ -174,9 +172,7 @@ pub async fn create_quotation(
     }
 
     let service = QuotationService::from_state(&state);
-    let model = service
-        .create_draft(dto, auth.user_id as i64)
-        .await?;
+    let model = service.create_draft(dto, auth.user_id as i64).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         QuotationResponseDto::from(model),
@@ -297,14 +293,13 @@ pub async fn get_quotation_terms(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<Vec<QuotationTermResponseDto>>>, AppError> {
-    let terms: Vec<QuotationTermResponseDto> =
-        crate::models::sales_quotation_term::Entity::find()
-            .filter(crate::models::sales_quotation_term::Column::QuotationId.eq(id))
-            .all(&*state.db)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect();
+    let terms: Vec<QuotationTermResponseDto> = crate::models::sales_quotation_term::Entity::find()
+        .filter(crate::models::sales_quotation_term::Column::QuotationId.eq(id))
+        .all(&*state.db)
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect();
     Ok(Json(ApiResponse::success(terms)))
 }
 
@@ -459,7 +454,9 @@ pub async fn list_color_prices(
     let total = paginator.num_items().await?;
     // fetch_page 接收 0-based 页码，需将 1-based page 转换
     // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-    let items = paginator.fetch_page(page.clamp(1, 1000).saturating_sub(1)).await?;
+    let items = paginator
+        .fetch_page(page.clamp(1, 1000).saturating_sub(1))
+        .await?;
 
     Ok(Json(ApiResponse::success(PaginatedResponse::new(
         items, total, page, page_size,
@@ -544,9 +541,7 @@ impl From<ServiceError> for AppError {
     fn from(e: ServiceError) -> Self {
         match e {
             ServiceError::NotFound => AppError::not_found("报价单不存在"),
-            ServiceError::InvalidState => {
-                AppError::validation("当前状态不允许此操作".to_string())
-            }
+            ServiceError::InvalidState => AppError::validation("当前状态不允许此操作".to_string()),
             ServiceError::Validation(msg) => AppError::validation(msg),
             ServiceError::Database(db_err) => AppError::internal(db_err.to_string()),
             // 批次 265：paginate_with_total 返回的 AppError 直接透传

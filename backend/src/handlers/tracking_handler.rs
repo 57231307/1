@@ -16,7 +16,7 @@ use crate::services::tracking_service::{
     BehaviorInput, FunnelQuery, PageViewInput, StatsQuery, TrackingService, UserPathQuery,
 };
 use crate::services::user_consent_service::{
-    CONSENT_TYPE_BEHAVIOR_TRACKING, CONSENT_TYPE_PAGE_VIEW_TRACKING, UserConsentService,
+    UserConsentService, CONSENT_TYPE_BEHAVIOR_TRACKING, CONSENT_TYPE_PAGE_VIEW_TRACKING,
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -109,7 +109,9 @@ pub async fn track_page_view(
 
     // 缺陷 7.3 修复：未同意 page_view_tracking 时静默跳过持久化
     if !is_tracking_allowed(&state, auth.user_id, CONSENT_TYPE_PAGE_VIEW_TRACKING).await? {
-        return Ok(Json(ApiResponse::success(PageViewResponse { success: true })));
+        return Ok(Json(ApiResponse::success(PageViewResponse {
+            success: true,
+        })));
     }
 
     let service = TrackingService::new(state.db.clone());
@@ -123,7 +125,9 @@ pub async fn track_page_view(
         ip_address: req.ip_address,
     };
     service.record_page_view(input).await?;
-    Ok(Json(ApiResponse::success(PageViewResponse { success: true })))
+    Ok(Json(ApiResponse::success(PageViewResponse {
+        success: true,
+    })))
 }
 
 /// 页面访问统计（总量）
@@ -142,10 +146,7 @@ pub async fn get_page_view_stats(
 pub async fn get_page_view_stats_by_day(
     State(state): State<AppState>,
     Query(params): Query<StatsQuery>,
-) -> Result<
-    Json<ApiResponse<Vec<crate::services::tracking_service::DailyStats>>>,
-    AppError,
-> {
+) -> Result<Json<ApiResponse<Vec<crate::services::tracking_service::DailyStats>>>, AppError> {
     let service = TrackingService::new(state.db.clone());
     let date_from = parse_date_param(&params.date_from)?;
     let date_to = parse_date_param(&params.date_to)?;
@@ -164,17 +165,12 @@ pub struct PopularPagesQuery {
 pub async fn get_popular_pages(
     State(state): State<AppState>,
     Query(params): Query<PopularPagesQuery>,
-) -> Result<
-    Json<ApiResponse<Vec<crate::services::tracking_service::PopularPage>>>,
-    AppError,
-> {
+) -> Result<Json<ApiResponse<Vec<crate::services::tracking_service::PopularPage>>>, AppError> {
     let service = TrackingService::new(state.db.clone());
     let limit = params.limit.unwrap_or(20).clamp(1, 100);
     let date_from = parse_date_param(&params.date_from)?;
     let date_to = parse_date_param(&params.date_to)?;
-    let pages = service
-        .get_popular_pages(limit, date_from, date_to)
-        .await?;
+    let pages = service.get_popular_pages(limit, date_from, date_to).await?;
     Ok(Json(ApiResponse::success(pages)))
 }
 
@@ -194,7 +190,9 @@ pub async fn record_behavior(
 
     // 缺陷 7.3 修复：未同意 behavior_tracking 时静默跳过持久化
     if !is_tracking_allowed(&state, auth.user_id, CONSENT_TYPE_BEHAVIOR_TRACKING).await? {
-        return Ok(Json(ApiResponse::success(PageViewResponse { success: true })));
+        return Ok(Json(ApiResponse::success(PageViewResponse {
+            success: true,
+        })));
     }
 
     let service = TrackingService::new(state.db.clone());
@@ -208,7 +206,9 @@ pub async fn record_behavior(
         ip_address: req.ip_address,
     };
     service.record_behavior(input).await?;
-    Ok(Json(ApiResponse::success(PageViewResponse { success: true })))
+    Ok(Json(ApiResponse::success(PageViewResponse {
+        success: true,
+    })))
 }
 
 /// 漏斗分析
@@ -230,10 +230,7 @@ pub async fn get_funnel_analysis(
 pub async fn get_user_path(
     State(state): State<AppState>,
     Query(params): Query<UserPathQuery>,
-) -> Result<
-    Json<ApiResponse<Vec<crate::services::tracking_service::UserPathNode>>>,
-    AppError,
-> {
+) -> Result<Json<ApiResponse<Vec<crate::services::tracking_service::UserPathNode>>>, AppError> {
     let service = TrackingService::new(state.db.clone());
     let date_from = parse_date_param(&params.date_from)?;
     let date_to = parse_date_param(&params.date_to)?;
@@ -250,8 +247,9 @@ fn parse_date_param(s: &Option<String>) -> Result<Option<chrono::DateTime<chrono
             let dt = s
                 .parse::<chrono::DateTime<chrono::Utc>>()
                 .or_else(|_| {
-                    chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d")
-                        .map(|d| d.and_hms_opt(0, 0, 0).unwrap(/* 不变量：0,0,0 永远合法 */).and_utc())
+                    chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").map(
+                        |d| d.and_hms_opt(0, 0, 0).unwrap(/* 不变量：0,0,0 永远合法 */).and_utc(),
+                    )
                 })
                 .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?;
             Ok(Some(dt))

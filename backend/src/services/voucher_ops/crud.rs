@@ -115,7 +115,8 @@ impl VoucherService {
         db: Arc<DatabaseConnection>,
     ) -> Result<(), AppError> {
         // 校验期间锁定
-        let period_svc = crate::services::accounting_period_service::AccountingPeriodService::new(db);
+        let period_svc =
+            crate::services::accounting_period_service::AccountingPeriodService::new(db);
         period_svc.check_date_locked(req.voucher_date).await?;
 
         // 验证借贷平衡

@@ -8,11 +8,13 @@
 //! - list_customers_with_filter（带数据权限过滤的列表查询）
 //! - get_customer_with_filter（带数据权限过滤的详情查询，复用 get_customer 行级校验）
 
-use sea_orm::{ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect};
+use sea_orm::{
+    ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
+};
 
 use crate::models::customer::{self, Entity as CustomerEntity};
 use crate::models::dto::PageRequest;
-use crate::services::customer_ops::types::{build_select_only_query};
+use crate::services::customer_ops::types::build_select_only_query;
 use crate::services::customer_service::CustomerService;
 use crate::utils::data_permission::DataPermissionFilter;
 use crate::utils::data_scope::{apply_data_scope, DataScopeContext};
@@ -41,7 +43,10 @@ impl CustomerService {
         let items: Vec<serde_json::Value> = paged
             .items
             .into_iter()
-            .map(|c| serde_json::to_value(c).map_err(|e| AppError::internal(format!("序列化失败: {}", e))))
+            .map(|c| {
+                serde_json::to_value(c)
+                    .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))
+            })
             .collect::<Result<Vec<_>, _>>()?;
         Ok(Some(PaginatedResponse::new(
             items,
@@ -117,12 +122,15 @@ impl CustomerService {
             .await?;
         let json_rows: Vec<serde_json::Value> = rows
             .into_iter()
-            .map(|c| serde_json::to_value(c).map_err(|e| AppError::internal(format!("序列化失败: {}", e))))
+            .map(|c| {
+                serde_json::to_value(c)
+                    .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))
+            })
             .collect::<Result<Vec<_>, _>>()?;
         Ok(json_rows)
     }
 
-/// 获取客户列表（带数据权限过滤）
+    /// 获取客户列表（带数据权限过滤）
     pub async fn list_customers_with_filter(
         &self,
         page_req: PageRequest,
@@ -134,30 +142,26 @@ impl CustomerService {
     ) -> Result<PaginatedResponse<serde_json::Value>, AppError> {
         if permission_filter.is_none() {
             if let Some(paged) = self
-                .delegate_list_customers_to_json(&page_req, &status, &customer_type, &keyword, data_scope)
+                .delegate_list_customers_to_json(
+                    &page_req,
+                    &status,
+                    &customer_type,
+                    &keyword,
+                    data_scope,
+                )
                 .await?
             {
                 return Ok(paged);
             }
         }
         let query = CustomerEntity::find();
-        let query = Self::apply_customer_list_filters(
-            query,
-            &status,
-            &customer_type,
-            &keyword,
-            data_scope,
-        );
+        let query =
+            Self::apply_customer_list_filters(query, &status, &customer_type, &keyword, data_scope);
         let total = query.clone().count(&*self.db).await?;
         let offset = page_req.page.saturating_sub(1) * page_req.page_size;
         let customers = if let Some(filter) = permission_filter {
-            self.fetch_customers_with_permission_filter(
-                query,
-                &filter,
-                offset,
-                page_req.page_size,
-            )
-            .await?
+            self.fetch_customers_with_permission_filter(query, &filter, offset, page_req.page_size)
+                .await?
         } else {
             self.fetch_customers_all_fields_json(query, offset, page_req.page_size)
                 .await?
@@ -170,7 +174,7 @@ impl CustomerService {
         ))
     }
 
-/// 获取客户详情（带数据权限过滤）
+    /// 获取客户详情（带数据权限过滤）
     pub async fn get_customer_with_filter(
         &self,
         customer_id: i32,

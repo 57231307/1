@@ -69,15 +69,17 @@ impl DyeBatchLifecycleLogService {
             .map_err(|e| AppError::database(format!("缸号生命周期日志创建失败: {}", e)))?;
 
         // V15 Batch05-P1-3：发布 DyeBatchStatusChanged 事件（设备占用/释放、看板更新）
-        crate::services::event_bus::EVENT_BUS.publish(crate::services::event_bus::BusinessEvent::DyeBatchStatusChanged {
-            batch_id: result.batch_id,
-            batch_no: result.batch_no.clone(),
-            from_status: result.from_status.clone().unwrap_or_default(),
-            to_status: result.to_status.clone(),
-            transition_code: result.transition_code.clone(),
-            operator_id: result.operator_id,
-            transition_at: result.transition_at.with_timezone(&chrono::Utc),
-        });
+        crate::services::event_bus::EVENT_BUS.publish(
+            crate::services::event_bus::BusinessEvent::DyeBatchStatusChanged {
+                batch_id: result.batch_id,
+                batch_no: result.batch_no.clone(),
+                from_status: result.from_status.clone().unwrap_or_default(),
+                to_status: result.to_status.clone(),
+                transition_code: result.transition_code.clone(),
+                operator_id: result.operator_id,
+                transition_at: result.transition_at.with_timezone(&chrono::Utc),
+            },
+        );
 
         Ok(result)
     }
@@ -114,10 +116,7 @@ impl DyeBatchLifecycleLogService {
     }
 
     /// 获取缸号最新状态（按 transition_at 倒序取第一条）
-    pub async fn get_latest_status(
-        &self,
-        batch_id: i32,
-    ) -> Result<Option<String>, AppError> {
+    pub async fn get_latest_status(&self, batch_id: i32) -> Result<Option<String>, AppError> {
         let model = LifecycleLogEntity::find()
             .filter(dye_batch_lifecycle_log::Column::BatchId.eq(batch_id))
             .order_by_desc(dye_batch_lifecycle_log::Column::TransitionAt)

@@ -45,8 +45,7 @@ pub async fn split_fabric_piece(
     validate_parent_piece(&parent, req.cut_length)?;
 
     // 2. 更新母卷剩余长度与重量
-    let updated_parent =
-        update_parent_piece(&parent, req.cut_length, req.cut_weight, &txn).await?;
+    let updated_parent = update_parent_piece(&parent, req.cut_length, req.cut_weight, &txn).await?;
 
     // 3. 生成新布卷 (子卷)
     let new_piece_no = generate_piece_no(&parent, &req.new_barcode);
@@ -107,10 +106,7 @@ async fn update_parent_piece(
 }
 
 /// 生成新布卷编号（优先使用请求中的条码，否则自动生成）
-fn generate_piece_no(
-    parent: &inventory_piece::Model,
-    new_barcode: &Option<String>,
-) -> String {
+fn generate_piece_no(parent: &inventory_piece::Model, new_barcode: &Option<String>) -> String {
     if let Some(barcode) = new_barcode {
         barcode.clone()
     } else {

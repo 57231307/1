@@ -15,18 +15,16 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 
-use crate::models::outsourcing_order::{
-    self, Entity as OrderEntity,
-};
+use crate::models::outsourcing_order::{self, Entity as OrderEntity};
 use crate::models::outsourcing_voucher::{
     self, ActiveModel as VoucherActiveModel, Entity as VoucherEntity, Model as VoucherModel,
 };
 use crate::utils::error::AppError;
 
-use crate::services::outsourcing_service::{validate_voucher_type, OutsourcingVoucherService};
 use crate::services::outsourcing_ops::types::{
     CreateOutsourcingVoucherRequest, OutsourcingVoucherQuery,
 };
+use crate::services::outsourcing_service::{validate_voucher_type, OutsourcingVoucherService};
 
 impl OutsourcingVoucherService {
     /// 创建委外凭证

@@ -35,8 +35,8 @@ use crate::utils::error::AppError;
 // 复用 facade 的纯函数（保持单一来源，避免逻辑重复）
 use crate::services::wage_service::{
     calculate_overtime_pay, calculate_wage_for_step, compute_qualification_rate,
-    naive_date_to_date_time_tz, naive_date_to_end_of_day_tz, parse_worker_ids,
-    parse_worker_names, split_wage_among_workers, CalculateWageRequest, WageCalculationService,
+    naive_date_to_date_time_tz, naive_date_to_end_of_day_tz, parse_worker_ids, parse_worker_names,
+    split_wage_among_workers, CalculateWageRequest, WageCalculationService,
 };
 
 /// 工资计算累计：用于 calculate 拆分时在 helper 间传递汇总
@@ -118,10 +118,7 @@ impl WageCalculationService {
     }
 
     /// 加载工资记录并校验：仅 draft 状态可计算
-    async fn validate_wage_record(
-        &self,
-        wage_record_id: i32,
-    ) -> Result<RecordModel, AppError> {
+    async fn validate_wage_record(&self, wage_record_id: i32) -> Result<RecordModel, AppError> {
         let record = RecordEntity::find_by_id(wage_record_id)
             .filter(wage_record::Column::IsDeleted.eq(false))
             .one(&*self.db)
@@ -251,8 +248,7 @@ impl WageCalculationService {
         // 当前 process_step_record 未记录加班工时（overtime 字段待后续批次扩展），
         // 此处加班工时默认为 0，加班费为 0。calculate_overtime_pay 函数已就绪，
         // 当 process_step_record 增加加班工时字段后可直接接入。
-        let overtime_pay =
-            calculate_overtime_pay(rate, grade_ratio, 0, 0, 0);
+        let overtime_pay = calculate_overtime_pay(rate, grade_ratio, 0, 0, 0);
 
         // 应得工资 = 计件工资 + 计时工资 + 加班费
         let wage_amount_with_overtime = wage_amount + overtime_pay;
@@ -305,8 +301,7 @@ impl WageCalculationService {
             let worker_name = ctx.worker_names.get(idx).cloned();
 
             // V15 P1-08-22 加班工时按人均分配（当前 process_step_record 未记录加班工时，默认 0）
-            let per_worker_duration =
-                ctx.step.duration_minutes.unwrap_or(0) / worker_count as i32;
+            let per_worker_duration = ctx.step.duration_minutes.unwrap_or(0) / worker_count as i32;
 
             let detail = DetailActiveModel {
                 id: Default::default(),
@@ -324,8 +319,9 @@ impl WageCalculationService {
                 equipment_name: Set(ctx.step.equipment_name.clone()),
                 wage_type: Set(ctx.rate.wage_type.clone()),
                 grade: Set(ctx.computed.grade.clone()),
-                actual_quantity: Set(ctx.step.actual_quantity.unwrap_or(Decimal::ZERO)
-                    / Decimal::from(worker_count)),
+                actual_quantity: Set(
+                    ctx.step.actual_quantity.unwrap_or(Decimal::ZERO) / Decimal::from(worker_count)
+                ),
                 qualified_quantity: Set(ctx.step.qualified_quantity.unwrap_or(Decimal::ZERO)
                     / Decimal::from(worker_count)),
                 qualification_rate: Set(compute_qualification_rate(
@@ -353,9 +349,10 @@ impl WageCalculationService {
             detail.insert(&*self.db).await?;
             totals.detail_count += 1;
             totals.total_amount += per_worker_amount;
-            totals.total_qualified += ctx.step.qualified_quantity.unwrap_or(Decimal::ZERO)
-                / Decimal::from(worker_count);
-            totals.total_minutes += (ctx.step.duration_minutes.unwrap_or(0) as i64) / worker_count as i64;
+            totals.total_qualified +=
+                ctx.step.qualified_quantity.unwrap_or(Decimal::ZERO) / Decimal::from(worker_count);
+            totals.total_minutes +=
+                (ctx.step.duration_minutes.unwrap_or(0) as i64) / worker_count as i64;
             totals.worker_set.insert(worker_id);
             totals.step_set.insert(ctx.step.id);
         }

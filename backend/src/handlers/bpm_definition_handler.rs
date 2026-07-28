@@ -32,10 +32,7 @@ use serde_json::{json, Value};
 /// - `config` → 保留原字段，同时提取 `config.nodes` 为顶层 `nodes`
 fn model_to_frontend_json(model: bpm_process_definition::Model) -> Value {
     let config = model.config.clone();
-    let nodes = config
-        .as_ref()
-        .and_then(|c| c.get("nodes"))
-        .cloned();
+    let nodes = config.as_ref().and_then(|c| c.get("nodes")).cloned();
     json!({
         "id": model.id,
         "process_key": model.code,
@@ -190,7 +187,9 @@ pub async fn save_as_template(
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let service = BpmService::new(state.db.clone());
     service.save_as_template(id, req.template_name).await?;
-    Ok(Json(ApiResponse::success(json!({"message": "保存模板成功"}))))
+    Ok(Json(ApiResponse::success(
+        json!({"message": "保存模板成功"}),
+    )))
 }
 
 /// 获取模板列表

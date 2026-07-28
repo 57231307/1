@@ -142,8 +142,7 @@ pub fn build_docx_with_kv(
     // 明细表格
     if !detail_headers.is_empty() {
         docx = docx.add_paragraph(Paragraph::new());
-        let detail_title = Paragraph::new()
-            .add_run(Run::new().add_text("明细").bold().size(24));
+        let detail_title = Paragraph::new().add_run(Run::new().add_text("明细").bold().size(24));
         docx = docx.add_paragraph(detail_title);
 
         let header_row = build_table_row(detail_headers, true);
@@ -190,14 +189,15 @@ fn build_table_row(cells: &[String], is_header: bool) -> TableRow {
 /// 设置表格四周边框（单线样式）
 fn set_table_borders(table: Table) -> Table {
     let border = BorderType::Single;
-    table
-        .set_table_borders(TableBorders::new()
+    table.set_table_borders(
+        TableBorders::new()
             .set_top(border)
             .set_bottom(border)
             .set_left(border)
             .set_right(border)
             .set_inside_h(border)
-            .set_inside_v(border))
+            .set_inside_v(border),
+    )
 }
 
 #[cfg(test)]

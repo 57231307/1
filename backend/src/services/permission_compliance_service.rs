@@ -14,7 +14,9 @@
 use std::sync::Arc;
 
 use chrono::{Duration, Utc};
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};
+use sea_orm::{
+    ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+};
 use tracing::{info, warn};
 
 use crate::models::audit_log::{self, Entity as AuditLogEntity};
@@ -112,10 +114,12 @@ impl PermissionComplianceService {
         self.detect_super_permission_grants(&change_logs, &mut alerts);
 
         // 规则 4：互斥角色分配检测（需查 users 表判断用户是否同时持有互斥角色）
-        self.detect_conflicting_role_assignments(&change_logs, &mut alerts).await;
+        self.detect_conflicting_role_assignments(&change_logs, &mut alerts)
+            .await;
 
         // 规则 5：离职用户权限未撤销检测
-        self.detect_resigned_user_permissions(&change_logs, &mut alerts).await;
+        self.detect_resigned_user_permissions(&change_logs, &mut alerts)
+            .await;
 
         // 规则 6：权限回滚检测（短时间内移除刚授予的权限）
         self.detect_permission_rollback(&change_logs, &mut alerts);
@@ -129,7 +133,8 @@ impl PermissionComplianceService {
             total_scanned = total,
             alerts_found = alert_count,
             "权限合规审查：完成，扫描 {} 条记录，发现 {} 项异常",
-            total, alert_count
+            total,
+            alert_count
         );
 
         Ok(alert_count)
@@ -161,8 +166,7 @@ impl PermissionComplianceService {
 
         info!(
             alerts_found = alert_count,
-            "权限合规审查：定期合规审查完成，发现 {} 项系统级问题",
-            alert_count
+            "权限合规审查：定期合规审查完成，发现 {} 项系统级问题", alert_count
         );
 
         Ok(alert_count)
@@ -175,7 +179,9 @@ impl PermissionComplianceService {
         alerts: &mut Vec<PermissionComplianceAlert>,
     ) {
         for log in logs {
-            let business_hour = (log.changed_at + Duration::hours(8)).format("%H").to_string();
+            let business_hour = (log.changed_at + Duration::hours(8))
+                .format("%H")
+                .to_string();
             if let Ok(hour) = business_hour.parse::<u32>() {
                 let is_off_hours = hour >= OFF_HOURS_START || hour < OFF_HOURS_END;
                 if is_off_hours {
@@ -221,8 +227,7 @@ impl PermissionComplianceService {
             sorted.sort();
             let mut left = 0;
             for right in 0..sorted.len() {
-                while sorted[right].timestamp() - sorted[left].timestamp()
-                    > BULK_GRANT_WINDOW_SECS
+                while sorted[right].timestamp() - sorted[left].timestamp() > BULK_GRANT_WINDOW_SECS
                 {
                     left += 1;
                 }
@@ -318,9 +323,7 @@ impl PermissionComplianceService {
             let is_conflict = matches!(
                 role_code,
                 "admin" | "auditor" | "finance_accountant" | "finance_reviewer"
-            ) && self
-                .has_conflicting_role(target_user, role_code)
-                .await;
+            ) && self.has_conflicting_role(target_user, role_code).await;
             if is_conflict {
                 alerts.push(PermissionComplianceAlert {
                     alert_type: "conflicting_role_assignment".to_string(),
@@ -345,10 +348,7 @@ impl PermissionComplianceService {
         // 由于当前用户表只有 role_id 单字段（不支持多角色），同一用户不会同时持有两个角色。
         // 此函数为预留扩展点：未来支持 user_role 多角色表时实现完整互斥检测。
         // 当前实现：检查 role_code 是否属于互斥角色清单（触发告警提醒人工复核）
-        matches!(
-            role_code,
-            "auditor" | "finance_reviewer"
-        )
+        matches!(role_code, "auditor" | "finance_reviewer")
     }
 
     /// 规则 5：离职用户权限未撤销检测（用户 is_active=false 但仍有权限变更记录）
@@ -427,8 +427,12 @@ impl PermissionComplianceService {
                 continue;
             }
             // 检查是否有 assign 和 remove 交替（回滚模式）
-            let has_assign = entries.iter().any(|e| e.change_type == "role_permission_assign");
-            let has_remove = entries.iter().any(|e| e.change_type == "role_permission_remove");
+            let has_assign = entries
+                .iter()
+                .any(|e| e.change_type == "role_permission_assign");
+            let has_remove = entries
+                .iter()
+                .any(|e| e.change_type == "role_permission_remove");
             if has_assign && has_remove {
                 let first = entries.first().unwrap();
                 let last = entries.last().unwrap();
@@ -455,10 +459,7 @@ impl PermissionComplianceService {
     }
 
     /// 合规检查 1：is_system=true 的非 admin 角色（违反 is_system 滥用治理）
-    async fn detect_system_role_abuse(
-        &self,
-        alerts: &mut Vec<PermissionComplianceAlert>,
-    ) {
+    async fn detect_system_role_abuse(&self, alerts: &mut Vec<PermissionComplianceAlert>) {
         let roles = RoleEntity::find()
             .filter(role::Column::IsSystem.eq(true))
             .all(self.db.as_ref())
@@ -483,10 +484,7 @@ impl PermissionComplianceService {
     }
 
     /// 合规检查 2：离职用户仍持有角色权限
-    async fn detect_inactive_user_permissions(
-        &self,
-        alerts: &mut Vec<PermissionComplianceAlert>,
-    ) {
+    async fn detect_inactive_user_permissions(&self, alerts: &mut Vec<PermissionComplianceAlert>) {
         let inactive_users = UserEntity::find()
             .filter(user::Column::IsActive.eq(false))
             .all(self.db.as_ref())
@@ -519,10 +517,7 @@ impl PermissionComplianceService {
     }
 
     /// 合规检查 3：互斥权限共存（同一角色同时持有 create 和 approve）
-    async fn detect_sod_violations(
-        &self,
-        alerts: &mut Vec<PermissionComplianceAlert>,
-    ) {
+    async fn detect_sod_violations(&self, alerts: &mut Vec<PermissionComplianceAlert>) {
         let roles = RoleEntity::find()
             .filter(role::Column::IsSystem.eq(false))
             .all(self.db.as_ref())
@@ -611,8 +606,7 @@ impl PermissionComplianceService {
             let interval = std::time::Duration::from_secs(interval_secs);
             info!(
                 interval_secs,
-                "权限合规审查：后台任务已启动（每 {} 秒执行一次合规审查）",
-                interval_secs
+                "权限合规审查：后台任务已启动（每 {} 秒执行一次合规审查）", interval_secs
             );
 
             loop {

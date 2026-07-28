@@ -33,8 +33,8 @@ use std::sync::Arc;
 // JTI 黑名单与用户级 Token 吊销的 free functions 在 auth_service_ops::jti 中实现，
 // 此处重新导出以保持外部调用路径（如 crate::services::auth_service::revoke_jti）不变。
 pub use crate::services::auth_service_ops::jti::{
-    cleanup_expired_jti, cleanup_revoked_users, is_jti_revoked, is_user_token_revoked,
-    revoke_jti, revoke_user_jtis, start_revoked_user_cleanup_task, unrevoke_user,
+    cleanup_expired_jti, cleanup_revoked_users, is_jti_revoked, is_user_token_revoked, revoke_jti,
+    revoke_user_jtis, start_revoked_user_cleanup_task, unrevoke_user,
 };
 
 /// JWT 令牌声明
@@ -158,7 +158,7 @@ impl From<AppError> for AuthError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::services::auth_service_ops::jti::{REVOKED_USER_TTL_SECS, REVOKED_USERS};
+    use crate::services::auth_service_ops::jti::{REVOKED_USERS, REVOKED_USER_TTL_SECS};
     use chrono::Duration;
     use jsonwebtoken::{encode, Header};
 
@@ -501,7 +501,10 @@ mod tests {
     /// 测试 JTI revoke 后立即被 is_jti_revoked 判定为已吊销
     #[tokio::test]
     async fn test_revoke_jti_marks_as_revoked() {
-        let test_jti = format!("test-jti-{}", chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0));
+        let test_jti = format!(
+            "test-jti-{}",
+            chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)
+        );
         let expires_at = chrono::Utc::now().timestamp() + 3600;
 
         // revoke 前应未吊销
@@ -523,7 +526,10 @@ mod tests {
         revoke_jti(&jti_a, expires_at).await;
 
         assert!(is_jti_revoked(&jti_a).await, "jti_a 应被吊销");
-        assert!(!is_jti_revoked(&jti_b).await, "jti_b 不应被吊销（互不干扰）");
+        assert!(
+            !is_jti_revoked(&jti_b).await,
+            "jti_b 不应被吊销（互不干扰）"
+        );
     }
 
     /// 测试 cleanup_expired_jti 在内存模式下移除过期项
@@ -545,14 +551,8 @@ mod tests {
         cleanup_expired_jti(0).await;
 
         // 过期项应被清除，未过期项保留
-        assert!(
-            !is_jti_revoked(&expired_jti).await,
-            "过期 JTI 应被清理"
-        );
-        assert!(
-            is_jti_revoked(&fresh_jti).await,
-            "未过期 JTI 应保留"
-        );
+        assert!(!is_jti_revoked(&expired_jti).await, "过期 JTI 应被清理");
+        assert!(is_jti_revoked(&fresh_jti).await, "未过期 JTI 应保留");
     }
 
     // ---------- 异步密码函数（批次 392 补测） ----------

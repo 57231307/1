@@ -195,10 +195,7 @@ impl BulkColorApprovalService {
         params: CreateBulkColorApprovalParams,
     ) -> Result<bulk_color_approval::Model, BulkColorApprovalError> {
         // 校验样布类型
-        let sample_type = params
-            .sample_type
-            .as_deref()
-            .unwrap_or("cut_sample");
+        let sample_type = params.sample_type.as_deref().unwrap_or("cut_sample");
         if !matches!(sample_type, "cut_sample" | "lab_sample") {
             return Err(BulkColorApprovalError::Validation(format!(
                 "sample_type 必须为 cut_sample 或 lab_sample，实际: {}",

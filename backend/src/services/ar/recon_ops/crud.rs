@@ -93,9 +93,8 @@ impl ArReconciliationService {
             );
         }
         if let Some(end_date) = query.end_date {
-            select = select.filter(
-                crate::models::ar_reconciliation::Column::ReconciliationDate.lte(end_date),
-            );
+            select = select
+                .filter(crate::models::ar_reconciliation::Column::ReconciliationDate.lte(end_date));
         }
 
         let total = select.clone().count(&*self.db).await?;
@@ -150,14 +149,13 @@ impl ArReconciliationService {
         active_model.updated_at = Set(Utc::now());
 
         // 批次 92 P3-9：user_id 从 handler AuthContext 注入
-        let updated =
-            crate::services::audit_log_service::AuditLogService::update_with_audit(
-                &txn,
-                "auto_audit",
-                active_model,
-                Some(user_id),
-            )
-            .await?;
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active_model,
+            Some(user_id),
+        )
+        .await?;
 
         txn.commit().await?;
 

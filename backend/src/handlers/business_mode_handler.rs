@@ -12,7 +12,9 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::models::{business_mode_config, business_mode_flow_step, business_mode_order_link, business_mode_rule};
+use crate::models::{
+    business_mode_config, business_mode_flow_step, business_mode_order_link, business_mode_rule,
+};
 use crate::services::business_mode_service::{
     BusinessModeConfigQuery, BusinessModeConfigService, BusinessModeFlowStepService,
     BusinessModeOrderLinkQuery, BusinessModeOrderLinkService, BusinessModeRuleService,

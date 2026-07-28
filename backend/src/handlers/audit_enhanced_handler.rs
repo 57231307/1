@@ -71,8 +71,8 @@ pub async fn list_audit_logs(
     // 支持 ISO 8601 日期或日期时间字符串（如 "2026-07-01" 或 "2026-07-01T00:00:00Z"）
     if let Some(start) = &query.start_date {
         if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(start) {
-            query_builder =
-                query_builder.filter(audit_log::Column::CreatedAt.gte(dt.with_timezone(&chrono::Utc)));
+            query_builder = query_builder
+                .filter(audit_log::Column::CreatedAt.gte(dt.with_timezone(&chrono::Utc)));
         } else if let Ok(date) = chrono::NaiveDate::parse_from_str(start, "%Y-%m-%d") {
             let dt = date.and_hms_opt(0, 0, 0).unwrap_or_default().and_utc();
             query_builder = query_builder.filter(audit_log::Column::CreatedAt.gte(dt));
@@ -80,14 +80,11 @@ pub async fn list_audit_logs(
     }
     if let Some(end) = &query.end_date {
         if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(end) {
-            query_builder =
-                query_builder.filter(audit_log::Column::CreatedAt.lte(dt.with_timezone(&chrono::Utc)));
+            query_builder = query_builder
+                .filter(audit_log::Column::CreatedAt.lte(dt.with_timezone(&chrono::Utc)));
         } else if let Ok(date) = chrono::NaiveDate::parse_from_str(end, "%Y-%m-%d") {
             // 日期粒度的 end_date 视为当天 23:59:59，避免漏掉当天的审计记录
-            let dt = date
-                .and_hms_opt(23, 59, 59)
-                .unwrap_or_default()
-                .and_utc();
+            let dt = date.and_hms_opt(23, 59, 59).unwrap_or_default().and_utc();
             query_builder = query_builder.filter(audit_log::Column::CreatedAt.lte(dt));
         }
     }
@@ -98,7 +95,9 @@ pub async fn list_audit_logs(
 
     let total = paginator.num_items().await?;
     // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-    let logs = paginator.fetch_page(page.clamp(1, 1000).saturating_sub(1)).await?;
+    let logs = paginator
+        .fetch_page(page.clamp(1, 1000).saturating_sub(1))
+        .await?;
 
     let items: Vec<AuditLogItem> = logs
         .into_iter()

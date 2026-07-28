@@ -30,10 +30,7 @@ use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkCon
 /// 在 handler 层增加角色深度防御，确保合规要求。
 /// admin 不再持有 audit:read 权限码（职责分离），但保留运维排查能力；
 /// auditor 角色专门负责审计职责，独占 audit:read 权限码。
-async fn require_admin_role(
-    state: &AppState,
-    auth: &AuthContext,
-) -> Result<(), AppError> {
+async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), AppError> {
     let role_id = auth
         .role_id
         .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法查询审计日志"))?;
@@ -301,9 +298,7 @@ fn audit_log_export_headers() -> Vec<String> {
 fn build_audit_log_row(log: audit_log::Model) -> Vec<String> {
     vec![
         log.id.to_string(),
-        log.created_at
-            .map(|t| t.to_rfc3339())
-            .unwrap_or_default(),
+        log.created_at.map(|t| t.to_rfc3339()).unwrap_or_default(),
         log.user_id.map(|i| i.to_string()).unwrap_or_default(),
         log.username.unwrap_or_default(),
         log.operation_type.unwrap_or_default(),
@@ -372,10 +367,7 @@ pub async fn export_audit_logs(
     record_audit_logs_export_audit(&state, &auth, logs_count);
 
     let table = build_audit_logs_table(logs);
-    let filename = format!(
-        "audit_logs_{}",
-        chrono::Utc::now().format("%Y%m%d%H%M%S")
-    );
+    let filename = format!("audit_logs_{}", chrono::Utc::now().format("%Y%m%d%H%M%S"));
 
     // V15 P0-S15 修复（Batch 475a）：注入水印（操作员/导出时间/导出条数）
     // 水印行在 xlsx 第 0 行（合并所有列），标题行下移到第 1 行，数据行从第 2 行起
@@ -383,7 +375,10 @@ pub async fn export_audit_logs(
         operator: Some(auth.username.clone()),
         ip_address: None,
         exported_at: Some(chrono::Utc::now().to_rfc3339()),
-        extra: Some(format!("审计日志导出（共 {} 条，仅 admin 可导出）", logs_count)),
+        extra: Some(format!(
+            "审计日志导出（共 {} 条，仅 admin 可导出）",
+            logs_count
+        )),
     };
 
     // 规则 3：导出统一使用 xlsx 格式，错误用 AppError 表达，成功返回 200 + xlsx 响应体
@@ -423,9 +418,7 @@ pub async fn record_print_event(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     // 字段长度校验
     if req.resource_type.is_empty() || req.resource_type.len() > 64 {
-        return Err(AppError::validation(
-            "resource_type 长度必须在 1-64 之间",
-        ));
+        return Err(AppError::validation("resource_type 长度必须在 1-64 之间"));
     }
     if req.title.is_empty() || req.title.len() > 200 {
         return Err(AppError::validation("title 长度必须在 1-200 之间"));

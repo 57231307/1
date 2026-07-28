@@ -12,7 +12,9 @@ use sea_orm::{
 
 use crate::models::quotation_create_dto::{CreateQuotationItemDto, CreateQuotationTermDto};
 use crate::models::quotation_update_dto::UpdateQuotationDto;
-use crate::models::sales_quotation::{self, ActiveModel as QuotationActive, Entity as QuotationEntity};
+use crate::models::sales_quotation::{
+    self, ActiveModel as QuotationActive, Entity as QuotationEntity,
+};
 use crate::models::sales_quotation_item::{self, ActiveModel as ItemActive, Entity as ItemEntity};
 use crate::models::sales_quotation_term::{self, ActiveModel as TermActive, Entity as TermEntity};
 use crate::models::status::quotation as quotation_status;
@@ -60,7 +62,9 @@ impl QuotationService {
             .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found("报价单不存在"))?;
-        if ![quotation_status::DRAFT, quotation_status::REJECTED].contains(&existing.status.as_str()) {
+        if ![quotation_status::DRAFT, quotation_status::REJECTED]
+            .contains(&existing.status.as_str())
+        {
             return Err(AppError::validation("当前状态不允许此操作".to_string()));
         }
         Ok(existing)

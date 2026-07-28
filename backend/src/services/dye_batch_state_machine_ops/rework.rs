@@ -18,8 +18,8 @@ use crate::models::dye_batch_rework::{
 };
 use crate::models::status::dye_batch_rework_status;
 use crate::services::dye_batch_state_machine_service::{
-    check_rework_eligibility, validate_lifecycle_status, validate_rework_type,
-    CreateReworkRequest, DyeBatchReworkService, ReworkQuery, UpdateReworkRequest,
+    check_rework_eligibility, validate_lifecycle_status, validate_rework_type, CreateReworkRequest,
+    DyeBatchReworkService, ReworkQuery, UpdateReworkRequest,
 };
 use crate::utils::error::AppError;
 
@@ -195,8 +195,7 @@ impl DyeBatchReworkService {
 
     /// 分页查询
     pub async fn list(&self, query: ReworkQuery) -> Result<(Vec<ReworkModel>, u64), AppError> {
-        let mut q = ReworkEntity::find()
-            .filter(dye_batch_rework::Column::IsDeleted.eq(false));
+        let mut q = ReworkEntity::find().filter(dye_batch_rework::Column::IsDeleted.eq(false));
         if let Some(v) = query.original_batch_id {
             q = q.filter(dye_batch_rework::Column::OriginalBatchId.eq(v));
         }

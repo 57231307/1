@@ -10,9 +10,7 @@
 //! - 同模式内规则代码唯一
 //! - list_by_mode 仅返回 is_active=true 的规则，按 id 升序排序
 
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 
 use crate::models::business_mode_config::{self, Entity as ConfigEntity};
 use crate::models::business_mode_rule::{
@@ -20,10 +18,10 @@ use crate::models::business_mode_rule::{
 };
 use crate::utils::error::AppError;
 
-use crate::services::business_mode_service::{validate_rule_type, BusinessModeRuleService};
 use crate::services::business_mode_ops::types::{
     CreateBusinessModeRuleRequest, UpdateBusinessModeRuleRequest,
 };
+use crate::services::business_mode_service::{validate_rule_type, BusinessModeRuleService};
 
 impl BusinessModeRuleService {
     /// 创建业务模式规则

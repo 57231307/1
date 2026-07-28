@@ -236,7 +236,8 @@ pub async fn create_product(
 
     let product = product_service
         .create_product(CreateProductArgs {
-            name: req.name
+            name: req
+                .name
                 .unwrap_or_else(|| format!("产品_{}", chrono::Utc::now().timestamp())),
             code,
             category_id: req.category_id,
@@ -245,7 +246,9 @@ pub async fn create_product(
             standard_price: req.standard_price,
             cost_price: req.cost_price,
             description: req.description,
-            status: req.status.unwrap_or_else(|| master_data::ACTIVE.to_string()),
+            status: req
+                .status
+                .unwrap_or_else(|| master_data::ACTIVE.to_string()),
             product_type: req.product_type.unwrap_or_else(|| "成品".to_string()),
             fabric_composition: req.fabric_composition,
             yarn_count: req.yarn_count,

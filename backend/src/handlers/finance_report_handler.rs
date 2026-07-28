@@ -202,9 +202,9 @@ pub async fn drill_down_report(
                 .await?
         }
         _ => {
-            let subject_prefix = query.subject_prefix.ok_or_else(|| {
-                AppError::validation("报表穿透需要 subject_prefix 参数")
-            })?;
+            let subject_prefix = query
+                .subject_prefix
+                .ok_or_else(|| AppError::validation("报表穿透需要 subject_prefix 参数"))?;
             let start_date = query.start_date.unwrap_or_else(|| {
                 chrono::NaiveDate::from_ymd_opt(chrono::Utc::now().year(), 1, 1)
                     .unwrap_or_else(|| chrono::Utc::now().date_naive())

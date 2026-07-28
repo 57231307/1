@@ -62,10 +62,7 @@ impl EmailLogService {
     }
 
     /// 创建邮件发送记录
-    pub async fn create(
-        &self,
-        req: CreateEmailLogRequest,
-    ) -> Result<EmailLogModel, AppError> {
+    pub async fn create(&self, req: CreateEmailLogRequest) -> Result<EmailLogModel, AppError> {
         let now = Utc::now();
         let active_model = ActiveModel {
             id: Default::default(),
@@ -151,7 +148,8 @@ impl EmailLogService {
         }
 
         // 缺陷 6.2 修复：指数退避 — 第 1 次 60s / 第 2 次 300s / 第 3 次 1800s
-        let backoff_idx = (new_retry_count as usize).saturating_sub(1)
+        let backoff_idx = (new_retry_count as usize)
+            .saturating_sub(1)
             .min(BACKOFF_INTERVAL_SECS.len().saturating_sub(1));
         let backoff_secs = BACKOFF_INTERVAL_SECS[backoff_idx];
         let next_retry_at = now + chrono::Duration::seconds(backoff_secs);
@@ -175,10 +173,7 @@ impl EmailLogService {
 
     /// 缺陷 6.1/6.2 修复：查询待发送邮件（PENDING + next_retry_at 已到或为 NULL + retry_count < MAX）
     /// 供后台 email_queue_worker 调度使用。
-    pub async fn list_pending_for_retry(
-        &self,
-        limit: u64,
-    ) -> Result<Vec<EmailLogModel>, AppError> {
+    pub async fn list_pending_for_retry(&self, limit: u64) -> Result<Vec<EmailLogModel>, AppError> {
         let now = Utc::now();
         let emails = EmailLogEntity::find()
             .filter(crate::models::email_log::Column::Status.eq(email_log::PENDING))
@@ -220,10 +215,7 @@ impl EmailLogService {
     }
 
     /// 查询邮件发送记录列表
-    pub async fn list(
-        &self,
-        query: EmailLogQuery,
-    ) -> Result<(Vec<EmailLogModel>, u64), AppError> {
+    pub async fn list(&self, query: EmailLogQuery) -> Result<(Vec<EmailLogModel>, u64), AppError> {
         let page = query.page.unwrap_or(1);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
@@ -253,9 +245,7 @@ impl EmailLogService {
 
     /// 获取发送统计
     pub async fn get_statistics(&self) -> Result<EmailStatistics, AppError> {
-        let total = EmailLogEntity::find()
-            .count(&*self.db)
-            .await?;
+        let total = EmailLogEntity::find().count(&*self.db).await?;
 
         let sent = EmailLogEntity::find()
             .filter(crate::models::email_log::Column::Status.eq(email_log::SENT))

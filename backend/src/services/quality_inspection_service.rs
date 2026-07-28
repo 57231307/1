@@ -449,7 +449,9 @@ impl QualityInspectionService {
 
         let stock = StockEntity::find()
             .filter(stock_model::Column::ProductId.eq(unqualified.product_id))
-            .filter(stock_model::Column::BatchNo.eq(unqualified.batch_no.clone().unwrap_or_default()))
+            .filter(
+                stock_model::Column::BatchNo.eq(unqualified.batch_no.clone().unwrap_or_default()),
+            )
             .one(&*self.db)
             .await?;
 
@@ -580,7 +582,6 @@ impl QualityInspectionService {
 
         Ok((defects, total))
     }
-
 }
 
 #[cfg(test)]
@@ -597,15 +598,9 @@ mod tests {
     #[test]
     fn 测试_质检分级_A级_合格率达标() {
         // 边界：恰好 95% → A 级
-        assert_eq!(
-            determine_quality_grade(Some(decs!("95"))),
-            QUALITY_GRADE_A
-        );
+        assert_eq!(determine_quality_grade(Some(decs!("95"))), QUALITY_GRADE_A);
         // 高于 95% → A 级
-        assert_eq!(
-            determine_quality_grade(Some(decs!("100"))),
-            QUALITY_GRADE_A
-        );
+        assert_eq!(determine_quality_grade(Some(decs!("100"))), QUALITY_GRADE_A);
         assert_eq!(
             determine_quality_grade(Some(decs!("99.5"))),
             QUALITY_GRADE_A
@@ -618,15 +613,9 @@ mod tests {
     #[test]
     fn 测试_质检分级_B级_让步接收区间() {
         // 边界：恰好 80% → B 级
-        assert_eq!(
-            determine_quality_grade(Some(decs!("80"))),
-            QUALITY_GRADE_B
-        );
+        assert_eq!(determine_quality_grade(Some(decs!("80"))), QUALITY_GRADE_B);
         // 区间内 → B 级
-        assert_eq!(
-            determine_quality_grade(Some(decs!("85"))),
-            QUALITY_GRADE_B
-        );
+        assert_eq!(determine_quality_grade(Some(decs!("85"))), QUALITY_GRADE_B);
         assert_eq!(
             determine_quality_grade(Some(decs!("94.99"))),
             QUALITY_GRADE_B
@@ -643,11 +632,11 @@ mod tests {
             determine_quality_grade(Some(decs!("79.99"))),
             QUALITY_GRADE_C
         );
+        assert_eq!(determine_quality_grade(Some(decs!("50"))), QUALITY_GRADE_C);
         assert_eq!(
-            determine_quality_grade(Some(decs!("50"))),
+            determine_quality_grade(Some(Decimal::ZERO)),
             QUALITY_GRADE_C
         );
-        assert_eq!(determine_quality_grade(Some(Decimal::ZERO)), QUALITY_GRADE_C);
     }
 
     /// 测试_质检分级_None视为零合格率
@@ -666,7 +655,9 @@ mod tests {
     #[test]
     fn 测试_等级处理方式校验_A级品无需不合格处理() {
         // A 级 + 任意处理方式 → 拒绝
-        assert!(validate_handling_method_by_grade(QUALITY_GRADE_A, HANDLING_DOWNGRADE_SALE).is_err());
+        assert!(
+            validate_handling_method_by_grade(QUALITY_GRADE_A, HANDLING_DOWNGRADE_SALE).is_err()
+        );
         assert!(validate_handling_method_by_grade(QUALITY_GRADE_A, HANDLING_REWORK).is_err());
         assert!(validate_handling_method_by_grade(QUALITY_GRADE_A, HANDLING_SCRAP).is_err());
 
@@ -680,7 +671,9 @@ mod tests {
     #[test]
     fn 测试_等级处理方式校验_B级品必须降级销售() {
         // B 级 + 降级销售 → 放行
-        assert!(validate_handling_method_by_grade(QUALITY_GRADE_B, HANDLING_DOWNGRADE_SALE).is_ok());
+        assert!(
+            validate_handling_method_by_grade(QUALITY_GRADE_B, HANDLING_DOWNGRADE_SALE).is_ok()
+        );
         // B 级 + 返工/报废 → 拒绝
         assert!(validate_handling_method_by_grade(QUALITY_GRADE_B, HANDLING_REWORK).is_err());
         assert!(validate_handling_method_by_grade(QUALITY_GRADE_B, HANDLING_SCRAP).is_err());
@@ -699,9 +692,12 @@ mod tests {
         assert!(validate_handling_method_by_grade(QUALITY_GRADE_C, HANDLING_REWORK).is_ok());
         assert!(validate_handling_method_by_grade(QUALITY_GRADE_C, HANDLING_SCRAP).is_ok());
         // C 级 + 降级销售 → 拒绝
-        assert!(validate_handling_method_by_grade(QUALITY_GRADE_C, HANDLING_DOWNGRADE_SALE).is_err());
+        assert!(
+            validate_handling_method_by_grade(QUALITY_GRADE_C, HANDLING_DOWNGRADE_SALE).is_err()
+        );
 
-        let err = validate_handling_method_by_grade(QUALITY_GRADE_C, HANDLING_DOWNGRADE_SALE).unwrap_err();
+        let err = validate_handling_method_by_grade(QUALITY_GRADE_C, HANDLING_DOWNGRADE_SALE)
+            .unwrap_err();
         assert!(err.to_string().contains("C 级"));
         assert!(err.to_string().contains("返工"));
         assert!(err.to_string().contains("报废"));

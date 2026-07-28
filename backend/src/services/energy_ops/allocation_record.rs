@@ -36,9 +36,7 @@ use crate::services::energy_service::{
 };
 
 // 跨 service 协作：月末分摊方法参数引用兄弟 service 类型
-use crate::services::energy_ops::{
-    EnergyAllocationRuleService, EnergyConsumptionService,
-};
+use crate::services::energy_ops::{EnergyAllocationRuleService, EnergyConsumptionService};
 
 /// 创建分摊记录请求
 #[derive(Debug, Clone, Deserialize)]
@@ -148,14 +146,13 @@ impl EnergyAllocationRecordService {
 
         // 计算分摊比例、消耗量、成本（若未提供）
         let allocation_ratio = req.allocation_ratio.unwrap_or(Decimal::ONE);
-        let allocated_consumption = req
-            .allocated_consumption
-            .unwrap_or_else(|| compute_allocated_consumption(req.total_consumption, allocation_ratio));
+        let allocated_consumption = req.allocated_consumption.unwrap_or_else(|| {
+            compute_allocated_consumption(req.total_consumption, allocation_ratio)
+        });
         let allocated_cost = req
             .allocated_cost
             .unwrap_or_else(|| compute_allocated_cost(req.total_cost, allocation_ratio));
-        let unit_consumption =
-            compute_unit_consumption(allocated_consumption, req.output_quantity);
+        let unit_consumption = compute_unit_consumption(allocated_consumption, req.output_quantity);
 
         let allocation_no = Self::generate_allocation_no();
         let now = crate::utils::date_utils::utc_now_fixed();
@@ -318,10 +315,7 @@ impl EnergyAllocationRecordService {
     }
 
     /// 按编号查询
-    pub async fn get_by_no(
-        &self,
-        allocation_no: &str,
-    ) -> Result<AllocationRecordModel, AppError> {
+    pub async fn get_by_no(&self, allocation_no: &str) -> Result<AllocationRecordModel, AppError> {
         AllocationRecordEntity::find()
             .filter(energy_allocation_record::Column::AllocationNo.eq(allocation_no))
             .filter(energy_allocation_record::Column::IsDeleted.eq(false))
@@ -412,10 +406,9 @@ impl EnergyAllocationRecordService {
             let total_cost = summary.total_cost;
 
             // 2. 按缸号+工序分组统计工时
-            let grouped_duration = Self::group_step_duration_by_key(
-                &self.db, req.period_start, req.period_end,
-            )
-            .await?;
+            let grouped_duration =
+                Self::group_step_duration_by_key(&self.db, req.period_start, req.period_end)
+                    .await?;
 
             let total_duration: i32 = grouped_duration.values().sum();
             if total_duration == 0 {
@@ -441,9 +434,15 @@ impl EnergyAllocationRecordService {
                 };
 
                 let active = Self::build_allocation_record(
-                    &req, &workshop, &meter_type,
-                    total_consumption, total_cost,
-                    &key, duration, total_duration_decimal, &rule,
+                    &req,
+                    &workshop,
+                    &meter_type,
+                    total_consumption,
+                    total_cost,
+                    &key,
+                    duration,
+                    total_duration_decimal,
+                    &rule,
                 );
 
                 let result = active
@@ -472,20 +471,25 @@ impl EnergyAllocationRecordService {
             .await?;
 
         // V15 Batch04-P1-4：批量查询流转卡，获取真实 dye_lot_no（原 equipment_name 简化已修复）
-        let flow_card_ids: std::collections::HashSet<i32> = step_records
-            .iter()
-            .map(|s| s.flow_card_id)
-            .collect();
-        let flow_card_map: std::collections::HashMap<i32, Option<String>> = if flow_card_ids.is_empty() {
-            std::collections::HashMap::new()
-        } else {
-            let flow_cards = FlowCardEntity::find()
-                .filter(production_flow_card::Column::Id.is_in(flow_card_ids.into_iter().collect::<Vec<_>>()))
-                .filter(production_flow_card::Column::IsDeleted.eq(false))
-                .all(db)
-                .await?;
-            flow_cards.into_iter().map(|fc| (fc.id, fc.dye_lot_no)).collect()
-        };
+        let flow_card_ids: std::collections::HashSet<i32> =
+            step_records.iter().map(|s| s.flow_card_id).collect();
+        let flow_card_map: std::collections::HashMap<i32, Option<String>> =
+            if flow_card_ids.is_empty() {
+                std::collections::HashMap::new()
+            } else {
+                let flow_cards = FlowCardEntity::find()
+                    .filter(
+                        production_flow_card::Column::Id
+                            .is_in(flow_card_ids.into_iter().collect::<Vec<_>>()),
+                    )
+                    .filter(production_flow_card::Column::IsDeleted.eq(false))
+                    .all(db)
+                    .await?;
+                flow_cards
+                    .into_iter()
+                    .map(|fc| (fc.id, fc.dye_lot_no))
+                    .collect()
+            };
 
         let mut grouped_duration: std::collections::HashMap<DurationGroupKey, i32> =
             std::collections::HashMap::new();

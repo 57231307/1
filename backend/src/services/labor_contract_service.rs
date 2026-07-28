@@ -123,10 +123,7 @@ impl LaborContractService {
     /// - 第 20 条：试用期工资 ≥ 转正工资 80%
     /// - 合同编号唯一
     /// - 合同结束日期 > 开始日期（固定期限合同）
-    pub async fn create(
-        &self,
-        req: CreateLaborContractRequest,
-    ) -> Result<ContractModel, AppError> {
+    pub async fn create(&self, req: CreateLaborContractRequest) -> Result<ContractModel, AppError> {
         Self::validate_contract_type(&req.contract_type)?;
         Self::validate_working_hours_system(&req.working_hours_system)?;
 

@@ -85,7 +85,9 @@ pub async fn list_process_optimizations(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let data_scope_ctx = auth.to_data_scope_context();
     let svc = AiExtendService::new(state.db);
-    let vo = svc.list_process_optimizations(q, Some(&data_scope_ctx)).await?;
+    let vo = svc
+        .list_process_optimizations(q, Some(&data_scope_ctx))
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": vo.items,
         "total": vo.total,
@@ -103,7 +105,9 @@ pub async fn get_process_optimization(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let data_scope_ctx = auth.to_data_scope_context();
     let svc = AiExtendService::new(state.db);
-    let model = svc.get_process_optimization(id, Some(&data_scope_ctx)).await?;
+    let model = svc
+        .get_process_optimization(id, Some(&data_scope_ctx))
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 
@@ -118,7 +122,9 @@ pub async fn apply_process_optimization(
     let data_scope_ctx = auth.to_data_scope_context();
     body.operator_id = Some(auth.user_id as i64);
     let svc = AiExtendService::new(state.db);
-    let model = svc.apply_process_optimization(id, body, Some(&data_scope_ctx)).await?;
+    let model = svc
+        .apply_process_optimization(id, body, Some(&data_scope_ctx))
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 
@@ -131,7 +137,8 @@ pub async fn delete_process_optimization(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let data_scope_ctx = auth.to_data_scope_context();
     let svc = AiExtendService::new(state.db);
-    svc.delete_process_optimization(id, Some(&data_scope_ctx)).await?;
+    svc.delete_process_optimization(id, Some(&data_scope_ctx))
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "deleted": true,
         "id": id,
@@ -169,7 +176,9 @@ pub async fn list_quality_predictions(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let data_scope_ctx = auth.to_data_scope_context();
     let svc = AiExtendService::new(state.db);
-    let vo = svc.list_quality_predictions(q, Some(&data_scope_ctx)).await?;
+    let vo = svc
+        .list_quality_predictions(q, Some(&data_scope_ctx))
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": vo.items,
         "total": vo.total,
@@ -187,7 +196,9 @@ pub async fn get_quality_prediction(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let data_scope_ctx = auth.to_data_scope_context();
     let svc = AiExtendService::new(state.db);
-    let model = svc.get_quality_prediction(id, Some(&data_scope_ctx)).await?;
+    let model = svc
+        .get_quality_prediction(id, Some(&data_scope_ctx))
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 
@@ -202,7 +213,9 @@ pub async fn acknowledge_quality_prediction(
     let data_scope_ctx = auth.to_data_scope_context();
     body.operator_id = Some(auth.user_id as i64);
     let svc = AiExtendService::new(state.db);
-    let model = svc.acknowledge_quality_prediction(id, body, Some(&data_scope_ctx)).await?;
+    let model = svc
+        .acknowledge_quality_prediction(id, body, Some(&data_scope_ctx))
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 
@@ -215,7 +228,8 @@ pub async fn delete_quality_prediction(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let data_scope_ctx = auth.to_data_scope_context();
     let svc = AiExtendService::new(state.db);
-    svc.delete_quality_prediction(id, Some(&data_scope_ctx)).await?;
+    svc.delete_quality_prediction(id, Some(&data_scope_ctx))
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "deleted": true,
         "id": id,
@@ -265,8 +279,14 @@ pub async fn list_process_optimizations_by_color(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let data_scope_ctx = auth.to_data_scope_context();
     let svc = AiExtendService::new(state.db);
-    let items =
-        svc.list_process_optimizations_by_color(&q.color_no, &q.fabric_type, q.limit.unwrap_or(20).clamp(1, 100), Some(&data_scope_ctx)).await?;
+    let items = svc
+        .list_process_optimizations_by_color(
+            &q.color_no,
+            &q.fabric_type,
+            q.limit.unwrap_or(20).clamp(1, 100),
+            Some(&data_scope_ctx),
+        )
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": items,
     }))))
@@ -287,8 +307,13 @@ pub async fn list_quality_predictions_by_product(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let data_scope_ctx = auth.to_data_scope_context();
     let svc = AiExtendService::new(state.db);
-    let items =
-        svc.list_quality_predictions_by_product(q.product_id, q.limit.unwrap_or(20).clamp(1, 100), Some(&data_scope_ctx)).await?;
+    let items = svc
+        .list_quality_predictions_by_product(
+            q.product_id,
+            q.limit.unwrap_or(20).clamp(1, 100),
+            Some(&data_scope_ctx),
+        )
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": items,
     }))))

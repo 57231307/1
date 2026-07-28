@@ -184,11 +184,31 @@ impl ArReconciliationService {
                 .await?;
 
             // 提取各档金额（buckets 顺序：当期/1-30/31-60/61-90/90+）
-            let current = summary.buckets.get(0).map(|b| b.amount).unwrap_or(Decimal::ZERO);
-            let days_1_30 = summary.buckets.get(1).map(|b| b.amount).unwrap_or(Decimal::ZERO);
-            let days_31_60 = summary.buckets.get(2).map(|b| b.amount).unwrap_or(Decimal::ZERO);
-            let days_61_90 = summary.buckets.get(3).map(|b| b.amount).unwrap_or(Decimal::ZERO);
-            let days_over_90 = summary.buckets.get(4).map(|b| b.amount).unwrap_or(Decimal::ZERO);
+            let current = summary
+                .buckets
+                .get(0)
+                .map(|b| b.amount)
+                .unwrap_or(Decimal::ZERO);
+            let days_1_30 = summary
+                .buckets
+                .get(1)
+                .map(|b| b.amount)
+                .unwrap_or(Decimal::ZERO);
+            let days_31_60 = summary
+                .buckets
+                .get(2)
+                .map(|b| b.amount)
+                .unwrap_or(Decimal::ZERO);
+            let days_61_90 = summary
+                .buckets
+                .get(3)
+                .map(|b| b.amount)
+                .unwrap_or(Decimal::ZERO);
+            let days_over_90 = summary
+                .buckets
+                .get(4)
+                .map(|b| b.amount)
+                .unwrap_or(Decimal::ZERO);
 
             if let Some(existing) = existing {
                 // 更新已有快照

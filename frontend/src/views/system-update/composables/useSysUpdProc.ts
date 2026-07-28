@@ -44,8 +44,8 @@ export function useSysUpdProc(refresh: RefreshCallbacks) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
       if (error !== 'cancel')
         ElMessage.error(
-          (error instanceof Error ? error.message : String(error))
-            || msg.translate('downloadFailed')
+          (error instanceof Error ? error.message : String(error)) ||
+            msg.translate('downloadFailed')
         );
     }
   };
@@ -100,8 +100,8 @@ export function useSysUpdProc(refresh: RefreshCallbacks) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
       if (error !== 'cancel')
         ElMessage.error(
-          (error instanceof Error ? error.message : String(error))
-            || msg.translate('rollbackFailed')
+          (error instanceof Error ? error.message : String(error)) ||
+            msg.translate('rollbackFailed')
         );
     }
   };

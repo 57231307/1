@@ -219,14 +219,7 @@ pub(super) fn cmd_health() {
     println!("\n检查 HTTP 接口 ({})...", health_url);
     match run_cmd(
         "curl",
-        &[
-            "-s",
-            "-o",
-            "/dev/null",
-            "-w",
-            "%{http_code}",
-            &health_url,
-        ],
+        &["-s", "-o", "/dev/null", "-w", "%{http_code}", &health_url],
     ) {
         Ok(code) => println!(
             "{} HTTP 状态码: {}",

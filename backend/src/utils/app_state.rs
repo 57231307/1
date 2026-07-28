@@ -1,8 +1,8 @@
 use futures::FutureExt;
 use sea_orm::DatabaseConnection;
 use std::panic::AssertUnwindSafe;
-use std::sync::Arc;
 use std::sync::atomic::AtomicU32;
+use std::sync::Arc;
 
 use crate::services::audit_cleanup_service::AuditCleanupService;
 use crate::services::audit_log_service::AuditLogService;
@@ -12,23 +12,23 @@ use crate::services::failover_service::FailoverExecutor;
 /// 保存审计清理 + 用户吊销清理句柄，供 shutdown 时 abort
 static APP_STATE_BACKGROUND_TASKS: std::sync::Mutex<Vec<tokio::task::JoinHandle<()>>> =
     std::sync::Mutex::new(Vec::new());
+use crate::search::SearchClient;
+use crate::services::cache_service::CacheService;
+use crate::services::custom_order_aftersales_service::CustomOrderAfterSalesService;
+use crate::services::custom_order_crud_service::CustomOrderCrudService;
+use crate::services::custom_order_process_service::CustomOrderProcessService;
+use crate::services::custom_order_quality_service::CustomOrderQualityService;
+use crate::services::custom_order_state_service::CustomOrderStateService;
 use crate::services::data_permission_service::DataPermissionService;
 use crate::services::email_service::EmailService;
 use crate::services::event_notification_service::EventNotificationService;
 use crate::services::metrics_service::MetricsService;
 use crate::services::notification_service::NotificationService;
 use crate::services::omni_audit_service::OmniAuditEngine;
-use crate::services::quotation_service::QuotationService;
-use crate::services::quotation_pricing_service::QuotationPricingService;
 use crate::services::quotation_approval_service::QuotationApprovalService;
 use crate::services::quotation_convert_service::QuotationConvertService;
-use crate::services::custom_order_crud_service::CustomOrderCrudService;
-use crate::services::custom_order_state_service::CustomOrderStateService;
-use crate::services::custom_order_process_service::CustomOrderProcessService;
-use crate::services::custom_order_quality_service::CustomOrderQualityService;
-use crate::services::custom_order_aftersales_service::CustomOrderAfterSalesService;
-use crate::search::SearchClient;
-use crate::services::cache_service::CacheService;
+use crate::services::quotation_pricing_service::QuotationPricingService;
+use crate::services::quotation_service::QuotationService;
 use crate::utils::cache::AppCache;
 use crate::utils::di_container::DIContainer;
 
@@ -143,7 +143,11 @@ impl AppState {
         // 启动审计日志清理任务 + 用户吊销记录定期清理任务（后台任务，失败不阻塞启动）
         spawn_background_tasks(&params.audit_cleanup);
         // P2-B/M-2 修复：cookie_secret + webhook_secret 强度校验 + 互不相同校验
-        validate_app_secrets(&params.cookie_secret, &params.webhook_secret, &params.jwt_secret)?;
+        validate_app_secrets(
+            &params.cookie_secret,
+            &params.webhook_secret,
+            &params.jwt_secret,
+        )?;
         // 构建业务服务集合（指标、cookie_key、DI 容器、邮件/通知/报价/定制订单服务）
         let services = build_app_services(&params.db, &params.cookie_secret)?;
         // 构造 AppState（消费 params 与 services）
@@ -286,9 +290,8 @@ fn build_app_services(
 fn construct_app_state(params: AppStateParams, services: AppServices) -> AppState {
     let metrics = Arc::new(services.metrics);
     // V15 批次 07 P1-8 修复：CacheService 注入 BusinessMetrics，缓存命中/未命中自动上报 Prometheus
-    let cache_service = Arc::new(
-        CacheService::new().with_metrics(metrics.business_metrics.clone()),
-    );
+    let cache_service =
+        Arc::new(CacheService::new().with_metrics(metrics.business_metrics.clone()));
     AppState {
         db: params.db.clone(),
         omni_audit: params.omni_audit,
@@ -360,8 +363,8 @@ struct TestServices {
 /// 构建测试环境服务集合（default() 调用，构造失败时显式 panic）。
 #[cfg(test)]
 fn build_test_services() -> TestServices {
-    let metrics = MetricsService::new()
-        .expect("测试环境创建 Prometheus 指标服务不应失败（指标命名冲突？）");
+    let metrics =
+        MetricsService::new().expect("测试环境创建 Prometheus 指标服务不应失败（指标命名冲突？）");
     let random_cookie_secret = format!("{}{}", uuid::Uuid::new_v4(), uuid::Uuid::new_v4());
     let cookie_key = Key::derive_from(random_cookie_secret.as_bytes());
     let db = Arc::new(DatabaseConnection::default());
@@ -436,9 +439,8 @@ impl Default for AppState {
             let svc = build_test_services();
             let metrics = Arc::new(svc.metrics);
             // V15 批次 07 P1-8 修复：测试环境也注入 BusinessMetrics
-            let cache_service = Arc::new(
-                CacheService::new().with_metrics(metrics.business_metrics.clone()),
-            );
+            let cache_service =
+                Arc::new(CacheService::new().with_metrics(metrics.business_metrics.clone()));
             Self {
                 db: svc.db,
                 omni_audit: svc.omni_audit,

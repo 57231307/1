@@ -95,8 +95,18 @@ impl CustomerService {
             contact_email: Set(contact_email),
             address: Set(address),
             ..Self::build_customer_active_model_rest(
-                city, province, country, postal_code, credit_limit, payment_terms,
-                tax_id, bank_name, bank_account, customer_type, notes, created_by,
+                city,
+                province,
+                country,
+                postal_code,
+                credit_limit,
+                payment_terms,
+                tax_id,
+                bank_name,
+                bank_account,
+                customer_type,
+                notes,
+                created_by,
             )
         }
     }
@@ -167,9 +177,31 @@ impl CustomerService {
             ..
         } = args;
         let mut m: customer::ActiveModel = customer.into();
-        Self::apply_customer_core_updates(&mut m, customer_name, contact_person, contact_phone, contact_email, address);
-        Self::apply_customer_extended_updates(&mut m, city, province, postal_code, credit_limit, payment_terms);
-        Self::apply_customer_financial_updates(&mut m, tax_id, bank_name, bank_account, customer_type, status, notes);
+        Self::apply_customer_core_updates(
+            &mut m,
+            customer_name,
+            contact_person,
+            contact_phone,
+            contact_email,
+            address,
+        );
+        Self::apply_customer_extended_updates(
+            &mut m,
+            city,
+            province,
+            postal_code,
+            credit_limit,
+            payment_terms,
+        );
+        Self::apply_customer_financial_updates(
+            &mut m,
+            tax_id,
+            bank_name,
+            bank_account,
+            customer_type,
+            status,
+            notes,
+        );
         m
     }
 

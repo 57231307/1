@@ -1,6 +1,6 @@
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order,
-    PaginatorTrait, QueryFilter, QueryOrder, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, TransactionTrait,
 };
 use std::sync::Arc;
 
@@ -254,10 +254,12 @@ impl RolePermissionService {
 
         // 删除角色（P0 8-3 修复：补审计日志）
         // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
-        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
-            RoleEntity,
-            _,
-        >(&txn, "role", role_id, Some(user_id))
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<RoleEntity, _>(
+            &txn,
+            "role",
+            role_id,
+            Some(user_id),
+        )
         .await?;
 
         // 提交事务
@@ -312,12 +314,12 @@ impl RolePermissionService {
             .all(&*self.db)
             .await?;
 
-        let existing_has_create = existing.iter().any(|p| {
-            p.action == "create" || p.action == "*"
-        });
-        let existing_has_approve = existing.iter().any(|p| {
-            p.action == "approve" || p.action == "*"
-        });
+        let existing_has_create = existing
+            .iter()
+            .any(|p| p.action == "create" || p.action == "*");
+        let existing_has_approve = existing
+            .iter()
+            .any(|p| p.action == "approve" || p.action == "*");
 
         // 冲突检测：create 与 approve 不可共存
         if new_has_create && existing_has_approve {
@@ -370,14 +372,13 @@ impl RolePermissionService {
         let mut perm_update: role_permission::ActiveModel = perm.into();
         perm_update.allowed = sea_orm::ActiveValue::Set(request.allowed);
         perm_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-        let perm_entity =
-            crate::services::audit_log_service::AuditLogService::update_with_audit(
-                &*self.db,
-                "auto_audit",
-                perm_update,
-                Some(user_id),
-            )
-            .await?;
+        let perm_entity = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            perm_update,
+            Some(user_id),
+        )
+        .await?;
         invalidate_permission_cache(request.role_id);
         self.write_permission_audit(
             "role_permission_assign",

@@ -28,8 +28,7 @@ export function useApiLog() {
     url: '/api-gateway/logs',
     onError: (err: unknown) =>
       ElMessage.error(
-        (err instanceof Error ? err.message : String(err)) ||
-        msg.translate('loadApiLogFailed')
+        (err instanceof Error ? err.message : String(err)) || msg.translate('loadApiLogFailed')
       ),
   });
 

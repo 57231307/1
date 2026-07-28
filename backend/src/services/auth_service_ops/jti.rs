@@ -68,10 +68,7 @@ async fn init_redis_jti_blacklist() -> Option<Arc<tokio::sync::Mutex<ConnectionM
                 Some(Arc::new(tokio::sync::Mutex::new(conn)))
             }
             Err(e) => {
-                tracing::warn!(
-                    "JTI 黑名单 Redis 连接失败 ({:?})，回退到进程内存储",
-                    e
-                );
+                tracing::warn!("JTI 黑名单 Redis 连接失败 ({:?})，回退到进程内存储", e);
                 None
             }
         },
@@ -154,11 +151,7 @@ pub async fn is_jti_revoked(jti: &str) -> bool {
         match check_result {
             Ok(exists) => return exists,
             Err(e) => {
-                tracing::warn!(
-                    "JTI 查 Redis 失败 ({:?})，回退到进程内检查；jti={}",
-                    e,
-                    jti
-                );
+                tracing::warn!("JTI 查 Redis 失败 ({:?})，回退到进程内检查；jti={}", e, jti);
                 // 降级：查内存
             }
         }
@@ -300,10 +293,7 @@ pub async fn cleanup_revoked_users() -> usize {
             table.len()
         );
     } else {
-        tracing::debug!(
-            "用户吊销记录清理完成：无过期记录（当前{}条）",
-            table.len()
-        );
+        tracing::debug!("用户吊销记录清理完成：无过期记录（当前{}条）", table.len());
     }
     removed
 }

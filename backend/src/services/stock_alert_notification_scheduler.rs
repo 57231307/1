@@ -153,8 +153,8 @@ impl StockAlertNotificationScheduler {
 
     /// 拉取 admin/manager 角色用户 ID 列表（与 event_bus_ops::listener::fetch_admin_manager_user_ids 对齐）。
     async fn fetch_admin_manager_user_ids(&self) -> Vec<i32> {
-        use crate::models::user::{Entity as UserEntity, Column as UserColumn};
         use crate::models::role::{self as role_model, Entity as RoleEntity};
+        use crate::models::user::{Column as UserColumn, Entity as UserEntity};
 
         let roles = match RoleEntity::find()
             .filter(role_model::Column::RoleCode.is_in(vec![
@@ -266,13 +266,34 @@ mod tests {
 
     #[test]
     fn test_alert_desc() {
-        assert_eq!(StockAlertNotificationScheduler::alert_desc("out_of_stock"), "缺货");
-        assert_eq!(StockAlertNotificationScheduler::alert_desc("low_stock"), "低于下限");
-        assert_eq!(StockAlertNotificationScheduler::alert_desc("over_stock"), "高于上限");
-        assert_eq!(StockAlertNotificationScheduler::alert_desc("expiring"), "即将过期");
-        assert_eq!(StockAlertNotificationScheduler::alert_desc("slow_moving"), "滞销");
-        assert_eq!(StockAlertNotificationScheduler::alert_desc("discrepancy"), "盘点差异");
-        assert_eq!(StockAlertNotificationScheduler::alert_desc("unknown"), "未知告警");
+        assert_eq!(
+            StockAlertNotificationScheduler::alert_desc("out_of_stock"),
+            "缺货"
+        );
+        assert_eq!(
+            StockAlertNotificationScheduler::alert_desc("low_stock"),
+            "低于下限"
+        );
+        assert_eq!(
+            StockAlertNotificationScheduler::alert_desc("over_stock"),
+            "高于上限"
+        );
+        assert_eq!(
+            StockAlertNotificationScheduler::alert_desc("expiring"),
+            "即将过期"
+        );
+        assert_eq!(
+            StockAlertNotificationScheduler::alert_desc("slow_moving"),
+            "滞销"
+        );
+        assert_eq!(
+            StockAlertNotificationScheduler::alert_desc("discrepancy"),
+            "盘点差异"
+        );
+        assert_eq!(
+            StockAlertNotificationScheduler::alert_desc("unknown"),
+            "未知告警"
+        );
     }
 
     #[test]

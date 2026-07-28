@@ -1,4 +1,3 @@
-
 use crate::middleware::auth_context::AuthContext;
 use crate::models::quality_inspection;
 use crate::models::quality_inspection_record;
@@ -15,12 +14,12 @@ use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkCon
 // V15 P0-S11：导出审计日志写入所需依赖
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
-use std::sync::Arc;
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
 use serde::Deserialize;
+use std::sync::Arc;
 use tracing::info;
 
 #[derive(Debug, Deserialize)]
@@ -88,7 +87,10 @@ pub async fn list_records(
     Query(params): Query<RecordQuery>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<crate::utils::response::PaginatedResponse<quality_inspection_record::Model>>>, AppError> {
+) -> Result<
+    Json<ApiResponse<crate::utils::response::PaginatedResponse<quality_inspection_record::Model>>>,
+    AppError,
+> {
     info!("用户 {} 正在查询质量检验记录列表", auth.user_id);
 
     let page = params.page.unwrap_or(1).clamp(1, 1000) as u64;
@@ -105,7 +107,9 @@ pub async fn list_records(
     info!("质量检验记录列表查询成功，共 {} 条记录", records.len());
 
     // v11 批次 161 P2-5 修复：返回 PaginatedResponse（含 total），替代原先丢弃 _total 的 Vec 返回
-    Ok(Json(ApiResponse::success_paginated(records, total, page, page_size)))
+    Ok(Json(ApiResponse::success_paginated(
+        records, total, page, page_size,
+    )))
 }
 
 #[axum::debug_handler]
@@ -229,9 +233,9 @@ fn build_record_row(obj: &serde_json::Map<String, serde_json::Value>) -> Vec<Str
 fn build_records_table(records_json: Vec<serde_json::Value>) -> Result<XlsxTable, AppError> {
     let mut rows: Vec<Vec<String>> = Vec::with_capacity(records_json.len());
     for r in records_json {
-        let obj = r.as_object().ok_or_else(|| {
-            AppError::internal("质量检验记录序列化失败：期望 JSON 对象")
-        })?;
+        let obj = r
+            .as_object()
+            .ok_or_else(|| AppError::internal("质量检验记录序列化失败：期望 JSON 对象"))?;
         rows.push(build_record_row(obj));
     }
     Ok(XlsxTable {

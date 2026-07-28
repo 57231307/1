@@ -69,43 +69,116 @@ pub async fn test_database_connection(
     execute_test_connection(db_config)
 }
 
-async fn validate_admin_role(db: &Arc<DatabaseConnection>, auth: &AuthContext, audit_ctx: &Option<Extension<AuditContext>>) -> Result<(), AppError> {
-    let role_id = if let Some(id) = auth.role_id { id } else {
-        audit::log_security_event(SecurityEvent::AuthorizationDenied, auth.user_id, &auth.username, auth.role_id, Some("test_database_connection"), Some("no_role"), audit_ctx.as_deref()).await;
-        return Err(AppError::permission_denied("用户未分配角色，无法执行该操作"));
+async fn validate_admin_role(
+    db: &Arc<DatabaseConnection>,
+    auth: &AuthContext,
+    audit_ctx: &Option<Extension<AuditContext>>,
+) -> Result<(), AppError> {
+    let role_id = if let Some(id) = auth.role_id {
+        id
+    } else {
+        audit::log_security_event(
+            SecurityEvent::AuthorizationDenied,
+            auth.user_id,
+            &auth.username,
+            auth.role_id,
+            Some("test_database_connection"),
+            Some("no_role"),
+            audit_ctx.as_deref(),
+        )
+        .await;
+        return Err(AppError::permission_denied(
+            "用户未分配角色，无法执行该操作",
+        ));
     };
     if !is_admin_role(db, role_id).await {
-        audit::log_security_event(SecurityEvent::AuthorizationDenied, auth.user_id, &auth.username, auth.role_id, Some("test_database_connection"), Some("not_admin"), audit_ctx.as_deref()).await;
+        audit::log_security_event(
+            SecurityEvent::AuthorizationDenied,
+            auth.user_id,
+            &auth.username,
+            auth.role_id,
+            Some("test_database_connection"),
+            Some("not_admin"),
+            audit_ctx.as_deref(),
+        )
+        .await;
         return Err(AppError::permission_denied("测试数据库连接仅限管理员"));
     }
     Ok(())
 }
 
-async fn validate_port(port: &str, auth: &AuthContext, audit_ctx: &Option<Extension<AuditContext>>) -> Result<(), AppError> {
+async fn validate_port(
+    port: &str,
+    auth: &AuthContext,
+    audit_ctx: &Option<Extension<AuditContext>>,
+) -> Result<(), AppError> {
     match port.parse::<u16>() {
         Ok(p) if p > 0 => Ok(()),
         _ => {
-            audit::log_security_event(SecurityEvent::AuthorizationDenied, auth.user_id, &auth.username, auth.role_id, Some("test_database_connection"), Some("invalid_port"), audit_ctx.as_deref()).await;
-            Err(AppError::bad_request("数据库端口无效，仅允许 1-65535 范围内的数字"))
+            audit::log_security_event(
+                SecurityEvent::AuthorizationDenied,
+                auth.user_id,
+                &auth.username,
+                auth.role_id,
+                Some("test_database_connection"),
+                Some("invalid_port"),
+                audit_ctx.as_deref(),
+            )
+            .await;
+            Err(AppError::bad_request(
+                "数据库端口无效，仅允许 1-65535 范围内的数字",
+            ))
         }
     }
 }
 
-async fn validate_not_initialized(db: &Arc<DatabaseConnection>, auth: &AuthContext, audit_ctx: &Option<Extension<AuditContext>>) -> Result<(), AppError> {
+async fn validate_not_initialized(
+    db: &Arc<DatabaseConnection>,
+    auth: &AuthContext,
+    audit_ctx: &Option<Extension<AuditContext>>,
+) -> Result<(), AppError> {
     let init_service = InitService::new(db.clone());
     let (already_initialized, _) = init_service.check_initialized().await;
     if already_initialized {
-        audit::log_security_event(SecurityEvent::AuthorizationDenied, auth.user_id, &auth.username, auth.role_id, Some("test_database_connection"), Some("system_already_initialized"), audit_ctx.as_deref()).await;
-        return Err(AppError::permission_denied("系统已初始化，测试数据库连接功能已禁用"));
+        audit::log_security_event(
+            SecurityEvent::AuthorizationDenied,
+            auth.user_id,
+            &auth.username,
+            auth.role_id,
+            Some("test_database_connection"),
+            Some("system_already_initialized"),
+            audit_ctx.as_deref(),
+        )
+        .await;
+        return Err(AppError::permission_denied(
+            "系统已初始化，测试数据库连接功能已禁用",
+        ));
     }
     Ok(())
 }
 
-async fn validate_internal_ip(audit_ctx: &Option<Extension<AuditContext>>, auth: &AuthContext) -> Result<(), AppError> {
-    let client_ip = audit_ctx.as_deref().map(|c| c.ip_address.as_str()).unwrap_or("unknown");
+async fn validate_internal_ip(
+    audit_ctx: &Option<Extension<AuditContext>>,
+    auth: &AuthContext,
+) -> Result<(), AppError> {
+    let client_ip = audit_ctx
+        .as_deref()
+        .map(|c| c.ip_address.as_str())
+        .unwrap_or("unknown");
     if !is_internal_ip(client_ip) {
-        audit::log_security_event(SecurityEvent::AuthorizationDenied, auth.user_id, &auth.username, auth.role_id, Some("test_database_connection"), Some("non_internal_ip"), audit_ctx.as_deref()).await;
-        return Err(AppError::permission_denied("测试数据库连接仅允许从内网 IP 调用"));
+        audit::log_security_event(
+            SecurityEvent::AuthorizationDenied,
+            auth.user_id,
+            &auth.username,
+            auth.role_id,
+            Some("test_database_connection"),
+            Some("non_internal_ip"),
+            audit_ctx.as_deref(),
+        )
+        .await;
+        return Err(AppError::permission_denied(
+            "测试数据库连接仅允许从内网 IP 调用",
+        ));
     }
     Ok(())
 }
@@ -121,14 +194,37 @@ fn build_db_config(payload: TestDatabaseRequest) -> DatabaseConfig {
     }
 }
 
-async fn audit_test_connection(auth: &AuthContext, target: &str, audit_ctx: &Option<Extension<AuditContext>>) {
-    audit::log_security_event(SecurityEvent::TestDatabaseConnection, auth.user_id, &auth.username, auth.role_id, Some(target), None, audit_ctx.as_deref()).await;
+async fn audit_test_connection(
+    auth: &AuthContext,
+    target: &str,
+    audit_ctx: &Option<Extension<AuditContext>>,
+) {
+    audit::log_security_event(
+        SecurityEvent::TestDatabaseConnection,
+        auth.user_id,
+        &auth.username,
+        auth.role_id,
+        Some(target),
+        None,
+        audit_ctx.as_deref(),
+    )
+    .await;
 }
 
-fn execute_test_connection(db_config: DatabaseConfig) -> Result<Json<ApiResponse<TestDatabaseResponse>>, AppError> {
+fn execute_test_connection(
+    db_config: DatabaseConfig,
+) -> Result<Json<ApiResponse<TestDatabaseResponse>>, AppError> {
     match InitService::test_database(&db_config) {
-        Ok(_) => Ok(Json(ApiResponse::success_with_message(TestDatabaseResponse { success: true, message: "数据库连接成功".to_string() }, "数据库连接测试成功"))),
-        Err(_) => Err(AppError::bad_request("数据库连接失败，请检查主机、端口、数据库名、用户名和密码是否正确")),
+        Ok(_) => Ok(Json(ApiResponse::success_with_message(
+            TestDatabaseResponse {
+                success: true,
+                message: "数据库连接成功".to_string(),
+            },
+            "数据库连接测试成功",
+        ))),
+        Err(_) => Err(AppError::bad_request(
+            "数据库连接失败，请检查主机、端口、数据库名、用户名和密码是否正确",
+        )),
     }
 }
 

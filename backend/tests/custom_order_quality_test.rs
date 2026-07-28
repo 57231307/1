@@ -46,10 +46,10 @@ mod tests {
     #[test]
     fn test_issue_types() {
         let valid_issue_types = vec![
-            "color_diff",      // 色差
-            "color_fastness",  // 色牢度
-            "spec",            // 规格不符
-            "damage",          // 破损
+            "color_diff",     // 色差
+            "color_fastness", // 色牢度
+            "spec",           // 规格不符
+            "damage",         // 破损
             "other",
         ];
         for t in valid_issue_types {

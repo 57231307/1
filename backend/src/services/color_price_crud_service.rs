@@ -17,10 +17,10 @@ use crate::models::color_price_dto::{
     CreateColorPriceDto, ListColorPricesQuery, UpdateColorPriceDto,
 };
 // 批次 158 v11 真实接入：审批状态常量替代字符串字面量
-use crate::models::status::approval;
 use crate::models::product_color_price::{
     self, ActiveModel as ColorPriceActive, Entity as ColorPriceEntity,
 };
+use crate::models::status::approval;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 
@@ -149,10 +149,7 @@ impl ColorPriceCrudService {
     }
 
     /// 按 ID 查询
-    pub async fn get_by_id(
-        &self,
-        id: i64,
-    ) -> Result<product_color_price::Model, CrudError> {
+    pub async fn get_by_id(&self, id: i64) -> Result<product_color_price::Model, CrudError> {
         ColorPriceEntity::find_by_id(id)
             .one(&*self.db)
             .await?

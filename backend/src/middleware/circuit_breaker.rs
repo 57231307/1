@@ -160,14 +160,17 @@ pub async fn circuit_breaker_middleware(req: Request<Body>, next: Next) -> Respo
     let route_key = extract_route_key(&req);
 
     // 1. 检查熔断状态，决定是否放行
-    let should_reject = {
-        let Ok(mut table) = CIRCUIT_BREAKERS.try_lock() else {
-            // 锁不可用（PoisonError 或争用）：fail-open 放行，不影响业务
+    let should_reject = match CIRCUIT_BREAKERS.try_lock() {
+        Ok(mut table) => {
+            let entry = table
+                .entry(route_key.clone())
+                .or_insert_with(CircuitEntry::new);
+            entry.should_reject()
+        }
+        Err(_) => {
             tracing::warn!("熔断器表锁不可用，fail-open 放行；key={}", route_key);
             false
-        };
-        let entry = table.entry(route_key.clone()).or_insert_with(CircuitEntry::new);
-        entry.should_reject()
+        }
     };
 
     if should_reject {

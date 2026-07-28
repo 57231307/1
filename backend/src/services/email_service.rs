@@ -72,8 +72,7 @@ fn guess_content_type(filename: &str) -> String {
 
 /// 缺陷 6.3 修复：高危附件扩展名黑名单（即使通过病毒扫描也禁止上传）
 const DANGEROUS_EXTENSIONS: &[&str] = &[
-    ".exe", ".bat", ".cmd", ".com", ".scr", ".vbs", ".js", ".jar",
-    ".ps1", ".sh", ".msi", ".dll",
+    ".exe", ".bat", ".cmd", ".com", ".scr", ".vbs", ".js", ".jar", ".ps1", ".sh", ".msi", ".dll",
 ];
 
 /// 缺陷 6.3 修复：检查文件名扩展名是否为高危类型
@@ -86,9 +85,7 @@ fn is_dangerous_extension(filename: &str) -> bool {
 /// - 单附件 ≤ 25MB，总附件 ≤ 50MB
 /// - 拒绝高危扩展名（.exe/.bat/.cmd/.com/.scr/.vbs/.js/.jar/.ps1/.sh/.msi/.dll）
 /// - 集成点：CLAMAV_URL 配置后调用 ClamAV 病毒扫描
-pub async fn validate_attachments(
-    attachments: &HashMap<String, Vec<u8>>,
-) -> Result<(), AppError> {
+pub async fn validate_attachments(attachments: &HashMap<String, Vec<u8>>) -> Result<(), AppError> {
     let mut total_size: usize = 0;
     for (filename, content) in attachments {
         // 高危扩展名检查
@@ -124,8 +121,7 @@ pub async fn validate_attachments(
     if total_size > MAX_TOTAL_ATTACHMENT_BYTES {
         return Err(AppError::validation(format!(
             "附件总大小 {} 字节超过上限 {} 字节（50 MB）",
-            total_size,
-            MAX_TOTAL_ATTACHMENT_BYTES
+            total_size, MAX_TOTAL_ATTACHMENT_BYTES
         )));
     }
 
@@ -149,11 +145,7 @@ pub async fn validate_attachments(
 
 /// 缺陷 6.3 修复：调用 ClamAV REST API 进行病毒扫描
 /// 集成点：CLAMAV_URL 配置后，附件发送前会调用本函数进行病毒扫描
-async fn scan_with_clamav(
-    clamav_url: &str,
-    filename: &str,
-    content: &[u8],
-) -> Result<(), String> {
+async fn scan_with_clamav(clamav_url: &str, filename: &str, content: &[u8]) -> Result<(), String> {
     let client = reqwest::Client::new();
     let scan_url = format!("{}/scan", clamav_url.trim_end_matches('/'));
     let response = client
@@ -566,9 +558,11 @@ impl EmailService {
     /// api_key 格式：`<AccessKeyId>:<AccessKeySecret>`，冒号分隔两部分。
     async fn send_via_aliyun(&self, message: EmailMessage) -> Result<(), AppError> {
         // 解析 api_key：格式为 "<AccessKeyId>:<AccessKeySecret>"
-        let (_, access_key_secret) = self
-            .split_aliyun_credentials()
-            .ok_or_else(|| AppError::business("阿里云邮件配置 api_key 格式错误，应为 <AccessKeyId>:<AccessKeySecret>"))?;
+        let (_, access_key_secret) = self.split_aliyun_credentials().ok_or_else(|| {
+            AppError::business(
+                "阿里云邮件配置 api_key 格式错误，应为 <AccessKeyId>:<AccessKeySecret>",
+            )
+        })?;
 
         // 构造业务参数
         let to_address = message.to.join(",");
@@ -614,7 +608,10 @@ impl EmailService {
             .map_err(|e| AppError::internal(format!("阿里云邮件发送请求失败: {}", e)))?;
 
         let status = response.status();
-        let body = response.text().await.unwrap_or_else(|_| "未知错误".to_string());
+        let body = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "未知错误".to_string());
 
         if status.is_success() {
             Ok(())
@@ -635,9 +632,9 @@ impl EmailService {
     ///
     /// api_key 格式：`<SecretId>:<SecretKey>`，冒号分隔两部分。
     async fn send_via_tencent(&self, message: EmailMessage) -> Result<(), AppError> {
-        let (secret_id, secret_key) = self
-            .split_tencent_credentials()
-            .ok_or_else(|| AppError::business("腾讯云邮件配置 api_key 格式错误，应为 <SecretId>:<SecretKey>"))?;
+        let (secret_id, secret_key) = self.split_tencent_credentials().ok_or_else(|| {
+            AppError::business("腾讯云邮件配置 api_key 格式错误，应为 <SecretId>:<SecretKey>")
+        })?;
         let payload = self.build_tencent_payload(message)?;
         let timestamp = Utc::now().timestamp();
         let authorization = self.tencent_sign(TencentSignParams {
@@ -717,10 +714,7 @@ impl EmailService {
     }
 
     /// 解析腾讯云响应：HTTP 2xx 且 body 无 Error 字段才算成功
-    fn handle_tencent_response(
-        status: reqwest::StatusCode,
-        body: String,
-    ) -> Result<(), AppError> {
+    fn handle_tencent_response(status: reqwest::StatusCode, body: String) -> Result<(), AppError> {
         if status.is_success() {
             if body.contains("\"Error\"") {
                 Err(AppError::internal(format!(
@@ -745,10 +739,7 @@ impl EmailService {
         if idx == 0 || idx == key.len() - 1 {
             return None;
         }
-        Some((
-            key[..idx].to_string(),
-            key[idx + 1..].to_string(),
-        ))
+        Some((key[..idx].to_string(), key[idx + 1..].to_string()))
     }
 
     /// 解析腾讯云 api_key 为 (SecretId, SecretKey)
@@ -758,10 +749,7 @@ impl EmailService {
         if idx == 0 || idx == key.len() - 1 {
             return None;
         }
-        Some((
-            key[..idx].to_string(),
-            key[idx + 1..].to_string(),
-        ))
+        Some((key[..idx].to_string(), key[idx + 1..].to_string()))
     }
 
     /// 阿里云 RPC V1 签名算法
@@ -777,9 +765,7 @@ impl EmailService {
         access_key_secret: &str,
     ) -> Result<String, AppError> {
         // 公共参数
-        let timestamp = Utc::now()
-            .format("%Y-%m-%dT%H:%M:%SZ")
-            .to_string();
+        let timestamp = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
         let signature_nonce = format!(
             "{:016x}{:08x}",
             Utc::now().timestamp_millis() as u64,
@@ -789,7 +775,12 @@ impl EmailService {
         let mut all_params: Vec<(&str, String)> = vec![
             ("Format", "JSON".to_string()),
             ("Version", "2015-11-23".to_string()),
-            ("AccessKeyId", self.split_aliyun_credentials().map(|(k, _)| k).unwrap_or_default()),
+            (
+                "AccessKeyId",
+                self.split_aliyun_credentials()
+                    .map(|(k, _)| k)
+                    .unwrap_or_default(),
+            ),
             ("SignatureMethod", "HMAC-SHA1".to_string()),
             ("Timestamp", timestamp),
             ("SignatureVersion", "1.0".to_string()),
@@ -864,7 +855,8 @@ impl EmailService {
         );
 
         // 2. StringToSign
-        let credential_scope = format!("{}/{}/{}/tc3_request", date, params.service, params.version);
+        let credential_scope =
+            format!("{}/{}/{}/tc3_request", date, params.service, params.version);
         let hashed_canonical_request = hex::encode(Sha256::digest(canonical_request.as_bytes()));
         let string_to_sign = format!(
             "TC3-HMAC-SHA256\n{}\n{}\n{}",

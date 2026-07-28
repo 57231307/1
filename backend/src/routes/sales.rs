@@ -13,8 +13,8 @@ use axum::{
 };
 
 use crate::handlers::{
-    print_handler, sales_contract_handler, sales_fabric_order_handler,
-    sales_order_handler, sales_price_handler, sales_return_handler,
+    print_handler, sales_contract_handler, sales_fabric_order_handler, sales_order_handler,
+    sales_price_handler, sales_return_handler,
 };
 
 /// 销售订单 CRUD + 状态流转路由（/orders + /orders/:id/{submit,approve,ship,...}）
@@ -25,12 +25,27 @@ fn sales_order_crud_routes() -> Router<AppState> {
         .route("/orders/:id", get(sales_order_handler::get_order))
         .route("/orders/:id", put(sales_order_handler::update_order))
         .route("/orders/:id", delete(sales_order_handler::delete_order))
-        .route("/orders/:id/submit", post(sales_order_handler::submit_order))
-        .route("/orders/:id/approve", post(sales_order_handler::approve_order))
+        .route(
+            "/orders/:id/submit",
+            post(sales_order_handler::submit_order),
+        )
+        .route(
+            "/orders/:id/approve",
+            post(sales_order_handler::approve_order),
+        )
         .route("/orders/:id/ship", post(sales_order_handler::ship_order))
-        .route("/orders/:id/complete", post(sales_order_handler::complete_order))
-        .route("/orders/:id/reject", post(sales_order_handler::reject_order))
-        .route("/orders/:id/cancel", post(sales_order_handler::cancel_order))
+        .route(
+            "/orders/:id/complete",
+            post(sales_order_handler::complete_order),
+        )
+        .route(
+            "/orders/:id/reject",
+            post(sales_order_handler::reject_order),
+        )
+        .route(
+            "/orders/:id/cancel",
+            post(sales_order_handler::cancel_order),
+        )
 }
 
 /// 销售订单发货与报表路由（/orders deliveries/statistics/history/print/export）

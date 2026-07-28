@@ -2,6 +2,7 @@
 //!
 //! 拆分自 auth_handler.rs：原 refresh_token + TOTP + get_current_user + get_csrf_token 业务独立成文件。
 
+use super::auth_handler::UserInfo;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::auth_service::AuthService;
 use crate::services::totp_service::TotpService;
@@ -9,7 +10,6 @@ use crate::utils::app_state::AppState;
 use crate::utils::cache::Cache;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
-use super::auth_handler::UserInfo;
 use axum::{
     extract::{Extension, State},
     http::HeaderMap,
@@ -99,7 +99,11 @@ async fn validate_refresh_claims(
         })?;
     match user {
         Some(u) if u.is_active => {}
-        _ => return Err(AppError::unauthorized("账号已被禁用，请联系管理员".to_string())),
+        _ => {
+            return Err(AppError::unauthorized(
+                "账号已被禁用，请联系管理员".to_string(),
+            ))
+        }
     }
     if chrono::Utc::now() > claims.refresh_exp {
         return Err(AppError::unauthorized("刷新令牌已过期，请重新登录"));
@@ -116,14 +120,19 @@ fn generate_new_tokens(
     let new_token = auth_service
         .generate_token(claims.sub, &claims.username, claims.role_id)
         .map_err(|e| AppError::internal(format!("生成令牌失败：{}", e)))?;
-    let new_claims = AuthService::validate_token_static(&new_token, &state.jwt_secret)
-        .map_err(|e| {
+    let new_claims =
+        AuthService::validate_token_static(&new_token, &state.jwt_secret).map_err(|e| {
             tracing::error!("Failed to decode new JWT token: {}", e);
             AppError::internal("Internal server error")
         })?;
     let new_session_id = new_claims.session_id;
     let new_refresh_token = auth_service
-        .generate_refresh_token(claims.sub, &claims.username, claims.role_id, &new_session_id)
+        .generate_refresh_token(
+            claims.sub,
+            &claims.username,
+            claims.role_id,
+            &new_session_id,
+        )
         .map_err(|e| AppError::internal(format!("生成刷新令牌失败：{}", e)))?;
     Ok((new_token, new_session_id, new_refresh_token))
 }
@@ -201,13 +210,14 @@ fn build_refresh_cookies(
     csrf_token: &str,
 ) -> axum_extra::extract::PrivateCookieJar {
     let is_production = crate::utils::config::is_production();
-    let new_access = axum_extra::extract::cookie::Cookie::build(("access_token", new_token.to_string()))
-        .path("/")
-        .http_only(true)
-        .secure(is_production)
-        .same_site(SameSite::Strict)
-        .max_age(CookieDuration::minutes(30))
-        .build();
+    let new_access =
+        axum_extra::extract::cookie::Cookie::build(("access_token", new_token.to_string()))
+            .path("/")
+            .http_only(true)
+            .secure(is_production)
+            .same_site(SameSite::Strict)
+            .max_age(CookieDuration::minutes(30))
+            .build();
     let new_refresh = axum_extra::extract::cookie::Cookie::build((
         "refresh_token",
         new_refresh_token.to_string(),
@@ -218,13 +228,14 @@ fn build_refresh_cookies(
     .same_site(SameSite::Strict)
     .max_age(CookieDuration::days(2))
     .build();
-    let new_csrf = axum_extra::extract::cookie::Cookie::build(("csrf_token", csrf_token.to_string()))
-        .path("/")
-        .http_only(false)
-        .secure(is_production)
-        .same_site(SameSite::Strict)
-        .max_age(CookieDuration::days(7))
-        .build();
+    let new_csrf =
+        axum_extra::extract::cookie::Cookie::build(("csrf_token", csrf_token.to_string()))
+            .path("/")
+            .http_only(false)
+            .secure(is_production)
+            .same_site(SameSite::Strict)
+            .max_age(CookieDuration::days(7))
+            .build();
     let legacy_jwt = axum_extra::extract::cookie::Cookie::build(("jwt", new_token.to_string()))
         .path("/")
         .http_only(true)
@@ -347,7 +358,7 @@ pub async fn agree_to_terms(
     Json(req): Json<AgreeToTermsRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     use crate::models::user::{self, ActiveModel, Column};
-    use sea_orm::{ActiveValue, EntityTrait, QuerySelect, ColumnTrait, QueryFilter};
+    use sea_orm::{ActiveValue, ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
 
     let now = chrono::Utc::now();
     let update_result = user::Entity::update_many()

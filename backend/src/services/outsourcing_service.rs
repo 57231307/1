@@ -37,10 +37,10 @@ use crate::utils::error::AppError;
 
 // re-export DTOs 与 ops 子模块，保持外部 `use crate::services::outsourcing_service::{...}` 路径不变
 pub use crate::services::outsourcing_ops::{
-    CreateOutsourcingOrderItemRequest, CreateOutsourcingOrderRequest, CreateOutsourcingReceiptRequest,
-    CreateOutsourcingVoucherRequest, OutsourcingOrderQuery, OutsourcingReceiptQuery,
-    OutsourcingVoucherQuery, UpdateOutsourcingOrderItemRequest, UpdateOutsourcingOrderRequest,
-    UpdateOutsourcingReceiptRequest,
+    CreateOutsourcingOrderItemRequest, CreateOutsourcingOrderRequest,
+    CreateOutsourcingReceiptRequest, CreateOutsourcingVoucherRequest, OutsourcingOrderQuery,
+    OutsourcingReceiptQuery, OutsourcingVoucherQuery, UpdateOutsourcingOrderItemRequest,
+    UpdateOutsourcingOrderRequest, UpdateOutsourcingReceiptRequest,
 };
 
 // ============================================================================
@@ -181,7 +181,10 @@ pub fn validate_order_status(status: &str) -> Result<(), AppError> {
 
 /// 校验损耗类型是否合法
 pub fn validate_loss_type(loss_type: &str) -> Result<(), AppError> {
-    let valid = [outsourcing_loss_type::NORMAL, outsourcing_loss_type::ABNORMAL];
+    let valid = [
+        outsourcing_loss_type::NORMAL,
+        outsourcing_loss_type::ABNORMAL,
+    ];
     if !valid.contains(&loss_type) {
         return Err(AppError::business(format!(
             "损耗类型必须是 normal / abnormal，当前: {}",

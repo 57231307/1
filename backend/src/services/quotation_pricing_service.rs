@@ -192,7 +192,11 @@ impl QuotationPricingService {
     /// 阶梯价匹配：
     /// - 若 `min_quantity` 存在且 `<= quantity`，则应用基础价作为阶梯起点
     /// - 否则按基础价无阶梯
-    fn match_tier(base_price: Decimal, quantity: Decimal, min_quantity: Option<Decimal>) -> TierPrice {
+    fn match_tier(
+        base_price: Decimal,
+        quantity: Decimal,
+        min_quantity: Option<Decimal>,
+    ) -> TierPrice {
         match min_quantity {
             Some(min_q) if min_q <= quantity => TierPrice {
                 min_quantity: min_q,

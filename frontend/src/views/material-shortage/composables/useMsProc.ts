@@ -71,9 +71,8 @@ export function useMsProc(cb: MsCallbacks) {
       msg.success('notificationSent');
       await cb.fetchShortages();
     } catch (error) {
-      const errMsg = error instanceof Error ? 
-        error.message
-        : msg.translate('sendNotificationFailed');
+      const errMsg =
+        error instanceof Error ? error.message : msg.translate('sendNotificationFailed');
       logger.error(errMsg);
       ElMessage.error(errMsg);
     }

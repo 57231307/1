@@ -176,8 +176,7 @@ impl ExportRefundService {
         let refundable_vat_amount = input.export_sales_amount * input.refund_rate;
 
         // 当期可抵扣进项税额 = 期初留抵 + 当期进项
-        let available_input_vat =
-            input.carryforward_from_prev + input.input_vat_amount;
+        let available_input_vat = input.carryforward_from_prev + input.input_vat_amount;
 
         // 应退税额 = min(免抵退税额, 当期可抵扣进项税额)
         let actual_refund_amount = refundable_vat_amount.min(available_input_vat);
@@ -186,12 +185,11 @@ impl ExportRefundService {
         let exempt_vat_amount = refundable_vat_amount - actual_refund_amount;
 
         // 结转下期 = max(0, 当期可抵扣进项税额 - 免抵退税额)
-        let carryforward_amount =
-            if available_input_vat > refundable_vat_amount {
-                available_input_vat - refundable_vat_amount
-            } else {
-                Decimal::ZERO
-            };
+        let carryforward_amount = if available_input_vat > refundable_vat_amount {
+            available_input_vat - refundable_vat_amount
+        } else {
+            Decimal::ZERO
+        };
 
         RefundCalculationResult {
             refundable_vat_amount,
@@ -213,10 +211,12 @@ impl ExportRefundService {
     ) -> Result<RefundModel, AppError> {
         // 汇总当期出口销售额
         let customs_list = CustomsEntity::find()
-            .filter(export_customs_declaration::Column::ExportDate.gte(
-                chrono::NaiveDate::from_ymd_opt(period_year, period_month as u32, 1)
-                    .unwrap_or_else(|| chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()),
-            ))
+            .filter(
+                export_customs_declaration::Column::ExportDate.gte(
+                    chrono::NaiveDate::from_ymd_opt(period_year, period_month as u32, 1)
+                        .unwrap_or_else(|| chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()),
+                ),
+            )
             .all(&*self.db)
             .await?;
 
@@ -235,7 +235,8 @@ impl ExportRefundService {
 
         let declaration_no = format!(
             "ERD-{:04}{:02}-{:05}",
-            period_year, period_month,
+            period_year,
+            period_month,
             chrono::Utc::now().timestamp() % 100000
         );
 
@@ -313,9 +314,9 @@ mod tests {
     #[test]
     fn test_calculate_exempt_credit_refund_with_carryforward() {
         let input = RefundCalculationInput {
-            export_sales_amount: Decimal::new(100000, 0), // 10万
-            refund_rate: Decimal::new(13, 2),             // 13%
-            input_vat_amount: Decimal::new(50000, 0),     // 5万
+            export_sales_amount: Decimal::new(100000, 0),   // 10万
+            refund_rate: Decimal::new(13, 2),               // 13%
+            input_vat_amount: Decimal::new(50000, 0),       // 5万
             carryforward_from_prev: Decimal::new(30000, 0), // 3万
         };
         let result = ExportRefundService::calculate_exempt_credit_refund(&input);

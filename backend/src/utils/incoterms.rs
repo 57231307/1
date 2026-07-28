@@ -85,7 +85,10 @@ impl Incoterms2020 {
 
     /// 是否包含运费（EXW / FCA / FAS 不含主运费，其他术语均含）
     pub fn includes_freight(&self) -> bool {
-        !matches!(self, Incoterms2020::Exw | Incoterms2020::Fca | Incoterms2020::Fas)
+        !matches!(
+            self,
+            Incoterms2020::Exw | Incoterms2020::Fca | Incoterms2020::Fas
+        )
     }
 
     /// 是否需要卖方支付关税（仅 DDP）
@@ -97,11 +100,17 @@ impl Incoterms2020 {
     pub fn description(&self) -> &'static str {
         match self {
             Incoterms2020::Exw => "工厂交货（买方承担几乎所有费用和风险）",
-            Incoterms2020::Fca => "货交承运人（集装箱贸易最常用，卖方在指定地点将货物交付给买方指定的承运人）",
-            Incoterms2020::Cpt => "运费付至（卖方支付运费到目的地，风险在货交第一承运人时转移给买方）",
+            Incoterms2020::Fca => {
+                "货交承运人（集装箱贸易最常用，卖方在指定地点将货物交付给买方指定的承运人）"
+            }
+            Incoterms2020::Cpt => {
+                "运费付至（卖方支付运费到目的地，风险在货交第一承运人时转移给买方）"
+            }
             Incoterms2020::Cip => "运费+保险付至（同 CPT，卖方另付保险，常用于空运/快递）",
             Incoterms2020::Dap => "目的地交货（卖方承担运费到目的地，不含卸货不含关税）",
-            Incoterms2020::Dpu => "目的地卸货交货（同 DAP，但卖方负责卸货，唯一要求卖方卸货的术语）",
+            Incoterms2020::Dpu => {
+                "目的地卸货交货（同 DAP，但卖方负责卸货，唯一要求卖方卸货的术语）"
+            }
             Incoterms2020::Ddp => "完税后交货（卖方承担所有费用包括关税，卖方责任最大的术语）",
             Incoterms2020::Fas => "船边交货（卖方将货物置于船边即完成交货，海运专用）",
             Incoterms2020::Fob => "装运港船上交货（卖方承担装船前费用和风险，海运专用）",

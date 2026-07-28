@@ -97,7 +97,9 @@ pub async fn import_csv(
         if let Err(e) = service.update_import_task(task_id, &fail_result).await {
             tracing::warn!(error = %e, task_id, "更新导入任务记录为 failed 状态失败");
         }
-        return Ok(Json(ApiResponse::success(serde_json::to_value(fail_result)?)));
+        return Ok(Json(ApiResponse::success(serde_json::to_value(
+            fail_result,
+        )?)));
     }
 
     // 执行实际导入
@@ -205,7 +207,9 @@ async fn finish_import_validation_failure(
     if let Err(e) = service.update_import_task(task_id, &fail_result).await {
         tracing::warn!(error = %e, task_id, "更新导入任务记录为 failed 状态失败");
     }
-    Ok(Json(ApiResponse::success(serde_json::to_value(fail_result)?)))
+    Ok(Json(ApiResponse::success(serde_json::to_value(
+        fail_result,
+    )?)))
 }
 
 /// GET /api/v1/erp/import/templates/:import_type - 下载导入模板

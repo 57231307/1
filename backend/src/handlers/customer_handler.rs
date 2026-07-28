@@ -1,4 +1,3 @@
-
 use axum::{
     extract::{Path, Query, State},
     Json,
@@ -15,9 +14,7 @@ use crate::utils::data_permission::{DataPermissionFilter, DEFAULT_HIDDEN_FIELDS}
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 // V15 P0-S15/P0-S12 补齐（Batch 474）：导出端点使用水印版 xlsx 工具
-use crate::utils::xlsx_export::{
-    build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable,
-};
+use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
 
 /// 创建客户请求
 #[derive(Debug, Deserialize, Validate)]
@@ -169,7 +166,8 @@ pub async fn get_customer(
         .await?;
 
     // P1-08-5：非管理员对客户详情手机号/邮箱脱敏
-    let customer_json = crate::utils::field_mask::mask_contact_fields_for_role(customer_json, auth.role_id);
+    let customer_json =
+        crate::utils::field_mask::mask_contact_fields_for_role(customer_json, auth.role_id);
 
     Ok(Json(ApiResponse::success(customer_json)))
 }
@@ -216,7 +214,9 @@ pub async fn create_customer(
             country: Some("中国".to_string()),
             postal_code: payload.postal_code,
             credit_limit,
-            payment_terms: payload.payment_terms.unwrap_or(crate::constants::DEFAULT_PAYMENT_TERMS_DAYS),
+            payment_terms: payload
+                .payment_terms
+                .unwrap_or(crate::constants::DEFAULT_PAYMENT_TERMS_DAYS),
             tax_id: payload.tax_id,
             bank_name: payload.bank_name,
             bank_account: payload.bank_account,
@@ -253,7 +253,9 @@ pub async fn update_customer(
     let is_admin = auth.role_id == Some(1);
     let is_owner = customer.created_by == Some(auth.user_id);
     if !is_admin && !is_owner {
-        return Err(AppError::permission_denied("无权修改该客户信息".to_string()));
+        return Err(AppError::permission_denied(
+            "无权修改该客户信息".to_string(),
+        ));
     }
 
     // P2-1 修复（批次 388 v13 复审）：原 parse().ok() 静默吞错，
@@ -429,7 +431,10 @@ fn customer_export_headers() -> Vec<String> {
 /// 统一用空字符串兜底，避免字段缺失导致 panic
 fn build_customer_row(item: &serde_json::Value) -> Vec<String> {
     let s = |k: &str| -> String {
-        item.get(k).and_then(|v| v.as_str()).unwrap_or("").to_string()
+        item.get(k)
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string()
     };
     let opt_s = |k: &str| -> String {
         item.get(k)

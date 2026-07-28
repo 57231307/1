@@ -41,10 +41,22 @@ mod tests {
 
     #[test]
     fn test_after_sales_type_parsing() {
-        assert_eq!(AfterSalesType::from_str("complaint"), Some(AfterSalesType::Complaint));
-        assert_eq!(AfterSalesType::from_str("repair"), Some(AfterSalesType::Repair));
-        assert_eq!(AfterSalesType::from_str("exchange"), Some(AfterSalesType::Exchange));
-        assert_eq!(AfterSalesType::from_str("refund"), Some(AfterSalesType::Refund));
+        assert_eq!(
+            AfterSalesType::from_str("complaint"),
+            Some(AfterSalesType::Complaint)
+        );
+        assert_eq!(
+            AfterSalesType::from_str("repair"),
+            Some(AfterSalesType::Repair)
+        );
+        assert_eq!(
+            AfterSalesType::from_str("exchange"),
+            Some(AfterSalesType::Exchange)
+        );
+        assert_eq!(
+            AfterSalesType::from_str("refund"),
+            Some(AfterSalesType::Refund)
+        );
         assert_eq!(AfterSalesType::from_str("invalid"), None);
     }
 

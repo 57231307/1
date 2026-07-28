@@ -3,8 +3,8 @@ use axum::{
     Json,
 };
 use chrono::{DateTime, NaiveDate, TimeZone, Utc};
-use serde::Deserialize;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::dashboard_layout::{self, Entity as DashboardLayoutEntity};
@@ -135,12 +135,11 @@ pub async fn get_dashboard_overview(
         .await?;
 
     // 缺陷 4.2 修复：仪表板数据更新触发 WebSocket 实时推送
-    crate::websocket::notifications::get_notification_broadcaster()
-        .broadcast_dashboard_update(
-            auth.user_id as i64,
-            "overview_refresh",
-            &serde_json::to_value(&overview).unwrap_or(serde_json::Value::Null),
-        );
+    crate::websocket::notifications::get_notification_broadcaster().broadcast_dashboard_update(
+        auth.user_id as i64,
+        "overview_refresh",
+        &serde_json::to_value(&overview).unwrap_or(serde_json::Value::Null),
+    );
 
     Ok(Json(ApiResponse::success(overview)))
 }

@@ -46,8 +46,7 @@ pub async fn list_currencies(
 ) -> Result<Json<ApiResponse<Vec<CurrencyResponse>>>, AppError> {
     let service = CurrencyService::new(state.db);
     let models = service.list_currencies().await?;
-    let responses: Vec<CurrencyResponse> =
-        models.into_iter().map(CurrencyResponse::from).collect();
+    let responses: Vec<CurrencyResponse> = models.into_iter().map(CurrencyResponse::from).collect();
     Ok(Json(ApiResponse::success(responses)))
 }
 
@@ -113,7 +112,9 @@ pub async fn create_exchange_rate(
             req.effective_date,
         )
         .await?;
-    Ok(Json(ApiResponse::success(ExchangeRateResponse::from(model))))
+    Ok(Json(ApiResponse::success(ExchangeRateResponse::from(
+        model,
+    ))))
 }
 
 #[derive(Debug, Deserialize)]
@@ -131,7 +132,9 @@ pub async fn get_exchange_rate(
         .get_exchange_rate(&query.from_currency, &query.to_currency)
         .await?
     {
-        Some(model) => Ok(Json(ApiResponse::success(ExchangeRateResponse::from(model)))),
+        Some(model) => Ok(Json(ApiResponse::success(ExchangeRateResponse::from(
+            model,
+        )))),
         None => Err(AppError::not_found(format!(
             "未找到 {} -> {} 的汇率记录",
             query.from_currency, query.to_currency

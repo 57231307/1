@@ -1,9 +1,9 @@
+use crate::utils::error::AppError;
 use futures::FutureExt;
 use sea_orm::{ConnectionTrait, DatabaseBackend, DatabaseConnection, Statement};
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use tokio::time::{interval, Duration};
-use crate::utils::error::AppError;
 
 pub struct AuditCleanupService {
     db: Arc<DatabaseConnection>,

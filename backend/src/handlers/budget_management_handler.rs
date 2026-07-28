@@ -1,4 +1,3 @@
-
 use crate::middleware::auth_context::AuthContext;
 use crate::models::{audit_log, budget_execution, budget_management, budget_plan};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
@@ -6,8 +5,8 @@ use crate::services::budget_management_service::{BudgetControlResponse, BudgetMa
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::messages::biz_msg;
-use crate::utils::ApiResponse;
 use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
+use crate::utils::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
     Json,
@@ -471,7 +470,11 @@ pub async fn list_budgets(
     let service = BudgetManagementService::new(state.db.clone());
 
     // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-    let page = params.get("page").and_then(|v| v.as_i64()).unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = params
+        .get("page")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(1)
+        .clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
 
     let page_size = params
         .get("page_size")
@@ -669,7 +672,9 @@ pub async fn reject_plan(
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 驳回预算方案: ID={}", auth.username, id);
     let service = BudgetManagementService::new(state.db.clone());
-    service.reject_plan(id, auth.user_id, req.approval_comment).await?;
+    service
+        .reject_plan(id, auth.user_id, req.approval_comment)
+        .await?;
     Ok(Json(ApiResponse::success("预算方案已驳回".to_string())))
 }
 

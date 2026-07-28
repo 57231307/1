@@ -30,13 +30,9 @@ impl ArReconciliationService {
         let customer_ids: Vec<i32> = customers.iter().map(|c| c.id).collect();
         let mut invoices_by_customer =
             Self::group_invoices_by_customer_for_match(&txn, &customer_ids, req.end_date).await?;
-        let mut collections_by_customer = Self::group_collections_by_customer(
-            &txn,
-            &customer_ids,
-            req.start_date,
-            req.end_date,
-        )
-        .await?;
+        let mut collections_by_customer =
+            Self::group_collections_by_customer(&txn, &customer_ids, req.start_date, req.end_date)
+                .await?;
 
         let mut results = Vec::new();
         // v13 P1-3：N+1 重构，收集所有明细 ActiveModel，循环结束后批量 INSERT
@@ -83,7 +79,11 @@ impl ArReconciliationService {
     /// 解析并校验匹配策略，返回 (run_exact, run_date_order) 开关
     fn parse_match_strategy(req: &AutoMatchRequest) -> Result<(bool, bool), AppError> {
         // match_strategy 控制：exact=仅策略1 / date_order=策略1+2 / all=全策略（默认）
-        let strategy = req.match_strategy.as_deref().unwrap_or("all").to_lowercase();
+        let strategy = req
+            .match_strategy
+            .as_deref()
+            .unwrap_or("all")
+            .to_lowercase();
         if !matches!(strategy.as_str(), "exact" | "date_order" | "all") {
             return Err(AppError::validation(format!(
                 "无效的匹配策略: {}（支持 exact / date_order / all）",
@@ -104,7 +104,9 @@ impl ArReconciliationService {
             Ok(vec![customer::Entity::find_by_id(cid)
                 .one(txn)
                 .await?
-                .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", cid)))?])
+                .ok_or_else(|| {
+                    AppError::not_found(format!("客户 {} 不存在", cid))
+                })?])
         } else {
             // P3 维度 6 修复（批次 87）：LIMIT 兜底防止全表加载
             Ok(customer::Entity::find().limit(10_000).all(txn).await?)
@@ -184,12 +186,23 @@ impl ArReconciliationService {
         let reconciliation_no = generate_reconciliation_no(txn).await?;
         let closing_balance = opening_balance + total_invoices - total_collections;
         let reconciliation = Self::build_match_reconciliation_model(
-            req, user_id, &cust, opening_balance, total_invoices, total_collections,
-            closing_balance, reconciliation_no.clone(),
+            req,
+            user_id,
+            &cust,
+            opening_balance,
+            total_invoices,
+            total_collections,
+            closing_balance,
+            reconciliation_no.clone(),
         );
         let rec_model = reconciliation.insert(txn).await?;
         let matched_count = Self::execute_match_strategies(
-            &invoices, &cust_collections, rec_model.id, run_exact, run_date_order, all_items,
+            &invoices,
+            &cust_collections,
+            rec_model.id,
+            run_exact,
+            run_date_order,
+            all_items,
         );
         Ok(Self::build_auto_match_result(
             rec_model.id,
@@ -241,9 +254,8 @@ impl ArReconciliationService {
         let mut unmatched_collections: Vec<&ar_collection::Model> =
             cust_collections.iter().collect();
         let unmatched_invoices: Vec<&ar_invoice::Model> = if run_exact {
-            let (matched, unmatched) = Self::run_exact_match_pass(
-                invoices, &mut unmatched_collections, rec_id, all_items,
-            );
+            let (matched, unmatched) =
+                Self::run_exact_match_pass(invoices, &mut unmatched_collections, rec_id, all_items);
             matched_count += matched;
             unmatched
         } else {
@@ -253,11 +265,19 @@ impl ArReconciliationService {
         if run_date_order {
             let mut remaining = unmatched_collections.clone();
             matched_count += Self::run_date_order_match_pass(
-                &unmatched_invoices, &mut remaining, rec_id, all_items,
+                &unmatched_invoices,
+                &mut remaining,
+                rec_id,
+                all_items,
             );
             Self::push_unmatched_collections(rec_id, remaining, all_items);
         } else {
-            Self::push_all_unmatched(rec_id, unmatched_invoices, &unmatched_collections, all_items);
+            Self::push_all_unmatched(
+                rec_id,
+                unmatched_invoices,
+                &unmatched_collections,
+                all_items,
+            );
         }
         matched_count
     }
@@ -270,7 +290,11 @@ impl ArReconciliationService {
     ) {
         for coll in collections {
             all_items.push(Self::make_collection_recon_item(
-                rec_id, coll, None, ar_status::MATCH_UNMATCHED, None,
+                rec_id,
+                coll,
+                None,
+                ar_status::MATCH_UNMATCHED,
+                None,
             ));
         }
     }
@@ -284,12 +308,20 @@ impl ArReconciliationService {
     ) {
         for inv in unmatched_invoices {
             all_items.push(Self::make_invoice_recon_item(
-                rec_id, inv, None, ar_status::MATCH_UNMATCHED, None,
+                rec_id,
+                inv,
+                None,
+                ar_status::MATCH_UNMATCHED,
+                None,
             ));
         }
         for coll in unmatched_collections {
             all_items.push(Self::make_collection_recon_item(
-                rec_id, *coll, None, ar_status::MATCH_UNMATCHED, None,
+                rec_id,
+                *coll,
+                None,
+                ar_status::MATCH_UNMATCHED,
+                None,
             ));
         }
     }
@@ -406,7 +438,11 @@ impl ArReconciliationService {
                 matched_count += 1;
             } else {
                 all_items.push(Self::make_invoice_recon_item(
-                    rec_id, inv, None, ar_status::MATCH_UNMATCHED, None,
+                    rec_id,
+                    inv,
+                    None,
+                    ar_status::MATCH_UNMATCHED,
+                    None,
                 ));
             }
         }
@@ -432,10 +468,18 @@ impl ArReconciliationService {
             "PARTIAL"
         };
         all_items.push(Self::make_invoice_recon_item(
-            rec_id, inv, Some(matched), inv_status, Some(coll.id),
+            rec_id,
+            inv,
+            Some(matched),
+            inv_status,
+            Some(coll.id),
         ));
         all_items.push(Self::make_collection_recon_item(
-            rec_id, coll, Some(matched), coll_status, Some(inv.id),
+            rec_id,
+            coll,
+            Some(matched),
+            coll_status,
+            Some(inv.id),
         ));
     }
 

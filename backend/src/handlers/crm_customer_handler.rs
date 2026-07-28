@@ -13,10 +13,10 @@ use validator::Validate;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::crm_tag;
 use crate::models::dto::crm_dto::{CreateLeadRequest, LeadQuery, UpdateLeadRequest};
+use crate::services::crm::cust::CrmService;
 use crate::services::customer_service::{
     CreateCustomerContactRequest, CustomerService, UpdateCustomerContactRequest,
 };
-use crate::services::crm::cust::CrmService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -87,9 +87,7 @@ pub async fn list_customers(
 
     // V15 P0-S01：提取行级数据权限上下文
     let data_scope_ctx = auth.to_data_scope_context();
-    let result = service
-        .list_leads(query, Some(&data_scope_ctx))
-        .await?;
+    let result = service.list_leads(query, Some(&data_scope_ctx)).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(result)?)))
 }
 
@@ -102,9 +100,7 @@ pub async fn get_customer(
     let service = CrmService::new(state.db.clone());
     // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
     let data_scope_ctx = auth.to_data_scope_context();
-    let lead = service
-        .get_lead(id, Some(&data_scope_ctx))
-        .await?;
+    let lead = service.get_lead(id, Some(&data_scope_ctx)).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(lead)?)))
 }
 
@@ -182,7 +178,8 @@ pub async fn create_contact(
     Path(customer_id): Path<i32>,
     Json(req): Json<CreateCustomerContactRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    req.validate().map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
 
     let service = CustomerService::new(state.db.clone(), state.search_client.clone());
     let contact = service
@@ -205,7 +202,8 @@ pub async fn update_contact(
     auth: AuthContext,
     Json(req): Json<UpdateCustomerContactRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    req.validate().map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
 
     let service = CustomerService::new(state.db.clone(), state.search_client.clone());
     let contact = service
@@ -242,9 +240,7 @@ pub async fn list_tags(
     State(state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<crm_tag::Model>>>, AppError> {
-    let tags = crm_tag::Entity::find()
-        .all(&*state.db)
-        .await?;
+    let tags = crm_tag::Entity::find().all(&*state.db).await?;
     Ok(Json(ApiResponse::success(tags)))
 }
 
@@ -269,10 +265,7 @@ pub async fn create_tag(
     };
 
     let tag = new_tag.insert(&*state.db).await?;
-    Ok(Json(ApiResponse::success_with_message(
-        tag,
-        "标签创建成功",
-    )))
+    Ok(Json(ApiResponse::success_with_message(tag, "标签创建成功")))
 }
 
 /// DELETE /api/v1/erp/crm/tags/:id - 删除标签
@@ -284,9 +277,7 @@ pub async fn delete_tag(
     _auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let result = crm_tag::Entity::delete_by_id(id)
-        .exec(&*state.db)
-        .await?;
+    let result = crm_tag::Entity::delete_by_id(id).exec(&*state.db).await?;
 
     if result.rows_affected == 0 {
         return Err(AppError::not_found(format!("标签 {} 未找到", id)));

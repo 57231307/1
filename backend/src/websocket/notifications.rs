@@ -165,7 +165,12 @@ fn ack_tracker() -> &'static DashMap<(i64, i64), PendingAckEntry> {
 /// V15 P1 20.3-A：本地投递消息并启动 ACK 跟踪
 /// 调用方：本地实例的 broadcast_notification 或 Redis Pub/Sub 订阅器。
 /// 行为：① 通过 manager.broadcast 本地投递；② 若用户有活跃连接则跟踪 ACK，5s 超时重发。
-fn deliver_with_ack(manager: &ConnectionManager, user_id: i64, message_id: i64, message_json: String) {
+fn deliver_with_ack(
+    manager: &ConnectionManager,
+    user_id: i64,
+    message_id: i64,
+    message_json: String,
+) {
     // 无 message_id 的消息（如 Ping/Pong/Error）不需 ACK 跟踪
     let needs_ack = message_id > 0;
     if needs_ack {
@@ -309,7 +314,12 @@ impl NotificationBroadcaster {
     ///
     /// 关键业务事件（订单创建/库存调整/审批通过等）触发时调用，
     /// 前端订阅 `ws://dashboard/updates` 频道实时刷新卡片，绕过 5 分钟缓存延迟。
-    pub fn broadcast_dashboard_update(&self, user_id: i64, event_type: &str, payload: &serde_json::Value) {
+    pub fn broadcast_dashboard_update(
+        &self,
+        user_id: i64,
+        event_type: &str,
+        payload: &serde_json::Value,
+    ) {
         let msg = serde_json::json!({
             "type": "dashboard_update",
             "event": event_type,
@@ -374,7 +384,10 @@ pub async fn start_ws_pubsub_subscriber() {
         tracing::warn!(error = %e, "Redis PubSub 订阅失败，WebSocket 多实例广播未启用");
         return;
     }
-    tracing::info!("WebSocket Redis Pub/Sub 订阅器已启动（频道: {}）", WS_REDIS_CHANNEL);
+    tracing::info!(
+        "WebSocket Redis Pub/Sub 订阅器已启动（频道: {}）",
+        WS_REDIS_CHANNEL
+    );
     let manager = get_notification_broadcaster().manager();
     let mut stream = pubsub.on_message();
     while let Some(msg) = stream.next().await {
@@ -589,7 +602,9 @@ async fn handle_socket(socket: WebSocket, auth: AuthInfo) {
     let mut recv_task = tokio::spawn(async move {
         while let Some(msg) = receiver.next().await {
             // 批次 8（2026-06-28）：单次消息处理 panic 隔离
-            let result = AssertUnwindSafe(async { handle_recv_message(msg, user_id) }).catch_unwind().await;
+            let result = AssertUnwindSafe(async { handle_recv_message(msg, user_id) })
+                .catch_unwind()
+                .await;
             match result {
                 Ok(true) => {}
                 Ok(false) => break,
@@ -607,7 +622,9 @@ async fn handle_socket(socket: WebSocket, auth: AuthInfo) {
                     return false;
                 }
                 true
-            }).catch_unwind().await;
+            })
+            .catch_unwind()
+            .await;
             match result {
                 Ok(true) => {}
                 Ok(false) => break,
@@ -634,16 +651,10 @@ fn handle_recv_message(msg: Result<Message, axum::Error>, user_id: i64) -> bool 
             if let Ok(ws_msg) = serde_json::from_str::<WsMessage>(&text) {
                 match ws_msg {
                     WsMessage::Ping { timestamp } => {
-                        tracing::debug!(
-                            "收到 ping：user_id={}, timestamp={}",
-                            user_id, timestamp
-                        );
+                        tracing::debug!("收到 ping：user_id={}, timestamp={}", user_id, timestamp);
                     }
                     WsMessage::MarkAsRead { id } => {
-                        tracing::info!(
-                            "客户端标记已读：user_id={}, id={}",
-                            user_id, id
-                        );
+                        tracing::info!("客户端标记已读：user_id={}, id={}", user_id, id);
                     }
                     // V15 P1 20.3-A：处理客户端 ACK，停止重发循环
                     WsMessage::Ack { message_id } => {
@@ -725,15 +736,14 @@ mod tests {
         // 过短票据
         assert_eq!(manager.validate_and_consume("short"), None);
         // 不存在的票据
-        assert_eq!(
-            manager.validate_and_consume(&"a".repeat(64)),
-            None
-        );
+        assert_eq!(manager.validate_and_consume(&"a".repeat(64)), None);
     }
 
     #[test]
     fn test_ws_message_serialize() {
-        let msg = WsMessage::Ping { timestamp: 1234567890 };
+        let msg = WsMessage::Ping {
+            timestamp: 1234567890,
+        };
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains("ping"));
         assert!(json.contains("1234567890"));

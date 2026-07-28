@@ -156,7 +156,7 @@ async fn test_post_with_valid_csrf_token_passes_then_rotated() {
         valid_token.to_string(),
         "session-1".to_string(),
         "203.0.113.10".to_string(), // 绑定 IP
-        1001,                        // user_id（用于反向索引）
+        1001,                       // user_id（用于反向索引）
         None,
     );
 

@@ -29,7 +29,7 @@ impl ProductService {
             category: None, // 批次 125：暂设 None，后续迭代 join product_category
             spec: model.specification.clone(),
             unit: model.unit.clone(),
-            color_no: None, // 批次 125：暂设 None，后续迭代 join product_color
+            color_no: None,     // 批次 125：暂设 None，后续迭代 join product_color
             pantone_code: None, // 批次 125：暂设 None，后续迭代 join product_color
             price: model
                 .standard_price

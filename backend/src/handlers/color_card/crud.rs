@@ -13,7 +13,9 @@ use crate::middleware::auth_context::AuthContext;
 use crate::models::color_card_create_dto::{
     ArchiveColorCardDto, CreateColorCardDto, ListColorCardsQuery, UpdateColorCardDto,
 };
-use crate::models::color_card_response_dto::{ColorCardDetail, ColorCardListItem, ColorItemInfo, PagedResponse};
+use crate::models::color_card_response_dto::{
+    ColorCardDetail, ColorCardListItem, ColorItemInfo, PagedResponse,
+};
 use crate::services::color_card_crud_service::ColorCardCrudService;
 use crate::services::color_card_item_service::ColorCardItemService;
 use crate::utils::app_state::AppState;
@@ -31,7 +33,7 @@ pub async fn list_color_cards(
 ) -> Result<Json<ApiResponse<PagedResponse<ColorCardListItem>>>, AppError> {
     let service = ColorCardCrudService::from_state(&state);
     let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
-    // v11 批次 36 修复：page_size clamp 防止 DoS
+                                                       // v11 批次 36 修复：page_size clamp 防止 DoS
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let (items, total) = service
@@ -113,10 +115,7 @@ pub async fn get_color_card(
         .await
         .map_err(super::error_map::item_err)?;
 
-    let item_infos: Vec<ColorItemInfo> = items
-        .into_iter()
-        .map(item_to_info)
-        .collect();
+    let item_infos: Vec<ColorItemInfo> = items.into_iter().map(item_to_info).collect();
 
     Ok(Json(ApiResponse::success(ColorCardDetail {
         id: card.id,

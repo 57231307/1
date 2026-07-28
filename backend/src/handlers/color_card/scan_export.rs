@@ -58,10 +58,7 @@ pub async fn export_color_card(
     let crud_svc = ColorCardCrudService::from_state(&state);
 
     let card = crud_svc.get_by_id(id).await.map_err(crud_err)?;
-    let (items, _) = item_svc
-        .list(id, 1, 10000)
-        .await
-        .map_err(item_err)?;
+    let (items, _) = item_svc.list(id, 1, 10000).await.map_err(item_err)?;
     let row_count = items.len();
 
     // 规则 3：构造 xlsx 表格（字段名与原 CSV 保持一致）

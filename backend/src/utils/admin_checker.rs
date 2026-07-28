@@ -84,7 +84,10 @@ pub async fn is_admin_role(db: &DatabaseConnection, role_id: i32) -> bool {
         Err(e) => {
             let err_msg = format!("{}", e);
             if err_msg.contains("does not exist") || err_msg.contains("relation") {
-                warn!("数据库表不存在，系统可能未初始化，拒绝访问（fail-closed）: {}", e);
+                warn!(
+                    "数据库表不存在，系统可能未初始化，拒绝访问（fail-closed）: {}",
+                    e
+                );
                 false
             } else {
                 warn!("查询角色失败: {}", e);

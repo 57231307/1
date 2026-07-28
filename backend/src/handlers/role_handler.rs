@@ -19,10 +19,7 @@ use std::sync::Arc;
 
 /// C-1 修复：处理器内部 admin 角色二次校验（防 `roles:read` 低权用户提权进入写处理器）。
 /// 与全局 `permission_middleware` 形成"粗粒度 + 细粒度 admin 校验"双重防线（批次 24 v6 P1-1）。
-async fn require_admin_role(
-    state: &AppState,
-    auth: &AuthContext,
-) -> Result<(), AppError> {
+async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), AppError> {
     let role_id = auth
         .role_id
         .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行该操作"))?;
@@ -377,9 +374,7 @@ pub async fn delete_role(
     // 原实现仅 require_admin_role，未检查 is_system 字段，
     // admin 角色被删除后系统永久锁定（无管理员可操作）。
     if old_role.is_system {
-        return Err(AppError::bad_request(
-            "系统内置角色不可删除",
-        ));
+        return Err(AppError::bad_request("系统内置角色不可删除"));
     }
 
     let before_snapshot = serde_json::json!({
@@ -512,10 +507,7 @@ pub async fn remove_permission(
         resource_type: Some("role_permission".to_string()),
         resource_id: Some(id.to_string()),
         resource_name: None,
-        description: Some(format!(
-            "管理员 {} 移除权限 id={}",
-            auth.username, id
-        )),
+        description: Some(format!("管理员 {} 移除权限 id={}", auth.username, id)),
         request_method: Some("DELETE".to_string()),
         request_path: Some(format!("/api/v1/erp/roles/permissions/{}", id)),
         before_snapshot: Some(serde_json::json!({

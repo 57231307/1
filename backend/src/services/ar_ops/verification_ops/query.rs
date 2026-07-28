@@ -169,8 +169,9 @@ impl ArService {
         &self,
         query: serde_json::Value,
     ) -> Result<serde_json::Value, AppError> {
-        let mut q = ar_collection::Entity::find()
-            .filter(ar_collection::Column::Status.eq(crate::models::status::ar::COLLECTION_CONFIRMED));
+        let mut q = ar_collection::Entity::find().filter(
+            ar_collection::Column::Status.eq(crate::models::status::ar::COLLECTION_CONFIRMED),
+        );
 
         if let Some(cid) = query.get("customer_id").and_then(|v| v.as_i64()) {
             q = q.filter(ar_collection::Column::CustomerId.eq(cid as i32));

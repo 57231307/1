@@ -25,12 +25,12 @@ use crate::models::ar_reconciliation::{
 };
 // 批次 158 v11 真实接入：审批状态常量替代字符串字面量
 // 批次 231 v13 P1-1：新增 ar 模块导入，对账单状态常量替代字符串字面量
-use crate::models::status::{approval, ar as ar_status, common};
 use crate::models::ar_reconciliation_item::{
     Entity as ReconciliationItemEntity, Model as ReconciliationItemModel,
 };
 use crate::models::customer;
 use crate::models::sales_order;
+use crate::models::status::{approval, ar as ar_status, common};
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 
@@ -115,27 +115,49 @@ impl ArReconciliationService {
     ) -> Result<ArInvoiceModel, AppError> {
         // 1. 金额校验：必须 > 0，避免生成 0 元应收单污染账龄报表
         if total_amount <= Decimal::ZERO {
-            return Err(AppError::validation(format!("应收金额必须大于 0，实际为 {}", total_amount)));
+            return Err(AppError::validation(format!(
+                "应收金额必须大于 0，实际为 {}",
+                total_amount
+            )));
         }
         // 2-4. 加载订单/客户 + 幂等校验
         let (order, cust) = Self::load_receivable_context(txn, customer_id, order_id).await?;
         // 5. 账期校验：<= 0 时统一回退为 30 天
-        let terms = if payment_terms_days <= 0 { 30 } else { payment_terms_days };
+        let terms = if payment_terms_days <= 0 {
+            30
+        } else {
+            payment_terms_days
+        };
         // 6. 计算日期：发票日期 = 今日；到期日 = 发票日期 + 账期天数
         let invoice_date = Utc::now().date_naive();
         let due_date = invoice_date + Duration::days(terms as i64);
         // 7. 生成应收单号（与销售订单/采购订单/对账单共用流水号生成器）
         let invoice_no = DocumentNumberGenerator::generate_no(
-            txn, "AR", ArInvoiceEntity, ArInvoiceColumn::InvoiceNo).await?;
+            txn,
+            "AR",
+            ArInvoiceEntity,
+            ArInvoiceColumn::InvoiceNo,
+        )
+        .await?;
         // 8. 写入 ar_invoices 表（DRAFT 待审，由 AR 审批节点确认后转 APPROVED）
         let active = Self::build_receivable_active(
-            invoice_no, invoice_date, due_date, customer_id, order_id,
-            total_amount, user_id, &order, &cust,
+            invoice_no,
+            invoice_date,
+            due_date,
+            customer_id,
+            order_id,
+            total_amount,
+            user_id,
+            &order,
+            &cust,
         );
         let invoice = active.insert(txn).await?;
         tracing::info!(
             "P0-2 销售→AR：应收单创建成功，invoice_no={}, amount={}, 账期={}天, 客户={}",
-            invoice.invoice_no, invoice.invoice_amount, terms, cust.customer_name
+            invoice.invoice_no,
+            invoice.invoice_amount,
+            terms,
+            cust.customer_name
         );
         Ok(invoice)
     }

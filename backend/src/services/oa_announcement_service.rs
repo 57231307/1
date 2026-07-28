@@ -6,10 +6,10 @@
 //! 参考模板：`report_subscription_service.rs`（同样走 sea_orm + paginate_with_total）。
 
 use chrono::Utc;
+use sea_orm::DatabaseConnection;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
-use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use validator::Validate;
@@ -132,9 +132,9 @@ impl OaAnnouncementService {
                 scope
             ))
         })?;
-        let obj = cfg.as_object().ok_or_else(|| {
-            AppError::validation("visible_scope_config 必须为 JSON 对象")
-        })?;
+        let obj = cfg
+            .as_object()
+            .ok_or_else(|| AppError::validation("visible_scope_config 必须为 JSON 对象"))?;
         let required_key = match scope {
             "DEPT" => "department_ids",
             "ROLE" => "role_ids",
@@ -368,8 +368,7 @@ impl OaAnnouncementService {
 
         if let Some(status) = query.status {
             Self::validate_status(&status)?;
-            select =
-                select.filter(crate::models::oa_announcement::Column::Status.eq(status));
+            select = select.filter(crate::models::oa_announcement::Column::Status.eq(status));
         }
 
         if let Some(announcement_type) = query.announcement_type {
@@ -380,8 +379,7 @@ impl OaAnnouncementService {
         }
 
         if let Some(is_top) = query.is_top {
-            select = select
-                .filter(crate::models::oa_announcement::Column::IsTop.eq(is_top));
+            select = select.filter(crate::models::oa_announcement::Column::IsTop.eq(is_top));
         }
 
         // 置顶优先，其次发布日期倒序，最后创建时间倒序
@@ -419,8 +417,7 @@ impl OaAnnouncementService {
 
         if let Some(status) = query.status {
             Self::validate_status(&status)?;
-            select =
-                select.filter(crate::models::oa_announcement::Column::Status.eq(status));
+            select = select.filter(crate::models::oa_announcement::Column::Status.eq(status));
         }
 
         if let Some(announcement_type) = query.announcement_type {
@@ -431,8 +428,7 @@ impl OaAnnouncementService {
         }
 
         if let Some(is_top) = query.is_top {
-            select = select
-                .filter(crate::models::oa_announcement::Column::IsTop.eq(is_top));
+            select = select.filter(crate::models::oa_announcement::Column::IsTop.eq(is_top));
         }
 
         // 一次性拉取所有匹配条件的公告到内存（公告总量通常 < 1万，可接受）

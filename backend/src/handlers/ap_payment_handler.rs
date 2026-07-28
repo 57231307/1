@@ -64,13 +64,8 @@ pub async fn list_payments(
 
     info!("用户 {} 查询付款成功，共 {} 条记录", auth.username, total);
 
-    let result = serde_json::to_value(PaginatedResponse::new(
-        payments,
-        total,
-        page,
-        page_size,
-    ))
-    .map_err(|e| AppError::internal(e.to_string()))?;
+    let result = serde_json::to_value(PaginatedResponse::new(payments, total, page, page_size))
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(result)))
 }
@@ -86,9 +81,7 @@ pub async fn get_payment(
     let service = ApPaymentService::new(state.db.clone());
     // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
     let data_scope_ctx = auth.to_data_scope_context();
-    let payment = service
-        .get_by_id(id, Some(&data_scope_ctx))
-        .await?;
+    let payment = service.get_by_id(id, Some(&data_scope_ctx)).await?;
 
     info!(
         "用户 {} 查询付款详情成功：{}",

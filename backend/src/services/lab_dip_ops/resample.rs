@@ -42,12 +42,9 @@ impl LabDipResampleService {
     /// 创建复样记录：OK 样确认后大货生产前必须复样
     pub async fn create(&self, req: CreateResampleRequest) -> Result<ResampleModel, AppError> {
         Self::validate_resample_request(&*self.db, req.request_id).await?;
-        let source_sample = Self::validate_resample_source_sample(
-            &*self.db,
-            req.request_id,
-            req.source_sample_id,
-        )
-        .await?;
+        let source_sample =
+            Self::validate_resample_source_sample(&*self.db, req.request_id, req.source_sample_id)
+                .await?;
         Self::validate_workshop_fabric_batch(&req.workshop_fabric_batch)?;
         let resample_no = Self::generate_resample_no();
         let now = crate::utils::date_utils::utc_now_fixed();
@@ -245,11 +242,7 @@ impl LabDipResampleService {
             )));
         }
 
-        let tech_card_no = format!(
-            "TC-{}-{:06}",
-            chrono::Utc::now().format("%Y%m%d"),
-            id
-        );
+        let tech_card_no = format!("TC-{}-{:06}", chrono::Utc::now().format("%Y%m%d"), id);
         let now = crate::utils::date_utils::utc_now_fixed();
 
         let mut active: ResampleActiveModel = model.into();

@@ -155,8 +155,9 @@ impl InventoryAdjustmentService {
             } else {
                 quantity_before - item_req.quantity
             };
-            let amount =
-                item_req.unit_cost.map(|cost| (cost * item_req.quantity).round_dp(2));
+            let amount = item_req
+                .unit_cost
+                .map(|cost| (cost * item_req.quantity).round_dp(2));
             let item = inventory_adjustment_item::ActiveModel {
                 id: Default::default(),
                 adjustment_id: Set(adjustment_id),
@@ -227,8 +228,12 @@ impl InventoryAdjustmentService {
 
         // 乐观锁更新库存 + 构建事件列表
         let transaction_events = Self::apply_stock_updates_for_adjustment(
-            &txn, items, adjustment_id, adjustment_model.adjustment_no.clone(),
-            adjustment_model.warehouse_id, approved_by,
+            &txn,
+            items,
+            adjustment_id,
+            adjustment_model.adjustment_no.clone(),
+            adjustment_model.warehouse_id,
+            approved_by,
         )
         .await?;
 
@@ -265,7 +270,12 @@ impl InventoryAdjustmentService {
                 .ok_or_else(|| AppError::not_found(format!("库存 ID {} 不存在", item.stock_id)))?;
             Self::apply_single_stock_update(txn, &item, stock_model).await?;
             transaction_events.push(Self::build_adjustment_event(
-                &item, stock_model, adjustment_id, &adjustment_no, warehouse_id, approved_by,
+                &item,
+                stock_model,
+                adjustment_id,
+                &adjustment_no,
+                warehouse_id,
+                approved_by,
             ));
         }
         Ok(transaction_events)
@@ -317,7 +327,8 @@ impl InventoryAdjustmentService {
                     item.quantity_after * kg_ratio
                 } else {
                     current_quantity_kg
-                }).into(),
+                })
+                .into(),
             )
             .col_expr(
                 inventory_stock::Column::Version,

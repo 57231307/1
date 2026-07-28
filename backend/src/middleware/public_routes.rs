@@ -61,9 +61,7 @@ mod tests {
         assert!(is_public_path("/api/v1/erp/auth/login"));
         assert!(is_public_path("/api/v1/erp/auth/refresh"));
         // 批次 110 P0-1：Webhook 回调端点公开（HMAC 签名验证替代认证）
-        assert!(is_public_path(
-            "/api/v1/erp/webhooks/integrations/callback"
-        ));
+        assert!(is_public_path("/api/v1/erp/webhooks/integrations/callback"));
         // 批次 261 修复：initialize 系列高危接口放行 JWT 认证（由 init_token_middleware 认证）
         assert!(is_public_path("/api/v1/erp/init/initialize"));
         assert!(is_public_path("/api/v1/erp/init/initialize-with-db"));

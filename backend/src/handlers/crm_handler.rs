@@ -292,7 +292,9 @@ pub async fn update_lead_status(
 
     let service = CrmService::new(state.db.clone());
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
-    service.update_lead_status(id, &payload.status, auth.user_id).await?;
+    service
+        .update_lead_status(id, &payload.status, auth.user_id)
+        .await?;
     Ok(Json(ApiResponse::success("状态更新成功".to_string())))
 }
 
@@ -411,9 +413,7 @@ pub async fn get_opportunity(
     let service = CrmService::new(state.db.clone());
     // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
     let data_scope_ctx = auth.to_data_scope_context();
-    let res = service
-        .get_opportunity(id, Some(&data_scope_ctx))
-        .await?;
+    let res = service.get_opportunity(id, Some(&data_scope_ctx)).await?;
     let mut value =
         serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
 
@@ -503,8 +503,8 @@ pub async fn close_opportunity_as_lost(
     let res = service
         .close_as_lost(id, req.lost_reason, auth.user_id)
         .await?;
-    let value = serde_json::to_value(res)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let value =
+        serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -566,9 +566,7 @@ pub async fn get_customer_360(
     let service = CrmService::new(state.db.clone());
     // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
     let data_scope_ctx = auth.to_data_scope_context();
-    let value = service
-        .get_customer_360(id, Some(&data_scope_ctx))
-        .await?;
+    let value = service.get_customer_360(id, Some(&data_scope_ctx)).await?;
     Ok(Json(ApiResponse::success(value)))
 }
 

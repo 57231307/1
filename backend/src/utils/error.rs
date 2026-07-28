@@ -72,7 +72,9 @@ impl fmt::Display for AppError {
             AppError::InternalError(msg) => write!(f, "{}{}", err_msg::INTERNAL_PREFIX, msg),
             AppError::BadRequest(msg) => write!(f, "{}{}", err_msg::BAD_REQUEST_PREFIX, msg),
             AppError::PermissionDenied(msg) => write!(f, "{}{}", err_msg::PERMISSION_PREFIX, msg),
-            AppError::NotImplemented(msg) => write!(f, "{}{}", err_msg::NOT_IMPLEMENTED_PREFIX, msg),
+            AppError::NotImplemented(msg) => {
+                write!(f, "{}{}", err_msg::NOT_IMPLEMENTED_PREFIX, msg)
+            }
             AppError::TooManyRequests { message, .. } => write!(f, "{}", message),
         }
     }
@@ -177,17 +179,42 @@ impl AppError {
     fn log_meta(&self) -> (&'static str, String) {
         match self {
             AppError::DatabaseError(_) => (err_msg::LOG_DB_ERROR, err_msg::HINT_DB.to_string()),
-            AppError::ValidationError(_) => (err_msg::LOG_VALIDATION, err_msg::HINT_VALIDATION.to_string()),
+            AppError::ValidationError(_) => (
+                err_msg::LOG_VALIDATION,
+                err_msg::HINT_VALIDATION.to_string(),
+            ),
             AppError::NotFound(_) => (err_msg::LOG_NOT_FOUND, err_msg::HINT_NOT_FOUND.to_string()),
-            AppError::BusinessError(_) => (err_msg::LOG_BUSINESS, err_msg::HINT_BUSINESS.to_string()),
-            AppError::Unauthorized(_) => (err_msg::LOG_UNAUTHORIZED, err_msg::HINT_UNAUTHORIZED.to_string()),
-            AppError::InternalError(_) => (err_msg::LOG_INTERNAL, err_msg::HINT_INTERNAL.to_string()),
-            AppError::PermissionDenied(_) => (err_msg::LOG_PERMISSION, err_msg::HINT_PERMISSION.to_string()),
-            AppError::BadRequest(_) => (err_msg::LOG_BAD_REQUEST, err_msg::HINT_BAD_REQUEST.to_string()),
-            AppError::NotImplemented(_) => (err_msg::LOG_NOT_IMPLEMENTED, err_msg::HINT_NOT_IMPLEMENTED.to_string()),
-            AppError::TooManyRequests { retry_after, .. } => {
-                (err_msg::LOG_TOO_MANY_REQUESTS, format!("{}{:?}{}", err_msg::RETRY_HINT_PREFIX, retry_after, err_msg::RETRY_HINT_SUFFIX))
+            AppError::BusinessError(_) => {
+                (err_msg::LOG_BUSINESS, err_msg::HINT_BUSINESS.to_string())
             }
+            AppError::Unauthorized(_) => (
+                err_msg::LOG_UNAUTHORIZED,
+                err_msg::HINT_UNAUTHORIZED.to_string(),
+            ),
+            AppError::InternalError(_) => {
+                (err_msg::LOG_INTERNAL, err_msg::HINT_INTERNAL.to_string())
+            }
+            AppError::PermissionDenied(_) => (
+                err_msg::LOG_PERMISSION,
+                err_msg::HINT_PERMISSION.to_string(),
+            ),
+            AppError::BadRequest(_) => (
+                err_msg::LOG_BAD_REQUEST,
+                err_msg::HINT_BAD_REQUEST.to_string(),
+            ),
+            AppError::NotImplemented(_) => (
+                err_msg::LOG_NOT_IMPLEMENTED,
+                err_msg::HINT_NOT_IMPLEMENTED.to_string(),
+            ),
+            AppError::TooManyRequests { retry_after, .. } => (
+                err_msg::LOG_TOO_MANY_REQUESTS,
+                format!(
+                    "{}{:?}{}",
+                    err_msg::RETRY_HINT_PREFIX,
+                    retry_after,
+                    err_msg::RETRY_HINT_SUFFIX
+                ),
+            ),
         }
     }
 
@@ -195,7 +222,10 @@ impl AppError {
     fn log_error(&self, detail: &serde_json::Value) {
         let (label, suggestion) = self.log_meta();
         let msg = self.message_str();
-        let is_error = matches!(self, AppError::DatabaseError(_) | AppError::InternalError(_));
+        let is_error = matches!(
+            self,
+            AppError::DatabaseError(_) | AppError::InternalError(_)
+        );
         if is_error {
             tracing::error!(
                 "【{label}】{msg} | {detail_word}: {detail} | {suggestion_word}: {suggestion}",
@@ -270,9 +300,7 @@ impl From<sea_orm::DbErr> for AppError {
 fn classify_db_exec_error(err_str: &str) -> &'static str {
     if err_str.contains("unique constraint") || err_str.contains("duplicate") {
         err_msg::DB_DUPLICATE
-    } else if err_str.contains("foreign key constraint")
-        || err_str.contains("references")
-    {
+    } else if err_str.contains("foreign key constraint") || err_str.contains("references") {
         err_msg::DB_RELATION
     } else {
         err_msg::DB_EXEC
@@ -341,7 +369,7 @@ pub struct ErrorResponse {
 
 /// 为已有 `AppError` 追加响应序列化能力（不修改任何现有方法）
 impl AppError {
-/// 转换为对外统一的 [`ErrorResponse`]
+    /// 转换为对外统一的 [`ErrorResponse`]
     pub fn to_response(&self) -> ErrorResponse {
         let trace_id = Uuid::new_v4().to_string();
         let timestamp = Utc::now().timestamp();
@@ -408,7 +436,7 @@ mod tests {
         serde_json::from_slice(&body_bytes).expect("响应体不是合法 JSON")
     }
 
-/// 漏洞 #11 测试：生产环境响应（APP_ENV=production）**不含** `error_type` 字段
+    /// 漏洞 #11 测试：生产环境响应（APP_ENV=production）**不含** `error_type` 字段
     #[tokio::test]
     async fn test_production_response_omits_error_type() {
         // 强制设置生产环境
@@ -430,7 +458,7 @@ mod tests {
         std::env::remove_var("APP_ENV");
     }
 
-/// 漏洞 #11 测试：生产环境响应（APP_ENV=production）**不含** `detail` 字段
+    /// 漏洞 #11 测试：生产环境响应（APP_ENV=production）**不含** `detail` 字段
     #[tokio::test]
     async fn test_production_response_omits_detail() {
         std::env::set_var("APP_ENV", "production");
@@ -445,7 +473,7 @@ mod tests {
         std::env::remove_var("APP_ENV");
     }
 
-/// 漏洞 #4 / #8 修复测试：开发环境响应**也不包含** `error_type` 和 `detail` 字段
+    /// 漏洞 #4 / #8 修复测试：开发环境响应**也不包含** `error_type` 和 `detail` 字段
     #[tokio::test]
     async fn test_development_response_omits_error_type_and_detail() {
         // 确保不是 production
@@ -475,7 +503,7 @@ mod tests {
         );
     }
 
-/// 漏洞 #4 修复测试：DatabaseError 响应脱敏
+    /// 漏洞 #4 修复测试：DatabaseError 响应脱敏
     #[tokio::test]
     async fn test_database_error_response_is_sanitized() {
         std::env::remove_var("APP_ENV");
@@ -508,15 +536,14 @@ mod tests {
         );
         // 脱敏后应包含通用文案
         assert!(
-            response.message.contains("数据库错误")
-                || response.message.contains("服务器"),
+            response.message.contains("数据库错误") || response.message.contains("服务器"),
             "生产环境 message 应为脱敏文案，实际 message: {}",
             response.message
         );
         std::env::remove_var("APP_ENV");
     }
 
-/// 漏洞 #12 反向测试：to_response() 在非生产环境下也使用脱敏 message
+    /// 漏洞 #12 反向测试：to_response() 在非生产环境下也使用脱敏 message
     #[tokio::test]
     async fn test_to_response_uses_public_message_in_development() {
         std::env::remove_var("APP_ENV");

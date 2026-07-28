@@ -79,10 +79,7 @@ impl ColorPriceSeasonalService {
     }
 
     /// 按 ID 查询
-    pub async fn get_by_id(
-        &self,
-        id: i64,
-    ) -> Result<seasonal_price_rule::Model, SeasonalError> {
+    pub async fn get_by_id(&self, id: i64) -> Result<seasonal_price_rule::Model, SeasonalError> {
         RuleEntity::find_by_id(id)
             .one(&*self.db)
             .await?

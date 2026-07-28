@@ -63,7 +63,10 @@ impl FailoverMetrics {
             &["function"],
         )?;
         let circuit_state = IntGaugeVec::new(
-            Opts::new("failover_circuit_state", "熔断器状态（0=关闭,1=打开,2=半开）"),
+            Opts::new(
+                "failover_circuit_state",
+                "熔断器状态（0=关闭,1=打开,2=半开）",
+            ),
             &["function"],
         )?;
         registry.register(Box::new(primary_total.clone()))?;
@@ -108,9 +111,7 @@ impl FailoverMetrics {
 
     /// 设置熔断器状态
     pub fn set_circuit_state(&self, function: &str, state: i64) {
-        self.circuit_state
-            .with_label_values(&[function])
-            .set(state);
+        self.circuit_state.with_label_values(&[function]).set(state);
     }
 
     /// 导出 Prometheus 文本格式
@@ -159,7 +160,10 @@ impl Default for FailoverMetrics {
             tracing::warn!("FailoverMetrics::new() 失败，回退到未注册的 metrics: {}", e);
             Self {
                 primary_total: mk_counter("failover_primary_total", "主调用总次数"),
-                primary_failed_total: mk_counter("failover_primary_failed_total", "主调用失败总次数"),
+                primary_failed_total: mk_counter(
+                    "failover_primary_failed_total",
+                    "主调用失败总次数",
+                ),
                 backup_total: mk_counter("failover_backup_total", "备用调用总次数"),
                 switch_total: mk_counter("failover_switch_total", "主备切换总次数"),
                 circuit_state: mk_gauge("failover_circuit_state", "熔断器状态"),
@@ -218,7 +222,10 @@ impl FailoverService {
     }
 
     /// 获取最近切换事件
-    pub async fn get_recent_events(&self, limit: u64) -> Result<Vec<event_model::FailoverEventDto>, String> {
+    pub async fn get_recent_events(
+        &self,
+        limit: u64,
+    ) -> Result<Vec<event_model::FailoverEventDto>, String> {
         use sea_orm::QueryOrder;
         let events = event_model::Entity::find()
             .order_by_desc(event_model::Column::CreatedAt)
@@ -308,10 +315,7 @@ impl FailoverService {
     /// 熔断器状态机：
     /// - closed（正常）→ 连续失败 >= 3 → open（熔断）
     /// - open → 半开探测由 reset_consecutive_failures 在健康恢复时处理
-    pub async fn increment_consecutive_failures(
-        &self,
-        function_name: &str,
-    ) -> Result<i32, String> {
+    pub async fn increment_consecutive_failures(&self, function_name: &str) -> Result<i32, String> {
         let now = Utc::now();
         let txn = self
             .db
@@ -374,10 +378,7 @@ impl FailoverService {
     /// V15 P0-B16：重置 consecutive_failures 并恢复熔断器为 closed
     ///
     /// 健康检查成功时调用，同步更新 last_success_at。
-    pub async fn reset_consecutive_failures(
-        &self,
-        function_name: &str,
-    ) -> Result<(), String> {
+    pub async fn reset_consecutive_failures(&self, function_name: &str) -> Result<(), String> {
         let now = Utc::now();
         let txn = self
             .db
@@ -490,7 +491,11 @@ impl FailoverService {
         let active_db = self.get_active_db();
         let backend = active_db.get_database_backend();
         let db_status = match active_db
-            .execute(Statement::from_sql_and_values(backend, "SELECT 1", Vec::new()))
+            .execute(Statement::from_sql_and_values(
+                backend,
+                "SELECT 1",
+                Vec::new(),
+            ))
             .await
         {
             Ok(_) => {
@@ -537,7 +542,11 @@ impl FailoverService {
         let active_db = self.get_active_db();
         let backend = active_db.get_database_backend();
         active_db
-            .execute(Statement::from_sql_and_values(backend, "SELECT 1", Vec::new()))
+            .execute(Statement::from_sql_and_values(
+                backend,
+                "SELECT 1",
+                Vec::new(),
+            ))
             .await
             .is_ok()
     }
@@ -621,10 +630,7 @@ impl FailoverExecutor {
     ///
     /// - `primary`：主库连接（必须配置）
     /// - `backup`：备库连接（可选；None 时 switch_to_backup 返回 Err）
-    pub fn new(
-        primary: Arc<DatabaseConnection>,
-        backup: Option<Arc<DatabaseConnection>>,
-    ) -> Self {
+    pub fn new(primary: Arc<DatabaseConnection>, backup: Option<Arc<DatabaseConnection>>) -> Self {
         Self {
             current: Arc::new(ArcSwap::from(primary.clone())),
             primary,

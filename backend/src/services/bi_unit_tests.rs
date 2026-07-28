@@ -116,7 +116,12 @@ mod tests {
         let mut m_values = values.clone();
         assert_eq!(median(&mut m_values), Decimal::from(30));
         // 偶数个
-        let mut m_even = vec![Decimal::from(1), Decimal::from(2), Decimal::from(3), Decimal::from(4)];
+        let mut m_even = vec![
+            Decimal::from(1),
+            Decimal::from(2),
+            Decimal::from(3),
+            Decimal::from(4),
+        ];
         assert_eq!(median(&mut m_even), decs!("2.5"));
     }
 
@@ -164,9 +169,6 @@ mod tests {
             CustomerTier::Normal
         );
         // Churned: 0 单
-        assert_eq!(
-            classify_customer(0, Decimal::ZERO),
-            CustomerTier::Churned
-        );
+        assert_eq!(classify_customer(0, Decimal::ZERO), CustomerTier::Churned);
     }
 }

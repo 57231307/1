@@ -46,8 +46,7 @@ impl MrpEngineService {
             .await?;
 
         // 构建并保存主物料结果
-        let main_active_model =
-            Self::build_main_result_active_model(&calculation_no, &main_req);
+        let main_active_model = Self::build_main_result_active_model(&calculation_no, &main_req);
         let main_result = main_active_model.insert(&*self.db).await?;
         results.push(main_result);
 
@@ -66,8 +65,7 @@ impl MrpEngineService {
 
         // 遍历构建并保存子物料结果
         for (idx, req) in sub_requirements.iter().enumerate() {
-            let sub_active_model =
-                Self::build_sub_result_active_model(&calculation_no, idx, req);
+            let sub_active_model = Self::build_sub_result_active_model(&calculation_no, idx, req);
             let sub_result = sub_active_model.insert(&*self.db).await?;
             results.push(sub_result);
         }
@@ -120,10 +118,7 @@ impl MrpEngineService {
             status: Set(mrp_status::PLANNED.to_string()),
             remarks: Set(Some(format!(
                 "BOM Level: {}, On Hand: {}, In Transit: {}, Shortage: {}",
-                req.bom_level,
-                req.on_hand_quantity,
-                req.in_transit_quantity,
-                req.shortage_quantity
+                req.bom_level, req.on_hand_quantity, req.in_transit_quantity, req.shortage_quantity
             ))),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
@@ -142,8 +137,7 @@ impl MrpEngineService {
 
         // v16 批次 43 修复：循环外批量预加载所有顶层 product_id 的库存信息，
         // 避免循环内重复调用 calculate_requirement 查询同一产品库存（N+1 查询）
-        let top_product_ids: Vec<i32> =
-            request.items.iter().map(|i| i.product_id).collect();
+        let top_product_ids: Vec<i32> = request.items.iter().map(|i| i.product_id).collect();
         let top_stock_map = self.get_stock_info_batch(&top_product_ids).await?;
 
         for item in request.items {

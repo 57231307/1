@@ -87,16 +87,16 @@ pub struct InsuranceRateConfig {
 impl Default for InsuranceRateConfig {
     fn default() -> Self {
         Self {
-            pension_employer_rate: Decimal::new(16, 2),       // 0.16
-            pension_employee_rate: Decimal::new(8, 2),        // 0.08
-            medical_employer_rate: Decimal::new(8, 2),        // 0.08
-            medical_employee_rate: Decimal::new(2, 2),        // 0.02
-            unemployment_employer_rate: Decimal::new(5, 3),   // 0.005
-            unemployment_employee_rate: Decimal::new(5, 3),   // 0.005
-            work_injury_employer_rate: Decimal::new(4, 3),    // 0.004
-            maternity_employer_rate: Decimal::new(1, 2),      // 0.01
-            housing_fund_employer_rate: Decimal::new(12, 2),  // 0.12
-            housing_fund_employee_rate: Decimal::new(12, 2),  // 0.12
+            pension_employer_rate: Decimal::new(16, 2),      // 0.16
+            pension_employee_rate: Decimal::new(8, 2),       // 0.08
+            medical_employer_rate: Decimal::new(8, 2),       // 0.08
+            medical_employee_rate: Decimal::new(2, 2),       // 0.02
+            unemployment_employer_rate: Decimal::new(5, 3),  // 0.005
+            unemployment_employee_rate: Decimal::new(5, 3),  // 0.005
+            work_injury_employer_rate: Decimal::new(4, 3),   // 0.004
+            maternity_employer_rate: Decimal::new(1, 2),     // 0.01
+            housing_fund_employer_rate: Decimal::new(12, 2), // 0.12
+            housing_fund_employee_rate: Decimal::new(12, 2), // 0.12
             // 默认下限按全国社保最低基数示例（应按地区配置覆盖）
             min_base_amount: Decimal::new(4250, 0),
             max_base_amount: Decimal::new(31884, 0),
@@ -320,30 +320,39 @@ impl SocialInsuranceService {
         Ok(updated)
     }
 
-    /// 缴费基数合规校验（纯函数）
-    ///
-    /// 业务规则：
-    /// - 缴费基数 ≥ 当地最低基数（避免按最低基数缴纳降低员工权益）
-    /// - 缴费基数 ≤ 当地最高基数（超出部分不计入缴费基数）
-    /// - 实际工资 > 最低基数时，禁止按最低基数缴纳
+    /// 验证缴费基数（使用实例费率配置）
     pub fn validate_base_amount(&self, base_amount: Decimal) -> BaseValidation {
+        Self::validate_base_amount_with_config(base_amount, &self.rate_config)
+    }
+
+    /// 静态验证缴费基数（使用默认费率配置，供无 DB 场景与测试使用）
+    pub fn validate_base_amount_static(base_amount: Decimal) -> BaseValidation {
+        let config = InsuranceRateConfig::default();
+        Self::validate_base_amount_with_config(base_amount, &config)
+    }
+
+    /// 验证缴费基数内部实现：缴费基数需在 [min, max] 区间内
+    fn validate_base_amount_with_config(
+        base_amount: Decimal,
+        config: &InsuranceRateConfig,
+    ) -> BaseValidation {
         let mut errors: Vec<String> = Vec::new();
         let mut is_below_minimum = false;
         let mut is_above_maximum = false;
 
-        if base_amount < self.rate_config.min_base_amount {
+        if base_amount < config.min_base_amount {
             is_below_minimum = true;
             errors.push(format!(
                 "缴费基数 {} 低于当地最低基数 {}（《社会保险法》第60条）",
-                base_amount, self.rate_config.min_base_amount
+                base_amount, config.min_base_amount
             ));
         }
 
-        if base_amount > self.rate_config.max_base_amount {
+        if base_amount > config.max_base_amount {
             is_above_maximum = true;
             errors.push(format!(
                 "缴费基数 {} 高于当地最高基数 {}（超出部分不计入缴费基数）",
-                base_amount, self.rate_config.max_base_amount
+                base_amount, config.max_base_amount
             ));
         }
 
@@ -386,10 +395,8 @@ impl SocialInsuranceService {
             + maternity_employer
             + housing_fund_employer;
 
-        let total_employee = pension_employee
-            + medical_employee
-            + unemployment_employee
-            + housing_fund_employee;
+        let total_employee =
+            pension_employee + medical_employee + unemployment_employee + housing_fund_employee;
 
         InsuranceCalculationResult {
             pension_employer,
@@ -426,8 +433,7 @@ mod tests {
     #[test]
     fn test_calculate_insurance_default_rates() {
         let config = InsuranceRateConfig::default();
-        let result =
-            SocialInsuranceService::calculate_insurance(Decimal::new(10000, 0), &config);
+        let result = SocialInsuranceService::calculate_insurance(Decimal::new(10000, 0), &config);
 
         // 养老保险：单位 1600 + 个人 800
         assert_eq!(result.pension_employer, Decimal::new(1600, 0));
@@ -450,13 +456,9 @@ mod tests {
 
     #[test]
     fn test_validate_base_amount_normal() {
-        let service = SocialInsuranceService::new(Arc::new(
-            sea_orm::Database::connect(sea_orm::ConnectMode::Memory).unwrap_or_else(|_| {
-                // 测试用：连接失败时跳过，仅验证纯函数逻辑
-                panic!("测试环境数据库连接失败")
-            }),
-        ));
-        let validation = service.validate_base_amount(Decimal::new(10000, 0));
+        // validate_base_amount 是纯函数，不依赖数据库连接
+        let validation =
+            SocialInsuranceService::validate_base_amount_static(Decimal::new(10000, 0));
         assert!(validation.is_valid);
         assert!(!validation.is_below_minimum);
         assert!(!validation.is_above_maximum);

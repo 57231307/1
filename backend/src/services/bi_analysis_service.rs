@@ -74,11 +74,11 @@ pub(crate) fn dim_to_expr(dim: &str) -> Result<(&'static str, &'static str), App
     match dim {
         "customer" => Ok(("c.id::text", "COALESCE(c.customer_name, '未知客户')")),
         "product" => Ok(("p.id::text", "COALESCE(p.name, '未知产品')")),
-        "region" => Ok(("COALESCE(c.province, '未知')", "COALESCE(c.province, '未知')")),
-        "category" => Ok((
-            "COALESCE(pc.name, '未分类')",
-            "COALESCE(pc.name, '未分类')",
+        "region" => Ok((
+            "COALESCE(c.province, '未知')",
+            "COALESCE(c.province, '未知')",
         )),
+        "category" => Ok(("COALESCE(pc.name, '未分类')", "COALESCE(pc.name, '未分类')")),
         "time" => Ok((
             "to_char(s.order_date, 'YYYY-MM')",
             "to_char(s.order_date, 'YYYY-MM')",
@@ -153,7 +153,11 @@ impl BiAnalysisService {
     ///
     /// 由 handler 调用，从 AuthContext.to_data_scope_context() 注入。
     pub fn new_with_data_scope(db: Arc<DatabaseConnection>, ctx: DataScopeContext) -> Self {
-        Self { db, data_scope: ctx, cache: None }
+        Self {
+            db,
+            data_scope: ctx,
+            cache: None,
+        }
     }
 
     /// 缺陷 3.1 修复：创建带缓存的 BI 服务（推荐生产环境使用）
@@ -162,14 +166,22 @@ impl BiAnalysisService {
         ctx: DataScopeContext,
         cache: Arc<AppCache>,
     ) -> Self {
-        Self { db, data_scope: ctx, cache: Some(cache) }
+        Self {
+            db,
+            data_scope: ctx,
+            cache: Some(cache),
+        }
     }
 
     /// V15 P0-B10：构建数据范围 SQL 片段（带别名和起始索引）
     ///
     /// 内部辅助方法，封装 build_data_scope_sql 调用。
     /// pub(crate) 供 bi_analysis_ops 子模块使用。
-    pub(crate) fn scope_sql(&self, table_alias: &str, next_index: usize) -> (String, Vec<sea_orm::Value>) {
+    pub(crate) fn scope_sql(
+        &self,
+        table_alias: &str,
+        next_index: usize,
+    ) -> (String, Vec<sea_orm::Value>) {
         build_data_scope_sql(&self.data_scope, table_alias, next_index)
     }
 
@@ -184,7 +196,9 @@ impl BiAnalysisService {
     pub(crate) fn set_cache<T: serde::Serialize>(&self, key: &str, value: &T) {
         if let Some(cache) = self.cache.as_ref() {
             if let Ok(v) = serde_json::to_value(value) {
-                cache.get_bi_cache().set(key.to_string(), v, Some(BI_CACHE_TTL));
+                cache
+                    .get_bi_cache()
+                    .set(key.to_string(), v, Some(BI_CACHE_TTL));
             }
         }
     }
@@ -217,9 +231,7 @@ mod tests {
     #[tokio::test]
     async fn test_slice_invalid_dimension() {
         if let Some(service) = make_service().await {
-            let result = service
-                .slice("invalid_dim", &serde_json::json!({}))
-                .await;
+            let result = service.slice("invalid_dim", &serde_json::json!({})).await;
             assert!(result.is_err());
         }
     }

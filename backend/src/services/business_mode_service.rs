@@ -231,10 +231,14 @@ fn validate_grey_trading(args: &ModeConsistencyArgs) -> Result<(), AppError> {
         return Err(AppError::business("坯布经销模式必须 require_sales=true"));
     }
     if args.require_production {
-        return Err(AppError::business("坯布经销模式必须 require_production=false"));
+        return Err(AppError::business(
+            "坯布经销模式必须 require_production=false",
+        ));
     }
     if args.require_outsourcing {
-        return Err(AppError::business("坯布经销模式必须 require_outsourcing=false"));
+        return Err(AppError::business(
+            "坯布经销模式必须 require_outsourcing=false",
+        ));
     }
     if args.material_source != business_material_source::PURCHASE {
         return Err(AppError::business(
@@ -255,13 +259,17 @@ fn validate_finished_trading(args: &ModeConsistencyArgs) -> Result<(), AppError>
         return Err(AppError::business("成品经销模式必须 require_purchase=true"));
     }
     if !args.require_production {
-        return Err(AppError::business("成品经销模式必须 require_production=true"));
+        return Err(AppError::business(
+            "成品经销模式必须 require_production=true",
+        ));
     }
     if !args.require_sales {
         return Err(AppError::business("成品经销模式必须 require_sales=true"));
     }
     if args.require_outsourcing {
-        return Err(AppError::business("成品经销模式必须 require_outsourcing=false"));
+        return Err(AppError::business(
+            "成品经销模式必须 require_outsourcing=false",
+        ));
     }
     if args.material_source != business_material_source::PURCHASE {
         return Err(AppError::business(
@@ -279,13 +287,19 @@ fn validate_finished_trading(args: &ModeConsistencyArgs) -> Result<(), AppError>
 /// P0-D12：染整加工模式校验
 fn validate_dyeing_processing(args: &ModeConsistencyArgs) -> Result<(), AppError> {
     if args.require_purchase {
-        return Err(AppError::business("染整加工模式必须 require_purchase=false"));
+        return Err(AppError::business(
+            "染整加工模式必须 require_purchase=false",
+        ));
     }
     if !args.require_production {
-        return Err(AppError::business("染整加工模式必须 require_production=true"));
+        return Err(AppError::business(
+            "染整加工模式必须 require_production=true",
+        ));
     }
     if args.require_outsourcing {
-        return Err(AppError::business("染整加工模式必须 require_outsourcing=false"));
+        return Err(AppError::business(
+            "染整加工模式必须 require_outsourcing=false",
+        ));
     }
     if args.require_sales {
         return Err(AppError::business("染整加工模式必须 require_sales=false"));
@@ -309,13 +323,17 @@ fn validate_self_weave_dye(args: &ModeConsistencyArgs) -> Result<(), AppError> {
         return Err(AppError::business("自织自染模式必须 require_purchase=true"));
     }
     if !args.require_production {
-        return Err(AppError::business("自织自染模式必须 require_production=true"));
+        return Err(AppError::business(
+            "自织自染模式必须 require_production=true",
+        ));
     }
     if !args.require_sales {
         return Err(AppError::business("自织自染模式必须 require_sales=true"));
     }
     if args.require_outsourcing {
-        return Err(AppError::business("自织自染模式必须 require_outsourcing=false"));
+        return Err(AppError::business(
+            "自织自染模式必须 require_outsourcing=false",
+        ));
     }
     if args.material_source != business_material_source::PURCHASE {
         return Err(AppError::business(
@@ -333,13 +351,19 @@ fn validate_self_weave_dye(args: &ModeConsistencyArgs) -> Result<(), AppError> {
 /// P0-D12：委托加工模式校验
 fn validate_outsourcing(args: &ModeConsistencyArgs) -> Result<(), AppError> {
     if args.require_purchase {
-        return Err(AppError::business("委托加工模式必须 require_purchase=false"));
+        return Err(AppError::business(
+            "委托加工模式必须 require_purchase=false",
+        ));
     }
     if !args.require_production {
-        return Err(AppError::business("委托加工模式必须 require_production=true"));
+        return Err(AppError::business(
+            "委托加工模式必须 require_production=true",
+        ));
     }
     if !args.require_outsourcing {
-        return Err(AppError::business("委托加工模式必须 require_outsourcing=true"));
+        return Err(AppError::business(
+            "委托加工模式必须 require_outsourcing=true",
+        ));
     }
     if !args.require_sales {
         return Err(AppError::business("委托加工模式必须 require_sales=true"));
@@ -360,13 +384,19 @@ fn validate_outsourcing(args: &ModeConsistencyArgs) -> Result<(), AppError> {
 /// P0-D12：来料加工模式校验
 fn validate_toll_processing(args: &ModeConsistencyArgs) -> Result<(), AppError> {
     if args.require_purchase {
-        return Err(AppError::business("来料加工模式必须 require_purchase=false"));
+        return Err(AppError::business(
+            "来料加工模式必须 require_purchase=false",
+        ));
     }
     if !args.require_production {
-        return Err(AppError::business("来料加工模式必须 require_production=true"));
+        return Err(AppError::business(
+            "来料加工模式必须 require_production=true",
+        ));
     }
     if args.require_outsourcing {
-        return Err(AppError::business("来料加工模式必须 require_outsourcing=false"));
+        return Err(AppError::business(
+            "来料加工模式必须 require_outsourcing=false",
+        ));
     }
     if args.require_sales {
         return Err(AppError::business("来料加工模式必须 require_sales=false"));

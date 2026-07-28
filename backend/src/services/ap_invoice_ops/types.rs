@@ -42,7 +42,9 @@ pub struct CreateApInvoiceRequest {
     pub payment_terms: Option<i32>,
 
     /// 应付金额（必须为正数）
-    #[validate(custom(function = "crate::services::ap_invoice_service::validate_positive_decimal"))]
+    #[validate(custom(
+        function = "crate::services::ap_invoice_service::validate_positive_decimal"
+    ))]
     pub amount: Option<Decimal>,
 
     /// 币种（ISO 4217 三字母代码）
@@ -54,7 +56,9 @@ pub struct CreateApInvoiceRequest {
     pub exchange_rate: Option<Decimal>,
 
     /// 税额（必须非负）
-    #[validate(custom(function = "crate::services::ap_invoice_service::validate_non_negative_decimal"))]
+    #[validate(custom(
+        function = "crate::services::ap_invoice_service::validate_non_negative_decimal"
+    ))]
     pub tax_amount: Option<Decimal>,
 
     /// 备注
@@ -86,7 +90,9 @@ pub struct UpdateApInvoiceRequest {
     pub payment_terms: Option<i32>,
 
     /// 应付金额（必须为正数）
-    #[validate(custom(function = "crate::services::ap_invoice_service::validate_positive_decimal"))]
+    #[validate(custom(
+        function = "crate::services::ap_invoice_service::validate_positive_decimal"
+    ))]
     pub amount: Option<Decimal>,
 
     /// 备注

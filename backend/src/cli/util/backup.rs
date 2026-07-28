@@ -88,7 +88,9 @@ fn backup_database(backup_dir: &str) -> bool {
     // P0-1 修复（v9 复审）：数据库是核心数据，pg_dump 失败必须中止备份
     if let Err(e) = run_cmd(
         "pg_dump",
-        &["-h", &db_host, "-U", &db_user, "-d", &db_name, "-f", &db_file],
+        &[
+            "-h", &db_host, "-U", &db_user, "-d", &db_name, "-f", &db_file,
+        ],
     ) {
         println!("[ERROR] 数据库备份失败，终止备份: {}", e);
         return false;
@@ -127,10 +129,7 @@ fn backup_config_files(backup_dir: &str) {
 /// 规则 12 合规：设置备份文件权限为 0o600，防止 .env 敏感信息泄露。
 fn compress_backup(tar_file: &str, ts: &str) {
     println!("\n压缩备份...");
-    if let Err(e) = run_cmd(
-        "tar",
-        &["-czf", tar_file, "-C", &get_backup_dir(), ts],
-    ) {
+    if let Err(e) = run_cmd("tar", &["-czf", tar_file, "-C", &get_backup_dir(), ts]) {
         println!("[ERROR] 压缩失败: {}", e);
         return;
     }
@@ -290,7 +289,9 @@ fn restore_database(db_file: &str) -> bool {
     // P1 修复（v9 复审）：数据库是核心数据，psql 恢复失败必须中止
     if let Err(e) = run_cmd(
         "psql",
-        &["-h", &db_host, "-U", &db_user, "-d", &db_name, "-f", db_file],
+        &[
+            "-h", &db_host, "-U", &db_user, "-d", &db_name, "-f", db_file,
+        ],
     ) {
         println!("[ERROR] 数据库恢复失败，终止恢复: {}", e);
         return false;

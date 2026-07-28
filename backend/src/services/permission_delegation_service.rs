@@ -170,10 +170,7 @@ impl PermissionDelegationService {
             .all(&*self.db)
             .await?;
 
-        Ok(delegations
-            .into_iter()
-            .map(|d| d.permission_code)
-            .collect())
+        Ok(delegations.into_iter().map(|d| d.permission_code).collect())
     }
 
     /// V15 P1 12.6：检查用户是否拥有某委托权限
@@ -230,7 +227,8 @@ impl PermissionDelegationService {
         if count > 0 {
             tracing::info!(
                 count,
-                "权限委托过期检查：标记 {} 条过期委托为 expired", count
+                "权限委托过期检查：标记 {} 条过期委托为 expired",
+                count
             );
         }
 
@@ -247,20 +245,26 @@ impl PermissionDelegationService {
     ) -> Result<Vec<permission_delegation::Model>, AppError> {
         let query = DelegationEntity::find();
         let delegations = match user_id {
-            Some(uid) if as_delegator => query
-                .filter(permission_delegation::Column::DelegatorId.eq(uid))
-                .order_by_desc(permission_delegation::Column::CreatedAt)
-                .all(&*self.db)
-                .await?,
-            Some(uid) => query
-                .filter(permission_delegation::Column::DelegateeId.eq(uid))
-                .order_by_desc(permission_delegation::Column::CreatedAt)
-                .all(&*self.db)
-                .await?,
-            None => query
-                .order_by_desc(permission_delegation::Column::CreatedAt)
-                .all(&*self.db)
-                .await?,
+            Some(uid) if as_delegator => {
+                query
+                    .filter(permission_delegation::Column::DelegatorId.eq(uid))
+                    .order_by_desc(permission_delegation::Column::CreatedAt)
+                    .all(&*self.db)
+                    .await?
+            }
+            Some(uid) => {
+                query
+                    .filter(permission_delegation::Column::DelegateeId.eq(uid))
+                    .order_by_desc(permission_delegation::Column::CreatedAt)
+                    .all(&*self.db)
+                    .await?
+            }
+            None => {
+                query
+                    .order_by_desc(permission_delegation::Column::CreatedAt)
+                    .all(&*self.db)
+                    .await?
+            }
         };
         Ok(delegations)
     }

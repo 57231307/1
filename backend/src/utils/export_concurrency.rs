@@ -43,11 +43,7 @@ impl ExportConcurrencyGuard {
             Ordering::Acquire,
         ) {
             Ok(_) => {
-                tracing::debug!(
-                    "导出并发计数器递增: {} -> {}",
-                    current,
-                    current + 1
-                );
+                tracing::debug!("导出并发计数器递增: {} -> {}", current, current + 1);
                 Ok(ExportConcurrencyGuard)
             }
             Err(actual) => {

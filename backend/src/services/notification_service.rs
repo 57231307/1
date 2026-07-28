@@ -15,9 +15,7 @@ use crate::models::notification::{
 };
 use crate::models::notification_setting::{self, Entity as NotificationSettingEntity};
 use crate::utils::error::AppError;
-use crate::websocket::notifications::{
-    get_notification_broadcaster, NotificationPayload,
-};
+use crate::websocket::notifications::{get_notification_broadcaster, NotificationPayload};
 
 /// 将数据库 notification::Model 转为 WebSocket 推送载荷
 ///
@@ -90,14 +88,16 @@ impl NotificationService {
         // 缺陷 5.2 修复：dedup_key 存在时先查 5 分钟窗口，命中则跳过创建
         if let Some(key) = req.dedup_key.as_deref() {
             if self.check_dedup(req.user_id, key).await? {
-                return Err(AppError::validation("通知去重：5 分钟窗口内已存在相同 dedup_key"));
+                return Err(AppError::validation(
+                    "通知去重：5 分钟窗口内已存在相同 dedup_key",
+                ));
             }
         }
 
         let active_model = notification::ActiveModel {
             id: Default::default(),
             user_id: Set(req.user_id),
-            notification_type: Set(req.notification_type),
+            notification_type: Set(req.notification_type.clone()),
             title: Set(req.title),
             content: Set(req.content),
             priority: Set(req.priority),
@@ -159,7 +159,7 @@ impl NotificationService {
             let active_model = notification::ActiveModel {
                 id: Default::default(),
                 user_id: Set(req.user_id),
-                notification_type: Set(req.notification_type),
+                notification_type: Set(req.notification_type.clone()),
                 title: Set(req.title),
                 content: Set(req.content),
                 priority: Set(req.priority),

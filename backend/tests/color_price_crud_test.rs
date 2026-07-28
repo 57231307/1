@@ -15,9 +15,7 @@ mod crud_tests {
     use rust_decimal_macros::dec;
     use sea_orm::Set;
 
-    use bingxi_backend::models::color_price_dto::{
-        CreateColorPriceDto, ListColorPricesQuery,
-    };
+    use bingxi_backend::models::color_price_dto::{CreateColorPriceDto, ListColorPricesQuery};
     use bingxi_backend::models::product_color_price::ActiveModel as ColorPriceActive;
 
     /// 测试 1: CreateColorPriceDto 字段完整性（验证类型正确 + 字段可访问）

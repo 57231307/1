@@ -148,12 +148,7 @@ pub fn build_xlsx_with_watermark(
         .set_freeze_panes(2, 0)
         .map_err(|e| AppError::internal(format!("xlsx 冻结前 2 行失败: {}", e)))?;
 
-    set_watermark_column_widths(
-        worksheet,
-        &table.headers,
-        &table.rows,
-        &watermark_text,
-    )?;
+    set_watermark_column_widths(worksheet, &table.headers, &table.rows, &watermark_text)?;
 
     let bytes = workbook
         .save_to_buffer()
@@ -407,7 +402,11 @@ mod tests {
         assert!(result.is_ok());
         let bytes = result.unwrap();
         // xlsx 文件最小约 4KB（带水印应略大）
-        assert!(bytes.len() > 4000, "xlsx 带水印文件大小异常: {}", bytes.len());
+        assert!(
+            bytes.len() > 4000,
+            "xlsx 带水印文件大小异常: {}",
+            bytes.len()
+        );
         assert_eq!(&bytes[0..2], b"PK");
     }
 

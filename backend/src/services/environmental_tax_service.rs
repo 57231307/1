@@ -69,8 +69,12 @@ impl EnvironmentalTaxService {
         }
 
         // 计算污染当量数与税额
-        let (tax_unit_equivalent, tax_amount) =
-            Self::calculate_tax(&req.discharge_type, &req.pollutant_name, req.discharge_amount, req.concentration);
+        let (tax_unit_equivalent, tax_amount) = Self::calculate_tax(
+            &req.discharge_type,
+            &req.pollutant_name,
+            req.discharge_amount,
+            req.concentration,
+        );
 
         let now = crate::utils::date_utils::utc_now_fixed();
         let active = DischargeActiveModel {
@@ -159,11 +163,11 @@ impl EnvironmentalTaxService {
     ) -> (Decimal, Decimal) {
         // 污染当量值（kg/吨）
         let pollution_equivalent_value = match pollutant_name {
-            "COD" | "cod" => Decimal::new(1, 0),     // 1kg
-            "氨氮" | "NH3-N" => Decimal::new(5, 1),   // 0.5kg
-            "VOCs" | "vocs" => Decimal::new(5, 1),   // 0.5kg
+            "COD" | "cod" => Decimal::new(1, 0),        // 1kg
+            "氨氮" | "NH3-N" => Decimal::new(5, 1),     // 0.5kg
+            "VOCs" | "vocs" => Decimal::new(5, 1),      // 0.5kg
             "污泥" | "sludge" => Decimal::new(1000, 0), // 1吨=1000kg
-            _ => Decimal::new(1, 0),                 // 默认 1kg
+            _ => Decimal::new(1, 0),                    // 默认 1kg
         };
 
         // 适用税额（元/污染当量）：取中值 2.4 元

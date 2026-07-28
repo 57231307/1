@@ -150,7 +150,9 @@ pub async fn list_greige_fabrics(
     let paginator = q.paginate(&*state.db, page_size);
     let total = paginator.num_items().await?;
     // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-    let fabrics = paginator.fetch_page(page.clamp(1, 1000).saturating_sub(1)).await?;
+    let fabrics = paginator
+        .fetch_page(page.clamp(1, 1000).saturating_sub(1))
+        .await?;
     Ok(Json(ApiResponse::success_paginated(
         fabrics, total, page, page_size,
     )))
@@ -219,7 +221,10 @@ pub async fn create_greige_fabric(
     };
 
     let created = fabric.insert(&*state.db).await?;
-    Ok(Json(ApiResponse::success_with_message(created, "坯布创建成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        created,
+        "坯布创建成功",
+    )))
 }
 
 pub async fn update_greige_fabric(
@@ -290,7 +295,10 @@ pub async fn update_greige_fabric(
     fabric.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
     let updated = fabric.update(&*state.db).await?;
-    Ok(Json(ApiResponse::success_with_message(updated, "坯布更新成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "坯布更新成功",
+    )))
 }
 
 pub async fn delete_greige_fabric(
@@ -397,7 +405,10 @@ pub async fn stock_in(
         );
     }
 
-    Ok(Json(ApiResponse::success_with_message(updated, "坯布入库成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "坯布入库成功",
+    )))
 }
 
 pub async fn stock_out(
@@ -470,7 +481,10 @@ pub async fn stock_out(
     }
 
     let updated = update_fabric.update(&*state.db).await?;
-    Ok(Json(ApiResponse::success_with_message(updated, "坯布出库成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "坯布出库成功",
+    )))
 }
 
 pub async fn get_greige_by_supplier(

@@ -177,7 +177,9 @@ impl AiModelManagementService {
         if let Some(name) = model_name {
             q = q.filter(ModelVersionColumn::ModelName.eq(name));
         }
-        Ok(q.order_by_desc(ModelVersionColumn::CreatedAt).all(&*self.db).await?)
+        Ok(q.order_by_desc(ModelVersionColumn::CreatedAt)
+            .all(&*self.db)
+            .await?)
     }
 
     /// V15 P1 3.1：获取当前生效模型版本（status=active）
@@ -375,16 +377,12 @@ impl AiModelManagementService {
         let latest = &evals[0];
         let current = latest.accuracy;
         // baseline = 除最新外的历史平均
-        let historical: Vec<Decimal> = evals
-            .iter()
-            .skip(1)
-            .filter_map(|e| e.accuracy)
-            .collect();
+        let historical: Vec<Decimal> = evals.iter().skip(1).filter_map(|e| e.accuracy).collect();
         if historical.is_empty() {
             return Ok((false, current, None, 0.0));
         }
-        let baseline_dec: Decimal = historical.iter().sum::<Decimal>()
-            / Decimal::from(historical.len());
+        let baseline_dec: Decimal =
+            historical.iter().sum::<Decimal>() / Decimal::from(historical.len());
         let baseline = Some(baseline_dec);
         let drift_pct = if let (Some(c), Some(b)) = (current, baseline_dec) {
             let c_f = c.to_f64().unwrap_or(0.0);
@@ -471,10 +469,7 @@ impl AiModelManagementService {
                 | "recommendation"
         );
         if !valid {
-            return Err(AppError::validation(format!(
-                "decision_type 非法：{}",
-                dt
-            )));
+            return Err(AppError::validation(format!("decision_type 非法：{}", dt)));
         }
         Ok(())
     }
@@ -739,7 +734,10 @@ mod tests {
             AiQualityReconciliationService::normalize_risk("medium"),
             "medium"
         );
-        assert_eq!(AiQualityReconciliationService::normalize_risk("中"), "medium");
+        assert_eq!(
+            AiQualityReconciliationService::normalize_risk("中"),
+            "medium"
+        );
         assert_eq!(AiQualityReconciliationService::normalize_risk("low"), "low");
         assert_eq!(AiQualityReconciliationService::normalize_risk("低"), "low");
         assert_eq!(
@@ -754,9 +752,21 @@ mod tests {
             sea_orm::DatabaseConnection::default(),
         ));
         let _ = svc; // 抑制 unused 警告
-        assert!(AiModelManagementService::validate_metric_range("accuracy", Some(Decimal::new(85, 2))).is_ok());
+        assert!(AiModelManagementService::validate_metric_range(
+            "accuracy",
+            Some(Decimal::new(85, 2))
+        )
+        .is_ok());
         assert!(AiModelManagementService::validate_metric_range("accuracy", None).is_ok());
-        assert!(AiModelManagementService::validate_metric_range("accuracy", Some(Decimal::new(150, 2))).is_err());
-        assert!(AiModelManagementService::validate_metric_range("accuracy", Some(Decimal::new(-5, 2))).is_err());
+        assert!(AiModelManagementService::validate_metric_range(
+            "accuracy",
+            Some(Decimal::new(150, 2))
+        )
+        .is_err());
+        assert!(AiModelManagementService::validate_metric_range(
+            "accuracy",
+            Some(Decimal::new(-5, 2))
+        )
+        .is_err());
     }
 }

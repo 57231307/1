@@ -145,7 +145,7 @@ impl CustomerService {
         ))
     }
 
-/// 删除客户（软删除，将状态改为 inactive）
+    /// 删除客户（软删除，将状态改为 inactive）
     pub async fn delete_customer(
         &self,
         customer_id: i32,

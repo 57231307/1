@@ -194,26 +194,18 @@ impl ExportService {
             ],
         };
 
-        let detail_headers: Vec<String> =
-            vec!["类型".to_string(), "单号".to_string(), "金额".to_string(), "日期".to_string()];
+        let detail_headers: Vec<String> = vec![
+            "类型".to_string(),
+            "单号".to_string(),
+            "金额".to_string(),
+            "日期".to_string(),
+        ];
         let detail_rows: Vec<Vec<String>> = items
             .into_iter()
-            .map(|item| {
-                vec![
-                    item.item_type,
-                    item.document_no,
-                    item.amount,
-                    item.date,
-                ]
-            })
+            .map(|item| vec![item.item_type, item.document_no, item.amount, item.date])
             .collect();
 
-        build_docx_with_kv(
-            "应收账款对账单",
-            &kv,
-            &detail_headers,
-            &detail_rows,
-        )
+        build_docx_with_kv("应收账款对账单", &kv, &detail_headers, &detail_rows)
     }
 }
 

@@ -14,10 +14,7 @@ use serde::Deserialize;
 use validator::Validate;
 
 /// P0 8-5 修复：omni_audit 查询接口要求 admin 角色
-async fn require_admin_role(
-    state: &AppState,
-    auth: &AuthContext,
-) -> Result<(), AppError> {
+async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), AppError> {
     let role_id = auth
         .role_id
         .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法查询审计日志"))?;
@@ -158,8 +155,7 @@ pub async fn search_logs(
 
     let (_page, page_size, offset) = compute_pagination(&filter);
     let (start_date, end_date) = compute_date_range(&filter);
-    let (where_sql, where_params, param_idx) =
-        build_where_clause(&filter, start_date, end_date);
+    let (where_sql, where_params, param_idx) = build_where_clause(&filter, start_date, end_date);
     let select_fields = build_select_fields(filter.include_sensitive);
 
     let list_sql = format!(
@@ -230,7 +226,10 @@ fn build_where_clause(
     where_clauses.push(format!("created_at >= ${}::date", param_idx));
     where_params.push(start_date.into());
     param_idx += 1;
-    where_clauses.push(format!("created_at < (${}::date + INTERVAL '1 day')", param_idx));
+    where_clauses.push(format!(
+        "created_at < (${}::date + INTERVAL '1 day')",
+        param_idx
+    ));
     where_params.push(end_date.into());
     param_idx += 1;
     if let Some(ref keyword) = filter.keyword {

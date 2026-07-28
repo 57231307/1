@@ -1,4 +1,3 @@
-
 use crate::middleware::auth_context::AuthContext;
 use crate::middleware::public_routes::is_public_path;
 use crate::models::audit_log::{OperationType, Severity};
@@ -210,17 +209,8 @@ fn extract_segment3(path: &str) -> Option<&str> {
 
 /// V15 P0-S20：路径动作关键字集合（出现在 URL 末段时优先作为 action）
 const PATH_ACTION_KEYWORDS: &[&str] = &[
-    "print",
-    "export",
-    "import",
-    "audit",
-    "approve",
-    "reject",
-    "cancel",
-    "close",
-    "confirm",
-    "submit",
-    "release",
+    "print", "export", "import", "audit", "approve", "reject", "cancel", "close", "confirm",
+    "submit", "release",
 ];
 
 /// V15 P0-S20：从路径末段提取动作关键字，非关键字返回 None
@@ -403,7 +393,10 @@ pub async fn start_permission_cache_pubsub_subscriber() {
             return;
         }
     };
-    if let Err(e) = pubsub.subscribe(PERMISSION_CACHE_INVALIDATION_CHANNEL).await {
+    if let Err(e) = pubsub
+        .subscribe(PERMISSION_CACHE_INVALIDATION_CHANNEL)
+        .await
+    {
         tracing::warn!(error = %e, "Redis PubSub 订阅失败，权限缓存多实例广播未启用");
         return;
     }
@@ -440,8 +433,15 @@ const PRINT_DENIED_ROLE_CODES: &[&str] = &["customer", "temporary"];
 const EXPORT_DENIED_ROLE_CODES: &[&str] = &["customer", "temporary"];
 
 /// V15 P1-2-4：染色配方导出额外禁止的角色清单（仅 dye_recipe_master 可导出）
-const DYE_RECIPE_EXPORT_DENIED_ROLE_CODES: &[&str] =
-    &["customer", "temporary", "manager", "operator", "sales", "purchase", "warehouse"];
+const DYE_RECIPE_EXPORT_DENIED_ROLE_CODES: &[&str] = &[
+    "customer",
+    "temporary",
+    "manager",
+    "operator",
+    "sales",
+    "purchase",
+    "warehouse",
+];
 
 /// V15 P1-2-4：检查角色是否被禁止执行指定动作（print/export/dye_recipe export 三类规则）
 // 规则：action="print"→PRINT_DENIED；action="export"→EXPORT_DENIED；dye_recipe+export→DYE_RECIPE_EXPORT_DENIED
@@ -486,8 +486,6 @@ async fn is_action_denied_for_role(
 
     false
 }
-
-
 
 async fn check_permission(
     db: &sea_orm::DatabaseConnection,
@@ -552,9 +550,9 @@ async fn check_permission(
 
     // 检查是否有匹配的权限
     // M-6 修复：resource_id 精确匹配，action 支持 "*" 通配符
-    permissions.iter().any(|p| {
-        matches_permission(p, resource_type, resource_id, action)
-    })
+    permissions
+        .iter()
+        .any(|p| matches_permission(p, resource_type, resource_id, action))
 }
 
 /// 权限匹配纯函数：resource_type 精确匹配，action 支持 "*"，resource_id 精确匹配防越权
@@ -711,10 +709,7 @@ mod tests {
     #[test]
     fn test_extract_segment3_标准路径() {
         assert_eq!(extract_segment3("/api/v1/erp/users"), Some("users"));
-        assert_eq!(
-            extract_segment3("/api/v1/erp/sales/orders"),
-            Some("sales")
-        );
+        assert_eq!(extract_segment3("/api/v1/erp/sales/orders"), Some("sales"));
         assert_eq!(
             extract_segment3("/api/v1/erp/production/dye-batches"),
             Some("production")
@@ -771,10 +766,7 @@ mod tests {
     #[test]
     fn test_extract_action_from_path_非动作关键字返回None() {
         // 非动作关键字不应被识别为动作
-        assert_eq!(
-            extract_action_from_path("/api/v1/erp/users/profile"),
-            None
-        );
+        assert_eq!(extract_action_from_path("/api/v1/erp/users/profile"), None);
     }
 
     // ===== method_to_action 测试 =====
@@ -882,7 +874,10 @@ mod tests {
     // ===== V15 P1-14.11-C：缓存失效生命周期测试（insert→invalidate→reload→expiry 完整链路）=====
 
     /// 构造带权限数据的缓存条目，用于生命周期测试
-    fn make_cache_entry(permissions: Vec<role_permission::Model>, ttl_minutes: i64) -> CacheEntry<Arc<Vec<role_permission::Model>>> {
+    fn make_cache_entry(
+        permissions: Vec<role_permission::Model>,
+        ttl_minutes: i64,
+    ) -> CacheEntry<Arc<Vec<role_permission::Model>>> {
         CacheEntry {
             data: Arc::new(permissions),
             expires_at: Utc::now() + Duration::minutes(ttl_minutes),
@@ -890,7 +885,9 @@ mod tests {
     }
 
     /// 构造已过期的缓存条目
-    fn make_expired_cache_entry(permissions: Vec<role_permission::Model>) -> CacheEntry<Arc<Vec<role_permission::Model>>> {
+    fn make_expired_cache_entry(
+        permissions: Vec<role_permission::Model>,
+    ) -> CacheEntry<Arc<Vec<role_permission::Model>>> {
         CacheEntry {
             data: Arc::new(permissions),
             expires_at: Utc::now() - Duration::minutes(1),
@@ -907,7 +904,10 @@ mod tests {
         // 1. insert：插入权限缓存
         let perms_v1 = vec![make_permission("users", None, "read")];
         PERMISSION_CACHE.insert(role_id, make_cache_entry(perms_v1.clone(), 5));
-        assert!(PERMISSION_CACHE.contains_key(&role_id), "insert 后缓存应存在");
+        assert!(
+            PERMISSION_CACHE.contains_key(&role_id),
+            "insert 后缓存应存在"
+        );
         assert_eq!(
             PERMISSION_CACHE.get(&role_id).unwrap().data.len(),
             1,
@@ -916,7 +916,10 @@ mod tests {
 
         // 2. invalidate：失效缓存
         invalidate_permission_cache(role_id);
-        assert!(!PERMISSION_CACHE.contains_key(&role_id), "invalidate 后缓存应被移除");
+        assert!(
+            !PERMISSION_CACHE.contains_key(&role_id),
+            "invalidate 后缓存应被移除"
+        );
 
         // 3. reload：重新加载（模拟 check_permission 重新查询 DB 后回填缓存）
         let perms_v2 = vec![
@@ -924,7 +927,10 @@ mod tests {
             make_permission("users", None, "create"),
         ];
         PERMISSION_CACHE.insert(role_id, make_cache_entry(perms_v2.clone(), 5));
-        assert!(PERMISSION_CACHE.contains_key(&role_id), "reload 后缓存应重新存在");
+        assert!(
+            PERMISSION_CACHE.contains_key(&role_id),
+            "reload 后缓存应重新存在"
+        );
         assert_eq!(
             PERMISSION_CACHE.get(&role_id).unwrap().data.len(),
             2,
@@ -959,9 +965,15 @@ mod tests {
         assert!(!PERMISSION_CACHE.contains_key(&role_id), "过期条目应被移除");
 
         // 3. reload：重新加载新数据
-        let perms_v2 = vec![make_permission("orders", None, "read"), make_permission("orders", None, "export")];
+        let perms_v2 = vec![
+            make_permission("orders", None, "read"),
+            make_permission("orders", None, "export"),
+        ];
         PERMISSION_CACHE.insert(role_id, make_cache_entry(perms_v2.clone(), 5));
-        assert!(!PERMISSION_CACHE.get(&role_id).unwrap().is_expired(), "新条目不应过期");
+        assert!(
+            !PERMISSION_CACHE.get(&role_id).unwrap().is_expired(),
+            "新条目不应过期"
+        );
         assert_eq!(
             PERMISSION_CACHE.get(&role_id).unwrap().data.len(),
             2,
@@ -1037,8 +1049,14 @@ mod tests {
         PERMISSION_CACHE.remove(&role_b);
 
         // 两个角色同时缓存
-        PERMISSION_CACHE.insert(role_a, make_cache_entry(vec![make_permission("a", None, "read")], 5));
-        PERMISSION_CACHE.insert(role_b, make_cache_entry(vec![make_permission("b", None, "read")], 5));
+        PERMISSION_CACHE.insert(
+            role_a,
+            make_cache_entry(vec![make_permission("a", None, "read")], 5),
+        );
+        PERMISSION_CACHE.insert(
+            role_b,
+            make_cache_entry(vec![make_permission("b", None, "read")], 5),
+        );
 
         // 失效 role_a，role_b 不受影响
         invalidate_permission_cache(role_a);
@@ -1046,8 +1064,14 @@ mod tests {
         assert!(PERMISSION_CACHE.contains_key(&role_b), "role_b 不应受影响");
 
         // reload role_a
-        PERMISSION_CACHE.insert(role_a, make_cache_entry(vec![make_permission("a", None, "read")], 5));
-        assert!(PERMISSION_CACHE.contains_key(&role_a), "role_a reload 后应存在");
+        PERMISSION_CACHE.insert(
+            role_a,
+            make_cache_entry(vec![make_permission("a", None, "read")], 5),
+        );
+        assert!(
+            PERMISSION_CACHE.contains_key(&role_a),
+            "role_a reload 后应存在"
+        );
 
         // 清理
         invalidate_permission_cache(role_a);
@@ -1064,19 +1088,35 @@ mod tests {
 
         // 插入多个角色缓存
         for &rid in &role_ids {
-            PERMISSION_CACHE.insert(rid, make_cache_entry(vec![make_permission("x", None, "read")], 5));
+            PERMISSION_CACHE.insert(
+                rid,
+                make_cache_entry(vec![make_permission("x", None, "read")], 5),
+            );
         }
 
         // invalidate_all 清空全部
         invalidate_all_permission_cache();
         for &rid in &role_ids {
-            assert!(!PERMISSION_CACHE.contains_key(&rid), "角色 {} 应被清空", rid);
+            assert!(
+                !PERMISSION_CACHE.contains_key(&rid),
+                "角色 {} 应被清空",
+                rid
+            );
         }
 
         // 重新加载单个角色
-        PERMISSION_CACHE.insert(role_ids[0], make_cache_entry(vec![make_permission("y", None, "read")], 5));
-        assert!(PERMISSION_CACHE.contains_key(&role_ids[0]), "reload 后应存在");
-        assert!(!PERMISSION_CACHE.contains_key(&role_ids[1]), "其他角色仍应被清空");
+        PERMISSION_CACHE.insert(
+            role_ids[0],
+            make_cache_entry(vec![make_permission("y", None, "read")], 5),
+        );
+        assert!(
+            PERMISSION_CACHE.contains_key(&role_ids[0]),
+            "reload 后应存在"
+        );
+        assert!(
+            !PERMISSION_CACHE.contains_key(&role_ids[1]),
+            "其他角色仍应被清空"
+        );
 
         // 清理
         invalidate_all_permission_cache();
@@ -1086,13 +1126,8 @@ mod tests {
 
     #[test]
     fn test_extract_action_from_query_print动作() {
-        let uri: axum::http::Uri = "/api/v1/erp/sales/orders?action=print"
-            .parse()
-            .unwrap();
-        assert_eq!(
-            extract_action_from_query(&uri),
-            Some("print".to_string())
-        );
+        let uri: axum::http::Uri = "/api/v1/erp/sales/orders?action=print".parse().unwrap();
+        assert_eq!(extract_action_from_query(&uri), Some("print".to_string()));
     }
 
     #[test]
@@ -1100,10 +1135,7 @@ mod tests {
         let uri: axum::http::Uri = "/api/v1/erp/inventory/stocks?action=export"
             .parse()
             .unwrap();
-        assert_eq!(
-            extract_action_from_query(&uri),
-            Some("export".to_string())
-        );
+        assert_eq!(extract_action_from_query(&uri), Some("export".to_string()));
     }
 
     #[test]
@@ -1119,18 +1151,14 @@ mod tests {
 
     #[test]
     fn test_extract_action_from_query_无action参数返回None() {
-        let uri: axum::http::Uri = "/api/v1/erp/sales/orders?page=1"
-            .parse()
-            .unwrap();
+        let uri: axum::http::Uri = "/api/v1/erp/sales/orders?page=1".parse().unwrap();
         assert_eq!(extract_action_from_query(&uri), None);
     }
 
     #[test]
     fn test_extract_action_from_query_白名单外动作返回None() {
         // action=read 不在白名单中，防止客户端绕过权限
-        let uri: axum::http::Uri = "/api/v1/erp/sales/orders?action=read"
-            .parse()
-            .unwrap();
+        let uri: axum::http::Uri = "/api/v1/erp/sales/orders?action=read".parse().unwrap();
         assert_eq!(extract_action_from_query(&uri), None);
     }
 
@@ -1145,10 +1173,7 @@ mod tests {
         let uri: axum::http::Uri = "/api/v1/erp/sales/orders?page=1&action=print&format=pdf"
             .parse()
             .unwrap();
-        assert_eq!(
-            extract_action_from_query(&uri),
-            Some("print".to_string())
-        );
+        assert_eq!(extract_action_from_query(&uri), Some("print".to_string()));
     }
 
     #[test]
@@ -1157,10 +1182,7 @@ mod tests {
         let uri: axum::http::Uri = "/api/v1/erp/sales/orders?action=%70%72%69%6e%74"
             .parse()
             .unwrap();
-        assert_eq!(
-            extract_action_from_query(&uri),
-            Some("print".to_string())
-        );
+        assert_eq!(extract_action_from_query(&uri), Some("print".to_string()));
     }
 
     // ===== matches_permission 测试（安全核心）=====

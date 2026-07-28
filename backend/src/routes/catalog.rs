@@ -206,8 +206,14 @@ fn chemical_lot_routes() -> Router<AppState> {
             "/chemical-lots/:id/fail-inspection",
             post(chemical_handler::fail_inspection),
         )
-        .route("/chemical-lots/:id/consume", post(chemical_handler::consume_lot))
-        .route("/chemical-lots/:id/scrap", post(chemical_handler::scrap_lot))
+        .route(
+            "/chemical-lots/:id/consume",
+            post(chemical_handler::consume_lot),
+        )
+        .route(
+            "/chemical-lots/:id/scrap",
+            post(chemical_handler::scrap_lot),
+        )
 }
 
 /// 染化料领用单路由（path 前缀 /chemical-requisitions）
@@ -215,8 +221,7 @@ fn chemical_requisition_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/chemical-requisitions",
-            get(chemical_handler::list_requisitions)
-                .post(chemical_handler::create_requisition),
+            get(chemical_handler::list_requisitions).post(chemical_handler::create_requisition),
         )
         .route(
             "/chemical-requisitions/by-no/:no",

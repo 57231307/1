@@ -335,7 +335,11 @@ impl FinancialAnalysisService {
         let results = self
             .compute_indicator_results(period, user_id, &summary, &indicator_defs)
             .await?;
-        info!("财务指标计算完成，期间: {}，共计算 {} 个指标", period, results.len());
+        info!(
+            "财务指标计算完成，期间: {}，共计算 {} 个指标",
+            period,
+            results.len()
+        );
         Ok(results)
     }
 
@@ -350,7 +354,10 @@ impl FinancialAnalysisService {
             .all(&*self.db)
             .await?;
         // P3 维度 6 修复（批次 87）：补 LIMIT 兜底防止全表加载
-        let subjects = account_subject::Entity::find().limit(10_000).all(&*self.db).await?;
+        let subjects = account_subject::Entity::find()
+            .limit(10_000)
+            .all(&*self.db)
+            .await?;
         let subject_map = subjects.into_iter().map(|s| (s.id, s)).collect();
         Ok((balances, subject_map))
     }
@@ -392,16 +399,47 @@ impl FinancialAnalysisService {
         indicator_defs: &[financial_analysis::Model],
     ) -> Result<Vec<financial_analysis_result::Model>, AppError> {
         let ratios: [(&str, Option<Decimal>, Option<Decimal>); 5] = [
-            ("CURRENT_RATIO", Self::safe_div(summary.current_assets, summary.current_liabilities), Some(Decimal::from(2))),
-            ("QUICK_RATIO", Self::safe_div(summary.current_assets - summary.inventory, summary.current_liabilities), Some(Decimal::from(1))),
-            ("DEBT_ASSET_RATIO", Self::safe_div(summary.total_liabilities, summary.total_assets), Some(Decimal::new(60, 2))),
-            ("AR_TURNOVER_RATIO", Self::safe_div(summary.sales_revenue, summary.accounts_receivable), None),
-            ("AP_TURNOVER_RATIO", Self::safe_div(summary.purchase_cost, summary.accounts_payable), None),
+            (
+                "CURRENT_RATIO",
+                Self::safe_div(summary.current_assets, summary.current_liabilities),
+                Some(Decimal::from(2)),
+            ),
+            (
+                "QUICK_RATIO",
+                Self::safe_div(
+                    summary.current_assets - summary.inventory,
+                    summary.current_liabilities,
+                ),
+                Some(Decimal::from(1)),
+            ),
+            (
+                "DEBT_ASSET_RATIO",
+                Self::safe_div(summary.total_liabilities, summary.total_assets),
+                Some(Decimal::new(60, 2)),
+            ),
+            (
+                "AR_TURNOVER_RATIO",
+                Self::safe_div(summary.sales_revenue, summary.accounts_receivable),
+                None,
+            ),
+            (
+                "AP_TURNOVER_RATIO",
+                Self::safe_div(summary.purchase_cost, summary.accounts_payable),
+                None,
+            ),
         ];
         let mut results = Vec::new();
         for (code, value, threshold) in ratios {
-            self.try_save_indicator(indicator_defs, code, period, value, threshold, user_id, &mut results)
-                .await?;
+            self.try_save_indicator(
+                indicator_defs,
+                code,
+                period,
+                value,
+                threshold,
+                user_id,
+                &mut results,
+            )
+            .await?;
         }
         Ok(results)
     }
@@ -411,7 +449,10 @@ impl FinancialAnalysisService {
         if denominator.is_zero() {
             None
         } else {
-            Some((numerator / denominator).round_dp_with_strategy(4, RoundingStrategy::MidpointAwayFromZero))
+            Some(
+                (numerator / denominator)
+                    .round_dp_with_strategy(4, RoundingStrategy::MidpointAwayFromZero),
+            )
         }
     }
 
@@ -588,8 +629,7 @@ impl FinancialAnalysisService {
             - summary.selling_expenses
             - summary.administrative_expenses
             - summary.financial_expenses;
-        summary.net_profit = summary.operating_profit
-            + summary.non_operating_income
+        summary.net_profit = summary.operating_profit + summary.non_operating_income
             - summary.non_operating_expenses
             - summary.income_tax_expense;
 
@@ -651,24 +691,45 @@ impl FinancialAnalysisService {
             - summary.selling_expenses
             - summary.administrative_expenses
             - summary.financial_expenses;
-        summary.net_profit = summary.operating_profit
-            + summary.non_operating_income
+        summary.net_profit = summary.operating_profit + summary.non_operating_income
             - summary.non_operating_expenses
             - summary.income_tax_expense;
 
         let ratios: [(&str, Option<Decimal>, Option<Decimal>); 3] = [
-            ("GROSS_MARGIN", Self::safe_div(summary.gross_profit, summary.sales_revenue), Some(Decimal::new(30, 2))),
-            ("OPERATING_MARGIN", Self::safe_div(summary.operating_profit, summary.sales_revenue), Some(Decimal::new(15, 2))),
-            ("NET_MARGIN", Self::safe_div(summary.net_profit, summary.sales_revenue), Some(Decimal::new(10, 2))),
+            (
+                "GROSS_MARGIN",
+                Self::safe_div(summary.gross_profit, summary.sales_revenue),
+                Some(Decimal::new(30, 2)),
+            ),
+            (
+                "OPERATING_MARGIN",
+                Self::safe_div(summary.operating_profit, summary.sales_revenue),
+                Some(Decimal::new(15, 2)),
+            ),
+            (
+                "NET_MARGIN",
+                Self::safe_div(summary.net_profit, summary.sales_revenue),
+                Some(Decimal::new(10, 2)),
+            ),
         ];
 
         // 确保指标定义存在
-        let _ = self.ensure_profitability_indicator_definitions(user_id).await?;
+        let _ = self
+            .ensure_profitability_indicator_definitions(user_id)
+            .await?;
         let indicator_defs = self.ensure_indicator_definitions(user_id).await?;
         let mut results = Vec::new();
         for (code, value, target) in ratios {
-            self.try_save_indicator(indicator_defs, code, period, value, target, user_id, &mut results)
-                .await?;
+            self.try_save_indicator(
+                indicator_defs,
+                code,
+                period,
+                value,
+                target,
+                user_id,
+                &mut results,
+            )
+            .await?;
         }
         Ok(results)
     }
@@ -695,8 +756,7 @@ impl FinancialAnalysisService {
             - current.selling_expenses
             - current.administrative_expenses
             - current.financial_expenses;
-        current.net_profit = current.operating_profit
-            + current.non_operating_income
+        current.net_profit = current.operating_profit + current.non_operating_income
             - current.non_operating_expenses
             - current.income_tax_expense;
 
@@ -710,17 +770,35 @@ impl FinancialAnalysisService {
         let asset_growth = Self::calc_growth_rate(current.total_assets, prior.total_assets);
 
         let ratios: [(&str, Option<Decimal>, Option<Decimal>); 3] = [
-            ("REVENUE_GROWTH_RATE", revenue_growth, Some(Decimal::new(10, 2))),
-            ("PROFIT_GROWTH_RATE", profit_growth, Some(Decimal::new(10, 2))),
+            (
+                "REVENUE_GROWTH_RATE",
+                revenue_growth,
+                Some(Decimal::new(10, 2)),
+            ),
+            (
+                "PROFIT_GROWTH_RATE",
+                profit_growth,
+                Some(Decimal::new(10, 2)),
+            ),
             ("ASSET_GROWTH_RATE", asset_growth, Some(Decimal::new(10, 2))),
         ];
 
-        let _ = self.ensure_development_indicator_definitions(user_id).await?;
+        let _ = self
+            .ensure_development_indicator_definitions(user_id)
+            .await?;
         let indicator_defs = self.ensure_indicator_definitions(user_id).await?;
         let mut results = Vec::new();
         for (code, value, target) in ratios {
-            self.try_save_indicator(indicator_defs, code, period, value, target, user_id, &mut results)
-                .await?;
+            self.try_save_indicator(
+                indicator_defs,
+                code,
+                period,
+                value,
+                target,
+                user_id,
+                &mut results,
+            )
+            .await?;
         }
         Ok(results)
     }
@@ -740,10 +818,16 @@ impl FinancialAnalysisService {
     fn prior_period(period: &str) -> Result<String, AppError> {
         let parts: Vec<&str> = period.split('-').collect();
         if parts.len() != 2 {
-            return Err(AppError::validation("期间格式错误，应为 YYYY-MM".to_string()));
+            return Err(AppError::validation(
+                "期间格式错误，应为 YYYY-MM".to_string(),
+            ));
         }
-        let year: i32 = parts[0].parse().map_err(|_| AppError::validation("年份解析错误"))?;
-        let month: u32 = parts[1].parse().map_err(|_| AppError::validation("月份解析错误"))?;
+        let year: i32 = parts[0]
+            .parse()
+            .map_err(|_| AppError::validation("年份解析错误"))?;
+        let month: u32 = parts[1]
+            .parse()
+            .map_err(|_| AppError::validation("月份解析错误"))?;
         if month == 1 {
             Ok(format!("{:04}-12", year - 1))
         } else {
@@ -752,13 +836,14 @@ impl FinancialAnalysisService {
     }
 
     /// V15 P1 17.5-D2：确保 ROE 指标定义存在
-    async fn ensure_dupont_indicator_definitions(
-        &self,
-        _user_id: i32,
-    ) -> Result<(), AppError> {
-        let definitions = vec![
-            ("ROE", "净资产收益率", "盈利能力", "净利率 × 总资产周转率 × 权益乘数", "%"),
-        ];
+    async fn ensure_dupont_indicator_definitions(&self, _user_id: i32) -> Result<(), AppError> {
+        let definitions = vec![(
+            "ROE",
+            "净资产收益率",
+            "盈利能力",
+            "净利率 × 总资产周转率 × 权益乘数",
+            "%",
+        )];
         for (code, name, type_, formula, unit) in definitions {
             let existing = financial_analysis::Entity::find()
                 .filter(financial_analysis::Column::IndicatorCode.eq(code))
@@ -787,8 +872,20 @@ impl FinancialAnalysisService {
         _user_id: i32,
     ) -> Result<(), AppError> {
         let definitions = vec![
-            ("GROSS_MARGIN", "毛利率", "盈利能力", "(销售收入 - 主营业务成本) / 销售收入", "%"),
-            ("OPERATING_MARGIN", "营业利润率", "盈利能力", "营业利润 / 销售收入", "%"),
+            (
+                "GROSS_MARGIN",
+                "毛利率",
+                "盈利能力",
+                "(销售收入 - 主营业务成本) / 销售收入",
+                "%",
+            ),
+            (
+                "OPERATING_MARGIN",
+                "营业利润率",
+                "盈利能力",
+                "营业利润 / 销售收入",
+                "%",
+            ),
             ("NET_MARGIN", "净利率", "盈利能力", "净利润 / 销售收入", "%"),
         ];
         for (code, name, type_, formula, unit) in definitions {
@@ -819,9 +916,27 @@ impl FinancialAnalysisService {
         _user_id: i32,
     ) -> Result<(), AppError> {
         let definitions = vec![
-            ("REVENUE_GROWTH_RATE", "收入增长率", "发展能力", "(本期收入 - 上期收入) / 上期收入 × 100%", "%"),
-            ("PROFIT_GROWTH_RATE", "利润增长率", "发展能力", "(本期净利润 - 上期净利润) / 上期净利润 × 100%", "%"),
-            ("ASSET_GROWTH_RATE", "资产增长率", "发展能力", "(本期总资产 - 上期总资产) / 上期总资产 × 100%", "%"),
+            (
+                "REVENUE_GROWTH_RATE",
+                "收入增长率",
+                "发展能力",
+                "(本期收入 - 上期收入) / 上期收入 × 100%",
+                "%",
+            ),
+            (
+                "PROFIT_GROWTH_RATE",
+                "利润增长率",
+                "发展能力",
+                "(本期净利润 - 上期净利润) / 上期净利润 × 100%",
+                "%",
+            ),
+            (
+                "ASSET_GROWTH_RATE",
+                "资产增长率",
+                "发展能力",
+                "(本期总资产 - 上期总资产) / 上期总资产 × 100%",
+                "%",
+            ),
         ];
         for (code, name, type_, formula, unit) in definitions {
             let existing = financial_analysis::Entity::find()

@@ -140,9 +140,9 @@ pub async fn create_indicator(
     let service = FinancialAnalysisService::new(state.db.clone());
 
     // code 缺失时由 service 层自动生成（保持原逻辑）
-    let indicator_code = req.code.unwrap_or_else(|| {
-        format!("IND_{}", chrono::Utc::now().timestamp())
-    });
+    let indicator_code = req
+        .code
+        .unwrap_or_else(|| format!("IND_{}", chrono::Utc::now().timestamp()));
     let indicator_type = req.indicator_type.unwrap_or_else(|| "ratio".to_string());
 
     let create_req = CreateIndicatorRequest {
@@ -243,7 +243,11 @@ pub async fn list_reports(
     let service = FinancialAnalysisService::new(state.db.clone());
 
     // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-    let page = params.get("page").and_then(|v| v.as_i64()).unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = params
+        .get("page")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(1)
+        .clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
 
     let page_size = params
         .get("page_size")

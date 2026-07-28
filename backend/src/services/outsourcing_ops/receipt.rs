@@ -18,9 +18,7 @@ use sea_orm::{
     QueryOrder, Set,
 };
 
-use crate::models::outsourcing_order::{
-    self, Entity as OrderEntity,
-};
+use crate::models::outsourcing_order::{self, Entity as OrderEntity};
 use crate::models::outsourcing_receipt::{
     self, ActiveModel as ReceiptActiveModel, Entity as ReceiptEntity, Model as ReceiptModel,
 };
@@ -28,12 +26,12 @@ use crate::models::status::outsourcing_loss_type;
 use crate::models::status::outsourcing_receipt_status;
 use crate::utils::error::AppError;
 
+use crate::services::outsourcing_ops::types::{
+    CreateOutsourcingReceiptRequest, OutsourcingReceiptQuery, UpdateOutsourcingReceiptRequest,
+};
 use crate::services::outsourcing_service::{
     classify_loss, compute_abnormal_loss_amount, compute_loss_rate, compute_total_cost,
     compute_unit_cost, OutsourcingReceiptService,
-};
-use crate::services::outsourcing_ops::types::{
-    CreateOutsourcingReceiptRequest, OutsourcingReceiptQuery, UpdateOutsourcingReceiptRequest,
 };
 
 impl OutsourcingReceiptService {
@@ -81,7 +79,10 @@ impl OutsourcingReceiptService {
             .await?
             .is_none()
         {
-            return Err(AppError::business(format!("成品 {} 不存在", req.product_id)));
+            return Err(AppError::business(format!(
+                "成品 {} 不存在",
+                req.product_id
+            )));
         }
 
         // 校验收回单号唯一性
@@ -288,7 +289,10 @@ impl OutsourcingReceiptService {
         let inspection_no = format!("QI-OS-{}-{}", receipt.outsourcing_order_id, receipt.id);
         let inspection_date = chrono::Utc::now().date_naive();
         let grade = receipt.grade.clone().unwrap_or_else(|| "B".to_string());
-        let quality_status = receipt.quality_status.clone().unwrap_or_else(|| "qualified".to_string());
+        let quality_status = receipt
+            .quality_status
+            .clone()
+            .unwrap_or_else(|| "qualified".to_string());
         let inspection_result = if quality_status == "qualified" {
             "合格".to_string()
         } else {
@@ -334,7 +338,9 @@ impl OutsourcingReceiptService {
         };
 
         let svc = QualityInspectionService::new(std::sync::Arc::new(db.clone()));
-        let record = svc.create_record(req, receipt.created_by.unwrap_or(0)).await?;
+        let record = svc
+            .create_record(req, receipt.created_by.unwrap_or(0))
+            .await?;
 
         // 不合格时触发不合格品处理流程
         if quality_status != "qualified" {
@@ -374,8 +380,7 @@ impl OutsourcingReceiptService {
         &self,
         query: OutsourcingReceiptQuery,
     ) -> Result<(Vec<ReceiptModel>, u64), AppError> {
-        let mut q = ReceiptEntity::find()
-            .filter(outsourcing_receipt::Column::IsDeleted.eq(false));
+        let mut q = ReceiptEntity::find().filter(outsourcing_receipt::Column::IsDeleted.eq(false));
         if let Some(v) = query.outsourcing_order_id {
             q = q.filter(outsourcing_receipt::Column::OutsourcingOrderId.eq(v));
         }

@@ -13,8 +13,8 @@ mod tests {
     use bingxi_backend::models::status::purchase_receipt;
     use bingxi_backend::services::purchase_receipt_dto::CreatePurchaseReceiptRequest;
     use bingxi_backend::services::purchase_receipt_service::PurchaseReceiptService;
-    use sea_orm::{Database, DatabaseConnection};
     use common::setup_test_db;
+    use sea_orm::{Database, DatabaseConnection};
 
     /// 构造最小 CreatePurchaseReceiptRequest（仅必填字段）
     fn sample_request() -> CreatePurchaseReceiptRequest {
@@ -105,10 +105,7 @@ mod tests {
         let db = setup_test_db().await;
         let svc = PurchaseReceiptService::new(Arc::new(db));
         let result = svc.confirm_receipt(1, 1).await;
-        assert!(
-            result.is_err(),
-            "空 DB 上 confirm_receipt 应返回 Err"
-        );
+        assert!(result.is_err(), "空 DB 上 confirm_receipt 应返回 Err");
     }
 
     /// 测试_PurchaseReceiptService_get_receipt_空DB返回Err
@@ -126,10 +123,7 @@ mod tests {
         let db = setup_test_db().await;
         let svc = PurchaseReceiptService::new(Arc::new(db));
         let result = svc.list_receipts(None, None, 1, 20).await;
-        assert!(
-            result.is_err(),
-            "空 DB 上 list_receipts 应返回 Err"
-        );
+        assert!(result.is_err(), "空 DB 上 list_receipts 应返回 Err");
     }
 
     // ===== 完整业务流程测试（需要真实 PostgreSQL，标记 ignore）=====
@@ -140,8 +134,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "需要 PostgreSQL 测试数据库 + 前置采购订单/产品/仓库数据"]
     async fn 测试_采购收货全流程_创建到确认() {
-        let db_url = std::env::var("TEST_DATABASE_URL")
-            .expect("需设置 TEST_DATABASE_URL 环境变量");
+        let db_url = std::env::var("TEST_DATABASE_URL").expect("需设置 TEST_DATABASE_URL 环境变量");
         let db = Database::connect(&db_url).await.expect("DB 连接失败");
         let svc = PurchaseReceiptService::new(Arc::new(db));
 
@@ -151,10 +144,7 @@ mod tests {
         assert_eq!(receipt.receipt_status, purchase_receipt::DRAFT);
 
         // 2. 确认（DRAFT → CONFIRMED，触发库存更新 + 应付账单生成）
-        let receipt = svc
-            .confirm_receipt(receipt.id, 1)
-            .await
-            .expect("确认失败");
+        let receipt = svc.confirm_receipt(receipt.id, 1).await.expect("确认失败");
         assert_eq!(receipt.receipt_status, purchase_receipt::CONFIRMED);
 
         // 注：COMPLETED 状态当前在 PurchaseReceiptService 中无公开方法触发，

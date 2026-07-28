@@ -75,9 +75,11 @@ impl MrpEngineService {
             } else {
                 stock.quantity_on_hand
             };
-            let entry = agg
-                .entry(stock.product_id)
-                .or_insert((Decimal::ZERO, Decimal::ZERO, Decimal::ZERO));
+            let entry = agg.entry(stock.product_id).or_insert((
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ));
             entry.0 += qty; // on_hand
             entry.1 += stock.quantity_incoming; // in_transit
             entry.2 += stock.reorder_point; // safety_stock

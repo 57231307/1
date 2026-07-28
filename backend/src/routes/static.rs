@@ -19,9 +19,12 @@ fn sanitize_static_path(input: &str) -> Option<PathBuf> {
         return None;
     }
     let p = std::path::Path::new(input);
-    let has_invalid = p
-        .components()
-        .any(|c| matches!(c, Component::ParentDir | Component::Prefix(_) | Component::RootDir));
+    let has_invalid = p.components().any(|c| {
+        matches!(
+            c,
+            Component::ParentDir | Component::Prefix(_) | Component::RootDir
+        )
+    });
     if has_invalid {
         return None;
     }
@@ -54,8 +57,8 @@ async fn canonicalize_with_fallback(safe_path: &PathBuf) -> Option<PathBuf> {
     if let Ok(p) = tokio::fs::canonicalize(&primary).await {
         return Some(p);
     }
-    let cargo_dir = std::env::var("CARGO_MANIFEST_DIR")
-        .unwrap_or_else(|_| "/workspace/backend".to_string());
+    let cargo_dir =
+        std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| "/workspace/backend".to_string());
     let fallback = PathBuf::from(cargo_dir).join("static").join(safe_path);
     tokio::fs::canonicalize(&fallback).await.ok()
 }
@@ -101,7 +104,12 @@ async fn serve_static_asset(Path(path): Path<String>) -> Result<Response, Infall
     let static_dir = resolve_static_dir().await;
     let resolved = match canonicalize_with_fallback(&safe_path).await {
         Some(p) => p,
-        None => return Ok(build_text_response(StatusCode::NOT_FOUND, "/* File not found */")),
+        None => {
+            return Ok(build_text_response(
+                StatusCode::NOT_FOUND,
+                "/* File not found */",
+            ))
+        }
     };
     if let Err(resp) = ensure_within_static_dir(&resolved, static_dir.as_ref()) {
         return Ok(resp);
@@ -113,7 +121,10 @@ async fn serve_static_asset(Path(path): Path<String>) -> Result<Response, Infall
                 .insert(header::CONTENT_TYPE, HeaderValue::from_static("text/css"));
             Ok(res)
         }
-        Err(_) => Ok(build_text_response(StatusCode::NOT_FOUND, "/* File not found */")),
+        Err(_) => Ok(build_text_response(
+            StatusCode::NOT_FOUND,
+            "/* File not found */",
+        )),
     }
 }
 
@@ -128,7 +139,11 @@ async fn serve_wasm_loader_js(_req: Request<Body>) -> Result<Response, Infallibl
         std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| "/workspace/backend".to_string())
     );
     if let Ok(content) = tokio::fs::read(&fallback).await {
-        return Ok(build_wasm_response(content, "application/javascript", false));
+        return Ok(build_wasm_response(
+            content,
+            "application/javascript",
+            false,
+        ));
     }
     Ok(response::Response::new(Body::from(
         "console.log('WASM loader not found')",
@@ -137,7 +152,8 @@ async fn serve_wasm_loader_js(_req: Request<Body>) -> Result<Response, Infallibl
 
 /// /bingxi_frontend_bg.wasm handler：返回 WASM 二进制（主路径 → dist fallback → 空体）
 async fn serve_wasm_binary(_req: Request<Body>) -> Result<Response, Infallible> {
-    let primary = "/workspace/frontend/target/wasm32-unknown-unknown/release/bingxi_frontend_bg.wasm";
+    let primary =
+        "/workspace/frontend/target/wasm32-unknown-unknown/release/bingxi_frontend_bg.wasm";
     if let Ok(content) = tokio::fs::read(primary).await {
         return Ok(build_wasm_response(content, "application/wasm", true));
     }
@@ -149,8 +165,10 @@ async fn serve_wasm_binary(_req: Request<Body>) -> Result<Response, Infallible> 
         return Ok(build_wasm_response(content, "application/wasm", false));
     }
     let mut res = response::Response::new(Body::empty());
-    res.headers_mut()
-        .insert(header::CONTENT_TYPE, HeaderValue::from_static("application/wasm"));
+    res.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/wasm"),
+    );
     Ok(res)
 }
 
@@ -174,7 +192,7 @@ mod tests {
         assert!(sanitize_static_path("a/b/c/d.js").is_some());
     }
 
-/// 测试路径遍历攻击：应被拒绝
+    /// 测试路径遍历攻击：应被拒绝
     #[test]
     fn test_sanitize_rejects_path_traversal() {
         assert!(sanitize_static_path("../../../etc/passwd").is_none());

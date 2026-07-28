@@ -12,8 +12,8 @@
 //! - 等级判定（首级 first / 次级 second）+ 联动 A/B/C 分级
 //! - 打卷入库（生成匹号 + 创建 inventory_piece + 汇总打卷数据）
 
-use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
+use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
@@ -22,9 +22,17 @@ use serde::Deserialize;
 use std::sync::Arc;
 
 use crate::models::batch_dye_lot::{self, Entity as DyeLotEntity};
-use crate::models::fabric_defect_record::{self, ActiveModel as DefectActiveModel, Entity as DefectEntity, Model as DefectModel};
-use crate::models::fabric_inspection_record::{self, ActiveModel as InspectionActiveModel, Entity as InspectionEntity, Model as InspectionModel};
-use crate::models::fabric_physical_test_record::{self, ActiveModel as PhysicalTestActiveModel, Entity as PhysicalTestEntity, Model as PhysicalTestModel};
+use crate::models::fabric_defect_record::{
+    self, ActiveModel as DefectActiveModel, Entity as DefectEntity, Model as DefectModel,
+};
+use crate::models::fabric_inspection_record::{
+    self, ActiveModel as InspectionActiveModel, Entity as InspectionEntity,
+    Model as InspectionModel,
+};
+use crate::models::fabric_physical_test_record::{
+    self, ActiveModel as PhysicalTestActiveModel, Entity as PhysicalTestEntity,
+    Model as PhysicalTestModel,
+};
 use crate::models::inventory_piece::{self, ActiveModel as PieceActiveModel};
 use crate::models::status::fabric_grade;
 use crate::models::status::fabric_inspection as inspection_status;
@@ -237,11 +245,16 @@ impl FabricInspectionService {
     /// 创建验布记录
     pub async fn create(&self, req: CreateInspectionRequest) -> Result<InspectionModel, AppError> {
         // 业务校验：评分制式合法
-        let scoring_system = req.scoring_system.unwrap_or_else(|| fabric_scoring::FOUR_POINT.to_string());
-        if scoring_system != fabric_scoring::FOUR_POINT && scoring_system != fabric_scoring::TEN_POINT {
+        let scoring_system = req
+            .scoring_system
+            .unwrap_or_else(|| fabric_scoring::FOUR_POINT.to_string());
+        if scoring_system != fabric_scoring::FOUR_POINT
+            && scoring_system != fabric_scoring::TEN_POINT
+        {
             return Err(AppError::business(format!(
                 "评分制式必须是 {} 或 {}",
-                fabric_scoring::FOUR_POINT, fabric_scoring::TEN_POINT
+                fabric_scoring::FOUR_POINT,
+                fabric_scoring::TEN_POINT
             )));
         }
 
@@ -294,7 +307,11 @@ impl FabricInspectionService {
     }
 
     /// 更新验布记录（仅 pending 状态可更新）
-    pub async fn update(&self, id: i32, req: UpdateInspectionRequest) -> Result<InspectionModel, AppError> {
+    pub async fn update(
+        &self,
+        id: i32,
+        req: UpdateInspectionRequest,
+    ) -> Result<InspectionModel, AppError> {
         let model = self.get_by_id(id).await?;
         if model.status != inspection_status::PENDING {
             return Err(AppError::business(format!(
@@ -373,12 +390,15 @@ impl FabricInspectionService {
     }
 
     /// 分页查询
-    pub async fn list(&self, query: InspectionQuery) -> Result<(Vec<InspectionModel>, u64), AppError> {
+    pub async fn list(
+        &self,
+        query: InspectionQuery,
+    ) -> Result<(Vec<InspectionModel>, u64), AppError> {
         let page = query.page.unwrap_or(1).clamp(1, 1000);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
-        let mut q = InspectionEntity::find()
-            .filter(fabric_inspection_record::Column::IsDeleted.eq(false));
+        let mut q =
+            InspectionEntity::find().filter(fabric_inspection_record::Column::IsDeleted.eq(false));
 
         if let Some(v) = query.inspection_no {
             q = q.filter(fabric_inspection_record::Column::InspectionNo.like(format!("%{}%", v)));
@@ -450,7 +470,8 @@ impl FabricInspectionService {
         let total_points: i32 = defects.iter().map(|d| d.points).sum();
 
         // 根据评分制式判定等级
-        let (grade, points_per_100_sq_yards) = if model.scoring_system == fabric_scoring::FOUR_POINT {
+        let (grade, points_per_100_sq_yards) = if model.scoring_system == fabric_scoring::FOUR_POINT
+        {
             let width = model.fabric_width_inches.ok_or_else(|| {
                 AppError::business("四分制评级需要幅宽(fabric_width_inches)，请先设置幅宽")
             })?;
@@ -470,7 +491,8 @@ impl FabricInspectionService {
 
         // V15 P1-3: A 级判定需外观合格率达标 且 物理指标全部 pass
         // 依据：审计报告 类四 P1 维度 7（A 级需外观 + 物理双达标）
-        let abc_grade = if abc_grade == crate::services::quality_inspection_service::QUALITY_GRADE_A {
+        let abc_grade = if abc_grade == crate::services::quality_inspection_service::QUALITY_GRADE_A
+        {
             let physical_service = FabricPhysicalTestService::new(self.db.clone());
             let all_passed = physical_service.all_tests_passed(id).await?;
             if all_passed {
@@ -496,22 +518,29 @@ impl FabricInspectionService {
 
         // V15 P1-7: 评级完成发布 QualityInspectionCompleted 事件
         // 依据：审计报告 类四 P1 维度 17（QualityInspectionCompleted 无发布者）
-        crate::services::event_bus::EVENT_BUS.publish(crate::services::event_bus::BusinessEvent::QualityInspectionCompleted {
-            inspection_id: updated.id,
-            batch_id: None,
-            product_id: updated.product_id.unwrap_or(0),
-            result: updated.abc_grade.clone().unwrap_or_default(),
-            inspector_id: updated.inspector_id,
-        });
+        crate::services::event_bus::EVENT_BUS.publish(
+            crate::services::event_bus::BusinessEvent::QualityInspectionCompleted {
+                inspection_id: updated.id,
+                batch_id: None,
+                product_id: updated.product_id.unwrap_or(0),
+                result: updated.abc_grade.clone().unwrap_or_default(),
+                inspector_id: updated.inspector_id,
+            },
+        );
 
         // V15 Batch05-P1-3：发布 FabricInspectionGraded 事件（A/B/C 级流向：入库/降级/返工）
-        crate::services::event_bus::EVENT_BUS.publish(crate::services::event_bus::BusinessEvent::FabricInspectionGraded {
-            inspection_id: updated.id,
-            batch_id: None,
-            grade: updated.abc_grade.clone().unwrap_or_else(|| updated.grade.clone().unwrap_or_default()),
-            handling_method: None,
-            inspector_id: updated.inspector_id,
-        });
+        crate::services::event_bus::EVENT_BUS.publish(
+            crate::services::event_bus::BusinessEvent::FabricInspectionGraded {
+                inspection_id: updated.id,
+                batch_id: None,
+                grade: updated
+                    .abc_grade
+                    .clone()
+                    .unwrap_or_else(|| updated.grade.clone().unwrap_or_default()),
+                handling_method: None,
+                inspector_id: updated.inspector_id,
+            },
+        );
 
         Ok(updated)
     }
@@ -531,11 +560,15 @@ impl FabricInspectionService {
         })?;
         let dye_lot = self.fetch_dye_lot(&dye_lot_no).await?;
         let dye_lot_id = dye_lot.id;
-        let (piece_no, next_seq) = self
-            .generate_next_piece_no(dye_lot_id, &dye_lot_no)
-            .await?;
+        let (piece_no, next_seq) = self.generate_next_piece_no(dye_lot_id, &dye_lot_no).await?;
         let new_piece = Self::build_piece_active_model(
-            &req, dye_lot_id, &dye_lot_no, &model, &piece_no, next_seq, id,
+            &req,
+            dye_lot_id,
+            &dye_lot_no,
+            &model,
+            &piece_no,
+            next_seq,
+            id,
         );
         new_piece.insert(&*self.db).await?;
         self.apply_roll_summary(model, &req).await
@@ -627,7 +660,10 @@ impl FabricInspectionService {
             width: Set(req.roll_width),
             gram_weight: Set(req.roll_gram_weight),
             status: Set(piece_status::AVAILABLE.to_string()),
-            remarks: Set(Some(format!("验布打卷生成，验布单号 {}", model.inspection_no))),
+            remarks: Set(Some(format!(
+                "验布打卷生成，验布单号 {}",
+                model.inspection_no
+            ))),
             scan_type: Set(None),
             created_at: Set(now_piece),
             updated_at: Set(now_piece),
@@ -714,9 +750,18 @@ impl FabricDefectService {
     /// 合法疵点类型校验
     fn validate_defect_type(defect_type: &str) -> Result<(), AppError> {
         let valid_types = [
-            "broken_end", "oil_stain", "color_spot", "hole", "skew_lane",
-            "streak", "color_diff", "narrow_width", "crease", "uneven_dye",
-            "lint", "other",
+            "broken_end",
+            "oil_stain",
+            "color_spot",
+            "hole",
+            "skew_lane",
+            "streak",
+            "color_diff",
+            "narrow_width",
+            "crease",
+            "uneven_dye",
+            "lint",
+            "other",
         ];
         if !valid_types.contains(&defect_type) {
             return Err(AppError::business(format!(
@@ -794,7 +839,10 @@ impl FabricDefectService {
     }
 
     /// 按验布记录查询疵点明细
-    pub async fn list_by_inspection(&self, inspection_id: i32) -> Result<Vec<DefectModel>, AppError> {
+    pub async fn list_by_inspection(
+        &self,
+        inspection_id: i32,
+    ) -> Result<Vec<DefectModel>, AppError> {
         let list = DefectEntity::find()
             .filter(fabric_defect_record::Column::InspectionId.eq(inspection_id))
             .order_by_asc(fabric_defect_record::Column::PositionYards)
@@ -922,9 +970,7 @@ impl FabricPhysicalTestService {
             .filter(fabric_inspection_record::Column::IsDeleted.eq(false))
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::not_found(format!("验布记录 {} 不存在", req.inspection_id))
-            })?;
+            .ok_or_else(|| AppError::not_found(format!("验布记录 {} 不存在", req.inspection_id)))?;
 
         // 仅 inspecting/graded 状态可录入物理指标
         if inspection.status != inspection_status::INSPECTING
@@ -937,17 +983,15 @@ impl FabricPhysicalTestService {
         }
 
         // test_result 未提供时根据 standard_value 自动判定
-        let test_result = req.test_result.unwrap_or_else(|| {
-            match req.standard_value {
-                Some(std_val) => {
-                    if req.test_value >= std_val {
-                        physical_test_result::PASS.to_string()
-                    } else {
-                        physical_test_result::FAIL.to_string()
-                    }
+        let test_result = req.test_result.unwrap_or_else(|| match req.standard_value {
+            Some(std_val) => {
+                if req.test_value >= std_val {
+                    physical_test_result::PASS.to_string()
+                } else {
+                    physical_test_result::FAIL.to_string()
                 }
-                None => physical_test_result::PASS.to_string(),
             }
+            None => physical_test_result::PASS.to_string(),
         });
 
         if test_result != physical_test_result::PASS && test_result != physical_test_result::FAIL {
@@ -1000,7 +1044,9 @@ impl FabricPhysicalTestService {
             // 无物理指标记录时返回 true（兼容未录入物理指标的历史流程）
             return Ok(true);
         }
-        Ok(tests.iter().all(|t| t.test_result == physical_test_result::PASS))
+        Ok(tests
+            .iter()
+            .all(|t| t.test_result == physical_test_result::PASS))
     }
 }
 
@@ -1018,32 +1064,71 @@ mod tests {
     #[test]
     fn test_calculate_four_point_points_normal() {
         // ≤3寸 = 1分
-        assert_eq!(calculate_four_point_points(Decimal::new(3, 0), false, false), 1);
-        assert_eq!(calculate_four_point_points(Decimal::new(0, 0), false, false), 1);
-        assert_eq!(calculate_four_point_points(Decimal::new(2, 0), false, false), 1);
+        assert_eq!(
+            calculate_four_point_points(Decimal::new(3, 0), false, false),
+            1
+        );
+        assert_eq!(
+            calculate_four_point_points(Decimal::new(0, 0), false, false),
+            1
+        );
+        assert_eq!(
+            calculate_four_point_points(Decimal::new(2, 0), false, false),
+            1
+        );
 
         // 3-6寸 = 2分
-        assert_eq!(calculate_four_point_points(Decimal::new(4, 0), false, false), 2);
-        assert_eq!(calculate_four_point_points(Decimal::new(6, 0), false, false), 2);
+        assert_eq!(
+            calculate_four_point_points(Decimal::new(4, 0), false, false),
+            2
+        );
+        assert_eq!(
+            calculate_four_point_points(Decimal::new(6, 0), false, false),
+            2
+        );
 
         // 6-9寸 = 3分
-        assert_eq!(calculate_four_point_points(Decimal::new(7, 0), false, false), 3);
-        assert_eq!(calculate_four_point_points(Decimal::new(9, 0), false, false), 3);
+        assert_eq!(
+            calculate_four_point_points(Decimal::new(7, 0), false, false),
+            3
+        );
+        assert_eq!(
+            calculate_four_point_points(Decimal::new(9, 0), false, false),
+            3
+        );
 
         // >9寸 = 4分
-        assert_eq!(calculate_four_point_points(Decimal::new(10, 0), false, false), 4);
-        assert_eq!(calculate_four_point_points(Decimal::new(36, 0), false, false), 4);
+        assert_eq!(
+            calculate_four_point_points(Decimal::new(10, 0), false, false),
+            4
+        );
+        assert_eq!(
+            calculate_four_point_points(Decimal::new(36, 0), false, false),
+            4
+        );
     }
 
     #[test]
     fn test_calculate_four_point_points_hole_and_continuous() {
         // 破洞不论大小一律4分
-        assert_eq!(calculate_four_point_points(Decimal::new(0, 0), true, false), 4);
-        assert_eq!(calculate_four_point_points(Decimal::new(1, 0), true, false), 4);
+        assert_eq!(
+            calculate_four_point_points(Decimal::new(0, 0), true, false),
+            4
+        );
+        assert_eq!(
+            calculate_four_point_points(Decimal::new(1, 0), true, false),
+            4
+        );
 
         // 连续性疵点不论大小一律4分
-        assert_eq!(calculate_four_point_points(Decimal::new(0, 0), false, true), 4);
-        assert_eq!(calculate_four_point_points(Decimal::new(1, 0), false, true), 4);
+        assert_eq!(
+            calculate_four_point_points(Decimal::new(0, 0), false, true),
+            4
+        );
+        assert_eq!(
+            calculate_four_point_points(Decimal::new(1, 0), false, true),
+            4
+        );
     }
 
     // ===== 十分制扣分计算测试 =====
@@ -1051,37 +1136,73 @@ mod tests {
     #[test]
     fn test_calculate_ten_point_points_warp() {
         // 破洞 = 10分
-        assert_eq!(calculate_ten_point_points(Decimal::new(1, 0), "warp", true, false), 10);
+        assert_eq!(
+            calculate_ten_point_points(Decimal::new(1, 0), "warp", true, false),
+            10
+        );
 
         // 经向：1寸下=1
-        assert_eq!(calculate_ten_point_points(Decimal::new(0, 0), "warp", false, false), 1);
+        assert_eq!(
+            calculate_ten_point_points(Decimal::new(0, 0), "warp", false, false),
+            1
+        );
 
         // 经向：1-5寸=3
-        assert_eq!(calculate_ten_point_points(Decimal::new(1, 0), "warp", false, false), 3);
-        assert_eq!(calculate_ten_point_points(Decimal::new(5, 0), "warp", false, false), 3);
+        assert_eq!(
+            calculate_ten_point_points(Decimal::new(1, 0), "warp", false, false),
+            3
+        );
+        assert_eq!(
+            calculate_ten_point_points(Decimal::new(5, 0), "warp", false, false),
+            3
+        );
 
         // 经向：5-10寸=5
-        assert_eq!(calculate_ten_point_points(Decimal::new(6, 0), "warp", false, false), 5);
-        assert_eq!(calculate_ten_point_points(Decimal::new(10, 0), "warp", false, false), 5);
+        assert_eq!(
+            calculate_ten_point_points(Decimal::new(6, 0), "warp", false, false),
+            5
+        );
+        assert_eq!(
+            calculate_ten_point_points(Decimal::new(10, 0), "warp", false, false),
+            5
+        );
 
         // 经向：10-36寸=10
-        assert_eq!(calculate_ten_point_points(Decimal::new(11, 0), "warp", false, false), 10);
-        assert_eq!(calculate_ten_point_points(Decimal::new(36, 0), "warp", false, false), 10);
+        assert_eq!(
+            calculate_ten_point_points(Decimal::new(11, 0), "warp", false, false),
+            10
+        );
+        assert_eq!(
+            calculate_ten_point_points(Decimal::new(36, 0), "warp", false, false),
+            10
+        );
     }
 
     #[test]
     fn test_calculate_ten_point_points_weft() {
         // 纬向：1寸下=1
-        assert_eq!(calculate_ten_point_points(Decimal::new(0, 0), "weft", false, false), 1);
+        assert_eq!(
+            calculate_ten_point_points(Decimal::new(0, 0), "weft", false, false),
+            1
+        );
 
         // 纬向：1-5寸=3
-        assert_eq!(calculate_ten_point_points(Decimal::new(3, 0), "weft", false, false), 3);
+        assert_eq!(
+            calculate_ten_point_points(Decimal::new(3, 0), "weft", false, false),
+            3
+        );
 
         // 纬向：5寸-半门幅=5
-        assert_eq!(calculate_ten_point_points(Decimal::new(6, 0), "weft", false, false), 5);
+        assert_eq!(
+            calculate_ten_point_points(Decimal::new(6, 0), "weft", false, false),
+            5
+        );
 
         // 纬向：半门幅以上=10
-        assert_eq!(calculate_ten_point_points(Decimal::new(6, 0), "weft", false, true), 10);
+        assert_eq!(
+            calculate_ten_point_points(Decimal::new(6, 0), "weft", false, true),
+            10
+        );
     }
 
     // ===== 每百平方码分数计算测试 =====
@@ -1089,11 +1210,9 @@ mod tests {
     #[test]
     fn test_calculate_points_per_100_sq_yards() {
         // (655 × 36 × 100) / (2500 × 55) = 17.1
-        let result = calculate_points_per_100_sq_yards(
-            655,
-            Decimal::new(2500, 0),
-            Decimal::new(55, 0),
-        ).unwrap();
+        let result =
+            calculate_points_per_100_sq_yards(655, Decimal::new(2500, 0), Decimal::new(55, 0))
+                .unwrap();
         let expected = Decimal::new(171, 1); // 17.1
         assert_eq!(result.round_dp(1), expected);
     }
@@ -1114,24 +1233,51 @@ mod tests {
     #[test]
     fn test_determine_grade_by_four_point() {
         // ≤40 = 首级
-        assert_eq!(determine_grade_by_four_point(Decimal::new(40, 0)), fabric_grade::FIRST);
-        assert_eq!(determine_grade_by_four_point(Decimal::new(0, 0)), fabric_grade::FIRST);
-        assert_eq!(determine_grade_by_four_point(Decimal::new(16, 0)), fabric_grade::FIRST);
+        assert_eq!(
+            determine_grade_by_four_point(Decimal::new(40, 0)),
+            fabric_grade::FIRST
+        );
+        assert_eq!(
+            determine_grade_by_four_point(Decimal::new(0, 0)),
+            fabric_grade::FIRST
+        );
+        assert_eq!(
+            determine_grade_by_four_point(Decimal::new(16, 0)),
+            fabric_grade::FIRST
+        );
 
         // >40 = 次级
-        assert_eq!(determine_grade_by_four_point(Decimal::new(41, 0)), fabric_grade::SECOND);
-        assert_eq!(determine_grade_by_four_point(Decimal::new(100, 0)), fabric_grade::SECOND);
+        assert_eq!(
+            determine_grade_by_four_point(Decimal::new(41, 0)),
+            fabric_grade::SECOND
+        );
+        assert_eq!(
+            determine_grade_by_four_point(Decimal::new(100, 0)),
+            fabric_grade::SECOND
+        );
     }
 
     #[test]
     fn test_determine_grade_by_ten_point() {
         // 总扣分 < 总码数 = 首级
-        assert_eq!(determine_grade_by_ten_point(50, Decimal::new(100, 0)), fabric_grade::FIRST);
-        assert_eq!(determine_grade_by_ten_point(0, Decimal::new(100, 0)), fabric_grade::FIRST);
+        assert_eq!(
+            determine_grade_by_ten_point(50, Decimal::new(100, 0)),
+            fabric_grade::FIRST
+        );
+        assert_eq!(
+            determine_grade_by_ten_point(0, Decimal::new(100, 0)),
+            fabric_grade::FIRST
+        );
 
         // 总扣分 ≥ 总码数 = 次级
-        assert_eq!(determine_grade_by_ten_point(100, Decimal::new(100, 0)), fabric_grade::SECOND);
-        assert_eq!(determine_grade_by_ten_point(150, Decimal::new(100, 0)), fabric_grade::SECOND);
+        assert_eq!(
+            determine_grade_by_ten_point(100, Decimal::new(100, 0)),
+            fabric_grade::SECOND
+        );
+        assert_eq!(
+            determine_grade_by_ten_point(150, Decimal::new(100, 0)),
+            fabric_grade::SECOND
+        );
     }
 
     // ===== 疵点类型校验测试 =====

@@ -41,8 +41,7 @@ export function useSysUpd() {
     url: '/system-update/versions',
     onError: (err: unknown) =>
       ElMessage.error(
-        (err instanceof Error ? err.message : String(err)) ||
-        msg.translate('loadVersionListFailed')
+        (err instanceof Error ? err.message : String(err)) || msg.translate('loadVersionListFailed')
       ),
   });
 
@@ -58,8 +57,7 @@ export function useSysUpd() {
     url: '/system-update/tasks',
     onError: (err: unknown) =>
       ElMessage.error(
-        (err instanceof Error ? err.message : String(err)) ||
-        msg.translate('loadTaskListFailed')
+        (err instanceof Error ? err.message : String(err)) || msg.translate('loadTaskListFailed')
       ),
   });
 
@@ -75,8 +73,7 @@ export function useSysUpd() {
     url: '/system-update/backups',
     onError: (err: unknown) =>
       ElMessage.error(
-        (err instanceof Error ? err.message : String(err)) ||
-        msg.translate('loadBackupListFailed')
+        (err instanceof Error ? err.message : String(err)) || msg.translate('loadBackupListFailed')
       ),
   });
 
@@ -112,8 +109,8 @@ export function useSysUpd() {
       }
     } catch (error: unknown) {
       ElMessage.error(
-        (error instanceof Error ? error.message : String(error))
-          || msg.translate('checkUpdateFailed')
+        (error instanceof Error ? error.message : String(error)) ||
+          msg.translate('checkUpdateFailed')
       );
     }
   };
@@ -134,8 +131,8 @@ export function useSysUpd() {
       return true;
     } catch (error: unknown) {
       ElMessage.error(
-        (error instanceof Error ? error.message : String(error))
-          || msg.translate('createBackupFailed')
+        (error instanceof Error ? error.message : String(error)) ||
+          msg.translate('createBackupFailed')
       );
       return false;
     } finally {

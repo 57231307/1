@@ -85,8 +85,8 @@ export const useCp = () => {
       if (res.data) bottlenecks.value = res.data;
     } catch (error: unknown) {
       ElMessage.error(
-        (error instanceof Error ? error.message : '')
-          || msg.translate('loadBottleneckAnalysisFailed')
+        (error instanceof Error ? error.message : '') ||
+          msg.translate('loadBottleneckAnalysisFailed')
       );
       bottlenecks.value = [];
     } finally {

@@ -19,13 +19,11 @@
 //! - `SalesService` struct 定义在 `crate::services::so::order`，impl 块分散到 delivery_ops 子模块
 //! - impl 块分散在 delivery_ops 子模块，Rust 允许同一 crate 多文件多 impl 块
 
-use crate::models::{sales_delivery, sales_order};
 use crate::models::status::sales_delivery as delivery_status;
+use crate::models::{sales_delivery, sales_order};
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
 use serde::Deserialize;
 use validator::Validate;
 
@@ -147,7 +145,7 @@ impl SalesService {
                     sales_delivery::Entity,
                     sales_delivery::Column::DeliveryNo,
                 )
-                .await?
+                .await?,
             ),
             order_id: Set(order_id),
             customer_id: Set(0),
@@ -170,12 +168,12 @@ impl SalesService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::services::test_common::setup_test_db;
     use crate::decs;
-    use crate::ymd;
-    use crate::search::{ElasticClient, SearchClient};
     use crate::models::status::inventory_reservation as reservation_status;
     use crate::models::status::sales_order as so_status;
+    use crate::search::{ElasticClient, SearchClient};
+    use crate::services::test_common::setup_test_db;
+    use crate::ymd;
     use sea_orm::DatabaseConnection;
     use std::str::FromStr;
     use std::sync::Arc;
@@ -560,10 +558,7 @@ mod tests {
     /// 验证 cancel_delivery 中：所有发货取消后 has_shipped=false → 订单回退到 APPROVED。
     #[test]
     fn 测试_取消发货订单状态回退_全部取消转已审批() {
-        assert_eq!(
-            compute_new_status_after_cancel(false),
-            so_status::APPROVED
-        );
+        assert_eq!(compute_new_status_after_cancel(false), so_status::APPROVED);
     }
 
     /// 测试_取消发货订单状态回退_部分取消转部分发货

@@ -160,10 +160,7 @@ pub fn to_traceparent(ctx: &TraceContext) -> String {
 ///
 /// 调用方在 reqwest::Client 请求前调用此函数，把当前 trace 上下文写入 `traceparent` header，
 /// 下游服务通过 `extract_or_new` 解析后即可关联跨服务调用链。
-pub fn inject_trace_context(
-    headers: &mut reqwest::header::HeaderMap,
-    ctx: &TraceContext,
-) {
+pub fn inject_trace_context(headers: &mut reqwest::header::HeaderMap, ctx: &TraceContext) {
     let value = to_traceparent(ctx);
     if let Ok(hv) = reqwest::header::HeaderValue::from_str(&value) {
         headers.insert(TRACEPARENT_HEADER, hv);

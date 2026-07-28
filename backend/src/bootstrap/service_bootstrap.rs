@@ -124,12 +124,14 @@ pub async fn bootstrap_full_mode(
     init_assist_dimensions(&app_state).await;
     init_es_indices().await;
     // V15 P1 20.3-B：启动 WebSocket Redis Pub/Sub 多实例广播订阅器
-    let ws_pubsub_handle = tokio::spawn(crate::websocket::notifications::start_ws_pubsub_subscriber());
+    let ws_pubsub_handle =
+        tokio::spawn(crate::websocket::notifications::start_ws_pubsub_subscriber());
     if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
         tasks.push(ws_pubsub_handle);
     }
     // V15 P1-14.9-C：启动权限缓存 Redis Pub/Sub 订阅器（多实例缓存热更新）
-    let perm_pubsub_handle = tokio::spawn(crate::middleware::permission::start_permission_cache_pubsub_subscriber());
+    let perm_pubsub_handle =
+        tokio::spawn(crate::middleware::permission::start_permission_cache_pubsub_subscriber());
     if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
         tasks.push(perm_pubsub_handle);
     }
@@ -202,10 +204,10 @@ async fn check_migration_compatibility(db: &DatabaseConnection) {
                 AND tc.table_schema = 'public'
           )
     ";
-    match db.query_one(Statement::from_string(
-        DatabaseBackend::Postgres,
-        count_sql,
-    )).await {
+    match db
+        .query_one(Statement::from_string(DatabaseBackend::Postgres, count_sql))
+        .await
+    {
         Ok(Some(row)) => {
             let count: i64 = row.try_get::<i64>("", "count").unwrap_or(0);
             if count > 0 {
@@ -237,15 +239,22 @@ fn require_cookie_secret(settings: &AppSettings) -> String {
             eprintln!("FATAL: COOKIE_SECRET 环境变量或 auth.cookie_secret 配置必须显式设置");
             eprintln!("FATAL: 出于安全考虑，禁止降级复用 AUTH__JWT_SECRET 作为 Cookie 加密密钥");
             eprintln!("FATAL: 请使用 `openssl rand -hex 32` 生成至少 32 字节的强随机密钥");
-            eprintln!("FATAL: 并通过环境变量 COOKIE_SECRET 或 config.yaml 的 auth.cookie_secret 字段注入");
+            eprintln!(
+                "FATAL: 并通过环境变量 COOKIE_SECRET 或 config.yaml 的 auth.cookie_secret 字段注入"
+            );
             std::process::exit(1);
         }
     };
     if cookie_secret.len() < 32 {
-        eprintln!("FATAL: COOKIE_SECRET 长度不足 32 字节（当前: {} 字节）", cookie_secret.len());
+        eprintln!(
+            "FATAL: COOKIE_SECRET 长度不足 32 字节（当前: {} 字节）",
+            cookie_secret.len()
+        );
         eprintln!("FATAL: 出于安全考虑，禁止以补 0 / 截断等方式弱化 Cookie 加密密钥");
         eprintln!("FATAL: 请使用 `openssl rand -hex 32` 生成至少 32 字节（64 个十六进制字符）的强随机密钥");
-        eprintln!("FATAL: 并通过环境变量 COOKIE_SECRET 或 config.yaml 的 auth.cookie_secret 字段注入");
+        eprintln!(
+            "FATAL: 并通过环境变量 COOKIE_SECRET 或 config.yaml 的 auth.cookie_secret 字段注入"
+        );
         std::process::exit(1);
     }
     cookie_secret
@@ -264,7 +273,10 @@ fn require_webhook_secret(settings: &AppSettings) -> String {
         }
     };
     if webhook_secret.len() < 32 {
-        eprintln!("FATAL: WEBHOOK_SECRET 长度不足 32 字节（当前: {} 字节）", webhook_secret.len());
+        eprintln!(
+            "FATAL: WEBHOOK_SECRET 长度不足 32 字节（当前: {} 字节）",
+            webhook_secret.len()
+        );
         eprintln!("FATAL: 请重新生成强随机密钥并重新启动服务");
         std::process::exit(1);
     }
@@ -289,7 +301,9 @@ fn create_omni_audit_service(
 fn create_audit_log_service(
     db: &Arc<DatabaseConnection>,
 ) -> Arc<crate::services::audit_log_service::AuditLogService> {
-    let audit_log = Arc::new(crate::services::audit_log_service::AuditLogService::new(db.clone()));
+    let audit_log = Arc::new(crate::services::audit_log_service::AuditLogService::new(
+        db.clone(),
+    ));
     tracing::info!("AuditLogService 已初始化（mpsc channel 模式）");
     audit_log
 }
@@ -323,10 +337,12 @@ fn create_audit_cleanup_service(
     db: &Arc<DatabaseConnection>,
     retention_days: i32,
 ) -> Arc<crate::services::audit_cleanup_service::AuditCleanupService> {
-    Arc::new(crate::services::audit_cleanup_service::AuditCleanupService::new(
-        db.clone(),
-        retention_days,
-    ))
+    Arc::new(
+        crate::services::audit_cleanup_service::AuditCleanupService::new(
+            db.clone(),
+            retention_days,
+        ),
+    )
 }
 
 /// 启动慢查询采集后台任务（受 settings.slow_query.enabled 配置开关控制）。
@@ -496,12 +512,11 @@ fn start_failover_monitor(app_state: &AppState) {
         .unwrap_or(false);
 
     let monitor_metrics = crate::handlers::failover_handler::get_global_metrics();
-    let monitor_service =
-        crate::services::failover_service::FailoverService::new(
-            (*app_state.db).clone(),
-            monitor_metrics,
-        )
-        .with_executor(app_state.failover_executor.clone());
+    let monitor_service = crate::services::failover_service::FailoverService::new(
+        (*app_state.db).clone(),
+        monitor_metrics,
+    )
+    .with_executor(app_state.failover_executor.clone());
     let monitor = crate::services::failover_service::FailoverMonitor::new(
         monitor_service,
         std::time::Duration::from_secs(interval_secs),
@@ -562,9 +577,9 @@ fn start_color_card_issue_scheduler(app_state: &AppState) {
 /// - `EMAIL_QUEUE_WORKER_ENABLED`（默认 "true"）— 设为 "false" / "0" 时跳过启动
 /// - `EMAIL_QUEUE_WORKER_INTERVAL_SECS`（默认 60）— 扫描间隔
 fn start_email_queue_worker(app_state: &AppState) {
-    let worker = std::sync::Arc::new(
-        crate::services::email_queue_worker::EmailQueueWorker::new(app_state.db.clone()),
-    );
+    let worker = std::sync::Arc::new(crate::services::email_queue_worker::EmailQueueWorker::new(
+        app_state.db.clone(),
+    ));
     let worker_handle = worker.start_background_task();
     if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
         tasks.push(worker_handle);
@@ -659,7 +674,9 @@ async fn init_assist_dimensions(app_state: &AppState) {
             "辅助核算维度初始化失败（不阻塞启动，后续可手工插入维度记录）"
         );
     } else {
-        tracing::info!("辅助核算维度初始化完成（8 个维度：批次/色号/缸号/等级/车间/仓库/客户/供应商）");
+        tracing::info!(
+            "辅助核算维度初始化完成（8 个维度：批次/色号/缸号/等级/车间/仓库/客户/供应商）"
+        );
     }
 }
 

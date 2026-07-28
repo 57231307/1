@@ -29,7 +29,12 @@ mod tests {
     /// 测试_大货处方状态常量_小写风格一致性
     #[test]
     fn 测试_大货处方状态常量_小写风格一致性() {
-        for s in [status::DRAFT, status::APPROVED, status::CLOSED, status::CANCELLED] {
+        for s in [
+            status::DRAFT,
+            status::APPROVED,
+            status::CLOSED,
+            status::CANCELLED,
+        ] {
             assert!(
                 s.chars().all(|c| c.is_lowercase() || c == '_'),
                 "状态 {} 应全小写",
@@ -180,18 +185,21 @@ mod tests {
     /// 验证合法流转边：DRAFT→APPROVED、APPROVED→CLOSED、DRAFT→CANCELLED。
     #[test]
     fn 测试_validate_status_transition_合法流转通过() {
-        assert!(
-            ProductionRecipeService::validate_status_transition(status::DRAFT, status::APPROVED)
-                .is_ok()
-        );
-        assert!(
-            ProductionRecipeService::validate_status_transition(status::APPROVED, status::CLOSED)
-                .is_ok()
-        );
-        assert!(
-            ProductionRecipeService::validate_status_transition(status::DRAFT, status::CANCELLED)
-                .is_ok()
-        );
+        assert!(ProductionRecipeService::validate_status_transition(
+            status::DRAFT,
+            status::APPROVED
+        )
+        .is_ok());
+        assert!(ProductionRecipeService::validate_status_transition(
+            status::APPROVED,
+            status::CLOSED
+        )
+        .is_ok());
+        assert!(ProductionRecipeService::validate_status_transition(
+            status::DRAFT,
+            status::CANCELLED
+        )
+        .is_ok());
     }
 
     /// 测试_validate_status_transition_非法流转失败
@@ -207,10 +215,11 @@ mod tests {
             ProductionRecipeService::validate_status_transition(status::CLOSED, status::DRAFT)
                 .is_err()
         );
-        assert!(
-            ProductionRecipeService::validate_status_transition(status::CANCELLED, status::APPROVED)
-                .is_err()
-        );
+        assert!(ProductionRecipeService::validate_status_transition(
+            status::CANCELLED,
+            status::APPROVED
+        )
+        .is_err());
     }
 
     // ===== validate_can_update 可更新校验 =====

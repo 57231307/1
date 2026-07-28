@@ -375,10 +375,7 @@ impl AccountSubjectService {
     }
 
     /// 根据科目 ID 查询科目主数据
-    async fn find_subject(
-        &self,
-        subject_id: i32,
-    ) -> Result<account_subject::Model, AppError> {
+    async fn find_subject(&self, subject_id: i32) -> Result<account_subject::Model, AppError> {
         account_subject::Entity::find_by_id(subject_id)
             .one(&*self.db)
             .await?
@@ -418,21 +415,21 @@ impl AccountSubjectService {
         start_date: chrono::NaiveDate,
         end_date: chrono::NaiveDate,
     ) -> Result<(Decimal, Decimal), AppError> {
-        let result: Option<(Option<Decimal>, Option<Decimal>)> =
-            voucher_item::Entity::find()
-                .join(JoinType::InnerJoin, voucher_item::Relation::Voucher.def())
-                .filter(voucher_item::Column::SubjectCode.eq(subject_code))
-                .filter(
-                    voucher::Column::Status.eq(crate::models::status::voucher::VOUCHER_POSTED),
-                )
-                .filter(voucher::Column::VoucherDate.gte(start_date))
-                .filter(voucher::Column::VoucherDate.lt(end_date))
-                .select_only()
-                .column_as(Expr::col(voucher_item::Column::Debit).sum(), "total_debit")
-                .column_as(Expr::col(voucher_item::Column::Credit).sum(), "total_credit")
-                .into_tuple()
-                .one(&*self.db)
-                .await?;
+        let result: Option<(Option<Decimal>, Option<Decimal>)> = voucher_item::Entity::find()
+            .join(JoinType::InnerJoin, voucher_item::Relation::Voucher.def())
+            .filter(voucher_item::Column::SubjectCode.eq(subject_code))
+            .filter(voucher::Column::Status.eq(crate::models::status::voucher::VOUCHER_POSTED))
+            .filter(voucher::Column::VoucherDate.gte(start_date))
+            .filter(voucher::Column::VoucherDate.lt(end_date))
+            .select_only()
+            .column_as(Expr::col(voucher_item::Column::Debit).sum(), "total_debit")
+            .column_as(
+                Expr::col(voucher_item::Column::Credit).sum(),
+                "total_credit",
+            )
+            .into_tuple()
+            .one(&*self.db)
+            .await?;
 
         let (total_debit_opt, total_credit_opt) = result.unwrap_or((None, None));
         Ok((
@@ -509,4 +506,3 @@ pub struct SubjectBalance {
     pub ending_balance_debit: rust_decimal::Decimal,
     pub ending_balance_credit: rust_decimal::Decimal,
 }
-

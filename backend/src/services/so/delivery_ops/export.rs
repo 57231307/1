@@ -66,7 +66,9 @@ impl SalesService {
     }
 
     /// 将销售订单转换为 CSV 行（HashMap<表头, 值>）
-    fn order_to_csv_row(o: super::super::SalesOrderDetail) -> std::collections::HashMap<String, String> {
+    fn order_to_csv_row(
+        o: super::super::SalesOrderDetail,
+    ) -> std::collections::HashMap<String, String> {
         let mut row = std::collections::HashMap::new();
         row.insert("订单编号".to_string(), o.order_no);
         row.insert("客户ID".to_string(), o.customer_id.to_string());
@@ -88,9 +90,7 @@ impl SalesService {
         row.insert(
             "发货日期".to_string(),
             o.ship_date
-                .map(|d: chrono::DateTime<chrono::Utc>| {
-                    d.format("%Y-%m-%d %H:%M:%S").to_string()
-                })
+                .map(|d: chrono::DateTime<chrono::Utc>| d.format("%Y-%m-%d %H:%M:%S").to_string())
                 .unwrap_or_default(),
         );
         row.insert("状态".to_string(), o.status);
@@ -125,9 +125,7 @@ impl SalesService {
         row.insert(
             "审批时间".to_string(),
             o.approved_at
-                .map(|d: chrono::DateTime<chrono::Utc>| {
-                    d.format("%Y-%m-%d %H:%M:%S").to_string()
-                })
+                .map(|d: chrono::DateTime<chrono::Utc>| d.format("%Y-%m-%d %H:%M:%S").to_string())
                 .unwrap_or_default(),
         );
         row

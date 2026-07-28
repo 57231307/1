@@ -268,24 +268,14 @@ impl TrackingCleanupService {
             Ok(TrackingStats {
                 total_page_views: row.try_get::<i64>("", "total_page_views").unwrap_or(0),
                 expired_page_views: row.try_get::<i64>("", "expired_page_views").unwrap_or(0),
-                total_user_behaviors: row
-                    .try_get::<i64>("", "total_user_behaviors")
-                    .unwrap_or(0),
+                total_user_behaviors: row.try_get::<i64>("", "total_user_behaviors").unwrap_or(0),
                 expired_user_behaviors: row
                     .try_get::<i64>("", "expired_user_behaviors")
                     .unwrap_or(0),
-                oldest_page_view: row
-                    .try_get::<String>("", "oldest_page_view")
-                    .ok(),
-                newest_page_view: row
-                    .try_get::<String>("", "newest_page_view")
-                    .ok(),
-                oldest_user_behavior: row
-                    .try_get::<String>("", "oldest_user_behavior")
-                    .ok(),
-                newest_user_behavior: row
-                    .try_get::<String>("", "newest_user_behavior")
-                    .ok(),
+                oldest_page_view: row.try_get::<String>("", "oldest_page_view").ok(),
+                newest_page_view: row.try_get::<String>("", "newest_page_view").ok(),
+                oldest_user_behavior: row.try_get::<String>("", "oldest_user_behavior").ok(),
+                newest_user_behavior: row.try_get::<String>("", "newest_user_behavior").ok(),
             })
         } else {
             Ok(TrackingStats::default())

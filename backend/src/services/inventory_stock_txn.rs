@@ -2,11 +2,9 @@
 //!
 //! 拆分自 inventory_stock_service.rs：原 4 个 _txn 方法独立成文件。
 
-use rust_decimal::Decimal;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set,
-};
 use chrono::Utc;
+use rust_decimal::Decimal;
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 
 use crate::models::inventory_stock;
 use crate::models::inventory_transaction;
@@ -196,9 +194,7 @@ impl InventoryStockService {
     }
 
     /// 从已插入的流水 Model 构建业务事件
-    fn build_transaction_event(
-        transaction: &inventory_transaction::Model,
-    ) -> BusinessEvent {
+    fn build_transaction_event(transaction: &inventory_transaction::Model) -> BusinessEvent {
         BusinessEvent::InventoryTransactionCreated {
             transaction_id: transaction.id,
             transaction_type: transaction.transaction_type.clone(),
@@ -451,6 +447,9 @@ mod tests {
         };
 
         // 确认进入了正确变体的分支
-        assert!(matched, "BusinessEvent 应匹配到 InventoryTransactionCreated 变体");
+        assert!(
+            matched,
+            "BusinessEvent 应匹配到 InventoryTransactionCreated 变体"
+        );
     }
 }

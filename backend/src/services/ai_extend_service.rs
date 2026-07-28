@@ -10,7 +10,8 @@
 //! 5. 看板聚合
 
 use sea_orm::{
-    QuerySelect, ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -162,8 +163,9 @@ impl AiExtendService {
             )
             .unwrap_or_default()),
             similar_cases: Set(resp.similar_cases as i32),
-            confidence: Set(rust_decimal::Decimal::from_f64_retain(resp.confidence)
-                .unwrap_or_default()),
+            confidence: Set(
+                rust_decimal::Decimal::from_f64_retain(resp.confidence).unwrap_or_default()
+            ),
             source: Set(resp.source.clone()),
             reason: Set(Some(resp.reason.clone())),
             candidates_json: Set(Some(candidates_json)),
@@ -346,7 +348,10 @@ impl AiExtendService {
             .exec(&*self.db)
             .await?;
         if res.rows_affected == 0 {
-            return Err(AppError::not_found(format!("工艺优化记录不存在: id={}", id)));
+            return Err(AppError::not_found(format!(
+                "工艺优化记录不存在: id={}",
+                id
+            )));
         }
         Ok(())
     }
@@ -395,12 +400,14 @@ impl AiExtendService {
             )
             .unwrap_or_default()),
             trend: Set(trend_label.to_string()),
-            trend_rate: Set(rust_decimal::Decimal::from_f64_retain(resp.trend_rate)
-                .unwrap_or_default()),
+            trend_rate: Set(
+                rust_decimal::Decimal::from_f64_retain(resp.trend_rate).unwrap_or_default()
+            ),
             risk_score: Set(resp.risk_score as i16),
             risk_level: Set(risk_label.to_string()),
-            confidence: Set(rust_decimal::Decimal::from_f64_retain(resp.confidence)
-                .unwrap_or_default()),
+            confidence: Set(
+                rust_decimal::Decimal::from_f64_retain(resp.confidence).unwrap_or_default()
+            ),
             top_issues_json: Set(Some(top_issues_json)),
             recommendations_json: Set(Some(recommendations_json)),
             period_breakdown_json: Set(Some(period_breakdown_json)),
@@ -497,8 +504,7 @@ impl AiExtendService {
         limit: u64,
         data_scope: Option<&DataScopeContext>,
     ) -> Result<Vec<QualityModel>, AppError> {
-        let mut select = QualityEntity::find()
-            .filter(QualityColumn::ProductId.eq(product_id));
+        let mut select = QualityEntity::find().filter(QualityColumn::ProductId.eq(product_id));
         // V15 P0-S27：注入数据范围过滤
         if let Some(ctx) = data_scope {
             select = apply_data_scope(
@@ -569,7 +575,10 @@ impl AiExtendService {
             .exec(&*self.db)
             .await?;
         if res.rows_affected == 0 {
-            return Err(AppError::not_found(format!("质量预测记录不存在: id={}", id)));
+            return Err(AppError::not_found(format!(
+                "质量预测记录不存在: id={}",
+                id
+            )));
         }
         Ok(())
     }
@@ -589,8 +598,7 @@ impl AiExtendService {
     ) -> Result<serde_json::Value, AppError> {
         let (total_proc, applied_proc, knn_proc, apply_rate) =
             self.collect_process_stats(data_scope).await?;
-        let (total_qual, high_risk, unack) =
-            self.collect_quality_stats(data_scope).await?;
+        let (total_qual, high_risk, unack) = self.collect_quality_stats(data_scope).await?;
         let latest_proc = self.fetch_latest_process(data_scope).await?;
         let latest_qual = self.fetch_latest_quality(data_scope).await?;
         Ok(serde_json::json!({
@@ -617,7 +625,12 @@ impl AiExtendService {
     ) -> Result<(u64, u64, u64, f64), AppError> {
         let mut base = ProcessEntity::find();
         if let Some(ctx) = data_scope {
-            base = apply_data_scope(base, ctx, ProcessColumn::CreatedBy, ProcessColumn::CreatedBy);
+            base = apply_data_scope(
+                base,
+                ctx,
+                ProcessColumn::CreatedBy,
+                ProcessColumn::CreatedBy,
+            );
         }
         let total = base.clone().count(&*self.db).await?;
         let applied = base
@@ -644,7 +657,12 @@ impl AiExtendService {
     ) -> Result<(u64, u64, u64), AppError> {
         let mut base = QualityEntity::find();
         if let Some(ctx) = data_scope {
-            base = apply_data_scope(base, ctx, QualityColumn::CreatedBy, QualityColumn::CreatedBy);
+            base = apply_data_scope(
+                base,
+                ctx,
+                QualityColumn::CreatedBy,
+                QualityColumn::CreatedBy,
+            );
         }
         let total = base.clone().count(&*self.db).await?;
         let high_risk = base
@@ -668,7 +686,10 @@ impl AiExtendService {
         if let Some(ctx) = data_scope {
             q = apply_data_scope(q, ctx, ProcessColumn::CreatedBy, ProcessColumn::CreatedBy);
         }
-        Ok(q.order_by_desc(ProcessColumn::CreatedAt).limit(5).all(&*self.db).await?)
+        Ok(q.order_by_desc(ProcessColumn::CreatedAt)
+            .limit(5)
+            .all(&*self.db)
+            .await?)
     }
 
     /// 获取最新 5 条质量预测记录（应用数据范围过滤，按创建时间倒序）
@@ -680,7 +701,10 @@ impl AiExtendService {
         if let Some(ctx) = data_scope {
             q = apply_data_scope(q, ctx, QualityColumn::CreatedBy, QualityColumn::CreatedBy);
         }
-        Ok(q.order_by_desc(QualityColumn::CreatedAt).limit(5).all(&*self.db).await?)
+        Ok(q.order_by_desc(QualityColumn::CreatedAt)
+            .limit(5)
+            .all(&*self.db)
+            .await?)
     }
 
     /// 返回 AI 模块算法元信息（v11 批次 155 P2-C：从 handler 下沉到 service，避免描述脱钩）

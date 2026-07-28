@@ -5,10 +5,8 @@
 //! 3 个私有 helper：validate_card_for_step_start / fetch_route_or_default / build_step_active_model）。
 //! new 构造函数保留在 facade。
 
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set,
-};
 use sea_orm::DatabaseConnection;
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 
 use crate::models::process_route::{self, Entity as RouteEntity};
 use crate::models::process_step_record::{
@@ -19,7 +17,9 @@ use crate::models::production_flow_card::{
 };
 use crate::models::status::flow_card as card_status;
 use crate::models::status::step_record as step_status;
-use crate::services::flow_card_service::{CompleteStepRequest, StartStepRequest, StepRecordService};
+use crate::services::flow_card_service::{
+    CompleteStepRequest, StartStepRequest, StepRecordService,
+};
 use crate::utils::error::AppError;
 
 impl StepRecordService {
@@ -35,7 +35,13 @@ impl StepRecordService {
             Self::fetch_route_or_default(self.db.as_ref(), req.process_route_id, &card).await?;
         let now = crate::utils::date_utils::utc_now_fixed();
         let active = Self::build_step_active_model(
-            &req, &card, route_code, route_name, process_type, step_seq, now,
+            &req,
+            &card,
+            route_code,
+            route_name,
+            process_type,
+            step_seq,
+            now,
         );
         let result = active
             .insert(&*self.db)
@@ -78,7 +84,12 @@ impl StepRecordService {
                 .one(db)
                 .await?
                 .ok_or_else(|| AppError::not_found(format!("工序路线 {} 不存在", rid)))?;
-            Ok((route.route_code, route.route_name, route.process_type, route.seq))
+            Ok((
+                route.route_code,
+                route.route_name,
+                route.process_type,
+                route.seq,
+            ))
         } else {
             Ok((
                 "CUSTOM".to_string(),
@@ -176,24 +187,28 @@ impl StepRecordService {
         let updated = active.update(&*self.db).await?;
 
         // V15 Batch05-P1-3：发布 ProcessStepReported 事件（工序进度实时感知）
-        crate::services::event_bus::EVENT_BUS.publish(crate::services::event_bus::BusinessEvent::ProcessStepReported {
-            step_record_id: updated.id,
-            flow_card_id: updated.flow_card_id,
-            route_code: updated.route_code.clone(),
-            operator_id: updated.created_by,
-            started_at: Some(updated.start_at.with_timezone(&chrono::Utc)),
-            completed_at: updated.end_at.map(|dt| dt.with_timezone(&chrono::Utc)),
-            quantity: updated.actual_quantity,
-        });
+        crate::services::event_bus::EVENT_BUS.publish(
+            crate::services::event_bus::BusinessEvent::ProcessStepReported {
+                step_record_id: updated.id,
+                flow_card_id: updated.flow_card_id,
+                route_code: updated.route_code.clone(),
+                operator_id: updated.created_by,
+                started_at: Some(updated.start_at.with_timezone(&chrono::Utc)),
+                completed_at: updated.end_at.map(|dt| dt.with_timezone(&chrono::Utc)),
+                quantity: updated.actual_quantity,
+            },
+        );
 
         // V15 Batch05-P1-3：发布 ProductionQuantityReported 事件（驱动工资计算/成本归集）
-        crate::services::event_bus::EVENT_BUS.publish(crate::services::event_bus::BusinessEvent::ProductionQuantityReported {
-            step_record_id: updated.id,
-            flow_card_id: updated.flow_card_id,
-            operator_id: updated.created_by,
-            actual_quantity: updated.actual_quantity.unwrap_or_default(),
-            qualified_quantity: updated.qualified_quantity.unwrap_or_default(),
-        });
+        crate::services::event_bus::EVENT_BUS.publish(
+            crate::services::event_bus::BusinessEvent::ProductionQuantityReported {
+                step_record_id: updated.id,
+                flow_card_id: updated.flow_card_id,
+                operator_id: updated.created_by,
+                actual_quantity: updated.actual_quantity.unwrap_or_default(),
+                qualified_quantity: updated.qualified_quantity.unwrap_or_default(),
+            },
+        );
 
         Ok(updated)
     }

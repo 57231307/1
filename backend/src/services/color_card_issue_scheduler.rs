@@ -112,10 +112,7 @@ impl ColorCardIssueExpiryScheduler {
     /// 1. 更新发放记录 status='cancelled'，remark 追加"系统自动取消（超过预计归还日期）"
     /// 2. 恢复色卡 issued_quantity（-= issue_qty）
     /// 3. 记录审计日志（best-effort）
-    async fn cancel_expired_issue(
-        &self,
-        issue: &color_card_issue::Model,
-    ) -> Result<(), AppError> {
+    async fn cancel_expired_issue(&self, issue: &color_card_issue::Model) -> Result<(), AppError> {
         let txn = self.db.begin().await?;
 
         // 锁定发放记录（避免与并发 cancel/return 冲突）

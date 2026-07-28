@@ -56,16 +56,11 @@ impl ContractSignatureService {
     /// - 电子签名需专属于电子签名人（记录 signed_by_user_id）
     /// - 由电子签名人控制（记录 signed_at 签章时间）
     /// - 签署后对电子签名的任何改动能够被发现（SHA-256 哈希防篡改）
-    pub async fn sign_contract(
-        &self,
-        req: SignContractRequest,
-    ) -> Result<ContractModel, AppError> {
+    pub async fn sign_contract(&self, req: SignContractRequest) -> Result<ContractModel, AppError> {
         let contract = ContractEntity::find_by_id(req.contract_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::not_found(format!("销售合同 {} 不存在", req.contract_id))
-            })?;
+            .ok_or_else(|| AppError::not_found(format!("销售合同 {} 不存在", req.contract_id)))?;
 
         if contract.signed_at.is_some() {
             return Err(AppError::business(format!(

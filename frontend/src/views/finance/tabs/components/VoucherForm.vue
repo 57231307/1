@@ -188,14 +188,16 @@ const emit = defineEmits<{
   (e: 'submit-form'): void;
   // 整体回写表单（父组件监听此事件并 Object.assign 到自己的 voucherForm）
   (e: 'update:voucherForm', voucherForm: VoucherForm): void;
+  // el-form 实例就绪（替代直接修改 prop voucherFormRef.value）
+  (e: 'form-ref-ready', val: FormInstance): void;
 }>();
 
-// 将 el-form 的 ref 实例同步到父组件传入的 voucherFormRef.value
+// 将 el-form 的 ref 实例通过 emit 通知父组件（避免直接修改 prop 触发 vue/no-mutating-props）
 const formRefValue = ref<FormInstance | undefined>(undefined);
 watch(
   formRefValue,
   val => {
-    if (val) props.voucherFormRef.value = val;
+    if (val) emit('form-ref-ready', val);
   },
   { immediate: true, flush: 'post' }
 );

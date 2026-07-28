@@ -277,18 +277,19 @@ impl ArService {
         let mut linked_invoices: Vec<i32> = Vec::new();
         if let Some(inv_ids) = invoice_ids {
             // 批量查询所有发票并加锁，避免循环内 N+1
-            let invoice_map: std::collections::HashMap<i32, ar_invoice::Model> = if inv_ids.is_empty() {
-                std::collections::HashMap::new()
-            } else {
-                ar_invoice::Entity::find()
-                    .filter(ar_invoice::Column::Id.is_in(inv_ids.clone()))
-                    .lock_exclusive()
-                    .all(txn)
-                    .await?
-                    .into_iter()
-                    .map(|inv| (inv.id, inv))
-                    .collect()
-            };
+            let invoice_map: std::collections::HashMap<i32, ar_invoice::Model> =
+                if inv_ids.is_empty() {
+                    std::collections::HashMap::new()
+                } else {
+                    ar_invoice::Entity::find()
+                        .filter(ar_invoice::Column::Id.is_in(inv_ids.clone()))
+                        .lock_exclusive()
+                        .all(txn)
+                        .await?
+                        .into_iter()
+                        .map(|inv| (inv.id, inv))
+                        .collect()
+                };
 
             // 按比例分摊收款金额到各发票
             // 简化策略：按发票顺序扣减，每张发票扣减 min(剩余收款, 发票未收金额)
@@ -297,9 +298,9 @@ impl ArService {
                 if remaining <= Decimal::ZERO {
                     break;
                 }
-                let invoice = invoice_map.get(&inv_id).ok_or_else(|| {
-                    AppError::not_found(format!("应收单 {} 不存在", inv_id))
-                })?;
+                let invoice = invoice_map
+                    .get(&inv_id)
+                    .ok_or_else(|| AppError::not_found(format!("应收单 {} 不存在", inv_id)))?;
                 let linked = Self::allocate_payment_to_invoice(
                     invoice,
                     &mut remaining,
@@ -424,9 +425,7 @@ impl ArService {
                 status = %collection.status,
                 "AR 收款更新被拒：状态非 pending"
             );
-            return Err(AppError::bad_request(
-                "非 pending 状态的收款单不可修改",
-            ));
+            return Err(AppError::bad_request("非 pending 状态的收款单不可修改"));
         }
 
         let mut active: ar_collection::ActiveModel = collection.into();
@@ -521,13 +520,12 @@ impl ArService {
     }
 
     /// 生成收款凭证（best-effort，失败仅 warn 不阻塞主流程）
-    async fn generate_collection_voucher(
-        &self,
-        updated: &ar_collection::Model,
-        user_id: i32,
-    ) {
+    async fn generate_collection_voucher(&self, updated: &ar_collection::Model, user_id: i32) {
         let collection_amount = updated.collection_amount;
-        let collection_method = updated.collection_method.as_deref().unwrap_or("BANK_TRANSFER");
+        let collection_method = updated
+            .collection_method
+            .as_deref()
+            .unwrap_or("BANK_TRANSFER");
         let (debit_code, debit_name) = match collection_method {
             "CASH" => ("1001", "库存现金"),
             _ => ("1002", "银行存款"),
@@ -538,7 +536,8 @@ impl ArService {
             debit_code,
             debit_name,
         );
-        let voucher_service = crate::services::voucher_service::VoucherService::new(self.db.clone());
+        let voucher_service =
+            crate::services::voucher_service::VoucherService::new(self.db.clone());
         if let Err(e) = voucher_service.create_and_post(voucher_req, user_id).await {
             tracing::warn!(
                 "收款单 {} 确认成功，但生成收款凭证失败：{}",

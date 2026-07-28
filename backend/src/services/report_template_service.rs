@@ -4,8 +4,7 @@
 
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -122,41 +121,135 @@ impl ReportTemplateService {
     pub fn available_fields_for_type(template_type: &str) -> Vec<ReportFieldDefinition> {
         match template_type.to_lowercase().as_str() {
             "sales" | "sales_daily" | "销售" => vec![
-                ReportFieldDefinition { field: "order_no", title: "订单编号", data_type: "string" },
-                ReportFieldDefinition { field: "customer_name", title: "客户名称", data_type: "string" },
-                ReportFieldDefinition { field: "order_date", title: "订单日期", data_type: "date" },
-                ReportFieldDefinition { field: "total_amount", title: "订单金额", data_type: "decimal" },
-                ReportFieldDefinition { field: "status", title: "状态", data_type: "string" },
+                ReportFieldDefinition {
+                    field: "order_no",
+                    title: "订单编号",
+                    data_type: "string",
+                },
+                ReportFieldDefinition {
+                    field: "customer_name",
+                    title: "客户名称",
+                    data_type: "string",
+                },
+                ReportFieldDefinition {
+                    field: "order_date",
+                    title: "订单日期",
+                    data_type: "date",
+                },
+                ReportFieldDefinition {
+                    field: "total_amount",
+                    title: "订单金额",
+                    data_type: "decimal",
+                },
+                ReportFieldDefinition {
+                    field: "status",
+                    title: "状态",
+                    data_type: "string",
+                },
             ],
             "purchase" | "purchase_summary" | "采购" => vec![
-                ReportFieldDefinition { field: "order_no", title: "采购单号", data_type: "string" },
-                ReportFieldDefinition { field: "supplier_name", title: "供应商", data_type: "string" },
-                ReportFieldDefinition { field: "order_date", title: "下单日期", data_type: "date" },
-                ReportFieldDefinition { field: "total_amount", title: "采购金额", data_type: "decimal" },
-                ReportFieldDefinition { field: "delivery_date", title: "交期", data_type: "date" },
+                ReportFieldDefinition {
+                    field: "order_no",
+                    title: "采购单号",
+                    data_type: "string",
+                },
+                ReportFieldDefinition {
+                    field: "supplier_name",
+                    title: "供应商",
+                    data_type: "string",
+                },
+                ReportFieldDefinition {
+                    field: "order_date",
+                    title: "下单日期",
+                    data_type: "date",
+                },
+                ReportFieldDefinition {
+                    field: "total_amount",
+                    title: "采购金额",
+                    data_type: "decimal",
+                },
+                ReportFieldDefinition {
+                    field: "delivery_date",
+                    title: "交期",
+                    data_type: "date",
+                },
             ],
             "inventory" | "inventory_status" | "库存" => vec![
-                ReportFieldDefinition { field: "product_code", title: "产品编码", data_type: "string" },
-                ReportFieldDefinition { field: "product_name", title: "产品名称", data_type: "string" },
-                ReportFieldDefinition { field: "quantity_available", title: "可用库存", data_type: "decimal" },
-                ReportFieldDefinition { field: "quantity_reserved", title: "预留库存", data_type: "decimal" },
-                ReportFieldDefinition { field: "warehouse", title: "仓库", data_type: "string" },
+                ReportFieldDefinition {
+                    field: "product_code",
+                    title: "产品编码",
+                    data_type: "string",
+                },
+                ReportFieldDefinition {
+                    field: "product_name",
+                    title: "产品名称",
+                    data_type: "string",
+                },
+                ReportFieldDefinition {
+                    field: "quantity_available",
+                    title: "可用库存",
+                    data_type: "decimal",
+                },
+                ReportFieldDefinition {
+                    field: "quantity_reserved",
+                    title: "预留库存",
+                    data_type: "decimal",
+                },
+                ReportFieldDefinition {
+                    field: "warehouse",
+                    title: "仓库",
+                    data_type: "string",
+                },
             ],
             "financial" | "finance" | "财务" => vec![
-                ReportFieldDefinition { field: "payment_no", title: "付款单号", data_type: "string" },
-                ReportFieldDefinition { field: "amount", title: "金额", data_type: "decimal" },
-                ReportFieldDefinition { field: "payment_method", title: "付款方式", data_type: "string" },
-                ReportFieldDefinition { field: "status", title: "状态", data_type: "string" },
-                ReportFieldDefinition { field: "created_at", title: "创建时间", data_type: "datetime" },
+                ReportFieldDefinition {
+                    field: "payment_no",
+                    title: "付款单号",
+                    data_type: "string",
+                },
+                ReportFieldDefinition {
+                    field: "amount",
+                    title: "金额",
+                    data_type: "decimal",
+                },
+                ReportFieldDefinition {
+                    field: "payment_method",
+                    title: "付款方式",
+                    data_type: "string",
+                },
+                ReportFieldDefinition {
+                    field: "status",
+                    title: "状态",
+                    data_type: "string",
+                },
+                ReportFieldDefinition {
+                    field: "created_at",
+                    title: "创建时间",
+                    data_type: "datetime",
+                },
             ],
             "custom" | "自定义" => vec![
-                ReportFieldDefinition { field: "id", title: "ID", data_type: "string" },
-                ReportFieldDefinition { field: "name", title: "名称", data_type: "string" },
-                ReportFieldDefinition { field: "created_at", title: "创建时间", data_type: "datetime" },
+                ReportFieldDefinition {
+                    field: "id",
+                    title: "ID",
+                    data_type: "string",
+                },
+                ReportFieldDefinition {
+                    field: "name",
+                    title: "名称",
+                    data_type: "string",
+                },
+                ReportFieldDefinition {
+                    field: "created_at",
+                    title: "创建时间",
+                    data_type: "datetime",
+                },
             ],
-            _ => vec![
-                ReportFieldDefinition { field: "*", title: "全部字段", data_type: "string" },
-            ],
+            _ => vec![ReportFieldDefinition {
+                field: "*",
+                title: "全部字段",
+                data_type: "string",
+            }],
         }
     }
 
@@ -216,7 +309,9 @@ impl ReportTemplateService {
             // 缺陷 1.1：初始版本为 1，update 时递增
             version: Set(1),
             // 缺陷 1.2：按报表类型自动绑定权限码（销售/采购/库存/财务）
-            required_permission: Set(report_type_permission(&req.report_type).map(|s| s.to_string())),
+            required_permission: Set(
+                report_type_permission(&req.report_type).map(|s| s.to_string())
+            ),
             created_by: Set(user_id),
             created_at: Set(now),
             updated_at: Set(now),

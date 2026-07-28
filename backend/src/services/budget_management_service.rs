@@ -235,14 +235,13 @@ impl BudgetManagementService {
             item.remark = Set(Some(remark));
         }
 
-        let updated =
-            crate::services::audit_log_service::AuditLogService::update_with_audit(
-                &txn,
-                "auto_audit",
-                item,
-                Some(user_id),
-            )
-            .await?;
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            item,
+            Some(user_id),
+        )
+        .await?;
 
         txn.commit().await?;
 
@@ -363,7 +362,9 @@ impl BudgetManagementService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("预算方案不存在：{}", plan_id)))?;
 
-        if plan.status.as_deref() != Some(budget::DRAFT) && plan.status.as_deref() != Some(budget::REJECTED) {
+        if plan.status.as_deref() != Some(budget::DRAFT)
+            && plan.status.as_deref() != Some(budget::REJECTED)
+        {
             return Err(AppError::validation("预算方案状态不允许审批".to_string()));
         }
 
@@ -729,10 +730,7 @@ impl BudgetManagementService {
         user_id: i32,
         _reject_comment: Option<String>,
     ) -> Result<(), AppError> {
-        info!(
-            "用户 {} 正在驳回预算方案：{}",
-            user_id, plan_id
-        );
+        info!("用户 {} 正在驳回预算方案：{}", user_id, plan_id);
 
         let txn = (*self.db).begin().await?;
         let plan = budget_plan::Entity::find_by_id(plan_id)
@@ -783,7 +781,9 @@ impl BudgetManagementService {
         }
 
         // 验证方案状态
-        if plan.status.as_deref() != Some(budget::APPROVED) && plan.status.as_deref() != Some(budget::ACTIVE) {
+        if plan.status.as_deref() != Some(budget::APPROVED)
+            && plan.status.as_deref() != Some(budget::ACTIVE)
+        {
             return Err(AppError::validation("预算方案未审批或未激活".to_string()));
         }
 
@@ -1001,8 +1001,8 @@ impl BudgetManagementService {
             budget_year, department_id
         );
 
-        let mut query = budget_plan::Entity::find()
-            .filter(budget_plan::Column::BudgetYear.eq(budget_year));
+        let mut query =
+            budget_plan::Entity::find().filter(budget_plan::Column::BudgetYear.eq(budget_year));
         if let Some(dept) = department_id {
             query = query.filter(budget_plan::Column::DepartmentId.eq(Some(dept)));
         }
@@ -1032,19 +1032,14 @@ impl BudgetManagementService {
             let variance_rate = if issued_amount.is_zero() {
                 None
             } else {
-                Some(
-                    (variance / issued_amount * Decimal::from(100))
-                        .round_dp(2),
-                )
+                Some((variance / issued_amount * Decimal::from(100)).round_dp(2))
             };
 
             let status = if executed_amount > issued_amount {
                 "over_budget".to_string()
             } else if issued_amount.is_zero() {
                 "no_issued".to_string()
-            } else if executed_amount
-                > issued_amount * Decimal::new(80, 2)
-            {
+            } else if executed_amount > issued_amount * Decimal::new(80, 2) {
                 "near_limit".to_string()
             } else {
                 "normal".to_string()
@@ -1088,7 +1083,11 @@ impl BudgetManagementService {
     ) -> Result<budget_plan::Model, AppError> {
         info!(
             "用户 {} 创建预算方案：模式={}, 源年度={}, 目标年度={}, 部门={}",
-            user_id, mode.as_str(), source_year, target_year, department_id
+            user_id,
+            mode.as_str(),
+            source_year,
+            target_year,
+            department_id
         );
 
         match mode {
@@ -1102,10 +1101,7 @@ impl BudgetManagementService {
                 );
                 let active = budget_plan::ActiveModel {
                     plan_no: Set(plan_no.clone()),
-                    plan_name: Set(format!(
-                        "{}年度零基预算-部门{}",
-                        target_year, department_id
-                    )),
+                    plan_name: Set(format!("{}年度零基预算-部门{}", target_year, department_id)),
                     budget_year: Set(target_year),
                     budget_type: Set("zero_based".to_string()),
                     department_id: Set(Some(department_id)),
@@ -1159,10 +1155,7 @@ impl BudgetManagementService {
                     ..Default::default()
                 };
                 let plan = active.insert(&*self.db).await?;
-                info!(
-                    "滚动预算方案已创建：{}（源年度 {}）",
-                    plan_no, source_year
-                );
+                info!("滚动预算方案已创建：{}（源年度 {}）", plan_no, source_year);
                 Ok(plan)
             }
             BudgetMode::Incremental => {
@@ -1181,8 +1174,7 @@ impl BudgetManagementService {
                     })?;
 
                 let growth_rate = Decimal::new(5, 2); // 0.05
-                let new_total =
-                    source_plan.total_amount * (Decimal::from(1) + growth_rate);
+                let new_total = source_plan.total_amount * (Decimal::from(1) + growth_rate);
                 let plan_no = format!(
                     "IN-{}-{}-{}",
                     target_year,
@@ -1264,8 +1256,7 @@ impl BudgetManagementService {
                 continue;
             }
 
-            let execution_rate =
-                (executed_amount / issued_amount * Decimal::from(100)).round_dp(2);
+            let execution_rate = (executed_amount / issued_amount * Decimal::from(100)).round_dp(2);
 
             let warning_level = if execution_rate >= Decimal::from(100) {
                 "red"

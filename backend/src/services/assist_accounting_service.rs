@@ -2,7 +2,8 @@ use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect, RelationTrait, Set,
 };
 use std::sync::Arc;
 
@@ -128,7 +129,6 @@ impl AssistAccountingService {
             .map_err(AppError::from)
     }
 
-
     /// 查询辅助核算明细（带过滤）
     ///
     /// V15 P1 17.2-D2 修复：dimension_code 现在会真实过滤对应维度字段非空的记录。
@@ -177,8 +177,8 @@ impl AssistAccountingService {
         &self,
         accounting_period: &str,
     ) -> Result<AssistVsGeneralBalanceResult, AppError> {
-        use crate::models::{voucher, voucher_item};
         use crate::models::status::voucher::VOUCHER_POSTED;
+        use crate::models::{voucher, voucher_item};
         use sea_orm::sea_query::Expr;
 
         // 1. 汇总辅助核算记录的借贷总额（按期间过滤）
@@ -214,7 +214,10 @@ impl AssistAccountingService {
             .filter(voucher::Column::VoucherDate.lte(end_date))
             .select_only()
             .column_as(Expr::col(voucher_item::Column::Debit).sum(), "total_debit")
-            .column_as(Expr::col(voucher_item::Column::Credit).sum(), "total_credit")
+            .column_as(
+                Expr::col(voucher_item::Column::Credit).sum(),
+                "total_credit",
+            )
             .into_tuple()
             .one(&*self.db)
             .await?;
@@ -309,7 +312,8 @@ impl AssistAccountingService {
                 }
                 "WORKSHOP" => {
                     // 车间过滤：workshop_id 非空
-                    query = query.filter(assist_accounting_record::Column::WorkshopId.is_not_null());
+                    query =
+                        query.filter(assist_accounting_record::Column::WorkshopId.is_not_null());
                 }
                 "WAREHOUSE" => {
                     // 仓库过滤：warehouse_id 非零（所有记录都有 warehouse_id，这里过滤有效仓库）
@@ -317,11 +321,13 @@ impl AssistAccountingService {
                 }
                 "CUSTOMER" => {
                     // 客户过滤：customer_id 非空
-                    query = query.filter(assist_accounting_record::Column::CustomerId.is_not_null());
+                    query =
+                        query.filter(assist_accounting_record::Column::CustomerId.is_not_null());
                 }
                 "SUPPLIER" => {
                     // 供应商过滤：supplier_id 非空
-                    query = query.filter(assist_accounting_record::Column::SupplierId.is_not_null());
+                    query =
+                        query.filter(assist_accounting_record::Column::SupplierId.is_not_null());
                 }
                 _ => {}
             }
@@ -335,7 +341,6 @@ impl AssistAccountingService {
         }
         query
     }
-
 
     /// 查询所有启用的辅助核算维度
     pub async fn list_dimensions(
@@ -372,7 +377,9 @@ fn parse_period(period: &str) -> Result<(i32, u32), AppError> {
 /// V15 P1 17.2-D1：解析期间字符串为日期范围 (start, end)
 ///
 /// 返回该月第一天 00:00:00 UTC 到该月最后一天 23:59:59 UTC。
-fn parse_period_range(period: &str) -> Result<(chrono::DateTime<Utc>, chrono::DateTime<Utc>), AppError> {
+fn parse_period_range(
+    period: &str,
+) -> Result<(chrono::DateTime<Utc>, chrono::DateTime<Utc>), AppError> {
     let (year, month) = parse_period(period)?;
     let start_date = chrono::NaiveDate::from_ymd_opt(year, month, 1)
         .ok_or_else(|| AppError::validation(format!("无效的起始日期: {}-{:02}-01", year, month)))?
@@ -388,6 +395,6 @@ fn parse_period_range(period: &str) -> Result<(chrono::DateTime<Utc>, chrono::Da
     .and_hms_opt(0, 0, 0)
     .unwrap_or_else(|| chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap())
     .and_utc()
-    - chrono::Duration::seconds(1);
+        - chrono::Duration::seconds(1);
     Ok((start_date, end_date))
 }

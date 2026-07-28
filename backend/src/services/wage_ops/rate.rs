@@ -205,11 +205,7 @@ impl WageRateService {
     }
 
     /// 更新工价（仅 draft 状态可更新）
-    pub async fn update(
-        &self,
-        id: i32,
-        req: UpdateWageRateRequest,
-    ) -> Result<RateModel, AppError> {
+    pub async fn update(&self, id: i32, req: UpdateWageRateRequest) -> Result<RateModel, AppError> {
         let model = self.get_by_id(id).await?;
         if model.status != wage_rate_status::DRAFT {
             return Err(AppError::business(format!(
@@ -375,15 +371,11 @@ impl WageRateService {
     }
 
     /// 分页查询
-    pub async fn list(
-        &self,
-        query: WageRateQuery,
-    ) -> Result<(Vec<RateModel>, u64), AppError> {
+    pub async fn list(&self, query: WageRateQuery) -> Result<(Vec<RateModel>, u64), AppError> {
         let page = query.page.unwrap_or(1).clamp(1, 1000);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
-        let mut q = RateEntity::find()
-            .filter(process_wage_rate::Column::IsDeleted.eq(false));
+        let mut q = RateEntity::find().filter(process_wage_rate::Column::IsDeleted.eq(false));
 
         if let Some(v) = query.route_code {
             q = q.filter(process_wage_rate::Column::RouteCode.eq(v));

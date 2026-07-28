@@ -10,8 +10,8 @@ use crate::utils::response::unauthorized_response;
 use axum::{body::Body, extract::State, http::Request, middleware::Next, response::Response};
 use axum_extra::extract::cookie::{Key, PrivateCookieJar};
 // V15 P0-S01：auth 中间件需要查询 role 和 user 表以加载 data_scope 和 department_id
-use sea_orm::EntityTrait;
 use dashmap::DashMap;
+use sea_orm::EntityTrait;
 use std::sync::OnceLock;
 use std::time::Instant;
 use tracing::{info, warn};
@@ -81,9 +81,7 @@ static USER_ACTIVE_CHECK_ENABLED: std::sync::LazyLock<bool> = std::sync::LazyLoc
     let raw = std::env::var("AUTH_CHECK_USER_ACTIVE").unwrap_or_else(|_| "true".to_string());
     let enabled = raw == "true";
     if std::env::var("AUTH_CHECK_USER_ACTIVE").is_err() {
-        tracing::info!(
-            "AUTH_CHECK_USER_ACTIVE 未设置，使用默认值 true（实时校验用户活跃状态）"
-        );
+        tracing::info!("AUTH_CHECK_USER_ACTIVE 未设置，使用默认值 true（实时校验用户活跃状态）");
     } else {
         tracing::info!(
             value = %raw,
@@ -109,7 +107,9 @@ pub async fn auth_middleware(
     let client_ip = crate::middleware::audit_context::extract_client_ip(&request);
 
     let is_public = is_public_path(&path);
-    request.extensions_mut().insert(PublicPathCache::new(is_public));
+    request
+        .extensions_mut()
+        .insert(PublicPathCache::new(is_public));
     if is_public {
         info!(path = %path, method = %method, client_ip = %client_ip, "公共路径，跳过认证");
         return Ok(next.run(request).await);
@@ -150,7 +150,9 @@ fn extract_auth_token(
 ) -> Result<String, Response> {
     let key = Key::derive_from(state.cookie_secret.as_bytes());
     let cookie_jar = PrivateCookieJar::from_headers(request.headers(), key);
-    let token_from_access_cookie = cookie_jar.get("access_token").map(|c| c.value().to_string());
+    let token_from_access_cookie = cookie_jar
+        .get("access_token")
+        .map(|c| c.value().to_string());
     let token_from_legacy_cookie = cookie_jar.get("jwt").map(|c| c.value().to_string());
     let auth_header = request
         .headers()
@@ -239,13 +241,29 @@ async fn check_token_revocations(
         warn!(path = %path, method = %method, client_ip = %client_ip, jti = %claims.session_id, "认证失败: JTI 已被吊销");
         return Err(unauthorized_response("令牌已被吊销，请重新登录"));
     }
-    if crate::services::auth_service::is_user_token_revoked(claims.sub, claims.iat.timestamp()).await {
+    if crate::services::auth_service::is_user_token_revoked(claims.sub, claims.iat.timestamp())
+        .await
+    {
         warn!(path = %path, method = %method, client_ip = %client_ip, user_id = claims.sub, username = %claims.username, "认证失败: 用户 Token 已被吊销（用户被删除/封禁）");
-        return Err(log_denied_and_respond(request, claims, "auth_middleware_user_token_revoked", "用户级 Token 已被吊销", "用户已被禁用或删除，请联系管理员").await);
+        return Err(log_denied_and_respond(
+            request,
+            claims,
+            "auth_middleware_user_token_revoked",
+            "用户级 Token 已被吊销",
+            "用户已被禁用或删除，请联系管理员",
+        )
+        .await);
     }
     if is_user_active_check_enabled() && !is_user_active_cached(state, claims.sub).await {
         warn!(path = %path, method = %method, client_ip = %client_ip, user_id = claims.sub, username = %mask_username(&claims.username), "认证失败: 用户账户已被禁用");
-        return Err(log_denied_and_respond(request, claims, "auth_middleware_is_active_check", "账户已被禁用", "账户已被禁用，请联系管理员").await);
+        return Err(log_denied_and_respond(
+            request,
+            claims,
+            "auth_middleware_is_active_check",
+            "账户已被禁用",
+            "账户已被禁用，请联系管理员",
+        )
+        .await);
     }
     Ok(())
 }
@@ -253,18 +271,16 @@ async fn check_token_revocations(
 // 从 DB 加载 role.data_scope 和 user.department_id 注入 AuthContext（查询失败保持 None，最小权限原则）
 async fn enrich_auth_context(state: &AppState, auth_context: &mut AuthContext) {
     if let Some(role_id) = auth_context.role_id {
-        if let Ok(Some(role_model)) =
-            crate::models::role::Entity::find_by_id(role_id)
-                .one(state.db.as_ref())
-                .await
+        if let Ok(Some(role_model)) = crate::models::role::Entity::find_by_id(role_id)
+            .one(state.db.as_ref())
+            .await
         {
             auth_context.data_scope = Some(role_model.data_scope);
         }
     }
-    if let Ok(Some(user_model)) =
-        crate::models::user::Entity::find_by_id(auth_context.user_id)
-            .one(state.db.as_ref())
-            .await
+    if let Ok(Some(user_model)) = crate::models::user::Entity::find_by_id(auth_context.user_id)
+        .one(state.db.as_ref())
+        .await
     {
         auth_context.department_id = user_model.department_id;
     }

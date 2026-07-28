@@ -15,10 +15,7 @@ use tokio::fs;
 
 /// P0 7-2 修复：要求调用者具备 admin 角色，否则拒绝并记录审计日志。
 /// 系统更新属高危操作（二进制替换/版本回滚可致 RCE），需 handler 层显式校验防中间件被绕过。
-async fn require_admin_role(
-    state: &AppState,
-    auth: &AuthContext,
-) -> Result<(), AppError> {
+async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), AppError> {
     let role_id = auth
         .role_id
         .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行该操作"))?;
@@ -201,9 +198,7 @@ pub async fn upload_and_update(
 }
 
 /// 从 multipart 中提取并保存 zip 更新包
-async fn extract_update_file_from_multipart(
-    mut multipart: Multipart,
-) -> Result<PathBuf, AppError> {
+async fn extract_update_file_from_multipart(mut multipart: Multipart) -> Result<PathBuf, AppError> {
     let mut update_file_path: Option<PathBuf> = None;
     const MAX_UPDATE_SIZE: usize = 100 * 1024 * 1024;
     let temp_dir = std::env::temp_dir();
@@ -467,7 +462,10 @@ mod tests {
     #[test]
     fn 测试_verify_zip_magic恰好4字节() {
         let exact = [0x50, 0x4B, 0x03, 0x04];
-        assert!(verify_zip_magic(&exact), "恰好 4 字节合法 ZIP 头应返回 true");
+        assert!(
+            verify_zip_magic(&exact),
+            "恰好 4 字节合法 ZIP 头应返回 true"
+        );
     }
 
     /// 测试_VersionResponse和UpdateResult构造：验证结构体能正确构造并设置字段。

@@ -27,7 +27,8 @@ pub async fn init_event_bus_with_kafka_config(kafka_cfg: &KafkaSettings) {
 
     tracing::info!(
         "事件总线尝试初始化 Kafka 后端：brokers={}, topic={}",
-        kafka_cfg.brokers, kafka_cfg.topic
+        kafka_cfg.brokers,
+        kafka_cfg.topic
     );
 
     match crate::services::event_kafka::KafkaBackend::try_new(kafka_cfg).await {
@@ -73,7 +74,7 @@ fn spawn_kafka_consumer(
                     .catch_unwind()
                     .await;
                     match result {
-                        Ok(true) => {} // 继续
+                        Ok(true) => {}      // 继续
                         Ok(false) => break, // channel 关闭，退出
                         Err(panic_payload) => {
                             let panic_msg = panic_payload

@@ -56,7 +56,10 @@ impl DyeBatchStatus {
         match self {
             Self::Pending => matches!(target, Self::InProgress | Self::Cancelled | Self::OnHold),
             Self::InProgress => {
-                matches!(target, Self::Completed | Self::Cancelled | Self::Failed | Self::OnHold)
+                matches!(
+                    target,
+                    Self::Completed | Self::Cancelled | Self::Failed | Self::OnHold
+                )
             }
             Self::OnHold => matches!(target, Self::InProgress | Self::Cancelled),
             Self::Failed => matches!(target, Self::Pending | Self::Cancelled),
@@ -122,12 +125,11 @@ pub async fn list_dye_batches(
     let paginator = q.paginate(&*state.db, page_size);
     let total = paginator.num_items().await?;
     // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-    let batches = paginator.fetch_page(page.clamp(1, 1000).saturating_sub(1)).await?;
+    let batches = paginator
+        .fetch_page(page.clamp(1, 1000).saturating_sub(1))
+        .await?;
     Ok(Json(ApiResponse::success_paginated(
-        batches,
-        total,
-        page,
-        page_size,
+        batches, total, page, page_size,
     )))
 }
 
@@ -292,10 +294,7 @@ pub async fn delete_dye_batch(
     active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
     active.update(&*state.db).await?;
-    Ok(Json(ApiResponse::success_with_message(
-        (),
-        "缸号删除成功",
-    )))
+    Ok(Json(ApiResponse::success_with_message((), "缸号删除成功")))
 }
 
 pub async fn complete_dye_batch(

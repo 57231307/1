@@ -12,7 +12,9 @@
 //! 跨模块依赖：`check_local_updates` / `list_local_releases` 调用 `github` 子模块的
 //! `compare_versions` / `compare_versions_for_sort`（`pub(crate)` 可见性）。
 
-use crate::services::system_update_service::{LocalRelease, LocalUpdateCheckResult, SystemUpdateService, UpdateError, UpdateStatus};
+use crate::services::system_update_service::{
+    LocalRelease, LocalUpdateCheckResult, SystemUpdateService, UpdateError, UpdateStatus,
+};
 use std::fs;
 use std::path::PathBuf;
 

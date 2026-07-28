@@ -237,9 +237,8 @@ impl ReportEngineService {
                 .and_hms_opt(23, 59, 59)
                 .ok_or_else(|| AppError::internal("报表日期范围结束时分秒非法"))?
                 .and_utc();
-            select = select.filter(
-                crate::models::finance_payment::Column::PaymentDate.between(start, end),
-            );
+            select = select
+                .filter(crate::models::finance_payment::Column::PaymentDate.between(start, end));
         }
         let payments = select.all(&*self.db).await?;
         let aggregation = Self::aggregate_payments_by_group(&payments, &req);
@@ -397,14 +396,13 @@ impl ReportEngineService {
                     ),
             );
             select = select.filter(
-                crate::models::sales_order_item::Column::CreatedAt
-                    .lte(
-                        date_range
-                            .end
-                            .and_hms_opt(23, 59, 59)
-                            .ok_or_else(|| AppError::internal("报表日期范围结束时分秒非法"))?
-                            .and_utc(),
-                    ),
+                crate::models::sales_order_item::Column::CreatedAt.lte(
+                    date_range
+                        .end
+                        .and_hms_opt(23, 59, 59)
+                        .ok_or_else(|| AppError::internal("报表日期范围结束时分秒非法"))?
+                        .and_utc(),
+                ),
             );
         }
 

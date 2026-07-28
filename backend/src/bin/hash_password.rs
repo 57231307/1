@@ -15,7 +15,10 @@ fn main() {
     // L-13 修复（批次 376 v13 复审）：消除 expect 调用，改为 unwrap_or_else + 兜底参数
     // Params::new(m=65536, t=3, p=4) 为静态合法值，理论永远成功
     let params = argon2::Params::new(65536, 3, 4, None).unwrap_or_else(|e| {
-        eprintln!("警告：Argon2id 参数初始化失败（理论不可达）：{}，使用默认参数", e);
+        eprintln!(
+            "警告：Argon2id 参数初始化失败（理论不可达）：{}，使用默认参数",
+            e
+        );
         argon2::Params::default()
     });
     let argon2 = Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, params);

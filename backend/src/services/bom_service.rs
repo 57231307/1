@@ -27,9 +27,7 @@ use std::sync::Arc;
 use crate::models::bom::{
     ActiveModel, Column as BomColumn, Entity as BomEntity, Model as BomModel,
 };
-use crate::models::bom_item::{
-    ActiveModel as BomItemActiveModel, Model as BomItemModel,
-};
+use crate::models::bom_item::{ActiveModel as BomItemActiveModel, Model as BomItemModel};
 use crate::utils::error::AppError;
 
 /// 创建BOM请求
@@ -179,11 +177,11 @@ impl BomService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::services::test_common::setup_test_db;
     use crate::decs;
-    use crate::ymd;
     use crate::models::bom::BomStatus;
     use crate::models::status::common;
+    use crate::services::test_common::setup_test_db;
+    use crate::ymd;
     use std::str::FromStr;
 
     /// 构建测试用 BOM 树节点夹具

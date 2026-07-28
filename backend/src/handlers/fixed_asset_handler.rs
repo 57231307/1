@@ -1,4 +1,3 @@
-
 use crate::middleware::auth_context::AuthContext;
 use crate::models::audit_log::{OperationType, Severity};
 use crate::models::fixed_asset;
@@ -8,8 +7,8 @@ use crate::services::fixed_asset_service::{
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
-use crate::utils::ApiResponse;
 use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
+use crate::utils::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
     Json,
@@ -228,18 +227,11 @@ pub async fn list_depreciation_records(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<crate::models::fixed_asset_depreciation_record::Model>>>, AppError>
 {
-    info!(
-        "用户 {} 正在查询资产 {} 的折旧历史记录",
-        auth.user_id, id
-    );
+    info!("用户 {} 正在查询资产 {} 的折旧历史记录", auth.user_id, id);
 
     let service = FixedAssetService::new(state.db.clone());
     let records = service.list_depreciation_records(id).await?;
-    info!(
-        "资产 {} 折旧记录查询成功，共 {} 条记录",
-        id,
-        records.len()
-    );
+    info!("资产 {} 折旧记录查询成功，共 {} 条记录", id, records.len());
 
     Ok(Json(ApiResponse::success(records)))
 }

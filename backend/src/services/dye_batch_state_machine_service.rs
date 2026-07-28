@@ -203,12 +203,20 @@ fn builtin_transition_rules() -> Vec<(&'static str, &'static str, &'static str)>
         (DRYING, FAILED, FAIL),
         // inspecting → stored / rework / cancelled / failed
         (INSPECTING, STORED, STORE),
-        (INSPECTING, dye_batch_lifecycle_status::REWORK, dye_batch_transition_code::REWORK),
+        (
+            INSPECTING,
+            dye_batch_lifecycle_status::REWORK,
+            dye_batch_transition_code::REWORK,
+        ),
         (INSPECTING, CANCELLED, CANCEL),
         (INSPECTING, FAILED, FAIL),
         // stored → shipped / rework / cancelled / failed
         (STORED, SHIPPED, SHIP),
-        (STORED, dye_batch_lifecycle_status::REWORK, dye_batch_transition_code::REWORK),
+        (
+            STORED,
+            dye_batch_lifecycle_status::REWORK,
+            dye_batch_transition_code::REWORK,
+        ),
         (STORED, CANCELLED, CANCEL),
         (STORED, FAILED, FAIL),
         // rework → dyeing / cancelled / terminated / failed
@@ -642,17 +650,33 @@ mod tests {
     #[test]
     fn 测试状态流转_合法流转() {
         // pending_schedule → scheduled（排缸）
-        assert!(is_valid_transition(Some("pending_schedule"), "scheduled", "schedule"));
+        assert!(is_valid_transition(
+            Some("pending_schedule"),
+            "scheduled",
+            "schedule"
+        ));
         // scheduled → preparing（备布）
-        assert!(is_valid_transition(Some("scheduled"), "preparing", "prepare"));
+        assert!(is_valid_transition(
+            Some("scheduled"),
+            "preparing",
+            "prepare"
+        ));
         // preparing → dyeing（进缸染色）
-        assert!(is_valid_transition(Some("preparing"), "dyeing", "start_dyeing"));
+        assert!(is_valid_transition(
+            Some("preparing"),
+            "dyeing",
+            "start_dyeing"
+        ));
         // dyeing → washing（皂洗）
         assert!(is_valid_transition(Some("dyeing"), "washing", "wash"));
         // washing → fixing（固色）
         assert!(is_valid_transition(Some("washing"), "fixing", "fix"));
         // fixing → dehydrating（脱水）
-        assert!(is_valid_transition(Some("fixing"), "dehydrating", "dehydrate"));
+        assert!(is_valid_transition(
+            Some("fixing"),
+            "dehydrating",
+            "dehydrate"
+        ));
         // dehydrating → drying（烘干）
         assert!(is_valid_transition(Some("dehydrating"), "drying", "dry"));
         // drying → inspecting（验布）
@@ -666,21 +690,45 @@ mod tests {
         // stored → rework（回修）
         assert!(is_valid_transition(Some("stored"), "rework", "rework"));
         // rework → dyeing（回修重新进缸）
-        assert!(is_valid_transition(Some("rework"), "dyeing", "start_dyeing"));
+        assert!(is_valid_transition(
+            Some("rework"),
+            "dyeing",
+            "start_dyeing"
+        ));
     }
 
     #[test]
     fn 测试状态流转_取消流转合法() {
         // 任意非终态 → cancelled
-        assert!(is_valid_transition(Some("pending_schedule"), "cancelled", "cancel"));
-        assert!(is_valid_transition(Some("scheduled"), "cancelled", "cancel"));
-        assert!(is_valid_transition(Some("preparing"), "cancelled", "cancel"));
+        assert!(is_valid_transition(
+            Some("pending_schedule"),
+            "cancelled",
+            "cancel"
+        ));
+        assert!(is_valid_transition(
+            Some("scheduled"),
+            "cancelled",
+            "cancel"
+        ));
+        assert!(is_valid_transition(
+            Some("preparing"),
+            "cancelled",
+            "cancel"
+        ));
         assert!(is_valid_transition(Some("dyeing"), "cancelled", "cancel"));
         assert!(is_valid_transition(Some("washing"), "cancelled", "cancel"));
         assert!(is_valid_transition(Some("fixing"), "cancelled", "cancel"));
-        assert!(is_valid_transition(Some("dehydrating"), "cancelled", "cancel"));
+        assert!(is_valid_transition(
+            Some("dehydrating"),
+            "cancelled",
+            "cancel"
+        ));
         assert!(is_valid_transition(Some("drying"), "cancelled", "cancel"));
-        assert!(is_valid_transition(Some("inspecting"), "cancelled", "cancel"));
+        assert!(is_valid_transition(
+            Some("inspecting"),
+            "cancelled",
+            "cancel"
+        ));
         assert!(is_valid_transition(Some("stored"), "cancelled", "cancel"));
         assert!(is_valid_transition(Some("rework"), "cancelled", "cancel"));
     }
@@ -688,10 +736,26 @@ mod tests {
     #[test]
     fn 测试状态流转_终止流转合法() {
         // scheduled/preparing/dyeing/rework → terminated
-        assert!(is_valid_transition(Some("scheduled"), "terminated", "terminate"));
-        assert!(is_valid_transition(Some("preparing"), "terminated", "terminate"));
-        assert!(is_valid_transition(Some("dyeing"), "terminated", "terminate"));
-        assert!(is_valid_transition(Some("rework"), "terminated", "terminate"));
+        assert!(is_valid_transition(
+            Some("scheduled"),
+            "terminated",
+            "terminate"
+        ));
+        assert!(is_valid_transition(
+            Some("preparing"),
+            "terminated",
+            "terminate"
+        ));
+        assert!(is_valid_transition(
+            Some("dyeing"),
+            "terminated",
+            "terminate"
+        ));
+        assert!(is_valid_transition(
+            Some("rework"),
+            "terminated",
+            "terminate"
+        ));
     }
 
     #[test]
@@ -700,25 +764,53 @@ mod tests {
         assert!(!is_valid_transition(Some("shipped"), "stored", "store"));
         assert!(!is_valid_transition(Some("shipped"), "cancelled", "cancel"));
         // cancelled 不可流转
-        assert!(!is_valid_transition(Some("cancelled"), "scheduled", "schedule"));
-        assert!(!is_valid_transition(Some("cancelled"), "terminated", "terminate"));
+        assert!(!is_valid_transition(
+            Some("cancelled"),
+            "scheduled",
+            "schedule"
+        ));
+        assert!(!is_valid_transition(
+            Some("cancelled"),
+            "terminated",
+            "terminate"
+        ));
         // terminated 不可流转
-        assert!(!is_valid_transition(Some("terminated"), "scheduled", "schedule"));
-        assert!(!is_valid_transition(Some("terminated"), "cancelled", "cancel"));
+        assert!(!is_valid_transition(
+            Some("terminated"),
+            "scheduled",
+            "schedule"
+        ));
+        assert!(!is_valid_transition(
+            Some("terminated"),
+            "cancelled",
+            "cancel"
+        ));
     }
 
     #[test]
     fn 测试状态流转_非法流转() {
         // pending_schedule 不能直接到 dyeing
-        assert!(!is_valid_transition(Some("pending_schedule"), "dyeing", "start_dyeing"));
+        assert!(!is_valid_transition(
+            Some("pending_schedule"),
+            "dyeing",
+            "start_dyeing"
+        ));
         // scheduled 不能直接到 washing
         assert!(!is_valid_transition(Some("scheduled"), "washing", "wash"));
         // dyeing 不能直接到 inspecting（必须经过 washing/fixing/dehydrating/drying）
-        assert!(!is_valid_transition(Some("dyeing"), "inspecting", "inspect"));
+        assert!(!is_valid_transition(
+            Some("dyeing"),
+            "inspecting",
+            "inspect"
+        ));
         // inspecting 不能直接到 shipped（必须经过 stored）
         assert!(!is_valid_transition(Some("inspecting"), "shipped", "ship"));
         // 操作代码不匹配
-        assert!(!is_valid_transition(Some("pending_schedule"), "scheduled", "prepare"));
+        assert!(!is_valid_transition(
+            Some("pending_schedule"),
+            "scheduled",
+            "prepare"
+        ));
     }
 
     #[test]
@@ -794,23 +886,34 @@ mod tests {
 
     #[test]
     fn 测试流转校验_合法返回Ok() {
-        assert!(validate_transition_with_rule(Some("pending_schedule"), "scheduled", "schedule").is_ok());
+        assert!(
+            validate_transition_with_rule(Some("pending_schedule"), "scheduled", "schedule")
+                .is_ok()
+        );
         assert!(validate_transition_with_rule(Some("dyeing"), "washing", "wash").is_ok());
         assert!(validate_transition_with_rule(Some("stored"), "shipped", "ship").is_ok());
     }
 
     #[test]
     fn 测试流转校验_非法返回Err() {
-        assert!(validate_transition_with_rule(Some("pending_schedule"), "dyeing", "start_dyeing").is_err());
+        assert!(
+            validate_transition_with_rule(Some("pending_schedule"), "dyeing", "start_dyeing")
+                .is_err()
+        );
         assert!(validate_transition_with_rule(Some("shipped"), "stored", "store").is_err());
     }
 
     #[test]
     fn 测试流转校验_非法状态返回Err() {
         // to_status 非法
-        assert!(validate_transition_with_rule(Some("pending_schedule"), "invalid", "schedule").is_err());
+        assert!(
+            validate_transition_with_rule(Some("pending_schedule"), "invalid", "schedule").is_err()
+        );
         // transition_code 非法
-        assert!(validate_transition_with_rule(Some("pending_schedule"), "scheduled", "invalid").is_err());
+        assert!(
+            validate_transition_with_rule(Some("pending_schedule"), "scheduled", "invalid")
+                .is_err()
+        );
     }
 
     // ===== 回修资格校验测试 =====

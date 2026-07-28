@@ -10,7 +10,6 @@
 //! 兼容说明：原 `crate::services::report::*` 路径需要由上层
 //! `services/mod.rs` 通过 `pub use super::report::*;` 重新导出以保持向后兼容。
 
-
 use chrono::{DateTime, NaiveDate, Utc};
 use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};

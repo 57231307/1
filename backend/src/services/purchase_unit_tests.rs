@@ -120,13 +120,29 @@ mod tests {
     #[test]
     fn 测试_供应商评级tier() {
         // 中文测试名：测试供应商评级 tier
-        let r1 = SupplierRating { supplier_id: 1, score: 90, on_time_rate: decs!("0.95") };
+        let r1 = SupplierRating {
+            supplier_id: 1,
+            score: 90,
+            on_time_rate: decs!("0.95"),
+        };
         assert_eq!(r1.tier(), "A");
-        let r2 = SupplierRating { supplier_id: 2, score: 75, on_time_rate: decs!("0.80") };
+        let r2 = SupplierRating {
+            supplier_id: 2,
+            score: 75,
+            on_time_rate: decs!("0.80"),
+        };
         assert_eq!(r2.tier(), "B");
-        let r3 = SupplierRating { supplier_id: 3, score: 60, on_time_rate: decs!("0.60") };
+        let r3 = SupplierRating {
+            supplier_id: 3,
+            score: 60,
+            on_time_rate: decs!("0.60"),
+        };
         assert_eq!(r3.tier(), "C");
-        let r4 = SupplierRating { supplier_id: 4, score: 30, on_time_rate: decs!("0.30") };
+        let r4 = SupplierRating {
+            supplier_id: 4,
+            score: 30,
+            on_time_rate: decs!("0.30"),
+        };
         assert_eq!(r4.tier(), "D");
     }
 
@@ -135,9 +151,30 @@ mod tests {
         // 中文测试名：测试按供应商汇总采购金额
         let mut by_supplier: HashMap<i64, Decimal> = HashMap::new();
         let orders = vec![
-            PurchaseOrder { id: 1, supplier_id: 10, quantity: Decimal::from(10), unit_price: Decimal::from(20), received_qty: Decimal::ZERO, status: PurchaseStatus::Closed },
-            PurchaseOrder { id: 2, supplier_id: 10, quantity: Decimal::from(5), unit_price: Decimal::from(30), received_qty: Decimal::ZERO, status: PurchaseStatus::Closed },
-            PurchaseOrder { id: 3, supplier_id: 20, quantity: Decimal::from(8), unit_price: Decimal::from(50), received_qty: Decimal::ZERO, status: PurchaseStatus::Closed },
+            PurchaseOrder {
+                id: 1,
+                supplier_id: 10,
+                quantity: Decimal::from(10),
+                unit_price: Decimal::from(20),
+                received_qty: Decimal::ZERO,
+                status: PurchaseStatus::Closed,
+            },
+            PurchaseOrder {
+                id: 2,
+                supplier_id: 10,
+                quantity: Decimal::from(5),
+                unit_price: Decimal::from(30),
+                received_qty: Decimal::ZERO,
+                status: PurchaseStatus::Closed,
+            },
+            PurchaseOrder {
+                id: 3,
+                supplier_id: 20,
+                quantity: Decimal::from(8),
+                unit_price: Decimal::from(50),
+                received_qty: Decimal::ZERO,
+                status: PurchaseStatus::Closed,
+            },
         ];
         for o in &orders {
             *by_supplier.entry(o.supplier_id).or_insert(Decimal::ZERO) += o.total_amount();

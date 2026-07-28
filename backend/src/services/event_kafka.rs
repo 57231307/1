@@ -28,8 +28,8 @@ use rskafka::record::{Record, RecordAndOffset};
 // 批次 357 v13 复审 baseline 清零：移除 unused import（Deserialize, Serialize 编译器报未使用）
 use tokio::sync::mpsc;
 
-use crate::config::settings::KafkaSettings;
 use super::event_kafka_payload::EventPayload;
+use crate::config::settings::KafkaSettings;
 use crate::services::event_bus::BusinessEvent;
 // 批次 353 v12 复审 P1-3：ShippedItem 仅在测试模块使用，加 #[cfg(test)] 避免非测试编译 unused_imports
 #[cfg(test)]
@@ -93,7 +93,6 @@ fn event_type_name(event: &BusinessEvent) -> &'static str {
         BusinessEvent::QualityInspectionCompleted { .. } => "QualityInspectionCompleted",
     }
 }
-
 
 /// Kafka 后端实现
 ///
@@ -316,7 +315,10 @@ async fn run_consumer_loop(
     loop {
         for partition in 0..partitions {
             if consecutive_failures >= MAX_FAILURES {
-                tracing::error!("Kafka 消费连续失败 {} 次，退出消费循环", consecutive_failures);
+                tracing::error!(
+                    "Kafka 消费连续失败 {} 次，退出消费循环",
+                    consecutive_failures
+                );
                 return Err(KafkaError("消费连续失败次数超过上限".to_string()));
             }
             let pc = match acquire_partition_client(&client, &config, partition).await {
@@ -329,13 +331,19 @@ async fn run_consumer_loop(
             if !initialised {
                 if let Err(e) = init_partition_offset(&pc, partition, &mut last_offsets).await {
                     consecutive_failures = consecutive_failures.saturating_add(1);
-                    tracing::error!("Kafka 拉取 partition {} earliest offset 失败: {}", partition, e);
+                    tracing::error!(
+                        "Kafka 拉取 partition {} earliest offset 失败: {}",
+                        partition,
+                        e
+                    );
                     continue;
                 }
             }
             initialised = true;
             let current_off = last_offsets[partition as usize];
-            let fetch_result = pc.fetch_records(current_off, 1_048_576..1_048_576, 1_000).await;
+            let fetch_result = pc
+                .fetch_records(current_off, 1_048_576..1_048_576, 1_000)
+                .await;
             match fetch_result {
                 Ok((records, _)) => {
                     consecutive_failures = 0;

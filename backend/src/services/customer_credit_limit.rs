@@ -343,8 +343,8 @@ impl CustomerCreditService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::services::test_common::setup_test_db;
     use crate::decs;
+    use crate::services::test_common::setup_test_db;
     use crate::ymd;
     use chrono::Utc;
     use sea_orm::DatabaseConnection;
@@ -507,8 +507,7 @@ mod tests {
         assert!(matches!(err, AppError::ValidationError(_)));
 
         // 状态为 ACTIVE 时不应该拒绝
-        let model_active =
-            make_credit_model(2, decs!("10000"), Decimal::ZERO, master_data::ACTIVE);
+        let model_active = make_credit_model(2, decs!("10000"), Decimal::ZERO, master_data::ACTIVE);
         assert!(!(model_active.status != master_data::ACTIVE));
     }
 
@@ -678,8 +677,7 @@ mod tests {
         assert!(!available);
 
         // 场景 2：状态活跃，订单金额恰好等于可用额度（边界，应可用）
-        let model_active =
-            make_credit_model(2, decs!("10000"), decs!("3000"), master_data::ACTIVE);
+        let model_active = make_credit_model(2, decs!("10000"), decs!("3000"), master_data::ACTIVE);
         let order_eq = model_active.available_credit;
         assert!(order_eq <= model_active.available_credit);
 

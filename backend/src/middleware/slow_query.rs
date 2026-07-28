@@ -33,14 +33,9 @@ static SLOW_QUERY_THRESHOLD_MS: std::sync::LazyLock<u64> = std::sync::LazyLock::
         .and_then(|s| s.parse::<u64>().ok())
         .unwrap_or(100);
     if std::env::var("BINGXI_SLOW_QUERY_MS").is_err() {
-        tracing::info!(
-            "BINGXI_SLOW_QUERY_MS 未设置，使用默认阈值 100ms"
-        );
+        tracing::info!("BINGXI_SLOW_QUERY_MS 未设置，使用默认阈值 100ms");
     } else {
-        tracing::info!(
-            threshold_ms = ms,
-            "BINGXI_SLOW_QUERY_MS 已设置"
-        );
+        tracing::info!(threshold_ms = ms, "BINGXI_SLOW_QUERY_MS 已设置");
     }
     ms
 });

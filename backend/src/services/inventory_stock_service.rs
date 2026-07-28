@@ -175,15 +175,11 @@ impl InventoryStockService {
         let _warehouse = warehouse::Entity::find_by_id(warehouse_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::validation(format!("仓库不存在: {}", warehouse_id))
-            })?;
+            .ok_or_else(|| AppError::validation(format!("仓库不存在: {}", warehouse_id)))?;
         let _product = product::Entity::find_by_id(product_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::validation(format!("产品不存在: {}", product_id))
-            })?;
+            .ok_or_else(|| AppError::validation(format!("产品不存在: {}", product_id)))?;
 
         let active_stock = inventory_stock::ActiveModel {
             id: Default::default(),
@@ -247,13 +243,10 @@ impl InventoryStockService {
         // 批次 263 修复：接入 paginate_with_total 工具函数，消除手写 num_items + fetch_page 重复。
         // paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1。
         // 补 clamp(1, 1000) 防 DoS（恶意请求 page=999999 不会导致超大偏移查询）。
-        let rec = crate::middleware::slow_query::SlowQueryRecorder::start(
-            "inventory_stock_list",
-            None,
-        );
+        let rec =
+            crate::middleware::slow_query::SlowQueryRecorder::start("inventory_stock_list", None);
         let paginator = query.paginate(&*self.db, page_size);
-        let (stock_list, total) =
-            paginate_with_total(paginator, page.clamp(1, 1000)).await?;
+        let (stock_list, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
         rec.finish();
 
         Ok((stock_list, total))
@@ -453,15 +446,11 @@ impl InventoryStockService {
         let _warehouse = warehouse::Entity::find_by_id(warehouse_id)
             .one(db)
             .await?
-            .ok_or_else(|| {
-                AppError::validation(format!("仓库不存在: {}", warehouse_id))
-            })?;
+            .ok_or_else(|| AppError::validation(format!("仓库不存在: {}", warehouse_id)))?;
         let _product = product::Entity::find_by_id(product_id)
             .one(db)
             .await?
-            .ok_or_else(|| {
-                AppError::validation(format!("产品不存在: {}", product_id))
-            })?;
+            .ok_or_else(|| AppError::validation(format!("产品不存在: {}", product_id)))?;
         Ok(())
     }
 
@@ -745,8 +734,8 @@ mod tests {
     /// 不依赖真实 schema（new 不触发任何 DB 操作）。
     #[tokio::test]
     async fn 测试_服务实例化_SQLite内存数据库() {
-        let db_url = std::env::var("TEST_DATABASE_URL")
-            .unwrap_or_else(|_| "sqlite::memory:".to_string());
+        let db_url =
+            std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
         let db = Database::connect(&db_url)
             .await
             .expect("测试夹具：数据库连接失败");
@@ -824,7 +813,9 @@ mod tests {
     #[tokio::test]
     #[ignore = "需要 inventory_stocks 表 schema（真实 DB）"]
     async fn 测试_find_by_id_无schema返回错误() {
-        let db = Database::connect("sqlite::memory:").await.expect("DB 连接失败");
+        let db = Database::connect("sqlite::memory:")
+            .await
+            .expect("DB 连接失败");
         let service = InventoryStockService::new(std::sync::Arc::new(db));
         let result = service.find_by_id(99999).await;
         assert!(result.is_err(), "无 schema 时应返回数据库错误");
@@ -837,7 +828,9 @@ mod tests {
     #[tokio::test]
     #[ignore = "需要 warehouses/products 表 schema（真实 DB）"]
     async fn 测试_create_stock_校验仓库存在性() {
-        let db = Database::connect("sqlite::memory:").await.expect("DB 连接失败");
+        let db = Database::connect("sqlite::memory:")
+            .await
+            .expect("DB 连接失败");
         let service = InventoryStockService::new(std::sync::Arc::new(db));
         let args = CreateStockArgs {
             warehouse_id: 99999,
@@ -863,7 +856,9 @@ mod tests {
     #[tokio::test]
     #[ignore = "需要 inventory_stocks 表 schema（真实 DB）"]
     async fn 测试_list_stock_无schema返回错误() {
-        let db = Database::connect("sqlite::memory:").await.expect("DB 连接失败");
+        let db = Database::connect("sqlite::memory:")
+            .await
+            .expect("DB 连接失败");
         let service = InventoryStockService::new(std::sync::Arc::new(db));
         let result = service.list_stock(1, 10, None, None).await;
         assert!(result.is_err(), "无 schema 时应返回数据库错误");
@@ -875,7 +870,9 @@ mod tests {
     #[tokio::test]
     #[ignore = "需要 inventory_stocks 表 schema（真实 DB）"]
     async fn 测试_delete_stock_无schema返回错误() {
-        let db = Database::connect("sqlite::memory:").await.expect("DB 连接失败");
+        let db = Database::connect("sqlite::memory:")
+            .await
+            .expect("DB 连接失败");
         let service = InventoryStockService::new(std::sync::Arc::new(db));
         let result = service.delete_stock(99999, None).await;
         assert!(result.is_err(), "无 schema 时应返回数据库错误");
@@ -887,7 +884,9 @@ mod tests {
     #[tokio::test]
     #[ignore = "需要 inventory_stocks 表 schema（真实 DB）"]
     async fn 测试_find_by_batch_and_color_无schema返回错误() {
-        let db = Database::connect("sqlite::memory:").await.expect("DB 连接失败");
+        let db = Database::connect("sqlite::memory:")
+            .await
+            .expect("DB 连接失败");
         let service = InventoryStockService::new(std::sync::Arc::new(db));
         let result = service.find_by_batch_and_color("B001", "C001", None).await;
         assert!(result.is_err(), "无 schema 时应返回数据库错误");
@@ -899,7 +898,9 @@ mod tests {
     /// 此测试不需 schema，校验在 DB 查询前返回。
     #[tokio::test]
     async fn 测试_update_stock_grade_非法等级值() {
-        let db = Database::connect("sqlite::memory:").await.expect("DB 连接失败");
+        let db = Database::connect("sqlite::memory:")
+            .await
+            .expect("DB 连接失败");
         let service = InventoryStockService::new(std::sync::Arc::new(db));
         // 非法等级值（仅允许 一等品/二等品/等外品）
         let result = service

@@ -25,7 +25,9 @@ const V15_P1_MIGRATIONS: &[(&str, &str)] = &[
     ),
     (
         "053_v15_p1_dye_batch_state_machine_on_hold_failed",
-        include_str!("../../../database/migration/053_v15_p1_dye_batch_state_machine_on_hold_failed.sql"),
+        include_str!(
+            "../../../database/migration/053_v15_p1_dye_batch_state_machine_on_hold_failed.sql"
+        ),
     ),
     (
         "054_v15_p1_product_compliance_fields",
@@ -46,9 +48,9 @@ impl MigrationTrait for Migration {
         let db = manager.get_connection();
         for (name, sql) in V15_P1_MIGRATIONS {
             if !sql.trim().is_empty() {
-                db.execute_unprepared(sql).await.map_err(|e| {
-                    DbErr::Custom(format!("执行 V15 P1 迁移 {} 失败: {}", name, e))
-                })?;
+                db.execute_unprepared(sql)
+                    .await
+                    .map_err(|e| DbErr::Custom(format!("执行 V15 P1 迁移 {} 失败: {}", name, e)))?;
             }
         }
         Ok(())

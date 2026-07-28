@@ -126,8 +126,8 @@ export function usePurchList() {
       stats.value.pendingReceipt = orders.value.filter(o => o.status === 'approved').length;
     } catch (error: unknown) {
       ElMessage.error(
-        (error instanceof Error ? error.message : '')
-          || msg.translate('loadPurchaseOrderListFailed')
+        (error instanceof Error ? error.message : '') ||
+          msg.translate('loadPurchaseOrderListFailed')
       );
       orders.value = [];
       total.value = 0;

@@ -512,10 +512,7 @@ pub async fn export_wage_details(
             auth.username, id, row_count
         )),
         request_method: Some("GET".to_string()),
-        request_path: Some(format!(
-            "/api/v1/erp/wage-records/{}/details/export",
-            id
-        )),
+        request_path: Some(format!("/api/v1/erp/wage-records/{}/details/export", id)),
         before_snapshot: None,
         after_snapshot: Some(serde_json::json!({
             "format": "xlsx",

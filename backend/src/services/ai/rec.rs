@@ -67,18 +67,30 @@ impl AiAnalysisService {
         let current = stock.quantity_available.to_f64().unwrap_or(0.0);
 
         // 计算出库统计：avg/std/安全库存/再订货点/建议量
-        let (_avg_daily_demand, _demand_std, safety_stock, reorder_point, reorder_quantity, suggested) =
-            self.compute_demand_stats(pid, outbound_qtys, transactions, abc);
+        let (
+            _avg_daily_demand,
+            _demand_std,
+            safety_stock,
+            reorder_point,
+            reorder_quantity,
+            suggested,
+        ) = self.compute_demand_stats(pid, outbound_qtys, transactions, abc);
 
-        let reason = Self::build_suggestion_reason(current, abc, safety_stock, reorder_point, reorder_quantity, suggested);
+        let reason = Self::build_suggestion_reason(
+            current,
+            abc,
+            safety_stock,
+            reorder_point,
+            reorder_quantity,
+            suggested,
+        );
 
         InventorySuggestion {
             product_id: pid,
             current_stock: stock.quantity_available,
             suggested_stock: Decimal::try_from(suggested.max(0.0)).unwrap_or(Decimal::ZERO),
             reorder_point: Decimal::try_from(reorder_point.max(0.0)).unwrap_or(Decimal::ZERO),
-            reorder_quantity: Decimal::try_from(reorder_quantity.max(0.0))
-                .unwrap_or(Decimal::ZERO),
+            reorder_quantity: Decimal::try_from(reorder_quantity.max(0.0)).unwrap_or(Decimal::ZERO),
             reason,
         }
     }
@@ -220,7 +232,8 @@ impl AiAnalysisService {
 
             // V15 P1 8.4：补货推荐与 MRP 引擎对账，差异 > 20% 时在 reason 标注人工复核
             if let Err(e) = self
-                .reconcile_suggestion_with_mrp(&mrp_svc, &mut suggestion).await
+                .reconcile_suggestion_with_mrp(&mrp_svc, &mut suggestion)
+                .await
             {
                 tracing::debug!("MRP 对账失败 product_id={}: {:?}", pid, e);
             }
@@ -382,7 +395,8 @@ impl AiAnalysisService {
         days: i64,
     ) -> Result<Vec<InventoryTurnover>, AppError> {
         let start_date = Utc::now().date_naive() - Duration::days(days);
-        let transactions = Self::fetch_turnover_transactions(&*self.db, product_id, start_date).await?;
+        let transactions =
+            Self::fetch_turnover_transactions(&*self.db, product_id, start_date).await?;
         let stocks = Self::fetch_turnover_stocks(&*self.db, product_id).await?;
         let outbound_map = Self::aggregate_outbound_by_product(&transactions);
         let stock_map = Self::aggregate_stock_by_product(&stocks);
@@ -635,10 +649,8 @@ impl AiAnalysisService {
         let mut assoc_scores: Vec<(i32, i32, f64, String)> = Vec::new();
         for ((p1, p2), &count) in co_occurrence {
             let support = count as f64 / total;
-            let conf1 = count as f64
-                / product_count.get(p1).copied().unwrap_or(1).max(1) as f64;
-            let _conf2 = count as f64
-                / product_count.get(p2).copied().unwrap_or(1).max(1) as f64;
+            let conf1 = count as f64 / product_count.get(p1).copied().unwrap_or(1).max(1) as f64;
+            let _conf2 = count as f64 / product_count.get(p2).copied().unwrap_or(1).max(1) as f64;
             if support > 0.05 && conf1 > 0.3 {
                 let lift = support
                     / ((product_count.get(p1).unwrap_or(&0).to_f64().unwrap_or(0.0) / total)
@@ -649,7 +661,10 @@ impl AiAnalysisService {
                     lift,
                     format!(
                         "产品 {} 与产品 {} 经常一起被购买 (共现率={:.0}%, 提升度={:.2})",
-                        p1, p2, conf1 * 100.0, lift
+                        p1,
+                        p2,
+                        conf1 * 100.0,
+                        lift
                     ),
                 ));
             }
@@ -685,8 +700,7 @@ impl AiAnalysisService {
         let mut query = SalesOrderItemEntity::find()
             .filter(crate::models::sales_order_item::Column::CreatedAt.gte(start));
         if let Some(end) = end {
-            query =
-                query.filter(crate::models::sales_order_item::Column::CreatedAt.lt(end));
+            query = query.filter(crate::models::sales_order_item::Column::CreatedAt.lt(end));
         }
         Ok(query.all(db).await?)
     }

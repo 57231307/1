@@ -118,8 +118,8 @@ export function useSr() {
     } catch (error: unknown) {
       // v11 批次 163 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
       ElMessage.error(
-        (error instanceof Error ? error.message : String(error))
-          || msg.translate('loadReturnListFailed')
+        (error instanceof Error ? error.message : String(error)) ||
+          msg.translate('loadReturnListFailed')
       );
     } finally {
       loading.value = false;

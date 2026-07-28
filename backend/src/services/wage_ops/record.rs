@@ -18,11 +18,11 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 
+use crate::models::status::wage_record_status;
 use crate::models::wage_record::{
     self, ActiveModel as RecordActiveModel, Entity as RecordEntity, Model as RecordModel,
 };
 use crate::models::wage_record_detail;
-use crate::models::status::wage_record_status;
 use crate::utils::error::AppError;
 
 use crate::services::wage_service::{
@@ -138,7 +138,9 @@ impl WageRecordService {
             .count(&*self.db)
             .await?;
         if detail_count == 0 {
-            return Err(AppError::business("工资记录无明细，请先调用 calculate 触发计算"));
+            return Err(AppError::business(
+                "工资记录无明细，请先调用 calculate 触发计算",
+            ));
         }
 
         let mut active: RecordActiveModel = model.into();
@@ -149,17 +151,22 @@ impl WageRecordService {
         let updated = active.update(&*self.db).await?;
 
         // V15 Batch04-P1-3：生成"应付工资"凭证（借：生产成本-直接人工，贷：应付职工薪酬）
-        if let Err(e) = self.create_wage_confirm_voucher(&updated, confirmed_by).await {
+        if let Err(e) = self
+            .create_wage_confirm_voucher(&updated, confirmed_by)
+            .await
+        {
             tracing::warn!(wage_record_id = updated.id, "工资确认凭证生成失败：{}", e);
         }
 
         // V15 Batch04-P1-3：发布 WageConfirmed 事件，供成本核算服务监听并归集 direct_labor
-        crate::services::event_bus::EVENT_BUS.publish(crate::services::event_bus::BusinessEvent::WageConfirmed {
-            wage_record_id: updated.id,
-            record_no: updated.record_no.clone(),
-            total_amount: updated.total_amount.unwrap_or(Decimal::ZERO),
-            confirmed_by,
-        });
+        crate::services::event_bus::EVENT_BUS.publish(
+            crate::services::event_bus::BusinessEvent::WageConfirmed {
+                wage_record_id: updated.id,
+                record_no: updated.record_no.clone(),
+                total_amount: updated.total_amount.unwrap_or(Decimal::ZERO),
+                confirmed_by,
+            },
+        );
         tracing::info!(wage_record_id = updated.id, "工资确认事件已发布");
 
         Ok(updated)
@@ -188,12 +195,14 @@ impl WageRecordService {
         }
 
         // V15 Batch04-P1-3：发布 WagePaid 事件
-        crate::services::event_bus::EVENT_BUS.publish(crate::services::event_bus::BusinessEvent::WagePaid {
-            wage_record_id: updated.id,
-            record_no: updated.record_no.clone(),
-            total_amount: updated.total_amount.unwrap_or(Decimal::ZERO),
-            paid_by,
-        });
+        crate::services::event_bus::EVENT_BUS.publish(
+            crate::services::event_bus::BusinessEvent::WagePaid {
+                wage_record_id: updated.id,
+                record_no: updated.record_no.clone(),
+                total_amount: updated.total_amount.unwrap_or(Decimal::ZERO),
+                paid_by,
+            },
+        );
         tracing::info!(wage_record_id = updated.id, "工资发放事件已发布");
 
         Ok(updated)
@@ -205,7 +214,8 @@ impl WageRecordService {
         record: &RecordModel,
         user_id: i32,
     ) -> Result<(), AppError> {
-        let voucher_service = crate::services::voucher_service::VoucherService::new(self.db.clone());
+        let voucher_service =
+            crate::services::voucher_service::VoucherService::new(self.db.clone());
         let amount = record.total_amount.unwrap_or(Decimal::ZERO);
         if amount <= Decimal::ZERO {
             return Ok(());
@@ -275,7 +285,8 @@ impl WageRecordService {
         record: &RecordModel,
         user_id: i32,
     ) -> Result<(), AppError> {
-        let voucher_service = crate::services::voucher_service::VoucherService::new(self.db.clone());
+        let voucher_service =
+            crate::services::voucher_service::VoucherService::new(self.db.clone());
         let amount = record.total_amount.unwrap_or(Decimal::ZERO);
         if amount <= Decimal::ZERO {
             return Ok(());
@@ -342,7 +353,8 @@ impl WageRecordService {
     /// 取消工资（draft/confirmed → cancelled）
     pub async fn cancel(&self, id: i32) -> Result<RecordModel, AppError> {
         let model = self.get_by_id(id).await?;
-        if model.status != wage_record_status::DRAFT && model.status != wage_record_status::CONFIRMED
+        if model.status != wage_record_status::DRAFT
+            && model.status != wage_record_status::CONFIRMED
         {
             return Err(AppError::business(format!(
                 "仅草稿(draft)或已确认(confirmed)状态可取消，当前状态: {}",
@@ -378,10 +390,7 @@ impl WageRecordService {
     }
 
     /// 分页查询
-    pub async fn list(
-        &self,
-        query: WageRecordQuery,
-    ) -> Result<(Vec<RecordModel>, u64), AppError> {
+    pub async fn list(&self, query: WageRecordQuery) -> Result<(Vec<RecordModel>, u64), AppError> {
         let page = query.page.unwrap_or(1).clamp(1, 1000);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 

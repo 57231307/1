@@ -103,7 +103,10 @@ impl ExportComplianceService {
             .await?;
 
         let total = export_logs.len();
-        info!(total, "导出合规审查：扫描到 {} 条 print/export 审计日志", total);
+        info!(
+            total,
+            "导出合规审查：扫描到 {} 条 print/export 审计日志", total
+        );
 
         if total == 0 {
             return Ok(0);
@@ -121,10 +124,12 @@ impl ExportComplianceService {
         self.detect_off_hours_exports(&export_logs, &mut alerts);
 
         // 规则 4：离职用户导出检测（user_id 不在 users 表中或 status=inactive）
-        self.detect_resigned_user_exports(&export_logs, &mut alerts).await;
+        self.detect_resigned_user_exports(&export_logs, &mut alerts)
+            .await;
 
         // 规则 5：跨权限导出检测（非 admin 用户导出敏感资源）
-        self.detect_cross_permission_exports(&export_logs, &mut alerts).await;
+        self.detect_cross_permission_exports(&export_logs, &mut alerts)
+            .await;
 
         // 规则 6：敏感数据无审批导出检测
         self.detect_sensitive_no_approval_exports(&export_logs, &mut alerts);
@@ -139,7 +144,8 @@ impl ExportComplianceService {
             total_scanned = total,
             alerts_found = alert_count,
             "导出合规审查：完成，扫描 {} 条记录，发现 {} 项异常",
-            total, alert_count
+            total,
+            alert_count
         );
 
         Ok(alert_count)
@@ -201,11 +207,7 @@ impl ExportComplianceService {
     }
 
     /// 规则 2：大批量导出检测（导出条数 > 上限 80%）
-    fn detect_large_exports(
-        &self,
-        logs: &[audit_log::Model],
-        alerts: &mut Vec<ComplianceAlert>,
-    ) {
+    fn detect_large_exports(&self, logs: &[audit_log::Model], alerts: &mut Vec<ComplianceAlert>) {
         for log in logs {
             if let Some(count) = log.export_record_count {
                 if count > LARGE_EXPORT_THRESHOLD {
@@ -292,7 +294,9 @@ impl ExportComplianceService {
                             "离职用户导出告警：用户 {:?}(id={}) 状态为 {:?}，但仍有导出操作",
                             log.username,
                             uid,
-                            user.as_ref().map(|u| if u.is_active { "active" } else { "inactive" }).unwrap_or("not_found")
+                            user.as_ref()
+                                .map(|u| if u.is_active { "active" } else { "inactive" })
+                                .unwrap_or("not_found")
                         ),
                         severity: Severity::Critical,
                     });
@@ -332,8 +336,7 @@ impl ExportComplianceService {
                     .flatten();
                 let role_id = user.as_ref().and_then(|u| u.role_id);
                 let is_admin = if let Some(rid) = role_id {
-                    crate::utils::admin_checker::is_admin_role(self.db.as_ref(), rid)
-                        .await
+                    crate::utils::admin_checker::is_admin_role(self.db.as_ref(), rid).await
                 } else {
                     false
                 };
@@ -438,8 +441,7 @@ impl ExportComplianceService {
             let interval = std::time::Duration::from_secs(interval_secs);
             info!(
                 interval_secs,
-                "导出合规审查：后台任务已启动（每 {} 秒执行一次合规审查）",
-                interval_secs
+                "导出合规审查：后台任务已启动（每 {} 秒执行一次合规审查）", interval_secs
             );
 
             loop {
@@ -447,8 +449,7 @@ impl ExportComplianceService {
                     Ok(alert_count) if alert_count > 0 => {
                         warn!(
                             alert_count,
-                            "导出合规审查：本轮发现 {} 项异常导出行为",
-                            alert_count
+                            "导出合规审查：本轮发现 {} 项异常导出行为", alert_count
                         );
                     }
                     Ok(_) => {

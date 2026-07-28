@@ -6,8 +6,8 @@ use crate::utils::sql_escape::safe_like_pattern;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use std::sync::Arc;
 use tracing::info;
@@ -152,13 +152,8 @@ impl PurchaseContractService {
         // 批次 27 v7 P1 修复：事务边界内校验已执行金额（防 TOCTOU）
         let total_amount = contract.total_amount.unwrap_or(Decimal::ZERO);
         if total_amount > Decimal::ZERO {
-            self.check_remaining_amount_txn(
-                &txn,
-                contract_id,
-                total_amount,
-                req.execution_amount,
-            )
-            .await?;
+            self.check_remaining_amount_txn(&txn, contract_id, total_amount, req.execution_amount)
+                .await?;
         }
         let execution_amount = req.execution_amount;
         let execution = Self::build_execution_active_model(contract_id, req, user_id);
@@ -207,9 +202,7 @@ impl PurchaseContractService {
         execution_amount: Decimal,
     ) -> Result<(), AppError> {
         let executed_amount = crate::models::purchase_contract_execution::Entity::find()
-            .filter(
-                crate::models::purchase_contract_execution::Column::ContractId.eq(contract_id),
-            )
+            .filter(crate::models::purchase_contract_execution::Column::ContractId.eq(contract_id))
             .all(txn)
             .await?
             .iter()

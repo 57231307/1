@@ -35,10 +35,7 @@ macro_rules! impl_generate_no {
     ($fn_name:ident, $prefix:expr, $entity:path, $column:expr) => {
         pub async fn $fn_name(&self) -> Result<String, $crate::utils::error::AppError> {
             $crate::utils::number_generator::DocumentNumberGenerator::generate_no(
-                &*self.db,
-                $prefix,
-                $entity,
-                $column,
+                &*self.db, $prefix, $entity, $column,
             )
             .await
         }
@@ -51,10 +48,7 @@ macro_rules! impl_generate_no {
             // P1 5-10 修复（批次 60）：调用 generate_no_with_txn 直接在传入 txn 上获取
             // advisory_xact_lock，避免在 savepoint 上加锁导致锁提前释放
             $crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
-                $conn,
-                $prefix,
-                $entity,
-                $column,
+                $conn, $prefix, $entity, $column,
             )
             .await
         }
@@ -171,7 +165,10 @@ macro_rules! define_crud_handlers {
             // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
             service.delete(id, auth.user_id).await?;
             Ok(axum::Json(
-                $crate::utils::response::ApiResponse::success_with_message((), $crate::utils::messages::biz_msg::DELETE_OK),
+                $crate::utils::response::ApiResponse::success_with_message(
+                    (),
+                    $crate::utils::messages::biz_msg::DELETE_OK,
+                ),
             ))
         }
     };

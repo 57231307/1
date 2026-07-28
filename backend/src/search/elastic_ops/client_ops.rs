@@ -12,22 +12,18 @@ impl ElasticClient {
     /// 已索引文档数（mock 内存计数 / real ES _count API）
     pub async fn doc_count(&self, index: &str) -> usize {
         match &self.inner {
-            ClientInner::Mock(storage) => {
-                storage
-                    .lock()
-                    .await
-                    .get(index)
-                    .map(|m| m.len())
-                    .unwrap_or(0)
-            }
+            ClientInner::Mock(storage) => storage
+                .lock()
+                .await
+                .get(index)
+                .map(|m| m.len())
+                .unwrap_or(0),
             ClientInner::Real { base_url, http } => {
                 let url = format!("{}/{}/_count", base_url, index);
                 match http.get(&url).send().await {
                     Ok(resp) if resp.status().is_success() => {
                         let body: serde_json::Value = resp.json().await.unwrap_or_default();
-                        body.get("count")
-                            .and_then(|v| v.as_u64())
-                            .unwrap_or(0) as usize
+                        body.get("count").and_then(|v| v.as_u64()).unwrap_or(0) as usize
                     }
                     _ => 0,
                 }
@@ -55,12 +51,9 @@ impl SearchClient for ElasticClient {
             }
             ClientInner::Real { base_url, http } => {
                 let url = format!("{}/{}/_doc/{}", base_url, index, id);
-                let resp = http
-                    .put(&url)
-                    .json(doc)
-                    .send()
-                    .await
-                    .map_err(|e| SearchError::Connection(format!("ES index_doc 请求失败: {}", e)))?;
+                let resp = http.put(&url).json(doc).send().await.map_err(|e| {
+                    SearchError::Connection(format!("ES index_doc 请求失败: {}", e))
+                })?;
                 if !resp.status().is_success() {
                     let status = resp.status();
                     let body = resp.text().await.unwrap_or_default();
@@ -98,11 +91,9 @@ impl SearchClient for ElasticClient {
             }
             ClientInner::Real { base_url, http } => {
                 let url = format!("{}/{}/_doc/{}", base_url, index, id);
-                let resp = http
-                    .delete(&url)
-                    .send()
-                    .await
-                    .map_err(|e| SearchError::Connection(format!("ES delete_doc 请求失败: {}", e)))?;
+                let resp = http.delete(&url).send().await.map_err(|e| {
+                    SearchError::Connection(format!("ES delete_doc 请求失败: {}", e))
+                })?;
                 // ES DELETE 返回 404 表示文档不存在，视为成功（幂等删除）
                 if !resp.status().is_success() && resp.status().as_u16() != 404 {
                     let status = resp.status();
@@ -165,10 +156,9 @@ impl SearchClient for ElasticClient {
                     )));
                 }
 
-                let result: serde_json::Value = resp
-                    .json()
-                    .await
-                    .map_err(|e| SearchError::Search(format!("ES bulk_index 响应解析失败: {}", e)))?;
+                let result: serde_json::Value = resp.json().await.map_err(|e| {
+                    SearchError::Search(format!("ES bulk_index 响应解析失败: {}", e))
+                })?;
 
                 let count = result
                     .get("items")
@@ -344,10 +334,7 @@ impl ElasticClient {
                             .and_then(|v| v.as_str())
                             .unwrap_or("")
                             .to_string();
-                        let score = hit
-                            .get("_score")
-                            .and_then(|v| v.as_f64())
-                            .unwrap_or(0.0);
+                        let score = hit.get("_score").and_then(|v| v.as_f64()).unwrap_or(0.0);
                         let source = hit.get("_source").cloned().unwrap_or_default();
                         let highlight = hit
                             .get("highlight")

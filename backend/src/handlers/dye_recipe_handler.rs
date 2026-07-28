@@ -118,10 +118,7 @@ pub async fn delete_dye_recipe(
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     service(&state).delete(id).await?;
-    Ok(Json(ApiResponse::success_with_message(
-        (),
-        "配方删除成功",
-    )))
+    Ok(Json(ApiResponse::success_with_message((), "配方删除成功")))
 }
 
 pub async fn approve_recipe(

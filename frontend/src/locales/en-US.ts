@@ -1339,7 +1339,8 @@ export default {
     unlockSuccess: 'Unlock successful',
     loadTfaSettingsFailed: 'Failed to load 2FA settings',
     secretKeyCopied: 'Secret key copied to clipboard',
-    tfaEnabledButRecoveryCodesFailed: '2FA enabled, but failed to get recovery codes. Please regenerate later in settings.',
+    tfaEnabledButRecoveryCodesFailed:
+      '2FA enabled, but failed to get recovery codes. Please regenerate later in settings.',
     recoveryCodesCopied: 'Recovery codes copied to clipboard',
     pleaseAddPurchaseDetail: 'Please add at least one valid purchase detail',
     purchaseOrderCreated: 'Purchase order created successfully',
@@ -1413,7 +1414,8 @@ export default {
     createBackupFailed: 'Failed to create backup',
     scheduleAdjustFailed: 'Schedule adjustment failed',
     autoScheduleFailed: 'Auto scheduling failed',
-    scheduleComplete: 'Scheduling complete: {scheduledCount} tasks scheduled, {conflictCount} conflicts',
+    scheduleComplete:
+      'Scheduling complete: {scheduledCount} tasks scheduled, {conflictCount} conflicts',
     loadDashboardDataFailed: 'Failed to load dashboard data',
     loadPurchasePriceListFailed: 'Failed to load purchase price list',
     loadSalesContractListFailed: 'Failed to load sales contract list',

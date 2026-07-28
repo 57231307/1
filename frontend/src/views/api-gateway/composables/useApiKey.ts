@@ -34,8 +34,7 @@ export function useApiKey() {
     url: '/api-gateway/keys',
     onError: (err: unknown) =>
       ElMessage.error(
-        (err instanceof Error ? err.message : String(err)) ||
-        msg.translate('loadApiKeyFailed')
+        (err instanceof Error ? err.message : String(err)) || msg.translate('loadApiKeyFailed')
       ),
   });
 
@@ -102,8 +101,8 @@ export function useApiKey() {
         await fetchKeys();
       } catch (error: unknown) {
         ElMessage.error(
-          (error instanceof Error ? error.message : String(error))
-            || msg.translate('operationFailed')
+          (error instanceof Error ? error.message : String(error)) ||
+            msg.translate('operationFailed')
         );
       } finally {
         keySubmitLoading.value = false;
@@ -136,8 +135,8 @@ export function useApiKey() {
     } catch (error: unknown) {
       if (error !== 'cancel')
         ElMessage.error(
-          (error instanceof Error ? error.message : String(error))
-            || msg.translate('regenerateFailed')
+          (error instanceof Error ? error.message : String(error)) ||
+            msg.translate('regenerateFailed')
         );
     }
   };
@@ -166,8 +165,8 @@ export function useApiKey() {
     } catch (error: unknown) {
       if (error !== 'cancel')
         ElMessage.error(
-          (error instanceof Error ? error.message : String(error))
-            || msg.translate('operationFailed')
+          (error instanceof Error ? error.message : String(error)) ||
+            msg.translate('operationFailed')
         );
     }
   };

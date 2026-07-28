@@ -10,7 +10,9 @@
 //! - 最大持有数校验：每个销售最多持有 N 条活跃线索（防囤积）
 
 use crate::models::crm_lead;
-use crate::models::customer_pool_rule::{self, RULE_TYPE_CLAIM_LIMIT, RULE_TYPE_MAX_HOLDINGS, RULE_TYPE_PROTECTION_PERIOD};
+use crate::models::customer_pool_rule::{
+    self, RULE_TYPE_CLAIM_LIMIT, RULE_TYPE_MAX_HOLDINGS, RULE_TYPE_PROTECTION_PERIOD,
+};
 // 批次 236 v13 P1-1：线索状态常量接入（规则 0）
 use crate::models::status::crm_lead as lead_status;
 use crate::utils::error::AppError;
@@ -109,7 +111,10 @@ impl CrmService {
             if elapsed < protection_days as i64 {
                 tracing::warn!(
                     "线索 {} 处于保护期内（已过 {} 天，需 {} 天），用户 {} 领取被拒",
-                    lid, elapsed, protection_days, user_id
+                    lid,
+                    elapsed,
+                    protection_days,
+                    user_id
                 );
                 return true;
             }
@@ -217,9 +222,7 @@ impl PoolRuleService {
     }
 
     /// 列出所有公海规则
-    pub async fn list_rules(
-        &self,
-    ) -> Result<Vec<customer_pool_rule::Model>, AppError> {
+    pub async fn list_rules(&self) -> Result<Vec<customer_pool_rule::Model>, AppError> {
         let rules = customer_pool_rule::Entity::find()
             .order_by(customer_pool_rule::Column::Id, sea_orm::Order::Asc)
             .all(&*self.db)

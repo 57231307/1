@@ -7,8 +7,8 @@ use crate::utils::admin_checker;
 use crate::utils::error::AppError;
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, Set,
+    TransactionTrait,
 };
 use serde_json::Value;
 use std::sync::Arc;
@@ -256,9 +256,7 @@ impl DataPermissionService {
         match role_code {
             // 销售角色：仅可查询自己负责的客户发放记录
             "sales" | "sales_manager" => {
-                let customer_ids = self
-                    .get_sales_customer_ids(user_id)
-                    .await?;
+                let customer_ids = self.get_sales_customer_ids(user_id).await?;
                 Ok(DataScopeFilter::customer_scope(customer_ids))
             }
             // 客户门户角色：仅可查询自己的发放记录

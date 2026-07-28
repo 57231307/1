@@ -43,7 +43,6 @@ impl AuditContext {
             user_agent: String::new(),
         }
     }
-
 }
 
 /// 提取客户端 IP（X-Real-IP → X-Forwarded-For → ConnectInfo）

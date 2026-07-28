@@ -68,9 +68,7 @@ impl Default for PasswordPolicy {
 
 // P9-1: 静态正则常量初始化，把 unwrap 集中到 helper 便于 P9-1 排查
 fn init_regex(pattern: &str) -> Regex {
-    Regex::new(pattern).unwrap_or_else(|e| {
-        panic!("P9-1: 密码校验正则 {pattern} 编译失败: {e}")
-    })
+    Regex::new(pattern).unwrap_or_else(|e| panic!("P9-1: 密码校验正则 {pattern} 编译失败: {e}"))
 }
 
 static RE_UPPERCASE: LazyLock<Regex> = LazyLock::new(|| init_regex(r"[A-Z]"));
@@ -571,13 +569,14 @@ mod tests {
     /// #7 验证：扩展黑名单 Top 50（"12345"、"iloveyou"）应被拒绝
     #[test]
     fn test_extended_blacklist_rejected() {
-        for weak in &["12345", "iloveyou", "monkey", "dragon", "sunshine", "princess"] {
+        for weak in &[
+            "12345", "iloveyou", "monkey", "dragon", "sunshine", "princess",
+        ] {
             let result = validate_password(weak);
             assert!(
                 !result.is_valid,
                 "常见密码 '{}' 应被拒绝，实际 errors: {:?}",
-                weak,
-                result.errors
+                weak, result.errors
             );
         }
     }
@@ -586,10 +585,7 @@ mod tests {
     #[test]
     fn test_normalized_match_rejected() {
         let result = validate_password("P@ssword");
-        assert!(
-            !result.is_valid,
-            "P@ssword（归一化后=password）应被拒绝"
-        );
+        assert!(!result.is_valid, "P@ssword（归一化后=password）应被拒绝");
     }
 
     /// #7 验证：截尾黑名单 "admin1!" 应被拒绝
@@ -599,10 +595,7 @@ mod tests {
     #[test]
     fn test_trimmed_blacklist_rejected() {
         let result = validate_password("admin1!");
-        assert!(
-            !result.is_valid,
-            "admin1!（去掉尾部后=admin）应被拒绝"
-        );
+        assert!(!result.is_valid, "admin1!（去掉尾部后=admin）应被拒绝");
     }
 
     /// #7 验证：键盘序列 "Qwerty123" 应被拒绝
@@ -625,8 +618,7 @@ mod tests {
             assert!(
                 !result.is_valid,
                 "键盘序列 '{}' 应被拒绝，实际 errors: {:?}",
-                kb,
-                result.errors
+                kb, result.errors
             );
         }
     }

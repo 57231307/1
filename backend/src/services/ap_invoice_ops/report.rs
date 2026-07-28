@@ -14,10 +14,10 @@ use rust_decimal::Decimal;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
 use crate::models::ap_invoice;
-use crate::utils::error::AppError;
 use crate::services::ap_invoice_service::{
     AgingAnalysisItem, ApInvoiceService, ApInvoiceStatistics, BalanceSummary, StatusStatItem,
 };
+use crate::utils::error::AppError;
 
 impl ApInvoiceService {
     /// 获取账龄分析
@@ -33,8 +33,13 @@ impl ApInvoiceService {
 
         // 查询未付清的应付单
         let invoices = query
-            .filter(ap_invoice::Column::InvoiceStatus.ne(crate::models::status::payment::PAYMENT_PAID))
-            .filter(ap_invoice::Column::InvoiceStatus.ne(crate::models::status::common::STATUS_CANCELLED))
+            .filter(
+                ap_invoice::Column::InvoiceStatus.ne(crate::models::status::payment::PAYMENT_PAID),
+            )
+            .filter(
+                ap_invoice::Column::InvoiceStatus
+                    .ne(crate::models::status::common::STATUS_CANCELLED),
+            )
             .all(&*self.db)
             .await?;
 
@@ -94,7 +99,10 @@ impl ApInvoiceService {
 
         // 查询所有有效应付单
         let invoices = query
-            .filter(ap_invoice::Column::InvoiceStatus.ne(crate::models::status::common::STATUS_CANCELLED))
+            .filter(
+                ap_invoice::Column::InvoiceStatus
+                    .ne(crate::models::status::common::STATUS_CANCELLED),
+            )
             .all(&*self.db)
             .await?;
 

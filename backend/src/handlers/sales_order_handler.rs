@@ -82,7 +82,10 @@ pub async fn list_orders(
                 );
                 // P1-08-5：非管理员对销售订单列表手机号/邮箱脱敏
                 for order in list.iter_mut() {
-                    *order = crate::utils::field_mask::mask_contact_fields_for_role(order.clone(), role_id);
+                    *order = crate::utils::field_mask::mask_contact_fields_for_role(
+                        order.clone(),
+                        role_id,
+                    );
                 }
             }
         } else if role_id != 1 {
@@ -105,12 +108,22 @@ pub async fn list_orders(
                         // P1-08-5：手机号/邮箱脱敏（移除金额字段后仍需脱敏联系电话）
                         if let Some(phone) = obj.get("contact_phone").and_then(|v| v.as_str()) {
                             if !phone.is_empty() {
-                                obj.insert("contact_phone".to_string(), serde_json::Value::String(crate::utils::field_mask::mask_phone(phone)));
+                                obj.insert(
+                                    "contact_phone".to_string(),
+                                    serde_json::Value::String(
+                                        crate::utils::field_mask::mask_phone(phone),
+                                    ),
+                                );
                             }
                         }
                         if let Some(email) = obj.get("contact_email").and_then(|v| v.as_str()) {
                             if !email.is_empty() {
-                                obj.insert("contact_email".to_string(), serde_json::Value::String(crate::utils::field_mask::mask_email(email)));
+                                obj.insert(
+                                    "contact_email".to_string(),
+                                    serde_json::Value::String(
+                                        crate::utils::field_mask::mask_email(email),
+                                    ),
+                                );
                             }
                         }
 
@@ -161,7 +174,8 @@ pub async fn get_order(
                 &permission.hidden_fields,
             );
             // P1-08-5：非管理员对销售订单详情手机号/邮箱脱敏
-            order_json = crate::utils::field_mask::mask_contact_fields_for_role(order_json, role_id);
+            order_json =
+                crate::utils::field_mask::mask_contact_fields_for_role(order_json, role_id);
         } else if role_id != 1 {
             // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
             if let Some(obj) = order_json.as_object_mut() {
@@ -176,12 +190,18 @@ pub async fn get_order(
                 // P1-08-5：手机号/邮箱脱敏
                 if let Some(phone) = obj.get("contact_phone").and_then(|v| v.as_str()) {
                     if !phone.is_empty() {
-                        obj.insert("contact_phone".to_string(), serde_json::Value::String(crate::utils::field_mask::mask_phone(phone)));
+                        obj.insert(
+                            "contact_phone".to_string(),
+                            serde_json::Value::String(crate::utils::field_mask::mask_phone(phone)),
+                        );
                     }
                 }
                 if let Some(email) = obj.get("contact_email").and_then(|v| v.as_str()) {
                     if !email.is_empty() {
-                        obj.insert("contact_email".to_string(), serde_json::Value::String(crate::utils::field_mask::mask_email(email)));
+                        obj.insert(
+                            "contact_email".to_string(),
+                            serde_json::Value::String(crate::utils::field_mask::mask_email(email)),
+                        );
                     }
                 }
 
@@ -249,7 +269,9 @@ pub async fn update_order(
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
     // V15 P0-S02：IDOR 防护——更新前先校验资源归属（复用 P0-S01 的 get_order_detail + data_scope_ctx）
     let data_scope_ctx = auth.to_data_scope_context();
-    sales_service.get_order_detail(id, Some(&data_scope_ctx)).await?;
+    sales_service
+        .get_order_detail(id, Some(&data_scope_ctx))
+        .await?;
     // 批次 94 P2-10：传入真实操作人 user_id 用于审计日志
     let order = sales_service
         .update_order(id, auth.user_id, request)
@@ -272,7 +294,9 @@ pub async fn delete_order(
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
     // V15 P0-S02：IDOR 防护——删除前先校验资源归属（复用 P0-S01 的 get_order_detail + data_scope_ctx）
     let data_scope_ctx = auth.to_data_scope_context();
-    sales_service.get_order_detail(id, Some(&data_scope_ctx)).await?;
+    sales_service
+        .get_order_detail(id, Some(&data_scope_ctx))
+        .await?;
     // 批次 94 P2-10：传入真实操作人 user_id 用于审计日志
     sales_service.delete_order(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
@@ -328,7 +352,13 @@ pub async fn approve_order(
         if let Some(created_by) = order.created_by {
             // 批次 94 P2-11：原 let _ = 静默吞错，通知发送失败时无任何日志，改为 warn 日志记录
             if let Err(e) = event_service
-                .notify_order_approved(created_by, &order.order_no, order.id, auth.user_id, &auth.username)
+                .notify_order_approved(
+                    created_by,
+                    &order.order_no,
+                    order.id,
+                    auth.user_id,
+                    &auth.username,
+                )
                 .await
             {
                 tracing::warn!("批次 94 P2-11：订单审批通知发送失败: {}", e);

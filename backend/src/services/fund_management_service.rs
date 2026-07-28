@@ -29,7 +29,10 @@ pub mod account_type {
 
 /// V15 P1 17.6-D3：判断账户类型是否需要银企对账
 pub fn requires_reconciliation(account_type: &str) -> bool {
-    matches!(account_type, account_type::BANK | account_type::ALIPAY | account_type::WECHAT)
+    matches!(
+        account_type,
+        account_type::BANK | account_type::ALIPAY | account_type::WECHAT
+    )
 }
 
 /// 资金账户查询参数
@@ -539,11 +542,15 @@ impl FundManagementService {
         let mut daily_map: std::collections::HashMap<NaiveDate, (Decimal, Decimal)> =
             std::collections::HashMap::new();
         for inv in &ar_invoices {
-            let entry = daily_map.entry(inv.due_date).or_insert_with(|| (Decimal::ZERO, Decimal::ZERO));
+            let entry = daily_map
+                .entry(inv.due_date)
+                .or_insert_with(|| (Decimal::ZERO, Decimal::ZERO));
             entry.0 += inv.unpaid_amount;
         }
         for inv in &ap_invoices {
-            let entry = daily_map.entry(inv.due_date).or_insert_with(|| (Decimal::ZERO, Decimal::ZERO));
+            let entry = daily_map
+                .entry(inv.due_date)
+                .or_insert_with(|| (Decimal::ZERO, Decimal::ZERO));
             entry.1 += inv.unpaid_amount;
         }
 

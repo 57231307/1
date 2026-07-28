@@ -90,7 +90,11 @@ mod tests {
     #[test]
     fn 测试_item_err所有变体映射() {
         let msg = item_err(ItemError::ColorCardNotFound).to_string();
-        assert!(msg.contains("色卡不存在"), "ColorCardNotFound 映射错误：{}", msg);
+        assert!(
+            msg.contains("色卡不存在"),
+            "ColorCardNotFound 映射错误：{}",
+            msg
+        );
 
         let msg = item_err(ItemError::ItemNotFound).to_string();
         assert!(msg.contains("色号不存在"), "ItemNotFound 映射错误：{}", msg);
@@ -105,7 +109,10 @@ mod tests {
         let msg = item_err(ItemError::Validation("色号重复".to_string())).to_string();
         assert!(msg.contains("色号重复"), "Validation 映射错误：{}", msg);
 
-        let msg = item_err(ItemError::Database(sea_orm::DbErr::Custom("锁超时".to_string()))).to_string();
+        let msg = item_err(ItemError::Database(sea_orm::DbErr::Custom(
+            "锁超时".to_string(),
+        )))
+        .to_string();
         assert!(msg.contains("锁超时"), "Database 映射错误：{}", msg);
     }
 }

@@ -23,9 +23,8 @@ use validator::Validate;
 // 批次 404 修复：正则编译失败时优雅降级（返回验证失败而非 panic）。
 // 模式为静态字面量，编译失败概率几乎为零；但若 regex crate 版本升级导致行为变化，
 // 用 Option<Regex> 可让进程继续运行而非崩溃。
-static MOBILE_PHONE_RE: std::sync::LazyLock<Option<regex::Regex>> = std::sync::LazyLock::new(|| {
-    regex::Regex::new(r"^1[3-9]\d{9}$").ok()
-});
+static MOBILE_PHONE_RE: std::sync::LazyLock<Option<regex::Regex>> =
+    std::sync::LazyLock::new(|| regex::Regex::new(r"^1[3-9]\d{9}$").ok());
 
 /// 供应商服务
 pub struct SupplierService {
@@ -731,12 +730,7 @@ impl SupplierService {
         crate::services::audit_log_service::AuditLogService::delete_with_audit::<
             supplier_contact::Entity,
             _,
-        >(
-            &txn,
-            "supplier_contact",
-            contact_id,
-            Some(user_id),
-        )
+        >(&txn, "supplier_contact", contact_id, Some(user_id))
         .await?;
 
         txn.commit().await?;
@@ -903,7 +897,10 @@ pub struct CreateContactRequest {
 fn validate_mobile_phone(phone: &str) -> Result<(), validator::ValidationError> {
     // P2 1-8 修复：使用全局编译的 LazyLock<Regex>，避免每次调用都编译正则
     // 批次 404 修复：正则编译失败时优雅降级（返回验证失败而非 panic）
-    if MOBILE_PHONE_RE.as_ref().is_some_and(|re| re.is_match(phone)) {
+    if MOBILE_PHONE_RE
+        .as_ref()
+        .is_some_and(|re| re.is_match(phone))
+    {
         Ok(())
     } else {
         Err(validator::ValidationError::new("mobile_phone"))
