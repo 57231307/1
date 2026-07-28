@@ -17,10 +17,7 @@ use sea_orm::{ActiveModelTrait, ActiveValue::Set, EntityTrait, QueryOrder, Query
 
 impl ImportExportService {
     /// 创建导入任务记录（导入开始时调用）
-    ///
-    /// 批次 127 v8 复审 P2 修复：在 import_csv/import_excel 执行实际导入前创建任务记录，
-    /// status 初始化为 "running"，total_rows 为待导入行数。
-    /// 返回任务 ID 供后续 update_import_task 使用。
+    /// 批次 127 v8 复审 P2 修复：在 import_csv/import_excel 执行实际导入前创建任务记录，；status 初始化为 "running"，total_rows 为待导入行数。；返回任务 ID 供后续 update_import_task 使用。
     pub async fn create_import_task(
         &self,
         import_type: &str,
@@ -49,13 +46,7 @@ impl ImportExportService {
     }
 
     /// 更新导入任务记录（导入完成时调用）
-    ///
-    /// 批次 127 v8 复审 P2 修复：根据 ImportResult 更新任务的 imported_rows / failed_rows / status。
-    /// 状态判定规则：
-    /// - failed == 0 && imported > 0 → "success"
-    /// - imported == 0 && failed > 0 → "failed"
-    /// - imported > 0 && failed > 0 → "partial"
-    /// - 其他（imported == 0 && failed == 0）→ "success"（空导入视为成功）
+    /// 批次 127 v8 复审 P2 修复：根据 ImportResult 更新任务的 imported_rows / failed_rows / status。；状态判定规则：failed == 0 && imported > 0 → "success"；imported == 0 && failed > 0 → "failed"；imported > 0 && failed > 0 → "partial"；其他（imported == 0 && failed == 0）→ "success"（空导入视为成功）
     pub async fn update_import_task(
         &self,
         task_id: i32,
@@ -87,9 +78,7 @@ impl ImportExportService {
     }
 
     /// 获取导入任务列表（list_import_tasks handler 调用）
-    ///
-    /// 批次 127 v8 复审 P2 修复：替代原 list_import_tasks 返回的空列表 vec![]。
-    /// 按创建时间倒序返回最近 100 条任务记录。
+    /// 批次 127 v8 复审 P2 修复：替代原 list_import_tasks 返回的空列表 vec![]。；按创建时间倒序返回最近 100 条任务记录。
     pub async fn list_import_tasks(
         &self,
     ) -> Result<Vec<crate::models::import_task::Model>, AppError> {

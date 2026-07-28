@@ -286,10 +286,8 @@ pub async fn list_assignment_history(
     }))))
 }
 
-/// POST /api/v1/erp/crm/assignments/auto-assign - 自动分配线索（轮询策略）
-///
-/// v10 P1 批次 140 新增：实现 assign 模块"保留扩展空间"中的自动分配功能。
-/// 将 lead_status='new' 的未分配线索按 round-robin 轮询分配给指定销售团队。
+/// POST /api/v1/erp/crm/assignments/auto-assign - 自动分配线索（轮询策略）；v10 P1 批次 140 新增：实现
+/// assign 模块"保留扩展空间"中的自动分配功能。 将 lead_status='new' 的未分配线索按 round-robin 轮询分配给指定销售团队。
 pub async fn auto_assign(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -314,10 +312,8 @@ pub async fn auto_assign(
     )))
 }
 
-/// POST /api/v1/erp/crm/assignments/transfer - 转移线索归属人
-///
-/// v10 P1 批次 140 新增：实现 assign 模块"保留扩展空间"中的转移分配功能。
-/// 将线索从当前归属人转移给新归属人，记录转移原因和备注（action="TRANSFER"）。
+/// POST /api/v1/erp/crm/assignments/transfer - 转移线索归属人；v10 P1 批次 140 新增：实现
+/// assign 模块"保留扩展空间"中的转移分配功能。 将线索从当前归属人转移给新归属人，记录转移原因和备注（action="TRANSFER"）。
 pub async fn transfer_lead(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -343,10 +339,8 @@ pub async fn transfer_lead(
     )))
 }
 
-/// GET /api/v1/erp/crm/assignments/workload - 查询销售用户线索负载
-///
-/// v10 P1 批次 140 新增：辅助端点，查询指定销售用户列表的当前活跃线索数，
-/// 用于自动分配前的预览（按负载升序排序，负载最少的优先分配）。
+/// GET /api/v1/erp/crm/assignments/workload - 查询销售用户线索负载；v10 P1 批次
+/// 140 新增：辅助端点，查询指定销售用户列表的当前活跃线索数， 用于自动分配前的预览（按负载升序排序，负载最少的优先分配）。
 #[derive(Debug, Deserialize)]
 pub struct WorkloadQuery {
     /// 逗号分隔的用户 ID 列表（如 ?user_ids=1,2,3）
@@ -374,10 +368,8 @@ pub async fn list_workload(
     Ok(Json(ApiResponse::success(serde_json::to_value(workload)?)))
 }
 
-/// POST /api/v1/erp/crm/assignments/claim - 抢单模式认领线索
-///
-/// v10 P1 批次 140 新增：实现 assign 模块"保留扩展空间"中的抢单功能。
-/// 销售主动认领一条未分配线索（FIFO，最早入库的优先），写入分配历史 action="CLAIM"。
+/// POST /api/v1/erp/crm/assignments/claim - 抢单模式认领线索；v10 P1 批次 140 新增：实现
+/// assign 模块"保留扩展空间"中的抢单功能。 销售主动认领一条未分配线索（FIFO，最早入库的优先），写入分配历史 action="CLAIM"。
 pub async fn claim_lead(
     State(state): State<AppState>,
     auth: AuthContext,

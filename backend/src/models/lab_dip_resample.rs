@@ -9,14 +9,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 复样记录模型
-///
-/// 真实业务要点：
-/// - 必须采用车间准备试产的半制品布（不可用化验室存布）
-/// - 染料/助剂批号必须与生产一致
-/// - 按生产计划安排的纱种、浴比、染化料模拟大生产
-/// - 色差达 4-5 级方可投产
-/// - 复样通过后由研发组长开染色技术卡
+/// 复样记录模型（大货前用车间半制品布+生产染化料模拟，色差达 4-5 级方可投产，通过后由研发组长开染色技术卡）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "lab_dip_resample")]
 pub struct Model {

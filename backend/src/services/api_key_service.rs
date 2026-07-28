@@ -9,19 +9,13 @@ use std::time::Duration;
 crate::define_service!(ApiKeyService);
 
 /// API Key 黑名单缓存 TTL（秒）
-///
-/// 漏洞 #5 修复：撤销后 key_hash 写入 AppCache.token_blacklist，
-/// TTL 与 key 有效期对齐（最长 7 天）。TTL 过后认为黑名单自动失效。
-/// 典型业务场景：用户撤销 → 立即生效 → TTL 内强制吊销。
+/// 漏洞 #5 修复：撤销后 key_hash 写入 AppCache.token_blacklist，；TTL 与 key 有效期对齐（最长 7 天）。TTL 过后认为黑名单自动失效。；典型业务场景：用户撤销 → 立即生效 → TTL 内强制吊销。
 const API_KEY_BLACKLIST_TTL_SECS: u64 = 7 * 24 * 60 * 60;
 
 /// 黑名单缓存键前缀
 const API_KEY_BLACKLIST_PREFIX: &str = "apikey:revoked:";
 
-/// 更新 API 密钥参数对象
-///
-/// 批次 413 技术债务清理：引入参数对象消除 update_api_key 的 too_many_arguments 警告。
-/// 聚合更新 API 密钥所需的全部可选字段，避免函数签名携带 7 个参数。
+/// 更新 API 密钥参数对象（批次 413 技术债务清理：引入参数对象消除 update_api_key 的 too_many_arguments 警告。；聚合更新 API 密钥所需的全部可选字段，避免函数签名携带 7 个参数。）
 #[derive(Debug, Clone)]
 pub struct UpdateApiKeyPayload {
     /// API 密钥 ID
@@ -53,9 +47,7 @@ impl ApiKeyService {
         crate::utils::hash::sha256_hex(key.as_bytes())
     }
 
-    /// 创建 API 密钥
-    ///
-    /// 批次 112 P1-9：新增 created_by 参数，注入真实创建者 user_id（原表无此列，handler 传 0 占位）
+    /// 创建 API 密钥（批次 112 P1-9：新增 created_by 参数，注入真实创建者 user_id（原表无此列，handler 传 0 占位））
     pub async fn create_api_key(
         &self,
         name: &str,
@@ -92,13 +84,7 @@ impl ApiKeyService {
     }
 
     /// 撤销 API 密钥
-    ///
-    /// 漏洞 #5 修复：撤销时同时将 `key_hash` 加入 `AppCache.token_blacklist` 缓存。
-    /// 历史问题：原实现仅设置 `is_active = false`，旧的明文 API Key
-    /// （若被攻击者截获）在撤销后仍能继续使用。
-    /// 修复策略：撤销时通过 `key_hash` 写入黑名单，未来 API Key 认证中间件
-    /// 可通过 [`Self::is_api_key_revoked`] 检查是否已撤销。
-    /// TTL 7 天后自动失效（与典型 API Key 生命周期对齐）。
+    /// 漏洞 #5 修复：撤销时同时将 `key_hash` 加入 `AppCache.token_blacklist` 缓存。；历史问题：原实现仅设置 `is_active = false`，旧的明文 API Key；（若被攻击者截获）在撤销后仍能继续使用。；修复策略：撤销时通过 `key_hash` 写入黑名单，未来 API Key 认证中间件；可通过 [`Self::is_api_key_revoked`] 检查是否已撤销。；TTL 7 天后自动失效（与典型 API Key 生命周期对齐）。
     pub async fn revoke_api_key(&self, id: i32, cache: Option<&AppCache>) -> Result<(), AppError> {
         let key = ApiKey::find_by_id(id)
             .one(self.db.as_ref())
@@ -141,11 +127,7 @@ impl ApiKeyService {
     }
 
     /// 更新 API 密钥（批次 91 P0-1）
-    ///
-    /// 仅更新传入的字段，未传入的字段保持不变。
-    /// 批次 158 v11 真实接入：新增 description 参数持久化（原 #[allow(dead_code)] 移除）
-    /// 批次 413 技术债务清理：签名从 7 参数改为单一参数对象 `UpdateApiKeyPayload`，
-    /// 消除 `clippy::too_many_arguments` 警告。
+    /// 仅更新传入的字段，未传入的字段保持不变。；批次 158 v11 真实接入：新增 description 参数持久化（原 #[allow(dead_code)] 移除）；批次 413 技术债务清理：签名从 7 参数改为单一参数对象 `UpdateApiKeyPayload`，；消除 `clippy::too_many_arguments` 警告。
     pub async fn update_api_key(
         &self,
         payload: UpdateApiKeyPayload,
@@ -183,10 +165,7 @@ impl ApiKeyService {
             .map_err(AppError::from)
     }
 
-    /// 重新生成 API 密钥（批次 91 P0-1）
-    ///
-    /// 生成新的明文密钥 + 哈希，旧 key_hash 加入黑名单。
-    /// 返回 (更新后的 model, 新明文密钥)。
+    /// 重新生成 API 密钥（批次 91 P0-1）（生成新的明文密钥 + 哈希，旧 key_hash 加入黑名单。；返回 (更新后的 model, 新明文密钥)。）
     pub async fn regenerate_api_key(
         &self,
         id: i32,
@@ -227,20 +206,7 @@ impl ApiKeyService {
     }
 
     /// 检查 API Key 是否已被撤销（漏洞 #5 修复）
-    ///
-    /// 流程：
-    /// 1. 计算明文 key 的 SHA-256 哈希
-    /// 2. 检查 `AppCache.token_blacklist` 中是否存在 `<prefix><key_hash>` 条目
-    ///
-    /// 未来 API Key 认证中间件应在每次校验 key 前调用此方法。
-    ///
-    /// # 参数
-    /// - `cache`: 应用全局缓存
-    /// - `plain_key`: 明文 API Key（含 `bx_` 前缀）
-    ///
-    /// # 返回
-    /// - `true`: 已撤销（拒绝使用）
-    /// - `false`: 未撤销或黑名单已过期
+    /// 流程：1. 计算明文 key 的 SHA-256 哈希；2. 检查 `AppCache.token_blacklist` 中是否存在 `<prefix><key_hash>` 条目；未来 API Key 认证中间件应在每次校验 key 前调用此方法。；# 参数；`cache`: 应用全局缓存；`plain_key`: 明文 API Key（含 `bx_` 前缀）；# 返回；`true`: 已撤销（拒绝使用）；`false`: 未撤销或黑名单已过期
     pub fn is_api_key_revoked(cache: &AppCache, plain_key: &str) -> bool {
         let key_hash = Self::hash_api_key(plain_key);
         let blacklist_key = format!("{}{}", API_KEY_BLACKLIST_PREFIX, key_hash);
@@ -257,9 +223,7 @@ mod tests {
     use super::*;
     use crate::utils::cache::{AppCache, Cache};
 
-    /// 漏洞 #5 修复单元测试：未撤销的 key 不在黑名单
-    ///
-    /// 验证：[`ApiKeyService::is_api_key_revoked`] 对全新 key 返回 false
+    /// 漏洞 #5 修复单元测试：未撤销的 key 不在黑名单（验证：[`ApiKeyService::is_api_key_revoked`] 对全新 key 返回 false）
     #[test]
     fn test_is_api_key_revoked_returns_false_for_fresh_key() {
         let cache = AppCache::new();
@@ -270,9 +234,7 @@ mod tests {
         );
     }
 
-    /// 漏洞 #5 修复单元测试：is_api_key_revoked 检测已撤销的 key
-    ///
-    /// 验证：手动写入黑名单后，is_api_key_revoked 返回 true
+    /// 漏洞 #5 修复单元测试：is_api_key_revoked 检测已撤销的 key（验证：手动写入黑名单后，is_api_key_revoked 返回 true）
     #[test]
     fn test_is_api_key_revoked_detects_blacklisted_key() {
         let cache = AppCache::new();
@@ -299,10 +261,7 @@ mod tests {
         );
     }
 
-    /// 漏洞 #5 修复单元测试：黑名单与 DB 状态独立
-    ///
-    /// 验证：黑名单仅依赖 key_hash 缓存值，不依赖 DB 中 is_active 状态
-    /// （即原"DB 标记 + 黑名单"双轨机制，黑名单可独立强制吊销）
+    /// 漏洞 #5 修复单元测试：黑名单与 DB 状态独立（验证：黑名单仅依赖 key_hash 缓存值，不依赖 DB 中 is_active 状态；（即原"DB 标记 + 黑名单"双轨机制，黑名单可独立强制吊销））
     #[test]
     fn test_blacklist_independent_from_db_state() {
         let cache = AppCache::new();
@@ -322,9 +281,7 @@ mod tests {
         );
     }
 
-    /// 漏洞 #5 修复单元测试：黑名单键格式包含 hash 防冲突
-    ///
-    /// 验证：不同 plain_key 的 hash 不会碰撞到同一黑名单条目
+    /// 漏洞 #5 修复单元测试：黑名单键格式包含 hash 防冲突（验证：不同 plain_key 的 hash 不会碰撞到同一黑名单条目）
     #[test]
     fn test_blacklist_keys_dont_collide() {
         let cache = AppCache::new();

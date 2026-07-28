@@ -314,9 +314,7 @@ impl Metrics {
 
     // ===== 带标签操作（P3.2 新增） =====
 
-    /// 按 method / route / status 记录请求
-    ///
-    /// 典型调用方：`middleware::metrics::metrics_middleware` 在响应后自动调用
+    /// 按 method / route / status 记录请求（典型调用方：`middleware::metrics::metrics_middleware` 在响应后自动调用）
     pub fn record_http_by_route(&self, method: &str, route: &str, status: StatusCode) {
         let status_str = status.as_u16().to_string();
         let class = StatusClass::from_status(status);
@@ -336,9 +334,7 @@ impl Metrics {
             .observe(duration_secs);
     }
 
-    /// 按业务操作类型记录（如 `"create_user"` / `"approve_order"`）
-    ///
-    /// 调用方：`self.record_business_operation_by_type("create_user")`
+    /// 按业务操作类型记录（如 `"create_user"` / `"approve_order"`）（调用方：`self.record_business_operation_by_type("create_user")`）
     pub fn record_business_operation_by_type(&self, operation: &str) {
         self.business_operations_total.inc();
         self.business_operations_by_type
@@ -353,9 +349,7 @@ pub struct MetricsService {
     pub registry: Arc<MetricsRegistry>,
     pub metrics: Arc<Metrics>,
     /// 批次 106 P1-2 修复：业务指标扩展（20+ erp_* 指标）
-    ///
-    /// 通过同一 Registry 注册，`/metrics` 端点 gather 时自动包含业务指标，
-    /// 无需新增端点。业务侧调用 `state.metrics.business_metrics.record_*(...)` 记录。
+    /// 通过同一 Registry 注册，`/metrics` 端点 gather 时自动包含业务指标，；无需新增端点。业务侧调用 `state.metrics.business_metrics.record_*(...)` 记录。
     pub business_metrics: Arc<BusinessMetrics>,
 }
 

@@ -238,9 +238,7 @@ fn builtin_transition_rules() -> Vec<(&'static str, &'static str, &'static str)>
     ]
 }
 
-/// 纯函数版状态流转校验（内置流转规则表）
-///
-/// from_status 为 None 表示初始状态（仅允许 pending_schedule → scheduled/cancelled）
+/// 纯函数版状态流转校验（内置流转规则表）（from_status 为 None 表示初始状态（仅允许 pending_schedule → scheduled/cancelled））
 pub fn is_valid_transition(
     from_status: Option<&str>,
     to_status: &str,
@@ -347,9 +345,7 @@ pub struct LifecycleLogQuery {
 }
 
 /// 缸号生命周期日志 Service
-///
-/// 业务方法（record_transition / get_by_id / list_by_batch / list_by_batch_no
-/// / get_latest_status / list）定义在 dye_batch_state_machine_ops::lifecycle_log。
+/// 业务方法（record_transition / get_by_id / list_by_batch / list_by_batch_no；/ get_latest_status / list）定义在 dye_batch_state_machine_ops::lifecycle_log。
 pub struct DyeBatchLifecycleLogService {
     /// 数据库连接（pub(crate) 供 dye_batch_state_machine_ops 子模块访问）
     pub(crate) db: Arc<DatabaseConnection>,
@@ -406,9 +402,7 @@ pub struct StateRuleQuery {
 }
 
 /// 缸号状态流转规则 Service
-///
-/// 业务方法（create / update / delete / get_by_id / check_transition
-/// / list_allowed_transitions / list）定义在 dye_batch_state_machine_ops::state_rule。
+/// 业务方法（create / update / delete / get_by_id / check_transition；/ list_allowed_transitions / list）定义在 dye_batch_state_machine_ops::state_rule。
 pub struct DyeBatchStateRuleService {
     /// 数据库连接（pub(crate) 供 dye_batch_state_machine_ops 子模块访问）
     pub(crate) db: Arc<DatabaseConnection>,
@@ -460,9 +454,7 @@ pub struct ReworkQuery {
 }
 
 /// 缸号回修记录 Service
-///
-/// 业务方法（create / update / delete / get_by_id / approve / start_rework
-/// / complete_rework / cancel_rework / list）定义在 dye_batch_state_machine_ops::rework。
+/// 业务方法（create / update / delete / get_by_id / approve / start_rework；/ complete_rework / cancel_rework / list）定义在 dye_batch_state_machine_ops::rework。
 pub struct DyeBatchReworkService {
     /// 数据库连接（pub(crate) 供 dye_batch_state_machine_ops 子模块访问）
     pub(crate) db: Arc<DatabaseConnection>,
@@ -504,9 +496,7 @@ pub struct OperationQuery {
 }
 
 /// 缸号操作记录 Service
-///
-/// 业务方法（create / get_by_id / list_by_type / list_by_batch / list）
-/// 定义在 dye_batch_state_machine_ops::operation。
+/// 业务方法（create / get_by_id / list_by_type / list_by_batch / list）；定义在 dye_batch_state_machine_ops::operation。
 pub struct DyeBatchOperationService {
     /// 数据库连接（pub(crate) 供 dye_batch_state_machine_ops 子模块访问）
     pub(crate) db: Arc<DatabaseConnection>,

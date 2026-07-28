@@ -371,12 +371,7 @@ impl EnergyAllocationRecordService {
         Ok((items, total))
     }
 
-    /// 月末按工时自动分摊
-    ///
-    /// 业务流程：
-    /// 1. 查询时段内已确认的能耗记录，按车间+能源类型汇总
-    /// 2. 查询工序记录按缸号+工序分组统计工时
-    /// 3. 按工时比例分摊总能耗，生成分摊记录
+    /// 月末按工时自动分摊（业务流程：1. 查询时段内已确认的能耗记录，按车间+能源类型汇总；2. 查询工序记录按缸号+工序分组统计工时；3. 按工时比例分摊总能耗，生成分摊记录）
     pub async fn monthly_allocation_by_duration(
         &self,
         req: MonthlyAllocationRequest,

@@ -38,9 +38,7 @@ use crate::services::quality_inspection_service::{
 // 工资计算纯函数
 // ============================================================================
 
-/// 将 NaiveDate 转换为带时区的 DateTime（当天 00:00:00 UTC）
-///
-/// 用于工序记录的 start_at 字段比较
+/// 将 NaiveDate 转换为带时区的 DateTime（当天 00:00:00 UTC）（用于工序记录的 start_at 字段比较）
 pub(crate) fn naive_date_to_date_time_tz(
     date: chrono::NaiveDate,
 ) -> chrono::DateTime<chrono::FixedOffset> {
@@ -64,12 +62,7 @@ pub(crate) fn naive_date_to_end_of_day_tz(
     )
 }
 
-/// 计算合格率（百分比，0-100）
-///
-/// 业务规则：
-/// - 若实际产量为 0 或 None，合格率为 0
-/// - 若合格产量为 None，按 0 处理
-/// - 公式：qualified_quantity / actual_quantity × 100
+/// 计算合格率（百分比，0-100）（业务规则：若实际产量为 0 或 None，合格率为 0；若合格产量为 None，按 0 处理；公式：qualified_quantity / actual_quantity × 100）
 pub fn compute_qualification_rate(
     actual_quantity: Option<Decimal>,
     qualified_quantity: Option<Decimal>,
@@ -84,21 +77,12 @@ pub fn compute_qualification_rate(
 }
 
 /// 依据合格率判定质检等级（A/B/C）
-///
-/// 业务规则（复用批次 421 determine_quality_grade）：
-/// - 合格率 ≥ 95% → A 级（合格）
-/// - 80% ≤ 合格率 < 95% → B 级（让步接收）
-/// - 合格率 < 80% → C 级（不合格）
+/// 业务规则（复用批次 421 determine_quality_grade）：合格率 ≥ 95% → A 级（合格）；80% ≤ 合格率 < 95% → B 级（让步接收）；合格率 < 80% → C 级（不合格）
 pub fn determine_grade_by_qualification_rate(rate: Decimal) -> String {
     determine_quality_grade(Some(rate))
 }
 
-/// 依据质检等级返回工价等级系数
-///
-/// 业务规则：
-/// - A 级：grade_a_ratio（默认全额 1.0）
-/// - B 级：grade_b_ratio（默认 8 折 0.8）
-/// - C 级：grade_c_ratio（默认不计 0.0）
+/// 依据质检等级返回工价等级系数（业务规则：A 级：grade_a_ratio（默认全额 1.0）；B 级：grade_b_ratio（默认 8 折 0.8）；C 级：grade_c_ratio（默认不计 0.0））
 pub fn determine_grade_ratio(grade: &str, rate_model: &RateModel) -> Decimal {
     match grade {
         QUALITY_GRADE_A => rate_model.grade_a_ratio,
@@ -109,19 +93,7 @@ pub fn determine_grade_ratio(grade: &str, rate_model: &RateModel) -> Decimal {
 }
 
 /// 计算单条工序记录的工资明细
-///
-/// 业务规则：
-/// - 计件工资 = 合格产量 × 计件单价 × 等级系数
-/// - 计时工资 = 工时（分钟） × 计时单价 × 等级系数
-/// - 应得工资 = 计件工资 + 计时工资 + 加班费（根据 wage_type 选择）
-///
-/// 参数：
-/// - rate: 工价方案
-/// - actual_quantity: 实际产量
-/// - qualified_quantity: 合格产量
-/// - duration_minutes: 工时（分钟）
-///
-/// 返回：(grade, grade_ratio, piece_wage, time_wage, wage_amount)
+/// 业务规则：计件工资 = 合格产量 × 计件单价 × 等级系数；计时工资 = 工时（分钟） × 计时单价 × 等级系数；应得工资 = 计件工资 + 计时工资 + 加班费（根据 wage_type 选择）；参数：rate: 工价方案；actual_quantity: 实际产量；qualified_quantity: 合格产量；duration_minutes: 工时（分钟）；返回：(grade, grade_ratio, piece_wage, time_wage, wage_amount)
 pub fn calculate_wage_for_step(
     rate: &RateModel,
     actual_quantity: Option<Decimal>,
@@ -166,22 +138,7 @@ pub fn calculate_wage_for_step(
 }
 
 /// V15 P1-08-22 加班费计算（《劳动法》第 44 条）
-///
-/// 业务规则：
-/// - 工作日加班：按计时单价的 1.5 倍计算
-/// - 休息日加班：按计时单价的 2 倍计算（不能安排补休时）
-/// - 法定节假日加班：按计时单价的 3 倍计算
-/// - 加班费 = (weekday_ot × 1.5 + weekend_ot × 2 + holiday_ot × 3) × time_price × grade_ratio / 60
-///   （time_price 单位为元/分钟，故除以 60 转换为小时费率更直观，但此处直接用分钟费率）
-///
-/// 参数：
-/// - rate: 工价方案（取 time_price 与 grade_ratio）
-/// - grade_ratio: 等级系数（与计件/计时工资一致）
-/// - weekday_overtime_minutes: 工作日加班工时（分钟）
-/// - weekend_overtime_minutes: 休息日加班工时（分钟）
-/// - holiday_overtime_minutes: 法定节假日加班工时（分钟）
-///
-/// 返回：加班费总额（Decimal）
+/// 业务规则：工作日加班：按计时单价的 1.5 倍计算；休息日加班：按计时单价的 2 倍计算（不能安排补休时）；法定节假日加班：按计时单价的 3 倍计算；加班费 = (weekday_ot × 1.5 + weekend_ot × 2 + holiday_ot × 3) × time_price × grade_ratio / 60；（time_price 单位为元/分钟，故除以 60 转换为小时费率更直观，但此处直接用分钟费率）；参数：rate: 工价方案（取 time_price 与 grade_ratio）；grade_ratio: 等级系数（与计件/计时工资一致）；weekday_overtime_minutes: 工作日加班工时（分钟）；weekend_overtime_minutes: 休息日加班工时（分钟）；holiday_overtime_minutes: 法定节假日加班工时（分钟）；返回：加班费总额（Decimal）
 pub fn calculate_overtime_pay(
     rate: &RateModel,
     grade_ratio: Decimal,
@@ -202,10 +159,7 @@ pub fn calculate_overtime_pay(
     total_ot_minutes * rate.time_price * grade_ratio
 }
 
-/// 解析工序记录的工人 IDs（逗号分隔字符串 → HashSet）
-///
-/// 真实业务：扫码登记工人时，可能多个工人共同完成一道工序
-/// 工资按人均分配（简化方案，实际业务可按工时比例分配）
+/// 解析工序记录的工人 IDs（逗号分隔字符串 → HashSet）（真实业务：扫码登记工人时，可能多个工人共同完成一道工序；工资按人均分配（简化方案，实际业务可按工时比例分配））
 pub fn parse_worker_ids(worker_ids_str: &Option<String>) -> Vec<i32> {
     let s = match worker_ids_str {
         Some(s) if !s.trim().is_empty() => s,
@@ -232,9 +186,7 @@ pub fn parse_worker_names(worker_names_str: &Option<String>) -> Vec<String> {
     s.split(',').map(|n| n.trim().to_string()).collect()
 }
 
-/// 按人均分配工资（多人共同完成一道工序时）
-///
-/// 公式：单人工资 = 总工资 / 工人数量
+/// 按人均分配工资（多人共同完成一道工序时）（公式：单人工资 = 总工资 / 工人数量）
 pub fn split_wage_among_workers(wage: Decimal, worker_count: usize) -> Decimal {
     if worker_count == 0 {
         return Decimal::ZERO;
@@ -355,9 +307,7 @@ impl WageRecordService {
 // 工资计算 Service struct 定义（impl 块在 wage_ops/calculation 子模块）
 // ============================================================================
 
-/// 工资计算 Service
-///
-/// 真实业务：按周期 + 车间查询工序记录 → 按工序匹配生效工价 → 计算每个工人的应得工资
+/// 工资计算 Service（真实业务：按周期 + 车间查询工序记录 → 按工序匹配生效工价 → 计算每个工人的应得工资）
 pub struct WageCalculationService {
     pub(crate) db: Arc<DatabaseConnection>,
 }
@@ -381,9 +331,7 @@ mod tests {
 
     // ===== compute_qualification_rate 合格率计算 =====
 
-    /// 测试_合格率计算_正常情况
-    ///
-    /// 验证 actual=100, qualified=95 时合格率为 95%。
+    /// 测试_合格率计算_正常情况（验证 actual=100, qualified=95 时合格率为 95%。）
     #[test]
     fn 测试_合格率计算_正常情况() {
         let rate =
@@ -391,9 +339,7 @@ mod tests {
         assert_eq!(rate, Decimal::new(95, 0));
     }
 
-    /// 测试_合格率计算_全合格
-    ///
-    /// 验证 actual=100, qualified=100 时合格率为 100%。
+    /// 测试_合格率计算_全合格（验证 actual=100, qualified=100 时合格率为 100%。）
     #[test]
     fn 测试_合格率计算_全合格() {
         let rate =
@@ -401,18 +347,14 @@ mod tests {
         assert_eq!(rate, Decimal::new(100, 0));
     }
 
-    /// 测试_合格率计算_零产量
-    ///
-    /// 验证 actual=0 时合格率为 0（避免除零错误）。
+    /// 测试_合格率计算_零产量（验证 actual=0 时合格率为 0（避免除零错误）。）
     #[test]
     fn 测试_合格率计算_零产量() {
         let rate = compute_qualification_rate(Some(Decimal::ZERO), Some(Decimal::ZERO));
         assert_eq!(rate, Decimal::ZERO);
     }
 
-    /// 测试_合格率计算_None按零处理
-    ///
-    /// 验证 None 时按 0 处理。
+    /// 测试_合格率计算_None按零处理（验证 None 时按 0 处理。）
     #[test]
     fn 测试_合格率计算_None按零处理() {
         let rate = compute_qualification_rate(None, None);
@@ -421,9 +363,7 @@ mod tests {
 
     // ===== determine_grade_by_qualification_rate 等级判定 =====
 
-    /// 测试_等级判定_A级_95以上
-    ///
-    /// 验证合格率 ≥ 95% 判定为 A 级。
+    /// 测试_等级判定_A级_95以上（验证合格率 ≥ 95% 判定为 A 级。）
     #[test]
     fn 测试_等级判定_A级_95以上() {
         assert_eq!(
@@ -440,9 +380,7 @@ mod tests {
         );
     }
 
-    /// 测试_等级判定_B级_80到95区间
-    ///
-    /// 验证合格率 80-95% 判定为 B 级。
+    /// 测试_等级判定_B级_80到95区间（验证合格率 80-95% 判定为 B 级。）
     #[test]
     fn 测试_等级判定_B级_80到95区间() {
         assert_eq!(
@@ -459,9 +397,7 @@ mod tests {
         );
     }
 
-    /// 测试_等级判定_C级_80以下
-    ///
-    /// 验证合格率 < 80% 判定为 C 级。
+    /// 测试_等级判定_C级_80以下（验证合格率 < 80% 判定为 C 级。）
     #[test]
     fn 测试_等级判定_C级_80以下() {
         assert_eq!(
@@ -480,9 +416,7 @@ mod tests {
 
     // ===== determine_grade_ratio 等级系数获取 =====
 
-    /// 测试_等级系数获取_各级别
-    ///
-    /// 验证 A/B/C 级返回对应的工价等级系数。
+    /// 测试_等级系数获取_各级别（验证 A/B/C 级返回对应的工价等级系数。）
     #[test]
     fn 测试_等级系数获取_各级别() {
         // 构造一个 Mock 工价模型
@@ -524,9 +458,7 @@ mod tests {
 
     // ===== calculate_wage_for_step 工资计算 =====
 
-    /// 测试_工资计算_计件_A级全额
-    ///
-    /// 验证计件工价 + A 级（100%合格率）= 合格产量 × 计件单价 × 1.0。
+    /// 测试_工资计算_计件_A级全额（验证计件工价 + A 级（100%合格率）= 合格产量 × 计件单价 × 1.0。）
     #[test]
     fn 测试_工资计算_计件_A级全额() {
         let rate = RateModel {
@@ -567,9 +499,7 @@ mod tests {
         assert_eq!(total, Decimal::new(500, 0));
     }
 
-    /// 测试_工资计算_计件_B级8折
-    ///
-    /// 验证计件工价 + B 级（85%合格率）= 合格产量 × 计件单价 × 0.8。
+    /// 测试_工资计算_计件_B级8折（验证计件工价 + B 级（85%合格率）= 合格产量 × 计件单价 × 0.8。）
     #[test]
     fn 测试_工资计算_计件_B级8折() {
         let rate = RateModel {
@@ -611,9 +541,7 @@ mod tests {
         assert_eq!(total, Decimal::new(340, 0));
     }
 
-    /// 测试_工资计算_计件_C级不计
-    ///
-    /// 验证计件工价 + C 级（50%合格率）= 工资为 0。
+    /// 测试_工资计算_计件_C级不计（验证计件工价 + C 级（50%合格率）= 工资为 0。）
     #[test]
     fn 测试_工资计算_计件_C级不计() {
         let rate = RateModel {
@@ -653,9 +581,7 @@ mod tests {
         assert_eq!(total, Decimal::ZERO);
     }
 
-    /// 测试_工资计算_计时_按工时
-    ///
-    /// 验证计时工价 = 工时 × 计时单价 × 等级系数。
+    /// 测试_工资计算_计时_按工时（验证计时工价 = 工时 × 计时单价 × 等级系数。）
     #[test]
     fn 测试_工资计算_计时_按工时() {
         let rate = RateModel {
@@ -695,9 +621,7 @@ mod tests {
         assert_eq!(total, Decimal::new(240, 0));
     }
 
-    /// 测试_工资计算_混合_计件加计时
-    ///
-    /// 验证混合工价 = 计件 + 计时。
+    /// 测试_工资计算_混合_计件加计时（验证混合工价 = 计件 + 计时。）
     #[test]
     fn 测试_工资计算_混合_计件加计时() {
         let rate = RateModel {

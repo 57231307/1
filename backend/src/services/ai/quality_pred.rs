@@ -150,14 +150,7 @@ pub(crate) const CONFIDENCE_FULL_SAMPLE: i64 = 30;
 pub(crate) const QUALITY_RECORD_LIMIT: u64 = 50_000;
 
 /// 质量归因关键词库（中文常用术语）
-///
-/// 提取自 `remark` 字段，按出现频次归类问题类型。
-/// - 颜色差异：颜色偏差 / 偏色 / 颜色不符 / 异色
-/// - 色牢度：色牢度 / 褪色 / 沾色 / 耐洗
-/// - 克重：克重 / 平米克重
-/// - 纬密：纬密 / 密度 / 经密
-/// - 强度：强度 / 强力 / 断裂
-/// - 其他：未命中关键词的记录统一归为"其他"
+/// 提取自 `remark` 字段，按出现频次归类问题类型。；颜色差异：颜色偏差 / 偏色 / 颜色不符 / 异色；色牢度：色牢度 / 褪色 / 沾色 / 耐洗；克重：克重 / 平米克重；纬密：纬密 / 密度 / 经密；强度：强度 / 强力 / 断裂；其他：未命中关键词的记录统一归为"其他"
 const ISSUE_KEYWORDS: &[(&str, &[&str])] = &[
     ("颜色差异", &["颜色", "偏色", "异色", "色差", "色不符"]),
     ("色牢度", &["色牢度", "褪色", "沾色", "耐洗"]),
@@ -166,9 +159,7 @@ const ISSUE_KEYWORDS: &[(&str, &[&str])] = &[
     ("强度不足", &["强度", "强力", "断裂"]),
 ];
 
-/// 从 `remark` 文本中匹配问题类型关键词
-///
-/// 返回匹配到的归因类别（"颜色差异"/"色牢度"/"克重偏差"/"纬密偏差"/"强度不足"/"其他"）。
+/// 从 `remark` 文本中匹配问题类型关键词（返回匹配到的归因类别（"颜色差异"/"色牢度"/"克重偏差"/"纬密偏差"/"强度不足"/"其他"）。）
 pub(crate) fn extract_issue_keyword(remark: Option<&str>) -> String {
     let text = match remark {
         Some(t) => t,
@@ -185,12 +176,7 @@ pub(crate) fn extract_issue_keyword(remark: Option<&str>) -> String {
 }
 
 /// 风险评分计算
-///
-/// 公式：`risk = (100 - avg_rate) * 0.6 + trend_down * 0.4`
-/// - `avg_rate`      当前平均合格率（百分比 0-100）
-/// - `trend_is_down` 是否处于下降趋势
-///
-/// 输出 0-100，越高越危险。
+/// 公式：`risk = (100 - avg_rate) * 0.6 + trend_down * 0.4`；`avg_rate`      当前平均合格率（百分比 0-100）；`trend_is_down` 是否处于下降趋势；输出 0-100，越高越危险。
 pub(crate) fn compute_risk_score(avg_rate: f64, trend_is_down: bool) -> f64 {
     let rate_part = ((100.0 - avg_rate).max(0.0) * RISK_WEIGHT_RATE).min(60.0);
     let trend_part = if trend_is_down {
@@ -201,11 +187,7 @@ pub(crate) fn compute_risk_score(avg_rate: f64, trend_is_down: bool) -> f64 {
     (rate_part + trend_part).clamp(0.0, RISK_MAX)
 }
 
-/// 风险等级分类
-///
-/// - `score >= 60`        → "高"
-/// - `30 <= score < 60`   → "中"
-/// - `score < 30`         → "低"
+/// 风险等级分类（`score >= 60`        → "高"；`30 <= score < 60`   → "中"；`score < 30`         → "低"）
 pub(crate) fn classify_risk_level(score: f64) -> String {
     if score >= RISK_LEVEL_HIGH {
         "高".to_string()
@@ -216,11 +198,7 @@ pub(crate) fn classify_risk_level(score: f64) -> String {
     }
 }
 
-/// 趋势判定（基于变化率）
-///
-/// - `rate >  5%`  → "上升"
-/// - `rate < -5%`  → "下降"
-/// - 其他          → "平稳"
+/// 趋势判定（基于变化率）（`rate >  5%`  → "上升"；`rate < -5%`  → "下降"；其他          → "平稳"）
 pub(crate) fn classify_trend(rate: f64) -> String {
     if rate > TREND_THRESHOLD {
         "上升".to_string()
@@ -232,9 +210,7 @@ pub(crate) fn classify_trend(rate: f64) -> String {
 }
 
 /// 趋势变化率计算
-///
-/// `recent` / `previous` 分别是最近 30 天 / 之前 30 天的平均合格率（百分比）。
-/// 返回 `(recent - previous) / previous`（previous=0 时返回 0.0 兜底）。
+/// `recent` / `previous` 分别是最近 30 天 / 之前 30 天的平均合格率（百分比）。；返回 `(recent - previous) / previous`（previous=0 时返回 0.0 兜底）。
 pub(crate) fn compute_trend_rate(recent: f64, previous: f64) -> f64 {
     if previous.abs() < 0.0001 {
         return 0.0;
@@ -242,10 +218,7 @@ pub(crate) fn compute_trend_rate(recent: f64, previous: f64) -> f64 {
     (recent - previous) / previous
 }
 
-/// 置信度计算
-///
-/// 公式：`min(sample_count / CONFIDENCE_FULL_SAMPLE, 1.0)`，四舍五入到 0.01。
-/// 退化路径由调用方传入固定 0.3。
+/// 置信度计算（公式：`min(sample_count / CONFIDENCE_FULL_SAMPLE, 1.0)`，四舍五入到 0.01。；退化路径由调用方传入固定 0.3。）
 pub(crate) fn compute_confidence(sample_count: i64) -> f64 {
     if sample_count <= 0 {
         return FALLBACK_CONFIDENCE;
@@ -254,9 +227,7 @@ pub(crate) fn compute_confidence(sample_count: i64) -> f64 {
     (ratio * 100.0).round() / 100.0
 }
 
-/// 风险等级 → 建议措施
-///
-/// 严格按等级分档生成 1-3 条建议，确保 UI 列表非空。
+/// 风险等级 → 建议措施（严格按等级分档生成 1-3 条建议，确保 UI 列表非空。）
 pub(crate) fn build_recommendations(level: &str) -> Vec<String> {
     match level {
         "高" => vec![
@@ -276,11 +247,7 @@ pub(crate) fn build_recommendations(level: &str) -> Vec<String> {
     }
 }
 
-/// 计算给定一组记录的平均合格率
-///
-/// 优先使用记录自身的 `qualification_rate`（百分比 0-100）；
-/// 缺失时回退到 `qualified_qty / inspected_qty`。
-/// 返回百分比 0-100。
+/// 计算给定一组记录的平均合格率（优先使用记录自身的 `qualification_rate`（百分比 0-100）；缺失时回退到 `qualified_qty / inspected_qty`。；返回百分比 0-100。）
 pub(crate) fn mean_qualification_rate(records: &[QualityInspectionModel]) -> f64 {
     if records.is_empty() {
         return 0.0;
@@ -328,11 +295,7 @@ fn round2(v: f64) -> f64 {
 
 impl AiAnalysisService {
     /// 质量预测主入口：标准化 → 拉取 → 聚合或退化
-    ///
-    /// V15 P1 5.2：通过 Semaphore permits=10 限制并发，防止 CPU 过载；
-    /// V15 P1 5.3：通过 moka 缓存（TTL 5min）避免相同入参重复计算；
-    /// V15 P1 5.1+9.1+9.5：通过 tokio::time::timeout（2s）包装算法执行，
-    ///   超时或模型不可用时返回降级结果（保守默认值 + degraded=true）。
+    /// V15 P1 5.2：通过 Semaphore permits=10 限制并发，防止 CPU 过载；V15 P1 5.3：通过 moka 缓存（TTL 5min）避免相同入参重复计算；V15 P1 5.1+9.1+9.5：通过 tokio::time::timeout（2s）包装算法执行，；超时或模型不可用时返回降级结果（保守默认值 + degraded=true）。
     pub async fn predict_quality(
         &self,
         request: QualityPredRequest,
@@ -390,9 +353,7 @@ impl AiAnalysisService {
         }
     }
 
-    /// V15 P1 5.1：实际算法执行（记录拉取 + 聚合 + 响应构建 + 缓存写入）
-    ///
-    /// 由 `predict_quality` 通过 `tokio::time::timeout` 包装调用，超时由外层处理。
+    /// V15 P1 5.1：实际算法执行（记录拉取 + 聚合 + 响应构建 + 缓存写入）（由 `predict_quality` 通过 `tokio::time::timeout` 包装调用，超时由外层处理。）
     async fn run_quality_inference(
         &self,
         params: &NormalizedPredParams,
@@ -410,11 +371,7 @@ impl AiAnalysisService {
     }
 
     /// 拉取指定时间窗口内的全部质量检验记录
-    ///
-    /// V15 P1 2.2：按产品/检验类型/染料/助剂/温度/缸号/胚布来源可选过滤；
-    /// V15 P1 6.2：限制记录上限（QUALITY_RECORD_LIMIT）防止全表扫描 OOM；
-    /// V15 P1 6.1：返回前对 remark 字段做 PII 脱敏，避免 top_issues_json 泄露客户信息；
-    /// 时间下界为 `today - window_days`。
+    /// V15 P1 2.2：按产品/检验类型/染料/助剂/温度/缸号/胚布来源可选过滤；V15 P1 6.2：限制记录上限（QUALITY_RECORD_LIMIT）防止全表扫描 OOM；V15 P1 6.1：返回前对 remark 字段做 PII 脱敏，避免 top_issues_json 泄露客户信息；时间下界为 `today - window_days`。
     async fn fetch_quality_records(
         &self,
         params: &NormalizedPredParams,
@@ -477,9 +434,7 @@ impl AiAnalysisService {
 // =====================================================
 
 /// `predict_quality` 入参标准化后的上下文
-///
-/// 封装 `window_days` / `inspection_type` / `product_id` / `type_label` 及面料特征，
-/// 避免主函数散落局部变量；参考已有 `WageTotals` / `ApproveContext` 模式。
+/// 封装 `window_days` / `inspection_type` / `product_id` / `type_label` 及面料特征，；避免主函数散落局部变量；参考已有 `WageTotals` / `ApproveContext` 模式。
 #[derive(Clone)]
 struct NormalizedPredParams {
     window_days: i32,
@@ -495,10 +450,7 @@ struct NormalizedPredParams {
 }
 
 /// 标准化 `predict_quality` 入参
-///
-/// - `window_days`：默认 90，限幅 1-365
-/// - `inspection_type`：trim 后若为空字符串则视为 None
-/// - `type_label`：用于响应的展示标签，未指定时为 "all"
+/// `window_days`：默认 90，限幅 1-365；`inspection_type`：trim 后若为空字符串则视为 None；`type_label`：用于响应的展示标签，未指定时为 "all"
 fn normalize_pred_params(request: QualityPredRequest) -> NormalizedPredParams {
     let window_days = request.window_days.unwrap_or(90).clamp(1, 365);
     let inspection_type = request
@@ -524,9 +476,7 @@ fn normalize_pred_params(request: QualityPredRequest) -> NormalizedPredParams {
     }
 }
 
-/// 构造历史数据不足时的退化响应
-///
-/// 固定值：合格率 95% + 置信度 0.3 + 风险等级"中" + 风险分 30。
+/// 构造历史数据不足时的退化响应（固定值：合格率 95% + 置信度 0.3 + 风险等级"中" + 风险分 30。）
 fn build_fallback_response(
     product_id: Option<i32>,
     type_label: &str,
@@ -554,9 +504,7 @@ fn build_fallback_response(
 }
 
 /// V15 P1 9.1+9.5：构造推理超时/模型不可用时的降级响应
-///
-/// 与 `build_fallback_response` 区别：本函数用于异常场景（非算法退化），
-/// `degraded=true` 标识前端可展示"AI 服务降级"提示，source="degraded"。
+/// 与 `build_fallback_response` 区别：本函数用于异常场景（非算法退化），；`degraded=true` 标识前端可展示"AI 服务降级"提示，source="degraded"。
 fn build_degraded_response(
     product_id: Option<i32>,
     type_label: &str,
@@ -619,9 +567,7 @@ fn build_history_response(
 }
 
 /// V15 P1 5.3：构建质量预测缓存键（入参指纹）
-///
-/// 由 product_id/inspection_type/window_days/dye_type/auxiliary_type/temperature_range/batch_no/fabric_source
-/// 拼接而成，相同入参 5 分钟内命中缓存。
+/// 由 product_id/inspection_type/window_days/dye_type/auxiliary_type/temperature_range/batch_no/fabric_source；拼接而成，相同入参 5 分钟内命中缓存。
 fn build_quality_cache_key(request: &QualityPredRequest) -> String {
     let temp_range = request
         .temperature_range
@@ -640,10 +586,7 @@ fn build_quality_cache_key(request: &QualityPredRequest) -> String {
     )
 }
 
-/// 按月分段统计
-///
-/// 以 `inspection_date` 的 `YYYY-MM` 为 key 聚合每条记录的 `qualification_rate`，
-/// 生成 `PeriodStat` 列表（BTreeMap 保证时间升序）。
+/// 按月分段统计（以 `inspection_date` 的 `YYYY-MM` 为 key 聚合每条记录的 `qualification_rate`，；生成 `PeriodStat` 列表（BTreeMap 保证时间升序）。）
 fn build_period_breakdown(records: &[QualityInspectionModel]) -> Vec<PeriodStat> {
     let mut monthly: std::collections::BTreeMap<String, Vec<f64>> =
         std::collections::BTreeMap::new();
@@ -667,11 +610,7 @@ fn build_period_breakdown(records: &[QualityInspectionModel]) -> Vec<PeriodStat>
 }
 
 /// 计算最近 30 天 vs 之前 30 天的趋势
-///
-/// 返回 `(trend_label, trend_rate_value, trend_is_down)`：
-/// - `trend_label`：上升 / 平稳 / 下降 / 无数据
-/// - `trend_rate_value`：原始变化率（如 0.125），由调用方转为百分点
-/// - `trend_is_down`：是否处于下降趋势（用于风险评分）
+/// 返回 `(trend_label, trend_rate_value, trend_is_down)`：`trend_label`：上升 / 平稳 / 下降 / 无数据；`trend_rate_value`：原始变化率（如 0.125），由调用方转为百分点；`trend_is_down`：是否处于下降趋势（用于风险评分）
 fn compute_recent_trend(records: &[QualityInspectionModel]) -> (String, f64, bool) {
     let now = chrono::Utc::now().date_naive();
     let recent_cutoff = now - chrono::Duration::days(30);
@@ -701,10 +640,7 @@ fn compute_recent_trend(records: &[QualityInspectionModel]) -> (String, f64, boo
     (trend_label, trend_rate_value, trend_is_down)
 }
 
-/// 问题归因：仅统计不合格记录，按出现频次取 top 3
-///
-/// 不合格定义：`qualification_rate < 100.0`。
-/// 归因类别由 `extract_issue_keyword` 从 `remark` 提取。
+/// 问题归因：仅统计不合格记录，按出现频次取 top 3（不合格定义：`qualification_rate < 100.0`。；归因类别由 `extract_issue_keyword` 从 `remark` 提取。）
 fn compute_top_issues(records: &[QualityInspectionModel]) -> Vec<QualityIssue> {
     let mut issue_counter: std::collections::HashMap<String, i64> =
         std::collections::HashMap::new();
@@ -816,10 +752,7 @@ mod tests {
     }
 
     /// 测试 2：风险评分 - 极低合格率 + 下降趋势 → 风险分 > 60（等级"高"）
-    ///
-    /// 注：原 spec 文字"合格率 70%"在公式 `(100-avg)*0.6 + 15*0.4` 下
-    /// 仅得 24，数学上无法 > 60；此处采用能确保 > 60 的极低合格率（0%）
-    /// 作为高风险测试场景，公式不变。
+    /// 注：原 spec 文字"合格率 70%"在公式 `(100-avg)*0.6 + 15*0.4` 下；仅得 24，数学上无法 > 60；此处采用能确保 > 60 的极低合格率（0%）；作为高风险测试场景，公式不变。
     #[test]
     fn test_risk_score_high() {
         let score = compute_risk_score(0.0, true);
@@ -925,8 +858,7 @@ mod tests {
     }
 
     /// 测试 5：辅助函数覆盖 - 用真实记录验证 `mean_qualification_rate`
-    /// 使用 `make_record` 构造 3 条记录，确保 `#[allow(dead_code)]`
-    /// 不会因辅助函数未使用而失效。
+    /// 使用 `make_record` 构造 3 条记录，确保 `#[allow(dead_code)]`；不会因辅助函数未使用而失效。
     #[test]
     fn test_mean_qualification_with_real_records() {
         // P9-1: 用 ymd! 宏统一日期构造

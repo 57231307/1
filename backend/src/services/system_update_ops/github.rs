@@ -203,9 +203,7 @@ impl SystemUpdateService {
     }
 
     /// 构建 SSRF 防御的下载客户端（URL 校验 + DNS Rebinding 防御 + 重定向限制）
-    ///
-    /// TS-S-7 安全加固：校验下载域名防止 SSRF / 中间人攻击。
-    /// M1 修复（v8 复审）：DNS Rebinding 防御，用 resolve_to_addrs 固定连接到已校验 IP。
+    /// TS-S-7 安全加固：校验下载域名防止 SSRF / 中间人攻击。；M1 修复（v8 复审）：DNS Rebinding 防御，用 resolve_to_addrs 固定连接到已校验 IP。
     fn build_safe_download_client(url: &str) -> Result<reqwest::Client, UpdateError> {
         validate_download_url(url)?;
         let (dl_host, dl_safe_addrs) = crate::utils::ssrf_guard::validate_url_and_resolve(url)

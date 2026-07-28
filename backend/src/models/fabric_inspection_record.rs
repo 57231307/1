@@ -10,14 +10,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 验布记录模型
-///
-/// 真实业务要点：
-/// - 一缸一验布记录，记录评分制式/总扣分/每百平方码分数/等级判定
-/// - 四分制等级：每百平方码分数 ≤40 = 首级(first)，>40 = 次级(second)
-/// - 十分制等级：总扣分 < 总码数 = 首级(first)，≥ 总码数 = 次级(second)
-/// - 联动 A/B/C 分级：A 级合格/B 级让步接收/C 级返工报废（基于合格率）
-/// - 打卷汇总：total_rolls/total_roll_length/total_roll_weight 由打卷操作累加
+/// 验布记录模型（一缸一记录，记评分制式/总扣分/每百平方码分数/等级；四分制 ≤40 首级 >40 次级，十分制 <总码数 首级 ≥次级；联动 A/B/C 分级；打卷汇总由操作累加）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "fabric_inspection_record")]
 pub struct Model {

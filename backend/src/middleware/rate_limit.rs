@@ -14,18 +14,8 @@ use tokio::sync::OnceCell;
 // 内存限流器
 // =====================================================
 
-/// 内存速率限制器
-///
-/// # 设计
-/// - 内部使用 `std::sync::Mutex<HashMap>`，所有访问通过 `try_lock` 避免锁中毒
-/// - 锁失败时默认放行（fail-open），记录 warn 日志
-/// - 单 mutex 替代 DashMap（分片锁），简化锁中毒防御路径
-/// - 高频场景下性能足够：180 req/min/user 是常见限流阈值
-///
-/// # 低危 #3 修复
-/// 原实现使用 DashMap 分片锁，理论上不存在 PoisonError 暴露
-/// （DashMap API 不返回 Result），但 audit 报告建议显式 try_lock
-/// 防御极端 panic 场景。本实现满足该建议：锁不可用时放行而非 panic。
+/// 内存速率限制器；设计 - 内部使用 `std::sync::Mutex<HashMap>`，所有访问通过 `try_lock` 避免锁中毒 - 锁失败时默认放行（fail-open），记录 warn 日志 - 单 mutex 替代 DashMap（分片锁），简化锁中毒防御路径 - 高频场景下性能足够：180
+/// req/min/user 是常见限流阈值；低危 #3 修复 原实现使用 DashMap 分片锁，理论上不存在 PoisonError 暴露 （DashMap API 不返回 Result），但 audit 报告建议显式 try_lock 防御极端 panic 场景。本实现满足该建议：锁不可用时放行而非 panic。
 pub struct MemoryRateLimiter {
     storage: Arc<std::sync::Mutex<HashMap<String, RateLimitInfo>>>,
     max_requests: usize,
@@ -48,9 +38,7 @@ impl MemoryRateLimiter {
         }
     }
 
-    /// 清理过期的记录
-    ///
-    /// 使用 `try_lock` 避免锁中毒（PoisonError）。如果锁不可用则跳过本次清理。
+    /// 清理过期的记录；使用 `try_lock` 避免锁中毒（PoisonError）。如果锁不可用则跳过本次清理。
     pub fn cleanup(&self) {
         // 低危 #3 修复：try_lock 防御锁中毒；失败时跳过清理（不影响主流程）
         let Ok(mut storage) = self.storage.try_lock() else {
@@ -61,16 +49,8 @@ impl MemoryRateLimiter {
         storage.retain(|_, v| now < v.reset_at);
     }
 
-    /// 检查是否允许请求
-    ///
-    /// # 低危 #3 修复
-    /// 使用 `try_lock` 而非 `lock().unwrap()`：
-    /// - 锁中毒（PoisonError）时不再 panic
-    /// - 极端情况下（panic 蔓延）默认放行（fail-open），不阻塞业务
-    ///
-    /// # 返回
-    /// - `true`: 允许请求
-    /// - `false`: 拒绝请求（已达上限）
+    /// 检查是否允许请求；低危 #3 修复 使用 `try_lock` 而非 `lock().unwrap()`： - 锁中毒（PoisonError）时不再 panic
+    /// - 极端情况下（panic 蔓延）默认放行（fail-open），不阻塞业务；返回 - `true`: 允许请求 - `false`: 拒绝请求（已达上限）
     pub fn check(&self, key: &str) -> bool {
         // 偶尔清理过期记录以防止内存泄漏
         if fastrand::usize(..1000) == 0 {
@@ -119,23 +99,12 @@ static BRUTE_FORCE_LIMITER: LazyLock<MemoryRateLimiter> =
 // 分布式限流器（漏洞 #6 修复）
 // =====================================================
 
-/// 分布式限流器后端（基于 Redis）
-///
-/// 使用 `INCR` + `EXPIRE` 原子操作实现固定窗口限流：
-/// - 第一次请求：INCR 返回 1，EXPIRE 设置窗口
-/// - 后续请求：INCR 返回累加值
-/// - 计数 > max_requests → 拒绝
-///
-/// 优势：
-/// - 多实例共享计数（解决 #6 漏洞）
-/// - 失败时回退到内存限流（graceful degradation）
+/// 分布式限流器后端（基于 Redis）；使用 `INCR` + `EXPIRE` 原子操作实现固定窗口限流： - 第一次请求：INCR 返回 1，EXPIRE 设置窗口 - 后续请求
+/// INCR 返回累加值 - 计数 > max_requests → 拒绝；优势： - 多实例共享计数（解决 #6 漏洞） - 失败时回退到内存限流（graceful degradation）
 static REDIS_RATE_LIMITER: OnceCell<Option<Arc<tokio::sync::Mutex<ConnectionManager>>>> =
     OnceCell::const_new();
 
-/// 初始化 Redis 分布式限流客户端
-///
-/// 通过环境变量 `RATE_LIMIT_REDIS_URL` 或 `REDIS_URL` 启用；
-/// 未配置或连接失败时返回 `None`，调用方回退到内存限流。
+/// 初始化 Redis 分布式限流客户端；通过环境变量 `RATE_LIMIT_REDIS_URL` 或 `REDIS_URL` 启用； 未配置或连接失败时返回 `None`，调用方回退到内存限流。
 async fn init_redis_rate_limiter() -> Option<Arc<tokio::sync::Mutex<ConnectionManager>>> {
     let url = std::env::var("RATE_LIMIT_REDIS_URL")
         .or_else(|_| std::env::var("REDIS_URL"))
@@ -189,18 +158,8 @@ async fn get_redis_rate_limiter() -> Option<Arc<tokio::sync::Mutex<ConnectionMan
         .clone()
 }
 
-/// 分布式限流检查（Redis 后端）
-///
-/// # 参数
-/// - `key`: 限流键（如 `rate:ip:userid`）
-/// - `max_requests`: 窗口内允许的最大请求数
-/// - `window`: 时间窗口（秒）
-///
-/// # 返回
-/// - `Ok(Some(true))`: Redis 判定放行
-/// - `Ok(Some(false))`: Redis 判定拒绝
-/// - `Ok(None)`: 未配置 Redis（应回退到内存限流）
-/// - `Err(_)`: Redis 调用错误（应回退到内存限流）
+/// 分布式限流检查（Redis 后端）；参数 - `key`: 限流键（如 `rate:ip:userid`） - `max_requests`: 窗口内允许的最大请求数 - `window`: 时间窗口（秒）；返回 - `Ok(Some(true))`:
+/// Redis 判定放行 - `Ok(Some(false))`: Redis 判定拒绝 - `Ok(None)`: 未配置 Redis（应回退到内存限流） - `Err(_)`: Redis 调用错误（应回退到内存限流）
 async fn check_redis_rate_limit(
     key: &str,
     max_requests: usize,
@@ -222,10 +181,8 @@ async fn check_redis_rate_limit(
     Ok(Some((count as usize) <= max_requests))
 }
 
-/// 通用限流检查：优先 Redis 分布式，回退到内存
-///
-/// M6 修复（v8 复审）：改为 pub(crate) 以供 webhook_handler 等模块复用，
-/// 统一分布式限流策略（Redis 优先 + 内存回退），避免各处自行实现内存限流
+/// 通用限流检查：优先 Redis 分布式，回退到内存；M6 修复（v8 复审）：改为 pub(crate) 以供
+/// webhook_handler 等模块复用， 统一分布式限流策略（Redis 优先 + 内存回退），避免各处自行实现内存限流
 pub(crate) async fn check_rate_limit(
     key: &str,
     max_requests: usize,
@@ -336,10 +293,8 @@ pub async fn anti_brute_force(req: Request<Body>, next: Next) -> Result<Response
 mod tests {
     use super::*;
 
-    /// 漏洞 #6 修复单元测试：未配置 Redis 时，check_redis_rate_limit 返回 Ok(None)
-    ///
-    /// 验证：默认（无 REDIS_URL / RATE_LIMIT_REDIS_URL）环境下，
-    /// Redis 限流器应返回 `Ok(None)`，由调用方（`check_rate_limit`）回退到内存限流
+    /// 漏洞 #6 修复单元测试：未配置 Redis 时，check_redis_rate_limit 返回 Ok(None)；验证：默认（无 REDIS_URL /
+    /// RATE_LIMIT_REDIS_URL）环境下， Redis 限流器应返回 `Ok(None)`，由调用方（`check_rate_limit`）回退到内存限流
     #[tokio::test]
     async fn test_redis_rate_limiter_disabled_when_no_url() {
         // 确保没有 RATE_LIMIT_REDIS_URL / REDIS_URL
@@ -357,9 +312,7 @@ mod tests {
         );
     }
 
-    /// 漏洞 #6 修复单元测试：check_rate_limit 在无 Redis 时回退内存
-    ///
-    /// 验证：check_rate_limit 优先 Redis，未配置时回退到内存限流器
+    /// 漏洞 #6 修复单元测试：check_rate_limit 在无 Redis 时回退内存；验证：check_rate_limit 优先 Redis，未配置时回退到内存限流器
     #[tokio::test]
     async fn test_check_rate_limit_falls_back_to_memory() {
         std::env::remove_var("RATE_LIMIT_REDIS_URL");

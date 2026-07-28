@@ -122,9 +122,7 @@ impl MrpEngineService {
     }
 
     /// v16 批次 43 修复：基于已知 StockInfo 计算物料需求（避免重复查询库存）
-    ///
-    /// 批次 352 v12 复审 P1-1 修复：签名从 10 参数改为参数对象 `RequirementCalcParams` + `&StockInfo`，
-    /// 消除 `clippy::too_many_arguments` 警告。与 `calculate_requirement` 共用同一参数对象。
+    /// 批次 352 v12 复审 P1-1 修复：签名从 10 参数改为参数对象 `RequirementCalcParams` + `&StockInfo`，；消除 `clippy::too_many_arguments` 警告。与 `calculate_requirement` 共用同一参数对象。
     pub(crate) fn calculate_requirement_with_stock(
         &self,
         params: RequirementCalcParams,
@@ -160,10 +158,7 @@ impl MrpEngineService {
         }
     }
 
-    /// 计算单个物料需求
-    ///
-    /// 批次 336 v10 复审 P3 修复：签名从 8 参数改为单一参数对象 `RequirementCalcParams`，
-    /// 消除 `clippy::too_many_arguments` 警告。
+    /// 计算单个物料需求（批次 336 v10 复审 P3 修复：签名从 8 参数改为单一参数对象 `RequirementCalcParams`，；消除 `clippy::too_many_arguments` 警告。）
     pub async fn calculate_requirement(
         &self,
         params: RequirementCalcParams,

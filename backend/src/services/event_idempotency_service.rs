@@ -30,12 +30,8 @@ impl EventIdempotencyService {
         Self { db }
     }
 
-    /// 在指定事务内检查并标记事件为已处理。
-    ///
-    /// 若 (consumer_id, event_key) 已存在（主键冲突），返回 `Ok(false)` 表示已处理，
-    /// 消费者应跳过本次处理；若插入成功返回 `Ok(true)`，消费者继续执行业务逻辑。
-    ///
-    /// 关键：必须在业务副作用的同一数据库事务内调用，保证原子性。
+    /// 在指定事务内检查并标记事件为已处理
+    /// 若 (consumer_id, event_key) 已存在（主键冲突），返回 `Ok(false)` 表示已处理，；消费者应跳过本次处理；若插入成功返回 `Ok(true)`，消费者继续执行业务逻辑。；关键：必须在业务副作用的同一数据库事务内调用，保证原子性。
     pub async fn try_mark_processed_txn(
         &self,
         txn: &DatabaseTransaction,

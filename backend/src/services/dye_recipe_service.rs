@@ -97,10 +97,7 @@ impl DyeRecipeService {
         format!("DR-{}-{:04}", timestamp, random)
     }
 
-    /// 校验配方状态流转是否合法
-    /// 草稿 → 已审核 / 已停用
-    /// 已审核 → 已停用
-    /// 已停用 → 已审核
+    /// 校验配方状态流转是否合法（草稿 → 已审核 / 已停用；已审核 → 已停用；已停用 → 已审核）
     pub fn validate_status_transition(current: &str, new: &str) -> Result<(), AppError> {
         let valid = match current {
             recipe_status::DRAFT => {

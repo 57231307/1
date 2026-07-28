@@ -100,15 +100,7 @@ pub fn is_known_resource_segment(part: &str) -> bool {
     is_direct_resource(part)
 }
 
-/// V15 P1-14.4-C：模块前缀资源消歧映射表。
-///
-/// 当同一资源段（如 "orders"）存在于多个模块前缀下（sales/orders 与 purchase/orders），
-/// `extract_resource_info` 简单取 segment4 会导致权限码与路由资源类型不匹配。
-/// 本映射表将 (module_prefix, resource) → canonical_resource_type 对齐权限定义。
-///
-/// 对齐 `init_service_ops/permission.rs` 中的资源类型命名：
-/// - sales 域：orders 保留原名（销售订单为默认 "orders"），其余加 sales- 前缀
-/// - purchase 域：全部加 purchase- 前缀，与权限定义一致
+/// V15 P1-14.4-C：模块前缀资源消歧映射表（同资源段跨模块时对齐权限定义；sales 域 orders 保留原名其余加 sales- 前缀，purchase 域全部加 purchase- 前缀）
 pub fn resolve_module_prefixed_resource(module_prefix: &str, resource: &str) -> String {
     match (module_prefix, resource) {
         // ===== 采购域：权限定义使用 purchase- 前缀 =====

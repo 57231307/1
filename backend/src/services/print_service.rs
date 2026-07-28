@@ -12,9 +12,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-/// HTML 实体转义：将用户提供的数据安全嵌入 HTML，
-/// 防止 XSS（跨站脚本攻击）。
-/// 转义字符参考 OWASP 推荐：& < > " '
+/// HTML 实体转义：将用户提供的数据安全嵌入 HTML，（防止 XSS（跨站脚本攻击）。；转义字符参考 OWASP 推荐：& < > " '）
 fn escape_html(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
@@ -31,9 +29,7 @@ pub struct PrintData {
     pub items: Vec<HashMap<String, serde_json::Value>>,
 }
 
-/// 打印服务
-///
-/// V15 P0-S17：持有数据库连接，6 个 get_*_print_data 方法真实查询数据库
+/// 打印服务（V15 P0-S17：持有数据库连接，6 个 get_*_print_data 方法真实查询数据库）
 pub struct PrintService {
     db: Arc<DatabaseConnection>,
 }
@@ -919,9 +915,7 @@ impl PrintService {
     }
 
     /// V15 P1 batch-08 缺陷 8：生成 docx 字节流（规则 3 强制要求合同/发票/报表支持 .docx）
-    ///
-    /// 将 PrintData 转为 Word 文档（标题 + 主表键值对 + 明细表格），
-    /// 替代原 generate_pdf 实际生成 HTML 的误导实现。
+    /// 将 PrintData 转为 Word 文档（标题 + 主表键值对 + 明细表格），；替代原 generate_pdf 实际生成 HTML 的误导实现。
     pub fn generate_docx(&self, print_data: &PrintData) -> Result<Vec<u8>, AppError> {
         let title = match print_data.template.as_str() {
             "sales_order" => "销售订单",

@@ -77,9 +77,7 @@ impl PermissionComplianceService {
         Self { db, audit_service }
     }
 
-    /// V15 P1-14.10-B：异常权限分配识别 — 扫描指定时间范围的权限变更日志，识别 6 类异常行为。
-    ///
-    /// 返回检测到的异常项数量。
+    /// V15 P1-14.10-B：异常权限分配识别 — 扫描指定时间范围的权限变更日志，识别 6 类异常行为（返回检测到的异常项数量。）
     pub async fn detect_anomalous_permission_assignments(
         &self,
         start: chrono::DateTime<Utc>,
@@ -140,12 +138,8 @@ impl PermissionComplianceService {
         Ok(alert_count)
     }
 
-    /// V15 P1-14.10-C：定期合规审查 — 检测系统级权限配置问题。
-    ///
-    /// 检查项：
-    /// 1. is_system=true 的非 admin 角色（违反 is_system 滥用治理）
-    /// 2. 离职用户仍持有角色权限（user.is_active=false 但 role_permissions 存在）
-    /// 3. 互斥权限共存（同一角色同时持有 create 和 approve）
+    /// V15 P1-14.10-C：定期合规审查 — 检测系统级权限配置问题
+    /// 检查项：1. is_system=true 的非 admin 角色（违反 is_system 滥用治理）；2. 离职用户仍持有角色权限（user.is_active=false 但 role_permissions 存在）；3. 互斥权限共存（同一角色同时持有 create 和 approve）
     pub async fn periodic_compliance_review(&self) -> Result<usize, AppError> {
         info!("权限合规审查：开始定期合规审查（系统级配置检查）");
         let mut alerts = Vec::new();

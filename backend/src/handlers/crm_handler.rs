@@ -105,11 +105,8 @@ pub async fn list_leads(
     Ok(Json(ApiResponse::success(value)))
 }
 
-/// GET /api/v1/erp/crm/leads/export - 导出线索为 xlsx
-///
-/// v11 批次 141 新增：前端 exportLeads API 真实接入。
-/// v11 批次 142 升级：导出格式从 CSV 升级为 xlsx（规则 3 强制要求）。
-/// 返回 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+/// GET /api/v1/erp/crm/leads/export - 导出线索为 xlsx；v11 批次 141 新增：前端 exportLeads API 真实接入。 v11 批次 142 升级
+/// 导出格式从 CSV 升级为 xlsx（规则 3 强制要求）。 返回 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
 pub async fn export_leads(
     auth: AuthContext,
     State(state): State<AppState>,
@@ -149,10 +146,8 @@ pub async fn export_leads(
     crate::utils::xlsx_export::build_xlsx_response(&table, "crm_leads_export")
 }
 
-/// POST /api/v1/erp/crm/leads/import - 批量导入线索（xlsx）
-///
-/// v11 批次 157d-4 新增：接收 Multipart xlsx 文件，后端用 calamine 解析并批量创建线索。
-/// 文件大小限制 10MB，列顺序与 export_leads 一致。
+/// POST /api/v1/erp/crm/leads/import - 批量导入线索（xlsx）；v11 批次 157d-4 新增：接收
+/// Multipart xlsx 文件，后端用 calamine 解析并批量创建线索。 文件大小限制 10MB，列顺序与 export_leads 一致。
 pub async fn import_leads(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -361,11 +356,8 @@ pub async fn list_opportunities(
     Ok(Json(ApiResponse::success(value)))
 }
 
-/// GET /api/v1/erp/crm/opportunities/export - 导出商机为 xlsx
-///
-/// v11 批次 141 新增：前端 exportOpportunities API 真实接入。
-/// v11 批次 142 升级：导出格式从 CSV 升级为 xlsx（规则 3 强制要求）。
-/// 返回 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+/// GET /api/v1/erp/crm/opportunities/export - 导出商机为 xlsx；v11 批次 141 新增：前端 exportOpportunities API 真实接入。 v11 批次
+/// 142 升级：导出格式从 CSV 升级为 xlsx（规则 3 强制要求）。 返回 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
 pub async fn export_opportunities(
     auth: AuthContext,
     State(state): State<AppState>,
@@ -486,10 +478,7 @@ pub async fn convert_opportunity_to_order(
     Ok(Json(ApiResponse::success(value)))
 }
 
-/// 关单（输单流程）— V15 P0-B09（Batch 482）
-///
-/// 将商机状态置为 CLOSED_LOST，必须填写流失原因
-/// 设计依据：审计报告 §18.2-D2 — 输单原因未记录，销售改进无依据
+/// 关单（输单流程）— V15 P0-B09（Batch 482）；将商机状态置为 CLOSED_LOST，必须填写流失原因 设计依据：审计报告 §18.2-D2 — 输单原因未记录，销售改进无依据
 pub async fn close_opportunity_as_lost(
     State(state): State<AppState>,
     auth: AuthContext,

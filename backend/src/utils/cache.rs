@@ -136,11 +136,7 @@ where
         self.writes.store(0, Ordering::Relaxed);
     }
 
-    /// 一次性获取并移除缓存项（rotation 模式：用于 CSRF Token 等一次性凭证）
-    ///
-    /// 与 [`get`](Cache::get) 不同，本方法在返回缓存值的同时会从底层存储中删除对应键，
-    /// 用于实现 token rotation：同一 token 只能被消费一次。
-    /// 若键不存在或已过期，则返回 `None` 并按 miss 计入统计。
+    /// 一次性获取并移除缓存项（rotation 模式用于 CSRF Token 等；与 get 不同返回同时删除键实现 token rotation 只能消费一次，键不存在或过期返回 None 计 miss）
     pub fn take(&self, key: &K) -> Option<V> {
         match self.storage.remove(key) {
             Some((_, cached)) => {
@@ -278,16 +274,12 @@ pub struct AppCache {
     /// CSRF Token 缓存：key=csrf_token, value=(session_id, ip_address)。
     /// IP 绑定用于防御 CSRF 窃取后的跨 IP 重放（Wave 3 安全漏洞 #7）。
     pub csrf_token_cache: Arc<MemoryCache<String, (String, String)>>,
-    /// CSRF Token 反向索引：key=user_id, value=该用户当前活跃的 csrf_token。
-    /// 使用原始 DashMap（不经过 MemoryCache 包装），便于按 value 反查与就地清理。
-    /// 用于登录时强制轮换（清除旧 token），防止多设备登录时旧 token 长期残留。
+    /// CSRF Token 反向索引（key=user_id, value=活跃 csrf_token；原始 DashMap 便于按 value 反查清理；登录时强制轮换防多设备旧 token 残留）
     pub csrf_user_index: DashMap<i32, String>,
 }
 
-/// CSRF Token 消费结果
-///
-/// Wave 3 安全漏洞 #7 引入：消费时区分 IP 不匹配、缺失/过期两种失败原因，
-/// 使前端能基于业务码做差异化处理（IP 失配可引导重新登录，缺失/过期则提示刷新）。
+/// CSRF Token 消费结果（Wave 3 安全漏洞 #7）
+/// 区分 IP 不匹配、缺失/过期两种失败原因，前端可基于业务码差异化处理（IP 失配引导重新登录，缺失/过期提示刷新）
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CsrfConsumeResult {
     /// 消费成功（token 有效 + IP 匹配，已从缓存移除）
@@ -376,38 +368,19 @@ impl AppCache {
         self.token_blacklist.clone()
     }
 
-    /// 获取 CSRF Token 缓存
-    ///
-    /// 直接访问底层缓存的场景较少；优先使用 [AppCache::set_csrf_token] /
-    /// [AppCache::consume_csrf_token] / [AppCache::clear_old_csrf_token_for_user]
-    /// 这些高层 API（封装了 IP 绑定 + 强制轮换逻辑）。
-    /// 此方法保留用于测试与内部维护。
+    /// 获取 CSRF Token 缓存（保留用于测试与内部维护）
+    /// 优先使用 set_csrf_token / consume_csrf_token / clear_old_csrf_token_for_user 高层 API（封装 IP 绑定 + 强制轮换）
     pub fn get_csrf_token_cache(&self) -> Arc<MemoryCache<String, (String, String)>> {
         self.csrf_token_cache.clone()
     }
 
-    /// 获取 CSRF Token 反向索引（user_id → csrf_token）
-    ///
-    /// 优先使用 [AppCache::clear_old_csrf_token_for_user] 访问；此方法保留供
-    /// 测试与内部维护。
+    /// 获取 CSRF Token 反向索引（user_id → csrf_token；保留供测试与内部维护，优先使用 clear_old_csrf_token_for_user 访问）
     pub fn get_csrf_user_index(&self) -> &DashMap<i32, String> {
         &self.csrf_user_index
     }
 
-    /// 写入 CSRF Token（含 IP 绑定 + 反向索引维护）
-    ///
-    /// Wave 3 安全漏洞 #7 修复：
-    /// - 缓存值 = `(session_id, ip_address)` 元组，IP 用于消费时校验。
-    /// - 反向索引 `user_id → csrf_token` 记录最新 token，便于后续登录时
-    ///   通过 [AppCache::clear_old_csrf_token_for_user] 清除旧 token。
-    /// - 旧 token（若存在）由调用方在写入前先调用 [AppCache::clear_old_csrf_token_for_user] 清除。
-    ///
-    /// # 参数
-    /// - `token`: CSRF Token 字符串（UUID）
-    /// - `session_id`: 当前 JWT session_id
-    /// - `ip_address`: 客户端 IP（来自 [AuditContext::ip_address]）
-    /// - `user_id`: 用户 ID（用于反向索引）
-    /// - `ttl`: 过期时长；`None` 时使用 [CSRF_TOKEN_DEFAULT_TTL_SECS]
+    /// 写入 CSRF Token（含 IP 绑定 + 反向索引维护，Wave 3 安全漏洞 #7 修复）
+    /// 缓存值=(session_id, ip_address) 元组 IP 校验；反向索引 user_id→token 便于登录轮换；旧 token 由调用方写入前清除。参数：token/session_id/ip_address/user_id/ttl（None 用 CSRF_TOKEN_DEFAULT_TTL_SECS）
     // 批次 327 v10 复审 P3 修复：移除误报的 #[allow]
     // - too_many_arguments：仅 5 参数（token, session_id, ip_address, user_id, ttl），低于阈值 7
     // - needless_pass_by_value：owned String 来自上游调用方，保留 owned 形式避免生命周期污染
@@ -428,19 +401,7 @@ impl AppCache {
     }
 
     /// 校验并消费一次性 CSRF Token（含 IP 校验）
-    ///
-    /// 行为：
-    /// 1. 缓存中找不到 token → `NotFound`。
-    /// 2. token 存在但 IP 不匹配 → `IpMismatch`（**不消费**，避免攻击者通过
-    ///    IP 探测消耗合法用户的 token）。
-    /// 3. token 存在且 IP 匹配 → `Ok`（消费：从缓存移除并清理反向索引）。
-    ///
-    /// IP 校验失败不消费的设计权衡：若消费则攻击者可以通过重复请求消耗掉
-    /// 合法用户的 token，触发拒绝服务（DoS）。保留 token 让合法用户仍可使用。
-    ///
-    /// # 参数
-    /// - `token`: 请求头 `X-CSRF-Token` 携带的 token
-    /// - `client_ip`: 当前请求的客户端 IP（与登录时记录的 IP 对比）
+    /// 行为：找不到→NotFound；IP 不匹配→IpMismatch（不消费防 DoS 探测）；IP 匹配→Ok（消费并清理反向索引）。参数：token(X-CSRF-Token 头)/client_ip
     pub fn consume_csrf_token(&self, token: &str, client_ip: &str) -> CsrfConsumeResult {
         // 使用 take 实现"一次性消费"语义：成功匹配后从缓存移除
         match self.csrf_token_cache.take(&token.to_string()) {
@@ -475,14 +436,8 @@ impl AppCache {
         }
     }
 
-    /// 清除指定用户的旧 CSRF Token（强制轮换）
-    ///
-    /// Wave 3 安全漏洞 #7 修复：用户重新登录时调用此方法，使该用户的历史 CSRF
-    /// Token 立即失效（即便 TTL 未到），防止多设备/多标签登录时旧 token 长期残留。
-    ///
-    /// # 返回
-    /// - `true`: 清除了至少一个旧 token
-    /// - `false`: 该用户无活跃 CSRF Token（首次登录场景）
+    /// 清除指定用户的旧 CSRF Token（强制轮换，Wave 3 安全漏洞 #7 修复）
+    /// 重新登录时调用使历史 token 立即失效防多设备残留；返回 true=清除至少一个，false=无活跃 token（首次登录）
     pub fn clear_old_csrf_token_for_user(&self, user_id: i32) -> bool {
         if let Some((_, old_token)) = self.csrf_user_index.remove(&user_id) {
             // 同时清除 csrf_token_cache 中的旧 token 主体

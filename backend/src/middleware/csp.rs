@@ -37,14 +37,8 @@ pub const CSP_POLICY: &str = "default-src 'self'; \
     frame-ancestors 'none'; \
     upgrade-insecure-requests";
 
-/// CSP 中间件
-///
-/// 把 `Content-Security-Policy` 头注入到所有响应。
-///
-/// 批次 97 P1-14 修复（v5 复审）：已挂载到 main.rs production 路由全局中间件链，
-/// 替代原 SetResponseHeaderLayer::overriding(CONTENT_SECURITY_POLICY, ...)。
-/// 与 SetResponseHeaderLayer::overriding 区别：本中间件仅在响应头未设置 CSP 时注入，
-/// 支持路由级精细化覆盖（路由可自定义 CSP 头，中间件不覆盖）。
+/// CSP 中间件；把 `Content-Security-Policy` 头注入到所有响应。；批次 97 P1-14 修复（v5 复审）：已挂载到 main.rs production 路由全局中间件链， 替代原
+/// SetResponseHeaderLayer::overriding(CONTENT_SECURITY_POLICY, ...)。 与 SetResponseHeaderLayer::overriding 区别：本中间件仅在响应头未设置 CSP 时注入， 支持路由级精细化覆盖（路由可自定义 CSP 头，中间件不覆盖）。
 pub async fn csp_middleware(req: Request, next: Next) -> Response {
     let mut response = next.run(req).await;
     let headers = response.headers_mut();

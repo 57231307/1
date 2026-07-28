@@ -216,9 +216,7 @@ impl LabDipResampleService {
         Ok(updated)
     }
 
-    /// 开具染色技术卡（真实业务：复样通过后由研发组长开卡）
-    ///
-    /// 染色技术卡附三件套：配方表 + 核可样 + 复色样
+    /// 开具染色技术卡（真实业务：复样通过后由研发组长开卡）（染色技术卡附三件套：配方表 + 核可样 + 复色样）
     pub async fn issue_tech_card(
         &self,
         id: i32,

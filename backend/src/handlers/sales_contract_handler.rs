@@ -371,13 +371,8 @@ fn record_contracts_export_audit(
     svc.record_async(event, None);
 }
 
-/// GET /api/v1/erp/sales-contracts/export - 导出销售合同列表（带水印 + 异步审计日志）
-///
-/// V15 P0-S12 修复（Batch 475d）：导出接入后端
-/// - 注入水印（operator/exported_at/extra 含条数）
-/// - 异步审计日志（OperationType::Export）
-/// - 直接调 service.get_list 取全量数据（page=1/page_size=10000）
-/// - 不复用 list_contracts handler 逻辑（保持单一职责）
+/// GET /api/v1/erp/sales-contracts/export - 导出销售合同列表（带水印 + 异步审计日志）；V15 P0-S12 修复（Batch 475d）：导出接入后端 - 注入水印（operator/exported_at/extra
+/// 含条数） - 异步审计日志（OperationType::Export） - 直接调 service.get_list 取全量数据（page=1/page_size=10000） - 不复用 list_contracts handler 逻辑（保持单一职责）
 pub async fn export_contracts(
     State(state): State<AppState>,
     auth: AuthContext,

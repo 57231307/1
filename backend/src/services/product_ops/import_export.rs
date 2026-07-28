@@ -20,9 +20,7 @@ use crate::utils::error::AppError;
 use crate::utils::import_export::{CsvImporter, FieldValidator, ImportResult};
 
 /// CSV 导入行校验后的必填字段
-///
-/// D08-1 第二梯队拆分：用于封装 import_products_from_csv 中校验后的 4 个必填字段
-/// （产品编码、产品名称、产品类型、计量单位），避免 validate_import_row 返回 4-tuple。
+/// D08-1 第二梯队拆分：用于封装 import_products_from_csv 中校验后的 4 个必填字段；（产品编码、产品名称、产品类型、计量单位），避免 validate_import_row 返回 4-tuple。
 struct ValidatedRowFields {
     code: String,
     name: String,
@@ -191,9 +189,7 @@ impl ProductService {
             .map_err(|e| AppError::business(format!("模板生成失败: {}", e)))
     }
 
-    /// 获取必填字段值，缺失列时添加错误并返回 None
-    ///
-    /// D08-1 第二梯队拆分：提取 import_products_from_csv 中重复的“取列或报错”模式。
+    /// 获取必填字段值，缺失列时添加错误并返回 None（D08-1 第二梯队拆分：提取 import_products_from_csv 中重复的“取列或报错”模式。）
     fn get_required_field_value<'a>(
         row: &'a std::collections::HashMap<String, String>,
         field: &str,
@@ -214,9 +210,7 @@ impl ProductService {
         }
     }
 
-    /// 解析可选字符串字段（缺失或空字符串视为 None）
-    ///
-    /// D08-1 第二梯队拆分：提取 import_products_from_csv 中重复的字符串解析模式。
+    /// 解析可选字符串字段（缺失或空字符串视为 None）（D08-1 第二梯队拆分：提取 import_products_from_csv 中重复的字符串解析模式。）
     fn parse_optional_csv_string(
         row: &std::collections::HashMap<String, String>,
         field: &str,
@@ -224,9 +218,7 @@ impl ProductService {
         row.get(field).filter(|v| !v.is_empty()).cloned()
     }
 
-    /// 解析可选 f64 字段（缺失、空字符串或解析失败均为 None）
-    ///
-    /// D08-1 第二梯队拆分：提取 import_products_from_csv 中重复的 f64 解析模式。
+    /// 解析可选 f64 字段（缺失、空字符串或解析失败均为 None）（D08-1 第二梯队拆分：提取 import_products_from_csv 中重复的 f64 解析模式。）
     fn parse_optional_csv_f64(
         row: &std::collections::HashMap<String, String>,
         field: &str,
@@ -240,9 +232,7 @@ impl ProductService {
         })
     }
 
-    /// 解析可选 i32 字段（缺失、空字符串或解析失败均为 None）
-    ///
-    /// D08-1 第二梯队拆分：提取 import_products_from_csv 中重复的 i32 解析模式。
+    /// 解析可选 i32 字段（缺失、空字符串或解析失败均为 None）（D08-1 第二梯队拆分：提取 import_products_from_csv 中重复的 i32 解析模式。）
     fn parse_optional_csv_i32(
         row: &std::collections::HashMap<String, String>,
         field: &str,
@@ -256,9 +246,7 @@ impl ProductService {
         })
     }
 
-    /// 解析状态字段，缺省为 master_data::ACTIVE
-    ///
-    /// D08-1 第二梯队拆分：提取 import_products_from_csv 中状态字段的默认值逻辑。
+    /// 解析状态字段，缺省为 master_data::ACTIVE（D08-1 第二梯队拆分：提取 import_products_from_csv 中状态字段的默认值逻辑。）
     fn parse_csv_status_field(row: &std::collections::HashMap<String, String>) -> String {
         row.get("状态")
             .filter(|v| !v.is_empty())
@@ -266,9 +254,7 @@ impl ProductService {
             .unwrap_or_else(|| master_data::ACTIVE.to_string())
     }
 
-    /// 校验产品编码（必填 + 长度 ≤50）
-    ///
-    /// D08-1 第二梯队拆分：从 validate_csv_import_row 拆出的单字段校验。
+    /// 校验产品编码（必填 + 长度 ≤50）（D08-1 第二梯队拆分：从 validate_csv_import_row 拆出的单字段校验。）
     fn validate_csv_code_field(
         row: &std::collections::HashMap<String, String>,
         row_num: usize,
@@ -287,9 +273,7 @@ impl ProductService {
         Some(code.to_string())
     }
 
-    /// 校验产品名称（必填 + 长度 ≤200）
-    ///
-    /// D08-1 第二梯队拆分：从 validate_csv_import_row 拆出的单字段校验。
+    /// 校验产品名称（必填 + 长度 ≤200）（D08-1 第二梯队拆分：从 validate_csv_import_row 拆出的单字段校验。）
     fn validate_csv_name_field(
         row: &std::collections::HashMap<String, String>,
         row_num: usize,
@@ -308,9 +292,7 @@ impl ProductService {
         Some(name.to_string())
     }
 
-    /// 校验产品类型（枚举值：坯布/成品布/辅料）
-    ///
-    /// D08-1 第二梯队拆分：从 validate_csv_import_row 拆出的单字段校验。
+    /// 校验产品类型（枚举值：坯布/成品布/辅料）（D08-1 第二梯队拆分：从 validate_csv_import_row 拆出的单字段校验。）
     fn validate_csv_product_type_field(
         row: &std::collections::HashMap<String, String>,
         row_num: usize,
@@ -326,9 +308,7 @@ impl ProductService {
         Some(product_type.to_string())
     }
 
-    /// 校验计量单位（必填）
-    ///
-    /// D08-1 第二梯队拆分：从 validate_csv_import_row 拆出的单字段校验。
+    /// 校验计量单位（必填）（D08-1 第二梯队拆分：从 validate_csv_import_row 拆出的单字段校验。）
     fn validate_csv_unit_field(
         row: &std::collections::HashMap<String, String>,
         row_num: usize,
@@ -343,9 +323,7 @@ impl ProductService {
     }
 
     /// 校验行的必填字段（产品编码、产品名称、产品类型、计量单位）
-    ///
-    /// D08-1 第二梯队拆分：从 import_products_from_csv 提取的必填字段校验协调逻辑，
-    /// 校验失败时向 result 添加错误并返回 None，全部通过则返回 ValidatedRowFields。
+    /// D08-1 第二梯队拆分：从 import_products_from_csv 提取的必填字段校验协调逻辑，；校验失败时向 result 添加错误并返回 None，全部通过则返回 ValidatedRowFields。
     fn validate_csv_import_row(
         row: &std::collections::HashMap<String, String>,
         row_num: usize,
@@ -363,9 +341,7 @@ impl ProductService {
         })
     }
 
-    /// 基于校验后的必填字段和行数据构建 CreateProductArgs
-    ///
-    /// D08-1 第二梯队拆分：从 import_products_from_csv 提取的字段解析 + 参数对象构建逻辑。
+    /// 基于校验后的必填字段和行数据构建 CreateProductArgs（D08-1 第二梯队拆分：从 import_products_from_csv 提取的字段解析 + 参数对象构建逻辑。）
     fn build_csv_create_args(
         row: &std::collections::HashMap<String, String>,
         validated: &ValidatedRowFields,
@@ -418,9 +394,7 @@ impl ProductService {
     }
 
     /// 处理 CSV 单行：校验 → 构建 args → 创建产品 → 写结果
-    ///
-    /// D08-1 第二梯队拆分：从 import_products_from_csv 提取的单行处理流程，
-    /// 校验失败时直接返回（外层循环已 add_total，无需补偿）。
+    /// D08-1 第二梯队拆分：从 import_products_from_csv 提取的单行处理流程，；校验失败时直接返回（外层循环已 add_total，无需补偿）。
     async fn process_csv_import_row(
         &self,
         row: &std::collections::HashMap<String, String>,

@@ -914,9 +914,7 @@ impl ReportEngineService {
         }
     }
 
-    /// 创建用户自定义报表模板
-    ///
-    /// v11 批次 154 P2-A：接入 CreateTemplateRequest，将自定义模板写入 report_templates 表
+    /// 创建用户自定义报表模板（v11 批次 154 P2-A：接入 CreateTemplateRequest，将自定义模板写入 report_templates 表）
     pub async fn create_custom_template(
         &self,
         user_id: i32,

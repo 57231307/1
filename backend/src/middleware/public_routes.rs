@@ -29,12 +29,8 @@ pub const PUBLIC_PATHS: &[&str] = &[
     "/api/v1/erp/init/initialize-with-db-async",
 ];
 
-/// 公开路径白名单（跳过 JWT 认证）
-///
-/// ⚠️ **安全约束**：
-/// 1. 仅放行真正不需要身份认证的端点（健康检查、登录、静态资源、初始化）
-/// 2. **业务端点（如 `/dashboard`、`/sales`、`/inventory` 等）必须经过 JWT 验证**
-/// 3. 任何新增条目都必须经过安全评审
+/// 公开路径白名单（跳过 JWT 认证）；⚠️ **安全约束**： 1. 仅放行真正不需要身份认证的端点（健康检查、登录、静态资源、初始化） 2.
+/// **业务端点（如 `/dashboard`、`/sales`、`/inventory` 等）必须经过 JWT 验证** 3. 任何新增条目都必须经过安全评审
 pub fn is_public_path(path: &str) -> bool {
     // P1-03-2 修复：严格精确匹配，删除子路径前缀匹配
     // 原 starts_with + 子路径匹配会放行 /api/v1/erp/auth/login/anything 等子路径，

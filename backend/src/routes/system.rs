@@ -34,14 +34,8 @@ pub fn ws() -> Router<AppState> {
         )
 }
 
-/// 仪表板路由（path 前缀 /dashboard）
-///
-/// 缺陷 4.1 修复：新增 `/dashboard/layout` GET/PUT 路由，
-/// 支持用户自定义卡片配置（顺序/可见性/尺寸）并持久化到 dashboard_layouts 表。
-/// 缺陷 4.2 修复：overview 端点返回数据后通过 WebSocket 广播 dashboard_update 事件，
-/// 前端订阅 ws 频道实时刷新卡片，绕过 5 分钟缓存延迟。
-/// 缺陷 4.3 修复：overview/sales-stats 端点使用 new_with_data_scope 注入角色数据范围，
-/// 普通员工仅看到自己订单数据，财务卡片仅财务角色可见。
+/// 仪表板路由（path 前缀 /dashboard）；缺陷 4.1 修复：新增 `/dashboard/layout` GET/PUT 路由， 支持用户自定义卡片配置（顺序/可见性/尺寸）并持久化到 dashboard_layouts 表。 缺陷 4.2 修复：overview 端点返回数据后通过
+/// WebSocket 广播 dashboard_update 事件， 前端订阅 ws 频道实时刷新卡片，绕过 5 分钟缓存延迟。 缺陷 4.3 修复：overview/sales-stats 端点使用 new_with_data_scope 注入角色数据范围， 普通员工仅看到自己订单数据，财务卡片仅财务角色可见。
 pub fn dashboard() -> Router<AppState> {
     Router::new()
         .route(

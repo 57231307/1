@@ -31,9 +31,7 @@ use super::{
 
 impl InventoryTransferService {
     /// 获取库存调拨列表
-    ///
-    /// V15 P0-S01：新增 data_scope 参数，按行级数据权限过滤。
-    /// inventory_transfer 表无 department_id，Dept 范围退化为 Self，使用 created_by（Option<i32>）。
+    /// V15 P0-S01：新增 data_scope 参数，按行级数据权限过滤。；inventory_transfer 表无 department_id，Dept 范围退化为 Self，使用 created_by（Option<i32>）。
     pub async fn list_transfers(
         &self,
         page_req: PageRequest,
@@ -108,9 +106,7 @@ impl InventoryTransferService {
     }
 
     /// 获取库存调拨详情（包含明细项）
-    ///
-    /// V15 P0-S01：新增 data_scope 参数，对单资源做 IDOR 校验。
-    /// inventory_transfer 表无 department_id，Dept 范围退化为 Self，使用 created_by（Option<i32>）。
+    /// V15 P0-S01：新增 data_scope 参数，对单资源做 IDOR 校验。；inventory_transfer 表无 department_id，Dept 范围退化为 Self，使用 created_by（Option<i32>）。
     pub async fn get_transfer_detail(
         &self,
         transfer_id: i32,

@@ -10,13 +10,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 能耗分摊记录模型
-///
-/// 真实业务要点：
-/// - 月末将车间总能耗按规则分摊到缸号/工序/订单
-/// - 记录分摊依据量（工时/产量）和分摊比例
-/// - 计算单位能耗（allocated_consumption / output_quantity）
-/// - 关联 cost_collection 实现成本归集
+/// 能耗分摊记录模型（月末将车间总能耗按规则分摊到缸号/工序/订单，记分摊依据量与比例，算单位能耗，关联 cost_collection 成本归集）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "energy_allocation_record")]
 pub struct Model {

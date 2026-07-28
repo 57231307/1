@@ -31,9 +31,7 @@ use sea_orm::{
 pub const P92_CRUD_MODULE: &str = "sales_order_crud";
 
 /// Decimal → f64 转换工具函数
-///
-/// 批次 125 v8 复审 P1 修复：ES 索引字段为 f64，PG Decimal 需转换。
-/// 使用 to_string().parse() 避免精度损失（Decimal::to_f64 在某些边界值会丢精度）。
+/// 批次 125 v8 复审 P1 修复：ES 索引字段为 f64，PG Decimal 需转换。；使用 to_string().parse() 避免精度损失（Decimal::to_f64 在某些边界值会丢精度）。
 fn decimal_to_f64(d: &rust_decimal::Decimal) -> f64 {
     d.to_string().parse::<f64>().unwrap_or(0.0)
 }
@@ -61,11 +59,7 @@ impl SalesService {
     // 内容来自原 order.rs L277-610 + L611-777 + L778-814
 
     /// 将 SalesOrderDetail 转换为 SalesOrderDoc 用于 ES 索引
-    ///
-    /// 批次 125 v8 复审 P1 修复：字段映射规则
-    /// - total_amount: Decimal → f64（decimal.to_string().parse::<f64>().unwrap_or(0.0)）
-    /// - items: 从 SalesOrderItemDetail 构建 SalesOrderItemDoc（quantity/unit_price Decimal→f64）
-    /// - items.color_no: String → Option<String>（空字符串转 None）
+    /// 批次 125 v8 复审 P1 修复：字段映射规则；total_amount: Decimal → f64（decimal.to_string().parse::<f64>().unwrap_or(0.0)）；items: 从 SalesOrderItemDetail 构建 SalesOrderItemDoc（quantity/unit_price Decimal→f64）；items.color_no: String → Option<String>（空字符串转 None）
     fn build_sales_order_doc(detail: &SalesOrderDetail) -> SalesOrderDoc {
         let items: Vec<SalesOrderItemDoc> = detail
             .items
@@ -95,9 +89,7 @@ impl SalesService {
         }
     }
 
-    /// 同步销售订单到 ES（最终一致性策略）
-    ///
-    /// 批次 125 v8 复审 P1 修复：ES 同步失败仅记录日志，不回滚 PG 事务。
+    /// 同步销售订单到 ES（最终一致性策略）（批次 125 v8 复审 P1 修复：ES 同步失败仅记录日志，不回滚 PG 事务。）
     async fn sync_sales_order_to_es(&self, detail: &SalesOrderDetail, operation: &str) {
         let doc = Self::build_sales_order_doc(detail);
         if let Err(e) = self.search_syncer.sync_sales_order(&doc).await {
@@ -653,10 +645,7 @@ impl SalesService {
         Ok(())
     }
 
-    /// 删除销售订单
-    ///
-    /// 批次 94 P2-10：补 user_id 参数，将 Some(0) 占位符改为真实操作人 user_id，
-    /// 保证订单删除审计日志能追溯实际操作人。
+    /// 删除销售订单（批次 94 P2-10：补 user_id 参数，将 Some(0) 占位符改为真实操作人 user_id，；保证订单删除审计日志能追溯实际操作人。）
     pub async fn delete_order(&self, order_id: i32, user_id: i32) -> Result<(), AppError> {
         // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
         // 原实现先在事务外用 &*self.db 裸查询订单状态，再 begin() 开启事务，

@@ -109,9 +109,7 @@ impl ProductionOrderService {
         ))
     }
 
-    /// 验证状态转换是否合法
-    ///
-    /// `pub(crate)` 可见性：测试模块（facade）与 approval 子模块跨 impl 块调用。
+    /// 验证状态转换是否合法（`pub(crate)` 可见性：测试模块（facade）与 approval 子模块跨 impl 块调用。）
     pub(crate) fn validate_status_transition(
         current_status: &str,
         new_status: &str,
@@ -304,15 +302,7 @@ impl ProductionOrderService {
     }
 
     /// V15 Batch 479 P0-F21：创建返工生产订单
-    ///
-    /// 业务背景：bulk_color_approval customer_rework 触发，返工必须走生产订单流程
-    /// （审计报告 P0-F21：返工无工单跟踪，返工成本无法归集到原缸号）
-    ///
-    /// 与普通 create() 的差异：
-    /// - order_type = 'rework'（标记为返工订单）
-    /// - original_batch_id 指向原 dye_batch（返工成本归集锚点）
-    /// - 不触发 MRP 物料需求计算（返工使用已有物料，不产生新采购计划）
-    /// - 自动生成订单号 RW-YYYYMMDD-NNN
+    /// 业务背景：bulk_color_approval customer_rework 触发，返工必须走生产订单流程；（审计报告 P0-F21：返工无工单跟踪，返工成本无法归集到原缸号）；与普通 create() 的差异：order_type = 'rework'（标记为返工订单）；original_batch_id 指向原 dye_batch（返工成本归集锚点）；不触发 MRP 物料需求计算（返工使用已有物料，不产生新采购计划）；自动生成订单号 RW-YYYYMMDD-NNN
     pub async fn create_rework_order(
         &self,
         product_id: i32,
@@ -368,9 +358,7 @@ impl ProductionOrderService {
         Ok(model)
     }
 
-    /// 生成唯一返工订单号 RW-YYYYMMDD-NNN
-    ///
-    /// 与 generate_unique_order_no 区别：使用 RW- 前缀标识返工订单
+    /// 生成唯一返工订单号 RW-YYYYMMDD-NNN（与 generate_unique_order_no 区别：使用 RW- 前缀标识返工订单）
     async fn generate_rework_order_no(&self) -> Result<String, AppError> {
         let date_str = chrono::Utc::now().format("%Y%m%d").to_string();
         for attempt in 0..10 {
@@ -422,9 +410,7 @@ impl ProductionOrderService {
     }
 
     /// 获取生产订单操作日志
-    ///
-    /// 批次 132 v9 复审 P1：原 get_production_order_logs handler 返回固定空列表，
-    /// 现真实查询 audit_logs 表，按 resource_id = order_id 过滤，按 created_at 倒序返回。
+    /// 批次 132 v9 复审 P1：原 get_production_order_logs handler 返回固定空列表，；现真实查询 audit_logs 表，按 resource_id = order_id 过滤，按 created_at 倒序返回。
     pub async fn get_order_logs(
         &self,
         order_id: i32,
@@ -563,10 +549,7 @@ impl ProductionOrderService {
     }
 
     /// 更新生产订单状态
-    ///
-    /// 批次 9（2026-06-28）：COMPLETED 状态变更涉及多表操作（订单状态 + 库存扣减 + 库存流水），
-    /// 必须用事务包裹，否则状态变更已提交但库存联动失败会导致账实不符。
-    /// 其他状态变更保持原行为（单表更新）。
+    /// 批次 9（2026-06-28）：COMPLETED 状态变更涉及多表操作（订单状态 + 库存扣减 + 库存流水），；必须用事务包裹，否则状态变更已提交但库存联动失败会导致账实不符。；其他状态变更保持原行为（单表更新）。
     pub async fn update_status(
         &self,
         id: i32,

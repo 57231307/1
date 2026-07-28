@@ -96,10 +96,8 @@ pub fn scanner() -> Router<AppState> {
         )
 }
 
-/// 报表增强路由（内部 path 已加 /templates、/fields 等子前缀）
-///
-/// 整个 router 在 `routes()` 中用 `nest("/reports/enhanced", ...)` 装配，
-/// 最终 path = `/api/v1/erp/reports/enhanced/...`（与前端一致）。
+/// 报表增强路由（内部 path 已加 /templates、/fields 等子前缀）；整个 router 在 `routes()` 中用
+/// `nest("/reports/enhanced", ...)` 装配， 最终 path = `/api/v1/erp/reports/enhanced/...`（与前端一致）。
 pub fn reports_enhanced() -> Router<AppState> {
     Router::new()
         .route(
@@ -253,15 +251,8 @@ pub fn emails() -> Router<AppState> {
         )
 }
 
-/// Webhook 集成路由（内部 path 保留 `/`、`/callback` 等，nest 装配时再加前缀）
-///
-/// 最终 path = `/api/v1/erp/webhooks/integrations/...`（与前端一致）。
-///
-/// 批次 113 P1-1 修复 HTTP 语义：
-/// - 移除原 `PUT /integration/:id` 调用 `test_integration`（非幂等动作触发，违反 PUT 语义）
-/// - 新增 `PUT /:id` 调用 `update_integration`（真正的字段更新）
-/// - 保留 `DELETE /integration/:id` 调用 `delete_integration`
-/// - 保留 `POST /test-integration/:id` 作为唯一测试入口（动作触发语义）
+/// Webhook 集成路由（内部 path 保留 `/`、`/callback` 等，nest 装配时再加前缀）；最终 path = `/api/v1/erp/webhooks/integrations/...`（与前端一致）。；批次 113 P1-1 修复 HTTP 语义： - 移除原 `PUT /integration/:id` 调用
+/// `test_integration`（非幂等动作触发，违反 PUT 语义） - 新增 `PUT /:id` 调用 `update_integration`（真正的字段更新） - 保留 `DELETE /integration/:id` 调用 `delete_integration` - 保留 `POST /test-integration/:id` 作为唯一测试入口（动作触发语义）
 pub fn webhook_integrations() -> Router<AppState> {
     Router::new()
         .route(
@@ -292,13 +283,8 @@ pub fn webhook_integrations() -> Router<AppState> {
         )
 }
 
-/// AI 智能分析路由
-///
-/// V15 P0-S26：AI 端点权限码注册（对应 PERMISSION_RESOURCES 中 ai-* 资源）
-/// 权限映射：/forecast-sales → ai-forecast:read，
-/// /optimize-inventory → ai-inventory-opt:read，
-/// /detect-anomalies → ai-anomaly:read，
-/// /recommendations → ai-recommendation:read
+/// AI 智能分析路由；V15 P0-S26：AI 端点权限码注册（对应 PERMISSION_RESOURCES 中 ai-* 资源） 权限映射：/forecast-sales → ai-forecast:read
+/// /optimize-inventory → ai-inventory-opt:read， /detect-anomalies → ai-anomaly:read， /recommendations → ai-recommendation:read
 pub fn ai() -> Router<AppState> {
     Router::new()
         .route("/forecast-sales", get(ai_analysis_handler::forecast_sales))
@@ -333,12 +319,8 @@ pub fn reports() -> Router<AppState> {
         )
 }
 
-/// Webhook 路由
-///
-/// 批次 108 P1-8 修复：补齐 retry/get_logs/test 3 端点，接入 service 中已实现的方法。
-/// - POST /:id/test  → test_webhook（触发一次 test 事件，验证配置正确性）
-/// - POST /:id/retry → retry_webhook（重试上一次失败的 webhook 调用）
-/// - GET  /:id/logs  → get_webhook_logs（返回 webhook 执行状态）
+/// Webhook 路由；批次 108 P1-8 修复：补齐 retry/get_logs/test 3 端点，接入 service 中已实现的方法。 - POST /:id/test  → test_webhook（触发一次 test 事件
+/// 验证配置正确性） - POST /:id/retry → retry_webhook（重试上一次失败的 webhook 调用） - GET  /:id/logs  → get_webhook_logs（返回 webhook 执行状态）
 pub fn webhooks() -> Router<AppState> {
     Router::new()
         .route(
@@ -351,12 +333,8 @@ pub fn webhooks() -> Router<AppState> {
         .route("/:id/logs", get(webhook_handler::get_webhook_logs))
 }
 
-/// API 网关管理路由
-///
-/// 技术债务修复（2026-06-26）：
-/// 前端 api-gateway.ts 调用 /api-gateway/{endpoints,logs,keys,stats} 前缀。
-/// 原 api_keys() 挂载在 /api-keys 前缀，与前端不匹配。
-/// 新增 api_gateway() 统一挂载到 /api-gateway 前缀下。
+/// API 网关管理路由；技术债务修复（2026-06-26）： 前端 api-gateway.ts 调用 /api-gateway/{endpoints,logs,keys,stats}
+/// 前缀。 原 api_keys() 挂载在 /api-keys 前缀，与前端不匹配。 新增 api_gateway() 统一挂载到 /api-gateway 前缀下。
 pub fn api_gateway() -> Router<AppState> {
     Router::new()
         // endpoints CRUD
@@ -393,12 +371,8 @@ pub fn api_gateway() -> Router<AppState> {
         .route("/stats", get(api_gateway_handler::get_api_stats))
 }
 
-/// 数据权限路由
-///
-/// 注：main 上 data_permission_handler 仅实现基础的 `list_data_permissions` /
-/// `get_data_permission` / `set_data_permission` / `delete_data_permission` /
-/// `list_scope_types` / `list_role_data_permissions`，未提供 grant/revoke 角色 / 用户级别
-/// 的接口，因此这些路由暂不挂载，避免编译期 E0425。
+/// 数据权限路由；注：main 上 data_permission_handler 仅实现基础的 `list_data_permissions` / `get_data_permission` / `set_data_permission` /
+/// `delete_data_permission` / `list_scope_types` / `list_role_data_permissions`，未提供 grant/revoke 角色 / 用户级别 的接口，因此这些路由暂不挂载，避免编译期 E0425。
 pub fn data_permissions() -> Router<AppState> {
     Router::new()
         .route(
@@ -421,10 +395,8 @@ pub fn data_permissions() -> Router<AppState> {
         )
 }
 
-/// 消息通知路由
-///
-/// 注：main 上 notification_handler 未提供 `create_notification` / `update_notification`，
-/// 因此这两类路由暂不挂载，避免编译期 E0425。
+/// 消息通知路由；注：main 上 notification_handler 未提供 `create_notification`
+/// / `update_notification`， 因此这两类路由暂不挂载，避免编译期 E0425。
 pub fn notifications() -> Router<AppState> {
     Router::new()
         .route("/", get(notification_handler::list_notifications))
@@ -449,10 +421,8 @@ pub fn notifications() -> Router<AppState> {
         )
 }
 
-/// 用户通知偏好路由
-///
-/// 注：main 上 user_notification_setting_handler 未提供 `reset_to_default`，
-/// 因此 `POST /reset` 路由暂不挂载，避免编译期 E0425。
+/// 用户通知偏好路由；注：main 上 user_notification_setting_handler 未提供
+/// `reset_to_default`， 因此 `POST /reset` 路由暂不挂载，避免编译期 E0425。
 pub fn user_notification_settings() -> Router<AppState> {
     Router::new().route(
         "/",
@@ -461,10 +431,8 @@ pub fn user_notification_settings() -> Router<AppState> {
     )
 }
 
-/// 交易管理路由（高级查询）
-///
-/// 注：实际定义在 `advanced/` 子模块（拆分到 `advanced/reorder.rs` 和 `advanced/decide.rs`），
-/// 路由挂在 `/advanced` 域下更合适；此处保留独立 `/trading/...` 入口以兼容旧前端调用。
+/// 交易管理路由（高级查询）；注：实际定义在 `advanced/` 子模块（拆分到 `advanced/reorder.rs` 和
+/// `advanced/decide.rs`）， 路由挂在 `/advanced` 域下更合适；此处保留独立 `/trading/...` 入口以兼容旧前端调用。
 pub fn trading() -> Router<AppState> {
     Router::new()
         .route(
@@ -477,17 +445,8 @@ pub fn trading() -> Router<AppState> {
         .route("/sales-returns", get(advanced::list_sales_returns))
 }
 
-/// Advanced 分析路由（nest 到 /api/v1/erp/advanced）
-///
-/// 内部 path 与前端 `/advanced/ai/...`、`/advanced/reports/...` 完全一致。
-///
-/// V15 P0-S26：AI 端点权限码注册（对应 PERMISSION_RESOURCES 中 ai-* 资源）
-/// 权限映射：/ai/sales-forecast → ai-forecast:read，
-/// /ai/inventory-optimization → ai-inventory-opt:read，
-/// /ai/anomaly-detection → ai-anomaly:read，
-/// /ai/recommendations → ai-recommendation:read，
-/// /ai/recipe-optimization → ai-recipe-opt:read，
-/// /ai/quality-prediction → ai-quality-pred:read
+/// Advanced 分析路由（nest 到 /api/v1/erp/advanced）；内部 path 与前端 `/advanced/ai/...`、`/advanced/reports/...` 完全一致。；V15 P0-S26：AI 端点权限码注册（对应 PERMISSION_RESOURCES 中 ai-* 资源） 权限映射：/ai/sales-forecast → ai-forecast:read
+/// /ai/inventory-optimization → ai-inventory-opt:read， /ai/anomaly-detection → ai-anomaly:read， /ai/recommendations → ai-recommendation:read， /ai/recipe-optimization → ai-recipe-opt:read， /ai/quality-prediction → ai-quality-pred:read
 pub fn advanced() -> Router<AppState> {
     Router::new()
         .route("/ai/sales-forecast", post(advanced::sales_forecast))
@@ -504,12 +463,8 @@ pub fn advanced() -> Router<AppState> {
         .route("/reports/export", post(advanced::export_report))
 }
 
-/// BI 多维分析路由（P3-4 关键路径 demo）
-///
-/// 16 个端点：
-/// - 8 维度聚合：by-time / by-customer / by-product / by-region / by-category / trend / profit / kpi
-/// - 4 钻取：year-to-month / month-to-day / customer-to-order / product-to-order
-/// - 4 切片/上卷：slice / dice / rollup / pivot
+/// BI 多维分析路由（P3-4 关键路径 demo）；16 个端点： - 8 维度聚合：by-time / by-customer / by-product / by-region / by-category / trend / profit
+/// / kpi - 4 钻取：year-to-month / month-to-day / customer-to-order / product-to-order - 4 切片/上卷：slice / dice / rollup / pivot
 pub fn bi() -> Router<AppState> {
     Router::new()
         // 8 个维度聚合
@@ -581,16 +536,8 @@ pub fn bi() -> Router<AppState> {
         )
 }
 
-/// 跟踪路由
-///
-/// v11 批次 143 P1-2：真实实现追踪分析功能（7 个端点全部挂载）
-/// - POST /page-view — 记录页面访问
-/// - GET /page-view/stats — 页面访问统计
-/// - GET /page-view/stats/by-day — 按日统计
-/// - GET /popular-pages — 热门页面排行
-/// - POST /behavior — 记录用户行为
-/// - POST /funnel — 漏斗分析
-/// - GET /user-path — 用户路径分析
+/// 跟踪路由；v11 批次 143 P1-2：真实实现追踪分析功能（7 个端点全部挂载） - POST /page-view — 记录页面访问 - GET /page-view/stats — 页面访问统计 - GET /page-view/stats/by-day
+/// — 按日统计 - GET /popular-pages — 热门页面排行 - POST /behavior — 记录用户行为 - POST /funnel — 漏斗分析 - GET /user-path — 用户路径分析
 pub fn tracking() -> Router<AppState> {
     Router::new()
         .route("/page-view", post(tracking_handler::track_page_view))
@@ -608,15 +555,8 @@ pub fn tracking() -> Router<AppState> {
         .route("/user-path", get(tracking_handler::get_user_path))
 }
 
-/// 隐私同意路由（V15 P1 batch-16 缺陷 7.3）
-///
-/// 提供端点：
-/// - GET  /consents — 查询当前用户的所有/指定 consent_type 状态
-/// - POST /consents — 记录单类型同意/退出决定
-/// - POST /opt-in-all — 一键同意全部追踪（首次登录确认后调用）
-/// - POST /opt-out-all — 一键退出全部追踪（行使撤回权）
-///
-/// 合规依据：《个人信息保护法》第 14 条（同意原则）+ 第 16 条（撤回权）+ GDPR 第 7 条
+/// 隐私同意路由（V15 P1 batch-16 缺陷 7.3）；提供端点： - GET  /consents — 查询当前用户的所有/指定 consent_type 状态 - POST /consents — 记录单类型同意/退出决定 - POST
+/// /opt-in-all — 一键同意全部追踪（首次登录确认后调用） - POST /opt-out-all — 一键退出全部追踪（行使撤回权）；合规依据：《个人信息保护法》第 14 条（同意原则）+ 第 16 条（撤回权）+ GDPR 第 7 条
 pub fn privacy() -> Router<AppState> {
     Router::new()
         .route(
@@ -628,13 +568,8 @@ pub fn privacy() -> Router<AppState> {
         .route("/opt-out-all", post(privacy_consent_handler::opt_out_all))
 }
 
-/// 分析域统一入口
-///
-/// - 无 path 重复的子 router 走 `merge`
-/// - 有 path 重复（`GET /`、`GET /templates` 等）的子 router 走 `nest` 加独立前缀，
-///   这样最终 path 与前端保持一致（如 `/reports/enhanced/...`、`/webhooks/...`）。
-/// - `advanced()` 内部 path 以 `/reports`、`/ai` 等开头，nest 到 `/advanced`
-///   后最终 path = `/advanced/reports/...`、`/advanced/ai/...`，与前端调用一致。
+/// 分析域统一入口；- 无 path 重复的子 router 走 `merge` - 有 path 重复（`GET /`、`GET /templates` 等）的子 router 走 `nest` 加独立前缀， 这样最终 path 与前端保持一致（如 `/reports/enhanced/...`、`/webhooks/...`）
+/// - `advanced()` 内部 path 以 `/reports`、`/ai` 等开头，nest 到 `/advanced` 后最终 path = `/advanced/reports/...`、`/advanced/ai/...`，与前端调用一致。
 pub fn routes() -> Router<AppState> {
     Router::new()
         .merge(dual_unit())

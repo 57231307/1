@@ -52,10 +52,8 @@ pub struct LoginRequest {
 // 格式 `"{resource}:{action}"`（如 "user.list:read"），前端可直接 `permissions.includes("user.list:read")` 判断。
 // 原 `UserPermissionDto { resource, action, resource_id }` 结构体已被删除（无其他引用）。
 
-/// 登录响应 DTO
-/// - 不再返回 `token`（#10）：access_token 已在 httpOnly Cookie 写入
-/// - 不再返回 `refresh_token`（#13）：refresh_token 已在 httpOnly Cookie 写入
-/// - 仍返回 `csrf_token`：前端 form header 需携带，且由非 httpOnly Cookie 暴露给 JS
+/// 登录响应 DTO - 不再返回 `token`（#10）：access_token 已在 httpOnly Cookie 写入 - 不再返回 `refresh_token`（#13）
+/// refresh_token 已在 httpOnly Cookie 写入 - 仍返回 `csrf_token`：前端 form header 需携带，且由非 httpOnly Cookie 暴露给 JS
 #[derive(Debug, Serialize, ToSchema)]
 pub struct LoginResponse {
     pub csrf_token: String,
@@ -100,12 +98,8 @@ pub struct UserInfo {
 }
 
 impl UserInfo {
-    /// 批次 24 v6 P0-2 修复：构建包含 role_name 和 permissions 的 UserInfo。
-    /// 此函数供 login 和 get_current_user 共用，确保前后端类型契约一致。
-    ///
-    /// - `role_name`：从 role 表 code 字段获取（None 表示未分配角色）
-    /// - `permissions`：从 role_permission 表查询 allowed=true 的记录，格式 `"{resource}:{action}"`
-    /// - `department_name`：批次 29 v7 P0-5 新增，从 departments 表 JOIN 获取
+    /// 批次 24 v6 P0-2 修复：构建包含 role_name 和 permissions 的 UserInfo。 此函数供 login 和 get_current_user 共用，确保前后端类型契约一致。；- `role_name`：从 role 表 code 字段获取（None 表示未分配角色）
+    /// - `permissions`：从 role_permission 表查询 allowed=true 的记录，格式 `"{resource}:{action}"` - `department_name`：批次 29 v7 P0-5 新增，从 departments 表 JOIN 获取
     pub async fn build_with_permissions(
         db: &sea_orm::DatabaseConnection,
         user: &crate::models::user::Model,
@@ -146,11 +140,8 @@ impl UserInfo {
             .map(|r| r.code)
     }
 
-    /// 查询用户权限列表（admin 角色返回 *:* 通配权限，其余按 role_permission 表查询）
-    ///
-    /// V15 P0-S03 修复：仅 admin 角色注入 *:* 通配权限，与后端 admin_checker::is_admin_role 一致。
-    /// 原实现用 is_system 判断导致 manager/operator 也获得 *:* 超级权限（is_system 语义为"系统内置不可删除"，
-    /// 不应等同于"超级权限"）。现改为 code == ADMIN_ROLE_CODE 精确匹配，仅 admin 放行。
+    /// 查询用户权限列表（admin 角色返回 *:* 通配权限，其余按 role_permission 表查询）；V15 P0-S03 修复：仅 admin 角色注入 *:* 通配权限，与后端 admin_checker::is_admin_role 一致。 原实现用
+    /// is_system 判断导致 manager/operator 也获得 *:* 超级权限（is_system 语义为"系统内置不可删除"， 不应等同于"超级权限"）。现改为 code == ADMIN_ROLE_CODE 精确匹配，仅 admin 放行。
     async fn fetch_role_permissions(
         db: &sea_orm::DatabaseConnection,
         role_id: Option<i32>,
@@ -927,9 +918,8 @@ mod tests {
         }
     }
 
-    /// 测试 #10：LoginResponse JSON 序列化结果不含 `token` 字段
-    /// 原因：access_token 已通过 httpOnly Cookie 写入响应，响应体再含 token 字段会增加
-    ///       XSS/中间人/前端日志泄露的攻击面
+    /// 测试 #10：LoginResponse JSON 序列化结果不含 `token` 字段 原因：access_token
+    /// 已通过 httpOnly Cookie 写入响应，响应体再含 token 字段会增加 XSS/中间人/前端日志泄露的攻击面
     #[test]
     fn test_login_response_omits_token_field() {
         let response = build_test_login_response();
@@ -943,9 +933,8 @@ mod tests {
         );
     }
 
-    /// 测试 #13：LoginResponse JSON 序列化结果不含 `refresh_token` 字段
-    /// 原因：refresh_token 已通过 httpOnly Cookie 写入响应，响应体再含 refresh_token 字段
-    ///       同样会增加泄露风险
+    /// 测试 #13：LoginResponse JSON 序列化结果不含 `refresh_token` 字段 原因：refresh_token
+    /// 已通过 httpOnly Cookie 写入响应，响应体再含 refresh_token 字段 同样会增加泄露风险
     #[test]
     fn test_login_response_omits_refresh_token_field() {
         let response = build_test_login_response();

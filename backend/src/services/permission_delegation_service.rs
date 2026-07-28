@@ -45,13 +45,7 @@ impl PermissionDelegationService {
     }
 
     /// V15 P1 12.6：创建权限委托
-    ///
-    /// 业务规则：
-    /// 1. 委托人与被委托人不可为同一人
-    /// 2. valid_until 必须晚于 valid_from
-    /// 3. valid_from 不可早于当前时间（防止回溯委托）
-    /// 4. 委托人必须拥有该权限（防止越权委托）
-    /// 5. is_chain_allowed 默认 false（禁止链式委托）
+    /// 业务规则：1. 委托人与被委托人不可为同一人；2. valid_until 必须晚于 valid_from；3. valid_from 不可早于当前时间（防止回溯委托）；4. 委托人必须拥有该权限（防止越权委托）；5. is_chain_allowed 默认 false（禁止链式委托）
     pub async fn create_delegation(
         &self,
         request: CreateDelegationRequest,
@@ -113,9 +107,7 @@ impl PermissionDelegationService {
         Ok(model)
     }
 
-    /// V15 P1 12.6：撤销权限委托
-    ///
-    /// 仅委托人、admin 或 created_by 可撤销委托
+    /// V15 P1 12.6：撤销权限委托（仅委托人、admin 或 created_by 可撤销委托）
     pub async fn revoke_delegation(
         &self,
         delegation_id: i64,
@@ -149,14 +141,7 @@ impl PermissionDelegationService {
     }
 
     /// V15 P1 12.6：查询用户当前有效的委托权限
-    ///
-    /// 权限中间件调用此方法聚合用户自身权限 + 委托获得的权限
-    ///
-    /// # 参数
-    /// - `delegatee_id`：被委托人用户 ID
-    ///
-    /// # 返回
-    /// 返回该用户当前有效的委托权限码列表（status=active 且在有效期内）
+    /// 权限中间件调用此方法聚合用户自身权限 + 委托获得的权限；# 参数；`delegatee_id`：被委托人用户 ID；# 返回；返回该用户当前有效的委托权限码列表（status=active 且在有效期内）
     pub async fn get_active_delegated_permissions(
         &self,
         delegatee_id: i32,
@@ -173,9 +158,7 @@ impl PermissionDelegationService {
         Ok(delegations.into_iter().map(|d| d.permission_code).collect())
     }
 
-    /// V15 P1 12.6：检查用户是否拥有某委托权限
-    ///
-    /// 权限中间件在权限校验时调用此方法
+    /// V15 P1 12.6：检查用户是否拥有某委托权限（权限中间件在权限校验时调用此方法）
     pub async fn has_delegated_permission(
         &self,
         delegatee_id: i32,
@@ -194,12 +177,7 @@ impl PermissionDelegationService {
         Ok(count > 0)
     }
 
-    /// V15 P1 12.6：扫描并标记过期委托
-    ///
-    /// 定时任务调用此方法，将已过期的 active 委托标记为 expired
-    ///
-    /// # 返回
-    /// 返回被标记为 expired 的委托数量
+    /// V15 P1 12.6：扫描并标记过期委托（定时任务调用此方法，将已过期的 active 委托标记为 expired；# 返回；返回被标记为 expired 的委托数量）
     pub async fn expire_overdue_delegations(&self) -> Result<u64, AppError> {
         let now = Utc::now();
 
@@ -235,9 +213,7 @@ impl PermissionDelegationService {
         Ok(count)
     }
 
-    /// V15 P1 12.6：查询用户的委托记录列表
-    ///
-    /// 支持按委托人/被委托人查询
+    /// V15 P1 12.6：查询用户的委托记录列表（支持按委托人/被委托人查询）
     pub async fn list_delegations(
         &self,
         user_id: Option<i32>,

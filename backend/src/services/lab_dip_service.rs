@@ -57,10 +57,7 @@ impl LabDipRequestService {
     // ===== 状态流转校验（纯函数）=====
 
     /// 校验状态流转合法性
-    ///
-    /// 状态机：pending → sampling → submitted → approved/rejected → completed
-    ///         rejected → sampling（重新打样）
-    ///         approved → completed（复样通过后建库）
+    /// 状态机：pending → sampling → submitted → approved/rejected → completed；rejected → sampling（重新打样）；approved → completed（复样通过后建库）
     pub fn validate_status_transition(current: &str, new: &str) -> Result<(), AppError> {
         let valid = match current {
             req_status::PENDING => matches!(new, req_status::SAMPLING),

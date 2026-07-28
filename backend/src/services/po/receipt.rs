@@ -665,11 +665,7 @@ impl PurchaseOrderService {
     }
 
     /// 计算订单总金额（事务版本）
-    ///
-    /// 批次 19（2026-06-28）：新增 _txn 变体，接受外部事务参数，
-    /// 供已有事务的调用方使用，保证明细写与总金额重算原子性。
-    /// 内部 3 处 DB 句柄全部使用 txn，主表查询加 lock_exclusive 串行化并发重算，
-    /// 防止两个并发重算基于过期明细快照导致丢失更新。
+    /// 批次 19（2026-06-28）：新增 _txn 变体，接受外部事务参数，；供已有事务的调用方使用，保证明细写与总金额重算原子性。；内部 3 处 DB 句柄全部使用 txn，主表查询加 lock_exclusive 串行化并发重算，；防止两个并发重算基于过期明细快照导致丢失更新。
     pub async fn calculate_order_total_txn(
         &self,
         order_id: i32,
@@ -718,9 +714,7 @@ impl PurchaseOrderService {
     }
 
     /// 计算订单总金额（便捷入口，内部自建事务）
-    ///
-    /// 批次 19（2026-06-28）：改为便捷入口，内部 begin + 调 _txn + commit。
-    /// 已在事务内的调用方应直接调用 calculate_order_total_txn 以复用事务。
+    /// 批次 19（2026-06-28）：改为便捷入口，内部 begin + 调 _txn + commit。；已在事务内的调用方应直接调用 calculate_order_total_txn 以复用事务。
     pub async fn calculate_order_total(&self, order_id: i32, user_id: i32) -> Result<(), AppError> {
         let txn = (*self.db).begin().await?;
         // 批次 94 P2-10：透传 user_id 用于审计日志

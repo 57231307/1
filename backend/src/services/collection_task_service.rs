@@ -243,9 +243,7 @@ impl CollectionTaskService {
     }
 
     /// V15 P1 17.3-D5：根据 task_type + overdue_days 查询催收模板
-    ///
-    /// 优先级：精确匹配阶段 > all 通用模板；同阶段按 sort_order 升序取首条。
-    /// 阶段映射：early(0-30天) / middle(31-90天) / late(90+天)。
+    /// 优先级：精确匹配阶段 > all 通用模板；同阶段按 sort_order 升序取首条。；阶段映射：early(0-30天) / middle(31-90天) / late(90+天)。
     async fn find_template_for_task(
         &self,
         txn: &sea_orm::DatabaseTransaction,
@@ -275,9 +273,7 @@ impl CollectionTaskService {
         Ok(fallback)
     }
 
-    /// V15 P1 17.3-D5：渲染模板占位符
-    ///
-    /// 支持占位符：{overdue_days} / {overdue_amount} / {customer_name} / {date}
+    /// V15 P1 17.3-D5：渲染模板占位符（支持占位符：{overdue_days} / {overdue_amount} / {customer_name} / {date}）
     fn render_template(
         content: &str,
         overdue_days: i32,
@@ -314,10 +310,7 @@ impl CollectionTaskService {
         }
     }
 
-    /// 为客户聚合结果生成催收任务(含幂等检查)
-    ///
-    /// V15 P1 17.3-D5：自动生成任务时，查询匹配的催收模板并渲染话术，
-    /// 写入 remark 字段供催收员参考使用。
+    /// 为客户聚合结果生成催收任务(含幂等检查)（V15 P1 17.3-D5：自动生成任务时，查询匹配的催收模板并渲染话术，；写入 remark 字段供催收员参考使用。）
     async fn generate_tasks_for_customers(
         &self,
         txn: &sea_orm::DatabaseTransaction,
@@ -457,12 +450,7 @@ impl CollectionTaskService {
         Ok(model)
     }
 
-    /// 记录催收结果
-    ///
-    /// 状态流转：
-    /// - pending → in_progress（首次记录）
-    /// - in_progress → in_progress（追加记录）
-    /// - mark_completed=true 时 → completed（终态）
+    /// 记录催收结果（状态流转：pending → in_progress（首次记录）；in_progress → in_progress（追加记录）；mark_completed=true 时 → completed（终态））
     pub async fn record_contact(
         &self,
         task_id: i64,

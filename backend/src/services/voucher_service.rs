@@ -93,13 +93,9 @@ pub struct VoucherQueryParams {
     pub page_size: Option<u64>,
 }
 
-/// 凭证 Service
-///
-/// struct 定义保留在 facade，impl 块按职责分散到 `voucher_ops/` 子模块。
+/// 凭证 Service（struct 定义保留在 facade，impl 块按职责分散到 `voucher_ops/` 子模块。）
 pub struct VoucherService {
-    /// 数据库连接句柄
-    ///
-    /// `pub(crate)` 可见性：voucher_ops 兄弟模块的 impl 块需直接访问此字段。
+    /// 数据库连接句柄（`pub(crate)` 可见性：voucher_ops 兄弟模块的 impl 块需直接访问此字段。）
     pub(crate) db: Arc<DatabaseConnection>,
 }
 
@@ -144,9 +140,7 @@ mod tests {
     use sea_orm::DatabaseConnection;
     use std::str::FromStr;
 
-    /// 构建测试用凭证分录请求夹具
-    ///
-    /// 封装 VoucherItemRequest 的构造，便于借贷平衡测试复用。
+    /// 构建测试用凭证分录请求夹具（封装 VoucherItemRequest 的构造，便于借贷平衡测试复用。）
     fn make_voucher_item_request(debit: Decimal, credit: Decimal) -> VoucherItemRequest {
         VoucherItemRequest {
             line_no: None,
@@ -171,9 +165,7 @@ mod tests {
         }
     }
 
-    /// 构建测试用凭证模型夹具
-    ///
-    /// 封装 voucher::Model 的构造，状态字段可定制，便于状态门校验测试复用。
+    /// 构建测试用凭证模型夹具（封装 voucher::Model 的构造，状态字段可定制，便于状态门校验测试复用。）
     fn make_voucher_model(status: &str) -> voucher::Model {
         voucher::Model {
             id: 1,
@@ -205,9 +197,7 @@ mod tests {
     }
 
     /// 复现 generate_voucher_no 中的凭证编号前缀映射逻辑
-    ///
-    /// 源码位置：generate_voucher_no 方法内的 match 表达式。
-    /// "记" => "JZ", "收" => "SK", "付" => "FK", "转" => "ZZ", _ => "JZ"
+    /// 源码位置：generate_voucher_no 方法内的 match 表达式。；"记" => "JZ", "收" => "SK", "付" => "FK", "转" => "ZZ", _ => "JZ"
     fn voucher_prefix(voucher_type: &str) -> &str {
         match voucher_type {
             "记" => "JZ",
@@ -218,19 +208,14 @@ mod tests {
         }
     }
 
-    /// 复现 validate_voucher_create_req 中的借贷平衡校验逻辑
-    ///
-    /// 源码位置：validate_voucher_create_req 方法内的借方合计 == 贷方合计判断。
+    /// 复现 validate_voucher_create_req 中的借贷平衡校验逻辑（源码位置：validate_voucher_create_req 方法内的借方合计 == 贷方合计判断。）
     fn is_balanced(items: &[VoucherItemRequest]) -> bool {
         let total_debit: Decimal = items.iter().map(|i| i.debit).sum();
         let total_credit: Decimal = items.iter().map(|i| i.credit).sum();
         total_debit == total_credit
     }
 
-    /// 复现凭证状态机合法转换判断
-    ///
-    /// 源码位置：submit/review/post 方法内的状态门校验。
-    /// 合法路径：draft → submitted → reviewed → posted
+    /// 复现凭证状态机合法转换判断（源码位置：submit/review/post 方法内的状态门校验。；合法路径：draft → submitted → reviewed → posted）
     fn can_transition(from: &str, to: &str) -> bool {
         matches!(
             (from, to),
@@ -248,11 +233,7 @@ mod tests {
     }
 
     /// 复现 update_account_balances 中的期末余额计算逻辑
-    ///
-    /// 源码位置：update_account_balances 方法内的余额方向分支。
-    /// - 借方科目：期末余额 = 期初借方 + 本期借方发生 - 本期贷方发生
-    /// - 贷方科目：期末余额 = 期初贷方 + 本期贷方发生 - 本期借方发生
-    /// 返回 (期末借方余额, 期末贷方余额)
+    /// 源码位置：update_account_balances 方法内的余额方向分支。；借方科目：期末余额 = 期初借方 + 本期借方发生 - 本期贷方发生；贷方科目：期末余额 = 期初贷方 + 本期贷方发生 - 本期借方发生；返回 (期末借方余额, 期末贷方余额)
     fn calc_ending_balance(
         balance_direction: &str,
         initial_debit: Decimal,
@@ -279,10 +260,7 @@ mod tests {
 
     // ============ 凭证状态常量值正确性测试 ============
 
-    /// 测试_凭证状态常量_值正确性
-    ///
-    /// 验证 crate::models::status::voucher 子模块中 4 个状态常量值
-    /// 与凭证状态机约定一致（小写：draft/submitted/reviewed/posted）。
+    /// 测试_凭证状态常量_值正确性（验证 crate::models::status::voucher 子模块中 4 个状态常量值；与凭证状态机约定一致（小写：draft/submitted/reviewed/posted）。）
     #[test]
     fn 测试_凭证状态常量_值正确性() {
         assert_eq!(voucher_status::VOUCHER_DRAFT, "draft");
@@ -293,10 +271,7 @@ mod tests {
 
     // ============ 凭证状态机转换测试 ============
 
-    /// 测试_凭证状态机_合法转换路径
-    ///
-    /// 验证凭证状态机的 3 条合法转换路径：
-    /// draft → submitted → reviewed → posted
+    /// 测试_凭证状态机_合法转换路径（验证凭证状态机的 3 条合法转换路径：draft → submitted → reviewed → posted）
     #[test]
     fn 测试_凭证状态机_合法转换路径() {
         assert!(can_transition(
@@ -313,10 +288,7 @@ mod tests {
         ));
     }
 
-    /// 测试_凭证状态机_非法跳转
-    ///
-    /// 验证非相邻状态的直接跳转应被拒绝：
-    /// draft 不能直接 reviewed/posted；submitted 不能直接 posted。
+    /// 测试_凭证状态机_非法跳转（验证非相邻状态的直接跳转应被拒绝：draft 不能直接 reviewed/posted；submitted 不能直接 posted。）
     #[test]
     fn 测试_凭证状态机_非法跳转() {
         assert!(!can_transition(
@@ -340,9 +312,7 @@ mod tests {
 
     // ============ 借贷平衡校验测试 ============
 
-    /// 测试_借贷平衡校验_借方等于贷方通过
-    ///
-    /// 验证 validate_voucher_create_req 中借方合计 == 贷方合计时校验通过。
+    /// 测试_借贷平衡校验_借方等于贷方通过（验证 validate_voucher_create_req 中借方合计 == 贷方合计时校验通过。）
     #[test]
     fn 测试_借贷平衡校验_借方等于贷方通过() {
         let items = vec![
@@ -352,9 +322,7 @@ mod tests {
         assert!(is_balanced(&items));
     }
 
-    /// 测试_借贷平衡校验_借方大于贷方失败
-    ///
-    /// 验证 validate_voucher_create_req 中借方合计 > 贷方合计时校验失败。
+    /// 测试_借贷平衡校验_借方大于贷方失败（验证 validate_voucher_create_req 中借方合计 > 贷方合计时校验失败。）
     #[test]
     fn 测试_借贷平衡校验_借方大于贷方失败() {
         let items = vec![
@@ -364,9 +332,7 @@ mod tests {
         assert!(!is_balanced(&items));
     }
 
-    /// 测试_借贷平衡校验_借方小于贷方失败
-    ///
-    /// 验证 validate_voucher_create_req 中借方合计 < 贷方合计时校验失败。
+    /// 测试_借贷平衡校验_借方小于贷方失败（验证 validate_voucher_create_req 中借方合计 < 贷方合计时校验失败。）
     #[test]
     fn 测试_借贷平衡校验_借方小于贷方失败() {
         let items = vec![
@@ -376,9 +342,7 @@ mod tests {
         assert!(!is_balanced(&items));
     }
 
-    /// 测试_借贷平衡校验_零金额平衡通过
-    ///
-    /// 验证 validate_voucher_create_req 中借贷双方均为零时校验通过（边界场景）。
+    /// 测试_借贷平衡校验_零金额平衡通过（验证 validate_voucher_create_req 中借贷双方均为零时校验通过（边界场景）。）
     #[test]
     fn 测试_借贷平衡校验_零金额平衡通过() {
         let items = vec![
@@ -388,9 +352,7 @@ mod tests {
         assert!(is_balanced(&items));
     }
 
-    /// 测试_借贷平衡校验_多分录汇总平衡
-    ///
-    /// 验证 validate_voucher_create_req 中多个分录汇总后借贷平衡时校验通过。
+    /// 测试_借贷平衡校验_多分录汇总平衡（验证 validate_voucher_create_req 中多个分录汇总后借贷平衡时校验通过。）
     #[test]
     fn 测试_借贷平衡校验_多分录汇总平衡() {
         let items = vec![
@@ -405,9 +367,7 @@ mod tests {
     // ============ 金额计算精度测试 ============
 
     /// 测试_金额计算_精度归一化
-    ///
-    /// 验证 Decimal 求和保留精度，不同小数位的金额相加不会丢失精度。
-    /// 复现 validate_voucher_create_req 中 iter().map(|i| i.debit).sum() 的精度行为。
+    /// 验证 Decimal 求和保留精度，不同小数位的金额相加不会丢失精度。；复现 validate_voucher_create_req 中 iter().map(|i| i.debit).sum() 的精度行为。
     #[test]
     fn 测试_金额计算_精度归一化() {
         let items = vec![
@@ -430,9 +390,7 @@ mod tests {
 
     // ============ 凭证类型定义测试 ============
 
-    /// 测试_凭证类型定义_完整列表
-    ///
-    /// 验证 available_voucher_types 返回 4 种凭证类型，且 code 与 name 对应正确。
+    /// 测试_凭证类型定义_完整列表（验证 available_voucher_types 返回 4 种凭证类型，且 code 与 name 对应正确。）
     #[test]
     fn 测试_凭证类型定义_完整列表() {
         let types = VoucherService::available_voucher_types();
@@ -450,10 +408,7 @@ mod tests {
         assert_eq!(codes.len(), 4);
     }
 
-    /// 测试_凭证编号前缀_各类型映射
-    ///
-    /// 验证 generate_voucher_no 中凭证类型到前缀的映射：
-    /// "记" => "JZ", "收" => "SK", "付" => "FK", "转" => "ZZ"
+    /// 测试_凭证编号前缀_各类型映射（验证 generate_voucher_no 中凭证类型到前缀的映射："记" => "JZ", "收" => "SK", "付" => "FK", "转" => "ZZ"）
     #[test]
     fn 测试_凭证编号前缀_各类型映射() {
         assert_eq!(voucher_prefix("记"), "JZ");
@@ -462,9 +417,7 @@ mod tests {
         assert_eq!(voucher_prefix("转"), "ZZ");
     }
 
-    /// 测试_凭证编号前缀_未知类型默认
-    ///
-    /// 验证 generate_voucher_no 中未知凭证类型回退到默认前缀 "JZ"。
+    /// 测试_凭证编号前缀_未知类型默认（验证 generate_voucher_no 中未知凭证类型回退到默认前缀 "JZ"。）
     #[test]
     fn 测试_凭证编号前缀_未知类型默认() {
         assert_eq!(voucher_prefix("未知"), "JZ");
@@ -473,10 +426,7 @@ mod tests {
 
     // ============ 科目余额计算测试 ============
 
-    /// 测试_科目余额计算_借方科目正常
-    ///
-    /// 验证 update_account_balances 中借方科目期末余额计算：
-    /// 期末余额 = 期初借方 + 本期借方发生 - 本期贷方发生（结果为正记借方）。
+    /// 测试_科目余额计算_借方科目正常（验证 update_account_balances 中借方科目期末余额计算：期末余额 = 期初借方 + 本期借方发生 - 本期贷方发生（结果为正记借方）。）
     #[test]
     fn 测试_科目余额计算_借方科目正常() {
         let (ending_debit, ending_credit) = calc_ending_balance(
@@ -491,10 +441,7 @@ mod tests {
         assert_eq!(ending_credit, Decimal::ZERO);
     }
 
-    /// 测试_科目余额计算_贷方科目正常
-    ///
-    /// 验证 update_account_balances 中贷方科目期末余额计算：
-    /// 期末余额 = 期初贷方 + 本期贷方发生 - 本期借方发生（结果为正记贷方）。
+    /// 测试_科目余额计算_贷方科目正常（验证 update_account_balances 中贷方科目期末余额计算：期末余额 = 期初贷方 + 本期贷方发生 - 本期借方发生（结果为正记贷方）。）
     #[test]
     fn 测试_科目余额计算_贷方科目正常() {
         let (ending_debit, ending_credit) = calc_ending_balance(
@@ -509,9 +456,7 @@ mod tests {
         assert_eq!(ending_credit, decs!("2500"));
     }
 
-    /// 测试_科目余额计算_借方科目出现贷方余额
-    ///
-    /// 验证 update_account_balances 中借方科目净额为负时记贷方（如累计折旧场景）。
+    /// 测试_科目余额计算_借方科目出现贷方余额（验证 update_account_balances 中借方科目净额为负时记贷方（如累计折旧场景）。）
     #[test]
     fn 测试_科目余额计算_借方科目出现贷方余额() {
         let (ending_debit, ending_credit) = calc_ending_balance(
@@ -526,9 +471,7 @@ mod tests {
         assert_eq!(ending_credit, decs!("200"));
     }
 
-    /// 测试_科目余额计算_贷方科目出现借方余额
-    ///
-    /// 验证 update_account_balances 中贷方科目净额为负时记借方（如预交税费场景）。
+    /// 测试_科目余额计算_贷方科目出现借方余额（验证 update_account_balances 中贷方科目净额为负时记借方（如预交税费场景）。）
     #[test]
     fn 测试_科目余额计算_贷方科目出现借方余额() {
         let (ending_debit, ending_credit) = calc_ending_balance(
@@ -545,9 +488,7 @@ mod tests {
 
     // ============ 状态校验逻辑测试 ============
 
-    /// 测试_状态校验_仅草稿可更新
-    ///
-    /// 验证 update 方法中状态门：仅 draft 状态可更新，其余状态应拒绝。
+    /// 测试_状态校验_仅草稿可更新（验证 update 方法中状态门：仅 draft 状态可更新，其余状态应拒绝。）
     #[test]
     fn 测试_状态校验_仅草稿可更新() {
         let draft = make_voucher_model(voucher_status::VOUCHER_DRAFT);
@@ -562,9 +503,7 @@ mod tests {
         assert!(posted.status != voucher_status::VOUCHER_DRAFT);
     }
 
-    /// 测试_状态校验_仅草稿可删除
-    ///
-    /// 验证 delete 方法中状态门：仅 draft 状态可删除，其余状态应拒绝。
+    /// 测试_状态校验_仅草稿可删除（验证 delete 方法中状态门：仅 draft 状态可删除，其余状态应拒绝。）
     #[test]
     fn 测试_状态校验_仅草稿可删除() {
         let draft = make_voucher_model(voucher_status::VOUCHER_DRAFT);
@@ -575,9 +514,7 @@ mod tests {
         assert!(posted.status != voucher_status::VOUCHER_DRAFT);
     }
 
-    /// 测试_状态校验_仅草稿可提交
-    ///
-    /// 验证 submit 方法中状态门：仅 draft 状态可提交，其余状态应拒绝。
+    /// 测试_状态校验_仅草稿可提交（验证 submit 方法中状态门：仅 draft 状态可提交，其余状态应拒绝。）
     #[test]
     fn 测试_状态校验_仅草稿可提交() {
         let draft = make_voucher_model(voucher_status::VOUCHER_DRAFT);
@@ -588,9 +525,7 @@ mod tests {
         assert!(reviewed.status != voucher_status::VOUCHER_DRAFT);
     }
 
-    /// 测试_状态校验_仅已提交可审核
-    ///
-    /// 验证 review 方法中状态门：仅 submitted 状态可审核，其余状态应拒绝。
+    /// 测试_状态校验_仅已提交可审核（验证 review 方法中状态门：仅 submitted 状态可审核，其余状态应拒绝。）
     #[test]
     fn 测试_状态校验_仅已提交可审核() {
         let submitted = make_voucher_model(voucher_status::VOUCHER_SUBMITTED);
@@ -603,9 +538,7 @@ mod tests {
         assert!(posted.status != voucher_status::VOUCHER_SUBMITTED);
     }
 
-    /// 测试_状态校验_仅已审核可过账
-    ///
-    /// 验证 post 方法中状态门：仅 reviewed 状态可过账，其余状态应拒绝。
+    /// 测试_状态校验_仅已审核可过账（验证 post 方法中状态门：仅 reviewed 状态可过账，其余状态应拒绝。）
     #[test]
     fn 测试_状态校验_仅已审核可过账() {
         let reviewed = make_voucher_model(voucher_status::VOUCHER_REVIEWED);
@@ -620,10 +553,7 @@ mod tests {
 
     // ============ 错误消息格式测试 ============
 
-    /// 测试_错误消息格式_借贷不平衡
-    ///
-    /// 验证 validate_voucher_create_req 中借贷不平衡的错误消息格式：
-    /// "凭证借贷不平衡：借方 {} != 贷方 {}"
+    /// 测试_错误消息格式_借贷不平衡（验证 validate_voucher_create_req 中借贷不平衡的错误消息格式："凭证借贷不平衡：借方 {} != 贷方 {}"）
     #[test]
     fn 测试_错误消息格式_借贷不平衡() {
         let total_debit = decs!("1000");
@@ -640,10 +570,7 @@ mod tests {
         assert!(matches!(err, AppError::BadRequest(_)));
     }
 
-    /// 测试_错误消息格式_凭证不存在
-    ///
-    /// 验证 get_by_id/update/delete 等方法中凭证不存在的错误消息格式：
-    /// "凭证不存在：{}"
+    /// 测试_错误消息格式_凭证不存在（验证 get_by_id/update/delete 等方法中凭证不存在的错误消息格式："凭证不存在：{}"）
     #[test]
     fn 测试_错误消息格式_凭证不存在() {
         let id = 99999;
@@ -656,9 +583,7 @@ mod tests {
 
     // ============ 夹具宏可用性测试 ============
 
-    /// 测试_decs_夹具宏可用性
-    ///
-    /// 验证 decs! 宏能正确解析 Decimal 字符串常量。
+    /// 测试_decs_夹具宏可用性（验证 decs! 宏能正确解析 Decimal 字符串常量。）
     #[test]
     fn 测试_decs_夹具宏可用性() {
         let v = decs!("1234.56");
@@ -671,9 +596,7 @@ mod tests {
         assert!(neg < Decimal::ZERO);
     }
 
-    /// 测试_ymd_夹具宏可用性
-    ///
-    /// 验证 ymd! 宏能正确解析日期常量。
+    /// 测试_ymd_夹具宏可用性（验证 ymd! 宏能正确解析日期常量。）
     #[test]
     fn 测试_ymd_夹具宏可用性() {
         let d = ymd!(2026, 7, 1);
@@ -684,9 +607,7 @@ mod tests {
 
     // ============ 服务实例化测试 ============
 
-    /// 测试_服务实例创建
-    ///
-    /// 验证 VoucherService 在 SQLite 内存数据库上能正常实例化。
+    /// 测试_服务实例创建（验证 VoucherService 在 SQLite 内存数据库上能正常实例化。）
     #[tokio::test]
     async fn 测试_服务实例创建() {
         let db = setup_test_db().await;
@@ -696,10 +617,7 @@ mod tests {
 
     // ============ 数据库交互测试（标注 #[ignore]）============
 
-    /// 测试_创建凭证_需要真实数据库
-    ///
-    /// 需要 vouchers/voucher_items/account_subjects 表 schema，
-    /// 标注 #[ignore] 仅在本地手动运行。无 schema 时返回数据库错误。
+    /// 测试_创建凭证_需要真实数据库（需要 vouchers/voucher_items/account_subjects 表 schema，；标注 #[ignore] 仅在本地手动运行。无 schema 时返回数据库错误。）
     #[tokio::test]
     #[ignore]
     async fn 测试_创建凭证_需要真实数据库() {
@@ -725,9 +643,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    /// 测试_查询凭证列表_需要真实数据库
-    ///
-    /// 需要 vouchers 表 schema，标注 #[ignore] 仅在本地手动运行。
+    /// 测试_查询凭证列表_需要真实数据库（需要 vouchers 表 schema，标注 #[ignore] 仅在本地手动运行。）
     #[tokio::test]
     #[ignore]
     async fn 测试_查询凭证列表_需要真实数据库() {
@@ -750,10 +666,7 @@ mod tests {
         assert!(result.is_err(), "无 schema 时应返回数据库错误");
     }
 
-    /// 测试_凭证过账_需要真实数据库
-    ///
-    /// 需要 vouchers/voucher_items/account_balances/account_subjects 表 schema，
-    /// 标注 #[ignore] 仅在本地手动运行。
+    /// 测试_凭证过账_需要真实数据库（需要 vouchers/voucher_items/account_balances/account_subjects 表 schema，；标注 #[ignore] 仅在本地手动运行。）
     #[tokio::test]
     #[ignore]
     async fn 测试_凭证过账_需要真实数据库() {
@@ -767,9 +680,7 @@ mod tests {
 
     // ============ 批次 393 补测：凭证类型定义与辅助核算五维 ============
 
-    /// 测试_VoucherTypeDefinition_new构造器
-    ///
-    /// 验证 VoucherTypeDefinition::new 正确设置 code 和 name 字段。
+    /// 测试_VoucherTypeDefinition_new构造器（验证 VoucherTypeDefinition::new 正确设置 code 和 name 字段。）
     #[test]
     fn 测试_VoucherTypeDefinition_new构造器() {
         let def = VoucherTypeDefinition::new("记", "记账凭证");
@@ -789,10 +700,7 @@ mod tests {
         assert_eq!(def.name, "转账凭证");
     }
 
-    /// 测试_available_voucher_types返回4种类型
-    ///
-    /// 验证 available_voucher_types 静态方法返回 4 种凭证类型定义，
-    /// code 覆盖 "记/收/付/转" 全部业务类型。
+    /// 测试_available_voucher_types返回4种类型（验证 available_voucher_types 静态方法返回 4 种凭证类型定义，；code 覆盖 "记/收/付/转" 全部业务类型。）
     #[test]
     fn 测试_available_voucher_types返回4种类型() {
         let types = VoucherService::available_voucher_types();
@@ -811,11 +719,7 @@ mod tests {
     }
 
     /// 测试_科目不存在错误消息格式
-    ///
-    /// 验证两个分支的科目不存在错误消息格式：
-    /// 1. validate_voucher_create_req 阶段："科目不存在或已停用：{code}"
-    /// 2. update_account_balances 阶段："科目不存在：{code}"
-    /// （批次 102 v6 P3-4：后者已从 bad_request 改为 not_found）
+    /// 验证两个分支的科目不存在错误消息格式：1. validate_voucher_create_req 阶段："科目不存在或已停用：{code}"；2. update_account_balances 阶段："科目不存在：{code}"；（批次 102 v6 P3-4：后者已从 bad_request 改为 not_found）
     #[test]
     fn 测试_科目不存在错误消息格式() {
         // 分支 1：校验阶段（科目不存在或已停用）
@@ -841,10 +745,7 @@ mod tests {
     }
 
     /// 测试_辅助核算五维ID拼接格式
-    ///
-    /// 复现 create_assist_accounting_records 中的五维 ID 拼接逻辑。
-    /// 格式：BATCH:{}|COLOR:{}|DYE_LOT:{}|GRADE:{}|WORKSHOP:{}
-    /// 缺失字段使用 unwrap_or(0) / unwrap_or_default() 填充。
+    /// 复现 create_assist_accounting_records 中的五维 ID 拼接逻辑。；格式：BATCH:{}|COLOR:{}|DYE_LOT:{}|GRADE:{}|WORKSHOP:{}；缺失字段使用 unwrap_or(0) / unwrap_or_default() 填充。
     #[test]
     fn 测试_辅助核算五维ID拼接格式() {
         // 复现五维 ID 拼接逻辑（与源码一致）

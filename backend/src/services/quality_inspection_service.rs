@@ -41,13 +41,7 @@ pub const HANDLING_REWORK: &str = "rework"; // C 级返工
 pub const HANDLING_SCRAP: &str = "scrap"; // C 级报废
 
 /// 根据合格率判定面料行业质检等级（A/B/C）
-///
-/// 业务规则（fabric-industry-research.md §4.7）：
-/// - rate >= 95% → A 级（合格）
-/// - 80% <= rate < 95% → B 级（让步接收，降级销售）
-/// - rate < 80% → C 级（不合格，返工或报废）
-///
-/// 入参 qualification_rate 为百分比形式（0-100），None 视为 0% 处理为 C 级
+/// 业务规则（fabric-industry-research.md §4.7）：rate >= 95% → A 级（合格）；80% <= rate < 95% → B 级（让步接收，降级销售）；rate < 80% → C 级（不合格，返工或报废）；入参 qualification_rate 为百分比形式（0-100），None 视为 0% 处理为 C 级
 pub fn determine_quality_grade(qualification_rate: Option<Decimal>) -> String {
     let rate = qualification_rate.unwrap_or(Decimal::ZERO);
     if rate >= grade_a_threshold() {
@@ -59,9 +53,7 @@ pub fn determine_quality_grade(qualification_rate: Option<Decimal>) -> String {
     }
 }
 
-/// 根据质检等级校验处理方式是否符合面料行业业务规则
-///
-/// A 级品无需处理（合格）；B 级品必须降级销售；C 级品必须返工或报废
+/// 根据质检等级校验处理方式是否符合面料行业业务规则（A 级品无需处理（合格）；B 级品必须降级销售；C 级品必须返工或报废）
 pub fn validate_handling_method_by_grade(
     grade: &str,
     handling_method: &str,
@@ -592,9 +584,7 @@ mod tests {
 
     // ===== determine_quality_grade 合格率分级判定 =====
 
-    /// 测试_质检分级_A级_合格率达标
-    ///
-    /// 验证 qualification_rate >= 95% 判定为 A 级（合格），覆盖边界值 95%。
+    /// 测试_质检分级_A级_合格率达标（验证 qualification_rate >= 95% 判定为 A 级（合格），覆盖边界值 95%。）
     #[test]
     fn 测试_质检分级_A级_合格率达标() {
         // 边界：恰好 95% → A 级
@@ -607,9 +597,7 @@ mod tests {
         );
     }
 
-    /// 测试_质检分级_B级_让步接收区间
-    ///
-    /// 验证 80% <= rate < 95% 判定为 B 级（让步接收，降级销售）。
+    /// 测试_质检分级_B级_让步接收区间（验证 80% <= rate < 95% 判定为 B 级（让步接收，降级销售）。）
     #[test]
     fn 测试_质检分级_B级_让步接收区间() {
         // 边界：恰好 80% → B 级
@@ -622,9 +610,7 @@ mod tests {
         );
     }
 
-    /// 测试_质检分级_C级_不合格区间
-    ///
-    /// 验证 rate < 80% 判定为 C 级（不合格，返工或报废）。
+    /// 测试_质检分级_C级_不合格区间（验证 rate < 80% 判定为 C 级（不合格，返工或报废）。）
     #[test]
     fn 测试_质检分级_C级_不合格区间() {
         // 边界：恰好低于 80% → C 级
@@ -639,9 +625,7 @@ mod tests {
         );
     }
 
-    /// 测试_质检分级_None视为零合格率
-    ///
-    /// 验证 qualification_rate 为 None 时按 0% 处理为 C 级。
+    /// 测试_质检分级_None视为零合格率（验证 qualification_rate 为 None 时按 0% 处理为 C 级。）
     #[test]
     fn 测试_质检分级_None视为零合格率() {
         assert_eq!(determine_quality_grade(None), QUALITY_GRADE_C);
@@ -649,9 +633,7 @@ mod tests {
 
     // ===== validate_handling_method_by_grade 等级与处理方式匹配校验 =====
 
-    /// 测试_等级处理方式校验_A级品无需不合格处理
-    ///
-    /// A 级（合格）品调用任何处理方式都应返回错误。
+    /// 测试_等级处理方式校验_A级品无需不合格处理（A 级（合格）品调用任何处理方式都应返回错误。）
     #[test]
     fn 测试_等级处理方式校验_A级品无需不合格处理() {
         // A 级 + 任意处理方式 → 拒绝
@@ -665,9 +647,7 @@ mod tests {
         assert!(err.to_string().contains("A 级"));
     }
 
-    /// 测试_等级处理方式校验_B级品必须降级销售
-    ///
-    /// B 级（让步接收）品处理方式必须为 downgrade_sale，其他拒绝。
+    /// 测试_等级处理方式校验_B级品必须降级销售（B 级（让步接收）品处理方式必须为 downgrade_sale，其他拒绝。）
     #[test]
     fn 测试_等级处理方式校验_B级品必须降级销售() {
         // B 级 + 降级销售 → 放行
@@ -683,9 +663,7 @@ mod tests {
         assert!(err.to_string().contains("降级销售"));
     }
 
-    /// 测试_等级处理方式校验_C级品返工或报废
-    ///
-    /// C 级（不合格）品处理方式必须为 rework 或 scrap，其他拒绝。
+    /// 测试_等级处理方式校验_C级品返工或报废（C 级（不合格）品处理方式必须为 rework 或 scrap，其他拒绝。）
     #[test]
     fn 测试_等级处理方式校验_C级品返工或报废() {
         // C 级 + 返工/报废 → 放行
@@ -703,9 +681,7 @@ mod tests {
         assert!(err.to_string().contains("报废"));
     }
 
-    /// 测试_等级处理方式校验_未知等级拒绝
-    ///
-    /// grade 为 D/X/空字符串等非 A/B/C 值时返回错误。
+    /// 测试_等级处理方式校验_未知等级拒绝（grade 为 D/X/空字符串等非 A/B/C 值时返回错误。）
     #[test]
     fn 测试_等级处理方式校验_未知等级拒绝() {
         assert!(validate_handling_method_by_grade("D", HANDLING_REWORK).is_err());
@@ -716,9 +692,7 @@ mod tests {
         assert!(err.to_string().contains("未知质检等级"));
     }
 
-    /// 测试_等级常量值正确性
-    ///
-    /// 校验 A/B/C 等级常量与处理方式常量值，避免硬编码字符串拼写错误。
+    /// 测试_等级常量值正确性（校验 A/B/C 等级常量与处理方式常量值，避免硬编码字符串拼写错误。）
     #[test]
     fn 测试_等级常量值正确性() {
         assert_eq!(QUALITY_GRADE_A, "A");
@@ -731,9 +705,7 @@ mod tests {
         assert_eq!(HANDLING_SCRAP, "scrap");
     }
 
-    /// 测试_decimal阈值解析正确性
-    ///
-    /// 校验 grade_a_threshold / grade_b_threshold 通过 Decimal::new 构造的值正确。
+    /// 测试_decimal阈值解析正确性（校验 grade_a_threshold / grade_b_threshold 通过 Decimal::new 构造的值正确。）
     #[test]
     fn 测试_decimal阈值解析正确性() {
         let d = Decimal::from_str("95").unwrap();

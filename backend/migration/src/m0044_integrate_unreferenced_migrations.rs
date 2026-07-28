@@ -147,11 +147,7 @@ const UNREFERENCED_MIGRATIONS: &[(&str, &str)] = &[
     ),
 ];
 
-/// 修复 SQL 中 BIGINT 外键类型不匹配问题
-///
-/// 引用 SERIAL (INTEGER) id 列的 BIGINT 外键会导致 PostgreSQL 报错。
-/// 这些表由 m0001/m0002/m0003 等 Rust 迁移创建，id 类型为 SERIAL (INTEGER)。
-/// 引用 BIGSERIAL (BIGINT) id 列的 BIGINT 外键无需修改。
+/// 修复 SQL 中 BIGINT 外键类型不匹配：引用 SERIAL(INTEGER) id 的 BIGINT 外键需改 INTEGER，BIGSERIAL 的无需修改
 fn fix_fk_types(sql: &str) -> String {
     // id 类型为 SERIAL (INTEGER) 的表
     const INTEGER_ID_TABLES: &[&str] = &[

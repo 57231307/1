@@ -17,9 +17,7 @@ use crate::models::notification_setting::{self, Entity as NotificationSettingEnt
 use crate::utils::error::AppError;
 use crate::websocket::notifications::{get_notification_broadcaster, NotificationPayload};
 
-/// 将数据库 notification::Model 转为 WebSocket 推送载荷
-///
-/// 批次 24 v6 P0-2 修复：通知创建后实时推送至在线 ws 客户端
+/// 将数据库 notification::Model 转为 WebSocket 推送载荷（批次 24 v6 P0-2 修复：通知创建后实时推送至在线 ws 客户端）
 fn build_payload_from_notification(n: &notification::Model) -> NotificationPayload {
     let priority_value = match n.priority {
         NotificationPriority::Low => 1,

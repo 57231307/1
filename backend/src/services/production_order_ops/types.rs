@@ -62,9 +62,7 @@ pub struct ProductionOrderQuery {
 }
 
 /// increase_finished_goods_txn 内部共享的成品入库流水上下文
-///
-/// 批次 488 D10-2 拆分：从原 `production_order_service.rs` L74-84 迁移。
-/// `pub(super)` 可见性：completion 子模块需直接构造此结构体。
+/// 批次 488 D10-2 拆分：从原 `production_order_service.rs` L74-84 迁移。；`pub(super)` 可见性：completion 子模块需直接构造此结构体。
 pub(super) struct ProductionOutputRecord {
     /// 批号
     pub batch_no: String,

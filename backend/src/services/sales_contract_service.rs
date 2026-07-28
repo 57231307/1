@@ -201,11 +201,7 @@ impl SalesContractService {
     }
 
     /// 审核合同
-    ///
-    /// 批次 22（2026-06-28 v5 P0-6）：重构 approve 补全事务边界 + lock_exclusive + update_with_audit
-    /// 原 `approve` 在 `&*self.db` 上裸查询 + 裸 `save`，无事务边界也无行锁，
-    /// 并发审核同一合同可能基于过期快照导致状态覆盖；同时未走 update_with_audit 会丢失审计追溯。
-    /// 改为：begin txn + lock_exclusive 查询 + 状态校验 + update_with_audit(&txn, Some(user_id)) + commit。
+    /// 批次 22（2026-06-28 v5 P0-6）：重构 approve 补全事务边界 + lock_exclusive + update_with_audit；原 `approve` 在 `&*self.db` 上裸查询 + 裸 `save`，无事务边界也无行锁，；并发审核同一合同可能基于过期快照导致状态覆盖；同时未走 update_with_audit 会丢失审计追溯。；改为：begin txn + lock_exclusive 查询 + 状态校验 + update_with_audit(&txn, Some(user_id)) + commit。
     pub async fn approve(&self, contract_id: i32, user_id: i32) -> Result<(), AppError> {
         info!("用户 {} 正在审核销售合同 {}", user_id, contract_id);
 
@@ -247,11 +243,7 @@ impl SalesContractService {
     }
 
     /// 取消合同
-    ///
-    /// 批次 22（2026-06-28 v5 P0-6）：重构 cancel 补全事务边界 + lock_exclusive + update_with_audit
-    /// 原 `cancel` 在 `&*self.db` 上裸查询 + 裸 `save`，无事务边界也无行锁，
-    /// 并发取消同一合同可能基于过期快照导致状态覆盖；同时未走 update_with_audit 会丢失审计追溯。
-    /// 改为：begin txn + lock_exclusive 查询 + 状态校验 + update_with_audit(&txn, Some(user_id)) + commit。
+    /// 批次 22（2026-06-28 v5 P0-6）：重构 cancel 补全事务边界 + lock_exclusive + update_with_audit；原 `cancel` 在 `&*self.db` 上裸查询 + 裸 `save`，无事务边界也无行锁，；并发取消同一合同可能基于过期快照导致状态覆盖；同时未走 update_with_audit 会丢失审计追溯。；改为：begin txn + lock_exclusive 查询 + 状态校验 + update_with_audit(&txn, Some(user_id)) + commit。
     pub async fn cancel(
         &self,
         contract_id: i32,

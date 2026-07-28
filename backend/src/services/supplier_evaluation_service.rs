@@ -293,9 +293,7 @@ impl SupplierEvaluationService {
         }
     }
 
-    /// 查询供应商评级列表
-    ///
-    /// BE-P 优化（2026-06-26）：补齐分页参数，避免全量返回。
+    /// 查询供应商评级列表（BE-P 优化（2026-06-26）：补齐分页参数，避免全量返回。）
     pub async fn list_ratings(
         &self,
         page: u64,

@@ -23,10 +23,8 @@ use crate::services::metrics_service::MetricsService;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-/// 慢查询阈值（可由环境变量 `BINGXI_SLOW_QUERY_MS` 覆盖，默认 100ms）
-///
-/// L-38 修复（批次 370 v13 复审）：使用 LazyLock 确保首次调用时打印当前阈值，
-/// 消除 silent default（原实现环境变量未设置时静默使用 100ms，无任何日志）。
+/// 慢查询阈值（可由环境变量 `BINGXI_SLOW_QUERY_MS` 覆盖，默认 100ms）；L-38 修复（批次 370 v13 复审）：使用
+/// LazyLock 确保首次调用时打印当前阈值， 消除 silent default（原实现环境变量未设置时静默使用 100ms，无任何日志）。
 static SLOW_QUERY_THRESHOLD_MS: std::sync::LazyLock<u64> = std::sync::LazyLock::new(|| {
     let ms = std::env::var("BINGXI_SLOW_QUERY_MS")
         .ok()
@@ -82,11 +80,8 @@ impl SlowQueryRecorder {
     }
 }
 
-/// 慢查询指标 trait 扩展
-///
-/// 业务侧 metrics_service 不一定实现该方法，故用 trait + 默认空实现避免破坏现有签名。
-/// 批次 97 P1-15 修复（v5 复审）：trait 方法重命名为 `record_slow_query_metric`，
-/// 避免与 MetricsService 的 inherent 方法 `record_slow_query(duration_secs, query_name)` 同名冲突。
+/// 慢查询指标 trait 扩展；业务侧 metrics_service 不一定实现该方法，故用 trait + 默认空实现避免破坏现有签名。 批次 97 P1-15 修复（v5 复审）：trait 方法重命名为
+/// `record_slow_query_metric`， 避免与 MetricsService 的 inherent 方法 `record_slow_query(duration_secs, query_name)` 同名冲突。
 pub trait SlowQueryMetrics {
     /// 记录一次慢查询
     fn record_slow_query_metric(&self, label: &str, elapsed: Duration);

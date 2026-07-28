@@ -4,9 +4,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 色号阶梯定价实体（P0-5）
-///
-/// 数量区间 × 客户等级 → 阶梯价
+/// 色号阶梯定价实体（P0-5）：数量区间 × 客户等级 → 阶梯价
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "color_price_tiers")]
 pub struct Model {

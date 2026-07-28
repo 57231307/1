@@ -430,9 +430,6 @@ impl Default for EventBus {
 }
 
 /// L-28 修复（批次 373 v13 复审）：主事件监听器 spawn 句柄
-/// 保存句柄以便 shutdown 时 abort，避免 detached task 泄漏
-///
-/// `pub(crate)`：`event_bus_ops::listener` 的 `start_event_listener` 写入、
-/// `shutdown_event_bus` 读取并 abort。
+/// 保存句柄以便 shutdown 时 abort，避免 detached task 泄漏；`pub(crate)`：`event_bus_ops::listener` 的 `start_event_listener` 写入、；`shutdown_event_bus` 读取并 abort。
 pub(crate) static MAIN_LISTENER_HANDLE: std::sync::Mutex<Option<tokio::task::JoinHandle<()>>> =
     std::sync::Mutex::new(None);

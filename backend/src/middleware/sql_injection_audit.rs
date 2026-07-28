@@ -27,18 +27,8 @@ use crate::utils::error::AppError;
 /// 文本类请求体审计的最大字节数（1MB）
 const MAX_BODY_AUDIT_SIZE: usize = 1024 * 1024;
 
-/// 已知的 SQL 注入危险模式（白名单，命中即拒绝）
-///
-/// M-7 修复：扩展黑名单，覆盖更多常见 SQL 注入攻击向量：
-/// - 时间盲注：SLEEP、pg_sleep、WAITFOR、BENCHMARK
-/// - 布尔盲注：更完整的 OR/AND 恒真模式
-/// - 注释绕过：-- 、# 、/* */
-/// - 函数注入：LOAD_FILE、INTO OUTFILE/DUMPFILE、xp_cmdshell
-/// - 信息收集：INFORMATION_SCHEMA、pg_catalog、sysobjects
-/// - 编码绕过：CHAR、CONCAT、ASCII、ORD、UNHEX
-/// - 堆查询：多语句分隔符 ; 后跟危险关键字
-///
-/// 设计原则：模式尽量具体，避免误杀合法业务参数（如 "Order"、"OR" 之类的通用词）。
+/// 已知的 SQL 注入危险模式（白名单，命中即拒绝）；M-7 修复：扩展黑名单，覆盖更多常见 SQL 注入攻击向量： - 时间盲注：SLEEP、pg_sleep、WAITFOR、BENCHMARK - 布尔盲注：更完整的 OR/AND 恒真模式 - 注释绕过：-- 、# 、/* */ - 函数注入：LOAD_FILE、INTO
+/// OUTFILE/DUMPFILE、xp_cmdshell - 信息收集：INFORMATION_SCHEMA、pg_catalog、sysobjects - 编码绕过：CHAR、CONCAT、ASCII、ORD、UNHEX - 堆查询：多语句分隔符 ; 后跟危险关键字；设计原则：模式尽量具体，避免误杀合法业务参数（如 "Order"、"OR" 之类的通用词）。
 const DANGEROUS_PATTERNS: &[&str] = &[
     // 经典恒真注入
     "' OR '1'='1",
@@ -119,11 +109,8 @@ const DANGEROUS_PATTERNS: &[&str] = &[
     "\" OR SLEEP(",
 ];
 
-/// SQL 注入审计中间件函数
-///
-/// 命中危险模式时返回 `AppError::BadRequest`，否则透传到下游 Handler。
-///
-/// TS-S-4 安全加固（2026-06-26）：对文本类请求体做有限大小（1MB）缓冲后审计。
+/// SQL 注入审计中间件函数；命中危险模式时返回 `AppError::BadRequest`，否则透传到下游
+/// Handler。；TS-S-4 安全加固（2026-06-26）：对文本类请求体做有限大小（1MB）缓冲后审计。
 pub async fn sql_injection_audit_middleware(
     req: Request,
     next: Next,

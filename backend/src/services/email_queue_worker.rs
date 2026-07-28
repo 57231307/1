@@ -40,12 +40,8 @@ pub struct EmailQueueWorker {
 }
 
 impl EmailQueueWorker {
-    /// 创建 Worker 实例。
-    ///
-    /// 邮件服务通过 `EmailService::from_env()` 创建：
-    /// - 已配置 `EMAIL_PROVIDER` / `EMAIL_API_KEY` / `EMAIL_FROM` → 创建成功；
-    /// - 未配置 → 返回 `None`，Worker 仍会扫描但所有 PENDING 邮件直接标记为 FAILED
-    ///   （避免无效邮件在队列中无限堆积）。
+    /// 创建 Worker 实例
+    /// 邮件服务通过 `EmailService::from_env()` 创建：已配置 `EMAIL_PROVIDER` / `EMAIL_API_KEY` / `EMAIL_FROM` → 创建成功；未配置 → 返回 `None`，Worker 仍会扫描但所有 PENDING 邮件直接标记为 FAILED；（避免无效邮件在队列中无限堆积）。
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         let email_service = EmailService::from_env();
         if email_service.is_none() {
@@ -57,9 +53,7 @@ impl EmailQueueWorker {
         Self { db, email_service }
     }
 
-    /// 执行一次扫描：查询到期邮件并逐个发送。
-    ///
-    /// 返回本次扫描处理的邮件数量。
+    /// 执行一次扫描：查询到期邮件并逐个发送（返回本次扫描处理的邮件数量。）
     pub async fn run_once(&self) -> Result<u64, AppError> {
         let log_service = EmailLogService::new(self.db.clone());
 
@@ -92,9 +86,7 @@ impl EmailQueueWorker {
         Ok(processed)
     }
 
-    /// 处理单封邮件：乐观锁标记 SENDING → 实际发送 → 更新状态。
-    ///
-    /// 返回值：true 表示本次处理（发送成功或失败都算处理），false 表示乐观锁失败被跳过。
+    /// 处理单封邮件：乐观锁标记 SENDING → 实际发送 → 更新状态（返回值：true 表示本次处理（发送成功或失败都算处理），false 表示乐观锁失败被跳过。）
     async fn process_one_email(
         &self,
         log_service: &EmailLogService,
@@ -244,11 +236,8 @@ impl EmailQueueWorker {
         })
     }
 
-    /// 启动后台调度任务（参考 ReportSubscriptionScheduler 模式）。
-    ///
-    /// 环境变量门控：
-    /// - `EMAIL_QUEUE_WORKER_ENABLED`（默认 "true"）— 设为 "false" / "0" 时跳过启动；
-    /// - `EMAIL_QUEUE_WORKER_INTERVAL_SECS`（默认 60）— 扫描间隔。
+    /// 启动后台调度任务（参考 ReportSubscriptionScheduler 模式）
+    /// 环境变量门控：`EMAIL_QUEUE_WORKER_ENABLED`（默认 "true"）— 设为 "false" / "0" 时跳过启动；`EMAIL_QUEUE_WORKER_INTERVAL_SECS`（默认 60）— 扫描间隔。
     pub fn start_background_task(self: Arc<Self>) -> tokio::task::JoinHandle<()> {
         tokio::spawn(async move {
             let enabled = std::env::var("EMAIL_QUEUE_WORKER_ENABLED")

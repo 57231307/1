@@ -89,9 +89,7 @@ pub async fn list(
     )))
 }
 
-/// POST /api/v1/erp/production-recipes - 创建大货处方
-///
-/// 真实业务：扫描流转卡条码 → 依据备布数量 → 加载小样处方/历史大货处方 → 开具大货处方单
+/// POST /api/v1/erp/production-recipes - 创建大货处方；真实业务：扫描流转卡条码 → 依据备布数量 → 加载小样处方/历史大货处方 → 开具大货处方单
 pub async fn create(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -153,9 +151,7 @@ pub async fn delete(
     )))
 }
 
-/// POST /api/v1/erp/production-recipes/:id/approve - 审核大货处方（draft → approved）
-///
-/// 真实业务：审核后自动建立生产领用单据
+/// POST /api/v1/erp/production-recipes/:id/approve - 审核大货处方（draft → approved）；真实业务：审核后自动建立生产领用单据
 pub async fn approve(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -169,9 +165,7 @@ pub async fn approve(
     )))
 }
 
-/// POST /api/v1/erp/production-recipes/:id/close - 关闭大货处方（approved → closed）
-///
-/// 真实业务：生产完成，处方归档
+/// POST /api/v1/erp/production-recipes/:id/close - 关闭大货处方（approved → closed）；真实业务：生产完成，处方归档
 pub async fn close(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -184,9 +178,7 @@ pub async fn close(
     )))
 }
 
-/// POST /api/v1/erp/production-recipes/:id/cancel - 取消大货处方（draft → cancelled）
-///
-/// 真实业务：草稿状态作废
+/// POST /api/v1/erp/production-recipes/:id/cancel - 取消大货处方（draft → cancelled）；真实业务：草稿状态作废
 pub async fn cancel(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -199,9 +191,7 @@ pub async fn cancel(
     )))
 }
 
-/// POST /api/v1/erp/production-recipes/calculate - 用量计算
-///
-/// 真实业务公式：用量 = 浓度% × 布重 × 浴比 / 100 × 加成系数
+/// POST /api/v1/erp/production-recipes/calculate - 用量计算；真实业务公式：用量 = 浓度% × 布重 × 浴比 / 100 × 加成系数
 pub async fn calculate(
     State(_state): State<AppState>,
     _auth: AuthContext,
@@ -212,9 +202,7 @@ pub async fn calculate(
     Ok(Json(ApiResponse::success(items)))
 }
 
-/// GET /api/v1/erp/production-recipes/by-work-order/:work_order_id - 按工单查询大货处方
-///
-/// 真实业务约束：同一工单号只能开一张大货处方单
+/// GET /api/v1/erp/production-recipes/by-work-order/:work_order_id - 按工单查询大货处方；真实业务约束：同一工单号只能开一张大货处方单
 pub async fn get_by_work_order(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -246,10 +234,8 @@ pub async fn list_additions(
     Ok(Json(ApiResponse::success(items)))
 }
 
-/// POST /api/v1/erp/production-recipes/:id/additions - 创建加料处方
-///
-/// 真实业务：扫描流转卡 → 加载已审核大货处方 → 登记加料物料 → 生成加料处方单
-/// 关键约束：关联的大货处方必须为 approved 状态
+/// POST /api/v1/erp/production-recipes/:id/additions - 创建加料处方；真实业务
+/// 扫描流转卡 → 加载已审核大货处方 → 登记加料物料 → 生成加料处方单 关键约束：关联的大货处方必须为 approved 状态
 pub async fn create_addition(
     State(state): State<AppState>,
     _auth: AuthContext,

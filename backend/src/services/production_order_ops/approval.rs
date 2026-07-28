@@ -29,10 +29,7 @@ use crate::services::production_order_service::ProductionOrderService;
 
 impl ProductionOrderService {
     /// 提交生产订单审批
-    ///
-    /// 批次 15（2026-06-28）：事务包裹"查询 + 状态校验 + update"，
-    /// 加 lock_exclusive 防止并发提交同一订单导致状态不一致；
-    /// BPM 启动保留事务外（失败 warn 不阻断已提交状态），避免 BPM 调用持有数据库锁。
+    /// 批次 15（2026-06-28）：事务包裹"查询 + 状态校验 + update"，；加 lock_exclusive 防止并发提交同一订单导致状态不一致；BPM 启动保留事务外（失败 warn 不阻断已提交状态），避免 BPM 调用持有数据库锁。
     pub async fn submit_for_approval(
         &self,
         id: i32,
@@ -98,10 +95,7 @@ impl ProductionOrderService {
     }
 
     /// 审批生产订单
-    ///
-    /// 批次 15（2026-06-28）：事务包裹"查询 + 状态校验 + update"，
-    /// 加 lock_exclusive 防止并发审批同一订单导致重复审批或状态覆盖；
-    /// BPM 任务审批保留事务外（失败 warn 不阻断已提交状态），避免 BPM 调用持有数据库锁。
+    /// 批次 15（2026-06-28）：事务包裹"查询 + 状态校验 + update"，；加 lock_exclusive 防止并发审批同一订单导致重复审批或状态覆盖；BPM 任务审批保留事务外（失败 warn 不阻断已提交状态），避免 BPM 调用持有数据库锁。
     pub async fn approve_order(
         &self,
         id: i32,
@@ -221,10 +215,7 @@ impl ProductionOrderService {
     }
 
     /// B-P1-9 修复（批次 360 v13 复审）：BPM 回写专用审批通过方法
-    ///
-    /// 与 `approve_order` 的区别：不回调 BPM（避免 BPM → 事件 → approve_order → BPM 死循环）。
-    /// 仅更新生产订单状态 PENDING_APPROVAL → APPROVED，走 update_with_audit 保留审计追溯。
-    /// 由 event_bus.rs 的 BpmProcessFinished 事件监听器调用。
+    /// 与 `approve_order` 的区别：不回调 BPM（避免 BPM → 事件 → approve_order → BPM 死循环）。；仅更新生产订单状态 PENDING_APPROVAL → APPROVED，走 update_with_audit 保留审计追溯。；由 event_bus.rs 的 BpmProcessFinished 事件监听器调用。
     pub async fn approve_order_via_bpm(
         &self,
         order_id: i32,
@@ -258,9 +249,7 @@ impl ProductionOrderService {
     }
 
     /// B-P1-9 修复（批次 360 v13 复审）：BPM 回写专用审批拒绝方法
-    ///
-    /// 与 `approve_order(approved=false)` 的区别：不回调 BPM（避免循环）。
-    /// 仅更新生产订单状态 PENDING_APPROVAL → REJECTED，走 update_with_audit 保留审计追溯。
+    /// 与 `approve_order(approved=false)` 的区别：不回调 BPM（避免循环）。；仅更新生产订单状态 PENDING_APPROVAL → REJECTED，走 update_with_audit 保留审计追溯。
     pub async fn reject_order_via_bpm(
         &self,
         order_id: i32,

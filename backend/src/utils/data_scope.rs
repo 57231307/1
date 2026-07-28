@@ -13,12 +13,7 @@
 
 use sea_orm::{ColumnTrait, Condition, QueryFilter, Value};
 
-/// 数据范围枚举（行级数据权限）
-///
-/// 取值与 role 表 data_scope 字段对应：
-/// - All：全部数据（管理员/总经理）
-/// - Dept：本部门数据（部门经理）
-/// - Self：仅本人数据（普通员工）
+/// 数据范围枚举（行级数据权限，取值与 role 表 data_scope 对应：All 全部/Dept 本部门/Self 仅本人）
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DataScope {
     /// 全部数据（管理员/总经理）
@@ -30,13 +25,7 @@ pub enum DataScope {
 }
 
 impl DataScope {
-    /// 从 role 表 data_scope 字段字符串解析
-    ///
-    /// 支持的值：all / dept / self（不区分大小写）
-    /// 未知值默认回退到 Self_（最小权限原则）
-    ///
-    /// V15 clippy 修复：方法名从 from_str 改为 parse_scope，
-    /// 避免与标准库 trait std::str::FromStr::from_str 冲突。
+    /// 从 role 表 data_scope 字段字符串解析（支持 all/dept/self 不区分大小写，未知值回退 Self_；方法名 parse_scope 避免 FromStr 冲突）
     pub fn parse_scope(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "all" => DataScope::All,
@@ -60,9 +49,7 @@ impl DataScope {
     }
 }
 
-/// 行级数据权限过滤参数
-///
-/// 封装当前用户的数据范围和身份信息，用于 apply_data_scope 函数。
+/// 行级数据权限过滤参数（封装数据范围和身份信息用于 apply_data_scope）
 #[derive(Debug, Clone)]
 pub struct DataScopeContext {
     /// 数据范围（all/dept/self）
@@ -73,30 +60,7 @@ pub struct DataScopeContext {
     pub department_id: Option<i32>,
 }
 
-/// 应用行级数据权限过滤条件
-///
-/// 根据数据范围生成对应的过滤条件：
-/// - All：不添加任何过滤（返回空 Condition，查询全部数据）
-/// - Dept：按部门 ID 过滤（department_id 为 None 时退化为 self）
-/// - Self_：按用户 ID 过滤（created_by = user_id）
-///
-/// 参数说明：
-/// - `ctx`：数据范围上下文（scope + user_id + department_id）
-/// - `owner_column`：资源归属人列（如 customer::Column::CreatedBy）
-/// - `dept_column`：资源归属部门列（如 customer::Column::DepartmentId）
-///
-/// 返回 Condition，可直接用于 .filter() 或 .filter(condition.add(...))
-///
-/// 使用示例：
-/// ```ignore
-/// let ctx = DataScopeContext { scope: DataScope::Self_, user_id: 1, department_id: Some(10) };
-/// let condition = build_data_scope_condition(
-///     &ctx,
-///     customer::Column::CreatedBy,
-///     customer::Column::DepartmentId,
-/// );
-/// let query = customer::Entity::find().filter(condition);
-/// ```
+/// 应用行级数据权限过滤条件（All 返回空 Condition，Dept 按 department_id 过滤 None 退化为 self，Self_ 按 created_by=user_id 过滤；ctx 上下文，owner_column 归属人列，dept_column 归属部门列，返回 Condition 可直接用于 .filter()）
 pub fn build_data_scope_condition<T, U>(
     ctx: &DataScopeContext,
     owner_column: T,
@@ -127,21 +91,8 @@ where
     }
 }
 
-/// 校验资源归属（IDOR 防护）
-///
-/// 用于 /:id handler，校验当前用户是否有权访问指定资源。
-///
-/// 参数说明：
-/// - `ctx`：数据范围上下文
-/// - `resource_owner_id`：资源的归属人 ID（如 customer.created_by）
-/// - `resource_dept_id`：资源的归属部门 ID（如 customer.department_id）
-///
-/// 返回 true 表示有权访问，false 表示无权访问（应返回 403）。
-///
-/// 规则：
-/// - All：始终返回 true
-/// - Dept：资源部门 ID 与用户部门 ID 匹配时返回 true
-/// - Self_：资源归属人 ID 与用户 ID 匹配时返回 true
+/// 校验资源归属（IDOR 防护）：用于 /:id handler 校验访问权限，参数 ctx/resource_owner_id/resource_dept_id
+/// 规则：All=始终通过；Dept=资源部门 ID 与用户部门匹配通过；Self_=资源归属人 ID 与用户 ID 匹配通过；false 应返回 403
 pub fn check_resource_owner(
     ctx: &DataScopeContext,
     resource_owner_id: Option<i32>,
@@ -166,20 +117,8 @@ pub fn check_resource_owner(
     }
 }
 
-/// 为查询构建器应用数据范围过滤（便捷方法）
-///
-/// 这是 build_data_scope_condition + query.filter 的组合便捷方法。
-///
-/// 使用示例：
-/// ```ignore
-/// let ctx = DataScopeContext { scope: DataScope::Self_, user_id: 1, department_id: Some(10) };
-/// let query = apply_data_scope(
-///     customer::Entity::find(),
-///     &ctx,
-///     customer::Column::CreatedBy,
-///     customer::Column::DepartmentId,
-/// );
-/// ```
+/// 为查询构建器应用数据范围过滤（便捷方法，= build_data_scope_condition + query.filter）
+/// 示例：apply_data_scope(customer::Entity::find(), &ctx, customer::Column::CreatedBy, customer::Column::DepartmentId)
 pub fn apply_data_scope<E, T, U>(
     query: sea_orm::Select<E>,
     ctx: &DataScopeContext,
@@ -195,45 +134,8 @@ where
     query.filter(condition)
 }
 
-/// V15 P0-B10：为 raw SQL 查询构建数据范围过滤片段
-///
-/// 与 `apply_data_scope` 不同，此函数用于 `Statement::from_sql_and_values` 的 raw SQL 场景，
-/// 返回可直接拼接到 WHERE 子句的 SQL 片段和对应的绑定参数。
-///
-/// 业务背景：
-///   BI 模块的 16 个查询方法使用 raw SQL（Statement::from_sql_and_values），
-///   原实现无任何数据权限过滤，所有用户都能看到全部销售数据。
-///   此函数为这些 raw SQL 查询提供统一的数据范围过滤能力。
-///
-/// 参数说明：
-/// - `ctx`：数据范围上下文（scope + user_id + department_id）
-/// - `table_alias`：sales_orders 表在 SQL 中的别名（如 "s"、"sales_orders"、""）
-///   - "s" → 生成 "AND s.created_by = $N"
-///   - "sales_orders" → 生成 "AND sales_orders.created_by = $N"
-///   - "" → 生成 "AND created_by = $N"
-/// - `next_index`：下一个可用的参数占位符索引（如现有查询用 $1/$2，则传 3）
-///
-/// 返回 (sql_fragment, bind_values)：
-/// - sql_fragment：可直接拼接到 WHERE 子句的 SQL 片段（All 范围为空字符串）
-/// - bind_values：对应的参数值（All 范围为空 Vec），需追加到原查询的参数列表
-///
-/// 数据范围行为：
-/// - All：返回空片段（不过滤）
-/// - Dept：通过 EXISTS 子查询关联 users 表过滤部门（用户无部门时退化为 self）
-/// - Self_：按 created_by = user_id 过滤
-///
-/// 使用示例：
-/// ```ignore
-/// let ctx = auth.to_data_scope_context();
-/// let (scope_sql, scope_values) = build_data_scope_sql(&ctx, "s", 3);
-/// let sql = format!(
-///     "SELECT ... FROM sales_orders s WHERE s.status != 'CANCELLED' {scope_sql}",
-///     scope_sql = scope_sql,
-/// );
-/// let mut values = vec![start_date.into(), end_date.into()];
-/// values.extend(scope_values);
-/// let stmt = Statement::from_sql_and_values(DatabaseBackend::Postgres, sql, values);
-/// ```
+/// V15 P0-B10：为 raw SQL 查询构建数据范围过滤片段（用于 Statement::from_sql_and_values 场景，返回可拼接到 WHERE 的 SQL 片段 + 绑定参数）
+/// BI 模块 16 个 raw SQL 查询统一过滤；参数 ctx/table_alias(s|sales_orders|""→AND <alias>.created_by=$N)/next_index；行为 All=空片段/Dept=EXISTS 关联 users 过滤部门/Self_=created_by=user_id
 pub fn build_data_scope_sql(
     ctx: &DataScopeContext,
     table_alias: &str,

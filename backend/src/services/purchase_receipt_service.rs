@@ -29,10 +29,7 @@ use sea_orm::{DatabaseConnection, Set};
 use std::sync::Arc;
 
 /// 采购入库服务
-///
-/// 批次 D10 拆分：struct 定义与 `new` 构造器保留在 facade（本文件），
-/// impl 业务方法块分散到 `purchase_receipt_ops` 子模块（auth/crud/state/items/query）。
-/// `db` 字段为 `pub(crate)` 供 ops 子模块访问。
+/// 批次 D10 拆分：struct 定义与 `new` 构造器保留在 facade（本文件），；impl 业务方法块分散到 `purchase_receipt_ops` 子模块（auth/crud/state/items/query）。；`db` 字段为 `pub(crate)` 供 ops 子模块访问。
 pub struct PurchaseReceiptService {
     pub(crate) db: Arc<DatabaseConnection>,
 }
@@ -59,9 +56,7 @@ impl PurchaseReceiptService {
     // 纯函数（无 &self / &db 访问）：保留在 facade，`pub(crate)` 供 ops 子模块调用
     // =====================================================
 
-    /// 构建入库单主表 ActiveModel（String 字段 clone 避免移动 req）
-    ///
-    /// `pub(crate)`：crud 子模块的 `create_receipt` 调用。
+    /// 构建入库单主表 ActiveModel（String 字段 clone 避免移动 req）（`pub(crate)`：crud 子模块的 `create_receipt` 调用。）
     pub(crate) fn build_receipt_active_model(
         req: &CreatePurchaseReceiptRequest,
         receipt_no: String,
@@ -85,9 +80,7 @@ impl PurchaseReceiptService {
         }
     }
 
-    /// 构建入库明细 ActiveModel 列表并累计数量/金额（消费 items）
-    ///
-    /// `pub(crate)`：crud 子模块的 `create_receipt` 调用。
+    /// 构建入库明细 ActiveModel 列表并累计数量/金额（消费 items）（`pub(crate)`：crud 子模块的 `create_receipt` 调用。）
     pub(crate) fn build_receipt_items_and_totals(
         items: Vec<CreateReceiptItemRequest>,
         receipt_id: i32,
@@ -131,9 +124,7 @@ impl PurchaseReceiptService {
         )
     }
 
-    /// 构造 CONFIRMED 状态 ActiveModel，写入确认时间与审计字段
-    ///
-    /// `pub(crate)`：state 子模块的 `confirm_receipt` 调用。
+    /// 构造 CONFIRMED 状态 ActiveModel，写入确认时间与审计字段（`pub(crate)`：state 子模块的 `confirm_receipt` 调用。）
     pub(crate) fn build_confirmed_receipt_active_model(
         receipt: purchase_receipt::Model,
         user_id: i32,
@@ -208,10 +199,7 @@ mod tests {
     // ============ 状态常量值正确性测试 ============
 
     /// 测试_入库单状态常量_值正确性
-    ///
-    /// 验证 status::purchase_receipt 模块中 3 个状态常量值与状态机约定一致
-    /// （大写：DRAFT/CONFIRMED/COMPLETED，与 purchase_receipt_service.rs 中
-    /// 字符串字面量 `"DRAFT"` / `status::purchase_receipt::DRAFT.to_string()` 一致）。
+    /// 验证 status::purchase_receipt 模块中 3 个状态常量值与状态机约定一致；（大写：DRAFT/CONFIRMED/COMPLETED，与 purchase_receipt_service.rs 中；字符串字面量 `"DRAFT"` / `status::purchase_receipt::DRAFT.to_string()` 一致）。
     #[test]
     fn 测试_入库单状态常量_值正确性() {
         assert_eq!(status::purchase_receipt::DRAFT, "DRAFT");
@@ -219,9 +207,7 @@ mod tests {
         assert_eq!(status::purchase_receipt::COMPLETED, "COMPLETED");
     }
 
-    /// 测试_入库单状态常量_互不相同
-    ///
-    /// 业务规则：3 个状态必须互不相同，避免状态机歧义。
+    /// 测试_入库单状态常量_互不相同（业务规则：3 个状态必须互不相同，避免状态机歧义。）
     #[test]
     fn 测试_入库单状态常量_互不相同() {
         let states = [
@@ -234,10 +220,7 @@ mod tests {
     }
 
     /// 测试_入库单状态常量_大写风格
-    ///
-    /// 业务规则：purchase_receipt 状态值采用大写风格（DRAFT/CONFIRMED/COMPLETED），
-    /// 与 quotation 模块（小写 draft/approved/rejected/cancelled）不同。
-    /// 验证所有状态均为大写字母（规则 20：注释与功能一致）。
+    /// 业务规则：purchase_receipt 状态值采用大写风格（DRAFT/CONFIRMED/COMPLETED），；与 quotation 模块（小写 draft/approved/rejected/cancelled）不同。；验证所有状态均为大写字母（规则 20：注释与功能一致）。
     #[test]
     fn 测试_入库单状态常量_大写风格() {
         // purchase_receipt 状态用大写（与 sales_order/quotation 小写不同）
@@ -256,9 +239,7 @@ mod tests {
 
     // ============ PurchaseReceiptService 构造与 DB 连接测试 ============
 
-    /// 测试_PurchaseReceiptService_new_正确持有数据库连接
-    ///
-    /// 验证 new(Arc<DatabaseConnection>) 构造的 service 实例可以执行简单查询。
+    /// 测试_PurchaseReceiptService_new_正确持有数据库连接（验证 new(Arc<DatabaseConnection>) 构造的 service 实例可以执行简单查询。）
     #[tokio::test]
     async fn 测试_PurchaseReceiptService_new_正确持有数据库连接() {
         let db = Arc::new(setup_test_db().await);
@@ -276,9 +257,7 @@ mod tests {
     }
 
     /// 测试_PurchaseReceiptService_get_receipt_空数据库返回Err
-    ///
-    /// 业务规则：get_receipt 查询 purchase_receipts 表，SQLite 内存数据库无 schema 应返回 Err。
-    /// 验证错误处理路径健壮性（不会因 DB 错误 panic）。
+    /// 业务规则：get_receipt 查询 purchase_receipts 表，SQLite 内存数据库无 schema 应返回 Err。；验证错误处理路径健壮性（不会因 DB 错误 panic）。
     #[tokio::test]
     async fn 测试_PurchaseReceiptService_get_receipt_空数据库返回Err() {
         let db = setup_test_db().await;
@@ -289,9 +268,7 @@ mod tests {
     }
 
     /// 测试_PurchaseReceiptService_list_receipts_空数据库返回Err
-    ///
-    /// 业务规则：list_receipts 查询 purchase_receipts 表，SQLite 内存数据库无 schema 应返回 Err。
-    /// 验证错误处理路径健壮性（不会因 DB 错误 panic）。
+    /// 业务规则：list_receipts 查询 purchase_receipts 表，SQLite 内存数据库无 schema 应返回 Err。；验证错误处理路径健壮性（不会因 DB 错误 panic）。
     #[tokio::test]
     async fn 测试_PurchaseReceiptService_list_receipts_空数据库返回Err() {
         let db = setup_test_db().await;
@@ -302,9 +279,7 @@ mod tests {
     }
 
     /// 测试_PurchaseReceiptService_list_receipt_items_空数据库返回Err
-    ///
-    /// 业务规则：list_receipt_items 查询 purchase_receipt_items 表，SQLite 内存数据库无 schema 应返回 Err。
-    /// 验证错误处理路径健壮性（不会因 DB 错误 panic）。
+    /// 业务规则：list_receipt_items 查询 purchase_receipt_items 表，SQLite 内存数据库无 schema 应返回 Err。；验证错误处理路径健壮性（不会因 DB 错误 panic）。
     #[tokio::test]
     async fn 测试_PurchaseReceiptService_list_receipt_items_空数据库返回Err() {
         let db = setup_test_db().await;
@@ -317,10 +292,7 @@ mod tests {
     // ============ create_receipt 业务校验测试 ============
 
     /// 测试_PurchaseReceiptService_create_receipt_空明细返回Err
-    ///
-    /// 业务规则：CreatePurchaseReceiptRequest.items 至少 1 条（DTO 上 #[validate(length(min = 1))]）。
-    /// service 层未显式调用 Validate::validate，空明细会进入 generate_receipt_no 查询表，
-    /// SQLite 内存数据库无表应返回 Err（非 panic）。
+    /// 业务规则：CreatePurchaseReceiptRequest.items 至少 1 条（DTO 上 #[validate(length(min = 1))]）。；service 层未显式调用 Validate::validate，空明细会进入 generate_receipt_no 查询表，；SQLite 内存数据库无表应返回 Err（非 panic）。
     #[tokio::test]
     async fn 测试_PurchaseReceiptService_create_receipt_空明细返回Err() {
         let db = setup_test_db().await;
@@ -332,10 +304,7 @@ mod tests {
     }
 
     /// 测试_PurchaseReceiptService_create_receipt_不存在表返回Err
-    ///
-    /// 业务规则：create_receipt 依赖 purchase_receipt 表存在。
-    /// SQLite 内存数据库无 schema，应返回 DbErr（非 panic）。
-    /// 这验证了错误处理路径的健壮性（不会因 DB 错误 panic）。
+    /// 业务规则：create_receipt 依赖 purchase_receipt 表存在。；SQLite 内存数据库无 schema，应返回 DbErr（非 panic）。；这验证了错误处理路径的健壮性（不会因 DB 错误 panic）。
     #[tokio::test]
     async fn 测试_PurchaseReceiptService_create_receipt_不存在表返回Err() {
         let db = setup_test_db().await;
@@ -348,9 +317,7 @@ mod tests {
 
     // ============ update_receipt 状态机校验测试 ============
 
-    /// 测试_PurchaseReceiptService_update_receipt_不存在返回AppError
-    ///
-    /// 业务规则：update_receipt 不存在的入库单返回 AppError::not_found。
+    /// 测试_PurchaseReceiptService_update_receipt_不存在返回AppError（业务规则：update_receipt 不存在的入库单返回 AppError::not_found。）
     #[tokio::test]
     async fn 测试_PurchaseReceiptService_update_receipt_不存在返回AppError() {
         let db = setup_test_db().await;
@@ -360,9 +327,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    /// 测试_PurchaseReceiptService_delete_receipt_不存在返回AppError
-    ///
-    /// 业务规则：delete_receipt 不存在的入库单返回 AppError::not_found。
+    /// 测试_PurchaseReceiptService_delete_receipt_不存在返回AppError（业务规则：delete_receipt 不存在的入库单返回 AppError::not_found。）
     #[tokio::test]
     async fn 测试_PurchaseReceiptService_delete_receipt_不存在返回AppError() {
         let db = setup_test_db().await;
@@ -371,9 +336,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    /// 测试_PurchaseReceiptService_confirm_receipt_不存在返回AppError
-    ///
-    /// 业务规则：confirm_receipt 不存在的入库单返回 AppError::not_found。
+    /// 测试_PurchaseReceiptService_confirm_receipt_不存在返回AppError（业务规则：confirm_receipt 不存在的入库单返回 AppError::not_found。）
     #[tokio::test]
     async fn 测试_PurchaseReceiptService_confirm_receipt_不存在返回AppError() {
         let db = setup_test_db().await;
@@ -385,7 +348,6 @@ mod tests {
     // ============ 明细操作状态机校验测试 ============
 
     /// 测试_PurchaseReceiptService_add_receipt_item_不存在入库单返回AppError
-    ///
     /// 业务规则：add_receipt_item 不存在的入库单返回 AppError::not_found。
     #[tokio::test]
     async fn 测试_PurchaseReceiptService_add_receipt_item_不存在入库单返回AppError() {
@@ -397,7 +359,6 @@ mod tests {
     }
 
     /// 测试_PurchaseReceiptService_update_receipt_item_不存在返回AppError
-    ///
     /// 业务规则：update_receipt_item 不存在的明细返回 AppError::not_found。
     #[tokio::test]
     async fn 测试_PurchaseReceiptService_update_receipt_item_不存在返回AppError() {
@@ -409,7 +370,6 @@ mod tests {
     }
 
     /// 测试_PurchaseReceiptService_delete_receipt_item_不存在返回AppError
-    ///
     /// 业务规则：delete_receipt_item 不存在的明细返回 AppError::not_found。
     #[tokio::test]
     async fn 测试_PurchaseReceiptService_delete_receipt_item_不存在返回AppError() {
@@ -422,7 +382,6 @@ mod tests {
     // ============ calculate_receipt_total 测试 ============
 
     /// 测试_PurchaseReceiptService_calculate_receipt_total_不存在返回AppError
-    ///
     /// 业务规则：calculate_receipt_total 不存在的入库单返回 AppError::not_found。
     #[tokio::test]
     async fn 测试_PurchaseReceiptService_calculate_receipt_total_不存在返回AppError() {
@@ -434,10 +393,7 @@ mod tests {
 
     // ============ DTO 字段完整性测试 ============
 
-    /// 测试_CreateReceiptItemRequest_字段完整构造
-    ///
-    /// 验证 CreateReceiptItemRequest 所有字段可以正确构造，
-    /// 确保后续业务方法接收到完整 DTO 时不会因字段缺失 panic。
+    /// 测试_CreateReceiptItemRequest_字段完整构造（验证 CreateReceiptItemRequest 所有字段可以正确构造，；确保后续业务方法接收到完整 DTO 时不会因字段缺失 panic。）
     #[test]
     fn 测试_CreateReceiptItemRequest_字段完整构造() {
         let item = sample_item();
@@ -452,9 +408,7 @@ mod tests {
     }
 
     /// 测试_UpdatePurchaseReceiptRequest_默认值全为None
-    ///
-    /// 业务规则：UpdatePurchaseReceiptRequest 使用 #[derive(Default)]，
-    /// 所有字段默认为 None，表示不更新该字段。
+    /// 业务规则：UpdatePurchaseReceiptRequest 使用 #[derive(Default)]，；所有字段默认为 None，表示不更新该字段。
     #[test]
     fn 测试_UpdatePurchaseReceiptRequest_默认值全为None() {
         let req = UpdatePurchaseReceiptRequest::default();
@@ -467,9 +421,7 @@ mod tests {
     }
 
     /// 测试_UpdateReceiptItemRequest_默认值全为None
-    ///
-    /// 业务规则：UpdateReceiptItemRequest 使用 #[derive(Default)]，
-    /// 所有字段默认为 None，表示不更新该字段。
+    /// 业务规则：UpdateReceiptItemRequest 使用 #[derive(Default)]，；所有字段默认为 None，表示不更新该字段。
     #[test]
     fn 测试_UpdateReceiptItemRequest_默认值全为None() {
         let req = UpdateReceiptItemRequest::default();

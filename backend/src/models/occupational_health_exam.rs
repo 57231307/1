@@ -7,9 +7,7 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 职业健康体检档案模型
-///
-/// 真实业务：管理工人职业健康体检档案，在岗期间每年一次体检到期提醒
+/// 职业健康体检档案模型（管理工人职业健康体检档案，在岗期间每年一次体检到期提醒）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "occupational_health_exams")]
 pub struct Model {

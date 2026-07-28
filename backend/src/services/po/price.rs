@@ -14,9 +14,7 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, Tran
 use super::order::PurchaseOrderService;
 
 /// 缺料预警参数对象
-///
-/// 批次 333 v10 复审 P3 修复：引入参数对象消除 create_purchase_suggestion_from_shortage
-/// 的 too_many_arguments 警告。聚合缺料预警所需的全部字段，避免函数签名携带 8 个参数。
+/// 批次 333 v10 复审 P3 修复：引入参数对象消除 create_purchase_suggestion_from_shortage；的 too_many_arguments 警告。聚合缺料预警所需的全部字段，避免函数签名携带 8 个参数。
 #[derive(Debug, Clone)]
 pub struct ShortageAlertParams {
     /// 物料 ID
@@ -39,17 +37,7 @@ pub struct ShortageAlertParams {
 
 impl PurchaseOrderService {
     /// 检查并占用预算（V15 P0-B06 强制拦截版本）
-    ///
-    /// 设计依据：审计报告 §17.7-D1 — 预算超支无拦截
-    /// 修复前：返回 () 非阻断，预算不足仅记录 warn 日志，订单仍创建
-    /// 修复后：返回 Result<(), AppError>，预算不足或无方案时返回错误阻断订单创建
-    ///
-    /// 业务流程：
-    /// 1. 调用 BudgetManagementService::enforce_budget_available 强制校验
-    ///    - 部门无预算方案 → 返回 Err 阻断
-    ///    - 预算余额不足 → 返回 Err 阻断（含明细：可用/申请/已下达/已执行）
-    /// 2. 校验通过后调用 occupy_budget 占用预算
-    /// 3. 占用失败 → 返回 Err 阻断（避免订单创建但未关联预算的不一致状态）
+    /// 设计依据：审计报告 §17.7-D1 — 预算超支无拦截；修复前：返回 () 非阻断，预算不足仅记录 warn 日志，订单仍创建；修复后：返回 Result<(), AppError>，预算不足或无方案时返回错误阻断订单创建；业务流程：1. 调用 BudgetManagementService::enforce_budget_available 强制校验；部门无预算方案 → 返回 Err 阻断；预算余额不足 → 返回 Err 阻断（含明细：可用/申请/已下达/已执行）；2. 校验通过后调用 occupy_budget 占用预算；3. 占用失败 → 返回 Err 阻断（避免订单创建但未关联预算的不一致状态）
     pub(crate) async fn check_and_occupy_budget(
         &self,
         order: &purchase_order::Model,

@@ -1,12 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 /// 审计查询过滤条件（供 Handler 使用）
-///
-/// P2 8-10 修复：search_logs 接入 AuditQueryFilter 动态构造 WHERE 条件，
-/// 替代原固定 `SELECT * ORDER BY id DESC` 查询。
-///
-/// P2 8-12 修复：新增 `include_sensitive` 字段，控制是否返回 request_body
-/// 等敏感字段。审计大屏默认 false；只有 admin 显式传 true 才返回敏感字段。
+/// P2 8-10 修复：search_logs 接入 AuditQueryFilter 动态构造 WHERE 条件，；替代原固定 `SELECT * ORDER BY id DESC` 查询。；P2 8-12 修复：新增 `include_sensitive` 字段，控制是否返回 request_body；等敏感字段。审计大屏默认 false；只有 admin 显式传 true 才返回敏感字段。
 #[derive(Debug, Deserialize)]
 pub struct AuditQueryFilter {
     pub user_id: Option<i32>,

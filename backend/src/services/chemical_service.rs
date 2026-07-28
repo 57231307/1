@@ -46,12 +46,7 @@ pub use crate::services::chemical_ops::{
 // 染化料计算纯函数
 // ============================================================================
 
-/// 计算批次剩余保质期天数
-///
-/// 业务规则：
-/// - 若失效日期为 None，返回 None（无保质期限制）
-/// - 否则返回 (失效日期 - 当前日期) 的天数
-/// - 若已过期，返回负数
+/// 计算批次剩余保质期天数（业务规则：若失效日期为 None，返回 None（无保质期限制）；否则返回 (失效日期 - 当前日期) 的天数；若已过期，返回负数）
 pub fn compute_remaining_shelf_life(
     expiry_date: Option<chrono::NaiveDate>,
     today: chrono::NaiveDate,
@@ -149,12 +144,7 @@ pub fn validate_requisition_status(status: &str) -> Result<(), AppError> {
     Ok(())
 }
 
-/// 检查染化料是否低库存
-///
-/// 业务规则：
-/// - 返回 (低于安全库存, 低于再订货点)
-/// - 低于安全库存触发紧急预警
-/// - 低于再订货点触发采购建议
+/// 检查染化料是否低库存（业务规则：返回 (低于安全库存, 低于再订货点)；低于安全库存触发紧急预警；低于再订货点触发采购建议）
 pub fn check_low_stock(
     available: Decimal,
     safety_stock: Decimal,

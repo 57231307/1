@@ -56,20 +56,7 @@ pub(crate) fn dec_to_f64(d: Option<Decimal>) -> f64 {
 }
 
 /// 维度到 SQL 表达式映射（v11 批次 144 P1-3：透视矩阵维度映射）
-///
-/// 返回 (key_expr, label_expr)：
-/// - key_expr: 用于 GROUP BY 的唯一标识（text 类型）
-/// - label_expr: 用于展示的可读标签
-///
-/// 支持的维度：
-/// - customer: 客户 ID + 客户名称
-/// - product: 产品 ID + 产品名称
-/// - region: 客户所在省份
-/// - category: 产品品类名称
-/// - time: 订单月份（YYYY-MM 格式）
-///
-/// 批次 252 修复：原 `_ => unreachable!()` 在非法维度时 panic 崩溃，
-/// 改为返回 AppError::validation 错误，防御性处理非法输入。
+/// 返回 (key_expr, label_expr)：key_expr: 用于 GROUP BY 的唯一标识（text 类型）；label_expr: 用于展示的可读标签；支持的维度：customer: 客户 ID + 客户名称；product: 产品 ID + 产品名称；region: 客户所在省份；category: 产品品类名称；time: 订单月份（YYYY-MM 格式）；批次 252 修复：原 `_ => unreachable!()` 在非法维度时 panic 崩溃，；改为返回 AppError::validation 错误，防御性处理非法输入。
 pub(crate) fn dim_to_expr(dim: &str) -> Result<(&'static str, &'static str), AppError> {
     match dim {
         "customer" => Ok(("c.id::text", "COALESCE(c.customer_name, '未知客户')")),
@@ -88,10 +75,7 @@ pub(crate) fn dim_to_expr(dim: &str) -> Result<(&'static str, &'static str), App
 }
 
 /// 度量聚合表达式生成（批次 252 修复：提取为独立函数，消除 unreachable! panic）
-///
-/// 根据 item_level 选择项级或订单级聚合的 SQL 表达式：
-/// - item_level=true：关联 sales_order_items 表进行项级聚合
-/// - item_level=false：订单级聚合，避免 total_amount 重复计算
+/// 根据 item_level 选择项级或订单级聚合的 SQL 表达式：item_level=true：关联 sales_order_items 表进行项级聚合；item_level=false：订单级聚合，避免 total_amount 重复计算
 pub(crate) fn measure_to_expr(measure: &str, item_level: bool) -> Result<&'static str, AppError> {
     match (measure, item_level) {
         ("total_amount", true) => Ok("COALESCE(SUM(si.total_amount), 0)"),
@@ -115,15 +99,7 @@ pub(crate) fn measure_to_expr(measure: &str, item_level: bool) -> Result<&'stati
 // ==================== Service struct 定义（impl 块在 bi_analysis_ops 子模块） ====================
 
 /// BI 多维分析 service
-///
-/// v9 批次 130 修复：原全部方法返回硬编码 mock 数据，现真实查询数据库。
-/// 查询 sales_orders / sales_order_items / customers / products / product_categories 表，
-/// 排除 CANCELLED 和 DRAFT 状态的订单。
-///
-/// V15 P0-B10（Batch 483）：新增 data_scope 字段，所有 raw SQL 查询注入行级数据权限过滤。
-/// - All：不过滤（管理员/总经理）
-/// - Dept：按 users.department_id 过滤（部门经理）
-/// - Self_：按 sales_orders.created_by 过滤（普通员工）
+/// v9 批次 130 修复：原全部方法返回硬编码 mock 数据，现真实查询数据库。；查询 sales_orders / sales_order_items / customers / products / product_categories 表，；排除 CANCELLED 和 DRAFT 状态的订单。；V15 P0-B10（Batch 483）：新增 data_scope 字段，所有 raw SQL 查询注入行级数据权限过滤。；All：不过滤（管理员/总经理）；Dept：按 users.department_id 过滤（部门经理）；Self_：按 sales_orders.created_by 过滤（普通员工）
 pub struct BiAnalysisService {
     /// 数据库连接（pub(crate) 供 bi_analysis_ops 子模块访问）
     pub(crate) db: Arc<DatabaseConnection>,
@@ -134,9 +110,7 @@ pub struct BiAnalysisService {
 }
 
 impl BiAnalysisService {
-    /// 创建 BI 服务（默认 All 数据范围，仅用于测试/内部调用）
-    ///
-    /// 生产环境应使用 `new_with_data_scope` 注入真实数据范围。
+    /// 创建 BI 服务（默认 All 数据范围，仅用于测试/内部调用）（生产环境应使用 `new_with_data_scope` 注入真实数据范围。）
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self {
             db,
@@ -149,9 +123,7 @@ impl BiAnalysisService {
         }
     }
 
-    /// V15 P0-B10：创建带数据范围上下文的 BI 服务
-    ///
-    /// 由 handler 调用，从 AuthContext.to_data_scope_context() 注入。
+    /// V15 P0-B10：创建带数据范围上下文的 BI 服务（由 handler 调用，从 AuthContext.to_data_scope_context() 注入。）
     pub fn new_with_data_scope(db: Arc<DatabaseConnection>, ctx: DataScopeContext) -> Self {
         Self {
             db,
@@ -173,10 +145,7 @@ impl BiAnalysisService {
         }
     }
 
-    /// V15 P0-B10：构建数据范围 SQL 片段（带别名和起始索引）
-    ///
-    /// 内部辅助方法，封装 build_data_scope_sql 调用。
-    /// pub(crate) 供 bi_analysis_ops 子模块使用。
+    /// V15 P0-B10：构建数据范围 SQL 片段（带别名和起始索引）（内部辅助方法，封装 build_data_scope_sql 调用。；pub(crate) 供 bi_analysis_ops 子模块使用。）
     pub(crate) fn scope_sql(
         &self,
         table_alias: &str,
@@ -209,9 +178,7 @@ mod tests {
     use super::*;
 
     /// 测试辅助：构造一个未连接数据库的 service 实例（仅用于参数校验测试）
-    ///
-    /// 由于 DatabaseConnection::default() 在 sea-orm 1.1 中可能不存在或不安全，
-    /// 测试仅验证参数校验逻辑（在调用 DB 查询前返回错误）。
+    /// 由于 DatabaseConnection::default() 在 sea-orm 1.1 中可能不存在或不安全，；测试仅验证参数校验逻辑（在调用 DB 查询前返回错误）。
     async fn make_service() -> Option<BiAnalysisService> {
         // 尝试从环境变量连接测试数据库，失败则跳过测试
         let db_url = std::env::var("DATABASE_URL").ok()?;

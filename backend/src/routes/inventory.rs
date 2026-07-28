@@ -20,9 +20,7 @@ use crate::handlers::{
     inventory_stock_handler_query, inventory_transfer_handler, logistics_handler, print_handler,
 };
 
-/// 库存主路由（nest 到 /api/v1/erp/inventory）
-///
-/// 主函数仅做协调：聚合各资源子路由（path 前缀互不重叠，merge 安全）。
+/// 库存主路由（nest 到 /api/v1/erp/inventory）；主函数仅做协调：聚合各资源子路由（path 前缀互不重叠，merge 安全）。
 pub fn inventory() -> Router<AppState> {
     Router::new()
         .merge(piece_split_routes())
@@ -255,9 +253,7 @@ pub fn logistics() -> Router<AppState> {
         .route("/logistics/:id", delete(logistics_handler::delete_waybill))
 }
 
-/// 库存域统一入口
-///
-/// 子 router path 已加独立前缀，merge 时 path+method 互不重叠。
+/// 库存域统一入口；子 router path 已加独立前缀，merge 时 path+method 互不重叠。
 pub fn routes() -> Router<AppState> {
     Router::new()
         .merge(inventory())

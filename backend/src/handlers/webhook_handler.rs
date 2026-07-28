@@ -14,17 +14,13 @@ use crate::utils::error::AppError;
 use crate::utils::messages::biz_msg;
 use crate::utils::response::ApiResponse;
 
-/// Webhook 测试端点专用限流器（10 次/分钟/用户）
-/// 规则 12 合规：防止攻击者频繁调用 test_webhook 探测内网服务
-///
-/// M6 修复（v8 复审）：限流器作为内存回退后端，实际检查通过 check_rate_limit
-/// （Redis 分布式优先 + 内存回退），多实例部署下共享计数
+/// Webhook 测试端点专用限流器（10 次/分钟/用户） 规则 12 合规：防止攻击者频繁调用 test_webhook 探测内网服务；M6
+/// 修复（v8 复审）：限流器作为内存回退后端，实际检查通过 check_rate_limit （Redis 分布式优先 + 内存回退），多实例部署下共享计数
 static WEBHOOK_TEST_LIMITER: LazyLock<MemoryRateLimiter> =
     LazyLock::new(|| MemoryRateLimiter::new(10, Duration::from_secs(60)));
 
-/// M-3 修复（v9 复审）：Webhook 重试端点专用限流器（10 次/分钟/用户）
-/// 规则 12 合规：防止攻击者高频调用 retry_webhook 触发大量出站 HTTP 请求，
-/// 导致 SSRF 放大攻击。与 test_webhook 共用相同限流策略但独立计数。
+/// M-3 修复（v9 复审）：Webhook 重试端点专用限流器（10 次/分钟/用户） 规则 12 合规：防止攻击者高频调用
+/// retry_webhook 触发大量出站 HTTP 请求， 导致 SSRF 放大攻击。与 test_webhook 共用相同限流策略但独立计数。
 static WEBHOOK_RETRY_LIMITER: LazyLock<MemoryRateLimiter> =
     LazyLock::new(|| MemoryRateLimiter::new(10, Duration::from_secs(60)));
 
@@ -134,10 +130,7 @@ pub async fn delete_webhook(
 // - GET  /:id/logs  → get_webhook_logs（返回 webhook 执行状态：last_status/retry_count/last_triggered_at）
 // ============================================================================
 
-/// 测试 Webhook（POST /webhooks/:id/test）
-///
-/// 触发一次 test 事件，验证 webhook 配置正确性。
-/// 出于 SSRF 安全考虑，响应中不回显目标 URL 返回的内容。
+/// 测试 Webhook（POST /webhooks/:id/test）；触发一次 test 事件，验证 webhook 配置正确性。 出于 SSRF 安全考虑，响应中不回显目标 URL 返回的内容。
 pub async fn test_webhook(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -179,13 +172,8 @@ pub async fn test_webhook(
     }
 }
 
-/// 重试 Webhook（POST /webhooks/:id/retry）
-///
-/// 对上一次失败的 webhook 调用进行重试。批次 251 修复：
-/// 使用持久化的 last_payload + last_event 重投原始业务数据，而非构造假 payload。
-///
-/// M-3 修复（v9 复审）：新增速率限制（10 次/分钟/用户），防止 SSRF 放大攻击
-/// M-4 修复（v9 复审）：新增所有权校验，仅所有者可重试自己的 webhook
+/// 重试 Webhook（POST /webhooks/:id/retry）；对上一次失败的 webhook 调用进行重试。批次 251 修复： 使用持久化的 last_payload + last_event
+/// 重投原始业务数据，而非构造假 payload。；M-3 修复（v9 复审）：新增速率限制（10 次/分钟/用户），防止 SSRF 放大攻击 M-4 修复（v9 复审）：新增所有权校验，仅所有者可重试自己的 webhook
 pub async fn retry_webhook(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -259,14 +247,8 @@ pub async fn retry_webhook(
     }
 }
 
-/// Webhook 执行日志（GET /webhooks/:id/logs）
-///
-/// 返回 webhook 的执行状态信息。当前未独立持久化调用日志（无 webhook_logs 表），
-/// 返回 webhooks 表中的 last_* 字段作为执行状态汇总：
-/// - last_triggered_at：上次触发时间
-/// - last_status：上次执行状态（SENDING/SUCCESS/FAILED/ERROR/FAILED_PERMANENT）
-/// - retry_count：连续失败重试次数（上限 MAX_RETRY_COUNT=5）
-/// - events：订阅事件列表
+/// Webhook 执行日志（GET /webhooks/:id/logs）；返回 webhook 的执行状态信息。当前未独立持久化调用日志（无 webhook_logs 表）， 返回 webhooks 表中的 last_* 字段作为执行状态汇总： - last_triggered_at
+/// 上次触发时间 - last_status：上次执行状态（SENDING/SUCCESS/FAILED/ERROR/FAILED_PERMANENT） - retry_count：连续失败重试次数（上限 MAX_RETRY_COUNT=5） - events：订阅事件列表
 #[derive(Debug, Serialize)]
 pub struct WebhookLogEntry {
     pub id: i32,

@@ -114,9 +114,7 @@ impl FieldPermissionService {
     }
 
     /// 创建字段权限
-    ///
-    /// 批次 85 v2 复审 P1-7 修复：检查存在 + insert 移入单一事务 + lock_exclusive 串行化
-    /// 原实现检查存在和 insert 在 self.db 上分别执行，无 txn 无 lock，并发创建相同规则会通过检查后重复插入
+    /// 批次 85 v2 复审 P1-7 修复：检查存在 + insert 移入单一事务 + lock_exclusive 串行化；原实现检查存在和 insert 在 self.db 上分别执行，无 txn 无 lock，并发创建相同规则会通过检查后重复插入
     pub async fn create_field_permission(
         &self,
         request: CreateFieldPermissionRequest,

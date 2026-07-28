@@ -20,10 +20,7 @@ static CONCURRENT_EXPORTS: AtomicUsize = AtomicUsize::new(0);
 /// 全局导出并发上限（计划 13.9.2 要求 10）
 pub const MAX_CONCURRENT_EXPORTS: usize = 10;
 
-/// 导出并发计数守卫，Drop 时自动递减（RAII / scopeguard 模式）
-///
-/// 通过 `ExportConcurrencyGuard::acquire()` 创建，满载时返回 429 错误。
-/// 守卫离开作用域时自动递减计数器，确保 panic/早返/错误路径均递减，避免计数器泄漏。
+/// 导出并发计数守卫，Drop 时自动递减（RAII/scopeguard 模式；acquire() 创建满载返回 429，离开作用域自动递减避免泄漏）
 pub struct ExportConcurrencyGuard;
 
 impl ExportConcurrencyGuard {

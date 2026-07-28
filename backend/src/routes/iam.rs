@@ -89,12 +89,8 @@ pub fn field_permissions() -> Router<AppState> {
         )
 }
 
-/// IAM 域统一入口（合并所有子路由）
-///
-/// 注意：axum 0.7 的 `Router::merge` 会检查 path+method 重叠并 panic，
-/// 因此每个子 router 内部 path 都已加上各自独立前缀（`/users`、`/roles` 等），
-/// 这样 merge 之后 path+method 不会重叠，不再触发
-/// `Overlapping method route` 错误。
+/// IAM 域统一入口（合并所有子路由）；注意：axum 0.7 的 `Router::merge` 会检查 path+method 重叠并 panic， 因此每个子 router 内部 path
+/// 都已加上各自独立前缀（`/users`、`/roles` 等）， 这样 merge 之后 path+method 不会重叠，不再触发 `Overlapping method route` 错误。
 pub fn routes() -> Router<AppState> {
     Router::new()
         .merge(users())

@@ -8,9 +8,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 出口退税申报表模型
-///
-/// 真实业务：按月汇总出口销售额 → 计算免抵退税额 → 生成退税申报表
+/// 出口退税申报表模型（按月汇总出口销售额 → 计算免抵退税额 → 生成退税申报表）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "export_refund_declarations")]
 pub struct Model {

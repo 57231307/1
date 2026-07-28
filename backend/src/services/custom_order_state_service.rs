@@ -62,12 +62,7 @@ impl CustomOrderStateService {
     }
 
     /// 推进到下一阶段（自动判断下一状态）
-    ///
-    /// V15 P0-B11：状态门校验
-    /// - `lab_dip → quotation`：校验 `lab_dip_request_id` 已关联且打样通知单 `approved_sample_id IS NOT NULL`
-    ///   （客户已确认 OK 样才允许进入报价阶段）
-    /// - `quotation → yarn_purchasing`：校验 `quotation_id` 已关联且报价单 `status = 'approved'`
-    ///   （报价审批通过才允许进入生产阶段），并自动同步 `total_amount` 从报价单到定制订单
+    /// V15 P0-B11：状态门校验；`lab_dip → quotation`：校验 `lab_dip_request_id` 已关联且打样通知单 `approved_sample_id IS NOT NULL`；（客户已确认 OK 样才允许进入报价阶段）；`quotation → yarn_purchasing`：校验 `quotation_id` 已关联且报价单 `status = 'approved'`；（报价审批通过才允许进入生产阶段），并自动同步 `total_amount` 从报价单到定制订单
     pub async fn advance(
         &self,
         order_id: i64,

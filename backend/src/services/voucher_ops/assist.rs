@@ -23,9 +23,7 @@ use rust_decimal::Decimal;
 use crate::services::voucher_service::VoucherService;
 
 /// 辅助核算记录写入上下文（D08 第三梯队修复：消除 too_many_arguments 警告）
-///
-/// 封装业务关联字段与凭证上下文，避免 insert_assist_records_for_items /
-/// build_assist_record 函数签名携带过多参数。
+/// 封装业务关联字段与凭证上下文，避免 insert_assist_records_for_items /；build_assist_record 函数签名携带过多参数。
 pub(super) struct AssistRecordContext<'a> {
     /// 业务类型
     business_type: &'a str,
@@ -45,10 +43,7 @@ pub(super) struct AssistRecordContext<'a> {
 
 impl VoucherService {
     /// F-P1-3 修复（批次 359 v13 复审）：凭证过账时写入辅助核算记录
-    ///
-    /// 遍历凭证分录，对包含辅助核算维度（客户/供应商/批次/色号/缸号/等级/车间等）
-    /// 的分录生成 `assist_accounting_record` 记录，便于辅助核算明细账与汇总表查询。
-    /// 原实现仅更新 `account_balance` 表，未写入辅助核算记录，导致辅助核算报表无数据。
+    /// 遍历凭证分录，对包含辅助核算维度（客户/供应商/批次/色号/缸号/等级/车间等）；的分录生成 `assist_accounting_record` 记录，便于辅助核算明细账与汇总表查询。；原实现仅更新 `account_balance` 表，未写入辅助核算记录，导致辅助核算报表无数据。
     pub(crate) async fn write_assist_accounting_records_txn(
         &self,
         voucher_id: i32,

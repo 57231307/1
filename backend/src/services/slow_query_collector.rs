@@ -26,9 +26,7 @@ use tokio::time::interval;
 use crate::models::slow_query;
 use crate::utils::error::AppError;
 
-/// 慢查询采集服务
-///
-/// 内部状态：仅持有 `Arc<DatabaseConnection>`，无业务缓存（采集数据全部入表）
+/// 慢查询采集服务（内部状态：仅持有 `Arc<DatabaseConnection>`，无业务缓存（采集数据全部入表））
 pub struct SlowQueryCollector {
     /// 数据库连接（Arc 共享给后台任务）
     db: Arc<DatabaseConnection>,
@@ -50,11 +48,7 @@ pub fn build_query_sql(_threshold_ms: f64, _limit_rows: i64) -> String {
 
 impl SlowQueryCollector {
     /// 创建采集服务实例
-    ///
-    /// 参数：
-    /// - `db`：数据库连接（Arc 包装）
-    /// - `threshold_ms`：慢查询阈值（毫秒），默认 100ms（与 plan 一致）
-    /// - `limit_rows`：单次采集最大行数，默认 100（与 plan 一致）
+    /// 参数：`db`：数据库连接（Arc 包装）；`threshold_ms`：慢查询阈值（毫秒），默认 100ms（与 plan 一致）；`limit_rows`：单次采集最大行数，默认 100（与 plan 一致）
     pub fn new(db: Arc<DatabaseConnection>, threshold_ms: f64, limit_rows: i64) -> Self {
         Self {
             db,
@@ -64,13 +58,7 @@ impl SlowQueryCollector {
     }
 
     /// 启动后台定时采集任务
-    ///
-    /// 行为：
-    /// - 启动后立即执行一次采集（首屏不等待）
-    /// - 之后每 `interval_secs` 秒执行一次
-    /// - 任何异常仅记录 `tracing::warn!`，不向上传播
-    ///
-    /// 设计原则：采集任务启动失败不阻断 main（CI 容器可能未预装扩展）
+    /// 行为：启动后立即执行一次采集（首屏不等待）；之后每 `interval_secs` 秒执行一次；任何异常仅记录 `tracing::warn!`，不向上传播；设计原则：采集任务启动失败不阻断 main（CI 容器可能未预装扩展）
     // v11 批次 147 P2-B：移除失效的 dead_code 标注（被 main.rs:462 真实调用）
     pub fn start_collect_task(self: Arc<Self>, interval_secs: u64) -> tokio::task::JoinHandle<()> {
         let service = self.clone();
@@ -126,13 +114,7 @@ impl SlowQueryCollector {
     }
 
     /// 执行一次采集（手动触发 / 定时调用）
-    ///
-    /// 流程：
-    /// 1. 查询 `pg_stat_statements` 视图（按 mean_exec_time 倒序，过滤阈值）
-    /// 2. 解析结果，写入 `slow_query_log` 表
-    /// 3. 返回写入条数（便于 handler 端反馈）
-    ///
-    /// 错误处理：所有错误向上传播，由调用方决定是否降级
+    /// 流程：1. 查询 `pg_stat_statements` 视图（按 mean_exec_time 倒序，过滤阈值）；2. 解析结果，写入 `slow_query_log` 表；3. 返回写入条数（便于 handler 端反馈）；错误处理：所有错误向上传播，由调用方决定是否降级
     // v11 批次 147 P2-B：移除失效的 dead_code 标注（被 handlers/slow_query_handler.rs:226 真实调用）
     pub async fn collect_once(&self) -> Result<usize, AppError> {
         // L2 修复（v8 复审）：使用参数化查询，通过 from_sql_and_values 绑定参数

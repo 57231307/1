@@ -4,9 +4,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 客户专属价格实体（P0-5）
-///
-/// 战略客户 / 大客户协议价（最高优先级）
+/// 客户专属价格实体（P0-5）：战略客户 / 大客户协议价（最高优先级）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "customer_color_prices")]
 pub struct Model {

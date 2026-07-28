@@ -140,12 +140,7 @@ impl CustomerTransferApprovalService {
     }
 
     /// 创建转移审批申请
-    ///
-    /// 业务规则：
-    /// 1. 线索必须存在且未转化为客户
-    /// 2. 新归属人必须不等于当前归属人
-    /// 3. 大客户（关联 customer 信用额度 > 阈值，或客户类型 vip）需总监二次审批
-    /// 4. 同一线索不能存在 pending 状态的审批单
+    /// 业务规则：1. 线索必须存在且未转化为客户；2. 新归属人必须不等于当前归属人；3. 大客户（关联 customer 信用额度 > 阈值，或客户类型 vip）需总监二次审批；4. 同一线索不能存在 pending 状态的审批单
     pub async fn create_approval(
         &self,
         req: CreateTransferApprovalRequest,
@@ -284,14 +279,7 @@ impl CustomerTransferApprovalService {
     }
 
     /// 销售经理审批
-    ///
-    /// 业务规则：
-    /// 1. 审批单必须存在且为 pending 状态
-    /// 2. current_level 必须为 1（经理审批层）
-    /// 3. 通过：
-    ///    - 普通客户（max_level=1）：直接执行转移并标记 completed
-    ///    - 大客户（max_level=2）：进入总监审批层 current_level=2
-    /// 4. 拒绝：标记 rejected，不执行转移
+    /// 业务规则：1. 审批单必须存在且为 pending 状态；2. current_level 必须为 1（经理审批层）；3. 通过：普通客户（max_level=1）：直接执行转移并标记 completed；大客户（max_level=2）：进入总监审批层 current_level=2；4. 拒绝：标记 rejected，不执行转移
     pub async fn manager_approve(
         &self,
         req: ApproveRequest,
@@ -364,13 +352,7 @@ impl CustomerTransferApprovalService {
     }
 
     /// 总监审批（仅大客户转移需要）
-    ///
-    /// 业务规则：
-    /// 1. 审批单必须存在且为 pending 状态
-    /// 2. current_level 必须为 2（总监审批层）
-    /// 3. max_level 必须为 2（大客户）
-    /// 4. 通过：执行转移并标记 completed
-    /// 5. 拒绝：标记 rejected，不执行转移
+    /// 业务规则：1. 审批单必须存在且为 pending 状态；2. current_level 必须为 2（总监审批层）；3. max_level 必须为 2（大客户）；4. 通过：执行转移并标记 completed；5. 拒绝：标记 rejected，不执行转移
     pub async fn director_approve(
         &self,
         req: ApproveRequest,
@@ -512,10 +494,7 @@ impl CustomerTransferApprovalService {
     }
 
     /// 检查是否大客户转移
-    ///
-    /// 判断依据（满足任一即为大客户）：
-    /// 1. 线索已转化为客户，且 customer.credit_limit > 阈值
-    /// 2. 线索已转化为客户，且 customer.customer_type = 'vip'
+    /// 判断依据（满足任一即为大客户）：1. 线索已转化为客户，且 customer.credit_limit > 阈值；2. 线索已转化为客户，且 customer.customer_type = 'vip'
     async fn check_large_customer(&self, lead: &crm_lead::Model) -> Result<bool, AppError> {
         if let Some(customer_id) = lead.converted_customer_id {
             let customer = CustomerEntity::find_by_id(customer_id)

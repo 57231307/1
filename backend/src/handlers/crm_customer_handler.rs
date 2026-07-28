@@ -154,9 +154,8 @@ pub async fn add_tags(
     Ok(Json(ApiResponse::success(serde_json::to_value(lead)?)))
 }
 
-/// GET /api/v1/erp/crm/customers/:id/contacts - 获取联系人列表
-///
-/// 批次 90b P2-12：原实现从 crm_lead 拼接 JSON 伪联系人，改为查 customer_contacts 表真实数据。
+/// GET /api/v1/erp/crm/customers/:id/contacts - 获取联系人列表；批次 90b
+/// P2-12：原实现从 crm_lead 拼接 JSON 伪联系人，改为查 customer_contacts 表真实数据。
 pub async fn list_contacts(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -168,9 +167,7 @@ pub async fn list_contacts(
     Ok(Json(ApiResponse::success(serde_json::to_value(contacts)?)))
 }
 
-/// POST /api/v1/erp/crm/customers/:id/contacts - 创建联系人
-///
-/// 批次 90b P2-12：实现前端 detail.vue "新增联系人" 占位符的真实后端。
+/// POST /api/v1/erp/crm/customers/:id/contacts - 创建联系人；批次 90b P2-12：实现前端 detail.vue "新增联系人" 占位符的真实后端。
 #[axum::debug_handler]
 pub async fn create_contact(
     State(state): State<AppState>,
@@ -192,9 +189,7 @@ pub async fn create_contact(
     )))
 }
 
-/// PUT /api/v1/erp/crm/customers/:id/contacts/:contact_id - 更新联系人
-///
-/// 批次 90b P2-12：实现联系人编辑功能。
+/// PUT /api/v1/erp/crm/customers/:id/contacts/:contact_id - 更新联系人；批次 90b P2-12：实现联系人编辑功能。
 #[axum::debug_handler]
 pub async fn update_contact(
     Path((_customer_id, contact_id)): Path<(i32, i32)>,
@@ -216,9 +211,7 @@ pub async fn update_contact(
     )))
 }
 
-/// DELETE /api/v1/erp/crm/customers/:id/contacts/:contact_id - 删除联系人
-///
-/// 批次 90b P2-12：实现联系人删除功能。
+/// DELETE /api/v1/erp/crm/customers/:id/contacts/:contact_id - 删除联系人；批次 90b P2-12：实现联系人删除功能。
 pub async fn delete_contact(
     Path((_customer_id, contact_id)): Path<(i32, i32)>,
     State(state): State<AppState>,
@@ -233,9 +226,7 @@ pub async fn delete_contact(
     )))
 }
 
-/// GET /api/v1/erp/crm/tags - 获取标签列表
-///
-/// 批次 122 v8 复审 P1 修复：原返回硬编码 5 个标签，改为查 crm_tag 表真实数据。
+/// GET /api/v1/erp/crm/tags - 获取标签列表；批次 122 v8 复审 P1 修复：原返回硬编码 5 个标签，改为查 crm_tag 表真实数据。
 pub async fn list_tags(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -244,10 +235,8 @@ pub async fn list_tags(
     Ok(Json(ApiResponse::success(tags)))
 }
 
-/// POST /api/v1/erp/crm/tags - 创建标签
-///
-/// 批次 122 v8 复审 P1 修复：原 create_tag 仅用时间戳生成假 id 返回，不持久化。
-/// 现真实 INSERT 到 crm_tag 表，返回含 id/name/color/category/created_at 的完整记录。
+/// POST /api/v1/erp/crm/tags - 创建标签；批次 122 v8 复审 P1 修复：原 create_tag 仅用时间戳生成假 id
+/// 返回，不持久化。 现真实 INSERT 到 crm_tag 表，返回含 id/name/color/category/created_at 的完整记录。
 pub async fn create_tag(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -268,10 +257,8 @@ pub async fn create_tag(
     Ok(Json(ApiResponse::success_with_message(tag, "标签创建成功")))
 }
 
-/// DELETE /api/v1/erp/crm/tags/:id - 删除标签
-///
-/// 批次 122 v8 复审 P1 修复：原 delete_tag 直接返回 {"deleted": true} 空操作。
-/// 现真实 DELETE FROM crm_tag WHERE id = ?，标签不存在时返回 404。
+/// DELETE /api/v1/erp/crm/tags/:id - 删除标签；批次 122 v8 复审 P1 修复：原 delete_tag 直接返回
+/// {"deleted": true} 空操作。 现真实 DELETE FROM crm_tag WHERE id = ?，标签不存在时返回 404。
 pub async fn delete_tag(
     State(state): State<AppState>,
     _auth: AuthContext,

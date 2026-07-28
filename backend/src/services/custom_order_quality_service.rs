@@ -217,10 +217,7 @@ impl CustomOrderQualityService {
     }
 
     /// 列出订单的所有异常
-    ///
-    /// 批次 263 修复：接入 paginate_with_total 工具函数，消除手写 num_items + fetch_page 重复。
-    /// paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1。
-    /// 补 clamp(1, 1000) 防 DoS（恶意请求 page=999999 不会导致超大偏移查询）。
+    /// 批次 263 修复：接入 paginate_with_total 工具函数，消除手写 num_items + fetch_page 重复。；paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1。；补 clamp(1, 1000) 防 DoS（恶意请求 page=999999 不会导致超大偏移查询）。
     pub async fn list_by_order(
         &self,
         order_id: i64,

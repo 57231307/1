@@ -8,13 +8,7 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 业务模式配置主表模型
-///
-/// 真实业务要点：
-/// - 6 种典型业务模式：坯布经销/成品经销/染整加工/自织自染/委托加工/来料加工
-/// - 物料来源 4 种：采购/客供/自制/来料
-/// - 结算方式 2 种：销售结算/加工费结算
-/// - 模式分类 3 种：贸易/加工/集成
+/// 业务模式配置主表模型（6 种业务模式：坯布经销/成品经销/染整加工/自织自染/委托加工/来料加工；物料来源 4 种、结算 2 种、分类 3 种）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "business_mode_config")]
 pub struct Model {

@@ -16,20 +16,7 @@ macro_rules! define_service {
     };
 }
 
-/// 通用单号生成函数宏
-/// 用于减少各个 service 中重复的 generate_*_no 函数模板代码
-///
-/// 提供两个变体：
-/// - 无 txn 变体：用 `&*self.db`，适用于单号生成 + INSERT 不在同一事务的场景
-///   （依赖数据库 UNIQUE 约束做最终去重防御）
-/// - 带 txn 变体：用调用方传入的 `&DatabaseTransaction`，适用于单号生成 + INSERT
-///   在同一事务内的场景。P1 5-10 修复（批次 60）：txn 变体改调 `generate_no_with_txn`
-///   而非 `generate_no`，避免在 savepoint 上获取 advisory_xact_lock 导致锁提前释放。
-///
-/// 批次 346 v11 复审 P1-6+P1-7 修复：`$entity` 从 `ty` 改为 `path` metavariable，
-/// 使 `$entity` 可直接作为路径表达式使用（SeaORM `Entity` 是 unit struct，可直接作为值），
-/// 消除 `<$entity>::default()` 构造及对应的 `clippy::default_constructed_unit_structs` 警告。
-/// 所有调用点均为 `xxx::Entity` 路径格式，兼容 `path` metavariable。规则 14 合规。
+/// 通用单号生成函数宏（减少 generate_*_no 模板代码；无 txn 变体用 &*self.db 依赖 UNIQUE 约束去重，带 txn 变体用调用方传入的 &DatabaseTransaction，P1 5-10 改调 generate_no_with_txn 避免 savepoint 上 advisory_xact_lock 提前释放；批次 346 改 $entity 为 path metavariable 消除 clippy 警告）
 #[macro_export]
 macro_rules! impl_generate_no {
     ($fn_name:ident, $prefix:expr, $entity:path, $column:expr) => {
@@ -55,18 +42,7 @@ macro_rules! impl_generate_no {
     };
 }
 
-/// 通用 CRUD Handler 生成宏
-/// 用于减少各个实体基础增删改查路由的模板代码
-///
-/// 要求目标 Service 实现以下方法：
-/// - `list(query) -> PaginatedResponse<T>`
-/// - `get(id) -> T`（如返回 Option，需使用 `define_tuple_crud_handlers!` 变体）
-/// - `create(req) -> T`
-/// - `update(id, user_id, req) -> T`（批次 94 P2-10：注入 user_id 用于审计日志）
-/// - `delete(id, user_id) -> ()`（批次 94 P2-10：注入 user_id 用于审计日志）
-///
-/// 另有 `define_tuple_crud_handlers!` 变体适用于返回元组 `(Vec<T>, u64)` 与
-/// `Option<T>` 的 Service（接口形态差异：list 返回元组、get_by_id 返回 Option、create 注入 user_id）。
+/// 通用 CRUD Handler 生成宏（减少增删改查路由模板代码；要求 Service 实现 list/get/create/update/delete，update/delete 注入 user_id 审计；另有 define_tuple_crud_handlers! 变体适用于返回元组与 Option 的 Service）
 #[macro_export]
 macro_rules! define_crud_handlers {
     (
@@ -174,15 +150,7 @@ macro_rules! define_crud_handlers {
     };
 }
 
-/// 返回元组与 Option 的 CRUD Handler 生成宏
-///
-/// 与 `define_crud_handlers!` 的差异（仅接口形态不同）：
-/// - `list(query) -> (Vec<T>, u64)` 返回元组，由宏包装为 `{items, total}` 结构
-/// - `get_by_id(id) -> Option<T>` 返回 `Option<T>`，由宏转换为未找到错误
-/// - `create(user_id, req) -> T` 接收额外的 `user_id`（用于审计字段写入）
-/// - `update(id, req) -> T`、`delete(id) -> ()` 与基础版一致
-///
-/// 适用于 Service 返回元组与 Option 形态的业务对象（如报表订阅、邮件模板等）。
+/// 返回元组与 Option 的 CRUD Handler 生成宏（与 define_crud_handlers! 仅接口形态不同：list 返回 (Vec<T>,u64) 元组，get_by_id 返回 Option<T>，create 接收 user_id；适用于报表订阅/邮件模板等）
 #[macro_export]
 macro_rules! define_tuple_crud_handlers {
     (

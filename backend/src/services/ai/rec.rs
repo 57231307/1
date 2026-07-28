@@ -95,9 +95,7 @@ impl AiAnalysisService {
         }
     }
 
-    /// 计算需求统计：日均值、标准差、安全库存、再订货点、建议量
-    ///
-    /// 返回 (avg, std, safety_stock, reorder_point, reorder_quantity, suggested)
+    /// 计算需求统计：日均值、标准差、安全库存、再订货点、建议量（返回 (avg, std, safety_stock, reorder_point, reorder_quantity, suggested)）
     fn compute_demand_stats(
         &self,
         pid: i32,
@@ -245,9 +243,7 @@ impl AiAnalysisService {
     }
 
     /// V15 P1 8.4：补货推荐与 MRP 引擎结果对账
-    ///
-    /// 调用 MRP `calculate_requirement` 计算同期间 MRP 缺货量，
-    /// 与 AI `reorder_quantity` 比较；差异 > 20% 时在 reason 字段追加"与 MRP 差异 X%，建议人工复核"。
+    /// 调用 MRP `calculate_requirement` 计算同期间 MRP 缺货量，；与 AI `reorder_quantity` 比较；差异 > 20% 时在 reason 字段追加"与 MRP 差异 X%，建议人工复核"。
     async fn reconcile_suggestion_with_mrp(
         &self,
         mrp_svc: &MrpEngineService,
@@ -293,12 +289,7 @@ impl AiAnalysisService {
     }
 
     /// ABC 分类分析
-    /// A 类: 累计销售额占比 0-80%
-    /// B 类: 累计销售额占比 80-95%
-    /// C 类: 累计销售额占比 95-100%
-    ///
-    /// 批次 86 v2 复审 P2-12 修复：加 LIMIT 兜底防止全表加载内存爆炸
-    /// 原 `.find().all()` 无限制加载所有库存记录，大表会 OOM
+    /// A 类: 累计销售额占比 0-80%；B 类: 累计销售额占比 80-95%；C 类: 累计销售额占比 95-100%；批次 86 v2 复审 P2-12 修复：加 LIMIT 兜底防止全表加载内存爆炸；原 `.find().all()` 无限制加载所有库存记录，大表会 OOM
     pub async fn get_abc_classification(&self) -> Result<Vec<AbcClassification>, AppError> {
         let stocks = InventoryStockEntity::find()
             .limit(10_000)
@@ -802,9 +793,7 @@ impl AiAnalysisService {
         Ok(recommendations)
     }
 
-    /// 基于库存水平的价格调整推荐
-    ///
-    /// 批次 86 v2 复审 P2-13 修复：加 LIMIT 兜底防止全表加载内存爆炸
+    /// 基于库存水平的价格调整推荐（批次 86 v2 复审 P2-13 修复：加 LIMIT 兜底防止全表加载内存爆炸）
     async fn generate_price_recommendations(
         &self,
         limit: usize,

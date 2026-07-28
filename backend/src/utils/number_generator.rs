@@ -9,11 +9,7 @@ use sea_orm::{
 pub struct DocumentNumberGenerator;
 
 impl DocumentNumberGenerator {
-    /// 生成标准格式单号: {前缀}{YYYYMMDD}{3位流水号}
-    /// 例如: PO20230501001
-    ///
-    /// 默认使用 3 位流水号。业务需要 4 位或更多位数时，请使用
-    /// [`generate_no_with_width`] 显式指定，避免对存量单据号位数产生回归。
+    /// 生成标准格式单号: {前缀}{YYYYMMDD}{3位流水号}（如 PO20230501001；默认 3 位流水号，需更多位数用 generate_no_with_width）
     pub async fn generate_no<'db, E, C>(
         db: &'db (impl ConnectionTrait + TransactionTrait),
         prefix: &str,
@@ -81,18 +77,7 @@ impl DocumentNumberGenerator {
         ))
     }
 
-    /// 在外部事务内生成单号（不在内部开子事务），默认 3 位流水号
-    ///
-    /// P1 5-9 修复（批次 60）：原 [`generate_no_with_width`] 总是 `db.begin()` 开子事务，
-    /// 当调用方已在外层事务中时变成 savepoint，`pg_advisory_xact_lock` 在 savepoint
-    /// 释放时即释放，而非外层事务 commit 时释放，导致锁保护窗口过短，并发请求可能
-    /// 在外层事务未提交时拿到锁、读到未提交的 COUNT，造成单号重复。
-    ///
-    /// 此变体直接在传入的 `txn` 上执行 `pg_advisory_xact_lock` + COUNT，锁生命周期
-    /// 与外层事务一致，commit 时自动释放，是真正的事务级锁。
-    ///
-    /// 调用方必须在事务内调用此方法，且事务应包含单据 INSERT 操作以保证锁覆盖
-    /// COUNT + INSERT 完整临界区。
+    /// 在外部事务内生成单号（不在内部开子事务，默认 3 位流水号）；P1 5-9 修复：直接在传入 txn 上执行 pg_advisory_xact_lock+COUNT，锁生命周期与外层事务一致避免 savepoint 提前释放导致单号重复；调用方须在事务内调用且事务含 INSERT 保证锁覆盖完整临界区
     pub async fn generate_no_with_txn<'db, E, C>(
         txn: &'db DatabaseTransaction,
         prefix: &str,
@@ -108,13 +93,7 @@ impl DocumentNumberGenerator {
         Self::generate_no_with_width_txn(txn, prefix, _entity, column, 3).await
     }
 
-    /// 在外部事务内生成单号（可指定位数），不在内部开子事务
-    ///
-    /// 语义与 [`generate_no_with_width`] 一致，但直接使用调用方传入的事务句柄，
-    /// 不再 `db.begin()` 开子事务，确保 `pg_advisory_xact_lock` 在外层事务
-    /// commit/rollback 时才释放，覆盖完整的 COUNT + INSERT 临界区。
-    ///
-    /// 详见 [`generate_no_with_txn`] 的修复说明。
+    /// 在外部事务内生成单号（可指定位数，不开子事务；语义同 generate_no_with_width，直接用调用方事务句柄，pg_advisory_xact_lock 外层 commit/rollback 才释放覆盖 COUNT+INSERT 临界区，详见 generate_no_with_txn 修复说明）
     pub async fn generate_no_with_width_txn<'db, E, C>(
         txn: &'db DatabaseTransaction,
         prefix: &str,
@@ -159,11 +138,7 @@ impl DocumentNumberGenerator {
     }
 }
 
-/// 计算 PostgreSQL advisory lock 的 i64 键值
-///
-/// 由 prefix + date 字符串哈希得到，确保不同业务/不同日期的锁互不冲突。
-/// 使用 `DefaultHasher`（稳定哈希，进程内一致），跨进程/跨重启结果可能不同，
-/// 但 advisory lock 是进程内会话状态，不影响正确性。
+/// 计算 PostgreSQL advisory lock 的 i64 键值（prefix + date 哈希，确保不同业务/日期锁互不冲突；DefaultHasher 进程内一致，advisory lock 是进程内会话状态不影响正确性）
 fn compute_advisory_lock_key(prefix: &str, date: &str) -> i64 {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};

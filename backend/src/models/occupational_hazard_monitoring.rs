@@ -8,9 +8,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 职业危害因素检测记录模型
-///
-/// 真实业务：定期检测印染车间职业危害因素，超标立即预警
+/// 职业危害因素检测记录模型（定期检测印染车间职业危害因素，超标立即预警）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "occupational_hazard_monitorings")]
 pub struct Model {

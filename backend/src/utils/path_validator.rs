@@ -14,34 +14,14 @@ use std::path::Path;
 /// 递归深度上限（防止恶意嵌套目录导致栈溢出 DoS）
 pub const MAX_RECURSION_DEPTH: usize = 100;
 
-/// 校验解压后的所有文件路径都在指定目录范围内
-///
-/// 防止 Tar Slip 路径穿越攻击：攻击者在 tar 包中构造 `../../../etc/passwd` 等路径，
-/// 解压后逃逸到基准目录外。本函数递归扫描基准目录下所有文件，使用 `canonicalize`
-/// 解析符号链接后校验最终路径是否仍在基准目录内。
-///
-/// # 参数
-/// - `base_dir`: 基准目录路径（字符串形式）
-///
-/// # 返回
-/// - `Ok(())`: 所有文件路径都在基准目录范围内
-/// - `Err(String)`: 校验失败，错误信息描述具体原因
+/// 校验解压后所有文件路径都在基准目录范围内（防 Tar Slip 路径穿越：递归扫描+canonicalize 解析符号链接后校验；base_dir 为基准目录，Ok(()) 全部合法，Err(String) 校验失败）
 pub fn validate_extracted_paths(base_dir: &str) -> Result<(), String> {
     let base_canonical = std::fs::canonicalize(base_dir)
         .map_err(|e| format!("无法解析基准目录 {}: {}", base_dir, e))?;
     validate_dir_recursive(&base_canonical, &base_canonical, 0)
 }
 
-/// 递归校验目录下所有文件路径都在基准目录范围内
-///
-/// # 参数
-/// - `dir`: 当前正在校验的目录
-/// - `base`: 基准目录（所有文件路径必须在此目录内）
-/// - `depth`: 当前递归深度（防止恶意嵌套目录导致栈溢出）
-///
-/// # 返回
-/// - `Ok(())`: 所有文件路径都在基准目录范围内
-/// - `Err(String)`: 校验失败，错误信息描述具体原因
+/// 递归校验目录下所有文件路径都在基准目录范围内（dir 当前目录，base 基准目录，depth 递归深度防栈溢出；Ok(()) 全部合法，Err(String) 校验失败）
 pub fn validate_dir_recursive(dir: &Path, base: &Path, depth: usize) -> Result<(), String> {
     if depth >= MAX_RECURSION_DEPTH {
         return Err(format!(

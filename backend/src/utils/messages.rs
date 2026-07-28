@@ -25,10 +25,7 @@ pub mod biz_msg {
     pub const OPERATE_OK: &str = "操作成功";
 }
 
-/// AppError 错误消息常量（V15 批次 07 P1-10 修复：集中管理 error.rs 硬编码中文）
-///
-/// 将 error.rs 中 60+ 处硬编码中文抽取为常量，便于统一维护与后续国际化。
-/// 使用方式：`use crate::utils::messages::err_msg;` 然后引用 `err_msg::DB_ERROR_PUBLIC`。
+/// AppError 错误消息常量（V15 批次 07 P1-10：集中管理 error.rs 硬编码中文，use crate::utils::messages::err_msg 引用）
 pub mod err_msg {
     // === Display 前缀（write! 拼接 msg） ===
     pub const DB_ERROR_PREFIX: &str = "数据库错误：";

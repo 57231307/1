@@ -126,10 +126,7 @@ pub fn dye_recipes() -> Router<AppState> {
         )
 }
 
-/// 化验室打样路由（path 前缀 /lab-dip）
-///
-/// v14 批次 423B：化验室打样流程贯通
-/// 真实业务流程：打样通知单 → 打样（ABCD 多版样）→ 色样确认（OK 样）→ 复样 → 建数据库
+/// 化验室打样路由（path 前缀 /lab-dip）；v14 批次 423B：化验室打样流程贯通 真实业务流程：打样通知单 → 打样（ABCD 多版样）→ 色样确认（OK 样）→ 复样 → 建数据库
 pub fn lab_dip() -> Router<AppState> {
     Router::new()
         // ===== 打样通知单 =====
@@ -160,14 +157,8 @@ pub fn lab_dip() -> Router<AppState> {
         .route("/lab-dip/resamples/by-request/:request_id", get(lab_dip_handler::list_resamples_by_request))
 }
 
-/// 大货处方与加料处方路由（path 前缀 /production-recipes）
-///
-/// v14 批次 424：大货处方与加料处方流程
-/// 真实业务流程：
-///   大货处方单：扫描流转卡条码 → 依据备布数量 → 加载小样处方/历史大货处方 → 根据浴比/浴量
-///              → 填写物料明细 → 计算用量 → 开具大货处方单 → 审核后自动建立生产领用单据
-///   加料处方单：扫描流转卡 → 加载已审核大货处方 → 登记加料物料 → 生成加料处方单
-///   关键约束：同一工单号只能开一张大货处方单，追加物料须开加料处方单
+/// 大货处方与加料处方路由（path 前缀 /production-recipes）；v14 批次 424：大货处方与加料处方流程 真实业务流程： 大货处方单：扫描流转卡条码 → 依据备布数量 → 加载小样处方/历史大货处方 → 根据浴比/浴量
+/// → 填写物料明细 → 计算用量 → 开具大货处方单 → 审核后自动建立生产领用单据 加料处方单：扫描流转卡 → 加载已审核大货处方 → 登记加料物料 → 生成加料处方单 关键约束：同一工单号只能开一张大货处方单，追加物料须开加料处方单
 pub fn production_recipes() -> Router<AppState> {
     Router::new()
         // ===== 大货处方 CRUD =====
@@ -211,11 +202,8 @@ pub fn production_recipes() -> Router<AppState> {
         )
 }
 
-/// 流转卡与工序流转路由（path 前缀 /process-routes 和 /flow-cards）
-///
-/// v14 批次 425：流转卡条码与车间工序流转
-/// 真实业务流程：生产计划单 → 备布 → 排缸执行 → 流转卡打印（含条码）
-///   扫码应用：白坯出库/染色进度/称料/工序流转/成品入库/发货
+/// 流转卡与工序流转路由（path 前缀 /process-routes 和 /flow-cards）；v14 批次 425：流转卡条码与车间工序流转
+/// 真实业务流程：生产计划单 → 备布 → 排缸执行 → 流转卡打印（含条码） 扫码应用：白坯出库/染色进度/称料/工序流转/成品入库/发货
 pub fn flow_cards() -> Router<AppState> {
     Router::new()
         // ===== 工序路线模板 =====
@@ -256,12 +244,8 @@ pub fn flow_cards() -> Router<AppState> {
         .route("/flow-cards/:flow_card_id/feedbacks", get(flow_card_handler::list_feedbacks_by_card))
 }
 
-/// 验布打卷路由（path 前缀 /fabric-inspections 和 /fabric-defects）
-///
-/// v14 批次 426：验布打卷流程贯通
-/// 真实业务流程：验布机对接码表/电子称 → 疵点采集 → 生成验布报告
-///   → 卷唛标签打印 → PDA 扫描卷唛条码 → 自动入库
-/// 评分制式：四分制（AATCC/ASTM D5430）/ 十分制（梭织布）
+/// 验布打卷路由（path 前缀 /fabric-inspections 和 /fabric-defects）；v14 批次 426：验布打卷流程贯通 真实业务流程：验布机对接码表/电子称
+/// → 疵点采集 → 生成验布报告 → 卷唛标签打印 → PDA 扫描卷唛条码 → 自动入库 评分制式：四分制（AATCC/ASTM D5430）/ 十分制（梭织布）
 pub fn fabric_inspections() -> Router<AppState> {
     Router::new()
         // ===== 验布记录 CRUD =====
@@ -283,12 +267,8 @@ pub fn fabric_inspections() -> Router<AppState> {
         .route("/fabric-defects/:id", delete(fabric_inspection_handler::delete_defect))
 }
 
-/// 产量工资路由（path 前缀 /wage-rates、/wage-records、/wage-details）
-///
-/// v14 批次 427：产量工资核算贯通
-/// 真实业务流程：工序流转扫码 → 工价方案定义 → 工资计算 → 班组汇总 → 进入财务工资核算
-/// 三维度产量统计：工序产量 + 设备产量 + 工人产量工资
-/// 等级系数：A 级全额/B 级 8 折/C 级不计
+/// 产量工资路由（path 前缀 /wage-rates、/wage-records、/wage-details）；v14 批次 427：产量工资核算贯通 真实业务流程：工序流转扫码
+/// → 工价方案定义 → 工资计算 → 班组汇总 → 进入财务工资核算 三维度产量统计：工序产量 + 设备产量 + 工人产量工资 等级系数：A 级全额/B 级 8 折/C 级不计
 pub fn wages() -> Router<AppState> {
     Router::new()
         // ===== 工序工价 CRUD =====
@@ -323,14 +303,8 @@ pub fn wages() -> Router<AppState> {
         .route("/wage-details/by-worker/:worker_id", get(wage_handler::list_wage_details_by_worker))
 }
 
-/// 能耗管理路由（v14 批次 428：能耗管理贯通）
-///
-/// 业务来源：面料行业真实业务调研文档 §12.6 能耗管理
-/// 路由分组：
-/// - /energy-meters：能源计量设备 CRUD
-/// - /energy-consumptions：能耗记录 CRUD + 状态机
-/// - /energy-rules：能耗分摊规则 CRUD + 状态机 + 查询生效规则
-/// - /energy-allocations：能耗分摊记录 CRUD + 状态机 + 月末自动分摊
+/// 能耗管理路由（v14 批次 428：能耗管理贯通）；业务来源：面料行业真实业务调研文档 §12.6 能耗管理 路由分组： - /energy-meters：能源计量设备 CRUD - /energy-consumptions
+/// 能耗记录 CRUD + 状态机 - /energy-rules：能耗分摊规则 CRUD + 状态机 + 查询生效规则 - /energy-allocations：能耗分摊记录 CRUD + 状态机 + 月末自动分摊
 pub fn energy() -> Router<AppState> {
     Router::new()
         // ===== 能源计量设备 CRUD =====
@@ -379,20 +353,8 @@ pub fn energy() -> Router<AppState> {
         .route("/energy-allocations/monthly", post(energy_handler::monthly_allocation))
 }
 
-/// 委外加工管理路由（path 前缀 /outsourcing-orders、/outsourcing-receipts、/outsourcing-vouchers）
-///
-/// v14 批次 430：委托加工物资贯通
-/// 依据：面料行业真实业务调研文档 §5.4 委托加工物资核算三步分录 + §5.5 委外织布场景
-///       + §5.7 损耗率标准 + §6.5 委托加工模式
-/// 真实业务流程：
-///   委外订单（draft→issued→processing→received→settled→closed→cancelled）
-///   发料明细（按面料四维标识追溯，发料分录：借 委托加工物资/贷 自制半成品-胚布）
-///   收回入库单（draft→confirmed，含损耗分类；入库分录：借 库存商品-成品布/贷 委托加工物资）
-///   会计凭证（issue 发料 / fee 加工费 / receipt 入库 / loss 损耗处理）
-/// 三步分录（§5.4）：
-///   1. 发料：借 委托加工物资 / 贷 自制半成品-胚布
-///   2. 加工费：借 委托加工物资 + 应交税费-进项税额 / 贷 银行存款
-///   3. 入库：借 库存商品-成品布 / 贷 委托加工物资
+/// 委外加工管理路由（path 前缀 /outsourcing-orders、/outsourcing-receipts、/outsourcing-vouchers）；v14 批次 430：委托加工物资贯通 依据：面料行业真实业务调研文档 §5.4 委托加工物资核算三步分录 + §5.5 委外织布场景 + §5.7 损耗率标准 + §6.5 委托加工模式 真实业务流程： 委外订单（draft→issued→processing→received→settled→closed→cancelled）
+/// 发料明细（按面料四维标识追溯，发料分录：借 委托加工物资/贷 自制半成品-胚布） 收回入库单（draft→confirmed，含损耗分类；入库分录：借 库存商品-成品布/贷 委托加工物资） 会计凭证（issue 发料 / fee 加工费 / receipt 入库 / loss 损耗处理） 三步分录（§5.4）： 1. 发料：借 委托加工物资 / 贷 自制半成品-胚布 2. 加工费：借 委托加工物资 + 应交税费-进项税额 / 贷 银行存款 3. 入库：借 库存商品-成品布 / 贷 委托加工物资
 pub fn outsourcing() -> Router<AppState> {
     Router::new()
         // ===== 委外订单 CRUD =====
@@ -428,17 +390,8 @@ pub fn outsourcing() -> Router<AppState> {
         .route("/outsourcing-vouchers/:id", delete(outsourcing_handler::delete_outsourcing_voucher))
 }
 
-/// 多业务模式支持路由（path 前缀 /business-modes、/business-mode-links）
-///
-/// v14 批次 431：多业务模式支持
-/// 依据：面料行业真实业务调研文档 §6 业务模式 6 种
-/// 真实业务：6 种典型业务模式（坯布经销/成品经销/染整加工/自织自染/委托加工/来料加工）
-///   贯穿采购/库存/生产/委外/销售/结算全链路
-/// 路由分组：
-/// - /business-modes：业务模式配置 CRUD + 按代码查询 + 默认模式 + 完整详情
-/// - /business-modes/flow-steps：流程节点 CRUD + 按模式查询
-/// - /business-modes/rules：业务规则 CRUD + 按模式查询
-/// - /business-mode-links：单据-业务模式关联 CRUD + 按单据查询
+/// 多业务模式支持路由（path 前缀 /business-modes、/business-mode-links）；v14 批次 431：多业务模式支持 依据：面料行业真实业务调研文档 §6 业务模式 6 种 真实业务：6 种典型业务模式（坯布经销/成品经销/染整加工/自织自染/委托加工/来料加工） 贯穿采购/库存/生产/委外/销售/结算全链路 路由分组： -
+/// /business-modes：业务模式配置 CRUD + 按代码查询 + 默认模式 + 完整详情 - /business-modes/flow-steps：流程节点 CRUD + 按模式查询 - /business-modes/rules：业务规则 CRUD + 按模式查询 - /business-mode-links：单据-业务模式关联 CRUD + 按单据查询
 pub fn business_mode() -> Router<AppState> {
     Router::new()
         // ===== 业务模式配置 CRUD =====
@@ -468,17 +421,8 @@ pub fn business_mode() -> Router<AppState> {
         .route("/business-mode-links/:id", put(business_mode_handler::update_order_link).delete(business_mode_handler::delete_order_link))
 }
 
-/// 缸号全生命周期状态机路由（path 前缀 /dye-batch-lifecycle-logs、/dye-batch-state-rules、
-/// /dye-batch-reworks、/dye-batch-operations）
-///
-/// v14 批次 432：缸号全生命周期状态机
-/// 依据：面料行业真实业务调研文档 §12.7 缸号状态机 + §3.2 缸号全生命周期追踪
-/// 真实业务流程：14 种状态流转（待排缸→已排缸→备布中→进缸染色→皂洗→固色→脱水→烘干→验布→入库→发货）
-/// 加上回修流转（验布/入库 → 回修中 → 重新进缸染色）与终态保护（发货/取消/终止不可流转）
-/// 路由分组：/dye-batch-lifecycle-logs 生命周期日志 CRUD + 按缸号查询 + 获取最新状态 + 记录流转；
-/// /dye-batch-state-rules 状态流转规则 CRUD + 校验流转 + 查询允许的流转；
-/// /dye-batch-reworks 回修记录 CRUD + 审批 + 开始/完成/取消回修；
-/// /dye-batch-operations 操作记录 CRUD + 按类型查询 + 按缸号查询。
+/// 缸号全生命周期状态机路由（path 前缀 /dye-batch-lifecycle-logs、/dye-batch-state-rules、 /dye-batch-reworks、/dye-batch-operations）；v14 批次 432：缸号全生命周期状态机 依据：面料行业真实业务调研文档 §12.7 缸号状态机 + §3.2 缸号全生命周期追踪 真实业务流程：14 种状态流转（待排缸→已排缸→备布中→进缸染色→皂洗→固色→脱水→烘干→验布→入库→发货） 加上回修流转（验布/入库 →
+/// 回修中 → 重新进缸染色）与终态保护（发货/取消/终止不可流转） 路由分组：/dye-batch-lifecycle-logs 生命周期日志 CRUD + 按缸号查询 + 获取最新状态 + 记录流转； /dye-batch-state-rules 状态流转规则 CRUD + 校验流转 + 查询允许的流转； /dye-batch-reworks 回修记录 CRUD + 审批 + 开始/完成/取消回修； /dye-batch-operations 操作记录 CRUD + 按类型查询 + 按缸号查询。
 pub fn dye_batch_state_machine() -> Router<AppState> {
     Router::new()
         // ===== 缸号生命周期日志 =====
@@ -509,9 +453,7 @@ pub fn dye_batch_state_machine() -> Router<AppState> {
         .route("/dye-batch-operations/:id", get(dye_batch_state_machine_handler::get_operation))
 }
 
-/// 质量检验路由（path 前缀 /quality-inspection）
-///
-/// 注意：原代码用 `/standards`、`/records`、`/defects` 等带前缀 path，已天然不冲突。
+/// 质量检验路由（path 前缀 /quality-inspection）；注意：原代码用 `/standards`、`/records`、`/defects` 等带前缀 path，已天然不冲突。
 pub fn quality_inspection() -> Router<AppState> {
     Router::new()
         .route(
@@ -710,9 +652,7 @@ pub fn capacity() -> Router<AppState> {
         )
 }
 
-/// 生产域统一入口
-///
-/// 子 router path 已加独立前缀，merge 时 path+method 互不重叠。
+/// 生产域统一入口；子 router path 已加独立前缀，merge 时 path+method 互不重叠。
 pub fn routes() -> Router<AppState> {
     Router::new()
         .merge(dye_batches())

@@ -24,9 +24,7 @@ use crate::utils::data_scope::{build_data_scope_sql, DataScopeContext};
 use crate::utils::error::AppError;
 
 impl BiAnalysisService {
-    /// 钻取：年 → 月
-    ///
-    /// 返回指定年份 12 个月的销售聚合，缺失月份补 0。
+    /// 钻取：年 → 月（返回指定年份 12 个月的销售聚合，缺失月份补 0。）
     pub async fn drilldown_year_to_month(
         &self,
         year: i32,
@@ -111,9 +109,7 @@ impl BiAnalysisService {
             .collect()
     }
 
-    /// 钻取：月 → 日
-    ///
-    /// 返回指定月份每日的销售聚合，缺失日期补 0。
+    /// 钻取：月 → 日（返回指定月份每日的销售聚合，缺失日期补 0。）
     pub async fn drilldown_month_to_day(
         &self,
         year: i32,
@@ -224,9 +220,7 @@ impl BiAnalysisService {
             .collect()
     }
 
-    /// 钻取：客户 → 订单
-    ///
-    /// 返回指定客户的最近 100 笔订单明细。
+    /// 钻取：客户 → 订单（返回指定客户的最近 100 笔订单明细。）
     pub async fn drilldown_customer_to_order(
         &self,
         customer_id: i64,
@@ -279,9 +273,7 @@ impl BiAnalysisService {
         }))
     }
 
-    /// 钻取：产品 → 订单
-    ///
-    /// 返回包含指定产品的最近 100 笔订单明细。
+    /// 钻取：产品 → 订单（返回包含指定产品的最近 100 笔订单明细。）
     pub async fn drilldown_product_to_order(
         &self,
         product_id: i64,

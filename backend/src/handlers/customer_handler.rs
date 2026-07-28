@@ -333,20 +333,8 @@ pub struct CustomerListQuery {
     pub keyword: Option<String>,
 }
 
-/// 获取数据权限过滤器
-///
-/// 根据角色权限构建数据库层面的字段过滤器，将数据权限过滤下推到数据库层
-///
-/// # 参数
-/// - `state`: 应用状态
-/// - `auth`: 认证上下文
-/// - `resource_type`: 资源类型（如 "customer"）
-///
-/// # 返回
-/// 返回数据权限过滤器，如果管理员或无需过滤则返回 None
-///
-/// P2-1 修复（批次 388 v13 复审）：原返回 Option 静默吞 DB 错误，
-/// 改为 Result<Option<...>, AppError> 并在 Err 时 tracing::warn! 记录
+/// 获取数据权限过滤器；根据角色权限构建数据库层面的字段过滤器，将数据权限过滤下推到数据库层；参数 - `state`: 应用状态 - `auth`: 认证上下文 - `resource_type`: 资源类型（如 "customer"）；返回 返回数据权限过滤器
+/// 如果管理员或无需过滤则返回 None；P2-1 修复（批次 388 v13 复审）：原返回 Option 静默吞 DB 错误， 改为 Result<Option<...>, AppError> 并在 Err 时 tracing::warn! 记录
 async fn get_permission_filter(
     state: &AppState,
     auth: &AuthContext,
@@ -513,18 +501,8 @@ fn record_customers_export_audit(state: &AppState, auth: &AuthContext, row_count
     Arc::new(svc).record_async(event, None);
 }
 
-/// V15 P0-S12 + P0-S15 新增（Batch 474）：客户列表导出为带水印的 xlsx
-///
-/// 端点：`GET /api/v1/customers/export`
-///
-/// 设计要点：
-/// - 复用 `list_customers` 的查询参数（status/customer_type/keyword）
-/// - 通过 `CustomerService::list_customers_with_filter` 一次性查询（page_size=10000 防 OOM）
-/// - 行级数据权限：与 `list_customers` 一致，调用 `to_data_scope_context` + `get_permission_filter`
-/// - 水印：操作员（AuthContext.username）+ 导出时间（ISO8601）+ 资源类型说明
-///   - IP 暂为 None（middleware 未把 client_ip 注入 AuthContext，后续批次补齐）
-///
-/// 规则 3：导出统一使用 xlsx 格式（含水印），错误用 AppError 表达。
+/// V15 P0-S12 + P0-S15 新增（Batch 474）：客户列表导出为带水印的 xlsx；端点：`GET /api/v1/customers/export`；设计要点： - 复用 `list_customers` 的查询参数（status/customer_type/keyword） - 通过 `CustomerService::list_customers_with_filter` 一次性查询（page_size=10000 防 OOM） - 行级数据权限
+/// 与 `list_customers` 一致，调用 `to_data_scope_context` + `get_permission_filter` - 水印：操作员（AuthContext.username）+ 导出时间（ISO8601）+ 资源类型说明 - IP 暂为 None（middleware 未把 client_ip 注入 AuthContext，后续批次补齐）；规则 3：导出统一使用 xlsx 格式（含水印），错误用 AppError 表达。
 pub async fn export_customers(
     State(state): State<AppState>,
     Query(query): Query<CustomerListQuery>,

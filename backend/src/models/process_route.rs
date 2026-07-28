@@ -8,13 +8,7 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 工序路线模板模型
-///
-/// 真实业务要点：
-/// - 工序路线在后台自定义，可根据车间布局增删调整顺序
-/// - 标准流程：前处理(PRE_TREAT) → 染色(DYE) → 印花(PRINT) → 后整理(FINISH) → 验布(INSPECT)
-/// - 印花为非必经工序（require_scan=false 表示可跳过扫码确认）
-/// - seq 决定流转顺序，扫码时按 seq 递增推进
+/// 工序路线模板模型（后台自定义可增删调整顺序；标准流程前处理→染色→印花→后整理→验布，印花非必经，seq 决定扫码流转顺序）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "process_route")]
 pub struct Model {

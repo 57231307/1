@@ -1,7 +1,4 @@
-/// 双计量单位换算工具（面料行业专用）
-///
-/// 提供米数 ↔ 公斤数的精确换算功能
-/// 支持幅宽、克重等多参数计算
+/// 双计量单位换算工具（面料行业专用，提供米数↔公斤数精确换算，支持幅宽/克重等多参数）
 use rust_decimal::Decimal;
 use std::str::FromStr;
 
@@ -9,18 +6,7 @@ use std::str::FromStr;
 pub struct DualUnitConverter;
 
 impl DualUnitConverter {
-    /// 米数转公斤数（精确版）
-    ///
-    /// 公式：公斤数 = 米数 × 克重 (g/m²) × 幅宽 (m) ÷ 1000
-    ///
-    /// # Arguments
-    /// * `quantity_meters` - 米数
-    /// * `gram_weight` - 克重（g/m²）
-    /// * `width_cm` - 幅宽（cm）
-    ///
-    /// # Returns
-    /// * `Ok(Decimal)` - 公斤数
-    /// * `Err(String)` - 错误信息
+    /// 米数转公斤数（精确版）：公斤数 = 米数 × 克重(g/m²) × 幅宽(m) ÷ 1000；quantity_meters 米数，gram_weight 克重，width_cm 幅宽(cm)；Ok(Decimal) 公斤数，Err(String) 错误
     pub fn meters_to_kg(
         quantity_meters: Decimal,
         gram_weight: Decimal,
@@ -45,18 +31,7 @@ impl DualUnitConverter {
         Ok(quantity_kg.round_dp(3))
     }
 
-    /// 公斤数转米数（精确版）
-    ///
-    /// 公式：米数 = 公斤数 × 1000 ÷ 克重 (g/m²) ÷ 幅宽 (m)
-    ///
-    /// # Arguments
-    /// * `quantity_kg` - 公斤数
-    /// * `gram_weight` - 克重（g/m²）
-    /// * `width_cm` - 幅宽（cm）
-    ///
-    /// # Returns
-    /// * `Ok(Decimal)` - 米数
-    /// * `Err(String)` - 错误信息
+    /// 公斤数转米数（精确版）：米数 = 公斤数 × 1000 ÷ 克重(g/m²) ÷ 幅宽(m)；quantity_kg 公斤数，gram_weight 克重，width_cm 幅宽(cm)；Ok(Decimal) 米数，Err(String) 错误
     pub fn kg_to_meters(
         quantity_kg: Decimal,
         gram_weight: Decimal,
@@ -81,18 +56,7 @@ impl DualUnitConverter {
         Ok(quantity_meters.round_dp(2))
     }
 
-    /// 验证双计量单位一致性
-    ///
-    /// # Arguments
-    /// * `quantity_meters` - 米数
-    /// * `quantity_kg` - 公斤数
-    /// * `gram_weight` - 克重（g/m²）
-    /// * `width_cm` - 幅宽（cm）
-    /// * `tolerance` - 允许误差（默认 0.5%）
-    ///
-    /// # Returns
-    /// * `Ok(bool)` - 是否一致
-    /// * `Err(String)` - 错误信息
+    /// 验证双计量单位一致性（quantity_meters 米数，quantity_kg 公斤数，gram_weight 克重，width_cm 幅宽，tolerance 允许误差默认 0.5%；Ok(bool) 是否一致，Err(String) 错误）
     pub fn validate_dual_unit(
         quantity_meters: Decimal,
         quantity_kg: Decimal,

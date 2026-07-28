@@ -1,6 +1,4 @@
-/// SQL LIKE 特殊字符转义工具
-/// PostgreSQL 中 LIKE 使用 \ 作为默认转义字符
-/// 需要转义的字符: % (匹配任意字符串), _ (匹配单个字符), \ (转义字符本身)
+/// SQL LIKE 特殊字符转义工具（PostgreSQL LIKE 用 \ 转义，需转义 % _ \ ）
 pub fn escape_like_pattern(input: &str) -> String {
     let mut result = String::with_capacity(input.len());
     for ch in input.chars() {

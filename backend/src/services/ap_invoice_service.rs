@@ -23,14 +23,8 @@ pub use crate::services::ap_invoice_ops::types::{
 
 // 批次 102 v6 P3-2 修复：状态字符串常量化，引用 crate::models::status
 
-/// 默认本位币汇率（CNY 本位币 = 1.0）。
-///
-/// 历史缺陷（P0-1，2026-06-25 综合审计）：自动生成 AP 发票时曾误用
-/// `Decimal::new(1, 2)` = 0.01，导致下游按汇率换算本位币金额被缩小 100 倍。
-/// 抽取为常量并在单元测试中断言其值，避免再次被改错。
-///
-/// 注意：`Decimal::new` 不是 const fn，不能用于 const 初始化；
-/// 使用 rust_decimal 提供的 const 关联常量 `Decimal::ONE`（= 1.0）。
+/// 默认本位币汇率（CNY 本位币 = 1.0）
+/// 历史缺陷（P0-1，2026-06-25 综合审计）：自动生成 AP 发票时曾误用；`Decimal::new(1, 2)` = 0.01，导致下游按汇率换算本位币金额被缩小 100 倍。；抽取为常量并在单元测试中断言其值，避免再次被改错。；注意：`Decimal::new` 不是 const fn，不能用于 const 初始化；使用 rust_decimal 提供的 const 关联常量 `Decimal::ONE`（= 1.0）。
 pub const DEFAULT_BASE_CURRENCY_EXCHANGE_RATE: Decimal = Decimal::ONE;
 
 /// 应付单服务
@@ -116,10 +110,8 @@ mod tests {
 
     use super::*;
 
-    /// 防止 P0-1 缺陷复发：默认本位币汇率必须是 1.0，不能是 0.01。
-    ///
-    /// 历史缺陷：`Decimal::new(1, 2)` 误用导致自动生成 AP 发票汇率被设为 0.01，
-    /// 下游按汇率换算本位币金额的财务计算被缩小 100 倍。
+    /// 防止 P0-1 缺陷复发：默认本位币汇率必须是 1.0，不能是 0.01
+    /// 历史缺陷：`Decimal::new(1, 2)` 误用导致自动生成 AP 发票汇率被设为 0.01，；下游按汇率换算本位币金额的财务计算被缩小 100 倍。
     #[test]
     fn test_default_exchange_rate_is_one_not_zero_dot_zero_one() {
         assert_eq!(
@@ -137,10 +129,7 @@ mod tests {
         );
     }
 
-    /// 验证按默认汇率换算本位币金额：金额 × 1.0 = 金额本身。
-    ///
-    /// 该测试模拟下游按汇率换算本位币金额的场景，确保 P0-1 修复后
-    /// 自动生成的 AP 发票换算结果不会被缩小 100 倍。
+    /// 验证按默认汇率换算本位币金额：金额 × 1.0 = 金额本身（该测试模拟下游按汇率换算本位币金额的场景，确保 P0-1 修复后；自动生成的 AP 发票换算结果不会被缩小 100 倍。）
     #[test]
     fn test_exchange_rate_conversion_not_shrunk_by_100() {
         let invoice_amount = Decimal::new(12345, 2); // 123.45
@@ -164,13 +153,7 @@ mod tests {
     // ============ 批次 393 补测：AP 状态常量与校验函数 ============
 
     /// 测试_AP状态常量值正确性
-    ///
-    /// 验证 ap_invoice.invoice_status 字段使用的状态常量值与业务约定一致。
-    /// - common::STATUS_DRAFT = "DRAFT"（草稿）
-    /// - ap_invoice::INVOICE_AUDITED = "AUDITED"（已审核，AP 专属）
-    /// - payment::PAYMENT_PAID = "PAID"（已付款）
-    /// - payment::PAYMENT_PARTIAL_PAID = "PARTIAL_PAID"（部分付款）
-    /// - common::STATUS_CANCELLED = "CANCELLED"（已取消）
+    /// 验证 ap_invoice.invoice_status 字段使用的状态常量值与业务约定一致。；common::STATUS_DRAFT = "DRAFT"（草稿）；ap_invoice::INVOICE_AUDITED = "AUDITED"（已审核，AP 专属）；payment::PAYMENT_PAID = "PAID"（已付款）；payment::PAYMENT_PARTIAL_PAID = "PARTIAL_PAID"（部分付款）；common::STATUS_CANCELLED = "CANCELLED"（已取消）
     #[test]
     fn 测试_AP状态常量值正确性() {
         use crate::models::status;
@@ -187,11 +170,7 @@ mod tests {
         );
     }
 
-    /// 测试_汇率校验函数_合法与非法值
-    ///
-    /// 验证 validate_exchange_rate 的拒绝逻辑：
-    /// - 0 / 负数 / 0.01（P0-1 历史缺陷值）应拒绝
-    /// - 正数（如 1.0, 6.5, 0.1）应通过
+    /// 测试_汇率校验函数_合法与非法值（验证 validate_exchange_rate 的拒绝逻辑：0 / 负数 / 0.01（P0-1 历史缺陷值）应拒绝；正数（如 1.0, 6.5, 0.1）应通过）
     #[test]
     fn 测试_汇率校验函数_合法与非法值() {
         // 非法值应拒绝
@@ -224,11 +203,7 @@ mod tests {
         );
     }
 
-    /// 测试_金额校验函数_正数校验
-    ///
-    /// 验证 validate_positive_decimal 的拒绝逻辑：
-    /// - 0 / 负数应拒绝
-    /// - 正数应通过
+    /// 测试_金额校验函数_正数校验（验证 validate_positive_decimal 的拒绝逻辑：0 / 负数应拒绝；正数应通过）
     #[test]
     fn 测试_金额校验函数_正数校验() {
         // 非法值
@@ -252,11 +227,7 @@ mod tests {
         );
     }
 
-    /// 测试_金额校验函数_非负校验
-    ///
-    /// 验证 validate_non_negative_decimal 的拒绝逻辑：
-    /// - 负数应拒绝
-    /// - 0 / 正数应通过（允许 0，如税额为 0 的场景）
+    /// 测试_金额校验函数_非负校验（验证 validate_non_negative_decimal 的拒绝逻辑：负数应拒绝；0 / 正数应通过（允许 0，如税额为 0 的场景））
     #[test]
     fn 测试_金额校验函数_非负校验() {
         // 非法值
@@ -278,18 +249,12 @@ mod tests {
 
     // ============ 批次 393 补测：AP 状态机门 ============
 
-    /// 复现 approve 方法内的状态机门判定
-    ///
-    /// 源码位置：approve 方法内的状态门。
-    /// 仅 common::STATUS_DRAFT 状态允许审核转 AUDITED。
+    /// 复现 approve 方法内的状态机门判定（源码位置：approve 方法内的状态门。；仅 common::STATUS_DRAFT 状态允许审核转 AUDITED。）
     fn can_approve(current_status: &str) -> bool {
         current_status == crate::models::status::common::STATUS_DRAFT
     }
 
-    /// 复现 mark_as_paid 方法内的状态机门判定（白名单）
-    ///
-    /// 源码位置：mark_as_paid 方法内的状态门（P0 3-3 修复）。
-    /// 仅 AUDITED / PARTIAL_PAID 状态允许标记为已付清。
+    /// 复现 mark_as_paid 方法内的状态机门判定（白名单）（源码位置：mark_as_paid 方法内的状态门（P0 3-3 修复）。；仅 AUDITED / PARTIAL_PAID 状态允许标记为已付清。）
     fn can_mark_as_paid(current_status: &str) -> bool {
         [
             crate::models::status::ap_invoice::INVOICE_AUDITED,
@@ -298,10 +263,7 @@ mod tests {
         .contains(&current_status)
     }
 
-    /// 复现 cancel 方法内的状态机门判定（白名单）
-    ///
-    /// 源码位置：cancel 方法内的状态门。
-    /// 仅 AUDITED / PARTIAL_PAID 状态允许取消（且需 paid_amount 为 0）。
+    /// 复现 cancel 方法内的状态机门判定（白名单）（源码位置：cancel 方法内的状态门。；仅 AUDITED / PARTIAL_PAID 状态允许取消（且需 paid_amount 为 0）。）
     fn can_cancel(current_status: &str) -> bool {
         [
             crate::models::status::ap_invoice::INVOICE_AUDITED,
@@ -310,9 +272,7 @@ mod tests {
         .contains(&current_status)
     }
 
-    /// 测试_approve状态机门_仅DRAFT允许
-    ///
-    /// 验证 approve 状态门：仅 DRAFT 状态可审核
+    /// 测试_approve状态机门_仅DRAFT允许（验证 approve 状态门：仅 DRAFT 状态可审核）
     #[test]
     fn 测试_approve状态机门_仅DRAFT允许() {
         use crate::models::status;
@@ -326,9 +286,7 @@ mod tests {
         assert!(!can_approve(status::common::STATUS_CANCELLED));
     }
 
-    /// 测试_mark_as_paid状态机门_仅AUDITED和PARTIAL_PAID允许
-    ///
-    /// 验证 mark_as_paid 状态门（P0 3-3 修复）：仅 AUDITED/PARTIAL_PAID 可标记已付清
+    /// 测试_mark_as_paid状态机门_仅AUDITED和PARTIAL_PAID允许（验证 mark_as_paid 状态门（P0 3-3 修复）：仅 AUDITED/PARTIAL_PAID 可标记已付清）
     #[test]
     fn 测试_mark_as_paid状态机门_仅AUDITED和PARTIAL_PAID允许() {
         use crate::models::status;
@@ -342,9 +300,7 @@ mod tests {
         assert!(!can_mark_as_paid(status::common::STATUS_CANCELLED));
     }
 
-    /// 测试_cancel状态机门_仅AUDITED和PARTIAL_PAID允许
-    ///
-    /// 验证 cancel 状态门：仅 AUDITED/PARTIAL_PAID 可取消
+    /// 测试_cancel状态机门_仅AUDITED和PARTIAL_PAID允许（验证 cancel 状态门：仅 AUDITED/PARTIAL_PAID 可取消）
     #[test]
     fn 测试_cancel状态机门_仅AUDITED和PARTIAL_PAID允许() {
         use crate::models::status;
@@ -361,9 +317,7 @@ mod tests {
     // ============ 批次 393 补测：账龄分桶算法 ============
 
     /// 复现 get_aging_analysis 中的账龄分桶逻辑
-    ///
-    /// 源码位置：get_aging_analysis 方法内的账龄区间分类。
-    /// 6 个区间：未到期 / 1-30 / 31-60 / 61-90 / 91-180 / 180 天以上
+    /// 源码位置：get_aging_analysis 方法内的账龄区间分类。；6 个区间：未到期 / 1-30 / 31-60 / 61-90 / 91-180 / 180 天以上
     fn aging_bucket(days_overdue: i32) -> String {
         if days_overdue < 0 {
             "未到期".to_string()
@@ -380,9 +334,7 @@ mod tests {
         }
     }
 
-    /// 测试_账龄分桶算法_6个区间
-    ///
-    /// 验证 get_aging_analysis 的账龄分桶覆盖 6 个区间边界
+    /// 测试_账龄分桶算法_6个区间（验证 get_aging_analysis 的账龄分桶覆盖 6 个区间边界）
     #[test]
     fn 测试_账龄分桶算法_6个区间() {
         // 未到期（days_overdue = -1 表示未到期）

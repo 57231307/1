@@ -61,11 +61,7 @@ pub use crate::services::energy_ops::{
 // 能耗计算纯函数
 // ============================================================================
 
-/// 计算消耗量（当前读数 - 上次读数）
-///
-/// 业务规则：
-/// - 若当前读数 < 上次读数，返回 0（可能是表计回零或异常）
-/// - 否则返回差值
+/// 计算消耗量（当前读数 - 上次读数）（业务规则：若当前读数 < 上次读数，返回 0（可能是表计回零或异常）；否则返回差值）
 pub fn compute_consumption(previous_reading: Decimal, current_reading: Decimal) -> Decimal {
     if current_reading < previous_reading {
         return Decimal::ZERO;
@@ -78,10 +74,7 @@ pub fn compute_total_cost(consumption: Decimal, unit_price: Decimal) -> Decimal 
     consumption * unit_price
 }
 
-/// 计算分摊比例（分摊依据量 / 总依据量）
-///
-/// 业务规则：
-/// - 若总依据量为 0，返回 0（避免除零）
+/// 计算分摊比例（分摊依据量 / 总依据量）（业务规则：若总依据量为 0，返回 0（避免除零））
 pub fn compute_allocation_ratio(basis_value: Decimal, total_basis_value: Decimal) -> Decimal {
     if total_basis_value <= Decimal::ZERO {
         return Decimal::ZERO;
@@ -102,11 +95,7 @@ pub fn compute_allocated_cost(total_cost: Decimal, allocation_ratio: Decimal) ->
     total_cost * allocation_ratio
 }
 
-/// 计算单位能耗（分摊消耗量 / 单位产量）
-///
-/// 业务规则：
-/// - 若单位产量为 0 或 None，返回 None
-/// - 用于单位能耗分析（每米布能耗、每缸能耗）
+/// 计算单位能耗（分摊消耗量 / 单位产量）（业务规则：若单位产量为 0 或 None，返回 None；用于单位能耗分析（每米布能耗、每缸能耗））
 pub fn compute_unit_consumption(
     allocated_consumption: Decimal,
     output_quantity: Option<Decimal>,
@@ -118,12 +107,7 @@ pub fn compute_unit_consumption(
     Some(allocated_consumption / output)
 }
 
-/// 判断能耗是否超过基准
-///
-/// 业务规则：
-/// - 实际单位能耗 > 标准单位能耗 × (1 + tolerance) 时视为超基准
-/// - tolerance 默认 0.1（10% 容差）
-/// - 返回 (是否超基准, 实际单位能耗, 偏差百分比)
+/// 判断能耗是否超过基准（业务规则：实际单位能耗 > 标准单位能耗 × (1 + tolerance) 时视为超基准；tolerance 默认 0.1（10% 容差）；返回 (是否超基准, 实际单位能耗, 偏差百分比)）
 pub fn check_consumption_exceeds_standard(
     actual_unit_consumption: Decimal,
     standard_consumption_per_unit: Decimal,

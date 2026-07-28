@@ -13,13 +13,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 工序工价模型
-///
-/// 真实业务要点：
-/// - 每道工序的计件/计时单价定义
-/// - 等级系数联动质量分级（A/B/C）
-/// - 支持生效日期与失效日期，便于工价调整
-/// - 同一工序同一生效日期只能有一个工价（避免歧义）
+/// 工序工价模型（每道工序计件/计时单价定义，等级系数联动质量分级 A/B/C，支持生效失效日期便于调整，同工序同生效日期仅一个工价）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "process_wage_rate")]
 pub struct Model {

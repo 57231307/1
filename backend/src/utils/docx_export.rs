@@ -109,9 +109,7 @@ pub fn build_docx_response(table: &DocxTable, filename: &str) -> Result<Response
     Ok(docx_response(bytes, filename))
 }
 
-/// 构建带键值对主表 + 明细表格的 docx（适用于合同/对账单）
-///
-/// 布局：标题 → 键值对表格（2 列：字段名 | 值）→ 明细表格（headers + rows）
+/// 构建带键值对主表 + 明细表格的 docx（适用于合同/对账单；布局：标题→键值对表格(2列)→明细表格）
 pub fn build_docx_with_kv(
     title: &str,
     kv: &DocxKeyValue,

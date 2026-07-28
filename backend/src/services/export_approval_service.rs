@@ -75,13 +75,7 @@ impl ExportApprovalService {
     }
 
     /// 创建审批请求
-    ///
-    /// 敏感资源导出前必须先创建审批请求。
-    /// 风险等级根据预估导出行数自动评估：
-    /// - < 1000 行：low（一级审批即可）
-    /// - 1000-10000 行：medium（二级审批）
-    /// - 10000-50000 行：high（二级审批 + 风险提示）
-    /// - >= 50000 行：critical（二级审批 + 额外验证）
+    /// 敏感资源导出前必须先创建审批请求。；风险等级根据预估导出行数自动评估：< 1000 行：low（一级审批即可）；1000-10000 行：medium（二级审批）；10000-50000 行：high（二级审批 + 风险提示）；>= 50000 行：critical（二级审批 + 额外验证）
     pub async fn create_request(
         &self,
         applicant_user_id: i32,
@@ -113,9 +107,7 @@ impl ExportApprovalService {
         Ok(model)
     }
 
-    /// 校验创建审批请求字段：资源类型必须敏感，文件格式仅支持 xlsx/pdf/csv
-    ///
-    /// 返回规范化后的 file_format（小写）
+    /// 校验创建审批请求字段：资源类型必须敏感，文件格式仅支持 xlsx/pdf/csv（返回规范化后的 file_format（小写））
     fn validate_create_request_fields(req: &CreateApprovalRequest) -> Result<String, AppError> {
         if !sensitive_resources::is_sensitive(&req.resource_type) {
             return Err(AppError::validation(format!(
@@ -135,9 +127,7 @@ impl ExportApprovalService {
         Ok(file_format)
     }
 
-    /// 评估风险等级和审批层级
-    ///
-    /// 审批层级：high/critical 必须二级审批；medium 默认二级；low 可一级
+    /// 评估风险等级和审批层级（审批层级：high/critical 必须二级审批；medium 默认二级；low 可一级）
     fn assess_risk_level(estimated_rows: i64) -> (String, i32) {
         let risk = RiskLevel::from_row_count(estimated_rows);
         let risk_level = risk.as_str().to_string();
@@ -195,10 +185,7 @@ impl ExportApprovalService {
     }
 
     /// 审批通过（一级或二级）
-    ///
-    /// - 一级审批通过后，若 approval_level == 2，状态保持 pending 等待二级审批
-    /// - 二级审批通过后，生成临时下载 token（5 分钟有效）
-    /// - 一级审批通过后，若 approval_level == 1，直接生成 token
+    /// 一级审批通过后，若 approval_level == 2，状态保持 pending 等待二级审批；二级审批通过后，生成临时下载 token（5 分钟有效）；一级审批通过后，若 approval_level == 1，直接生成 token
     pub async fn approve(
         &self,
         approval_id: i64,
@@ -349,9 +336,7 @@ impl ExportApprovalService {
         Ok(updated)
     }
 
-    /// 校验下载 token（导出 handler 调用前校验）
-    ///
-    /// 返回审批请求记录，校验通过后 handler 生成导出文件并记录 file_path/checksum
+    /// 校验下载 token（导出 handler 调用前校验）（返回审批请求记录，校验通过后 handler 生成导出文件并记录 file_path/checksum）
     pub async fn verify_download_token(&self, token: &str) -> Result<Model, AppError> {
         let model = Entity::find()
             .filter(Column::DownloadToken.eq(token))
@@ -464,9 +449,7 @@ impl ExportApprovalService {
             .ok_or_else(|| AppError::not_found(format!("导出审批请求不存在: id={}", id)))
     }
 
-    /// 清理过期 token（定时任务调用）
-    ///
-    /// 将已过期但仍为 approved 状态的请求标记为 expired
+    /// 清理过期 token（定时任务调用）（将已过期但仍为 approved 状态的请求标记为 expired）
     pub async fn cleanup_expired_tokens(&self) -> Result<u64, AppError> {
         let now = Utc::now();
         let expired = Entity::find()

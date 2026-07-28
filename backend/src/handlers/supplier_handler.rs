@@ -230,11 +230,8 @@ pub async fn delete_supplier_contact(
 
 // ==================== 供应商资质管理 Handler ====================
 
-/// 获取供应商资质列表
-///
-/// 批次 118 P2-9 修复：原 handler 返回硬编码空数组 `serde_json::json!([])`，
-/// 违反规则 0（真实实现强制）。改为真实调用 service.list_supplier_qualifications，
-/// 从 supplier_qualification 表查询并返回数据。
+/// 获取供应商资质列表；批次 118 P2-9 修复：原 handler 返回硬编码空数组 `serde_json::json!([])`， 违反规则 0（真实实现强制）
+/// 改为真实调用 service.list_supplier_qualifications， 从 supplier_qualification 表查询并返回数据。
 pub async fn list_supplier_qualifications(
     Path(supplier_id): Path<i32>,
     State(state): State<AppState>,
@@ -247,11 +244,8 @@ pub async fn list_supplier_qualifications(
     )))
 }
 
-/// 创建供应商资质
-///
-/// 批次 118 P2-9 修复：原 handler 返回拼接的假数据 `{"supplier_id": ..., "qualification": req}`，
-/// 违反规则 0（真实实现强制）。改为真实调用 service.create_supplier_qualification，
-/// 持久化到 supplier_qualification 表并返回真实记录。
+/// 创建供应商资质；批次 118 P2-9 修复：原 handler 返回拼接的假数据 `{"supplier_id": ..., "qualification": req}`， 违反规则
+/// 0（真实实现强制）。改为真实调用 service.create_supplier_qualification， 持久化到 supplier_qualification 表并返回真实记录。
 #[axum::debug_handler]
 pub async fn create_supplier_qualification(
     Path(supplier_id): Path<i32>,
@@ -272,18 +266,8 @@ pub async fn create_supplier_qualification(
     )))
 }
 
-/// V15 P0-S12 + P0-S15 新增（Batch 474）：供应商列表导出为带水印的 xlsx
-///
-/// 端点：`GET /api/v1/suppliers/export`
-///
-/// 设计要点：
-/// - 复用 `list_suppliers` 的查询参数（SupplierQueryParams）
-/// - 通过 `SupplierService::list_suppliers` 一次性查询（page_size=10000 防 OOM）
-/// - 行级数据权限：与 `list_suppliers` 一致，调用 `to_data_scope_context`
-/// - 水印：操作员（AuthContext.username）+ 导出时间（ISO8601）+ 资源类型说明
-///   - IP 暂为 None（middleware 未把 client_ip 注入 AuthContext，后续批次补齐）
-///
-/// 规则 3：导出统一使用 xlsx 格式（含水印），错误用 AppError 表达。
+/// V15 P0-S12 + P0-S15 新增（Batch 474）：供应商列表导出为带水印的 xlsx；端点：`GET /api/v1/suppliers/export`；设计要点： - 复用 `list_suppliers` 的查询参数（SupplierQueryParams） - 通过 `SupplierService::list_suppliers` 一次性查询（page_size=10000 防 OOM） -
+/// 行级数据权限：与 `list_suppliers` 一致，调用 `to_data_scope_context` - 水印：操作员（AuthContext.username）+ 导出时间（ISO8601）+ 资源类型说明 - IP 暂为 None（middleware 未把 client_ip 注入 AuthContext，后续批次补齐）；规则 3：导出统一使用 xlsx 格式（含水印），错误用 AppError 表达。
 pub async fn export_suppliers(
     Query(mut params): Query<SupplierQueryParams>,
     State(state): State<AppState>,

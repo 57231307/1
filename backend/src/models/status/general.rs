@@ -40,11 +40,7 @@ pub mod payment {
     pub const PAYMENT_PARTIAL_PAID: &str = "PARTIAL_PAID";
 }
 
-/// 主数据启用/停用状态（小写值）
-///
-/// 批次 208 P2-5 修复（v12 复审）：
-/// supplier/customer/fixed_asset 等主数据的 status 字段使用小写 "active"/"inactive"，
-/// 与 common::STATUS_ACTIVE（大写 "ACTIVE"）不同，单独定义避免大小写混淆。
+/// 主数据启用/停用状态（小写值，批次 208 P2-5：supplier/customer/fixed_asset 等用小写 active/inactive，与 common::STATUS_ACTIVE 大写区分）
 pub mod master_data {
     /// 启用：主数据可用状态
     pub const ACTIVE: &str = "active";
@@ -92,9 +88,7 @@ pub mod email_log {
     pub const FAILED: &str = "FAILED";
 }
 
-/// 启用/停用状态（通用，大写值 ACTIVE/INACTIVE）
-/// 批次 236 v13 真实接入：email_template/report_subscription/report_template/bom_process_definition 等启用停用状态
-/// 注意：与 master_data 模块（小写 active/inactive）区分，本模块用于大写 ACTIVE/INACTIVE 场景
+/// 启用/停用状态（通用，大写值 ACTIVE/INACTIVE，批次 236 v13 真实接入，与 master_data 小写模块区分）
 pub mod active_status {
     /// 启用
     pub const ACTIVE: &str = "ACTIVE";

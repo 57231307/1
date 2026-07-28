@@ -9,10 +9,8 @@ use axum::{
     response::Response,
 };
 
-/// 请求日志中间件（P1-03-3 重命名：原 request_validator_middleware 名不副实）
-///
-/// 职责：仅记录未认证状态变更请求的调试日志，不拦截任何请求。
-/// 注意：本中间件不提供任何校验或拦截能力，安全校验由 auth/csrf/permission 中间件负责。
+/// 请求日志中间件（P1-03-3 重命名：原 request_validator_middleware 名不副实）；职责：仅记录未认证状态变更请求的调试日志
+/// 不拦截任何请求。 注意：本中间件不提供任何校验或拦截能力，安全校验由 auth/csrf/permission 中间件负责。
 pub async fn request_logging_middleware(
     State(_state): State<AppState>,
     request: Request<Body>,

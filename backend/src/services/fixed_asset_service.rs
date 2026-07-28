@@ -171,20 +171,7 @@ impl FixedAssetService {
     }
 
     /// 计算月折旧额（纯计算函数，无 IO）
-    ///
-    /// 批次 92 P3-10 修复：从 `calculate_monthly_depreciation` 拆出纯计算部分，
-    /// 供 `depreciate` 事务内复用已 lock_exclusive 读出的 asset，
-    /// 消除事务外重复 `self.get_by_id(asset_id)` 读取（原实现存在 TOCTOU 风险：
-    /// 事务外读到的 asset 可能已被并发 depreciate/dispose 修改）。
-    ///
-    /// 批次 118 P2-8 修复：删除从未接入业务的 `calculate_monthly_depreciation` 异步包装
-    /// （depreciate 已直接调用此纯计算函数，预留的折旧预览 API 端点从未实现）。
-    ///
-    /// V15 P1 17.8-D1 扩展：新增 3 种折旧方法
-    /// - `straight_line`：平均年限法（原有，(原值 - 残值) / (使用年限 × 12)）
-    /// - `units_of_production`：工作量法（基于月工作量，使用 monthly_depreciation 字段预存）
-    /// - `sum_of_years_digits`：年数总和法（(原值 - 残值) × 剩余年数 / 年数总和 / 12）
-    /// - `double_declining_balance`：双倍余额递减法（净值 × 2 / 使用年限 / 12）
+    /// 批次 92 P3-10 修复：从 `calculate_monthly_depreciation` 拆出纯计算部分，；供 `depreciate` 事务内复用已 lock_exclusive 读出的 asset，；消除事务外重复 `self.get_by_id(asset_id)` 读取（原实现存在 TOCTOU 风险：事务外读到的 asset 可能已被并发 depreciate/dispose 修改）。；批次 118 P2-8 修复：删除从未接入业务的 `calculate_monthly_depreciation` 异步包装；（depreciate 已直接调用此纯计算函数，预留的折旧预览 API 端点从未实现）。；V15 P1 17.8-D1 扩展：新增 3 种折旧方法；`straight_line`：平均年限法（原有，(原值 - 残值) / (使用年限 × 12)）；`units_of_production`：工作量法（基于月工作量，使用 monthly_depreciation 字段预存）；`sum_of_years_digits`：年数总和法（(原值 - 残值) × 剩余年数 / 年数总和 / 12）；`double_declining_balance`：双倍余额递减法（净值 × 2 / 使用年限 / 12）
     fn calc_monthly_depreciation_for(asset: &fixed_asset::Model) -> Result<Decimal, AppError> {
         let residual_value = asset.salvage_value.unwrap_or(Decimal::ZERO);
         let useful_life_years = asset.useful_life.unwrap_or_default();
@@ -414,10 +401,7 @@ impl FixedAssetService {
     }
 
     /// 计提折旧
-    ///
-    /// 批次 85 v2 复审 P1-4 修复：状态门移入 txn + lock_exclusive 串行化
-    /// 原实现状态门在 self.db 查询（get_by_id），txn 在状态门后才开始，存在 TOCTOU
-    /// （并发 dispose/depreciate 会基于过期状态通过检查后重复写入）
+    /// 批次 85 v2 复审 P1-4 修复：状态门移入 txn + lock_exclusive 串行化；原实现状态门在 self.db 查询（get_by_id），txn 在状态门后才开始，存在 TOCTOU；（并发 dispose/depreciate 会基于过期状态通过检查后重复写入）
     pub async fn depreciate(
         &self,
         asset_id: i32,
@@ -484,15 +468,7 @@ impl FixedAssetService {
     }
 
     /// 资产处置
-    ///
-    /// 批次 85 v2 复审 P1-5 修复：状态门移入 txn + lock_exclusive 串行化
-    /// 原实现状态门在 self.db 查询（get_by_id），txn 在状态门后才开始，存在 TOCTOU
-    /// （并发 dispose/depreciate 会基于过期状态通过检查后重复写入）
-    ///
-    /// V15 P1 17.8-D3 扩展：处置时生成处置损益凭证
-    /// - 借：固定资产清理（资产净值）/ 累计折旧（已计提折旧）
-    /// - 贷：固定资产（原值）
-    /// - 借/贷：银行存款（处置收入）/ 营业外收入（处置收益）或 营业外支出（处置损失）
+    /// 批次 85 v2 复审 P1-5 修复：状态门移入 txn + lock_exclusive 串行化；原实现状态门在 self.db 查询（get_by_id），txn 在状态门后才开始，存在 TOCTOU；（并发 dispose/depreciate 会基于过期状态通过检查后重复写入）；V15 P1 17.8-D3 扩展：处置时生成处置损益凭证；借：固定资产清理（资产净值）/ 累计折旧（已计提折旧）；贷：固定资产（原值）；借/贷：银行存款（处置收入）/ 营业外收入（处置收益）或 营业外支出（处置损失）
     pub async fn dispose(
         &self,
         asset_id: i32,
@@ -580,18 +556,7 @@ impl FixedAssetService {
     }
 
     /// V15 P1 17.8-D3：生成固定资产处置损益凭证
-    ///
-    /// 凭证分录（以"固定资产清理"为中间科目）：
-    /// 1. 结转固定资产原值：
-    ///    - 借：固定资产清理 1606 = 资产净值
-    ///    - 借：累计折旧 1602 = 已计提累计折旧
-    ///    - 贷：固定资产 1601 = 原值
-    /// 2. 收到处置款项：
-    ///    - 借：银行存款 1002 = 处置收入
-    ///    - 贷：固定资产清理 1606 = 处置收入
-    /// 3. 结转处置损益：
-    ///    - 若收益（gain > 0）：借 固定资产清理 1606 / 贷 营业外收入 6301
-    ///    - 若损失（gain < 0）：借 营业外支出 6711 / 贷 固定资产清理 1606
+    /// 凭证分录（以"固定资产清理"为中间科目）：1. 结转固定资产原值：借：固定资产清理 1606 = 资产净值；借：累计折旧 1602 = 已计提累计折旧；贷：固定资产 1601 = 原值；2. 收到处置款项：借：银行存款 1002 = 处置收入；贷：固定资产清理 1606 = 处置收入；3. 结转处置损益：若收益（gain > 0）：借 固定资产清理 1606 / 贷 营业外收入 6301；若损失（gain < 0）：借 营业外支出 6711 / 贷 固定资产清理 1606
     async fn generate_disposal_voucher_txn(
         txn: &sea_orm::DatabaseTransaction,
         disposal: &crate::models::fixed_asset_disposal::Model,
@@ -720,10 +685,7 @@ impl FixedAssetService {
         Ok(())
     }
 
-    /// 查询指定资产的折旧历史记录
-    ///
-    /// v3 复审 P1-3：折旧记录查询 API
-    /// 按 created_at 倒序返回，补 .limit(10_000) 兜底（与批次 87 LIMIT 模式一致）
+    /// 查询指定资产的折旧历史记录（v3 复审 P1-3：折旧记录查询 API；按 created_at 倒序返回，补 .limit(10_000) 兜底（与批次 87 LIMIT 模式一致））
     pub async fn list_depreciation_records(
         &self,
         asset_id: i32,
@@ -737,10 +699,7 @@ impl FixedAssetService {
         Ok(records)
     }
 
-    /// 查询资产处置记录列表
-    ///
-    /// v3 复审 P1-8：处置记录查询 API
-    /// 按 created_at 倒序返回，补 .limit(10_000) 兜底（与批次 87 LIMIT 模式一致）
+    /// 查询资产处置记录列表（v3 复审 P1-8：处置记录查询 API；按 created_at 倒序返回，补 .limit(10_000) 兜底（与批次 87 LIMIT 模式一致））
     pub async fn list_disposals(
         &self,
     ) -> Result<Vec<crate::models::fixed_asset_disposal::Model>, AppError> {
@@ -753,10 +712,7 @@ impl FixedAssetService {
     }
 
     /// 删除资产（仅支持未使用状态）
-    ///
-    /// 批次 86 v2 复审 P2-9 修复：find + 状态门 + delete 移入单一事务 + lock_exclusive 串行化
-    /// 原实现 find（get_by_id 内部 self.db）+ delete 在 self.db 上分别执行，无 txn 无 lock，
-    /// 存在 TOCTOU（并发 depreciate/dispose 会基于过期状态通过检查后被误删）
+    /// 批次 86 v2 复审 P2-9 修复：find + 状态门 + delete 移入单一事务 + lock_exclusive 串行化；原实现 find（get_by_id 内部 self.db）+ delete 在 self.db 上分别执行，无 txn 无 lock，；存在 TOCTOU（并发 depreciate/dispose 会基于过期状态通过检查后被误删）
     pub async fn delete(&self, asset_id: i32, user_id: i32) -> Result<(), AppError> {
         info!("用户 {} 正在删除资产 {}", user_id, asset_id);
 
@@ -784,15 +740,7 @@ impl FixedAssetService {
     }
 
     /// 批量计算折旧（仅预览，不持久化）
-    ///
-    /// v3 复审 P2-3：本方法为纯只读计算，不修改 fixed_asset 表的累计折旧/净值，
-    /// 也不插入 fixed_asset_depreciation_records 记录。
-    /// 如需持久化计提，请逐条调用 `depreciate(asset_id, period, user_id)`。
-    /// 前端批量入口应先调本方法预览，用户确认后逐条调 depreciate 完成计提。
-    ///
-    /// 批次 92 P3-11 修复：
-    /// - 入口加 asset_ids 长度校验（>10_000 拒绝），防止 IN 列表过长拖垮 DB
-    /// - 查询改用 `.paginate(&*self.db, 1000)` 流式拉取，避免一次性 `.all()` 内存峰值
+    /// v3 复审 P2-3：本方法为纯只读计算，不修改 fixed_asset 表的累计折旧/净值，；也不插入 fixed_asset_depreciation_records 记录。；如需持久化计提，请逐条调用 `depreciate(asset_id, period, user_id)`。；前端批量入口应先调本方法预览，用户确认后逐条调 depreciate 完成计提。；批次 92 P3-11 修复：入口加 asset_ids 长度校验（>10_000 拒绝），防止 IN 列表过长拖垮 DB；查询改用 `.paginate(&*self.db, 1000)` 流式拉取，避免一次性 `.all()` 内存峰值
     pub async fn batch_calculate_depreciation(
         &self,
         asset_ids: Vec<i32>,
@@ -903,10 +851,7 @@ impl FixedAssetService {
     }
 
     /// V15 P1 17.8-D2：月末自动计提折旧
-    ///
-    /// 供 cron/scheduler 月末调用，遍历所有 active 状态资产按指定期间计提折旧。
-    /// 单资产失败不中断整体流程，记录到 failures 列表返回，保证批处理韧性。
-    /// 幂等性由 `uk_fa_depreciation_records_asset_period` 唯一约束保证（重复计提会被跳过）。
+    /// 供 cron/scheduler 月末调用，遍历所有 active 状态资产按指定期间计提折旧。；单资产失败不中断整体流程，记录到 failures 列表返回，保证批处理韧性。；幂等性由 `uk_fa_depreciation_records_asset_period` 唯一约束保证（重复计提会被跳过）。
     pub async fn auto_monthly_depreciation(
         &self,
         period: &str,
@@ -975,9 +920,7 @@ impl FixedAssetService {
         Ok(summary)
     }
 
-    /// V15 P1 17.8-D4：创建资产盘点计划
-    ///
-    /// 按资产类别/存放地点筛选资产生成盘点计划，状态 DRAFT→COUNTING→COMPLETED。
+    /// V15 P1 17.8-D4：创建资产盘点计划（按资产类别/存放地点筛选资产生成盘点计划，状态 DRAFT→COUNTING→COMPLETED。）
     pub async fn create_count_plan(
         &self,
         req: CreateCountPlanRequest,
@@ -1063,9 +1006,7 @@ impl FixedAssetService {
         Ok(plan_final)
     }
 
-    /// V15 P1 17.8-D4：录入盘点结果（单条）
-    ///
-    /// count_result: "consistent"=一致, "surplus"=盘盈, "shortage"=盘亏, "damaged"=毁损
+    /// V15 P1 17.8-D4：录入盘点结果（单条）（count_result: "consistent"=一致, "surplus"=盘盈, "shortage"=盘亏, "damaged"=毁损）
     pub async fn record_count_item(
         &self,
         count_id: i32,
@@ -1172,10 +1113,7 @@ impl FixedAssetService {
         Ok(updated)
     }
 
-    /// V15 P1 17.8-D4：完成盘点并生成盘盈盘亏处理
-    ///
-    /// 统计盘盈/盘亏数量，将盘点单置为 COMPLETED。
-    /// 盘亏资产标记为 INACTIVE（待处置），盘盈资产需手工建档。
+    /// V15 P1 17.8-D4：完成盘点并生成盘盈盘亏处理（统计盘盈/盘亏数量，将盘点单置为 COMPLETED。；盘亏资产标记为 INACTIVE（待处置），盘盈资产需手工建档。）
     pub async fn complete_count_plan(
         &self,
         count_id: i32,
@@ -1447,12 +1385,7 @@ mod tests {
     }
 
     /// 测试处置损益计算：处置价值 > 账面净值 → 收益为正
-    ///
-    /// 对应 dispose 方法 line 331-333 的计算逻辑：
-    /// `net_book_value = asset.net_value.unwrap_or(Decimal::ZERO)`
-    /// `disposal_gain_loss = req.disposal_value - net_book_value`
-    ///
-    /// gain_loss 计算公式验证，完整 dispose 事务流程需集成测试
+    /// 对应 dispose 方法 line 331-333 的计算逻辑：`net_book_value = asset.net_value.unwrap_or(Decimal::ZERO)`；`disposal_gain_loss = req.disposal_value - net_book_value`；gain_loss 计算公式验证，完整 dispose 事务流程需集成测试
     #[test]
     fn test_disposal_gain_loss_positive() {
         // 资产：原值 10000，累计折旧 2000，账面净值 8000
@@ -1470,9 +1403,7 @@ mod tests {
         );
     }
 
-    /// 测试处置损益计算：处置价值 < 账面净值 → 损失为负
-    ///
-    /// gain_loss 计算公式验证，完整 dispose 事务流程需集成测试
+    /// 测试处置损益计算：处置价值 < 账面净值 → 损失为负（gain_loss 计算公式验证，完整 dispose 事务流程需集成测试）
     #[test]
     fn test_disposal_gain_loss_negative() {
         // 同一资产，账面净值 8000，处置价值仅 7000
@@ -1488,9 +1419,7 @@ mod tests {
         );
     }
 
-    /// 测试处置损益计算：处置价值 = 账面净值 → 损益为 0
-    ///
-    /// gain_loss 计算公式验证，完整 dispose 事务流程需集成测试
+    /// 测试处置损益计算：处置价值 = 账面净值 → 损益为 0（gain_loss 计算公式验证，完整 dispose 事务流程需集成测试）
     #[test]
     fn test_disposal_gain_loss_zero() {
         let net_book_value = Decimal::from(8000);
@@ -1502,12 +1431,7 @@ mod tests {
     }
 
     /// 测试 calculate_asset_depreciation 的 round_dp(2) 精度行为
-    ///
-    /// 构造资产：original_value=10000, salvage_value=Some(0), useful_life=Some(3)（36 个月）
-    /// 月折旧 = (10000 - 0) / 36 = 277.7777...，round_dp(2) 四舍五入为 277.78
-    ///
-    /// calculate_asset_depreciation 是私有方法且需 &self（FixedAssetService 含 DatabaseConnection），
-    /// 此处验证其内部 round_dp(2) 精度逻辑，完整方法调用需集成测试
+    /// 构造资产：original_value=10000, salvage_value=Some(0), useful_life=Some(3)（36 个月）；月折旧 = (10000 - 0) / 36 = 277.7777...，round_dp(2) 四舍五入为 277.78；calculate_asset_depreciation 是私有方法且需 &self（FixedAssetService 含 DatabaseConnection），；此处验证其内部 round_dp(2) 精度逻辑，完整方法调用需集成测试
     #[test]
     fn test_calculate_asset_depreciation_round_dp() {
         let original_value = Decimal::from(10000);

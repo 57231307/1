@@ -165,11 +165,8 @@ pub async fn get_recipe_versions(
     Ok(Json(ApiResponse::success(recipes)))
 }
 
-/// POST /api/v1/erp/dye-recipes/:id/submit - 提交配方审核
-///
-/// 当前实现为轻量提交动作（仅刷新 updated_at + 标记 approved_by=-1 占位），
-/// 状态保持草稿不变。批次 423B 化验室打样流程贯通时将重设计状态机，
-/// 引入"待审核"中间态，由 service 层提供 submit 方法。
+/// POST /api/v1/erp/dye-recipes/:id/submit - 提交配方审核；当前实现为轻量提交动作（仅刷新 updated_at + 标记
+/// approved_by=-1 占位）， 状态保持草稿不变。批次 423B 化验室打样流程贯通时将重设计状态机， 引入"待审核"中间态，由 service 层提供 submit 方法。
 pub async fn submit_dye_recipe(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -192,11 +189,8 @@ pub async fn submit_dye_recipe(
     )))
 }
 
-/// GET /api/v1/erp/dye-recipes/export - 导出配方列表（xlsx）
-///
-/// 注意：该接口返回 xlsx 二进制流（非 JSON），无法套用 `Result<Json<ApiResponse<T>>, AppError>`。
-/// 此处返回 `Result<axum::response::Response, AppError>`：成功时通过 build_xlsx_response 构造带
-/// xlsx Content-Type 的 200 响应；失败时通过 `?` 将 `sea_orm::DbErr` 自动转换为 `AppError`。
+/// GET /api/v1/erp/dye-recipes/export - 导出配方列表（xlsx）；注意：该接口返回 xlsx 二进制流（非 JSON），无法套用 `Result<Json<ApiResponse<T>>, AppError>`。 此处返回
+/// `Result<axum::response::Response, AppError>`：成功时通过 build_xlsx_response 构造带 xlsx Content-Type 的 200 响应；失败时通过 `?` 将 `sea_orm::DbErr` 自动转换为 `AppError`。
 pub async fn export_dye_recipes(
     State(state): State<AppState>,
     auth: AuthContext,

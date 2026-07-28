@@ -47,10 +47,7 @@ pub use crate::services::outsourcing_ops::{
 // 委外加工计算纯函数
 // ============================================================================
 
-/// 计算损耗率 = loss_quantity / issue_quantity
-///
-/// 业务规则：
-/// - 若发出数量为 0，返回 0（避免除零）
+/// 计算损耗率 = loss_quantity / issue_quantity（业务规则：若发出数量为 0，返回 0（避免除零））
 pub fn compute_loss_rate(loss_quantity: Decimal, issue_quantity: Decimal) -> Decimal {
     if issue_quantity <= Decimal::ZERO {
         return Decimal::ZERO;
@@ -58,11 +55,7 @@ pub fn compute_loss_rate(loss_quantity: Decimal, issue_quantity: Decimal) -> Dec
     loss_quantity / issue_quantity
 }
 
-/// 计算总成本 = 材料成本 + 加工费 + 运费 - 非正常损耗金额
-///
-/// 业务规则（§5.4）：
-/// - 正常损耗摊入成本（不影响总成本，只影响单位成本）
-/// - 非正常损耗金额从总成本中扣除（计入营业外支出）
+/// 计算总成本 = 材料成本 + 加工费 + 运费 - 非正常损耗金额（业务规则（§5.4）：正常损耗摊入成本（不影响总成本，只影响单位成本）；非正常损耗金额从总成本中扣除（计入营业外支出））
 pub fn compute_total_cost(
     material_cost: Decimal,
     processing_fee: Decimal,
@@ -72,11 +65,7 @@ pub fn compute_total_cost(
     material_cost + processing_fee + freight_fee - abnormal_loss_amount
 }
 
-/// 计算单位成本 = 总成本 / 收回数量
-///
-/// 业务规则：
-/// - 若收回数量为 0，返回 0（避免除零）
-/// - 正常损耗只影响单位成本，不影响总成本
+/// 计算单位成本 = 总成本 / 收回数量（业务规则：若收回数量为 0，返回 0（避免除零）；正常损耗只影响单位成本，不影响总成本）
 pub fn compute_unit_cost(total_cost: Decimal, return_quantity: Decimal) -> Decimal {
     if return_quantity <= Decimal::ZERO {
         return Decimal::ZERO;
@@ -85,13 +74,7 @@ pub fn compute_unit_cost(total_cost: Decimal, return_quantity: Decimal) -> Decim
 }
 
 /// 计算标准损耗率（按工序）
-///
-/// 业务规则（§5.7 行业通用损耗率标准，取中值）：
-/// - dyeing(染色) = 0.05（印染工序 4%-6%，取中值 5%）
-/// - weaving(织布) = 0.035（织布工序 2%-5%，取中值 3.5%）
-/// - printing(印花) = 0.05（同印染工序）
-/// - finishing(后整理) = 0.03（后整理损耗较低）
-/// - other(其他) = 0.0（无标准）
+/// 业务规则（§5.7 行业通用损耗率标准，取中值）：dyeing(染色) = 0.05（印染工序 4%-6%，取中值 5%）；weaving(织布) = 0.035（织布工序 2%-5%，取中值 3.5%）；printing(印花) = 0.05（同印染工序）；finishing(后整理) = 0.03（后整理损耗较低）；other(其他) = 0.0（无标准）
 pub fn compute_standard_loss_rate(order_type: &str) -> Decimal {
     match order_type {
         outsourcing_order_type::DYEING | outsourcing_order_type::PRINTING => {
@@ -104,10 +87,7 @@ pub fn compute_standard_loss_rate(order_type: &str) -> Decimal {
 }
 
 /// 损耗分类：根据实际损耗率与标准损耗率比较
-///
-/// 业务规则（§5.4 + §5.7）：
-/// - actual <= standard 返回 "normal"（正常损耗，摊入成本）
-/// - actual > standard 返回 "abnormal"（非正常损耗，计入营业外支出）
+/// 业务规则（§5.4 + §5.7）：actual <= standard 返回 "normal"（正常损耗，摊入成本）；actual > standard 返回 "abnormal"（非正常损耗，计入营业外支出）
 pub fn classify_loss(actual_loss_rate: Decimal, standard_loss_rate: Decimal) -> &'static str {
     if actual_loss_rate <= standard_loss_rate {
         outsourcing_loss_type::NORMAL
@@ -116,13 +96,7 @@ pub fn classify_loss(actual_loss_rate: Decimal, standard_loss_rate: Decimal) -> 
     }
 }
 
-/// 计算非正常损耗金额
-///
-/// 业务规则（§5.4）：
-/// - 超定额损耗 = max(0, 实际损耗 - 发出 × 标准损耗率)
-/// - 非正常损耗金额 = 超定额损耗 × 单位材料成本
-/// - 单位材料成本 = 材料成本 / 发出数量
-/// - 若发出数量为 0，返回 0
+/// 计算非正常损耗金额（业务规则（§5.4）：超定额损耗 = max(0, 实际损耗 - 发出 × 标准损耗率)；非正常损耗金额 = 超定额损耗 × 单位材料成本；单位材料成本 = 材料成本 / 发出数量；若发出数量为 0，返回 0）
 pub fn compute_abnormal_loss_amount(
     issue_quantity: Decimal,
     return_quantity: Decimal,

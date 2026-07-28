@@ -10,12 +10,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 能源计量设备模型
-///
-/// 真实业务要点：
-/// - 每个车间/机台安装独立的计量设备
-/// - 支持 IoT 对接（PLC/智能网关）
-/// - 维护当前读数与上次读数，便于计算消耗量
+/// 能源计量设备模型（每车间/机台独立计量设备，支持 IoT 对接 PLC/智能网关，维护当前与上次读数算消耗量）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "energy_meter")]
 pub struct Model {

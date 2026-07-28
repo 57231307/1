@@ -10,12 +10,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 能耗记录模型
-///
-/// 真实业务要点：
-/// - 按时间段（日/班次/月）登记能耗
-/// - 支持手工录入和 IoT 自动采集
-/// - 可直接关联缸号/工序/设备（直接归集场景）
+/// 能耗记录模型（按日/班次/月登记能耗，支持手工录入与 IoT 自动采集，可关联缸号/工序/设备直接归集）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "energy_consumption_record")]
 pub struct Model {

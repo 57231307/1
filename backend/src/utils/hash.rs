@@ -10,13 +10,7 @@ use sha2::{Digest, Sha256};
 /// HMAC-SHA256 类型别名
 type HmacSha256 = Hmac<Sha256>;
 
-/// 计算 SHA256 摘要并以小写 hex 字符串返回
-///
-/// # 参数
-/// - `data`: 待摘要的字节切片
-///
-/// # 返回
-/// - 长度为 64 的小写 hex 字符串
+/// 计算 SHA256 摘要并以小写 hex 字符串返回（data 待摘要字节切片，返回 64 字符小写 hex）
 pub fn sha256_hex(data: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(data);
@@ -24,21 +18,7 @@ pub fn sha256_hex(data: &[u8]) -> String {
     hex::encode(result)
 }
 
-/// 计算 HMAC-SHA256 并以小写 hex 字符串返回
-///
-/// # 参数
-/// - `key`: HMAC 密钥字节切片
-/// - `data`: 待签名的数据字节切片
-///
-/// # 返回
-/// - `Ok(String)`: 长度为 64 的小写 hex 字符串
-/// - `Err(String)`: HMAC 初始化失败（密钥长度异常等）
-///
-/// # 设计变更（批次 7，2026-06-28）
-/// - 原实现 `.expect("HMAC 初始化失败")` 在 spawn 任务内构成 panic 触发点
-///   （omni_audit_service.rs:74 spawn 通过 crate::utils::hash::hmac_sha256_hex 调用），
-///   若触发会导致审计引擎整个 spawn 任务死亡。
-/// - 改为返回 Result，让调用方决定降级策略，消除 panic 风险。
+/// 计算 HMAC-SHA256 并以小写 hex 返回（key 密钥，data 待签名数据；Ok(String) 64 字符 hex，Err(String) 初始化失败。批次 7 改返回 Result 消除 spawn 内 panic 风险）
 pub fn hmac_sha256_hex(key: &[u8], data: &[u8]) -> Result<String, String> {
     let mut mac = HmacSha256::new_from_slice(key).map_err(|e| format!("HMAC 初始化失败: {}", e))?;
     mac.update(data);

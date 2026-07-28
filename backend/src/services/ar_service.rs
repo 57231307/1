@@ -59,10 +59,7 @@ mod tests {
     use sea_orm::Database;
 
     /// 复现 create_payment 中的收款金额校验逻辑
-    ///
-    /// 源码位置：create_payment 方法开头两道校验门。
-    /// 1. amount <= 0 → Err("收款金额必须大于零")
-    /// 2. amount.round_dp(2) != amount → Err("收款金额精度不能超过 2 位小数")
+    /// 源码位置：create_payment 方法开头两道校验门。；1. amount <= 0 → Err("收款金额必须大于零")；2. amount.round_dp(2) != amount → Err("收款金额精度不能超过 2 位小数")
     fn validate_payment_amount(amount: Decimal) -> Result<(), &'static str> {
         if amount <= Decimal::ZERO {
             return Err("收款金额必须大于零");
@@ -73,19 +70,13 @@ mod tests {
         Ok(())
     }
 
-    /// 复现 confirm_payment 中的收款状态机门判定
-    ///
-    /// 源码位置：confirm_payment 方法内的状态门。
-    /// 仅 status::ar::COLLECTION_PENDING 状态允许确认。
+    /// 复现 confirm_payment 中的收款状态机门判定（源码位置：confirm_payment 方法内的状态门。；仅 status::ar::COLLECTION_PENDING 状态允许确认。）
     fn can_confirm_payment(current_status: &str) -> bool {
         current_status == status::ar::COLLECTION_PENDING
     }
 
     /// 复现 create_payment 中的核销金额贪心匹配算法
-    ///
-    /// 源码位置：create_payment 方法内关联多张发票的扣减循环。
-    /// 按发票顺序扣减，每张发票扣减 min(剩余收款, 发票未收金额)。
-    /// 返回各发票的实际核销金额列表 + 剩余未核销金额。
+    /// 源码位置：create_payment 方法内关联多张发票的扣减循环。；按发票顺序扣减，每张发票扣减 min(剩余收款, 发票未收金额)。；返回各发票的实际核销金额列表 + 剩余未核销金额。
     fn greedy_match(
         payment_amount: Decimal,
         unpaid_amounts: &[Decimal],
@@ -104,10 +95,7 @@ mod tests {
         (allocations, remaining)
     }
 
-    /// 测试_AR状态常量值正确性
-    ///
-    /// 验证 ar_collection.status（小写）和 ar_reconciliation_item.match_status（大写）
-    /// 的常量值与业务约定一致，防止大小写混淆导致状态匹配失败。
+    /// 测试_AR状态常量值正确性（验证 ar_collection.status（小写）和 ar_reconciliation_item.match_status（大写）；的常量值与业务约定一致，防止大小写混淆导致状态匹配失败。）
     #[test]
     fn 测试_AR状态常量值正确性() {
         // ar_collection.status（小写值，批次 231 v13 P1-1 统一小写）
@@ -132,9 +120,7 @@ mod tests {
         assert_ne!(status::ar::MATCH_MATCHED, "matched");
     }
 
-    /// 测试_收款金额校验_零或负数拒绝
-    ///
-    /// 场景：amount <= 0 应返回 Err（防零额收款）
+    /// 测试_收款金额校验_零或负数拒绝（场景：amount <= 0 应返回 Err（防零额收款））
     #[test]
     fn 测试_收款金额校验_零或负数拒绝() {
         // 零金额
@@ -148,9 +134,7 @@ mod tests {
         assert_eq!(result.unwrap_err(), "收款金额必须大于零");
     }
 
-    /// 测试_收款金额校验_精度超限拒绝
-    ///
-    /// 场景：amount.round_dp(2) != amount（超过 2 位小数）应返回 Err
+    /// 测试_收款金额校验_精度超限拒绝（场景：amount.round_dp(2) != amount（超过 2 位小数）应返回 Err）
     #[test]
     fn 测试_收款金额校验_精度超限拒绝() {
         // 3 位小数（123.456）应拒绝
@@ -167,9 +151,7 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    /// 测试_收款状态机门_仅pending允许确认
-    ///
-    /// 验证 confirm_payment 的状态门：仅 pending 状态允许确认
+    /// 测试_收款状态机门_仅pending允许确认（验证 confirm_payment 的状态门：仅 pending 状态允许确认）
     #[test]
     fn 测试_收款状态机门_仅pending允许确认() {
         // pending 允许确认
@@ -186,10 +168,7 @@ mod tests {
     }
 
     /// 测试_核销金额贪心匹配算法
-    ///
-    /// 验证 create_payment 中按发票顺序扣减的核销逻辑：
-    /// - 收款金额足够：每张发票扣减其 unpaid_amount，剩余为 0
-    /// - 收款金额不足：按顺序扣减，最后一张部分扣减，后续发票扣减 0
+    /// 验证 create_payment 中按发票顺序扣减的核销逻辑：收款金额足够：每张发票扣减其 unpaid_amount，剩余为 0；收款金额不足：按顺序扣减，最后一张部分扣减，后续发票扣减 0
     #[test]
     fn 测试_核销金额贪心匹配算法() {
         // 场景 1：收款金额 = 300，3 张发票未收金额 [100, 200, 50]
@@ -237,9 +216,7 @@ mod tests {
         assert_eq!(remaining, Decimal::new(200, 0));
     }
 
-    /// 测试_服务实例化_SQLite内存数据库
-    ///
-    /// 验证 ArService 能在 SQLite 内存数据库上实例化（new 不触发 DB 操作）
+    /// 测试_服务实例化_SQLite内存数据库（验证 ArService 能在 SQLite 内存数据库上实例化（new 不触发 DB 操作））
     #[tokio::test]
     async fn 测试_服务实例化_SQLite内存数据库() {
         let db_url =

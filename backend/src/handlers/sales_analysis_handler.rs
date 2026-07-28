@@ -188,10 +188,8 @@ pub async fn update_sales_target(
     Ok(Json(ApiResponse::success(target)))
 }
 
-/// GET /api/v1/erp/sales-analysis/export - 导出销售分析报告
-///
-/// v11 批次 151 P2-A：service.export_report 已直接返回 xlsx 字节流，
-/// handler 只需构造下载响应，无需 CSV→xlsx 中间转换。
+/// GET /api/v1/erp/sales-analysis/export - 导出销售分析报告；v11 批次 151 P2-A
+/// service.export_report 已直接返回 xlsx 字节流， handler 只需构造下载响应，无需 CSV→xlsx 中间转换。
 pub async fn export_analysis(
     State(state): State<AppState>,
     auth: AuthContext,

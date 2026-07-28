@@ -45,9 +45,7 @@ pub async fn get_failover_status(
     })))
 }
 
-/// 获取 Prometheus 指标
-///
-/// 返回 text/plain 格式（Prometheus exposition format），非 JSON。
+/// 获取 Prometheus 指标；返回 text/plain 格式（Prometheus exposition format），非 JSON。
 pub async fn get_failover_metrics(
     State(state): State<AppState>,
 ) -> Result<axum::response::Response, AppError> {
@@ -98,12 +96,8 @@ pub async fn health_check(
     }))))
 }
 
-/// 构建 FailoverService（从 AppState 推断）
-///
-/// V15 P0-B17（Batch 484）：重新注入 FailoverExecutor，启用真实 DB 连接切换。
-/// 历史：v11 P1-6（批次 143）删除了原 FailoverConfig 加载逻辑（因执行器在 v8 已删除），
-/// 配置层从未被业务读取属纯死代码。V15 P0-B17 重新引入 FailoverExecutor（ArcSwap 实现），
-/// 业务能力（状态查询 / 事件记录 / 手动切换 / 健康检查）现含真实 DB 连接切换。
+/// 构建 FailoverService（从 AppState 推断）；V15 P0-B17（Batch 484）：重新注入 FailoverExecutor，启用真实 DB 连接切换。 历史：v11 P1-6（批次 143）删除了原 FailoverConfig
+/// 加载逻辑（因执行器在 v8 已删除）， 配置层从未被业务读取属纯死代码。V15 P0-B17 重新引入 FailoverExecutor（ArcSwap 实现）， 业务能力（状态查询 / 事件记录 / 手动切换 / 健康检查）现含真实 DB 连接切换。
 fn build_service(state: &AppState) -> Result<FailoverService, AppError> {
     let metrics = get_global_metrics();
     Ok(FailoverService::new((*state.db).clone(), metrics)

@@ -45,10 +45,7 @@ impl AssistAccountingService {
     }
 
     /// 初始化 8 个辅助核算维度
-    ///
-    /// 批次 120 P2-7 修复：原方法保留 `#[allow(dead_code)]` 标记，违反规则 0（真实实现强制）。
-    /// 已接入 main.rs 启动流程：服务启动时调用一次（在 init_event_bus_with_kafka_config 之后），
-    /// 内部先检查每个维度是否存在再插入，重启不会重复创建（幂等实现）。
+    /// 批次 120 P2-7 修复：原方法保留 `#[allow(dead_code)]` 标记，违反规则 0（真实实现强制）。；已接入 main.rs 启动流程：服务启动时调用一次（在 init_event_bus_with_kafka_config 之后），；内部先检查每个维度是否存在再插入，重启不会重复创建（幂等实现）。
     pub async fn initialize_dimensions(&self) -> Result<(), AppError> {
         let dimensions = [
             ("BATCH", "批次核算", "按生产批次进行辅助核算"),
@@ -130,16 +127,7 @@ impl AssistAccountingService {
     }
 
     /// 查询辅助核算明细（带过滤）
-    ///
-    /// V15 P1 17.2-D2 修复：dimension_code 现在会真实过滤对应维度字段非空的记录。
-    /// - "BATCH"：过滤 batch_no 非空
-    /// - "COLOR"：过滤 color_no 非空
-    /// - "DYE_LOT"：过滤 dye_lot_no 非空
-    /// - "GRADE"：过滤 grade 非空
-    /// - "WORKSHOP"：过滤 workshop_id 非空
-    /// - "WAREHOUSE"：过滤 warehouse_id 非空（与 warehouse_id 参数叠加）
-    /// - "CUSTOMER"：过滤 customer_id 非空
-    /// - "SUPPLIER"：过滤 supplier_id 非空
+    /// V15 P1 17.2-D2 修复：dimension_code 现在会真实过滤对应维度字段非空的记录。；"BATCH"：过滤 batch_no 非空；"COLOR"：过滤 color_no 非空；"DYE_LOT"：过滤 dye_lot_no 非空；"GRADE"：过滤 grade 非空；"WORKSHOP"：过滤 workshop_id 非空；"WAREHOUSE"：过滤 warehouse_id 非空（与 warehouse_id 参数叠加）；"CUSTOMER"：过滤 customer_id 非空；"SUPPLIER"：过滤 supplier_id 非空
     pub async fn query_assist_records(
         &self,
         accounting_period: Option<&str>,
@@ -163,16 +151,7 @@ impl AssistAccountingService {
     }
 
     /// V15 P1 17.2-D1：主辅账平衡校验
-    ///
-    /// 校验指定期间内，辅助核算记录的借贷总额与总账（凭证分录）的借贷总额是否一致。
-    /// 用于期末对账，发现辅助核算与总账数据不一致问题。
-    ///
-    /// 校验逻辑：
-    /// 1. 汇总指定期间内所有辅助核算记录的 debit_amount/credit_amount 总额
-    /// 2. 汇总同期总账（voucher_item JOIN voucher，status=posted）的 debit/credit 总额
-    /// 3. 比较两者，返回差异详情
-    ///
-    /// 返回 (辅助核算借方总额, 辅助核算贷方总额, 总账借方总额, 总账贷方总额, 是否平衡)
+    /// 校验指定期间内，辅助核算记录的借贷总额与总账（凭证分录）的借贷总额是否一致。；用于期末对账，发现辅助核算与总账数据不一致问题。；校验逻辑：1. 汇总指定期间内所有辅助核算记录的 debit_amount/credit_amount 总额；2. 汇总同期总账（voucher_item JOIN voucher，status=posted）的 debit/credit 总额；3. 比较两者，返回差异详情；返回 (辅助核算借方总额, 辅助核算贷方总额, 总账借方总额, 总账贷方总额, 是否平衡)
     pub async fn check_assist_vs_general_balance(
         &self,
         accounting_period: &str,
@@ -276,10 +255,7 @@ impl AssistAccountingService {
         query
     }
 
-    /// 应用维度、业务类型、仓库过滤
-    ///
-    /// V15 P1 17.2-D2 修复：实现各维度的真实过滤逻辑。
-    /// 每个维度过滤对应字段非空/非零的记录，确保维度过滤实际生效。
+    /// 应用维度、业务类型、仓库过滤（V15 P1 17.2-D2 修复：实现各维度的真实过滤逻辑。；每个维度过滤对应字段非空/非零的记录，确保维度过滤实际生效。）
     fn apply_assist_filters(
         query: sea_orm::Select<assist_accounting_record::Entity>,
         dimension_code: Option<&str>,
@@ -374,9 +350,7 @@ fn parse_period(period: &str) -> Result<(i32, u32), AppError> {
     Ok((year, month))
 }
 
-/// V15 P1 17.2-D1：解析期间字符串为日期范围 (start, end)
-///
-/// 返回该月第一天 00:00:00 UTC 到该月最后一天 23:59:59 UTC。
+/// V15 P1 17.2-D1：解析期间字符串为日期范围 (start, end)（返回该月第一天 00:00:00 UTC 到该月最后一天 23:59:59 UTC。）
 fn parse_period_range(
     period: &str,
 ) -> Result<(chrono::DateTime<Utc>, chrono::DateTime<Utc>), AppError> {

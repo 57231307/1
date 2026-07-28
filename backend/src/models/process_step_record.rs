@@ -10,13 +10,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 工序流转记录模型
-///
-/// 真实业务要点：
-/// - 每道工序扫码登记开始/结束，记录工人+产量+异常
-/// - 工人产量按工序统计，自动汇总进入财务工资核算
-/// - 异常情况登记后开工序质量反馈单
-/// - 回修时关联原工序记录 ID，便于追溯
+/// 工序流转记录模型（每道工序扫码登记开始/结束记录工人产量异常，产量按工序统计汇总进入工资核算，异常开工序质量反馈单，回修关联原工序记录便于追溯）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "process_step_record")]
 pub struct Model {

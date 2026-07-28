@@ -72,10 +72,7 @@ struct WorkerDetailContext<'a> {
 }
 
 impl WageCalculationService {
-    /// 触发工资计算
-    ///
-    /// 业务流程：查询周期内 completed 工序记录 → 按工序匹配生效工价
-    /// → 计算每个工人工资 → 生成明细 + 汇总工资记录
+    /// 触发工资计算（业务流程：查询周期内 completed 工序记录 → 按工序匹配生效工价；→ 计算每个工人工资 → 生成明细 + 汇总工资记录）
     pub async fn calculate(
         &self,
         wage_record_id: i32,

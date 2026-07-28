@@ -282,14 +282,8 @@ impl RolePermissionService {
         Ok(())
     }
 
-    /// V15 P1-14.3-D：SoD 职责分离校验 — 禁止同一角色同时持有 create 与 approve 权限。
-    ///
-    /// 审计计划 14.3.1 要求"创建采购 + 审批采购"和"创建销售 + 审批销售"冲突分离。
-    /// 本函数在 assign_permission 时拦截违反 SoD 的授权：
-    /// - 新增 `create` 时，若角色已有 `approve`（或 `*`）则拒绝
-    /// - 新增 `approve` 时，若角色已有 `create`（或 `*`）则拒绝
-    /// - 新增 `*` 时，若角色已有 `create` 或 `approve` 则拒绝
-    /// admin 角色（is_system=true）在 validate_assignable_role 已被拦截，不会走到此处。
+    /// V15 P1-14.3-D：SoD 职责分离校验 — 禁止同一角色同时持有 create 与 approve 权限
+    /// 审计计划 14.3.1 要求"创建采购 + 审批采购"和"创建销售 + 审批销售"冲突分离。；本函数在 assign_permission 时拦截违反 SoD 的授权：新增 `create` 时，若角色已有 `approve`（或 `*`）则拒绝；新增 `approve` 时，若角色已有 `create`（或 `*`）则拒绝；新增 `*` 时，若角色已有 `create` 或 `approve` 则拒绝；admin 角色（is_system=true）在 validate_assignable_role 已被拦截，不会走到此处。
     async fn validate_sod_create_approve(
         &self,
         request: &AssignPermissionRequest,
@@ -514,18 +508,7 @@ impl RolePermissionService {
     }
 
     /// V15 P0-S06 新增：写入权限变更审计日志（best-effort，失败仅记录 warn 不阻塞主流程）
-    ///
-    /// 记录角色权限的分配/移除变更，用于合规审查和安全追溯。
-    /// 审计日志写入失败不影响业务主流程，仅记录 warn 日志。
-    ///
-    /// # 参数
-    /// - `change_type`：变更类型（role_permission_assign / role_permission_remove）
-    /// - `operator_id`：操作人 ID
-    /// - `role_id`：受影响角色 ID
-    /// - `resource_type`：资源类型
-    /// - `action`：操作权限码
-    /// - `old_value`：旧值（如旧 allowed）
-    /// - `new_value`：新值（如新 allowed）
+    /// 记录角色权限的分配/移除变更，用于合规审查和安全追溯。；审计日志写入失败不影响业务主流程，仅记录 warn 日志。；# 参数；`change_type`：变更类型（role_permission_assign / role_permission_remove）；`operator_id`：操作人 ID；`role_id`：受影响角色 ID；`resource_type`：资源类型；`action`：操作权限码；`old_value`：旧值（如旧 allowed）；`new_value`：新值（如新 allowed）
     async fn write_permission_audit(
         &self,
         change_type: &str,

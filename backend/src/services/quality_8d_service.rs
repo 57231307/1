@@ -157,11 +157,7 @@ impl QualityEightDService {
     }
 
     /// 启动 8D 流程（not_started → d0_plan）
-    ///
-    /// 业务规则：
-    /// 1. quality_issue 必须存在
-    /// 2. 该 quality_issue 不能已有 8D 报告（一对一约束）
-    /// 3. 创建后立即推进到 d0_plan 状态（避免空报告）
+    /// 业务规则：1. quality_issue 必须存在；2. 该 quality_issue 不能已有 8D 报告（一对一约束）；3. 创建后立即推进到 d0_plan 状态（避免空报告）
     pub async fn start_8d(
         &self,
         req: StartEightDRequest,
@@ -223,7 +219,6 @@ impl QualityEightDService {
     }
 
     /// 推进到下一 D 阶段（10 条合法边的 2-9 条，第 1 条由 start_8d 完成，第 10 条由 close_8d 完成）
-    ///
     /// 校验规则：报告存在 + 当前 status 与 payload 期望源状态匹配 + 必填字段非空。
     pub async fn advance(
         &self,

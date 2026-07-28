@@ -189,9 +189,7 @@ impl QuotationPricingService {
         })
     }
 
-    /// 阶梯价匹配：
-    /// - 若 `min_quantity` 存在且 `<= quantity`，则应用基础价作为阶梯起点
-    /// - 否则按基础价无阶梯
+    /// 阶梯价匹配：（若 `min_quantity` 存在且 `<= quantity`，则应用基础价作为阶梯起点；否则按基础价无阶梯）
     fn match_tier(
         base_price: Decimal,
         quantity: Decimal,

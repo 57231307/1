@@ -214,9 +214,7 @@ impl ArReconciliationService {
     }
 
     /// 更新对账单状态（通用）
-    ///
-    /// 批次 109 P3：新增 remark 参数，若提供则同步写入 notes 字段
-    /// （原 UpdateConfirmationStatusRequest.remark 标注 dead_code 未使用）
+    /// 批次 109 P3：新增 remark 参数，若提供则同步写入 notes 字段；（原 UpdateConfirmationStatusRequest.remark 标注 dead_code 未使用）
     pub async fn update_status(
         &self,
         id: i32,

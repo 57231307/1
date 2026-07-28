@@ -47,10 +47,7 @@ pub struct CreateFabricOrderRequest {
     pub quality_standard: Option<String>,
 }
 
-/// 销售订单明细请求（面料行业版）
-///
-/// 批次 86 v2 复审 P2-11 修复：金额/数量字段 f64 → Decimal（消除精度漂移），
-/// 在 handler 入口添加非负校验 + round_dp(2) 精度校验
+/// 销售订单明细请求（面料行业版）；批次 86 v2 复审 P2-11 修复：金额/数量字段 f64 → Decimal（消除精度漂移）， 在 handler 入口添加非负校验 + round_dp(2) 精度校验
 #[derive(Debug, Deserialize)]
 pub struct FabricOrderItemRequest {
     pub product_id: i32,

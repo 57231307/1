@@ -301,11 +301,8 @@ pub async fn get_balance_summary(
     Ok(Json(ApiResponse::success(serde_json::to_value(summary)?)))
 }
 
-/// 获取应付统计报表
-///
-/// 批次 133 v9 复审 P1：原返回 "统计报表功能开发中" 占位，
-/// 现综合调用 get_balance_summary + get_aging_analysis + 按状态分组统计，
-/// 返回完整统计报表（余额汇总 + 账龄分析 + 状态分布）。
+/// 获取应付统计报表；批次 133 v9 复审 P1：原返回 "统计报表功能开发中" 占位， 现综合调用 get_balance_summary
+/// + get_aging_analysis + 按状态分组统计， 返回完整统计报表（余额汇总 + 账龄分析 + 状态分布）。
 pub async fn get_statistics(
     Query(params): Query<ApInvoiceQueryParams>,
     State(state): State<AppState>,
@@ -410,12 +407,8 @@ fn record_ap_invoices_export_audit(
     svc.record_async(event, None);
 }
 
-/// GET /api/v1/erp/ap/invoices/export - 导出应付发票列表（带水印 + 异步审计日志）
-///
-/// V15 P0-S12 修复（Batch 475e）：导出接入后端
-/// - 注入水印（operator/exported_at/extra 含条数）
-/// - 异步审计日志（OperationType::Export）
-/// - 直接调 service.get_list 取全量数据（page=1/page_size=10000）
+/// GET /api/v1/erp/ap/invoices/export - 导出应付发票列表（带水印 + 异步审计日志）；V15 P0-S12 修复（Batch 475e）：导出接入后端 -
+/// 注入水印（operator/exported_at/extra 含条数） - 异步审计日志（OperationType::Export） - 直接调 service.get_list 取全量数据（page=1/page_size=10000）
 pub async fn export_ap_invoices(
     State(state): State<AppState>,
     auth: AuthContext,

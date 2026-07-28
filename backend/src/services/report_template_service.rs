@@ -79,11 +79,7 @@ pub struct ReportTemplateQuery {
     pub page_size: Option<u64>,
 }
 
-/// 报表字段定义（描述可用于自定义报表的字段元数据）
-///
-/// 批次 128 v8 复审 P2 修复：替代 report_enhanced_handler get_available_fields 中的
-/// 硬编码 serde_json::json! 字段定义。字段元数据绑定 DB schema，不宜放数据库动态管理，
-/// 采用静态配置化模式（与 print_handler 批次 126 一致）。
+/// 报表字段定义（字段元数据绑定 DB schema，静态配置化，替代 report_enhanced_handler 硬编码 json! 字段定义）
 #[derive(Debug, Clone, Serialize)]
 pub struct ReportFieldDefinition {
     /// 字段名（对应 SQL 查询列名）
@@ -110,19 +106,7 @@ impl ReportTemplateService {
     }
 
     /// 获取指定模板类型可用的字段定义
-    ///
-    /// 批次 128 v8 复审 P2 修复：替代 report_enhanced_handler get_available_fields 中的
-    /// 硬编码 serde_json::json! 字段定义。字段元数据绑定 DB schema（sales_orders 表有
-    /// order_no 列、purchase_orders 表有 order_no 列等），不宜放数据库动态管理，
-    /// 采用静态配置化模式（与 print_handler 批次 126 一致）。
-    ///
-    /// 支持的模板类型：
-    /// - sales / sales_daily / 销售：销售订单字段（订单编号/客户名称/订单日期/订单金额/状态）
-    /// - purchase / purchase_summary / 采购：采购订单字段（采购单号/供应商/下单日期/采购金额/交期）
-    /// - inventory / inventory_status / 库存：库存字段（产品编码/产品名称/可用库存/预留库存/仓库）
-    /// - financial / finance / 财务：财务字段（付款单号/金额/付款方式/状态/创建时间）
-    /// - custom / 自定义：通用字段（ID/名称/创建时间）
-    /// - 其他：返回通配符字段 `*`
+    /// 批次 128 v8 复审 P2 修复：替代 report_enhanced_handler get_available_fields 中的；硬编码 serde_json::json! 字段定义。字段元数据绑定 DB schema（sales_orders 表有；order_no 列、purchase_orders 表有 order_no 列等），不宜放数据库动态管理，；采用静态配置化模式（与 print_handler 批次 126 一致）。；支持的模板类型：sales / sales_daily / 销售：销售订单字段（订单编号/客户名称/订单日期/订单金额/状态）；purchase / purchase_summary / 采购：采购订单字段（采购单号/供应商/下单日期/采购金额/交期）；inventory / inventory_status / 库存：库存字段（产品编码/产品名称/可用库存/预留库存/仓库）；financial / finance / 财务：财务字段（付款单号/金额/付款方式/状态/创建时间）；custom / 自定义：通用字段（ID/名称/创建时间）；其他：返回通配符字段 `*`
     pub fn available_fields_for_type(template_type: &str) -> Vec<ReportFieldDefinition> {
         match template_type.to_lowercase().as_str() {
             "sales" | "sales_daily" | "销售" => vec![
@@ -476,12 +460,7 @@ impl ReportTemplateService {
     }
 
     /// 查询报表模板列表
-    ///
-    /// 缺陷 1.2 修复：新增 `role_id` 参数，对返回结果按 `required_permission` 过滤。
-    /// 由于 `required_permission` 存储在 DB 行中，无法在 SQL 层直接拼成 IN/EXISTS 子查询
-    /// （权限码需通过 RolePermissionService 解析为 resource_type/action 二元组），
-    /// 因此采用"先取候选集 → 逐条 check_template_permission 过滤"的策略，
-    /// 候选集规模受 page_size ≤ 100 限制，性能可接受。
+    /// 缺陷 1.2 修复：新增 `role_id` 参数，对返回结果按 `required_permission` 过滤。；由于 `required_permission` 存储在 DB 行中，无法在 SQL 层直接拼成 IN/EXISTS 子查询；（权限码需通过 RolePermissionService 解析为 resource_type/action 二元组），；因此采用"先取候选集 → 逐条 check_template_permission 过滤"的策略，；候选集规模受 page_size ≤ 100 限制，性能可接受。
     pub async fn list(
         &self,
         user_id: i32,
@@ -593,10 +572,7 @@ impl ReportTemplateService {
     }
 
     /// 缺陷 1.1 修复：回滚到指定历史版本
-    ///
-    /// 实现策略：先将当前模板状态写入版本表（保存为 latest+1 的快照），
-    /// 再用历史版本字段覆盖当前模板，version 设为 max(existing) + 1。
-    /// 这样保证回滚操作本身可被再次回滚。
+    /// 实现策略：先将当前模板状态写入版本表（保存为 latest+1 的快照），；再用历史版本字段覆盖当前模板，version 设为 max(existing) + 1。；这样保证回滚操作本身可被再次回滚。
     pub async fn rollback_version(
         &self,
         template_id: i32,
@@ -701,12 +677,8 @@ impl ReportTemplateService {
         Ok(rolled_back)
     }
 
-    /// 缺陷 1.2 修复：解析 `required_permission` 字符串（如 "report:sales:view"）为 (resource_type, action)。
-    ///
-    /// 约定：
-    /// - 3 段格式 `report:sales:view` → resource_type="report-sales", action="view"
-    /// - 2 段格式 `report:view` → resource_type="report", action="view"
-    /// - 其他格式返回 None，跳过权限校验（向后兼容）
+    /// 缺陷 1.2 修复：解析 `required_permission` 字符串（如 "report:sales:view"）为 (resource_type, action)
+    /// 约定：3 段格式 `report:sales:view` → resource_type="report-sales", action="view"；2 段格式 `report:view` → resource_type="report", action="view"；其他格式返回 None，跳过权限校验（向后兼容）
     fn parse_required_permission(perm: &str) -> Option<(String, String)> {
         let parts: Vec<&str> = perm.split(':').collect();
         match parts.as_slice() {
@@ -716,11 +688,8 @@ impl ReportTemplateService {
         }
     }
 
-    /// 缺陷 1.2 修复：根据模板的 `required_permission` 字段校验用户权限。
-    ///
-    /// - 若 `required_permission` 为 None → 跳过校验（向后兼容）
-    /// - 若用户为 admin 角色 → 直接放行（RolePermissionService::check_permission 内部已处理）
-    /// - 否则调用 RolePermissionService::check_permission 校验
+    /// 缺陷 1.2 修复：根据模板的 `required_permission` 字段校验用户权限
+    /// 若 `required_permission` 为 None → 跳过校验（向后兼容）；若用户为 admin 角色 → 直接放行（RolePermissionService::check_permission 内部已处理）；否则调用 RolePermissionService::check_permission 校验
     pub async fn check_template_permission(
         &self,
         role_id: Option<i32>,

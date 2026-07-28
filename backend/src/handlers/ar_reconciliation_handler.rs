@@ -205,9 +205,7 @@ pub struct UpdateReconciliationApiRequest {
     pub notes: Option<String>,
 }
 
-/// 更新对账单（PUT /ar-reconciliations/:id）
-///
-/// 仅草稿状态可更新，closing_balance 由 service 自动重算
+/// 更新对账单（PUT /ar-reconciliations/:id）；仅草稿状态可更新，closing_balance 由 service 自动重算
 pub async fn update_reconciliation(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -239,9 +237,7 @@ pub async fn update_reconciliation(
         })
 }
 
-/// 删除对账单（DELETE /ar-reconciliations/:id）
-///
-/// 仅草稿状态可删除（service 内部状态门）
+/// 删除对账单（DELETE /ar-reconciliations/:id）；仅草稿状态可删除（service 内部状态门）
 pub async fn delete_reconciliation(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -261,9 +257,7 @@ pub async fn delete_reconciliation(
         })
 }
 
-/// 发送对账单给客户（POST /ar-reconciliations/:id/send）
-///
-/// 状态：draft → sent
+/// 发送对账单给客户（POST /ar-reconciliations/:id/send）；状态：draft → sent
 pub async fn send_reconciliation(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -296,9 +290,7 @@ pub async fn send_reconciliation(
 // 在 service::ar::vfy 中实现，包含自动对账逻辑），不在此处重复定义。
 // 路由层通过 `ar_reconciliation_handler::confirm_reconciliation` / `dispute_reconciliation` 引用。
 
-/// 关闭对账单（POST /ar-reconciliations/:id/close）
-///
-/// 状态：confirmed/disputed → closed
+/// 关闭对账单（POST /ar-reconciliations/:id/close）；状态：confirmed/disputed → closed
 pub async fn close_reconciliation(
     State(state): State<AppState>,
     auth: AuthContext,

@@ -66,9 +66,7 @@ impl InventoryStockService {
     }
 
     /// 创建面料库存记录（事务版本）
-    ///
-    /// 批次 338 v10 复审 P3 修复：签名从 14 参数改为 2 参数（txn + args），
-    /// 复用 `CreateStockFabricArgs` 参数对象，消除 `clippy::too_many_arguments` 警告。
+    /// 批次 338 v10 复审 P3 修复：签名从 14 参数改为 2 参数（txn + args），；复用 `CreateStockFabricArgs` 参数对象，消除 `clippy::too_many_arguments` 警告。
     pub async fn create_stock_fabric_txn(
         txn: &sea_orm::DatabaseTransaction,
         args: CreateStockFabricArgs,
@@ -131,9 +129,7 @@ impl InventoryStockService {
     }
 
     /// 记录库存流水（事务版本）
-    ///
-    /// 批次 338 v10 复审 P3 修复：签名从 19 参数改为 2 参数（txn + args），
-    /// 复用 `RecordTransactionArgs` 参数对象，消除 `clippy::too_many_arguments` 警告。
+    /// 批次 338 v10 复审 P3 修复：签名从 19 参数改为 2 参数（txn + args），；复用 `RecordTransactionArgs` 参数对象，消除 `clippy::too_many_arguments` 警告。
     pub async fn record_transaction_txn(
         txn: &sea_orm::DatabaseTransaction,
         args: RecordTransactionArgs,
@@ -392,9 +388,7 @@ mod tests {
 
     // ========== BusinessEvent::InventoryTransactionCreated 变体存在性验证 ==========
 
-    /// 验证 BusinessEvent::InventoryTransactionCreated 变体可被 match 匹配
-    ///
-    /// 此测试通过穷举 match 确认枚举变体存在，避免重构时该变体被误删导致编译错误延后暴露。
+    /// 验证 BusinessEvent::InventoryTransactionCreated 变体可被 match 匹配（此测试通过穷举 match 确认枚举变体存在，避免重构时该变体被误删导致编译错误延后暴露。）
     #[test]
     fn 测试_business_event_inventory_transaction_created_变体存在() {
         let event = BusinessEvent::InventoryTransactionCreated {

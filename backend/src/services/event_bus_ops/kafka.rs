@@ -14,11 +14,7 @@ use std::sync::Arc;
 use tokio::sync::broadcast;
 
 /// 使用 Kafka 配置初始化事件总线（在 `main.rs` 启动时调用一次）
-///
-/// 行为：
-/// - `kafka.enabled=false` → 保持 Broadcast 后端；
-/// - `kafka.enabled=true` 且连接成功 → 切到 Kafka 模式；
-/// - `kafka.enabled=true` 但连接失败 → 自动降级到 Broadcast + 中文 warning 日志。
+/// 行为：`kafka.enabled=false` → 保持 Broadcast 后端；`kafka.enabled=true` 且连接成功 → 切到 Kafka 模式；`kafka.enabled=true` 但连接失败 → 自动降级到 Broadcast + 中文 warning 日志。
 pub async fn init_event_bus_with_kafka_config(kafka_cfg: &KafkaSettings) {
     if !kafka_cfg.enabled {
         tracing::info!("事件总线后端 = Broadcast（kafka.enabled=false，CI/开发环境默认）");
@@ -98,8 +94,7 @@ fn spawn_kafka_consumer(
 }
 
 /// 设置 Kafka 后端到全局状态
-/// L-27 修复（批次 373 v13 复审）：保存消费桥接 spawn 句柄到 EventBusState，
-/// 供 shutdown_event_bus() abort，避免 detached task 泄漏
+/// L-27 修复（批次 373 v13 复审）：保存消费桥接 spawn 句柄到 EventBusState，；供 shutdown_event_bus() abort，避免 detached task 泄漏
 fn activate_kafka_backend(
     backend: Arc<crate::services::event_kafka::KafkaBackend>,
     consumer_handle: tokio::task::JoinHandle<()>,

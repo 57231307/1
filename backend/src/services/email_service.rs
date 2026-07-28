@@ -82,9 +82,7 @@ fn is_dangerous_extension(filename: &str) -> bool {
 }
 
 /// 缺陷 6.3 修复：校验附件大小与扩展名安全性
-/// - 单附件 ≤ 25MB，总附件 ≤ 50MB
-/// - 拒绝高危扩展名（.exe/.bat/.cmd/.com/.scr/.vbs/.js/.jar/.ps1/.sh/.msi/.dll）
-/// - 集成点：CLAMAV_URL 配置后调用 ClamAV 病毒扫描
+/// 单附件 ≤ 25MB，总附件 ≤ 50MB；拒绝高危扩展名（.exe/.bat/.cmd/.com/.scr/.vbs/.js/.jar/.ps1/.sh/.msi/.dll）；集成点：CLAMAV_URL 配置后调用 ClamAV 病毒扫描
 pub async fn validate_attachments(attachments: &HashMap<String, Vec<u8>>) -> Result<(), AppError> {
     let mut total_size: usize = 0;
     for (filename, content) in attachments {
@@ -254,10 +252,7 @@ pub struct EmailMessage {
 }
 
 /// 腾讯云 V3 签名参数对象
-///
-/// 批次 413 技术债务清理：引入参数对象消除 tencent_sign 的 too_many_arguments 警告。
-/// 腾讯云 V3 签名为固定参数集（7 个参数），聚合为单一 struct 便于维护。
-/// 使用生命周期借用字符串参数，避免不必要的 to_string()。
+/// 批次 413 技术债务清理：引入参数对象消除 tencent_sign 的 too_many_arguments 警告。；腾讯云 V3 签名为固定参数集（7 个参数），聚合为单一 struct 便于维护。；使用生命周期借用字符串参数，避免不必要的 to_string()。
 #[derive(Debug, Clone, Copy)]
 pub struct TencentSignParams<'a> {
     /// API 操作名（如 "SendMail"）
@@ -334,12 +329,7 @@ impl EmailService {
     }
 
     /// 从环境变量创建邮件服务
-    ///
-    /// 安全约束（H-2 修复 + P1-3 死字段清理，2026-06-25 综合审计）：
-    /// - 禁止从 `EMAIL_API_URL` 环境变量读取 API URL，防止环境变量注入导致 API Key 被
-    ///   发送到攻击者控制的服务器。
-    /// - 各服务商 API URL 使用硬编码的官方地址（如 SENDGRID_API_URL 常量）。
-    /// - EmailConfig.api_url 字段已删除，不再保留可被误用的自定义 URL 入口。
+    /// 安全约束（H-2 修复 + P1-3 死字段清理，2026-06-25 综合审计）：禁止从 `EMAIL_API_URL` 环境变量读取 API URL，防止环境变量注入导致 API Key 被；发送到攻击者控制的服务器。；各服务商 API URL 使用硬编码的官方地址（如 SENDGRID_API_URL 常量）。；EmailConfig.api_url 字段已删除，不再保留可被误用的自定义 URL 入口。
     pub fn from_env() -> Option<Self> {
         let provider = std::env::var("EMAIL_PROVIDER").ok()?;
         let api_key = std::env::var("EMAIL_API_KEY").ok()?;
@@ -387,12 +377,7 @@ impl EmailService {
     }
 
     /// 发送 HTML 邮件
-    ///
-    /// ⚠️ 安全警告（M-5 修复）：
-    /// 调用方必须确保 `html_content` 中所有用户输入都经过 HTML 转义。
-    /// 推荐使用 `EmailTemplate` 系列方法（`notification_template` / `order_notification` 等），
-    /// 这些模板内部已自动对所有用户输入做 escape。
-    /// 直接拼接用户输入到 HTML 中会导致邮件 XSS。
+    /// ⚠️ 安全警告（M-5 修复）：调用方必须确保 `html_content` 中所有用户输入都经过 HTML 转义。；推荐使用 `EmailTemplate` 系列方法（`notification_template` / `order_notification` 等），；这些模板内部已自动对所有用户输入做 escape。；直接拼接用户输入到 HTML 中会导致邮件 XSS。
     pub async fn send_html_email(
         &self,
         to: Vec<String>,
@@ -434,10 +419,7 @@ impl EmailService {
         .await
     }
 
-    /// 发送通知邮件（安全版本，自动 HTML 转义）
-    ///
-    /// 接受纯文本标题和内容，内部使用 `EmailTemplate::notification_template`
-    /// 对所有用户输入进行 HTML 转义，防止邮件 XSS。
+    /// 发送通知邮件（安全版本，自动 HTML 转义）（接受纯文本标题和内容，内部使用 `EmailTemplate::notification_template`；对所有用户输入进行 HTML 转义，防止邮件 XSS。）
     pub async fn send_notification_email(
         &self,
         to: Vec<String>,
@@ -549,13 +531,7 @@ impl EmailService {
     }
 
     /// 通过阿里云邮件推送发送邮件
-    ///
-    /// 真实接入阿里云 DirectMail SingleSendMail API：
-    /// - API 端点：https://dm.aliyuncs.com/
-    /// - 签名算法：RPC V1（HMAC-SHA1 + Base64）
-    /// - 文档：https://help.aliyun.com/document_detail/29434.html
-    ///
-    /// api_key 格式：`<AccessKeyId>:<AccessKeySecret>`，冒号分隔两部分。
+    /// 真实接入阿里云 DirectMail SingleSendMail API：API 端点：https://dm.aliyuncs.com/；签名算法：RPC V1（HMAC-SHA1 + Base64）；文档：https://help.aliyun.com/document_detail/29434.html；api_key 格式：`<AccessKeyId>:<AccessKeySecret>`，冒号分隔两部分。
     async fn send_via_aliyun(&self, message: EmailMessage) -> Result<(), AppError> {
         // 解析 api_key：格式为 "<AccessKeyId>:<AccessKeySecret>"
         let (_, access_key_secret) = self.split_aliyun_credentials().ok_or_else(|| {
@@ -624,13 +600,7 @@ impl EmailService {
     }
 
     /// 通过腾讯云邮件发送
-    ///
-    /// 真实接入腾讯云邮件服务 SES SendMail API：
-    /// - API 端点：https://ses.tencentcloudapi.com/
-    /// - 签名算法：TC3-HMAC-SHA256（V3 签名）
-    /// - 文档：https://cloud.tencent.com/document/product/1288/51034
-    ///
-    /// api_key 格式：`<SecretId>:<SecretKey>`，冒号分隔两部分。
+    /// 真实接入腾讯云邮件服务 SES SendMail API：API 端点：https://ses.tencentcloudapi.com/；签名算法：TC3-HMAC-SHA256（V3 签名）；文档：https://cloud.tencent.com/document/product/1288/51034；api_key 格式：`<SecretId>:<SecretKey>`，冒号分隔两部分。
     async fn send_via_tencent(&self, message: EmailMessage) -> Result<(), AppError> {
         let (secret_id, secret_key) = self.split_tencent_credentials().ok_or_else(|| {
             AppError::business("腾讯云邮件配置 api_key 格式错误，应为 <SecretId>:<SecretKey>")
@@ -753,12 +723,7 @@ impl EmailService {
     }
 
     /// 阿里云 RPC V1 签名算法
-    ///
-    /// 规则：
-    /// 1. 将公共参数 + 业务参数合并，按参数名 ASCII 字典序排序
-    /// 2. 每个参数 URL 编码后用 `&` 拼接成 canonicalized query string
-    /// 3. 待签名字符串 = `GET&%2F&` + URL编码(canonicalized query string)
-    /// 4. Signature = BASE64(HMAC-SHA1(待签名字符串, AccessKeySecret + "&"))
+    /// 规则：1. 将公共参数 + 业务参数合并，按参数名 ASCII 字典序排序；2. 每个参数 URL 编码后用 `&` 拼接成 canonicalized query string；3. 待签名字符串 = `GET&%2F&` + URL编码(canonicalized query string)；4. Signature = BASE64(HMAC-SHA1(待签名字符串, AccessKeySecret + "&"))
     fn aliyun_sign(
         &self,
         biz_params: &[(&str, String)],
@@ -821,19 +786,7 @@ impl EmailService {
     }
 
     /// 腾讯云 TC3-HMAC-SHA256 V3 签名算法
-    ///
-    /// 规则：
-    /// 1. CanonicalRequest = Method\nURI\nQueryString\nCanonicalHeaders\nSignedHeaders\nHashedPayload
-    /// 2. CredentialScope = Date/Service/Version/tc3_request
-    /// 3. StringToSign = "TC3-HMAC-SHA256\nTimestamp\nCredentialScope\nHashedCanonicalRequest"
-    /// 4. SecretDate = HMAC-SHA256(Date, "TC3_SECRET_KEY")
-    /// 5. SecretService = HMAC-SHA256(SecretDate, Service)
-    /// 6. SecretSigning = HMAC-SHA256(SecretService, "tc3_request")
-    /// 7. Signature = HEX(HMAC-SHA256(SecretSigning, StringToSign))
-    ///
-    /// 注意：region 不参与 V3 签名（仅出现在 X-TC-Region 请求头），故函数不接收 region 参数。
-    /// 批次 413 技术债务清理：签名从 7 参数改为单一参数对象 `TencentSignParams`，
-    /// 消除 `clippy::too_many_arguments` 警告。
+    /// 规则：1. CanonicalRequest = Method\nURI\nQueryString\nCanonicalHeaders\nSignedHeaders\nHashedPayload；2. CredentialScope = Date/Service/Version/tc3_request；3. StringToSign = "TC3-HMAC-SHA256\nTimestamp\nCredentialScope\nHashedCanonicalRequest"；4. SecretDate = HMAC-SHA256(Date, "TC3_SECRET_KEY")；5. SecretService = HMAC-SHA256(SecretDate, Service)；6. SecretSigning = HMAC-SHA256(SecretService, "tc3_request")；7. Signature = HEX(HMAC-SHA256(SecretSigning, StringToSign))；注意：region 不参与 V3 签名（仅出现在 X-TC-Region 请求头），故函数不接收 region 参数。；批次 413 技术债务清理：签名从 7 参数改为单一参数对象 `TencentSignParams`，；消除 `clippy::too_many_arguments` 警告。
     fn tencent_sign(&self, params: TencentSignParams<'_>) -> Result<String, AppError> {
         let date = chrono::DateTime::<chrono::Utc>::from_timestamp(params.timestamp, 0)
             .ok_or_else(|| AppError::internal("腾讯云签名时间戳无效"))?
@@ -909,11 +862,7 @@ impl EmailService {
 }
 
 /// 计算 HMAC-SHA256，返回字节数组
-///
-/// L-12 修复（批次 376 v13 复审）：消除 spawn 任务内的 expect 调用。
-/// HMAC-SHA256 接受任意长度密钥，new_from_slice 永远返回 Ok，
-/// 但为防御性编程，改为 match + error 日志兜底（不触发 panic）。
-/// 理论不可达的失败路径返回空 Vec，不影响业务正确性。
+/// L-12 修复（批次 376 v13 复审）：消除 spawn 任务内的 expect 调用。；HMAC-SHA256 接受任意长度密钥，new_from_slice 永远返回 Ok，；但为防御性编程，改为 match + error 日志兜底（不触发 panic）。；理论不可达的失败路径返回空 Vec，不影响业务正确性。
 fn hmac_sha256_bytes(key: &[u8], data: &[u8]) -> Vec<u8> {
     let mut mac = match HmacSha256::new_from_slice(key) {
         Ok(m) => m,
@@ -987,8 +936,7 @@ impl EmailTemplate {
     }
 
     /// V15 P0-S14 死代码清理（批次 461）：删除 approval_notification 邮件模板方法
-    /// 原因：唯一调用方 EventNotificationService::notify_pending_approval 已被删除，
-    /// 该方法变为真实死代码。依据死代码处理规范第六章「真正未使用的项应显式删除」。
+    /// 原因：唯一调用方 EventNotificationService::notify_pending_approval 已被删除，；该方法变为真实死代码。依据死代码处理规范第六章「真正未使用的项应显式删除」。
     //
     /// 生成库存预警邮件
     pub fn inventory_alert(product_name: &str, current_stock: &str, threshold: &str) -> String {

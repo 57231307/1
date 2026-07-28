@@ -85,10 +85,8 @@ pub struct CreateReportRequest {
     pub description: Option<String>,
 }
 
-/// 执行财务分析报告查询参数
-///
-/// 批次 129 v8 复审 P2 修复：原 execute_report 无 period 参数，仅查询最新结果不执行计算。
-/// 现新增可选 period 参数（默认当前年月），调用 calculate_indicators 真实计算财务指标。
+/// 执行财务分析报告查询参数；批次 129 v8 复审 P2 修复：原 execute_report 无 period 参数
+/// 仅查询最新结果不执行计算。 现新增可选 period 参数（默认当前年月），调用 calculate_indicators 真实计算财务指标。
 #[derive(Debug, Deserialize)]
 pub struct ExecuteReportParams {
     /// 分析期间（格式 YYYY-MM，缺失时默认当前年月）
@@ -370,15 +368,8 @@ pub async fn get_report(
     }))))
 }
 
-/// POST /api/v1/erp/financial-analysis/reports/:id/execute - 执行财务分析报告
-///
-/// 批次 129 v8 复审 P2 修复：原返回硬编码 "completed" + Utc::now() 假执行状态，
-/// 仅查询最新结果不执行任何计算。现调用 calculate_indicators 真实计算财务指标：
-/// 1. 读取指定期间的科目余额（account_balance）
-/// 2. 按科目代码前缀分类汇总（资产/负债/损益）
-/// 3. 计算流动比率/速动比率/资产负债率等指标
-/// 4. 落库到 financial_analysis_results 表
-/// 5. 返回当前指标的计算结果（非预查询的旧数据）
+/// POST /api/v1/erp/financial-analysis/reports/:id/execute - 执行财务分析报告；批次 129 v8 复审 P2 修复：原返回硬编码 "completed" + Utc::now() 假执行状态， 仅查询最新结果不执行任何计算。现调用 calculate_indicators
+/// 真实计算财务指标： 1. 读取指定期间的科目余额（account_balance） 2. 按科目代码前缀分类汇总（资产/负债/损益） 3. 计算流动比率/速动比率/资产负债率等指标 4. 落库到 financial_analysis_results 表 5. 返回当前指标的计算结果（非预查询的旧数据）
 pub async fn execute_report(
     State(state): State<AppState>,
     auth: AuthContext,

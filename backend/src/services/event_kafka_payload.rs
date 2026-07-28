@@ -4,10 +4,7 @@
 //! 包含 EventPayload 枚举 + From<&BusinessEvent> + TryFrom<EventPayload> 三段实现。
 
 /// 为 `BusinessEvent` 增加 `Serialize` / `Deserialize` 派生（仅在 kafka 模块内使用）
-///
-/// 原 `BusinessEvent` 派生来自 `event_bus.rs`，没有 `Serialize`。这里通过新类型
-/// `EventPayload` 包装，再借助 `serde_json` 透明转换，避免在 8 个必需文件之外
-/// 改动 `event_bus.rs` 的公共定义。
+/// 原 `BusinessEvent` 派生来自 `event_bus.rs`，没有 `Serialize`。这里通过新类型；`EventPayload` 包装，再借助 `serde_json` 透明转换，避免在 8 个必需文件之外；改动 `event_bus.rs` 的公共定义。
 pub mod payload_serde {
     use rust_decimal::Decimal;
     use serde::{Deserialize, Serialize};

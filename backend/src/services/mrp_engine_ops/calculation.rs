@@ -20,10 +20,7 @@ use super::types::{
 use crate::services::mrp_engine_service::MrpEngineService;
 
 impl MrpEngineService {
-    /// 执行MRP计算并保存结果
-    ///
-    /// 批次 413 技术债务清理：签名从 7 参数改为单一参数对象 `MrpCalculationQuery`，
-    /// 消除 `clippy::too_many_arguments` 警告。
+    /// 执行MRP计算并保存结果（批次 413 技术债务清理：签名从 7 参数改为单一参数对象 `MrpCalculationQuery`，；消除 `clippy::too_many_arguments` 警告。）
     pub async fn run_mrp_calculation(
         &self,
         query: MrpCalculationQuery,

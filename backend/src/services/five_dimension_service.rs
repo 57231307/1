@@ -71,10 +71,7 @@ impl FiveDimensionService {
         Self { db }
     }
 
-    /// 获取五维统计信息
-    ///
-    /// v11 批次 150 P2-A：接入 page/page_size 内存分页
-    /// 返回 (分页后的 items, 总数 total)
+    /// 获取五维统计信息（v11 批次 150 P2-A：接入 page/page_size 内存分页；返回 (分页后的 items, 总数 total)）
     pub async fn get_stats(
         &self,
         query: FiveDimensionQuery,

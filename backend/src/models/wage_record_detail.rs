@@ -10,14 +10,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 工资明细模型
-///
-/// 真实业务要点：
-/// - 每条明细对应一个工人的一道工序记录
-/// - 工资计算公式：wage_amount = piece_wage + time_wage
-///   * piece_wage = qualified_quantity × piece_price × grade_ratio
-///   * time_wage = duration_minutes × time_price × grade_ratio
-/// - 等级系数依据合格率判定：A=grade_a_ratio / B=grade_b_ratio / C=grade_c_ratio
+/// 工资明细模型（每条明细对应一个工人一道工序；wage_amount = piece_wage + time_wage，piece_wage = qualified_quantity × piece_price × grade_ratio，time_wage = duration_minutes × time_price × grade_ratio；等级系数依据合格率判定 A/B/C）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "wage_record_detail")]
 pub struct Model {

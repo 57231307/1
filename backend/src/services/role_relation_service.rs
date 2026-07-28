@@ -38,16 +38,7 @@ impl RoleRelationService {
     }
 
     /// V15 P1 12.2：检查用户角色互斥
-    ///
-    /// 在用户分配角色时调用，检查新角色是否与用户已有角色互斥
-    ///
-    /// # 参数
-    /// - `existing_role_codes`：用户当前已持有的角色编码列表
-    /// - `new_role_code`：待分配的新角色编码
-    ///
-    /// # 返回
-    /// - `Ok(())`：无互斥冲突，可分配
-    /// - `Err(AppError)`：存在互斥角色，拒绝分配
+    /// 在用户分配角色时调用，检查新角色是否与用户已有角色互斥；# 参数；`existing_role_codes`：用户当前已持有的角色编码列表；`new_role_code`：待分配的新角色编码；# 返回；`Ok(())`：无互斥冲突，可分配；`Err(AppError)`：存在互斥角色，拒绝分配
     pub async fn check_mutual_exclusive(
         &self,
         existing_role_codes: &[String],
@@ -84,15 +75,7 @@ impl RoleRelationService {
     }
 
     /// V15 P1 12.2：获取角色继承的所有子角色编码
-    ///
-    /// 递归查询角色继承链，返回该角色继承的所有子角色编码
-    /// 例如：sales_manager → [sales_rep]（sales_manager 继承 sales_rep 的权限）
-    ///
-    /// # 参数
-    /// - `role_code`：父角色编码
-    ///
-    /// # 返回
-    /// 返回该角色直接和间接继承的所有子角色编码列表（不含自身）
+    /// 递归查询角色继承链，返回该角色继承的所有子角色编码；例如：sales_manager → [sales_rep]（sales_manager 继承 sales_rep 的权限）；# 参数；`role_code`：父角色编码；# 返回；返回该角色直接和间接继承的所有子角色编码列表（不含自身）
     pub async fn get_inherited_role_codes(&self, role_code: &str) -> Result<Vec<String>, AppError> {
         let mut result = Vec::new();
         let mut visited = std::collections::HashSet::new();
@@ -180,9 +163,7 @@ impl RoleRelationService {
         Ok(relations)
     }
 
-    /// V15 P1 12.2：查询两个角色之间的关系
-    ///
-    /// 返回 (role_a, role_b) 之间的所有关系（含双向）
+    /// V15 P1 12.2：查询两个角色之间的关系（返回 (role_a, role_b) 之间的所有关系（含双向））
     pub async fn get_relation_between(
         &self,
         role_a_code: &str,

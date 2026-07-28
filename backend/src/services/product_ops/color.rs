@@ -34,9 +34,7 @@ impl ProductService {
     }
 
     /// 创建产品色号
-    ///
-    /// 批次 412 技术债务清理：签名从 7 参数改为 2 参数（product_id + CreateProductColorInput），
-    /// 复用已有的 `CreateProductColorInput` 参数对象，消除 `clippy::too_many_arguments` 警告。
+    /// 批次 412 技术债务清理：签名从 7 参数改为 2 参数（product_id + CreateProductColorInput），；复用已有的 `CreateProductColorInput` 参数对象，消除 `clippy::too_many_arguments` 警告。
     pub async fn create_product_color(
         &self,
         product_id: i32,
@@ -76,9 +74,7 @@ impl ProductService {
         Ok(results)
     }
 
-    /// 更新产品色号
-    ///
-    /// 批次 330 v10 复审 P3 修复：使用 UpdateProductColorParams 参数对象替代 8 个独立参数
+    /// 更新产品色号（批次 330 v10 复审 P3 修复：使用 UpdateProductColorParams 参数对象替代 8 个独立参数）
     pub async fn update_product_color(
         &self,
         params: UpdateProductColorParams,

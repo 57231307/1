@@ -94,18 +94,7 @@ impl QuotationApprovalService {
     }
 
     /// 提交报价单进入审批流
-    ///
-    /// 流程：
-    /// 1. 检查当前状态（仅 draft / rejected 可提交）
-    /// 2. 根据金额选择审批角色
-    /// 3. 自批：直接 approved
-    /// 4. 否则：创建 BPM 流程实例 + 更新状态为 pending_approval
-    ///
-    /// 批次 85 v2 复审 P1-9 说明：submit 的状态门为预检查 + 金额判定（事务外查询），
-    /// 真正的状态变更在 self_approve / submit_to_bpm 内各自的事务中完成：
-    /// self_approve：lock_exclusive + 状态检查（P1-9 修复）
-    /// submit_to_bpm：lock_exclusive + 状态检查（已有）
-    /// 因此 submit 的预检查无 lock 是可接受的，最终一致性由子方法保证
+    /// 流程：1. 检查当前状态（仅 draft / rejected 可提交）；2. 根据金额选择审批角色；3. 自批：直接 approved；4. 否则：创建 BPM 流程实例 + 更新状态为 pending_approval；批次 85 v2 复审 P1-9 说明：submit 的状态门为预检查 + 金额判定（事务外查询），；真正的状态变更在 self_approve / submit_to_bpm 内各自的事务中完成：self_approve：lock_exclusive + 状态检查（P1-9 修复）；submit_to_bpm：lock_exclusive + 状态检查（已有）；因此 submit 的预检查无 lock 是可接受的，最终一致性由子方法保证
     pub async fn submit(
         &self,
         quotation_id: i64,
@@ -135,10 +124,7 @@ impl QuotationApprovalService {
     }
 
     /// 自批：直接标记为 approved
-    ///
-    /// 批次 85 v2 复审 P1-9 修复：在 lock 后补状态检查
-    /// 原实现有 lock_exclusive 但无状态检查，submit 预检查后到 self_approve 加锁期间，
-    /// 报价单可能已被并发修改（如取消），self_approve 会直接覆盖为 approved
+    /// 批次 85 v2 复审 P1-9 修复：在 lock 后补状态检查；原实现有 lock_exclusive 但无状态检查，submit 预检查后到 self_approve 加锁期间，；报价单可能已被并发修改（如取消），self_approve 会直接覆盖为 approved
     async fn self_approve(
         &self,
         quotation_id: i64,

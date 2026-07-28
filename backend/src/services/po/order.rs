@@ -75,11 +75,7 @@ pub struct PurchaseOrderItemDto {
 // =====================================================
 
 /// 采购订单服务（核心）
-///
-/// 业务方法分布于 `po/order_ops/` 子模块的各 `impl` 块中：
-/// - CRUD / 列表 / 详情：`order_ops::crud`
-/// - 生命周期（关闭）：`order_ops::lifecycle`
-/// - 明细查询 / CSV 导出：`order_ops::query`
+/// 业务方法分布于 `po/order_ops/` 子模块的各 `impl` 块中：CRUD / 列表 / 详情：`order_ops::crud`；生命周期（关闭）：`order_ops::lifecycle`；明细查询 / CSV 导出：`order_ops::query`
 pub struct PurchaseOrderService {
     pub(crate) db: Arc<DatabaseConnection>,
 }
@@ -137,9 +133,7 @@ mod tests {
 
     // ---------- 金额计算 ----------
 
-    /// 测试_金额计算_整数数量场景
-    ///
-    /// 验证数量与单价均为整数时金额计算正确
+    /// 测试_金额计算_整数数量场景（验证数量与单价均为整数时金额计算正确）
     #[test]
     fn 测试_金额计算_整数数量场景() {
         let quantity = decs!("10");
@@ -148,18 +142,14 @@ mod tests {
         assert_eq!(calc_amount(quantity, unit_price), decs!("1000"));
     }
 
-    /// 测试_金额计算_小数数量场景
-    ///
-    /// 验证数量与单价含小数时 round_dp(2) 精度归一化生效
+    /// 测试_金额计算_小数数量场景（验证数量与单价含小数时 round_dp(2) 精度归一化生效）
     #[test]
     fn 测试_金额计算_小数数量场景() {
         // 3.1415 * 2.5 = 7.85375 → round_dp(2) = 7.85
         assert_eq!(calc_amount(decs!("3.1415"), decs!("2.5")), decs!("7.85"));
     }
 
-    /// 测试_金额计算_零价或零量场景
-    ///
-    /// 验证数量或单价为 0 时金额为 0
+    /// 测试_金额计算_零价或零量场景（验证数量或单价为 0 时金额为 0）
     #[test]
     fn 测试_金额计算_零价或零量场景() {
         // 零数量
@@ -170,10 +160,7 @@ mod tests {
 
     // ---------- 税额计算 ----------
 
-    /// 测试_税额计算_默认税率场景
-    ///
-    /// 验证未指定税率时使用默认值 Decimal::new(13, 2) = 0.13，
-    /// 税额公式：amount * tax_percent / 100
+    /// 测试_税额计算_默认税率场景（验证未指定税率时使用默认值 Decimal::new(13, 2) = 0.13，；税额公式：amount * tax_percent / 100）
     #[test]
     fn 测试_税额计算_默认税率场景() {
         // 默认税率常量与 create_order_items 中 unwrap_or(Decimal::new(13, 2)) 一致
@@ -185,26 +172,20 @@ mod tests {
         );
     }
 
-    /// 测试_税额计算_自定义税率场景
-    ///
-    /// 验证用户传入税率（百分比值 13）时税额计算正确
+    /// 测试_税额计算_自定义税率场景（验证用户传入税率（百分比值 13）时税额计算正确）
     #[test]
     fn 测试_税额计算_自定义税率场景() {
         // 用户传 13 作为百分比：1000 * 13 / 100 = 130.00
         assert_eq!(calc_tax_amount(decs!("1000"), decs!("13")), decs!("130"));
     }
 
-    /// 测试_税额计算_零税率场景
-    ///
-    /// 验证税率为 0 时税额为 0
+    /// 测试_税额计算_零税率场景（验证税率为 0 时税额为 0）
     #[test]
     fn 测试_税额计算_零税率场景() {
         assert_eq!(calc_tax_amount(decs!("1000"), Decimal::ZERO), Decimal::ZERO);
     }
 
-    /// 测试_税额计算_精度归一化
-    ///
-    /// 验证税额计算结果经 round_dp(2) 归一化到两位小数
+    /// 测试_税额计算_精度归一化（验证税额计算结果经 round_dp(2) 归一化到两位小数）
     #[test]
     fn 测试_税额计算_精度归一化() {
         // 333.33 * 13 / 100 = 43.3329 → round_dp(2) = 43.33
@@ -216,9 +197,7 @@ mod tests {
 
     // ---------- 折扣计算 ----------
 
-    /// 测试_折扣计算_默认无折扣场景
-    ///
-    /// 验证未指定折扣（discount_percent 默认 0）时折扣金额为 0
+    /// 测试_折扣计算_默认无折扣场景（验证未指定折扣（discount_percent 默认 0）时折扣金额为 0）
     #[test]
     fn 测试_折扣计算_默认无折扣场景() {
         // 默认折扣百分比为 Decimal::ZERO（与 create_order_items 一致）
@@ -228,9 +207,7 @@ mod tests {
         );
     }
 
-    /// 测试_折扣计算_自定义折扣场景
-    ///
-    /// 验证用户传入折扣百分比（10 表示 10%）时折扣金额计算正确
+    /// 测试_折扣计算_自定义折扣场景（验证用户传入折扣百分比（10 表示 10%）时折扣金额计算正确）
     #[test]
     fn 测试_折扣计算_自定义折扣场景() {
         // 1000 * 10 / 100 = 100.00
@@ -242,9 +219,7 @@ mod tests {
 
     // ---------- 明细总额 ----------
 
-    /// 测试_明细总额_含税无折扣场景
-    ///
-    /// 验证总额公式 amount + tax_amount - discount_amount（无折扣）
+    /// 测试_明细总额_含税无折扣场景（验证总额公式 amount + tax_amount - discount_amount（无折扣））
     #[test]
     fn 测试_明细总额_含税无折扣场景() {
         // 1000 + 130 - 0 = 1130
@@ -254,9 +229,7 @@ mod tests {
         );
     }
 
-    /// 测试_明细总额_含税含折扣场景
-    ///
-    /// 验证总额公式 amount + tax_amount - discount_amount（含折扣）
+    /// 测试_明细总额_含税含折扣场景（验证总额公式 amount + tax_amount - discount_amount（含折扣））
     #[test]
     fn 测试_明细总额_含税含折扣场景() {
         // 1000 + 130 - 100 = 1030
@@ -268,9 +241,7 @@ mod tests {
 
     // ---------- 明细行号 ----------
 
-    /// 测试_明细行号_默认值递增场景
-    ///
-    /// 验证未指定 line_no 时按 (index + 1) 从 1 递增
+    /// 测试_明细行号_默认值递增场景（验证未指定 line_no 时按 (index + 1) 从 1 递增）
     #[test]
     fn 测试_明细行号_默认值递增场景() {
         // 复现 create_order_items 中 item.line_no.unwrap_or((index + 1) as i32)
@@ -282,9 +253,7 @@ mod tests {
 
     // ---------- 订单默认值 ----------
 
-    /// 测试_货币默认值_未指定时使用CNY
-    ///
-    /// 验证 create_order_header 中 currency 未指定时使用 crate::constants::DEFAULT_CURRENCY
+    /// 测试_货币默认值_未指定时使用CNY（验证 create_order_header 中 currency 未指定时使用 crate::constants::DEFAULT_CURRENCY）
     #[test]
     fn 测试_货币默认值_未指定时使用CNY() {
         // 复现 create_order_header 中货币默认值逻辑
@@ -302,9 +271,7 @@ mod tests {
         assert_eq!(currency_explicit, "USD");
     }
 
-    /// 测试_汇率默认值_未指定时为1
-    ///
-    /// 验证 create_order_header 中 exchange_rate 未指定时默认为 Decimal::new(1, 0) = 1
+    /// 测试_汇率默认值_未指定时为1（验证 create_order_header 中 exchange_rate 未指定时默认为 Decimal::new(1, 0) = 1）
     #[test]
     fn 测试_汇率默认值_未指定时为1() {
         // 复现 create_order_header 中汇率默认值逻辑
@@ -317,10 +284,7 @@ mod tests {
         assert_eq!(exchange_rate_explicit, decs!("6.5"));
     }
 
-    /// 测试_订单初始状态_使用DRAFT常量
-    ///
-    /// 验证 create_order_header 中订单初始状态使用 status::purchase_order::DRAFT 常量
-    /// （禁止硬编码状态字符串，全程引用常量）
+    /// 测试_订单初始状态_使用DRAFT常量（验证 create_order_header 中订单初始状态使用 status::purchase_order::DRAFT 常量；（禁止硬编码状态字符串，全程引用常量））
     #[test]
     fn 测试_订单初始状态_使用DRAFT常量() {
         // 复现 create_order_header 中订单初始状态设置
@@ -348,9 +312,7 @@ mod tests {
 
     // ---------- 日期校验 ----------
 
-    /// 测试_日期校验_预计交货不能早于订单日期
-    ///
-    /// 验证 validate_order_request 中预计交货日期不能早于订单日期的校验逻辑
+    /// 测试_日期校验_预计交货不能早于订单日期（验证 validate_order_request 中预计交货日期不能早于订单日期的校验逻辑）
     #[test]
     fn 测试_日期校验_预计交货不能早于订单日期() {
         let order_date = ymd!(2026, 3, 15);
@@ -367,9 +329,7 @@ mod tests {
 
     // ---------- CSV 导出表头 ----------
 
-    /// 测试_CSV表头_列数与列名验证
-    ///
-    /// 验证 export_orders_to_csv 中 CSV 表头为 21 列且列名符合预期
+    /// 测试_CSV表头_列数与列名验证（验证 export_orders_to_csv 中 CSV 表头为 21 列且列名符合预期）
     #[test]
     fn 测试_CSV表头_列数与列名验证() {
         // 复现 export_orders_to_csv 中的表头定义
@@ -409,9 +369,7 @@ mod tests {
 
     // ---------- 夹具宏与服务实例化 ----------
 
-    /// 测试_decs夹具宏_可用性
-    ///
-    /// 验证 decs! 宏能正确解析 Decimal 字符串
+    /// 测试_decs夹具宏_可用性（验证 decs! 宏能正确解析 Decimal 字符串）
     #[test]
     fn 测试_decs夹具宏_可用性() {
         let v = decs!("123.45");
@@ -419,9 +377,7 @@ mod tests {
         assert_eq!(v.to_string(), "123.45");
     }
 
-    /// 测试_服务实例化_SQLite内存数据库
-    ///
-    /// 验证 PurchaseOrderService 在 SQLite 内存数据库上能正常实例化
+    /// 测试_服务实例化_SQLite内存数据库（验证 PurchaseOrderService 在 SQLite 内存数据库上能正常实例化）
     #[tokio::test]
     async fn 测试_服务实例化_SQLite内存数据库() {
         let db = setup_test_db().await;
@@ -473,18 +429,14 @@ mod tests {
         Ok(())
     }
 
-    /// 测试_update_order状态校验门_允许的状态
-    ///
-    /// 验证 DRAFT 和 REJECTED 状态允许修改
+    /// 测试_update_order状态校验门_允许的状态（验证 DRAFT 和 REJECTED 状态允许修改）
     #[test]
     fn 测试_update_order状态校验门_允许的状态() {
         assert!(update_order_status_gate(status::purchase_order::DRAFT).is_ok());
         assert!(update_order_status_gate(status::purchase_order::REJECTED).is_ok());
     }
 
-    /// 测试_update_order状态校验门_禁止的状态
-    ///
-    /// 验证非 DRAFT/REJECTED 状态不允许修改且错误消息包含当前状态
+    /// 测试_update_order状态校验门_禁止的状态（验证非 DRAFT/REJECTED 状态不允许修改且错误消息包含当前状态）
     #[test]
     fn 测试_update_order状态校验门_禁止的状态() {
         let forbidden = [
@@ -504,17 +456,13 @@ mod tests {
         }
     }
 
-    /// 测试_delete_order状态校验门_仅DRAFT允许
-    ///
-    /// 验证仅 DRAFT 状态允许删除
+    /// 测试_delete_order状态校验门_仅DRAFT允许（验证仅 DRAFT 状态允许删除）
     #[test]
     fn 测试_delete_order状态校验门_仅DRAFT允许() {
         assert!(delete_order_status_gate(status::purchase_order::DRAFT).is_ok());
     }
 
-    /// 测试_delete_order状态校验门_非DRAFT禁止
-    ///
-    /// 验证非 DRAFT 状态不允许删除且错误消息包含当前状态
+    /// 测试_delete_order状态校验门_非DRAFT禁止（验证非 DRAFT 状态不允许删除且错误消息包含当前状态）
     #[test]
     fn 测试_delete_order状态校验门_非DRAFT禁止() {
         let forbidden = [
@@ -531,18 +479,14 @@ mod tests {
         }
     }
 
-    /// 测试_close_order状态校验门_允许的状态
-    ///
-    /// 验证 COMPLETED 和 PARTIAL_RECEIVED 状态允许关闭
+    /// 测试_close_order状态校验门_允许的状态（验证 COMPLETED 和 PARTIAL_RECEIVED 状态允许关闭）
     #[test]
     fn 测试_close_order状态校验门_允许的状态() {
         assert!(close_order_status_gate(status::purchase_order::COMPLETED).is_ok());
         assert!(close_order_status_gate(status::purchase_order::PARTIAL_RECEIVED).is_ok());
     }
 
-    /// 测试_close_order状态校验门_禁止的状态
-    ///
-    /// 验证非 COMPLETED/PARTIAL_RECEIVED 状态不允许关闭且错误消息包含当前状态
+    /// 测试_close_order状态校验门_禁止的状态（验证非 COMPLETED/PARTIAL_RECEIVED 状态不允许关闭且错误消息包含当前状态）
     #[test]
     fn 测试_close_order状态校验门_禁止的状态() {
         let forbidden = [

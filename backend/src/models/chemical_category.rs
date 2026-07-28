@@ -9,12 +9,7 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 染化料分类模型
-///
-/// 真实业务要点：
-/// - 支持多级树形分类（parent_id 自引用）
-/// - 三种类型：染料 / 助剂 / 化工原料
-/// - 排序字段 sort_order 控制前端展示顺序
+/// 染化料分类模型（多级树形分类 parent_id 自引用，三种类型染料/助剂/化工原料，sort_order 控制前端展示顺序）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "chemical_category")]
 pub struct Model {

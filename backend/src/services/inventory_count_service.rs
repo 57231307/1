@@ -75,9 +75,7 @@ impl InventoryCountService {
     }
 
     /// 创建盘点单（事务内生成单号 + 主表 + 明细快照）
-    ///
-    /// 批次 340 v11 复审 P1 修复：移除 `#[allow(clippy::default_constructed_unit_structs)]` 抑制，
-    /// SeaORM unit struct `Entity` 直接作为值传递，无需 `::default()` 构造。
+    /// 批次 340 v11 复审 P1 修复：移除 `#[allow(clippy::default_constructed_unit_structs)]` 抑制，；SeaORM unit struct `Entity` 直接作为值传递，无需 `::default()` 构造。
     pub async fn create_count(&self, req: CreateCountRequest) -> Result<CountDetail, AppError> {
         let txn = (*self.db).begin().await?;
 
@@ -202,9 +200,7 @@ impl InventoryCountService {
     }
 
     /// 查询盘点单列表（分页）
-    ///
-    /// V15 P0-S01：新增 data_scope 参数，按行级数据权限过滤。
-    /// inventory_count 表无 department_id，Dept 范围退化为 Self，使用 created_by（Option<i32>）。
+    /// V15 P0-S01：新增 data_scope 参数，按行级数据权限过滤。；inventory_count 表无 department_id，Dept 范围退化为 Self，使用 created_by（Option<i32>）。
     pub async fn list_counts(
         &self,
         page: u64,
@@ -239,9 +235,7 @@ impl InventoryCountService {
     }
 
     /// 查询盘点单详情
-    ///
-    /// V15 P0-S01：新增 data_scope 参数，对单资源做 IDOR 校验。
-    /// inventory_count 表无 department_id，Dept 范围退化为 Self，使用 created_by（Option<i32>）。
+    /// V15 P0-S01：新增 data_scope 参数，对单资源做 IDOR 校验。；inventory_count 表无 department_id，Dept 范围退化为 Self，使用 created_by（Option<i32>）。
     pub async fn get_count(
         &self,
         count_id: i32,
@@ -326,10 +320,7 @@ impl InventoryCountService {
         Ok(())
     }
 
-    /// 录入实盘数量并自动计算差异
-    ///
-    /// 差异 = 实盘 - 账面；同步更新盘点单 counted_items / variance_items 统计字段。
-    /// 仅 pending 状态允许录入。
+    /// 录入实盘数量并自动计算差异（差异 = 实盘 - 账面；同步更新盘点单 counted_items / variance_items 统计字段。；仅 pending 状态允许录入。）
     pub async fn record_count_items(
         &self,
         count_id: i32,

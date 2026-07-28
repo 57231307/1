@@ -30,9 +30,7 @@ use super::super::types::{AutoVerifyData, VerifyTotals};
 use crate::services::ar_service::ArService;
 
 impl ArService {
-    /// 自动核销
-    /// 策略：按客户分组，未核销发票（unpaid_amount > 0）按到期日升序，
-    /// 已确认收款（status = confirmed）按日期升序，贪心匹配。
+    /// 自动核销（策略：按客户分组，未核销发票（unpaid_amount > 0）按到期日升序，；已确认收款（status = confirmed）按日期升序，贪心匹配。）
     pub async fn auto_verify(&self, user_id: i32) -> Result<serde_json::Value, AppError> {
         let txn = (*self.db).begin().await?;
         let data = self.load_auto_verify_data(&txn).await?;

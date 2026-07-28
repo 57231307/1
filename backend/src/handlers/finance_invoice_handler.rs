@@ -33,13 +33,8 @@ pub struct InvoiceListResponse {
     pub total: u64,
 }
 
-/// 创建发票请求 DTO
-/// 用于强类型校验 create_finance_invoice 的入参，
-/// 替代原先无类型校验的 serde_json::Value。
-///
-/// P1-5 修复（批次 81 v1 复审）：金额字段 f64 → Decimal，消除浮点精度漂移风险。
-/// validator crate 的 range 在 Decimal 上不支持，改用自定义 does_not_contain 校验，
-/// 非负校验在 handler 中通过 is_sign_negative 显式执行。
+/// 创建发票请求 DTO 用于强类型校验 create_finance_invoice 的入参， 替代原先无类型校验的 serde_json::Value。；P1-5 修复（批次 81 v1 复审）：金额字段 f64 → Decimal
+/// 消除浮点精度漂移风险。 validator crate 的 range 在 Decimal 上不支持，改用自定义 does_not_contain 校验， 非负校验在 handler 中通过 is_sign_negative 显式执行。
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateFinanceInvoiceDto {
     /// 发票号：必填，长度至少 1
@@ -53,9 +48,7 @@ pub struct CreateFinanceInvoiceDto {
     pub total_amount: rust_decimal::Decimal,
 }
 
-/// 更新发票请求 DTO
-/// 用于强类型校验 update_finance_invoice 的入参。
-/// 字段全部可选，仅更新提交的字段。
+/// 更新发票请求 DTO 用于强类型校验 update_finance_invoice 的入参。 字段全部可选，仅更新提交的字段。
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct UpdateFinanceInvoiceDto {
     /// 发票状态：可选；若提供则长度至少 1

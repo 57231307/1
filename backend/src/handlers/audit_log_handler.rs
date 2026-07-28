@@ -23,13 +23,8 @@ use crate::utils::sql_escape::safe_like_pattern;
 // V15 P0-S15 修复（Batch 475a）：导出注入水印（操作员/导出时间/导出条数）
 use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
 
-/// V15 P1-14.2-C：审计日志查询要求 admin 或 auditor 角色
-///
-/// 安全原因：审计日志含全系统操作记录（含其他用户敏感操作），
-/// 仅依赖全局 permission_middleware 的 RBAC 不够（管理员可能误配 audit-logs:read 权限），
-/// 在 handler 层增加角色深度防御，确保合规要求。
-/// admin 不再持有 audit:read 权限码（职责分离），但保留运维排查能力；
-/// auditor 角色专门负责审计职责，独占 audit:read 权限码。
+/// V15 P1-14.2-C：审计日志查询要求 admin 或 auditor 角色；安全原因：审计日志含全系统操作记录（含其他用户敏感操作）， 仅依赖全局 permission_middleware 的 RBAC 不够（管理员可能误配
+/// audit-logs:read 权限）， 在 handler 层增加角色深度防御，确保合规要求。 admin 不再持有 audit:read 权限码（职责分离），但保留运维排查能力； auditor 角色专门负责审计职责，独占 audit:read 权限码。
 async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), AppError> {
     let role_id = auth
         .role_id
@@ -128,9 +123,7 @@ pub struct AuditLogListResponse {
     pub page_size: u64,
 }
 
-/// GET /api/v1/erp/audit-logs
-///
-/// 分页 + 多维筛选（时间范围 / user_id / operation_type / severity / resource_type / request_id）
+/// GET /api/v1/erp/audit-logs；分页 + 多维筛选（时间范围 / user_id / operation_type / severity / resource_type / request_id）
 pub async fn list_audit_logs(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -343,9 +336,7 @@ fn record_audit_logs_export_audit(state: &AppState, auth: &AuthContext, logs_cou
     Arc::new(svc).record_async(event, None);
 }
 
-/// GET /api/v1/erp/audit-logs/export
-///
-/// 返回 xlsx 格式（Excel），前端直接 `window.URL.createObjectURL(blob)` 下载。
+/// GET /api/v1/erp/audit-logs/export；返回 xlsx 格式（Excel），前端直接 `window.URL.createObjectURL(blob)` 下载。
 pub async fn export_audit_logs(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -385,11 +376,8 @@ pub async fn export_audit_logs(
     build_xlsx_response_with_watermark(&table, &filename, &watermark)
 }
 
-/// V15 P1-5-3：前端打印审计埋点请求体
-///
-/// 前端 `printData`/`printSingleDocument` 纯前端 window.print 不经过后端 handler，
-/// 无法触发 omni_audit 中间件落库。此端点供前端打印完成后 best-effort 上报，
-/// 后端写入 audit_logs（OperationType::Print），确保合规审计覆盖前端打印操作。
+/// V15 P1-5-3：前端打印审计埋点请求体；前端 `printData`/`printSingleDocument` 纯前端 window.print 不经过后端 handler， 无法触发
+/// omni_audit 中间件落库。此端点供前端打印完成后 best-effort 上报， 后端写入 audit_logs（OperationType::Print），确保合规审计覆盖前端打印操作。
 #[derive(Debug, Deserialize)]
 pub struct RecordPrintEventRequest {
     /// 资源类型（如 customer / supplier / warehouse，与权限码 resource_type 对应）
@@ -402,15 +390,8 @@ pub struct RecordPrintEventRequest {
     pub resource_id: Option<String>,
 }
 
-/// V15 P1-5-3：前端打印审计埋点端点
-///
-/// POST /api/v1/erp/audit-logs/record-print
-///
-/// 安全设计：
-/// - 必须认证（AuthContext 由全局 auth_middleware 注入）
-/// - 字段长度校验（resource_type ≤ 64，title ≤ 200，record_count ≥ 0）
-/// - best-effort 异步落库，不阻塞响应
-/// - 不要求 admin/auditor 角色（任何已认证用户打印均需审计）
+/// V15 P1-5-3：前端打印审计埋点端点；POST /api/v1/erp/audit-logs/record-print；安全设计： - 必须认证（AuthContext 由全局 auth_middleware 注入） -
+/// 字段长度校验（resource_type ≤ 64，title ≤ 200，record_count ≥ 0） - best-effort 异步落库，不阻塞响应 - 不要求 admin/auditor 角色（任何已认证用户打印均需审计）
 pub async fn record_print_event(
     State(state): State<AppState>,
     auth: AuthContext,

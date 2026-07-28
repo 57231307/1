@@ -21,11 +21,8 @@ pub struct UnlockAccountDto {
     pub username: String,
 }
 
-/// P0 7-1 修复：要求调用者具备 admin 角色，否则拒绝并记录审计日志
-///
-/// 安全原因：原 `check_lock_status`、`unlock_account`、`unlock_account_by_id`
-/// 三个 handler 仅使用 `_auth: AuthContext`（下划线前缀表示参数被忽略），
-/// 导致任意登录用户均可查询他人锁定状态或解锁任意账号，属水平/垂直越权。
+/// P0 7-1 修复：要求调用者具备 admin 角色，否则拒绝并记录审计日志；安全原因：原 `check_lock_status`、`unlock_account`、`unlock_account_by_id`
+/// 三个 handler 仅使用 `_auth: AuthContext`（下划线前缀表示参数被忽略）， 导致任意登录用户均可查询他人锁定状态或解锁任意账号，属水平/垂直越权。
 async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), AppError> {
     let role_id = auth
         .role_id

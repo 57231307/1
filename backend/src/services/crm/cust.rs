@@ -333,9 +333,7 @@ impl CrmService {
         Ok((r_score + f_score + m_score) / 3.0)
     }
 
-    /// 获取 RFM 评分分布
-    ///
-    /// 查询所有客户的订单聚合（按 customer_id 分组：订单数 + 最近订单时间 + 总金额）
+    /// 获取 RFM 评分分布（查询所有客户的订单聚合（按 customer_id 分组：订单数 + 最近订单时间 + 总金额））
     async fn query_customer_order_aggregations(
         db: &DatabaseConnection,
     ) -> Result<Vec<OrderAggRow>, AppError> {

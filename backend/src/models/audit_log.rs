@@ -111,9 +111,7 @@ pub struct Model {
     pub before_snapshot: Option<AuditValue>,
     /// 变更后快照 JSON（推荐字段，语义清晰的命名）
     pub after_snapshot: Option<AuditValue>,
-    /// 请求条件/查询条件（query string）
-    /// V15 P0-S19 补齐：与 request_body 区分，request_body 记录完整请求体，
-    /// condition 仅记录查询条件，用于快速筛选特定条件下的导出/查询审计记录
+    /// 请求条件/查询条件（query string，V15 P0-S19：与 request_body 区分，用于快速筛选特定条件审计记录）
     #[sea_orm(column_type = "Text", nullable)]
     pub condition: Option<String>,
     // ============ V15 P1-3-3 导出专属字段（m20260729 添加）============

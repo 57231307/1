@@ -38,9 +38,7 @@ pub use crate::services::auth_service_ops::jti::{
     revoke_user_jtis, start_revoked_user_cleanup_task, unrevoke_user,
 };
 
-/// JWT 令牌声明
-///
-/// 包含用户身份信息和令牌元数据
+/// JWT 令牌声明（包含用户身份信息和令牌元数据）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppClaims {
     /// 用户 ID（Subject）
@@ -62,12 +60,7 @@ pub struct AppClaims {
     pub session_id: String,
 }
 
-/// 认证服务
-///
-/// 处理用户认证、令牌生成和验证
-///
-/// 字段声明为 `pub(crate)` 以便 `auth_service_ops::auth` 子模块的 `impl AuthService`
-/// 块直接访问（业务方法已迁移至该子模块）。
+/// 认证服务（处理用户认证、令牌生成和验证；字段声明为 `pub(crate)` 以便 `auth_service_ops::auth` 子模块的 `impl AuthService`；块直接访问（业务方法已迁移至该子模块）。）
 #[derive(Clone)]
 pub struct AuthService {
     pub(crate) db: Arc<DatabaseConnection>,
@@ -75,11 +68,7 @@ pub struct AuthService {
 }
 
 impl AuthService {
-    /// 创建新的认证服务实例
-    ///
-    /// # 参数
-    /// - `db`: 数据库连接
-    /// - `secret`: JWT 密钥
+    /// 创建新的认证服务实例（# 参数；`db`: 数据库连接；`secret`: JWT 密钥）
     pub fn new(db: Arc<DatabaseConnection>, secret: String) -> Self {
         Self {
             db,
@@ -88,9 +77,7 @@ impl AuthService {
     }
 }
 
-/// 认证错误类型
-///
-/// 定义认证过程中可能发生的所有错误
+/// 认证错误类型（定义认证过程中可能发生的所有错误）
 #[derive(Debug, thiserror::Error)]
 pub enum AuthError {
     /// 用户名或密码错误
@@ -186,9 +173,7 @@ mod tests {
         AuthService::validate_token_static(token, secret).expect("P9-1: 令牌验证失败")
     }
 
-    /// TS-S-3 安全加固（2026-06-26）：
-    /// 测试 JWT 密钥改为运行时随机生成，避免硬编码密钥泄露后可伪造任意 JWT。
-    /// 使用 OnceLock 保证同一测试进程中所有测试共享同一随机密钥。
+    /// TS-S-3 安全加固（2026-06-26）：（测试 JWT 密钥改为运行时随机生成，避免硬编码密钥泄露后可伪造任意 JWT。；使用 OnceLock 保证同一测试进程中所有测试共享同一随机密钥。）
     static TEST_JWT_SECRET_CELL: std::sync::OnceLock<String> = std::sync::OnceLock::new();
 
     /// 生成随机测试密钥
@@ -426,9 +411,7 @@ mod tests {
     }
 
     /// v11 批次 145 P1-7：测试 cleanup_revoked_users 清理过期吊销记录
-    ///
-    /// 由于 REVOKED_USERS 是进程内全局表，测试通过手动注入"过期"记录验证清理逻辑。
-    /// 过期记录（revoked_at < now - TTL）应被清理，未过期记录应保留。
+    /// 由于 REVOKED_USERS 是进程内全局表，测试通过手动注入"过期"记录验证清理逻辑。；过期记录（revoked_at < now - TTL）应被清理，未过期记录应保留。
     #[tokio::test]
     async fn test_cleanup_revoked_users_removes_expired() {
         let test_user_id: i32 = 9_999_004;
@@ -558,9 +541,7 @@ mod tests {
 
     // ---------- 异步密码函数（批次 392 补测） ----------
 
-    /// 测试异步哈希密码返回有效哈希
-    ///
-    /// 验证 hash_password_async 能正确哈希密码且结果以 argon2id 前缀开头
+    /// 测试异步哈希密码返回有效哈希（验证 hash_password_async 能正确哈希密码且结果以 argon2id 前缀开头）
     #[tokio::test]
     async fn test_hash_password_async_returns_valid_hash() {
         let password = "AsyncTestPassword456!".to_string();
@@ -571,9 +552,7 @@ mod tests {
         assert!(hash.starts_with("$argon2"), "哈希结果应以 argon2 前缀开头");
     }
 
-    /// 测试异步验证密码正确与错误
-    ///
-    /// 验证 verify_password_async 对正确密码返回 true，错误密码返回 false
+    /// 测试异步验证密码正确与错误（验证 verify_password_async 对正确密码返回 true，错误密码返回 false）
     #[tokio::test]
     async fn test_verify_password_async_correct_and_wrong() {
         let password = "VerifyAsync789!".to_string();
@@ -594,9 +573,7 @@ mod tests {
         assert!(!wrong, "错误密码应验证失败");
     }
 
-    /// 测试异步哈希密码唯一性
-    ///
-    /// 验证相同密码两次异步哈希结果不同（随机盐）
+    /// 测试异步哈希密码唯一性（验证相同密码两次异步哈希结果不同（随机盐））
     #[tokio::test]
     async fn test_hash_password_async_uniqueness() {
         let password = "UniqueAsync123!".to_string();
@@ -609,9 +586,7 @@ mod tests {
         assert_ne!(hash1, hash2, "相同密码两次哈希结果应不同（随机盐）");
     }
 
-    /// 测试异步验证密码对无效哈希返回 Err
-    ///
-    /// 验证 verify_password_async 对非 argon2 格式的哈希返回 Err
+    /// 测试异步验证密码对无效哈希返回 Err（验证 verify_password_async 对非 argon2 格式的哈希返回 Err）
     #[tokio::test]
     async fn test_verify_password_async_invalid_hash_returns_err() {
         let result =

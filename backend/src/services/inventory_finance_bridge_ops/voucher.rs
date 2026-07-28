@@ -37,10 +37,7 @@ struct SalesReturnVoucherContext {
 }
 
 impl InventoryFinanceBridgeService {
-    /// 创建默认凭证分录（填充所有必填字段）
-    ///
-    /// 批次 334 v10 复审 P3 修复：签名从 9 参数改为单一参数对象 `VoucherItemArgs`，
-    /// 消除 `clippy::too_many_arguments` 警告。
+    /// 创建默认凭证分录（填充所有必填字段）（批次 334 v10 复审 P3 修复：签名从 9 参数改为单一参数对象 `VoucherItemArgs`，；消除 `clippy::too_many_arguments` 警告。）
     fn make_voucher_item(args: VoucherItemArgs<'_>) -> VoucherItemRequest {
         VoucherItemRequest {
             line_no: Some(args.line_no),
@@ -66,10 +63,7 @@ impl InventoryFinanceBridgeService {
     }
 
     /// 创建采购入库凭证
-    /// 借：库存商品
-    /// 贷：应付账款
-    /// 批次 337 v10 复审 P3 修复：签名从 10 参数改为单一参数对象 `VoucherCreateArgs`，
-    /// 消除 `clippy::too_many_arguments` 警告。
+    /// 借：库存商品；贷：应付账款；批次 337 v10 复审 P3 修复：签名从 10 参数改为单一参数对象 `VoucherCreateArgs`，；消除 `clippy::too_many_arguments` 警告。
     pub(crate) async fn create_purchase_receipt_voucher(
         &self,
         args: VoucherCreateArgs<'_>,
@@ -221,10 +215,7 @@ impl InventoryFinanceBridgeService {
     }
 
     /// 创建销售出库凭证
-    /// 借：主营业务成本
-    /// 贷：库存商品
-    /// 批次 337 v10 复审 P3 修复：签名从 10 参数改为单一参数对象 `VoucherCreateArgs`，
-    /// 消除 `clippy::too_many_arguments` 警告。
+    /// 借：主营业务成本；贷：库存商品；批次 337 v10 复审 P3 修复：签名从 10 参数改为单一参数对象 `VoucherCreateArgs`，；消除 `clippy::too_many_arguments` 警告。
     pub(crate) async fn create_sales_delivery_voucher(
         &self,
         args: VoucherCreateArgs<'_>,
@@ -321,10 +312,7 @@ impl InventoryFinanceBridgeService {
     }
 
     /// 创建库存调整凭证
-    /// 盘盈：借：库存商品 / 贷：待处理财产损溢
-    /// 盘亏：借：待处理财产损溢 / 贷：库存商品
-    /// 批次 337 v10 复审 P3 修复：签名从 10 参数改为单一参数对象 `VoucherCreateArgs`，
-    /// 消除 `clippy::too_many_arguments` 警告。
+    /// 盘盈：借：库存商品 / 贷：待处理财产损溢；盘亏：借：待处理财产损溢 / 贷：库存商品；批次 337 v10 复审 P3 修复：签名从 10 参数改为单一参数对象 `VoucherCreateArgs`，；消除 `clippy::too_many_arguments` 警告。
     pub(crate) async fn create_inventory_adjustment_voucher(
         &self,
         args: VoucherCreateArgs<'_>,
@@ -521,9 +509,7 @@ impl InventoryFinanceBridgeService {
     }
 
     /// 创建生产入库凭证
-    /// 借：库存商品 / 贷：生产成本
-    /// 批次 337 v10 复审 P3 修复：签名从 10 参数改为单一参数对象 `VoucherCreateArgs`，
-    /// 消除 `clippy::too_many_arguments` 警告。
+    /// 借：库存商品 / 贷：生产成本；批次 337 v10 复审 P3 修复：签名从 10 参数改为单一参数对象 `VoucherCreateArgs`，；消除 `clippy::too_many_arguments` 警告。
     pub(crate) async fn create_production_receipt_voucher(
         &self,
         args: VoucherCreateArgs<'_>,
@@ -820,12 +806,7 @@ impl InventoryFinanceBridgeService {
     }
 
     /// 创建采购退货凭证
-    /// 借：应付账款（红字）
-    /// 贷：库存商品（红字）
-    ///
-    /// 批次 356 v13 复审 B-P0-5 修复：采购退货财务凭证未生成
-    /// 采购退货业务流闭环：purchase_return_service → 发布 PURCHASE_RETURN 事件 →
-    /// inventory_finance_bridge_service 生成红字凭证
+    /// 借：应付账款（红字）；贷：库存商品（红字）；批次 356 v13 复审 B-P0-5 修复：采购退货财务凭证未生成；采购退货业务流闭环：purchase_return_service → 发布 PURCHASE_RETURN 事件 →；inventory_finance_bridge_service 生成红字凭证
     pub(crate) async fn create_purchase_return_voucher(
         &self,
         args: VoucherCreateArgs<'_>,
@@ -928,12 +909,7 @@ impl InventoryFinanceBridgeService {
     }
 
     /// 创建销售退货凭证
-    /// 借：库存商品
-    /// 贷：主营业务成本（红字反转）
-    ///
-    /// 批次 356 v13 复审 B-P0-6 修复：销售退货财务凭证未生成
-    /// 销售退货业务流闭环：sales_return_service → 发布 SALES_RETURN 事件 →
-    /// inventory_finance_bridge_service 生成红字凭证
+    /// 借：库存商品；贷：主营业务成本（红字反转）；批次 356 v13 复审 B-P0-6 修复：销售退货财务凭证未生成；销售退货业务流闭环：sales_return_service → 发布 SALES_RETURN 事件 →；inventory_finance_bridge_service 生成红字凭证
     pub(crate) async fn create_sales_return_voucher(
         &self,
         args: VoucherCreateArgs<'_>,

@@ -4,14 +4,7 @@
 //! 批次 490 D10-3b 拆分：从 models/status.rs 抽取的财务/应收应付/凭证/会计期间状态常量子模块组。
 //! 包含：ar/ap_invoice/ap_payment_request/voucher/accounting_period/finance_invoice/finance_payment/ap_reconciliation/ap_verification/fixed_asset/cost_collection/accounting_period_closing
 
-/// 应收账款专属状态常量（批次 102 v6 P3-1 修复，批次 231 v13 P1-1 统一小写）
-///
-/// 三类模型的状态字段值（批次 231 统一为小写，修复 ar_service.rs 大写与 ar/recon.rs 小写不一致的 P0 数据问题）：
-/// - ar_collection.status：小写（pending/confirmed/cancelled）
-/// - ar_reconciliation.reconciliation_status：小写（draft/sent/confirmed/disputed/closed/cancelled）
-/// - ar_reconciliation_item.match_status：大写（MATCHED/UNMATCHED）
-///
-/// ar_invoice.status 复用 common::STATUS_* 与 payment::PAYMENT_*（与 ar_invoice_service.rs 保持一致）
+/// 应收账款专属状态常量（批次 231 统一小写：ar_collection pending/confirmed/cancelled、ar_reconciliation draft/sent/confirmed/disputed/closed/cancelled、ar_reconciliation_item MATCHED/UNMATCHED；ar_invoice 复用 common 与 payment 常量）
 pub mod ar {
     /// 收款单待确认（ar_collection.status，小写值）
     pub const COLLECTION_PENDING: &str = "pending";
@@ -47,30 +40,13 @@ pub mod ar {
     pub const MATCH_UNMATCHED: &str = "UNMATCHED";
 }
 
-/// 应付发票专属状态常量（批次 102 v6 P3-2 修复）
-///
-/// ap_invoice.invoice_status 字段值（大写）：
-/// - DRAFT：草稿（与 common::STATUS_DRAFT 同值，但语义独立，单独定义便于维护）
-/// - AUDITED：已审核（ap_invoice 专属，非通用审批状态）
-/// - PAID：已付款（与 payment::PAYMENT_PAID 同值）
-/// - PARTIAL_PAID：部分付款（与 payment::PAYMENT_PARTIAL_PAID 同值）
-/// - CANCELLED：已取消（与 common::STATUS_CANCELLED 同值）
-///
-/// 复用策略：DRAFT/PAID/PARTIAL_PAID/CANCELLED 直接引用 common/payment 模块常量，
-/// 仅 AUDITED 在本模块单独定义。
+/// 应付发票专属状态常量（批次 102 v6 P3-2：ap_invoice.invoice_status 大写，仅 AUDITED 单独定义，DRAFT/PAID/PARTIAL_PAID/CANCELLED 复用 common/payment）
 pub mod ap_invoice {
     /// 已审核（ap_invoice 专属状态，区别于通用 APPROVED）
     pub const INVOICE_AUDITED: &str = "AUDITED";
 }
 
-/// 应付付款申请专属审批状态常量（批次 102 v6 P3-3 修复）
-///
-/// ap_payment_request.approval_status 字段值（大写）：
-/// - DRAFT：草稿（与 common::STATUS_DRAFT 同值，复用）
-/// - APPROVING：审批中（ap_payment_request 专属）
-/// - APPROVED：已审批（与 common::STATUS_APPROVED 同值，复用）
-/// - REJECTED：已拒绝（与 approval::REJECTED 同值，但 approval 模块为 dead_code，
-///   此处单独定义避免依赖 dead_code 模块）
+/// 应付付款申请专属审批状态常量（批次 102 v6 P3-3：ap_payment_request.approval_status 大写，APPROVING/REJECTED 单独定义，DRAFT/APPROVED 复用 common）
 pub mod ap_payment_request {
     /// 审批中（ap_payment_request 专属状态）
     pub const APPROVAL_APPROVING: &str = "APPROVING";
@@ -79,12 +55,7 @@ pub mod ap_payment_request {
     pub const APPROVAL_REJECTED: &str = "REJECTED";
 }
 
-/// 凭证状态常量（批次 102 v6 P3-1 修复）
-///
-/// voucher.status 字段值（小写，凭证专属状态机）：
-/// draft → submitted → reviewed → posted
-///
-/// 注意：与 ar_invoice / ap_invoice 的大写状态值不同，凭证全部用小写。
+/// 凭证状态常量（批次 102 v6 P3-1：voucher.status 小写，状态机 draft→submitted→reviewed→posted，与 ar/ap_invoice 大写不同）
 pub mod voucher {
     /// 草稿：凭证初始状态，可编辑
     pub const VOUCHER_DRAFT: &str = "draft";
@@ -99,10 +70,7 @@ pub mod voucher {
     pub const VOUCHER_POSTED: &str = "posted";
 }
 
-/// 会计期间状态常量（大写值）
-///
-/// 批次 232 v13 P1-1 修复：accounting_period.status 字段状态常量化
-/// 状态机：OPEN（开放）→ CLOSED（已关账）
+/// 会计期间状态常量（大写值，批次 232 v13 P1-1，状态机 OPEN→CLOSED）
 pub mod accounting_period {
     /// 开放：期间可进行凭证录入
     pub const OPEN: &str = "OPEN";

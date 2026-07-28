@@ -89,14 +89,7 @@ impl Default for ImportResult {
 pub struct CsvImporter;
 
 impl CsvImporter {
-    /// 解析 CSV 数据
-    ///
-    /// # 参数
-    /// - `data`: CSV 字节数据
-    ///
-    /// # 返回
-    /// - `Ok(Vec<HashMap<String, String>>)`: 解析后的数据，每行是一个键值对
-    /// - `Err(AppError)`: 解析失败
+    /// 解析 CSV 数据（data 为 CSV 字节数据；Ok(Vec<HashMap<String,String>>) 每行键值对，Err(AppError) 解析失败）
     pub fn parse(data: &[u8]) -> Result<Vec<HashMap<String, String>>, AppError> {
         let content = String::from_utf8(data.to_vec())
             .map_err(|e| AppError::validation(format!("无效的 UTF-8 数据: {}", e)))?;
@@ -128,15 +121,7 @@ impl CsvImporter {
         Ok(records)
     }
 
-    /// 生成 CSV 数据
-    ///
-    /// # 参数
-    /// - `headers`: 表头
-    /// - `rows`: 数据行
-    ///
-    /// # 返回
-    /// - `Ok(Vec<u8>)`: CSV 字节数据
-    /// - `Err(AppError)`: 生成失败
+    /// 生成 CSV 数据（参数 headers 表头/rows 数据行；返回 Ok(Vec<u8>) CSV 字节数据，Err(AppError) 生成失败）
     pub fn generate(
         headers: &[String],
         rows: &[HashMap<String, String>],
@@ -164,14 +149,7 @@ impl CsvImporter {
             .map_err(|e| AppError::internal(format!("CSV 生成失败: {}", e)))
     }
 
-    /// 生成 CSV 模板
-    ///
-    /// # 参数
-    /// - `headers`: 表头列表
-    /// - `examples`: 示例数据（可选）
-    ///
-    /// # 返回
-    /// - `Ok(Vec<u8>)`: CSV 模板字节数据
+    /// 生成 CSV 模板（参数 headers 表头列表/examples 示例数据可选；返回 Ok(Vec<u8>) CSV 模板字节数据）
     pub fn generate_template(
         headers: &[String],
         examples: Option<&[HashMap<String, String>]>,

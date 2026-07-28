@@ -74,9 +74,7 @@ impl ExportComplianceService {
         Self { db, audit_service }
     }
 
-    /// 执行一次每日合规审查：扫描前一天所有 print/export 操作，识别异常行为
-    ///
-    /// 返回检测到的异常项数量。
+    /// 执行一次每日合规审查：扫描前一天所有 print/export 操作，识别异常行为（返回检测到的异常项数量。）
     pub async fn daily_export_compliance_review(&self) -> Result<usize, AppError> {
         let now = Utc::now();
         let start = now - Duration::days(1);
@@ -151,9 +149,7 @@ impl ExportComplianceService {
         Ok(alert_count)
     }
 
-    /// 规则 1：高频导出检测（1 小时窗口内 > 10 次）
-    ///
-    /// 使用滑动窗口统计每用户的导出频率，超过阈值则告警。
+    /// 规则 1：高频导出检测（1 小时窗口内 > 10 次）（使用滑动窗口统计每用户的导出频率，超过阈值则告警。）
     fn detect_high_frequency_exports(
         &self,
         logs: &[audit_log::Model],
@@ -417,9 +413,7 @@ impl ExportComplianceService {
         self.audit_service.clone().record_async(event, None);
     }
 
-    /// 启动后台定时任务（每 24 小时执行一次合规审查）
-    ///
-    /// 返回 JoinHandle 供 shutdown 时 abort。
+    /// 启动后台定时任务（每 24 小时执行一次合规审查）（返回 JoinHandle 供 shutdown 时 abort。）
     pub fn start_background_task(self: &Arc<Self>) -> tokio::task::JoinHandle<()> {
         let service = self.clone();
         tokio::spawn(async move {

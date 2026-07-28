@@ -48,9 +48,7 @@ pub fn service_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
-/// 资源属性：部署环境
-/// L-40 修复（批次 379 v13 复审）：使用 LazyLock 消除 silent default，
-/// 首次调用时打印当前值；生产环境未设置时 warn，开发环境未设置时 info。
+/// 资源属性：部署环境 L-40 修复（批次 379 v13 复审）：使用 LazyLock 消除 silent default， 首次调用时打印当前值；生产环境未设置时 warn，开发环境未设置时 info。
 pub fn deployment_environment() -> String {
     static DEPLOYMENT_ENV: std::sync::LazyLock<String> =
         std::sync::LazyLock::new(|| match env::var("ENV") {
@@ -72,9 +70,7 @@ pub fn deployment_environment() -> String {
     DEPLOYMENT_ENV.clone()
 }
 
-/// OTLP 端点（gRPC）
-/// L-40 修复（批次 379 v13 复审）：使用 LazyLock 消除 silent default，
-/// 首次调用时打印当前值；生产环境未设置时 warn，开发环境未设置时 info。
+/// OTLP 端点（gRPC） L-40 修复（批次 379 v13 复审）：使用 LazyLock 消除 silent default， 首次调用时打印当前值；生产环境未设置时 warn，开发环境未设置时 info。
 pub fn otlp_endpoint() -> String {
     static OTLP_ENDPOINT: std::sync::LazyLock<String> = std::sync::LazyLock::new(
         || match env::var("OTEL_EXPORTER_OTLP_ENDPOINT") {
@@ -97,9 +93,8 @@ pub fn otlp_endpoint() -> String {
     OTLP_ENDPOINT.clone()
 }
 
-/// 是否启用 OTel 导出（默认 false）
-/// L-40 修复（批次 379 v13 复审）：使用 LazyLock 消除 silent default，
-/// 首次调用时打印当前值；生产环境未设置时 warn，开发环境未设置时 info。
+/// 是否启用 OTel 导出（默认 false） L-40 修复（批次 379 v13 复审）：使用 LazyLock
+/// 消除 silent default， 首次调用时打印当前值；生产环境未设置时 warn，开发环境未设置时 info。
 pub fn is_otel_enabled() -> bool {
     static OTEL_ENABLED: std::sync::LazyLock<bool> = std::sync::LazyLock::new(|| {
         match env::var("OTEL_ENABLED") {
@@ -277,9 +272,7 @@ pub mod metric_names {
     pub const ACTIVE_TENANTS: &str = "active_tenants";
 }
 
-/// 初始化 telemetry 子系统（轻量级，无 OTel 依赖）
-///
-/// 返回的 `TelemetryGuard` 在 drop 时会自动 flush 缓冲数据。
+/// 初始化 telemetry 子系统（轻量级，无 OTel 依赖）；返回的 `TelemetryGuard` 在 drop 时会自动 flush 缓冲数据。
 pub fn init() -> TelemetryGuard {
     let env = deployment_environment();
     tracing::info!(

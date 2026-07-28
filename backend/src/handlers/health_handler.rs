@@ -12,9 +12,7 @@ use utoipa::ToSchema;
 /// 进程启动时间（OnceLock 保证只初始化一次）
 static START_TIME: OnceLock<Instant> = OnceLock::new();
 
-/// 初始化进程启动时间（main 入口调用一次）
-///
-/// OnceLock 首次写入即锁定，确保 uptime 反映真实的进程启动时间而非首次健康检查时间。
+/// 初始化进程启动时间（main 入口调用一次）；OnceLock 首次写入即锁定，确保 uptime 反映真实的进程启动时间而非首次健康检查时间。
 pub fn start_time_init() -> Instant {
     *START_TIME.get_or_init(Instant::now)
 }
@@ -150,11 +148,8 @@ async fn check_database(state: &AppState) -> HealthCheckItem {
     }
 }
 
-/// 检查内存使用
-///
-/// 基于 sysinfo 读取真实内存数据：
-/// - used / total 比例 > 90% → unhealthy
-/// - 比例 > 75% → degraded（但整体 status 只区分 healthy/unhealthy，故归 healthy）
+/// 检查内存使用；基于 sysinfo 读取真实内存数据： - used / total 比例 > 90% → unhealthy -
+/// 比例 > 75% → degraded（但整体 status 只区分 healthy/unhealthy，故归 healthy）
 fn check_memory() -> HealthCheckItem {
     let start = std::time::Instant::now();
     let mut sys = System::new_all();
@@ -194,11 +189,7 @@ fn check_memory() -> HealthCheckItem {
     }
 }
 
-/// 检查磁盘空间
-///
-/// 基于 sysinfo 读取根分区真实剩余空间：
-/// - used / total 比例 > 90% → unhealthy
-/// - 否则 → healthy
+/// 检查磁盘空间；基于 sysinfo 读取根分区真实剩余空间： - used / total 比例 > 90% → unhealthy - 否则 → healthy
 fn check_disk() -> HealthCheckItem {
     let start = std::time::Instant::now();
     let disks = Disks::new_with_refreshed_list();
@@ -250,20 +241,13 @@ fn check_disk() -> HealthCheckItem {
     }
 }
 
-/// 获取服务运行时长（秒）
-///
-/// 基于 OnceLock 记录的进程启动时间计算真实 uptime。
-/// 首次调用（通常在 health_check 入口）会初始化 START_TIME。
+/// 获取服务运行时长（秒）；基于 OnceLock 记录的进程启动时间计算真实 uptime。 首次调用（通常在 health_check 入口）会初始化 START_TIME。
 fn get_uptime() -> u64 {
     start_time().elapsed().as_secs()
 }
 
-/// 就绪检查（检查所有依赖是否就绪）
-///
-/// P3 2-13 说明：本接口刻意不使用 `ApiResponse` 包装，原因是：
-/// 1. K8s readinessProbe 仅依赖 HTTP 状态码（200/503），不需要业务层 envelope；
-/// 2. 探针响应需保持简洁结构（仅 `status`/`reason`），避免暴露内部细节；
-/// 3. 与 liveness_check 保持一致的轻量化响应风格。
+/// 就绪检查（检查所有依赖是否就绪）；P3 2-13 说明：本接口刻意不使用 `ApiResponse` 包装，原因是： 1. K8s readinessProbe 仅依赖 HTTP 状态码（200/503）
+/// 不需要业务层 envelope； 2. 探针响应需保持简洁结构（仅 `status`/`reason`），避免暴露内部细节； 3. 与 liveness_check 保持一致的轻量化响应风格。
 pub async fn readiness_check(State(state): State<AppState>) -> impl IntoResponse {
     // 检查数据库是否可连接
     let db_status = check_database(&state).await;

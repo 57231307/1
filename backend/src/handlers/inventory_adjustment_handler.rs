@@ -571,11 +571,8 @@ pub async fn delete_item(
     Ok(Json(ApiResponse::success(())))
 }
 
-/// 生成库存调整单号
-/// GET /api/v1/erp/inventory/adjustments/generate-no
-///
-/// 单据号格式：`IA{yyyyMMdd}{4 位流水}`，例如 `IA202605140001`。
-/// 数据库列 `inventory_adjustments.adjustment_no` 上的 `UNIQUE` 约束负责最终去重。
+/// 生成库存调整单号 GET /api/v1/erp/inventory/adjustments/generate-no；单据号格式：`IA{yyyyMMdd}{4 位流水}`
+/// 例如 `IA202605140001`。 数据库列 `inventory_adjustments.adjustment_no` 上的 `UNIQUE` 约束负责最终去重。
 pub async fn generate_no(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {

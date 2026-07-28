@@ -161,10 +161,7 @@ impl CustomOrderCrudService {
     }
 
     /// 列表查询（分页 + 过滤）
-    ///
-    /// 批次 263 修复：接入 paginate_with_total 工具函数，消除手写 num_items + fetch_page 重复。
-    /// paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1。
-    /// 补 clamp(1, 1000) 防 DoS（恶意请求 page=999999 不会导致超大偏移查询）。
+    /// 批次 263 修复：接入 paginate_with_total 工具函数，消除手写 num_items + fetch_page 重复。；paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1。；补 clamp(1, 1000) 防 DoS（恶意请求 page=999999 不会导致超大偏移查询）。
     pub async fn list(
         &self,
         page: u64,
@@ -204,10 +201,7 @@ impl CustomOrderCrudService {
     }
 
     /// 更新定制订单（仅 draft 状态可更新）
-    ///
-    /// 批次 85 v2 复审 P1-1 修复：状态门 + update 移入单一事务 + lock_exclusive 串行化
-    /// 原实现状态门在 self.db 查询、update 也在 self.db，无 txn 无 lock，存在 TOCTOU
-    /// （并发 update 与 cancel 会基于过期状态通过检查后重复写入）
+    /// 批次 85 v2 复审 P1-1 修复：状态门 + update 移入单一事务 + lock_exclusive 串行化；原实现状态门在 self.db 查询、update 也在 self.db，无 txn 无 lock，存在 TOCTOU；（并发 update 与 cancel 会基于过期状态通过检查后重复写入）
     pub async fn update(
         &self,
         id: i64,
@@ -367,9 +361,7 @@ mod tests {
     }
 
     /// 测试 CreateCustomOrderDto 的 notes 字段类型为 Option<String> 且透传正确
-    ///
-    /// DTO 字段透传验证，完整 create_draft 流程需集成测试
-    /// （create_draft line 96 `notes: Set(dto.notes)` 将 DTO notes 持久化到 custom_orders.notes）
+    /// DTO 字段透传验证，完整 create_draft 流程需集成测试；（create_draft line 96 `notes: Set(dto.notes)` 将 DTO notes 持久化到 custom_orders.notes）
     #[test]
     fn test_notes_field_in_create_dto() {
         let dto = make_test_dto(Some("客户备注内容".to_string()));
@@ -378,9 +370,7 @@ mod tests {
         assert_eq!(notes, Some("客户备注内容".to_string()));
     }
 
-    /// 测试 notes=None 时 DTO 字段为 None，create_draft 会将 None 写入 custom_orders.notes
-    ///
-    /// DTO 字段透传验证，完整 create_draft 流程需集成测试
+    /// 测试 notes=None 时 DTO 字段为 None，create_draft 会将 None 写入 custom_orders.notes（DTO 字段透传验证，完整 create_draft 流程需集成测试）
     #[test]
     fn test_notes_default_when_none() {
         let dto = make_test_dto(None);

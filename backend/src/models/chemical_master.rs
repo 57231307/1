@@ -10,14 +10,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 染化料主数据模型
-///
-/// 真实业务要点：
-/// - 三种类型：染料 / 助剂 / 化工原料
-/// - 染料专属：dye_category / color_index / fastness_light / fastness_washing
-/// - 助剂专属：auxiliary_category / active_ingredient / concentration
-/// - 危化品：GHS 分类 + UN 编号 + 信号词 + MSDS 链接
-/// - 保质期：shelf_life_days + storage_condition + storage_temperature
+/// 染化料主数据模型（三类型染料/助剂/化工原料；染料专属 dye_category/color_index/fastness_*；助剂专属 auxiliary_category/active_ingredient；危化品 GHS+UN+MSDS；保质期 shelf_life_days+storage_*）
 /// - 安全库存：safety_stock / reorder_point / reorder_quantity
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "chemical_master")]

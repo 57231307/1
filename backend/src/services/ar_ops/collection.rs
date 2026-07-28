@@ -626,13 +626,7 @@ impl ArService {
     }
 
     /// 取消收款单（批次 158 v11 真实接入 COLLECTION_CANCELLED 常量）
-    ///
-    /// 业务规则：
-    /// - 仅 `pending` 状态的收款单可直接取消；`confirmed` 状态需先取消关联核销单后再操作
-    /// - 取消前校验该收款未被任何核销单引用（ar_reconciliation_item.item_type = 'RECEIPT'），
-    ///   避免取消后核销明细悬空
-    /// - 状态置为 `cancelled`，清空 confirmed_by/confirmed_at（pending 状态本应为空，防御性清理）
-    /// - 通过 update_with_audit 记录审计日志
+    /// 业务规则：仅 `pending` 状态的收款单可直接取消；`confirmed` 状态需先取消关联核销单后再操作；取消前校验该收款未被任何核销单引用（ar_reconciliation_item.item_type = 'RECEIPT'），；避免取消后核销明细悬空；状态置为 `cancelled`，清空 confirmed_by/confirmed_at（pending 状态本应为空，防御性清理）；通过 update_with_audit 记录审计日志
     pub async fn cancel_collection(
         &self,
         payment_id: i32,

@@ -116,10 +116,7 @@ impl WarehouseService {
         Ok(result)
     }
 
-    /// 更新仓库
-    ///
-    /// 批次 94 P2-10：补 user_id 参数，将 Some(0) 占位符改为真实操作人 user_id，
-    /// 保证审计日志能追溯实际更新人。
+    /// 更新仓库（批次 94 P2-10：补 user_id 参数，将 Some(0) 占位符改为真实操作人 user_id，；保证审计日志能追溯实际更新人。）
     pub async fn update(
         &self,
         id: i32,
@@ -171,10 +168,7 @@ impl WarehouseService {
         Ok(result)
     }
 
-    /// 删除仓库
-    ///
-    /// 批次 94 P2-10：补 user_id 参数，将 Some(0) 占位符改为真实操作人 user_id，
-    /// 保证审计日志能追溯实际删除人。
+    /// 删除仓库（批次 94 P2-10：补 user_id 参数，将 Some(0) 占位符改为真实操作人 user_id，；保证审计日志能追溯实际删除人。）
     pub async fn delete(&self, id: i32, user_id: i32) -> Result<(), AppError> {
         // P0 8-3 修复：delete 操作补审计日志
         crate::services::audit_log_service::AuditLogService::delete_with_audit::<

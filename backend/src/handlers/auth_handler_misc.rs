@@ -343,9 +343,7 @@ pub async fn get_current_user(
     }
 }
 
-/// P1-08-1：用户确认同意用户协议与隐私政策
-///
-/// 记录同意时间到 users.agreed_to_terms_at，满足《个人信息保护法》第 14 条同意要求。
+/// P1-08-1：用户确认同意用户协议与隐私政策；记录同意时间到 users.agreed_to_terms_at，满足《个人信息保护法》第 14 条同意要求。
 #[derive(Debug, Deserialize)]
 pub struct AgreeToTermsRequest {
     pub user_agreement_version: Option<String>,

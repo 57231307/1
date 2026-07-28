@@ -55,10 +55,7 @@ impl ArInvoiceService {
     }
 
     /// 根据已收金额和发票金额推导付款状态
-    ///
-    /// 批次 409 提取：原 mark_as_paid 方法内联逻辑，提取为独立纯函数便于单元测试。
-    /// - received >= invoice → PAID（已收齐）
-    /// - received < invoice → PARTIAL_PAID（部分收款）
+    /// 批次 409 提取：原 mark_as_paid 方法内联逻辑，提取为独立纯函数便于单元测试。；received >= invoice → PAID（已收齐）；received < invoice → PARTIAL_PAID（部分收款）
     pub(crate) fn derive_paid_status(received: Decimal, invoice: Decimal) -> &'static str {
         if received >= invoice {
             crate::models::status::payment::PAYMENT_PAID
@@ -162,13 +159,7 @@ impl ArInvoiceService {
     }
 
     /// 创建红字应收单（销售退货专用，支持负金额 + 外部事务）
-    ///
-    /// P1 5-5/1-3 修复（批次 62）：原 `approve_return` 在 commit 后调用 `create`，
-    /// 但 `create` 强制 `invoice_amount > 0`，红字金额（负数）注定失败。
-    /// 本方法专为销售退货红字冲减设计：
-    /// - 接受 `txn: &DatabaseTransaction`，与调用方共用事务（失败则整体回滚）
-    /// - 允许 `invoice_amount < 0`（红字冲减）
-    /// - 幂等检查：同 `source_type=SALES_RETURN` + `source_bill_id` 不重复创建
+    /// P1 5-5/1-3 修复（批次 62）：原 `approve_return` 在 commit 后调用 `create`，；但 `create` 强制 `invoice_amount > 0`，红字金额（负数）注定失败。；本方法专为销售退货红字冲减设计：接受 `txn: &DatabaseTransaction`，与调用方共用事务（失败则整体回滚）；允许 `invoice_amount < 0`（红字冲减）；幂等检查：同 `source_type=SALES_RETURN` + `source_bill_id` 不重复创建
     pub async fn create_credit_memo(
         &self,
         req: CreateArInvoiceRequest,
@@ -281,9 +272,7 @@ impl ArInvoiceService {
     }
 
     /// 查询应收单详情
-    ///
-    /// V15 P0-S02：新增 data_scope 参数，对单资源做 IDOR 校验。
-    /// ar_invoice 表无 department_id，Dept 范围退化为 Self，使用 created_by（i32 必填）。
+    /// V15 P0-S02：新增 data_scope 参数，对单资源做 IDOR 校验。；ar_invoice 表无 department_id，Dept 范围退化为 Self，使用 created_by（i32 必填）。
     pub async fn get_by_id(
         &self,
         id: i32,
@@ -445,11 +434,7 @@ impl ArInvoiceService {
         Ok(result)
     }
 
-    /// 标记应收单为已收讫
-    ///
-    /// `user_id` 为触发本次状态变更的操作人 ID，用于审计日志透传。
-    /// 通常由事件总线监听 `CollectionCompleted` 事件后调用，
-    /// 事件 payload 携带收款操作人 ID。
+    /// 标记应收单为已收讫（`user_id` 为触发本次状态变更的操作人 ID，用于审计日志透传。；通常由事件总线监听 `CollectionCompleted` 事件后调用，；事件 payload 携带收款操作人 ID。）
     pub async fn mark_as_paid(&self, id: i32, user_id: i32) -> Result<ar_invoice::Model, AppError> {
         // 批次 11（2026-06-28）：事务包裹"状态变更 + 审计日志"，保证原子性
         // 批次 22（2026-06-28 v5 P0-2）：状态门查询加 lock_exclusive 串行化并发 mark_as_paid
@@ -561,9 +546,7 @@ mod tests {
 
     // ========== derive_paid_status 纯函数测试 ==========
 
-    /// 测试_推导付款状态_已收金额大于发票金额_返回PAID
-    ///
-    /// 验证 received > invoice 时返回 PAID（已收齐）。
+    /// 测试_推导付款状态_已收金额大于发票金额_返回PAID（验证 received > invoice 时返回 PAID（已收齐）。）
     #[test]
     fn 测试_推导付款状态_已收金额大于发票金额_返回PAID() {
         let received = decs!("123.45");
@@ -574,9 +557,7 @@ mod tests {
         );
     }
 
-    /// 测试_推导付款状态_已收金额等于发票金额_边界返回PAID
-    ///
-    /// 验证 received == invoice 边界场景返回 PAID（已收齐）。
+    /// 测试_推导付款状态_已收金额等于发票金额_边界返回PAID（验证 received == invoice 边界场景返回 PAID（已收齐）。）
     #[test]
     fn 测试_推导付款状态_已收金额等于发票金额_边界返回PAID() {
         let received = decs!("100.00");
@@ -587,9 +568,7 @@ mod tests {
         );
     }
 
-    /// 测试_推导付款状态_已收金额为零_返回PARTIAL_PAID
-    ///
-    /// 验证 received == 0（发票金额非零）时返回 PARTIAL_PAID（部分收款）。
+    /// 测试_推导付款状态_已收金额为零_返回PARTIAL_PAID（验证 received == 0（发票金额非零）时返回 PARTIAL_PAID（部分收款）。）
     #[test]
     fn 测试_推导付款状态_已收金额为零_返回PARTIAL_PAID() {
         let received = Decimal::ZERO;
@@ -600,9 +579,7 @@ mod tests {
         );
     }
 
-    /// 测试_推导付款状态_已收金额小于发票金额_返回PARTIAL_PAID
-    ///
-    /// 验证 0 < received < invoice 时返回 PARTIAL_PAID（部分收款）。
+    /// 测试_推导付款状态_已收金额小于发票金额_返回PARTIAL_PAID（验证 0 < received < invoice 时返回 PARTIAL_PAID（部分收款）。）
     #[test]
     fn 测试_推导付款状态_已收金额小于发票金额_返回PARTIAL_PAID() {
         let received = decs!("30.00");
@@ -613,9 +590,7 @@ mod tests {
         );
     }
 
-    /// 测试_推导付款状态_已收金额和发票金额均为零_边界返回PAID
-    ///
-    /// 验证 received == 0 且 invoice == 0 边界场景：0 >= 0 为真，返回 PAID。
+    /// 测试_推导付款状态_已收金额和发票金额均为零_边界返回PAID（验证 received == 0 且 invoice == 0 边界场景：0 >= 0 为真，返回 PAID。）
     #[test]
     fn 测试_推导付款状态_已收金额和发票金额均为零_边界返回PAID() {
         let received = Decimal::ZERO;

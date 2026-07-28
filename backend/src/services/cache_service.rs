@@ -65,9 +65,7 @@ pub struct CacheService {
 }
 
 impl CacheService {
-    /// 创建默认配置缓存（容量 10000、TTL 60s）
-    ///
-    /// 批次 107 P1-1 修复：已接入 AppState.cache_service，移除 dead_code 标注
+    /// 创建默认配置缓存（容量 10000、TTL 60s）（批次 107 P1-1 修复：已接入 AppState.cache_service，移除 dead_code 标注）
     pub fn new() -> Self {
         let enabled = std::env::var("CACHE_ENABLED")
             .map(|v| v != "false" && v != "0")
@@ -93,18 +91,14 @@ impl CacheService {
     }
 
     /// V15 批次 07 P1-8 修复：注入 BusinessMetrics 引用，启用 Prometheus 自动上报
-    ///
-    /// 调用此方法后，get() 命中/未命中将自动调用 business_metrics.record_cache_hit()
-    /// 或 record_cache_miss()，无需业务侧手动埋点。返回 self 以支持链式调用。
+    /// 调用此方法后，get() 命中/未命中将自动调用 business_metrics.record_cache_hit()；或 record_cache_miss()，无需业务侧手动埋点。返回 self 以支持链式调用。
     pub fn with_metrics(mut self, metrics: Arc<BusinessMetrics>) -> Self {
         self.business_metrics = Some(metrics);
         self
     }
 
     /// 获取缓存值
-    ///
-    /// P2 5-17 修复：get 时检查 per-key 自定义 TTL，过期则返回 None 并清理
-    /// V15 批次 07 P1-8 修复：命中/未命中自动上报 Prometheus（如已注入 business_metrics）
+    /// P2 5-17 修复：get 时检查 per-key 自定义 TTL，过期则返回 None 并清理；V15 批次 07 P1-8 修复：命中/未命中自动上报 Prometheus（如已注入 business_metrics）
     pub async fn get(&self, key: &str) -> Option<Vec<u8>> {
         if !self.enabled {
             return None;
@@ -150,9 +144,7 @@ impl CacheService {
         }
     }
 
-    /// 写入缓存
-    ///
-    /// P2 5-17 修复：set 时清除该 key 的自定义 TTL（回归默认 TTL）
+    /// 写入缓存（P2 5-17 修复：set 时清除该 key 的自定义 TTL（回归默认 TTL））
     pub async fn set(&self, key: String, value: Vec<u8>) {
         if !self.enabled {
             return;
@@ -165,11 +157,7 @@ impl CacheService {
     }
 
     /// 带自定义 TTL 的写入
-    ///
-    /// P2 5-17 修复：原实现忽略 ttl 参数（let _ = ttl），统一使用 default_ttl
-    /// 现改为记录 per-key 过期时间戳，get 时检查并清理过期 entry
-    ///
-    /// 批次 107 P1-1 修复：已接入 AppState.cache_service，移除 dead_code 标注
+    /// P2 5-17 修复：原实现忽略 ttl 参数（let _ = ttl），统一使用 default_ttl；现改为记录 per-key 过期时间戳，get 时检查并清理过期 entry；批次 107 P1-1 修复：已接入 AppState.cache_service，移除 dead_code 标注
     pub async fn set_with_ttl(&self, key: String, value: Vec<u8>, ttl: Duration) {
         if !self.enabled {
             return;
@@ -187,21 +175,14 @@ impl CacheService {
         self.inner.insert(key, value).await;
     }
 
-    /// 失效指定 key
-    ///
-    /// P2 5-16 修复：同步清理 key 索引和自定义 TTL
-    ///
-    /// 批次 107 P1-1 修复：已接入 AppState.cache_service，移除 dead_code 标注
+    /// 失效指定 key（P2 5-16 修复：同步清理 key 索引和自定义 TTL；批次 107 P1-1 修复：已接入 AppState.cache_service，移除 dead_code 标注）
     pub async fn invalidate(&self, key: &str) {
         self.key_index.write().await.remove(key);
         self.custom_expirations.write().await.remove(key);
         self.inner.invalidate(key).await;
     }
 
-    /// 按前缀失效（按模块命名空间批量失效缓存）
-    ///
-    /// P2 5-16 修复：原实现为 invalidate_all() 全量失效，前缀参数被忽略
-    /// 现改为遍历 key 索引，匹配前缀后逐个 invalidate
+    /// 按前缀失效（按模块命名空间批量失效缓存）（P2 5-16 修复：原实现为 invalidate_all() 全量失效，前缀参数被忽略；现改为遍历 key 索引，匹配前缀后逐个 invalidate）
     pub async fn invalidate_prefix(&self, prefix: &str) {
         // 收集匹配前缀的 key（避免持有锁的同时调用 invalidate）
         let keys_to_invalidate: Vec<String> = {
@@ -230,9 +211,7 @@ impl CacheService {
         self.stats.read().await.clone()
     }
 
-    /// 获取默认 TTL
-    ///
-    /// 批次 107 P1-1 修复：已接入 AppState.cache_service，移除 dead_code 标注
+    /// 获取默认 TTL（批次 107 P1-1 修复：已接入 AppState.cache_service，移除 dead_code 标注）
     pub fn default_ttl(&self) -> Duration {
         self.default_ttl
     }

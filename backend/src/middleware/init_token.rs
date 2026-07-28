@@ -30,13 +30,8 @@ pub const INIT_TOKEN_HEADER: &str = "X-Init-Token";
 /// 初始化 Token 环境变量名
 pub const INIT_TOKEN_ENV: &str = "INIT_TOKEN";
 
-/// 中间件函数：校验 init Token
-///
-/// 行为：
-/// - 未设置 `INIT_TOKEN` 环境变量 → 401（fail-secure，避免降级到无认证）
-/// - 请求头缺失或类型错误 → 401
-/// - Token 不匹配 → 401（使用恒定时间比较防时序攻击）
-/// - Token 匹配 → 放行
+/// 中间件函数：校验 init Token；行为： - 未设置 `INIT_TOKEN` 环境变量 → 401（fail-secure，避免降级到无认证）
+/// - 请求头缺失或类型错误 → 401 - Token 不匹配 → 401（使用恒定时间比较防时序攻击） - Token 匹配 → 放行
 pub async fn init_token_middleware(req: Request<Body>, next: Next) -> Response {
     let init_token = match std::env::var(INIT_TOKEN_ENV) {
         Ok(t) if !t.is_empty() => t,

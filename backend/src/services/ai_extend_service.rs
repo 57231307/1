@@ -181,10 +181,7 @@ impl AiExtendService {
     }
 
     /// 工艺优化列表查询
-    ///
-    /// V15 P0-S27：注入行级数据权限过滤。
-    /// AI 推理记录语义为"我创建的工艺优化记录"，使用 created_by（i64 可空）作为 owner_column；
-    /// AI 表无 department_id 字段，Dept 范围退化为 Self（与 CRM/销售域一致）。
+    /// V15 P0-S27：注入行级数据权限过滤。；AI 推理记录语义为"我创建的工艺优化记录"，使用 created_by（i64 可空）作为 owner_column；AI 表无 department_id 字段，Dept 范围退化为 Self（与 CRM/销售域一致）。
     pub async fn list_process_optimizations(
         &self,
         q: ListProcessOptQuery,
@@ -232,9 +229,7 @@ impl AiExtendService {
         })
     }
 
-    /// 工艺优化详情
-    ///
-    /// V15 P0-S27：注入归属校验（IDOR 防护）。
+    /// 工艺优化详情（V15 P0-S27：注入归属校验（IDOR 防护）。）
     pub async fn get_process_optimization(
         &self,
         id: i64,
@@ -253,9 +248,7 @@ impl AiExtendService {
         Ok(model)
     }
 
-    /// 按色号 + 布类查询工艺优化历史
-    ///
-    /// V15 P0-S27：注入行级数据权限过滤。
+    /// 按色号 + 布类查询工艺优化历史（V15 P0-S27：注入行级数据权限过滤。）
     pub async fn list_process_optimizations_by_color(
         &self,
         color_no: &str,
@@ -283,9 +276,7 @@ impl AiExtendService {
         Ok(items)
     }
 
-    /// 标记工艺优化已应用 + 反馈打分
-    ///
-    /// V15 P0-S27：写操作前校验资源归属（防 IDOR）。
+    /// 标记工艺优化已应用 + 反馈打分（V15 P0-S27：写操作前校验资源归属（防 IDOR）。）
     pub async fn apply_process_optimization(
         &self,
         id: i64,
@@ -322,9 +313,7 @@ impl AiExtendService {
         Ok(updated)
     }
 
-    /// 删除工艺优化记录
-    ///
-    /// V15 P0-S27：写操作前校验资源归属（防 IDOR）。
+    /// 删除工艺优化记录（V15 P0-S27：写操作前校验资源归属（防 IDOR）。）
     pub async fn delete_process_optimization(
         &self,
         id: i64,
@@ -421,9 +410,7 @@ impl AiExtendService {
         Ok((resp, model.id))
     }
 
-    /// 质量预测列表查询
-    ///
-    /// V15 P0-S27：注入行级数据权限过滤。
+    /// 质量预测列表查询（V15 P0-S27：注入行级数据权限过滤。）
     pub async fn list_quality_predictions(
         &self,
         q: ListQualityPredQuery,
@@ -471,9 +458,7 @@ impl AiExtendService {
         })
     }
 
-    /// 质量预测详情
-    ///
-    /// V15 P0-S27：注入归属校验（IDOR 防护）。
+    /// 质量预测详情（V15 P0-S27：注入归属校验（IDOR 防护）。）
     pub async fn get_quality_prediction(
         &self,
         id: i64,
@@ -492,9 +477,7 @@ impl AiExtendService {
         Ok(model)
     }
 
-    /// 按产品查询质量预测历史
-    ///
-    /// V15 P0-S27：注入行级数据权限过滤。
+    /// 按产品查询质量预测历史（V15 P0-S27：注入行级数据权限过滤。）
     pub async fn list_quality_predictions_by_product(
         &self,
         product_id: i64,
@@ -519,9 +502,7 @@ impl AiExtendService {
         Ok(items)
     }
 
-    /// 标记质量预测已确认
-    ///
-    /// V15 P0-S27：写操作前校验资源归属（防 IDOR）。
+    /// 标记质量预测已确认（V15 P0-S27：写操作前校验资源归属（防 IDOR）。）
     pub async fn acknowledge_quality_prediction(
         &self,
         id: i64,
@@ -549,9 +530,7 @@ impl AiExtendService {
         Ok(updated)
     }
 
-    /// 删除质量预测记录
-    ///
-    /// V15 P0-S27：写操作前校验资源归属（防 IDOR）。
+    /// 删除质量预测记录（V15 P0-S27：写操作前校验资源归属（防 IDOR）。）
     pub async fn delete_quality_prediction(
         &self,
         id: i64,
@@ -585,10 +564,7 @@ impl AiExtendService {
     // =====================================================
 
     /// AI 概览（应用率、平均风险、最新 5 条工艺优化 + 5 条质量预测）
-    ///
-    /// V15 P0-S27：注入行级数据权限过滤。
-    /// 看板聚合数据应受限于调用者的数据范围：销售员仅看自己创建的 AI 推理记录统计，
-    /// 部门经理看本部门（AI 表无 department_id，Dept 退化为 Self），管理员看全部。
+    /// V15 P0-S27：注入行级数据权限过滤。；看板聚合数据应受限于调用者的数据范围：销售员仅看自己创建的 AI 推理记录统计，；部门经理看本部门（AI 表无 department_id，Dept 退化为 Self），管理员看全部。
     pub async fn ai_summary(
         &self,
         data_scope: Option<&DataScopeContext>,
@@ -723,9 +699,7 @@ impl AiExtendService {
     // =====================================================
 
     /// V15 P1 1.3+8.1：将工艺优化推荐参数推送到化验室打样系统
-    ///
-    /// 自动创建打样通知单（lab_dip_request），透传 color_no/fabric_type/dye_type，
-    /// 并在通知单 remarks 中记录来源 AI 工艺优化 ID 以便回溯。
+    /// 自动创建打样通知单（lab_dip_request），透传 color_no/fabric_type/dye_type，；并在通知单 remarks 中记录来源 AI 工艺优化 ID 以便回溯。
     pub async fn push_to_lab_dip(
         &self,
         process_opt_id: i64,
@@ -786,10 +760,7 @@ impl AiExtendService {
     // V15 P1 8.2：工艺优化→生产执行集成
     // =====================================================
 
-    /// V15 P1 8.2：将工艺优化推荐参数关联到生产配方
-    ///
-    /// 在 ai_process_optimizations.production_recipe_id 字段写入关联，
-    /// 便于追踪"AI 推荐参数是否被生产执行采纳"。
+    /// V15 P1 8.2：将工艺优化推荐参数关联到生产配方（在 ai_process_optimizations.production_recipe_id 字段写入关联，；便于追踪"AI 推荐参数是否被生产执行采纳"。）
     pub async fn link_to_production_recipe(
         &self,
         process_opt_id: i64,
@@ -815,9 +786,7 @@ impl AiExtendService {
     // =====================================================
 
     /// V15 P1 2.1+8.3：回填质量预测的实际结果（来自质检记录对账）
-    ///
-    /// 在 ai_quality_predictions 表写入 actual_risk_level/actual_avg_qualification_rate/actual_recorded_at，
-    /// 供后续准确率报告统计使用。
+    /// 在 ai_quality_predictions 表写入 actual_risk_level/actual_avg_qualification_rate/actual_recorded_at，；供后续准确率报告统计使用。
     pub async fn record_actual_quality_result(
         &self,
         prediction_id: i64,

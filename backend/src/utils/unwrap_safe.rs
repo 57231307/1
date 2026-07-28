@@ -9,9 +9,7 @@
 //!    宏定义在编译期展开为内部 expect，业务上等同于"立即失败+友好中文提示"。
 //! 3. 所有 helper/宏命名遵循"中文含义 + 英文短名"约定，名称不超过 9 个英文字符。
 
-/// 测试夹具：解析 Decimal 常量（等价于 `from_f64_retain(x).expect("P9-1")`）
-///
-/// 仅用于 `#[cfg(test)]` 模块。生产代码严禁使用。
+/// 测试夹具：解析 Decimal 常量（等价于 from_f64_retain(x).expect("P9-1")，仅用于 #[cfg(test)]，生产代码严禁使用）
 #[cfg(test)]
 #[macro_export]
 macro_rules! dec {
@@ -20,9 +18,7 @@ macro_rules! dec {
     };
 }
 
-/// 测试夹具：解析 Decimal 字符串（等价于 `Decimal::from_str(s).expect("P9-1")`）
-///
-/// 调用方需自行 `use std::str::FromStr;`。
+/// 测试夹具：解析 Decimal 字符串（等价于 Decimal::from_str(s).expect("P9-1")，调用方需自行 use std::str::FromStr）
 #[cfg(test)]
 #[macro_export]
 macro_rules! decs {

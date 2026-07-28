@@ -182,9 +182,7 @@ impl ApPaymentRequestService {
         Ok(())
     }
 
-    /// 更新付款申请（仅草稿状态）
-    ///
-    /// 批次 86 v2 复审 P2-6 修复：find_by_id 后追加 lock_exclusive 串行化并发状态变更
+    /// 更新付款申请（仅草稿状态）（批次 86 v2 复审 P2-6 修复：find_by_id 后追加 lock_exclusive 串行化并发状态变更）
     pub async fn update(
         &self,
         id: i32,
@@ -258,9 +256,7 @@ impl ApPaymentRequestService {
         Ok(request)
     }
 
-    /// 删除付款申请（仅草稿/被拒状态）
-    ///
-    /// 批次 86 v2 复审 P2-7 修复：find_by_id 后追加 lock_exclusive 串行化并发状态变更
+    /// 删除付款申请（仅草稿/被拒状态）（批次 86 v2 复审 P2-7 修复：find_by_id 后追加 lock_exclusive 串行化并发状态变更）
     pub async fn delete(&self, id: i32, user_id: i32) -> Result<(), AppError> {
         let txn = (*self.db).begin().await?;
 

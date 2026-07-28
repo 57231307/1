@@ -13,11 +13,7 @@ use crate::models::lab_dip_sample::FormulaDetailItem;
 // ============================================================================
 
 /// 创建打样通知单请求
-///
-/// 真实业务必填字段（依据 §11.1 打样通知单）：
-/// - light_source: 对色光源（D65/TL84/U3000/CWF/A 等）
-/// - sample_versions: 打样版数（默认 4，即 ABCD 四版）
-/// - required_date: 客户要求交期
+/// 真实业务必填字段（依据 §11.1 打样通知单）：light_source: 对色光源（D65/TL84/U3000/CWF/A 等）；sample_versions: 打样版数（默认 4，即 ABCD 四版）；required_date: 客户要求交期
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreateLabDipRequestRequest {
     pub customer_id: Option<i32>,

@@ -24,12 +24,8 @@ use axum::{
 };
 use serde_json::{json, Value};
 
-/// 将 Model 转换为前端期望的 JSON 格式
-///
-/// 字段映射：
-/// - `code` → `process_key`
-/// - `name` → `process_name`
-/// - `config` → 保留原字段，同时提取 `config.nodes` 为顶层 `nodes`
+/// 将 Model 转换为前端期望的 JSON 格式；字段映射： - `code` → `process_key` - `name` →
+/// `process_name` - `config` → 保留原字段，同时提取 `config.nodes` 为顶层 `nodes`
 fn model_to_frontend_json(model: bpm_process_definition::Model) -> Value {
     let config = model.config.clone();
     let nodes = config.as_ref().and_then(|c| c.get("nodes")).cloned();
@@ -120,9 +116,7 @@ pub async fn delete_process_definition(
     Ok(Json(ApiResponse::success(biz_msg::DELETE_OK.to_string())))
 }
 
-/// 创建新版本
-///
-/// 按 definition_id 查询原定义，复制为新版本记录（同 code，新 version）
+/// 创建新版本；按 definition_id 查询原定义，复制为新版本记录（同 code，新 version）
 pub async fn create_version(
     State(state): State<AppState>,
     Path(id): Path<i32>,
@@ -202,11 +196,8 @@ pub async fn list_templates(
     Ok(Json(ApiResponse::success(page_to_frontend_json(res))))
 }
 
-/// 从模板创建流程定义
-///
-/// 批次 199 P1-6 修复：原 handler 接收 `Json(_req)` 完全丢弃请求体，
-/// 客户端无法自定义新流程定义的 name/code/config 等字段。现真实接入 req，
-/// 由 service 层用 req 字段覆盖模板默认值（req 字段优先，未提供时回退模板值）。
+/// 从模板创建流程定义；批次 199 P1-6 修复：原 handler 接收 `Json(_req)` 完全丢弃请求体， 客户端无法自定义新流程定义的
+/// name/code/config 等字段。现真实接入 req， 由 service 层用 req 字段覆盖模板默认值（req 字段优先，未提供时回退模板值）。
 pub async fn create_from_template(
     State(state): State<AppState>,
     Path(template_id): Path<i32>,

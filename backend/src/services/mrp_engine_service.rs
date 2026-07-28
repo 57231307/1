@@ -35,13 +35,9 @@ pub use crate::services::mrp_engine_ops::{
     MrpExplodeQuery, RequirementCalcParams,
 };
 
-/// MRP计算引擎
-///
-/// struct 定义保留在 facade，impl 块按职责分散到 `mrp_engine_ops/` 子模块。
+/// MRP计算引擎（struct 定义保留在 facade，impl 块按职责分散到 `mrp_engine_ops/` 子模块。）
 pub struct MrpEngineService {
-    /// 数据库连接句柄
-    ///
-    /// `pub(crate)` 可见性：mrp_engine_ops 兄弟模块的 impl 块需直接访问此字段。
+    /// 数据库连接句柄（`pub(crate)` 可见性：mrp_engine_ops 兄弟模块的 impl 块需直接访问此字段。）
     pub(crate) db: Arc<DatabaseConnection>,
 }
 
@@ -76,10 +72,7 @@ mod tests {
     const MRP_STATUS_CANCELLED: &str = "CANCELLED";
     const BOM_STATUS_ACTIVE: &str = "ACTIVE";
 
-    /// 构造测试用 StockInfo 夹具
-    ///
-    /// 复现 get_stock_info / get_stock_info_batch 中的可用量计算：
-    /// available = on_hand - safety_stock（下限为 0）
+    /// 构造测试用 StockInfo 夹具（复现 get_stock_info / get_stock_info_batch 中的可用量计算：available = on_hand - safety_stock（下限为 0））
     fn make_stock_info(on_hand: Decimal, in_transit: Decimal, safety_stock: Decimal) -> StockInfo {
         let available = on_hand - safety_stock;
         let available = if available > Decimal::ZERO {
@@ -96,12 +89,7 @@ mod tests {
     }
 
     /// 测试_MRP状态常量值正确性
-    ///
-    /// 验证源码中使用的状态字符串值：
-    /// - BOM 状态 ACTIVE 与通用 common::STATUS_ACTIVE 一致（均为大写）
-    /// - 取消状态 CANCELLED 与 common::STATUS_CANCELLED 一致
-    /// - 产品过滤用 master_data::ACTIVE（小写 active）
-    /// - MRP 专属状态 PLANNED/CONFIRMED/RELEASED 的预期值
+    /// 验证源码中使用的状态字符串值：BOM 状态 ACTIVE 与通用 common::STATUS_ACTIVE 一致（均为大写）；取消状态 CANCELLED 与 common::STATUS_CANCELLED 一致；产品过滤用 master_data::ACTIVE（小写 active）；MRP 专属状态 PLANNED/CONFIRMED/RELEASED 的预期值
     #[test]
     fn 测试_MRP状态常量值正确性() {
         // BOM 状态使用大写 ACTIVE，与通用 common::STATUS_ACTIVE 一致
@@ -119,9 +107,7 @@ mod tests {
         assert_eq!(MRP_STATUS_RELEASED, "RELEASED");
     }
 
-    /// 测试_库存可用量计算_正常场景
-    ///
-    /// 验证 get_stock_info 中 available = on_hand - safety_stock
+    /// 测试_库存可用量计算_正常场景（验证 get_stock_info 中 available = on_hand - safety_stock）
     #[test]
     fn 测试_库存可用量计算_正常场景() {
         let stock = make_stock_info(decs!("100"), decs!("20"), decs!("30"));
@@ -131,18 +117,14 @@ mod tests {
         assert_eq!(stock.safety_stock, decs!("30"));
     }
 
-    /// 测试_库存可用量计算_安全库存超过库存
-    ///
-    /// 验证 get_stock_info 中 on_hand < safety_stock 时 available 下限保护为 0
+    /// 测试_库存可用量计算_安全库存超过库存（验证 get_stock_info 中 on_hand < safety_stock 时 available 下限保护为 0）
     #[test]
     fn 测试_库存可用量计算_安全库存超过库存() {
         let stock = make_stock_info(decs!("30"), decs!("0"), decs!("50"));
         assert_eq!(stock.available, Decimal::ZERO);
     }
 
-    /// 测试_净需求计算_库存充足无短缺
-    ///
-    /// 验证 calculate_requirement_with_stock：available >= required 时 shortage = 0
+    /// 测试_净需求计算_库存充足无短缺（验证 calculate_requirement_with_stock：available >= required 时 shortage = 0）
     #[tokio::test]
     async fn 测试_净需求计算_库存充足无短缺() {
         let db = setup_test_db().await;
@@ -169,9 +151,7 @@ mod tests {
         assert_eq!(req.bom_level, 0);
     }
 
-    /// 测试_净需求计算_库存不足有短缺
-    ///
-    /// 验证 calculate_requirement_with_stock：available < required 时 shortage = required - available
+    /// 测试_净需求计算_库存不足有短缺（验证 calculate_requirement_with_stock：available < required 时 shortage = required - available）
     #[tokio::test]
     async fn 测试_净需求计算_库存不足有短缺() {
         let db = setup_test_db().await;
@@ -196,9 +176,7 @@ mod tests {
         assert_eq!(req.available_quantity, decs!("30"));
     }
 
-    /// 测试_净需求计算_边界恰好相等
-    ///
-    /// 验证 required == available 时 shortage = 0（源码用 `>` 判断，相等不触发短缺）
+    /// 测试_净需求计算_边界恰好相等（验证 required == available 时 shortage = 0（源码用 `>` 判断，相等不触发短缺））
     #[tokio::test]
     async fn 测试_净需求计算_边界恰好相等() {
         let db = setup_test_db().await;
@@ -223,9 +201,7 @@ mod tests {
         assert_eq!(req.available_quantity, decs!("50"));
     }
 
-    /// 测试_净需求计算_考虑在途库存
-    ///
-    /// 验证 consider_in_transit = true 时 available += in_transit，可覆盖原短缺
+    /// 测试_净需求计算_考虑在途库存（验证 consider_in_transit = true 时 available += in_transit，可覆盖原短缺）
     #[tokio::test]
     async fn 测试_净需求计算_考虑在途库存() {
         let db = setup_test_db().await;
@@ -267,9 +243,7 @@ mod tests {
         assert_eq!(req_with.shortage_quantity, Decimal::ZERO);
     }
 
-    /// 测试_净需求计算_考虑安全库存填充
-    ///
-    /// 验证 consider_safety_stock = true 时 safety_stock 字段填充实际值
+    /// 测试_净需求计算_考虑安全库存填充（验证 consider_safety_stock = true 时 safety_stock 字段填充实际值）
     #[tokio::test]
     async fn 测试_净需求计算_考虑安全库存填充() {
         let db = setup_test_db().await;
@@ -295,9 +269,7 @@ mod tests {
     }
 
     /// 测试_净需求计算_不考虑安全库存为零
-    ///
-    /// 验证 consider_safety_stock = false 时 safety_stock 字段为 0；
-    /// 注意 available 仍按 stock_info.available（已扣除安全库存）计算
+    /// 验证 consider_safety_stock = false 时 safety_stock 字段为 0；注意 available 仍按 stock_info.available（已扣除安全库存）计算
     #[tokio::test]
     async fn 测试_净需求计算_不考虑安全库存为零() {
         let db = setup_test_db().await;
@@ -322,9 +294,7 @@ mod tests {
         assert_eq!(req.available_quantity, decs!("80"));
     }
 
-    /// 测试_BOM数量计算_基础数量无损耗
-    ///
-    /// 验证 explode_bom_recursive 中无损耗率时 quantity = parent * item.quantity（round_dp(4)）
+    /// 测试_BOM数量计算_基础数量无损耗（验证 explode_bom_recursive 中无损耗率时 quantity = parent * item.quantity（round_dp(4)））
     #[test]
     fn 测试_BOM数量计算_基础数量无损耗() {
         let parent = decs!("100");
@@ -334,9 +304,7 @@ mod tests {
     }
 
     /// 测试_BOM数量计算_含损耗率
-    ///
-    /// 验证 explode_bom_recursive 中含损耗率的数量计算：
-    /// quantity_with_scrap = base * (1 + scrap_rate/100)，再 round_dp(4)
+    /// 验证 explode_bom_recursive 中含损耗率的数量计算：quantity_with_scrap = base * (1 + scrap_rate/100)，再 round_dp(4)
     #[test]
     fn 测试_BOM数量计算_含损耗率() {
         let parent = decs!("100");
@@ -351,9 +319,7 @@ mod tests {
         assert_eq!(quantity_with_scrap, decs!("220"));
     }
 
-    /// 测试_BOM数量计算_精度归一化
-    ///
-    /// 验证 explode_bom_recursive 中 round_dp(4) 防止精度漂移
+    /// 测试_BOM数量计算_精度归一化（验证 explode_bom_recursive 中 round_dp(4) 防止精度漂移）
     #[test]
     fn 测试_BOM数量计算_精度归一化() {
         // 产生超过 4 位小数的中间结果，round_dp(4) 归一化为 4 位
@@ -363,9 +329,7 @@ mod tests {
     }
 
     /// 测试_BOM提前期计算_层级递减
-    ///
-    /// 验证 explode_bom_recursive 中提前期随 BOM 层级递减：
-    /// lead_time = 7 * level，material_date = required_date - lead_time
+    /// 验证 explode_bom_recursive 中提前期随 BOM 层级递减：lead_time = 7 * level，material_date = required_date - lead_time
     #[test]
     fn 测试_BOM提前期计算_层级递减() {
         let required_date = ymd!(2026, 7, 30);
@@ -383,9 +347,7 @@ mod tests {
         assert_eq!(required_date - lead_0, required_date);
     }
 
-    /// 测试_短缺统计_筛选有短缺项
-    ///
-    /// 验证 batch_calculate 中 items_with_shortage = filter(shortage > 0).count()
+    /// 测试_短缺统计_筛选有短缺项（验证 batch_calculate 中 items_with_shortage = filter(shortage > 0).count()）
     #[test]
     fn 测试_短缺统计_筛选有短缺项() {
         let date = ymd!(2026, 7, 9);
@@ -438,9 +400,7 @@ mod tests {
         assert_eq!(items_with_shortage, 2);
     }
 
-    /// 测试_订单类型转换_采购类型状态
-    ///
-    /// 验证 convert_to_orders 中 PURCHASE 类型映射到 CONFIRMED 状态
+    /// 测试_订单类型转换_采购类型状态（验证 convert_to_orders 中 PURCHASE 类型映射到 CONFIRMED 状态）
     #[test]
     fn 测试_订单类型转换_采购类型状态() {
         let order_type = "PURCHASE";
@@ -452,9 +412,7 @@ mod tests {
         assert_eq!(new_status, MRP_STATUS_CONFIRMED);
     }
 
-    /// 测试_订单类型转换_生产类型状态
-    ///
-    /// 验证 convert_to_orders 中 PRODUCTION 类型映射到 RELEASED 状态
+    /// 测试_订单类型转换_生产类型状态（验证 convert_to_orders 中 PRODUCTION 类型映射到 RELEASED 状态）
     #[test]
     fn 测试_订单类型转换_生产类型状态() {
         let order_type = "PRODUCTION";
@@ -466,9 +424,7 @@ mod tests {
         assert_eq!(new_status, MRP_STATUS_RELEASED);
     }
 
-    /// 测试_订单类型转换_无效类型拒绝
-    ///
-    /// 验证 convert_to_orders 中非 PURCHASE/PRODUCTION 类型返回校验错误
+    /// 测试_订单类型转换_无效类型拒绝（验证 convert_to_orders 中非 PURCHASE/PRODUCTION 类型返回校验错误）
     #[test]
     fn 测试_订单类型转换_无效类型拒绝() {
         let order_type = "INVALID";
@@ -484,9 +440,7 @@ mod tests {
         }
     }
 
-    /// 测试_订单类型转换_非PLANNED状态拒绝
-    ///
-    /// 验证 convert_to_orders 中 status != PLANNED 时返回校验错误
+    /// 测试_订单类型转换_非PLANNED状态拒绝（验证 convert_to_orders 中 status != PLANNED 时返回校验错误）
     #[test]
     fn 测试_订单类型转换_非PLANNED状态拒绝() {
         // 模拟已确认状态的结果，不应允许再次转换
@@ -503,9 +457,7 @@ mod tests {
         assert!(!should_reject_planned);
     }
 
-    /// 测试_取消计算_已取消状态幂等
-    ///
-    /// 验证 cancel_calculation 中 status == CANCELLED 时直接返回（幂等，不重复更新）
+    /// 测试_取消计算_已取消状态幂等（验证 cancel_calculation 中 status == CANCELLED 时直接返回（幂等，不重复更新））
     #[test]
     fn 测试_取消计算_已取消状态幂等() {
         // 模拟已取消状态的 MRP 结果，复现 cancel_calculation 的早返回判断
@@ -518,9 +470,7 @@ mod tests {
         assert!(current_planned != MRP_STATUS_CANCELLED);
     }
 
-    /// 测试_夹具宏_decs_可用
-    ///
-    /// 验证 decs! 宏能正确解析 Decimal 字符串
+    /// 测试_夹具宏_decs_可用（验证 decs! 宏能正确解析 Decimal 字符串）
     #[test]
     fn 测试_夹具宏_decs_可用() {
         let v = decs!("123.45");
@@ -530,18 +480,14 @@ mod tests {
         assert_eq!(big, decs!("1000000"));
     }
 
-    /// 测试_夹具宏_ymd_可用
-    ///
-    /// 验证 ymd! 宏能正确解析日期
+    /// 测试_夹具宏_ymd_可用（验证 ymd! 宏能正确解析日期）
     #[test]
     fn 测试_夹具宏_ymd_可用() {
         let d = ymd!(2026, 7, 9);
         assert_eq!(d.format("%Y-%m-%d").to_string(), "2026-07-09");
     }
 
-    /// 测试_服务实例创建
-    ///
-    /// 验证 MrpEngineService 在 SQLite 内存数据库上能正常实例化
+    /// 测试_服务实例创建（验证 MrpEngineService 在 SQLite 内存数据库上能正常实例化）
     #[tokio::test]
     async fn 测试_服务实例创建() {
         let db = setup_test_db().await;
@@ -549,10 +495,7 @@ mod tests {
         assert!(Arc::strong_count(&service.db) >= 1);
     }
 
-    /// 测试_获取库存信息_需要真实数据库
-    ///
-    /// 需要 inventory_stocks 表 schema，标注 #[ignore] 仅在本地手动运行。
-    /// 验证 get_stock_info 调用路径不 panic。
+    /// 测试_获取库存信息_需要真实数据库（需要 inventory_stocks 表 schema，标注 #[ignore] 仅在本地手动运行。；验证 get_stock_info 调用路径不 panic。）
     #[tokio::test]
     #[ignore]
     async fn 测试_获取库存信息_需要真实数据库() {
@@ -564,10 +507,7 @@ mod tests {
         assert!(result.is_err(), "无 schema 时应返回数据库错误");
     }
 
-    /// 测试_BOM展开_需要真实数据库
-    ///
-    /// 需要 bom/bom_item/inventory_stocks 表 schema，标注 #[ignore] 仅在本地手动运行。
-    /// 验证 explode_bom 调用路径不 panic。
+    /// 测试_BOM展开_需要真实数据库（需要 bom/bom_item/inventory_stocks 表 schema，标注 #[ignore] 仅在本地手动运行。；验证 explode_bom 调用路径不 panic。）
     #[tokio::test]
     #[ignore]
     async fn 测试_BOM展开_需要真实数据库() {
@@ -588,10 +528,7 @@ mod tests {
         assert!(result.is_err(), "无 schema 时应返回数据库错误");
     }
 
-    /// 测试_查询MRP结果_需要真实数据库
-    ///
-    /// 需要 mrp_results 表 schema，标注 #[ignore] 仅在本地手动运行。
-    /// 验证 get_results 调用路径不 panic。
+    /// 测试_查询MRP结果_需要真实数据库（需要 mrp_results 表 schema，标注 #[ignore] 仅在本地手动运行。；验证 get_results 调用路径不 panic。）
     #[tokio::test]
     #[ignore]
     async fn 测试_查询MRP结果_需要真实数据库() {

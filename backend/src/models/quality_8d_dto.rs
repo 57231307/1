@@ -62,10 +62,7 @@ impl RootCauseMethod {
     }
 }
 
-/// 推进到下一 D 阶段的负载枚举
-///
-/// 调用方根据当前 status 选择对应的 payload 变体；
-/// service 层校验 payload 变体与当前 status 的匹配关系。
+/// 推进到下一 D 阶段的负载枚举（调用方根据当前 status 选择 payload 变体，service 层校验匹配关系）
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "step", rename_all = "snake_case")]
 pub enum AdvanceStepPayload {

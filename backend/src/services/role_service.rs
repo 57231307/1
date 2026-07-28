@@ -24,10 +24,7 @@ impl RoleService {
     }
 
     /// 根据 ID 查找角色
-    ///
-    /// P0-D03（Batch 488）：接入 Redis 分布式缓存（5 分钟 TTL）
-    /// - 读穿透：先查 Redis，未命中查 DB 后回填 Redis
-    /// - 写失效：update/delete 时清除对应 key
+    /// P0-D03（Batch 488）：接入 Redis 分布式缓存（5 分钟 TTL）；读穿透：先查 Redis，未命中查 DB 后回填 Redis；写失效：update/delete 时清除对应 key
     pub async fn find_by_id(&self, id: i32) -> Result<role::Model, AppError> {
         // P0-D03：先查 Redis 缓存
         let cache_key_str = cache_key("role", id);
@@ -56,9 +53,7 @@ impl RoleService {
             .ok_or_else(|| AppError::not_found(format!("角色编码 {} 不存在", code)))
     }
 
-    /// 创建角色
-    ///
-    /// V15 P0-S01：新增 data_scope 参数（all/dept/self），默认 self
+    /// 创建角色（V15 P0-S01：新增 data_scope 参数（all/dept/self），默认 self）
     pub async fn create_role(
         &self,
         name: String,
@@ -85,7 +80,6 @@ impl RoleService {
     }
 
     /// 更新角色信息（V15 P1-14.12-E：role.code 不可修改，移除 code 参数防提权）
-    ///
     /// 批次 86 v2 复审 P2-1 修复：find + 状态门 + update 移入单一事务 + lock_exclusive 串行化
     pub async fn update_role(
         &self,
@@ -135,9 +129,7 @@ impl RoleService {
         Ok(result)
     }
 
-    /// 删除角色
-    ///
-    /// 批次 86 v2 复审 P2-2 修复：find + 状态门 + delete 移入单一事务 + lock_exclusive 串行化
+    /// 删除角色（批次 86 v2 复审 P2-2 修复：find + 状态门 + delete 移入单一事务 + lock_exclusive 串行化）
     pub async fn delete_role(&self, role_id: i32) -> Result<(), AppError> {
         let txn = (*self.db).begin().await?;
 

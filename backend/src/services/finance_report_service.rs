@@ -272,9 +272,7 @@ impl FinanceReportService {
         }
     }
 
-    /// 利润表
-    ///
-    /// 主函数仅做协调：分别取收入成本与期间费用，再计算利润指标并聚合为报表。
+    /// 利润表（主函数仅做协调：分别取收入成本与期间费用，再计算利润指标并聚合为报表。）
     pub async fn get_income_statement(
         &self,
         start_date: chrono::NaiveDate,
@@ -371,13 +369,7 @@ impl FinanceReportService {
     }
 
     /// F-P1-2 修复（批次 362 v13 复审）：按科目编码前缀聚合已过账凭证金额
-    ///
-    /// 从已过账凭证分录联表查询，按科目编码前缀过滤，返回借方或贷方总额。
-    /// 用于利润表等财务报表从凭证体系取数，替代原硬编码比例估算。
-    ///
-    /// 参数说明：
-    /// - `prefix`：科目编码前缀（如 "60" 表示收入类，"64" 表示成本类）
-    /// - `is_credit`：true 返回贷方总额（收入类），false 返回借方总额（成本/费用类）
+    /// 从已过账凭证分录联表查询，按科目编码前缀过滤，返回借方或贷方总额。；用于利润表等财务报表从凭证体系取数，替代原硬编码比例估算。；参数说明：`prefix`：科目编码前缀（如 "60" 表示收入类，"64" 表示成本类）；`is_credit`：true 返回贷方总额（收入类），false 返回借方总额（成本/费用类）
     async fn sum_voucher_amount_by_subject_prefix(
         &self,
         prefix: &str,
@@ -408,14 +400,7 @@ impl FinanceReportService {
     }
 
     /// F-P1-2 修复（批次 363 v13 复审）：按科目编码前缀取科目余额（时点数）
-    ///
-    /// 从已过账凭证分录联表查询，按科目编码前缀过滤，返回借方累计与贷方累计的差额。
-    /// 用于资产负债表等时点报表从凭证体系取数，替代原从业务表取数量或硬编码零值。
-    ///
-    /// 参数说明：
-    /// - `prefix`：科目编码前缀（如 "14" 表示存货类，"16" 表示固定资产类）
-    /// - `is_asset`：true 返回借方-贷方（资产类余额方向），false 返回贷方-借方（负债/权益类余额方向）
-    /// - `up_to_date`：截至该日期（含）的凭证参与累计
+    /// 从已过账凭证分录联表查询，按科目编码前缀过滤，返回借方累计与贷方累计的差额。；用于资产负债表等时点报表从凭证体系取数，替代原从业务表取数量或硬编码零值。；参数说明：`prefix`：科目编码前缀（如 "14" 表示存货类，"16" 表示固定资产类）；`is_asset`：true 返回借方-贷方（资产类余额方向），false 返回贷方-借方（负债/权益类余额方向）；`up_to_date`：截至该日期（含）的凭证参与累计
     async fn get_subject_balance_by_prefix(
         &self,
         prefix: &str,
@@ -448,9 +433,7 @@ impl FinanceReportService {
         Ok(balance)
     }
 
-    /// 现金流量表
-    ///
-    /// 主函数仅做协调：分别计算经营/投资/筹资活动现金流与期初期末现金，再聚合为报表。
+    /// 现金流量表（主函数仅做协调：分别计算经营/投资/筹资活动现金流与期初期末现金，再聚合为报表。）
     pub async fn get_cash_flow_statement(
         &self,
         start_date: chrono::NaiveDate,
@@ -615,10 +598,7 @@ impl FinanceReportService {
         Ok((beginning_cash, ending_cash))
     }
 
-    /// 试算平衡表
-    ///
-    /// 直接读取科目余额表(account_subjects)中各科目的期初/本期/期末余额。
-    /// 期间格式: YYYY-MM。
+    /// 试算平衡表（直接读取科目余额表(account_subjects)中各科目的期初/本期/期末余额。；期间格式: YYYY-MM。）
     pub async fn get_trial_balance(
         &self,
         period: Option<String>,
@@ -789,9 +769,7 @@ impl FinanceReportService {
         (entries, running_balance, total_debit, total_credit)
     }
 
-    /// 明细账（按辅助核算维度）
-    ///
-    /// 通过 assist_accounting_record 关联查询，可按客户/供应商/部门/员工等过滤。
+    /// 明细账（按辅助核算维度）（通过 assist_accounting_record 关联查询，可按客户/供应商/部门/员工等过滤。）
     pub async fn get_subsidiary_ledger(
         &self,
         dimension_type: String,
@@ -911,10 +889,7 @@ impl FinanceReportService {
         (entries, total_debit, total_credit)
     }
 
-    /// 按科目编码前缀穿透到凭证分录（F-P2-2 修复，批次 387 v13 复审）
-    ///
-    /// 复用 get_general_ledger 的联表模式，扩展返回业务单据追溯字段。
-    /// 用于资产负债表/利润表/现金流量表穿透。
+    /// 按科目编码前缀穿透到凭证分录（F-P2-2 修复，批次 387 v13 复审）（复用 get_general_ledger 的联表模式，扩展返回业务单据追溯字段。；用于资产负债表/利润表/现金流量表穿透。）
     pub async fn drill_down_by_subject_prefix(
         &self,
         subject_prefix: String,
@@ -956,9 +931,7 @@ impl FinanceReportService {
             .collect())
     }
 
-    /// 按期间 + 科目编码穿透到凭证分录（F-P2-2 修复，批次 387 v13 复审）
-    ///
-    /// 用于试算平衡表穿透。period 格式 YYYY-MM，转换为月初到月末日期范围。
+    /// 按期间 + 科目编码穿透到凭证分录（F-P2-2 修复，批次 387 v13 复审）（用于试算平衡表穿透。period 格式 YYYY-MM，转换为月初到月末日期范围。）
     pub async fn drill_down_by_period_and_subject(
         &self,
         period: String,
@@ -1108,10 +1081,7 @@ impl FinanceReportService {
     }
 }
 
-/// 凭证分录穿透明细（F-P2-2 修复，批次 387 v13 复审）
-///
-/// 用于报表项目穿透到凭证分录级，包含业务单据追溯字段（source_type/source_bill_id），
-/// 前端可据此继续调用业务单据 API 完成全链路追溯。
+/// 凭证分录穿透明细（F-P2-2 修复，批次 387 v13 复审）（用于报表项目穿透到凭证分录级，包含业务单据追溯字段（source_type/source_bill_id），；前端可据此继续调用业务单据 API 完成全链路追溯。）
 #[derive(Debug, Serialize, Deserialize)]
 pub struct VoucherItemDetail {
     pub voucher_id: i32,

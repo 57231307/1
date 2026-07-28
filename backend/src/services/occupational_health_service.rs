@@ -155,17 +155,11 @@ pub struct ExamExpiryWarning {
     pub days_until_expiry: i64,
 }
 
-/// 职业危害因素限值参考表
-///
-/// 依据：
-/// - 《工作场所有害因素职业接触限值 第1部分：化学有害因素》GBZ 2.1
-/// - 《工作场所有害因素职业接触限值 第2部分：物理因素》GBZ 2.2
+/// 职业危害因素限值参考表（依据：《工作场所有害因素职业接触限值 第1部分：化学有害因素》GBZ 2.1；《工作场所有害因素职业接触限值 第2部分：物理因素》GBZ 2.2）
 pub struct OccupationalHazardLimitReference;
 
 impl OccupationalHazardLimitReference {
-    /// 获取职业危害因素限值（PC-TWA 时间加权平均容许浓度，mg/m³ 或 dB）
-    ///
-    /// 返回 None 表示该危害因素未在标准中预置，需用户手动传入 limit_value
+    /// 获取职业危害因素限值（PC-TWA 时间加权平均容许浓度，mg/m³ 或 dB）（返回 None 表示该危害因素未在标准中预置，需用户手动传入 limit_value）
     pub fn get_limit(hazard_type: &str, hazard_name: &str) -> Option<Decimal> {
         match (hazard_type, hazard_name) {
             // 化学有害因素（GBZ 2.1）
@@ -194,11 +188,7 @@ impl OccupationalHealthService {
     }
 
     /// 创建职业危害因素检测记录（自动判定是否超标）
-    ///
-    /// 业务规则（《职业病防治法》第 26 条）：
-    /// - 实测值 > 限值 → is_exceeding=true，自动计算超标倍数
-    /// - 超标倍数 = 实测值 / 限值 - 1
-    /// - 超标时立即生成预警
+    /// 业务规则（《职业病防治法》第 26 条）：实测值 > 限值 → is_exceeding=true，自动计算超标倍数；超标倍数 = 实测值 / 限值 - 1；超标时立即生成预警
     pub async fn create_hazard_monitoring(
         &self,
         req: CreateHazardMonitoringRequest,
@@ -287,12 +277,7 @@ impl OccupationalHealthService {
     }
 
     /// 创建职业健康体检档案
-    ///
-    /// 业务规则（《职业病防治法》第 35 条）：
-    /// - 上岗前必须体检（pre_employment）
-    /// - 在岗期间每年一次体检（in_service，next_exam_date 必填）
-    /// - 离岗时必须体检（resignation）
-    /// - 体检结果为 contraindication 时禁止从事相关作业
+    /// 业务规则（《职业病防治法》第 35 条）：上岗前必须体检（pre_employment）；在岗期间每年一次体检（in_service，next_exam_date 必填）；离岗时必须体检（resignation）；体检结果为 contraindication 时禁止从事相关作业
     pub async fn create_health_exam(
         &self,
         req: CreateHealthExamRequest,
@@ -381,11 +366,7 @@ impl OccupationalHealthService {
         Ok((list, total))
     }
 
-    /// 扫描在岗期间体检到期预警
-    ///
-    /// 业务规则（《职业病防治法》第 35 条）：
-    /// - 到期前 90/60/30 天三级预警
-    /// - 已过期的高优先级预警（应立即组织体检）
+    /// 扫描在岗期间体检到期预警（业务规则（《职业病防治法》第 35 条）：到期前 90/60/30 天三级预警；已过期的高优先级预警（应立即组织体检））
     pub async fn scan_exam_expiry_warnings(&self) -> Result<Vec<ExamExpiryWarning>, AppError> {
         let today = Local::now().date_naive();
         // 仅扫描在岗期间体检，且有下次体检日期的记录
@@ -416,12 +397,7 @@ impl OccupationalHealthService {
         Ok(warnings)
     }
 
-    /// 创建 PPE 发放记录
-    ///
-    /// 业务规则（《职业病防治法》第 22 条）：
-    /// - 必须为接触危害因素的工人配备 PPE
-    /// - PPE 必须在有效期内使用
-    /// - 到期前应提醒更换
+    /// 创建 PPE 发放记录（业务规则（《职业病防治法》第 22 条）：必须为接触危害因素的工人配备 PPE；PPE 必须在有效期内使用；到期前应提醒更换）
     pub async fn create_ppe_distribution(
         &self,
         req: CreatePpeDistributionRequest,
@@ -517,9 +493,7 @@ impl OccupationalHealthService {
         Ok(updated)
     }
 
-    /// 扫描已过期的 PPE，自动更新状态为 expired
-    ///
-    /// 业务规则：PPE 到期后禁止使用，必须立即更换
+    /// 扫描已过期的 PPE，自动更新状态为 expired（业务规则：PPE 到期后禁止使用，必须立即更换）
     pub async fn scan_expired_ppe(&self) -> Result<Vec<PpeModel>, AppError> {
         let today = Local::now().date_naive();
         let expired_candidates = PpeEntity::find()
@@ -545,11 +519,7 @@ impl OccupationalHealthService {
         Ok(expired_list)
     }
 
-    /// 判定是否超标（纯函数）
-    ///
-    /// 业务规则：
-    /// - 实测值 > 限值 → is_exceeding=true
-    /// - 超标倍数 = 实测值 / 限值 - 1
+    /// 判定是否超标（纯函数）（业务规则：实测值 > 限值 → is_exceeding=true；超标倍数 = 实测值 / 限值 - 1）
     fn check_exceedance(measured_value: Decimal, limit_value: Decimal) -> (bool, Option<Decimal>) {
         if measured_value > limit_value && limit_value > Decimal::ZERO {
             let ratio = measured_value / limit_value - Decimal::ONE;

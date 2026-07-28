@@ -8,9 +8,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 污染物监测记录模型
-///
-/// 真实业务：定期/实时监测污染物排放浓度，超标立即预警
+/// 污染物监测记录模型（定期/实时监测污染物排放浓度，超标立即预警）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "pollutant_monitoring_records")]
 pub struct Model {

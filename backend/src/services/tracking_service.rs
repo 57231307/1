@@ -147,9 +147,7 @@ impl TrackingService {
     }
 
     /// 记录用户行为
-    ///
-    /// 缺陷 7.4 修复：在持久化前对 event_data 中的敏感字段（手机号/邮箱/身份证/银行卡）
-    /// 应用脱敏函数，避免明文 PII 写入 user_behaviors.event_data JSONB 字段。
+    /// 缺陷 7.4 修复：在持久化前对 event_data 中的敏感字段（手机号/邮箱/身份证/银行卡）；应用脱敏函数，避免明文 PII 写入 user_behaviors.event_data JSONB 字段。
     pub async fn record_behavior(&self, input: BehaviorInput) -> Result<(), AppError> {
         // 缺陷 7.4 修复：对 event_data 递归脱敏后再持久化
         let event_data = input
@@ -283,10 +281,7 @@ impl TrackingService {
         Ok(pages)
     }
 
-    /// 漏斗分析
-    ///
-    /// 对每个步骤，统计在指定时间范围内按 session_id 顺序访问过步骤 1..=N 的会话数。
-    /// 转化率 = step_counts[i] / step_counts[0] * 100%
+    /// 漏斗分析（对每个步骤，统计在指定时间范围内按 session_id 顺序访问过步骤 1..=N 的会话数。；转化率 = step_counts[i] / step_counts[0] * 100%）
     pub async fn get_funnel_analysis(
         &self,
         query: FunnelQuery,
@@ -320,10 +315,7 @@ impl TrackingService {
         })
     }
 
-    /// 统计在时间范围内访问过指定路径序列的会话数
-    ///
-    /// 实现策略：对每个路径，查询有访问记录的 session_id 集合，
-    /// 取交集（后续步骤的 session 必须也出现在前序步骤中）。
+    /// 统计在时间范围内访问过指定路径序列的会话数（实现策略：对每个路径，查询有访问记录的 session_id 集合，；取交集（后续步骤的 session 必须也出现在前序步骤中）。）
     async fn count_sessions_with_sequence(
         &self,
         steps: &[String],

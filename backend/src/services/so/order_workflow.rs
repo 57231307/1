@@ -366,8 +366,7 @@ impl SalesService {
     }
 
     /// 批次 356 v13 复审 B-P0-1 修复：销售订单审批后触发库存预留
-    /// 原实现 approve_order 仅更新订单状态，不调用 InventoryReservationService::create_reservation，
-    /// 导致销售订单→库存锁定链路完全断开，存在超卖风险。
+    /// 原实现 approve_order 仅更新订单状态，不调用 InventoryReservationService::create_reservation，；导致销售订单→库存锁定链路完全断开，存在超卖风险。
     async fn create_inventory_reservations_for_order(
         &self,
         order_id: i32,
@@ -424,9 +423,7 @@ impl SalesService {
     }
 
     /// B-P2-4 修复（批次 386 v13 复审）：销售订单审批后触发 MRP 物料需求计算
-    /// 原实现 approve_order 仅做库存预留，不调用 MrpEngineService，
-    /// 导致销售→MRP 物料需求链路断开，采购计划无法基于销售订单自动生成。
-    /// 失败时 tracing::warn 不阻塞主流程（订单已审批，MRP 可后续重算）。
+    /// 原实现 approve_order 仅做库存预留，不调用 MrpEngineService，；导致销售→MRP 物料需求链路断开，采购计划无法基于销售订单自动生成。；失败时 tracing::warn 不阻塞主流程（订单已审批，MRP 可后续重算）。
     async fn run_mrp_for_order_items(
         &self,
         order_id: i32,
@@ -458,10 +455,7 @@ impl SalesService {
         }
     }
 
-    /// 完成订单
-    ///
-    /// P1-11 修复（2026-06-25 综合审计）：新增 user_id 参数，
-    /// 原 Some(0) 硬编码导致审计日志无法追溯完成操作人。
+    /// 完成订单（P1-11 修复（2026-06-25 综合审计）：新增 user_id 参数，；原 Some(0) 硬编码导致审计日志无法追溯完成操作人。）
     pub async fn complete_order(
         &self,
         order_id: i32,
@@ -527,10 +521,7 @@ mod tests {
     use std::sync::Arc;
 
     /// 构建测试用销售订单模型夹具
-    ///
-    /// 封装 `sales_order::Model` 的构造，便于在各测试中复用。
-    /// 默认 subtotal = total_amount（无税/无折扣/无运费），balance_amount = total_amount（未付款），
-    /// 保持金额一致以匹配 submit_order 中 total_amount_decimal 的解析逻辑。
+    /// 封装 `sales_order::Model` 的构造，便于在各测试中复用。；默认 subtotal = total_amount（无税/无折扣/无运费），balance_amount = total_amount（未付款），；保持金额一致以匹配 submit_order 中 total_amount_decimal 的解析逻辑。
     fn make_order_model(
         id: i32,
         customer_id: i32,
@@ -564,9 +555,7 @@ mod tests {
         }
     }
 
-    /// 复现 cancel_order 的状态校验门（不涉及数据库）
-    ///
-    /// 与 cancel_order 中状态校验逻辑保持一致，便于纯算法测试。
+    /// 复现 cancel_order 的状态校验门（不涉及数据库）（与 cancel_order 中状态校验逻辑保持一致，便于纯算法测试。）
     fn cancel_order_status_gate(status: &str) -> Result<(), AppError> {
         if ![
             so_status::DRAFT,
@@ -615,10 +604,7 @@ mod tests {
     }
 
     /// 测试_销售订单状态常量值正确性
-    ///
-    /// 校验 status::sales_order 子模块的常量值均为小写，
-    /// 与业务代码（order_workflow.rs / order_crud.rs / delivery.rs）实际使用的状态值一致。
-    /// 防止常量值大小写漂移导致状态匹配失败（隐性 P0 风险）。
+    /// 校验 status::sales_order 子模块的常量值均为小写，；与业务代码（order_workflow.rs / order_crud.rs / delivery.rs）实际使用的状态值一致。；防止常量值大小写漂移导致状态匹配失败（隐性 P0 风险）。
     #[test]
     fn 测试_销售订单状态常量值正确性() {
         assert_eq!(so_status::DRAFT, "draft");
@@ -646,9 +632,7 @@ mod tests {
     }
 
     /// 测试_主数据状态常量值正确性
-    ///
-    /// 校验 master_data 子模块常量值为小写 "active"/"inactive"，
-    /// submit_order 中客户状态校验依赖此常量（customer.status != master_data::ACTIVE）。
+    /// 校验 master_data 子模块常量值为小写 "active"/"inactive"，；submit_order 中客户状态校验依赖此常量（customer.status != master_data::ACTIVE）。
     #[test]
     fn 测试_主数据状态常量值正确性() {
         assert_eq!(master_data::ACTIVE, "active");
@@ -657,9 +641,7 @@ mod tests {
     }
 
     /// 测试_取消订单_允许的源状态集合
-    ///
-    /// 验证 cancel_order 的状态校验门对 DRAFT/PENDING/APPROVED/PARTIAL_SHIPPED 均放行。
-    /// 其中 PARTIAL_SHIPPED 是批次 13 补全，防止部分发货订单无法取消（死锁）。
+    /// 验证 cancel_order 的状态校验门对 DRAFT/PENDING/APPROVED/PARTIAL_SHIPPED 均放行。；其中 PARTIAL_SHIPPED 是批次 13 补全，防止部分发货订单无法取消（死锁）。
     #[test]
     fn 测试_取消订单_允许的源状态集合() {
         for allowed in [
@@ -676,10 +658,7 @@ mod tests {
         }
     }
 
-    /// 测试_取消订单_禁止的源状态集合及错误消息
-    ///
-    /// 验证 cancel_order 对已发货/已完成/已取消/已拒绝状态拒绝，
-    /// 且错误类型为 BusinessError，错误消息为中文"当前状态不允许取消"。
+    /// 测试_取消订单_禁止的源状态集合及错误消息（验证 cancel_order 对已发货/已完成/已取消/已拒绝状态拒绝，；且错误类型为 BusinessError，错误消息为中文"当前状态不允许取消"。）
     #[test]
     fn 测试_取消订单_禁止的源状态集合及错误消息() {
         for forbidden in [
@@ -699,9 +678,7 @@ mod tests {
         }
     }
 
-    /// 测试_提交订单_仅草稿状态允许提交
-    ///
-    /// 验证 submit_order 的状态校验门仅对 DRAFT 放行，其余状态全部拒绝。
+    /// 测试_提交订单_仅草稿状态允许提交（验证 submit_order 的状态校验门仅对 DRAFT 放行，其余状态全部拒绝。）
     #[test]
     fn 测试_提交订单_仅草稿状态允许提交() {
         assert!(submit_order_status_gate(so_status::DRAFT).is_ok());
@@ -723,10 +700,7 @@ mod tests {
         }
     }
 
-    /// 测试_提交订单_非草稿状态错误消息格式
-    ///
-    /// 验证 submit_order 的错误消息包含状态值与中文说明"无法提交"，
-    /// 格式为 "订单状态为 {}，无法提交"。
+    /// 测试_提交订单_非草稿状态错误消息格式（验证 submit_order 的错误消息包含状态值与中文说明"无法提交"，；格式为 "订单状态为 {}，无法提交"。）
     #[test]
     fn 测试_提交订单_非草稿状态错误消息格式() {
         let result = submit_order_status_gate(so_status::APPROVED);
@@ -741,10 +715,7 @@ mod tests {
     }
 
     /// 测试_提交订单_客户状态非活跃拒绝
-    ///
-    /// 验证 submit_order 中客户状态校验逻辑：
-    /// customer.status != master_data::ACTIVE 时应构造拒绝错误，
-    /// 错误消息格式为 "客户状态为 {}，不允许提交订单"。
+    /// 验证 submit_order 中客户状态校验逻辑：customer.status != master_data::ACTIVE 时应构造拒绝错误，；错误消息格式为 "客户状态为 {}，不允许提交订单"。
     #[test]
     fn 测试_提交订单_客户状态非活跃拒绝() {
         // 复现 submit_order 中的客户状态校验
@@ -766,10 +737,7 @@ mod tests {
         assert!(!(customer_active != master_data::ACTIVE));
     }
 
-    /// 测试_提交订单_信用额度不足拒绝
-    ///
-    /// 验证 submit_order 中信用额度校验逻辑：
-    /// credit_available == false 时应返回 BusinessError，消息为"信用额度不足，无法提交订单"。
+    /// 测试_提交订单_信用额度不足拒绝（验证 submit_order 中信用额度校验逻辑：credit_available == false 时应返回 BusinessError，消息为"信用额度不足，无法提交订单"。）
     #[test]
     fn 测试_提交订单_信用额度不足拒绝() {
         // 复现 submit_order 中信用校验失败分支
@@ -791,9 +759,7 @@ mod tests {
         assert!(!credit_ok == false);
     }
 
-    /// 测试_审核订单_仅待审核状态允许
-    ///
-    /// 验证 approve_order 的状态校验门仅对 PENDING 放行。
+    /// 测试_审核订单_仅待审核状态允许（验证 approve_order 的状态校验门仅对 PENDING 放行。）
     #[test]
     fn 测试_审核订单_仅待审核状态允许() {
         assert!(approve_order_status_gate(so_status::PENDING).is_ok());
@@ -815,10 +781,7 @@ mod tests {
         }
     }
 
-    /// 测试_审核订单_非待审核状态错误消息格式
-    ///
-    /// 验证 approve_order 的错误消息包含状态值与中文说明"无法审核"，
-    /// 格式为 "订单状态为 {}，无法审核"。
+    /// 测试_审核订单_非待审核状态错误消息格式（验证 approve_order 的错误消息包含状态值与中文说明"无法审核"，；格式为 "订单状态为 {}，无法审核"。）
     #[test]
     fn 测试_审核订单_非待审核状态错误消息格式() {
         let result = approve_order_status_gate(so_status::DRAFT);
@@ -832,10 +795,7 @@ mod tests {
         }
     }
 
-    /// 测试_完成订单_允许的源状态集合
-    ///
-    /// 验证 complete_order 的状态校验门对 SHIPPED/PARTIAL_SHIPPED 放行。
-    /// 部分发货订单可走完成流程，剩余未发货部分通过取消/退货处理。
+    /// 测试_完成订单_允许的源状态集合（验证 complete_order 的状态校验门对 SHIPPED/PARTIAL_SHIPPED 放行。；部分发货订单可走完成流程，剩余未发货部分通过取消/退货处理。）
     #[test]
     fn 测试_完成订单_允许的源状态集合() {
         for allowed in [so_status::SHIPPED, so_status::PARTIAL_SHIPPED] {
@@ -847,10 +807,7 @@ mod tests {
         }
     }
 
-    /// 测试_完成订单_禁止的源状态集合及错误消息
-    ///
-    /// 验证 complete_order 对草稿/待审/已审/已完成/已取消/已拒绝状态拒绝，
-    /// 错误消息格式为 "订单状态为 {}，无法完成"。
+    /// 测试_完成订单_禁止的源状态集合及错误消息（验证 complete_order 对草稿/待审/已审/已完成/已取消/已拒绝状态拒绝，；错误消息格式为 "订单状态为 {}，无法完成"。）
     #[test]
     fn 测试_完成订单_禁止的源状态集合及错误消息() {
         for forbidden in [
@@ -875,9 +832,7 @@ mod tests {
     }
 
     /// 测试_夹具宏_decs_ymd_可用性
-    ///
-    /// 验证项目测试夹具宏 decs! / ymd!（utils/unwrap_safe.rs 通过 #[macro_export] 导出）
-    /// 可在测试模块正常使用，避免散落的 .unwrap() / .expect() 调用。
+    /// 验证项目测试夹具宏 decs! / ymd!（utils/unwrap_safe.rs 通过 #[macro_export] 导出）；可在测试模块正常使用，避免散落的 .unwrap() / .expect() 调用。
     #[test]
     fn 测试_夹具宏_decs_ymd_可用性() {
         // decs! 解析 Decimal 字符串
@@ -895,9 +850,7 @@ mod tests {
     }
 
     /// 测试_销售订单模型夹具构造
-    ///
-    /// 验证 make_order_model 能正确构造 sales_order::Model，
-    /// 且 status 字段引用状态常量后保持一致，total_amount 与 balance_amount 关系正确。
+    /// 验证 make_order_model 能正确构造 sales_order::Model，；且 status 字段引用状态常量后保持一致，total_amount 与 balance_amount 关系正确。
     #[test]
     fn 测试_销售订单模型夹具构造() {
         let model = make_order_model(1, 100, so_status::DRAFT, decs!("10000"));
@@ -921,9 +874,7 @@ mod tests {
     }
 
     /// 测试_服务实例创建
-    ///
-    /// 验证 SalesService 在 SQLite 内存数据库 + mock SearchClient 上能正常实例化。
-    /// SalesService::new 需要 db 与 search_client 两个依赖，使用 ElasticClient::mock() 提供空实现。
+    /// 验证 SalesService 在 SQLite 内存数据库 + mock SearchClient 上能正常实例化。；SalesService::new 需要 db 与 search_client 两个依赖，使用 ElasticClient::mock() 提供空实现。
     #[tokio::test]
     async fn 测试_服务实例创建() {
         let db = setup_test_db().await;
@@ -935,9 +886,7 @@ mod tests {
     }
 
     /// 测试_取消订单_需要真实数据库
-    ///
-    /// 需要 sales_orders 表 schema 与真实数据，标注 #[ignore] 仅在本地手动运行。
-    /// 无 schema 时返回数据库错误；有 schema 但无记录时返回 NotFound。
+    /// 需要 sales_orders 表 schema 与真实数据，标注 #[ignore] 仅在本地手动运行。；无 schema 时返回数据库错误；有 schema 但无记录时返回 NotFound。
     #[tokio::test]
     #[ignore]
     async fn 测试_取消订单_需要真实数据库() {
@@ -950,10 +899,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    /// 测试_提交订单_需要真实数据库
-    ///
-    /// 需要 sales_orders 表 schema 与真实数据，标注 #[ignore] 仅在本地手动运行。
-    /// 验证提交不存在的订单返回错误，调用路径不 panic。
+    /// 测试_提交订单_需要真实数据库（需要 sales_orders 表 schema 与真实数据，标注 #[ignore] 仅在本地手动运行。；验证提交不存在的订单返回错误，调用路径不 panic。）
     #[tokio::test]
     #[ignore]
     async fn 测试_提交订单_需要真实数据库() {
@@ -966,10 +912,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    /// 测试_审核订单_需要真实数据库
-    ///
-    /// 需要 sales_orders 表 schema 与真实数据，标注 #[ignore] 仅在本地手动运行。
-    /// 验证审核不存在的订单返回错误，调用路径不 panic。
+    /// 测试_审核订单_需要真实数据库（需要 sales_orders 表 schema 与真实数据，标注 #[ignore] 仅在本地手动运行。；验证审核不存在的订单返回错误，调用路径不 panic。）
     #[tokio::test]
     #[ignore]
     async fn 测试_审核订单_需要真实数据库() {
@@ -981,10 +924,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    /// 测试_完成订单_需要真实数据库
-    ///
-    /// 需要 sales_orders 表 schema 与真实数据，标注 #[ignore] 仅在本地手动运行。
-    /// 验证完成不存在的订单返回错误，调用路径不 panic。
+    /// 测试_完成订单_需要真实数据库（需要 sales_orders 表 schema 与真实数据，标注 #[ignore] 仅在本地手动运行。；验证完成不存在的订单返回错误，调用路径不 panic。）
     #[tokio::test]
     #[ignore]
     async fn 测试_完成订单_需要真实数据库() {

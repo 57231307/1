@@ -75,31 +75,15 @@ pub struct AppState {
     /// M-1 修复：每用户每小时邮件发送配额计数器
     /// key = (user_id, hour_bucket_secs)，value = 已发送封数
     pub email_send_counters: Arc<DashMap<(i32, u64), Arc<AtomicU32>>>,
-    /// 批次 104 P0-1 修复：搜索客户端（Elasticsearch 集成）
-    /// 当前为 mock 实现（内存 HashMap + 关键字 substring 匹配），
-    /// 配置 ELASTICSEARCH_URL 后可切换为真实 ES 客户端。
+    /// 批次 104 P0-1 修复：搜索客户端（Elasticsearch 集成，当前为 mock 实现，配置 ELASTICSEARCH_URL 后切换为真实 ES）
     pub search_client: Arc<dyn SearchClient>,
-    /// 批次 107 P1-1 修复：进程内 L1 缓存（moka LRU + TTL）
-    ///
-    /// 设计为 L1 本地缓存，与 Redis L2 缓存形成多级缓存架构：
-    /// - L1（本字段）：进程内 moka 缓存，超低延迟，适合热点数据
-    /// - L2（state.cache 为 AppCache/Redis）：分布式缓存，跨实例共享
-    ///
-    /// 使用场景：Dashboard 聚合查询、配置类数据、报表热点数据
-    /// 关闭方式：CACHE_ENABLED=false
+    /// 批次 107 P1-1 修复：进程内 L1 缓存（moka LRU+TTL）；L1 进程内超低延迟热点数据，L2 为 AppCache/Redis 分布式跨实例共享；场景：Dashboard/配置/报表热点；CACHE_ENABLED=false 关闭
     pub cache_service: Arc<CacheService>,
-    /// V15 P0-B17（Batch 484）：主备切换执行器
-    ///
-    /// 维护 primary + optional backup 两个 DatabaseConnection，
-    /// 通过 ArcSwap 原子切换。业务层通过 `failover_executor.get_current()` 获取活跃连接。
-    /// 备库未配置时（DATABASE_BACKUP_URL 未设）switch_to_backup 返回 Err，降级为仅更新 status 表。
+    /// V15 P0-B17（Batch 484）：主备切换执行器（维护 primary+backup 两个 DB 连接，ArcSwap 原子切换；备库未配置时 switch_to_backup 返回 Err 降级为仅更新 status 表）
     pub failover_executor: Arc<FailoverExecutor>,
 }
 
-/// 应用状态构造参数对象
-///
-/// 批次 331 v10 复审 P3 修复：引入参数对象消除 with_secrets_and_cors 的 too_many_arguments 警告
-/// （8 个独立参数 >7 触发 clippy 警告，聚合为单一 struct 便于扩展和维护）
+/// 应用状态构造参数对象（批次 331 v10 复审 P3 修复：聚合 8 个参数消除 too_many_arguments 警告）
 pub struct AppStateParams {
     /// 数据库连接
     pub db: Arc<DatabaseConnection>,
@@ -136,9 +120,7 @@ impl FromRef<AppState> for Arc<MetricsService> {
 }
 
 impl AppState {
-    /// 创建应用全局状态，构造失败时返回错误（例如指标注册冲突）
-    ///
-    /// 批次 331 v10 复审 P3 修复：使用 AppStateParams 参数对象替代 8 个独立参数
+    /// 创建应用全局状态，构造失败时返回错误（例如指标注册冲突；批次 331 v10 复审 P3 修复：使用 AppStateParams 参数对象替代 8 个独立参数）
     pub fn with_secrets_and_cors(params: AppStateParams) -> Result<Self, String> {
         // 启动审计日志清理任务 + 用户吊销记录定期清理任务（后台任务，失败不阻塞启动）
         spawn_background_tasks(&params.audit_cleanup);
@@ -416,11 +398,7 @@ fn build_test_services() -> TestServices {
 }
 
 impl Default for AppState {
-    /// **警告**：此 Default 实现仅用于测试环境。
-    ///
-    /// 生产环境必须使用 [`AppState::with_secrets_and_cors`] 并提供真实的密钥配置。
-    /// 随机生成的密钥与数据库连接（`DatabaseConnection::default()`）仅能保证单测可运行，
-    /// 不具备任何业务可用性。
+    /// **警告**：此 Default 实现仅用于测试环境（生产必须用 with_secrets_and_cors 提供真实密钥；随机密钥+DatabaseConnection::default() 仅保证单测可运行，无业务可用性）
     fn default() -> Self {
         // 非测试环境直接 panic，禁止使用 Default 构造 AppState
         // （panic! 返回 `!` 可 coerce 到 Self；测试环境构造见下方 #[cfg(test)] 块）
@@ -484,17 +462,8 @@ impl Default for AppState {
     }
 }
 
-/// 批次 104 P0-1 修复：初始化搜索客户端
-///
-/// 根据环境变量 `ELASTICSEARCH_URL` 决定客户端类型：
-/// - 未设置或为空：使用 mock 客户端（内存 HashMap，适用于开发/测试/CI 环境）
-/// - 已设置：使用真实 ES 客户端（reqwest 直连 ES REST API，生产环境）
-///
-/// 设计原因：避免强制依赖 Elasticsearch 服务器，CI 环境无 ES 时仍可运行。
-/// 生产环境通过环境变量切换为真实客户端。
-///
-/// 批次 123 v8 复审 P1 修复：原 real() 为 stub（返回 mock storage），
-/// 现已真实实现 reqwest 直连 ES REST API。索引初始化在 main.rs 启动时调用 ensure_indices()。
+/// 批次 104 P0-1 修复：初始化搜索客户端（按 ELASTICSEARCH_URL 决定类型：空=mock 内存 HashMap 开发/测试/CI；已设置=真实 reqwest 直连 ES REST API 生产环境）
+/// 设计避免强制依赖 ES，CI 无 ES 仍可运行；批次 123 v8 复审 P1 修复：原 real() stub 已真实实现 reqwest 直连，索引初始化在 main.rs ensure_indices() 调用
 fn init_search_client() -> Arc<dyn SearchClient> {
     let es_url = std::env::var("ELASTICSEARCH_URL").unwrap_or_default();
     if es_url.is_empty() {

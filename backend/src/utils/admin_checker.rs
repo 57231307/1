@@ -43,10 +43,7 @@ static ADMIN_ROLE_CACHE: LazyLock<DashMap<i32, AdminCacheEntry>> = LazyLock::new
 /// 管理员角色缓存TTL（5分钟）
 const ADMIN_CACHE_TTL_MINUTES: i64 = 5;
 
-/// 清除管理员角色缓存
-///
-/// 批次 103 P2-3 修复：已接入 role_handler::update_role / delete_role，移除 dead_code 标注。
-/// 角色更新/删除后必须清理缓存，避免使用过期的 admin 判定结果导致权限错乱。
+/// 清除管理员角色缓存（角色更新/删除后必须清理，避免过期 admin 判定导致权限错乱）
 pub fn clear_admin_role_cache(role_id: Option<i32>) {
     if let Some(id) = role_id {
         ADMIN_ROLE_CACHE.remove(&id);
@@ -60,9 +57,7 @@ pub fn cleanup_expired_admin_cache() {
     ADMIN_ROLE_CACHE.retain(|_, entry| !entry.is_expired());
 }
 
-/// 检查角色是否是管理员角色（带缓存）
-///
-/// 缓存5分钟，过期后自动重新查询数据库
+/// 检查角色是否是管理员角色（带缓存，5 分钟过期后自动重新查询数据库）
 pub async fn is_admin_role(db: &DatabaseConnection, role_id: i32) -> bool {
     // 先从缓存读取
     if let Some(cached) = ADMIN_ROLE_CACHE.get(&role_id) {
@@ -105,11 +100,7 @@ pub async fn is_admin_role(db: &DatabaseConnection, role_id: i32) -> bool {
     is_admin
 }
 
-/// V15 P1-14.2-C：检查角色是否是审计员角色（auditor）
-///
-/// admin 不再持有 audit:read 权限，审计日志查询/导出权限独立到 auditor 角色，
-/// 遵循职责分离原则（admin 既是操作者不能审计自己）。
-/// 不带缓存（审计员检查频率低，且与 is_admin_role 缓存分离避免污染）。
+/// V15 P1-14.2-C：检查角色是否是审计员角色（auditor，职责分离：admin 不能审计自己；audit:read 权限独立到 auditor；不带缓存避免污染 is_admin_role 缓存）
 pub async fn is_auditor_role(db: &DatabaseConnection, role_id: i32) -> bool {
     match role::Entity::find_by_id(role_id).one(db).await {
         Ok(Some(role)) => role.code == AUDITOR_ROLE_CODE,
@@ -121,10 +112,7 @@ pub async fn is_auditor_role(db: &DatabaseConnection, role_id: i32) -> bool {
     }
 }
 
-/// V15 P1-2-4：查询角色 code（用于打印/导出黑名单判定）
-///
-/// 不带缓存（仅 print/export 等敏感动作触发，频率低；与 is_admin_role 缓存分离避免污染）。
-/// 查询失败时返回 None（fail-closed，由调用方决定拒绝策略）。
+/// V15 P1-2-4：查询角色 code（用于打印/导出黑名单判定；不带缓存避免污染 is_admin_role；查询失败返回 None，fail-closed 由调用方决定拒绝策略）
 pub async fn get_role_code(db: &DatabaseConnection, role_id: i32) -> Option<String> {
     match role::Entity::find_by_id(role_id).one(db).await {
         Ok(Some(role)) => Some(role.code),
@@ -136,10 +124,7 @@ pub async fn get_role_code(db: &DatabaseConnection, role_id: i32) -> Option<Stri
     }
 }
 
-/// V15 P1-14.2-C：检查角色是否可访问审计日志（admin 或 auditor）
-///
-/// admin 保留审计日志访问能力用于系统运维排查，但不持有 audit:read 权限码
-/// （权限码归 auditor 独占）。auditor 角色专门负责审计职责。
+/// V15 P1-14.2-C：检查角色是否可访问审计日志（admin 或 auditor；admin 保留访问能力用于运维但不持 audit:read 权限码，权限码归 auditor 独占）
 pub async fn can_access_audit_logs(db: &DatabaseConnection, role_id: i32) -> bool {
     is_admin_role(db, role_id).await || is_auditor_role(db, role_id).await
 }

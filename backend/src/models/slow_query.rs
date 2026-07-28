@@ -10,15 +10,7 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 慢查询日志 Entity
-///
-/// 字段命名规范：均用 snake_case，符合 SeaORM 默认列名
-/// 字段类型选择：
-/// - query_text: TEXT（SQL 文本可能很长）
-/// - execution_time_ms: DOUBLE PRECISION（pg_stat_statements.mean_exec_time 是 float8）
-/// - calls / rows_examined: BIGINT（pg_stat_statements.calls / rows 是 int8）
-/// - database_name: VARCHAR(128)（DB 名最长 ~64 字符，128 留余量）
-/// - captured_at: TIMESTAMPTZ（带时区，便于跨时区分析）
+/// 慢查询日志 Entity（字段 snake_case 符合 SeaORM 默认列名；query_text TEXT, execution_time_ms DOUBLE PRECISION, calls/rows_examined BIGINT, database_name VARCHAR(128), captured_at TIMESTAMPTZ）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "slow_query_log")]
 pub struct Model {
@@ -50,9 +42,7 @@ pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}
 
-/// 列表查询 DTO（用于 handler 入参 / 出参）
-///
-/// 注意：DTO 与 Model 解耦，避免数据库 schema 变更直接污染 API 契约
+/// 列表查询 DTO（用于 handler 入参/出参；DTO 与 Model 解耦避免 schema 变更污染 API 契约）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SlowQueryDto {
     /// 日志 ID
@@ -85,9 +75,7 @@ impl From<Model> for SlowQueryDto {
     }
 }
 
-/// 慢查询聚合统计 DTO（按 query_text 分组）
-///
-/// 用于 `/api/v1/erp/slow-queries/stats` 接口的 TOP 10 列表
+/// 慢查询聚合统计 DTO（按 query_text 分组，用于 /api/v1/erp/slow-queries/stats 接口 TOP 10 列表）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SlowQueryStatDto {
     /// SQL 文本（去重后）

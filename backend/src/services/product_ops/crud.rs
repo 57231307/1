@@ -123,10 +123,7 @@ impl ProductService {
         Ok(product)
     }
 
-    /// 创建产品（面料行业版）
-    ///
-    /// 批次 339 v10 复审 P3 修复：签名从 19 参数改为单一参数对象 `CreateProductArgs`，
-    /// 消除 `clippy::too_many_arguments` 警告。
+    /// 创建产品（面料行业版）（批次 339 v10 复审 P3 修复：签名从 19 参数改为单一参数对象 `CreateProductArgs`，；消除 `clippy::too_many_arguments` 警告。）
     pub async fn create_product(
         &self,
         args: CreateProductArgs,

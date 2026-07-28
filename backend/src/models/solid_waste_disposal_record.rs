@@ -8,9 +8,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 固废处置联单模型
-///
-/// 真实业务：印染污泥（危废）处置需填写转移联单，记录处置全流程
+/// 固废处置联单模型（印染污泥危废处置需填写转移联单记录处置全流程）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "solid_waste_disposal_records")]
 pub struct Model {

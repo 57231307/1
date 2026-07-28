@@ -133,10 +133,7 @@ impl ColorCardCrudService {
     }
 
     /// 更新色卡（仅 active 状态可更新）
-    ///
-    /// 批次 27 v7 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
-    /// 原实现完全无 txn 无 lock，并发 update 同时通过 active 状态检查后基于过期快照写入，
-    /// 导致字段覆盖；色卡档案被并发修改无审计追溯。
+    /// 批次 27 v7 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更；原实现完全无 txn 无 lock，并发 update 同时通过 active 状态检查后基于过期快照写入，；导致字段覆盖；色卡档案被并发修改无审计追溯。
     pub async fn update(
         &self,
         id: i64,
@@ -192,9 +189,7 @@ impl ColorCardCrudService {
     }
 
     /// 归档色卡（soft delete，状态变为 archived）
-    ///
-    /// 批次 27 v7 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
-    /// 原实现完全无 txn 无 lock，并发 archive 重复归档，状态机失效。
+    /// 批次 27 v7 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更；原实现完全无 txn 无 lock，并发 archive 重复归档，状态机失效。
     pub async fn archive(
         &self,
         id: i64,
@@ -231,9 +226,7 @@ impl ColorCardCrudService {
         Ok(result)
     }
 
-    /// 标记色卡为遗失（v11 批次 154b：已接入 POST /:id/mark-lost 路由）
-    ///
-    /// 批次 27 v7 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+    /// 标记色卡为遗失（v11 批次 154b：已接入 POST /:id/mark-lost 路由）（批次 27 v7 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更）
     pub async fn mark_lost(&self, id: i64, user_id: i32) -> Result<color_card::Model, CrudError> {
         let txn = self.db.begin().await?;
 

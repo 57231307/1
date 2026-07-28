@@ -30,22 +30,7 @@
 use crate::utils::error::AppError;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, ToSocketAddrs};
 
-/// 校验 URL 是否安全（不指向内网/loopback/云元数据）
-///
-/// # 参数
-/// - `url_str`: 待校验的 URL 字符串
-///
-/// # 返回
-/// - `Ok(())`: URL 安全可用
-/// - `Err(AppError)`: URL 不安全或解析失败，错误信息直接返回给客户端
-///
-/// # 实现细节
-///
-/// 1. 解析 URL 字符串
-/// 2. 检查协议（仅允许 http/https）
-/// 3. 提取主机名：
-///    - 如果是 IP 字面量 → 检查是否在禁止范围
-///    - 如果是域名 → 拒绝明显的主机名黑名单（localhost 等）+ 解析为 IP 后检查
+/// 校验 URL 是否安全（不指向内网/loopback/云元数据）；url_str 待校验，返回 Ok(()) 表示安全，Err(AppError) 表示不安全或解析失败。实现：解析 URL→检查协议(仅 http/https)→提取主机名→IP 字面量检查禁止范围/域名先黑名单再 DNS 解析后检查
 pub fn validate_url(url_str: &str) -> Result<(), AppError> {
     // 1. 解析 URL
     let parsed = url::Url::parse(url_str)
@@ -114,16 +99,7 @@ pub fn validate_url(url_str: &str) -> Result<(), AppError> {
     }
 }
 
-/// 校验 URL 并返回主机名与安全解析的 SocketAddr 列表
-///
-/// 与 [`validate_url`] 的区别：返回 DNS 解析结果（host + 安全地址列表），
-/// 调用方可将结果传给 `reqwest::ClientBuilder::resolve_to_addrs` 固定连接 IP，
-/// 消除"校验时解析为公网 IP、reqwest 内部再次解析为内网 IP"的 TOCTOU 漏洞
-/// （DNS Rebinding 攻击）。
-///
-/// # 返回
-/// - `Ok((host, addrs))`：URL 安全，host 为 URL 主机名，addrs 为校验通过的地址列表
-/// - `Err(AppError)`：URL 不安全或解析失败
+/// 校验 URL 并返回主机名与安全解析的 SocketAddr 列表（与 validate_url 的区别：返回 DNS 解析结果供调用方固定连接 IP，消除 DNS Rebinding TOCTOU 漏洞；Ok((host, addrs)) 表示安全，Err(AppError) 表示不安全或解析失败）
 pub fn validate_url_and_resolve(
     url_str: &str,
 ) -> Result<(String, Vec<std::net::SocketAddr>), AppError> {

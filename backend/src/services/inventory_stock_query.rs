@@ -16,21 +16,7 @@ use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 
 /// 根据库存 Model 派生计算 alert_type 字符串
-///
-/// 批次 126 v8 复审 P2 修复：替换原硬编码 "normal"。
-///
-/// v11 批次 144 P1-4 修复：扩展 OverStock（高于上限）和 SlowMoving（滞销）告警判定。
-/// - OverStock: max_stock_point > 0 && quantity_available > max_stock_point
-/// - SlowMoving: last_movement_date 距今 > SLOW_MOVING_THRESHOLD_DAYS 天
-///
-/// 判定优先级（高优先级先返回）：
-/// 1. stock_status != "正常" → discrepancy（盘点差异/状态异常）
-/// 2. quantity_available == 0 && reorder_point > 0 → out_of_stock（缺货）
-/// 3. reorder_point > 0 && quantity_available < reorder_point → low_stock（低于下限）
-/// 4. max_stock_point > 0 && quantity_available > max_stock_point → over_stock（高于上限）
-/// 5. expiry_date 存在且距今 ≤ EXPIRING_THRESHOLD_DAYS 天 → expiring（即将过期）
-/// 6. last_movement_date 距今 > SLOW_MOVING_THRESHOLD_DAYS 天 → slow_moving（滞销）
-/// 7. 否则 → normal
+/// 批次 126 v8 复审 P2 修复：替换原硬编码 "normal"。；v11 批次 144 P1-4 修复：扩展 OverStock（高于上限）和 SlowMoving（滞销）告警判定。；OverStock: max_stock_point > 0 && quantity_available > max_stock_point；SlowMoving: last_movement_date 距今 > SLOW_MOVING_THRESHOLD_DAYS 天；判定优先级（高优先级先返回）：1. stock_status != "正常" → discrepancy（盘点差异/状态异常）；2. quantity_available == 0 && reorder_point > 0 → out_of_stock（缺货）；3. reorder_point > 0 && quantity_available < reorder_point → low_stock（低于下限）；4. max_stock_point > 0 && quantity_available > max_stock_point → over_stock（高于上限）；5. expiry_date 存在且距今 ≤ EXPIRING_THRESHOLD_DAYS 天 → expiring（即将过期）；6. last_movement_date 距今 > SLOW_MOVING_THRESHOLD_DAYS 天 → slow_moving（滞销）；7. 否则 → normal
 pub(crate) fn compute_alert_type(s: &inventory_stock::Model) -> &'static str {
     // 1. 状态异常优先（冻结/待检等）
     if s.stock_status != "正常" {
@@ -77,10 +63,7 @@ pub(crate) fn compute_alert_type(s: &inventory_stock::Model) -> &'static str {
 use super::inventory_stock_service::{InventoryStockService, InventorySummaryQueryResult};
 
 /// 库存流水查询参数对象
-///
-/// 批次 335 v10 复审 P3 修复：引入参数对象消除 list_transactions 的 too_many_arguments 警告。
-/// 聚合分页与过滤条件，避免函数签名携带 9 个参数。
-/// 与 handler 层的 `ListTransactionParams` 分离，service 层不依赖 axum 的 Deserialize。
+/// 批次 335 v10 复审 P3 修复：引入参数对象消除 list_transactions 的 too_many_arguments 警告。；聚合分页与过滤条件，避免函数签名携带 9 个参数。；与 handler 层的 `ListTransactionParams` 分离，service 层不依赖 axum 的 Deserialize。
 #[derive(Debug, Clone)]
 pub struct ListTransactionsQuery {
     /// 页码（1-based，service 内部转换为 0-based）
@@ -104,10 +87,7 @@ pub struct ListTransactionsQuery {
 }
 
 /// 库存流水记录参数对象
-///
-/// 批次 338 v10 复审 P3 修复：引入参数对象消除 record_transaction 的 too_many_arguments 警告。
-/// 聚合库存流水记录所需的全部字段，避免函数签名携带 18 个参数。
-/// 批次 400 修复：record_transaction 非事务版本已移除，此参数对象由 inventory_stock_txn.rs 的 record_transaction_txn 事务版本复用。
+/// 批次 338 v10 复审 P3 修复：引入参数对象消除 record_transaction 的 too_many_arguments 警告。；聚合库存流水记录所需的全部字段，避免函数签名携带 18 个参数。；批次 400 修复：record_transaction 非事务版本已移除，此参数对象由 inventory_stock_txn.rs 的 record_transaction_txn 事务版本复用。
 #[derive(Debug, Clone)]
 pub struct RecordTransactionArgs {
     /// 交易类型
@@ -161,10 +141,7 @@ pub struct InventorySummaryQuery {
 }
 
 impl InventoryStockService {
-    /// 查询库存流水
-    ///
-    /// 批次 335 v10 复审 P3 修复：签名从 9 参数改为单一参数对象 `ListTransactionsQuery`，
-    /// 消除 `clippy::too_many_arguments` 警告。
+    /// 查询库存流水（批次 335 v10 复审 P3 修复：签名从 9 参数改为单一参数对象 `ListTransactionsQuery`，；消除 `clippy::too_many_arguments` 警告。）
     pub async fn list_transactions(
         &self,
         query: ListTransactionsQuery,
@@ -223,18 +200,7 @@ impl InventoryStockService {
     }
 
     /// 获取库存汇总（按批次 + 色号）
-    ///
-    /// # 参数
-    /// - `warehouse_id`: 仓库ID筛选
-    /// - `product_id`: 产品ID筛选
-    /// - `batch_no`: 批次号筛选
-    /// - `color_no`: 色号筛选
-    /// - `grade`: 等级筛选
-    /// - `page`: 页码（从1开始）
-    /// - `page_size`: 每页大小
-    ///
-    /// # 返回
-    /// 返回分页结果，包含数据列表和总记录数
+    /// # 参数；`warehouse_id`: 仓库ID筛选；`product_id`: 产品ID筛选；`batch_no`: 批次号筛选；`color_no`: 色号筛选；`grade`: 等级筛选；`page`: 页码（从1开始）；`page_size`: 每页大小；# 返回；返回分页结果，包含数据列表和总记录数
     pub async fn get_inventory_summary(
         &self,
         params: InventorySummaryQuery,
@@ -326,10 +292,7 @@ impl InventoryStockService {
     }
 
     /// 按产品查询库存
-    ///
-    /// 批次 263 修复：接入 paginate_with_total 工具函数，修复原 fetch_page(page) 未做
-    /// saturating_sub(1) 偏移的 bug（page 为 1-based，fetch_page 接收 0-based，原实现跳过第一页）。
-    /// 补 clamp(1, 1000) 防 DoS。
+    /// 批次 263 修复：接入 paginate_with_total 工具函数，修复原 fetch_page(page) 未做；saturating_sub(1) 偏移的 bug（page 为 1-based，fetch_page 接收 0-based，原实现跳过第一页）。；补 clamp(1, 1000) 防 DoS。
     pub async fn get_stock_by_product(
         &self,
         product_id: i32,
@@ -347,18 +310,7 @@ impl InventoryStockService {
     }
 
     /// 获取库存告警
-    ///
-    /// 批次 126 v8 复审 P2 修复：alert_type 字段从硬编码 "normal" 改为派生计算。
-    /// compute_alert_type 函数根据 stock_status / quantity_available / reorder_point /
-    /// expiry_date / max_stock_point / last_movement_date 派生告警类型
-    /// （discrepancy/out_of_stock/low_stock/over_stock/expiring/slow_moving/normal）。
-    ///
-    /// v11 批次 144 P1-4 修复：
-    /// - 接入 max_stock_point 字段，支持 OverStock（高于上限）告警
-    /// - 接入 last_movement_date 字段，支持 SlowMoving（滞销）告警
-    ///
-    /// 返回字段包含 reorder_point / max_stock_point / expiry_date / last_movement_date /
-    /// stock_status，便于前端展示阈值上下文。
+    /// 批次 126 v8 复审 P2 修复：alert_type 字段从硬编码 "normal" 改为派生计算。；compute_alert_type 函数根据 stock_status / quantity_available / reorder_point /；expiry_date / max_stock_point / last_movement_date 派生告警类型；（discrepancy/out_of_stock/low_stock/over_stock/expiring/slow_moving/normal）。；v11 批次 144 P1-4 修复：接入 max_stock_point 字段，支持 OverStock（高于上限）告警；接入 last_movement_date 字段，支持 SlowMoving（滞销）告警；返回字段包含 reorder_point / max_stock_point / expiry_date / last_movement_date /；stock_status，便于前端展示阈值上下文。
     pub async fn get_stock_alerts(
         &self,
         query: serde_json::Value,

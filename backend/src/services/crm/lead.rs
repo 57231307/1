@@ -160,11 +160,7 @@ impl CrmService {
     }
 
     /// 导出线索为 xlsx（v11 批次 142 升级：CSV → xlsx，规则 3 强制要求）
-    ///
-    /// v11 批次 141 新增：前端 exportLeads API 真实接入。
-    /// v11 批次 142 升级：导出格式从 CSV 升级为 xlsx（Excel 标准格式）。
-    /// 查询所有匹配条件（不分页）的线索，生成 XlsxTable。
-    /// 导出字段：线索编号/公司名称/联系人/职位/手机号/座机/邮箱/线索来源/线索状态/负责人/优先级/创建时间
+    /// v11 批次 141 新增：前端 exportLeads API 真实接入。；v11 批次 142 升级：导出格式从 CSV 升级为 xlsx（Excel 标准格式）。；查询所有匹配条件（不分页）的线索，生成 XlsxTable。；导出字段：线索编号/公司名称/联系人/职位/手机号/座机/邮箱/线索来源/线索状态/负责人/优先级/创建时间
     pub async fn export_leads(
         &self,
         query: crate::models::dto::crm_dto::LeadQuery,
@@ -308,8 +304,7 @@ impl CrmService {
     }
 
     /// 批量导入线索（v11 批次 157d-4 新增）：解析 xlsx 字节并逐行创建线索
-    /// xlsx 列顺序与 export_leads 一致：线索编号/公司名称/联系人/职位/手机号/座机/邮箱/线索来源/线索状态/负责人/优先级/创建时间
-    /// 失败行不影响其他行，最终返回成功/失败统计与错误详情
+    /// xlsx 列顺序与 export_leads 一致：线索编号/公司名称/联系人/职位/手机号/座机/邮箱/线索来源/线索状态/负责人/优先级/创建时间；失败行不影响其他行，最终返回成功/失败统计与错误详情
     pub async fn import_leads(
         &self,
         file_bytes: Vec<u8>,
@@ -635,12 +630,7 @@ impl CrmService {
     }
 
     /// V15 P1 18.1-D1：线索评分
-    ///
-    /// 基于来源/行为/demographics 多维加权评分（0-100）：
-    /// - 来源维度（最高 30 分）：REFERRAL=30, EXHIBITION=25, WEBSITE=20, AD=15, OTHER=10
-    /// - 行为维度（最高 40 分）：有预估金额 +15，有产品兴趣 +10，有需求描述 +10，有交付日期 +5
-    /// - demographics 维度（最高 30 分）：有公司名 +10，有手机号 +10，有邮箱 +5，有职位 +5
-    /// 评分写入 crm_lead.rating 列，>60 标记为高优先级。
+    /// 基于来源/行为/demographics 多维加权评分（0-100）：来源维度（最高 30 分）：REFERRAL=30, EXHIBITION=25, WEBSITE=20, AD=15, OTHER=10；行为维度（最高 40 分）：有预估金额 +15，有产品兴趣 +10，有需求描述 +10，有交付日期 +5；demographics 维度（最高 30 分）：有公司名 +10，有手机号 +10，有邮箱 +5，有职位 +5；评分写入 crm_lead.rating 列，>60 标记为高优先级。
     pub async fn score_lead(&self, lead_id: i32) -> Result<LeadScoreResult, AppError> {
         let lead = crm_lead::Entity::find_by_id(lead_id)
             .one(&*self.db)
@@ -732,10 +722,7 @@ impl CrmService {
         })
     }
 
-    /// V15 P1 18.1-D2：线索去重检测
-    ///
-    /// 按手机号/公司名检测重复线索，返回重复组列表。
-    /// 手机号完全匹配或公司名完全匹配（忽略前后空格+大小写）视为重复。
+    /// V15 P1 18.1-D2：线索去重检测（按手机号/公司名检测重复线索，返回重复组列表。；手机号完全匹配或公司名完全匹配（忽略前后空格+大小写）视为重复。）
     pub async fn detect_duplicate_leads(
         &self,
         mobile_phone: Option<&str>,
@@ -794,9 +781,7 @@ impl CrmService {
         Ok(groups)
     }
 
-    /// V15 P1 18.1-D2：合并重复线索
-    ///
-    /// 将多个重复线索合并到主线索（保留主线索数据，副线索标记为 lost 并记录合并原因）。
+    /// V15 P1 18.1-D2：合并重复线索（将多个重复线索合并到主线索（保留主线索数据，副线索标记为 lost 并记录合并原因）。）
     pub async fn merge_leads(
         &self,
         master_lead_id: i32,
@@ -848,9 +833,7 @@ impl CrmService {
         })
     }
 
-    /// V15 P1 18.1-D3：转化漏斗报表
-    ///
-    /// 统计线索→商机→客户→订单各阶段数量与转化率。
+    /// V15 P1 18.1-D3：转化漏斗报表（统计线索→商机→客户→订单各阶段数量与转化率。）
     pub async fn lead_funnel_report(
         &self,
         start_date: Option<chrono::NaiveDate>,

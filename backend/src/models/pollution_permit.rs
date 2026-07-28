@@ -8,9 +8,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 排污许可证模型
-///
-/// 真实业务：登记排污许可证信息，到期前30日预警延续申请
+/// 排污许可证模型（登记排污许可证信息，到期前30日预警延续申请）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "pollution_permits")]
 pub struct Model {

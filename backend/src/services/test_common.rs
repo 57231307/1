@@ -5,10 +5,7 @@
 
 use sea_orm::DatabaseConnection;
 
-/// 创建测试用数据库连接
-///
-/// 优先使用 TEST_DATABASE_URL 环境变量（用于真实数据库测试），
-/// 默认回退到 sqlite::memory:（快速单元测试）。
+/// 创建测试用数据库连接（优先使用 TEST_DATABASE_URL 环境变量（用于真实数据库测试），；默认回退到 sqlite::memory:（快速单元测试）。）
 pub async fn setup_test_db() -> DatabaseConnection {
     let db_url =
         std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());

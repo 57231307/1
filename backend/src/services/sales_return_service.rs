@@ -335,9 +335,7 @@ impl SalesReturnService {
     }
 
     /// 审批销售退货单
-    ///
-    /// P2 1-5 修复：原函数 167 行混合 6 职责（lock+校验+总金额更新+批量库存入库+状态变更+AR 生成），
-    /// 拆为 validate_and_lock_submitted_txn / apply_stock_inbound_txn / mark_approved_txn / generate_red_ar_txn 4 个私有方法
+    /// P2 1-5 修复：原函数 167 行混合 6 职责（lock+校验+总金额更新+批量库存入库+状态变更+AR 生成），；拆为 validate_and_lock_submitted_txn / apply_stock_inbound_txn / mark_approved_txn / generate_red_ar_txn 4 个私有方法
     pub async fn approve_return(
         &self,
         return_id: i32,
@@ -380,9 +378,7 @@ impl SalesReturnService {
         Ok(return_order)
     }
 
-    /// P2 1-5 修复：lock_exclusive + 状态校验 + 获取明细（从 approve_return 抽取）
-    ///
-    /// 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+    /// P2 1-5 修复：lock_exclusive + 状态校验 + 获取明细（从 approve_return 抽取）（批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更）
     async fn validate_and_lock_submitted_txn(
         txn: &sea_orm::DatabaseTransaction,
         return_id: i32,
@@ -601,9 +597,7 @@ impl SalesReturnService {
     }
 
     /// P2 1-5 修复：批量库存入库（从 approve_return 抽取）
-    ///
-    /// 改用 `InventoryStockService::record_transaction_txn(txn, ...)` 关联函数：
-    /// 流水写入与主事务同生共死，事件由调用方在 commit 成功后统一 publish。
+    /// 改用 `InventoryStockService::record_transaction_txn(txn, ...)` 关联函数：流水写入与主事务同生共死，事件由调用方在 commit 成功后统一 publish。
     async fn apply_stock_inbound_txn(
         &self,
         txn: &sea_orm::DatabaseTransaction,
@@ -655,9 +649,7 @@ impl SalesReturnService {
     }
 
     /// P2 1-5 修复：红字应收单生成（从 approve_return 抽取）
-    ///
-    /// P1 5-5/1-3 修复（批次 62）：红字应收单生成移入事务内，失败则整体回滚
-    /// 使用 create_credit_memo（支持负金额 + 外部事务 + 幂等检查）
+    /// P1 5-5/1-3 修复（批次 62）：红字应收单生成移入事务内，失败则整体回滚；使用 create_credit_memo（支持负金额 + 外部事务 + 幂等检查）
     async fn generate_red_ar_txn(
         db: &Arc<DatabaseConnection>,
         txn: &sea_orm::DatabaseTransaction,

@@ -734,10 +734,7 @@ impl PurchaseReturnService {
         Ok(item)
     }
 
-    /// 更新退货单明细
-    ///
-    /// 批次 101 v6 复审 P2-3 修复：原 update_with_audit 调用 Some(0) 占位符导致审计日志操作人为 0，
-    /// 改为透传真实操作人 user_id。
+    /// 更新退货单明细（批次 101 v6 复审 P2-3 修复：原 update_with_audit 调用 Some(0) 占位符导致审计日志操作人为 0，；改为透传真实操作人 user_id。）
     pub async fn update_item(
         &self,
         item_id: i32,
@@ -802,9 +799,7 @@ impl PurchaseReturnService {
         Ok(())
     }
 
-    /// 解析请求中的明细参数，未提供则使用原值
-    ///
-    /// 返回 (quantity, unit_price, discount_percent, tax_percent)
+    /// 解析请求中的明细参数，未提供则使用原值（返回 (quantity, unit_price, discount_percent, tax_percent)）
     fn resolve_item_params(
         req: &UpdateReturnItemRequest,
         item: &purchase_return_item::Model,
@@ -816,9 +811,7 @@ impl PurchaseReturnService {
         (quantity, unit_price, discount_percent, tax_percent)
     }
 
-    /// 计算明细金额（含 round_dp(2) 防精度漂移）
-    ///
-    /// 批次 97 P1-4 修复（v5 复审）：金额计算补 round_dp(2) 防止精度漂移
+    /// 计算明细金额（含 round_dp(2) 防精度漂移）（批次 97 P1-4 修复（v5 复审）：金额计算补 round_dp(2) 防止精度漂移）
     fn compute_item_amounts(
         quantity: Decimal,
         unit_price: Decimal,
@@ -876,10 +869,7 @@ impl PurchaseReturnService {
         active_item
     }
 
-    /// 删除退货单明细
-    ///
-    /// 批次 101 v6 复审 P2-5 修复：透传 user_id 给 update_return_totals，使合计重算的审计日志
-    /// 操作人为真实用户（原 Some(0) 占位导致审计追溯失效）。
+    /// 删除退货单明细（批次 101 v6 复审 P2-5 修复：透传 user_id 给 update_return_totals，使合计重算的审计日志；操作人为真实用户（原 Some(0) 占位导致审计追溯失效）。）
     pub async fn delete_item(&self, item_id: i32, user_id: i32) -> Result<(), AppError> {
         let txn = self.db.begin().await?;
 
@@ -910,10 +900,7 @@ impl PurchaseReturnService {
         Ok(())
     }
 
-    /// 删除采购退货单
-    ///
-    /// 批次 101 v6 复审 P2-4 修复：原 delete_with_audit 调用 Some(0) 占位符导致审计日志操作人为 0，
-    /// 改为透传真实操作人 user_id。
+    /// 删除采购退货单（批次 101 v6 复审 P2-4 修复：原 delete_with_audit 调用 Some(0) 占位符导致审计日志操作人为 0，；改为透传真实操作人 user_id。）
     pub async fn delete(&self, id: i32, user_id: i32) -> Result<(), AppError> {
         let txn = self.db.begin().await?;
 
@@ -950,9 +937,7 @@ impl PurchaseReturnService {
     }
 
     /// 更新主单合计金额和数量
-    ///
-    /// 批次 101 v6 复审 P2-5 修复：原 update_with_audit 调用 Some(0) 占位符导致审计日志操作人为 0，
-    /// 改为透传真实操作人 user_id。user_id 由调用方（create_item / update_item / delete_item）注入。
+    /// 批次 101 v6 复审 P2-5 修复：原 update_with_audit 调用 Some(0) 占位符导致审计日志操作人为 0，；改为透传真实操作人 user_id。user_id 由调用方（create_item / update_item / delete_item）注入。
     async fn update_return_totals(
         &self,
         return_id: i32,

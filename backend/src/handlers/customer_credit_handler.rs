@@ -29,9 +29,7 @@ pub struct CreditQuery {
     pub page_size: Option<i64>,
 }
 
-/// 创建/更新信用评级请求 DTO
-///
-/// P1-2b 修复（批次 81 v1 复审）：添加 Validate + 字段校验，用于 create_credit
+/// 创建/更新信用评级请求 DTO；P1-2b 修复（批次 81 v1 复审）：添加 Validate + 字段校验，用于 create_credit
 /// 批次 414 技术债务修复：credit_limit 改为 Option<Decimal>，区分"未提供"与"显式置 0"
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct CreditRatingRequestDto {
@@ -39,9 +37,8 @@ pub struct CreditRatingRequestDto {
     #[validate(length(max = 20, message = "信用等级长度不能超过20字符"))]
     pub credit_level: Option<String>,
     pub credit_score: Option<i32>,
-    /// 信用额度。None 表示更新时保持原值；Some(v) 表示显式设置（含 Some(0)）。
-    /// 创建场景下 None 默认为 0。
-    /// validator 框架对 Option<T> 自动解包：None 跳过校验，Some(v) 调用 validate_credit_limit_range。
+    /// 信用额度。None 表示更新时保持原值；Some(v) 表示显式设置（含 Some(0)）。 创建场景下 None 默认为 0。 validator
+    /// 框架对 Option<T> 自动解包：None 跳过校验，Some(v) 调用 validate_credit_limit_range。
     #[validate(custom(function = "crate::utils::validator::validate_credit_limit_range"))]
     pub credit_limit: Option<Decimal>,
     pub credit_days: Option<i32>,
