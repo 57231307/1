@@ -5,7 +5,8 @@
  * 行为完全保持一致（仅结构重构）
  */
 import { ref, reactive } from 'vue';
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
+import { type FormInstance, type FormRules } from 'element-plus';
+import { msg } from '@/utils/message';
 // D14 Batch 5b：原 bpmEnhancedApi 对象已转风格 B 函数
 import {
   executeBpmApproval,
@@ -73,7 +74,7 @@ export function useBpmApProc(refresh: RefreshCallbacks) {
         action: approveAction.value,
         comment: approveForm.comment,
       });
-      ElMessage.success(approveAction.value === 'approve' ? '审批通过' : '审批拒绝');
+      msg.success(approveAction.value === 'approve' ? 'approvePassed' : 'approveRejected');
       approveDialogVisible.value = false;
       refresh.fetchPendingTasks();
     } catch (e) {
@@ -104,7 +105,7 @@ export function useBpmApProc(refresh: RefreshCallbacks) {
           target_user_id: transferForm.target_user_id,
           comment: transferForm.comment,
         });
-        ElMessage.success('转交成功');
+        msg.success('transferSuccess');
         transferDialogVisible.value = false;
         refresh.fetchPendingTasks();
       } catch (e) {

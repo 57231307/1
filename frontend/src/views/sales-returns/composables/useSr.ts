@@ -8,6 +8,7 @@
 import { ref, reactive } from 'vue';
 import type { FormInstance } from 'element-plus';
 import { ElMessage } from 'element-plus';
+import { msg } from '@/utils/message';
 import {
   getSalesReturnList,
   createSalesReturn,
@@ -117,7 +118,7 @@ export function useSr() {
     } catch (error: unknown) {
       // v11 批次 163 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
       ElMessage.error(
-        (error instanceof Error ? error.message : String(error)) || '加载退货列表失败'
+        (error instanceof Error ? error.message : String(error)) || msg.translate('loadReturnListFailed')
       );
     } finally {
       loading.value = false;
@@ -259,7 +260,7 @@ export function useSr() {
     if (!valid) return false;
 
     if (formData.items.length === 0) {
-      ElMessage.warning('请至少添加一条退货明细');
+      msg.warning('pleaseAddReturnDetail');
       return false;
     }
 
@@ -278,17 +279,17 @@ export function useSr() {
     try {
       if (dialogMode === 'create') {
         await createSalesReturn(submitData);
-        ElMessage.success('创建成功');
+        msg.success('createSuccess');
       } else {
         await updateSalesReturn(formData.id as number, submitData);
-        ElMessage.success('更新成功');
+        msg.success('updateSuccess');
       }
       return true;
     } catch (error: unknown) {
       // v11 批次 163 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
       ElMessage.error(
         (error instanceof Error ? error.message : String(error)) ||
-          (dialogMode === 'create' ? '创建失败' : '更新失败')
+          (dialogMode === 'create' ? msg.translate('createFailed') : msg.translate('updateFailed'))
       );
       return false;
     }

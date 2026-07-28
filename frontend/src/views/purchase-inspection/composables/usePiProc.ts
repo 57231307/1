@@ -7,7 +7,8 @@
  *
  * 设计说明：通过 callbacks 接收 usePi 的状态引用（Reactive 包装层）
  */
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessageBox } from 'element-plus';
+import { msg } from '@/utils/message';
 import {
   getPurchaseInspectionById,
   updatePurchaseInspection,
@@ -124,10 +125,10 @@ export function usePiProc(cb: PiCallbacks) {
     try {
       if (cb.isEdit && cb.formData.id) {
         await updatePurchaseInspection(cb.formData.id, cb.formData as never);
-        ElMessage.success('更新成功');
+        msg.success('updateSuccess');
       } else {
         await createPurchaseInspection(cb.formData as never);
-        ElMessage.success('创建成功');
+        msg.success('createSuccess');
       }
       cb.dialogVisible = false;
       await cb.fetchData();
@@ -148,7 +149,7 @@ export function usePiProc(cb: PiCallbacks) {
     try {
       await ElMessageBox.confirm('确定要完成该检验单吗？', '提示', { type: 'warning' });
       await completePurchaseInspection(row.id!);
-      ElMessage.success('操作成功');
+      msg.success('operationSuccess');
       await cb.fetchData();
     } catch (error) {
       if (error !== 'cancel') {

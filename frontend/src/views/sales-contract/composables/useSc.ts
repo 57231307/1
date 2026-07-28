@@ -7,6 +7,7 @@
  */
 import { ref, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
+import { msg } from '@/utils/message';
 import { createSalesContract, updateSalesContract, type SalesContract } from '@/api/sales-contract';
 // D14 Batch 5b：原 customerApi 对象已转风格 B 函数
 import { getCustomerList, type Customer } from '@/api/customer';
@@ -43,7 +44,7 @@ export function useSc() {
     onError: (err: unknown) => {
       // 使用类型守卫安全提取错误信息
       const errMsg = err instanceof Error ? err.message : '';
-      ElMessage.error(errMsg || '获取销售合同列表失败');
+      ElMessage.error(errMsg || msg.translate('loadSalesContractListFailed'));
     },
   });
 
@@ -155,13 +156,13 @@ export function useSc() {
       } else {
         await createSalesContract(formData);
       }
-      ElMessage.success('保存成功');
+      msg.success('saveSuccess');
       await getList();
       return true;
     } catch (error: unknown) {
       // 使用类型守卫安全提取错误信息
       if (error instanceof Error && error.message) {
-        ElMessage.error(error.message || '操作失败');
+        ElMessage.error(error.message || msg.translate('operationFailed'));
       }
       return false;
     }

@@ -6,6 +6,7 @@
  */
 import { ref, reactive } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { msg } from '@/utils/message';
 import {
   approveSalesPrice,
   getPriceHistory,
@@ -52,13 +53,13 @@ export function useSpProc(refresh: RefreshCallbacks) {
     try {
       await ElMessageBox.confirm('确认审批通过该价格？', '提示', { type: 'warning' });
       await approveSalesPrice(row.id);
-      ElMessage.success('审批成功');
+      msg.success('approveSuccess');
       await refresh.getList();
     } catch (error: unknown) {
       // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
       if (error !== 'cancel') {
         const errMsg = error instanceof Error ? error.message : String(error);
-        if (errMsg) ElMessage.error(errMsg || '审批失败');
+        if (errMsg) ElMessage.error(errMsg || msg.translate('approveFailed'));
       }
     }
   };
@@ -78,7 +79,7 @@ export function useSpProc(refresh: RefreshCallbacks) {
     } catch (error: unknown) {
       // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
       const errMsg = error instanceof Error ? error.message : String(error);
-      ElMessage.error(errMsg || '获取历史记录失败');
+      ElMessage.error(errMsg || msg.translate('loadHistoryFailed'));
     }
   };
 
@@ -92,7 +93,7 @@ export function useSpProc(refresh: RefreshCallbacks) {
     } catch (error: unknown) {
       // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
       const errMsg = error instanceof Error ? error.message : String(error);
-      ElMessage.error(errMsg || '获取价格策略失败');
+      ElMessage.error(errMsg || msg.translate('loadPriceStrategyFailed'));
     } finally {
       strategyLoading.value = false;
     }

@@ -6,8 +6,8 @@
  * 批次 284：contractList 接入 useTableApi，移除手写分页/加载逻辑
  */
 import { ref, reactive } from 'vue';
-import { ElMessage } from 'element-plus';
 import { FormInstance } from 'element-plus';
+import { msg } from '@/utils/message';
 import {
   createPurchaseContract,
   updatePurchaseContract,
@@ -146,7 +146,7 @@ export function usePc() {
       } else {
         await createPurchaseContract(formData);
       }
-      ElMessage.success('保存成功');
+      msg.success('saveSuccess');
       await getList();
       return true;
     } catch (error) {

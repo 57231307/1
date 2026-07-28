@@ -4,7 +4,8 @@
  * 封装采购合同提交审批/审批/执行/删除/导出等流程性方法
  * 行为完全保持一致（仅结构重构）
  */
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessageBox } from 'element-plus';
+import { msg } from '@/utils/message';
 import {
   deletePurchaseContract,
   approvePurchaseContract,
@@ -29,7 +30,7 @@ export function usePcProc(refresh: RefreshCallbacks) {
     try {
       await ElMessageBox.confirm('确认提交该合同审批？', '提示', { type: 'warning' });
       await approvePurchaseContract(row.id);
-      ElMessage.success('提交成功');
+      msg.success('submitSuccess');
       await refresh.getList();
     } catch (error) {
       logger.error('提交失败:', error);
@@ -41,7 +42,7 @@ export function usePcProc(refresh: RefreshCallbacks) {
     try {
       await ElMessageBox.confirm('确认审批通过该合同？', '提示', { type: 'warning' });
       await approvePurchaseContract(row.id);
-      ElMessage.success('审批成功');
+      msg.success('approveSuccess');
       await refresh.getList();
     } catch (error) {
       logger.error('审批失败:', error);
@@ -53,7 +54,7 @@ export function usePcProc(refresh: RefreshCallbacks) {
     try {
       await ElMessageBox.confirm('确认执行该合同？', '提示', { type: 'warning' });
       await executePurchaseContract(row.id);
-      ElMessage.success('执行成功');
+      msg.success('executeSuccess');
       await refresh.getList();
     } catch (error) {
       logger.error('执行失败:', error);
@@ -65,7 +66,7 @@ export function usePcProc(refresh: RefreshCallbacks) {
     try {
       await ElMessageBox.confirm('确认删除该合同？', '提示', { type: 'warning' });
       await deletePurchaseContract(row.id);
-      ElMessage.success('删除成功');
+      msg.success('deleteSuccess');
       await refresh.getList();
     } catch (error) {
       logger.error('删除失败:', error);
@@ -84,10 +85,10 @@ export function usePcProc(refresh: RefreshCallbacks) {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-      ElMessage.success('导出成功');
+      msg.success('exportSuccess');
     } catch (error) {
       logger.error('导出失败:', error);
-      ElMessage.error('导出失败');
+      msg.error('exportFailed');
     }
   };
 

@@ -10,6 +10,7 @@
  */
 import { ref, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
+import { msg } from '@/utils/message';
 import { request } from '@/api/request';
 import { type PurchaseReceiptEntity, type ReceiptItem } from '@/api/purchaseReceipt';
 import { logger } from '@/utils/logger';
@@ -55,7 +56,7 @@ export function usePrc() {
     onError: (err: unknown) => {
       // 使用类型守卫安全提取错误信息
       const errMsg = err instanceof Error ? err.message : '';
-      ElMessage.error(errMsg || '加载失败');
+      ElMessage.error(errMsg || msg.translate('loadFailed'));
     },
   });
 

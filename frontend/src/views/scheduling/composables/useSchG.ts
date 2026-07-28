@@ -8,6 +8,7 @@
  */
 import { ref, computed, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
+import { msg } from '@/utils/message';
 import {
   getSchedulingGanttData,
   adjustSchedulingTask,
@@ -86,7 +87,7 @@ export function useSchG() {
     } catch (error: unknown) {
       // v11 批次 181 P2-1 修复：catch (error: any) 改为 catch (error: unknown) + 类型守卫
       const errMsg = error instanceof Error ? error.message : String(error);
-      ElMessage.error(errMsg || '获取甘特图数据失败');
+      ElMessage.error(errMsg || msg.translate('loadGanttDataFailed'));
       // v11 批次 181 P2-1 修复：null as any 改为具体类型的空对象
       ganttData.value = {
         work_centers: [],
@@ -119,13 +120,13 @@ export function useSchG() {
         end_time: adjustForm.value.end_time,
         work_center_id: adjustForm.value.work_center_id,
       });
-      ElMessage.success('排程调整成功');
+      msg.success('scheduleAdjustedSuccess');
       adjustDialogVisible.value = false;
       await fetchGanttData();
     } catch (error: unknown) {
       // v11 批次 181 P2-1 修复：catch (error: any) 改为 catch (error: unknown) + 类型守卫
       const errMsg = error instanceof Error ? error.message : String(error);
-      ElMessage.error(errMsg || '排程调整失败');
+      ElMessage.error(errMsg || msg.translate('scheduleAdjustFailed'));
     } finally {
       adjusting.value = false;
     }

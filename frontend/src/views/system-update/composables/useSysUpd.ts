@@ -7,6 +7,7 @@
  */
 import { ref, computed, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
+import { msg } from '@/utils/message';
 import {
   getCurrentVersion,
   checkForUpdates,
@@ -39,7 +40,7 @@ export function useSysUpd() {
   } = useTableApi<SystemVersion>({
     url: '/system-update/versions',
     onError: (err: unknown) =>
-      ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取版本列表失败'),
+      ElMessage.error((err instanceof Error ? err.message : String(err)) || msg.translate('loadVersionListFailed')),
   });
 
   // 更新任务 - 接入 useTableApi（批次 283）
@@ -53,7 +54,7 @@ export function useSysUpd() {
   } = useTableApi<UpdateTask>({
     url: '/system-update/tasks',
     onError: (err: unknown) =>
-      ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取任务列表失败'),
+      ElMessage.error((err instanceof Error ? err.message : String(err)) || msg.translate('loadTaskListFailed')),
   });
 
   // 系统备份 - 接入 useTableApi（批次 283）
@@ -67,7 +68,7 @@ export function useSysUpd() {
   } = useTableApi<SystemBackup>({
     url: '/system-update/backups',
     onError: (err: unknown) =>
-      ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取备份列表失败'),
+      ElMessage.error((err instanceof Error ? err.message : String(err)) || msg.translate('loadBackupListFailed')),
   });
 
   // 备份表单
@@ -96,12 +97,12 @@ export function useSysUpd() {
       const res = await checkForUpdates();
       latestVersion.value = res.data;
       if (hasUpdate.value) {
-        ElMessage.success(`发现新版本: ${res.data.version}`);
+        msg.success('newVersionFound', { version: res.data.version });
       } else {
-        ElMessage.info('当前已是最新版本');
+        msg.info('alreadyLatestVersion');
       }
     } catch (error: unknown) {
-      ElMessage.error((error instanceof Error ? error.message : String(error)) || '检查更新失败');
+      ElMessage.error((error instanceof Error ? error.message : String(error)) || msg.translate('checkUpdateFailed'));
     }
   };
 
@@ -116,11 +117,11 @@ export function useSysUpd() {
     backupSubmitLoading.value = true;
     try {
       await createSystemBackup(backupForm);
-      ElMessage.success('备份任务已创建');
+      msg.success('backupTaskCreated');
       await fetchBackups();
       return true;
     } catch (error: unknown) {
-      ElMessage.error((error instanceof Error ? error.message : String(error)) || '创建备份失败');
+      ElMessage.error((error instanceof Error ? error.message : String(error)) || msg.translate('createBackupFailed'));
       return false;
     } finally {
       backupSubmitLoading.value = false;

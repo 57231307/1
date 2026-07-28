@@ -134,9 +134,16 @@ pub async fn list_customers(
         )
         .await?;
 
+    // P1-08-5：非管理员对客户列表手机号/邮箱脱敏
+    let masked_items: Vec<serde_json::Value> = result
+        .items
+        .into_iter()
+        .map(|v| crate::utils::field_mask::mask_contact_fields_for_role(v, auth.role_id))
+        .collect();
+
     Ok(Json(ApiResponse::success(
         crate::utils::response::PaginatedResponse::new(
-            result.items,
+            masked_items,
             result.total,
             result.page,
             result.page_size,
@@ -160,6 +167,9 @@ pub async fn get_customer(
     let customer_json = customer_service
         .get_customer_with_filter(id, permission_filter, Some(&data_scope_ctx))
         .await?;
+
+    // P1-08-5：非管理员对客户详情手机号/邮箱脱敏
+    let customer_json = crate::utils::field_mask::mask_contact_fields_for_role(customer_json, auth.role_id);
 
     Ok(Json(ApiResponse::success(customer_json)))
 }

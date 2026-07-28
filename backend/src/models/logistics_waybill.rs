@@ -9,11 +9,23 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
     pub order_id: i32,
+    /// V15 P1 batch-19 缺陷 23.4.1：订单类型（sales_order/purchase_order/transfer_order）
+    pub order_type: Option<String>,
     pub logistics_company: String,
     pub tracking_number: String,
     pub driver_name: Option<String>,
     pub driver_phone: Option<String>,
     pub freight_fee: Option<Decimal>,
+    /// V15 P1 batch-19 缺陷 23.4.3：总重量（kg）
+    pub total_weight: Option<Decimal>,
+    /// V15 P1 batch-19 缺陷 23.4.3：总体积（m³）
+    pub total_volume: Option<Decimal>,
+    /// V15 P1 batch-19 缺陷 23.4.3：运输距离（km）
+    pub distance_km: Option<Decimal>,
+    /// V15 P1 batch-19 缺陷 23.4.3：运费费率（按重量/体积/距离核算的基准费率）
+    pub freight_rate: Option<Decimal>,
+    /// V15 P1 batch-19 缺陷 23.4.3：运费承担方（customer/company）
+    pub freight_bearer: Option<String>,
     pub status: Option<String>,
     pub expected_arrival: Option<DateTime<Utc>>,
     pub actual_arrival: Option<DateTime<Utc>>,
@@ -40,6 +52,9 @@ pub enum Relation {
         to = "super::sales_order::Column::Id"
     )]
     SalesOrder,
+    /// V15 P1 batch-19 缺陷 23.4.2：关联跟踪事件历史（has_many）
+    #[sea_orm(has_many = "super::logistics_tracking_event::Entity")]
+    TrackingEvents,
 }
 
 impl Related<super::sales_order::Entity> for Entity {

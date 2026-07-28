@@ -677,4 +677,67 @@ impl PrintService {
         );
         Ok(html)
     }
+
+    /// V15 P1 batch-08 缺陷 8：生成 docx 字节流（规则 3 强制要求合同/发票/报表支持 .docx）
+    ///
+    /// 将 PrintData 转为 Word 文档（标题 + 主表键值对 + 明细表格），
+    /// 替代原 generate_pdf 实际生成 HTML 的误导实现。
+    pub fn generate_docx(&self, print_data: &PrintData) -> Result<Vec<u8>, AppError> {
+        let title = match print_data.template.as_str() {
+            "sales_order" => "销售订单",
+            "sales_contract" => "销售合同",
+            "purchase_order" => "采购订单",
+            "purchase_receipt" => "采购收货单",
+            "inventory_transfer" => "库存调拨单",
+            "voucher" => "会计凭证",
+            other => other,
+        };
+
+        // 主表键值对
+        let mut keys = Vec::with_capacity(print_data.data.len());
+        let mut values = Vec::with_capacity(print_data.data.len());
+        for (k, v) in print_data.data.iter() {
+            keys.push(k.clone());
+            let v_str = match v {
+                serde_json::Value::String(s) => s.clone(),
+                _ => v.to_string(),
+            };
+            values.push(v_str);
+        }
+        let kv = crate::utils::docx_export::DocxKeyValue { keys, values };
+
+        // 明细表头与行：若 items 为空，则不输出明细表
+        let detail_headers: Vec<String> = if print_data.items.is_empty() {
+            Vec::new()
+        } else {
+            print_data.items
+                .first()
+                .map(|first| first.keys().cloned().collect())
+                .unwrap_or_default()
+        };
+        let detail_rows: Vec<Vec<String>> = print_data
+            .items
+            .iter()
+            .map(|row| {
+                detail_headers
+                    .iter()
+                    .map(|h| {
+                        row.get(h)
+                            .map(|v| match v {
+                                serde_json::Value::String(s) => s.clone(),
+                                _ => v.to_string(),
+                            })
+                            .unwrap_or_default()
+                    })
+                    .collect()
+            })
+            .collect();
+
+        crate::utils::docx_export::build_docx_with_kv(
+            title,
+            &kv,
+            &detail_headers,
+            &detail_rows,
+        )
+    }
 }

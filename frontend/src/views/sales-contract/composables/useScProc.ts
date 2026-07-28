@@ -5,6 +5,7 @@
  * 行为完全保持一致（仅结构重构）
  */
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { msg } from '@/utils/message';
 import {
   deleteSalesContract,
   approveSalesContract,
@@ -38,13 +39,13 @@ export function useScProc(refresh: RefreshCallbacks) {
     try {
       await ElMessageBox.confirm('确认提交该合同审批？', '提示', { type: 'warning' });
       await approveSalesContract(row.id);
-      ElMessage.success('提交成功');
+      msg.success('submitSuccess');
       await refresh.getList();
     } catch (error: unknown) {
       // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
       if (error !== 'cancel') {
         const errMsg = error instanceof Error ? error.message : String(error);
-        ElMessage.error(errMsg || '提交失败');
+        ElMessage.error(errMsg || msg.translate('submitFailed'));
       }
     }
   };
@@ -54,13 +55,13 @@ export function useScProc(refresh: RefreshCallbacks) {
     try {
       await ElMessageBox.confirm('确认审批通过该合同？', '提示', { type: 'warning' });
       await approveSalesContract(row.id);
-      ElMessage.success('审批成功');
+      msg.success('approveSuccess');
       await refresh.getList();
     } catch (error: unknown) {
       // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
       if (error !== 'cancel') {
         const errMsg = error instanceof Error ? error.message : String(error);
-        ElMessage.error(errMsg || '审批失败');
+        ElMessage.error(errMsg || msg.translate('approveFailed'));
       }
     }
   };
@@ -70,13 +71,13 @@ export function useScProc(refresh: RefreshCallbacks) {
     try {
       await ElMessageBox.confirm('确认执行该合同？', '提示', { type: 'warning' });
       await executeSalesContract(row.id);
-      ElMessage.success('执行成功');
+      msg.success('executeSuccess');
       await refresh.getList();
     } catch (error: unknown) {
       // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
       if (error !== 'cancel') {
         const errMsg = error instanceof Error ? error.message : String(error);
-        ElMessage.error(errMsg || '执行失败');
+        ElMessage.error(errMsg || msg.translate('executeFailed'));
       }
     }
   };
@@ -86,13 +87,13 @@ export function useScProc(refresh: RefreshCallbacks) {
     try {
       await ElMessageBox.confirm('确认删除该合同？', '提示', { type: 'warning' });
       await deleteSalesContract(row.id);
-      ElMessage.success('删除成功');
+      msg.success('deleteSuccess');
       await refresh.getList();
     } catch (error: unknown) {
       // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
       if (error !== 'cancel') {
         const errMsg = error instanceof Error ? error.message : String(error);
-        ElMessage.error(errMsg || '删除失败');
+        ElMessage.error(errMsg || msg.translate('deleteFailed'));
       }
     }
   };
@@ -124,7 +125,7 @@ export function useScProc(refresh: RefreshCallbacks) {
     const list = Array.isArray(contractList) ? contractList : contractList.value;
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
-      ElMessage.error('无法打开打印窗口');
+      msg.error('printWindowBlocked');
       return;
     }
     const rows = list

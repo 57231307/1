@@ -5,7 +5,8 @@
  * 行为完全保持一致（仅结构重构）
  */
 import { ref, reactive } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessageBox } from 'element-plus';
+import { msg } from '@/utils/message';
 import {
   submitPurchaseReturn,
   approvePurchaseReturn,
@@ -32,7 +33,7 @@ export function usePrRtnProc(deps: { fetchData: () => Promise<void> }) {
     try {
       await ElMessageBox.confirm('确定要提交该退货单吗？', '提示', { type: 'warning' });
       await submitPurchaseReturn(row.id!);
-      ElMessage.success('提交成功');
+      msg.success('submitSuccess');
       await deps.fetchData();
     } catch (error) {
       if (error !== 'cancel') {
@@ -52,7 +53,7 @@ export function usePrRtnProc(deps: { fetchData: () => Promise<void> }) {
   const handleApproveConfirm = async () => {
     try {
       await approvePurchaseReturn(approveForm.id);
-      ElMessage.success('审批通过');
+      msg.success('approveSuccess');
       approveDialogVisible.value = false;
       await deps.fetchData();
     } catch (error) {
@@ -64,7 +65,7 @@ export function usePrRtnProc(deps: { fetchData: () => Promise<void> }) {
   const handleReject = async () => {
     try {
       await rejectPurchaseReturn(approveForm.id, approveForm.remark);
-      ElMessage.success('已拒绝');
+      msg.success('rejected');
       approveDialogVisible.value = false;
       await deps.fetchData();
     } catch (error) {
@@ -77,7 +78,7 @@ export function usePrRtnProc(deps: { fetchData: () => Promise<void> }) {
     try {
       await ElMessageBox.confirm('确定要删除该退货单吗？', '提示', { type: 'warning' });
       await deletePurchaseReturn(row.id!);
-      ElMessage.success('删除成功');
+      msg.success('deleteSuccess');
       await deps.fetchData();
     } catch (error) {
       if (error !== 'cancel') {

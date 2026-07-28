@@ -154,7 +154,7 @@ impl WageRecordService {
         }
 
         // V15 Batch04-P1-3：发布 WageConfirmed 事件，供成本核算服务监听并归集 direct_labor
-        crate::services::event_bus::publish(crate::services::event_bus::BusinessEvent::WageConfirmed {
+        crate::services::event_bus::EVENT_BUS.publish(crate::services::event_bus::BusinessEvent::WageConfirmed {
             wage_record_id: updated.id,
             record_no: updated.record_no.clone(),
             total_amount: updated.total_amount.unwrap_or(Decimal::ZERO),
@@ -188,7 +188,7 @@ impl WageRecordService {
         }
 
         // V15 Batch04-P1-3：发布 WagePaid 事件
-        crate::services::event_bus::publish(crate::services::event_bus::BusinessEvent::WagePaid {
+        crate::services::event_bus::EVENT_BUS.publish(crate::services::event_bus::BusinessEvent::WagePaid {
             wage_record_id: updated.id,
             record_no: updated.record_no.clone(),
             total_amount: updated.total_amount.unwrap_or(Decimal::ZERO),

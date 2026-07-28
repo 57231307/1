@@ -4,6 +4,7 @@
  */
 import { ref } from 'vue';
 import { ElMessage } from 'element-plus';
+import { msg } from '@/utils/message';
 import { getReportTemplateList, executeReport as executeReportApi } from '@/api/advanced';
 
 // v11 批次 180 P2-1 修复：定义报表相关类型，替代 any
@@ -62,7 +63,7 @@ export function useRpt() {
       reportResultVisible.value = true;
     } catch (e: unknown) {
       const errMsg = e instanceof Error ? e.message : String(e);
-      ElMessage.error(errMsg || '执行失败');
+      ElMessage.error(errMsg || msg.translate('executeFailed'));
     }
   };
 
@@ -71,10 +72,10 @@ export function useRpt() {
    */
   const exportReport = async (_row: ReportTemplate, _format: string) => {
     try {
-      ElMessage.success('导出成功');
+      msg.success('exportSuccess');
     } catch (e: unknown) {
       const errMsg = e instanceof Error ? e.message : String(e);
-      ElMessage.error(errMsg || '导出失败');
+      ElMessage.error(errMsg || msg.translate('exportFailed'));
     }
   };
 

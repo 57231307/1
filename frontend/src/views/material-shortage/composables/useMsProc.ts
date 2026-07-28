@@ -7,6 +7,7 @@
  * 设计说明：通过 callbacks 接收 useMs 的状态引用（Reactive 包装层）
  */
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { msg } from '@/utils/message';
 import {
   triggerMaterialShortageCheck,
   updateMaterialShortageStatus,
@@ -50,12 +51,12 @@ export function useMsProc(cb: MsCallbacks) {
     try {
       const res = await triggerMaterialShortageCheck();
       const data = (res.data || {}) as { message?: string };
-      ElMessage.success(data.message || '检查完成');
+      ElMessage.success(data.message || msg.translate('checkComplete'));
       await Promise.all([cb.fetchSummary(), cb.fetchShortages()]);
     } catch (error) {
-      const msg = error instanceof Error ? error.message : '检查失败';
-      logger.error(msg);
-      ElMessage.error(msg);
+      const errMsg = error instanceof Error ? error.message : msg.translate('checkFailed');
+      logger.error(errMsg);
+      ElMessage.error(errMsg);
     } finally {
       cb.checking = false;
     }
@@ -67,12 +68,12 @@ export function useMsProc(cb: MsCallbacks) {
   const handleNotify = async (row: MaterialShortage) => {
     try {
       await updateMaterialShortageStatus(row.id, 'notified');
-      ElMessage.success('已发送通知');
+      msg.success('notificationSent');
       await cb.fetchShortages();
     } catch (error) {
-      const msg = error instanceof Error ? error.message : '发送通知失败';
-      logger.error(msg);
-      ElMessage.error(msg);
+      const errMsg = error instanceof Error ? error.message : msg.translate('sendNotificationFailed');
+      logger.error(errMsg);
+      ElMessage.error(errMsg);
     }
   };
 
@@ -83,13 +84,13 @@ export function useMsProc(cb: MsCallbacks) {
     try {
       await ElMessageBox.confirm('确认标记此缺料为已解决？', '提示', { type: 'warning' });
       await updateMaterialShortageStatus(row.id, 'resolved');
-      ElMessage.success('已标记为已解决');
+      msg.success('markedAsResolved');
       await Promise.all([cb.fetchSummary(), cb.fetchShortages()]);
     } catch (error) {
       if (error !== 'cancel') {
-        const msg = error instanceof Error ? error.message : '标记失败';
-        logger.error(msg);
-        ElMessage.error(msg);
+        const errMsg = error instanceof Error ? error.message : msg.translate('markFailed');
+        logger.error(errMsg);
+        ElMessage.error(errMsg);
       }
     }
   };

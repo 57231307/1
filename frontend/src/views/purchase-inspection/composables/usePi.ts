@@ -11,6 +11,7 @@
  */
 import { ref, reactive, watch } from 'vue';
 import { ElMessage } from 'element-plus';
+import { msg } from '@/utils/message';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { type PurchaseInspection, type PurchaseInspectionItem } from '@/api/purchase-inspection';
 import { getReceiptItems, type ReceiptItem } from '@/api/purchaseReceipt';
@@ -155,7 +156,7 @@ export function usePi() {
       const res = await getReceiptItems(receiptId);
       const items: ReceiptItem[] = res.data?.items || [];
       if (items.length === 0) {
-        ElMessage.info('该入库单暂无明细');
+        msg.info('noReceiptDetails');
         formData.items = [];
         return;
       }

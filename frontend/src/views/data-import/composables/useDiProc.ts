@@ -9,6 +9,7 @@
  */
 import { ref, reactive } from 'vue';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
+import { msg } from '@/utils/message';
 import {
   createImportTemplate,
   updateImportTemplate,
@@ -125,7 +126,7 @@ export function useDiProc(cb: DiCallbacks) {
           try {
             templateForm.columns = JSON.parse(columnsText.value);
           } catch {
-            ElMessage.error('列配置格式错误，请检查JSON格式');
+            msg.error('invalidJsonFormat');
             return;
           }
         }
@@ -137,7 +138,7 @@ export function useDiProc(cb: DiCallbacks) {
         } else {
           await createImportTemplate(templateForm as unknown as Partial<ImportTemplate>);
         }
-        ElMessage.success('操作成功');
+        msg.success('operationSuccess');
         templateDialogVisible.value = false;
         await cb.fetchTemplates();
       } catch (error: unknown) {
@@ -157,7 +158,7 @@ export function useDiProc(cb: DiCallbacks) {
     try {
       await ElMessageBox.confirm('确定要删除此模板吗？', '确认删除', { type: 'warning' });
       await deleteImportTemplate(row.id);
-      ElMessage.success('删除成功');
+      msg.success('deleteSuccess');
       await cb.fetchTemplates();
     } catch (error: unknown) {
       if (error !== 'cancel') {
@@ -178,7 +179,7 @@ export function useDiProc(cb: DiCallbacks) {
       link.href = URL.createObjectURL(blob);
       link.download = `${row.template_name}_模板.${row.file_format}`;
       link.click();
-      ElMessage.success('模板下载成功');
+      msg.success('templateDownloaded');
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : '下载失败';
       logger.error(msg);
@@ -199,7 +200,7 @@ export function useDiProc(cb: DiCallbacks) {
    * 文件超出限制
    */
   const handleExceed = () => {
-    ElMessage.warning('只能上传一个文件');
+    msg.warning('onlyOneFile');
   };
 
   /**
@@ -214,14 +215,14 @@ export function useDiProc(cb: DiCallbacks) {
    */
   const handleUpload = async () => {
     if (!selectedFile.value || !currentTemplate.value) {
-      ElMessage.warning('请选择文件');
+      msg.warning('pleaseSelectFile');
       return;
     }
 
     uploadLoading.value = true;
     try {
       await uploadImportFile(currentTemplate.value.id, selectedFile.value);
-      ElMessage.success('导入任务已创建');
+      msg.success('importTaskCreated');
       uploadDialogVisible.value = false;
       await cb.fetchTasks();
       cb.activeTab = 'tasks';
@@ -241,7 +242,7 @@ export function useDiProc(cb: DiCallbacks) {
     try {
       await ElMessageBox.confirm('确定要取消此任务吗？', '确认取消', { type: 'warning' });
       await cancelImportTask(row.id);
-      ElMessage.success('任务已取消');
+      msg.success('taskCancelled');
       await cb.fetchTasks();
     } catch (error: unknown) {
       if (error !== 'cancel') {
@@ -258,7 +259,7 @@ export function useDiProc(cb: DiCallbacks) {
   const handleRetryTask = async (row: ImportTask) => {
     try {
       await retryImportTask(row.id);
-      ElMessage.success('任务已重新开始');
+      msg.success('taskRestarted');
       await cb.fetchTasks();
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : '重试失败';
@@ -277,7 +278,7 @@ export function useDiProc(cb: DiCallbacks) {
       link.href = URL.createObjectURL(blob);
       link.download = `错误日志_${row.task_code}.txt`;
       link.click();
-      ElMessage.success('错误日志下载成功');
+      msg.success('errorLogDownloaded');
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : '下载失败';
       logger.error(msg);

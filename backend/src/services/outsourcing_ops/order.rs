@@ -294,6 +294,7 @@ impl OutsourcingOrderService {
             credit_account: Set("自制半成品-胚布".to_string()),
             amount: Set(model.material_cost),
             tax_amount: Set(Decimal::ZERO),
+            tax_transfer_amount: Set(Decimal::ZERO),
             voucher_date: Set(model.issue_date),
             is_posted: Set(false),
             posted_at: Set(None),
@@ -314,7 +315,7 @@ impl OutsourcingOrderService {
         let updated = active.update(&*self.db).await?;
 
         // V15 Batch04-P1-5：发布委外发料事件，供库存出库/成本归集订阅
-        crate::services::event_bus::publish(
+        crate::services::event_bus::EVENT_BUS.publish(
             crate::services::event_bus::BusinessEvent::OutsourcingMaterialIssued {
                 order_id: updated.id,
                 order_no: updated.order_no.clone(),
@@ -344,7 +345,7 @@ impl OutsourcingOrderService {
         let updated = active.update(&*self.db).await?;
 
         // V15 Batch04-P1-5：发布委外加工中事件，供生产看板/进度追踪订阅
-        crate::services::event_bus::publish(
+        crate::services::event_bus::EVENT_BUS.publish(
             crate::services::event_bus::BusinessEvent::OutsourcingProcessingRecorded {
                 order_id: updated.id,
                 order_no: updated.order_no.clone(),
@@ -506,6 +507,7 @@ impl OutsourcingOrderService {
             credit_account: Set("委托加工物资".to_string()),
             amount: Set(calc.total_cost),
             tax_amount: Set(Decimal::ZERO),
+            tax_transfer_amount: Set(Decimal::ZERO),
             voucher_date: Set(req.receipt_date),
             is_posted: Set(false),
             posted_at: Set(None),
@@ -522,6 +524,11 @@ impl OutsourcingOrderService {
     }
 
     /// 若存在非正常损耗，创建损耗处理凭证（借 营业外支出 / 贷 委托加工物资）
+    ///
+    /// V15 P1-08-13：同时记录进项税转出金额（增值税合规）
+    /// 业务规则（《增值税暂行条例》第 27 条）：
+    /// - 非正常损耗对应的已抵扣进项税需转出
+    /// - 凭证金额仍为 abnormal_loss_amount，tax_transfer_amount 单独记录
     async fn insert_loss_voucher_if_needed(
         &self,
         id: i32,
@@ -533,6 +540,19 @@ impl OutsourcingOrderService {
         if calc.abnormal_loss_amount <= Decimal::ZERO {
             return Ok(());
         }
+        // V15 P1-08-13：计算进项税转出金额
+        // 业务规则：非正常损耗对应的加工费进项税需转出，税率 13%
+        // 转出金额 = 非正常损耗金额 × 加工费占比 × 增值税率
+        // 简化处理：按加工费占总成本比例计算应转出的进项税
+        let vat_rate = Decimal::new(13, 2); // 0.13
+        let total_cost_basis = model.material_cost + model.processing_fee + model.freight_fee;
+        let processing_ratio = if total_cost_basis > Decimal::ZERO {
+            (model.processing_fee + model.freight_fee) / total_cost_basis
+        } else {
+            Decimal::ZERO
+        };
+        let tax_transfer_amount = calc.abnormal_loss_amount * processing_ratio * vat_rate;
+
         let loss_voucher_no = Self::generate_voucher_no("LS");
         let loss_voucher_active = VoucherActiveModel {
             id: Default::default(),
@@ -543,12 +563,13 @@ impl OutsourcingOrderService {
             credit_account: Set("委托加工物资".to_string()),
             amount: Set(calc.abnormal_loss_amount),
             tax_amount: Set(Decimal::ZERO),
+            tax_transfer_amount: Set(tax_transfer_amount),
             voucher_date: Set(req.receipt_date),
             is_posted: Set(false),
             posted_at: Set(None),
             remarks: Set(Some(format!(
-                "委外订单 {} 非正常损耗处理",
-                model.order_no
+                "委外订单 {} 非正常损耗处理（进项税转出: {}）",
+                model.order_no, tax_transfer_amount
             ))),
             created_by: Set(model.created_by),
             created_at: Set(now),
@@ -615,6 +636,7 @@ impl OutsourcingOrderService {
             credit_account: Set("银行存款".to_string()),
             amount: Set(fee_amount),
             tax_amount: Set(model.tax_amount),
+            tax_transfer_amount: Set(Decimal::ZERO),
             voucher_date: Set(now.date_naive()),
             is_posted: Set(false),
             posted_at: Set(None),
@@ -648,7 +670,7 @@ impl OutsourcingOrderService {
         // V15 Batch04-P1-5：发布委外结算事件，供成本归集/应付账款订阅
         let normal_loss = (updated.loss_quantity - updated.abnormal_loss_amount)
             .max(Decimal::ZERO);
-        crate::services::event_bus::publish(
+        crate::services::event_bus::EVENT_BUS.publish(
             crate::services::event_bus::BusinessEvent::OutsourcingOrderSettled {
                 order_id: updated.id,
                 order_no: updated.order_no.clone(),
@@ -683,7 +705,7 @@ impl OutsourcingOrderService {
         let updated = active.update(&*self.db).await?;
 
         // V15 Batch04-P1-5：发布委外完成事件，供库存入库/成本结转订阅
-        crate::services::event_bus::publish(
+        crate::services::event_bus::EVENT_BUS.publish(
             crate::services::event_bus::BusinessEvent::OutsourcingOrderCompleted {
                 order_id: updated.id,
                 order_no: updated.order_no.clone(),

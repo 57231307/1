@@ -69,7 +69,7 @@ impl DyeBatchLifecycleLogService {
             .map_err(|e| AppError::database(format!("缸号生命周期日志创建失败: {}", e)))?;
 
         // V15 Batch05-P1-3：发布 DyeBatchStatusChanged 事件（设备占用/释放、看板更新）
-        crate::services::event_bus::publish(crate::services::event_bus::BusinessEvent::DyeBatchStatusChanged {
+        crate::services::event_bus::EVENT_BUS.publish(crate::services::event_bus::BusinessEvent::DyeBatchStatusChanged {
             batch_id: result.batch_id,
             batch_no: result.batch_no.clone(),
             from_status: result.from_status.clone().unwrap_or_default(),

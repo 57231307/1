@@ -7,6 +7,7 @@
  */
 import { ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { msg } from '@/utils/message';
 import { approveSalesReturn, type SalesReturn } from '@/api/sales-return';
 
 /**
@@ -57,12 +58,12 @@ export function useSrProc(sr: ReturnType<typeof import('./useSr').useSr>) {
         type: 'warning',
       });
       await approveSalesReturn(row.id);
-      ElMessage.success('审核成功');
+      msg.success('auditSuccess');
       await sr.loadReturns();
     } catch (error: unknown) {
       if (error !== 'cancel') {
         const errMsg = error instanceof Error ? error.message : String(error);
-        ElMessage.error(errMsg || '审核失败');
+        ElMessage.error(errMsg || msg.translate('auditFailed'));
       }
     }
   };

@@ -5,6 +5,7 @@
  * 行为完全保持一致（仅结构重构）
  */
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { msg } from '@/utils/message';
 import {
   submitVoucher as submitVoucherApi,
   reviewVoucher as reviewVoucherApi,
@@ -26,12 +27,12 @@ export function useVchrProc(vouchers: { value: Voucher[] }, fetchVouchers: () =>
     try {
       await ElMessageBox.confirm('确定提交该凭证吗？', '提交确认', { type: 'info' });
       await submitVoucherApi(row.id);
-      ElMessage.success('提交成功');
+      msg.success('submitSuccess');
       await fetchVouchers();
     } catch (error) {
       if (error !== 'cancel') {
         const err = error as Error;
-        ElMessage.error(err.message || '操作失败');
+        ElMessage.error(err.message || msg.translate('operationFailed'));
       }
     }
   };
@@ -41,12 +42,12 @@ export function useVchrProc(vouchers: { value: Voucher[] }, fetchVouchers: () =>
     try {
       await ElMessageBox.confirm('确定审核该凭证吗？', '审核确认', { type: 'info' });
       await reviewVoucherApi(row.id);
-      ElMessage.success('审核成功');
+      msg.success('auditSuccess');
       await fetchVouchers();
     } catch (error) {
       if (error !== 'cancel') {
         const err = error as Error;
-        ElMessage.error(err.message || '操作失败');
+        ElMessage.error(err.message || msg.translate('operationFailed'));
       }
     }
   };
@@ -58,12 +59,12 @@ export function useVchrProc(vouchers: { value: Voucher[] }, fetchVouchers: () =>
         type: 'warning',
       });
       await postVoucherApi(row.id);
-      ElMessage.success('过账成功');
+      msg.success('postSuccess');
       await fetchVouchers();
     } catch (error) {
       if (error !== 'cancel') {
         const err = error as Error;
-        ElMessage.error(err.message || '操作失败');
+        ElMessage.error(err.message || msg.translate('operationFailed'));
       }
     }
   };
@@ -95,7 +96,7 @@ export function useVchrProc(vouchers: { value: Voucher[] }, fetchVouchers: () =>
   const handlePrintVouchers = () => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
-      ElMessage.error('无法打开打印窗口');
+      msg.error('printWindowBlocked');
       return;
     }
     const rows = vouchers.value

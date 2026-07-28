@@ -7,6 +7,7 @@
  */
 import { ref, reactive } from 'vue';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
+import { msg } from '@/utils/message';
 import {
   createApiKey,
   updateApiKey,
@@ -32,7 +33,7 @@ export function useApiKey() {
   } = useTableApi<ApiKey>({
     url: '/api-gateway/keys',
     onError: (err: unknown) =>
-      ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取密钥失败'),
+      ElMessage.error((err instanceof Error ? err.message : String(err)) || msg.translate('loadApiKeyFailed')),
   });
 
   const showKeyMap = ref<Record<number, boolean>>({});
@@ -93,11 +94,11 @@ export function useApiKey() {
         } else {
           await createApiKey(keyForm);
         }
-        ElMessage.success('操作成功');
+        msg.success('operationSuccess');
         keyDialogVisible.value = false;
         await fetchKeys();
       } catch (error: unknown) {
-        ElMessage.error((error instanceof Error ? error.message : String(error)) || '操作失败');
+        ElMessage.error((error instanceof Error ? error.message : String(error)) || msg.translate('operationFailed'));
       } finally {
         keySubmitLoading.value = false;
       }
@@ -108,11 +109,11 @@ export function useApiKey() {
     try {
       await ElMessageBox.confirm('确定要删除此密钥吗？', '确认删除', { type: 'warning' });
       await deleteApiKey(row.id);
-      ElMessage.success('删除成功');
+      msg.success('deleteSuccess');
       await fetchKeys();
     } catch (error: unknown) {
       if (error !== 'cancel')
-        ElMessage.error((error instanceof Error ? error.message : String(error)) || '删除失败');
+        ElMessage.error((error instanceof Error ? error.message : String(error)) || msg.translate('deleteFailed'));
     }
   };
 
@@ -122,11 +123,11 @@ export function useApiKey() {
         type: 'warning',
       });
       await regenerateApiKey(row.id);
-      ElMessage.success('重新生成成功');
+      msg.success('regenerateSuccess');
       await fetchKeys();
     } catch (error: unknown) {
       if (error !== 'cancel')
-        ElMessage.error((error instanceof Error ? error.message : String(error)) || '重新生成失败');
+        ElMessage.error((error instanceof Error ? error.message : String(error)) || msg.translate('regenerateFailed'));
     }
   };
 
@@ -149,11 +150,11 @@ export function useApiKey() {
         { type: 'warning' }
       );
       await updateApiKey(row.id, { status: nextStatus });
-      ElMessage.success('操作成功');
+      msg.success('operationSuccess');
       await fetchKeys();
     } catch (error: unknown) {
       if (error !== 'cancel')
-        ElMessage.error((error instanceof Error ? error.message : String(error)) || '操作失败');
+        ElMessage.error((error instanceof Error ? error.message : String(error)) || msg.translate('operationFailed'));
     }
   };
 

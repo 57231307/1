@@ -77,7 +77,7 @@ impl BusinessModeOrderLinkService {
             .map_err(|e| AppError::database(format!("单据业务模式关联创建失败: {}", e)))?;
 
         // V15 Batch04-P1-6：发布单据业务模式关联事件，供下游订阅（如单据按业务模式路由流程、报表按模式归集）
-        crate::services::event_bus::publish(
+        crate::services::event_bus::EVENT_BUS.publish(
             crate::services::event_bus::BusinessEvent::OrderBusinessModeLinked {
                 document_type: document_type.to_string(),
                 document_id,

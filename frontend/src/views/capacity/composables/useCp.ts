@@ -5,6 +5,7 @@
 // 批次 288：workCenters 接入 useTableApi，移除手写分页逻辑
 import { reactive, ref } from 'vue';
 import { ElMessage } from 'element-plus';
+import { msg } from '@/utils/message';
 import { getCapacitySummary, getCapacityTrend, getCapacityBottlenecks } from '@/api/capacity';
 import type { CapacitySummary, WorkCenter, CapacityTrend } from '@/api/capacity';
 import { useTableApi } from '@/composables/useTableApi';
@@ -33,7 +34,7 @@ export const useCp = () => {
     defaultPageSize: 10,
     onError: (err: unknown) => {
       logger.error('获取工作中心列表失败:', err);
-      ElMessage.error('获取工作中心列表失败');
+      msg.error('loadWorkCenterFailed');
     },
   });
 
@@ -52,7 +53,7 @@ export const useCp = () => {
       // 安全检查：防止后端返回 data 为 null 时崩溃
       if (res.data) summary.value = res.data;
     } catch (error: unknown) {
-      ElMessage.error((error instanceof Error ? error.message : '') || '获取产能概览失败');
+      ElMessage.error((error instanceof Error ? error.message : '') || msg.translate('loadCapacityOverviewFailed'));
       summary.value = {} as CapacitySummary;
     }
   };
@@ -67,7 +68,7 @@ export const useCp = () => {
       // 安全检查：防止后端返回 data 为 null 时崩溃
       if (res.data) trendData.value = res.data;
     } catch (error: unknown) {
-      ElMessage.error((error instanceof Error ? error.message : '') || '获取产能趋势失败');
+      ElMessage.error((error instanceof Error ? error.message : '') || msg.translate('loadCapacityTrendFailed'));
     }
   };
 
@@ -79,7 +80,7 @@ export const useCp = () => {
       // 安全检查：防止后端返回 data 为 null 时崩溃
       if (res.data) bottlenecks.value = res.data;
     } catch (error: unknown) {
-      ElMessage.error((error instanceof Error ? error.message : '') || '获取瓶颈分析失败');
+      ElMessage.error((error instanceof Error ? error.message : '') || msg.translate('loadBottleneckAnalysisFailed'));
       bottlenecks.value = [];
     } finally {
       bottleneckLoading.value = false;

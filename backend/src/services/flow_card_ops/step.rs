@@ -176,7 +176,7 @@ impl StepRecordService {
         let updated = active.update(&*self.db).await?;
 
         // V15 Batch05-P1-3：发布 ProcessStepReported 事件（工序进度实时感知）
-        crate::services::event_bus::publish(crate::services::event_bus::BusinessEvent::ProcessStepReported {
+        crate::services::event_bus::EVENT_BUS.publish(crate::services::event_bus::BusinessEvent::ProcessStepReported {
             step_record_id: updated.id,
             flow_card_id: updated.flow_card_id,
             route_code: updated.route_code.clone(),
@@ -187,7 +187,7 @@ impl StepRecordService {
         });
 
         // V15 Batch05-P1-3：发布 ProductionQuantityReported 事件（驱动工资计算/成本归集）
-        crate::services::event_bus::publish(crate::services::event_bus::BusinessEvent::ProductionQuantityReported {
+        crate::services::event_bus::EVENT_BUS.publish(crate::services::event_bus::BusinessEvent::ProductionQuantityReported {
             step_record_id: updated.id,
             flow_card_id: updated.flow_card_id,
             operator_id: updated.created_by,

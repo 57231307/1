@@ -1,4 +1,5 @@
 use chrono::Utc;
+use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder, Set,
@@ -14,6 +15,27 @@ use crate::utils::error::AppError;
 #[derive(Debug, Clone)]
 pub struct AssistAccountingService {
     db: Arc<DatabaseConnection>,
+}
+
+/// V15 P1 17.2-D1：主辅账平衡校验结果
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AssistVsGeneralBalanceResult {
+    /// 会计期间（YYYY-MM）
+    pub accounting_period: String,
+    /// 辅助核算借方总额
+    pub assist_total_debit: Decimal,
+    /// 辅助核算贷方总额
+    pub assist_total_credit: Decimal,
+    /// 总账借方总额
+    pub general_total_debit: Decimal,
+    /// 总账贷方总额
+    pub general_total_credit: Decimal,
+    /// 借方差异（辅助 - 总账）
+    pub debit_diff: Decimal,
+    /// 贷方差异（辅助 - 总账）
+    pub credit_diff: Decimal,
+    /// 是否平衡（差异均为零）
+    pub is_balanced: bool,
 }
 
 impl AssistAccountingService {
@@ -108,6 +130,16 @@ impl AssistAccountingService {
 
 
     /// 查询辅助核算明细（带过滤）
+    ///
+    /// V15 P1 17.2-D2 修复：dimension_code 现在会真实过滤对应维度字段非空的记录。
+    /// - "BATCH"：过滤 batch_no 非空
+    /// - "COLOR"：过滤 color_no 非空
+    /// - "DYE_LOT"：过滤 dye_lot_no 非空
+    /// - "GRADE"：过滤 grade 非空
+    /// - "WORKSHOP"：过滤 workshop_id 非空
+    /// - "WAREHOUSE"：过滤 warehouse_id 非空（与 warehouse_id 参数叠加）
+    /// - "CUSTOMER"：过滤 customer_id 非空
+    /// - "SUPPLIER"：过滤 supplier_id 非空
     pub async fn query_assist_records(
         &self,
         accounting_period: Option<&str>,
@@ -128,6 +160,83 @@ impl AssistAccountingService {
         let records = paginator.fetch_page(page.saturating_sub(1)).await?;
 
         Ok((records, total))
+    }
+
+    /// V15 P1 17.2-D1：主辅账平衡校验
+    ///
+    /// 校验指定期间内，辅助核算记录的借贷总额与总账（凭证分录）的借贷总额是否一致。
+    /// 用于期末对账，发现辅助核算与总账数据不一致问题。
+    ///
+    /// 校验逻辑：
+    /// 1. 汇总指定期间内所有辅助核算记录的 debit_amount/credit_amount 总额
+    /// 2. 汇总同期总账（voucher_item JOIN voucher，status=posted）的 debit/credit 总额
+    /// 3. 比较两者，返回差异详情
+    ///
+    /// 返回 (辅助核算借方总额, 辅助核算贷方总额, 总账借方总额, 总账贷方总额, 是否平衡)
+    pub async fn check_assist_vs_general_balance(
+        &self,
+        accounting_period: &str,
+    ) -> Result<AssistVsGeneralBalanceResult, AppError> {
+        use crate::models::{voucher, voucher_item};
+        use crate::models::status::voucher::VOUCHER_POSTED;
+        use sea_orm::sea_query::Expr;
+
+        // 1. 汇总辅助核算记录的借贷总额（按期间过滤）
+        let (start_date, end_date) = parse_period_range(accounting_period)?;
+        let assist_agg: Option<(Option<Decimal>, Option<Decimal>)> =
+            assist_accounting_record::Entity::find()
+                .filter(assist_accounting_record::Column::CreatedAt.gte(start_date))
+                .filter(assist_accounting_record::Column::CreatedAt.lte(end_date))
+                .select_only()
+                .column_as(
+                    Expr::col(assist_accounting_record::Column::DebitAmount).sum(),
+                    "total_debit",
+                )
+                .column_as(
+                    Expr::col(assist_accounting_record::Column::CreditAmount).sum(),
+                    "total_credit",
+                )
+                .into_tuple()
+                .one(&*self.db)
+                .await?;
+        let (assist_debit_opt, assist_credit_opt) = assist_agg.unwrap_or((None, None));
+        let assist_total_debit = assist_debit_opt.unwrap_or(Decimal::ZERO);
+        let assist_total_credit = assist_credit_opt.unwrap_or(Decimal::ZERO);
+
+        // 2. 汇总总账（已过账凭证分录）的借贷总额
+        let general_agg: Option<(Option<Decimal>, Option<Decimal>)> = voucher_item::Entity::find()
+            .join(
+                sea_orm::JoinType::InnerJoin,
+                voucher_item::Relation::Voucher.def(),
+            )
+            .filter(voucher::Column::Status.eq(VOUCHER_POSTED))
+            .filter(voucher::Column::VoucherDate.gte(start_date))
+            .filter(voucher::Column::VoucherDate.lte(end_date))
+            .select_only()
+            .column_as(Expr::col(voucher_item::Column::Debit).sum(), "total_debit")
+            .column_as(Expr::col(voucher_item::Column::Credit).sum(), "total_credit")
+            .into_tuple()
+            .one(&*self.db)
+            .await?;
+        let (general_debit_opt, general_credit_opt) = general_agg.unwrap_or((None, None));
+        let general_total_debit = general_debit_opt.unwrap_or(Decimal::ZERO);
+        let general_total_credit = general_credit_opt.unwrap_or(Decimal::ZERO);
+
+        // 3. 比较差异
+        let debit_diff = assist_total_debit - general_total_debit;
+        let credit_diff = assist_total_credit - general_total_credit;
+        let is_balanced = debit_diff == Decimal::ZERO && credit_diff == Decimal::ZERO;
+
+        Ok(AssistVsGeneralBalanceResult {
+            accounting_period: accounting_period.to_string(),
+            assist_total_debit,
+            assist_total_credit,
+            general_total_debit,
+            general_total_credit,
+            debit_diff,
+            credit_diff,
+            is_balanced,
+        })
     }
 
     /// 应用会计期间过滤，将期间字符串解析为日期范围
@@ -165,44 +274,59 @@ impl AssistAccountingService {
     }
 
     /// 应用维度、业务类型、仓库过滤
+    ///
+    /// V15 P1 17.2-D2 修复：实现各维度的真实过滤逻辑。
+    /// 每个维度过滤对应字段非空/非零的记录，确保维度过滤实际生效。
     fn apply_assist_filters(
         query: sea_orm::Select<assist_accounting_record::Entity>,
         dimension_code: Option<&str>,
         business_type: Option<&str>,
         warehouse_id: Option<i32>,
     ) -> sea_orm::Select<assist_accounting_record::Entity> {
-        // 按维度过滤（大部分为占位，保留原样不动）
+        let mut query = query;
+        // 按维度过滤：确保对应维度字段非空/非零
         if let Some(dimension) = dimension_code {
             match dimension {
                 "BATCH" => {
-                    // 批次过滤通过five_dimension_id或其他方式
+                    // 批次过滤：batch_no 非空字符串
+                    query = query.filter(assist_accounting_record::Column::BatchNo.ne(""));
+                    query = query.filter(assist_accounting_record::Column::BatchNo.is_not_null());
                 }
                 "COLOR" => {
-                    // 色号过滤
+                    // 色号过滤：color_no 非空字符串
+                    query = query.filter(assist_accounting_record::Column::ColorNo.ne(""));
+                    query = query.filter(assist_accounting_record::Column::ColorNo.is_not_null());
                 }
                 "DYE_LOT" => {
-                    // 缸号过滤
+                    // 缸号过滤：dye_lot_no 非空
+                    query = query.filter(assist_accounting_record::Column::DyeLotNo.is_not_null());
+                    query = query.filter(assist_accounting_record::Column::DyeLotNo.ne(""));
                 }
                 "GRADE" => {
-                    // 等级过滤
+                    // 等级过滤：grade 非空字符串
+                    query = query.filter(assist_accounting_record::Column::Grade.ne(""));
+                    query = query.filter(assist_accounting_record::Column::Grade.is_not_null());
                 }
                 "WORKSHOP" => {
-                    // 车间过滤
+                    // 车间过滤：workshop_id 非空
+                    query = query.filter(assist_accounting_record::Column::WorkshopId.is_not_null());
                 }
                 "WAREHOUSE" => {
-                    // 仓库过滤（已有warehouse_id过滤）
+                    // 仓库过滤：warehouse_id 非零（所有记录都有 warehouse_id，这里过滤有效仓库）
+                    query = query.filter(assist_accounting_record::Column::WarehouseId.gt(0));
                 }
                 "CUSTOMER" => {
-                    // 客户过滤
+                    // 客户过滤：customer_id 非空
+                    query = query.filter(assist_accounting_record::Column::CustomerId.is_not_null());
                 }
                 "SUPPLIER" => {
-                    // 供应商过滤
+                    // 供应商过滤：supplier_id 非空
+                    query = query.filter(assist_accounting_record::Column::SupplierId.is_not_null());
                 }
                 _ => {}
             }
         }
 
-        let mut query = query;
         if let Some(biz_type) = business_type {
             query = query.filter(assist_accounting_record::Column::BusinessType.eq(biz_type));
         }
@@ -243,4 +367,27 @@ fn parse_period(period: &str) -> Result<(i32, u32), AppError> {
         return Err(AppError::validation("月份必须在1-12之间"));
     }
     Ok((year, month))
+}
+
+/// V15 P1 17.2-D1：解析期间字符串为日期范围 (start, end)
+///
+/// 返回该月第一天 00:00:00 UTC 到该月最后一天 23:59:59 UTC。
+fn parse_period_range(period: &str) -> Result<(chrono::DateTime<Utc>, chrono::DateTime<Utc>), AppError> {
+    let (year, month) = parse_period(period)?;
+    let start_date = chrono::NaiveDate::from_ymd_opt(year, month, 1)
+        .ok_or_else(|| AppError::validation(format!("无效的起始日期: {}-{:02}-01", year, month)))?
+        .and_hms_opt(0, 0, 0)
+        .unwrap_or_else(|| chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap())
+        .and_utc();
+    let end_date = if month == 12 {
+        chrono::NaiveDate::from_ymd_opt(year + 1, 1, 1)
+    } else {
+        chrono::NaiveDate::from_ymd_opt(year, month + 1, 1)
+    }
+    .ok_or_else(|| AppError::validation(format!("无效的结束日期: {}-{:02}", year, month)))?
+    .and_hms_opt(0, 0, 0)
+    .unwrap_or_else(|| chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap())
+    .and_utc()
+    - chrono::Duration::seconds(1);
+    Ok((start_date, end_date))
 }

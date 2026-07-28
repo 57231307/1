@@ -4,6 +4,7 @@ use crate::models::fund_transfer_record;
 use crate::models::status::master_data;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
+use chrono::{Duration, Local, NaiveDate};
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, Order,
@@ -11,6 +12,25 @@ use sea_orm::{
 };
 use std::sync::Arc;
 use tracing::info;
+
+/// V15 P1 17.6-D3：资金账户类型常量
+///
+/// 不同账户类型对账方式与风控规则不同，需差异化处理。
+pub mod account_type {
+    /// 银行账户（需银企对账，支持大额验证）
+    pub const BANK: &str = "bank";
+    /// 现金账户（无对账，仅手工盘点）
+    pub const CASH: &str = "cash";
+    /// 支付宝账户（第三方支付对账）
+    pub const ALIPAY: &str = "alipay";
+    /// 微信支付账户（第三方支付对账）
+    pub const WECHAT: &str = "wechat";
+}
+
+/// V15 P1 17.6-D3：判断账户类型是否需要银企对账
+pub fn requires_reconciliation(account_type: &str) -> bool {
+    matches!(account_type, account_type::BANK | account_type::ALIPAY | account_type::WECHAT)
+}
 
 /// 资金账户查询参数
 #[derive(Debug, Clone, Default)]
@@ -472,4 +492,240 @@ impl FundManagementService {
             .await?
             .ok_or_else(|| AppError::not_found("资金转账记录"))
     }
+
+    /// V15 P1 17.6-D2：现金流预测
+    ///
+    /// 基于未核销应收发票（到期日收款流入）与未付应付发票（到期日付款流出），
+    /// 预测未来 N 天（默认 30 天）每日现金流缺口，支持融资决策。
+    ///
+    /// 参数：
+    /// - days：预测天数（1-90，默认 30）
+    ///
+    /// 返回：按日期聚合的现金流预测点列表（含期初余额累计）
+    pub async fn cash_flow_forecast(
+        &self,
+        days: Option<i32>,
+    ) -> Result<Vec<CashFlowForecastPoint>, AppError> {
+        let days = days.unwrap_or(30).clamp(1, 90);
+        let today = Local::now().date_naive();
+        let horizon = today + Duration::days(days as i64);
+
+        // 期初余额：当前所有 active 账户的可用余额合计
+        let accounts = fund_management::Entity::find()
+            .filter(fund_management::Column::Status.eq(master_data::ACTIVE))
+            .all(&*self.db)
+            .await?;
+        let opening_balance: Decimal = accounts.iter().map(|a| a.available_balance).sum();
+
+        // 应收流入：未核销应收发票（未取消，未付金额>0，到期日在 [today, horizon]）
+        let ar_invoices = crate::models::ar_invoice::Entity::find()
+            .filter(crate::models::ar_invoice::Column::Status.ne("CANCELLED"))
+            .filter(crate::models::ar_invoice::Column::UnpaidAmount.gt(Decimal::ZERO))
+            .filter(crate::models::ar_invoice::Column::DueDate.gte(today))
+            .filter(crate::models::ar_invoice::Column::DueDate.lte(horizon))
+            .all(&*self.db)
+            .await?;
+
+        // 应付流出：未付应付发票（未取消，未付金额>0，到期日在 [today, horizon]）
+        let ap_invoices = crate::models::ap_invoice::Entity::find()
+            .filter(crate::models::ap_invoice::Column::InvoiceStatus.ne("CANCELLED"))
+            .filter(crate::models::ap_invoice::Column::UnpaidAmount.gt(Decimal::ZERO))
+            .filter(crate::models::ap_invoice::Column::DueDate.gte(today))
+            .filter(crate::models::ap_invoice::Column::DueDate.lte(horizon))
+            .all(&*self.db)
+            .await?;
+
+        // 按日期聚合
+        let mut daily_map: std::collections::HashMap<NaiveDate, (Decimal, Decimal)> =
+            std::collections::HashMap::new();
+        for inv in &ar_invoices {
+            let entry = daily_map.entry(inv.due_date).or_insert_with(|| (Decimal::ZERO, Decimal::ZERO));
+            entry.0 += inv.unpaid_amount;
+        }
+        for inv in &ap_invoices {
+            let entry = daily_map.entry(inv.due_date).or_insert_with(|| (Decimal::ZERO, Decimal::ZERO));
+            entry.1 += inv.unpaid_amount;
+        }
+
+        // 按日期升序构造预测点，累计余额
+        let mut dates: Vec<NaiveDate> = daily_map.keys().copied().collect();
+        dates.sort();
+        let mut points = Vec::with_capacity(dates.len());
+        let mut running = opening_balance;
+        for d in dates {
+            let (inflow, outflow) = daily_map[&d];
+            let net = inflow - outflow;
+            running += net;
+            points.push(CashFlowForecastPoint {
+                date: d,
+                inflow,
+                outflow,
+                net_flow: net,
+                projected_balance: running,
+            });
+        }
+        Ok(points)
+    }
+
+    /// V15 P1 17.6-D3：按账户类型差异化查询
+    ///
+    /// 返回指定账户类型的所有活跃账户，并对不同类型给出风控提示：
+    /// - bank：需银企对账
+    /// - alipay/wechat：需第三方对账
+    /// - cash：需手工盘点
+    pub async fn list_accounts_by_type(
+        &self,
+        account_type: &str,
+    ) -> Result<Vec<AccountWithTypeHint>, AppError> {
+        let accounts = fund_management::Entity::find()
+            .filter(fund_management::Column::AccountType.eq(account_type))
+            .filter(fund_management::Column::Status.eq(master_data::ACTIVE))
+            .order_by(fund_management::Column::Id, Order::Asc)
+            .all(&*self.db)
+            .await?;
+        let reconciliation_required = requires_reconciliation(account_type);
+        let control_hint = match account_type {
+            account_type::BANK => "银行账户需定期银企对账".to_string(),
+            account_type::ALIPAY => "支付宝账户需第三方对账".to_string(),
+            account_type::WECHAT => "微信账户需第三方对账".to_string(),
+            account_type::CASH => "现金账户需月末手工盘点".to_string(),
+            _ => "未知账户类型".to_string(),
+        };
+        Ok(accounts
+            .into_iter()
+            .map(|a| AccountWithTypeHint {
+                account: a,
+                reconciliation_required,
+                control_hint: control_hint.clone(),
+            })
+            .collect())
+    }
+
+    /// V15 P1 17.6-D4：银企对账
+    ///
+    /// 对比系统资金账户余额与银行对账单余额，输出差异列表。
+    /// 差异类型：timing（在途）、missing（系统缺失）、error（系统错误）。
+    ///
+    /// 参数：
+    /// - account_id：资金账户 ID（必须为 bank/alipay/wechat 类型）
+    /// - bank_statement_balance：银行/第三方对账单余额
+    /// - statement_date：对账单日期
+    pub async fn bank_reconciliation(
+        &self,
+        account_id: i32,
+        bank_statement_balance: Decimal,
+        statement_date: NaiveDate,
+    ) -> Result<BankReconciliationResult, AppError> {
+        let account = self.get_account_by_id(account_id).await?;
+
+        if !requires_reconciliation(&account.account_type) {
+            return Err(AppError::validation(format!(
+                "账户类型 {} 不支持银企对账（仅 bank/alipay/wechat 支持）",
+                account.account_type
+            )));
+        }
+
+        let system_balance = account.balance;
+        let difference = bank_statement_balance - system_balance;
+
+        // 查询在途转账：对账单日期当天及之前发起、但状态非 COMPLETED 的转账
+        let pending_transfers = fund_transfer_record::Entity::find()
+            .filter(fund_transfer_record::Column::FromAccountId.eq(account_id))
+            .filter(fund_transfer_record::Column::TransferDate.lte(statement_date))
+            .filter(fund_transfer_record::Column::Status.ne("COMPLETED"))
+            .all(&*self.db)
+            .await?;
+        let pending_out: Decimal = pending_transfers.iter().map(|t| t.amount).sum();
+
+        let pending_in_transfers = fund_transfer_record::Entity::find()
+            .filter(fund_transfer_record::Column::ToAccountId.eq(account_id))
+            .filter(fund_transfer_record::Column::TransferDate.lte(statement_date))
+            .filter(fund_transfer_record::Column::Status.ne("COMPLETED"))
+            .all(&*self.db)
+            .await?;
+        let pending_in: Decimal = pending_in_transfers.iter().map(|t| t.amount).sum();
+
+        let timing_diff = pending_in - pending_out;
+        let adjusted_difference = difference - timing_diff;
+
+        // 差异分类
+        let diff_type = if adjusted_difference.abs() < Decimal::new(1, 2) {
+            // |adjusted_difference| < 0.01 视为对平
+            "balanced".to_string()
+        } else if adjusted_difference > Decimal::ZERO {
+            "system_missing".to_string() // 银行有，系统无
+        } else {
+            "system_excess".to_string() // 系统有，银行无
+        };
+
+        Ok(BankReconciliationResult {
+            account_id,
+            account_no: account.account_no,
+            account_name: account.account_name,
+            statement_date,
+            system_balance,
+            bank_statement_balance,
+            difference,
+            timing_difference: timing_diff,
+            adjusted_difference,
+            diff_type,
+            pending_out_count: pending_transfers.len() as i64,
+            pending_in_count: pending_in_transfers.len() as i64,
+        })
+    }
+}
+
+/// V15 P1 17.6-D2：现金流预测数据点
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct CashFlowForecastPoint {
+    /// 日期
+    pub date: NaiveDate,
+    /// 当日流入（应收到期）
+    pub inflow: Decimal,
+    /// 当日流出（应付到期）
+    pub outflow: Decimal,
+    /// 当日净流 = 流入 - 流出
+    pub net_flow: Decimal,
+    /// 累计预计余额（含期初余额）
+    pub projected_balance: Decimal,
+}
+
+/// V15 P1 17.6-D3：账户 + 类型风控提示
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AccountWithTypeHint {
+    /// 账户模型
+    pub account: fund_management::Model,
+    /// 是否需要银企对账
+    pub reconciliation_required: bool,
+    /// 风控提示
+    pub control_hint: String,
+}
+
+/// V15 P1 17.6-D4：银企对账结果
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct BankReconciliationResult {
+    /// 账户 ID
+    pub account_id: i32,
+    /// 账户编号
+    pub account_no: String,
+    /// 账户名称
+    pub account_name: String,
+    /// 对账单日期
+    pub statement_date: NaiveDate,
+    /// 系统余额
+    pub system_balance: Decimal,
+    /// 银行对账单余额
+    pub bank_statement_balance: Decimal,
+    /// 原始差异 = 银行余额 - 系统余额
+    pub difference: Decimal,
+    /// 在途差异 = 在途流入 - 在途流出
+    pub timing_difference: Decimal,
+    /// 调整后差异 = 原始差异 - 在途差异
+    pub adjusted_difference: Decimal,
+    /// 差异分类：balanced / system_missing / system_excess
+    pub diff_type: String,
+    /// 在途转出笔数
+    pub pending_out_count: i64,
+    /// 在途转入笔数
+    pub pending_in_count: i64,
 }

@@ -10,6 +10,7 @@
  */
 import { ref, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
+import { msg } from '@/utils/message';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import {
   getMaterialShortageSummary,
@@ -51,7 +52,7 @@ export function useMs() {
     },
     onError: (err: unknown) => {
       logger.error('获取缺料列表失败', err);
-      ElMessage.error('获取缺料列表失败');
+      msg.error('loadMaterialShortageFailed');
     },
   });
 

@@ -11,7 +11,7 @@
  *   避免子组件 prop 期望 boolean/array 等基础类型时类型不匹配
  */
 import { ref, watch, reactive } from 'vue';
-import { ElMessage } from 'element-plus';
+import { msg } from '@/utils/message';
 import {
   getVoucher,
   createVoucher,
@@ -59,7 +59,7 @@ export function useVchrLst() {
     },
     onError: (err: unknown) => {
       logger.error('获取凭证列表失败', err);
-      ElMessage.error('获取凭证列表失败');
+      msg.error('loadVoucherListFailed');
     },
   });
 
@@ -185,7 +185,7 @@ export function useVchrLst() {
       ];
     } catch (error) {
       logger.error('生成凭证号失败', error);
-      ElMessage.error('生成凭证号失败');
+      msg.error('generateVoucherNoFailed');
     }
   };
 
@@ -204,43 +204,43 @@ export function useVchrLst() {
       if (res.data) viewData.value = res.data;
     } catch (error) {
       logger.error('获取详情失败', error);
-      ElMessage.error('获取详情失败');
+      msg.error('loadDetailFailed');
     }
   };
 
   /** 提交表单（新增/编辑） */
   const handleSubmit = async () => {
     if (!form.voucher_no || !form.voucher_date) {
-      ElMessage.warning('请填写必填字段');
+      msg.warning('requiredFieldsMissing');
       return false;
     }
     const totalDebit = form.total_debit ?? 0;
     const totalCredit = form.total_credit ?? 0;
     if (Math.abs(totalDebit - totalCredit) > 0.01) {
-      ElMessage.warning('借贷不平');
+      msg.warning('entriesUnbalanced');
       return false;
     }
     const validEntries = (form.entries || []).filter(
       e => e.account_subject_id > 0 && (e.debit_amount > 0 || e.credit_amount > 0)
     );
     if (validEntries.length === 0) {
-      ElMessage.warning('请至少添加一条有效的分录');
+      msg.warning('pleaseAddEntry');
       return false;
     }
     try {
       const data = { ...form, entries: validEntries };
       if (form.id) {
         await updateVoucher(form.id, data);
-        ElMessage.success('更新成功');
+        msg.success('updateSuccess');
       } else {
         await createVoucher(data);
-        ElMessage.success('新增成功');
+        msg.success('createSuccess');
       }
       await loadData();
       return true;
     } catch (error) {
       logger.error('操作失败', error);
-      ElMessage.error('操作失败');
+      msg.error('operationFailed');
       return false;
     }
   };

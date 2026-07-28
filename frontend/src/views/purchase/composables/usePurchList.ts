@@ -4,6 +4,7 @@
  */
 import { ref, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
+import { msg } from '@/utils/message';
 import { getPurchaseOrderList, type PurchaseOrder } from '@/api/purchase';
 import type { Supplier } from '@/api/supplier';
 import type { Product } from '@/api/product';
@@ -124,7 +125,7 @@ export function usePurchList() {
       stats.value.monthAmount = orders.value.reduce((sum, o) => sum + (o.total_amount || 0), 0);
       stats.value.pendingReceipt = orders.value.filter(o => o.status === 'approved').length;
     } catch (error: unknown) {
-      ElMessage.error((error instanceof Error ? error.message : '') || '获取采购单列表失败');
+      ElMessage.error((error instanceof Error ? error.message : '') || msg.translate('loadPurchaseOrderListFailed'));
       orders.value = [];
       total.value = 0;
     } finally {

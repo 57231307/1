@@ -7,6 +7,7 @@
  */
 import { ref, reactive } from 'vue';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
+import { msg } from '@/utils/message';
 import {
   createApiEndpoint,
   updateApiEndpoint,
@@ -31,7 +32,7 @@ export function useApiEp() {
   } = useTableApi<ApiEndpoint>({
     url: '/api-gateway/endpoints',
     onError: (err: unknown) =>
-      ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取接口失败'),
+      ElMessage.error((err instanceof Error ? err.message : String(err)) || msg.translate('loadApiEndpointFailed')),
   });
 
   const endpointDialogVisible = ref(false);
@@ -103,7 +104,7 @@ export function useApiEp() {
           try {
             endpointForm.request_schema = JSON.parse(requestSchemaText.value);
           } catch (_e) {
-            ElMessage.error('请求Schema格式错误');
+            msg.error('invalidRequestSchema');
             return;
           }
         }
@@ -111,7 +112,7 @@ export function useApiEp() {
           try {
             endpointForm.response_schema = JSON.parse(responseSchemaText.value);
           } catch (_e) {
-            ElMessage.error('响应Schema格式错误');
+            msg.error('invalidResponseSchema');
             return;
           }
         }
@@ -120,11 +121,11 @@ export function useApiEp() {
         } else {
           await createApiEndpoint(endpointForm);
         }
-        ElMessage.success('操作成功');
+        msg.success('operationSuccess');
         endpointDialogVisible.value = false;
         await fetchEndpoints();
       } catch (error: unknown) {
-        ElMessage.error((error instanceof Error ? error.message : String(error)) || '操作失败');
+        ElMessage.error((error instanceof Error ? error.message : String(error)) || msg.translate('operationFailed'));
       } finally {
         endpointSubmitLoading.value = false;
       }
@@ -135,11 +136,11 @@ export function useApiEp() {
     try {
       await ElMessageBox.confirm('确定要删除此接口吗？', '确认删除', { type: 'warning' });
       await deleteApiEndpoint(row.id);
-      ElMessage.success('删除成功');
+      msg.success('deleteSuccess');
       await fetchEndpoints();
     } catch (error: unknown) {
       if (error !== 'cancel')
-        ElMessage.error((error instanceof Error ? error.message : String(error)) || '删除失败');
+        ElMessage.error((error instanceof Error ? error.message : String(error)) || msg.translate('deleteFailed'));
     }
   };
 

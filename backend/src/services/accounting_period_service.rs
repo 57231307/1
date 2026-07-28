@@ -1,5 +1,6 @@
 use crate::models::accounting_period;
 use crate::models::status::accounting_period as period_status;
+use crate::models::status::accounting_period_closing as period_closing;
 use crate::models::status::voucher::VOUCHER_POSTED;
 use crate::utils::error::AppError;
 use chrono::{TimeZone, Utc};
@@ -71,6 +72,10 @@ impl AccountingPeriodService {
     }
 
     /// 执行月末结账
+    ///
+    /// V15 P1 17.1-D1 修复：引入 CLOSING 中间状态。
+    /// 结账流程：OPEN →（置 CLOSING）→ 试算平衡/结转 → CLOSED（成功） / 回滚 OPEN（失败）。
+    /// CLOSING 状态对外可见，便于并发场景区分"结账中"与"已结账"。
     pub async fn close_period(
         &self,
         period_id: i32,
@@ -79,12 +84,15 @@ impl AccountingPeriodService {
         // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
         let txn = (*self.db).begin().await?;
         let period = self.lock_period_for_close_txn(&txn, period_id).await?;
+        // V15 P1 17.1-D1：置为 CLOSING 中间状态（事务内，失败自动回滚为 OPEN）
+        self.mark_period_closing_txn(&txn, &period, user_id).await?;
         self.check_unposted_vouchers_txn(&txn, period.start_date, period.end_date)
             .await?;
         // F-P1-1 修复（批次 360 v13 复审）：试算平衡校验兜底
         let (total_debit, total_credit) =
             self.check_trial_balance_txn(&txn, period.start_date, period.end_date).await?;
         if total_debit != total_credit {
+            // V15 P1 17.1-D1：试算不平衡，事务回滚自动恢复 OPEN
             return Err(AppError::business(format!(
                 "试算不平衡：本期借方总额 {} ≠ 贷方总额 {}，差额 {}，无法关闭期间",
                 total_debit, total_credit, total_debit - total_credit
@@ -104,6 +112,286 @@ impl AccountingPeriodService {
         Ok(closed_period)
     }
 
+    /// V15 P1 17.1-D2：反结账（重开期间）
+    ///
+    /// 业务规则：
+    /// 1. 仅 CLOSED 状态的期间可反结账；CLOSING 状态不可（结账中无法重开）
+    /// 2. 仅最近一个已结账期间可反结账（防止跳过中间期间导致数据断层）
+    /// 3. 下一个期间必须存在且为 OPEN 状态（确保期间连续性）
+    /// 4. 反结账后期间状态恢复为 OPEN，清空 closed_at/closed_by
+    /// 5. 操作写入审计日志，记录"反结账"操作类型
+    pub async fn reopen_period(
+        &self,
+        period_id: i32,
+        user_id: i32,
+        reason: &str,
+    ) -> Result<accounting_period::Model, AppError> {
+        if reason.trim().is_empty() {
+            return Err(AppError::validation("反结账失败：原因不能为空"));
+        }
+        let txn = (*self.db).begin().await?;
+        // 锁定期间防止并发
+        let period = accounting_period::Entity::find_by_id(period_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| {
+                AppError::not_found(format!("Accounting period {} not found", period_id))
+            })?;
+        if period.status != period_status::CLOSED {
+            return Err(AppError::business(format!(
+                "反结账失败：期间 {} 当前状态为 {}，仅 CLOSED 状态可反结账",
+                period_id, period.status
+            )));
+        }
+        // 校验为最近一个已结账期间（按 year+period 倒序找首条 CLOSED）
+        let latest_closed = accounting_period::Entity::find()
+            .filter(accounting_period::Column::Status.eq(period_status::CLOSED))
+            .order_by_desc(accounting_period::Column::Year)
+            .order_by_desc(accounting_period::Column::Period)
+            .one(&txn)
+            .await?;
+        if let Some(latest) = latest_closed {
+            if latest.id != period.id {
+                return Err(AppError::business(format!(
+                    "反结账失败：仅最近一个已结账期间可反结账，最近已结账期间为 {}（{}）",
+                    latest.period_name, latest.id
+                )));
+            }
+        }
+        // 校验下一个期间存在且为 OPEN（确保期间连续性）
+        let (next_year, next_period) = calc_next_period(period.year, period.period);
+        let next_period_exists = accounting_period::Entity::find()
+            .filter(accounting_period::Column::Year.eq(next_year))
+            .filter(accounting_period::Column::Period.eq(next_period))
+            .one(&txn)
+            .await?;
+        if next_period_exists.is_none() {
+            return Err(AppError::business(format!(
+                "反结账失败：下一期间 {}-{:02} 不存在，无法保证期间连续性",
+                next_year, next_period
+            )));
+        }
+        if let Some(next_p) = &next_period_exists {
+            if next_p.status != period_status::OPEN {
+                return Err(AppError::business(format!(
+                    "反结账失败：下一期间 {} 状态为 {}，必须为 OPEN",
+                    next_p.period_name, next_p.status
+                )));
+            }
+        }
+        // 反结账：状态恢复 OPEN，清空 closed_at/closed_by
+        let mut active: accounting_period::ActiveModel = period.into();
+        active.status = Set(period_status::OPEN.to_string());
+        active.closed_at = Set(None);
+        active.closed_by = Set(None);
+        let reopened = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active,
+            Some(user_id),
+        )
+        .await?;
+        txn.commit().await?;
+        tracing::info!(
+            "用户 {} 反结账期间 {}（{}），原因：{}",
+            user_id, period_id, reopened.period_name, reason
+        );
+        Ok(reopened)
+    }
+
+    /// V15 P1 17.1-D3：年结（年度结账）
+    ///
+    /// 业务规则：
+    /// 1. 校验指定年度 1-12 月所有期间均为 CLOSED 状态（防止遗漏未结账月份）
+    /// 2. 将所有损益科目（收入类 6xxx / 成本费用类 5xxx）余额结转至"4104 未分配利润"
+    /// 3. 结转后损益科目余额为零，资产负债表平账
+    /// 4. 创建下一年度 1 月期间（若不存在）
+    /// 5. 操作写入审计日志
+    pub async fn year_end_closing(
+        &self,
+        year: i32,
+        user_id: i32,
+    ) -> Result<serde_json::Value, AppError> {
+        let txn = (*self.db).begin().await?;
+        // 1. 校验所有月份均已结账
+        let year_periods = accounting_period::Entity::find()
+            .filter(accounting_period::Column::Year.eq(year))
+            .order_by_asc(accounting_period::Column::Period)
+            .all(&txn)
+            .await?;
+        if year_periods.len() != 12 {
+            return Err(AppError::business(format!(
+                "年结失败：年度 {} 仅有 {} 个期间，需 12 个月完整",
+                year, year_periods.len()
+            )));
+        }
+        for p in &year_periods {
+            if p.status != period_status::CLOSED {
+                return Err(AppError::business(format!(
+                    "年结失败：期间 {}（{}）状态为 {}，需全部 CLOSED",
+                    p.period_name, p.id, p.status
+                )));
+            }
+        }
+        // 2. 结转损益科目余额至未分配利润
+        let transfer_result = self
+            .transfer_profit_loss_to_retained_earnings_txn(&txn, year, user_id)
+            .await?;
+        // 3. 创建下一年度 1 月期间（若不存在）
+        let next_year = year + 1;
+        let existing_next = accounting_period::Entity::find()
+            .filter(accounting_period::Column::Year.eq(next_year))
+            .filter(accounting_period::Column::Period.eq(1))
+            .one(&txn)
+            .await?;
+        if existing_next.is_none() {
+            let start_date = Utc
+                .with_ymd_and_hms(next_year, 1, 1, 0, 0, 0)
+                .single()
+                .ok_or_else(|| {
+                    AppError::bad_request(format!("Invalid date: {}-01-01", next_year))
+                })?;
+            let end_date = Utc
+                .with_ymd_and_hms(next_year, 2, 1, 0, 0, 0)
+                .single()
+                .ok_or_else(|| {
+                    AppError::bad_request(format!("Invalid date: {}-02-01", next_year))
+                })?
+                - chrono::Duration::seconds(1);
+            let new_period = accounting_period::ActiveModel {
+                year: Set(next_year),
+                period: Set(1),
+                period_name: Set(format!("{} 年 01 月", next_year)),
+                start_date: Set(start_date),
+                end_date: Set(end_date),
+                status: Set(period_status::OPEN.to_string()),
+                created_at: Set(Utc::now()),
+                ..Default::default()
+            };
+            new_period.insert(&txn).await?;
+        }
+        txn.commit().await?;
+        tracing::info!(
+            "用户 {} 完成年度 {} 年结：结转 {} 个科目，未分配利润调整 {}",
+            user_id, year, transfer_result.transferred_subjects, transfer_result.retained_earnings_adjustment
+        );
+        Ok(serde_json::json!({
+            "year": year,
+            "next_year": next_year,
+            "transferred_subjects": transfer_result.transferred_subjects,
+            "retained_earnings_adjustment": transfer_result.retained_earnings_adjustment,
+            "operator_id": user_id,
+            "operated_at": Utc::now(),
+        }))
+    }
+
+    /// V15 P1 17.1-D1：将期间标记为 CLOSING 中间状态（事务内）
+    async fn mark_period_closing_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        period: &accounting_period::Model,
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        let mut active: accounting_period::ActiveModel = period.clone().into();
+        active.status = Set(period_closing::CLOSING.to_string());
+        let _ = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            txn,
+            "auto_audit",
+            active,
+            Some(user_id),
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// V15 P1 17.1-D3：年结损益科目结转至未分配利润（4104）
+    ///
+    /// 损益科目编码规则（中国企业会计准则）：
+    /// - 收入类：6xxx（主营业务收入、其他业务收入、营业外收入等）
+    /// - 成本费用类：5xxx（主营业务成本、销售费用、管理费用、财务费用等）
+    /// 结转后损益科目余额为零，净额计入 4104 未分配利润。
+    async fn transfer_profit_loss_to_retained_earnings_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        year: i32,
+        _user_id: i32,
+    ) -> Result<YearEndTransferResult, AppError> {
+        use crate::models::{account_balance, account_subject};
+        // 查询所有损益类科目（编码以 5 或 6 开头）
+        let pl_subjects = account_subject::Entity::find()
+            .filter(account_subject::Column::Code.starts_with("5"))
+            .or_filter(account_subject::Column::Code.starts_with("6"))
+            .all(txn)
+            .await?;
+        let pl_subject_ids: Vec<i32> = pl_subjects.iter().map(|s| s.id).collect();
+        if pl_subject_ids.is_empty() {
+            return Ok(YearEndTransferResult {
+                transferred_subjects: 0,
+                retained_earnings_adjustment: Decimal::ZERO,
+            });
+        }
+        // 查询 4104 未分配利润科目
+        let retained_earnings_subject = account_subject::Entity::find()
+            .filter(account_subject::Column::Code.eq("4104"))
+            .one(txn)
+            .await?
+            .ok_or_else(|| {
+                AppError::business("年结失败：未找到 4104 未分配利润科目".to_string())
+            })?;
+        // 汇总全年各损益科目的期末余额（12 月期末 = 全年累计）
+        let december_period = format!("{:04}-12", year);
+        let pl_balances: Vec<account_balance::Model> = account_balance::Entity::find()
+            .filter(account_balance::Column::Period.eq(&december_period))
+            .filter(account_balance::Column::SubjectId.is_in(pl_subject_ids.clone()))
+            .all(txn)
+            .await?;
+        // 计算净损益 = 收入类贷方余额 - 成本费用类借方余额
+        let mut net_profit = Decimal::ZERO;
+        let mut transferred_count = 0u64;
+        for balance in &pl_balances {
+            let subject = pl_subjects.iter().find(|s| s.id == balance.subject_id);
+            if let Some(subj) = subject {
+                let code = &subj.code;
+                if code.starts_with('6') {
+                    // 收入类：贷方余额，结转后借记收入科目、贷记未分配利润
+                    let credit_balance = balance.ending_balance_credit - balance.ending_balance_debit;
+                    if credit_balance != Decimal::ZERO {
+                        net_profit += credit_balance;
+                        transferred_count += 1;
+                    }
+                } else if code.starts_with('5') {
+                    // 成本费用类：借方余额，结转后借记未分配利润、贷记费用科目
+                    let debit_balance = balance.ending_balance_debit - balance.ending_balance_credit;
+                    if debit_balance != Decimal::ZERO {
+                        net_profit -= debit_balance;
+                        transferred_count += 1;
+                    }
+                }
+            }
+        }
+        // 更新 4104 未分配利润的期末余额（净损益计入）
+        let re_balance = account_balance::Entity::find()
+            .filter(account_balance::Column::SubjectId.eq(retained_earnings_subject.id))
+            .filter(account_balance::Column::Period.eq(&december_period))
+            .one(txn)
+            .await?;
+        if let Some(re) = re_balance {
+            let mut active: account_balance::ActiveModel = re.into();
+            if net_profit >= Decimal::ZERO {
+                active.ending_balance_credit = Set(net_profit);
+            } else {
+                active.ending_balance_debit = Set(-net_profit);
+            }
+            active.updated_at = Set(Utc::now());
+            active.update(txn).await?;
+        }
+        Ok(YearEndTransferResult {
+            transferred_subjects: transferred_count,
+            retained_earnings_adjustment: net_profit,
+        })
+    }
+
     /// 事务内锁定会计期间并校验是否已结账
     async fn lock_period_for_close_txn(
         &self,
@@ -119,6 +407,10 @@ impl AccountingPeriodService {
             })?;
         if period.status == period_status::CLOSED {
             return Err(AppError::business("期间已经结账，不能重复结账".to_string()));
+        }
+        // V15 P1 17.1-D1：CLOSING 状态拒绝重复结账（防止并发结账）
+        if period.status == period_closing::CLOSING {
+            return Err(AppError::business("期间正在结账中（CLOSING），不能重复发起结账".to_string()));
         }
         Ok(period)
     }
@@ -399,6 +691,15 @@ fn calc_next_period(year: i32, period: i32) -> (i32, i32) {
     } else {
         (year, period + 1)
     }
+}
+
+/// V15 P1 17.1-D3：年结损益结转结果
+#[derive(Debug, Clone)]
+struct YearEndTransferResult {
+    /// 结转的损益科目数
+    transferred_subjects: u64,
+    /// 未分配利润调整额（正数为净收益，负数为净亏损）
+    retained_earnings_adjustment: Decimal,
 }
 
 #[cfg(test)]

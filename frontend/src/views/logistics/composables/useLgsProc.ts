@@ -8,7 +8,8 @@
  * 内部访问 cb.isEdit.value 等即可修改实际 ref 的 value
  */
 import { reactive, computed } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessageBox } from 'element-plus';
+import { msg } from '@/utils/message';
 import {
   getLogisticsById,
   updateLogistics,
@@ -122,10 +123,10 @@ export function useLgsProc(cb: LgsCallbacks) {
     try {
       if (cb.isEdit && cb.formData.id) {
         await updateLogistics(cb.formData.id, cb.formData);
-        ElMessage.success('更新成功');
+        msg.success('updateSuccess');
       } else {
         await createLogistics(cb.formData);
-        ElMessage.success('创建成功');
+        msg.success('createSuccess');
       }
       cb.dialogVisible = false;
       await cb.fetchData();
@@ -141,7 +142,7 @@ export function useLgsProc(cb: LgsCallbacks) {
     try {
       await ElMessageBox.confirm('确定要发货吗？', '提示', { type: 'warning' });
       await updateLogistics(row.id!, { status: 'shipped' });
-      ElMessage.success('发货成功');
+      msg.success('shipSuccess');
       await cb.fetchData();
     } catch (error) {
       if (error !== 'cancel') {
@@ -162,7 +163,7 @@ export function useLgsProc(cb: LgsCallbacks) {
   const handleStatusSubmit = async () => {
     try {
       await updateLogistics(cb.statusForm.id, { status: cb.statusForm.newStatus as WaybillStatus });
-      ElMessage.success('状态更新成功');
+      msg.success('statusUpdateSuccess');
       cb.statusDialogVisible = false;
       await cb.fetchData();
     } catch (error) {
@@ -175,7 +176,7 @@ export function useLgsProc(cb: LgsCallbacks) {
     try {
       await ElMessageBox.confirm('确定要删除该运单吗？', '提示', { type: 'warning' });
       await deleteLogistics(row.id!);
-      ElMessage.success('删除成功');
+      msg.success('deleteSuccess');
       await cb.fetchData();
     } catch (error) {
       if (error !== 'cancel') {

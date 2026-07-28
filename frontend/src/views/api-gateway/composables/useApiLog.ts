@@ -7,6 +7,7 @@
  */
 import { ref, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
+import { msg } from '@/utils/message';
 import { type ApiLog } from '@/api/api-gateway';
 import { useTableApi } from '@/composables/useTableApi';
 
@@ -26,7 +27,7 @@ export function useApiLog() {
   } = useTableApi<ApiLog>({
     url: '/api-gateway/logs',
     onError: (err: unknown) =>
-      ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取日志失败'),
+      ElMessage.error((err instanceof Error ? err.message : String(err)) || msg.translate('loadApiLogFailed')),
   });
 
   const logDetailVisible = ref(false);

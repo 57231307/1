@@ -8,6 +8,7 @@
  */
 import { ref, reactive, watch } from 'vue';
 import { ElMessage } from 'element-plus';
+import { msg } from '@/utils/message';
 import {
   detectSchedulingConflicts,
   adjustSchedulingTask,
@@ -48,7 +49,7 @@ export function useSchM() {
     },
     onError: (err: unknown) => {
       logger.error('获取排程任务失败:', err);
-      ElMessage.error('获取排程任务失败');
+      msg.error('loadScheduleTaskFailed');
     },
   });
 
@@ -115,7 +116,7 @@ export function useSchM() {
     } catch (error: unknown) {
       // v11 批次 181 P2-1 修复：catch (error: any) 改为 catch (error: unknown) + 类型守卫
       const errMsg = error instanceof Error ? error.message : String(error);
-      ElMessage.error(errMsg || '获取冲突列表失败');
+      ElMessage.error(errMsg || msg.translate('loadConflictListFailed'));
       conflictList.value = [];
     } finally {
       conflictLoading.value = false;
@@ -148,14 +149,14 @@ export function useSchM() {
         start_time: adjustForm.value.start_time,
         end_time: adjustForm.value.end_time,
       });
-      ElMessage.success('排程调整成功');
+      msg.success('scheduleAdjustedSuccess');
       adjustDialogVisible.value = false;
       await fetchTasks();
       return true;
     } catch (error: unknown) {
       // v11 批次 181 P2-1 修复：catch (error: any) 改为 catch (error: unknown) + 类型守卫
       const errMsg = error instanceof Error ? error.message : String(error);
-      ElMessage.error(errMsg || '排程调整失败');
+      ElMessage.error(errMsg || msg.translate('scheduleAdjustFailed'));
       return false;
     } finally {
       adjusting.value = false;
@@ -164,7 +165,7 @@ export function useSchM() {
 
   /** 显示冲突详情（轻量提示） */
   const showConflictDetail = (task: ScheduleTask) => {
-    ElMessage.warning(`工单 ${task.order_no} 存在排程冲突: ${task.conflict_details || '时间重叠'}`);
+    msg.warning('scheduleConflict', { orderNo: task.order_no, details: task.conflict_details || msg.translate('timeOverlap') });
   };
 
   /** 初始化加载（列表由 useTableApi setup 自动加载，此处仅懒加载冲突） */

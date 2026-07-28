@@ -35,6 +35,20 @@ pub struct Model {
     pub lab_dip_request_id: Option<i32>,
     /// V15 P0-B11：关联报价单 ID，lab_dip→quotation 状态时填入，报价审批通过后同步 total_amount
     pub quotation_id: Option<i64>,
+    /// V15 P1 batch-19 缺陷 23.2.2：客户签字确认时间，未确认禁止推进到 yarn_purchasing
+    pub customer_approved_at: Option<DateTime<Utc>>,
+    /// V15 P1 batch-19 缺陷 23.2.2：客户确认备注（客户对定制订单整体签字确认时填写）
+    pub customer_approval_comment: Option<String>,
+    /// V15 P1 batch-19 缺陷 23.2.2：客户专属质量标准 ID（关联 quality_standards.id），质检时按客户专属标准
+    pub quality_standard_id: Option<i32>,
+    /// V15 P1 batch-19 缺陷 23.2.3：BPM 变更审批实例 ID（非 draft 状态变更走二级审批）
+    pub approval_instance_id: Option<i64>,
+    /// V15 P1 batch-19 缺陷 23.2.3：审批人 user_id
+    pub approved_by: Option<i64>,
+    /// V15 P1 batch-19 缺陷 23.2.3：审批时间
+    pub approved_at: Option<DateTime<Utc>>,
+    /// V15 P1 batch-19 缺陷 23.2.3：审批拒绝原因
+    pub rejection_reason: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -89,6 +103,13 @@ pub enum Relation {
         to = "super::sales_quotation::Column::Id"
     )]
     SalesQuotation,
+    /// V15 P1 batch-19 缺陷 23.2.2：关联客户专属质量标准
+    #[sea_orm(
+        belongs_to = "super::quality_standard::Entity",
+        from = "Column::QualityStandardId",
+        to = "super::quality_standard::Column::Id"
+    )]
+    QualityStandard,
 }
 
 impl Related<super::process_node::Entity> for Entity {

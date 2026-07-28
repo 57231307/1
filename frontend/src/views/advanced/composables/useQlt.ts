@@ -4,6 +4,7 @@
  */
 import { ref } from 'vue';
 import { ElMessage } from 'element-plus';
+import { msg } from '@/utils/message';
 import { predictQuality, type QualityPredParams } from '@/api/advanced';
 import type { ApiResponse } from '@/types/api';
 
@@ -70,9 +71,9 @@ export function useQlt() {
       const res = (await predictQuality(payload)) as ApiResponse<QualityResult>;
       // 安全检查：防止后端返回 data 为 null 时崩溃
       if (res.data) qualityResult.value = res.data;
-      ElMessage.success('预测完成');
+      msg.success('predictionComplete');
     } catch (e: unknown) {
-      ElMessage.error((e instanceof Error ? e.message : '') || '预测失败');
+      ElMessage.error((e instanceof Error ? e.message : '') || msg.translate('predictionFailed'));
     } finally {
       qualityLoading.value = false;
     }

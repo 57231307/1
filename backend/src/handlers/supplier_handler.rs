@@ -30,9 +30,19 @@ pub async fn list_suppliers(
     let data_scope_ctx = auth.to_data_scope_context();
     let result = service.list_suppliers(params, Some(&data_scope_ctx)).await?;
 
-    Ok(Json(ApiResponse::success(
-        serde_json::to_value(result).map_err(AppError::from)?,
-    )))
+    let mut value = serde_json::to_value(result).map_err(AppError::from)?;
+    // P1-08-5：非管理员对供应商列表手机号/邮箱脱敏（含 contacts 子数组）
+    value = crate::utils::field_mask::mask_contact_fields_batch_for_role(value, auth.role_id, "list");
+    value = crate::utils::field_mask::mask_contact_fields_batch_for_role(value, auth.role_id, "items");
+    value = crate::utils::field_mask::mask_contact_fields_batch_for_role(value, auth.role_id, "data");
+    // 顶层若为数组也脱敏
+    if let Some(arr) = value.as_array_mut() {
+        for item in arr.iter_mut() {
+            *item = crate::utils::field_mask::mask_contact_fields_for_role(item.clone(), auth.role_id);
+        }
+    }
+
+    Ok(Json(ApiResponse::success(value)))
 }
 
 /// 获取供应商详情
@@ -46,9 +56,11 @@ pub async fn get_supplier(
     let data_scope_ctx = auth.to_data_scope_context();
     let supplier = service.get_supplier(id, Some(&data_scope_ctx)).await?;
 
-    Ok(Json(ApiResponse::success(
-        serde_json::to_value(supplier).map_err(AppError::from)?,
-    )))
+    let value = serde_json::to_value(supplier).map_err(AppError::from)?;
+    // P1-08-5：非管理员对供应商详情手机号/邮箱脱敏
+    let value = crate::utils::field_mask::mask_contact_fields_for_role(value, auth.role_id);
+
+    Ok(Json(ApiResponse::success(value)))
 }
 
 /// 创建供应商

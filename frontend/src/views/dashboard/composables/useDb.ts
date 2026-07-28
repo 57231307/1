@@ -4,6 +4,7 @@
 // 行为完全保持一致（仅结构重构）
 import { reactive, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
+import { msg } from '@/utils/message';
 import {
   getDashboardOverview,
   getDashboardSalesStats,
@@ -34,7 +35,7 @@ export const useDb = () => {
     } catch (error: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
       ElMessage.error(
-        (error instanceof Error ? error.message : String(error)) || '获取仪表盘数据失败'
+        (error instanceof Error ? error.message : String(error)) || msg.translate('loadDashboardDataFailed')
       );
       stats.value = {};
     }
@@ -60,7 +61,7 @@ export const useDb = () => {
   // 刷新最新活动（同时刷新概览 + 图表）
   const refreshActivities = async () => {
     await Promise.all([fetchDashboardData(), fetchChartData()]);
-    ElMessage.success('刷新成功');
+    msg.success('refreshSuccess');
   };
 
   // 日期变化 → 重新拉取概览

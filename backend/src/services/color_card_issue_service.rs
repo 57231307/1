@@ -363,7 +363,7 @@ impl ColorCardIssueService {
 
         // V15 Batch05-P1-3：发布 ColorCardIssued 事件（色卡库存扣减/过期回收/客户对色反馈）
         // 严格在事务 commit 之后发布，避免事件先于数据持久化被消费端读到
-        crate::services::event_bus::publish(crate::services::event_bus::BusinessEvent::ColorCardIssued {
+        crate::services::event_bus::EVENT_BUS.publish(crate::services::event_bus::BusinessEvent::ColorCardIssued {
             issue_id: result.id as i32,
             color_card_id: result.color_card_id as i32,
             customer_id: result.customer_id.map(|x| x as i32),

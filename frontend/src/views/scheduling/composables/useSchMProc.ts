@@ -6,6 +6,7 @@
  */
 import { reactive, ref } from 'vue';
 import { ElMessage } from 'element-plus';
+import { msg } from '@/utils/message';
 import { autoSchedule, type ConflictItem, type SchedulingParams } from '@/api/scheduling';
 
 // v11 批次 181 P2-1 修复：定义 deps 类型替代 any
@@ -58,9 +59,7 @@ export function useSchMProc(deps: SchMDeps) {
       const result = res.data;
       // 安全检查：防止后端返回 data 为 null 时崩溃
       if (!result) return;
-      ElMessage.success(
-        `排程完成: ${result.scheduled_count} 个任务, ${result.conflict_count} 个冲突`
-      );
+      msg.success('scheduleComplete', { scheduledCount: result.scheduled_count, conflictCount: result.conflict_count });
       if (result.conflict_count > 0) {
         // v11 批次 181 P2-1 修复：使用 setter 函数正确更新 reactive 对象的 conflictList
         deps.setConflictList(result.conflicts);
@@ -70,7 +69,7 @@ export function useSchMProc(deps: SchMDeps) {
     } catch (error: unknown) {
       // v11 批次 181 P2-1 修复：catch (error: any) 改为 catch (error: unknown) + 类型守卫
       const errMsg = error instanceof Error ? error.message : String(error);
-      ElMessage.error(errMsg || '自动排程失败');
+      ElMessage.error(errMsg || msg.translate('autoScheduleFailed'));
     } finally {
       scheduling.value = false;
     }

@@ -5,7 +5,8 @@
  * 行为完全保持一致（仅结构重构）
  */
 import { ref, reactive } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessageBox } from 'element-plus';
+import { msg } from '@/utils/message';
 import {
   updatePurchasePrice,
   getPurchasePriceHistory,
@@ -35,7 +36,7 @@ export function usePpProc(refresh: RefreshCallbacks) {
     try {
       await ElMessageBox.confirm('确认停用该价格？', '提示', { type: 'warning' });
       await updatePurchasePrice(row.id, { status: 'inactive' });
-      ElMessage.success('停用成功');
+      msg.success('disableSuccess');
       await refresh.getList();
     } catch (error) {
       logger.error('停用失败:', error);
@@ -61,7 +62,7 @@ export function usePpProc(refresh: RefreshCallbacks) {
 
   /** 导出（占位） */
   const handleExport = () => {
-    ElMessage.success('导出成功');
+    msg.success('exportSuccess');
   };
 
   // 使用 reactive 包装，访问字段时自动解包 ref

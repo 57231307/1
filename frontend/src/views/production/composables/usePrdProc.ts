@@ -9,6 +9,7 @@
  */
 import { reactive } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { msg } from '@/utils/message';
 import {
   deleteProductionOrder,
   updateProductionOrderStatus,
@@ -51,12 +52,12 @@ export function usePrdProc(cb: PrdCallbacks) {
         { type: 'warning' }
       );
       await updateProductionOrderStatus(row.id, status);
-      ElMessage.success('状态更新成功');
+      msg.success('statusUpdateSuccess');
       await cb.refresh();
     } catch (e: unknown) {
       if (e !== 'cancel') {
         const err = e as { message?: string };
-        ElMessage.error(err.message || '状态更新失败');
+        ElMessage.error(err.message || msg.translate('statusUpdateFailed'));
       }
     }
   };
@@ -70,12 +71,12 @@ export function usePrdProc(cb: PrdCallbacks) {
         cancelButtonText: '取消',
       });
       await deleteProductionOrder(row.id);
-      ElMessage.success('删除成功');
+      msg.success('deleteSuccess');
       await cb.refresh();
     } catch (e: unknown) {
       if (e !== 'cancel') {
         const err = e as { message?: string };
-        ElMessage.error(err.message || '删除失败');
+        ElMessage.error(err.message || msg.translate('deleteFailed'));
       }
     }
   };
@@ -89,7 +90,7 @@ export function usePrdProc(cb: PrdCallbacks) {
    */
   const handleExport = async () => {
     if (cb.data.length === 0) {
-      ElMessage.warning('没有可导出的数据');
+      msg.warning('noDataToExport');
       return;
     }
     const filters = cb.getQueryParams?.() ?? {};
@@ -104,7 +105,7 @@ export function usePrdProc(cb: PrdCallbacks) {
   const handlePrint = () => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
-      ElMessage.error('无法打开打印窗口');
+      msg.error('printWindowBlocked');
       return;
     }
     const rows = cb.data

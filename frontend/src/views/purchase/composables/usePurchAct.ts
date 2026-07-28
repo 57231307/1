@@ -5,6 +5,7 @@
  */
 import { ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { msg } from '@/utils/message';
 import printJS from 'print-js';
 import { getPurchaseOrderById, approvePurchaseOrder, type PurchaseOrder } from '@/api/purchase';
 // V15 P0-S12 修复（Batch 475b）：导出改用后端带水印 xlsx 接口
@@ -49,12 +50,12 @@ export function usePurchAct(
         type: 'success',
       });
       await approvePurchaseOrder(row.id);
-      ElMessage.success(`采购单 ${row.order_no} 审批成功`);
+      msg.success('purchaseOrderApproved', { orderNo: row.order_no });
       onRefresh();
     } catch (error: unknown) {
       if (error !== 'cancel') {
         const errMsg = error instanceof Error ? error.message : String(error);
-        ElMessage.error(errMsg || '审批失败');
+        ElMessage.error(errMsg || msg.translate('approveFailed'));
       }
     }
   };

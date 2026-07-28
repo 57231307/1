@@ -981,4 +981,379 @@ impl BudgetManagementService {
 
         Ok(plan)
     }
+
+    /// V15 P1 17.7-D2：预算差异分析报告
+    ///
+    /// 按 budget_type 维度（部门）对比预算 vs 实际执行，输出差异与差异率。
+    ///
+    /// 参数：
+    /// - budget_year：预算年度
+    /// - department_id：可选部门筛选
+    ///
+    /// 返回：每个预算方案的差异分析条目
+    pub async fn variance_analysis(
+        &self,
+        budget_year: i32,
+        department_id: Option<i32>,
+    ) -> Result<Vec<BudgetVarianceItem>, AppError> {
+        info!(
+            "预算差异分析：年度={}, 部门={:?}",
+            budget_year, department_id
+        );
+
+        let mut query = budget_plan::Entity::find()
+            .filter(budget_plan::Column::BudgetYear.eq(budget_year));
+        if let Some(dept) = department_id {
+            query = query.filter(budget_plan::Column::DepartmentId.eq(Some(dept)));
+        }
+        let plans = query.all(&*self.db).await?;
+
+        let mut items = Vec::with_capacity(plans.len());
+        for plan in plans {
+            let executed_amount: Decimal = budget_execution::Entity::find()
+                .filter(budget_execution::Column::PlanId.eq(plan.id))
+                .filter(budget_execution::Column::ExecutionType.eq("使用".to_string()))
+                .all(&*self.db)
+                .await?
+                .iter()
+                .map(|e| e.amount)
+                .sum();
+
+            let issued_amount: Decimal = budget_execution::Entity::find()
+                .filter(budget_execution::Column::PlanId.eq(plan.id))
+                .filter(budget_execution::Column::ExecutionType.eq("下达".to_string()))
+                .all(&*self.db)
+                .await?
+                .iter()
+                .map(|e| e.amount)
+                .sum();
+
+            let variance = issued_amount - executed_amount;
+            let variance_rate = if issued_amount.is_zero() {
+                None
+            } else {
+                Some(
+                    (variance / issued_amount * Decimal::from(100))
+                        .round_dp(2),
+                )
+            };
+
+            let status = if executed_amount > issued_amount {
+                "over_budget".to_string()
+            } else if issued_amount.is_zero() {
+                "no_issued".to_string()
+            } else if executed_amount
+                > issued_amount * Decimal::new(80, 2)
+            {
+                "near_limit".to_string()
+            } else {
+                "normal".to_string()
+            };
+
+            items.push(BudgetVarianceItem {
+                plan_id: plan.id,
+                plan_no: plan.plan_no,
+                plan_name: plan.plan_name,
+                department_id: plan.department_id,
+                budget_year: plan.budget_year,
+                budget_type: plan.budget_type,
+                total_amount: plan.total_amount,
+                issued_amount,
+                executed_amount,
+                variance,
+                variance_rate,
+                status,
+            });
+        }
+        Ok(items)
+    }
+
+    /// V15 P1 17.7-D3：零基/滚动预算编制模式
+    ///
+    /// - zero_based：从零开始编制（不参考历史数据），所有科目必须重新论证
+    /// - rolling：滚动预算，在现有年度预算基础上向后滚动一个周期
+    /// - incremental：增量预算（默认，沿用历史 + 调整）
+    ///
+    /// 本方法根据模式生成新预算方案草稿：
+    /// - zero_based：创建空白预算方案，total_amount = 0，待各科目逐项申报
+    /// - rolling：复制源年度预算方案，budget_year + 1，状态 = DRAFT
+    /// - incremental：复制源年度预算 + 默认 5% 增长率
+    pub async fn create_budget_with_mode(
+        &self,
+        mode: BudgetMode,
+        source_year: i32,
+        target_year: i32,
+        department_id: i32,
+        user_id: i32,
+    ) -> Result<budget_plan::Model, AppError> {
+        info!(
+            "用户 {} 创建预算方案：模式={}, 源年度={}, 目标年度={}, 部门={}",
+            user_id, mode.as_str(), source_year, target_year, department_id
+        );
+
+        match mode {
+            BudgetMode::ZeroBased => {
+                // 零基预算：空白方案，待逐项申报
+                let plan_no = format!(
+                    "ZB-{}-{}-{}",
+                    target_year,
+                    department_id,
+                    chrono::Local::now().format("%Y%m%d%H%M%S")
+                );
+                let active = budget_plan::ActiveModel {
+                    plan_no: Set(plan_no.clone()),
+                    plan_name: Set(format!(
+                        "{}年度零基预算-部门{}",
+                        target_year, department_id
+                    )),
+                    budget_year: Set(target_year),
+                    budget_type: Set("zero_based".to_string()),
+                    department_id: Set(Some(department_id)),
+                    total_amount: Set(Decimal::ZERO),
+                    status: Set(Some(budget::DRAFT.to_string())),
+                    remark: Set(Some("零基预算：从零开始编制，待各科目逐项申报".to_string())),
+                    prepared_by: Set(Some(user_id)),
+                    ..Default::default()
+                };
+                let plan = active.insert(&*self.db).await?;
+                info!("零基预算方案已创建：{}", plan_no);
+                Ok(plan)
+            }
+            BudgetMode::Rolling => {
+                // 滚动预算：复制源年度方案到目标年度
+                let source_plan = budget_plan::Entity::find()
+                    .filter(budget_plan::Column::BudgetYear.eq(source_year))
+                    .filter(budget_plan::Column::DepartmentId.eq(Some(department_id)))
+                    .order_by(budget_plan::Column::CreatedAt, Order::Desc)
+                    .one(&*self.db)
+                    .await?
+                    .ok_or_else(|| {
+                        AppError::not_found(format!(
+                            "源年度 {} 部门 {} 无预算方案可滚动",
+                            source_year, department_id
+                        ))
+                    })?;
+
+                let plan_no = format!(
+                    "RL-{}-{}-{}",
+                    target_year,
+                    department_id,
+                    chrono::Local::now().format("%Y%m%d%H%M%S")
+                );
+                let active = budget_plan::ActiveModel {
+                    plan_no: Set(plan_no.clone()),
+                    plan_name: Set(format!(
+                        "{}年度滚动预算-部门{}（源自{}年度）",
+                        target_year, department_id, source_year
+                    )),
+                    budget_year: Set(target_year),
+                    budget_type: Set("rolling".to_string()),
+                    department_id: Set(Some(department_id)),
+                    total_amount: Set(source_plan.total_amount),
+                    status: Set(Some(budget::DRAFT.to_string())),
+                    remark: Set(Some(format!(
+                        "滚动预算：源年度 {}，待调整后审批",
+                        source_year
+                    ))),
+                    prepared_by: Set(Some(user_id)),
+                    ..Default::default()
+                };
+                let plan = active.insert(&*self.db).await?;
+                info!(
+                    "滚动预算方案已创建：{}（源年度 {}）",
+                    plan_no, source_year
+                );
+                Ok(plan)
+            }
+            BudgetMode::Incremental => {
+                // 增量预算：复制源年度 + 5% 增长
+                let source_plan = budget_plan::Entity::find()
+                    .filter(budget_plan::Column::BudgetYear.eq(source_year))
+                    .filter(budget_plan::Column::DepartmentId.eq(Some(department_id)))
+                    .order_by(budget_plan::Column::CreatedAt, Order::Desc)
+                    .one(&*self.db)
+                    .await?
+                    .ok_or_else(|| {
+                        AppError::not_found(format!(
+                            "源年度 {} 部门 {} 无预算方案可增量",
+                            source_year, department_id
+                        ))
+                    })?;
+
+                let growth_rate = Decimal::new(5, 2); // 0.05
+                let new_total =
+                    source_plan.total_amount * (Decimal::from(1) + growth_rate);
+                let plan_no = format!(
+                    "IN-{}-{}-{}",
+                    target_year,
+                    department_id,
+                    chrono::Local::now().format("%Y%m%d%H%M%S")
+                );
+                let active = budget_plan::ActiveModel {
+                    plan_no: Set(plan_no.clone()),
+                    plan_name: Set(format!(
+                        "{}年度增量预算-部门{}（源自{}年度+5%）",
+                        target_year, department_id, source_year
+                    )),
+                    budget_year: Set(target_year),
+                    budget_type: Set("incremental".to_string()),
+                    department_id: Set(Some(department_id)),
+                    total_amount: Set(new_total),
+                    status: Set(Some(budget::DRAFT.to_string())),
+                    remark: Set(Some(format!(
+                        "增量预算：源年度 {} + 5% 增长率",
+                        source_year
+                    ))),
+                    prepared_by: Set(Some(user_id)),
+                    ..Default::default()
+                };
+                let plan = active.insert(&*self.db).await?;
+                info!(
+                    "增量预算方案已创建：{}（源年度 {} + 5%）",
+                    plan_no, source_year
+                );
+                Ok(plan)
+            }
+        }
+    }
+
+    /// V15 P1 17.7-D4：预算执行预警
+    ///
+    /// 扫描所有执行中的预算方案，按执行率（已执行/已下达）分级预警：
+    /// - 黄色预警：执行率 ≥ 80%
+    /// - 红色预警：执行率 ≥ 100%（超支）
+    ///
+    /// 返回所有触发预警的方案列表
+    pub async fn budget_execution_warnings(
+        &self,
+        budget_year: i32,
+    ) -> Result<Vec<BudgetWarning>, AppError> {
+        info!("扫描预算执行预警：年度={}", budget_year);
+
+        let plans = budget_plan::Entity::find()
+            .filter(budget_plan::Column::BudgetYear.eq(budget_year))
+            .filter(
+                budget_plan::Column::Status
+                    .eq(budget::APPROVED.to_string())
+                    .or(budget_plan::Column::Status.eq(budget::ACTIVE.to_string())),
+            )
+            .all(&*self.db)
+            .await?;
+
+        let mut warnings = Vec::new();
+        for plan in plans {
+            let issued_amount: Decimal = budget_execution::Entity::find()
+                .filter(budget_execution::Column::PlanId.eq(plan.id))
+                .filter(budget_execution::Column::ExecutionType.eq("下达".to_string()))
+                .all(&*self.db)
+                .await?
+                .iter()
+                .map(|e| e.amount)
+                .sum();
+
+            let executed_amount: Decimal = budget_execution::Entity::find()
+                .filter(budget_execution::Column::PlanId.eq(plan.id))
+                .filter(budget_execution::Column::ExecutionType.eq("使用".to_string()))
+                .all(&*self.db)
+                .await?
+                .iter()
+                .map(|e| e.amount)
+                .sum();
+
+            if issued_amount.is_zero() {
+                continue;
+            }
+
+            let execution_rate =
+                (executed_amount / issued_amount * Decimal::from(100)).round_dp(2);
+
+            let warning_level = if execution_rate >= Decimal::from(100) {
+                "red"
+            } else if execution_rate >= Decimal::new(80, 0) {
+                "yellow"
+            } else {
+                continue;
+            };
+
+            warnings.push(BudgetWarning {
+                plan_id: plan.id,
+                plan_no: plan.plan_no,
+                plan_name: plan.plan_name,
+                department_id: plan.department_id,
+                budget_year: plan.budget_year,
+                issued_amount,
+                executed_amount,
+                available_amount: issued_amount - executed_amount,
+                execution_rate,
+                warning_level: warning_level.to_string(),
+            });
+        }
+        // 按执行率降序排列（最严重的在前）
+        warnings.sort_by(|a, b| b.execution_rate.cmp(&a.execution_rate));
+        Ok(warnings)
+    }
+}
+
+/// V15 P1 17.7-D2：预算差异分析条目
+#[derive(Debug, Clone, Serialize)]
+pub struct BudgetVarianceItem {
+    pub plan_id: i32,
+    pub plan_no: String,
+    pub plan_name: String,
+    pub department_id: Option<i32>,
+    pub budget_year: i32,
+    pub budget_type: String,
+    /// 预算总额
+    pub total_amount: Decimal,
+    /// 已下达金额
+    pub issued_amount: Decimal,
+    /// 已执行金额
+    pub executed_amount: Decimal,
+    /// 差异 = 已下达 - 已执行（正数=未执行完，负数=超支）
+    pub variance: Decimal,
+    /// 差异率 = 差异 / 已下达 × 100%
+    pub variance_rate: Option<Decimal>,
+    /// 状态：normal / near_limit / over_budget / no_issued
+    pub status: String,
+}
+
+/// V15 P1 17.7-D3：预算编制模式
+#[derive(Debug, Clone, Copy)]
+pub enum BudgetMode {
+    /// 零基预算：从零开始编制
+    ZeroBased,
+    /// 滚动预算：在现有基础上向后滚动
+    Rolling,
+    /// 增量预算：在历史基础上调整
+    Incremental,
+}
+
+impl BudgetMode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::ZeroBased => "zero_based",
+            Self::Rolling => "rolling",
+            Self::Incremental => "incremental",
+        }
+    }
+}
+
+/// V15 P1 17.7-D4：预算预警
+#[derive(Debug, Clone, Serialize)]
+pub struct BudgetWarning {
+    pub plan_id: i32,
+    pub plan_no: String,
+    pub plan_name: String,
+    pub department_id: Option<i32>,
+    pub budget_year: i32,
+    /// 已下达金额
+    pub issued_amount: Decimal,
+    /// 已执行金额
+    pub executed_amount: Decimal,
+    /// 可用金额 = 已下达 - 已执行
+    pub available_amount: Decimal,
+    /// 执行率 = 已执行 / 已下达 × 100%
+    pub execution_rate: Decimal,
+    /// 预警级别：yellow（≥80%）/ red（≥100%）
+    pub warning_level: String,
 }

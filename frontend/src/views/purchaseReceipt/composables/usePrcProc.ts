@@ -8,7 +8,8 @@
  * 由于 usePrc 返回 reactive({...})，父组件传入 prc.searchForm 等会自动解包为值
  */
 import { reactive } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessageBox } from 'element-plus';
+import { msg } from '@/utils/message';
 import {
   getPurchaseReceipt,
   getReceiptItems,
@@ -96,7 +97,7 @@ export function usePrcProc(cb: PrcCallbacks) {
       cb.detailData = itemsRes.data?.items || [];
       cb.viewDialogVisible = true;
     } catch (error) {
-      ElMessage.error('获取详情失败');
+      msg.error('loadDetailFailed');
     }
   };
 
@@ -124,7 +125,7 @@ export function usePrcProc(cb: PrcCallbacks) {
   const handleSubmit = async () => {
     const validItems = (cb.form.items || []).filter(e => e.product_id > 0 && e.quantity !== 0);
     if (validItems.length === 0) {
-      ElMessage.warning('请至少添加一条有效的入库明细');
+      msg.warning('pleaseAddReceiptDetail');
       return;
     }
 
@@ -132,31 +133,31 @@ export function usePrcProc(cb: PrcCallbacks) {
       const data = { ...cb.form, items: validItems };
       if (cb.form.id) {
         await updatePurchaseReceipt(cb.form.id, data as PurchaseReceiptEntity);
-        ElMessage.success('更新成功');
+        msg.success('updateSuccess');
       } else {
         await createPurchaseReceipt(data as PurchaseReceiptEntity);
-        ElMessage.success('新增成功');
+        msg.success('createSuccess');
       }
       cb.dialogVisible = false;
       await cb.loadData();
     } catch (error) {
-      ElMessage.error('操作失败');
+      msg.error('operationFailed');
     }
   };
 
   /** 删除入库单 */
   const handleDelete = async (row: PurchaseReceiptEntity) => {
     if (row.status === 'approved') {
-      ElMessage.warning('已审核的入库单不能删除');
+      msg.warning('auditedReceiptCannotDelete');
       return;
     }
     try {
       await ElMessageBox.confirm('确定要删除这个入库单吗？', '提示', { type: 'warning' });
       await deletePurchaseReceipt(row.id!);
-      ElMessage.success('删除成功');
+      msg.success('deleteSuccess');
       await cb.loadData();
     } catch (error) {
-      ElMessage.info('取消删除');
+      msg.info('deleteCancelled');
     }
   };
 
@@ -165,10 +166,10 @@ export function usePrcProc(cb: PrcCallbacks) {
     try {
       await ElMessageBox.confirm('确定要审核这个入库单吗？', '提示', { type: 'warning' });
       await approvePurchaseReceipt(row.id!);
-      ElMessage.success('审核成功');
+      msg.success('auditSuccess');
       await cb.loadData();
     } catch (error) {
-      ElMessage.info('取消操作');
+      msg.info('operationCancelled');
     }
   };
 

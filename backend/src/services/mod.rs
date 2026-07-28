@@ -315,3 +315,20 @@ pub mod oa_announcement_service;
 pub mod user_consent_service;
 // V15 P1 batch-16 缺陷 8.3/8.4：追踪数据 90 天保留策略服务（page_views/user_behaviors 归档清理）
 pub mod tracking_cleanup_service;
+// V15 P1 batch-08 法律合规修复（环保/劳动/财税法律合规）：
+// 缺陷 10：合同电子签章服务（《电子签名法》合规，SHA-256 防篡改）
+pub mod contract_signature_service;
+// 缺陷 14：出口退税（免抵退）核算服务（财税[2012]39号）
+pub mod export_refund_service;
+// 缺陷 15：环保税核算服务（《环境保护税法》污染当量数 + 适用税额）
+pub mod environmental_tax_service;
+// 缺陷 18：排污许可证管理服务（《排污许可管理条例》到期三级预警）
+pub mod pollution_permit_service;
+// 缺陷 19：环境监测与固废处置服务（废水/废气/固废排放合规校验）
+pub mod pollution_monitoring_service;
+// 缺陷 21：劳动合同电子化管理服务（《劳动合同法》试用期合规校验 + 到期预警）
+pub mod labor_contract_service;
+// 缺陷 23：社保公积金扣缴服务（《社会保险法》五险一金计算 + 缴费基数合规校验）
+pub mod social_insurance_service;
+// 缺陷 24：职业健康合规服务（《职业病防治法》危害因素检测 + 体检档案 + PPE 发放）
+pub mod occupational_health_service;

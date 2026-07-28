@@ -50,6 +50,8 @@ pub mod ssrf_guard;
 pub mod validator;
 // v11 批次 142：xlsx 导出工具（规则 3 强制要求所有导出使用 xlsx 格式）
 pub mod xlsx_export;
+// V15 P1 batch-08 缺陷 8：docx 导出工具（规则 3 强制要求合同/发票/报表支持 .docx 格式）
+pub mod docx_export;
 // V15 P1-9-1：全局导出并发控制工具（所有导出 handler 共享 AtomicUsize 计数器）
 pub mod export_concurrency;
 // 批次 404 新增：CRUD 通用业务消息常量（集中管理 handler 层硬编码中文消息）

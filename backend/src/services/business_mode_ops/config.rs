@@ -318,7 +318,7 @@ impl BusinessModeConfigService {
 
         // V15 Batch04-P1-6：发布默认业务模式变更事件，供下游订阅（如订单默认模式同步、报表默认口径切换）
         if updated.is_default {
-            crate::services::event_bus::publish(
+            crate::services::event_bus::EVENT_BUS.publish(
                 crate::services::event_bus::BusinessEvent::BusinessModeChanged {
                     mode_id,
                     mode_code,

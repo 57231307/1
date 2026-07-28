@@ -4,6 +4,7 @@
  */
 import { ref } from 'vue';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
+import { msg } from '@/utils/message';
 import { createPurchaseOrder } from '@/api/purchase';
 import type { Product } from '@/api/product';
 
@@ -114,7 +115,7 @@ export function useCreate(products: () => Product[], onSuccess: () => void) {
     }
     const validItems = createForm.value.items.filter(item => item.product_id && item.quantity > 0);
     if (validItems.length === 0) {
-      ElMessage.warning('请至少添加一条有效的采购明细');
+      msg.warning('pleaseAddPurchaseDetail');
       return;
     }
     try {
@@ -131,11 +132,11 @@ export function useCreate(products: () => Product[], onSuccess: () => void) {
         })),
         total_amount: calculateTotal(),
       });
-      ElMessage.success('采购单创建成功');
+      msg.success('purchaseOrderCreated');
       createDialogVisible.value = false;
       onSuccess();
     } catch (error: unknown) {
-      ElMessage.error((error instanceof Error ? error.message : '') || '创建失败');
+      ElMessage.error((error instanceof Error ? error.message : '') || msg.translate('createFailed'));
     }
   };
 

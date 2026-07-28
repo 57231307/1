@@ -76,6 +76,7 @@ impl OutsourcingVoucherService {
             credit_account: Set(req.credit_account),
             amount: Set(req.amount),
             tax_amount: Set(req.tax_amount.unwrap_or(Decimal::ZERO)),
+            tax_transfer_amount: Set(Decimal::ZERO),
             voucher_date: Set(req.voucher_date),
             is_posted: Set(false),
             posted_at: Set(None),

@@ -496,22 +496,22 @@ impl FabricInspectionService {
 
         // V15 P1-7: 评级完成发布 QualityInspectionCompleted 事件
         // 依据：审计报告 类四 P1 维度 17（QualityInspectionCompleted 无发布者）
-        crate::services::event_bus::publish(crate::services::event_bus::BusinessEvent::QualityInspectionCompleted {
+        crate::services::event_bus::EVENT_BUS.publish(crate::services::event_bus::BusinessEvent::QualityInspectionCompleted {
             inspection_id: updated.id,
             batch_id: None,
             product_id: updated.product_id.unwrap_or(0),
             result: updated.abc_grade.clone().unwrap_or_default(),
             inspector_id: updated.inspector_id,
-        }).await;
+        });
 
         // V15 Batch05-P1-3：发布 FabricInspectionGraded 事件（A/B/C 级流向：入库/降级/返工）
-        crate::services::event_bus::publish(crate::services::event_bus::BusinessEvent::FabricInspectionGraded {
+        crate::services::event_bus::EVENT_BUS.publish(crate::services::event_bus::BusinessEvent::FabricInspectionGraded {
             inspection_id: updated.id,
             batch_id: None,
             grade: updated.abc_grade.clone().unwrap_or_else(|| updated.grade.clone().unwrap_or_default()),
             handling_method: None,
             inspector_id: updated.inspector_id,
-        }).await;
+        });
 
         Ok(updated)
     }

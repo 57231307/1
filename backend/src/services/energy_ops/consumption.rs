@@ -143,7 +143,7 @@ impl EnergyConsumptionService {
             .await?;
 
         // V15 Batch05-P1-3：发布 EnergyConsumptionRecorded 事件（能耗异常告警/月末分摊被动触发）
-        crate::services::event_bus::publish(crate::services::event_bus::BusinessEvent::EnergyConsumptionRecorded {
+        crate::services::event_bus::EVENT_BUS.publish(crate::services::event_bus::BusinessEvent::EnergyConsumptionRecorded {
             record_id: result.id,
             workshop: result.workshop.clone(),
             meter_type: result.meter_type.clone(),

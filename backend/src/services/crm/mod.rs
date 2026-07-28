@@ -10,6 +10,7 @@
 //! - `recycle_rule` 公海回收规则 CRUD（批次 23 v5 P0-4：内存存储迁移至数据库）
 //! - `recycle_executor` 公海回收规则自动执行器（V15 P0-B07：定时扫描自动回收）
 //! - `customer_transfer_approval` 客户转移审批服务（V15 P0-S08：多级审批流）
+//! - `customer_team_share` 客户团队协作与数据共享服务（V15 P1 18.4-D2/D3）
 //!
 //! 兼容说明：原 `crate::services::crm::cust::*` 路径需要由上层
 //! `services/mod.rs` 通过 `pub use super::crm::*;` 重新导出以保持向后兼容。
@@ -21,6 +22,8 @@ pub mod assign;
 pub mod cust;
 // V15 P0-S08 修复：客户转移审批服务
 pub mod customer_transfer_approval_service;
+// V15 P1 batch-15 18.4-D2/D3：客户团队协作与数据共享服务
+pub mod customer_team_share_service;
 pub mod lead;
 pub mod opp;
 pub mod pool;

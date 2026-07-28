@@ -95,6 +95,63 @@ pub fn mask_bank_card(card: &str) -> String {
     format!("{}****{}", prefix, suffix)
 }
 
+/// P1-08-5：对客户/供应商/销售订单/运单响应做基于角色的手机号/邮箱脱敏
+///
+/// 业务规则：
+/// - role_id == 1（管理员）不脱敏，返回原值
+/// - 非管理员：对常见手机号/邮箱字段名应用 mask_phone/mask_email
+/// - 仅处理顶层对象的字符串字段（列表场景每条记录为对象）
+pub fn mask_contact_fields_for_role(mut value: Value, role_id: Option<i32>) -> Value {
+    if role_id == Some(1) {
+        return value;
+    }
+    let phone_keys = [
+        "contact_phone",
+        "phone",
+        "mobile",
+        "mobile_phone",
+        "tel_phone",
+        "telephone",
+        "driver_phone",
+        "contact_mobile",
+    ];
+    let email_keys = ["contact_email", "email", "email_address"];
+    if let Some(obj) = value.as_object_mut() {
+        for k in phone_keys.iter() {
+            if let Some(s) = obj.get(*k).and_then(|v| v.as_str()) {
+                if !s.is_empty() {
+                    obj.insert(k.to_string(), Value::String(mask_phone(s)));
+                }
+            }
+        }
+        for k in email_keys.iter() {
+            if let Some(s) = obj.get(*k).and_then(|v| v.as_str()) {
+                if !s.is_empty() {
+                    obj.insert(k.to_string(), Value::String(mask_email(s)));
+                }
+            }
+        }
+    }
+    value
+}
+
+/// P1-08-5：批量脱敏列表中每条记录的手机号/邮箱字段（非管理员）
+pub fn mask_contact_fields_batch_for_role(
+    mut value: Value,
+    role_id: Option<i32>,
+    list_key: &str,
+) -> Value {
+    if role_id == Some(1) {
+        return value;
+    }
+    if let Some(list) = value.get_mut(list_key).and_then(|v| v.as_array_mut()) {
+        for item in list.iter_mut() {
+            *item = mask_contact_fields_for_role(item.clone(), role_id);
+        }
+    }
+    value
+}
+
 /// V15 P1 batch-16 缺陷 7.4：递归脱敏 JSON 中的敏感字段（已知敏感字段按类型 mask，字符串值 mask_text_pii，数组/对象递归）
 pub fn desensitize_json(value: Value) -> Value {
     match value {

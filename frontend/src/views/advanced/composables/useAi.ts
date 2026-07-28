@@ -4,6 +4,7 @@
  */
 import { ref } from 'vue';
 import { ElMessage } from 'element-plus';
+import { msg } from '@/utils/message';
 import type { ApiResponse } from '@/types/api';
 import {
   forecastSales,
@@ -85,10 +86,10 @@ export function useAi() {
         period: forecastPeriod.value,
       })) as ApiResponse<ForecastResult>;
       forecastResult.value = res.data;
-      ElMessage.success('预测完成');
+      msg.success('predictionComplete');
     } catch (e: unknown) {
       // v11 批次 171 P2-1 修复：catch (e: any) 改为 unknown + 类型守卫
-      ElMessage.error((e instanceof Error ? e.message : String(e)) || '预测失败');
+      ElMessage.error((e instanceof Error ? e.message : String(e)) || msg.translate('predictionFailed'));
     } finally {
       forecastLoading.value = false;
     }
@@ -102,9 +103,9 @@ export function useAi() {
     try {
       const res = (await optimizeInventory()) as ApiResponse<InventoryResult>;
       inventoryResult.value = res.data;
-      ElMessage.success('优化建议生成完成');
+      msg.success('optimizationSuggestionsGenerated');
     } catch (e: unknown) {
-      ElMessage.error((e instanceof Error ? e.message : String(e)) || '生成失败');
+      ElMessage.error((e instanceof Error ? e.message : String(e)) || msg.translate('generationFailed'));
     } finally {
       inventoryLoading.value = false;
     }
@@ -120,9 +121,9 @@ export function useAi() {
         AnomalyItem[]
       >;
       anomalyResult.value = res.data;
-      ElMessage.success('检测完成');
+      msg.success('detectionComplete');
     } catch (e: unknown) {
-      ElMessage.error((e instanceof Error ? e.message : String(e)) || '检测失败');
+      ElMessage.error((e instanceof Error ? e.message : String(e)) || msg.translate('detectionFailed'));
     } finally {
       anomalyLoading.value = false;
     }
@@ -136,9 +137,9 @@ export function useAi() {
     try {
       const res = (await getRecommendationsApi()) as ApiResponse<RecommendationItem[]>;
       recommendationResult.value = res.data;
-      ElMessage.success('推荐获取完成');
+      msg.success('recommendationsFetched');
     } catch (e: unknown) {
-      ElMessage.error((e instanceof Error ? e.message : String(e)) || '获取失败');
+      ElMessage.error((e instanceof Error ? e.message : String(e)) || msg.translate('fetchFailed'));
     } finally {
       recommendLoading.value = false;
     }

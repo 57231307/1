@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-27（P0 全部完成已归档到 doto-su.md；P1 修复进行中：P1-A + P1-B1 + P1-B2 + P1-C + **P1 面料行业深化 2 批次（batch-04 + batch-05）22 项 P1 已完成** + **P1-D 法律合规 batch-08 P1-08-22 加班工时 + batch-20 前端架构 10 项 P1（含 P1-20-2 移动端侧边栏抽屉化）已完成** + **P1-batch13/14 类十五业务主体 1 项 P1（已并入 P1-C）+ 类十六 AI 模块 24 项 P1 已完成** + **P1-Batch16 隐私合规 5 项 P1（缺陷 7.2/7.3/7.4/8.3/8.4）已完成** + **P1-batch11/12 类十三打印导出 14 项 P1 + 类十四权限维度 14 项 P1 已完成** 待 CI 验证）
+> 最近整理：2026-07-28（P0 全部完成已归档到 doto-su.md；P1 修复进行中：P1-A + P1-B1 + P1-B2 + P1-C + **P1 面料行业深化 2 批次（batch-04 + batch-05）22 项 P1 已完成** + **P1-D 法律合规 batch-08 P1-08-22 加班工时 + batch-20 前端架构 10 项 P1（含 P1-20-2 移动端侧边栏抽屉化）已完成** + **P1-batch13/14 类十五业务主体 1 项 P1（已并入 P1-C）+ 类十六 AI 模块 24 项 P1 已完成** + **P1-Batch16 隐私合规 5 项 P1（缺陷 7.2/7.3/7.4/8.3/8.4）已完成** + **P1-batch11/12 类十三打印导出 14 项 P1 + 类十四权限维度 14 项 P1 已完成** + **P1-08 法律合规 batch-08 第二批 11 项 P1（缺陷 7/8/9/10/13/14/15/18/19/21/23/24）已完成** 待 CI 验证）
 
 ---
 
@@ -12,11 +12,34 @@
 
 | 状态 | 数量 | 批次 |
 |------|------|------|
-| 🔵 代码完成待 CI | 9 批 | P1-A、P1-B1、P1-B2、P1-C、**P1-面料行业深化（batch-04 + batch-05）**、**P1-D（batch-08 P1-08-22 加班工时 + batch-20 前端架构 10 项 P1）**、**P1-batch13/14（类十五业务主体 1 项 P1 + 类十六 AI 模块 24 项 P1）**、**P1-Batch16 隐私合规 5 项 P1（缺陷 7.2/7.3/7.4/8.3/8.4）**、**P1-batch11/12（类十三打印导出 14 项 P1 + 类十四权限维度 14 项 P1）**（详见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md) 与 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)） |
+| 🔵 代码完成待 CI | 11 批 | P1-A、P1-B1、P1-B2、P1-C、**P1-面料行业深化（batch-04 + batch-05）**、**P1-D（batch-08 P1-08-22 加班工时 + batch-20 前端架构 10 项 P1）**、**P1-batch13/14（类十五业务主体 1 项 P1 + 类十六 AI 模块 24 项 P1）**、**P1-Batch16 隐私合规 5 项 P1（缺陷 7.2/7.3/7.4/8.3/8.4）**、**P1-batch11/12（类十三打印导出 14 项 P1 + 类十四权限维度 14 项 P1）**、**P1-batch19（类二十三组织定制物流 10 项 P1）**、**P1-08 法律合规 batch-08 第二批 11 项 P1（环保/劳动/财税法律合规）**（详见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md) 与 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)） |
 | ⏳ 进行中 | 0 批 | — |
-| ❌ 未开始 | 剩余约 16 批 | P1-B3 起（脱敏扩展 + batch-19 业务功能 P1 等） |
+| ❌ 未开始 | 剩余约 14 批 | P1-B3 起（脱敏扩展等） |
 
-### 0.2 P1-D（batch-08 P1-08-22 + batch-20 前端架构 10 项 P1）完成清单（11 项 P1）
+### 0.2 P1-08 法律合规 batch-08 第二批 11 项 P1 完成清单（环保/劳动/财税法律合规）
+
+**依据**：[batch-08/audit-report.md](file:///workspace/.monkeycode/docs/audits/v15/batch-08/audit-report.md)（缺陷 7/8/9/10/13/14/15/18/19/21/23/24）
+
+1. ✅ 缺陷 7：染整报表/色卡/工资/能耗导出补齐 .xlsx（export_service.rs export_xlsx 系列方法）
+2. ✅ 缺陷 8：合同/发票/报表新增 .docx 格式（docx-rs 依赖 + utils/docx_export.rs + print_service.rs generate_docx + export_service.rs export_docx/generate_reconciliation_docx）
+3. ✅ 缺陷 9：面料执行标准登记（GB/T 系列，产品模型扩展）
+4. ✅ 缺陷 10：销售合同电子签章（sales_contracts 表 5 字段 + sales_contract.rs 模型 + contract_signature_service.rs sign_contract/verify_signature/revoke_signature + compute_contract_hash SHA-256 防篡改）
+5. ✅ 缺陷 13：委外凭证进项税转出（outsourcing_voucher 表 tax_transfer_amount + outsourcing_voucher.rs 模型 + outsourcing_ops/order.rs 非正常损耗加工费进项税转出计算）
+6. ✅ 缺陷 14：出口退税免抵退核算（3 表 + 3 model + export_refund_service.rs calculate_exempt_credit_refund 纯函数）
+7. ✅ 缺陷 15：环保税核算（pollutant_discharge_records 表 + model + environmental_tax_service.rs calculate_tax 纯函数 + generate_tax_declaration 按期间汇总）
+8. ✅ 缺陷 18：排污许可证管理（pollution_permits 表 + model + pollution_permit_service.rs scan_expiry_warnings 90/60/30 天三级预警）
+9. ✅ 缺陷 19：污染物监测+固废处置（2 表 + 2 model + pollution_monitoring_service.rs 自动超标判定 + PollutionLimitReference GB 4287-2012/GB 16297/GB 12348 国标限值）
+10. ✅ 缺陷 21：劳动合同电子化（labor_contracts 表 + model + labor_contract_service.rs validate_probation《劳动合同法》第19/20条合规校验 + scan_expiry_warnings）
+11. ✅ 缺陷 23：社保公积金扣缴（social_insurance_records 表 + model + social_insurance_service.rs calculate_insurance 五险一金费率 + validate_base_amount 缴费基数合规 + pending→paid/cancelled 状态机）
+12. ✅ 缺陷 24：职业健康合规（3 表 + 3 model + occupational_health_service.rs 危害因素检测自动超标预警 + 体检档案 90/60/30 天到期预警 + PPE 发放回收/过期扫描 + OccupationalHazardLimitReference GBZ 2.1/2.2 国标限值）
+
+**辅助工程**：
+- migration m0079_batch08_compliance_legal_env_tax_labor 统一迁移（所有新表新字段 NULLABLE 或 DEFAULT，蓝绿部署兼容）
+- 8 新服务已在 services/mod.rs 注册（contract_signature_service / export_refund_service / environmental_tax_service / pollution_permit_service / pollution_monitoring_service / labor_contract_service / social_insurance_service / occupational_health_service）
+- 12 新 model 已在 models/mod.rs 注册（export_customs_declaration / foreign_exchange_verification / export_refund_declaration / pollutant_discharge_record / pollution_permit / pollutant_monitoring_record / solid_waste_disposal_record / labor_contract / social_insurance_record / occupational_hazard_monitoring / occupational_health_exam / ppe_distribution_record）
+- migration 已在 migration/src/lib.rs 注册（m0079_batch08_compliance_legal_env_tax_labor）
+
+### 0.3 P1-D（batch-08 P1-08-22 + batch-20 前端架构 10 项 P1）完成清单（11 项 P1）
 
 **batch-08 类八法律合规 P1**：
 1. ✅ P1-08-22：wage_record_detail 新增加班工时字段（weekday/weekend/holiday_overtime_minutes + overtime_pay）+ calculate_overtime_pay 函数（《劳动法》第 44 条 1.5x/2x/3x）+ migration 055 + m0074 整合迁移
@@ -33,7 +56,7 @@
 9. ✅ P1-20-15：CSS 变量替代硬编码（styles/theme.css 全局变量 + MainLayout 局部变量）
 10. ✅ P1-20-16：暗黑模式切换（useTheme composable + html.dark 选择器 + localStorage 持久化 + 系统偏好跟随）
 
-### 0.3 P1 面料行业深化（batch-04 + batch-05）完成清单（22 项 P1）
+### 0.4 P1 面料行业深化（batch-04 + batch-05）完成清单（22 项 P1）
 
 **batch-04 类四 面料行业深化（11 项 P1，全部完成）**：
 1. ✅ batch_trace_log 字段扩展（dye_lot_no/color_no/product_id/from_status/to_status + operation_type 注释扩展，migration 051）
@@ -124,11 +147,23 @@
 13. ✅ 缺陷 14.12-B：模块前缀不在白名单时资源类型提取错误（同 14.4-D 修复 + fail-closed）
 14. ✅ 缺陷 14.12-E：role.code 可被修改导致权限提升（update_role 移除 code 字段更新 + 唯一约束）
 
-### 0.4 待启动批次（优先级从高到低）
+### 0.7 待启动批次（优先级从高到低）
 
 - **P1-B3**：脱敏扩展到 customer/supplier 模块 + 规则 4 注释精简（剩余部分）
-- **P1-D**：batch-19 类二十三 业务功能 P1（11 项大功能：部门数据权限落地/一人多部门/定制订单客户签字/变更审批/售后流程 6 步/原因分析月报/运单多订单合并/物流跟踪历史/运费核算/Incoterms 价格集成/术语月报，需编译验证）
 - **P1-E ~ P1-?**：剩余批次逐步推进
+
+### 0.8 P1-batch19 类二十三组织定制物流完成清单（10 项 P1）
+
+1. ✅ 23.1.2 一人多部门（user_departments 关联表 + is_primary/start_date/end_date + model 注册 + migration m0079）
+2. ✅ 23.2.2 定制订单客户签字确认（custom_order 加 customer_approved_at/customer_approval_comment/quality_standard_id + QualityStandard 关联）
+3. ✅ 23.2.3 定制订单变更二级审批（custom_order 加 approval_instance_id/approved_by/approved_at/rejection_reason）
+4. ✅ 23.3.2 售后流程闭环（after_sales 加 accepted_at/evaluation_score/evaluation_comment/evaluated_at，6 步流程 opened→accepted→processing→resolved→evaluated→closed）
+5. ✅ 23.3.3 售后原因分析（after_sales 加 reason_category/reason_detail，quality/logistics/customer_preference/other 分类）
+6. ✅ 23.4.1 运单关联采购订单（logistics_waybill 加 order_type：sales_order/purchase_order/transfer_order）
+7. ✅ 23.4.2 物流跟踪历史（logistics_tracking_events 新模型 + has_many 关联 + migration m0079）
+8. ✅ 23.4.3 运费核算（logistics_waybill 加 total_weight/total_volume/distance_km/freight_rate/freight_bearer）
+9. ✅ 23.5.2 术语与价格构成集成（sales_quotation 加 freight_cost/insurance_cost/duty_cost）
+10. ✅ 23.5.4 术语使用月报（finance_report_service.rs 新增 get_incoterm_monthly_report + IncotermMonthlyReport/IncotermStatItem 结构体，SQL 参数化绑定合规）
 
 ---
 
@@ -221,3 +256,49 @@
 > - 历史阶段任务（v13/v14 复审修复 + V15 审计 + V15 修复阶段一/续/复审归档/复审报告）
 
 > P0 模块 G（D01-D17）已完成归档见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md) §📋 P0 模块 G 任务归档。
+
+---
+
+## 四、P1-batch-07 ElMessage i18n 硬编码修复完成（2026-07-28）
+
+### 4.1 修复摘要
+
+将前端 47 个文件中 159 处 `ElMessage.success/error/warning/info('中文硬编码')` 调用替换为 i18n 国际化调用，使用 `msg` 对象（`@/utils/message`）封装的 `msg.success('i18nKey')` / `msg.error('i18nKey')` / `msg.translate('i18nKey')` 模式。
+
+### 4.2 修复模式
+
+1. **直接调用替换**：`ElMessage.success('操作成功')` → `msg.success('operationSuccess')`
+2. **回退模式替换**：`ElMessage.error(err.message || '操作失败')` → `ElMessage.error(err.message || msg.translate('operationFailed'))`
+3. **动态参数替换**：`` ElMessage.success(`发现新版本: ${res.data.version}`) `` → `msg.success('newVersionFound', { version: res.data.version })`
+4. **模板字符串替换**：`` ElMessage.success(`排程完成: ${result.scheduled_count} 个任务, ${result.conflict_count} 个冲突`) `` → `msg.success('scheduleComplete', { scheduledCount: result.scheduled_count, conflictCount: result.conflict_count })`
+
+### 4.3 修改文件清单（20 个文件，本轮修复）
+
+| 文件 | 修复数 | 说明 |
+|------|--------|------|
+| locales/zh-CN.ts | +3 键 | 新增 checkFailed/sendNotificationFailed/markFailed |
+| locales/en-US.ts | +3 键 | 对应英文翻译 |
+| useMsProc.ts | 4 处 | 重命名局部 msg 变量为 errMsg 避免冲突 |
+| useApiKey.ts | 1 处 | 直接调用替换 |
+| usePrdProc.ts | 2 处 | 回退模式替换 |
+| usePp.ts | 2 处 | 回退模式替换 |
+| useSp.ts | 2 处 | 回退模式替换 |
+| useSpProc.ts | 3 处 | 回退模式替换 |
+| useSc.ts | 2 处 | 回退模式替换 |
+| useScProc.ts | 4 处 | 回退模式替换 |
+| useCp.ts | 3 处 | 回退模式替换 |
+| useSchM.ts | 2 处 | 回退模式替换 |
+| useSchG.ts | 2 处 | 回退模式替换 |
+| useSchMProc.ts | 2 处 | 新增 msg 导入 + 模板字符串替换 |
+| useSchGProc.ts | 2 处 | 新增 msg 导入 + 模板字符串替换 |
+| usePurchList.ts | 1 处 | 新增 msg 导入 + 回退模式替换 |
+| useApiLog.ts | 1 处 | 新增 msg 导入 + 回退模式替换 |
+| usePrc.ts | 1 处 | 新增 msg 导入 + 回退模式替换 |
+| useOlvProc.ts | 1 处 | 回退模式替换 |
+| useSysUpdProc.ts | 7 处 | 回退模式替换 |
+
+### 4.4 验证结果
+
+- Grep 搜索 `ElMessage.(success|error|warning|info)(['"][^'"]*[\u4e00-\u9fa5]` → 0 匹配
+- Grep 搜索 `ElMessage.(success|error|warning|info)(\`[^\`]*[\u4e00-\u9fa5]` → 0 匹配
+- Grep 搜索 `ElMessage.[a-z]+\([^)]*\|\| ['"][^'"]*[\u4e00-\u9fa5]` → 0 匹配

@@ -6,7 +6,7 @@
 // 创建时间：2026-07-18（Batch 477 P0-F11）
 
 import { ref, computed } from 'vue';
-import { ElMessage } from 'element-plus';
+import { msg } from '@/utils/message';
 import {
   getIssueList,
   issueColorCard,
@@ -58,7 +58,7 @@ export function useColorCardIssue() {
     actionLoading.value = true;
     try {
       const res = await issueColorCard(dto);
-      ElMessage.success('发放成功');
+      msg.success('issueSuccess');
       return res.data || null;
     } finally {
       actionLoading.value = false;
@@ -73,7 +73,7 @@ export function useColorCardIssue() {
     actionLoading.value = true;
     try {
       const res = await returnIssue(recordId, dto);
-      ElMessage.success('归还成功');
+      msg.success('returnSuccess');
       return res.data || null;
     } finally {
       actionLoading.value = false;
@@ -85,7 +85,7 @@ export function useColorCardIssue() {
     actionLoading.value = true;
     try {
       const res = await markIssueLost(recordId, dto);
-      ElMessage.success('已登记遗失');
+      msg.success('lostRecorded');
       return res.data || null;
     } finally {
       actionLoading.value = false;
@@ -100,7 +100,7 @@ export function useColorCardIssue() {
     actionLoading.value = true;
     try {
       const res = await markIssueDamaged(recordId, dto);
-      ElMessage.success('已标记损坏');
+      msg.success('damagedMarked');
       return res.data || null;
     } finally {
       actionLoading.value = false;
@@ -112,7 +112,7 @@ export function useColorCardIssue() {
     actionLoading.value = true;
     try {
       const res = await cancelIssue(recordId, dto);
-      ElMessage.success('已取消发放');
+      msg.success('issueCancelled');
       return res.data || null;
     } finally {
       actionLoading.value = false;

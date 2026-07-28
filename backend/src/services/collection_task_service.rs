@@ -25,6 +25,7 @@ use crate::models::collection_task_dto::{
     AutoGenerateTasksRequest, CancelTaskRequest, CreateTaskRequest, ListTaskQuery,
     RecordContactRequest, ReassignTaskRequest,
 };
+use crate::models::collection_template;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
@@ -239,7 +240,67 @@ impl CollectionTaskService {
         }
     }
 
+    /// V15 P1 17.3-D5：根据 task_type + overdue_days 查询催收模板
+    ///
+    /// 优先级：精确匹配阶段 > all 通用模板；同阶段按 sort_order 升序取首条。
+    /// 阶段映射：early(0-30天) / middle(31-90天) / late(90+天)。
+    async fn find_template_for_task(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        task_type: &str,
+        overdue_days: i32,
+    ) -> Result<Option<collection_template::Model>, CollectionTaskError> {
+        let stage = Self::stage_from_overdue_days(overdue_days);
+        // 优先匹配精确阶段
+        let template = collection_template::Entity::find()
+            .filter(collection_template::Column::TaskType.eq(task_type))
+            .filter(collection_template::Column::OverdueStage.eq(stage))
+            .filter(collection_template::Column::IsEnabled.eq(true))
+            .order_by_asc(collection_template::Column::SortOrder)
+            .one(txn)
+            .await?;
+        if template.is_some() {
+            return Ok(template);
+        }
+        // 回退到 all 通用模板
+        let fallback = collection_template::Entity::find()
+            .filter(collection_template::Column::TaskType.eq(task_type))
+            .filter(collection_template::Column::OverdueStage.eq("all"))
+            .filter(collection_template::Column::IsEnabled.eq(true))
+            .order_by_asc(collection_template::Column::SortOrder)
+            .one(txn)
+            .await?;
+        Ok(fallback)
+    }
+
+    /// V15 P1 17.3-D5：渲染模板占位符
+    ///
+    /// 支持占位符：{overdue_days} / {overdue_amount} / {customer_name} / {date}
+    fn render_template(content: &str, overdue_days: i32, overdue_amount: Decimal, customer_name: Option<&str>) -> String {
+        let mut rendered = content
+            .replace("{overdue_days}", overdue_days.to_string().as_str())
+            .replace("{overdue_amount}", format!("{:.2}", overdue_amount).as_str())
+            .replace("{customer_name}", customer_name.unwrap_or("客户"))
+            .replace("{date}", chrono::Utc::now().date_naive().format("%Y-%m-%d").to_string().as_str());
+        rendered = rendered.replace("\\n", "\n");
+        rendered
+    }
+
+    /// 根据逾期天数确定阶段：early(0-30) / middle(31-90) / late(90+)
+    fn stage_from_overdue_days(days: i32) -> &'static str {
+        if days <= 30 {
+            "early"
+        } else if days <= 90 {
+            "middle"
+        } else {
+            "late"
+        }
+    }
+
     /// 为客户聚合结果生成催收任务(含幂等检查)
+    ///
+    /// V15 P1 17.3-D5：自动生成任务时，查询匹配的催收模板并渲染话术，
+    /// 写入 remark 字段供催收员参考使用。
     async fn generate_tasks_for_customers(
         &self,
         txn: &sea_orm::DatabaseTransaction,
@@ -259,7 +320,21 @@ impl CollectionTaskService {
             }
             seq += 1;
             let task_no = format!("CT-{}-{:03}", today.format("%Y%m%d"), seq);
-            let active = Self::build_new_task_active(&aggr, task_no, due_date, assigned_by, now);
+            let mut active = Self::build_new_task_active(&aggr, task_no, due_date, assigned_by, now);
+            // V15 P1 17.3-D5：匹配模板并渲染话术
+            let task_type = TaskType::from_overdue_days(aggr.max_overdue_days);
+            if let Some(tpl) = self
+                .find_template_for_task(txn, task_type.as_str(), aggr.max_overdue_days as i32)
+                .await?
+            {
+                let rendered = Self::render_template(
+                    &tpl.content,
+                    aggr.max_overdue_days as i32,
+                    aggr.total_overdue,
+                    None,
+                );
+                active.remark = Set(Some(rendered));
+            }
             let model = active.insert(txn).await?;
             created.push(model);
         }
@@ -326,6 +401,22 @@ impl CollectionTaskService {
         let task_no = format!("CT-{}-{:03}", today.format("%Y%m%d"), count_today + 1);
 
         let now = Utc::now();
+        // V15 P1 17.3-D5：若未提供 remark，则查询匹配的催收模板并渲染话术
+        let remark = if req.remark.is_some() {
+            req.remark
+        } else {
+            let tpl = self
+                .find_template_for_task(&txn, &req.task_type, req.overdue_days)
+                .await?;
+            tpl.map(|t| {
+                Self::render_template(
+                    &t.content,
+                    req.overdue_days,
+                    req.overdue_amount,
+                    None,
+                )
+            })
+        };
         let active = ActiveModel {
             id: Default::default(),
             task_no: Set(task_no),
@@ -344,7 +435,7 @@ impl CollectionTaskService {
             contact_at: Set(None),
             next_action_date: Set(None),
             next_action_type: Set(None),
-            remark: Set(req.remark),
+            remark: Set(remark),
             created_at: Set(now),
             updated_at: Set(now),
         };

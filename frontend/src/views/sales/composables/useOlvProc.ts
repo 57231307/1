@@ -16,6 +16,7 @@ import {
 } from '@/api/sales';
 import type { OrderForm } from './useOlv';
 import { logger } from '@/utils/logger';
+import { msg } from '@/utils/message';
 
 /** 刷新回调 */
 interface RefreshCallbacks {
@@ -31,12 +32,12 @@ export function useOlvProc(refresh: RefreshCallbacks) {
     try {
       await ElMessageBox.confirm('确定审批此订单吗？', '确认', { type: 'info' });
       await approveSalesOrder(row.id);
-      ElMessage.success('审批成功');
+      msg.success('approveSuccess');
       await refresh.refresh();
     } catch (error) {
       if (error !== 'cancel') {
         const err = error as { message?: string };
-        ElMessage.error(err.message || '操作失败');
+        ElMessage.error(err.message || msg.translate('operationFailed'));
       }
     }
   };
@@ -46,12 +47,12 @@ export function useOlvProc(refresh: RefreshCallbacks) {
     try {
       await ElMessageBox.confirm('确定取消此订单吗？', '确认', { type: 'warning' });
       await cancelSalesOrder(row.id);
-      ElMessage.success('取消成功');
+      msg.success('cancelSuccess');
       await refresh.refresh();
     } catch (error) {
       if (error !== 'cancel') {
         const err = error as { message?: string };
-        ElMessage.error(err.message || '操作失败');
+        ElMessage.error(err.message || msg.translate('operationFailed'));
       }
     }
   };
@@ -61,16 +62,16 @@ export function useOlvProc(refresh: RefreshCallbacks) {
     try {
       if (data.id) {
         await updateSalesOrder(data.id, data as unknown as Partial<SalesOrder>);
-        ElMessage.success('更新成功');
+        msg.success('updateSuccess');
       } else {
         await createSalesOrder(data as unknown as Partial<SalesOrder>);
-        ElMessage.success('创建成功');
+        msg.success('createSuccess');
       }
       await refresh.refresh();
       return true;
     } catch (error) {
       const err = error as { message?: string };
-      ElMessage.error(err.message || '操作失败');
+      ElMessage.error(err.message || msg.translate('operationFailed'));
       return false;
     }
   };
@@ -79,12 +80,12 @@ export function useOlvProc(refresh: RefreshCallbacks) {
   const handleDeliverySubmit = async (form: Partial<SalesDelivery> & { order_id: number }) => {
     try {
       await createSalesDelivery(form.order_id, form as Partial<SalesDelivery>);
-      ElMessage.success('发货成功');
+      msg.success('shipSuccess');
       await refresh.refresh();
       return true;
     } catch (error) {
       const err = error as { message?: string };
-      ElMessage.error(err.message || '发货失败');
+      ElMessage.error(err.message || msg.translate('shipFailed'));
       logger.error('发货失败:', error);
       return false;
     }

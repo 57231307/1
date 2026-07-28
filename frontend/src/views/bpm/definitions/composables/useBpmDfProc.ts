@@ -7,6 +7,7 @@
  * 设计说明：通过 callbacks 接收 useBpmDf 的状态引用（Reactive 包装层）
  */
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { msg } from '@/utils/message';
 // D14 Batch 5b：原 bpmEnhancedApi 对象已转风格 B 函数
 import {
   deleteBpmDefinition,
@@ -146,13 +147,13 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
         type: 'warning',
       });
       await deleteBpmDefinition(row.id);
-      ElMessage.success('删除成功');
+      msg.success('deleteSuccess');
       await cb.fetchDefinitions();
     } catch (error) {
       if (error !== 'cancel') {
-        const msg = error instanceof Error ? error.message : '删除失败';
-        logger.error(msg);
-        ElMessage.error(msg);
+        const errMsg = error instanceof Error ? error.message : msg.translate('deleteFailed');
+        logger.error(errMsg);
+        ElMessage.error(errMsg);
       }
     }
   };
@@ -166,17 +167,17 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
           cb.formData.id,
           cb.formData as unknown as Partial<ProcessDefinition>
         );
-        ElMessage.success('更新成功');
+        msg.success('updateSuccess');
       } else {
         await createBpmDefinition(cb.formData as unknown as Partial<ProcessDefinition>);
-        ElMessage.success('创建成功');
+        msg.success('createSuccess');
       }
       cb.dialogVisible = false;
       await cb.fetchDefinitions();
     } catch (error) {
-      const msg = error instanceof Error ? error.message : '操作失败';
-      logger.error(msg);
-      ElMessage.error(msg);
+      const errMsg = error instanceof Error ? error.message : msg.translate('operationFailed');
+      logger.error(errMsg);
+      ElMessage.error(errMsg);
     } finally {
       cb.submitLoading = false;
     }
@@ -195,14 +196,14 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
     try {
       await ElMessageBox.confirm('确定要创建新版本吗？', '提示', { type: 'info' });
       await createBpmVersion(cb.currentDefinition.id, { change_log: '新建版本' });
-      ElMessage.success('新版本已创建');
+      msg.success('newVersionCreated');
       await cb.fetchVersions(cb.currentDefinition.id);
       await cb.fetchDefinitions();
     } catch (error) {
       if (error !== 'cancel') {
-        const msg = error instanceof Error ? error.message : '创建版本失败';
-        logger.error(msg);
-        ElMessage.error(msg);
+        const errMsg = error instanceof Error ? error.message : msg.translate('createVersionFailed');
+        logger.error(errMsg);
+        ElMessage.error(errMsg);
       }
     }
   };
@@ -211,15 +212,15 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
   const handleActivateVersion = async (version: ProcessVersion) => {
     try {
       await activateBpmVersion(version.id);
-      ElMessage.success('版本已激活');
+      msg.success('versionActivated');
       if (cb.currentDefinition) {
         await cb.fetchVersions(cb.currentDefinition.id);
       }
       await cb.fetchDefinitions();
     } catch (error) {
-      const msg = error instanceof Error ? error.message : '激活版本失败';
-      logger.error(msg);
-      ElMessage.error(msg);
+      const errMsg = error instanceof Error ? error.message : msg.translate('activateVersionFailed');
+      logger.error(errMsg);
+      ElMessage.error(errMsg);
     }
   };
 
@@ -247,12 +248,12 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
           description?: string;
         }
       );
-      ElMessage.success('已保存为模板');
+      msg.success('savedAsTemplate');
       cb.templateDialogVisible = false;
     } catch (error) {
-      const msg = error instanceof Error ? error.message : '保存失败';
-      logger.error(msg);
-      ElMessage.error(msg);
+      const errMsg = error instanceof Error ? error.message : msg.translate('saveFailed');
+      logger.error(errMsg);
+      ElMessage.error(errMsg);
     } finally {
       cb.templateLoading = false;
     }

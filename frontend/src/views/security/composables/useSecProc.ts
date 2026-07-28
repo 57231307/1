@@ -2,7 +2,8 @@
 // 拆分自 security/index.vue（P14 批 2 I-3 第 6 批）
 // 业务领域：登录安全（解锁账户 + 导出日志 + 查询）
 // 批次 282：移除 handleSizeChange/handleCurrentChange（useTableApi watch 自动处理分页）
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessageBox } from 'element-plus';
+import { msg } from '@/utils/message';
 import {
   unlockAccount,
   exportLoginLogs,
@@ -34,7 +35,7 @@ export const useSecProc = () => {
     try {
       await ElMessageBox.confirm(`确认解锁账户 ${row.username}？`, '提示', { type: 'warning' });
       await unlockAccount(row.id);
-      ElMessage.success('解锁成功');
+      msg.success('unlockSuccess');
       sec.getLockedAccounts();
       sec.getStats();
     } catch (error) {
@@ -54,7 +55,7 @@ export const useSecProc = () => {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-      ElMessage.success('导出成功');
+      msg.success('exportSuccess');
     } catch (error) {
       logger.error('导出失败:', error);
     }

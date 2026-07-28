@@ -80,6 +80,10 @@ pub async fn list_orders(
                     &permission.allowed_fields,
                     &permission.hidden_fields,
                 );
+                // P1-08-5：非管理员对销售订单列表手机号/邮箱脱敏
+                for order in list.iter_mut() {
+                    *order = crate::utils::field_mask::mask_contact_fields_for_role(order.clone(), role_id);
+                }
             }
         } else if role_id != 1 {
             // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
@@ -97,6 +101,18 @@ pub async fn list_orders(
                         obj.remove("total_amount");
                         obj.remove("paid_amount");
                         obj.remove("balance_amount");
+
+                        // P1-08-5：手机号/邮箱脱敏（移除金额字段后仍需脱敏联系电话）
+                        if let Some(phone) = obj.get("contact_phone").and_then(|v| v.as_str()) {
+                            if !phone.is_empty() {
+                                obj.insert("contact_phone".to_string(), serde_json::Value::String(crate::utils::field_mask::mask_phone(phone)));
+                            }
+                        }
+                        if let Some(email) = obj.get("contact_email").and_then(|v| v.as_str()) {
+                            if !email.is_empty() {
+                                obj.insert("contact_email".to_string(), serde_json::Value::String(crate::utils::field_mask::mask_email(email)));
+                            }
+                        }
 
                         if let Some(items) = obj.get_mut("items").and_then(|i| i.as_array_mut()) {
                             for item in items {
@@ -144,6 +160,8 @@ pub async fn get_order(
                 &permission.allowed_fields,
                 &permission.hidden_fields,
             );
+            // P1-08-5：非管理员对销售订单详情手机号/邮箱脱敏
+            order_json = crate::utils::field_mask::mask_contact_fields_for_role(order_json, role_id);
         } else if role_id != 1 {
             // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
             if let Some(obj) = order_json.as_object_mut() {
@@ -154,6 +172,18 @@ pub async fn get_order(
                 obj.remove("total_amount");
                 obj.remove("paid_amount");
                 obj.remove("balance_amount");
+
+                // P1-08-5：手机号/邮箱脱敏
+                if let Some(phone) = obj.get("contact_phone").and_then(|v| v.as_str()) {
+                    if !phone.is_empty() {
+                        obj.insert("contact_phone".to_string(), serde_json::Value::String(crate::utils::field_mask::mask_phone(phone)));
+                    }
+                }
+                if let Some(email) = obj.get("contact_email").and_then(|v| v.as_str()) {
+                    if !email.is_empty() {
+                        obj.insert("contact_email".to_string(), serde_json::Value::String(crate::utils::field_mask::mask_email(email)));
+                    }
+                }
 
                 if let Some(items) = obj.get_mut("items").and_then(|i| i.as_array_mut()) {
                     for item in items {

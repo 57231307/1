@@ -167,6 +167,15 @@ pub mod m0076_add_export_audit_fields;
 pub mod m0077_add_oa_visibility_consent_retention;
 // V15 P1 batch-18 缺陷 1.1/1.2/2.1/4.2/4.3/6.1/7.1/10.1/11.1/3.3：胚布采购关联 + 安全库存 + 委外胚布 + 8D根因 + 分级审批 + 补货策略 + 产能模型 + 工作中心实体
 pub mod m0078_batch18_greige_outsourcing_quality_scheduling;
+// V15 P1 batch-15 17.3-D5：催收模板表（话术标准化）
+pub mod m0080_create_collection_templates;
+// V15 P1 batch-15 17.8-D4：固定资产盘点表（盘点计划-执行-差异闭环）
+pub mod m0081_create_fixed_asset_counts;
+// V15 P1 batch-15 18.4-D2/D3：CRM 团队协作 + 数据共享时效
+pub mod m0082_create_customer_team_and_share;
+// V15 P1 batch-08 法律合规修复（环保/劳动/财税法律合规）：
+// 缺陷 10/13/14/15/18/19/21/23/24 统一迁移
+pub mod m0079_batch08_compliance_legal_env_tax_labor;
 
 pub struct Migrator;
 
@@ -254,6 +263,10 @@ impl MigratorTrait for Migrator {
             Box::new(m0076_add_export_audit_fields::Migration),
             Box::new(m0077_add_oa_visibility_consent_retention::Migration),
             Box::new(m0078_batch18_greige_outsourcing_quality_scheduling::Migration),
+            Box::new(m0079_batch08_compliance_legal_env_tax_labor::Migration),
+            Box::new(m0080_create_collection_templates::Migration),
+            Box::new(m0081_create_fixed_asset_counts::Migration),
+            Box::new(m0082_create_customer_team_and_share::Migration),
         ]
     }
 }

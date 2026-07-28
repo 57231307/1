@@ -4,6 +4,7 @@
  */
 import { ref } from 'vue';
 import { ElMessage } from 'element-plus';
+import { msg } from '@/utils/message';
 import { optimizeRecipe, type RecipeOptParams } from '@/api/advanced';
 import type { ApiResponse } from '@/types/api';
 
@@ -53,11 +54,11 @@ export function useRcp() {
    */
   const runRecipeOptimization = async () => {
     if (!recipeForm.value.color_no.trim()) {
-      ElMessage.warning('请输入色号');
+      msg.warning('pleaseInputColorCode');
       return;
     }
     if (!recipeForm.value.fabric_type) {
-      ElMessage.warning('请选择布类');
+      msg.warning('pleaseSelectFabric');
       return;
     }
     recipeLoading.value = true;
@@ -76,9 +77,9 @@ export function useRcp() {
       const res = (await optimizeRecipe(payload)) as ApiResponse<RecipeResult>;
       // 安全检查：防止后端返回 data 为 null 时崩溃
       if (res.data) recipeResult.value = res.data;
-      ElMessage.success('推荐生成完成');
+      msg.success('recommendationGenerated');
     } catch (e: unknown) {
-      ElMessage.error((e instanceof Error ? e.message : '') || '推荐失败');
+      ElMessage.error((e instanceof Error ? e.message : '') || msg.translate('recommendationFailed'));
     } finally {
       recipeLoading.value = false;
     }

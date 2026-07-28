@@ -9,6 +9,7 @@
 import { ref, reactive, computed } from 'vue';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
+import { msg } from '@/utils/message';
 import { getSubjectTree, createVoucher, type AccountSubject, type Voucher } from '@/api/finance';
 import { useTableApi } from '@/composables/useTableApi';
 import { logger } from '@/utils/logger';
@@ -40,7 +41,7 @@ export function useVchr() {
     },
     onError: (err: unknown) => {
       logger.error('获取凭证列表失败', err);
-      ElMessage.error('获取凭证列表失败');
+      msg.error('loadVoucherListFailed');
     },
   });
 
@@ -128,7 +129,7 @@ export function useVchr() {
     if (voucherForm.entries.length > 2) {
       voucherForm.entries.splice(index, 1);
     } else {
-      ElMessage.warning('至少保留两条分录');
+      msg.warning('keepAtLeastTwoEntries');
     }
   };
 
@@ -138,7 +139,7 @@ export function useVchr() {
     if (!valid) return false;
 
     if (!isBalanced.value) {
-      ElMessage.warning('借贷不平衡，请检查分录金额');
+      msg.warning('entriesUnbalanced');
       return false;
     }
 
@@ -156,12 +157,12 @@ export function useVchr() {
             summary: e.summary,
           })),
       });
-      ElMessage.success('创建成功');
+      msg.success('createSuccess');
       await fetchVouchers();
       return true;
     } catch (error) {
       const err = error as Error;
-      ElMessage.error(err.message || '操作失败');
+      ElMessage.error(err.message || msg.translate('operationFailed'));
       return false;
     } finally {
       voucherSubmitLoading.value = false;

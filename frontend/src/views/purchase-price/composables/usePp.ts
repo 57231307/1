@@ -8,6 +8,7 @@
 import { ref, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
 import { FormInstance } from 'element-plus';
+import { msg } from '@/utils/message';
 import { createPurchasePrice, updatePurchasePrice, type PurchasePrice } from '@/api/purchase-price';
 import { getSupplierList, type Supplier } from '@/api/supplier';
 import { getProductList, type Product } from '@/api/product';
@@ -42,7 +43,7 @@ export function usePp() {
     onError: (err: unknown) => {
       // 使用类型守卫安全提取错误信息
       const errMsg = err instanceof Error ? err.message : '';
-      ElMessage.error(errMsg || '获取采购价格列表失败');
+      ElMessage.error(errMsg || msg.translate('loadPurchasePriceListFailed'));
     },
   });
 
@@ -153,13 +154,13 @@ export function usePp() {
       } else {
         await createPurchasePrice(formData);
       }
-      ElMessage.success('保存成功');
+      msg.success('saveSuccess');
       await getList();
       return true;
     } catch (error: unknown) {
       // 使用类型守卫安全提取错误信息
       if (error instanceof Error && error.message) {
-        ElMessage.error(error.message || '操作失败');
+        ElMessage.error(error.message || msg.translate('operationFailed'));
       }
       return false;
     }

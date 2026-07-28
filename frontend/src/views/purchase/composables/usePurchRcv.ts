@@ -4,6 +4,7 @@
  */
 import { ref } from 'vue';
 import { ElMessage } from 'element-plus';
+import { msg } from '@/utils/message';
 import { createPurchaseReceipt, type PurchaseOrder, type PurchaseOrderItem } from '@/api/purchase';
 
 /**
@@ -64,12 +65,12 @@ export function usePurchRcv(onSuccess: () => void) {
    */
   const submitReceive = async () => {
     if (!receiveForm.value.warehouse_id) {
-      ElMessage.warning('请选择收货仓库');
+      msg.warning('pleaseSelectWarehouse');
       return;
     }
     const validItems = receiveForm.value.items.filter(item => item.receive_quantity > 0);
     if (validItems.length === 0) {
-      ElMessage.warning('请填写至少一项收货数量');
+      msg.warning('pleaseFillItem');
       return;
     }
     try {
@@ -83,11 +84,11 @@ export function usePurchRcv(onSuccess: () => void) {
           remark: item.remarks,
         })),
       });
-      ElMessage.success('收货成功');
+      msg.success('receiveSuccess');
       receiveDialogVisible.value = false;
       onSuccess();
     } catch (error: unknown) {
-      ElMessage.error((error instanceof Error ? error.message : '') || '收货失败');
+      ElMessage.error((error instanceof Error ? error.message : '') || msg.translate('receiveFailed'));
     }
   };
 

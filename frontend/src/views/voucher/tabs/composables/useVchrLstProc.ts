@@ -4,7 +4,8 @@
  * 封装凭证打印、导出、审核、记账、反记账、删除等流程性方法
  * 行为完全保持一致（仅结构重构）
  */
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessageBox } from 'element-plus';
+import { msg } from '@/utils/message';
 import printJS from 'print-js';
 import {
   deleteVoucher,
@@ -89,7 +90,7 @@ export function useVchrLstProc(tableData: ContractListLike, loadData: () => Prom
   /** 删除凭证 */
   const handleDelete = async (row: VoucherEntity) => {
     if (row.status === 'posted') {
-      ElMessage.warning('已记账的凭证不能删除');
+      msg.warning('postedVoucherCannotDelete');
       return;
     }
     try {
@@ -97,10 +98,10 @@ export function useVchrLstProc(tableData: ContractListLike, loadData: () => Prom
         type: 'warning',
       });
       await deleteVoucher(row.id!);
-      ElMessage.success('删除成功');
+      msg.success('deleteSuccess');
       await loadData();
     } catch (error) {
-      ElMessage.info('取消删除');
+      msg.info('deleteCancelled');
     }
   };
 
@@ -111,10 +112,10 @@ export function useVchrLstProc(tableData: ContractListLike, loadData: () => Prom
         type: 'warning',
       });
       await approveVoucher(row.id!);
-      ElMessage.success('审核成功');
+      msg.success('auditSuccess');
       await loadData();
     } catch (error) {
-      ElMessage.info('取消操作');
+      msg.info('operationCancelled');
     }
   };
 
@@ -125,10 +126,10 @@ export function useVchrLstProc(tableData: ContractListLike, loadData: () => Prom
         type: 'warning',
       });
       await postVoucher(row.id!);
-      ElMessage.success('记账成功');
+      msg.success('bookSuccess');
       await loadData();
     } catch (error) {
-      ElMessage.info('取消操作');
+      msg.info('operationCancelled');
     }
   };
 
@@ -139,10 +140,10 @@ export function useVchrLstProc(tableData: ContractListLike, loadData: () => Prom
         type: 'warning',
       });
       await unpostVoucher(row.id!);
-      ElMessage.success('反记账成功');
+      msg.success('unbookSuccess');
       await loadData();
     } catch (error) {
-      ElMessage.info('取消操作');
+      msg.info('operationCancelled');
     }
   };
 

@@ -7,7 +7,7 @@
  * 批次 286：tableData 接入 useTableApi，移除手写分页逻辑
  */
 import { ref, reactive, watch } from 'vue';
-import { ElMessage } from 'element-plus';
+import { msg } from '@/utils/message';
 import {
   getPurchaseReturnById,
   updatePurchaseReturn,
@@ -259,10 +259,10 @@ export function usePrRtn() {
       };
       if (isEdit && formData.id) {
         await updatePurchaseReturn(formData.id, submitData);
-        ElMessage.success('更新成功');
+        msg.success('updateSuccess');
       } else {
         await createPurchaseReturn(submitData);
-        ElMessage.success('创建成功');
+        msg.success('createSuccess');
       }
       fetchData();
       return true;

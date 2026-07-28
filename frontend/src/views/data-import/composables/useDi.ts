@@ -11,7 +11,7 @@
  * 注意：返回值使用 reactive({...}) 包装，父组件可直接访问字段（自动解包 ref）
  */
 import { ref, reactive } from 'vue';
-import { ElMessage } from 'element-plus';
+import { msg } from '@/utils/message';
 import type { ImportTemplate, ImportTask } from '@/api/data-import';
 import { useTableApi } from '@/composables/useTableApi';
 import { logger } from '@/utils/logger';
@@ -44,7 +44,7 @@ export function useDi() {
     },
     onError: (err: unknown) => {
       logger.error('获取模板列表失败', err);
-      ElMessage.error('获取模板列表失败');
+      msg.error('loadTemplateListFailed');
     },
   });
 
@@ -65,7 +65,7 @@ export function useDi() {
     },
     onError: (err: unknown) => {
       logger.error('获取任务列表失败', err);
-      ElMessage.error('获取任务列表失败');
+      msg.error('loadTaskListFailed');
     },
   });
 

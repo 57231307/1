@@ -1,6 +1,7 @@
 import axios from 'axios';
 import type { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { ElMessage } from 'element-plus';
+import { msg } from '@/utils/message';
 // Wave B-3：移除 access_token / refresh_token 的 localStorage 引用
 // - 凭据由后端写入 httpOnly Cookie，前端 JS 不可读
 // - 401 自动刷新通过 refresh_token Cookie 自动携带，无需前端取 token
@@ -136,7 +137,7 @@ class Request {
             // csrf_token Cookie 由后端管理；前端只能清空 document.cookie 中非 httpOnly 的 csrf_token
             // 真正彻底清理需调用 logout 接口或后端通过 Set-Cookie + max-age=0 清除
             clearCsrfToken();
-            ElMessage.error('安全令牌已失效，请重新登录');
+            msg.error('securityTokenExpired');
             router.push('/login');
             return Promise.reject(error);
           }

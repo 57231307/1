@@ -38,6 +38,12 @@ pub struct Model {
     pub subtotal: Decimal,
     pub tax_amount: Decimal,
     pub total_amount: Decimal,
+    /// V15 P1 batch-19 缺陷 23.5.2：运费成本（CIF/CFR/CPT/CIP/DAP/DPU/DDP 含运费）
+    pub freight_cost: Option<Decimal>,
+    /// V15 P1 batch-19 缺陷 23.5.2：保险费成本（CIF/CIP/DDP 含保险）
+    pub insurance_cost: Option<Decimal>,
+    /// V15 P1 batch-19 缺陷 23.5.2：关税成本（DDP 含关税）
+    pub duty_cost: Option<Decimal>,
 
     /// 状态
     pub status: String,
