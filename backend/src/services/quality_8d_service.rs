@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 8D 质量管理流程服务（V15 P0-F20 Batch 480 创建）
 //!
 //! 业务流程：D0 准备 → D1 团队 → D2 描述问题 → D3 临时措施 → D4 根因 → D5 永久措施
@@ -37,7 +38,6 @@ use crate::models::quality_8d_dto::{
 };
 use crate::models::quality_8d_report::{self, ActiveModel, Entity};
 use crate::models::quality_issue;
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 

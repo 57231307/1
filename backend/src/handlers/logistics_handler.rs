@@ -1,3 +1,4 @@
+use crate::container::AppState;
 use axum::{
     extract::{Path, State},
     Json,
@@ -17,7 +18,6 @@ use crate::models::status::common as common_status;
 use crate::models::status::logistics_waybill as waybill_status;
 use crate::models::status::sales_order as so_status;
 use crate::services::ar_invoice_service::ArInvoiceService;
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

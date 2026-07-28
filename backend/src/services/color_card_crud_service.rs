@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 色卡 CRUD 服务
 //!
 //! 提供色卡基础 CRUD 业务：create / list / get_by_id / update / archive
@@ -19,7 +20,6 @@ use crate::models::color_card_create_dto::{
 };
 // 批次 211 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
-use crate::container::AppState;
 use crate::utils::sql_escape::safe_like_pattern;
 
 /// 业务错误

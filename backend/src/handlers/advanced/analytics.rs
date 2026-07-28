@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 报表分析 handler
 //!
 //! 提供报表模板查询、报表执行与导出能力。
@@ -10,7 +11,6 @@ use std::collections::HashMap;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::report::{ExecuteReportRequest, ReportEngineService, ReportFilter};
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

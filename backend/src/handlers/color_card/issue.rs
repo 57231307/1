@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 色卡发放管理 Handler（V15 P0-F04 创建）
 //!
 //! 替代旧 borrow.rs（已废弃）
@@ -21,7 +22,6 @@ use crate::services::color_card_issue_service::{
     ColorCardIssueService, IssueError, IssueParams, ListIssuesQuery,
 };
 use crate::services::role_permission_service::RolePermissionService;
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};

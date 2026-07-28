@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 报表引擎增强 Handler
 //!
 //! 提供报表模板管理、数据导出、报表订阅等 API 接口
@@ -18,7 +19,6 @@ use crate::services::report_template_service::{
     CreateReportTemplateRequest, ReportTemplateQuery, ReportTemplateService,
     UpdateReportTemplateRequest,
 };
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

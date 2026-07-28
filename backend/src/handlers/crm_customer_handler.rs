@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! CRM客户管理 Handler
 //!
 //! 提供客户信息维护、标签管理、联系人管理等 API 接口
@@ -17,7 +18,6 @@ use crate::services::crm::cust::CrmService;
 use crate::services::customer_service::{
     CreateCustomerContactRequest, CustomerService, UpdateCustomerContactRequest,
 };
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

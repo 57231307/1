@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! BPM 流程定义/版本/模板管理 handler
 //!
 //! 批次 67（P1 1-2 修复）：原所有 handler 标注 `#[allow(dead_code)]` 因 stub 未实现。
@@ -14,7 +15,6 @@ use crate::models::dto::bpm_dto::{
     ProcessDefinitionQuery, TemplateQuery, UpdateProcessDefinitionRequest,
 };
 use crate::services::bpm_service::BpmService;
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::messages::biz_msg;
 use crate::utils::response::ApiResponse;

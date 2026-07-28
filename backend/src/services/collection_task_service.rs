@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 催收任务服务（V15 P0-B03 Batch 481 创建）
 //!
 //! 业务流程：
@@ -26,7 +27,6 @@ use crate::models::collection_task_dto::{
     ReassignTaskRequest, RecordContactRequest,
 };
 use crate::models::collection_template;
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 

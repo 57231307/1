@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 定制订单 CRUD 服务
 //!
 //! 提供定制订单基础 CRUD 业务：create / list / get_by_id / update / cancel
@@ -20,7 +21,6 @@ use crate::models::custom_order_create_dto::{
 };
 use crate::models::process_node::{self, ActiveModel as NodeActive, Entity as NodeEntity};
 use crate::models::status::custom_order as co_status;
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 use crate::utils::process_state_machine::default_process_nodes;

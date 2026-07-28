@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 大货批色审批服务（V15 P0-F15/F16/F17 创建）
 //!
 //! 业务流程：剪样 → 发送客户 → 客户批色确认 → 通过/拒绝/返工/降级/报废
@@ -36,7 +37,6 @@ use crate::models::bulk_color_approval::{self, ActiveModel, Entity};
 use crate::models::bulk_color_approval_history;
 use crate::models::dye_batch;
 use crate::models::inventory_stock;
-use crate::container::AppState;
 
 /// 业务错误
 #[derive(Debug, Error)]

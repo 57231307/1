@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 色卡扫码查询服务
 //!
 //! 提供按色号编码 / 色号 ID 查询完整色号信息（含 RGB/CMYK/Lab + 配方 + 价格）
@@ -9,7 +10,6 @@ use std::sync::Arc;
 use crate::models::color_card::{self, Entity as ColorCardEntity};
 use crate::models::color_card_item::{self, Entity as ItemEntity};
 use crate::models::color_card_response_dto::{PriceSummary, RecipeSummary, ScanResult};
-use crate::container::AppState;
 use crate::utils::error::AppError;
 
 /// 扫码查询服务

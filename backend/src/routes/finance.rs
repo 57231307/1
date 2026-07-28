@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 财务域路由
 //!
 //! 处理财务、AP/AR 应付应收、凭证/总账、固定资产、预算、资金管理、财务分析、币种等财务相关接口。
@@ -32,7 +33,6 @@ use crate::handlers::{
     financial_analysis_handler, fixed_asset_handler, fund_management_handler, missing_handlers,
     omni_audit_handler, voucher_handler,
 };
-use crate::container::AppState;
 
 /// 财务支付与发票路由（/payments、/invoices）
 fn finance_payment_invoice_routes() -> Router<AppState> {

@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 缺料预警 Handler
 //!
 //! 提供缺料预警列表、手动触发检查、缺料汇总等 API 接口
@@ -11,7 +12,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::material_shortage_service::{MaterialShortageService, ShortageCheckRequest};
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

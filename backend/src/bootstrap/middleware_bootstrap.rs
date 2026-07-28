@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 中间件配置（CORS / 安全头 / 中间件链）
 //!
 //! 职责：构建 CORS 层、为完整模式和 Setup 模式分别组装中间件链、
@@ -20,7 +21,6 @@ use crate::middleware::permission::permission_middleware;
 use crate::middleware::rate_limit::rate_limit_by_ip;
 use crate::middleware::request_validator::request_logging_middleware;
 use crate::routes::create_router;
-use crate::container::AppState;
 
 // ============================================================================
 // 安全漏洞 #8 修复：HTTP 请求体大小限制常量

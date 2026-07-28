@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! API 网关管理 handler（批次 91 P0-1 全面实现）
 //!
 //! 前端 api-gateway.ts 调用 14 个端点，本文件提供全部实现：
@@ -26,7 +27,6 @@ use crate::models::{api_endpoint, log_api_access};
 // 批次 213 P2-5 修复（v12 复审）：硬编码 "active"/"inactive" 替换为 master_data 常量
 use crate::models::status::master_data;
 use crate::services::api_key_service::ApiKeyService;
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

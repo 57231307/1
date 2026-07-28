@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 通用财务支付网关 Handler
 //!
 //! 区别于 ap_payment (仅限应付账款)，此模块提供全局统一的财务支付入口
@@ -5,7 +6,6 @@
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::finance_payment_service::{CreatePaymentInput, FinancePaymentService};
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{

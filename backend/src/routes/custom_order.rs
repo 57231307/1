@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 定制订单全流程跟踪路由
 //!
 //! 16 端点：CRUD + 流程推进 + 质检 + 售后 + 销售订单转
@@ -11,7 +12,6 @@ use axum::{
 };
 
 use crate::handlers::custom_order_handler;
-use crate::container::AppState;
 
 /// 定制订单路由（nest 到 /api/v1/erp/custom-orders）
 pub fn routes() -> Router<AppState> {

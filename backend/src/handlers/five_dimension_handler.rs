@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 五维管理 Handler
 //!
 //! 提供面料五维编码的查询、统计和搜索功能
@@ -15,7 +16,6 @@ use crate::services::five_dimension_service::{
     FiveDimensionQuery, FiveDimensionSearchParams as ServiceFiveDimensionSearchParams,
     FiveDimensionService,
 };
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

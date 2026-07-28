@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 催收任务 Handler（V15 P0-B03 Batch 481 创建）
 //!
 //! 实现 8 个 HTTP 端点：
@@ -24,7 +25,6 @@ use crate::models::collection_task_dto::{
     ReassignTaskRequest, RecordContactRequest,
 };
 use crate::services::collection_task_service::{CollectionTaskError, CollectionTaskService};
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

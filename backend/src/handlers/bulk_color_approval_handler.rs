@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 大货批色审批 Handler（V15 P0-F15/F16/F17 创建，P1-10 扩展）
 //!
 //! 实现 16 个 HTTP 端点：
@@ -31,7 +32,6 @@ use crate::services::bulk_color_approval_service::{
     ApprovalReportRow, ApprovalStatistics, BulkColorApprovalError, BulkColorApprovalService,
     CreateBulkColorApprovalParams, CutSampleParams, ListBulkColorApprovalQuery,
 };
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

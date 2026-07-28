@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 凭证管理 Handler
 //!
 //! HTTP 接口层
@@ -15,7 +16,6 @@ use crate::services::voucher_service::{
     CreateVoucherRequest, UpdateVoucherRequest, VoucherItemRequest, VoucherQueryParams,
     VoucherService,
 };
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use rust_decimal::Decimal;

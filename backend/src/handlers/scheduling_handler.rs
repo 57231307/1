@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 生产排程 Handler
 //!
 //! 生产排程API端点，提供自动排程、甘特图数据、冲突检测和手动调整功能
@@ -14,7 +15,6 @@ use crate::middleware::auth_context::AuthContext;
 use crate::services::scheduling_service::{
     AdjustScheduleRequest, AutoScheduleRequest, ScheduledOrderQuery, SchedulingService,
 };
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 

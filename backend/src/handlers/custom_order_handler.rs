@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 定制订单全流程跟踪 Handler
 //!
 //! 实现 13 个 HTTP 端点：CRUD + 流程推进 + 质检 + 售后
@@ -30,7 +31,6 @@ use crate::services::custom_order_crud_service::CustomOrderCrudService;
 use crate::services::custom_order_process_service::CustomOrderProcessService;
 use crate::services::custom_order_quality_service::CustomOrderQualityService;
 use crate::services::custom_order_state_service::CustomOrderStateService;
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

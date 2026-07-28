@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 定制订单质检服务
 //!
 //! 处理质量异常上报、解决、查询
@@ -14,7 +15,6 @@ use thiserror::Error;
 
 use crate::models::quality_issue::{self, ActiveModel, Entity};
 use crate::models::quality_issue_dto::{ReportQualityIssueDto, ResolveQualityIssueDto};
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 

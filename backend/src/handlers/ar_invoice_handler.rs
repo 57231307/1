@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 应收单 Handler
 //!
 //! HTTP 接口层
@@ -15,7 +16,6 @@ use crate::models::ar_invoice;
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::ar_invoice_service::{ArInvoiceService, CreateArInvoiceRequest};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};

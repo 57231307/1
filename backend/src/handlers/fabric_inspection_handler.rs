@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 验布打卷 Handler
 //!
 //! v14 批次 426：验布打卷流程贯通
@@ -16,7 +17,6 @@ use crate::services::fabric_inspection_service::{
     CreateDefectRequest, CreateInspectionRequest, FabricDefectService, FabricInspectionService,
     GradeInspectionRequest, InspectionQuery, RollFabricRequest, UpdateInspectionRequest,
 };
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 

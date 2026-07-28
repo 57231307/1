@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 坏账管理 Handler（V15 P0-B01/B02 Batch 481 创建）
 //!
 //! 实现 12 个 HTTP 端点：
@@ -33,7 +34,6 @@ use crate::models::bad_debt_dto::{
 use crate::models::bad_debt_provision;
 use crate::models::bad_debt_writeoff;
 use crate::services::bad_debt_service::{BadDebtError, BadDebtService};
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

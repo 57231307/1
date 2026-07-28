@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 面料多色号定价扩展路由
 //!
 //! 16 端点：色号价格 CRUD + 批量调价 + 审批 + 历史 + 计算 + 阶梯价 + 客户专属价 + 季节规则
@@ -11,7 +12,6 @@ use axum::{
 };
 
 use crate::handlers::color_price_handler;
-use crate::container::AppState;
 
 /// 面料多色号定价扩展路由（nest 到 /api/v1/erp/color-prices）
 pub fn routes() -> Router<AppState> {

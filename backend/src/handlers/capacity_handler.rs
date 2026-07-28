@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 产能分析 Handler
 //!
 //! 提供产能概览、工作中心管理、负荷分析等 API 接口
@@ -12,7 +13,6 @@ use crate::middleware::auth_context::AuthContext;
 use crate::services::capacity_service::{
     CapacityService, CreateWorkCenterInput, LoadAnalysisQuery, UpdateWorkCenterInput,
 };
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

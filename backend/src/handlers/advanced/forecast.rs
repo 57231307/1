@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 销售预测 / 库存优化 handler
 //!
 //! 包含销售预测（基于时间序列算法）以及库存优化建议。
@@ -10,7 +11,6 @@ use serde::{Deserialize, Serialize};
 use crate::middleware::auth_context::AuthContext;
 use crate::models::product::Entity as ProductEntity;
 use crate::services::ai::AiAnalysisService;
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

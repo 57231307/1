@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 化验室打样 Handler
 //!
 //! v14 批次 423B：化验室打样流程贯通
@@ -18,7 +19,6 @@ use crate::services::lab_dip_service::{
     RecordMatchingResultRequest, RecordResampleResultRequest, UpdateLabDipRequestRequest,
     UpdateLabDipSampleRequest,
 };
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 色卡发放管理服务（V15 P0-F04 创建）
 //!
 //! 替代旧 color_card_borrow_service（已废弃）
@@ -26,7 +27,6 @@ use crate::models::color_card::{self, Entity as ColorCardEntity};
 use crate::models::color_card_issue::{self, ActiveModel as IssueActive, Entity as IssueEntity};
 use crate::models::customer::Entity as CustomerEntity;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
-use crate::container::AppState;
 
 /// 业务错误
 #[derive(Debug, Error)]

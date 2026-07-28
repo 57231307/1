@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 系统初始化处理器
 
 use crate::middleware::audit_context::AuditContext;
@@ -6,7 +7,6 @@ use crate::services::init_service::{
     get_init_tasks, DatabaseConfig, InitRequest, InitService, InitStatus, InitTaskStatus,
 };
 use crate::utils::admin_checker::is_admin_role;
-use crate::container::AppState;
 use crate::utils::audit::{self, SecurityEvent};
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;

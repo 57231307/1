@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 主备隔离 HTTP 端点
 //!
 //! 提供 4 个端点：
@@ -13,7 +14,6 @@ use serde_json::json;
 use std::sync::Arc;
 
 use crate::services::failover_service::{FailoverMetrics, FailoverService};
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 库存处理器：事务/汇总查询业务（list_transactions + get_inventory_summary + get_stock_by_product + get_stock_alerts）
 //!
 //! 拆分自 inventory_stock_handler.rs：原 4 个查询 fn + tests 独立成文件。
@@ -5,7 +6,6 @@
 use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::PageRequest;
 use crate::services::inventory_stock_service::InventoryStockService;
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{

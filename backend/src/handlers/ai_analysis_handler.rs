@@ -1,3 +1,4 @@
+use crate::container::AppState;
 use axum::{
     extract::{Query, State},
     Json,
@@ -6,7 +7,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::ai::AiAnalysisService;
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

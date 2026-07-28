@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! BOM物料清单 Handler
 //!
 //! BOM（Bill of Materials）物料清单API端点
@@ -14,7 +15,6 @@ use crate::middleware::auth_context::AuthContext;
 use crate::services::bom_service::{
     BomQuery, BomService, CreateBomItemRequest, CreateBomRequest, UpdateBomRequest,
 };
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 

@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 决策类 handler
 //!
 //! 包含异常检测、销售合同、销售价格三类与业务决策相关的端点。
@@ -11,7 +12,6 @@ use crate::middleware::auth_context::AuthContext;
 use crate::models::sales_contract::Entity as SalesContractEntity;
 use crate::models::sales_price::Entity as SalesPriceEntity;
 use crate::services::ai::AiAnalysisService;
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

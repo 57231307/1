@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 智能推荐 handler
 //!
 //! 提供基于关联规则与趋势的智能推荐能力。
@@ -8,7 +9,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::ai::AiAnalysisService;
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

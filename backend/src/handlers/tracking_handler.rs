@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 用户行为追踪 HTTP 端点
 //!
 //! v11 批次 143 P1-2：真实实现追踪分析功能
@@ -18,7 +19,6 @@ use crate::services::tracking_service::{
 use crate::services::user_consent_service::{
     UserConsentService, CONSENT_TYPE_BEHAVIOR_TRACKING, CONSENT_TYPE_PAGE_VIEW_TRACKING,
 };
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{

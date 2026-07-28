@@ -1,3 +1,4 @@
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::inventory_adjustment;
 use crate::models::inventory_adjustment_item;
@@ -5,7 +6,6 @@ use crate::services::inventory_adjustment_service::{
     AdjustmentItemRequest, CreateAdjustmentRequest, InventoryAdjustmentService,
     UpdateAdjustmentRequest,
 };
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::response::ApiResponse;

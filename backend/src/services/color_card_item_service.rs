@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 色号管理服务
 //!
 //! 提供色号 CRUD + 批量导入业务
@@ -19,7 +20,6 @@ use crate::models::color_card_item::{self, ActiveModel as ItemActive, Entity as 
 use crate::models::color_card_item_dto::{BatchImportError, BatchImportResponse, ColorItemDto};
 // 批次 211 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
-use crate::container::AppState;
 use crate::utils::color_space_converter;
 
 /// 业务错误

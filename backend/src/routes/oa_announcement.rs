@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! OA 公告路由（P0-D17 / Batch 488）
 //!
 //! 7 端点（5 基础 CRUD + 2 状态转换）：
@@ -19,7 +20,6 @@ use axum::{
 };
 
 use crate::handlers::oa_announcement_handler;
-use crate::container::AppState;
 
 /// OA 公告路由（nest 到 /api/v1/erp/oa-announcements）
 pub fn routes() -> Router<AppState> {

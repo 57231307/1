@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 坏账管理服务（V15 P0-B01/B02 Batch 481 创建）
 //!
 //! 包含两部分业务：
@@ -36,7 +37,6 @@ use crate::models::bad_debt_provision::{
 use crate::models::bad_debt_writeoff::{
     self, ActiveModel as WriteoffActiveModel, Entity as WriteoffEntity,
 };
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 

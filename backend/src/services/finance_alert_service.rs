@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 财务预警服务（V15 P0-B04 Batch 481 创建）
 //!
 //! 4 类预警：
@@ -33,7 +34,6 @@ use crate::models::fund_account;
 use crate::models::inventory_stock;
 use crate::models::notification::{NotificationPriority, NotificationType};
 use crate::services::notification_service::{CreateNotificationRequest, NotificationService};
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 

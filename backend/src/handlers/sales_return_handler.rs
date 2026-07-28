@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 销售退货 Handler
 //!
 //! 提供销售退货相关的 API 接口
@@ -14,7 +15,6 @@ use crate::services::sales_return_service::{
     CreateSalesReturnItemRequest, CreateSalesReturnRequest, SalesReturnService,
     UpdateSalesReturnRequest,
 };
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 

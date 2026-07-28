@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 缺失的 Handler 补充
 //!
 //! 本文件内的所有 API 端点均调用真实数据库 / 业务服务，**不再返回占位数据**。
@@ -26,7 +27,6 @@ use crate::services::crm::recycle_rule::{
     CreateRecycleRulePayload, RecycleRule, RecycleRuleService, UpdateRecycleRulePayload,
 };
 use crate::services::mrp_engine_service::MrpEngineService;
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::messages::biz_msg;
 use crate::utils::response::ApiResponse;

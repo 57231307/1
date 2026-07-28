@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 面料多色号定价扩展 Handler
 //!
 //! 实现 13 个 HTTP 端点：色号价格 CRUD + 批量调价 + 审批 + 历史 + 计算 + 阶梯价 + 客户专属价 + 季节规则
@@ -33,7 +34,6 @@ use crate::services::color_price_crud_service::{ColorPriceCrudService, CrudError
 use crate::services::color_price_history_service::ColorPriceHistoryService;
 use crate::services::color_price_seasonal_service::{ColorPriceSeasonalService, SeasonalError};
 use crate::services::color_price_tier_service::{ColorPriceTierService, TierError};
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 

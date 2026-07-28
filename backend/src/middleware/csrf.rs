@@ -1,3 +1,4 @@
+use crate::container::AppState;
 // CSRF（Cross-Site Request Forgery）防护中间件
 //
 // 设计目标：
@@ -19,7 +20,6 @@
 
 use crate::middleware::audit_context::extract_client_ip as extract_client_ip_helper;
 use crate::middleware::public_routes::is_public_path;
-use crate::container::AppState;
 use crate::utils::cache::CsrfConsumeResult;
 use axum::{
     body::Body,

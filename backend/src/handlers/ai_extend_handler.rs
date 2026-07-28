@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! P2-4 AI 分析深化 Handler
 //!
 //! 实现 16 个 HTTP 端点：工艺优化 5 + 质量预测 5 + 看板/健康/概览 3 + 批量 2 + 历史查询 2
@@ -24,7 +25,6 @@ use crate::services::ai_extend_service::{
     AcknowledgeQualityPredDto, AiExtendService, ApplyProcessOptDto, CreateProcessOptDto,
     CreateQualityPredDto, ListProcessOptQuery, ListQualityPredQuery,
 };
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

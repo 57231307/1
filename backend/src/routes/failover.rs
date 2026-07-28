@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 主备隔离路由注册
 //!
 //! 注册 3 个端点：
@@ -14,7 +15,6 @@ use axum::{
 use crate::handlers::failover_handler::{
     get_failover_metrics, get_failover_status, health_check, post_test_switch,
 };
-use crate::container::AppState;
 
 /// 主备隔离路由
 pub fn failover_routes() -> Router<AppState> {

@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 销售报价单 → 销售订单 转换服务
 //!
 //! 业务功能：
@@ -24,7 +25,6 @@ use crate::models::sales_quotation::{
     self, ActiveModel as QuotationActive, Entity as QuotationEntity,
 };
 use crate::models::sales_quotation_item::{self, Entity as QuotationItemEntity};
-use crate::container::AppState;
 use crate::utils::error::AppError;
 
 /// 转订单服务

@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 染色工艺参数智能推荐 handler
 //!
 //! 端点：`POST /advanced/ai/recipe-optimization`
@@ -21,7 +22,6 @@ use serde::Deserialize;
 
 use crate::services::ai::recipe_opt::{RecipeOptRequest, RecipeOptResponse};
 use crate::services::ai::AiAnalysisService;
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

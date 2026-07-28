@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! CRM客户分配 Handler
 //!
 //! 提供客户分配、批量分配和分配历史查询功能
@@ -16,7 +17,6 @@ use crate::services::crm::assign::{
     AutoAssignRequest, ClaimLeadRequest, CrmAssignService, TransferLeadRequest,
 };
 use crate::services::crm::cust::CrmService;
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

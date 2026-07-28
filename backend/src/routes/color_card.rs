@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 色卡仓储管理路由
 //!
 //! V15 P0-F03~F05 重构：删除借出/归还(borrow)路由，新增发放(issue)路由
@@ -9,7 +10,6 @@ use axum::{
 };
 
 use crate::handlers::color_card;
-use crate::container::AppState;
 
 /// 色卡仓储管理路由（nest 到 /api/v1/erp/color-cards）
 pub fn routes() -> Router<AppState> {

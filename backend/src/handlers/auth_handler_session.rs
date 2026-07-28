@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 认证处理器：会话/登出/登录日志记录
 //!
 //! 拆分自 auth_handler.rs：原 record_login_attempt 私有 fn + logout 业务独立成文件。
@@ -6,7 +7,6 @@ use crate::middleware::audit_context::AuditContext;
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::auth_service::AuthService;
-use crate::container::AppState;
 use crate::utils::cache::Cache;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;

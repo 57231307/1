@@ -1,3 +1,4 @@
+use crate::container::AppState;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -10,7 +11,6 @@ use serde::{Deserialize, Serialize};
 use crate::services::currency_service::{
     ConversionResult, CurrencyService, ExchangeRateHistoryModel,
 };
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

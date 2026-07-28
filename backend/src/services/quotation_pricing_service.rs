@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 销售报价单定价服务
 //!
 //! 业务功能：
@@ -16,7 +17,6 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::models::product_color_price;
-use crate::container::AppState;
 use crate::utils::error::AppError;
 
 /// 客户等级（影响折扣）

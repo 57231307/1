@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 8D 质量管理流程 Handler（V15 P0-F20 Batch 480 创建）
 //!
 //! 实现 7 个 HTTP 端点：
@@ -19,7 +20,6 @@ use crate::models::quality_8d_dto::{
 };
 use crate::models::quality_8d_report;
 use crate::services::quality_8d_service::{EightDError, QualityEightDService};
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

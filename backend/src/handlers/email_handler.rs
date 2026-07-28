@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 邮件 Handler
 //!
 //! 提供邮件发送、模板管理和发送记录查询功能
@@ -19,7 +20,6 @@ use crate::services::email_template_service::{
     CreateEmailTemplateRequest, EmailTemplateQuery, EmailTemplateService,
     UpdateEmailTemplateRequest,
 };
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

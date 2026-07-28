@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 工艺流程推进服务
 //!
 //! 处理工艺节点的状态推进（独立于订单级别状态机）
@@ -15,7 +16,6 @@ use crate::models::custom_order_update_dto::{
 };
 use crate::models::process_log::{self, ActiveModel as LogActive, Entity as LogEntity};
 use crate::models::process_node::{self, ActiveModel as NodeActive, Entity as NodeEntity};
-use crate::container::AppState;
 
 /// 业务错误
 #[derive(Debug, Error)]

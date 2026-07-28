@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 定制订单状态机服务
 //!
 //! 处理定制订单的 5 阶段工艺状态推进
@@ -18,7 +19,6 @@ use crate::models::process_log::{self, ActiveModel as LogActive, Entity as LogEn
 use crate::models::process_node::{self, Entity as NodeEntity};
 use crate::models::sales_quotation;
 use crate::models::status::process_node as node_status;
-use crate::container::AppState;
 use crate::utils::process_state_machine::{
     can_transition, next_status, CustomOrderStatus, StateMachineError,
 };

@@ -1,10 +1,10 @@
+use crate::container::AppState;
 //! 批量操作 Handler
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::batch_service::{
     BatchCreateProductRequest, BatchService, BatchUpdateProductRequest,
 };
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{extract::State, Json};

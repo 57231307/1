@@ -1,3 +1,4 @@
+use crate::container::AppState;
 use axum::{
     extract::{Query, State},
     Json,
@@ -12,7 +13,6 @@ use crate::services::dashboard_service::DashboardService;
 use crate::services::dashboard_service::{
     DashboardOverview, InventoryStatistics, LowStockAlert, SalesStatistics,
 };
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

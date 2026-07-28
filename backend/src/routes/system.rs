@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 系统域路由
 //!
 //! 处理仪表板、系统更新、BPM 工作流引擎、健康检查、初始化等系统级接口。
@@ -8,7 +9,6 @@
 //! `init` 的 `/status` 不冲突），避免 axum 0.7 `Overlapping method route` panic。
 
 use crate::middleware::init_token::init_token_middleware;
-use crate::container::AppState;
 use axum::{
     middleware,
     routing::{get, post},

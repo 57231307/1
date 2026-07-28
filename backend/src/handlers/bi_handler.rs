@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! P3-4 BI 多维分析 Handler
 //!
 //! 16 个 HTTP 端点：
@@ -19,7 +20,6 @@ use crate::services::bi_analysis_service::{
     BiAnalysisService, BiResponse, CategoryStat, CustomerRank, KpiSummary, ProductRank,
     ProfitAnalysis, RegionStat, TimeSeriesPoint,
 };
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

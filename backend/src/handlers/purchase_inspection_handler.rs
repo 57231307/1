@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 采购质检 Handler
 //!
 //! 采购质检 HTTP 接口层
@@ -7,7 +8,6 @@ use crate::services::purchase_inspection_service::{
     CompleteInspectionRequest, CreateInspectionItemRequest, CreatePurchaseInspectionRequest,
     PurchaseInspectionService, UpdateInspectionItemRequest, UpdatePurchaseInspectionRequest,
 };
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{

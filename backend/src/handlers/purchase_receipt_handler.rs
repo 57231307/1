@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 采购入库 Handler
 //!
 //! 采购入库 HTTP 接口层，负责处理 HTTP 请求并调用 Service 层
@@ -10,7 +11,6 @@ use crate::services::purchase_receipt_dto::{
     UpdateReceiptItemRequest,
 };
 use crate::services::purchase_receipt_service::PurchaseReceiptService;
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::response::{ApiResponse, PaginatedResponse};

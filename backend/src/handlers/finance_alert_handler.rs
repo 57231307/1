@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 财务预警 Handler（V15 P0-B04 Batch 481 创建）
 //!
 //! 实现 7 个 HTTP 端点：
@@ -23,7 +24,6 @@ use crate::models::finance_alert_dto::{
     TriggerScanRequest,
 };
 use crate::services::finance_alert_service::{FinanceAlertError, FinanceAlertService};
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

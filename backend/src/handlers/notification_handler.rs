@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 通知消息 Handler
 //!
 //! 通知消息 HTTP 接口层，负责处理通知相关的 HTTP 请求
@@ -5,7 +6,6 @@
 use crate::middleware::auth_context::AuthContext;
 use crate::models::notification::{NotificationStatus, NotificationType};
 use crate::services::notification_service::NotificationService;
-use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{

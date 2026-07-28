@@ -1,3 +1,4 @@
+use crate::container::AppState;
 //! 销售报价单审批服务
 //!
 //! 业务功能：
@@ -28,7 +29,6 @@ use crate::models::sales_quotation::{
     self, ActiveModel as QuotationActive, Entity as QuotationEntity,
 };
 use crate::services::bpm_service::BpmService;
-use crate::container::AppState;
 use crate::utils::error::AppError;
 
 /// 金额阶梯常量
