@@ -2,7 +2,9 @@
 
 本文档提供了冰溪 ERP 系统的完整技术文档，包括系统架构、接口规范、开发指南和核心概念。文档面向开发人员、系统管理员和运维工程师。
 
-**快速链接**: [架构](./ARCHITECTURE.md) | [接口](./INTERFACES.md) | [开发者指南](./DEVELOPER_GUIDE.md)
+**项目状态**：V15 P1 修复阶段 — P0 17/17 完成 + P1 已合并 11 批到 main（2026-07-28）
+
+**快速链接**: [架构](./ARCHITECTURE.md) | [接口](./INTERFACES.md) | [开发者指南](./DEVELOPER_GUIDE.md) | [安全](./SECURITY.md) | [健康报告](./PROJECT_HEALTH_REPORT.md)
 
 ---
 
@@ -17,37 +19,33 @@
 ### [开发者指南](./DEVELOPER_GUIDE.md)
 环境搭建、开发工作流、编码规范和常见任务。贡献者必读。
 
+### [安全](./SECURITY.md)
+安全机制说明：HTTP 安全头、SQL 注入审计、JWT JTI 黑名单、数据脱敏、权限加固、法律合规。
+
+### [项目健康报告](./PROJECT_HEALTH_REPORT.md)
+项目健康度根因汇总：扫描覆盖范围、问题分布、重构明细。
+
+### [前端架构](./frontend-architecture.md)
+前端架构设计：组件结构、状态管理、路由、构建配置。
+
+### [代码风格指南](./CODE_STYLE_GUIDE.md)
+编码规范：Rust + Vue 前后端代码风格统一。
+
 ---
 
 ## 模块
 
-| 模块 | 描述 | README |
-|------|------|--------|
-| `backend/` | Rust 后端服务，提供 REST API 和 gRPC 接口 | [README](../backend/README.md) |
-| `frontend/` | Vue 3 前端应用，提供管理界面 | [README](../frontend/README.md) |
-| `backend/src/handlers/` | HTTP 处理器层，处理请求和响应 | [README](./模块/handlers.md) |
-| `backend/src/services/` | 业务逻辑层，实现核心业务功能 | [README](./模块/services.md) |
-| `backend/src/models/` | 数据模型层，定义数据库实体 | [README](./模块/models.md) |
-| `backend/src/middleware/` | 中间件层，处理认证、权限等 | [README](./模块/middleware.md) |
-| `frontend/src/views/` | 页面组件，提供用户界面 | [README](./模块/views.md) |
-| `frontend/src/api/` | API 调用层，与后端通信 | [README](./模块/api.md) |
-| `frontend/src/store/` | 状态管理，管理应用状态 | [README](./模块/store.md) |
-
----
-
-## 核心概念
-
-理解这些领域概念有助于导航代码库：
-
-| 概念 | 描述 |
+| 模块 | 描述 |
 |------|------|
-| [用户](./专有概念/User.md) | 系统用户，包含认证和权限 |
-| [产品](./专有概念/Product.md) | 面料产品，包含五维管理 |
-| [销售订单](./专有概念/SalesOrder.md) | 销售交易及其生命周期 |
-| [采购订单](./专有概念/PurchaseOrder.md) | 采购交易及其生命周期 |
-| [库存](./专有概念/Inventory.md) | 库存管理和批次追踪 |
-| [财务凭证](./专有概念/Voucher.md) | 会计凭证和账务处理 |
-| [BPM 流程](./专有概念/BPM.md) | 审批工作流引擎 |
+| `backend/` | Rust 后端服务（942 个 .rs 文件），提供 REST API 和 gRPC 接口 |
+| `frontend/` | Vue 3 前端应用（597 个 .ts+vue 文件），提供管理界面 |
+| `backend/src/handlers/` | HTTP 处理器层（149 个文件），处理请求和响应 |
+| `backend/src/services/` | 业务逻辑层（388 个文件，facade + ops/ 子模块模式） |
+| `backend/src/models/` | 数据模型层（287 个文件），定义数据库实体 |
+| `backend/src/middleware/` | 中间件层（18 个文件），处理认证、权限、审计等 |
+| `backend/src/routes/` | 路由配置（26 个文件） |
+| `frontend/src/views/` | 页面组件（182 个目录） |
+| `frontend/src/api/` | API 调用层（96 个文件） |
 
 ---
 
