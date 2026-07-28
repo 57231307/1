@@ -612,17 +612,14 @@ pub async fn change_password(
         .map_err(|e| AppError::internal(e.to_string()))?;
 
     let policy_svc = crate::services::auth::password_policy_service::PasswordPolicyService::new();
-    if let Err(e) = validate_password_history(
+    validate_password_history(
         &policy_svc,
         state.db.as_ref(),
         auth.user_id,
         &req.new_password,
         &new_password_hash,
     )
-    .await
-    {
-        return Err(e);
-    }
+    .await?;
 
     let new_hash_fingerprint = compute_hash_fingerprint(&new_password_hash);
 

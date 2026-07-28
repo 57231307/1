@@ -245,7 +245,7 @@ impl InventoryTransferService {
             let is_white_fabric = color_no.is_empty()
                 || color_no.contains('白')
                 || color_no.eq_ignore_ascii_case("white");
-            if !is_white_fabric && dye_lot_no.as_deref().map_or(true, |s| s.is_empty()) {
+            if !is_white_fabric && dye_lot_no.as_deref().is_none_or(str::is_empty) {
                 return Err(AppError::validation(format!(
                     "缺陷 6.2：染色布调拨明细必须提供缸号（color_no={} 但 dye_lot_no 为空）",
                     color_no

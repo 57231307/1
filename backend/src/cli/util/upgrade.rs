@@ -531,7 +531,7 @@ fn restore_rollback_binaries(server_old: &str, bingxi_old: &str, active_service:
 
 fn start_and_health_check(inactive: &str, inactive_service: &str, active_service: &str) -> bool {
     println!("启动非活跃实例 {}...", inactive_service);
-    if let Err(e) = run_cmd("systemctl", &["start", &inactive_service]) {
+    if let Err(e) = run_cmd("systemctl", &["start", inactive_service]) {
         println!("[ERROR] 启动 {} 失败: {}", inactive_service, e);
         println!("活跃实例 {} 继续服务，未受影响", active_service);
         return false;
@@ -541,7 +541,7 @@ fn start_and_health_check(inactive: &str, inactive_service: &str, active_service
     if !health_check_instance(inactive) {
         println!("[ERROR] 回滚实例健康检查失败");
         println!("停止回滚实例，活跃实例 {} 继续服务", active_service);
-        let _ = run_cmd("systemctl", &["stop", &inactive_service]);
+        let _ = run_cmd("systemctl", &["stop", inactive_service]);
         return false;
     }
     true

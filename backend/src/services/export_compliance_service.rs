@@ -241,7 +241,8 @@ impl ExportComplianceService {
                 // 转换为 UTC+8 业务时间
                 let business_hour = (created + Duration::hours(8)).format("%H").to_string();
                 if let Ok(hour) = business_hour.parse::<u32>() {
-                    let is_off_hours = hour >= OFF_HOURS_START || hour < OFF_HOURS_END;
+                    // 非工作时间 = 22:00-06:00（跨午夜），即不在 06:00-22:00 范围内
+                    let is_off_hours = !(OFF_HOURS_END..OFF_HOURS_START).contains(&hour);
                     if is_off_hours {
                         alerts.push(ComplianceAlert {
                             alert_type: "off_hours".to_string(),

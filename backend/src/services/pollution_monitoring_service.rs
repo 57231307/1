@@ -289,13 +289,13 @@ impl PollutionMonitoringService {
             .ok_or_else(|| AppError::not_found(format!("固废处置联单 {} 不存在", id)))?;
 
         // 状态机校验
-        let valid_transition = match (waste.status.as_str(), status) {
-            ("pending", "transporting") => true,
-            ("pending", "cancelled") => true,
-            ("transporting", "disposed") => true,
-            ("transporting", "cancelled") => true,
-            _ => false,
-        };
+        let valid_transition = matches!(
+            (waste.status.as_str(), status),
+            ("pending", "transporting")
+                | ("pending", "cancelled")
+                | ("transporting", "disposed")
+                | ("transporting", "cancelled")
+        );
         if !valid_transition {
             return Err(AppError::business(format!(
                 "非法状态转换: {} → {}（合法: pending→transporting→disposed/cancelled）",

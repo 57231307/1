@@ -141,13 +141,11 @@ impl LogCleanupService {
                     Ok(n) => deleted += n,
                     Err(e) => warn!(error = %e, path = %path.display(), "递归清理子目录失败"),
                 }
-            } else if meta.is_file() {
-                if Self::should_delete(&meta, cutoff) {
-                    if let Err(e) = std::fs::remove_file(&path) {
-                        warn!(error = %e, path = %path.display(), "删除过期日志文件失败");
-                    } else {
-                        deleted += 1;
-                    }
+            } else if meta.is_file() && Self::should_delete(&meta, cutoff) {
+                if let Err(e) = std::fs::remove_file(&path) {
+                    warn!(error = %e, path = %path.display(), "删除过期日志文件失败");
+                } else {
+                    deleted += 1;
                 }
             }
         }

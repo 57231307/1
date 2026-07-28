@@ -186,7 +186,7 @@ impl ArReconciliationService {
             // 提取各档金额（buckets 顺序：当期/1-30/31-60/61-90/90+）
             let current = summary
                 .buckets
-                .get(0)
+                .first()
                 .map(|b| b.amount)
                 .unwrap_or(Decimal::ZERO);
             let days_1_30 = summary

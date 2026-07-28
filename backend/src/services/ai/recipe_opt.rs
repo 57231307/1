@@ -139,7 +139,7 @@ pub(crate) fn is_dye_fabric_compatible(dye_type: &str, fabric_type: &str) -> boo
     };
     supported
         .iter()
-        .any(|s| fabric == *s || fabric.contains(s) || s.contains(&fabric.as_str()))
+        .any(|s| fabric == *s || fabric.contains(s) || s.contains(fabric.as_str()))
 }
 
 /// 校验染料与布类配伍性，不配伍时返回 422 业务错误（V15 P1 1.1）

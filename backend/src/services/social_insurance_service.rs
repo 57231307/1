@@ -416,10 +416,10 @@ impl SocialInsuranceService {
 
     /// 校验期间合法性
     fn validate_period(year: i32, month: i32) -> Result<(), AppError> {
-        if year < 2000 || year > 2100 {
+        if !(2000..=2100).contains(&year) {
             return Err(AppError::bad_request(format!("无效的年度: {}", year)));
         }
-        if month < 1 || month > 12 {
+        if !(1..=12).contains(&month) {
             return Err(AppError::bad_request(format!("无效的月份: {}", month)));
         }
         Ok(())

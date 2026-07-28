@@ -567,13 +567,15 @@ impl FailoverService {
             ))
             .await
             .map_err(|e| format!("查询 pg_stat_replication 失败: {}", e))?;
-        for row in rows {
+        // SQL 仅返回单行聚合结果，取首行即可（避免 clippy::never_loop）
+        if let Some(row) = rows.into_iter().next() {
             let count: i64 = row
                 .try_get("", "sync_count")
                 .map_err(|e| format!("解析 sync_count 失败: {}", e))?;
-            return Ok(count > 0);
+            Ok(count > 0)
+        } else {
+            Ok(false)
         }
-        Ok(false)
     }
 
     /// V15 P1 20.4-C：等待备库 catch-up 完成（轮询 pg_stat_replication，超时返回 false）

@@ -424,7 +424,7 @@ async fn process_kafka_record(
         .headers
         .get(crate::observability::trace_context::TRACEPARENT_HEADER)
         .and_then(|v| std::str::from_utf8(v).ok())
-        .and_then(|tp| crate::observability::trace_context::TraceContext::from_traceparent(tp))
+        .and_then(crate::observability::trace_context::TraceContext::from_traceparent)
         .map(|ctx| ctx.trace_id);
     if let Some(ref tid) = trace_id {
         tracing::debug!(

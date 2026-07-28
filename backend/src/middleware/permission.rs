@@ -88,7 +88,7 @@ const AUTH_ONLY_PATHS: &[&str] = &["/api/v1/erp/audit-logs/record-print"];
 /// V15 P1-5-3：检查路径是否仅需认证（跳过 RBAC 权限码校验）
 fn is_auth_only_path(path: &str) -> bool {
     let clean_path = path.split(['?', '#']).next().unwrap_or(path);
-    AUTH_ONLY_PATHS.iter().any(|p| clean_path == *p)
+    AUTH_ONLY_PATHS.contains(&clean_path)
 }
 
 /// 权限校验中间件：公共路径放行，非公共路径校验 role_id + 资源/动作权限
