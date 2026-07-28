@@ -386,7 +386,6 @@ impl NotificationService {
                 enable_webhook: Set(false),
                 created_at: Set(Utc::now()),
                 updated_at: Set(Utc::now()),
-                ..Default::default()
             };
             active_model.insert(&*self.db).await?
         };

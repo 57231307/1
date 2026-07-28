@@ -41,6 +41,7 @@ mod generated {
 
 // 重新导出 get/create/update/delete（list 由本文件手写覆盖）
 // generated::list 重导出为 list_unfiltered 供内部使用，避免 dead_code 警告
+#[allow(unused_imports)]
 pub use generated::list as list_unfiltered;
 pub use generated::{create, delete, get, update};
 

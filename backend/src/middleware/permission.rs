@@ -33,6 +33,7 @@ fn is_public_path_request(request: &Request<Body>, path: &str) -> bool {
 }
 
 /// 提取认证上下文，缺失时返回 401
+#[allow(clippy::result_large_err)]
 fn extract_auth_context(request: &Request<Body>) -> Result<AuthContext, Response> {
     match request.extensions().get::<AuthContext>().cloned() {
         Some(auth) => Ok(auth),
@@ -44,6 +45,7 @@ fn extract_auth_context(request: &Request<Body>) -> Result<AuthContext, Response
 }
 
 /// 从认证上下文提取 role_id，缺失时返回 403
+#[allow(clippy::result_large_err)]
 fn extract_role_id(auth: &AuthContext) -> Result<i32, Response> {
     match auth.role_id {
         Some(id) => Ok(id),
@@ -55,6 +57,7 @@ fn extract_role_id(auth: &AuthContext) -> Result<i32, Response> {
 }
 
 /// V15 P0-S21：校验 segment3 是否在已知资源白名单中
+#[allow(clippy::result_large_err)]
 fn validate_route_whitelist(path: &str) -> Result<(), Response> {
     if let Some(segment3) = extract_segment3(path) {
         if !is_known_resource_segment(segment3) {

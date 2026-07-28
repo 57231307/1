@@ -41,7 +41,7 @@ pub fn is_public_path(path: &str) -> bool {
     // 若未来新增 /api/v1/erp/auth/login/{id} 等业务接口将绕过认证。
     // 改为仅精确匹配，如确需子路径公开，单独显式登记到 PUBLIC_PATHS。
     let clean_path = path.split(['?', '#']).next().unwrap_or(path);
-    PUBLIC_PATHS.iter().any(|p| clean_path == *p)
+    PUBLIC_PATHS.contains(&clean_path)
 }
 
 #[cfg(test)]

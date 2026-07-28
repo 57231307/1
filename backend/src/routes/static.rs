@@ -64,6 +64,7 @@ async fn canonicalize_with_fallback(safe_path: &PathBuf) -> Option<PathBuf> {
 }
 
 /// 校验 resolved_path 在 static_dir 边界内（防符号链接逃逸），越界返回 400
+#[allow(clippy::result_large_err)]
 fn ensure_within_static_dir(resolved: &PathBuf, dir: Option<&PathBuf>) -> Result<(), Response> {
     if let Some(d) = dir {
         if !resolved.starts_with(d) {

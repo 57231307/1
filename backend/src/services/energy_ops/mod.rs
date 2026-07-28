@@ -20,6 +20,7 @@ pub use allocation_record::{
 pub use allocation_rule::{
     CreateRuleRequest, EnergyAllocationRuleService, RuleQuery, UpdateRuleRequest,
 };
+#[allow(unused_imports)]
 pub use consumption::{
     ConsumptionQuery, CreateConsumptionRequest, EnergyConsumptionService, UpdateConsumptionRequest,
     WorkshopEnergySummary,

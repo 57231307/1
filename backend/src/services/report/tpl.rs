@@ -963,7 +963,6 @@ impl ReportEngineService {
             created_by: Set(user_id),
             created_at: Set(now),
             updated_at: Set(now),
-            ..Default::default()
         };
 
         let model = active_model.insert(&*self.db).await?;

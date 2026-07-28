@@ -224,12 +224,12 @@ impl PollutionMonitoringService {
         Self::validate_disposal_method(&req.disposal_method)?;
 
         // 危废必须填写运输许可证号与处置许可证号（《固废法》要求）
-        if req.waste_category == "hazardous" {
-            if req.transport_license_no.is_none() || req.disposal_license_no.is_none() {
-                return Err(AppError::business(
-                    "危废处置必须填写运输许可证号与处置许可证号（《固废法》第82条）",
-                ));
-            }
+        if req.waste_category == "hazardous"
+            && (req.transport_license_no.is_none() || req.disposal_license_no.is_none())
+        {
+            return Err(AppError::business(
+                "危废处置必须填写运输许可证号与处置许可证号（《固废法》第82条）",
+            ));
         }
 
         // 校验联单号唯一性

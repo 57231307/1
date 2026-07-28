@@ -431,7 +431,7 @@ impl FinancialAnalysisService {
         let mut results = Vec::new();
         for (code, value, threshold) in ratios {
             self.try_save_indicator(
-                &indicator_defs,
+                indicator_defs,
                 code,
                 period,
                 value,
@@ -714,14 +714,13 @@ impl FinancialAnalysisService {
         ];
 
         // 确保指标定义存在
-        let _ = self
-            .ensure_profitability_indicator_definitions(user_id)
+        self.ensure_profitability_indicator_definitions(user_id)
             .await?;
         let indicator_defs = self.ensure_indicator_definitions(user_id).await?;
         let mut results = Vec::new();
         for (code, value, target) in ratios {
             self.try_save_indicator(
-                &indicator_defs,
+                indicator_defs,
                 code,
                 period,
                 value,
@@ -783,14 +782,13 @@ impl FinancialAnalysisService {
             ("ASSET_GROWTH_RATE", asset_growth, Some(Decimal::new(10, 2))),
         ];
 
-        let _ = self
-            .ensure_development_indicator_definitions(user_id)
+        self.ensure_development_indicator_definitions(user_id)
             .await?;
         let indicator_defs = self.ensure_indicator_definitions(user_id).await?;
         let mut results = Vec::new();
         for (code, value, target) in ratios {
             self.try_save_indicator(
-                &indicator_defs,
+                indicator_defs,
                 code,
                 period,
                 value,
