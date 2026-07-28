@@ -16,6 +16,7 @@ use tracing::{info, warn, Span};
 
 use crate::container::AppState;
 use crate::middleware::auth::auth_middleware;
+use crate::middleware::circuit_breaker::circuit_breaker_middleware;
 use crate::middleware::csrf::csrf_middleware;
 use crate::middleware::permission::permission_middleware;
 use crate::middleware::rate_limit::rate_limit_by_ip;
@@ -83,6 +84,9 @@ pub fn apply_full_mode_layers(app_state: AppState, cors: CorsLayer) -> Router {
         s_omni_audit,
         s_auth,
     );
+    // V15 P1 20.6-B：API 网关熔断中间件（5s 窗口失败率 > 50% 触发 open，30s 后 half-open 探测）
+    // 放在 auth_chain 之外、rate_limiting 之内：监控认证后的业务处理 5xx 失败率
+    let router = router.layer(axum::middleware::from_fn(circuit_breaker_middleware));
     let router = apply_rate_limiting(router, s_rate_limit);
     let router = apply_security_headers(router);
     router.layer(axum::middleware::from_fn(

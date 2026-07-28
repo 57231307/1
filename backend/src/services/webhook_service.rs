@@ -250,10 +250,14 @@ impl WebhookService {
         }
 
         let client = Self::build_webhook_client(url)?;
+        // V15 P1 20.1-A：注入 traceparent 到 webhook 出站请求
+        let traceparent =
+            crate::observability::trace_context::traceparent_from_current_span();
         let request = client
             .post(url)
             .header("Content-Type", "application/json")
-            .header("User-Agent", "BingXi-ERP-Webhook/1.0");
+            .header("User-Agent", "BingXi-ERP-Webhook/1.0")
+            .header(crate::observability::trace_context::TRACEPARENT_HEADER, traceparent);
         let request = Self::attach_webhook_signature(request, url, body, secret);
         let request = request.body(body.to_string());
 
