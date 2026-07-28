@@ -2,7 +2,7 @@
 
 > 每个任务一行摘要，是 doto-su.md 中详细任务内容的一句话总结。禁止写入详细内容。
 > 详细任务内容见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，未完成任务见 [doto.md](file:///workspace/.monkeycode/doto.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-29（**PR #765 已合并到 main（squash merge，2026-07-29T00:50+08:00）**：406 文件变更 +1917 -7735，P1-B3 法律合规扩展：规则 4 注释精简全量修复（压缩约 1525 处 `///` doc 注释块为 1-2 行）；CI 关键检查全绿（Rust 构建/Clippy/单元测试/格式 + 前端 ESLint/类型检查/测试/格式/构建 全 SUCCESS，仅覆盖率非硬阻塞通过 `--admin` 合并）；**P0 全部完成 + P1 已合并 15 批到 main**；前序 PR #763（2026-07-28T23:54:56+08:00）：24 文件 +1954 -143，P1-09/P1-10/P1-19/P1-25）
+> 最近整理：2026-07-29（**PR #767 已创建（待 CI 验证）**：P1-07 剩余可维护性缺陷 7.1-2 模块循环依赖修复，将 AppState 从 utils/ 移至独立 container/ 模块，205 文件 +219 -216，打破 utils↔services 循环依赖；**P0 全部完成 + P1 已合并 16 批到 main**；前序 PR #765（2026-07-29T00:50+08:00）：406 文件 +1917 -7735，P1-B3 法律合规扩展规则 4 注释精简全量修复）
 
 ---
 
@@ -10,6 +10,7 @@
 
 | 批次 | PR/commit | 一句话总结 |
 |------|-----------|-----------|
+| P1-07 剩余可维护性 | PR #767 待 CI | **P1-07 缺陷 7.1-2 模块循环依赖修复**：将 AppState 从 utils/ 移至独立 container/ 模块（git mv 保留历史），utils/mod.rs 移除 app_state 声明，lib.rs 新增 container 模块，批量替换 100 个文件 crate::utils::app_state → crate::container + 2 测试文件 bingxi_backend::utils::app_state → bingxi_backend::container；打破 utils↔services 循环依赖（utils 只保留纯工具函数，container 持有 services 容器）；205 文件 +219 -216；7.4-1 Clippy 严格模式长期目标待 baseline 清零（已建立信息性 strict job 监控） |
 | P1-B3 法律合规扩展 | 已合并 PR #765 | **P1-B3 类八法律合规扩展全部完成**：① 脱敏扩展到 customer/supplier/logistics handler（customer_handler.rs list/get + supplier_handler.rs list/get + logistics_handler.rs list/get 共 6 端点接入 mask_contact_fields_for_role/mask_contact_fields_batch_for_role，PR #758 已完成）+ ② 规则 4 注释精简全量修复（406 文件 +1917 -7735，压缩约 1525 处 /// doc 注释块为 1-2 行：handlers/routes/middleware/websocket 81 文件 236 处 + services 219 文件 1260 处 + utils 10 文件 27 处 + migration 2 文件 2 处，88% 压缩为 1 行 / 11% 为 2 行，仅修改 /// 注释不触碰代码逻辑/`//!`模块注释/`//`行内注释，清理 `：；` 瑕疵 104 文件，Grep 验证 0 处剩余违规）；CI 关键检查全绿（Rust 构建/Clippy/测试/格式 + 前端全绿），遵循规则 0/2/4/14/20 |
 | P1-25 部署升级补充 | 已合并 PR #763 | **P1-25 部署升级 25.3-A 补充完成（至此 11 项全部完成）**：deploy-latest.sh download_release 下载后 SHA256 校验（.sha256 文件首字段小写归一 + sha256sum 实际计算 + fail-open 模式，与 upgrade.rs verify_sha256 逻辑对齐）；附 3 项 clippy 警告修复（system.rs 移除未使用 put 导入 + csrf.rs 添加 #[allow(clippy::result_large_err)] 框架设计 + report_template_service.rs 合并 DatabaseConnection 导入） |
 | P1-19 报表 BI | 已合并 PR #763 | **P1-19 类十九报表 BI 5 项 P1 全部完成**：1.1 报表模板版本管理（migration m0083 report_template_versions 表 + report_templates 新增 version/required_permission + list_versions/rollback_version + 2 路由）+ 1.2 报表权限注册（init_admin_permissions.sql report-sales/purchase/inventory/finance:view + check_template_permission + report_type_permission 映射 + list/get_by_id/execute_custom_report 接入 role_id 校验）+ 2.3 订阅推送重试（report_subscriptions 新增 retry_count/max_retries/next_retry_at + mark_run_success/mark_run_failed + list_due_retries + 指数退避 1min/5min/30min + 超限转死信 + scheduler 双扫描到期+待重试）+ 3.1 BI 查询缓存（BiAnalysisService::new_with_cache + 5min TTL + bi_handler.rs 16 端点接入）+ 4.1/4.2/4.3 仪表板（dashboard_layouts 表 + get/save_dashboard_layout + WebSocket broadcast_dashboard_update 实时推送 + new_with_data_scope 角色数据范围过滤）；遵循规则 0/2/4/14/20，待 CI 验证 |

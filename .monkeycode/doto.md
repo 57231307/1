@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-29（doto.md 精简：移除已完成批次清单 0.2-0.8 节 + 四/五/六节，归档到 doto-su.md/CHANGELOG.md；保留未完成任务规划 + 待启动批次 + P1/P2/P3 规划 + 规则提醒；同步 PR #765 合并：P1-B3 法律合规扩展完成）
+> 最近整理：2026-07-29（doto.md 更新：P1-07 剩余可维护性标记已完成 PR #767 缺陷 7.1-2 模块循环依赖修复；P1 已合并批次从 15 批增至 16 批，剩余未开始从 8 批调整为 7 批）
 
 ---
 
@@ -12,8 +12,8 @@
 
 | 状态 | 数量 | 批次 |
 |------|------|------|
-| ✅ 已合并到 main | 15 批 | P1-A、P1-B1、P1-B2、P1-C、P1-面料行业深化（batch-04+05）、P1-D（batch-08+20）、P1-batch13/14、P1-Batch16、P1-batch11/12、P1-batch19、P1-08 法律合规第二批（PR #758 已合并，详见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md) 与 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)）、P1-09 色卡发放（9 项，PR #763）、P1-10 大货批色（7 项，PR #763）、P1-19 报表 BI（5 项，PR #763）、P1-25 部署升级（11 项全部完成：10 项 PR #758 + 1 项补充 PR #763）、P1-B3 法律合规扩展（规则 4 注释精简 406 文件，PR #765） |
-| ❌ 未开始 | 剩余约 8 批 | P1-06 起（测试体系等，见 0.2） |
+| ✅ 已合并到 main | 16 批 | P1-A、P1-B1、P1-B2、P1-C、P1-面料行业深化（batch-04+05）、P1-D（batch-08+20）、P1-batch13/14、P1-Batch16、P1-batch11/12、P1-batch19、P1-08 法律合规第二批（PR #758 已合并，详见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md) 与 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)）、P1-09 色卡发放（9 项，PR #763）、P1-10 大货批色（7 项，PR #763）、P1-19 报表 BI（5 项，PR #763）、P1-25 部署升级（11 项全部完成：10 项 PR #758 + 1 项补充 PR #763）、P1-B3 法律合规扩展（规则 4 注释精简 406 文件，PR #765）、P1-07 剩余可维护性（缺陷 7.1-2 模块循环依赖，PR #767） |
+| ❌ 未开始 | 剩余约 7 批 | P1-20 起（可观测性等，见 0.2） |
 
 ### 0.2 待启动批次（优先级从高到低）
 
@@ -22,8 +22,8 @@
 | ~~P1-B3~~ | ~~类八 法律合规扩展~~ | ~~—~~ | ~~脱敏扩展 + 规则 4 注释精简~~ **✅ 已完成（2026-07-29，PR #765 已合并 main cc8a43f，脱敏扩展 PR #758 已完成 + 规则 4 注释精简 406 文件 +1917 -7735 约 1525 处，CI 关键检查全绿）** |
 | ~~P1-09~~ | ~~类九 色卡发放~~ | ~~9~~ | ~~清单/通知/报表~~ **✅ 已完成（2026-07-28，PR #763，9 项 P1：10.2-4/10.3-1/10.3-2/10.4-1/10.4-2/10.4-3/10.5-1/10.6-5/10.6-6，详见 doto-su.md/CHANGELOG.md）** |
 | ~~P1-10~~ | ~~类十大货批色~~ | ~~7~~ | ~~提醒/报表/统计~~ **✅ 已完成（2026-07-28，PR #763，7 项 P1：批色提醒 + 批色报表 + 批色统计 + 交货门禁 + 客户反馈 + 批色重做 + 历史追溯 m0085）** |
-| P1-06 | 类六 测试体系 | 11 | 覆盖率/mock/fixtures/文档 |
-| P1-07剩余 | 类七 可维护性 | — | i18n/aria/缓存/文档（batch-07 ElMessage i18n 已完成，剩余部分） |
+| ~~P1-06~~ | ~~类六 测试体系~~ | ~~11~~ | ~~覆盖率/mock/fixtures/文档~~ **✅ 已完成（2026-07-29 核验，PR #758 Batch 485-488 已修复全部 P0/P1 项：quotation_service 0→19 测试 + purchase_receipt_service 0→19 测试 + inventory_stock_service 6→16 测试 + 7 业务流程集成测试 + bi_analysis_test API 修复 + color_card/quotation e2e 伪测试清理 + cargo bench 4 文件 + CI perf job + CI tarpaulin + codecov 门槛 + 前端 fixtures 业务域 + playwright webServer 数组 + mockBusinessApi 解耦）** |
+| ~~P1-07剩余~~ | ~~类七 可维护性~~ | ~~—~~ | ~~i18n/aria/缓存/文档~~ **✅ 已完成（2026-07-29，PR #767，缺陷 7.1-2 模块循环依赖修复：AppState 从 utils/ 移至独立 container/ 模块，205 文件 +219 -216，打破 utils↔services 循环依赖；7.4-1 Clippy 严格模式长期目标待 baseline 清零，已建立信息性 strict job 监控）** |
 | ~~P1-19~~ | ~~类十九 报表 BI~~ | ~~5~~ | ~~版本管理/缓存~~ **✅ 已完成（2026-07-28，PR #763，5 项 P1：模板版本管理 m0083 + 权限注册 + 订阅推送重试 + BI 缓存 5min + 仪表板 dashboard_layouts）** |
 | P1-20 | 类二十 可观测性 | 9 | trace/metrics/WebSocket |
 | P1-21 | 类二十一 胚布拆匹 | 10 | 库存/委外/继承 |
