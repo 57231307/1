@@ -11,7 +11,7 @@ use axum::{
 use std::convert::Infallible;
 use std::path::{Component, PathBuf};
 
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 
 /// 规范化静态资源路径，拒绝 `..`、绝对路径段、反斜杠（防路径遍历）
 fn sanitize_static_path(input: &str) -> Option<PathBuf> {

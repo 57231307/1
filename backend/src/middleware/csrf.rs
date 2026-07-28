@@ -17,9 +17,9 @@
 // - 消费时校验 token 绑定的 IP 与请求 IP 是否一致；不一致返回 403 + 业务码
 //   `CSRF_IP_MISMATCH`。IP 来源：X-Real-IP → X-Forwarded-For → ConnectInfo → "unknown"。
 
+use crate::container::AppState;
 use crate::middleware::audit_context::extract_client_ip as extract_client_ip_helper;
 use crate::middleware::public_routes::is_public_path;
-use crate::utils::app_state::AppState;
 use crate::utils::cache::CsrfConsumeResult;
 use axum::{
     body::Body,

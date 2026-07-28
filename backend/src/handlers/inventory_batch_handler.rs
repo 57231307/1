@@ -7,9 +7,9 @@ use rust_decimal::Decimal;
 use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
 use serde::Deserialize;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::inventory_stock;
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 

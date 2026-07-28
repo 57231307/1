@@ -2,6 +2,7 @@
 //!
 //! 采购订单 HTTP 接口层，负责处理 HTTP 请求并调用 Service 层
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::purchase_order;
 use crate::models::supplier;
@@ -10,7 +11,6 @@ use crate::services::po::{
     CreateOrderItemRequest, CreatePurchaseOrderRequest, UpdateOrderItemRequest,
     UpdatePurchaseOrderRequest,
 };
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::response::ApiResponse;

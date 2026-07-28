@@ -9,6 +9,7 @@ use axum::{
 use serde::Deserialize;
 use validator::Validate;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::report_subscription_service::{
     CreateSubscriptionRequest, ReportSubscriptionService, SubscriptionQuery,
@@ -18,7 +19,6 @@ use crate::services::report_template_service::{
     CreateReportTemplateRequest, ReportTemplateQuery, ReportTemplateService,
     UpdateReportTemplateRequest,
 };
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

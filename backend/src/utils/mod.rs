@@ -1,5 +1,5 @@
 pub mod admin_checker;
-pub mod app_state;
+// V15 P1-07 修复（缺陷 7.1-2）：app_state 已移至 crate::container，打破 utils↔services 循环依赖
 pub mod cache;
 // P0-D03/D04（Batch 488）：Redis 分布式缓存工具（L2 层，配合 cache_service 的 moka L1）
 pub mod redis_cache;

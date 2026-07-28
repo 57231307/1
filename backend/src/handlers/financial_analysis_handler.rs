@@ -10,12 +10,12 @@ use serde::Deserialize;
 use tracing::info;
 use validator::Validate;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::financial_analysis;
 use crate::services::financial_analysis_service::{
     CreateIndicatorRequest, FinancialAnalysisService, IndicatorQueryParams,
 };
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

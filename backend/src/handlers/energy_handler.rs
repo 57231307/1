@@ -13,6 +13,7 @@ use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 use serde::Deserialize;
 use std::sync::Arc;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::audit_log::{OperationType, Severity};
 use crate::models::{
@@ -26,7 +27,6 @@ use crate::services::energy_service::{
     MonthlyAllocationRequest, RuleQuery, UpdateAllocationRecordRequest, UpdateConsumptionRequest,
     UpdateMeterRequest, UpdateRuleRequest,
 };
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};

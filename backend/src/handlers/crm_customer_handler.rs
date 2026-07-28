@@ -10,6 +10,7 @@ use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use serde::Deserialize;
 use validator::Validate;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::crm_tag;
 use crate::models::dto::crm_dto::{CreateLeadRequest, LeadQuery, UpdateLeadRequest};
@@ -17,7 +18,6 @@ use crate::services::crm::cust::CrmService;
 use crate::services::customer_service::{
     CreateCustomerContactRequest, CustomerService, UpdateCustomerContactRequest,
 };
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

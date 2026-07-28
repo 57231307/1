@@ -10,12 +10,12 @@ use axum::{
 use serde::Deserialize;
 use validator::Validate;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::five_dimension_service::{
     FiveDimensionQuery, FiveDimensionSearchParams as ServiceFiveDimensionSearchParams,
     FiveDimensionService,
 };
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

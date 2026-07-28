@@ -13,6 +13,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::audit_log::{OperationType, Severity};
 use crate::models::color_card_issue;
@@ -21,7 +22,6 @@ use crate::services::color_card_issue_service::{
     ColorCardIssueService, IssueError, IssueParams, ListIssuesQuery,
 };
 use crate::services::role_permission_service::RolePermissionService;
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};

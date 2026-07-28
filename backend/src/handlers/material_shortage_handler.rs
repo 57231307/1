@@ -9,9 +9,9 @@ use axum::{
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::material_shortage_service::{MaterialShortageService, ShortageCheckRequest};
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

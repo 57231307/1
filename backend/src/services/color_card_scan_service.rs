@@ -6,10 +6,10 @@
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use std::sync::Arc;
 
+use crate::container::AppState;
 use crate::models::color_card::{self, Entity as ColorCardEntity};
 use crate::models::color_card_item::{self, Entity as ItemEntity};
 use crate::models::color_card_response_dto::{PriceSummary, RecipeSummary, ScanResult};
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 
 /// 扫码查询服务

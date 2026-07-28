@@ -16,8 +16,8 @@ use axum::{
     Router,
 };
 
+use crate::container::AppState;
 use crate::handlers::finance_alert_handler;
-use crate::utils::app_state::AppState;
 
 /// 财务预警路由（nest 到 /api/v1/erp/finance-alerts）
 pub fn routes() -> Router<AppState> {

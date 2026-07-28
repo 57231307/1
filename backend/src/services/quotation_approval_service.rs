@@ -23,12 +23,12 @@ use sea_orm::{
 };
 use std::sync::Arc;
 
+use crate::container::AppState;
 use crate::models::dto::bpm_dto::StartProcessRequest;
 use crate::models::sales_quotation::{
     self, ActiveModel as QuotationActive, Entity as QuotationEntity,
 };
 use crate::services::bpm_service::BpmService;
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 
 /// 金额阶梯常量

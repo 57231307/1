@@ -12,13 +12,13 @@ use sea_orm::{
 use std::sync::Arc;
 use thiserror::Error;
 
+use crate::container::AppState;
 use crate::models::custom_order::{self, ActiveModel, Entity};
 use crate::models::lab_dip_request;
 use crate::models::process_log::{self, ActiveModel as LogActive, Entity as LogEntity};
 use crate::models::process_node::{self, Entity as NodeEntity};
 use crate::models::sales_quotation;
 use crate::models::status::process_node as node_status;
-use crate::utils::app_state::AppState;
 use crate::utils::process_state_machine::{
     can_transition, next_status, CustomOrderStatus, StateMachineError,
 };

@@ -7,11 +7,11 @@ use rust_decimal::prelude::ToPrimitive;
 use sea_orm::{EntityTrait, QueryOrder};
 use serde::{Deserialize, Serialize};
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::sales_contract::Entity as SalesContractEntity;
 use crate::models::sales_price::Entity as SalesPriceEntity;
 use crate::services::ai::AiAnalysisService;
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

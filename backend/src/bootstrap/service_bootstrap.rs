@@ -10,7 +10,7 @@ use sea_orm::{ConnectionTrait, DatabaseBackend, DatabaseConnection, Statement};
 use tracing::{info, warn};
 
 use crate::config::settings::AppSettings;
-use crate::utils::app_state::{AppState, AppStateParams};
+use crate::container::{AppState, AppStateParams};
 
 /// 启动过程中创建的需要在 graceful shutdown 时关闭的服务句柄。
 ///

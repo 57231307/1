@@ -4,9 +4,9 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::ai::AiAnalysisService;
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

@@ -13,6 +13,7 @@ use axum::{
 };
 use serde::Deserialize;
 
+use crate::container::AppState;
 use crate::models::{
     dye_batch_lifecycle_log, dye_batch_operation, dye_batch_rework, dye_batch_state_rule,
 };
@@ -22,7 +23,6 @@ use crate::services::dye_batch_state_machine_service::{
     DyeBatchStateRuleService, LifecycleLogQuery, OperationQuery, ReworkQuery, StateRuleQuery,
     UpdateReworkRequest, UpdateStateRuleRequest,
 };
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 

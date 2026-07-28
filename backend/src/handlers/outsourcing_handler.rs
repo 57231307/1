@@ -15,6 +15,7 @@ use axum::{
 };
 use serde::Deserialize;
 
+use crate::container::AppState;
 use crate::models::{
     outsourcing_order, outsourcing_order_item, outsourcing_receipt, outsourcing_voucher,
 };
@@ -26,7 +27,6 @@ use crate::services::outsourcing_service::{
     UpdateOutsourcingOrderItemRequest, UpdateOutsourcingOrderRequest,
     UpdateOutsourcingReceiptRequest,
 };
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 

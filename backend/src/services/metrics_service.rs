@@ -376,7 +376,7 @@ impl MetricsService {
 
 /// 导出 Prometheus 格式的指标
 pub async fn metrics_handler(
-    State(state): State<crate::utils::app_state::AppState>,
+    State(state): State<crate::container::AppState>,
 ) -> Result<Response<String>, StatusCode> {
     let encoder = TextEncoder::new();
     let metric_families = state.metrics.gather();
@@ -396,7 +396,7 @@ pub async fn metrics_handler(
 }
 
 /// 创建监控路由
-pub fn create_metrics_router() -> Router<crate::utils::app_state::AppState> {
+pub fn create_metrics_router() -> Router<crate::container::AppState> {
     Router::new().route("/metrics", get(metrics_handler))
 }
 
@@ -521,7 +521,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_metrics_handler() {
-        let response = metrics_handler(State(crate::utils::app_state::AppState::default())).await;
+        let response = metrics_handler(State(crate::container::AppState::default())).await;
 
         // P9-1: 用 match 处理 handler 返回的 Result
         let response = match response {

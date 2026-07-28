@@ -3,7 +3,7 @@
 //! 处理用户、角色、权限、部门等身份与访问管理相关接口。
 //! 提供多个子路由供主 mod.rs 在不同路径下 nest。
 
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use axum::{
     routing::{delete, get, post, put},
     Router,

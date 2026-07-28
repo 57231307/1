@@ -24,6 +24,7 @@ use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::bulk_color_approval;
 use crate::models::bulk_color_approval_history;
@@ -31,7 +32,6 @@ use crate::services::bulk_color_approval_service::{
     ApprovalReportRow, ApprovalStatistics, BulkColorApprovalError, BulkColorApprovalService,
     CreateBulkColorApprovalParams, CutSampleParams, ListBulkColorApprovalQuery,
 };
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

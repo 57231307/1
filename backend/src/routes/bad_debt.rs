@@ -26,8 +26,8 @@ use axum::{
     Router,
 };
 
+use crate::container::AppState;
 use crate::handlers::bad_debt_handler;
-use crate::utils::app_state::AppState;
 
 /// 坏账管理路由（nest 到 /api/v1/erp/bad-debts）
 pub fn routes() -> Router<AppState> {

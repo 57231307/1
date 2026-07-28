@@ -2,10 +2,10 @@
 //!
 //! 拆分自 inventory_stock_handler.rs：原 4 个查询 fn + tests 独立成文件。
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::PageRequest;
 use crate::services::inventory_stock_service::InventoryStockService;
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{

@@ -25,6 +25,7 @@ use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::Serialize;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::bad_debt_dto::{
     ApproveWriteoffRequest, CancelWriteoffRequest, CreateWriteoffRequest, ListProvisionQuery,
@@ -33,7 +34,6 @@ use crate::models::bad_debt_dto::{
 use crate::models::bad_debt_provision;
 use crate::models::bad_debt_writeoff;
 use crate::services::bad_debt_service::{BadDebtError, BadDebtService};
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

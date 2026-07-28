@@ -13,6 +13,7 @@ use axum::{
 };
 use serde::Deserialize;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::production_recipe::{self, RecipeMaterialItem};
 use crate::models::production_recipe_addition;
@@ -21,7 +22,6 @@ use crate::services::production_recipe_service::{
     CreateProductionRecipeRequest, ProductionRecipeAdditionService, ProductionRecipeQuery,
     ProductionRecipeService, UpdateProductionRecipeRequest,
 };
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

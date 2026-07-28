@@ -10,11 +10,11 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::bom_service::{
     BomQuery, BomService, CreateBomItemRequest, CreateBomRequest, UpdateBomRequest,
 };
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 

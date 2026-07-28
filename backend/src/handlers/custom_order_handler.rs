@@ -11,6 +11,7 @@ use axum::{
 use serde::Deserialize;
 use validator::Validate;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::custom_order_create_dto::{
     CancelCustomOrderDto, CreateCustomOrderDto, UpdateCustomOrderDto,
@@ -30,7 +31,6 @@ use crate::services::custom_order_crud_service::CustomOrderCrudService;
 use crate::services::custom_order_process_service::CustomOrderProcessService;
 use crate::services::custom_order_quality_service::CustomOrderQualityService;
 use crate::services::custom_order_state_service::CustomOrderStateService;
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

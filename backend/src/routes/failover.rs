@@ -11,10 +11,10 @@ use axum::{
     Router,
 };
 
+use crate::container::AppState;
 use crate::handlers::failover_handler::{
     get_failover_metrics, get_failover_status, health_check, post_test_switch,
 };
-use crate::utils::app_state::AppState;
 
 /// 主备隔离路由
 pub fn failover_routes() -> Router<AppState> {

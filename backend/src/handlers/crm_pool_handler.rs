@@ -9,12 +9,12 @@ use axum::{
 };
 use serde::Deserialize;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::crm_dto::BatchClaimRequest;
 use crate::services::crm::cust::CrmService;
 // V15 P0-S08：公海规则服务
 use crate::services::crm::pool::PoolRuleService;
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

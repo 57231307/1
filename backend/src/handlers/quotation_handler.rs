@@ -10,6 +10,7 @@ use chrono::Utc;
 use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
 use serde::{Deserialize, Serialize};
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::product_color_price;
 // 批次 158 v11 真实接入：审批状态常量替代字符串字面量
@@ -23,7 +24,6 @@ use crate::services::quotation_approval_service::QuotationApprovalService;
 use crate::services::quotation_convert_service::QuotationConvertService;
 use crate::services::quotation_pricing_service::{PricingContext, QuotationPricingService};
 use crate::services::quotation_service::{QuotationService, ServiceError};
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 

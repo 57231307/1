@@ -6,13 +6,13 @@ use chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use serde::Deserialize;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::dashboard_layout::{self, Entity as DashboardLayoutEntity};
 use crate::services::dashboard_service::DashboardService;
 use crate::services::dashboard_service::{
     DashboardOverview, InventoryStatistics, LowStockAlert, SalesStatistics,
 };
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

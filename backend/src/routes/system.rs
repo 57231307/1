@@ -7,8 +7,8 @@
 //! 同时规避同前缀下的 path+method 重叠（`system_update` 的 `/status` 与
 //! `init` 的 `/status` 不冲突），避免 axum 0.7 `Overlapping method route` panic。
 
+use crate::container::AppState;
 use crate::middleware::init_token::init_token_middleware;
-use crate::utils::app_state::AppState;
 use axum::{
     middleware,
     routing::{get, post},

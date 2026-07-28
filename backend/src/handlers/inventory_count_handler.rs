@@ -13,13 +13,13 @@
 //! - `POST /api/v1/erp/inventory/counts/:id/approve` — 审批通过并完成盘点（同步更新库存）
 //! - `POST /api/v1/erp/inventory/counts/:id/reject` — 驳回审批（退回 pending 状态）
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::inventory_count;
 use crate::models::inventory_count_item;
 use crate::services::inventory_count_service::{
     CountItemInput, CreateCountRequest, InventoryCountService, UpdateCountRequest,
 };
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{

@@ -7,10 +7,10 @@ use rust_decimal::prelude::ToPrimitive;
 use sea_orm::EntityTrait;
 use serde::{Deserialize, Serialize};
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::product::Entity as ProductEntity;
 use crate::services::ai::AiAnalysisService;
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

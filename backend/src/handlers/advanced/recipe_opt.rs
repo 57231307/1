@@ -19,9 +19,9 @@
 use axum::{extract::State, Json};
 use serde::Deserialize;
 
+use crate::container::AppState;
 use crate::services::ai::recipe_opt::{RecipeOptRequest, RecipeOptResponse};
 use crate::services::ai::AiAnalysisService;
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

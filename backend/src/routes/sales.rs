@@ -6,7 +6,7 @@
 //! 语义上等价于状态变更（submit/approve/cancel 等），RESTful 规范应为 `PATCH /resource/:id` + body `{status}`。
 //! 短期保留 POST 动作端点以兼容前端；长期计划重构为 PATCH 统一状态变更语义。
 
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use axum::{
     routing::{delete, get, post, put},
     Router,

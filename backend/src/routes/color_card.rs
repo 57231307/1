@@ -8,8 +8,8 @@ use axum::{
     Router,
 };
 
+use crate::container::AppState;
 use crate::handlers::color_card;
-use crate::utils::app_state::AppState;
 
 /// 色卡仓储管理路由（nest 到 /api/v1/erp/color-cards）
 pub fn routes() -> Router<AppState> {

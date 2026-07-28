@@ -1,8 +1,8 @@
-use crate::utils::app_state::AppState;
 use axum::{extract::State, Json};
 use serde::Deserialize;
 use validator::Validate;
 
+use crate::container::AppState;
 use crate::services::product_category_service::ProductCategoryService;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;

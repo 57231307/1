@@ -19,6 +19,7 @@ use sea_orm::{
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::accounting_period;
 use crate::models::user;
@@ -26,7 +27,6 @@ use crate::services::crm::recycle_rule::{
     CreateRecycleRulePayload, RecycleRule, RecycleRuleService, UpdateRecycleRulePayload,
 };
 use crate::services::mrp_engine_service::MrpEngineService;
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::messages::biz_msg;
 use crate::utils::response::ApiResponse;

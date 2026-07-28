@@ -11,12 +11,12 @@ use axum::{
 };
 use serde::Deserialize;
 
+use crate::container::AppState;
 use crate::models::{fabric_defect_record, fabric_inspection_record};
 use crate::services::fabric_inspection_service::{
     CreateDefectRequest, CreateInspectionRequest, FabricDefectService, FabricInspectionService,
     GradeInspectionRequest, InspectionQuery, RollFabricRequest, UpdateInspectionRequest,
 };
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 

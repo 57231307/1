@@ -10,12 +10,12 @@ use sea_orm::{
 use std::sync::Arc;
 use thiserror::Error;
 
+use crate::container::AppState;
 use crate::models::custom_order_update_dto::{
     AddProcessLogDto, AdvanceNodeDto, CreateProcessNodeDto, UpdateProcessNodeDto,
 };
 use crate::models::process_log::{self, ActiveModel as LogActive, Entity as LogEntity};
 use crate::models::process_node::{self, ActiveModel as NodeActive, Entity as NodeEntity};
-use crate::utils::app_state::AppState;
 
 /// 业务错误
 #[derive(Debug, Error)]

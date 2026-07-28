@@ -18,13 +18,13 @@ use sea_orm::{
 };
 use std::sync::Arc;
 
+use crate::container::AppState;
 use crate::models::sales_order::{self, ActiveModel as OrderActive, Entity as OrderEntity};
 use crate::models::sales_order_item::ActiveModel as OrderItemActive;
 use crate::models::sales_quotation::{
     self, ActiveModel as QuotationActive, Entity as QuotationEntity,
 };
 use crate::models::sales_quotation_item::{self, Entity as QuotationItemEntity};
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 
 /// 转订单服务

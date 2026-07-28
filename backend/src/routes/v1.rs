@@ -8,7 +8,7 @@
 //! routes() 返回空 Router。/api/v1 根路径请求由 axum 默认 404 处理，
 //! 各业务域路由由主 mod.rs 在 /api/v1/erp/* 下独立 nest。
 
-use crate::utils::app_state::AppState;
+use crate::container::AppState;
 use axum::Router;
 
 /// 统一入口（空 Router，业务域路由由主 mod.rs nest 组合）

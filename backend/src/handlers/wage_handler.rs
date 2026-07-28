@@ -13,6 +13,7 @@ use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder}
 use serde::Deserialize;
 use std::sync::Arc;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::audit_log::{OperationType, Severity};
 use crate::models::{process_wage_rate, wage_record, wage_record_detail};
@@ -22,7 +23,6 @@ use crate::services::wage_service::{
     UpdateWageRecordRequest, WageCalculationService, WageRateQuery, WageRateService,
     WageRecordQuery, WageRecordService,
 };
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};

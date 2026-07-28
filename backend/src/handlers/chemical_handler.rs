@@ -12,6 +12,7 @@ use axum::{
 };
 use serde::Deserialize;
 
+use crate::container::AppState;
 use crate::models::{chemical_category, chemical_lot, chemical_master, chemical_requisition};
 use crate::services::chemical_service::{
     ChemicalCategoryQuery, ChemicalCategoryService, ChemicalLotQuery, ChemicalLotService,
@@ -20,7 +21,6 @@ use crate::services::chemical_service::{
     CreateChemicalMasterRequest, CreateChemicalRequisitionRequest, UpdateChemicalCategoryRequest,
     UpdateChemicalLotRequest, UpdateChemicalMasterRequest, UpdateChemicalRequisitionRequest,
 };
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 

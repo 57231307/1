@@ -32,11 +32,11 @@ use std::str::FromStr;
 use std::sync::Arc;
 use thiserror::Error;
 
+use crate::container::AppState;
 use crate::models::bulk_color_approval::{self, ActiveModel, Entity};
 use crate::models::bulk_color_approval_history;
 use crate::models::dye_batch;
 use crate::models::inventory_stock;
-use crate::utils::app_state::AppState;
 
 /// 业务错误
 #[derive(Debug, Error)]

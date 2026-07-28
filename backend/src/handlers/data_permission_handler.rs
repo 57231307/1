@@ -2,10 +2,10 @@
 //!
 //! 数据权限 HTTP 接口层，提供数据权限管理功能
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::data_permission_service::DataPermissionService;
 use crate::utils::admin_checker::is_admin_role;
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{

@@ -12,6 +12,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::container::AppState;
 use crate::models::{
     business_mode_config, business_mode_flow_step, business_mode_order_link, business_mode_rule,
 };
@@ -23,7 +24,6 @@ use crate::services::business_mode_service::{
     UpdateBusinessModeConfigRequest, UpdateBusinessModeFlowStepRequest,
     UpdateBusinessModeOrderLinkRequest, UpdateBusinessModeRuleRequest,
 };
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 

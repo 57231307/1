@@ -1,7 +1,7 @@
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::fund_management;
 use crate::services::fund_management_service::{FundManagementService, UpdateFundAccountRequest};
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::messages::biz_msg;
 use crate::utils::ApiResponse;

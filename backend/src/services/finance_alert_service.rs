@@ -22,6 +22,7 @@ use sea_orm::{
 use std::sync::Arc;
 use thiserror::Error;
 
+use crate::container::AppState;
 use crate::models::ar_invoice;
 use crate::models::budget_execution;
 use crate::models::finance_alert::{self, ActiveModel, Entity};
@@ -33,7 +34,6 @@ use crate::models::fund_account;
 use crate::models::inventory_stock;
 use crate::models::notification::{NotificationPriority, NotificationType};
 use crate::services::notification_service::{CreateNotificationRequest, NotificationService};
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 

@@ -5,6 +5,9 @@
 
 pub mod cli;
 pub mod config;
+// V15 P1-07 修复（缺陷 7.1-2）：AppState 从 utils/ 移至独立 container/ 模块
+// 打破 utils↔services 循环依赖：utils 只保留纯工具函数，container 持有 services 容器
+pub mod container;
 pub mod constants;
 pub mod database;
 pub mod handlers;
@@ -23,7 +26,7 @@ pub mod websocket; // P3-2 WebSocket 实时通信模块
                    // P9-6 OpenTelemetry 一体化
 pub mod telemetry;
 
+pub use container::AppState;
 pub use services::auth_service::AuthService;
 pub use services::user_service::UserService;
-pub use utils::app_state::AppState;
 pub mod docs;

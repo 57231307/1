@@ -8,13 +8,13 @@
 //!（`process_key`/`process_name`/`nodes`）不一致，handler 层负责转换。
 //! 前端 `PageResult.list` 对应后端 `PageResponse.data`，也在此处映射。
 
+use crate::container::AppState;
 use crate::models::bpm_process_definition;
 use crate::models::dto::bpm_dto::{
     CreateBpmTemplateRequest, CreateProcessDefinitionRequest, CreateVersionRequest,
     ProcessDefinitionQuery, TemplateQuery, UpdateProcessDefinitionRequest,
 };
 use crate::services::bpm_service::BpmService;
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::messages::biz_msg;
 use crate::utils::response::ApiResponse;

@@ -16,6 +16,7 @@ use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::Serialize;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::finance_alert;
 use crate::models::finance_alert_dto::{
@@ -23,7 +24,6 @@ use crate::models::finance_alert_dto::{
     TriggerScanRequest,
 };
 use crate::services::finance_alert_service::{FinanceAlertError, FinanceAlertService};
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

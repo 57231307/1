@@ -12,8 +12,8 @@ use serde::Deserialize;
 use serde_json::json;
 use std::sync::Arc;
 
+use crate::container::AppState;
 use crate::services::failover_service::{FailoverMetrics, FailoverService};
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

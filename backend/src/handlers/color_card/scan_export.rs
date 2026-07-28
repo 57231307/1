@@ -10,6 +10,7 @@ use axum::{
 };
 use std::sync::Arc;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::audit_log::{OperationType, Severity};
 use crate::models::color_card_response_dto::ScanResult;
@@ -17,7 +18,6 @@ use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::color_card_crud_service::ColorCardCrudService;
 use crate::services::color_card_item_service::ColorCardItemService;
 use crate::services::color_card_scan_service::ColorCardScanService;
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};

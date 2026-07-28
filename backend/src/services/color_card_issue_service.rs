@@ -21,12 +21,12 @@ use std::str::FromStr;
 use std::sync::Arc;
 use thiserror::Error;
 
+use crate::container::AppState;
 use crate::models::audit_log::{OperationType, Severity};
 use crate::models::color_card::{self, Entity as ColorCardEntity};
 use crate::models::color_card_issue::{self, ActiveModel as IssueActive, Entity as IssueEntity};
 use crate::models::customer::Entity as CustomerEntity;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
-use crate::utils::app_state::AppState;
 
 /// 业务错误
 #[derive(Debug, Error)]

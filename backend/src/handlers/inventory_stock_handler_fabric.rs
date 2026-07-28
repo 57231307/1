@@ -2,9 +2,9 @@
 //!
 //! 拆分自 inventory_stock_handler.rs：原 2 个面料 fn 独立成文件。
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::inventory_stock_service::{CreateStockFabricArgs, InventoryStockService};
-use crate::utils::app_state::AppState;
 use crate::utils::dual_unit_converter::DualUnitConverter;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;

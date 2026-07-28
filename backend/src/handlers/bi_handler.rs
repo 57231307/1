@@ -14,12 +14,12 @@ use axum::{
 };
 use serde::Deserialize;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::bi_analysis_service::{
     BiAnalysisService, BiResponse, CategoryStat, CustomerRank, KpiSummary, ProductRank,
     ProfitAnalysis, RegionStat, TimeSeriesPoint,
 };
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

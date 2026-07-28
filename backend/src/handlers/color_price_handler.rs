@@ -13,6 +13,7 @@ use serde_json::json;
 use std::str::FromStr;
 use validator::Validate;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::color_price_dto::{
     ApproveColorPriceDto, BatchAdjustPriceDto, ColorPriceDetail, ColorPriceListItem,
@@ -33,7 +34,6 @@ use crate::services::color_price_crud_service::{ColorPriceCrudService, CrudError
 use crate::services::color_price_history_service::ColorPriceHistoryService;
 use crate::services::color_price_seasonal_service::{ColorPriceSeasonalService, SeasonalError};
 use crate::services::color_price_tier_service::{ColorPriceTierService, TierError};
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 

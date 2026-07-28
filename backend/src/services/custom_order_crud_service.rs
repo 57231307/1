@@ -12,6 +12,7 @@ use sea_orm::{
 use std::sync::Arc;
 use thiserror::Error;
 
+use crate::container::AppState;
 use crate::models::custom_order::{
     self, ActiveModel as CustomOrderActive, Entity as CustomOrderEntity,
 };
@@ -20,7 +21,6 @@ use crate::models::custom_order_create_dto::{
 };
 use crate::models::process_node::{self, ActiveModel as NodeActive, Entity as NodeEntity};
 use crate::models::status::custom_order as co_status;
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 use crate::utils::process_state_machine::default_process_nodes;

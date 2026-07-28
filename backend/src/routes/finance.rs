@@ -22,6 +22,7 @@ use axum::{
     Router,
 };
 
+use crate::container::AppState;
 use crate::handlers::{
     account_subject_handler, accounting_period_handler, ap_invoice_handler, ap_payment_handler,
     ap_payment_request_handler, ap_reconciliation_handler, ap_report_handler,
@@ -32,7 +33,6 @@ use crate::handlers::{
     financial_analysis_handler, fixed_asset_handler, fund_management_handler, missing_handlers,
     omni_audit_handler, voucher_handler,
 };
-use crate::utils::app_state::AppState;
 
 /// 财务支付与发票路由（/payments、/invoices）
 fn finance_payment_invoice_routes() -> Router<AppState> {

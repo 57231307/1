@@ -32,12 +32,12 @@ use std::str::FromStr;
 use std::sync::Arc;
 use thiserror::Error;
 
+use crate::container::AppState;
 use crate::models::quality_8d_dto::{
     AdvanceStepPayload, CloseEightDRequest, ListEightDQuery, StartEightDRequest,
 };
 use crate::models::quality_8d_report::{self, ActiveModel, Entity};
 use crate::models::quality_issue;
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 

@@ -11,6 +11,7 @@
 //! - `POST /api/v1/erp/analytics/tracking/funnel` — 漏斗分析
 //! - `GET /api/v1/erp/analytics/tracking/user-path` — 用户路径分析
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::tracking_service::{
     BehaviorInput, FunnelQuery, PageViewInput, StatsQuery, TrackingService, UserPathQuery,
@@ -18,7 +19,6 @@ use crate::services::tracking_service::{
 use crate::services::user_consent_service::{
     UserConsentService, CONSENT_TYPE_BEHAVIOR_TRACKING, CONSENT_TYPE_PAGE_VIEW_TRACKING,
 };
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{

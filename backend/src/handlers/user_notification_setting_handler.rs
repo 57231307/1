@@ -1,10 +1,10 @@
 //! 用户通知偏好设置 Handler
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::user_notification_setting_service::{
     UpdateNotificationSettingParams, UserNotificationSettingService,
 };
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{extract::State, Json};

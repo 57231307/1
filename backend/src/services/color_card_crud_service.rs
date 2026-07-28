@@ -13,13 +13,13 @@ use sea_orm::{
 use std::sync::Arc;
 use thiserror::Error;
 
+use crate::container::AppState;
 use crate::models::color_card::{self, ActiveModel as ColorCardActive, Entity as ColorCardEntity};
 use crate::models::color_card_create_dto::{
     ArchiveColorCardDto, CreateColorCardDto, UpdateColorCardDto,
 };
 // 批次 211 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
-use crate::utils::app_state::AppState;
 use crate::utils::sql_escape::safe_like_pattern;
 
 /// 业务错误

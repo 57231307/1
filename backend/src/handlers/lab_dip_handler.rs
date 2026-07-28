@@ -10,6 +10,7 @@ use axum::{
 };
 use serde::Deserialize;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::{lab_dip_request, lab_dip_resample, lab_dip_sample};
 use crate::services::lab_dip_service::{
@@ -18,7 +19,6 @@ use crate::services::lab_dip_service::{
     RecordMatchingResultRequest, RecordResampleResultRequest, UpdateLabDipRequestRequest,
     UpdateLabDipSampleRequest,
 };
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

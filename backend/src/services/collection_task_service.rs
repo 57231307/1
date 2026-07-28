@@ -19,6 +19,7 @@ use sea_orm::{
 use std::sync::Arc;
 use thiserror::Error;
 
+use crate::container::AppState;
 use crate::models::ar_invoice;
 use crate::models::collection_task::{self, ActiveModel, Entity};
 use crate::models::collection_task_dto::{
@@ -26,7 +27,6 @@ use crate::models::collection_task_dto::{
     ReassignTaskRequest, RecordContactRequest,
 };
 use crate::models::collection_template;
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 

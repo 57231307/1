@@ -15,8 +15,8 @@ use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+use crate::container::AppState;
 use crate::models::product_color_price;
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 
 /// 客户等级（影响折扣）
