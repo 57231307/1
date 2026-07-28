@@ -97,11 +97,14 @@ fn is_user_active_check_enabled() -> bool {
 }
 
 // 认证中间件：提取 token → 黑名单检查 → JWT 验证 → 吊销/活跃检查 → 注入 AuthContext
+// V15 P1 修复（E0277）：参数声明不可变，与 permission_middleware 等其他中间件签名保持一致；
+// 在函数体内通过 `let mut request = request;` 获得可变性，避免 from_fn_with_state 类型推断失败。
 pub async fn auth_middleware(
     State(state): State<AppState>,
-    mut request: Request<Body>,
+    request: Request<Body>,
     next: Next,
 ) -> Result<Response, Response> {
+    let mut request = request;
     let path = request.uri().path().to_string();
     let method = request.method().to_string();
     let client_ip = crate::middleware::audit_context::extract_client_ip(&request);

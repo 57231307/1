@@ -33,12 +33,16 @@ impl Default for BootstrapShutdownHandles {
 }
 
 impl BootstrapShutdownHandles {
-    /// 关闭所有持有的服务（幂等安全）。
-    pub fn shutdown(self) {
-        if let Some(omni_audit) = self.omni_audit {
+    /// 关闭所有持有的服务（幂等安全，可重复调用）。
+    ///
+    /// V15 P1 修复（E0507）：将 `self` 改为 `&mut self`，避免在 `&mut` 引用上
+    /// 触发 move。使用 `Option::take()` 取出所有权，第二次调用时 `Option` 已为 `None`，
+    /// 自然实现幂等。
+    pub fn shutdown(&mut self) {
+        if let Some(omni_audit) = self.omni_audit.take() {
             omni_audit.shutdown();
         }
-        if let Some(audit_log) = self.audit_log {
+        if let Some(audit_log) = self.audit_log.take() {
             audit_log.shutdown();
         }
     }
