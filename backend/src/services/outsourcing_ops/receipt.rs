@@ -270,18 +270,29 @@ impl OutsourcingReceiptService {
         active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
         let updated = active.update(&*self.db).await?;
 
-        // 缺陷 2.2 修复：委外收回确认后自动触发质检记录创建
-        Self::trigger_quality_inspection(&*self.db, &updated, &order).await?;
+        // 缺陷 2.2 修复：委外收回确认后自动触发质检记录创建并回写 inspection_id
+        let inspection_id = Self::trigger_quality_inspection(&*self.db, &updated, &order).await?;
+
+        // 缺陷 2.2：将质检记录 ID 持久化到收回单，建立委外收回→质检的关联链路
+        if let Some(insp_id) = inspection_id {
+            let mut patch: ReceiptActiveModel = ReceiptActiveModel::default();
+            patch.id = sea_orm::ActiveValue::Set(updated.id);
+            patch.inspection_id = sea_orm::ActiveValue::Set(Some(insp_id));
+            patch.updated_at =
+                sea_orm::ActiveValue::Set(crate::utils::date_utils::utc_now_fixed());
+            let reloaded = patch.update(&*self.db).await?;
+            return Ok(reloaded);
+        }
 
         Ok(updated)
     }
 
-    /// 缺陷 2.2：委外收回确认后自动创建质检记录
+    /// 缺陷 2.2：委外收回确认后自动创建质检记录，返回质检记录 ID
     async fn trigger_quality_inspection(
         db: &DatabaseConnection,
         receipt: &ReceiptModel,
         order: &crate::models::outsourcing_order::Model,
-    ) -> Result<(), AppError> {
+    ) -> Result<Option<i32>, AppError> {
         use crate::services::quality_inspection_service::{
             CreateInspectionRecordRequest, QualityInspectionService,
         };
@@ -353,7 +364,7 @@ impl OutsourcingReceiptService {
             // 这里仅记录告警，实际处理由质检员在质检界面操作
         }
 
-        Ok(())
+        Ok(Some(record.id))
     }
 
     /// 按 ID 查询

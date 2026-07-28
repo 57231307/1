@@ -61,6 +61,8 @@ pub struct Model {
     pub grade: Option<String>,
     /// 关联库存流水 ID
     pub inventory_transaction_id: Option<i32>,
+    /// 缺陷 2.2：关联质检记录 ID（确认收回时自动创建质检记录并回写）
+    pub inspection_id: Option<i32>,
     /// 状态：draft/confirmed/cancelled
     pub status: String,
     /// 备注

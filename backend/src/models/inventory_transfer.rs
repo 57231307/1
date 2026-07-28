@@ -92,3 +92,33 @@ pub fn determine_approval_level(total_amount: Decimal) -> &'static str {
         APPROVAL_LEVEL_L1
     }
 }
+
+/// 缺陷 6.1：L1 审批允许的角色（常规调拨 < 1万元）
+/// 包含仓库一线操作员及更高层级角色
+pub const L1_APPROVER_ROLES: &[&str] = &[
+    "admin",
+    "gm",
+    "deputy_gm",
+    "warehouse_manager",
+    "warehouse_clerk",
+    "inventory_manager",
+];
+
+/// 缺陷 6.1：L2 审批允许的角色（经理级，1万-10万元）
+pub const L2_APPROVER_ROLES: &[&str] =
+    &["admin", "gm", "deputy_gm", "warehouse_manager", "inventory_manager"];
+
+/// 缺陷 6.1：L3 审批允许的角色（总监级，> 10万元）
+pub const L3_APPROVER_ROLES: &[&str] = &["admin", "gm", "deputy_gm"];
+
+/// 缺陷 6.1：根据审批层级校验角色是否有权审批
+/// L1：仓库一线及更高层级；L2：经理级及以上；L3：总监级及以上
+pub fn can_approve_at_level(role_code: &str, level: &str) -> bool {
+    let allowed: &[&str] = match level {
+        APPROVAL_LEVEL_L1 => L1_APPROVER_ROLES,
+        APPROVAL_LEVEL_L2 => L2_APPROVER_ROLES,
+        APPROVAL_LEVEL_L3 => L3_APPROVER_ROLES,
+        _ => return false,
+    };
+    allowed.contains(&role_code)
+}

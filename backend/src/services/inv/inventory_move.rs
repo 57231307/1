@@ -485,6 +485,11 @@ impl InventoryTransferService {
     }
 
     /// 审核库存调拨
+    ///
+    /// P1 batch-18 缺陷 6.1：接入分级审批逻辑
+    /// - 根据调拨总金额计算审批层级（L1<1万 / L2 1-10万 / L3>10万）
+    /// - 校验审批人角色是否具备该层级审批权限
+    /// - 持久化 approval_level 与 approved_by_role 字段
     pub async fn approve_transfer(
         &self,
         transfer_id: i32,
@@ -492,6 +497,8 @@ impl InventoryTransferService {
         notes: Option<String>,
         // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
         user_id: i32,
+        // P1 batch-18 缺陷 6.1：注入审批人 role_id 用于分级审批权限校验
+        role_id: Option<i32>,
     ) -> Result<InventoryTransferDetail, AppError> {
         // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
         // 开启事务
@@ -511,17 +518,51 @@ impl InventoryTransferService {
             ));
         }
 
+        // P1 batch-18 缺陷 6.1：根据调拨总金额计算审批层级
+        let required_level = inventory_transfer::determine_approval_level(transfer.total_amount);
+
+        // P1 batch-18 缺陷 6.1：审批通过时校验审批人角色权限
+        let approver_role_code: Option<String> = if approved {
+            let rid = role_id.ok_or_else(|| {
+                AppError::permission_denied("缺陷 6.1：审批人角色 ID 缺失，无法校验分级审批权限")
+            })?;
+            let role_code = crate::utils::admin_checker::get_role_code(&*self.db, rid)
+                .await
+                .ok_or_else(|| {
+                    AppError::permission_denied("缺陷 6.1：无法查询审批人角色信息，拒绝审批")
+                })?;
+            if !inventory_transfer::can_approve_at_level(&role_code, required_level) {
+                return Err(AppError::permission_denied(format!(
+                    "缺陷 6.1：调拨金额 {} 元需 {} 级审批，当前角色 {} 无权审批",
+                    transfer.total_amount, required_level, role_code
+                )));
+            }
+            Some(role_code)
+        } else {
+            // 驳回场景不强制校验角色权限，但仍记录角色信息（若有）
+            if let Some(rid) = role_id {
+                crate::utils::admin_checker::get_role_code(&*self.db, rid).await
+            } else {
+                None
+            }
+        };
+
         // 更新调拨单状态
         let mut transfer_update: inventory_transfer::ActiveModel = transfer.into();
         if approved {
             transfer_update.status =
                 sea_orm::ActiveValue::Set(transfer_status::APPROVED.to_string());
-            transfer_update.approved_by = sea_orm::ActiveValue::NotSet; // 实际应从认证信息获取
+            // P1 batch-18 缺陷 6.1：修复 approved_by 字段未持久化的 bug（原 NotSet 导致审批人丢失）
+            transfer_update.approved_by = sea_orm::ActiveValue::Set(Some(user_id));
             transfer_update.approved_at = sea_orm::ActiveValue::Set(Some(chrono::Utc::now()));
         } else {
             transfer_update.status =
                 sea_orm::ActiveValue::Set(transfer_status::REJECTED.to_string());
         }
+        // P1 batch-18 缺陷 6.1：持久化分级审批字段（审批层级与审批人角色）
+        transfer_update.approval_level =
+            sea_orm::ActiveValue::Set(Some(required_level.to_string()));
+        transfer_update.approved_by_role = sea_orm::ActiveValue::Set(approver_role_code);
         if let Some(n) = notes {
             transfer_update.notes = sea_orm::ActiveValue::Set(Some(n));
         }

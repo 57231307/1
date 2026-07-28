@@ -142,8 +142,15 @@ pub async fn approve_transfer(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let transfer_service = InventoryTransferService::new(state.db.clone());
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    // P1 batch-18 缺陷 6.1：注入 role_id 用于分级审批权限校验
     let transfer = transfer_service
-        .approve_transfer(id, request.approved, request.notes, auth.user_id)
+        .approve_transfer(
+            id,
+            request.approved,
+            request.notes,
+            auth.user_id,
+            auth.role_id,
+        )
         .await?;
     let transfer_json = serde_json::to_value(transfer)
         .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
