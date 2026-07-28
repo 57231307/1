@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 用户行为追踪 HTTP 端点
 //!
 //! v11 批次 143 P1-2：真实实现追踪分析功能
@@ -12,6 +11,7 @@ use crate::container::AppState;
 //! - `POST /api/v1/erp/analytics/tracking/funnel` — 漏斗分析
 //! - `GET /api/v1/erp/analytics/tracking/user-path` — 用户路径分析
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::tracking_service::{
     BehaviorInput, FunnelQuery, PageViewInput, StatsQuery, TrackingService, UserPathQuery,

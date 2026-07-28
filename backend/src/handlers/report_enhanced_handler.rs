@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 报表引擎增强 Handler
 //!
 //! 提供报表模板管理、数据导出、报表订阅等 API 接口
@@ -10,6 +9,7 @@ use axum::{
 use serde::Deserialize;
 use validator::Validate;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::report_subscription_service::{
     CreateSubscriptionRequest, ReportSubscriptionService, SubscriptionQuery,

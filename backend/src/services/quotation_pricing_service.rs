@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 销售报价单定价服务
 //!
 //! 业务功能：
@@ -16,6 +15,7 @@ use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+use crate::container::AppState;
 use crate::models::product_color_price;
 use crate::utils::error::AppError;
 

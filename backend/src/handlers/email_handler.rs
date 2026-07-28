@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 邮件 Handler
 //!
 //! 提供邮件发送、模板管理和发送记录查询功能
@@ -12,6 +11,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::utils::admin_checker::is_admin_role;
 

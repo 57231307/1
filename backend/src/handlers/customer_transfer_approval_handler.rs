@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 客户转移审批 Handler
 //!
 //! V15 P0-S08 修复：提供客户转移审批流 HTTP 接口
@@ -16,6 +15,7 @@ use axum::{
     Json,
 };
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::crm::customer_transfer_approval_service::{
     ApprovalQuery, ApproveRequest, CreateTransferApprovalRequest, CustomerTransferApprovalService,

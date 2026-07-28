@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 路由总装配入口
 //!
 //! 本文件由 14 个业务域子 routes 文件 + 必要的基础设施（Prometheus 指标、Swagger UI、静态资源）
@@ -34,6 +33,7 @@ use utoipa_swagger_ui::SwaggerUi;
 #[cfg(feature = "swagger")]
 use utoipa::OpenApi;
 
+use crate::container::AppState;
 use crate::handlers::{
     import_export_handler, material_shortage_handler, print_handler, quality_standard_handler,
     scheduling_handler, system_update_handler, user_handler,

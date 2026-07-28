@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! P9-8 搜索 API 路由（批次 104 真实接入 SearchClient）
 //!
 //! 提供 3 个搜索端点：
@@ -16,6 +15,7 @@ use axum::extract::{Query, State};
 use axum::Json;
 use serde::{Deserialize, Serialize};
 
+use crate::container::AppState;
 use crate::search::{indices, CustomerDoc, DocType, ProductDoc, SalesOrderDoc, SearchQuery};
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;

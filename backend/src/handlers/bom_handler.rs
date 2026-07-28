@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! BOM物料清单 Handler
 //!
 //! BOM（Bill of Materials）物料清单API端点
@@ -11,6 +10,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::bom_service::{
     BomQuery, BomService, CreateBomItemRequest, CreateBomRequest, UpdateBomRequest,

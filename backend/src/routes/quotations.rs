@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 销售报价单路由
 //!
 //! 处理销售报价单 CRUD、审批、转换、定价、色号价格等接口。
@@ -11,6 +10,7 @@ use axum::{
     Router,
 };
 
+use crate::container::AppState;
 use crate::handlers::quotation_handler;
 
 /// 销售报价单路由（nest 到 /api/v1/erp/quotations）

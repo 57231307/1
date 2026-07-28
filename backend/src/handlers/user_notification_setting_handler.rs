@@ -1,6 +1,6 @@
-use crate::container::AppState;
 //! 用户通知偏好设置 Handler
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::user_notification_setting_service::{
     UpdateNotificationSettingParams, UserNotificationSettingService,

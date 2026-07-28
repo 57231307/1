@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 财务预警服务（V15 P0-B04 Batch 481 创建）
 //!
 //! 4 类预警：
@@ -23,6 +22,7 @@ use sea_orm::{
 use std::sync::Arc;
 use thiserror::Error;
 
+use crate::container::AppState;
 use crate::models::ar_invoice;
 use crate::models::budget_execution;
 use crate::models::finance_alert::{self, ActiveModel, Entity};

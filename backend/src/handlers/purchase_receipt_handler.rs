@@ -1,8 +1,8 @@
-use crate::container::AppState;
 //! 采购入库 Handler
 //!
 //! 采购入库 HTTP 接口层，负责处理 HTTP 请求并调用 Service 层
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::{purchase_order, purchase_receipt, warehouse};
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};

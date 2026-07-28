@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 大货批色审批路由（V15 P0-F15/F16/F17，P1-10 扩展）
 //!
 //! 16 端点：
@@ -28,6 +27,7 @@ use axum::{
     Router,
 };
 
+use crate::container::AppState;
 use crate::handlers::bulk_color_approval_handler;
 
 /// 大货批色审批路由（nest 到 /api/v1/erp/bulk-color-approvals）

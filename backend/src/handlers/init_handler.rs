@@ -1,6 +1,6 @@
-use crate::container::AppState;
 //! 系统初始化处理器
 
+use crate::container::AppState;
 use crate::middleware::audit_context::AuditContext;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::init_service::{

@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 大货批色审批 Handler（V15 P0-F15/F16/F17 创建，P1-10 扩展）
 //!
 //! 实现 16 个 HTTP 端点：
@@ -25,6 +24,7 @@ use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::bulk_color_approval;
 use crate::models::bulk_color_approval_history;

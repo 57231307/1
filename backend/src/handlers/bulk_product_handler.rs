@@ -1,6 +1,6 @@
-use crate::container::AppState;
 //! 批量操作 Handler
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::batch_service::{
     BatchCreateProductRequest, BatchService, BatchUpdateProductRequest,

@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! CRM客户管理 Handler
 //!
 //! 提供客户信息维护、标签管理、联系人管理等 API 接口
@@ -11,6 +10,7 @@ use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use serde::Deserialize;
 use validator::Validate;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::crm_tag;
 use crate::models::dto::crm_dto::{CreateLeadRequest, LeadQuery, UpdateLeadRequest};

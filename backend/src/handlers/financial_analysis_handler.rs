@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 财务分析 Handler
 //!
 //! 提供财务指标查询、趋势分析、报告管理等功能
@@ -11,6 +10,7 @@ use serde::Deserialize;
 use tracing::info;
 use validator::Validate;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::financial_analysis;
 use crate::services::financial_analysis_service::{

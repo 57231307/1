@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 坏账管理服务（V15 P0-B01/B02 Batch 481 创建）
 //!
 //! 包含两部分业务：
@@ -26,6 +25,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use thiserror::Error;
 
+use crate::container::AppState;
 use crate::models::ar_invoice;
 use crate::models::bad_debt_dto::{
     ApproveWriteoffRequest, CancelWriteoffRequest, CreateWriteoffRequest, ListProvisionQuery,

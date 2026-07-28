@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 坏账管理 Handler（V15 P0-B01/B02 Batch 481 创建）
 //!
 //! 实现 12 个 HTTP 端点：
@@ -26,6 +25,7 @@ use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::Serialize;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::bad_debt_dto::{
     ApproveWriteoffRequest, CancelWriteoffRequest, CreateWriteoffRequest, ListProvisionQuery,

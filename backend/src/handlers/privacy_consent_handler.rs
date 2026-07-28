@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 用户隐私同意 HTTP 端点（V15 P1 batch-16 缺陷 7.3）
 //!
 //! 提供端点：
@@ -17,6 +16,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::user_consent_service::{
     ConsentStatus, RecordConsentRequest, UserConsentService,

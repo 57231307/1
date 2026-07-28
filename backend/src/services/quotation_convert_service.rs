@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 销售报价单 → 销售订单 转换服务
 //!
 //! 业务功能：
@@ -19,6 +18,7 @@ use sea_orm::{
 };
 use std::sync::Arc;
 
+use crate::container::AppState;
 use crate::models::sales_order::{self, ActiveModel as OrderActive, Entity as OrderEntity};
 use crate::models::sales_order_item::ActiveModel as OrderItemActive;
 use crate::models::sales_quotation::{

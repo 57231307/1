@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 缸号全生命周期状态机 Handler
 //!
 //! v14 批次 432：缸号全生命周期状态机
@@ -14,6 +13,7 @@ use axum::{
 };
 use serde::Deserialize;
 
+use crate::container::AppState;
 use crate::models::{
     dye_batch_lifecycle_log, dye_batch_operation, dye_batch_rework, dye_batch_state_rule,
 };

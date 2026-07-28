@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 验布打卷 Handler
 //!
 //! v14 批次 426：验布打卷流程贯通
@@ -12,6 +11,7 @@ use axum::{
 };
 use serde::Deserialize;
 
+use crate::container::AppState;
 use crate::models::{fabric_defect_record, fabric_inspection_record};
 use crate::services::fabric_inspection_service::{
     CreateDefectRequest, CreateInspectionRequest, FabricDefectService, FabricInspectionService,

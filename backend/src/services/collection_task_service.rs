@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 催收任务服务（V15 P0-B03 Batch 481 创建）
 //!
 //! 业务流程：
@@ -20,6 +19,7 @@ use sea_orm::{
 use std::sync::Arc;
 use thiserror::Error;
 
+use crate::container::AppState;
 use crate::models::ar_invoice;
 use crate::models::collection_task::{self, ActiveModel, Entity};
 use crate::models::collection_task_dto::{

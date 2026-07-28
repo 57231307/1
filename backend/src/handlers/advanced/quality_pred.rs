@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 质量预测 handler
 //!
 //! 端点：`POST /advanced/ai/quality-prediction`
@@ -18,6 +17,7 @@ use crate::container::AppState;
 
 use axum::{extract::State, Json};
 
+use crate::container::AppState;
 use crate::services::ai::quality_pred::{QualityPredRequest, QualityPredResponse};
 use crate::services::ai::AiAnalysisService;
 use crate::utils::error::AppError;

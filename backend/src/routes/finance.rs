@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 财务域路由
 //!
 //! 处理财务、AP/AR 应付应收、凭证/总账、固定资产、预算、资金管理、财务分析、币种等财务相关接口。
@@ -23,6 +22,7 @@ use axum::{
     Router,
 };
 
+use crate::container::AppState;
 use crate::handlers::{
     account_subject_handler, accounting_period_handler, ap_invoice_handler, ap_payment_handler,
     ap_payment_request_handler, ap_reconciliation_handler, ap_report_handler,

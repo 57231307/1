@@ -1,4 +1,3 @@
-use crate::container::AppState;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -8,6 +7,7 @@ use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
+use crate::container::AppState;
 use crate::services::currency_service::{
     ConversionResult, CurrencyService, ExchangeRateHistoryModel,
 };

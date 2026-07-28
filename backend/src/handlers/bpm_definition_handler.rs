@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! BPM 流程定义/版本/模板管理 handler
 //!
 //! 批次 67（P1 1-2 修复）：原所有 handler 标注 `#[allow(dead_code)]` 因 stub 未实现。
@@ -9,6 +8,7 @@ use crate::container::AppState;
 //!（`process_key`/`process_name`/`nodes`）不一致，handler 层负责转换。
 //! 前端 `PageResult.list` 对应后端 `PageResponse.data`，也在此处映射。
 
+use crate::container::AppState;
 use crate::models::bpm_process_definition;
 use crate::models::dto::bpm_dto::{
     CreateBpmTemplateRequest, CreateProcessDefinitionRequest, CreateVersionRequest,

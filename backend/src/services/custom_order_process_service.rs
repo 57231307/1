@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 工艺流程推进服务
 //!
 //! 处理工艺节点的状态推进（独立于订单级别状态机）
@@ -11,6 +10,7 @@ use sea_orm::{
 use std::sync::Arc;
 use thiserror::Error;
 
+use crate::container::AppState;
 use crate::models::custom_order_update_dto::{
     AddProcessLogDto, AdvanceNodeDto, CreateProcessNodeDto, UpdateProcessNodeDto,
 };

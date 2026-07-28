@@ -20,11 +20,11 @@ use axum::{
     routing::get,
     Router,
 };
+use bingxi_backend::container::AppState;
 use bingxi_backend::middleware::auth_context::AuthContext;
 use bingxi_backend::middleware::permission::{
     invalidate_all_permission_cache, invalidate_permission_cache, permission_middleware,
 };
-use bingxi_backend::container::AppState;
 use serde_json::Value;
 use tower::ServiceExt;
 

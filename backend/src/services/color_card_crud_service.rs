@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 色卡 CRUD 服务
 //!
 //! 提供色卡基础 CRUD 业务：create / list / get_by_id / update / archive
@@ -14,6 +13,7 @@ use sea_orm::{
 use std::sync::Arc;
 use thiserror::Error;
 
+use crate::container::AppState;
 use crate::models::color_card::{self, ActiveModel as ColorCardActive, Entity as ColorCardEntity};
 use crate::models::color_card_create_dto::{
     ArchiveColorCardDto, CreateColorCardDto, UpdateColorCardDto,

@@ -1,4 +1,3 @@
-use crate::container::AppState;
 use axum::{
     extract::{Path, Query, State},
     Json,
@@ -8,6 +7,7 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryF
 use serde::Deserialize;
 use validator::Validate;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::location::Entity as LocationEntity;
 use crate::models::location::{self as location_model};

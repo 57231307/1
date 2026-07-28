@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 凭证管理 Handler
 //!
 //! HTTP 接口层
@@ -10,6 +9,7 @@ use axum::{
 use serde::Deserialize;
 use tracing::{info, warn};
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::voucher;
 use crate::services::voucher_service::{

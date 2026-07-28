@@ -1,8 +1,8 @@
-use crate::container::AppState;
 //! 通用打印 Handler
 
 use std::sync::Arc;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};

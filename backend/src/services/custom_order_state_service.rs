@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 定制订单状态机服务
 //!
 //! 处理定制订单的 5 阶段工艺状态推进
@@ -13,6 +12,7 @@ use sea_orm::{
 use std::sync::Arc;
 use thiserror::Error;
 
+use crate::container::AppState;
 use crate::models::custom_order::{self, ActiveModel, Entity};
 use crate::models::lab_dip_request;
 use crate::models::process_log::{self, ActiveModel as LogActive, Entity as LogEntity};

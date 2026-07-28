@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 定制订单 CRUD 服务
 //!
 //! 提供定制订单基础 CRUD 业务：create / list / get_by_id / update / cancel
@@ -13,6 +12,7 @@ use sea_orm::{
 use std::sync::Arc;
 use thiserror::Error;
 
+use crate::container::AppState;
 use crate::models::custom_order::{
     self, ActiveModel as CustomOrderActive, Entity as CustomOrderEntity,
 };

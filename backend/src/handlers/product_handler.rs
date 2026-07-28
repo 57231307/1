@@ -1,4 +1,3 @@
-use crate::container::AppState;
 use axum::{
     extract::{Path, Query, State},
     Extension, Json,
@@ -6,6 +5,7 @@ use axum::{
 use serde::Deserialize;
 use validator::Validate;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::product;
 use crate::models::product_color;

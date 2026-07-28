@@ -20,8 +20,8 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use bingxi_backend::middleware::csrf::csrf_middleware;
 use bingxi_backend::container::AppState;
+use bingxi_backend::middleware::csrf::csrf_middleware;
 use serde_json::{json, Value};
 use tower::ServiceExt;
 

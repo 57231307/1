@@ -1,8 +1,8 @@
-use crate::container::AppState;
 //! 库存处理器：面料库存业务（list_stock_fabric + create_stock_fabric）
 //!
 //! 拆分自 inventory_stock_handler.rs：原 2 个面料 fn 独立成文件。
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::inventory_stock_service::{CreateStockFabricArgs, InventoryStockService};
 use crate::utils::dual_unit_converter::DualUnitConverter;

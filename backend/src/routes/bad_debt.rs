@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 坏账管理路由（V15 P0-B01/B02 Batch 481）
 //!
 //! 12 端点：
@@ -27,6 +26,7 @@ use axum::{
     Router,
 };
 
+use crate::container::AppState;
 use crate::handlers::bad_debt_handler;
 
 /// 坏账管理路由（nest 到 /api/v1/erp/bad-debts）

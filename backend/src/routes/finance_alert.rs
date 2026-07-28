@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 财务预警路由（V15 P0-B04 Batch 481）
 //!
 //! 6 端点：
@@ -17,6 +16,7 @@ use axum::{
     Router,
 };
 
+use crate::container::AppState;
 use crate::handlers::finance_alert_handler;
 
 /// 财务预警路由（nest 到 /api/v1/erp/finance-alerts）

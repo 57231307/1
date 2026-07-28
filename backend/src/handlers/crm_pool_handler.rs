@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! CRM客户公海 Handler
 //!
 //! 提供客户公海池的列表查询、领取和回收功能
@@ -10,6 +9,7 @@ use axum::{
 };
 use serde::Deserialize;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::crm_dto::BatchClaimRequest;
 use crate::services::crm::cust::CrmService;

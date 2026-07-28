@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 色卡发放管理服务（V15 P0-F04 创建）
 //!
 //! 替代旧 color_card_borrow_service（已废弃）
@@ -22,6 +21,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use thiserror::Error;
 
+use crate::container::AppState;
 use crate::models::audit_log::{OperationType, Severity};
 use crate::models::color_card::{self, Entity as ColorCardEntity};
 use crate::models::color_card_issue::{self, ActiveModel as IssueActive, Entity as IssueEntity};

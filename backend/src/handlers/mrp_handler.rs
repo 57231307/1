@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! MRP Handler
 //!
 //! MRP物料需求计划API端点
@@ -12,6 +11,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};

@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 催收任务路由（V15 P0-B03 Batch 481）
 //!
 //! 7 端点：
@@ -18,6 +17,7 @@ use axum::{
     Router,
 };
 
+use crate::container::AppState;
 use crate::handlers::collection_task_handler;
 
 /// 催收任务路由（nest 到 /api/v1/erp/collection-tasks）

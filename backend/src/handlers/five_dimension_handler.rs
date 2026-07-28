@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 五维管理 Handler
 //!
 //! 提供面料五维编码的查询、统计和搜索功能
@@ -11,6 +10,7 @@ use axum::{
 use serde::Deserialize;
 use validator::Validate;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::five_dimension_service::{
     FiveDimensionQuery, FiveDimensionSearchParams as ServiceFiveDimensionSearchParams,

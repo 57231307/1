@@ -1,4 +1,3 @@
-use crate::container::AppState;
 use axum::extract::ConnectInfo;
 use axum::{
     body::{to_bytes, Body, Bytes},
@@ -10,6 +9,7 @@ use axum::{
 use std::net::SocketAddr;
 use std::time::Instant;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::middleware::public_routes::is_public_path;
 use crate::services::omni_audit_service::OmniAuditMessage;

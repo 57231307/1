@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 色卡发放管理 Handler（V15 P0-F04 创建）
 //!
 //! 替代旧 borrow.rs（已废弃）
@@ -14,6 +13,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::audit_log::{OperationType, Severity};
 use crate::models::color_card_issue;

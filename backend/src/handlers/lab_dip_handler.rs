@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 化验室打样 Handler
 //!
 //! v14 批次 423B：化验室打样流程贯通
@@ -11,6 +10,7 @@ use axum::{
 };
 use serde::Deserialize;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::{lab_dip_request, lab_dip_resample, lab_dip_sample};
 use crate::services::lab_dip_service::{

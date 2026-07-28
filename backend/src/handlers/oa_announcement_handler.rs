@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! OA 公告 Handler（P0-D17 / Batch 488 + 缺陷 7.2 可见性过滤）
 //!
 //! 通过 `define_tuple_crud_handlers!` 宏生成 4 个基础 CRUD：
@@ -16,6 +15,7 @@ use axum::{
     Json,
 };
 
+use crate::container::AppState;
 use crate::define_tuple_crud_handlers;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::oa_announcement_service::{

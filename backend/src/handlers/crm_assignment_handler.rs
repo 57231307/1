@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! CRM客户分配 Handler
 //!
 //! 提供客户分配、批量分配和分配历史查询功能
@@ -9,6 +8,7 @@ use axum::{
 };
 use serde::Deserialize;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::assignment_history_service::{
     AssignmentHistoryQuery, AssignmentHistoryService, CreateAssignmentHistoryRequest,

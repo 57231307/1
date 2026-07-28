@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 产量工资 Handler
 //!
 //! v14 批次 427：产量工资核算贯通
@@ -14,6 +13,7 @@ use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder}
 use serde::Deserialize;
 use std::sync::Arc;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::audit_log::{OperationType, Severity};
 use crate::models::{process_wage_rate, wage_record, wage_record_detail};

@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 中间件配置（CORS / 安全头 / 中间件链）
 //!
 //! 职责：构建 CORS 层、为完整模式和 Setup 模式分别组装中间件链、
@@ -15,6 +14,7 @@ use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::TraceLayer;
 use tracing::{info, warn, Span};
 
+use crate::container::AppState;
 use crate::middleware::auth::auth_middleware;
 use crate::middleware::csrf::csrf_middleware;
 use crate::middleware::permission::permission_middleware;

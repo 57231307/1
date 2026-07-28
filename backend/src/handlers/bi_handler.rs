@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! P3-4 BI 多维分析 Handler
 //!
 //! 16 个 HTTP 端点：
@@ -15,6 +14,7 @@ use axum::{
 };
 use serde::Deserialize;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::bi_analysis_service::{
     BiAnalysisService, BiResponse, CategoryStat, CustomerRank, KpiSummary, ProductRank,

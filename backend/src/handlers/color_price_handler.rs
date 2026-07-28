@@ -1,4 +1,3 @@
-use crate::container::AppState;
 //! 面料多色号定价扩展 Handler
 //!
 //! 实现 13 个 HTTP 端点：色号价格 CRUD + 批量调价 + 审批 + 历史 + 计算 + 阶梯价 + 客户专属价 + 季节规则
@@ -14,6 +13,7 @@ use serde_json::json;
 use std::str::FromStr;
 use validator::Validate;
 
+use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::color_price_dto::{
     ApproveColorPriceDto, BatchAdjustPriceDto, ColorPriceDetail, ColorPriceListItem,
