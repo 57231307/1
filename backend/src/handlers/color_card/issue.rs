@@ -144,9 +144,9 @@ async fn require_issue_permission(
     auth: &AuthContext,
     action: &str,
 ) -> Result<(), AppError> {
-    let role_id = auth.role_id.ok_or_else(|| {
-        AppError::permission_denied("用户未分配角色，无法执行色卡发放操作")
-    })?;
+    let role_id = auth
+        .role_id
+        .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行色卡发放操作"))?;
     let svc = RolePermissionService::new(state.db.clone());
     let allowed = svc
         .check_permission(role_id, "color_card_issue", action, None)
