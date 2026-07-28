@@ -10,8 +10,8 @@ use crate::utils::response::unauthorized_response;
 use axum::{body::Body, extract::State, http::Request, middleware::Next, response::Response};
 use axum_extra::extract::cookie::{Key, PrivateCookieJar};
 // V15 P0-S01：auth 中间件需要查询 role 和 user 表以加载 data_scope 和 department_id
-use sea_orm::EntityTrait;
 use dashmap::DashMap;
+use sea_orm::EntityTrait;
 use std::sync::OnceLock;
 use std::time::Instant;
 use tracing::{info, warn};
@@ -128,9 +128,7 @@ static USER_ACTIVE_CHECK_ENABLED: std::sync::LazyLock<bool> = std::sync::LazyLoc
     let raw = std::env::var("AUTH_CHECK_USER_ACTIVE").unwrap_or_else(|_| "true".to_string());
     let enabled = raw == "true";
     if std::env::var("AUTH_CHECK_USER_ACTIVE").is_err() {
-        tracing::info!(
-            "AUTH_CHECK_USER_ACTIVE 未设置，使用默认值 true（实时校验用户活跃状态）"
-        );
+        tracing::info!("AUTH_CHECK_USER_ACTIVE 未设置，使用默认值 true（实时校验用户活跃状态）");
     } else {
         tracing::info!(
             value = %raw,
@@ -171,7 +169,9 @@ pub async fn auth_middleware(
     let key = Key::derive_from(state.cookie_secret.as_bytes());
     let cookie_jar = PrivateCookieJar::from_headers(request.headers(), key);
     // 1) 新版命名：access_token（httpOnly）
-    let token_from_access_cookie = cookie_jar.get("access_token").map(|c| c.value().to_string());
+    let token_from_access_cookie = cookie_jar
+        .get("access_token")
+        .map(|c| c.value().to_string());
     // 2) 旧版命名：jwt（httpOnly，向后兼容）
     let token_from_legacy_cookie = cookie_jar.get("jwt").map(|c| c.value().to_string());
 
@@ -301,9 +301,7 @@ pub async fn auth_middleware(
                     audit_ctx.as_ref(),
                 )
                 .await;
-                return Err(unauthorized_response(
-                    "用户已被禁用或删除，请联系管理员",
-                ));
+                return Err(unauthorized_response("用户已被禁用或删除，请联系管理员"));
             }
 
             // 安全漏洞 #6 修复：检查用户 is_active 状态
@@ -342,10 +340,9 @@ pub async fn auth_middleware(
             // 查询失败时保持 None，service 层按 Self_ 处理（最小权限原则）。
             if let Some(role_id) = auth_context.role_id {
                 // 查询 role 表的 data_scope 字段
-                if let Ok(Some(role_model)) =
-                    crate::models::role::Entity::find_by_id(role_id)
-                        .one(state.db.as_ref())
-                        .await
+                if let Ok(Some(role_model)) = crate::models::role::Entity::find_by_id(role_id)
+                    .one(state.db.as_ref())
+                    .await
                 {
                     auth_context.data_scope = Some(role_model.data_scope);
                 }
