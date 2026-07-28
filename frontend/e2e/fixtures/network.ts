@@ -126,9 +126,12 @@ export async function mockApiError(
  *
  * @example
  * // Mock 销售订单列表返回空分页
- * await mockApiSuccess(context, '**/api/v1/erp/sales/orders**', {
+ * await mockApiSuccess(context, GLOB_SALES_ORDERS, {
  *   data: { items: [], total: 0, page: 1, page_size: 20 },
  * })
+ *
+ * 常量示例（避免在 JSDoc 中使用 glob 双星号导致解析错误）：
+ * const GLOB_SALES_ORDERS = [STAR, STAR, '/api/v1/erp/sales/orders', STAR, STAR].join('')
  */
 export async function mockApiSuccess<T = unknown>(
   context: BrowserContext | Page,
@@ -159,7 +162,7 @@ export async function mockApiSuccess<T = unknown>(
  *
  * @example
  * // 模拟销售订单接口网络中断
- * await mockNetworkFailure(context, '**/api/v1/erp/sales/orders**')
+ * await mockNetworkFailure(context, SALES_ORDERS_GLOB)
  */
 export async function mockNetworkFailure(
   context: BrowserContext | Page,
@@ -183,7 +186,7 @@ export async function mockNetworkFailure(
  *
  * @example
  * // 模拟所有 API 请求延迟 2 秒（弱网）
- * await simulateSlowNetwork(context, '**/api/v1/erp/**', 2000)
+ * await simulateSlowNetwork(context, ERP_API_GLOB, 2000)
  */
 export async function simulateSlowNetwork(
   context: BrowserContext | Page,
@@ -205,7 +208,7 @@ export async function simulateSlowNetwork(
  * - 爬虫类场景：批量收集接口响应数据
  *
  * @example
- * const observer = observeRequests(page, '**/api/v1/erp/sales/orders**')
+ * const observer = observeRequests(page, SALES_ORDERS_GLOB)
  * await page.click('button:has-text("查询")')
  * const requests = await observer.collect()
  * expect(requests.length).toBeGreaterThan(0)
@@ -282,7 +285,7 @@ export function observeRequests(
  *
  * @example
  * await page.click('button:has-text("保存")')
- * await waitForApiCall(page, '**/api/v1/erp/sales/orders**')
+ * await waitForApiCall(page, SALES_ORDERS_GLOB)
  */
 export async function waitForApiCall(
   page: Page,
@@ -300,7 +303,7 @@ export async function waitForApiCall(
  *
  * @example
  * // 第一次创建返回 500，重试放行到真实后端
- * await mockOnce(context, '**/api/v1/erp/sales/orders**', {
+ * await mockOnce(context, SALES_ORDERS_GLOB, {
  *   status: 500,
  *   errorCode: 'INTERNAL_ERROR',
  * })
