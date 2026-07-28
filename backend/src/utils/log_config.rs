@@ -153,7 +153,13 @@ fn create_audit_layers(log_dir: &Path) -> Result<BoxedLayer, Box<dyn std::error:
         .with_target(true)
         .boxed();
 
-    Ok(vec![financial_layer, permission_layer, database_layer, business_layer].boxed())
+    Ok(vec![
+        financial_layer,
+        permission_layer,
+        database_layer,
+        business_layer,
+    ]
+    .boxed())
 }
 
 fn create_performance_layers(log_dir: &Path) -> Result<BoxedLayer, Box<dyn std::error::Error>> {
