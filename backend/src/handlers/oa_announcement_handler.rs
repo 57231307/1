@@ -41,8 +41,8 @@ mod generated {
 
 // 重新导出 get/create/update/delete（list 由本文件手写覆盖）
 // generated::list 重导出为 list_unfiltered 供内部使用，避免 dead_code 警告
-pub use generated::{create, delete, get, update};
 pub use generated::list as list_unfiltered;
+pub use generated::{create, delete, get, update};
 
 /// GET /api/v1/erp/oa-announcements - 列表（缺陷 7.2 修复：按 visibility_scope 过滤）
 ///

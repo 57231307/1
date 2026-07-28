@@ -104,7 +104,10 @@ pub async fn revoke_jti(jti: &str, expires_at: i64) {
 
         let write_result: Result<(), redis::RedisError> = async {
             let mut conn = conn_arc.lock().await;
-            let _ = conn.set_ex(&key, expires_at.to_string(), ttl_secs).await?;
+            // 注：turbofish ::<_, _, ()> 显式指定 RV=() 以满足 never type fallback 约束，
+            // 同时避免 clippy::let_unit_value 警告（无 let _: () 绑定）
+            conn.set_ex::<_, _, ()>(&key, expires_at.to_string(), ttl_secs)
+                .await?;
             Ok(())
         }
         .await;

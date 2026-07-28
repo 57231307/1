@@ -93,9 +93,7 @@ impl CustomerService {
             city: Set(args.city.clone()),
             province: Set(args.province.clone()),
             country: Set(Some(
-                args.country
-                    .clone()
-                    .unwrap_or_else(|| "中国".to_string()),
+                args.country.clone().unwrap_or_else(|| "中国".to_string()),
             )),
             postal_code: Set(args.postal_code.clone()),
             credit_limit: Set(args.credit_limit),
