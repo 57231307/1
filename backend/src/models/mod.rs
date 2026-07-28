@@ -244,6 +244,8 @@ pub mod field_permission;
 // 报表模板模块
 pub mod report_subscription;
 pub mod report_template;
+// 缺陷 1.1 修复：报表模板历史版本（支持回滚）
+pub mod report_template_version;
 // 邮件模块
 pub mod email_log;
 pub mod email_template;
@@ -352,6 +354,8 @@ pub mod dye_batch_rework;
 pub mod dye_batch_operation;
 // V15 P0-F15：大货批色审批表（8 状态机：pending→sampled→sent_to_customer→approved/rejected/rework→downgraded/scrapped）
 pub mod bulk_color_approval;
+// V15 P1-10：大货批色状态变更历史表（每次状态变更全量快照，支持客户投诉追溯/责任界定/合规审计）
+pub mod bulk_color_approval_history;
 // V15 P0-B01/B02 Batch 481：坏账准备 + 坏账核销 Model + DTO
 pub mod bad_debt_provision;
 pub mod bad_debt_writeoff;

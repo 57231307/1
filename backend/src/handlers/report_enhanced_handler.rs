@@ -63,7 +63,7 @@ pub async fn list_report_templates(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = ReportTemplateService::new(state.db.clone());
 
-    let (items, total) = service.list(auth.user_id, query).await?;
+    let (items, total) = service.list(auth.user_id, auth.role_id, query).await?;
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": items,
@@ -80,11 +80,57 @@ pub async fn get_report_template(
     let service = ReportTemplateService::new(state.db.clone());
 
     let template = service
-        .get_by_id(id, auth.user_id)
+        .get_by_id(id, auth.user_id, auth.role_id)
         .await?
         .ok_or_else(|| AppError::not_found("报表模板不存在"))?;
 
     Ok(Json(ApiResponse::success(serde_json::to_value(template)?)))
+}
+
+/// GET /api/v1/erp/reports-enhanced/templates/:id/versions
+/// 缺陷 1.1 修复：列出指定模板的所有历史版本（按版本号倒序）
+pub async fn list_template_versions(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = ReportTemplateService::new(state.db.clone());
+
+    let versions = service
+        .list_versions(id, auth.user_id, auth.role_id)
+        .await?;
+
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "template_id": id,
+        "versions": versions,
+        "total": versions.len(),
+    }))))
+}
+
+/// POST /api/v1/erp/reports-enhanced/templates/:id/rollback/:version
+/// 缺陷 1.1 修复：回滚到指定历史版本
+pub async fn rollback_template_version(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path((id, version)): Path<(i32, i32)>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = ReportTemplateService::new(state.db.clone());
+
+    let rolled_back = service
+        .rollback_version(id, version, auth.user_id, auth.role_id)
+        .await?;
+
+    tracing::info!(
+        "用户 {} 回滚报表模板: ID={}, 目标版本={}",
+        auth.username,
+        id,
+        version
+    );
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(rolled_back)?,
+        "报表模板回滚成功",
+    )))
 }
 
 /// PUT /api/v1/erp/reports-enhanced/templates/:id - 更新报表模板

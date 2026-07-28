@@ -109,6 +109,37 @@ download_release() {
 
         if echo "$result" | grep -q "SUCCESS"; then
             log "下载成功"
+            # V15 P1 25.3-A 修复：SHA256 完整性校验（与 upgrade.rs verify_sha256 对齐）
+            # 防止下载包因网络中断、镜像源篡改、CDN 缓存错误导致损坏后直接部署
+            local sha256_url="${full_url}.sha256"
+            local sha256_result=$(remote_exec "
+                curl --http1.1 --ipv4 -L --retry 3 --retry-delay 2 --connect-timeout 8 --max-time 1800 -o /tmp/bingxi-erp-latest.zip.sha256 '$sha256_url' 2>&1 && echo 'SUCCESS' || echo 'FAILED'
+            " 2>&1)
+            if echo "$sha256_result" | grep -q "SUCCESS"; then
+                # 提取期望哈希（.sha256 文件首字段）并计算实际哈希对比（与 upgrade.rs 一致）
+                local verify_result=$(remote_exec "
+                    expected=\$(awk '{print \$1}' /tmp/bingxi-erp-latest.zip.sha256 | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
+                    if [ -z \"\$expected\" ]; then
+                        echo 'SKIP_EMPTY'
+                    else
+                        actual=\$(sha256sum /tmp/bingxi-erp-latest.zip | awk '{print \$1}' | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
+                        if [ \"\$expected\" = \"\$actual\" ]; then
+                            echo 'SUCCESS'
+                        else
+                            echo \"FAILED expected=\$expected actual=\$actual\"
+                        fi
+                    fi
+                " 2>&1)
+                if echo "$verify_result" | grep -q "SUCCESS"; then
+                    log "SHA256 校验通过"
+                elif echo "$verify_result" | grep -q "SKIP_EMPTY"; then
+                    warn "SHA256 文件内容为空，跳过校验（fail-open）"
+                else
+                    error "SHA256 校验失败，终止部署（文件可能损坏或被篡改）: $verify_result"
+                fi
+            else
+                warn "SHA256 文件下载失败，跳过校验（fail-open，与 upgrade.rs 一致）"
+            fi
             return 0
         fi
     done

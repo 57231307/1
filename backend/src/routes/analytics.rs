@@ -118,6 +118,14 @@ pub fn reports_enhanced() -> Router<AppState> {
                 .delete(report_enhanced_handler::delete_report_template),
         )
         .route(
+            "/templates/:id/versions",
+            get(report_enhanced_handler::list_template_versions),
+        )
+        .route(
+            "/templates/:id/rollback/:version",
+            post(report_enhanced_handler::rollback_template_version),
+        )
+        .route(
             "/templates/:id/execute",
             post(report_enhanced_handler::execute_custom_report),
         )

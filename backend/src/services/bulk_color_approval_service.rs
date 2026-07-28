@@ -27,11 +27,13 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, EntityTrait, PaginatorTrait,
     QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
+use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use std::sync::Arc;
 use thiserror::Error;
 
 use crate::models::bulk_color_approval::{self, ActiveModel, Entity};
+use crate::models::bulk_color_approval_history;
 use crate::models::dye_batch;
 use crate::models::inventory_stock;
 use crate::utils::app_state::AppState;
@@ -231,6 +233,8 @@ impl BulkColorApprovalService {
             updated_at: Set(now),
         };
         let model = active.insert(&*self.db).await?;
+        // P1-10：记录历史追溯（from=None → pending）
+        self.record_history(None, &model, None, None).await;
         Ok(model)
     }
 
@@ -313,6 +317,7 @@ impl BulkColorApprovalService {
             )));
         }
 
+        let from_status = Some(current.as_str().to_string());
         let mut active: ActiveModel = model.into();
         active.sample_length_m = Set(Some(params.sample_length_m));
         active.sample_piece_id = Set(params.sample_piece_id);
@@ -327,6 +332,14 @@ impl BulkColorApprovalService {
 
         let updated = active.update(&txn).await?;
         txn.commit().await?;
+        // P1-10：记录历史追溯
+        self.record_history(
+            from_status.as_deref(),
+            &updated,
+            Some(params.operator_id),
+            None,
+        )
+        .await;
         Ok(updated)
     }
 
@@ -354,6 +367,7 @@ impl BulkColorApprovalService {
             )));
         }
 
+        let from_status = Some(current.as_str().to_string());
         let now = Utc::now();
         let mut active: ActiveModel = model.into();
         active.approval_status = Set(ApprovalStatus::SentToCustomer.as_str().to_string());
@@ -362,6 +376,9 @@ impl BulkColorApprovalService {
 
         let updated = active.update(&txn).await?;
         txn.commit().await?;
+        // P1-10：记录历史追溯
+        self.record_history(from_status.as_deref(), &updated, None, None)
+            .await;
         Ok(updated)
     }
 
@@ -558,6 +575,7 @@ impl BulkColorApprovalService {
             )));
         }
 
+        let from_status = Some(current.as_str().to_string());
         let now = Utc::now();
         let mut active: ActiveModel = model.into();
         active.approval_status = Set(ApprovalStatus::Scrapped.as_str().to_string());
@@ -578,6 +596,10 @@ impl BulkColorApprovalService {
                 "P0-F18: 库存报废标记失败，状态已转换，请人工补执行库存报废"
             );
         }
+
+        // P1-10：记录历史追溯
+        self.record_history(from_status.as_deref(), &updated, None, Some(&reject_reason))
+            .await;
 
         Ok(updated)
     }
@@ -759,6 +781,8 @@ impl BulkColorApprovalService {
             )));
         }
 
+        let from_status = Some(current.as_str().to_string());
+        let reason_for_history = reject_reason.clone().or(feedback.clone());
         let now = Utc::now();
         let mut active: ActiveModel = model.into();
         active.approval_status = Set(target.as_str().to_string());
@@ -774,8 +798,382 @@ impl BulkColorApprovalService {
 
         let updated = active.update(&txn).await?;
         txn.commit().await?;
+        // P1-10：记录历史追溯
+        self.record_history(
+            from_status.as_deref(),
+            &updated,
+            approver_id,
+            reason_for_history.as_deref(),
+        )
+        .await;
         Ok(updated)
     }
+
+    /// P1-10：记录批色状态变更历史（内部方法）
+    ///
+    /// 在事务提交后调用；若记录失败仅 warn，不阻塞主流程（状态已落库）。
+    async fn record_history(
+        &self,
+        from_status: Option<&str>,
+        model: &bulk_color_approval::Model,
+        operator_id: Option<i32>,
+        reason: Option<&str>,
+    ) {
+        let snapshot = serde_json::json!({
+            "id": model.id,
+            "sales_order_id": model.sales_order_id,
+            "dye_batch_id": model.dye_batch_id,
+            "customer_id": model.customer_id,
+            "approval_status": model.approval_status,
+            "approver_id": model.approver_id,
+            "sent_to_customer_at": model.sent_to_customer_at,
+            "delta_e_value": model.delta_e_value,
+            "delivery_blocking": model.delivery_blocking,
+            "reject_reason": model.reject_reason,
+            "customer_feedback": model.customer_feedback,
+            "updated_at": model.updated_at,
+        });
+
+        let active = bulk_color_approval_history::ActiveModel {
+            id: Default::default(),
+            bulk_color_approval_id: Set(model.id),
+            from_status: Set(from_status.map(|s| s.to_string())),
+            to_status: Set(model.approval_status.clone()),
+            operator_id: Set(operator_id),
+            reason: Set(reason.map(|s| s.to_string())),
+            snapshot: Set(Some(snapshot)),
+            created_at: Set(Utc::now()),
+        };
+
+        if let Err(e) = active.insert(&*self.db).await {
+            tracing::warn!(
+                bulk_color_approval_id = model.id,
+                error = %e,
+                "P1-10: 批色历史记录失败，状态已转换，请人工补录"
+            );
+        }
+    }
+
+    /// P1-10：列出批色状态变更历史
+    pub async fn list_history(
+        &self,
+        bulk_color_approval_id: i64,
+    ) -> Result<Vec<bulk_color_approval_history::Model>, BulkColorApprovalError> {
+        let rows = bulk_color_approval_history::Entity::find()
+            .filter(
+                bulk_color_approval_history::Column::BulkColorApprovalId.eq(bulk_color_approval_id),
+            )
+            .order_by_asc(bulk_color_approval_history::Column::CreatedAt)
+            .all(&*self.db)
+            .await?;
+        Ok(rows)
+    }
+
+    /// P1-10：查询 pending 超时未剪样的批色记录
+    ///
+    /// 业务规则：状态=pending 且创建时间早于 threshold_hours 小时前
+    pub async fn list_pending_reminders(
+        &self,
+        threshold_hours: i64,
+    ) -> Result<Vec<bulk_color_approval::Model>, BulkColorApprovalError> {
+        let threshold = Utc::now() - chrono::Duration::hours(threshold_hours);
+        let rows = Entity::find()
+            .filter(
+                bulk_color_approval::Column::ApprovalStatus.eq(ApprovalStatus::Pending.as_str()),
+            )
+            .filter(bulk_color_approval::Column::CreatedAt.lt(threshold))
+            .order_by_asc(bulk_color_approval::Column::CreatedAt)
+            .all(&*self.db)
+            .await?;
+        Ok(rows)
+    }
+
+    /// P1-10：查询客户跟进超时的批色记录
+    ///
+    /// 业务规则：状态=sent_to_customer 且发送客户时间早于 threshold_hours 小时前
+    /// （审计计划：默认 3 天提醒，7 天超时自动 reject）
+    pub async fn list_customer_followups(
+        &self,
+        threshold_hours: i64,
+    ) -> Result<Vec<bulk_color_approval::Model>, BulkColorApprovalError> {
+        let threshold = Utc::now() - chrono::Duration::hours(threshold_hours);
+        let rows = Entity::find()
+            .filter(
+                bulk_color_approval::Column::ApprovalStatus
+                    .eq(ApprovalStatus::SentToCustomer.as_str()),
+            )
+            .filter(bulk_color_approval::Column::SentToCustomerAt.lt(threshold))
+            .order_by_asc(bulk_color_approval::Column::SentToCustomerAt)
+            .all(&*self.db)
+            .await?;
+        Ok(rows)
+    }
+
+    /// P1-10：批量发送 pending 超时提醒
+    ///
+    /// 业务规则：扫描所有 pending 超时记录，对销售经理（assign_role=manager）发送通知
+    /// 返回发送的通知条数（去重失败的不计入）
+    pub async fn send_pending_reminders(
+        &self,
+        threshold_hours: i64,
+        notification_service: &crate::services::notification_service::NotificationService,
+    ) -> Result<usize, BulkColorApprovalError> {
+        use crate::models::notification::{NotificationPriority, NotificationType};
+        use crate::services::notification_service::CreateNotificationRequest;
+
+        let pending_records = self.list_pending_reminders(threshold_hours).await?;
+        let mut sent_count = 0usize;
+        for record in pending_records {
+            let title = format!("批色待剪样超时提醒 #{}", record.id);
+            let content = format!(
+                "批色记录 #{}（销售订单 {} / 客户 {}）已等待剪样超过 {} 小时，请尽快处理",
+                record.id, record.sales_order_id, record.customer_id, threshold_hours
+            );
+            let req = CreateNotificationRequest {
+                user_id: record.approver_id.unwrap_or(1),
+                notification_type: NotificationType::Internal,
+                title,
+                content,
+                priority: NotificationPriority::High,
+                business_type: Some("bulk_color_approval".to_string()),
+                business_id: Some(record.id as i32),
+                action_url: Some(format!("/bulk-color-approvals/{}", record.id)),
+                sender_id: None,
+                sender_name: Some("系统调度".to_string()),
+                dedup_key: Some(format!(
+                    "bca_pending_reminder_{}_{}",
+                    record.id,
+                    Utc::now().format("%Y%m%d%H")
+                )),
+            };
+            if notification_service.create_notification(req).await.is_ok() {
+                sent_count += 1;
+            }
+        }
+        Ok(sent_count)
+    }
+
+    /// P1-10：批量发送客户跟进提醒
+    pub async fn send_customer_followup_reminders(
+        &self,
+        threshold_hours: i64,
+        notification_service: &crate::services::notification_service::NotificationService,
+    ) -> Result<usize, BulkColorApprovalError> {
+        use crate::models::notification::{NotificationPriority, NotificationType};
+        use crate::services::notification_service::CreateNotificationRequest;
+
+        let records = self.list_customer_followups(threshold_hours).await?;
+        let mut sent_count = 0usize;
+        for record in records {
+            let title = format!("客户批色跟进提醒 #{}", record.id);
+            let content = format!(
+                "批色记录 #{}（销售订单 {} / 客户 {}）已发送客户超过 {} 小时未确认，请跟进",
+                record.id, record.sales_order_id, record.customer_id, threshold_hours
+            );
+            let req = CreateNotificationRequest {
+                user_id: record.approver_id.unwrap_or(1),
+                notification_type: NotificationType::Internal,
+                title,
+                content,
+                priority: NotificationPriority::High,
+                business_type: Some("bulk_color_approval".to_string()),
+                business_id: Some(record.id as i32),
+                action_url: Some(format!("/bulk-color-approvals/{}", record.id)),
+                sender_id: None,
+                sender_name: Some("系统调度".to_string()),
+                dedup_key: Some(format!(
+                    "bca_followup_reminder_{}_{}",
+                    record.id,
+                    Utc::now().format("%Y%m%d%H")
+                )),
+            };
+            if notification_service.create_notification(req).await.is_ok() {
+                sent_count += 1;
+            }
+        }
+        Ok(sent_count)
+    }
+
+    /// P1-10：批色报表 - 按客户/产品/时间段统计批色通过率
+    ///
+    /// 业务规则：按 customer_id + product_id 维度聚合，统计总数/通过/拒绝/返工/降级/报废数量
+    pub async fn report_by_dimensions(
+        &self,
+        from_date: Option<chrono::DateTime<Utc>>,
+        to_date: Option<chrono::DateTime<Utc>>,
+        customer_id: Option<i64>,
+        product_id: Option<i32>,
+    ) -> Result<Vec<ApprovalReportRow>, BulkColorApprovalError> {
+        let mut cond = Condition::all();
+        if let Some(v) = from_date {
+            cond = cond.add(bulk_color_approval::Column::CreatedAt.gte(v));
+        }
+        if let Some(v) = to_date {
+            cond = cond.add(bulk_color_approval::Column::CreatedAt.lte(v));
+        }
+        if let Some(v) = customer_id {
+            cond = cond.add(bulk_color_approval::Column::CustomerId.eq(v));
+        }
+        if let Some(v) = product_id {
+            cond = cond.add(bulk_color_approval::Column::ProductId.eq(v));
+        }
+
+        let rows = Entity::find()
+            .filter(cond)
+            .order_by_desc(bulk_color_approval::Column::CreatedAt)
+            .all(&*self.db)
+            .await?;
+
+        // 内存聚合（数据量可控时简化实现，避免复杂 GROUP BY SQL）
+        let mut buckets: std::collections::HashMap<(i64, Option<i32>), ApprovalReportRow> =
+            std::collections::HashMap::new();
+        for r in rows {
+            let key = (r.customer_id, r.product_id);
+            let entry = buckets.entry(key).or_insert_with(|| ApprovalReportRow {
+                customer_id: r.customer_id,
+                product_id: r.product_id,
+                total: 0,
+                approved: 0,
+                rejected: 0,
+                rework: 0,
+                downgraded: 0,
+                scrapped: 0,
+                pending: 0,
+                sampled: 0,
+                sent_to_customer: 0,
+            });
+            entry.total += 1;
+            match ApprovalStatus::from_str(&r.approval_status) {
+                Ok(ApprovalStatus::Approved) => entry.approved += 1,
+                Ok(ApprovalStatus::Rejected) => entry.rejected += 1,
+                Ok(ApprovalStatus::Rework) => entry.rework += 1,
+                Ok(ApprovalStatus::Downgraded) => entry.downgraded += 1,
+                Ok(ApprovalStatus::Scrapped) => entry.scrapped += 1,
+                Ok(ApprovalStatus::Pending) => entry.pending += 1,
+                Ok(ApprovalStatus::Sampled) => entry.sampled += 1,
+                Ok(ApprovalStatus::SentToCustomer) => entry.sent_to_customer += 1,
+                Err(_) => {}
+            }
+        }
+
+        let mut result: Vec<ApprovalReportRow> = buckets.into_values().collect();
+        result.sort_by(|a, b| b.total.cmp(&a.total));
+        Ok(result)
+    }
+
+    /// P1-10：批色统计 - 平均 ΔE/通过率/退回率/降级率
+    ///
+    /// 业务规则：聚合所有记录的关键 KPI（不分维度）
+    pub async fn get_statistics(
+        &self,
+        from_date: Option<chrono::DateTime<Utc>>,
+        to_date: Option<chrono::DateTime<Utc>>,
+    ) -> Result<ApprovalStatistics, BulkColorApprovalError> {
+        let mut cond = Condition::all();
+        if let Some(v) = from_date {
+            cond = cond.add(bulk_color_approval::Column::CreatedAt.gte(v));
+        }
+        if let Some(v) = to_date {
+            cond = cond.add(bulk_color_approval::Column::CreatedAt.lte(v));
+        }
+
+        let rows = Entity::find().filter(cond).all(&*self.db).await?;
+
+        let total = rows.len() as u64;
+        let mut approved = 0u64;
+        let mut rejected = 0u64;
+        let mut rework = 0u64;
+        let mut downgraded = 0u64;
+        let mut scrapped = 0u64;
+        let mut delta_e_sum = Decimal::ZERO;
+        let mut delta_e_count = 0u64;
+
+        for r in &rows {
+            match ApprovalStatus::from_str(&r.approval_status) {
+                Ok(ApprovalStatus::Approved) => approved += 1,
+                Ok(ApprovalStatus::Rejected) => rejected += 1,
+                Ok(ApprovalStatus::Rework) => rework += 1,
+                Ok(ApprovalStatus::Downgraded) => downgraded += 1,
+                Ok(ApprovalStatus::Scrapped) => scrapped += 1,
+                _ => {}
+            }
+            if let Some(de) = r.delta_e_value {
+                if de > Decimal::ZERO {
+                    delta_e_sum += de;
+                    delta_e_count += 1;
+                }
+            }
+        }
+
+        let approval_rate = if total > 0 {
+            Decimal::from(approved) * Decimal::from(100) / Decimal::from(total)
+        } else {
+            Decimal::ZERO
+        };
+        let rejection_rate = if total > 0 {
+            Decimal::from(rejected) * Decimal::from(100) / Decimal::from(total)
+        } else {
+            Decimal::ZERO
+        };
+        let downgrade_rate = if total > 0 {
+            Decimal::from(downgraded) * Decimal::from(100) / Decimal::from(total)
+        } else {
+            Decimal::ZERO
+        };
+        let avg_delta_e = if delta_e_count > 0 {
+            delta_e_sum / Decimal::from(delta_e_count)
+        } else {
+            Decimal::ZERO
+        };
+
+        Ok(ApprovalStatistics {
+            total,
+            approved,
+            rejected,
+            rework,
+            downgraded,
+            scrapped,
+            approval_rate,
+            rejection_rate,
+            downgrade_rate,
+            avg_delta_e,
+        })
+    }
+}
+
+/// P1-10：批色报表行（按客户/产品维度聚合）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApprovalReportRow {
+    pub customer_id: i64,
+    pub product_id: Option<i32>,
+    pub total: u64,
+    pub approved: u64,
+    pub rejected: u64,
+    pub rework: u64,
+    pub downgraded: u64,
+    pub scrapped: u64,
+    pub pending: u64,
+    pub sampled: u64,
+    pub sent_to_customer: u64,
+}
+
+/// P1-10：批色统计 KPI
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApprovalStatistics {
+    pub total: u64,
+    pub approved: u64,
+    pub rejected: u64,
+    pub rework: u64,
+    pub downgraded: u64,
+    pub scrapped: u64,
+    /// 通过率（百分比，0-100）
+    pub approval_rate: Decimal,
+    /// 退回率（rejected 占比，0-100）
+    pub rejection_rate: Decimal,
+    /// 降级率（0-100）
+    pub downgrade_rate: Decimal,
+    /// 平均 ΔE
+    pub avg_delta_e: Decimal,
 }
 
 /// P0-F19：发货前校验大货批色门禁

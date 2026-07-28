@@ -41,8 +41,13 @@ pub async fn sales_by_time(
     auth: AuthContext,
     Query(q): Query<ByTimeQuery>,
 ) -> Result<Json<ApiResponse<BiResponse<Vec<TimeSeriesPoint>>>>, AppError> {
-    let service =
-        BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
+    // 缺陷 3.1 修复：使用 new_with_cache 接入 5 分钟 TTL 缓存，
+    // 对 (data_scope, key_parts) 命中时直接返回缓存结果，避免重复执行 raw SQL。
+    let service = BiAnalysisService::new_with_cache(
+        state.db.clone(),
+        auth.to_data_scope_context(),
+        state.cache.clone(),
+    );
     let data = service
         .sales_by_time(q.start_date, q.end_date, &q.granularity)
         .await?;
@@ -62,8 +67,13 @@ pub async fn sales_by_customer(
     Query(q): Query<ByCustomerQuery>,
 ) -> Result<Json<ApiResponse<BiResponse<Vec<CustomerRank>>>>, AppError> {
     let limit = q.limit.unwrap_or(10).clamp(1, 100);
-    let service =
-        BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
+    // 缺陷 3.1 修复：使用 new_with_cache 接入 5 分钟 TTL 缓存，
+    // 对 (data_scope, key_parts) 命中时直接返回缓存结果，避免重复执行 raw SQL。
+    let service = BiAnalysisService::new_with_cache(
+        state.db.clone(),
+        auth.to_data_scope_context(),
+        state.cache.clone(),
+    );
     let data = service.sales_by_customer(limit).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
@@ -76,8 +86,13 @@ pub async fn sales_by_product(
     Query(q): Query<ByCustomerQuery>,
 ) -> Result<Json<ApiResponse<BiResponse<Vec<ProductRank>>>>, AppError> {
     let limit = q.limit.unwrap_or(10).clamp(1, 100);
-    let service =
-        BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
+    // 缺陷 3.1 修复：使用 new_with_cache 接入 5 分钟 TTL 缓存，
+    // 对 (data_scope, key_parts) 命中时直接返回缓存结果，避免重复执行 raw SQL。
+    let service = BiAnalysisService::new_with_cache(
+        state.db.clone(),
+        auth.to_data_scope_context(),
+        state.cache.clone(),
+    );
     let data = service.sales_by_product(limit).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
@@ -88,8 +103,13 @@ pub async fn sales_by_region(
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<BiResponse<Vec<RegionStat>>>>, AppError> {
-    let service =
-        BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
+    // 缺陷 3.1 修复：使用 new_with_cache 接入 5 分钟 TTL 缓存，
+    // 对 (data_scope, key_parts) 命中时直接返回缓存结果，避免重复执行 raw SQL。
+    let service = BiAnalysisService::new_with_cache(
+        state.db.clone(),
+        auth.to_data_scope_context(),
+        state.cache.clone(),
+    );
     let data = service.sales_by_region().await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
@@ -100,8 +120,13 @@ pub async fn sales_by_category(
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<BiResponse<Vec<CategoryStat>>>>, AppError> {
-    let service =
-        BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
+    // 缺陷 3.1 修复：使用 new_with_cache 接入 5 分钟 TTL 缓存，
+    // 对 (data_scope, key_parts) 命中时直接返回缓存结果，避免重复执行 raw SQL。
+    let service = BiAnalysisService::new_with_cache(
+        state.db.clone(),
+        auth.to_data_scope_context(),
+        state.cache.clone(),
+    );
     let data = service.sales_by_category().await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
@@ -119,8 +144,13 @@ pub async fn sales_trend(
     Query(q): Query<TrendQuery>,
 ) -> Result<Json<ApiResponse<BiResponse<Vec<TimeSeriesPoint>>>>, AppError> {
     let days = q.days.unwrap_or(30);
-    let service =
-        BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
+    // 缺陷 3.1 修复：使用 new_with_cache 接入 5 分钟 TTL 缓存，
+    // 对 (data_scope, key_parts) 命中时直接返回缓存结果，避免重复执行 raw SQL。
+    let service = BiAnalysisService::new_with_cache(
+        state.db.clone(),
+        auth.to_data_scope_context(),
+        state.cache.clone(),
+    );
     let data = service.sales_trend(days).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
@@ -131,8 +161,13 @@ pub async fn profit_analysis(
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<BiResponse<ProfitAnalysis>>>, AppError> {
-    let service =
-        BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
+    // 缺陷 3.1 修复：使用 new_with_cache 接入 5 分钟 TTL 缓存，
+    // 对 (data_scope, key_parts) 命中时直接返回缓存结果，避免重复执行 raw SQL。
+    let service = BiAnalysisService::new_with_cache(
+        state.db.clone(),
+        auth.to_data_scope_context(),
+        state.cache.clone(),
+    );
     let data = service.profit_analysis().await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
@@ -143,8 +178,13 @@ pub async fn kpi_summary(
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<BiResponse<KpiSummary>>>, AppError> {
-    let service =
-        BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
+    // 缺陷 3.1 修复：使用 new_with_cache 接入 5 分钟 TTL 缓存，
+    // 对 (data_scope, key_parts) 命中时直接返回缓存结果，避免重复执行 raw SQL。
+    let service = BiAnalysisService::new_with_cache(
+        state.db.clone(),
+        auth.to_data_scope_context(),
+        state.cache.clone(),
+    );
     let data = service.kpi_summary().await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
@@ -165,8 +205,13 @@ pub async fn drilldown_year_to_month(
     auth: AuthContext,
     Query(q): Query<DrillYearMonthQuery>,
 ) -> Result<Json<ApiResponse<BiResponse<Vec<TimeSeriesPoint>>>>, AppError> {
-    let service =
-        BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
+    // 缺陷 3.1 修复：使用 new_with_cache 接入 5 分钟 TTL 缓存，
+    // 对 (data_scope, key_parts) 命中时直接返回缓存结果，避免重复执行 raw SQL。
+    let service = BiAnalysisService::new_with_cache(
+        state.db.clone(),
+        auth.to_data_scope_context(),
+        state.cache.clone(),
+    );
     let data = service.drilldown_year_to_month(q.year).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
@@ -184,8 +229,13 @@ pub async fn drilldown_month_to_day(
     auth: AuthContext,
     Query(q): Query<DrillMonthDayQuery>,
 ) -> Result<Json<ApiResponse<BiResponse<Vec<TimeSeriesPoint>>>>, AppError> {
-    let service =
-        BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
+    // 缺陷 3.1 修复：使用 new_with_cache 接入 5 分钟 TTL 缓存，
+    // 对 (data_scope, key_parts) 命中时直接返回缓存结果，避免重复执行 raw SQL。
+    let service = BiAnalysisService::new_with_cache(
+        state.db.clone(),
+        auth.to_data_scope_context(),
+        state.cache.clone(),
+    );
     let data = service.drilldown_month_to_day(q.year, q.month).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
@@ -197,8 +247,13 @@ pub async fn drilldown_customer_to_order(
     auth: AuthContext,
     Path(customer_id): Path<i64>,
 ) -> Result<Json<ApiResponse<BiResponse<serde_json::Value>>>, AppError> {
-    let service =
-        BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
+    // 缺陷 3.1 修复：使用 new_with_cache 接入 5 分钟 TTL 缓存，
+    // 对 (data_scope, key_parts) 命中时直接返回缓存结果，避免重复执行 raw SQL。
+    let service = BiAnalysisService::new_with_cache(
+        state.db.clone(),
+        auth.to_data_scope_context(),
+        state.cache.clone(),
+    );
     let data = service.drilldown_customer_to_order(customer_id).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
@@ -210,8 +265,13 @@ pub async fn drilldown_product_to_order(
     auth: AuthContext,
     Path(product_id): Path<i64>,
 ) -> Result<Json<ApiResponse<BiResponse<serde_json::Value>>>, AppError> {
-    let service =
-        BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
+    // 缺陷 3.1 修复：使用 new_with_cache 接入 5 分钟 TTL 缓存，
+    // 对 (data_scope, key_parts) 命中时直接返回缓存结果，避免重复执行 raw SQL。
+    let service = BiAnalysisService::new_with_cache(
+        state.db.clone(),
+        auth.to_data_scope_context(),
+        state.cache.clone(),
+    );
     let data = service.drilldown_product_to_order(product_id).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
@@ -233,8 +293,13 @@ pub async fn slice(
     auth: AuthContext,
     Json(body): Json<SliceRequest>,
 ) -> Result<Json<ApiResponse<BiResponse<serde_json::Value>>>, AppError> {
-    let service =
-        BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
+    // 缺陷 3.1 修复：使用 new_with_cache 接入 5 分钟 TTL 缓存，
+    // 对 (data_scope, key_parts) 命中时直接返回缓存结果，避免重复执行 raw SQL。
+    let service = BiAnalysisService::new_with_cache(
+        state.db.clone(),
+        auth.to_data_scope_context(),
+        state.cache.clone(),
+    );
     let data = service.slice(&body.dimension, &body.filters).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
@@ -251,8 +316,13 @@ pub async fn dice(
     auth: AuthContext,
     Json(body): Json<DiceRequest>,
 ) -> Result<Json<ApiResponse<BiResponse<serde_json::Value>>>, AppError> {
-    let service =
-        BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
+    // 缺陷 3.1 修复：使用 new_with_cache 接入 5 分钟 TTL 缓存，
+    // 对 (data_scope, key_parts) 命中时直接返回缓存结果，避免重复执行 raw SQL。
+    let service = BiAnalysisService::new_with_cache(
+        state.db.clone(),
+        auth.to_data_scope_context(),
+        state.cache.clone(),
+    );
     let data = service.dice(&body.filters).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
@@ -270,8 +340,13 @@ pub async fn rollup(
     auth: AuthContext,
     Json(body): Json<RollupRequest>,
 ) -> Result<Json<ApiResponse<BiResponse<serde_json::Value>>>, AppError> {
-    let service =
-        BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
+    // 缺陷 3.1 修复：使用 new_with_cache 接入 5 分钟 TTL 缓存，
+    // 对 (data_scope, key_parts) 命中时直接返回缓存结果，避免重复执行 raw SQL。
+    let service = BiAnalysisService::new_with_cache(
+        state.db.clone(),
+        auth.to_data_scope_context(),
+        state.cache.clone(),
+    );
     let data = service.rollup(&body.from, &body.to).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
@@ -290,8 +365,13 @@ pub async fn pivot(
     auth: AuthContext,
     Json(body): Json<PivotRequest>,
 ) -> Result<Json<ApiResponse<BiResponse<serde_json::Value>>>, AppError> {
-    let service =
-        BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
+    // 缺陷 3.1 修复：使用 new_with_cache 接入 5 分钟 TTL 缓存，
+    // 对 (data_scope, key_parts) 命中时直接返回缓存结果，避免重复执行 raw SQL。
+    let service = BiAnalysisService::new_with_cache(
+        state.db.clone(),
+        auth.to_data_scope_context(),
+        state.cache.clone(),
+    );
     let data = service.pivot(&body.row, &body.col, &body.measure).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }

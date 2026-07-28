@@ -322,6 +322,62 @@ CROSS JOIN (
 WHERE r.code = 'cost_accountant' AND r.is_system = true
 ON CONFLICT (role_id, resource_type, action) DO NOTHING;
 
+-- ============================================================
+-- V15 P1 batch-16 缺陷 1.2：报表分域查看权限注册
+-- ============================================================
+-- 权限码格式：report:<domain>:view → 注册为 (resource_type='report-<domain>', action='view')
+-- 由 ReportTemplateService::parse_required_permission 解析为 (report-<domain>, view) 二元组
+-- 报表模板按 report_type 自动绑定权限码（sales/purchase/inventory/financial）
+
+-- admin 持有全部 4 个报表分域 view 权限
+INSERT INTO role_permissions (role_id, resource_type, action, allowed, created_at, updated_at)
+VALUES
+(1, 'report-sales', 'view', true, NOW(), NOW()),
+(1, 'report-purchase', 'view', true, NOW(), NOW()),
+(1, 'report-inventory', 'view', true, NOW(), NOW()),
+(1, 'report-finance', 'view', true, NOW(), NOW())
+ON CONFLICT (role_id, resource_type, action) DO NOTHING;
+
+-- sales_manager：销售经理仅可查看销售域报表
+INSERT INTO role_permissions (role_id, resource_type, action, allowed, created_at, updated_at)
+SELECT r.id, 'report-sales', 'view', true, NOW(), NOW()
+FROM roles r
+WHERE r.code = 'sales_manager' AND r.is_system = true
+ON CONFLICT (role_id, resource_type, action) DO NOTHING;
+
+-- warehouse_manager：仓库经理可查看库存域与采购域报表（含入库/退货统计）
+INSERT INTO role_permissions (role_id, resource_type, action, allowed, created_at, updated_at)
+SELECT r.id, t.resource_type, t.action, true, NOW(), NOW()
+FROM roles r
+CROSS JOIN (
+    VALUES
+    ('report-inventory', 'view'),
+    ('report-purchase', 'view')
+) AS t(resource_type, action)
+WHERE r.code = 'warehouse_manager' AND r.is_system = true
+ON CONFLICT (role_id, resource_type, action) DO NOTHING;
+
+-- production_manager：生产经理可查看库存域报表（生产领料/库存周转）
+INSERT INTO role_permissions (role_id, resource_type, action, allowed, created_at, updated_at)
+SELECT r.id, 'report-inventory', 'view', true, NOW(), NOW()
+FROM roles r
+WHERE r.code = 'production_manager' AND r.is_system = true
+ON CONFLICT (role_id, resource_type, action) DO NOTHING;
+
+-- cost_accountant：成本会计可查看全部分域报表（成本核算需要全量数据）
+INSERT INTO role_permissions (role_id, resource_type, action, allowed, created_at, updated_at)
+SELECT r.id, t.resource_type, t.action, true, NOW(), NOW()
+FROM roles r
+CROSS JOIN (
+    VALUES
+    ('report-sales', 'view'),
+    ('report-purchase', 'view'),
+    ('report-inventory', 'view'),
+    ('report-finance', 'view')
+) AS t(resource_type, action)
+WHERE r.code = 'cost_accountant' AND r.is_system = true
+ON CONFLICT (role_id, resource_type, action) DO NOTHING;
+
 -- 验证插入结果
 SELECT rp.*, r.name as role_name 
 FROM role_permissions rp

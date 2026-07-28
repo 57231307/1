@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 //! 色卡发放记录 Model（V15 P0-F04 创建）
 //!
 //! 替代旧 color_card_borrow_records（已重命名为 _legacy）
