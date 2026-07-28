@@ -861,8 +861,7 @@ impl BulkColorApprovalService {
     ) -> Result<Vec<bulk_color_approval_history::Model>, BulkColorApprovalError> {
         let rows = bulk_color_approval_history::Entity::find()
             .filter(
-                bulk_color_approval_history::Column::BulkColorApprovalId
-                    .eq(bulk_color_approval_id),
+                bulk_color_approval_history::Column::BulkColorApprovalId.eq(bulk_color_approval_id),
             )
             .order_by_asc(bulk_color_approval_history::Column::CreatedAt)
             .all(&*self.db)
@@ -879,7 +878,9 @@ impl BulkColorApprovalService {
     ) -> Result<Vec<bulk_color_approval::Model>, BulkColorApprovalError> {
         let threshold = Utc::now() - chrono::Duration::hours(threshold_hours);
         let rows = Entity::find()
-            .filter(bulk_color_approval::Column::ApprovalStatus.eq(ApprovalStatus::Pending.as_str()))
+            .filter(
+                bulk_color_approval::Column::ApprovalStatus.eq(ApprovalStatus::Pending.as_str()),
+            )
             .filter(bulk_color_approval::Column::CreatedAt.lt(threshold))
             .order_by_asc(bulk_color_approval::Column::CreatedAt)
             .all(&*self.db)
@@ -917,9 +918,7 @@ impl BulkColorApprovalService {
         threshold_hours: i64,
         notification_service: &crate::services::notification_service::NotificationService,
     ) -> Result<usize, BulkColorApprovalError> {
-        use crate::models::notification::{
-            NotificationPriority, NotificationType,
-        };
+        use crate::models::notification::{NotificationPriority, NotificationType};
         use crate::services::notification_service::CreateNotificationRequest;
 
         let pending_records = self.list_pending_reminders(threshold_hours).await?;
@@ -931,9 +930,7 @@ impl BulkColorApprovalService {
                 record.id, record.sales_order_id, record.customer_id, threshold_hours
             );
             let req = CreateNotificationRequest {
-                user_id: record
-                    .approver_id
-                    .unwrap_or(1),
+                user_id: record.approver_id.unwrap_or(1),
                 notification_type: NotificationType::Internal,
                 title,
                 content,
@@ -944,9 +941,7 @@ impl BulkColorApprovalService {
                 sender_id: None,
                 sender_name: Some("系统调度".to_string()),
                 dedup_key: Some(format!(
-                    "bca_pending_reminder_{}_{}",
-                    record.id,
-                    Utc::now().format("%Y%m%d%H")
+                    "bca_pending_reminder_{}_{}", record.id, Utc::now().format("%Y%m%d%H")
                 )),
             };
             if notification_service.create_notification(req).await.is_ok() {
@@ -962,9 +957,7 @@ impl BulkColorApprovalService {
         threshold_hours: i64,
         notification_service: &crate::services::notification_service::NotificationService,
     ) -> Result<usize, BulkColorApprovalError> {
-        use crate::models::notification::{
-            NotificationPriority, NotificationType,
-        };
+        use crate::models::notification::{NotificationPriority, NotificationType};
         use crate::services::notification_service::CreateNotificationRequest;
 
         let records = self.list_customer_followups(threshold_hours).await?;
@@ -987,9 +980,7 @@ impl BulkColorApprovalService {
                 sender_id: None,
                 sender_name: Some("系统调度".to_string()),
                 dedup_key: Some(format!(
-                    "bca_followup_reminder_{}_{}",
-                    record.id,
-                    Utc::now().format("%Y%m%d%H")
+                    "bca_followup_reminder_{}_{}", record.id, Utc::now().format("%Y%m%d%H")
                 )),
             };
             if notification_service.create_notification(req).await.is_ok() {

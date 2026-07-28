@@ -23,9 +23,7 @@
 use std::sync::Arc;
 
 use chrono::Utc;
-use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
-};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 use tracing::{info, warn};
 
 use crate::models::report_subscription::{
@@ -238,7 +236,8 @@ impl ReportSubscriptionScheduler {
             let interval = std::time::Duration::from_secs(interval_secs);
             info!(
                 interval_secs,
-                "报表订阅调度器：后台任务已启动（每 {} 秒扫描一次到期订阅 + 待重试订阅）", interval_secs
+                "报表订阅调度器：后台任务已启动（每 {} 秒扫描一次到期订阅 + 待重试订阅）",
+                interval_secs
             );
 
             loop {

@@ -696,7 +696,8 @@ impl ReportTemplateService {
             template_id = template_id,
             target_version,
             new_version,
-            "报表模板回滚成功：新版本号 = {}", new_version
+            "报表模板回滚成功：新版本号 = {}",
+            new_version
         );
         Ok(rolled_back)
     }

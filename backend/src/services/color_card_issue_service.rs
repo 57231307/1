@@ -682,8 +682,7 @@ impl ColorCardIssueService {
 
         // 直接执行带 customer_id IN (...) 的查询
         let owned_i64: Vec<i64> = owned_customers.iter().map(|v| *v as i64).collect();
-        let mut find = IssueEntity::find()
-            .filter(color_card_issue::Column::IsDeleted.eq(false));
+        let mut find = IssueEntity::find().filter(color_card_issue::Column::IsDeleted.eq(false));
         if owned_i64.is_empty() {
             // 无归属客户，强制返回空
             find = find.filter(color_card_issue::Column::Id.eq(-1));
@@ -729,7 +728,10 @@ impl ColorCardIssueService {
     /// V15 P1 10.4-2：成本字段按权限脱敏
     /// 当 operator 不持有 color_card_issue:export 权限时，将 compensation_amount 置 None
     /// 调用方应在 handler 中根据 RolePermissionService.check_permission 结果传入 can_view_cost
-    pub fn mask_cost_amount(records: Vec<color_card_issue::Model>, can_view_cost: bool) -> Vec<color_card_issue::Model> {
+    pub fn mask_cost_amount(
+        records: Vec<color_card_issue::Model>,
+        can_view_cost: bool,
+    ) -> Vec<color_card_issue::Model> {
         if can_view_cost {
             return records;
         }
