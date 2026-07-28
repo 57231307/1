@@ -66,6 +66,7 @@ impl CustomerService {
 
     /// 构建客户 ActiveModel（create_customer 复用，默认 owner_id=created_by）
     pub(crate) fn build_customer_active_model(args: CreateCustomerArgs) -> customer::ActiveModel {
+        let rest = Self::build_customer_active_model_rest(&args);
         let CreateCustomerArgs {
             customer_code,
             customer_name,
@@ -73,18 +74,7 @@ impl CustomerService {
             contact_phone,
             contact_email,
             address,
-            city,
-            province,
-            country,
-            postal_code,
-            credit_limit,
-            payment_terms,
-            tax_id,
-            bank_name,
-            bank_account,
-            customer_type,
-            notes,
-            created_by,
+            ..
         } = args;
         customer::ActiveModel {
             id: Default::default(),
@@ -94,51 +84,29 @@ impl CustomerService {
             contact_phone: Set(contact_phone),
             contact_email: Set(contact_email),
             address: Set(address),
-            ..Self::build_customer_active_model_rest(
-                city,
-                province,
-                country,
-                postal_code,
-                credit_limit,
-                payment_terms,
-                tax_id,
-                bank_name,
-                bank_account,
-                customer_type,
-                notes,
-                created_by,
-            )
+            ..rest
         }
     }
 
-    fn build_customer_active_model_rest(
-        city: Option<String>,
-        province: Option<String>,
-        country: Option<String>,
-        postal_code: Option<String>,
-        credit_limit: Decimal,
-        payment_terms: i32,
-        tax_id: Option<String>,
-        bank_name: Option<String>,
-        bank_account: Option<String>,
-        customer_type: String,
-        notes: Option<String>,
-        created_by: Option<i32>,
-    ) -> customer::ActiveModel {
+    fn build_customer_active_model_rest(args: &CreateCustomerArgs) -> customer::ActiveModel {
         customer::ActiveModel {
-            city: Set(city),
-            province: Set(province),
-            country: Set(Some(country.unwrap_or_else(|| "中国".to_string()))),
-            postal_code: Set(postal_code),
-            credit_limit: Set(credit_limit),
-            payment_terms: Set(payment_terms),
-            tax_id: Set(tax_id),
-            bank_name: Set(bank_name),
-            bank_account: Set(bank_account),
+            city: Set(args.city.clone()),
+            province: Set(args.province.clone()),
+            country: Set(Some(
+                args.country
+                    .clone()
+                    .unwrap_or_else(|| "中国".to_string()),
+            )),
+            postal_code: Set(args.postal_code.clone()),
+            credit_limit: Set(args.credit_limit),
+            payment_terms: Set(args.payment_terms),
+            tax_id: Set(args.tax_id.clone()),
+            bank_name: Set(args.bank_name.clone()),
+            bank_account: Set(args.bank_account.clone()),
             status: Set(master_data::ACTIVE.to_string()),
-            customer_type: Set(customer_type),
-            notes: Set(notes),
-            created_by: Set(created_by),
+            customer_type: Set(args.customer_type.clone()),
+            notes: Set(args.notes.clone()),
+            created_by: Set(args.created_by),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
             customer_industry: sea_orm::ActiveValue::NotSet,
@@ -146,7 +114,7 @@ impl CustomerService {
             annual_purchase: sea_orm::ActiveValue::NotSet,
             quality_requirement: sea_orm::ActiveValue::NotSet,
             inspection_standard: sea_orm::ActiveValue::NotSet,
-            owner_id: Set(created_by.unwrap_or(0)),
+            owner_id: Set(args.created_by.unwrap_or(0)),
             owner_assigned_at: Set(Some(Utc::now())),
             ..Default::default()
         }

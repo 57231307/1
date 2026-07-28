@@ -108,7 +108,7 @@ impl LogCleanupService {
         let log_dir = self.log_dir.clone();
         tokio::task::spawn_blocking(move || Self::cleanup_dir_recursive(&log_dir, cutoff))
             .await
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
+            .map_err(std::io::Error::other)?
     }
 
     /// 递归清理目录下所有修改时间早于 cutoff 的文件（保留子目录结构）。

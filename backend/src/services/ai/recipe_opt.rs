@@ -833,7 +833,7 @@ mod tests {
 
         // 温度应在合理范围（30-100°C）
         assert!(
-            agg.temperature >= 30.0 && agg.temperature <= 100.0,
+            (30.0..=100.0).contains(&agg.temperature),
             "温度应在 30-100°C 之间，实际 {}",
             agg.temperature
         );
@@ -849,7 +849,7 @@ mod tests {
 
         // 时间应在 10-120 min
         assert!(
-            agg.time_minutes >= 10.0 && agg.time_minutes <= 120.0,
+            (10.0..=120.0).contains(&agg.time_minutes),
             "时间应在 10-120 min 之间，实际 {}",
             agg.time_minutes
         );

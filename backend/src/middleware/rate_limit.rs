@@ -215,7 +215,7 @@ async fn check_redis_rate_limit(
     let count: i64 = conn.incr(key, 1i64).await?;
     if count == 1 {
         // 第一次请求时设置过期时间（避免长尾 key）
-        let _: () = conn.expire(key, window.as_secs() as i64).await?;
+        let _ = conn.expire(key, window.as_secs() as i64).await?;
     }
     Ok(Some((count as usize) <= max_requests))
 }

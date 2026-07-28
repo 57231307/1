@@ -104,7 +104,7 @@ pub async fn revoke_jti(jti: &str, expires_at: i64) {
 
         let write_result: Result<(), redis::RedisError> = async {
             let mut conn = conn_arc.lock().await;
-            let _: () = conn.set_ex(&key, expires_at.to_string(), ttl_secs).await?;
+            let _ = conn.set_ex(&key, expires_at.to_string(), ttl_secs).await?;
             Ok(())
         }
         .await;
