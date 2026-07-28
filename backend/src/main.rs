@@ -1,5 +1,7 @@
 mod bootstrap;
 mod config;
+// V15 P1-07 修复（缺陷 7.1-2）：container 模块镜像声明（让 server bin 也能解析 crate::container）
+mod container;
 mod constants; // BE-C: 全局常量（lib crate bingxi_backend::constants 的镜像引用，让 server bin 也能解析 crate::constants）
 mod docs;
 mod handlers;
