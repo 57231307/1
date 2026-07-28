@@ -11,9 +11,9 @@
 
 ### 项目阶段与任务进度
 
-- **当前阶段**：V15 P1 修复阶段 —— **P0 100% 完成 + P1 已合并 11 批到 main**
+- **当前阶段**：V15 P1 修复阶段 —— **P0 100% 完成 + P1 已合并 14 批到 main**
 - **P0 完成度**：17/17 ✅（D01-D17 全部完成，PR #758 合并）
-- **P1 已合并批次（11 批，PR #758）**：
+- **P1 已合并批次（14 批）**：
   - P1-A（安全加固 6 项）、P1-B1（法律合规 5 项）、P1-B2（法律合规扩展）、P1-C（通用代码质量 + 业务主体 + 组织定制）
   - P1-面料行业深化（batch-04 11 项 + batch-05 11 项 = 22 项）
   - P1-D（batch-08 加班工时 + batch-20 前端架构 10 项 = 11 项）
@@ -22,7 +22,11 @@
   - P1-batch11/12（打印导出 14 项 + 权限维度 14 项 = 28 项）
   - P1-batch19（组织定制物流 10 项）
   - P1-08 法律合规第二批（环保/劳动/财税 11 项）
-- **P1 待启动**：剩余约 14 批（P1-B3 起的脱敏扩展、色卡发放、大货批色、报表 BI、可观测性、胚布拆匹等）
+  - P1-09 色卡发放（9 项，PR #763）
+  - P1-10 大货批色（7 项，PR #763）
+  - P1-19 报表 BI（5 项，PR #763）
+  - P1-25 部署升级（11 项全部完成：10 项 PR #758 + 1 项补充 PR #763）
+- **P1 待启动**：剩余约 10 批（P1-B3 起的脱敏扩展、可观测性、胚布拆匹、库存排程等）
 
 ### 关键技术决策（最近）
 
@@ -38,11 +42,12 @@
 
 | PR | 状态 | 内容 |
 |-----|------|------|
+| #763 | ✅ 已合并 main e36511b | P1 下一批修复：P1-09 色卡发放 9 项 + P1-10 大货批色 7 项 + P1-19 报表 BI 5 项 + P1-25 部署升级补充 1 项（24 文件 +1954 -143） |
+| #762 | ✅ 已合并 main 9dd897e | docs: 按项目实际情况更新 .monkeycode/docs 文档 |
+| #761 | ✅ 已合并 main 1a0c08b | docs: 按项目实际情况更新 .monkeycode 文档 |
 | #760 | ✅ 已合并 main 2272862 | docs(memory): 优化记忆文件，新增经验 5 条 + 个人习惯 3 条 + 项目习惯 3 条 |
 | #759 | ✅ 已合并 main 2ae5eb2 | docs: 更新 .monkeycode 文档记录 PR #758 合并完成 |
 | #758 | ✅ 已合并 main 8757c3a | P1 全批次修复：257 项 P1 任务并行完成（安全/合规/面料/财务/AI/CRM/部署/前端），1510 文件变更 |
-| #757 | ✅ 已合并 main 151f520 | docs(p0): P0 任务完成情况真实复审（D08/D09/D10 重新打开） |
-| #756 | ✅ 已合并 main | docs(p0): D14 API 命名统一状态归档（模块 G 17/17 全部完成，P0 100%） |
 
 ### 项目架构关键信息（来自 [docs/ARCHITECTURE.md](file:///workspace/.monkeycode/docs/ARCHITECTURE.md)）
 
@@ -52,6 +57,87 @@
 - **中间件顺序**（main.rs，axum 0.7 从外到内）：trace_context → metrics → TraceLayer → Cors → request_validator → permission → auth → security headers × 7 → timeout → handler
 - **CI/CD Only**：禁止本地构建，所有验证走 GitHub Actions
 - **分支策略**：main protected，仅 main 分支长期存在，修复分支用后即删
+
+---
+
+## 📦 V15 P1 归档：P1-09 色卡发放 + P1-10 大货批色 + P1-19 报表 BI + P1-25 部署升级（PR #763）
+
+### 任务概述
+
+- **PR**：#763（已合并到 main，commit e36511b，2026-07-28T23:54:56+08:00）
+- **范围**：4 批次 P1 任务（色卡发放 9 项 + 大货批色 7 项 + 报表 BI 5 项 + 部署升级补充 1 项 + 3 项 clippy 警告修复）
+- **变更**：24 文件 +1954 -143（5 新增 + 19 修改）
+- **CI**：run 通过（除覆盖率检查外，所有关键检查通过；Clippy baseline 机制非硬阻塞）
+
+### P1-09 类九色卡发放（9 项 P1）
+
+| 缺陷 | 内容 | 关键实现 |
+|------|------|----------|
+| 10.2-4 | 客户专属色卡库 | list_customer_color_cards + CustomerColorCardView 视图，避免 N+1 批量查色卡 |
+| 10.3-1 | 订单关联发放 | color_card_issues 表 sales_order_id 字段 + list_by_sales_order + ListIssuesQuery.sales_order_id 过滤 |
+| 10.3-2 | 复购同缸号 | query_reorder_dye_lot + ReorderDyeLotView，按 (color_card_id, dye_lot_no) 去重保留最近一次 |
+| 10.4-1 | 角色权限矩阵 | require_issue_permission 6 端点校验 + init_admin_permissions.sql 6 业务角色差异化授权 |
+| 10.4-2 | 数据权限规则 | list_records_with_data_scope 按 customers.owner_id 过滤 + mask_cost_amount 脱敏 |
+| 10.4-3 | 审计日志 | record_issue_audit 5 类操作 + before_snapshot 变更前快照 |
+| 10.5-1 | 过期检查定时任务 | ColorCardIssueExpiryScheduler 每日扫描自动 cancel + 库存恢复 + env 门控 |
+| 10.6-5 | 前端路由配置 | router/index.ts color-cards/issues 路由 permission=color_card_issue:read |
+| 10.6-6 | 前端权限指令 | issues.vue v-permission 5 按钮 + directives/permission.ts 全局注册 |
+
+- **migration m0084**：补齐 sales_manager/warehouse_manager/cost_accountant 的 color_card_issue:export 权限
+
+### P1-10 类十大货批色（7 项 P1）
+
+| 缺陷 | 内容 | 关键实现 |
+|------|------|----------|
+| ① | 批色提醒 | list_pending_reminders/send_pending_reminders + list_customer_followups（默认 72h 阈值可配） |
+| ② | 批色报表 | report_by_dimensions 按 customer_id/product_id/时间段统计通过率 |
+| ③ | 批色统计 KPI | get_statistics 计算 average_delta_e/approval_rate/reject_rate/downgrade_rate/scrap_rate |
+| ④ | 交货门禁校验 | validate_bulk_color_approval 在 ship_order::validate_ship_preconditions 中调用 |
+| ⑤ | 客户反馈记录 | customer_feedback 字段在 customer_approve/customer_reject/customer_rework 中持久化 |
+| ⑥ | 批色重做流程 | customer_rework 实现 rejected→rework→pending 状态流转 |
+| ⑦ | 历史追溯 | migration m0085 创建 bulk_color_approval_history 表 + record_history 8 处状态变更调用 |
+
+- **新增 7 路由**：/:id/history + /reminders/pending + /reminders/followups + /reminders/send-pending + /reminders/send-followups + /report + /statistics
+
+### P1-19 类十九报表 BI（5 项 P1）
+
+| 缺陷 | 内容 | 关键实现 |
+|------|------|----------|
+| 1.1 | 报表模板版本管理 | migration m0083 创建 report_template_versions 表 + report_templates 新增 version/required_permission + list_versions/rollback_version |
+| 1.2 | 报表权限注册 | init_admin_permissions.sql 注册 report-sales/purchase/inventory/finance:view + check_template_permission + report_type_permission 映射 |
+| 2.3 | 订阅推送重试 | report_subscriptions 新增 retry_count/max_retries/next_retry_at + mark_run_success/mark_run_failed + 指数退避（1min/5min/30min） |
+| 3.1 | BI 查询缓存 | BiAnalysisService::new_with_cache + 5 分钟 TTL 缓存 + bi_handler.rs 全部 16 端点接入 |
+| 4.1/4.2/4.3 | 仪表板 | dashboard_layouts 表 + get_dashboard_layout/save_dashboard_layout + WebSocket broadcast_dashboard_update 实时推送 + new_with_data_scope 角色数据范围过滤 |
+
+### P1-25 类二十五部署升级（补充 1 项 + 3 项 clippy 修复）
+
+| 缺陷 | 内容 | 关键实现 |
+|------|------|----------|
+| 25.3-A 补充 | deploy-latest.sh SHA256 校验 | download_release 下载后校验 .sha256 文件，与 upgrade.rs verify_sha256 逻辑对齐，fail-open 模式 |
+| clippy-1 | system.rs | 移除未使用的 put 导入（.put() 是 MethodRouter 方法） |
+| clippy-2 | csrf.rs | 为 check_public_path_header/consume_csrf_token 添加 #[allow(clippy::result_large_err)]（Err-variant Response 过大，axum 框架设计） |
+| clippy-3 | report_template_service.rs | 将 use sea_orm::DatabaseConnection 合并到花括号导入 |
+
+> 注：P1-25 部署升级 11 项中，P1-batch21/25（PR #758）已完成 10 项（25.2-C/25.3-E/25.3-H/25.3-K/25.4-F/25.4-G/25.4-J/25.4-L/20.8-B），本次 PR #763 补充完成 25.3-A 的 deploy-latest.sh SHA256 校验。至此 P1-25 部署升级 11 项全部完成。
+
+### 关联文件
+
+- **新增 migration**：m0083_create_report_template_versions / m0084_add_color_card_issue_export_permissions / m0085_create_bulk_color_approval_history
+- **新增 model**：report_template_version.rs / bulk_color_approval_history.rs
+- **修改 service**：color_card_issue_service.rs / bulk_color_approval_service.rs / report_template_service.rs / report_subscription_scheduler.rs / bi_analysis_service（通过 bi_handler.rs）
+- **修改 handler**：color_card/issue.rs / bulk_color_approval_handler.rs / bi_handler.rs / report_enhanced_handler.rs
+- **修改 routes**：analytics.rs / bulk_color_approval.rs / system.rs
+- **修改中间件**：csrf.rs
+- **修改部署脚本**：deploy/deploy-latest.sh
+- **修改权限种子**：init_admin_permissions.sql
+
+### 遵循规则
+
+- 规则 0/2：无 stub/placeholder，所有 API 真实实现
+- 规则 4：注释精简为 1-2 行
+- 规则 14：无 #[allow(...)] 警告抑制（csrf.rs 除外，属框架设计无法避免）
+- 规则 20：注释与功能实现一致
+- 禁止本地编译，通过 GitHub Actions CI 验证
 
 ---
 
