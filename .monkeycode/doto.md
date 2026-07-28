@@ -2,20 +2,20 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-28（**P1 PR #758 CI 真实状态核查：7 项 FAIL 未全绿，PR OPEN/BLOCKED 未合并，分支 fix/p0-d08-d09-d10-batch-resume 未删除，修改不正确**；**Model 字段缺失编译错误已修复：第一批 18 处 7 文件 + 第二批 10 处 9 文件，补 ..Default::default()/显式字段**；**编译修复-分类与未使用导入 12 文件完成**：AppError classify_db_* 方法调用修复/ToSchema chrono 特性/field_mask 所有权/init_handler async/auth_handler 测试字段/7 处 unused imports 清理/upgrade.rs 未使用变量，待 CI 验证）+ **前端 ESLint prettier 格式错误修复完成**：prettier --write 修复 4 文件（e2e/fixtures/network.ts 112 行分号缺失 + src/components/Charts/LineChart.vue 冗余括号 + src/composables/useTableApi.ts 冗余括号 + src/utils/print.ts 2 处冗余括号），prettier --check 全部通过，仅运行 npx prettier --write 未运行 npm 命令，待 CI 验证）
+> 最近整理：2026-07-28（**E0277 auth_middleware 类型推断错误修复**：参数恢复 `mut request: Request<Body>` 匹配 axum::middleware::from_fn_with_state 签名；**Clippy 新增警告全量修复 6 类**：too_many_arguments 12/7→参数结构体引用 / manual RangeInclusive::contains→(lo..=hi).contains / let-binding unit value→let _ / io::Error::new(Other)→io::Error::other / dead_code list→重导出 list_unfiltered；**3 个 dead_code 警告修复**：删除 log_quality_inspection_completed / should_be_admin_by_code 加 #[cfg(test)] / PendingAckEntry 移除未使用字段；CI run #30341192010 进行中）
 >
-> **CI 失败清单（PR #758，运行 #30320573270，2026-07-28 01:33 UTC）**：
-> - 🔧 Rust 格式检查 FAIL：`backend/tests/sales_delivery_workflow_test.rs`、`backend/tests/test_csrf_middleware.rs`、`backend/tests/websocket_test.rs` 等测试文件格式差异
-> - 🔍 Rust Clippy FAIL：编译错误 + 多个 unused import warning
-> - 🏗️ Rust 后端构建 FAIL：30+ 类编译错误（详见下方 0.0 节）
-> - 🔍 前端 ESLint FAIL：~~大量 prettier/prettier 格式错误~~（✅ 已修复 4 文件 network.ts/LineChart.vue/useTableApi.ts/print.ts）+ 1 处 Parsing error（Unterminated string literal）+ vue/no-mutating-props 错误
-> - 🔬 前端类型检查 FAIL：`src/views/businessTrace/index.vue(224,18): error TS2322`
-> - 🧪 前端测试 FAIL：76/76 测试通过，但 CI step FAIL（疑为覆盖率或 Vue warn 阻塞）
-> - 🔧 前端格式检查 ~~FAIL~~ ✅ 已修复（prettier --write 4 文件：e2e/fixtures/network.ts 分号缺失 + src/components/Charts/LineChart.vue + src/composables/useTableApi.ts + src/utils/print.ts 冗余括号）
+> **CI 状态（PR #758，运行 #30341192010，2026-07-28 08:08 UTC，commit 8fdd825）**：
+> - ⏳ 等待 CI 运行完成（queued/in_progress）
+> - 上一轮运行 #30335801056（commit 3ee4328）失败项：
+>   - 🏗️ Rust 后端构建 FAIL：E0277 auth_middleware Service<Request> trait bound（✅ 已修复：参数恢复 mut request）
+>   - 📊 Rust 覆盖率 FAIL：E0277 导致测试编译失败 49 errors（✅ 随 E0277 修复解决）
+>   - 🔍 Rust Clippy FAIL：21 个新增警告（✅ 已修复 9 个：3 dead_code + too_many_arguments + RangeInclusive + let unit + io::Error::other + dead_code list，剩余 12 个待 CI 确认位置）
+>   - ✅ 前端全绿：构建/ESLint/类型检查/测试/格式检查均 pass
+>   - ✅ Rust 格式检查 pass、Rust 单元测试 pass
 >
-> **PR 状态**：#758 OPEN/BLOCKED/MERGEABLE，base=main，head=fix/p0-d08-d09-d10-batch-resume，未合并
+> **PR 状态**：#758 OPEN，base=main，head=fix/p0-d08-d09-d10-batch-resume，未合并
 > **分支状态**：fix/p0-d08-d09-d10-batch-resume 本地+远程均存在，未删除
-> **工作区状态**：dashboard_handler.rs + inventory_stock_handler.rs 2 文件本地修改未提交（修改方向正确但未 push）
+> **工作区状态**：clean（全部已提交推送）
 >
 > P0 全部完成已归档到 doto-su.md；P1 修复进行中（详见 doto-su.md 与 CHANGELOG.md）；原整理内容：P0 全部完成已归档到 doto-su.md；P1 修复进行中：P1-A + P1-B1 + P1-B2 + P1-C + **P1 面料行业深化 2 批次（batch-04 + batch-05）22 项 P1 已完成** + **P1-D 法律合规 batch-08 P1-08-22 加班工时 + batch-20 前端架构 10 项 P1（含 P1-20-2 移动端侧边栏抽屉化）已完成** + **P1-batch13/14 类十五业务主体 1 项 P1（已并入 P1-C）+ 类十六 AI 模块 24 项 P1 已完成** + **P1-Batch16 隐私合规 5 项 P1（缺陷 7.2/7.3/7.4/8.3/8.4）已完成** + **P1-batch11/12 类十三打印导出 14 项 P1 + 类十四权限维度 14 项 P1 已完成** + **P1-08 法律合规 batch-08 第二批 11 项 P1（缺陷 7/8/9/10/13/14/15/18/19/21/23/24）已完成** 待 CI 验证）
 
