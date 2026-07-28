@@ -147,12 +147,14 @@ async fn scan_with_clamav(clamav_url: &str, filename: &str, content: &[u8]) -> R
     let client = reqwest::Client::new();
     let scan_url = format!("{}/scan", clamav_url.trim_end_matches('/'));
     // V15 P1 20.1-A：注入 traceparent 到 ClamAV 出站请求
-    let traceparent =
-        crate::observability::trace_context::traceparent_from_current_span();
+    let traceparent = crate::observability::trace_context::traceparent_from_current_span();
     let response = client
         .post(&scan_url)
         .header("Content-Type", "application/octet-stream")
-        .header(crate::observability::trace_context::TRACEPARENT_HEADER, traceparent)
+        .header(
+            crate::observability::trace_context::TRACEPARENT_HEADER,
+            traceparent,
+        )
         .body(content.to_vec())
         .send()
         .await
@@ -510,14 +512,16 @@ impl EmailService {
         let api_url: &str = SENDGRID_API_URL;
 
         // V15 P1 20.1-A：注入 traceparent 到 SendGrid 出站请求
-        let traceparent =
-            crate::observability::trace_context::traceparent_from_current_span();
+        let traceparent = crate::observability::trace_context::traceparent_from_current_span();
         let response = self
             .http_client
             .post(api_url)
             .header("Authorization", format!("Bearer {}", self.config.api_key))
             .header("Content-Type", "application/json")
-            .header(crate::observability::trace_context::TRACEPARENT_HEADER, traceparent)
+            .header(
+                crate::observability::trace_context::TRACEPARENT_HEADER,
+                traceparent,
+            )
             .json(&sendgrid_message)
             .send()
             .await
@@ -585,12 +589,14 @@ impl EmailService {
         let url = format!("{}?{}", ALIYUN_DM_API_URL, query);
 
         // V15 P1 20.1-A：注入 traceparent 到阿里云 DM 出站请求
-        let traceparent =
-            crate::observability::trace_context::traceparent_from_current_span();
+        let traceparent = crate::observability::trace_context::traceparent_from_current_span();
         let response = self
             .http_client
             .get(&url)
-            .header(crate::observability::trace_context::TRACEPARENT_HEADER, traceparent)
+            .header(
+                crate::observability::trace_context::TRACEPARENT_HEADER,
+                traceparent,
+            )
             .send()
             .await
             .map_err(|e| AppError::internal(format!("阿里云邮件发送请求失败: {}", e)))?;
@@ -675,8 +681,7 @@ impl EmailService {
         authorization: &str,
     ) -> Result<(reqwest::StatusCode, String), AppError> {
         // V15 P1 20.1-A：注入 traceparent 到腾讯云 SES 出站请求
-        let traceparent =
-            crate::observability::trace_context::traceparent_from_current_span();
+        let traceparent = crate::observability::trace_context::traceparent_from_current_span();
         let response = self
             .http_client
             .post(TENCENT_SES_API_URL)
@@ -686,7 +691,10 @@ impl EmailService {
             .header("X-TC-Version", "2020-10-02")
             .header("Authorization", authorization)
             .header("Content-Type", "application/json; charset=utf-8")
-            .header(crate::observability::trace_context::TRACEPARENT_HEADER, traceparent)
+            .header(
+                crate::observability::trace_context::TRACEPARENT_HEADER,
+                traceparent,
+            )
             .body(payload.to_string())
             .send()
             .await
@@ -854,13 +862,15 @@ impl EmailService {
         match self.config.provider.as_str() {
             "sendgrid" => {
                 // V15 P1 20.1-A：健康检查也注入 traceparent
-                let traceparent =
-                    crate::observability::trace_context::traceparent_from_current_span();
+                let traceparent = crate::observability::trace_context::traceparent_from_current_span();
                 let response = self
                     .http_client
                     .get("https://api.sendgrid.com/v3/user/profile")
                     .header("Authorization", format!("Bearer {}", self.config.api_key))
-                    .header(crate::observability::trace_context::TRACEPARENT_HEADER, traceparent)
+                    .header(
+                        crate::observability::trace_context::TRACEPARENT_HEADER,
+                        traceparent,
+                    )
                     .send()
                     .await
                     .map_err(|e| AppError::internal(format!("健康检查请求失败: {}", e)))?;

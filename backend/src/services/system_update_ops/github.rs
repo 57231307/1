@@ -74,8 +74,7 @@ impl SystemUpdateService {
             .map_err(|e| UpdateError::NetworkError(e.to_string()))?;
 
         // V15 P1 20.1-A：注入 traceparent 到出站 HTTP 请求，跨服务调用链追踪
-        let traceparent =
-            crate::observability::trace_context::traceparent_from_current_span();
+        let traceparent = crate::observability::trace_context::traceparent_from_current_span();
         let response = client
             .get(&url)
             .header(
@@ -167,8 +166,7 @@ impl SystemUpdateService {
         let client = Self::build_safe_download_client(&asset.browser_download_url)?;
 
         // V15 P1 20.1-A：下载请求也注入 traceparent
-        let traceparent =
-            crate::observability::trace_context::traceparent_from_current_span();
+        let traceparent = crate::observability::trace_context::traceparent_from_current_span();
         let mut response = client
             .get(&asset.browser_download_url)
             .header(
