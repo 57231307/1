@@ -1,13 +1,20 @@
 use std::fs;
 use std::path::Path;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_subscriber::{
+    layer::{Layer, SubscriberExt},
+    util::SubscriberInitExt,
+    Registry,
+};
 
 /// 日志配置
 pub struct LogConfig {
     pub log_dir: String,
     pub log_level: String,
 }
+
+/// 装箱后的日志层（类型擦除，便于组合异构 layer）
+type BoxedLayer = Box<dyn Layer<Registry> + Send + Sync>;
 
 /// 初始化增强日志系统
 pub fn init_enhanced_logging(config: &LogConfig) -> Result<(), Box<dyn std::error::Error>> {
@@ -50,16 +57,20 @@ fn init_host_logging(config: &LogConfig) -> Result<(), Box<dyn std::error::Error
     let console_layer = tracing_subscriber::fmt::layer()
         .with_writer(std::io::stdout)
         .with_ansi(true)
-        .with_target(true);
+        .with_target(true)
+        .boxed();
 
+    // 使用 tuple 组合所有 layer，各 layer 均为 Layer<Registry>，避免 .with() 链式调用产生不兼容类型
     tracing_subscriber::registry()
-        .with(create_env_filter(config))
-        .with(main_layer)
-        .with(error_layer)
-        .with(audit_layers)
-        .with(performance_layers)
-        .with(security_layer)
-        .with(console_layer)
+        .with((
+            create_env_filter(config),
+            main_layer,
+            error_layer,
+            audit_layers,
+            performance_layers,
+            security_layer,
+            console_layer,
+        ))
         .init();
 
     log_initialization_info(config);
@@ -79,15 +90,7 @@ fn create_env_filter(config: &LogConfig) -> tracing_subscriber::EnvFilter {
         .unwrap_or_else(|_| format!("bingxi_backend={},tower_http=debug", config.log_level).into())
 }
 
-fn create_main_layers(
-    log_dir: &Path,
-) -> Result<
-    (
-        tracing_subscriber::fmt::Layer<()>,
-        tracing_subscriber::fmt::Layer<()>,
-    ),
-    Box<dyn std::error::Error>,
-> {
+fn create_main_layers(log_dir: &Path) -> Result<(BoxedLayer, BoxedLayer), Box<dyn std::error::Error>> {
     let main_appender = RollingFileAppender::new(Rotation::DAILY, log_dir, "bingxi_backend.log");
     let error_appender = RollingFileAppender::new(Rotation::DAILY, log_dir, "error.log");
 
@@ -99,32 +102,20 @@ fn create_main_layers(
         .with_thread_ids(false)
         .with_file(false)
         .with_line_number(false)
-        .json();
+        .json()
+        .boxed();
 
     let error_layer = tracing_subscriber::fmt::layer()
         .with_writer(error_appender)
         .with_ansi(false)
         .with_target(true)
-        .json();
+        .json()
+        .boxed();
 
     Ok((main_layer, error_layer))
 }
 
-fn create_audit_layers(
-    log_dir: &Path,
-) -> Result<
-    tracing_subscriber::layer::Layered<
-        tracing_subscriber::fmt::Layer<()>,
-        tracing_subscriber::layer::Layered<
-            tracing_subscriber::fmt::Layer<()>,
-            tracing_subscriber::layer::Layered<
-                tracing_subscriber::fmt::Layer<()>,
-                tracing_subscriber::fmt::Layer<()>,
-            >,
-        >,
-    >,
-    Box<dyn std::error::Error>,
-> {
+fn create_audit_layers(log_dir: &Path) -> Result<BoxedLayer, Box<dyn std::error::Error>> {
     let audit_dir = log_dir.join("audit");
     let financial_appender =
         RollingFileAppender::new(Rotation::DAILY, &audit_dir, "financial_audit.log");
@@ -152,21 +143,11 @@ fn create_audit_layers(
         .with_ansi(false)
         .with_target(true);
 
-    Ok(financial_layer
-        .with(permission_layer)
-        .with(database_layer)
-        .with(business_layer))
+    // tuple 组合 4 个 audit layer 后装箱为单一 BoxedLayer
+    Ok((financial_layer, permission_layer, database_layer, business_layer).boxed())
 }
 
-fn create_performance_layers(
-    log_dir: &Path,
-) -> Result<
-    tracing_subscriber::layer::Layered<
-        tracing_subscriber::fmt::Layer<()>,
-        tracing_subscriber::fmt::Layer<()>,
-    >,
-    Box<dyn std::error::Error>,
-> {
+fn create_performance_layers(log_dir: &Path) -> Result<BoxedLayer, Box<dyn std::error::Error>> {
     let performance_dir = log_dir.join("performance");
     let performance_appender =
         RollingFileAppender::new(Rotation::DAILY, &performance_dir, "performance_audit.log");
@@ -182,12 +163,10 @@ fn create_performance_layers(
         .with_ansi(false)
         .with_target(true);
 
-    Ok(performance_layer.with(health_layer))
+    Ok((performance_layer, health_layer).boxed())
 }
 
-fn create_security_layer(
-    log_dir: &Path,
-) -> Result<tracing_subscriber::fmt::Layer<()>, Box<dyn std::error::Error>> {
+fn create_security_layer(log_dir: &Path) -> Result<BoxedLayer, Box<dyn std::error::Error>> {
     let security_dir = log_dir.join("security");
     let security_appender =
         RollingFileAppender::new(Rotation::DAILY, &security_dir, "security_audit.log");
@@ -195,7 +174,8 @@ fn create_security_layer(
     Ok(tracing_subscriber::fmt::layer()
         .with_writer(security_appender)
         .with_ansi(false)
-        .with_target(true))
+        .with_target(true)
+        .boxed())
 }
 
 fn log_initialization_info(config: &LogConfig) {

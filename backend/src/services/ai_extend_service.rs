@@ -24,9 +24,6 @@ use crate::models::ai_quality_prediction::{
     ActiveModel as QualityActiveModel, Column as QualityColumn, Entity as QualityEntity,
     Model as QualityModel,
 };
-use crate::models::lab_dip_request::{
-    ActiveModel as LabDipRequestActiveModel, Entity as LabDipRequestEntity,
-};
 use crate::services::lab_dip_service::{CreateLabDipRequestRequest, LabDipRequestService};
 use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;

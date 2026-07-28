@@ -358,7 +358,7 @@ pub async fn agree_to_terms(
     Json(req): Json<AgreeToTermsRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     use crate::models::user::{self, ActiveModel, Column};
-    use sea_orm::{ActiveValue, ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
+    use sea_orm::{ActiveValue, ColumnTrait, EntityTrait, QueryFilter};
 
     let now = chrono::Utc::now();
     let update_result = user::Entity::update_many()

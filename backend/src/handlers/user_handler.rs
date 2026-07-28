@@ -681,7 +681,7 @@ fn record_audit_failure(
         after_snapshot: None,
     };
     let svc = Arc::new(AuditLogService::new(db.clone()));
-    svc.record_async(event, audit_ctx.as_ref().map(|e| e.0));
+    svc.record_async(event, audit_ctx.as_ref().map(|e| e.0.clone()));
 }
 
 async fn validate_password_history(
@@ -766,5 +766,5 @@ fn record_audit_success(
         ),
     };
     let svc = Arc::new(AuditLogService::new(db.clone()));
-    svc.record_async(event, audit_ctx.as_ref().map(|e| e.0));
+    svc.record_async(event, audit_ctx.as_ref().map(|e| e.0.clone()));
 }

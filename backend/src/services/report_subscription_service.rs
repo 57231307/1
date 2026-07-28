@@ -320,7 +320,7 @@ impl ReportSubscriptionService {
 
         let now = Utc::now();
         let next_run = model.calculate_next_run();
-        let mut active_model: ActiveModel = model.into();
+        let mut active_model: ActiveModel = model.clone().into();
         active_model.last_run_at = Set(Some(now));
         active_model.last_run_status = Set(Some("success".to_string()));
         active_model.last_run_error = Set(None);

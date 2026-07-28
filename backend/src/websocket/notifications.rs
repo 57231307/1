@@ -204,7 +204,7 @@ async fn ack_retry_loop(manager: ConnectionManager, user_id: i64, message_id: i6
         tokio::time::sleep(Duration::from_secs(ACK_TIMEOUT_SECS)).await;
         // 取出条目检查是否仍待确认（已被 ACK 时 remove 返回 None）
         let entry = ack_tracker().remove(&(user_id, message_id));
-        let Some(mut entry) = entry else {
+        let Some((_, mut entry)) = entry else {
             return; // 已被客户端 ACK，停止重发
         };
         // 客户端未确认：检查是否还有活跃连接（用户可能已断开）
@@ -291,7 +291,7 @@ impl NotificationBroadcaster {
         if redis_cache::get_redis_url().is_some() && tokio::runtime::Handle::try_current().is_ok() {
             let envelope = RedisBroadcastEnvelope {
                 user_id,
-                message: json,
+                message: json.clone(),
             };
             if let Ok(envelope_json) = serde_json::to_string(&envelope) {
                 let manager = self.manager.clone();

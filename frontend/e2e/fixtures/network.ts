@@ -12,16 +12,16 @@
  * - 弱网模拟使用 route.fulfill 前置 delay，不依赖浏览器原生网络节流
  * - 异常模拟覆盖后端业务错误码（code:非200）与 HTTP 状态码两种场景
  */
-import type { BrowserContext, Page, Route } from '@playwright/test'
+import type { BrowserContext, Page, Route } from '@playwright/test';
 
 /**
  * 项目统一 API 响应结构（与后端 AppError 脱敏响应一致）
  */
 export interface ApiResponse<T = unknown> {
-  code: number | string
-  message: string
-  data: T | null
-  timestamp?: string
+  code: number | string;
+  message: string;
+  data: T | null;
+  timestamp?: string;
 }
 
 /**
@@ -29,13 +29,13 @@ export interface ApiResponse<T = unknown> {
  */
 export interface MockErrorOptions {
   /** HTTP 状态码（默认 500） */
-  status?: number
+  status?: number;
   /** 业务错误码（写入响应体 code 字段） */
-  errorCode?: string | number
+  errorCode?: string | number;
   /** 业务错误消息（写入响应体 message 字段） */
-  errorMessage?: string
+  errorMessage?: string;
   /** 响应延迟毫秒数（模拟慢速异常返回） */
-  delayMs?: number
+  delayMs?: number;
 }
 
 /**
@@ -43,29 +43,29 @@ export interface MockErrorOptions {
  */
 export interface MockSuccessOptions<T = unknown> {
   /** HTTP 状态码（默认 200） */
-  status?: number
+  status?: number;
   /** 业务数据（写入响应体 data 字段） */
-  data: T
+  data: T;
   /** 业务消息（默认 'success'） */
-  message?: string
+  message?: string;
   /** 响应延迟毫秒数（模拟慢速成功返回） */
-  delayMs?: number
+  delayMs?: number;
 }
 
 /**
  * 构造项目统一 API 响应体
  */
 function buildApiResponse<T>(options: {
-  code: number | string
-  message: string
-  data: T | null
+  code: number | string;
+  message: string;
+  data: T | null;
 }): ApiResponse<T> {
   return {
     code: options.code,
     message: options.message,
     data: options.data,
     timestamp: new Date().toISOString(),
-  }
+  };
 }
 
 /**
@@ -73,7 +73,7 @@ function buildApiResponse<T>(options: {
  */
 async function applyDelay(delayMs: number): Promise<void> {
   if (delayMs > 0) {
-    await new Promise((resolve) => setTimeout(resolve, delayMs))
+    await new Promise(resolve => setTimeout(resolve, delayMs));
   }
 }
 
@@ -103,18 +103,18 @@ export async function mockApiError(
     errorCode = 'INTERNAL_ERROR',
     errorMessage = '模拟的后端异常返回',
     delayMs = 0,
-  } = options
+  } = options;
 
   await context.route(urlPattern, async (route: Route) => {
-    await applyDelay(delayMs)
+    await applyDelay(delayMs);
     await route.fulfill({
       status,
       contentType: 'application/json',
       body: JSON.stringify(
         buildApiResponse({ code: errorCode, message: errorMessage, data: null })
       ),
-    })
-  })
+    });
+  });
 }
 
 /**
@@ -138,16 +138,16 @@ export async function mockApiSuccess<T = unknown>(
   urlPattern: string,
   options: MockSuccessOptions<T>
 ): Promise<void> {
-  const { status = 200, data, message = 'success', delayMs = 0 } = options
+  const { status = 200, data, message = 'success', delayMs = 0 } = options;
 
   await context.route(urlPattern, async (route: Route) => {
-    await applyDelay(delayMs)
+    await applyDelay(delayMs);
     await route.fulfill({
       status,
       contentType: 'application/json',
       body: JSON.stringify(buildApiResponse({ code: 200, message, data })),
-    })
-  })
+    });
+  });
 }
 
 /**
@@ -169,8 +169,8 @@ export async function mockNetworkFailure(
   urlPattern: string
 ): Promise<void> {
   await context.route(urlPattern, (route: Route) => {
-    route.abort('failed')
-  })
+    route.abort('failed');
+  });
 }
 
 /**
@@ -194,9 +194,9 @@ export async function simulateSlowNetwork(
   delayMs: number
 ): Promise<void> {
   await context.route(urlPattern, async (route: Route) => {
-    await applyDelay(delayMs)
-    await route.continue()
-  })
+    await applyDelay(delayMs);
+    await route.continue();
+  });
 }
 
 /**
@@ -215,11 +215,11 @@ export async function simulateSlowNetwork(
  */
 export class RequestObserver {
   private readonly requests: Array<{
-    url: string
-    method: string
-    status: number
-    body: string | null
-  }> = []
+    url: string;
+    method: string;
+    status: number;
+    body: string | null;
+  }> = [];
 
   constructor(
     private readonly context: BrowserContext | Page,
@@ -231,22 +231,22 @@ export class RequestObserver {
    */
   async start(): Promise<void> {
     await this.context.route(this.urlPattern, async (route: Route) => {
-      const request = route.request()
-      const response = await route.fetch()
-      let body: string | null = null
+      const request = route.request();
+      const response = await route.fetch();
+      let body: string | null = null;
       try {
-        body = await response.text()
+        body = await response.text();
       } catch {
-        body = null
+        body = null;
       }
       this.requests.push({
         url: request.url(),
         method: request.method(),
         status: response.status(),
         body,
-      })
-      await route.fulfill({ response })
-    })
+      });
+      await route.fulfill({ response });
+    });
   }
 
   /**
@@ -254,15 +254,15 @@ export class RequestObserver {
    */
   async collect(): Promise<typeof this.requests> {
     // 等待一个微任务周期，确保所有 pending route handler 完成
-    await new Promise((resolve) => setTimeout(resolve, 100))
-    return [...this.requests]
+    await new Promise(resolve => setTimeout(resolve, 100));
+    return [...this.requests];
   }
 
   /**
    * 停止观察（取消 route handler）
    */
   async stop(): Promise<void> {
-    await this.context.unroute(this.urlPattern)
+    await this.context.unroute(this.urlPattern);
   }
 }
 
@@ -273,7 +273,7 @@ export function observeRequests(
   context: BrowserContext | Page,
   urlPattern: string
 ): RequestObserver {
-  return new RequestObserver(context, urlPattern)
+  return new RequestObserver(context, urlPattern);
 }
 
 /**
@@ -292,7 +292,7 @@ export async function waitForApiCall(
   urlPattern: string,
   timeout = 10_000
 ): Promise<void> {
-  await page.waitForResponse(urlPattern, { timeout })
+  await page.waitForResponse(urlPattern, { timeout });
 }
 
 /**
@@ -313,14 +313,14 @@ export async function mockOnce(
   urlPattern: string,
   options: MockErrorOptions
 ): Promise<void> {
-  let consumed = false
+  let consumed = false;
   await context.route(urlPattern, async (route: Route) => {
     if (consumed) {
-      await route.continue()
-      return
+      await route.continue();
+      return;
     }
-    consumed = true
-    await applyDelay(options.delayMs ?? 0)
+    consumed = true;
+    await applyDelay(options.delayMs ?? 0);
     await route.fulfill({
       status: options.status ?? 500,
       contentType: 'application/json',
@@ -331,6 +331,6 @@ export async function mockOnce(
           data: null,
         })
       ),
-    })
-  })
+    });
+  });
 }

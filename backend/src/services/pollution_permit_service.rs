@@ -15,7 +15,7 @@ use crate::utils::error::AppError;
 use chrono::NaiveDate;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    QueryOrder, QuerySelect, Set,
 };
 use serde::Deserialize;
 use std::sync::Arc;

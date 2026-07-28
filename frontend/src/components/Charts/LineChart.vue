@@ -62,7 +62,7 @@ const chartOption = computed<EChartsOption>(() => {
     type: 'line' as const,
     data: item.data,
     smooth: item.smooth ?? props.smooth,
-    areaStyle: (item.areaStyle ?? props.showArea) ? {} : undefined,
+    areaStyle: item.areaStyle ?? props.showArea ? {} : undefined,
   }));
 
   return {

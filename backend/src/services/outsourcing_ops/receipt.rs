@@ -321,7 +321,7 @@ impl OutsourcingReceiptService {
             related_id: Some(receipt.id),
             product_id: receipt.product_id,
             batch_no: receipt.batch_no.clone(),
-            supplier_id: order.supplier_id,
+            supplier_id: Some(order.supplier_id),
             customer_id: None,
             inspection_date,
             inspector_id: receipt.created_by,

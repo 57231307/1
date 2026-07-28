@@ -12,7 +12,7 @@ use crate::models::status::crm_lead as lead_status;
 use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 use crate::utils::xlsx_export::XlsxTable;
-use sea_orm::sea_query::PgExpr;
+use sea_orm::sea_query::extension::postgres::PgExpr;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
     QuerySelect, Set, TransactionTrait,

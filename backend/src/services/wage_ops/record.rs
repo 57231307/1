@@ -163,7 +163,7 @@ impl WageRecordService {
             crate::services::event_bus::BusinessEvent::WageConfirmed {
                 wage_record_id: updated.id,
                 record_no: updated.record_no.clone(),
-                total_amount: updated.total_amount.unwrap_or(Decimal::ZERO),
+                total_amount: updated.total_amount,
                 confirmed_by,
             },
         );
@@ -199,7 +199,7 @@ impl WageRecordService {
             crate::services::event_bus::BusinessEvent::WagePaid {
                 wage_record_id: updated.id,
                 record_no: updated.record_no.clone(),
-                total_amount: updated.total_amount.unwrap_or(Decimal::ZERO),
+                total_amount: updated.total_amount,
                 paid_by,
             },
         );
@@ -216,7 +216,7 @@ impl WageRecordService {
     ) -> Result<(), AppError> {
         let voucher_service =
             crate::services::voucher_service::VoucherService::new(self.db.clone());
-        let amount = record.total_amount.unwrap_or(Decimal::ZERO);
+        let amount = record.total_amount;
         if amount <= Decimal::ZERO {
             return Ok(());
         }
@@ -287,7 +287,7 @@ impl WageRecordService {
     ) -> Result<(), AppError> {
         let voucher_service =
             crate::services::voucher_service::VoucherService::new(self.db.clone());
-        let amount = record.total_amount.unwrap_or(Decimal::ZERO);
+        let amount = record.total_amount;
         if amount <= Decimal::ZERO {
             return Ok(());
         }

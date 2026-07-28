@@ -27,7 +27,7 @@
 //! `extract_issue_keyword`），单元测试可直接调用，避免依赖数据库。
 
 use rust_decimal::prelude::ToPrimitive;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
 use serde::{Deserialize, Serialize};
 
 use crate::models::quality_inspection_record::{
@@ -403,7 +403,7 @@ impl AiAnalysisService {
         let response = if (records.len() as i64) < MIN_HISTORY_RECORDS {
             build_fallback_response(params.product_id, &params.type_label, params.window_days)
         } else {
-            build_history_response(params.clone(), &records)
+            build_history_response((*params).clone(), &records)
         };
         self.quality_cache.insert(cache_key, response.clone()).await;
         Ok(response)
@@ -480,6 +480,7 @@ impl AiAnalysisService {
 ///
 /// 封装 `window_days` / `inspection_type` / `product_id` / `type_label` 及面料特征，
 /// 避免主函数散落局部变量；参考已有 `WageTotals` / `ApproveContext` 模式。
+#[derive(Clone)]
 struct NormalizedPredParams {
     window_days: i32,
     inspection_type: Option<String>,

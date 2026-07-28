@@ -665,7 +665,7 @@ fn build_energy_allocation_xlsx_table(records: &[energy_allocation_record::Model
             .map(|r| {
                 vec![
                     r.id.to_string(),
-                    r.record_no.clone(),
+                    r.allocation_no.clone(),
                     r.meter_type.clone(),
                     r.workshop.clone().unwrap_or_default(),
                     r.dye_lot_no.clone().unwrap_or_default(),

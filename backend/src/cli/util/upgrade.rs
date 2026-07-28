@@ -796,7 +796,7 @@ fn switch_nginx_and_stop_active(
 /// P0-D15：蓝绿模式部署（零停机），任一关键步骤失败立即中止以保持活跃实例服务
 fn deploy_release_blue_green(package: &str) {
     println!("=== 蓝绿部署模式（零停机）===");
-    let (active, inactive, active_service, inactive_service) = match resolve_blue_green_instances()
+    let (_active, inactive, active_service, inactive_service) = match resolve_blue_green_instances()
     {
         Ok(v) => v,
         Err(()) => return,

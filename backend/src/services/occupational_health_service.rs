@@ -22,7 +22,7 @@ use chrono::{Local, NaiveDate};
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    QueryOrder, QuerySelect, Set,
 };
 use serde::Deserialize;
 use std::sync::Arc;

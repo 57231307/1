@@ -343,7 +343,7 @@ impl InventoryTransferService {
         let transfer_id = transfer_entity.id;
         self.check_from_warehouse_inventory(&from_warehouse_id, &items, &txn)
             .await?;
-        let total_quantity =
+        let (total_quantity, _total_amount) =
             Self::create_transfer_items_and_compute_total(&txn, transfer_id, items).await?;
         Self::save_transfer_total_quantity(&txn, transfer_id, total_quantity, user_id).await?;
         txn.commit().await?;

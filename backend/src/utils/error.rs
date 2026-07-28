@@ -259,12 +259,12 @@ impl From<sea_orm::DbErr> for AppError {
                 AppError::database(err_msg::DB_CONN_FAIL)
             }
             sea_orm::DbErr::Exec(_) => {
-                let error_kind = Self::classify_db_exec_error(&err_str);
+                let error_kind = classify_db_exec_error(&err_str);
                 tracing::error!("{} [{}]: {}", err_msg::DB_EXEC, error_kind, err);
                 AppError::database(error_kind.to_string())
             }
             sea_orm::DbErr::Query(_) => {
-                let error_kind = Self::classify_db_query_error(&err_str);
+                let error_kind = classify_db_query_error(&err_str);
                 tracing::error!("{} [{}]: {}", err_msg::DB_QUERY, error_kind, err);
                 AppError::database(error_kind.to_string())
             }
@@ -273,7 +273,7 @@ impl From<sea_orm::DbErr> for AppError {
                 AppError::not_found(msg.clone())
             }
             sea_orm::DbErr::Custom(_) => {
-                let error_kind = Self::classify_db_custom_error(&err_str);
+                let error_kind = classify_db_custom_error(&err_str);
                 tracing::error!("{} [{}]: {}", err_msg::DB_CUSTOM, error_kind, err);
                 AppError::database(error_kind.to_string())
             }

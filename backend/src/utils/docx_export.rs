@@ -57,7 +57,7 @@ pub fn build_docx(table: &DocxTable) -> Result<Vec<u8>, AppError> {
     // 表格：表头 + 数据行
     if !table.headers.is_empty() {
         let header_row = build_table_row(&table.headers, true);
-        let mut table_obj = Table::new().add_row(header_row);
+        let mut table_obj = Table::new(vec![]).add_row(header_row);
 
         for row in &table.rows {
             let data_row = build_table_row(row, false);
@@ -80,8 +80,10 @@ pub fn build_docx(table: &DocxTable) -> Result<Vec<u8>, AppError> {
         .align(AlignmentType::Right);
     docx = docx.add_paragraph(footer_para);
 
-    docx.serialize()
-        .map_err(|e| AppError::internal(format!("docx 序列化失败: {}", e)))
+    let mut buf = std::io::Cursor::new(Vec::<u8>::new());
+    docx.pack(&mut buf)
+        .map_err(|e| AppError::internal(format!("docx 序列化失败: {}", e)))?;
+    Ok(buf.into_inner())
 }
 
 /// 构造 docx 下载响应（含 Content-Type 和 Content-Disposition 头）
@@ -129,7 +131,7 @@ pub fn build_docx_with_kv(
     // 键值对表格（2 列：字段名 | 值）
     if !kv.keys.is_empty() {
         let header_row = build_table_row(&["字段".to_string(), "值".to_string()], true);
-        let mut kv_table = Table::new().add_row(header_row);
+        let mut kv_table = Table::new(vec![]).add_row(header_row);
 
         for (k, v) in kv.keys.iter().zip(kv.values.iter()) {
             let row = build_table_row(&[k.clone(), v.clone()], false);
@@ -146,7 +148,7 @@ pub fn build_docx_with_kv(
         docx = docx.add_paragraph(detail_title);
 
         let header_row = build_table_row(detail_headers, true);
-        let mut detail_table = Table::new().add_row(header_row);
+        let mut detail_table = Table::new(vec![]).add_row(header_row);
         for row in detail_rows {
             let data_row = build_table_row(row, false);
             detail_table = detail_table.add_row(data_row);
@@ -166,13 +168,15 @@ pub fn build_docx_with_kv(
         .align(AlignmentType::Right);
     docx = docx.add_paragraph(footer_para);
 
-    docx.serialize()
-        .map_err(|e| AppError::internal(format!("docx 序列化失败: {}", e)))
+    let mut buf = std::io::Cursor::new(Vec::<u8>::new());
+    docx.pack(&mut buf)
+        .map_err(|e| AppError::internal(format!("docx 序列化失败: {}", e)))?;
+    Ok(buf.into_inner())
 }
 
 /// 构建表格行（cells 为单元格文本列表，is_header 标识是否为表头行）
 fn build_table_row(cells: &[String], is_header: bool) -> TableRow {
-    let mut row = TableRow::new();
+    let mut cell_list: Vec<TableCell> = Vec::with_capacity(cells.len());
     for cell_text in cells {
         let run = if is_header {
             Run::new().add_text(cell_text).bold().size(22)
@@ -181,23 +185,14 @@ fn build_table_row(cells: &[String], is_header: bool) -> TableRow {
         };
         let para = Paragraph::new().add_run(run);
         let cell = TableCell::new().add_paragraph(para);
-        row = row.add_cell(cell);
+        cell_list.push(cell);
     }
-    row
+    TableRow::new(cell_list)
 }
 
 /// 设置表格四周边框（单线样式）
 fn set_table_borders(table: Table) -> Table {
-    let border = BorderType::Single;
-    table.set_table_borders(
-        TableBorders::new()
-            .set_top(border)
-            .set_bottom(border)
-            .set_left(border)
-            .set_right(border)
-            .set_inside_h(border)
-            .set_inside_v(border),
-    )
+    table.set_borders(TableBorders::new())
 }
 
 #[cfg(test)]

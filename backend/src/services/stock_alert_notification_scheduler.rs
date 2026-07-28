@@ -19,7 +19,7 @@ use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use tracing::{info, warn};
 
 use crate::models::inventory_stock::{self, Entity as InventoryStockEntity};
-use crate::models::product::{self as product_model, Entity as ProductEntity};
+use crate::models::product::Entity as ProductEntity;
 use crate::services::event_notification_service::EventNotificationService;
 use crate::services::inventory_stock_query::compute_alert_type;
 use crate::services::stock_alert::ALERT_TYPE_NORMAL;
@@ -109,11 +109,7 @@ impl StockAlertNotificationScheduler {
         }
 
         let alert_desc = Self::alert_desc(alert_type);
-        let current_stock = format!(
-            "{} {}",
-            stock.quantity_available,
-            stock.capacity_unit.as_deref().unwrap_or("")
-        );
+        let current_stock = format!("{}", stock.quantity_available);
         let threshold = format!(
             "补货点 {} / 上限 {}（告警类型：{}）",
             stock.reorder_point, stock.max_stock_point, alert_desc
@@ -146,7 +142,7 @@ impl StockAlertNotificationScheduler {
     /// 拉取产品名称（失败时返回 fallback 字符串）。
     async fn fetch_product_name(&self, product_id: i32) -> String {
         match ProductEntity::find_by_id(product_id).one(&*self.db).await {
-            Ok(Some(p)) => p.name.unwrap_or_else(|| format!("产品#{}", product_id)),
+            Ok(Some(p)) => p.name,
             _ => format!("产品#{}", product_id),
         }
     }
@@ -157,7 +153,7 @@ impl StockAlertNotificationScheduler {
         use crate::models::user::{Column as UserColumn, Entity as UserEntity};
 
         let roles = match RoleEntity::find()
-            .filter(role_model::Column::RoleCode.is_in(vec![
+            .filter(role_model::Column::Code.is_in(vec![
                 "admin",
                 "manager",
                 "warehouse_manager",

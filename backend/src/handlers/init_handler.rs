@@ -66,7 +66,7 @@ pub async fn test_database_connection(
     let db_config = build_db_config(payload);
 
     audit_test_connection(&auth, &target, &audit_ctx).await;
-    execute_test_connection(db_config)
+    execute_test_connection(db_config).await
 }
 
 async fn validate_admin_role(
@@ -211,10 +211,10 @@ async fn audit_test_connection(
     .await;
 }
 
-fn execute_test_connection(
+async fn execute_test_connection(
     db_config: DatabaseConfig,
 ) -> Result<Json<ApiResponse<TestDatabaseResponse>>, AppError> {
-    match InitService::test_database(&db_config) {
+    match InitService::test_database(&db_config).await {
         Ok(_) => Ok(Json(ApiResponse::success_with_message(
             TestDatabaseResponse {
                 success: true,

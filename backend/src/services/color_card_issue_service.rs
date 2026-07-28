@@ -361,8 +361,8 @@ impl ColorCardIssueService {
             crate::services::event_bus::BusinessEvent::ColorCardIssued {
                 issue_id: result.id as i32,
                 color_card_id: result.color_card_id as i32,
-                customer_id: result.customer_id.map(|x| x as i32),
-                issued_by: result.issued_by.map(|x| x as i32),
+                customer_id: Some(result.customer_id as i32),
+                issued_by: Some(result.issued_by as i32),
                 issued_at: result.issued_at,
             },
         );

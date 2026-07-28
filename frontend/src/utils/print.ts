@@ -47,7 +47,7 @@ function generatePrintHTML<T extends Record<string, unknown>>(options: PrintOpti
       const cells = columns
         .map(col => {
           const value = row[col.key];
-          const formatted = col.formatter ? col.formatter(value, row) : (value ?? '');
+          const formatted = col.formatter ? col.formatter(value, row) : value ?? '';
           return `<td style="padding: 6px 12px; border: 1px solid #333; text-align: ${col.align || 'left'}">${escapeHtml(formatted)}</td>`;
         })
         .join('');
@@ -183,7 +183,7 @@ export function printSingleDocument<T extends Record<string, unknown>>(options: 
       const cells = itemColumns
         .map(col => {
           const value = row[col.key];
-          const formatted = col.formatter ? col.formatter(value, row) : (value ?? '');
+          const formatted = col.formatter ? col.formatter(value, row) : value ?? '';
           return `<td style="padding: 6px 12px; border: 1px solid #333; text-align: ${col.align || 'left'}">${escapeHtml(formatted)}</td>`;
         })
         .join('');

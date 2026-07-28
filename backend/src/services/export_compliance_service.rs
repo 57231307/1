@@ -413,7 +413,7 @@ impl ExportComplianceService {
                 "source": "daily_export_compliance_review",
             })),
         };
-        self.audit_service.record_async(event, None);
+        self.audit_service.clone().record_async(event, None);
     }
 
     /// 启动后台定时任务（每 24 小时执行一次合规审查）

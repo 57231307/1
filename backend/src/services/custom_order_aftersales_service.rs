@@ -112,6 +112,7 @@ impl CustomOrderAfterSalesService {
             quality_issue_id: Set(dto.quality_issue_id),
             created_at: Set(now),
             updated_at: Set(now),
+            ..Default::default()
         };
         let result = active.insert(&*self.db).await?;
         Ok(result)
@@ -233,6 +234,7 @@ impl CustomOrderAfterSalesService {
             status: Set("open".to_string()),
             created_at: Set(now),
             updated_at: Set(now),
+            ..Default::default()
         };
         let inserted_issue = new_issue.insert(&*self.db).await?;
 

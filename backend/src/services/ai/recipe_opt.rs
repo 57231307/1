@@ -17,7 +17,7 @@
 //! `find_typical_params` / `build_candidates`），单元测试可直接调用，避免依赖数据库。
 
 use rust_decimal::prelude::ToPrimitive;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 use serde::{Deserialize, Serialize};
 
 use crate::models::dye_recipe::{Entity as DyeRecipeEntity, Model as DyeRecipeModel};
@@ -61,7 +61,7 @@ pub struct RecipeParams {
 }
 
 /// 相似候选案例（命中 TopK 后的前 10 条）
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct RecipeCandidate {
     pub recipe_no: String,
     pub color_no: Option<String>,

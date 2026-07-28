@@ -155,7 +155,7 @@ pub fn desensitize_json(value: Value) -> Value {
     match value {
         Value::Object(mut map) => {
             for (k, v) in map.iter_mut() {
-                *v = desensitize_json_value(v, k);
+                *v = desensitize_json_value(v.clone(), k);
             }
             Value::Object(map)
         }

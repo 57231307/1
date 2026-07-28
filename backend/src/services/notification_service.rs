@@ -383,8 +383,10 @@ impl NotificationService {
                 enable_internal: Set(enable_internal),
                 enable_email: Set(enable_email),
                 enable_sms: Set(enable_sms),
+                enable_webhook: Set(false),
                 created_at: Set(Utc::now()),
                 updated_at: Set(Utc::now()),
+                ..Default::default()
             };
             active_model.insert(&*self.db).await?
         };

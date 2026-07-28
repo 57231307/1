@@ -505,7 +505,7 @@ pub async fn export_wage_details(
         operation_type: OperationType::Export,
         severity: Severity::Info,
         resource_type: Some("wage_record_detail".to_string()),
-        resource_id: Some(id as i64),
+        resource_id: Some(id.to_string()),
         resource_name: Some("wage_details_export.xlsx".to_string()),
         description: Some(format!(
             "用户 {} 导出工资记录 {} 的明细（共 {} 条）",

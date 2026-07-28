@@ -15,8 +15,7 @@ use crate::models::pollutant_discharge_record::{
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
 };
 use serde::Deserialize;
 use std::sync::Arc;

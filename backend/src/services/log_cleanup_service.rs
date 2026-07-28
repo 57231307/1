@@ -47,11 +47,11 @@ impl LogCleanupService {
         let service = self.clone();
         let handle = tokio::spawn(async move {
             // 启动后立即执行一次清理，避免长期未清理的日志在首次启动后仍占用磁盘
-            service.run_once_with_panic_isolation().await;
+            service.clone().run_once_with_panic_isolation().await;
             let mut tick: Interval = interval(Duration::from_secs(24 * 60 * 60));
             loop {
                 tick.tick().await;
-                service.run_once_with_panic_isolation().await;
+                service.clone().run_once_with_panic_isolation().await;
             }
         });
         info!(
@@ -103,7 +103,7 @@ impl LogCleanupService {
         let retention = Duration::from_secs(60 * 60 * 24 * self.retention_days as u64);
         let cutoff = SystemTime::now()
             .checked_sub(retention)
-            .unwrap_or_else(SystemTime::UNIX_EPOCH);
+            .unwrap_or(SystemTime::UNIX_EPOCH);
         // 在 blocking 线程执行文件系统遍历，避免阻塞 tokio runtime
         let log_dir = self.log_dir.clone();
         tokio::task::spawn_blocking(move || Self::cleanup_dir_recursive(&log_dir, cutoff))

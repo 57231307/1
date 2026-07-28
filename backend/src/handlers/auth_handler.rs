@@ -95,6 +95,7 @@ pub struct UserInfo {
     /// TODO(tech-debt): 后续若新增 avatar 列，需在此处补全查询。
     pub avatar: Option<String>,
     /// P1-08-1：用户协议/隐私政策同意时间
+    #[schema(value_type = Option<String>, format = DateTime)]
     pub agreed_to_terms_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
@@ -915,6 +916,7 @@ mod tests {
                 is_totp_enabled: false,
                 real_name: Some("测试用户".to_string()),
                 avatar: None,
+                agreed_to_terms_at: None,
             },
             permissions: vec![
                 "user.list:read".to_string(),

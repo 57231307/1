@@ -109,7 +109,7 @@ tokio-cron-scheduler = "0.10"
 clap = { version = "4.4", features = ["derive"] }
 
 # API 文档
-utoipa = { version = "5.2.0", features = ["axum_extras"] }
+utoipa = { version = "5.2.0", features = ["axum_extras", "chrono"] }
 axum-extra = { version = "0.9.3", features = ["cookie", "cookie-private", "cookie-key-expansion"] }
 totp-rs = { version = "5.5", features = ["qr", "gen_secret"] }
 utoipa-swagger-ui = { version = "8.0.3", features = ["axum"], optional = true }

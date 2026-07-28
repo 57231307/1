@@ -15,7 +15,7 @@ use crate::models::{inventory_stock, product, sales_order, warehouse};
 use crate::models::status::master_data;
 use crate::utils::cache::{AppCache, Cache};
 // 缺陷 4.3 修复：仪表板按角色控制可见卡片 + 数据范围过滤
-use crate::utils::data_scope::{build_data_scope_sql, DataScopeContext};
+use crate::utils::data_scope::DataScopeContext;
 use crate::utils::error::AppError;
 
 // ==================== 批次 134 v9 P1 修复：销售统计 raw SQL 中间结构 ====================
@@ -223,8 +223,8 @@ impl DashboardService {
         // 缺陷 4.3 修复：根据 data_scope 对销售相关指标应用过滤
         // All 范围（管理员）：不添加过滤，看到全部数据
         // Self_/Dept 范围：按 created_by = user_id 过滤，仅统计自己的订单
-        let total_products_fut = product::Entity::find().count(db);
-        let total_warehouses_fut = warehouse::Entity::find().count(db);
+        let total_products_q = product::Entity::find();
+        let total_warehouses_q = warehouse::Entity::find();
         let mut total_orders_q = sales_order::Entity::find();
         let mut pending_orders_q =
             sales_order::Entity::find().filter(sales_order::Column::Status.eq("pending"));
@@ -250,8 +250,8 @@ impl DashboardService {
             }
         }
 
-        let total_products_fut = total_products_fut.count(db);
-        let total_warehouses_fut = total_warehouses_fut.count(db);
+        let total_products_fut = total_products_q.count(db);
+        let total_warehouses_fut = total_warehouses_q.count(db);
         let total_orders_fut = total_orders_q.count(db);
         let pending_orders_fut = pending_orders_q.count(db);
         let low_stock_count_fut = inventory_stock::Entity::find()

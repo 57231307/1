@@ -539,7 +539,8 @@ pub async fn export_stock(
         .await?;
     let row_count = stock_list.len();
 
-    let mut stock_json = serialize_stock_responses(stock_list)?;
+    let stock_responses: Vec<StockResponse> = stock_list.into_iter().map(to_stock_response).collect();
+    let mut stock_json = serialize_stock_responses(stock_responses)?;
     apply_data_permission_filter(&state, &auth, &mut stock_json).await;
 
     let table = build_stock_xlsx_table(&stock_json)?;
@@ -585,7 +586,7 @@ fn build_stock_xlsx_table(stock_json: &[serde_json::Value]) -> Result<XlsxTable,
                 get_json_str(obj, "updated_at"),
             ])
         })
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<Result<Vec<_>, AppError>>()?;
 
     Ok(XlsxTable {
         sheet_name: "库存列表".to_string(),

@@ -22,6 +22,7 @@
 use crate::utils::error::AppError;
 use serde::{Deserialize, Serialize};
 use std::io;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use thiserror::Error;

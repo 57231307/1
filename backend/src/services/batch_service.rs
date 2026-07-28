@@ -199,6 +199,7 @@ impl BatchService {
             supplier_id: sea_orm::ActiveValue::NotSet,
             is_batch_managed: sea_orm::ActiveValue::NotSet,
             batch_level: sea_orm::ActiveValue::NotSet,
+            ..Default::default()
         }
     }
 

@@ -613,7 +613,6 @@ impl FixedAssetService {
             voucher_no: Set(voucher_no.clone()),
             voucher_type: Set("transfer".to_string()),
             voucher_date: Set(disposal.disposal_date),
-            summary: Set(Some(summary.clone())),
             source_type: Set(Some("fixed_asset_disposal".to_string())),
             source_module: Set(Some("fixed_asset".to_string())),
             source_bill_id: Set(Some(disposal.id)),
@@ -623,7 +622,7 @@ impl FixedAssetService {
             created_by: Set(user_id),
             ..Default::default()
         };
-        let voucher_model = voucher_active.insert(*txn).await?;
+        let voucher_model = voucher_active.insert(txn).await?;
 
         let mut line_no: i32 = 1;
         let mut entries: Vec<(String, String, Decimal, Decimal)> = Vec::new();
@@ -708,7 +707,7 @@ impl FixedAssetService {
                 summary: Set(Some(summary.clone())),
                 ..Default::default()
             };
-            item_active.insert(*txn).await?;
+            item_active.insert(txn).await?;
             line_no += 1;
         }
 

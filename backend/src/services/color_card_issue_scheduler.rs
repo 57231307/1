@@ -21,8 +21,8 @@ use std::sync::Arc;
 
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, Set,
-    TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set, TransactionTrait,
 };
 use tracing::{info, warn};
 

@@ -190,13 +190,13 @@ pub fn calculate_overtime_pay(
     holiday_overtime_minutes: i32,
 ) -> Decimal {
     // 《劳动法》第 44 条加班倍率
-    const WEEKDAY_OT_MULTIPLIER: Decimal = Decimal::new(15, 1); // 1.5
-    const WEEKEND_OT_MULTIPLIER: Decimal = Decimal::new(2, 0); // 2.0
-    const HOLIDAY_OT_MULTIPLIER: Decimal = Decimal::new(3, 0); // 3.0
+    let weekday_ot_multiplier = Decimal::new(15, 1); // 1.5
+    let weekend_ot_multiplier = Decimal::new(2, 0); // 2.0
+    let holiday_ot_multiplier = Decimal::new(3, 0); // 3.0
 
-    let weekday_ot = Decimal::from(weekday_overtime_minutes) * WEEKDAY_OT_MULTIPLIER;
-    let weekend_ot = Decimal::from(weekend_overtime_minutes) * WEEKEND_OT_MULTIPLIER;
-    let holiday_ot = Decimal::from(holiday_overtime_minutes) * HOLIDAY_OT_MULTIPLIER;
+    let weekday_ot = Decimal::from(weekday_overtime_minutes) * weekday_ot_multiplier;
+    let weekend_ot = Decimal::from(weekend_overtime_minutes) * weekend_ot_multiplier;
+    let holiday_ot = Decimal::from(holiday_overtime_minutes) * holiday_ot_multiplier;
 
     let total_ot_minutes = weekday_ot + weekend_ot + holiday_ot;
     total_ot_minutes * rate.time_price * grade_ratio

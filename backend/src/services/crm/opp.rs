@@ -802,11 +802,11 @@ impl CrmService {
 
         let (start_dt, end_dt) = match (start_date, end_date) {
             (Some(s), Some(e)) => (
-                Some(chrono::DateTime::from_naive_utc_and_offset(
+                Some(chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
                     s.and_hms_opt(0, 0, 0).unwrap_or_default(),
                     chrono::Utc,
                 )),
-                Some(chrono::DateTime::from_naive_utc_and_offset(
+                Some(chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
                     e.and_hms_opt(23, 59, 59).unwrap_or_default(),
                     chrono::Utc,
                 )),

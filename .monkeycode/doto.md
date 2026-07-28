@@ -2,16 +2,16 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-28（**P1 PR #758 CI 真实状态核查：7 项 FAIL 未全绿，PR OPEN/BLOCKED 未合并，分支 fix/p0-d08-d09-d10-batch-resume 未删除，修改不正确**；**Model 字段缺失编译错误已修复：18 处初始化位置补 ..Default::default()/None，涉及 7 文件**）
+> 最近整理：2026-07-28（**P1 PR #758 CI 真实状态核查：7 项 FAIL 未全绿，PR OPEN/BLOCKED 未合并，分支 fix/p0-d08-d09-d10-batch-resume 未删除，修改不正确**；**Model 字段缺失编译错误已修复：第一批 18 处 7 文件 + 第二批 10 处 9 文件，补 ..Default::default()/显式字段**；**编译修复-分类与未使用导入 12 文件完成**：AppError classify_db_* 方法调用修复/ToSchema chrono 特性/field_mask 所有权/init_handler async/auth_handler 测试字段/7 处 unused imports 清理/upgrade.rs 未使用变量，待 CI 验证）+ **前端 ESLint prettier 格式错误修复完成**：prettier --write 修复 4 文件（e2e/fixtures/network.ts 112 行分号缺失 + src/components/Charts/LineChart.vue 冗余括号 + src/composables/useTableApi.ts 冗余括号 + src/utils/print.ts 2 处冗余括号），prettier --check 全部通过，仅运行 npx prettier --write 未运行 npm 命令，待 CI 验证）
 >
 > **CI 失败清单（PR #758，运行 #30320573270，2026-07-28 01:33 UTC）**：
 > - 🔧 Rust 格式检查 FAIL：`backend/tests/sales_delivery_workflow_test.rs`、`backend/tests/test_csrf_middleware.rs`、`backend/tests/websocket_test.rs` 等测试文件格式差异
 > - 🔍 Rust Clippy FAIL：编译错误 + 多个 unused import warning
 > - 🏗️ Rust 后端构建 FAIL：30+ 类编译错误（详见下方 0.0 节）
-> - 🔍 前端 ESLint FAIL：大量 prettier/prettier 格式错误 + 1 处 Parsing error（Unterminated string literal）+ vue/no-mutating-props 错误
+> - 🔍 前端 ESLint FAIL：~~大量 prettier/prettier 格式错误~~（✅ 已修复 4 文件 network.ts/LineChart.vue/useTableApi.ts/print.ts）+ 1 处 Parsing error（Unterminated string literal）+ vue/no-mutating-props 错误
 > - 🔬 前端类型检查 FAIL：`src/views/businessTrace/index.vue(224,18): error TS2322`
 > - 🧪 前端测试 FAIL：76/76 测试通过，但 CI step FAIL（疑为覆盖率或 Vue warn 阻塞）
-> - 🔧 前端格式检查 FAIL
+> - 🔧 前端格式检查 ~~FAIL~~ ✅ 已修复（prettier --write 4 文件：e2e/fixtures/network.ts 分号缺失 + src/components/Charts/LineChart.vue + src/composables/useTableApi.ts + src/utils/print.ts 冗余括号）
 >
 > **PR 状态**：#758 OPEN/BLOCKED/MERGEABLE，base=main，head=fix/p0-d08-d09-d10-batch-resume，未合并
 > **分支状态**：fix/p0-d08-d09-d10-batch-resume 本地+远程均存在，未删除
@@ -347,3 +347,40 @@ locales/zh-CN.ts（+exportBlockedResource 键）、locales/en-US.ts（+exportBlo
 1. **变量名冲突修复**：catch 块 `const msg = error instanceof Error ? ...` → `const errMsg = ...`（useMs.ts / useDiProc.ts）
 2. **Prettier 行长修复**：超过 100 字符的 `ElMessage.error(...)` / `msg.success(...)` / `msg.warning(...)` 调用换行格式化
 3. **翻译键补齐**：zh-CN.ts / en-US.ts 新增 `exportBlockedResource` 键（utils/export.ts 已使用）
+
+---
+
+## 六、编译修复-分类与未使用导入（2026-07-28）
+
+### 6.1 背景
+
+针对 Rust 后端 CI Clippy 报告的编译错误与 unused imports 警告（规则 14 强制：所有警告视为错误必须修复，禁止 #[allow(...)] 抑制）。本轮修复涉及 12 个文件，覆盖 5 类编译错误与 7 处未使用导入/变量警告。
+
+### 6.2 修复清单
+
+| 类型 | 文件 | 修复内容 |
+|------|------|----------|
+| 编译错误 | `backend/src/utils/error.rs` L262/L267/L276 | AppError impl 块中 `Self::classify_db_exec_error/query_error/custom_error` 不存在 → 改为直接调用自由函数 `classify_db_*` |
+| 编译错误 | `backend/Cargo.toml` | `utoipa` 添加 `chrono` 特性，支持 `DateTime<Utc>` 的 `ToSchema` 实现 |
+| 编译错误 | `backend/src/utils/field_mask.rs` L158 | `desensitize_json_value(v, k)` 所有权问题 → 添加 `.clone()` |
+| 编译错误 | `backend/src/handlers/init_handler.rs` L218/L225 | `execute_test_connection` 改为 `async fn` + `InitService::test_database(&db_config).await` |
+| 编译错误 | `backend/src/handlers/auth_handler.rs` 测试 | `UserInfo` 结构体补 `agreed_to_terms_at: None` 字段 |
+| unused import | `backend/src/services/dashboard_service.rs` | 移除 `build_data_scope_sql`（仅保留 `DataScopeContext`） |
+| unused import | `backend/src/services/stock_alert_notification_scheduler.rs` | 移除 `self as product_model`（仅保留 `Entity as ProductEntity`） |
+| unused import | `backend/src/services/ai_extend_service.rs` | 移除 `LabDipRequestActiveModel` 和 `LabDipRequestEntity` |
+| unused import | `backend/src/handlers/auth_handler_misc.rs` | 移除 `QuerySelect` |
+| unused import | `backend/src/services/quotation_ops/crud.rs` | 移除 `QuerySelect` 及 `sales_quotation_item`/`sales_quotation_term` 的 `self` |
+| unused import | `backend/src/services/environmental_tax_service.rs` | 移除 `PaginatorTrait` |
+| unused variable | `backend/src/cli/util/upgrade.rs` L799 | `let (active, ...)` → `let (_active, ...)` |
+
+### 6.3 遵循规则
+
+- 规则 4：`///` 注释精简为 1 行（首选），最多 2 行
+- 规则 14：禁止 `#[allow(...)]` 警告抑制，所有警告视为错误必须修复
+- 规则 20：注释与功能一致性
+- 未运行 `cargo check/build/clippy`（遵循任务约束）
+- 未提交（仅修改文件）
+
+### 6.4 待 CI 验证
+
+所有修改待 CI 验证编译通过且无新警告。

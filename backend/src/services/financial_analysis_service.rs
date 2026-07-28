@@ -431,7 +431,7 @@ impl FinancialAnalysisService {
         let mut results = Vec::new();
         for (code, value, threshold) in ratios {
             self.try_save_indicator(
-                indicator_defs,
+                &indicator_defs,
                 code,
                 period,
                 value,
@@ -721,7 +721,7 @@ impl FinancialAnalysisService {
         let mut results = Vec::new();
         for (code, value, target) in ratios {
             self.try_save_indicator(
-                indicator_defs,
+                &indicator_defs,
                 code,
                 period,
                 value,
@@ -790,7 +790,7 @@ impl FinancialAnalysisService {
         let mut results = Vec::new();
         for (code, value, target) in ratios {
             self.try_save_indicator(
-                indicator_defs,
+                &indicator_defs,
                 code,
                 period,
                 value,

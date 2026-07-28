@@ -84,7 +84,7 @@ pub async fn list_orders(
                 for order in list.iter_mut() {
                     *order = crate::utils::field_mask::mask_contact_fields_for_role(
                         order.clone(),
-                        role_id,
+                        Some(role_id),
                     );
                 }
             }
@@ -175,7 +175,7 @@ pub async fn get_order(
             );
             // P1-08-5：非管理员对销售订单详情手机号/邮箱脱敏
             order_json =
-                crate::utils::field_mask::mask_contact_fields_for_role(order_json, role_id);
+                crate::utils::field_mask::mask_contact_fields_for_role(order_json, Some(role_id));
         } else if role_id != 1 {
             // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
             if let Some(obj) = order_json.as_object_mut() {

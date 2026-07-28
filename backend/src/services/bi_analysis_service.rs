@@ -188,7 +188,7 @@ impl BiAnalysisService {
     /// 缺陷 3.1 修复：尝试从缓存读取聚合结果，未命中返回 None
     pub(crate) fn try_get_cache<T: serde::de::DeserializeOwned>(&self, key: &str) -> Option<T> {
         let cache = self.cache.as_ref()?;
-        let cached = cache.get_bi_cache().get(key)?;
+        let cached = cache.get_bi_cache().get(&key.to_string())?;
         serde_json::from_value(cached).ok()
     }
 

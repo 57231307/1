@@ -327,9 +327,12 @@ impl AccountingPeriodService {
     ) -> Result<YearEndTransferResult, AppError> {
         use crate::models::{account_balance, account_subject};
         // 查询所有损益类科目（编码以 5 或 6 开头）
-        let pl_subjects = account_subject::Entity::find()
-            .filter(account_subject::Column::Code.starts_with("5"))
-            .or_filter(account_subject::Column::Code.starts_with("6"))
+        let pl_subjects: Vec<account_subject::Model> = account_subject::Entity::find()
+            .filter(
+                sea_orm::Condition::any()
+                    .add(account_subject::Column::Code.starts_with("5"))
+                    .add(account_subject::Column::Code.starts_with("6")),
+            )
             .all(txn)
             .await?;
         let pl_subject_ids: Vec<i32> = pl_subjects.iter().map(|s| s.id).collect();

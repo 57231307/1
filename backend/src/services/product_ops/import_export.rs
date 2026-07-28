@@ -385,6 +385,10 @@ impl ProductService {
         let lead_time = Self::parse_optional_csv_i32(row, "交货期");
         let description = Self::parse_optional_csv_string(row, "产品描述");
         let status = Self::parse_csv_status_field(row);
+        let execution_standard = Self::parse_optional_csv_string(row, "执行标准");
+        let factory_name = Self::parse_optional_csv_string(row, "生产厂名");
+        let factory_address = Self::parse_optional_csv_string(row, "生产厂址");
+        let product_grade = Self::parse_optional_csv_string(row, "产品等级");
 
         CreateProductArgs {
             name: validated.name.clone(),
@@ -406,6 +410,10 @@ impl ProductService {
             finish,
             min_order_quantity,
             lead_time,
+            execution_standard,
+            factory_name,
+            factory_address,
+            product_grade,
         }
     }
 

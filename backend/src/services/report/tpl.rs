@@ -958,9 +958,12 @@ impl ReportEngineService {
             description: Set(Some(req.description.clone())),
             is_public: Set(false),
             status: Set("ACTIVE".to_string()),
+            version: Set(1),
+            required_permission: Set(None),
             created_by: Set(user_id),
             created_at: Set(now),
             updated_at: Set(now),
+            ..Default::default()
         };
 
         let model = active_model.insert(&*self.db).await?;

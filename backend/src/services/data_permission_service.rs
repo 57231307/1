@@ -314,7 +314,7 @@ impl DataPermissionService {
             }
         }
         // finance / warehouse_manager 角色可查看成本
-        matches!(role_code, "finance" | "warehouse_manager")
+        Ok(matches!(role_code, "finance" | "warehouse_manager"))
     }
 }
 

@@ -384,7 +384,7 @@ fn parse_period_range(
     let start_date = chrono::NaiveDate::from_ymd_opt(year, month, 1)
         .ok_or_else(|| AppError::validation(format!("无效的起始日期: {}-{:02}-01", year, month)))?
         .and_hms_opt(0, 0, 0)
-        .unwrap_or_else(|| chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap())
+        .unwrap()
         .and_utc();
     let end_date = if month == 12 {
         chrono::NaiveDate::from_ymd_opt(year + 1, 1, 1)
@@ -393,7 +393,7 @@ fn parse_period_range(
     }
     .ok_or_else(|| AppError::validation(format!("无效的结束日期: {}-{:02}", year, month)))?
     .and_hms_opt(0, 0, 0)
-    .unwrap_or_else(|| chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap())
+    .unwrap()
     .and_utc()
         - chrono::Duration::seconds(1);
     Ok((start_date, end_date))

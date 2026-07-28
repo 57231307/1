@@ -130,6 +130,7 @@ impl CustomOrderCrudService {
             // V15 P0-B11：打样和报价关联字段初始化为 None（draft 阶段尚未关联）
             lab_dip_request_id: Set(None),
             quotation_id: Set(None),
+            ..Default::default()
         }
     }
 

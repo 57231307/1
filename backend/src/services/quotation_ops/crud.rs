@@ -7,7 +7,7 @@ use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect, Set, TransactionTrait,
+    Set, TransactionTrait,
 };
 
 use crate::models::quotation_create_dto::{
@@ -16,8 +16,8 @@ use crate::models::quotation_create_dto::{
 use crate::models::sales_quotation::{
     self, ActiveModel as QuotationActive, Entity as QuotationEntity,
 };
-use crate::models::sales_quotation_item::{self, ActiveModel as ItemActive, Entity as ItemEntity};
-use crate::models::sales_quotation_term::{self, ActiveModel as TermActive, Entity as TermEntity};
+use crate::models::sales_quotation_item::{ActiveModel as ItemActive, Entity as ItemEntity};
+use crate::models::sales_quotation_term::{ActiveModel as TermActive, Entity as TermEntity};
 use crate::models::status::quotation as quotation_status;
 use crate::services::quotation_service::{QuotationService, ServiceError};
 use crate::utils::pagination::paginate_with_total;
@@ -88,10 +88,14 @@ impl QuotationService {
             rejection_reason: Set(None),
             converted_sales_order_id: Set(None),
             converted_at: Set(None),
+            freight_cost: Set(None),
+            insurance_cost: Set(None),
+            duty_cost: Set(None),
             notes: Set(dto.notes.clone()),
             created_by: Set(user_id),
             created_at: Set(now),
             updated_at: Set(now),
+            ..Default::default()
         }
     }
 

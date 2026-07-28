@@ -112,12 +112,12 @@ impl CustomerService {
     }
 
     fn build_customer_active_model_rest(
-        city: String,
-        province: String,
+        city: Option<String>,
+        province: Option<String>,
         country: Option<String>,
-        postal_code: String,
+        postal_code: Option<String>,
         credit_limit: Decimal,
-        payment_terms: String,
+        payment_terms: i32,
         tax_id: Option<String>,
         bank_name: Option<String>,
         bank_account: Option<String>,
@@ -236,7 +236,7 @@ impl CustomerService {
         province: Option<String>,
         postal_code: Option<String>,
         credit_limit: Option<Decimal>,
-        payment_terms: Option<String>,
+        payment_terms: Option<i32>,
     ) {
         if let Some(v) = city {
             m.city = Set(Some(v));

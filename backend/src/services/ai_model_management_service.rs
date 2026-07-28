@@ -12,7 +12,8 @@
 use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -384,9 +385,9 @@ impl AiModelManagementService {
         let baseline_dec: Decimal =
             historical.iter().sum::<Decimal>() / Decimal::from(historical.len());
         let baseline = Some(baseline_dec);
-        let drift_pct = if let (Some(c), Some(b)) = (current, baseline_dec) {
+        let drift_pct = if let Some(c) = current {
             let c_f = c.to_f64().unwrap_or(0.0);
-            let b_f = b.to_f64().unwrap_or(0.0);
+            let b_f = baseline_dec.to_f64().unwrap_or(0.0);
             if b_f > 0.0 {
                 (c_f - b_f) / b_f * 100.0
             } else {
@@ -552,7 +553,7 @@ impl AiQualityReconciliationService {
                 let p_f = p.to_f64().unwrap_or(0.0);
                 let r_f = r.to_f64().unwrap_or(0.0);
                 if p_f + r_f > 0.0 {
-                    Some(Decimal::from_f64_retain(2.0 * p_f * r_f / (p_f + r_f)))
+                    Decimal::from_f64_retain(2.0 * p_f * r_f / (p_f + r_f))
                 } else {
                     None
                 }
