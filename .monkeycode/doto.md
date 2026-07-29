@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-29（doto.md 更新：P1-20 可观测性批次 1 进行中 PR #768（20.8-1 日志 JSON + 20.1-1 trace HTTP 传递 + 20.6-2 API 熔断）；P1-07 已合并 PR #767；P1 已合并批次从 16 批增至 17 批，P1-20 批次 1 待 CI 合并后为 18 批）
+> 最近整理：2026-07-29（doto.md 更新：**P1-20 可观测性全部 9 项 P1 完成**（批次 1 PR #768 已合并 3 项 + 此前会话已实现 6 项：20.1-2 Kafka trace + 20.3-1 WS ACK + 20.3-2 Redis Pub/Sub + 20.4-3 流复制 + 20.7-1 灰度升级 + 20.8-2 日志保留）；P1-07 已合并 PR #767；P1 已合并批次从 16 批增至 18 批，P1-20 全部完成待更新为 19 批）
 
 ---
 
@@ -12,9 +12,8 @@
 
 | 状态 | 数量 | 批次 |
 |------|------|------|
-| ✅ 已合并到 main | 17 批 | P1-A、P1-B1、P1-B2、P1-C、P1-面料行业深化（batch-04+05）、P1-D（batch-08+20）、P1-batch13/14、P1-Batch16、P1-batch11/12、P1-batch19、P1-08 法律合规第二批（PR #758 已合并，详见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md) 与 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)）、P1-09 色卡发放（9 项，PR #763）、P1-10 大货批色（7 项，PR #763）、P1-19 报表 BI（5 项，PR #763）、P1-25 部署升级（11 项全部完成：10 项 PR #758 + 1 项补充 PR #763）、P1-B3 法律合规扩展（规则 4 注释精简 406 文件，PR #765）、P1-07 剩余可维护性（缺陷 7.1-2 模块循环依赖，PR #767） |
-| 🔄 进行中 | 1 批 | P1-20 可观测性批次 1（PR #768 待 CI：20.8-1 日志 JSON + 20.1-1 trace HTTP + 20.6-2 API 熔断） |
-| ❌ 未开始 | 剩余约 6 批 | P1-20 批次 2-3 + P1-21/22 等（见 0.2） |
+| ✅ 已合并到 main | 18 批 | P1-A、P1-B1、P1-B2、P1-C、P1-面料行业深化（batch-04+05）、P1-D（batch-08+20）、P1-batch13/14、P1-Batch16、P1-batch11/12、P1-batch19、P1-08 法律合规第二批（PR #758）、P1-09 色卡发放（9 项，PR #763）、P1-10 大货批色（7 项，PR #763）、P1-19 报表 BI（5 项，PR #763）、P1-25 部署升级（11 项，PR #758+#763）、P1-B3 法律合规扩展（PR #765）、P1-07 剩余可维护性（PR #767）、P1-20 可观测性（9 项全部完成，批次 1 PR #768 + 此前 6 项已实现） |
+| ❌ 未开始 | 剩余约 5 批 | P1-21/22 等（见 0.2） |
 
 ### 0.2 待启动批次（优先级从高到低）
 
@@ -26,7 +25,7 @@
 | ~~P1-06~~ | ~~类六 测试体系~~ | ~~11~~ | ~~覆盖率/mock/fixtures/文档~~ **✅ 已完成（2026-07-29 核验，PR #758 Batch 485-488 已修复全部 P0/P1 项：quotation_service 0→19 测试 + purchase_receipt_service 0→19 测试 + inventory_stock_service 6→16 测试 + 7 业务流程集成测试 + bi_analysis_test API 修复 + color_card/quotation e2e 伪测试清理 + cargo bench 4 文件 + CI perf job + CI tarpaulin + codecov 门槛 + 前端 fixtures 业务域 + playwright webServer 数组 + mockBusinessApi 解耦）** |
 | ~~P1-07剩余~~ | ~~类七 可维护性~~ | ~~—~~ | ~~i18n/aria/缓存/文档~~ **✅ 已完成（2026-07-29，PR #767，缺陷 7.1-2 模块循环依赖修复：AppState 从 utils/ 移至独立 container/ 模块，205 文件 +219 -216，打破 utils↔services 循环依赖；7.4-1 Clippy 严格模式长期目标待 baseline 清零，已建立信息性 strict job 监控）** |
 | ~~P1-19~~ | ~~类十九 报表 BI~~ | ~~5~~ | ~~版本管理/缓存~~ **✅ 已完成（2026-07-28，PR #763，5 项 P1：模板版本管理 m0083 + 权限注册 + 订阅推送重试 + BI 缓存 5min + 仪表板 dashboard_layouts）** |
-| P1-20 | 类二十 可观测性 | 9 | trace/metrics/WebSocket **🔄 批次 1 进行中 PR #768（3 项：20.8-1 日志 JSON + 20.1-1 trace HTTP + 20.6-2 API 熔断），剩余批次 2-3（20.4-3 流复制 + 20.7-1 灰度升级等）** |
+| ~~P1-20~~ | ~~类二十 可观测性~~ | ~~9~~ | ~~trace/metrics/WebSocket~~ **✅ 全部完成（9/9）：批次 1 PR #768（20.8-1 日志 JSON + 20.1-1 trace HTTP + 20.6-2 API 熔断）+ 此前已实现 6 项（20.1-2 Kafka trace event_kafka.rs + 20.3-1 WS ACK notifications.rs + 20.3-2 Redis Pub/Sub notifications.rs + 20.4-3 流复制 failover_service.rs check_replication_sync/wait_for_backup_catchup + 20.7-1 灰度升级 deploy-canary.sh + nginx-canary-10/50.conf + 20.8-2 日志保留 log_cleanup_service.rs）** |
 | P1-21 | 类二十一 胚布拆匹 | 10 | 库存/委外/继承 |
 | P1-22 | 类二十二 库存排程 | 9 | 调拨/安全/排程 |
 | ~~P1-25~~ | ~~类二十五 部署升级~~ | ~~11~~ | ~~set -euo/SHA256/schema/蓝绿/健康/优雅/回滚~~ **✅ 已完成（2026-07-28，11 项全部完成：10 项 PR #758 + 25.3-A deploy-latest.sh SHA256 校验 PR #763）** |
