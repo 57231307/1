@@ -2,7 +2,7 @@
 
 > 每个任务一行摘要，是 doto-su.md 中详细任务内容的一句话总结。禁止写入详细内容。
 > 详细任务内容见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，未完成任务见 [doto.md](file:///workspace/.monkeycode/doto.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-29（**PR #777 已合并 main**：彻底移除 Docker/K8s 引用，11 文件 -130 行，对齐 systemd 直部署；**PR #776 已合并 main**：CHANGELOG/doto 文档同步 PR #775 合并记录；**PR #772 关闭重复 PR**（内容已通过 PR #771 合并）；**SeaORM 2.0 升级评估暂缓**：2.0.0 稳定版 2026-07-19 发布，破坏性变更已评估（ExprTrait/IntoCondition/Iden 签名/ActiveModel insert-update 风格），项目 181 处 active.insert(db) 需调整，暂不升级继续处理遗留问题；**PR #775 已合并 main**：P1-batch11 缺陷 2-3 遗留修复，P1 总完成率 257/257 = 100%；**PR #771 已合并 main**：P1-batch02+03 + P1-batch19 + P1-24 + P1-Batch16 剩余 P1 全部合并；**P0 全部完成 + P1 已合并 25 批到 main**）
+> 最近整理：2026-07-29（**规则 21 新增**：PR 格式强制，所有 PR 创建/更新必须依据 `/.github/PULL_REQUEST_TEMPLATE.md` 模板格式填写；**PR #779 已合并 main**：P1-遗留-1 分页占位符修复 + unused_imports 清理；**PR #778 已合并 main**：CHANGELOG/doto 文档更新；**PR #777 已合并 main**：彻底移除 Docker/K8s 引用，11 文件 -130 行，对齐 systemd 直部署；**PR #776 已合并 main**：CHANGELOG/doto 文档同步 PR #775 合并记录；**SeaORM 2.0 升级评估暂缓**：2.0.0 稳定版 2026-07-19 发布，破坏性变更已评估（ExprTrait/IntoCondition/Iden 签名/ActiveModel insert-update 风格），项目 181 处 active.insert(db) 需调整，暂不升级继续处理遗留问题；**PR #775 已合并 main**：P1-batch11 缺陷 2-3 遗留修复，P1 总完成率 257/257 = 100%；**PR #771 已合并 main**：P1-batch02+03 + P1-batch19 + P1-24 + P1-Batch16 剩余 P1 全部合并；**P0 全部完成 + P1 已合并 26 批到 main**）
 
 ---
 
@@ -10,6 +10,8 @@
 
 | 批次 | PR/commit | 一句话总结 |
 |------|-----------|-----------|
+| 规则 21 PR 格式强制 | MEMORY-SU.md/MEMORY.md 更新 | **规则 21 新增**：PR 创建/更新必须依据 `/.github/PULL_REQUEST_TEMPLATE.md` 模板格式填写（描述/相关 Issue/更改类型/检查清单/测试说明/截图/额外说明 7 章节）；MEMORY-SU.md 规则 20 后追加规则 21 完整定义（核心原则+模板必填章节+合规示例+违规示例+执行机制+适用范围 6 节）+ MEMORY.md 索引表 1.4 测试与流程添加规则 21 索引 + 迭代日志第 11 次记录；触发条件：用户 2026-07-29 明确指令 |
+| P1-遗留-1 分页占位符+unused_imports | 已合并 PR #779 | **P1-遗留-1 修复**：① 规则 0 违规修复：list_products 分页占位符实现（page.max(1)+page_size.clamp(1,10000)+offset/limit+QuerySelect trait 导入）+ execute_custom_report 移除多余分页参数（方法恒返回错误，参数签名不应欺骗调用方）+ 5 处调用方更新；② 规则 14 违规修复：移除 7 个文件 #[allow(unused_imports)] 警告抑制（oa_announcement_handler/ap_reconciliation_service/ar/recon/ar/vfy/auth_service/mrp_engine_service/energy_ops/mod）；CI 全绿通过 |
 | 移除 Docker/K8s 引用 | 已合并 PR #777 | **彻底移除 Docker/Kubernetes 引用，对齐 systemd 直部署**：移除 log_config.rs 容器环境检测函数 is_container_environment/init_container_logging + 修正 health_handler/public_routes/routes/mod.rs 注释 K8s→负载均衡器/监控探针 + README/CONTRIBUTING/ARCHITECTURE/DEVELOPER_GUIDE/INDEX 文档移除 Docker Compose/K8s/Helm 章节 + nginx.conf 注释 Docker→systemd + prometheus.yml targets host.docker.internal→localhost + node_exporter→localhost:9100 + host.docker.internal:9187→localhost:9187；11 文件 +41 -130；CI 16/17 通过（仅 Clippy runner shutdown exit 143，admin override 合并） |
 | 文档同步 PR #775 | 已合并 PR #776 | CHANGELOG.md/doto.md 文档同步 PR #775 已合并 main 记录 |
 | SeaORM 2.0 升级评估 | 暂缓（已评估） | **SeaORM 2.0.0 稳定版 2026-07-19 发布，破坏性变更评估完成暂缓升级**：主要变更 sqlx 0.8→0.9 + ExprTrait 需导入 + IntoCondition→.into + ConditionExpression 移除 + Iden::unquoted 签名变化 + ActiveModel::insert/update 风格调整；项目影响：181 处 active.insert(db) 分布 62 文件（最大风险点），但 2.0 声称 functionally backward-compatible；暂不升级，继续处理项目遗留问题 |
