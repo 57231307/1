@@ -92,7 +92,7 @@ git checkout -b docs/your-doc-update
 | 测试 | `test/<name>` | `test/add-unit-tests` |
 | 性能 | `perf/<name>` | `perf/optimize-query` |
 | 安全 | `security/<name>` | `security/fix-cve-2024-xxx` |
-| 运维 | `ops/<name>` | `ops/update-k8s-manifest` |
+| 运维 | `ops/<name>` | `ops/update-deploy-script` |
 
 ### 3. 编写代码
 
@@ -181,7 +181,7 @@ Scope 是变更影响范围，常见值：
 - 后端：`service:inventory` / `handler:order` / `model:customer`
 - 前端：`vue:user-tab` / `component:v2table` / `store:auth`
 - 文档：`docs:readme` / `docs:api`
-- 基础设施：`k8s:deployment` / `docker:compose`
+- 基础设施：`deploy:script` / `config:env`
 - 安全：`security:auth` / `security:csp`
 - 性能：`perf:query` / `perf:cache`
 - 通用：`ci` / `deps` / `config`
@@ -795,7 +795,6 @@ MAJOR.MINOR.PATCH
    ```bash
    cargo build --release
    npm run build
-   docker build -t bingxi-erp:1.2.0 .
    ```
 
 5. **创建 PR**（release → main）

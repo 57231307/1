@@ -25,7 +25,6 @@
 - **Node.js**: 18+ (前端开发)
 - **PostgreSQL**: 15+ 或 MySQL 8.0+ (数据库)
 - **Redis**: 7.0+ (缓存)
-- **Docker**: 可选，用于容器化部署
 - **Git**: 版本控制
 
 ### 安装
@@ -99,20 +98,7 @@ VITE_APP_TITLE=冰溪 ERP
 
 ### 运行
 
-#### 使用 Docker Compose (推荐)
-
-```bash
-# 启动所有服务
-docker-compose up -d
-
-# 查看日志
-docker-compose logs -f
-
-# 停止服务
-docker-compose down
-```
-
-#### 手动启动
+#### 手动启动（推荐）
 
 ```bash
 # 1. 启动数据库和 Redis
@@ -873,24 +859,6 @@ export JWT_SECRET=your-production-secret
 # 4. 启动服务
 ./target/release/server
 ```
-
-### Docker 部署
-
-```bash
-# 构建镜像
-docker build -t bingxi-erp:latest .
-
-# 运行容器
-docker run -d \
-  -p 8080:8080 \
-  -e DATABASE_URL=postgresql://... \
-  -e REDIS_URL=redis://... \
-  bingxi-erp:latest
-```
-
-### Kubernetes 部署
-
-详见 [Kubernetes 部署指南](./deployment/kubernetes.md)
 
 ## 调试技巧
 

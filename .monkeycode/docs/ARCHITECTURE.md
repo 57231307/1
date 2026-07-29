@@ -23,7 +23,6 @@
 - 文件存储 - 本地文件系统
 
 **基础设施**
-- Docker + Docker Compose - 容器化
 - GitHub Actions - CI/CD
 - Prometheus + Grafana - 监控
 - Tracing + Loki - 日志

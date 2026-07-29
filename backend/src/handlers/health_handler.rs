@@ -246,7 +246,7 @@ fn get_uptime() -> u64 {
     start_time().elapsed().as_secs()
 }
 
-/// 就绪检查（检查所有依赖是否就绪）；P3 2-13 说明：本接口刻意不使用 `ApiResponse` 包装，原因是： 1. K8s readinessProbe 仅依赖 HTTP 状态码（200/503）
+/// 就绪检查（检查所有依赖是否就绪）；P3 2-13 说明：本接口刻意不使用 `ApiResponse` 包装，原因是： 1. 负载均衡器 / 监控探针仅依赖 HTTP 状态码（200/503）
 /// 不需要业务层 envelope； 2. 探针响应需保持简洁结构（仅 `status`/`reason`），避免暴露内部细节； 3. 与 liveness_check 保持一致的轻量化响应风格。
 pub async fn readiness_check(State(state): State<AppState>) -> impl IntoResponse {
     // 检查数据库是否可连接
@@ -270,7 +270,7 @@ pub async fn readiness_check(State(state): State<AppState>) -> impl IntoResponse
     }
 }
 
-/// 存活检查（Kubernetes 探针使用）
+/// 存活检查（负载均衡器 / 监控探针使用）
 pub async fn liveness_check() -> impl IntoResponse {
     // 简单的存活检查，只要服务能响应就返回成功
     StatusCode::OK
