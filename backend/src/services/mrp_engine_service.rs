@@ -29,7 +29,6 @@ use std::sync::Arc;
 
 // 批次 490 D10-3b 拆分：re-export 保持外部引用路径不变
 // 注意：仅重导出原 pub struct，StockInfo 原 private 不重导出（保持 API 表面不变）
-#[allow(unused_imports)]
 pub use crate::services::mrp_engine_ops::{
     MaterialRequirement, MrpCalculationItem, MrpCalculationQuery, MrpCalculationRequest,
     MrpExplodeQuery, RequirementCalcParams,

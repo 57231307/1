@@ -44,12 +44,17 @@ impl ProductService {
     /// 获取产品列表（支持分页和过滤）
     pub async fn list_products(
         &self,
-        _page: u64,
-        _page_size: u64,
+        page: u64,
+        page_size: u64,
         category_id: Option<i32>,
         status: Option<String>,
         search: Option<String>,
     ) -> Result<(Vec<product::Model>, u64), AppError> {
+        // 分页参数规范化：page 从 1 开始，page_size 上限 10000（前端 API 外层已 clamp(1,100)，
+        // 导出场景需更大上限以支持全量拉取）
+        let page = page.max(1);
+        let page_size = page_size.clamp(1, 10000);
+
         let mut query = ProductEntity::find();
 
         // 应用过滤条件
@@ -83,15 +88,24 @@ impl ProductService {
         };
 
         // 应用分页和排序
+        let offset = (page - 1) * page_size;
         let products = match query
             .order_by(product::Column::Code, Order::Asc)
+            .offset(offset)
+            .limit(page_size)
             .into_model::<product::Model>()
             .all(&*self.db)
             .await
             .map_err(AppError::from)
         {
             Ok(products) => {
-                tracing::info!("查询到 {} 个产品", products.len());
+                tracing::info!(
+                    "查询到 {} 个产品（page={}, page_size={}, total={})",
+                    products.len(),
+                    page,
+                    page_size,
+                    total
+                );
                 products
             }
             Err(e) => {
