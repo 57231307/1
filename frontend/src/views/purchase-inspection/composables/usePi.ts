@@ -14,7 +14,7 @@ import { ElMessage } from 'element-plus';
 import { msg } from '@/utils/message';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { type PurchaseInspection, type PurchaseInspectionItem } from '@/api/purchase-inspection';
-import { getReceiptItems, type ReceiptItem } from '@/api/purchaseReceipt';
+import { getReceiptItems, type ReceiptItem } from '@/api/purchase-receipt';
 import { useTableApi } from '@/composables/useTableApi';
 import { logger } from '@/utils/logger';
 

@@ -38,22 +38,22 @@ export * from './currency';
 export * from './cost';
 export * from './bom';
 export * from './scheduling';
-// D14 Batch 5b：purchaseReceipt 与 purchase 存在同名导出（createPurchaseReceipt/getPurchaseReceiptList），
+// D14 Batch 5b：purchase-receipt 与 purchase 存在同名导出（createPurchaseReceipt/getPurchaseReceiptList），
 // 且无 caller 从 '@/api' 聚合入口导入，故不在此 re-export
-// export * from './purchaseReceipt'
-export * from './inventoryCount';
-export * from './inventoryAdjustment';
-// D14 Batch 5b：inventoryTransfer 与 inventory 存在同名导出（approveInventoryTransfer/createInventoryTransfer/getInventoryTransferList），
+// export * from './purchase-receipt'
+export * from './inventory-count';
+export * from './inventory-adjustment';
+// D14 Batch 5b：inventory-transfer 与 inventory 存在同名导出（approveInventoryTransfer/createInventoryTransfer/getInventoryTransferList），
 // 且无 caller 从 '@/api' 聚合入口导入，故不在此 re-export
-// export * from './inventoryTransfer'
-export * from './inventoryBatch';
+// export * from './inventory-transfer'
+export * from './inventory-batch';
 export * from './accounting-period';
 export * from './dye-recipe';
 export * from './dye-batch';
 export * from './greige-fabric';
 export * from './mrp';
-// 修复：financeReport 中的 ReportData 与 financial-analysis 中的 ReportData 同名冲突
-// 业务代码均通过 '@/api/financeReport' 直接导入，不依赖此处的重新导出
+// 修复：finance-report 中的 ReportData 与 financial-analysis 中的 ReportData 同名冲突
+// 业务代码均通过 '@/api/finance-report' 直接导入，不依赖此处的重新导出
 export type {
   BalanceSheetItem,
   ProfitStatementItem,
@@ -65,7 +65,7 @@ export type {
   FinanceReportQueryParams,
   GeneralLedgerQueryParams,
   SubsidiaryLedgerQueryParams,
-} from './financeReport';
+} from './finance-report';
 export {
   getBalanceSheet,
   getProfitStatement,
@@ -73,7 +73,7 @@ export {
   getTrialBalance,
   getGeneralLedger,
   getSubsidiaryLedger,
-} from './financeReport';
+} from './finance-report';
 export * from './sales-analysis';
 export * from './supplier-evaluation';
 export * from './security';
@@ -85,7 +85,7 @@ export * from './material-shortage';
 // D14 Batch 5b：bpm-enhanced 与 bpm 存在同名导出（getBpmPendingTaskList），
 // 且无 caller 从 '@/api' 聚合入口导入，故不在此 re-export
 // export * from './bpm-enhanced'
-export * from './omniAudit';
+export * from './omni-audit';
 export {
   forecastSales,
   optimizeInventory,

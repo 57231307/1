@@ -197,7 +197,7 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'supplier-evaluation',
         name: 'SupplierEvaluation',
-        component: () => import('@/views/supplierEvaluation/index.vue'),
+        component: () => import('@/views/supplier-evaluation/index.vue'),
         meta: {
           title: '供应商评估',
           icon: 'User',
@@ -208,7 +208,7 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'customer-credit',
         name: 'CustomerCredit',
-        component: () => import('@/views/customerCredit/index.vue'),
+        component: () => import('@/views/customer-credit/index.vue'),
         meta: {
           title: '客户信用管理',
           icon: 'User',
@@ -219,37 +219,37 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'inventory-count',
         name: 'InventoryCount',
-        component: () => import('@/views/inventoryCount/index.vue'),
+        component: () => import('@/views/inventory-count/index.vue'),
         meta: { title: '库存盘点', icon: 'Box', permission: 'inventory:read', requiresAuth: true },
       },
       {
         path: 'inventory-transfer',
         name: 'InventoryTransfer',
-        component: () => import('@/views/inventoryTransfer/index.vue'),
+        component: () => import('@/views/inventory-transfer/index.vue'),
         meta: { title: '库存调拨', icon: 'Box', permission: 'inventory:read', requiresAuth: true },
       },
       {
         path: 'inventory-adjustment',
         name: 'InventoryAdjustment',
-        component: () => import('@/views/inventoryAdjustment/index.vue'),
+        component: () => import('@/views/inventory-adjustment/index.vue'),
         meta: { title: '库存调整', icon: 'Box', permission: 'inventory:read', requiresAuth: true },
       },
       {
         path: 'ar-reconciliation',
         name: 'ArReconciliation',
-        component: () => import('@/views/arReconciliation/index.vue'),
+        component: () => import('@/views/ar-reconciliation/index.vue'),
         meta: { title: '应收对账', icon: 'Money', permission: 'finance:read', requiresAuth: true },
       },
       {
         path: 'finance-report',
         name: 'FinanceReport',
-        component: () => import('@/views/financeReport/index.vue'),
+        component: () => import('@/views/finance-report/index.vue'),
         meta: { title: '财务报表', icon: 'Money', permission: 'finance:read', requiresAuth: true },
       },
       {
         path: 'purchase-receipt',
         name: 'PurchaseReceipt',
-        component: () => import('@/views/purchaseReceipt/index.vue'),
+        component: () => import('@/views/purchase-receipt/index.vue'),
         meta: {
           title: '采购入库',
           icon: 'ShoppingCart',
@@ -448,7 +448,7 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'data-permission',
         name: 'DataPermission',
-        component: () => import('@/views/dataPermission/index.vue'),
+        component: () => import('@/views/data-permission/index.vue'),
         meta: {
           title: '数据权限管理',
           icon: 'Setting',
@@ -459,37 +459,37 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'inventory-batch',
         name: 'InventoryBatch',
-        component: () => import('@/views/inventoryBatch/index.vue'),
+        component: () => import('@/views/inventory-batch/index.vue'),
         meta: { title: '批次管理', icon: 'Box', permission: 'inventory:read', requiresAuth: true },
       },
       {
         path: 'five-dimension',
         name: 'FiveDimension',
-        component: () => import('@/views/fiveDimension/index.vue'),
+        component: () => import('@/views/five-dimension/index.vue'),
         meta: { title: '五维管理', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'assist-accounting',
         name: 'AssistAccounting',
-        component: () => import('@/views/assistAccounting/index.vue'),
+        component: () => import('@/views/assist-accounting/index.vue'),
         meta: { title: '辅助核算', icon: 'Money', permission: 'finance:read', requiresAuth: true },
       },
       {
         path: 'business-trace',
         name: 'BusinessTrace',
-        component: () => import('@/views/businessTrace/index.vue'),
+        component: () => import('@/views/business-trace/index.vue'),
         meta: { title: '业务追溯', icon: 'List', permission: 'audit:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'barcode-scanner',
         name: 'BarcodeScanner',
-        component: () => import('@/views/barcodeScanner/index.vue'),
+        component: () => import('@/views/barcode-scanner/index.vue'),
         meta: { title: '扫码功能', icon: 'List', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'omni-audit',
         name: 'OmniAudit',
-        component: () => import('@/views/omniAudit/index.vue'),
+        component: () => import('@/views/omni-audit/index.vue'),
         meta: { title: '全量审计', icon: 'Setting', permission: 'audit:read', requiresAuth: true },
       },
       {
@@ -533,7 +533,7 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'account-subject',
         name: 'AccountSubject',
-        component: () => import('@/views/accountSubject/index.vue'),
+        component: () => import('@/views/account-subject/index.vue'),
         meta: {
           title: '会计科目管理',
           icon: 'Money',
@@ -545,7 +545,7 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'accounting-period',
         name: 'AccountingPeriod',
-        component: () => import('@/views/accountingPeriod/index.vue'),
+        component: () => import('@/views/accounting-period/index.vue'),
         meta: {
           title: '会计期间管理',
           icon: 'Money',
@@ -604,7 +604,7 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'ar-reconciliation/enhanced',
         name: 'ArReconciliationEnhanced',
-        component: () => import('@/views/arReconciliation/enhanced.vue'),
+        component: () => import('@/views/ar-reconciliation/enhanced.vue'),
         meta: {
           title: '增强版应收对账',
           icon: 'Money',
