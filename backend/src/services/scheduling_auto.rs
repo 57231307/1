@@ -203,8 +203,7 @@ impl SchedulingService {
         let cap = &wc_capacity[&group_wc_id];
 
         // 2. 校验组总产能是否足够（同缸号订单产能需求汇总）
-        let total_group_qty: Decimal =
-            group.iter().map(|o| o.planned_quantity).sum();
+        let total_group_qty: Decimal = group.iter().map(|o| o.planned_quantity).sum();
         let available = wc_available_capacity
             .get(&group_wc_id)
             .copied()
@@ -213,7 +212,10 @@ impl SchedulingService {
             // 组产能不足：为组内每单记录冲突
             for order in group {
                 conflicts.push(Self::build_capacity_insufficient_conflict(
-                    order, group_wc_id, cap, available,
+                    order,
+                    group_wc_id,
+                    cap,
+                    available,
                 ));
             }
             return false;
@@ -675,9 +677,7 @@ fn group_and_sort_orders_by_dye_lot(
     let sort_fn = |orders: &mut Vec<ProductionOrderModel>| match strategy {
         "priority" => orders.sort_by_key(|o| o.priority),
         "fifo" => orders.sort_by_key(|o| o.created_at),
-        "earliest_due" => {
-            orders.sort_by_key(|o| o.planned_end_date.unwrap_or(NaiveDate::MAX))
-        }
+        "earliest_due" => orders.sort_by_key(|o| o.planned_end_date.unwrap_or(NaiveDate::MAX)),
         _ => orders.sort_by_key(|o| o.priority),
     };
     for group in groups_map.values_mut() {
@@ -690,13 +690,24 @@ fn group_and_sort_orders_by_dye_lot(
     // - priority 策略：priority 为主键
     // - fifo 策略：created_at 为主键（priority 为次键保证稳定性）
     // - earliest_due 策略：due_date 为主键（priority 为次键保证稳定性）
-    let group_sort_key = |group: &Vec<ProductionOrderModel>| -> (i32, chrono::DateTime<Utc>, NaiveDate) {
-        group
-            .iter()
-            .map(|o| (o.priority, o.created_at, o.planned_end_date.unwrap_or(NaiveDate::MAX)))
-            .min()
-            .unwrap_or((i32::MAX, chrono::DateTime::<Utc>::max_value(), NaiveDate::MAX))
-    };
+    let group_sort_key =
+        |group: &Vec<ProductionOrderModel>| -> (i32, chrono::DateTime<Utc>, NaiveDate) {
+            group
+                .iter()
+                .map(|o| {
+                    (
+                        o.priority,
+                        o.created_at,
+                        o.planned_end_date.unwrap_or(NaiveDate::MAX),
+                    )
+                })
+                .min()
+                .unwrap_or((
+                    i32::MAX,
+                    chrono::DateTime::<Utc>::max_value(),
+                    NaiveDate::MAX,
+                ))
+        };
 
     let mut groups: Vec<Vec<ProductionOrderModel>> = groups_map.into_values().collect();
     groups.sort_by_key(group_sort_key);

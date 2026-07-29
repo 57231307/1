@@ -278,8 +278,7 @@ impl OutsourcingReceiptService {
             let mut patch: ReceiptActiveModel = <ReceiptActiveModel as Default>::default();
             patch.id = sea_orm::ActiveValue::Set(updated.id);
             patch.inspection_id = sea_orm::ActiveValue::Set(Some(insp_id));
-            patch.updated_at =
-                sea_orm::ActiveValue::Set(crate::utils::date_utils::utc_now_fixed());
+            patch.updated_at = sea_orm::ActiveValue::Set(crate::utils::date_utils::utc_now_fixed());
             let reloaded = patch.update(&*self.db).await?;
             return Ok(reloaded);
         }

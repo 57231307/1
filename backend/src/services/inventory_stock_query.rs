@@ -380,10 +380,7 @@ impl InventoryStockService {
     /// P1 batch-18 缺陷 7.2：库存告警主动通知
     /// 策略：对非 normal 告警项，按 product 维度聚合后调用 EventNotificationService
     /// 推送站内信+邮件给计划员/仓管员/admin/manager，5min 去重防止告警轰炸。
-    async fn notify_stock_alerts(
-        &self,
-        alert_list: &[serde_json::Value],
-    ) -> Result<(), AppError> {
+    async fn notify_stock_alerts(&self, alert_list: &[serde_json::Value]) -> Result<(), AppError> {
         let Some(notify_svc) = &self.notification_service else {
             return Ok(());
         };
@@ -452,10 +449,7 @@ impl InventoryStockService {
                 .and_then(|v| v.as_str())
                 .unwrap_or("0");
             let warehouse_count = alerts.len();
-            let current_stock = format!(
-                "可用 {} / 涉及 {} 个仓库批次",
-                available, warehouse_count
-            );
+            let current_stock = format!("可用 {} / 涉及 {} 个仓库批次", available, warehouse_count);
             let threshold = format!("补货点 {}", reorder);
             let result: Result<(), AppError> = notify_svc
                 .notify_inventory_alert_batch(

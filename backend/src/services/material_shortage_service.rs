@@ -402,15 +402,25 @@ impl MaterialShortageService {
         // P1 缺陷 8.2：通知目标为采购员 + 计划员 + admin/manager 兜底（复用 listener 模式）
         let notify_user_ids = self.fetch_critical_shortage_notify_users().await;
         if notify_user_ids.is_empty() {
-            tracing::warn!("notify_critical_shortages: 未找到采购员/计划员/admin 角色用户，跳过通知");
+            tracing::warn!(
+                "notify_critical_shortages: 未找到采购员/计划员/admin 角色用户，跳过通知"
+            );
             return Ok(());
         }
 
         for item in &critical_items {
             // 复用 notify_inventory_alert_batch（站内信+邮件+5min 去重）
             // 通知内容描述缺料严重程度与受影响订单数
-            let current_stock = format!("{} {}", item.available_quantity, item.unit.as_deref().unwrap_or(""));
-            let threshold = format!("需 {} {}", item.required_quantity, item.unit.as_deref().unwrap_or(""));
+            let current_stock = format!(
+                "{} {}",
+                item.available_quantity,
+                item.unit.as_deref().unwrap_or("")
+            );
+            let threshold = format!(
+                "需 {} {}",
+                item.required_quantity,
+                item.unit.as_deref().unwrap_or("")
+            );
             if let Err(e) = notify_svc
                 .notify_inventory_alert_batch(
                     &notify_user_ids,

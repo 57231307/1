@@ -463,8 +463,8 @@ impl CapacityService {
 
         // P1 batch-18 缺陷 11.3：状态变更为 Maintenance 时触发自动重排
         // 仅当 previous_status != MAINTENANCE 且 new_status == MAINTENANCE 且 auto_reschedule_enabled
-        let status_changed_to_maintenance = previous_status != "MAINTENANCE"
-            && model.status == "MAINTENANCE";
+        let status_changed_to_maintenance =
+            previous_status != "MAINTENANCE" && model.status == "MAINTENANCE";
         if status_changed_to_maintenance && auto_reschedule_enabled {
             if let Err(e) = self
                 .auto_reschedule_for_maintenance(id, &wc_code, &wc_name)
@@ -535,9 +535,8 @@ impl CapacityService {
         );
 
         // 3. 调用 SchedulingService::auto_schedule 重新分配到其他 ACTIVE 工作中心
-        let scheduling_service = crate::services::scheduling_service::SchedulingService::new(
-            self.db.clone(),
-        );
+        let scheduling_service =
+            crate::services::scheduling_service::SchedulingService::new(self.db.clone());
         let today = chrono::Utc::now().date_naive();
         let end_date = today + chrono::Duration::days(30);
         let req = crate::services::scheduling_service::AutoScheduleRequest {

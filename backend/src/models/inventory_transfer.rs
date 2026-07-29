@@ -105,8 +105,13 @@ pub const L1_APPROVER_ROLES: &[&str] = &[
 ];
 
 /// 缺陷 6.1：L2 审批允许的角色（经理级，1万-10万元）
-pub const L2_APPROVER_ROLES: &[&str] =
-    &["admin", "gm", "deputy_gm", "warehouse_manager", "inventory_manager"];
+pub const L2_APPROVER_ROLES: &[&str] = &[
+    "admin",
+    "gm",
+    "deputy_gm",
+    "warehouse_manager",
+    "inventory_manager",
+];
 
 /// 缺陷 6.1：L3 审批允许的角色（总监级，> 10万元）
 pub const L3_APPROVER_ROLES: &[&str] = &["admin", "gm", "deputy_gm"];

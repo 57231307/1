@@ -494,10 +494,7 @@ impl QualityInspectionService {
     /// 缺陷 5.1：B 级降级联动销售价格调整
     /// 策略：查询产品当前生效的 A 级（标准）销售价，按 80% 折扣生成/更新二等品销售价。
     /// 若已存在二等品价则更新价格；若无标准价则跳过（仅记录 warn，避免误覆盖）。
-    async fn sync_sales_price_for_downgrade(
-        &self,
-        product_id: i32,
-    ) -> Result<(), AppError> {
+    async fn sync_sales_price_for_downgrade(&self, product_id: i32) -> Result<(), AppError> {
         use crate::models::sales_price::{self as price_model, Entity as PriceEntity};
 
         // 1. 查询该产品当前生效的 A 级标准价（price_level 为 "一等品" 或 NULL，status=approved）
