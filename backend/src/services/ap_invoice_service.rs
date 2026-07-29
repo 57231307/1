@@ -152,10 +152,10 @@ mod tests {
 
     // ============ 批次 393 补测：AP 状态常量与校验函数 ============
 
-    /// 测试_AP状态常量值正确性
+    /// test_apztclzzqx
     /// 验证 ap_invoice.invoice_status 字段使用的状态常量值与业务约定一致。；common::STATUS_DRAFT = "DRAFT"（草稿）；ap_invoice::INVOICE_AUDITED = "AUDITED"（已审核，AP 专属）；payment::PAYMENT_PAID = "PAID"（已付款）；payment::PAYMENT_PARTIAL_PAID = "PARTIAL_PAID"（部分付款）；common::STATUS_CANCELLED = "CANCELLED"（已取消）
     #[test]
-    fn 测试_AP状态常量值正确性() {
+    fn test_apztclzzqx() {
         use crate::models::status;
         assert_eq!(status::common::STATUS_DRAFT, "DRAFT");
         assert_eq!(status::ap_invoice::INVOICE_AUDITED, "AUDITED");
@@ -170,9 +170,9 @@ mod tests {
         );
     }
 
-    /// 测试_汇率校验函数_合法与非法值（验证 validate_exchange_rate 的拒绝逻辑：0 / 负数 / 0.01（P0-1 历史缺陷值）应拒绝；正数（如 1.0, 6.5, 0.1）应通过）
+    /// test_hljyhs_hfyffz（验证 validate_exchange_rate 的拒绝逻辑：0 / 负数 / 0.01（P0-1 历史缺陷值）应拒绝；正数（如 1.0, 6.5, 0.1）应通过）
     #[test]
-    fn 测试_汇率校验函数_合法与非法值() {
+    fn test_hljyhs_hfyffz() {
         // 非法值应拒绝
         assert!(
             validate_exchange_rate(&Decimal::ZERO).is_err(),
@@ -203,9 +203,9 @@ mod tests {
         );
     }
 
-    /// 测试_金额校验函数_正数校验（验证 validate_positive_decimal 的拒绝逻辑：0 / 负数应拒绝；正数应通过）
+    /// test_jejyhs_zsjy（验证 validate_positive_decimal 的拒绝逻辑：0 / 负数应拒绝；正数应通过）
     #[test]
-    fn 测试_金额校验函数_正数校验() {
+    fn test_jejyhs_zsjy() {
         // 非法值
         assert!(
             validate_positive_decimal(&Decimal::ZERO).is_err(),
@@ -227,9 +227,9 @@ mod tests {
         );
     }
 
-    /// 测试_金额校验函数_非负校验（验证 validate_non_negative_decimal 的拒绝逻辑：负数应拒绝；0 / 正数应通过（允许 0，如税额为 0 的场景））
+    /// test_jejyhs_ffjy（验证 validate_non_negative_decimal 的拒绝逻辑：负数应拒绝；0 / 正数应通过（允许 0，如税额为 0 的场景））
     #[test]
-    fn 测试_金额校验函数_非负校验() {
+    fn test_jejyhs_ffjy() {
         // 非法值
         assert!(
             validate_non_negative_decimal(&Decimal::new(-1, 0)).is_err(),
@@ -272,9 +272,9 @@ mod tests {
         .contains(&current_status)
     }
 
-    /// 测试_approve状态机门_仅DRAFT允许（验证 approve 状态门：仅 DRAFT 状态可审核）
+    /// test_approveztjm_jdraftyx（验证 approve 状态门：仅 DRAFT 状态可审核）
     #[test]
-    fn 测试_approve状态机门_仅DRAFT允许() {
+    fn test_approveztjm_jdraftyx() {
         use crate::models::status;
         // DRAFT 允许审核
         assert!(can_approve(status::common::STATUS_DRAFT));
@@ -286,9 +286,9 @@ mod tests {
         assert!(!can_approve(status::common::STATUS_CANCELLED));
     }
 
-    /// 测试_mark_as_paid状态机门_仅AUDITED和PARTIAL_PAID允许（验证 mark_as_paid 状态门（P0 3-3 修复）：仅 AUDITED/PARTIAL_PAID 可标记已付清）
+    /// test_mark_as_paidztjm_jauditedhpartial_paidyx（验证 mark_as_paid 状态门（P0 3-3 修复）：仅 AUDITED/PARTIAL_PAID 可标记已付清）
     #[test]
-    fn 测试_mark_as_paid状态机门_仅AUDITED和PARTIAL_PAID允许() {
+    fn test_mark_as_paidztjm_jauditedhpartial_paidyx() {
         use crate::models::status;
         // 允许的状态
         assert!(can_mark_as_paid(status::ap_invoice::INVOICE_AUDITED));
@@ -300,9 +300,9 @@ mod tests {
         assert!(!can_mark_as_paid(status::common::STATUS_CANCELLED));
     }
 
-    /// 测试_cancel状态机门_仅AUDITED和PARTIAL_PAID允许（验证 cancel 状态门：仅 AUDITED/PARTIAL_PAID 可取消）
+    /// test_cancelztjm_jauditedhpartial_paidyx（验证 cancel 状态门：仅 AUDITED/PARTIAL_PAID 可取消）
     #[test]
-    fn 测试_cancel状态机门_仅AUDITED和PARTIAL_PAID允许() {
+    fn test_cancelztjm_jauditedhpartial_paidyx() {
         use crate::models::status;
         // 允许的状态
         assert!(can_cancel(status::ap_invoice::INVOICE_AUDITED));
@@ -334,9 +334,9 @@ mod tests {
         }
     }
 
-    /// 测试_账龄分桶算法_6个区间（验证 get_aging_analysis 的账龄分桶覆盖 6 个区间边界）
+    /// test_zlftsf_6gqj（验证 get_aging_analysis 的账龄分桶覆盖 6 个区间边界）
     #[test]
-    fn 测试_账龄分桶算法_6个区间() {
+    fn test_zlftsf_6gqj() {
         // 未到期（days_overdue = -1 表示未到期）
         assert_eq!(aging_bucket(-1), "未到期");
         assert_eq!(aging_bucket(-30), "未到期");

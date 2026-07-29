@@ -292,23 +292,23 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    /// 测试_validate_custom_condition_null通过；场景：Value::Null 应通过校验（无自定义条件）
+    /// test_validate_custom_condition_nulltg；场景：Value::Null 应通过校验（无自定义条件）
     #[test]
-    fn 测试_validate_custom_condition_null通过() {
+    fn test_validate_custom_condition_nulltg() {
         let result = validate_custom_condition_safe(&Value::Null);
         assert!(result.is_ok(), "null 值应通过校验");
     }
 
-    /// 测试_validate_custom_condition空对象通过；场景：空对象 {} 应通过校验（无字段需要检查）
+    /// test_validate_custom_conditionkdxtg；场景：空对象 {} 应通过校验（无字段需要检查）
     #[test]
-    fn 测试_validate_custom_condition空对象通过() {
+    fn test_validate_custom_conditionkdxtg() {
         let result = validate_custom_condition_safe(&json!({}));
         assert!(result.is_ok(), "空对象应通过校验");
     }
 
-    /// 测试_validate_custom_condition合法对象通过；场景：合法字段名（小写+下划线+数字）+ 合法值类型（数字/字符串/bool/null）应通过
+    /// test_validate_custom_conditionhfdxtg；场景：合法字段名（小写+下划线+数字）+ 合法值类型（数字/字符串/bool/null）应通过
     #[test]
-    fn 测试_validate_custom_condition合法对象通过() {
+    fn test_validate_custom_conditionhfdxtg() {
         let cond = json!({
             "field1": 123,
             "field2": "value",
@@ -319,9 +319,9 @@ mod tests {
         assert!(result.is_ok(), "合法对象应通过校验");
     }
 
-    /// 测试_validate_custom_condition拒绝大写字段名；场景：字段名含大写字母（如 "FieldName"）应被拒绝
+    /// test_validate_custom_conditionjjdxzdm；场景：字段名含大写字母（如 "FieldName"）应被拒绝
     #[test]
-    fn 测试_validate_custom_condition拒绝大写字段名() {
+    fn test_validate_custom_conditionjjdxzdm() {
         let cond = json!({"FieldName": 123});
         let result = validate_custom_condition_safe(&cond);
         assert!(result.is_err(), "含大写字母的字段名应被拒绝");
@@ -334,9 +334,9 @@ mod tests {
         );
     }
 
-    /// 测试_validate_custom_condition拒绝SQL关键字；场景：序列化后包含 UNION/SELECT/DROP 等 FORBIDDEN 关键字应被拒绝
+    /// test_validate_custom_conditionjjsqlgjz；场景：序列化后包含 UNION/SELECT/DROP 等 FORBIDDEN 关键字应被拒绝
     #[test]
-    fn 测试_validate_custom_condition拒绝SQL关键字() {
+    fn test_validate_custom_conditionjjsqlgjz() {
         // 字符串值中包含 UNION（序列化后大写匹配）
         let cond = json!({"field": "UNION SELECT"});
         let result = validate_custom_condition_safe(&cond);
@@ -348,9 +348,9 @@ mod tests {
         assert!(result.is_err(), "包含分号应被拒绝");
     }
 
-    /// 测试_validate_custom_condition拒绝字符串含引号；场景：字符串值包含单引号/双引号应被拒绝（防 SQL 注入）
+    /// test_validate_custom_conditionjjzfchyh；场景：字符串值包含单引号/双引号应被拒绝（防 SQL 注入）
     #[test]
-    fn 测试_validate_custom_condition拒绝字符串含引号() {
+    fn test_validate_custom_conditionjjzfchyh() {
         // 单引号
         let cond = json!({"field": "value'with'quotes"});
         let result = validate_custom_condition_safe(&cond);

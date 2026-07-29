@@ -204,7 +204,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn 测试_memory_backend_set_get() {
+    async fn test_memory_backend_set_get() {
         let backend = MemoryCacheBackend::new();
         backend.set("k1".to_string(), b"v1".to_vec()).await;
         assert_eq!(backend.get("k1").await, Some(b"v1".to_vec()));
@@ -212,7 +212,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn 测试_memory_backend_invalidate() {
+    async fn test_memory_backend_invalidate() {
         let backend = MemoryCacheBackend::new();
         backend.set("k1".to_string(), b"v1".to_vec()).await;
         backend.invalidate("k1").await;
@@ -220,7 +220,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn 测试_memory_backend_invalidate_prefix() {
+    async fn test_memory_backend_invalidate_prefix() {
         let backend = MemoryCacheBackend::new();
         backend.set("inventory:1".to_string(), b"v1".to_vec()).await;
         backend.set("inventory:2".to_string(), b"v2".to_vec()).await;
@@ -233,7 +233,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn 测试_mock_backend_预设值不增加计数() {
+    async fn test_mock_backend_yszbzjjs() {
         let mock = MockCacheBackend::new();
         mock.set_value("k1".to_string(), b"v1".to_vec());
         assert_eq!(mock.set_call_count(), 0, "set_value 不应增加 set 计数");
@@ -242,7 +242,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn 测试_mock_backend_set_增加计数() {
+    async fn test_mock_backend_set_zjjs() {
         let mock = MockCacheBackend::new();
         mock.set("k1".to_string(), b"v1".to_vec()).await;
         mock.set("k2".to_string(), b"v2".to_vec()).await;
@@ -251,7 +251,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn 测试_mock_backend_invalidate_计数() {
+    async fn test_mock_backend_invalidate_js() {
         let mock = MockCacheBackend::new();
         mock.set_value("k1".to_string(), b"v1".to_vec());
         mock.invalidate("k1").await;
@@ -260,7 +260,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn 测试_mock_backend_invalidate_prefix_计数() {
+    async fn test_mock_backend_invalidate_prefix_js() {
         let mock = MockCacheBackend::new();
         mock.set_value("inv:1".to_string(), b"v1".to_vec());
         mock.set_value("inv:2".to_string(), b"v2".to_vec());
@@ -274,7 +274,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn 测试_mock_backend_动态注入_trait() {
+    async fn test_mock_backend_dtzr_trait() {
         // V15 批次 07 P1-7 修复核心目标：通过 trait 对象动态注入，单测不依赖真实 moka
         async fn exercise_backend(backend: &dyn CacheBackend) {
             backend.set("k1".to_string(), b"v1".to_vec()).await;

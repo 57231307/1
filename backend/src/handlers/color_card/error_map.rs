@@ -37,9 +37,9 @@ mod tests {
 
     use super::*;
 
-    /// 测试_crud_err_not_found映射
+    /// test_crud_err_not_foundys
     #[test]
-    fn 测试_crud_err_not_found映射() {
+    fn test_crud_err_not_foundys() {
         let err = crud_err(CrudError::NotFound);
         let msg = err.to_string();
         assert!(
@@ -49,9 +49,9 @@ mod tests {
         );
     }
 
-    /// 测试_crud_err_invalid_state映射
+    /// test_crud_err_invalid_stateys
     #[test]
-    fn 测试_crud_err_invalid_state映射() {
+    fn test_crud_err_invalid_stateys() {
         let err = crud_err(CrudError::InvalidState);
         let msg = err.to_string();
         assert!(
@@ -61,9 +61,9 @@ mod tests {
         );
     }
 
-    /// 测试_crud_err_validation映射
+    /// test_crud_err_validationys
     #[test]
-    fn 测试_crud_err_validation映射() {
+    fn test_crud_err_validationys() {
         let err = crud_err(CrudError::Validation("字段不能为空".to_string()));
         let msg = err.to_string();
         assert!(
@@ -73,9 +73,9 @@ mod tests {
         );
     }
 
-    /// 测试_crud_err_database映射
+    /// test_crud_err_databaseys
     #[test]
-    fn 测试_crud_err_database映射() {
+    fn test_crud_err_databaseys() {
         let db_err = sea_orm::DbErr::Custom("连接超时".to_string());
         let err = crud_err(CrudError::Database(db_err));
         let msg = err.to_string();
@@ -86,9 +86,9 @@ mod tests {
         );
     }
 
-    /// 测试_item_err所有变体映射
+    /// test_item_errsybtys
     #[test]
-    fn 测试_item_err所有变体映射() {
+    fn test_item_errsybtys() {
         let msg = item_err(ItemError::ColorCardNotFound).to_string();
         assert!(
             msg.contains("色卡不存在"),

@@ -203,16 +203,16 @@ mod tests {
 
     use super::*;
 
-    /// 测试_builtin_print_templates返回6个模板；验证内置打印模板数量为 6（对应 6 种单据类型）
+    /// test_builtin_print_templatesfh6gmb；验证内置打印模板数量为 6（对应 6 种单据类型）
     #[test]
-    fn 测试_builtin_print_templates返回6个模板() {
+    fn test_builtin_print_templatesfh6gmb() {
         let templates = builtin_print_templates();
         assert_eq!(templates.len(), 6, "应有 6 个内置打印模板");
     }
 
-    /// 测试_builtin_print_templates_id唯一且连续；验证 6 个模板的 id 为 1-6，唯一且连续
+    /// test_builtin_print_templates_idwyqlx；验证 6 个模板的 id 为 1-6，唯一且连续
     #[test]
-    fn 测试_builtin_print_templates_id唯一且连续() {
+    fn test_builtin_print_templates_idwyqlx() {
         let templates = builtin_print_templates();
         let ids: Vec<i32> = templates.iter().map(|t| t.id).collect();
         assert_eq!(ids, vec![1, 2, 3, 4, 5, 6], "id 应为 1-6 连续");
@@ -222,28 +222,28 @@ mod tests {
         assert_eq!(unique_ids.len(), 6, "id 应唯一");
     }
 
-    /// 测试_builtin_print_templates_doc_type唯一；验证 6 个模板的 doc_type 互不相同
+    /// test_builtin_print_templates_doc_typewy；验证 6 个模板的 doc_type 互不相同
     #[test]
-    fn 测试_builtin_print_templates_doc_type唯一() {
+    fn test_builtin_print_templates_doc_typewy() {
         let templates = builtin_print_templates();
         let doc_types: Vec<&str> = templates.iter().map(|t| t.doc_type.as_str()).collect();
         let unique: std::collections::HashSet<&str> = doc_types.iter().copied().collect();
         assert_eq!(unique.len(), 6, "doc_type 应唯一");
     }
 
-    /// 测试_builtin_print_templates全部为默认模板；验证所有内置模板的 is_default 均为 true
+    /// test_builtin_print_templatesqbwmrmb；验证所有内置模板的 is_default 均为 true
     #[test]
-    fn 测试_builtin_print_templates全部为默认模板() {
+    fn test_builtin_print_templatesqbwmrmb() {
         let templates = builtin_print_templates();
         for t in &templates {
             assert!(t.is_default, "模板 {} 应为默认模板", t.name);
         }
     }
 
-    /// 测试_builtin_print_templates覆盖6种单据类型；验证模板覆盖全部 6 种业务单据类型： sales_order /
+    /// test_builtin_print_templatesfg6zdjlx；验证模板覆盖全部 6 种业务单据类型： sales_order /
     /// sales_contract / purchase_order / purchase_receipt / inventory_transfer / voucher
     #[test]
-    fn 测试_builtin_print_templates覆盖6种单据类型() {
+    fn test_builtin_print_templatesfg6zdjlx() {
         let templates = builtin_print_templates();
         let doc_types: Vec<&str> = templates.iter().map(|t| t.doc_type.as_str()).collect();
 

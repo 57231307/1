@@ -18,11 +18,11 @@ mod tests {
 
     // ===== 状态常量值正确性 =====
 
-    /// 测试_付款状态常量_值正确性
+    /// test_fkztcl_zzqx
     ///
     /// 验证付款状态常量值符合预期（大写风格）。
     #[test]
-    fn 测试_付款状态常量_值正确性() {
+    fn test_fkztcl_zzqx() {
         assert_eq!(payment::PAYMENT_REGISTERED, "REGISTERED");
         assert_eq!(payment::PAYMENT_CONFIRMED, "CONFIRMED");
         assert_eq!(payment::PAYMENT_PAID, "PAID");
@@ -30,11 +30,11 @@ mod tests {
         assert_eq!(common::STATUS_APPROVED, "APPROVED");
     }
 
-    /// 测试_付款状态常量_大写风格一致性
+    /// test_fkztcl_dxfgyzx
     ///
     /// 验证付款状态常量均为大写 + 下划线风格。
     #[test]
-    fn 测试_付款状态常量_大写风格一致性() {
+    fn test_fkztcl_dxfgyzx() {
         for s in [
             payment::PAYMENT_REGISTERED,
             payment::PAYMENT_CONFIRMED,
@@ -50,12 +50,12 @@ mod tests {
         }
     }
 
-    /// 测试_付款状态流转链_语义正确性
+    /// test_fkztlzl_yyzqx
     ///
     /// 验证付款状态流转链符合业务语义：
     /// REGISTERED → CONFIRMED → PAID（或 PARTIAL_PAID）
     #[test]
-    fn 测试_付款状态流转链_语义正确性() {
+    fn test_fkztlzl_yyzqx() {
         // 状态值互不相同
         let statuses = [
             payment::PAYMENT_REGISTERED,
@@ -72,30 +72,30 @@ mod tests {
 
     // ===== Service 实例化与 DB 异常路径 =====
 
-    /// 测试_ApPaymentService_实例化不触发DB
+    /// test_appaymentservice_slhbcfdb
     #[tokio::test]
-    async fn 测试_ApPaymentService_实例化不触发DB() {
+    async fn test_appaymentservice_slhbcfdb() {
         let db = setup_test_db().await;
         let svc = ApPaymentService::new(Arc::new(db));
         let _ = svc;
     }
 
-    /// 测试_ApPaymentService_get_by_id_空DB返回Err
+    /// test_appaymentservice_get_by_id_kdbfherr
     ///
     /// 验证在空 SQLite 数据库上 get_by_id 方法返回 Err 而非 panic。
     #[tokio::test]
-    async fn 测试_ApPaymentService_get_by_id_空DB返回Err() {
+    async fn test_appaymentservice_get_by_id_kdbfherr() {
         let db = setup_test_db().await;
         let svc = ApPaymentService::new(Arc::new(db));
         let result = svc.get_by_id(1, None).await;
         assert!(result.is_err(), "空 DB 上 get_by_id 应返回 Err");
     }
 
-    /// 测试_ApPaymentService_get_list_空DB返回Err
+    /// test_appaymentservice_get_list_kdbfherr
     ///
     /// 验证在空 SQLite 数据库上 get_list 方法返回 Err 而非 panic。
     #[tokio::test]
-    async fn 测试_ApPaymentService_get_list_空DB返回Err() {
+    async fn test_appaymentservice_get_list_kdbfherr() {
         let db = setup_test_db().await;
         let svc = ApPaymentService::new(Arc::new(db));
         let query = ApPaymentListQuery {
@@ -111,11 +111,11 @@ mod tests {
         assert!(result.is_err(), "空 DB 上 get_list 应返回 Err");
     }
 
-    /// 测试_ApPaymentService_confirm_空DB返回Err
+    /// test_appaymentservice_confirm_kdbfherr
     ///
     /// 验证在空 SQLite 数据库上 confirm 方法返回 Err 而非 panic。
     #[tokio::test]
-    async fn 测试_ApPaymentService_confirm_空DB返回Err() {
+    async fn test_appaymentservice_confirm_kdbfherr() {
         let db = setup_test_db().await;
         let svc = ApPaymentService::new(Arc::new(db));
         let result = svc.confirm(1, 1).await;
@@ -130,7 +130,7 @@ mod tests {
     /// PAID 状态由 event_bus 监听器自动标记（confirm 后异步触发）。
     #[tokio::test]
     #[ignore = "需要 PostgreSQL 测试数据库 + 前置 APPROVED 付款申请数据"]
-    async fn 测试_付款全流程_登记到确认() {
+    async fn test_fkqlc_djdqr() {
         // 完整流程需前置 APPROVED 付款申请（ap_payment_request），
         // create 从付款申请创建付款单（REGISTERED），confirm 确认执行（CONFIRMED）。
         // PAID 状态由 event_bus 监听 PaymentCompleted 事件自动标记。

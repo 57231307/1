@@ -141,60 +141,60 @@ mod tests {
 
     // ========== clamp_page 纯函数测试 ==========
 
-    /// 测试_页码约束_零值被限制为1（验证 page=0（页码小于下界）被 clamp 到 1。）
+    /// test_ymys_lzbxzw1（验证 page=0（页码小于下界）被 clamp 到 1。）
     #[test]
-    fn 测试_页码约束_零值被限制为1() {
+    fn test_ymys_lzbxzw1() {
         assert_eq!(CustomerCreditService::clamp_page(0), 1);
     }
 
-    /// 测试_页码约束_页码为1_边界返回1（验证 page=1（下界边界）原值返回 1。）
+    /// test_ymys_ymw1_bjfh1（验证 page=1（下界边界）原值返回 1。）
     #[test]
-    fn 测试_页码约束_页码为1_边界返回1() {
+    fn test_ymys_ymw1_bjfh1() {
         assert_eq!(CustomerCreditService::clamp_page(1), 1);
     }
 
-    /// 测试_页码约束_页码为500_正常范围原值返回（验证 page=500（在 [1, 1000] 正常范围内）原值返回 500。）
+    /// test_ymys_ymw500_zcfwyzfh（验证 page=500（在 [1, 1000] 正常范围内）原值返回 500。）
     #[test]
-    fn 测试_页码约束_页码为500_正常范围原值返回() {
+    fn test_ymys_ymw500_zcfwyzfh() {
         assert_eq!(CustomerCreditService::clamp_page(500), 500);
     }
 
-    /// 测试_页码约束_页码为1000_边界返回1000（验证 page=1000（上界边界）原值返回 1000。）
+    /// test_ymys_ymw1000_bjfh1000（验证 page=1000（上界边界）原值返回 1000。）
     #[test]
-    fn 测试_页码约束_页码为1000_边界返回1000() {
+    fn test_ymys_ymw1000_bjfh1000() {
         assert_eq!(CustomerCreditService::clamp_page(1000), 1000);
     }
 
-    /// 测试_页码约束_页码为1001_超出上界被限制为1000（验证 page=1001（超出上界）被 clamp 到 1000，防止超大偏移量 DoS。）
+    /// test_ymys_ymw1001_ccsjbxzw1000（验证 page=1001（超出上界）被 clamp 到 1000，防止超大偏移量 DoS。）
     #[test]
-    fn 测试_页码约束_页码为1001_超出上界被限制为1000() {
+    fn test_ymys_ymw1001_ccsjbxzw1000() {
         assert_eq!(CustomerCreditService::clamp_page(1001), 1000);
     }
 
-    /// 测试_页码约束_负值被限制为1（验证 page=-5（负数）被 clamp 到 1，防止负偏移量。）
+    /// test_ymys_fzbxzw1（验证 page=-5（负数）被 clamp 到 1，防止负偏移量。）
     #[test]
-    fn 测试_页码约束_负值被限制为1() {
+    fn test_ymys_fzbxzw1() {
         assert_eq!(CustomerCreditService::clamp_page(-5), 1);
     }
 
-    /// 测试_页码约束_i64最大值被限制为1000（验证 page=i64::MAX（极端大值）被 clamp 到 1000，防止溢出与 DoS。）
+    /// test_ymys_i64zdzbxzw1000（验证 page=i64::MAX（极端大值）被 clamp 到 1000，防止溢出与 DoS。）
     #[test]
-    fn 测试_页码约束_i64最大值被限制为1000() {
+    fn test_ymys_i64zdzbxzw1000() {
         assert_eq!(CustomerCreditService::clamp_page(i64::MAX), 1000);
     }
 
-    /// 测试_页码约束_i64最小值被限制为1（验证 page=i64::MIN（极端小值）被 clamp 到 1，防止溢出与负偏移。）
+    /// test_ymys_i64zxzbxzw1（验证 page=i64::MIN（极端小值）被 clamp 到 1，防止溢出与负偏移。）
     #[test]
-    fn 测试_页码约束_i64最小值被限制为1() {
+    fn test_ymys_i64zxzbxzw1() {
         assert_eq!(CustomerCreditService::clamp_page(i64::MIN), 1);
     }
 
     // ========== CreditQueryParams Default 实现测试 ==========
 
-    /// 测试_查询参数_Default实现_全部字段为空或零
+    /// test_cxcs_defaultsx_qbzdwkhl
     /// 验证 CreditQueryParams::default() 返回的结构体：customer_id=None（未指定客户筛选）；credit_level=None（未指定信用等级筛选）；status=None（未指定状态筛选）；page=0（零页码，需配合 clamp_page 使用）；page_size=0（零页大小）
     #[test]
-    fn 测试_查询参数_Default实现_全部字段为空或零() {
+    fn test_cxcs_defaultsx_qbzdwkhl() {
         let params = CreditQueryParams::default();
         assert!(params.customer_id.is_none(), "默认 customer_id 应为 None");
         assert!(params.credit_level.is_none(), "默认 credit_level 应为 None");

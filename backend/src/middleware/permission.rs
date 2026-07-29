@@ -599,63 +599,63 @@ mod tests {
     // ===== extract_resource_info 测试 =====
 
     #[test]
-    fn test_extract_resource_info_标准路径无ID() {
+    fn test_extract_resource_info_bzljw_id() {
         let (rt, rid) = extract_resource_info("/api/v1/erp/users");
         assert_eq!(rt, "users");
         assert_eq!(rid, None);
     }
 
     #[test]
-    fn test_extract_resource_info_标准路径带ID() {
+    fn test_extract_resource_info_bzljd_id() {
         let (rt, rid) = extract_resource_info("/api/v1/erp/users/123");
         assert_eq!(rt, "users");
         assert_eq!(rid, Some(123));
     }
 
     #[test]
-    fn test_extract_resource_info_模块前缀路径无ID() {
+    fn test_extract_resource_info_mkqzljw_id() {
         let (rt, rid) = extract_resource_info("/api/v1/erp/sales/orders");
         assert_eq!(rt, "orders");
         assert_eq!(rid, None);
     }
 
     #[test]
-    fn test_extract_resource_info_模块前缀路径带ID() {
+    fn test_extract_resource_info_mkqzljd_id() {
         let (rt, rid) = extract_resource_info("/api/v1/erp/sales/orders/456");
         assert_eq!(rt, "orders");
         assert_eq!(rid, Some(456));
     }
 
     #[test]
-    fn test_extract_resource_info_嵌套路径带ID和动作() {
+    fn test_extract_resource_info_qtljd_id_hdz() {
         let (rt, rid) = extract_resource_info("/api/v1/erp/sales/orders/123/approve");
         assert_eq!(rt, "orders");
         assert_eq!(rid, Some(123));
     }
 
     #[test]
-    fn test_extract_resource_info_非API路径() {
+    fn test_extract_resource_info_f_api_lj() {
         let (rt, rid) = extract_resource_info("/health");
         assert_eq!(rt, "unknown");
         assert_eq!(rid, None);
     }
 
     #[test]
-    fn test_extract_resource_info_短路径() {
+    fn test_extract_resource_info_dlj() {
         let (rt, rid) = extract_resource_info("/api/v1");
         assert_eq!(rt, "unknown");
         assert_eq!(rid, None);
     }
 
     #[test]
-    fn test_extract_resource_info_空路径() {
+    fn test_extract_resource_info_klj() {
         let (rt, rid) = extract_resource_info("/");
         assert_eq!(rt, "unknown");
         assert_eq!(rid, None);
     }
 
     #[test]
-    fn test_extract_resource_info_动作段不误判为ID() {
+    fn test_extract_resource_info_dzdbwpw_id() {
         // V15 P0-S20 新增：动作关键字不应被误认为资源ID
         let (rt, rid) = extract_resource_info("/api/v1/erp/sales/orders/approve");
         assert_eq!(rt, "orders");
@@ -663,7 +663,7 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_resource_info_生产域模块前缀() {
+    fn test_extract_resource_info_scymkqz() {
         // V15 P0-S21 新增：production 模块前缀应正确提取资源
         let (rt, rid) = extract_resource_info("/api/v1/erp/production/dye-batches/789");
         assert_eq!(rt, "dye-batches");
@@ -671,7 +671,7 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_resource_info_采购域修正拼写() {
+    fn test_extract_resource_info_cgyxzpx() {
         // V15 P0-S21 修正：purchase（单数）应正确识别为模块前缀
         // V15 P1-14.4-C：purchase/orders 消歧为 purchase-orders（与权限定义对齐）
         let (rt, rid) = extract_resource_info("/api/v1/erp/purchase/orders");
@@ -680,7 +680,7 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_resource_info_采购域消歧全量() {
+    fn test_extract_resource_info_cgyxqql() {
         // V15 P1-14.4-C：采购域资源消歧映射
         let (rt, _) = extract_resource_info("/api/v1/erp/purchase/orders/123/approve");
         assert_eq!(rt, "purchase-orders");
@@ -695,7 +695,7 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_resource_info_销售域消歧全量() {
+    fn test_extract_resource_info_xsyxqql() {
         // V15 P1-14.4-C：销售域资源消歧映射（orders 保留原名）
         let (rt, _) = extract_resource_info("/api/v1/erp/sales/orders/123/approve");
         assert_eq!(rt, "orders");
@@ -710,7 +710,7 @@ mod tests {
     // ===== extract_segment3 测试 =====
 
     #[test]
-    fn test_extract_segment3_标准路径() {
+    fn test_extract_segment3_bzlj() {
         assert_eq!(extract_segment3("/api/v1/erp/users"), Some("users"));
         assert_eq!(extract_segment3("/api/v1/erp/sales/orders"), Some("sales"));
         assert_eq!(
@@ -720,7 +720,7 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_segment3_非API路径返回None() {
+    fn test_extract_segment3_f_api_ljfh_none() {
         assert_eq!(extract_segment3("/health"), None);
         assert_eq!(extract_segment3("/api/v1"), None);
         assert_eq!(extract_segment3("/"), None);
@@ -729,7 +729,7 @@ mod tests {
     // ===== extract_action_from_path 测试 =====
 
     #[test]
-    fn test_extract_action_from_path_approve动作() {
+    fn test_extract_action_from_path_approve_dz() {
         assert_eq!(
             extract_action_from_path("/api/v1/erp/sales/orders/123/approve"),
             Some("approve".to_string())
@@ -737,7 +737,7 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_action_from_path_export动作() {
+    fn test_extract_action_from_path_export_dz() {
         assert_eq!(
             extract_action_from_path("/api/v1/erp/users/export"),
             Some("export".to_string())
@@ -745,7 +745,7 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_action_from_path_print动作() {
+    fn test_extract_action_from_path_print_dz() {
         assert_eq!(
             extract_action_from_path("/api/v1/erp/orders/456/print"),
             Some("print".to_string())
@@ -753,7 +753,7 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_action_from_path_reject动作() {
+    fn test_extract_action_from_path_reject_dz() {
         assert_eq!(
             extract_action_from_path("/api/v1/erp/purchase/orders/789/reject"),
             Some("reject".to_string())
@@ -761,13 +761,13 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_action_from_path_无动作返回None() {
+    fn test_extract_action_from_path_wdzfh_none() {
         assert_eq!(extract_action_from_path("/api/v1/erp/users"), None);
         assert_eq!(extract_action_from_path("/api/v1/erp/users/123"), None);
     }
 
     #[test]
-    fn test_extract_action_from_path_非动作关键字返回None() {
+    fn test_extract_action_from_path_fdzgjzfh_none() {
         // 非动作关键字不应被识别为动作
         assert_eq!(extract_action_from_path("/api/v1/erp/users/profile"), None);
     }
@@ -775,32 +775,32 @@ mod tests {
     // ===== method_to_action 测试 =====
 
     #[test]
-    fn test_method_to_action_GET映射read() {
+    fn test_method_to_action_get_ys_read() {
         assert_eq!(method_to_action(&Method::GET), "read");
     }
 
     #[test]
-    fn test_method_to_action_POST映射create() {
+    fn test_method_to_action_post_ys_create() {
         assert_eq!(method_to_action(&Method::POST), "create");
     }
 
     #[test]
-    fn test_method_to_action_PUT映射update() {
+    fn test_method_to_action_put_ys_update() {
         assert_eq!(method_to_action(&Method::PUT), "update");
     }
 
     #[test]
-    fn test_method_to_action_PATCH映射update() {
+    fn test_method_to_action_patch_ys_update() {
         assert_eq!(method_to_action(&Method::PATCH), "update");
     }
 
     #[test]
-    fn test_method_to_action_DELETE映射delete() {
+    fn test_method_to_action_delete_ys_delete() {
         assert_eq!(method_to_action(&Method::DELETE), "delete");
     }
 
     #[test]
-    fn test_method_to_action_未知方法映射read() {
+    fn test_method_to_action_wzffys_read() {
         // OPTIONS 等未明确映射的方法默认为 read
         assert_eq!(method_to_action(&Method::OPTIONS), "read");
     }
@@ -808,14 +808,14 @@ mod tests {
     // ===== CacheEntry 测试 =====
 
     #[test]
-    fn test_cache_entry_新建未过期() {
+    fn test_cache_entry_xjwgq() {
         let entry = CacheEntry::new(true, Duration::minutes(5));
         assert!(!entry.is_expired());
         assert!(entry.data);
     }
 
     #[test]
-    fn test_cache_entry_已过期() {
+    fn test_cache_entry_ygq() {
         // 构造一个已过期的缓存项（过期时间为当前时间减 1 分钟）
         let entry = CacheEntry {
             data: false,
@@ -827,7 +827,7 @@ mod tests {
     // ===== invalidate_permission_cache 测试 =====
 
     #[test]
-    fn test_invalidate_permission_cache_移除指定角色() {
+    fn test_invalidate_permission_cache_yczdjs() {
         // 插入缓存条目
         PERMISSION_CACHE.insert(
             9991,
@@ -844,13 +844,13 @@ mod tests {
     }
 
     #[test]
-    fn test_invalidate_permission_cache_不存在角色不报错() {
+    fn test_invalidate_permission_cache_bczjsbbc() {
         // 失效不存在的角色缓存不应 panic
         invalidate_permission_cache(99999);
     }
 
     #[test]
-    fn test_invalidate_all_permission_cache_清空全部() {
+    fn test_invalidate_all_permission_cache_qkqb() {
         // 插入多个缓存条目
         PERMISSION_CACHE.insert(
             9992,
@@ -1128,13 +1128,13 @@ mod tests {
     // ===== extract_action_from_query 测试（V15 P0-S10）=====
 
     #[test]
-    fn test_extract_action_from_query_print动作() {
+    fn test_extract_action_from_query_print_dz() {
         let uri: axum::http::Uri = "/api/v1/erp/sales/orders?action=print".parse().unwrap();
         assert_eq!(extract_action_from_query(&uri), Some("print".to_string()));
     }
 
     #[test]
-    fn test_extract_action_from_query_export动作() {
+    fn test_extract_action_from_query_export_dz() {
         let uri: axum::http::Uri = "/api/v1/erp/inventory/stocks?action=export"
             .parse()
             .unwrap();
@@ -1142,7 +1142,7 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_action_from_query_download动作() {
+    fn test_extract_action_from_query_download_dz() {
         let uri: axum::http::Uri = "/api/v1/erp/reports/finance?action=download"
             .parse()
             .unwrap();
@@ -1153,26 +1153,26 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_action_from_query_无action参数返回None() {
+    fn test_extract_action_from_query_w_action_csfh_none() {
         let uri: axum::http::Uri = "/api/v1/erp/sales/orders?page=1".parse().unwrap();
         assert_eq!(extract_action_from_query(&uri), None);
     }
 
     #[test]
-    fn test_extract_action_from_query_白名单外动作返回None() {
+    fn test_extract_action_from_query_bmdwdzfh_none() {
         // action=read 不在白名单中，防止客户端绕过权限
         let uri: axum::http::Uri = "/api/v1/erp/sales/orders?action=read".parse().unwrap();
         assert_eq!(extract_action_from_query(&uri), None);
     }
 
     #[test]
-    fn test_extract_action_from_query_无查询字符串返回None() {
+    fn test_extract_action_from_query_wcxzfcfh_none() {
         let uri: axum::http::Uri = "/api/v1/erp/sales/orders".parse().unwrap();
         assert_eq!(extract_action_from_query(&uri), None);
     }
 
     #[test]
-    fn test_extract_action_from_query_多参数识别action() {
+    fn test_extract_action_from_query_dcssb_action() {
         let uri: axum::http::Uri = "/api/v1/erp/sales/orders?page=1&action=print&format=pdf"
             .parse()
             .unwrap();
@@ -1180,7 +1180,7 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_action_from_query_url编码解码() {
+    fn test_extract_action_from_query_url_bmjm() {
         // %70%72%69%6e%74 = "print"
         let uri: axum::http::Uri = "/api/v1/erp/sales/orders?action=%70%72%69%6e%74"
             .parse()
@@ -1191,19 +1191,19 @@ mod tests {
     // ===== matches_permission 测试（安全核心）=====
 
     #[test]
-    fn test_matches_permission_类型不匹配返回false() {
+    fn test_matches_permission_lxbppfh_false() {
         let p = make_permission("users", None, "read");
         assert!(!matches_permission(&p, "orders", None, "read"));
     }
 
     #[test]
-    fn test_matches_permission_全部匹配无ID() {
+    fn test_matches_permission_qbppw_id() {
         let p = make_permission("users", None, "read");
         assert!(matches_permission(&p, "users", None, "read"));
     }
 
     #[test]
-    fn test_matches_permission_action通配符匹配() {
+    fn test_matches_permission_action_tpfpp() {
         let p = make_permission("users", None, "*");
         assert!(matches_permission(&p, "users", None, "read"));
         assert!(matches_permission(&p, "users", None, "create"));
@@ -1211,20 +1211,20 @@ mod tests {
     }
 
     #[test]
-    fn test_matches_permission_ID精确匹配相等() {
+    fn test_matches_permission_id_jqppxd() {
         let p = make_permission("users", Some(100), "read");
         assert!(matches_permission(&p, "users", Some(100), "read"));
     }
 
     #[test]
-    fn test_matches_permission_ID精确匹配不等返回false() {
+    fn test_matches_permission_id_jqppbdfh_false() {
         // 垂直越权防护：权限 ID=100 不能访问 ID=200
         let p = make_permission("users", Some(100), "read");
         assert!(!matches_permission(&p, "users", Some(200), "read"));
     }
 
     #[test]
-    fn test_matches_permission_权限无ID请求有ID返回false() {
+    fn test_matches_permission_qxw_id_qqy_id_fh_false() {
         // M-6 修复点：权限 resource_id=None 不能匹配请求 resource_id=Some
         // 防止拥有全局权限的用户操作特定资源（应通过 action="*" 明确授予）
         let p = make_permission("users", None, "read");
@@ -1232,19 +1232,19 @@ mod tests {
     }
 
     #[test]
-    fn test_matches_permission_权限有ID请求无ID返回false() {
+    fn test_matches_permission_qxy_id_qqw_id_fh_false() {
         let p = make_permission("users", Some(100), "read");
         assert!(!matches_permission(&p, "users", None, "read"));
     }
 
     #[test]
-    fn test_matches_permission_action不匹配且非通配符返回false() {
+    fn test_matches_permission_action_bppqftpffh_false() {
         let p = make_permission("users", None, "read");
         assert!(!matches_permission(&p, "users", None, "delete"));
     }
 
     #[test]
-    fn test_matches_permission_通配符加ID精确匹配() {
+    fn test_matches_permission_tpfj_id_jqpp() {
         // action="*" + resource_id 精确匹配的组合
         let p = make_permission("users", Some(100), "*");
         assert!(matches_permission(&p, "users", Some(100), "update"));

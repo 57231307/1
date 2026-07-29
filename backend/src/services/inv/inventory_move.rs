@@ -399,16 +399,42 @@ impl InventoryTransferService {
         Ok(())
     }
 
-    /// 重建调拨明细项并累计总数量
+    /// 重建调拨明细项并累计总数量与总金额
+    /// P1 batch-18 缺陷 6.2：与 create_transfer_items_and_compute_total 保持一致的缸号校验
     async fn rebuild_transfer_items_and_total(
         txn: &DatabaseTransaction,
         transfer_id: i32,
         items: Vec<InventoryTransferItemRequest>,
-    ) -> Result<rust_decimal::Decimal, AppError> {
+    ) -> Result<(rust_decimal::Decimal, rust_decimal::Decimal), AppError> {
         let mut total_quantity = rust_decimal::Decimal::ZERO;
+        let mut total_amount = rust_decimal::Decimal::ZERO;
         for item_req in items {
+            // P1 batch-18 缺陷 6.2：校验色号/缸号 - 染色布必须提供 dye_lot_no
+            // 白坯布（color_no 含"白"或为"WHITE"或为空）允许 dye_lot_no 为空
+            let color_no = item_req.color_no.clone().unwrap_or_default();
+            let dye_lot_no = item_req.dye_lot_no.clone();
+            let is_white_fabric = color_no.is_empty()
+                || color_no.contains('白')
+                || color_no.eq_ignore_ascii_case("white");
+            if !is_white_fabric && dye_lot_no.as_deref().is_none_or(str::is_empty) {
+                return Err(AppError::validation(format!(
+                    "缺陷 6.2：染色布调拨明细必须提供缸号（color_no={} 但 dye_lot_no 为空）",
+                    color_no
+                )));
+            }
+            let batch_no = item_req.batch_no.clone().unwrap_or_default();
+            if batch_no.is_empty() {
+                return Err(AppError::validation(
+                    "缺陷 6.2：调拨明细缺少批号（batch_no 必填）",
+                ));
+            }
+
             let quantity = item_req.quantity.unwrap_or(rust_decimal::Decimal::ZERO);
             total_quantity += quantity;
+            // P1 batch-18 缺陷 6.1：累计总金额（quantity × unit_cost）
+            if let Some(uc) = item_req.unit_cost {
+                total_amount += quantity * uc;
+            }
             let item = inventory_transfer_item::ActiveModel {
                 id: Default::default(),
                 transfer_id: sea_orm::ActiveValue::Set(transfer_id),
@@ -420,24 +446,28 @@ impl InventoryTransferService {
                 quantity: sea_orm::ActiveValue::Set(quantity),
                 shipped_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                 received_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
-                unit_cost: sea_orm::ActiveValue::NotSet,
+                // P1 batch-18 缺陷 6.1：unit_cost 从请求传入（用于计算总金额）
+                unit_cost: sea_orm::ActiveValue::Set(item_req.unit_cost),
                 notes: sea_orm::ActiveValue::Set(item_req.notes),
                 created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                 updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
-                color_no: sea_orm::ActiveValue::NotSet,
-                dye_lot_no: sea_orm::ActiveValue::NotSet,
-                batch_no: sea_orm::ActiveValue::NotSet,
+                // P1 batch-18 缺陷 6.2：面料行业追溯字段强制写入（白坯布除外）
+                color_no: sea_orm::ActiveValue::Set(color_no),
+                dye_lot_no: sea_orm::ActiveValue::Set(dye_lot_no),
+                batch_no: sea_orm::ActiveValue::Set(batch_no),
             };
             item.insert(txn).await?;
         }
-        Ok(total_quantity)
+        Ok((total_quantity, total_amount))
     }
 
-    /// 更新调拨单总数量并写审计日志
+    /// 更新调拨单总数量与总金额并写审计日志
+    /// P1 batch-18 缺陷 6.1：更新路径同步刷新 total_amount 以支持分级审批
     async fn save_transfer_total_update(
         txn: &DatabaseTransaction,
         transfer_id: i32,
         total_quantity: rust_decimal::Decimal,
+        total_amount: rust_decimal::Decimal,
         user_id: i32,
     ) -> Result<(), AppError> {
         let transfer_entity = InventoryTransferEntity::find_by_id(transfer_id)
@@ -446,6 +476,8 @@ impl InventoryTransferService {
             .ok_or_else(|| AppError::business("调拨单不存在"))?;
         let mut transfer_update: inventory_transfer::ActiveModel = transfer_entity.into();
         transfer_update.total_quantity = sea_orm::ActiveValue::Set(total_quantity);
+        // P1 batch-18 缺陷 6.1：同步更新 total_amount 以确保后续分级审批基于最新金额
+        transfer_update.total_amount = sea_orm::ActiveValue::Set(total_amount);
         transfer_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
         crate::services::audit_log_service::AuditLogService::update_with_audit(
             txn,
@@ -476,15 +508,27 @@ impl InventoryTransferService {
         .await?;
         if let Some(items) = request.items {
             Self::clear_transfer_items(&txn, transfer_id).await?;
-            let total_quantity =
+            let (total_quantity, total_amount) =
                 Self::rebuild_transfer_items_and_total(&txn, transfer_id, items).await?;
-            Self::save_transfer_total_update(&txn, transfer_id, total_quantity, user_id).await?;
+            Self::save_transfer_total_update(
+                &txn,
+                transfer_id,
+                total_quantity,
+                total_amount,
+                user_id,
+            )
+            .await?;
         }
         txn.commit().await?;
         self.get_transfer_detail(transfer_id, None).await
     }
 
     /// 审核库存调拨
+    ///
+    /// P1 batch-18 缺陷 6.1：接入分级审批逻辑
+    /// - 根据调拨总金额计算审批层级（L1<1万 / L2 1-10万 / L3>10万）
+    /// - 校验审批人角色是否具备该层级审批权限
+    /// - 持久化 approval_level 与 approved_by_role 字段
     pub async fn approve_transfer(
         &self,
         transfer_id: i32,
@@ -492,6 +536,8 @@ impl InventoryTransferService {
         notes: Option<String>,
         // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
         user_id: i32,
+        // P1 batch-18 缺陷 6.1：注入审批人 role_id 用于分级审批权限校验
+        role_id: Option<i32>,
     ) -> Result<InventoryTransferDetail, AppError> {
         // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
         // 开启事务
@@ -511,17 +557,51 @@ impl InventoryTransferService {
             ));
         }
 
+        // P1 batch-18 缺陷 6.1：根据调拨总金额计算审批层级
+        let required_level = inventory_transfer::determine_approval_level(transfer.total_amount);
+
+        // P1 batch-18 缺陷 6.1：审批通过时校验审批人角色权限
+        let approver_role_code: Option<String> = if approved {
+            let rid = role_id.ok_or_else(|| {
+                AppError::permission_denied("缺陷 6.1：审批人角色 ID 缺失，无法校验分级审批权限")
+            })?;
+            let role_code = crate::utils::admin_checker::get_role_code(&*self.db, rid)
+                .await
+                .ok_or_else(|| {
+                    AppError::permission_denied("缺陷 6.1：无法查询审批人角色信息，拒绝审批")
+                })?;
+            if !inventory_transfer::can_approve_at_level(&role_code, required_level) {
+                return Err(AppError::permission_denied(format!(
+                    "缺陷 6.1：调拨金额 {} 元需 {} 级审批，当前角色 {} 无权审批",
+                    transfer.total_amount, required_level, role_code
+                )));
+            }
+            Some(role_code)
+        } else {
+            // 驳回场景不强制校验角色权限，但仍记录角色信息（若有）
+            if let Some(rid) = role_id {
+                crate::utils::admin_checker::get_role_code(&*self.db, rid).await
+            } else {
+                None
+            }
+        };
+
         // 更新调拨单状态
         let mut transfer_update: inventory_transfer::ActiveModel = transfer.into();
         if approved {
             transfer_update.status =
                 sea_orm::ActiveValue::Set(transfer_status::APPROVED.to_string());
-            transfer_update.approved_by = sea_orm::ActiveValue::NotSet; // 实际应从认证信息获取
+            // P1 batch-18 缺陷 6.1：修复 approved_by 字段未持久化的 bug（原 NotSet 导致审批人丢失）
+            transfer_update.approved_by = sea_orm::ActiveValue::Set(Some(user_id));
             transfer_update.approved_at = sea_orm::ActiveValue::Set(Some(chrono::Utc::now()));
         } else {
             transfer_update.status =
                 sea_orm::ActiveValue::Set(transfer_status::REJECTED.to_string());
         }
+        // P1 batch-18 缺陷 6.1：持久化分级审批字段（审批层级与审批人角色）
+        transfer_update.approval_level =
+            sea_orm::ActiveValue::Set(Some(required_level.to_string()));
+        transfer_update.approved_by_role = sea_orm::ActiveValue::Set(approver_role_code);
         if let Some(n) = notes {
             transfer_update.notes = sea_orm::ActiveValue::Set(Some(n));
         }

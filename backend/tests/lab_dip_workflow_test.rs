@@ -11,11 +11,11 @@ mod tests {
 
     // ===== 状态常量值正确性 =====
 
-    /// 测试_打样状态常量_值正确性
+    /// test_dyztcl_zzqx
     ///
     /// 验证打样通知单 6 种状态常量值符合预期（大写风格）。
     #[test]
-    fn 测试_打样状态常量_值正确性() {
+    fn test_dyztcl_zzqx() {
         assert_eq!(status::PENDING, "PENDING");
         assert_eq!(status::SAMPLING, "SAMPLING");
         assert_eq!(status::SUBMITTED, "SUBMITTED");
@@ -24,9 +24,9 @@ mod tests {
         assert_eq!(status::COMPLETED, "COMPLETED");
     }
 
-    /// 测试_打样状态常量_大写风格一致性
+    /// test_dyztcl_dxfgyzx
     #[test]
-    fn 测试_打样状态常量_大写风格一致性() {
+    fn test_dyztcl_dxfgyzx() {
         for s in [
             status::PENDING,
             status::SAMPLING,
@@ -45,11 +45,11 @@ mod tests {
 
     // ===== validate_status_transition 状态流转校验 =====
 
-    /// 测试_validate_status_transition_合法流转通过
+    /// test_validate_status_transition_hflztg
     ///
     /// 验证合法流转边：PENDING→SAMPLING、SAMPLING→SUBMITTED、SUBMITTED→APPROVED 等。
     #[test]
-    fn 测试_validate_status_transition_合法流转通过() {
+    fn test_validate_status_transition_hflztg() {
         assert!(LabDipRequestService::validate_status_transition(
             status::PENDING,
             status::SAMPLING
@@ -82,11 +82,11 @@ mod tests {
         .is_ok());
     }
 
-    /// 测试_validate_status_transition_非法流转失败
+    /// test_validate_status_transition_fflzsb
     ///
     /// 验证非法流转边：PENDING→APPROVED（跳过打样）、COMPLETED→PENDING（终态回退）等。
     #[test]
-    fn 测试_validate_status_transition_非法流转失败() {
+    fn test_validate_status_transition_fflzsb() {
         assert!(LabDipRequestService::validate_status_transition(
             status::PENDING,
             status::APPROVED
@@ -106,20 +106,20 @@ mod tests {
 
     // ===== validate_can_update 可更新校验 =====
 
-    /// 测试_validate_can_update_可更新状态通过
+    /// test_validate_can_update_kgxzttg
     ///
     /// 验证 PENDING 和 SAMPLING 状态允许更新。
     #[test]
-    fn 测试_validate_can_update_可更新状态通过() {
+    fn test_validate_can_update_kgxzttg() {
         assert!(LabDipRequestService::validate_can_update(status::PENDING).is_ok());
         assert!(LabDipRequestService::validate_can_update(status::SAMPLING).is_ok());
     }
 
-    /// 测试_validate_can_update_不可更新状态失败
+    /// test_validate_can_update_bkgxztsb
     ///
     /// 验证 SUBMITTED/APPROVED/REJECTED/COMPLETED 状态不允许更新。
     #[test]
-    fn 测试_validate_can_update_不可更新状态失败() {
+    fn test_validate_can_update_bkgxztsb() {
         assert!(LabDipRequestService::validate_can_update(status::SUBMITTED).is_err());
         assert!(LabDipRequestService::validate_can_update(status::APPROVED).is_err());
         assert!(LabDipRequestService::validate_can_update(status::REJECTED).is_err());
@@ -154,7 +154,7 @@ mod tests {
     /// 需要 PostgreSQL + 前置客户/产品/颜色数据。
     #[tokio::test]
     #[ignore = "需要 PostgreSQL 测试数据库 + 前置客户/产品/颜色数据"]
-    async fn 测试_打样全流程_待打样到完成() {
+    async fn test_dyqlc_ddydwc() {
         // 完整流程需 LabDipRequestService + LabDipSampleService 协同，
         // 留待真实环境验证。
     }

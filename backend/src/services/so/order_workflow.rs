@@ -516,7 +516,6 @@ mod tests {
     use crate::ymd;
     use chrono::Utc;
     use rust_decimal::Decimal;
-    use sea_orm::DatabaseConnection;
     use std::str::FromStr;
     use std::sync::Arc;
 
@@ -603,10 +602,10 @@ mod tests {
         Ok(())
     }
 
-    /// 测试_销售订单状态常量值正确性
+    /// test_xsddztclzzqx
     /// 校验 status::sales_order 子模块的常量值均为小写，；与业务代码（order_workflow.rs / order_crud.rs / delivery.rs）实际使用的状态值一致。；防止常量值大小写漂移导致状态匹配失败（隐性 P0 风险）。
     #[test]
-    fn 测试_销售订单状态常量值正确性() {
+    fn test_xsddztclzzqx() {
         assert_eq!(so_status::DRAFT, "draft");
         assert_eq!(so_status::PENDING, "pending");
         assert_eq!(so_status::APPROVED, "approved");
@@ -631,19 +630,19 @@ mod tests {
         assert_eq!(unique_count, 8, "销售订单状态常量值应两两不同");
     }
 
-    /// 测试_主数据状态常量值正确性
+    /// test_zsjztclzzqx
     /// 校验 master_data 子模块常量值为小写 "active"/"inactive"，；submit_order 中客户状态校验依赖此常量（customer.status != master_data::ACTIVE）。
     #[test]
-    fn 测试_主数据状态常量值正确性() {
+    fn test_zsjztclzzqx() {
         assert_eq!(master_data::ACTIVE, "active");
         assert_eq!(master_data::INACTIVE, "inactive");
         assert_ne!(master_data::ACTIVE, master_data::INACTIVE);
     }
 
-    /// 测试_取消订单_允许的源状态集合
+    /// test_qxdd_yxdyztjh
     /// 验证 cancel_order 的状态校验门对 DRAFT/PENDING/APPROVED/PARTIAL_SHIPPED 均放行。；其中 PARTIAL_SHIPPED 是批次 13 补全，防止部分发货订单无法取消（死锁）。
     #[test]
-    fn 测试_取消订单_允许的源状态集合() {
+    fn test_qxdd_yxdyztjh() {
         for allowed in [
             so_status::DRAFT,
             so_status::PENDING,
@@ -658,9 +657,9 @@ mod tests {
         }
     }
 
-    /// 测试_取消订单_禁止的源状态集合及错误消息（验证 cancel_order 对已发货/已完成/已取消/已拒绝状态拒绝，；且错误类型为 BusinessError，错误消息为中文"当前状态不允许取消"。）
+    /// test_qxdd_jzdyztjhjcwxx（验证 cancel_order 对已发货/已完成/已取消/已拒绝状态拒绝，；且错误类型为 BusinessError，错误消息为中文"当前状态不允许取消"。）
     #[test]
-    fn 测试_取消订单_禁止的源状态集合及错误消息() {
+    fn test_qxdd_jzdyztjhjcwxx() {
         for forbidden in [
             so_status::SHIPPED,
             so_status::COMPLETED,
@@ -678,9 +677,9 @@ mod tests {
         }
     }
 
-    /// 测试_提交订单_仅草稿状态允许提交（验证 submit_order 的状态校验门仅对 DRAFT 放行，其余状态全部拒绝。）
+    /// test_tjdd_jcgztyxtj（验证 submit_order 的状态校验门仅对 DRAFT 放行，其余状态全部拒绝。）
     #[test]
-    fn 测试_提交订单_仅草稿状态允许提交() {
+    fn test_tjdd_jcgztyxtj() {
         assert!(submit_order_status_gate(so_status::DRAFT).is_ok());
 
         for forbidden in [
@@ -700,9 +699,9 @@ mod tests {
         }
     }
 
-    /// 测试_提交订单_非草稿状态错误消息格式（验证 submit_order 的错误消息包含状态值与中文说明"无法提交"，；格式为 "订单状态为 {}，无法提交"。）
+    /// test_tjdd_fcgztcwxxgs（验证 submit_order 的错误消息包含状态值与中文说明"无法提交"，；格式为 "订单状态为 {}，无法提交"。）
     #[test]
-    fn 测试_提交订单_非草稿状态错误消息格式() {
+    fn test_tjdd_fcgztcwxxgs() {
         let result = submit_order_status_gate(so_status::APPROVED);
         match result.unwrap_err() {
             AppError::BusinessError(msg) => {
@@ -714,10 +713,10 @@ mod tests {
         }
     }
 
-    /// 测试_提交订单_客户状态非活跃拒绝
+    /// test_tjdd_khztfhyjj
     /// 验证 submit_order 中客户状态校验逻辑：customer.status != master_data::ACTIVE 时应构造拒绝错误，；错误消息格式为 "客户状态为 {}，不允许提交订单"。
     #[test]
-    fn 测试_提交订单_客户状态非活跃拒绝() {
+    fn test_tjdd_khztfhyjj() {
         // 复现 submit_order 中的客户状态校验
         let customer_status = master_data::INACTIVE;
         let should_reject = customer_status != master_data::ACTIVE;
@@ -737,9 +736,9 @@ mod tests {
         assert!(!(customer_active != master_data::ACTIVE));
     }
 
-    /// 测试_提交订单_信用额度不足拒绝（验证 submit_order 中信用额度校验逻辑：credit_available == false 时应返回 BusinessError，消息为"信用额度不足，无法提交订单"。）
+    /// test_tjdd_xyedbzjj（验证 submit_order 中信用额度校验逻辑：credit_available == false 时应返回 BusinessError，消息为"信用额度不足，无法提交订单"。）
     #[test]
-    fn 测试_提交订单_信用额度不足拒绝() {
+    fn test_tjdd_xyedbzjj() {
         // 复现 submit_order 中信用校验失败分支
         let credit_available = false;
         if !credit_available {
@@ -756,12 +755,12 @@ mod tests {
 
         // 信用充足场景不应触发该错误
         let credit_ok = true;
-        assert!(!credit_ok == false);
+        assert!(credit_ok);
     }
 
-    /// 测试_审核订单_仅待审核状态允许（验证 approve_order 的状态校验门仅对 PENDING 放行。）
+    /// test_shdd_jdshztyx（验证 approve_order 的状态校验门仅对 PENDING 放行。）
     #[test]
-    fn 测试_审核订单_仅待审核状态允许() {
+    fn test_shdd_jdshztyx() {
         assert!(approve_order_status_gate(so_status::PENDING).is_ok());
 
         for forbidden in [
@@ -781,9 +780,9 @@ mod tests {
         }
     }
 
-    /// 测试_审核订单_非待审核状态错误消息格式（验证 approve_order 的错误消息包含状态值与中文说明"无法审核"，；格式为 "订单状态为 {}，无法审核"。）
+    /// test_shdd_fdshztcwxxgs（验证 approve_order 的错误消息包含状态值与中文说明"无法审核"，；格式为 "订单状态为 {}，无法审核"。）
     #[test]
-    fn 测试_审核订单_非待审核状态错误消息格式() {
+    fn test_shdd_fdshztcwxxgs() {
         let result = approve_order_status_gate(so_status::DRAFT);
         match result.unwrap_err() {
             AppError::BusinessError(msg) => {
@@ -795,9 +794,9 @@ mod tests {
         }
     }
 
-    /// 测试_完成订单_允许的源状态集合（验证 complete_order 的状态校验门对 SHIPPED/PARTIAL_SHIPPED 放行。；部分发货订单可走完成流程，剩余未发货部分通过取消/退货处理。）
+    /// test_wcdd_yxdyztjh（验证 complete_order 的状态校验门对 SHIPPED/PARTIAL_SHIPPED 放行。；部分发货订单可走完成流程，剩余未发货部分通过取消/退货处理。）
     #[test]
-    fn 测试_完成订单_允许的源状态集合() {
+    fn test_wcdd_yxdyztjh() {
         for allowed in [so_status::SHIPPED, so_status::PARTIAL_SHIPPED] {
             assert!(
                 complete_order_status_gate(allowed).is_ok(),
@@ -807,9 +806,9 @@ mod tests {
         }
     }
 
-    /// 测试_完成订单_禁止的源状态集合及错误消息（验证 complete_order 对草稿/待审/已审/已完成/已取消/已拒绝状态拒绝，；错误消息格式为 "订单状态为 {}，无法完成"。）
+    /// test_wcdd_jzdyztjhjcwxx（验证 complete_order 对草稿/待审/已审/已完成/已取消/已拒绝状态拒绝，；错误消息格式为 "订单状态为 {}，无法完成"。）
     #[test]
-    fn 测试_完成订单_禁止的源状态集合及错误消息() {
+    fn test_wcdd_jzdyztjhjcwxx() {
         for forbidden in [
             so_status::DRAFT,
             so_status::PENDING,
@@ -831,10 +830,10 @@ mod tests {
         }
     }
 
-    /// 测试_夹具宏_decs_ymd_可用性
+    /// test_jjh_decs_ymd_kyx
     /// 验证项目测试夹具宏 decs! / ymd!（utils/unwrap_safe.rs 通过 #[macro_export] 导出）；可在测试模块正常使用，避免散落的 .unwrap() / .expect() 调用。
     #[test]
-    fn 测试_夹具宏_decs_ymd_可用性() {
+    fn test_jjh_decs_ymd_kyx() {
         // decs! 解析 Decimal 字符串
         let amount = decs!("12345.67");
         assert_eq!(amount.to_string(), "12345.67");
@@ -849,10 +848,10 @@ mod tests {
         assert_eq!(subtotal + tax, decs!("11300"));
     }
 
-    /// 测试_销售订单模型夹具构造
+    /// test_xsddmxjjgz
     /// 验证 make_order_model 能正确构造 sales_order::Model，；且 status 字段引用状态常量后保持一致，total_amount 与 balance_amount 关系正确。
     #[test]
-    fn 测试_销售订单模型夹具构造() {
+    fn test_xsddmxjjgz() {
         let model = make_order_model(1, 100, so_status::DRAFT, decs!("10000"));
 
         assert_eq!(model.id, 1);
@@ -873,10 +872,10 @@ mod tests {
         assert_eq!(shipped.customer_id, 200);
     }
 
-    /// 测试_服务实例创建
+    /// test_fwslcj
     /// 验证 SalesService 在 SQLite 内存数据库 + mock SearchClient 上能正常实例化。；SalesService::new 需要 db 与 search_client 两个依赖，使用 ElasticClient::mock() 提供空实现。
     #[tokio::test]
-    async fn 测试_服务实例创建() {
+    async fn test_fwslcj() {
         let db = setup_test_db().await;
         let search_client: Arc<dyn SearchClient> = Arc::new(ElasticClient::mock());
         let service = SalesService::new(Arc::new(db), search_client);
@@ -885,11 +884,11 @@ mod tests {
         assert!(Arc::strong_count(&service.db) >= 1);
     }
 
-    /// 测试_取消订单_需要真实数据库
+    /// test_qxdd_xyzssjk
     /// 需要 sales_orders 表 schema 与真实数据，标注 #[ignore] 仅在本地手动运行。；无 schema 时返回数据库错误；有 schema 但无记录时返回 NotFound。
     #[tokio::test]
     #[ignore]
-    async fn 测试_取消订单_需要真实数据库() {
+    async fn test_qxdd_xyzssjk() {
         let db = setup_test_db().await;
         let search_client: Arc<dyn SearchClient> = Arc::new(ElasticClient::mock());
         let service = SalesService::new(Arc::new(db), search_client);
@@ -899,10 +898,10 @@ mod tests {
         assert!(result.is_err());
     }
 
-    /// 测试_提交订单_需要真实数据库（需要 sales_orders 表 schema 与真实数据，标注 #[ignore] 仅在本地手动运行。；验证提交不存在的订单返回错误，调用路径不 panic。）
+    /// test_tjdd_xyzssjk（需要 sales_orders 表 schema 与真实数据，标注 #[ignore] 仅在本地手动运行。；验证提交不存在的订单返回错误，调用路径不 panic。）
     #[tokio::test]
     #[ignore]
-    async fn 测试_提交订单_需要真实数据库() {
+    async fn test_tjdd_xyzssjk() {
         let db = setup_test_db().await;
         let search_client: Arc<dyn SearchClient> = Arc::new(ElasticClient::mock());
         let service = SalesService::new(Arc::new(db), search_client);
@@ -912,10 +911,10 @@ mod tests {
         assert!(result.is_err());
     }
 
-    /// 测试_审核订单_需要真实数据库（需要 sales_orders 表 schema 与真实数据，标注 #[ignore] 仅在本地手动运行。；验证审核不存在的订单返回错误，调用路径不 panic。）
+    /// test_shdd_xyzssjk（需要 sales_orders 表 schema 与真实数据，标注 #[ignore] 仅在本地手动运行。；验证审核不存在的订单返回错误，调用路径不 panic。）
     #[tokio::test]
     #[ignore]
-    async fn 测试_审核订单_需要真实数据库() {
+    async fn test_shdd_xyzssjk() {
         let db = setup_test_db().await;
         let search_client: Arc<dyn SearchClient> = Arc::new(ElasticClient::mock());
         let service = SalesService::new(Arc::new(db), search_client);
@@ -924,10 +923,10 @@ mod tests {
         assert!(result.is_err());
     }
 
-    /// 测试_完成订单_需要真实数据库（需要 sales_orders 表 schema 与真实数据，标注 #[ignore] 仅在本地手动运行。；验证完成不存在的订单返回错误，调用路径不 panic。）
+    /// test_wcdd_xyzssjk（需要 sales_orders 表 schema 与真实数据，标注 #[ignore] 仅在本地手动运行。；验证完成不存在的订单返回错误，调用路径不 panic。）
     #[tokio::test]
     #[ignore]
-    async fn 测试_完成订单_需要真实数据库() {
+    async fn test_wcdd_xyzssjk() {
         let db = setup_test_db().await;
         let search_client: Arc<dyn SearchClient> = Arc::new(ElasticClient::mock());
         let service = SalesService::new(Arc::new(db), search_client);

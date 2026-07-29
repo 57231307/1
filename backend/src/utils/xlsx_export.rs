@@ -303,7 +303,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn 测试_xlsx_构建_基本表格() {
+    fn test_xlsx_gj_jbbg() {
         let table = XlsxTable {
             sheet_name: "测试".to_string(),
             headers: vec!["编号".to_string(), "名称".to_string()],
@@ -322,7 +322,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试_xlsx_构建_空数据() {
+    fn test_xlsx_gj_ksj() {
         let table = XlsxTable {
             sheet_name: "空表".to_string(),
             headers: vec!["列1".to_string()],
@@ -333,7 +333,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试_xlsx_响应_正确的_content_type() {
+    fn test_xlsx_xy_zqd_content_type() {
         let response = xlsx_response(vec![1, 2, 3], "test");
         let content_type = response
             .headers()
@@ -347,7 +347,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试_xlsx_响应_正确的_content_disposition() {
+    fn test_xlsx_xy_zqd_content_disposition() {
         let response = xlsx_response(vec![1, 2, 3], "crm_leads_export");
         let disposition = response
             .headers()
@@ -360,7 +360,7 @@ mod tests {
 
     /// V15 P0-S15：WatermarkConfig::render 全字段填充应输出 4 段
     #[test]
-    fn 测试_watermark_render_全字段() {
+    fn test_watermark_render_qzd() {
         let wm = WatermarkConfig {
             operator: Some("admin".to_string()),
             ip_address: Some("127.0.0.1".to_string()),
@@ -376,14 +376,14 @@ mod tests {
 
     /// V15 P0-S15：WatermarkConfig::render 全字段为 None 应返回 None
     #[test]
-    fn 测试_watermark_render_全空() {
+    fn test_watermark_render_qk() {
         let wm = WatermarkConfig::default();
         assert!(wm.render().is_none());
     }
 
     /// V15 P0-S15：带水印 xlsx 构建应成功且文件大小合理
     #[test]
-    fn 测试_xlsx_带水印_构建() {
+    fn test_xlsx_dsy_gj() {
         let table = XlsxTable {
             sheet_name: "客户列表".to_string(),
             headers: vec!["编码".to_string(), "名称".to_string()],
@@ -412,7 +412,7 @@ mod tests {
 
     /// V15 P0-S15：水印为空时退化为 build_xlsx 行为（向后兼容）
     #[test]
-    fn 测试_xlsx_带水印_空水印应退化() {
+    fn test_xlsx_dsy_ksyyth() {
         let table = XlsxTable {
             sheet_name: "测试".to_string(),
             headers: vec!["列1".to_string()],

@@ -481,6 +481,8 @@ impl OutsourcingOrderService {
             quality_status: Set(req.quality_status.clone()),
             grade: Set(req.grade.clone()),
             inventory_transaction_id: Set(None),
+            // P1 batch-18 缺陷 2.2：关联质检记录 ID（确认收回时自动创建质检记录并回写）
+            inspection_id: Set(None),
             status: Set(outsourcing_receipt_status::CONFIRMED.to_string()),
             remarks: Set(req.remarks.clone()),
             is_deleted: Set(false),

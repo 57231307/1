@@ -331,41 +331,41 @@ mod tests {
 
     // ===== compute_qualification_rate 合格率计算 =====
 
-    /// 测试_合格率计算_正常情况（验证 actual=100, qualified=95 时合格率为 95%。）
+    /// test_hgljs_zcqk（验证 actual=100, qualified=95 时合格率为 95%。）
     #[test]
-    fn 测试_合格率计算_正常情况() {
+    fn test_hgljs_zcqk() {
         let rate =
             compute_qualification_rate(Some(Decimal::new(100, 0)), Some(Decimal::new(95, 0)));
         assert_eq!(rate, Decimal::new(95, 0));
     }
 
-    /// 测试_合格率计算_全合格（验证 actual=100, qualified=100 时合格率为 100%。）
+    /// test_hgljs_qhg（验证 actual=100, qualified=100 时合格率为 100%。）
     #[test]
-    fn 测试_合格率计算_全合格() {
+    fn test_hgljs_qhg() {
         let rate =
             compute_qualification_rate(Some(Decimal::new(100, 0)), Some(Decimal::new(100, 0)));
         assert_eq!(rate, Decimal::new(100, 0));
     }
 
-    /// 测试_合格率计算_零产量（验证 actual=0 时合格率为 0（避免除零错误）。）
+    /// test_hgljs_lcl（验证 actual=0 时合格率为 0（避免除零错误）。）
     #[test]
-    fn 测试_合格率计算_零产量() {
+    fn test_hgljs_lcl() {
         let rate = compute_qualification_rate(Some(Decimal::ZERO), Some(Decimal::ZERO));
         assert_eq!(rate, Decimal::ZERO);
     }
 
-    /// 测试_合格率计算_None按零处理（验证 None 时按 0 处理。）
+    /// test_hgljs_nonealcl（验证 None 时按 0 处理。）
     #[test]
-    fn 测试_合格率计算_None按零处理() {
+    fn test_hgljs_nonealcl() {
         let rate = compute_qualification_rate(None, None);
         assert_eq!(rate, Decimal::ZERO);
     }
 
     // ===== determine_grade_by_qualification_rate 等级判定 =====
 
-    /// 测试_等级判定_A级_95以上（验证合格率 ≥ 95% 判定为 A 级。）
+    /// test_djpd_aj_95ys（验证合格率 ≥ 95% 判定为 A 级。）
     #[test]
-    fn 测试_等级判定_A级_95以上() {
+    fn test_djpd_aj_95ys() {
         assert_eq!(
             determine_grade_by_qualification_rate(Decimal::new(95, 0)),
             QUALITY_GRADE_A
@@ -380,9 +380,9 @@ mod tests {
         );
     }
 
-    /// 测试_等级判定_B级_80到95区间（验证合格率 80-95% 判定为 B 级。）
+    /// test_djpd_bj_80d95qj（验证合格率 80-95% 判定为 B 级。）
     #[test]
-    fn 测试_等级判定_B级_80到95区间() {
+    fn test_djpd_bj_80d95qj() {
         assert_eq!(
             determine_grade_by_qualification_rate(Decimal::new(80, 0)),
             QUALITY_GRADE_B
@@ -397,9 +397,9 @@ mod tests {
         );
     }
 
-    /// 测试_等级判定_C级_80以下（验证合格率 < 80% 判定为 C 级。）
+    /// test_djpd_cj_80yx（验证合格率 < 80% 判定为 C 级。）
     #[test]
-    fn 测试_等级判定_C级_80以下() {
+    fn test_djpd_cj_80yx() {
         assert_eq!(
             determine_grade_by_qualification_rate(Decimal::new(79, 0)),
             QUALITY_GRADE_C
@@ -416,9 +416,9 @@ mod tests {
 
     // ===== determine_grade_ratio 等级系数获取 =====
 
-    /// 测试_等级系数获取_各级别（验证 A/B/C 级返回对应的工价等级系数。）
+    /// test_djxshq_gjb（验证 A/B/C 级返回对应的工价等级系数。）
     #[test]
-    fn 测试_等级系数获取_各级别() {
+    fn test_djxshq_gjb() {
         // 构造一个 Mock 工价模型
         let rate = RateModel {
             id: 1,
@@ -458,9 +458,9 @@ mod tests {
 
     // ===== calculate_wage_for_step 工资计算 =====
 
-    /// 测试_工资计算_计件_A级全额（验证计件工价 + A 级（100%合格率）= 合格产量 × 计件单价 × 1.0。）
+    /// test_gzjs_jj_ajqe（验证计件工价 + A 级（100%合格率）= 合格产量 × 计件单价 × 1.0。）
     #[test]
-    fn 测试_工资计算_计件_A级全额() {
+    fn test_gzjs_jj_ajqe() {
         let rate = RateModel {
             id: 1,
             rate_no: "PWR-TEST-002".to_string(),
@@ -499,9 +499,9 @@ mod tests {
         assert_eq!(total, Decimal::new(500, 0));
     }
 
-    /// 测试_工资计算_计件_B级8折（验证计件工价 + B 级（85%合格率）= 合格产量 × 计件单价 × 0.8。）
+    /// test_gzjs_jj_bj8z（验证计件工价 + B 级（85%合格率）= 合格产量 × 计件单价 × 0.8。）
     #[test]
-    fn 测试_工资计算_计件_B级8折() {
+    fn test_gzjs_jj_bj8z() {
         let rate = RateModel {
             id: 2,
             rate_no: "PWR-TEST-003".to_string(),
@@ -541,9 +541,9 @@ mod tests {
         assert_eq!(total, Decimal::new(340, 0));
     }
 
-    /// 测试_工资计算_计件_C级不计（验证计件工价 + C 级（50%合格率）= 工资为 0。）
+    /// test_gzjs_jj_cjbj（验证计件工价 + C 级（50%合格率）= 工资为 0。）
     #[test]
-    fn 测试_工资计算_计件_C级不计() {
+    fn test_gzjs_jj_cjbj() {
         let rate = RateModel {
             id: 3,
             rate_no: "PWR-TEST-004".to_string(),
@@ -581,9 +581,9 @@ mod tests {
         assert_eq!(total, Decimal::ZERO);
     }
 
-    /// 测试_工资计算_计时_按工时（验证计时工价 = 工时 × 计时单价 × 等级系数。）
+    /// test_gzjs_js_ags（验证计时工价 = 工时 × 计时单价 × 等级系数。）
     #[test]
-    fn 测试_工资计算_计时_按工时() {
+    fn test_gzjs_js_ags() {
         let rate = RateModel {
             id: 4,
             rate_no: "PWR-TEST-005".to_string(),
@@ -621,9 +621,9 @@ mod tests {
         assert_eq!(total, Decimal::new(240, 0));
     }
 
-    /// 测试_工资计算_混合_计件加计时（验证混合工价 = 计件 + 计时。）
+    /// test_gzjs_hh_jjjjs（验证混合工价 = 计件 + 计时。）
     #[test]
-    fn 测试_工资计算_混合_计件加计时() {
+    fn test_gzjs_hh_jjjjs() {
         let rate = RateModel {
             id: 5,
             rate_no: "PWR-TEST-006".to_string(),
@@ -664,61 +664,61 @@ mod tests {
 
     // ===== parse_worker_ids 工人IDs解析 =====
 
-    /// 测试_工人IDs解析_正常情况
+    /// test_gridsjx_zcqk
     #[test]
-    fn 测试_工人IDs解析_正常情况() {
+    fn test_gridsjx_zcqk() {
         let ids = parse_worker_ids(&Some("1,2,3".to_string()));
         assert_eq!(ids, vec![1, 2, 3]);
     }
 
-    /// 测试_工人IDs解析_带空格
+    /// test_gridsjx_dkg
     #[test]
-    fn 测试_工人IDs解析_带空格() {
+    fn test_gridsjx_dkg() {
         let ids = parse_worker_ids(&Some("1, 2, 3".to_string()));
         assert_eq!(ids, vec![1, 2, 3]);
     }
 
-    /// 测试_工人IDs解析_空值
+    /// test_gridsjx_kz
     #[test]
-    fn 测试_工人IDs解析_空值() {
+    fn test_gridsjx_kz() {
         assert!(parse_worker_ids(&None).is_empty());
         assert!(parse_worker_ids(&Some(String::new())).is_empty());
         assert!(parse_worker_ids(&Some("  ".to_string())).is_empty());
     }
 
-    /// 测试_工人IDs解析_非法值过滤
+    /// test_gridsjx_ffzgl
     #[test]
-    fn 测试_工人IDs解析_非法值过滤() {
+    fn test_gridsjx_ffzgl() {
         let ids = parse_worker_ids(&Some("1,abc,3,".to_string()));
         assert_eq!(ids, vec![1, 3]);
     }
 
     // ===== split_wage_among_workers 工资按人均分配 =====
 
-    /// 测试_工资按人均分配_单人
+    /// test_gzarjfp_dr
     #[test]
-    fn 测试_工资按人均分配_单人() {
+    fn test_gzarjfp_dr() {
         let wage = Decimal::new(500, 0);
         assert_eq!(split_wage_among_workers(wage, 1), Decimal::new(500, 0));
     }
 
-    /// 测试_工资按人均分配_多人整除
+    /// test_gzarjfp_drzc
     #[test]
-    fn 测试_工资按人均分配_多人整除() {
+    fn test_gzarjfp_drzc() {
         let wage = Decimal::new(500, 0);
         assert_eq!(split_wage_among_workers(wage, 5), Decimal::new(100, 0));
     }
 
-    /// 测试_工资按人均分配_零人
+    /// test_gzarjfp_lr
     #[test]
-    fn 测试_工资按人均分配_零人() {
+    fn test_gzarjfp_lr() {
         let wage = Decimal::new(500, 0);
         assert_eq!(split_wage_among_workers(wage, 0), Decimal::ZERO);
     }
 
-    /// 测试_工资按人均分配_非整除取小数
+    /// test_gzarjfp_fzcqxs
     #[test]
-    fn 测试_工资按人均分配_非整除取小数() {
+    fn test_gzarjfp_fzcqxs() {
         let wage = Decimal::new(100, 0);
         // 100 / 3 = 33.33...
         let result = split_wage_among_workers(wage, 3);

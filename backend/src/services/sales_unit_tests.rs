@@ -49,8 +49,8 @@ mod tests {
     /* 销售订单 */
     #[derive(Debug, Clone)]
     struct SalesOrder {
-        pub id: i64,
-        pub customer_id: i64,
+        pub _id: i64,
+        pub _customer_id: i64,
         pub quantity: Decimal,
         pub unit_price: Decimal,
         pub status: OrderStatus,
@@ -69,7 +69,7 @@ mod tests {
     /* ===== 单元测试 ===== */
 
     #[test]
-    fn 测试_sales_overview_默认零值() {
+    fn test_sales_overview_mrlz() {
         // 中文测试名：测试 SalesOverview 默认值
         let s = SalesOverviewStats::default();
         assert_eq!(s.month_orders, 0);
@@ -79,11 +79,11 @@ mod tests {
     }
 
     #[test]
-    fn 测试_订单金额计算() {
+    fn test_ddjejs() {
         // 中文测试名：测试订单金额 = 数量 × 单价
         let order = SalesOrder {
-            id: 1,
-            customer_id: 100,
+            _id: 1,
+            _customer_id: 100,
             quantity: Decimal::from(10),
             unit_price: decs!("25.50"),
             status: OrderStatus::Draft,
@@ -93,11 +93,11 @@ mod tests {
     }
 
     #[test]
-    fn 测试_税额计算() {
+    fn test_sejs() {
         // 中文测试名：测试税额 = 金额 × 13%（保留 2 位小数）
         let order = SalesOrder {
-            id: 1,
-            customer_id: 100,
+            _id: 1,
+            _customer_id: 100,
             quantity: Decimal::from(100),
             unit_price: decs!("100.00"),
             status: OrderStatus::Confirmed,
@@ -107,7 +107,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试_订单状态分类() {
+    fn test_ddztfl() {
         // 中文测试名：测试订单状态 active/done 分类
         assert!(OrderStatus::Draft.is_active());
         assert!(OrderStatus::Shipped.is_active());
@@ -118,26 +118,26 @@ mod tests {
     }
 
     #[test]
-    fn 测试_批量订单汇总() {
+    fn test_plddhz() {
         // 中文测试名：测试批量订单总金额汇总
         let orders = vec![
             SalesOrder {
-                id: 1,
-                customer_id: 1,
+                _id: 1,
+                _customer_id: 1,
                 quantity: Decimal::from(10),
                 unit_price: Decimal::from(20),
                 status: OrderStatus::Completed,
             },
             SalesOrder {
-                id: 2,
-                customer_id: 2,
+                _id: 2,
+                _customer_id: 2,
                 quantity: Decimal::from(5),
                 unit_price: decs!("15.50"),
                 status: OrderStatus::Completed,
             },
             SalesOrder {
-                id: 3,
-                customer_id: 1,
+                _id: 3,
+                _customer_id: 1,
                 quantity: Decimal::from(3),
                 unit_price: Decimal::from(100),
                 status: OrderStatus::Cancelled,

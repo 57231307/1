@@ -95,9 +95,9 @@ mod tests {
         (allocations, remaining)
     }
 
-    /// 测试_AR状态常量值正确性（验证 ar_collection.status（小写）和 ar_reconciliation_item.match_status（大写）；的常量值与业务约定一致，防止大小写混淆导致状态匹配失败。）
+    /// test_arztclzzqx（验证 ar_collection.status（小写）和 ar_reconciliation_item.match_status（大写）；的常量值与业务约定一致，防止大小写混淆导致状态匹配失败。）
     #[test]
-    fn 测试_AR状态常量值正确性() {
+    fn test_arztclzzqx() {
         // ar_collection.status（小写值，批次 231 v13 P1-1 统一小写）
         assert_eq!(status::ar::COLLECTION_PENDING, "pending");
         assert_eq!(status::ar::COLLECTION_CONFIRMED, "confirmed");
@@ -120,9 +120,9 @@ mod tests {
         assert_ne!(status::ar::MATCH_MATCHED, "matched");
     }
 
-    /// 测试_收款金额校验_零或负数拒绝（场景：amount <= 0 应返回 Err（防零额收款））
+    /// test_skjejy_lhfsjj（场景：amount <= 0 应返回 Err（防零额收款））
     #[test]
-    fn 测试_收款金额校验_零或负数拒绝() {
+    fn test_skjejy_lhfsjj() {
         // 零金额
         let result = validate_payment_amount(Decimal::ZERO);
         assert!(result.is_err());
@@ -134,9 +134,9 @@ mod tests {
         assert_eq!(result.unwrap_err(), "收款金额必须大于零");
     }
 
-    /// 测试_收款金额校验_精度超限拒绝（场景：amount.round_dp(2) != amount（超过 2 位小数）应返回 Err）
+    /// test_skjejy_jdcxjj（场景：amount.round_dp(2) != amount（超过 2 位小数）应返回 Err）
     #[test]
-    fn 测试_收款金额校验_精度超限拒绝() {
+    fn test_skjejy_jdcxjj() {
         // 3 位小数（123.456）应拒绝
         let result = validate_payment_amount(Decimal::new(123456, 3));
         assert!(result.is_err());
@@ -151,9 +151,9 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    /// 测试_收款状态机门_仅pending允许确认（验证 confirm_payment 的状态门：仅 pending 状态允许确认）
+    /// test_skztjm_jpendingyxqr（验证 confirm_payment 的状态门：仅 pending 状态允许确认）
     #[test]
-    fn 测试_收款状态机门_仅pending允许确认() {
+    fn test_skztjm_jpendingyxqr() {
         // pending 允许确认
         assert!(can_confirm_payment(status::ar::COLLECTION_PENDING));
 
@@ -167,10 +167,10 @@ mod tests {
         assert!(!can_confirm_payment("unknown"));
     }
 
-    /// 测试_核销金额贪心匹配算法
+    /// test_hxjetxppsf
     /// 验证 create_payment 中按发票顺序扣减的核销逻辑：收款金额足够：每张发票扣减其 unpaid_amount，剩余为 0；收款金额不足：按顺序扣减，最后一张部分扣减，后续发票扣减 0
     #[test]
-    fn 测试_核销金额贪心匹配算法() {
+    fn test_hxjetxppsf() {
         // 场景 1：收款金额 = 300，3 张发票未收金额 [100, 200, 50]
         // 期望：[100, 200, 0]，剩余 0（前两张发票完全核销，第三张未核销）
         let (allocations, remaining) = greedy_match(
@@ -216,9 +216,9 @@ mod tests {
         assert_eq!(remaining, Decimal::new(200, 0));
     }
 
-    /// 测试_服务实例化_SQLite内存数据库（验证 ArService 能在 SQLite 内存数据库上实例化（new 不触发 DB 操作））
+    /// test_fwslh_sqlitencsjk（验证 ArService 能在 SQLite 内存数据库上实例化（new 不触发 DB 操作））
     #[tokio::test]
-    async fn 测试_服务实例化_SQLite内存数据库() {
+    async fn test_fwslh_sqlitencsjk() {
         let db_url =
             std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
         let db = Database::connect(&db_url)

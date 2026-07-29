@@ -55,7 +55,6 @@ mod tests {
     use crate::services::test_common::setup_test_db;
     use crate::ymd;
     use rust_decimal::Decimal;
-    use sea_orm::DatabaseConnection;
     use std::str::FromStr;
     use std::sync::Arc;
 
@@ -101,10 +100,10 @@ mod tests {
 
     // ============ ServiceError 枚举值正确性测试 ============
 
-    /// 测试_ServiceError_Display_格式正确
+    /// test_serviceerror_display_gszq
     /// 验证 5 个 ServiceError 变体的 Display 实现返回中文错误信息
     #[test]
-    fn 测试_ServiceError_Display_格式正确() {
+    fn test_serviceerror_display_gszq() {
         assert_eq!(ServiceError::NotFound.to_string(), "报价单不存在");
         assert_eq!(
             ServiceError::InvalidState.to_string(),
@@ -120,9 +119,9 @@ mod tests {
 
     // ============ validate_create 业务校验测试 ============
 
-    /// 测试_validate_create_空明细拒绝
+    /// test_validate_create_kmxjj
     #[tokio::test]
-    async fn 测试_validate_create_空明细拒绝() {
+    async fn test_validate_create_kmxjj() {
         let db = setup_test_db().await;
         let svc = QuotationService::new(Arc::new(db));
         let mut dto = sample_dto();
@@ -134,9 +133,9 @@ mod tests {
         }
     }
 
-    /// 测试_validate_create_有效期早于报价日期拒绝
+    /// test_validate_create_yxqzybjrqjj
     #[tokio::test]
-    async fn 测试_validate_create_有效期早于报价日期拒绝() {
+    async fn test_validate_create_yxqzybjrqjj() {
         let db = setup_test_db().await;
         let svc = QuotationService::new(Arc::new(db));
         let mut dto = sample_dto();
@@ -149,9 +148,9 @@ mod tests {
         }
     }
 
-    /// 测试_validate_create_非法贸易术语拒绝
+    /// test_validate_create_ffmysyjj
     #[tokio::test]
-    async fn 测试_validate_create_非法贸易术语拒绝() {
+    async fn test_validate_create_ffmysyjj() {
         let db = setup_test_db().await;
         let svc = QuotationService::new(Arc::new(db));
         let mut dto = sample_dto();
@@ -163,9 +162,9 @@ mod tests {
         }
     }
 
-    /// 测试_validate_create_合法参数通过
+    /// test_validate_create_hfcstg
     #[tokio::test]
-    async fn 测试_validate_create_合法参数通过() {
+    async fn test_validate_create_hfcstg() {
         let db = setup_test_db().await;
         let svc = QuotationService::new(Arc::new(db));
         let dto = sample_dto();
@@ -175,9 +174,9 @@ mod tests {
 
     // ============ calculate_totals 金额计算测试 ============
 
-    /// 测试_calculate_totals_不含税金额计算正确
+    /// test_calculate_totals_bhsjejszq
     #[tokio::test]
-    async fn 测试_calculate_totals_不含税金额计算正确() {
+    async fn test_calculate_totals_bhsjejszq() {
         let db = setup_test_db().await;
         let svc = QuotationService::new(Arc::new(db));
         let dto = sample_dto();
@@ -187,9 +186,9 @@ mod tests {
         assert_eq!(total_amount, decs!(1130));
     }
 
-    /// 测试_calculate_totals_含税金额税额为零
+    /// test_calculate_totals_hsjesewl
     #[tokio::test]
-    async fn 测试_calculate_totals_含税金额税额为零() {
+    async fn test_calculate_totals_hsjesewl() {
         let db = setup_test_db().await;
         let svc = QuotationService::new(Arc::new(db));
         let mut dto = sample_dto();
@@ -200,9 +199,9 @@ mod tests {
         assert_eq!(total_amount, decs!(1000));
     }
 
-    /// 测试_calculate_totals_多明细汇总正确
+    /// test_calculate_totals_dmxhzzq
     #[tokio::test]
-    async fn 测试_calculate_totals_多明细汇总正确() {
+    async fn test_calculate_totals_dmxhzzq() {
         let db = setup_test_db().await;
         let svc = QuotationService::new(Arc::new(db));
         let mut dto = sample_dto();
@@ -222,10 +221,10 @@ mod tests {
         assert_eq!(subtotal, decs!(5000));
     }
 
-    /// 测试_calculate_totals_精度归一到2位小数
+    /// test_calculate_totals_jdgyd2wxs
     /// 批次 87：33.333 * 3 = 99.999 → 100.00（round_dp(2)）
     #[tokio::test]
-    async fn 测试_calculate_totals_精度归一到2位小数() {
+    async fn test_calculate_totals_jdgyd2wxs() {
         let db = setup_test_db().await;
         let svc = QuotationService::new(Arc::new(db));
         let mut dto = sample_dto();
@@ -247,9 +246,9 @@ mod tests {
 
     // ============ validate_price_terms 贸易术语校验测试 ============
 
-    /// 测试_validate_price_terms_合法代码返回枚举
+    /// test_validate_price_terms_hfdmfhmj
     #[test]
-    fn 测试_validate_price_terms_合法代码返回枚举() {
+    fn test_validate_price_terms_hfdmfhmj() {
         let valid_codes = [
             "EXW", "FCA", "CPT", "CIP", "DAP", "DPU", "DDP", "FAS", "FOB", "CFR", "CIF",
         ];
@@ -259,18 +258,18 @@ mod tests {
         }
     }
 
-    /// 测试_validate_price_terms_大小写不敏感
+    /// test_validate_price_terms_dxxbmg
     #[test]
-    fn 测试_validate_price_terms_大小写不敏感() {
+    fn test_validate_price_terms_dxxbmg() {
         let lower = QuotationService::validate_price_terms("fob");
         let upper = QuotationService::validate_price_terms("FOB");
         assert!(lower.is_ok());
         assert!(upper.is_ok());
     }
 
-    /// 测试_validate_price_terms_非法代码返回错误
+    /// test_validate_price_terms_ffdmfhcw
     #[test]
-    fn 测试_validate_price_terms_非法代码返回错误() {
+    fn test_validate_price_terms_ffdmfhcw() {
         let result = QuotationService::validate_price_terms("XYZ");
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
@@ -279,18 +278,18 @@ mod tests {
 
     // ============ 状态常量值正确性测试 ============
 
-    /// 测试_报价单状态常量_值正确性
+    /// test_bjdztcl_zzqx
     #[test]
-    fn 测试_报价单状态常量_值正确性() {
+    fn test_bjdztcl_zzqx() {
         assert_eq!(quotation_status::DRAFT, "draft");
         assert_eq!(quotation_status::APPROVED, "approved");
         assert_eq!(quotation_status::REJECTED, "rejected");
         assert_eq!(quotation_status::CANCELLED, "cancelled");
     }
 
-    /// 测试_报价单状态常量_互不相同
+    /// test_bjdztcl_hbxt
     #[test]
-    fn 测试_报价单状态常量_互不相同() {
+    fn test_bjdztcl_hbxt() {
         let states = [
             quotation_status::DRAFT,
             quotation_status::APPROVED,
@@ -303,9 +302,9 @@ mod tests {
 
     // ============ QuotationService 构造与 DB 连接测试 ============
 
-    /// 测试_QuotationService_new_正确持有数据库连接
+    /// test_quotationservice_new_zqcysjklj
     #[tokio::test]
-    async fn 测试_QuotationService_new_正确持有数据库连接() {
+    async fn test_quotationservice_new_zqcysjklj() {
         let db = Arc::new(setup_test_db().await);
         let svc = QuotationService::new(db.clone());
         use sea_orm::ConnectionTrait;
@@ -320,27 +319,27 @@ mod tests {
             .expect("数据库连接应可用");
     }
 
-    /// 测试_QuotationService_get_by_id_空数据库返回Err
+    /// test_quotationservice_get_by_id_ksjkfherr
     #[tokio::test]
-    async fn 测试_QuotationService_get_by_id_空数据库返回Err() {
+    async fn test_quotationservice_get_by_id_ksjkfherr() {
         let db = setup_test_db().await;
         let svc = QuotationService::new(Arc::new(db));
         let result = svc.get_by_id(9999).await;
         assert!(result.is_err());
     }
 
-    /// 测试_QuotationService_list_空数据库返回Err
+    /// test_quotationservice_list_ksjkfherr
     #[tokio::test]
-    async fn 测试_QuotationService_list_空数据库返回Err() {
+    async fn test_quotationservice_list_ksjkfherr() {
         let db = setup_test_db().await;
         let svc = QuotationService::new(Arc::new(db));
         let result = svc.list(1, 20, None, None, None, None).await;
         assert!(result.is_err());
     }
 
-    /// 测试_QuotationService_cancel_不存在返回AppError
+    /// test_quotationservice_cancel_bczfhapperror
     #[tokio::test]
-    async fn 测试_QuotationService_cancel_不存在返回AppError() {
+    async fn test_quotationservice_cancel_bczfhapperror() {
         let db = setup_test_db().await;
         let svc = QuotationService::new(Arc::new(db));
         let result = svc.cancel(9999, 1).await;
@@ -354,9 +353,9 @@ mod tests {
 
     // ============ update 状态机校验测试 ============
 
-    /// 测试_QuotationService_update_不存在返回AppError
+    /// test_quotationservice_update_bczfhapperror
     #[tokio::test]
-    async fn 测试_QuotationService_update_不存在返回AppError() {
+    async fn test_quotationservice_update_bczfhapperror() {
         let db = setup_test_db().await;
         let svc = QuotationService::new(Arc::new(db));
         let dto = UpdateQuotationDto::default();

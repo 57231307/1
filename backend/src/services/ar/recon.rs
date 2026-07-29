@@ -42,7 +42,6 @@ mod tests {
     use crate::ymd;
     use chrono::Utc;
     use rust_decimal::Decimal;
-    use sea_orm::DatabaseConnection;
     use std::str::FromStr;
     use std::sync::Arc;
 
@@ -97,32 +96,32 @@ mod tests {
 
     // ===== 状态常量值正确性测试 =====
 
-    /// 测试_对账状态常量_closed值正确
+    /// test_dzztcl_closedzzq
     /// 验证 status::ar::RECONCILIATION_CLOSED 常量值为 "closed"（小写），；该常量用于 ar_reconciliation.reconciliation_status 字段
     #[test]
-    fn 测试_对账状态常量_closed值正确() {
+    fn test_dzztcl_closedzzq() {
         assert_eq!(status_ar::RECONCILIATION_CLOSED, "closed");
     }
 
-    /// 测试_对账状态常量_cancelled值正确
+    /// test_dzztcl_cancelledzzq_2
     /// 验证 status::ar::RECONCILIATION_CANCELLED 常量值为 "cancelled"（小写），；该常量用于 ar_reconciliation.reconciliation_status 字段
     #[test]
-    fn 测试_对账状态常量_cancelled值正确() {
+    fn test_dzztcl_cancelledzzq_2() {
         assert_eq!(status_ar::RECONCILIATION_CANCELLED, "cancelled");
     }
 
-    /// 测试_对账状态常量_matched值正确
+    /// test_dzztcl_matchedzzq
     /// 验证 status::ar::MATCH_MATCHED 常量值为 "MATCHED"（大写），；该常量用于 ar_reconciliation_item.match_status 字段
     #[test]
-    fn 测试_对账状态常量_matched值正确() {
+    fn test_dzztcl_matchedzzq() {
         assert_eq!(status_ar::MATCH_MATCHED, "MATCHED");
     }
 
     // ===== 期末余额计算测试（纯算法） =====
 
-    /// 测试_期末余额计算_创建场景正常（验证 create 方法中的期末余额计算公式：closing_balance = opening_balance + total_invoices - total_collections）
+    /// test_qmyejs_cjcjzc（验证 create 方法中的期末余额计算公式：closing_balance = opening_balance + total_invoices - total_collections）
     #[test]
-    fn 测试_期末余额计算_创建场景正常() {
+    fn test_qmyejs_cjcjzc() {
         let opening = decs!("10000");
         let invoices = decs!("5000");
         let collections = decs!("3000");
@@ -133,9 +132,9 @@ mod tests {
         assert_eq!(closing_balance, decs!("12000"));
     }
 
-    /// 测试_期末余额计算_更新场景部分字段更新（验证 update 方法中部分字段更新后期末余额重算逻辑：取更新值或保持原值，再按公式重算 closing_balance）
+    /// test_qmyejs_gxcjbfzdgx（验证 update 方法中部分字段更新后期末余额重算逻辑：取更新值或保持原值，再按公式重算 closing_balance）
     #[test]
-    fn 测试_期末余额计算_更新场景部分字段更新() {
+    fn test_qmyejs_gxcjbfzdgx() {
         let model = make_reconciliation_model(
             1,
             decs!("10000"),
@@ -164,9 +163,9 @@ mod tests {
         assert_eq!(closing, decs!("15000"));
     }
 
-    /// 测试_期末余额计算_零值边界（验证所有金额为零时 closing_balance 也为零）
+    /// test_qmyejs_lzbj（验证所有金额为零时 closing_balance 也为零）
     #[test]
-    fn 测试_期末余额计算_零值边界() {
+    fn test_qmyejs_lzbj() {
         let opening = Decimal::ZERO;
         let invoices = Decimal::ZERO;
         let collections = Decimal::ZERO;
@@ -176,9 +175,9 @@ mod tests {
         assert_eq!(closing_balance, Decimal::ZERO);
     }
 
-    /// 测试_期末余额计算_负值场景（验证当收款大于期初+发票时，closing_balance 可为负值（客户预付款场景））
+    /// test_qmyejs_fzcj（验证当收款大于期初+发票时，closing_balance 可为负值（客户预付款场景））
     #[test]
-    fn 测试_期末余额计算_负值场景() {
+    fn test_qmyejs_fzcj() {
         let opening = decs!("1000");
         let invoices = decs!("2000");
         let collections = decs!("5000");
@@ -188,9 +187,9 @@ mod tests {
         assert_eq!(closing_balance, decs!("-2000"));
     }
 
-    /// 测试_创建请求构造_期末余额计算（验证 CreateReconciliationRequest 构造后，按 create 方法公式计算期末余额，；并校验 create 方法设置的初始状态为 draft）
+    /// test_cjqqgz_qmyejs（验证 CreateReconciliationRequest 构造后，按 create 方法公式计算期末余额，；并校验 create 方法设置的初始状态为 draft）
     #[test]
-    fn 测试_创建请求构造_期末余额计算() {
+    fn test_cjqqgz_qmyejs() {
         let req = CreateReconciliationRequest {
             reconciliation_no: "RC-2026-0001".to_string(),
             customer_id: 1,
@@ -214,9 +213,9 @@ mod tests {
 
     // ===== 状态白名单校验测试 =====
 
-    /// 测试_状态白名单_合法状态通过（验证 update_status 方法中状态白名单允许所有 5 个合法状态值）
+    /// test_ztbmd_hfzttg（验证 update_status 方法中状态白名单允许所有 5 个合法状态值）
     #[test]
-    fn 测试_状态白名单_合法状态通过() {
+    fn test_ztbmd_hfzttg() {
         // 复现 update_status 方法的状态白名单
         let allowed_statuses = [
             recon_status::DRAFT,
@@ -236,9 +235,9 @@ mod tests {
         }
     }
 
-    /// 测试_状态白名单_非法状态拒绝（验证 update_status 方法中非法状态值应被拒绝，并产生正确的错误消息）
+    /// test_ztbmd_ffztjj（验证 update_status 方法中非法状态值应被拒绝，并产生正确的错误消息）
     #[test]
-    fn 测试_状态白名单_非法状态拒绝() {
+    fn test_ztbmd_ffztjj() {
         let allowed_statuses = [
             recon_status::DRAFT,
             recon_status::SENT,
@@ -265,9 +264,9 @@ mod tests {
 
     // ===== 状态门控测试 =====
 
-    /// 测试_状态门控_删除仅允许草稿（验证 delete 方法中仅 draft 状态允许删除，其他状态应返回业务错误）
+    /// test_ztmk_scjyxcg（验证 delete 方法中仅 draft 状态允许删除，其他状态应返回业务错误）
     #[test]
-    fn 测试_状态门控_删除仅允许草稿() {
+    fn test_ztmk_scjyxcg() {
         // draft 状态：允许删除
         let model_draft = make_reconciliation_model(
             1,
@@ -297,9 +296,9 @@ mod tests {
         assert!(matches!(err, AppError::BusinessError(_)));
     }
 
-    /// 测试_状态门控_发送仅允许草稿（验证 send 方法中仅 draft 状态允许发送，发送后状态变为 sent）
+    /// test_ztmk_fsjyxcg（验证 send 方法中仅 draft 状态允许发送，发送后状态变为 sent）
     #[test]
-    fn 测试_状态门控_发送仅允许草稿() {
+    fn test_ztmk_fsjyxcg() {
         // draft 状态：允许发送
         let model_draft = make_reconciliation_model(
             1,
@@ -333,9 +332,9 @@ mod tests {
         assert_eq!(new_status, "sent");
     }
 
-    /// 测试_状态门控_关闭允许已确认和争议（验证 close 方法中 confirmed 和 disputed 状态允许关闭，关闭后状态变为 closed）
+    /// test_ztmk_gbyxyqrhzy（验证 close 方法中 confirmed 和 disputed 状态允许关闭，关闭后状态变为 closed）
     #[test]
-    fn 测试_状态门控_关闭允许已确认和争议() {
+    fn test_ztmk_gbyxyqrhzy() {
         // confirmed 状态：允许关闭
         let model_confirmed = make_reconciliation_model(
             1,
@@ -371,9 +370,9 @@ mod tests {
         assert_eq!(new_status, "closed");
     }
 
-    /// 测试_状态门控_关闭拒绝草稿和已发送（验证 close 方法中 draft 和 sent 状态应被拒绝，None 状态默认为 draft 也应拒绝）
+    /// test_ztmk_gbjjcghyfs（验证 close 方法中 draft 和 sent 状态应被拒绝，None 状态默认为 draft 也应拒绝）
     #[test]
-    fn 测试_状态门控_关闭拒绝草稿和已发送() {
+    fn test_ztmk_gbjjcghyfs() {
         // draft 状态：拒绝关闭
         let model_draft = make_reconciliation_model(
             1,
@@ -433,10 +432,10 @@ mod tests {
 
     // ===== 状态机转换合法性测试 =====
 
-    /// 测试_状态机转换_完整流转合法
+    /// test_ztjzh_wzlzhf
     /// 验证对账单状态机的完整合法流转路径：draft → sent → confirmed → closed；draft → sent → disputed → closed；draft → disputed → closed（通过 update_status 直接争议）
     #[test]
-    fn 测试_状态机转换_完整流转合法() {
+    fn test_ztjzh_wzlzhf() {
         let allowed_statuses = [
             recon_status::DRAFT,
             recon_status::SENT,
@@ -495,9 +494,9 @@ mod tests {
 
     // ===== 错误消息格式测试 =====
 
-    /// 测试_错误消息格式_非法状态含状态值（验证 update_status 方法中非法状态的错误消息包含状态值和白名单）
+    /// test_cwxxgs_ffzthztz（验证 update_status 方法中非法状态的错误消息包含状态值和白名单）
     #[test]
-    fn 测试_错误消息格式_非法状态含状态值() {
+    fn test_cwxxgs_ffzthztz() {
         let allowed_statuses = [
             recon_status::DRAFT,
             recon_status::SENT,
@@ -521,9 +520,9 @@ mod tests {
         assert!(matches!(err, AppError::BusinessError(_)));
     }
 
-    /// 测试_错误消息格式_未找到对账单（验证各方法中对账单不存在时的 not_found 错误消息）
+    /// test_cwxxgs_wzddzd（验证各方法中对账单不存在时的 not_found 错误消息）
     #[test]
-    fn 测试_错误消息格式_未找到对账单() {
+    fn test_cwxxgs_wzddzd() {
         let err = AppError::not_found("对账单不存在");
         assert!(matches!(err, AppError::NotFound(_)));
 
@@ -533,9 +532,9 @@ mod tests {
 
     // ===== 夹具宏可用性测试 =====
 
-    /// 测试_夹具宏decs可用性（验证 decs! 宏能正确解析 Decimal 字符串）
+    /// test_jjhdecskyx（验证 decs! 宏能正确解析 Decimal 字符串）
     #[test]
-    fn 测试_夹具宏decs可用性() {
+    fn test_jjhdecskyx() {
         let v = decs!("12345.67");
         assert_eq!(v.to_string(), "12345.67");
 
@@ -548,9 +547,9 @@ mod tests {
         assert_eq!(neg, decs!("-100"));
     }
 
-    /// 测试_夹具宏ymd可用性（验证 ymd! 宏能正确解析日期）
+    /// test_jjhymdkyx（验证 ymd! 宏能正确解析日期）
     #[test]
-    fn 测试_夹具宏ymd可用性() {
+    fn test_jjhymdkyx() {
         let date = ymd!(2026, 7, 9);
         assert_eq!(date.format("%Y-%m-%d").to_string(), "2026-07-09");
 
@@ -574,9 +573,9 @@ mod tests {
 
     // ===== 服务实例化测试 =====
 
-    /// 测试_服务实例创建（验证 ArReconciliationService 在 SQLite 内存数据库上能正常实例化）
+    /// test_fwslcj（验证 ArReconciliationService 在 SQLite 内存数据库上能正常实例化）
     #[tokio::test]
-    async fn 测试_服务实例创建() {
+    async fn test_fwslcj() {
         let db = setup_test_db().await;
         let service = ArReconciliationService::new(Arc::new(db));
 
@@ -585,11 +584,11 @@ mod tests {
 
     // ===== 数据库交互测试（标注 #[ignore]） =====
 
-    /// 测试_创建对账单_需要数据库
+    /// test_cjdzd_xysjk
     /// 需要 ar_reconciliations 表 schema，标注 #[ignore] 仅在本地手动运行。；无 schema 时返回数据库错误；有 schema 时验证 create 方法完整调用路径。
     #[tokio::test]
     #[ignore]
-    async fn 测试_创建对账单_需要数据库() {
+    async fn test_cjdzd_xysjk() {
         let db = setup_test_db().await;
         let service = ArReconciliationService::new(Arc::new(db));
 
@@ -611,10 +610,10 @@ mod tests {
         assert!(result.is_err(), "无 schema 时应返回数据库错误");
     }
 
-    /// 测试_获取对账单_需要数据库（需要 ar_reconciliations 表 schema，标注 #[ignore] 仅在本地手动运行。；无 schema 时返回数据库错误；无记录时返回 Ok(None)。）
+    /// test_hqdzd_xysjk（需要 ar_reconciliations 表 schema，标注 #[ignore] 仅在本地手动运行。；无 schema 时返回数据库错误；无记录时返回 Ok(None)。）
     #[tokio::test]
     #[ignore]
-    async fn 测试_获取对账单_需要数据库() {
+    async fn test_hqdzd_xysjk() {
         let db = setup_test_db().await;
         let service = ArReconciliationService::new(Arc::new(db));
 

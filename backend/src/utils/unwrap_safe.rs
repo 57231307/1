@@ -18,13 +18,15 @@ macro_rules! dec {
     };
 }
 
-/// 测试夹具：解析 Decimal 字符串（等价于 Decimal::from_str(s).expect("P9-1")，调用方需自行 use std::str::FromStr）
+/// 测试夹具：解析 Decimal（支持字符串/整数/浮点，内部统一 to_string 后 FromStr 解析）
 #[cfg(test)]
 #[macro_export]
 macro_rules! decs {
-    ($x:expr) => {
-        rust_decimal::Decimal::from_str($x).expect("P9-1: 测试夹具 Decimal 字符串解析失败")
-    };
+    ($x:expr) => {{
+        use std::str::FromStr;
+        rust_decimal::Decimal::from_str(&$x.to_string())
+            .expect("P9-1: 测试夹具 Decimal 解析失败")
+    }};
 }
 
 /// 测试夹具：解析日期（等价于 `NaiveDate::from_ymd_opt(y,m,d).expect("P9-1")`）

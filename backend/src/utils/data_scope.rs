@@ -210,7 +210,7 @@ mod tests {
     }
 
     #[test]
-    fn test_data_scope_parse_scope_未知值默认self() {
+    fn test_data_scope_parse_scope_wzzmr_self() {
         // 未知值应回退到 Self_（最小权限原则）
         assert_eq!(DataScope::parse_scope("unknown"), DataScope::Self_);
         assert_eq!(DataScope::parse_scope(""), DataScope::Self_);
@@ -227,7 +227,7 @@ mod tests {
     // ===== check_resource_owner 测试 =====
 
     #[test]
-    fn test_check_resource_owner_all始终返回true() {
+    fn test_check_resource_owner_all_szfh_true() {
         let ctx = DataScopeContext {
             scope: DataScope::All,
             user_id: 1,
@@ -240,7 +240,7 @@ mod tests {
     }
 
     #[test]
-    fn test_check_resource_owner_dept部门匹配返回true() {
+    fn test_check_resource_owner_dept_bmppfh_true() {
         let ctx = DataScopeContext {
             scope: DataScope::Dept,
             user_id: 1,
@@ -250,7 +250,7 @@ mod tests {
     }
 
     #[test]
-    fn test_check_resource_owner_dept部门不匹配返回false() {
+    fn test_check_resource_owner_dept_bmbppfh_false() {
         let ctx = DataScopeContext {
             scope: DataScope::Dept,
             user_id: 1,
@@ -260,7 +260,7 @@ mod tests {
     }
 
     #[test]
-    fn test_check_resource_owner_dept资源无部门返回false() {
+    fn test_check_resource_owner_dept_zywbmfh_false() {
         let ctx = DataScopeContext {
             scope: DataScope::Dept,
             user_id: 1,
@@ -270,7 +270,7 @@ mod tests {
     }
 
     #[test]
-    fn test_check_resource_owner_dept用户无部门退化为false() {
+    fn test_check_resource_owner_dept_yhwbmthw_false() {
         // 用户无部门时，dept 范围无法匹配，返回 false
         let ctx = DataScopeContext {
             scope: DataScope::Dept,
@@ -281,7 +281,7 @@ mod tests {
     }
 
     #[test]
-    fn test_check_resource_owner_self归属人匹配返回true() {
+    fn test_check_resource_owner_self_gsrppfh_true() {
         let ctx = DataScopeContext {
             scope: DataScope::Self_,
             user_id: 1,
@@ -291,7 +291,7 @@ mod tests {
     }
 
     #[test]
-    fn test_check_resource_owner_self归属人不匹配返回false() {
+    fn test_check_resource_owner_self_gsrbppfh_false() {
         let ctx = DataScopeContext {
             scope: DataScope::Self_,
             user_id: 1,
@@ -301,7 +301,7 @@ mod tests {
     }
 
     #[test]
-    fn test_check_resource_owner_self资源无归属人返回false() {
+    fn test_check_resource_owner_self_zywgsrfh_false() {
         let ctx = DataScopeContext {
             scope: DataScope::Self_,
             user_id: 1,

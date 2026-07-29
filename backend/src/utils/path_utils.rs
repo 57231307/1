@@ -226,7 +226,7 @@ mod tests {
     // ===== is_module_prefix 测试 =====
 
     #[test]
-    fn test_is_module_prefix_销售域() {
+    fn test_is_module_prefix_xsy() {
         assert!(is_module_prefix("sales"));
         assert!(is_module_prefix("quotations"));
         assert!(is_module_prefix("custom-orders"));
@@ -236,14 +236,14 @@ mod tests {
     }
 
     #[test]
-    fn test_is_module_prefix_采购域修正拼写() {
+    fn test_is_module_prefix_cgyxzpx() {
         // V15 修正：purchases → purchase
         assert!(is_module_prefix("purchase"));
         assert!(!is_module_prefix("purchases"));
     }
 
     #[test]
-    fn test_is_module_prefix_生产域新增() {
+    fn test_is_module_prefix_scyxz() {
         // V15 新增：production 原缺失
         assert!(is_module_prefix("production"));
         assert!(is_module_prefix("material-shortage"));
@@ -251,7 +251,7 @@ mod tests {
     }
 
     #[test]
-    fn test_is_module_prefix_财务域() {
+    fn test_is_module_prefix_cwy() {
         assert!(is_module_prefix("finance"));
         assert!(is_module_prefix("ap"));
         assert!(is_module_prefix("ar"));
@@ -259,7 +259,7 @@ mod tests {
     }
 
     #[test]
-    fn test_is_module_prefix_认证与系统域() {
+    fn test_is_module_prefix_rzyxty() {
         assert!(is_module_prefix("auth"));
         assert!(is_module_prefix("ws"));
         assert!(is_module_prefix("init"));
@@ -272,7 +272,7 @@ mod tests {
     }
 
     #[test]
-    fn test_is_module_prefix_分析与报表域() {
+    fn test_is_module_prefix_fxybby() {
         assert!(is_module_prefix("reports"));
         assert!(is_module_prefix("bi"));
         assert!(is_module_prefix("advanced"));
@@ -280,7 +280,7 @@ mod tests {
     }
 
     #[test]
-    fn test_is_module_prefix_已清理脏数据() {
+    fn test_is_module_prefix_yqlzsj() {
         // V15 清理：以下脏数据应已移除
         assert!(!is_module_prefix("purchases")); // 拼写错误
         assert!(!is_module_prefix("api-keys")); // 路径不存在
@@ -300,7 +300,7 @@ mod tests {
     }
 
     #[test]
-    fn test_is_module_prefix_未知段返回false() {
+    fn test_is_module_prefix_wzdfh_false() {
         assert!(!is_module_prefix("unknown-module"));
         assert!(!is_module_prefix(""));
         assert!(!is_module_prefix("fake"));
@@ -309,7 +309,7 @@ mod tests {
     // ===== is_known_resource_segment 测试 =====
 
     #[test]
-    fn test_is_known_resource_segment_包含所有模块前缀() {
+    fn test_is_known_resource_segment_bhsymkqz() {
         assert!(is_known_resource_segment("sales"));
         assert!(is_known_resource_segment("purchase"));
         assert!(is_known_resource_segment("production"));
@@ -317,7 +317,7 @@ mod tests {
     }
 
     #[test]
-    fn test_is_known_resource_segment_包含直接资源() {
+    fn test_is_known_resource_segment_bhzjzy() {
         assert!(is_known_resource_segment("users"));
         assert!(is_known_resource_segment("roles"));
         assert!(is_known_resource_segment("departments"));
@@ -329,7 +329,7 @@ mod tests {
     }
 
     #[test]
-    fn test_is_known_resource_segment_未知段返回false() {
+    fn test_is_known_resource_segment_wzdfh_false() {
         assert!(!is_known_resource_segment("unknown-resource"));
         assert!(!is_known_resource_segment(""));
         assert!(!is_known_resource_segment("hack"));

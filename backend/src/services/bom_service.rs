@@ -193,31 +193,31 @@ mod tests {
         }
     }
 
-    /// 测试_BOM状态常量_Active值正确
+    /// test_bomztcl_activezzq
     /// 验证 BomStatus::Active 的字符串值与 common::STATUS_ACTIVE 一致（均为 "ACTIVE"），；确保 create/approve(true) 等方法写入数据库的状态值统一。
     #[test]
-    fn 测试_BOM状态常量_Active值正确() {
+    fn test_bomztcl_activezzq() {
         assert_eq!(BomStatus::Active.to_string(), "ACTIVE");
         assert_eq!(BomStatus::Active.to_string(), common::STATUS_ACTIVE);
     }
 
-    /// 测试_BOM状态常量_Inactive值正确（验证 BomStatus::Inactive 的字符串值为 "INACTIVE"，；用于 delete（软删除）和 approve(false) 流程。）
+    /// test_bomztcl_inactivezzq（验证 BomStatus::Inactive 的字符串值为 "INACTIVE"，；用于 delete（软删除）和 approve(false) 流程。）
     #[test]
-    fn 测试_BOM状态常量_Inactive值正确() {
+    fn test_bomztcl_inactivezzq() {
         assert_eq!(BomStatus::Inactive.to_string(), "INACTIVE");
     }
 
-    /// 测试_BOM状态常量_Pending值正确
+    /// test_bomztcl_pendingzzq
     /// 验证 BomStatus::Pending 的字符串值与 common::STATUS_PENDING 一致（均为 "PENDING"），；用于 submit 流程将状态由草稿/失效流转为审核中。
     #[test]
-    fn 测试_BOM状态常量_Pending值正确() {
+    fn test_bomztcl_pendingzzq() {
         assert_eq!(BomStatus::Pending.to_string(), "PENDING");
         assert_eq!(BomStatus::Pending.to_string(), common::STATUS_PENDING);
     }
 
-    /// 测试_BOM状态枚举_Display实现互不相同（验证三个状态的 Display 实现互不相同，避免状态机流转时误判。）
+    /// test_bomztmj_displaysxhbxt（验证三个状态的 Display 实现互不相同，避免状态机流转时误判。）
     #[test]
-    fn 测试_BOM状态枚举_Display实现互不相同() {
+    fn test_bomztmj_displaysxhbxt() {
         let active = BomStatus::Active.to_string();
         let inactive = BomStatus::Inactive.to_string();
         let pending = BomStatus::Pending.to_string();
@@ -227,9 +227,9 @@ mod tests {
         assert_ne!(inactive, pending);
     }
 
-    /// 测试_decs夹具宏解析十进制数（验证 decs! 宏能正确解析 Decimal 字符串，用于后续数量/金额计算测试夹具。）
+    /// test_decsjjhjxsjzs（验证 decs! 宏能正确解析 Decimal 字符串，用于后续数量/金额计算测试夹具。）
     #[test]
-    fn 测试_decs夹具宏解析十进制数() {
+    fn test_decsjjhjxsjzs() {
         let v = decs!("123.456");
         assert_eq!(v.to_string(), "123.456");
 
@@ -240,16 +240,16 @@ mod tests {
         assert_eq!(one, Decimal::ONE);
     }
 
-    /// 测试_ymd夹具宏解析日期（验证 ymd! 宏能正确解析日期，确保测试夹具日期可用。）
+    /// test_ymdjjhjxrq（验证 ymd! 宏能正确解析日期，确保测试夹具日期可用。）
     #[test]
-    fn 测试_ymd夹具宏解析日期() {
+    fn test_ymdjjhjxrq() {
         let d = ymd!(2026, 7, 9);
         assert_eq!(d.format("%Y-%m-%d").to_string(), "2026-07-09");
     }
 
-    /// 测试_BOM需求数量计算_叶子节点无损耗率（验证 collect_requirements 对叶子节点（无损耗率）的计算：实际需求量 = 父级需求量 * 节点数量，无损耗放大。）
+    /// test_bomxqsljs_yzjdwshl（验证 collect_requirements 对叶子节点（无损耗率）的计算：实际需求量 = 父级需求量 * 节点数量，无损耗放大。）
     #[tokio::test]
-    async fn 测试_BOM需求数量计算_叶子节点无损耗率() {
+    async fn test_bomxqsljs_yzjdwshl() {
         let db = setup_test_db().await;
         let service = BomService::new(Arc::new(db));
 
@@ -266,9 +266,9 @@ mod tests {
         assert_eq!(requirements[0].required_quantity, decs!("20"));
     }
 
-    /// 测试_BOM需求数量计算_叶子节点有损耗率（验证 collect_requirements 对叶子节点（损耗率 10%）的计算：损耗乘数 = 1 + 10/100 = 1.1；实际需求量 = 需求量 * 1.1。）
+    /// test_bomxqsljs_yzjdyshl（验证 collect_requirements 对叶子节点（损耗率 10%）的计算：损耗乘数 = 1 + 10/100 = 1.1；实际需求量 = 需求量 * 1.1。）
     #[tokio::test]
-    async fn 测试_BOM需求数量计算_叶子节点有损耗率() {
+    async fn test_bomxqsljs_yzjdyshl() {
         let db = setup_test_db().await;
         let service = BomService::new(Arc::new(db));
 
@@ -283,10 +283,10 @@ mod tests {
         assert_eq!(requirements[0].required_quantity, decs!("220"));
     }
 
-    /// 测试_BOM需求数量计算_损耗率为零不放大
+    /// test_bomxqsljs_shlwlbfd
     /// 验证 collect_requirements 中 scrap_rate == 0 时不应用损耗放大；（match 守卫 `rate > Decimal::ZERO` 为 false，乘数取 1）。
     #[tokio::test]
-    async fn 测试_BOM需求数量计算_损耗率为零不放大() {
+    async fn test_bomxqsljs_shlwlbfd() {
         let db = setup_test_db().await;
         let service = BomService::new(Arc::new(db));
 
@@ -301,9 +301,9 @@ mod tests {
         assert_eq!(requirements[0].required_quantity, decs!("50"));
     }
 
-    /// 测试_BOM需求数量计算_精度归一化四位小数（验证 collect_requirements 中 round_dp(4) 将中间结果归一化到 4 位小数，；防止 BOM 多层级递归数量计算时精度漂移。）
+    /// test_bomxqsljs_jdgyhswxs（验证 collect_requirements 中 round_dp(4) 将中间结果归一化到 4 位小数，；防止 BOM 多层级递归数量计算时精度漂移。）
     #[tokio::test]
-    async fn 测试_BOM需求数量计算_精度归一化四位小数() {
+    async fn test_bomxqsljs_jdgyhswxs() {
         let db = setup_test_db().await;
         let service = BomService::new(Arc::new(db));
 
@@ -318,9 +318,9 @@ mod tests {
         assert_eq!(requirements[0].required_quantity, decs!("1.2346"));
     }
 
-    /// 测试_BOM需求数量计算_递归多层级（验证 collect_requirements 递归处理多层级 BOM 树：根 → 子节点1（叶子，含损耗） + 子节点2（叶子，无损耗），；需求量按层级逐级相乘并应用损耗率。）
+    /// test_bomxqsljs_dgdcj（验证 collect_requirements 递归处理多层级 BOM 树：根 → 子节点1（叶子，含损耗） + 子节点2（叶子，无损耗），；需求量按层级逐级相乘并应用损耗率。）
     #[tokio::test]
-    async fn 测试_BOM需求数量计算_递归多层级() {
+    async fn test_bomxqsljs_dgdcj() {
         let db = setup_test_db().await;
         let service = BomService::new(Arc::new(db));
 
@@ -341,9 +341,9 @@ mod tests {
         assert_eq!(requirements[1].required_quantity, decs!("30"));
     }
 
-    /// 测试_BOM损耗率乘数公式（验证 collect_requirements 中的损耗率乘数公式：rate > 0 时乘数 = 1 + rate/100；否则乘数 = 1。）
+    /// test_bomshlcsgs（验证 collect_requirements 中的损耗率乘数公式：rate > 0 时乘数 = 1 + rate/100；否则乘数 = 1。）
     #[test]
-    fn 测试_BOM损耗率乘数公式() {
+    fn test_bomshlcsgs() {
         // 复现 collect_requirements 中的 scrap_multiplier 计算
         let calc_multiplier = |rate: Option<Decimal>| -> Decimal {
             match rate {
@@ -362,10 +362,10 @@ mod tests {
         assert_eq!(calc_multiplier(None), Decimal::ONE);
     }
 
-    /// 测试_BOM树根节点数量为一
+    /// test_bomsgjdslwy
     /// 验证 get_bom_tree 构造的根节点 quantity 为 Decimal::ONE，；确保 calculate_bom_requirements 传入的 quantity 直接作为根级实际需求量。
     #[test]
-    fn 测试_BOM树根节点数量为一() {
+    fn test_bomsgjdslwy() {
         // 复现 get_bom_tree 中根节点的 quantity 设置
         let root_quantity = Decimal::ONE;
         let parent_quantity = decs!("100");
@@ -375,9 +375,9 @@ mod tests {
         assert_eq!(required, decs!("100"));
     }
 
-    /// 测试_BOM需求收集_单叶子节点（验证 collect_requirements 对单叶子节点树（无子节点）直接产出一条需求记录，；需求量 = 父级需求量 * 节点数量。）
+    /// test_bomxqsj_dyzjd（验证 collect_requirements 对单叶子节点树（无子节点）直接产出一条需求记录，；需求量 = 父级需求量 * 节点数量。）
     #[tokio::test]
-    async fn 测试_BOM需求收集_单叶子节点() {
+    async fn test_bomxqsj_dyzjd() {
         let db = setup_test_db().await;
         let service = BomService::new(Arc::new(db));
 
@@ -391,9 +391,9 @@ mod tests {
         assert_eq!(requirements[0].product_name, "物料 #101");
     }
 
-    /// 测试_版本号计算_首个版本为1（验证 get_next_version 中无历史 BOM 时返回 1（纯逻辑复现）。）
+    /// test_bbhjs_sgbbw1（验证 get_next_version 中无历史 BOM 时返回 1（纯逻辑复现）。）
     #[test]
-    fn 测试_版本号计算_首个版本为1() {
+    fn test_bbhjs_sgbbw1() {
         // 复现 get_next_version 的纯算法：latest = None → 1
         let latest: Option<BomModel> = None;
         let next = match latest {
@@ -403,18 +403,18 @@ mod tests {
         assert_eq!(next, 1);
     }
 
-    /// 测试_版本号计算_递增逻辑（验证 get_next_version 中存在历史 BOM 时返回 version + 1（纯逻辑复现）。）
+    /// test_bbhjs_dzlj（验证 get_next_version 中存在历史 BOM 时返回 version + 1（纯逻辑复现）。）
     #[test]
-    fn 测试_版本号计算_递增逻辑() {
+    fn test_bbhjs_dzlj() {
         // 复现 get_next_version 的纯算法：latest = Some(version=5) → 6
         let latest_version = 5;
         let next = latest_version + 1;
         assert_eq!(next, 6);
     }
 
-    /// 测试_创建请求默认值_is_default默认false（验证 create 方法中 is_default.unwrap_or(false) 的默认值逻辑，；未显式指定默认版本时应为 false。）
+    /// test_cjqqmrz_is_defaultmrfalse（验证 create 方法中 is_default.unwrap_or(false) 的默认值逻辑，；未显式指定默认版本时应为 false。）
     #[test]
-    fn 测试_创建请求默认值_is_default默认false() {
+    fn test_cjqqmrz_is_defaultmrfalse() {
         let req = CreateBomRequest {
             product_id: 1,
             version: Some(1),
@@ -427,42 +427,42 @@ mod tests {
         assert_eq!(req.is_default.unwrap_or(false), false);
     }
 
-    /// 测试_错误消息_BOM不存在（验证 update/delete/set_default/get_bom_tree 中 not_found("BOM不存在") 的错误类型与消息。）
+    /// test_cwxx_bombcz（验证 update/delete/set_default/get_bom_tree 中 not_found("BOM不存在") 的错误类型与消息。）
     #[test]
-    fn 测试_错误消息_BOM不存在() {
+    fn test_cwxx_bombcz() {
         let err = AppError::not_found("BOM不存在");
         assert!(matches!(err, AppError::NotFound(_)));
         assert_eq!(err.to_string(), "未找到：BOM不存在");
     }
 
-    /// 测试_错误消息_BOM已处于审核中状态（验证 submit 方法中状态为 Pending 时拒绝重复提交的错误消息。）
+    /// test_cwxx_bomycyshzzt（验证 submit 方法中状态为 Pending 时拒绝重复提交的错误消息。）
     #[test]
-    fn 测试_错误消息_BOM已处于审核中状态() {
+    fn test_cwxx_bomycyshzzt() {
         let err = AppError::validation("BOM已处于审核中状态");
         assert!(matches!(err, AppError::ValidationError(_)));
         assert_eq!(err.to_string(), "验证错误：BOM已处于审核中状态");
     }
 
-    /// 测试_错误消息_仅审核中状态可审批（验证 approve 方法中状态非 Pending 时拒绝审批的错误消息。）
+    /// test_cwxx_jshzztksp（验证 approve 方法中状态非 Pending 时拒绝审批的错误消息。）
     #[test]
-    fn 测试_错误消息_仅审核中状态可审批() {
+    fn test_cwxx_jshzztksp() {
         let err = AppError::validation("仅审核中状态的BOM可以审批");
         assert!(matches!(err, AppError::ValidationError(_)));
         assert_eq!(err.to_string(), "验证错误：仅审核中状态的BOM可以审批");
     }
 
-    /// 测试_服务实例创建（验证 BomService 在 SQLite 内存数据库上能正常实例化。）
+    /// test_fwslcj（验证 BomService 在 SQLite 内存数据库上能正常实例化。）
     #[tokio::test]
-    async fn 测试_服务实例创建() {
+    async fn test_fwslcj() {
         let db = setup_test_db().await;
         let service = BomService::new(Arc::new(db));
         assert!(Arc::strong_count(&service.db) >= 1);
     }
 
-    /// 测试_创建BOM_需要真实数据库（需要 boms/bom_items 表 schema，标注 #[ignore] 仅在本地手动运行。；验证调用路径不 panic；无 schema 时返回数据库错误。）
+    /// test_cjbom_xyzssjk（需要 boms/bom_items 表 schema，标注 #[ignore] 仅在本地手动运行。；验证调用路径不 panic；无 schema 时返回数据库错误。）
     #[tokio::test]
     #[ignore]
-    async fn 测试_创建BOM_需要真实数据库() {
+    async fn test_cjbom_xyzssjk() {
         let db = setup_test_db().await;
         let service = BomService::new(Arc::new(db));
 
@@ -485,10 +485,10 @@ mod tests {
         assert!(result.is_err());
     }
 
-    /// 测试_获取BOM树_需要真实数据库（需要 boms/bom_items 表 schema，标注 #[ignore] 仅在本地手动运行。；验证调用路径不 panic。）
+    /// test_hqboms_xyzssjk（需要 boms/bom_items 表 schema，标注 #[ignore] 仅在本地手动运行。；验证调用路径不 panic。）
     #[tokio::test]
     #[ignore]
-    async fn 测试_获取BOM树_需要真实数据库() {
+    async fn test_hqboms_xyzssjk() {
         let db = setup_test_db().await;
         let service = BomService::new(Arc::new(db));
 
@@ -498,10 +498,10 @@ mod tests {
         assert!(result.is_err(), "无 schema/无记录时应返回错误");
     }
 
-    /// 测试_提交审核_需要真实数据库（需要 boms 表 schema，标注 #[ignore] 仅在本地手动运行。；验证调用路径不 panic。）
+    /// test_tjsh_xyzssjk（需要 boms 表 schema，标注 #[ignore] 仅在本地手动运行。；验证调用路径不 panic。）
     #[tokio::test]
     #[ignore]
-    async fn 测试_提交审核_需要真实数据库() {
+    async fn test_tjsh_xyzssjk() {
         let db = setup_test_db().await;
         let service = BomService::new(Arc::new(db));
 

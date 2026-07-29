@@ -15,14 +15,14 @@ use bingxi_backend::services::quotation_approval_service::ApproverRole;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
-/// 测试_金额阶梯审批角色判定_覆盖三档
+/// test_jejtspjspd_fgsd
 ///
 /// 业务规则：ApproverRole::from_amount 根据 amount 返回对应审批角色
 /// - ≤ 100,000 → Salesperson
 /// - 100,001 ~ 500,000 → SalesManager
 /// - > 500,000 → GeneralManager
 #[test]
-fn 测试_金额阶梯审批角色判定_覆盖三档() {
+fn test_jejtspjspd_fgsd() {
     assert_eq!(
         ApproverRole::from_amount(dec!(50000)),
         ApproverRole::Salesperson
@@ -37,7 +37,7 @@ fn 测试_金额阶梯审批角色判定_覆盖三档() {
     );
 }
 
-/// 测试_金额阶梯_边界值校验
+/// test_jejt_bjzjy
 ///
 /// 验证阈值边界（100000 / 500000）的角色切换。
 /// 实际业务逻辑（from_amount）：
@@ -45,7 +45,7 @@ fn 测试_金额阶梯审批角色判定_覆盖三档() {
 /// - 100000 ≤ amount < 500000 → SalesManager
 /// - amount ≥ 500000 → GeneralManager
 #[test]
-fn 测试_金额阶梯_边界值校验() {
+fn test_jejt_bjzjy() {
     // 99,999 仍为 Salesperson（< 100000）
     assert_eq!(
         ApproverRole::from_amount(dec!(99999)),
@@ -68,12 +68,12 @@ fn 测试_金额阶梯_边界值校验() {
     );
 }
 
-/// 测试_CreateQuotationDto_反序列化_标准报价单
+/// test_createquotationdto_fxlh_bzbjd
 ///
 /// 验证前端 POST 的 JSON 能正确反序列化为 CreateQuotationDto，
 /// 包含 customer_id / items / tax 等核心字段。
 #[test]
-fn 测试_CreateQuotationDto_反序列化_标准报价单() {
+fn test_createquotationdto_fxlh_bzbjd() {
     let json = r#"{
         "customer_id": 1,
         "sales_user_id": 2,
@@ -102,12 +102,12 @@ fn 测试_CreateQuotationDto_反序列化_标准报价单() {
     assert!(!dto.tax_inclusive);
 }
 
-/// 测试_QuotationResponseDto_序列化_保留核心字段
+/// test_quotationresponsedto_xlh_blhxzd
 ///
 /// 验证后端返回给前端的 QuotationResponseDto 能被序列化为 JSON，
 /// 包含 quotation_no / status / total_amount 等关键字段。
 #[test]
-fn 测试_QuotationResponseDto_序列化_保留核心字段() {
+fn test_quotationresponsedto_xlh_blhxzd() {
     use chrono::Utc;
     let dto = QuotationResponseDto {
         id: 1,
@@ -139,12 +139,12 @@ fn 测试_QuotationResponseDto_序列化_保留核心字段() {
     assert!(json.contains("\"total_amount\":5650"), "应包含总金额");
 }
 
-/// 测试_SalesQuotationModel_默认字段值
+/// test_salesquotationmodel_mrzdz
 ///
 /// 验证 sales_quotation::Model 能被手工构造（用于测试夹具），
 /// 默认 status="draft"、total_amount=0。
 #[test]
-fn 测试_SalesQuotationModel_默认字段值() {
+fn test_salesquotationmodel_mrzdz() {
     let today = chrono::NaiveDate::from_ymd_opt(2026, 6, 16).unwrap();
     let m = sales_quotation::Model {
         id: 0,
@@ -184,13 +184,13 @@ fn 测试_SalesQuotationModel_默认字段值() {
     assert_eq!(m.currency, "CNY");
 }
 
-/// 测试_报价单完整业务流程_需真实DB
+/// test_bjdwzywlc_xzsdb
 ///
 /// 真实端到端测试：创建 → 提交 → 审批 → 转订单 → 完成。
 /// 需要 quotations 表 schema + QuotationService 实例。
 #[tokio::test]
 #[ignore = "需要 quotations 表 schema + QuotationService"]
-async fn 测试_报价单完整业务流程_需真实DB() {
+async fn test_bjdwzywlc_xzsdb() {
     // 占位：业务流程需 QuotationService + DB schema 协同。
     // CI 环境通过 TEST_DATABASE_URL 提供真实 DB，移除 #[ignore] 即可运行。
 }

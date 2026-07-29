@@ -37,11 +37,11 @@ mod tests {
 
     // ===== 状态常量值正确性 =====
 
-    /// 测试_生产订单状态常量_值正确性
+    /// test_scddztcl_zzqx
     ///
     /// 验证生产订单相关的状态常量值符合预期（大写风格）。
     #[test]
-    fn 测试_生产订单状态常量_值正确性() {
+    fn test_scddztcl_zzqx() {
         assert_eq!(common::STATUS_DRAFT, "DRAFT");
         assert_eq!(common::STATUS_APPROVED, "APPROVED");
         assert_eq!(common::STATUS_CANCELLED, "CANCELLED");
@@ -52,11 +52,11 @@ mod tests {
         assert_eq!(production::PRODUCTION_REJECTED, "REJECTED");
     }
 
-    /// 测试_生产订单状态常量_大写风格一致性
+    /// test_scddztcl_dxfgyzx
     ///
     /// 验证所有生产订单状态常量均为大写 + 下划线风格。
     #[test]
-    fn 测试_生产订单状态常量_大写风格一致性() {
+    fn test_scddztcl_dxfgyzx() {
         let statuses = [
             common::STATUS_DRAFT,
             common::STATUS_APPROVED,
@@ -78,23 +78,23 @@ mod tests {
 
     // ===== Service 实例化与 DB 异常路径 =====
 
-    /// 测试_ProductionOrderService_实例化不触发DB
+    /// test_productionorderservice_slhbcfdb
     ///
     /// 验证 new(db) 仅存储 Arc<DatabaseConnection>，不执行任何 DB 查询。
     #[tokio::test]
-    async fn 测试_ProductionOrderService_实例化不触发DB() {
+    async fn test_productionorderservice_slhbcfdb() {
         let db = setup_test_db().await;
         let svc = ProductionOrderService::new(Arc::new(db));
         // 仅验证实例化成功，不调用任何方法
         let _ = svc;
     }
 
-    /// 测试_ProductionOrderService_create_空DB返回Err
+    /// test_productionorderservice_create_kdbfherr
     ///
     /// 验证在空 SQLite 数据库上 create 方法返回 Err（因 product 表不存在）而非 panic。
     /// 这是健壮性测试：service 在 DB 异常时应优雅降级。
     #[tokio::test]
-    async fn 测试_ProductionOrderService_create_空DB返回Err() {
+    async fn test_productionorderservice_create_kdbfherr() {
         let db = setup_test_db().await;
         let svc = ProductionOrderService::new(Arc::new(db));
         let req = sample_create_request();
@@ -106,22 +106,22 @@ mod tests {
         );
     }
 
-    /// 测试_ProductionOrderService_get_by_id_空DB返回Err
+    /// test_productionorderservice_get_by_id_kdbfherr
     ///
     /// 验证在空 SQLite 数据库上 get_by_id 方法返回 Err（表不存在）而非 panic。
     #[tokio::test]
-    async fn 测试_ProductionOrderService_get_by_id_空DB返回Err() {
+    async fn test_productionorderservice_get_by_id_kdbfherr() {
         let db = setup_test_db().await;
         let svc = ProductionOrderService::new(Arc::new(db));
         let result = svc.get_by_id(1).await;
         assert!(result.is_err(), "空 DB 上 get_by_id 应返回 Err");
     }
 
-    /// 测试_ProductionOrderService_list_空DB返回Err
+    /// test_productionorderservice_list_kdbfherr
     ///
     /// 验证在空 SQLite 数据库上 list 方法返回 Err（表不存在）而非 panic。
     #[tokio::test]
-    async fn 测试_ProductionOrderService_list_空DB返回Err() {
+    async fn test_productionorderservice_list_kdbfherr() {
         let db = setup_test_db().await;
         let svc = ProductionOrderService::new(Arc::new(db));
         let query = ProductionOrderQuery {
@@ -134,22 +134,22 @@ mod tests {
         assert!(result.is_err(), "空 DB 上 list 应返回 Err");
     }
 
-    /// 测试_ProductionOrderService_submit_for_approval_空DB返回Err
+    /// test_productionorderservice_submit_for_approval_kdbfherr
     ///
     /// 验证在空 SQLite 数据库上 submit_for_approval 方法返回 Err（表不存在）而非 panic。
     #[tokio::test]
-    async fn 测试_ProductionOrderService_submit_for_approval_空DB返回Err() {
+    async fn test_productionorderservice_submit_for_approval_kdbfherr() {
         let db = setup_test_db().await;
         let svc = ProductionOrderService::new(Arc::new(db));
         let result = svc.submit_for_approval(1, 1, "测试用户").await;
         assert!(result.is_err(), "空 DB 上 submit_for_approval 应返回 Err");
     }
 
-    /// 测试_ProductionOrderService_approve_order_空DB返回Err
+    /// test_productionorderservice_approve_order_kdbfherr
     ///
     /// 验证在空 SQLite 数据库上 approve_order 方法返回 Err（表不存在）而非 panic。
     #[tokio::test]
-    async fn 测试_ProductionOrderService_approve_order_空DB返回Err() {
+    async fn test_productionorderservice_approve_order_kdbfherr() {
         let db = setup_test_db().await;
         let svc = ProductionOrderService::new(Arc::new(db));
         let result = svc.approve_order(1, 1, "测试用户", true, None).await;
@@ -164,7 +164,7 @@ mod tests {
     /// 设置 TEST_DATABASE_URL=postgres://... 环境变量后运行：cargo test -- --ignored
     #[tokio::test]
     #[ignore = "需要 PostgreSQL 测试数据库 + 前置产品/工作中心数据"]
-    async fn 测试_生产订单全流程_创建到完成() {
+    async fn test_scddqlc_cjdwc() {
         let db_url = std::env::var("TEST_DATABASE_URL").expect("需设置 TEST_DATABASE_URL 环境变量");
         let db = Database::connect(&db_url).await.expect("DB 连接失败");
         let svc = ProductionOrderService::new(Arc::new(db));

@@ -133,8 +133,13 @@ pub struct ShortageCheckRequest {
 }
 
 /// 缺料预警 Service
+///
+/// P1 batch-18 缺陷 8.2：检测到 Critical 短缺时同步推送站内信+邮件给采购员与计划员
 pub struct MaterialShortageService {
     db: Arc<DatabaseConnection>,
+    /// 事件通知服务（用于 Critical 级别主动通知）
+    notification_service:
+        Option<crate::services::event_notification_service::EventNotificationService>,
 }
 
 type ProductionOrderModel = crate::models::production_order::Model;
@@ -309,7 +314,21 @@ fn build_shortage_summary(
 
 impl MaterialShortageService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
+        Self {
+            db: db.clone(),
+            // P1 batch-18 缺陷 8.2：默认注入 EventNotificationService 用于 Critical 主动通知
+            notification_service: Some(
+                crate::services::event_notification_service::EventNotificationService::new(db),
+            ),
+        }
+    }
+
+    /// 构造不启用主动通知的服务实例（仅用于不需要通知的场景，如定时任务批量检测）
+    pub fn without_notification(db: Arc<DatabaseConnection>) -> Self {
+        Self {
+            db,
+            notification_service: None,
+        }
     }
 
     /// 执行缺料检测
@@ -352,7 +371,116 @@ impl MaterialShortageService {
         if let Err(e) = self.persist_alerts(&items).await {
             tracing::warn!(error = %e, "persist_alerts 持久化缺料预警失败（不阻断检测，降级为 warn）");
         }
+        // P1 batch-18 缺陷 8.2：Critical 级别缺料（库存为 0）主动推送站内信+邮件给采购员与计划员
+        // 失败不阻断检测主流程（降级为 warn，与 persist_alerts 策略一致）
+        if let Err(e) = self.notify_critical_shortages(&items).await {
+            tracing::warn!(
+                error = %e,
+                "notify_critical_shortages 推送 Critical 缺料通知失败（不阻断检测，降级为 warn）"
+            );
+        }
         Ok(build_shortage_summary(material_requirements.len(), items))
+    }
+
+    /// P1 batch-18 缺陷 8.2：Critical 级别缺料主动通知
+    /// 策略：检测到 Critical（库存为 0）时同步调用 EventNotificationService 推送站内信+邮件给
+    /// 采购员（purchase_clerk）与计划员（planner）+ admin/manager 兜底，5 分钟去重防止告警轰炸。
+    async fn notify_critical_shortages(
+        &self,
+        items: &[MaterialShortageItem],
+    ) -> Result<(), AppError> {
+        let Some(notify_svc) = &self.notification_service else {
+            return Ok(());
+        };
+        let critical_items: Vec<&MaterialShortageItem> = items
+            .iter()
+            .filter(|i| i.level == ShortageLevel::Critical)
+            .collect();
+        if critical_items.is_empty() {
+            return Ok(());
+        }
+        // P1 缺陷 8.2：通知目标为采购员 + 计划员 + admin/manager 兜底（复用 listener 模式）
+        let notify_user_ids = self.fetch_critical_shortage_notify_users().await;
+        if notify_user_ids.is_empty() {
+            tracing::warn!(
+                "notify_critical_shortages: 未找到采购员/计划员/admin 角色用户，跳过通知"
+            );
+            return Ok(());
+        }
+
+        for item in &critical_items {
+            // 复用 notify_inventory_alert_batch（站内信+邮件+5min 去重）
+            // 通知内容描述缺料严重程度与受影响订单数
+            let current_stock = format!(
+                "{} {}",
+                item.available_quantity,
+                item.unit.as_deref().unwrap_or("")
+            );
+            let threshold = format!(
+                "需 {} {}",
+                item.required_quantity,
+                item.unit.as_deref().unwrap_or("")
+            );
+            if let Err(e) = notify_svc
+                .notify_inventory_alert_batch(
+                    &notify_user_ids,
+                    &format!("{}（紧急缺料）", item.material_name),
+                    item.material_id,
+                    &current_stock,
+                    &threshold,
+                )
+                .await
+            {
+                tracing::warn!(
+                    error = %e,
+                    material_id = item.material_id,
+                    "notify_critical_shortages: 单项通知失败（继续后续项）"
+                );
+            }
+        }
+        tracing::info!(
+            critical_count = critical_items.len(),
+            notify_user_count = notify_user_ids.len(),
+            "notify_critical_shortages: Critical 缺料通知已推送"
+        );
+        Ok(())
+    }
+
+    /// P1 batch-18 缺陷 8.2：查询 Critical 缺料通知目标用户
+    /// 目标角色：purchase_clerk（采购员）+ planner（计划员）+ admin/manager 兜底
+    async fn fetch_critical_shortage_notify_users(&self) -> Vec<i32> {
+        use crate::models::role::{self, Column as RoleColumn};
+        use crate::models::user::{self, Column as UserColumn};
+        use sea_orm::QueryFilter;
+
+        // 查询目标角色 ID（admin/manager/purchase_clerk/planner）
+        let target_role_ids: Vec<i32> = role::Entity::find()
+            .filter(
+                RoleColumn::Code
+                    .eq("admin")
+                    .or(RoleColumn::Code.eq("manager"))
+                    .or(RoleColumn::Code.eq("purchase_clerk"))
+                    .or(RoleColumn::Code.eq("planner"))
+                    .or(RoleColumn::Code.eq("warehouse_manager")),
+            )
+            .all(&*self.db)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|r| r.id)
+            .collect();
+        if target_role_ids.is_empty() {
+            return Vec::new();
+        }
+        user::Entity::find()
+            .filter(UserColumn::IsActive.eq(true))
+            .filter(UserColumn::RoleId.is_in(target_role_ids))
+            .all(&*self.db)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|u| u.id)
+            .collect()
     }
 
     /// 拉取活跃生产订单（SCHEDULED/IN_PROGRESS）并应用过滤条件

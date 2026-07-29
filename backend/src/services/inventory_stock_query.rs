@@ -311,6 +311,8 @@ impl InventoryStockService {
 
     /// 获取库存告警
     /// 批次 126 v8 复审 P2 修复：alert_type 字段从硬编码 "normal" 改为派生计算。；compute_alert_type 函数根据 stock_status / quantity_available / reorder_point /；expiry_date / max_stock_point / last_movement_date 派生告警类型；（discrepancy/out_of_stock/low_stock/over_stock/expiring/slow_moving/normal）。；v11 批次 144 P1-4 修复：接入 max_stock_point 字段，支持 OverStock（高于上限）告警；接入 last_movement_date 字段，支持 SlowMoving（滞销）告警；返回字段包含 reorder_point / max_stock_point / expiry_date / last_movement_date /；stock_status，便于前端展示阈值上下文。
+    ///
+    /// P1 batch-18 缺陷 7.2：检测到非 normal 告警时同步推送站内信+邮件给计划员/仓管员
     pub async fn get_stock_alerts(
         &self,
         query: serde_json::Value,
@@ -360,10 +362,153 @@ impl InventoryStockService {
             })
             .collect();
 
+        // P1 batch-18 缺陷 7.2：非 normal 告警主动推送站内信+邮件
+        // 失败不阻断查询主流程（降级为 warn）
+        if let Err(e) = self.notify_stock_alerts(&alert_list).await {
+            tracing::warn!(
+                error = %e,
+                "缺陷 7.2：库存告警通知推送失败（不阻断查询，降级为 warn）"
+            );
+        }
+
         Ok(serde_json::json!({
             "list": alert_list,
             "total": alert_list.len(),
         }))
+    }
+
+    /// P1 batch-18 缺陷 7.2：库存告警主动通知
+    /// 策略：对非 normal 告警项，按 product 维度聚合后调用 EventNotificationService
+    /// 推送站内信+邮件给计划员/仓管员/admin/manager，5min 去重防止告警轰炸。
+    async fn notify_stock_alerts(&self, alert_list: &[serde_json::Value]) -> Result<(), AppError> {
+        let Some(notify_svc) = &self.notification_service else {
+            return Ok(());
+        };
+
+        // 过滤出非 normal 告警项
+        let abnormal_alerts: Vec<&serde_json::Value> = alert_list
+            .iter()
+            .filter(|a| {
+                a.get("alert_type")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s != "normal")
+                    .unwrap_or(false)
+            })
+            .collect();
+        if abnormal_alerts.is_empty() {
+            return Ok(());
+        }
+
+        // 通知目标：planner（计划员）+ warehouse_manager（仓管员）+ admin/manager 兜底
+        let notify_user_ids = self.fetch_stock_alert_notify_users().await;
+        if notify_user_ids.is_empty() {
+            tracing::warn!("缺陷 7.2：未找到 planner/warehouse_manager/admin 角色用户，跳过通知");
+            return Ok(());
+        }
+
+        // 按 product_id 聚合（同产品多个仓库告警合并为一条通知，避免重复）
+        use std::collections::HashMap;
+        let mut by_product: HashMap<i32, (String, Vec<&serde_json::Value>)> = HashMap::new();
+        for alert in &abnormal_alerts {
+            let pid = alert
+                .get("product_id")
+                .and_then(|v| v.as_i64())
+                .map(|v| v as i32)
+                .unwrap_or(0);
+            let alert_type = alert
+                .get("alert_type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown");
+            let available = alert
+                .get("quantity_available")
+                .and_then(|v| v.as_str())
+                .unwrap_or("0");
+            let reorder = alert
+                .get("reorder_point")
+                .and_then(|v| v.as_str())
+                .unwrap_or("0");
+            let title = format!("产品 ID {} 库存告警（{}）", pid, alert_type);
+            by_product
+                .entry(pid)
+                .or_insert_with(|| (title.clone(), Vec::new()))
+                .1
+                .push(alert);
+            // 取首条作为通知内容主键（避免循环内重复构造 title）
+            let _ = (available, reorder);
+        }
+
+        // 推送通知（每产品一条，notify_inventory_alert_batch 自带 5min 去重）
+        for (product_id, (title, alerts)) in by_product {
+            let first = alerts.first();
+            let available = first
+                .and_then(|a| a.get("quantity_available"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("0");
+            let reorder = first
+                .and_then(|a| a.get("reorder_point"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("0");
+            let warehouse_count = alerts.len();
+            let current_stock = format!("可用 {} / 涉及 {} 个仓库批次", available, warehouse_count);
+            let threshold = format!("补货点 {}", reorder);
+            let result: Result<(), AppError> = notify_svc
+                .notify_inventory_alert_batch(
+                    &notify_user_ids,
+                    &title,
+                    product_id,
+                    &current_stock,
+                    &threshold,
+                )
+                .await;
+            if let Err(e) = result {
+                tracing::warn!(
+                    error = %e,
+                    product_id,
+                    "缺陷 7.2：单产品告警通知失败（继续后续产品）"
+                );
+            }
+        }
+        tracing::info!(
+            abnormal_count = abnormal_alerts.len(),
+            notify_user_count = notify_user_ids.len(),
+            "缺陷 7.2：库存告警通知已推送"
+        );
+        Ok(())
+    }
+
+    /// P1 batch-18 缺陷 7.2：查询库存告警通知目标用户
+    /// 目标角色：planner（计划员）+ warehouse_manager（仓管员）+ admin/manager 兜底
+    async fn fetch_stock_alert_notify_users(&self) -> Vec<i32> {
+        use crate::models::role::{self, Column as RoleColumn};
+        use crate::models::user::{self, Column as UserColumn};
+        use sea_orm::QueryFilter;
+
+        let target_role_ids: Vec<i32> = role::Entity::find()
+            .filter(
+                RoleColumn::Code
+                    .eq("admin")
+                    .or(RoleColumn::Code.eq("manager"))
+                    .or(RoleColumn::Code.eq("planner"))
+                    .or(RoleColumn::Code.eq("warehouse_manager")),
+            )
+            .all(&*self.db)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|r| r.id)
+            .collect();
+        if target_role_ids.is_empty() {
+            return Vec::new();
+        }
+        user::Entity::find()
+            .filter(UserColumn::IsActive.eq(true))
+            .filter(UserColumn::RoleId.is_in(target_role_ids))
+            .all(&*self.db)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|u| u.id)
+            .collect()
     }
 }
 
@@ -410,20 +555,21 @@ mod tests {
             stock_status: "正常".to_string(),
             quality_status: "合格".to_string(),
             version: 0,
+            replenishment_strategy: "reorder_point".to_string(),
         }
     }
 
     // ========== 优先级 1: discrepancy（状态异常）==========
 
     #[test]
-    fn 测试_库存告警_状态异常返回discrepancy() {
+    fn test_kcgj_ztycfhdiscrepancy() {
         let mut stock = make_stock_model();
         stock.stock_status = "冻结".to_string();
         assert_eq!(compute_alert_type(&stock), AlertType::Discrepancy.code());
     }
 
     #[test]
-    fn 测试_库存告警_状态异常优先级最高_覆盖缺货() {
+    fn test_kcgj_ztycyxjzg_fgqh() {
         // 状态异常 + 缺货条件同时满足，应返回 discrepancy（优先级 1 > 2）
         let mut stock = make_stock_model();
         stock.stock_status = "待检".to_string();
@@ -435,7 +581,7 @@ mod tests {
     // ========== 优先级 2: out_of_stock（缺货）==========
 
     #[test]
-    fn 测试_库存告警_缺货返回out_of_stock() {
+    fn test_kcgj_qhfhout_of_stock() {
         let mut stock = make_stock_model();
         stock.reorder_point = decs!("50");
         stock.quantity_available = Decimal::ZERO;
@@ -443,7 +589,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试_库存告警_缺货未设置补货点不触发告警() {
+    fn test_kcgj_qhwszbhdbcfgj() {
         // reorder_point == 0 时不判定缺货（未设置补货策略）
         let mut stock = make_stock_model();
         stock.reorder_point = Decimal::ZERO;
@@ -454,7 +600,7 @@ mod tests {
     // ========== 优先级 3: low_stock（低于下限）==========
 
     #[test]
-    fn 测试_库存告警_低于下限返回low_stock() {
+    fn test_kcgj_dyxxfhlow_stock() {
         let mut stock = make_stock_model();
         stock.reorder_point = decs!("50");
         stock.quantity_available = decs!("30");
@@ -464,7 +610,7 @@ mod tests {
     // ========== 优先级 4: over_stock（高于上限）==========
 
     #[test]
-    fn 测试_库存告警_高于上限返回over_stock() {
+    fn test_kcgj_gysxfhover_stock() {
         let mut stock = make_stock_model();
         stock.max_stock_point = decs!("200");
         stock.quantity_available = decs!("250");
@@ -472,7 +618,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试_库存告警_高于上限未设置上限不触发告警() {
+    fn test_kcgj_gysxwszsxbcfgj() {
         // max_stock_point == 0 时不判定超储
         let mut stock = make_stock_model();
         stock.max_stock_point = Decimal::ZERO;
@@ -483,7 +629,7 @@ mod tests {
     // ========== 优先级 5: expiring（即将过期）==========
 
     #[test]
-    fn 测试_库存告警_即将过期返回expiring() {
+    fn test_kcgj_jjgqfhexpiring() {
         let mut stock = make_stock_model();
         // 过期日期距今 10 天（≤ 30 天阈值）
         stock.expiry_date = Some(Utc::now() + Duration::days(10));
@@ -491,7 +637,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试_库存告警_过期日期恰等于阈值返回expiring() {
+    fn test_kcgj_gqrqqdyyzfhexpiring() {
         let mut stock = make_stock_model();
         // 过期日期距今 30 天（== EXPIRING_THRESHOLD_DAYS，边界 ≤ 判定）
         stock.expiry_date = Some(Utc::now() + Duration::days(30));
@@ -501,7 +647,7 @@ mod tests {
     // ========== 优先级 6: slow_moving（滞销）==========
 
     #[test]
-    fn 测试_库存告警_滞销返回slow_moving() {
+    fn test_kcgj_zxfhslow_moving() {
         let mut stock = make_stock_model();
         // 最后变动日期距今 100 天（> 90 天阈值）
         stock.last_movement_date = Some(Utc::now() - Duration::days(100));
@@ -509,7 +655,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试_库存告警_从未变动且有库存返回slow_moving() {
+    fn test_kcgj_cwbdqykcfhslow_moving() {
         let mut stock = make_stock_model();
         // last_movement_date 为 None 且有库存 → 视为滞销
         stock.last_movement_date = None;
@@ -518,7 +664,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试_库存告警_从未变动且无库存不返回slow_moving() {
+    fn test_kcgj_cwbdqwkcbfhslow_moving() {
         // last_movement_date 为 None 但无库存 → 不判定滞销（无库存无所谓滞销）
         let mut stock = make_stock_model();
         stock.last_movement_date = None;
@@ -530,7 +676,7 @@ mod tests {
     // ========== 优先级 7: normal（正常）==========
 
     #[test]
-    fn 测试_库存告警_正常库存返回normal() {
+    fn test_kcgj_zckcfhnormal() {
         let stock = make_stock_model();
         assert_eq!(compute_alert_type(&stock), ALERT_TYPE_NORMAL);
     }
@@ -538,7 +684,7 @@ mod tests {
     // ========== 优先级链路覆盖测试 ==========
 
     #[test]
-    fn 测试_库存告警_优先级链路_缺货高于低于下限() {
+    fn test_kcgj_yxjll_qhgydyxx() {
         // quantity_available == 0 满足缺货条件，同时 < reorder_point 满足低于下限
         // 缺货（优先级 2）应先于低于下限（优先级 3）返回
         let mut stock = make_stock_model();
@@ -548,7 +694,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试_库存告警_优先级链路_低于下限高于高于上限() {
+    fn test_kcgj_yxjll_dyxxgygysx() {
         // 同时满足低于下限和高于上限不可能（quantity_available < reorder_point 且 > max_stock_point）
         // 此测试验证逻辑不冲突：reorder_point=50, max_stock_point=200, quantity=30 → low_stock
         let mut stock = make_stock_model();

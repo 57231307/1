@@ -113,13 +113,32 @@ pub struct LoadAnalysisQuery {
 }
 
 /// 产能分析 Service
+///
+/// P1 batch-18 缺陷 11.3：工作中心状态变更 Maintenance 时自动重排受影响订单
 pub struct CapacityService {
     db: Arc<DatabaseConnection>,
+    /// 事件通知服务（用于工作中心状态异常时通知计划员）
+    notification_service:
+        Option<crate::services::event_notification_service::EventNotificationService>,
 }
 
 impl CapacityService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
+        Self {
+            db: db.clone(),
+            // P1 batch-18 缺陷 11.3：默认注入 EventNotificationService 用于状态异常通知
+            notification_service: Some(
+                crate::services::event_notification_service::EventNotificationService::new(db),
+            ),
+        }
+    }
+
+    /// 构造不启用主动通知的服务实例（用于不需要通知的场景）
+    pub fn without_notification(db: Arc<DatabaseConnection>) -> Self {
+        Self {
+            db,
+            notification_service: None,
+        }
     }
 
     /// 获取所有工作中心及其产能信息
@@ -392,6 +411,13 @@ impl CapacityService {
     }
 
     /// 更新工作中心
+    ///
+    /// P1 batch-18 缺陷 11.3：当工作中心状态由非 Maintenance 变更为 Maintenance 且
+    /// `auto_reschedule_enabled == true` 时，自动触发受影响订单的重排：
+    /// 1. 查询该工作中心上所有 SCHEDULED 状态的生产订单（IN_PROGRESS 不动，已开工）
+    /// 2. 将其状态重置为 DRAFT 并清空 work_center_id（使 auto_schedule 可重新分配）
+    /// 3. 调用 SchedulingService::auto_schedule 重排到其他可用工作中心
+    /// 4. 推送站内信给计划员，告知重排结果
     pub async fn update_work_center(
         &self,
         id: i32,
@@ -401,6 +427,12 @@ impl CapacityService {
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("工作中心 ID {} 不存在", id)))?;
+
+        // P1 batch-18 缺陷 11.3：捕获变更前状态用于检测状态变更
+        let previous_status = existing.status.clone();
+        let auto_reschedule_enabled = existing.auto_reschedule_enabled;
+        let wc_code = existing.code.clone();
+        let wc_name = existing.name.clone();
 
         let mut active_model: WorkCenterActiveModel = existing.into();
 
@@ -429,7 +461,201 @@ impl CapacityService {
 
         let model = active_model.update(&*self.db).await?;
 
+        // P1 batch-18 缺陷 11.3：状态变更为 Maintenance 时触发自动重排
+        // 仅当 previous_status != MAINTENANCE 且 new_status == MAINTENANCE 且 auto_reschedule_enabled
+        let status_changed_to_maintenance =
+            previous_status != "MAINTENANCE" && model.status == "MAINTENANCE";
+        if status_changed_to_maintenance && auto_reschedule_enabled {
+            if let Err(e) = self
+                .auto_reschedule_for_maintenance(id, &wc_code, &wc_name)
+                .await
+            {
+                tracing::warn!(
+                    error = %e,
+                    work_center_id = id,
+                    "缺陷 11.3：自动重排失败（不阻断工作中心更新，降级为 warn）"
+                );
+            }
+        }
+
         self.get_work_center(model.id).await
+    }
+
+    /// P1 batch-18 缺陷 11.3：工作中心进入 Maintenance 时自动重排受影响订单
+    ///
+    /// 策略：
+    /// 1. 查询该工作中心上所有 SCHEDULED 状态的生产订单（IN_PROGRESS 已开工不动）
+    /// 2. 重置为 DRAFT 状态并清空 work_center_id（使 auto_schedule 可重新分配）
+    /// 3. 调用 SchedulingService::auto_schedule 重排到其他 ACTIVE 工作中心
+    /// 4. 推送站内信给计划员（planner）+ admin/manager 兜底
+    async fn auto_reschedule_for_maintenance(
+        &self,
+        work_center_id: i32,
+        wc_code: &str,
+        wc_name: &str,
+    ) -> Result<(), AppError> {
+        use crate::models::production_order::{
+            ActiveModel as ProductionOrderActiveModel, Column as ProductionOrderColumn,
+            Entity as ProductionOrderEntity,
+        };
+        use sea_orm::ColumnTrait;
+
+        // 1. 查询受影响的 SCHEDULED 订单（IN_PROGRESS 不重排：已开工无法迁移）
+        let affected_orders = ProductionOrderEntity::find()
+            .filter(ProductionOrderColumn::WorkCenterId.eq(work_center_id))
+            .filter(ProductionOrderColumn::Status.eq("SCHEDULED"))
+            .all(&*self.db)
+            .await?;
+
+        let affected_count = affected_orders.len() as i32;
+        if affected_count == 0 {
+            tracing::info!(
+                work_center_id,
+                wc_code,
+                "缺陷 11.3：工作中心进入 Maintenance，无 SCHEDULED 订单需重排"
+            );
+            return Ok(());
+        }
+
+        // 2. 重置受影响订单为 DRAFT + 清空 work_center_id（使 auto_schedule 可重新分配）
+        let affected_order_ids: Vec<i32> = affected_orders.iter().map(|o| o.id).collect();
+        for order in &affected_orders {
+            let mut active: ProductionOrderActiveModel = order.clone().into();
+            active.status = Set("DRAFT".to_string());
+            active.work_center_id = Set(None);
+            active.updated_at = Set(Utc::now());
+            active.update(&*self.db).await?;
+        }
+        tracing::info!(
+            work_center_id,
+            wc_code,
+            affected_count,
+            "缺陷 11.3：已重置 {} 个 SCHEDULED 订单为 DRAFT 待重排",
+            affected_count
+        );
+
+        // 3. 调用 SchedulingService::auto_schedule 重新分配到其他 ACTIVE 工作中心
+        let scheduling_service =
+            crate::services::scheduling_service::SchedulingService::new(self.db.clone());
+        let today = chrono::Utc::now().date_naive();
+        let end_date = today + chrono::Duration::days(30);
+        let req = crate::services::scheduling_service::AutoScheduleRequest {
+            start_date: today,
+            end_date,
+            // 不传 work_center_ids：使用所有 ACTIVE 工作中心（排除已 Maintenance 的本中心）
+            work_center_ids: None,
+            algo: "priority".to_string(),
+        };
+        let schedule_result = scheduling_service.auto_schedule(req).await?;
+        let rescheduled_count = schedule_result.scheduled_count;
+        let conflict_count = schedule_result.conflicts.len() as i32;
+
+        tracing::info!(
+            work_center_id,
+            wc_code,
+            affected_count,
+            rescheduled_count,
+            conflict_count,
+            "缺陷 11.3：自动重排完成（受影响 {} 单 / 成功重排 {} 单 / 冲突 {} 单）",
+            affected_count,
+            rescheduled_count,
+            conflict_count
+        );
+
+        // 4. 推送站内信给计划员 + admin/manager 兜底（失败不阻断主流程）
+        if let Err(e) = self
+            .notify_work_center_maintenance(
+                work_center_id,
+                wc_code,
+                wc_name,
+                affected_count,
+                rescheduled_count,
+                conflict_count,
+            )
+            .await
+        {
+            tracing::warn!(
+                error = %e,
+                work_center_id,
+                "缺陷 11.3：通知计划员失败（不阻断重排，降级为 warn）"
+            );
+        }
+
+        let _ = affected_order_ids; // 受影响订单 ID 列表保留用于审计追溯
+        Ok(())
+    }
+
+    /// P1 batch-18 缺陷 11.3：通知计划员工作中心进入 Maintenance 及重排结果
+    async fn notify_work_center_maintenance(
+        &self,
+        work_center_id: i32,
+        wc_code: &str,
+        wc_name: &str,
+        affected_count: i32,
+        rescheduled_count: i32,
+        conflict_count: i32,
+    ) -> Result<(), AppError> {
+        use crate::models::role::{self, Column as RoleColumn};
+        use crate::models::user::{self, Column as UserColumn};
+        use sea_orm::QueryFilter;
+
+        let Some(notify_svc) = &self.notification_service else {
+            return Ok(());
+        };
+
+        // 通知目标：planner（计划员）+ admin/manager 兜底
+        let target_role_ids: Vec<i32> = role::Entity::find()
+            .filter(
+                RoleColumn::Code
+                    .eq("admin")
+                    .or(RoleColumn::Code.eq("manager"))
+                    .or(RoleColumn::Code.eq("planner")),
+            )
+            .all(&*self.db)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|r| r.id)
+            .collect();
+        if target_role_ids.is_empty() {
+            tracing::warn!("缺陷 11.3：未找到 planner/admin/manager 角色用户，跳过通知");
+            return Ok(());
+        }
+        let notify_user_ids: Vec<i32> = user::Entity::find()
+            .filter(UserColumn::IsActive.eq(true))
+            .filter(UserColumn::RoleId.is_in(target_role_ids))
+            .all(&*self.db)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|u| u.id)
+            .collect();
+        if notify_user_ids.is_empty() {
+            return Ok(());
+        }
+
+        // 复用 notify_inventory_alert_batch 推送站内信+邮件+5min 去重
+        let title = format!("工作中心 {} 进入维修，触发自动重排", wc_name);
+        let current_stock = format!(
+            "受影响 {} 单 / 重排成功 {} 单 / 冲突 {} 单",
+            affected_count, rescheduled_count, conflict_count
+        );
+        let threshold = format!("工作中心编号 {}（ID {}）", wc_code, work_center_id);
+        notify_svc
+            .notify_inventory_alert_batch(
+                &notify_user_ids,
+                &title,
+                work_center_id,
+                &current_stock,
+                &threshold,
+            )
+            .await?;
+        tracing::info!(
+            work_center_id,
+            notify_user_count = notify_user_ids.len(),
+            "缺陷 11.3：工作中心 Maintenance 通知已推送"
+        );
+        Ok(())
     }
 
     /// 删除工作中心（软删除）

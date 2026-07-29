@@ -64,7 +64,7 @@ mod tests {
     /* ===== 单元测试 ===== */
 
     #[test]
-    fn 测试_应收未付金额() {
+    fn test_yswfje() {
         // 中文测试名：测试应收未付 = 总额 - 已付
         let inv = ArInvoice {
             id: 1,
@@ -77,7 +77,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试_到期判断() {
+    fn test_dqpd() {
         // 中文测试名：测试应收到期判断
         let overdue = ArInvoice {
             id: 1,
@@ -100,7 +100,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试_账龄分桶() {
+    fn test_zlft() {
         // 中文测试名：测试账龄分桶（0-30 / 31-60 / 61-90 / 90+）
         let cases: Vec<(i64, &str)> = vec![
             (-1, "current"),
@@ -125,7 +125,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试_信用额度可用() {
+    fn test_xyedky() {
         // 中文测试名：测试信用额度可用余额
         let c = CustomerCredit {
             customer_id: 100,
@@ -144,7 +144,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试_已付清后不算逾期() {
+    fn test_yfqhbsyq() {
         // 中文测试名：测试已付清的应收不算逾期
         let paid = ArInvoice {
             id: 1,
