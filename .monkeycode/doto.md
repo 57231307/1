@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-29（doto.md 更新：**P1-batch19 组织定制物流 11 项 P1 修复完善**（部门数据权限 + 一人多部门 + 定制订单签字审批 + 售后闭环 + TOP5月报 + 物流运费 + Incoterms 价格构成月报，迁移 m0079→m0087 重命名 + 2 新服务 logistics_service/incoterms_service + 7 模型字段扩展，分支 feat/p1-remaining-batches 待 PR）；**P1-24 前端架构（batch-20 审计）16 项 P1 全部完成**（PWA + 移动端抽屉化 + manualChunks + ECharts 按需 + optimizeDeps + 覆盖率 CI + CSP + 键盘导航 + ErrorBoundary + 监控 SDK + 脏数据检测 + i18n + v-permission + keep-alive + CSS 变量 + 暗黑模式，分支 feat/p1-remaining-batches 待 PR）；**P1-Batch16 剩余 P1 完成**（缺陷 5.1 Webhook 通知分发真实实现 + 缺陷 2.2/2.3/5.1/5.2 单元测试 20 项，2 文件 +354 行，待 PR）；**P1-21+22 PR #770 已合并 main**（胚布拆匹 10 项 P1 + 库存排程 9 项 P1 全部修复，58 文件重命名中文测试函数 + mrp_engine always returns zero 修复 + event_kafka unused function 修复）；**P1-20 可观测性全部 9 项 P1 完成**；P1 已合并批次 19 批）
+> 最近整理：2026-07-29（doto.md 更新：**P1-batch02+03 通用代码质量+安全性 9 项 P1 全部完成**（batch03 安全 6 项：PUBLIC_PATHS 精确匹配 + request_logging_middleware 重命名 + refresh_token Cookie 2天对齐 + Webhook payload 日志脱敏 + crm xlsx magic bytes 校验 + system_update zip bomb 防护；batch02 代码质量 3 项：前端 api 文件 kebab-case 7 文件 + 视图文件夹 kebab-case 17 文件夹 + 组件缩写重命名 14 个；附 20 文件 FromStr 导入清理，分支 feat/p1-remaining-batches 待 PR）；**P1-batch19 组织定制物流 11 项 P1 修复完善**（部门数据权限 + 一人多部门 + 定制订单签字审批 + 售后闭环 + TOP5月报 + 物流运费 + Incoterms 价格构成月报，迁移 m0079→m0087 重命名 + 2 新服务 logistics_service/incoterms_service + 7 模型字段扩展，分支 feat/p1-remaining-batches 待 PR）；**P1-24 前端架构（batch-20 审计）16 项 P1 全部完成**（PWA + 移动端抽屉化 + manualChunks + ECharts 按需 + optimizeDeps + 覆盖率 CI + CSP + 键盘导航 + ErrorBoundary + 监控 SDK + 脏数据检测 + i18n + v-permission + keep-alive + CSS 变量 + 暗黑模式，分支 feat/p1-remaining-batches 待 PR）；**P1-Batch16 剩余 P1 完成**（缺陷 5.1 Webhook 通知分发真实实现 + 缺陷 2.2/2.3/5.1/5.2 单元测试 20 项，2 文件 +354 行，待 PR）；**P1-21+22 PR #770 已合并 main**（胚布拆匹 10 项 P1 + 库存排程 9 项 P1 全部修复，58 文件重命名中文测试函数 + mrp_engine always returns zero 修复 + event_kafka unused function 修复）；**P1-20 可观测性全部 9 项 P1 完成**；P1 已合并批次 19 批）
 
 ---
 
@@ -13,14 +13,15 @@
 | 状态 | 数量 | 批次 |
 |------|------|------|
 | ✅ 已合并到 main | 19 批 | P1-A、P1-B1、P1-B2、P1-C、P1-面料行业深化（batch-04+05）、P1-D（batch-08+20）、P1-batch13/14、P1-Batch16、P1-batch11/12、P1-batch19、P1-08 法律合规第二批（PR #758）、P1-09 色卡发放（9 项，PR #763）、P1-10 大货批色（7 项，PR #763）、P1-19 报表 BI（5 项，PR #763）、P1-25 部署升级（11 项，PR #758+#763）、P1-B3 法律合规扩展（PR #765）、P1-07 剩余可维护性（PR #767）、P1-20 可观测性（9 项全部完成，批次 1 PR #768 + 此前 6 项已实现）、P1-21 胚布拆匹（10 项，PR #770）、P1-22 库存排程（9 项，PR #770） |
-| 🔄 待 PR | 3 批 | P1-batch19 组织定制物流 11 项 P1 修复完善（迁移 m0079→m0087 重命名 + 2 新服务 logistics_service/incoterms_service + 7 模型字段扩展，分支 feat/p1-remaining-batches）+ P1-24 前端架构（batch-20 审计）16 项 P1 全部完成（PWA/移动端抽屉化/manualChunks/ECharts 按需/optimizeDeps/覆盖率 CI/CSP/键盘导航/ErrorBoundary/监控 SDK/脏数据检测/i18n/v-permission/keep-alive/CSS 变量/暗黑模式，分支 feat/p1-remaining-batches）+ P1-Batch16 剩余 P1（缺陷 5.1 Webhook 通知分发真实实现 + 缺陷 2.2/2.3/5.1/5.2 单元测试 20 项，2 文件 +354 行，分支 feat/p1-remaining-batches） |
-| ❌ 未开始 | 剩余约 4 批 | 类二/三/四/五/十三/十四/十五/十六/十七/十八/二十三 中的 P1 项（约 142 项） |
+| 🔄 待 PR | 4 批 | P1-batch02+03 通用代码质量+安全性 9 项 P1（batch03 安全 6 项 + batch02 代码质量 3 项 + 20 文件 FromStr 清理，分支 feat/p1-remaining-batches）+ P1-batch19 组织定制物流 11 项 P1 修复完善（迁移 m0079→m0087 重命名 + 2 新服务 logistics_service/incoterms_service + 7 模型字段扩展，分支 feat/p1-remaining-batches）+ P1-24 前端架构（batch-20 审计）16 项 P1 全部完成（PWA/移动端抽屉化/manualChunks/ECharts 按需/optimizeDeps/覆盖率 CI/CSP/键盘导航/ErrorBoundary/监控 SDK/脏数据检测/i18n/v-permission/keep-alive/CSS 变量/暗黑模式，分支 feat/p1-remaining-batches）+ P1-Batch16 剩余 P1（缺陷 5.1 Webhook 通知分发真实实现 + 缺陷 2.2/2.3/5.1/5.2 单元测试 20 项，2 文件 +354 行，分支 feat/p1-remaining-batches） |
+| ❌ 未开始 | 剩余约 3 批 | 类四/五/十三/十四/十五/十六/十七/十八 中的 P1 项（约 133 项） |
 
 ### 0.2 待启动批次（优先级从高到低）
 
 | 批次 | 类别 | P1 数 | 主要内容 |
 |------|------|-------|----------|
 | ~~P1-B3~~ | ~~类八 法律合规扩展~~ | ~~—~~ | ~~脱敏扩展 + 规则 4 注释精简~~ **✅ 已完成（2026-07-29，PR #765 已合并 main cc8a43f，脱敏扩展 PR #758 已完成 + 规则 4 注释精简 406 文件 +1917 -7735 约 1525 处，CI 关键检查全绿）** |
+| ~~P1-batch02+03~~ | ~~类二+三 通用代码质量+安全性~~ | ~~9~~ | ~~api 命名/缩写命名/DbErr 包装 + refresh_token/PUBLIC_PATHS/validator/Webhook/magic bytes/zip bomb~~ **✅ 已完成（2026-07-29，分支 feat/p1-remaining-batches 待 PR：batch03 安全 6 项 PUBLIC_PATHS 精确匹配 + request_logging_middleware 重命名 + refresh_token Cookie 2天对齐 + Webhook payload 日志脱敏 + crm xlsx magic bytes 校验 + system_update zip bomb 防护；batch02 代码质量 3 项 前端 api 文件 kebab-case 7 文件 + 视图文件夹 kebab-case 17 文件夹 + 组件缩写重命名 14 个；附 20 文件 FromStr 导入清理）** |
 | ~~P1-09~~ | ~~类九 色卡发放~~ | ~~9~~ | ~~清单/通知/报表~~ **✅ 已完成（2026-07-28，PR #763，9 项 P1：10.2-4/10.3-1/10.3-2/10.4-1/10.4-2/10.4-3/10.5-1/10.6-5/10.6-6，详见 doto-su.md/CHANGELOG.md）** |
 | ~~P1-10~~ | ~~类十大货批色~~ | ~~7~~ | ~~提醒/报表/统计~~ **✅ 已完成（2026-07-28，PR #763，7 项 P1：批色提醒 + 批色报表 + 批色统计 + 交货门禁 + 客户反馈 + 批色重做 + 历史追溯 m0085）** |
 | ~~P1-06~~ | ~~类六 测试体系~~ | ~~11~~ | ~~覆盖率/mock/fixtures/文档~~ **✅ 已完成（2026-07-29 核验，PR #758 Batch 485-488 已修复全部 P0/P1 项）** |
