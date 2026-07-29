@@ -11,7 +11,7 @@ use serde::Serialize;
 use std::sync::Arc;
 
 use crate::container::AppState;
-use crate::models::sales_quotation::{self, Entity as QuotationEntity};
+use crate::models::sales_quotation::Entity as QuotationEntity;
 use crate::utils::error::AppError;
 use crate::utils::incoterms::Incoterms2020;
 

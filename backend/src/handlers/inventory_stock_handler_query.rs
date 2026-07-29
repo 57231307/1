@@ -178,7 +178,6 @@ pub async fn get_stock_alerts(
 #[cfg(test)]
 mod tests {
     use crate::handlers::inventory_stock_handler_dto::CreateStockFabricRequest;
-    use std::str::FromStr;
 
     #[test]
     fn test_create_stock_fabric_request_deserialize() {

@@ -150,8 +150,6 @@ mod tests {
     use crate::services::test_common::setup_test_db;
     use crate::ymd;
     use std::sync::Arc;
-    // 批次 415：decs! 宏展开为 Decimal::from_str，需导入 FromStr trait
-    use std::str::FromStr;
 
     /// 构造合法的 CreateReceiptItemRequest（单条明细）
     fn sample_item() -> CreateReceiptItemRequest {

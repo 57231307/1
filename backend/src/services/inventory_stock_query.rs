@@ -518,7 +518,6 @@ mod tests {
     use crate::decs;
     use chrono::{Duration, Utc};
     use rust_decimal::Decimal;
-    use std::str::FromStr;
 
     /// 构造测试用库存 Model（默认"正常"状态）
     fn make_stock_model() -> inventory_stock::Model {

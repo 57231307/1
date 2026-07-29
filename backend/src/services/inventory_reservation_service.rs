@@ -239,7 +239,6 @@ mod tests {
     use crate::services::test_common::setup_test_db;
     use crate::ymd;
     use rust_decimal::Decimal;
-    use std::str::FromStr;
 
     /// 测试夹具：构建库存预留 Model
     /// 封装 `inventory_reservation::Model` 的构造，便于在各状态门测试中复用。；使用 `decs!` 解析数量字段，使用 `ymd!` 构造固定的预留时间，便于断言。

@@ -338,7 +338,6 @@ mod tests {
     use crate::services::test_common::setup_test_db;
     use crate::ymd;
     use chrono::Utc;
-    use std::str::FromStr;
     // 批次 415：测试中使用 Arc::new(db)，需导入（文件顶部在批次 357 移除了 unused Arc 导入）
     use std::sync::Arc;
 
