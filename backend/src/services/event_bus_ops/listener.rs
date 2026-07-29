@@ -255,6 +255,138 @@ fn log_simple_business_event(event: &BusinessEvent) -> bool {
             tracing::info!(batch_id, batch_no = %batch_no, color_no = ?color_no, "收到染色完成事件，可触发质检单生成/成本结转");
             true
         }
+        // V15 Batch04-P1-7：工资事件（凭证已在 wage_service 发布前生成，此处仅记录流转日志）
+        BusinessEvent::WageConfirmed {
+            wage_record_id,
+            record_no,
+            total_amount,
+            confirmed_by,
+        } => {
+            tracing::info!(
+                wage_record_id,
+                record_no = %record_no,
+                total_amount = %total_amount,
+                confirmed_by,
+                "工资已确认（应付工资凭证已由 wage_service 生成），可触发成本归集 direct_labor"
+            );
+            true
+        }
+        BusinessEvent::WagePaid {
+            wage_record_id,
+            record_no,
+            total_amount,
+            paid_by,
+        } => {
+            tracing::info!(
+                wage_record_id,
+                record_no = %record_no,
+                total_amount = %total_amount,
+                paid_by,
+                "工资已发放（工资发放凭证已由 wage_service 生成）"
+            );
+            true
+        }
+        // V15 Batch04-P1-7：委外加工事件（凭证已在 outsourcing_service 发布前生成）
+        BusinessEvent::OutsourcingMaterialIssued {
+            order_id,
+            order_no,
+            supplier_id,
+            issue_quantity,
+            ..
+        } => {
+            tracing::info!(
+                order_id,
+                order_no = %order_no,
+                supplier_id,
+                issue_quantity = %issue_quantity,
+                "委外发料完成（发料凭证已由 outsourcing_service 生成），可触发库存出库"
+            );
+            true
+        }
+        BusinessEvent::OutsourcingProcessingRecorded {
+            order_id,
+            order_no,
+            supplier_id,
+            ..
+        } => {
+            tracing::info!(
+                order_id,
+                order_no = %order_no,
+                supplier_id,
+                "委外加工记录已登记，可触发加工费归集"
+            );
+            true
+        }
+        BusinessEvent::OutsourcingOrderSettled {
+            order_id,
+            order_no,
+            supplier_id,
+            processing_fee,
+            total_cost,
+            unit_cost,
+            ..
+        } => {
+            tracing::info!(
+                order_id,
+                order_no = %order_no,
+                supplier_id,
+                processing_fee = %processing_fee,
+                total_cost = %total_cost,
+                unit_cost = %unit_cost,
+                "委外订单已结算（加工费凭证已由 outsourcing_service 生成），可触发异常损耗告警"
+            );
+            true
+        }
+        BusinessEvent::OutsourcingOrderCompleted {
+            order_id,
+            order_no,
+            supplier_id,
+            return_quantity,
+            ..
+        } => {
+            tracing::info!(
+                order_id,
+                order_no = %order_no,
+                supplier_id,
+                return_quantity = %return_quantity,
+                "委外订单已完成（入库凭证已由 outsourcing_service 生成），可触发库存入库/成本结转"
+            );
+            true
+        }
+        // V15 Batch04-P1-7：业务模式事件（模式切换/订单关联，下游可触发流程节点校验/库存隔离）
+        BusinessEvent::BusinessModeChanged {
+            mode_id,
+            mode_code,
+            mode_name,
+            changed_by,
+        } => {
+            tracing::info!(
+                mode_id,
+                mode_code = %mode_code,
+                mode_name = %mode_name,
+                changed_by,
+                "业务模式已切换，可触发流程节点校验/库存隔离"
+            );
+            true
+        }
+        BusinessEvent::OrderBusinessModeLinked {
+            document_type,
+            document_id,
+            document_no,
+            mode_id,
+            mode_code,
+            ..
+        } => {
+            tracing::info!(
+                document_type = %document_type,
+                document_id,
+                document_no = %document_no,
+                mode_id,
+                mode_code = %mode_code,
+                "订单已关联业务模式，可触发流程节点校验"
+            );
+            true
+        }
         _ => false,
     }
 }
