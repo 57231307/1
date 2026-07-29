@@ -181,7 +181,7 @@ Scope 是变更影响范围，常见值：
 - 后端：`service:inventory` / `handler:order` / `model:customer`
 - 前端：`vue:user-tab` / `component:v2table` / `store:auth`
 - 文档：`docs:readme` / `docs:api`
-- 基础设施：`k8s:deployment` / `docker:compose`
+- 基础设施：`k8s:deployment` / `deploy:script`
 - 安全：`security:auth` / `security:csp`
 - 性能：`perf:query` / `perf:cache`
 - 通用：`ci` / `deps` / `config`
@@ -795,7 +795,6 @@ MAJOR.MINOR.PATCH
    ```bash
    cargo build --release
    npm run build
-   docker build -t bingxi-erp:1.2.0 .
    ```
 
 5. **创建 PR**（release → main）

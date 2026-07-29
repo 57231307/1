@@ -114,19 +114,6 @@ npm run format
 npm run build
 ```
 
-#### Docker
-
-```bash
-# 启动所有服务
-docker-compose up -d
-
-# 查看日志
-docker-compose logs -f
-
-# 停止服务
-docker-compose down
-```
-
 ### 重要文件
 
 | 文件 | 目的 |
@@ -137,7 +124,6 @@ docker-compose down
 | `frontend/.env.development` | 前端开发环境变量 |
 | `backend/Cargo.toml` | 后端依赖配置 |
 | `frontend/package.json` | 前端依赖配置 |
-| `docker-compose.yml` | Docker 编排配置 |
 
 ### 常见端口
 

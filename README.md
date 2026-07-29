@@ -39,7 +39,7 @@
 - 🤖 **AI 驱动**：集成销售预测、库存优化、工艺优化、质量预测、异常检测等 4 类 AI 能力
 - 📱 **多端覆盖**：Web + 移动端（React Native）+ 桌面浏览器响应式
 - 🔄 **实时通信**：WebSocket 推送订单状态、库存预警、审批进度
-- 🚀 **云原生**：Docker + Kubernetes（Helm Chart）+ CI/CD 全自动化
+- 🚀 **云原生**：Kubernetes（Helm Chart）+ CI/CD 全自动化
 - 📊 **BI 数据仓库**：4 张事实表 + 16 维 + 12 报表 + Excel/PDF 导出
 
 **项目数据（截至 2026-06-17）**：
@@ -115,7 +115,6 @@
 
 ### 7. 🚀 云原生 + 自动化
 
-- **容器化**：Docker + 多阶段构建
 - **编排**：Kubernetes + Helm Chart（6 模板）
 - **CI/CD**：GitHub Actions + 4 工作流
 - **监控**：Prometheus + Grafana（23 指标 + 12 panel）
@@ -199,7 +198,6 @@
 
 | 类别 | 技术 | 用途 |
 |------|------|------|
-| 容器 | Docker | 应用容器化 |
 | 编排 | Kubernetes + Helm | 容器编排 |
 | 反向代理 | Nginx | HTTP / WS |
 | 监控 | Prometheus | 指标采集 |
@@ -357,7 +355,6 @@
 - **Node.js**：20+ （含 npm）
 - **PostgreSQL**：15+
 - **Redis**：7+
-- **Docker**：24+ （可选）
 - **Kubernetes**：1.28+ （可选）
 
 ### 2. 克隆项目
@@ -428,18 +425,26 @@ npm run dev
 
 > ⚠️ **禁止在文档中暴露默认密码**。密码由部署者在 Setup 流程中自行设定，不存在预置默认密码。
 
-### 7. Docker 快速启动
+### 7. systemd 直部署（推荐）
+
+项目采用 systemd 直部署方式，由 CLI 工具 `bingxi` 管理更新：
 
 ```bash
-# 一键启动（开发环境）
-docker-compose -f docker-compose.dev.yml up -d
+# 首次安装（通过 install.sh 一键脚本）
+sudo bash install.sh
+
+# 后续更新（CLI 工具拉取 GitHub Release 并校验 SHA256）
+sudo bingxi update
+
+# 查看服务状态
+sudo systemctl status bingxi-backend
+sudo systemctl status bingxi-frontend
 
 # 查看日志
-docker-compose -f docker-compose.dev.yml logs -f
-
-# 停止
-docker-compose -f docker-compose.dev.yml down
+sudo journalctl -u bingxi-backend -f
 ```
+
+> **禁止** Docker 容器部署（不得创建 Dockerfile / docker-compose.yml）。
 
 ### 8. Kubernetes 部署
 
@@ -468,7 +473,7 @@ kubectl get pods -n bingxi-erp
 | 环境 | 用途 | 部署方式 | 配置 |
 |------|------|---------|------|
 | 开发 | 本地开发 | cargo run + npm run dev | `.env.development` |
-| 测试 | 自动化测试 | docker-compose | `.env.test` |
+| 测试 | 自动化测试 | cargo test + npm test | `.env.test` |
 | 预发 | 上线前验证 | K8s（staging 命名空间） | `values-staging.yaml` |
 | 生产 | 正式环境 | K8s（prod 命名空间） | `values-prod.yaml` |
 | 灾备 | 灾难恢复 | K8s（DR 集群） | `values-dr.yaml` |
@@ -688,7 +693,6 @@ Copyright © 2026 冰溪 ERP. 保留所有权利。
 - [Helm](https://helm.sh/) — K8s 包管理
 - [Prometheus](https://prometheus.io/) — 监控系统
 - [Grafana](https://grafana.com/) — 可视化平台
-- [Docker](https://www.docker.com/) — 容器化
 
 ### 工具与规范
 
