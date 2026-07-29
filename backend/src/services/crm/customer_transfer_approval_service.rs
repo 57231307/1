@@ -288,6 +288,12 @@ impl CustomerTransferApprovalService {
     ) -> Result<TransferApprovalDto, AppError> {
         let approval = self.get_pending_approval(req.approval_id, 1).await?;
 
+        // 在转为 ActiveModel 前从原始 Model 提取字段值，避免对 ActiveModel 调用 unwrap()
+        let max_level = approval.max_level;
+        let lead_id = approval.lead_id;
+        let to_user_id = approval.to_user_id;
+        let reason = approval.reason.clone();
+
         let txn = (*self.db).begin().await?;
         let now = chrono::Utc::now();
 
@@ -299,12 +305,8 @@ impl CustomerTransferApprovalService {
 
         if req.approved {
             // 经理通过
-            if active.max_level.clone().unwrap() == 1 {
+            if max_level == 1 {
                 // 普通客户：直接执行转移
-                let lead_id = active.lead_id.clone().unwrap();
-                let to_user_id = active.to_user_id.clone().unwrap();
-                let reason = active.reason.clone().unwrap();
-
                 active.approval_status =
                     Set(customer_transfer_approval::STATUS_APPROVED.to_string());
                 active.completed_at = Set(Some(now));
@@ -367,6 +369,11 @@ impl CustomerTransferApprovalService {
             ));
         }
 
+        // 在转为 ActiveModel 前从原始 Model 提取字段值，避免对 ActiveModel 调用 unwrap()
+        let lead_id = approval.lead_id;
+        let to_user_id = approval.to_user_id;
+        let reason = approval.reason.clone();
+
         let txn = (*self.db).begin().await?;
         let now = chrono::Utc::now();
 
@@ -378,10 +385,6 @@ impl CustomerTransferApprovalService {
 
         if req.approved {
             // 总监通过：执行转移
-            let lead_id = active.lead_id.clone().unwrap();
-            let to_user_id = active.to_user_id.clone().unwrap();
-            let reason = active.reason.clone().unwrap();
-
             active.approval_status = Set(customer_transfer_approval::STATUS_APPROVED.to_string());
             active.completed_at = Set(Some(now));
             active.to_user_name = Set(Some(format!("用户{}", to_user_id)));

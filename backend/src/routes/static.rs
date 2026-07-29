@@ -64,8 +64,10 @@ async fn canonicalize_with_fallback(safe_path: &PathBuf) -> Option<PathBuf> {
 }
 
 /// 校验 resolved_path 在 static_dir 边界内（防符号链接逃逸），越界返回 400
-#[allow(clippy::result_large_err)]
-fn ensure_within_static_dir(resolved: &PathBuf, dir: Option<&PathBuf>) -> Result<(), Response> {
+fn ensure_within_static_dir(
+    resolved: &PathBuf,
+    dir: Option<&PathBuf>,
+) -> Result<(), Box<Response>> {
     if let Some(d) = dir {
         if !resolved.starts_with(d) {
             tracing::warn!(
@@ -73,7 +75,10 @@ fn ensure_within_static_dir(resolved: &PathBuf, dir: Option<&PathBuf>) -> Result
                 resolved,
                 d
             );
-            return Err(build_text_response(StatusCode::BAD_REQUEST, "Invalid path"));
+            return Err(Box::new(build_text_response(
+                StatusCode::BAD_REQUEST,
+                "Invalid path",
+            )));
         }
     }
     Ok(())
@@ -113,7 +118,7 @@ async fn serve_static_asset(Path(path): Path<String>) -> Result<Response, Infall
         }
     };
     if let Err(resp) = ensure_within_static_dir(&resolved, static_dir.as_ref()) {
-        return Ok(resp);
+        return Ok(*resp);
     }
     match tokio::fs::read(&resolved).await {
         Ok(content) => {

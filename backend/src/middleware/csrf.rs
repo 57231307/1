@@ -63,12 +63,11 @@ fn is_safe_method(method: &Method) -> bool {
 }
 
 /// 公开路径 L-1 防御：要求携带 X-Requested-With 或 X-CSRF-Token 自定义请求头
-#[allow(clippy::result_large_err)]
 fn check_public_path_header(
     request: &Request<Body>,
     path: &str,
     method: &Method,
-) -> Result<(), Response> {
+) -> Result<(), Box<Response>> {
     let has_xhr = request
         .headers()
         .get("x-requested-with")
@@ -83,10 +82,10 @@ fn check_public_path_header(
             method = %method,
             "CSRF 验证失败：公开端点的非安全方法缺少自定义请求头（L-1 防御）"
         );
-        return Err(csrf_error_response(
+        return Err(Box::new(csrf_error_response(
             CODE_MISS,
             "缺少必要的请求头，请使用 AJAX 方式请求",
-        ));
+        )));
     }
     Ok(())
 }
@@ -102,14 +101,13 @@ fn extract_csrf_token(request: &Request<Body>) -> Option<String> {
 }
 
 /// 一次性消费 CSRF Token，含 IP 绑定校验（Wave 3 #7）
-#[allow(clippy::result_large_err)]
 fn consume_csrf_token(
     state: &AppState,
     token: &str,
     client_ip: &str,
     path: &str,
     method: &Method,
-) -> Result<(), Response> {
+) -> Result<(), Box<Response>> {
     match state.cache.consume_csrf_token(token, client_ip) {
         CsrfConsumeResult::Ok => Ok(()),
         CsrfConsumeResult::IpMismatch => {
@@ -119,7 +117,10 @@ fn consume_csrf_token(
                 client_ip = %client_ip,
                 "CSRF 验证失败：Token 绑定的 IP 与请求 IP 不一致（Wave 3 #7 防御）"
             );
-            Err(csrf_error_response(CODE_IP_MM, CSRF_IP_MISMATCH_MSG))
+            Err(Box::new(csrf_error_response(
+                CODE_IP_MM,
+                CSRF_IP_MISMATCH_MSG,
+            )))
         }
         CsrfConsumeResult::NotFound => {
             tracing::warn!(
@@ -127,7 +128,7 @@ fn consume_csrf_token(
                 method = %method,
                 "CSRF 验证失败：Token 不存在或已被消费/过期"
             );
-            Err(csrf_error_response(CODE_INVAL, CSRF_INVALID_MSG))
+            Err(Box::new(csrf_error_response(CODE_INVAL, CSRF_INVALID_MSG)))
         }
     }
 }
@@ -148,7 +149,7 @@ pub async fn csrf_middleware(
 
     // 2. 公开路径：L-1 修复 - 要求自定义请求头（防御简单表单提交 CSRF）
     if is_public_path(&path) {
-        check_public_path_header(&request, &path, &method)?;
+        check_public_path_header(&request, &path, &method).map_err(|e| *e)?;
         return Ok(next.run(request).await);
     }
 
@@ -167,7 +168,7 @@ pub async fn csrf_middleware(
 
     // 4. 提取客户端 IP + 一次性消费 token（Wave 3 #7 含 IP 校验）
     let client_ip = extract_client_ip(&request);
-    consume_csrf_token(&state, &token, &client_ip, &path, &method)?;
+    consume_csrf_token(&state, &token, &client_ip, &path, &method).map_err(|e| *e)?;
 
     Ok(next.run(request).await)
 }

@@ -33,39 +33,36 @@ fn is_public_path_request(request: &Request<Body>, path: &str) -> bool {
 }
 
 /// 提取认证上下文，缺失时返回 401
-#[allow(clippy::result_large_err)]
-fn extract_auth_context(request: &Request<Body>) -> Result<AuthContext, Response> {
+fn extract_auth_context(request: &Request<Body>) -> Result<AuthContext, Box<Response>> {
     match request.extensions().get::<AuthContext>().cloned() {
         Some(auth) => Ok(auth),
         None => {
             warn!("缺少认证上下文");
-            Err(unauthorized_response("缺少认证上下文"))
+            Err(Box::new(unauthorized_response("缺少认证上下文")))
         }
     }
 }
 
 /// 从认证上下文提取 role_id，缺失时返回 403
-#[allow(clippy::result_large_err)]
-fn extract_role_id(auth: &AuthContext) -> Result<i32, Response> {
+fn extract_role_id(auth: &AuthContext) -> Result<i32, Box<Response>> {
     match auth.role_id {
         Some(id) => Ok(id),
         None => {
             warn!("用户没有关联角色，拒绝访问");
-            Err(forbidden_response("没有关联角色，无法访问"))
+            Err(Box::new(forbidden_response("没有关联角色，无法访问")))
         }
     }
 }
 
 /// V15 P0-S21：校验 segment3 是否在已知资源白名单中
-#[allow(clippy::result_large_err)]
-fn validate_route_whitelist(path: &str) -> Result<(), Response> {
+fn validate_route_whitelist(path: &str) -> Result<(), Box<Response>> {
     if let Some(segment3) = extract_segment3(path) {
         if !is_known_resource_segment(segment3) {
             warn!(
                 "拒绝未知路由: path={}, segment3={} 不在白名单中",
                 path, segment3
             );
-            return Err(forbidden_response("未知的资源路径"));
+            return Err(Box::new(forbidden_response("未知的资源路径")));
         }
     }
     Ok(())
@@ -108,10 +105,10 @@ pub async fn permission_middleware(
         return Ok(next.run(request).await);
     }
 
-    let auth = extract_auth_context(&request)?;
+    let auth = extract_auth_context(&request).map_err(|e| *e)?;
     tracing::debug!("权限检查: user_id={}, path={}", auth.user_id, path);
 
-    let role_id = extract_role_id(&auth)?;
+    let role_id = extract_role_id(&auth).map_err(|e| *e)?;
 
     // V15 P1-5-3：认证豁免 RBAC 路径（如前端打印审计埋点），仅需认证 + role_id
     if is_auth_only_path(path) {
@@ -123,7 +120,7 @@ pub async fn permission_middleware(
         return Ok(next.run(request).await);
     }
 
-    validate_route_whitelist(path)?;
+    validate_route_whitelist(path).map_err(|e| *e)?;
     let (resource_type, resource_id, action) = extract_route_info(path, uri, method);
 
     let has_permission =
