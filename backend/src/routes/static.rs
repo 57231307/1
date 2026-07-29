@@ -64,7 +64,10 @@ async fn canonicalize_with_fallback(safe_path: &PathBuf) -> Option<PathBuf> {
 }
 
 /// 校验 resolved_path 在 static_dir 边界内（防符号链接逃逸），越界返回 400
-fn ensure_within_static_dir(resolved: &PathBuf, dir: Option<&PathBuf>) -> Result<(), Box<Response>> {
+fn ensure_within_static_dir(
+    resolved: &PathBuf,
+    dir: Option<&PathBuf>,
+) -> Result<(), Box<Response>> {
     if let Some(d) = dir {
         if !resolved.starts_with(d) {
             tracing::warn!(
@@ -72,7 +75,10 @@ fn ensure_within_static_dir(resolved: &PathBuf, dir: Option<&PathBuf>) -> Result
                 resolved,
                 d
             );
-            return Err(Box::new(build_text_response(StatusCode::BAD_REQUEST, "Invalid path")));
+            return Err(Box::new(build_text_response(
+                StatusCode::BAD_REQUEST,
+                "Invalid path",
+            )));
         }
     }
     Ok(())

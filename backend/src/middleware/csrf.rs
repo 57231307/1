@@ -117,7 +117,10 @@ fn consume_csrf_token(
                 client_ip = %client_ip,
                 "CSRF 验证失败：Token 绑定的 IP 与请求 IP 不一致（Wave 3 #7 防御）"
             );
-            Err(Box::new(csrf_error_response(CODE_IP_MM, CSRF_IP_MISMATCH_MSG)))
+            Err(Box::new(csrf_error_response(
+                CODE_IP_MM,
+                CSRF_IP_MISMATCH_MSG,
+            )))
         }
         CsrfConsumeResult::NotFound => {
             tracing::warn!(
