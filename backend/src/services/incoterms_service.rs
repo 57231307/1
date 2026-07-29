@@ -85,13 +85,14 @@ impl IncotermsService {
     }
 
     /// V15 P1 batch-19 缺陷 23.5.2：按 Incoterm 计算价格构成各成本项
+    /// 返回 (product_cost, freight, insurance, duty) 完整价格构成；product_cost 为基础成本始终返回。
     pub fn calculate_costs_by_incoterm(
         incoterm: Incoterms2020,
         product_cost: Decimal,
         freight_cost: Option<Decimal>,
         insurance_cost: Option<Decimal>,
         duty_cost: Option<Decimal>,
-    ) -> (Option<Decimal>, Option<Decimal>, Option<Decimal>) {
+    ) -> (Decimal, Option<Decimal>, Option<Decimal>, Option<Decimal>) {
         // EXW/FCA/FAS 不含运费
         let freight = if incoterm.includes_freight() {
             freight_cost
@@ -110,7 +111,7 @@ impl IncotermsService {
         } else {
             None
         };
-        (freight, insurance, duty)
+        (product_cost, freight, insurance, duty)
     }
 
     /// V15 P1 batch-19 缺陷 23.5.4：生成术语使用月报
@@ -161,14 +162,15 @@ mod tests {
 
     #[test]
     fn test_calculate_costs_exw_no_freight() {
-        // EXW 不含运费/保费/关税
-        let (f, i, d) = IncotermsService::calculate_costs_by_incoterm(
+        // EXW 不含运费/保费/关税，仅含产品成本
+        let (p, f, i, d) = IncotermsService::calculate_costs_by_incoterm(
             Incoterms2020::Exw,
             Decimal::from(1000),
             Some(Decimal::from(100)),
             Some(Decimal::from(50)),
             Some(Decimal::from(200)),
         );
+        assert_eq!(p, Decimal::from(1000));
         assert_eq!(f, None);
         assert_eq!(i, None);
         assert_eq!(d, None);
@@ -177,13 +179,14 @@ mod tests {
     #[test]
     fn test_calculate_costs_cif_includes_freight_insurance() {
         // CIF 含运费和保险，不含关税
-        let (f, i, d) = IncotermsService::calculate_costs_by_incoterm(
+        let (p, f, i, d) = IncotermsService::calculate_costs_by_incoterm(
             Incoterms2020::Cif,
             Decimal::from(1000),
             Some(Decimal::from(100)),
             Some(Decimal::from(50)),
             Some(Decimal::from(200)),
         );
+        assert_eq!(p, Decimal::from(1000));
         assert_eq!(f, Some(Decimal::from(100)));
         assert_eq!(i, Some(Decimal::from(50)));
         assert_eq!(d, None);
@@ -192,13 +195,14 @@ mod tests {
     #[test]
     fn test_calculate_costs_ddp_includes_all() {
         // DDP 含运费/保费/关税
-        let (f, i, d) = IncotermsService::calculate_costs_by_incoterm(
+        let (p, f, i, d) = IncotermsService::calculate_costs_by_incoterm(
             Incoterms2020::Ddp,
             Decimal::from(1000),
             Some(Decimal::from(100)),
             Some(Decimal::from(50)),
             Some(Decimal::from(200)),
         );
+        assert_eq!(p, Decimal::from(1000));
         assert_eq!(f, Some(Decimal::from(100)));
         assert_eq!(i, Some(Decimal::from(50)));
         assert_eq!(d, Some(Decimal::from(200)));
@@ -207,13 +211,14 @@ mod tests {
     #[test]
     fn test_calculate_costs_fob_freight_only() {
         // FOB 含运费，不含保险/关税
-        let (f, i, d) = IncotermsService::calculate_costs_by_incoterm(
+        let (p, f, i, d) = IncotermsService::calculate_costs_by_incoterm(
             Incoterms2020::Fob,
             Decimal::from(1000),
             Some(Decimal::from(100)),
             Some(Decimal::from(50)),
             Some(Decimal::from(200)),
         );
+        assert_eq!(p, Decimal::from(1000));
         assert_eq!(f, Some(Decimal::from(100)));
         assert_eq!(i, None);
         assert_eq!(d, None);
