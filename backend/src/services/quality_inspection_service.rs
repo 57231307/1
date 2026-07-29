@@ -40,6 +40,16 @@ pub const HANDLING_DOWNGRADE_SALE: &str = "downgrade_sale"; // B 级降级销售
 pub const HANDLING_REWORK: &str = "rework"; // C 级返工
 pub const HANDLING_SCRAP: &str = "scrap"; // C 级报废
 
+// P1 batch-18 缺陷 5.1：B 级降级销售价格联动常量
+// 业务规则：B 级（让步接收）降级销售时，按 A 级标准价的 80% 自动生成二等品销售价
+// 依据：面料行业惯例，B 级让步接收品售价为 A 级的 70%-85%，取中位数 80%
+pub const DOWNGRADE_PRICE_LEVEL_B: &str = "二等品"; // 对应库存 grade 字段值
+pub const STANDARD_PRICE_LEVEL_A: &str = "一等品"; // 标准品价格 level 标记
+/// B 级降级销售价折扣因子（标准价的 80%）
+pub fn downgrade_price_factor() -> Decimal {
+    Decimal::new(8, 1) // 0.8
+}
+
 /// 根据合格率判定面料行业质检等级（A/B/C）
 /// 业务规则（fabric-industry-research.md §4.7）：rate >= 95% → A 级（合格）；80% <= rate < 95% → B 级（让步接收，降级销售）；rate < 80% → C 级（不合格，返工或报废）；入参 qualification_rate 为百分比形式（0-100），None 视为 0% 处理为 C 级
 pub fn determine_quality_grade(qualification_rate: Option<Decimal>) -> String {
@@ -449,9 +459,10 @@ impl QualityInspectionService {
 
         if let Some(s) = stock {
             let stock_id = s.id;
+            let product_id = s.product_id;
             let mut active: stock_model::ActiveModel = s.into();
             // B 级降级后库存等级标记为"二等品"
-            active.grade = Set("二等品".to_string());
+            active.grade = Set(DOWNGRADE_PRICE_LEVEL_B.to_string());
             active.updated_at = Set(chrono::Utc::now());
             let _updated = active.update(&*self.db).await?;
 
@@ -464,6 +475,111 @@ impl QualityInspectionService {
             info!(
                 unqualified_id = unqualified.id,
                 stock_id, "缺陷 5.1：B 级降级同步库存等级为二等品成功"
+            );
+
+            // P1 batch-18 缺陷 5.1：联动销售价格调整
+            // 库存等级同步后，同步生成/更新二等品销售价（标准价 × 80%），防止销售仍按 A 级定价
+            if let Err(e) = self.sync_sales_price_for_downgrade(product_id).await {
+                tracing::warn!(
+                    product_id,
+                    unqualified_id = unqualified.id,
+                    error = %e,
+                    "缺陷 5.1：联动销售价格调整失败（不阻断主流程，降级为 warn）"
+                );
+            }
+        }
+        Ok(())
+    }
+
+    /// 缺陷 5.1：B 级降级联动销售价格调整
+    /// 策略：查询产品当前生效的 A 级（标准）销售价，按 80% 折扣生成/更新二等品销售价。
+    /// 若已存在二等品价则更新价格；若无标准价则跳过（仅记录 warn，避免误覆盖）。
+    async fn sync_sales_price_for_downgrade(
+        &self,
+        product_id: i32,
+    ) -> Result<(), AppError> {
+        use crate::models::sales_price::{self as price_model, Entity as PriceEntity};
+
+        // 1. 查询该产品当前生效的 A 级标准价（price_level 为 "一等品" 或 NULL，status=approved）
+        //    取最新一条（按 effective_date 倒序）
+        let standard_price = PriceEntity::find()
+            .filter(price_model::Column::ProductId.eq(product_id))
+            .filter(price_model::Column::Status.eq("approved"))
+            .filter(
+                price_model::Column::PriceLevel
+                    .eq(STANDARD_PRICE_LEVEL_A)
+                    .or(price_model::Column::PriceLevel.is_null()),
+            )
+            .order_by(price_model::Column::EffectiveDate, Order::Desc)
+            .one(&*self.db)
+            .await?;
+
+        let Some(standard) = standard_price else {
+            tracing::warn!(
+                product_id,
+                "缺陷 5.1：未找到产品 {} 的 A 级标准销售价，跳过二等品价格联动",
+                product_id
+            );
+            return Ok(());
+        };
+
+        // 2. 计算二等品价格 = 标准价 × 0.8（保留 4 位小数防止精度漂移）
+        let discounted_price = (standard.price * downgrade_price_factor()).round_dp(4);
+
+        // 3. 查询是否已存在二等品价（同 product_id + price_level="二等品" + status=approved）
+        let existing_b = PriceEntity::find()
+            .filter(price_model::Column::ProductId.eq(product_id))
+            .filter(price_model::Column::PriceLevel.eq(DOWNGRADE_PRICE_LEVEL_B))
+            .filter(price_model::Column::Status.eq("approved"))
+            .one(&*self.db)
+            .await?;
+
+        if let Some(b_price) = existing_b {
+            // 已存在二等品价：更新价格（保留其他字段，记录审计）
+            let price_id = b_price.id;
+            let mut active: price_model::ActiveModel = b_price.into();
+            active.price = Set(discounted_price);
+            active.updated_at = Set(chrono::Utc::now());
+            let _updated = active.update(&*self.db).await?;
+            info!(
+                product_id,
+                price_id,
+                standard_price = %standard.price,
+                new_price = %discounted_price,
+                "缺陷 5.1：二等品销售价已更新（标准价 × 80%）"
+            );
+        } else {
+            // 不存在二等品价：新建（继承标准价的 customer_id/customer_type/currency/unit/min_order_qty）
+            let now = chrono::Utc::now();
+            let new_price = price_model::ActiveModel {
+                product_id: Set(product_id),
+                customer_id: Set(standard.customer_id),
+                customer_type: Set(standard.customer_type.clone()),
+                price: Set(discounted_price),
+                currency: Set(standard.currency.clone()),
+                unit: Set(standard.unit.clone()),
+                min_order_qty: Set(standard.min_order_qty),
+                price_type: Set(standard.price_type.clone()),
+                price_level: Set(Some(DOWNGRADE_PRICE_LEVEL_B.to_string())),
+                effective_date: Set(standard.effective_date),
+                expiry_date: Set(standard.expiry_date),
+                // 二等品价直接 approved（由降级流程触发，避免重复审批延误销售）
+                status: Set("approved".to_string()),
+                approved_by: Set(None),
+                approved_at: Set(Some(now)),
+                created_by: Set(None),
+                created_at: Set(now),
+                updated_at: Set(now),
+                ..Default::default()
+            }
+            .insert(&*self.db)
+            .await?;
+            info!(
+                product_id,
+                price_id = new_price.id,
+                standard_price = %standard.price,
+                new_price = %discounted_price,
+                "缺陷 5.1：二等品销售价已创建（标准价 × 80%）"
             );
         }
         Ok(())

@@ -44,9 +44,13 @@ pub struct InventorySummaryQueryResult {
 }
 
 /// 库存服务（面料行业版）
-#[derive(Debug, Clone)]
+///
+/// P1 batch-18 缺陷 7.2：检测到告警时同步推送站内信+邮件给计划员/仓管员
 pub struct InventoryStockService {
     pub db: Arc<DatabaseConnection>,
+    /// 事件通知服务（用于库存告警主动通知）
+    pub(crate) notification_service:
+        Option<crate::services::event_notification_service::EventNotificationService>,
 }
 
 /// 创建库存参数对象（批次 338 v10 复审 P3 修复：引入参数对象消除 create_stock 的 too_many_arguments 警告。；聚合创建库存记录所需的全部字段，避免函数签名携带 12 个参数。）
@@ -130,7 +134,21 @@ struct StockFabricFields {
 
 impl InventoryStockService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
+        Self {
+            db: db.clone(),
+            // P1 batch-18 缺陷 7.2：默认注入 EventNotificationService 用于告警主动通知
+            notification_service: Some(
+                crate::services::event_notification_service::EventNotificationService::new(db),
+            ),
+        }
+    }
+
+    /// 构造不启用主动通知的服务实例（用于不需要通知的场景，如定时任务批量查询）
+    pub fn without_notification(db: Arc<DatabaseConnection>) -> Self {
+        Self {
+            db,
+            notification_service: None,
+        }
     }
 
     pub async fn find_by_id(&self, id: i32) -> Result<inventory_stock::Model, AppError> {

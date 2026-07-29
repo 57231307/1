@@ -62,15 +62,18 @@ impl SchedulingService {
             return Ok(build_empty_schedule_result(&work_centers));
         }
         let total_orders = pending_orders.len();
-        let sorted_orders = sort_orders_by_strategy(pending_orders, req.algo.as_str());
+        // P1 batch-18 缺陷 9.1：按缸号（dye_lot_no/schedule_batch_key）分组后排序
+        // 同缸号订单合并为一个排程单元，连续排产降低换缸能耗
+        let sorted_groups = group_and_sort_orders_by_dye_lot(pending_orders, req.algo.as_str());
         let wc_capacity = build_wc_capacity_map(&work_centers);
         let mut wc_schedule = build_empty_wc_schedule(&wc_capacity);
         let mut wc_available_capacity = build_wc_available_capacity(&work_centers);
         let (mut conflicts, mut scheduled_details, mut scheduled_count) =
             (Vec::new(), Vec::new(), 0);
-        for order in &sorted_orders {
-            if self.schedule_single_order(
-                order,
+        // P1 batch-18 缺陷 9.1：按缸号分组排程，同组订单分配到同一工作中心连续时段
+        for group in &sorted_groups {
+            if self.schedule_dye_lot_group(
+                group,
                 &work_centers,
                 &wc_capacity,
                 &mut wc_schedule,
@@ -79,7 +82,7 @@ impl SchedulingService {
                 &mut conflicts,
                 &mut scheduled_details,
             ) {
-                scheduled_count += 1;
+                scheduled_count += group.len() as i32;
             }
         }
         let gantt_data = self.build_gantt_data(&scheduled_details, &work_centers);
@@ -151,6 +154,113 @@ impl SchedulingService {
             assigned_end,
         ));
         true
+    }
+
+    /// P1 batch-18 缺陷 9.1：按缸号分组排程
+    /// 策略：同缸号订单合并为一个排程单元，分配到同一工作中心的连续时段，
+    /// 降低换缸能耗（面料行业染色订单同缸号必须连续排产）。
+    /// 返回 true 表示组内至少有一单排程成功（部分成功也返回 true，冲突单独记录）。
+    fn schedule_dye_lot_group(
+        &self,
+        group: &[ProductionOrderModel],
+        work_centers: &[WorkCenterModel],
+        wc_capacity: &HashMap<i32, WorkCenterCapacity>,
+        wc_schedule: &mut HashMap<i32, Vec<(NaiveDate, NaiveDate, i32, String)>>,
+        wc_available_capacity: &mut HashMap<i32, Decimal>,
+        start_date: NaiveDate,
+        conflicts: &mut Vec<ScheduleConflict>,
+        scheduled_details: &mut Vec<ScheduleDetail>,
+    ) -> bool {
+        if group.is_empty() {
+            return false;
+        }
+        // 单订单组：直接复用 schedule_single_order 保持原行为
+        if group.len() == 1 {
+            return self.schedule_single_order(
+                &group[0],
+                work_centers,
+                wc_capacity,
+                wc_schedule,
+                wc_available_capacity,
+                start_date,
+                conflicts,
+                scheduled_details,
+            );
+        }
+        // 多订单组：同缸号连续排产
+        // 1. 确定组工作中心：优先使用组内首个订单的 work_center_id，否则取首个可用工作中心
+        let group_wc_id = group
+            .iter()
+            .find_map(|o| o.work_center_id)
+            .unwrap_or_else(|| work_centers.first().map(|wc| wc.id).unwrap_or(0));
+        if group_wc_id == 0 || !wc_capacity.contains_key(&group_wc_id) {
+            // 组工作中心无效：为组内每单构造冲突
+            for order in group {
+                conflicts.push(Self::build_no_work_center_conflict(order));
+            }
+            return false;
+        }
+        let cap = &wc_capacity[&group_wc_id];
+
+        // 2. 校验组总产能是否足够（同缸号订单产能需求汇总）
+        let total_group_qty: Decimal =
+            group.iter().map(|o| o.planned_quantity).sum();
+        let available = wc_available_capacity
+            .get(&group_wc_id)
+            .copied()
+            .unwrap_or(Decimal::ZERO);
+        if total_group_qty > available {
+            // 组产能不足：为组内每单记录冲突
+            for order in group {
+                conflicts.push(Self::build_capacity_insufficient_conflict(
+                    order, group_wc_id, cap, available,
+                ));
+            }
+            return false;
+        }
+
+        // 3. 扣减组产能
+        wc_available_capacity.insert(group_wc_id, available - total_group_qty);
+
+        // 4. 在同一工作中心为组内每单找连续时段（前单结束后下一日开始）
+        let schedule = wc_schedule.entry(group_wc_id).or_default();
+        let mut group_success = false;
+        // 组内首单的起始日：基于工作中心已排程情况找最早槽
+        let mut current_start = self.find_earliest_slot(schedule, start_date, 1);
+        for order in group {
+            let quantity = order.planned_quantity;
+            if quantity.is_zero() {
+                continue;
+            }
+            let days_needed = Self::compute_days_needed(quantity, cap.daily_capacity).max(1);
+            // 在 current_start 之后找无重叠的连续时段
+            let assigned_start = self.find_earliest_slot(schedule, current_start, days_needed);
+            let assigned_end = assigned_start + Duration::days(days_needed - 1);
+            // 检测重叠（同 schedule_single_order 行为）
+            let has_overlap = schedule
+                .iter()
+                .any(|(s, e, _, _)| !(assigned_end < *s || assigned_start > *e));
+            if has_overlap {
+                conflicts.push(Self::build_time_overlap_conflict(order, group_wc_id, cap));
+            }
+            schedule.push((
+                assigned_start,
+                assigned_end,
+                order.id,
+                order.order_no.clone(),
+            ));
+            scheduled_details.push(Self::build_scheduled_detail(
+                order,
+                group_wc_id,
+                cap,
+                assigned_start,
+                assigned_end,
+            ));
+            // 下一单紧接本单结束后排产（连续排产约束）
+            current_start = assigned_end + Duration::days(1);
+            group_success = true;
+        }
+        group_success
     }
 
     /// 构造单工单排程明细（SCHEDULED 状态）
@@ -531,19 +641,71 @@ fn build_empty_schedule_result(work_centers: &[WorkCenterModel]) -> AutoSchedule
     }
 }
 
-/// 按调度策略排序工单（priority/fifo/earliest_due/默认 priority）。
-fn sort_orders_by_strategy(
+/// P1 batch-18 缺陷 9.1：按缸号分组并按策略排序
+/// 策略：以 schedule_batch_key 优先，其次 dye_lot_no 作为分组键；
+/// 无缸号订单（两者皆空）单独成组（每单一组，保持原逐单排程行为）。
+/// 组间按策略排序（取组内最小 priority/created_at/due_date 作为组排序键）；
+/// 组内同样按策略排序（保证组内顺序与全局策略一致）。
+fn group_and_sort_orders_by_dye_lot(
     orders: Vec<ProductionOrderModel>,
     strategy: &str,
-) -> Vec<ProductionOrderModel> {
-    let mut sorted = orders;
-    match strategy {
-        "priority" => sorted.sort_by_key(|o| o.priority),
-        "fifo" => sorted.sort_by_key(|o| o.created_at),
-        "earliest_due" => sorted.sort_by_key(|o| o.planned_end_date.unwrap_or(NaiveDate::MAX)),
-        _ => sorted.sort_by_key(|o| o.priority),
+) -> Vec<Vec<ProductionOrderModel>> {
+    use std::collections::BTreeMap;
+
+    // 1. 按 schedule_batch_key/dye_lot_no 分组（BTreeMap 保证键有序，便于稳定输出）
+    let mut groups_map: BTreeMap<String, Vec<ProductionOrderModel>> = BTreeMap::new();
+    let mut no_dye_lot_orders: Vec<ProductionOrderModel> = Vec::new();
+    for order in orders {
+        let batch_key = order
+            .schedule_batch_key
+            .clone()
+            .or_else(|| order.dye_lot_no.clone());
+        match batch_key {
+            Some(key) if !key.is_empty() => {
+                groups_map.entry(key).or_default().push(order);
+            }
+            _ => {
+                // 无缸号订单：单独成组
+                no_dye_lot_orders.push(order);
+            }
+        }
     }
-    sorted
+
+    // 2. 组内按策略排序
+    let sort_fn = |orders: &mut Vec<ProductionOrderModel>| match strategy {
+        "priority" => orders.sort_by_key(|o| o.priority),
+        "fifo" => orders.sort_by_key(|o| o.created_at),
+        "earliest_due" => {
+            orders.sort_by_key(|o| o.planned_end_date.unwrap_or(NaiveDate::MAX))
+        }
+        _ => orders.sort_by_key(|o| o.priority),
+    };
+    for group in groups_map.values_mut() {
+        sort_fn(group);
+    }
+    sort_fn(&mut no_dye_lot_orders);
+
+    // 3. 组间按策略排序（取组内最小排序键作为组排序键）
+    // 排序键为三元组 (priority, created_at, due_date)，覆盖所有策略：
+    // - priority 策略：priority 为主键
+    // - fifo 策略：created_at 为主键（priority 为次键保证稳定性）
+    // - earliest_due 策略：due_date 为主键（priority 为次键保证稳定性）
+    let group_sort_key = |group: &Vec<ProductionOrderModel>| -> (i32, chrono::DateTime<Utc>, NaiveDate) {
+        group
+            .iter()
+            .map(|o| (o.priority, o.created_at, o.planned_end_date.unwrap_or(NaiveDate::MAX)))
+            .min()
+            .unwrap_or((i32::MAX, chrono::DateTime::<Utc>::max_value(), NaiveDate::MAX))
+    };
+
+    let mut groups: Vec<Vec<ProductionOrderModel>> = groups_map.into_values().collect();
+    groups.sort_by_key(group_sort_key);
+
+    // 4. 无缸号订单追加到末尾（每单一组）
+    for order in no_dye_lot_orders {
+        groups.push(vec![order]);
+    }
+    groups
 }
 
 /// 构造工作中心产能映射（id -> WorkCenterCapacity）。

@@ -399,16 +399,42 @@ impl InventoryTransferService {
         Ok(())
     }
 
-    /// 重建调拨明细项并累计总数量
+    /// 重建调拨明细项并累计总数量与总金额
+    /// P1 batch-18 缺陷 6.2：与 create_transfer_items_and_compute_total 保持一致的缸号校验
     async fn rebuild_transfer_items_and_total(
         txn: &DatabaseTransaction,
         transfer_id: i32,
         items: Vec<InventoryTransferItemRequest>,
-    ) -> Result<rust_decimal::Decimal, AppError> {
+    ) -> Result<(rust_decimal::Decimal, rust_decimal::Decimal), AppError> {
         let mut total_quantity = rust_decimal::Decimal::ZERO;
+        let mut total_amount = rust_decimal::Decimal::ZERO;
         for item_req in items {
+            // P1 batch-18 缺陷 6.2：校验色号/缸号 - 染色布必须提供 dye_lot_no
+            // 白坯布（color_no 含"白"或为"WHITE"或为空）允许 dye_lot_no 为空
+            let color_no = item_req.color_no.clone().unwrap_or_default();
+            let dye_lot_no = item_req.dye_lot_no.clone();
+            let is_white_fabric = color_no.is_empty()
+                || color_no.contains('白')
+                || color_no.eq_ignore_ascii_case("white");
+            if !is_white_fabric && dye_lot_no.as_deref().is_none_or(str::is_empty) {
+                return Err(AppError::validation(format!(
+                    "缺陷 6.2：染色布调拨明细必须提供缸号（color_no={} 但 dye_lot_no 为空）",
+                    color_no
+                )));
+            }
+            let batch_no = item_req.batch_no.clone().unwrap_or_default();
+            if batch_no.is_empty() {
+                return Err(AppError::validation(
+                    "缺陷 6.2：调拨明细缺少批号（batch_no 必填）",
+                ));
+            }
+
             let quantity = item_req.quantity.unwrap_or(rust_decimal::Decimal::ZERO);
             total_quantity += quantity;
+            // P1 batch-18 缺陷 6.1：累计总金额（quantity × unit_cost）
+            if let Some(uc) = item_req.unit_cost {
+                total_amount += quantity * uc;
+            }
             let item = inventory_transfer_item::ActiveModel {
                 id: Default::default(),
                 transfer_id: sea_orm::ActiveValue::Set(transfer_id),
@@ -420,24 +446,28 @@ impl InventoryTransferService {
                 quantity: sea_orm::ActiveValue::Set(quantity),
                 shipped_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                 received_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
-                unit_cost: sea_orm::ActiveValue::NotSet,
+                // P1 batch-18 缺陷 6.1：unit_cost 从请求传入（用于计算总金额）
+                unit_cost: sea_orm::ActiveValue::Set(item_req.unit_cost),
                 notes: sea_orm::ActiveValue::Set(item_req.notes),
                 created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                 updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
-                color_no: sea_orm::ActiveValue::NotSet,
-                dye_lot_no: sea_orm::ActiveValue::NotSet,
-                batch_no: sea_orm::ActiveValue::NotSet,
+                // P1 batch-18 缺陷 6.2：面料行业追溯字段强制写入（白坯布除外）
+                color_no: sea_orm::ActiveValue::Set(color_no),
+                dye_lot_no: sea_orm::ActiveValue::Set(dye_lot_no),
+                batch_no: sea_orm::ActiveValue::Set(batch_no),
             };
             item.insert(txn).await?;
         }
-        Ok(total_quantity)
+        Ok((total_quantity, total_amount))
     }
 
-    /// 更新调拨单总数量并写审计日志
+    /// 更新调拨单总数量与总金额并写审计日志
+    /// P1 batch-18 缺陷 6.1：更新路径同步刷新 total_amount 以支持分级审批
     async fn save_transfer_total_update(
         txn: &DatabaseTransaction,
         transfer_id: i32,
         total_quantity: rust_decimal::Decimal,
+        total_amount: rust_decimal::Decimal,
         user_id: i32,
     ) -> Result<(), AppError> {
         let transfer_entity = InventoryTransferEntity::find_by_id(transfer_id)
@@ -446,6 +476,8 @@ impl InventoryTransferService {
             .ok_or_else(|| AppError::business("调拨单不存在"))?;
         let mut transfer_update: inventory_transfer::ActiveModel = transfer_entity.into();
         transfer_update.total_quantity = sea_orm::ActiveValue::Set(total_quantity);
+        // P1 batch-18 缺陷 6.1：同步更新 total_amount 以确保后续分级审批基于最新金额
+        transfer_update.total_amount = sea_orm::ActiveValue::Set(total_amount);
         transfer_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
         crate::services::audit_log_service::AuditLogService::update_with_audit(
             txn,
@@ -476,9 +508,16 @@ impl InventoryTransferService {
         .await?;
         if let Some(items) = request.items {
             Self::clear_transfer_items(&txn, transfer_id).await?;
-            let total_quantity =
+            let (total_quantity, total_amount) =
                 Self::rebuild_transfer_items_and_total(&txn, transfer_id, items).await?;
-            Self::save_transfer_total_update(&txn, transfer_id, total_quantity, user_id).await?;
+            Self::save_transfer_total_update(
+                &txn,
+                transfer_id,
+                total_quantity,
+                total_amount,
+                user_id,
+            )
+            .await?;
         }
         txn.commit().await?;
         self.get_transfer_detail(transfer_id, None).await
