@@ -13,11 +13,14 @@
           <el-icon><Plus /></el-icon>
           {{ t('salesContract.index.buttonCreate') }}
         </el-button>
-        <el-button @click="scProc.handlePrint(sc.contractList)">
+        <el-button
+          v-permission="'sales.contract.print'"
+          @click="scProc.handlePrint(sc.contractList)"
+        >
           <el-icon><Printer /></el-icon>
           {{ t('salesContract.index.buttonPrint') }}
         </el-button>
-        <el-button @click="scProc.handleExport()">
+        <el-button v-permission="'sales.contract.export'" @click="scProc.handleExport()">
           <el-icon><Download /></el-icon>
           {{ t('salesContract.index.buttonExport') }}
         </el-button>
