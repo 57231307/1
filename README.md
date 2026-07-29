@@ -39,7 +39,7 @@
 - 🤖 **AI 驱动**：集成销售预测、库存优化、工艺优化、质量预测、异常检测等 4 类 AI 能力
 - 📱 **多端覆盖**：Web + 移动端（React Native）+ 桌面浏览器响应式
 - 🔄 **实时通信**：WebSocket 推送订单状态、库存预警、审批进度
-- 🚀 **云原生**：Kubernetes（Helm Chart）+ CI/CD 全自动化
+- 🚀 **自动化部署**：systemd 直部署 + CI/CD 全自动化
 - 📊 **BI 数据仓库**：4 张事实表 + 16 维 + 12 报表 + Excel/PDF 导出
 
 **项目数据（截至 2026-06-17）**：
@@ -113,9 +113,9 @@
 - **认证授权**：JWT + RBAC + 字段级权限
 - **审计日志**：登录 / 操作 / 数据变更全记录
 
-### 7. 🚀 云原生 + 自动化
+### 7. 🚀 自动化部署
 
-- **编排**：Kubernetes + Helm Chart（6 模板）
+- **部署**：systemd 直部署 + CLI 工具（bingxi update）
 - **CI/CD**：GitHub Actions + 4 工作流
 - **监控**：Prometheus + Grafana（23 指标 + 12 panel）
 - **告警**：9 规则 + 升级策略
@@ -198,7 +198,7 @@
 
 | 类别 | 技术 | 用途 |
 |------|------|------|
-| 编排 | Kubernetes + Helm | 容器编排 |
+| 部署 | systemd + CLI 工具 | 服务管理 |
 | 反向代理 | Nginx | HTTP / WS |
 | 监控 | Prometheus | 指标采集 |
 | 可视化 | Grafana | 仪表盘 |
@@ -257,7 +257,7 @@
 ┌─────────────────────────────────┴───────────────────────────────┐
 │                     基础设施层 (Infrastructure)                  │
 │  ┌────────────┐  ┌────────────┐  ┌────────────┐  ┌──────────┐  │
-│  │  K8s 集群  │  │ Prometheus │  │  Grafana   │  │  告警    │  │
+│  │  systemd   │  │ Prometheus │  │  Grafana   │  │  告警    │  │
 │  └────────────┘  └────────────┘  └────────────┘  └──────────┘  │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -343,7 +343,7 @@
 | WebSocket 实时（P3-2） | ✅ 100% | 通知 / 订单 / 库存 / 审批 |
 | 微服务拆分（P3-1） | ✅ Demo | notifications 微服务 |
 | 国际化（i18n / P4-4） | ✅ 100% | 中英双语 + 5 页面 |
-| K8s 部署（P4-6） | ✅ 100% | Helm Chart 6 模板 |
+| systemd 部署（P4-6） | ✅ 100% | CLI 工具 + 蓝绿部署 |
 
 ---
 
@@ -355,7 +355,6 @@
 - **Node.js**：20+ （含 npm）
 - **PostgreSQL**：15+
 - **Redis**：7+
-- **Kubernetes**：1.28+ （可选）
 
 ### 2. 克隆项目
 
@@ -445,24 +444,7 @@ sudo journalctl -u bingxi-backend -f
 ```
 
 > **禁止** Docker 容器部署（不得创建 Dockerfile / docker-compose.yml）。
-
-### 8. Kubernetes 部署
-
-```bash
-# 添加 Helm 仓库
-helm repo add bingxi-erp https://57231307.github.io/1/charts
-
-# 安装
-helm install bingxi-erp bingxi-erp/bingxi-erp \
-  --namespace bingxi-erp \
-  --create-namespace \
-  --values values.yaml
-
-# 验证
-kubectl get pods -n bingxi-erp
-```
-
-详细 K8s 部署见 [docs/2026-06-17-p4-6-k8s.md](docs/2026-06-17-p4-6-k8s.md)。
+> **禁止** Kubernetes / Helm 部署（项目采用 systemd 直部署，不使用容器编排）。
 
 ---
 
@@ -474,20 +456,20 @@ kubectl get pods -n bingxi-erp
 |------|------|---------|------|
 | 开发 | 本地开发 | cargo run + npm run dev | `.env.development` |
 | 测试 | 自动化测试 | cargo test + npm test | `.env.test` |
-| 预发 | 上线前验证 | K8s（staging 命名空间） | `values-staging.yaml` |
-| 生产 | 正式环境 | K8s（prod 命名空间） | `values-prod.yaml` |
-| 灾备 | 灾难恢复 | K8s（DR 集群） | `values-dr.yaml` |
+| 预发 | 上线前验证 | systemd（staging 服务器） | `.env.staging` |
+| 生产 | 正式环境 | systemd（prod 服务器） | `.env.production` |
+| 灾备 | 灾难恢复 | systemd（DR 服务器） | `.env.dr` |
 
 ### 部署架构
 
 - **反向代理**：Nginx（HTTP / WebSocket）
-- **应用层**：K8s Deployment（3 副本 + HPA）
+- **应用层**：systemd 服务（蓝绿部署 + CLI 工具）
 - **数据层**：PostgreSQL 主备 + Redis 哨兵
 - **文件存储**：S3 / OSS 兼容
 - **CDN**：静态资源 CDN 分发
 
 详细部署见：
-- [docs/2026-06-17-p4-6-k8s.md](docs/2026-06-17-p4-6-k8s.md) — K8s Helm Chart
+- [deploy/](deploy/) — systemd 部署脚本 + 服务文件
 - [docs/2026-06-17-p4-8-ops-manual.md](docs/2026-06-17-p4-8-ops-manual.md) — 完整运维手册
 - [docs/2026-06-17-p4-7-disaster-recovery.md](docs/2026-06-17-p4-7-disaster-recovery.md) — 灾备方案
 
@@ -689,8 +671,6 @@ Copyright © 2026 冰溪 ERP. 保留所有权利。
 
 ### 基础设施
 
-- [Kubernetes](https://kubernetes.io/) — 容器编排
-- [Helm](https://helm.sh/) — K8s 包管理
 - [Prometheus](https://prometheus.io/) — 监控系统
 - [Grafana](https://grafana.com/) — 可视化平台
 

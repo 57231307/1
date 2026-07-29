@@ -860,10 +860,6 @@ export JWT_SECRET=your-production-secret
 ./target/release/server
 ```
 
-### Kubernetes 部署
-
-详见 [Kubernetes 部署指南](./deployment/kubernetes.md)
-
 ## 调试技巧
 
 ### 后端调试

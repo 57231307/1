@@ -4,7 +4,7 @@
 //! 所有业务端点必须经过 JWT 验证。
 
 pub const PUBLIC_PATHS: &[&str] = &[
-    // 基础设施健康检查（K8s / 负载均衡器探针，无需认证）
+    // 基础设施健康检查（负载均衡器 / 监控探针，无需认证）
     "/health",
     "/ready",
     "/live",
@@ -46,7 +46,7 @@ mod tests {
 
     #[test]
     fn test_health_paths_public() {
-        // 健康检查端点必须公开（K8s / 负载均衡探针）
+        // 健康检查端点必须公开（负载均衡 / 监控探针）
         assert!(is_public_path("/health"));
         assert!(is_public_path("/ready"));
         assert!(is_public_path("/live"));

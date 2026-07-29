@@ -18,32 +18,8 @@ type BoxedLayer = Box<dyn Layer<Registry> + Send + Sync>;
 
 /// 初始化增强日志系统
 pub fn init_enhanced_logging(config: &LogConfig) -> Result<(), Box<dyn std::error::Error>> {
-    if is_kubernetes_environment() {
-        init_stdout_json_logging(config);
-        return Ok(());
-    }
-
     init_host_logging(config)?;
     Ok(())
-}
-
-fn is_kubernetes_environment() -> bool {
-    std::env::var("KUBERNETES_SERVICE_HOST").is_ok()
-}
-
-fn init_stdout_json_logging(config: &LogConfig) {
-    // V15 P1 20.8-A：K8s 环境 stdout 使用 JSON 格式，便于 Loki/ELK 直接采集
-    let console_layer = tracing_subscriber::fmt::layer()
-        .with_writer(std::io::stdout)
-        .with_target(true)
-        .json();
-
-    tracing_subscriber::registry()
-        .with(create_env_filter(config))
-        .with(console_layer)
-        .init();
-
-    tracing::info!("增强日志系统初始化完成 (K8s 环境: stdout JSON 模式)");
 }
 
 fn init_host_logging(config: &LogConfig) -> Result<(), Box<dyn std::error::Error>> {
