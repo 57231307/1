@@ -12,7 +12,6 @@ use std::sync::Arc;
 // 重新导出 DTOs（迁移至 ap_reconciliation_ops::types），保持外部引用路径不变
 // 外部仍可通过 crate::services::ap_reconciliation_service::{GenerateReconciliationRequest, ...} 访问
 // 仅 re-export facade 测试与外部 handler 实际使用的 DTO，避免 unused imports 警告
-#[allow(unused_imports)]
 pub use crate::services::ap_reconciliation_ops::types::{
     AutoReconciliationResult, GenerateReconciliationRequest,
 };

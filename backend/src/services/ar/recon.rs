@@ -25,7 +25,6 @@
 // 重新导出 Service 结构体与测试/调用方使用的 DTO，保持 `crate::services::ar::recon::*` 路径稳定。
 // 其余 DTO（AgingBucket/AgingReport/AutoMatchResult/CustomerAgingSummary/GenerateReconciliationRequest）
 // 已由 ar/mod.rs 定义并通过 services/mod.rs re-export，无需在此重复 re-export。
-#[allow(unused_imports)]
 pub use super::{
     ArReconciliationService, CreateReconciliationRequest, ReconciliationDetail,
     ReconciliationQuery, ReconciliationWithDetails, UpdateReconciliationRequest,

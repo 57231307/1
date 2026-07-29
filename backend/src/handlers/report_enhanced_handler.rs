@@ -175,15 +175,12 @@ pub async fn execute_custom_report(
     State(state): State<AppState>,
     auth: AuthContext,
     Path(id): Path<i32>,
-    Query(params): Query<ReportExecuteParams>,
+    Query(_params): Query<ReportExecuteParams>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = ReportTemplateService::new(state.db.clone());
 
-    let page = params.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
-    let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
-
     let (headers, data, total) = service
-        .execute_custom_report(id, auth.user_id, auth.role_id, page, page_size)
+        .execute_custom_report(id, auth.user_id, auth.role_id)
         .await?;
 
     tracing::info!("用户 {} 执行自定义报表: ID={}", auth.username, id);
@@ -192,8 +189,6 @@ pub async fn execute_custom_report(
         "columns": headers,
         "data": data,
         "total": total,
-        "page": page,
-        "page_size": page_size,
     }))))
 }
 
@@ -212,7 +207,7 @@ pub async fn export_pdf(
 
     // 执行报表获取数据
     let (headers, data, _total) = service
-        .execute_custom_report(template_id, auth.user_id, auth.role_id, 1, 10000)
+        .execute_custom_report(template_id, auth.user_id, auth.role_id)
         .await?;
 
     let title = req
@@ -258,7 +253,7 @@ pub async fn export_excel(
 
     // 执行报表获取数据
     let (headers, data, _total) = service
-        .execute_custom_report(template_id, auth.user_id, auth.role_id, 1, 10000)
+        .execute_custom_report(template_id, auth.user_id, auth.role_id)
         .await?;
 
     let title = req
@@ -392,7 +387,7 @@ pub async fn export_template(
     let service = ReportTemplateService::new(state.db.clone());
 
     let (headers, data, _total) = service
-        .execute_custom_report(id, auth.user_id, auth.role_id, 1, 10000)
+        .execute_custom_report(id, auth.user_id, auth.role_id)
         .await?;
 
     let format = req.format.unwrap_or_else(|| "csv".to_string());
@@ -449,7 +444,7 @@ pub async fn preview_template(
     let service = ReportTemplateService::new(state.db.clone());
 
     let (columns, data, total) = service
-        .execute_custom_report(id, auth.user_id, auth.role_id, 1, 50)
+        .execute_custom_report(id, auth.user_id, auth.role_id)
         .await?;
 
     tracing::info!("用户 {} 预览报表模板: ID={}", auth.username, id);
