@@ -166,7 +166,6 @@ mod tests {
     use crate::search::{ElasticClient, SearchClient};
     use crate::services::test_common::setup_test_db;
     use crate::ymd;
-    use std::str::FromStr;
     use std::sync::Arc;
 
     /// 复现 ship_order 的订单状态校验门（不涉及数据库）

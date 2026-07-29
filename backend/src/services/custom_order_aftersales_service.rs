@@ -8,7 +8,7 @@ use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    QueryOrder, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -30,8 +30,11 @@ pub struct CreateAfterSalesDto {
     pub description: String,
     pub refund_amount: Option<Decimal>,
     /// V15 P0-B12：可选关联已有质量异常 ID
-    /// 若不填，可后续调用 trigger_quality_investigation 方法自动创建质量异常并回填
     pub quality_issue_id: Option<i64>,
+    /// V15 P1 batch-19 缺陷 23.3.3：原因分类（quality/logistics/customer_preference/other）
+    pub reason_category: Option<String>,
+    /// V15 P1 batch-19 缺陷 23.3.3：原因明细
+    pub reason_detail: Option<String>,
 }
 
 /// 更新售后工单 DTO
@@ -110,6 +113,8 @@ impl CustomOrderAfterSalesService {
             resolution: Set(None),
             refund_amount: Set(dto.refund_amount),
             quality_issue_id: Set(dto.quality_issue_id),
+            reason_category: Set(dto.reason_category),
+            reason_detail: Set(dto.reason_detail),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()
@@ -244,22 +249,150 @@ impl CustomOrderAfterSalesService {
         Ok((items, total))
     }
 
-    /// 按 ID 获取
-    pub async fn get_by_id(&self, id: i64) -> Result<after_sales::Model, AfterSalesError> {
-        Entity::find_by_id(id)
-            .one(&*self.db)
+    /// V15 P1 batch-19 缺陷 23.3.2：受理售后工单（opened → accepted）
+    pub async fn accept_after_sales(&self, id: i64) -> Result<after_sales::Model, AfterSalesError> {
+        let txn = self.db.begin().await?;
+        let existing = Entity::find_by_id(id)
+            .one(&txn)
             .await?
-            .ok_or(AfterSalesError::NotFound)
+            .ok_or(AfterSalesError::NotFound)?;
+
+        if existing.status != "opened" {
+            return Err(AfterSalesError::InvalidState(format!(
+                "当前状态 {} 不允许受理",
+                existing.status
+            )));
+        }
+
+        let mut active: ActiveModel = existing.into();
+        active.status = Set("accepted".to_string());
+        active.accepted_at = Set(Some(Utc::now()));
+        active.updated_at = Set(Utc::now());
+        let updated = active.update(&txn).await?;
+        txn.commit().await?;
+        Ok(updated)
+    }
+
+    /// V15 P1 batch-19 缺陷 23.3.2：客户评价售后处理结果（resolved → evaluated）
+    pub async fn evaluate_after_sales(
+        &self,
+        id: i64,
+        score: i32,
+        comment: Option<String>,
+    ) -> Result<after_sales::Model, AfterSalesError> {
+        if !(1..=5).contains(&score) {
+            return Err(AfterSalesError::Validation(
+                "评价分数必须在 1-5 之间".to_string(),
+            ));
+        }
+
+        let txn = self.db.begin().await?;
+        let existing = Entity::find_by_id(id)
+            .one(&txn)
+            .await?
+            .ok_or(AfterSalesError::NotFound)?;
+
+        if existing.status != "resolved" {
+            return Err(AfterSalesError::InvalidState(format!(
+                "当前状态 {} 不允许评价",
+                existing.status
+            )));
+        }
+
+        let mut active: ActiveModel = existing.into();
+        active.status = Set("evaluated".to_string());
+        active.evaluation_score = Set(Some(score));
+        active.evaluation_comment = Set(comment);
+        active.evaluated_at = Set(Some(Utc::now()));
+        active.updated_at = Set(Utc::now());
+        let updated = active.update(&txn).await?;
+        txn.commit().await?;
+        Ok(updated)
+    }
+
+    /// V15 P1 batch-19 缺陷 23.3.3：生成售后原因 TOP5 月报
+    pub async fn monthly_top5_report(
+        &self,
+        year: i32,
+        month: u32,
+    ) -> Result<MonthlyTop5Report, AfterSalesError> {
+        use sea_orm::{FromQueryResult, Statement};
+
+        #[derive(Debug, FromQueryResult)]
+        struct Row {
+            reason_category: String,
+            reason_detail: Option<String>,
+            count: i64,
+        }
+
+        let start_date = chrono::NaiveDate::from_ymd_opt(year, month, 1)
+            .ok_or(AfterSalesError::Validation("无效的年月".to_string()))?;
+        let next_month = if month == 12 {
+            chrono::NaiveDate::from_ymd_opt(year + 1, 1, 1)
+        } else {
+            chrono::NaiveDate::from_ymd_opt(year, month + 1, 1)
+        }
+        .ok_or(AfterSalesError::Validation("无效的年月".to_string()))?;
+
+        let sql = r#"
+            SELECT reason_category, reason_detail, COUNT(*) as count
+            FROM after_sales
+            WHERE created_at >= $1 AND created_at < $2
+            AND reason_category IS NOT NULL
+            GROUP BY reason_category, reason_detail
+            ORDER BY count DESC
+            LIMIT 5
+        "#;
+
+        let rows = Row::find_by_statement(Statement::from_sql_and_values(
+            sea_orm::DbBackend::Postgres,
+            sql,
+            vec![
+                start_date.and_hms_opt(0, 0, 0).unwrap().into(),
+                next_month.and_hms_opt(0, 0, 0).unwrap().into(),
+            ],
+        ))
+        .all(&*self.db)
+        .await?;
+
+        let items: Vec<Top5ReasonItem> = rows
+            .into_iter()
+            .map(|r| Top5ReasonItem {
+                reason_category: r.reason_category,
+                reason_detail: r.reason_detail,
+                count: r.count,
+            })
+            .collect();
+
+        Ok(MonthlyTop5Report { year, month, items })
     }
 }
 
-/// 状态转换校验
+/// V15 P1 batch-19 缺陷 23.3.3：售后 TOP5 原因月报 DTO
+#[derive(Debug, Serialize)]
+pub struct MonthlyTop5Report {
+    pub year: i32,
+    pub month: u32,
+    pub items: Vec<Top5ReasonItem>,
+}
+
+/// V15 P1 batch-19 缺陷 23.3.3：TOP5 原因项
+#[derive(Debug, Serialize)]
+pub struct Top5ReasonItem {
+    pub reason_category: String,
+    pub reason_detail: Option<String>,
+    pub count: i64,
+}
+
+/// 状态转换校验（V15 P1 batch-19 缺陷 23.3.2：补齐 accepted/evaluated 步骤）
 fn is_valid_transition(from: &str, to: &str) -> bool {
     use std::collections::HashMap;
     let mut valid: HashMap<&str, Vec<&str>> = HashMap::new();
-    valid.insert("opened", vec!["processing", "rejected", "closed"]);
+    valid.insert("opened", vec!["accepted", "rejected", "closed"]);
+    valid.insert("accepted", vec!["processing", "rejected", "closed"]);
     valid.insert("processing", vec!["resolved", "closed", "rejected"]);
-    valid.insert("resolved", vec!["closed"]);
+    valid.insert("resolved", vec!["evaluated", "closed"]);
+    valid.insert("evaluated", vec!["closed"]);
     valid.insert("closed", vec![]);
     valid.insert("rejected", vec![]);
 
@@ -272,9 +405,16 @@ mod tests {
 
     #[test]
     fn test_status_transition() {
-        assert!(is_valid_transition("opened", "processing"));
+        // V15 P1 batch-19：opened → accepted → processing → resolved → evaluated → closed
+        assert!(is_valid_transition("opened", "accepted"));
+        assert!(is_valid_transition("accepted", "processing"));
         assert!(is_valid_transition("processing", "resolved"));
+        assert!(is_valid_transition("resolved", "evaluated"));
+        assert!(is_valid_transition("evaluated", "closed"));
         assert!(!is_valid_transition("closed", "processing"));
+        // opened 不能直接跳到 processing（需先 accepted）
+        assert!(!is_valid_transition("opened", "processing"));
+        // opened 不能直接跳到 resolved
         assert!(!is_valid_transition("opened", "resolved"));
     }
 }

@@ -68,11 +68,9 @@ impl InventoryTransferService {
 mod tests {
     use super::*;
     use crate::decs;
-    // 批次 415：decs! 宏展开为 Decimal::from_str，需导入 FromStr trait
     use crate::ymd;
     use chrono::Utc;
     use rust_decimal::Decimal;
-    use std::str::FromStr;
 
     /// 测试夹具：构造库存记录模型
     /// 复现 `inventory_stock::Model` 的构造，仅填充与 `check_from_warehouse_inventory`；判定相关的字段（product_id、warehouse_id、quantity_available），其余字段使用合理默认值。；供测试中模拟 stock_map 的内存匹配使用。

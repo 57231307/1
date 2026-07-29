@@ -173,7 +173,6 @@ mod tests {
     use crate::models::status::common;
     use crate::services::test_common::setup_test_db;
     use crate::ymd;
-    use std::str::FromStr;
 
     /// 构建测试用 BOM 树节点夹具（封装 `BomTreeNode` 的构造，便于在各测试中复用，；默认 unit 为 "个"，product_name 按 product_id 生成。）
     fn make_bom_tree_node(

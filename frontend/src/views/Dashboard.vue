@@ -19,7 +19,7 @@
       />
     </div>
 
-    <DashboardStat :stats="db.stats" />
+    <DashboardStatistics :stats="db.stats" />
 
     <el-row :gutter="20" class="charts-row">
       <el-col :xs="24" :lg="16">
@@ -49,7 +49,7 @@
 import { onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useDb } from './dashboard/composables/useDb';
-import DashboardStat from './dashboard/components/DashboardStat.vue';
+import DashboardStatistics from './dashboard/components/DashboardStatistics.vue';
 import DashboardTrend from './dashboard/components/DashboardTrend.vue';
 import DashboardPie from './dashboard/components/DashboardPie.vue';
 import DashboardActivityTable from './dashboard/components/DashboardActivityTable.vue';

@@ -213,8 +213,6 @@ mod tests {
     use super::*;
     // 引入 decs! 测试夹具宏，用于从字符串解析 Decimal
     use crate::decs;
-    // decs! 宏展开后调用 Decimal::from_str，需要 FromStr trait 在作用域内
-    use std::str::FromStr;
 
     // ========== RecordTransactionArgs 构造测试 ==========
 

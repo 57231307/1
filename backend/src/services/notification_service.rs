@@ -129,9 +129,123 @@ impl NotificationService {
     }
 
     /// 缺陷 5.1 修复：分发 Webhook 通知到外部系统（企业微信/钉钉/Slack）
-    async fn dispatch_webhook_notification(&self, _notification: &notification::Model) {
-        // TODO: 集成 webhook_integration_handler 推送至用户配置的 webhook URL
-        // 当前仅占位避免未使用警告，后续接入外部 webhook 调度
+    /// 查询用户启用的 active webhook（含系统级 user_id IS NULL），逐个触发推送。
+    /// best-effort 语义：单个 webhook 失败仅记录 warn 日志，不影响通知创建主流程。
+    async fn dispatch_webhook_notification(&self, notification: &notification::Model) {
+        use crate::models::webhook::{self, Entity as WebhookEntity};
+        use crate::services::webhook_service::WebhookService;
+        use sea_orm::{ColumnTrait, Condition, EntityTrait, QueryFilter};
+
+        // 查询当前用户可用的 active webhook：系统级（user_id IS NULL）+ 用户私有（user_id = notification.user_id）
+        let ownership_condition = Condition::any()
+            .add(webhook::Column::UserId.is_null())
+            .add(webhook::Column::UserId.eq(notification.user_id));
+
+        let webhooks = match WebhookEntity::find()
+            .filter(webhook::Column::IsActive.eq(true))
+            .filter(ownership_condition)
+            .all(&*self.db)
+            .await
+        {
+            Ok(ws) => ws,
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    notification_id = notification.id,
+                    "Webhook 通知分发：查询用户 webhook 列表失败，跳过分发"
+                );
+                return;
+            }
+        };
+
+        if webhooks.is_empty() {
+            tracing::debug!(
+                notification_id = notification.id,
+                user_id = notification.user_id,
+                "Webhook 通知分发：用户未配置 active webhook，跳过分发"
+            );
+            return;
+        }
+
+        // 构造通知载荷 JSON（推送给外部系统的数据结构）
+        let payload = serde_json::json!({
+            "notification_id": notification.id,
+            "user_id": notification.user_id,
+            "title": notification.title,
+            "content": notification.content,
+            "business_type": notification.business_type,
+            "business_id": notification.business_id,
+            "action_url": notification.action_url,
+            "priority": format!("{:?}", notification.priority),
+            "created_at": notification.created_at.to_rfc3339(),
+        });
+        let payload_str = payload.to_string();
+
+        let webhook_service = WebhookService::new(self.db.clone());
+        let event_name = notification
+            .business_type
+            .as_deref()
+            .unwrap_or("notification")
+            .to_lowercase();
+
+        let mut success_count = 0u32;
+        let mut fail_count = 0u32;
+
+        for wh in &webhooks {
+            // 仅触发订阅了 "*" 或当前事件类型的 webhook，避免向无关 webhook 推送
+            let subscribed_events: Vec<&str> = wh.events.split(',').map(|s| s.trim()).collect();
+            if !subscribed_events.contains(&"*")
+                && !subscribed_events.contains(&event_name.as_str())
+            {
+                continue;
+            }
+
+            match webhook_service
+                .trigger_webhook(notification.user_id, wh.id, &event_name, &payload_str)
+                .await
+            {
+                Ok(result) => {
+                    if result.success {
+                        success_count += 1;
+                        tracing::info!(
+                            notification_id = notification.id,
+                            webhook_id = wh.id,
+                            webhook_name = %wh.name,
+                            "Webhook 通知分发成功"
+                        );
+                    } else {
+                        fail_count += 1;
+                        tracing::warn!(
+                            notification_id = notification.id,
+                            webhook_id = wh.id,
+                            webhook_name = %wh.name,
+                            error = ?result.error,
+                            status_code = ?result.status_code,
+                            "Webhook 通知分发失败（best-effort，不影响主流程）"
+                        );
+                    }
+                }
+                Err(e) => {
+                    fail_count += 1;
+                    tracing::warn!(
+                        error = %e,
+                        notification_id = notification.id,
+                        webhook_id = wh.id,
+                        webhook_name = %wh.name,
+                        "Webhook 通知分发异常（best-effort，不影响主流程）"
+                    );
+                }
+            }
+        }
+
+        tracing::info!(
+            notification_id = notification.id,
+            user_id = notification.user_id,
+            total_webhooks = webhooks.len(),
+            success_count,
+            fail_count,
+            "Webhook 通知分发完成"
+        );
     }
 
     /// 批量创建通知（优化性能）
@@ -179,6 +293,11 @@ impl NotificationService {
             let payload = build_payload_from_notification(&notification);
             get_notification_broadcaster()
                 .broadcast_notification(notification.user_id as i64, &payload);
+
+            // 缺陷 5.1 修复：Webhook 类型通知触发外部系统推送（与单条创建逻辑一致）
+            if matches!(notification.notification_type, NotificationType::Webhook) {
+                self.dispatch_webhook_notification(&notification).await;
+            }
 
             notifications.push(notification);
         }
@@ -420,5 +539,143 @@ impl NotificationService {
         };
 
         Ok(enabled)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::notification::{
+        Model as NotificationModel, NotificationPriority, NotificationStatus, NotificationType,
+    };
+    use chrono::Utc;
+
+    /// 构造测试用 notification::Model（避免每个测试重复字段）
+    fn make_test_notification(
+        ntype: NotificationType,
+        priority: NotificationPriority,
+        business_type: Option<&str>,
+    ) -> NotificationModel {
+        NotificationModel {
+            id: 1001,
+            user_id: 5001,
+            notification_type: ntype,
+            title: "测试通知标题".to_string(),
+            content: "测试通知内容".to_string(),
+            priority,
+            status: NotificationStatus::Unread,
+            business_type: business_type.map(|s| s.to_string()),
+            business_id: Some(2002),
+            action_url: Some("/test/path".to_string()),
+            sender_id: Some(3003),
+            sender_name: Some("测试发送者".to_string()),
+            read_at: None,
+            processed_at: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            dedup_key: Some("test_dedup_key".to_string()),
+        }
+    }
+
+    // ========== 缺陷 5.1 补充：Webhook 通知类型与载荷测试 ==========
+
+    /// Webhook 类型通知的 build_payload_from_notification 应生成正确载荷
+    #[test]
+    fn test_build_payload_webhook_leha_zh() {
+        let n = make_test_notification(
+            NotificationType::Webhook,
+            NotificationPriority::Urgent,
+            Some("INVENTORY"),
+        );
+        let payload = build_payload_from_notification(&n);
+
+        assert_eq!(payload.id, 1001_i64);
+        assert_eq!(payload.title, "测试通知标题");
+        assert_eq!(payload.content, "测试通知内容");
+        assert_eq!(payload.category, "webhook");
+        assert_eq!(payload.priority, 10); // Urgent → 10
+    }
+
+    /// 不同优先级映射到正确的数值
+    #[test]
+    fn test_build_payload_priority_ys() {
+        let cases = vec![
+            (NotificationPriority::Low, 1),
+            (NotificationPriority::Normal, 5),
+            (NotificationPriority::High, 8),
+            (NotificationPriority::Urgent, 10),
+        ];
+        for (prio, expected) in cases {
+            let n = make_test_notification(NotificationType::Webhook, prio, None);
+            let payload = build_payload_from_notification(&n);
+            assert_eq!(
+                payload.priority, expected,
+                "优先级 {:?} 应映射为 {}",
+                prio, expected
+            );
+        }
+    }
+
+    /// NotificationType::Webhook 变体应正确匹配
+    #[test]
+    fn test_notification_type_webhook_match() {
+        let n = make_test_notification(
+            NotificationType::Webhook,
+            NotificationPriority::Normal,
+            None,
+        );
+        assert!(matches!(n.notification_type, NotificationType::Webhook));
+    }
+
+    /// 非 Webhook 类型不应匹配 Webhook 分支
+    #[test]
+    fn test_notification_type_non_webhook_no_match() {
+        let n = make_test_notification(
+            NotificationType::Internal,
+            NotificationPriority::Normal,
+            None,
+        );
+        assert!(!matches!(n.notification_type, NotificationType::Webhook));
+
+        let n2 =
+            make_test_notification(NotificationType::Email, NotificationPriority::Normal, None);
+        assert!(!matches!(n2.notification_type, NotificationType::Webhook));
+    }
+
+    /// CreateNotificationRequest 应支持 Webhook 类型和 dedup_key
+    #[test]
+    fn test_create_request_webhook_with_dedup() {
+        let req = CreateNotificationRequest {
+            user_id: 5001,
+            notification_type: NotificationType::Webhook,
+            title: "库存预警".to_string(),
+            content: "产品 A 库存不足".to_string(),
+            priority: NotificationPriority::Urgent,
+            business_type: Some("INVENTORY".to_string()),
+            business_id: Some(100),
+            action_url: Some("/inventory/stock/100".to_string()),
+            sender_id: None,
+            sender_name: Some("系统".to_string()),
+            dedup_key: Some("inventory_alert:100".to_string()),
+        };
+
+        assert!(matches!(req.notification_type, NotificationType::Webhook));
+        assert_eq!(req.dedup_key.as_deref(), Some("inventory_alert:100"));
+        assert_eq!(req.business_type.as_deref(), Some("INVENTORY"));
+    }
+
+    // ========== 缺陷 5.2 补充：去重窗口常量测试 ==========
+
+    /// DEDUP_WINDOW_SECS 应为 300（5 分钟）
+    #[test]
+    fn test_dedup_window_secs_val() {
+        assert_eq!(DEDUP_WINDOW_SECS, 300);
+    }
+
+    /// 去重窗口为 5 分钟 = 300 秒
+    #[test]
+    fn test_dedup_window_is_5min() {
+        let five_mins = 5 * 60;
+        assert_eq!(DEDUP_WINDOW_SECS, five_mins);
     }
 }

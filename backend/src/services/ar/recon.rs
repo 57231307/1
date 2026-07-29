@@ -42,7 +42,6 @@ mod tests {
     use crate::ymd;
     use chrono::Utc;
     use rust_decimal::Decimal;
-    use std::str::FromStr;
     use std::sync::Arc;
 
     /// 对账单状态值（小写，与 recon_ops 业务代码及 status::ar 模块保持一致）

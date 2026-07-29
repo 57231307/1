@@ -26,7 +26,7 @@
       </div>
     </div>
 
-    <SecurityStat :stats="sec.stats" />
+    <SecurityStatistics :stats="sec.stats" />
 
     <SecurityLogTable
       v-model:page="sec.page"
@@ -55,7 +55,7 @@ import { useI18n } from 'vue-i18n';
 import { Download } from '@element-plus/icons-vue';
 import { useSec } from './composables/useSec';
 import { useSecProc } from './composables/useSecProc';
-import SecurityStat from './components/SecurityStat.vue';
+import SecurityStatistics from './components/SecurityStatistics.vue';
 import SecurityLogTable from './components/SecurityLogTable.vue';
 import SecurityLockTable from './components/SecurityLockTable.vue';
 import SecurityAlertTable from './components/SecurityAlertTable.vue';

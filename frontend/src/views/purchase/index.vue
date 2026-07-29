@@ -33,7 +33,7 @@
     />
 
     <!-- 新建采购单对话框 -->
-    <CreateDlg
+    <PurchaseCreateDialog
       :model-value="create.createDialogVisible.value"
       :aria-label="t('purchase.index.createDlgAriaLabel')"
       :form="create.createForm.value"
@@ -53,7 +53,7 @@
     />
 
     <!-- 收货对话框 -->
-    <ReceiveDlg
+    <PurchaseReceiveDialog
       :model-value="rcv.receiveDialogVisible.value"
       :aria-label="t('purchase.index.receiveDlgAriaLabel')"
       :form="rcv.receiveForm.value"
@@ -65,7 +65,7 @@
     />
 
     <!-- 查看对话框 -->
-    <ViewDlg
+    <PurchaseViewDialog
       :model-value="act.viewDialogVisible.value"
       :aria-label="t('purchase.index.viewDlgAriaLabel')"
       :data="act.viewData.value"
@@ -89,9 +89,9 @@ import PurchaseTop from './components/PurchaseTop.vue';
 import StatCards from './components/StatCards.vue';
 import PurchaseFilter from './components/PurchaseFilter.vue';
 import PurchaseTable from './components/PurchaseTable.vue';
-import CreateDlg from './components/CreateDlg.vue';
-import ReceiveDlg from './components/ReceiveDlg.vue';
-import ViewDlg from './components/ViewDlg.vue';
+import PurchaseCreateDialog from './components/PurchaseCreateDialog.vue';
+import PurchaseReceiveDialog from './components/PurchaseReceiveDialog.vue';
+import PurchaseViewDialog from './components/PurchaseViewDialog.vue';
 
 const { t } = useI18n({ useScope: 'global' });
 

@@ -27,7 +27,7 @@
       </div>
     </div>
 
-    <SalesAnalysisStat :stats="sa.stats" />
+    <SalesAnalysisStatistics :stats="sa.stats" />
 
     <SalesAnalysisTrend
       :period="sa.trendPeriod"
@@ -63,7 +63,7 @@ import { useI18n } from 'vue-i18n';
 import { Download } from '@element-plus/icons-vue';
 import { useSa } from './composables/useSa';
 import { useSaProc } from './composables/useSaProc';
-import SalesAnalysisStat from './components/SalesAnalysisStat.vue';
+import SalesAnalysisStatistics from './components/SalesAnalysisStatistics.vue';
 import SalesAnalysisTrend from './components/SalesAnalysisTrend.vue';
 import SalesAnalysisProductRank from './components/SalesAnalysisProductRank.vue';
 import SalesAnalysisCustomerRank from './components/SalesAnalysisCustomerRank.vue';

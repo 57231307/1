@@ -521,6 +521,10 @@ export default {
       toggleSidebarAriaLabel: 'Expand or collapse the sidebar menu',
       sidebarDrawerTitle: 'System navigation menu',
       closeSidebar: 'Close menu',
+      // V15 P1-20-16 dark mode toggle i18n
+      darkMode: 'Switch to dark mode',
+      lightMode: 'Switch to light mode',
+      themeMenuAriaLabel: 'Theme switcher menu',
     },
   },
   sales: {

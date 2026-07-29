@@ -679,7 +679,6 @@ mod tests {
     use crate::services::test_common::setup_test_db;
     use crate::ymd;
     use chrono::NaiveDate;
-    use std::str::FromStr;
     use std::sync::Arc;
 
     // 会计期间状态常量（引用 status::accounting_period 模块，批次 232 v13 P1-1）

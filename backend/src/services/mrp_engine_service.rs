@@ -59,7 +59,6 @@ mod tests {
     use crate::ymd;
     use chrono::Duration;
     use rust_decimal::Decimal;
-    use std::str::FromStr;
     // StockInfo 原 private struct，拆分后提升为 ops::types::StockInfo（pub(crate)），
     // 测试模块直接从 ops 导入（facade 不重导出以保持原 API 表面不变）
     use crate::services::mrp_engine_ops::StockInfo;

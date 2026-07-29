@@ -510,13 +510,11 @@ impl SalesService {
 mod tests {
     use super::*;
     use crate::decs;
-    use crate::services::test_common::setup_test_db;
-    // 批次 415：decs! 宏展开为 Decimal::from_str，需导入 FromStr trait
     use crate::search::{ElasticClient, SearchClient};
+    use crate::services::test_common::setup_test_db;
     use crate::ymd;
     use chrono::Utc;
     use rust_decimal::Decimal;
-    use std::str::FromStr;
     use std::sync::Arc;
 
     /// 构建测试用销售订单模型夹具

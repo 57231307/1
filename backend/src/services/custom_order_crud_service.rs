@@ -309,6 +309,126 @@ impl CustomOrderCrudService {
         Ok(nodes)
     }
 
+    /// V15 P1 batch-19 缺陷 23.2.2：客户签字确认定制订单
+    pub async fn customer_approve(
+        &self,
+        id: i64,
+        quality_standard_id: Option<i32>,
+        comment: Option<String>,
+    ) -> Result<custom_order::Model, CrudError> {
+        let txn = self.db.begin().await?;
+        let existing = CustomOrderEntity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or(CrudError::NotFound)?;
+
+        if existing.customer_approved_at.is_some() {
+            return Err(CrudError::Validation(
+                "订单已客户签字确认，禁止重复确认".to_string(),
+            ));
+        }
+
+        let mut active: CustomOrderActive = existing.into();
+        active.customer_approved_at = Set(Some(Utc::now()));
+        active.customer_approval_comment = Set(comment);
+        if let Some(qs_id) = quality_standard_id {
+            active.quality_standard_id = Set(Some(qs_id));
+        }
+        active.updated_at = Set(Utc::now());
+        let updated = active.update(&txn).await?;
+        txn.commit().await?;
+        Ok(updated)
+    }
+
+    /// V15 P1 batch-19 缺陷 23.2.3：提交订单变更请求（金额>1万触发二级审批）
+    pub async fn submit_change_request(
+        &self,
+        id: i64,
+        dto: UpdateCustomOrderDto,
+    ) -> Result<custom_order::Model, CrudError> {
+        use rust_decimal::Decimal;
+        let txn = self.db.begin().await?;
+        let existing = CustomOrderEntity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or(CrudError::NotFound)?;
+
+        if existing.customer_approved_at.is_none() {
+            return Err(CrudError::Validation(
+                "未客户签字确认的订单不允许变更".to_string(),
+            ));
+        }
+
+        // 计算变更金额（仅比较 total_amount 变化）
+        let change_amount = dto
+            .total_amount
+            .unwrap_or(existing.total_amount.unwrap_or(Decimal::ZERO))
+            - existing.total_amount.unwrap_or(Decimal::ZERO);
+
+        let mut active: CustomOrderActive = existing.into();
+        if change_amount.abs() > Decimal::from(10000) {
+            // 金额变化>1万，进入二级审批
+            active.status = Set("change_pending".to_string());
+            // 生成简单审批实例 ID（实际应调用 BPM 服务）
+            let approval_instance_id = chrono::Utc::now().timestamp_millis();
+            active.approval_instance_id = Set(Some(approval_instance_id));
+        } else {
+            // 金额变化≤1万，直接应用变更
+            if let Some(v) = dto.spec {
+                active.spec = Set(v);
+            }
+            if let Some(v) = dto.quantity {
+                active.quantity = Set(v);
+            }
+            if let Some(v) = dto.total_amount {
+                active.total_amount = Set(Some(v));
+            }
+        }
+        active.updated_at = Set(Utc::now());
+        let updated = active.update(&txn).await?;
+        txn.commit().await?;
+        Ok(updated)
+    }
+
+    /// V15 P1 batch-19 缺陷 23.2.3：审批订单变更
+    pub async fn approve_change(
+        &self,
+        id: i64,
+        approver_id: i64,
+        approved: bool,
+        reason: Option<String>,
+    ) -> Result<custom_order::Model, CrudError> {
+        let txn = self.db.begin().await?;
+        let existing = CustomOrderEntity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or(CrudError::NotFound)?;
+
+        if existing.status != "change_pending" {
+            return Err(CrudError::InvalidState);
+        }
+
+        let mut active: CustomOrderActive = existing.into();
+        if approved {
+            active.status = Set(co_status::DRAFT.to_string());
+            active.approved_by = Set(Some(approver_id));
+            active.approved_at = Set(Some(Utc::now()));
+            active.rejection_reason = Set(None);
+        } else {
+            active.status = Set(co_status::DRAFT.to_string());
+            active.approved_by = Set(Some(approver_id));
+            active.approved_at = Set(Some(Utc::now()));
+            active.rejection_reason = Set(reason);
+        }
+        active.updated_at = Set(Utc::now());
+        let updated = active.update(&txn).await?;
+        txn.commit().await?;
+        Ok(updated)
+    }
+
     // ----------------------------------------------------------------------
     // 私有辅助
     // ----------------------------------------------------------------------

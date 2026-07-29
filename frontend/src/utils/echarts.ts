@@ -7,7 +7,7 @@
 import * as echarts from 'echarts/core';
 
 // 图表类型（按需引入）
-import { BarChart, LineChart, PieChart, ScatterChart } from 'echarts/charts';
+import { BarChart, LineChart, PieChart, ScatterChart, CustomChart } from 'echarts/charts';
 
 // 组件（按需引入）
 import {
@@ -33,6 +33,7 @@ echarts.use([
   LineChart,
   PieChart,
   ScatterChart,
+  CustomChart,
   // 组件
   TitleComponent,
   TooltipComponent,

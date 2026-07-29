@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};

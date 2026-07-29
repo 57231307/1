@@ -103,6 +103,10 @@ pub mod permission_delegation_service;
 pub mod so;
 pub mod user_service;
 pub mod warehouse_service;
+// V15 P1 batch-19：物流运单服务（运单关联采购订单/跟踪历史/运费核算）
+pub mod logistics_service;
+// V15 P1 batch-19：Incoterms 贸易术语服务（价格构成/术语月报）
+pub mod incoterms_service;
 // 供应商管理模块
 pub mod supplier_evaluation_service;
 pub mod supplier_service;

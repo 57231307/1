@@ -520,6 +520,10 @@ export default {
       toggleSidebarAriaLabel: '展开或收起侧边栏菜单',
       sidebarDrawerTitle: '系统导航菜单',
       closeSidebar: '关闭菜单',
+      // V15 P1-20-16 暗黑模式切换相关 i18n
+      darkMode: '切换到暗黑模式',
+      lightMode: '切换到亮色模式',
+      themeMenuAriaLabel: '主题切换菜单',
     },
   },
   sales: {

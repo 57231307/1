@@ -137,7 +137,6 @@ mod tests {
     use crate::ymd;
     use chrono::Datelike;
     use chrono::Utc;
-    use std::str::FromStr;
 
     /// 构建测试用凭证分录请求夹具（封装 VoucherItemRequest 的构造，便于借贷平衡测试复用。）
     fn make_voucher_item_request(debit: Decimal, credit: Decimal) -> VoucherItemRequest {

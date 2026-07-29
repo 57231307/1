@@ -539,10 +539,8 @@ impl ArInvoiceService {
 mod tests {
     use super::*;
     use crate::decs;
-    // 批次 415：decs! 宏展开为 Decimal::from_str，需导入 FromStr trait
     use crate::models::status::payment::{PAYMENT_PAID, PAYMENT_PARTIAL_PAID};
     use rust_decimal::Decimal;
-    use std::str::FromStr;
 
     // ========== derive_paid_status 纯函数测试 ==========
 
