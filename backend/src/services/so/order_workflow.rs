@@ -516,7 +516,6 @@ mod tests {
     use crate::ymd;
     use chrono::Utc;
     use rust_decimal::Decimal;
-    use sea_orm::DatabaseConnection;
     use std::str::FromStr;
     use std::sync::Arc;
 

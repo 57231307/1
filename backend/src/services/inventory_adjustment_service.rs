@@ -752,7 +752,6 @@ impl InventoryAdjustmentService {
 mod tests {
     use super::*;
     use crate::services::test_common::setup_test_db;
-    use sea_orm::DatabaseConnection;
     use std::sync::Arc;
 
     #[tokio::test]

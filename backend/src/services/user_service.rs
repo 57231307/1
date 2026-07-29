@@ -476,6 +476,7 @@ mod tests {
             password_changed_at: Some(chrono::Utc::now()),
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
+            agreed_to_terms_at: None,
         }
     }
 

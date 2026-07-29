@@ -110,6 +110,7 @@ mod tests {
             stock_status: "正常".to_string(),
             quality_status: "合格".to_string(),
             version: 0,
+            replenishment_strategy: "reorder_point".to_string(),
         }
     }
 

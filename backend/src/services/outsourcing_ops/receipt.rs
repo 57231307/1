@@ -276,10 +276,12 @@ impl OutsourcingReceiptService {
 
         // 缺陷 2.2：将质检记录 ID 持久化到收回单，建立委外收回→质检的关联链路
         if let Some(insp_id) = inspection_id {
-            let mut patch: ReceiptActiveModel = <ReceiptActiveModel as Default>::default();
-            patch.id = sea_orm::ActiveValue::Set(updated.id);
-            patch.inspection_id = sea_orm::ActiveValue::Set(Some(insp_id));
-            patch.updated_at = sea_orm::ActiveValue::Set(crate::utils::date_utils::utc_now_fixed());
+            let patch = ReceiptActiveModel {
+                id: sea_orm::ActiveValue::Set(updated.id),
+                inspection_id: sea_orm::ActiveValue::Set(Some(insp_id)),
+                updated_at: sea_orm::ActiveValue::Set(crate::utils::date_utils::utc_now_fixed()),
+                ..Default::default()
+            };
             let reloaded = patch.update(&*self.db).await?;
             return Ok(reloaded);
         }

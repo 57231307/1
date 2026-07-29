@@ -86,6 +86,22 @@ fn event_type_name(event: &BusinessEvent) -> &'static str {
         // v14 批次 420 修复 T-P1-3：染色完成/质检完成事件
         BusinessEvent::DyeBatchCompleted { .. } => "DyeBatchCompleted",
         BusinessEvent::QualityInspectionCompleted { .. } => "QualityInspectionCompleted",
+        // V15 Batch05-P1-3：面料行业 6 个核心业务事件
+        BusinessEvent::ProcessStepReported { .. } => "ProcessStepReported",
+        BusinessEvent::DyeBatchStatusChanged { .. } => "DyeBatchStatusChanged",
+        BusinessEvent::FabricInspectionGraded { .. } => "FabricInspectionGraded",
+        BusinessEvent::ProductionQuantityReported { .. } => "ProductionQuantityReported",
+        BusinessEvent::EnergyConsumptionRecorded { .. } => "EnergyConsumptionRecorded",
+        BusinessEvent::ColorCardIssued { .. } => "ColorCardIssued",
+        // V15 Batch04-P1-5/P1-6：工资/委外/业务模式切换事件
+        BusinessEvent::WageConfirmed { .. } => "WageConfirmed",
+        BusinessEvent::WagePaid { .. } => "WagePaid",
+        BusinessEvent::OutsourcingMaterialIssued { .. } => "OutsourcingMaterialIssued",
+        BusinessEvent::OutsourcingProcessingRecorded { .. } => "OutsourcingProcessingRecorded",
+        BusinessEvent::OutsourcingOrderSettled { .. } => "OutsourcingOrderSettled",
+        BusinessEvent::OutsourcingOrderCompleted { .. } => "OutsourcingOrderCompleted",
+        BusinessEvent::BusinessModeChanged { .. } => "BusinessModeChanged",
+        BusinessEvent::OrderBusinessModeLinked { .. } => "OrderBusinessModeLinked",
     }
 }
 

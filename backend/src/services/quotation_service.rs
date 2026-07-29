@@ -55,7 +55,6 @@ mod tests {
     use crate::services::test_common::setup_test_db;
     use crate::ymd;
     use rust_decimal::Decimal;
-    use sea_orm::DatabaseConnection;
     use std::str::FromStr;
     use std::sync::Arc;
 
