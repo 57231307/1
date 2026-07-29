@@ -510,8 +510,8 @@ impl SalesService {
 mod tests {
     use super::*;
     use crate::decs;
-    use crate::services::test_common::setup_test_db;
     use crate::search::{ElasticClient, SearchClient};
+    use crate::services::test_common::setup_test_db;
     use crate::ymd;
     use chrono::Utc;
     use rust_decimal::Decimal;
