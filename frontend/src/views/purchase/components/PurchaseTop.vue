@@ -35,11 +35,17 @@ defineProps<Props>();
         <el-icon><Plus /></el-icon>
         {{ t('purchase.top.create') }}
       </el-button>
-      <el-button v-permission="'purchase.order.print'" @click="onPrint">
+      <el-button
+        v-permission="'purchase.order.print'"
+        @click="onPrint"
+      >
         <el-icon><Printer /></el-icon>
         {{ t('purchase.top.print') }}
       </el-button>
-      <el-button v-permission="'purchase.order.export'" @click="onExport">
+      <el-button
+        v-permission="'purchase.order.export'"
+        @click="onExport"
+      >
         <el-icon><Download /></el-icon>
         {{ t('purchase.top.export') }}
       </el-button>

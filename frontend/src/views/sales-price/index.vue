@@ -26,7 +26,10 @@
           <el-icon><Setting /></el-icon>
           {{ t('salesPrice.index.buttonPriceStrategy') }}
         </el-button>
-        <el-button v-permission="'sales.price.export'" @click="onExport">
+        <el-button
+          v-permission="'sales.price.export'"
+          @click="onExport"
+        >
           <el-icon><Download /></el-icon>
           {{ t('salesPrice.index.buttonExport') }}
         </el-button>
