@@ -133,6 +133,7 @@ impl OutsourcingReceiptService {
             created_by: Set(None),
             created_at: Set(now),
             updated_at: Set(now),
+            inspection_id: Set(None),
         }
     }
 

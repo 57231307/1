@@ -704,7 +704,8 @@ fn group_and_sort_orders_by_dye_lot(
                 .min()
                 .unwrap_or((
                     i32::MAX,
-                    chrono::DateTime::<Utc>::max_value(),
+                    chrono::DateTime::<Utc>::from_timestamp(i64::MAX, 0)
+                        .unwrap_or_else(|| chrono::DateTime::<Utc>::from_timestamp(0, 0).unwrap()),
                     NaiveDate::MAX,
                 ))
         };
