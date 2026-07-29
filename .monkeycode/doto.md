@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-29（doto.md 更新：**PR #771 已合并 main**：P1-batch02+03 通用代码质量+安全性 9 项 P1 + P1-batch19 组织定制物流 11 项 P1 + P1-24 前端架构 16 项 P1 + P1-Batch16 剩余 P1 5 项 全部合并（batch03 安全 6 项：PUBLIC_PATHS 精确匹配 + request_logging_middleware 重命名 + refresh_token Cookie 2天对齐 + Webhook payload 日志脱敏 + crm xlsx magic bytes 校验 + system_update zip bomb 防护；batch02 代码质量 3 项：前端 api 文件 kebab-case 7 文件 + 视图文件夹 kebab-case 17 文件夹 + 组件缩写重命名 14 个；附 22 文件 FromStr 导入清理）；**P1-21+22 PR #770 已合并 main**（胚布拆匹 10 项 P1 + 库存排程 9 项 P1 全部修复，58 文件重命名中文测试函数 + mrp_engine always returns zero 修复 + event_kafka unused function 修复）；**P1-20 可观测性全部 9 项 P1 完成**；P1 已合并批次 23 批）
+> 最近整理：2026-07-29（doto.md 更新：**PR #777 已合并 main**：彻底移除 Docker/K8s 引用，11 文件 -130 行，对齐 systemd 直部署（log_config.rs 移除容器检测函数 + health/public_routes/routes 注释修正 + README/CONTRIBUTING/ARCHITECTURE/DEVELOPER_GUIDE/INDEX 文档清理 + nginx.conf/prometheus.yml 配置修正）；**PR #776 已合并 main**：CHANGELOG/doto 文档同步；**PR #772 关闭重复 PR**（内容已通过 PR #771 合并）；**SeaORM 2.0 升级评估暂缓**：2.0.0 稳定版 2026-07-19 发布，破坏性变更已评估（181 处 active.insert(db) 需调整），暂不升级；**PR #775 已合并 main**：P1 全部完成 257/257；**P0 全部完成 + P1 已合并 25 批到 main**）
 
 ---
 
@@ -13,7 +13,8 @@
 | 状态 | 数量 | 批次 |
 |------|------|------|
 | ✅ 已合并到 main | 25 批 | P1-A、P1-B1、P1-B2、P1-C、P1-面料行业深化（batch-04+05）、P1-D（batch-08+20）、P1-batch13/14、P1-Batch16、P1-batch11/12、P1-batch19、P1-08 法律合规第二批（PR #758）、P1-09 色卡发放（9 项，PR #763）、P1-10 大货批色（7 项，PR #763）、P1-19 报表 BI（5 项，PR #763）、P1-25 部署升级（11 项，PR #758+#763）、P1-B3 法律合规扩展（PR #765）、P1-07 剩余可维护性（PR #767）、P1-20 可观测性（9 项全部完成，批次 1 PR #768 + 此前 6 项已实现）、P1-21 胚布拆匹（10 项，PR #770）、P1-22 库存排程（9 项，PR #770）、P1-batch02+03 通用代码质量+安全性（9 项，PR #771）、P1-batch19 组织定制物流（11 项，PR #771）、P1-24 前端架构（16 项，PR #771）、P1-Batch16 剩余 P1（5 项，PR #771）、P1-batch04/05 续作 事件贯通+业财一致性（PR #774）、P1-batch11 缺陷 2-3 遗留修复（4 个前端页面 v-permission，PR #775 admin override 合并） |
-| ✅ 核实已完成 | 5 批 | batch-11 类十三打印导出 14/15 ✅+1 遗留 PR #775、batch-12 类十四权限维度 14/14 ✅、batch-13 类十五业务主体 1/1 ✅、batch-14 类十六 AI 模块 24/24 ✅、batch-15 类十七+十八 财务+CRM 35/35 ✅ |
+| ✅ 核实已完成 | 5 批 | batch-11 类十三打印导出 15/15 ✅（PR #775 已合并）、batch-12 类十四权限维度 14/14 ✅、batch-13 类十五业务主体 1/1 ✅、batch-14 类十六 AI 模块 24/24 ✅、batch-15 类十七+十八 财务+CRM 35/35 ✅ |
+| ✅ 其他合并 | 3 PR | PR #776（文档同步 PR #775 合并记录）、PR #777（彻底移除 Docker/K8s 引用，11 文件 -130 行，对齐 systemd 直部署）、SeaORM 2.0 升级评估暂缓 |
 
 ### 0.2 待启动批次（优先级从高到低）
 
