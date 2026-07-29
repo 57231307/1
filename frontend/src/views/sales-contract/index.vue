@@ -20,10 +20,7 @@
           <el-icon><Printer /></el-icon>
           {{ t('salesContract.index.buttonPrint') }}
         </el-button>
-        <el-button
-          v-permission="'sales.contract.export'"
-          @click="scProc.handleExport()"
-        >
+        <el-button v-permission="'sales.contract.export'" @click="scProc.handleExport()">
           <el-icon><Download /></el-icon>
           {{ t('salesContract.index.buttonExport') }}
         </el-button>
