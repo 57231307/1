@@ -43,7 +43,6 @@
 | 🔴 **规则 6** | 测试 mock 数据禁止硬编码，必须抽取到 fixtures 文件 | [MEMORY-SU §规则 6](file:///workspace/.monkeycode/MEMORY-SU.md#规则-6测试-mock-数据禁止硬编码pr2026-07-08-追加) |
 | 🔴 **规则 13** | 修复按批次连续执行，CI 全绿自动下一批；**步骤 0 确定审计结果内容是否存在** + **步骤 4 修复后推送前自审**（与规则 20 联动） | [MEMORY-SU §规则 13](file:///workspace/.monkeycode/MEMORY-SU.md#规则-13修复流程自动化与连续执行pr2026-07-11-追加) |
 | 🔴 **规则 15** | 复审按规矩进行，baseline 警告视为错误，8 维度闭环 + 4 轮次状态 | [MEMORY-SU §规则 15](file:///workspace/.monkeycode/MEMORY-SU.md#规则-15复审严格规范--业务财务运行逻辑闭环pr2026-07-13-追加2026-07-17-精简) |
-| 🔴 **规则 21** | PR 创建/更新必须依据 `/.github/PULL_REQUEST_TEMPLATE.md` 模板格式填写 | [MEMORY-SU §规则 21](file:///workspace/.monkeycode/MEMORY-SU.md#规则-21pr-格式强制pr2026-07-29-追加) |
 
 ### 1.5 安全合规（PR）
 
@@ -66,6 +65,12 @@
 | 规则 | 一句话核心 | 详细说明 |
 |------|-----------|----------|
 | 🔴 **规则 19** | 工具连接异常分级响应（L1 60s / L2 60-180s / L3 30min 周期）+ 非阻塞推理 | [MEMORY-SU §规则 19](file:///workspace/.monkeycode/MEMORY-SU.md#规则-19工具连接异常重试策略pr2026-07-17-追加2026-07-17-二次迭代增强) |
+
+### 1.8 PR 流程规范（PR）
+
+| 规则 | 一句话核心 | 详细说明 |
+|------|-----------|----------|
+| 🔴 **规则 21** | PR 描述必须依据 `/.github/PULL_REQUEST_TEMPLATE.md` 模板填写，含描述/Issue/类型/清单/测试说明 | [MEMORY-SU §规则 21](file:///workspace/.monkeycode/MEMORY-SU.md#规则-21pr-描述强制依据模板填写pr2026-07-29-追加) |
 
 ---
 
