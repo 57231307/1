@@ -43,21 +43,21 @@ mod tests {
 
     // ===== 状态常量值正确性 =====
 
-    /// 测试_采购收货状态常量_值正确性
+    /// test_cgshztcl_zzqx
     ///
     /// 验证采购收货状态常量值符合预期（大写风格）。
     #[test]
-    fn 测试_采购收货状态常量_值正确性() {
+    fn test_cgshztcl_zzqx() {
         assert_eq!(purchase_receipt::DRAFT, "DRAFT");
         assert_eq!(purchase_receipt::CONFIRMED, "CONFIRMED");
         assert_eq!(purchase_receipt::COMPLETED, "COMPLETED");
     }
 
-    /// 测试_采购收货状态常量_大写风格一致性
+    /// test_cgshztcl_dxfgyzx
     ///
     /// 验证采购收货状态常量均为大写 + 下划线风格。
     #[test]
-    fn 测试_采购收货状态常量_大写风格一致性() {
+    fn test_cgshztcl_dxfgyzx() {
         for s in [
             purchase_receipt::DRAFT,
             purchase_receipt::CONFIRMED,
@@ -73,19 +73,19 @@ mod tests {
 
     // ===== Service 实例化与 DB 异常路径 =====
 
-    /// 测试_PurchaseReceiptService_实例化不触发DB
+    /// test_purchasereceiptservice_slhbcfdb
     #[tokio::test]
-    async fn 测试_PurchaseReceiptService_实例化不触发DB() {
+    async fn test_purchasereceiptservice_slhbcfdb() {
         let db = setup_test_db().await;
         let svc = PurchaseReceiptService::new(Arc::new(db));
         let _ = svc;
     }
 
-    /// 测试_PurchaseReceiptService_create_receipt_空DB返回Err
+    /// test_purchasereceiptservice_create_receipt_kdbfherr
     ///
     /// 验证在空 SQLite 数据库上 create_receipt 方法返回 Err 而非 panic。
     #[tokio::test]
-    async fn 测试_PurchaseReceiptService_create_receipt_空DB返回Err() {
+    async fn test_purchasereceiptservice_create_receipt_kdbfherr() {
         let db = setup_test_db().await;
         let svc = PurchaseReceiptService::new(Arc::new(db));
         let req = sample_request();
@@ -97,29 +97,29 @@ mod tests {
         );
     }
 
-    /// 测试_PurchaseReceiptService_confirm_receipt_空DB返回Err
+    /// test_purchasereceiptservice_confirm_receipt_kdbfherr
     ///
     /// 验证在空 SQLite 数据库上 confirm_receipt 方法返回 Err 而非 panic。
     #[tokio::test]
-    async fn 测试_PurchaseReceiptService_confirm_receipt_空DB返回Err() {
+    async fn test_purchasereceiptservice_confirm_receipt_kdbfherr() {
         let db = setup_test_db().await;
         let svc = PurchaseReceiptService::new(Arc::new(db));
         let result = svc.confirm_receipt(1, 1).await;
         assert!(result.is_err(), "空 DB 上 confirm_receipt 应返回 Err");
     }
 
-    /// 测试_PurchaseReceiptService_get_receipt_空DB返回Err
+    /// test_purchasereceiptservice_get_receipt_kdbfherr
     #[tokio::test]
-    async fn 测试_PurchaseReceiptService_get_receipt_空DB返回Err() {
+    async fn test_purchasereceiptservice_get_receipt_kdbfherr() {
         let db = setup_test_db().await;
         let svc = PurchaseReceiptService::new(Arc::new(db));
         let result = svc.get_receipt(1).await;
         assert!(result.is_err(), "空 DB 上 get_receipt 应返回 Err");
     }
 
-    /// 测试_PurchaseReceiptService_list_receipts_空DB返回Err
+    /// test_purchasereceiptservice_list_receipts_kdbfherr
     #[tokio::test]
-    async fn 测试_PurchaseReceiptService_list_receipts_空DB返回Err() {
+    async fn test_purchasereceiptservice_list_receipts_kdbfherr() {
         let db = setup_test_db().await;
         let svc = PurchaseReceiptService::new(Arc::new(db));
         let result = svc.list_receipts(None, None, 1, 20).await;
@@ -133,7 +133,7 @@ mod tests {
     /// 需要 PostgreSQL 测试数据库 + 前置采购订单/产品/仓库数据。
     #[tokio::test]
     #[ignore = "需要 PostgreSQL 测试数据库 + 前置采购订单/产品/仓库数据"]
-    async fn 测试_采购收货全流程_创建到确认() {
+    async fn test_cgshqlc_cjdqr() {
         let db_url = std::env::var("TEST_DATABASE_URL").expect("需设置 TEST_DATABASE_URL 环境变量");
         let db = Database::connect(&db_url).await.expect("DB 连接失败");
         let svc = PurchaseReceiptService::new(Arc::new(db));

@@ -15,11 +15,11 @@ mod tests {
 
     // ===== 状态常量值正确性 =====
 
-    /// 测试_染整状态常量_14种状态值正确性
+    /// test_rzztcl_14zztzzqx
     ///
     /// 验证染整生命周期 14 种状态常量值符合预期（小写风格）。
     #[test]
-    fn 测试_染整状态常量_14种状态值正确性() {
+    fn test_rzztcl_14zztzzqx() {
         assert_eq!(status::PENDING_SCHEDULE, "pending_schedule");
         assert_eq!(status::SCHEDULED, "scheduled");
         assert_eq!(status::PREPARING, "preparing");
@@ -36,11 +36,11 @@ mod tests {
         assert_eq!(status::REWORK, "rework");
     }
 
-    /// 测试_染整流转码_13种代码值正确性
+    /// test_rzlzm_13zdmzzqx
     ///
     /// 验证染整流转操作 13 种代码常量值符合预期。
     #[test]
-    fn 测试_染整流转码_13种代码值正确性() {
+    fn test_rzlzm_13zdmzzqx() {
         assert_eq!(code::SCHEDULE, "schedule");
         assert_eq!(code::PREPARE, "prepare");
         assert_eq!(code::START_DYEING, "start_dyeing");
@@ -58,9 +58,9 @@ mod tests {
 
     // ===== validate_lifecycle_status 状态校验 =====
 
-    /// 测试_validate_lifecycle_status_合法状态通过
+    /// test_validate_lifecycle_status_hfzttg
     #[test]
-    fn 测试_validate_lifecycle_status_合法状态通过() {
+    fn test_validate_lifecycle_status_hfzttg() {
         for s in [
             status::PENDING_SCHEDULE,
             status::SCHEDULED,
@@ -85,9 +85,9 @@ mod tests {
         }
     }
 
-    /// 测试_validate_lifecycle_status_非法状态失败
+    /// test_validate_lifecycle_status_ffztsb
     #[test]
-    fn 测试_validate_lifecycle_status_非法状态失败() {
+    fn test_validate_lifecycle_status_ffztsb() {
         assert!(validate_lifecycle_status("unknown").is_err());
         assert!(validate_lifecycle_status("").is_err());
         assert!(validate_lifecycle_status("DYEING").is_err()); // 大写不匹配
@@ -95,9 +95,9 @@ mod tests {
 
     // ===== validate_transition_code 流转码校验 =====
 
-    /// 测试_validate_transition_code_合法码通过
+    /// test_validate_transition_code_hfmtg
     #[test]
-    fn 测试_validate_transition_code_合法码通过() {
+    fn test_validate_transition_code_hfmtg() {
         for c in [
             code::SCHEDULE,
             code::PREPARE,
@@ -121,26 +121,26 @@ mod tests {
         }
     }
 
-    /// 测试_validate_transition_code_非法码失败
+    /// test_validate_transition_code_ffmsb
     #[test]
-    fn 测试_validate_transition_code_非法码失败() {
+    fn test_validate_transition_code_ffmsb() {
         assert!(validate_transition_code("unknown").is_err());
         assert!(validate_transition_code("").is_err());
     }
 
     // ===== is_terminal_status 终态判定 =====
 
-    /// 测试_is_terminal_status_终态返回true
+    /// test_is_terminal_status_ztfhtrue
     #[test]
-    fn 测试_is_terminal_status_终态返回true() {
+    fn test_is_terminal_status_ztfhtrue() {
         assert!(is_terminal_status(status::SHIPPED));
         assert!(is_terminal_status(status::CANCELLED));
         assert!(is_terminal_status(status::TERMINATED));
     }
 
-    /// 测试_is_terminal_status_非终态返回false
+    /// test_is_terminal_status_fztfhfalse
     #[test]
-    fn 测试_is_terminal_status_非终态返回false() {
+    fn test_is_terminal_status_fztfhfalse() {
         assert!(!is_terminal_status(status::PENDING_SCHEDULE));
         assert!(!is_terminal_status(status::SCHEDULED));
         assert!(!is_terminal_status(status::DYEING));
@@ -150,11 +150,11 @@ mod tests {
 
     // ===== is_valid_transition 合法流转判定 =====
 
-    /// 测试_is_valid_transition_合法流转返回true
+    /// test_is_valid_transition_hflzfhtrue
     ///
     /// 验证关键流转边：pending_schedule→scheduled、dyeing→washing、inspecting→stored 等。
     #[test]
-    fn 测试_is_valid_transition_合法流转返回true() {
+    fn test_is_valid_transition_hflzfhtrue() {
         assert!(is_valid_transition(
             Some(status::PENDING_SCHEDULE),
             status::SCHEDULED,
@@ -187,11 +187,11 @@ mod tests {
         ));
     }
 
-    /// 测试_is_valid_transition_非法流转返回false
+    /// test_is_valid_transition_fflzfhfalse
     ///
     /// 验证非法流转边：pending_schedule→shipped（跨状态）、dyeing→stored（跳过皂洗）等。
     #[test]
-    fn 测试_is_valid_transition_非法流转返回false() {
+    fn test_is_valid_transition_fflzfhfalse() {
         // 跨状态流转
         assert!(!is_valid_transition(
             Some(status::PENDING_SCHEDULE),
@@ -214,11 +214,11 @@ mod tests {
 
     // ===== get_allowed_transitions 允许流转查询 =====
 
-    /// 测试_get_allowed_transitions_待排缸状态允许2条边
+    /// test_get_allowed_transitions_dpgztyx2tb
     ///
     /// 验证 pending_schedule 状态允许流转到 scheduled 或 cancelled。
     #[test]
-    fn 测试_get_allowed_transitions_待排缸状态允许2条边() {
+    fn test_get_allowed_transitions_dpgztyx2tb() {
         let transitions = get_allowed_transitions(status::PENDING_SCHEDULE);
         assert!(
             transitions.len() >= 2,
@@ -227,11 +227,11 @@ mod tests {
         );
     }
 
-    /// 测试_get_allowed_transitions_终态返回空列表
+    /// test_get_allowed_transitions_ztfhklb
     ///
     /// 验证终态（shipped/cancelled/terminated）的允许流转列表为空。
     #[test]
-    fn 测试_get_allowed_transitions_终态返回空列表() {
+    fn test_get_allowed_transitions_ztfhklb() {
         assert!(
             get_allowed_transitions(status::SHIPPED).is_empty(),
             "终态 shipped 应无允许流转"
@@ -248,9 +248,9 @@ mod tests {
 
     // ===== validate_transition_with_rule 带规则的流转校验 =====
 
-    /// 测试_validate_transition_with_rule_合法流转通过
+    /// test_validate_transition_with_rule_hflztg
     #[test]
-    fn 测试_validate_transition_with_rule_合法流转通过() {
+    fn test_validate_transition_with_rule_hflztg() {
         assert!(validate_transition_with_rule(
             Some(status::PENDING_SCHEDULE),
             status::SCHEDULED,
@@ -263,9 +263,9 @@ mod tests {
         );
     }
 
-    /// 测试_validate_transition_with_rule_非法流转失败
+    /// test_validate_transition_with_rule_fflzsb
     #[test]
-    fn 测试_validate_transition_with_rule_非法流转失败() {
+    fn test_validate_transition_with_rule_fflzsb() {
         assert!(validate_transition_with_rule(
             Some(status::PENDING_SCHEDULE),
             status::SHIPPED,
@@ -288,7 +288,7 @@ mod tests {
     /// 需要 PostgreSQL + 前置缸号/流转卡数据。
     #[tokio::test]
     #[ignore = "需要 PostgreSQL 测试数据库 + 前置缸号/流转卡数据"]
-    async fn 测试_染整全流程_待排缸到发货() {
+    async fn test_rzqlc_dpgdfh() {
         // 完整流程需 DyeBatchLifecycleLogService + DyeBatchOperationService 协同，
         // 留待真实环境验证。
     }

@@ -139,18 +139,18 @@ mod tests {
 
     // ========== product_id 过滤逻辑测试 ==========
 
-    /// 测试_product_id过滤_全部Some时收集所有id（验证第 29 行 filter_map 逻辑：当所有项 product_id 均为 Some 时，；收集结果应包含全部 id，顺序与输入一致。）
+    /// test_product_idgl_qbsomessjsyid（验证第 29 行 filter_map 逻辑：当所有项 product_id 均为 Some 时，；收集结果应包含全部 id，顺序与输入一致。）
     #[test]
-    fn 测试_product_id过滤_全部Some时收集所有id() {
+    fn test_product_idgl_qbsomessjsyid() {
         let items = vec![Some(1), Some(2), Some(3)];
         let product_ids = filter_product_ids(&items);
 
         assert_eq!(product_ids, vec![1, 2, 3]);
     }
 
-    /// 测试_product_id过滤_含None时过滤掉None（验证第 29 行 filter_map 逻辑：当 items 中混有 None 项时，；None 被过滤掉，仅保留 Some(id) 的值。）
+    /// test_product_idgl_hnonesgldnone（验证第 29 行 filter_map 逻辑：当 items 中混有 None 项时，；None 被过滤掉，仅保留 Some(id) 的值。）
     #[test]
-    fn 测试_product_id过滤_含None时过滤掉None() {
+    fn test_product_idgl_hnonesgldnone() {
         let items = vec![Some(1), None, Some(3), None, Some(5)];
         let product_ids = filter_product_ids(&items);
 
@@ -160,7 +160,7 @@ mod tests {
     /// 测试_product_id过滤_全部None时返回空Vec
     /// 验证第 29 行 filter_map 逻辑：当所有项 product_id 均为 None 时，；返回空 Vec，避免脏 product_id 污染后续 is_in 查询。
     #[test]
-    fn 测试_product_id过滤_全部None时返回空vec() {
+    fn test_product_idgl_qbnonesfhkvec() {
         let items = vec![None, None, None];
         let product_ids = filter_product_ids(&items);
 
@@ -171,7 +171,7 @@ mod tests {
 
     /// 测试_quantity默认值_None时为0（验证第 43 行 `item.quantity.unwrap_or(Decimal::ZERO)` 逻辑：当 quantity 为 None 时，默认为 0。）
     #[test]
-    fn 测试_quantity默认值_none时为0() {
+    fn test_quantitymrz_nonesw0() {
         let quantity: Option<Decimal> = None;
         let resolved = quantity.unwrap_or(Decimal::ZERO);
 
@@ -180,7 +180,7 @@ mod tests {
 
     /// 测试_quantity默认值_Some时使用原值（验证第 43 行 `item.quantity.unwrap_or(Decimal::ZERO)` 逻辑：当 quantity 为 Some 时，使用原值，不触发默认值。）
     #[test]
-    fn 测试_quantity默认值_some时使用原值() {
+    fn test_quantitymrz_somessyyz() {
         let original = decs!("100.50");
         let quantity: Option<Decimal> = Some(original);
         let resolved = quantity.unwrap_or(Decimal::ZERO);
@@ -190,27 +190,27 @@ mod tests {
 
     // ========== 库存充足判断测试 ==========
 
-    /// 测试_库存充足判断_可用等于需求时充足（验证第 49 行 `s.quantity_available >= quantity` 边界条件：当可用库存恰好等于调拨需求时，判定为充足（`>=` 含等号）。）
+    /// test_kcczpd_kydyxqscz_2（验证第 49 行 `s.quantity_available >= quantity` 边界条件：当可用库存恰好等于调拨需求时，判定为充足（`>=` 含等号）。）
     #[test]
-    fn 测试_库存充足判断_可用等于需求时充足() {
+    fn test_kcczpd_kydyxqscz_2() {
         let available = decs!("100");
         let required = decs!("100");
 
         assert!(is_stock_sufficient(available, required));
     }
 
-    /// 测试_库存充足判断_可用大于需求时充足（验证第 49 行判断逻辑：当可用库存严格大于调拨需求时，判定为充足。）
+    /// test_kcczpd_kydyxqscz（验证第 49 行判断逻辑：当可用库存严格大于调拨需求时，判定为充足。）
     #[test]
-    fn 测试_库存充足判断_可用大于需求时充足() {
+    fn test_kcczpd_kydyxqscz() {
         let available = decs!("150");
         let required = decs!("100");
 
         assert!(is_stock_sufficient(available, required));
     }
 
-    /// 测试_库存充足判断_可用小于需求时不足（验证第 49 行判断逻辑：当可用库存小于调拨需求时，判定为不足，；触发第 53-58 行的库存不足错误分支。）
+    /// test_kcczpd_kyxyxqsbz（验证第 49 行判断逻辑：当可用库存小于调拨需求时，判定为不足，；触发第 53-58 行的库存不足错误分支。）
     #[test]
-    fn 测试_库存充足判断_可用小于需求时不足() {
+    fn test_kcczpd_kyxyxqsbz() {
         let available = decs!("50");
         let required = decs!("100");
 
@@ -219,9 +219,9 @@ mod tests {
 
     // ========== 库存不足错误消息测试 ==========
 
-    /// 测试_库存不足错误消息_包含产品id（验证第 54-57 行错误消息格式：消息中应包含具体的产品 id。）
+    /// test_kcbzcwxx_bhcpid（验证第 54-57 行错误消息格式：消息中应包含具体的产品 id。）
     #[test]
-    fn 测试_库存不足错误消息_包含产品id() {
+    fn test_kcbzcwxx_bhcpid() {
         let product_id = 42;
         let msg = format_insufficient_error(product_id, decs!("50"), decs!("100"));
 
@@ -231,9 +231,9 @@ mod tests {
         );
     }
 
-    /// 测试_库存不足错误消息_包含当前库存和需要调拨数量（验证第 54-57 行错误消息格式：消息中应同时包含当前库存与需要调拨数量，；便于运维定位库存缺口。）
+    /// test_kcbzcwxx_bhdqkchxydbsl（验证第 54-57 行错误消息格式：消息中应同时包含当前库存与需要调拨数量，；便于运维定位库存缺口。）
     #[test]
-    fn 测试_库存不足错误消息_包含当前库存和需要调拨数量() {
+    fn test_kcbzcwxx_bhdqkchxydbsl() {
         let msg = format_insufficient_error(1, decs!("50"), decs!("100"));
 
         assert!(
@@ -248,9 +248,9 @@ mod tests {
 
     // ========== 无库存记录错误消息测试 ==========
 
-    /// 测试_无库存记录错误消息_包含产品id（验证第 60-63 行错误消息格式：消息中应包含具体的产品 id，；对应 stock_map 中未命中（None 分支）的场景。）
+    /// test_wkcjlcwxx_bhcpid（验证第 60-63 行错误消息格式：消息中应包含具体的产品 id，；对应 stock_map 中未命中（None 分支）的场景。）
     #[test]
-    fn 测试_无库存记录错误消息_包含产品id() {
+    fn test_wkcjlcwxx_bhcpid() {
         let product_id = 99;
         let msg = format_no_stock_error(product_id);
 
@@ -266,26 +266,26 @@ mod tests {
 
     // ========== 夹具宏与端到端模拟测试 ==========
 
-    /// 测试_decs夹具宏_可用性验证（验证 `decs!` 宏可正确解析 Decimal 字符串，确保后续测试夹具的数值基础可靠。）
+    /// test_decsjjh_kyxyz（验证 `decs!` 宏可正确解析 Decimal 字符串，确保后续测试夹具的数值基础可靠。）
     #[test]
-    fn 测试_decs夹具宏_可用性验证() {
+    fn test_decsjjh_kyxyz() {
         let v = decs!("123.45");
 
         assert_eq!(v.to_string(), "123.45");
     }
 
-    /// 测试_ymd夹具宏_可用性验证（验证 `ymd!` 宏可正确解析日期，确保日期类夹具可用。）
+    /// test_ymdjjh_kyxyz（验证 `ymd!` 宏可正确解析日期，确保日期类夹具可用。）
     #[test]
-    fn 测试_ymd夹具宏_可用性验证() {
+    fn test_ymdjjh_kyxyz() {
         let d = ymd!(2026, 1, 15);
 
         assert_eq!(d.format("%Y-%m-%d").to_string(), "2026-01-15");
     }
 
-    /// 测试_库存检查端到端模拟_充足时不报错
+    /// test_kcjcdddmn_czsbbc
     /// 端到端复现 check_from_warehouse_inventory 的核心判定流程：构造 stock_map，对每个 item 取 product_id 与 quantity，；当库存充足时流程应继续而非报错。；覆盖第 35-66 行的 HashMap 匹配与 match 分支逻辑。
     #[test]
-    fn 测试_库存检查端到端模拟_充足时不报错() {
+    fn test_kcjcdddmn_czsbbc() {
         // 模拟 stock_map：product 1 库存 100，product 2 库存 200
         let stock_map: std::collections::HashMap<i32, inventory_stock::Model> = [
             (1, make_stock(1, decs!("100"))),
@@ -318,9 +318,9 @@ mod tests {
         assert!(!has_error, "库存充足时不应触发错误分支");
     }
 
-    /// 测试_库存检查端到端模拟_不足时报错且消息正确（端到端复现：当某产品库存不足时，流程应进入第 53-58 行错误分支，；且错误消息与 format_insufficient_error 一致。）
+    /// test_kcjcdddmn_bzsbcqxxzq（端到端复现：当某产品库存不足时，流程应进入第 53-58 行错误分支，；且错误消息与 format_insufficient_error 一致。）
     #[test]
-    fn 测试_库存检查端到端模拟_不足时报错且消息正确() {
+    fn test_kcjcdddmn_bzsbcqxxzq() {
         let stock_map: std::collections::HashMap<i32, inventory_stock::Model> =
             [(1, make_stock(1, decs!("30")))].into_iter().collect();
 

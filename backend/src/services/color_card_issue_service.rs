@@ -968,7 +968,7 @@ mod tests {
     use std::str::FromStr;
 
     #[test]
-    fn 测试_issue_status_as_str_全部状态映射() {
+    fn test_issue_status_as_str_qbztys() {
         assert_eq!(IssueStatus::Issued.as_str(), "issued");
         assert_eq!(IssueStatus::Returned.as_str(), "returned");
         assert_eq!(IssueStatus::Lost.as_str(), "lost");
@@ -977,7 +977,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试_issue_status_终态判定_终态返回true() {
+    fn test_issue_status_ztpd_ztfhtrue() {
         assert!(IssueStatus::Returned.is_terminal());
         assert!(IssueStatus::Lost.is_terminal());
         assert!(IssueStatus::Damaged.is_terminal());
@@ -985,12 +985,12 @@ mod tests {
     }
 
     #[test]
-    fn 测试_issue_status_终态判定_非终态返回false() {
+    fn test_issue_status_ztpd_fztfhfalse() {
         assert!(!IssueStatus::Issued.is_terminal());
     }
 
     #[test]
-    fn 测试_issue_status_from_str_合法字符串解析成功() {
+    fn test_issue_status_from_str_hfzfcjxcg() {
         assert_eq!(
             IssueStatus::from_str("issued").unwrap(),
             IssueStatus::Issued
@@ -1011,7 +1011,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试_issue_status_from_str_非法字符串解析失败() {
+    fn test_issue_status_from_str_ffzfcjxsb() {
         assert!(IssueStatus::from_str("unknown").is_err());
         assert!(IssueStatus::from_str("").is_err());
         assert!(IssueStatus::from_str("ISSUED").is_err());
@@ -1019,7 +1019,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试_issue_status_序列化反序列化往返一致() {
+    fn test_issue_status_xlhfxlhwfyz() {
         let all_statuses = [
             IssueStatus::Issued,
             IssueStatus::Returned,
@@ -1035,7 +1035,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试_issue_status_状态机完整性_终态数量正确() {
+    fn test_issue_status_ztjwzx_ztslzq() {
         let all_statuses = [
             IssueStatus::Issued,
             IssueStatus::Returned,

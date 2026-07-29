@@ -259,9 +259,9 @@ mod tests {
 
     // ============ 凭证状态常量值正确性测试 ============
 
-    /// 测试_凭证状态常量_值正确性（验证 crate::models::status::voucher 子模块中 4 个状态常量值；与凭证状态机约定一致（小写：draft/submitted/reviewed/posted）。）
+    /// test_pzztcl_zzqx（验证 crate::models::status::voucher 子模块中 4 个状态常量值；与凭证状态机约定一致（小写：draft/submitted/reviewed/posted）。）
     #[test]
-    fn 测试_凭证状态常量_值正确性() {
+    fn test_pzztcl_zzqx() {
         assert_eq!(voucher_status::VOUCHER_DRAFT, "draft");
         assert_eq!(voucher_status::VOUCHER_SUBMITTED, "submitted");
         assert_eq!(voucher_status::VOUCHER_REVIEWED, "reviewed");
@@ -270,9 +270,9 @@ mod tests {
 
     // ============ 凭证状态机转换测试 ============
 
-    /// 测试_凭证状态机_合法转换路径（验证凭证状态机的 3 条合法转换路径：draft → submitted → reviewed → posted）
+    /// test_pzztj_hfzhlj（验证凭证状态机的 3 条合法转换路径：draft → submitted → reviewed → posted）
     #[test]
-    fn 测试_凭证状态机_合法转换路径() {
+    fn test_pzztj_hfzhlj() {
         assert!(can_transition(
             voucher_status::VOUCHER_DRAFT,
             voucher_status::VOUCHER_SUBMITTED
@@ -287,9 +287,9 @@ mod tests {
         ));
     }
 
-    /// 测试_凭证状态机_非法跳转（验证非相邻状态的直接跳转应被拒绝：draft 不能直接 reviewed/posted；submitted 不能直接 posted。）
+    /// test_pzztj_fftz（验证非相邻状态的直接跳转应被拒绝：draft 不能直接 reviewed/posted；submitted 不能直接 posted。）
     #[test]
-    fn 测试_凭证状态机_非法跳转() {
+    fn test_pzztj_fftz() {
         assert!(!can_transition(
             voucher_status::VOUCHER_DRAFT,
             voucher_status::VOUCHER_REVIEWED
@@ -311,9 +311,9 @@ mod tests {
 
     // ============ 借贷平衡校验测试 ============
 
-    /// 测试_借贷平衡校验_借方等于贷方通过（验证 validate_voucher_create_req 中借方合计 == 贷方合计时校验通过。）
+    /// test_jdphjy_jfdydftg（验证 validate_voucher_create_req 中借方合计 == 贷方合计时校验通过。）
     #[test]
-    fn 测试_借贷平衡校验_借方等于贷方通过() {
+    fn test_jdphjy_jfdydftg() {
         let items = vec![
             make_voucher_item_request(decs!("1000"), Decimal::ZERO),
             make_voucher_item_request(Decimal::ZERO, decs!("1000")),
@@ -321,9 +321,9 @@ mod tests {
         assert!(is_balanced(&items));
     }
 
-    /// 测试_借贷平衡校验_借方大于贷方失败（验证 validate_voucher_create_req 中借方合计 > 贷方合计时校验失败。）
+    /// test_jdphjy_jfdydfsb（验证 validate_voucher_create_req 中借方合计 > 贷方合计时校验失败。）
     #[test]
-    fn 测试_借贷平衡校验_借方大于贷方失败() {
+    fn test_jdphjy_jfdydfsb() {
         let items = vec![
             make_voucher_item_request(decs!("1000"), Decimal::ZERO),
             make_voucher_item_request(Decimal::ZERO, decs!("500")),
@@ -331,9 +331,9 @@ mod tests {
         assert!(!is_balanced(&items));
     }
 
-    /// 测试_借贷平衡校验_借方小于贷方失败（验证 validate_voucher_create_req 中借方合计 < 贷方合计时校验失败。）
+    /// test_jdphjy_jfxydfsb（验证 validate_voucher_create_req 中借方合计 < 贷方合计时校验失败。）
     #[test]
-    fn 测试_借贷平衡校验_借方小于贷方失败() {
+    fn test_jdphjy_jfxydfsb() {
         let items = vec![
             make_voucher_item_request(decs!("500"), Decimal::ZERO),
             make_voucher_item_request(Decimal::ZERO, decs!("1000")),
@@ -341,9 +341,9 @@ mod tests {
         assert!(!is_balanced(&items));
     }
 
-    /// 测试_借贷平衡校验_零金额平衡通过（验证 validate_voucher_create_req 中借贷双方均为零时校验通过（边界场景）。）
+    /// test_jdphjy_ljephtg（验证 validate_voucher_create_req 中借贷双方均为零时校验通过（边界场景）。）
     #[test]
-    fn 测试_借贷平衡校验_零金额平衡通过() {
+    fn test_jdphjy_ljephtg() {
         let items = vec![
             make_voucher_item_request(Decimal::ZERO, Decimal::ZERO),
             make_voucher_item_request(Decimal::ZERO, Decimal::ZERO),
@@ -351,9 +351,9 @@ mod tests {
         assert!(is_balanced(&items));
     }
 
-    /// 测试_借贷平衡校验_多分录汇总平衡（验证 validate_voucher_create_req 中多个分录汇总后借贷平衡时校验通过。）
+    /// test_jdphjy_dflhzph（验证 validate_voucher_create_req 中多个分录汇总后借贷平衡时校验通过。）
     #[test]
-    fn 测试_借贷平衡校验_多分录汇总平衡() {
+    fn test_jdphjy_dflhzph() {
         let items = vec![
             make_voucher_item_request(decs!("1000"), Decimal::ZERO),
             make_voucher_item_request(decs!("500"), Decimal::ZERO),
@@ -365,10 +365,10 @@ mod tests {
 
     // ============ 金额计算精度测试 ============
 
-    /// 测试_金额计算_精度归一化
+    /// test_jejs_jdgyh
     /// 验证 Decimal 求和保留精度，不同小数位的金额相加不会丢失精度。；复现 validate_voucher_create_req 中 iter().map(|i| i.debit).sum() 的精度行为。
     #[test]
-    fn 测试_金额计算_精度归一化() {
+    fn test_jejs_jdgyh() {
         let items = vec![
             make_voucher_item_request(decs!("0.1"), Decimal::ZERO),
             make_voucher_item_request(decs!("0.2"), Decimal::ZERO),
@@ -389,9 +389,9 @@ mod tests {
 
     // ============ 凭证类型定义测试 ============
 
-    /// 测试_凭证类型定义_完整列表（验证 available_voucher_types 返回 4 种凭证类型，且 code 与 name 对应正确。）
+    /// test_pzlxdy_wzlb（验证 available_voucher_types 返回 4 种凭证类型，且 code 与 name 对应正确。）
     #[test]
-    fn 测试_凭证类型定义_完整列表() {
+    fn test_pzlxdy_wzlb() {
         let types = VoucherService::available_voucher_types();
         assert_eq!(types.len(), 4);
 
@@ -407,27 +407,27 @@ mod tests {
         assert_eq!(codes.len(), 4);
     }
 
-    /// 测试_凭证编号前缀_各类型映射（验证 generate_voucher_no 中凭证类型到前缀的映射："记" => "JZ", "收" => "SK", "付" => "FK", "转" => "ZZ"）
+    /// test_pzbhqz_glxys（验证 generate_voucher_no 中凭证类型到前缀的映射："记" => "JZ", "收" => "SK", "付" => "FK", "转" => "ZZ"）
     #[test]
-    fn 测试_凭证编号前缀_各类型映射() {
+    fn test_pzbhqz_glxys() {
         assert_eq!(voucher_prefix("记"), "JZ");
         assert_eq!(voucher_prefix("收"), "SK");
         assert_eq!(voucher_prefix("付"), "FK");
         assert_eq!(voucher_prefix("转"), "ZZ");
     }
 
-    /// 测试_凭证编号前缀_未知类型默认（验证 generate_voucher_no 中未知凭证类型回退到默认前缀 "JZ"。）
+    /// test_pzbhqz_wzlxmr（验证 generate_voucher_no 中未知凭证类型回退到默认前缀 "JZ"。）
     #[test]
-    fn 测试_凭证编号前缀_未知类型默认() {
+    fn test_pzbhqz_wzlxmr() {
         assert_eq!(voucher_prefix("未知"), "JZ");
         assert_eq!(voucher_prefix(""), "JZ");
     }
 
     // ============ 科目余额计算测试 ============
 
-    /// 测试_科目余额计算_借方科目正常（验证 update_account_balances 中借方科目期末余额计算：期末余额 = 期初借方 + 本期借方发生 - 本期贷方发生（结果为正记借方）。）
+    /// test_kmyejs_jfkmzc（验证 update_account_balances 中借方科目期末余额计算：期末余额 = 期初借方 + 本期借方发生 - 本期贷方发生（结果为正记借方）。）
     #[test]
-    fn 测试_科目余额计算_借方科目正常() {
+    fn test_kmyejs_jfkmzc() {
         let (ending_debit, ending_credit) = calc_ending_balance(
             "借",
             decs!("1000"),
@@ -440,9 +440,9 @@ mod tests {
         assert_eq!(ending_credit, Decimal::ZERO);
     }
 
-    /// 测试_科目余额计算_贷方科目正常（验证 update_account_balances 中贷方科目期末余额计算：期末余额 = 期初贷方 + 本期贷方发生 - 本期借方发生（结果为正记贷方）。）
+    /// test_kmyejs_dfkmzc（验证 update_account_balances 中贷方科目期末余额计算：期末余额 = 期初贷方 + 本期贷方发生 - 本期借方发生（结果为正记贷方）。）
     #[test]
-    fn 测试_科目余额计算_贷方科目正常() {
+    fn test_kmyejs_dfkmzc() {
         let (ending_debit, ending_credit) = calc_ending_balance(
             "贷",
             Decimal::ZERO,
@@ -455,9 +455,9 @@ mod tests {
         assert_eq!(ending_credit, decs!("2500"));
     }
 
-    /// 测试_科目余额计算_借方科目出现贷方余额（验证 update_account_balances 中借方科目净额为负时记贷方（如累计折旧场景）。）
+    /// test_kmyejs_jfkmcxdfye（验证 update_account_balances 中借方科目净额为负时记贷方（如累计折旧场景）。）
     #[test]
-    fn 测试_科目余额计算_借方科目出现贷方余额() {
+    fn test_kmyejs_jfkmcxdfye() {
         let (ending_debit, ending_credit) = calc_ending_balance(
             "借",
             decs!("100"),
@@ -470,9 +470,9 @@ mod tests {
         assert_eq!(ending_credit, decs!("200"));
     }
 
-    /// 测试_科目余额计算_贷方科目出现借方余额（验证 update_account_balances 中贷方科目净额为负时记借方（如预交税费场景）。）
+    /// test_kmyejs_dfkmcxjfye（验证 update_account_balances 中贷方科目净额为负时记借方（如预交税费场景）。）
     #[test]
-    fn 测试_科目余额计算_贷方科目出现借方余额() {
+    fn test_kmyejs_dfkmcxjfye() {
         let (ending_debit, ending_credit) = calc_ending_balance(
             "贷",
             Decimal::ZERO,
@@ -487,9 +487,9 @@ mod tests {
 
     // ============ 状态校验逻辑测试 ============
 
-    /// 测试_状态校验_仅草稿可更新（验证 update 方法中状态门：仅 draft 状态可更新，其余状态应拒绝。）
+    /// test_ztjy_jcgkgx（验证 update 方法中状态门：仅 draft 状态可更新，其余状态应拒绝。）
     #[test]
-    fn 测试_状态校验_仅草稿可更新() {
+    fn test_ztjy_jcgkgx() {
         let draft = make_voucher_model(voucher_status::VOUCHER_DRAFT);
         let submitted = make_voucher_model(voucher_status::VOUCHER_SUBMITTED);
         let reviewed = make_voucher_model(voucher_status::VOUCHER_REVIEWED);
@@ -502,9 +502,9 @@ mod tests {
         assert!(posted.status != voucher_status::VOUCHER_DRAFT);
     }
 
-    /// 测试_状态校验_仅草稿可删除（验证 delete 方法中状态门：仅 draft 状态可删除，其余状态应拒绝。）
+    /// test_ztjy_jcgksc（验证 delete 方法中状态门：仅 draft 状态可删除，其余状态应拒绝。）
     #[test]
-    fn 测试_状态校验_仅草稿可删除() {
+    fn test_ztjy_jcgksc() {
         let draft = make_voucher_model(voucher_status::VOUCHER_DRAFT);
         let posted = make_voucher_model(voucher_status::VOUCHER_POSTED);
 
@@ -513,9 +513,9 @@ mod tests {
         assert!(posted.status != voucher_status::VOUCHER_DRAFT);
     }
 
-    /// 测试_状态校验_仅草稿可提交（验证 submit 方法中状态门：仅 draft 状态可提交，其余状态应拒绝。）
+    /// test_ztjy_jcgktj（验证 submit 方法中状态门：仅 draft 状态可提交，其余状态应拒绝。）
     #[test]
-    fn 测试_状态校验_仅草稿可提交() {
+    fn test_ztjy_jcgktj() {
         let draft = make_voucher_model(voucher_status::VOUCHER_DRAFT);
         let reviewed = make_voucher_model(voucher_status::VOUCHER_REVIEWED);
 
@@ -524,9 +524,9 @@ mod tests {
         assert!(reviewed.status != voucher_status::VOUCHER_DRAFT);
     }
 
-    /// 测试_状态校验_仅已提交可审核（验证 review 方法中状态门：仅 submitted 状态可审核，其余状态应拒绝。）
+    /// test_ztjy_jytjksh（验证 review 方法中状态门：仅 submitted 状态可审核，其余状态应拒绝。）
     #[test]
-    fn 测试_状态校验_仅已提交可审核() {
+    fn test_ztjy_jytjksh() {
         let submitted = make_voucher_model(voucher_status::VOUCHER_SUBMITTED);
         let draft = make_voucher_model(voucher_status::VOUCHER_DRAFT);
         let posted = make_voucher_model(voucher_status::VOUCHER_POSTED);
@@ -537,9 +537,9 @@ mod tests {
         assert!(posted.status != voucher_status::VOUCHER_SUBMITTED);
     }
 
-    /// 测试_状态校验_仅已审核可过账（验证 post 方法中状态门：仅 reviewed 状态可过账，其余状态应拒绝。）
+    /// test_ztjy_jyshkgz（验证 post 方法中状态门：仅 reviewed 状态可过账，其余状态应拒绝。）
     #[test]
-    fn 测试_状态校验_仅已审核可过账() {
+    fn test_ztjy_jyshkgz() {
         let reviewed = make_voucher_model(voucher_status::VOUCHER_REVIEWED);
         let draft = make_voucher_model(voucher_status::VOUCHER_DRAFT);
         let submitted = make_voucher_model(voucher_status::VOUCHER_SUBMITTED);
@@ -552,9 +552,9 @@ mod tests {
 
     // ============ 错误消息格式测试 ============
 
-    /// 测试_错误消息格式_借贷不平衡（验证 validate_voucher_create_req 中借贷不平衡的错误消息格式："凭证借贷不平衡：借方 {} != 贷方 {}"）
+    /// test_cwxxgs_jdbph（验证 validate_voucher_create_req 中借贷不平衡的错误消息格式："凭证借贷不平衡：借方 {} != 贷方 {}"）
     #[test]
-    fn 测试_错误消息格式_借贷不平衡() {
+    fn test_cwxxgs_jdbph() {
         let total_debit = decs!("1000");
         let total_credit = decs!("500");
         let msg = format!(
@@ -569,9 +569,9 @@ mod tests {
         assert!(matches!(err, AppError::BadRequest(_)));
     }
 
-    /// 测试_错误消息格式_凭证不存在（验证 get_by_id/update/delete 等方法中凭证不存在的错误消息格式："凭证不存在：{}"）
+    /// test_cwxxgs_pzbcz（验证 get_by_id/update/delete 等方法中凭证不存在的错误消息格式："凭证不存在：{}"）
     #[test]
-    fn 测试_错误消息格式_凭证不存在() {
+    fn test_cwxxgs_pzbcz() {
         let id = 99999;
         let msg = format!("凭证不存在：{}", id);
         assert_eq!(msg, "凭证不存在：99999");
@@ -582,9 +582,9 @@ mod tests {
 
     // ============ 夹具宏可用性测试 ============
 
-    /// 测试_decs_夹具宏可用性（验证 decs! 宏能正确解析 Decimal 字符串常量。）
+    /// test_decs_jjhkyx_2（验证 decs! 宏能正确解析 Decimal 字符串常量。）
     #[test]
-    fn 测试_decs_夹具宏可用性() {
+    fn test_decs_jjhkyx_2() {
         let v = decs!("1234.56");
         assert_eq!(v.to_string(), "1234.56");
 
@@ -595,9 +595,9 @@ mod tests {
         assert!(neg < Decimal::ZERO);
     }
 
-    /// 测试_ymd_夹具宏可用性（验证 ymd! 宏能正确解析日期常量。）
+    /// test_ymd_jjhkyx（验证 ymd! 宏能正确解析日期常量。）
     #[test]
-    fn 测试_ymd_夹具宏可用性() {
+    fn test_ymd_jjhkyx() {
         let d = ymd!(2026, 7, 1);
         assert_eq!(d.year(), 2026);
         assert_eq!(d.month(), 7);
@@ -606,9 +606,9 @@ mod tests {
 
     // ============ 服务实例化测试 ============
 
-    /// 测试_服务实例创建（验证 VoucherService 在 SQLite 内存数据库上能正常实例化。）
+    /// test_fwslcj（验证 VoucherService 在 SQLite 内存数据库上能正常实例化。）
     #[tokio::test]
-    async fn 测试_服务实例创建() {
+    async fn test_fwslcj() {
         let db = setup_test_db().await;
         let service = VoucherService::new(Arc::new(db));
         assert!(Arc::strong_count(&service.db) >= 1);
@@ -616,10 +616,10 @@ mod tests {
 
     // ============ 数据库交互测试（标注 #[ignore]）============
 
-    /// 测试_创建凭证_需要真实数据库（需要 vouchers/voucher_items/account_subjects 表 schema，；标注 #[ignore] 仅在本地手动运行。无 schema 时返回数据库错误。）
+    /// test_cjpz_xyzssjk（需要 vouchers/voucher_items/account_subjects 表 schema，；标注 #[ignore] 仅在本地手动运行。无 schema 时返回数据库错误。）
     #[tokio::test]
     #[ignore]
-    async fn 测试_创建凭证_需要真实数据库() {
+    async fn test_cjpz_xyzssjk() {
         let db = setup_test_db().await;
         let service = VoucherService::new(Arc::new(db));
 
@@ -642,10 +642,10 @@ mod tests {
         assert!(result.is_err());
     }
 
-    /// 测试_查询凭证列表_需要真实数据库（需要 vouchers 表 schema，标注 #[ignore] 仅在本地手动运行。）
+    /// test_cxpzlb_xyzssjk（需要 vouchers 表 schema，标注 #[ignore] 仅在本地手动运行。）
     #[tokio::test]
     #[ignore]
-    async fn 测试_查询凭证列表_需要真实数据库() {
+    async fn test_cxpzlb_xyzssjk() {
         let db = setup_test_db().await;
         let service = VoucherService::new(Arc::new(db));
 
@@ -665,10 +665,10 @@ mod tests {
         assert!(result.is_err(), "无 schema 时应返回数据库错误");
     }
 
-    /// 测试_凭证过账_需要真实数据库（需要 vouchers/voucher_items/account_balances/account_subjects 表 schema，；标注 #[ignore] 仅在本地手动运行。）
+    /// test_pzgz_xyzssjk（需要 vouchers/voucher_items/account_balances/account_subjects 表 schema，；标注 #[ignore] 仅在本地手动运行。）
     #[tokio::test]
     #[ignore]
-    async fn 测试_凭证过账_需要真实数据库() {
+    async fn test_pzgz_xyzssjk() {
         let db = setup_test_db().await;
         let service = VoucherService::new(Arc::new(db));
 
@@ -679,9 +679,9 @@ mod tests {
 
     // ============ 批次 393 补测：凭证类型定义与辅助核算五维 ============
 
-    /// 测试_VoucherTypeDefinition_new构造器（验证 VoucherTypeDefinition::new 正确设置 code 和 name 字段。）
+    /// test_vouchertypedefinition_newgzq（验证 VoucherTypeDefinition::new 正确设置 code 和 name 字段。）
     #[test]
-    fn 测试_VoucherTypeDefinition_new构造器() {
+    fn test_vouchertypedefinition_newgzq() {
         let def = VoucherTypeDefinition::new("记", "记账凭证");
         assert_eq!(def.code, "记");
         assert_eq!(def.name, "记账凭证");
@@ -699,9 +699,9 @@ mod tests {
         assert_eq!(def.name, "转账凭证");
     }
 
-    /// 测试_available_voucher_types返回4种类型（验证 available_voucher_types 静态方法返回 4 种凭证类型定义，；code 覆盖 "记/收/付/转" 全部业务类型。）
+    /// test_available_voucher_typesfh4zlx（验证 available_voucher_types 静态方法返回 4 种凭证类型定义，；code 覆盖 "记/收/付/转" 全部业务类型。）
     #[test]
-    fn 测试_available_voucher_types返回4种类型() {
+    fn test_available_voucher_typesfh4zlx() {
         let types = VoucherService::available_voucher_types();
         assert_eq!(types.len(), 4, "应有 4 种凭证类型");
 
@@ -717,10 +717,10 @@ mod tests {
         }
     }
 
-    /// 测试_科目不存在错误消息格式
+    /// test_kmbczcwxxgs
     /// 验证两个分支的科目不存在错误消息格式：1. validate_voucher_create_req 阶段："科目不存在或已停用：{code}"；2. update_account_balances 阶段："科目不存在：{code}"；（批次 102 v6 P3-4：后者已从 bad_request 改为 not_found）
     #[test]
-    fn 测试_科目不存在错误消息格式() {
+    fn test_kmbczcwxxgs() {
         // 分支 1：校验阶段（科目不存在或已停用）
         let err1 = AppError::bad_request(format!("科目不存在或已停用：{}", "9999"));
         let msg1 = err1.to_string();
@@ -743,10 +743,10 @@ mod tests {
         assert_ne!(msg1, msg2, "两个分支的错误消息应有区别");
     }
 
-    /// 测试_辅助核算五维ID拼接格式
+    /// test_fzhswwidpjgs
     /// 复现 create_assist_accounting_records 中的五维 ID 拼接逻辑。；格式：BATCH:{}|COLOR:{}|DYE_LOT:{}|GRADE:{}|WORKSHOP:{}；缺失字段使用 unwrap_or(0) / unwrap_or_default() 填充。
     #[test]
-    fn 测试_辅助核算五维ID拼接格式() {
+    fn test_fzhswwidpjgs() {
         // 复现五维 ID 拼接逻辑（与源码一致）
         fn build_five_dimension_id(
             batch_id: Option<i32>,

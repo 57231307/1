@@ -258,17 +258,17 @@ mod tests {
 
     // ===== 状态常量值正确性 =====
 
-    /// 测试_销售发货状态常量值正确性（校验 sales_delivery 子模块的 PENDING/SHIPPED/CANCELLED 常量值，；避免硬编码字符串导致的拼写错误（批次 158 v11 接入）。）
+    /// test_xsfhztclzzqx（校验 sales_delivery 子模块的 PENDING/SHIPPED/CANCELLED 常量值，；避免硬编码字符串导致的拼写错误（批次 158 v11 接入）。）
     #[test]
-    fn 测试_销售发货状态常量值正确性() {
+    fn test_xsfhztclzzqx() {
         assert_eq!(delivery_status::PENDING, "pending");
         assert_eq!(delivery_status::SHIPPED, "shipped");
         assert_eq!(delivery_status::CANCELLED, "cancelled");
     }
 
-    /// 测试_销售订单状态常量值正确性（校验 sales_order 子模块的发货相关状态常量值（小写），；覆盖 ship_order 与 cancel_delivery 涉及的全部状态。）
+    /// test_xsddztclzzqx（校验 sales_order 子模块的发货相关状态常量值（小写），；覆盖 ship_order 与 cancel_delivery 涉及的全部状态。）
     #[test]
-    fn 测试_销售订单状态常量值正确性() {
+    fn test_xsddztclzzqx() {
         assert_eq!(so_status::DRAFT, "draft");
         assert_eq!(so_status::PENDING, "pending");
         assert_eq!(so_status::APPROVED, "approved");
@@ -278,10 +278,10 @@ mod tests {
         assert_eq!(so_status::CANCELLED, "cancelled");
     }
 
-    /// 测试_库存预留状态常量值正确性
+    /// test_kcylztclzzqx
     /// 校验 inventory_reservation 子模块的预留状态常量值（小写），；覆盖 reduce_inventory / release_reservations / cancel_delivery 涉及的状态转换。
     #[test]
-    fn 测试_库存预留状态常量值正确性() {
+    fn test_kcylztclzzqx() {
         assert_eq!(reservation_status::PENDING, "pending");
         assert_eq!(reservation_status::LOCKED, "locked");
         assert_eq!(reservation_status::CONSUMED, "consumed");
@@ -291,9 +291,9 @@ mod tests {
 
     // ===== ship_order 状态校验 =====
 
-    /// 测试_发货状态校验_仅已审批订单可发货（验证 ship_order 中订单状态校验门：仅 APPROVED 状态可发货，其余状态拒绝。）
+    /// test_fhztjy_jyspddkfh（验证 ship_order 中订单状态校验门：仅 APPROVED 状态可发货，其余状态拒绝。）
     #[test]
-    fn 测试_发货状态校验_仅已审批订单可发货() {
+    fn test_fhztjy_jyspddkfh() {
         // 已审批：放行
         assert!(ship_order_status_gate(so_status::APPROVED).is_ok());
         // 其他状态：拒绝
@@ -310,9 +310,9 @@ mod tests {
 
     // ===== 全部发货判定 =====
 
-    /// 测试_全部发货判定_所有明细已发足（验证 ship_order 中 is_fully_shipped 判定：所有明细已发足（含恰好相等与超发）。）
+    /// test_qbfhpd_symxyfz（验证 ship_order 中 is_fully_shipped 判定：所有明细已发足（含恰好相等与超发）。）
     #[test]
-    fn 测试_全部发货判定_所有明细已发足() {
+    fn test_qbfhpd_symxyfz() {
         // 全部发足
         let items = vec![(decs!("100"), decs!("100")), (decs!("50"), decs!("50"))];
         assert!(compute_is_fully_shipped(&items));
@@ -326,9 +326,9 @@ mod tests {
         assert!(compute_is_fully_shipped(&items_over));
     }
 
-    /// 测试_全部发货判定_部分明细未发足（验证 ship_order 中 is_fully_shipped 判定：任一明细未发足即为部分发货。）
+    /// test_qbfhpd_bfmxwfz（验证 ship_order 中 is_fully_shipped 判定：任一明细未发足即为部分发货。）
     #[test]
-    fn 测试_全部发货判定_部分明细未发足() {
+    fn test_qbfhpd_bfmxwfz() {
         // 部分明细未发足
         let items = vec![(decs!("100"), decs!("100")), (decs!("30"), decs!("50"))];
         assert!(!compute_is_fully_shipped(&items));
@@ -340,15 +340,15 @@ mod tests {
 
     // ===== 发货后订单状态选择 =====
 
-    /// 测试_发货后订单状态选择_全部发货为已发货（验证 ship_order 中全部发货时订单状态置为 SHIPPED。）
+    /// test_fhhddztxz_qbfhwyfh（验证 ship_order 中全部发货时订单状态置为 SHIPPED。）
     #[test]
-    fn 测试_发货后订单状态选择_全部发货为已发货() {
+    fn test_fhhddztxz_qbfhwyfh() {
         assert_eq!(compute_new_status_after_ship(true), so_status::SHIPPED);
     }
 
-    /// 测试_发货后订单状态选择_部分发货为部分发货（验证 ship_order 中部分发货时订单状态置为 PARTIAL_SHIPPED。）
+    /// test_fhhddztxz_bffhwbffh（验证 ship_order 中部分发货时订单状态置为 PARTIAL_SHIPPED。）
     #[test]
-    fn 测试_发货后订单状态选择_部分发货为部分发货() {
+    fn test_fhhddztxz_bffhwbffh() {
         assert_eq!(
             compute_new_status_after_ship(false),
             so_status::PARTIAL_SHIPPED
@@ -357,9 +357,9 @@ mod tests {
 
     // ===== check_inventory 校验 =====
 
-    /// 测试_库存检查_预留数量不足拒绝（验证 check_inventory 中预留数量校验：预留 < 发货 拒绝，预留 >= 发货 放行。）
+    /// test_kcjc_ylslbzjj（验证 check_inventory 中预留数量校验：预留 < 发货 拒绝，预留 >= 发货 放行。）
     #[test]
-    fn 测试_库存检查_预留数量不足拒绝() {
+    fn test_kcjc_ylslbzjj() {
         // 预留 < 发货：拒绝
         let err = check_inventory_reservation_logic(decs!("30"), decs!("50"), 1).unwrap_err();
         assert!(matches!(err, AppError::BusinessError(_)));
@@ -371,9 +371,9 @@ mod tests {
         assert!(check_inventory_reservation_logic(decs!("80"), decs!("50"), 1).is_ok());
     }
 
-    /// 测试_库存检查_库存数量不足拒绝（验证 check_inventory 中库存数量校验：库存 < 发货 拒绝，库存 >= 发货 放行。）
+    /// test_kcjc_kcslbzjj（验证 check_inventory 中库存数量校验：库存 < 发货 拒绝，库存 >= 发货 放行。）
     #[test]
-    fn 测试_库存检查_库存数量不足拒绝() {
+    fn test_kcjc_kcslbzjj() {
         // 库存 < 发货：拒绝
         let err = check_inventory_stock_logic(decs!("20"), decs!("50"), 2).unwrap_err();
         assert!(matches!(err, AppError::BusinessError(_)));
@@ -385,9 +385,9 @@ mod tests {
         assert!(check_inventory_stock_logic(decs!("100"), decs!("50"), 2).is_ok());
     }
 
-    /// 测试_库存检查_库存不存在拒绝（验证 check_inventory 中 stock_map.get 返回 None 时的错误构造：返回"产品 X 库存不存在"业务错误。）
+    /// test_kcjc_kcbczjj（验证 check_inventory 中 stock_map.get 返回 None 时的错误构造：返回"产品 X 库存不存在"业务错误。）
     #[test]
-    fn 测试_库存检查_库存不存在拒绝() {
+    fn test_kcjc_kcbczjj() {
         let err = AppError::business(format!("产品 {} 库存不存在", 3));
         assert!(matches!(err, AppError::BusinessError(_)));
         assert!(err.to_string().contains("库存不存在"));
@@ -395,10 +395,10 @@ mod tests {
 
     // ===== 库存扣减/恢复计算公式 =====
 
-    /// 测试_库存扣减计算公式
+    /// test_kckjjsgs
     /// 验证 reduce_inventory 的对称更新公式（发货扣减库存）：quantity_available -= qty，quantity_shipped += qty，；且守恒不变量：可用 + 已发 恒定。
     #[test]
-    fn 测试_库存扣减计算公式() {
+    fn test_kckjjsgs() {
         let available = decs!("100");
         let shipped = decs!("20");
         let qty = decs!("30");
@@ -412,10 +412,10 @@ mod tests {
         assert_eq!(new_available + new_shipped, available + shipped);
     }
 
-    /// 测试_库存恢复计算公式
+    /// test_kchfjsgs
     /// 验证 restore_inventory 的对称反向更新公式（cancel_delivery 取消发货时使用）：quantity_available += qty，quantity_shipped -= qty，；且守恒不变量：可用 + 已发 恒定。
     #[test]
-    fn 测试_库存恢复计算公式() {
+    fn test_kchfjsgs() {
         let available = decs!("70");
         let shipped = decs!("50");
         let qty = decs!("30");
@@ -431,9 +431,9 @@ mod tests {
 
     // ===== 预留状态转换 =====
 
-    /// 测试_预留状态转换_扣减时待处理转已消耗（验证 reduce_inventory 中将预留状态从 PENDING 更新为 CONSUMED。）
+    /// test_ylztzh_kjsdclzyxh（验证 reduce_inventory 中将预留状态从 PENDING 更新为 CONSUMED。）
     #[test]
-    fn 测试_预留状态转换_扣减时待处理转已消耗() {
+    fn test_ylztzh_kjsdclzyxh() {
         let from_status = reservation_status::PENDING;
         let to_status = reservation_status::CONSUMED;
 
@@ -442,9 +442,9 @@ mod tests {
         assert_ne!(from_status, to_status);
     }
 
-    /// 测试_预留状态转换_释放时待处理转已取消（验证 release_reservations 中将预留状态从 PENDING 更新为 CANCELLED。）
+    /// test_ylztzh_sfsdclzyqx（验证 release_reservations 中将预留状态从 PENDING 更新为 CANCELLED。）
     #[test]
-    fn 测试_预留状态转换_释放时待处理转已取消() {
+    fn test_ylztzh_sfsdclzyqx() {
         let from_status = reservation_status::PENDING;
         let to_status = reservation_status::CANCELLED;
 
@@ -453,10 +453,10 @@ mod tests {
         assert_ne!(from_status, to_status);
     }
 
-    /// 测试_预留状态恢复_取消发货时已消耗转待处理
+    /// test_ylzthf_qxfhsyxhzdcl
     /// 验证 cancel_delivery 中将预留状态从 CONSUMED 恢复为 PENDING；（对称反向于 reduce_inventory 的 PENDING → CONSUMED 转换）。
     #[test]
-    fn 测试_预留状态恢复_取消发货时已消耗转待处理() {
+    fn test_ylzthf_qxfhsyxhzdcl() {
         let from_status = reservation_status::CONSUMED;
         let to_status = reservation_status::PENDING;
 
@@ -467,9 +467,9 @@ mod tests {
 
     // ===== cancel_delivery 校验 =====
 
-    /// 测试_取消发货状态校验_仅已发货可取消（验证 cancel_delivery 中发货单状态校验门：仅 SHIPPED 状态可取消，；其余状态拒绝且错误消息包含当前状态与"仅 SHIPPED 状态可取消"。）
+    /// test_qxfhztjy_jyfhkqx（验证 cancel_delivery 中发货单状态校验门：仅 SHIPPED 状态可取消，；其余状态拒绝且错误消息包含当前状态与"仅 SHIPPED 状态可取消"。）
     #[test]
-    fn 测试_取消发货状态校验_仅已发货可取消() {
+    fn test_qxfhztjy_jyfhkqx() {
         // 已发货：放行
         assert!(cancel_delivery_status_gate(delivery_status::SHIPPED).is_ok());
         // 其他状态：拒绝
@@ -484,25 +484,25 @@ mod tests {
         assert!(msg.contains("仅 SHIPPED 状态可取消"));
     }
 
-    /// 测试_取消发货订单状态回退_全部取消转已审批（验证 cancel_delivery 中：所有发货取消后 has_shipped=false → 订单回退到 APPROVED。）
+    /// test_qxfhddztht_qbqxzysp（验证 cancel_delivery 中：所有发货取消后 has_shipped=false → 订单回退到 APPROVED。）
     #[test]
-    fn 测试_取消发货订单状态回退_全部取消转已审批() {
+    fn test_qxfhddztht_qbqxzysp() {
         assert_eq!(compute_new_status_after_cancel(false), so_status::APPROVED);
     }
 
-    /// 测试_取消发货订单状态回退_部分取消转部分发货（验证 cancel_delivery 中：仍有已发数量 has_shipped=true → 订单回退到 PARTIAL_SHIPPED。）
+    /// test_qxfhddztht_bfqxzbffh（验证 cancel_delivery 中：仍有已发数量 has_shipped=true → 订单回退到 PARTIAL_SHIPPED。）
     #[test]
-    fn 测试_取消发货订单状态回退_部分取消转部分发货() {
+    fn test_qxfhddztht_bfqxzbffh() {
         assert_eq!(
             compute_new_status_after_cancel(true),
             so_status::PARTIAL_SHIPPED
         );
     }
 
-    /// 测试_取消发货订单状态回退条件_仅已发货或部分发货回退
+    /// test_qxfhddzthttj_jyfhhbffhht
     /// 验证 cancel_delivery 中状态回退触发条件：仅 SHIPPED 或 PARTIAL_SHIPPED 才回退，；避免覆盖 CANCELLED / COMPLETED 等终态。
     #[test]
-    fn 测试_取消发货订单状态回退条件_仅已发货或部分发货回退() {
+    fn test_qxfhddzthttj_jyfhhbffhht() {
         // 可回退
         assert!(order_status_rollback_eligible(so_status::SHIPPED));
         assert!(order_status_rollback_eligible(so_status::PARTIAL_SHIPPED));
@@ -513,9 +513,9 @@ mod tests {
         assert!(!order_status_rollback_eligible(so_status::APPROVED));
     }
 
-    /// 测试_取消发货备注格式（验证 cancel_delivery 中 `format!("[取消原因] {}", reason)` 的备注格式，；取消原因会被记录到发货单 remarks 字段。）
+    /// test_qxfhbzgs（验证 cancel_delivery 中 `format!("[取消原因] {}", reason)` 的备注格式，；取消原因会被记录到发货单 remarks 字段。）
     #[test]
-    fn 测试_取消发货备注格式() {
+    fn test_qxfhbzgs() {
         let remark = format_cancel_remark("客户拒收");
         assert_eq!(remark, "[取消原因] 客户拒收");
 
@@ -524,10 +524,10 @@ mod tests {
         assert_eq!(remark_empty, "[取消原因] ");
     }
 
-    /// 测试_恢复库存防御性校验_已发货数量不足
+    /// test_hfkcfyxjy_yfhslbz
     /// 验证 restore_inventory 中 `if stock.quantity_shipped < quantity` 的防御性校验：已发货数量小于要恢复的数量时应拒绝（库存数据不一致），；已发货数量 >= 恢复数量时允许（含边界相等）。
     #[test]
-    fn 测试_恢复库存防御性校验_已发货数量不足() {
+    fn test_hfkcfyxjy_yfhslbz() {
         let shipped = decs!("20");
         let restore_qty = decs!("30");
 
@@ -551,10 +551,10 @@ mod tests {
 
     // ===== 夹具宏可用性 =====
 
-    /// 测试_夹具宏可用性_decs和ymd
+    /// test_jjhkyx_decshymd
     /// 验证项目测试夹具宏 decs!（Decimal 字符串解析）和 ymd!（NaiveDate 解析）可正常工作，；这两个宏在 utils/unwrap_safe.rs 中通过 #[macro_export] 导出。
     #[test]
-    fn 测试_夹具宏可用性_decs和ymd() {
+    fn test_jjhkyx_decshymd() {
         // decs! 解析 Decimal 字符串
         let d = decs!("123.45");
         assert_eq!(d.to_string(), "123.45");
@@ -566,10 +566,10 @@ mod tests {
 
     // ===== 服务实例化与数据库交互 =====
 
-    /// 测试_服务实例创建
+    /// test_fwslcj
     /// 验证 SalesService 在 SQLite 内存数据库 + mock SearchClient 上能正常实例化，；SalesService::new 需要 db 与 search_client 两个依赖，使用 ElasticClient::mock() 提供空实现。
     #[tokio::test]
-    async fn 测试_服务实例创建() {
+    async fn test_fwslcj() {
         let db = setup_test_db().await;
         let search_client: Arc<dyn SearchClient> = Arc::new(ElasticClient::mock());
         let service = SalesService::new(Arc::new(db), search_client);
@@ -578,11 +578,11 @@ mod tests {
         assert!(Arc::strong_count(&service.db) >= 1);
     }
 
-    /// 测试_取消发货_需要真实数据库
+    /// test_qxfh_xyzssjk
     /// 需要 sales_deliveries 表 schema 与真实数据，标注 #[ignore] 仅在 CI 提供数据库时运行。；无 schema 时返回数据库错误；有 schema 但无记录时返回 NotFound。
     #[tokio::test]
     #[ignore = "依赖数据库 schema，CI 中由 TEST_DATABASE_URL 提供真实数据库"]
-    async fn 测试_取消发货_需要真实数据库() {
+    async fn test_qxfh_xyzssjk() {
         let db = setup_test_db().await;
         let search_client: Arc<dyn SearchClient> = Arc::new(ElasticClient::mock());
         let service = SalesService::new(Arc::new(db), search_client);
@@ -598,16 +598,16 @@ mod tests {
     // 依据：fabric-industry-research.md §2.3 约束 5
     // 业务语义：一个缸号代表一次染色，同色不同缸存在肉眼可见色差，裁床严禁不同缸号面料混铺
 
-    /// 测试_缸号同订单校验_空发货明细通过（无发货明细时校验通过（边界场景）。）
+    /// test_ghtddjy_kfhmxtg（无发货明细时校验通过（边界场景）。）
     #[test]
-    fn 测试_缸号同订单校验_空发货明细通过() {
+    fn test_ghtddjy_kfhmxtg() {
         let items: Vec<ShipOrderItemRequest> = vec![];
         assert!(validate_dye_lot_consistency(&items).is_ok());
     }
 
-    /// 测试_缸号同订单校验_单产品单缸号通过（同一 product_id 仅一个 dye_lot_no → 通过。）
+    /// test_ghtddjy_dcpdghtg（同一 product_id 仅一个 dye_lot_no → 通过。）
     #[test]
-    fn 测试_缸号同订单校验_单产品单缸号通过() {
+    fn test_ghtddjy_dcpdghtg() {
         let items = vec![
             build_ship_item(1001, decs!("10"), Some("DL001".to_string())),
             build_ship_item(1001, decs!("20"), Some("DL001".to_string())),
@@ -616,9 +616,9 @@ mod tests {
         assert!(validate_dye_lot_consistency(&items).is_ok());
     }
 
-    /// 测试_缸号同订单校验_多产品各自单缸号通过（不同 product_id 可使用不同 dye_lot_no，互不影响 → 通过。）
+    /// test_ghtddjy_dcpgzdghtg（不同 product_id 可使用不同 dye_lot_no，互不影响 → 通过。）
     #[test]
-    fn 测试_缸号同订单校验_多产品各自单缸号通过() {
+    fn test_ghtddjy_dcpgzdghtg() {
         let items = vec![
             build_ship_item(1001, decs!("10"), Some("DL001".to_string())),
             build_ship_item(1002, decs!("20"), Some("DL002".to_string())),
@@ -627,9 +627,9 @@ mod tests {
         assert!(validate_dye_lot_consistency(&items).is_ok());
     }
 
-    /// 测试_缸号同订单校验_同产品不同缸号拒绝（同一 product_id 出现多个不同 dye_lot_no → 拒绝（混缸色差风险）。）
+    /// test_ghtddjy_tcpbtghjj（同一 product_id 出现多个不同 dye_lot_no → 拒绝（混缸色差风险）。）
     #[test]
-    fn 测试_缸号同订单校验_同产品不同缸号拒绝() {
+    fn test_ghtddjy_tcpbtghjj() {
         let items = vec![
             build_ship_item(1001, decs!("10"), Some("DL001".to_string())),
             build_ship_item(1001, decs!("20"), Some("DL002".to_string())),
@@ -644,9 +644,9 @@ mod tests {
         assert!(msg.contains("色差"), "错误信息应说明色差风险");
     }
 
-    /// 测试_缸号同订单校验_未指定缸号通过（所有明细均未指定 dye_lot_no（None 或空字符串）→ 跳过校验通过，兼容无缸号场景。）
+    /// test_ghtddjy_wzdghtg（所有明细均未指定 dye_lot_no（None 或空字符串）→ 跳过校验通过，兼容无缸号场景。）
     #[test]
-    fn 测试_缸号同订单校验_未指定缸号通过() {
+    fn test_ghtddjy_wzdghtg() {
         let items = vec![
             build_ship_item(1001, decs!("10"), None),
             build_ship_item(1001, decs!("20"), None),
@@ -655,9 +655,9 @@ mod tests {
         assert!(validate_dye_lot_consistency(&items).is_ok());
     }
 
-    /// 测试_缸号同订单校验_空字符串缸号视为未指定（dye_lot_no 为空字符串时视为未指定，跳过校验通过。）
+    /// test_ghtddjy_kzfcghswwzd（dye_lot_no 为空字符串时视为未指定，跳过校验通过。）
     #[test]
-    fn 测试_缸号同订单校验_空字符串缸号视为未指定() {
+    fn test_ghtddjy_kzfcghswwzd() {
         let items = vec![
             build_ship_item(1001, decs!("10"), Some("".to_string())),
             build_ship_item(1001, decs!("20"), Some("".to_string())),
@@ -665,9 +665,9 @@ mod tests {
         assert!(validate_dye_lot_consistency(&items).is_ok());
     }
 
-    /// 测试_缸号同订单校验_部分指定部分未指定通过（同一 product_id 部分明细指定缸号 DL001，部分未指定 → 仅校验已指定的，；未指定不参与比较 → 通过。）
+    /// test_ghtddjy_bfzdbfwzdtg（同一 product_id 部分明细指定缸号 DL001，部分未指定 → 仅校验已指定的，；未指定不参与比较 → 通过。）
     #[test]
-    fn 测试_缸号同订单校验_部分指定部分未指定通过() {
+    fn test_ghtddjy_bfzdbfwzdtg() {
         let items = vec![
             build_ship_item(1001, decs!("10"), Some("DL001".to_string())),
             build_ship_item(1001, decs!("20"), None),
@@ -676,9 +676,9 @@ mod tests {
         assert!(validate_dye_lot_consistency(&items).is_ok());
     }
 
-    /// 测试_缸号同订单校验_错误信息包含缸号列表（验证错误信息中包含所有冲突的缸号，便于业务人员定位问题。）
+    /// test_ghtddjy_cwxxbhghlb（验证错误信息中包含所有冲突的缸号，便于业务人员定位问题。）
     #[test]
-    fn 测试_缸号同订单校验_错误信息包含缸号列表() {
+    fn test_ghtddjy_cwxxbhghlb() {
         let items = vec![
             build_ship_item(2002, decs!("10"), Some("缸号A".to_string())),
             build_ship_item(2002, decs!("20"), Some("缸号B".to_string())),

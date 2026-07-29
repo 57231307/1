@@ -85,7 +85,7 @@ mod tests {
     /* ===== 单元测试 ===== */
 
     #[test]
-    fn 测试_同比增长率() {
+    fn test_tbzzl() {
         // 中文测试名：测试同比增长率
         // 今年 110 vs 去年 100 = 10%
         let g = yoy_growth(Decimal::from(110), Decimal::from(100));
@@ -96,14 +96,14 @@ mod tests {
     }
 
     #[test]
-    fn 测试_同比_零基期保护() {
+    fn test_tb_ljqbh() {
         // 中文测试名：测试同比 - 零基期除零保护
         let g = yoy_growth(Decimal::from(100), Decimal::ZERO);
         assert_eq!(g, Decimal::ZERO);
     }
 
     #[test]
-    fn 测试_平均值与中位数() {
+    fn test_pjzyzws() {
         // 中文测试名：测试平均值与中位数计算
         let values = vec![
             Decimal::from(10),
@@ -126,7 +126,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试_移动平均() {
+    fn test_ydpj() {
         // 中文测试名：测试简单移动平均（窗口 3）
         let points = vec![
             Decimal::from(10),
@@ -146,7 +146,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试_客户分层() {
+    fn test_khfc() {
         // 中文测试名：测试客户分层 RFM
         // VIP: 10 单
         assert_eq!(

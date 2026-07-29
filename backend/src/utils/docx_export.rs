@@ -198,7 +198,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn 测试_docx_构建_基本表格() {
+    fn test_docx_gj_jbbg() {
         let table = DocxTable {
             title: "测试文档".to_string(),
             subtitle: None,
@@ -217,7 +217,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试_docx_构建_空数据() {
+    fn test_docx_gj_ksj() {
         let table = DocxTable {
             title: "空表".to_string(),
             subtitle: None,
@@ -229,7 +229,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试_docx_响应_正确的_content_type() {
+    fn test_docx_xy_zqd_content_type() {
         let response = docx_response(vec![1, 2, 3], "test");
         let content_type = response
             .headers()
@@ -243,7 +243,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试_docx_响应_正确的_content_disposition() {
+    fn test_docx_xy_zqd_content_disposition() {
         let response = docx_response(vec![1, 2, 3], "sales_contract_001");
         let disposition = response
             .headers()
@@ -255,7 +255,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试_docx_带键值对构建() {
+    fn test_docx_djzdgj() {
         let kv = DocxKeyValue {
             keys: vec!["合同编号".to_string(), "客户名称".to_string()],
             values: vec!["HT-2026-001".to_string(), "客户A".to_string()],

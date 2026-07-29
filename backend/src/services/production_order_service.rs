@@ -115,57 +115,57 @@ mod tests {
 
     // ============== 状态常量值正确性 ==============
 
-    /// 测试_状态常量_草稿为合法值（验证 STATUS_DRAFT 常量是大写字符串 "DRAFT"，与数据库约定一致。）
+    /// test_ztcl_cgwhfz（验证 STATUS_DRAFT 常量是大写字符串 "DRAFT"，与数据库约定一致。）
     #[test]
-    fn 测试_状态常量_草稿为合法值() {
+    fn test_ztcl_cgwhfz() {
         assert_eq!(common::STATUS_DRAFT, "DRAFT");
     }
 
-    /// 测试_状态常量_已审批为合法值
+    /// test_ztcl_yspwhfz
     #[test]
-    fn 测试_状态常量_已审批为合法值() {
+    fn test_ztcl_yspwhfz() {
         assert_eq!(common::STATUS_APPROVED, "APPROVED");
     }
 
-    /// 测试_状态常量_已完成为合法值
+    /// test_ztcl_ywcwhfz
     #[test]
-    fn 测试_状态常量_已完成为合法值() {
+    fn test_ztcl_ywcwhfz() {
         assert_eq!(common::STATUS_COMPLETED, "COMPLETED");
     }
 
-    /// 测试_状态常量_已取消为合法值
+    /// test_ztcl_yqxwhfz
     #[test]
-    fn 测试_状态常量_已取消为合法值() {
+    fn test_ztcl_yqxwhfz() {
         assert_eq!(common::STATUS_CANCELLED, "CANCELLED");
     }
 
-    /// 测试_状态常量_已排产为合法值
+    /// test_ztcl_ypcwhfz
     #[test]
-    fn 测试_状态常量_已排产为合法值() {
+    fn test_ztcl_ypcwhfz() {
         assert_eq!(production::PRODUCTION_SCHEDULED, "SCHEDULED");
     }
 
-    /// 测试_状态常量_生产中为合法值
+    /// test_ztcl_sczwhfz
     #[test]
-    fn 测试_状态常量_生产中为合法值() {
+    fn test_ztcl_sczwhfz() {
         assert_eq!(production::PRODUCTION_IN_PROGRESS, "IN_PROGRESS");
     }
 
-    /// 测试_状态常量_待审批为合法值
+    /// test_ztcl_dspwhfz
     #[test]
-    fn 测试_状态常量_待审批为合法值() {
+    fn test_ztcl_dspwhfz() {
         assert_eq!(production::PRODUCTION_PENDING_APPROVAL, "PENDING_APPROVAL");
     }
 
-    /// 测试_状态常量_已拒绝为合法值
+    /// test_ztcl_yjjwhfz
     #[test]
-    fn 测试_状态常量_已拒绝为合法值() {
+    fn test_ztcl_yjjwhfz() {
         assert_eq!(production::PRODUCTION_REJECTED, "REJECTED");
     }
 
-    /// 测试_状态常量_各状态值互不相同（验证生产订单 8 个状态常量两两互不相同，避免状态机歧义。）
+    /// test_ztcl_gztzhbxt（验证生产订单 8 个状态常量两两互不相同，避免状态机歧义。）
     #[test]
-    fn 测试_状态常量_各状态值互不相同() {
+    fn test_ztcl_gztzhbxt() {
         let statuses = [
             common::STATUS_DRAFT,
             common::STATUS_APPROVED,
@@ -185,9 +185,9 @@ mod tests {
 
     // ============== 状态机转换合法性 ==============
 
-    /// 测试_状态转换_草稿到已排产合法
+    /// test_ztzh_cgdypchf
     #[test]
-    fn 测试_状态转换_草稿到已排产合法() {
+    fn test_ztzh_cgdypchf() {
         assert!(ProductionOrderService::validate_status_transition(
             common::STATUS_DRAFT,
             production::PRODUCTION_SCHEDULED
@@ -195,9 +195,9 @@ mod tests {
         .is_ok());
     }
 
-    /// 测试_状态转换_草稿到待审批合法
+    /// test_ztzh_cgddsphf
     #[test]
-    fn 测试_状态转换_草稿到待审批合法() {
+    fn test_ztzh_cgddsphf() {
         assert!(ProductionOrderService::validate_status_transition(
             common::STATUS_DRAFT,
             production::PRODUCTION_PENDING_APPROVAL
@@ -205,9 +205,9 @@ mod tests {
         .is_ok());
     }
 
-    /// 测试_状态转换_草稿到已取消合法
+    /// test_ztzh_cgdyqxhf
     #[test]
-    fn 测试_状态转换_草稿到已取消合法() {
+    fn test_ztzh_cgdyqxhf() {
         assert!(ProductionOrderService::validate_status_transition(
             common::STATUS_DRAFT,
             common::STATUS_CANCELLED
@@ -215,9 +215,9 @@ mod tests {
         .is_ok());
     }
 
-    /// 测试_状态转换_已排产到生产中合法
+    /// test_ztzh_ypcdsczhf
     #[test]
-    fn 测试_状态转换_已排产到生产中合法() {
+    fn test_ztzh_ypcdsczhf() {
         assert!(ProductionOrderService::validate_status_transition(
             production::PRODUCTION_SCHEDULED,
             production::PRODUCTION_IN_PROGRESS
@@ -225,9 +225,9 @@ mod tests {
         .is_ok());
     }
 
-    /// 测试_状态转换_已排产到已取消合法
+    /// test_ztzh_ypcdyqxhf
     #[test]
-    fn 测试_状态转换_已排产到已取消合法() {
+    fn test_ztzh_ypcdyqxhf() {
         assert!(ProductionOrderService::validate_status_transition(
             production::PRODUCTION_SCHEDULED,
             common::STATUS_CANCELLED
@@ -235,9 +235,9 @@ mod tests {
         .is_ok());
     }
 
-    /// 测试_状态转换_生产中到已完成合法
+    /// test_ztzh_sczdywchf
     #[test]
-    fn 测试_状态转换_生产中到已完成合法() {
+    fn test_ztzh_sczdywchf() {
         assert!(ProductionOrderService::validate_status_transition(
             production::PRODUCTION_IN_PROGRESS,
             common::STATUS_COMPLETED
@@ -245,9 +245,9 @@ mod tests {
         .is_ok());
     }
 
-    /// 测试_状态转换_生产中到已取消合法
+    /// test_ztzh_sczdyqxhf
     #[test]
-    fn 测试_状态转换_生产中到已取消合法() {
+    fn test_ztzh_sczdyqxhf() {
         assert!(ProductionOrderService::validate_status_transition(
             production::PRODUCTION_IN_PROGRESS,
             common::STATUS_CANCELLED
@@ -255,9 +255,9 @@ mod tests {
         .is_ok());
     }
 
-    /// 测试_状态转换_待审批到已审批合法
+    /// test_ztzh_dspdysphf
     #[test]
-    fn 测试_状态转换_待审批到已审批合法() {
+    fn test_ztzh_dspdysphf() {
         assert!(ProductionOrderService::validate_status_transition(
             production::PRODUCTION_PENDING_APPROVAL,
             common::STATUS_APPROVED
@@ -265,9 +265,9 @@ mod tests {
         .is_ok());
     }
 
-    /// 测试_状态转换_待审批到已拒绝合法
+    /// test_ztzh_dspdyjjhf
     #[test]
-    fn 测试_状态转换_待审批到已拒绝合法() {
+    fn test_ztzh_dspdyjjhf() {
         assert!(ProductionOrderService::validate_status_transition(
             production::PRODUCTION_PENDING_APPROVAL,
             production::PRODUCTION_REJECTED
@@ -275,9 +275,9 @@ mod tests {
         .is_ok());
     }
 
-    /// 测试_状态转换_已审批到已排产合法
+    /// test_ztzh_yspdypchf
     #[test]
-    fn 测试_状态转换_已审批到已排产合法() {
+    fn test_ztzh_yspdypchf() {
         assert!(ProductionOrderService::validate_status_transition(
             common::STATUS_APPROVED,
             production::PRODUCTION_SCHEDULED
@@ -285,9 +285,9 @@ mod tests {
         .is_ok());
     }
 
-    /// 测试_状态转换_已拒绝到草稿合法
+    /// test_ztzh_yjjdcghf
     #[test]
-    fn 测试_状态转换_已拒绝到草稿合法() {
+    fn test_ztzh_yjjdcghf() {
         assert!(ProductionOrderService::validate_status_transition(
             production::PRODUCTION_REJECTED,
             common::STATUS_DRAFT
@@ -295,9 +295,9 @@ mod tests {
         .is_ok());
     }
 
-    /// 测试_状态转换_草稿不能直接到生产中（业务规则：草稿必须先经已排产才能进入生产中，跳级转换应被拒绝。）
+    /// test_ztzh_cgbnzjdscz（业务规则：草稿必须先经已排产才能进入生产中，跳级转换应被拒绝。）
     #[test]
-    fn 测试_状态转换_草稿不能直接到生产中() {
+    fn test_ztzh_cgbnzjdscz() {
         let result = ProductionOrderService::validate_status_transition(
             common::STATUS_DRAFT,
             production::PRODUCTION_IN_PROGRESS,
@@ -305,9 +305,9 @@ mod tests {
         assert!(result.is_err());
     }
 
-    /// 测试_状态转换_草稿不能直接到已完成
+    /// test_ztzh_cgbnzjdywc
     #[test]
-    fn 测试_状态转换_草稿不能直接到已完成() {
+    fn test_ztzh_cgbnzjdywc() {
         let result = ProductionOrderService::validate_status_transition(
             common::STATUS_DRAFT,
             common::STATUS_COMPLETED,
@@ -315,9 +315,9 @@ mod tests {
         assert!(result.is_err());
     }
 
-    /// 测试_状态转换_已完成为终态不可再变更
+    /// test_ztzh_ywcwztbkzbg
     #[test]
-    fn 测试_状态转换_已完成为终态不可再变更() {
+    fn test_ztzh_ywcwztbkzbg() {
         let result = ProductionOrderService::validate_status_transition(
             common::STATUS_COMPLETED,
             common::STATUS_CANCELLED,
@@ -325,9 +325,9 @@ mod tests {
         assert!(result.is_err());
     }
 
-    /// 测试_状态转换_已取消为终态不可再变更
+    /// test_ztzh_yqxwztbkzbg
     #[test]
-    fn 测试_状态转换_已取消为终态不可再变更() {
+    fn test_ztzh_yqxwztbkzbg() {
         let result = ProductionOrderService::validate_status_transition(
             common::STATUS_CANCELLED,
             common::STATUS_DRAFT,
@@ -335,17 +335,17 @@ mod tests {
         assert!(result.is_err());
     }
 
-    /// 测试_状态转换_未知源状态被拒绝
+    /// test_ztzh_wzyztbjj
     #[test]
-    fn 测试_状态转换_未知源状态被拒绝() {
+    fn test_ztzh_wzyztbjj() {
         let result =
             ProductionOrderService::validate_status_transition("UNKNOWN", common::STATUS_DRAFT);
         assert!(result.is_err());
     }
 
-    /// 测试_状态转换_错误消息包含源和目标状态（验证非法转换的错误消息包含双方状态名，便于排查。）
+    /// test_ztzh_cwxxbhyhmbzt（验证非法转换的错误消息包含双方状态名，便于排查。）
     #[test]
-    fn 测试_状态转换_错误消息包含源和目标状态() {
+    fn test_ztzh_cwxxbhyhmbzt() {
         let result = ProductionOrderService::validate_status_transition(
             common::STATUS_DRAFT,
             common::STATUS_COMPLETED,
@@ -361,9 +361,9 @@ mod tests {
         );
     }
 
-    /// 测试_状态转换_未知状态错误消息包含状态名
+    /// test_ztzh_wzztcwxxbhztm
     #[test]
-    fn 测试_状态转换_未知状态错误消息包含状态名() {
+    fn test_ztzh_wzztcwxxbhztm() {
         let result =
             ProductionOrderService::validate_status_transition("FOO", common::STATUS_DRAFT);
         let err_msg = result.unwrap_err().to_string();
@@ -372,18 +372,18 @@ mod tests {
 
     // ============== 数量计算（纯算法） ==============
 
-    /// 测试_数量计算_BOM用量乘以生产数量_整数结果（验证 consumption_qty = bom_quantity * production_qty。）
+    /// test_sljs_bomylcyscsl_zsjg（验证 consumption_qty = bom_quantity * production_qty。）
     #[test]
-    fn 测试_数量计算_BOM用量乘以生产数量_整数结果() {
+    fn test_sljs_bomylcyscsl_zsjg() {
         let bom_qty = decs!("1.5");
         let prod_qty = decs!("100");
         let result = calc_consumption_qty(bom_qty, prod_qty);
         assert_eq!(result, decs!("150"));
     }
 
-    /// 测试_数量计算_BOM用量乘以生产数量_小数结果（验证 round_dp(4) 对结果精度进行控制，防止精度漂移。）
+    /// test_sljs_bomylcyscsl_xsjg（验证 round_dp(4) 对结果精度进行控制，防止精度漂移。）
     #[test]
-    fn 测试_数量计算_BOM用量乘以生产数量_小数结果() {
+    fn test_sljs_bomylcyscsl_xsjg() {
         let bom_qty = decs!("0.1234");
         let prod_qty = decs!("3");
         let result = calc_consumption_qty(bom_qty, prod_qty);
@@ -391,9 +391,9 @@ mod tests {
         assert_eq!(result, decs!("0.3702"));
     }
 
-    /// 测试_数量计算_公斤数按比例扣减（验证 kg_before - (kg_before * consumption / meters_before) 的比例扣减逻辑。）
+    /// test_sljs_gjsablkj（验证 kg_before - (kg_before * consumption / meters_before) 的比例扣减逻辑。）
     #[test]
-    fn 测试_数量计算_公斤数按比例扣减() {
+    fn test_sljs_gjsablkj() {
         let meters_before = decs!("100");
         let kg_before = decs!("50");
         let consumption = decs!("25");
@@ -402,9 +402,9 @@ mod tests {
         assert_eq!(result, decs!("37.5"));
     }
 
-    /// 测试_数量计算_米数为零时公斤数不变（防御性逻辑：当 qty_before_meters 为零时，公斤数保持不变避免除零。）
+    /// test_sljs_mswlsgjsbb（防御性逻辑：当 qty_before_meters 为零时，公斤数保持不变避免除零。）
     #[test]
-    fn 测试_数量计算_米数为零时公斤数不变() {
+    fn test_sljs_mswlsgjsbb() {
         let meters_before = Decimal::ZERO;
         let kg_before = decs!("20");
         let consumption = decs!("5");
@@ -412,9 +412,9 @@ mod tests {
         assert_eq!(result, kg_before);
     }
 
-    /// 测试_数量计算_成品入库公斤数计算（验证 added_kg = production_qty * gram_weight * width / 100000。）
+    /// test_sljs_cprkgjsjs（验证 added_kg = production_qty * gram_weight * width / 100000。）
     #[test]
-    fn 测试_数量计算_成品入库公斤数计算() {
+    fn test_sljs_cprkgjsjs() {
         let prod_qty = decs!("1000"); // 米
         let gram_weight = Some(decs!("200")); // 克/平方米
         let width = Some(decs!("150")); // 厘米
@@ -423,17 +423,17 @@ mod tests {
         assert_eq!(result, decs!("300"));
     }
 
-    /// 测试_数量计算_成品入库克重缺失时公斤数为零
+    /// test_sljs_cprkkzqssgjswl
     #[test]
-    fn 测试_数量计算_成品入库克重缺失时公斤数为零() {
+    fn test_sljs_cprkkzqssgjswl() {
         let prod_qty = decs!("1000");
         let result = calc_added_kg(prod_qty, None, Some(decs!("150")));
         assert_eq!(result, Decimal::ZERO);
     }
 
-    /// 测试_数量计算_实际数量缺省取计划数量（复现 complete_production_order 中 actual_quantity.unwrap_or(planned_quantity) 逻辑。）
+    /// test_sljs_sjslqsqjhsl（复现 complete_production_order 中 actual_quantity.unwrap_or(planned_quantity) 逻辑。）
     #[test]
-    fn 测试_数量计算_实际数量缺省取计划数量() {
+    fn test_sljs_sjslqsqjhsl() {
         let planned = decs!("500");
         // 实际数量为 None 时取计划数量
         assert_eq!(resolve_production_qty(None, planned), planned);
@@ -442,10 +442,10 @@ mod tests {
         assert_eq!(resolve_production_qty(actual, planned), decs!("480"));
     }
 
-    /// 测试_数量计算_生产数量为零时触发错误路径
+    /// test_sljs_scslwlscfcwlj
     /// 复现 handle_production_completion_inventory_txn 中 production_qty.is_zero() 校验：当 actual_quantity 和 planned_quantity 均为零时，应触发业务错误。
     #[test]
-    fn 测试_数量计算_生产数量为零时触发错误路径() {
+    fn test_sljs_scslwlscfcwlj() {
         let planned = Decimal::ZERO;
         let actual: Option<Decimal> = None;
         let production_qty = resolve_production_qty(actual, planned);
@@ -454,41 +454,41 @@ mod tests {
 
     // ============== 错误消息格式 ==============
 
-    /// 测试_错误消息_产品不存在包含ID（复现 validate_product_exists 中 "产品ID {} 不存在" 的错误消息格式。）
+    /// test_cwxx_cpbczbhid（复现 validate_product_exists 中 "产品ID {} 不存在" 的错误消息格式。）
     #[test]
-    fn 测试_错误消息_产品不存在包含ID() {
+    fn test_cwxx_cpbczbhid() {
         let err = AppError::validation(format!("产品ID {} 不存在", 999));
         let msg = err.to_string();
         assert!(msg.contains("999"), "错误消息应包含产品ID");
         assert!(msg.contains("产品ID"), "错误消息应包含'产品ID'前缀");
     }
 
-    /// 测试_错误消息_销售订单不存在包含ID
+    /// test_cwxx_xsddbczbhid
     #[test]
-    fn 测试_错误消息_销售订单不存在包含ID() {
+    fn test_cwxx_xsddbczbhid() {
         let err = AppError::validation(format!("销售订单ID {} 不存在", 888));
         assert!(err.to_string().contains("888"));
     }
 
-    /// 测试_错误消息_工作中心不存在包含ID
+    /// test_cwxx_gzzxbczbhid
     #[test]
-    fn 测试_错误消息_工作中心不存在包含ID() {
+    fn test_cwxx_gzzxbczbhid() {
         let err = AppError::validation(format!("工作中心ID {} 不存在", 777));
         assert!(err.to_string().contains("777"));
     }
 
-    /// 测试_错误消息_订单号已存在包含订单号
+    /// test_cwxx_ddhyczbhddh
     #[test]
-    fn 测试_错误消息_订单号已存在包含订单号() {
+    fn test_cwxx_ddhyczbhddh() {
         let order_no = "PO-20260709000000-0001";
         let err = AppError::validation(format!("订单号 {} 已存在", order_no));
         let msg = err.to_string();
         assert!(msg.contains(order_no), "错误消息应包含订单号");
     }
 
-    /// 测试_错误消息_生产数量为零提示明确（复现 handle_production_completion_inventory_txn 中 "生产数量为零" 的业务错误消息。）
+    /// test_cwxx_scslwltsmq（复现 handle_production_completion_inventory_txn 中 "生产数量为零" 的业务错误消息。）
     #[test]
-    fn 测试_错误消息_生产数量为零提示明确() {
+    fn test_cwxx_scslwltsmq() {
         let err = AppError::business("生产数量为零，无法执行库存联动".to_string());
         let msg = err.to_string();
         assert!(
@@ -497,16 +497,16 @@ mod tests {
         );
     }
 
-    /// 测试_错误消息_未找到可用仓库提示明确
+    /// test_cwxx_wzdkycktsmq
     #[test]
-    fn 测试_错误消息_未找到可用仓库提示明确() {
+    fn test_cwxx_wzdkycktsmq() {
         let err = AppError::business("未找到可用仓库，无法执行库存联动");
         assert!(err.to_string().contains("未找到可用仓库"));
     }
 
-    /// 测试_错误消息_无法生成唯一订单号提示重试
+    /// test_cwxx_wfscwyddhtszs
     #[test]
-    fn 测试_错误消息_无法生成唯一订单号提示重试() {
+    fn test_cwxx_wfscwyddhtszs() {
         let err = AppError::internal("无法生成唯一订单号，请稍后重试".to_string());
         let msg = err.to_string();
         assert!(msg.contains("无法生成唯一订单号"));
@@ -515,63 +515,63 @@ mod tests {
 
     // ============== 订单号格式 ==============
 
-    /// 测试_订单号格式_合法格式通过校验（验证 generate_unique_order_no 生成的 "PO-{14位时间戳}-{4位数字}" 格式合法。）
+    /// test_ddhgs_hfgstgjy（验证 generate_unique_order_no 生成的 "PO-{14位时间戳}-{4位数字}" 格式合法。）
     #[test]
-    fn 测试_订单号格式_合法格式通过校验() {
+    fn test_ddhgs_hfgstgjy() {
         assert!(is_valid_order_no_format("PO-20260709103000-0042"));
     }
 
-    /// 测试_订单号格式_缺少前缀不合法
+    /// test_ddhgs_qsqzbhf
     #[test]
-    fn 测试_订单号格式_缺少前缀不合法() {
+    fn test_ddhgs_qsqzbhf() {
         assert!(!is_valid_order_no_format("20260709103000-0042"));
     }
 
-    /// 测试_订单号格式_时间戳长度不足不合法
+    /// test_ddhgs_sjccdbzbhf
     #[test]
-    fn 测试_订单号格式_时间戳长度不足不合法() {
+    fn test_ddhgs_sjccdbzbhf() {
         assert!(!is_valid_order_no_format("PO-20260709-0042"));
     }
 
-    /// 测试_订单号格式_随机段非数字不合法
+    /// test_ddhgs_sjdfszbhf
     #[test]
-    fn 测试_订单号格式_随机段非数字不合法() {
+    fn test_ddhgs_sjdfszbhf() {
         assert!(!is_valid_order_no_format("PO-20260709103000-ABCD"));
     }
 
     // ============== 夹具宏可用性 ==============
 
-    /// 测试_decs_宏_解析字符串为Decimal
+    /// test_decs_h_jxzfcwdecimal
     #[test]
-    fn 测试_decs_宏_解析字符串为Decimal() {
+    fn test_decs_h_jxzfcwdecimal() {
         let v = decs!("123.456");
         assert_eq!(v.to_string(), "123.456");
     }
 
-    /// 测试_decs_宏_解析整数串为Decimal
+    /// test_decs_h_jxzscwdecimal
     #[test]
-    fn 测试_decs_宏_解析整数串为Decimal() {
+    fn test_decs_h_jxzscwdecimal() {
         let v = decs!("1000");
         assert_eq!(v, Decimal::new(1000, 0));
     }
 
-    /// 测试_ymd_宏_解析日期
+    /// test_ymd_h_jxrq
     #[test]
-    fn 测试_ymd_宏_解析日期() {
+    fn test_ymd_h_jxrq() {
         let d = ymd!(2026, 7, 9);
         assert_eq!(d.format("%Y-%m-%d").to_string(), "2026-07-09");
     }
 
-    /// 测试_ymd_宏_解析年初日期
+    /// test_ymd_h_jxncrq
     #[test]
-    fn 测试_ymd_宏_解析年初日期() {
+    fn test_ymd_h_jxncrq() {
         let d = ymd!(2026, 1, 1);
         assert_eq!(d.format("%Y-%m-%d").to_string(), "2026-01-01");
     }
 
-    /// 测试_FromStr_与decs宏结果一致（验证 decs! 宏与 Decimal::from_str 行为一致，确保夹具可信赖。）
+    /// test_fromstr_ydecshjgyz（验证 decs! 宏与 Decimal::from_str 行为一致，确保夹具可信赖。）
     #[test]
-    fn 测试_FromStr_与decs宏结果一致() {
+    fn test_fromstr_ydecshjgyz() {
         let a = decs!("99.9");
         let b = Decimal::from_str("99.9").expect("FromStr 不应失败");
         assert_eq!(a, b);
@@ -579,20 +579,20 @@ mod tests {
 
     // ============== 服务实例化与请求结构 ==============
 
-    /// 测试_服务实例化_使用SQLite内存数据库
+    /// test_fwslh_sysqlitencsjk
     /// 标注 #[ignore]：依赖 SQLite 内存数据库 schema，CI 中不强制运行；用于本地手动验证 ProductionOrderService::new 能正常构造。
     #[tokio::test]
     #[ignore = "依赖 SQLite 内存数据库 schema，CI 中跳过；本地手动验证用"]
-    async fn 测试_服务实例化_使用SQLite内存数据库() {
+    async fn test_fwslh_sysqlitencsjk() {
         let db = setup_test_db().await;
         // L-20 修复（批次 377 v13 复审）：删除 let _ = service 占位变量
         // 仅验证服务能正常构造，不调用任何依赖 schema 的方法
         let _service = ProductionOrderService::new(std::sync::Arc::new(db));
     }
 
-    /// 测试_请求结构_创建订单请求可构造（验证 CreateProductionOrderRequest 能正常构造，字段类型匹配。）
+    /// test_qqjg_cjddqqkgz（验证 CreateProductionOrderRequest 能正常构造，字段类型匹配。）
     #[test]
-    fn 测试_请求结构_创建订单请求可构造() {
+    fn test_qqjg_cjddqqkgz() {
         let req = CreateProductionOrderRequest {
             order_no: Some("PO-TEST-001".to_string()),
             sales_order_id: None,
@@ -610,9 +610,9 @@ mod tests {
         assert_eq!(req.priority, Some(5));
     }
 
-    /// 测试_请求结构_更新订单请求可构造
+    /// test_qqjg_gxddqqkgz
     #[test]
-    fn 测试_请求结构_更新订单请求可构造() {
+    fn test_qqjg_gxddqqkgz() {
         let req = UpdateProductionOrderRequest {
             planned_quantity: Some(decs!("200")),
             planned_start_date: Some(ymd!(2026, 8, 1)),
@@ -625,9 +625,9 @@ mod tests {
         assert_eq!(req.priority, Some(8));
     }
 
-    /// 测试_查询参数_分页参数可构造
+    /// test_cxcs_fycskgz
     #[test]
-    fn 测试_查询参数_分页参数可构造() {
+    fn test_cxcs_fycskgz() {
         let query = ProductionOrderQuery {
             status: Some(common::STATUS_DRAFT.to_string()),
             product_id: Some(1),

@@ -786,7 +786,7 @@ mod tests {
 
     /// 验证库存预警通知请求体的全部字段被正确构造（场景一：常规参数）
     #[test]
-    fn 测试_build_inventory_alert_notification_字段完整性_常规参数() {
+    fn test_build_inventory_alert_notification_zdwzx_cgcs() {
         let req = EventNotificationService::build_inventory_alert_notification(
             1001,
             "纯棉面料 T001",
@@ -821,7 +821,7 @@ mod tests {
 
     /// 验证库存预警通知请求体的全部字段被正确构造（场景二：含中文特殊字符的产品名）
     #[test]
-    fn 测试_build_inventory_alert_notification_字段完整性_中文特殊字符() {
+    fn test_build_inventory_alert_notification_zdwzx_zwtszf() {
         let req = EventNotificationService::build_inventory_alert_notification(
             2002,
             "涤纶【防泼水】面料（蓝色）",
@@ -847,7 +847,7 @@ mod tests {
 
     /// 验证库存预警通知请求体的全部字段被正确构造（场景三：库存为零且阈值极低）
     #[test]
-    fn 测试_build_inventory_alert_notification_字段完整性_零库存场景() {
+    fn test_build_inventory_alert_notification_zdwzx_lkccj() {
         let req = EventNotificationService::build_inventory_alert_notification(
             3003,
             "羊毛混纺面料",
@@ -873,7 +873,7 @@ mod tests {
 
     /// 验证不同参数组合下 action_url 与 business_id 的一致性
     #[test]
-    fn 测试_build_inventory_alert_notification_action_url_与_business_id_一致() {
+    fn test_build_inventory_alert_notification_action_url_y_business_id_yz() {
         // 测试多组 product_id，确认 action_url 始终包含相同 product_id
         let product_ids = vec![1, 99, 12345, 999999];
         for pid in product_ids {
@@ -894,7 +894,7 @@ mod tests {
 
     /// 验证内容模板格式与原始内联构造逻辑一致
     #[test]
-    fn 测试_build_inventory_alert_notification_内容模板格式() {
+    fn test_build_inventory_alert_notification_nrmbgs() {
         let req = EventNotificationService::build_inventory_alert_notification(
             1,
             "亚麻面料",

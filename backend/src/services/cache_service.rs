@@ -278,7 +278,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn 测试_cache_set_get() {
+    async fn test_cache_set_get() {
         // 中文测试名：测试 cache set 后能 get 到
         let cache = CacheService::builder()
             .capacity(100)
@@ -290,7 +290,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn 测试_cache_miss() {
+    async fn test_cache_miss() {
         // 中文测试名：测试 cache miss 返回 None 并更新统计
         let cache = CacheService::builder()
             .capacity(100)
@@ -303,7 +303,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn 测试_cache_hit_ratio() {
+    async fn test_cache_hit_ratio() {
         // 中文测试名：测试 cache 命中率计算
         let cache = CacheService::builder()
             .capacity(100)
@@ -320,7 +320,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn 测试_cache_disabled() {
+    async fn test_cache_disabled() {
         // 中文测试名：测试 cache 关闭时所有读返回 None
         let cache = CacheService::builder().enabled(false).build();
         cache.set("k1".to_string(), b"v1".to_vec()).await;
@@ -329,7 +329,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn 测试_cache_invalidate_prefix_仅清除匹配前缀() {
+    async fn test_cache_invalidate_prefix_jqcppqz() {
         // P2 5-16 修复测试：invalidate_prefix 应仅清除匹配前缀的 key，保留其他 key
         let cache = CacheService::builder()
             .capacity(100)
@@ -354,7 +354,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn 测试_cache_set_with_ttl_短期过期() {
+    async fn test_cache_set_with_ttl_dqgq() {
         // P2 5-17 修复测试：set_with_ttl 应使用自定义 TTL，过期后 get 返回 None
         let cache = CacheService::builder()
             .capacity(100)
@@ -376,7 +376,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn 测试_cache_set_with_ttl_长于默认_ttl() {
+    async fn test_cache_set_with_ttl_cymr_ttl() {
         // P2 5-17 修复测试：set_with_ttl 的 TTL 长于默认 TTL 时，应按自定义 TTL 存活
         // 注意：moka 默认 TTL 仍会生效，此测试验证自定义 TTL 在默认 TTL 内有效
         let cache = CacheService::builder()
@@ -391,7 +391,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn 测试_cache_set_后_set_with_ttl_覆盖_ttl() {
+    async fn test_cache_set_h_set_with_ttl_fg_ttl() {
         // P2 5-17 修复测试：set 后再 set_with_ttl 应使用自定义 TTL
         let cache = CacheService::builder()
             .capacity(100)
@@ -410,7 +410,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn 测试_cache_set_with_ttl_后_set_清除自定义_ttl() {
+    async fn test_cache_set_with_ttl_h_set_qczdy_ttl() {
         // P2 5-17 修复测试：set_with_ttl 后再 set 应清除自定义 TTL（回归默认 TTL）
         let cache = CacheService::builder()
             .capacity(100)
@@ -431,7 +431,7 @@ mod tests {
 
     /// V15 批次 07 P1-8 修复测试：with_metrics 注入后，命中/未命中自动上报 Prometheus
     #[tokio::test]
-    async fn 测试_cache_with_metrics_自动上报_prometheus() {
+    async fn test_cache_with_metrics_zdsb_prometheus() {
         use crate::services::business_metrics::BusinessMetrics;
         let registry = prometheus::Registry::new();
         let metrics = Arc::new(BusinessMetrics::new(&registry).expect("BusinessMetrics 注册失败"));
@@ -458,7 +458,7 @@ mod tests {
 
     /// V15 批次 07 P1-8 修复测试：未注入 metrics 时，缓存功能正常，不 panic
     #[tokio::test]
-    async fn 测试_cache_无_metrics_仍正常工作() {
+    async fn test_cache_w_metrics_rzcgz() {
         let cache = CacheService::builder()
             .capacity(100)
             .ttl(Duration::from_secs(60))

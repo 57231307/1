@@ -423,23 +423,23 @@ mod tests {
 
     use super::*;
 
-    /// 测试_verify_zip_magic合法ZIP：PK\x03\x04 开头应返回 true。
+    /// test_verify_zip_magichfzip：PK\x03\x04 开头应返回 true。
     #[test]
-    fn 测试_verify_zip_magic合法ZIP() {
+    fn test_verify_zip_magichfzip() {
         let data = [0x50, 0x4B, 0x03, 0x04, 0x00, 0x00];
         assert!(verify_zip_magic(&data), "合法 ZIP 头应返回 true");
     }
 
-    /// 测试_verify_zip_magic空数据：空切片应返回 false（无法匹配 4 字节前缀）。
+    /// test_verify_zip_magicksj：空切片应返回 false（无法匹配 4 字节前缀）。
     #[test]
-    fn 测试_verify_zip_magic空数据() {
+    fn test_verify_zip_magicksj() {
         let data: [u8; 0] = [];
         assert!(!verify_zip_magic(&data), "空数据应返回 false");
     }
 
-    /// 测试_verify_zip_magic非ZIP文件：JPEG/PNG 文件头应返回 false。
+    /// test_verify_zip_magicfzipwj：JPEG/PNG 文件头应返回 false。
     #[test]
-    fn 测试_verify_zip_magic非ZIP文件() {
+    fn test_verify_zip_magicfzipwj() {
         let jpeg_header = [0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x00];
         assert!(!verify_zip_magic(&jpeg_header), "JPEG 头应返回 false");
 
@@ -448,9 +448,9 @@ mod tests {
         assert!(!verify_zip_magic(&png_header), "PNG 头应返回 false");
     }
 
-    /// 测试_verify_zip_magic部分匹配：仅前 3 字节匹配或不足 4 字节应返回 false。
+    /// test_verify_zip_magicbfpp：仅前 3 字节匹配或不足 4 字节应返回 false。
     #[test]
-    fn 测试_verify_zip_magic部分匹配() {
+    fn test_verify_zip_magicbfpp() {
         let partial = [0x50, 0x4B, 0x03, 0x00]; // 第 4 字节不匹配
         assert!(!verify_zip_magic(&partial), "部分匹配应返回 false");
 
@@ -458,9 +458,9 @@ mod tests {
         assert!(!verify_zip_magic(&partial2), "仅 3 字节应返回 false");
     }
 
-    /// 测试_verify_zip_magic恰好4字节：[0x50, 0x4B, 0x03, 0x04] 应返回 true。
+    /// test_verify_zip_magicqh4zj：[0x50, 0x4B, 0x03, 0x04] 应返回 true。
     #[test]
-    fn 测试_verify_zip_magic恰好4字节() {
+    fn test_verify_zip_magicqh4zj() {
         let exact = [0x50, 0x4B, 0x03, 0x04];
         assert!(
             verify_zip_magic(&exact),
@@ -468,9 +468,9 @@ mod tests {
         );
     }
 
-    /// 测试_VersionResponse和UpdateResult构造：验证结构体能正确构造并设置字段。
+    /// test_versionresponsehupdateresultgz：验证结构体能正确构造并设置字段。
     #[test]
-    fn 测试_VersionResponse和UpdateResult构造() {
+    fn test_versionresponsehupdateresultgz() {
         // VersionResponse 构造
         let version_resp = VersionResponse {
             version: "1.0.0".to_string(),

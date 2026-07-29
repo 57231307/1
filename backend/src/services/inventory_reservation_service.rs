@@ -282,33 +282,33 @@ mod tests {
         status == reservation_status::PENDING
     }
 
-    /// 测试_状态常量_待处理为合法值（验证 PENDING 常量是小写字符串，与业务代码及数据库约定一致。）
+    /// test_ztcl_dclwhfz（验证 PENDING 常量是小写字符串，与业务代码及数据库约定一致。）
     #[test]
-    fn 测试_状态常量_待处理为合法值() {
+    fn test_ztcl_dclwhfz() {
         assert_eq!(reservation_status::PENDING, "pending");
     }
 
-    /// 测试_状态常量_已锁定为合法值（验证 LOCKED 常量是小写字符串，与 lock_reservation 中设置的目标状态一致。）
+    /// test_ztcl_ysdwhfz（验证 LOCKED 常量是小写字符串，与 lock_reservation 中设置的目标状态一致。）
     #[test]
-    fn 测试_状态常量_已锁定为合法值() {
+    fn test_ztcl_ysdwhfz() {
         assert_eq!(reservation_status::LOCKED, "locked");
     }
 
-    /// 测试_状态常量_已消耗为合法值（验证 CONSUMED 常量是小写字符串，表示发货已扣减库存的终态。）
+    /// test_ztcl_yxhwhfz（验证 CONSUMED 常量是小写字符串，表示发货已扣减库存的终态。）
     #[test]
-    fn 测试_状态常量_已消耗为合法值() {
+    fn test_ztcl_yxhwhfz() {
         assert_eq!(reservation_status::CONSUMED, "consumed");
     }
 
-    /// 测试_状态常量_已释放为合法值（验证 RELEASED 常量是小写字符串，与 release_reservation 中设置的目标状态一致。）
+    /// test_ztcl_ysfwhfz（验证 RELEASED 常量是小写字符串，与 release_reservation 中设置的目标状态一致。）
     #[test]
-    fn 测试_状态常量_已释放为合法值() {
+    fn test_ztcl_ysfwhfz() {
         assert_eq!(reservation_status::RELEASED, "released");
     }
 
-    /// 测试_状态常量_各状态值互不相同（验证 5 个状态常量两两互不相同，避免状态机歧义导致误判。）
+    /// test_ztcl_gztzhbxt（验证 5 个状态常量两两互不相同，避免状态机歧义导致误判。）
     #[test]
-    fn 测试_状态常量_各状态值互不相同() {
+    fn test_ztcl_gztzhbxt() {
         let statuses = [
             reservation_status::PENDING,
             reservation_status::LOCKED,
@@ -323,9 +323,9 @@ mod tests {
         }
     }
 
-    /// 测试_状态匹配_仅待处理状态可锁定（复现 lock_reservation 的状态门：仅 PENDING 可锁定，其余状态均应被拒绝。）
+    /// test_ztpp_jdclztksd（复现 lock_reservation 的状态门：仅 PENDING 可锁定，其余状态均应被拒绝。）
     #[test]
-    fn 测试_状态匹配_仅待处理状态可锁定() {
+    fn test_ztpp_jdclztksd() {
         assert!(can_lock(reservation_status::PENDING));
         assert!(!can_lock(reservation_status::LOCKED));
         assert!(!can_lock(reservation_status::CONSUMED));
@@ -333,10 +333,10 @@ mod tests {
         assert!(!can_lock(reservation_status::CANCELLED));
     }
 
-    /// 测试_状态匹配_已锁定或待处理状态可释放
+    /// test_ztpp_ysdhdclztksf
     /// 复现 release_reservation 的状态门：LOCKED 或 PENDING 可释放，；CONSUMED/RELEASED/CANCELLED 应被拒绝（已释放不可重复释放）。
     #[test]
-    fn 测试_状态匹配_已锁定或待处理状态可释放() {
+    fn test_ztpp_ysdhdclztksf() {
         assert!(can_release(reservation_status::PENDING));
         assert!(can_release(reservation_status::LOCKED));
         assert!(!can_release(reservation_status::CONSUMED));
@@ -344,9 +344,9 @@ mod tests {
         assert!(!can_release(reservation_status::CANCELLED));
     }
 
-    /// 测试_状态匹配_仅待处理状态可删除（复现 delete_reservation 的状态门：仅 PENDING 可删除，；已锁定/已消耗/已释放/已取消的预留均不可删除。）
+    /// test_ztpp_jdclztksc（复现 delete_reservation 的状态门：仅 PENDING 可删除，；已锁定/已消耗/已释放/已取消的预留均不可删除。）
     #[test]
-    fn 测试_状态匹配_仅待处理状态可删除() {
+    fn test_ztpp_jdclztksc() {
         assert!(can_delete(reservation_status::PENDING));
         assert!(!can_delete(reservation_status::LOCKED));
         assert!(!can_delete(reservation_status::CONSUMED));
@@ -354,9 +354,9 @@ mod tests {
         assert!(!can_delete(reservation_status::CANCELLED));
     }
 
-    /// 测试_错误消息_锁定失败包含状态值与中文说明（复现 lock_reservation 中非 PENDING 状态的错误消息构造：消息应包含实际状态值与"只有待处理状态的预留可以锁定"中文说明。）
+    /// test_cwxx_sdsbbhztzyzwsm（复现 lock_reservation 中非 PENDING 状态的错误消息构造：消息应包含实际状态值与"只有待处理状态的预留可以锁定"中文说明。）
     #[test]
-    fn 测试_错误消息_锁定失败包含状态值与中文说明() {
+    fn test_cwxx_sdsbbhztzyzwsm() {
         let status = reservation_status::LOCKED;
         let msg = format!("预留状态为{}，只有待处理状态的预留可以锁定", status);
 
@@ -371,9 +371,9 @@ mod tests {
         assert!(err.to_string().contains(&msg));
     }
 
-    /// 测试_错误消息_释放失败包含状态值与中文说明（复现 release_reservation 中非 LOCKED/PENDING 状态的错误消息构造：消息应包含实际状态值与"只有已锁定或待处理状态的预留可以释放"中文说明。）
+    /// test_cwxx_sfsbbhztzyzwsm（复现 release_reservation 中非 LOCKED/PENDING 状态的错误消息构造：消息应包含实际状态值与"只有已锁定或待处理状态的预留可以释放"中文说明。）
     #[test]
-    fn 测试_错误消息_释放失败包含状态值与中文说明() {
+    fn test_cwxx_sfsbbhztzyzwsm() {
         let status = reservation_status::CONSUMED;
         let msg = format!("预留状态为{}，只有已锁定或待处理状态的预留可以释放", status);
 
@@ -385,9 +385,9 @@ mod tests {
         assert!(err.to_string().contains(&msg));
     }
 
-    /// 测试_错误消息_删除失败包含状态值与中文说明（复现 delete_reservation 中非 PENDING 状态的错误消息构造：消息应包含实际状态值与"只有待处理状态的预留可以删除"中文说明。）
+    /// test_cwxx_scsbbhztzyzwsm（复现 delete_reservation 中非 PENDING 状态的错误消息构造：消息应包含实际状态值与"只有待处理状态的预留可以删除"中文说明。）
     #[test]
-    fn 测试_错误消息_删除失败包含状态值与中文说明() {
+    fn test_cwxx_scsbbhztzyzwsm() {
         let status = reservation_status::LOCKED;
         let msg = format!("预留状态为{}，只有待处理状态的预留可以删除", status);
 
@@ -399,9 +399,9 @@ mod tests {
         assert!(err.to_string().contains(&msg));
     }
 
-    /// 测试_创建预留_默认状态为待处理（复现 create_reservation 中的初始状态设置：status 字段初始化为 PENDING，；数量字段通过 decs! 夹具解析，验证初始状态非其他终态。）
+    /// test_cjyl_mrztwdcl（复现 create_reservation 中的初始状态设置：status 字段初始化为 PENDING，；数量字段通过 decs! 夹具解析，验证初始状态非其他终态。）
     #[test]
-    fn 测试_创建预留_默认状态为待处理() {
+    fn test_cjyl_mrztwdcl() {
         // 复现 create_reservation 的 quantity 参数解析与初始状态设置
         let quantity = decs!("100.50");
         let initial_status = reservation_status::PENDING.to_string();
@@ -416,9 +416,9 @@ mod tests {
         assert_ne!(initial_status, reservation_status::RELEASED);
     }
 
-    /// 测试_预留模型夹具_状态字段正确（验证 make_reservation_model 夹具构造的 Model 字段正确，；其中 reserved_at 由 ymd! 夹具构造，数量由 decs! 解析。）
+    /// test_ylmxjj_ztzdzq（验证 make_reservation_model 夹具构造的 Model 字段正确，；其中 reserved_at 由 ymd! 夹具构造，数量由 decs! 解析。）
     #[test]
-    fn 测试_预留模型夹具_状态字段正确() {
+    fn test_ylmxjj_ztzdzq() {
         let model = make_reservation_model(1, reservation_status::LOCKED, decs!("50"));
 
         assert_eq!(model.id, 1);
@@ -433,9 +433,9 @@ mod tests {
         assert!(model.released_at.is_none());
     }
 
-    /// 测试_服务实例创建（验证 InventoryReservationService 在 SQLite 内存数据库上能正常实例化，；与 customer_credit_limit.rs 的服务实例化测试模式一致。）
+    /// test_fwslcj（验证 InventoryReservationService 在 SQLite 内存数据库上能正常实例化，；与 customer_credit_limit.rs 的服务实例化测试模式一致。）
     #[tokio::test]
-    async fn 测试_服务实例创建() {
+    async fn test_fwslcj() {
         let db = setup_test_db().await;
         let service = InventoryReservationService::new(Arc::new(db));
 
@@ -443,11 +443,11 @@ mod tests {
         assert!(Arc::strong_count(&service.db) >= 1);
     }
 
-    /// 测试_锁定预留_无表结构返回错误
+    /// test_sdyl_wbjgfhcw
     /// 需要 inventory_reservations 表 schema，标注 #[ignore] 仅在本地手动运行。；无 schema 时 lock_reservation 应返回数据库错误。
     #[tokio::test]
     #[ignore]
-    async fn 测试_锁定预留_无表结构返回错误() {
+    async fn test_sdyl_wbjgfhcw() {
         let db = setup_test_db().await;
         let service = InventoryReservationService::new(Arc::new(db));
 
@@ -456,11 +456,11 @@ mod tests {
         assert!(result.is_err());
     }
 
-    /// 测试_释放预留_无表结构返回错误
+    /// test_sfyl_wbjgfhcw
     /// 需要 inventory_reservations 表 schema，标注 #[ignore] 仅在本地手动运行。；无 schema 时 release_reservation 应返回数据库错误。
     #[tokio::test]
     #[ignore]
-    async fn 测试_释放预留_无表结构返回错误() {
+    async fn test_sfyl_wbjgfhcw() {
         let db = setup_test_db().await;
         let service = InventoryReservationService::new(Arc::new(db));
 
@@ -469,11 +469,11 @@ mod tests {
         assert!(result.is_err());
     }
 
-    /// 测试_查询预留列表_无表结构返回错误
+    /// test_cxyllb_wbjgfhcw
     /// 需要 inventory_reservations 表 schema，标注 #[ignore] 仅在本地手动运行。；无 schema 时 list_reservations 应返回数据库错误。
     #[tokio::test]
     #[ignore]
-    async fn 测试_查询预留列表_无表结构返回错误() {
+    async fn test_cxyllb_wbjgfhcw() {
         let db = setup_test_db().await;
         let service = InventoryReservationService::new(Arc::new(db));
 

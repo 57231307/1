@@ -369,9 +369,9 @@ mod tests {
         }
     }
 
-    /// 测试_信用额度计算_占用场景正常（验证 occupy_credit 中的额度计算公式：新已用 = 旧已用 + 占用额；新可用 = 旧可用 - 占用额；并校验业务不变量：已用 + 可用 = 总额度）
+    /// test_xyedjs_zycjzc（验证 occupy_credit 中的额度计算公式：新已用 = 旧已用 + 占用额；新可用 = 旧可用 - 占用额；并校验业务不变量：已用 + 可用 = 总额度）
     #[test]
-    fn 测试_信用额度计算_占用场景正常() {
+    fn test_xyedjs_zycjzc() {
         let limit = decs!("10000");
         let used = decs!("3000");
         let amount = decs!("2000");
@@ -390,9 +390,9 @@ mod tests {
         assert_eq!(new_used + new_available, limit);
     }
 
-    /// 测试_信用额度计算_释放场景正常（验证 release_credit 中的额度计算公式：新已用 = 旧已用 - 释放额；新可用 = 旧可用 + 释放额）
+    /// test_xyedjs_sfcjzc（验证 release_credit 中的额度计算公式：新已用 = 旧已用 - 释放额；新可用 = 旧可用 + 释放额）
     #[test]
-    fn 测试_信用额度计算_释放场景正常() {
+    fn test_xyedjs_sfcjzc() {
         let limit = decs!("10000");
         let used = decs!("5000");
         let amount = decs!("2000");
@@ -407,10 +407,10 @@ mod tests {
         assert_eq!(new_used + new_available, limit);
     }
 
-    /// 测试_信用等级判断_默认值填充逻辑
+    /// test_xydjpd_mrztclj
     /// 验证 set_credit_rating 中 Option 字段的默认值填充规则：credit_level 默认 "B"、credit_score 默认 60、credit_days 默认 30；批次 414：credit_limit 现在也是 Option<Decimal>，None 表示未提供
     #[test]
-    fn 测试_信用等级判断_默认值填充逻辑() {
+    fn test_xydjpd_mrztclj() {
         // 模拟 CreditRatingRequest 字段全为 None 的场景
         let req = CreditRatingRequest {
             customer_id: 1,
@@ -447,9 +447,9 @@ mod tests {
         assert_eq!(req_explicit.credit_days.or(Some(30)), Some(60));
     }
 
-    /// 测试_额度超限检查_占用超额校验（验证 occupy_credit 中 amount > available_credit 时应触发校验失败）
+    /// test_edcxjc_zycejy（验证 occupy_credit 中 amount > available_credit 时应触发校验失败）
     #[test]
-    fn 测试_额度超限检查_占用超额校验() {
+    fn test_edcxjc_zycejy() {
         let model = make_credit_model(1, decs!("10000"), decs!("8000"), master_data::ACTIVE);
 
         // 恰好等于可用额度：应允许（边界）
@@ -468,9 +468,9 @@ mod tests {
         assert!(matches!(err, AppError::ValidationError(_)));
     }
 
-    /// 测试_额度超限检查_占用状态非活跃（验证 occupy_credit 中 status != ACTIVE 时应拒绝）
+    /// test_edcxjc_zyztfhy（验证 occupy_credit 中 status != ACTIVE 时应拒绝）
     #[test]
-    fn 测试_额度超限检查_占用状态非活跃() {
+    fn test_edcxjc_zyztfhy() {
         let model = make_credit_model(1, decs!("10000"), Decimal::ZERO, master_data::INACTIVE);
 
         // 复现 occupy_credit 的状态校验逻辑
@@ -485,9 +485,9 @@ mod tests {
         assert!(!(model_active.status != master_data::ACTIVE));
     }
 
-    /// 测试_额度超限检查_释放超额校验（验证 release_credit 中 amount > used_credit 时应拒绝（释放额超过已占用））
+    /// test_edcxjc_sfcejy（验证 release_credit 中 amount > used_credit 时应拒绝（释放额超过已占用））
     #[test]
-    fn 测试_额度超限检查_释放超额校验() {
+    fn test_edcxjc_sfcejy() {
         let model = make_credit_model(1, decs!("10000"), decs!("3000"), master_data::ACTIVE);
 
         // 释放额等于已用：应允许（边界，全部释放）
@@ -502,10 +502,10 @@ mod tests {
         assert!(matches!(err, AppError::ValidationError(_)));
     }
 
-    /// 测试_已用额度计算_调整增加类型
+    /// test_yyedjs_tzzjlx
     /// 验证 adjust_credit_limit 中 increase 类型的额度计算：new_limit = credit_limit + amount；new_available = new_limit - used_credit
     #[test]
-    fn 测试_已用额度计算_调整增加类型() {
+    fn test_yyedjs_tzzjlx() {
         let model = make_credit_model(1, decs!("10000"), decs!("3000"), master_data::ACTIVE);
         let amount = decs!("5000");
 
@@ -517,9 +517,9 @@ mod tests {
         assert_eq!(new_available, decs!("12000"));
     }
 
-    /// 测试_已用额度计算_调整减少类型正常（验证 adjust_credit_limit 中 decrease 类型且降低后 >= used_credit 的场景）
+    /// test_yyedjs_tzjslxzc（验证 adjust_credit_limit 中 decrease 类型且降低后 >= used_credit 的场景）
     #[test]
-    fn 测试_已用额度计算_调整减少类型正常() {
+    fn test_yyedjs_tzjslxzc() {
         let model = make_credit_model(1, decs!("10000"), decs!("3000"), master_data::ACTIVE);
         let amount = decs!("5000");
 
@@ -534,9 +534,9 @@ mod tests {
         assert_eq!(new_available, decs!("2000"));
     }
 
-    /// 测试_已用额度计算_调整减少低于已用额度（验证 adjust_credit_limit 中 decrease 后 < used_credit 应拒绝）
+    /// test_yyedjs_tzjsdyyyed（验证 adjust_credit_limit 中 decrease 后 < used_credit 应拒绝）
     #[test]
-    fn 测试_已用额度计算_调整减少低于已用额度() {
+    fn test_yyedjs_tzjsdyyyed() {
         let model = make_credit_model(1, decs!("10000"), decs!("8000"), master_data::ACTIVE);
         let amount = decs!("5000");
 
@@ -549,9 +549,9 @@ mod tests {
         assert!(matches!(err, AppError::ValidationError(_)));
     }
 
-    /// 测试_已用额度计算_无效调整类型（验证 adjust_credit_limit 中非 increase/decrease 类型应被拒绝）
+    /// test_yyedjs_wxtzlx（验证 adjust_credit_limit 中非 increase/decrease 类型应被拒绝）
     #[test]
-    fn 测试_已用额度计算_无效调整类型() {
+    fn test_yyedjs_wxtzlx() {
         let adjustment_type = "invalid";
         // 复现 adjust_credit_limit 中的 match 校验
         let is_valid = matches!(adjustment_type, "increase" | "decrease");
@@ -565,9 +565,9 @@ mod tests {
         assert!(matches!("decrease", "increase" | "decrease"));
     }
 
-    /// 测试_可用额度计算_预警触发场景（验证 check_credit_warning 中 usage_rate >= 80% 时应返回预警消息）
+    /// test_kyedjs_yjcfcj（验证 check_credit_warning 中 usage_rate >= 80% 时应返回预警消息）
     #[test]
-    fn 测试_可用额度计算_预警触发场景() {
+    fn test_kyedjs_yjcfcj() {
         let limit = decs!("10000");
         let used = decs!("8000"); // 刚好 80% 使用率（边界）
         let model = make_credit_model(1, limit, used, master_data::ACTIVE);
@@ -592,9 +592,9 @@ mod tests {
         assert!(usage_over >= warning_threshold);
     }
 
-    /// 测试_可用额度计算_预警未触发场景（验证 check_credit_warning 中 usage_rate < 80% 时应返回 None）
+    /// test_kyedjs_yjwcfcj（验证 check_credit_warning 中 usage_rate < 80% 时应返回 None）
     #[test]
-    fn 测试_可用额度计算_预警未触发场景() {
+    fn test_kyedjs_yjwcfcj() {
         let limit = decs!("10000");
         let used = decs!("7999.99"); // < 80%
         let model = make_credit_model(1, limit, used, master_data::ACTIVE);
@@ -605,9 +605,9 @@ mod tests {
         assert!(usage_rate < warning_threshold);
     }
 
-    /// 测试_可用额度计算_额度为零跳过预警（验证 check_credit_warning 中 credit_limit <= 0 时应早返回 None（避免除零））
+    /// test_kyedjs_edwltgyj（验证 check_credit_warning 中 credit_limit <= 0 时应早返回 None（避免除零））
     #[test]
-    fn 测试_可用额度计算_额度为零跳过预警() {
+    fn test_kyedjs_edwltgyj() {
         let model = make_credit_model(1, Decimal::ZERO, Decimal::ZERO, master_data::ACTIVE);
 
         // 复现 check_credit_warning 的早返回判断
@@ -615,9 +615,9 @@ mod tests {
         assert!(should_skip);
     }
 
-    /// 测试_可用额度计算_订单可用性判断（验证 check_credit_available 的判断逻辑：状态非活跃返回 false；订单金额 <= 可用额度返回 true；订单金额 > 可用额度返回 false）
+    /// test_kyedjs_ddkyxpd（验证 check_credit_available 的判断逻辑：状态非活跃返回 false；订单金额 <= 可用额度返回 true；订单金额 > 可用额度返回 false）
     #[test]
-    fn 测试_可用额度计算_订单可用性判断() {
+    fn test_kyedjs_ddkyxpd() {
         // 场景 1：状态非活跃，无论金额多少都不可用
         let model_inactive =
             make_credit_model(1, decs!("10000"), Decimal::ZERO, master_data::INACTIVE);
@@ -641,9 +641,9 @@ mod tests {
         assert!(!available_over);
     }
 
-    /// 测试_停用信用_有占用额度拒绝（验证 deactivate 中 used_credit > 0 时应拒绝停用）
+    /// test_tyxy_yzyedjj（验证 deactivate 中 used_credit > 0 时应拒绝停用）
     #[test]
-    fn 测试_停用信用_有占用额度拒绝() {
+    fn test_tyxy_yzyedjj() {
         let model = make_credit_model(1, decs!("10000"), decs!("100"), master_data::ACTIVE);
 
         // 复现 deactivate 的校验逻辑
@@ -654,9 +654,9 @@ mod tests {
         assert!(matches!(err, AppError::ValidationError(_)));
     }
 
-    /// 测试_停用信用_无占用额度允许（验证 deactivate 中 used_credit == 0 时允许停用，停用后状态应为 INACTIVE）
+    /// test_tyxy_wzyedyx（验证 deactivate 中 used_credit == 0 时允许停用，停用后状态应为 INACTIVE）
     #[test]
-    fn 测试_停用信用_无占用额度允许() {
+    fn test_tyxy_wzyedyx() {
         let model = make_credit_model(1, decs!("10000"), Decimal::ZERO, master_data::ACTIVE);
 
         let should_reject = model.used_credit > Decimal::ZERO;
@@ -667,20 +667,20 @@ mod tests {
         assert_eq!(new_status, master_data::INACTIVE);
     }
 
-    /// 测试_服务实例创建（验证 CustomerCreditService 在 SQLite 内存数据库上能正常实例化）
+    /// test_fwslcj（验证 CustomerCreditService 在 SQLite 内存数据库上能正常实例化）
     #[tokio::test]
-    async fn 测试_服务实例创建() {
+    async fn test_fwslcj() {
         let db = setup_test_db().await;
         let service = CustomerCreditService::new(Arc::new(db));
 
         assert!(Arc::strong_count(&service.db) >= 1);
     }
 
-    /// 测试_占用信用额度_信用评级不存在
+    /// test_zyxyed_xypjbcz
     /// 需要 customer_credit_ratings 表 schema，标注 #[ignore] 仅在本地手动运行。；无 schema 时返回数据库错误；有 schema 但无记录时返回 NotFound。
     #[tokio::test]
     #[ignore]
-    async fn 测试_占用信用额度_信用评级不存在() {
+    async fn test_zyxyed_xypjbcz() {
         let db = setup_test_db().await;
         let service = CustomerCreditService::new(Arc::new(db));
 
@@ -690,10 +690,10 @@ mod tests {
         assert!(result.is_err());
     }
 
-    /// 测试_检查信用预警_需要真实数据库（需要 customer_credit_ratings 表 schema，标注 #[ignore] 仅在本地手动运行。；验证调用路径不 panic；无记录时返回 Ok(None)。）
+    /// test_jcxyyj_xyzssjk（需要 customer_credit_ratings 表 schema，标注 #[ignore] 仅在本地手动运行。；验证调用路径不 panic；无记录时返回 Ok(None)。）
     #[tokio::test]
     #[ignore]
-    async fn 测试_检查信用预警_需要真实数据库() {
+    async fn test_jcxyyj_xyzssjk() {
         let db = setup_test_db().await;
         let service = CustomerCreditService::new(Arc::new(db));
 
@@ -703,11 +703,11 @@ mod tests {
         assert!(result.is_err(), "无 schema 时应返回数据库错误");
     }
 
-    /// 测试_检查信用可用性_需要真实数据库
+    /// test_jcxykyx_xyzssjk
     /// 需要 customer_credit_ratings 表 schema，标注 #[ignore] 仅在本地手动运行。；验证无信用评级记录时 check_credit_available 应返回 Ok(true)（允许下单）。
     #[tokio::test]
     #[ignore]
-    async fn 测试_检查信用可用性_需要真实数据库() {
+    async fn test_jcxykyx_xyzssjk() {
         let db = setup_test_db().await;
         let service = CustomerCreditService::new(Arc::new(db));
 
@@ -721,10 +721,10 @@ mod tests {
 
     // ========== 批次 414：credit_limit Option<Decimal> 语义测试 ==========
 
-    /// 测试_credit_limit语义_更新场景None保持原值
+    /// test_credit_limityy_gxcjnonebcyz
     /// 批次 414 技术债务修复验证：更新场景下 credit_limit = None 时，应保持原有额度不变。；复现 set_credit_rating 中 `req.credit_limit.unwrap_or(old_limit)` 的逻辑。
     #[test]
-    fn 测试_credit_limit语义_更新场景None保持原值() {
+    fn test_credit_limityy_gxcjnonebcyz() {
         // 模拟已有信用记录：原额度 10000
         let old_limit = decs!("10000");
         let used_credit = decs!("3000");
@@ -742,9 +742,9 @@ mod tests {
         assert_eq!(new_limit - used_credit, decs!("7000"));
     }
 
-    /// 测试_credit_limit语义_更新场景Some0显式置零（批次 414 技术债务修复验证：更新场景下 credit_limit = Some(0) 时，应显式将额度设置为 0（区别于 None 保持原值）。）
+    /// test_credit_limityy_gxcjsome0xszl（批次 414 技术债务修复验证：更新场景下 credit_limit = Some(0) 时，应显式将额度设置为 0（区别于 None 保持原值）。）
     #[test]
-    fn 测试_credit_limit语义_更新场景Some0显式置零() {
+    fn test_credit_limityy_gxcjsome0xszl() {
         let old_limit = decs!("10000");
         let used_credit = decs!("0"); // 已用为 0，才能置 0
 
@@ -760,9 +760,9 @@ mod tests {
         assert_eq!(new_limit - used_credit, Decimal::ZERO);
     }
 
-    /// 测试_credit_limit语义_更新场景SomeV设置新值（批次 414 技术债务修复验证：更新场景下 credit_limit = Some(v) 时，应将额度设置为 v。）
+    /// test_credit_limityy_gxcjsomevszxz（批次 414 技术债务修复验证：更新场景下 credit_limit = Some(v) 时，应将额度设置为 v。）
     #[test]
-    fn 测试_credit_limit语义_更新场景SomeV设置新值() {
+    fn test_credit_limityy_gxcjsomevszxz() {
         let old_limit = decs!("10000");
         let used_credit = decs!("2000");
         let new_requested = decs!("15000");
@@ -775,9 +775,9 @@ mod tests {
         assert_eq!(new_limit - used_credit, decs!("13000"));
     }
 
-    /// 测试_credit_limit语义_创建场景None默认零（批次 414 技术债务修复验证：创建场景下 credit_limit = None 时，应默认为 0（新建允许从 0 开始）。）
+    /// test_credit_limityy_cjcjnonemrl（批次 414 技术债务修复验证：创建场景下 credit_limit = None 时，应默认为 0（新建允许从 0 开始）。）
     #[test]
-    fn 测试_credit_limit语义_创建场景None默认零() {
+    fn test_credit_limityy_cjcjnonemrl() {
         let req_credit_limit: Option<Decimal> = None;
 
         // 复现 set_credit_rating 创建分支：unwrap_or_default() → Decimal::ZERO
@@ -786,9 +786,9 @@ mod tests {
         assert_eq!(limit, Decimal::ZERO);
     }
 
-    /// 测试_credit_limit语义_创建场景SomeV设置初始值（批次 414 技术债务修复验证：创建场景下 credit_limit = Some(v) 时，应使用 v 作为初始额度。）
+    /// test_credit_limityy_cjcjsomevszcsz（批次 414 技术债务修复验证：创建场景下 credit_limit = Some(v) 时，应使用 v 作为初始额度。）
     #[test]
-    fn 测试_credit_limit语义_创建场景SomeV设置初始值() {
+    fn test_credit_limityy_cjcjsomevszcsz() {
         let initial = decs!("50000");
         let req_credit_limit: Option<Decimal> = Some(initial);
 

@@ -220,7 +220,7 @@ mod tests {
 
     /// 验证 RecordTransactionArgs 入库场景下所有字段被正确设置
     #[test]
-    fn 测试_record_transaction_args_入库场景_字段完整() {
+    fn test_record_transaction_args_rkcj_zdwz() {
         let args = RecordTransactionArgs {
             transaction_type: "IN".to_string(),
             product_id: 1001,
@@ -266,7 +266,7 @@ mod tests {
 
     /// 验证 RecordTransactionArgs 出库场景下所有字段被正确设置
     #[test]
-    fn 测试_record_transaction_args_出库场景_字段完整() {
+    fn test_record_transaction_args_ckcj_zdwz() {
         let args = RecordTransactionArgs {
             transaction_type: "OUT".to_string(),
             product_id: 3003,
@@ -316,7 +316,7 @@ mod tests {
 
     /// 验证 CreateStockFabricArgs 含缸号场景下所有字段被正确设置
     #[test]
-    fn 测试_create_stock_fabric_args_含缸号_字段完整() {
+    fn test_create_stock_fabric_args_hgh_zdwz() {
         let args = CreateStockFabricArgs {
             warehouse_id: 1001,
             product_id: 2002,
@@ -351,7 +351,7 @@ mod tests {
 
     /// 验证 CreateStockFabricArgs 不含缸号场景下所有可选字段为 None
     #[test]
-    fn 测试_create_stock_fabric_args_不含缸号_可选字段为_none() {
+    fn test_create_stock_fabric_args_bhgh_kxzdw_none() {
         let args = CreateStockFabricArgs {
             warehouse_id: 3003,
             product_id: 4004,
@@ -390,7 +390,7 @@ mod tests {
 
     /// 验证 BusinessEvent::InventoryTransactionCreated 变体可被 match 匹配（此测试通过穷举 match 确认枚举变体存在，避免重构时该变体被误删导致编译错误延后暴露。）
     #[test]
-    fn 测试_business_event_inventory_transaction_created_变体存在() {
+    fn test_business_event_inventory_transaction_created_btcz() {
         let event = BusinessEvent::InventoryTransactionCreated {
             transaction_id: 1,
             transaction_type: "IN".to_string(),

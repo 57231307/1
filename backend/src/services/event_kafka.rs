@@ -459,7 +459,7 @@ mod tests {
     use rust_decimal::Decimal;
     use std::str::FromStr;
 
-    fn sample_event() -> BusinessEvent {
+    fn _sample_event() -> BusinessEvent {
         BusinessEvent::PaymentCompleted {
             payment_id: 1,
             invoice_id: 2,

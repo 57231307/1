@@ -15,20 +15,20 @@ mod tests {
 
     // ===== 状态常量值正确性 =====
 
-    /// 测试_大货处方状态常量_值正确性
+    /// test_dhcfztcl_zzqx
     ///
     /// 验证大货处方 4 种状态常量值符合预期（小写风格）。
     #[test]
-    fn 测试_大货处方状态常量_值正确性() {
+    fn test_dhcfztcl_zzqx() {
         assert_eq!(status::DRAFT, "draft");
         assert_eq!(status::APPROVED, "approved");
         assert_eq!(status::CLOSED, "closed");
         assert_eq!(status::CANCELLED, "cancelled");
     }
 
-    /// 测试_大货处方状态常量_小写风格一致性
+    /// test_dhcfztcl_xxfgyzx
     #[test]
-    fn 测试_大货处方状态常量_小写风格一致性() {
+    fn test_dhcfztcl_xxfgyzx() {
         for s in [
             status::DRAFT,
             status::APPROVED,
@@ -45,38 +45,38 @@ mod tests {
 
     // ===== parse_liquor_ratio 浴比解析 =====
 
-    /// 测试_parse_liquor_ratio_标准格式
+    /// test_parse_liquor_ratio_bzgs
     ///
     /// 验证 "1:8" 解析为 8.0。
     #[test]
-    fn 测试_parse_liquor_ratio_标准格式() {
+    fn test_parse_liquor_ratio_bzgs() {
         let result = ProductionRecipeService::parse_liquor_ratio("1:8").unwrap();
         assert_eq!(result, Decimal::new(8, 0));
     }
 
-    /// 测试_parse_liquor_ratio_全角冒号
+    /// test_parse_liquor_ratio_qjmh
     ///
     /// 验证全角冒号 "1：8" 也能正确解析。
     #[test]
-    fn 测试_parse_liquor_ratio_全角冒号() {
+    fn test_parse_liquor_ratio_qjmh() {
         let result = ProductionRecipeService::parse_liquor_ratio("1：8").unwrap();
         assert_eq!(result, Decimal::new(8, 0));
     }
 
-    /// 测试_parse_liquor_ratio_斜杠格式
+    /// test_parse_liquor_ratio_xggs
     ///
     /// 验证斜杠格式 "1/8" 也能正确解析。
     #[test]
-    fn 测试_parse_liquor_ratio_斜杠格式() {
+    fn test_parse_liquor_ratio_xggs() {
         let result = ProductionRecipeService::parse_liquor_ratio("1/8").unwrap();
         assert_eq!(result, Decimal::new(8, 0));
     }
 
-    /// 测试_parse_liquor_ratio_非法格式失败
+    /// test_parse_liquor_ratio_ffgssb
     ///
     /// 验证非法格式（空字符串、无冒号、非数字）返回 Err。
     #[test]
-    fn 测试_parse_liquor_ratio_非法格式失败() {
+    fn test_parse_liquor_ratio_ffgssb() {
         assert!(ProductionRecipeService::parse_liquor_ratio("").is_err());
         assert!(ProductionRecipeService::parse_liquor_ratio("abc").is_err());
         assert!(ProductionRecipeService::parse_liquor_ratio("1").is_err());
@@ -84,12 +84,12 @@ mod tests {
 
     // ===== calculate_amounts 用量计算 =====
 
-    /// 测试_calculate_amounts_染料按浓度计算
+    /// test_calculate_amounts_rlandjs
     ///
     /// 验证染料用量 = 浓度% × 布重 × 浴比 / 100。
     /// 2% owf × 500kg × 8（浴比）/ 100 = 80kg
     #[test]
-    fn 测试_calculate_amounts_染料按浓度计算() {
+    fn test_calculate_amounts_rlandjs() {
         let req = CalculateAmountsRequest {
             fabric_weight: Decimal::new(500, 0),
             liquor_ratio: "1:8".to_string(),
@@ -110,11 +110,11 @@ mod tests {
         assert!(result[0].amount > Decimal::ZERO, "染料用量应大于 0");
     }
 
-    /// 测试_calculate_amounts_助剂无浓度保持原值
+    /// test_calculate_amounts_zjwndbcyz
     ///
     /// 验证助剂（concentration=None）的 amount 保持原值不变。
     #[test]
-    fn 测试_calculate_amounts_助剂无浓度保持原值() {
+    fn test_calculate_amounts_zjwndbcyz() {
         let original_amount = Decimal::new(15, 0);
         let req = CalculateAmountsRequest {
             fabric_weight: Decimal::new(500, 0),
@@ -133,11 +133,11 @@ mod tests {
         assert_eq!(result[0].amount, original_amount, "助剂用量应保持原值");
     }
 
-    /// 测试_calculate_amounts_加成系数生效
+    /// test_calculate_amounts_jcxssx
     ///
     /// 验证 adjustment_factor 会按比例放大染料用量。
     #[test]
-    fn 测试_calculate_amounts_加成系数生效() {
+    fn test_calculate_amounts_jcxssx() {
         let base_req = CalculateAmountsRequest {
             fabric_weight: Decimal::new(500, 0),
             liquor_ratio: "1:8".to_string(),
@@ -180,11 +180,11 @@ mod tests {
 
     // ===== validate_status_transition 状态流转校验 =====
 
-    /// 测试_validate_status_transition_合法流转通过
+    /// test_validate_status_transition_hflztg
     ///
     /// 验证合法流转边：DRAFT→APPROVED、APPROVED→CLOSED、DRAFT→CANCELLED。
     #[test]
-    fn 测试_validate_status_transition_合法流转通过() {
+    fn test_validate_status_transition_hflztg() {
         assert!(ProductionRecipeService::validate_status_transition(
             status::DRAFT,
             status::APPROVED
@@ -202,11 +202,11 @@ mod tests {
         .is_ok());
     }
 
-    /// 测试_validate_status_transition_非法流转失败
+    /// test_validate_status_transition_fflzsb
     ///
     /// 验证非法流转边：DRAFT→CLOSED（跳过审核）、CLOSED→DRAFT（终态回退）等。
     #[test]
-    fn 测试_validate_status_transition_非法流转失败() {
+    fn test_validate_status_transition_fflzsb() {
         assert!(
             ProductionRecipeService::validate_status_transition(status::DRAFT, status::CLOSED)
                 .is_err()
@@ -261,7 +261,7 @@ mod tests {
     /// 需要 PostgreSQL + 前置工单/缸号/客户数据。
     #[tokio::test]
     #[ignore = "需要 PostgreSQL 测试数据库 + 前置工单/缸号数据"]
-    async fn 测试_大货处方全流程_草稿到关闭() {
+    async fn test_dhcfqlc_cgdgb() {
         // 完整流程需 ProductionRecipeService 实例化 + DB 操作，
         // 留待真实环境验证。
     }

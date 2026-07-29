@@ -84,29 +84,29 @@ mod tests {
     // 一、状态常量值正确性
     // =====================================================
 
-    /// 测试_对账状态常量_Pending值正确
+    /// test_dzztcl_pendingzzq
     /// 验证 "PENDING" 与 common::STATUS_PENDING 一致，；用于 generate_reconciliation 创建对账单时的初始状态，；以及 confirm_reconciliation 中允许确认的唯一状态。
     #[test]
-    fn 测试_对账状态常量_Pending值正确() {
+    fn test_dzztcl_pendingzzq() {
         assert_eq!(common::STATUS_PENDING, "PENDING");
         // 业务代码硬编码字符串与常量保持一致，避免状态机误判
         let created_status = "PENDING".to_string();
         assert_eq!(created_status, common::STATUS_PENDING);
     }
 
-    /// 测试_对账状态常量_Cancelled值正确（验证 "CANCELLED" 与 common::STATUS_CANCELLED 一致，；用于 generate_reconciliation 排除已取消的应付单。）
+    /// test_dzztcl_cancelledzzq（验证 "CANCELLED" 与 common::STATUS_CANCELLED 一致，；用于 generate_reconciliation 排除已取消的应付单。）
     #[test]
-    fn 测试_对账状态常量_Cancelled值正确() {
+    fn test_dzztcl_cancelledzzq() {
         assert_eq!(common::STATUS_CANCELLED, "CANCELLED");
         // 业务查询过滤条件使用同一常量，避免拼写错误漏过作废单据
         let excluded_status = "CANCELLED";
         assert_eq!(excluded_status, common::STATUS_CANCELLED);
     }
 
-    /// 测试_付款状态常量_Confirmed值正确
+    /// test_fkztcl_confirmedzzq
     /// 验证 "CONFIRMED" 与 payment::PAYMENT_CONFIRMED 一致，；用于 generate_reconciliation 查询已确认付款单，；以及 confirm_reconciliation 中对账单确认后的状态值。
     #[test]
-    fn 测试_付款状态常量_Confirmed值正确() {
+    fn test_fkztcl_confirmedzzq() {
         assert_eq!(payment::PAYMENT_CONFIRMED, "CONFIRMED");
         // 业务代码同时使用此值用于付款单查询过滤与对账单状态设置
         let payment_filter = "CONFIRMED";
@@ -119,10 +119,10 @@ mod tests {
     // 二、期末余额计算（纯算法）
     // =====================================================
 
-    /// 测试_期末余额计算_标准场景
+    /// test_qmyejs_bzcj
     /// 验证 generate_reconciliation 中期末余额公式：期末 = 期初 + 本期应付 - 本期付款；典型场景：期初 1000，本期应付 5000，本期付款 3000，期末应为 3000
     #[test]
-    fn 测试_期末余额计算_标准场景() {
+    fn test_qmyejs_bzcj() {
         let opening = decs!("1000");
         let total_invoice = decs!("5000");
         let total_payment = decs!("3000");
@@ -134,9 +134,9 @@ mod tests {
         assert_eq!(closing, opening + total_invoice - total_payment);
     }
 
-    /// 测试_期末余额计算_无本期交易（验证本期内既无应付也无付款时，期末余额等于期初余额）
+    /// test_qmyejs_wbqjy（验证本期内既无应付也无付款时，期末余额等于期初余额）
     #[test]
-    fn 测试_期末余额计算_无本期交易() {
+    fn test_qmyejs_wbqjy() {
         let opening = decs!("2500");
         let closing = compute_closing_balance(opening, Decimal::ZERO, Decimal::ZERO);
 
@@ -144,9 +144,9 @@ mod tests {
         assert_eq!(closing, decs!("2500"));
     }
 
-    /// 测试_期末余额计算_付款大于应付产生透支（验证付款总额大于（期初+应付）时，期末余额为负数（预付/透支场景））
+    /// test_qmyejs_fkdyyfcstz（验证付款总额大于（期初+应付）时，期末余额为负数（预付/透支场景））
     #[test]
-    fn 测试_期末余额计算_付款大于应付产生透支() {
+    fn test_qmyejs_fkdyyfcstz() {
         let opening = decs!("1000");
         let total_invoice = decs!("2000");
         let total_payment = decs!("5000");
@@ -158,9 +158,9 @@ mod tests {
         assert!(closing < Decimal::ZERO);
     }
 
-    /// 测试_期末余额计算_金额全为零（验证全部金额为零时（新供应商首次对账且无任何业务），期末余额为零）
+    /// test_qmyejs_jeqwl（验证全部金额为零时（新供应商首次对账且无任何业务），期末余额为零）
     #[test]
-    fn 测试_期末余额计算_金额全为零() {
+    fn test_qmyejs_jeqwl() {
         let closing = compute_closing_balance(Decimal::ZERO, Decimal::ZERO, Decimal::ZERO);
 
         assert_eq!(closing, Decimal::ZERO);
@@ -170,10 +170,10 @@ mod tests {
     // 三、状态机转换合法性
     // =====================================================
 
-    /// 测试_状态机转换_确认需Pending状态
+    /// test_ztjzh_qrxpendingzt
     /// 验证 confirm_reconciliation 中状态门控逻辑：仅当 reconciliation_status == "PENDING" 时允许确认，；其他状态（CONFIRMED/DISPUTED 等）应被拒绝。
     #[test]
-    fn 测试_状态机转换_确认需Pending状态() {
+    fn test_ztjzh_qrxpendingzt() {
         // PENDING 状态允许确认
         let pending_status = common::STATUS_PENDING.to_string();
         assert_eq!(pending_status, common::STATUS_PENDING);
@@ -191,9 +191,9 @@ mod tests {
         assert!(!can_confirm_disputed);
     }
 
-    /// 测试_状态机转换_已确认不可争议（验证 dispute 中状态门控逻辑：当 reconciliation_status == "CONFIRMED" 时拒绝提出争议）
+    /// test_ztjzh_yqrbkzy（验证 dispute 中状态门控逻辑：当 reconciliation_status == "CONFIRMED" 时拒绝提出争议）
     #[test]
-    fn 测试_状态机转换_已确认不可争议() {
+    fn test_ztjzh_yqrbkzy() {
         let confirmed_status = payment::PAYMENT_CONFIRMED.to_string();
         // 复现 dispute 的状态校验：CONFIRMED 状态被拒绝
         let should_reject = confirmed_status == payment::PAYMENT_CONFIRMED;
@@ -204,9 +204,9 @@ mod tests {
         assert!(matches!(err, AppError::BusinessError(_)));
     }
 
-    /// 测试_状态机转换_争议或Pending可继续争议（验证 dispute 中非 CONFIRMED 状态（PENDING / DISPUTED）均允许提出争议）
+    /// test_ztjzh_zyhpendingkjxzy（验证 dispute 中非 CONFIRMED 状态（PENDING / DISPUTED）均允许提出争议）
     #[test]
-    fn 测试_状态机转换_争议或Pending可继续争议() {
+    fn test_ztjzh_zyhpendingkjxzy() {
         // PENDING 状态可提出争议
         let pending_status = common::STATUS_PENDING.to_string();
         let can_dispute_pending = pending_status != payment::PAYMENT_CONFIRMED;
@@ -227,9 +227,9 @@ mod tests {
     // 四、付款状态判断（get_supplier_summary 内纯算法）
     // =====================================================
 
-    /// 测试_付款状态判断_已付清正向（验证 amount > 0 且 paid >= amount 时判为已付清）
+    /// test_fkztpd_yfqzx（验证 amount > 0 且 paid >= amount 时判为已付清）
     #[test]
-    fn 测试_付款状态判断_已付清正向() {
+    fn test_fkztpd_yfqzx() {
         let amount = decs!("1000");
         // 恰好付清（边界）
         assert_eq!(classify_payment_status(amount, decs!("1000")), 2);
@@ -237,9 +237,9 @@ mod tests {
         assert_eq!(classify_payment_status(amount, decs!("1200")), 2);
     }
 
-    /// 测试_付款状态判断_已付清负向红冲（验证 amount < 0 且 paid <= amount 时判为已付清（红冲应付单场景））
+    /// test_fkztpd_yfqfxhc（验证 amount < 0 且 paid <= amount 时判为已付清（红冲应付单场景））
     #[test]
-    fn 测试_付款状态判断_已付清负向红冲() {
+    fn test_fkztpd_yfqfxhc() {
         let amount = decs!("-500");
         // 恰好冲销（边界，paid == amount）
         assert_eq!(classify_payment_status(amount, decs!("-500")), 2);
@@ -247,9 +247,9 @@ mod tests {
         assert_eq!(classify_payment_status(amount, decs!("-600")), 2);
     }
 
-    /// 测试_付款状态判断_部分付款（验证 paid != 0 且未达付清条件时判为部分付款）
+    /// test_fkztpd_bffk（验证 paid != 0 且未达付清条件时判为部分付款）
     #[test]
-    fn 测试_付款状态判断_部分付款() {
+    fn test_fkztpd_bffk() {
         let amount = decs!("1000");
         // 正向部分付款
         assert_eq!(classify_payment_status(amount, decs!("300")), 1);
@@ -260,9 +260,9 @@ mod tests {
         assert_eq!(classify_payment_status(neg_amount, decs!("-100")), 1);
     }
 
-    /// 测试_付款状态判断_未付款（验证 paid == 0 时判为未付款）
+    /// test_fkztpd_wfk（验证 paid == 0 时判为未付款）
     #[test]
-    fn 测试_付款状态判断_未付款() {
+    fn test_fkztpd_wfk() {
         let amount = decs!("1000");
         assert_eq!(classify_payment_status(amount, Decimal::ZERO), 0);
 
@@ -275,9 +275,9 @@ mod tests {
     // 五、逾期判断（get_supplier_summary 内纯算法）
     // =====================================================
 
-    /// 测试_逾期判断_已逾期未付（验证 due_date < today 且 unpaid_amount > 0 时判为逾期）
+    /// test_yqpd_yyqwf（验证 due_date < today 且 unpaid_amount > 0 时判为逾期）
     #[test]
-    fn 测试_逾期判断_已逾期未付() {
+    fn test_yqpd_yyqwf() {
         let today = ymd!(2026, 7, 1);
         let due_date = ymd!(2026, 6, 30); // 已到期
         let unpaid = decs!("500");
@@ -289,9 +289,9 @@ mod tests {
         assert_eq!(overdue_amount, decs!("500"));
     }
 
-    /// 测试_逾期判断_未到期不逾期（验证 due_date >= today 时不判为逾期，即使存在未付金额）
+    /// test_yqpd_wdqbyq（验证 due_date >= today 时不判为逾期，即使存在未付金额）
     #[test]
-    fn 测试_逾期判断_未到期不逾期() {
+    fn test_yqpd_wdqbyq() {
         let today = ymd!(2026, 7, 1);
         let unpaid = decs!("500");
 
@@ -301,9 +301,9 @@ mod tests {
         assert!(!is_overdue(ymd!(2026, 12, 31), today, unpaid));
     }
 
-    /// 测试_逾期判断_已付清不算逾期（验证 unpaid_amount == 0 时即使超过到期日也不判为逾期）
+    /// test_yqpd_yfqbsyq（验证 unpaid_amount == 0 时即使超过到期日也不判为逾期）
     #[test]
-    fn 测试_逾期判断_已付清不算逾期() {
+    fn test_yqpd_yfqbsyq() {
         let today = ymd!(2026, 7, 1);
         let due_date = ymd!(2026, 6, 30); // 已到期
         let unpaid = Decimal::ZERO;
@@ -319,9 +319,9 @@ mod tests {
     // 六、错误消息格式
     // =====================================================
 
-    /// 测试_错误消息格式_对账单未找到（验证 get_by_id / confirm_reconciliation / dispute 中；"对账单 {id}" 格式的 not_found 错误消息）
+    /// test_cwxxgs_dzdwzd（验证 get_by_id / confirm_reconciliation / dispute 中；"对账单 {id}" 格式的 not_found 错误消息）
     #[test]
-    fn 测试_错误消息格式_对账单未找到() {
+    fn test_cwxxgs_dzdwzd() {
         let id = 9999;
         let err = AppError::not_found(format!("对账单 {}", id));
 
@@ -330,9 +330,9 @@ mod tests {
         assert!(matches!(err, AppError::NotFound(_)));
     }
 
-    /// 测试_错误消息格式_状态不可确认（验证 confirm_reconciliation 中；"对账单状态为{status}，不可确认" 格式的 business 错误消息）
+    /// test_cwxxgs_ztbkqr（验证 confirm_reconciliation 中；"对账单状态为{status}，不可确认" 格式的 business 错误消息）
     #[test]
-    fn 测试_错误消息格式_状态不可确认() {
+    fn test_cwxxgs_ztbkqr() {
         let status = payment::PAYMENT_CONFIRMED; // 已确认状态再次确认
         let msg = format!("对账单状态为{}，不可确认", status);
         let err = AppError::business(msg.clone());
@@ -345,17 +345,17 @@ mod tests {
         assert_eq!(disputed_msg, "对账单状态为DISPUTED，不可确认");
     }
 
-    /// 测试_错误消息格式_已确认不可争议（验证 dispute 中；"对账单已确认，不可提出争议" 固定消息的 business 错误）
+    /// test_cwxxgs_yqrbkzy（验证 dispute 中；"对账单已确认，不可提出争议" 固定消息的 business 错误）
     #[test]
-    fn 测试_错误消息格式_已确认不可争议() {
+    fn test_cwxxgs_yqrbkzy() {
         let err = AppError::business("对账单已确认，不可提出争议".to_string());
 
         assert!(matches!(err, AppError::BusinessError(_)));
     }
 
-    /// 测试_错误消息格式_应付单未找到（验证 get_invoice_relations 中；"应付单 {invoice_id}" 格式的 not_found 错误消息）
+    /// test_cwxxgs_yfdwzd（验证 get_invoice_relations 中；"应付单 {invoice_id}" 格式的 not_found 错误消息）
     #[test]
-    fn 测试_错误消息格式_应付单未找到() {
+    fn test_cwxxgs_yfdwzd() {
         let invoice_id = 8888;
         let err = AppError::not_found(format!("应付单 {}", invoice_id));
 
@@ -367,9 +367,9 @@ mod tests {
     // 七、夹具宏可用性
     // =====================================================
 
-    /// 测试_decs夹具宏解析金额（验证 decs! 宏能正确解析 Decimal 字符串，用于后续金额计算测试夹具）
+    /// test_decsjjhjxje（验证 decs! 宏能正确解析 Decimal 字符串，用于后续金额计算测试夹具）
     #[test]
-    fn 测试_decs夹具宏解析金额() {
+    fn test_decsjjhjxje() {
         let v = decs!("12345.67");
         assert_eq!(v.to_string(), "12345.67");
 
@@ -385,9 +385,9 @@ mod tests {
         assert!(parsed.is_ok());
     }
 
-    /// 测试_ymd夹具宏解析对账日期（验证 ymd! 宏能正确解析日期，用于对账期间测试夹具）
+    /// test_ymdjjhjxdzrq（验证 ymd! 宏能正确解析日期，用于对账期间测试夹具）
     #[test]
-    fn 测试_ymd夹具宏解析对账日期() {
+    fn test_ymdjjhjxdzrq() {
         let start = ymd!(2026, 1, 1);
         let end = ymd!(2026, 12, 31);
 
@@ -401,9 +401,9 @@ mod tests {
     // 八、服务实例化（SQLite 内存数据库）
     // =====================================================
 
-    /// 测试_服务实例创建（验证 ApReconciliationService 在 SQLite 内存数据库上能正常实例化，；内部 Arc<DatabaseConnection> 引用计数 >= 1）
+    /// test_fwslcj（验证 ApReconciliationService 在 SQLite 内存数据库上能正常实例化，；内部 Arc<DatabaseConnection> 引用计数 >= 1）
     #[tokio::test]
-    async fn 测试_服务实例创建() {
+    async fn test_fwslcj() {
         let db = setup_test_db().await;
         let service = ApReconciliationService::new(Arc::new(db));
 
@@ -414,11 +414,11 @@ mod tests {
     // 九、DB 交互测试（依赖 schema，标注 #[ignore]）
     // =====================================================
 
-    /// 测试_生成对账单_需要真实数据库
+    /// test_scdzd_xyzssjk
     /// 依赖 ap_reconciliation / ap_invoice / ap_payment 表 schema，；标注 #[ignore] 仅在本地手动运行。无 schema 时返回数据库错误。
     #[tokio::test]
     #[ignore]
-    async fn 测试_生成对账单_需要真实数据库() {
+    async fn test_scdzd_xyzssjk() {
         let db = setup_test_db().await;
         let service = ApReconciliationService::new(Arc::new(db));
 
@@ -435,11 +435,11 @@ mod tests {
         assert!(result.is_err(), "无 schema 时应返回数据库错误");
     }
 
-    /// 测试_确认对账单_需要真实数据库
+    /// test_qrdzd_xyzssjk
     /// 依赖 ap_reconciliation 表 schema，标注 #[ignore] 仅在本地手动运行。；无 schema 时返回数据库错误；有 schema 但无记录时返回 NotFound。
     #[tokio::test]
     #[ignore]
-    async fn 测试_确认对账单_需要真实数据库() {
+    async fn test_qrdzd_xyzssjk() {
         let db = setup_test_db().await;
         let service = ApReconciliationService::new(Arc::new(db));
 
@@ -448,10 +448,10 @@ mod tests {
         assert!(result.is_err());
     }
 
-    /// 测试_获取对账单列表_需要真实数据库（依赖 ap_reconciliation 表 schema，标注 #[ignore] 仅在本地手动运行。；验证调用路径不 panic，分页参数 1-indexed 转换正确。）
+    /// test_hqdzdlb_xyzssjk（依赖 ap_reconciliation 表 schema，标注 #[ignore] 仅在本地手动运行。；验证调用路径不 panic，分页参数 1-indexed 转换正确。）
     #[tokio::test]
     #[ignore]
-    async fn 测试_获取对账单列表_需要真实数据库() {
+    async fn test_hqdzdlb_xyzssjk() {
         let db = setup_test_db().await;
         let service = ApReconciliationService::new(Arc::new(db));
 
@@ -465,9 +465,9 @@ mod tests {
     // 十、DTO 字段构造与对账单号格式
     // =====================================================
 
-    /// 测试_生成对账请求_字段构造（验证 GenerateReconciliationRequest 字段能正常构造，；notes 字段允许为 None，supplier_id/start_date/end_date 必填）
+    /// test_scdzqq_zdgz（验证 GenerateReconciliationRequest 字段能正常构造，；notes 字段允许为 None，supplier_id/start_date/end_date 必填）
     #[test]
-    fn 测试_生成对账请求_字段构造() {
+    fn test_scdzqq_zdgz() {
         let req_with_notes = GenerateReconciliationRequest {
             supplier_id: 1,
             start_date: ymd!(2026, 1, 1),
@@ -489,9 +489,9 @@ mod tests {
         assert!(req_without_notes.notes.is_none());
     }
 
-    /// 测试_自动对账结果_失败状态字符串（验证 auto_reconcile_all 中失败分支使用的 "FAILED" 状态字符串，；与成功分支的 reconciliation_status（来自数据库）形成对照。）
+    /// test_zddzjg_sbztzfc（验证 auto_reconcile_all 中失败分支使用的 "FAILED" 状态字符串，；与成功分支的 reconciliation_status（来自数据库）形成对照。）
     #[test]
-    fn 测试_自动对账结果_失败状态字符串() {
+    fn test_zddzjg_sbztzfc() {
         let failed = AutoReconciliationResult {
             reconciliation_id: 0,
             reconciliation_no: String::new(),
@@ -512,10 +512,10 @@ mod tests {
         assert_eq!(failed.invoice_count, 0);
     }
 
-    /// 测试_对账单号格式_REC前缀
+    /// test_dzdhgs_recqz
     /// 验证 impl_generate_no! 宏生成对账单号使用 "REC" 前缀，；格式为 REC + 年月日 + 三位序号（如 REC20260315001）。；此处不实际调用数据库生成，仅校验前缀与格式约定。
     #[test]
-    fn 测试_对账单号格式_REC前缀() {
+    fn test_dzdhgs_recqz() {
         // 复现宏定义的前缀常量
         let prefix = "REC";
         let today = Utc::now();

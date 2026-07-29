@@ -25,21 +25,21 @@ mod tests {
 
     // ===== 状态常量值正确性 =====
 
-    /// 测试_销售发货状态常量_值正确性
+    /// test_xsfhztcl_zzqx
     ///
     /// 验证销售发货状态常量值符合预期（小写风格，与 sales_order 保持一致）。
     #[test]
-    fn 测试_销售发货状态常量_值正确性() {
+    fn test_xsfhztcl_zzqx() {
         assert_eq!(sales_delivery::PENDING, "pending");
         assert_eq!(sales_delivery::SHIPPED, "shipped");
         assert_eq!(sales_delivery::CANCELLED, "cancelled");
     }
 
-    /// 测试_销售发货状态常量_小写风格一致性
+    /// test_xsfhztcl_xxfgyzx
     ///
     /// 验证销售发货状态常量均为小写风格（与 sales_order 状态一致）。
     #[test]
-    fn 测试_销售发货状态常量_小写风格一致性() {
+    fn test_xsfhztcl_xxfgyzx() {
         for s in [
             sales_delivery::PENDING,
             sales_delivery::SHIPPED,
@@ -55,31 +55,31 @@ mod tests {
 
     // ===== validate_dye_lot_consistency 纯函数测试 =====
 
-    /// 测试_validate_dye_lot_consistency_空列表通过
+    /// test_validate_dye_lot_consistency_klbtg
     ///
     /// 验证空 items 列表返回 Ok（无缸号需校验）。
     #[test]
-    fn 测试_validate_dye_lot_consistency_空列表通过() {
+    fn test_validate_dye_lot_consistency_klbtg() {
         let items: Vec<ShipOrderItemRequest> = vec![];
         let result = validate_dye_lot_consistency(&items);
         assert!(result.is_ok(), "空列表应通过校验");
     }
 
-    /// 测试_validate_dye_lot_consistency_无缸号通过
+    /// test_validate_dye_lot_consistency_wghtg
     ///
     /// 验证所有 item 都没有 dye_lot_no 时返回 Ok（无缸号约束）。
     #[test]
-    fn 测试_validate_dye_lot_consistency_无缸号通过() {
+    fn test_validate_dye_lot_consistency_wghtg() {
         let items = vec![make_item(1, None), make_item(2, None)];
         let result = validate_dye_lot_consistency(&items);
         assert!(result.is_ok(), "无缸号应通过校验");
     }
 
-    /// 测试_validate_dye_lot_consistency_同产品同缸号通过
+    /// test_validate_dye_lot_consistency_tcptghtg
     ///
     /// 验证同一产品的多个 item 使用相同缸号时返回 Ok。
     #[test]
-    fn 测试_validate_dye_lot_consistency_同产品同缸号通过() {
+    fn test_validate_dye_lot_consistency_tcptghtg() {
         let items = vec![
             make_item(1, Some("DL001")),
             make_item(1, Some("DL001")),
@@ -89,11 +89,11 @@ mod tests {
         assert!(result.is_ok(), "同产品同缸号应通过校验");
     }
 
-    /// 测试_validate_dye_lot_consistency_同产品不同缸号失败
+    /// test_validate_dye_lot_consistency_tcpbtghsb
     ///
     /// 验证同一产品的多个 item 使用不同缸号时返回 Err（违反缸号一致性约束）。
     #[test]
-    fn 测试_validate_dye_lot_consistency_同产品不同缸号失败() {
+    fn test_validate_dye_lot_consistency_tcpbtghsb() {
         let items = vec![make_item(1, Some("DL001")), make_item(1, Some("DL002"))];
         let result = validate_dye_lot_consistency(&items);
         assert!(
@@ -102,21 +102,21 @@ mod tests {
         );
     }
 
-    /// 测试_validate_dye_lot_consistency_不同产品不同缸号通过
+    /// test_validate_dye_lot_consistency_btcpbtghtg
     ///
     /// 验证不同产品使用不同缸号时返回 Ok（缸号约束仅针对同产品）。
     #[test]
-    fn 测试_validate_dye_lot_consistency_不同产品不同缸号通过() {
+    fn test_validate_dye_lot_consistency_btcpbtghtg() {
         let items = vec![make_item(1, Some("DL001")), make_item(2, Some("DL002"))];
         let result = validate_dye_lot_consistency(&items);
         assert!(result.is_ok(), "不同产品不同缸号应通过校验");
     }
 
-    /// 测试_validate_dye_lot_consistency_空字符串缸号忽略
+    /// test_validate_dye_lot_consistency_kzfcghhl
     ///
     /// 验证 dye_lot_no 为空字符串时被忽略（不参与一致性校验）。
     #[test]
-    fn 测试_validate_dye_lot_consistency_空字符串缸号忽略() {
+    fn test_validate_dye_lot_consistency_kzfcghhl() {
         let items = vec![make_item(1, Some("")), make_item(1, Some("DL001"))];
         let result = validate_dye_lot_consistency(&items);
         assert!(result.is_ok(), "空字符串缸号应被忽略");
@@ -129,7 +129,7 @@ mod tests {
     /// 需要 PostgreSQL + Elasticsearch + 前置销售订单/库存/预留数据。
     #[tokio::test]
     #[ignore = "需要 PostgreSQL + Elasticsearch + 前置销售订单/库存数据"]
-    async fn 测试_销售发货全流程_创建到发货到取消() {
+    async fn test_xsfhqlc_cjdfhdqx() {
         // 完整流程需启动 SalesService（依赖 SearchSyncer），留待真实环境验证。
         // 此处仅作为流程文档：create_delivery → ship_order → cancel_delivery
     }

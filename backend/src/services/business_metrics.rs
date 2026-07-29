@@ -435,7 +435,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试_business_metrics_注册() {
+    fn test_business_metrics_zc() {
         // 中文测试名：测试 business metrics 全部注册成功
         let (registry, _m) = build_metrics();
         let families = registry.gather();
@@ -448,7 +448,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试_缓存命中率() {
+    fn test_hcmzl() {
         // 中文测试名：测试缓存命中率计算
         let (_r, m) = build_metrics();
         m.record_cache_hit();
@@ -460,7 +460,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试_登录记录() {
+    fn test_dljl() {
         // 中文测试名：测试登录成功/失败记录
         let (_r, m) = build_metrics();
         m.record_login(true);

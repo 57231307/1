@@ -745,7 +745,7 @@ mod tests {
     }
 
     #[test]
-    fn test_下个月计算_普通月份() {
+    fn test_xgyjs_ptyf() {
         // 验证 1-11 月的下个月为当前月加 1（复现 init_first_period 算法）
         assert_eq!(calc_next_month(1), 2);
         assert_eq!(calc_next_month(6), 7);
@@ -753,21 +753,21 @@ mod tests {
     }
 
     #[test]
-    fn test_下个月计算_十二月跨年() {
+    fn test_xgyjs_seykn() {
         // 验证 12 月的下个月为次年 1 月（跨年边界场景，复现 init_first_period 算法）
         assert_eq!(calc_next_month(12), 1);
         assert_eq!(calc_next_month_year(12, 2026), 2027);
     }
 
     #[test]
-    fn test_下个月年份计算_普通月份不变() {
+    fn test_xgynfjs_ptyfbb() {
         // 验证 1-11 月的下个月仍属同一年（复现 close_period 中 next_year 计算逻辑）
         assert_eq!(calc_next_month_year(1, 2026), 2026);
         assert_eq!(calc_next_month_year(11, 2026), 2026);
     }
 
     #[test]
-    fn test_期间名称格式化() {
+    fn test_qjmcgsh() {
         // 验证期间名称格式（如：2026 年 03 月），复现 init_first_period 的 period_name 拼接
         assert_eq!(format_period_name(2026, 3), "2026 年 03 月");
         assert_eq!(format_period_name(2026, 12), "2026 年 12 月");
@@ -775,7 +775,7 @@ mod tests {
     }
 
     #[test]
-    fn test_期间结束日期_普通月份() {
+    fn test_qjjsrq_ptyf() {
         // 验证 2026 年 3 月的结束日期为 2026-03-31 23:59:59
         // 复现 init_first_period 中 end_date = 下月起始 - 1 秒 的计算逻辑
         let end_date = calc_period_end_date(2026, 3);
@@ -786,7 +786,7 @@ mod tests {
     }
 
     #[test]
-    fn test_期间结束日期_二月闰年() {
+    fn test_qjjsrq_eyrn() {
         // 验证 2024 年（闰年）2 月的结束日期为 2024-02-29 23:59:59
         // 复现 init_first_period 中月末日期计算在闰年 2 月的正确性
         let end_date = calc_period_end_date(2024, 2);
@@ -797,7 +797,7 @@ mod tests {
     }
 
     #[test]
-    fn test_期间结束日期_十二月跨年() {
+    fn test_qjjsrq_seykn() {
         // 验证 2026 年 12 月的结束日期为 2026-12-31 23:59:59（跨年场景）
         // 复现 init_first_period 中 12 月跨年到次年 1 月的 end_date 计算逻辑
         let end_date = calc_period_end_date(2026, 12);
@@ -808,7 +808,7 @@ mod tests {
     }
 
     #[test]
-    fn test_期间状态校验_已结账识别() {
+    fn test_qjztjy_yjzsb() {
         // 验证 CLOSED 状态被识别为已结账，OPEN 状态不被识别
         // 复现 close_period 中 `if period.status == "CLOSED"` 重复结账检查逻辑
         assert!(is_period_closed(PERIOD_STATUS_CLOSED));
@@ -816,7 +816,7 @@ mod tests {
     }
 
     #[test]
-    fn test_已结账期间锁定错误消息格式() {
+    fn test_yjzqjsdcwxxgs() {
         // 验证已结账期间的错误消息拼接（使用 ymd! 夹具宏解析日期）
         // 复现 check_date_locked 中 `format!("日期 {} 属于已结账的财务期间 ({})...")` 逻辑
         let date = ymd!(2026, 3, 15);
@@ -829,7 +829,7 @@ mod tests {
     }
 
     #[test]
-    fn test_未设置会计期间错误消息格式() {
+    fn test_wszkjqjcwxxgs() {
         // 验证未设置会计期间的错误消息拼接（使用 ymd! 夹具宏解析日期）
         // 复现 check_date_locked 中 `format!("日期 {} 不在任何已设置的会计期间内...")` 逻辑
         let date = ymd!(2026, 7, 9);
@@ -840,7 +840,7 @@ mod tests {
     }
 
     #[test]
-    fn test_decs夹具宏可用性() {
+    fn test_decs_jjhkyx() {
         // 验证 decs! 夹具宏可正常解析 Decimal 字符串
         // 注：本 service 不直接涉及金额，但保留宏以符合项目测试夹具规范
         let v = decs!("100.00");
@@ -848,7 +848,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_服务实例化() {
+    async fn test_fwslh() {
         // 验证 AccountingPeriodService 可正常实例化（define_service! 宏生成 new 方法）
         let db = setup_test_db().await;
         let service = AccountingPeriodService::new(Arc::new(db));
@@ -857,7 +857,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore]
-    async fn test_获取当前期间_无schema时降级() {
+    async fn test_hqdqqj_w_schema_sjj() {
         // 需要 accounting_periods 表 schema 的真实场景，标注 #[ignore]
         // sqlite::memory: 无 schema 时，get_current_period 预期返回数据库错误
         // 真实环境需先建表，应返回 Ok(None) 表示无开放期间
@@ -872,7 +872,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore]
-    async fn test_校验日期锁定_无期间时应报错() {
+    async fn test_jyrqsd_wqjsybc() {
         // 需要 accounting_periods 表 schema 的真实场景，标注 #[ignore]
         // 真实环境应返回 BusinessError（日期不在任何已设置的会计期间内）
         let db = setup_test_db().await;

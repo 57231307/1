@@ -52,7 +52,7 @@ mod tests {
     /* ===== 单元测试 ===== */
 
     #[test]
-    fn 测试_库存可用量() {
+    fn test_kckyl() {
         // 中文测试名：测试库存可用量 = 数量 - 锁定
         let s = StockRow {
             product_id: 1,
@@ -65,7 +65,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试_库存价值() {
+    fn test_kcjz() {
         // 中文测试名：测试库存价值 = 数量 × 单位成本
         let s = StockRow {
             product_id: 1,
@@ -78,7 +78,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试_低库存预警() {
+    fn test_dkcyj() {
         // 中文测试名：测试低库存预警规则
         let rule = LowStockRule {
             min_qty: Decimal::from(20),
@@ -102,7 +102,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试_库存周转率() {
+    fn test_kczzl() {
         // 中文测试名：测试库存周转率计算
         // 周转率 = 销售量 / 平均库存
         let t1 = inventory_turnover(Decimal::from(500), Decimal::from(100));
@@ -112,7 +112,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试_库存按仓库汇总() {
+    fn test_kcackhz() {
         // 中文测试名：测试库存按仓库汇总
         let stocks = vec![
             StockRow {

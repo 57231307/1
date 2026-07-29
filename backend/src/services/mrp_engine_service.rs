@@ -88,10 +88,10 @@ mod tests {
         }
     }
 
-    /// 测试_MRP状态常量值正确性
+    /// test_mrpztclzzqx
     /// 验证源码中使用的状态字符串值：BOM 状态 ACTIVE 与通用 common::STATUS_ACTIVE 一致（均为大写）；取消状态 CANCELLED 与 common::STATUS_CANCELLED 一致；产品过滤用 master_data::ACTIVE（小写 active）；MRP 专属状态 PLANNED/CONFIRMED/RELEASED 的预期值
     #[test]
-    fn 测试_MRP状态常量值正确性() {
+    fn test_mrpztclzzqx() {
         // BOM 状态使用大写 ACTIVE，与通用 common::STATUS_ACTIVE 一致
         assert_eq!(BOM_STATUS_ACTIVE, common::STATUS_ACTIVE);
 
@@ -107,9 +107,9 @@ mod tests {
         assert_eq!(MRP_STATUS_RELEASED, "RELEASED");
     }
 
-    /// 测试_库存可用量计算_正常场景（验证 get_stock_info 中 available = on_hand - safety_stock）
+    /// test_kckyljs_zccj（验证 get_stock_info 中 available = on_hand - safety_stock）
     #[test]
-    fn 测试_库存可用量计算_正常场景() {
+    fn test_kckyljs_zccj() {
         let stock = make_stock_info(decs!("100"), decs!("20"), decs!("30"));
         assert_eq!(stock.available, decs!("70"));
         assert_eq!(stock.on_hand, decs!("100"));
@@ -117,16 +117,16 @@ mod tests {
         assert_eq!(stock.safety_stock, decs!("30"));
     }
 
-    /// 测试_库存可用量计算_安全库存超过库存（验证 get_stock_info 中 on_hand < safety_stock 时 available 下限保护为 0）
+    /// test_kckyljs_aqkccgkc（验证 get_stock_info 中 on_hand < safety_stock 时 available 下限保护为 0）
     #[test]
-    fn 测试_库存可用量计算_安全库存超过库存() {
+    fn test_kckyljs_aqkccgkc() {
         let stock = make_stock_info(decs!("30"), decs!("0"), decs!("50"));
         assert_eq!(stock.available, Decimal::ZERO);
     }
 
-    /// 测试_净需求计算_库存充足无短缺（验证 calculate_requirement_with_stock：available >= required 时 shortage = 0）
+    /// test_jxqjs_kcczwdq（验证 calculate_requirement_with_stock：available >= required 时 shortage = 0）
     #[tokio::test]
-    async fn 测试_净需求计算_库存充足无短缺() {
+    async fn test_jxqjs_kcczwdq() {
         let db = setup_test_db().await;
         let service = MrpEngineService::new(Arc::new(db));
         let stock = make_stock_info(decs!("100"), decs!("0"), decs!("0"));
@@ -151,9 +151,9 @@ mod tests {
         assert_eq!(req.bom_level, 0);
     }
 
-    /// 测试_净需求计算_库存不足有短缺（验证 calculate_requirement_with_stock：available < required 时 shortage = required - available）
+    /// test_jxqjs_kcbzydq（验证 calculate_requirement_with_stock：available < required 时 shortage = required - available）
     #[tokio::test]
-    async fn 测试_净需求计算_库存不足有短缺() {
+    async fn test_jxqjs_kcbzydq() {
         let db = setup_test_db().await;
         let service = MrpEngineService::new(Arc::new(db));
         let stock = make_stock_info(decs!("30"), decs!("0"), decs!("0"));
@@ -176,9 +176,9 @@ mod tests {
         assert_eq!(req.available_quantity, decs!("30"));
     }
 
-    /// 测试_净需求计算_边界恰好相等（验证 required == available 时 shortage = 0（源码用 `>` 判断，相等不触发短缺））
+    /// test_jxqjs_bjqhxd（验证 required == available 时 shortage = 0（源码用 `>` 判断，相等不触发短缺））
     #[tokio::test]
-    async fn 测试_净需求计算_边界恰好相等() {
+    async fn test_jxqjs_bjqhxd() {
         let db = setup_test_db().await;
         let service = MrpEngineService::new(Arc::new(db));
         let stock = make_stock_info(decs!("50"), decs!("0"), decs!("0"));
@@ -201,9 +201,9 @@ mod tests {
         assert_eq!(req.available_quantity, decs!("50"));
     }
 
-    /// 测试_净需求计算_考虑在途库存（验证 consider_in_transit = true 时 available += in_transit，可覆盖原短缺）
+    /// test_jxqjs_klztkc（验证 consider_in_transit = true 时 available += in_transit，可覆盖原短缺）
     #[tokio::test]
-    async fn 测试_净需求计算_考虑在途库存() {
+    async fn test_jxqjs_klztkc() {
         let db = setup_test_db().await;
         let service = MrpEngineService::new(Arc::new(db));
         let stock = make_stock_info(decs!("50"), decs!("30"), decs!("0"));
@@ -243,9 +243,9 @@ mod tests {
         assert_eq!(req_with.shortage_quantity, Decimal::ZERO);
     }
 
-    /// 测试_净需求计算_考虑安全库存填充（验证 consider_safety_stock = true 时 safety_stock 字段填充实际值）
+    /// test_jxqjs_klaqkctc（验证 consider_safety_stock = true 时 safety_stock 字段填充实际值）
     #[tokio::test]
-    async fn 测试_净需求计算_考虑安全库存填充() {
+    async fn test_jxqjs_klaqkctc() {
         let db = setup_test_db().await;
         let service = MrpEngineService::new(Arc::new(db));
         // on_hand=100, safety_stock=20 -> available=80
@@ -268,10 +268,10 @@ mod tests {
         assert_eq!(req.available_quantity, decs!("80"));
     }
 
-    /// 测试_净需求计算_不考虑安全库存为零
+    /// test_jxqjs_bklaqkcwl
     /// 验证 consider_safety_stock = false 时 safety_stock 字段为 0；注意 available 仍按 stock_info.available（已扣除安全库存）计算
     #[tokio::test]
-    async fn 测试_净需求计算_不考虑安全库存为零() {
+    async fn test_jxqjs_bklaqkcwl() {
         let db = setup_test_db().await;
         let service = MrpEngineService::new(Arc::new(db));
         let stock = make_stock_info(decs!("100"), decs!("0"), decs!("20"));
@@ -294,19 +294,19 @@ mod tests {
         assert_eq!(req.available_quantity, decs!("80"));
     }
 
-    /// 测试_BOM数量计算_基础数量无损耗（验证 explode_bom_recursive 中无损耗率时 quantity = parent * item.quantity（round_dp(4)））
+    /// test_bomsljs_jcslwsh（验证 explode_bom_recursive 中无损耗率时 quantity = parent * item.quantity（round_dp(4)））
     #[test]
-    fn 测试_BOM数量计算_基础数量无损耗() {
+    fn test_bomsljs_jcslwsh() {
         let parent = decs!("100");
         let item_qty = decs!("1.5");
         let base_quantity = (parent * item_qty).round_dp(4);
         assert_eq!(base_quantity, decs!("150"));
     }
 
-    /// 测试_BOM数量计算_含损耗率
+    /// test_bomsljs_hshl
     /// 验证 explode_bom_recursive 中含损耗率的数量计算：quantity_with_scrap = base * (1 + scrap_rate/100)，再 round_dp(4)
     #[test]
-    fn 测试_BOM数量计算_含损耗率() {
+    fn test_bomsljs_hshl() {
         let parent = decs!("100");
         let item_qty = decs!("2");
         let scrap_rate = decs!("10"); // 10% 损耗
@@ -319,19 +319,19 @@ mod tests {
         assert_eq!(quantity_with_scrap, decs!("220"));
     }
 
-    /// 测试_BOM数量计算_精度归一化（验证 explode_bom_recursive 中 round_dp(4) 防止精度漂移）
+    /// test_bomsljs_jdgyh（验证 explode_bom_recursive 中 round_dp(4) 防止精度漂移）
     #[test]
-    fn 测试_BOM数量计算_精度归一化() {
+    fn test_bomsljs_jdgyh() {
         // 产生超过 4 位小数的中间结果，round_dp(4) 归一化为 4 位
         let raw = decs!("0.333333") * decs!("1");
         let rounded = raw.round_dp(4);
         assert_eq!(rounded, decs!("0.3333"));
     }
 
-    /// 测试_BOM提前期计算_层级递减
+    /// test_bomtqqjs_cjdj
     /// 验证 explode_bom_recursive 中提前期随 BOM 层级递减：lead_time = 7 * level，material_date = required_date - lead_time
     #[test]
-    fn 测试_BOM提前期计算_层级递减() {
+    fn test_bomtqqjs_cjdj() {
         let required_date = ymd!(2026, 7, 30);
 
         // level=1：提前期 7 天
@@ -343,13 +343,13 @@ mod tests {
         assert_eq!(required_date - lead_2, ymd!(2026, 7, 16));
 
         // level=0：提前期 0 天，物料日期等于需求日期
-        let lead_0 = Duration::days(7 * 0_i64);
+        let lead_0 = Duration::days(0);
         assert_eq!(required_date - lead_0, required_date);
     }
 
-    /// 测试_短缺统计_筛选有短缺项（验证 batch_calculate 中 items_with_shortage = filter(shortage > 0).count()）
+    /// test_dqtj_sxydqx（验证 batch_calculate 中 items_with_shortage = filter(shortage > 0).count()）
     #[test]
-    fn 测试_短缺统计_筛选有短缺项() {
+    fn test_dqtj_sxydqx() {
         let date = ymd!(2026, 7, 9);
         let requirements = vec![
             MaterialRequirement {
@@ -400,9 +400,9 @@ mod tests {
         assert_eq!(items_with_shortage, 2);
     }
 
-    /// 测试_订单类型转换_采购类型状态（验证 convert_to_orders 中 PURCHASE 类型映射到 CONFIRMED 状态）
+    /// test_ddlxzh_cglxzt（验证 convert_to_orders 中 PURCHASE 类型映射到 CONFIRMED 状态）
     #[test]
-    fn 测试_订单类型转换_采购类型状态() {
+    fn test_ddlxzh_cglxzt() {
         let order_type = "PURCHASE";
         let new_status = match order_type {
             "PURCHASE" => MRP_STATUS_CONFIRMED,
@@ -412,9 +412,9 @@ mod tests {
         assert_eq!(new_status, MRP_STATUS_CONFIRMED);
     }
 
-    /// 测试_订单类型转换_生产类型状态（验证 convert_to_orders 中 PRODUCTION 类型映射到 RELEASED 状态）
+    /// test_ddlxzh_sclxzt（验证 convert_to_orders 中 PRODUCTION 类型映射到 RELEASED 状态）
     #[test]
-    fn 测试_订单类型转换_生产类型状态() {
+    fn test_ddlxzh_sclxzt() {
         let order_type = "PRODUCTION";
         let new_status = match order_type {
             "PURCHASE" => MRP_STATUS_CONFIRMED,
@@ -424,9 +424,9 @@ mod tests {
         assert_eq!(new_status, MRP_STATUS_RELEASED);
     }
 
-    /// 测试_订单类型转换_无效类型拒绝（验证 convert_to_orders 中非 PURCHASE/PRODUCTION 类型返回校验错误）
+    /// test_ddlxzh_wxlxjj（验证 convert_to_orders 中非 PURCHASE/PRODUCTION 类型返回校验错误）
     #[test]
-    fn 测试_订单类型转换_无效类型拒绝() {
+    fn test_ddlxzh_wxlxjj() {
         let order_type = "INVALID";
         let result: Result<&str, AppError> = match order_type {
             "PURCHASE" => Ok(MRP_STATUS_CONFIRMED),
@@ -440,9 +440,9 @@ mod tests {
         }
     }
 
-    /// 测试_订单类型转换_非PLANNED状态拒绝（验证 convert_to_orders 中 status != PLANNED 时返回校验错误）
+    /// test_ddlxzh_fplannedztjj（验证 convert_to_orders 中 status != PLANNED 时返回校验错误）
     #[test]
-    fn 测试_订单类型转换_非PLANNED状态拒绝() {
+    fn test_ddlxzh_fplannedztjj() {
         // 模拟已确认状态的结果，不应允许再次转换
         let current_status = MRP_STATUS_CONFIRMED;
         let should_reject = current_status != MRP_STATUS_PLANNED;
@@ -457,9 +457,9 @@ mod tests {
         assert!(!should_reject_planned);
     }
 
-    /// 测试_取消计算_已取消状态幂等（验证 cancel_calculation 中 status == CANCELLED 时直接返回（幂等，不重复更新））
+    /// test_qxjs_yqxztmd（验证 cancel_calculation 中 status == CANCELLED 时直接返回（幂等，不重复更新））
     #[test]
-    fn 测试_取消计算_已取消状态幂等() {
+    fn test_qxjs_yqxztmd() {
         // 模拟已取消状态的 MRP 结果，复现 cancel_calculation 的早返回判断
         let current_cancelled = MRP_STATUS_CANCELLED;
         let should_early_return = current_cancelled == MRP_STATUS_CANCELLED;
@@ -470,9 +470,9 @@ mod tests {
         assert!(current_planned != MRP_STATUS_CANCELLED);
     }
 
-    /// 测试_夹具宏_decs_可用（验证 decs! 宏能正确解析 Decimal 字符串）
+    /// test_jjh_decs_ky（验证 decs! 宏能正确解析 Decimal 字符串）
     #[test]
-    fn 测试_夹具宏_decs_可用() {
+    fn test_jjh_decs_ky() {
         let v = decs!("123.45");
         assert_eq!(v.to_string(), "123.45");
         // 验证宏可用于整数与大数
@@ -480,25 +480,25 @@ mod tests {
         assert_eq!(big, decs!("1000000"));
     }
 
-    /// 测试_夹具宏_ymd_可用（验证 ymd! 宏能正确解析日期）
+    /// test_jjh_ymd_ky（验证 ymd! 宏能正确解析日期）
     #[test]
-    fn 测试_夹具宏_ymd_可用() {
+    fn test_jjh_ymd_ky() {
         let d = ymd!(2026, 7, 9);
         assert_eq!(d.format("%Y-%m-%d").to_string(), "2026-07-09");
     }
 
-    /// 测试_服务实例创建（验证 MrpEngineService 在 SQLite 内存数据库上能正常实例化）
+    /// test_fwslcj（验证 MrpEngineService 在 SQLite 内存数据库上能正常实例化）
     #[tokio::test]
-    async fn 测试_服务实例创建() {
+    async fn test_fwslcj() {
         let db = setup_test_db().await;
         let service = MrpEngineService::new(Arc::new(db));
         assert!(Arc::strong_count(&service.db) >= 1);
     }
 
-    /// 测试_获取库存信息_需要真实数据库（需要 inventory_stocks 表 schema，标注 #[ignore] 仅在本地手动运行。；验证 get_stock_info 调用路径不 panic。）
+    /// test_hqkcxx_xyzssjk（需要 inventory_stocks 表 schema，标注 #[ignore] 仅在本地手动运行。；验证 get_stock_info 调用路径不 panic。）
     #[tokio::test]
     #[ignore]
-    async fn 测试_获取库存信息_需要真实数据库() {
+    async fn test_hqkcxx_xyzssjk() {
         let db = setup_test_db().await;
         let service = MrpEngineService::new(Arc::new(db));
         // 无 schema 时为 Err；有 schema 无记录时返回零库存 StockInfo
@@ -507,10 +507,10 @@ mod tests {
         assert!(result.is_err(), "无 schema 时应返回数据库错误");
     }
 
-    /// 测试_BOM展开_需要真实数据库（需要 bom/bom_item/inventory_stocks 表 schema，标注 #[ignore] 仅在本地手动运行。；验证 explode_bom 调用路径不 panic。）
+    /// test_bomzk_xyzssjk（需要 bom/bom_item/inventory_stocks 表 schema，标注 #[ignore] 仅在本地手动运行。；验证 explode_bom 调用路径不 panic。）
     #[tokio::test]
     #[ignore]
-    async fn 测试_BOM展开_需要真实数据库() {
+    async fn test_bomzk_xyzssjk() {
         let db = setup_test_db().await;
         let service = MrpEngineService::new(Arc::new(db));
         let result = service
@@ -528,10 +528,10 @@ mod tests {
         assert!(result.is_err(), "无 schema 时应返回数据库错误");
     }
 
-    /// 测试_查询MRP结果_需要真实数据库（需要 mrp_results 表 schema，标注 #[ignore] 仅在本地手动运行。；验证 get_results 调用路径不 panic。）
+    /// test_cxmrpjg_xyzssjk（需要 mrp_results 表 schema，标注 #[ignore] 仅在本地手动运行。；验证 get_results 调用路径不 panic。）
     #[tokio::test]
     #[ignore]
-    async fn 测试_查询MRP结果_需要真实数据库() {
+    async fn test_cxmrpjg_xyzssjk() {
         let db = setup_test_db().await;
         let service = MrpEngineService::new(Arc::new(db));
         let result = service.get_results(None, None, None, 1, 10).await;

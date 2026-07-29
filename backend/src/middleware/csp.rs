@@ -58,7 +58,7 @@ mod tests {
     use axum::http::Response;
 
     #[test]
-    fn 测试_csp_默认值包含关键指令() {
+    fn test_csp_mrzbhgjzl() {
         // 中文测试名：测试 CSP 默认值包含 frame-ancestors none
         assert!(CSP_POLICY.contains("default-src 'self'"));
         assert!(CSP_POLICY.contains("frame-ancestors 'none'"));
@@ -67,7 +67,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn 测试_csp_middleware_注入() {
+    async fn test_csp_middleware_zr() {
         // 中文测试名：测试 CSP 中间件自动注入响应头
         // 由于 Next 在测试中难以构造，跳过完整集成测试，仅验证常量
         let resp = Response::<Body>::new(Body::empty());
