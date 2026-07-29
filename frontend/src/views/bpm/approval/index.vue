@@ -19,7 +19,7 @@
       </div>
     </div>
 
-    <BpmApprovalStat :stats="bpmAp.stats" />
+    <BpmApprovalStatistics :stats="bpmAp.stats" />
 
     <el-tabs v-model="activeTab" @tab-change="handleTabChange">
       <el-tab-pane :label="tabPendingLabel" name="pending">
@@ -48,7 +48,7 @@
       </el-tab-pane>
     </el-tabs>
 
-    <BpmApprovalApprovalDialog
+    <BpmApprovalApproveDialog
       v-model:visible="bpmApProc.approveDialogVisible"
       :current-task="bpmApProc.currentTask"
       :action="bpmApProc.approveAction"
@@ -58,7 +58,7 @@
       @update:approve-form="v => Object.assign(bpmApProc.approveForm, v)"
     />
 
-    <BpmApprovalTransferDialog
+    <BpmApprovalTransitionDialog
       v-model:visible="bpmApProc.transferDialogVisible"
       :current-task="bpmApProc.currentTask"
       :submit-loading="bpmApProc.submitLoading"
@@ -80,11 +80,11 @@ import { ref, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useBpmAp } from './composables/useBpmAp';
 import { useBpmApProc } from './composables/useBpmApProc';
-import BpmApprovalStat from './components/BpmApprovalStat.vue';
+import BpmApprovalStatistics from './components/BpmApprovalStatistics.vue';
 import BpmApprovalPendingTable from './components/BpmApprovalPendingTable.vue';
 import BpmApprovalCompletedTable from './components/BpmApprovalCompletedTable.vue';
-import BpmApprovalApprovalDialog from './components/BpmApprovalApprovalDialog.vue';
-import BpmApprovalTransferDialog from './components/BpmApprovalTransferDialog.vue';
+import BpmApprovalApproveDialog from './components/BpmApprovalApproveDialog.vue';
+import BpmApprovalTransitionDialog from './components/BpmApprovalTransitionDialog.vue';
 import BpmApprovalChainDialog from './components/BpmApprovalChainDialog.vue';
 
 const { t } = useI18n({ useScope: 'global' });

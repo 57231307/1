@@ -24,25 +24,25 @@
     </div>
 
     <el-card shadow="hover">
-      <TwoFactorAuthStepBar :current-step="tfa.currentStep" />
+      <TwoFactorStepBar :current-step="tfa.currentStep" />
 
       <div class="step-wrapper">
-        <TwoFactorAuthStep1
+        <TwoFactorStep1
           v-show="tfa.currentStep === 0"
           :is-enabled="tfa.isEnabled"
           :username="tfa.username"
           :setup-loading="tfa.setupLoading"
           @start-setup="tfaProc.handleStartSetup(tfa)"
         />
-        <TwoFactorAuthStep2
+        <TwoFactorStep2
           v-show="tfa.currentStep === 1"
           :qr-code-data-url="tfa.qrCodeDataUrl"
           :secret-text="tfa.secretText"
           :username="tfa.username"
           @copy-secret="tfaProc.handleCopySecret(tfa)"
         />
-        <TwoFactorAuthStep3 v-show="tfa.currentStep === 2" ref="tfaStep3Ref" />
-        <TwoFactorAuthStep4
+        <TwoFactorStep3 v-show="tfa.currentStep === 2" ref="tfaStep3Ref" />
+        <TwoFactorStep4
           v-show="tfa.currentStep === 3"
           :recovery-codes="tfa.recoveryCodes"
           @copy-recovery="tfaProc.handleCopyRecovery(tfa)"
@@ -80,12 +80,12 @@ import { onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ArrowLeft, ArrowRight, Check } from '@element-plus/icons-vue';
 import { useTfa } from './two-factor/composables/useTfa';
-import { useTfaProc, type TwoFactorAuthStep3Instance } from './two-factor/composables/useTfaProc';
-import TwoFactorAuthStepBar from './two-factor/components/TwoFactorAuthStepBar.vue';
-import TwoFactorAuthStep1 from './two-factor/components/TwoFactorAuthStep1.vue';
-import TwoFactorAuthStep2 from './two-factor/components/TwoFactorAuthStep2.vue';
-import TwoFactorAuthStep3 from './two-factor/components/TwoFactorAuthStep3.vue';
-import TwoFactorAuthStep4 from './two-factor/components/TwoFactorAuthStep4.vue';
+import { useTfaProc, type TwoFactorStep3Instance } from './two-factor/composables/useTfaProc';
+import TwoFactorStepBar from './two-factor/components/TwoFactorStepBar.vue';
+import TwoFactorStep1 from './two-factor/components/TwoFactorStep1.vue';
+import TwoFactorStep2 from './two-factor/components/TwoFactorStep2.vue';
+import TwoFactorStep3 from './two-factor/components/TwoFactorStep3.vue';
+import TwoFactorStep4 from './two-factor/components/TwoFactorStep4.vue';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -93,8 +93,8 @@ const { t } = useI18n({ useScope: 'global' });
 const tfa = useTfa();
 const tfaProc = useTfaProc();
 
-// TwoFactorAuthStep3 子组件 ref（用于调其 validate() 和 setError() 方法）
-const tfaStep3Ref = ref<TwoFactorAuthStep3Instance | null>(null);
+// TwoFactorStep3 子组件 ref（用于调其 validate() 和 setError() 方法）
+const tfaStep3Ref = ref<TwoFactorStep3Instance | null>(null);
 
 // Step 3 验证事件
 const onVerify = () => tfaProc.handleVerifyAndEnable(tfa, tfaStep3Ref.value);
