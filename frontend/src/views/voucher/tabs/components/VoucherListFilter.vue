@@ -52,10 +52,10 @@
       <ElButton type="success" @click="emit('add')">
         <Plus /> {{ t('voucher.voucherListFilter.buttonAdd') }}</ElButton
       >
-      <ElButton @click="emit('print')">
+      <ElButton v-permission="'voucher.print'" @click="emit('print')">
         <Printer /> {{ t('voucher.voucherListFilter.buttonPrint') }}</ElButton
       >
-      <ElButton @click="emit('export')">
+      <ElButton v-permission="'voucher.export'" @click="emit('export')">
         <Download /> {{ t('voucher.voucherListFilter.buttonExport') }}</ElButton
       >
     </div>
