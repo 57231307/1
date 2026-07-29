@@ -21,7 +21,6 @@
     "dompurify": "^3.1.6",
     "echarts": "^6.1.0",
     "element-plus": "^2.6.0",
-    "glob": "^13.0.6",
     "pinia": "^2.1.0",
     "print-js": "^1.6.0",
     "vue": "^3.4.0",
