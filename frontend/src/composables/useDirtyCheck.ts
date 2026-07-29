@@ -49,10 +49,7 @@ function snapshot(data: unknown): string {
 }
 
 export function useDirtyCheck(options: DirtyCheckOptions = {}): DirtyCheckResult {
-  const {
-    leaveMessage = '表单有未保存的修改，确定离开吗？',
-    enableBeforeUnload = true,
-  } = options;
+  const { leaveMessage = '表单有未保存的修改，确定离开吗？', enableBeforeUnload = true } = options;
 
   const isDirty = ref(false);
   let initialSnapshot = '';

@@ -306,17 +306,20 @@ impl DataPermissionService {
         Ok(dept_ids)
     }
 
-    /// 递归收集部门子树 ID（含自身）
+    /// 收集部门子树 ID（含自身，迭代实现避免 async 递归 boxing）
     async fn collect_dept_subtree(&self, dept_id: i32) -> Result<Vec<i32>, AppError> {
         use crate::models::department::{self, Entity as DeptEntity};
-        let mut result = vec![dept_id];
-        let children = DeptEntity::find()
-            .filter(department::Column::ParentId.eq(dept_id))
-            .all(&*self.db)
-            .await?;
-        for child in children {
-            let mut sub = self.collect_dept_subtree(child.id).await?;
-            result.append(&mut sub);
+        let mut result = Vec::new();
+        let mut stack = vec![dept_id];
+        while let Some(id) = stack.pop() {
+            result.push(id);
+            let children = DeptEntity::find()
+                .filter(department::Column::ParentId.eq(id))
+                .all(&*self.db)
+                .await?;
+            for child in children {
+                stack.push(child.id);
+            }
         }
         Ok(result)
     }

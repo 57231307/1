@@ -250,13 +250,9 @@ impl CustomOrderAfterSalesService {
     }
 
     /// V15 P1 batch-19 缺陷 23.3.2：受理售后工单（opened → accepted）
-    pub async fn accept_after_sales(
-        &self,
-        id: i64,
-    ) -> Result<after_sales::Model, AfterSalesError> {
+    pub async fn accept_after_sales(&self, id: i64) -> Result<after_sales::Model, AfterSalesError> {
         let txn = self.db.begin().await?;
         let existing = Entity::find_by_id(id)
-            .lock_exclusive()
             .one(&txn)
             .await?
             .ok_or(AfterSalesError::NotFound)?;
@@ -292,7 +288,6 @@ impl CustomOrderAfterSalesService {
 
         let txn = self.db.begin().await?;
         let existing = Entity::find_by_id(id)
-            .lock_exclusive()
             .one(&txn)
             .await?
             .ok_or(AfterSalesError::NotFound)?;
@@ -369,11 +364,7 @@ impl CustomOrderAfterSalesService {
             })
             .collect();
 
-        Ok(MonthlyTop5Report {
-            year,
-            month,
-            items,
-        })
+        Ok(MonthlyTop5Report { year, month, items })
     }
 }
 

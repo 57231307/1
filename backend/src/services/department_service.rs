@@ -1,7 +1,7 @@
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, NotSet, Order, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set,
+    QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde::Serialize;
 
@@ -270,7 +270,7 @@ impl DepartmentService {
         let mut results = Vec::new();
 
         // 先清除用户已有部门关联
-        user_department::Entity::delete()
+        user_department::Entity::delete_many()
             .filter(user_department::Column::UserId.eq(user_id))
             .exec(&txn)
             .await?;

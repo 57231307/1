@@ -53,7 +53,6 @@ impl LogisticsService {
     ) -> Result<logistics_waybill::Model, AppError> {
         let txn = self.db.begin().await?;
         let waybill = WaybillEntity::find_by_id(waybill_id)
-            .lock_exclusive()
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("运单不存在"))?;
@@ -64,10 +63,7 @@ impl LogisticsService {
             .await?
             .is_some();
         if !po_exists {
-            return Err(AppError::not_found(format!(
-                "采购订单 {} 不存在",
-                po_id
-            )));
+            return Err(AppError::not_found(format!("采购订单 {} 不存在", po_id)));
         }
 
         let mut active: logistics_waybill::ActiveModel = waybill.into();
@@ -125,10 +121,7 @@ impl LogisticsService {
     }
 
     /// V15 P1 batch-19 缺陷 23.4.3：计算运费（取重量/体积/距离计算的最大值）
-    pub async fn calculate_freight(
-        &self,
-        waybill_id: i32,
-    ) -> Result<Decimal, AppError> {
+    pub async fn calculate_freight(&self, waybill_id: i32) -> Result<Decimal, AppError> {
         let waybill = WaybillEntity::find_by_id(waybill_id)
             .one(&*self.db)
             .await?

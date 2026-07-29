@@ -194,18 +194,14 @@ impl NotificationService {
         for wh in &webhooks {
             // 仅触发订阅了 "*" 或当前事件类型的 webhook，避免向无关 webhook 推送
             let subscribed_events: Vec<&str> = wh.events.split(',').map(|s| s.trim()).collect();
-            if !subscribed_events.contains(&"*") && !subscribed_events.contains(&event_name.as_str())
+            if !subscribed_events.contains(&"*")
+                && !subscribed_events.contains(&event_name.as_str())
             {
                 continue;
             }
 
             match webhook_service
-                .trigger_webhook(
-                    notification.user_id,
-                    wh.id,
-                    &event_name,
-                    &payload_str,
-                )
+                .trigger_webhook(notification.user_id, wh.id, &event_name, &payload_str)
                 .await
             {
                 Ok(result) => {
@@ -612,24 +608,37 @@ mod tests {
         for (prio, expected) in cases {
             let n = make_test_notification(NotificationType::Webhook, prio, None);
             let payload = build_payload_from_notification(&n);
-            assert_eq!(payload.priority, expected, "优先级 {:?} 应映射为 {}", prio, expected);
+            assert_eq!(
+                payload.priority, expected,
+                "优先级 {:?} 应映射为 {}",
+                prio, expected
+            );
         }
     }
 
     /// NotificationType::Webhook 变体应正确匹配
     #[test]
     fn test_notification_type_webhook_match() {
-        let n = make_test_notification(NotificationType::Webhook, NotificationPriority::Normal, None);
+        let n = make_test_notification(
+            NotificationType::Webhook,
+            NotificationPriority::Normal,
+            None,
+        );
         assert!(matches!(n.notification_type, NotificationType::Webhook));
     }
 
     /// 非 Webhook 类型不应匹配 Webhook 分支
     #[test]
     fn test_notification_type_non_webhook_no_match() {
-        let n = make_test_notification(NotificationType::Internal, NotificationPriority::Normal, None);
+        let n = make_test_notification(
+            NotificationType::Internal,
+            NotificationPriority::Normal,
+            None,
+        );
         assert!(!matches!(n.notification_type, NotificationType::Webhook));
 
-        let n2 = make_test_notification(NotificationType::Email, NotificationPriority::Normal, None);
+        let n2 =
+            make_test_notification(NotificationType::Email, NotificationPriority::Normal, None);
         assert!(!matches!(n2.notification_type, NotificationType::Webhook));
     }
 

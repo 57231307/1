@@ -6,7 +6,7 @@
 
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
-use sea_orm::{DatabaseConnection, FromQueryResult, Statement};
+use sea_orm::{DatabaseConnection, EntityTrait, FromQueryResult, Statement};
 use serde::Serialize;
 use std::sync::Arc;
 
@@ -71,8 +71,8 @@ impl IncotermsService {
             .await?
             .ok_or_else(|| AppError::not_found("报价单不存在"))?;
 
-        let incoterm = Incoterms2020::from_code(&quotation.price_terms)
-            .map_err(AppError::business)?;
+        let incoterm =
+            Incoterms2020::from_code(&quotation.price_terms).map_err(AppError::business)?;
 
         Ok(PriceComposition {
             incoterm: incoterm.code().to_string(),
@@ -151,11 +151,7 @@ impl IncotermsService {
         .all(&*self.db)
         .await?;
 
-        Ok(IncotermsMonthlyReport {
-            year,
-            month,
-            items,
-        })
+        Ok(IncotermsMonthlyReport { year, month, items })
     }
 }
 
