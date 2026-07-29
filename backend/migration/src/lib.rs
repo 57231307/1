@@ -185,6 +185,8 @@ pub mod m0084_add_color_card_issue_export_permissions;
 pub mod m0085_create_bulk_color_approval_history;
 // V15 P1-21 缺陷 2.2：委外收回单关联质检记录（inspection_id 字段）
 pub mod m0086_add_inspection_id_to_outsourcing_receipt;
+// V15 P1 batch-19：组织定制物流 11 项 P1 修复（一人多部门/定制订单签字审批/售后闭环/物流运费/Incoterms）
+pub mod m0087_batch19_custom_order_aftersales_logistics_incoterms;
 
 pub struct Migrator;
 
@@ -280,6 +282,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0084_add_color_card_issue_export_permissions::Migration),
             Box::new(m0085_create_bulk_color_approval_history::Migration),
             Box::new(m0086_add_inspection_id_to_outsourcing_receipt::Migration),
+            Box::new(m0087_batch19_custom_order_aftersales_logistics_incoterms::Migration),
         ]
     }
 }

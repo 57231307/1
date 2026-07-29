@@ -254,4 +254,72 @@ impl DepartmentService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("部门名称 {} 不存在", name)))
     }
+
+    /// V15 P1 batch-19 缺陷 23.1.2：为用户分配部门（主部门 + 兼职）
+    pub async fn assign_user_departments(
+        &self,
+        user_id: i32,
+        primary_dept_id: i32,
+        secondary_dept_ids: Vec<i32>,
+    ) -> Result<Vec<crate::models::user_department::Model>, AppError> {
+        use crate::models::user_department::{self, ActiveModel as UserDeptActive};
+        use sea_orm::EntityTrait;
+
+        let txn = self.db.begin().await?;
+        let now = Utc::now();
+        let mut results = Vec::new();
+
+        // 先清除用户已有部门关联
+        user_department::Entity::delete()
+            .filter(user_department::Column::UserId.eq(user_id))
+            .exec(&txn)
+            .await?;
+
+        // 插入主部门
+        let primary = UserDeptActive {
+            id: Default::default(),
+            user_id: sea_orm::Set(user_id),
+            department_id: sea_orm::Set(primary_dept_id),
+            is_primary: sea_orm::Set(true),
+            start_date: sea_orm::Set(None),
+            end_date: sea_orm::Set(None),
+            created_at: sea_orm::Set(now),
+            updated_at: sea_orm::Set(now),
+        };
+        results.push(primary.insert(&txn).await?);
+
+        // 插入兼职部门
+        for dept_id in secondary_dept_ids {
+            if dept_id == primary_dept_id {
+                continue;
+            }
+            let sec = UserDeptActive {
+                id: Default::default(),
+                user_id: sea_orm::Set(user_id),
+                department_id: sea_orm::Set(dept_id),
+                is_primary: sea_orm::Set(false),
+                start_date: sea_orm::Set(None),
+                end_date: sea_orm::Set(None),
+                created_at: sea_orm::Set(now),
+                updated_at: sea_orm::Set(now),
+            };
+            results.push(sec.insert(&txn).await?);
+        }
+
+        txn.commit().await?;
+        Ok(results)
+    }
+
+    /// V15 P1 batch-19 缺陷 23.1.2：查询用户所有部门（含兼职）
+    pub async fn list_user_departments(
+        &self,
+        user_id: i32,
+    ) -> Result<Vec<crate::models::user_department::Model>, AppError> {
+        use crate::models::user_department::{self, Entity as UserDeptEntity};
+        let depts = UserDeptEntity::find()
+            .filter(user_department::Column::UserId.eq(user_id))
+            .all(&*self.db)
+            .await?;
+        Ok(depts)
+    }
 }

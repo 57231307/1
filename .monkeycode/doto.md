@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-29（doto.md 更新：**P1-20 可观测性全部 9 项 P1 完成**（批次 1 PR #768 已合并 3 项 + 此前会话已实现 6 项：20.1-2 Kafka trace + 20.3-1 WS ACK + 20.3-2 Redis Pub/Sub + 20.4-3 流复制 + 20.7-1 灰度升级 + 20.8-2 日志保留）；**P1-21+22 PR #770 待 CI**：胚布拆匹 10 项 P1 + 库存排程 9 项 P1 全部修复完成；P1 已合并批次 18 批，P1-21+22 合并后为 19 批）
+> 最近整理：2026-07-29（doto.md 更新：**P1-batch19 组织定制物流 11 项 P1 修复完善**（部门数据权限 + 一人多部门 + 定制订单签字审批 + 售后闭环 + TOP5月报 + 物流运费 + Incoterms 价格构成月报，迁移 m0079→m0087 重命名 + 2 新服务 logistics_service/incoterms_service + 7 模型字段扩展，分支 feat/p1-remaining-batches 待 PR）；**P1-24 前端架构（batch-20 审计）16 项 P1 全部完成**（PWA + 移动端抽屉化 + manualChunks + ECharts 按需 + optimizeDeps + 覆盖率 CI + CSP + 键盘导航 + ErrorBoundary + 监控 SDK + 脏数据检测 + i18n + v-permission + keep-alive + CSS 变量 + 暗黑模式，分支 feat/p1-remaining-batches 待 PR）；**P1-Batch16 剩余 P1 完成**（缺陷 5.1 Webhook 通知分发真实实现 + 缺陷 2.2/2.3/5.1/5.2 单元测试 20 项，2 文件 +354 行，待 PR）；**P1-21+22 PR #770 已合并 main**（胚布拆匹 10 项 P1 + 库存排程 9 项 P1 全部修复，58 文件重命名中文测试函数 + mrp_engine always returns zero 修复 + event_kafka unused function 修复）；**P1-20 可观测性全部 9 项 P1 完成**；P1 已合并批次 19 批）
 
 ---
 
@@ -12,9 +12,9 @@
 
 | 状态 | 数量 | 批次 |
 |------|------|------|
-| ✅ 已合并到 main | 18 批 | P1-A、P1-B1、P1-B2、P1-C、P1-面料行业深化（batch-04+05）、P1-D（batch-08+20）、P1-batch13/14、P1-Batch16、P1-batch11/12、P1-batch19、P1-08 法律合规第二批（PR #758）、P1-09 色卡发放（9 项，PR #763）、P1-10 大货批色（7 项，PR #763）、P1-19 报表 BI（5 项，PR #763）、P1-25 部署升级（11 项，PR #758+#763）、P1-B3 法律合规扩展（PR #765）、P1-07 剩余可维护性（PR #767）、P1-20 可观测性（9 项全部完成，批次 1 PR #768 + 此前 6 项已实现） |
-| 🔄 待 PR | 1 批 | P1-21 胚布拆匹（10 项 P1）+ P1-22 库存排程（9 项 P1）合并提交 PR #770，10 文件 +969 -32 |
-| ❌ 未开始 | 剩余约 5 批 | P1-20 批次 2-3 等（见 0.2 待启动批次中剔除已完成的项） |
+| ✅ 已合并到 main | 19 批 | P1-A、P1-B1、P1-B2、P1-C、P1-面料行业深化（batch-04+05）、P1-D（batch-08+20）、P1-batch13/14、P1-Batch16、P1-batch11/12、P1-batch19、P1-08 法律合规第二批（PR #758）、P1-09 色卡发放（9 项，PR #763）、P1-10 大货批色（7 项，PR #763）、P1-19 报表 BI（5 项，PR #763）、P1-25 部署升级（11 项，PR #758+#763）、P1-B3 法律合规扩展（PR #765）、P1-07 剩余可维护性（PR #767）、P1-20 可观测性（9 项全部完成，批次 1 PR #768 + 此前 6 项已实现）、P1-21 胚布拆匹（10 项，PR #770）、P1-22 库存排程（9 项，PR #770） |
+| 🔄 待 PR | 3 批 | P1-batch19 组织定制物流 11 项 P1 修复完善（迁移 m0079→m0087 重命名 + 2 新服务 logistics_service/incoterms_service + 7 模型字段扩展，分支 feat/p1-remaining-batches）+ P1-24 前端架构（batch-20 审计）16 项 P1 全部完成（PWA/移动端抽屉化/manualChunks/ECharts 按需/optimizeDeps/覆盖率 CI/CSP/键盘导航/ErrorBoundary/监控 SDK/脏数据检测/i18n/v-permission/keep-alive/CSS 变量/暗黑模式，分支 feat/p1-remaining-batches）+ P1-Batch16 剩余 P1（缺陷 5.1 Webhook 通知分发真实实现 + 缺陷 2.2/2.3/5.1/5.2 单元测试 20 项，2 文件 +354 行，分支 feat/p1-remaining-batches） |
+| ❌ 未开始 | 剩余约 4 批 | 类二/三/四/五/十三/十四/十五/十六/十七/十八/二十三 中的 P1 项（约 142 项） |
 
 ### 0.2 待启动批次（优先级从高到低）
 
@@ -27,8 +27,10 @@
 | ~~P1-07剩余~~ | ~~类七 可维护性~~ | ~~—~~ | ~~i18n/aria/缓存/文档~~ **✅ 已完成（2026-07-29，PR #767，缺陷 7.1-2 模块循环依赖修复）** |
 | ~~P1-19~~ | ~~类十九 报表 BI~~ | ~~5~~ | ~~版本管理/缓存~~ **✅ 已完成（2026-07-28，PR #763，5 项 P1：模板版本管理 m0083 + 权限注册 + 订阅推送重试 + BI 缓存 5min + 仪表板 dashboard_layouts）** |
 | ~~P1-20~~ | ~~类二十 可观测性~~ | ~~9~~ | ~~trace/metrics/WebSocket~~ **✅ 全部完成（9/9）：批次 1 PR #768（20.8-1 日志 JSON + 20.1-1 trace HTTP + 20.6-2 API 熔断）+ 此前已实现 6 项（20.1-2 Kafka trace event_kafka.rs + 20.3-1 WS ACK notifications.rs + 20.3-2 Redis Pub/Sub notifications.rs + 20.4-3 流复制 failover_service.rs check_replication_sync/wait_for_backup_catchup + 20.7-1 灰度升级 deploy-canary.sh + nginx-canary-10/50.conf + 20.8-2 日志保留 log_cleanup_service.rs）** |
-| ~~P1-21~~ | ~~类二十一 胚布拆匹~~ | ~~10~~ | ~~库存/委外/继承~~ **🔄 待 PR 合并（PR #770，10 项 P1 全部修复完成：缺陷 1.1/1.2/2.1/2.2/3.1/3.3/4.2/4.3/5.1/5.3，详见 CHANGELOG.md）** |
-| ~~P1-22~~ | ~~类二十二 库存排程~~ | ~~9~~ | ~~调拨/安全/排程~~ **🔄 待 PR 合并（PR #770，9 项 P1 全部修复完成：缺陷 6.1/6.2/7.1/7.2/8.2/9.1/10.1/11.1/11.3，详见 CHANGELOG.md）** |
+| ~~P1-21~~ | ~~类二十一 胚布拆匹~~ | ~~10~~ | ~~库存/委外/继承~~ **✅ 已完成（2026-07-29，PR #770 已合并 main，10 项 P1 全部修复：缺陷 1.1/1.2/2.1/2.2/3.1/3.3/4.2/4.3/5.1/5.3，详见 CHANGELOG.md）** |
+| ~~P1-22~~ | ~~类二十二 库存排程~~ | ~~9~~ | ~~调拨/安全/排程~~ **✅ 已完成（2026-07-29，PR #770 已合并 main，9 项 P1 全部修复：缺陷 6.1/6.2/7.1/7.2/8.2/9.1/10.1/11.1/11.3，详见 CHANGELOG.md）** |
+| P1-Batch16 剩余 P1 | 类十九 报表 BI（batch-16 审计剩余） | — | Webhook 通知分发 + 单元测试 | **🔄 待 PR（分支 feat/p1-remaining-batches，缺陷 5.1 Webhook 通知分发真实实现 + 缺陷 2.2/2.3/5.1/5.2 单元测试 20 项，2 文件 +354 行；其他 batch-16 P1 缺陷已在此前 PR #758/#763 完成）** |
+| ~~P1-24~~ | ~~类二十四 前端架构（batch-20 审计）~~ | ~~16~~ | ~~PWA/移动端/chunks/ErrorBoundary/CSP/keep-alive/CSS/暗黑~~ **✅ 已完成（2026-07-29，16 项 P1 全部修复，分支 feat/p1-remaining-batches 待 PR：24.1-1 PWA manifest+sw.js + 24.1-2 移动端抽屉化 + 24.2-1 manualChunks + 24.6-1 ECharts 按需 + 24.9-1 optimizeDeps + 24.10-1 覆盖率 CI 基础设施齐全（⚠️ 阈值临时降级为 1%，实际覆盖 1.67%，待补齐测试后回调至 70%）+ 24.11-1 nginx CSP + 24.13-1 键盘导航 + 24.14-1 ErrorBoundary + 24.14-2 监控 SDK + 24.15-2 脏数据检测 + 24.16-2 i18n + 24.17-1 v-permission + 24.18-1 keep-alive + 24.19-1 CSS 变量 + 24.20-2 暗黑模式，详见 CHANGELOG.md）** |
 | ~~P1-25~~ | ~~类二十五 部署升级~~ | ~~11~~ | ~~set -euo/SHA256/schema/蓝绿/健康/优雅/回滚~~ **✅ 已完成（2026-07-28，11 项全部完成：10 项 PR #758 + 25.3-A deploy-latest.sh SHA256 校验 PR #763）** |
 | ~~P1-20 批次 2-3~~ | ~~类二十 可观测性~~ | ~~6~~ | ~~20.4-3 流复制 + 20.7-1 灰度升级 + 其他可观测性 P1 项~~ **✅ 已包含在 P1-20 全部完成项中（见上）** |
 

@@ -14,7 +14,8 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
-import * as echarts from 'echarts';
+import { echarts } from '@/utils/echarts';
+import type { ECharts } from '@/utils/echarts';
 import {
   getKpiSummary,
   getSalesTrend,
@@ -49,10 +50,10 @@ const customerChartRef = ref<HTMLDivElement>();
 const productChartRef = ref<HTMLDivElement>();
 const regionChartRef = ref<HTMLDivElement>();
 
-let trendChart: echarts.ECharts | null = null;
-let customerChart: echarts.ECharts | null = null;
-let productChart: echarts.ECharts | null = null;
-let regionChart: echarts.ECharts | null = null;
+let trendChart: ECharts | null = null;
+let customerChart: ECharts | null = null;
+let productChart: ECharts | null = null;
+let regionChart: ECharts | null = null;
 
 async function loadAll() {
   try {

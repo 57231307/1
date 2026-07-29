@@ -616,6 +616,20 @@
           </el-breadcrumb>
         </div>
         <div class="header-right">
+          <!-- V15 P1-20-16 暗黑模式切换按钮（触屏尺寸 ≥ 44px，WCAG 2.5.5） -->
+          <el-button
+            class="theme-toggle-btn"
+            size="large"
+            text
+            :aria-label="isDark ? t('layout.main.lightMode') : t('layout.main.darkMode')"
+            :title="isDark ? t('layout.main.lightMode') : t('layout.main.darkMode')"
+            @click="toggleTheme"
+          >
+            <el-icon :size="18">
+              <Sunny v-if="isDark" />
+              <Moon v-else />
+            </el-icon>
+          </el-button>
           <el-dropdown :aria-label="t('layout.main.userMenuAriaLabel')">
             <span class="user-info" role="button" tabindex="0">
               {{ userStore.userInfo?.username || t('layout.user.defaultName') }}
@@ -667,6 +681,8 @@ import {
   List,
   MagicStick,
   Expand,
+  Sunny,
+  Moon,
 } from '@element-plus/icons-vue';
 import { useUserStore } from '@/store/user';
 import ErrorBoundary from '@/components/ErrorBoundary.vue';
@@ -675,6 +691,10 @@ import ErrorBoundary from '@/components/ErrorBoundary.vue';
 import { hasRoutePermission } from '@/router';
 // V15 P1-20-2 响应式断点 composable（md 以下视为移动端，侧边栏抽屉化）
 import { useBreakpoint } from '@/composables/useBreakpoint';
+// V15 P1-20-16 暗黑模式切换 composable（持久化用户偏好到 localStorage）
+import { useTheme } from '@/composables/useTheme';
+// V15 P1-20-8 键盘导航焦点管理（Tab/Shift+Tab/Esc 焦点陷阱 + 路由切换后重置焦点）
+import { useKeyboardNavigation } from '@/composables/useKeyboardNavigation';
 
 const { t } = useI18n({ useScope: 'global' });
 const route = useRoute();
@@ -683,6 +703,10 @@ const userStore = useUserStore();
 
 // V15 P1-20-2 响应式断点：md 以下（< 992px）视为移动端，侧边栏改用 el-drawer 抽屉化
 const { isMobile } = useBreakpoint();
+// V15 P1-20-16 暗黑模式：isDark 派生当前主题，toggleTheme 切换亮/暗
+const { isDark, toggleTheme } = useTheme();
+// V15 P1-20-8 键盘导航：路由切换后重置焦点到主内容区，模态框内 Tab 焦点陷阱
+useKeyboardNavigation();
 // 移动端抽屉可见性状态
 const drawerVisible = ref(false);
 
@@ -1025,5 +1049,15 @@ async function handleLogout() {
     min-height: 44px;
     min-width: 44px;
   }
+}
+
+/* V15 P1-20-16 暗黑模式切换按钮：触屏目标尺寸 ≥ 44x44px */
+.theme-toggle-btn {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 </style>

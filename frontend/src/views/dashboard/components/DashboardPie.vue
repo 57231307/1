@@ -15,8 +15,8 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import * as echarts from 'echarts';
-import type { ECharts } from 'echarts';
+import { echarts } from '@/utils/echarts';
+import type { ECharts } from '@/utils/echarts';
 import type { ChartData } from '@/api/dashboard';
 
 const { t } = useI18n({ useScope: 'global' });

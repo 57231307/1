@@ -2,6 +2,8 @@ import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import ElementPlus from 'element-plus';
 import 'element-plus/dist/index.css';
+// V15 P1-20-16 Element Plus 暗黑模式 CSS 变量（配合 html.dark 类切换）
+import 'element-plus/theme-chalk/dark/css-vars.css';
 import zhCn from 'element-plus/es/locale/lang/zh-cn';
 import en from 'element-plus/es/locale/lang/en';
 import App from './App.vue';
@@ -10,6 +12,8 @@ import { i18n, getCurrentLocale } from './i18n';
 import { permission, role } from './directives/permission';
 // V15 P1-20-15 全局 CSS 变量主题（支持亮色/暗黑模式切换）
 import './styles/theme.css';
+// V15 P1-20-10 前端错误监控 SDK（自研轻量方案，监听 error + unhandledrejection + 5min 去重）
+import { initMonitor } from './utils/monitor';
 
 const app = createApp(App);
 
@@ -21,6 +25,9 @@ app.config.errorHandler = (err, _instance, info) => {
 window.addEventListener('unhandledrejection', event => {
   console.error('[未捕获 Promise]', event.reason);
 });
+
+// V15 P1-20-10 初始化前端错误监控（监听 error/unhandledrejection，best-effort 上报后端）
+initMonitor();
 
 app.use(createPinia());
 app.use(router);

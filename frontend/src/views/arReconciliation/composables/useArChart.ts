@@ -5,7 +5,8 @@
  * 行为完全保持一致（仅结构重构）
  */
 import { ref, nextTick } from 'vue';
-import * as echarts from 'echarts';
+import { echarts } from '@/utils/echarts';
+import type { ECharts } from '@/utils/echarts';
 import { ElMessage } from 'element-plus';
 import { i18n } from '@/i18n';
 import {
@@ -24,8 +25,8 @@ export function useArChart() {
   const agingData = ref<AgingAnalysisResult[]>([]);
   const chartRef = ref<HTMLDivElement | null>(null);
   const pieChartRef = ref<HTMLDivElement | null>(null);
-  let barChart: echarts.ECharts | null = null;
-  let pieChart: echarts.ECharts | null = null;
+  let barChart: ECharts | null = null;
+  let pieChart: ECharts | null = null;
 
   /** 默认账龄分桶（无数据时填充，label 为 i18n key） */
   const DEFAULT_BUCKETS = [

@@ -8,32 +8,14 @@
 </template>
 
 <script setup lang="ts">
-import * as echarts from 'echarts/core';
-import { LineChart } from 'echarts/charts';
-import {
-  GridComponent,
-  TooltipComponent,
-  LegendComponent,
-  DataZoomComponent,
-  TitleComponent,
-} from 'echarts/components';
-import { CanvasRenderer } from 'echarts/renderers';
+import { echarts } from '@/utils/echarts';
+import type { ECharts } from '@/utils/echarts';
 import { onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import type { PriceHistoryItem } from '@/api/color-price';
 import { formatPrice } from '@/api/color-price';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n({ useScope: 'global' });
-
-echarts.use([
-  LineChart,
-  GridComponent,
-  TooltipComponent,
-  LegendComponent,
-  DataZoomComponent,
-  TitleComponent,
-  CanvasRenderer,
-]);
 
 const props = defineProps<{
   historyData: PriceHistoryItem[];
@@ -42,7 +24,7 @@ const props = defineProps<{
 }>();
 
 const chartRef = ref<HTMLDivElement>();
-let chartInstance: echarts.ECharts | null = null;
+let chartInstance: ECharts | null = null;
 
 /** ECharts axis tooltip 回调参数（描述实际使用字段） */
 interface AxisTooltipParam {

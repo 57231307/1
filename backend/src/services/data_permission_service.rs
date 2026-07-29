@@ -278,20 +278,47 @@ impl DataPermissionService {
     }
 
     /// V15 P1 10.4-2：检查用户是否可查看成本数据
-    /// 成本数据敏感过滤：仅 admin/finance/warehouse_manager 角色可查看成本字段；其他角色查询时应隐藏 cost_amount / unit_cost / total_cost 等字段
     pub async fn can_view_cost_data(
         &self,
         role_id: Option<i32>,
         role_code: &str,
     ) -> Result<bool, AppError> {
-        // admin 角色可查看成本
         if let Some(rid) = role_id {
             if self.is_admin_role(rid).await? {
                 return Ok(true);
             }
         }
-        // finance / warehouse_manager 角色可查看成本
         Ok(matches!(role_code, "finance" | "warehouse_manager"))
+    }
+
+    /// V15 P1 batch-19 缺陷 23.1.1：获取用户部门树数据范围（含兼职部门及子部门）
+    pub async fn get_user_dept_scope_ids(&self, user_id: i32) -> Result<Vec<i32>, AppError> {
+        use crate::models::user_department::{self, Entity as UserDeptEntity};
+        let user_depts = UserDeptEntity::find()
+            .filter(user_department::Column::UserId.eq(user_id))
+            .all(&*self.db)
+            .await?;
+        let mut dept_ids = Vec::new();
+        for ud in user_depts {
+            let subtree = self.collect_dept_subtree(ud.department_id).await?;
+            dept_ids.extend(subtree);
+        }
+        Ok(dept_ids)
+    }
+
+    /// 递归收集部门子树 ID（含自身）
+    async fn collect_dept_subtree(&self, dept_id: i32) -> Result<Vec<i32>, AppError> {
+        use crate::models::department::{self, Entity as DeptEntity};
+        let mut result = vec![dept_id];
+        let children = DeptEntity::find()
+            .filter(department::Column::ParentId.eq(dept_id))
+            .all(&*self.db)
+            .await?;
+        for child in children {
+            let mut sub = self.collect_dept_subtree(child.id).await?;
+            result.append(&mut sub);
+        }
+        Ok(result)
     }
 }
 
