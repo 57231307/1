@@ -2,7 +2,6 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单），进度必须真实，禁止乐观偏差。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-31（**CI/CD 全面优化第二轮（11 项全部处理）**：[ci-cd.yml](file:///workspace/.github/workflows/ci-cd.yml) 2490→2200 行（-290 行）；P0 移除 cargo-audit `|| true` 违反规则 5 + Codecov 添加 token 修复覆盖率静默丢失；P1 rust-toolchain @master → commit SHA pin（供应链安全）+ paths-ignore 跳过纯文档变更 + ci-deps 移除 job 级 continue-on-error 改 step 级（cargo tree --locked 严格阻塞 lockfile 漂移）；P2 新建 [setup-rust](file:///workspace/.github/actions/setup-rust/action.yml) + [setup-frontend](file:///workspace/.github/actions/setup-frontend/action.yml) composite action 消除 8 个 job 120+ 行重复配置 + perf-bench 共享主 cargo- 缓存 + 单独缓存 criterion 基线；P3 删除冗余 notify job（95 行，仅 echo 无实际通知）+ 清理旧 Release 改用 gh CLI；**CI 重复检测项清理与规则 20 修复（7 项全部修复）**：修复 ci-fmt-rust/fe 注释报告说"不阻塞"但实际阻塞的规则 20 违反；删除 clippy 报告对已删除 clippy-report.html 的引用；clippy 严格模式步骤复用主步骤 TSV 统计 warning 数（等价 -D warnings error 数），省 60-120s 重跑；统一 ci-deps 缓存 key 为 cargo-（上一轮遗漏）；合并 clippy-human-readable.txt 冗余中间文件；ci-info fetch-depth 0→10（仅需 git log -5）；**CI 测试+覆盖率合并优化**：合并 ci-test-rust + ci-coverage-rust 为单一 job，用 `cargo llvm-cov nextest` 一次执行产出测试断言+覆盖率，消除重复执行；工具替换 cargo-tarpaulin（停更 2024-08、仅行覆盖、ptrace 仅 x86_64）→ cargo-llvm-cov（source-based instrumentation、行/区域/分支覆盖、taiki-e 持续维护 0.8.7 2026-05）+ cargo-nextest（每测试独立进程+真正并行）；零容忍断言/PostgreSQL service container/Codecov 上传均保留；17→15 job；**2026-07-30 核实修正乐观偏差**：主线八维 P1 后续 5 项经代码级核实，实际 1 项完成 / 2 项部分修复 / 2 项未修复，非此前暗示的"仅 CI 收尾待推送"；**CI baseline 自动重建机制修订**：main 分支每次 CI 后用当前真实警告完全重建 baseline，解决原机制 57% 抽样过时问题；**Clippy baseline 数据失真核实**：声称 308 条实际 293 条警告 + 15 行注释/空行，dead_code 占 94.9% (278/293)，22 处 `#[allow(dead_code)]` 违反规则 14；**SeaORM 评估数据偏高**：声称 181 处实际 56 处 `active.insert`；**打印功能核实**：V15 类十三 P0/P1 基础设施 85% 完成，业务场景覆盖仅 6/16=37.5%，9 个纺织核心打印场景缺失，缺陷 10-4 审计日志二次审计表 P0 未实现；**PR #786 已合并 main**：V15 主线八维审计 P0/P2 批次；**PR #788 已合并 main**：委外收货主链路统一）
 
 ---
 
@@ -118,7 +117,7 @@
 
 > P0 完成后按优先级顺序推进。详细内容见 V15 审计报告 [docs/audits/v15/](file:///workspace/.monkeycode/docs/audits/v15/)。
 
-### 1.1 P1 高优先级（257 项，预估 45-55 批次，按每批 9-12 文件计算）
+### 1.1 P1 高优先级（257 项 ✅ 100% 完成，实际 25 批已合并 main；历史规划基于 9-12 文件/批，当前规则 13 已升级为 65-99 文件/批，适用于 P2/P3）
 
 | 模块 | P1 数 | 主要内容 | 关键批次预估 |
 |------|-------|----------|--------------|
@@ -144,9 +143,9 @@
 | 类二十三 组织物流 | 11 | 组织树/售后/运费 | 4 批 |
 | 类二十四 前端架构 | 16 | PWA/移动端/chunks/ErrorBoundary/CSP/keep-alive/CSS/暗黑 | 6 批 |
 | 类二十五 部署升级 | 11 | set -euo/SHA256/schema/蓝绿/健康/优雅/回滚 | 4 批 |
-| **合计** | **257** | | **约 45 批**（每批 9-12 文件） |
+| **合计** | **257** | | ✅ **已完成**（实际 25 批合并 main；历史规划基于 9-12 文件/批） |
 
-### 1.2 P2 中优先级（248 项，预估 35-45 批次）
+### 1.2 P2 中优先级（248 项，预估 5-8 批次，按每批 65-99 文件计算）
 
 | 类别 | P2 数 | 主要内容 |
 |------|-------|----------|
