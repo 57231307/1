@@ -15,7 +15,7 @@
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DatabaseTransaction, EntityTrait,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    PaginatorTrait, QueryFilter, QueryOrder, Set, TransactionTrait,
 };
 
 use crate::models::outsourcing_order::{
