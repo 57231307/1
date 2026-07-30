@@ -26,8 +26,7 @@
 // 其余 DTO（AgingBucket/AgingReport/AutoMatchResult/CustomerAgingSummary/GenerateReconciliationRequest）
 // 已由 ar/mod.rs 定义并通过 services/mod.rs re-export，无需在此重复 re-export。
 pub use super::{
-    ArReconciliationService, CreateReconciliationRequest, ReconciliationDetail,
-    ReconciliationQuery, ReconciliationWithDetails, UpdateReconciliationRequest,
+    ArReconciliationService, CreateReconciliationRequest, UpdateReconciliationRequest,
 };
 
 #[cfg(test)]
