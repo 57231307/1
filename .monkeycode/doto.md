@@ -37,6 +37,12 @@
 | P2-05 导出审批 list_pending_for_me | service.rs + system.rs + handler.rs | 新增 list_pending_for_user(user_id,is_admin,q) 服务 + GET 路由 |
 | P2-06 业务追溯约束 | migrations/20260801000001_business_trace_constraints + business_trace_service.rs | uniq_business_trace_chain_head/tail partial unique + snapshot trace_chain_id unique + assist_links 联合 unique + 3 个 CHECK + 3 个逻辑外键触发器；upsert_chain_node/link_assist/upsert_snapshot producer |
 
+### 0.0.3 P1-委外收货主链路后续
+
+| 状态 | 剩余项 | 文件 | 说明 |
+|------|--------|------|------|
+| ⏳ 待继续 | Task6-7 事务回滚测试与 PR/CI | `backend/tests/outsourcing_receipt_transaction.rs` + CI | `fix/p1-outsource-receipt-unify-2026-07-30` 已完成 Task3-5：`confirm` 整段事务化、质检事务兼容、删除 `record_receipt` 与 4 个子方法；剩余集成测试补齐和 CI 全绿验证 |
+
 ---
 
 ## 〇、P1 级任务进度总览（2026-07-27 启动）
