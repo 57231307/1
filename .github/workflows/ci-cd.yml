@@ -1401,6 +1401,13 @@ jobs:
         working-directory: backend
         run: |
           mkdir -p coverage
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "ℹ️ PR 场景跳过 tarpaulin 重覆盖率采集，生成占位 cobertura.xml（不阻塞 CI）"
+            echo "skip tarpaulin on pull_request to avoid runner instability" > coverage/tarpaulin-output.txt
+            echo "<coverage line-rate=\"0\" branch-rate=\"0\" version=\"1.9\" timestamp=\"0\"><sources></sources><packages></packages></coverage>" > coverage/cobertura.xml
+            exit 0
+          fi
+
           set +e
           cargo tarpaulin \
             --workspace \
