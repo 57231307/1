@@ -15,7 +15,7 @@
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DatabaseTransaction, EntityTrait,
-    PaginatorTrait, QueryFilter, QueryOrder, Set, TransactionTrait,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 
 use crate::models::outsourcing_order::{
@@ -249,7 +249,7 @@ impl OutsourcingReceiptService {
     pub async fn confirm(&self, id: i32) -> Result<ReceiptModel, AppError> {
         let txn = (*self.db).begin().await?;
 
-        let receipt_model = ReceiptEntity::find_by_id(id)
+        let receipt_model: ReceiptModel = ReceiptEntity::find_by_id(id)
             .filter(outsourcing_receipt::Column::IsDeleted.eq(false))
             .lock_exclusive()
             .one(&txn)
@@ -262,7 +262,7 @@ impl OutsourcingReceiptService {
             )));
         }
 
-        let order = OrderEntity::find_by_id(receipt_model.outsourcing_order_id)
+        let order: OrderModel = OrderEntity::find_by_id(receipt_model.outsourcing_order_id)
             .filter(outsourcing_order::Column::IsDeleted.eq(false))
             .lock_exclusive()
             .one(&txn)
@@ -288,7 +288,7 @@ impl OutsourcingReceiptService {
         receipt_active.unit_cost = Set(calc.unit_cost);
         receipt_active.status = Set(outsourcing_receipt_status::CONFIRMED.to_string());
         receipt_active.updated_at = Set(now);
-        let updated_receipt = receipt_active
+        let updated_receipt: ReceiptModel = receipt_active
             .update(&txn)
             .await
             .map_err(|e| AppError::database(format!("委外收回单确认失败: {}", e)))?;
@@ -366,7 +366,7 @@ impl OutsourcingReceiptService {
         order_active.voucher_no_receipt = Set(Some(receipt_voucher_no));
         order_active.status = Set(outsourcing_order_status::RECEIVED.to_string());
         order_active.updated_at = Set(now);
-        let updated_order = order_active
+        let updated_order: OrderModel = order_active
             .update(&txn)
             .await
             .map_err(|e| AppError::database(format!("委外订单收回状态更新失败: {}", e)))?;
