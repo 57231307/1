@@ -6,6 +6,15 @@
 
 ---
 
+## 文档治理与项目状态对齐（2026-07-30 续）
+
+| 项 | 一句话总结 |
+|----|-----------|
+| CI baseline 自动重建机制修订 | **[ci-cd.yml](file:///workspace/.github/workflows/ci-cd.yml) main 分支每次 CI 后自动重建 baseline**：原机制仅在 FIXED_COUNT > 0 时刷新，导致 baseline 57% 抽样过时（ALIPAY/BudgetMode/CustomerNotFound 等已实际使用但 baseline 仍标记为 dead_code）；新机制：main 分支每次 CI 后只要 clippy 正常退出（CLIPPY_MAIN_EXIT=0），无论 FIXED_COUNT 是否 > 0 都用当前真实警告完全重建 baseline，确保 baseline 永远反映 main 最新真实状态；保留 Batch 488 D08-1 教训（clippy 编译失败时不重建避免用不完整 current 替换）；PR 分支保留 NEW_COUNT > 0 阻塞机制；增加 `git diff --cached --quiet` 检查避免空提交 |
+| doto.md 乐观偏差修正 | **[doto.md](file:///workspace/.monkeycode/doto.md) 消除乐观偏差，进度对齐代码级核实真实状态**：① 文件头声明"进度必须真实，禁止乐观偏差"；② 0.0.1 P0 完成明细新增"真实状态核实"列，盘点契约 P0-1 从"✅ 对齐"修正为"⚠️ 部分修复"（实际仅触及 1/96 api 文件，inventory-count.ts 仍缺 record/submit/reject 3 端点，completeInventoryCount 未移除）；③ 0.0.3 修正为"✅ 已完成 PR #788 已合并"；④ 新增 0.0.4 主线八维 P1 后续 5 项真实状态：1 项完成（委外事务化）/ 2 项部分修复（业务追溯 producer 全部 #[allow(dead_code)] 无上游调用 + 前端契约仅 1/96 文件且不完整）/ 2 项未修复（API 网关 rate_limit 范围校验 + 覆盖率阈值仍为 1%）；⑤ 新增 0.0.5 打印功能核实（6/16=37.5% 场景覆盖，9 个纺织核心场景缺失，缺陷 10-4 审计日志二次审计表 P0 未实现）；⑥ 规则 14 修正：从"baseline 213/213 ✅ 全部清零"改为真实状态"历史清零 + P1 新增 174 dead_code + 22 处 #[allow(dead_code)] 违规"；⑦ 规则 15 补充主线八维 P1 后续 1/5 真实进度 |
+
+---
+
 ## 文档治理与项目状态对齐（2026-07-30）
 
 | 项 | 一句话总结 |

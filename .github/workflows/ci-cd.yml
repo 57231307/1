@@ -954,7 +954,7 @@ jobs:
           # 信息性检查，永远 exit 0（不阻塞 CI）
           exit 0
 
-      - name: 提交 baseline 文件（首次运行时）+ 自动刷新 baseline（main 分支）
+      - name: 提交 baseline 文件（首次运行时）+ 自动重建 baseline（main 分支每次 CI 后）
         if: always()
         run: |
           if [ -f "backend/.clippy-baseline.txt" ] || [ -f ".clippy-baseline.txt" ]; then
@@ -970,24 +970,33 @@ jobs:
             echo "CLIPPY_MAIN_EXIT_VAL=$CLIPPY_MAIN_EXIT_VAL"
             if git ls-files --error-unmatch "$BASELINE_PATH" 2>/dev/null; then
               echo "✅ baseline 文件已纳入版本控制"
-              # main 分支自动刷新 baseline（已修复警告 > 0 且无新警告且 clippy 正常退出时）
-              # Batch 488 D08-1 教训：clippy 编译失败（退出码 101）时 reports/clippy-current.txt
-              # 可能不完整（缺少部分 warning 摘要行），导致 FIXED_COUNT > 0 误触发自动刷新，
-              # 把 baseline 缩小到不完整的 current，下次 CI 又报新增警告。三次复发。
-              # 修复：增加 CLIPPY_MAIN_EXIT = 0 条件，clippy 必须正常退出才能刷新 baseline。
-              if [ "${{ github.ref }}" = "refs/heads/main" ] && [ "$CLIPPY_BASELINE_MODE" = "strict" ] && [ "$CLIPPY_FIXED_COUNT" -gt "0" ] && [ "$CLIPPY_NEW_COUNT" = "0" ] && [ "$CLIPPY_MAIN_EXIT_VAL" = "0" ]; then
-                echo "📝 自动刷新 baseline：移除 $CLIPPY_FIXED_COUNT 条已修复警告（$CLIPPY_BASELINE_COUNT → $CLIPPY_CURRENT_COUNT）"
+              # main 分支自动重建 baseline（每次 CI 后用当前真实警告完全替换 baseline）
+              # 2026-07-30 修订：原机制仅在 FIXED_COUNT > 0 时刷新，导致 baseline 57% 抽样过时
+              # （如 ALIPAY/BudgetMode/CustomerNotFound 等已实际使用但 baseline 仍标记为 dead_code）。
+              # 新机制：main 分支每次 CI 后，只要 clippy 正常退出（CLIPPY_MAIN_EXIT=0），
+              # 无论 FIXED_COUNT 是否 > 0，都用当前真实警告完全重建 baseline。
+              # 这样 baseline 永远反映 main 最新真实状态，过时项在下次 main CI 时自动清除。
+              # PR 分支保留 NEW_COUNT > 0 阻塞机制（在主 clippy step 中处理）。
+              # Batch 488 D08-1 教训保留：clippy 编译失败（退出码 101）时不重建 baseline，
+              # 避免用不完整的 current 替换 baseline 导致下次 CI 误报新警告。
+              if [ "${{ github.ref }}" = "refs/heads/main" ] && [ "$CLIPPY_BASELINE_MODE" = "strict" ] && [ "$CLIPPY_MAIN_EXIT_VAL" = "0" ]; then
+                echo "📝 自动重建 baseline：用当前真实警告完全替换（$CLIPPY_BASELINE_COUNT → $CLIPPY_CURRENT_COUNT，已修复 $CLIPPY_FIXED_COUNT 条，新增 $CLIPPY_NEW_COUNT 条）"
                 cd backend
                 cp reports/clippy-current.txt .clippy-baseline.txt
                 cd ..
                 git config user.name "github-actions[bot]"
                 git config user.email "github-actions[bot]@users.noreply.github.com"
                 git add "$BASELINE_PATH"
-                git commit -m "chore(ci): 自动刷新 clippy baseline（移除 $CLIPPY_FIXED_COUNT 条已修复警告，$CLIPPY_BASELINE_COUNT → $CLIPPY_CURRENT_COUNT）" || echo "提交失败，跳过"
-                git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-                git push origin HEAD:${{ github.ref_name }} || echo "推送失败，可能有冲突"
+                # 仅当 baseline 文件有变化时才提交，避免空提交
+                if git diff --cached --quiet "$BASELINE_PATH"; then
+                  echo "ℹ️ baseline 无变化，跳过提交"
+                else
+                  git commit -m "chore(ci): 自动重建 clippy baseline（main CI 后真实状态同步：$CLIPPY_BASELINE_COUNT → $CLIPPY_CURRENT_COUNT，已修复 $CLIPPY_FIXED_COUNT 条）" || echo "提交失败，跳过"
+                  git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+                  git push origin HEAD:${{ github.ref_name }} || echo "推送失败，可能有冲突"
+                fi
               else
-                echo "ℹ️ 不满足自动刷新条件（非 main 分支/非 strict 模式/无已修复警告/有新警告），跳过"
+                echo "ℹ️ 不满足自动重建条件（非 main 分支/非 strict 模式/clippy 异常退出），跳过"
               fi
             else
               echo "📝 提交 baseline 文件: $BASELINE_PATH"
