@@ -97,6 +97,19 @@ pub struct UpdateApiKeyGwRequest {
 
 // ============== 辅助函数 ==============
 
+/// 校验 rate_limit 范围（0-10000 次/分钟），负值或超限返回 400
+fn validate_rate_limit(v: Option<i32>) -> Result<Option<i32>, AppError> {
+    if let Some(rl) = v {
+        if !(0..=10000).contains(&rl) {
+            return Err(AppError::validation(format!(
+                "rate_limit 必须在 0-10000 之间，当前: {}",
+                rl
+            )));
+        }
+    }
+    Ok(v)
+}
+
 fn page_offset(query: &ApiGwQuery) -> (u64, u64) {
     let page = query.page.unwrap_or(1).clamp(1, 1000);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 200);
@@ -250,6 +263,7 @@ pub async fn create_api_endpoint(
     _auth: AuthContext,
     Json(req): Json<UpsertApiEndpointRequest>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
+    let rate_limit = validate_rate_limit(req.rate_limit)?;
     let path = req
         .path
         .ok_or_else(|| AppError::validation("path 为必填项"))?;
@@ -280,7 +294,7 @@ pub async fn create_api_endpoint(
             req.status
                 .unwrap_or_else(|| master_data::ACTIVE.to_string()),
         ),
-        rate_limit: sea_orm::Set(req.rate_limit.unwrap_or(0)),
+        rate_limit: sea_orm::Set(rate_limit.unwrap_or(0)),
         timeout: sea_orm::Set(req.timeout.unwrap_or(30000)),
         authentication: sea_orm::Set(req.authentication.unwrap_or(true)),
         authorization: sea_orm::Set(req.authorization),
@@ -318,6 +332,7 @@ pub async fn update_api_endpoint(
     Path(id): Path<i32>,
     Json(req): Json<UpsertApiEndpointRequest>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
+    let rate_limit = validate_rate_limit(req.rate_limit)?;
     let m = api_endpoint::Entity::find_by_id(id)
         .one(&*state.db)
         .await?
@@ -339,7 +354,7 @@ pub async fn update_api_endpoint(
     if let Some(status) = req.status {
         active.status = sea_orm::Set(status);
     }
-    if let Some(rate_limit) = req.rate_limit {
+    if let Some(rate_limit) = rate_limit {
         active.rate_limit = sea_orm::Set(rate_limit);
     }
     if let Some(timeout) = req.timeout {
@@ -554,6 +569,7 @@ pub async fn create_api_key(
     auth: AuthContext,
     Json(req): Json<CreateApiKeyGwRequest>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
+    let rate_limit = validate_rate_limit(req.rate_limit)?;
     let service = ApiKeyService::new(state.db.clone());
     // 批次 407 修复：权限序列化失败时不能静默写入空字符串，否则 DB 中该 key 的权限将丢失（安全风险），改为返回错误
     let permissions = req
@@ -562,7 +578,7 @@ pub async fn create_api_key(
         .map(serde_json::to_string)
         .transpose()
         .map_err(AppError::from)?;
-    let rate_limit = req.rate_limit.unwrap_or(100);
+    let rate_limit = rate_limit.unwrap_or(100);
 
     // expires_at 字符串 → expires_days 数值
     let expires_days = req.expires_at.as_ref().and_then(|s| {
@@ -623,6 +639,7 @@ pub async fn update_api_key(
     Path(id): Path<i32>,
     Json(req): Json<UpdateApiKeyGwRequest>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
+    let rate_limit = validate_rate_limit(req.rate_limit)?;
     // V15 主线审计 High 修复：变更前先校验对象级授权。
     let existing = crate::models::api_key::Entity::find_by_id(id)
         .one(&*state.db)
@@ -654,7 +671,7 @@ pub async fn update_api_key(
             id,
             name: req.key_name,
             permissions,
-            rate_limit_per_minute: req.rate_limit,
+            rate_limit_per_minute: rate_limit,
             expires_at,
             is_active,
             description: req.description,

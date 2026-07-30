@@ -57,8 +57,16 @@ export const deleteInventoryCount = (id: number) => request.delete(`/inventory/c
 export const approveInventoryCount = (id: number) =>
   request.post(`/inventory/counts/${id}/approve`);
 
-export const completeInventoryCount = (id: number) =>
-  request.post(`/inventory/counts/${id}/complete`);
+/// 提交盘点明细（POST /counts/:id/record），对齐后端 record_count_items 端点
+export const recordCountItems = (id: number, items: Partial<CountItem>[]) =>
+  request.post(`/inventory/counts/${id}/record`, { items });
+
+/// 提交盘点单审批（POST /counts/:id/submit），对齐后端 submit_for_approval 端点
+export const submitInventoryCount = (id: number) => request.post(`/inventory/counts/${id}/submit`);
+
+/// 驳回盘点单（POST /counts/:id/reject），对齐后端 reject_count 端点
+export const rejectInventoryCount = (id: number, reason: string) =>
+  request.post(`/inventory/counts/${id}/reject`, { reason });
 
 export const getCountItems = (id: number) => request.get(`/inventory/counts/${id}`);
 

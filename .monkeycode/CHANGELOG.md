@@ -2,7 +2,86 @@
 
 > 每个任务一行摘要，是 doto-su.md 中详细任务内容的一句话总结。禁止写入详细内容。
 > 详细任务内容见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，未完成任务见 [doto.md](file:///workspace/.monkeycode/doto.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-30（**PR #785 创建：P1 预留服务路由接入消除 174 个 dead_code 警告**：为 14 个 P1 预留服务（AI 模型管理/合同签名/客户团队共享/环保税/出口退税/Incoterms/劳动合同/物流跟踪/职业健康/权限委托/污染监控/污染许可/角色关系/社保公积金）创建 handler 和 route 文件并注册路由，37 文件 +2093 -11 行；**Clippy baseline 更新（174 个 dead_code 警告纳入 baseline）**：P1 批次新增 15 个业务服务模块服务层和 DTO 已实现但尚未接入 HTTP 路由层，产生 174 个 dead_code 警告；之前 171 个基线警告已全部修复（P0/P1 代码质量提升成果）；更新 .clippy-baseline.txt 纳入 174 个已知技术债务，NEW_COUNT=0 验证通过，待后续批次接入路由后自动消除；**PR #783 已合并 main**：Clippy runner shutdown (exit 143) 修复 + Release 变更说明模板；**PR #777 已合并 main**：彻底移除 Docker/K8s 引用，11 文件 -130 行，对齐 systemd 直部署；**PR #776 已合并 main**：CHANGELOG/doto 文档同步 PR #775 合并记录；**PR #772 关闭重复 PR**（内容已通过 PR #771 合并）；**SeaORM 2.0 升级评估暂缓**：2.0.0 稳定版 2026-07-19 发布，破坏性变更已评估（ExprTrait/IntoCondition/Iden 签名/ActiveModel insert-update 风格），项目 181 处 active.insert(db) 需调整，暂不升级继续处理遗留问题；**PR #775 已合并 main**：P1-batch11 缺陷 2-3 遗留修复，P1 总完成率 257/257 = 100%；**PR #771 已合并 main**：P1-batch02+03 + P1-batch19 + P1-24 + P1-Batch16 剩余 P1 全部合并；**P0 全部完成 + P1 已合并 25 批到 main**）
+> 最近整理：2026-07-31（**doto.md 治理修正**：用户明确指令"doto.md 应只记录未完成任务，按规则归档完成明细，规则节点提醒合并修正"，[doto.md](file:///workspace/.monkeycode/doto.md) ① §0.0.1 P0 完成明细（10 项 ✅）+ §0.0.2 P2 完成明细（3 项 ✅）+ §0.0.3 P1 委外收货主链路（1 项 ✅）按规则 10 归档到 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)（已存在完整归档）；② §0.0.4 P1 后续 5 项合并为 §0.0.1，删除已完成项（委外 record_receipt）保留 4 项未完成/部分修复；③ §0.0.5 打印功能核实改为 §0.0.2 未完成项，6 个已实现场景移至 doto-su.md；④ 文件 205→171 行（-34 行）；⑤ §二 规则节点提醒合并修正：规则 0/1/2/8 补全"stub/扩展空间"、规则 3 补全"禁止 CSV/txt/rtf/html"、规则 5/19 补"不阻塞主 CI/非阻塞推理"、规则 10 补"doto.md 只记录未完成任务"、规则 11/12 补法规名（个保法/数安法/网安法）、规则 13 加入"每批 65-99 文件"、规则 14 任务进度剥离到 §0.0.1 #2 指针、规则 15 任务进度剥离到 audit_assignment.md 指针）；**doto.md 治理修正第一轮**：用户明确指令"doto.md 应只记录未完成任务，不需记录最近整理内容，基于最新规则修正"，[doto.md](file:///workspace/.monkeycode/doto.md) 删除文件头"最近整理"长块（仅属 CHANGELOG 职责，违反"只记录未完成任务"原则）+ §1.1 P1 标记 100% 完成（实际 25 批合并 main，历史规划基于 9-12 文件/批）+ §1.2 P2 批次预估 35-45 → 5-8 批（按最新规则 13 每批 65-99 文件重算）；**规则 13 批次文件数升级**：用户明确指令"修改规则13里面的文件数量从13个改为65~99"，[MEMORY-SU.md](file:///workspace/.monkeycode/MEMORY-SU.md) 规则 13 批次文件数 10-15 → 65-99（第 12 次迭代），同步更新 §6.1 批次大小偏好 + [audit_assignment.md](file:///workspace/.monkeycode/audit_assignment.md) §2.2 流程引用"每批 5-8 文件"→"每批 65-99 文件"；MEMORY.md 规则 13 索引无文件数量无需改）；2026-07-30（**PR #785 创建：P1 预留服务路由接入消除 174 个 dead_code 警告**：为 14 个 P1 预留服务（AI 模型管理/合同签名/客户团队共享/环保税/出口退税/Incoterms/劳动合同/物流跟踪/职业健康/权限委托/污染监控/污染许可/角色关系/社保公积金）创建 handler 和 route 文件并注册路由，37 文件 +2093 -11 行；**Clippy baseline 更新（174 个 dead_code 警告纳入 baseline）**：P1 批次新增 15 个业务服务模块服务层和 DTO 已实现但尚未接入 HTTP 路由层，产生 174 个 dead_code 警告；之前 171 个基线警告已全部修复（P0/P1 代码质量提升成果）；更新 .clippy-baseline.txt 纳入 174 个已知技术债务，NEW_COUNT=0 验证通过，待后续批次接入路由后自动消除；**PR #783 已合并 main**：Clippy runner shutdown (exit 143) 修复 + Release 变更说明模板；**PR #777 已合并 main**：彻底移除 Docker/K8s 引用，11 文件 -130 行，对齐 systemd 直部署；**PR #776 已合并 main**：CHANGELOG/doto 文档同步 PR #775 合并记录；**PR #772 关闭重复 PR**（内容已通过 PR #771 合并）；**SeaORM 2.0 升级评估暂缓**：2.0.0 稳定版 2026-07-19 发布，破坏性变更已评估（ExprTrait/IntoCondition/Iden 签名/ActiveModel insert-update 风格），项目 181 处 active.insert(db) 需调整，暂不升级继续处理遗留问题；**PR #775 已合并 main**：P1-batch11 缺陷 2-3 遗留修复，P1 总完成率 257/257 = 100%；**PR #771 已合并 main**：P1-batch02+03 + P1-batch19 + P1-24 + P1-Batch16 剩余 P1 全部合并；**P0 全部完成 + P1 已合并 25 批到 main**）
+
+---
+
+## CI/CD 全面优化第二轮（2026-07-31，11 项全部处理）
+
+| 优先级 | 项 | 一句话总结 |
+|--------|-----|-----------|
+| 🔴 P0 | cargo-audit 安装 `\|\| true` 违反规则 5 | **[ci-cd.yml](file:///workspace/.github/workflows/ci-cd.yml)** 移除 `\|\| true`，安装失败阻塞 CI（与"移除 continue-on-error"注释一致） |
+| 🔴 P0 | Codecov 上传缺 token | 两处 codecov-action 添加 `token: ${{ secrets.CODECOV_TOKEN }}`，修复覆盖率数据静默上传失败 |
+| 🟡 P1 | rust-toolchain @master 供应链风险 | 6 处 `@master` → `@efa25f7f19611383d5b0ccf2d1c8914531636bf9`（commit SHA pin），顶部 env 添加注释 |
+| 🟡 P1 | 缺 paths-ignore | push/pull_request 添加 `paths-ignore: ['**.md', '.monkeycode/**', 'docs/**', 'LICENSE', '.gitignore']`，纯文档变更不触发 CI |
+| 🟡 P1 | ci-deps job 级 continue-on-error TODO | 移除 job 级，cargo tree --locked 改为严格（lockfile 漂移阻塞 CI），npm ls 加 step 级 continue-on-error |
+| 🟢 P2 | Rust/FE setup 重复 120+ 行 | 新建 [setup-rust](file:///workspace/.github/actions/setup-rust/action.yml) + [setup-frontend](file:///workspace/.github/actions/setup-frontend/action.yml) composite action，8 个 job 引用，消除重复 |
+| 🟢 P2 | npm ci 重复 7 次 | composite action 统一（保留 3 个前端 job 并行执行，评估后不合并以保持 CI 并行度） |
+| 🟢 P2 | apt-get 重复 3 次 | composite action 的 system-deps 参数化（ci-test-rust 额外加 postgresql-client） |
+| 🟢 P2 | perf-bench 独立缓存不命中主缓存 | `perf-cargo-`/`perf-rustup-` → 主 `cargo-`/`rustup-` 缓存 + 单独缓存 `target/criterion/` 基线数据 |
+| 🔵 P3 | notify job 冗余（仅 echo 无通知） | 删除（95 行），16→15 job；GitHub Actions UI 已提供 job 状态，package-release needs 已隐含严格检查 |
+| 🔵 P3 | 清理旧 Release 用 curl+jq | 改用 `gh release delete --cleanup-tag`，更简洁且自带分页/错误处理 |
+| — | 文件体积 | 2490 → 2200 行（-290 行），YAML 校验通过（15 jobs），2 个 composite action 校验通过 |
+
+---
+
+## CI 重复检测项清理与规则 20 修复（2026-07-31，7 项全部修复）
+
+| 优先级 | 项 | 一句话总结 |
+|--------|-----|-----------|
+| 🔴 高 | ci-fmt-rust 注释/报告与代码矛盾 | **[ci-cd.yml L186-229](file:///workspace/.github/workflows/ci-cd.yml#L186-L229)** 删除"渐进式严格化（不阻塞 CI）"/"为什么不阻塞"等矛盾文本，改为"严格阻塞（V15 批次 07 P1-4）"，与实际 `exit $EXIT_CODE` 一致（规则 20 违反） |
+| 🔴 高 | ci-fmt-fe 注释/报告与代码矛盾 | **[ci-cd.yml L287-323](file:///workspace/.github/workflows/ci-cd.yml#L287-L323)** 同上，改为"严格阻塞（V15 批次 07 P1-5）"（规则 20 违反） |
+| 🔴 高 | clippy 报告引用已删除的 clippy-report.html | **[ci-cd.yml L648](file:///workspace/.github/workflows/ci-cd.yml#L648)** 删除 artifact 表中 `clippy-report.html` 行（上一轮已删 HTML 生成代码，报告引用未同步） |
+| 🟡 中 | clippy 严格模式步骤重复运行 clippy | **[ci-cd.yml L772-845](file:///workspace/.github/workflows/ci-cd.yml#L772-L845)** 原步骤重跑 `cargo clippy -- -D warnings`（约 60-120s）仅为统计 error 数，现复用主步骤已生成的 `clippy-structured.tsv`：-D warnings 把 warning 升为 error，故严格模式 error 数 = TSV 中 level=warning 行数，awk 统计即可，省 60-120s |
+| 🟡 中 | ci-deps 缓存 key 未统一 | **[ci-cd.yml L1549](file:///workspace/.github/workflows/ci-cd.yml#L1549)** `deps-cargo-` → `cargo-`（上一轮缓存统一遗漏，ci-deps 只读 target 不修改，共享安全） |
+| 🟢 低 | clippy-human-readable.txt 冗余 | **[ci-cd.yml L447-476](file:///workspace/.github/workflows/ci-cd.yml#L447-L476)** 合并中间文件 `clippy-human-readable.txt` 与带 header 的 `-full.txt`，用 mktemp 临时文件替代，artifact 只保留 `clippy-human-readable-full.txt` |
+| 🟢 低 | ci-info fetch-depth: 0 过重 | **[ci-cd.yml L73-74](file:///workspace/.github/workflows/ci-cd.yml#L73-L74)** `0`（完整 git 历史）→ `10`（仅需 `git log --oneline -5`）；ci-lint-rust/build-rust/package-release/github-release 保留 `fetch-depth: 0`（需 push baseline/tag/完整 changelog） |
+| — | 文件体积 | 2484 → 2480 行，YAML 语法校验通过（16 jobs），无残留 `渐进式严格化（不阻塞 CI）`/`为什么不阻塞`/`deps-cargo-`/`clippy-report.html` 引用 |
+
+---
+
+## CI 测试+覆盖率合并优化（2026-07-31，方案 A 落地）
+
+| 项 | 一句话总结 |
+|----|-----------|
+| 合并 ci-test-rust + ci-coverage-rust | **[ci-cd.yml](file:///workspace/.github/workflows/ci-cd.yml) 合并两个 Rust job 为单一 `ci-test-rust`**：消除重复执行（原 `cargo test` + `cargo tarpaulin` 各跑一遍全部测试二进制），用 `cargo llvm-cov nextest` 一次执行同时产出测试断言（退出码）+ 覆盖率（cobertura.xml） |
+| 工具替换 | **cargo-tarpaulin → cargo-llvm-cov + cargo-nextest**：tarpaulin 仅行覆盖、ptrace 仅 x86_64、0.31.2 停更（2024-08）；llvm-cov source-based instrumentation（行/区域/分支覆盖）、taiki-e 持续维护（0.8.7 2026-05）、`taiki-e/install-action` 预编译二进制安装比 `cargo install` 快约 10x；nextest 每测试独立进程 + 真正并行 |
+| 零容忍断言保留 | nextest 任何测试失败即非零退出码，CI 阻塞逻辑不变；保留 `--test-threads=1` 与历史串行行为一致（避免集成测试竞态） |
+| PostgreSQL service container 保留 | 集成测试 DB 依赖不变（job 级 services 配置与测试运行器无关） |
+| Codecov 上传保留 | `--cobertura` 输出兼容现有 `codecov/codecov-action@v4`，artifact 名 `rust-coverage-report` 不变 |
+| 工作流拓扑 | 17 → 16 job，下游 `needs.ci-test-rust.result` 引用无需改动（job 名保留） |
+| 文件体积 | 2540 → 2484 行（-56 行），YAML 语法校验通过 |
+| 行业依据 | [nextest 官方文档](https://nexte.st/docs/integrations/test-coverage/) 推荐 `cargo llvm-cov nextest` 标准模式；[rustfaq.org](https://www.rustfaq.org/en/how-to-use-cargo-tarpaulin-for-code-coverage/) 明确"Running both is redundant and slows down your workflow" |
+
+---
+
+## CI 配置梳理优化（2026-07-31，保守方案）
+
+| 项 | 一句话总结 |
+|----|-----------|
+| 缓存 key 统一共享 | **[ci-cd.yml](file:///workspace/.github/workflows/ci-cd.yml) 统一 13 处缓存 key 共享缓存**：rustup（4 处 fmt/lint/test/build → `rustup-${{ env.RUST_VERSION }}`）+ cargo（4 处 lint/test/coverage/build → `cargo-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}`）+ npm（5 处 fmt/lint/type-check/test/build → `fe-npm-${{ hashFiles('frontend/package-lock.json') }}`）；原各 job 独立缓存 key 导致每个 job 重新编译/安装依赖，统一后首个完成 job 写入缓存供后续 job restore，大幅减少重复编译与 npm ci 耗时 |
+| 删除 clippy HTML 报告生成 | **ci-lint-rust 删除约 80 行 HTML 可视化报告生成代码**：原 `clippy-report.html`（~80 行 echo HTML/CSS/表格）与 `clippy-report.md`/`clippy-structured.tsv` 信息重复，artifact 上传 `reports/` 目录不受影响（其他报告文件仍上传） |
+| 精简冗长历史注释 | **ci-lint-rust 精简 V15 Batch 485/488 冗长注释**：step name 从"V15 Batch 485 baseline 机制 + 精简日志"简化为"baseline 机制"；阶段 1/3 注释块从 9 行压缩为 4 行，保留关键教训（exit 143=SIGTERM、--all-features 1773 误报、RUSTC_LOG 55min 超时、D08-1 编译失败保护） |
+| 文件体积 | 2633 → 2540 行（-93 行，28 insertions / 121 deletions），YAML 语法校验通过，17 个 job 结构不变 |
+
+---
+
+## 文档治理与项目状态对齐（2026-07-30 续）
+
+| 项 | 一句话总结 |
+|----|-----------|
+| CI baseline 自动重建机制修订 | **[ci-cd.yml](file:///workspace/.github/workflows/ci-cd.yml) main 分支每次 CI 后自动重建 baseline**：原机制仅在 FIXED_COUNT > 0 时刷新，导致 baseline 57% 抽样过时（ALIPAY/BudgetMode/CustomerNotFound 等已实际使用但 baseline 仍标记为 dead_code）；新机制：main 分支每次 CI 后只要 clippy 正常退出（CLIPPY_MAIN_EXIT=0），无论 FIXED_COUNT 是否 > 0 都用当前真实警告完全重建 baseline，确保 baseline 永远反映 main 最新真实状态；保留 Batch 488 D08-1 教训（clippy 编译失败时不重建避免用不完整 current 替换）；PR 分支保留 NEW_COUNT > 0 阻塞机制；增加 `git diff --cached --quiet` 检查避免空提交 |
+| doto.md 乐观偏差修正 | **[doto.md](file:///workspace/.monkeycode/doto.md) 消除乐观偏差，进度对齐代码级核实真实状态**：① 文件头声明"进度必须真实，禁止乐观偏差"；② 0.0.1 P0 完成明细新增"真实状态核实"列，盘点契约 P0-1 从"✅ 对齐"修正为"⚠️ 部分修复"（实际仅触及 1/96 api 文件，inventory-count.ts 仍缺 record/submit/reject 3 端点，completeInventoryCount 未移除）；③ 0.0.3 修正为"✅ 已完成 PR #788 已合并"；④ 新增 0.0.4 主线八维 P1 后续 5 项真实状态：1 项完成（委外事务化）/ 2 项部分修复（业务追溯 producer 全部 #[allow(dead_code)] 无上游调用 + 前端契约仅 1/96 文件且不完整）/ 2 项未修复（API 网关 rate_limit 范围校验 + 覆盖率阈值仍为 1%）；⑤ 新增 0.0.5 打印功能核实（6/16=37.5% 场景覆盖，9 个纺织核心场景缺失，缺陷 10-4 审计日志二次审计表 P0 未实现）；⑥ 规则 14 修正：从"baseline 213/213 ✅ 全部清零"改为真实状态"历史清零 + P1 新增 174 dead_code + 22 处 #[allow(dead_code)] 违规"；⑦ 规则 15 补充主线八维 P1 后续 1/5 真实进度 |
+
+---
+
+## 文档治理与项目状态对齐（2026-07-30）
+
+| 项 | 一句话总结 |
+|----|-----------|
+| audit_assignment.md 重写 | **基于项目真实状态全面重写审计任务文件**：[audit_assignment.md](file:///workspace/.monkeycode/audit_assignment.md) 按截至 2026-07-30 的真实数据（后端 ~241k 行 / 前端 ~136k 行 / 148 handler / 390 service / 275 model / 40 route / 18 middleware / 57 migration / 50 集成测试 / 前端 376 Vue + 224 TS + 86 views + 96 api + 20 components + 7 composables + 7 store；Clippy baseline 308 条；最新版本 2026.723.1842 / PR #789 #788）更新项目总览、技术栈、V15 25 大类 195 维度审计完成状态、主线八维审计 P0/P2 完成明细、P1 进行中任务、P2/P3 待启动队列、clippy baseline 管理规则、复审触发条件；清理 v8/v9/v13/v14 历史轮次记录 |
+| 历史审计/修复/规划文件清理 | **删除 37 个历史审计文件 + 历史修复计划 + 历史规划文件**：保留最新审计任务 [audit_assignment.md](file:///workspace/.monkeycode/audit_assignment.md) 与最新审计报告 [2026-07-30-mainline-audit-report.md](file:///workspace/.monkeycode/docs/2026-07-30-mainline-audit-report.md)，清理 v8/v9/v13/v14 等过时轮次审计报告、过时修复计划、过时规划文档及空目录 |
+| README.md 基于真实状态更新 | **基于项目真实状态更新 [README.md](file:///workspace/README.md)**：项目数据与技术栈表对齐真实 Cargo.toml / package.json（Rust 1.94 / Axum 0.7 / SeaORM 1.1.20 / Vue 3.4 / Vite 6.4 / Element Plus 2.6 / ECharts 6.1）；系统架构图为分层单体（应用层 Axum 单体 + 数据层 PG/Redis/Kafka/Loki + 基础设施 systemd 直部署）；功能矩阵含 5 域核心业务 + 纺织行业特性 + 智能协同能力；明确无 Docker/K8s（PR #777 已移除）；审计与质量章节记录 V15 195 维度 + 主线八维 P0/P2 完成 + P1 进行中 + clippy baseline 308 条 |
 
 ---
 

@@ -8,9 +8,8 @@
 #
 # 工作流拓扑：
 #   ci-info → [ci-fmt-rust, ci-fmt-fe, ci-lint-rust, ci-lint-fe, ci-type-check,
-#              ci-test-rust, ci-test-fe, ci-audit, ci-deps,
+#              ci-test-rust, ci-test-fe, ci-audit, ci-deps, ci-perf-bench,
 #              ci-build-rust, ci-build-fe] → [package-release] → [github-release]
-#                                                                 → [notify]
 #
 # 注意：E2E 测试已独立到 .github/workflows/e2e-batch.yml（每 30 批次运行，不阻塞主 CI）
 # ==============================================================================
@@ -24,10 +23,22 @@ on:
       - master
     tags:
       - 'v*'
+    paths-ignore:
+      - '**.md'
+      - '.monkeycode/**'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.gitignore'
   pull_request:
     branches:
       - main
       - master
+    paths-ignore:
+      - '**.md'
+      - '.monkeycode/**'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.gitignore'
   workflow_dispatch:
     inputs:
       skip_release:
@@ -42,6 +53,7 @@ concurrency:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # rust-toolchain pin 到 commit SHA（供应链安全，防止 @master 被篡改）；更新时同步改全部 6 处
   RUST_VERSION: 1.94.1
   RUST_BACKTRACE: full
   CARGO_TERM_COLOR: always
@@ -70,7 +82,8 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v5
         with:
-          fetch-depth: 0
+          # 仅需最近 10 个 commit 用于环境信息展示（git log --oneline -5），无需完整历史
+          fetch-depth: 10
 
       - name: 收集环境信息
         run: |
@@ -171,24 +184,17 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v5
 
-      - name: 缓存 Rustup
-        uses: actions/cache@v5
+      - name: Setup Rust（rustfmt）
+        uses: ./.github/actions/setup-rust
         with:
-          path: ~/.rustup
-          key: fmt-rustup-${{ env.RUST_VERSION }}
-
-      - name: 安装 Rust 工具链
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ env.RUST_VERSION }}
           components: rustfmt
 
-      - name: 运行 cargo fmt 检查（渐进式严格化）
+      - name: 运行 cargo fmt 检查（严格阻塞）
         working-directory: backend
+        # V15 批次 07 P1-4：fmt 失败阻塞 CI（移除渐进式 exit 0）
+        # 修复方法：cd backend && cargo fmt --all
         run: |
           mkdir -p reports
-          # 跑 cargo fmt --check 但失败时不阻塞 CI（渐进式严格化）
-          # 报告会上传 artifacts 供后续 PR 修复
           set +e
           cargo fmt --all -- --check 2>&1 | tee reports/cargo-fmt-diff.txt
           EXIT_CODE=$?
@@ -199,7 +205,7 @@ jobs:
             echo ""
             echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
             echo "**退出码**: $EXIT_CODE  "
-            echo "**模式**: 渐进式严格化（不阻塞 CI，报告存档供修复）"
+            echo "**模式**: 严格阻塞（V15 批次 07 P1-4）"
             echo ""
             if [ "$EXIT_CODE" -eq "0" ]; then
               echo "## ✅ 所有代码格式正确"
@@ -207,7 +213,7 @@ jobs:
               echo "无需修复。"
             else
               DIFF_LINES=$(wc -l < reports/cargo-fmt-diff.txt)
-              echo "## ⚠️ 发现 $DIFF_LINES 行格式差异"
+              echo "## ❌ 发现 $DIFF_LINES 行格式差异（CI 阻塞）"
               echo ""
               echo "### 自动修复命令"
               echo ""
@@ -225,11 +231,6 @@ jobs:
                 echo ""
                 echo "*（完整 diff 见 artifacts: \`backend-fmt-report\`）*"
               fi
-              echo ""
-              echo "### 为什么不阻塞"
-              echo ""
-              echo "本项目历史代码与 rustfmt 默认风格差异较大（300+ 行 diff），"
-              echo "采用渐进式严格化：报告存档供后续 PR 批量修复，新代码必须保持格式正确。"
             fi
           } > reports/cargo-fmt-report.md
 
@@ -272,25 +273,13 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v5
 
-      - name: 安装 Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
+      - name: Setup Frontend
+        uses: ./.github/actions/setup-frontend
 
-      - name: 缓存 npm
-        uses: actions/cache@v5
-        with:
-          path: |
-            frontend/node_modules
-            ~/.npm
-          key: fmt-fe-npm-${{ hashFiles('frontend/package-lock.json') }}
-
-      - name: 安装前端依赖
+      - name: 运行 prettier 检查（严格阻塞）
         working-directory: frontend
-        run: npm ci --prefer-offline --no-audit
-
-      - name: 运行 prettier 检查（渐进式严格化）
-        working-directory: frontend
+        # V15 批次 07 P1-5：fmt 失败阻塞 CI（移除渐进式 exit 0）
+        # 修复方法：cd frontend && npm run format
         run: |
           mkdir -p reports
           set +e
@@ -303,12 +292,12 @@ jobs:
             echo ""
             echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
             echo "**退出码**: $EXIT_CODE  "
-            echo "**模式**: 渐进式严格化（不阻塞 CI，报告存档供修复）"
+            echo "**模式**: 严格阻塞（V15 批次 07 P1-5）"
             echo ""
             if [ "$EXIT_CODE" -eq "0" ]; then
               echo "## ✅ 所有代码格式正确"
             else
-              echo "## ⚠️ 发现格式问题"
+              echo "## ❌ 发现格式问题（CI 阻塞）"
               echo ""
               echo "### 自动修复命令"
               echo ""
@@ -322,11 +311,6 @@ jobs:
               echo '```'
               cat reports/prettier-check.txt
               echo '```'
-              echo ""
-              echo "### 为什么不阻塞"
-              echo ""
-              echo "本项目历史代码与 prettier 默认风格存在差异，"
-              echo "采用渐进式严格化：报告存档供后续 PR 批量修复，新代码必须保持格式正确。"
             fi
           } > reports/prettier-report.md
 
@@ -383,41 +367,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 缓存 Rustup
-        uses: actions/cache@v5
+      - name: Setup Rust（rustfmt + clippy + 系统依赖）
+        uses: ./.github/actions/setup-rust
         with:
-          path: ~/.rustup
-          key: lint-rustup-${{ env.RUST_VERSION }}
-
-      - name: 安装 Rust 工具链
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ env.RUST_VERSION }}
           components: rustfmt, clippy
+          system-deps: pkg-config libssl-dev protobuf-compiler
 
-      - name: 缓存 Cargo
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/bin
-            ~/.cargo/registry
-            ~/.cargo/git
-            backend/target
-          key: lint-cargo-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}
-          restore-keys: |
-            lint-cargo-${{ env.RUST_VERSION }}-
-
-      - name: 安装系统依赖
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pkg-config libssl-dev protobuf-compiler
-
-      - name: 运行 clippy（V15 Batch 485 baseline 机制 + 精简日志）
+      - name: 运行 clippy（baseline 机制）
         working-directory: backend
-        # V15 Batch 485 修订：恢复 baseline 机制（仅 clippy，test 保持零容忍）
-        # 保留 Batch 485 优化：无 RUSTC_LOG=debug、无 --all-features、无阶段 3 trace 重跑
-        # 修复 runner shutdown (exit 143)：限制并行编译数 + clippy 命令带 retry
-        # exit 143 = SIGTERM，通常因 OOM 或 runner 超时被 kill；限制并行编译降低内存峰值
+        # baseline 机制：仅 clippy 使用，test 保持零容忍；仅"新增警告"阻塞 CI
+        # exit 143 = SIGTERM（OOM/超时）：限制并行编译降内存峰值 + 3 次重试
         env:
           CARGO_BUILD_JOBS: "2"
           CARGO_JOBS: "2"
@@ -426,14 +385,10 @@ jobs:
           set +e
 
           # ============================================================================
-          # 阶段 1：主 clippy 运行（JSON 格式，用于机器解析）— 带 retry
+          # 阶段 1：主 clippy 运行（JSON 格式，带 retry）
           # ============================================================================
-          # V15 Batch 485：恢复 baseline 机制，仅"新增警告"阻塞 CI（NEW_COUNT > 0）
-          # 不加 -- -D warnings（避免 JSON 输出截断），由后续 NEW_COUNT > 0 判定阻塞
-          # V15 Batch 485：移除 --all-features（与 cargo build/test 一致使用默认 features）
-          # 原因：--all-features 启用从未在生产中组合使用的 feature 组合，产生 1773 个
-          # false positive dead_code 警告（如 swagger feature 启用时暴露未使用常量）
-          # 修复 runner shutdown (exit 143)：clippy 命令带 3 次重试，仅对 143/137/1 重试
+          # 不加 -- -D warnings（避免 JSON 截断），由 NEW_COUNT > 0 判定阻塞
+          # 不加 --all-features（与 build/test 一致用默认 features；--all-features 产生 1773 个误报）
           echo "▶ 阶段 1/3：主 clippy 运行（JSON 输出，带 retry）"
           CLIPPY_MAIN_EXIT=143
           MAX_ATTEMPTS=3
@@ -464,6 +419,14 @@ jobs:
           echo "▶ 阶段 2/3：生成人类可读详细日志"
           # 用 jq 从 JSON 提取每条 message 的 rendered 字段，生成完整人类可读报告
           # 包含每条警告的完整渲染信息（代码片段、行号、原因说明）
+          # 2026-07-31 优化：合并原 clippy-human-readable.txt（中间文件）与 -full.txt（带 header），
+          # 消除冗余，artifact 中只保留 clippy-human-readable-full.txt
+          TMP_RENDERED=$(mktemp)
+          jq -r 'select(.reason == "compiler-message") |
+                 .message |
+                 select(.level == "warning" or .level == "error") |
+                 .rendered' reports/clippy-output.json 2>/dev/null > "$TMP_RENDERED"
+          RENDERED_LINES=$(wc -l < "$TMP_RENDERED")
           {
             echo "# Clippy 人类可读详细输出（从 JSON rendered 重渲染）"
             echo ""
@@ -474,26 +437,20 @@ jobs:
             echo ""
             echo "=========================================="
             echo ""
-            jq -r 'select(.reason == "compiler-message") |
-                   .message |
-                   select(.level == "warning" or .level == "error") |
-                   .rendered' reports/clippy-output.json 2>/dev/null \
-              > reports/clippy-human-readable.txt
-            cat reports/clippy-human-readable.txt
+            cat "$TMP_RENDERED"
             echo ""
             echo "=========================================="
-            echo "总计渲染 $(wc -l < reports/clippy-human-readable.txt) 行"
+            echo "总计渲染 $RENDERED_LINES 行"
           } > reports/clippy-human-readable-full.txt
+          rm -f "$TMP_RENDERED"
 
           # ============================================================================
           # 阶段 3：解析 JSON，按多维度统计（lint_id / file / line）
           # ============================================================================
-          # V15 Batch 485 P0-06-3：原阶段 3（RUSTC_LOG=debug 重复 clippy 运行）已删除
-          # 原因：重复运行 clippy 一次（带 debug 日志）导致 CI 超时 cancelled（55min > 45min）
-          # 阶段编号调整：原阶段 4 → 阶段 3
+          # 注：原 RUSTC_LOG=debug 重复 clippy 运行已删除（曾导致 CI 超时 55min）
           echo "▶ 阶段 3/3：多维度统计"
 
-          # 4.1 原始警告摘要（V15 Batch 485：用于 baseline 对比 + CURRENT_COUNT 统计）
+          # 原始警告摘要（用于 baseline 对比 + CURRENT_COUNT 统计）
           cat reports/clippy-output.json | \
             jq -r 'select(.reason == "compiler-message") |
                    .message |
@@ -662,7 +619,6 @@ jobs:
             echo "| \`clippy-by-file.md\` | 按文件完整统计 |"
             echo "| \`clippy-by-severity.md\` | 按严重程度完整统计 |"
             echo "| \`clippy-explain.txt\` | 新增警告的 \`--explain\` 解释 |"
-            echo "| \`clippy-report.html\` | HTML 可视化报告 |"
             echo ""
             if [ "$BASELINE_MODE" = "bootstrap" ]; then
               echo "## 🎯 首次运行（自动建立基线）"
@@ -759,93 +715,9 @@ jobs:
             fi
           } > reports/clippy-explain.txt
 
-          # 8. 生成 HTML 可视化报告（便于在 artifacts 中直接预览）
-          echo "▶ 生成 HTML 可视化报告"
-          {
-            echo '<!DOCTYPE html>'
-            echo '<html lang="zh-CN">'
-            echo '<head>'
-            echo '  <meta charset="UTF-8">'
-            echo '  <title>Clippy 检查报告</title>'
-            echo '  <style>'
-            echo '    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 2em auto; max-width: 1200px; color: #24292e; }'
-            echo '    h1 { border-bottom: 2px solid #0366d6; padding-bottom: 0.3em; }'
-            echo '    h2 { border-bottom: 1px solid #e1e4e8; padding-bottom: 0.2em; margin-top: 2em; }'
-            echo '    table { border-collapse: collapse; width: 100%; margin: 1em 0; }'
-            echo '    th, td { border: 1px solid #d0d7de; padding: 6px 13px; text-align: left; }'
-            echo '    th { background: #f6f8fa; }'
-            echo '    tr:nth-child(2n) { background: #f6f8fa; }'
-            echo '    .warning { color: #d29922; }'
-            echo '    .error { color: #cf222e; }'
-            echo '    code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; font-family: "SFMono-Regular", Consolas, monospace; }'
-            echo '    .summary { background: #f6f8fa; padding: 1em 1.5em; border-radius: 6px; border-left: 4px solid #0366d6; }'
-            echo '    pre { background: #f6f8fa; padding: 1em; border-radius: 6px; overflow-x: auto; }'
-            echo '  </style>'
-            echo '</head>'
-            echo '<body>'
-            echo "  <h1>🔍 Clippy 检查报告</h1>"
-            echo "  <div class='summary'>"
-            echo "    <p><strong>生成时间</strong>: $(date -u +'%Y-%m-%dT%H:%M:%SZ')</p>"
-            echo "    <p><strong>模式</strong>: $BASELINE_MODE</p>"
-            echo "    <p><strong>当前警告总数</strong>: $CURRENT_COUNT</p>"
-            echo "    <p><strong>结构化记录数</strong>: $STRUCTURED_COUNT</p>"
-            echo "    <p><strong>基线警告数</strong>: $BASELINE_COUNT</p>"
-            echo "    <p><strong>新增警告数</strong>: <span class='error'>$NEW_COUNT</span></p>"
-            echo "    <p><strong>已修复警告数</strong>: <span class='warning'>$FIXED_COUNT</span></p>"
-            echo "    <p><strong>工具链</strong>: $(rustc --version)</p>"
-            echo "    <p><strong>clippy 版本</strong>: $(cargo clippy --version 2>&1 | head -1)</p>"
-            echo "  </div>"
-            echo ""
-            echo "  <h2>📊 按 lint 类型分布</h2>"
-            echo "  <table><thead><tr><th>Lint ID</th><th>数量</th></tr></thead><tbody>"
-            awk -F'\t' '{count[$1]++} END {for (k in count) printf "    <tr><td><code>%s</code></td><td>%s</td></tr>\n", k, count[k]}' \
-              reports/clippy-structured.tsv 2>/dev/null | sort -t'>' -k4 -rn
-            echo "  </tbody></table>"
-            echo ""
-            echo "  <h2>📊 按文件分布</h2>"
-            echo "  <table><thead><tr><th>文件</th><th>数量</th></tr></thead><tbody>"
-            awk -F'\t' '{count[$2]++} END {for (k in count) printf "    <tr><td><code>%s</code></td><td>%s</td></tr>\n", k, count[k]}' \
-              reports/clippy-structured.tsv 2>/dev/null | sort -t'>' -k4 -rn
-            echo "  </tbody></table>"
-            echo ""
-            echo "  <h2>📝 警告详情（结构化列表）</h2>"
-            if [ -s reports/clippy-structured.tsv ]; then
-              echo "  <table><thead><tr><th>Lint ID</th><th>文件</th><th>行</th><th>列</th><th>级别</th><th>消息</th></tr></thead><tbody>"
-              awk -F'\t' '{
-                lvl = $5
-                color = (lvl == "error") ? "error" : "warning"
-                printf "    <tr><td><code>%s</code></td><td><code>%s</code></td><td>%s</td><td>%s</td><td class=\"%s\">%s</td><td>%s</td></tr>\n", $1, $2, $3, $4, color, lvl, $6
-              }' reports/clippy-structured.tsv | head -500
-              echo "  </tbody></table>"
-              TOTAL_ROWS=$(wc -l < reports/clippy-structured.tsv)
-              if [ "$TOTAL_ROWS" -gt 500 ]; then
-                echo "  <p><em>仅显示前 500 条，完整 $TOTAL_ROWS 条见 clippy-structured.tsv</em></p>"
-              fi
-            else
-              echo "  <p>无结构化警告记录。</p>"
-            fi
-            echo ""
-            echo "  <h2>📖 新增警告 --explain 解释</h2>"
-            echo "  <pre>$(head -200 reports/clippy-explain.txt | sed 's/</\&lt;/g; s/>/\&gt;/g')</pre>"
-            echo ""
-            echo "  <h2>📁 详细日志归档</h2>"
-            echo "  <ul>"
-            echo "    <li><code>clippy-output.json</code> - 原始 JSON 输出（最完整）</li>"
-            echo "    <li><code>clippy-human-readable-full.txt</code> - 人类可读详细日志</li>"
-            echo "    <li><code>clippy-stderr.txt</code> - clippy stderr 输出</li>"
-            echo "    <li><code>clippy-structured.tsv</code> - 结构化 TSV</li>"
-            echo "    <li><code>clippy-warnings.json</code> - 仅警告的 JSON</li>"
-            echo "    <li><code>clippy-explain.txt</code> - 完整 --explain 解释</li>"
-            echo "  </ul>"
-            echo "</body>"
-            echo "</html>"
-          } > reports/clippy-report.html
-
-          # 9. 决定退出码（V15 Batch 485 修订：恢复 baseline 机制，仅新增警告阻塞 CI）
-          # Batch 488 D08-1 教训：clippy 编译失败（退出码 101）时 reports/clippy-current.txt
-          # 可能不完整（缺少部分 warning 摘要行），导致 FIXED_COUNT > 0 误触发自动刷新，
-          # 把 baseline 缩小到不完整的 current，下次 CI 又报新增警告。三次复发。
-          # 修复：写入 CLIPPY_MAIN_EXIT 到文件，供后续 step 读取；自动刷新条件增加 clippy 正常退出。
+          # 8. 决定退出码（baseline 机制：仅新增警告阻塞 CI）
+          # D08-1 教训：clippy 编译失败（退出码 101）时 current.txt 不完整，
+          # 误触发自动刷新把 baseline 缩小。修复：记录 CLIPPY_MAIN_EXIT，自动刷新需 clippy 正常退出。
           echo "CLIPPY_MAIN_EXIT=$CLIPPY_MAIN_EXIT" > reports/clippy-main-exit.txt
 
           if [ "$NEW_COUNT" -gt "0" ]; then
@@ -870,33 +742,33 @@ jobs:
           echo "✅ 无新增 clippy 警告"
           exit 0
 
-      - name: 运行 clippy 严格模式（V15 批次 07 P1-3 修复：-D warnings 信息性检查）
+      - name: 评估 clippy 严格模式就绪度（复用主步骤 TSV，不重跑 clippy）
         # 信息性 job：不阻塞 CI（continue-on-error: true）
         # 目的：监控 baseline 缩减进度，当 baseline = 0 时自动切换主 clippy 步骤为严格模式
-        # 修复路径：逐步修复 baseline 中的历史警告，本步骤会展示剩余警告数
+        # 2026-07-31 优化：原步骤重跑 `cargo clippy -- -D warnings`（约 60-120s）仅为统计 error 数，
+        # 现复用主步骤已生成的 clippy-structured.tsv：-D warnings 会把所有 warning 升为 error，
+        # 故严格模式 error 数 = TSV 中 level=warning 的行数。
         if: always()
         working-directory: backend
         continue-on-error: true
         run: |
           mkdir -p reports
-          set +e
-          # V15 批次 07 P1-3：运行严格模式 clippy（-D warnings），所有警告升为 error
-          # 信息性检查，不阻塞 CI；目的是评估切换严格模式的就绪度
-          echo "▶ 运行 clippy 严格模式（cargo clippy --all-targets -- -D warnings）"
-          cargo clippy --all-targets --color=always -- -D warnings \
-            > reports/clippy-strict-output.txt 2>&1
-          STRICT_EXIT=$?
-          set -e
 
-          # 统计严格模式下会失败的警告数（升为 error 的 warning 行数）
-          STRICT_ERRORS=$(awk '/^error:/{c++} END{print c+0}' reports/clippy-strict-output.txt 2>/dev/null)
-          echo "严格模式下 error 数: $STRICT_ERRORS"
+          # 从主步骤生成的 clippy-structured.tsv 统计 warning 数（等价于严格模式 error 数）
+          # TSV 格式：lint_id \t file \t line \t column \t level \t message
+          if [ -f "reports/clippy-structured.tsv" ]; then
+            STRICT_ERRORS=$(awk -F'\t' '$5 == "warning" {c++} END {print c+0}' reports/clippy-structured.tsv 2>/dev/null)
+          else
+            echo "⚠️ clippy-structured.tsv 不存在（主步骤可能失败），无法评估就绪度"
+            STRICT_ERRORS="unknown"
+          fi
+          echo "严格模式下预估 error 数（=当前 warning 数）: $STRICT_ERRORS"
 
-          # 当 baseline 清零时，提示可切换主 clippy 步骤为严格模式
+          # 就绪度判定（等价于原逻辑：warning 数 = 0 即就绪）
           STRICT_READINESS="未就绪"
-          if [ "$STRICT_ERRORS" -eq "0" ] && [ "$STRICT_EXIT" -eq "0" ]; then
+          if [ "$STRICT_ERRORS" = "0" ]; then
             STRICT_READINESS="✅ 已就绪：可将主 clippy 步骤切换为 -D warnings 严格模式"
-          elif [ "$STRICT_ERRORS" -lt "50" ]; then
+          elif [ "$STRICT_ERRORS" != "unknown" ] && [ "$STRICT_ERRORS" -lt "50" ]; then
             STRICT_READINESS="⚠️ 接近就绪（剩余 $STRICT_ERRORS 个 error < 50）"
           else
             STRICT_READINESS="❌ 未就绪（剩余 $STRICT_ERRORS 个 error，需逐步清理）"
@@ -907,8 +779,7 @@ jobs:
             echo "# Clippy 严格模式就绪度报告（V15 批次 07 P1-3）"
             echo ""
             echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
-            echo "**严格模式退出码**: $STRICT_EXIT  "
-            echo "**严格模式 error 数**: $STRICT_ERRORS  "
+            echo "**严格模式预估 error 数**: $STRICT_ERRORS（= 当前 warning 数，复用 TSV 统计）  "
             echo "**就绪状态**: $STRICT_READINESS  "
             echo ""
             echo "## 切换路径"
@@ -927,14 +798,13 @@ jobs:
               echo "- baseline 文件：未建立"
             fi
             echo ""
-            if [ "$STRICT_ERRORS" -gt "0" ]; then
-              echo "## 严格模式失败详情（前 30 条）"
+            if [ "$STRICT_ERRORS" != "unknown" ] && [ "$STRICT_ERRORS" -gt "0" ]; then
+              echo "## 严格模式失败详情（前 30 条，按 lint 类型分布）"
               echo ""
-              echo '```'
-              grep -E '^(error|warning):' reports/clippy-strict-output.txt | head -30
-              echo '```'
-              echo ""
-              echo "完整日志见 artifacts: \`backend-clippy-report/clippy-strict-output.txt\`"
+              echo "| Lint ID | 数量 |"
+              echo "|---------|------|"
+              awk -F'\t' '$5 == "warning" {count[$1]++} END {for (k in count) printf "| \`%s\` | %s |\n", k, count[k]}' \
+                reports/clippy-structured.tsv 2>/dev/null | sort -t'|' -k3 -rn | head -30
             fi
           } > reports/clippy-strict-report.md
 
@@ -943,7 +813,7 @@ jobs:
             echo "## 🔍 Clippy 严格模式（-D warnings）就绪度"
             echo ""
             echo "- 状态：$STRICT_READINESS"
-            echo "- 严格模式 error 数：$STRICT_ERRORS"
+            echo "- 严格模式预估 error 数：$STRICT_ERRORS（复用主步骤 TSV，未重跑 clippy）"
             echo "- 详细报告：artifacts \`backend-clippy-report/clippy-strict-report.md\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -954,7 +824,7 @@ jobs:
           # 信息性检查，永远 exit 0（不阻塞 CI）
           exit 0
 
-      - name: 提交 baseline 文件（首次运行时）+ 自动刷新 baseline（main 分支）
+      - name: 提交 baseline 文件（首次运行时）+ 自动重建 baseline（main 分支每次 CI 后）
         if: always()
         run: |
           if [ -f "backend/.clippy-baseline.txt" ] || [ -f ".clippy-baseline.txt" ]; then
@@ -970,24 +840,33 @@ jobs:
             echo "CLIPPY_MAIN_EXIT_VAL=$CLIPPY_MAIN_EXIT_VAL"
             if git ls-files --error-unmatch "$BASELINE_PATH" 2>/dev/null; then
               echo "✅ baseline 文件已纳入版本控制"
-              # main 分支自动刷新 baseline（已修复警告 > 0 且无新警告且 clippy 正常退出时）
-              # Batch 488 D08-1 教训：clippy 编译失败（退出码 101）时 reports/clippy-current.txt
-              # 可能不完整（缺少部分 warning 摘要行），导致 FIXED_COUNT > 0 误触发自动刷新，
-              # 把 baseline 缩小到不完整的 current，下次 CI 又报新增警告。三次复发。
-              # 修复：增加 CLIPPY_MAIN_EXIT = 0 条件，clippy 必须正常退出才能刷新 baseline。
-              if [ "${{ github.ref }}" = "refs/heads/main" ] && [ "$CLIPPY_BASELINE_MODE" = "strict" ] && [ "$CLIPPY_FIXED_COUNT" -gt "0" ] && [ "$CLIPPY_NEW_COUNT" = "0" ] && [ "$CLIPPY_MAIN_EXIT_VAL" = "0" ]; then
-                echo "📝 自动刷新 baseline：移除 $CLIPPY_FIXED_COUNT 条已修复警告（$CLIPPY_BASELINE_COUNT → $CLIPPY_CURRENT_COUNT）"
+              # main 分支自动重建 baseline（每次 CI 后用当前真实警告完全替换 baseline）
+              # 2026-07-30 修订：原机制仅在 FIXED_COUNT > 0 时刷新，导致 baseline 57% 抽样过时
+              # （如 ALIPAY/BudgetMode/CustomerNotFound 等已实际使用但 baseline 仍标记为 dead_code）。
+              # 新机制：main 分支每次 CI 后，只要 clippy 正常退出（CLIPPY_MAIN_EXIT=0），
+              # 无论 FIXED_COUNT 是否 > 0，都用当前真实警告完全重建 baseline。
+              # 这样 baseline 永远反映 main 最新真实状态，过时项在下次 main CI 时自动清除。
+              # PR 分支保留 NEW_COUNT > 0 阻塞机制（在主 clippy step 中处理）。
+              # Batch 488 D08-1 教训保留：clippy 编译失败（退出码 101）时不重建 baseline，
+              # 避免用不完整的 current 替换 baseline 导致下次 CI 误报新警告。
+              if [ "${{ github.ref }}" = "refs/heads/main" ] && [ "$CLIPPY_BASELINE_MODE" = "strict" ] && [ "$CLIPPY_MAIN_EXIT_VAL" = "0" ]; then
+                echo "📝 自动重建 baseline：用当前真实警告完全替换（$CLIPPY_BASELINE_COUNT → $CLIPPY_CURRENT_COUNT，已修复 $CLIPPY_FIXED_COUNT 条，新增 $CLIPPY_NEW_COUNT 条）"
                 cd backend
                 cp reports/clippy-current.txt .clippy-baseline.txt
                 cd ..
                 git config user.name "github-actions[bot]"
                 git config user.email "github-actions[bot]@users.noreply.github.com"
                 git add "$BASELINE_PATH"
-                git commit -m "chore(ci): 自动刷新 clippy baseline（移除 $CLIPPY_FIXED_COUNT 条已修复警告，$CLIPPY_BASELINE_COUNT → $CLIPPY_CURRENT_COUNT）" || echo "提交失败，跳过"
-                git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-                git push origin HEAD:${{ github.ref_name }} || echo "推送失败，可能有冲突"
+                # 仅当 baseline 文件有变化时才提交，避免空提交
+                if git diff --cached --quiet "$BASELINE_PATH"; then
+                  echo "ℹ️ baseline 无变化，跳过提交"
+                else
+                  git commit -m "chore(ci): 自动重建 clippy baseline（main CI 后真实状态同步：$CLIPPY_BASELINE_COUNT → $CLIPPY_CURRENT_COUNT，已修复 $CLIPPY_FIXED_COUNT 条）" || echo "提交失败，跳过"
+                  git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+                  git push origin HEAD:${{ github.ref_name }} || echo "推送失败，可能有冲突"
+                fi
               else
-                echo "ℹ️ 不满足自动刷新条件（非 main 分支/非 strict 模式/无已修复警告/有新警告），跳过"
+                echo "ℹ️ 不满足自动重建条件（非 main 分支/非 strict 模式/clippy 异常退出），跳过"
               fi
             else
               echo "📝 提交 baseline 文件: $BASELINE_PATH"
@@ -1027,22 +906,8 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v5
 
-      - name: 安装 Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: 缓存 npm
-        uses: actions/cache@v5
-        with:
-          path: |
-            frontend/node_modules
-            ~/.npm
-          key: lint-fe-npm-${{ hashFiles('frontend/package-lock.json') }}
-
-      - name: 安装前端依赖
-        working-directory: frontend
-        run: npm ci --prefer-offline --no-audit
+      - name: Setup Frontend
+        uses: ./.github/actions/setup-frontend
 
       - name: 运行 ESLint（V15 批次 07 P1-6 修复：严格阻塞 CI）
         working-directory: frontend
@@ -1151,22 +1016,8 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v5
 
-      - name: 安装 Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: 缓存 npm
-        uses: actions/cache@v5
-        with:
-          path: |
-            frontend/node_modules
-            ~/.npm
-          key: type-check-npm-${{ hashFiles('frontend/package-lock.json') }}
-
-      - name: 安装前端依赖
-        working-directory: frontend
-        run: npm ci --prefer-offline --no-audit
+      - name: Setup Frontend
+        uses: ./.github/actions/setup-frontend
 
       - name: 运行 vue-tsc
         working-directory: frontend
@@ -1222,13 +1073,14 @@ jobs:
 # Job 7: Rust 单元测试（V15 Batch 485 零容忍模式）
 # ==============================================================================
   ci-test-rust:
-    name: 🧪 Rust 单元测试
+    name: 🧪 Rust 测试 + 覆盖率
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     needs: ci-info
-    # V15 Batch 485 P0-06-3：baseline 机制已移除（零容忍模式），不再需要 contents: write
+    # 零容忍模式：任何测试失败都阻塞 CI；覆盖率信息性收集，不阻塞
     # 集成测试依赖 PostgreSQL，使用 service container 提供数据库实例
-    # 批次 21 修复：移除 --lib 跳过 47 个集成测试的问题
+    # 2026-07-31 优化：合并原 ci-test-rust + ci-coverage-rust，用 cargo llvm-cov nextest
+    # 一次执行同时产出测试断言（退出码）+ 覆盖率（cobertura.xml），消除重复执行
     services:
       postgres:
         image: postgres:16-alpine
@@ -1247,115 +1099,101 @@ jobs:
       # 集成测试所需的数据库连接串（指向 service container）
       DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
       # 审计模块所需的密钥（仅 CI 用途，禁止用于生产）
-      # 批次 261 修复：移除 "test" 弱模式关键词，避免被 validate_secret 拒绝
       AUDIT_SECRET_KEY: ci-only-audit-signing-key-do-not-use-in-prod-32b
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
 
-      - name: 缓存 Rustup
-        uses: actions/cache@v5
+      - name: Setup Rust（llvm-tools-preview + 系统依赖含 postgresql-client）
+        uses: ./.github/actions/setup-rust
         with:
-          path: ~/.rustup
-          key: test-rustup-${{ env.RUST_VERSION }}
+          components: llvm-tools-preview
+          system-deps: pkg-config libssl-dev postgresql-client protobuf-compiler
 
-      - name: 安装 Rust 工具链
-        uses: dtolnay/rust-toolchain@master
+      - name: 安装 cargo-llvm-cov 与 cargo-nextest
+        uses: taiki-e/install-action@v2
         with:
-          toolchain: ${{ env.RUST_VERSION }}
-          components: rustfmt, clippy
+          tool: cargo-llvm-cov,nextest
 
-      - name: 缓存 Cargo
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/bin
-            ~/.cargo/registry
-            ~/.cargo/git
-            backend/target
-          key: test-cargo-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}
-          restore-keys: |
-            test-cargo-${{ env.RUST_VERSION }}-
-
-      - name: 安装系统依赖
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pkg-config libssl-dev postgresql-client protobuf-compiler
-
-      - name: 运行 cargo test（V15 Batch 485 零容忍模式）
+      - name: 运行测试 + 收集覆盖率（cargo llvm-cov nextest，零容忍）
         working-directory: backend
-        # 批次 21 修复：已添加 Postgres service container + DATABASE_URL 环境变量，
-        # 移除 --lib 参数，运行全部测试（lib 单元测试 + backend/tests/ 下集成测试）
+        # nextest 每个测试独立进程 + 真正并行；llvm-cov source-based instrumentation（行/区域/分支覆盖）
+        # --cobertura 输出兼容 Codecov；保留 --test-threads=1 与历史串行行为一致（避免集成测试竞态）
         run: |
-          mkdir -p reports
+          mkdir -p reports coverage
           set +e
-          cargo test --jobs 1 -- --test-threads=1 2>&1 \
-            | tee reports/cargo-test-output.txt
+          cargo llvm-cov nextest \
+            --cobertura --output-path coverage/cobertura.xml \
+            --no-clean \
+            -- --test-threads=1 > reports/llvm-cov-nextest-output.txt 2>&1
           EXIT_CODE=$?
           set -e
 
-          # 统计测试结果（V15 Batch 485 修订：grep -c 在无匹配时返回 exit 1 触发 || echo 0
-          # 会导致 FAILED 变量变成多行 "0\n0"，破坏后续 $((..)) 算术和 [ -gt ] 整数判定。
-          # 修复：用 awk 显式输出单行数字，避免 || echo 0 重复输出）
-          PASSED=$(awk '/^test .* ok$/{c++} END{print c+0}' reports/cargo-test-output.txt 2>/dev/null)
-          FAILED=$(awk '/^test .* FAILED$/{c++} END{print c+0}' reports/cargo-test-output.txt 2>/dev/null)
+          # 统计测试结果（nextest 输出格式："PASS" / "FAIL" 行）
+          PASSED=$(awk '/^ PASS /{c++} END{print c+0}' reports/llvm-cov-nextest-output.txt 2>/dev/null)
+          FAILED=$(awk '/^ FAIL /{c++} END{print c+0}' reports/llvm-cov-nextest-output.txt 2>/dev/null)
           TOTAL=$((PASSED + FAILED))
 
-          # V15 Batch 485 P0-06-3：baseline 机制已移除（零容忍模式）
-          # 原逻辑：首次跑自动建立 baseline，后续 PR 仅新增失败阻塞 CI
-          # 新逻辑：任何失败（FAILED > 0）都阻塞 CI，无需 baseline 文件
-          NEW_FAILED=0
-          BASELINE_FAILED=0
-          FIXED=0
-          BASELINE_MODE="zero-tolerance"
+          # 提取覆盖率摘要（从 llvm-cov report 输出）
+          COVERAGE_SUMMARY="N/A"
+          if [ -f coverage/cobertura.xml ]; then
+            LINE_RATE=$(grep -o 'line-rate="[^"]*"' coverage/cobertura.xml | head -1 | cut -d'"' -f2)
+            if [ -n "$LINE_RATE" ]; then
+              COVERAGE_PCT=$(awk -v r="$LINE_RATE" 'BEGIN{printf "%.2f", r*100}')
+              COVERAGE_SUMMARY="${COVERAGE_PCT}%"
+            fi
+          fi
 
           {
-            echo "# Rust 单元测试报告"
+            echo "# Rust 测试 + 覆盖率报告"
             echo ""
             echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
-            echo "**模式**: $BASELINE_MODE（零容忍）  "
+            echo "**模式**: 零容忍（任何测试失败阻塞 CI）  "
             echo "**通过**: $PASSED  "
             echo "**失败**: $FAILED  "
             echo "**总计**: $TOTAL  "
+            echo "**行覆盖率**: $COVERAGE_SUMMARY  "
+            echo "**工具**: cargo-llvm-cov nextest（source-based instrumentation）"
             echo ""
             if [ "$FAILED" -eq "0" ]; then
               echo "## ✅ 所有 $PASSED 个测试通过（零容忍通过）"
               echo ""
-              echo "V15 Batch 485 P0-06-3：baseline 机制已移除，任何失败都阻塞 CI。"
+              echo "覆盖率：$COVERAGE_SUMMARY（信息性，不阻塞 CI）"
             else
               echo "## ❌ 发现 $FAILED 个测试失败（零容忍，CI 失败）"
               echo ""
               echo "### 失败列表"
               echo ""
-              grep -E "^test .* FAILED$" reports/cargo-test-output.txt 2>/dev/null | head -30
+              grep -E "^ FAIL " reports/llvm-cov-nextest-output.txt 2>/dev/null | head -30
               echo ""
               echo "### 失败详情"
               echo ""
-              grep -B 1 -A 5 "FAILED" reports/cargo-test-output.txt | head -50
+              grep -A 10 "^ FAIL " reports/llvm-cov-nextest-output.txt | head -60
             fi
           } > reports/cargo-test-report.md
 
           {
-            echo "## Rust 单元测试"
+            echo "## Rust 测试 + 覆盖率"
             echo ""
             if [ "$FAILED" -eq "0" ]; then
               echo "✅ 通过 $PASSED / $TOTAL（零容忍模式）"
+              echo "📊 行覆盖率：$COVERAGE_SUMMARY"
             else
               echo "❌ 失败 $FAILED / $TOTAL（零容忍，CI 失败）"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-          # V15 Batch 485 P0-06-3：移除 baseline 机制，任何测试失败都阻塞 CI
+          # 零容忍：任何测试失败都阻塞 CI
           if [ "$FAILED" -gt "0" ]; then
             echo ""
             echo "❌ 发现 $FAILED 个测试失败，CI 失败（零容忍）"
             echo "详见 reports/cargo-test-report.md 和 artifacts"
             exit 1
           fi
-          echo "✅ 所有 $PASSED 个测试通过"
+          echo "✅ 所有 $PASSED 个测试通过（覆盖率：$COVERAGE_SUMMARY）"
           exit 0
 
-      - name: 上传报告
+      - name: 上传测试报告
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -1363,77 +1201,11 @@ jobs:
           path: reports/
           retention-days: 90
 
-# ==============================================================================
-# Job 7.5: Rust 覆盖率（V15 Batch 485 P0-06-8 新增）
-# ==============================================================================
-  ci-coverage-rust:
-    name: 📊 Rust 覆盖率
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    needs: ci-info
-    # V15 Batch 485：覆盖率 job 为信息性，不阻塞整体 CI
-    continue-on-error: true
-    steps:
-      - name: 检出代码
-        uses: actions/checkout@v5
-
-      - name: 安装 Rust 工具链
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: ${{ env.RUST_VERSION }}
-
-      - name: 缓存 Cargo
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            backend/target
-          key: ${{ runner.os }}-cargo-coverage-${{ hashFiles('backend/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-coverage-
-            ${{ runner.os }}-cargo-
-
-      - name: 安装 cargo-tarpaulin
-        run: cargo install cargo-tarpaulin || echo "cargo-tarpaulin 已安装，跳过"
-
-      - name: 运行覆盖率收集
-        working-directory: backend
-        run: |
-          mkdir -p coverage
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "ℹ️ PR 场景跳过 tarpaulin 重覆盖率采集，生成占位 cobertura.xml（不阻塞 CI）"
-            echo "skip tarpaulin on pull_request to avoid runner instability" > coverage/tarpaulin-output.txt
-            echo "<coverage line-rate=\"0\" branch-rate=\"0\" version=\"1.9\" timestamp=\"0\"><sources></sources><packages></packages></coverage>" > coverage/cobertura.xml
-            exit 0
-          fi
-
-          set +e
-          cargo tarpaulin \
-            --workspace \
-            --out Xml \
-            --output-dir coverage/ \
-            --timeout 300 \
-            -- --test-threads=1 > coverage/tarpaulin-output.txt 2>&1
-          EXIT_CODE=$?
-          set -e
-
-          if [ "$EXIT_CODE" -ne "0" ]; then
-            echo "⚠️ tarpaulin 运行失败（exit=$EXIT_CODE），覆盖率收集跳过（不阻塞 CI）"
-            echo "tarpaulin 失败日志（最后 120 行）："
-            tail -n 120 coverage/tarpaulin-output.txt || true
-          fi
-
-          if [ ! -f coverage/cobertura.xml ]; then
-            echo "<coverage line-rate=\"0\" branch-rate=\"0\" version=\"1.9\" timestamp=\"0\"><sources></sources><packages></packages></coverage>" > coverage/cobertura.xml
-          fi
-
-          exit 0
-
       - name: 上传覆盖率到 Codecov
         if: always()
         uses: codecov/codecov-action@v4
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           file: backend/coverage/cobertura.xml
           fail_ci_if_error: false
           flags: rust
@@ -1459,22 +1231,8 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v5
 
-      - name: 安装 Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: 缓存 npm
-        uses: actions/cache@v5
-        with:
-          path: |
-            frontend/node_modules
-            ~/.npm
-          key: test-fe-npm-${{ hashFiles('frontend/package-lock.json') }}
-
-      - name: 安装前端依赖
-        working-directory: frontend
-        run: npm ci --prefer-offline --no-audit
+      - name: Setup Frontend
+        uses: ./.github/actions/setup-frontend
 
       - name: 运行 vitest
         working-directory: frontend
@@ -1527,6 +1285,7 @@ jobs:
         if: always()
         uses: codecov/codecov-action@v4
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           working-directory: frontend
           file: frontend/coverage/coverage-final.json
           fail_ci_if_error: false
@@ -1556,13 +1315,12 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v5
 
-      - name: 安装 Rust 工具链
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ env.RUST_VERSION }}
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
 
       - name: 安装 cargo-audit
-        run: cargo install cargo-audit --locked || true
+        # 规则 5：移除 || true 降级，安装失败阻塞 CI（与 L1406 注释"移除 continue-on-error"一致）
+        run: cargo install cargo-audit --locked
 
       - name: 审计 Rust 依赖
         working-directory: backend
@@ -1607,14 +1365,8 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: 安装 Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: 安装前端依赖
-        working-directory: frontend
-        run: npm ci --prefer-offline --no-audit
+      - name: Setup Frontend
+        uses: ./.github/actions/setup-frontend
 
       - name: 审计前端依赖
         working-directory: frontend
@@ -1674,57 +1426,33 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: ci-info
-    # 批次 21 评估：ci-deps 仅生成 cargo tree / npm ls 依赖图用于记录归档，
-    # 属 informational job，保留 continue-on-error 避免依赖图生成异常阻塞主流程。
-    # P3-8 修复（批次 84 v1 复审）：TODO(tech-debt) 后续应移除 job 级 continue-on-error，
-    # 改为对单个非关键 step 使用 if: always() + continue-on-error 精细控制，
-    # 让 cargo tree --locked 失败时能暴露 lockfile 漂移问题。
-    continue-on-error: true
+    # P3-8 修复：移除 job 级 continue-on-error，改为 step 级精细控制
+    # cargo tree --locked 失败时阻塞 CI（暴露 lockfile 漂移），npm ls 非关键允许失败
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
 
-      - name: 安装 Rust 工具链
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ env.RUST_VERSION }}
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
 
-      - name: 缓存 Cargo
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/bin
-            ~/.cargo/registry
-            ~/.cargo/git
-            backend/target
-          key: deps-cargo-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}
-
-      - name: 生成 cargo tree
+      - name: 生成 cargo tree（严格：lockfile 漂移时阻塞 CI）
         working-directory: backend
         run: |
           mkdir -p reports
-          set +e
+          # --locked 要求 Cargo.lock 与 Cargo.toml 一致，漂移时 exit != 0 阻塞 CI
           cargo tree --locked --charset ascii > reports/cargo-tree.txt 2>&1
           cargo tree --locked --charset ascii --format json > reports/cargo-tree.json 2>&1
-          set -e
           echo "cargo tree 行数: $(wc -l < reports/cargo-tree.txt)"
 
-      - name: 安装 Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
+      - name: Setup Frontend
+        uses: ./.github/actions/setup-frontend
 
-      - name: 安装前端依赖
+      - name: 生成 npm ls（非关键，允许失败）
         working-directory: frontend
-        run: npm ci --prefer-offline --no-audit
-
-      - name: 生成 npm ls
-        working-directory: frontend
+        continue-on-error: true
         run: |
           mkdir -p reports
-          set +e
           npm ls --all --json > reports/npm-ls.json 2>reports/npm-ls.txt
-          set -e
           echo "npm ls 顶层依赖数: $(jq '.dependencies | length' reports/npm-ls.json 2>/dev/null || echo N/A)"
 
       - name: 上传报告
@@ -1756,28 +1484,16 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v5
 
-      - name: 缓存 Rustup
+      - name: Setup Rust（共享主 cargo- 缓存，加速依赖编译）
+        uses: ./.github/actions/setup-rust
+
+      - name: 缓存 criterion 基线数据
         uses: actions/cache@v5
         with:
-          path: ~/.rustup
-          key: perf-rustup-${{ env.RUST_VERSION }}
-
-      - name: 安装 Rust 工具链
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ env.RUST_VERSION }}
-
-      - name: 缓存 Cargo（含 criterion 基线）
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/bin
-            ~/.cargo/registry
-            ~/.cargo/git
-            backend/target
-          key: perf-cargo-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}
+          path: backend/target/criterion
+          key: criterion-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}
           restore-keys: |
-            perf-cargo-${{ env.RUST_VERSION }}-
+            criterion-${{ env.RUST_VERSION }}-
 
       - name: 运行 cargo bench（V15 批次 06 P1-10）
         working-directory: backend
@@ -1921,34 +1637,11 @@ jobs:
           sed -i 's/^version = ".*"/version = "${{ steps.version.outputs.version }}"/' backend/Cargo.toml
           echo "更新后版本: $(grep '^version' backend/Cargo.toml)"
 
-      - name: 缓存 Rustup
-        uses: actions/cache@v5
+      - name: Setup Rust（rustfmt + clippy + 系统依赖）
+        uses: ./.github/actions/setup-rust
         with:
-          path: ~/.rustup
-          key: build-rustup-${{ env.RUST_VERSION }}
-
-      - name: 安装 Rust 工具链
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ env.RUST_VERSION }}
           components: rustfmt, clippy
-
-      - name: 缓存 Cargo
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/bin
-            ~/.cargo/registry
-            ~/.cargo/git
-            backend/target
-          key: build-cargo-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}
-          restore-keys: |
-            build-cargo-${{ env.RUST_VERSION }}-
-
-      - name: 安装系统依赖
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pkg-config libssl-dev protobuf-compiler
+          system-deps: pkg-config libssl-dev protobuf-compiler
 
       - name: 构建后端 (Release)
         working-directory: backend
@@ -2035,22 +1728,8 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v5
 
-      - name: 安装 Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: 缓存 npm
-        uses: actions/cache@v5
-        with:
-          path: |
-            frontend/node_modules
-            ~/.npm
-          key: build-fe-npm-${{ hashFiles('frontend/package-lock.json') }}
-
-      - name: 安装前端依赖
-        working-directory: frontend
-        run: npm ci --prefer-offline --no-audit
+      - name: Setup Frontend
+        uses: ./.github/actions/setup-frontend
 
       - name: 构建前端
         working-directory: frontend
@@ -2503,122 +2182,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 清理旧 Release
+      - name: 清理旧 Release（保留最近 10 个）
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "清理超过 10 个的旧 Release..."
-          releases=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            "https://api.github.com/repos/${{ github.repository }}/releases?per_page=100" | \
-            jq -r '.[] | select(.tag_name | startswith("v")) | .tag_name')
-
-          total=$(echo "$releases" | wc -l)
+          # 用 gh CLI 替代 curl+jq（runner 预装 gh，更简洁且自带分页/错误处理）
+          mapfile -t releases < <(gh release list --repo ${{ github.repository }} --limit 100 --json tagName -q '.[].tagName' | sort -V)
+          total=${#releases[@]}
           echo "总共找到 $total 个 Release"
 
           if [ "$total" -gt 10 ]; then
-            to_delete=$(echo "$releases" | tail -n +11)
-            for tag in $to_delete; do
+            for tag in "${releases[@]:0:$((total - 10))}"; do
               echo "删除 Release: $tag"
-              release_id=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-                "https://api.github.com/repos/${{ github.repository }}/releases/tags/$tag" | \
-                jq -r '.id')
-              if [ "$release_id" != "null" ] && [ -n "$release_id" ]; then
-                curl -s -X DELETE -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-                  "https://api.github.com/repos/${{ github.repository }}/releases/$release_id"
-              fi
+              gh release delete "$tag" --repo ${{ github.repository }} --yes --cleanup-tag || true
             done
           fi
-
-# ==============================================================================
-# Job 15: 状态通知（始终运行）
-# ==============================================================================
-  notify:
-    name: 📊 构建通知
-    needs: [
-      ci-info,
-      ci-fmt-rust,
-      ci-fmt-fe,
-      ci-lint-rust,
-      ci-lint-fe,
-      ci-type-check,
-      ci-test-rust,
-      ci-test-fe,
-      ci-audit,
-      ci-deps,
-      ci-build-rust,
-      ci-build-fe,
-      package-release,
-      github-release
-    ]
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    if: always()
-    steps:
-      - name: 构建状态总结
-        run: |
-          echo "=========================================="
-          echo "  Bingxi ERP CI/CD 构建总结"
-          echo "  Commit: ${{ github.sha }}"
-          echo "  Ref: ${{ github.ref }}"
-          echo "=========================================="
-          echo ""
-          echo "📋  环境信息:        ${{ needs.ci-info.result }}"
-          echo "🔧  Rust 格式:       ${{ needs.ci-fmt-rust.result }}"
-          echo "🔧  前端格式:        ${{ needs.ci-fmt-fe.result }}"
-          echo "🔍  Rust Clippy:     ${{ needs.ci-lint-rust.result }}"
-          echo "🔍  前端 ESLint:     ${{ needs.ci-lint-fe.result }}"
-          echo "🔬  前端类型检查:    ${{ needs.ci-type-check.result }}"
-          echo "🧪  Rust 测试:       ${{ needs.ci-test-rust.result }}"
-          echo "🧪  前端测试:        ${{ needs.ci-test-fe.result }}"
-          echo "🛡️  依赖审计:        ${{ needs.ci-audit.result }}"
-          echo "📦  依赖图:          ${{ needs.ci-deps.result }}"
-          echo "🏗️  Rust 后端构建:   ${{ needs.ci-build-rust.result }}"
-          echo "🏗️  前端构建:        ${{ needs.ci-build-fe.result }}"
-          echo "📦  打包发布:        ${{ needs.package-release.result }}"
-          echo "🚀  GitHub Release:  ${{ needs.github-release.result }}"
-          echo ""
-
-          # 严格阻塞的 job 列表（用 GitHub Actions 表达式直接比较）
-          # V15 批次 07 P1-4/5/6 修复：ci-fmt-rust / ci-fmt-fe / ci-lint-fe 改为严格阻塞
-          # V15 Batch 485 修订：ci-lint-rust 恢复 baseline 机制（渐进式严格化），
-          #   不阻塞整体 CI（仅新增警告阻塞 clippy job 本身）
-          declare -A STRICT_RESULTS=(
-            [ci-fmt-rust]="${{ needs.ci-fmt-rust.result }}"
-            [ci-fmt-fe]="${{ needs.ci-fmt-fe.result }}"
-            [ci-lint-fe]="${{ needs.ci-lint-fe.result }}"
-            [ci-type-check]="${{ needs.ci-type-check.result }}"
-            [ci-test-rust]="${{ needs.ci-test-rust.result }}"
-            [ci-test-fe]="${{ needs.ci-test-fe.result }}"
-            [ci-build-rust]="${{ needs.ci-build-rust.result }}"
-            [ci-build-fe]="${{ needs.ci-build-fe.result }}"
-          )
-          FAILED=0
-          for job in "${!STRICT_RESULTS[@]}"; do
-            if [ "${STRICT_RESULTS[$job]}" != "success" ] && [ "${STRICT_RESULTS[$job]}" != "skipped" ]; then
-              FAILED=$((FAILED + 1))
-              echo "❌ 严格 job 失败: $job (${STRICT_RESULTS[$job]})"
-            fi
-          done
-
-          if [ "$FAILED" -eq "0" ]; then
-            echo "✅ 所有严格 job 全部通过！"
-          else
-            echo ""
-            echo "❌ $FAILED 个严格 job 失败"
-            echo "请下载对应 artifacts 查看详细日志"
-          fi
-          echo ""
-          echo "=========================================="
-          echo ""
-          echo "📁 Artifacts 列表（90 天保留）："
-          echo "  - env-info              环境信息（rustc/node/npm/系统）"
-          echo "  - backend-fmt-report    rustfmt diff 报告"
-          echo "  - frontend-fmt-report   prettier diff 报告"
-          echo "  - backend-clippy-report clippy 检查报告（V15 Batch 485 baseline 模式）"
-          echo "  - frontend-lint-report  ESLint 报告"
-          echo "  - frontend-type-check-report  vue-tsc 报告"
-          echo "  - backend-test-report   cargo test 报告"
-          echo "  - frontend-test-report  vitest 报告"
-          echo "  - backend-build-log     cargo build 详细日志"
-          echo "  - frontend-build-log    vite build 详细日志"
-          echo "  - dependency-audit-reports  cargo audit + npm audit"
-          echo "  - dependency-trees      cargo tree + npm ls"
-          echo "=========================================="
