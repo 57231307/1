@@ -128,6 +128,10 @@ V15 25 大类 195 维度审计报告生成后，对 main 主线做"最严格"二
   - 通过源码检索确认 `PaginatorTrait` 与 `QuerySelect` 仅出现在 import 行，文件内无 `.paginate()` / `.fetch_page()` / `QuerySelect` 相关调用。
   - 已从 `sea_orm` import 列表中移除这两个 trait，保留实际使用的 `QueryOrder` / `ColumnTrait` / `ActiveModelTrait` 等依赖。
   - 该修复不改变质检业务逻辑，仅继续收敛 `Rust Clippy` 新增 `unused import` 噪音。
+- **委外主链路子模块未使用 `QueryOrder` 收敛**（[order.rs](file:///workspace/.tmp/fix-p1-outsource-2026-07-30/backend/src/services/outsourcing_ops/order.rs), [receipt.rs](file:///workspace/.tmp/fix-p1-outsource-2026-07-30/backend/src/services/outsourcing_ops/receipt.rs)）
+  - 通过源码检索确认两文件均存在分页 / 行锁调用，但没有任何 `.order_by(...)`，因此 `QueryOrder` trait 仅出现在 import 行。
+  - 已从 `outsourcing_ops/order.rs` 与 `outsourcing_ops/receipt.rs` 的 `sea_orm` import 列表中移除 `QueryOrder`，保留实际需要的 `PaginatorTrait`、`QuerySelect`、`TransactionTrait` 等。
+  - 该修复不影响委外订单 / 收回单业务行为，仅继续收敛 `Rust Clippy` 新增 `unused import` 噪音。
 
 ### 后续项
 
