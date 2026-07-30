@@ -35,7 +35,7 @@ pub struct CreateDischargeRecordRequest {
 }
 
 /// 环保税计算结果
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct EnvironmentalTaxResult {
     pub pollutant_name: String,
     pub tax_unit_equivalent: Decimal,

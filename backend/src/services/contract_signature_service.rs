@@ -30,7 +30,7 @@ pub struct SignContractRequest {
 }
 
 /// 电子签章验证结果
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct SignatureVerificationResult {
     pub contract_id: i32,
     pub contract_no: String,

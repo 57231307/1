@@ -47,7 +47,7 @@ pub struct PollutionPermitQuery {
 }
 
 /// 到期预警级别
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub enum ExpiryWarningLevel {
     /// 未到期（剩余 > 90 天）
     Normal,
@@ -80,7 +80,7 @@ impl ExpiryWarningLevel {
 }
 
 /// 到期预警结果
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct PermitExpiryWarning {
     pub permit: PermitModel,
     pub level: ExpiryWarningLevel,

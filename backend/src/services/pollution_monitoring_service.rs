@@ -78,7 +78,7 @@ pub struct MonitoringRecordQuery {
 }
 
 /// 超标预警结果
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct ExceedanceAlert {
     pub record: MonitoringModel,
     /// 超标倍数（实测值 / 限值 - 1）

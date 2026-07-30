@@ -58,7 +58,7 @@ pub struct CreateFxVerificationRequest {
 }
 
 /// 免抵退税额计算参数
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct RefundCalculationInput {
     pub export_sales_amount: Decimal,
     pub refund_rate: Decimal,
@@ -67,7 +67,7 @@ pub struct RefundCalculationInput {
 }
 
 /// 免抵退税额计算结果
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct RefundCalculationResult {
     /// 免抵退税额 = 出口销售额 × 退税率
     pub refundable_vat_amount: Decimal,

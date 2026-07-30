@@ -124,7 +124,7 @@ pub struct HazardExceedanceAlert {
 }
 
 /// 体检到期预警级别
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub enum ExamExpiryWarningLevel {
     /// 已过期
     Expired,
@@ -148,7 +148,7 @@ impl ExamExpiryWarningLevel {
 }
 
 /// 体检到期预警结果
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct ExamExpiryWarning {
     pub exam: ExamModel,
     pub level: ExamExpiryWarningLevel,
