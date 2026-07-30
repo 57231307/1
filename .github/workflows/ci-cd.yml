@@ -175,7 +175,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/.rustup
-          key: fmt-rustup-${{ env.RUST_VERSION }}
+          key: rustup-${{ env.RUST_VERSION }}
 
       - name: 安装 Rust 工具链
         uses: dtolnay/rust-toolchain@master
@@ -283,7 +283,7 @@ jobs:
           path: |
             frontend/node_modules
             ~/.npm
-          key: fmt-fe-npm-${{ hashFiles('frontend/package-lock.json') }}
+          key: fe-npm-${{ hashFiles('frontend/package-lock.json') }}
 
       - name: 安装前端依赖
         working-directory: frontend
@@ -387,7 +387,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/.rustup
-          key: lint-rustup-${{ env.RUST_VERSION }}
+          key: rustup-${{ env.RUST_VERSION }}
 
       - name: 安装 Rust 工具链
         uses: dtolnay/rust-toolchain@master
@@ -403,21 +403,19 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             backend/target
-          key: lint-cargo-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}
+          key: cargo-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}
           restore-keys: |
-            lint-cargo-${{ env.RUST_VERSION }}-
+            cargo-${{ env.RUST_VERSION }}-
 
       - name: 安装系统依赖
         run: |
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev protobuf-compiler
 
-      - name: 运行 clippy（V15 Batch 485 baseline 机制 + 精简日志）
+      - name: 运行 clippy（baseline 机制）
         working-directory: backend
-        # V15 Batch 485 修订：恢复 baseline 机制（仅 clippy，test 保持零容忍）
-        # 保留 Batch 485 优化：无 RUSTC_LOG=debug、无 --all-features、无阶段 3 trace 重跑
-        # 修复 runner shutdown (exit 143)：限制并行编译数 + clippy 命令带 retry
-        # exit 143 = SIGTERM，通常因 OOM 或 runner 超时被 kill；限制并行编译降低内存峰值
+        # baseline 机制：仅 clippy 使用，test 保持零容忍；仅"新增警告"阻塞 CI
+        # exit 143 = SIGTERM（OOM/超时）：限制并行编译降内存峰值 + 3 次重试
         env:
           CARGO_BUILD_JOBS: "2"
           CARGO_JOBS: "2"
@@ -426,14 +424,10 @@ jobs:
           set +e
 
           # ============================================================================
-          # 阶段 1：主 clippy 运行（JSON 格式，用于机器解析）— 带 retry
+          # 阶段 1：主 clippy 运行（JSON 格式，带 retry）
           # ============================================================================
-          # V15 Batch 485：恢复 baseline 机制，仅"新增警告"阻塞 CI（NEW_COUNT > 0）
-          # 不加 -- -D warnings（避免 JSON 输出截断），由后续 NEW_COUNT > 0 判定阻塞
-          # V15 Batch 485：移除 --all-features（与 cargo build/test 一致使用默认 features）
-          # 原因：--all-features 启用从未在生产中组合使用的 feature 组合，产生 1773 个
-          # false positive dead_code 警告（如 swagger feature 启用时暴露未使用常量）
-          # 修复 runner shutdown (exit 143)：clippy 命令带 3 次重试，仅对 143/137/1 重试
+          # 不加 -- -D warnings（避免 JSON 截断），由 NEW_COUNT > 0 判定阻塞
+          # 不加 --all-features（与 build/test 一致用默认 features；--all-features 产生 1773 个误报）
           echo "▶ 阶段 1/3：主 clippy 运行（JSON 输出，带 retry）"
           CLIPPY_MAIN_EXIT=143
           MAX_ATTEMPTS=3
@@ -488,12 +482,10 @@ jobs:
           # ============================================================================
           # 阶段 3：解析 JSON，按多维度统计（lint_id / file / line）
           # ============================================================================
-          # V15 Batch 485 P0-06-3：原阶段 3（RUSTC_LOG=debug 重复 clippy 运行）已删除
-          # 原因：重复运行 clippy 一次（带 debug 日志）导致 CI 超时 cancelled（55min > 45min）
-          # 阶段编号调整：原阶段 4 → 阶段 3
+          # 注：原 RUSTC_LOG=debug 重复 clippy 运行已删除（曾导致 CI 超时 55min）
           echo "▶ 阶段 3/3：多维度统计"
 
-          # 4.1 原始警告摘要（V15 Batch 485：用于 baseline 对比 + CURRENT_COUNT 统计）
+          # 原始警告摘要（用于 baseline 对比 + CURRENT_COUNT 统计）
           cat reports/clippy-output.json | \
             jq -r 'select(.reason == "compiler-message") |
                    .message |
@@ -759,93 +751,9 @@ jobs:
             fi
           } > reports/clippy-explain.txt
 
-          # 8. 生成 HTML 可视化报告（便于在 artifacts 中直接预览）
-          echo "▶ 生成 HTML 可视化报告"
-          {
-            echo '<!DOCTYPE html>'
-            echo '<html lang="zh-CN">'
-            echo '<head>'
-            echo '  <meta charset="UTF-8">'
-            echo '  <title>Clippy 检查报告</title>'
-            echo '  <style>'
-            echo '    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 2em auto; max-width: 1200px; color: #24292e; }'
-            echo '    h1 { border-bottom: 2px solid #0366d6; padding-bottom: 0.3em; }'
-            echo '    h2 { border-bottom: 1px solid #e1e4e8; padding-bottom: 0.2em; margin-top: 2em; }'
-            echo '    table { border-collapse: collapse; width: 100%; margin: 1em 0; }'
-            echo '    th, td { border: 1px solid #d0d7de; padding: 6px 13px; text-align: left; }'
-            echo '    th { background: #f6f8fa; }'
-            echo '    tr:nth-child(2n) { background: #f6f8fa; }'
-            echo '    .warning { color: #d29922; }'
-            echo '    .error { color: #cf222e; }'
-            echo '    code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; font-family: "SFMono-Regular", Consolas, monospace; }'
-            echo '    .summary { background: #f6f8fa; padding: 1em 1.5em; border-radius: 6px; border-left: 4px solid #0366d6; }'
-            echo '    pre { background: #f6f8fa; padding: 1em; border-radius: 6px; overflow-x: auto; }'
-            echo '  </style>'
-            echo '</head>'
-            echo '<body>'
-            echo "  <h1>🔍 Clippy 检查报告</h1>"
-            echo "  <div class='summary'>"
-            echo "    <p><strong>生成时间</strong>: $(date -u +'%Y-%m-%dT%H:%M:%SZ')</p>"
-            echo "    <p><strong>模式</strong>: $BASELINE_MODE</p>"
-            echo "    <p><strong>当前警告总数</strong>: $CURRENT_COUNT</p>"
-            echo "    <p><strong>结构化记录数</strong>: $STRUCTURED_COUNT</p>"
-            echo "    <p><strong>基线警告数</strong>: $BASELINE_COUNT</p>"
-            echo "    <p><strong>新增警告数</strong>: <span class='error'>$NEW_COUNT</span></p>"
-            echo "    <p><strong>已修复警告数</strong>: <span class='warning'>$FIXED_COUNT</span></p>"
-            echo "    <p><strong>工具链</strong>: $(rustc --version)</p>"
-            echo "    <p><strong>clippy 版本</strong>: $(cargo clippy --version 2>&1 | head -1)</p>"
-            echo "  </div>"
-            echo ""
-            echo "  <h2>📊 按 lint 类型分布</h2>"
-            echo "  <table><thead><tr><th>Lint ID</th><th>数量</th></tr></thead><tbody>"
-            awk -F'\t' '{count[$1]++} END {for (k in count) printf "    <tr><td><code>%s</code></td><td>%s</td></tr>\n", k, count[k]}' \
-              reports/clippy-structured.tsv 2>/dev/null | sort -t'>' -k4 -rn
-            echo "  </tbody></table>"
-            echo ""
-            echo "  <h2>📊 按文件分布</h2>"
-            echo "  <table><thead><tr><th>文件</th><th>数量</th></tr></thead><tbody>"
-            awk -F'\t' '{count[$2]++} END {for (k in count) printf "    <tr><td><code>%s</code></td><td>%s</td></tr>\n", k, count[k]}' \
-              reports/clippy-structured.tsv 2>/dev/null | sort -t'>' -k4 -rn
-            echo "  </tbody></table>"
-            echo ""
-            echo "  <h2>📝 警告详情（结构化列表）</h2>"
-            if [ -s reports/clippy-structured.tsv ]; then
-              echo "  <table><thead><tr><th>Lint ID</th><th>文件</th><th>行</th><th>列</th><th>级别</th><th>消息</th></tr></thead><tbody>"
-              awk -F'\t' '{
-                lvl = $5
-                color = (lvl == "error") ? "error" : "warning"
-                printf "    <tr><td><code>%s</code></td><td><code>%s</code></td><td>%s</td><td>%s</td><td class=\"%s\">%s</td><td>%s</td></tr>\n", $1, $2, $3, $4, color, lvl, $6
-              }' reports/clippy-structured.tsv | head -500
-              echo "  </tbody></table>"
-              TOTAL_ROWS=$(wc -l < reports/clippy-structured.tsv)
-              if [ "$TOTAL_ROWS" -gt 500 ]; then
-                echo "  <p><em>仅显示前 500 条，完整 $TOTAL_ROWS 条见 clippy-structured.tsv</em></p>"
-              fi
-            else
-              echo "  <p>无结构化警告记录。</p>"
-            fi
-            echo ""
-            echo "  <h2>📖 新增警告 --explain 解释</h2>"
-            echo "  <pre>$(head -200 reports/clippy-explain.txt | sed 's/</\&lt;/g; s/>/\&gt;/g')</pre>"
-            echo ""
-            echo "  <h2>📁 详细日志归档</h2>"
-            echo "  <ul>"
-            echo "    <li><code>clippy-output.json</code> - 原始 JSON 输出（最完整）</li>"
-            echo "    <li><code>clippy-human-readable-full.txt</code> - 人类可读详细日志</li>"
-            echo "    <li><code>clippy-stderr.txt</code> - clippy stderr 输出</li>"
-            echo "    <li><code>clippy-structured.tsv</code> - 结构化 TSV</li>"
-            echo "    <li><code>clippy-warnings.json</code> - 仅警告的 JSON</li>"
-            echo "    <li><code>clippy-explain.txt</code> - 完整 --explain 解释</li>"
-            echo "  </ul>"
-            echo "</body>"
-            echo "</html>"
-          } > reports/clippy-report.html
-
-          # 9. 决定退出码（V15 Batch 485 修订：恢复 baseline 机制，仅新增警告阻塞 CI）
-          # Batch 488 D08-1 教训：clippy 编译失败（退出码 101）时 reports/clippy-current.txt
-          # 可能不完整（缺少部分 warning 摘要行），导致 FIXED_COUNT > 0 误触发自动刷新，
-          # 把 baseline 缩小到不完整的 current，下次 CI 又报新增警告。三次复发。
-          # 修复：写入 CLIPPY_MAIN_EXIT 到文件，供后续 step 读取；自动刷新条件增加 clippy 正常退出。
+          # 8. 决定退出码（baseline 机制：仅新增警告阻塞 CI）
+          # D08-1 教训：clippy 编译失败（退出码 101）时 current.txt 不完整，
+          # 误触发自动刷新把 baseline 缩小。修复：记录 CLIPPY_MAIN_EXIT，自动刷新需 clippy 正常退出。
           echo "CLIPPY_MAIN_EXIT=$CLIPPY_MAIN_EXIT" > reports/clippy-main-exit.txt
 
           if [ "$NEW_COUNT" -gt "0" ]; then
@@ -1047,7 +955,7 @@ jobs:
           path: |
             frontend/node_modules
             ~/.npm
-          key: lint-fe-npm-${{ hashFiles('frontend/package-lock.json') }}
+          key: fe-npm-${{ hashFiles('frontend/package-lock.json') }}
 
       - name: 安装前端依赖
         working-directory: frontend
@@ -1171,7 +1079,7 @@ jobs:
           path: |
             frontend/node_modules
             ~/.npm
-          key: type-check-npm-${{ hashFiles('frontend/package-lock.json') }}
+          key: fe-npm-${{ hashFiles('frontend/package-lock.json') }}
 
       - name: 安装前端依赖
         working-directory: frontend
@@ -1266,7 +1174,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/.rustup
-          key: test-rustup-${{ env.RUST_VERSION }}
+          key: rustup-${{ env.RUST_VERSION }}
 
       - name: 安装 Rust 工具链
         uses: dtolnay/rust-toolchain@master
@@ -1282,9 +1190,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             backend/target
-          key: test-cargo-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}
+          key: cargo-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}
           restore-keys: |
-            test-cargo-${{ env.RUST_VERSION }}-
+            cargo-${{ env.RUST_VERSION }}-
 
       - name: 安装系统依赖
         run: |
@@ -1398,10 +1306,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             backend/target
-          key: ${{ runner.os }}-cargo-coverage-${{ hashFiles('backend/Cargo.lock') }}
+          key: cargo-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-coverage-
-            ${{ runner.os }}-cargo-
+            cargo-${{ env.RUST_VERSION }}-
 
       - name: 安装 cargo-tarpaulin
         run: cargo install cargo-tarpaulin || echo "cargo-tarpaulin 已安装，跳过"
@@ -1479,7 +1386,7 @@ jobs:
           path: |
             frontend/node_modules
             ~/.npm
-          key: test-fe-npm-${{ hashFiles('frontend/package-lock.json') }}
+          key: fe-npm-${{ hashFiles('frontend/package-lock.json') }}
 
       - name: 安装前端依赖
         working-directory: frontend
@@ -1934,7 +1841,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/.rustup
-          key: build-rustup-${{ env.RUST_VERSION }}
+          key: rustup-${{ env.RUST_VERSION }}
 
       - name: 安装 Rust 工具链
         uses: dtolnay/rust-toolchain@master
@@ -1950,9 +1857,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             backend/target
-          key: build-cargo-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}
+          key: cargo-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}
           restore-keys: |
-            build-cargo-${{ env.RUST_VERSION }}-
+            cargo-${{ env.RUST_VERSION }}-
 
       - name: 安装系统依赖
         run: |
@@ -2055,7 +1962,7 @@ jobs:
           path: |
             frontend/node_modules
             ~/.npm
-          key: build-fe-npm-${{ hashFiles('frontend/package-lock.json') }}
+          key: fe-npm-${{ hashFiles('frontend/package-lock.json') }}
 
       - name: 安装前端依赖
         working-directory: frontend

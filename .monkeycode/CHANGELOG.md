@@ -6,6 +6,17 @@
 
 ---
 
+## CI 配置梳理优化（2026-07-31，保守方案）
+
+| 项 | 一句话总结 |
+|----|-----------|
+| 缓存 key 统一共享 | **[ci-cd.yml](file:///workspace/.github/workflows/ci-cd.yml) 统一 13 处缓存 key 共享缓存**：rustup（4 处 fmt/lint/test/build → `rustup-${{ env.RUST_VERSION }}`）+ cargo（4 处 lint/test/coverage/build → `cargo-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}`）+ npm（5 处 fmt/lint/type-check/test/build → `fe-npm-${{ hashFiles('frontend/package-lock.json') }}`）；原各 job 独立缓存 key 导致每个 job 重新编译/安装依赖，统一后首个完成 job 写入缓存供后续 job restore，大幅减少重复编译与 npm ci 耗时 |
+| 删除 clippy HTML 报告生成 | **ci-lint-rust 删除约 80 行 HTML 可视化报告生成代码**：原 `clippy-report.html`（~80 行 echo HTML/CSS/表格）与 `clippy-report.md`/`clippy-structured.tsv` 信息重复，artifact 上传 `reports/` 目录不受影响（其他报告文件仍上传） |
+| 精简冗长历史注释 | **ci-lint-rust 精简 V15 Batch 485/488 冗长注释**：step name 从"V15 Batch 485 baseline 机制 + 精简日志"简化为"baseline 机制"；阶段 1/3 注释块从 9 行压缩为 4 行，保留关键教训（exit 143=SIGTERM、--all-features 1773 误报、RUSTC_LOG 55min 超时、D08-1 编译失败保护） |
+| 文件体积 | 2633 → 2540 行（-93 行，28 insertions / 121 deletions），YAML 语法校验通过，17 个 job 结构不变 |
+
+---
+
 ## 文档治理与项目状态对齐（2026-07-30 续）
 
 | 项 | 一句话总结 |
