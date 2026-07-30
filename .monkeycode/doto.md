@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单），进度必须真实，禁止乐观偏差。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-30（**核实修正乐观偏差**：主线八维 P1 后续 5 项经代码级核实，实际 1 项完成 / 2 项部分修复 / 2 项未修复，非此前暗示的"仅 CI 收尾待推送"；**CI baseline 自动重建机制修订**：[ci-cd.yml](file:///workspace/.github/workflows/ci-cd.yml) main 分支每次 CI 后用当前真实警告完全重建 baseline，解决原机制 57% 抽样过时问题；**Clippy baseline 数据失真核实**：声称 308 条实际 293 条警告 + 15 行注释/空行，dead_code 占 94.9% (278/293)，22 处 `#[allow(dead_code)]` 违反规则 14；**SeaORM 评估数据偏高**：声称 181 处实际 56 处 `active.insert`；**打印功能核实**：V15 类十三 P0/P1 基础设施 85% 完成，业务场景覆盖仅 6/16=37.5%，9 个纺织核心打印场景缺失，缺陷 10-4 审计日志二次审计表 P0 未实现；**PR #786 已合并 main**：V15 主线八维审计 P0/P2 批次；**PR #788 已合并 main**：委外收货主链路统一）
+> 最近整理：2026-07-31（**CI 测试+覆盖率合并优化**：[ci-cd.yml](file:///workspace/.github/workflows/ci-cd.yml) 合并 ci-test-rust + ci-coverage-rust 为单一 job，用 `cargo llvm-cov nextest` 一次执行产出测试断言+覆盖率，消除重复执行；工具替换 cargo-tarpaulin（停更 2024-08、仅行覆盖、ptrace 仅 x86_64）→ cargo-llvm-cov（source-based instrumentation、行/区域/分支覆盖、taiki-e 持续维护 0.8.7 2026-05）+ cargo-nextest（每测试独立进程+真正并行）；零容忍断言/PostgreSQL service container/Codecov 上传均保留；17→16 job，2484 行；**2026-07-30 核实修正乐观偏差**：主线八维 P1 后续 5 项经代码级核实，实际 1 项完成 / 2 项部分修复 / 2 项未修复，非此前暗示的"仅 CI 收尾待推送"；**CI baseline 自动重建机制修订**：main 分支每次 CI 后用当前真实警告完全重建 baseline，解决原机制 57% 抽样过时问题；**Clippy baseline 数据失真核实**：声称 308 条实际 293 条警告 + 15 行注释/空行，dead_code 占 94.9% (278/293)，22 处 `#[allow(dead_code)]` 违反规则 14；**SeaORM 评估数据偏高**：声称 181 处实际 56 处 `active.insert`；**打印功能核实**：V15 类十三 P0/P1 基础设施 85% 完成，业务场景覆盖仅 6/16=37.5%，9 个纺织核心打印场景缺失，缺陷 10-4 审计日志二次审计表 P0 未实现；**PR #786 已合并 main**：V15 主线八维审计 P0/P2 批次；**PR #788 已合并 main**：委外收货主链路统一）
 
 ---
 

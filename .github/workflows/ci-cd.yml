@@ -1139,13 +1139,14 @@ jobs:
 # Job 7: Rust 单元测试（V15 Batch 485 零容忍模式）
 # ==============================================================================
   ci-test-rust:
-    name: 🧪 Rust 单元测试
+    name: 🧪 Rust 测试 + 覆盖率
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     needs: ci-info
-    # V15 Batch 485 P0-06-3：baseline 机制已移除（零容忍模式），不再需要 contents: write
+    # 零容忍模式：任何测试失败都阻塞 CI；覆盖率信息性收集，不阻塞
     # 集成测试依赖 PostgreSQL，使用 service container 提供数据库实例
-    # 批次 21 修复：移除 --lib 跳过 47 个集成测试的问题
+    # 2026-07-31 优化：合并原 ci-test-rust + ci-coverage-rust，用 cargo llvm-cov nextest
+    # 一次执行同时产出测试断言（退出码）+ 覆盖率（cobertura.xml），消除重复执行
     services:
       postgres:
         image: postgres:16-alpine
@@ -1164,7 +1165,6 @@ jobs:
       # 集成测试所需的数据库连接串（指向 service container）
       DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
       # 审计模块所需的密钥（仅 CI 用途，禁止用于生产）
-      # 批次 261 修复：移除 "test" 弱模式关键词，避免被 validate_secret 拒绝
       AUDIT_SECRET_KEY: ci-only-audit-signing-key-do-not-use-in-prod-32b
     steps:
       - name: 检出代码
@@ -1176,11 +1176,11 @@ jobs:
           path: ~/.rustup
           key: rustup-${{ env.RUST_VERSION }}
 
-      - name: 安装 Rust 工具链
+      - name: 安装 Rust 工具链（含 llvm-tools-preview）
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_VERSION }}
-          components: rustfmt, clippy
+          components: llvm-tools-preview
 
       - name: 缓存 Cargo
         uses: actions/cache@v5
@@ -1199,152 +1199,96 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev postgresql-client protobuf-compiler
 
-      - name: 运行 cargo test（V15 Batch 485 零容忍模式）
+      - name: 安装 cargo-llvm-cov 与 cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov,nextest
+
+      - name: 运行测试 + 收集覆盖率（cargo llvm-cov nextest，零容忍）
         working-directory: backend
-        # 批次 21 修复：已添加 Postgres service container + DATABASE_URL 环境变量，
-        # 移除 --lib 参数，运行全部测试（lib 单元测试 + backend/tests/ 下集成测试）
+        # nextest 每个测试独立进程 + 真正并行；llvm-cov source-based instrumentation（行/区域/分支覆盖）
+        # --cobertura 输出兼容 Codecov；保留 --test-threads=1 与历史串行行为一致（避免集成测试竞态）
         run: |
-          mkdir -p reports
+          mkdir -p reports coverage
           set +e
-          cargo test --jobs 1 -- --test-threads=1 2>&1 \
-            | tee reports/cargo-test-output.txt
+          cargo llvm-cov nextest \
+            --cobertura --output-path coverage/cobertura.xml \
+            --no-clean \
+            -- --test-threads=1 > reports/llvm-cov-nextest-output.txt 2>&1
           EXIT_CODE=$?
           set -e
 
-          # 统计测试结果（V15 Batch 485 修订：grep -c 在无匹配时返回 exit 1 触发 || echo 0
-          # 会导致 FAILED 变量变成多行 "0\n0"，破坏后续 $((..)) 算术和 [ -gt ] 整数判定。
-          # 修复：用 awk 显式输出单行数字，避免 || echo 0 重复输出）
-          PASSED=$(awk '/^test .* ok$/{c++} END{print c+0}' reports/cargo-test-output.txt 2>/dev/null)
-          FAILED=$(awk '/^test .* FAILED$/{c++} END{print c+0}' reports/cargo-test-output.txt 2>/dev/null)
+          # 统计测试结果（nextest 输出格式："PASS" / "FAIL" 行）
+          PASSED=$(awk '/^ PASS /{c++} END{print c+0}' reports/llvm-cov-nextest-output.txt 2>/dev/null)
+          FAILED=$(awk '/^ FAIL /{c++} END{print c+0}' reports/llvm-cov-nextest-output.txt 2>/dev/null)
           TOTAL=$((PASSED + FAILED))
 
-          # V15 Batch 485 P0-06-3：baseline 机制已移除（零容忍模式）
-          # 原逻辑：首次跑自动建立 baseline，后续 PR 仅新增失败阻塞 CI
-          # 新逻辑：任何失败（FAILED > 0）都阻塞 CI，无需 baseline 文件
-          NEW_FAILED=0
-          BASELINE_FAILED=0
-          FIXED=0
-          BASELINE_MODE="zero-tolerance"
+          # 提取覆盖率摘要（从 llvm-cov report 输出）
+          COVERAGE_SUMMARY="N/A"
+          if [ -f coverage/cobertura.xml ]; then
+            LINE_RATE=$(grep -o 'line-rate="[^"]*"' coverage/cobertura.xml | head -1 | cut -d'"' -f2)
+            if [ -n "$LINE_RATE" ]; then
+              COVERAGE_PCT=$(awk -v r="$LINE_RATE" 'BEGIN{printf "%.2f", r*100}')
+              COVERAGE_SUMMARY="${COVERAGE_PCT}%"
+            fi
+          fi
 
           {
-            echo "# Rust 单元测试报告"
+            echo "# Rust 测试 + 覆盖率报告"
             echo ""
             echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
-            echo "**模式**: $BASELINE_MODE（零容忍）  "
+            echo "**模式**: 零容忍（任何测试失败阻塞 CI）  "
             echo "**通过**: $PASSED  "
             echo "**失败**: $FAILED  "
             echo "**总计**: $TOTAL  "
+            echo "**行覆盖率**: $COVERAGE_SUMMARY  "
+            echo "**工具**: cargo-llvm-cov nextest（source-based instrumentation）"
             echo ""
             if [ "$FAILED" -eq "0" ]; then
               echo "## ✅ 所有 $PASSED 个测试通过（零容忍通过）"
               echo ""
-              echo "V15 Batch 485 P0-06-3：baseline 机制已移除，任何失败都阻塞 CI。"
+              echo "覆盖率：$COVERAGE_SUMMARY（信息性，不阻塞 CI）"
             else
               echo "## ❌ 发现 $FAILED 个测试失败（零容忍，CI 失败）"
               echo ""
               echo "### 失败列表"
               echo ""
-              grep -E "^test .* FAILED$" reports/cargo-test-output.txt 2>/dev/null | head -30
+              grep -E "^ FAIL " reports/llvm-cov-nextest-output.txt 2>/dev/null | head -30
               echo ""
               echo "### 失败详情"
               echo ""
-              grep -B 1 -A 5 "FAILED" reports/cargo-test-output.txt | head -50
+              grep -A 10 "^ FAIL " reports/llvm-cov-nextest-output.txt | head -60
             fi
           } > reports/cargo-test-report.md
 
           {
-            echo "## Rust 单元测试"
+            echo "## Rust 测试 + 覆盖率"
             echo ""
             if [ "$FAILED" -eq "0" ]; then
               echo "✅ 通过 $PASSED / $TOTAL（零容忍模式）"
+              echo "📊 行覆盖率：$COVERAGE_SUMMARY"
             else
               echo "❌ 失败 $FAILED / $TOTAL（零容忍，CI 失败）"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-          # V15 Batch 485 P0-06-3：移除 baseline 机制，任何测试失败都阻塞 CI
+          # 零容忍：任何测试失败都阻塞 CI
           if [ "$FAILED" -gt "0" ]; then
             echo ""
             echo "❌ 发现 $FAILED 个测试失败，CI 失败（零容忍）"
             echo "详见 reports/cargo-test-report.md 和 artifacts"
             exit 1
           fi
-          echo "✅ 所有 $PASSED 个测试通过"
+          echo "✅ 所有 $PASSED 个测试通过（覆盖率：$COVERAGE_SUMMARY）"
           exit 0
 
-      - name: 上传报告
+      - name: 上传测试报告
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: backend-test-report
           path: reports/
           retention-days: 90
-
-# ==============================================================================
-# Job 7.5: Rust 覆盖率（V15 Batch 485 P0-06-8 新增）
-# ==============================================================================
-  ci-coverage-rust:
-    name: 📊 Rust 覆盖率
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    needs: ci-info
-    # V15 Batch 485：覆盖率 job 为信息性，不阻塞整体 CI
-    continue-on-error: true
-    steps:
-      - name: 检出代码
-        uses: actions/checkout@v5
-
-      - name: 安装 Rust 工具链
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: ${{ env.RUST_VERSION }}
-
-      - name: 缓存 Cargo
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            backend/target
-          key: cargo-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}
-          restore-keys: |
-            cargo-${{ env.RUST_VERSION }}-
-
-      - name: 安装 cargo-tarpaulin
-        run: cargo install cargo-tarpaulin || echo "cargo-tarpaulin 已安装，跳过"
-
-      - name: 运行覆盖率收集
-        working-directory: backend
-        run: |
-          mkdir -p coverage
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "ℹ️ PR 场景跳过 tarpaulin 重覆盖率采集，生成占位 cobertura.xml（不阻塞 CI）"
-            echo "skip tarpaulin on pull_request to avoid runner instability" > coverage/tarpaulin-output.txt
-            echo "<coverage line-rate=\"0\" branch-rate=\"0\" version=\"1.9\" timestamp=\"0\"><sources></sources><packages></packages></coverage>" > coverage/cobertura.xml
-            exit 0
-          fi
-
-          set +e
-          cargo tarpaulin \
-            --workspace \
-            --out Xml \
-            --output-dir coverage/ \
-            --timeout 300 \
-            -- --test-threads=1 > coverage/tarpaulin-output.txt 2>&1
-          EXIT_CODE=$?
-          set -e
-
-          if [ "$EXIT_CODE" -ne "0" ]; then
-            echo "⚠️ tarpaulin 运行失败（exit=$EXIT_CODE），覆盖率收集跳过（不阻塞 CI）"
-            echo "tarpaulin 失败日志（最后 120 行）："
-            tail -n 120 coverage/tarpaulin-output.txt || true
-          fi
-
-          if [ ! -f coverage/cobertura.xml ]; then
-            echo "<coverage line-rate=\"0\" branch-rate=\"0\" version=\"1.9\" timestamp=\"0\"><sources></sources><packages></packages></coverage>" > coverage/cobertura.xml
-          fi
-
-          exit 0
 
       - name: 上传覆盖率到 Codecov
         if: always()

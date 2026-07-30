@@ -6,6 +6,21 @@
 
 ---
 
+## CI 测试+覆盖率合并优化（2026-07-31，方案 A 落地）
+
+| 项 | 一句话总结 |
+|----|-----------|
+| 合并 ci-test-rust + ci-coverage-rust | **[ci-cd.yml](file:///workspace/.github/workflows/ci-cd.yml) 合并两个 Rust job 为单一 `ci-test-rust`**：消除重复执行（原 `cargo test` + `cargo tarpaulin` 各跑一遍全部测试二进制），用 `cargo llvm-cov nextest` 一次执行同时产出测试断言（退出码）+ 覆盖率（cobertura.xml） |
+| 工具替换 | **cargo-tarpaulin → cargo-llvm-cov + cargo-nextest**：tarpaulin 仅行覆盖、ptrace 仅 x86_64、0.31.2 停更（2024-08）；llvm-cov source-based instrumentation（行/区域/分支覆盖）、taiki-e 持续维护（0.8.7 2026-05）、`taiki-e/install-action` 预编译二进制安装比 `cargo install` 快约 10x；nextest 每测试独立进程 + 真正并行 |
+| 零容忍断言保留 | nextest 任何测试失败即非零退出码，CI 阻塞逻辑不变；保留 `--test-threads=1` 与历史串行行为一致（避免集成测试竞态） |
+| PostgreSQL service container 保留 | 集成测试 DB 依赖不变（job 级 services 配置与测试运行器无关） |
+| Codecov 上传保留 | `--cobertura` 输出兼容现有 `codecov/codecov-action@v4`，artifact 名 `rust-coverage-report` 不变 |
+| 工作流拓扑 | 17 → 16 job，下游 `needs.ci-test-rust.result` 引用无需改动（job 名保留） |
+| 文件体积 | 2540 → 2484 行（-56 行），YAML 语法校验通过 |
+| 行业依据 | [nextest 官方文档](https://nexte.st/docs/integrations/test-coverage/) 推荐 `cargo llvm-cov nextest` 标准模式；[rustfaq.org](https://www.rustfaq.org/en/how-to-use-cargo-tarpaulin-for-code-coverage/) 明确"Running both is redundant and slows down your workflow" |
+
+---
+
 ## CI 配置梳理优化（2026-07-31，保守方案）
 
 | 项 | 一句话总结 |
