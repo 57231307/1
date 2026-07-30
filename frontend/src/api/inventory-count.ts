@@ -62,8 +62,7 @@ export const recordCountItems = (id: number, items: Partial<CountItem>[]) =>
   request.post(`/inventory/counts/${id}/record`, { items });
 
 /// 提交盘点单审批（POST /counts/:id/submit），对齐后端 submit_for_approval 端点
-export const submitInventoryCount = (id: number) =>
-  request.post(`/inventory/counts/${id}/submit`);
+export const submitInventoryCount = (id: number) => request.post(`/inventory/counts/${id}/submit`);
 
 /// 驳回盘点单（POST /counts/:id/reject），对齐后端 reject_count 端点
 export const rejectInventoryCount = (id: number, reason: string) =>
