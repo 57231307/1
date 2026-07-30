@@ -100,7 +100,7 @@ pub struct UpdateApiKeyGwRequest {
 /// 校验 rate_limit 范围（0-10000 次/分钟），负值或超限返回 400
 fn validate_rate_limit(v: Option<i32>) -> Result<Option<i32>, AppError> {
     if let Some(rl) = v {
-        if rl < 0 || rl > 10000 {
+        if !(0..=10000).contains(&rl) {
             return Err(AppError::validation(format!(
                 "rate_limit 必须在 0-10000 之间，当前: {}",
                 rl
