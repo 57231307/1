@@ -6,6 +6,16 @@
 
 ---
 
+## 文档治理与项目状态对齐（2026-07-30）
+
+| 项 | 一句话总结 |
+|----|-----------|
+| audit_assignment.md 重写 | **基于项目真实状态全面重写审计任务文件**：[audit_assignment.md](file:///workspace/.monkeycode/audit_assignment.md) 按截至 2026-07-30 的真实数据（后端 ~241k 行 / 前端 ~136k 行 / 148 handler / 390 service / 275 model / 40 route / 18 middleware / 57 migration / 50 集成测试 / 前端 376 Vue + 224 TS + 86 views + 96 api + 20 components + 7 composables + 7 store；Clippy baseline 308 条；最新版本 2026.723.1842 / PR #789 #788）更新项目总览、技术栈、V15 25 大类 195 维度审计完成状态、主线八维审计 P0/P2 完成明细、P1 进行中任务、P2/P3 待启动队列、clippy baseline 管理规则、复审触发条件；清理 v8/v9/v13/v14 历史轮次记录 |
+| 历史审计/修复/规划文件清理 | **删除 37 个历史审计文件 + 历史修复计划 + 历史规划文件**：保留最新审计任务 [audit_assignment.md](file:///workspace/.monkeycode/audit_assignment.md) 与最新审计报告 [2026-07-30-mainline-audit-report.md](file:///workspace/.monkeycode/docs/2026-07-30-mainline-audit-report.md)，清理 v8/v9/v13/v14 等过时轮次审计报告、过时修复计划、过时规划文档及空目录 |
+| README.md 基于真实状态更新 | **基于项目真实状态更新 [README.md](file:///workspace/README.md)**：项目数据与技术栈表对齐真实 Cargo.toml / package.json（Rust 1.94 / Axum 0.7 / SeaORM 1.1.20 / Vue 3.4 / Vite 6.4 / Element Plus 2.6 / ECharts 6.1）；系统架构图为分层单体（应用层 Axum 单体 + 数据层 PG/Redis/Kafka/Loki + 基础设施 systemd 直部署）；功能矩阵含 5 域核心业务 + 纺织行业特性 + 智能协同能力；明确无 Docker/K8s（PR #777 已移除）；审计与质量章节记录 V15 195 维度 + 主线八维 P0/P2 完成 + P1 进行中 + clippy baseline 308 条 |
+
+---
+
 ## V15 主线八维审计与快速修复（2026-07-30 启动）
 
 | 批次 | PR/commit | 一句话总结 |

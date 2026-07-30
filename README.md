@@ -1,13 +1,10 @@
 # 冰溪 ERP 系统
 
 [![Build Status](https://github.com/57231307/1/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/57231307/1/actions/workflows/ci-cd.yml)
-[![Code Quality](https://img.shields.io/badge/quality-80%2F100-yellow)](.monkeycode/docs/audits/2026-06-22-runtime-issues-detection.md)
-[![Test Coverage](https://img.shields.io/badge/tests-178-blue)](docs/TESTING.md)
 [![License](https://img.shields.io/badge/license-Proprietary-blue)]()
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
-[![Docs](https://img.shields.io/badge/docs-49%20files-blue)](docs/)
 
-> **冰溪 ERP** 是一款面向**面料纺织行业**的现代化企业资源计划系统，覆盖采购、销售、库存、生产、财务、CRM 等核心业务，并集成 **AI 智能分析**、**微服务**、**WebSocket 实时通信**、**React Native 移动端**、**BI 数据仓库**等能力，赋能企业数字化转型。
+> **冰溪 ERP** 是一款面向**面料纺织行业**的现代化企业资源计划系统，覆盖采购、销售、库存、生产、财务、CRM 等核心业务，并集成 **AI 智能分析**、**BI 数据仓库**、**WebSocket 实时通信**、**BPM 审批流** 等能力，赋能企业数字化转型。
 
 ---
 
@@ -22,7 +19,7 @@
 - [部署](#-部署)
 - [文档索引](#-文档索引)
 - [测试](#-测试)
-- [性能指标](#-性能指标)
+- [审计与质量](#-审计与质量)
 - [贡献](#-贡献)
 - [许可证](#-许可证)
 - [致谢](#-致谢)
@@ -31,35 +28,38 @@
 
 ## 🌟 项目介绍
 
-冰溪 ERP 系统是**面向纺织行业的全栈式企业资源计划系统**，通过 5 大业务域（采购/销售/库存/生产/财务）+ 5 大行业特性子模块（报价/色卡/多色号/定制订单/主备隔离）+ 3 大智能能力（AI 分析 / BI / BPM）的组合，为面料纺织企业提供端到端数字化解决方案。
+冰溪 ERP 系统是**面向纺织行业的全栈式企业资源计划系统**，单体 Rust 后端 + 单体 Vue 3 前端架构，针对面料纺织行业深度定制（色卡/面料/缸号/批号/定制订单/多色号定价等），并通过 V15 25 大类 195 维度审计与主线八维审计的严格质量保障。
 
 **项目亮点**：
 
-- 🏭 **行业深度**：针对纺织行业的特殊业务（色卡、面料、定制、多色号定价）深度定制
-- 🤖 **AI 驱动**：集成销售预测、库存优化、工艺优化、质量预测、异常检测等 4 类 AI 能力
-- 📱 **多端覆盖**：Web + 移动端（React Native）+ 桌面浏览器响应式
-- 🔄 **实时通信**：WebSocket 推送订单状态、库存预警、审批进度
-- 🚀 **自动化部署**：systemd 直部署 + CI/CD 全自动化
-- 📊 **BI 数据仓库**：4 张事实表 + 16 维 + 12 报表 + Excel/PDF 导出
+- 🏭 **行业深度**：覆盖染整全流程（化验室打样→大货处方→流转卡→验布打卷→产量工资→能耗管理→缸号状态机），针对纺织行业特殊业务深度定制
+- 🤖 **AI 驱动**：工艺优化、质量预测、补货推荐、异常检测 4 类 AI 能力，含模型版本管理与可解释性
+- 🔄 **实时通信**：WebSocket 推送订单状态、库存预警、审批进度、仪表板更新
+- 🚀 **自动化部署**：systemd 直部署 + CLI 工具（bingxi update）+ 蓝绿部署 + SHA256 校验
+- 📊 **BI 数据仓库**：多维分析 + 仪表板 + 报表引擎 + 订阅推送
+- 🔒 **合规安全**：RBAC 权限矩阵 + 字段级权限 + 打印导出审计 + 二级审批 + 中国法律合规（劳动法/数据安全法/个人信息保护法）
+- 📈 **可观测性**：trace 链路 + Prometheus 指标 + 慢查询审计 + API 网关熔断 + 流复制故障转移
 
-**项目数据（截至 2026-06-17）**：
+**项目数据（截至 2026-07-30）**：
 
 | 指标 | 数值 |
 |------|------|
-| 后端代码 | ~95,000 行 |
-| 前端代码 | ~62,000 行 |
-| 后端服务 | 47 |
-| 后端 Handler | 102 |
-| 前端页面 | 67 |
-| 前端组件 | 189 |
-| 数据库表 | 78 |
-| API 端点 | 102 |
-| 测试用例 | 278 |
-| 文档 | 49 |
-| 累计 Commit | 1,115+ |
-| 累计 PR | 153+ |
-| 累计 Issue | 78+ |
-| 评估分 | **100/100（A+）** |
+| 后端 Rust 代码 | ~241,000 行 |
+| 前端 TS/Vue 代码 | ~136,000 行 |
+| 后端 Handler | 148 个 |
+| 后端 Service（含子目录） | 390 个 |
+| 后端 Model | 275 个 |
+| 后端 Route 模块 | 40 个 |
+| 后端 Middleware | 18 个 |
+| 数据库迁移 SQL | 57 个 |
+| 后端集成测试 | 50 个 |
+| 前端 Vue 文件 | 376 个 |
+| 前端 TS 文件 | 224 个 |
+| 前端 Views 子模块 | 86 个 |
+| 前端 API 模块 | 96 个 |
+| Clippy Baseline | 308 条（174 个为 P1 预留服务 dead_code，待接入路由消除） |
+| 最新版本 | 2026.723.1842 |
+| 最新 PR | #789（docs 同步）/ #788（委外收货主链路统一） |
 
 ---
 
@@ -67,145 +67,134 @@
 
 ### 1. 📦 完整业务域覆盖
 
-- **采购管理**：供应商 / 采购订单 / 采购合同 / 采购价格 / 采购入库 / 采购退货
-- **销售管理**：客户 / 销售订单 / 销售合同 / 销售价格 / 销售出库 / 销售退货
-- **库存管理**：库存盘点 / 库存调拨 / 库存调整 / 批次管理 / 库存预警
-- **生产管理**：生产订单 / MRP 运算 / 工序管理 / 质量控制 / 产能规划
-- **财务管理**：总账 / 应收应付 / 固定资产 / 资金管理 / 成本核算
-- **CRM**：客户管理 / 商机管理 / 信用评估
+- **采购管理**：供应商 / 采购订单 / 采购合同 / 采购价格 / 采购入库 / 采购退货 / 供应商评估
+- **销售管理**：客户 / 销售订单 / 销售合同 / 销售价格 / 销售出库 / 销售退货 / 客户信用
+- **库存管理**：库存盘点 / 库存调拨 / 库存调整 / 批次管理 / 库存预警 / 安全库存 / 缸号分区
+- **生产管理**：生产订单 / MRP 运算 / 工序管理 / 质量控制 / 产能规划 / 自动排程
+- **财务管理**：总账 / 应收应付 / 固定资产 / 资金管理 / 成本核算 / 会计期间 / 辅助核算 / 预算管理 / 财务分析
+- **CRM**：线索管理 / 商机管理 / 客户池 / 团队协作 / 转移审批 / 信用评估
 
-### 2. 🏭 纺织行业特性
+### 2. 🏭 纺织行业特性（V15 类四~类五 17 维度）
 
-- **销售报价单**（P0-1）：面料规格 + 印染工艺 + 报价审批
-- **主备隔离**（P0-2）：销售发货自动生成 AR + 灾备切换
-- **定制订单**（P0-3）：5 状态机 + 工艺跟踪 + 质量验收 + 售后
-- **色卡仓储**（P0-4）：4 service + 借出 + 扫码
-- **面料多色号定价**（P0-5）：5 service + 13 handler + 16 路由 + 价格计算引擎
+- **四层级联关系**：面料 → 颜色 → 缸号 → 批号（匹号），库存四维标识
+- **匹号唯一约束**：`UNIQUE(dye_lot_no, batch_no)`，所有含 batch_no 的表强制校验
+- **化验室打样**：5 步闭环（打样通知单→ABCD 多版样→OK 样→复样→染色技术卡）
+- **大货处方**：染色配料单 + 与打样 OK 样配方联动 + 加料处方
+- **流转卡与车间工序**：条码 + 工序扫码上报 + 进度跟踪（前处理→染色→印花→后整理→验布）
+- **验布打卷**：十项指标检验 + A/B/C 分级 + 打卷入库 + 匹号生成
+- **产量工资核算**：按缸号计件 + A 级全额/B 级折扣/C 级不计 + 加班费（《劳动法》第 44 条）
+- **能耗管理与成本归集**：水电汽分摊 + 按缸号归集 + 月末分摊到成本
+- **缸号状态机**：投染→染色→出缸→质检→入库→发货→退货全生命周期
+- **胚布拆匹**：胚布库存 + 委外流转 + 缸号匹号继承 + 8D 处理 + 不合格品降级返工报废
+- **色卡发放**：4 service + 客户专属色卡库 + 复购同缸号 + 过期检查定时任务
+- **大货批色**：剪大货样 + 客户批色确认 + 批色报表 + 历史追溯
+- **多色号定价**：价格计算引擎 + 季节性价格 + 客户专属价格 + 批量定价
 
-### 3. 🤖 AI 智能分析
+### 3. 🤖 AI 智能分析（V15 类十六 10 维度）
 
-- **销售预测**：基于历史数据 + 季节因子
-- **库存优化**：动态安全库存 + 经济订货量
-- **工艺优化**：参数推荐 + 实验设计
-- **质量预测**：特征工程 + 异常检测
+- **工艺优化**：染料-布类配伍性校验 + 参数推荐 + 化验室打样集成 + 模型版本管理
+- **质量预测**：特征工程（dye_type/auxiliary_type/temperature_range 等）+ 实际结果回填 + 准确率对账
+- **补货推荐**：与 MRP 引擎对账 + 差异标注人工复核
 - **异常检测**：统计 + 机器学习双引擎
-- **智能推荐**：关联规则 + 协同过滤
+- **AI 治理**：模型可解释性 + 数据脱敏 + 推理超时降级 + 并发控制 + 缓存策略 + 决策审计日志
 
-### 4. 📱 多端 + 实时
-
-- **Web 端**：Vue 3.4 + Vite 6.4 + Element Plus 2.4
-- **移动端**：React Native（iOS + Android）
-- **桌面端**：响应式 Web
-- **实时通信**：WebSocket 推送（订单 / 库存 / 通知 / 审批）
-
-### 5. 📊 BI 数据仓库
+### 4. 📊 BI 数据仓库（V15 类十九 8 维度）
 
 - **数据仓库**：4 张事实表 + 16 维
 - **多维分析**：销售 / 库存 / 财务 / 经营
-- **报表引擎**：12 报表 + Excel/PDF 导出
-- **可视化**：图表 + 仪表盘
+- **报表引擎**：模板版本管理 + 订阅推送重试 + BI 查询缓存（5min TTL）
+- **仪表板**：dashboard_layouts + WebSocket 实时推送 + 角色数据范围过滤
+- **通知协同**：通知中心多渠道去重 + 邮件 SMTP 队列重试 + OA 公告可见性 + 五维度分析
 
-### 6. 🔐 安全
+### 5. 🔒 RBAC 权限与安全（V15 类十二~十四 30 维度）
 
-- **限流**：令牌桶 + IP / 用户 / 端点 3 级
-- **CSP**：严格策略 + 违规上报
-- **密码策略**：复杂度 + 历史 + 过期 + 锁定
-- **认证授权**：JWT + RBAC + 字段级权限
-- **审计日志**：登录 / 操作 / 数据变更全记录
+- **RBAC 数据模型**：角色 + 权限 + 用户多部门 + 字段级权限 + 权限委托
+- **权限矩阵**：14 类业务角色差异化权限 + 职责分离 SoD 校验 + is_system 滥用治理
+- **打印导出审计**：端点合理性 + 角色权限矩阵 + 二级审批 + 文件水印 + 并发控制 + 合规定期审查
+- **安全防护**：JWT + refresh_token（2 天对齐）+ PUBLIC_PATHS 精确匹配 + Webhook payload 脱敏 + magic bytes 校验 + zip bomb 防护 + SSRF 防护 + 路径穿越防护
+- **法律合规**：中国法律法规 + 数据脱敏（手机/邮箱/身份证/银行卡）+ 成品文档格式（xlsx/docx）+ 纺织行业法律财税环保劳动
 
-### 7. 🚀 自动化部署
+### 6. 📈 可观测性与运维（V15 类二十 8 维度 + 类二十五 11 维度）
 
-- **部署**：systemd 直部署 + CLI 工具（bingxi update）
-- **CI/CD**：GitHub Actions + 4 工作流
-- **监控**：Prometheus + Grafana（23 指标 + 12 panel）
-- **告警**：9 规则 + 升级策略
-- **灾备**：RTO 4h / RPO 1h
-- **混沌测试**：3 用例（网络分区 / Redis 故障 / DB 主备切换）
+- **trace 链路**：HTTP/Kafka/WS 跨服务传递 + traceparent 注入
+- **metrics 指标**：Prometheus + BusinessMetrics 上报 + 告警规则
+- **WebSocket 实时**：ACK + Redis Pub/Sub + 连接重连心跳
+- **故障转移**：流复制 + check_replication_sync + wait_for_backup_catchup
+- **慢查询审计**：> 200ms 全记录 + 阈值告警
+- **API 网关**：路由转发 + 限流 + 熔断（5s 窗口失败率 > 50% 触发 open）
+- **系统升级**：灰度升级（10%/50%）+ SHA256 校验 + schema 兼容性检查 + 蓝绿部署 + 健康检查门禁 + 优雅停机 + 回滚机制 + 部署后自动回滚监控
+- **日志增强**：结构化 JSON + 90 天保留期自动清理 + 7 个日志层（financial/permission/database/business/performance/health/security）
 
-### 8. 🌍 国际化
+### 7. 🌍 国际化与前端体验（V15 类二十四 20 维度）
 
-- **vue-i18n** 集成
-- **中英双语** 支持
-- **5 核心页面** 翻译完成
-- **语言切换组件** 完整
-
-### 9. 📈 性能优化
-
-- **V2Table 虚拟列表**：10 万行流畅（FPS 60）
-- **N+1 修复**：5 处典型优化
-- **索引优化**：18 复合索引 + 7 部分索引
-- **缓存策略**：85% 命中率
-- **慢查询审计**：> 200ms 全记录
-- **API P95**：120ms（普通）/ 350ms（报表）
-
-### 10. 🛡️ 可维护性
-
-- **模块拆分**：后端 services + 前端 Tab（8 个核心域 -73%）
-- **测试覆盖**：75%（服务层）
-- **CI 强制**：clippy warn + 死代码管控
-- **错误处理**：业务 / 系统 / 验证 3 类
-- **日志规范**：结构化 + 级别 + 上下文
+- **vue-i18n** 中英双语 + 8947 个唯一翻译键
+- **PWA 支持**：manifest.json + Service Worker + 离线缓存
+- **移动端适配**：响应式 + 侧边栏抽屉化 + 汉堡按钮 ≥44px（WCAG 2.5.5）
+- **性能优化**：manualChunks 代码分割 + ECharts 按需引入 + optimizeDeps + V2Table 虚拟列表
+- **错误处理**：ErrorBoundary + 前端监控 SDK + 表单脏数据检测
+- **可访问性**：键盘导航焦点管理 + WCAG 2.1 AA
+- **主题样式**：CSS 变量 + 暗黑模式 + localStorage 持久化
+- **权限粒度**：v-permission 指令按钮/字段/行级 + keep-alive 状态保留
 
 ---
 
 ## 🔧 技术栈
 
-### 后端
+### 后端（单体 Rust 服务）
 
 | 类别 | 技术 | 版本 |
 |------|------|------|
 | 语言 | Rust | 1.94+ |
 | Web 框架 | Axum | 0.7 |
-| ORM | SeaORM | 1.0 |
+| ORM | SeaORM | 1.1.20（2.0 升级暂缓） |
 | 数据库 | PostgreSQL | 15+ |
 | 缓存 | Redis | 7+ |
-| RPC | gRPC (Tonic) | 0.12 |
-| 异步运行时 | Tokio | 1.40 |
+| 异步运行时 | Tokio | 1.x |
+| 事件总线 | rskafka | 0.5 |
 | 序列化 | serde | 1.0 |
 | 密码 | argon2 | 0.5 |
 | JWT | jsonwebtoken | 9.0 |
 | 日志 | tracing | 0.1 |
 | 限流 | governor | 0.6 |
-| 测试 | cargo test + mockall | — |
+| 缓存（进程内） | moka | 0.12 |
+| 全局单例 | arc-swap | 1.7 |
+| Excel 导出 | rust_xlsxwriter | 0.95 |
+| Excel 导入 | calamine | 0.26 |
+| Word 生成 | docx-rs | 0.4 |
+| PDF 生成 | printpdf | 0.7 |
+| API 文档 | utoipa | 5.2 |
+| 测试 | cargo test + mockall + criterion | — |
 
-### 前端
+### 前端（单体 Vue 3 SPA）
 
 | 类别 | 技术 | 版本 |
 |------|------|------|
-| 语言 | TypeScript | 5.5+ |
+| 语言 | TypeScript | 5.4 |
 | 框架 | Vue | 3.4 |
 | 构建 | Vite | 6.4 |
-| UI 库 | Element Plus | 2.4 |
+| UI 库 | Element Plus | 2.6+ |
 | 状态 | Pinia | 2.1 |
-| 路由 | Vue Router | 4.4 |
-| HTTP | Axios | 1.7 |
-| 国际化 | vue-i18n | 9.14 |
-| 虚拟列表 | el-table-v2 (Element Plus) | 2.4 |
-| 测试 | Vitest + Playwright | 2.1 |
+| 路由 | Vue Router | 4.3 |
+| HTTP | Axios | 1.6 |
+| 国际化 | vue-i18n | 9.13 |
+| 图表 | ECharts | 6.1 |
+| 虚拟列表 | el-table-v2 | 2.6+ |
+| 测试 | Vitest + Playwright | — |
 | 规范 | ESLint + Prettier | — |
-
-### 移动端
-
-| 类别 | 技术 | 版本 |
-|------|------|------|
-| 框架 | React Native | 0.74 |
-| 状态 | Zustand | 4.5 |
-| 导航 | React Navigation | 6.1 |
-| HTTP | Axios | 1.7 |
-| 测试 | Jest + React Native Testing Library | — |
 
 ### 基础设施
 
 | 类别 | 技术 | 用途 |
 |------|------|------|
-| 部署 | systemd + CLI 工具 | 服务管理 |
-| 反向代理 | Nginx | HTTP / WS |
+| 部署 | systemd + CLI 工具（bingxi） | 服务管理 |
+| 反向代理 | Nginx | HTTP / WS / CSP |
 | 监控 | Prometheus | 指标采集 |
 | 可视化 | Grafana | 仪表盘 |
 | 告警 | Alertmanager | 告警路由 |
 | 日志 | Loki | 日志聚合 |
 | CI/CD | GitHub Actions | 自动化 |
-| 制品库 | GitHub Packages | 镜像仓库 |
+
+> **注意**：项目**不使用** Docker / Kubernetes / Helm（PR #777 已彻底移除），采用 systemd 直部署方式。
 
 ---
 
@@ -216,12 +205,12 @@
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                         客户端层 (Clients)                        │
-│  ┌────────────┐  ┌────────────┐  ┌────────────┐  ┌──────────┐  │
-│  │  Web (Vue) │  │ Mobile (RN)│  │  Desktop   │  │  3rd API │  │
-│  └─────┬──────┘  └─────┬──────┘  └─────┬──────┘  └─────┬────┘  │
-└────────┼───────────────┼───────────────┼───────────────┼────────┘
-         │               │               │               │
-         └───────────────┴───────────────┴───────────────┘
+│  ┌────────────┐  ┌────────────┐  ┌──────────┐                   │
+│  │  Web (Vue) │  │  Desktop   │  │  3rd API │                   │
+│  └─────┬──────┘  └─────┬──────┘  └─────┬────┘                   │
+└────────┼───────────────┼───────────────┼────────────────────────┘
+         │               │               │
+         └───────────────┴───────────────┘
                                  │
 ┌─────────────────────────────────┴───────────────────────────────┐
 │                       网关层 (Gateway)                          │
@@ -237,11 +226,11 @@
 │  ┌──────────────────────────────────────────────────────────┐  │
 │  │                Axum 0.7 (Rust 1.94+)                    │  │
 │  │  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ │  │
-│  │  │  业务  │ │  行业  │ │  AI    │ │  BI    │ │  微服务 │ │  │
-│  │  │  域   │ │  子模块 │ │  模块  │ │  模块  │ │  (gRPC)│ │  │
+│  │  │  业务  │ │  行业  │ │  AI    │ │  BI    │ │  BPM   │ │  │
+│  │  │  域   │ │  子模块 │ │  模块  │ │  模块  │ │ 审批流 │ │  │
 │  │  └────────┘ └────────┘ └────────┘ └────────┘ └────────┘ │  │
 │  │  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐           │  │
-│  │  │ WebSocket │ │ 通知  │ │ 审批  │ │ 审计  │           │  │
+│  │  │WebSocket│ │ 通知  │ │ 审计  │ │ 可观测 │           │  │
 │  │  └────────┘ └────────┘ └────────┘ └────────┘           │  │
 │  └──────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
@@ -249,8 +238,8 @@
 ┌─────────────────────────────────┴───────────────────────────────┐
 │                       数据层 (Data)                              │
 │  ┌────────────┐  ┌────────────┐  ┌────────────┐  ┌──────────┐  │
-│  │ PostgreSQL │  │   Redis    │  │   S3/OSS   │  │   Loki   │  │
-│  │  (主+备)   │  │  (缓存)    │  │  (文件)    │  │  (日志)  │  │
+│  │ PostgreSQL │  │   Redis    │  │   Kafka    │  │   Loki   │  │
+│  │  (主+备)   │  │  (缓存)    │  │ (事件总线) │  │  (日志)  │  │
 │  └────────────┘  └────────────┘  └────────────┘  └──────────┘  │
 └─────────────────────────────────────────────────────────────────┘
                                  │
@@ -260,26 +249,6 @@
 │  │  systemd   │  │ Prometheus │  │  Grafana   │  │  告警    │  │
 │  └────────────┘  └────────────┘  └────────────┘  └──────────┘  │
 └─────────────────────────────────────────────────────────────────┘
-```
-
-### 微服务架构（P3-1）
-
-```
-┌────────────────────────────────────────────────────────────┐
-│                    API Gateway (Axum)                       │
-└──────┬───────────┬───────────┬───────────┬─────────────────┘
-       │           │           │           │
-   ┌───▼───┐   ┌───▼───┐   ┌───▼───┐   ┌───▼───┐
-   │ 订单  │   │ 库存  │   │ 财务  │   │ 通知  │  (gRPC)
-   │ 服务  │   │ 服务  │   │ 服务  │   │ 服务  │
-   └───┬───┘   └───┬───┘   └───┬───┘   └───┬───┘
-       │           │           │           │
-       └───────────┴───────────┴───────────┘
-                       │
-                ┌──────▼──────┐
-                │ PostgreSQL  │
-                │   Redis     │
-                └─────────────┘
 ```
 
 ### 前端架构
@@ -296,8 +265,8 @@
 │  │  (UI 库)   │  │ (虚拟列表) │  │  (实时)    │           │
 │  └────────────┘  └────────────┘  └────────────┘           │
 │  ┌────────────────────────────────────────────┐            │
-│  │          67 页面 + 189 组件                 │            │
-│  │  (按业务域 8 个核心域 + 5 行业子模块)         │            │
+│  │     376 Vue 文件 + 224 TS 文件              │            │
+│  │  (86 views 子模块 + 96 api + 7 composables) │            │
 │  └────────────────────────────────────────────┘            │
 └────────────────────────────────────────────────────────────┘
 ```
@@ -310,40 +279,31 @@
 
 | 域 | 子功能 | 状态 |
 |----|--------|------|
-| 采购管理 | 供应商 / 订单 / 合同 / 价格 / 入库 / 退货 | ✅ 100% |
-| 销售管理 | 客户 / 订单 / 合同 / 价格 / 出库 / 退货 | ✅ 100% |
-| 库存管理 | 盘点 / 调拨 / 调整 / 批次 / 预警 | ✅ 100% |
-| 生产管理 | 订单 / MRP / 工序 / 质量 / 产能 | ✅ 100% |
-| 财务管理 | 总账 / 应收应付 / 固定资产 / 资金 / 成本 | ✅ 100% |
-| CRM | 客户 / 商机 / 信用 | ✅ 100% |
+| 采购管理 | 供应商 / 订单 / 合同 / 价格 / 入库 / 退货 / 供应商评估 | ✅ 100% |
+| 销售管理 | 客户 / 订单 / 合同 / 价格 / 出库 / 退货 / 客户信用 | ✅ 100% |
+| 库存管理 | 盘点 / 调拨 / 调整 / 批次 / 预警 / 安全库存 / 缸号分区 | ✅ 100% |
+| 生产管理 | 订单 / MRP / 工序 / 质量 / 产能 / 自动排程 | ✅ 100% |
+| 财务管理 | 总账 / 应收应付 / 固定资产 / 资金 / 成本 / 期间 / 辅助核算 / 预算 / 财务分析 | ✅ 100% |
+| CRM | 线索 / 商机 / 客户池 / 团队协作 / 转移审批 / 信用 | ✅ 100% |
 
-### 5 行业子模块
+### 纺织行业特性（V15 类四 17 维度）
 
-| 子模块 | API | 页面 | 文档 | 状态 |
-|--------|-----|------|------|------|
-| 销售报价单（P0-1） | 16 | 5 | API+手册+部署+E2E | ✅ 100% |
-| 主备隔离（P0-2） | 6 | 2 | API+手册+部署 | ✅ 100% |
-| 定制订单（P0-3） | 16 | 4 | API+手册+部署+E2E | ✅ 100% |
-| 色卡仓储（P0-4） | 18 | 4 | API+手册+部署 | ✅ 100% |
-| 多色号定价（P0-5） | 16 | 4 | API+手册+部署+E2E | ✅ 100% |
+| 子模块 | 状态 |
+|--------|------|
+| 化验室打样 / 大货处方 / 流转卡 / 验布打卷 / 产量工资 / 能耗管理 / 缸号状态机 | ✅ 100% |
+| 胚布拆匹 / 质量处理 / 不合格品降级返工报废 | ✅ 100% |
+| 色卡发放 / 大货批色 / 多色号定价 / 定制订单 / 销售报价 | ✅ 100% |
 
-### 4 大智能能力
-
-| 能力 | 端点 | 页面 | 文档 | 状态 |
-|------|------|------|------|------|
-| AI 智能分析（P2-4） | 16 | 4 | API+手册 | ✅ 100% |
-| BI 数据仓库（P3-4） | 16 | 1 | API+手册 | ✅ 100% |
-| BPM 审批流 | 8 | 3 | — | ✅ 100% |
-
-### 5 跨域能力
+### 智能与协同能力
 
 | 能力 | 状态 | 备注 |
 |------|------|------|
-| 移动端（React Native / P3-3） | ✅ 100% | 5 业务页面 |
-| WebSocket 实时（P3-2） | ✅ 100% | 通知 / 订单 / 库存 / 审批 |
-| 微服务拆分（P3-1） | ✅ Demo | notifications 微服务 |
-| 国际化（i18n / P4-4） | ✅ 100% | 中英双语 + 5 页面 |
-| systemd 部署（P4-6） | ✅ 100% | CLI 工具 + 蓝绿部署 |
+| AI 智能分析 | ✅ 100% | 工艺优化 / 质量预测 / 补货推荐 / 异常检测 + 模型版本管理 |
+| BI 数据仓库 | ✅ 100% | 4 表 + 16 维 + 仪表板 + 报表引擎 + 订阅推送 |
+| BPM 审批流 | ✅ 100% | 流程定义 / 实例 / 任务 |
+| WebSocket 实时 | ✅ 100% | 通知 / 订单 / 库存 / 审批 / 仪表板 |
+| 国际化（i18n） | ✅ 100% | 中英双语 + 8947 翻译键 |
+| systemd 部署 | ✅ 100% | CLI 工具 + 蓝绿部署 + 灰度升级 + SHA256 校验 |
 
 ---
 
@@ -355,6 +315,7 @@
 - **Node.js**：20+ （含 npm）
 - **PostgreSQL**：15+
 - **Redis**：7+
+- **Kafka**：3+（事件总线，可选，缺省时降级为内存通道）
 
 ### 2. 克隆项目
 
@@ -462,62 +423,45 @@ sudo journalctl -u bingxi-backend -f
 
 ### 部署架构
 
-- **反向代理**：Nginx（HTTP / WebSocket）
-- **应用层**：systemd 服务（蓝绿部署 + CLI 工具）
-- **数据层**：PostgreSQL 主备 + Redis 哨兵
+- **反向代理**：Nginx（HTTP / WebSocket / CSP 安全头）
+- **应用层**：systemd 服务（蓝绿部署 + 灰度升级 + CLI 工具 + SHA256 校验 + 健康检查门禁 + 优雅停机 + 回滚机制）
+- **数据层**：PostgreSQL 主备（流复制 + 故障转移）+ Redis 哨兵
+- **事件总线**：Kafka（rskafka 纯 Rust 实现，无 C/C++ 依赖）
 - **文件存储**：S3 / OSS 兼容
 - **CDN**：静态资源 CDN 分发
 
 详细部署见：
-- [deploy/](deploy/) — systemd 部署脚本 + 服务文件
-- [docs/2026-06-17-p4-8-ops-manual.md](docs/2026-06-17-p4-8-ops-manual.md) — 完整运维手册
-- [docs/2026-06-17-p4-7-disaster-recovery.md](docs/2026-06-17-p4-7-disaster-recovery.md) — 灾备方案
+- [deploy/](deploy/) — systemd 部署脚本 + 服务文件 + Nginx 配置
+- [.monkeycode/docs/DEVELOPER_GUIDE.md](.monkeycode/docs/DEVELOPER_GUIDE.md) — 开发者指南
+- [.monkeycode/docs/ARCHITECTURE.md](.monkeycode/docs/ARCHITECTURE.md) — 架构文档
 
 ---
 
 ## 📚 文档索引
 
-### 行业子模块
-
-| 模块 | API 文档 | 用户手册 | 部署指南 |
-|------|---------|---------|---------|
-| 销售报价单 | [API](docs/quotation-api.md) | [手册](docs/quotation-user-manual.md) | [部署](docs/quotation-deployment-guide.md) |
-| 主备隔离 | [API](docs/failover-api.md) | [手册](docs/failover-user-manual.md) | [部署](docs/failover-deployment-guide.md) |
-| 定制订单 | [API](docs/custom-order-api.md) | [手册](docs/custom-order-user-manual.md) | [部署](docs/custom-order-deployment-guide.md) |
-| 色卡仓储 | [API](docs/color-card-api.md) | [手册](docs/color-card-user-manual.md) | [部署](docs/color-card-deployment-guide.md) |
-| 面料多色号 | [API](docs/color-price-api.md) | [手册](docs/color-price-user-manual.md) | [部署](docs/color-price-deployment-guide.md) |
-
-### 评估与计划
-
-- [P5-1 综合评估报告](docs/2026-06-17-p5-1-final-evaluation.md) — 5 维度 100/100
-- [P4-8 运维手册](docs/2026-06-17-p4-8-ops-manual.md) — 925 行
-- [P4-7 灾备方案](docs/2026-06-17-p4-7-disaster-recovery.md) — RTO 4h / RPO 1h
-- [P4-7 混沌测试](docs/2026-06-17-p4-7-chaos-scenarios.md) — 3 用例
-- [P4-5 测试覆盖](docs/2026-06-17-p4-5-coverage-report.md) — 60%→75%
-- [P4-4 国际化](docs/2026-06-17-p4-4-i18n-guide.md) — vue-i18n 集成
-- [P4-3 监控](docs/2026-06-17-p4-3-monitoring.md) — Prometheus + Grafana
-- [P4-2 安全](docs/2026-06-17-p4-2-security-hardening.md) — 限流 / CSP / 密码
-- [P4-1 性能](docs/2026-06-17-p4-1-perf-optimization.md) — N+1 + 索引 + 缓存
-- [P3-4 BI 数据仓库](docs/2026-06-17-p3-4-data-warehouse-api.md) — 4 表 + 16 维
-- [P3-3 React Native](docs/2026-06-17-p3-3-react-native-api.md) — 移动端
-- [P3-2 WebSocket](docs/2026-06-17-p3-2-websocket-api.md) — 实时通信
-- [P3-1 微服务](docs/2026-06-17-p3-1-microservice-api.md) — notifications 服务
-- [P2-4 AI 分析](docs/2026-06-17-p2-4-ai-extend-api.md) — 16 端点 + 4 页面
-- [P2-3 rustc 1.94](docs/2026-06-17-p2-3-rustc-1.94-fix.md) — 编译修复
-
-### 项目规范
+### 项目规范与架构
 
 - [贡献指南](CONTRIBUTING.md) — 提交 / 代码 / 测试 / 文档规范
-- [更新日志](CHANGELOG.md) — 32 PR 全条目
-- [代码规范](docs/CODE_STYLE_GUIDE.md) — 命名 / 注释 / 风格
-- [项目健康报告](docs/PROJECT_HEALTH_REPORT.md) — 整体健康度
-- [安全策略](SECURITY.md) — 漏洞响应
+- [PR 模板](.github/PULL_REQUEST_TEMPLATE.md) — PR 描述强制模板
+- [Release 模板](.github/RELEASE_TEMPLATE.md) — 发布变更说明模板
+- [代码规范](.monkeycode/docs/CODE_STYLE_GUIDE.md) — 命名 / 注释 / 风格
+- [架构文档](.monkeycode/docs/ARCHITECTURE.md) — 整体架构
+- [前端架构](.monkeycode/docs/frontend-architecture.md) — Vue 3.4 + 组件拆分
+- [开发者指南](.monkeycode/docs/DEVELOPER_GUIDE.md) — 开发流程
+- [接口文档](.monkeycode/docs/INTERFACES.md) — API 接口
+- [安全策略](.monkeycode/docs/SECURITY.md) — 漏洞响应
+- [项目健康报告](.monkeycode/docs/PROJECT_HEALTH_REPORT.md) — 整体健康度
+- [文档索引](.monkeycode/docs/INDEX.md) — 文档导航
 
-### 架构与数据库
+### 权限与合规
 
-- [前端架构](docs/frontend-architecture.md) — Vue 3.4 + 组件拆分
-- [数据库文档](docs/database/) — schema / 迁移 / 归档
-- [重构计划](docs/refactoring/) — 重构任务清单
+- [RBAC 权限矩阵](docs/rbac-permission-matrix.md) — 角色权限详细矩阵
+- [面料行业调研](.monkeycode/docs/research/fabric-industry-research.md) — 13 章节真实业务调研
+
+### 数据库与重构
+
+- [数据库文档](.monkeycode/docs/database/) — schema / 迁移 / 归档
+- [重构计划](.monkeycode/docs/refactoring/) — 重构任务清单
 
 ---
 
@@ -527,11 +471,11 @@ sudo journalctl -u bingxi-backend -f
 
 | 层级 | 数量 | 工具 | 覆盖率 |
 |------|------|------|-------|
-| 单元测试 | 152 | cargo test + vitest | 75% |
-| 集成测试 | 78 | cargo test (integration) | — |
-| 端到端测试 | 45 | Playwright (5 浏览器) | — |
-| 混沌测试 | 3 | chaos-mesh | — |
-| **合计** | **278** | — | — |
+| 后端单元测试 | 集成在 services | cargo test + mockall | 服务层 |
+| 后端集成测试 | 50 | cargo test (integration) | — |
+| 前端单元测试 | — | Vitest | 1.67%（阈值临时降级为 1%，待补齐测试后回调至 70%） |
+| 前端 E2E 测试 | 3 | Playwright | — |
+| 性能基准 | 4 | criterion | 库存核算 / 凭证生成 / 染整成本归集 / 产量工资计算 |
 
 ### 运行测试
 
@@ -545,16 +489,14 @@ cargo test --test '*'
 
 # 前端单元测试
 cd frontend
-npm run test:unit
+npm run test:run
 
 # 前端 E2E 测试
 npm run test:e2e
 
-# 全部测试
-npm run test:all
-
-# 混沌测试（需 chaos-mesh）
-bash scripts/chaos-test.sh
+# 性能基准测试
+cd backend
+cargo bench --features bench
 ```
 
 ### 覆盖率报告
@@ -570,50 +512,41 @@ cd frontend
 npm run test:coverage
 ```
 
-详细覆盖率见 [docs/2026-06-17-p4-5-coverage-report.md](docs/2026-06-17-p4-5-coverage-report.md)。
-
 ---
 
-## 📊 性能指标
+## 🔍 审计与质量
 
-### API 性能
+### 审计体系（V15 25 大类 195 维度）
 
-| 类别 | P50 | P95 | P99 |
-|------|-----|-----|-----|
-| 普通查询 | 30ms | 120ms | 500ms |
-| 复杂查询 | 80ms | 350ms | 1.2s |
-| 写入操作 | 50ms | 200ms | 800ms |
-| 报表查询 | 200ms | 800ms | 2.5s |
+项目通过 V15 25 大类 195 维度最严格审计体系，详见 [.monkeycode/audit_assignment.md](.monkeycode/audit_assignment.md)。
 
-### 前端性能
+| 审计阶段 | 状态 | 说明 |
+|----------|------|------|
+| V15 25 大类 195 维度审计 | ✅ 完成 | 详见 [.monkeycode/docs/audits/v15/](.monkeycode/docs/audits/v15/) |
+| P0 修复（39 项 → 22 批次） | ✅ 完成 | 100% |
+| P1 修复（257 项 → 25 批已合并 main） | ✅ 完成 | 100% |
+| V15 主线八维审计（2026-07-30） | 🔄 进行中 | P0 11/11 + P2 3/3 已完成，P1 委外收货已合并（PR #788） |
+| P2 修复（248 项） | ⏳ 待启动 | P1 完成后启动 |
+| P3 修复（123 项） | ⏳ 按需 | 按需修复 |
 
-| 指标 | 实测值 | 行业基准 |
-|------|-------|---------|
-| 首屏 TTI | 1.2s | < 2s |
-| 路由切换 | 0.8s | < 1s |
-| 表格 FPS（10 万行） | 60 | > 30 |
-| 表格 FPS（5 万行） | 55 | > 30 |
-| 表格 FPS（1 万行） | 45 | > 30 |
-| 资源大小（gzip） | 380KB | < 500KB |
+### 质量规则
 
-### 后端性能
+项目遵循严格的个人规则（IR）与项目规则（PR），详见 [.monkeycode/MEMORY.md](.monkeycode/MEMORY.md)：
 
-| 指标 | 实测值 |
-|------|-------|
-| 缓存命中率 | 85% |
-| 慢查询占比 | < 1% |
-| 死锁率 | < 0.01% |
-| 错误率 | < 0.1% |
-| 可用性 | 99.95% |
+- **规则 0**：真实实现强制，禁止 stub/placeholder
+- **规则 3**：成品导出仅 .xlsx/.docx，禁 CSV/txt/html
+- **规则 4**：`///` 注释精简为 1 行（最多 2 行）
+- **规则 13**：修复流程自动化，步骤 0 确认审计内容存在 + 步骤 4 推送前自审
+- **规则 14**：禁止 `#[allow(...)]`，所有警告视为错误
+- **规则 20**：注释与功能一致性，CI 强制检查
 
-### 资源占用
+### CI/CD
 
-| 资源 | 空闲 | 中等负载 | 高负载 |
-|------|------|---------|--------|
-| CPU | 5% | 30% | 70% |
-| 内存 | 200MB | 500MB | 1.2GB |
-| 磁盘 IO | 1MB/s | 10MB/s | 50MB/s |
-| 网络 IO | 5Mbps | 20Mbps | 80Mbps |
+所有验证走 GitHub Actions（CI/CD Only，禁止本地构建）：
+
+- Rust：fmt + clippy（baseline 308 条）+ 单元测试 + 后端构建 + 覆盖率
+- 前端：fmt + ESLint + 类型检查 + 测试 + 构建 + 覆盖率
+- 依赖审计 + 环境信息 + 依赖图记录 + 构建通知
 
 ---
 
@@ -626,7 +559,7 @@ npm run test:coverage
 - 代码规范（rustfmt + clippy + eslint + tsc）
 - 测试要求（新增功能必须带测试）
 - 文档要求（新增 API 必须更新 docs）
-- PR 流程（2 人 review + CI 全绿）
+- PR 流程（PR 描述强制依据模板填写 + CI 全绿 + 2 人 review）
 
 ### 贡献者
 
@@ -660,6 +593,7 @@ Copyright © 2026 冰溪 ERP. 保留所有权利。
 - [Tokio](https://tokio.rs/) — 异步运行时
 - [PostgreSQL](https://www.postgresql.org/) — 关系型数据库
 - [Redis](https://redis.io/) — 内存数据库
+- [rskafka](https://github.com/influxdata/rskafka) — Kafka 客户端（纯 Rust）
 
 ### 前端
 
@@ -668,18 +602,20 @@ Copyright © 2026 冰溪 ERP. 保留所有权利。
 - [Element Plus](https://element-plus.org/) — UI 组件库
 - [Pinia](https://pinia.vuejs.org/) — 状态管理
 - [TypeScript](https://www.typescriptlang.org/) — 类型系统
+- [ECharts](https://echarts.apache.org/) — 数据可视化
 
 ### 基础设施
 
 - [Prometheus](https://prometheus.io/) — 监控系统
 - [Grafana](https://grafana.com/) — 可视化平台
+- [Loki](https://grafana.com/oss/loki/) — 日志聚合
 
 ### 工具与规范
 
 - [GitHub Actions](https://github.com/features/actions) — CI/CD
 - [Playwright](https://playwright.dev/) — E2E 测试
-- [markdownlint](https://github.com/DavidAnson/markdownlint) — 文档检查
 - [clippy](https://github.com/rust-lang/rust-clippy) — Rust lint
+- [criterion](https://github.com/bheisler/criterion.rs) — 性能基准
 
 ---
 
@@ -687,8 +623,7 @@ Copyright © 2026 冰溪 ERP. 保留所有权利。
 
 - **GitHub Issues**：[https://github.com/57231307/1/issues](https://github.com/57231307/1/issues)
 - **GitHub Discussions**：[https://github.com/57231307/1/discussions](https://github.com/57231307/1/discussions)
-- **邮箱**：support@bingxi-erp.example.com
-- **官网**：https://www.bingxi-erp.example.com
+- **安全漏洞上报**：security@57231307.com
 
 ---
 
