@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-30（doto.md 更新：**V15 主线八维审计 + 快速修复 P0/P2 批次（fix/audit-batch-2026-07-30）**：① 八维审计报告 [docs/2026-07-30-mainline-audit-report.md](file:///workspace/.monkeycode/docs/2026-07-30-mainline-audit-report.md)；② P0 全部完成（盘点契约+事件事务+二级审批+init token+API 网关授权+导出范围收敛+冒烟脚本+导出格式合规+定制/委外事务化+SECURITY 邮箱）；③ P2-02 清理 3 处陈旧占位注释；④ P2-05 导出审批 list_pending_for_me 路由；⑤ P2-06 业务追溯三表 unique/CHECK/逻辑外键触发器约束迁移 20260801000001 + service 端生产者 upsert_chain_node/link_assist/upsert_snapshot；⑥ 前端 inventory-count 3 文件对齐后端契约；**待 push+PR+CI 验证**；**PR #785 创建：P1 预留服务路由接入消除 174 个 dead_code 警告**：为 14 个 P1 预留服务创建 handler 和 route 文件并注册路由，37 文件 +2093 -11 行，待 CI 验证合并；**Clippy baseline 更新（174 个 dead_code 警告纳入 baseline）**：P1 批次新增 15 个业务服务模块服务层+DTO 已实现但尚未接入路由层，产生 174 个 dead_code 警告；之前 171 个基线警告已全部修复；更新 .clippy-baseline.txt 纳入 174 个已知技术债务，NEW_COUNT=0 验证通过；**PR #783 已合并 main**：Clippy runner shutdown (exit 143) 修复 + Release 变更说明模板；**PR #777 已合并 main**：彻底移除 Docker/K8s 引用，11 文件 -130 行，对齐 systemd 直部署；**PR #776 已合并 main**：CHANGELOG/doto 文档同步；**PR #772 关闭重复 PR**（内容已通过 PR #771 合并）；**SeaORM 2.0 升级评估暂缓**：2.0.0 稳定版 2026-07-19 发布，破坏性变更已评估（181 处 active.insert(db) 需调整），暂不升级；**PR #775 已合并 main**：P1 全部完成 257/257；**P0 全部完成 + P1 已合并 25 批到 main**）
+> 最近整理：2026-07-30（doto.md 更新：**PR #786 已合并 main**：V15 主线八维审计 + 快速修复 P0/P2 批次；① 八维审计报告 [docs/2026-07-30-mainline-audit-report.md](file:///workspace/.monkeycode/docs/2026-07-30-mainline-audit-report.md)；② P0 全部 11 项完成（盘点契约+事件事务+二级审批+init token+API 网关授权+导出范围收敛+冒烟脚本+导出格式合规+定制/委外事务化+SECURITY 邮箱）；③ P2-02 清理 3 处陈旧占位注释；④ P2-05 导出审批 list_pending_for_me 路由；⑤ P2-06 业务追溯三表 unique/CHECK/逻辑外键触发器约束迁移 20260801000001 + service 端生产者 upsert_chain_node/link_assist/upsert_snapshot；⑥ 前端 inventory-count 3 文件对齐后端契约；共 21 文件 +989/-229；CI 全部通过，clippy baseline 308 条；**PR #785 已合并 main**：P1 预留服务路由接入消除 174 个 dead_code 警告；**PR #783 已合并 main**：Clippy runner shutdown (exit 143) 修复 + Release 变更说明模板；**PR #777 已合并 main**：彻底移除 Docker/K8s 引用；**SeaORM 2.0 升级评估暂缓**：2.0.0 稳定版 2026-07-19 发布，181 处 active.insert(db) 需调整，暂不升级）
 
 ---
 
@@ -10,8 +10,8 @@
 
 | 状态 | 数量 | 批次 |
 |------|------|------|
-| ✅ 已完成待 PR | 1 批 | audit-batch-2026-07-30（P0 全部 + P2-02 + P2-05 + P2-06 共 16 文件 +712/-88） |
-| ⏳ 待推送 | 1 批 | audit-batch-2026-07-30（fix/audit-batch-2026-07-30 分支） |
+| ✅ 已合并 main | 1 批 | audit-batch-2026-07-30（PR #786 已合并） |
+| ⏳ 待推送 | 0 批 | — |
 
 ### 0.0.1 P0 完成明细
 
