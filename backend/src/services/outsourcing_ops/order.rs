@@ -42,15 +42,77 @@ use crate::services::outsourcing_service::{
     compute_total_cost, compute_unit_cost, validate_order_type, OutsourcingOrderService,
 };
 
-/// 收回损耗与成本计算结果（record_receipt 内部传递）
-pub(super) struct ReceiptCalculation {
-    pub(super) loss_quantity: Decimal,
-    pub(super) actual_loss_rate: Decimal,
-    pub(super) loss_type_str: &'static str,
-    pub(super) is_loss_normal: bool,
-    pub(super) abnormal_loss_amount: Decimal,
-    pub(super) total_cost: Decimal,
-    pub(super) unit_cost: Decimal,
+/// 收回损耗与成本计算结果（confirm 事务内传递）
+pub(crate) struct ReceiptCalculation {
+    pub(crate) loss_quantity: Decimal,
+    pub(crate) actual_loss_rate: Decimal,
+    pub(crate) loss_type_str: &'static str,
+    pub(crate) is_loss_normal: bool,
+    pub(crate) abnormal_loss_amount: Decimal,
+    pub(crate) total_cost: Decimal,
+    pub(crate) unit_cost: Decimal,
+}
+
+/// 校验收回前置条件：订单状态与收回数量
+pub(crate) fn validate_receipt_eligibility(
+    model: &OrderModel,
+    return_quantity: Decimal,
+) -> Result<(), AppError> {
+    if model.status != outsourcing_order_status::PROCESSING
+        && model.status != outsourcing_order_status::ISSUED
+    {
+        return Err(AppError::business(format!(
+            "仅已发料(issued)或加工中(processing)状态可收回，当前状态: {}",
+            model.status
+        )));
+    }
+    let loss_quantity = model.issue_quantity - return_quantity;
+    if loss_quantity < Decimal::ZERO {
+        return Err(AppError::business(format!(
+            "收回数量 {} 不能大于发出数量 {}",
+            return_quantity, model.issue_quantity
+        )));
+    }
+    Ok(())
+}
+
+/// 计算收回损耗与成本指标
+pub(crate) fn compute_receipt_calculation(
+    model: &OrderModel,
+    return_quantity: Decimal,
+) -> ReceiptCalculation {
+    let loss_quantity = model.issue_quantity - return_quantity;
+    let actual_loss_rate = compute_loss_rate(loss_quantity, model.issue_quantity);
+    let standard_loss_rate = model.standard_loss_rate.unwrap_or(Decimal::ZERO);
+    let loss_type_str = classify_loss(actual_loss_rate, standard_loss_rate);
+    let is_loss_normal = loss_type_str == outsourcing_loss_type::NORMAL;
+    let unit_material_cost = if model.issue_quantity > Decimal::ZERO {
+        model.material_cost / model.issue_quantity
+    } else {
+        Decimal::ZERO
+    };
+    let abnormal_loss_amount = compute_abnormal_loss_amount(
+        model.issue_quantity,
+        return_quantity,
+        unit_material_cost,
+        standard_loss_rate,
+    );
+    let total_cost = compute_total_cost(
+        model.material_cost,
+        model.processing_fee,
+        model.freight_fee,
+        abnormal_loss_amount,
+    );
+    let unit_cost = compute_unit_cost(total_cost, return_quantity);
+    ReceiptCalculation {
+        loss_quantity,
+        actual_loss_rate,
+        loss_type_str,
+        is_loss_normal,
+        abnormal_loss_amount,
+        total_cost,
+        unit_cost,
+    }
 }
 
 impl OutsourcingOrderService {
@@ -383,8 +445,8 @@ impl OutsourcingOrderService {
         req: CreateOutsourcingReceiptRequest,
     ) -> Result<ReceiptModel, AppError> {
         let model = self.get_by_id(id).await?;
-        Self::validate_receipt_eligibility(&model, req.return_quantity)?;
-        let calc = Self::compute_receipt_calculation(&model, req.return_quantity);
+        validate_receipt_eligibility(&model, req.return_quantity)?;
+        let calc = compute_receipt_calculation(&model, req.return_quantity);
         let now = crate::utils::date_utils::utc_now_fixed();
 
         let receipt = self
@@ -399,68 +461,6 @@ impl OutsourcingOrderService {
             .await?;
 
         Ok(receipt)
-    }
-
-    /// 校验收回前置条件：订单状态与收回数量
-    fn validate_receipt_eligibility(
-        model: &OrderModel,
-        return_quantity: Decimal,
-    ) -> Result<(), AppError> {
-        if model.status != outsourcing_order_status::PROCESSING
-            && model.status != outsourcing_order_status::ISSUED
-        {
-            return Err(AppError::business(format!(
-                "仅已发料(issued)或加工中(processing)状态可收回，当前状态: {}",
-                model.status
-            )));
-        }
-        let loss_quantity = model.issue_quantity - return_quantity;
-        if loss_quantity < Decimal::ZERO {
-            return Err(AppError::business(format!(
-                "收回数量 {} 不能大于发出数量 {}",
-                return_quantity, model.issue_quantity
-            )));
-        }
-        Ok(())
-    }
-
-    /// 计算收回损耗与成本指标
-    fn compute_receipt_calculation(
-        model: &OrderModel,
-        return_quantity: Decimal,
-    ) -> ReceiptCalculation {
-        let loss_quantity = model.issue_quantity - return_quantity;
-        let actual_loss_rate = compute_loss_rate(loss_quantity, model.issue_quantity);
-        let standard_loss_rate = model.standard_loss_rate.unwrap_or(Decimal::ZERO);
-        let loss_type_str = classify_loss(actual_loss_rate, standard_loss_rate);
-        let is_loss_normal = loss_type_str == outsourcing_loss_type::NORMAL;
-        let unit_material_cost = if model.issue_quantity > Decimal::ZERO {
-            model.material_cost / model.issue_quantity
-        } else {
-            Decimal::ZERO
-        };
-        let abnormal_loss_amount = compute_abnormal_loss_amount(
-            model.issue_quantity,
-            return_quantity,
-            unit_material_cost,
-            standard_loss_rate,
-        );
-        let total_cost = compute_total_cost(
-            model.material_cost,
-            model.processing_fee,
-            model.freight_fee,
-            abnormal_loss_amount,
-        );
-        let unit_cost = compute_unit_cost(total_cost, return_quantity);
-        ReceiptCalculation {
-            loss_quantity,
-            actual_loss_rate,
-            loss_type_str,
-            is_loss_normal,
-            abnormal_loss_amount,
-            total_cost,
-            unit_cost,
-        }
     }
 
     /// 创建收回入库单

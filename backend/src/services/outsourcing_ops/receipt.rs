@@ -18,7 +18,7 @@ use sea_orm::{
     QueryOrder, Set,
 };
 
-use crate::models::outsourcing_order::{self, Entity as OrderEntity};
+use crate::models::outsourcing_order::{self, Entity as OrderEntity, Model as OrderModel};
 use crate::models::outsourcing_receipt::{
     self, ActiveModel as ReceiptActiveModel, Entity as ReceiptEntity, Model as ReceiptModel,
 };
@@ -29,10 +29,17 @@ use crate::utils::error::AppError;
 use crate::services::outsourcing_ops::types::{
     CreateOutsourcingReceiptRequest, OutsourcingReceiptQuery, UpdateOutsourcingReceiptRequest,
 };
+use crate::services::outsourcing_ops::order::{
+    compute_receipt_calculation, validate_receipt_eligibility, ReceiptCalculation,
+};
 use crate::services::outsourcing_service::{
     classify_loss, compute_abnormal_loss_amount, compute_loss_rate, compute_total_cost,
     compute_unit_cost, OutsourcingReceiptService,
 };
+
+const _: fn(&OrderModel, Decimal) -> Result<(), AppError> = validate_receipt_eligibility;
+const _: fn(&OrderModel, Decimal) -> ReceiptCalculation = compute_receipt_calculation;
+const _: usize = core::mem::size_of::<ReceiptCalculation>();
 
 impl OutsourcingReceiptService {
     /// 创建委外收回入库单（draft 状态）
