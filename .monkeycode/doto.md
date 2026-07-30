@@ -10,17 +10,8 @@
 
 | 状态 | 数量 | 批次 |
 |------|------|------|
-| ✅ 已合并 main | 1 批 | audit-batch-2026-07-30（PR #786 已合并） |
-| ⏳ 待推送 | 1 批 | fix/p1-outsource-receipt-unify-2026-07-30（PR #788 CI 收尾中） |
-
-### 0.0.x 委外收货 CI 收尾待办
-
-- [X] 修最后一轮 `Clippy` 警告（`unused import: PaginatorTrait`/`QuerySelect`/…，已逐一修掉）
-  - [X] 修 `Rust 后端构建`：误删 `QuerySelect` / `PaginatorTrait` 导致 `no method named order_by_desc / offset`（回退为保留 `QuerySelect`、`PaginatorTrait`）
-  - [X] 再补 `QueryOrder` 回到 [quality_inspection_service.rs](file:///workspace/.tmp/fix-p1-outsource-2026-07-30/backend/src/services/quality_inspection_service.rs)（`order_by(... Order::Desc)` 来自该 trait；之前一直以为只缺 `PaginatorTrait`/`QuerySelect`）
-  - [X] `QueryOrder` 实际也被 [order.rs](file:///workspace/.tmp/fix-p1-outsource-2026-07-30/backend/src/services/outsourcing_ops/order.rs) 与 [receipt.rs](file:///workspace/.tmp/fix-p1-outsource-2026-07-30/backend/src/services/outsourcing_ops/receipt.rs) 用到（`.order_by_desc(...)`），同样恢复
-  - [X] 定位并修掉最后 1 条新增 `Clippy`：`backend/src/services/ar/recon.rs` facade `pub use` 整体未被真实调用方消费，改为测试模块直接从 `crate::services::ar` 引入
-  - [ ] 等待 `3d5daee` 之后的收尾修复 commit 通过 CI 全绿并合并 PR #788
+| ✅ 已合并 main | 2 批 | audit-batch-2026-07-30（PR #786 已合并）、fix/p1-outsource-receipt-unify-2026-07-30（PR #788 已合并） |
+| ⏳ 待推送 | 0 批 | — |
 
 ### 0.0.1 P0 完成明细
 

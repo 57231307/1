@@ -11,6 +11,7 @@
 | 批次 | PR/commit | 一句话总结 |
 |------|-----------|-----------|
 | audit-batch-2026-07-30 (PR #786) | ✅ 已合并 main 8cd956d | **V15 主线八维审计 + 快速修复 P0/P2 批次**：① 八维审计报告 [docs/2026-07-30-mainline-audit-report.md](file:///workspace/.monkeycode/docs/2026-07-30-mainline-audit-report.md)；② P0 全部 11 项 Critical/High（盘点契约 / 事件事务 / 二级审批 / init token / API 网关对象授权 / 导出审批范围收敛 / 冒烟脚本严格断言 / 导出格式合规（去 csv）/ 定制 advance 事务化 / 委外 issue/settle 事务化 / SECURITY 邮箱补齐）；③ P2-02 清理 test_inventory_count.rs / inv/count.rs / test_generate_no_endpoints.rs 3 处陈旧占位注释；④ P2-05 导出审批 list_pending_for_me 服务 + 路由；⑤ P2-06 业务追溯三表 unique / CHECK / 逻辑外键触发器约束迁移 20260801000001 + service 端 upsert_chain_node / link_assist / upsert_snapshot 生产者补全；⑥ 前端 inventory-count 3 文件对齐后端契约；共 21 文件 +989/-229；CI 全 14 项 ✅（rust clippy 10m50s / 单测 9m24s / 覆盖率 14m16s / 后端构建 15m49s / 前端 5 项 / 依赖审计）；clippy baseline 308 条 |
+| P1 委外收货主链路统一（PR #788） | ✅ 已合并 main | **委外收货事务化批次已合并 main**：`OutsourcingReceiptService::confirm` 收敛为唯一事务主链路，补齐事务外 `OutsourcingOrderCompleted` 事件与 workflow tests；CI 收尾阶段继续清理 SeaORM trait/import 与 `ar/recon.rs` facade 未使用重导出，最终 `Rust Clippy` / `Rust 单元测试` / `Rust 后端构建` 全绿后通过 admin override 合并 |
 
 ---
 
