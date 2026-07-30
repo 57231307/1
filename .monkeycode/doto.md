@@ -41,7 +41,7 @@
 
 | 状态 | 剩余项 | 文件 | 说明 |
 |------|--------|------|------|
-| ⏳ 待推送 | 分支推送与 CI 校验 | `backend/src/services/outsourcing_ops/receipt.rs` + `backend/tests/outsourcing_receipt_workflow_test.rs` | `fix/p1-outsource-receipt-unify-2026-07-30` 本次已补 `confirm` 事务外 `OutsourcingOrderCompleted` 事件并新增委外收货 workflow tests；本地 `cargo fmt`/`cargo fmt --check` 已通过，完整 `cargo check` 在沙箱内因 rustc `SIGKILL` 未完成 |
+| ⏳ 待推送 | 分支推送与 CI 校验 | `backend/src/services/outsourcing_ops/receipt.rs` + `backend/tests/outsourcing_receipt_workflow_test.rs` | `fix/p1-outsource-receipt-unify-2026-07-30` 已补 `confirm` 事务外 `OutsourcingOrderCompleted` 事件、委外收货 workflow tests，并进一步移除 `receipt.rs` 单次使用的 `DatabaseConnection` import 以消除最后一条新增 Clippy 噪音；本地 `cargo fmt` 已通过，完整 Rust 校验仍需依赖 CI（沙箱 rustc `SIGKILL`） |
 
 ---
 

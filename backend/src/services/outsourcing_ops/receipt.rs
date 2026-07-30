@@ -14,8 +14,8 @@
 
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, DatabaseTransaction, EntityTrait,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 
 use crate::models::outsourcing_order::{
@@ -91,7 +91,7 @@ impl OutsourcingReceiptService {
 
     /// 校验创建请求：委外订单存在 + 成品存在 + 收回单号唯一
     async fn validate_create_request(
-        db: &DatabaseConnection,
+        db: &sea_orm::DatabaseConnection,
         req: &CreateOutsourcingReceiptRequest,
     ) -> Result<(), AppError> {
         // 校验委外订单存在

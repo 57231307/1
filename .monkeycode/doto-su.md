@@ -114,6 +114,13 @@ V15 25 大类 195 维度审计报告生成后，对 main 主线做"最严格"二
 - 已多次执行 `cargo check --lib`，前期显式编译错误（`lock_exclusive` 导入、`DatabaseTransaction` 引用类型）已修复。
 - 当前沙箱内全量 `cargo check --lib` 在 rustc 阶段被系统 `SIGKILL`，未输出新的业务编译错误，需后续在 CI 环境继续验证。
 
+### 收尾修复
+
+- **Clippy 最后一条新增噪音收敛**（[receipt.rs](file:///workspace/.tmp/fix-p1-outsource-2026-07-30/backend/src/services/outsourcing_ops/receipt.rs)）
+  - 将 `validate_create_request()` 的参数类型改为 `&sea_orm::DatabaseConnection` 全限定路径。
+  - 同步移除 `use sea_orm::{..., DatabaseConnection, ...}` 中的 `DatabaseConnection` 导入，避免单次使用 import 在不同编译目标下再次触发 `unused import`。
+  - 该修复不改变委外收货业务逻辑，仅收敛导入面，供 PR #788 最后一轮 Clippy 复核。
+
 ### 后续项
 
 - 继续执行 Task6：补 `backend/tests/outsourcing_receipt_transaction.rs` 事务回滚集成测试。
