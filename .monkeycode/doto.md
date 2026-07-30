@@ -17,7 +17,8 @@
 
 - [X] 修最后一轮 `Clippy` 警告（`unused import: PaginatorTrait`/`QuerySelect`/…，已逐一修掉）
   - [X] 修 `Rust 后端构建`：误删 `QuerySelect` / `PaginatorTrait` 导致 `no method named order_by_desc / offset`（回退为保留 `QuerySelect`、`PaginatorTrait`）
-  - [ ] 等待 `b9bb897` 之后的修复 commit (`2cd…` 尚未推) 通过 CI 全绿并合并 PR #788
+  - [X] 再补 `QueryOrder` 回到 [quality_inspection_service.rs](file:///workspace/.tmp/fix-p1-outsource-2026-07-30/backend/src/services/quality_inspection_service.rs)（`order_by(... Order::Desc)` 来自该 trait；之前一直以为只缺 `PaginatorTrait`/`QuerySelect`）
+  - [ ] 等待 `b9bb897` 之后的修复 commit 通过 CI 全绿并合并 PR #788
 
 ### 0.0.1 P0 完成明细
 
