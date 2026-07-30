@@ -1,9 +1,6 @@
 //! 库存盘点服务（inv/count）
 //!
-//! 占位模块，保留扩展空间，可用于后续：
-//! - 调拨前自动盘点（冻结库存）
-//! - 调拨后盘点对账
-//! - 抽盘 + 复盘工作流
-//!
-//! v10 P1-3 修复：原 `inventory_count_service.rs` 已在 v9 P1-F 删除（死代码清理），
-//! 本模块文档不再引用已删除的模块。
+//! V15 主线审计 P2 修复：删除“占位模块”陈旧描述。
+//! 盘点主流程已通过 `InventoryCountService` 落地，路由 /inventory/counts 暴露
+//! list/get/create/update/delete + record/submit/approve/reject。
+//! 本子模块保留命名空间与扩展点（后续可承接按仓库/批次的盘点对账辅助函数）。

@@ -30,6 +30,16 @@ pub const INIT_TOKEN_HEADER: &str = "X-Init-Token";
 /// 初始化 Token 环境变量名
 pub const INIT_TOKEN_ENV: &str = "INIT_TOKEN";
 
+/// 已知占位值/示例值（V15 主线审计 Medium 修复：避免运维直接复制模板导致未授权初始化）
+const INIT_TOKEN_PLACEHOLDERS: &[&str] = &[
+    "change-me",
+    "changeme",
+    "please-change-me",
+    "init-token",
+    "default",
+    "secret",
+];
+
 /// 中间件函数：校验 init Token；行为： - 未设置 `INIT_TOKEN` 环境变量 → 401（fail-secure，避免降级到无认证）
 /// - 请求头缺失或类型错误 → 401 - Token 不匹配 → 401（使用恒定时间比较防时序攻击） - Token 匹配 → 放行
 pub async fn init_token_middleware(req: Request<Body>, next: Next) -> Response {
@@ -46,6 +56,18 @@ pub async fn init_token_middleware(req: Request<Body>, next: Next) -> Response {
             ));
         }
     };
+
+    // V15 主线审计 Medium 修复：拒绝已知占位值和长度不足的 token。
+    if !is_init_token_strong(&init_token) {
+        tracing::error!(
+            "{} 强度不足或为占位值，初始化接口拒绝所有请求（fail-secure）",
+            INIT_TOKEN_ENV
+        );
+        return init_token_unauthorized(format!(
+            "{} 强度不足（至少 32 字节，且不能为占位值）",
+            INIT_TOKEN_ENV
+        ));
+    }
 
     let provided_token = match extract_token_from_headers(req.headers()) {
         Some(t) => t,
@@ -66,6 +88,15 @@ pub async fn init_token_middleware(req: Request<Body>, next: Next) -> Response {
     }
 
     next.run(req).await
+}
+
+/// 校验 init token 强度：至少 32 字节，且不是已知占位值/模板示例。
+fn is_init_token_strong(token: &str) -> bool {
+    if token.len() < 32 {
+        return false;
+    }
+    let lower = token.to_lowercase();
+    !INIT_TOKEN_PLACEHOLDERS.iter().any(|p| lower.contains(p))
 }
 
 /// 从请求头中提取 init token

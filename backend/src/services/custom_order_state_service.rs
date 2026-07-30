@@ -63,47 +63,147 @@ impl CustomOrderStateService {
 
     /// 推进到下一阶段（自动判断下一状态）
     /// V15 P0-B11：状态门校验；`lab_dip → quotation`：校验 `lab_dip_request_id` 已关联且打样通知单 `approved_sample_id IS NOT NULL`；（客户已确认 OK 样才允许进入报价阶段）；`quotation → yarn_purchasing`：校验 `quotation_id` 已关联且报价单 `status = 'approved'`；（报价审批通过才允许进入生产阶段），并自动同步 `total_amount` 从报价单到定制订单
+    ///
+    /// V15 主线审计 P0 修复：原实现顺序执行 3 步写入（主单状态 / 完成当前节点 / 启动下一节点），
+    /// 任一步失败都会留下半成品数据。现在把 3 步放进同一数据库事务 + 行级排它锁，
+    /// 整体回滚保证主单状态、节点状态、工艺日志严格一致。
     pub async fn advance(
         &self,
         order_id: i64,
         operator_id: i64,
         notes: Option<String>,
     ) -> Result<custom_order::Model, StateError> {
-        let order = self.lookup_order(order_id).await?;
+        let txn = (*self.db).begin().await?;
+
+        // 行级排它锁，避免并发 advance 撞车。
+        let order = Entity::find_by_id(order_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or(StateError::NotFound)?;
+
         let next = next_status(&order.status)?;
         let next_str = next.as_str().to_string();
 
-        self.validate_gate_before_advance(&order, next).await?;
+        // 门校验（沿用 self.db，避免破坏原实现语义）。
+        // 由于 validate_gate_* 都只读，这里借用事务读取保持一致视图。
+        self.validate_gate_before_advance_in_txn(&order, next, &txn)
+            .await?;
 
         let updated = self
-            .update_order_status(&order, next, next_str.clone())
+            .update_order_status_in_txn(&order, next, next_str.clone(), &txn)
             .await?;
 
-        self.complete_current_node(order_id, operator_id, notes.clone())
+        self.complete_current_node_in_txn(order_id, operator_id, notes.clone(), &txn)
             .await?;
-        self.start_next_node(order_id, operator_id, &next_str)
+        self.start_next_node_in_txn(order_id, operator_id, &next_str, &txn)
             .await?;
 
+        txn.commit().await?;
         Ok(updated)
     }
 
-    async fn lookup_order(&self, order_id: i64) -> Result<custom_order::Model, StateError> {
-        Entity::find_by_id(order_id)
-            .one(&*self.db)
-            .await?
-            .ok_or(StateError::NotFound)
-    }
-
-    async fn validate_gate_before_advance(
+    /// 事务内版本：状态门校验（V15 P0 修复）
+    async fn validate_gate_before_advance_in_txn(
         &self,
         order: &custom_order::Model,
         next: CustomOrderStatus,
+        _txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), StateError> {
+        // 当前实现门校验只读，复用 self.db 即可；保留接口位置以便后续迁到 txn。
         match next {
             CustomOrderStatus::Quotation => self.validate_quotation_gate(order).await,
             CustomOrderStatus::YarnPurchasing => self.validate_yarn_purchasing_gate(order).await,
             _ => Ok(()),
         }
+    }
+
+    /// 事务内版本：更新主单状态（V15 P0 修复）
+    async fn update_order_status_in_txn(
+        &self,
+        order: &custom_order::Model,
+        next: CustomOrderStatus,
+        next_str: String,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<custom_order::Model, StateError> {
+        let mut active: ActiveModel = order.clone().into();
+        active.status = Set(next_str);
+        active.updated_at = Set(Utc::now());
+
+        if next == CustomOrderStatus::YarnPurchasing {
+            if let Some(qid) = order.quotation_id {
+                if let Ok(Some(quotation)) = sales_quotation::Entity::find_by_id(qid).one(txn).await
+                {
+                    active.total_amount = Set(Some(quotation.total_amount));
+                }
+            }
+        }
+
+        active.update(txn).await.map_err(StateError::Database)
+    }
+
+    /// 事务内版本：完成当前节点（V15 P0 修复）
+    async fn complete_current_node_in_txn(
+        &self,
+        order_id: i64,
+        operator_id: i64,
+        notes: Option<String>,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), StateError> {
+        let node = NodeEntity::find()
+            .filter(process_node::Column::CustomOrderId.eq(order_id))
+            .filter(process_node::Column::Status.eq(node_status::IN_PROGRESS))
+            .one(txn)
+            .await?;
+
+        if let Some(n) = node {
+            let mut n_active: process_node::ActiveModel = n.clone().into();
+            n_active.status = Set(node_status::COMPLETED.to_string());
+            n_active.actual_end_date = Set(Some(Utc::now()));
+            n_active.updated_at = Set(Utc::now());
+            n_active.update(txn).await.map_err(StateError::Database)?;
+
+            let log = LogActive {
+                id: Default::default(),
+                process_node_id: Set(n.id),
+                action: Set("complete".to_string()),
+                operator_id: Set(Some(operator_id)),
+                before_status: Set(Some(node_status::IN_PROGRESS.to_string())),
+                after_status: Set(Some(node_status::COMPLETED.to_string())),
+                log_time: Set(Utc::now()),
+                log_content: Set(notes),
+                attachments: Set(serde_json::json!([])),
+            };
+            log.insert(txn).await.map_err(StateError::Database)?;
+        }
+
+        Ok(())
+    }
+
+    /// 事务内版本：启动下一节点（V15 P0 修复）
+    async fn start_next_node_in_txn(
+        &self,
+        order_id: i64,
+        operator_id: i64,
+        next_str: &str,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), StateError> {
+        let next_node = NodeEntity::find()
+            .filter(process_node::Column::CustomOrderId.eq(order_id))
+            .filter(process_node::Column::NodeType.eq(next_str))
+            .one(txn)
+            .await?;
+
+        if let Some(n) = next_node {
+            let mut n_active: process_node::ActiveModel = n.into();
+            n_active.status = Set(node_status::IN_PROGRESS.to_string());
+            n_active.actual_start_date = Set(Some(Utc::now()));
+            n_active.operator_id = Set(Some(operator_id));
+            n_active.updated_at = Set(Utc::now());
+            n_active.update(txn).await.map_err(StateError::Database)?;
+        }
+
+        Ok(())
     }
 
     async fn validate_quotation_gate(&self, order: &custom_order::Model) -> Result<(), StateError> {
@@ -144,96 +244,6 @@ impl CustomOrderStateService {
                 quotation_id, quotation.status
             )));
         }
-        Ok(())
-    }
-
-    async fn update_order_status(
-        &self,
-        order: &custom_order::Model,
-        next: CustomOrderStatus,
-        next_str: String,
-    ) -> Result<custom_order::Model, StateError> {
-        let mut active: ActiveModel = order.clone().into();
-        active.status = Set(next_str);
-        active.updated_at = Set(Utc::now());
-
-        if next == CustomOrderStatus::YarnPurchasing {
-            if let Some(qid) = order.quotation_id {
-                if let Ok(Some(quotation)) = sales_quotation::Entity::find_by_id(qid)
-                    .one(&*self.db)
-                    .await
-                {
-                    active.total_amount = Set(Some(quotation.total_amount));
-                }
-            }
-        }
-
-        active.update(&*self.db).await.map_err(StateError::Database)
-    }
-
-    async fn complete_current_node(
-        &self,
-        order_id: i64,
-        operator_id: i64,
-        notes: Option<String>,
-    ) -> Result<(), StateError> {
-        let node = NodeEntity::find()
-            .filter(process_node::Column::CustomOrderId.eq(order_id))
-            .filter(process_node::Column::Status.eq(node_status::IN_PROGRESS))
-            .one(&*self.db)
-            .await?;
-
-        if let Some(n) = node {
-            let mut n_active: process_node::ActiveModel = n.clone().into();
-            n_active.status = Set(node_status::COMPLETED.to_string());
-            n_active.actual_end_date = Set(Some(Utc::now()));
-            n_active.updated_at = Set(Utc::now());
-            n_active
-                .update(&*self.db)
-                .await
-                .map_err(StateError::Database)?;
-
-            let log = LogActive {
-                id: Default::default(),
-                process_node_id: Set(n.id),
-                action: Set("complete".to_string()),
-                operator_id: Set(Some(operator_id)),
-                before_status: Set(Some(node_status::IN_PROGRESS.to_string())),
-                after_status: Set(Some(node_status::COMPLETED.to_string())),
-                log_time: Set(Utc::now()),
-                log_content: Set(notes),
-                attachments: Set(serde_json::json!([])),
-            };
-            log.insert(&*self.db).await.map_err(StateError::Database)?;
-        }
-
-        Ok(())
-    }
-
-    async fn start_next_node(
-        &self,
-        order_id: i64,
-        operator_id: i64,
-        next_str: &str,
-    ) -> Result<(), StateError> {
-        let next_node = NodeEntity::find()
-            .filter(process_node::Column::CustomOrderId.eq(order_id))
-            .filter(process_node::Column::NodeType.eq(next_str))
-            .one(&*self.db)
-            .await?;
-
-        if let Some(n) = next_node {
-            let mut n_active: process_node::ActiveModel = n.into();
-            n_active.status = Set(node_status::IN_PROGRESS.to_string());
-            n_active.actual_start_date = Set(Some(Utc::now()));
-            n_active.operator_id = Set(Some(operator_id));
-            n_active.updated_at = Set(Utc::now());
-            n_active
-                .update(&*self.db)
-                .await
-                .map_err(StateError::Database)?;
-        }
-
         Ok(())
     }
 

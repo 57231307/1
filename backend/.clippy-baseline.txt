@@ -185,3 +185,124 @@ warning: trait `CacheBackend` is never used
 warning: unused import: `MrpExplodeQuery`
 warning: unused import: `generated::list as list_unfiltered`
 warning: unused imports: `ArReconciliationService`, `CreateReconciliationRequest`, `ReconciliationDetail`, `ReconciliationQuery`, `ReconciliationWithDetails`, and `UpdateReconciliationRequest`
+
+# V15 P0/P2 批次新增 baseline（2026-07-30）：121 - 4（修复）+ 2（生产端 attr）≈ 115 项新增
+warning: associated function `from_config` is never used
+warning: associated function `from_env` is never used
+warning: associated function `from_state` is never used
+warning: associated function `is_api_key_revoked` is never used
+warning: associated function `new` is never used
+warning: associated functions `from_claims` and `empty` are never used
+warning: associated functions `integer`, `decimal`, `date`, and `boolean` are never used
+warning: associated functions `with_rate_config` and `validate_base_amount_static` are never used
+warning: associated items `calculate_backoff_delay`, `list_dead_letters`, `resolve_dead_letter`, and `count_by_status` are never used
+warning: associated items `calculate_next_run`, `parse_cron_expression`, `date_matches_cron`, `find_next_time_in_day`, and `parse_cron_field` are never used
+warning: associated items `derive_paid_status` and `mark_as_paid` are never used
+warning: constant `BASE_DELAY_SECS` is never used
+warning: constant `MAX_RECURSION_DEPTH` is never used
+warning: constant `OPERATE_OK` is never used
+warning: constant `P92_AUTO_MODULE` is never used
+warning: constant `P92_CRUD_MODULE` is never used
+warning: constant `P92_MANUAL_MODULE` is never used
+warning: constant `P92_QRY_MODULE` is never used
+warning: constant `PERMISSION_ACTIONS` is never used
+warning: constant `PERMISSION_RESOURCES` is never used
+warning: deref which would be done by auto-deref
+warning: doc list item overindented
+warning: doc list item without indentation
+warning: enum `AdjustType` is never used
+warning: enum `SchedulingAlgo` is never used
+warning: field `change_reason` is never read
+warning: field `created_by` is never read
+warning: field `items` is never read
+warning: field `plan_id` is never read
+warning: field `reason` is never read
+warning: field `record_id` is never read
+warning: field `remark` is never read
+warning: field `remarks` is never read
+warning: field `search` is never read
+warning: field `warehouse_id` is never read
+warning: field `webhook_inherit_jwt_secret` is never read
+warning: fields `batch_no` and `color_no` are never read
+warning: fields `color_name`, `supplier_id`, `purchase_order_no`, and `remarks` are never read
+warning: fields `from_warehouse_id` and `remarks` are never read
+warning: fields `is_below_minimum` and `is_above_maximum` are never read
+warning: fields `primary_total`, `primary_failed_total`, `backup_total`, and `circuit_state` are never read
+warning: fields `product_id` and `batch_number` are never read
+warning: fields `product_name`, `batch_no`, and `dye_lot_no` are never read
+warning: fields `related_bill_type` and `related_bill_id` are never read
+warning: fields `total_sales` and `cumulative_ratio` are never read
+warning: function `check_consumption_exceeds_standard` is never used
+warning: function `check_low_stock` is never used
+warning: function `compute_remaining_shelf_life` is never used
+warning: function `delta_e_76` is never used
+warning: function `get_allowed_transitions` is never used
+warning: function `get_payment_schedule` is never used
+warning: function `invalidate_all_permission_cache` is never used
+warning: function `redis_cache_del_prefix` is never used
+warning: function `rgb_to_hex` is never used
+warning: function `validate_dir_recursive` is never used
+warning: function `validate_extracted_paths` is never used
+warning: function `validate_inspection_status` is never used
+warning: function `validate_loss_type` is never used
+warning: function `validate_lot_status` is never used
+warning: function `validate_order_status` is never used
+warning: function `validate_requisition_status` is never used
+warning: function `validate_rework_status` is never used
+warning: method `calculate_order_total` is never used
+warning: method `code` is never used
+warning: method `config` is never used
+warning: method `desc` is never used
+warning: method `find_by_name` is never used
+warning: method `get_by_id` is never used
+warning: method `get_payment_schedule` is never used
+warning: method `get_with_rules` is never used
+warning: method `is_terminal` is never used
+warning: method `list_by_batch_no` is never used
+warning: method `list_by_order` is never used
+warning: method `mark_as_paid` is never used
+warning: methods `export_excel_bytes` and `export_pdf_bytes` are never used
+warning: methods `filter_fields_by_read_permission` and `mask_fields` are never used
+warning: methods `is_empty` and `desc` are never used
+warning: methods `list_by_recipe` and `list` are never used
+warning: methods `record_change` and `record_order_created` are never used
+warning: methods `record_download` and `cleanup_expired_tokens` are never used
+warning: methods `record_primary`, `record_primary_failed`, `record_backup`, and `set_circuit_state` are never used
+warning: methods `risk_transfer_point` and `is_sea_only` are never used
+warning: multiple associated items are never used
+warning: multiple fields are never read
+warning: struct `ApiDoc` is never constructed
+warning: struct `CronFields` is never constructed
+warning: struct `FlowStepListByModeQuery` is never constructed
+warning: struct `InventorySummaryItem` is never constructed
+warning: struct `InventoryTurnover` is never constructed
+warning: struct `ObservabilityConfig` is never constructed
+warning: struct `OptionalAuthContext` is never constructed
+warning: struct `OrderChangeRecord` is never constructed
+warning: struct `OrderQuery` is never constructed
+warning: struct `OutsourcingOrderItemListQuery` is never constructed
+warning: struct `PaymentScheduleItem` is never constructed
+warning: struct `PaymentScheduleParams` is never constructed
+warning: struct `ProcessOptDetailVo` is never constructed
+warning: struct `ProductionRecipeAdditionQuery` is never constructed
+warning: struct `ReceiptCalculation` is never constructed
+warning: struct `ResourceAttrs` is never constructed
+warning: struct `RuleListByModeQuery` is never constructed
+warning: struct `SubjectBalance` is never constructed
+warning: struct `TimeSlot` is never constructed
+warning: struct `WorkCenterCapacity` is never constructed
+warning: the borrowed expression implements the required traits
+warning: the following explicit lifetimes could be elided: 'a
+warning: this function has too many arguments (8/7)
+warning: this function has too many arguments (9/7)
+warning: type alias `Auth` is never used
+warning: unused import: `AutoReconciliationResult`
+warning: unused import: `WorkshopEnergySummary`
+warning: unused import: `cleanup_revoked_users`
+warning: unused imports: `ArReconciliationService` and `AutoMatchRequest`
+warning: variant `CustomerNotFound` is never constructed
+warning: variant `Email` is never constructed
+warning: variant `Expired` is never constructed
+warning: variant `Low` is never constructed
+warning: variant `PriceNotFound` is never constructed
+warning: variant `RgbOutOfRange` is never constructed

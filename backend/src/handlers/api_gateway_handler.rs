@@ -27,8 +27,32 @@ use crate::models::{api_endpoint, log_api_access};
 // 批次 213 P2-5 修复（v12 复审）：硬编码 "active"/"inactive" 替换为 master_data 常量
 use crate::models::status::master_data;
 use crate::services::api_key_service::ApiKeyService;
+use crate::utils::admin_checker::is_admin_role;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
+
+/// V15 主线审计 High 修复：API 密钥对象级授权辅助。
+/// 允许本人或 admin 角色操作；拒绝其他用户跨人操作。
+async fn ensure_can_manage_api_key(
+    state: &AppState,
+    auth: &AuthContext,
+    created_by: Option<i32>,
+) -> Result<(), AppError> {
+    let is_owner = matches!(created_by, Some(uid) if uid == auth.user_id);
+    if is_owner {
+        return Ok(());
+    }
+    let is_admin = match auth.role_id {
+        Some(rid) => is_admin_role(&state.db, rid).await,
+        None => false,
+    };
+    if is_admin {
+        return Ok(());
+    }
+    Err(AppError::permission_denied(
+        "仅本人或管理员可操作该 API 密钥",
+    ))
+}
 
 // ============== DTO ==============
 
@@ -577,7 +601,7 @@ pub async fn create_api_key(
 /// GET /api-gateway/keys/:id — 获取单个 API 密钥详情
 pub async fn get_api_key(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let service = ApiKeyService::new(state.db.clone());
@@ -585,6 +609,8 @@ pub async fn get_api_key(
         .get_api_key_by_id(id)
         .await?
         .ok_or_else(|| AppError::not_found(format!("API 密钥 {} 不存在", id)))?;
+    // V15 主线审计 High 修复：仅本人或 admin 可查看密钥详情。
+    ensure_can_manage_api_key(&state, &auth, model.created_by).await?;
     // 批次 112 P1-9：created_by 从 model.created_by 读取
     Ok(Json(ApiResponse::success(key_to_json(&model))))
 }
@@ -593,10 +619,16 @@ pub async fn get_api_key(
 #[axum::debug_handler]
 pub async fn update_api_key(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<UpdateApiKeyGwRequest>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
+    // V15 主线审计 High 修复：变更前先校验对象级授权。
+    let existing = crate::models::api_key::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found(format!("API 密钥 {} 不存在", id)))?;
+    ensure_can_manage_api_key(&state, &auth, existing.created_by).await?;
     let service = ApiKeyService::new(state.db.clone());
 
     // permissions: Vec<String> → JSON 字符串
@@ -639,9 +671,15 @@ pub async fn update_api_key(
 /// DELETE /api-gateway/keys/:id — 删除（撤销）API 密钥
 pub async fn delete_api_key(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
+    // V15 主线审计 High 修复：撤销前先校验对象级授权。
+    let existing = crate::models::api_key::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found(format!("API 密钥 {} 不存在", id)))?;
+    ensure_can_manage_api_key(&state, &auth, existing.created_by).await?;
     let service = ApiKeyService::new(state.db.clone());
     service.revoke_api_key(id, Some(&state.cache)).await?;
     Ok(Json(ApiResponse::success_with_message((), "密钥已撤销")))
@@ -654,6 +692,12 @@ pub async fn regenerate_api_key(
     auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
+    // V15 主线审计 High 修复：重新生成前先校验对象级授权。
+    let existing = crate::models::api_key::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found(format!("API 密钥 {} 不存在", id)))?;
+    ensure_can_manage_api_key(&state, &auth, existing.created_by).await?;
     let service = ApiKeyService::new(state.db.clone());
     let (model, plain_key) = service
         .regenerate_api_key(

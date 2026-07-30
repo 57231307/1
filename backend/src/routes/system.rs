@@ -362,7 +362,7 @@ pub fn ai() -> Router<AppState> {
         .route("/ai/health", get(ai_extend_handler::ai_health))
 }
 
-/// V15 P0-S14 敏感数据导出二级审批路由（/export-approvals，7 端点）
+/// V15 P0-S14 敏感数据导出二级审批路由（/export-approvals，8 端点）
 pub fn export_approval() -> Router<AppState> {
     Router::new()
         .route(
@@ -373,6 +373,11 @@ pub fn export_approval() -> Router<AppState> {
         .route(
             "/export-approvals/verify-token",
             get(export_approval_handler::verify_token),
+        )
+        // V15 P2-05 修复：放在 `:id` 之前避免被 `:id` 路由吞掉。
+        .route(
+            "/export-approvals/pending-for-me",
+            get(export_approval_handler::list_pending_for_me),
         )
         .route(
             "/export-approvals/:id",
