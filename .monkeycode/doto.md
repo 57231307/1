@@ -41,7 +41,7 @@
 
 | 状态 | 剩余项 | 文件 | 说明 |
 |------|--------|------|------|
-| ⏳ 待推送 | 分支推送与 CI 校验 | `backend/src/services/outsourcing_ops/receipt.rs` + `backend/tests/outsourcing_receipt_workflow_test.rs` + `backend/src/services/ar/recon.rs` | `fix/p1-outsource-receipt-unify-2026-07-30` 已补 `confirm` 事务外 `OutsourcingOrderCompleted` 事件、委外收货 workflow tests，并在 CI 收尾阶段继续移除 `receipt.rs` 单次使用的 `DatabaseConnection` import 与 `ar/recon.rs` 3 个未使用 facade re-export（`ReconciliationDetail`/`ReconciliationQuery`/`ReconciliationWithDetails`）以消除新增 Clippy 噪音；完整 Rust 校验仍需依赖 CI（沙箱 rustc `SIGKILL`） |
+| ⏳ 待推送 | 分支推送与 CI 校验 | `backend/src/services/outsourcing_ops/receipt.rs` + `backend/tests/outsourcing_receipt_workflow_test.rs` + `backend/src/services/ar/recon.rs` + `backend/src/services/quality_inspection_service.rs` | `fix/p1-outsource-receipt-unify-2026-07-30` 已补 `confirm` 事务外 `OutsourcingOrderCompleted` 事件、委外收货 workflow tests，并在 CI 收尾阶段继续清理新增 Clippy 噪音：`receipt.rs` 单次使用 `DatabaseConnection` import、`ar/recon.rs` 3 个未使用 facade re-export，以及 `quality_inspection_service.rs` 中静态确认未使用的 `PaginatorTrait` / `QuerySelect`；完整 Rust 校验仍需依赖 CI（沙箱 rustc `SIGKILL`） |
 
 ---
 

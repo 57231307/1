@@ -124,6 +124,10 @@ V15 25 大类 195 维度审计报告生成后，对 main 主线做"最严格"二
   - GitHub Actions `Rust Clippy` 新日志显示新增警告为 `unused imports: ReconciliationDetail, ReconciliationQuery, ReconciliationWithDetails`。
   - 检索确认仓内无调用方通过 `crate::services::ar::recon::*` 使用这 3 个 DTO，因此从 facade 的 `pub use` 中移除，仅保留 `ArReconciliationService` / `CreateReconciliationRequest` / `UpdateReconciliationRequest`。
   - 该修复不影响应收对账 CRUD 实现（真实使用仍在 [crud.rs](file:///workspace/.tmp/fix-p1-outsource-2026-07-30/backend/src/services/ar/recon_ops/crud.rs) 中），仅消除新增 Clippy 噪音。
+- **静态确认的质检服务未使用 trait import 收敛**（[quality_inspection_service.rs](file:///workspace/.tmp/fix-p1-outsource-2026-07-30/backend/src/services/quality_inspection_service.rs)）
+  - 通过源码检索确认 `PaginatorTrait` 与 `QuerySelect` 仅出现在 import 行，文件内无 `.paginate()` / `.fetch_page()` / `QuerySelect` 相关调用。
+  - 已从 `sea_orm` import 列表中移除这两个 trait，保留实际使用的 `QueryOrder` / `ColumnTrait` / `ActiveModelTrait` 等依赖。
+  - 该修复不改变质检业务逻辑，仅继续收敛 `Rust Clippy` 新增 `unused import` 噪音。
 
 ### 后续项
 
