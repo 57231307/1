@@ -171,7 +171,7 @@
               type="success"
               link
               size="small"
-              @click="handleComplete(row)"
+              @click="handleSubmit(row)"
               >{{ t('inventoryCount.listTab.buttonComplete') }}</el-button
             >
           </template>
@@ -197,7 +197,7 @@ import { reactive, watch, defineEmits } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Document, Clock, CircleCheck, DataAnalysis, Plus } from '@element-plus/icons-vue';
-import { completeInventoryCount, type InventoryCountEntity } from '@/api/inventory-count';
+import { submitInventoryCount, type InventoryCountEntity } from '@/api/inventory-count';
 // 批次 280：接入 useTableApi，消除手写 counts/loading/total/fetchCounts 重复
 import { useTableApi } from '@/composables/useTableApi';
 
@@ -278,14 +278,14 @@ const handleReset = () => {
   handleQuery();
 };
 
-const handleComplete = async (row: InventoryCountEntity) => {
+const handleSubmit = async (row: InventoryCountEntity) => {
   try {
     await ElMessageBox.confirm(
       t('inventoryCount.listTab.messageCompleteConfirm'),
       t('inventoryCount.listTab.titleCompleteConfirm'),
       { type: 'warning' }
     );
-    await completeInventoryCount(row.id as number);
+    await submitInventoryCount(row.id as number);
     ElMessage.success(t('inventoryCount.listTab.messageSuccess'));
     fetchCounts();
   } catch (error) {
