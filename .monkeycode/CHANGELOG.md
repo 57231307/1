@@ -6,6 +6,21 @@
 
 ---
 
+## CI 重复检测项清理与规则 20 修复（2026-07-31，7 项全部修复）
+
+| 优先级 | 项 | 一句话总结 |
+|--------|-----|-----------|
+| 🔴 高 | ci-fmt-rust 注释/报告与代码矛盾 | **[ci-cd.yml L186-229](file:///workspace/.github/workflows/ci-cd.yml#L186-L229)** 删除"渐进式严格化（不阻塞 CI）"/"为什么不阻塞"等矛盾文本，改为"严格阻塞（V15 批次 07 P1-4）"，与实际 `exit $EXIT_CODE` 一致（规则 20 违反） |
+| 🔴 高 | ci-fmt-fe 注释/报告与代码矛盾 | **[ci-cd.yml L287-323](file:///workspace/.github/workflows/ci-cd.yml#L287-L323)** 同上，改为"严格阻塞（V15 批次 07 P1-5）"（规则 20 违反） |
+| 🔴 高 | clippy 报告引用已删除的 clippy-report.html | **[ci-cd.yml L648](file:///workspace/.github/workflows/ci-cd.yml#L648)** 删除 artifact 表中 `clippy-report.html` 行（上一轮已删 HTML 生成代码，报告引用未同步） |
+| 🟡 中 | clippy 严格模式步骤重复运行 clippy | **[ci-cd.yml L772-845](file:///workspace/.github/workflows/ci-cd.yml#L772-L845)** 原步骤重跑 `cargo clippy -- -D warnings`（约 60-120s）仅为统计 error 数，现复用主步骤已生成的 `clippy-structured.tsv`：-D warnings 把 warning 升为 error，故严格模式 error 数 = TSV 中 level=warning 行数，awk 统计即可，省 60-120s |
+| 🟡 中 | ci-deps 缓存 key 未统一 | **[ci-cd.yml L1549](file:///workspace/.github/workflows/ci-cd.yml#L1549)** `deps-cargo-` → `cargo-`（上一轮缓存统一遗漏，ci-deps 只读 target 不修改，共享安全） |
+| 🟢 低 | clippy-human-readable.txt 冗余 | **[ci-cd.yml L447-476](file:///workspace/.github/workflows/ci-cd.yml#L447-L476)** 合并中间文件 `clippy-human-readable.txt` 与带 header 的 `-full.txt`，用 mktemp 临时文件替代，artifact 只保留 `clippy-human-readable-full.txt` |
+| 🟢 低 | ci-info fetch-depth: 0 过重 | **[ci-cd.yml L73-74](file:///workspace/.github/workflows/ci-cd.yml#L73-L74)** `0`（完整 git 历史）→ `10`（仅需 `git log --oneline -5`）；ci-lint-rust/build-rust/package-release/github-release 保留 `fetch-depth: 0`（需 push baseline/tag/完整 changelog） |
+| — | 文件体积 | 2484 → 2480 行，YAML 语法校验通过（16 jobs），无残留 `渐进式严格化（不阻塞 CI）`/`为什么不阻塞`/`deps-cargo-`/`clippy-report.html` 引用 |
+
+---
+
 ## CI 测试+覆盖率合并优化（2026-07-31，方案 A 落地）
 
 | 项 | 一句话总结 |

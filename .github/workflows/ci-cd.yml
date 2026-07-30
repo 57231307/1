@@ -70,7 +70,8 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v5
         with:
-          fetch-depth: 0
+          # 仅需最近 10 个 commit 用于环境信息展示（git log --oneline -5），无需完整历史
+          fetch-depth: 10
 
       - name: 收集环境信息
         run: |
@@ -183,12 +184,12 @@ jobs:
           toolchain: ${{ env.RUST_VERSION }}
           components: rustfmt
 
-      - name: 运行 cargo fmt 检查（渐进式严格化）
+      - name: 运行 cargo fmt 检查（严格阻塞）
         working-directory: backend
+        # V15 批次 07 P1-4：fmt 失败阻塞 CI（移除渐进式 exit 0）
+        # 修复方法：cd backend && cargo fmt --all
         run: |
           mkdir -p reports
-          # 跑 cargo fmt --check 但失败时不阻塞 CI（渐进式严格化）
-          # 报告会上传 artifacts 供后续 PR 修复
           set +e
           cargo fmt --all -- --check 2>&1 | tee reports/cargo-fmt-diff.txt
           EXIT_CODE=$?
@@ -199,7 +200,7 @@ jobs:
             echo ""
             echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
             echo "**退出码**: $EXIT_CODE  "
-            echo "**模式**: 渐进式严格化（不阻塞 CI，报告存档供修复）"
+            echo "**模式**: 严格阻塞（V15 批次 07 P1-4）"
             echo ""
             if [ "$EXIT_CODE" -eq "0" ]; then
               echo "## ✅ 所有代码格式正确"
@@ -207,7 +208,7 @@ jobs:
               echo "无需修复。"
             else
               DIFF_LINES=$(wc -l < reports/cargo-fmt-diff.txt)
-              echo "## ⚠️ 发现 $DIFF_LINES 行格式差异"
+              echo "## ❌ 发现 $DIFF_LINES 行格式差异（CI 阻塞）"
               echo ""
               echo "### 自动修复命令"
               echo ""
@@ -225,11 +226,6 @@ jobs:
                 echo ""
                 echo "*（完整 diff 见 artifacts: \`backend-fmt-report\`）*"
               fi
-              echo ""
-              echo "### 为什么不阻塞"
-              echo ""
-              echo "本项目历史代码与 rustfmt 默认风格差异较大（300+ 行 diff），"
-              echo "采用渐进式严格化：报告存档供后续 PR 批量修复，新代码必须保持格式正确。"
             fi
           } > reports/cargo-fmt-report.md
 
@@ -289,8 +285,10 @@ jobs:
         working-directory: frontend
         run: npm ci --prefer-offline --no-audit
 
-      - name: 运行 prettier 检查（渐进式严格化）
+      - name: 运行 prettier 检查（严格阻塞）
         working-directory: frontend
+        # V15 批次 07 P1-5：fmt 失败阻塞 CI（移除渐进式 exit 0）
+        # 修复方法：cd frontend && npm run format
         run: |
           mkdir -p reports
           set +e
@@ -303,12 +301,12 @@ jobs:
             echo ""
             echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
             echo "**退出码**: $EXIT_CODE  "
-            echo "**模式**: 渐进式严格化（不阻塞 CI，报告存档供修复）"
+            echo "**模式**: 严格阻塞（V15 批次 07 P1-5）"
             echo ""
             if [ "$EXIT_CODE" -eq "0" ]; then
               echo "## ✅ 所有代码格式正确"
             else
-              echo "## ⚠️ 发现格式问题"
+              echo "## ❌ 发现格式问题（CI 阻塞）"
               echo ""
               echo "### 自动修复命令"
               echo ""
@@ -322,11 +320,6 @@ jobs:
               echo '```'
               cat reports/prettier-check.txt
               echo '```'
-              echo ""
-              echo "### 为什么不阻塞"
-              echo ""
-              echo "本项目历史代码与 prettier 默认风格存在差异，"
-              echo "采用渐进式严格化：报告存档供后续 PR 批量修复，新代码必须保持格式正确。"
             fi
           } > reports/prettier-report.md
 
@@ -458,6 +451,14 @@ jobs:
           echo "▶ 阶段 2/3：生成人类可读详细日志"
           # 用 jq 从 JSON 提取每条 message 的 rendered 字段，生成完整人类可读报告
           # 包含每条警告的完整渲染信息（代码片段、行号、原因说明）
+          # 2026-07-31 优化：合并原 clippy-human-readable.txt（中间文件）与 -full.txt（带 header），
+          # 消除冗余，artifact 中只保留 clippy-human-readable-full.txt
+          TMP_RENDERED=$(mktemp)
+          jq -r 'select(.reason == "compiler-message") |
+                 .message |
+                 select(.level == "warning" or .level == "error") |
+                 .rendered' reports/clippy-output.json 2>/dev/null > "$TMP_RENDERED"
+          RENDERED_LINES=$(wc -l < "$TMP_RENDERED")
           {
             echo "# Clippy 人类可读详细输出（从 JSON rendered 重渲染）"
             echo ""
@@ -468,16 +469,12 @@ jobs:
             echo ""
             echo "=========================================="
             echo ""
-            jq -r 'select(.reason == "compiler-message") |
-                   .message |
-                   select(.level == "warning" or .level == "error") |
-                   .rendered' reports/clippy-output.json 2>/dev/null \
-              > reports/clippy-human-readable.txt
-            cat reports/clippy-human-readable.txt
+            cat "$TMP_RENDERED"
             echo ""
             echo "=========================================="
-            echo "总计渲染 $(wc -l < reports/clippy-human-readable.txt) 行"
+            echo "总计渲染 $RENDERED_LINES 行"
           } > reports/clippy-human-readable-full.txt
+          rm -f "$TMP_RENDERED"
 
           # ============================================================================
           # 阶段 3：解析 JSON，按多维度统计（lint_id / file / line）
@@ -654,7 +651,6 @@ jobs:
             echo "| \`clippy-by-file.md\` | 按文件完整统计 |"
             echo "| \`clippy-by-severity.md\` | 按严重程度完整统计 |"
             echo "| \`clippy-explain.txt\` | 新增警告的 \`--explain\` 解释 |"
-            echo "| \`clippy-report.html\` | HTML 可视化报告 |"
             echo ""
             if [ "$BASELINE_MODE" = "bootstrap" ]; then
               echo "## 🎯 首次运行（自动建立基线）"
@@ -778,33 +774,33 @@ jobs:
           echo "✅ 无新增 clippy 警告"
           exit 0
 
-      - name: 运行 clippy 严格模式（V15 批次 07 P1-3 修复：-D warnings 信息性检查）
+      - name: 评估 clippy 严格模式就绪度（复用主步骤 TSV，不重跑 clippy）
         # 信息性 job：不阻塞 CI（continue-on-error: true）
         # 目的：监控 baseline 缩减进度，当 baseline = 0 时自动切换主 clippy 步骤为严格模式
-        # 修复路径：逐步修复 baseline 中的历史警告，本步骤会展示剩余警告数
+        # 2026-07-31 优化：原步骤重跑 `cargo clippy -- -D warnings`（约 60-120s）仅为统计 error 数，
+        # 现复用主步骤已生成的 clippy-structured.tsv：-D warnings 会把所有 warning 升为 error，
+        # 故严格模式 error 数 = TSV 中 level=warning 的行数。
         if: always()
         working-directory: backend
         continue-on-error: true
         run: |
           mkdir -p reports
-          set +e
-          # V15 批次 07 P1-3：运行严格模式 clippy（-D warnings），所有警告升为 error
-          # 信息性检查，不阻塞 CI；目的是评估切换严格模式的就绪度
-          echo "▶ 运行 clippy 严格模式（cargo clippy --all-targets -- -D warnings）"
-          cargo clippy --all-targets --color=always -- -D warnings \
-            > reports/clippy-strict-output.txt 2>&1
-          STRICT_EXIT=$?
-          set -e
 
-          # 统计严格模式下会失败的警告数（升为 error 的 warning 行数）
-          STRICT_ERRORS=$(awk '/^error:/{c++} END{print c+0}' reports/clippy-strict-output.txt 2>/dev/null)
-          echo "严格模式下 error 数: $STRICT_ERRORS"
+          # 从主步骤生成的 clippy-structured.tsv 统计 warning 数（等价于严格模式 error 数）
+          # TSV 格式：lint_id \t file \t line \t column \t level \t message
+          if [ -f "reports/clippy-structured.tsv" ]; then
+            STRICT_ERRORS=$(awk -F'\t' '$5 == "warning" {c++} END {print c+0}' reports/clippy-structured.tsv 2>/dev/null)
+          else
+            echo "⚠️ clippy-structured.tsv 不存在（主步骤可能失败），无法评估就绪度"
+            STRICT_ERRORS="unknown"
+          fi
+          echo "严格模式下预估 error 数（=当前 warning 数）: $STRICT_ERRORS"
 
-          # 当 baseline 清零时，提示可切换主 clippy 步骤为严格模式
+          # 就绪度判定（等价于原逻辑：warning 数 = 0 即就绪）
           STRICT_READINESS="未就绪"
-          if [ "$STRICT_ERRORS" -eq "0" ] && [ "$STRICT_EXIT" -eq "0" ]; then
+          if [ "$STRICT_ERRORS" = "0" ]; then
             STRICT_READINESS="✅ 已就绪：可将主 clippy 步骤切换为 -D warnings 严格模式"
-          elif [ "$STRICT_ERRORS" -lt "50" ]; then
+          elif [ "$STRICT_ERRORS" != "unknown" ] && [ "$STRICT_ERRORS" -lt "50" ]; then
             STRICT_READINESS="⚠️ 接近就绪（剩余 $STRICT_ERRORS 个 error < 50）"
           else
             STRICT_READINESS="❌ 未就绪（剩余 $STRICT_ERRORS 个 error，需逐步清理）"
@@ -815,8 +811,7 @@ jobs:
             echo "# Clippy 严格模式就绪度报告（V15 批次 07 P1-3）"
             echo ""
             echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
-            echo "**严格模式退出码**: $STRICT_EXIT  "
-            echo "**严格模式 error 数**: $STRICT_ERRORS  "
+            echo "**严格模式预估 error 数**: $STRICT_ERRORS（= 当前 warning 数，复用 TSV 统计）  "
             echo "**就绪状态**: $STRICT_READINESS  "
             echo ""
             echo "## 切换路径"
@@ -835,14 +830,13 @@ jobs:
               echo "- baseline 文件：未建立"
             fi
             echo ""
-            if [ "$STRICT_ERRORS" -gt "0" ]; then
-              echo "## 严格模式失败详情（前 30 条）"
+            if [ "$STRICT_ERRORS" != "unknown" ] && [ "$STRICT_ERRORS" -gt "0" ]; then
+              echo "## 严格模式失败详情（前 30 条，按 lint 类型分布）"
               echo ""
-              echo '```'
-              grep -E '^(error|warning):' reports/clippy-strict-output.txt | head -30
-              echo '```'
-              echo ""
-              echo "完整日志见 artifacts: \`backend-clippy-report/clippy-strict-output.txt\`"
+              echo "| Lint ID | 数量 |"
+              echo "|---------|------|"
+              awk -F'\t' '$5 == "warning" {count[$1]++} END {for (k in count) printf "| \`%s\` | %s |\n", k, count[k]}' \
+                reports/clippy-structured.tsv 2>/dev/null | sort -t'|' -k3 -rn | head -30
             fi
           } > reports/clippy-strict-report.md
 
@@ -851,7 +845,7 @@ jobs:
             echo "## 🔍 Clippy 严格模式（-D warnings）就绪度"
             echo ""
             echo "- 状态：$STRICT_READINESS"
-            echo "- 严格模式 error 数：$STRICT_ERRORS"
+            echo "- 严格模式预估 error 数：$STRICT_ERRORS（复用主步骤 TSV，未重跑 clippy）"
             echo "- 详细报告：artifacts \`backend-clippy-report/clippy-strict-report.md\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -1557,7 +1551,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             backend/target
-          key: deps-cargo-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}
+          key: cargo-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ env.RUST_VERSION }}-
 
       - name: 生成 cargo tree
         working-directory: backend
