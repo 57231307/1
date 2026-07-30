@@ -103,13 +103,6 @@ impl CustomOrderStateService {
         Ok(updated)
     }
 
-    async fn lookup_order(&self, order_id: i64) -> Result<custom_order::Model, StateError> {
-        Entity::find_by_id(order_id)
-            .one(&*self.db)
-            .await?
-            .ok_or(StateError::NotFound)
-    }
-
     /// 事务内版本：状态门校验（V15 P0 修复）
     async fn validate_gate_before_advance_in_txn(
         &self,
@@ -251,96 +244,6 @@ impl CustomOrderStateService {
                 quotation_id, quotation.status
             )));
         }
-        Ok(())
-    }
-
-    async fn update_order_status(
-        &self,
-        order: &custom_order::Model,
-        next: CustomOrderStatus,
-        next_str: String,
-    ) -> Result<custom_order::Model, StateError> {
-        let mut active: ActiveModel = order.clone().into();
-        active.status = Set(next_str);
-        active.updated_at = Set(Utc::now());
-
-        if next == CustomOrderStatus::YarnPurchasing {
-            if let Some(qid) = order.quotation_id {
-                if let Ok(Some(quotation)) = sales_quotation::Entity::find_by_id(qid)
-                    .one(&*self.db)
-                    .await
-                {
-                    active.total_amount = Set(Some(quotation.total_amount));
-                }
-            }
-        }
-
-        active.update(&*self.db).await.map_err(StateError::Database)
-    }
-
-    async fn complete_current_node(
-        &self,
-        order_id: i64,
-        operator_id: i64,
-        notes: Option<String>,
-    ) -> Result<(), StateError> {
-        let node = NodeEntity::find()
-            .filter(process_node::Column::CustomOrderId.eq(order_id))
-            .filter(process_node::Column::Status.eq(node_status::IN_PROGRESS))
-            .one(&*self.db)
-            .await?;
-
-        if let Some(n) = node {
-            let mut n_active: process_node::ActiveModel = n.clone().into();
-            n_active.status = Set(node_status::COMPLETED.to_string());
-            n_active.actual_end_date = Set(Some(Utc::now()));
-            n_active.updated_at = Set(Utc::now());
-            n_active
-                .update(&*self.db)
-                .await
-                .map_err(StateError::Database)?;
-
-            let log = LogActive {
-                id: Default::default(),
-                process_node_id: Set(n.id),
-                action: Set("complete".to_string()),
-                operator_id: Set(Some(operator_id)),
-                before_status: Set(Some(node_status::IN_PROGRESS.to_string())),
-                after_status: Set(Some(node_status::COMPLETED.to_string())),
-                log_time: Set(Utc::now()),
-                log_content: Set(notes),
-                attachments: Set(serde_json::json!([])),
-            };
-            log.insert(&*self.db).await.map_err(StateError::Database)?;
-        }
-
-        Ok(())
-    }
-
-    async fn start_next_node(
-        &self,
-        order_id: i64,
-        operator_id: i64,
-        next_str: &str,
-    ) -> Result<(), StateError> {
-        let next_node = NodeEntity::find()
-            .filter(process_node::Column::CustomOrderId.eq(order_id))
-            .filter(process_node::Column::NodeType.eq(next_str))
-            .one(&*self.db)
-            .await?;
-
-        if let Some(n) = next_node {
-            let mut n_active: process_node::ActiveModel = n.into();
-            n_active.status = Set(node_status::IN_PROGRESS.to_string());
-            n_active.actual_start_date = Set(Some(Utc::now()));
-            n_active.operator_id = Set(Some(operator_id));
-            n_active.updated_at = Set(Utc::now());
-            n_active
-                .update(&*self.db)
-                .await
-                .map_err(StateError::Database)?;
-        }
-
         Ok(())
     }
 

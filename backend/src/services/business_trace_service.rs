@@ -237,6 +237,7 @@ impl BusinessTraceService {
     ///
     /// 调用方必须把 new_node 的必填字段（trace_chain_id/current_stage/current_bill_no/...）置为 Set，
     /// 否则内部 try_as_ref() 返回 None 时直接 AppError::validation。
+    #[allow(dead_code)] // V15 P2-06 producer：等待 P2-06 续 + 上游业务（采购收货/库存出入库/委外/销售发货）批量接入
     pub async fn upsert_chain_node(
         &self,
         new_node: business_trace_chain::ActiveModel,
@@ -356,6 +357,7 @@ impl BusinessTraceService {
     }
 
     /// 关联一条辅助核算记录到 chain head（trace_id 由 trace_chain_id 解析）
+    #[allow(dead_code)] // V15 P2-06 producer：等待上游业务接入
     pub async fn link_assist(
         &self,
         trace_chain_id: &str,
@@ -377,6 +379,7 @@ impl BusinessTraceService {
     ///
     /// 依赖 V15 触发器做"存在 head + 字段自洽"校验；本方法对"同一 chain 多次调用"
     /// 自动改写为 UPDATE（每 chain 仅保留一份当前快照）。
+    #[allow(dead_code)] // V15 P2-06 producer：等待上游业务接入
     pub async fn upsert_snapshot(
         &self,
         trace_chain_id: &str,
