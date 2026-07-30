@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-29（doto.md 更新：**PR #777 已合并 main**：彻底移除 Docker/K8s 引用，11 文件 -130 行，对齐 systemd 直部署（log_config.rs 移除容器检测函数 + health/public_routes/routes 注释修正 + README/CONTRIBUTING/ARCHITECTURE/DEVELOPER_GUIDE/INDEX 文档清理 + nginx.conf/prometheus.yml 配置修正）；**PR #776 已合并 main**：CHANGELOG/doto 文档同步；**PR #772 关闭重复 PR**（内容已通过 PR #771 合并）；**SeaORM 2.0 升级评估暂缓**：2.0.0 稳定版 2026-07-19 发布，破坏性变更已评估（181 处 active.insert(db) 需调整），暂不升级；**PR #775 已合并 main**：P1 全部完成 257/257；**P0 全部完成 + P1 已合并 25 批到 main**）
+> 最近整理：2026-07-29（doto.md 更新：**Clippy runner shutdown (exit 143) 修复 + Release 变更说明模板**：CI clippy job 添加 CARGO_BUILD_JOBS=2 + 3 次 retry 机制 + timeout 45→60min；新建 .github/RELEASE_TEMPLATE.md + 重写 release notes 生成脚本按 Conventional Commits 自动分类（feat/fix/refactor/remove/breaking 等）；**PR #777 已合并 main**：彻底移除 Docker/K8s 引用，11 文件 -130 行，对齐 systemd 直部署（log_config.rs 移除容器检测函数 + health/public_routes/routes 注释修正 + README/CONTRIBUTING/ARCHITECTURE/DEVELOPER_GUIDE/INDEX 文档清理 + nginx.conf/prometheus.yml 配置修正）；**PR #776 已合并 main**：CHANGELOG/doto 文档同步；**PR #772 关闭重复 PR**（内容已通过 PR #771 合并）；**SeaORM 2.0 升级评估暂缓**：2.0.0 稳定版 2026-07-19 发布，破坏性变更已评估（181 处 active.insert(db) 需调整），暂不升级；**PR #775 已合并 main**：P1 全部完成 257/257；**P0 全部完成 + P1 已合并 25 批到 main**）
 
 ---
 

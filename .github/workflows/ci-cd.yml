@@ -371,7 +371,7 @@ jobs:
   ci-lint-rust:
     name: 🔍 Rust Clippy
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     needs: ci-info
     # 启用 contents: write 以便"提交 baseline 文件"步骤能 push 自动建立的基线
     # baseline 机制：首次跑自动建立基线，后续 PR 仅"新增警告"阻塞 CI
@@ -416,24 +416,45 @@ jobs:
         working-directory: backend
         # V15 Batch 485 修订：恢复 baseline 机制（仅 clippy，test 保持零容忍）
         # 保留 Batch 485 优化：无 RUSTC_LOG=debug、无 --all-features、无阶段 3 trace 重跑
+        # 修复 runner shutdown (exit 143)：限制并行编译数 + clippy 命令带 retry
+        # exit 143 = SIGTERM，通常因 OOM 或 runner 超时被 kill；限制并行编译降低内存峰值
+        env:
+          CARGO_BUILD_JOBS: "2"
+          CARGO_JOBS: "2"
         run: |
           mkdir -p reports
           set +e
 
           # ============================================================================
-          # 阶段 1：主 clippy 运行（JSON 格式，用于机器解析）
+          # 阶段 1：主 clippy 运行（JSON 格式，用于机器解析）— 带 retry
           # ============================================================================
           # V15 Batch 485：恢复 baseline 机制，仅"新增警告"阻塞 CI（NEW_COUNT > 0）
           # 不加 -- -D warnings（避免 JSON 输出截断），由后续 NEW_COUNT > 0 判定阻塞
           # V15 Batch 485：移除 --all-features（与 cargo build/test 一致使用默认 features）
           # 原因：--all-features 启用从未在生产中组合使用的 feature 组合，产生 1773 个
           # false positive dead_code 警告（如 swagger feature 启用时暴露未使用常量）
-          echo "▶ 阶段 1/3：主 clippy 运行（JSON 输出）"
-          cargo clippy --all-targets --message-format=json \
-            --color=always 2>reports/clippy-stderr.txt \
-            | tee reports/clippy-output.json > /dev/null
-          CLIPPY_MAIN_EXIT=${PIPESTATUS[0]}
-          echo "  主 clippy 退出码: $CLIPPY_MAIN_EXIT"
+          # 修复 runner shutdown (exit 143)：clippy 命令带 3 次重试，仅对 143/137/1 重试
+          echo "▶ 阶段 1/3：主 clippy 运行（JSON 输出，带 retry）"
+          CLIPPY_MAIN_EXIT=143
+          MAX_ATTEMPTS=3
+          ATTEMPT=1
+          while [ "$ATTEMPT" -le "$MAX_ATTEMPTS" ]; do
+            echo "  尝试 $ATTEMPT/$MAX_ATTEMPTS..."
+            cargo clippy --all-targets --message-format=json \
+              --color=always 2>reports/clippy-stderr.txt \
+              | tee reports/clippy-output.json > /dev/null
+            CLIPPY_MAIN_EXIT=${PIPESTATUS[0]}
+            echo "  主 clippy 退出码: $CLIPPY_MAIN_EXIT"
+            # 0 = 成功；101 = 编译错误（真正的代码问题，不重试）；其他（143/137/1）= 基础设施问题，重试
+            if [ "$CLIPPY_MAIN_EXIT" -eq "0" ] || [ "$CLIPPY_MAIN_EXIT" -eq "101" ]; then
+              break
+            fi
+            if [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; then
+              echo "  ⚠️  clippy 异常退出（exit $CLIPPY_MAIN_EXIT，疑似基础设施问题），$((ATTEMPT * 10))s 后重试..."
+              sleep $((ATTEMPT * 10))
+            fi
+            ATTEMPT=$((ATTEMPT + 1))
+          done
           # 合并 stderr 中可能的警告
           cat reports/clippy-stderr.txt >> reports/clippy-output.json 2>/dev/null || true
 
@@ -2221,34 +2242,209 @@ jobs:
           name: bingxi-erp-release
           path: ./
 
-      - name: 生成发布说明
+      - name: 生成发布说明（按 RELEASE_TEMPLATE.md 模板）
         id: release-notes
         run: |
           VERSION="${{ needs.package-release.outputs.version }}"
+          TAG_NAME="${{ needs.package-release.outputs.tag_name }}"
+          NOW=$(date +'%Y-%m-%d %H:%M:%S %Z')
 
           # 获取上一个 tag
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
 
+          # 获取 commit 列表（完整 hash + message）
           if [ -z "$PREV_TAG" ]; then
-            CHANGELOG=$(git log --oneline --no-merges -n 30)
+            COMMIT_LOG=$(git log --pretty=format:"%H %s" --no-merges -n 200)
+            COMMIT_RANGE="初始版本（最近 200 个提交）"
           else
-            CHANGELOG=$(git log "${PREV_TAG}..HEAD" --oneline --no-merges)
+            COMMIT_LOG=$(git log "${PREV_TAG}..HEAD" --pretty=format:"%H %s" --no-merges)
+            COMMIT_RANGE="${PREV_TAG}..${TAG_NAME}"
           fi
 
-          cat > release_notes.md << 'EOF'
-          # Bingxi ERP - $VERSION
+          COMMIT_COUNT=$(echo "$COMMIT_LOG" | grep -c . || echo 0)
 
-          ## 更新内容
+          # ============================================================================
+          # 按 Conventional Commits 规范分类解析 commit
+          # ============================================================================
+          FEAT_LIST=""
+          FIX_LIST=""
+          MODIFIED_LIST=""
+          REMOVED_LIST=""
+          BREAKING_LIST=""
+          DOCS_LIST=""
+          TEST_LIST=""
+          CHORE_LIST=""
+          OTHER_LIST=""
 
-          ```
-          $CHANGELOG
-          ```
+          FEAT_COUNT=0
+          FIX_COUNT=0
+          MODIFIED_COUNT=0
+          REMOVED_COUNT=0
+          BREAKING_COUNT=0
+          DOCS_COUNT=0
+          TEST_COUNT=0
+          CHORE_COUNT=0
+          OTHER_COUNT=0
 
-          ## 快速部署
+          # 提取 commit 短 hash 用于显示
+          SHORT_HASH=""
+          FIRST_FEAT_FIX=""
 
-          ```bash
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            HASH=$(echo "$line" | cut -d' ' -f1)
+            SHORT_HASH=$(echo "$HASH" | cut -c1-8)
+            MSG=$(echo "$line" | cut -d' ' -f2-)
+            DISPLAY="- \`${SHORT_HASH}\` ${MSG}"
+
+            # 检测 breaking change（BREAKING CHANGE: 或 type!: 语法）
+            IS_BREAKING=0
+            if echo "$MSG" | grep -qE '^[a-z]+(\(.+\))?!:' || echo "$MSG" | grep -qi 'BREAKING CHANGE'; then
+              IS_BREAKING=1
+            fi
+
+            # 按 conventional commit 前缀分类
+            TYPE=$(echo "$MSG" | grep -oE '^[a-z]+' | head -1)
+
+            case "$TYPE" in
+              feat)
+                FEAT_LIST="${FEAT_LIST}${DISPLAY}\n"
+                FEAT_COUNT=$((FEAT_COUNT + 1))
+                [ -z "$FIRST_FEAT_FIX" ] && FIRST_FEAT_FIX="$MSG"
+                ;;
+              fix)
+                FIX_LIST="${FIX_LIST}${DISPLAY}\n"
+                FIX_COUNT=$((FIX_COUNT + 1))
+                [ -z "$FIRST_FEAT_FIX" ] && FIRST_FEAT_FIX="$MSG"
+                ;;
+              refactor|perf|style)
+                MODIFIED_LIST="${MODIFIED_LIST}${DISPLAY}\n"
+                MODIFIED_COUNT=$((MODIFIED_COUNT + 1))
+                ;;
+              remove)
+                REMOVED_LIST="${REMOVED_LIST}${DISPLAY}\n"
+                REMOVED_COUNT=$((REMOVED_COUNT + 1))
+                ;;
+              docs)
+                DOCS_LIST="${DOCS_LIST}${DISPLAY}\n"
+                DOCS_COUNT=$((DOCS_COUNT + 1))
+                ;;
+              test)
+                TEST_LIST="${TEST_LIST}${DISPLAY}\n"
+                TEST_COUNT=$((TEST_COUNT + 1))
+                ;;
+              chore|build|ci)
+                # 检查是否是删除类（chore(remove) / chore(delete)）
+                if echo "$MSG" | grep -qE '^chore\((remove|delete)\)'; then
+                  REMOVED_LIST="${REMOVED_LIST}${DISPLAY}\n"
+                  REMOVED_COUNT=$((REMOVED_COUNT + 1))
+                else
+                  CHORE_LIST="${CHORE_LIST}${DISPLAY}\n"
+                  CHORE_COUNT=$((CHORE_COUNT + 1))
+                fi
+                ;;
+              *)
+                OTHER_LIST="${OTHER_LIST}${DISPLAY}\n"
+                OTHER_COUNT=$((OTHER_COUNT + 1))
+                ;;
+            esac
+
+            # Breaking change 单独归入"变更"章节
+            if [ "$IS_BREAKING" -eq "1" ]; then
+              BREAKING_LIST="${BREAKING_LIST}${DISPLAY}\n"
+              BREAKING_COUNT=$((BREAKING_COUNT + 1))
+            fi
+          done <<< "$COMMIT_LOG"
+
+          # 空列表显示「_无_」
+          [ -z "$FEAT_LIST" ] && FEAT_LIST="_无_"
+          [ -z "$FIX_LIST" ] && FIX_LIST="_无_"
+          [ -z "$MODIFIED_LIST" ] && MODIFIED_LIST="_无_"
+          [ -z "$REMOVED_LIST" ] && REMOVED_LIST="_无_"
+          [ -z "$BREAKING_LIST" ] && BREAKING_LIST="_无_"
+
+          # 版本概述
+          if [ -n "$FIRST_FEAT_FIX" ]; then
+            SUMMARY="本次版本主要更新：${FIRST_FEAT_FIX#*: }"
+          else
+            SUMMARY="详见下方变更分类。"
+          fi
+
+          # 完整 commit 列表（oneline 格式）
+          FULL_LOG=$(git log ${PREV_TAG:+$PREV_TAG..HEAD} --oneline --no-merges -n 200 2>/dev/null || git log --oneline --no-merges -n 200)
+          FULL_LOG_FORMATTED=$(echo "$FULL_LOG" | sed 's/^/- /')
+
+          # 统计合计
+          TOTAL_COUNT=$((FEAT_COUNT + FIX_COUNT + MODIFIED_COUNT + REMOVED_COUNT + BREAKING_COUNT + DOCS_COUNT + TEST_COUNT + CHORE_COUNT + OTHER_COUNT))
+
+          # ============================================================================
+          # 按 RELEASE_TEMPLATE.md 模板生成 release notes
+          # ============================================================================
+          cat > release_notes.md << EOF
+          # Bingxi ERP ${VERSION}
+
+          **发布时间**: ${NOW}
+          **上一版本**: ${PREV_TAG:-无（首个版本）}
+          **Commit 范围**: ${COMMIT_RANGE}（共 ${COMMIT_COUNT} 个提交）
+
+          ---
+
+          ## 📋 版本概述
+
+          ${SUMMARY}
+
+          ---
+
+          ## 🆕 新增（feat）
+
+          $(echo -e "$FEAT_LIST")
+
+          ## ✏️ 修改（refactor / perf / style）
+
+          $(echo -e "$MODIFIED_LIST")
+
+          ## 🗑️ 删除（remove / chore-delete）
+
+          $(echo -e "$REMOVED_LIST")
+
+          ## 🐛 修复（fix）
+
+          $(echo -e "$FIX_LIST")
+
+          ## 🔄 变更（breaking / 其他变更）
+
+          $(echo -e "$BREAKING_LIST")
+          $(echo -e "$OTHER_LIST")
+
+          ---
+
+          ## 📊 统计
+
+          | 类型 | 数量 |
+          |------|------|
+          | 新增（feat） | ${FEAT_COUNT} |
+          | 修复（fix） | ${FIX_COUNT} |
+          | 修改（refactor/perf/style） | ${MODIFIED_COUNT} |
+          | 删除（remove） | ${REMOVED_COUNT} |
+          | 变更（breaking） | ${BREAKING_COUNT} |
+          | 文档（docs） | ${DOCS_COUNT} |
+          | 测试（test） | ${TEST_COUNT} |
+          | 构建/工具（chore） | ${CHORE_COUNT} |
+          | **合计** | **${TOTAL_COUNT}** |
+
+          ---
+
+          ## 📝 完整 Commit 列表
+
+          ${FULL_LOG_FORMATTED}
+
+          ---
+
+          ## 🚀 快速部署
+
+          \`\`\`bash
           # 解压发布包
-          tar -xzf release-$VERSION.tar.gz
+          tar -xzf release-${VERSION}.tar.gz
           cd bingxi-erp
 
           # 部署后端
@@ -2257,17 +2453,20 @@ jobs:
 
           # 部署前端
           cp -r frontend/dist/* /var/www/html/
-          ```
+          \`\`\`
 
-          ## 技术栈
+          ## 🛠️ 技术栈
 
           - **后端**: Rust + Axum + SeaORM
           - **前端**: Vue 3 + TypeScript + Element Plus
           - **数据库**: PostgreSQL 14+
 
           ---
-          *发布时间: $(date +'%Y-%m-%d %H:%M:%S')*
+
+          *此发布说明由 CI 自动生成，依据 \`.github/RELEASE_TEMPLATE.md\` 模板格式化。*
           EOF
+
+          echo "✅ release notes 已生成（共 ${COMMIT_COUNT} 个提交，feat=${FEAT_COUNT} fix=${FIX_COUNT}）"
 
       - name: 创建 GitHub Release
         uses: softprops/action-gh-release@v3
