@@ -379,7 +379,8 @@ pub async fn export_dye_batches(
     q = apply_dye_batch_filters(q, &query);
     q = q.order_by_desc(dye_batch::Column::CreatedAt);
 
-    let batches = q.all(&*state.db).await?;
+    // V15 缺陷 9-2 修复：导出全量查询加 limit 防止滥用（最大 10000 条）
+    let batches = q.limit(10000).all(&*state.db).await?;
 
     let table = build_dye_batch_xlsx_table(&batches);
     let row_count = batches.len();
