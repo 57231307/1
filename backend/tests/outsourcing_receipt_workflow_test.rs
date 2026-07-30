@@ -3,7 +3,6 @@
 //! 覆盖：状态常量值 + Service 实例化 + DB 异常路径 + 完整流程骨架（#[ignore]）。
 //! 委外完成事件由 `OutsourcingReceiptService::confirm` 在事务提交后发布，
 //! workflow 测试覆盖到收回单 `draft -> confirmed` 与订单 `processing -> received` 语义。
-
 mod common;
 
 #[cfg(test)]
