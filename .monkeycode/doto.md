@@ -9,70 +9,36 @@
 
 | 状态 | 数量 | 批次 |
 |------|------|------|
-| ✅ 已合并 main | 2 批 | audit-batch-2026-07-30（PR #786 已合并）、fix/p1-outsource-receipt-unify-2026-07-30（PR #788 已合并） |
+| ✅ 已合并 main | 2 批 | audit-batch-2026-07-30（PR #786，11 项 P0 + 3 项 P2）、fix/p1-outsource-receipt-unify-2026-07-30（PR #788，委外收货主链路） |
 | ⏳ 待推送 | 0 批 | — |
 
-### 0.0.1 P0 完成明细
+> **完成明细已归档**（规则 10）：[doto-su.md §📦 V15 主线八维审计与快速修复](file:///workspace/.monkeycode/doto-su.md)（11 项 P0 + 3 项 P2 ✅ 完整修复）+ [doto-su.md §🧵 P1 委外收货主链路统一](file:///workspace/.monkeycode/doto-su.md)（PR #788 ✅）。本节仅保留未完成/部分修复项。
 
-> ⚠️ 真实状态修正（2026-07-30 核实）：盘点契约 P0-1 经代码级核实为「⚠️ 部分修复」，详见下方"真实状态核实"行。其余 10 项 P0 经核实已完整修复。
+### 0.0.1 主线八维 P1 后续未完成项（2026-07-30 代码级核实）
 
-| P0 项 | 文件 | 关键改动 | 真实状态核实 |
-|-------|------|----------|--------------|
-| 盘点契约 | frontend/src/api/inventory-count.ts + CountListTab + CountFormDialogTab | 对齐后端 9 端点（list/create/get/update/record/submit/approve/reject），complete → submit+approve，count_date → ISO 8601 | ⚠️ **部分修复**：实际仅触及 1/96 api 文件，inventory-count.ts 仍缺 record/submit/reject 3 端点，completeInventoryCount 未移除（L60-61 仍调用 `/inventory/counts/${id}/complete`，后端无此端点） |
-| 事件事务 | backend/src/services/inventory_finance_bridge_ops/listener.rs | 阶段1查重→阶段2事务→失败回滚+幂等清除+死信兜底；event_idempotency_service 新增 unmark_processed | ✅ 完整修复 |
-| 二级审批 | export_approval_request.rs + service.rs | ApprovalStatus 新增 PendingL2；approve 拆 target_level+current_approval_step | ✅ 完整修复 |
-| init token 强度 | middleware/init_token.rs | INIT_TOKEN_PLACEHOLDERS 黑名单 + is_init_token_strong ≥32 字节 | ✅ 完整修复 |
-| API 网关授权 | handlers/api_gateway_handler.rs | ensure_can_manage_api_key 4 handler 接入 | ✅ 完整修复（注：PATCH rate_limit 范围校验未修复，见 0.0.4） |
-| 导出范围 | handlers/export_approval_handler.rs + system.rs | 非 admin 强制 applicant_user_id = auth.user_id；新增 /export-approvals/pending-for-me | ✅ 完整修复 |
-| 冒烟脚本 | scripts/api-crud-test.sh | 严格断言移除 code:400 误判 | ✅ 完整修复 |
-| 导出格式 | export_approval_service.rs | validate_create_request_fields 移除 csv 仅 xlsx/pdf | ✅ 完整修复 |
-| 定制订单事务 | custom_order_state_service.rs | advance() 用 txn.begin() + lock_exclusive + 3 个 _txn 子方法 | ✅ 完整修复 |
-| 委外订单事务 | outsourcing_ops/order.rs | issue_order/settle 凭证创建+主单更新同事务；TransactionTrait 导入 | ✅ 完整修复 |
-| SECURITY 邮箱 | .monkeycode/docs/SECURITY.md | [TODO] → security@57231307.com | ✅ 完整修复 |
-
-### 0.0.2 P2 完成明细
-
-| P2 项 | 文件 | 关键改动 |
-|-------|------|----------|
-| P2-02 清理陈旧注释 | test_inventory_count.rs / inv/count.rs / test_generate_no_endpoints.rs | 3 处"占位模块"陈旧注释删除 |
-| P2-05 导出审批 list_pending_for_me | service.rs + system.rs + handler.rs | 新增 list_pending_for_user(user_id,is_admin,q) 服务 + GET 路由 |
-| P2-06 业务追溯约束 | migrations/20260801000001_business_trace_constraints + business_trace_service.rs | uniq_business_trace_chain_head/tail partial unique + snapshot trace_chain_id unique + assist_links 联合 unique + 3 个 CHECK + 3 个逻辑外键触发器；upsert_chain_node/link_assist/upsert_snapshot producer |
-
-### 0.0.3 P1-委外收货主链路后续（✅ 已完成，PR #788 已合并 main）
-
-| 项 | 文件 | 真实状态 |
-|----|------|----------|
-| 委外收货主链路统一 | backend/src/services/outsourcing_ops/receipt.rs | ✅ **已修复**（PR #788 已合并 main）：`confirm()` L250-391 完整事务化（txn.begin + lock_exclusive + 凭证/订单/质检同事务 + commit），旧 `record_receipt` 及 4 子方法（insert_receipt_record/insert_receipt_voucher/insert_loss_voucher_if_needed/apply_order_receipt）已删除，事务外发布 `OutsourcingOrderCompleted` 事件 + workflow tests |
-
-### 0.0.4 主线八维 P1 后续 5 项真实状态（2026-07-30 代码级核实）
-
-> ⚠️ 修正乐观偏差：此前 doto.md 暗示"仅 CI 收尾待推送"，实际经代码级核实为「1 项完成 / 2 项部分修复 / 2 项未修复」。
+> ⚠️ 修正乐观偏差：此前 doto.md 暗示"仅 CI 收尾待推送"，实际经代码级核实为「2 项部分修复 / 2 项未修复」，1 项已完成（委外 record_receipt 事务化，归档 [doto-su.md §🧵](file:///workspace/.monkeycode/doto-su.md)）。
 
 | # | 项 | 文件 | 真实状态 | 代码证据 |
 |---|-----|------|----------|----------|
-| 1 | 委外 record_receipt 4 子方法事务化 | [outsourcing_ops/receipt.rs](file:///workspace/backend/src/services/outsourcing_ops/receipt.rs) | ✅ **已修复** | `confirm()` L250-391 完整事务化，4 子方法已删除（与 0.0.3 同项，PR #788 已合并） |
+| 1 | 盘点契约 P0-1（含前端契约对齐） | [inventory-count.ts](file:///workspace/frontend/src/api/inventory-count.ts) + CountListTab + CountFormDialogTab | ⚠️ **部分修复** | 仅触及 1/96 api 文件；inventory-count.ts（79 行）仍缺 record/submit/reject 3 端点；completeInventoryCount（L60-61）未移除仍调用后端不存在的 `/complete` 端点；其余 95 个 api 文件未做契约对齐 |
 | 2 | 业务追溯 producer 完整接入 | [business_trace_service.rs](file:///workspace/backend/src/services/business_trace_service.rs) | ⚠️ **部分修复** | 3 个 producer（upsert_chain_node L241-357 / link_assist L361-376 / upsert_snapshot L383-420）已实现并具备约束保护逻辑，但全部 `#[allow(dead_code)]`（L240/360/382），grep 确认无任何上游业务调用（采购收货/库存出入库/委外/销售发货均未接入），属于死代码 |
-| 3 | 前端契约对齐补齐 | [frontend/src/api/](file:///workspace/frontend/src/api/) | ⚠️ **部分修复** | 仅 1/96 文件触及；inventory-count.ts（79 行）缺 record/submit/reject 3 端点，completeInventoryCount（L60-61）未移除仍调用后端不存在的 `/complete` 端点；其余 95 个 api 文件未做契约对齐 |
-| 4 | API 网关 PATCH rate_limit 范围校验 | [api_gateway_handler.rs](file:///workspace/backend/src/handlers/api_gateway_handler.rs) | ❌ **未修复** | 4 个写入端点（create/update endpoint L342-343 + create/update key L565/657）均直接 Set/透传，无任何 min/max/clamp/负值检查；DTO（L77/93/731）`pub rate_limit: Option<i32>` 无 serde 校验属性 |
-| 5 | 覆盖率阈值回调 | [vitest.config.ts](file:///workspace/frontend/vitest.config.ts) | ❌ **未修复** | L31-39 thresholds 4 项（lines/functions/branches/statements）均为 1，非 70；注释明确"临时下调至 1%"、"待测试补齐后逐步提升回 70%"；实际覆盖率 1.67% |
+| 3 | API 网关 PATCH rate_limit 范围校验 | [api_gateway_handler.rs](file:///workspace/backend/src/handlers/api_gateway_handler.rs) | ❌ **未修复** | 4 个写入端点（create/update endpoint L342-343 + create/update key L565/657）均直接 Set/透传，无任何 min/max/clamp/负值检查；DTO（L77/93/731）`pub rate_limit: Option<i32>` 无 serde 校验属性 |
+| 4 | 覆盖率阈值回调 | [vitest.config.ts](file:///workspace/frontend/vitest.config.ts) | ❌ **未修复** | L31-39 thresholds 4 项（lines/functions/branches/statements）均为 1，非 70；注释明确"临时下调至 1%"、"待测试补齐后逐步提升回 70%"；实际覆盖率 1.67% |
 
-**真实进度**：1/5 完成（20%）/ 2/5 部分修复（40%）/ 2/5 未修复（40%）
+**真实进度**：2/5 部分修复（40%）/ 2/5 未修复（40%），1/5 已完成归档 doto-su.md §🧵
 
-### 0.0.5 打印功能核实（2026-07-30，整体完成度约 60%）
+### 0.0.2 打印功能未完成项（2026-07-30 核实，整体完成度约 60%）
 
-> 详见 V15 审计 batch-11（类十三打印导出审计与权限控制专项，注意非 batch-13）
+> 详见 V15 审计 batch-11（类十三打印导出审计与权限控制专项）。已实现 6 个场景（销售订单/销售合同/采购订单/采购入库单/库存调拨单）归档 doto-su.md，本节仅列未完成项。
 
 **业务场景覆盖**：6/16 = 37.5%（纺织核心 6 个场景全部缺失）
 
 | 状态 | 场景 | 路由/文件 |
 |------|------|-----------|
-| ✅ 已实现 | 销售订单/销售合同/采购订单/采购入库单/库存调拨单 | [print_service.rs](file:///workspace/backend/src/services/print_service.rs) L68/256/354/512/631 |
 | ⚠️ 不完整 | 会计凭证（service 已实现但无路由） | [print_service.rs:784](file:///workspace/backend/src/services/print_service.rs) |
 | ❌ 未实现 | 销售出库单/采购合同/库存盘点单 | — |
 | ❌ 未实现（纺织核心） | 生产流转卡/验布打卷单/染色技术卡 | — |
 | ❌ 未实现（纺织业务） | 色卡发放单/大货批色单/工资单 | — |
-
-**V15 类十三 10 维度状态**：P0 基础设施 85% / P1 12/14 / P2 3/10 / 整体约 80%
 
 **关键 P0 未修复项**：
 - 缺陷 10-4：审计日志导出二次审计机制缺失（`audit_log_export_log` 表未创建，全仓无 migration/model/handler，审计员可篡改自身记录）
@@ -179,17 +145,17 @@
 
 | 规则 | 优先级 | 内容 |
 |------|--------|------|
-| 规则 0/1/2/8 | 🔴 | 真实实现强制：所有 P0/P1 修复必须真实实现，禁止占位符 |
-| 规则 3 | 🔴 | 成品文档格式：导出必须 .xlsx / 报表必须 .docx |
+| 规则 0/1/2/8 | 🔴 | 真实实现强制：所有 P0/P1 修复必须真实实现，禁止占位符/stub/扩展空间视为未实现 |
+| 规则 3 | 🔴 | 成品文档格式：导出 .xlsx / 报表 .docx，禁止 CSV/txt/rtf/html 作为成品 |
 | 规则 4 | 🔴 | `///` 注释精简为 1 行（首选），最多 2 行，禁止 3 行+注释块 |
-| 规则 5 | 🟡 | E2E 独立工作流：每 30 批次触发（批次 30/60/90...） |
-| 规则 6 | 🔴 | 测试 mock 数据禁止硬编码：所有测试 mock 数据抽取到 fixtures |
-| 规则 10 | 🟡 | 每 15 批次记忆整理 + 实时归档：每批完成后立即归档到 doto-su.md |
-| 规则 11/12 | 🔴 | 法律合规与安全标准：所有修复必须符合中国法律法规 + 安全标准 |
-| 规则 13 | 🔴 | 修复流程自动化：CI 全绿后自动开始下一批；步骤 0 确定审计结果内容是否存在 + 步骤 4 修复后推送前自审 |
-| 规则 14 | 🔴 | 移除所有警告抑制：所有警告视为错误需修复。**真实状态（2026-07-30 核实）**：历史 baseline 213/213 已清零，但 P1 批次新增 174 个 dead_code（预留服务路由接入）+ 22 处 `#[allow(dead_code)]` 显式标注（分布在 18 文件，主要在 business_trace_service.rs 3 处 + warehouse_service.rs 2 处 + warehouse_handler.rs 2 处等）违反规则 14，待清理 |
-| 规则 15 | 🟢 | V15 全项目综合审计：25 大类 195 维度审计 ✅ 已完成；主线八维审计 P0/P2 已完成，P1 后续 5 项真实进度 1/5 完成（详见 0.0.4） |
-| 规则 19 | 🟡 | 工具连接异常分级响应：L1 60s / L2 60-180s / L3 30min 周期 |
+| 规则 5 | 🟡 | E2E 独立工作流：每 30 批次触发（批次 30/60/90...），不阻塞主 CI |
+| 规则 6 | 🔴 | 测试 mock 数据禁止硬编码，必须抽取到 fixtures 文件 |
+| 规则 10 | 🟡 | 记忆整理归档：每 15 批次深度整理 + 每批完成后实时归档到 doto-su.md；doto.md 只记录未完成任务 |
+| 规则 11/12 | 🔴 | 法律合规与安全标准：符合中国法律法规（个保法/数安法/网安法）+ API 认证/权限/SQL 参数化/敏感操作审计 |
+| 规则 13 | 🔴 | 修复流程自动化：CI 全绿后自动开始下一批（每批 65-99 文件）；步骤 0 确定审计结果内容是否存在 + 步骤 4 修复后推送前自审 |
+| 规则 14 | 🔴 | 移除所有警告抑制：所有警告视为错误需修复；当前 22 处 `#[allow(dead_code)]` 违反待清理（详见 §0.0.1 #2 业务追溯 producer 项） |
+| 规则 15 | 🟢 | 复审严格规范：baseline 警告视为错误，8 维度闭环 + 4 轮次状态；V15 审计进度详见 [audit_assignment.md](file:///workspace/.monkeycode/audit_assignment.md) |
+| 规则 19 | 🟡 | 工具连接异常分级响应：L1 60s / L2 60-180s / L3 30min 周期 + 非阻塞推理 |
 | 规则 20 | 🔴 | 注释与功能一致性：代码注释必须与功能实现一致，禁止随意编写；CI 强制检查 |
 
 ---
