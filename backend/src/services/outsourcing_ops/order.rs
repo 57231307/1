@@ -1,12 +1,11 @@
 //! 委外加工订单 Service impl 子模块（outsourcing_ops/order）
 //!
 //! 批次 489 D10-2b 拆分：从原 `outsourcing_service.rs` L291-963 迁移。
-//! 包含 OutsourcingOrderService 的 17 个方法：
+//! 包含 OutsourcingOrderService 的 12 个方法：
 //! - create / update / delete（CRUD）
-//! - issue_order / record_processing / record_receipt / settle / close_order / cancel（状态机）
+//! - issue_order / record_processing / settle / close_order / cancel（状态机）
 //! - get_by_id / get_by_no / list（查询）
-//! - validate_receipt_eligibility / compute_receipt_calculation（私有 helper）
-//! - insert_receipt_record / insert_receipt_voucher / insert_loss_voucher_if_needed / apply_order_receipt（私有 helper）
+//! - validate_receipt_eligibility / compute_receipt_calculation（共享 helper）
 //! - generate_voucher_no（私有 helper）
 //!
 //! 业务规则：
@@ -23,34 +22,81 @@ use sea_orm::{
 use crate::models::outsourcing_order::{
     self, ActiveModel as OrderActiveModel, Entity as OrderEntity, Model as OrderModel,
 };
-use crate::models::outsourcing_receipt::{
-    ActiveModel as ReceiptActiveModel, Model as ReceiptModel,
-};
 use crate::models::outsourcing_voucher::ActiveModel as VoucherActiveModel;
 use crate::models::status::outsourcing_loss_type;
 use crate::models::status::outsourcing_order_status;
-use crate::models::status::outsourcing_receipt_status;
 use crate::models::status::outsourcing_voucher_type;
 use crate::utils::error::AppError;
 
+use crate::services::outsourcing_ops::receipt::ReceiptCalculation;
 use crate::services::outsourcing_ops::types::{
-    CreateOutsourcingOrderRequest, CreateOutsourcingReceiptRequest, OutsourcingOrderQuery,
-    UpdateOutsourcingOrderRequest,
+    CreateOutsourcingOrderRequest, OutsourcingOrderQuery, UpdateOutsourcingOrderRequest,
 };
 use crate::services::outsourcing_service::{
     classify_loss, compute_abnormal_loss_amount, compute_loss_rate, compute_standard_loss_rate,
     compute_total_cost, compute_unit_cost, validate_order_type, OutsourcingOrderService,
 };
 
-/// 收回损耗与成本计算结果（record_receipt 内部传递）
-pub(super) struct ReceiptCalculation {
-    pub(super) loss_quantity: Decimal,
-    pub(super) actual_loss_rate: Decimal,
-    pub(super) loss_type_str: &'static str,
-    pub(super) is_loss_normal: bool,
-    pub(super) abnormal_loss_amount: Decimal,
-    pub(super) total_cost: Decimal,
-    pub(super) unit_cost: Decimal,
+/// 校验收回前置条件：订单状态与收回数量
+pub(crate) fn validate_receipt_eligibility(
+    model: &OrderModel,
+    return_quantity: Decimal,
+) -> Result<(), AppError> {
+    if model.status != outsourcing_order_status::PROCESSING
+        && model.status != outsourcing_order_status::ISSUED
+    {
+        return Err(AppError::business(format!(
+            "仅已发料(issued)或加工中(processing)状态可收回，当前状态: {}",
+            model.status
+        )));
+    }
+    let loss_quantity = model.issue_quantity - return_quantity;
+    if loss_quantity < Decimal::ZERO {
+        return Err(AppError::business(format!(
+            "收回数量 {} 不能大于发出数量 {}",
+            return_quantity, model.issue_quantity
+        )));
+    }
+    Ok(())
+}
+
+/// 计算收回损耗与成本指标
+pub(crate) fn compute_receipt_calculation(
+    model: &OrderModel,
+    return_quantity: Decimal,
+) -> ReceiptCalculation {
+    let loss_quantity = model.issue_quantity - return_quantity;
+    let actual_loss_rate = compute_loss_rate(loss_quantity, model.issue_quantity);
+    let standard_loss_rate = model.standard_loss_rate.unwrap_or(Decimal::ZERO);
+    let loss_type_str = classify_loss(actual_loss_rate, standard_loss_rate);
+    let is_loss_normal = loss_type_str == outsourcing_loss_type::NORMAL;
+    let unit_material_cost = if model.issue_quantity > Decimal::ZERO {
+        model.material_cost / model.issue_quantity
+    } else {
+        Decimal::ZERO
+    };
+    let abnormal_loss_amount = compute_abnormal_loss_amount(
+        model.issue_quantity,
+        return_quantity,
+        unit_material_cost,
+        standard_loss_rate,
+    );
+    let total_cost = compute_total_cost(
+        model.material_cost,
+        model.processing_fee,
+        model.freight_fee,
+        abnormal_loss_amount,
+    );
+    let unit_cost = compute_unit_cost(total_cost, return_quantity);
+    ReceiptCalculation {
+        loss_quantity,
+        actual_loss_rate,
+        loss_type_str,
+        is_loss_normal,
+        abnormal_loss_amount,
+        total_cost,
+        unit_cost,
+    }
 }
 
 impl OutsourcingOrderService {
@@ -374,253 +420,6 @@ impl OutsourcingOrderService {
         tracing::info!(order_id = updated.id, "委外加工中事件已发布");
 
         Ok(updated)
-    }
-
-    /// 收回：创建收回单 + 计算损耗 + 创建入库凭证，processing → received
-    pub async fn record_receipt(
-        &self,
-        id: i32,
-        req: CreateOutsourcingReceiptRequest,
-    ) -> Result<ReceiptModel, AppError> {
-        let model = self.get_by_id(id).await?;
-        Self::validate_receipt_eligibility(&model, req.return_quantity)?;
-        let calc = Self::compute_receipt_calculation(&model, req.return_quantity);
-        let now = crate::utils::date_utils::utc_now_fixed();
-
-        let receipt = self
-            .insert_receipt_record(id, &model, &req, &calc, now)
-            .await?;
-        let voucher_no = self
-            .insert_receipt_voucher(id, &model, &req, &calc, now)
-            .await?;
-        self.insert_loss_voucher_if_needed(id, &model, &req, &calc, now)
-            .await?;
-        self.apply_order_receipt(model, &req, &calc, &voucher_no, now)
-            .await?;
-
-        Ok(receipt)
-    }
-
-    /// 校验收回前置条件：订单状态与收回数量
-    fn validate_receipt_eligibility(
-        model: &OrderModel,
-        return_quantity: Decimal,
-    ) -> Result<(), AppError> {
-        if model.status != outsourcing_order_status::PROCESSING
-            && model.status != outsourcing_order_status::ISSUED
-        {
-            return Err(AppError::business(format!(
-                "仅已发料(issued)或加工中(processing)状态可收回，当前状态: {}",
-                model.status
-            )));
-        }
-        let loss_quantity = model.issue_quantity - return_quantity;
-        if loss_quantity < Decimal::ZERO {
-            return Err(AppError::business(format!(
-                "收回数量 {} 不能大于发出数量 {}",
-                return_quantity, model.issue_quantity
-            )));
-        }
-        Ok(())
-    }
-
-    /// 计算收回损耗与成本指标
-    fn compute_receipt_calculation(
-        model: &OrderModel,
-        return_quantity: Decimal,
-    ) -> ReceiptCalculation {
-        let loss_quantity = model.issue_quantity - return_quantity;
-        let actual_loss_rate = compute_loss_rate(loss_quantity, model.issue_quantity);
-        let standard_loss_rate = model.standard_loss_rate.unwrap_or(Decimal::ZERO);
-        let loss_type_str = classify_loss(actual_loss_rate, standard_loss_rate);
-        let is_loss_normal = loss_type_str == outsourcing_loss_type::NORMAL;
-        let unit_material_cost = if model.issue_quantity > Decimal::ZERO {
-            model.material_cost / model.issue_quantity
-        } else {
-            Decimal::ZERO
-        };
-        let abnormal_loss_amount = compute_abnormal_loss_amount(
-            model.issue_quantity,
-            return_quantity,
-            unit_material_cost,
-            standard_loss_rate,
-        );
-        let total_cost = compute_total_cost(
-            model.material_cost,
-            model.processing_fee,
-            model.freight_fee,
-            abnormal_loss_amount,
-        );
-        let unit_cost = compute_unit_cost(total_cost, return_quantity);
-        ReceiptCalculation {
-            loss_quantity,
-            actual_loss_rate,
-            loss_type_str,
-            is_loss_normal,
-            abnormal_loss_amount,
-            total_cost,
-            unit_cost,
-        }
-    }
-
-    /// 创建收回入库单
-    async fn insert_receipt_record(
-        &self,
-        id: i32,
-        model: &OrderModel,
-        req: &CreateOutsourcingReceiptRequest,
-        calc: &ReceiptCalculation,
-        now: chrono::DateTime<chrono::FixedOffset>,
-    ) -> Result<ReceiptModel, AppError> {
-        let receipt_active = ReceiptActiveModel {
-            id: Default::default(),
-            receipt_no: Set(req.receipt_no.clone()),
-            outsourcing_order_id: Set(id),
-            receipt_date: Set(req.receipt_date),
-            product_id: Set(req.product_id),
-            color_no: Set(req.color_no.clone()),
-            dye_lot_no: Set(req.dye_lot_no.clone()),
-            batch_no: Set(req.batch_no.clone()),
-            warehouse_id: Set(req.warehouse_id),
-            return_quantity: Set(req.return_quantity),
-            loss_quantity: Set(calc.loss_quantity),
-            loss_type: Set(Some(calc.loss_type_str.to_string())),
-            loss_rate: Set(Some(calc.actual_loss_rate)),
-            is_loss_normal: Set(calc.is_loss_normal),
-            unit_cost: Set(calc.unit_cost),
-            total_cost: Set(calc.total_cost),
-            abnormal_loss_amount: Set(calc.abnormal_loss_amount),
-            quality_status: Set(req.quality_status.clone()),
-            grade: Set(req.grade.clone()),
-            inventory_transaction_id: Set(None),
-            // P1 batch-18 缺陷 2.2：关联质检记录 ID（确认收回时自动创建质检记录并回写）
-            inspection_id: Set(None),
-            status: Set(outsourcing_receipt_status::CONFIRMED.to_string()),
-            remarks: Set(req.remarks.clone()),
-            is_deleted: Set(false),
-            created_by: Set(model.created_by),
-            created_at: Set(now),
-            updated_at: Set(now),
-        };
-        receipt_active
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::database(format!("委外收回单创建失败: {}", e)))
-    }
-
-    /// 创建入库凭证（§5.4 第三步分录：借 库存商品-成品布 / 贷 委托加工物资）
-    async fn insert_receipt_voucher(
-        &self,
-        id: i32,
-        model: &OrderModel,
-        req: &CreateOutsourcingReceiptRequest,
-        calc: &ReceiptCalculation,
-        now: chrono::DateTime<chrono::FixedOffset>,
-    ) -> Result<String, AppError> {
-        let voucher_no = Self::generate_voucher_no("RC");
-        let voucher_active = VoucherActiveModel {
-            id: Default::default(),
-            voucher_no: Set(voucher_no.clone()),
-            outsourcing_order_id: Set(id),
-            voucher_type: Set(outsourcing_voucher_type::RECEIPT.to_string()),
-            debit_account: Set("库存商品-成品布".to_string()),
-            credit_account: Set("委托加工物资".to_string()),
-            amount: Set(calc.total_cost),
-            tax_amount: Set(Decimal::ZERO),
-            tax_transfer_amount: Set(Decimal::ZERO),
-            voucher_date: Set(req.receipt_date),
-            is_posted: Set(false),
-            posted_at: Set(None),
-            remarks: Set(Some(format!("委外订单 {} 入库", model.order_no))),
-            created_by: Set(model.created_by),
-            created_at: Set(now),
-            updated_at: Set(now),
-        };
-        voucher_active
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::database(format!("入库凭证创建失败: {}", e)))?;
-        Ok(voucher_no)
-    }
-
-    /// 若存在非正常损耗，创建损耗处理凭证（借 营业外支出 / 贷 委托加工物资）
-    /// V15 P1-08-13：同时记录进项税转出金额（增值税合规）；业务规则（《增值税暂行条例》第 27 条）：非正常损耗对应的已抵扣进项税需转出；凭证金额仍为 abnormal_loss_amount，tax_transfer_amount 单独记录
-    async fn insert_loss_voucher_if_needed(
-        &self,
-        id: i32,
-        model: &OrderModel,
-        req: &CreateOutsourcingReceiptRequest,
-        calc: &ReceiptCalculation,
-        now: chrono::DateTime<chrono::FixedOffset>,
-    ) -> Result<(), AppError> {
-        if calc.abnormal_loss_amount <= Decimal::ZERO {
-            return Ok(());
-        }
-        // V15 P1-08-13：计算进项税转出金额
-        // 业务规则：非正常损耗对应的加工费进项税需转出，税率 13%
-        // 转出金额 = 非正常损耗金额 × 加工费占比 × 增值税率
-        // 简化处理：按加工费占总成本比例计算应转出的进项税
-        let vat_rate = Decimal::new(13, 2); // 0.13
-        let total_cost_basis = model.material_cost + model.processing_fee + model.freight_fee;
-        let processing_ratio = if total_cost_basis > Decimal::ZERO {
-            (model.processing_fee + model.freight_fee) / total_cost_basis
-        } else {
-            Decimal::ZERO
-        };
-        let tax_transfer_amount = calc.abnormal_loss_amount * processing_ratio * vat_rate;
-
-        let loss_voucher_no = Self::generate_voucher_no("LS");
-        let loss_voucher_active = VoucherActiveModel {
-            id: Default::default(),
-            voucher_no: Set(loss_voucher_no),
-            outsourcing_order_id: Set(id),
-            voucher_type: Set(outsourcing_voucher_type::LOSS.to_string()),
-            debit_account: Set("营业外支出".to_string()),
-            credit_account: Set("委托加工物资".to_string()),
-            amount: Set(calc.abnormal_loss_amount),
-            tax_amount: Set(Decimal::ZERO),
-            tax_transfer_amount: Set(tax_transfer_amount),
-            voucher_date: Set(req.receipt_date),
-            is_posted: Set(false),
-            posted_at: Set(None),
-            remarks: Set(Some(format!(
-                "委外订单 {} 非正常损耗处理（进项税转出: {}）",
-                model.order_no, tax_transfer_amount
-            ))),
-            created_by: Set(model.created_by),
-            created_at: Set(now),
-            updated_at: Set(now),
-        };
-        loss_voucher_active
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::database(format!("损耗处理凭证创建失败: {}", e)))?;
-        Ok(())
-    }
-
-    /// 更新订单：累计收回数量、损耗、状态、入库凭证号
-    async fn apply_order_receipt(
-        &self,
-        model: OrderModel,
-        req: &CreateOutsourcingReceiptRequest,
-        calc: &ReceiptCalculation,
-        voucher_no: &str,
-        now: chrono::DateTime<chrono::FixedOffset>,
-    ) -> Result<(), AppError> {
-        let mut active: OrderActiveModel = model.into();
-        active.return_quantity = Set(req.return_quantity);
-        active.loss_quantity = Set(calc.loss_quantity);
-        active.loss_type = Set(Some(calc.loss_type_str.to_string()));
-        active.loss_rate = Set(Some(calc.actual_loss_rate));
-        active.abnormal_loss_amount = Set(calc.abnormal_loss_amount);
-        active.total_cost = Set(calc.total_cost);
-        active.unit_cost = Set(calc.unit_cost);
-        active.actual_return_date = Set(Some(req.receipt_date));
-        active.voucher_no_receipt = Set(Some(voucher_no.to_string()));
-        active.status = Set(outsourcing_order_status::RECEIVED.to_string());
-        active.updated_at = Set(now);
-        active.update(&*self.db).await?;
-        Ok(())
     }
 
     /// 结算：received → settled，创建加工费凭证（借：委托加工物资+应交税费 / 贷：银行存款）

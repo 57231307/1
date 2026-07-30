@@ -7,8 +7,8 @@ use crate::utils::error::AppError;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, DatabaseTransaction, EntityTrait, Order,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -281,18 +281,31 @@ impl QualityInspectionService {
         // P1 5-3 修复：整体包裹 txn，质检记录与入库单状态更新原子化
         use sea_orm::TransactionTrait;
         let txn = (*self.db).begin().await?;
+        let result = Self::create_record_in_txn(&txn, req, user_id).await?;
+        txn.commit().await?;
+
+        Ok(result)
+    }
+
+    pub async fn create_record_in_txn(
+        txn: &DatabaseTransaction,
+        req: CreateInspectionRecordRequest,
+        user_id: i32,
+    ) -> Result<quality_inspection_record::Model, AppError> {
+        info!(
+            "用户 {} 正在事务内创建质量检验记录：{}",
+            user_id, req.inspection_no
+        );
 
         // v14 批次 421 T-P1-4：grade 未显式提供时由 determine_quality_grade 自动判定
         let grade = Self::resolve_record_grade(&req);
 
         let active_model = Self::build_inspection_record_active_model(req, grade);
-        let result = active_model.insert(&txn).await?;
+        let result = active_model.insert(txn).await?;
         info!("质量检验记录创建成功：{}", result.inspection_no);
 
         // 采购入库质检同步更新入库单状态
-        Self::sync_receipt_inspection_status(&txn, &result, user_id).await?;
-
-        txn.commit().await?;
+        Self::sync_receipt_inspection_status(txn, &result, user_id).await?;
 
         Ok(result)
     }

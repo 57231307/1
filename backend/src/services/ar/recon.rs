@@ -1,8 +1,8 @@
 //! 应收对账单主流程服务门面（ar/recon）
 //!
 //! 批次 D10：原 `ar/recon.rs`（1070 行）按 facade 模式拆分，业务方法实现
-//! 迁移至 `ar/recon_ops/` 子模块（crud / lifecycle）。本文件保留为门面：
-//! 重新导出公共 DTO 与 `ArReconciliationService`，并保留测试模块。
+//! 迁移至 `ar/recon_ops/` 子模块（crud / lifecycle）。本文件保留测试模块与
+//! 对账流程说明；共享 DTO 与 `ArReconciliationService` 定义位于 `ar/mod.rs`。
 //!
 //! 对账单主流程方法（实现见 `recon_ops`）：
 //! - `create`             创建对账单
@@ -22,20 +22,14 @@
 //! 拆分自原 `ar_reconciliation_service.rs`。
 //! 结构体定义与构造函数 `ArReconciliationService::new` 位于 `super`（`ar/mod.rs`）。
 
-// 重新导出 Service 结构体与测试/调用方使用的 DTO，保持 `crate::services::ar::recon::*` 路径稳定。
-// 其余 DTO（AgingBucket/AgingReport/AutoMatchResult/CustomerAgingSummary/GenerateReconciliationRequest）
-// 已由 ar/mod.rs 定义并通过 services/mod.rs re-export，无需在此重复 re-export。
-pub use super::{
-    ArReconciliationService, CreateReconciliationRequest, ReconciliationDetail,
-    ReconciliationQuery, ReconciliationWithDetails, UpdateReconciliationRequest,
-};
-
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::decs;
     use crate::models::ar_reconciliation::Model as ReconciliationModel;
     use crate::models::status::ar as status_ar;
+    use crate::services::ar::{
+        ArReconciliationService, CreateReconciliationRequest, UpdateReconciliationRequest,
+    };
     use crate::services::test_common::setup_test_db;
     use crate::utils::error::AppError;
     use crate::ymd;

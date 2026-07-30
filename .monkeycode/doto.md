@@ -11,7 +11,16 @@
 | 状态 | 数量 | 批次 |
 |------|------|------|
 | ✅ 已合并 main | 1 批 | audit-batch-2026-07-30（PR #786 已合并） |
-| ⏳ 待推送 | 0 批 | — |
+| ⏳ 待推送 | 1 批 | fix/p1-outsource-receipt-unify-2026-07-30（PR #788 CI 收尾中） |
+
+### 0.0.x 委外收货 CI 收尾待办
+
+- [X] 修最后一轮 `Clippy` 警告（`unused import: PaginatorTrait`/`QuerySelect`/…，已逐一修掉）
+  - [X] 修 `Rust 后端构建`：误删 `QuerySelect` / `PaginatorTrait` 导致 `no method named order_by_desc / offset`（回退为保留 `QuerySelect`、`PaginatorTrait`）
+  - [X] 再补 `QueryOrder` 回到 [quality_inspection_service.rs](file:///workspace/.tmp/fix-p1-outsource-2026-07-30/backend/src/services/quality_inspection_service.rs)（`order_by(... Order::Desc)` 来自该 trait；之前一直以为只缺 `PaginatorTrait`/`QuerySelect`）
+  - [X] `QueryOrder` 实际也被 [order.rs](file:///workspace/.tmp/fix-p1-outsource-2026-07-30/backend/src/services/outsourcing_ops/order.rs) 与 [receipt.rs](file:///workspace/.tmp/fix-p1-outsource-2026-07-30/backend/src/services/outsourcing_ops/receipt.rs) 用到（`.order_by_desc(...)`），同样恢复
+  - [X] 定位并修掉最后 1 条新增 `Clippy`：`backend/src/services/ar/recon.rs` facade `pub use` 整体未被真实调用方消费，改为测试模块直接从 `crate::services::ar` 引入
+  - [ ] 等待 `3d5daee` 之后的收尾修复 commit 通过 CI 全绿并合并 PR #788
 
 ### 0.0.1 P0 完成明细
 
@@ -36,6 +45,12 @@
 | P2-02 清理陈旧注释 | test_inventory_count.rs / inv/count.rs / test_generate_no_endpoints.rs | 3 处"占位模块"陈旧注释删除 |
 | P2-05 导出审批 list_pending_for_me | service.rs + system.rs + handler.rs | 新增 list_pending_for_user(user_id,is_admin,q) 服务 + GET 路由 |
 | P2-06 业务追溯约束 | migrations/20260801000001_business_trace_constraints + business_trace_service.rs | uniq_business_trace_chain_head/tail partial unique + snapshot trace_chain_id unique + assist_links 联合 unique + 3 个 CHECK + 3 个逻辑外键触发器；upsert_chain_node/link_assist/upsert_snapshot producer |
+
+### 0.0.3 P1-委外收货主链路后续
+
+| 状态 | 剩余项 | 文件 | 说明 |
+|------|--------|------|------|
+| ⏳ 待推送 | 分支推送与 CI 校验 | `backend/src/services/outsourcing_ops/receipt.rs` + `backend/tests/outsourcing_receipt_workflow_test.rs` + `backend/src/services/ar/recon.rs` + `backend/src/services/quality_inspection_service.rs` + `backend/src/services/outsourcing_ops/order.rs` | `fix/p1-outsource-receipt-unify-2026-07-30` 已补 `confirm` 事务外 `OutsourcingOrderCompleted` 事件、委外收货 workflow tests，并在 CI 收尾阶段继续清理新增 Clippy 噪音：`receipt.rs` 单次使用 `DatabaseConnection` import、`ar/recon.rs` 3 个未使用 facade re-export、`quality_inspection_service.rs` 中静态确认未使用的 `PaginatorTrait` / `QuerySelect`，以及 `outsourcing_ops/{order,receipt}.rs` 中静态确认未使用的 `QueryOrder`；完整 Rust 校验仍需依赖 CI（沙箱 rustc `SIGKILL`） |
 
 ---
 

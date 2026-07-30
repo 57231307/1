@@ -84,6 +84,62 @@ V15 25 大类 195 维度审计报告生成后，对 main 主线做"最严格"二
 
 ---
 
+## 🧵 P1 委外收货主链路统一（2026-07-30，fix/p1-outsource-receipt-unify-2026-07-30）
+
+### 任务概述
+
+按 [2026-07-30-p1-outsource-receipt-unify-plan.md](file:///workspace/.tmp/fix-p1-outsource-2026-07-30/.monkeycode/docs/superpowers/plans/2026-07-30-p1-outsource-receipt-unify-plan.md) 执行 Task3-5，把委外收货统一收敛到 `OutsourcingReceiptService::confirm`，保证收回单更新、凭证创建、订单状态推进、质检创建和 `inspection_id` 回写处于同一数据库事务。
+
+### 已完成改动
+
+1. **`confirm` 整段事务化**（[receipt.rs](file:///workspace/.tmp/fix-p1-outsource-2026-07-30/backend/src/services/outsourcing_ops/receipt.rs)）
+   - `confirm()` 改为 `txn.begin()` 后在事务内锁定收回单和委外订单。
+   - 复用 `validate_receipt_eligibility` / `compute_receipt_calculation`，在事务内完成收回单损耗/成本回写。
+   - 在同一事务内创建入库凭证、异常损耗凭证、更新订单为 `received`，并回写 `voucher_no_receipt`。
+   - `ReceiptCalculation` 结构体迁移到 `receipt.rs`，由收货主链路直接消费。
+
+2. **质检创建支持事务内执行**（[quality_inspection_service.rs](file:///workspace/.tmp/fix-p1-outsource-2026-07-30/backend/src/services/quality_inspection_service.rs)）
+   - 新增 `QualityInspectionService::create_record_in_txn(txn, req, user_id)`。
+   - 原 `create_record()` 继续保留外部接口，内部改为 `begin -> create_record_in_txn -> commit`，避免重复逻辑。
+   - `trigger_quality_inspection()` 签名改为接收 `&DatabaseTransaction`，保证委外收货自动质检与主事务原子提交。
+
+3. **删除旧双轨入口**（[order.rs](file:///workspace/.tmp/fix-p1-outsource-2026-07-30/backend/src/services/outsourcing_ops/order.rs)）
+   - 删除 `record_receipt` 主方法及 `insert_receipt_record` / `insert_receipt_voucher` / `insert_loss_voucher_if_needed` / `apply_order_receipt` 4 个子方法。
+   - 清理旧收回链路相关 import 与模块注释，保留 `validate_receipt_eligibility` / `compute_receipt_calculation` 作为共享 helper。
+   - `order.rs` 通过 `receipt::ReceiptCalculation` 返回统一的计算结果结构，避免双份定义漂移。
+
+### 本地验证
+
+- 已执行 `cargo fmt`，格式化通过。
+- 已多次执行 `cargo check --lib`，前期显式编译错误（`lock_exclusive` 导入、`DatabaseTransaction` 引用类型）已修复。
+- 当前沙箱内全量 `cargo check --lib` 在 rustc 阶段被系统 `SIGKILL`，未输出新的业务编译错误，需后续在 CI 环境继续验证。
+
+### 收尾修复
+
+- **Clippy 最后一条新增噪音收敛**（[receipt.rs](file:///workspace/.tmp/fix-p1-outsource-2026-07-30/backend/src/services/outsourcing_ops/receipt.rs)）
+  - 将 `validate_create_request()` 的参数类型改为 `&sea_orm::DatabaseConnection` 全限定路径。
+  - 同步移除 `use sea_orm::{..., DatabaseConnection, ...}` 中的 `DatabaseConnection` 导入，避免单次使用 import 在不同编译目标下再次触发 `unused import`。
+  - 该修复不改变委外收货业务逻辑，仅收敛导入面，供 PR #788 最后一轮 Clippy 复核。
+- **CI 二次定位出的 facade 未使用 re-export 收敛**（[recon.rs](file:///workspace/.tmp/fix-p1-outsource-2026-07-30/backend/src/services/ar/recon.rs)）
+  - GitHub Actions `Rust Clippy` 新日志显示新增警告为 `unused imports: ReconciliationDetail, ReconciliationQuery, ReconciliationWithDetails`。
+  - 检索确认仓内无调用方通过 `crate::services::ar::recon::*` 使用这 3 个 DTO，因此从 facade 的 `pub use` 中移除，仅保留 `ArReconciliationService` / `CreateReconciliationRequest` / `UpdateReconciliationRequest`。
+  - 该修复不影响应收对账 CRUD 实现（真实使用仍在 [crud.rs](file:///workspace/.tmp/fix-p1-outsource-2026-07-30/backend/src/services/ar/recon_ops/crud.rs) 中），仅消除新增 Clippy 噪音。
+- **静态确认的质检服务未使用 trait import 收敛**（[quality_inspection_service.rs](file:///workspace/.tmp/fix-p1-outsource-2026-07-30/backend/src/services/quality_inspection_service.rs)）
+  - 通过源码检索确认 `PaginatorTrait` 与 `QuerySelect` 仅出现在 import 行，文件内无 `.paginate()` / `.fetch_page()` / `QuerySelect` 相关调用。
+  - 已从 `sea_orm` import 列表中移除这两个 trait，保留实际使用的 `QueryOrder` / `ColumnTrait` / `ActiveModelTrait` 等依赖。
+  - 该修复不改变质检业务逻辑，仅继续收敛 `Rust Clippy` 新增 `unused import` 噪音。
+- **委外主链路子模块未使用 `QueryOrder` 收敛**（[order.rs](file:///workspace/.tmp/fix-p1-outsource-2026-07-30/backend/src/services/outsourcing_ops/order.rs), [receipt.rs](file:///workspace/.tmp/fix-p1-outsource-2026-07-30/backend/src/services/outsourcing_ops/receipt.rs)）
+  - 通过源码检索确认两文件均存在分页 / 行锁调用，但没有任何 `.order_by(...)`，因此 `QueryOrder` trait 仅出现在 import 行。
+  - 已从 `outsourcing_ops/order.rs` 与 `outsourcing_ops/receipt.rs` 的 `sea_orm` import 列表中移除 `QueryOrder`，保留实际需要的 `PaginatorTrait`、`QuerySelect`、`TransactionTrait` 等。
+  - 该修复不影响委外订单 / 收回单业务行为，仅继续收敛 `Rust Clippy` 新增 `unused import` 噪音。
+
+### 后续项
+
+- 继续执行 Task6：补 `backend/tests/outsourcing_receipt_transaction.rs` 事务回滚集成测试。
+- 继续执行 Task7：在 CI 环境完成 `cargo check/clippy/test` 全量验证并提 PR。
+
+---
+
 ## 📌 关键项目内容快照（2026-07-30 更新）
 
 > 本节为项目当前状态快照（任务进度/技术决策/PR/架构信息），按 PR 规则 10 文件分工存放在此，不放在 MEMORY.md。

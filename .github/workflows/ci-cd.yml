@@ -889,7 +889,7 @@ jobs:
           set -e
 
           # 统计严格模式下会失败的警告数（升为 error 的 warning 行数）
-          STRICT_ERRORS=$(grep -cE '^error:' reports/clippy-strict-output.txt || echo 0)
+          STRICT_ERRORS=$(awk '/^error:/{c++} END{print c+0}' reports/clippy-strict-output.txt 2>/dev/null)
           echo "严格模式下 error 数: $STRICT_ERRORS"
 
           # 当 baseline 清零时，提示可切换主 clippy 步骤为严格模式
@@ -1186,7 +1186,7 @@ jobs:
             if [ "$EXIT_CODE" -eq "0" ]; then
               echo "## ✅ 无类型错误"
             else
-              ERROR_COUNT=$(grep -cE "error TS" reports/vue-tsc-output.txt 2>/dev/null || echo 0)
+              ERROR_COUNT=$(awk '/error TS/{c++} END{print c+0}' reports/vue-tsc-output.txt 2>/dev/null)
               echo "## ❌ 发现 $ERROR_COUNT 个类型错误"
               echo ""
               echo "### 错误列表（前 50）"
@@ -1203,7 +1203,7 @@ jobs:
             if [ "$EXIT_CODE" -eq "0" ]; then
               echo "✅ 通过"
             else
-              ERROR_COUNT=$(grep -cE "error TS" reports/vue-tsc-output.txt 2>/dev/null || echo 0)
+              ERROR_COUNT=$(awk '/error TS/{c++} END{print c+0}' reports/vue-tsc-output.txt 2>/dev/null)
               echo "❌ $ERROR_COUNT 个类型错误"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
@@ -1401,12 +1401,34 @@ jobs:
         working-directory: backend
         run: |
           mkdir -p coverage
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "ℹ️ PR 场景跳过 tarpaulin 重覆盖率采集，生成占位 cobertura.xml（不阻塞 CI）"
+            echo "skip tarpaulin on pull_request to avoid runner instability" > coverage/tarpaulin-output.txt
+            echo "<coverage line-rate=\"0\" branch-rate=\"0\" version=\"1.9\" timestamp=\"0\"><sources></sources><packages></packages></coverage>" > coverage/cobertura.xml
+            exit 0
+          fi
+
+          set +e
           cargo tarpaulin \
             --workspace \
             --out Xml \
             --output-dir coverage/ \
             --timeout 300 \
-            -- --test-threads=1 || echo "⚠️ tarpaulin 运行失败，覆盖率收集跳过（不阻塞 CI）"
+            -- --test-threads=1 > coverage/tarpaulin-output.txt 2>&1
+          EXIT_CODE=$?
+          set -e
+
+          if [ "$EXIT_CODE" -ne "0" ]; then
+            echo "⚠️ tarpaulin 运行失败（exit=$EXIT_CODE），覆盖率收集跳过（不阻塞 CI）"
+            echo "tarpaulin 失败日志（最后 120 行）："
+            tail -n 120 coverage/tarpaulin-output.txt || true
+          fi
+
+          if [ ! -f coverage/cobertura.xml ]; then
+            echo "<coverage line-rate=\"0\" branch-rate=\"0\" version=\"1.9\" timestamp=\"0\"><sources></sources><packages></packages></coverage>" > coverage/cobertura.xml
+          fi
+
+          exit 0
 
       - name: 上传覆盖率到 Codecov
         if: always()
@@ -1467,8 +1489,8 @@ jobs:
           set -e
 
           # 解析测试结果（vitest 输出格式）
-          PASSED=$(grep -cE "✓|✔|PASS" reports/vitest-output.txt 2>/dev/null | head -1 || echo 0)
-          FAILED=$(grep -cE "✗|×|FAIL" reports/vitest-output.txt 2>/dev/null | head -1 || echo 0)
+          PASSED=$(awk '/✓|✔|PASS/{c++} END{print c+0}' reports/vitest-output.txt 2>/dev/null)
+          FAILED=$(awk '/✗|×|FAIL/{c++} END{print c+0}' reports/vitest-output.txt 2>/dev/null)
 
           {
             echo "# 前端 Vitest 测试报告"
@@ -1797,7 +1819,7 @@ jobs:
             for bench in "${BENCHES[@]}"; do
               if [ -f "reports/bench-${bench}.log" ]; then
                 if grep -q "performance has improved\|Performance has regressed\|No change" "reports/bench-${bench}.log" 2>/dev/null; then
-                  REGRESSION=$(grep -c "Performance has regressed" "reports/bench-${bench}.log" || echo 0)
+                  REGRESSION=$(awk '/Performance has regressed/{c++} END{print c+0}' "reports/bench-${bench}.log" 2>/dev/null)
                   if [ "$REGRESSION" -gt "0" ]; then
                     echo "| $bench | ⚠️ 检测到回归（$REGRESSION 处） | 见日志 |"
                   else
@@ -2261,7 +2283,7 @@ jobs:
             COMMIT_RANGE="${PREV_TAG}..${TAG_NAME}"
           fi
 
-          COMMIT_COUNT=$(echo "$COMMIT_LOG" | grep -c . || echo 0)
+          COMMIT_COUNT=$(printf "%s\n" "$COMMIT_LOG" | awk 'NF{c++} END{print c+0}')
 
           # ============================================================================
           # 按 Conventional Commits 规范分类解析 commit
