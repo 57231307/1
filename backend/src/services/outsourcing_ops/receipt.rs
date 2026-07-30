@@ -57,6 +57,18 @@ impl OutsourcingReceiptService {
         format!("OV-{}-{}-{:03}", prefix, now.format("%Y%m%d%H%M%S"), suffix)
     }
 
+    /// 构造委外完成事件，供事务提交后发布
+    fn build_completed_event(order: &OrderModel) -> crate::services::event_bus::BusinessEvent {
+        crate::services::event_bus::BusinessEvent::OutsourcingOrderCompleted {
+            order_id: order.id,
+            order_no: order.order_no.clone(),
+            order_type: order.order_type.clone(),
+            supplier_id: order.supplier_id,
+            return_quantity: order.return_quantity,
+            voucher_no_receipt: order.voucher_no_receipt.clone(),
+        }
+    }
+
     /// 创建委外收回入库单（draft 状态）
     pub async fn create(
         &self,
@@ -377,6 +389,10 @@ impl OutsourcingReceiptService {
         };
 
         txn.commit().await?;
+
+        crate::services::event_bus::EVENT_BUS.publish(Self::build_completed_event(&updated_order));
+        tracing::info!(order_id = updated_order.id, "委外完成事件已发布");
+
         Ok(final_receipt)
     }
 
@@ -513,5 +529,45 @@ impl OutsourcingReceiptService {
             .fetch_page(page - 1)
             .await?;
         Ok((items, total))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::services::event_bus::BusinessEvent;
+
+    #[test]
+    fn test_build_completed_event_carries_confirmed_order_fields() {
+        let order = OrderModel {
+            id: 42,
+            order_no: "OS-20260730-001".to_string(),
+            order_type: "dyeing".to_string(),
+            supplier_id: 7,
+            return_quantity: Decimal::new(125, 1),
+            voucher_no_receipt: Some("OV-RC-20260730120000-123".to_string()),
+            ..Default::default()
+        };
+
+        let event = OutsourcingReceiptService::build_completed_event(&order);
+
+        match event {
+            BusinessEvent::OutsourcingOrderCompleted {
+                order_id,
+                order_no,
+                order_type,
+                supplier_id,
+                return_quantity,
+                voucher_no_receipt,
+            } => {
+                assert_eq!(order_id, order.id);
+                assert_eq!(order_no, order.order_no);
+                assert_eq!(order_type, order.order_type);
+                assert_eq!(supplier_id, order.supplier_id);
+                assert_eq!(return_quantity, order.return_quantity);
+                assert_eq!(voucher_no_receipt, order.voucher_no_receipt);
+            }
+            other => panic!("应构造委外完成事件，实际为: {:?}", other),
+        }
     }
 }

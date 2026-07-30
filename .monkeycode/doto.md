@@ -41,7 +41,7 @@
 
 | 状态 | 剩余项 | 文件 | 说明 |
 |------|--------|------|------|
-| ⏳ 待继续 | Task6-7 事务回滚测试与 PR/CI | `backend/tests/outsourcing_receipt_transaction.rs` + CI | `fix/p1-outsource-receipt-unify-2026-07-30` 已完成 Task3-5：`confirm` 整段事务化、质检事务兼容、删除 `record_receipt` 与 4 个子方法；剩余集成测试补齐和 CI 全绿验证 |
+| ⏳ 待推送 | 分支推送与 CI 校验 | `backend/src/services/outsourcing_ops/receipt.rs` + `backend/tests/outsourcing_receipt_workflow_test.rs` | `fix/p1-outsource-receipt-unify-2026-07-30` 本次已补 `confirm` 事务外 `OutsourcingOrderCompleted` 事件并新增委外收货 workflow tests；本地 `cargo fmt`/`cargo fmt --check` 已通过，完整 `cargo check` 在沙箱内因 rustc `SIGKILL` 未完成 |
 
 ---
 
