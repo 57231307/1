@@ -487,13 +487,10 @@ impl ExportApprovalService {
         let page = q.page.unwrap_or(1).clamp(1, 1000);
         let page_size = q.page_size.unwrap_or(20).clamp(1, 100);
 
-        let mut select = Entity::find().filter(
-            Column::Status
-                .is_in([
-                    ApprovalStatus::Pending.as_str(),
-                    ApprovalStatus::PendingL2.as_str(),
-                ]),
-        );
+        let mut select = Entity::find().filter(Column::Status.is_in([
+            ApprovalStatus::Pending.as_str(),
+            ApprovalStatus::PendingL2.as_str(),
+        ]));
 
         if !is_admin {
             // (approver_user_id = self) OR (applicant_user_id != self)
@@ -501,10 +498,7 @@ impl ExportApprovalService {
             select = select.filter(
                 Condition::any()
                     .add(Column::ApproverUserId.eq(user_id))
-                    .add(Expr::cust(&format!(
-                        "applicant_user_id <> {}",
-                        user_id
-                    ))),
+                    .add(Expr::cust(&format!("applicant_user_id <> {}", user_id))),
             );
         }
 
@@ -615,10 +609,7 @@ fn read_current_approval_step(model: &Model) -> i32 {
         .unwrap_or(1)
 }
 
-fn write_current_approval_step(
-    existing: Option<&ApprovalContext>,
-    step: i32,
-) -> ApprovalContext {
+fn write_current_approval_step(existing: Option<&ApprovalContext>, step: i32) -> ApprovalContext {
     let mut value = match existing {
         Some(ctx) => ctx.0.clone(),
         None => serde_json::Value::Object(serde_json::Map::new()),

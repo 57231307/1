@@ -88,9 +88,7 @@ pub async fn list_pending_for_me(
         None => false,
     };
     let svc = ExportApprovalService::new(state.db);
-    let vo = svc
-        .list_pending_for_user(auth.user_id, is_admin, q)
-        .await?;
+    let vo = svc.list_pending_for_user(auth.user_id, is_admin, q).await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": vo.items,
         "total": vo.total,

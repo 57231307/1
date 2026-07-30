@@ -200,20 +200,19 @@ impl InventoryFinanceBridgeService {
                 .is_ok();
             if !unmark_ok {
                 // 兜底：写入死信表，由后台任务补偿。
-                let _ = crate::services::event_retry_service::EventRetryService::new(
-                    self.db.clone(),
-                )
-                .handle_failure(
-                    event_type,
-                    serde_json::json!({
-                        "consumer_id": consumer_id,
-                        "event_key": event_key,
-                    }),
-                    "业务事务回滚后幂等清除失败",
-                    &err.to_string(),
-                    3,
-                )
-                .await;
+                let _ =
+                    crate::services::event_retry_service::EventRetryService::new(self.db.clone())
+                        .handle_failure(
+                            event_type,
+                            serde_json::json!({
+                                "consumer_id": consumer_id,
+                                "event_key": event_key,
+                            }),
+                            "业务事务回滚后幂等清除失败",
+                            &err.to_string(),
+                            3,
+                        )
+                        .await;
             }
             return Err(err);
         }

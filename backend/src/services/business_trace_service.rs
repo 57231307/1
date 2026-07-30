@@ -370,10 +370,7 @@ impl BusinessTraceService {
 
         assist.id = Default::default();
         assist.trace_id = Set(head.id);
-        assist
-            .insert(&*self.db)
-            .await
-            .map_err(AppError::from)
+        assist.insert(&*self.db).await.map_err(AppError::from)
     }
 
     /// 写入一份 chain 最新快照（重复 trace_chain_id 时原地刷新）

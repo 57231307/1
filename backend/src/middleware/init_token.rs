@@ -96,9 +96,7 @@ fn is_init_token_strong(token: &str) -> bool {
         return false;
     }
     let lower = token.to_lowercase();
-    !INIT_TOKEN_PLACEHOLDERS
-        .iter()
-        .any(|p| lower.contains(p))
+    !INIT_TOKEN_PLACEHOLDERS.iter().any(|p| lower.contains(p))
 }
 
 /// 从请求头中提取 init token
