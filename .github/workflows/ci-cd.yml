@@ -1401,12 +1401,27 @@ jobs:
         working-directory: backend
         run: |
           mkdir -p coverage
+          set +e
           cargo tarpaulin \
             --workspace \
             --out Xml \
             --output-dir coverage/ \
             --timeout 300 \
-            -- --test-threads=1 || echo "⚠️ tarpaulin 运行失败，覆盖率收集跳过（不阻塞 CI）"
+            -- --test-threads=1 > coverage/tarpaulin-output.txt 2>&1
+          EXIT_CODE=$?
+          set -e
+
+          if [ "$EXIT_CODE" -ne "0" ]; then
+            echo "⚠️ tarpaulin 运行失败（exit=$EXIT_CODE），覆盖率收集跳过（不阻塞 CI）"
+            echo "tarpaulin 失败日志（最后 120 行）："
+            tail -n 120 coverage/tarpaulin-output.txt || true
+          fi
+
+          if [ ! -f coverage/cobertura.xml ]; then
+            echo "<coverage line-rate=\"0\" branch-rate=\"0\" version=\"1.9\" timestamp=\"0\"><sources></sources><packages></packages></coverage>" > coverage/cobertura.xml
+          fi
+
+          exit 0
 
       - name: 上传覆盖率到 Codecov
         if: always()
