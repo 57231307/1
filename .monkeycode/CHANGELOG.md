@@ -6,6 +6,25 @@
 
 ---
 
+## CI/CD 全面优化第二轮（2026-07-31，11 项全部处理）
+
+| 优先级 | 项 | 一句话总结 |
+|--------|-----|-----------|
+| 🔴 P0 | cargo-audit 安装 `\|\| true` 违反规则 5 | **[ci-cd.yml](file:///workspace/.github/workflows/ci-cd.yml)** 移除 `\|\| true`，安装失败阻塞 CI（与"移除 continue-on-error"注释一致） |
+| 🔴 P0 | Codecov 上传缺 token | 两处 codecov-action 添加 `token: ${{ secrets.CODECOV_TOKEN }}`，修复覆盖率数据静默上传失败 |
+| 🟡 P1 | rust-toolchain @master 供应链风险 | 6 处 `@master` → `@efa25f7f19611383d5b0ccf2d1c8914531636bf9`（commit SHA pin），顶部 env 添加注释 |
+| 🟡 P1 | 缺 paths-ignore | push/pull_request 添加 `paths-ignore: ['**.md', '.monkeycode/**', 'docs/**', 'LICENSE', '.gitignore']`，纯文档变更不触发 CI |
+| 🟡 P1 | ci-deps job 级 continue-on-error TODO | 移除 job 级，cargo tree --locked 改为严格（lockfile 漂移阻塞 CI），npm ls 加 step 级 continue-on-error |
+| 🟢 P2 | Rust/FE setup 重复 120+ 行 | 新建 [setup-rust](file:///workspace/.github/actions/setup-rust/action.yml) + [setup-frontend](file:///workspace/.github/actions/setup-frontend/action.yml) composite action，8 个 job 引用，消除重复 |
+| 🟢 P2 | npm ci 重复 7 次 | composite action 统一（保留 3 个前端 job 并行执行，评估后不合并以保持 CI 并行度） |
+| 🟢 P2 | apt-get 重复 3 次 | composite action 的 system-deps 参数化（ci-test-rust 额外加 postgresql-client） |
+| 🟢 P2 | perf-bench 独立缓存不命中主缓存 | `perf-cargo-`/`perf-rustup-` → 主 `cargo-`/`rustup-` 缓存 + 单独缓存 `target/criterion/` 基线数据 |
+| 🔵 P3 | notify job 冗余（仅 echo 无通知） | 删除（95 行），16→15 job；GitHub Actions UI 已提供 job 状态，package-release needs 已隐含严格检查 |
+| 🔵 P3 | 清理旧 Release 用 curl+jq | 改用 `gh release delete --cleanup-tag`，更简洁且自带分页/错误处理 |
+| — | 文件体积 | 2490 → 2200 行（-290 行），YAML 校验通过（15 jobs），2 个 composite action 校验通过 |
+
+---
+
 ## CI 重复检测项清理与规则 20 修复（2026-07-31，7 项全部修复）
 
 | 优先级 | 项 | 一句话总结 |

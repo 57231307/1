@@ -1,0 +1,28 @@
+# Composite action：统一前端 Node.js + npm 缓存 + npm ci（消除 7 个 job 重复配置）
+name: Setup Frontend
+inputs:
+  skip-install:
+    description: '跳过 npm ci（仅装 Node.js + 缓存，不装依赖）'
+    required: false
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - name: 安装 Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+
+    - name: 缓存 npm
+      uses: actions/cache@v5
+      with:
+        path: |
+          frontend/node_modules
+          ~/.npm
+        key: fe-npm-${{ hashFiles('frontend/package-lock.json') }}
+
+    - name: 安装前端依赖
+      if: inputs.skip-install == 'false'
+      working-directory: frontend
+      shell: bash
+      run: npm ci --prefer-offline --no-audit

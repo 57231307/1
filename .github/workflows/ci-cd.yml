@@ -8,9 +8,8 @@
 #
 # 工作流拓扑：
 #   ci-info → [ci-fmt-rust, ci-fmt-fe, ci-lint-rust, ci-lint-fe, ci-type-check,
-#              ci-test-rust, ci-test-fe, ci-audit, ci-deps,
+#              ci-test-rust, ci-test-fe, ci-audit, ci-deps, ci-perf-bench,
 #              ci-build-rust, ci-build-fe] → [package-release] → [github-release]
-#                                                                 → [notify]
 #
 # 注意：E2E 测试已独立到 .github/workflows/e2e-batch.yml（每 30 批次运行，不阻塞主 CI）
 # ==============================================================================
@@ -24,10 +23,22 @@ on:
       - master
     tags:
       - 'v*'
+    paths-ignore:
+      - '**.md'
+      - '.monkeycode/**'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.gitignore'
   pull_request:
     branches:
       - main
       - master
+    paths-ignore:
+      - '**.md'
+      - '.monkeycode/**'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.gitignore'
   workflow_dispatch:
     inputs:
       skip_release:
@@ -42,6 +53,7 @@ concurrency:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # rust-toolchain pin 到 commit SHA（供应链安全，防止 @master 被篡改）；更新时同步改全部 6 处
   RUST_VERSION: 1.94.1
   RUST_BACKTRACE: full
   CARGO_TERM_COLOR: always
@@ -172,16 +184,9 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v5
 
-      - name: 缓存 Rustup
-        uses: actions/cache@v5
+      - name: Setup Rust（rustfmt）
+        uses: ./.github/actions/setup-rust
         with:
-          path: ~/.rustup
-          key: rustup-${{ env.RUST_VERSION }}
-
-      - name: 安装 Rust 工具链
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ env.RUST_VERSION }}
           components: rustfmt
 
       - name: 运行 cargo fmt 检查（严格阻塞）
@@ -268,22 +273,8 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v5
 
-      - name: 安装 Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: 缓存 npm
-        uses: actions/cache@v5
-        with:
-          path: |
-            frontend/node_modules
-            ~/.npm
-          key: fe-npm-${{ hashFiles('frontend/package-lock.json') }}
-
-      - name: 安装前端依赖
-        working-directory: frontend
-        run: npm ci --prefer-offline --no-audit
+      - name: Setup Frontend
+        uses: ./.github/actions/setup-frontend
 
       - name: 运行 prettier 检查（严格阻塞）
         working-directory: frontend
@@ -376,34 +367,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 缓存 Rustup
-        uses: actions/cache@v5
+      - name: Setup Rust（rustfmt + clippy + 系统依赖）
+        uses: ./.github/actions/setup-rust
         with:
-          path: ~/.rustup
-          key: rustup-${{ env.RUST_VERSION }}
-
-      - name: 安装 Rust 工具链
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ env.RUST_VERSION }}
           components: rustfmt, clippy
-
-      - name: 缓存 Cargo
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/bin
-            ~/.cargo/registry
-            ~/.cargo/git
-            backend/target
-          key: cargo-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}
-          restore-keys: |
-            cargo-${{ env.RUST_VERSION }}-
-
-      - name: 安装系统依赖
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pkg-config libssl-dev protobuf-compiler
+          system-deps: pkg-config libssl-dev protobuf-compiler
 
       - name: 运行 clippy（baseline 机制）
         working-directory: backend
@@ -938,22 +906,8 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v5
 
-      - name: 安装 Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: 缓存 npm
-        uses: actions/cache@v5
-        with:
-          path: |
-            frontend/node_modules
-            ~/.npm
-          key: fe-npm-${{ hashFiles('frontend/package-lock.json') }}
-
-      - name: 安装前端依赖
-        working-directory: frontend
-        run: npm ci --prefer-offline --no-audit
+      - name: Setup Frontend
+        uses: ./.github/actions/setup-frontend
 
       - name: 运行 ESLint（V15 批次 07 P1-6 修复：严格阻塞 CI）
         working-directory: frontend
@@ -1062,22 +1016,8 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v5
 
-      - name: 安装 Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: 缓存 npm
-        uses: actions/cache@v5
-        with:
-          path: |
-            frontend/node_modules
-            ~/.npm
-          key: fe-npm-${{ hashFiles('frontend/package-lock.json') }}
-
-      - name: 安装前端依赖
-        working-directory: frontend
-        run: npm ci --prefer-offline --no-audit
+      - name: Setup Frontend
+        uses: ./.github/actions/setup-frontend
 
       - name: 运行 vue-tsc
         working-directory: frontend
@@ -1164,34 +1104,11 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v5
 
-      - name: 缓存 Rustup
-        uses: actions/cache@v5
+      - name: Setup Rust（llvm-tools-preview + 系统依赖含 postgresql-client）
+        uses: ./.github/actions/setup-rust
         with:
-          path: ~/.rustup
-          key: rustup-${{ env.RUST_VERSION }}
-
-      - name: 安装 Rust 工具链（含 llvm-tools-preview）
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ env.RUST_VERSION }}
           components: llvm-tools-preview
-
-      - name: 缓存 Cargo
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/bin
-            ~/.cargo/registry
-            ~/.cargo/git
-            backend/target
-          key: cargo-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}
-          restore-keys: |
-            cargo-${{ env.RUST_VERSION }}-
-
-      - name: 安装系统依赖
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pkg-config libssl-dev postgresql-client protobuf-compiler
+          system-deps: pkg-config libssl-dev postgresql-client protobuf-compiler
 
       - name: 安装 cargo-llvm-cov 与 cargo-nextest
         uses: taiki-e/install-action@v2
@@ -1288,6 +1205,7 @@ jobs:
         if: always()
         uses: codecov/codecov-action@v4
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           file: backend/coverage/cobertura.xml
           fail_ci_if_error: false
           flags: rust
@@ -1313,22 +1231,8 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v5
 
-      - name: 安装 Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: 缓存 npm
-        uses: actions/cache@v5
-        with:
-          path: |
-            frontend/node_modules
-            ~/.npm
-          key: fe-npm-${{ hashFiles('frontend/package-lock.json') }}
-
-      - name: 安装前端依赖
-        working-directory: frontend
-        run: npm ci --prefer-offline --no-audit
+      - name: Setup Frontend
+        uses: ./.github/actions/setup-frontend
 
       - name: 运行 vitest
         working-directory: frontend
@@ -1381,6 +1285,7 @@ jobs:
         if: always()
         uses: codecov/codecov-action@v4
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           working-directory: frontend
           file: frontend/coverage/coverage-final.json
           fail_ci_if_error: false
@@ -1410,13 +1315,12 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v5
 
-      - name: 安装 Rust 工具链
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ env.RUST_VERSION }}
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
 
       - name: 安装 cargo-audit
-        run: cargo install cargo-audit --locked || true
+        # 规则 5：移除 || true 降级，安装失败阻塞 CI（与 L1406 注释"移除 continue-on-error"一致）
+        run: cargo install cargo-audit --locked
 
       - name: 审计 Rust 依赖
         working-directory: backend
@@ -1461,14 +1365,8 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: 安装 Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: 安装前端依赖
-        working-directory: frontend
-        run: npm ci --prefer-offline --no-audit
+      - name: Setup Frontend
+        uses: ./.github/actions/setup-frontend
 
       - name: 审计前端依赖
         working-directory: frontend
@@ -1528,59 +1426,33 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: ci-info
-    # 批次 21 评估：ci-deps 仅生成 cargo tree / npm ls 依赖图用于记录归档，
-    # 属 informational job，保留 continue-on-error 避免依赖图生成异常阻塞主流程。
-    # P3-8 修复（批次 84 v1 复审）：TODO(tech-debt) 后续应移除 job 级 continue-on-error，
-    # 改为对单个非关键 step 使用 if: always() + continue-on-error 精细控制，
-    # 让 cargo tree --locked 失败时能暴露 lockfile 漂移问题。
-    continue-on-error: true
+    # P3-8 修复：移除 job 级 continue-on-error，改为 step 级精细控制
+    # cargo tree --locked 失败时阻塞 CI（暴露 lockfile 漂移），npm ls 非关键允许失败
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
 
-      - name: 安装 Rust 工具链
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ env.RUST_VERSION }}
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
 
-      - name: 缓存 Cargo
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/bin
-            ~/.cargo/registry
-            ~/.cargo/git
-            backend/target
-          key: cargo-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}
-          restore-keys: |
-            cargo-${{ env.RUST_VERSION }}-
-
-      - name: 生成 cargo tree
+      - name: 生成 cargo tree（严格：lockfile 漂移时阻塞 CI）
         working-directory: backend
         run: |
           mkdir -p reports
-          set +e
+          # --locked 要求 Cargo.lock 与 Cargo.toml 一致，漂移时 exit != 0 阻塞 CI
           cargo tree --locked --charset ascii > reports/cargo-tree.txt 2>&1
           cargo tree --locked --charset ascii --format json > reports/cargo-tree.json 2>&1
-          set -e
           echo "cargo tree 行数: $(wc -l < reports/cargo-tree.txt)"
 
-      - name: 安装 Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
+      - name: Setup Frontend
+        uses: ./.github/actions/setup-frontend
 
-      - name: 安装前端依赖
+      - name: 生成 npm ls（非关键，允许失败）
         working-directory: frontend
-        run: npm ci --prefer-offline --no-audit
-
-      - name: 生成 npm ls
-        working-directory: frontend
+        continue-on-error: true
         run: |
           mkdir -p reports
-          set +e
           npm ls --all --json > reports/npm-ls.json 2>reports/npm-ls.txt
-          set -e
           echo "npm ls 顶层依赖数: $(jq '.dependencies | length' reports/npm-ls.json 2>/dev/null || echo N/A)"
 
       - name: 上传报告
@@ -1612,28 +1484,16 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v5
 
-      - name: 缓存 Rustup
+      - name: Setup Rust（共享主 cargo- 缓存，加速依赖编译）
+        uses: ./.github/actions/setup-rust
+
+      - name: 缓存 criterion 基线数据
         uses: actions/cache@v5
         with:
-          path: ~/.rustup
-          key: perf-rustup-${{ env.RUST_VERSION }}
-
-      - name: 安装 Rust 工具链
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ env.RUST_VERSION }}
-
-      - name: 缓存 Cargo（含 criterion 基线）
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/bin
-            ~/.cargo/registry
-            ~/.cargo/git
-            backend/target
-          key: perf-cargo-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}
+          path: backend/target/criterion
+          key: criterion-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}
           restore-keys: |
-            perf-cargo-${{ env.RUST_VERSION }}-
+            criterion-${{ env.RUST_VERSION }}-
 
       - name: 运行 cargo bench（V15 批次 06 P1-10）
         working-directory: backend
@@ -1777,34 +1637,11 @@ jobs:
           sed -i 's/^version = ".*"/version = "${{ steps.version.outputs.version }}"/' backend/Cargo.toml
           echo "更新后版本: $(grep '^version' backend/Cargo.toml)"
 
-      - name: 缓存 Rustup
-        uses: actions/cache@v5
+      - name: Setup Rust（rustfmt + clippy + 系统依赖）
+        uses: ./.github/actions/setup-rust
         with:
-          path: ~/.rustup
-          key: rustup-${{ env.RUST_VERSION }}
-
-      - name: 安装 Rust 工具链
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ env.RUST_VERSION }}
           components: rustfmt, clippy
-
-      - name: 缓存 Cargo
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/bin
-            ~/.cargo/registry
-            ~/.cargo/git
-            backend/target
-          key: cargo-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}
-          restore-keys: |
-            cargo-${{ env.RUST_VERSION }}-
-
-      - name: 安装系统依赖
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pkg-config libssl-dev protobuf-compiler
+          system-deps: pkg-config libssl-dev protobuf-compiler
 
       - name: 构建后端 (Release)
         working-directory: backend
@@ -1891,22 +1728,8 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v5
 
-      - name: 安装 Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: 缓存 npm
-        uses: actions/cache@v5
-        with:
-          path: |
-            frontend/node_modules
-            ~/.npm
-          key: fe-npm-${{ hashFiles('frontend/package-lock.json') }}
-
-      - name: 安装前端依赖
-        working-directory: frontend
-        run: npm ci --prefer-offline --no-audit
+      - name: Setup Frontend
+        uses: ./.github/actions/setup-frontend
 
       - name: 构建前端
         working-directory: frontend
@@ -2359,122 +2182,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 清理旧 Release
+      - name: 清理旧 Release（保留最近 10 个）
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "清理超过 10 个的旧 Release..."
-          releases=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            "https://api.github.com/repos/${{ github.repository }}/releases?per_page=100" | \
-            jq -r '.[] | select(.tag_name | startswith("v")) | .tag_name')
-
-          total=$(echo "$releases" | wc -l)
+          # 用 gh CLI 替代 curl+jq（runner 预装 gh，更简洁且自带分页/错误处理）
+          mapfile -t releases < <(gh release list --repo ${{ github.repository }} --limit 100 --json tagName -q '.[].tagName' | sort -V)
+          total=${#releases[@]}
           echo "总共找到 $total 个 Release"
 
           if [ "$total" -gt 10 ]; then
-            to_delete=$(echo "$releases" | tail -n +11)
-            for tag in $to_delete; do
+            for tag in "${releases[@]:0:$((total - 10))}"; do
               echo "删除 Release: $tag"
-              release_id=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-                "https://api.github.com/repos/${{ github.repository }}/releases/tags/$tag" | \
-                jq -r '.id')
-              if [ "$release_id" != "null" ] && [ -n "$release_id" ]; then
-                curl -s -X DELETE -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-                  "https://api.github.com/repos/${{ github.repository }}/releases/$release_id"
-              fi
+              gh release delete "$tag" --repo ${{ github.repository }} --yes --cleanup-tag || true
             done
           fi
-
-# ==============================================================================
-# Job 15: 状态通知（始终运行）
-# ==============================================================================
-  notify:
-    name: 📊 构建通知
-    needs: [
-      ci-info,
-      ci-fmt-rust,
-      ci-fmt-fe,
-      ci-lint-rust,
-      ci-lint-fe,
-      ci-type-check,
-      ci-test-rust,
-      ci-test-fe,
-      ci-audit,
-      ci-deps,
-      ci-build-rust,
-      ci-build-fe,
-      package-release,
-      github-release
-    ]
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    if: always()
-    steps:
-      - name: 构建状态总结
-        run: |
-          echo "=========================================="
-          echo "  Bingxi ERP CI/CD 构建总结"
-          echo "  Commit: ${{ github.sha }}"
-          echo "  Ref: ${{ github.ref }}"
-          echo "=========================================="
-          echo ""
-          echo "📋  环境信息:        ${{ needs.ci-info.result }}"
-          echo "🔧  Rust 格式:       ${{ needs.ci-fmt-rust.result }}"
-          echo "🔧  前端格式:        ${{ needs.ci-fmt-fe.result }}"
-          echo "🔍  Rust Clippy:     ${{ needs.ci-lint-rust.result }}"
-          echo "🔍  前端 ESLint:     ${{ needs.ci-lint-fe.result }}"
-          echo "🔬  前端类型检查:    ${{ needs.ci-type-check.result }}"
-          echo "🧪  Rust 测试:       ${{ needs.ci-test-rust.result }}"
-          echo "🧪  前端测试:        ${{ needs.ci-test-fe.result }}"
-          echo "🛡️  依赖审计:        ${{ needs.ci-audit.result }}"
-          echo "📦  依赖图:          ${{ needs.ci-deps.result }}"
-          echo "🏗️  Rust 后端构建:   ${{ needs.ci-build-rust.result }}"
-          echo "🏗️  前端构建:        ${{ needs.ci-build-fe.result }}"
-          echo "📦  打包发布:        ${{ needs.package-release.result }}"
-          echo "🚀  GitHub Release:  ${{ needs.github-release.result }}"
-          echo ""
-
-          # 严格阻塞的 job 列表（用 GitHub Actions 表达式直接比较）
-          # V15 批次 07 P1-4/5/6 修复：ci-fmt-rust / ci-fmt-fe / ci-lint-fe 改为严格阻塞
-          # V15 Batch 485 修订：ci-lint-rust 恢复 baseline 机制（渐进式严格化），
-          #   不阻塞整体 CI（仅新增警告阻塞 clippy job 本身）
-          declare -A STRICT_RESULTS=(
-            [ci-fmt-rust]="${{ needs.ci-fmt-rust.result }}"
-            [ci-fmt-fe]="${{ needs.ci-fmt-fe.result }}"
-            [ci-lint-fe]="${{ needs.ci-lint-fe.result }}"
-            [ci-type-check]="${{ needs.ci-type-check.result }}"
-            [ci-test-rust]="${{ needs.ci-test-rust.result }}"
-            [ci-test-fe]="${{ needs.ci-test-fe.result }}"
-            [ci-build-rust]="${{ needs.ci-build-rust.result }}"
-            [ci-build-fe]="${{ needs.ci-build-fe.result }}"
-          )
-          FAILED=0
-          for job in "${!STRICT_RESULTS[@]}"; do
-            if [ "${STRICT_RESULTS[$job]}" != "success" ] && [ "${STRICT_RESULTS[$job]}" != "skipped" ]; then
-              FAILED=$((FAILED + 1))
-              echo "❌ 严格 job 失败: $job (${STRICT_RESULTS[$job]})"
-            fi
-          done
-
-          if [ "$FAILED" -eq "0" ]; then
-            echo "✅ 所有严格 job 全部通过！"
-          else
-            echo ""
-            echo "❌ $FAILED 个严格 job 失败"
-            echo "请下载对应 artifacts 查看详细日志"
-          fi
-          echo ""
-          echo "=========================================="
-          echo ""
-          echo "📁 Artifacts 列表（90 天保留）："
-          echo "  - env-info              环境信息（rustc/node/npm/系统）"
-          echo "  - backend-fmt-report    rustfmt diff 报告"
-          echo "  - frontend-fmt-report   prettier diff 报告"
-          echo "  - backend-clippy-report clippy 检查报告（V15 Batch 485 baseline 模式）"
-          echo "  - frontend-lint-report  ESLint 报告"
-          echo "  - frontend-type-check-report  vue-tsc 报告"
-          echo "  - backend-test-report   cargo test 报告"
-          echo "  - frontend-test-report  vitest 报告"
-          echo "  - backend-build-log     cargo build 详细日志"
-          echo "  - frontend-build-log    vite build 详细日志"
-          echo "  - dependency-audit-reports  cargo audit + npm audit"
-          echo "  - dependency-trees      cargo tree + npm ls"
-          echo "=========================================="
