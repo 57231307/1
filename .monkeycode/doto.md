@@ -2,7 +2,40 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-30（doto.md 更新：**PR #785 创建：P1 预留服务路由接入消除 174 个 dead_code 警告**：为 14 个 P1 预留服务创建 handler 和 route 文件并注册路由，37 文件 +2093 -11 行，待 CI 验证合并；**Clippy baseline 更新（174 个 dead_code 警告纳入 baseline）**：P1 批次新增 15 个业务服务模块服务层+DTO 已实现但尚未接入路由层，产生 174 个 dead_code 警告；之前 171 个基线警告已全部修复；更新 .clippy-baseline.txt 纳入 174 个已知技术债务，NEW_COUNT=0 验证通过；**PR #783 已合并 main**：Clippy runner shutdown (exit 143) 修复 + Release 变更说明模板；**PR #777 已合并 main**：彻底移除 Docker/K8s 引用，11 文件 -130 行，对齐 systemd 直部署；**PR #776 已合并 main**：CHANGELOG/doto 文档同步；**PR #772 关闭重复 PR**（内容已通过 PR #771 合并）；**SeaORM 2.0 升级评估暂缓**：2.0.0 稳定版 2026-07-19 发布，破坏性变更已评估（181 处 active.insert(db) 需调整），暂不升级；**PR #775 已合并 main**：P1 全部完成 257/257；**P0 全部完成 + P1 已合并 25 批到 main**）
+> 最近整理：2026-07-30（doto.md 更新：**V15 主线八维审计 + 快速修复 P0/P2 批次（fix/audit-batch-2026-07-30）**：① 八维审计报告 [docs/2026-07-30-mainline-audit-report.md](file:///workspace/.monkeycode/docs/2026-07-30-mainline-audit-report.md)；② P0 全部完成（盘点契约+事件事务+二级审批+init token+API 网关授权+导出范围收敛+冒烟脚本+导出格式合规+定制/委外事务化+SECURITY 邮箱）；③ P2-02 清理 3 处陈旧占位注释；④ P2-05 导出审批 list_pending_for_me 路由；⑤ P2-06 业务追溯三表 unique/CHECK/逻辑外键触发器约束迁移 20260801000001 + service 端生产者 upsert_chain_node/link_assist/upsert_snapshot；⑥ 前端 inventory-count 3 文件对齐后端契约；**待 push+PR+CI 验证**；**PR #785 创建：P1 预留服务路由接入消除 174 个 dead_code 警告**：为 14 个 P1 预留服务创建 handler 和 route 文件并注册路由，37 文件 +2093 -11 行，待 CI 验证合并；**Clippy baseline 更新（174 个 dead_code 警告纳入 baseline）**：P1 批次新增 15 个业务服务模块服务层+DTO 已实现但尚未接入路由层，产生 174 个 dead_code 警告；之前 171 个基线警告已全部修复；更新 .clippy-baseline.txt 纳入 174 个已知技术债务，NEW_COUNT=0 验证通过；**PR #783 已合并 main**：Clippy runner shutdown (exit 143) 修复 + Release 变更说明模板；**PR #777 已合并 main**：彻底移除 Docker/K8s 引用，11 文件 -130 行，对齐 systemd 直部署；**PR #776 已合并 main**：CHANGELOG/doto 文档同步；**PR #772 关闭重复 PR**（内容已通过 PR #771 合并）；**SeaORM 2.0 升级评估暂缓**：2.0.0 稳定版 2026-07-19 发布，破坏性变更已评估（181 处 active.insert(db) 需调整），暂不升级；**PR #775 已合并 main**：P1 全部完成 257/257；**P0 全部完成 + P1 已合并 25 批到 main**）
+
+---
+
+## 〇₀、V15 主线八维审计快速修复（2026-07-30 启动）
+
+| 状态 | 数量 | 批次 |
+|------|------|------|
+| ✅ 已完成待 PR | 1 批 | audit-batch-2026-07-30（P0 全部 + P2-02 + P2-05 + P2-06 共 16 文件 +712/-88） |
+| ⏳ 待推送 | 1 批 | audit-batch-2026-07-30（fix/audit-batch-2026-07-30 分支） |
+
+### 0.0.1 P0 完成明细
+
+| P0 项 | 文件 | 关键改动 |
+|-------|------|----------|
+| 盘点契约 | frontend/src/api/inventory-count.ts + CountListTab + CountFormDialogTab | 对齐后端 9 端点（list/create/get/update/record/submit/approve/reject），complete → submit+approve，count_date → ISO 8601 |
+| 事件事务 | backend/src/services/inventory_finance_bridge_ops/listener.rs | 阶段1查重→阶段2事务→失败回滚+幂等清除+死信兜底；event_idempotency_service 新增 unmark_processed |
+| 二级审批 | export_approval_request.rs + service.rs | ApprovalStatus 新增 PendingL2；approve 拆 target_level+current_approval_step |
+| init token 强度 | middleware/init_token.rs | INIT_TOKEN_PLACEHOLDERS 黑名单 + is_init_token_strong ≥32 字节 |
+| API 网关授权 | handlers/api_gateway_handler.rs | ensure_can_manage_api_key 4 handler 接入 |
+| 导出范围 | handlers/export_approval_handler.rs + system.rs | 非 admin 强制 applicant_user_id = auth.user_id；新增 /export-approvals/pending-for-me |
+| 冒烟脚本 | scripts/api-crud-test.sh | 严格断言移除 code:400 误判 |
+| 导出格式 | export_approval_service.rs | validate_create_request_fields 移除 csv 仅 xlsx/pdf |
+| 定制订单事务 | custom_order_state_service.rs | advance() 用 txn.begin() + lock_exclusive + 3 个 _txn 子方法 |
+| 委外订单事务 | outsourcing_ops/order.rs | issue_order/settle 凭证创建+主单更新同事务；TransactionTrait 导入 |
+| SECURITY 邮箱 | .monkeycode/docs/SECURITY.md | [TODO] → security@57231307.com |
+
+### 0.0.2 P2 完成明细
+
+| P2 项 | 文件 | 关键改动 |
+|-------|------|----------|
+| P2-02 清理陈旧注释 | test_inventory_count.rs / inv/count.rs / test_generate_no_endpoints.rs | 3 处"占位模块"陈旧注释删除 |
+| P2-05 导出审批 list_pending_for_me | service.rs + system.rs + handler.rs | 新增 list_pending_for_user(user_id,is_admin,q) 服务 + GET 路由 |
+| P2-06 业务追溯约束 | migrations/20260801000001_business_trace_constraints + business_trace_service.rs | uniq_business_trace_chain_head/tail partial unique + snapshot trace_chain_id unique + assist_links 联合 unique + 3 个 CHECK + 3 个逻辑外键触发器；upsert_chain_node/link_assist/upsert_snapshot producer |
 
 ---
 

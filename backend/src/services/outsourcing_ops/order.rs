@@ -17,7 +17,7 @@
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    Set,
+    Set, TransactionTrait,
 };
 
 use crate::models::outsourcing_order::{
@@ -277,6 +277,10 @@ impl OutsourcingOrderService {
     }
 
     /// 发料：draft → issued，创建发料凭证（借：委托加工物资 / 贷：自制半成品-胚布）
+    ///
+    /// V15 主线审计 P0 修复：原实现顺序执行 3 步（凭证创建 / 主单更新 / 事件发布），
+    /// 任一步失败都会留下半成品数据。把凭证创建和主单更新放进同一数据库事务，
+    /// 事件发布在事务 commit 后执行（事件发布失败不影响业务数据一致性）。
     pub async fn issue_order(&self, id: i32) -> Result<OrderModel, AppError> {
         let model = self.get_by_id(id).await?;
         if model.status != outsourcing_order_status::DRAFT {
@@ -290,7 +294,9 @@ impl OutsourcingOrderService {
         // 生成发料凭证号
         let voucher_no = Self::generate_voucher_no("IS");
 
-        // 创建发料凭证（§5.4 第一步分录）
+        let txn = (*self.db).begin().await?;
+
+        // 阶段 1：创建发料凭证
         let voucher_active = VoucherActiveModel {
             id: Default::default(),
             voucher_no: Set(voucher_no.clone()),
@@ -310,17 +316,23 @@ impl OutsourcingOrderService {
             updated_at: Set(now),
         };
         voucher_active
-            .insert(&*self.db)
+            .insert(&txn)
             .await
             .map_err(|e| AppError::database(format!("发料凭证创建失败: {}", e)))?;
 
+        // 阶段 2：更新订单主单
         let mut active: OrderActiveModel = model.into();
         active.status = Set(outsourcing_order_status::ISSUED.to_string());
         active.voucher_no_issue = Set(Some(voucher_no.clone()));
         active.updated_at = Set(now);
-        let updated = active.update(&*self.db).await?;
+        let updated = active
+            .update(&txn)
+            .await
+            .map_err(|e| AppError::database(format!("委外订单状态更新失败: {}", e)))?;
 
-        // V15 Batch04-P1-5：发布委外发料事件，供库存出库/成本归集订阅
+        txn.commit().await?;
+
+        // 阶段 3：事件发布（事务外，业务数据已落库；事件失败由 EVENT_BUS 自行重试/降级）
         crate::services::event_bus::EVENT_BUS.publish(
             crate::services::event_bus::BusinessEvent::OutsourcingMaterialIssued {
                 order_id: updated.id,
@@ -613,6 +625,10 @@ impl OutsourcingOrderService {
 
     /// 结算：received → settled，创建加工费凭证（借：委托加工物资+应交税费 / 贷：银行存款）
     /// 业务规则：加工费/运费/税额需在订单更新时填入（processing_fee / freight_fee / tax_amount 字段）；加工费凭证金额 = processing_fee + freight_fee；税额单独记录在 tax_amount 字段
+    ///
+    /// V15 主线审计 P0 修复：原实现顺序执行 2 步（凭证创建 / 主单更新），
+    /// 任一步失败都会留下半成品数据。把凭证创建和主单更新放进同一数据库事务，
+    /// 事件发布在事务 commit 后执行。
     pub async fn settle(&self, id: i32) -> Result<OrderModel, AppError> {
         let model = self.get_by_id(id).await?;
         if model.status != outsourcing_order_status::RECEIVED {
@@ -624,6 +640,8 @@ impl OutsourcingOrderService {
 
         let now = crate::utils::date_utils::utc_now_fixed();
         let voucher_no = Self::generate_voucher_no("FE");
+
+        let txn = (*self.db).begin().await?;
 
         // 创建加工费凭证（§5.4 第二步分录）
         let fee_amount = model.processing_fee + model.freight_fee;
@@ -646,7 +664,7 @@ impl OutsourcingOrderService {
             updated_at: Set(now),
         };
         voucher_active
-            .insert(&*self.db)
+            .insert(&txn)
             .await
             .map_err(|e| AppError::database(format!("加工费凭证创建失败: {}", e)))?;
 
@@ -665,7 +683,9 @@ impl OutsourcingOrderService {
         active.voucher_no_fee = Set(Some(voucher_no.clone()));
         active.status = Set(outsourcing_order_status::SETTLED.to_string());
         active.updated_at = Set(now);
-        let updated = active.update(&*self.db).await?;
+        let updated = active.update(&txn).await?;
+
+        txn.commit().await?;
 
         // V15 Batch04-P1-5：发布委外结算事件，供成本归集/应付账款订阅
         let normal_loss = (updated.loss_quantity - updated.abnormal_loss_amount).max(Decimal::ZERO);

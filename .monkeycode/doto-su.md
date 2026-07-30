@@ -5,14 +5,95 @@
 
 ---
 
-## 📌 关键项目内容快照（2026-07-29 更新）
+## 📦 V15 主线八维审计与快速修复（2026-07-30，audit-batch-2026-07-30）
+
+### 任务概述
+
+V15 25 大类 195 维度审计报告生成后，对 main 主线做"最严格"二次八维审计（技术债务/功能缺失/连通性/数据一致性/数据孤岛/流程/安全/合规），生成 [docs/2026-07-30-mainline-audit-report.md](file:///workspace/.monkeycode/docs/2026-07-30-mainline-audit-report.md)，按 P0 → P2 → P3 顺序快速修复。
+
+### P0 修复明细（11 项 Critical/High）
+
+1. **盘点契约**（[frontend/src/api/inventory-count.ts](file:///workspace/frontend/src/api/inventory-count.ts) + 2 个 Vue 文件）
+   - 对齐后端 9 端点 list/create/get/update/record/submit/approve/reject
+   - `complete` 改 `submit+approve` 流程
+   - `count_date` 改 ISO 8601
+
+2. **事件监听事务化**（[backend/src/services/inventory_finance_bridge_ops/listener.rs](file:///workspace/backend/src/services/inventory_finance_bridge_ops/listener.rs)）
+   - 阶段 1：业务事务前查重
+   - 阶段 2：业务事务执行
+   - 失败：txn.rollback() + unmark_processed() 清除幂等 + EventRetryService 死信兜底
+   - event_idempotency_service 新增 `unmark_processed`
+
+3. **导出审批二级机制**（[export_approval_request.rs](file:///workspace/backend/src/models/export_approval_request.rs) + [service.rs](file:///workspace/backend/src/services/export_approval_service.rs)）
+   - `ApprovalStatus` 新增 `PendingL2` 变体
+   - `approve()` 拆 `target_level` 与 `current_approval_step`，写 `context.current_approval_step`
+   - `reject()` / `cancel()` 接受 `pending_l2`
+
+4. **init token 强度**（[middleware/init_token.rs](file:///workspace/backend/src/middleware/init_token.rs)）
+   - `INIT_TOKEN_PLACEHOLDERS` 占位值黑名单
+   - `is_init_token_strong` ≥32 字节
+
+5. **API 网关对象级授权**（[handlers/api_gateway_handler.rs](file:///workspace/backend/src/handlers/api_gateway_handler.rs)）
+   - `ensure_can_manage_api_key(state, auth, Option<i32>)` 辅助函数
+   - 4 handler（get/update/delete/regenerate）接入
+
+6. **导出审批范围收敛**（[handlers/export_approval_handler.rs](file:///workspace/backend/src/handlers/export_approval_handler.rs) + [routes/system.rs](file:///workspace/backend/src/routes/system.rs)）
+   - 非 admin 强制 `q.applicant_user_id = auth.user_id`
+   - 新增 `GET /export-approvals/pending-for-me`
+
+7. **冒烟脚本严格断言**（[scripts/api-crud-test.sh](file:///workspace/scripts/api-crud-test.sh)）
+   - 移除 `code:400` 误判
+
+8. **导出格式合规**（[export_approval_service.rs](file:///workspace/backend/src/services/export_approval_service.rs)）
+   - `validate_create_request_fields` 移除 `csv`，仅保留 `xlsx`/`pdf`
+
+9. **定制订单 advance() 事务化**（[custom_order_state_service.rs](file:///workspace/backend/src/services/custom_order_state_service.rs)）
+   - `txn.begin()` + `lock_exclusive()` + 3 个 `_txn` 私有方法
+
+10. **委外订单 issue_order/settle 事务化**（[outsourcing_ops/order.rs](file:///workspace/backend/src/services/outsourcing_ops/order.rs)）
+    - 凭证创建 + 主单更新同事务
+    - 事件发布移到 txn.commit 之后
+    - 添加 `TransactionTrait` 导入
+
+11. **SECURITY 邮箱**（[.monkeycode/docs/SECURITY.md](file:///workspace/.monkeycode/docs/SECURITY.md)）
+    - `[TODO: 添加内部邮箱]` → `[security@57231307.com](mailto:security@57231307.com)`
+
+### P2 修复明细（3 项 Medium）
+
+1. **P2-02 清理陈旧注释**：删除 test_inventory_count.rs / inv/count.rs / test_generate_no_endpoints.rs 3 处"占位模块"陈旧注释
+2. **P2-05 导出审批 list_pending_for_me**：服务 `list_pending_for_user(user_id, is_admin, q)` + `GET /export-approvals/pending-for-me` 路由（放在 `:id` 之前避免被吞掉）
+3. **P2-06 业务追溯三表约束**（[migrations/20260801000001_business_trace_constraints/](file:///workspace/backend/migrations/20260801000001_business_trace_constraints/) + [business_trace_service.rs](file:///workspace/backend/src/services/business_trace_service.rs)）
+   - partial unique `uniq_business_trace_chain_head/tail`（防链分叉）
+   - unique `uniq_business_trace_snapshot_chain_id`（每 chain 一份最新）
+   - unique `uniq_business_trace_assist_links(trace_id, assist_type, assist_id)`（防重复关联）
+   - 3 个 CHECK：数量非负、禁止自环、快照数量非负
+   - 3 个逻辑外键触发器：snapshot→chain head、assist_links→chain.id、snapshot→chain head 自洽校验
+   - service 端 producer：`upsert_chain_node` / `link_assist` / `upsert_snapshot`
+
+### 工作流
+
+- 在 worktree `/workspace/.tmp/fixp0/` 的 `fix/audit-batch-2026-07-30` 分支完成全部修改
+- 16 文件 +712/-88 行
+- 待 push + gh pr create + CI 验证
+
+### 教训/经验
+
+- **海象问题**：OOMCargo 编译 SIGKILL 是后端项目常态，需拆模块/降低 codegen-units 才能完整 `cargo check`
+- **ActiveModel 字段语义**：SeaORM 1.1.20 `ActiveValue::Set(Some(s))` 在 Option 字段上语义是 `Set(i32)`（不带 Some），模式匹配 `if let ActiveValue::Set(s) = ...` 直接得到 `s: i32`，不要 `Set(Some(s))`
+- **P0 修复工作流必须分批**：单次 P0 修复覆盖太多模块容易丢修复；按"模块→服务→触发器→测试"分批推进可避免 PR squash merge 后丢失
+
+---
+
+## 📌 关键项目内容快照（2026-07-30 更新）
 
 > 本节为项目当前状态快照（任务进度/技术决策/PR/架构信息），按 PR 规则 10 文件分工存放在此，不放在 MEMORY.md。
 
 ### 项目阶段与任务进度
 
-- **当前阶段**：V15 P1 修复阶段 —— **P0 100% 完成 + P1 已合并 15 批到 main**
-- **P0 完成度**：17/17 ✅（D01-D17 全部完成，PR #758 合并）
+- **当前阶段**：V15 主线八维审计 + 快速修复 —— **P0 全部完成 + P2-02/05/06 全部完成，待 push+PR+CI 验证**
+- **V15 主线审计批次（1 批待 push）**：
+  - audit-batch-2026-07-30：P0 全部 11 项 + P2 全部 3 项（P2-02/P2-05/P2-06） + 前端对齐；16 文件 +712/-88；worktree `/workspace/.tmp/fixp0/` 分支 `fix/audit-batch-2026-07-30`
+- **P0 完成度**：17/17 ✅（D01-D17 全部完成，PR #758 合并） + V15 主线 11 项 Critical/High 全部完成
 - **P1 已合并批次（15 批）**：
   - P1-A（安全加固 6 项）、P1-B1（法律合规 5 项）、P1-B2（法律合规扩展）、P1-C（通用代码质量 + 业务主体 + 组织定制）
   - P1-面料行业深化（batch-04 11 项 + batch-05 11 项 = 22 项）
@@ -44,6 +125,10 @@
 
 | PR | 状态 | 内容 |
 |-----|------|------|
+| audit-batch-2026-07-30 | ⏳ 待 push | V15 主线八维审计 + 快速修复：P0 全部 11 项 + P2 全部 3 项（业务追溯约束 + 导出审批 pending-for-me + 清理陈旧注释）+ 前端盘点契约对齐；16 文件 +712/-88 |
+| #785 | ⏳ 待 CI | P1 预留服务路由接入消除 174 个 dead_code 警告：14 个 P1 预留服务（AI 模型管理/合同签名/客户团队共享/环保税/出口退税/Incoterms/劳动合同/物流跟踪/职业健康/权限委托/污染监控/污染许可/角色关系/社保公积金）创建 handler + route；37 文件 +2093 -11 |
+| #783 | ✅ 已合并 main | Clippy runner shutdown (exit 143) 修复 + Release 变更说明模板 |
+| #777 | ✅ 已合并 main | 彻底移除 Docker/K8s 引用，11 文件 -130 行，对齐 systemd 直部署 |
 | #765 | ✅ 已合并 main cc8a43f | P1-B3 法律合规扩展：规则 4 注释精简全量修复（406 文件 +1917 -7735，压缩约 1525 处 `///` doc 注释块为 1-2 行） |
 | #763 | ✅ 已合并 main e36511b | P1 下一批修复：P1-09 色卡发放 9 项 + P1-10 大货批色 7 项 + P1-19 报表 BI 5 项 + P1-25 部署升级补充 1 项（24 文件 +1954 -143） |
 | #762 | ✅ 已合并 main 9dd897e | docs: 按项目实际情况更新 .monkeycode/docs 文档 |

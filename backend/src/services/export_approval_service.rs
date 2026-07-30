@@ -12,8 +12,8 @@
 
 use chrono::{Duration, Utc};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, EntityTrait, PaginatorTrait,
+    QueryFilter, QueryOrder, Set,
 };
 // sea_orm::PaginatorTrait 提供 paginate/fetch_page 方法
 use serde::{Deserialize, Serialize};
@@ -21,8 +21,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::models::export_approval_request::{
-    sensitive_resources, ActiveModel as ExportApprovalActiveModel, ApprovalStatus, Column, Entity,
-    ExportParams, Model, RiskLevel,
+    sensitive_resources, ActiveModel as ExportApprovalActiveModel, ApprovalContext, ApprovalStatus,
+    Column, Entity, ExportParams, Model, RiskLevel,
 };
 use crate::utils::error::AppError;
 
@@ -107,7 +107,9 @@ impl ExportApprovalService {
         Ok(model)
     }
 
-    /// 校验创建审批请求字段：资源类型必须敏感，文件格式仅支持 xlsx/pdf/csv（返回规范化后的 file_format（小写））
+    /// 校验创建审批请求字段：资源类型必须敏感，文件格式仅支持 xlsx/pdf（返回规范化后的 file_format（小写））
+    /// V15 主线审计 Low 修复：原实现允许 csv，与 .monkeycode/MEMORY.md 规则“成品导入/导出使用 .xlsx/.docx”冲突，
+    /// 移除 csv 避免制度声明与代码行为不一致。
     fn validate_create_request_fields(req: &CreateApprovalRequest) -> Result<String, AppError> {
         if !sensitive_resources::is_sensitive(&req.resource_type) {
             return Err(AppError::validation(format!(
@@ -121,8 +123,10 @@ impl ExportApprovalService {
             .clone()
             .unwrap_or_else(|| "xlsx".to_string())
             .to_lowercase();
-        if !matches!(file_format.as_str(), "xlsx" | "pdf" | "csv") {
-            return Err(AppError::validation("file_format 仅支持 xlsx/pdf/csv"));
+        if !matches!(file_format.as_str(), "xlsx" | "pdf") {
+            return Err(AppError::validation(
+                "file_format 仅支持 xlsx/pdf（与 .monkeycode/MEMORY.md 成品导出规则保持一致）",
+            ));
         }
         Ok(file_format)
     }
@@ -185,7 +189,12 @@ impl ExportApprovalService {
     }
 
     /// 审批通过（一级或二级）
-    /// 一级审批通过后，若 approval_level == 2，状态保持 pending 等待二级审批；二级审批通过后，生成临时下载 token（5 分钟有效）；一级审批通过后，若 approval_level == 1，直接生成 token
+    /// V15 主线审计 Critical 修复：拆分“目标层级 target_level”和“当前审批步骤 current_approval_step”。
+    /// - 首次审批后若 target_level == 2，状态进入 pending_l2（仅等二级审批人介入），并把 current_approval_step 置 2；
+    /// - 二级审批通过后才生成下载 token；
+    /// - 一级审批（target_level == 1）通过即直接生成 token。
+    /// 实现细节：current_approval_step 复用现有 `context` JSON 字段存储（避免在本轮加迁移），
+    /// 默认 1；若不存在则视为 1。
     pub async fn approve(
         &self,
         approval_id: i64,
@@ -201,10 +210,12 @@ impl ExportApprovalService {
                 AppError::not_found(format!("导出审批请求不存在: id={}", approval_id))
             })?;
 
-        // 校验状态：仅 pending 状态可审批
-        if model.status != ApprovalStatus::Pending.as_str() {
+        // V15 主线审计 Critical 修复：pending_l2 状态允许继续走完二级审批。
+        if model.status == ApprovalStatus::PendingL2.as_str() {
+            // 继续二级审批
+        } else if model.status != ApprovalStatus::Pending.as_str() {
             return Err(AppError::validation(format!(
-                "审批请求状态为 {}，仅 pending 状态可审批",
+                "审批请求状态为 {}，仅 pending/pending_l2 状态可审批",
                 model.status
             )));
         }
@@ -218,21 +229,27 @@ impl ExportApprovalService {
 
         let now = Utc::now();
 
-        // 一级审批：若 approval_level == 2，升级到二级（状态保持 pending）
-        // 二级审批：生成下载 token
+        // V15 主线审计 Critical 修复：从 context 中读取 current_approval_step，
+        // 避免 current_level/target_level 都被赋值为 model.approval_level 导致二级审批绕过。
         let target_level = model.approval_level;
-        let current_level = model.approval_level; // 简化：当前层级等于目标层级（一级已通过则当前为 2）
+        let current_step = read_current_approval_step(&model);
+        let next_step = current_step + 1;
 
-        if current_level < target_level {
-            // 升级到下一级（一级 → 二级）
+        if next_step < target_level {
+            // 升级到下一级（一级 → 二级等待中）
             let mut active: ExportApprovalActiveModel = model.into();
-            active.approval_level = Set(current_level + 1);
             active.approver_user_id = Set(Some(approver_user_id));
             active.approver_username = Set(Some(approver_username));
             active.approver_ip = Set(approver_ip);
             active.approver_comments = Set(req.comments);
             active.updated_at = Set(now.into());
-            // 状态保持 pending，等待下一级审批
+            // V15 主线审计 Critical 修复：二级审批等待中显式置为 pending_l2，
+            // 防止再被一级审批越级“完成”。
+            active.status = Set(ApprovalStatus::PendingL2.as_str().to_string());
+            active.context = Set(Some(write_current_approval_step(
+                active.context.as_ref().as_ref(),
+                next_step,
+            )));
             let updated = active.update(&*self.db).await?;
             Ok(updated)
         } else {
@@ -250,6 +267,11 @@ impl ExportApprovalService {
             active.download_token = Set(Some(token));
             active.token_expires_at = Set(Some(token_expires_at.into()));
             active.updated_at = Set(now.into());
+            active.completed_at = Set(Some(now.into()));
+            active.context = Set(Some(write_current_approval_step(
+                active.context.as_ref().as_ref(),
+                target_level,
+            )));
 
             let updated = active.update(&*self.db).await?;
             Ok(updated)
@@ -272,9 +294,11 @@ impl ExportApprovalService {
                 AppError::not_found(format!("导出审批请求不存在: id={}", approval_id))
             })?;
 
-        if model.status != ApprovalStatus::Pending.as_str() {
+        if model.status != ApprovalStatus::Pending.as_str()
+            && model.status != ApprovalStatus::PendingL2.as_str()
+        {
             return Err(AppError::validation(format!(
-                "审批请求状态为 {}，仅 pending 状态可拒绝",
+                "审批请求状态为 {}，仅 pending/pending_l2 状态可拒绝",
                 model.status
             )));
         }
@@ -318,10 +342,12 @@ impl ExportApprovalService {
             return Err(AppError::permission_denied("仅申请人本人可取消审批请求"));
         }
 
-        // 仅 pending 状态可取消
-        if model.status != ApprovalStatus::Pending.as_str() {
+        // V15 主线审计 Critical 修复：pending 与 pending_l2 都允许申请人取消。
+        let is_cancellable = model.status == ApprovalStatus::Pending.as_str()
+            || model.status == ApprovalStatus::PendingL2.as_str();
+        if !is_cancellable {
             return Err(AppError::validation(format!(
-                "审批请求状态为 {}，仅 pending 状态可取消",
+                "审批请求状态为 {}，仅 pending/pending_l2 状态可取消",
                 model.status
             )));
         }
@@ -449,6 +475,53 @@ impl ExportApprovalService {
             .ok_or_else(|| AppError::not_found(format!("导出审批请求不存在: id={}", id)))
     }
 
+    /// V15 主线审计 P2-05 修复：当前用户的待审批任务。
+    /// - admin 角色：所有 pending/pending_l2 任务；
+    /// - 普通用户：自己作为审批人(approver_user_id = self) 或 申请人≠自己 且 状态在 pending/pending_l2 的任务。
+    pub async fn list_pending_for_user(
+        &self,
+        user_id: i32,
+        is_admin: bool,
+        q: ListApprovalQuery,
+    ) -> Result<ApprovalListVo, AppError> {
+        let page = q.page.unwrap_or(1).clamp(1, 1000);
+        let page_size = q.page_size.unwrap_or(20).clamp(1, 100);
+
+        let mut select = Entity::find().filter(
+            Column::Status
+                .is_in([
+                    ApprovalStatus::Pending.as_str(),
+                    ApprovalStatus::PendingL2.as_str(),
+                ]),
+        );
+
+        if !is_admin {
+            // (approver_user_id = self) OR (applicant_user_id != self)
+            use sea_orm::sea_query::Expr;
+            select = select.filter(
+                Condition::any()
+                    .add(Column::ApproverUserId.eq(user_id))
+                    .add(Expr::cust(&format!(
+                        "applicant_user_id <> {}",
+                        user_id
+                    ))),
+            );
+        }
+
+        let total = select.clone().count(&*self.db).await?;
+        let paginator = select
+            .order_by_desc(Column::CreatedAt)
+            .paginate(&*self.db, page_size);
+        let items = paginator.fetch_page(page.saturating_sub(1)).await?;
+
+        Ok(ApprovalListVo {
+            items,
+            total,
+            page,
+            page_size,
+        })
+    }
+
     /// 清理过期 token（定时任务调用）（将已过期但仍为 approved 状态的请求标记为 expired）
     pub async fn cleanup_expired_tokens(&self) -> Result<u64, AppError> {
         let now = Utc::now();
@@ -493,6 +566,7 @@ mod tests {
     #[test]
     fn test_approval_status_as_str() {
         assert_eq!(ApprovalStatus::Pending.as_str(), "pending");
+        assert_eq!(ApprovalStatus::PendingL2.as_str(), "pending_l2");
         assert_eq!(ApprovalStatus::Approved.as_str(), "approved");
         assert_eq!(ApprovalStatus::Rejected.as_str(), "rejected");
         assert_eq!(ApprovalStatus::Expired.as_str(), "expired");
@@ -505,6 +579,10 @@ mod tests {
         assert_eq!(
             ApprovalStatus::parse_status("pending"),
             Some(ApprovalStatus::Pending)
+        );
+        assert_eq!(
+            ApprovalStatus::parse_status("pending_l2"),
+            Some(ApprovalStatus::PendingL2)
         );
         assert_eq!(
             ApprovalStatus::parse_status("approved"),
@@ -522,4 +600,34 @@ mod tests {
         assert!(!sensitive_resources::is_sensitive("product"));
         assert!(!sensitive_resources::is_sensitive("inventory"));
     }
+}
+
+/// V15 主线审计 Critical 修复辅助：读取/写入 current_approval_step，复用现有 context JSON 字段。
+/// 1 表示刚创建（一级未审批），2 表示一级已通过、二级待审批。
+fn read_current_approval_step(model: &Model) -> i32 {
+    let Some(ctx) = model.context.as_ref() else {
+        return 1;
+    };
+    ctx.0
+        .get("current_approval_step")
+        .and_then(|v| v.as_i64())
+        .map(|v| v as i32)
+        .unwrap_or(1)
+}
+
+fn write_current_approval_step(
+    existing: Option<&ApprovalContext>,
+    step: i32,
+) -> ApprovalContext {
+    let mut value = match existing {
+        Some(ctx) => ctx.0.clone(),
+        None => serde_json::Value::Object(serde_json::Map::new()),
+    };
+    if !value.is_object() {
+        value = serde_json::Value::Object(serde_json::Map::new());
+    }
+    if let Some(obj) = value.as_object_mut() {
+        obj.insert("current_approval_step".to_string(), serde_json::json!(step));
+    }
+    ApprovalContext(value)
 }

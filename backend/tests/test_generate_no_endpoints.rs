@@ -1,12 +1,14 @@
 //! P1-1 generate-no 4 端点补齐
 //!
 //! 单元测试覆盖 4 个 generate-no 端点的单据号格式契约：
-//! 1. inventoryCount（库存盘点）— 前缀 `IC`
-//! 2. purchaseReceipt（采购收货）— 前缀 `RK`
-//! 3. inventoryAdjustment（库存调整）— 前缀 `IA`
-//! 4. inventoryTransfer（库存调拨）— 前缀 `IT`
+//! 1. purchaseReceipt（采购收货）— 前缀 `RK`
+//! 2. inventoryAdjustment（库存调整）— 前缀 `IA`
+//! 3. inventoryTransfer（库存调拨）— 前缀 `IT`
 //!
-//! 单据号格式：`{前缀}{yyyyMMdd}{4 位流水}`，例如 `IC202605140001`。
+//! V15 主线审计 P2 修复：删除"库存盘点 generate-no 端点"陈旧描述；
+//! 盘点路由无独立 generate-no 端点（单号随 create 一起返回），不再纳入本测试清单。
+//!
+//! 单据号格式：`{前缀}{yyyyMMdd}{4 位流水}`，例如 `RK202605140001`。
 //!
 //! 这些测试**仅校验纯字符串格式化逻辑**，不依赖数据库：
 //! - 端点的 `generate_no` 在 Handler 中仅作为薄包装调用
@@ -18,25 +20,8 @@
 
 use regex::Regex;
 
-/// 验证库存盘点 generate-no 端点返回的单据号格式
-///
-/// 期望：`IC{yyyyMMdd}{4 位流水}`
-#[test]
-fn test_inventory_count_no_format() {
-    // 模拟后端拼接结果
-    let prefix = "IC";
-    let today = "20260514";
-    let serial = 1_usize;
-    let doc_no = format!("{}{}{:0width$}", prefix, today, serial, width = 4);
-
-    let re = Regex::new(r"^IC\d{8}\d{4}$").expect("正则必须编译通过");
-    assert!(
-        re.is_match(&doc_no),
-        "库存盘点单号格式错误：{}，期望 IC{{yyyyMMdd}}{{4 位流水}}",
-        doc_no
-    );
-    assert_eq!(doc_no, "IC202605140001");
-}
+/// V15 主线审计 P2 修复：原 inventory count generate-no 端点测试已移除（盘点无独立 generate-no 端点）。
+/// 仅保留按业务前缀/日期/流水拼接的契约测试（RK/IA/IT 三类）。
 
 /// 验证采购入库 generate-no 端点返回的单据号格式
 ///

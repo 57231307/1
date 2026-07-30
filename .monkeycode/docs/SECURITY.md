@@ -180,6 +180,6 @@ pub struct CorsConfig {
 
 ## 十、安全报告
 
-如发现安全漏洞，请联系：[TODO: 添加内部邮箱]
+如发现安全漏洞，请联系：[security@57231307.com](mailto:security@57231307.com)
 
 请勿在公开 Issue 中披露，请遵循负责任的披露原则。

@@ -80,4 +80,20 @@ impl EventIdempotencyService {
         txn.commit().await?;
         Ok(result)
     }
+
+    /// V15 主线审计 P0 修复：业务失败后清除幂等记录，使事件可重放。
+    /// 调用方应在业务事务已回滚后再调用本方法。
+    pub async fn unmark_processed(
+        &self,
+        consumer_id: &str,
+        event_key: &str,
+    ) -> Result<bool, AppError> {
+        use sea_orm::QueryFilter as _;
+        let result = processed_event::Entity::delete_many()
+            .filter(processed_event::Column::ConsumerId.eq(consumer_id))
+            .filter(processed_event::Column::EventKey.eq(event_key))
+            .exec(&*self.db)
+            .await?;
+        Ok(result.rows_affected > 0)
+    }
 }

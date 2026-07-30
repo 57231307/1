@@ -14,8 +14,10 @@ pub struct ApprovalContext(pub serde_json::Value);
 /// 审批状态枚举（与数据库 status 字段对应）：V15 P0-S14 敏感数据导出二级审批机制
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ApprovalStatus {
-    /// 待审批
+    /// 待审批（一级待审批）
     Pending,
+    /// V15 主线审计 Critical 修复：二级待审批（一级已通过，等待二级审批人介入）
+    PendingL2,
     /// 已审批通过
     Approved,
     /// 已拒绝
@@ -31,6 +33,7 @@ impl ApprovalStatus {
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Pending => "pending",
+            Self::PendingL2 => "pending_l2",
             Self::Approved => "approved",
             Self::Rejected => "rejected",
             Self::Expired => "expired",
@@ -42,6 +45,7 @@ impl ApprovalStatus {
     pub fn parse_status(s: &str) -> Option<Self> {
         match s {
             "pending" => Some(Self::Pending),
+            "pending_l2" => Some(Self::PendingL2),
             "approved" => Some(Self::Approved),
             "rejected" => Some(Self::Rejected),
             "expired" => Some(Self::Expired),

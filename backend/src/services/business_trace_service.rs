@@ -4,7 +4,7 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, Order, QueryFilter, Qu
 use serde_json::json;
 use std::sync::Arc;
 
-use crate::models::{business_trace_chain, business_trace_snapshot};
+use crate::models::{business_trace_assist_link, business_trace_chain, business_trace_snapshot};
 use crate::utils::error::AppError;
 
 /// 业务追溯服务
@@ -209,6 +209,213 @@ impl BusinessTraceService {
             customer_name: Set(customer_name),
             trace_path: Set(trace_path),
             snapshot_time: Set(Utc::now()),
+        }
+    }
+
+    // ============================================================
+    // V15 P2-06 业务追溯生产者（producer）
+    //
+    // 背景：业务追溯三张表（chain/snapshot/assist_links）此前只有读侧 producer，
+    //      任何上游业务（采购收货、库存出入库、生产、委外、销售发货）直接 INSERT
+    //      都可能绕过 V15 新增的 UNIQUE / CHECK / 触发器约束，触发 500。
+    //
+    // 本节提供"符合约束语义"的高层写入助手：
+    //   * upsert_chain_node：处理 head/tail 唯一、自环检测、shape 校验。
+    //   * link_assist：      通过 chain_id 找到 head.id 再插 link，避开直接持有 id。
+    //   * upsert_snapshot：  依赖 V15 触发器做"存在 head + 字段自洽"校验，
+    //                       重复 trace_chain_id 时改为 UPDATE（与"每 chain 一份最新"语义一致）。
+    //
+    // 上游业务只需调用这三个方法即可享受约束保护，无需了解 PG 层细节。
+    // ============================================================
+
+    /// 插入或更新一个 chain 节点（同 trace_chain_id 内部按 (current_stage, current_bill_no) 幂等）
+    ///
+    /// * 若同一 (trace_chain_id, current_stage, current_bill_no) 已存在，则原地更新数量/仓库/供应商/客户。
+    /// * is_head = true 时，把同 trace_chain_id 其它 head 的 previous_trace_id 置为新节点 id，
+    ///   从而保证 partial unique (trace_chain_id) WHERE previous_trace_id IS NULL 不冲突。
+    /// * is_tail = true 时同理。
+    ///
+    /// 调用方必须把 new_node 的必填字段（trace_chain_id/current_stage/current_bill_no/...）置为 Set，
+    /// 否则内部 try_as_ref() 返回 None 时直接 AppError::validation。
+    pub async fn upsert_chain_node(
+        &self,
+        new_node: business_trace_chain::ActiveModel,
+        is_head: bool,
+        is_tail: bool,
+    ) -> Result<business_trace_chain::Model, AppError> {
+        use sea_orm::ActiveValue;
+
+        // 必填字段先取出（不能 Set 为 NotSet）
+        let trace_chain_id = match new_node.trace_chain_id.try_as_ref() {
+            Some(v) => v.clone(),
+            None => {
+                return Err(AppError::validation("chain 缺少 trace_chain_id"));
+            }
+        };
+        let current_stage = match new_node.current_stage.try_as_ref() {
+            Some(v) => v.clone(),
+            None => {
+                return Err(AppError::validation("chain 缺少 current_stage"));
+            }
+        };
+        let current_bill_no = match new_node.current_bill_no.try_as_ref() {
+            Some(v) => v.clone(),
+            None => {
+                return Err(AppError::validation("chain 缺少 current_bill_no"));
+            }
+        };
+
+        // 反向预检：自环 (由 CHECK 触发，但前置报 AppError 更友好)
+        if let (Some(prev), Some(next)) = (
+            new_node.previous_trace_id.try_as_ref(),
+            new_node.next_trace_id.try_as_ref(),
+        ) {
+            if prev == next {
+                return Err(AppError::validation(
+                    "chain 节点禁止 previous_trace_id == next_trace_id 自环",
+                ));
+            }
+        }
+
+        // 量化字段非负（CHECK 也会兜底）
+        if let (Some(qm), Some(qk)) = (
+            new_node.quantity_meters.try_as_ref(),
+            new_node.quantity_kg.try_as_ref(),
+        ) {
+            if *qm < rust_decimal::Decimal::ZERO || *qk < rust_decimal::Decimal::ZERO {
+                return Err(AppError::validation("chain 数量字段禁止负值"));
+            }
+        }
+
+        // 若 (trace_chain_id, current_stage, current_bill_no) 已存在则更新
+        let existing = business_trace_chain::Entity::find()
+            .filter(business_trace_chain::Column::TraceChainId.eq(trace_chain_id.clone()))
+            .filter(business_trace_chain::Column::CurrentStage.eq(current_stage.clone()))
+            .filter(business_trace_chain::Column::CurrentBillNo.eq(current_bill_no.clone()))
+            .one(&*self.db)
+            .await?;
+
+        let saved = if let Some(prev_model) = existing {
+            let mut upd: business_trace_chain::ActiveModel = prev_model.clone().into();
+            if let ActiveValue::Set(q) = new_node.quantity_meters {
+                upd.quantity_meters = ActiveValue::Set(q);
+            }
+            if let ActiveValue::Set(q) = new_node.quantity_kg {
+                upd.quantity_kg = ActiveValue::Set(q);
+            }
+            if let ActiveValue::Set(w) = new_node.warehouse_id {
+                upd.warehouse_id = ActiveValue::Set(w);
+            }
+            if let ActiveValue::Set(s) = new_node.supplier_id {
+                upd.supplier_id = ActiveValue::Set(s);
+            }
+            if let ActiveValue::Set(c) = new_node.customer_id {
+                upd.customer_id = ActiveValue::Set(c);
+            }
+            if let ActiveValue::Set(p) = new_node.previous_trace_id {
+                upd.previous_trace_id = ActiveValue::Set(p);
+            }
+            if let ActiveValue::Set(n) = new_node.next_trace_id {
+                upd.next_trace_id = ActiveValue::Set(n);
+            }
+            if let ActiveValue::Set(s) = new_node.trace_status {
+                upd.trace_status = ActiveValue::Set(s);
+            }
+            upd.update(&*self.db).await.map_err(AppError::from)?
+        } else {
+            new_node.insert(&*self.db).await.map_err(AppError::from)?
+        };
+
+        // 头/尾晋升：清除同 trace_chain_id 旧 head/tail 的 (previous|next)_trace_id
+        if is_head {
+            let _ = business_trace_chain::Entity::update_many()
+                .col_expr(
+                    business_trace_chain::Column::PreviousTraceId,
+                    sea_orm::sea_query::Expr::value(Option::<i32>::None),
+                )
+                .filter(business_trace_chain::Column::TraceChainId.eq(trace_chain_id.clone()))
+                .filter(business_trace_chain::Column::Id.ne(saved.id))
+                .filter(business_trace_chain::Column::PreviousTraceId.is_null())
+                .exec(&*self.db)
+                .await?;
+        }
+        if is_tail {
+            let _ = business_trace_chain::Entity::update_many()
+                .col_expr(
+                    business_trace_chain::Column::NextTraceId,
+                    sea_orm::sea_query::Expr::value(Option::<i32>::None),
+                )
+                .filter(business_trace_chain::Column::TraceChainId.eq(trace_chain_id.clone()))
+                .filter(business_trace_chain::Column::Id.ne(saved.id))
+                .filter(business_trace_chain::Column::NextTraceId.is_null())
+                .exec(&*self.db)
+                .await?;
+        }
+
+        Ok(saved)
+    }
+
+    /// 关联一条辅助核算记录到 chain head（trace_id 由 trace_chain_id 解析）
+    pub async fn link_assist(
+        &self,
+        trace_chain_id: &str,
+        mut assist: business_trace_assist_link::ActiveModel,
+    ) -> Result<business_trace_assist_link::Model, AppError> {
+        let head = business_trace_chain::Entity::find()
+            .filter(business_trace_chain::Column::TraceChainId.eq(trace_chain_id.to_string()))
+            .filter(business_trace_chain::Column::PreviousTraceId.is_null())
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found("追溯链 head 节点不存在"))?;
+
+        assist.id = Default::default();
+        assist.trace_id = Set(head.id);
+        assist
+            .insert(&*self.db)
+            .await
+            .map_err(AppError::from)
+    }
+
+    /// 写入一份 chain 最新快照（重复 trace_chain_id 时原地刷新）
+    ///
+    /// 依赖 V15 触发器做"存在 head + 字段自洽"校验；本方法对"同一 chain 多次调用"
+    /// 自动改写为 UPDATE（每 chain 仅保留一份当前快照）。
+    pub async fn upsert_snapshot(
+        &self,
+        trace_chain_id: &str,
+        first: &business_trace_chain::Model,
+        last: &business_trace_chain::Model,
+        supplier_name: Option<String>,
+        customer_name: Option<String>,
+    ) -> Result<business_trace_snapshot::Model, AppError> {
+        let trace_path = Self::build_trace_path(&[first.clone(), last.clone()]);
+
+        let existing = business_trace_snapshot::Entity::find()
+            .filter(business_trace_snapshot::Column::TraceChainId.eq(trace_chain_id.to_string()))
+            .one(&*self.db)
+            .await?;
+
+        if let Some(prev) = existing {
+            let mut upd: business_trace_snapshot::ActiveModel = prev.into();
+            upd.current_stage = Set(last.current_stage.clone());
+            upd.warehouse_id = Set(last.warehouse_id);
+            upd.current_quantity_meters = Set(last.quantity_meters);
+            upd.current_quantity_kg = Set(last.quantity_kg);
+            upd.supplier_name = Set(supplier_name);
+            upd.customer_name = Set(customer_name);
+            upd.trace_path = Set(trace_path);
+            upd.snapshot_time = Set(Utc::now());
+            upd.update(&*self.db).await.map_err(AppError::from)
+        } else {
+            let active = Self::build_snapshot_active_model(
+                trace_chain_id,
+                first,
+                last,
+                supplier_name,
+                customer_name,
+                trace_path,
+            );
+            active.insert(&*self.db).await.map_err(AppError::from)
         }
     }
 }
