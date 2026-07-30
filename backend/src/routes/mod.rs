@@ -72,6 +72,22 @@ pub mod collection_task;
 pub mod finance_alert;
 // P0-D17（Batch 488）：OA 公告路由
 pub mod oa_announcement;
+// P1 预留服务路由接入（消除 dead_code 警告）
+pub mod ai_model;
+pub mod contract_signature;
+pub mod customer_team_share;
+// P1 预留服务路由接入（批次 2-5，消除 dead_code 警告）
+pub mod environmental_tax;
+pub mod export_refund;
+pub mod incoterms;
+pub mod labor_contract;
+pub mod logistics_tracking;
+pub mod occupational_health;
+pub mod permission_delegation;
+pub mod pollution_monitoring;
+pub mod pollution_permit;
+pub mod role_relation;
+pub mod social_insurance;
 #[path = "static.rs"]
 pub mod static_routes;
 pub mod search_api;
@@ -366,6 +382,22 @@ pub fn create_router(state: AppState) -> Router<()> {
         .nest("/api/v1/erp/finance-alerts", finance_alert::routes())
         // P0-D17（Batch 488）：OA 公告路由
         .nest("/api/v1/erp/oa-announcements", oa_announcement::routes())
+        // P1 预留服务路由接入（消除 dead_code 警告）
+        .nest("/api/v1/erp/ai-models", ai_model::routes())
+        .nest("/api/v1/erp/contract-signatures", contract_signature::routes())
+        .nest("/api/v1/erp", customer_team_share::routes())
+        // P1 预留服务路由接入（批次 2-5，消除 dead_code 警告）
+        .nest("/api/v1/erp", environmental_tax::routes())
+        .nest("/api/v1/erp", export_refund::routes())
+        .nest("/api/v1/erp", incoterms::routes())
+        .nest("/api/v1/erp", labor_contract::routes())
+        .nest("/api/v1/erp", logistics_tracking::routes())
+        .nest("/api/v1/erp", occupational_health::routes())
+        .nest("/api/v1/erp", permission_delegation::routes())
+        .nest("/api/v1/erp", pollution_monitoring::routes())
+        .nest("/api/v1/erp", pollution_permit::routes())
+        .nest("/api/v1/erp", role_relation::routes())
+        .nest("/api/v1/erp", social_insurance::routes())
         .nest("/api/v1/erp/purchase", purchase::routes())
         .nest("/api/v1/erp/finance", finance::routes(state.clone()))
         .nest("/api/v1/erp", finance::sub_routes())

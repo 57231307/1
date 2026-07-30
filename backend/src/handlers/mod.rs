@@ -143,6 +143,10 @@ pub mod bpm_definition_handler;
 // CRM增强模块
 pub mod crm_assignment_handler;
 pub mod crm_customer_handler;
+// P1 预留服务路由接入（消除 dead_code 警告）
+pub mod ai_model_management_handler;
+pub mod contract_signature_handler;
+pub mod customer_team_share_handler;
 pub mod crm_pool_handler;
 // V15 P0-S08 修复：客户转移审批 handler
 pub mod customer_transfer_approval_handler;
@@ -185,3 +189,15 @@ pub mod finance_alert_handler;
 pub mod oa_announcement_handler;
 // V15 P1 batch-16 缺陷 7.3：用户隐私同意 handler（opt-in/opt-out/查询）
 pub mod privacy_consent_handler;
+// P1 预留服务路由接入（批次 2-5，消除 dead_code 警告）
+pub mod environmental_tax_handler;
+pub mod export_refund_handler;
+pub mod incoterms_handler;
+pub mod labor_contract_handler;
+pub mod logistics_tracking_handler;
+pub mod occupational_health_handler;
+pub mod permission_delegation_handler;
+pub mod pollution_monitoring_handler;
+pub mod pollution_permit_handler;
+pub mod role_relation_handler;
+pub mod social_insurance_handler;

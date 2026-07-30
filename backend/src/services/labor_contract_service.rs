@@ -67,7 +67,7 @@ pub struct LaborContractQuery {
 }
 
 /// 合同到期预警级别
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub enum ContractExpiryLevel {
     Normal,
     Warning90Days,
@@ -93,7 +93,7 @@ impl ContractExpiryLevel {
 }
 
 /// 合同到期预警结果
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct ContractExpiryWarning {
     pub contract: ContractModel,
     pub level: ContractExpiryLevel,
