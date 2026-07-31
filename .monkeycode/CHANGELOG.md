@@ -6,6 +6,17 @@
 
 ---
 
+## 文档治理：规则 17 + 规则 10 同步修正（2026-07-31）
+
+| 项 | 一句话总结 |
+|----|-----------|
+| 多余分支排查 | 经 `git fetch --prune --all` + `git branch -a` + `git tag -l` + `git worktree list` + `git stash list` 全量核实：仓库仅 `main`（本地）+ `origin/main`（远程）+ 1 tag `v2026.731.1041`，无多余分支/stash/worktree；所有 PR 修复分支已按规则合并后删除 |
+| audit_assignment.md §3.3 状态对齐（规则 17） | [audit_assignment.md §3.3](file:///workspace/.monkeycode/audit_assignment.md) 6 项中 5 项由"⏳ 待启动"修正为"✅ 已完成"（委外主链路 PR #788 + 委外 record_receipt 事务化 + 盘点契约 PR #790 + 业务追溯 producer PR #793 + API 网关 rate_limit PR #790），仅覆盖率阈值回调未修复；§1.3 进度表"🔄 进行中"→"🔄 5/6 完成" |
+| doto.md §0.0.1 归档（规则 10） | [doto.md §0.0.1](file:///workspace/.monkeycode/doto.md) 已完成 3 项（PR #790 #793）归档到 [doto-su.md](file:///workspace/.monkeycode/doto-su.md) 新增 §🔧 PR #790 + §🔧 PR #793 两节，仅保留 #1 覆盖率阈值回调未完成项；§〇₀ 头部 2 批 → 4 批 |
+| 任务重新规划 | 基于 MEMORY.md 规则建立 7 项 todo：P0 文档治理 3 项（✅ 本批次完成）+ P1 代码修复 2 项（覆盖率阈值回调 + 打印缺陷 10-4）+ P2 248 项待启动 + P3 123 项待启动 |
+
+---
+
 ## V15 主线八维 P1 后续修复批次（2026-07-31，2 PR 已合并 main）
 
 | PR | 缺陷 | 一句话总结 |

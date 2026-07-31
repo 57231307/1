@@ -5,27 +5,30 @@
 
 ---
 
-## 〇₀、V15 主线八维审计快速修复（2026-07-30 启动）
+## 〇〇、V15 主线八维审计快速修复（2026-07-30 启动）
 
 | 状态 | 数量 | 批次 |
 |------|------|------|
-| ✅ 已合并 main | 2 批 | audit-batch-2026-07-30（PR #786，11 项 P0 + 3 项 P2）、fix/p1-outsource-receipt-unify-2026-07-30（PR #788，委外收货主链路） |
+| ✅ 已合并 main | 4 批 | audit-batch-2026-07-30（PR #786，11 项 P0 + 3 项 P2）、fix/p1-outsource-receipt-unify-2026-07-30（PR #788，委外收货主链路）、PR #790（盘点契约对齐 + API 网关 rate_limit 校验）、PR #793（业务追溯 producer 接入） |
 | ⏳ 待推送 | 0 批 | — |
 
-> **完成明细已归档**（规则 10）：[doto-su.md §📦 V15 主线八维审计与快速修复](file:///workspace/.monkeycode/doto-su.md)（11 项 P0 + 3 项 P2 ✅ 完整修复）+ [doto-su.md §🧵 P1 委外收货主链路统一](file:///workspace/.monkeycode/doto-su.md)（PR #788 ✅）。本节仅保留未完成/部分修复项。
+> **完成明细已归档**（规则 10）：[doto-su.md §📦 V15 主线八维审计与快速修复](file:///workspace/.monkeycode/doto-su.md)（11 项 P0 + 3 项 P2 ✅ 完整修复）+ [doto-su.md §🧵 P1 委外收货主链路统一](file:///workspace/.monkeycode/doto-su.md)（PR #788 ✅）+ [doto-su.md §🔧 PR #790](file:///workspace/.monkeycode/doto-su.md)（盘点契约 + rate_limit ✅）+ [doto-su.md §🔧 PR #793](file:///workspace/.monkeycode/doto-su.md)（业务追溯 producer ✅）。本节仅保留未完成项。
 
-### 0.0.1 主线八维 P1 后续未完成项（2026-07-30 代码级核实）
+### 0.0.1 主线八维 P1 后续未完成项（2026-07-31 规则 10 归档修正）
 
-> ⚠️ 修正乐观偏差：此前 doto.md 暗示"仅 CI 收尾待推送"，实际经代码级核实为「2 项部分修复 / 2 项未修复」，1 项已完成（委外 record_receipt 事务化，归档 [doto-su.md §🧵](file:///workspace/.monkeycode/doto-su.md)）。
+> **归档说明**：原 6 项中 5 项已完成，归档到 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)：
+> - 委外收货主链路统一（PR #788）→ [doto-su.md §🧵](file:///workspace/.monkeycode/doto-su.md)
+> - 委外 record_receipt 4 子方法事务化 → [doto-su.md §🧵](file:///workspace/.monkeycode/doto-su.md)
+> - 盘点契约 P0-1 前端契约对齐 + API 网关 rate_limit 校验（PR #790）→ [doto-su.md §🔧 PR #790](file:///workspace/.monkeycode/doto-su.md)
+> - 业务追溯 producer 完整接入（PR #793）→ [doto-su.md §🔧 PR #793](file:///workspace/.monkeycode/doto-su.md)
+>
+> 本节仅保留唯一未完成项（规则 10：doto.md 只记录未完成任务）。
 
 | # | 项 | 文件 | 真实状态 | 代码证据 |
 |---|-----|------|----------|----------|
-| 1 | 盘点契约 P0-1（含前端契约对齐） | [inventory-count.ts](file:///workspace/frontend/src/api/inventory-count.ts) + CountListTab + CountFormDialogTab | ✅ **已修复**（PR #790 合并 main 85aec7de） | main 已含 recordCountItems/submitInventoryCount/rejectInventoryCount 3 端点 + CountListTab handleSubmit；completeInventoryCount 已删除 |
-| 2 | 业务追溯 producer 完整接入 | [business_trace_service.rs](file:///workspace/backend/src/services/business_trace_service.rs) | ✅ **已修复**（PR #793 合并 main 8fa619e5） | 3 个 producer 已实现并接入上游业务：record_purchase_receipt 接入采购收货创建后、record_sales_delivery 接入销售发货后；`#[allow(dead_code)]` 已全部移除；best-effort 集成不阻塞主流程 |
-| 3 | API 网关 PATCH rate_limit 范围校验 | [api_gateway_handler.rs](file:///workspace/backend/src/handlers/api_gateway_handler.rs) | ✅ **已修复**（PR #790 合并 main 85aec7de） | main 已含 validate_rate_limit 辅助函数（范围 0-10000）+ 4 处写入端点接入校验 |
-| 4 | 覆盖率阈值回调 | [vitest.config.ts](file:///workspace/frontend/vitest.config.ts) | ❌ **未修复** | L31-39 thresholds 4 项（lines/functions/branches/statements）均为 1，非 70；注释明确"临时下调至 1%"、"待测试补齐后逐步提升回 70%"；实际覆盖率 1.67% |
+| 1 | 覆盖率阈值回调 | [vitest.config.ts](file:///workspace/frontend/vitest.config.ts) | ❌ **未修复** | L31-39 thresholds 4 项（lines/functions/branches/statements）均为 1，非 70；注释明确"临时下调至 1%"、"待测试补齐后逐步提升回 70%"；实际覆盖率 1.67% |
 
-**真实进度**：4/5 已完成（#1 #3 PR #790 + 委外 record_receipt PR #788 + #2 PR #793）/ 1/5 未修复（#4，需先补齐测试再回调阈值，非独立快速修复项）
+**真实进度**：5/6 已完成（归档 doto-su.md）/ 1/6 未修复（#1 覆盖率阈值回调，需先补齐前端测试再回调阈值，非独立快速修复项）
 
 ### 0.0.2 打印功能未完成项（2026-07-30 核实，整体完成度约 60%）
 
