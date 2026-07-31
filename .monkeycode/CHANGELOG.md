@@ -17,6 +17,14 @@
 
 ---
 
+## V15 缺陷 10-4 审计日志导出二次审计机制（2026-07-31，PR #795 已合并 main）
+
+| PR | 缺陷 | 一句话总结 |
+|----|------|-----------|
+| #795 | P0 缺陷 10-4 审计日志导出二次审计机制缺失 | 新建 `audit_log_export_log` 防篡改表（migration m0088）+ BEFORE UPDATE/DELETE 触发器禁止篡改 + 导出文件 SHA256 指纹留存 + `/audit-logs/export-logs` 查询端点（仅 admin/auditor）+ 4 项单元测试；满足 SOC2/ISO27001/《数据安全法》第 32 条；CI 12 SUCCESS + 3 SKIPPED 全绿，合并 main 7b18573 |
+
+---
+
 ## V15 主线八维 P1 后续修复批次（2026-07-31，2 PR 已合并 main）
 
 | PR | 缺陷 | 一句话总结 |

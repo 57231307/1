@@ -192,6 +192,70 @@ V15 25 大类 195 维度审计报告生成后，对 main 主线做"最严格"二
 
 ---
 
+## 🔧 P0 缺陷 10-4：审计日志导出二次审计机制（2026-07-31，PR #795）
+
+### 任务概述
+
+V15 审计报告 batch-11 缺陷 10-4：审计日志导出操作仅记录到 `audit_logs` 表自身，审计员（admin）可查/改自身导出记录，无法满足"审计员不能篡改自身记录"的合规要求（SOC2 / ISO27001 / 中国《数据安全法》第 32 条）。本批次新建独立防篡改表 `audit_log_export_log`，通过数据库触发器禁止 UPDATE / DELETE（仅允许 INSERT），实现导出操作的二次审计。PR #795 已合并 main 7b18573。
+
+### 步骤 0 复审（规则 13）
+
+核实审计报告缺陷 10-4 描述的 4 项证据在当前代码库是否仍存在：
+
+| 审计证据 | 修复前 | 修复后 | 状态 |
+|---------|--------|--------|------|
+| 证据1: V15 计划要求独立表 `audit_log_export_log` | 不存在 | ✅ migration m0088 + model 创建 | 已修复 |
+| 证据2: Grep `audit_log_export_log` 0 命中 | 0 命中 | ✅ 8 文件命中 | 已修复 |
+| 证据3: 导出仅记录到 `audit_logs` 自身 | 仅写 audit_logs | ✅ 已写入防篡改表 | 已修复 |
+| 证据4: 缺乏独立审计表 | 无独立表 | ✅ 已创建 | 已修复 |
+
+修复建议 4 项实现状态：
+- ✅ #1 新增 migration 创建 `audit_log_export_log` 表
+- ✅ #2 在 `export_audit_logs` 中额外写入 `audit_log_export_log`
+- ✅ #3 计算导出文件 SHA256 哈希存档
+- ❌ #4 强制 CEO/admin 二级审批 token（事前审批机制，与防篡改事后审计是不同安全维度，作为后续 P1 任务单独跟踪）
+
+### 已完成改动
+
+1. **migration m0088**（[backend/migration/src/m0088_audit_log_export_log.rs](file:///workspace/backend/migration/src/m0088_audit_log_export_log.rs) + [up.sql](file:///workspace/backend/migrations/20260801000002_audit_log_export_log/up.sql)）
+   - 新建 `audit_log_export_log` 表：id / exporter_user_id / exporter_username / export_query_filter / export_record_count / export_file_format / export_file_hash_sha256 / export_file_size_bytes / export_ip_address / export_user_agent / export_request_id / exported_at
+   - 防篡改触发器：`fn_audit_log_export_log_immutable` + `trg_audit_log_export_log_no_update` + `trg_audit_log_export_log_no_delete`（BEFORE UPDATE / DELETE 抛 check_violation 异常）
+   - 索引：idx_audit_log_export_log_user_id + idx_audit_log_export_log_exported_at DESC
+
+2. **SeaORM model**（[backend/src/models/audit_log_export_log.rs](file:///workspace/backend/src/models/audit_log_export_log.rs)）
+   - DeriveEntityModel + Serialize/Deserialize
+   - Relation: belongs_to user::Entity（ExporterUserId → user::Id）
+
+3. **handler 修改**（[backend/src/handlers/audit_log_handler.rs](file:///workspace/backend/src/handlers/audit_log_handler.rs)）
+   - `hex_sha256(bytes: &[u8]) -> String`：计算导出文件 SHA256 指纹
+   - `header_str(headers, name) -> Option<String>`：提取 IP / User-Agent / X-Request-Id
+   - `record_audit_log_export_tamper_proof`：best-effort 写入防篡改表（失败仅 log，不阻塞导出）
+   - `export_audit_logs` 修改：构建 xlsx → 计算 SHA256 + 文件大小 → 写入防篡改表 → 返回响应
+   - `list_audit_log_export_logs`：新增查询端点（仅 admin/auditor，分页 + exporter_user_id 筛选）
+   - 4 项单元测试：test_hex_sha256_empty / test_hex_sha256_deterministic / test_header_str_extract / test_export_log_list_query_default
+
+4. **route 注册**（[backend/src/routes/system.rs](file:///workspace/backend/src/routes/system.rs)）
+   - `/audit-logs/export-logs` GET → list_audit_log_export_logs
+
+5. **model 注册**（[backend/src/models/mod.rs](file:///workspace/backend/src/models/mod.rs)）
+   - `pub mod audit_log_export_log;`
+
+### CI 验证过程（规则 13 步骤 7）
+
+- 第 1 次 CI run：🔧 Rust 格式检查 FAILURE（5 处 cargo fmt 不一致）→ 人工 Edit 修复（禁止本地 cargo fmt）
+- 第 2 次 CI run：🔍 Rust Clippy FAILURE（新增 1 个 empty_line_after_doc_comment 警告）→ 移除 model 文件 `//!` 后空行
+- 第 3 次 CI run：✅ 12 SUCCESS + 3 SKIPPED + 0 FAILURE，squash merge 合并 main 7b18573
+
+### 合并信息
+
+- PR: #795
+- 合并方式：squash merge (--admin，main 分支保护)
+- 合并 commit: 7b18573
+- 文件变更：12 文件 +471 -25
+- 修复分支已删除
+
+---
+
 ## 📌 关键项目内容快照（2026-07-30 更新）
 
 > 本节为项目当前状态快照（任务进度/技术决策/PR/架构信息），按 PR 规则 10 文件分工存放在此，不放在 MEMORY.md。
