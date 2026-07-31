@@ -189,6 +189,14 @@ pub mod m0086_add_inspection_id_to_outsourcing_receipt;
 pub mod m0087_batch19_custom_order_aftersales_logistics_incoterms;
 // V15 缺陷 10-4：审计日志导出二次审计表（防篡改，独立于 audit_logs）
 pub mod m0088_audit_log_export_log;
+// V15 P2 B05-P2-2：dye_batch_rework 表新增 rework_cost 字段（配合 re_dye/replenish_dye 枚举扩展）
+pub mod m0089_add_rework_cost_to_dye_batch_rework;
+// V15 P2 B05-P2-6：染缸设备占用/释放记录表（缸号进入 dyeing 占用 / 离开 dyeing 释放）
+pub mod m0090_create_dye_vat_occupation;
+// V15 P2 B05-P2-7：PDA / 工控终端连接资源管理表（注册 / 心跳 / 下线 / 超时清理）
+pub mod m0091_create_device_connection;
+// V15 P2 B05-P2-10：期末调整记录表（暂估 / 摊销 / 预提）
+pub mod m0092_create_period_adjustment_record;
 
 pub struct Migrator;
 
@@ -286,6 +294,10 @@ impl MigratorTrait for Migrator {
             Box::new(m0086_add_inspection_id_to_outsourcing_receipt::Migration),
             Box::new(m0087_batch19_custom_order_aftersales_logistics_incoterms::Migration),
             Box::new(m0088_audit_log_export_log::Migration),
+            Box::new(m0089_add_rework_cost_to_dye_batch_rework::Migration),
+            Box::new(m0090_create_dye_vat_occupation::Migration),
+            Box::new(m0091_create_device_connection::Migration),
+            Box::new(m0092_create_period_adjustment_record::Migration),
         ]
     }
 }

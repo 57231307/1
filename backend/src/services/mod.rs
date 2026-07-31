@@ -307,6 +307,12 @@ pub mod dye_batch_state_machine_service;
 pub mod dye_batch_state_machine_ops;
 // V15 P2 B07-P2-1 拆分：从 dye_batch_state_machine_service.rs 迁出的纯验证函数 + 单元测试
 pub mod dye_batch_state_machine_validation;
+// V15 P2 B05-P2-6：染缸设备占用/释放服务（缸号 dyeing 状态触发 occupy/release）
+pub mod dye_vat_occupation_service;
+// V15 P2 B05-P2-7：PDA/工控终端连接资源管理服务（注册/心跳/下线/超时清理）
+pub mod device_connection_service;
+// V15 P2 B05-P2-10：期末调整服务（暂估/摊销/预提，结账前批量确认）
+pub mod period_adjustment_service;
 // V15 P0-F15：大货批色审批服务（8 状态机：pending→sampled→sent_to_customer→approved/rejected/rework→downgraded/scrapped）
 pub mod bulk_color_approval_service;
 // V15 P0-F20 Batch 480：8D 质量管理流程服务（11 状态机：not_started→d0_plan→d1_team→...→d8_recognize→closed）

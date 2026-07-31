@@ -392,3 +392,11 @@ pub mod social_insurance_record;
 pub mod occupational_hazard_monitoring;
 pub mod occupational_health_exam;
 pub mod ppe_distribution_record;
+// V15 P2 B05-P2-6：染缸设备占用/释放记录 Model（dye_vat_occupation 表）
+pub mod dye_vat_occupation;
+// V15 P2 B05-P2-7：PDA/工控终端连接资源管理 Model（device_connection 表）
+pub mod device_connection;
+// V15 P2 B05-P2-7：设备连接管理 DTO
+pub mod device_connection_dto;
+// V15 P2 B05-P2-10：期末调整记录 Model（period_adjustment_record 表，暂估/摊销/预提）
+pub mod period_adjustment_record;

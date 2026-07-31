@@ -88,6 +88,10 @@ pub mod pollution_monitoring;
 pub mod pollution_permit;
 pub mod role_relation;
 pub mod social_insurance;
+// V15 P2 B05-P2-7：PDA/工控终端连接资源管理路由
+pub mod device_connection;
+// V15 P2 B05-P2-10：期末调整路由（暂估/摊销/预提，6 端点）
+pub mod period_adjustment;
 #[path = "static.rs"]
 pub mod static_routes;
 pub mod search_api;
@@ -398,6 +402,10 @@ pub fn create_router(state: AppState) -> Router<()> {
         .nest("/api/v1/erp", pollution_permit::routes())
         .nest("/api/v1/erp", role_relation::routes())
         .nest("/api/v1/erp", social_insurance::routes())
+        // V15 P2 B05-P2-7：PDA/工控终端连接资源管理路由
+        .nest("/api/v1/erp/device-connections", device_connection::routes())
+        // V15 P2 B05-P2-10：期末调整路由（暂估/摊销/预提）
+        .nest("/api/v1/erp/period-adjustments", period_adjustment::routes())
         .nest("/api/v1/erp/purchase", purchase::routes())
         .nest("/api/v1/erp/finance", finance::routes(state.clone()))
         .nest("/api/v1/erp", finance::sub_routes())

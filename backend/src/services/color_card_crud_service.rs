@@ -20,6 +20,9 @@ use crate::models::color_card_create_dto::{
 };
 // 批次 211 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
+// V15 P2 B05-P2-4：色卡状态机闭环常量（draft/issued/received/used/expired/lost/archived）
+// status/mod.rs 通过 pub use wage_energy_chemical_business::* 重导出，直接用 color_card 子模块
+use crate::models::status::color_card as card_status;
 use crate::utils::sql_escape::safe_like_pattern;
 
 /// 业务错误
@@ -190,6 +193,7 @@ impl ColorCardCrudService {
 
     /// 归档色卡（soft delete，状态变为 archived）
     /// 批次 27 v7 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更；原实现完全无 txn 无 lock，并发 archive 重复归档，状态机失效。
+    /// V15 P2 B05-P2-4：接入 validate_color_card_status_transition 校验闭环流转
     pub async fn archive(
         &self,
         id: i64,
@@ -204,12 +208,10 @@ impl ColorCardCrudService {
             .one(&txn)
             .await?
             .ok_or(CrudError::NotFound)?;
-        if existing.status == "archived" {
-            return Err(CrudError::InvalidState);
-        }
+        Self::validate_color_card_status_transition(&existing.status, card_status::ARCHIVED)?;
 
         let mut active: ColorCardActive = existing.into();
-        active.status = Set("archived".to_string());
+        active.status = Set(card_status::ARCHIVED.to_string());
         active.updated_at = Set(Utc::now());
 
         // 批次 92 P3-9：user_id 从 handler AuthContext 注入
@@ -227,6 +229,7 @@ impl ColorCardCrudService {
     }
 
     /// 标记色卡为遗失（v11 批次 154b：已接入 POST /:id/mark-lost 路由）（批次 27 v7 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更）
+    /// V15 P2 B05-P2-4：接入 validate_color_card_status_transition 校验闭环流转
     pub async fn mark_lost(&self, id: i64, user_id: i32) -> Result<color_card::Model, CrudError> {
         let txn = self.db.begin().await?;
 
@@ -236,9 +239,10 @@ impl ColorCardCrudService {
             .one(&txn)
             .await?
             .ok_or(CrudError::NotFound)?;
+        Self::validate_color_card_status_transition(&existing.status, card_status::LOST)?;
 
         let mut active: ColorCardActive = existing.into();
-        active.status = Set("lost".to_string());
+        active.status = Set(card_status::LOST.to_string());
         active.updated_at = Set(Utc::now());
 
         // 批次 92 P3-9：user_id 从 handler AuthContext 注入（mark_lost 暂未接入路由，
@@ -256,6 +260,80 @@ impl ColorCardCrudService {
         Ok(result)
     }
 
+    /// V15 P2 B05-P2-4：发放色卡（draft/active → issued），记录色卡已发放给客户/销售。
+    pub async fn issue_card(&self, id: i64, user_id: i32) -> Result<color_card::Model, CrudError> {
+        Self::transition_status(self, id, card_status::ISSUED, user_id).await
+    }
+
+    /// V15 P2 B05-P2-4：收回色卡（issued → received），客户归还色卡。
+    pub async fn receive_card(
+        &self,
+        id: i64,
+        user_id: i32,
+    ) -> Result<color_card::Model, CrudError> {
+        Self::transition_status(self, id, card_status::RECEIVED, user_id).await
+    }
+
+    /// V15 P2 B05-P2-4：标记色卡已使用（received → used），色卡已用于生产/打样。
+    pub async fn use_card(&self, id: i64, user_id: i32) -> Result<color_card::Model, CrudError> {
+        Self::transition_status(self, id, card_status::USED, user_id).await
+    }
+
+    /// V15 P2 B05-P2-4：标记色卡过期（used → expired），色卡超过有效期，终态。
+    pub async fn expire_card(&self, id: i64, user_id: i32) -> Result<color_card::Model, CrudError> {
+        Self::transition_status(self, id, card_status::EXPIRED, user_id).await
+    }
+
+    /// V15 P2 B05-P2-4：通用状态流转方法（加锁查询 → 校验流转 → 更新 + 审计）。
+    async fn transition_status(
+        &self,
+        id: i64,
+        target: &str,
+        user_id: i32,
+    ) -> Result<color_card::Model, CrudError> {
+        let txn = self.db.begin().await?;
+        let existing = ColorCardEntity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or(CrudError::NotFound)?;
+        Self::validate_color_card_status_transition(&existing.status, target)?;
+
+        let mut active: ColorCardActive = existing.into();
+        active.status = Set(target.to_string());
+        active.updated_at = Set(Utc::now());
+        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active,
+            Some(user_id),
+        )
+        .await
+        .map_err(|e| CrudError::Validation(e.to_string()))?;
+        txn.commit().await?;
+        Ok(result)
+    }
+
+    /// B05-P2-4：校验色卡状态流转（draft/active→issued→received→used→expired/lost/archived 终态）。
+    fn validate_color_card_status_transition(from: &str, to: &str) -> Result<(), CrudError> {
+        // 终态不可再流转
+        if matches!(from, "expired" | "lost" | "archived") {
+            return Err(CrudError::InvalidState);
+        }
+        let allowed = match to {
+            card_status::ISSUED => matches!(from, "draft" | "active"),
+            card_status::RECEIVED => from == "issued",
+            card_status::USED => from == "received",
+            card_status::EXPIRED => from == "used",
+            card_status::LOST | card_status::ARCHIVED => true,
+            _ => false,
+        };
+        if !allowed {
+            return Err(CrudError::InvalidState);
+        }
+        Ok(())
+    }
+
     /// 校验色卡类型
     fn validate_card_type(card_type: &str) -> Result<(), CrudError> {
         match card_type {
@@ -265,5 +343,123 @@ impl ColorCardCrudService {
                 card_type
             ))),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// V15 P2 B05-P2-4：合法流转 draft → issued → received → used → expired
+    #[test]
+    fn test_valid_forward_transition_chain() {
+        assert!(ColorCardCrudService::validate_color_card_status_transition(
+            "draft",
+            card_status::ISSUED
+        )
+        .is_ok());
+        assert!(ColorCardCrudService::validate_color_card_status_transition(
+            "active",
+            card_status::ISSUED
+        )
+        .is_ok());
+        assert!(ColorCardCrudService::validate_color_card_status_transition(
+            card_status::ISSUED,
+            card_status::RECEIVED
+        )
+        .is_ok());
+        assert!(ColorCardCrudService::validate_color_card_status_transition(
+            card_status::RECEIVED,
+            card_status::USED
+        )
+        .is_ok());
+        assert!(ColorCardCrudService::validate_color_card_status_transition(
+            card_status::USED,
+            card_status::EXPIRED
+        )
+        .is_ok());
+    }
+
+    /// V15 P2 B05-P2-4：任意非终态 → lost/archived 合法
+    #[test]
+    fn test_terminal_transitions_from_any_non_terminal() {
+        for from in ["draft", "active", "issued", "received", "used"] {
+            assert!(ColorCardCrudService::validate_color_card_status_transition(
+                from,
+                card_status::LOST
+            )
+            .is_ok());
+            assert!(ColorCardCrudService::validate_color_card_status_transition(
+                from,
+                card_status::ARCHIVED
+            )
+            .is_ok());
+        }
+    }
+
+    /// V15 P2 B05-P2-4：终态不可再流转
+    #[test]
+    fn test_terminal_state_no_outgoing() {
+        for terminal in [
+            card_status::EXPIRED,
+            card_status::LOST,
+            card_status::ARCHIVED,
+        ] {
+            assert!(ColorCardCrudService::validate_color_card_status_transition(
+                terminal,
+                card_status::ISSUED
+            )
+            .is_err());
+            assert!(ColorCardCrudService::validate_color_card_status_transition(
+                terminal,
+                card_status::RECEIVED
+            )
+            .is_err());
+        }
+    }
+
+    /// V15 P2 B05-P2-4：非法跳转（如 draft → received / issued → used）
+    #[test]
+    fn test_invalid_skip_transitions() {
+        assert!(ColorCardCrudService::validate_color_card_status_transition(
+            "draft",
+            card_status::RECEIVED
+        )
+        .is_err());
+        assert!(ColorCardCrudService::validate_color_card_status_transition(
+            card_status::ISSUED,
+            card_status::USED
+        )
+        .is_err());
+        assert!(ColorCardCrudService::validate_color_card_status_transition(
+            card_status::RECEIVED,
+            card_status::EXPIRED
+        )
+        .is_err());
+        assert!(ColorCardCrudService::validate_color_card_status_transition(
+            "draft",
+            card_status::USED
+        )
+        .is_err());
+    }
+
+    /// V15 P2 B05-P2-4：非法回退（如 issued → draft / used → received）
+    #[test]
+    fn test_invalid_backward_transitions() {
+        assert!(ColorCardCrudService::validate_color_card_status_transition(
+            card_status::ISSUED,
+            "draft"
+        )
+        .is_err());
+        assert!(ColorCardCrudService::validate_color_card_status_transition(
+            card_status::USED,
+            card_status::RECEIVED
+        )
+        .is_err());
+        assert!(ColorCardCrudService::validate_color_card_status_transition(
+            card_status::RECEIVED,
+            card_status::ISSUED
+        )
+        .is_err());
     }
 }

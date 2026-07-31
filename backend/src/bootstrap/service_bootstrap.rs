@@ -7,6 +7,7 @@ use std::io::Write;
 use std::sync::Arc;
 
 use sea_orm::{ConnectionTrait, DatabaseBackend, DatabaseConnection, Statement};
+use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
 use crate::config::settings::AppSettings;
@@ -53,8 +54,20 @@ impl BootstrapShutdownHandles {
 static MAIN_BACKGROUND_TASKS: std::sync::Mutex<Vec<tokio::task::JoinHandle<()>>> =
     std::sync::Mutex::new(Vec::new());
 
-/// L-26 修复（批次 374）：关闭 main.rs 后台定时任务，幂等安全
+/// V15 P2 B05-P2-5：后台定时任务统一取消 Token。
+/// shutdown 时先 cancel() 通知循环优雅退出，再保留 abort() 兜底强杀未退出的任务。
+static MAIN_CANCELLATION_TOKEN: once_cell::sync::Lazy<CancellationToken> =
+    once_cell::sync::Lazy::new(CancellationToken::new);
+
+/// V15 P2 B05-P2-5：获取后台任务取消 Token 的引用（供 5 个 spawn 任务 clone 传入循环）。
+pub fn main_cancellation_token() -> &'static CancellationToken {
+    &MAIN_CANCELLATION_TOKEN
+}
+
+/// L-26 修复（批次 374）：关闭 main.rs 后台定时任务，幂等安全。
+/// V15 P2 B05-P2-5：先调用 token.cancel() 通知所有循环优雅退出，再 abort() 兜底。
 pub fn shutdown_main_background_tasks() {
+    MAIN_CANCELLATION_TOKEN.cancel();
     let tasks = match MAIN_BACKGROUND_TASKS.lock() {
         Ok(mut guard) => std::mem::take(&mut *guard),
         Err(e) => {
@@ -66,7 +79,10 @@ pub fn shutdown_main_background_tasks() {
     for handle in tasks {
         handle.abort();
     }
-    info!("main 后台定时任务已关闭（{} 个）", count);
+    info!(
+        "main 后台定时任务已关闭（{} 个，已发送 cancel 信号 + abort 兜底）",
+        count
+    );
 }
 
 /// 完整模式启动：数据库已连接后执行迁移、创建服务、启动后台任务、组装 AppState。
@@ -124,6 +140,8 @@ pub async fn bootstrap_full_mode(
     start_tracking_cleanup_scheduler(&app_state);
     // P1 batch-18 缺陷 7.2：库存告警通知调度器（扫描库存告警 + 推送通知）
     start_stock_alert_notification_scheduler(&app_state);
+    // V15 P2 B05-P2-7：PDA/工控终端心跳超时清理任务（默认每 60 秒扫描一次超时设备）
+    start_device_connection_cleanup_task(&app_state);
     init_event_bus(&app_state, settings).await;
     init_assist_dimensions(&app_state).await;
     init_es_indices().await;
@@ -362,9 +380,10 @@ fn start_slow_query_collector(db: &Arc<DatabaseConnection>, settings: &AppSettin
             settings.slow_query.limit_rows,
         ),
     );
-    let slow_handle = slow_collector
-        .clone()
-        .start_collect_task(settings.slow_query.interval_secs);
+    let slow_handle = slow_collector.clone().start_collect_task(
+        settings.slow_query.interval_secs,
+        MAIN_CANCELLATION_TOKEN.clone(),
+    );
     if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
         tasks.push(slow_handle);
     }
@@ -376,12 +395,20 @@ fn start_slow_query_collector(db: &Arc<DatabaseConnection>, settings: &AppSettin
 
 /// 启动 admin 角色缓存清理后台任务（每 10 分钟清理过期条目）。
 fn start_admin_cache_cleanup_task() {
+    let token = MAIN_CANCELLATION_TOKEN.clone();
     let admin_handle = tokio::spawn(async move {
         let interval = std::time::Duration::from_secs(600);
         loop {
-            tokio::time::sleep(interval).await;
-            crate::utils::admin_checker::cleanup_expired_admin_cache();
-            tracing::debug!("admin 角色缓存过期条目清理完成");
+            tokio::select! {
+                _ = tokio::time::sleep(interval) => {
+                    crate::utils::admin_checker::cleanup_expired_admin_cache();
+                    tracing::debug!("admin 角色缓存过期条目清理完成");
+                }
+                _ = token.cancelled() => {
+                    tracing::info!("admin 角色缓存清理任务收到取消信号，优雅退出");
+                    break;
+                }
+            }
         }
     });
     if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
@@ -392,11 +419,19 @@ fn start_admin_cache_cleanup_task() {
 
 /// 启动 JTI 黑名单内存降级路径清理任务（每小时清理过期 JTI）。
 fn start_jti_cleanup_task() {
+    let token = MAIN_CANCELLATION_TOKEN.clone();
     let jti_handle = tokio::spawn(async move {
         let interval = std::time::Duration::from_secs(3600);
         loop {
-            tokio::time::sleep(interval).await;
-            crate::services::auth_service::cleanup_expired_jti(0).await;
+            tokio::select! {
+                _ = tokio::time::sleep(interval) => {
+                    crate::services::auth_service::cleanup_expired_jti(0).await;
+                }
+                _ = token.cancelled() => {
+                    tracing::info!("JTI 黑名单清理任务收到取消信号，优雅退出");
+                    break;
+                }
+            }
         }
     });
     if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
@@ -410,7 +445,7 @@ fn start_crm_recycle_task(db: &Arc<DatabaseConnection>) {
     let recycle_executor = std::sync::Arc::new(
         crate::services::crm::recycle_executor::RecycleExecutor::new(db.clone()),
     );
-    let recycle_handle = recycle_executor.start_background_task();
+    let recycle_handle = recycle_executor.start_background_task(MAIN_CANCELLATION_TOKEN.clone());
     if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
         tasks.push(recycle_handle);
     }
@@ -424,7 +459,7 @@ fn start_log_cleanup_task(settings: &AppSettings) {
     let cleanup = std::sync::Arc::new(
         crate::services::log_cleanup_service::LogCleanupService::new(log_dir, retention_days),
     );
-    let handle = cleanup.start_cleanup_task();
+    let handle = cleanup.start_cleanup_task(MAIN_CANCELLATION_TOKEN.clone());
     if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
         tasks.push(handle);
     }
@@ -655,6 +690,67 @@ fn start_stock_alert_notification_scheduler(app_state: &AppState) {
         tasks.push(handle);
     }
     info!("库存告警通知调度器已启动（默认每 6 小时扫描全量库存并推送告警通知）");
+}
+
+/// B05-P2-7：启动设备连接心跳超时清理任务（默认 60s 扫描，超时标记 timeout）。
+// 环境变量门控：DEVICE_CONNECTION_CLEANUP_ENABLED(默认true) / DEVICE_HEARTBEAT_TIMEOUT_SECS(默认300) / DEVICE_CONNECTION_CLEANUP_INTERVAL_SECS(默认60)
+fn start_device_connection_cleanup_task(app_state: &AppState) {
+    let db = app_state.db.clone();
+    let token = MAIN_CANCELLATION_TOKEN.clone();
+    let handle = tokio::spawn(async move {
+        let enabled = std::env::var("DEVICE_CONNECTION_CLEANUP_ENABLED")
+            .map(|v| matches!(v.to_lowercase().as_str(), "true" | "1" | "yes" | "on"))
+            .unwrap_or(true);
+        if !enabled {
+            info!("设备连接超时清理：环境变量 DEVICE_CONNECTION_CLEANUP_ENABLED=false，跳过启动");
+            return;
+        }
+        let timeout_secs = std::env::var("DEVICE_HEARTBEAT_TIMEOUT_SECS")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+            .filter(|&v| v > 0)
+            .unwrap_or(crate::services::device_connection_service::DEFAULT_HEARTBEAT_TIMEOUT_SECS);
+        let interval_secs = std::env::var("DEVICE_CONNECTION_CLEANUP_INTERVAL_SECS")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+            .filter(|&v| v > 0)
+            .unwrap_or(crate::services::device_connection_service::DEFAULT_CLEANUP_INTERVAL_SECS);
+
+        let interval = std::time::Duration::from_secs(interval_secs);
+        info!(
+            interval_secs,
+            timeout_secs,
+            "设备连接超时清理任务已启动（每 {} 秒扫描一次，心跳超过 {} 秒未上报则置 timeout）",
+            interval_secs,
+            timeout_secs
+        );
+
+        let service = crate::services::device_connection_service::DeviceConnectionService::new(db);
+        loop {
+            tokio::select! {
+                _ = tokio::time::sleep(interval) => {
+                    match service.cleanup_timeout(timeout_secs).await {
+                        Ok(count) if count > 0 => {
+                            info!(count, "设备连接超时清理：本轮标记 {} 台设备为 timeout", count);
+                        }
+                        Ok(_) => {
+                            // 无超时设备，静默
+                        }
+                        Err(e) => {
+                            warn!(error = %e, "设备连接超时清理：本轮扫描失败，下次循环继续");
+                        }
+                    }
+                }
+                _ = token.cancelled() => {
+                    info!("设备连接超时清理任务收到取消信号，优雅退出");
+                    break;
+                }
+            }
+        }
+    });
+    if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
+        tasks.push(handle);
+    }
 }
 
 /// 启动事件总线监听器并按 Kafka 配置初始化事件总线。

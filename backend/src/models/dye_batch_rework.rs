@@ -23,12 +23,14 @@ pub struct Model {
     pub rework_batch_id: Option<i32>,
     /// 回修缸号（若同缸回修则同原缸号）
     pub rework_batch_no: Option<String>,
-    /// 回修类型：color_difference 色差/defect 疵点/specification_unqualified 规格不符/other 其他
+    /// 回修类型：color_difference 色差/defect 疵点/specification_unqualified 规格不符/re_dye 重染/replenish_dye 补染/other 其他
     pub rework_type: String,
     /// 回修原因
     pub rework_reason: String,
     /// 回修前状态：inspecting 或 stored
     pub original_status: String,
+    /// 回修成本（V15 P2 B05-P2-2 新增）：按 rework_type 分类统计，re_dye 整缸重染成本高 / replenish_dye 局部补染成本低
+    pub rework_cost: Option<rust_decimal::Decimal>,
     /// 审批人 ID
     pub approved_by: Option<i32>,
     /// 审批时间
