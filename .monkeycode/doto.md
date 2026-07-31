@@ -145,23 +145,55 @@
 
 > **注**：doto.md §1.2 原估类一~类八 P2=66 项，实际审计报告正文标记 51 项（batch-03 自称 9 实际 10、batch-07 自称 9 实际 7、batch-08 自称 10 实际 9），以正文实际标记并经核实为准。
 
-**跳过的 7 项（审计过时，已核实不存在）**：
+**跳过的 10 项（审计过时，已核实不存在，2026-07-31 复审修正）**：
 - B01-P2-1：quality_pred.rs:507 编译错误已消除（V15 Batch 485 补齐字段）
-- B03-P2-3：权限缓存 5min 延迟已通过 Redis pub/sub 主动失效解决
-- B04-P2-2：fabric_physical_test_record 表已新建覆盖 10 项物理指标
-- B06-P2-2：createXxxMock 工厂函数已创建（44 处命中）
+- B02-P2-1：production_recipe_service.rs `let _ =` 已移除（复审新增，原标"部分存在"已消除）
+- B04-P2-4：BusinessModeChanged/OrderBusinessModeLinked 事件监听器已添加（复审新增）
+- B04-P2-5：fabric_physical_test_record 表已新建覆盖 10 项物理指标（**编号修正**：原 doto 误标为 B04-P2-2，实际为 B04-P2-5）
+- B06-P2-1：E2E 报告路径已修复，不再保存到 .monkeycode/docs/audits/（复审新增）
+- B06-P2-2：createXxxMock 工厂函数已创建（16 处定义 + 调用点）
 - B06-P2-7：codecov.yml 已存在，覆盖率趋势监控已建立
-- B07-P2-3：install.sh 前端目录路径已修正
+- B07-P2-3：install.sh 前端目录路径已修正（/opt/bingxi-erp/frontend/dist）
+- B07-P2-4：ci-deps job 级 continue-on-error 已移除（复审新增）
 - B08-P2-2：登录端点已挂载 anti_brute_force 中间件
 
-**重新规划的 P2 执行批次**：
+> **复审修正说明（2026-07-31）**：原步骤 0 存在 2 处核实错误，已纠正：
+> 1. **B04-P2-2 描述错位**：原 doto 标"fabric_physical_test_record 表已新建"→ 实际该描述对应 B04-P2-5；B04-P2-2 审计针对 `batch_trace_log.rs:1 #![allow(dead_code)]`，**仍完全存在**，需修复
+> 2. **B03-P2-3 误判已解决**：原 doto 标"通过 Redis pub/sub 解决"→ Redis pub/sub 跨实例失效已加，但 `PERMISSION_CACHE_TTL=5` 硬编码常量未移除，**部分存在**，需修复常量
 
-| 批次 | 范围 | 项数 | 预估文件数 | 主要内容 |
-|------|------|------|-----------|----------|
-| P2-Batch-01 | 类二+三+四+六+七（快速+中等修复） | 24 | 65-85 | 安全加固 + 代码质量 + 测试补齐 + 可维护性 |
-| P2-Batch-02 | 类五（运行闭环） | 11 | 40-60 | 反馈闭环 + 重染补染 + 告警死信 + 资源管理 + 凭证归集 |
-| P2-Batch-03 | 类八（法律合规剩余） | 8 | 30-50 | 跨境合规 + 合同字段 + 印染规范 + 跌价准备 + 税务 + 环评 + 女职工保护 |
-| P2-Batch-04+ | 类九~类二十五 | 待核实 | — | 后续批次启动前各自执行步骤 0 核实 |
+**重新规划的 P2 执行批次（2026-07-31 复审修正）**：
+
+| 批次 | 范围 | 项数 | 预估文件数 | 主要内容 | 状态 |
+|------|------|------|-----------|----------|------|
+| P2-Batch-01a | 类二+三+四+六+七（首批 9 项快速修复） | 9 | 10 | CSP+Argon2+魔法数字+TODO+i18n 注释 | ⏳ PR #797 CI 监控中 |
+| P2-Batch-01b | 类二+三+四+六+七（续作 19 项） | 19 | 65-85 | Cookie 双写+缓存一致性+SQL 参数化+表重叠+测试补齐+service 拆分+缓存 invalidate | 📋 步骤 0 已核实，待 CI 全绿后启动 |
+| P2-Batch-02 | 类五（运行闭环） | 11 | 40-60 | 反馈闭环 + 重染补染 + 告警死信 + 资源管理 + 凭证归集 | 📋 待启动前执行步骤 0 |
+| P2-Batch-03 | 类八（法律合规剩余） | 8 | 30-50 | 跨境合规 + 合同字段 + 印染规范 + 跌价准备 + 税务 + 环评 + 女职工保护 | 📋 待启动前执行步骤 0 |
+| P2-Batch-04+ | 类九~类二十五 | 待核实 | — | 后续批次启动前各自执行步骤 0 核实 | 📋 待启动 |
+
+**P2-Batch-01b 续作 19 项明细（步骤 0 已核实存在）**：
+
+| 编号 | 核实结果 | 缺陷描述 | 修复方向 |
+|------|---------|---------|---------|
+| B02-P2-3 | 完全存在 | handlers/ 141 个文件平铺未分域 | 按业务域分子目录 |
+| B02-P2-4 | 部分存在 | 2/7 TODO(tech-debt) 残留（docs.rs, auth_handler.rs） | 评估实现或移除 |
+| B03-P2-1 | 完全存在 | legacy jwt Cookie 双写 | 移除 legacy Cookie |
+| B03-P2-2 | 完全存在 | USER_ACTIVE_CACHE DashMap 进程内缓存 | 接入 Redis 跨实例 |
+| B03-P2-3 | 部分存在 | PERMISSION_CACHE_TTL=5 硬编码常量（pub/sub 已加） | 常量可配置化 |
+| B03-P2-4 | 完全存在 | omni_audit_handler format! 拼接 SQL | 改用参数化构建 |
+| B03-P2-5 | 完全存在 | slow_query_handler Statement::from_string | 改用 Statement::from_sql_and_values |
+| B03-P2-10 | 部分存在 | crm import_leads 无病毒扫描 | 集成 ClamAV 或文档说明 |
+| B04-P2-1 | 完全存在 | dye_batch 与 batch_dye_lot 表概念重叠 | 评估合并或文档说明 |
+| B04-P2-2 | 完全存在 | batch_trace_log.rs #![allow(dead_code)] | 移除或接入业务 |
+| B04-P2-3 | 部分存在 | 月末分摊缺端到端集成测试 | 补充集成测试 |
+| B04-P2-6 | 完全存在 | 事件贯通集成测试缺失 | 补充集成测试 |
+| B06-P2-3 | 完全存在 | 内联硬编码 mock JSON | 抽取到 fixtures |
+| B06-P2-4 | 完全存在 | Login.test.ts 内联硬编码 | 抽取到 fixtures |
+| B06-P2-5 | 完全存在 | test_inventory_count.rs 空骨架 | 补充真实测试或删除 |
+| B06-P2-6 | 完全存在 | 性能报告不完整 | 补充后端性能报告 |
+| B07-P2-1 | 部分存在 | dye_batch_state_machine_service 936 行含 4 service | 拆分为 4 文件 |
+| B07-P2-5 | 部分存在 | ttl_secs 默认 60 未调优 | 差异化 TTL 配置 |
+| B07-P2-6 | 部分存在 | product/customer_service 未接入缓存 | 接入缓存 + invalidate |
 
 ### 1.3 P3 低优先级（123 项，按需修复）
 
