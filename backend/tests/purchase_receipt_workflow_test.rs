@@ -14,7 +14,7 @@ mod tests {
     use bingxi_backend::services::purchase_receipt_dto::CreatePurchaseReceiptRequest;
     use bingxi_backend::services::purchase_receipt_service::PurchaseReceiptService;
     use common::setup_test_db;
-    use sea_orm::{Database, DatabaseConnection};
+    use sea_orm::Database;
 
     /// 构造最小 CreatePurchaseReceiptRequest（仅必填字段）
     fn sample_request() -> CreatePurchaseReceiptRequest {
