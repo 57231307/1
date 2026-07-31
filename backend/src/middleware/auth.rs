@@ -42,12 +42,14 @@ fn mask_username(username: &str) -> String {
     }
 }
 
-/// 用户 is_active 状态内存缓存的 TTL（5 分钟）；安全漏洞 #6 修复：禁用 / 软删除用户的旧 JWT 在剩余有效期（最长 2 小时）内 仍可使用。引入
-/// 5 分钟缓存目的是在 DB 压力可接受的前提下，最坏延迟 5 分钟 旧 JWT 失效。TTL 不可过长，否则对管理员封号操作的感知不灵敏； 不可过短，否则失去缓存价值。
-const USER_ACTIVE_CACHE_TTL_SECS: u64 = 300;
+/// 用户 is_active 状态进程内缓存 TTL（60 秒）。
+// B03-P2-2：原 300 秒在多副本部署下放大旧 JWT 残留窗口，缩短至 60 秒降低风险；
+// 用户禁用/删除的即时防护由 is_user_token_revoked（JTI 吊销，先于本检查）保证。
+// TODO(后续改造): 接入 Redis L1(进程内)+L2(分布式) 并在禁用/删除时主动失效 user_active:{user_id}，
+//   实现跨实例强一致；当前 Redis 单层会向所有实例传播陈旧值且需配套失效逻辑，暂缓。
+const USER_ACTIVE_CACHE_TTL_SECS: u64 = 60;
 
-/// 全局进程级用户 is_active 状态缓存；key = user_id，value = (is_active,
-/// 写入时间戳) 一旦 JWT 通过签名验证，命中本地缓存即视为活跃； 缓存 miss 或 TTL 过期时回查 DB。
+/// 全局进程级用户 is_active 状态缓存；key = user_id，value = (is_active, 写入时间戳)。
 static USER_ACTIVE_CACHE: OnceLock<DashMap<i32, (bool, Instant)>> = OnceLock::new();
 
 /// 获取（或惰性初始化）全局用户活跃状态缓存
@@ -55,12 +57,13 @@ fn user_active_cache() -> &'static DashMap<i32, (bool, Instant)> {
     USER_ACTIVE_CACHE.get_or_init(DashMap::new)
 }
 
-/// 检查用户是否处于活跃状态（5 分钟内存缓存）；安全漏洞 #6 修复核心：用于在 `auth_middleware` 中快速校验 JWT 持有者的 `is_active` 状态，避免每次请求都查 DB。命中缓存时为一次 DashMap 查， 未命中时为一次 DB 查 + 一次 DashMap 写。；返回 - `true`：用户在最近 5 分钟内被确认为
-/// `is_active = true` - `false`：用户已禁用 / 软删除 / 不存在；注意 - 进程内缓存不跨实例同步；多副本部署时部分实例可能短暂持有旧值（最多 5 分钟） - `UserService::delete_user` 已失效 Redis 缓存但**未**失效此本地缓存； 这是有意的：5 分钟窗口可接受且可避免在删除路径上加额外清理逻辑
+/// 检查用户是否处于活跃状态（60 秒进程内缓存）；命中缓存返回缓存值，未命中回查 DB。
+// 多副本限制：进程内缓存不跨实例同步，部分实例最多 60 秒内可能持有旧值；用户禁用/删除的
+// 即时防护由 is_user_token_revoked（JTI 吊销，先于本检查）保证，本缓存为二级防御。
 async fn is_user_active_cached(state: &AppState, user_id: i32) -> bool {
     let cache = user_active_cache();
 
-    // 1) 查缓存：5 分钟 TTL 内直接返回
+    // 1) 查缓存：60 秒 TTL 内直接返回
     if let Some(entry) = cache.get(&user_id) {
         let (active, ts) = entry.value();
         if ts.elapsed().as_secs() < USER_ACTIVE_CACHE_TTL_SECS {
@@ -131,7 +134,8 @@ pub async fn auth_middleware(
     let token_from_access_cookie = cookie_jar
         .get("access_token")
         .map(|c| c.value().to_string());
-    // 2) 旧版命名：jwt（httpOnly，向后兼容）
+    // 2) 旧版命名：jwt（httpOnly，向后兼容）。B03-P2-1 修复后登录/刷新不再写入 jwt Cookie，
+    //    此读取仅为清理旧客户端过渡期残留会话，jwt Cookie 自然过期后该分支不再命中
     let token_from_legacy_cookie = cookie_jar.get("jwt").map(|c| c.value().to_string());
 
     let auth_header = request
@@ -265,7 +269,7 @@ pub async fn auth_middleware(
 
             // 安全漏洞 #6 修复：检查用户 is_active 状态
             //    防止被软删除 / 禁用用户的旧 JWT 在剩余有效期（最长 2 小时）内继续使用。
-            //    通过 5 分钟本地缓存避免每请求都查 DB；通过环境变量 AUTH_CHECK_USER_ACTIVE
+            //    通过 60 秒本地缓存避免每请求都查 DB；通过环境变量 AUTH_CHECK_USER_ACTIVE
             //    控制开关（默认 true）。
             if is_user_active_check_enabled() && !is_user_active_cached(&state, claims.sub).await {
                 // 提取 audit_ctx 供审计日志使用（fail-open：缺省时记 "unknown"）

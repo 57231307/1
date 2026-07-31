@@ -20,19 +20,12 @@ import ElementPlus from 'element-plus';
 
 const { mockLogin, mockCheckLockStatus, pushSpy, routeRef } = vi.hoisted(() => ({
   // userStore.login：默认 resolve，可通过 mockRejectedValueOnce 修改行为
-  mockLogin: vi.fn().mockResolvedValue(undefined),
-  // checkLockStatus：默认返回未锁定
-  mockCheckLockStatus: vi.fn().mockResolvedValue({
-    data: {
-      is_locked: false,
-      failed_attempts: 0,
-      locked_until: null,
-      max_attempts: 5,
-    },
-  }),
+  mockLogin: vi.fn(),
+  // checkLockStatus：默认返回值在 import 后通过 createLockStatusResponseMock() 设置（规则 6：mock 数据抽取到 fixtures）
+  mockCheckLockStatus: vi.fn(),
   // useRouter().push 的 spy，用于断言跳转目标
   pushSpy: vi.fn(),
-  // useRoute() 返回的响应式对象，测试中修改 query.redirect 测试不同场景
+  // useRoute() 返回的响应式对象，默认值在 import 后通过 createRouteMock() 设置
   routeRef: {
     path: '/login',
     query: {} as Record<string, string>,
@@ -94,6 +87,12 @@ vi.mock('element-plus', async () => {
 });
 
 import Login from '@/views/Login.vue';
+// 规则 6：mock 数据从 fixtures 导入，禁止内联硬编码
+import { createLockStatusResponseMock, createRouteWithRedirectMock } from '../fixtures';
+
+// vi.hoisted 在 import 前执行，mock 默认返回值在此设置（引用 fixtures 工厂函数）
+mockLogin.mockResolvedValue(undefined);
+mockCheckLockStatus.mockResolvedValue(createLockStatusResponseMock());
 
 function mountLogin() {
   const wrapper = mount(Login, {
@@ -186,8 +185,8 @@ describe('Login.vue 真实组件测试', () => {
   });
 
   it('登录成功后应跳转到 redirect 参数指定的安全路径', async () => {
-    // 设置 route.query.redirect = '/dashboard'
-    routeRef.query = { redirect: '/dashboard' };
+    // 设置 route.query.redirect = '/dashboard'（规则 6：从 fixtures 导入）
+    Object.assign(routeRef, createRouteWithRedirectMock('/dashboard'));
     const { wrapper } = mountLogin();
     await flushPromises();
     const inputs = wrapper.findAll('input');
@@ -201,8 +200,8 @@ describe('Login.vue 真实组件测试', () => {
   });
 
   it('登录成功后 redirect 为外部 URL 时应回退到 /（防 Open Redirect）', async () => {
-    // 设置 route.query.redirect = '//evil.com'（外部 URL）
-    routeRef.query = { redirect: '//evil.com' };
+    // 设置 route.query.redirect = '//evil.com'（外部 URL，规则 6：从 fixtures 导入）
+    Object.assign(routeRef, createRouteWithRedirectMock('//evil.com'));
     const { wrapper } = mountLogin();
     await flushPromises();
     const inputs = wrapper.findAll('input');

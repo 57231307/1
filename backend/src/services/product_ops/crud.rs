@@ -24,8 +24,10 @@ use crate::models::product::{self, Entity as ProductEntity};
 use crate::services::product_service::{CreateProductArgs, ProductService, UpdateProductArgs};
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
+// P0-D03（Batch 488）：Redis 分布式缓存接入（get_product 读穿透 + 写失效）
+// V15 P2 B07-P2-6：使用差异化 TTL（PRODUCT_CACHE_TTL_SECS=600s，产品目录低波动率）
 use crate::utils::redis_cache::{
-    cache_key, redis_cache_del, redis_cache_get_json, redis_cache_set_json, DEFAULT_CACHE_TTL_SECS,
+    cache_key, redis_cache_del, redis_cache_get_json, redis_cache_set_json, PRODUCT_CACHE_TTL_SECS,
 };
 use crate::utils::sql_escape::safe_like_pattern;
 
@@ -131,8 +133,8 @@ impl ProductService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("产品 ID {} 不存在", id)))?;
 
-        // 回填 Redis 缓存（5 分钟 TTL）
-        redis_cache_set_json(&cache_key_str, &product, DEFAULT_CACHE_TTL_SECS).await;
+        // 回填 Redis 缓存（V15 P2 B07-P2-6：产品目录 10 分钟 TTL，低波动率）
+        redis_cache_set_json(&cache_key_str, &product, PRODUCT_CACHE_TTL_SECS).await;
 
         Ok(product)
     }

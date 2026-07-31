@@ -184,6 +184,24 @@ pub async fn redis_cache_del_prefix(prefix: &str) {
 /// 默认缓存 TTL（5 分钟）
 pub const DEFAULT_CACHE_TTL_SECS: u64 = 300;
 
+// V15 P2 B07-P2-5/B07-P2-6：差异化 TTL 常量（按数据波动率分级，替代统一 DEFAULT_CACHE_TTL_SECS）
+// 调用方通过 redis_cache_set_json(key, value, XXX_CACHE_TTL_SECS) 选择对应 TTL。
+
+/// 产品目录缓存 TTL（10 分钟，低波动率，产品资料/价格变更不频繁）
+pub const PRODUCT_CACHE_TTL_SECS: u64 = 600;
+
+/// 客户数据缓存 TTL（5 分钟，中低波动率，客户资料变更不频繁）
+pub const CUSTOMER_CACHE_TTL_SECS: u64 = 300;
+
+/// 用户数据缓存 TTL（5 分钟，中低波动率，用户资料变更不频繁）
+pub const USER_CACHE_TTL_SECS: u64 = 300;
+
+/// 权限数据缓存 TTL（2 分钟，安全敏感型，权限变更需快速生效）
+pub const PERMISSION_CACHE_TTL_SECS: u64 = 120;
+
+/// 配置/字典数据缓存 TTL（30 分钟，极低波动率，菜单/字典/系统配置极少变更）
+pub const CONFIG_CACHE_TTL_SECS: u64 = 1800;
+
 /// 生成标准化的缓存 key（格式 `{service}:{id}`，如 user:42/product:100/customer:555）
 pub fn cache_key(service: &str, id: impl std::fmt::Display) -> String {
     format!("{}:{}", service, id)

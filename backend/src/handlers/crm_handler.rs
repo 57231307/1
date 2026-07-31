@@ -185,6 +185,8 @@ pub async fn import_leads(
     }
 
     let bytes = file_bytes.ok_or_else(|| AppError::bad_request("未收到文件".to_string()))?;
+    // B03-P2-10 修复：xlsx 文件病毒扫描检查点（CLAMAV_ENABLED 控制开关，生产环境应启用）
+    scan_leads_for_viruses(&bytes).await?;
     let service = CrmService::new(state.db.clone());
     let result = service.import_leads(bytes, auth.user_id).await?;
     Ok(Json(ApiResponse::success(result)))
@@ -194,6 +196,67 @@ pub async fn import_leads(
 /// xlsx 是 OOXML 格式（实际为 ZIP），前 4 字节应为 50 4B 03 04（PK\x03\x04）。
 fn verify_xlsx_magic(data: &[u8]) -> bool {
     data.starts_with(&[0x50, 0x4B, 0x03, 0x04])
+}
+
+/// B03-P2-10 修复：CRM 线索导入文件病毒扫描检查点
+/// 通过 CLAMAV_ENABLED 环境变量控制开关：启用时调用 ClamAV REST API（CLAMAV_URL）扫描，
+/// 未启用时记录 warn 日志并跳过。生产环境应设置 CLAMAV_ENABLED=true 并配置 CLAMAV_URL，
+/// 与 email_service.rs 的附件扫描保持一致的 HTTP API 集成模式。
+async fn scan_leads_for_viruses(data: &[u8]) -> Result<(), AppError> {
+    let enabled = std::env::var("CLAMAV_ENABLED")
+        .map(|v| v == "true" || v == "1")
+        .unwrap_or(false);
+    if !enabled {
+        tracing::warn!(
+            target: "security_audit",
+            event = "CLAMAV_SCAN_SKIPPED",
+            "CLAMAV_ENABLED 未启用，CRM 线索导入跳过病毒扫描；生产环境应设置 CLAMAV_ENABLED=true 并配置 CLAMAV_URL"
+        );
+        return Ok(());
+    }
+
+    let clamav_url = std::env::var("CLAMAV_URL")
+        .map_err(|_| AppError::internal("CLAMAV_ENABLED 已启用但 CLAMAV_URL 未配置".to_string()))?;
+    if clamav_url.is_empty() {
+        return Err(AppError::internal(
+            "CLAMAV_ENABLED 已启用但 CLAMAV_URL 为空".to_string(),
+        ));
+    }
+
+    let client = reqwest::Client::new();
+    let scan_url = format!("{}/scan", clamav_url.trim_end_matches('/'));
+    // V15 P1 20.1-A：注入 traceparent 到 ClamAV 出站请求
+    let traceparent = crate::observability::trace_context::traceparent_from_current_span();
+    let response = client
+        .post(&scan_url)
+        .header("Content-Type", "application/octet-stream")
+        .header("traceparent", traceparent)
+        .body(data.to_vec())
+        .send()
+        .await
+        .map_err(|e| AppError::internal(format!("ClamAV 病毒扫描请求失败: {}", e)))?;
+
+    if !response.status().is_success() {
+        return Err(AppError::internal(format!(
+            "ClamAV 返回非 2xx 状态: {}",
+            response.status()
+        )));
+    }
+
+    let body = response
+        .text()
+        .await
+        .map_err(|e| AppError::internal(format!("读取 ClamAV 响应失败: {}", e)))?;
+
+    // ClamAV REST 返回 "stream: OK" 表示无病毒
+    if body.contains("OK") {
+        Ok(())
+    } else {
+        Err(AppError::bad_request(format!(
+            "CRM 线索导入文件被 ClamAV 识别为病毒: {}",
+            body
+        )))
+    }
 }
 
 pub async fn get_lead(

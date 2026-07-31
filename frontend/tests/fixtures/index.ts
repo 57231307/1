@@ -8,3 +8,6 @@ export * from './dyeing';
 export * from './color_card';
 export * from './production_order';
 export * from './v2-table';
+export * from './inventory';
+export * from './auth-mock';
+export * from './i18n-mock';

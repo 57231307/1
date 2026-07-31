@@ -1,7 +1,6 @@
 #![allow(dead_code)]
-//! 批次染色批次 Model
-//!
-//! 批次染色批次模块
+//! 染色批次明细表：管理批次-染料配方维度（产品/颜色/染缸批次号/染色数量）。
+//! 与 dye_batch 互补：本表聚焦"染料配方"维度的染色明细，dye_batch 聚焦"缸"维度的生产流程主表。
 
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;

@@ -4,6 +4,8 @@
 > **测试方法**：Playwright 1.40.0 + chromium headless
 > **基线 URL**：http://localhost:3000（dev server 默认端口，非 plan 中的 5173）
 > **测试环境**：沙箱（无 backend，已通过 `addInitScript` 注入 JWT + `page.route` 拦截 `/auth/me` 与数据 API 返回 mock 数据）
+>
+> **相关报告**：本报告聚焦前端 V2Table 渲染性能（TTI/FPS）；后端 API/数据库/内存/并发性能基线见 [`backend/scripts/perf-report-template.md`](../../backend/scripts/perf-report-template.md)。
 
 ## 验收标准
 

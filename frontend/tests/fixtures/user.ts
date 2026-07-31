@@ -4,6 +4,7 @@
  * 使用 createXxxMock(overrides?) 工厂函数模式，便于通过 overrides 灵活定制。
  */
 import type { User, UserCreateRequest, UserUpdateRequest } from '@/api/user';
+import type { LoginResponse, UserInfo } from '@/types/api';
 
 /** 创建用户 mock（默认 active 状态，可通过 overrides 覆盖任意字段） */
 export function createUserMock(overrides: Partial<User> = {}): User {
@@ -78,5 +79,25 @@ export function createChangePasswordRequestMock() {
   return {
     old_password: 'Old@123456',
     new_password: 'New@123456',
+  };
+}
+
+/** 创建用户信息 mock（用于 store.userInfo，可通过 overrides 覆盖） */
+export function createUserInfoMock(overrides: Partial<UserInfo> = {}): UserInfo {
+  return {
+    id: 1,
+    username: 'admin',
+    ...overrides,
+  } as UserInfo;
+}
+
+/** 创建登录响应 mock（默认 admin 用户 + 空权限列表） */
+export function createLoginResponseMock(
+  overrides: Partial<LoginResponse> = {}
+): LoginResponse {
+  return {
+    user: createUserInfoMock(),
+    permissions: [],
+    ...overrides,
   };
 }

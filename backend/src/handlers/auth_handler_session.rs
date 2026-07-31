@@ -149,7 +149,8 @@ fn build_removal_cookie(
 }
 
 /// 清除所有登录态 Cookie；- access_token / refresh_token: httpOnly，防
-/// XSS - csrf_token: 非 httpOnly，CSRF 头读取使用 - jwt: 旧版兼容 Cookie
+/// XSS - csrf_token: 非 httpOnly，CSRF 头读取使用 - jwt: B03-P2-1 修复后不再写入，
+/// 此处仅清除旧客户端残留的过渡 Cookie（max_age=0 立即过期）
 fn clear_auth_cookies(
     jar: axum_extra::extract::PrivateCookieJar,
     is_production: bool,

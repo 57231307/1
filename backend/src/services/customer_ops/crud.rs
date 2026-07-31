@@ -21,8 +21,9 @@ use crate::services::customer_service::CustomerService;
 use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 // P0-D03（Batch 488）：Redis 分布式缓存接入（get_customer 读穿透 + 写失效）
+// V15 P2 B07-P2-6：使用差异化 TTL（CUSTOMER_CACHE_TTL_SECS=300s，客户数据中低波动率）
 use crate::utils::redis_cache::{
-    cache_key, redis_cache_del, redis_cache_get_json, redis_cache_set_json, DEFAULT_CACHE_TTL_SECS,
+    cache_key, redis_cache_del, redis_cache_get_json, redis_cache_set_json, CUSTOMER_CACHE_TTL_SECS,
 };
 use crate::utils::PaginatedResponse;
 
@@ -74,8 +75,8 @@ impl CustomerService {
                 .one(&*self.db)
                 .await?
                 .ok_or_else(|| AppError::not_found(format!("客户 {} 未找到", customer_id)))?;
-            // 回填 Redis 缓存（5 分钟 TTL）
-            redis_cache_set_json(&cache_key_str, &model, DEFAULT_CACHE_TTL_SECS).await;
+            // 回填 Redis 缓存（V15 P2 B07-P2-6：客户数据 5 分钟 TTL，中低波动率）
+            redis_cache_set_json(&cache_key_str, &model, CUSTOMER_CACHE_TTL_SECS).await;
             model
         };
 

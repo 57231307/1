@@ -87,10 +87,10 @@ pub struct UserInfo {
     /// 前端 2FA 检测依赖此字段，缺失会导致前端恒判 false，已开启 2FA 的用户也被引导再次设置。
     pub is_totp_enabled: bool,
     /// 批次 29 v7 P0-5 修复：real_name 字段当前 users 表无对应列，暂返回 None。
-    /// TODO(tech-debt): 后续若新增 real_name 列，需在此处补全查询。
+    /// B02-P2-4 评估后暂不实现，原因：需先新增数据库列并配套 migration 与前端改造，不在本批次范围。
     pub real_name: Option<String>,
     /// 批次 29 v7 P0-5 修复：avatar 字段当前 users 表无对应列，暂返回 None。
-    /// TODO(tech-debt): 后续若新增 avatar 列，需在此处补全查询。
+    /// B02-P2-4 评估后暂不实现，原因：需先新增数据库列并配套 migration 与前端改造，不在本批次范围。
     pub avatar: Option<String>,
     /// P1-08-1：用户协议/隐私政策同意时间
     #[schema(value_type = Option<String>, format = DateTime)]
@@ -754,7 +754,10 @@ fn prepare_csrf_state(
     Ok((csrf_token, session_id))
 }
 
-/// 构建 4 个登录 Cookie：access_token / refresh_token / csrf_token / legacy jwt。
+/// 构建 3 个登录 Cookie：access_token / refresh_token / csrf_token。
+// B03-P2-1 修复：已移除 legacy "jwt" Cookie 双写。原实现同时写 access_token 与 jwt 两份
+// 同值 Cookie，双 Cookie 并存易产生鉴权不一致；现仅写 access_token，jwt 读取降级为
+// 旧客户端过渡兼容（见 auth 中间件），登出时仍会清除残留 jwt Cookie。
 fn build_login_cookies(
     jar: axum_extra::extract::PrivateCookieJar,
     token: String,
@@ -765,7 +768,7 @@ fn build_login_cookies(
     // access_token: httpOnly 防 XSS 窃取，SameSite=Strict 防跨站请求携带
     let access_cookie = build_session_cookie(
         "access_token",
-        token.clone(),
+        token,
         is_production,
         true,
         CookieDuration::minutes(30),
@@ -786,18 +789,7 @@ fn build_login_cookies(
         false,
         CookieDuration::days(7),
     );
-    // legacy jwt Cookie（httpOnly）：兼容旧客户端，新代码读 access_token
-    let legacy_jwt_cookie = build_session_cookie(
-        "jwt",
-        token,
-        is_production,
-        true,
-        CookieDuration::minutes(30),
-    );
-    jar.add(access_cookie)
-        .add(refresh_cookie)
-        .add(csrf_cookie)
-        .add(legacy_jwt_cookie)
+    jar.add(access_cookie).add(refresh_cookie).add(csrf_cookie)
 }
 
 /// 构建单个登录会话 Cookie：统一 path/secure/same_site，仅 http_only 与 max_age 差异。

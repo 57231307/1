@@ -19,6 +19,12 @@ import { getStockList, getStockAlertList, createStockAdjustment } from '@/api/in
 // P2-18 修复（批次 86 v2 复审）：清理 6 处 as any，改为显式类型断言
 import type { ApiResponse } from '@/types/api';
 import type { InventoryStock, StockAlert } from '@/api/inventory';
+// V15 P2 B06-P2-3 修复（规则 6）：内联 mock 数据抽取到 fixtures 工厂函数
+import {
+  createInventoryStockListMock,
+  createStockAlertListMock,
+  createStockAdjustmentDataMock,
+} from '../fixtures';
 
 // 测试用响应类型别名（提升可读性）
 type StockListResponse = ApiResponse<{ list: InventoryStock[]; total: number }>;
@@ -40,10 +46,7 @@ describe('Inventory Store 测试', () => {
   });
 
   it('fetchStocks 应该获取库存列表', async () => {
-    const mockStocks = [
-      { id: 1, product_name: '面料A', quantity: 100 },
-      { id: 2, product_name: '面料B', quantity: 200 },
-    ];
+    const mockStocks = createInventoryStockListMock();
     vi.mocked(getStockList).mockResolvedValue({
       data: { list: mockStocks, total: 2 },
     } as unknown as StockListResponse);
@@ -90,7 +93,7 @@ describe('Inventory Store 测试', () => {
   });
 
   it('fetchAlerts 应该获取库存告警', async () => {
-    const mockAlerts = [{ id: 1, product_name: '面料A', alert_type: 'low_stock' }];
+    const mockAlerts = createStockAlertListMock();
     vi.mocked(getStockAlertList).mockResolvedValue({
       data: mockAlerts,
     } as unknown as StockAlertsResponse);
@@ -121,14 +124,8 @@ describe('Inventory Store 测试', () => {
     } as unknown as StockListResponse);
 
     const store = useInventoryStore();
-    // P2-11a 修复（批次 83 v1 复审）：夹具对齐 StockAdjustmentData 契约
-    const adjustmentData = {
-      warehouse_id: 1,
-      product_id: 1,
-      adjustment_quantity: 10,
-      adjustment_type: 'increase' as const,
-      reason: '测试调整',
-    };
+    // V15 P2 B06-P2-3 修复（规则 6）：使用 fixtures 工厂函数替代内联 mock
+    const adjustmentData = createStockAdjustmentDataMock();
     const result = await store.createAdjustment(adjustmentData);
 
     expect(createStockAdjustment).toHaveBeenCalledWith(adjustmentData);
@@ -141,14 +138,8 @@ describe('Inventory Store 测试', () => {
     vi.mocked(createStockAdjustment).mockRejectedValue(new Error('Failed'));
 
     const store = useInventoryStore();
-    // P2-11a 修复（批次 83 v1 复审）：夹具对齐 StockAdjustmentData 契约
-    const result = await store.createAdjustment({
-      warehouse_id: 1,
-      product_id: 1,
-      adjustment_quantity: 10,
-      adjustment_type: 'increase',
-      reason: '测试调整',
-    });
+    // V15 P2 B06-P2-3 修复（规则 6）：使用 fixtures 工厂函数替代内联 mock
+    const result = await store.createAdjustment(createStockAdjustmentDataMock());
 
     expect(result).toBe(false);
     expect(consoleSpy).toHaveBeenCalled();

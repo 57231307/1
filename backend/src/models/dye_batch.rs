@@ -1,5 +1,6 @@
 #![allow(dead_code)]
-//! 缸号管理模型（染色批次管理）
+//! 缸号主表：管理染色生产流程（染缸批次状态/计划产量/起止时间）。
+//! 与 batch_dye_lot 互补：本表聚焦"缸"维度的生产执行主表，batch_dye_lot 聚焦"批次-染料配方"维度明细。
 
 use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;

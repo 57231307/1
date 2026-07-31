@@ -202,7 +202,8 @@ fn rotate_csrf_token(
     csrf_token
 }
 
-// 构建刷新响应 Cookie：access_token / refresh_token / csrf_token / jwt(兼容)
+// 构建刷新响应 Cookie：access_token / refresh_token / csrf_token。
+// B03-P2-1 修复：已移除 legacy "jwt" Cookie 双写，仅刷新 access_token，避免双 Cookie 鉴权不一致。
 fn build_refresh_cookies(
     jar: axum_extra::extract::PrivateCookieJar,
     new_token: &str,
@@ -236,17 +237,7 @@ fn build_refresh_cookies(
             .same_site(SameSite::Strict)
             .max_age(CookieDuration::days(7))
             .build();
-    let legacy_jwt = axum_extra::extract::cookie::Cookie::build(("jwt", new_token.to_string()))
-        .path("/")
-        .http_only(true)
-        .secure(is_production)
-        .same_site(SameSite::Strict)
-        .max_age(CookieDuration::minutes(30))
-        .build();
-    jar.add(new_access)
-        .add(new_refresh)
-        .add(new_csrf)
-        .add(legacy_jwt)
+    jar.add(new_access).add(new_refresh).add(new_csrf)
 }
 
 #[derive(Debug, Serialize)]
