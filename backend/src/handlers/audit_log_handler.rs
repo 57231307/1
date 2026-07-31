@@ -11,7 +11,9 @@ use axum::{
     Json,
 };
 use chrono::{DateTime, Utc};
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
