@@ -801,7 +801,7 @@ async fn process_optimization_feedback_inner(
     batch_no: &str,
 ) -> Result<(), AppError> {
     use crate::models::dye_batch::Entity as DyeBatchEntity;
-    use crate::models::process_route::Entity as ProcessRouteEntity;
+    use crate::models::process_route::{self as process_route_model, Entity as ProcessRouteEntity};
 
     let batch = DyeBatchEntity::find_by_id(batch_id)
         .one(db)
