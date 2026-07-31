@@ -3,7 +3,6 @@
 //! 独立于 `audit_logs` 表，记录每一次审计日志导出操作。
 //! 数据库触发器禁止 UPDATE / DELETE（仅允许 INSERT），
 //! 审计员无法篡改自身导出记录，满足 SOC2 / ISO27001 / 《数据安全法》第 32 条要求。
-
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
