@@ -668,11 +668,9 @@ impl DashboardService {
         statistics: &InventoryStatistics,
     ) {
         if let Ok(statistics_json) = serde_json::to_value(statistics) {
-            cache.get_dashboard_cache().set(
-                cache_key,
-                statistics_json,
-                Some(DASHBOARD_CACHE_TTL),
-            );
+            cache
+                .get_dashboard_cache()
+                .set(cache_key, statistics_json, Some(DASHBOARD_CACHE_TTL));
         }
     }
 
@@ -938,11 +936,9 @@ impl DashboardService {
 
         // 缓存结果，有效期5分钟
         if let Ok(alerts_json) = serde_json::to_value(alerts.clone()) {
-            self.cache.get_inventory_cache().set(
-                cache_key,
-                alerts_json,
-                Some(DASHBOARD_CACHE_TTL),
-            );
+            self.cache
+                .get_inventory_cache()
+                .set(cache_key, alerts_json, Some(DASHBOARD_CACHE_TTL));
         }
 
         Ok(alerts)

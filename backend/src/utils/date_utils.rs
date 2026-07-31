@@ -5,8 +5,7 @@ pub fn utc_offset() -> FixedOffset {
     FixedOffset::east_opt(0).unwrap_or_else(|| {
         tracing::error!("FixedOffset::east_opt(0) 失败（理论不可达），使用 west_opt(0) 兜底");
         // 理论不可达：west_opt(0) 也永远返回 Some（|0| <= 86400），等价于 UTC +00:00
-        FixedOffset::west_opt(0)
-            .expect("理论不可达：west_opt(0) 永远合法（|0| <= 86400），east_opt(0) 已失败说明运行环境异常")
+        FixedOffset::west_opt(0).expect("理论不可达：west_opt(0) 永远合法（|0| <= 86400）")
     })
 }
 
