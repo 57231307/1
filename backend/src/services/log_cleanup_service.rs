@@ -12,6 +12,7 @@ use std::time::{Duration, SystemTime};
 use futures::FutureExt;
 use std::panic::AssertUnwindSafe;
 use tokio::time::{interval, Interval};
+use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
 /// 默认日志保留天数（V15 P1 20.8-B 要求 90 天）
@@ -42,16 +43,27 @@ impl LogCleanupService {
     }
 
     /// 启动后台定期清理任务（每天执行一次，panic 隔离确保循环不退出）。
+    /// V15 P2 B05-P2-5：接受 CancellationToken，shutdown 时 cancel() 通知循环优雅退出。
     /// 返回 JoinHandle 供 graceful shutdown 管理。
-    pub fn start_cleanup_task(self: Arc<Self>) -> tokio::task::JoinHandle<()> {
+    pub fn start_cleanup_task(
+        self: Arc<Self>,
+        cancel_token: CancellationToken,
+    ) -> tokio::task::JoinHandle<()> {
         let service = self.clone();
         let handle = tokio::spawn(async move {
             // 启动后立即执行一次清理，避免长期未清理的日志在首次启动后仍占用磁盘
             service.clone().run_once_with_panic_isolation().await;
             let mut tick: Interval = interval(Duration::from_secs(24 * 60 * 60));
             loop {
-                tick.tick().await;
-                service.clone().run_once_with_panic_isolation().await;
+                tokio::select! {
+                    _ = tick.tick() => {
+                        service.clone().run_once_with_panic_isolation().await;
+                    }
+                    _ = cancel_token.cancelled() => {
+                        info!("日志清理任务收到取消信号，优雅退出");
+                        break;
+                    }
+                }
             }
         });
         info!(

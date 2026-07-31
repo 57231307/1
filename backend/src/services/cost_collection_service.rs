@@ -177,6 +177,20 @@ impl CostCollectionService {
         Ok(collection)
     }
 
+    /// B05-P2-8/P2-9：按缸号查找最新 draft 成本归集单（dye_lot_no 匹配，collection_date 倒序取首条）。
+    pub async fn find_latest_by_dye_lot_no(
+        &self,
+        dye_lot_no: &str,
+    ) -> Result<Option<cost_collection::Model>, AppError> {
+        let collection = cost_collection::Entity::find()
+            .filter(cost_collection::Column::DyeLotNo.eq(dye_lot_no))
+            .filter(cost_collection::Column::Status.eq("draft"))
+            .order_by(cost_collection::Column::CollectionDate, Order::Desc)
+            .one(&*self.db)
+            .await?;
+        Ok(collection)
+    }
+
     // 生成成本归集单编号
     crate::impl_generate_no!(
         generate_collection_no,

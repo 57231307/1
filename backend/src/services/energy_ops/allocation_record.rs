@@ -269,7 +269,7 @@ impl EnergyAllocationRecordService {
         Ok(())
     }
 
-    /// 确认分摊记录（draft → confirmed）
+    /// 确认分摊记录（draft → confirmed），B05-P2-9：生成能耗凭证并按缸号归集 manufacturing_overhead。
     pub async fn confirm(
         &self,
         id: i32,
@@ -283,13 +283,175 @@ impl EnergyAllocationRecordService {
             )));
         }
         let now = crate::utils::date_utils::utc_now_fixed();
+        // V15 P2 B05-P2-9：生成能耗凭证 + 归集制造费用 + 回写 cost_collection_id（失败仅 warn，不阻断 confirm）
+        let cost_collection_id = self
+            .create_energy_voucher_and_collect_cost(&model, confirmed_by)
+            .await;
         let mut active: AllocationRecordActiveModel = model.into();
         active.status = Set(energy_record_status::CONFIRMED.to_string());
         active.confirmed_by = Set(confirmed_by);
         active.confirmed_at = Set(Some(now));
+        active.cost_collection_id = Set(cost_collection_id);
         active.updated_at = Set(now);
         let updated = active.update(&*self.db).await?;
         Ok(updated)
+    }
+
+    /// B05-P2-9：生成能耗凭证(借500103/贷2202)并按缸号归集 manufacturing_overhead，失败仅 warn。
+    async fn create_energy_voucher_and_collect_cost(
+        &self,
+        model: &AllocationRecordModel,
+        confirmed_by: Option<i32>,
+    ) -> Option<i32> {
+        use crate::services::cost_collection_service::{
+            CostCollectionService, UpdateCostCollectionRequest,
+        };
+        use crate::services::voucher_service::{CreateVoucherRequest, VoucherItemRequest};
+        use rust_decimal::Decimal;
+
+        let amount = model.allocated_cost;
+        if amount <= Decimal::ZERO {
+            return None;
+        }
+        let user_id = confirmed_by.unwrap_or(0);
+        let summary = format!(
+            "能耗分摊确认 {} ({})",
+            model.allocation_no, model.meter_type
+        );
+
+        // 生成能耗凭证（借：生产成本-制造费用 / 贷：应付账款-水电费）
+        let voucher_service =
+            crate::services::voucher_service::VoucherService::new(self.db.clone());
+        let voucher_date = chrono::Utc::now().date_naive();
+        let req = CreateVoucherRequest {
+            voucher_type: "transfer".to_string(),
+            voucher_date,
+            source_type: Some("energy".to_string()),
+            source_module: Some("energy_allocation_record".to_string()),
+            source_bill_id: Some(model.id),
+            source_bill_no: Some(model.allocation_no.clone()),
+            batch_no: None,
+            color_no: None,
+            items: vec![
+                VoucherItemRequest {
+                    line_no: None,
+                    subject_code: Some("500103".to_string()),
+                    subject_name: Some("生产成本-制造费用".to_string()),
+                    debit: amount,
+                    credit: Decimal::ZERO,
+                    summary: Some(summary.clone()),
+                    assist_customer_id: None,
+                    assist_supplier_id: None,
+                    assist_department_id: None,
+                    assist_employee_id: None,
+                    assist_project_id: None,
+                    assist_batch_id: None,
+                    assist_color_no_id: None,
+                    assist_dye_lot_id: None,
+                    assist_grade: None,
+                    assist_workshop_id: None,
+                    quantity_meters: None,
+                    quantity_kg: None,
+                    unit_price: None,
+                },
+                VoucherItemRequest {
+                    line_no: None,
+                    subject_code: Some("2202".to_string()),
+                    subject_name: Some("应付账款-水电费".to_string()),
+                    debit: Decimal::ZERO,
+                    credit: amount,
+                    summary: Some(summary),
+                    assist_customer_id: None,
+                    assist_supplier_id: None,
+                    assist_department_id: None,
+                    assist_employee_id: None,
+                    assist_project_id: None,
+                    assist_batch_id: None,
+                    assist_color_no_id: None,
+                    assist_dye_lot_id: None,
+                    assist_grade: None,
+                    assist_workshop_id: None,
+                    quantity_meters: None,
+                    quantity_kg: None,
+                    unit_price: None,
+                },
+            ],
+        };
+        if let Err(e) = voucher_service.create_and_post(req, user_id).await {
+            tracing::warn!(
+                allocation_id = model.id,
+                allocation_no = %model.allocation_no,
+                "能耗分摊凭证生成失败（B05-P2-9）：{}",
+                e
+            );
+        }
+
+        // 按缸号归集制造费用到成本归集单
+        let Some(dye_lot_no) = &model.dye_lot_no else {
+            tracing::info!(
+                allocation_id = model.id,
+                "能耗分摊无缸号关联，跳过 manufacturing_overhead 归集（B05-P2-9）"
+            );
+            return None;
+        };
+        if dye_lot_no.is_empty() {
+            return None;
+        }
+        let cost_service = CostCollectionService::new(self.db.clone());
+        let collection = match cost_service.find_latest_by_dye_lot_no(dye_lot_no).await {
+            Ok(Some(c)) => c,
+            Ok(None) => {
+                tracing::warn!(
+                    allocation_id = model.id,
+                    dye_lot_no = %dye_lot_no,
+                    "缸号未关联 draft 成本归集单，跳过 manufacturing_overhead 归集（B05-P2-9）"
+                );
+                return None;
+            }
+            Err(e) => {
+                tracing::warn!(
+                    allocation_id = model.id,
+                    dye_lot_no = %dye_lot_no,
+                    error = %e,
+                    "查询成本归集单失败，跳过 manufacturing_overhead 归集（B05-P2-9）"
+                );
+                return None;
+            }
+        };
+        let new_overhead = collection.manufacturing_overhead + amount;
+        let req = UpdateCostCollectionRequest {
+            collection_date: None,
+            direct_material: None,
+            direct_labor: None,
+            manufacturing_overhead: Some(new_overhead),
+            processing_fee: None,
+            dyeing_fee: None,
+            output_quantity_meters: None,
+            output_quantity_kg: None,
+            dye_lot_no: None,
+        };
+        match cost_service.update(collection.id, req, user_id).await {
+            Ok(_) => {
+                tracing::info!(
+                    allocation_id = model.id,
+                    cost_collection_id = collection.id,
+                    dye_lot_no = %dye_lot_no,
+                    overhead = %amount,
+                    new_manufacturing_overhead = %new_overhead,
+                    "能耗制造费用已归集至成本归集单（B05-P2-9）"
+                );
+                Some(collection.id)
+            }
+            Err(e) => {
+                tracing::warn!(
+                    allocation_id = model.id,
+                    cost_collection_id = collection.id,
+                    error = %e,
+                    "manufacturing_overhead 归集更新失败（B05-P2-9）"
+                );
+                None
+            }
+        }
     }
 
     /// 取消分摊记录（draft/confirmed → cancelled）

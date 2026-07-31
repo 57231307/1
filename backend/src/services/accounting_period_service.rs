@@ -78,6 +78,30 @@ impl AccountingPeriodService {
         period_id: i32,
         user_id: i32,
     ) -> Result<accounting_period::Model, AppError> {
+        // V15 P2 B05-P2-10：期末调整（暂估/摊销/预提）自动确认。
+        // 在结账事务前处理，确保调整凭证计入本期试算平衡；失败仅 warn 不阻断结账。
+        if let Some(period_for_adjust) = accounting_period::Entity::find_by_id(period_id)
+            .one(self.db.as_ref())
+            .await?
+        {
+            let period_str = format!(
+                "{:04}-{:02}",
+                period_for_adjust.year, period_for_adjust.period
+            );
+            let adjust_service =
+                crate::services::period_adjustment_service::PeriodAdjustmentService::new(
+                    self.db.clone(),
+                );
+            if let Err(e) = adjust_service.confirm_pending(&period_str, user_id).await {
+                tracing::warn!(
+                    period_id,
+                    period = %period_str,
+                    "期末调整自动确认失败（不阻断结账，B05-P2-10）：{}",
+                    e
+                );
+            }
+        }
+
         // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
         let txn = (*self.db).begin().await?;
         let period = self.lock_period_for_close_txn(&txn, period_id).await?;

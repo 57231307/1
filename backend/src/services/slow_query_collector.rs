@@ -22,6 +22,7 @@ use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::interval;
+use tokio_util::sync::CancellationToken;
 
 use crate::models::slow_query;
 use crate::utils::error::AppError;
@@ -59,8 +60,13 @@ impl SlowQueryCollector {
 
     /// 启动后台定时采集任务
     /// 行为：启动后立即执行一次采集（首屏不等待）；之后每 `interval_secs` 秒执行一次；任何异常仅记录 `tracing::warn!`，不向上传播；设计原则：采集任务启动失败不阻断 main（CI 容器可能未预装扩展）
+    /// V15 P2 B05-P2-5：接受 CancellationToken，shutdown 时 cancel() 通知循环优雅退出
     // v11 批次 147 P2-B：移除失效的 dead_code 标注（被 main.rs:462 真实调用）
-    pub fn start_collect_task(self: Arc<Self>, interval_secs: u64) -> tokio::task::JoinHandle<()> {
+    pub fn start_collect_task(
+        self: Arc<Self>,
+        interval_secs: u64,
+        cancel_token: CancellationToken,
+    ) -> tokio::task::JoinHandle<()> {
         let service = self.clone();
         tokio::spawn(async move {
             tracing::info!(
@@ -97,17 +103,24 @@ impl SlowQueryCollector {
             // 跳过首次立即触发（已手动执行）
             ticker.tick().await;
             loop {
-                ticker.tick().await;
-                if let Err(panic_payload) = run_collect().await {
-                    let panic_msg = panic_payload
-                        .downcast_ref::<String>()
-                        .map(|s| s.as_str())
-                        .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
-                        .unwrap_or("<非字符串 panic payload>");
-                    tracing::error!(
-                        panic = %panic_msg,
-                        "⚠ 慢查询采集 spawn 任务内 panic 已被隔离，采集循环继续运行（不退出）"
-                    );
+                tokio::select! {
+                    _ = ticker.tick() => {
+                        if let Err(panic_payload) = run_collect().await {
+                            let panic_msg = panic_payload
+                                .downcast_ref::<String>()
+                                .map(|s| s.as_str())
+                                .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
+                                .unwrap_or("<非字符串 panic payload>");
+                            tracing::error!(
+                                panic = %panic_msg,
+                                "⚠ 慢查询采集 spawn 任务内 panic 已被隔离，采集循环继续运行（不退出）"
+                            );
+                        }
+                    }
+                    _ = cancel_token.cancelled() => {
+                        tracing::info!("慢查询采集任务收到取消信号，优雅退出");
+                        break;
+                    }
                 }
             }
         })

@@ -40,6 +40,7 @@ impl DyeBatchReworkService {
             rework_batch_no: Set(req.rework_batch_no),
             rework_type: Set(req.rework_type),
             rework_reason: Set(req.rework_reason),
+            rework_cost: Set(None),
             original_status: Set(req.original_status),
             approved_by: Set(None),
             approved_at: Set(None),

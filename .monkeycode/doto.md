@@ -191,7 +191,7 @@
 |------|------|------|-----------|----------|------|
 | P2-Batch-01a | 类二+三+四+六+七（首批 9 项快速修复） | 9 | 10 | CSP+Argon2+魔法数字+TODO+i18n 注释 | ✅ 已合并 main（PR #797，6a38e05） |
 | P2-Batch-01b | 类二+三+四+六+七（续作 18 项） | 18 | 34 | Cookie 双写+缓存一致性+SQL 参数化+表重叠+测试补齐+service 拆分+差异化 TTL | ✅ 已合并 main（PR #799，5bd1743，14 项对症 + 3 项审计过时增强 + 1 项未修复 B04-P2-3） |
-| P2-Batch-02 | 类五（运行闭环） | 11 | 40-60 | 反馈闭环 + 重染补染 + 告警死信 + 资源管理 + 凭证归集 | 📋 待启动前执行步骤 0 |
+| P2-Batch-02 | 类五（运行闭环） | 10 | 40-60 | 反馈闭环 + 重染补染 + 告警死信 + 资源管理 + 凭证归集 | 🔧 步骤 0-4 完成（10 项实现 + 步骤 4 自审通过：2 编译错误 + 8 规则 4 违规已修复），待推送 |
 | P2-Batch-03 | 类八（法律合规剩余） | 8 | 30-50 | 跨境合规 + 合同字段 + 印染规范 + 跌价准备 + 税务 + 环评 + 女职工保护 | 📋 待启动前执行步骤 0 |
 | P2-Batch-04+ | 类九~类二十五 | 待核实 | — | 后续批次启动前各自执行步骤 0 核实 | 📋 待启动 |
 
@@ -218,6 +218,65 @@
 | B07-P2-1 | 部分存在 | dye_batch_state_machine_service 936 行含 4 service | 拆分为 4 文件 |
 | B07-P2-5 | ❌ 不存在（已环境变量化） | ttl_secs 默认 60 未调优 | **审计过时**：main 已从 `CACHE_TTL_SECS` 环境变量读取；修复为差异化 TTL 增强（7 常量） |
 | B07-P2-6 | ❌ 不存在（已接入缓存） | product/customer_service 未接入缓存 | **审计过时**：main 已接入 redis_cache + invalidate；修复为差异化 TTL 增强 |
+
+### 1.2.2 P2-Batch-02（类五 运行闭环）步骤 0 核实结果（2026-07-31，规则 13 步骤 0）
+
+> **核实方法**：使用 Grep/Read 工具逐项核实审计报告 batch-05 中 11 项 P2 缺陷在 main 分支当前代码是否仍存在，附文件路径:行号作为证据。
+>
+> **核实结论修正**：之前总结中称"9 项存在 + 2 项不存在（P2-8 和 P2-11）"是错误结论。本次重新逐项核实后实际为 **10 项存在 + 1 项不存在**：
+> - **B05-P2-8（产量工资未生成人工成本凭证）实际完全存在**：wage_service.rs 全文无 Voucher/VoucherService/create_and_post/labor/cost_collection 关键字（仅"按人均分配工资"业务注释），工资发放（confirmed → paid）后未生成借"生产成本-直接人工"/贷"应付职工薪酬"凭证。
+> - **B05-P2-11（AP 对账单确认后未生成凭证）实际不存在（审计过时）**：ap_reconciliation_service.rs 是 facade，实际实现在 ap_reconciliation_ops/confirm.rs:81-94 + 137，已实现 `create_confirm_voucher` 调用 `voucher_service.create_and_post` 生成对账确认凭证（借贷均为应付账款，金额=期末余额）。
+
+**核实汇总**：
+
+| 核实结果 | 数量 | 占比 | 处理方式 |
+|---------|------|------|---------|
+| 完全存在 | 10 | 90.9% | 进入步骤 1 正常评估，安排修复 |
+| 不存在（审计过时） | 1 | 9.1% | 跳过 B05-P2-11，标记"审计过时"，归档 doto-su.md |
+| **合计** | **11** | 100% | — |
+
+**逐项核实明细**：
+
+| 编号 | 核实结果 | 缺陷描述 | 代码证据 |
+|------|---------|---------|---------|
+| B05-P2-1 | ✅ 完全存在 | 缺少"反馈工艺优化"与"反馈配方优化"显式闭环 | lab_dip_service.rs 无 dye_recipe/配方库/工艺优化反馈代码；dye_batch_state_machine_service.rs 无 DyeBatchCompleted publish/工艺优化事件 |
+| B05-P2-2 | ✅ 完全存在 | rework_type 缺 re_dye/replenish_dye | dye_batch_state_machine_validation.rs:74-84 validate_rework_type 仅接受 color_difference/defect/specification_unqualified/other 4 种，无 re_dye/replenish_dye |
+| B05-P2-3 | ✅ 完全存在 | 缸号状态机异常缺告警+死信队列 | dye_batch_state_machine_validation.rs:36/65/82/100/119/272/287 共 7 处 `return Err(AppError::business(...))`，无 tracing::warn/BusinessEvent/dead_letter |
+| B05-P2-4 | ✅ 完全存在 | 色卡状态机缺 issued/received/used/expired 闭环 | color_card_crud_service.rs:207/212/241 仅使用 "archived"/"lost" 硬编码字符串，无 ISSUED/RECEIVED/USED/EXPIRED 状态常量 |
+| B05-P2-5 | ✅ 完全存在 | 5 个后台定时任务缺 CancellationToken | 整个 backend/src Grep `CancellationToken\|cancellation_token` 无任何匹配；当前用 JoinHandle.abort() 强制终止 |
+| B05-P2-6 | ✅ 完全存在 | 染缸设备缺显式占用/释放路径 | 整个 backend/src Grep `dye_vat_occupation\|vat_occupy\|vat_release\|equipment.*occupy` 无任何匹配；CreateTransitionRequest.equipment_id 仅作记录字段 |
+| B05-P2-7 | ✅ 完全存在 | PDA/工控终端连接缺资源管理 | 整个 backend/src Grep `PDA\|工控终端\|device_connection\|terminal_connection` 仅在 dye_batch_lifecycle_log.rs:6/11/40 注释中提及，无独立连接管理模块 |
+| B05-P2-8 | ✅ 完全存在（**修正前总结错误**） | 产量工资未生成人工成本凭证 | wage_service.rs 全文无 Voucher/VoucherService/create_and_post/labor/cost_collection；工资发放（confirmed → paid）仅更新 wage_record 表 |
+| B05-P2-9 | ✅ 完全存在 | 月末能耗分摊未生成成本凭证 | energy_service.rs 全文无 Voucher/VoucherService/create_and_post；monthly_allocation_by_duration 仅生成 energy_allocation_record，cost_collection_id: Set(None) |
+| B05-P2-10 | ✅ 完全存在 | 期末调整机制（暂估/摊销/预提）缺失 | 整个 backend/src Grep `暂估\|摊销\|预提\|PeriodAdjustment` 仅匹配 bad_debt_service.rs（坏账准备，非期末调整）；无 PeriodAdjustmentService |
+| B05-P2-11 | ❌ 不存在（审计过时） | AP 对账单确认后未生成凭证 | ap_reconciliation_ops/confirm.rs:81-94 已实现 `create_confirm_voucher`，:137 confirm_reconciliation 调用 `voucher_service.create_and_post` 生成对账确认凭证（借贷均为应付账款，金额=期末余额），与 AR 对账单凭证对称 |
+
+**B05-P2-11 处理决策**：审计过时（已在某次合并中实现），跳过该任务，归档到 doto-su.md 标记"审计过时"。
+
+**重新规划的 P2-Batch-02 范围**：10 项（B05-P2-1 ~ P2-10），剔除 B05-P2-11（审计过时）。预估文件数 40-60。
+
+**步骤 1 评估结论（2026-07-31，规则 13 步骤 1）**：
+
+| 编号 | 修复方向 | 关键文件 | 风险点 |
+|------|---------|---------|--------|
+| B05-P2-1 | resample.rs PASSED 后回写 dye_recipe + listener DyeBatchCompleted 触发工艺反馈 | lab_dip_ops/resample.rs:164-217 + event_bus_ops/listener.rs:249-257 + dye_recipe_service.rs | 配方回写幂等 + 工艺反馈异步非阻塞 |
+| B05-P2-2 | quality_dyeing.rs 补 re_dye/replenish_dye 常量 + validation.rs 白名单更新 + m0089 加 rework_cost 字段 | status/quality_dyeing.rs:241-249 + dye_batch_state_machine_validation.rs:74-84 + migration m0089 | 历史数据兼容 + 前端枚举同步 |
+| B05-P2-3 | validation.rs 7 处 return Err 加 tracing::warn + 关键异常入死信队列 | dye_batch_state_machine_validation.rs:36/65/82/100/119/272/287 + event_retry_service.rs:32-67 | 告警异步 + 死信写入需依赖注入 |
+| B05-P2-4 | wage_energy_chemical_business.rs 补 ISSUED/RECEIVED/USED/EXPIRED 常量 + crud_service 状态流转校验 | status/wage_energy_chemical_business.rs:127-135 + color_card_crud_service.rs + color_card_handler.rs | 历史色卡 status 兼容 + 与 borrow 状态机联动 |
+| B05-P2-5 | Cargo.toml 加 tokio-util + service_bootstrap.rs 引入 CancellationToken + 5 个 spawn 任务循环检查 | bootstrap/service_bootstrap.rs:53-67/379/395/530 + Cargo.toml + main.rs | abort() 兜底保留 + token clone 传入 |
+| B05-P2-6 | 新建 dye_vat_occupation 表（m0090）+ service occupy/release/check + listener DyeBatchStatusChanged 触发 | migration m0090 + new model + new service + event_bus_ops/listener.rs:123-142 + handler | 并发占用行锁 + 异常流转兜底释放 |
+| B05-P2-7 | 新建 device_connection 表（m0091）+ service register/unregister/heartbeat/cleanup + handler + 超时清理任务复用 CancellationToken | migration m0091 + new model + new service + handler + bootstrap/service_bootstrap.rs | 心跳超时阈值可配置 + 与 WebSocket ConnectionManager 关系明确 |
+| B05-P2-8 | **凭证已存在**（wage_ops/record.rs:212 create_wage_confirm_voucher），仅补 listener WageConfirmed 订阅者调用 cost_collection.update_direct_labor | wage_ops/record.rs:155/161 + event_bus_ops/listener.rs:259-273 + cost_collection_service.rs:207-208 | wage_record 关联 dye_lot_no + 归集幂等 |
+| B05-P2-9 | monthly_allocation confirm 时生成能耗凭证（借：生产成本-制造费用 / 贷：应付账款-水电费）+ 回写 cost_collection_id + update manufacturing_overhead | energy_ops/allocation_record.rs:273/183/552 + cost_collection_service.rs:210-211 + voucher_service.rs | 分摊多缸号按 dye_lot_no 分别归集 + confirm 后幂等 |
+| B05-P2-10 | 新建 PeriodAdjustmentService（暂估/摊销/预提）+ m0092 period_adjustment_record 表 + accounting_period_service.close_period 注入调用 | accounting_period_service.rs:74-101/113/198 + new service + new model + migration m0092 + handler | 暂估下月初红字冲销 + 反结账冲销 + 与年结协同 |
+
+**修复顺序**（按依赖关系）：
+1. **第一阶段**（基础设施）：B05-P2-5（CancellationToken）→ B05-P2-2（枚举扩展）
+2. **第二阶段**（状态机/事件）：B05-P2-4（色卡状态）→ B05-P2-3（告警死信）→ B05-P2-1（反馈闭环）
+3. **第三阶段**（资源管理）：B05-P2-6（染缸占用）→ B05-P2-7（设备连接，复用 P2-5 token）
+4. **第四阶段**（业财一致性）：B05-P2-8（direct_labor 归集）→ B05-P2-9（manufacturing_overhead 归集）→ B05-P2-10（期末调整）
+
+**预估总文件数**：约 39 个（新增 12 + 修改 27，含 migration m0089-m0092 共 4 个）
 
 ### 1.3 P3 低优先级（123 项，按需修复）
 

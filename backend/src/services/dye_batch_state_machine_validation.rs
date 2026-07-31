@@ -33,6 +33,12 @@ pub fn validate_lifecycle_status(status: &str) -> Result<(), AppError> {
         dye_batch_lifecycle_status::FAILED,
     ];
     if !valid.contains(&status) {
+        tracing::warn!(
+            target: "dye_batch_state_machine",
+            rule = "lifecycle_status_whitelist",
+            invalid_status = status,
+            "缸号状态机校验失败：生命周期状态不在白名单内"
+        );
         return Err(AppError::business(format!(
             "缸号生命周期状态必须是 pending_schedule/scheduled/preparing/dyeing/washing/fixing/dehydrating/drying/inspecting/stored/shipped/cancelled/terminated/rework/on_hold/failed，当前: {}",
             status
@@ -62,6 +68,12 @@ pub fn validate_transition_code(code: &str) -> Result<(), AppError> {
         dye_batch_transition_code::FAIL,
     ];
     if !valid.contains(&code) {
+        tracing::warn!(
+            target: "dye_batch_state_machine",
+            rule = "transition_code_whitelist",
+            invalid_code = code,
+            "缸号状态机校验失败：流转操作代码不在白名单内"
+        );
         return Err(AppError::business(format!(
             "缸号流转操作代码必须是 schedule/prepare/start_dyeing/wash/fix/dehydrate/dry/inspect/store/ship/cancel/rework/terminate/hold/resume/fail，当前: {}",
             code
@@ -70,17 +82,25 @@ pub fn validate_transition_code(code: &str) -> Result<(), AppError> {
     Ok(())
 }
 
-/// 校验缸号回修类型是否合法（4 种类型）
+/// 校验缸号回修类型是否合法（6 种类型，V15 P2 B05-P2-2 补 re_dye/replenish_dye）
 pub fn validate_rework_type(rework_type: &str) -> Result<(), AppError> {
     let valid = [
         dye_batch_rework_type::COLOR_DIFFERENCE,
         dye_batch_rework_type::DEFECT,
         dye_batch_rework_type::SPECIFICATION_UNQUALIFIED,
+        dye_batch_rework_type::RE_DYE,
+        dye_batch_rework_type::REPLENISH_DYE,
         dye_batch_rework_type::OTHER,
     ];
     if !valid.contains(&rework_type) {
+        tracing::warn!(
+            target: "dye_batch_state_machine",
+            rule = "rework_type_whitelist",
+            invalid_rework_type = rework_type,
+            "缸号状态机校验失败：回修类型不在白名单内"
+        );
         return Err(AppError::business(format!(
-            "缸号回修类型必须是 color_difference/defect/specification_unqualified/other，当前: {}",
+            "缸号回修类型必须是 color_difference/defect/specification_unqualified/re_dye/replenish_dye/other，当前: {}",
             rework_type
         )));
     }
@@ -97,6 +117,12 @@ pub fn validate_rework_status(status: &str) -> Result<(), AppError> {
         dye_batch_rework_status::CANCELLED,
     ];
     if !valid.contains(&status) {
+        tracing::warn!(
+            target: "dye_batch_state_machine",
+            rule = "rework_status_whitelist",
+            invalid_status = status,
+            "缸号状态机校验失败：回修单状态不在白名单内"
+        );
         return Err(AppError::business(format!(
             "缸号回修单状态必须是 draft/approved/in_progress/completed/cancelled，当前: {}",
             status
@@ -116,6 +142,12 @@ pub fn validate_operation_type(op_type: &str) -> Result<(), AppError> {
         dye_batch_operation_type::TERMINATE,
     ];
     if !valid.contains(&op_type) {
+        tracing::warn!(
+            target: "dye_batch_state_machine",
+            rule = "operation_type_whitelist",
+            invalid_op_type = op_type,
+            "缸号状态机校验失败：操作类型不在白名单内"
+        );
         return Err(AppError::business(format!(
             "缸号操作类型必须是 merge/split/priority_adjust/batch_change/schedule_change/terminate，当前: {}",
             op_type
@@ -269,6 +301,14 @@ pub fn validate_transition_with_rule(
         validate_lifecycle_status(fs)?;
     }
     if !is_valid_transition(from_status, to_status, transition_code) {
+        tracing::warn!(
+            target: "dye_batch_state_machine",
+            rule = "transition_rule_table",
+            from_status = ?from_status,
+            to_status = to_status,
+            transition_code = transition_code,
+            "缸号状态机校验失败：状态流转不在规则表内（非法流转）"
+        );
         return Err(AppError::business(format!(
             "不允许的状态流转: {:?} → {}（操作代码: {}）",
             from_status, to_status, transition_code
@@ -284,6 +324,12 @@ pub fn check_rework_eligibility(original_status: &str) -> Result<(), AppError> {
         dye_batch_lifecycle_status::STORED,
     ];
     if !eligible.contains(&original_status) {
+        tracing::warn!(
+            target: "dye_batch_state_machine",
+            rule = "rework_eligibility",
+            original_status = original_status,
+            "缸号状态机校验失败：当前状态不可发起回修（仅 inspecting/stored 允许）"
+        );
         return Err(AppError::business(format!(
             "只有 inspecting/stored 状态可发起回修，当前状态: {}",
             original_status
@@ -355,6 +401,8 @@ mod tests {
         assert!(validate_rework_type("color_difference").is_ok());
         assert!(validate_rework_type("defect").is_ok());
         assert!(validate_rework_type("specification_unqualified").is_ok());
+        assert!(validate_rework_type("re_dye").is_ok());
+        assert!(validate_rework_type("replenish_dye").is_ok());
         assert!(validate_rework_type("other").is_ok());
     }
 

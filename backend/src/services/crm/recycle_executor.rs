@@ -25,6 +25,7 @@ use sea_orm::{
     QueryOrder, Set, TransactionTrait,
 };
 use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
 use crate::models::crm_lead::{self, Entity as LeadEntity};
@@ -141,12 +142,21 @@ impl RecycleExecutor {
         Ok(())
     }
 
-    /// 启动后台定时任务（每 6 小时执行一次 run_once）
-    /// 在 main.rs 中调用：```ignore；let executor = Arc::new(RecycleExecutor::new(db.clone()));；let handle = executor.start_background_task();；```
-    pub fn start_background_task(self: Arc<Self>) -> tokio::task::JoinHandle<()> {
+    /// 启动后台定时任务（每 6 小时执行一次 run_once）。
+    /// V15 P2 B05-P2-5：接受 CancellationToken，shutdown 时 cancel() 通知循环优雅退出。
+    pub fn start_background_task(
+        self: Arc<Self>,
+        cancel_token: CancellationToken,
+    ) -> tokio::task::JoinHandle<()> {
         tokio::spawn(async move {
             // 启动后先等 60 秒，避免与启动初始化争抢数据库连接
-            tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+            tokio::select! {
+                _ = tokio::time::sleep(std::time::Duration::from_secs(60)) => {}
+                _ = cancel_token.cancelled() => {
+                    tracing::info!("[RecycleExecutor] 启动等待阶段收到取消信号，优雅退出");
+                    return;
+                }
+            }
             // 每次循环间隔 6 小时
             let interval = std::time::Duration::from_secs(6 * 3600);
             loop {
@@ -159,7 +169,13 @@ impl RecycleExecutor {
                         tracing::warn!("[RecycleExecutor] 定时任务失败：{}，下次循环继续", e);
                     }
                 }
-                tokio::time::sleep(interval).await;
+                tokio::select! {
+                    _ = tokio::time::sleep(interval) => {}
+                    _ = cancel_token.cancelled() => {
+                        tracing::info!("[RecycleExecutor] 收到取消信号，优雅退出");
+                        break;
+                    }
+                }
             }
         })
     }

@@ -17,6 +17,8 @@
 //!
 //! 纯函数 generate_resample_no 与 struct 定义、new 构造函数保留在 facade `lab_dip_service`。
 
+use std::sync::Arc;
+
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
 };
@@ -213,7 +215,63 @@ impl LabDipResampleService {
             src_active.update(&*self.db).await?;
         }
 
+        // V15 P2 B05-P2-1：复样通过后将 OK 样配方回写配方库（异步执行，失败仅 warn 不阻断主流程）
+        if updated.result == resample_status::PASSED {
+            Self::spawn_recipe_writeback(self.db.clone(), &updated);
+        }
+
         Ok(updated)
+    }
+
+    /// V15 P2 B05-P2-1：异步将复样通过的调整配方回写染色配方库。
+    /// 若 production_recipe_id 存在则 update 该配方，否则跳过（无关联配方时不强制创建）。
+    fn spawn_recipe_writeback(db: Arc<DatabaseConnection>, resample: &ResampleModel) {
+        let recipe_id = match resample.production_recipe_id {
+            Some(id) => id,
+            None => {
+                tracing::debug!(
+                    resample_id = resample.id,
+                    "复样通过但未关联生产配方 ID，跳过配方回写"
+                );
+                return;
+            }
+        };
+        let adjusted_formula = resample.adjusted_formula.clone();
+        let adjusted_temperature = resample.adjusted_temperature;
+        let adjusted_time_minutes = resample.adjusted_time_minutes;
+        let adjusted_liquor_ratio = resample.adjusted_liquor_ratio.clone();
+        let resample_no = resample.resample_no.clone();
+        tokio::spawn(async move {
+            let recipe_service = crate::services::dye_recipe_service::DyeRecipeService::new(db);
+            let liquor_ratio_decimal = adjusted_liquor_ratio
+                .as_deref()
+                .and_then(|s| s.parse::<rust_decimal::Decimal>().ok());
+            let update_req = crate::services::dye_recipe_service::UpdateDyeRecipeRequest {
+                chemical_formula: adjusted_formula,
+                temperature: adjusted_temperature,
+                time_minutes: adjusted_time_minutes,
+                liquor_ratio: liquor_ratio_decimal,
+                remarks: Some(format!("复样通过自动回写（复样单号: {}）", resample_no)),
+                ..Default::default()
+            };
+            match recipe_service.update(recipe_id, update_req).await {
+                Ok(_) => {
+                    tracing::info!(
+                        recipe_id,
+                        resample_no = %resample_no,
+                        "复样通过配方已回写染色配方库（B05-P2-1 配方优化闭环）"
+                    );
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        recipe_id,
+                        resample_no = %resample_no,
+                        error = %e,
+                        "复样通过配方回写失败（不阻断主流程，B05-P2-1）"
+                    );
+                }
+            }
+        });
     }
 
     /// 开具染色技术卡（真实业务：复样通过后由研发组长开卡）（染色技术卡附三件套：配方表 + 核可样 + 复色样）

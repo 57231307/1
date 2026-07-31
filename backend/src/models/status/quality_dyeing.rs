@@ -238,6 +238,7 @@ pub mod dye_batch_transition_code {
 }
 
 /// v14 批次 432：缸号回修类型（dye_batch_rework.rework_type）
+/// V15 P2 B05-P2-2：补充 re_dye/replenish_dye 区分重染/补染业务语义
 pub mod dye_batch_rework_type {
     /// 色差：染色色差超允许范围，需回修调色
     pub const COLOR_DIFFERENCE: &str = "color_difference";
@@ -245,6 +246,10 @@ pub mod dye_batch_rework_type {
     pub const DEFECT: &str = "defect";
     /// 规格不符：门幅/克重/纱支等规格不符，需回修调整
     pub const SPECIFICATION_UNQUALIFIED: &str = "specification_unqualified";
+    /// 重染：整缸重新染色，成本高（V15 P2 B05-P2-2 新增）
+    pub const RE_DYE: &str = "re_dye";
+    /// 补染：局部补色，成本低（V15 P2 B05-P2-2 新增）
+    pub const REPLENISH_DYE: &str = "replenish_dye";
     /// 其他：其他原因回修
     pub const OTHER: &str = "other";
 }

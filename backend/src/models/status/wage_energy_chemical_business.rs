@@ -126,11 +126,27 @@ pub mod energy_rule_status {
 
 /// 色卡状态（color_card.status，小写值）
 /// 批次 236 v13 真实接入：color_card_crud_service.rs
+/// V15 P2 B05-P2-4：补全 issued/received/used/expired 闭环（draft→issued→received→used→expired/lost/archived）
 pub mod color_card {
-    /// 已归档：色卡已归档
+    /// 草稿：新建色卡，可编辑（与 legacy "active" 等价，向后兼容）
+    pub const DRAFT: &str = "draft";
+
+    /// 已发放：色卡已发放给客户/销售
+    pub const ISSUED: &str = "issued";
+
+    /// 已收回：客户归还色卡
+    pub const RECEIVED: &str = "received";
+
+    /// 已使用：色卡已用于生产/打样
+    pub const USED: &str = "used";
+
+    /// 已过期：色卡超过有效期，终态
+    pub const EXPIRED: &str = "expired";
+
+    /// 已归档：色卡已归档，终态
     pub const ARCHIVED: &str = "archived";
 
-    /// 已丢失：色卡已丢失
+    /// 已丢失：色卡已丢失，终态
     pub const LOST: &str = "lost";
 }
 

@@ -65,7 +65,7 @@ async fn dispatch_business_event(
     search_client: Arc<dyn SearchClient>,
     event: BusinessEvent,
 ) {
-    if log_simple_business_event(&event) {
+    if log_simple_business_event(&db, &event) {
         return;
     }
     match event {
@@ -208,7 +208,7 @@ async fn dispatch_business_event(
 }
 
 /// 记录简单日志事件（返回 true 表示已处理，无需后续分发）
-fn log_simple_business_event(event: &BusinessEvent) -> bool {
+fn log_simple_business_event(db: &Arc<DatabaseConnection>, event: &BusinessEvent) -> bool {
     match event {
         BusinessEvent::PaymentCompleted { invoice_id, .. } => {
             tracing::info!(
@@ -253,6 +253,8 @@ fn log_simple_business_event(event: &BusinessEvent) -> bool {
             ..
         } => {
             tracing::info!(batch_id, batch_no = %batch_no, color_no = ?color_no, "收到染色完成事件，可触发质检单生成/成本结转");
+            // V15 P2 B05-P2-1：染色完成触发工艺优化反馈（异步计算实际工时偏差，失败仅 warn）
+            spawn_process_optimization_feedback(db.clone(), *batch_id, batch_no.clone());
             true
         }
         // V15 Batch04-P1-7：工资事件（凭证已在 wage_service 发布前生成，此处仅记录流转日志）
@@ -269,6 +271,8 @@ fn log_simple_business_event(event: &BusinessEvent) -> bool {
                 confirmed_by,
                 "工资已确认（应付工资凭证已由 wage_service 生成），可触发成本归集 direct_labor"
             );
+            // V15 P2 B05-P2-8：工资确认触发人工成本归集（按缸号汇总明细 wage_amount → cost_collection.direct_labor，异步，失败仅 warn）
+            spawn_wage_labor_cost_collection(db.clone(), *wage_record_id, record_no.clone());
             true
         }
         BusinessEvent::WagePaid {
@@ -664,7 +668,7 @@ async fn handle_process_step_reported(
 
 /// V15 Batch05-P1-3：处理缸号状态变更事件（设备占用/释放、看板更新）
 async fn handle_dye_batch_status_changed(
-    _db: Arc<DatabaseConnection>,
+    db: Arc<DatabaseConnection>,
     batch_id: i32,
     batch_no: String,
     from_status: String,
@@ -681,14 +685,323 @@ async fn handle_dye_batch_status_changed(
         operator_id = ?operator_id,
         "处理缸号状态变更事件：触发设备占用/释放、看板更新"
     );
-    // dyeing 状态流转时校验染缸可用性并占用资源
+    // V15 P2 B05-P2-6：dyeing 状态流转时占用染缸资源（异步，失败仅 warn）
     if to_status == "dyeing" {
-        tracing::info!(batch_id, batch_no = %batch_no, "缸号进入染色状态，校验染缸占用");
+        spawn_dye_vat_occupy(db.clone(), batch_id, batch_no.clone());
     }
-    // 流转出 dyeing 状态时释放染缸资源
+    // V15 P2 B05-P2-6：流转出 dyeing 状态时释放染缸资源（washing/cancelled/terminated 等）
     if from_status == "dyeing" && to_status != "dyeing" {
-        tracing::info!(batch_id, batch_no = %batch_no, "缸号离开染色状态，释放染缸资源");
+        spawn_dye_vat_release(db.clone(), batch_id, batch_no.clone());
     }
+}
+
+/// V15 P2 B05-P2-6：异步占用染缸（通过流转卡→工序记录查找设备 ID，失败仅 warn）。
+fn spawn_dye_vat_occupy(db: Arc<DatabaseConnection>, batch_id: i32, batch_no: String) {
+    tokio::spawn(async move {
+        let vat_id = match resolve_vat_id_by_batch(&db, batch_id).await {
+            Ok(Some(id)) => id,
+            Ok(None) => {
+                tracing::info!(
+                    batch_id,
+                    batch_no = %batch_no,
+                    "缸号未关联染缸设备，跳过染缸占用（B05-P2-6）"
+                );
+                return;
+            }
+            Err(e) => {
+                tracing::warn!(
+                    batch_id,
+                    batch_no = %batch_no,
+                    error = %e,
+                    "查询缸号关联染缸失败，跳过染缸占用（B05-P2-6）"
+                );
+                return;
+            }
+        };
+        let service = crate::services::dye_vat_occupation_service::DyeVatOccupationService::new(db);
+        if let Err(e) = service
+            .occupy(vat_id, batch_id, Some(batch_no.clone()))
+            .await
+        {
+            tracing::warn!(
+                batch_id,
+                batch_no = %batch_no,
+                vat_id,
+                error = %e,
+                "染缸占用失败（不阻断状态流转，B05-P2-6）"
+            );
+        }
+    });
+}
+
+/// V15 P2 B05-P2-6：异步释放染缸（按 batch_id 释放，幂等，失败仅 warn）。
+fn spawn_dye_vat_release(db: Arc<DatabaseConnection>, batch_id: i32, batch_no: String) {
+    tokio::spawn(async move {
+        let service = crate::services::dye_vat_occupation_service::DyeVatOccupationService::new(db);
+        if let Err(e) = service.release(batch_id).await {
+            tracing::warn!(
+                batch_id,
+                batch_no = %batch_no,
+                error = %e,
+                "染缸释放失败（不阻断状态流转，B05-P2-6）"
+            );
+        }
+    });
+}
+
+/// V15 P2 B05-P2-6：通过缸号查找关联的染缸设备 ID。
+/// 链路：dye_batch → production_flow_card(dye_batch_id) → process_step_record(flow_card_id, process_type='dye') → equipment_id
+async fn resolve_vat_id_by_batch(
+    db: &DatabaseConnection,
+    batch_id: i32,
+) -> Result<Option<i32>, AppError> {
+    use crate::models::process_step_record::{self as step_model, Entity as StepEntity};
+    use crate::models::production_flow_card::{self as card_model, Entity as CardEntity};
+
+    let flow_card = CardEntity::find()
+        .filter(card_model::Column::DyeBatchId.eq(batch_id))
+        .one(db)
+        .await?;
+    let Some(card) = flow_card else {
+        return Ok(None);
+    };
+    let step = StepEntity::find()
+        .filter(step_model::Column::FlowCardId.eq(card.id))
+        .filter(step_model::Column::ProcessType.eq("dye"))
+        .filter(step_model::Column::EquipmentId.is_not_null())
+        .one(db)
+        .await?;
+    Ok(step.and_then(|s| s.equipment_id))
+}
+
+/// V15 P2 B05-P2-1：异步计算染色实际工时与工艺路线标准工时的偏差，记录工艺优化反馈。
+/// 失败仅 warn 不阻断主流程（与 DyeBatchCompleted 现有处理语义一致）。
+fn spawn_process_optimization_feedback(
+    db: Arc<DatabaseConnection>,
+    batch_id: i32,
+    batch_no: String,
+) {
+    tokio::spawn(async move {
+        let result = process_optimization_feedback_inner(&db, batch_id, &batch_no).await;
+        if let Err(e) = result {
+            tracing::warn!(
+                batch_id,
+                batch_no = %batch_no,
+                error = %e,
+                "工艺优化反馈计算失败（不阻断主流程，B05-P2-1）"
+            );
+        }
+    });
+}
+
+/// V15 P2 B05-P2-1：计算染色实际工时偏差并记录工艺优化反馈。
+async fn process_optimization_feedback_inner(
+    db: &DatabaseConnection,
+    batch_id: i32,
+    batch_no: &str,
+) -> Result<(), AppError> {
+    use crate::models::dye_batch::Entity as DyeBatchEntity;
+    use crate::models::process_route::{self as process_route_model, Entity as ProcessRouteEntity};
+
+    let batch = DyeBatchEntity::find_by_id(batch_id)
+        .one(db)
+        .await?
+        .ok_or_else(|| AppError::business(format!("缸号记录不存在: {}", batch_id)))?;
+
+    let (started, completed) = match (batch.started_at, batch.completed_at) {
+        (Some(s), Some(c)) => (s, c),
+        _ => {
+            tracing::info!(
+                batch_id,
+                batch_no = %batch_no,
+                "缸号缺少开始/完成时间，跳过工艺优化反馈"
+            );
+            return Ok(());
+        }
+    };
+    let actual_minutes = (completed - started).num_minutes();
+    if actual_minutes < 0 {
+        tracing::warn!(batch_id, batch_no = %batch_no, "缸号完成时间早于开始时间，跳过工艺优化反馈");
+        return Ok(());
+    }
+
+    // 查询染色工序的标准工时（process_type = "dye"，取启用的第一条）
+    let dye_route = ProcessRouteEntity::find()
+        .filter(process_route_model::Column::ProcessType.eq("dye"))
+        .filter(process_route_model::Column::IsActive.eq(true))
+        .filter(process_route_model::Column::IsDeleted.eq(false))
+        .one(db)
+        .await?;
+
+    if let Some(route) = dye_route {
+        if let Some(default_minutes) = route.default_duration_minutes {
+            let default_minutes_i64 = default_minutes as i64;
+            let deviation = actual_minutes - default_minutes_i64;
+            let deviation_pct = if default_minutes_i64 > 0 {
+                (deviation as f64 / default_minutes_i64 as f64) * 100.0
+            } else {
+                0.0
+            };
+            tracing::info!(
+                batch_id,
+                batch_no = %batch_no,
+                route_code = %route.route_code,
+                actual_minutes,
+                default_minutes,
+                deviation_minutes = deviation,
+                deviation_pct = %format!("{:.1}%", deviation_pct),
+                "工艺优化反馈：染色实际工时 vs 标准工时偏差（B05-P2-1 工艺优化闭环）"
+            );
+            return Ok(());
+        }
+    }
+    tracing::info!(
+        batch_id,
+        batch_no = %batch_no,
+        actual_minutes,
+        "工艺优化反馈：未配置染色工序标准工时，仅记录实际工时（B05-P2-1）"
+    );
+    Ok(())
+}
+
+/// B05-P2-8：异步归集工资人工成本到 cost_collection.direct_labor（按 dye_lot_no 汇总，失败仅 warn）。
+fn spawn_wage_labor_cost_collection(
+    db: Arc<DatabaseConnection>,
+    wage_record_id: i32,
+    record_no: String,
+) {
+    tokio::spawn(async move {
+        if let Err(e) = collect_wage_labor_cost(&db, wage_record_id, &record_no).await {
+            tracing::warn!(
+                wage_record_id,
+                record_no = %record_no,
+                error = %e,
+                "工资人工成本归集失败（不阻断主流程，B05-P2-8）"
+            );
+        }
+    });
+}
+
+/// V15 P2 B05-P2-8：工资人工成本归集核心逻辑。
+/// 幂等：以 wage_record_id 为键通过 EventIdempotencyService 去重，重投不重复累加。
+async fn collect_wage_labor_cost(
+    db: &DatabaseConnection,
+    wage_record_id: i32,
+    record_no: &str,
+) -> Result<(), AppError> {
+    use crate::models::wage_record_detail::{self as detail_model, Entity as DetailEntity};
+    use rust_decimal::Decimal;
+    use std::collections::HashMap;
+
+    // 幂等校验：同一工资记录仅归集一次
+    let idempotency_service =
+        crate::services::event_idempotency_service::EventIdempotencyService::new(
+            std::sync::Arc::new(db.clone()),
+        );
+    let event_key = format!("wage_confirmed:{}", wage_record_id);
+    let should_process = match idempotency_service
+        .try_mark_processed("event_bus_main", &event_key, "WageConfirmed")
+        .await
+    {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::error!(
+                wage_record_id,
+                error = %e,
+                "WageConfirmed 幂等检查失败，跳过人工成本归集（B05-P2-8）"
+            );
+            return Ok(());
+        }
+    };
+    if !should_process {
+        tracing::info!(
+            wage_record_id,
+            "工资确认事件已处理，跳过人工成本归集（幂等，B05-P2-8）"
+        );
+        return Ok(());
+    }
+
+    // 查询工资明细，按 dye_lot_no 分组汇总 wage_amount
+    let details = DetailEntity::find()
+        .filter(detail_model::Column::WageRecordId.eq(wage_record_id))
+        .filter(detail_model::Column::IsDeleted.eq(false))
+        .all(db)
+        .await?;
+
+    let mut labor_by_lot: HashMap<String, Decimal> = HashMap::new();
+    let mut unallocated = Decimal::ZERO;
+    for d in &details {
+        if let Some(lot) = &d.dye_lot_no {
+            if !lot.is_empty() {
+                *labor_by_lot.entry(lot.clone()).or_insert(Decimal::ZERO) += d.wage_amount;
+                continue;
+            }
+        }
+        unallocated += d.wage_amount;
+    }
+
+    if labor_by_lot.is_empty() {
+        tracing::info!(
+            wage_record_id,
+            record_no = %record_no,
+            unallocated = %unallocated,
+            "工资明细无缸号关联，跳过 direct_labor 归集（B05-P2-8）"
+        );
+        return Ok(());
+    }
+
+    let cost_service = crate::services::cost_collection_service::CostCollectionService::new(
+        std::sync::Arc::new(db.clone()),
+    );
+    let mut allocated_count = 0u32;
+    for (dye_lot_no, labor_cost) in &labor_by_lot {
+        match cost_service.find_latest_by_dye_lot_no(dye_lot_no).await? {
+            Some(collection) => {
+                let new_labor = collection.direct_labor + *labor_cost;
+                let req = crate::services::cost_collection_service::UpdateCostCollectionRequest {
+                    collection_date: None,
+                    direct_material: None,
+                    direct_labor: Some(new_labor),
+                    manufacturing_overhead: None,
+                    processing_fee: None,
+                    dyeing_fee: None,
+                    output_quantity_meters: None,
+                    output_quantity_kg: None,
+                    dye_lot_no: None,
+                };
+                cost_service.update(collection.id, req, 0).await?;
+                allocated_count += 1;
+                tracing::info!(
+                    wage_record_id,
+                    record_no = %record_no,
+                    cost_collection_id = collection.id,
+                    collection_no = %collection.collection_no,
+                    dye_lot_no = %dye_lot_no,
+                    labor_cost = %labor_cost,
+                    new_direct_labor = %new_labor,
+                    "工资人工成本已归集至成本归集单 direct_labor（B05-P2-8）"
+                );
+            }
+            None => {
+                tracing::warn!(
+                    wage_record_id,
+                    record_no = %record_no,
+                    dye_lot_no = %dye_lot_no,
+                    labor_cost = %labor_cost,
+                    "缸号未关联 draft 成本归集单，跳过 direct_labor 归集（B05-P2-8）"
+                );
+            }
+        }
+    }
+    tracing::info!(
+        wage_record_id,
+        record_no = %record_no,
+        lot_count = labor_by_lot.len(),
+        allocated_count,
+        unallocated = %unallocated,
+        "工资人工成本归集完成（B05-P2-8）"
+    );
+    Ok(())
 }
 
 /// V15 Batch05-P1-3：处理验布分级事件（按 A/B/C 级触发不同流向）
