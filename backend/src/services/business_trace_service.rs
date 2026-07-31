@@ -506,7 +506,7 @@ impl BusinessTraceService {
             };
 
             let node = business_trace_chain::ActiveModel {
-                trace_chain_id: Set(trace_chain_id),
+                trace_chain_id: Set(trace_chain_id.clone()),
                 five_dimension_id: Set(format!("FD-{}-{}-{}", item.product_id, batch_no, color_no)),
                 product_id: Set(item.product_id),
                 batch_no: Set(batch_no),
