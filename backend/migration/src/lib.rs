@@ -187,6 +187,8 @@ pub mod m0085_create_bulk_color_approval_history;
 pub mod m0086_add_inspection_id_to_outsourcing_receipt;
 // V15 P1 batch-19：组织定制物流 11 项 P1 修复（一人多部门/定制订单签字审批/售后闭环/物流运费/Incoterms）
 pub mod m0087_batch19_custom_order_aftersales_logistics_incoterms;
+// V15 缺陷 10-4：审计日志导出二次审计表（防篡改，独立于 audit_logs）
+pub mod m0088_audit_log_export_log;
 
 pub struct Migrator;
 
@@ -283,6 +285,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0085_create_bulk_color_approval_history::Migration),
             Box::new(m0086_add_inspection_id_to_outsourcing_receipt::Migration),
             Box::new(m0087_batch19_custom_order_aftersales_logistics_incoterms::Migration),
+            Box::new(m0088_audit_log_export_log::Migration),
         ]
     }
 }

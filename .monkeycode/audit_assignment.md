@@ -64,7 +64,7 @@
 | P0 修复（39 项 → 22 批次） | ✅ 完成 | 100% |
 | P1 修复（257 项 → 25 批已合并 main） | ✅ 完成 | 100% |
 | V15 主线八维审计（2026-07-30） | ✅ 完成 | P0 11/11 + P2 3/3 |
-| 主线八维 P1 修复 | 🔄 进行中 | 委外收货主链路已合并（PR #788） |
+| 主线八维 P1 修复 | 🔄 5/6 完成 | 委外主链路 PR #788 + 委外 record_receipt 事务化 + 盘点契约 PR #790 + 业务追溯 producer PR #793 + API 网关 rate_limit PR #790；仅覆盖率阈值回调未修复 |
 | P2 修复（248 项） | ⏳ 待启动 | 0% |
 | P3 修复（123 项） | ⏳ 按需 | 0% |
 
@@ -217,16 +217,18 @@ P0（N 项阻塞）→ P1（N 项高）→ P2（N 项中）→ P3（N 项低）
 | 2 | 功能缺失 | 导出审批 list_pending_for_me 路由 | service.rs + system.rs + handler.rs |
 | 3 | 数据孤岛 | 业务追溯三表 unique/CHECK/逻辑外键触发器 | migrations/20260801000001 + business_trace_service.rs |
 
-### 3.3 主线八维 P1 后续修复 🔄 进行中
+### 3.3 主线八维 P1 后续修复 🔄 5/6 完成（2026-07-31 规则 17 同步修正）
+
+> **规则 17 同步**：2026-07-31 经核实 [doto.md §0.0.1](file:///workspace/.monkeycode/doto.md) 代码级核实结果，5 项已完成（委外主链路 PR #788 + 委外 record_receipt 事务化 + 盘点契约对齐 PR #790 + 业务追溯 producer PR #793 + API 网关 rate_limit PR #790），仅 1 项未修复（覆盖率阈值回调）。
 
 | 状态 | 项 | 文件 | 说明 |
 |------|-----|------|------|
 | ✅ 已合并 main | 委外收货主链路统一 | outsourcing_ops/receipt.rs + workflow tests | PR #788 已合并：`confirm` 收敛为唯一事务主链路 + `OutsourcingOrderCompleted` 事件 + workflow tests |
-| ⏳ 待启动 | 委外 record_receipt 4 子方法事务化 | outsourcing_ops/receipt.rs | 4 个内部 helper（insert_receipt_record/insert_receipt_voucher/insert_loss_voucher_if_needed/apply_order_receipt）用 self.db，无事务保护 |
-| ⏳ 待启动 | 业务追溯 producer 完整接入 | business_trace_service.rs | upsert_chain_node/link_assist/upsert_snapshot 已写但未在所有上游业务（采购收货/库存出入库/委外）中调用 |
-| ⏳ 待启动 | 前端契约对齐补齐 | frontend/src/api/* | 本批次仅修了 inventory-count，其余前端契约差异需复审 |
-| ⏳ 待启动 | API 网关 PATCH rate_limit 范围校验 | api_gateway_handler.rs | 缺范围校验 |
-| ⏳ 待启动 | 覆盖率阈值回调 | vitest.config.ts | 24.10-1 临时降级为 1%，需补齐测试后回调至 70% |
+| ✅ 已完成 | 委外 record_receipt 4 子方法事务化 | outsourcing_ops/receipt.rs | 归档 [doto-su.md §🧵](file:///workspace/.monkeycode/doto-su.md)：4 个内部 helper 事务化已完成 |
+| ✅ 已修复（PR #793） | 业务追溯 producer 完整接入 | business_trace_service.rs + purchase_receipt_ops/crud.rs + so/delivery_ops/ship.rs | record_purchase_receipt 接入采购收货创建后、record_sales_delivery 接入销售发货后；best-effort 集成不阻塞主流程；`#[allow(dead_code)]` 全部移除；合并 main 8fa619e5 |
+| ✅ 已修复（PR #790） | 盘点契约 P0-1 前端契约对齐 | frontend/src/api/inventory-count.ts + CountListTab + CountFormDialogTab | main 已含 recordCountItems/submitInventoryCount/rejectInventoryCount 3 端点 + CountListTab handleSubmit；completeInventoryCount 已删除；合并 main 85aec7de |
+| ✅ 已修复（PR #790） | API 网关 PATCH rate_limit 范围校验 | api_gateway_handler.rs | main 已含 validate_rate_limit 辅助函数（范围 0-10000）+ 4 处写入端点接入校验；合并 main 85aec7de |
+| ❌ 未修复 | 覆盖率阈值回调 | vitest.config.ts | 24.10-1 临时降级为 1%，实际覆盖率 1.67%，需先补齐测试后回调至 70%（非独立快速修复项） |
 
 ### 3.4 P2/P3 修复队列 ⏳ 待启动
 

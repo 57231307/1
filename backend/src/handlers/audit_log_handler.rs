@@ -7,21 +7,27 @@
 
 use axum::{
     extract::{Path, Query, State},
+    http::HeaderMap,
     Json,
 };
 use chrono::{DateTime, Utc};
-use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
-use crate::models::audit_log;
+use crate::models::{audit_log, audit_log_export_log};
 use crate::utils::admin_checker::can_access_audit_logs;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use crate::utils::sql_escape::safe_like_pattern;
 // V15 P0-S15 修复（Batch 475a）：导出注入水印（操作员/导出时间/导出条数）
-use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
+use crate::utils::xlsx_export::{
+    build_xlsx_with_watermark, xlsx_response, WatermarkConfig, XlsxTable,
+};
 
 /// V15 P1-14.2-C：审计日志查询要求 admin 或 auditor 角色；安全原因：审计日志含全系统操作记录（含其他用户敏感操作）， 仅依赖全局 permission_middleware 的 RBAC 不够（管理员可能误配
 /// audit-logs:read 权限）， 在 handler 层增加角色深度防御，确保合规要求。 admin 不再持有 audit:read 权限码（职责分离），但保留运维排查能力； auditor 角色专门负责审计职责，独占 audit:read 权限码。
@@ -45,9 +51,10 @@ async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), 
 }
 
 /// 列表查询参数（全部可选）
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Deserialize, Serialize)]
 // P1-13 修复（2026-06-25）：路由已挂载至 system::routes()，函数标记已移除。
 // 结构体字段经 serde Deserialize 派生使用，标记保留待编译器验证后清理。
+// V15 缺陷 10-4：追加 Serialize 派生，用于导出时序列化筛选条件写入 audit_log_export_log 防篡改表
 pub struct AuditLogListQuery {
     /// 起始时间（RFC3339 / ISO8601）
     pub start_time: Option<String>,
@@ -337,10 +344,14 @@ fn record_audit_logs_export_audit(state: &AppState, auth: &AuthContext, logs_cou
 }
 
 /// GET /api/v1/erp/audit-logs/export；返回 xlsx 格式（Excel），前端直接 `window.URL.createObjectURL(blob)` 下载。
+///
+/// V15 缺陷 10-4 修复：导出操作同时写入独立防篡改表 `audit_log_export_log`，
+/// 该表通过数据库触发器禁止 UPDATE / DELETE，审计员无法篡改自身导出记录。
 pub async fn export_audit_logs(
     State(state): State<AppState>,
     auth: AuthContext,
     Query(query): Query<AuditLogListQuery>,
+    headers: HeaderMap,
 ) -> Result<axum::response::Response, AppError> {
     // P0 8-5 修复：审计日志导出仅限 admin
     require_admin_role(&state, &auth).await?;
@@ -361,7 +372,6 @@ pub async fn export_audit_logs(
     let filename = format!("audit_logs_{}", chrono::Utc::now().format("%Y%m%d%H%M%S"));
 
     // V15 P0-S15 修复（Batch 475a）：注入水印（操作员/导出时间/导出条数）
-    // 水印行在 xlsx 第 0 行（合并所有列），标题行下移到第 1 行，数据行从第 2 行起
     let watermark = WatermarkConfig {
         operator: Some(auth.username.clone()),
         ip_address: None,
@@ -372,8 +382,161 @@ pub async fn export_audit_logs(
         )),
     };
 
+    // V15 缺陷 10-4：先构建 xlsx 字节，计算 SHA256 指纹后写入防篡改表
+    let xlsx_bytes = build_xlsx_with_watermark(&table, &watermark)?;
+    let file_hash = hex_sha256(&xlsx_bytes);
+    let file_size = xlsx_bytes.len() as i64;
+
+    // 写入防篡改表（独立于 audit_logs，审计员无法改/删）
+    record_audit_log_export_tamper_proof(
+        &state, &auth, &query, logs_count, &file_hash, file_size, &headers,
+    )
+    .await;
+
     // 规则 3：导出统一使用 xlsx 格式，错误用 AppError 表达，成功返回 200 + xlsx 响应体
-    build_xlsx_response_with_watermark(&table, &filename, &watermark)
+    Ok(xlsx_response(xlsx_bytes, &filename))
+}
+
+/// 计算 SHA256 指纹并返回小写十六进制字符串
+fn hex_sha256(bytes: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    format!("{:x}", hasher.finalize())
+}
+
+/// 从 HeaderMap 提取首个 header 值（IP / User-Agent / X-Request-Id）
+fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
+    headers
+        .get(name)
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string())
+}
+
+/// V15 缺陷 10-4：写入防篡改表 audit_log_export_log（独立于 audit_logs）。
+/// 该表通过 BEFORE UPDATE / DELETE 触发器禁止修改，审计员无法篡改自身导出记录。
+/// best-effort：写入失败仅记录日志，不阻塞导出响应（导出本身已成功）。
+async fn record_audit_log_export_tamper_proof(
+    state: &AppState,
+    auth: &AuthContext,
+    query: &AuditLogListQuery,
+    record_count: usize,
+    file_hash: &str,
+    file_size: i64,
+    headers: &HeaderMap,
+) {
+    let query_filter = serde_json::to_string(query).ok();
+    let ip = header_str(headers, "x-forwarded-for")
+        .or_else(|| header_str(headers, "x-real-ip"))
+        .or_else(|| header_str(headers, "true-client-ip"));
+    let user_agent = header_str(headers, "user-agent");
+    let request_id = header_str(headers, "x-request-id");
+
+    let export_log = audit_log_export_log::ActiveModel {
+        exporter_user_id: Set(auth.user_id),
+        exporter_username: Set(auth.username.clone()),
+        export_query_filter: Set(query_filter),
+        export_record_count: Set(record_count as i32),
+        export_file_format: Set("xlsx".to_string()),
+        export_file_hash_sha256: Set(Some(file_hash.to_string())),
+        export_file_size_bytes: Set(Some(file_size)),
+        export_ip_address: Set(ip),
+        export_user_agent: Set(user_agent),
+        export_request_id: Set(request_id),
+        exported_at: Set(chrono::Utc::now()),
+        ..Default::default()
+    };
+
+    if let Err(e) = export_log.insert(state.db.as_ref()).await {
+        tracing::error!(
+            target: "security_audit",
+            error = %e,
+            user_id = auth.user_id,
+            "[SECURITY] 写入 audit_log_export_log 防篡改表失败（导出已成功，但二次审计记录缺失）"
+        );
+    }
+}
+
+/// V15 缺陷 10-4：查询审计日志导出二次审计记录（仅 admin/auditor）。
+/// GET /api/v1/erp/audit-logs/export-logs
+#[derive(Debug, Deserialize)]
+pub struct ExportLogListQuery {
+    pub page: Option<u64>,
+    pub per_page: Option<u64>,
+    pub exporter_user_id: Option<i32>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ExportLogListItem {
+    pub id: i32,
+    pub exporter_user_id: i32,
+    pub exporter_username: String,
+    pub export_record_count: i32,
+    pub export_file_format: String,
+    pub export_file_hash_sha256: Option<String>,
+    pub export_file_size_bytes: Option<i64>,
+    pub export_ip_address: Option<String>,
+    pub export_request_id: Option<String>,
+    pub exported_at: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ExportLogListResponse {
+    pub items: Vec<ExportLogListItem>,
+    pub total: u64,
+    pub page: u64,
+    pub page_size: u64,
+}
+
+pub async fn list_audit_log_export_logs(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(query): Query<ExportLogListQuery>,
+) -> Result<Json<ApiResponse<ExportLogListResponse>>, AppError> {
+    require_admin_role(&state, &auth).await?;
+
+    let page = query.page.unwrap_or(1).max(1);
+    let per_page = query.per_page.unwrap_or(20).clamp(1, 100);
+
+    let mut select = audit_log_export_log::Entity::find()
+        .order_by_desc(audit_log_export_log::Column::ExportedAt);
+    if let Some(uid) = query.exporter_user_id {
+        select = select.filter(audit_log_export_log::Column::ExporterUserId.eq(uid));
+    }
+
+    let total = select
+        .clone()
+        .count(state.db.as_ref())
+        .await
+        .map_err(|e| AppError::internal(format!("查询导出审计记录总数失败: {}", e)))?;
+
+    let rows = select
+        .paginate(state.db.as_ref(), per_page)
+        .fetch_page(page - 1)
+        .await
+        .map_err(|e| AppError::internal(format!("查询导出审计记录失败: {}", e)))?;
+
+    let items = rows
+        .into_iter()
+        .map(|m| ExportLogListItem {
+            id: m.id,
+            exporter_user_id: m.exporter_user_id,
+            exporter_username: m.exporter_username,
+            export_record_count: m.export_record_count,
+            export_file_format: m.export_file_format,
+            export_file_hash_sha256: m.export_file_hash_sha256,
+            export_file_size_bytes: m.export_file_size_bytes,
+            export_ip_address: m.export_ip_address,
+            export_request_id: m.export_request_id,
+            exported_at: m.exported_at.to_rfc3339(),
+        })
+        .collect();
+
+    Ok(Json(ApiResponse::success(ExportLogListResponse {
+        items,
+        total,
+        page,
+        page_size: per_page,
+    })))
 }
 
 /// V15 P1-5-3：前端打印审计埋点请求体；前端 `printData`/`printSingleDocument` 纯前端 window.print 不经过后端 handler， 无法触发
@@ -464,5 +627,50 @@ mod tests {
         assert!(q.keyword.is_none());
         assert!(q.page.is_none());
         assert!(q.page_size.is_none());
+    }
+
+    /// V15 缺陷 10-4：hex_sha256 对空输入返回已知常量值
+    #[test]
+    fn test_hex_sha256_empty() {
+        let hash = hex_sha256(b"");
+        assert_eq!(hash.len(), 64);
+        assert_eq!(
+            hash,
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+    }
+
+    /// V15 缺陷 10-4：hex_sha256 对相同输入产生相同指纹（确定性）
+    #[test]
+    fn test_hex_sha256_deterministic() {
+        let a = hex_sha256(b"audit-log-export-test");
+        let b = hex_sha256(b"audit-log-export-test");
+        assert_eq!(a, b);
+        assert_ne!(a, hex_sha256(b"audit-log-export-test-2"));
+    }
+
+    /// V15 缺陷 10-4：header_str 从 HeaderMap 提取首个值
+    #[test]
+    fn test_header_str_extract() {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-request-id", "abc-123".parse().unwrap());
+        assert_eq!(
+            header_str(&headers, "x-request-id"),
+            Some("abc-123".to_string())
+        );
+        assert_eq!(header_str(&headers, "user-agent"), None);
+    }
+
+    /// V15 缺陷 10-4：ExportLogListQuery 默认分页参数为 None
+    #[test]
+    fn test_export_log_list_query_default() {
+        let q = ExportLogListQuery {
+            page: None,
+            per_page: None,
+            exporter_user_id: None,
+        };
+        assert!(q.page.is_none());
+        assert!(q.per_page.is_none());
+        assert!(q.exporter_user_id.is_none());
     }
 }

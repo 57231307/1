@@ -231,7 +231,7 @@ pub fn health() -> Router<AppState> {
         .route("/health/liveness", get(health_handler::liveness_check))
 }
 
-/// 审计日志查询路由（/audit-logs：列表/详情/CSV 导出/前端打印埋点）
+/// 审计日志查询路由（/audit-logs：列表/详情/xlsx 导出/前端打印埋点/导出二次审计记录）
 pub fn audit_logs() -> Router<AppState> {
     use crate::handlers::audit_log_handler;
     use axum::routing::post;
@@ -246,6 +246,11 @@ pub fn audit_logs() -> Router<AppState> {
         .route(
             "/audit-logs/record-print",
             post(audit_log_handler::record_print_event),
+        )
+        // V15 缺陷 10-4：审计日志导出二次审计记录查询（仅 admin/auditor）
+        .route(
+            "/audit-logs/export-logs",
+            get(audit_log_handler::list_audit_log_export_logs),
         )
 }
 

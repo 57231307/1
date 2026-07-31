@@ -140,6 +140,58 @@ V15 25 大类 195 维度审计报告生成后，对 main 主线做"最严格"二
 
 ---
 
+## 🔧 P1 主线八维后续修复：盘点契约对齐 + API 网关 rate_limit 校验（2026-07-30，PR #790）
+
+### 任务概述
+
+主线八维 P1 后续修复批次，完成 doto.md §0.0.1 中 #1 盘点契约 P0-1（含前端契约对齐）+ #3 API 网关 PATCH rate_limit 范围校验两项。PR #790 已合并 main 85aec7de。
+
+### 已完成改动
+
+1. **盘点契约 P0-1 前端契约对齐**（[frontend/src/api/inventory-count.ts](file:///workspace/frontend/src/api/inventory-count.ts) + CountListTab + CountFormDialogTab）
+   - main 已含 `recordCountItems` / `submitInventoryCount` / `rejectInventoryCount` 3 端点
+   - `CountListTab` 接入 `handleSubmit` 流程
+   - 旧 `completeInventoryCount` 已删除，前后端契约一致
+
+2. **API 网关 PATCH rate_limit 范围校验**（[backend/src/handlers/api_gateway_handler.rs](file:///workspace/backend/src/handlers/api_gateway_handler.rs)）
+   - 新增 `validate_rate_limit` 辅助函数（范围 0-10000）
+   - 4 处写入端点接入校验（create/update/patch/regenerate）
+   - 超范围请求返回 400 而非静默写入
+
+### 验证
+
+- CI 全绿后合并 main 85aec7de
+- 修复分支已删除
+
+---
+
+## 🔧 P1 主线八维后续修复：业务追溯 producer 完整接入（2026-07-30，PR #793）
+
+### 任务概述
+
+主线八维 P1 后续修复批次，完成 doto.md §0.0.1 中 #2 业务追溯 producer 完整接入。upsert_chain_node / link_assist / upsert_snapshot 三个 producer 已实现但未在所有上游业务中调用，本批次接入采购收货创建后 + 销售发货后两个关键链路。PR #793 已合并 main 8fa619e5。
+
+### 已完成改动
+
+1. **采购收货 producer 接入**（[backend/src/services/purchase_receipt_ops/crud.rs](file:///workspace/backend/src/services/purchase_receipt_ops/crud.rs)）
+   - `record_purchase_receipt` 接入采购收货创建后
+   - best-effort 集成，不阻塞主流程（失败仅记录日志）
+
+2. **销售发货 producer 接入**（[backend/src/services/so/delivery_ops/ship.rs](file:///workspace/backend/src/services/so/delivery_ops/ship.rs)）
+   - `record_sales_delivery` 接入销售发货后
+   - best-effort 集成，不阻塞主流程
+
+3. **dead_code 警告清理**（[backend/src/services/business_trace_service.rs](file:///workspace/backend/src/services/business_trace_service.rs)）
+   - `#[allow(dead_code)]` 已全部移除（规则 14 合规）
+   - 三个 producer 方法均有真实调用方
+
+### 验证
+
+- CI 全绿后合并 main 8fa619e5
+- 修复分支已删除
+
+---
+
 ## 📌 关键项目内容快照（2026-07-30 更新）
 
 > 本节为项目当前状态快照（任务进度/技术决策/PR/架构信息），按 PR 规则 10 文件分工存放在此，不放在 MEMORY.md。
