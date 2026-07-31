@@ -6,6 +6,17 @@
 
 ---
 
+## P2 步骤 0 复审修正 + PR #797 格式修复（2026-07-31）
+
+| 项 | 一句话总结 |
+|----|-----------|
+| PR #797 格式修复 | CI Rust 格式检查失败 → 手动调整 dashboard_service.rs + date_utils.rs 格式（commit 6bc55d8），未本地编译，由 CI 验证 |
+| 步骤 0 复审修正 | 原 doto.md §1.2.1 步骤 0 存在 2 处核实错误：① B04-P2-2 描述错位（batch_trace_log.rs #![allow(dead_code)] 误标为 fabric_physical_test_record 表，实际仍存在）；② B03-P2-3 误判已解决（Redis pub/sub 已加但 PERMISSION_CACHE_TTL=5 硬编码未移除） |
+| 跳过项修正 | 原跳过 7 项 → 修正为 10 项（新增 B02-P2-1/B04-P2-4/B06-P2-1/B07-P2-4 已修复；移除 B04-P2-2/B03-P2-3 回到待修复） |
+| P2-Batch-01b 规划 | 续作 19 项（12 完全存在 + 7 部分存在），doto.md §1.2.1 已列明细表，待 PR #797 CI 全绿后启动 |
+
+---
+
 ## 文档治理：规则 17 + 规则 10 同步修正（2026-07-31）
 
 | 项 | 一句话总结 |
