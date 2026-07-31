@@ -62,6 +62,15 @@ impl PurchaseReceiptService {
         // 5. 提交事务
         txn.commit().await?;
 
+        // 6. 业务追溯 chain head 接入（best-effort，失败不阻塞采购收货）
+        let trace_service = crate::services::business_trace_service::BusinessTraceService::new(self.db.clone());
+        let items_models: Vec<purchase_receipt_item::Model> = purchase_receipt_item::Entity::find()
+            .filter(purchase_receipt_item::Column::ReceiptId.eq(receipt.id))
+            .all(&*self.db)
+            .await
+            .unwrap_or_default();
+        trace_service.record_purchase_receipt(&receipt, &items_models, user_id).await;
+
         Ok(receipt)
     }
 
