@@ -433,7 +433,11 @@ impl BusinessTraceService {
             let grade = item.grade.clone().unwrap_or_default();
             // trace_chain_id：batch_no 非空用批次键，为空用 product_id+时间戳保证唯一
             let trace_chain_id = if batch_no.is_empty() {
-                format!("TC-{}-{}", item.product_id, chrono::Utc::now().timestamp_millis())
+                format!(
+                    "TC-{}-{}",
+                    item.product_id,
+                    chrono::Utc::now().timestamp_millis()
+                )
             } else {
                 format!("TC-{}-{}-{}", batch_no, item.product_id, color_no)
             };
@@ -467,7 +471,12 @@ impl BusinessTraceService {
 
             // best-effort：失败仅记日志，不阻塞采购收货业务
             if let Err(e) = self.upsert_chain_node(node, true, false).await {
-                tracing::warn!("业务追溯 chain head 写入失败 receipt={} item={}: {}", receipt.id, item.id, e);
+                tracing::warn!(
+                    "业务追溯 chain head 写入失败 receipt={} item={}: {}",
+                    receipt.id,
+                    item.id,
+                    e
+                );
             }
         }
     }
@@ -487,7 +496,11 @@ impl BusinessTraceService {
             let batch_no = item.batch_no.clone().unwrap_or_default();
             let color_no = item.color_no.clone().unwrap_or_default();
             let trace_chain_id = if batch_no.is_empty() {
-                format!("TC-{}-{}", item.product_id, chrono::Utc::now().timestamp_millis())
+                format!(
+                    "TC-{}-{}",
+                    item.product_id,
+                    chrono::Utc::now().timestamp_millis()
+                )
             } else {
                 format!("TC-{}-{}-{}", batch_no, item.product_id, color_no)
             };
@@ -520,7 +533,12 @@ impl BusinessTraceService {
             };
 
             if let Err(e) = self.upsert_chain_node(node, false, true).await {
-                tracing::warn!("业务追溯 chain tail 写入失败 delivery={} item={}: {}", delivery.id, item.id, e);
+                tracing::warn!(
+                    "业务追溯 chain tail 写入失败 delivery={} item={}: {}",
+                    delivery.id,
+                    item.id,
+                    e
+                );
             }
 
             // 刷新 chain 快照：查询 head 节点 + 当前 tail 节点
@@ -568,7 +586,11 @@ impl BusinessTraceService {
             ..Default::default()
         };
         if let Err(e) = self.link_assist(trace_chain_id, assist).await {
-            tracing::warn!("业务追溯 assist link 写入失败 chain={}: {}", trace_chain_id, e);
+            tracing::warn!(
+                "业务追溯 assist link 写入失败 chain={}: {}",
+                trace_chain_id,
+                e
+            );
         }
     }
 }
