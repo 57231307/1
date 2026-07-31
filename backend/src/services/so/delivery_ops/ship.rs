@@ -47,6 +47,19 @@ impl SalesService {
         txn.commit().await?;
         self.post_commit_shipment_effects(&delivery, post_ctx, items_result, user_id)
             .await;
+
+        // 业务追溯 chain tail 接入（best-effort，失败不阻塞销售发货）
+        let trace_service =
+            crate::services::business_trace_service::BusinessTraceService::new(self.db.clone());
+        let delivery_items: Vec<sales_delivery_item::Model> = sales_delivery_item::Entity::find()
+            .filter(sales_delivery_item::Column::DeliveryId.eq(delivery.id))
+            .all(&*self.db)
+            .await
+            .unwrap_or_default();
+        trace_service
+            .record_sales_delivery(&delivery, &delivery_items, user_id)
+            .await;
+
         Ok(())
     }
 
