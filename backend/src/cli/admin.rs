@@ -80,7 +80,7 @@ fn cmd_hash_password(password_stdin: bool) -> Result<(), String> {
     // V15 P2 修复（B03-P2-8）：哈希输出到 stderr 而非 stdout，
     // 避免 stdout 被 CI/日志系统捕获导致哈希泄露；stdout 仅输出操作状态
     eprintln!("=== 密码哈希生成成功 ===");
-    eprintln!("Argon2 哈希: {}", password_hash.to_string());
+    eprintln!("Argon2 哈希: {}", password_hash);
     eprintln!("\n请将上述哈希写入配置文件的 password_hash 字段。");
     println!("OK: 密码哈希已生成（输出到 stderr，请从终端或重定向 stderr 查看）");
     Ok(())
