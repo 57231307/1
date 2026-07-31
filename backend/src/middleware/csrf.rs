@@ -11,7 +11,7 @@
 // - 错误消息走常量 [CSRF_MISSING_MSG] / [CSRF_INVALID_MSG] / [CSRF_IP_MISMATCH_MSG]，
 //   禁止硬编码到响应体中。
 // - 命名遵循 ≤9 个英文字符的内部约定（如 `CSRF_HDR`、`CODE_MISS` 等仅在本文件内使用）。
-// - 任何死代码必须显式标注 `#[allow(dead_code)]` + TODO(tech-debt)，与 utils/ 模板保持一致。
+// - 死代码处理遵循项目规范：逐项评估，接入业务或删除，禁止保留无标注死代码。
 //
 // Wave 3 安全漏洞 #7 增强（IP 绑定）：
 // - 消费时校验 token 绑定的 IP 与请求 IP 是否一致；不一致返回 403 + 业务码

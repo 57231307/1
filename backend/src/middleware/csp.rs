@@ -8,8 +8,8 @@
 //! ## 默认策略
 //!
 //! - `default-src 'self'` — 仅允许加载同源资源
-//! - `script-src 'self' 'wasm-unsafe-eval'` — 支持 WASM（如密码哈希的 argon2 wasm）
-//! - `style-src 'self' 'unsafe-inline'` — 兼容 SPA 内联样式
+//! - `script-src 'self'` — 仅允许同源脚本（V15 P2 B03-P2-6：移除 wasm-unsafe-eval，前端无 WASM 使用）
+//! - `style-src 'self' 'unsafe-inline'` — 兼容 Element Plus SPA 内联样式（后续可用 nonce 替代）
 //! - `img-src 'self' data: blob:` — 允许 data URI 图片
 //! - `connect-src 'self' ws: wss:` — 支持 WebSocket（用于实时通知）
 //! - `object-src 'none'` — 禁止 <object>/<embed>
@@ -26,7 +26,7 @@ use axum::{
 
 /// CSP 策略值
 pub const CSP_POLICY: &str = "default-src 'self'; \
-    script-src 'self' 'wasm-unsafe-eval'; \
+    script-src 'self'; \
     style-src 'self' 'unsafe-inline'; \
     img-src 'self' data: blob:; \
     connect-src 'self' ws: wss:; \

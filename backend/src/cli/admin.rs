@@ -62,58 +62,28 @@ fn read_password(from_stdin: bool) -> Result<String, String> {
 }
 
 fn cmd_hash_password(password_stdin: bool) -> Result<(), String> {
-    println!("=== 生成密码哈希 ===\n");
-
     let password = read_password(password_stdin)?;
 
-    // M3 修复（v8 复审）：通过 stdin 传递密码给 python，避免命令行参数泄露和字符串拼接注入
-    let python_code = r#"
-import sys, hashlib, base64, os
-password = sys.stdin.read()
-try:
-    from argon2 import PasswordHasher
-    ph = PasswordHasher()
-    hash = ph.hash(password)
-    print("Argon2 哈希:", hash)
-except ImportError:
-    salt = os.urandom(32)
-    hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000)
-    print("PBKDF2 哈希:", base64.b64encode(salt + hash).decode())
-"#;
+    // V15 P2 修复（B03-P2-9）：使用 Rust 原生 argon2 crate 替换 python3 子进程，
+    // 消除外部 python3 依赖 + 子进程通信开销 + stdin 密码传递风险
+    use argon2::password_hash::{rand_core::OsRng, PasswordHasher, SaltString};
 
-    use std::io::Write;
-    use std::process::{Command, Stdio};
+    let salt = SaltString::generate(&mut OsRng);
+    let params = argon2::Params::new(65536, 3, 4, None)
+        .map_err(|e| format!("Argon2 参数初始化失败: {}", e))?;
+    let argon2 = argon2::Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, params);
 
-    let mut child = match Command::new("python3")
-        .arg("-c")
-        .arg(python_code)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-    {
-        Ok(child) => child,
-        Err(e) => return Err(format!("启动 python3 失败: {}", e)),
-    };
+    let password_hash = argon2
+        .hash_password(password.as_bytes(), &salt)
+        .map_err(|e| format!("生成 Argon2 哈希失败: {}", e))?;
 
-    if let Some(mut stdin) = child.stdin.take() {
-        // L-8 修复（批次 375 v13 复审）：写入密码失败不再吞错，返回错误
-        if let Err(e) = stdin.write_all(password.as_bytes()) {
-            return Err(format!("写入密码到子进程失败: {}", e));
-        }
-    }
-
-    match child.wait_with_output() {
-        Ok(output) if output.status.success() => {
-            println!("{}", String::from_utf8_lossy(&output.stdout));
-            Ok(())
-        }
-        Ok(output) => Err(format!(
-            "生成失败: {}",
-            String::from_utf8_lossy(&output.stderr)
-        )),
-        Err(e) => Err(format!("等待进程失败: {}", e)),
-    }
+    // V15 P2 修复（B03-P2-8）：哈希输出到 stderr 而非 stdout，
+    // 避免 stdout 被 CI/日志系统捕获导致哈希泄露；stdout 仅输出操作状态
+    eprintln!("=== 密码哈希生成成功 ===");
+    eprintln!("Argon2 哈希: {}", password_hash.to_string());
+    eprintln!("\n请将上述哈希写入配置文件的 password_hash 字段。");
+    println!("OK: 密码哈希已生成（输出到 stderr，请从终端或重定向 stderr 查看）");
+    Ok(())
 }
 
 #[cfg(test)]

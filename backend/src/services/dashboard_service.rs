@@ -18,6 +18,9 @@ use crate::utils::cache::{AppCache, Cache};
 use crate::utils::data_scope::DataScopeContext;
 use crate::utils::error::AppError;
 
+/// V15 P2 B07-P2-2：仪表板缓存 TTL 常量（5 分钟），消除 Duration::from_secs(300) 魔法数字
+const DASHBOARD_CACHE_TTL: Duration = Duration::from_secs(300);
+
 // ==================== 批次 134 v9 P1 修复：销售统计 raw SQL 中间结构 ====================
 // 原 by_customer/by_product/by_salesperson 为 vec![] 占位，现使用 raw SQL 真实聚合。
 
@@ -316,7 +319,7 @@ impl DashboardService {
             self.cache.get_dashboard_cache().set(
                 cache_key,
                 overview_json,
-                Some(Duration::from_secs(300)),
+                Some(DASHBOARD_CACHE_TTL),
             );
         }
     }
@@ -436,7 +439,7 @@ impl DashboardService {
             self.cache.get_dashboard_cache().set(
                 cache_key,
                 statistics_json,
-                Some(Duration::from_secs(300)),
+                Some(DASHBOARD_CACHE_TTL),
             );
         }
     }
@@ -668,7 +671,7 @@ impl DashboardService {
             cache.get_dashboard_cache().set(
                 cache_key,
                 statistics_json,
-                Some(Duration::from_secs(300)),
+                Some(DASHBOARD_CACHE_TTL),
             );
         }
     }
@@ -938,7 +941,7 @@ impl DashboardService {
             self.cache.get_inventory_cache().set(
                 cache_key,
                 alerts_json,
-                Some(Duration::from_secs(300)),
+                Some(DASHBOARD_CACHE_TTL),
             );
         }
 
