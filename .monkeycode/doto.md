@@ -44,8 +44,10 @@
 | ❌ 未实现（纺织业务） | 色卡发放单/大货批色单/工资单 | — |
 
 **关键 P0 未修复项**：
-- ~~缺陷 10-4：审计日志导出二次审计机制缺失~~ **⏳ PR #795 待 CI**（新建 `audit_log_export_log` 防篡改表 + 触发器禁止 UPDATE/DELETE + SHA256 指纹 + `/audit-logs/export-logs` 查询端点；migration m0088 + model + handler + route + 4 项单元测试）
+- ~~缺陷 10-4：审计日志导出二次审计机制缺失~~ **✅ 已修复（PR #795 合并 main 7b18573，归档 [doto-su.md §🔧 PR #795](file:///workspace/.monkeycode/doto-su.md)）**：新建 `audit_log_export_log` 防篡改表 + 触发器禁止 UPDATE/DELETE + SHA256 指纹 + `/audit-logs/export-logs` 查询端点；migration m0088 + model + handler + route + 4 项单元测试
 - ~~缺陷 9-2（部分）：dye_batch_handler.rs 仍 `q.all()` 全量查询无 limit~~ **✅ 已修复（PR #791 合并 main b2e7b419，导出查询加 `.limit(10000)` + QuerySelect trait 导入；附移除 3 个测试文件未使用 DatabaseConnection 导入修复 Clippy 新增警告）**
+
+> **归档说明（规则 10）**：缺陷 10-4 已完成，详细修复记录归档到 [doto-su.md §🔧 PR #795](file:///workspace/.monkeycode/doto-su.md)。本节保留其他未完成项（业务场景覆盖 10 项未实现 + export_csv 函数名误导）。
 
 **规则 3 合规性**：✅ 实际合规（xlsx/docx），但 3 处 `export_csv` 函数名误导（实际生成 xlsx），建议重命名
 
