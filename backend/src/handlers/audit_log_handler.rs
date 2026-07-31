@@ -25,7 +25,9 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use crate::utils::sql_escape::safe_like_pattern;
 // V15 P0-S15 修复（Batch 475a）：导出注入水印（操作员/导出时间/导出条数）
-use crate::utils::xlsx_export::{build_xlsx_with_watermark, xlsx_response, WatermarkConfig, XlsxTable};
+use crate::utils::xlsx_export::{
+    build_xlsx_with_watermark, xlsx_response, WatermarkConfig, XlsxTable,
+};
 
 /// V15 P1-14.2-C：审计日志查询要求 admin 或 auditor 角色；安全原因：审计日志含全系统操作记录（含其他用户敏感操作）， 仅依赖全局 permission_middleware 的 RBAC 不够（管理员可能误配
 /// audit-logs:read 权限）， 在 handler 层增加角色深度防御，确保合规要求。 admin 不再持有 audit:read 权限码（职责分离），但保留运维排查能力； auditor 角色专门负责审计职责，独占 audit:read 权限码。
@@ -387,13 +389,7 @@ pub async fn export_audit_logs(
 
     // 写入防篡改表（独立于 audit_logs，审计员无法改/删）
     record_audit_log_export_tamper_proof(
-        &state,
-        &auth,
-        &query,
-        logs_count,
-        &file_hash,
-        file_size,
-        &headers,
+        &state, &auth, &query, logs_count, &file_hash, file_size, &headers,
     )
     .await;
 
@@ -658,7 +654,10 @@ mod tests {
     fn test_header_str_extract() {
         let mut headers = HeaderMap::new();
         headers.insert("x-request-id", "abc-123".parse().unwrap());
-        assert_eq!(header_str(&headers, "x-request-id"), Some("abc-123".to_string()));
+        assert_eq!(
+            header_str(&headers, "x-request-id"),
+            Some("abc-123".to_string())
+        );
         assert_eq!(header_str(&headers, "user-agent"), None);
     }
 

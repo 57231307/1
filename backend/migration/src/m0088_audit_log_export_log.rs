@@ -19,19 +19,13 @@ pub struct Migration;
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let sql = include_str!("../../migrations/20260801000002_audit_log_export_log/up.sql");
-        manager
-            .get_connection()
-            .execute_unprepared(sql)
-            .await?;
+        manager.get_connection().execute_unprepared(sql).await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let sql = include_str!("../../migrations/20260801000002_audit_log_export_log/down.sql");
-        manager
-            .get_connection()
-            .execute_unprepared(sql)
-            .await?;
+        manager.get_connection().execute_unprepared(sql).await?;
         Ok(())
     }
 }
