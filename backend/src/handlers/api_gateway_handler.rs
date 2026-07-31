@@ -97,6 +97,17 @@ pub struct UpdateApiKeyGwRequest {
 
 // ============== 辅助函数 ==============
 
+/// rate_limit 合法范围 [0, 10000]：0=禁用，10000=高配额上限
+/// 超出范围返回校验错误，防止负值或滥用配额写入数据库
+fn validate_rate_limit(rate_limit: Option<i32>) -> Result<Option<i32>, AppError> {
+    match rate_limit {
+        None => Ok(None),
+        Some(v) if v < 0 => Err(AppError::validation("rate_limit 不能为负数")),
+        Some(v) if v > 10000 => Err(AppError::validation("rate_limit 不能超过 10000")),
+        Some(v) => Ok(Some(v)),
+    }
+}
+
 fn page_offset(query: &ApiGwQuery) -> (u64, u64) {
     let page = query.page.unwrap_or(1).clamp(1, 1000);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 200);
@@ -256,6 +267,8 @@ pub async fn create_api_endpoint(
     let method = req
         .method
         .ok_or_else(|| AppError::validation("method 为必填项"))?;
+    // rate_limit 范围校验（V15 P1 后续 #3：防止负值/超限写入）
+    let rate_limit = validate_rate_limit(req.rate_limit)?;
 
     // 唯一性检查（path + method）
     // 批次 95 P3-10 修复：显式检查仅作友好提示；并发场景下 TOCTOU 由数据库唯一约束
@@ -280,7 +293,7 @@ pub async fn create_api_endpoint(
             req.status
                 .unwrap_or_else(|| master_data::ACTIVE.to_string()),
         ),
-        rate_limit: sea_orm::Set(req.rate_limit.unwrap_or(0)),
+        rate_limit: sea_orm::Set(rate_limit.unwrap_or(0)),
         timeout: sea_orm::Set(req.timeout.unwrap_or(30000)),
         authentication: sea_orm::Set(req.authentication.unwrap_or(true)),
         authorization: sea_orm::Set(req.authorization),
@@ -324,6 +337,8 @@ pub async fn update_api_endpoint(
         .ok_or_else(|| AppError::not_found(format!("API 端点 {} 不存在", id)))?;
 
     let mut active: api_endpoint::ActiveModel = m.into();
+    // rate_limit 范围校验（V15 P1 后续 #3：update 端点同样校验）
+    let rate_limit = validate_rate_limit(req.rate_limit)?;
     if let Some(path) = req.path {
         active.path = sea_orm::Set(path);
     }
@@ -339,7 +354,7 @@ pub async fn update_api_endpoint(
     if let Some(status) = req.status {
         active.status = sea_orm::Set(status);
     }
-    if let Some(rate_limit) = req.rate_limit {
+    if let Some(rate_limit) = rate_limit {
         active.rate_limit = sea_orm::Set(rate_limit);
     }
     if let Some(timeout) = req.timeout {
@@ -562,7 +577,8 @@ pub async fn create_api_key(
         .map(serde_json::to_string)
         .transpose()
         .map_err(AppError::from)?;
-    let rate_limit = req.rate_limit.unwrap_or(100);
+    // rate_limit 范围校验（V15 P1 后续 #3：create key 防止负值/超限）
+    let rate_limit = validate_rate_limit(req.rate_limit)?.unwrap_or(100);
 
     // expires_at 字符串 → expires_days 数值
     let expires_days = req.expires_at.as_ref().and_then(|s| {
@@ -649,12 +665,15 @@ pub async fn update_api_key(
             .ok()
     });
 
+    // rate_limit 范围校验（V15 P1 后续 #3：update key 防止负值/超限）
+    let rate_limit = validate_rate_limit(req.rate_limit)?;
+
     let model = service
         .update_api_key(crate::services::api_key_service::UpdateApiKeyPayload {
             id,
             name: req.key_name,
             permissions,
-            rate_limit_per_minute: req.rate_limit,
+            rate_limit_per_minute: rate_limit,
             expires_at,
             is_active,
             description: req.description,
