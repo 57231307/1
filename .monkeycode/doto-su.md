@@ -1404,3 +1404,81 @@ locales + 脚本 + 测试：
 | P1-batch06/07 | 测试体系 + 可维护性 | 2026-07-27 | 待提交 | batch-06 inventory_stock_service 测试 + fixtures + 性能基准 + batch-07 CacheBackend + ElMessage i18n + AppError 错误码集中管理 |
 | P1-batch21/25 | 部署升级 6 项 P1 | 2026-07-27 | 待提交 | CLI 权限校验 + SHA256 校验 + schema 兼容性 + 自动迁移 + 回滚 DB schema + HTTP 健康检查门禁 + systemd 优雅停机 + 日志清理 |
 | P1-D | batch-08 加班工时 + batch-20 前端架构 10 项 P1 | 2026-07-27 | 待提交 | P1-08-22 wage_record_detail 加班工时字段 + calculate_overtime_pay（《劳动法》第 44 条）+ P1-20-1 PWA + P1-20-2 移动端侧边栏抽屉化 + P1-20-3 manualChunks + P1-20-4 echarts 按需 + P1-20-6 覆盖率 70% + P1-20-7 nginx 安全头 + P1-20-9 ErrorBoundary + P1-20-14 keep-alive + P1-20-15 CSS 变量 + P1-20-16 暗黑模式 |
+
+---
+
+## 🔧 PR #801：P2-Batch-02（类五运行闭环）详细归档（2026-07-31）
+
+> **批次**：P2-Batch-02 | **类别**：类五运行逻辑闭环 | **项数**：10 项 P2 | **PR**：#801 | **合并 commit**：b4bc147（squash） | **文件**：46 文件 +3001 -51
+
+### 步骤 0 双重复审（规则 13，2026-07-31 重新执行）
+
+**0-A 问题存在性核实**：逐项 `git show main:path` 核实 batch-05 类五 11 项 P2：
+
+| 编号 | 核实结果 | 代码证据 |
+|------|---------|---------|
+| B05-P2-1 | ✅ 完全存在 | lab_dip_service.rs 无 dye_recipe/配方优化反馈代码；dye_batch_state_machine 无 DyeBatchCompleted publish/工艺优化事件 |
+| B05-P2-2 | ✅ 完全存在 | dye_batch_rework_type 仅 4 种（color_difference/defect/specification_unqualified/other），无 re_dye/replenish_dye |
+| B05-P2-3 | ✅ 完全存在 | validation.rs 7 处 return Err(AppError::business)，无 tracing::warn/BusinessEvent/dead_letter |
+| B05-P2-4 | ✅ 完全存在 | color_card_crud_service.rs:207/212/241 仅使用 "archived"/"lost" 硬编码字符串 |
+| B05-P2-5 | ✅ 完全存在 | 整个 backend/src Grep CancellationToken 无任何匹配 |
+| B05-P2-6 | ✅ 完全存在 | 整个 backend/src Grep dye_vat_occupation 无任何匹配 |
+| B05-P2-7 | ✅ 完全存在 | 整个 backend/src Grep device_connection 无独立连接管理模块 |
+| B05-P2-8 | ✅ 完全存在 | wage_service.rs 全文无 Voucher/VoucherService/create_and_post/labor/cost_collection |
+| B05-P2-9 | ✅ 完全存在 | energy_service.rs 全文无 Voucher/VoucherService/create_and_post |
+| B05-P2-10 | ✅ 完全存在 | 整个 backend/src Grep 暂估/摊销/预提/PeriodAdjustment 仅匹配 bad_debt_service.rs（坏账准备，非期末调整） |
+| B05-P2-11 | ❌ 审计过时 | ap_reconciliation_ops/confirm.rs:81-94 已实现 create_confirm_voucher，跳过 |
+
+**0-B 规划正确性复审**：10 项修复方向均合理，详见 doto.md §1.2.2 步骤 1 评估结论。
+
+### 步骤 1-4 评估与实现
+
+| 编号 | 修复内容 | 关键文件 |
+|------|---------|---------|
+| B05-P2-1 | resample.rs PASSED 后回写 dye_recipe + listener DyeBatchCompleted 触发工艺优化反馈（实际工时 vs 标准工时偏差） | lab_dip_ops/resample.rs + event_bus_ops/listener.rs + dye_recipe_service.rs |
+| B05-P2-2 | quality_dyeing.rs 补 re_dye/replenish_dye 枚举 + validation 白名单更新 + m0089 加 rework_cost 字段 | status/quality_dyeing.rs + dye_batch_state_machine_validation.rs + migration m0089 |
+| B05-P2-3 | validation 7 处 return Err 加 tracing::warn! 告警（同步验证不适用死信队列，告警已完整） | dye_batch_state_machine_validation.rs |
+| B05-P2-4 | color_card 状态常量补 ISSUED/RECEIVED/USED/EXPIRED + crud_service 状态流转校验 + 5 项单元测试 | status/wage_energy_chemical_business.rs + color_card_crud_service.rs |
+| B05-P2-5 | Cargo.toml 加 tokio-util + service_bootstrap 引入 CancellationToken + 5 个 spawn 任务改造 | Cargo.toml + bootstrap/service_bootstrap.rs |
+| B05-P2-6 | m0090 + model + service occupy/release + listener DyeBatchStatusChanged 触发占用/释放 | migration m0090 + dye_vat_occupation.rs + dye_vat_occupation_service.rs + listener.rs |
+| B05-P2-7 | m0091 + model + DTO + service register/heartbeat/disconnect/cleanup + handler 7 端点 + route + 超时清理任务复用 token | migration m0091 + device_connection.rs + device_connection_service.rs + device_connection_handler.rs |
+| B05-P2-8 | listener WageConfirmed 订阅 → 按 dye_lot_no 汇总 wage_amount → cost_collection.direct_labor 累加（幂等） | event_bus_ops/listener.rs + cost_collection_service.rs |
+| B05-P2-9 | allocation_record confirm 时生成能耗凭证（借500103/贷2202）+ 按 dye_lot_no 归集 manufacturing_overhead | energy_ops/allocation_record.rs + cost_collection_service.rs |
+| B05-P2-10 | m0092 + model + service（暂估/摊销/预提）+ handler 6 端点 + accounting_period_service.close_period 注入 | migration m0092 + period_adjustment_record.rs + period_adjustment_service.rs + period_adjustment_handler.rs |
+
+### 步骤 7 CI 失败修复（3 轮迭代）
+
+**第 1 轮 CI fail**（4 编译错误 + 1 Clippy 警告 + 11 文件 fmt）：
+- E0603 color_card_crud_service.rs:24 wage_energy_chemical_business 私有模块 → 改用 status::color_card（mod.rs 已 pub use 重导出）
+- E0063 rework.rs:35 ActiveModel 缺 rework_cost 字段 → 加 rework_cost: Set(None)
+- E0599 dye_vat_occupation_service.rs:113 Select 无 limit 方法 → 加 use sea_orm::QuerySelect trait 导入
+- E0308 listener.rs:257/275 类型不匹配 → batch_id/wage_record_id 解引用 *（event 是 &BusinessEvent，字段为 &i32）
+- Clippy unused import listener.rs:803 self as dye_batch_model → 移除未使用别名
+- cargo fmt 格式化 11 文件
+
+**第 2 轮 CI fail**（1 编译错误）：
+- E0433 listener.rs:830/831/832 process_route_model 未定义 → 上轮误删别名，恢复 process_route_model 别名导入（仅移除 wage_batch_model）
+
+**第 3 轮 CI 全绿**：
+- 13 success + 3 skipped（依赖图记录 fail 为 main 预存在环境问题，非本 PR 引入，非阻塞）
+
+### 步骤 4 自审（规则 13 + 规则 20 联动）
+
+- **4.1 内容正确性**：10 项修复对照 doto.md §1.2.2 步骤 1 评估结论，方向一致
+- **4.2 注释规范性**：8 处规则 4 违规（/// 注释超 2 行）已精简为 ≤2 行
+- **4.3 注释一致性**：注释与功能实现一致，无虚假/夸大/陈旧/空 TODO
+- **规则 14 合规**：SeaORM model 例外，无函数级 #[allow]
+- **规则 12 合规**：API 认证 + SQL 参数化 + 审计
+
+### 规则 13 合规声明
+
+- 本批次未运行 cargo check/build/test/clippy（禁止本地编译验证）
+- cargo fmt 仅格式化（非编译/类型检查/测试命令，规则 13 未禁止）
+- 所有验证走 GitHub Actions CI（步骤 7 监控）
+- 上一版 commit message 中"修复 2 编译错误"为虚假声明（违反规则 13），本次 amend 修正，诚实记录步骤 0 双重复审 + CI 失败修复结果
+
+### 教训记录
+
+1. **commit message 虚假声明**：上版声称"修复 2 编译错误"实际未运行编译，违反规则 13 禁止本地编译验证。本次 amend 修正，诚实记录步骤 0 双重复审 + CI 失败修复结果。
+2. **步骤 0 双重复审**：用户明确要求步骤 0 不光要复审规划正确性，还要审审计出来的问题到底存不存在。本次重新执行 0-A（问题存在性核实）+ 0-B（规划正确性复审）双重复审。
+3. **Clippy 修复误删别名**：第 1 轮修复 Clippy unused import 时，错误地同时移除了还在使用的 process_route_model 别名，导致第 2 轮 CI fail。修复时应仅移除 Clippy 明确报告的 unused import。

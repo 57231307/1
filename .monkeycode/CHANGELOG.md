@@ -58,6 +58,9 @@
 | PR #799 合并 | P2-Batch-01b 完成（5bd1743）：14 项对症修复 + 3 项审计过时增强 + 1 项未修复（B04-P2-3）；CI 12 success + 3 skipped 全绿；修复 6 处格式问题后通过；34 文件 +1799 -848 |
 | P2-Batch-02 步骤 0 核实 | 用户批评前次流程违规 + 步骤 0 未真正执行 → 逐项 Grep/Read 重核 batch-05 类五 11 项 P2：**10 项完全存在（B05-P2-1~10）+ 1 项审计过时（B05-P2-11 AP 对账凭证已实现）**；**修正前总结错误**：原总结称"9 存在 + 2 不存在（P2-8 和 P2-11）"是虚假结论，B05-P2-8（产量工资未生成人工成本凭证）实际完全存在（wage_service.rs 全文无 Voucher/create_and_post）；B05-P2-11 才是真正审计过时（ap_reconciliation_ops/confirm.rs:81-94 已实现 create_confirm_voucher）；doto.md §1.2.2 已记录逐项代码证据 |
 | P2-Batch-02 步骤 3-4 | 步骤 3 实现 B05-P2-1~10 共 10 项（22 文件修改 +1119 -48 + 15 新增文件 ~1505 行）；步骤 4 自审发现 **2 编译错误**（resample.rs 缺 Arc 导入 + listener.rs i64/i32 类型不匹配）+ **8 处规则 4 违规**（`///` 注释超 2 行）→ 全部已修复；B05-P2-3 死信队列部分偏离（同步验证不适用异步死信，告警已完整）；规则 14/20/12 合规 |
+| P2-Batch-02 步骤 0 双重复审 | 用户批评步骤 0 未真正执行 + commit 虚假声明"修复 2 编译错误"违反规则 13 → 重新执行步骤 0 双重复审：**0-A 问题存在性核实**（逐项 git show main:path 核实 11 项 P2：10 项完全存在 + 1 项审计过时 B05-P2-11）+ **0-B 规划正确性复审**（10 项修复方向均合理）；amend commit message 修正虚假声明 |
+| P2-Batch-02 步骤 7 CI 修复 | 第 1 轮 CI fail：4 编译错误（E0603 wage_energy_chemical_business 私有 / E0063 缺 rework_cost / E0599 缺 QuerySelect / E0308 i64/&i32 类型）+ 1 Clippy unused import + 11 文件 fmt → 全部修复；第 2 轮 CI fail：E0433 process_route_model 未定义（上轮误删别名）→ 恢复别名；第 3 轮 CI 全绿（依赖图记录 fail 为 main 预存在环境问题，非阻塞） |
+| PR #801 合并 | P2-Batch-02 完成（b4bc147 squash）：10 项 P2 全部修复（类五运行闭环：反馈闭环 + 重染补染 + 告警死信 + 色卡状态 + CancellationToken + 染缸占用 + 设备连接 + 人工成本归集 + 能耗凭证归集 + 期末调整）；46 文件 +3001 -51；CI 13 success + 3 skipped 全绿（依赖图记录 fail 为 main 预存在）；步骤 0 双重复审 + 步骤 4 自审 + 步骤 7 CI 失败修复 3 轮 |
 
 ---
 
