@@ -271,7 +271,8 @@ pub fn apply_init_mode_layers(router: Router, cors: CorsLayer) -> Router {
         ))
         .layer(SetResponseHeaderLayer::overriding(
             axum::http::header::CONTENT_SECURITY_POLICY,
-            HeaderValue::from_static("default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';"),
+            // V15 P2 B03-P2-7：与 csp.rs CSP_POLICY 对齐，移除 script-src 的 unsafe-inline 和 wasm-unsafe-eval
+            HeaderValue::from_static("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;"),
         ))
         // P3 7-14 修复：HSTS 头移到 match 后条件注入，仅 production 环境生效
         .layer(SetResponseHeaderLayer::overriding(

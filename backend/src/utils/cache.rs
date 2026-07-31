@@ -1,6 +1,5 @@
-// TODO(tech-debt): 此文件已开启 dead_code 检查；后续接入时如出现未使用项，应按模板逐项评估。
-// 当前所有 pub API 均已被业务引用（AppCache/MemoryCache/Cache trait/CacheStats）。
-// 私有项 CachedValue<T> 内部使用。如未来新增 API 暂时未接入，应使用项级 #[allow(dead_code)] + TODO 标注。
+// dead_code 检查已开启；当前所有 pub API 均已被业务引用（AppCache/MemoryCache/Cache trait/CacheStats）。
+// 私有项 CachedValue<T> 内部使用。
 
 use dashmap::DashMap;
 use std::sync::atomic::{AtomicU64, Ordering};

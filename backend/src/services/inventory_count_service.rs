@@ -361,7 +361,7 @@ impl InventoryCountService {
             active.quantity_difference = Set(difference);
             active.notes = Set(input.notes.clone().or(item_model.notes.clone()));
             active.updated_at = Set(Utc::now());
-            let _ = active.update(&txn).await?;
+            active.update(&txn).await?;
             counted += 1;
             if difference != Decimal::ZERO {
                 variance += 1;

@@ -1,5 +1,4 @@
-// TODO(tech-debt): 此文件已开启 dead_code 检查；后续接入时如出现未使用项，应按模板逐项评估。
-// 当前所有 pub API 均通过 FailoverMetrics / FailoverService 被业务引用。
+// dead_code 检查已开启；当前所有 pub API 均通过 FailoverMetrics / FailoverService 被业务引用。
 
 //! 主备隔离服务
 //!
