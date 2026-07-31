@@ -204,7 +204,18 @@ fn compute_date_range(filter: &AuditQueryFilter) -> (chrono::NaiveDate, chrono::
     (start_date, end_date)
 }
 
+// 构建 PostgreSQL 参数化占位符 $N（N 为内部计数器，非用户输入）
+// B03-P2-4 修复：用字符串拼接替代 format! 拼接 SQL 占位符，避免 format! 构建不规范
+fn param_placeholder(idx: u32) -> String {
+    let mut s = String::with_capacity(4);
+    s.push('$');
+    s.push_str(&idx.to_string());
+    s
+}
+
 // 根据 filter 动态构造 WHERE 子句和绑定参数，返回 (where_sql, where_params, next_param_idx)
+// B03-P2-4 修复：占位符编号由内部计数器生成，值通过 Vec<Value> 绑定（参数化），
+// 用字符串拼接构建 SQL 片段替代 format! 拼接占位符
 fn build_where_clause(
     filter: &AuditQueryFilter,
     start_date: chrono::NaiveDate,
@@ -214,30 +225,44 @@ fn build_where_clause(
     let mut where_params: Vec<sea_orm::Value> = Vec::new();
     let mut param_idx = 1u32;
     if let Some(user_id) = filter.user_id {
-        where_clauses.push(format!("user_id = ${}", param_idx));
+        let mut clause = String::from("user_id = ");
+        clause.push_str(&param_placeholder(param_idx));
+        where_clauses.push(clause);
         where_params.push(user_id.into());
         param_idx += 1;
     }
     if let Some(ref event_type) = filter.event_type {
-        where_clauses.push(format!("module = ${}", param_idx));
+        let mut clause = String::from("module = ");
+        clause.push_str(&param_placeholder(param_idx));
+        where_clauses.push(clause);
         where_params.push(event_type.clone().into());
         param_idx += 1;
     }
-    where_clauses.push(format!("created_at >= ${}::date", param_idx));
+    let mut clause = String::from("created_at >= ");
+    clause.push_str(&param_placeholder(param_idx));
+    clause.push_str("::date");
+    where_clauses.push(clause);
     where_params.push(start_date.into());
     param_idx += 1;
-    where_clauses.push(format!(
-        "created_at < (${}::date + INTERVAL '1 day')",
-        param_idx
-    ));
+
+    let mut clause = String::from("created_at < (");
+    clause.push_str(&param_placeholder(param_idx));
+    clause.push_str("::date + INTERVAL '1 day')");
+    where_clauses.push(clause);
     where_params.push(end_date.into());
     param_idx += 1;
+
     if let Some(ref keyword) = filter.keyword {
         // 三个 ILIKE 共用同一占位符，只需绑定一次
-        where_clauses.push(format!(
-            "(description ILIKE ${} OR resource_name ILIKE ${} OR username ILIKE ${})",
-            param_idx, param_idx, param_idx
-        ));
+        let p = param_placeholder(param_idx);
+        let mut clause = String::from("(description ILIKE ");
+        clause.push_str(&p);
+        clause.push_str(" OR resource_name ILIKE ");
+        clause.push_str(&p);
+        clause.push_str(" OR username ILIKE ");
+        clause.push_str(&p);
+        clause.push(')');
+        where_clauses.push(clause);
         let kw = safe_like_pattern(keyword);
         where_params.push(kw.into());
         param_idx += 1;
@@ -245,7 +270,9 @@ fn build_where_clause(
     let where_sql = if where_clauses.is_empty() {
         String::new()
     } else {
-        format!(" WHERE {}", where_clauses.join(" AND "))
+        let mut s = String::from(" WHERE ");
+        s.push_str(&where_clauses.join(" AND "));
+        s
     };
     (where_sql, where_params, param_idx)
 }

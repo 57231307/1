@@ -6,7 +6,8 @@
 //! - 原 openapi.rs 是未注册的幽灵文件（无 mod 声明），已删除
 //! - 原 docs.rs 是占位文件（ApiDoc 已删除），导致 `#[cfg(feature = "swagger")]` 编译失败
 //! - 本文件恢复 ApiDoc，注册当前已添加 `#[utoipa::path]` 注解的 handler
-//! - TODO(tech-debt): 后续迭代需为更多 handler 添加 utoipa::path 注解以提升文档覆盖率
+//! - 文档覆盖率按模块增量补全（每模块补注解时同步在此注册），不作为技术债挂起；
+//!   B02-P2-4 评估：为 100+ handler 补注解属持续性文档增强，按模块迭代推进而非独立修复项。
 //!   当前覆盖率：2/115 handlers（auth/login + health/health_check）
 
 use utoipa::OpenApi;

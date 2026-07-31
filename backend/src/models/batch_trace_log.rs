@@ -1,3 +1,4 @@
+// B04-P2-2 修复：本文件为 SeaORM 自动生成模型（#[derive(DeriveEntityModel)]），规则 14 例外保留
 #![allow(dead_code)]
 //! 批次追溯日志 Model
 //!

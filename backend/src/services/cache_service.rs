@@ -24,6 +24,30 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
+// V15 P2 B07-P2-5：差异化 TTL 常量（按数据波动率分级，替代原统一 60s 默认值）
+// 调用方通过 set_with_ttl(key, value, TTL_XXX) 选择对应 TTL，未指定时回归 default_ttl。
+
+/// Dashboard 热点数据 TTL（30s，高波动率，订单/库存/应收应付汇总）
+pub const TTL_DASHBOARD: Duration = Duration::from_secs(30);
+
+/// 报表聚合查询 TTL（120s，中等波动率，定时刷新型查询）
+pub const TTL_REPORT: Duration = Duration::from_secs(120);
+
+/// 用户数据 TTL（300s，中低波动率，用户资料变更不频繁）
+pub const TTL_USER: Duration = Duration::from_secs(300);
+
+/// 权限数据 TTL（120s，安全敏感型，权限变更需快速生效）
+pub const TTL_PERMISSION: Duration = Duration::from_secs(120);
+
+/// 产品目录 TTL（600s，低波动率，产品资料/价格变更不频繁）
+pub const TTL_PRODUCT: Duration = Duration::from_secs(600);
+
+/// 客户数据 TTL（300s，中低波动率，客户资料变更不频繁）
+pub const TTL_CUSTOMER: Duration = Duration::from_secs(300);
+
+/// 配置/字典数据 TTL（1800s，极低波动率，菜单/字典/系统配置极少变更）
+pub const TTL_CONFIG: Duration = Duration::from_secs(1800);
+
 /// 缓存命中/未命中统计
 #[derive(Debug, Default, Clone)]
 pub struct CacheStats {
@@ -470,5 +494,39 @@ mod tests {
         // 验证本地 stats 仍正常
         let stats = cache.stats().await;
         assert_eq!(stats.hits, 1);
+    }
+
+    /// V15 P2 B07-P2-5 修复测试：差异化 TTL 常量按数据波动率分级
+    #[test]
+    fn test_differentiated_ttl_constants() {
+        // Dashboard 最短（30s），Config 最长（1800s），符合数据波动率分级
+        assert_eq!(TTL_DASHBOARD, Duration::from_secs(30));
+        assert_eq!(TTL_REPORT, Duration::from_secs(120));
+        assert_eq!(TTL_PERMISSION, Duration::from_secs(120));
+        assert_eq!(TTL_USER, Duration::from_secs(300));
+        assert_eq!(TTL_CUSTOMER, Duration::from_secs(300));
+        assert_eq!(TTL_PRODUCT, Duration::from_secs(600));
+        assert_eq!(TTL_CONFIG, Duration::from_secs(1800));
+        // 安全敏感型（权限）TTL 应短于普通业务数据（用户/客户）
+        assert!(TTL_PERMISSION < TTL_USER);
+        assert!(TTL_PERMISSION < TTL_CUSTOMER);
+    }
+
+    /// V15 P2 B07-P2-5 修复测试：set_with_ttl 使用差异化 TTL 常量
+    #[tokio::test]
+    async fn test_set_with_differentiated_ttl() {
+        let cache = CacheService::builder()
+            .capacity(100)
+            .ttl(Duration::from_secs(60))
+            .build();
+        // 使用 Dashboard TTL（30s）写入，立即读取应命中
+        cache
+            .set_with_ttl(
+                "dashboard:orders".to_string(),
+                b"v1".to_vec(),
+                TTL_DASHBOARD,
+            )
+            .await;
+        assert_eq!(cache.get("dashboard:orders").await, Some(b"v1".to_vec()));
     }
 }

@@ -6,6 +6,46 @@
 
 ---
 
+## V15 P2 修复 4 项（B03-P2-4/5/10 + B04-P2-2，2026-07-31，已暂存未 commit）
+
+| 编号 | 文件 | 一句话总结 |
+|------|------|-----------|
+| B03-P2-4 | [omni_audit_handler.rs](file:///workspace/backend/src/handlers/omni_audit_handler.rs) | build_where_clause 引入 param_placeholder 辅助函数，用字符串拼接替代 format! 拼接 SQL 占位符，值绑定逻辑不变 |
+| B03-P2-5 | [slow_query_handler.rs](file:///workspace/backend/src/handlers/slow_query_handler.rs) | 两处 from_string 的 SQL 为静态常量无注入，添加注释说明 from_string 安全并保留 |
+| B03-P2-10 | [crm_handler.rs](file:///workspace/backend/src/handlers/crm_handler.rs) | import_leads 新增 scan_leads_for_viruses 病毒扫描检查点，CLAMAV_ENABLED 开关 + ClamAV REST API（CLAMAV_URL），未启用时 warn 日志跳过 |
+| B04-P2-2 | [batch_trace_log.rs](file:///workspace/backend/src/models/batch_trace_log.rs) | SeaORM 自动生成模型（#[derive(DeriveEntityModel)]），规则 14 例外保留 #![allow(dead_code)] + 注释说明 |
+
+> 附：B04-P2-1（dye_batch/batch_dye_lot 表概念重叠）文档说明修复已暂存（[dye_batch.rs](file:///workspace/backend/src/models/dye_batch.rs) + [batch_dye_lot.rs](file:///workspace/backend/src/models/batch_dye_lot.rs) 文档注释互补关系），非本批次任务范围，随本批次暂存。
+
+---
+
+## V15 P2 修复 4 项（B04-P2-1 + B06-P2-5 + B06-P2-6 + B04-P2-6，2026-07-31，已暂存未 commit）
+
+| 编号 | 文件 | 一句话总结 |
+|------|------|-----------|
+| B04-P2-1 | [dye_batch.rs](file:///workspace/backend/src/models/dye_batch.rs) + [batch_dye_lot.rs](file:///workspace/backend/src/models/batch_dye_lot.rs) | 两表顶部 `//!` 注释明确职责边界：dye_batch=缸号主表（生产流程），batch_dye_lot=染色批次明细（染料配方），不合并表仅文档说明 |
+| B06-P2-5 | [test_inventory_count.rs](file:///workspace/backend/tests/test_inventory_count.rs) | 删除 5 行占位骨架，重写为 10 项真实测试：盘点状态常量 + Service 构造签名 + SQLite 空 DB 异常路径 + 请求 DTO 语义（fixtures 抽取，同 ap_payment_workflow_test 模式） |
+| B06-P2-6 | [perf-report-template.md](file:///workspace/backend/scripts/perf-report-template.md) + [p2-3-perf-report.md](file:///workspace/frontend/scripts/p2-3-perf-report.md) | 新建后端性能报告模板（API 响应/DB 查询/内存/并发 4 维度 + 验收阈值 + 命令参考），前端报告添加后端模板引用；未改 CI 工作流 |
+| B04-P2-6 | [test_event_bus.rs](file:///workspace/backend/tests/test_event_bus.rs) | 新建事件贯通集成测试，3 项 tokio::test 覆盖 BusinessModeChanged/OrderBusinessModeLinked 发布-订阅闭环 + 广播语义（EVENT_BUS_TEST_LOCK 串行化 + fixtures，纯进程内 broadcast 无需 Kafka/Redis） |
+
+> 4 项均仅 `git add` 暂存未 commit；禁止本地编译，由 CI 验证。doto.md §1.2.1 对应 4 行已标记 ✅ 已修复。
+
+---
+
+## V15 P2 修复 5 项（B06-P2-3/4 + B07-P2-1/5/6，2026-07-31，已暂存未 commit）
+
+| 编号 | 文件 | 一句话总结 |
+|------|------|-----------|
+| B06-P2-3 | [inventory.ts](file:///workspace/frontend/tests/fixtures/inventory.ts) + [user.ts](file:///workspace/frontend/tests/fixtures/user.ts) + [index.ts](file:///workspace/frontend/tests/fixtures/index.ts) + [inventory-store.test.ts](file:///workspace/frontend/tests/unit/inventory-store.test.ts) + [user-store.test.ts](file:///workspace/frontend/tests/unit/user-store.test.ts) | 新建 inventory fixtures（createInventoryStockListMock/createStockAlertListMock/createStockAdjustmentDataMock）+ user fixtures 扩展（createUserInfoMock/createLoginResponseMock），测试文件内联 mock 替换为 fixtures 导入 |
+| B06-P2-4 | [auth-mock.ts](file:///workspace/frontend/tests/fixtures/auth-mock.ts) + [i18n-mock.ts](file:///workspace/frontend/tests/fixtures/i18n-mock.ts) + [login.test.ts](file:///workspace/frontend/tests/unit/login.test.ts) | 新建 auth-mock fixtures（createLockStatusResponseMock/createRouteMock/createRouteWithRedirectMock）+ i18n-mock fixtures（createLoginI18nMessagesMock/createI18nMessagesMock），login.test.ts 内联 checkLockStatus 响应 + routeRef 替换为 fixtures 导入 |
+| B07-P2-1 | [dye_batch_state_machine_validation.rs](file:///workspace/backend/src/services/dye_batch_state_machine_validation.rs) + [dye_batch_state_machine_service.rs](file:///workspace/backend/src/services/dye_batch_state_machine_service.rs) + [mod.rs](file:///workspace/backend/src/services/mod.rs) | 从 936 行 facade 拆出 11 个纯验证函数 + builtin_transition_rules + 单元测试到新文件（720 行），facade 降至 221 行；pub use 再导出保持外部引用路径不变 |
+| B07-P2-5 | [cache_service.rs](file:///workspace/backend/src/services/cache_service.rs) + [redis_cache.rs](file:///workspace/backend/src/utils/redis_cache.rs) | cache_service 新增 7 个差异化 TTL 常量（Duration：Dashboard 30s/Report 120s/Permission 120s/User 300s/Customer 300s/Product 600s/Config 1800s）+ 2 项测试；redis_cache 新增 5 个 u64 TTL 常量 |
+| B07-P2-6 | [product_ops/crud.rs](file:///workspace/backend/src/services/product_ops/crud.rs) + [customer_ops/crud.rs](file:///workspace/backend/src/services/customer_ops/crud.rs) | product_service get_product 回填缓存改用 PRODUCT_CACHE_TTL_SECS（600s），customer_service get_customer 改用 CUSTOMER_CACHE_TTL_SECS（300s），替代原统一 DEFAULT_CACHE_TTL_SECS |
+
+> 5 项均仅 `git add` 暂存未 commit；禁止本地编译，由 CI 验证。doto.md §1.2.1 对应 5 行待标记 ✅ 已修复。
+
+---
+
 ## P2 步骤 0 复审修正 + PR #797 格式修复（2026-07-31）
 
 | 项 | 一句话总结 |

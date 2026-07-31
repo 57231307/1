@@ -143,6 +143,7 @@ pub async fn get_slow_query_stats(
 ) -> Result<Json<ApiResponse<SlowQueryStatsResponse>>, AppError> {
     // 使用原生 SQL 聚合：按 query_text 分组，取 max(execution_time_ms) / sum(calls) / avg(rows)
     // 仅取近 7 天数据，避免历史数据爆炸
+    // B03-P2-5 修复：SQL 为静态常量，无用户输入拼接，from_string 安全（无注入风险）
     let sql = "SELECT query_text, \
                       MAX(execution_time_ms) as max_exec_time_ms, \
                       SUM(calls) as total_calls, \
@@ -184,6 +185,7 @@ pub async fn get_slow_query_stats(
     }
 
     // 总条数（近 7 天）
+    // B03-P2-5 修复：count_sql 为静态常量，无用户输入拼接，from_string 安全（无注入风险）
     let count_sql =
         "SELECT COUNT(*) FROM slow_query_log WHERE captured_at >= NOW() - INTERVAL '7 days'";
     let count_row = state

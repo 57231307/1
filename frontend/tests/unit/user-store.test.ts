@@ -25,6 +25,8 @@ import { setActivePinia, createPinia } from 'pinia';
 import { useUserStore } from '@/store/user';
 import * as authApi from '@/api/auth';
 import type { LoginResponse, UserInfo } from '@/types/api';
+// V15 P2 B06-P2-3 修复（规则 6）：内联 mock 数据抽取到 fixtures 工厂函数
+import { createLoginResponseMock, createUserInfoMock } from '../fixtures';
 
 describe('User Store 测试（Wave B-3 Cookie 模式）', () => {
   beforeEach(() => {
@@ -39,10 +41,12 @@ describe('User Store 测试（Wave B-3 Cookie 模式）', () => {
   });
 
   it('login 应该调用 API 并设置 userInfo（不再操作 localStorage）', async () => {
-    const mockResponse: LoginResponse = {
-      user: { id: 1, username: 'admin', role: 'admin' } as UserInfo,
-      permissions: [],
-    };
+    // V15 P2 B06-P2-3 修复（规则 6）：使用 fixtures 工厂函数替代内联 mock
+    const mockResponse = createLoginResponseMock({
+      user: createUserInfoMock({ id: 1, username: 'admin' } as Partial<UserInfo>),
+    }) as LoginResponse;
+    // 测试期望 user 包含 role 字段（业务逻辑测试用，UserInfo 类型不含 role）
+    (mockResponse.user as Record<string, unknown>).role = 'admin';
     vi.mocked(authApi.login).mockResolvedValue(mockResponse);
 
     const store = useUserStore();
@@ -65,7 +69,10 @@ describe('User Store 测试（Wave B-3 Cookie 模式）', () => {
     vi.mocked(authApi.logout).mockResolvedValue(undefined);
 
     const store = useUserStore();
-    store.userInfo = { id: 1, username: 'admin', role: 'admin' } as UserInfo;
+    // V15 P2 B06-P2-3 修复（规则 6）：使用 fixtures 工厂函数替代内联 mock
+    const userInfo = createUserInfoMock({ id: 1, username: 'admin' });
+    (userInfo as Record<string, unknown>).role = 'admin';
+    store.userInfo = userInfo;
 
     await store.logout();
 
@@ -81,7 +88,10 @@ describe('User Store 测试（Wave B-3 Cookie 模式）', () => {
     });
 
     const store = useUserStore();
-    store.userInfo = { id: 1, username: 'admin', role: 'admin' } as UserInfo;
+    // V15 P2 B06-P2-3 修复（规则 6）：使用 fixtures 工厂函数替代内联 mock
+    const userInfo = createUserInfoMock({ id: 1, username: 'admin' });
+    (userInfo as Record<string, unknown>).role = 'admin';
+    store.userInfo = userInfo;
 
     // store 使用 try/finally，即使 API 失败也会清除状态
     await expect(store.logout()).rejects.toThrow('Network error');
@@ -92,7 +102,9 @@ describe('User Store 测试（Wave B-3 Cookie 模式）', () => {
 
   it('setUserInfo 应该更新用户信息', () => {
     const store = useUserStore();
-    const userInfo = { id: 1, username: 'test', role: 'user' } as UserInfo;
+    // V15 P2 B06-P2-3 修复（规则 6）：使用 fixtures 工厂函数替代内联 mock
+    const userInfo = createUserInfoMock({ id: 1, username: 'test' });
+    (userInfo as Record<string, unknown>).role = 'user';
 
     store.setUserInfo(userInfo);
     expect(store.userInfo).toEqual(userInfo);

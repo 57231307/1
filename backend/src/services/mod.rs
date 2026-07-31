@@ -305,6 +305,8 @@ pub mod business_mode_ops;
 pub mod dye_batch_state_machine_service;
 // 批次 490 D10-4a 拆分：dye_batch_state_machine_service.rs facade 的业务实现子模块（lifecycle_log/state_rule/rework/operation）
 pub mod dye_batch_state_machine_ops;
+// V15 P2 B07-P2-1 拆分：从 dye_batch_state_machine_service.rs 迁出的纯验证函数 + 单元测试
+pub mod dye_batch_state_machine_validation;
 // V15 P0-F15：大货批色审批服务（8 状态机：pending→sampled→sent_to_customer→approved/rejected/rework→downgraded/scrapped）
 pub mod bulk_color_approval_service;
 // V15 P0-F20 Batch 480：8D 质量管理流程服务（11 状态机：not_started→d0_plan→d1_team→...→d8_recognize→closed）

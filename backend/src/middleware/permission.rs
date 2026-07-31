@@ -342,8 +342,19 @@ impl<T: Clone> CacheEntry<T> {
 static PERMISSION_CACHE: LazyLock<DashMap<i32, CacheEntry<Arc<Vec<role_permission::Model>>>>> =
     LazyLock::new(DashMap::new);
 
-/// 权限缓存TTL（5分钟）
-const PERMISSION_CACHE_TTL: i64 = 5;
+/// 权限缓存 TTL（分钟），可通过环境变量 PERMISSION_CACHE_TTL_MINS 配置，默认 5 分钟。
+// B03-P2-3 修复：原硬编码 const 5 分钟，现改为启动时读取环境变量，便于按部署规模调优；
+// 非法值（非数字/<=0）回退为默认 5 分钟，避免配置错误导致缓存失效或永驻。
+static PERMISSION_CACHE_TTL_MINS: LazyLock<i64> = LazyLock::new(|| {
+    let raw = std::env::var("PERMISSION_CACHE_TTL_MINS").unwrap_or_else(|_| "5".to_string());
+    let mins = raw.parse::<i64>().unwrap_or(5).max(1);
+    if std::env::var("PERMISSION_CACHE_TTL_MINS").is_err() {
+        tracing::info!("PERMISSION_CACHE_TTL_MINS 未设置，使用默认值 5 分钟");
+    } else {
+        tracing::info!(value = %raw, mins, "PERMISSION_CACHE_TTL_MINS 已设置");
+    }
+    mins
+});
 
 /// V15 P0-S07：失效指定角色的权限缓存（P1-14.9-C 同步发布 Redis pub/sub，多实例失效）
 pub fn invalidate_permission_cache(role_id: i32) {
@@ -542,7 +553,7 @@ async fn check_permission(
 
             // 使用 Arc 包装，插入缓存，设置TTL
             let arc_perms = Arc::new(db_perms);
-            let ttl = Duration::minutes(PERMISSION_CACHE_TTL);
+            let ttl = Duration::minutes(*PERMISSION_CACHE_TTL_MINS);
             PERMISSION_CACHE.insert(role_id, CacheEntry::new(arc_perms.clone(), ttl));
             arc_perms
         }
