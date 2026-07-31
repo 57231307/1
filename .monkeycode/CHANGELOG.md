@@ -6,6 +6,15 @@
 
 ---
 
+## V15 主线八维 P1 后续修复批次（2026-07-31，2 PR 已合并 main）
+
+| PR | 缺陷 | 一句话总结 |
+|----|------|-----------|
+| #793 | P1 后续 #2 业务追溯 producer 接入 | [business_trace_service.rs](file:///workspace/backend/src/services/business_trace_service.rs) + [purchase_receipt_ops/crud.rs](file:///workspace/backend/src/services/purchase_receipt_ops/crud.rs) + [so/delivery_ops/ship.rs](file:///workspace/backend/src/services/so/delivery_ops/ship.rs)：record_purchase_receipt 接入采购收货创建后、record_sales_delivery 接入销售发货后；best-effort 集成不阻塞主流程；`#[allow(dead_code)]` 全部移除；CI 全绿后合并 main 8fa619e5 |
+| #791 | 缺陷 9-2 染色批次导出全量查询 | [dye_batch_handler.rs](file:///workspace/backend/src/handlers/dye_batch_handler.rs)：导出查询加 `.limit(10000)` + QuerySelect trait 导入；附移除 3 个测试文件（ap_payment/production_order/purchase_receipt_workflow_test）未使用 DatabaseConnection 导入修复 Clippy 新增警告；CI 全绿后合并 main b2e7b419，修复分支已删除 |
+
+---
+
 ## CI/CD 全面优化第二轮（2026-07-31，11 项全部处理）
 
 | 优先级 | 项 | 一句话总结 |

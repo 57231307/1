@@ -21,11 +21,11 @@
 | # | 项 | 文件 | 真实状态 | 代码证据 |
 |---|-----|------|----------|----------|
 | 1 | 盘点契约 P0-1（含前端契约对齐） | [inventory-count.ts](file:///workspace/frontend/src/api/inventory-count.ts) + CountListTab + CountFormDialogTab | ✅ **已修复**（PR #790 合并 main 85aec7de） | main 已含 recordCountItems/submitInventoryCount/rejectInventoryCount 3 端点 + CountListTab handleSubmit；completeInventoryCount 已删除 |
-| 2 | 业务追溯 producer 完整接入 | [business_trace_service.rs](file:///workspace/backend/src/services/business_trace_service.rs) | ⚠️ **部分修复** | 3 个 producer（upsert_chain_node L241-357 / link_assist L361-376 / upsert_snapshot L383-420）已实现并具备约束保护逻辑，但全部 `#[allow(dead_code)]`（L240/360/382），grep 确认无任何上游业务调用（采购收货/库存出入库/委外/销售发货均未接入），属于死代码 |
+| 2 | 业务追溯 producer 完整接入 | [business_trace_service.rs](file:///workspace/backend/src/services/business_trace_service.rs) | ✅ **已修复**（PR #793 合并 main 8fa619e5） | 3 个 producer 已实现并接入上游业务：record_purchase_receipt 接入采购收货创建后、record_sales_delivery 接入销售发货后；`#[allow(dead_code)]` 已全部移除；best-effort 集成不阻塞主流程 |
 | 3 | API 网关 PATCH rate_limit 范围校验 | [api_gateway_handler.rs](file:///workspace/backend/src/handlers/api_gateway_handler.rs) | ✅ **已修复**（PR #790 合并 main 85aec7de） | main 已含 validate_rate_limit 辅助函数（范围 0-10000）+ 4 处写入端点接入校验 |
 | 4 | 覆盖率阈值回调 | [vitest.config.ts](file:///workspace/frontend/vitest.config.ts) | ❌ **未修复** | L31-39 thresholds 4 项（lines/functions/branches/statements）均为 1，非 70；注释明确"临时下调至 1%"、"待测试补齐后逐步提升回 70%"；实际覆盖率 1.67% |
 
-**真实进度**：3/5 已完成（#1 #3 PR #790 + 委外 record_receipt PR #788）/ 1/5 部分修复（#2）/ 1/5 未修复（#4）
+**真实进度**：4/5 已完成（#1 #3 PR #790 + 委外 record_receipt PR #788 + #2 PR #793）/ 1/5 未修复（#4，需先补齐测试再回调阈值，非独立快速修复项）
 
 ### 0.0.2 打印功能未完成项（2026-07-30 核实，整体完成度约 60%）
 
@@ -42,7 +42,7 @@
 
 **关键 P0 未修复项**：
 - 缺陷 10-4：审计日志导出二次审计机制缺失（`audit_log_export_log` 表未创建，全仓无 migration/model/handler，审计员可篡改自身记录）
-- 缺陷 9-2（部分）：[dye_batch_handler.rs:382](file:///workspace/backend/src/handlers/dye_batch_handler.rs) 仍 `q.all()` 全量查询无 limit
+- ~~缺陷 9-2（部分）：dye_batch_handler.rs 仍 `q.all()` 全量查询无 limit~~ **✅ 已修复（PR #791 合并 main b2e7b419，导出查询加 `.limit(10000)` + QuerySelect trait 导入；附移除 3 个测试文件未使用 DatabaseConnection 导入修复 Clippy 新增警告）**
 
 **规则 3 合规性**：✅ 实际合规（xlsx/docx），但 3 处 `export_csv` 函数名误导（实际生成 xlsx），建议重命名
 
