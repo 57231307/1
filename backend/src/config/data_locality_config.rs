@@ -9,18 +9,13 @@ use std::net::Ipv4Addr;
 use std::str::FromStr;
 
 /// 数据本地化模式
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Default)]
 pub enum DataLocalityMode {
     /// 宽松模式（默认，允许跨境数据传输）
+    #[default]
     Permissive,
     /// 仅限中国境内（禁止向境外 IP 发起 outbound 请求）
     CnOnly,
-}
-
-impl Default for DataLocalityMode {
-    fn default() -> Self {
-        Self::Permissive
-    }
 }
 
 impl FromStr for DataLocalityMode {

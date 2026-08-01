@@ -5,6 +5,7 @@ use crate::utils::error::AppError;
 use sea_orm::*;
 use std::sync::Arc;
 
+#[allow(dead_code)]
 pub struct ColorCardIssueStatisticsService {
     db: Arc<DatabaseConnection>,
 }
