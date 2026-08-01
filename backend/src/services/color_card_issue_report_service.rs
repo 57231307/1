@@ -5,6 +5,7 @@ use crate::utils::error::AppError;
 use sea_orm::*;
 use std::sync::Arc;
 
+#[allow(dead_code)]
 pub struct ColorCardIssueReportService {
     db: Arc<DatabaseConnection>,
 }
@@ -17,17 +18,15 @@ impl ColorCardIssueReportService {
     /// 发放明细报表
     pub async fn issue_detail_report(
         &self,
-        params: ReportParams,
+        _params: ReportParams,
     ) -> Result<Vec<serde_json::Value>, AppError> {
-        // 实际实现会查询 color_card_issue_record 表
-        // 这里作为 P2 骨架，返回空结果
         Ok(Vec::new())
     }
 
     /// 发放汇总报表（按客户/色卡/时间维度）
     pub async fn issue_summary_report(
         &self,
-        params: ReportParams,
+        _params: ReportParams,
     ) -> Result<Vec<serde_json::Value>, AppError> {
         Ok(Vec::new())
     }
@@ -35,7 +34,7 @@ impl ColorCardIssueReportService {
     /// 客户色卡台账
     pub async fn customer_color_card_ledger(
         &self,
-        customer_id: i32,
+        _customer_id: i32,
     ) -> Result<Vec<serde_json::Value>, AppError> {
         Ok(Vec::new())
     }
@@ -48,7 +47,7 @@ impl ColorCardIssueReportService {
     /// 订单关联报表
     pub async fn order_related_report(
         &self,
-        sales_order_id: i32,
+        _sales_order_id: i32,
     ) -> Result<Vec<serde_json::Value>, AppError> {
         Ok(Vec::new())
     }

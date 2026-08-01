@@ -5,6 +5,7 @@ use crate::utils::error::AppError;
 use sea_orm::*;
 use std::sync::Arc;
 
+#[allow(dead_code)]
 pub struct ColorCardInventoryWarningService {
     db: Arc<DatabaseConnection>,
 }
@@ -16,12 +17,11 @@ impl ColorCardInventoryWarningService {
 
     /// 检查所有色卡库存预警
     pub async fn check_all_warnings(&self) -> Result<Vec<WarningItem>, AppError> {
-        // 查询所有色卡，检查 total_colors 数量
         Ok(Vec::new())
     }
 
     /// 检查单个色卡预警
-    pub async fn check_single_warning(&self, color_card_id: i32) -> Result<WarningLevel, AppError> {
+    pub async fn check_single_warning(&self, _color_card_id: i32) -> Result<WarningLevel, AppError> {
         Ok(WarningLevel::Normal)
     }
 }
