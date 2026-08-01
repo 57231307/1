@@ -13,9 +13,18 @@ use sea_orm::{
 use serde_json::Value;
 use std::sync::Arc;
 
-/// 数据范围类型常量（仅保留 ALL；行级权限应通过 data_permission 表 scope_type 字段动态读取）
+/// 数据范围类型常量
+/// V15 P2 B12-P2-7：扩展为完整 4 档分级常量（ALL/DEPT/SELF/CUSTOM），
+/// 与 data_permission 表 scope_type 字段对齐，供服务层显式引用而非硬编码字符串
 pub mod data_scope {
+    /// 全部数据（管理员）
     pub const ALL: &str = "ALL";
+    /// 本部门数据
+    pub const DEPT: &str = "DEPT";
+    /// 仅本人数据
+    pub const SELF: &str = "SELF";
+    /// 自定义数据范围
+    pub const CUSTOM: &str = "CUSTOM";
 }
 
 /// 数据权限查询结果

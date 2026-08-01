@@ -298,6 +298,11 @@ fn extract_resource_info(path: &str) -> (String, Option<i32>) {
 
         (resource_type, None)
     } else {
+        // V15 P2 B12-P2-13：路径不符合 /api/v1/erp/... 前缀，记录 warn 便于发现配置错误
+        tracing::warn!(
+            resource = %path,
+            "extract_resource_info 返回 unknown，可能存在配置错误"
+        );
         ("unknown".to_string(), None)
     }
 }

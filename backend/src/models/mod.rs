@@ -226,6 +226,8 @@ pub mod logistics_waybill;
 // V15 P1 batch-19 缺陷 23.4.2：物流跟踪事件历史表
 pub mod logistics_tracking_event;
 pub mod omni_audit_log;
+// V15 P2 B11-P2-9：安全告警日志模型（《网络安全法》《数据安全法》合规，保留 7 年）
+pub mod security_alert_log;
 pub mod sales_return;
 pub mod sales_return_item;
 pub mod slow_query;
@@ -400,3 +402,14 @@ pub mod device_connection;
 pub mod device_connection_dto;
 // V15 P2 B05-P2-10：期末调整记录 Model（period_adjustment_record 表，暂估/摊销/预提）
 pub mod period_adjustment_record;
+// V15 P2 B08-P2-5：出口商检 + 产地证
+pub mod certificate_of_origin;
+pub mod export_inspection;
+// V15 P2 B08-P2-6：存货跌价准备
+pub mod inventory_write_down;
+// V15 P2 B08-P2-8：环评合规存档
+pub mod environmental_assessment;
+// V15 P2 B08-P2-9：女职工与未成年工保护
+pub mod female_worker_protection;
+pub mod operation_certificate;
+pub mod safety_accident_report;

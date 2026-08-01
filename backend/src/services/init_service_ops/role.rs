@@ -84,8 +84,10 @@ impl InitService {
             name: Set("部门经理".to_string()),
             code: Set("manager".to_string()),
             description: Set(Some("部门经理".to_string())),
+            // V15 P2 B10-P2-3：legacy permissions 收窄，移除 inventory:* / sales:* 通配符，
+            // 拆分为显式 read/create/update 三项（不含 delete），符合最小权限原则
             permissions: Set(Some(
-                "[\"user:view\", \"product:*\", \"inventory:*\", \"sales:*\"]".to_string(),
+                "[\"user:view\", \"product:*\", \"inventory:read\", \"inventory:create\", \"inventory:update\", \"sales:read\", \"sales:create\", \"sales:update\"]".to_string(),
             )),
             is_system: Set(true),
             // V15 P0-S01：manager 角色数据范围为 dept（本部门数据）

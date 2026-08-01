@@ -91,6 +91,10 @@ pub struct Model {
     #[sea_orm(column_type = "Decimal(Some((12, 2)))")]
     pub wage_amount: Decimal,
 
+    /// V15 P2 B08-P2-3：工人身份证号（个税申报预留字段，脱敏存储）
+    pub id_card_no: Option<String>,
+    /// V15 P2 B08-P2-7：个人所得税代扣代缴金额（累进税率计算）
+    pub individual_income_tax: Option<Decimal>,
     /// 备注
     pub remarks: Option<String>,
 

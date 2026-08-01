@@ -33,6 +33,12 @@ pub struct Model {
     /// 请求条件/查询条件（query string，V15 P0-S19：与 request_body 区分，用于快速筛选特定条件审计记录）
     #[sea_orm(column_type = "Text", nullable)]
     pub condition: Option<String>,
+    /// V15 P2 B11-P2-3：操作分类
+    pub operation_category: Option<String>,
+    /// V15 P2 B11-P2-3：导出记录数
+    pub export_record_count: Option<i32>,
+    /// V15 P2 B11-P2-3：导出审批令牌
+    pub export_approval_token: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

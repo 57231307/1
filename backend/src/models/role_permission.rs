@@ -13,6 +13,8 @@ pub struct Model {
     pub resource_id: Option<i32>,
     pub action: String,
     pub allowed: bool,
+    /// V15 P2 B10-P2-2：统一权限码（格式：<模块>.<资源>.<操作>，如 color_card.issue.create）
+    pub permission_code: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

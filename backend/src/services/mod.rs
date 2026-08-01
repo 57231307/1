@@ -344,3 +344,5 @@ pub mod labor_contract_service;
 pub mod social_insurance_service;
 // 缺陷 24：职业健康合规服务（《职业病防治法》危害因素检测 + 体检档案 + PPE 发放）
 pub mod occupational_health_service;
+// V15 P2 B08-P2-7：研发费用加计扣除服务
+pub mod rnd_super_deduction_service;
