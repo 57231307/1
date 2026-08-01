@@ -338,6 +338,8 @@ impl WageCalculationService {
                 piece_wage: Set(per_worker_piece),
                 time_wage: Set(per_worker_time),
                 wage_amount: Set(per_worker_amount),
+                id_card_no: Set(None),
+                individual_income_tax: Set(None),
                 remarks: Set(None),
                 is_deleted: Set(false),
                 created_at: Set(ctx.now),

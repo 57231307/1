@@ -1,28 +1,32 @@
 #![allow(dead_code)]
-//! 原产地证书模型（V15 P2 B08-P2-5）
-//!
-//! 依据：《进出口货物原产地条例》
-//! 业务：一般原产地证(CO)/普惠制产地证(GSP)/区域性优惠产地证(如 RCEP)
-
+//! 出口产地证模型
 use chrono::{DateTime, NaiveDate, Utc};
+use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "certificates_of_origin")]
+#[sea_orm(table_name = "certificate_of_origin")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
     pub certificate_no: String,
-    pub sales_order_id: Option<i32>,
+    pub inspection_id: Option<i32>,
+    pub product_name: String,
+    pub hs_code: String,
+    pub origin_country: String,
+    pub destination_country: String,
+    #[sea_orm(column_type = "Decimal(Some((15, 2)))")]
+    pub quantity: Decimal,
+    pub unit: String,
+    #[sea_orm(column_type = "Decimal(Some((15, 2)))")]
+    pub invoice_amount: Option<Decimal>,
     pub certificate_type: String,
-    pub exporter: Option<String>,
-    pub importer: Option<String>,
-    pub transport_method: Option<String>,
     pub issue_date: NaiveDate,
-    pub issuing_authority: Option<String>,
-    pub certificate_url: Option<String>,
+    pub expiry_date: Option<NaiveDate>,
+    pub status: String,
     pub remarks: Option<String>,
+    pub created_by: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

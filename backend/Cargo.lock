@@ -452,6 +452,7 @@ dependencies = [
  "tokio",
  "tokio-cron-scheduler",
  "tokio-test",
+ "tokio-util",
  "toml",
  "totp-rs",
  "tower",
@@ -4677,6 +4678,7 @@ dependencies = [
  "bytes",
  "futures-core",
  "futures-sink",
+ "futures-util",
  "pin-project-lite",
  "tokio",
 ]

@@ -346,3 +346,17 @@ pub mod social_insurance_service;
 pub mod occupational_health_service;
 // V15 P2 B08-P2-7：研发费用加计扣除服务
 pub mod rnd_super_deduction_service;
+// V15 P2 B08-12：出口商检 + 产地证 + 合规预警服务
+pub mod export_inspection_service;
+pub mod certificate_of_origin_service;
+pub mod compliance_alert_service;
+// V15 P2 B08-16：存货跌价准备服务
+pub mod inventory_write_down_service;
+// V15 P2 类九 10.3-3：色卡发放报表服务（5 类报表：发放明细/发放汇总/客户色卡台账/过期未使用/订单关联）
+pub mod color_card_issue_report_service;
+// V15 P2 类九 10.3-4：色卡成本核算服务（成本归集/结转/恢复/损失核算）
+pub mod color_card_cost_accounting_service;
+// V15 P2 类九 10.5-2：色卡库存预警服务（黄色<5/红色<2/禁止=0）
+pub mod color_card_inventory_warning_service;
+// V15 P2 类九 10.5-3：色卡发放统计服务（每日 23:00 执行）
+pub mod color_card_issue_statistics_service;

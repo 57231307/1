@@ -92,6 +92,8 @@ pub mod social_insurance;
 pub mod device_connection;
 // V15 P2 B05-P2-10：期末调整路由（暂估/摊销/预提，6 端点）
 pub mod period_adjustment;
+// V15 P2 B08-12：出口商检 + 产地证路由
+pub mod export_inspection_routes;
 #[path = "static.rs"]
 pub mod static_routes;
 pub mod search_api;
@@ -406,6 +408,8 @@ pub fn create_router(state: AppState) -> Router<()> {
         .nest("/api/v1/erp/device-connections", device_connection::routes())
         // V15 P2 B05-P2-10：期末调整路由（暂估/摊销/预提）
         .nest("/api/v1/erp/period-adjustments", period_adjustment::routes())
+        // V15 P2 B08-12：出口商检路由
+        .nest("/api/v1/erp/export-inspections", export_inspection_routes::routes())
         .nest("/api/v1/erp/purchase", purchase::routes())
         .nest("/api/v1/erp/finance", finance::routes(state.clone()))
         .nest("/api/v1/erp", finance::sub_routes())

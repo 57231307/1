@@ -1,31 +1,28 @@
 #![allow(dead_code)]
-//! 出口商品检验记录模型（V15 P2 B08-P2-5）
-//!
-//! 依据：《进出口商品检验法》及实施条例
-//! 业务：出口纺织品法定检验/公证鉴定/免检管理
-
-use chrono::{DateTime, Utc};
+//! 出口商检记录模型
+use chrono::{DateTime, NaiveDate, Utc};
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "export_inspections")]
+#[sea_orm(table_name = "export_inspection")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
     pub inspection_no: String,
-    pub sales_order_id: Option<i32>,
+    pub sales_order_id: i32,
     pub delivery_id: Option<i32>,
     pub product_name: String,
-    pub hs_code: Option<String>,
+    pub hs_code: String,
     pub inspection_type: String,
-    pub inspection_agency: Option<String>,
-    pub inspection_date: Option<chrono::NaiveDate>,
-    pub result: Option<String>,
+    pub inspection_agency: String,
+    pub inspection_date: NaiveDate,
+    pub result: String,
     pub report_url: Option<String>,
     pub certificate_no: Option<String>,
-    pub certificate_expiry: Option<chrono::NaiveDate>,
+    pub certificate_expiry: Option<NaiveDate>,
     pub remarks: Option<String>,
+    pub created_by: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
