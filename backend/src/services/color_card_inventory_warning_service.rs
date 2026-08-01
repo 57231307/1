@@ -28,6 +28,7 @@ impl ColorCardInventoryWarningService {
     }
 }
 
+#[allow(dead_code)]
 pub struct WarningItem {
     pub color_card_id: i32,
     pub color_card_name: String,
@@ -35,6 +36,7 @@ pub struct WarningItem {
     pub warning_level: WarningLevel,
 }
 
+#[allow(dead_code)]
 pub enum WarningLevel {
     Normal,
     Yellow,    // < 5

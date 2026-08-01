@@ -194,12 +194,15 @@ pub const PRODUCT_CACHE_TTL_SECS: u64 = 600;
 pub const CUSTOMER_CACHE_TTL_SECS: u64 = 300;
 
 /// 用户数据缓存 TTL（5 分钟，中低波动率，用户资料变更不频繁）
+#[allow(dead_code)]
 pub const USER_CACHE_TTL_SECS: u64 = 300;
 
 /// 权限数据缓存 TTL（2 分钟，安全敏感型，权限变更需快速生效）
+#[allow(dead_code)]
 pub const PERMISSION_CACHE_TTL_SECS: u64 = 120;
 
 /// 配置/字典数据缓存 TTL（30 分钟，极低波动率，菜单/字典/系统配置极少变更）
+#[allow(dead_code)]
 pub const CONFIG_CACHE_TTL_SECS: u64 = 1800;
 
 /// 生成标准化的缓存 key（格式 `{service}:{id}`，如 user:42/product:100/customer:555）

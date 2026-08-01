@@ -30,6 +30,7 @@ impl ColorCardIssueStatisticsService {
     }
 }
 
+#[allow(dead_code)]
 pub struct DailyStats {
     pub date: chrono::NaiveDate,
     pub total_issued: i32,

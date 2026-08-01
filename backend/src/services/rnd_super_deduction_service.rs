@@ -8,8 +8,8 @@ use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 
 /// 研发费用加计扣除服务
+#[allow(dead_code)]
 pub struct RndSuperDeductionService {
-    #[allow(dead_code)]
     db: Arc<DatabaseConnection>,
 }
 

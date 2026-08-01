@@ -52,6 +52,7 @@ impl ColorCardIssueReportService {
     }
 }
 
+#[allow(dead_code)]
 pub struct ReportParams {
     pub customer_id: Option<i32>,
     pub color_card_id: Option<i32>,

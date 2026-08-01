@@ -6,6 +6,7 @@ use rust_decimal::Decimal;
 use sea_orm::*;
 use std::sync::Arc;
 
+#[allow(dead_code)]
 pub struct CertificateOfOriginService {
     db: Arc<DatabaseConnection>,
 }
@@ -70,6 +71,7 @@ impl CertificateOfOriginService {
     }
 }
 
+#[allow(dead_code)]
 pub struct ListParams {
     pub inspection_id: Option<i32>,
     pub status: Option<String>,
@@ -77,6 +79,7 @@ pub struct ListParams {
     pub page_size: Option<u64>,
 }
 
+#[allow(dead_code)]
 pub struct CreateCertificateReq {
     pub certificate_no: String,
     pub inspection_id: Option<i32>,

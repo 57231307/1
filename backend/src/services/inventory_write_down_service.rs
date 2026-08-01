@@ -6,6 +6,7 @@ use rust_decimal::Decimal;
 use sea_orm::*;
 use std::sync::Arc;
 
+#[allow(dead_code)]
 pub struct InventoryWriteDownService {
     db: Arc<DatabaseConnection>,
 }
@@ -69,6 +70,7 @@ impl InventoryWriteDownService {
     }
 }
 
+#[allow(dead_code)]
 pub struct ListParams {
     pub product_id: Option<i32>,
     pub write_down_type: Option<String>,
@@ -76,6 +78,7 @@ pub struct ListParams {
     pub page_size: Option<u64>,
 }
 
+#[allow(dead_code)]
 pub struct CreateWriteDownReq {
     pub product_id: i32,
     pub write_down_type: String,

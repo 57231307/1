@@ -9,6 +9,7 @@ use std::str::FromStr;
 
 /// 数据本地化模式
 #[derive(Debug, Clone, PartialEq, Deserialize, Default)]
+#[allow(dead_code)]
 pub enum DataLocalityMode {
     /// 宽松模式（默认，允许跨境数据传输）
     #[default]
@@ -33,12 +34,14 @@ impl FromStr for DataLocalityMode {
 
 /// CIDR 网段（IPv4）
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct IpCidr {
     pub network: Ipv4Addr,
     pub prefix_len: u8,
 }
 
 impl IpCidr {
+    #[allow(dead_code)]
     pub fn contains_ipv4(&self, ip: &Ipv4Addr) -> bool {
         if self.prefix_len == 0 {
             return true;
@@ -81,6 +84,7 @@ impl FromStr for IpCidr {
 
 /// 数据本地化配置
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct DataLocalityConfig {
     pub mode: DataLocalityMode,
     pub overseas_ip_blocklist: Vec<IpCidr>,
@@ -115,6 +119,7 @@ impl DataLocalityConfig {
 }
 
 /// 检查 IP 是否在境外拦截列表中
+#[allow(dead_code)]
 pub fn is_overseas_blocked(ip: &Ipv4Addr, blocklist: &[IpCidr]) -> bool {
     blocklist.iter().any(|cidr| cidr.contains_ipv4(ip))
 }

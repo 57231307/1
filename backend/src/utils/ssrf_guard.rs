@@ -276,6 +276,7 @@ fn is_blocked_ipv6(ip: &Ipv6Addr) -> bool {
 
 /// V15 P2 B08-2：检查 IPv4 地址是否在境外拦截列表中
 /// 配合 DataLocalityConfig 的 overseas_ip_blocklist 使用
+#[allow(dead_code)]
 pub fn is_overseas_blocked(
     ip: &Ipv4Addr,
     blocklist: &[crate::config::data_locality_config::IpCidr],
