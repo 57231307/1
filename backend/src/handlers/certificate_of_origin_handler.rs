@@ -9,10 +9,8 @@ use axum::{
     response::Json,
 };
 use serde::Deserialize;
-use std::sync::Arc;
-
 pub async fn list_certificates(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Query(params): Query<ListQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let service = CertificateOfOriginService::new(state.db.clone());
@@ -28,7 +26,7 @@ pub async fn list_certificates(
 }
 
 pub async fn get_certificate(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let service = CertificateOfOriginService::new(state.db.clone());

@@ -477,6 +477,8 @@ mod tests {
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
             agreed_to_terms_at: None,
+            gender: None,
+            birth_date: None,
         }
     }
 

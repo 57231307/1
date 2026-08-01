@@ -99,6 +99,7 @@ impl InitService {
                 resource_id: Set(None),
                 action: Set(action.to_string()),
                 allowed: Set(true),
+                permission_code: Set(None),
                 created_at: Set(now),
                 updated_at: Set(now),
             })

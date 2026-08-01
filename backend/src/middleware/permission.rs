@@ -604,6 +604,7 @@ mod tests {
             resource_id,
             action: action.to_string(),
             allowed: true,
+            permission_code: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }

@@ -9,10 +9,8 @@ use axum::{
     response::Json,
 };
 use serde::Deserialize;
-use std::sync::Arc;
-
 pub async fn list_inspections(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Query(params): Query<ListQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let service = ExportInspectionService::new(state.db.clone());
@@ -29,7 +27,7 @@ pub async fn list_inspections(
 }
 
 pub async fn get_inspection(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let service = ExportInspectionService::new(state.db.clone());
