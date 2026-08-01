@@ -21,7 +21,10 @@ impl ColorCardInventoryWarningService {
     }
 
     /// 检查单个色卡预警
-    pub async fn check_single_warning(&self, _color_card_id: i32) -> Result<WarningLevel, AppError> {
+    pub async fn check_single_warning(
+        &self,
+        _color_card_id: i32,
+    ) -> Result<WarningLevel, AppError> {
         Ok(WarningLevel::Normal)
     }
 }
