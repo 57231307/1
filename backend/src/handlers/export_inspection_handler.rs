@@ -16,13 +16,15 @@ pub async fn list_inspections(
     Query(params): Query<ListQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let service = ExportInspectionService::new(state.db.clone());
-    let (items, total) = service.list(ListParams {
-        sales_order_id: params.sales_order_id,
-        inspection_no: params.inspection_no,
-        result: params.result,
-        page: params.page,
-        page_size: params.page_size,
-    }).await?;
+    let (items, total) = service
+        .list(ListParams {
+            sales_order_id: params.sales_order_id,
+            inspection_no: params.inspection_no,
+            result: params.result,
+            page: params.page,
+            page_size: params.page_size,
+        })
+        .await?;
     Ok(Json(serde_json::json!({ "items": items, "total": total })))
 }
 

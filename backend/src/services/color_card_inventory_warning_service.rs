@@ -35,7 +35,7 @@ pub struct WarningItem {
 
 pub enum WarningLevel {
     Normal,
-    Yellow,  // < 5
-    Red,     // < 2
+    Yellow,    // < 5
+    Red,       // < 2
     Forbidden, // = 0
 }

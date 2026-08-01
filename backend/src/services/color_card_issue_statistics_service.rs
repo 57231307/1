@@ -15,7 +15,10 @@ impl ColorCardIssueStatisticsService {
     }
 
     /// 生成日统计
-    pub async fn generate_daily_stats(&self, date: chrono::NaiveDate) -> Result<DailyStats, AppError> {
+    pub async fn generate_daily_stats(
+        &self,
+        date: chrono::NaiveDate,
+    ) -> Result<DailyStats, AppError> {
         Ok(DailyStats {
             date,
             total_issued: 0,

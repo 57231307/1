@@ -63,7 +63,14 @@ impl ExportInspectionService {
         Ok(model)
     }
 
-    pub async fn update_result(&self, id: i32, result: String, report_url: Option<String>, certificate_no: Option<String>, certificate_expiry: Option<chrono::NaiveDate>) -> Result<Model, AppError> {
+    pub async fn update_result(
+        &self,
+        id: i32,
+        result: String,
+        report_url: Option<String>,
+        certificate_no: Option<String>,
+        certificate_expiry: Option<chrono::NaiveDate>,
+    ) -> Result<Model, AppError> {
         let model = self.get_by_id(id).await?;
         let mut active: ActiveModel = model.into();
         active.result = Set(result);

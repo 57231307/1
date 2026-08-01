@@ -29,7 +29,10 @@ impl FromStr for DataLocalityMode {
         match s.to_lowercase().as_str() {
             "permissive" => Ok(Self::Permissive),
             "cn-only" | "cn_only" => Ok(Self::CnOnly),
-            _ => Err(format!("无效的 DATA_LOCALITY_MODE：{}（可选：permissive / cn-only）", s)),
+            _ => Err(format!(
+                "无效的 DATA_LOCALITY_MODE：{}（可选：permissive / cn-only）",
+                s
+            )),
         }
     }
 }
@@ -62,16 +65,23 @@ impl FromStr for IpCidr {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let parts: Vec<&str> = s.split('/').collect();
         if parts.len() != 2 {
-            return Err(format!("无效的 CIDR 格式：{}（应为 network/prefix_len）", s));
+            return Err(format!(
+                "无效的 CIDR 格式：{}（应为 network/prefix_len）",
+                s
+            ));
         }
         let network = Ipv4Addr::from_str(parts[0])
             .map_err(|e| format!("无效的 IP 地址 {}：{}", parts[0], e))?;
-        let prefix_len = parts[1].parse::<u8>()
+        let prefix_len = parts[1]
+            .parse::<u8>()
             .map_err(|e| format!("无效的前缀长度 {}：{}", parts[1], e))?;
         if prefix_len > 32 {
             return Err(format!("前缀长度不能超过 32：{}", prefix_len));
         }
-        Ok(Self { network, prefix_len })
+        Ok(Self {
+            network,
+            prefix_len,
+        })
     }
 }
 
@@ -91,17 +101,22 @@ impl DataLocalityConfig {
             mode_str.parse()?
         };
 
-        let blocklist_str = std::env::var("DATA_LOCALITY_OVERSEAS_IP_BLOCKLIST").unwrap_or_default();
+        let blocklist_str =
+            std::env::var("DATA_LOCALITY_OVERSEAS_IP_BLOCKLIST").unwrap_or_default();
         let overseas_ip_blocklist = if blocklist_str.is_empty() {
             Vec::new()
         } else {
-            blocklist_str.split(',')
+            blocklist_str
+                .split(',')
                 .filter(|s| !s.is_empty())
                 .map(|s| s.trim().parse())
                 .collect::<Result<Vec<_>, _>>()?
         };
 
-        Ok(Self { mode, overseas_ip_blocklist })
+        Ok(Self {
+            mode,
+            overseas_ip_blocklist,
+        })
     }
 }
 
@@ -124,16 +139,20 @@ mod tests {
 
     #[test]
     fn test_data_locality_mode_parse() {
-        assert_eq!("permissive".parse::<DataLocalityMode>().unwrap(), DataLocalityMode::Permissive);
-        assert_eq!("cn-only".parse::<DataLocalityMode>().unwrap(), DataLocalityMode::CnOnly);
+        assert_eq!(
+            "permissive".parse::<DataLocalityMode>().unwrap(),
+            DataLocalityMode::Permissive
+        );
+        assert_eq!(
+            "cn-only".parse::<DataLocalityMode>().unwrap(),
+            DataLocalityMode::CnOnly
+        );
         assert!("invalid".parse::<DataLocalityMode>().is_err());
     }
 
     #[test]
     fn test_is_overseas_blocked() {
-        let blocklist = vec![
-            "8.8.8.0/24".parse::<IpCidr>().unwrap(),
-        ];
+        let blocklist = vec!["8.8.8.0/24".parse::<IpCidr>().unwrap()];
         assert!(is_overseas_blocked(&Ipv4Addr::new(8, 8, 8, 8), &blocklist));
         assert!(!is_overseas_blocked(&Ipv4Addr::new(1, 1, 1, 1), &blocklist));
     }

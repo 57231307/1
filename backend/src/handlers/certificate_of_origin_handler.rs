@@ -16,12 +16,14 @@ pub async fn list_certificates(
     Query(params): Query<ListQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let service = CertificateOfOriginService::new(state.db.clone());
-    let (items, total) = service.list(ListParams {
-        inspection_id: params.inspection_id,
-        status: params.status,
-        page: params.page,
-        page_size: params.page_size,
-    }).await?;
+    let (items, total) = service
+        .list(ListParams {
+            inspection_id: params.inspection_id,
+            status: params.status,
+            page: params.page,
+            page_size: params.page_size,
+        })
+        .await?;
     Ok(Json(serde_json::json!({ "items": items, "total": total })))
 }
 

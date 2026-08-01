@@ -19,10 +19,13 @@ impl InventoryWriteDownService {
     pub async fn list(&self, params: ListParams) -> Result<(Vec<Model>, u64), AppError> {
         let mut query = Iwd::find();
         if let Some(product_id) = params.product_id {
-            query = query.filter(crate::models::inventory_write_down::Column::ProductId.eq(product_id));
+            query =
+                query.filter(crate::models::inventory_write_down::Column::ProductId.eq(product_id));
         }
         if let Some(write_down_type) = params.write_down_type {
-            query = query.filter(crate::models::inventory_write_down::Column::WriteDownType.eq(write_down_type));
+            query = query.filter(
+                crate::models::inventory_write_down::Column::WriteDownType.eq(write_down_type),
+            );
         }
         let paginator = query
             .order_by_desc(crate::models::inventory_write_down::Column::Period)
