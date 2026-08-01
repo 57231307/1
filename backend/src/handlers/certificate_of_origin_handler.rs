@@ -1,6 +1,5 @@
 //! 出口产地证处理器
 //! V15 P2 B08-12
-
 use crate::container::AppState;
 use crate::services::certificate_of_origin_service::{CertificateOfOriginService, ListParams};
 use crate::utils::error::AppError;

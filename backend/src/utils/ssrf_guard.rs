@@ -26,7 +26,6 @@
 //! ## 协议白名单
 //!
 //! 仅允许 `http` 与 `https`，其他协议（`file://`、`gopher://`、`ftp://` 等）直接拒绝。
-
 use crate::utils::error::AppError;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, ToSocketAddrs};
 

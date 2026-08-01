@@ -3,7 +3,6 @@
 //!
 //! 依据：《安全生产法》《生产安全事故报告和调查处理条例》
 //! 业务：安全生产事故记录、报告、调查
-
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;

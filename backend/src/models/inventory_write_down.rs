@@ -3,7 +3,6 @@
 //!
 //! 依据：《企业会计准则第 1 号——存货》
 //! 业务：季节性降价跌价准备 / 呆滞面料跌价准备 / 过期染料助剂跌价准备
-
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;

@@ -1,6 +1,5 @@
 //! 色卡发放统计服务
 //! V15 P2 类九 10.5-3：发放统计（每日 23:00 执行）
-
 use crate::utils::error::AppError;
 use sea_orm::*;
 use std::sync::Arc;

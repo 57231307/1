@@ -5,7 +5,6 @@
 //! 依据：面料行业真实业务调研文档 §12.5 产量工资（计件计时）
 //! 真实业务：工资计算生成的每个工人每道工序的明细记录
 //! 三维度产量统计：工序产量 + 设备产量 + 工人产量工资
-
 use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};

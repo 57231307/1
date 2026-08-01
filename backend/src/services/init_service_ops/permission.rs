@@ -3,7 +3,6 @@
 //! 从原 `init_service.rs` 迁移 2 个方法：
 //! - create_default_role_permissions：为全部角色创建 role_permission 权限矩阵（覆盖 60+ 资源 × 11 操作码）
 //! - create_default_role_conflicts：初始化默认角色互斥规则（SoD 职责分离）
-
 use crate::models::{role, role_conflict, role_permission};
 use crate::services::init_service::{InitError, InitService};
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, Set};

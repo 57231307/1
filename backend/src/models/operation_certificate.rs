@@ -3,7 +3,6 @@
 //!
 //! 依据：《安全生产法》《特种作业人员安全技术培训考核管理规定》
 //! 业务：染缸/定型机/烘干机等特种设备操作证到期预警
-
 use chrono::{DateTime, NaiveDate, Utc};
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};

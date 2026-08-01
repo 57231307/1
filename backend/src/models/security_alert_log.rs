@@ -3,7 +3,6 @@
 //!
 //! 业务：安全告警记录，保留 7 年
 //! 依据：《网络安全法》《数据安全法》
-
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};

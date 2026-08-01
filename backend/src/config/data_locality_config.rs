@@ -3,7 +3,6 @@
 //! 配置项：
 //! - DATA_LOCALITY_MODE：permissive（默认，允许跨境）| cn-only（禁止出境）
 //! - DATA_LOCALITY_OVERSEAS_IP_BLOCKLIST：境外 IP 拦截列表（逗号分隔的 CIDR）
-
 use serde::Deserialize;
 use std::net::Ipv4Addr;
 use std::str::FromStr;

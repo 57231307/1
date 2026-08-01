@@ -4,7 +4,6 @@
 //! - create_default_roles / find_existing_admin_role / create_admin_role / batch_insert_roles
 //! - build_manager_role / build_operator_role / build_business_roles
 //! - build_front_business_roles / build_back_business_roles / build_role_active_model
-
 use crate::models::role;
 use crate::services::init_service::{InitError, InitService};
 use crate::utils::admin_checker::ADMIN_ROLE_CODE;

@@ -1,6 +1,5 @@
 //! 出口产地证服务
 //! V15 P2 B08-12：产地证 CRUD + 到期预警
-
 use crate::models::certificate_of_origin::{ActiveModel, Column, Entity as Co, Model};
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;

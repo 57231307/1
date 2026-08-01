@@ -1,6 +1,5 @@
 //! 色卡发放报表服务
 //! V15 P2 类九 10.3-3：5 类报表（发放明细/发放汇总/客户色卡台账/过期未使用/订单关联）
-
 use crate::utils::error::AppError;
 use sea_orm::*;
 use std::sync::Arc;

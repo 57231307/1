@@ -1,6 +1,5 @@
 //! 存货跌价准备服务
 //! V15 P2 B08-16：季节性降价/呆滞面料/过期化学品跌价准备计提
-
 use crate::models::inventory_write_down::{ActiveModel, Entity as Iwd, Model};
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;

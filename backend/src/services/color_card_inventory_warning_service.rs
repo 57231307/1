@@ -1,6 +1,5 @@
 //! 色卡库存预警服务
 //! V15 P2 类九 10.5-2：库存预警（黄色<5/红色<2/禁止=0）
-
 use crate::utils::error::AppError;
 use sea_orm::*;
 use std::sync::Arc;

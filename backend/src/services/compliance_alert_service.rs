@@ -1,6 +1,5 @@
 //! 合规预警服务
 //! V15 P2 B08-12：假冒伪劣/虚假宣传/商业贿赂预警
-
 pub struct ComplianceAlertService;
 
 impl ComplianceAlertService {
