@@ -378,8 +378,8 @@ jobs:
         # baseline 机制：仅 clippy 使用，test 保持零容忍；仅"新增警告"阻塞 CI
         # exit 143 = SIGTERM（OOM/超时）：限制并行编译降内存峰值 + 3 次重试
         env:
-          CARGO_BUILD_JOBS: "2"
-          CARGO_JOBS: "2"
+          CARGO_BUILD_JOBS: "1"
+          CARGO_JOBS: "1"
         run: |
           mkdir -p reports
           set +e
