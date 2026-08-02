@@ -74,6 +74,59 @@ pub fn routes() -> Router<AppState> {
         )
         // V15 P1-08-7：色卡发放记录导出 xlsx
         .route("/issues/export", get(color_card::export_issue_records))
+        // V15 P2 类九 10.3-3：色卡发放报表（发放明细/汇总/客户台账/过期未使用/订单关联）
+        .route(
+            "/reports/issue-detail",
+            get(color_card::issue_detail_report),
+        )
+        .route(
+            "/reports/issue-detail/export",
+            get(color_card::export_issue_detail_report),
+        )
+        .route(
+            "/reports/issue-summary",
+            get(color_card::issue_summary_report),
+        )
+        .route(
+            "/reports/customer-ledger/:customer_id",
+            get(color_card::customer_color_card_ledger),
+        )
+        .route(
+            "/reports/expired-unused",
+            get(color_card::expired_unused_report),
+        )
+        .route(
+            "/reports/order-related/:sales_order_id",
+            get(color_card::order_related_report),
+        )
+        // V15 P2 类九 10.5-2：库存预警
+        .route("/warnings", get(color_card::check_all_warnings))
+        .route(
+            "/warnings/:color_card_id",
+            get(color_card::check_single_warning),
+        )
+        // V15 P2 类九 10.3-4：成本核算（制作成本归集/发放成本结转/取消恢复/过期损失）
+        .route(
+            "/cost/production/:color_card_id",
+            get(color_card::collect_production_cost),
+        )
+        .route(
+            "/cost/issue/:record_id/transfer",
+            get(color_card::transfer_issue_cost),
+        )
+        .route(
+            "/cost/issue/:record_id/restore",
+            post(color_card::restore_cost_on_cancel),
+        )
+        .route(
+            "/cost/issue/:record_id/expiry-loss",
+            get(color_card::calculate_expiry_loss),
+        )
+        // V15 P2 类九 10.5-3：发放统计（每日日报）
+        .route(
+            "/statistics/daily",
+            get(color_card::generate_daily_stats),
+        )
         // 扫码查询
         .route("/scan/:code", get(color_card::scan_color_code))
         // 按 ID 扫码查询
