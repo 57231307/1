@@ -7,6 +7,8 @@ use validator::Validate;
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
+use crate::models::audit_log::{OperationType, Severity};
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::utils::admin_checker::is_admin_role;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -412,11 +414,12 @@ pub async fn resolve_alert(
 
 pub async fn export_login_logs(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(query): Query<LoginLogQuery>,
 ) -> Result<axum::response::Response, AppError> {
     use crate::models::log_login;
     use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};
+    use std::sync::Arc;
 
     let mut query_builder = log_login::Entity::find();
 
@@ -465,6 +468,40 @@ pub async fn export_login_logs(
             .collect(),
     };
 
+    let row_count = logs.len();
+    let filename = format!(
+        "login_logs_export_{}",
+        chrono::Utc::now().format("%Y%m%d_%H%M%S")
+    );
+
+    // V15 P2 B11-P2-1：导出审计日志写入（best-effort，异步不阻塞响应）
+    // 参照 export_products 模式：记录 OperationType::Export 便于事后追溯
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some("login_log".to_string()),
+        resource_id: None,
+        resource_name: Some(format!("{}.xlsx", filename)),
+        description: Some(format!(
+            "用户 {} 导出登录日志（共 {} 条）",
+            auth.username, row_count
+        )),
+        request_method: Some("GET".to_string()),
+        request_path: Some("/api/v1/erp/security/login-logs/export".to_string()),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "format": "xlsx",
+            "total": row_count,
+            "user_id_filter": query.user_id,
+            "username_filter": query.username,
+            "status_filter": query.status,
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
+
     // 规则 3：导出统一使用 xlsx 格式，错误用 AppError 表达，成功返回 200 + xlsx 响应体
-    build_xlsx_response(&table, "login_logs")
+    build_xlsx_response(&table, &filename)
 }

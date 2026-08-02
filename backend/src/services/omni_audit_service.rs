@@ -232,6 +232,10 @@ impl OmniAuditEngine {
             signature: ActiveValue::Set(Some(signature)),
             // V15 P0-S19 补齐：请求条件/查询条件写入审计日志
             condition: ActiveValue::Set(msg.condition),
+            // V15 P2-Batch-03：审计日志导出审批字段
+            operation_category: Default::default(),
+            export_record_count: Default::default(),
+            export_approval_token: Default::default(),
         }
     }
 

@@ -345,8 +345,9 @@ async fn get_permission_filter(
         None => return Ok(None),
     };
 
-    // 管理员角色不过滤
-    if role_id == 1 {
+    // 管理员角色或全量数据权限不过滤
+    // V15 P2 B10-P2-5：兼容 data_scope 全量权限（admin 角色 data_scope=all），避免仅靠 role_id==1 判定
+    if role_id == 1 || auth.data_scope.as_deref() == Some("all") {
         return Ok(None);
     }
 

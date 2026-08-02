@@ -400,6 +400,7 @@ impl RolePermissionService {
             resource_id: sea_orm::ActiveValue::Set(request.resource_id),
             action: sea_orm::ActiveValue::Set(request.action.clone()),
             allowed: sea_orm::ActiveValue::Set(request.allowed),
+            permission_code: sea_orm::ActiveValue::Set(None),
             created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
             updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
         };

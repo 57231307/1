@@ -205,3 +205,6 @@ pub mod pollution_monitoring_handler;
 pub mod pollution_permit_handler;
 pub mod role_relation_handler;
 pub mod social_insurance_handler;
+// V15 P2 B08-12：出口商检 + 产地证
+pub mod export_inspection_handler;
+pub mod certificate_of_origin_handler;

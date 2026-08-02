@@ -28,6 +28,10 @@ pub struct Model {
     /// P1-08-1：用户协议/隐私政策同意时间
     pub agreed_to_terms_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
+    /// V15 P2 B08-P2-9：性别（male/female，女职工三期保护识别）
+    pub gender: Option<String>,
+    /// V15 P2 B08-P2-9：出生日期（未成年工识别，禁止录用 <16 周岁）
+    pub birth_date: Option<chrono::NaiveDate>,
     pub updated_at: DateTime<Utc>,
 }
 

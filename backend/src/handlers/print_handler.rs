@@ -256,7 +256,7 @@ mod tests {
             "voucher",
         ];
         for t in &expected {
-            assert!(doc_types.contains(&t), "应包含单据类型 {}", t);
+            assert!(doc_types.contains(t), "应包含单据类型 {}", t);
         }
 
         // 名称不应为空

@@ -26,7 +26,6 @@
 //! ## 协议白名单
 //!
 //! 仅允许 `http` 与 `https`，其他协议（`file://`、`gopher://`、`ftp://` 等）直接拒绝。
-
 use crate::utils::error::AppError;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, ToSocketAddrs};
 
@@ -273,6 +272,16 @@ fn is_blocked_ipv6(ip: &Ipv6Addr) -> bool {
         return true;
     }
     false
+}
+
+/// V15 P2 B08-2：检查 IPv4 地址是否在境外拦截列表中
+/// 配合 DataLocalityConfig 的 overseas_ip_blocklist 使用
+#[allow(dead_code)]
+pub fn is_overseas_blocked(
+    ip: &Ipv4Addr,
+    blocklist: &[crate::config::data_locality_config::IpCidr],
+) -> bool {
+    blocklist.iter().any(|cidr| cidr.contains_ipv4(ip))
 }
 
 #[cfg(test)]

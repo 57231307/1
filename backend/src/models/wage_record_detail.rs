@@ -5,7 +5,6 @@
 //! 依据：面料行业真实业务调研文档 §12.5 产量工资（计件计时）
 //! 真实业务：工资计算生成的每个工人每道工序的明细记录
 //! 三维度产量统计：工序产量 + 设备产量 + 工人产量工资
-
 use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -91,6 +90,10 @@ pub struct Model {
     #[sea_orm(column_type = "Decimal(Some((12, 2)))")]
     pub wage_amount: Decimal,
 
+    /// V15 P2 B08-P2-3：工人身份证号（个税申报预留字段，脱敏存储）
+    pub id_card_no: Option<String>,
+    /// V15 P2 B08-P2-7：个人所得税代扣代缴金额（累进税率计算）
+    pub individual_income_tax: Option<Decimal>,
     /// 备注
     pub remarks: Option<String>,
 

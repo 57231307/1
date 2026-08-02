@@ -1,4 +1,9 @@
 #![allow(dead_code)]
+//! V15 P0-S06：权限变更审计 model
+//!
+//! 业务等价说明（V15 P2 B10-P2-8）：本表（permission_change_audits）等价于审计报告建议的
+//! `permission_audit_log`，记录角色权限变更和用户角色变更的审计日志，用于合规审查和安全追溯。
+//! 命名差异仅为历史原因，功能与字段覆盖与 `permission_audit_log` 一致。
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};

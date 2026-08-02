@@ -1,6 +1,7 @@
 -- 色卡仓储管理模块 migration - color_card_borrow_records 表
 -- 创建时间: 2026-06-17
 -- 关联 spec: docs/superpowers/specs/2026-06-16-color-card-design.md §3.4
+-- 注意：tenant_id 字段已由 m0028_drop_tenant_columns 迁移删除，此文件保留历史记录用途
 
 -- 色卡借出记录表：跟踪色卡借出/归还/遗失的全生命周期
 CREATE TABLE IF NOT EXISTS "color_card_borrow_records" (

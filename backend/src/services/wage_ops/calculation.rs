@@ -15,7 +15,6 @@
 //! - WageTotals：计算累计汇总（总额/合格产量/工时/工人集合/工序集合/明细数）
 //! - StepWageComputed：单工序工资计算结果（等级/系数/计件/计时/总额）
 //! - WorkerDetailContext：工人明细创建上下文（消除 too_many_arguments）
-
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
@@ -338,6 +337,8 @@ impl WageCalculationService {
                 piece_wage: Set(per_worker_piece),
                 time_wage: Set(per_worker_time),
                 wage_amount: Set(per_worker_amount),
+                id_card_no: Set(None),
+                individual_income_tax: Set(None),
                 remarks: Set(None),
                 is_deleted: Set(false),
                 created_at: Set(ctx.now),

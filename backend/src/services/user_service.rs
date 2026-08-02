@@ -11,7 +11,6 @@
 //! # 安全特性
 //! - 软删除机制（不物理删除数据）
 //! - 密码哈希由调用方处理，本模块不处理明文密码
-
 use crate::models::user;
 // 批次 209 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
@@ -477,6 +476,8 @@ mod tests {
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
             agreed_to_terms_at: None,
+            gender: None,
+            birth_date: None,
         }
     }
 

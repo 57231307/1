@@ -6,6 +6,26 @@
 
 ---
 
+## V15 P2 B08-2：数据跨境传输合规评估（2026-08-02，未暂存）
+
+| 编号 | 文件 | 一句话总结 |
+|------|------|-----------|
+| B08-2 | [data_locality_config.rs](file:///workspace/backend/src/config/data_locality_config.rs) + [config/mod.rs](file:///workspace/backend/src/config/mod.rs) + [ssrf_guard.rs](file:///workspace/backend/src/utils/ssrf_guard.rs) | 新建数据本地化配置模块（DataLocalityMode/IpCidr/DataLocalityConfig），ssrf_guard 新增境外 IP 拦截函数，创建合规评估文档 |
+
+---
+
+## V15 P2 B08-12：出口商检 + 产地证 + 合规预警（2026-08-02，已暂存未 commit）
+
+| 编号 | 文件 | 一句话总结 |
+|------|------|-----------|
+| B08-12 | [export_inspection.rs](file:///workspace/backend/src/models/export_inspection.rs) + [certificate_of_origin.rs](file:///workspace/backend/src/models/certificate_of_origin.rs) | 重写出口商检 + 产地证 Model（table_name 改为 export_inspection/certificate_of_origin，新增 created_by/quantity/invoice_amount 等字段，对齐新表结构） |
+| B08-12 | migration 20260801000007 | 新建迁移：export_inspection 表（商检记录）+ certificate_of_origin 表（产地证），含 FK/索引/默认值 |
+| B08-12 | [export_inspection_service.rs](file:///workspace/backend/src/services/export_inspection_service.rs) + [certificate_of_origin_service.rs](file:///workspace/backend/src/services/certificate_of_origin_service.rs) + [compliance_alert_service.rs](file:///workspace/backend/src/services/compliance_alert_service.rs) | 新建 3 个服务：出口商检 CRUD + 产地证 CRUD/revoke + 合规预警（价格异常检测 + 虚假宣传关键词检查） |
+| B08-12 | [export_inspection_handler.rs](file:///workspace/backend/src/handlers/export_inspection_handler.rs) + [certificate_of_origin_handler.rs](file:///workspace/backend/src/handlers/certificate_of_origin_handler.rs) | 新建 2 个 handler：list/get 端点 |
+| B08-12 | [export_inspection_routes.rs](file:///workspace/backend/src/routes/export_inspection_routes.rs) + [routes/mod.rs](file:///workspace/backend/src/routes/mod.rs) | 新建路由文件 + 注册到 /api/v1/erp/export-inspections |
+
+---
+
 ## V15 P2 修复 4 项（B03-P2-4/5/10 + B04-P2-2，2026-07-31，已暂存未 commit）
 
 | 编号 | 文件 | 一句话总结 |

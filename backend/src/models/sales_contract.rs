@@ -36,6 +36,16 @@ pub struct Model {
     pub signature_image_url: Option<String>,
     /// V15 P1-08-10：CA证书内容（PEM格式）
     pub signature_certificate: Option<String>,
+    /// V15 P2 B08-P2-4：质量条款（《民法典》合同编必备）
+    pub quality_terms: Option<String>,
+    /// V15 P2 B08-P2-4：违约责任条款
+    pub breach_liability: Option<String>,
+    /// V15 P2 B08-P2-4：争议解决条款
+    pub dispute_resolution: Option<String>,
+    /// V15 P2 B08-P2-4：履行期限
+    pub performance_period: Option<String>,
+    /// V15 P2 B08-P2-7：印花税金额（购销合同 0.3‰/加工承揽合同 0.5‰）
+    pub stamp_tax_amount: Option<Decimal>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

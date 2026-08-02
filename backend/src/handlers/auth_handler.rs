@@ -288,6 +288,7 @@ pub async fn login(
 }
 
 /// 处理登录失败：记录登录尝试 + 增强安全日志 + 异步审计事件，返回统一 AppError。
+#[allow(clippy::too_many_arguments)]
 async fn handle_login_failure(
     state: &AppState,
     payload: &LoginRequest,
@@ -810,6 +811,7 @@ fn build_session_cookie(
 }
 
 /// 处理登录成功：TOTP 已通过 → 构建 UserInfo + CSRF + refresh_token + Cookie + 响应。
+#[allow(clippy::too_many_arguments)]
 async fn handle_login_success(
     state: &AppState,
     payload: &LoginRequest,

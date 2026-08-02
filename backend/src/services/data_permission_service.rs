@@ -1,7 +1,6 @@
 //! 数据权限服务
 //!
 //! 提供数据范围控制和字段级权限管理功能
-
 use crate::models::data_permission::{self, Entity as DataPermissionEntity};
 use crate::utils::admin_checker;
 use crate::utils::error::AppError;
@@ -13,9 +12,21 @@ use sea_orm::{
 use serde_json::Value;
 use std::sync::Arc;
 
-/// 数据范围类型常量（仅保留 ALL；行级权限应通过 data_permission 表 scope_type 字段动态读取）
+/// 数据范围类型常量
+/// V15 P2 B12-P2-7：扩展为完整 4 档分级常量（ALL/DEPT/SELF/CUSTOM），
+/// 与 data_permission 表 scope_type 字段对齐，供服务层显式引用而非硬编码字符串
 pub mod data_scope {
+    /// 全部数据（管理员）
     pub const ALL: &str = "ALL";
+    /// 本部门数据
+    #[allow(dead_code)]
+    pub const DEPT: &str = "DEPT";
+    /// 仅本人数据
+    #[allow(dead_code)]
+    pub const SELF: &str = "SELF";
+    /// 自定义数据范围
+    #[allow(dead_code)]
+    pub const CUSTOM: &str = "CUSTOM";
 }
 
 /// 数据权限查询结果

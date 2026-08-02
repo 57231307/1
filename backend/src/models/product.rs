@@ -25,6 +25,7 @@ pub struct Model {
     /// 标准价格
     pub standard_price: Option<Decimal>,
     /// 成本价格
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub cost_price: Option<Decimal>,
     /// 产品描述
     pub description: Option<String>,

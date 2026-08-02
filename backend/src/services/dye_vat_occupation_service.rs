@@ -25,6 +25,7 @@ pub struct DyeVatOccupationService {
     db: Arc<DatabaseConnection>,
 }
 
+#[allow(dead_code)]
 impl DyeVatOccupationService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }

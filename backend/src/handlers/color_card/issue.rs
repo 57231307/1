@@ -139,7 +139,7 @@ pub fn issue_err(e: IssueError) -> AppError {
 
 /// 校验当前用户是否持有 color_card_issue:<action> 权限
 /// admin 角色由 RolePermissionService.check_permission 内部绕过
-async fn require_issue_permission(
+pub(crate) async fn require_issue_permission(
     state: &AppState,
     auth: &AuthContext,
     action: &str,

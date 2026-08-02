@@ -1,5 +1,6 @@
 import { msg } from '@/utils/message';
 import { recordPrintAudit } from '@/api/audit';
+import { useUserStore } from '@/store/user';
 
 /**
  * 打印列定义接口
@@ -64,6 +65,22 @@ function generatePrintHTML<T extends Record<string, unknown>>(options: PrintOpti
   const now = new Date();
   const printDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
+  // V15 P2 B11-P2-6：用户水印 - 从 userStore 获取当前用户名，失败时回退到 localStorage，再回退到 '未知用户'
+  let printUser = '未知用户';
+  try {
+    const userStore = useUserStore();
+    if (userStore.userInfo?.username) {
+      printUser = userStore.userInfo.username;
+    }
+  } catch {
+    // Pinia 未初始化时回退到 localStorage
+    const stored = localStorage.getItem('username');
+    if (stored) {
+      printUser = stored;
+    }
+  }
+  const printContent = `打印人: ${printUser}  打印时间: ${printDate}`;
+
   return `
     <!DOCTYPE html>
     <html>
@@ -85,7 +102,7 @@ function generatePrintHTML<T extends Record<string, unknown>>(options: PrintOpti
     </head>
     <body>
       <h1>${escapeHtml(title)}</h1>
-      <div class="print-meta">打印时间: ${printDate} | 共 ${data.length} 条记录</div>
+      <div class="print-meta">${escapeHtml(printContent)} | 共 ${data.length} 条记录</div>
       ${infoSection}
       <table>
         <thead><tr>${headerCells}</tr></thead>

@@ -277,7 +277,7 @@ async fn send_inventory_alerts(state: &AppState, stock_responses: &[StockRespons
         return;
     }
 
-    let product_map = load_alert_products(&*state.db, &alert_product_ids).await;
+    let product_map = load_alert_products(&state.db, &alert_product_ids).await;
     let setting = event_service.get_setting_for_user(0).await.ok();
 
     for stock in stock_responses {
