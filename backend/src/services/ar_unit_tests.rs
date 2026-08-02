@@ -47,6 +47,7 @@ mod tests {
     /* 客户信用额度 */
     #[derive(Debug, Clone)]
     struct CustomerCredit {
+        #[allow(dead_code)]
         pub customer_id: i64,
         pub limit: Decimal,
         pub used: Decimal,

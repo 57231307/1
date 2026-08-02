@@ -9,6 +9,7 @@ mod tests {
 
     /* 销售数据点 */
     #[derive(Debug, Clone)]
+    #[allow(dead_code)]
     struct SalesPoint {
         pub date: chrono::NaiveDate,
         pub amount: Decimal,

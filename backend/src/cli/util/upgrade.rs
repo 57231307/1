@@ -12,8 +12,8 @@
 //! - 检测 systemd template `bingxi-backend@.service` 是否已安装；
 //! - 已安装 → 走 `deploy_release_blue_green` / `cmd_rollback_blue_green`（零停机）；
 //! - 未安装 → 回退到原 `deploy_release_legacy` / `cmd_rollback_legacy`（停机模式）。
-//! 蓝绿切换通过 nginx upstream include + `ln -sf` + `nginx -s reload` 实现，
-//! 活跃/非活跃实例由 `/etc/nginx/bingxi-upstream.active.conf` 软链接判定。
+//!   蓝绿切换通过 nginx upstream include + `ln -sf` + `nginx -s reload` 实现，
+//!   活跃/非活跃实例由 `/etc/nginx/bingxi-upstream.active.conf` 软链接判定。
 
 use super::{
     build_release_url, download_with_mirrors, fetch_with_mirrors, get_backup_dir, get_install_dir,
