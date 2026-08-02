@@ -606,7 +606,7 @@ mod tests {
             (NotificationPriority::Urgent, 10),
         ];
         for (prio, expected) in cases {
-            let n = make_test_notification(NotificationType::Webhook, prio, None);
+            let n = make_test_notification(NotificationType::Webhook, prio.clone(), None);
             let payload = build_payload_from_notification(&n);
             assert_eq!(
                 payload.priority, expected,
