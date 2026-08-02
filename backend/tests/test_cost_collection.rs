@@ -12,6 +12,7 @@ fn test_create_cost_collection_request() {
         cost_object_no: Some("BATCH001".to_string()),
         batch_no: Some("BATCH001".to_string()),
         color_no: Some("COLOR001".to_string()),
+        dye_lot_no: Some("LOT001".to_string()),
         workshop: Some("workshop1".to_string()),
         direct_material: Decimal::new(1000, 2),
         direct_labor: Decimal::new(500, 2),

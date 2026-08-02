@@ -5,6 +5,20 @@
 
 ---
 
+## 〇〇〇、PR #803 合并 main 后 Rust Clippy 失败排查报告（2026-08-02，PR #805 待提交）
+
+| 项 | 结论 |
+|----|------|
+| PR #804 合并状态 | 本地 `work` 分支 HEAD 已是 `bb010ad`（提交信息：`合并 P2-Batch-03：类八法律合规 + 类九色卡发放`），等同完成 PR #804 合并基线。 |
+| 失败现象 | 在 main/合并后执行 `cargo clippy --all-targets --message-format=json` 时，`backend/tests/quotation_e2e_legacy_test.rs` 构造 `sales_quotation::Model` 缺少 `freight_cost` / `insurance_cost` / `duty_cost` 三个字段，后续还暴露 `purchase_receipt_workflow_test.rs` DTO/方法签名滞后问题，以及 `custom_order_process_test.rs` 仍引用已移除的 `node_type_to_status`；clippy 主命令退出码 101。 |
+| 根因 1（代码） | `backend/src/models/sales_quotation.rs` 已新增三项成本字段，但 legacy quotation E2E DTO 构造测试仍按旧字段集初始化 Model；PR #803 的绿色结果未覆盖/未阻断该编译错误。 |
+| 根因 2（CI） | Rust Clippy job 的 baseline 逻辑只在 `NEW_COUNT > 0` 时失败，未对 `CLIPPY_MAIN_EXIT != 0` 做硬失败；当 clippy 出现编译错误（exit 101）且错误摘要被 baseline/比较逻辑掩盖时，步骤末尾仍 `exit 0` 输出“✅ 无新增 clippy 警告”，导致 PR #803 误判全绿。 |
+| 修复 1（测试代码） | `quotation_e2e_legacy_test.rs` 与 `quotation_e2e_test.rs` 的 `QuotationModel` 初始化补齐三项成本字段；`purchase_receipt_workflow_test.rs` 改用 `super::common::setup_test_db`，并按当前 `CreatePurchaseReceiptRequest` / `CreateReceiptItemRequest` / `list_receipts` 签名更新测试构造；`process_state_machine.rs` 恢复公开 `node_type_to_status` 兼容函数。 |
+| 修复 2（CI 防回归） | `.github/workflows/ci-cd.yml` 在 `NEW_COUNT` 判断前新增 `CLIPPY_MAIN_EXIT != 0` 硬失败分支，输出 stderr 与 error 摘要并 `exit 1`，避免编译错误被 baseline 机制误放行。 |
+| 本地验证 | 已执行 `cargo clippy --all-targets --message-format=json` 复现原始 E0063；修复后受当前环境 Swagger UI 依赖下载 403 限制，无法用 `--all-features` 验证，默认 features clippy 需由 CI 完整验证。 |
+
+---
+
 ## 〇〇、V15 主线八维审计快速修复（2026-07-30 启动）
 
 | 状态 | 数量 | 批次 |
