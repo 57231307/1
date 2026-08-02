@@ -91,6 +91,27 @@ cp -r frontend/dist/* /var/www/html/
 *此发布说明由 CI 自动生成，依据 `.github/RELEASE_TEMPLATE.md` 模板格式化。*
 ```
 
+## 变更明细格式（文件级）
+
+每个 commit 条目除标题外，还会自动附加**该 commit 涉及的文件级变更明细**，
+按「新增 / 修改 / 删除」三类逐条列出，格式如下：
+
+```markdown
+- `abc12345` feat: 新增色卡成本核算模块
+  - 🆕 `backend/src/handlers/color_card/analytics.rs`
+  - ✏️ `backend/src/routes/color_card.rs`
+  - 🗑️ `backend/src/legacy_color_cost.rs`
+```
+
+| 图标 | 含义 | 对应 git 状态 |
+|------|------|----------------|
+| 🆕 | 新增文件 | `A` / `C`（copy） |
+| ✏️ | 修改文件 | `M` / `T` / `R`（rename） |
+| 🗑️ | 删除文件 | `D` |
+
+> **说明**：重命名（`R`）使用 `--no-renames` 解析，会拆分为「删除 + 新增」两条，
+> 便于读者直观看到文件被移动或改名。
+
 ## Commit 类型映射规则
 
 CI 脚本按以下规则解析 commit message 前缀并归类到对应章节：
@@ -113,3 +134,7 @@ CI 脚本按以下规则解析 commit message 前缀并归类到对应章节：
 2. **Breaking Change** 必须在 commit message 中标注 `BREAKING CHANGE:` 或使用 `!:` 语法。
 3. **无对应类型的章节** 显示「_无_」，不省略章节标题。
 4. **版本概述** 由 CI 提取首个 feat/fix commit 的描述生成，或显示「_详见下方变更分类_」。
+5. **文件级变更明细自动生成**：每个 commit 条目的新增/修改/删除文件由 CI 通过
+   `git show --name-status` 提取，无需手动维护。
+6. **完整 Commit 列表** 与分类章节保持一致，同样包含文件级变更明细。
+7. 新增、修改、删除的文件路径统一使用反引号包裹，便于点击跳转 GitHub 文件页。

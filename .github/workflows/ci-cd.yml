@@ -1983,6 +1983,9 @@ jobs:
           CHORE_LIST=""
           OTHER_LIST=""
 
+          # 带文件级变更明细的完整 commit 列表
+          FULL_DETAILED_LIST=""
+
           FEAT_COUNT=0
           FIX_COUNT=0
           MODIFIED_COUNT=0
@@ -2003,6 +2006,18 @@ jobs:
             SHORT_HASH=$(echo "$HASH" | cut -c1-8)
             MSG=$(echo "$line" | cut -d' ' -f2-)
             DISPLAY="- \`${SHORT_HASH}\` ${MSG}"
+
+            # 文件级变更明细：新增 / 修改 / 删除，逐条附加到该 commit 条目下
+            # 使用 --no-renames 使重命名拆分为 删除+新增 两条，便于读者理解
+            while IFS=$'\t' read -r fstat fpath; do
+              case "$fstat" in
+                A|C) DISPLAY="${DISPLAY}\n  - 🆕 \`${fpath}\`" ;;
+                M|T|R) DISPLAY="${DISPLAY}\n  - ✏️ \`${fpath}\`" ;;
+                D) DISPLAY="${DISPLAY}\n  - 🗑️ \`${fpath}\`" ;;
+              esac
+            done < <(git show --name-status --pretty=format: --no-renames "$HASH" 2>/dev/null)
+
+            FULL_DETAILED_LIST="${FULL_DETAILED_LIST}${DISPLAY}\n"
 
             # 检测 breaking change（BREAKING CHANGE: 或 type!: 语法）
             IS_BREAKING=0
@@ -2077,9 +2092,12 @@ jobs:
             SUMMARY="详见下方变更分类。"
           fi
 
-          # 完整 commit 列表（oneline 格式）
-          FULL_LOG=$(git log ${PREV_TAG:+$PREV_TAG..HEAD} --oneline --no-merges -n 200 2>/dev/null || git log --oneline --no-merges -n 200)
-          FULL_LOG_FORMATTED=$(echo "$FULL_LOG" | sed 's/^/- /')
+          # 完整 commit 列表（带文件级变更明细）
+          if [ -z "$FULL_DETAILED_LIST" ]; then
+            FULL_LOG_FORMATTED="_无_"
+          else
+            FULL_LOG_FORMATTED=$(echo -e "$FULL_DETAILED_LIST")
+          fi
 
           # 统计合计
           TOTAL_COUNT=$((FEAT_COUNT + FIX_COUNT + MODIFIED_COUNT + REMOVED_COUNT + BREAKING_COUNT + DOCS_COUNT + TEST_COUNT + CHORE_COUNT + OTHER_COUNT))
