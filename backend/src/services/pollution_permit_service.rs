@@ -91,6 +91,7 @@ pub struct PollutionPermitService {
     db: Arc<DatabaseConnection>,
 }
 
+#[allow(dead_code)]
 impl PollutionPermitService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }

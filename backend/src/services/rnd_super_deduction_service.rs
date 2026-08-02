@@ -13,6 +13,7 @@ pub struct RndSuperDeductionService {
     db: Arc<DatabaseConnection>,
 }
 
+#[allow(dead_code)]
 impl RndSuperDeductionService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }

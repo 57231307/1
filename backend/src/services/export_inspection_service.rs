@@ -10,6 +10,7 @@ pub struct ExportInspectionService {
     db: Arc<DatabaseConnection>,
 }
 
+#[allow(dead_code)]
 impl ExportInspectionService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }

@@ -11,6 +11,7 @@ pub struct CertificateOfOriginService {
     db: Arc<DatabaseConnection>,
 }
 
+#[allow(dead_code)]
 impl CertificateOfOriginService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }

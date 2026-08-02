@@ -28,24 +28,31 @@ use tokio::sync::RwLock;
 // 调用方通过 set_with_ttl(key, value, TTL_XXX) 选择对应 TTL，未指定时回归 default_ttl。
 
 /// Dashboard 热点数据 TTL（30s，高波动率，订单/库存/应收应付汇总）
+#[allow(dead_code)]
 pub const TTL_DASHBOARD: Duration = Duration::from_secs(30);
 
 /// 报表聚合查询 TTL（120s，中等波动率，定时刷新型查询）
+#[allow(dead_code)]
 pub const TTL_REPORT: Duration = Duration::from_secs(120);
 
 /// 用户数据 TTL（300s，中低波动率，用户资料变更不频繁）
+#[allow(dead_code)]
 pub const TTL_USER: Duration = Duration::from_secs(300);
 
 /// 权限数据 TTL（120s，安全敏感型，权限变更需快速生效）
+#[allow(dead_code)]
 pub const TTL_PERMISSION: Duration = Duration::from_secs(120);
 
 /// 产品目录 TTL（600s，低波动率，产品资料/价格变更不频繁）
+#[allow(dead_code)]
 pub const TTL_PRODUCT: Duration = Duration::from_secs(600);
 
 /// 客户数据 TTL（300s，中低波动率，客户资料变更不频繁）
+#[allow(dead_code)]
 pub const TTL_CUSTOMER: Duration = Duration::from_secs(300);
 
 /// 配置/字典数据 TTL（1800s，极低波动率，菜单/字典/系统配置极少变更）
+#[allow(dead_code)]
 pub const TTL_CONFIG: Duration = Duration::from_secs(1800);
 
 /// 缓存命中/未命中统计

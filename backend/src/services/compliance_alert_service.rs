@@ -3,6 +3,7 @@
 #[allow(dead_code)]
 pub struct ComplianceAlertService;
 
+#[allow(dead_code)]
 impl ComplianceAlertService {
     /// 检查价格异常（低于市场均价 50% 可能为假冒伪劣）
     pub fn check_price_anomaly(

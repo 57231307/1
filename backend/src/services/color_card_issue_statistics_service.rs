@@ -9,6 +9,7 @@ pub struct ColorCardIssueStatisticsService {
     db: Arc<DatabaseConnection>,
 }
 
+#[allow(dead_code)]
 impl ColorCardIssueStatisticsService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
