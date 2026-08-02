@@ -748,18 +748,24 @@ jobs:
         # 2026-07-31 优化：原步骤重跑 `cargo clippy -- -D warnings`（约 60-120s）仅为统计 error 数，
         # 现复用主步骤已生成的 clippy-structured.tsv：-D warnings 会把所有 warning 升为 error，
         # 故严格模式 error 数 = TSV 中 level=warning 的行数。
+        # 2026-08-02 修复：移除 working-directory: backend，TSV 文件在主步骤根目录生成；
+        # 使用 ../reports/ 路径确保能正确找到主步骤产物，避免 OOM runner 因文件缺失长时间等待。
         if: always()
-        working-directory: backend
         continue-on-error: true
+        env:
+          # 主步骤在根目录生成 reports/，本步骤需从根目录读取
+          TSV_PATH: backend/reports/clippy-structured.tsv
+          BASELINE_PATH: backend/.clippy-baseline.txt
         run: |
-          mkdir -p reports
+          REPORT_DIR="reports"
+          mkdir -p "$REPORT_DIR"
 
           # 从主步骤生成的 clippy-structured.tsv 统计 warning 数（等价于严格模式 error 数）
           # TSV 格式：lint_id \t file \t line \t column \t level \t message
-          if [ -f "reports/clippy-structured.tsv" ]; then
-            STRICT_ERRORS=$(awk -F'\t' '$5 == "warning" {c++} END {print c+0}' reports/clippy-structured.tsv 2>/dev/null)
+          if [ -f "$TSV_PATH" ]; then
+            STRICT_ERRORS=$(awk -F'\t' '$5 == "warning" {c++} END {print c+0}' "$TSV_PATH" 2>/dev/null || echo "0")
           else
-            echo "⚠️ clippy-structured.tsv 不存在（主步骤可能失败），无法评估就绪度"
+            echo "⚠️ clippy-structured.tsv 不存在（路径: $TSV_PATH），无法评估就绪度"
             STRICT_ERRORS="unknown"
           fi
           echo "严格模式下预估 error 数（=当前 warning 数）: $STRICT_ERRORS"
@@ -776,7 +782,7 @@ jobs:
 
           # 生成严格模式就绪度报告
           {
-            echo "# Clippy 严格模式就绪度报告（V15 批次 07 P1-3）"
+            echo "# Clippy 严格模式就绪度报告"
             echo ""
             echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
             echo "**严格模式预估 error 数**: $STRICT_ERRORS（= 当前 warning 数，复用 TSV 统计）  "
@@ -785,14 +791,14 @@ jobs:
             echo "## 切换路径"
             echo ""
             echo "- 当前：baseline 机制（仅新增警告阻塞 CI）"
-            echo "- 目标：`cargo clippy --all-targets -- -D warnings`（所有警告阻塞 CI）"
+            echo "- 目标：\`cargo clippy --all-targets -- -D warnings\`（所有警告阻塞 CI）"
             echo "- 切换条件：baseline 警告数 < 50 且严格模式 error 数 < 50"
             echo ""
             echo "## 当前 baseline 状态"
             echo ""
-            if [ -f ".clippy-baseline.txt" ]; then
-              BASELINE_LINES=$(wc -l < .clippy-baseline.txt)
-              echo "- baseline 文件：\`.clippy-baseline.txt\`"
+            if [ -f "$BASELINE_PATH" ]; then
+              BASELINE_LINES=$(wc -l < "$BASELINE_PATH")
+              echo "- baseline 文件：\`$BASELINE_PATH\`"
               echo "- baseline 行数：$BASELINE_LINES"
             else
               echo "- baseline 文件：未建立"
@@ -804,9 +810,9 @@ jobs:
               echo "| Lint ID | 数量 |"
               echo "|---------|------|"
               awk -F'\t' '$5 == "warning" {count[$1]++} END {for (k in count) printf "| \`%s\` | %s |\n", k, count[k]}' \
-                reports/clippy-structured.tsv 2>/dev/null | sort -t'|' -k3 -rn | head -30
+                "$TSV_PATH" 2>/dev/null | sort -t'|' -k3 -rn | head -30
             fi
-          } > reports/clippy-strict-report.md
+          } > "$REPORT_DIR/clippy-strict-report.md"
 
           # 写入 Step Summary
           {
@@ -818,8 +824,8 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
           # 写入环境变量供后续步骤使用
-          echo "CLIPPY_STRICT_ERRORS=$STRICT_ERRORS" >> "$GITHUB_ENV"
-          echo "CLIPPY_STRICT_READINESS=$STRICT_READINESS" >> "$GITHUB_ENV"
+          echo "CLIPPY_STRICT_ERRORS=$STRICT_ERRORS" >> "$GITHUB_ENV" || true
+          echo "CLIPPY_STRICT_READINESS=$STRICT_READINESS" >> "$GITHUB_ENV" || true
 
           # 信息性检查，永远 exit 0（不阻塞 CI）
           exit 0
