@@ -1020,7 +1020,7 @@ jobs:
 
           # 由 JSON 生成人类可读日志（file:line:col: message [ruleId]），便于定位错误
           jq -r '.[] | .messages[]? | "\(.filePath):\(.line):\(.column): \(.severity == 2 ? "error" : "warning"): \(.message) [\(.ruleId // "N/A")]"' \
-            reports/eslint-output.json 2>/dev/null > reports/eslint-log.txt
+            reports/eslint-output.json 2>/dev/null > reports/eslint-log.txt || true
 
           # 报告生成阶段关闭 pipefail，防止 sort|head 管道因 broken pipe
           # (head 提前关闭管道) 导致 SIGPIPE 退出码 2 中断整个 CI 步骤。
