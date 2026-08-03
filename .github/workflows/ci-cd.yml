@@ -1737,7 +1737,7 @@ jobs:
             HOUR=$(date +'%-H')
             MIN=$(date +'%-M')
             TIME=$((HOUR * 100 + MIN))
-            VERSION="${YEAR}.${MONTH}${DAY}.${TIME}"
+            VERSION="${YEAR}.${MONTH}.${DAY}.${TIME}"
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "构建版本: $VERSION"
