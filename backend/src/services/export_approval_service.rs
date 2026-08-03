@@ -622,4 +622,3 @@ mod tests {
         assert!(!sensitive_resources::is_sensitive("inventory"));
     }
 }
-
