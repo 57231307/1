@@ -1066,7 +1066,7 @@ jobs:
               echo "### 错误定位日志（前 50 条，file:line:col）"
               echo ""
               echo '```'
-              grep ': error:' reports/eslint-log.txt | head -50
+              grep ': error:' reports/eslint-log.txt 2>/dev/null | head -50 || true
               echo '```'
               echo ""
               echo "### 自动修复"
