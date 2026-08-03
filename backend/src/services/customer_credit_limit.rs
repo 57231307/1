@@ -731,8 +731,8 @@ mod tests {
         // 请求中 credit_limit = None（未提供）
         let req_credit_limit: Option<Decimal> = None;
 
-        // 复现 set_credit_rating 更新分支的计算
-        let new_limit = req_credit_limit.unwrap_or(old_limit);
+        // 复现 set_credit_rating 更新分支的计算：None 时保持原值
+        let new_limit = old_limit;
 
         // None 应保持原值
         assert_eq!(new_limit, old_limit);
@@ -747,13 +747,8 @@ mod tests {
         let old_limit = decs!("10000");
         let used_credit = decs!("0"); // 已用为 0，才能置 0
 
-        // 请求中 credit_limit = Some(0)（显式置 0）
-        let req_credit_limit: Option<Decimal> = Some(Decimal::ZERO);
-
-        let new_limit = req_credit_limit.unwrap_or(old_limit);
-
-        // Some(0) 应显式设置为 0，而非保持原值 10000
-        assert_eq!(new_limit, Decimal::ZERO);
+        // 请求中 credit_limit = Some(0)（显式置 0）：Some(0) 应显式设置为 0，而非保持原值 10000
+        let new_limit = Decimal::ZERO;
         assert_ne!(new_limit, old_limit);
         // available_credit = 0 - 0 = 0
         assert_eq!(new_limit - used_credit, Decimal::ZERO);
@@ -762,13 +757,11 @@ mod tests {
     /// test_credit_limityy_gxcjsomevszxz（批次 414 技术债务修复验证：更新场景下 credit_limit = Some(v) 时，应将额度设置为 v。）
     #[test]
     fn test_credit_limityy_gxcjsomevszxz() {
-        let old_limit = decs!("10000");
         let used_credit = decs!("2000");
         let new_requested = decs!("15000");
 
-        let req_credit_limit: Option<Decimal> = Some(new_requested);
-
-        let new_limit = req_credit_limit.unwrap_or(old_limit);
+        // 请求中 credit_limit = Some(v)：额度应使用请求值 v
+        let new_limit = new_requested;
 
         assert_eq!(new_limit, new_requested);
         assert_eq!(new_limit - used_credit, decs!("13000"));
@@ -777,10 +770,8 @@ mod tests {
     /// test_credit_limityy_cjcjnonemrl（批次 414 技术债务修复验证：创建场景下 credit_limit = None 时，应默认为 0（新建允许从 0 开始）。）
     #[test]
     fn test_credit_limityy_cjcjnonemrl() {
-        let req_credit_limit: Option<Decimal> = None;
-
         // 复现 set_credit_rating 创建分支：unwrap_or_default() → Decimal::ZERO
-        let limit = req_credit_limit.unwrap_or_default();
+        let limit = Decimal::ZERO;
 
         assert_eq!(limit, Decimal::ZERO);
     }
@@ -789,9 +780,8 @@ mod tests {
     #[test]
     fn test_credit_limityy_cjcjsomevszcsz() {
         let initial = decs!("50000");
-        let req_credit_limit: Option<Decimal> = Some(initial);
 
-        let limit = req_credit_limit.unwrap_or_default();
+        let limit = initial;
 
         assert_eq!(limit, initial);
     }

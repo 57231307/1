@@ -333,7 +333,7 @@ mod tests {
         let required_date = ymd!(2026, 7, 30);
 
         // level=1：提前期 7 天
-        let lead_1 = Duration::days(7 * 1_i64);
+        let lead_1 = Duration::days(7);
         assert_eq!(required_date - lead_1, ymd!(2026, 7, 23));
 
         // level=2：提前期 14 天
@@ -349,7 +349,7 @@ mod tests {
     #[test]
     fn test_dqtj_sxydqx() {
         let date = ymd!(2026, 7, 9);
-        let requirements = vec![
+        let requirements = [
             MaterialRequirement {
                 product_id: 1,
                 required_quantity: decs!("100"),

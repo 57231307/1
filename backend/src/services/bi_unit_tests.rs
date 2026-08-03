@@ -35,7 +35,7 @@ mod tests {
     }
 
     /* 中位数 */
-    fn median(values: &mut Vec<Decimal>) -> Decimal {
+    fn median(values: &mut [Decimal]) -> Decimal {
         if values.is_empty() {
             return Decimal::ZERO;
         }

@@ -887,10 +887,9 @@ mod tests {
         let db = setup_test_db().await;
         let service = AccountingPeriodService::new(Arc::new(db));
         let result = service.get_current_period().await;
-        match result {
-            Ok(opt) => assert!(opt.is_none(), "空库应返回 None"),
-            Err(_) => {} // 无 schema 时数据库报错属于预期降级
-        }
+        if let Ok(opt) = result {
+            assert!(opt.is_none(), "空库应返回 None");
+        } // 无 schema 时数据库报错属于预期降级
     }
 
     #[tokio::test]

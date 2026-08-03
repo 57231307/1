@@ -22,7 +22,6 @@ use regex::Regex;
 
 /// V15 主线审计 P2 修复：原 inventory count generate-no 端点测试已移除（盘点无独立 generate-no 端点）。
 /// 仅保留按业务前缀/日期/流水拼接的契约测试（RK/IA/IT 三类）。
-
 /// 验证采购入库 generate-no 端点返回的单据号格式
 ///
 /// 期望：`RK{yyyyMMdd}{4 位流水}`
