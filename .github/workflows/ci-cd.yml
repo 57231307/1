@@ -1655,10 +1655,10 @@ jobs:
           sed -i 's/^version = ".*"/version = "${{ steps.version.outputs.version }}"/' backend/Cargo.toml
           echo "更新后版本: $(grep '^version' backend/Cargo.toml)"
 
-      - name: Setup Rust（rustfmt + clippy + 系统依赖）
+      - name: Setup Rust（rustfmt + 系统依赖）
         uses: ./.github/actions/setup-rust
         with:
-          components: rustfmt, clippy
+          components: rustfmt
           system-deps: pkg-config libssl-dev protobuf-compiler
 
       - name: 构建后端 (Release)
