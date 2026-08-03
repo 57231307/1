@@ -2055,8 +2055,10 @@ jobs:
       - name: 生成发布说明（按 RELEASE_TEMPLATE.md 模板）
         id: release-notes
         run: |
+          set +e
           VERSION="${{ needs.package-release.outputs.version }}"
           TAG_NAME="${{ needs.package-release.outputs.tag_name }}"
+          echo "DEBUG: VERSION=$VERSION TAG_NAME=$TAG_NAME"
           NOW=$(date +'%Y-%m-%d %H:%M:%S %Z')
 
           # 获取上一个 tag
@@ -2129,7 +2131,7 @@ jobs:
             fi
 
             # 按 conventional commit 前缀分类
-            TYPE=$(echo "$MSG" | grep -oE '^[a-z]+' | head -1)
+            TYPE=$(echo "$MSG" | grep -oE '^[a-z]+' | head -1 || echo "")
 
             case "$TYPE" in
               feat)
