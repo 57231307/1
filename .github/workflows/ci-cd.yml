@@ -1744,7 +1744,14 @@ jobs:
 
       - name: 更新 Cargo.toml 版本号
         run: |
-          sed -i 's/^version = ".*"/version = "${{ steps.version.outputs.version }}"/' backend/Cargo.toml
+          # Cargo.toml 要求 SemVer 3 段格式，将 YYYY.M.D.HHMM 转为 YYYY.MDHHMM
+          VERSION="${{ steps.version.outputs.version }}"
+          # 分割版本号
+          IFS='.' read -r YEAR MONTH DAY TIME <<< "$VERSION"
+          # 拼接月日为 3 位数（如 8 月 3 日 → 803）
+          MD=$(printf "%d%02d" "$MONTH" "$DAY")
+          CARGO_VERSION="${YEAR}.${MD}.${TIME}"
+          sed -i "s/^version = \".*\"/version = \"$CARGO_VERSION\"/" backend/Cargo.toml
           echo "更新后版本: $(grep '^version' backend/Cargo.toml)"
 
       - name: Setup Rust（系统依赖）
