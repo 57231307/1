@@ -731,7 +731,7 @@ mod tests {
 
         // 客户状态为 ACTIVE 时应放行
         let customer_active = master_data::ACTIVE;
-        assert!(!(customer_active != master_data::ACTIVE));
+        assert_eq!(customer_active, master_data::ACTIVE);
     }
 
     /// test_tjdd_xyedbzjj（验证 submit_order 中信用额度校验逻辑：credit_available == false 时应返回 BusinessError，消息为"信用额度不足，无法提交订单"。）

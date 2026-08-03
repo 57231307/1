@@ -231,13 +231,13 @@ mod tests {
     }
 
     #[test]
-    fn 测试计算单位能耗_产量为零返回None() {
+    fn test_unit_energy_zero_output_returns_none() {
         let result = compute_unit_consumption(Decimal::new(300, 0), Some(Decimal::ZERO));
         assert_eq!(result, None);
     }
 
     #[test]
-    fn 测试计算单位能耗_产量为None返回None() {
+    fn test_unit_energy_none_output_returns_none() {
         let result = compute_unit_consumption(Decimal::new(300, 0), None);
         assert_eq!(result, None);
     }

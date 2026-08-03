@@ -800,7 +800,7 @@ mod tests {
 
         // previous=0 兜底
         let rate_zero = compute_trend_rate(50.0, 0.0);
-        assert!((rate_zero - 0.0).abs() < 0.0001);
+        assert!(rate_zero.abs() < 0.0001);
     }
 
     /// 测试 4：退化路径 - 数据 < 5 条 → 合格率 95% + 置信度 0.3
@@ -809,7 +809,7 @@ mod tests {
         // 历史 0 条记录（模拟）
         let empty: Vec<QualityInspectionModel> = vec![];
         let rate = mean_qualification_rate(&empty);
-        assert!((rate - 0.0).abs() < 0.0001, "空记录集合应返回 0.0");
+        assert!(rate.abs() < 0.0001, "空记录集合应返回 0.0");
 
         // 置信度 - 0 条
         let conf = compute_confidence(0);

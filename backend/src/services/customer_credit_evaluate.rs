@@ -274,9 +274,8 @@ impl CustomerCreditService {
 
             // 检查信用等级
             if let Some(ref level) = credit.credit_level {
-                match level.as_str() {
-                    "AAA" | "AA" | "A" => has_good_record = true,
-                    _ => {}
+                if matches!(level.as_str(), "AAA" | "AA" | "A") {
+                    has_good_record = true;
                 }
             }
         }

@@ -481,7 +481,7 @@ mod tests {
 
         // 状态为 ACTIVE 时不应该拒绝
         let model_active = make_credit_model(2, decs!("10000"), Decimal::ZERO, master_data::ACTIVE);
-        assert!(!(model_active.status != master_data::ACTIVE));
+        assert_eq!(model_active.status, master_data::ACTIVE);
     }
 
     /// test_edcxjc_sfcejy（验证 release_credit 中 amount > used_credit 时应拒绝（释放额超过已占用））

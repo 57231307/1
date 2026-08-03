@@ -9,8 +9,6 @@ mod tests {
     /* 应收账款 */
     #[derive(Debug, Clone)]
     struct ArInvoice {
-        pub id: i64,
-        pub customer_id: i64,
         pub amount: Decimal,
         pub due_date: chrono::DateTime<Utc>,
         pub paid_amount: Decimal,
@@ -68,8 +66,6 @@ mod tests {
     fn test_yswfje() {
         // 中文测试名：测试应收未付 = 总额 - 已付
         let inv = ArInvoice {
-            id: 1,
-            customer_id: 100,
             amount: Decimal::from(1000),
             due_date: Utc::now() + Duration::days(30),
             paid_amount: Decimal::from(300),
@@ -81,8 +77,6 @@ mod tests {
     fn test_dqpd() {
         // 中文测试名：测试应收到期判断
         let overdue = ArInvoice {
-            id: 1,
-            customer_id: 100,
             amount: Decimal::from(1000),
             due_date: Utc::now() - Duration::days(10),
             paid_amount: Decimal::ZERO,
@@ -91,8 +85,6 @@ mod tests {
         assert_eq!(overdue.days_overdue(), 10);
 
         let not_due = ArInvoice {
-            id: 2,
-            customer_id: 100,
             amount: Decimal::from(1000),
             due_date: Utc::now() + Duration::days(10),
             paid_amount: Decimal::ZERO,
@@ -115,8 +107,6 @@ mod tests {
         ];
         for (days, expected) in cases {
             let inv = ArInvoice {
-                id: 1,
-                customer_id: 100,
                 amount: Decimal::from(1000),
                 due_date: Utc::now() - Duration::days(days),
                 paid_amount: Decimal::ZERO,
@@ -148,8 +138,6 @@ mod tests {
     fn test_yfqhbsyq() {
         // 中文测试名：测试已付清的应收不算逾期
         let paid = ArInvoice {
-            id: 1,
-            customer_id: 100,
             amount: Decimal::from(1000),
             due_date: Utc::now() - Duration::days(100),
             paid_amount: Decimal::from(1000),

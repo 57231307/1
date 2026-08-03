@@ -318,10 +318,10 @@ mod tests {
         let order_date = ymd!(2026, 3, 15);
         // 场景 1：预计交货日期等于订单日期（允许）
         let expected_same = ymd!(2026, 3, 15);
-        assert!(!(expected_same < order_date));
+        assert!(expected_same >= order_date);
         // 场景 2：预计交货日期晚于订单日期（允许）
         let expected_after = ymd!(2026, 3, 20);
-        assert!(!(expected_after < order_date));
+        assert!(expected_after >= order_date);
         // 场景 3：预计交货日期早于订单日期（应拒绝，复现 validate_order_request 拒绝条件）
         let expected_before = ymd!(2026, 3, 10);
         assert!(expected_before < order_date);

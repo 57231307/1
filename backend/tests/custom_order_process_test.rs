@@ -5,9 +5,12 @@
 
 #[cfg(test)]
 mod tests {
-    use bingxi_backend::utils::process_state_machine::{
-        default_process_nodes, node_type_to_status, CustomOrderStatus,
-    };
+    use bingxi_backend::utils::process_state_machine::{default_process_nodes, CustomOrderStatus};
+
+    /// 将工艺节点类型映射为对应状态（测试辅助，原 lib 中 dead_code 移入）
+    fn node_type_to_status(node_type: &str) -> Option<CustomOrderStatus> {
+        node_type.parse::<CustomOrderStatus>().ok()
+    }
 
     #[test]
     fn test_default_process_nodes_complete() {

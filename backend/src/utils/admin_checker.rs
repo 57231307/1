@@ -129,6 +129,12 @@ pub async fn can_access_audit_logs(db: &DatabaseConnection, role_id: i32) -> boo
     is_admin_role(db, role_id).await || is_auditor_role(db, role_id).await
 }
 
+/// V15 P1-14.11-B：纯函数判断角色 code 是否为 admin（与 is_admin_role 内部逻辑一致）
+#[cfg(test)]
+fn should_be_admin_by_code(code: &str) -> bool {
+    code == ADMIN_ROLE_CODE
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -228,10 +234,4 @@ mod tests {
         assert!(!should_be_admin_by_code("ADMIN"));
         assert!(!should_be_admin_by_code("Admin"));
     }
-}
-
-/// V15 P1-14.11-B：纯函数判断角色 code 是否为 admin（与 is_admin_role 内部逻辑一致）
-#[cfg(test)]
-fn should_be_admin_by_code(code: &str) -> bool {
-    code == ADMIN_ROLE_CODE
 }

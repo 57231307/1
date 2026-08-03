@@ -230,7 +230,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试计算剩余保质期_无失效日期返回None() {
+    fn test_shelf_life_no_expiry_returns_none() {
         let today = NaiveDate::from_ymd_opt(2025, 1, 1).unwrap();
         let result = compute_remaining_shelf_life(None, today);
         assert_eq!(result, None);
