@@ -34,14 +34,14 @@ app.use(router);
 app.use(i18n);
 
 /* FE-P-1 修复（2026-06-26 第二次审计第二优先级）：
- * 注册 v-permission 和 v-role 全局指令，使组件中的
+ * 注册 v-permission 全局指令，使组件中的
  * `<el-button v-permission="'inventory:update'">` 等使用生效。
  * 权限码格式为两段式 `{resource}:{action}`（如 `inventory:update`、`inventory:delete`）。
  * P2 4-4 修复：原注释示例 `'inventory:stock:edit'` 为三段式，与权限码规范不符，修正为两段式。
  * 原指令定义在 directives/permission.ts 但未在 main.ts 注册，
- * Vue 静默忽略 v-permission，按钮永远显示。 */
+ * Vue 静默忽略 v-permission，按钮永远显示。
+ * V15 P2 B10-P2-6：删除 v-role 指令注册，统一使用 v-permission 权限码 */
 app.directive('permission', permission);
-app.directive('role', role);
 
 /* 根据当前语言切换 ElementPlus locale */
 const elementLocale = getCurrentLocale() === 'en-US' ? en : zhCn;
