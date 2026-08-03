@@ -728,13 +728,8 @@ mod tests {
         let old_limit = decs!("10000");
         let used_credit = decs!("3000");
 
-        // 请求中 credit_limit = None（未提供）
-        let req_credit_limit: Option<Decimal> = None;
-
-        // 复现 set_credit_rating 更新分支的计算：None 时保持原值
-        let new_limit = old_limit;
-
         // None 应保持原值
+        let new_limit = old_limit;
         assert_eq!(new_limit, old_limit);
         assert_eq!(new_limit, decs!("10000"));
         // available_credit = new_limit - used_credit
