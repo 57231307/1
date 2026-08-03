@@ -180,6 +180,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: ci-info
+    # 自动修正格式后需要提交 push，故需 contents: write
+    permissions:
+      contents: write
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
@@ -189,48 +192,70 @@ jobs:
         with:
           components: rustfmt
 
-      - name: 运行 cargo fmt 检查（严格阻塞）
+      - name: 运行 cargo fmt 检查（失败时自动修正）
         working-directory: backend
-        # V15 批次 07 P1-4：fmt 失败阻塞 CI（移除渐进式 exit 0）
-        # 修复方法：cd backend && cargo fmt --all
+        # 检查 + 自动修正：先 --check，若失败自动执行 cargo fmt --all 修正并提交
+        # 修正后再次验证，仍失败才阻塞 CI（避免提交了未修正的代码）
         run: |
           mkdir -p reports
           set +e
           cargo fmt --all -- --check 2>&1 | tee reports/cargo-fmt-diff.txt
-          EXIT_CODE=$?
+          EXIT_CODE=${PIPESTATUS[0]}
           set -e
+
+          # 若检查失败：自动执行 cargo fmt --all 修正
+          FIXED=0
+          if [ "$EXIT_CODE" -ne "0" ]; then
+            echo "❌ 格式检查失败，自动执行 cargo fmt --all 修正..."
+            cargo fmt --all
+            set +e
+            cargo fmt --all -- --check 2>&1 | tee reports/cargo-fmt-verify.txt
+            FIXED_EXIT=${PIPESTATUS[0]}
+            set -e
+            if [ "$FIXED_EXIT" -eq "0" ]; then
+              FIXED=1
+              echo "✅ 自动修正完成"
+            else
+              echo "❌ 自动修正后仍存在格式差异（CI 阻塞）"
+            fi
+          fi
 
           {
             echo "# Rust 格式检查报告"
             echo ""
             echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
-            echo "**退出码**: $EXIT_CODE  "
-            echo "**模式**: 严格阻塞（V15 批次 07 P1-4）"
+            echo "**首次检查退出码**: $EXIT_CODE  "
+            if [ "$EXIT_CODE" -eq "0" ]; then
+              echo "**模式**: 严格阻塞（V15 批次 07 P1-4）"
+            else
+              echo "**模式**: 自动修正（失败时执行 cargo fmt --all 并提交）"
+            fi
             echo ""
             if [ "$EXIT_CODE" -eq "0" ]; then
               echo "## ✅ 所有代码格式正确"
               echo ""
               echo "无需修复。"
-            else
-              DIFF_LINES=$(wc -l < reports/cargo-fmt-diff.txt)
-              echo "## ❌ 发现 $DIFF_LINES 行格式差异（CI 阻塞）"
+            elif [ "$FIXED" -eq "1" ]; then
+              echo "## ✅ 已自动修正（cargo fmt --all）"
               echo ""
-              echo "### 自动修复命令"
-              echo ""
-              echo '```bash'
-              echo "cd backend"
-              echo "cargo fmt --all"
-              echo '```'
-              echo ""
-              echo "### Diff 内容（前 100 行）"
+              echo "### 修复前 Diff 内容（前 100 行）"
               echo ""
               echo '```diff'
               head -100 reports/cargo-fmt-diff.txt
               echo '```'
-              if [ "$DIFF_LINES" -gt "100" ]; then
-                echo ""
-                echo "*（完整 diff 见 artifacts: \`backend-fmt-report\`）*"
-              fi
+              echo ""
+              echo "*自动修正已提交到本分支，CI 将基于修正后代码继续。*"
+            else
+              DIFF_LINES=$(wc -l < reports/cargo-fmt-verify.txt)
+              echo "## ❌ 自动修正后仍发现 $DIFF_LINES 行格式差异（CI 阻塞）"
+              echo ""
+              echo "### 修正后仍存在的差异（前 100 行）"
+              echo ""
+              echo '```diff'
+              head -100 reports/cargo-fmt-verify.txt
+              echo '```'
+              echo ""
+              echo "请手动检查 rustfmt 配置或相关文件。"
             fi
           } > reports/cargo-fmt-report.md
 
@@ -239,26 +264,42 @@ jobs:
             echo ""
             if [ "$EXIT_CODE" -eq "0" ]; then
               echo "✅ 全部通过"
+            elif [ "$FIXED" -eq "1" ]; then
+              echo "✅ 已自动修正（cargo fmt --all）并提交"
             else
-              DIFF_LINES=$(wc -l < reports/cargo-fmt-diff.txt)
-              echo "❌ 发现 $DIFF_LINES 行格式差异（V15 批次 07 P1-4 修复：严格阻塞 CI）"
-              echo ""
-              echo "修复命令：\`cd backend && cargo fmt --all\`"
-              echo ""
-              echo "提交格式修复后 CI 将通过。"
+              echo "❌ 自动修正后仍有格式差异（CI 阻塞）"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-          # V15 批次 07 P1-4 修复：fmt 失败阻塞 CI（移除渐进式 exit 0）
-          # 修复方法：cd backend && cargo fmt --all
-          exit $EXIT_CODE
+          # 若自动修正成功且工作树有变更，提交到当前分支
+          if [ "$FIXED" -eq "1" ]; then
+            cd "$GITHUB_WORKSPACE"
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add -A backend/
+            if git diff --cached --quiet; then
+              echo "ℹ️ 无格式变更可提交"
+            else
+              git commit -m "style(rust): cargo fmt 自动修正格式" || echo "提交失败，跳过"
+              git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+              git push origin HEAD:${{ github.ref_name }} || echo "推送失败，可能有冲突"
+            fi
+          fi
+
+          # 首次检查失败且自动修正仍失败 → 阻塞 CI
+          if [ "$EXIT_CODE" -ne "0" ] && [ "$FIXED" -eq "0" ]; then
+            exit 1
+          fi
+          exit 0
 
       - name: 上传报告
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: backend-fmt-report
-          path: reports/
+          path: |
+            reports/
+            backend/reports/
           retention-days: 90
 
 # ==============================================================================
@@ -284,7 +325,7 @@ jobs:
           mkdir -p reports
           set +e
           npx prettier --check 'src/**/*.{vue,ts,tsx,js,jsx,css,scss,json,md}' 2>&1 | tee reports/prettier-check.txt
-          EXIT_CODE=$?
+          EXIT_CODE=${PIPESTATUS[0]}
           set -e
 
           {
@@ -367,10 +408,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Rust（rustfmt + clippy + 系统依赖）
+      - name: Setup Rust（clippy + 系统依赖）
         uses: ./.github/actions/setup-rust
         with:
-          components: rustfmt, clippy
+          components: clippy
           system-deps: pkg-config libssl-dev protobuf-compiler
 
       - name: 运行 clippy（baseline 机制）
@@ -414,13 +455,15 @@ jobs:
           cat reports/clippy-stderr.txt >> reports/clippy-output.json 2>/dev/null || true
 
           # ============================================================================
-          # 阶段 2：人类可读详细输出（基于 JSON rendered 字段重渲染）
+          # 阶段 2：人类可读详细输出（基于 JSON rendered 字段重渲染）+ 短格式定位日志
           # ============================================================================
-          echo "▶ 阶段 2/3：生成人类可读详细日志"
+          echo "▶ 阶段 2/3：生成人类可读详细日志 + 短格式定位日志"
           # 用 jq 从 JSON 提取每条 message 的 rendered 字段，生成完整人类可读报告
           # 包含每条警告的完整渲染信息（代码片段、行号、原因说明）
           # 2026-07-31 优化：合并原 clippy-human-readable.txt（中间文件）与 -full.txt（带 header），
           # 消除冗余，artifact 中只保留 clippy-human-readable-full.txt
+          # 2026-08-03 新增：clippy-log.txt 短格式日志（file:line:col: level: message [lint]），
+          # 便于快速定位错误，失败时在 CI 输出中直接打印
           TMP_RENDERED=$(mktemp)
           jq -r 'select(.reason == "compiler-message") |
                  .message |
@@ -443,6 +486,16 @@ jobs:
             echo "总计渲染 $RENDERED_LINES 行"
           } > reports/clippy-human-readable-full.txt
           rm -f "$TMP_RENDERED"
+
+          # 短格式定位日志：file:line:col: level: message [lint]
+          # 每行一条，便于 grep/文本编辑器直接跳转定位
+          jq -r 'select(.reason == "compiler-message") |
+                 .message |
+                 select(.level == "warning" or .level == "error") |
+                 "\(.spans[0].file_name // "?"):\(.spans[0].line_start // "?"):\(.spans[0].column_start // "?"): \(.level): \(.message) [\(.code.code // "?")]"' \
+            reports/clippy-output.json 2>/dev/null > reports/clippy-log.txt
+          CLIPPY_LOG_LINES=$(wc -l < reports/clippy-log.txt)
+          echo "短格式日志行数: $CLIPPY_LOG_LINES（reports/clippy-log.txt）"
 
           # ============================================================================
           # 阶段 3：解析 JSON，按多维度统计（lint_id / file / line）
@@ -606,11 +659,13 @@ jobs:
             awk -F'\t' '{count[$5]++} END {for (k in count) printf "| %s | %s |\n", k, count[k]}' \
               reports/clippy-structured.tsv 2>/dev/null | sort
             echo ""
+            echo "> 注：完整统计见 \`clippy-by-lint-id.md\` / \`clippy-by-file.md\` / \`clippy-by-severity.md\`（上方为 TOP20 摘要）"
             echo "## 📁 详细日志归档（artifacts: \`backend-clippy-report\`）"
             echo ""
             echo "| 文件 | 说明 |"
             echo "|------|------|"
             echo "| \`clippy-output.json\` | 原始 JSON 输出（机器可读，最完整） |"
+            echo "| \`clippy-log.txt\` | 短格式定位日志（file:line:col，每行一条，快速定位） |"
             echo "| \`clippy-human-readable-full.txt\` | 人类可读详细日志（含代码片段、行号） |"
             echo "| \`clippy-stderr.txt\` | clippy stderr 输出 |"
             echo "| \`clippy-structured.tsv\` | 结构化 TSV（lint_id\\tfile\\tline\\tcol\\tlevel\\tmsg） |"
@@ -724,6 +779,8 @@ jobs:
             echo ""
             echo "❌ clippy 主命令退出码为 $CLIPPY_MAIN_EXIT，存在编译错误或基础设施异常，CI 失败"
             echo ""
+            echo "=== clippy 短格式错误日志（file:line:col 定位）==="
+            cat reports/clippy-log.txt 2>/dev/null || true
             echo "=== clippy stderr（前 120 行）==="
             sed -n '1,120p' reports/clippy-stderr.txt 2>/dev/null || true
             echo "=== clippy 错误摘要 ==="
@@ -736,6 +793,14 @@ jobs:
             echo ""
             echo "❌ 发现 $NEW_COUNT 个新警告，CI 失败"
             echo ""
+            echo "=== 新增警告短格式日志（file:line:col 定位）==="
+            # clippy-new.txt 为摘要行（warning: message），clippy-log.txt 为 file:line:col: warning: message [lint]
+            # 用 message 关键字在 clippy-log.txt 中匹配对应行，实现精确定位
+            while IFS= read -r line; do
+              [ -z "$line" ] && continue
+              msg=$(echo "$line" | sed 's/^\(warning\|error\): //')
+              [ -n "$msg" ] && grep -F "$msg" reports/clippy-log.txt
+            done < reports/clippy-new.txt | sort -u
             echo "=== 新增警告列表（完整）==="
             cat reports/clippy-new.txt
             echo "=== 列表结束 ==="
@@ -852,7 +917,9 @@ jobs:
             fi
             # 从文件读取 clippy 主退出码（NEW_COUNT > 0 时 step 提前 exit 1，$GITHUB_ENV 未写入）
             CLIPPY_MAIN_EXIT_VAL="unknown"
-            if [ -f "reports/clippy-main-exit.txt" ]; then
+            if [ -f "backend/reports/clippy-main-exit.txt" ]; then
+              CLIPPY_MAIN_EXIT_VAL=$(grep -E '^CLIPPY_MAIN_EXIT=' backend/reports/clippy-main-exit.txt | cut -d= -f2)
+            elif [ -f "reports/clippy-main-exit.txt" ]; then
               CLIPPY_MAIN_EXIT_VAL=$(grep -E '^CLIPPY_MAIN_EXIT=' reports/clippy-main-exit.txt | cut -d= -f2)
             fi
             echo "CLIPPY_MAIN_EXIT_VAL=$CLIPPY_MAIN_EXIT_VAL"
@@ -910,7 +977,9 @@ jobs:
       - name: 写入 Step Summary
         if: always()
         run: |
-          if [ -f reports/clippy-report.md ]; then
+          if [ -f backend/reports/clippy-report.md ]; then
+            cat backend/reports/clippy-report.md >> "$GITHUB_STEP_SUMMARY"
+          elif [ -f reports/clippy-report.md ]; then
             cat reports/clippy-report.md >> "$GITHUB_STEP_SUMMARY"
           fi
 
@@ -929,20 +998,23 @@ jobs:
       - name: Setup Frontend
         uses: ./.github/actions/setup-frontend
 
-      - name: 运行 ESLint（V15 批次 07 P1-6 修复：严格阻塞 CI）
+      - name: 运行 ESLint（单次扫描：JSON 报告 + 日志）
         working-directory: frontend
+        # 2026-08-03 优化：原实现先跑一次文本扫描（reports/eslint-output.txt）再跑一次 JSON 扫描
+        # （reports/eslint-report.json），同一批文件被 eslint 扫描两次，浪费时间。
+        # 现合并为单次扫描：一次 eslint --format json 同时产出 JSON 报告 + 由 tee 保存完整输出，
+        # 人类可读日志由 JSON 生成（eslint-log.txt），消除重复检查。
         run: |
           mkdir -p reports
           set +e
-          # V15 批次 07 P1-6 修复：移除 --max-warnings 999999（实际禁用警告阻塞）
-          # 现使用 ESLint 默认行为：error 阻塞，warning 默认不阻塞但可由 .eslintrc 配置
-          npx eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts 2>&1 \
-            | tee reports/eslint-output.txt
-          EXIT_CODE=$?
+          npx eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --format json 2>&1 \
+            | tee reports/eslint-output.json
+          EXIT_CODE=${PIPESTATUS[0]}
           set -e
 
-          # JSON 格式单独输出
-          npx eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --format json --output-file reports/eslint-report.json 2>&1 || true
+          # 由 JSON 生成人类可读日志（file:line:col: message [ruleId]），便于定位错误
+          jq -r '.[] | .messages[]? | "\(.filePath):\(.line):\(.column): \(.severity == 2 ? "error" : "warning"): \(.message) [\(.ruleId // "N/A")]"' \
+            reports/eslint-output.json 2>/dev/null > reports/eslint-log.txt
 
           # 报告生成阶段关闭 pipefail，防止 sort|head 管道因 broken pipe
           # (head 提前关闭管道) 导致 SIGPIPE 退出码 2 中断整个 CI 步骤。
@@ -952,10 +1024,10 @@ jobs:
 
           # 统计错误数
           TOTAL_ERRORS=0
-          if [ -f reports/eslint-report.json ]; then
-            TOTAL_ERRORS=$(jq '[.[] | .errorCount] | add // 0' reports/eslint-report.json 2>/dev/null || echo 0)
+          if [ -f reports/eslint-output.json ]; then
+            TOTAL_ERRORS=$(jq '[.[] | .errorCount] | add // 0' reports/eslint-output.json 2>/dev/null || echo 0)
           fi
-          TOTAL_FILES=$(jq 'length' reports/eslint-report.json 2>/dev/null || echo 0)
+          TOTAL_FILES=$(jq 'length' reports/eslint-output.json 2>/dev/null || echo 0)
 
           {
             echo "# 前端 ESLint 检查报告"
@@ -973,17 +1045,23 @@ jobs:
               echo ""
               echo "### 错误类型分布"
               echo ""
-              if [ -f reports/eslint-report.json ]; then
-                jq -r '.[] | .messages[]? | "\(.ruleId // "N/A")"' reports/eslint-report.json 2>/dev/null | sort | uniq -c | sort -rn | head -20 | \
+              if [ -f reports/eslint-output.json ]; then
+                jq -r '.[] | .messages[]? | "\(.ruleId // "N/A")"' reports/eslint-output.json 2>/dev/null | sort | uniq -c | sort -rn | head -20 | \
                   awk '{printf "| `%s` | %s |\n", $2, $1}'
               fi
               echo ""
               echo "### 受影响文件 TOP 20"
               echo ""
-              if [ -f reports/eslint-report.json ]; then
-                jq -r '.[] | select(.errorCount > 0) | "\(.filePath):\(.errorCount)"' reports/eslint-report.json 2>/dev/null | sort -t: -k2 -rn | head -20 | \
+              if [ -f reports/eslint-output.json ]; then
+                jq -r '.[] | select(.errorCount > 0) | "\(.filePath):\(.errorCount)"' reports/eslint-output.json 2>/dev/null | sort -t: -k2 -rn | head -20 | \
                   awk -F: '{printf "| `%s` | %s |\n", $1, $2}'
               fi
+              echo ""
+              echo "### 错误定位日志（前 50 条，file:line:col）"
+              echo ""
+              echo '```'
+              grep ': error:' reports/eslint-log.txt | head -50
+              echo '```'
               echo ""
               echo "### 自动修复"
               echo ""
@@ -1021,7 +1099,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: frontend-lint-report
-          path: reports/
+          path: |
+            reports/
+            frontend/reports/
           retention-days: 90
 
 # ==============================================================================
@@ -1657,10 +1737,9 @@ jobs:
           sed -i 's/^version = ".*"/version = "${{ steps.version.outputs.version }}"/' backend/Cargo.toml
           echo "更新后版本: $(grep '^version' backend/Cargo.toml)"
 
-      - name: Setup Rust（rustfmt + 系统依赖）
+      - name: Setup Rust（系统依赖）
         uses: ./.github/actions/setup-rust
         with:
-          components: rustfmt
           system-deps: pkg-config libssl-dev protobuf-compiler
 
       - name: 构建后端 (Release)
