@@ -1015,7 +1015,7 @@ jobs:
           set +e
           npx eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --format json 2>&1 \
             | tee reports/eslint-output.json
-          EXIT_CODE=${PIPESTATUS[0]}
+          ESLINT_EXIT=${PIPESTATUS[0]}
           set -e
 
           # 由 JSON 生成人类可读日志（file:line:col: message [ruleId]），便于定位错误
@@ -1039,7 +1039,7 @@ jobs:
             echo "# 前端 ESLint 检查报告"
             echo ""
             echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
-            echo "**退出码**: $EXIT_CODE  "
+            echo "**退出码**: $ESLint_EXIT  "
             echo "**错误文件数**: $TOTAL_FILES  "
             echo "**总错误数**: $TOTAL_ERRORS  "
             echo "**模式**: V15 批次 07 P1-6 修复：严格阻塞 CI（ESLint error 必须修复）"
