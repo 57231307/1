@@ -5,6 +5,49 @@
 
 ---
 
+## 🔧 CI 基础设施修复（2026-08-03，PR #807-#812）
+
+### 任务概述
+
+main 分支 CI 多项失败排查与修复：clippy 警告处理、ESLint 误报、GitHub Release 静默失败、版本号格式问题。
+
+### 已完成改动
+
+1. **PR #807 — clippy 新增警告修复**（709b2a9）
+   - 修复 18 条 clippy 警告（11 条代码修复 + 7 条 dead_code 恢复 baseline）
+   - 12 个源码文件修改
+   - **修复 doto.md §〇〇〇 PR #805 中的测试代码问题**
+
+2. **PR #808 — CI 改进**（99498ca）
+   - clippy 日志化：输出写入文件后分析，避免 set -e 干扰
+   - ESLint 单次扫描：`set +e` 防 grep/jq 提前退出
+   - fmt 自动修正：`cargo fmt --check` 失败时自动 `cargo fmt`
+   - clippy exit 101 硬失败：新增 `CLIPPY_MAIN_EXIT` 检查
+   - **修复 doto.md §〇〇〇 PR #805 中的 CI 防回归问题**
+
+3. **PR #809 — 发布说明调试**（e0a1635）
+   - 添加发布说明生成调试输出和错误处理
+
+4. **PR #810 — Release 流程修复**（da8e358）
+   - 用 `gh` CLI 替代 `softprops/action-gh-release@v3`
+   - 添加三重验证：文件存在性 → Release 创建成功 → 资产上传成功
+   - **根因**：`softprops/action-gh-release@v3` 静默失败（report success 但未创建 release）
+
+5. **PR #811 — 版本号格式修复**
+   - 日期分隔：`YYYY.MMDD.HHMM` → `YYYY.M.D.HHMM`
+
+6. **PR #812 — Cargo.toml SemVer 兼容**
+   - TAG/Release 保持 4 段式 `YYYY.M.D.HHMM`
+   - Cargo.toml 转为 3 段式 `YYYY.MDHHMM`
+   - **根因**：Cargo.toml 要求 SemVer 3 段格式，4 段会报 `unexpected character '.' after patch version number`
+
+### CI 验证
+
+- Release v2026.8.3.2335 已生成（资产 state=uploaded）
+- CI 全绿（13/13 作业成功）
+
+---
+
 ## 📦 V15 主线八维审计与快速修复（2026-07-30，audit-batch-2026-07-30）
 
 ### 任务概述
