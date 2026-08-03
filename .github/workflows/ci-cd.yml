@@ -1098,7 +1098,11 @@ jobs:
 
           # V15 批次 07 P1-6 修复：ESLint error 阻塞 CI（移除渐进式 exit 0）
           # 修复方法：cd frontend && npm run format && npm run lint -- --fix
-          exit $EXIT_CODE
+          # 注意：仅 error 阻塞，warning 不阻塞（eslint 默认 warning 返回 exit 1）
+          if [ "$TOTAL_ERRORS" -gt 0 ]; then
+            exit 1
+          fi
+          exit 0
 
       - name: 上传报告
         if: always()
