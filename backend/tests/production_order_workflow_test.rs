@@ -113,7 +113,7 @@ mod tests {
     async fn test_productionorderservice_get_by_id_kdbfherr() {
         let db = setup_test_db().await;
         let svc = ProductionOrderService::new(Arc::new(db));
-        let result = svc.get_by_id(1).await;
+        let result = svc.get_by_id(1, None).await;
         assert!(result.is_err(), "空 DB 上 get_by_id 应返回 Err");
     }
 
@@ -130,7 +130,7 @@ mod tests {
             page: 1,
             page_size: 20,
         };
-        let result = svc.list(query).await;
+        let result = svc.list(query, None).await;
         assert!(result.is_err(), "空 DB 上 list 应返回 Err");
     }
 

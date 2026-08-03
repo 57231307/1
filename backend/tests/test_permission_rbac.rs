@@ -53,7 +53,7 @@ fn build_test_app(state: AppState, auth: AuthContext) -> Router {
         .route("/api/v1/erp/products", get(ok_handler))
         // 层序：inject_auth（外层，先执行）→ permission_middleware（内层，后执行）
         .layer(from_fn_with_state(state.clone(), permission_middleware))
-        .layer(from_fn_with_state(state, inject_auth))
+        .layer(from_fn_with_state(auth, inject_auth))
 }
 
 /// 构建无 AuthContext 注入的测试 Router（仅 permission_middleware，用于测试 401 场景）
@@ -69,7 +69,7 @@ fn build_test_app_with_public_path(state: AppState, auth: AuthContext) -> Router
         .route("/api/v1/erp/users", get(ok_handler))
         .route("/api/v1/erp/auth/login", get(ok_handler))
         .layer(from_fn_with_state(state.clone(), permission_middleware))
-        .layer(from_fn_with_state(state, inject_auth))
+        .layer(from_fn_with_state(auth, inject_auth))
 }
 
 /// 构造测试用 AuthContext

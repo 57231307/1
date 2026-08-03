@@ -6,6 +6,7 @@
 //! start_event_listener（需 DB + SearchClient）的下游业务分发由 CI 集成环境执行。
 
 use bingxi_backend::services::event_bus::{BusinessEvent, EVENT_BUS};
+use std::sync::LazyLock;
 use std::time::Duration;
 use tokio::sync::{broadcast, Mutex};
 
@@ -31,7 +32,7 @@ mod fixtures {
 
 /// 串行化事件总线测试：EVENT_BUS 为全局单例，并发测试会互相投递/消费事件，
 /// 通过该锁保证每个测试的 订阅→发布→接收 临界区互斥。
-static EVENT_BUS_TEST_LOCK: Mutex<()> = Mutex::new(());
+static EVENT_BUS_TEST_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
 /// 接收事件（500ms 超时），跳过 Lagged（广播缓冲溢出时容错重试）。
 async fn recv_event(receiver: &mut broadcast::Receiver<BusinessEvent>) -> BusinessEvent {

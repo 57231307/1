@@ -13,7 +13,7 @@ mod tests {
     use bingxi_backend::models::status::purchase_receipt;
     use bingxi_backend::services::purchase_receipt_dto::CreatePurchaseReceiptRequest;
     use bingxi_backend::services::purchase_receipt_service::PurchaseReceiptService;
-    use common::setup_test_db;
+    use super::common::setup_test_db;
     use sea_orm::Database;
 
     /// 构造最小 CreatePurchaseReceiptRequest（仅必填字段）
@@ -22,21 +22,36 @@ mod tests {
         use rust_decimal::Decimal;
 
         CreatePurchaseReceiptRequest {
-            receipt_no: None,
             order_id: Some(1),
             supplier_id: 1,
             warehouse_id: 1,
             receipt_date: chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
-            remarks: None,
+            department_id: None,
+            inspector_id: None,
+            notes: None,
+            attachment_urls: None,
             items: vec![CreateReceiptItemRequest {
                 order_item_id: Some(1),
+                line_no: 1,
                 material_id: 1,
+                material_code: "MAT-001".to_string(),
+                material_name: "测试物料".to_string(),
                 quantity: Decimal::new(100, 0),
-                quantity_alt: Some(Decimal::new(50, 0)),
+                quantity_alt: Decimal::new(50, 0),
+                unit_master: "米".to_string(),
+                unit_alt: Some("匹".to_string()),
                 unit_price: Some(Decimal::new(10, 0)),
                 batch_no: Some("B001".to_string()),
-                dye_lot_no: None,
-                remarks: None,
+                color_code: None,
+                lot_no: None,
+                grade: None,
+                gram_weight: None,
+                width: None,
+                location_code: None,
+                package_no: None,
+                production_date: None,
+                shelf_life: None,
+                notes: None,
             }],
         }
     }
@@ -122,7 +137,7 @@ mod tests {
     async fn test_purchasereceiptservice_list_receipts_kdbfherr() {
         let db = setup_test_db().await;
         let svc = PurchaseReceiptService::new(Arc::new(db));
-        let result = svc.list_receipts(None, None, 1, 20).await;
+        let result = svc.list_receipts(1, 20, None, None, None).await;
         assert!(result.is_err(), "空 DB 上 list_receipts 应返回 Err");
     }
 

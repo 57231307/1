@@ -38,6 +38,11 @@ fn test_quality_pred_dto_defaults() {
         product_id: Some(42),
         inspection_type: Some("all".to_string()),
         window_days: Some(90),
+        dye_type: None,
+        auxiliary_type: None,
+        temperature_range: None,
+        batch_no: None,
+        fabric_source: None,
     };
     assert_eq!(req.product_id, Some(42));
     assert_eq!(req.inspection_type, Some("all".to_string()));
