@@ -2052,6 +2052,18 @@ jobs:
           name: bingxi-erp-release
           path: ./
 
+      - name: 验证发布包文件
+        run: |
+          echo "当前目录文件:"
+          ls -la
+          RELEASE_COUNT=$(ls release-*.tar.gz 2>/dev/null | wc -l)
+          if [ "$RELEASE_COUNT" -eq "0" ]; then
+            echo "::error::未找到 release-*.tar.gz 发布包文件"
+            exit 1
+          fi
+          echo "✅ 找到 $RELEASE_COUNT 个发布包文件"
+          ls -lh release-*.tar.gz
+
       - name: 生成发布说明（按 RELEASE_TEMPLATE.md 模板）
         id: release-notes
         run: |
@@ -2299,17 +2311,64 @@ jobs:
           echo "✅ release notes 已生成（共 ${COMMIT_COUNT} 个提交，feat=${FEAT_COUNT} fix=${FIX_COUNT}）"
 
       - name: 创建 GitHub Release
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ needs.package-release.outputs.tag_name }}
-          name: Bingxi ERP ${{ needs.package-release.outputs.version }}
-          body_path: release_notes.md
-          files: release-${{ needs.package-release.outputs.version }}.tar.gz
-          draft: false
-          prerelease: false
-          make_latest: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.package-release.outputs.version }}"
+          TAG_NAME="${{ needs.package-release.outputs.tag_name }}"
+          RELEASE_FILE="release-${VERSION}.tar.gz"
+
+          echo "版本: $VERSION"
+          echo "Tag: $TAG_NAME"
+          echo "发布包: $RELEASE_FILE"
+
+          # 验证发布包文件存在
+          if [ ! -f "$RELEASE_FILE" ]; then
+            echo "::error::发布包文件不存在: $RELEASE_FILE"
+            echo "当前目录文件:"
+            ls -la release-*.tar.gz 2>/dev/null || echo "无 release-*.tar.gz 文件"
+            exit 1
+          fi
+          echo "✅ 发布包文件存在: $(ls -lh "$RELEASE_FILE" | awk '{print $5}')"
+
+          # 创建 Release（如果 tag 已存在则复用）
+          if gh release view "$TAG_NAME" --repo ${{ github.repository }} >/dev/null 2>&1; then
+            echo "Release $TAG_NAME 已存在，更新资产..."
+            gh release upload "$TAG_NAME" "$RELEASE_FILE" \
+              --repo ${{ github.repository }} \
+              --clobber
+          else
+            gh release create "$TAG_NAME" \
+              --repo ${{ github.repository }} \
+              --title "Bingxi ERP ${VERSION}" \
+              --notes-file release_notes.md \
+              --latest \
+              "$RELEASE_FILE"
+          fi
+
+          # 验证 Release 创建成功
+          echo "验证 Release..."
+          RELEASE_URL=$(gh release view "$TAG_NAME" --repo ${{ github.repository }} --json url -q '.url' 2>/dev/null || echo "")
+          if [ -z "$RELEASE_URL" ]; then
+            echo "::error::Release 创建验证失败"
+            exit 1
+          fi
+          echo "✅ Release 创建成功: $RELEASE_URL"
+
+          # 验证资产上传成功
+          ASSET_COUNT=$(gh release view "$TAG_NAME" --repo ${{ github.repository }} --json assets -q '.assets | length' 2>/dev/null || echo "0")
+          if [ "$ASSET_COUNT" -eq "0" ]; then
+            echo "::error::Release 资产为空，重新上传..."
+            gh release upload "$TAG_NAME" "$RELEASE_FILE" \
+              --repo ${{ github.repository }} \
+              --clobber
+            ASSET_COUNT=$(gh release view "$TAG_NAME" --repo ${{ github.repository }} --json assets -q '.assets | length' 2>/dev/null || echo "0")
+            if [ "$ASSET_COUNT" -eq "0" ]; then
+              echo "::error::资产上传仍然失败"
+              exit 1
+            fi
+          fi
+          echo "✅ Release 资产数量: $ASSET_COUNT"
 
       - name: 清理旧 Release（保留最近 10 个）
         env:
