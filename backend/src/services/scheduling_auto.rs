@@ -711,7 +711,7 @@ fn group_and_sort_orders_by_dye_lot(
         };
 
     let mut groups: Vec<Vec<ProductionOrderModel>> = groups_map.into_values().collect();
-    groups.sort_by_key(group_sort_key);
+    groups.sort_by_key(|g| group_sort_key(g));
 
     // 4. 无缸号订单追加到末尾（每单一组）
     for order in no_dye_lot_orders {
