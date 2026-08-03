@@ -636,7 +636,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试状态流转_from_status为None返回false() {
+    fn test_state_transition_from_status_none_returns_false() {
         // from_status 为 None 时无匹配规则
         assert!(!is_valid_transition(None, "scheduled", "schedule"));
         assert!(!is_valid_transition(None, "cancelled", "cancel"));
@@ -707,7 +707,7 @@ mod tests {
     // ===== 流转校验（返回 Result）测试 =====
 
     #[test]
-    fn 测试流转校验_合法返回Ok() {
+    fn test_transition_validation_valid_returns_ok() {
         assert!(
             validate_transition_with_rule(Some("pending_schedule"), "scheduled", "schedule")
                 .is_ok()
@@ -717,7 +717,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试流转校验_非法返回Err() {
+    fn test_transition_validation_invalid_returns_err() {
         assert!(
             validate_transition_with_rule(Some("pending_schedule"), "dyeing", "start_dyeing")
                 .is_err()
@@ -726,7 +726,7 @@ mod tests {
     }
 
     #[test]
-    fn 测试流转校验_非法状态返回Err() {
+    fn test_transition_validation_invalid_status_returns_err() {
         // to_status 非法
         assert!(
             validate_transition_with_rule(Some("pending_schedule"), "invalid", "schedule").is_err()

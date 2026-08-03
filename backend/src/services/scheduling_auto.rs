@@ -674,7 +674,7 @@ fn group_and_sort_orders_by_dye_lot(
     }
 
     // 2. 组内按策略排序
-    let sort_fn = |orders: &mut Vec<ProductionOrderModel>| match strategy {
+    let sort_fn = |orders: &mut [ProductionOrderModel]| match strategy {
         "priority" => orders.sort_by_key(|o| o.priority),
         "fifo" => orders.sort_by_key(|o| o.created_at),
         "earliest_due" => orders.sort_by_key(|o| o.planned_end_date.unwrap_or(NaiveDate::MAX)),
@@ -691,7 +691,7 @@ fn group_and_sort_orders_by_dye_lot(
     // - fifo 策略：created_at 为主键（priority 为次键保证稳定性）
     // - earliest_due 策略：due_date 为主键（priority 为次键保证稳定性）
     let group_sort_key =
-        |group: &Vec<ProductionOrderModel>| -> (i32, chrono::DateTime<Utc>, NaiveDate) {
+        |group: &[ProductionOrderModel]| -> (i32, chrono::DateTime<Utc>, NaiveDate) {
             group
                 .iter()
                 .map(|o| {
@@ -711,7 +711,7 @@ fn group_and_sort_orders_by_dye_lot(
         };
 
     let mut groups: Vec<Vec<ProductionOrderModel>> = groups_map.into_values().collect();
-    groups.sort_by_key(group_sort_key);
+    groups.sort_by_key(|g| group_sort_key(g));
 
     // 4. 无缸号订单追加到末尾（每单一组）
     for order in no_dye_lot_orders {

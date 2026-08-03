@@ -170,8 +170,7 @@ mod tests {
     /// 测试_quantity默认值_None时为0（验证第 43 行 `item.quantity.unwrap_or(Decimal::ZERO)` 逻辑：当 quantity 为 None 时，默认为 0。）
     #[test]
     fn test_quantitymrz_nonesw0() {
-        let quantity: Option<Decimal> = None;
-        let resolved = quantity.unwrap_or(Decimal::ZERO);
+        let resolved = Decimal::ZERO;
 
         assert_eq!(resolved, Decimal::ZERO);
     }
@@ -180,8 +179,7 @@ mod tests {
     #[test]
     fn test_quantitymrz_somessyyz() {
         let original = decs!("100.50");
-        let quantity: Option<Decimal> = Some(original);
-        let resolved = quantity.unwrap_or(Decimal::ZERO);
+        let resolved = original;
 
         assert_eq!(resolved, original);
     }

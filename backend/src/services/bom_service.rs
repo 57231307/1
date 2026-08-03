@@ -423,7 +423,7 @@ mod tests {
             items: vec![],
         };
         // 复现 create 中的默认值取值
-        assert_eq!(req.is_default.unwrap_or(false), false);
+        assert!(!req.is_default.unwrap_or(false));
     }
 
     /// test_cwxx_bombcz（验证 update/delete/set_default/get_bom_tree 中 not_found("BOM不存在") 的错误类型与消息。）

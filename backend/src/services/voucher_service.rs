@@ -368,7 +368,7 @@ mod tests {
     /// 验证 Decimal 求和保留精度，不同小数位的金额相加不会丢失精度。；复现 validate_voucher_create_req 中 iter().map(|i| i.debit).sum() 的精度行为。
     #[test]
     fn test_jejs_jdgyh() {
-        let items = vec![
+        let items = [
             make_voucher_item_request(decs!("0.1"), Decimal::ZERO),
             make_voucher_item_request(decs!("0.2"), Decimal::ZERO),
             make_voucher_item_request(decs!("0.3"), Decimal::ZERO),
@@ -378,7 +378,7 @@ mod tests {
         assert_eq!(total_debit, decs!("0.6"));
 
         // 不同精度混合相加
-        let mixed = vec![
+        let mixed = [
             make_voucher_item_request(decs!("100.125"), Decimal::ZERO),
             make_voucher_item_request(decs!("200.875"), Decimal::ZERO),
         ];

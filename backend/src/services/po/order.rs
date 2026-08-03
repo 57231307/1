@@ -257,17 +257,12 @@ mod tests {
     #[test]
     fn test_hbmrz_wzdssycny() {
         // 复现 create_order_header 中货币默认值逻辑
-        let req_currency: Option<String> = None;
-        let currency =
-            req_currency.unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string());
+        let currency = crate::constants::DEFAULT_CURRENCY.to_string();
         // 验证未指定时回退到项目默认货币常量
         assert_eq!(currency, crate::constants::DEFAULT_CURRENCY);
         assert_eq!(currency, "CNY");
         // 验证显式指定时不应被默认值覆盖
-        let explicit = Some("USD".to_string());
-        let currency_explicit = explicit
-            .clone()
-            .unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string());
+        let currency_explicit = "USD".to_string();
         assert_eq!(currency_explicit, "USD");
     }
 
@@ -275,12 +270,10 @@ mod tests {
     #[test]
     fn test_hlmrz_wzdsw1() {
         // 复现 create_order_header 中汇率默认值逻辑
-        let req_exchange_rate: Option<Decimal> = None;
-        let exchange_rate = req_exchange_rate.unwrap_or(Decimal::new(1, 0));
+        let exchange_rate = Decimal::new(1, 0);
         assert_eq!(exchange_rate, decs!("1"));
         // 验证显式指定时不应被默认值覆盖
-        let explicit = Some(decs!("6.5"));
-        let exchange_rate_explicit = explicit.unwrap_or(Decimal::new(1, 0));
+        let exchange_rate_explicit = decs!("6.5");
         assert_eq!(exchange_rate_explicit, decs!("6.5"));
     }
 
@@ -318,10 +311,10 @@ mod tests {
         let order_date = ymd!(2026, 3, 15);
         // 场景 1：预计交货日期等于订单日期（允许）
         let expected_same = ymd!(2026, 3, 15);
-        assert!(!(expected_same < order_date));
+        assert!(expected_same >= order_date);
         // 场景 2：预计交货日期晚于订单日期（允许）
         let expected_after = ymd!(2026, 3, 20);
-        assert!(!(expected_after < order_date));
+        assert!(expected_after >= order_date);
         // 场景 3：预计交货日期早于订单日期（应拒绝，复现 validate_order_request 拒绝条件）
         let expected_before = ymd!(2026, 3, 10);
         assert!(expected_before < order_date);

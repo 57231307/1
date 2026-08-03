@@ -850,7 +850,7 @@ mod tests {
             liquor: 10.0,
         });
         let s = compute_similarity("BL-301", "棉", Some("活性染料"), &r);
-        assert!((s - 0.0).abs() < 0.001, "候选 color 为空时相似度应为 0.0");
+        assert!(s.abs() < 0.001, "候选 color 为空时相似度应为 0.0");
 
         // 4.4 完全不同 color_no → 相似度为 0
         let r2 = make_recipe(RecipeFixture {
@@ -864,7 +864,7 @@ mod tests {
             liquor: 8.0,
         });
         let s2 = compute_similarity("BL-301", "棉", Some("活性染料"), &r2);
-        assert!((s2 - 0.0).abs() < 0.001, "完全无关候选相似度应为 0.0");
+        assert!(s2.abs() < 0.001, "完全无关候选相似度应为 0.0");
 
         // 4.5 颜色前缀 3 位匹配 → 0.7
         //   标准化后 "BL301" 与 "BL310" 前 3 位均为 "BL3"，触发 0.7 分

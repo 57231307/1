@@ -411,8 +411,7 @@ mod tests {
         assert!(should_reject);
 
         // None 状态：unwrap_or("draft")，应拒绝
-        let none_status: Option<&str> = None;
-        let resolved = none_status.unwrap_or(recon_status::DRAFT);
+        let resolved = recon_status::DRAFT;
         let should_reject =
             resolved != recon_status::CONFIRMED && resolved != recon_status::DISPUTED;
         assert!(should_reject);

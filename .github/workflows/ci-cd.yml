@@ -902,7 +902,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: backend-clippy-report
-          path: reports/
+          path: |
+            reports/
+            backend/reports/
           retention-days: 90
 
       - name: 写入 Step Summary

@@ -539,6 +539,33 @@ impl ExportApprovalService {
     }
 }
 
+/// V15 主线审计 Critical 修复辅助：读取/写入 current_approval_step，复用现有 context JSON 字段。
+/// 1 表示刚创建（一级未审批），2 表示一级已通过、二级待审批。
+fn read_current_approval_step(model: &Model) -> i32 {
+    let Some(ctx) = model.context.as_ref() else {
+        return 1;
+    };
+    ctx.0
+        .get("current_approval_step")
+        .and_then(|v| v.as_i64())
+        .map(|v| v as i32)
+        .unwrap_or(1)
+}
+
+fn write_current_approval_step(existing: Option<&ApprovalContext>, step: i32) -> ApprovalContext {
+    let mut value = match existing {
+        Some(ctx) => ctx.0.clone(),
+        None => serde_json::Value::Object(serde_json::Map::new()),
+    };
+    if !value.is_object() {
+        value = serde_json::Value::Object(serde_json::Map::new());
+    }
+    if let Some(obj) = value.as_object_mut() {
+        obj.insert("current_approval_step".to_string(), serde_json::json!(step));
+    }
+    ApprovalContext(value)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -594,31 +621,4 @@ mod tests {
         assert!(!sensitive_resources::is_sensitive("product"));
         assert!(!sensitive_resources::is_sensitive("inventory"));
     }
-}
-
-/// V15 主线审计 Critical 修复辅助：读取/写入 current_approval_step，复用现有 context JSON 字段。
-/// 1 表示刚创建（一级未审批），2 表示一级已通过、二级待审批。
-fn read_current_approval_step(model: &Model) -> i32 {
-    let Some(ctx) = model.context.as_ref() else {
-        return 1;
-    };
-    ctx.0
-        .get("current_approval_step")
-        .and_then(|v| v.as_i64())
-        .map(|v| v as i32)
-        .unwrap_or(1)
-}
-
-fn write_current_approval_step(existing: Option<&ApprovalContext>, step: i32) -> ApprovalContext {
-    let mut value = match existing {
-        Some(ctx) => ctx.0.clone(),
-        None => serde_json::Value::Object(serde_json::Map::new()),
-    };
-    if !value.is_object() {
-        value = serde_json::Value::Object(serde_json::Map::new());
-    }
-    if let Some(obj) = value.as_object_mut() {
-        obj.insert("current_approval_step".to_string(), serde_json::json!(step));
-    }
-    ApprovalContext(value)
 }

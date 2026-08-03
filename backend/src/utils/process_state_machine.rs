@@ -119,12 +119,6 @@ pub fn next_status(current: &str) -> Result<CustomOrderStatus, StateMachineError
     Ok(next)
 }
 
-
-/// 将工艺节点类型映射为对应状态（供集成测试与流程编排复用）
-pub fn node_type_to_status(node_type: &str) -> Option<CustomOrderStatus> {
-    node_type.parse::<CustomOrderStatus>().ok()
-}
-
 /// 验证状态转换是否合法
 pub fn can_transition(from: &str, to: &str) -> bool {
     let from_status = match from.parse::<CustomOrderStatus>() {

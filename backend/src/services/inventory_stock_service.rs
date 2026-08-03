@@ -619,7 +619,8 @@ mod tests {
 
         // 转换器计算：100 × 200 × 1.5 / 1000 = 30.000 kg（注意公式：米 × 克重 × 幅宽(m) ÷ 1000）
         // 100 * 200 * (150/100) / 1000 = 100 * 200 * 1.5 / 1000 = 30000 / 1000 = 30.000
-        let expected = calc_kg(quantity_meters, gram_weight.unwrap(), width.unwrap()).unwrap();
+        let expected =
+            calc_kg(quantity_meters, Decimal::new(200, 0), Decimal::new(150, 0)).unwrap();
         assert_eq!(result, expected);
         assert_eq!(result, Decimal::new(30, 0));
         assert_ne!(result, fallback, "不应回退到 fallback 值");

@@ -14,9 +14,7 @@ mod tests {
         Draft,
         Submitted,
         Approved,
-        Received,
         Closed,
-        Cancelled,
     }
 
     /* 采购订单 */

@@ -119,7 +119,7 @@ mod tests {
     #[test]
     fn test_plddhz() {
         // 中文测试名：测试批量订单总金额汇总
-        let orders = vec![
+        let orders = [
             SalesOrder {
                 _id: 1,
                 _customer_id: 1,

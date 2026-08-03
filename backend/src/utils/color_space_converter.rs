@@ -194,10 +194,10 @@ mod tests {
     #[test]
     fn test_rgb_to_cmyk_white() {
         let cmyk = rgb_to_cmyk(255, 255, 255);
-        assert!((cmyk.c - 0.0).abs() < 0.01);
-        assert!((cmyk.m - 0.0).abs() < 0.01);
-        assert!((cmyk.y - 0.0).abs() < 0.01);
-        assert!((cmyk.k - 0.0).abs() < 0.01);
+        assert!(cmyk.c.abs() < 0.01);
+        assert!(cmyk.m.abs() < 0.01);
+        assert!(cmyk.y.abs() < 0.01);
+        assert!(cmyk.k.abs() < 0.01);
     }
 
     #[test]
@@ -212,10 +212,10 @@ mod tests {
     #[test]
     fn test_rgb_to_cmyk_red() {
         let cmyk = rgb_to_cmyk(255, 0, 0);
-        assert!((cmyk.c - 0.0).abs() < 0.01);
+        assert!(cmyk.c.abs() < 0.01);
         assert!((cmyk.m - 100.0).abs() < 0.01);
         assert!((cmyk.y - 100.0).abs() < 0.01);
-        assert!((cmyk.k - 0.0).abs() < 0.01);
+        assert!(cmyk.k.abs() < 0.01);
     }
 
     #[test]
