@@ -33,6 +33,15 @@ function onTokenRefreshFailed(error: unknown) {
   refreshSubscribers = [];
 }
 
+// V15 P2 20.2-D：错误消息去重，避免短时间内弹出多条相同错误提示
+const _recentErrors = new Set<string>();
+function showErrorOnce(message: string): void {
+  if (_recentErrors.has(message)) return;
+  _recentErrors.add(message);
+  ElMessage.error(message);
+  setTimeout(() => _recentErrors.delete(message), 2000);
+}
+
 /**
  * 不需要携带 CSRF Token 的公开路径前缀（前缀匹配）
  * 这些端点在后端 CSRF 中间件中已加入白名单，前端无需注入头
@@ -113,8 +122,8 @@ class Request {
       (response: AxiosResponse<ApiResponse>) => {
         const res = response.data;
         if (res.code !== 200 && res.code !== 0) {
-          const safeMessage = getSafeErrorMessage(res.code);
-          ElMessage.error(safeMessage);
+           const safeMessage = getSafeErrorMessage(res.code);
+          showErrorOnce(safeMessage);
           if (res.code === 401) {
             // Wave B-3：凭据由后端 Cookie 管理，前端无需清理 localStorage；
             // 直接跳转登录页，后端会在登出时通过 Set-Cookie 清除 Cookie
@@ -187,7 +196,7 @@ class Request {
         }
 
         const safeMessage = getSafeErrorMessage(error.response?.status);
-        ElMessage.error(safeMessage);
+        showErrorOnce(safeMessage);
 
         if (error.response?.status === 401) {
           router.push('/login');

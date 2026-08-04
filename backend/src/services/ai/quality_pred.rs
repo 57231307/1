@@ -119,6 +119,8 @@ pub struct QualityPredResponse {
     pub cache_hit: bool,
     /// V15 P1 9.1+9.5：是否为降级结果（true 表示推理超时或模型不可用时返回的兜底结果）
     pub degraded: bool,
+    /// 人类可读的预测结果解释（V15 P2 14.1.71：说明预测依据和关键因素）
+    pub explanation: Option<String>,
 }
 
 // =====================================================
@@ -225,6 +227,30 @@ pub(crate) fn compute_confidence(sample_count: i64) -> f64 {
     }
     let ratio = (sample_count as f64 / CONFIDENCE_FULL_SAMPLE as f64).min(1.0);
     (ratio * 100.0).round() / 100.0
+}
+
+/// V15 P2 14.1.71：构建人类可读的预测结果解释
+/// 汇总风险等级、趋势、合格率、主要问题和样本量生成一段说明文本。
+fn build_explanation(
+    risk_level: &str,
+    trend: &str,
+    avg_rate: f64,
+    top_issues: &[QualityIssue],
+    sample_count: usize,
+) -> String {
+    let mut parts = Vec::new();
+    parts.push(format!(
+        "基于 {} 条历史检验记录，平均合格率 {:.1}%，风险等级为「{}」。",
+        sample_count, avg_rate, risk_level
+    ));
+    if trend != "无数据" && trend != "平稳" {
+        parts.push(format!("近期趋势为「{}」。", trend));
+    }
+    if !top_issues.is_empty() {
+        let issue_names: Vec<&str> = top_issues.iter().map(|i| i.issue_type.as_str()).collect();
+        parts.push(format!("主要问题类型：{}。", issue_names.join("、")));
+    }
+    parts.join("")
 }
 
 /// 风险等级 → 建议措施（严格按等级分档生成 1-3 条建议，确保 UI 列表非空。）
@@ -500,6 +526,7 @@ fn build_fallback_response(
         source: "fallback".to_string(),
         cache_hit: false,
         degraded: false,
+        explanation: None,
     }
 }
 
@@ -529,6 +556,7 @@ fn build_degraded_response(
         source: "degraded".to_string(),
         cache_hit: false,
         degraded: true,
+        explanation: None,
     }
 }
 
@@ -545,6 +573,14 @@ fn build_history_response(
     let confidence = compute_confidence(records.len() as i64);
     let top_issues = compute_top_issues(records);
     let recommendations = build_recommendations(&risk_level);
+
+    let explanation = build_explanation(
+        &risk_level,
+        &trend_label,
+        avg_rate,
+        &top_issues,
+        records.len(),
+    );
 
     QualityPredResponse {
         product_id: params.product_id,
@@ -563,6 +599,7 @@ fn build_history_response(
         source: "history".to_string(),
         cache_hit: false,
         degraded: false,
+        explanation: Some(explanation),
     }
 }
 
