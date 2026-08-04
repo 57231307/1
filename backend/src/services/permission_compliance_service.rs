@@ -576,7 +576,7 @@ impl PermissionComplianceService {
                 "source": "permission_compliance_review",
             })),
         };
-        self.audit_service.record_async(event, None);
+        self.audit_service.clone().record_async(event, None);
     }
 
     /// 启动后台定时任务（每 7 天执行一次权限合规审查）
