@@ -69,6 +69,12 @@ pub struct Model {
     /// 必需权限码（缺陷 1.2 修复：如 report:sales:view；为空表示按 is_public/created_by 过滤）
     pub required_permission: Option<String>,
 
+    /// 刷新策略（REALTIME/HOURLY/DAILY，缺陷 1.3 修复）
+    pub refresh_strategy: Option<String>,
+
+    /// 缓存 TTL 秒数（缺陷 1.3 修复：execute_custom_report 根据策略选择是否走缓存）
+    pub cache_ttl_seconds: Option<i32>,
+
     /// 创建人 ID
     pub created_by: i32,
 

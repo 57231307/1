@@ -958,6 +958,8 @@ impl ReportEngineService {
             status: Set("ACTIVE".to_string()),
             version: Set(1),
             required_permission: Set(None),
+            refresh_strategy: Set(None),
+            cache_ttl_seconds: Set(None),
             created_by: Set(user_id),
             created_at: Set(now),
             updated_at: Set(now),
