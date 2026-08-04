@@ -1259,4 +1259,13 @@ router.beforeEach(async (to, _from, next) => {
   next();
 });
 
+// V15 P2 20.2-C：路由切换后将焦点移到主内容区，确保键盘/屏幕阅读器用户不被留在已离开的区域
+router.afterEach(() => {
+  const main = document.querySelector('main, [role="main"], .main-content, #app');
+  if (main instanceof HTMLElement) {
+    main.setAttribute('tabindex', '-1');
+    main.focus({ preventScroll: true });
+  }
+});
+
 export default router;
