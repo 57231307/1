@@ -5,7 +5,7 @@ use crate::models::status::master_data;
 use crate::utils::error::AppError;
 // 批次 258 修复：接入 paginate_with_total 统一分页逻辑
 use crate::utils::pagination::paginate_with_total;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Datelike, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
