@@ -94,6 +94,9 @@ static GLOBAL_LIMITER: LazyLock<MemoryRateLimiter> =
     LazyLock::new(|| MemoryRateLimiter::new(180, Duration::from_secs(60)));
 static BRUTE_FORCE_LIMITER: LazyLock<MemoryRateLimiter> =
     LazyLock::new(|| MemoryRateLimiter::new(5, Duration::from_secs(300)));
+/// AI 端点专用限流器（缺陷 16.4-D4 修复：AI 推理 CPU 密集，限制 10 req/min/user）
+static AI_RATE_LIMITER: LazyLock<MemoryRateLimiter> =
+    LazyLock::new(|| MemoryRateLimiter::new(10, Duration::from_secs(60)));
 
 // =====================================================
 // 分布式限流器（漏洞 #6 修复）
@@ -283,6 +286,35 @@ pub async fn anti_brute_force(req: Request<Body>, next: Next) -> Result<Response
         return Err(AppError::TooManyRequests {
             retry_after: Some(300),
             message: "登录尝试次数过多，请5分钟后再试".to_string(),
+        });
+    }
+
+    Ok(next.run(req).await)
+}
+
+/// AI 端点专用速率限制中间件（缺陷 16.4-D4 修复）
+/// 基于 UserID 维度，限制 10 req/min/user，防止 AI 推理 CPU 过载
+pub async fn rate_limit_ai_endpoint(
+    State(_state): State<AppState>,
+    req: Request<Body>,
+    next: Next,
+) -> Result<Response, AppError> {
+    let user_id = req
+        .extensions()
+        .get::<AuthContext>()
+        .map(|auth| auth.user_id.to_string())
+        .unwrap_or_else(|| "anonymous".to_string());
+
+    let rate_key = format!("ai_rate:{}", user_id);
+
+    let allowed =
+        check_rate_limit(&rate_key, 10, Duration::from_secs(60), &AI_RATE_LIMITER).await;
+
+    if !allowed {
+        tracing::warn!("AI rate limit exceeded for user {}", user_id);
+        return Err(AppError::TooManyRequests {
+            retry_after: Some(60),
+            message: "AI 推理请求过于频繁，请稍后再试".to_string(),
         });
     }
 

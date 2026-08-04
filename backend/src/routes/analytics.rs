@@ -10,7 +10,9 @@
 //! - nest 后的最终 path 与前端保持一致（如 `/reports/enhanced/...`）
 
 use crate::container::AppState;
+use crate::middleware::rate_limit::rate_limit_ai_endpoint;
 use axum::{
+    middleware,
     routing::{delete, get, post, put},
     Router,
 };
@@ -300,6 +302,8 @@ pub fn ai() -> Router<AppState> {
             "/recommendations",
             get(ai_analysis_handler::get_recommendations),
         )
+        // 缺陷 16.4-D4 修复：AI 端点专用速率限制（10 req/min/user）
+        .layer(middleware::from_fn(rate_limit_ai_endpoint))
 }
 
 /// 报表引擎路由
@@ -461,6 +465,8 @@ pub fn advanced() -> Router<AppState> {
         .route("/reports/templates", get(advanced::list_report_templates))
         .route("/reports/execute", post(advanced::execute_report))
         .route("/reports/export", post(advanced::export_report))
+        // 缺陷 16.4-D4 修复：AI 端点专用速率限制（10 req/min/user）
+        .layer(middleware::from_fn(rate_limit_ai_endpoint))
 }
 
 /// BI 多维分析路由（P3-4 关键路径 demo）；16 个端点： - 8 维度聚合：by-time / by-customer / by-product / by-region / by-category / trend / profit

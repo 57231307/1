@@ -51,6 +51,10 @@ pub struct CreateReportTemplateRequest {
     pub description: Option<String>,
     pub is_public: Option<bool>,
     pub supported_formats: Option<Vec<String>>,
+    /// 刷新策略（REALTIME/HOURLY/DAILY，缺陷 1.3 修复）
+    pub refresh_strategy: Option<String>,
+    /// 缓存 TTL 秒数（缺陷 1.3 修复）
+    pub cache_ttl_seconds: Option<i32>,
 }
 
 /// 更新报表模板请求
@@ -66,6 +70,10 @@ pub struct UpdateReportTemplateRequest {
     pub description: Option<String>,
     pub is_public: Option<bool>,
     pub status: Option<String>,
+    /// 刷新策略（REALTIME/HOURLY/DAILY，缺陷 1.3 修复）
+    pub refresh_strategy: Option<String>,
+    /// 缓存 TTL 秒数（缺陷 1.3 修复）
+    pub cache_ttl_seconds: Option<i32>,
 }
 
 /// 报表模板查询参数
@@ -301,6 +309,9 @@ impl ReportTemplateService {
             required_permission: Set(
                 report_type_permission(&req.report_type).map(|s| s.to_string())
             ),
+            // 缺陷 1.3：刷新策略和缓存 TTL
+            refresh_strategy: Set(req.refresh_strategy),
+            cache_ttl_seconds: Set(req.cache_ttl_seconds),
             created_by: Set(user_id),
             created_at: Set(now),
             updated_at: Set(now),
@@ -382,6 +393,8 @@ impl ReportTemplateService {
             description: Set(model.description.clone()),
             is_public: Set(model.is_public),
             required_permission: Set(model.required_permission.clone()),
+            refresh_strategy: Set(model.refresh_strategy.clone()),
+            cache_ttl_seconds: Set(model.cache_ttl_seconds),
             snapshot_by: Set(user_id),
             snapshot_at: Set(Utc::now()),
             ..Default::default()
@@ -427,6 +440,13 @@ impl ReportTemplateService {
         }
         if let Some(status) = req.status {
             active_model.status = Set(status);
+        }
+        // 缺陷 1.3：刷新策略和缓存 TTL
+        if let Some(refresh_strategy) = req.refresh_strategy {
+            active_model.refresh_strategy = Set(Some(refresh_strategy));
+        }
+        if let Some(cache_ttl_seconds) = req.cache_ttl_seconds {
+            active_model.cache_ttl_seconds = Set(Some(cache_ttl_seconds));
         }
 
         // 缺陷 1.1：版本号递增，支持历史回滚
