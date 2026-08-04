@@ -9,6 +9,7 @@ use sea_orm::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use validator::Validate;
 
 use crate::services::role_permission_service::RolePermissionService;
 
@@ -34,9 +35,11 @@ fn report_type_permission(report_type: &str) -> Option<&'static str> {
 }
 
 /// 创建报表模板请求
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct CreateReportTemplateRequest {
+    #[validate(length(min = 1, max = 100, message = "模板名称长度必须在 1-100 字符之间"))]
     pub name: String,
+    #[validate(length(min = 1, max = 50, message = "模板编码长度必须在 1-50 字符之间"))]
     pub code: String,
     pub report_type: String,
     pub template_id: Option<String>,
@@ -257,6 +260,10 @@ impl ReportTemplateService {
         _role_id: Option<i32>,
         req: CreateReportTemplateRequest,
     ) -> Result<ReportTemplateModel, AppError> {
+        // 缺陷 1.4 修复：请求参数校验
+        req.validate()
+            .map_err(|e| AppError::business(format!("参数校验失败: {}", e)))?;
+
         // P0-B 安全修复：彻底关闭"自定义 SQL 报表"入口。
         // 历史实现 execute_sql_report 通过 Statement::from_string + query_all 走 SimpleQuery
         // 协议，允许多语句执行；关键词黑名单 + starts_with("SELECT") 都不能阻止分号切割，
