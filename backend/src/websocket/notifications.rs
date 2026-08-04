@@ -549,9 +549,18 @@ async fn handle_socket(socket: WebSocket, auth: AuthInfo) {
     let user_id = auth.user_id;
     tracing::info!("WebSocket 连接建立：user_id={}", user_id);
 
+    // 缺陷 20.3-C 修复：服务端主动心跳（30s Ping）+ 超时断开（60s 无消息）
+    let last_activity = Arc::new(std::sync::atomic::AtomicI64::new(
+        chrono::Utc::now().timestamp(),
+    ));
+    let last_activity_recv = last_activity.clone();
+    let last_activity_send = last_activity.clone();
+
     // L-31 修复（批次 371）：recv_task/send_task 声明 mut 供 select! &mut 借用以便后续 abort
     let mut recv_task = tokio::spawn(async move {
         while let Some(msg) = receiver.next().await {
+            // 更新最后活动时间
+            last_activity_recv.store(chrono::Utc::now().timestamp(), std::sync::atomic::Ordering::Relaxed);
             // 批次 8（2026-06-28）：单次消息处理 panic 隔离
             let result = AssertUnwindSafe(async { handle_recv_message(msg, user_id) })
                 .catch_unwind()
@@ -565,21 +574,50 @@ async fn handle_socket(socket: WebSocket, auth: AuthInfo) {
     });
 
     let mut send_task = tokio::spawn(async move {
-        while let Ok(msg) = rx.recv().await {
-            // 批次 8（2026-06-28）：单次消息推送 panic 隔离
-            let result = AssertUnwindSafe(async {
-                if sender.send(Message::Text(msg)).await.is_err() {
-                    tracing::debug!("WebSocket 发送失败，连接可能已关闭");
-                    return false;
+        let mut heartbeat = tokio::time::interval(Duration::from_secs(30));
+        loop {
+            tokio::select! {
+                // 接收广播消息
+                msg = rx.recv() => {
+                    match msg {
+                        Ok(msg) => {
+                            let result = AssertUnwindSafe(async {
+                                if sender.send(Message::Text(msg)).await.is_err() {
+                                    tracing::debug!("WebSocket 发送失败，连接可能已关闭");
+                                    return false;
+                                }
+                                true
+                            })
+                            .catch_unwind()
+                            .await;
+                            match result {
+                                Ok(true) => {}
+                                Ok(false) => break,
+                                Err(p) => log_spawn_panic_isolation(p, "WebSocket 发送"),
+                            }
+                        }
+                        Err(_) => break,
+                    }
                 }
-                true
-            })
-            .catch_unwind()
-            .await;
-            match result {
-                Ok(true) => {}
-                Ok(false) => break,
-                Err(p) => log_spawn_panic_isolation(p, "WebSocket 发送"),
+                // 30s 心跳：检查超时 + 发送 Ping
+                _ = heartbeat.tick() => {
+                    let now = chrono::Utc::now().timestamp();
+                    let last = last_activity_send.load(std::sync::atomic::Ordering::Relaxed);
+                    // 60s 无消息则断开
+                    if now - last > 60 {
+                        tracing::warn!("WebSocket 心跳超时（60s 无消息）：user_id={}", user_id);
+                        let _ = sender.send(Message::Close(Some(axum::extract::ws::CloseFrame {
+                            code: 1000,
+                            reason: "heartbeat timeout".into(),
+                        }))).await;
+                        break;
+                    }
+                    // 发送 Ping
+                    if sender.send(Message::Ping(vec![])).await.is_err() {
+                        tracing::debug!("WebSocket Ping 发送失败：user_id={}", user_id);
+                        break;
+                    }
+                }
             }
         }
     });
