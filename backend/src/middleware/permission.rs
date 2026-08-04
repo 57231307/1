@@ -589,13 +589,16 @@ async fn check_permission(
 }
 
 /// 权限匹配纯函数：resource_type 精确匹配，action 支持 "*"，resource_id 精确匹配防越权
+/// V15 P2 14.11-F：resource_type 支持 "*" 通配（超级权限码 "resource:*" 或 "*:*"）
 fn matches_permission(
     p: &role_permission::Model,
     resource_type: &str,
     resource_id: Option<i32>,
     action: &str,
 ) -> bool {
-    p.resource_type == resource_type
+    let resource_match =
+        p.resource_type == resource_type || p.resource_type == "*" || resource_type == "*";
+    resource_match
         && (p.action == action || p.action == "*")
         && match (p.resource_id, resource_id) {
             (None, None) => true,
@@ -1280,5 +1283,42 @@ mod tests {
         let p = make_permission("users", Some(100), "*");
         assert!(matches_permission(&p, "users", Some(100), "update"));
         assert!(!matches_permission(&p, "users", Some(200), "update"));
+    }
+
+    // ===== V15 P2 14.11-F：通配符匹配测试（*:* / resource:* / *:action）=====
+
+    #[test]
+    fn test_matches_permission_super_wildcard_resource() {
+        // resource_type="*" + action="*"：超级通配，匹配任意资源任意动作
+        let p = make_permission("*", None, "*");
+        assert!(matches_permission(&p, "users", None, "read"));
+        assert!(matches_permission(&p, "orders", None, "delete"));
+        assert!(matches_permission(&p, "inventory", Some(5), "update"));
+    }
+
+    #[test]
+    fn test_matches_permission_wildcard_resource_fixed_action() {
+        // resource_type="*" + action="read"：资源通配，匹配任意资源指定动作
+        let p = make_permission("*", None, "read");
+        assert!(matches_permission(&p, "users", None, "read"));
+        assert!(matches_permission(&p, "products", None, "read"));
+        assert!(!matches_permission(&p, "users", None, "delete"));
+    }
+
+    #[test]
+    fn test_matches_permission_fixed_resource_wildcard_action() {
+        // resource_type="users" + action="*"：动作通配，匹配指定资源任意动作
+        let p = make_permission("users", None, "*");
+        assert!(matches_permission(&p, "users", None, "create"));
+        assert!(matches_permission(&p, "users", None, "delete"));
+        assert!(!matches_permission(&p, "orders", None, "create"));
+    }
+
+    #[test]
+    fn test_matches_permission_wildcard_resource_still_requires_id_match() {
+        // resource_type="*" 不豁免 resource_id 垂直越权防护
+        let p = make_permission("*", Some(100), "read");
+        assert!(matches_permission(&p, "users", Some(100), "read"));
+        assert!(!matches_permission(&p, "users", Some(200), "read"));
     }
 }
