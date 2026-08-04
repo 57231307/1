@@ -2382,8 +2382,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "清理超过 10 个的旧 Release..."
-          # 用 gh CLI 替代 curl+jq（runner 预装 gh，更简洁且自带分页/错误处理）
-          mapfile -t releases < <(gh release list --repo ${{ github.repository }} --limit 100 --json tagName -q '.[].tagName' | sort -V)
+          # 使用 --order asc 按创建时间升序排列（最旧在前），避免 sort -V 对混合段数版本号排序错误
+          mapfile -t releases < <(gh release list --repo ${{ github.repository }} --limit 100 --order asc --json tagName -q '.[].tagName')
           total=${#releases[@]}
           echo "总共找到 $total 个 Release"
 
@@ -2399,7 +2399,8 @@ jobs:
 
           # 清理无 Release 关联的旧 tag（保留最近 100 个）
           echo "清理无 Release 关联的旧 tag..."
-          mapfile -t all_tags < <(git tag -l "v*" | sort -V)
+          # 按 committerdate 排序（最旧在前），避免 sort -V 对混合段数版本号排序错误
+          mapfile -t all_tags < <(git tag -l "v*" --sort=creatordate)
           tag_count=${#all_tags[@]}
           echo "总共找到 $tag_count 个 tag"
 
