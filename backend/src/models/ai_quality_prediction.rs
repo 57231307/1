@@ -38,6 +38,12 @@ pub struct Model {
     pub model_version_id: Option<i32>,
     /// V15 P1 10.3：推理耗时毫秒
     pub inference_latency_ms: Option<i32>,
+    /// V15 P2 14.2.3：实际质量等级（对账回填）
+    pub actual_grade: Option<String>,
+    /// V15 P2 14.2.3：索赔金额（对账回填）
+    pub claim_amount: Option<Decimal>,
+    /// V15 P2 14.2.3：索赔记录时间
+    pub claim_recorded_at: Option<DateTime<Utc>>,
     pub created_by: Option<i64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

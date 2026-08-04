@@ -576,7 +576,7 @@ impl PermissionComplianceService {
                 "source": "permission_compliance_review",
             })),
         };
-        self.audit_service.record_async(event, None);
+        self.audit_service.clone().record_async(event, None);
     }
 
     /// 启动后台定时任务（每 7 天执行一次权限合规审查）
@@ -621,6 +621,59 @@ impl PermissionComplianceService {
                 }
 
                 tokio::time::sleep(interval).await;
+            }
+        })
+    }
+
+    /// 14.10-C：启动权限合规审查定时任务（受 CancellationToken 控制，支持 graceful shutdown）
+    pub fn start_periodic_review(
+        self: &Arc<Self>,
+        token: tokio_util::sync::CancellationToken,
+    ) -> tokio::task::JoinHandle<()> {
+        let service = self.clone();
+        tokio::spawn(async move {
+            let enabled = std::env::var("PERMISSION_COMPLIANCE_CHECK_ENABLED")
+                .unwrap_or_else(|_| "true".to_string());
+            if enabled == "false" || enabled == "0" {
+                info!("权限合规审查（14.10-C）：环境变量禁用，跳过启动");
+                return;
+            }
+
+            let interval_secs = std::env::var("PERMISSION_COMPLIANCE_CHECK_INTERVAL_SECS")
+                .ok()
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(DEFAULT_INTERVAL_SECS);
+
+            tokio::time::sleep(std::time::Duration::from_secs(INITIAL_DELAY_SECS)).await;
+
+            let interval = std::time::Duration::from_secs(interval_secs);
+            info!(
+                interval_secs,
+                "权限合规审查（14.10-C）：定时任务已启动（每 {} 秒执行一次）", interval_secs
+            );
+
+            loop {
+                tokio::select! {
+                    _ = tokio::time::sleep(interval) => {
+                        let now = Utc::now();
+                        let start = now - Duration::days(7);
+
+                        if let Err(e) = service
+                            .detect_anomalous_permission_assignments(start, now)
+                            .await
+                        {
+                            warn!(error = %e, "权限合规审查：异常权限分配识别失败，下次循环继续");
+                        }
+
+                        if let Err(e) = service.periodic_compliance_review().await {
+                            warn!(error = %e, "权限合规审查：定期合规审查失败，下次循环继续");
+                        }
+                    }
+                    _ = token.cancelled() => {
+                        info!("权限合规审查（14.10-C）：收到取消信号，优雅退出");
+                        break;
+                    }
+                }
             }
         })
     }

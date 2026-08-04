@@ -253,7 +253,7 @@ impl InventoryStockService {
         // paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1。
         // 补 clamp(1, 1000) 防 DoS（恶意请求 page=999999 不会导致超大偏移查询）。
         let rec =
-            crate::middleware::slow_query::SlowQueryRecorder::start("inventory_stock_list", None);
+            crate::middleware::slow_query::SlowQueryRecorder::start("inventory_stock_list", None, None);
         let paginator = query.paginate(&*self.db, page_size);
         let (stock_list, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
         rec.finish();

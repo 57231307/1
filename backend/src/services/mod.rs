@@ -100,6 +100,7 @@ pub mod role_permission_service;
 pub mod role_relation_service;
 // V15 P1 12.6：权限委托服务
 pub mod permission_delegation_service;
+pub mod permission_compliance_service;
 pub mod so;
 pub mod user_service;
 pub mod warehouse_service;
@@ -223,6 +224,7 @@ pub mod webhook_service;
 pub mod data_permission_service;
 pub mod email_service;
 pub mod event_notification_service;
+pub mod notification_scheduler;
 pub mod notification_service;
 pub mod user_notification_setting_service;
 // 产能分析模块

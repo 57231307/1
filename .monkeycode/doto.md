@@ -158,3 +158,5 @@
 | 2026-08-04 | P2-Batch-27 | 报表元数据 refresh/cache + AI 速率限制 | 2 | PR #829 ✓ | 16.1-D3 refresh_strategy/cache_ttl_seconds 字段; 16.4-D4 AI 端点专用速率限制 (10 req/min/user) |
 | 2026-08-04 | P2-Batch-28 | 角色命名校验 + is_system 约束 + 报表参数 Validate | 3 | PR #830 ✓ | 14.1-D 角色编码命名规范; 14.5-C is_system=true 需 code=admin; 16.1-D4 报表参数 Validate 派生 |
 | 2026-08-04 | P2-Batch-29 | WebSocket 心跳超时断开 | 1 | PR #831 ✓ | 20.3-C 30s Ping + 60s 超时断开 |
+| 2026-08-04 | CI 修复 | Release 清理排序修复 | 1 | PR #832 ✓ | sort -V 混合段数版本号排序错误，改用 --order asc 按创建时间排序 |
+| 2026-08-04 | P2-Batch-30 | Nginx gzip + 移动端触屏按钮 | 2 | PR #833 ✓ | 25.1-F gzip 压缩; Touch targets 44px CSS |

@@ -14,12 +14,14 @@
 //! ## 使用方式
 //!
 //! ```rust,ignore
-//! let rec = SlowQueryRecorder::start("select_orders", None);
+//! let rec = SlowQueryRecorder::start("select_orders", None, None);
 //! let result = query_orders().await;
 //! rec.finish();
 //! ```
 
+use crate::models::notification::{NotificationPriority, NotificationType};
 use crate::services::metrics_service::MetricsService;
+use crate::services::notification_service::{CreateNotificationRequest, NotificationService};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -50,19 +52,26 @@ pub struct SlowQueryRecorder {
     pub start: Instant,
     /// 指标服务（可空 - 测试环境允许为 None）
     pub metrics: Option<Arc<MetricsService>>,
+    /// 通知服务（可空 - 用于慢查询告警）
+    pub notification_service: Option<Arc<NotificationService>>,
 }
 
 impl SlowQueryRecorder {
     /// 启动一个慢查询记录器
-    pub fn start(label: &'static str, metrics: Option<Arc<MetricsService>>) -> Self {
+    pub fn start(
+        label: &'static str,
+        metrics: Option<Arc<MetricsService>>,
+        notification_service: Option<Arc<NotificationService>>,
+    ) -> Self {
         Self {
             label,
             start: Instant::now(),
             metrics,
+            notification_service,
         }
     }
 
-    /// 完成计时；如超过阈值则记录到日志与指标
+    /// 完成计时；如超过阈值则记录到日志与指标；超过 2 倍阈值时发送告警通知
     pub fn finish(self) {
         let elapsed = self.start.elapsed();
         if elapsed >= slow_query_threshold() {
@@ -75,6 +84,36 @@ impl SlowQueryRecorder {
             );
             if let Some(m) = &self.metrics {
                 m.record_slow_query_metric(self.label, elapsed);
+            }
+            // 超过 2 倍阈值时发送告警通知（避免频繁告警）
+            if elapsed >= slow_query_threshold() * 2 {
+                if let Some(ns) = &self.notification_service {
+                    let label = self.label;
+                    let elapsed_ms = elapsed.as_millis() as u64;
+                    let dedup_key = format!("slow_query_alert:{}", label);
+                    let req = CreateNotificationRequest {
+                        user_id: 1, // 系统管理员
+                        notification_type: NotificationType::System,
+                        title: "慢查询告警".to_string(),
+                        content: format!(
+                            "检测到严重慢查询：{}，耗时 {}ms（阈值 {}ms）",
+                            label,
+                            elapsed_ms,
+                            slow_query_threshold().as_millis(),
+                        ),
+                        priority: NotificationPriority::High,
+                        business_type: Some("SLOW_QUERY".to_string()),
+                        business_id: None,
+                        action_url: Some("/system/slow-queries".to_string()),
+                        sender_id: None,
+                        sender_name: Some("系统".to_string()),
+                        dedup_key: Some(dedup_key),
+                    };
+                    let ns = ns.clone();
+                    tokio::spawn(async move {
+                        let _ = ns.create_notification(req).await;
+                    });
+                }
             }
         }
     }

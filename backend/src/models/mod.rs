@@ -238,6 +238,7 @@ pub mod webhook;
 // 消息通知模块
 pub mod notification;
 pub mod notification_setting;
+pub mod notification_subscription;
 pub mod user_notification_setting;
 // 批次 127 v8 复审 P2 修复：导入任务记录表（替代 list_import_tasks 空列表占位）
 pub mod import_task;

@@ -97,7 +97,7 @@ macro_rules! define_crud_handlers {
                 return Err($crate::utils::error::AppError::validation(e.to_string()));
             }
             let service = <$service_ty>::new(state.db.clone());
-            let item = service.create(req).await?;
+            let item = service.create(req, auth.user_id).await?;
 
             // V15 P2 B19-P2-1：创建操作补审计日志（与 update/delete 对齐）
             {

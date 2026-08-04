@@ -208,3 +208,5 @@ pub mod social_insurance_handler;
 // V15 P2 B08-12：出口商检 + 产地证
 pub mod export_inspection_handler;
 pub mod certificate_of_origin_handler;
+// V15 P2 B08-16：存货跌价准备 handler
+pub mod inventory_write_down_handler;
