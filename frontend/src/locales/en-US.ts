@@ -181,6 +181,7 @@ export default {
         complaint: 'Complaint',
         repair: 'Repair',
         exchange: 'Exchange',
+        return_goods: 'Return Goods',
         refund: 'Refund',
       },
       formCustomer: 'Customer',

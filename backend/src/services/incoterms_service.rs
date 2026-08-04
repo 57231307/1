@@ -13,7 +13,7 @@ use std::sync::Arc;
 use crate::container::AppState;
 use crate::models::sales_quotation::Entity as QuotationEntity;
 use crate::utils::error::AppError;
-use crate::utils::incoterms::Incoterms2020;
+use crate::utils::incoterms::{CostBearer, Incoterms2020, Party};
 
 /// V15 P1 batch-19 缺陷 23.5.2：价格构成 DTO
 #[derive(Debug, Serialize)]
@@ -24,6 +24,16 @@ pub struct PriceComposition {
     pub insurance_cost: Option<Decimal>,
     pub duty_cost: Option<Decimal>,
     pub total_amount: Decimal,
+    /// V15 P2 23.5 缺陷3：风险转移点（结构化）
+    pub risk_transfer_point: &'static str,
+    /// V15 P2 23.5 缺陷3：主费用承担方（卖方/买方/双方共担）
+    pub cost_bearer: &'static str,
+    /// V15 P2 23.5 缺陷3：出口清关责任方
+    pub export_clearance_party: &'static str,
+    /// V15 P2 23.5 缺陷3：进口清关责任方
+    pub import_clearance_party: &'static str,
+    /// V15 P2 23.5 缺陷3：适用运输方式（海运/内河 或 任意运输方式）
+    pub transport_mode: &'static str,
 }
 
 /// V15 P1 batch-19 缺陷 23.5.4：术语使用月报 DTO
@@ -81,6 +91,25 @@ impl IncotermsService {
             insurance_cost: quotation.insurance_cost,
             duty_cost: quotation.duty_cost,
             total_amount: quotation.total_amount,
+            risk_transfer_point: incoterm.risk_transfer_point(),
+            cost_bearer: match incoterm.cost_bearer() {
+                CostBearer::Seller => "卖方",
+                CostBearer::Buyer => "买方",
+                CostBearer::Both => "双方共担",
+            },
+            export_clearance_party: match incoterm.export_clearance_party() {
+                Party::Seller => "卖方",
+                Party::Buyer => "买方",
+            },
+            import_clearance_party: match incoterm.import_clearance_party() {
+                Party::Seller => "卖方",
+                Party::Buyer => "买方",
+            },
+            transport_mode: if incoterm.is_sea_only() {
+                "海运/内河运输"
+            } else {
+                "任意运输方式"
+            },
         })
     }
 

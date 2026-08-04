@@ -116,6 +116,9 @@
             <el-radio-button label="exchange">{{
               t('common.afterSales.issueType.exchange')
             }}</el-radio-button>
+            <el-radio-button label="return_goods">{{
+              t('common.afterSales.issueType.return_goods')
+            }}</el-radio-button>
             <el-radio-button label="refund">{{
               t('common.afterSales.issueType.refund')
             }}</el-radio-button>
@@ -227,7 +230,7 @@ const rules = computed(() => ({
 
 /** 售后类型标签映射（响应式 t() 求值，替代导入的 AFTER_SALES_TYPE 中文常量） */
 function getIssueTypeLabel(s: string): string {
-  const known = ['complaint', 'repair', 'exchange', 'refund'];
+  const known = ['complaint', 'repair', 'exchange', 'return_goods', 'refund'];
   if (!known.includes(s)) return s;
   return t(`common.afterSales.issueType.${s}`);
 }

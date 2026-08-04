@@ -86,7 +86,11 @@ impl CustomOrderAfterSalesService {
         dto: CreateAfterSalesDto,
     ) -> Result<after_sales::Model, AfterSalesError> {
         // 校验售后类型
-        if !["complaint", "repair", "exchange", "refund"].contains(&dto.issue_type.as_str()) {
+        // V15 P2 23.3 缺陷1 修复：增加 return_goods（退货）类型。
+        // 原因：审计计划 23.3 要求支持退货/换货/维修/投诉 4 类，原实现仅有
+        // complaint/repair/exchange/refund，缺失"退货"独立类型；退货涉及物流收货、
+        // 库存回库，与退款（财务出账）是不同业务。此处保留 refund 以兼容既有场景。
+        if !["complaint", "repair", "exchange", "return_goods", "refund"].contains(&dto.issue_type.as_str()) {
             return Err(AfterSalesError::Validation(format!(
                 "非法售后类型: {}",
                 dto.issue_type
