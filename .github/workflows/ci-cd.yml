@@ -2390,7 +2390,27 @@ jobs:
           if [ "$total" -gt 10 ]; then
             for tag in "${releases[@]:0:$((total - 10))}"; do
               echo "删除 Release: $tag"
-              gh release delete "$tag" --repo ${{ github.repository }} --yes --cleanup-tag || true
+              # 删除 Release
+              gh release delete "$tag" --repo ${{ github.repository }} --yes || true
+              # 删除关联的 tag（--cleanup-tag 可能不生效，手动删除）
+              git push --delete origin "$tag" 2>/dev/null || true
+            done
+          fi
+
+          # 清理无 Release 关联的旧 tag（保留最近 100 个）
+          echo "清理无 Release 关联的旧 tag..."
+          mapfile -t all_tags < <(git tag -l "v*" | sort -V)
+          tag_count=${#all_tags[@]}
+          echo "总共找到 $tag_count 个 tag"
+
+          if [ "$tag_count" -gt 100 ]; then
+            for tag in "${all_tags[@]:0:$((tag_count - 100))}"; do
+              # 检查 tag 是否有对应的 Release
+              if ! gh release view "$tag" --repo ${{ github.repository }} >/dev/null 2>&1; then
+                echo "删除无 Release 的 tag: $tag"
+                git push --delete origin "$tag" 2>/dev/null || true
+                git tag -d "$tag" 2>/dev/null || true
+              fi
             done
           fi
 
