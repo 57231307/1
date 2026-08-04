@@ -146,6 +146,26 @@ impl RolePermissionService {
 
     /// 创建角色
     pub async fn create_role(&self, request: CreateRoleRequest) -> Result<RoleDetail, AppError> {
+        // 缺陷 14.1-D 修复：角色编码命名规范校验（仅允许小写字母、数字、下划线，3-50 字符）
+        if request.code.len() < 3 || request.code.len() > 50 {
+            return Err(AppError::business("角色编码长度必须在 3-50 字符之间"));
+        }
+        if !request
+            .code
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+        {
+            return Err(AppError::business(
+                "角色编码仅允许小写字母、数字和下划线",
+            ));
+        }
+        // 缺陷 14.5-C 修复：is_system=true 时 code 必须为 admin（应用层约束）
+        if request.is_system.unwrap_or(false) && request.code != "admin" {
+            return Err(AppError::business(
+                "系统角色（is_system=true）的编码必须为 admin",
+            ));
+        }
+
         // 检查角色编码是否已存在
         let existing = RoleEntity::find()
             .filter(role::Column::Code.eq(&request.code))

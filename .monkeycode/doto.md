@@ -155,3 +155,4 @@
 | 2026-08-04 | P2-Batch-23 | 部署变更文件记录 | 1 | PR #824 ✓ | 25.5-D 部署时记录变更文件列表到 deploy-changes.log |
 | 2026-08-04 | P2-Batch-24 | CI Release 清理修复 | 1 | PR #826 ✓ | 修复 --cleanup-tag 不生效，手动删除关联 tag；清理无 Release 的旧 tag（保留 100 个） |
 | 2026-08-04 | P2-Batch-25/26 | 前端优化 + 后端超时/事务/账龄基准日 | 14 | PR #827 ✓ | 20.9-D visualizer; 20.10-D persistedstate; 20.6-C lazy loading; 20.8-C alt prop; 17.4-D3 baseline_date; 14.10-D batch atomicity; 17.7 OTel 10%; 23.1-D manager_id; 13.3-D supplier qual CRUD; 16.4-D BI/dashboard timeout |
+| 2026-08-04 | P2-Batch-27 | 报表元数据 refresh/cache + AI 速率限制 | 2 | PR #829 ✓ | 16.1-D3 refresh_strategy/cache_ttl_seconds 字段; 16.4-D4 AI 端点专用速率限制 (10 req/min/user) |
