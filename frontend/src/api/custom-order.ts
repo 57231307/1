@@ -61,6 +61,7 @@ export const AFTER_SALES_TYPE: Record<string, string> = {
   complaint: '客诉',
   repair: '维修',
   exchange: '换货',
+  return_goods: '退货',
   refund: '退款',
 };
 

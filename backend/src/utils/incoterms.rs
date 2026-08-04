@@ -39,6 +39,26 @@ pub enum Incoterms2020 {
     Cif,
 }
 
+/// 主费用承担方（结构化责任划分，V15 P2 23.5 缺陷3 修复：用于报价单/合同生成责任条款）
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CostBearer {
+    /// 卖方承担主要费用
+    Seller,
+    /// 买方承担主要费用
+    Buyer,
+    /// 买卖双方按风险转移点共担
+    Both,
+}
+
+/// 清关责任方（出口/进口清关，V15 P2 23.5 缺陷3 修复：明确买卖双方清关责任）
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Party {
+    /// 卖方
+    Seller,
+    /// 买方
+    Buyer,
+}
+
 impl Incoterms2020 {
     /// 从字符串解析（大小写不敏感）
     pub fn from_code(s: &str) -> Result<Self, String> {
@@ -142,6 +162,38 @@ impl Incoterms2020 {
             self,
             Incoterms2020::Fas | Incoterms2020::Fob | Incoterms2020::Cfr | Incoterms2020::Cif
         )
+    }
+
+    /// 主费用承担方（结构化，V15 P2 23.5 缺陷3 修复）
+    /// 规则：EXW=买方；DAP/DPU/DDP=卖方；FCA/FAS/FOB/CPT/CIP/CFR/CIF=共担（卖方承担装运/主运费，买方承担后续费用）
+    pub fn cost_bearer(&self) -> CostBearer {
+        match self {
+            Incoterms2020::Exw => CostBearer::Buyer,
+            Incoterms2020::Dap | Incoterms2020::Dpu | Incoterms2020::Ddp => CostBearer::Seller,
+            Incoterms2020::Cpt
+            | Incoterms2020::Cip
+            | Incoterms2020::Cfr
+            | Incoterms2020::Cif
+            | Incoterms2020::Fca
+            | Incoterms2020::Fas
+            | Incoterms2020::Fob => CostBearer::Both,
+        }
+    }
+
+    /// 出口清关责任方（V15 P2 23.5 缺陷3 修复：除 EXW 外卖方负责出口清关）
+    pub fn export_clearance_party(&self) -> Party {
+        match self {
+            Incoterms2020::Exw => Party::Buyer,
+            _ => Party::Seller,
+        }
+    }
+
+    /// 进口清关责任方（V15 P2 23.5 缺陷3 修复：除 DDP 外买方负责进口清关）
+    pub fn import_clearance_party(&self) -> Party {
+        match self {
+            Incoterms2020::Ddp => Party::Seller,
+            _ => Party::Buyer,
+        }
     }
 
     /// 返回所有支持的术语（11 种全量）
@@ -257,5 +309,48 @@ mod tests {
         assert!(!Incoterms2020::Dap.is_sea_only());
         assert!(!Incoterms2020::Dpu.is_sea_only());
         assert!(!Incoterms2020::Ddp.is_sea_only());
+    }
+
+    #[test]
+    fn test_cost_bearer() {
+        // V15 P2 23.5 缺陷3：结构化费用承担方
+        assert_eq!(Incoterms2020::Exw.cost_bearer(), CostBearer::Buyer);
+        assert_eq!(Incoterms2020::Dap.cost_bearer(), CostBearer::Seller);
+        assert_eq!(Incoterms2020::Dpu.cost_bearer(), CostBearer::Seller);
+        assert_eq!(Incoterms2020::Ddp.cost_bearer(), CostBearer::Seller);
+        assert_eq!(Incoterms2020::Fob.cost_bearer(), CostBearer::Both);
+        assert_eq!(Incoterms2020::Cif.cost_bearer(), CostBearer::Both);
+        assert_eq!(Incoterms2020::Cpt.cost_bearer(), CostBearer::Both);
+        assert_eq!(Incoterms2020::Fca.cost_bearer(), CostBearer::Both);
+    }
+
+    #[test]
+    fn test_clearance_party() {
+        // V15 P2 23.5 缺陷3：出口清关除 EXW 外卖方负责
+        assert_eq!(
+            Incoterms2020::Exw.export_clearance_party(),
+            Party::Buyer
+        );
+        assert_eq!(
+            Incoterms2020::Fob.export_clearance_party(),
+            Party::Seller
+        );
+        assert_eq!(
+            Incoterms2020::Ddp.export_clearance_party(),
+            Party::Seller
+        );
+        // 进口清关除 DDP 外买方负责
+        assert_eq!(
+            Incoterms2020::Ddp.import_clearance_party(),
+            Party::Seller
+        );
+        assert_eq!(
+            Incoterms2020::Fob.import_clearance_party(),
+            Party::Buyer
+        );
+        assert_eq!(
+            Incoterms2020::Exw.import_clearance_party(),
+            Party::Buyer
+        );
     }
 }
