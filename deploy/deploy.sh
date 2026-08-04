@@ -875,6 +875,15 @@ main() {
     create_dirs
     deploy_backend
     deploy_frontend
+    # V15 P2 25.5-D：记录本次部署变更文件列表，便于运维审计和回溯
+    {
+        echo "=== 部署变更记录 $(date '+%Y-%m-%d %H:%M:%S') ==="
+        echo "后端文件:"
+        ls -1 "$BACKEND_DIR/" 2>/dev/null | head -20
+        echo "前端文件数: $(find "$FRONTEND_DIR" -type f 2>/dev/null | wc -l)"
+        echo "前端目录结构:"
+        ls -1 "$FRONTEND_DIR/" 2>/dev/null | head -10
+    } >> "$LOG_DIR/deploy-changes.log" 2>/dev/null || true
     generate_config
     # 注意：全新部署时不执行 run_migrations，用户通过引导页面配置数据库
     install_service
