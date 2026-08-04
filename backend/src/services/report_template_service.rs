@@ -393,8 +393,6 @@ impl ReportTemplateService {
             description: Set(model.description.clone()),
             is_public: Set(model.is_public),
             required_permission: Set(model.required_permission.clone()),
-            refresh_strategy: Set(model.refresh_strategy.clone()),
-            cache_ttl_seconds: Set(model.cache_ttl_seconds),
             snapshot_by: Set(user_id),
             snapshot_at: Set(Utc::now()),
             ..Default::default()

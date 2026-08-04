@@ -295,7 +295,6 @@ pub async fn anti_brute_force(req: Request<Body>, next: Next) -> Result<Response
 /// AI 端点专用速率限制中间件（缺陷 16.4-D4 修复）
 /// 基于 UserID 维度，限制 10 req/min/user，防止 AI 推理 CPU 过载
 pub async fn rate_limit_ai_endpoint(
-    State(_state): State<AppState>,
     req: Request<Body>,
     next: Next,
 ) -> Result<Response, AppError> {

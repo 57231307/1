@@ -367,7 +367,7 @@ pub fn ai() -> Router<AppState> {
         .route("/ai/summary", get(ai_extend_handler::ai_summary))
         .route("/ai/health", get(ai_extend_handler::ai_health))
         // 缺陷 16.4-D4 修复：AI 端点专用速率限制（10 req/min/user）
-        .layer(middleware::from_fn(rate_limit_ai_endpoint))
+        .layer(axum::middleware::from_fn(rate_limit_ai_endpoint))
 }
 
 /// V15 P0-S14 敏感数据导出二级审批路由（/export-approvals，8 端点）
