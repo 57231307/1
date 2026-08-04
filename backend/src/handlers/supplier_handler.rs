@@ -269,7 +269,7 @@ pub async fn create_supplier_qualification(
 /// 更新供应商资质
 #[axum::debug_handler]
 pub async fn update_supplier_qualification(
-    Path((supplier_id, qualification_id)): Path<(i32, i32)>,
+    Path((_supplier_id, qualification_id)): Path<(i32, i32)>,
     State(state): State<AppState>,
     _auth: AuthContext,
     Json(req): Json<CreateQualificationRequest>,
@@ -288,7 +288,7 @@ pub async fn update_supplier_qualification(
 /// 删除供应商资质
 #[axum::debug_handler]
 pub async fn delete_supplier_qualification(
-    Path((supplier_id, qualification_id)): Path<(i32, i32)>,
+    Path((_supplier_id, qualification_id)): Path<(i32, i32)>,
     State(state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {

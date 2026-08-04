@@ -242,7 +242,7 @@ impl AiExtendService {
                 updated_at: Set(now),
                 ..Default::default()
             };
-            let model = active.insert(&*txn).await?;
+            let model = active.insert(&txn).await?;
             ids.push(model.id);
         }
         txn.commit().await?;
