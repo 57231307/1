@@ -67,7 +67,8 @@
 | P2-Batch-01b | 类二+三+四+六+七（续作 18 项） | 18 | Cookie 双写+缓存一致性+SQL 参数化+表重叠+测试补齐+service 拆分+差异化 TTL | ✅ 已合并 main（PR #799，5bd1743，归档 doto-su.md） |
 | P2-Batch-02 | 类五（运行闭环） | 10 | 反馈闭环 + 重染补染 + 告警死信 + 资源管理 + 凭证归集 | ✅ 已合并 main（PR #801，b4bc147 squash，归档 doto-su.md） |
 | P2-Batch-03 | 类八（法律合规剩余）+ 类九（色卡发放） | 8+12+4 | 跨境合规 + 商检/产地证 + 色卡报表/成本/预警/统计 | ✅ 已合并 main（PR #803，bb010ad squash，归档 doto-su.md） |
-| P2-Batch-04 | 类十+类十一+类十二（P2 快速修复） | 2 | 硬编码 role_id==1 修复 + v-role 指令删除 | ⏳ 待推送 PR |
+| P2-Batch-04 | 类十+类十一+类十二（P2 快速修复） | 2 | 硬编码 role_id==1 修复 + v-role 指令删除 | ✅ 已合并 main（PR #814，f77d232） |
+| P2-Batch-05 | 类十三（导出审计 + 打印水印） | 3 | 3 个导出端点补 Export 审计 + 打印IP水印 + rate_limit确认全局挂载 | ✅ 已合并 main（PR #815，ab4d729） |
 
 ### 1.3 P2-Batch-01b 遗留未完成项
 
