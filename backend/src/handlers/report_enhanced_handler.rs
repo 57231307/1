@@ -2,6 +2,8 @@
 //!
 //! 提供报表模板管理、数据导出、报表订阅等 API 接口
 
+use std::sync::Arc;
+
 use axum::{
     extract::{Path, Query, State},
     Json,
@@ -11,6 +13,8 @@ use validator::Validate;
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
+use crate::models::audit_log::{OperationType, Severity};
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::report_subscription_service::{
     CreateSubscriptionRequest, ReportSubscriptionService, SubscriptionQuery,
     UpdateSubscriptionRequest,
@@ -225,6 +229,32 @@ pub async fn export_pdf(
 
     tracing::info!("用户 {} 导出PDF报表: {}", auth.username, req.template_id);
 
+    // V15 P2 B11-P2-1：导出审计日志（best-effort，异步不阻塞响应）
+    let row_count = export_data.rows.len();
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some("report".to_string()),
+        resource_id: Some(req.template_id.clone()),
+        resource_name: Some(format!("{}.pdf", title)),
+        description: Some(format!(
+            "用户 {} 导出PDF报表 {}（共 {} 行）",
+            auth.username, title, row_count
+        )),
+        request_method: Some("POST".to_string()),
+        request_path: Some("/api/v1/erp/reports-enhanced/export/pdf".to_string()),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "format": "pdf",
+            "total": row_count,
+            "template_id": req.template_id,
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
+
     // 返回base64编码的内容
     use base64::Engine;
     let encoded = base64::engine::general_purpose::STANDARD.encode(&pdf_content);
@@ -270,6 +300,32 @@ pub async fn export_excel(
     let excel_content = crate::services::export_service::ExportService::export_excel(&export_data)?;
 
     tracing::info!("用户 {} 导出Excel报表: {}", auth.username, req.template_id);
+
+    // V15 P2 B11-P2-1：导出审计日志（best-effort，异步不阻塞响应）
+    let row_count = export_data.rows.len();
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some("report".to_string()),
+        resource_id: Some(req.template_id.clone()),
+        resource_name: Some(format!("{}.xlsx", title)),
+        description: Some(format!(
+            "用户 {} 导出Excel报表 {}（共 {} 行）",
+            auth.username, title, row_count
+        )),
+        request_method: Some("POST".to_string()),
+        request_path: Some("/api/v1/erp/reports-enhanced/export/excel".to_string()),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "format": "xlsx",
+            "total": row_count,
+            "template_id": req.template_id,
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
 
     // 返回base64编码的内容
     use base64::Engine;

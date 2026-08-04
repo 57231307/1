@@ -1,12 +1,16 @@
+use std::sync::Arc;
+
 use axum::{
     extract::{Query, State},
     Json,
 };
 use serde::{Deserialize, Serialize};
 
-use crate::middleware::auth_context::AuthContext;
-
 use crate::container::AppState;
+use crate::middleware::auth_context::AuthContext;
+use crate::models::audit_log;
+use crate::models::audit_log::{OperationType, Severity};
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
@@ -122,10 +126,9 @@ pub async fn list_audit_logs(
 
 pub async fn export_audit_logs(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(_query): Query<AuditLogQuery>,
 ) -> Result<Json<ApiResponse<ExportResult>>, AppError> {
-    use crate::models::audit_log;
     use sea_orm::{EntityTrait, QueryOrder};
 
     let logs = audit_log::Entity::find()
@@ -137,6 +140,30 @@ pub async fn export_audit_logs(
         "audit_logs_{}.json",
         chrono::Utc::now().format("%Y%m%d%H%M%S")
     );
+
+    // V15 P2 B11-P2-1：导出审计日志（best-effort，异步不阻塞响应）
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some("audit_log".to_string()),
+        resource_id: None,
+        resource_name: Some(file_name.clone()),
+        description: Some(format!(
+            "用户 {} 导出审计日志（共 {} 条）",
+            auth.username, count
+        )),
+        request_method: Some("GET".to_string()),
+        request_path: Some("/api/v1/erp/audit/logs/export".to_string()),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "format": "json",
+            "total": count,
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
 
     Ok(Json(ApiResponse::success(ExportResult {
         download_url: format!("/api/v1/erp/downloads/{}", file_name),

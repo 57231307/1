@@ -79,7 +79,7 @@ function generatePrintHTML<T extends Record<string, unknown>>(options: PrintOpti
       printUser = stored;
     }
   }
-  const printContent = `打印人: ${printUser}  打印时间: ${printDate}`;
+  const printContent = `打印人: ${printUser}  打印时间: ${printDate}  IP: ${window.location.hostname}`;
 
   return `
     <!DOCTYPE html>
