@@ -382,6 +382,7 @@ pub async fn batch_create_process_optimizations(
     }
     // 阶段二：批量落库（单事务，全部成功或全部回滚）
     if !ai_results.is_empty() {
+        let ai_count = ai_results.len();
         match svc.batch_insert_optimizations(ai_results).await {
             Ok(ids) => {
                 for id in ids {
@@ -392,8 +393,8 @@ pub async fn batch_create_process_optimizations(
                 }
             }
             Err(e) => {
-                failed += ai_results.len();
-                for _ in &ai_results {
+                failed += ai_count;
+                for _ in 0..ai_count {
                     results.push(serde_json::json!({
                         "success": false,
                         "error": format!("落库失败: {}", e),

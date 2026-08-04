@@ -11,7 +11,7 @@
 
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect, Set,
+    QuerySelect, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -198,7 +198,7 @@ impl AiExtendService {
         &self,
         items: Vec<(RecipeOptResponse, CreateProcessOptDto)>,
     ) -> Result<Vec<i64>, AppError> {
-        let txn = self.db.begin().await?;
+        let txn = (*self.db).begin().await?;
         let mut ids = Vec::new();
         for (resp, dto) in items {
             let request_id = format!("proc-{}", Uuid::new_v4());
