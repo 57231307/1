@@ -21,6 +21,7 @@ interface Props {
   height?: string;
   loading?: boolean;
   autoResize?: boolean;
+  alt?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -44,8 +45,9 @@ const defaultOption = computed<EChartsOption>(() => ({
   ...props.option,
 }));
 
-/// 图表 aria-label：从 option.title 提取文本，无 title 时降级为"数据图表"
+/// 图表 aria-label：优先使用 alt prop，否则从 option.title 提取文本，无 title 时降级为"数据图表"
 const chartAriaLabel = computed<string>(() => {
+  if (props.alt) return props.alt;
   const title = props.option?.title;
   if (!title) return t('components.charts.baseChart.defaultAriaLabel');
   if (typeof title === 'string') return title;

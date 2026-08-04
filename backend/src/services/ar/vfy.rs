@@ -467,7 +467,7 @@ mod tests {
         let db = setup_test_db().await;
         let svc = ArReconciliationService::new(Arc::new(db));
         // 无 schema 时预期返回数据库错误而非 panic
-        let result = svc.get_aging_report(None).await;
+        let result = svc.get_aging_report(None, None).await;
         assert!(result.is_err());
     }
 }

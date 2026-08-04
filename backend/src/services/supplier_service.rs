@@ -792,6 +792,45 @@ impl SupplierService {
 
         Ok(qualification)
     }
+
+    /// 更新供应商资质
+    pub async fn update_supplier_qualification(
+        &self,
+        qualification_id: i32,
+        req: CreateQualificationRequest,
+    ) -> Result<supplier_qualification::Model, AppError> {
+        let mut qual: supplier_qualification::ActiveModel =
+            supplier_qualification::Entity::find_by_id(qualification_id)
+                .one(&*self.db)
+                .await?
+                .ok_or_else(|| AppError::not_found(format!("资质 ID {} 不存在", qualification_id)))?
+                .into();
+        qual.qualification_name = Set(req.qualification_name);
+        qual.qualification_type = Set(req.qualification_type);
+        qual.qualification_no = Set(req.qualification_no);
+        qual.issuing_authority = Set(req.issuing_authority);
+        qual.issue_date = Set(req.issue_date);
+        qual.valid_until = Set(req.valid_until);
+        qual.attachment_path = Set(req.attachment_path);
+        qual.need_annual_check = Set(req.need_annual_check);
+        qual.annual_check_record = Set(req.annual_check_record);
+        Ok(qual.update(&*self.db).await?)
+    }
+
+    /// 删除供应商资质
+    pub async fn delete_supplier_qualification(
+        &self,
+        qualification_id: i32,
+    ) -> Result<(), AppError> {
+        supplier_qualification::Entity::find_by_id(qualification_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("资质 ID {} 不存在", qualification_id)))?;
+        supplier_qualification::Entity::delete_by_id(qualification_id)
+            .exec(&*self.db)
+            .await?;
+        Ok(())
+    }
 }
 
 /// 创建供应商请求

@@ -11,7 +11,7 @@
 
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect, Set,
+    QuerySelect, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -182,6 +182,71 @@ impl AiExtendService {
         };
         let model = active.insert(&*self.db).await?;
         Ok((resp, model.id))
+    }
+
+    /// 仅调用 AI 算法不做落库（供批量接口阶段一使用）
+    pub async fn optimize_recipe_only(
+        &self,
+        dto: &CreateProcessOptDto,
+    ) -> Result<RecipeOptResponse, AppError> {
+        let ai = AiAnalysisService::new(self.db.clone());
+        ai.optimize_recipe(dto.request.clone()).await
+    }
+
+    /// 批量落库工艺优化记录（单事务，全部成功或全部回滚）
+    pub async fn batch_insert_optimizations(
+        &self,
+        items: Vec<(RecipeOptResponse, CreateProcessOptDto)>,
+    ) -> Result<Vec<i64>, AppError> {
+        let txn = (*self.db).begin().await?;
+        let mut ids = Vec::new();
+        for (resp, dto) in items {
+            let request_id = format!("proc-{}", Uuid::new_v4());
+            let candidates_json = serde_json::to_value(&resp.candidates)
+                .map_err(|e| AppError::internal(format!("序列化 candidates 失败: {}", e)))?;
+            let now = chrono::Utc::now();
+            let active = ProcessActiveModel {
+                request_id: Set(request_id),
+                color_no: Set(dto.request.color_no.clone()),
+                color_name: Set(dto.request.color_name.clone()),
+                fabric_type: Set(dto.request.fabric_type.clone()),
+                dye_type: Set(dto.request.dye_type.clone()),
+                recommended_temperature: Set(rust_decimal::Decimal::from_f64_retain(
+                    resp.recommended_params.temperature,
+                )
+                .unwrap_or_default()),
+                recommended_time_minutes: Set(resp.recommended_params.time_minutes),
+                recommended_ph_value: Set(rust_decimal::Decimal::from_f64_retain(
+                    resp.recommended_params.ph_value,
+                )
+                .unwrap_or_default()),
+                recommended_liquor_ratio: Set(rust_decimal::Decimal::from_f64_retain(
+                    resp.recommended_params.liquor_ratio,
+                )
+                .unwrap_or_default()),
+                similar_cases: Set(resp.similar_cases as i32),
+                confidence: Set(
+                    rust_decimal::Decimal::from_f64_retain(resp.confidence).unwrap_or_default()
+                ),
+                source: Set(resp.source.clone()),
+                reason: Set(Some(resp.reason.clone())),
+                candidates_json: Set(Some(candidates_json)),
+                is_applied: Set(false),
+                applied_at: Set(None),
+                applied_by: Set(None),
+                feedback_score: Set(None),
+                feedback_remark: Set(None),
+                inference_latency_ms: Set(None),
+                created_by: Set(dto.operator_id),
+                created_at: Set(now),
+                updated_at: Set(now),
+                ..Default::default()
+            };
+            let model = active.insert(&txn).await?;
+            ids.push(model.id);
+        }
+        txn.commit().await?;
+        Ok(ids)
     }
 
     /// 工艺优化列表查询

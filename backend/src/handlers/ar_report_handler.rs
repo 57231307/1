@@ -19,6 +19,7 @@ pub struct ArReportQuery {
     pub start_date: Option<chrono::NaiveDate>,
     pub end_date: Option<chrono::NaiveDate>,
     pub customer_id: Option<i32>,
+    pub baseline_date: Option<chrono::NaiveDate>,
 }
 
 /// 获取统计报表
@@ -152,7 +153,7 @@ pub async fn get_aging_report(
 
     let service = crate::services::ar_service::ArService::new(state.db.clone());
     let report = service
-        .get_aging_report(query.customer_id)
+        .get_aging_report(query.customer_id, query.baseline_date)
         .await
         .map_err(|e| AppError::internal(format!("获取账龄报表失败: {}", e)))?;
 

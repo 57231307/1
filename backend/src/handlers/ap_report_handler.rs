@@ -166,6 +166,7 @@ pub async fn get_monthly_report(
 #[derive(Debug, Deserialize)]
 pub struct ApAgingQueryParams {
     pub supplier_id: Option<i32>,
+    pub baseline_date: Option<chrono::NaiveDate>,
 }
 
 /// 获取账龄分析报告
@@ -188,7 +189,7 @@ pub async fn get_aging_report(
     }
 
     let service = ApReportService::new(state.db.clone());
-    let report = service.get_aging_report(params.supplier_id).await?;
+    let report = service.get_aging_report(params.supplier_id, params.baseline_date).await?;
 
     let value = serde_json::to_value(&report)?;
     if let Ok(bytes) = serde_json::to_vec(&value) {

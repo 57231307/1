@@ -117,7 +117,7 @@ pub async fn save_dashboard_layout(
     Ok(Json(ApiResponse::success(response)))
 }
 
-/// 获取仪表板概览数据；缺陷 4.3 修复：使用 new_with_data_scope 注入角色数据范围，普通员工仅看到自己订单数据。
+/// 获取仪表板概览数据（500ms 超时保护，避免慢查询阻塞首屏）
 pub async fn get_dashboard_overview(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -128,9 +128,12 @@ pub async fn get_dashboard_overview(
         DashboardService::new_with_data_scope(state.db.clone(), state.cache.clone(), ctx);
     let start_datetime = query.start_date.and_then(naive_date_to_utc);
     let end_datetime = query.end_date.and_then(naive_date_to_utc);
-    let overview = dashboard_service
-        .get_overview(start_datetime, end_datetime)
-        .await?;
+    let overview = tokio::time::timeout(
+        std::time::Duration::from_millis(500),
+        dashboard_service.get_overview(start_datetime, end_datetime),
+    )
+    .await
+    .map_err(|_| AppError::internal("仪表板概览查询超时（500ms）".to_string()))??;
 
     // 缺陷 4.2 修复：仪表板数据更新触发 WebSocket 实时推送
     crate::websocket::notifications::get_notification_broadcaster().broadcast_dashboard_update(

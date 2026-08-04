@@ -1,9 +1,10 @@
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
-import AutoImport from 'unplugin-auto-import/vite'
-import Components from 'unplugin-vue-components/vite'
-import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
-import { resolve } from 'path'
+import { defineConfig } from 'vite';
+import vue from '@vitejs/plugin-vue';
+import AutoImport from 'unplugin-auto-import/vite';
+import Components from 'unplugin-vue-components/vite';
+import { ElementPlusResolver } from 'unplugin-vue-components/resolvers';
+import { visualizer } from 'rollup-plugin-visualizer';
+import { resolve } from 'path';
 
 export default defineConfig({
   plugins: [
@@ -14,6 +15,7 @@ export default defineConfig({
     Components({
       resolvers: [ElementPlusResolver()],
     }),
+    visualizer({ open: false, gzipSize: true, brotliSize: true }),
   ],
   resolve: {
     alias: {
@@ -44,7 +46,13 @@ export default defineConfig({
           // Element Plus UI 库
           'element-plus': ['element-plus', '@element-plus/icons-vue'],
           // ECharts 图表库
-          'echarts-vendor': ['echarts', 'echarts/core', 'echarts/charts', 'echarts/components', 'echarts/renderers'],
+          'echarts-vendor': [
+            'echarts',
+            'echarts/core',
+            'echarts/charts',
+            'echarts/components',
+            'echarts/renderers',
+          ],
           // 工具库（仅引用 package.json 实际存在的依赖，避免 rollup 解析失败）
           'utils-vendor': ['axios'],
         },
@@ -69,4 +77,4 @@ export default defineConfig({
     ],
     exclude: ['@playwright/test'],
   },
-})
+});

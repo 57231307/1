@@ -291,14 +291,16 @@ impl ArService {
 
     /// 获取账龄报表（v14 P0-2 修复：SQL 层聚合，避免全表数据加载到应用层）
     /// 按 due_date 计算 0-30/31-60/61-90/90+ 分桶，数据库层完成 SUM/COUNT 聚合
+    /// baseline_date：可选基准日，None 时使用当天（17.4-D3 向后兼容）
     pub async fn get_aging_report(
         &self,
         customer_id: Option<i32>,
+        baseline_date: Option<chrono::NaiveDate>,
     ) -> Result<serde_json::Value, AppError> {
         // v14 P0-2 修复：使用 SQL CASE WHEN + SUM + COUNT 在数据库层完成分桶聚合
         // 避免全表数据加载到应用层导致内存溢出风险（原实现 .all() 加载全部发票到内存）
         // 规则 12 合规：customer_id 使用参数化绑定，禁止字符串拼接
-        let today = Utc::now().date_naive();
+        let today = baseline_date.unwrap_or_else(|| Utc::now().date_naive());
         let (sql, params) = Self::build_aging_sql_and_params(customer_id, today);
 
         let result: Option<sea_orm::QueryResult> = self

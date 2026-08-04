@@ -1,5 +1,6 @@
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
+import piniaPluginPersistedstate from 'pinia-plugin-persistedstate';
 import ElementPlus from 'element-plus';
 import 'element-plus/dist/index.css';
 // V15 P1-20-16 Element Plus 暗黑模式 CSS 变量（配合 html.dark 类切换）
@@ -29,7 +30,9 @@ window.addEventListener('unhandledrejection', event => {
 // V15 P1-20-10 初始化前端错误监控（监听 error/unhandledrejection，best-effort 上报后端）
 initMonitor();
 
-app.use(createPinia());
+const pinia = createPinia();
+pinia.use(piniaPluginPersistedstate);
+app.use(pinia);
 app.use(router);
 app.use(i18n);
 

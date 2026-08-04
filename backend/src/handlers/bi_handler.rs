@@ -241,38 +241,44 @@ pub async fn drilldown_month_to_day(
 }
 
 /// GET /api/v1/erp/bi/sales/drilldown/customer-to-order/:customer_id
-/// 钻取：客户 → 订单
+/// 钻取：客户 → 订单（5s 超时保护）
 pub async fn drilldown_customer_to_order(
     State(state): State<AppState>,
     auth: AuthContext,
     Path(customer_id): Path<i64>,
 ) -> Result<Json<ApiResponse<BiResponse<serde_json::Value>>>, AppError> {
-    // 缺陷 3.1 修复：使用 new_with_cache 接入 5 分钟 TTL 缓存，
-    // 对 (data_scope, key_parts) 命中时直接返回缓存结果，避免重复执行 raw SQL。
     let service = BiAnalysisService::new_with_cache(
         state.db.clone(),
         auth.to_data_scope_context(),
         state.cache.clone(),
     );
-    let data = service.drilldown_customer_to_order(customer_id).await?;
+    let data = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        service.drilldown_customer_to_order(customer_id),
+    )
+    .await
+    .map_err(|_| AppError::internal("BI 钻取查询超时（5s）".to_string()))??;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
 /// GET /api/v1/erp/bi/sales/drilldown/product-to-order/:product_id
-/// 钻取：产品 → 订单
+/// 钻取：产品 → 订单（5s 超时保护）
 pub async fn drilldown_product_to_order(
     State(state): State<AppState>,
     auth: AuthContext,
     Path(product_id): Path<i64>,
 ) -> Result<Json<ApiResponse<BiResponse<serde_json::Value>>>, AppError> {
-    // 缺陷 3.1 修复：使用 new_with_cache 接入 5 分钟 TTL 缓存，
-    // 对 (data_scope, key_parts) 命中时直接返回缓存结果，避免重复执行 raw SQL。
     let service = BiAnalysisService::new_with_cache(
         state.db.clone(),
         auth.to_data_scope_context(),
         state.cache.clone(),
     );
-    let data = service.drilldown_product_to_order(product_id).await?;
+    let data = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        service.drilldown_product_to_order(product_id),
+    )
+    .await
+    .map_err(|_| AppError::internal("BI 钻取查询超时（5s）".to_string()))??;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
