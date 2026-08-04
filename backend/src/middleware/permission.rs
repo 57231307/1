@@ -123,6 +123,23 @@ pub async fn permission_middleware(
     validate_route_whitelist(path).map_err(|e| *e)?;
     let (resource_type, resource_id, action) = extract_route_info(path, uri, method);
 
+    // V15 P2 B12-P2-13：resource_type="unknown" 时 fail-closed，直接拒绝
+    // extract_resource_info 对不符合 /api/v1/erp/... 前缀的路径返回 "unknown"，
+    // 此时不应继续权限匹配（可能误放行），直接拒绝并记录审计日志。
+    if resource_type == "unknown" {
+        warn!("未知资源类型，拒绝访问: path={} {}", method, path);
+        record_permission_denial(
+            &state.audit_log,
+            &auth,
+            method,
+            path,
+            "unknown",
+            resource_id,
+            &action,
+        );
+        return Err(forbidden_response("权限不足，无法访问该资源"));
+    }
+
     let has_permission =
         check_permission(&state.db, role_id, &resource_type, resource_id, &action).await;
     tracing::debug!(

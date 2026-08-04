@@ -200,7 +200,8 @@ async fn read_request_body_for_audit(
     let body_for_audit = if is_sensitive_path {
         "[REDACTED]".to_string()
     } else {
-        body_str
+        // V15 P2 B17-P2-21：非敏感路径请求体也做 PII 脱敏（手机号/邮箱/身份证号）
+        crate::utils::field_mask::mask_text_pii(&body_str)
     };
 
     let truncated_body = truncate_text(&body_for_audit, 5000);
@@ -263,6 +264,8 @@ async fn read_response_body(
         }
     };
     let response_body = String::from_utf8_lossy(&body_bytes).to_string();
+    // V15 P2 B17-P2-21：响应体日志做 PII 脱敏（手机号/邮箱/身份证号）
+    let response_body = crate::utils::field_mask::mask_text_pii(&response_body);
     let response_content_type = parts
         .headers
         .get(header::CONTENT_TYPE)

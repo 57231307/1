@@ -87,7 +87,7 @@ macro_rules! define_crud_handlers {
 
         pub async fn create(
             axum::extract::State(state): axum::extract::State<$crate::container::AppState>,
-            _auth: $crate::middleware::auth_context::AuthContext,
+            auth: $crate::middleware::auth_context::AuthContext,
             axum::Json(req): axum::Json<$create_req>,
         ) -> Result<
             axum::Json<$crate::utils::response::ApiResponse<serde_json::Value>>,
@@ -98,6 +98,37 @@ macro_rules! define_crud_handlers {
             }
             let service = <$service_ty>::new(state.db.clone());
             let item = service.create(req).await?;
+
+            // V15 P2 B19-P2-1：创建操作补审计日志（与 update/delete 对齐）
+            {
+                use $crate::services::audit_log_service::AuditEvent;
+                use $crate::models::audit_log::{OperationType, Severity};
+                use std::sync::Arc;
+                let audit_svc = Arc::new(
+                    $crate::services::audit_log_service::AuditLogService::new(state.db.clone()),
+                );
+                let event = AuditEvent {
+                    user_id: Some(auth.user_id),
+                    username: None,
+                    operation_type: OperationType::Create,
+                    severity: Severity::Info,
+                    resource_type: Some(stringify!($service_ty).to_string()),
+                    resource_id: None,
+                    resource_name: None,
+                    description: Some(format!(
+                        "创建记录 user_id={}",
+                        auth.user_id
+                    )),
+                    request_method: Some("POST".to_string()),
+                    request_path: None,
+                    before_snapshot: None,
+                    after_snapshot: Some(
+                        serde_json::to_value(&item).unwrap_or_default(),
+                    ),
+                };
+                audit_svc.record_async(event, None);
+            }
+
             Ok(axum::Json(
                 $crate::utils::response::ApiResponse::success_with_message(
                     serde_json::to_value(item).map_err($crate::utils::error::AppError::from)?,
