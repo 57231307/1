@@ -880,4 +880,27 @@ impl AiExtendService {
         let updated = active.update(&*self.db).await?;
         Ok(updated)
     }
+
+    /// V15 P2 14.2.3：回填实际结果和索赔金额（误判成本追踪）
+    /// 写入 actual_grade / claim_amount / claim_recorded_at，供误判成本统计使用。
+    pub async fn record_actual_result(
+        &self,
+        prediction_id: i64,
+        actual_grade: String,
+        claim_amount: Option<rust_decimal::Decimal>,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<QualityModel, AppError> {
+        let model = self
+            .get_quality_prediction(prediction_id, data_scope)
+            .await?;
+
+        let now = chrono::Utc::now();
+        let mut active: QualityActiveModel = model.into();
+        active.actual_grade = Set(Some(actual_grade));
+        active.claim_amount = Set(claim_amount);
+        active.claim_recorded_at = Set(Some(now));
+        active.updated_at = Set(now);
+        let updated = active.update(&*self.db).await?;
+        Ok(updated)
+    }
 }

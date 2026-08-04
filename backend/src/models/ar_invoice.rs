@@ -48,6 +48,9 @@ pub struct Model {
     pub status: String,
     pub approval_status: String,
 
+    // 业务员
+    pub salesperson_id: Option<i32>,
+
     // 审核
     pub created_by: i32,
     pub reviewed_by: Option<i32>,

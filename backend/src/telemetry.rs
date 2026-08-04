@@ -269,7 +269,6 @@ pub mod metric_names {
     pub const DB_QUERIES_TOTAL: &str = "db_queries_total";
     pub const DB_QUERY_DURATION: &str = "db_query_duration_seconds";
     pub const BUSINESS_EVENTS_TOTAL: &str = "business_events_total";
-    pub const ACTIVE_TENANTS: &str = "active_tenants";
 }
 
 /// 初始化 telemetry 子系统（轻量级，无 OTel 依赖）；返回的 `TelemetryGuard` 在 drop 时会自动 flush 缓冲数据。
@@ -283,6 +282,30 @@ pub fn init() -> TelemetryGuard {
         is_otel_enabled()
     );
     TelemetryGuard { _private: () }
+}
+
+/// 初始化 OTel TracerProvider，将 `ObservabilityConfig.sample_ratio` 应用到 `TraceIdRatioBased` sampler。
+///
+/// 当 `OTEL_ENABLED=true` 时由 bootstrap 层调用；返回 `TelemetryGuard` 在 drop 时自动 shutdown provider。
+#[cfg(feature = "otel")]
+pub fn init_otel_provider(
+    config: &crate::observability::config::ObservabilityConfig,
+) -> Result<TelemetryGuard, Box<dyn std::error::Error>> {
+    use opentelemetry::trace::TracerProvider;
+    use opentelemetry_sdk::trace::SdkTracerProvider;
+
+    let sampler = opentelemetry_sdk::trace::Sampler::TraceIdRatioBased(config.sample_ratio);
+    let exporter = opentelemetry_otlp::SpanExporter::builder().build()?;
+    let provider = SdkTracerProvider::builder()
+        .with_sampler(sampler)
+        .with_simple_exporter(exporter)
+        .build();
+    let _tracer = provider.tracer(SERVICE_NAME);
+    tracing::info!(
+        "OTel TracerProvider 已初始化：sample_ratio={}",
+        config.sample_ratio
+    );
+    Ok(TelemetryGuard { _private: () })
 }
 
 /// Telemetry 守卫（drop 时 flush）

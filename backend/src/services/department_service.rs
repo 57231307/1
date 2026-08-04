@@ -78,6 +78,7 @@ impl DepartmentService {
     pub async fn create(
         &self,
         req: crate::handlers::department_handler::CreateDepartmentRequest,
+        user_id: i32,
     ) -> Result<department::Model, AppError> {
         // 检查部门名称是否已存在
         let existing = DepartmentEntity::find()
@@ -115,6 +116,28 @@ impl DepartmentService {
         };
 
         let result = active_model.insert(&*self.db).await?;
+
+        // 审计日志：记录部门创建操作
+        let after_snapshot = serde_json::to_value(&result).ok();
+        let audit_svc = std::sync::Arc::new(
+            crate::services::audit_log_service::AuditLogService::new(self.db.clone()),
+        );
+        let event = crate::services::audit_log_service::AuditEvent {
+            user_id: Some(user_id),
+            username: None,
+            operation_type: crate::models::audit_log::OperationType::Create,
+            severity: crate::models::audit_log::Severity::Info,
+            resource_type: Some("department".to_string()),
+            resource_id: Some(result.id.to_string()),
+            resource_name: Some(result.name.clone()),
+            description: Some(format!("创建部门: {}", result.name)),
+            request_method: Some("POST".to_string()),
+            request_path: None,
+            before_snapshot: None,
+            after_snapshot,
+        };
+        audit_svc.record_async(event, None);
+
         Ok(result)
     }
 

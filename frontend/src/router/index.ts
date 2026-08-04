@@ -67,7 +67,7 @@ const routes: RouteRecordRaw[] = [
         path: 'system/audit-log',
         name: 'SystemAuditLog',
         component: () => import('@/views/system/audit-log/index.vue'),
-        meta: { title: '审计日志', icon: 'Setting', permission: 'audit:read', requiresAuth: true },
+        meta: { title: '审计日志', icon: 'Setting', permission: 'audit-logs:read', requiresAuth: true },
       },
       {
         path: 'system/slow-query',
@@ -76,7 +76,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: '慢查询审计',
           icon: 'Histogram',
-          permission: 'audit:read',
+          permission: 'audit-logs:read',
           requiresAuth: true,
         }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
@@ -272,7 +272,7 @@ const routes: RouteRecordRaw[] = [
         path: 'bpm',
         name: 'BPM',
         component: () => import('@/views/bpm/index.vue'),
-        meta: { title: '审批管理', icon: 'List', permission: 'audit:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: { title: '审批管理', icon: 'List', permission: 'audit-logs:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'quality',
@@ -478,7 +478,7 @@ const routes: RouteRecordRaw[] = [
         path: 'business-trace',
         name: 'BusinessTrace',
         component: () => import('@/views/business-trace/index.vue'),
-        meta: { title: '业务追溯', icon: 'List', permission: 'audit:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: { title: '业务追溯', icon: 'List', permission: 'audit-logs:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'barcode-scanner',
@@ -490,7 +490,7 @@ const routes: RouteRecordRaw[] = [
         path: 'omni-audit',
         name: 'OmniAudit',
         component: () => import('@/views/omni-audit/index.vue'),
-        meta: { title: '全量审计', icon: 'Setting', permission: 'audit:read', requiresAuth: true },
+        meta: { title: '全量审计', icon: 'Setting', permission: 'audit-logs:read', requiresAuth: true },
       },
       {
         path: 'scheduling',
@@ -565,7 +565,7 @@ const routes: RouteRecordRaw[] = [
         path: 'report-templates',
         name: 'ReportTemplates',
         component: () => import('@/views/report-templates/index.vue'),
-        meta: { title: '报表中心', icon: 'Setting', permission: 'audit:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: { title: '报表中心', icon: 'Setting', permission: 'audit-logs:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       // 新增路由 - BPM流程定义
       {
@@ -575,7 +575,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: '流程定义管理',
           icon: 'List',
-          permission: 'audit:read',
+          permission: 'audit-logs:read',
           requiresAuth: true,
           hidden: true,
         }, // 批次 22（v5 P0-4）：补齐 meta.permission
@@ -588,7 +588,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: '流程模板管理',
           icon: 'List',
-          permission: 'audit:read',
+          permission: 'audit-logs:read',
           requiresAuth: true,
           hidden: true,
         }, // 批次 22（v5 P0-4）：补齐 meta.permission
@@ -598,7 +598,7 @@ const routes: RouteRecordRaw[] = [
         path: 'bpm/approval',
         name: 'BPMApproval',
         component: () => import('@/views/bpm/approval/index.vue'),
-        meta: { title: '审批中心', icon: 'List', permission: 'audit:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: { title: '审批中心', icon: 'List', permission: 'audit-logs:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       // 新增路由 - 增强版应收对账
       {

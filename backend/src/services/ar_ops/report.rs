@@ -292,16 +292,18 @@ impl ArService {
     /// 获取账龄报表（v14 P0-2 修复：SQL 层聚合，避免全表数据加载到应用层）
     /// 按 due_date 计算 0-30/31-60/61-90/90+ 分桶，数据库层完成 SUM/COUNT 聚合
     /// baseline_date：可选基准日，None 时使用当天（17.4-D3 向后兼容）
+    /// salesperson_id：可选业务员 ID，有值时仅统计该业务员负责的发票（17.4-D4）
     pub async fn get_aging_report(
         &self,
         customer_id: Option<i32>,
         baseline_date: Option<chrono::NaiveDate>,
+        salesperson_id: Option<i32>,
     ) -> Result<serde_json::Value, AppError> {
         // v14 P0-2 修复：使用 SQL CASE WHEN + SUM + COUNT 在数据库层完成分桶聚合
         // 避免全表数据加载到应用层导致内存溢出风险（原实现 .all() 加载全部发票到内存）
         // 规则 12 合规：customer_id 使用参数化绑定，禁止字符串拼接
         let today = baseline_date.unwrap_or_else(|| Utc::now().date_naive());
-        let (sql, params) = Self::build_aging_sql_and_params(customer_id, today);
+        let (sql, params) = Self::build_aging_sql_and_params(customer_id, today, salesperson_id);
 
         let result: Option<sea_orm::QueryResult> = self
             .db
@@ -328,13 +330,15 @@ impl ArService {
         ))
     }
 
-    /// 构建账龄报表 SQL 与参数（按 customer_id 是否存在分支）
+    /// 构建账龄报表 SQL 与参数（按 customer_id / salesperson_id 是否存在分支）
     fn build_aging_sql_and_params(
         customer_id: Option<i32>,
         today: NaiveDate,
+        salesperson_id: Option<i32>,
     ) -> (&'static str, Vec<sea_orm::Value>) {
-        if let Some(cid) = customer_id {
-            (
+        // 根据 customer_id 和 salesperson_id 的组合选择不同 SQL
+        match (customer_id, salesperson_id) {
+            (Some(cid), Some(sid)) => (
                 r#"
                 SELECT
                     COALESCE(SUM(CASE WHEN due_date >= $1 THEN unpaid_amount ELSE 0 END), 0) AS not_due,
@@ -343,7 +347,29 @@ impl ArService {
                     COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) BETWEEN 61 AND 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_61_90,
                     COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) > 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_90_plus,
                     COUNT(*) AS invoice_count
-                FROM ar_invoice
+                FROM ar_invoices
+                WHERE status <> $2
+                  AND unpaid_amount > 0
+                  AND customer_id = $3
+                  AND salesperson_id = $4
+                "#,
+                vec![
+                    today.into(),
+                    crate::models::status::common::STATUS_CANCELLED.into(),
+                    cid.into(),
+                    sid.into(),
+                ],
+            ),
+            (Some(cid), None) => (
+                r#"
+                SELECT
+                    COALESCE(SUM(CASE WHEN due_date >= $1 THEN unpaid_amount ELSE 0 END), 0) AS not_due,
+                    COALESCE(SUM(CASE WHEN due_date < $1 AND (CURRENT_DATE - due_date) <= 30 THEN unpaid_amount ELSE 0 END), 0) AS bucket_0_30,
+                    COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) BETWEEN 31 AND 60 THEN unpaid_amount ELSE 0 END), 0) AS bucket_31_60,
+                    COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) BETWEEN 61 AND 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_61_90,
+                    COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) > 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_90_plus,
+                    COUNT(*) AS invoice_count
+                FROM ar_invoices
                 WHERE status <> $2
                   AND unpaid_amount > 0
                   AND customer_id = $3
@@ -353,9 +379,8 @@ impl ArService {
                     crate::models::status::common::STATUS_CANCELLED.into(),
                     cid.into(),
                 ],
-            )
-        } else {
-            (
+            ),
+            (None, Some(sid)) => (
                 r#"
                 SELECT
                     COALESCE(SUM(CASE WHEN due_date >= $1 THEN unpaid_amount ELSE 0 END), 0) AS not_due,
@@ -364,7 +389,27 @@ impl ArService {
                     COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) BETWEEN 61 AND 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_61_90,
                     COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) > 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_90_plus,
                     COUNT(*) AS invoice_count
-                FROM ar_invoice
+                FROM ar_invoices
+                WHERE status <> $2
+                  AND unpaid_amount > 0
+                  AND salesperson_id = $3
+                "#,
+                vec![
+                    today.into(),
+                    crate::models::status::common::STATUS_CANCELLED.into(),
+                    sid.into(),
+                ],
+            ),
+            (None, None) => (
+                r#"
+                SELECT
+                    COALESCE(SUM(CASE WHEN due_date >= $1 THEN unpaid_amount ELSE 0 END), 0) AS not_due,
+                    COALESCE(SUM(CASE WHEN due_date < $1 AND (CURRENT_DATE - due_date) <= 30 THEN unpaid_amount ELSE 0 END), 0) AS bucket_0_30,
+                    COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) BETWEEN 31 AND 60 THEN unpaid_amount ELSE 0 END), 0) AS bucket_31_60,
+                    COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) BETWEEN 61 AND 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_61_90,
+                    COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) > 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_90_plus,
+                    COUNT(*) AS invoice_count
+                FROM ar_invoices
                 WHERE status <> $2
                   AND unpaid_amount > 0
                 "#,
@@ -372,7 +417,7 @@ impl ArService {
                     today.into(),
                     crate::models::status::common::STATUS_CANCELLED.into(),
                 ],
-            )
+            ),
         }
     }
 

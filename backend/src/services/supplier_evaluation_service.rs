@@ -14,7 +14,14 @@ use sea_orm::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::info;
+use tokio_util::sync::CancellationToken;
+use tracing::{info, warn};
+
+/// 供应商评估定时调度默认间隔（秒）— 每 24 小时检查一次
+const DEFAULT_EVALUATION_INTERVAL_SECS: u64 = 86400;
+
+/// 启动初始延迟（秒）— 避免与启动初始化争抢数据库连接
+const EVALUATION_INITIAL_DELAY_SECS: u64 = 300;
 
 #[derive(Debug, Clone, Default)]
 pub struct EvaluationIndicatorQueryParams {
@@ -462,5 +469,134 @@ impl SupplierEvaluationService {
             .ok_or_else(|| AppError::not_found(format!("评估记录不存在：{}", id)))?;
 
         Ok(record)
+    }
+
+    /// 启动供应商评估定时调度任务（15.2-1）
+    ///
+    /// 定时检查供应商评估是否需要触发，支持季度/年度评估周期。
+    /// 环境变量门控：
+    /// - `SUPPLIER_EVALUATION_SCHEDULER_ENABLED`（默认 "true"）— 设为 "false" 时跳过
+    /// - `SUPPLIER_EVALUATION_SCHEDULER_INTERVAL_SECS`（默认 86400=24h）— 扫描间隔
+    pub fn start_evaluation_scheduler(
+        db: Arc<DatabaseConnection>,
+        token: CancellationToken,
+    ) -> tokio::task::JoinHandle<()> {
+        tokio::spawn(async move {
+            let enabled = std::env::var("SUPPLIER_EVALUATION_SCHEDULER_ENABLED")
+                .map(|v| matches!(v.to_lowercase().as_str(), "true" | "1" | "yes" | "on"))
+                .unwrap_or(true);
+            if !enabled {
+                info!("供应商评估调度器：环境变量 SUPPLIER_EVALUATION_SCHEDULER_ENABLED=false，跳过启动");
+                return;
+            }
+
+            let interval_secs = std::env::var("SUPPLIER_EVALUATION_SCHEDULER_INTERVAL_SECS")
+                .ok()
+                .and_then(|v| v.parse::<u64>().ok())
+                .filter(|&v| v > 0)
+                .unwrap_or(DEFAULT_EVALUATION_INTERVAL_SECS);
+
+            tokio::time::sleep(std::time::Duration::from_secs(EVALUATION_INITIAL_DELAY_SECS)).await;
+
+            let interval = std::time::Duration::from_secs(interval_secs);
+            info!(
+                interval_secs,
+                "供应商评估调度器：后台任务已启动（每 {} 秒检查一次评估触发条件）",
+                interval_secs
+            );
+
+            let service = Self::new(db);
+            loop {
+                tokio::select! {
+                    _ = tokio::time::sleep(interval) => {
+                        match service.run_evaluation_check().await {
+                            Ok(count) if count > 0 => {
+                                info!(count, "供应商评估调度器：本轮自动触发 {} 条评估", count);
+                            }
+                            Ok(_) => {
+                                // 无需触发的评估，静默
+                            }
+                            Err(e) => {
+                                warn!(error = %e, "供应商评估调度器：本轮检查失败，下次循环继续");
+                            }
+                        }
+                    }
+                    _ = token.cancelled() => {
+                        info!("供应商评估调度器：收到取消信号，优雅退出");
+                        break;
+                    }
+                }
+            }
+        })
+    }
+
+    /// 执行一次评估检查：扫描需要触发评估的供应商并生成评估记录
+    async fn run_evaluation_check(&self) -> Result<u64, AppError> {
+        let now = Utc::now();
+        let today = now.date_naive();
+
+        // 查询所有活跃的评估指标
+        let indicators = supplier_evaluation::Entity::find()
+            .filter(supplier_evaluation::Column::Status.eq(master_data::ACTIVE))
+            .all(&*self.db)
+            .await?;
+
+        if indicators.is_empty() {
+            return Ok(0);
+        }
+
+        // 查询已有评估记录，按供应商+周期去重，避免重复触发
+        let existing_records = supplier_evaluation_record::Entity::find()
+            .all(&*self.db)
+            .await?;
+
+        let existing_set: std::collections::HashSet<(i32, String)> = existing_records
+            .iter()
+            .map(|r| (r.supplier_id, r.evaluation_period.clone()))
+            .collect();
+
+        // 生成当前评估周期标识（季度格式：2026-Q1）
+        let quarter = (today.month() - 1) / 3 + 1;
+        let current_period = format!("{}-Q{}", today.year(), quarter);
+
+        // 查询所有供应商，检查是否需要本季度评估
+        use crate::models::supplier;
+        let suppliers = supplier::Entity::find()
+            .filter(supplier::Column::Status.eq(master_data::ACTIVE))
+            .all(&*self.db)
+            .await?;
+
+        let mut triggered: u64 = 0;
+        for sup in suppliers {
+            if existing_set.contains(&(sup.id, current_period.clone())) {
+                continue;
+            }
+
+            // 为每个供应商创建一条默认评估记录（使用第一个指标）
+            if let Some(indicator) = indicators.first() {
+                let active_record = supplier_evaluation_record::ActiveModel {
+                    supplier_id: Set(sup.id),
+                    evaluation_period: Set(current_period.clone()),
+                    indicator_id: Set(indicator.id),
+                    score: Set(Decimal::ZERO),
+                    max_score: Set(Some(indicator.max_score)),
+                    weighted_score: Set(Some(Decimal::ZERO)),
+                    evaluator_id: Set(None),
+                    evaluation_date: Set(Some(today)),
+                    remark: Set(Some("系统自动触发评估".to_string())),
+                    created_at: Set(now),
+                    ..Default::default()
+                };
+                active_record.insert(&*self.db).await?;
+                triggered += 1;
+                info!(
+                    supplier_id = sup.id,
+                    period = %current_period,
+                    "供应商评估调度器：自动触发评估"
+                );
+            }
+        }
+
+        Ok(triggered)
     }
 }

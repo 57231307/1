@@ -17,7 +17,8 @@ use axum::{
 use crate::handlers::{
     inventory_adjustment_handler, inventory_batch_handler, inventory_count_handler,
     inventory_reservation_handler, inventory_stock_handler, inventory_stock_handler_fabric,
-    inventory_stock_handler_query, inventory_transfer_handler, logistics_handler, print_handler,
+    inventory_stock_handler_query, inventory_transfer_handler, inventory_write_down_handler,
+    logistics_handler, print_handler,
 };
 
 /// 库存主路由（nest 到 /api/v1/erp/inventory）；主函数仅做协调：聚合各资源子路由（path 前缀互不重叠，merge 安全）。
@@ -29,6 +30,7 @@ pub fn inventory() -> Router<AppState> {
         .merge(adjustment_routes())
         .merge(reservation_routes())
         .merge(count_routes())
+        .merge(write_down_routes())
 }
 
 /// 拆匹路由（path 前缀 /piece-split）
@@ -218,6 +220,24 @@ fn count_routes() -> Router<AppState> {
         .route(
             "/counts/:id/reject",
             post(inventory_count_handler::reject_count),
+        )
+}
+
+/// 存货跌价准备路由（path 前缀 /write-downs，V15 P2 B08-16）
+fn write_down_routes() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/write-downs",
+            get(inventory_write_down_handler::list_write_downs)
+                .post(inventory_write_down_handler::create_write_down),
+        )
+        .route(
+            "/write-downs/:id",
+            get(inventory_write_down_handler::get_write_down),
+        )
+        .route(
+            "/write-downs/:id/confirm",
+            post(inventory_write_down_handler::confirm_write_down),
         )
 }
 

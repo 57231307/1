@@ -69,6 +69,7 @@ impl ProductCategoryService {
     pub async fn create(
         &self,
         req: crate::handlers::product_category_handler::CreateProductCategoryRequest,
+        _user_id: i32,
     ) -> Result<product_category::Model, AppError> {
         // 检查父类别是否存在（如果提供了 parent_id）
         // 批次 98 P2-C 修复（v5 复审）：去掉冗余 let _ = ，父级校验通过 ? 传播

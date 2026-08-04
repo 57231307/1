@@ -37,6 +37,14 @@ use crate::utils::error::AppError;
 
 use super::{mean, AiAnalysisService};
 
+/// 因子贡献（V15 P2 14.7.1：解释各评分因子的权重与贡献）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FactorContribution {
+    pub factor_name: String,
+    pub weight: f64,
+    pub contribution: String,
+}
+
 // =====================================================
 // 输入 / 输出 DTO
 // =====================================================
@@ -121,6 +129,8 @@ pub struct QualityPredResponse {
     pub degraded: bool,
     /// 人类可读的预测结果解释（V15 P2 14.1.71：说明预测依据和关键因素）
     pub explanation: Option<String>,
+    /// V15 P2 14.7.1：评分因子贡献列表
+    pub factors: Vec<FactorContribution>,
 }
 
 // =====================================================
@@ -527,6 +537,7 @@ fn build_fallback_response(
         cache_hit: false,
         degraded: false,
         explanation: None,
+        factors: Vec::new(),
     }
 }
 
@@ -557,6 +568,7 @@ fn build_degraded_response(
         cache_hit: false,
         degraded: true,
         explanation: None,
+        factors: Vec::new(),
     }
 }
 
@@ -582,6 +594,9 @@ fn build_history_response(
         records.len(),
     );
 
+    // V15 P2 14.7.1：构建因子贡献列表
+    let factors = build_quality_factors(avg_rate, trend_is_down, &top_issues, records.len());
+
     QualityPredResponse {
         product_id: params.product_id,
         inspection_type: params.type_label,
@@ -600,6 +615,7 @@ fn build_history_response(
         cache_hit: false,
         degraded: false,
         explanation: Some(explanation),
+        factors,
     }
 }
 
@@ -714,6 +730,62 @@ fn compute_top_issues(records: &[QualityInspectionModel]) -> Vec<QualityIssue> {
     top_issues.sort_by(|a, b| b.occurrences.cmp(&a.occurrences));
     top_issues.truncate(3);
     top_issues
+}
+
+/// V15 P2 14.7.1：构建质量预测的因子贡献列表
+fn build_quality_factors(
+    avg_rate: f64,
+    trend_is_down: bool,
+    top_issues: &[QualityIssue],
+    sample_count: usize,
+) -> Vec<FactorContribution> {
+    let mut factors = Vec::new();
+
+    // 合格率因子
+    let rate_weight = RISK_WEIGHT_RATE;
+    factors.push(FactorContribution {
+        factor_name: "平均合格率".to_string(),
+        weight: round2(rate_weight),
+        contribution: format!("当前合格率 {:.1}%，对风险评分贡献 {:.1} 分", avg_rate, (100.0 - avg_rate).max(0.0) * rate_weight),
+    });
+
+    // 趋势因子
+    let trend_weight = RISK_WEIGHT_TREND;
+    factors.push(FactorContribution {
+        factor_name: "趋势惩罚".to_string(),
+        weight: round2(trend_weight),
+        contribution: if trend_is_down {
+            format!("下降趋势触发惩罚 +{:.1} 分", TREND_DOWN_PENALTY * trend_weight)
+        } else {
+            "趋势平稳，无额外惩罚".to_string()
+        },
+    });
+
+    // 问题归因因子
+    if !top_issues.is_empty() {
+        let top = &top_issues[0];
+        factors.push(FactorContribution {
+            factor_name: "主要问题归因".to_string(),
+            weight: 0.0,
+            contribution: format!(
+                "最突出问题「{}」占比 {:.1}%（{} 次）",
+                top.issue_type, top.percentage, top.occurrences
+            ),
+        });
+    }
+
+    // 样本量因子
+    factors.push(FactorContribution {
+        factor_name: "样本量置信度".to_string(),
+        weight: round2(sample_count as f64 / CONFIDENCE_FULL_SAMPLE as f64).min(1.0),
+        contribution: format!(
+            "基于 {} 条历史记录，置信度 {:.0}%",
+            sample_count,
+            (sample_count as f64 / CONFIDENCE_FULL_SAMPLE as f64).min(1.0) * 100.0
+        ),
+    });
+
+    factors
 }
 
 // =====================================================

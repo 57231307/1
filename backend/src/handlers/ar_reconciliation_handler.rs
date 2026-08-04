@@ -334,6 +334,7 @@ pub struct AutoMatchQueryParams {
 pub struct AgingReportQueryParams {
     pub customer_id: Option<i32>,
     pub baseline_date: Option<chrono::NaiveDate>,
+    pub salesperson_id: Option<i32>,
 }
 
 /// 确认对账单请求
@@ -442,7 +443,7 @@ pub async fn aging_report(
     );
 
     let service = ArReconciliationService::new(state.db.clone());
-    let report = service.get_aging_report(params.customer_id, params.baseline_date).await?;
+    let report = service.get_aging_report(params.customer_id, params.baseline_date, params.salesperson_id).await?;
 
     info!(
         "用户 {} 账龄分析完成，应收总额: {}",

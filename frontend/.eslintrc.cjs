@@ -26,7 +26,7 @@ module.exports = {
     'vue/multi-word-component-names': 'off',
     'vue/no-v-html': 'off',
     'vue/require-default-prop': 'off',
-    'vue/require-explicit-emits': 'off',
+    'vue/require-explicit-emits': 'warn',
     // Vue 2 时代的 filter 规则在 Vue 3 项目不适用，关闭避免 `||` 误报
     'vue/no-deprecated-filter': 'off',
 

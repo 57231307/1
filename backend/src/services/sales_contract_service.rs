@@ -29,6 +29,7 @@ pub struct CreateSalesContractRequest {
     pub contract_name: String,
     pub customer_id: i32,
     pub total_amount: Decimal,
+    pub contract_type: Option<String>,
     pub payment_terms: Option<String>,
     pub delivery_date: NaiveDate,
     pub remark: Option<String>,
@@ -53,6 +54,22 @@ impl SalesContractService {
         Self { db }
     }
 
+    /// 根据合同类型和金额计算印花税
+    /// - 购销合同（sale / purchase_sale）：总金额 * 0.3‰
+    /// - 加工承揽合同（processing / processing_contract）：总金额 * 0.5‰
+    /// - 其他类型：不计算
+    fn calculate_stamp_tax(
+        contract_type: Option<&str>,
+        total_amount: Decimal,
+    ) -> Option<Decimal> {
+        let rate = match contract_type? {
+            "sale" | "purchase_sale" => Decimal::new(3, 4),      // 0.0003 = 0.3‰
+            "processing" | "processing_contract" => Decimal::new(5, 4), // 0.0005 = 0.5‰
+            _ => return None,
+        };
+        Some(total_amount * rate)
+    }
+
     /// 创建销售合同
     pub async fn create(
         &self,
@@ -61,14 +78,19 @@ impl SalesContractService {
     ) -> Result<sales_contract::Model, AppError> {
         info!("用户 {} 正在创建销售合同：{}", user_id, req.contract_no);
 
+        let stamp_tax =
+            Self::calculate_stamp_tax(req.contract_type.as_deref(), req.total_amount);
+
         let active_contract = sales_contract::ActiveModel {
             contract_no: Set(req.contract_no),
             contract_name: Set(req.contract_name),
+            contract_type: Set(req.contract_type),
             customer_id: Set(req.customer_id),
             total_amount: Set(Some(req.total_amount)),
             status: Set("draft".to_string()),
             payment_terms: Set(req.payment_terms),
             delivery_date: Set(Some(req.delivery_date)),
+            stamp_tax_amount: Set(stamp_tax),
             created_by: Set(user_id),
             ..Default::default()
         };

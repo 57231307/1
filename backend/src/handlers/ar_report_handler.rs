@@ -20,6 +20,7 @@ pub struct ArReportQuery {
     pub end_date: Option<chrono::NaiveDate>,
     pub customer_id: Option<i32>,
     pub baseline_date: Option<chrono::NaiveDate>,
+    pub salesperson_id: Option<i32>,
 }
 
 /// 获取统计报表
@@ -144,7 +145,7 @@ pub async fn get_aging_report(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     tracing::debug!(user_id = auth.user_id, "AR 账龄报表查询");
 
-    let cache_key = format!("ar:report:aging:{:?}", query.customer_id);
+    let cache_key = format!("ar:report:aging:{:?}:{:?}", query.customer_id, query.salesperson_id);
     if let Some(cached) = state.cache_service.get(&cache_key).await {
         if let Ok(value) = serde_json::from_slice::<serde_json::Value>(&cached) {
             return Ok(Json(ApiResponse::success(value)));
@@ -153,7 +154,7 @@ pub async fn get_aging_report(
 
     let service = crate::services::ar_service::ArService::new(state.db.clone());
     let report = service
-        .get_aging_report(query.customer_id, query.baseline_date)
+        .get_aging_report(query.customer_id, query.baseline_date, query.salesperson_id)
         .await
         .map_err(|e| AppError::internal(format!("获取账龄报表失败: {}", e)))?;
 

@@ -132,9 +132,27 @@ pub async fn list_customers(
         )
         .await?;
 
+    // 12.3-3：字段级读权限过滤（field_permissions 接入）
+    let items = if let Some(role_id) = auth.role_id {
+        let field_perm_svc = crate::services::field_permission_service::FieldPermissionService::new(state.db.clone());
+        let field_perms = field_perm_svc
+            .list_field_permissions(Some("customer"), Some(role_id))
+            .await
+            .unwrap_or_default();
+        if !field_perms.is_empty() {
+            result.items.into_iter().map(|mut v| {
+                field_perm_svc.filter_fields_by_read_permission(&mut v, &field_perms);
+                v
+            }).collect()
+        } else {
+            result.items
+        }
+    } else {
+        result.items
+    };
+
     // P1-08-5：非管理员对客户列表手机号/邮箱脱敏
-    let masked_items: Vec<serde_json::Value> = result
-        .items
+    let masked_items: Vec<serde_json::Value> = items
         .into_iter()
         .map(|v| crate::utils::field_mask::mask_contact_fields_for_role(v, auth.role_id))
         .collect();
@@ -165,6 +183,19 @@ pub async fn get_customer(
     let customer_json = customer_service
         .get_customer_with_filter(id, permission_filter, Some(&data_scope_ctx))
         .await?;
+
+    // 12.3-3：字段级读权限过滤（field_permissions 接入）
+    let mut customer_json = customer_json;
+    if let Some(role_id) = auth.role_id {
+        let field_perm_svc = crate::services::field_permission_service::FieldPermissionService::new(state.db.clone());
+        let field_perms = field_perm_svc
+            .list_field_permissions(Some("customer"), Some(role_id))
+            .await
+            .unwrap_or_default();
+        if !field_perms.is_empty() {
+            field_perm_svc.filter_fields_by_read_permission(&mut customer_json, &field_perms);
+        }
+    }
 
     // P1-08-5：非管理员对客户详情手机号/邮箱脱敏
     let customer_json =
@@ -248,10 +279,10 @@ pub async fn update_customer(
 
     // M-1 修复：检查数据权限
     // 使用 created_by 做数据隔离：
-    // - 管理员（role_id=1）可修改所有客户
+    // - 管理员可修改所有客户
     // - 普通用户只能修改自己创建的客户
     let customer = customer_service.get_customer(id, None).await?;
-    let is_admin = auth.role_id == Some(1);
+    let is_admin = is_admin_role(&*state.db, auth.role_id.unwrap_or(0)).await;
     let is_owner = customer.created_by == Some(auth.user_id);
     if !is_admin && !is_owner {
         return Err(AppError::permission_denied(
@@ -310,10 +341,10 @@ pub async fn delete_customer(
 
     // M-1 修复：检查数据权限
     // 使用 created_by 做数据隔离：
-    // - 管理员（role_id=1）可删除所有客户
+    // - 管理员可删除所有客户
     // - 普通用户只能删除自己创建的客户
     let customer = customer_service.get_customer(id, None).await?;
-    let is_admin = auth.role_id == Some(1);
+    let is_admin = is_admin_role(&*state.db, auth.role_id.unwrap_or(0)).await;
     let is_owner = customer.created_by == Some(auth.user_id);
     if !is_admin && !is_owner {
         return Err(AppError::permission_denied("无权删除该客户".to_string()));

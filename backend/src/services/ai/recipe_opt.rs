@@ -60,6 +60,14 @@ pub struct RecipeParams {
     pub liquor_ratio: f64,
 }
 
+/// 因子贡献（V15 P2 14.7.1：解释各评分因子的权重与贡献）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FactorContribution {
+    pub factor_name: String,
+    pub weight: f64,
+    pub contribution: String,
+}
+
 /// 相似候选案例（命中 TopK 后的前 10 条）
 #[derive(Debug, Clone, Serialize)]
 pub struct RecipeCandidate {
@@ -95,6 +103,14 @@ pub struct RecipeOptResponse {
     pub cache_hit: bool,
     /// V15 P1 9.1+9.5：是否为降级结果（true 表示推理超时或模型不可用时返回的兜底结果）
     pub degraded: bool,
+    /// V15 P2 14.1.2：原始配方成本（可选，无成本数据时为 None）
+    pub original_cost: Option<f64>,
+    /// V15 P2 14.1.2：优化后配方成本（可选）
+    pub optimized_cost: Option<f64>,
+    /// V15 P2 14.1.2：成本变化百分比（正数表示增加，负数表示降低）
+    pub cost_delta_percentage: Option<f64>,
+    /// V15 P2 14.7.1：评分因子贡献列表
+    pub factors: Vec<FactorContribution>,
 }
 
 // =====================================================
@@ -327,6 +343,138 @@ fn round1(v: f64) -> f64 {
     (v * 10.0).round() / 10.0
 }
 
+/// 计算配方的综合成本估算（基于助剂用量总和 + 能耗参数）
+/// 返回 None 表示无成本数据（无助剂信息时无法估算）
+fn estimate_recipe_cost(recipe: &DyeRecipeModel) -> Option<f64> {
+    let auxiliaries = recipe.auxiliaries.as_ref()?;
+    if auxiliaries.is_empty() {
+        return None;
+    }
+    let aux_cost: f64 = auxiliaries
+        .iter()
+        .map(|a| a.amount.to_f64().unwrap_or(0.0))
+        .sum();
+    let temp_factor = recipe
+        .temperature
+        .and_then(|d| d.to_f64())
+        .map(|t| t / 80.0)
+        .unwrap_or(1.0);
+    let time_factor = recipe
+        .time_minutes
+        .map(|t| t as f64 / 45.0)
+        .unwrap_or(1.0);
+    Some(round2(aux_cost * temp_factor * time_factor))
+}
+
+/// 保留 2 位小数
+fn round2(v: f64) -> f64 {
+    (v * 100.0).round() / 100.0
+}
+
+/// 从相似度评分构建因子贡献列表
+fn build_factor_contributions(top: &[(f64, &DyeRecipeModel)]) -> Vec<FactorContribution> {
+    if top.is_empty() {
+        return Vec::new();
+    }
+    let n = top.len() as f64;
+    let mut color_sum = 0.0_f64;
+    let mut fabric_sum = 0.0_f64;
+    let mut dye_sum = 0.0_f64;
+
+    for (score, model) in top {
+        let color_score = color_similarity("", model.color_no.as_deref().unwrap_or(""));
+        let s = *score;
+        let c = if color_score > 0.0 { color_score.min(s) } else { 0.0 };
+        let f = if s > c + 0.05 { 0.2 } else { 0.0 };
+        let d = s - c - f;
+        color_sum += c;
+        fabric_sum += f;
+        dye_sum += d.max(0.0);
+    }
+
+    let total = color_sum + fabric_sum + dye_sum;
+    if total <= 0.0 {
+        return Vec::new();
+    }
+
+    vec![
+        FactorContribution {
+            factor_name: "色号匹配".to_string(),
+            weight: round2(color_sum / total),
+            contribution: format!("平均色号相似度得分 {:.2}", color_sum / n),
+        },
+        FactorContribution {
+            factor_name: "布类匹配".to_string(),
+            weight: round2(fabric_sum / total),
+            contribution: if fabric_sum > 0.0 {
+                format!("布类匹配贡献 {:.2}", fabric_sum / n)
+            } else {
+                "布类未匹配".to_string()
+            },
+        },
+        FactorContribution {
+            factor_name: "染料匹配".to_string(),
+            weight: round2(dye_sum / total),
+            contribution: if dye_sum > 0.0 {
+                format!("染料类型匹配贡献 {:.2}", dye_sum / n)
+            } else {
+                "染料类型未匹配".to_string()
+            },
+        },
+    ]
+}
+
+/// V15 P2 14.1.2：计算成本对比并生成警告
+/// 返回 (original_cost, optimized_cost, cost_delta_percentage, reason_with_warning)
+fn compute_cost_comparison(
+    top: &[(f64, &DyeRecipeModel)],
+    agg: &AggregatedParams,
+) -> (Option<f64>, Option<f64>, Option<f64>, String) {
+    // 计算原始配方的平均成本（取 top 命中配方的成本均值）
+    let costs: Vec<f64> = top
+        .iter()
+        .filter_map(|(_, m)| estimate_recipe_cost(m))
+        .collect();
+
+    if costs.is_empty() {
+        return (None, None, None, String::new());
+    }
+
+    let original_cost = costs.iter().sum::<f64>() / costs.len() as f64;
+
+    // 用推荐参数估算优化后成本（基于助剂均值 + 推荐温度/时间）
+    let avg_aux_cost: f64 = top
+        .iter()
+        .filter_map(|(_, m)| {
+            let aux = m.auxiliaries.as_ref()?;
+            Some(aux.iter().map(|a| a.amount.to_f64().unwrap_or(0.0)).sum::<f64>())
+        })
+        .sum::<f64>()
+        / costs.len() as f64;
+
+    let temp_factor = agg.temperature / 80.0;
+    let time_factor = agg.time_minutes / 45.0;
+    let optimized_cost = round2(avg_aux_cost * temp_factor * time_factor);
+
+    let delta = if original_cost > 0.0 {
+        ((optimized_cost - original_cost) / original_cost) * 100.0
+    } else {
+        0.0
+    };
+    let cost_delta = round2(delta);
+
+    let reason = if cost_delta > 10.0 {
+        format!(
+            "⚠ 警告：优化后成本较原始配方增加 {:.1}%，建议人工复核工艺参数",
+            cost_delta
+        )
+    } else {
+        String::new()
+    };
+
+    (Some(round2(original_cost)), Some(optimized_cost), Some(cost_delta), reason)
+}
+
 /// 判断是否需要走 k-NN 路径（命中条数 ≥ 3 才走 k-NN，否则退化）
 pub(crate) fn should_use_knn(hit_count: usize) -> bool {
     hit_count >= 3
@@ -475,6 +623,18 @@ impl AiAnalysisService {
         let agg = weighted_average_params(top)
             .ok_or_else(|| AppError::internal("工艺推荐：k-NN 加权聚合失败"))?;
         let confidence = compute_confidence(top, k);
+
+        // V15 P2 14.1.2：成本对比计算
+        let (original_cost, optimized_cost, cost_delta, mut reason) =
+            compute_cost_comparison(top, &agg);
+
+        if reason.is_empty() {
+            reason = format!("基于 {} 条相似历史配方（k={}）的加权平均推荐", top.len(), k);
+        }
+
+        // V15 P2 14.7.1：构建因子贡献
+        let factors = build_factor_contributions(top);
+
         Ok(RecipeOptResponse {
             recommended_params: RecipeParams {
                 temperature: round1(agg.temperature),
@@ -485,10 +645,14 @@ impl AiAnalysisService {
             similar_cases: top.len(),
             confidence,
             source: "knn".to_string(),
-            reason: format!("基于 {} 条相似历史配方（k={}）的加权平均推荐", top.len(), k),
+            reason,
             candidates,
             cache_hit: false,
             degraded: false,
+            original_cost,
+            optimized_cost,
+            cost_delta_percentage: cost_delta,
+            factors,
         })
     }
 
@@ -513,6 +677,10 @@ impl AiAnalysisService {
             candidates,
             cache_hit: false,
             degraded: false,
+            original_cost: None,
+            optimized_cost: None,
+            cost_delta_percentage: None,
+            factors: Vec::new(),
         }
     }
 
@@ -534,6 +702,10 @@ impl AiAnalysisService {
             candidates: Vec::new(),
             cache_hit: false,
             degraded: true,
+            original_cost: None,
+            optimized_cost: None,
+            cost_delta_percentage: None,
+            factors: Vec::new(),
         }
     }
 }

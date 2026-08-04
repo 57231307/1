@@ -3,7 +3,7 @@
  * 任务编号: Wave 4 P2-1 PR-1
  * 关联 spec: docs/superpowers/specs/2026-06-16-wave4-p2-1-design.md 第四章
  */
-import { ref, watch } from 'vue';
+import { ref, watch, onBeforeUnmount } from 'vue';
 import type { Ref } from 'vue';
 import { request } from '@/api/request';
 import type { ApiResponse } from '@/types/api';
@@ -163,8 +163,13 @@ export function useTableApi<T = unknown>(
   };
 
   // 监听分页变化自动加载
-  watch([page, pageSize], () => {
+  const stopWatch = watch([page, pageSize], () => {
     fetchData();
+  });
+
+  // 组件卸载时停止 watcher，避免内存泄漏
+  onBeforeUnmount(() => {
+    stopWatch();
   });
 
   // 初始加载

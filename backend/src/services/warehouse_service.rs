@@ -66,6 +66,7 @@ impl WarehouseService {
     pub async fn create(
         &self,
         req: crate::handlers::warehouse_handler::CreateWarehouseRequest,
+        _user_id: i32,
     ) -> Result<warehouse::Model, AppError> {
         // 自动生成仓库编码
         let code = match req.code {

@@ -141,6 +141,10 @@ pub async fn bootstrap_full_mode(
     start_tracking_cleanup_scheduler(&app_state);
     // P1 batch-18 缺陷 7.2：库存告警通知调度器（扫描库存告警 + 推送通知）
     start_stock_alert_notification_scheduler(&app_state);
+    // 15.2-1：供应商评估定时调度（每季度/每年自动触发评估）
+    start_supplier_evaluation_scheduler(&app_state);
+    // 16.2-D1：定时推送后台调度（扫描到期推送订阅并触发推送）
+    start_notification_push_scheduler(&app_state);
     // V15 P2 B05-P2-7：PDA/工控终端心跳超时清理任务（默认每 60 秒扫描一次超时设备）
     start_device_connection_cleanup_task(&app_state);
     init_event_bus(&app_state, settings).await;
@@ -158,6 +162,8 @@ pub async fn bootstrap_full_mode(
     if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
         tasks.push(perm_pubsub_handle);
     }
+    // V15 P1-14.10-C：启动权限合规审查定时任务（异常权限分配识别 + 定期合规审查）
+    start_permission_compliance_review(&app_state);
 
     Ok((app_state, shutdown_handles))
 }
@@ -693,6 +699,32 @@ fn start_stock_alert_notification_scheduler(app_state: &AppState) {
     info!("库存告警通知调度器已启动（默认每 6 小时扫描全量库存并推送告警通知）");
 }
 
+/// 15.2-1：启动供应商评估定时调度任务（每季度/每年自动触发评估）。
+fn start_supplier_evaluation_scheduler(app_state: &AppState) {
+    let handle = crate::services::supplier_evaluation_service::SupplierEvaluationService::start_evaluation_scheduler(
+        app_state.db.clone(),
+        MAIN_CANCELLATION_TOKEN.clone(),
+    );
+    if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
+        tasks.push(handle);
+    }
+    info!("供应商评估定时调度任务已启动（默认每 24 小时检查评估触发条件）");
+}
+
+/// 16.2-D1：启动定时推送后台调度任务（扫描到期推送订阅并触发推送）。
+fn start_notification_push_scheduler(app_state: &AppState) {
+    let scheduler = std::sync::Arc::new(
+        crate::services::notification_scheduler::NotificationPushScheduler::new(
+            app_state.db.clone(),
+        ),
+    );
+    let handle = scheduler.start_background_task();
+    if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
+        tasks.push(handle);
+    }
+    info!("定时推送后台调度任务已启动（默认每 60 秒扫描一次到期推送订阅）");
+}
+
 /// B05-P2-7：启动设备连接心跳超时清理任务（默认 60s 扫描，超时标记 timeout）。
 // 环境变量门控：DEVICE_CONNECTION_CLEANUP_ENABLED(默认true) / DEVICE_HEARTBEAT_TIMEOUT_SECS(默认300) / DEVICE_CONNECTION_CLEANUP_INTERVAL_SECS(默认60)
 fn start_device_connection_cleanup_task(app_state: &AppState) {
@@ -762,6 +794,21 @@ async fn init_event_bus(app_state: &AppState, settings: &AppSettings) {
     )
     .await;
     crate::services::event_bus::init_event_bus_with_kafka_config(&settings.kafka).await;
+}
+
+/// V15 P1-14.10-C：启动权限合规审查定时任务（每 7 天扫描权限变更日志，识别 6 类异常行为）。
+fn start_permission_compliance_review(app_state: &AppState) {
+    let service = std::sync::Arc::new(
+        crate::services::permission_compliance_service::PermissionComplianceService::new(
+            app_state.db.clone(),
+            app_state.audit_log.clone(),
+        ),
+    );
+    let handle = service.start_periodic_review(MAIN_CANCELLATION_TOKEN.clone());
+    if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
+        tasks.push(handle);
+    }
+    info!("权限合规审查定时任务已启动（14.10-C，受 MAIN_CANCELLATION_TOKEN 控制）");
 }
 
 /// 启动时初始化 8 个辅助核算维度（幂等实现，失败仅 warn 不阻塞启动）。

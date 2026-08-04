@@ -223,6 +223,7 @@ pub mod webhook_service;
 pub mod data_permission_service;
 pub mod email_service;
 pub mod event_notification_service;
+pub mod notification_scheduler;
 pub mod notification_service;
 pub mod user_notification_setting_service;
 // 产能分析模块
