@@ -67,13 +67,22 @@
 | P2-Batch-01b | 类二+三+四+六+七（续作 18 项） | 18 | Cookie 双写+缓存一致性+SQL 参数化+表重叠+测试补齐+service 拆分+差异化 TTL | ✅ 已合并 main（PR #799，5bd1743，归档 doto-su.md） |
 | P2-Batch-02 | 类五（运行闭环） | 10 | 反馈闭环 + 重染补染 + 告警死信 + 资源管理 + 凭证归集 | ✅ 已合并 main（PR #801，b4bc147 squash，归档 doto-su.md） |
 | P2-Batch-03 | 类八（法律合规剩余）+ 类九（色卡发放） | 8+12+4 | 跨境合规 + 商检/产地证 + 色卡报表/成本/预警/统计 | ✅ 已合并 main（PR #803，bb010ad squash，归档 doto-su.md） |
-| P2-Batch-04+ | 类九~类二十五 | 待核实 | 后续批次启动前各自执行步骤 0 核实 | 📋 待启动 |
+| P2-Batch-04 | 类十+类十一+类十二（P2 快速修复） | 2 | 硬编码 role_id==1 修复 + v-role 指令删除 | ⏳ 待推送 PR |
 
 ### 1.3 P2-Batch-01b 遗留未完成项
 
 | 编号 | 缺陷描述 | 真实状态 | 待办 |
 |------|---------|----------|------|
 | B04-P2-3 | 月末分摊缺端到端集成测试 | ✅ 完全存在（main 无任何 energy/allocation 测试） | 待后续批次补充月末分摊端到端集成测试 |
+
+### 1.4 P2-Batch-04 修复项（2026-08-03 核实）
+
+| 编号 | 缺陷描述 | 文件 | 修复状态 |
+|------|---------|------|----------|
+| B10-P2-5 | 客户 handler 硬编码 role_id == 1 改为 is_admin_role 函数 | [customer_handler.rs:350](file:///workspace/backend/src/handlers/customer_handler.rs) | ✅ 已修复 |
+| B10-P2-6 | 删除 v-role 指令，统一使用 v-permission 权限码 | [permission.ts](file:///workspace/frontend/src/directives/permission.ts) + [main.ts](file:///workspace/frontend/src/main.ts) | ✅ 已修复 |
+
+**核实结论**：batch-10 和 batch-11 的 P2 任务中，部分已实现（菜单动态加载、permission_audit_log 表、审计日志保留期限、Redis 权限缓存、omni_audit operation_category 字段、打印用户水印），部分需后续批次实现（权限审计日志查询接口、敏感角色变更双人审批、字段级权限推广、CSV/PDF 水印、流式导出、rate_limit 中间件）。
 
 ### 1.4 P3 低优先级（123 项，按需修复）
 

@@ -10,6 +10,7 @@ use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::PageRequest;
 use crate::services::customer_service::{CreateCustomerArgs, CustomerService, UpdateCustomerArgs};
+use crate::utils::admin_checker::is_admin_role;
 use crate::utils::data_permission::{DataPermissionFilter, DEFAULT_HIDDEN_FIELDS};
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -346,8 +347,8 @@ async fn get_permission_filter(
     };
 
     // 管理员角色或全量数据权限不过滤
-    // V15 P2 B10-P2-5：兼容 data_scope 全量权限（admin 角色 data_scope=all），避免仅靠 role_id==1 判定
-    if role_id == 1 || auth.data_scope.as_deref() == Some("all") {
+    // V15 P2 B10-P2-5：使用 is_admin_role 函数替代硬编码 role_id==1 判定
+    if is_admin_role(&*state.db, role_id).await || auth.data_scope.as_deref() == Some("all") {
         return Ok(None);
     }
 

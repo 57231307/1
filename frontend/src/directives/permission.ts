@@ -41,31 +41,3 @@ export const permission: Directive = {
     }
   },
 };
-
-/**
- * 角色指令
- * 使用方式：
- * <el-button v-role="'admin'">管理员操作</el-button>
- * <el-button v-role="['admin', 'manager']">管理操作</el-button>
- */
-export const role: Directive = {
-  mounted(el: HTMLElement, binding: DirectiveBinding) {
-    const { value } = binding;
-    if (!value) return;
-
-    const userStore = useUserStore();
-    const userRole = userStore.userInfo?.role_name || '';
-
-    let hasRole = false;
-
-    if (Array.isArray(value)) {
-      hasRole = value.includes(userRole);
-    } else {
-      hasRole = userRole === value;
-    }
-
-    if (!hasRole) {
-      el.parentNode?.removeChild(el);
-    }
-  },
-};
