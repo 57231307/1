@@ -33,4 +33,12 @@ body {
   padding: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
+
+/* V15 P3 Touch targets: 移动端按钮最小点击区域 ≥ 44px（WCAG 2.5.5） */
+@media (pointer: coarse) {
+  .el-button--small {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
 </style>
