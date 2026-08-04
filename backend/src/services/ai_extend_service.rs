@@ -130,9 +130,11 @@ impl AiExtendService {
         &self,
         dto: CreateProcessOptDto,
     ) -> Result<(RecipeOptResponse, i64), AppError> {
-        // 1. 调算法核心
+        // 1. 调算法核心（V15 P2 14-10.3：记录推理耗时）
+        let infer_start = std::time::Instant::now();
         let ai = AiAnalysisService::new(self.db.clone());
         let resp = ai.optimize_recipe(dto.request.clone()).await?;
+        let latency_ms = infer_start.elapsed().as_millis().min(i32::MAX as u128) as i32;
 
         // 2. 落库
         let request_id = format!("proc-{}", Uuid::new_v4());
@@ -171,6 +173,8 @@ impl AiExtendService {
             applied_by: Set(None),
             feedback_score: Set(None),
             feedback_remark: Set(None),
+            // V15 P2 14-10.3：推理耗时毫秒
+            inference_latency_ms: Set(Some(latency_ms)),
             created_by: Set(dto.operator_id),
             created_at: Set(now),
             updated_at: Set(now),
@@ -352,7 +356,9 @@ impl AiExtendService {
         dto: CreateQualityPredDto,
     ) -> Result<(QualityPredResponse, i64), AppError> {
         let ai = AiAnalysisService::new(self.db.clone());
+        let infer_start = std::time::Instant::now();
         let resp = ai.predict_quality(dto.request.clone()).await?;
+        let latency_ms = infer_start.elapsed().as_millis().min(i32::MAX as u128) as i32;
 
         let request_id = format!("qual-{}", Uuid::new_v4());
         let top_issues_json = serde_json::to_value(&resp.top_issues)
@@ -401,6 +407,8 @@ impl AiExtendService {
             is_acknowledged: Set(false),
             acknowledged_at: Set(None),
             acknowledged_by: Set(None),
+            // V15 P2 14-10.3：推理耗时毫秒
+            inference_latency_ms: Set(Some(latency_ms)),
             created_by: Set(dto.operator_id),
             created_at: Set(now),
             updated_at: Set(now),
