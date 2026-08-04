@@ -33,7 +33,14 @@ pub async fn anomaly_detection(
         .and_then(|d| d.parse::<i64>().ok())
         .unwrap_or(30);
 
-    let anomalies = service.detect_anomalies(days).await?;
+    // V15 P2 14-9.3：异常检测失败时降级返回空列表（不阻塞前端）
+    let anomalies = match service.detect_anomalies(days).await {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::warn!("异常检测失败，降级返回空列表: {}", e);
+            return Ok(Json(ApiResponse::success(vec![])));
+        }
+    };
 
     let filtered = match payload.data_type.as_str() {
         "sales" => anomalies

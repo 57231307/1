@@ -65,6 +65,25 @@ pub async fn create_process_optimization(
     auth: AuthContext,
     Json(body): Json<CreateProcessOptDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // V15 P2 14-4.5：输入校验（color_no / fabric_type 长度 + dye_type 枚举）
+    if body.request.color_no.trim().is_empty() || body.request.color_no.len() > 64 {
+        return Err(AppError::validation("color_no 长度须在 1-64 之间"));
+    }
+    if body.request.fabric_type.trim().is_empty() || body.request.fabric_type.len() > 64 {
+        return Err(AppError::validation("fabric_type 长度须在 1-64 之间"));
+    }
+    if let Some(ref dye) = body.request.dye_type {
+        let valid_dyes = [
+            "reactive", "活性", "disperse", "分散", "acid", "酸性",
+            "vat", "还原", "direct", "直接", "cationic", "阳离子", "sulfur", "硫化",
+        ];
+        if !dye.trim().is_empty() && !valid_dyes.contains(&dye.as_str()) {
+            return Err(AppError::validation(format!(
+                "dye_type 不合法，允许值：{}", valid_dyes.join("/")
+            )));
+        }
+    }
+
     let mut dto = body;
     dto.operator_id = Some(auth.user_id as i64);
 

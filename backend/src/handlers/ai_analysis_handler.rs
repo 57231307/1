@@ -46,7 +46,8 @@ pub async fn forecast_sales(
         .await
         .map_err(|e| {
             tracing::error!("销售预测失败: {}", e);
-            AppError::internal(format!("销售预测失败: {}", e))
+            // V15 P2 14-9.4：对外不暴露内部异常堆栈
+            AppError::internal("销售预测服务暂不可用，请稍后重试".to_string())
         })?;
 
     let responses: Vec<SalesForecastResponse> = forecasts
@@ -97,7 +98,8 @@ pub async fn optimize_inventory(
         .await
         .map_err(|e| {
             tracing::error!("库存优化失败: {}", e);
-            AppError::internal(format!("库存优化失败: {}", e))
+            // V15 P2 14-9.4：对外不暴露内部异常堆栈
+            AppError::internal("库存优化服务暂不可用，请稍后重试".to_string())
         })?;
 
     let responses: Vec<InventorySuggestionResponse> = suggestions
