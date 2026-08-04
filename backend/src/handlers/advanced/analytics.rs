@@ -119,7 +119,7 @@ pub struct ReportExecuteRequest {
 /// 导出报表
 pub async fn export_report(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(payload): Json<ReportExportRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = ReportEngineService::new(state.db.clone());
