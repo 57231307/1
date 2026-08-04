@@ -350,6 +350,17 @@ redis:
 env: "production"
 EOF
         log "config.yaml 生成完成"
+
+        # V15 P2 25.1-D 修复：配置目录权限加固
+        # 原因：config.yaml / .env 含数据库密码、JWT/COOKIE/WEBHOOK 密钥，
+        # 之前权限为默认 umask 022（644），任何系统用户可读泄露密钥。
+        chmod 600 "$CONFIG_FILE"
+        chown bingxi:bingxi "$CONFIG_FILE"
+        if [ -f "$ENV_FILE" ]; then
+            chmod 600 "$ENV_FILE"
+            chown bingxi:bingxi "$ENV_FILE"
+        fi
+        log "配置权限加固完成（600）"
     else
         warn ".env 文件不存在，跳过 config.yaml 生成"
     fi
@@ -447,9 +458,16 @@ health_check() {
         # v18 批次 48 修复 P0-8：健康检查端点路径从 /api/v1/erp/health 改为 /health。
         # 实际路由注册在 routes/mod.rs:359 和 routes/system.rs:196，均为顶层 /health。
         local response=$(curl -s http://127.0.0.1:8082/health 2>/dev/null)
-        if echo "$response" | grep -q '"status":"healthy"'; then
-            log "健康检查通过"
+        # V15 P2 25.1-E 修复：健康检查从仅看整体 status 增强为同时核验核心依赖 database。
+        # 原因：整体 status 由 db/memory/disk 三者共同决定，但 status 为 healthy 时无法得知
+        # 各子项明细；database 是唯一必须 healthy 的强依赖（memory/disk 偶发 degraded 可容忍），
+        # 若数据库异常应判定健康检查失败以便告警/回滚。
+        if echo "$response" | grep -q '"status":"healthy"' && echo "$response" | grep -q '"database":{"status":"healthy"'; then
+            log "健康检查通过（整体 + database 均 healthy）"
             return 0
+        fi
+        if [ $attempt -eq $((max_attempts / 2)) ]; then
+            warn "健康检查进行中...（第 ${attempt} 次，响应: $(echo "$response" | head -c 200)）"
         fi
         sleep 2
         attempt=$((attempt + 1))
@@ -475,7 +493,16 @@ rollback() {
             cp -r "$BACKUP_DIR/$latest_backup/frontend_dist/"* "$FRONTEND_DIR/"
         fi
         systemctl start "$APP_NAME"
-        log "回滚完成"
+
+        # V15 P2 25.4-N 修复：回滚完成后执行健康检查验证。
+        # 原因：之前回滚只重启服务即返回，若回滚的备份含损坏二进制或配置不匹配，
+        # 服务会启动失败但脚本仍提示"回滚完成"，运维无法及时察觉。
+        if health_check; then
+            log "回滚完成并通过健康检查"
+        else
+            warn "回滚完成但健康检查未通过，请检查服务状态"
+            return 1
+        fi
     else
         error "没有可用的备份进行回滚"
     fi
@@ -496,6 +523,48 @@ install_cli() {
 VERSION_FILE="/opt/bingxi-erp/VERSION"
 BACKUP_DIR="/opt/bingxi-erp/backups"
 SERVICE_NAME="bingxi-backend"
+
+# V15 P2 25.2-B 修复：CLI 操作日志持久化
+# 原因：之前 CLI 所有操作仅输出到终端，无任何审计记录；
+# 运维排查问题时无法回溯谁在何时执行了更新/回滚等关键操作。
+# 仅直接命令模式启用（交互菜单复用 exec 递归调用，参数非空同样生效）。
+CLI_LOG="/var/log/bingxi-cli.log"
+if [ -n "$1" ]; then
+    exec > >(tee -a "$CLI_LOG") 2>&1
+fi
+
+# V15 P2 25.2-C 修复：CLI 危险操作权限校验
+# 原因：之前 CLI 依赖 sudo 隐式提权，若环境无 sudo 或已失去权限，
+# 操作会静默失败（systemctl 错误被吞），用户误以为成功。
+require_root() {
+    if [ "$(id -u)" -ne 0 ]; then
+        if ! sudo -n true 2>/dev/null; then
+            echo "错误：更新/回滚/数据库迁移需要 root 权限，请使用 root 或 sudo 执行" >&2
+            exit 1
+        fi
+    fi
+}
+
+# V15 P2 25.2-D 修复：CLI 危险操作二次确认
+# 原因：回滚会覆盖当前后端/前端，update 会拉取覆盖线上版本，
+# 之前无确认直接执行，误触操作会中断服务。
+confirm_action() {
+    local desc=$1
+    read -p "确认${desc}？此操作会修改线上服务 (y/N): " ans
+    if [ "$ans" != "y" ] && [ "$ans" != "Y" ]; then
+        echo "已取消"
+        exit 1
+    fi
+}
+
+# V15 P2 25.3-C 修复：版本号格式校验
+# 原因：GitHub API 返回异常（如 HTML 错误页/限流信息）时 grep 到任意字符串
+# 会被当作 tag_name，导致拼接出错误的下载 URL。
+# 预期格式：vYYYY.M.D.HHMM（与 Release/TAG 命名规范一致）
+valid_tag_format() {
+    local tag=$1
+    echo "$tag" | grep -qE '^v[0-9]{4}\.[0-9]+\.[0-9]+\.[0-9]{4}$'
+}
 
 MIRRORS=(
     "https://ghp.ci/"
@@ -563,6 +632,9 @@ case "$1" in
         sudo journalctl -u $SERVICE_NAME -f --no-pager
         ;;
     6|update)
+        # V15 P2 25.2-C/D：危险操作权限校验 + 二次确认
+        require_root
+        confirm_action "执行更新"
         echo "开始更新..."
         
         # 检查是否有本地更新包
@@ -601,8 +673,7 @@ case "$1" in
                     version_success=true
                     echo "最新版本: $TAG_NAME"
                     break
-                fi
-            fi
+                fi            fi
         done
         
         if [ "$version_success" != true ]; then
@@ -612,6 +683,30 @@ case "$1" in
             echo "  2. 上传到服务器 /tmp/bingxi-erp-update.tar.gz"
             echo "  3. 再次运行 bingxi update"
             exit 1
+        fi
+
+        # V15 P2 25.3-C 修复：校验版本号格式（防 GitHub API 异常/限流返回伪 tag）
+        if ! valid_tag_format "$TAG_NAME"; then
+            echo "错误：获取到的版本号格式异常: '$TAG_NAME'（预期 vYYYY.M.D.HHMM）"
+            echo "GitHub API 可能被限流或返回了错误内容，请稍后重试"
+            exit 1
+        fi
+
+        # V15 P2 25.3-D 修复：升级前版本回退检查
+        # 原因：之前无任何版本比较，从 GitHub 拉取到旧 tag 时会直接覆盖当前
+        # 更新版本，造成无感知回退；本检查在目标版本不高于当前版本时要求确认。
+        CURRENT_VER=$(cat "$VERSION_FILE" 2>/dev/null || echo "unknown")
+        NEW_VER="${TAG_NAME#v}"
+        if [ "$CURRENT_VER" != "unknown" ] && [ -n "$CURRENT_VER" ]; then
+            NEWER_VER=$(printf '%s\n' "$CURRENT_VER" "$NEW_VER" | sort -V | tail -1)
+            if [ "$NEWER_VER" = "$CURRENT_VER" ]; then
+                echo "警告：目标版本 ($NEW_VER) 不高于当前版本 ($CURRENT_VER)，继续将执行回退或重复更新。"
+                read -p "是否仍要继续？(y/N): " downgrade_ok
+                if [ "$downgrade_ok" != "y" ] && [ "$downgrade_ok" != "Y" ]; then
+                    echo "已取消更新"
+                    exit 0
+                fi
+            fi
         fi
         
         # 下载发布包
@@ -657,6 +752,9 @@ case "$1" in
         fi
         ;;
     7|rollback)
+        # V15 P2 25.2-C/D：危险操作权限校验 + 二次确认
+        require_root
+        confirm_action "执行回滚"
         if [ -d "$BACKUP_DIR" ]; then
             LATEST_BACKUP=$(ls -t "$BACKUP_DIR" | head -1)
             if [ -n "$LATEST_BACKUP" ]; then
@@ -664,21 +762,36 @@ case "$1" in
                 sudo systemctl stop $SERVICE_NAME
                 sudo cp -r "$BACKUP_DIR/$LATEST_BACKUP/backend/"* /opt/bingxi-erp/backend/
                 sudo systemctl start $SERVICE_NAME
-                echo "回滚完成"
+                # V15 P2 25.4-N 修复：CLI 回滚后验证服务健康
+                sleep 3
+                if curl -s http://127.0.0.1:8082/health 2>/dev/null | grep -q '"status":"healthy"'; then
+                    echo "回滚完成并通过健康检查"
+                else
+                    echo "警告：回滚完成但健康检查未通过，请检查服务状态" >&2
+                fi
             else
-                echo "没有可用的备份"
+                echo "没有可用的备份" >&2
+                exit 1
             fi
         else
-            echo "备份目录不存在"
+            echo "备份目录不存在" >&2
+            exit 1
         fi
         ;;
     8|migrate)
+        # V15 P2 25.2-C：危险操作权限校验
+        require_root
         echo "执行数据库迁移..."
         # P0-D02：迁移改用后端内置 bingxi migrate run（移除 postgresql-client 依赖）
         source /etc/bingxi/.env
         export DATABASE_URL="postgres://${DATABASE__USERNAME}:${DATABASE__PASSWORD}@${DATABASE__HOST}:${DATABASE__PORT}/${DATABASE__NAME}?sslmode=require"
-        /opt/bingxi-erp/backend/bingxi migrate run
-        echo "迁移完成"
+        # V15 P2 25.2-A 修复：迁移失败必须返回非零退出码
+        if /opt/bingxi-erp/backend/bingxi migrate run; then
+            echo "迁移完成"
+        else
+            echo "错误：数据库迁移失败，请检查 DATABASE_URL 与后端日志" >&2
+            exit 1
+        fi
         ;;
     9|health)
         # v18 批次 48 修复 P0-8：健康检查端点路径从 /api/v1/erp/health 改为 /health
@@ -733,6 +846,11 @@ cleanup() {
 
 # 主函数
 main() {
+    # V15 P2 25.1-C 修复：部署日志持久化（所有输出同时写入日志文件）
+    local DEPLOY_LOG_DIR="${LOG_DIR:-/opt/bingxi-erp/backend/logs}"
+    mkdir -p "$DEPLOY_LOG_DIR"
+    exec > >(tee -a "$DEPLOY_LOG_DIR/deploy-$(date +%Y%m%d-%H%M%S).log") 2>&1
+
     check_root
 
     echo ""

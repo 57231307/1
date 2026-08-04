@@ -41,13 +41,16 @@ check_root() {
 
 # 健康检查指定端口（最多 10 次重试，每次 2 秒）
 # 用法：health_check_port 8082
+# V15 P2 25.1-E 修复：健康检查从仅看整体 status 增强为同时核验核心依赖 database。
 health_check_port() {
     local port=$1
     local retry=0
     local max_retry=10
     while [[ $retry -lt $max_retry ]]; do
-        if curl -sf "http://127.0.0.1:${port}/health" | grep -q '"status":"healthy"'; then
-            log "端口 ${port} 健康检查通过"
+        local response
+        response=$(curl -s "http://127.0.0.1:${port}/health" 2>/dev/null)
+        if echo "$response" | grep -q '"status":"healthy"' && echo "$response" | grep -q '"database":{"status":"healthy"'; then
+            log "端口 ${port} 健康检查通过（整体 + database 均 healthy）"
             return 0
         fi
         retry=$((retry + 1))
