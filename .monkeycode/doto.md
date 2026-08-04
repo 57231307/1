@@ -69,6 +69,7 @@
 | P2-Batch-03 | 类八（法律合规剩余）+ 类九（色卡发放） | 8+12+4 | 跨境合规 + 商检/产地证 + 色卡报表/成本/预警/统计 | ✅ 已合并 main（PR #803，bb010ad squash，归档 doto-su.md） |
 | P2-Batch-04 | 类十+类十一+类十二（P2 快速修复） | 2 | 硬编码 role_id==1 修复 + v-role 指令删除 | ✅ 已合并 main（PR #814，f77d232） |
 | P2-Batch-05 | 类十三（导出审计 + 打印水印） | 3 | 3 个导出端点补 Export 审计 + 打印IP水印 + rate_limit确认全局挂载 | ✅ 已合并 main（PR #815，ab4d729） |
+| P2-Batch-06 | 类十二+类二十+类二十三（fail-closed + PII脱敏 + CRUD审计） | 3 | unknown resource fail-closed + 日志PII脱敏 + CRUD创建操作补审计 | ✅ 已合并 main（PR #817，ed62471） |
 
 ### 1.3 P2-Batch-01b 遗留未完成项
 
