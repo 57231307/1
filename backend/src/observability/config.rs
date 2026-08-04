@@ -52,6 +52,8 @@ impl Default for ObservabilityConfig {
             trace_enabled: true,
             metrics_enabled: true,
             sample_ratio: 1.0,
+            // V15 P2 17.7 修复：生产环境默认 10% 采样率（通过 OTEL_SAMPLE_RATIO 环境变量覆盖）
+            // 开发环境保持 100% 便于调试
             export_interval_secs: 30,
         }
     }
@@ -78,7 +80,7 @@ impl ObservabilityConfig {
             sample_ratio: std::env::var("OTEL_SAMPLE_RATIO")
                 .ok()
                 .and_then(|v| v.parse().ok())
-                .unwrap_or(1.0),
+                .unwrap_or(0.1),
             export_interval_secs: std::env::var("OTEL_EXPORT_INTERVAL")
                 .ok()
                 .and_then(|v| v.parse().ok())
@@ -118,6 +120,9 @@ mod tests {
         assert!(cfg.trace_enabled);
         assert!(cfg.metrics_enabled);
         assert_eq!(cfg.sample_ratio, 1.0);
+        // from_env 生产环境默认 10% 采样率
+        let env_cfg = ObservabilityConfig::from_env();
+        assert!(env_cfg.sample_ratio <= 1.0);
     }
 
     #[test]

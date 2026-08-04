@@ -315,6 +315,11 @@ pub fn suppliers() -> Router<AppState> {
                 .post(supplier_handler::create_supplier_qualification),
         )
         .route(
+            "/suppliers/:id/qualifications/:qualification_id",
+            put(supplier_handler::update_supplier_qualification)
+                .delete(supplier_handler::delete_supplier_qualification),
+        )
+        .route(
             "/suppliers/:id/evaluate",
             post(supplier_evaluation_handler::create_evaluation_record),
         )

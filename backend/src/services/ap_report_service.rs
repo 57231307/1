@@ -448,11 +448,13 @@ impl ApReportService {
 
     /// 获取账龄分析报告
     /// v14 中风险性能修复（批次 245）：SQL CASE WHEN + SUM + COUNT 分桶聚合，避免全量加载
+    /// baseline_date：可选基准日，None 时使用当天（17.4-D3 向后兼容）
     pub async fn get_aging_report(
         &self,
         supplier_id: Option<i32>,
+        baseline_date: Option<chrono::NaiveDate>,
     ) -> Result<ApAgingReport, AppError> {
-        let today = Utc::now().naive_utc().date();
+        let today = baseline_date.unwrap_or_else(|| Utc::now().naive_utc().date());
         let overdue = self
             .fetch_aging_overdue_aggregate(today, supplier_id)
             .await?;

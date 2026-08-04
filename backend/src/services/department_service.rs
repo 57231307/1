@@ -106,7 +106,7 @@ impl DepartmentService {
             code: Set(format!("DEPT_{}", Utc::now().timestamp_millis())),
             name: Set(req.name),
             parent_id: Set(req.parent_id),
-            manager_id: Set(None),
+            manager_id: Set(req.manager_id),
             description: Set(req.description),
             sort_order: Set(0),
             is_active: Set(true),
@@ -156,6 +156,10 @@ impl DepartmentService {
                 .await?
                 .ok_or_else(|| AppError::not_found(format!("父部门 ID {} 不存在", pid)))?;
             dept.parent_id = Set(Some(pid));
+        }
+
+        if req.manager_id.is_some() {
+            dept.manager_id = Set(req.manager_id);
         }
 
         dept.updated_at = Set(Utc::now());

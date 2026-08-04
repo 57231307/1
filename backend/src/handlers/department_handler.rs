@@ -25,6 +25,7 @@ pub struct CreateDepartmentRequest {
     pub name: String,
     pub description: Option<String>,
     pub parent_id: Option<i32>,
+    pub manager_id: Option<i32>,
 }
 
 /// 更新部门请求
@@ -34,6 +35,7 @@ pub struct UpdateDepartmentRequest {
     pub name: Option<String>,
     pub description: Option<String>,
     pub parent_id: Option<i32>,
+    pub manager_id: Option<i32>,
 }
 
 crate::define_crud_handlers!(

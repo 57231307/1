@@ -31,6 +31,7 @@
                   v-if="profileForm.avatar"
                   :src="profileForm.avatar"
                   class="avatar"
+                  loading="lazy"
                   :alt="
                     profileForm.real_name
                       ? t('userProfile.profile.avatarAlt', { name: profileForm.real_name })

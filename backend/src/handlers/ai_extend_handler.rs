@@ -25,6 +25,7 @@ use crate::services::ai_extend_service::{
     AcknowledgeQualityPredDto, AiExtendService, ApplyProcessOptDto, CreateProcessOptDto,
     CreateQualityPredDto, ListProcessOptQuery, ListQualityPredQuery,
 };
+use crate::services::ai::recipe_opt::RecipeOptResponse;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
@@ -348,12 +349,15 @@ pub struct BatchProcessOptDto {
 }
 
 /// POST /api/v1/erp/ai/process-optimizations/batch
-/// 批量工艺优化（最多 20 条）
+/// 批量工艺优化（最多 20 条，单事务原子写入）
 pub async fn batch_create_process_optimizations(
     State(state): State<AppState>,
     auth: AuthContext,
     Json(body): Json<BatchProcessOptDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    if body.requests.is_empty() {
+        return Err(AppError::validation("批量请求不能为空"));
+    }
     if body.requests.len() > 20 {
         return Err(AppError::validation("批量请求数不得超过 20"));
     }
@@ -361,22 +365,40 @@ pub async fn batch_create_process_optimizations(
     let mut results = Vec::new();
     let mut failed = 0;
     let total = body.requests.len();
+    // 阶段一：逐条调用 AI 算法（不做 DB 写入）
+    let mut ai_results: Vec<(RecipeOptResponse, CreateProcessOptDto)> = Vec::new();
     for mut req in body.requests {
         req.operator_id = Some(auth.user_id as i64);
-        match svc.create_process_optimization(req).await {
-            Ok((resp, id)) => results.push(serde_json::json!({
-                "id": id,
-                "success": true,
-                "recommended_params": resp.recommended_params,
-                "confidence": resp.confidence,
-                "source": resp.source,
-            })),
+        match svc.optimize_recipe_only(&req).await {
+            Ok(resp) => ai_results.push((resp, req)),
             Err(e) => {
                 failed += 1;
                 results.push(serde_json::json!({
                     "success": false,
                     "error": format!("{}", e),
                 }));
+            }
+        }
+    }
+    // 阶段二：批量落库（单事务，全部成功或全部回滚）
+    if !ai_results.is_empty() {
+        match svc.batch_insert_optimizations(ai_results).await {
+            Ok(ids) => {
+                for id in ids {
+                    results.push(serde_json::json!({
+                        "id": id,
+                        "success": true,
+                    }));
+                }
+            }
+            Err(e) => {
+                failed += ai_results.len();
+                for _ in &ai_results {
+                    results.push(serde_json::json!({
+                        "success": false,
+                        "error": format!("落库失败: {}", e),
+                    }));
+                }
             }
         }
     }
