@@ -63,6 +63,12 @@ impl RoleService {
         is_system: bool,
         data_scope: Option<String>,
     ) -> Result<role::Model, AppError> {
+        // V15 P2 14.5-C：is_system 只能用于 admin 系统角色，防止普通角色被标记为系统角色
+        if is_system && code != "admin" {
+            return Err(AppError::validation(
+                "仅 admin 角色可标记为系统角色（is_system=true）",
+            ));
+        }
         let active_role = role::ActiveModel {
             id: Default::default(),
             name: Set(name),

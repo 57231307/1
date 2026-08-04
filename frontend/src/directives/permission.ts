@@ -6,8 +6,8 @@ import { hasRoutePermission } from '@/router';
 /**
  * 权限指令
  * 使用方式：
- * <el-button v-permission="'user:create'">创建用户</el-button>
- * <el-button v-permission="['user:create', 'user:update']">编辑用户</el-button>
+ * <el-button v-permission="'users:create'">创建用户</el-button>
+ * <el-button v-permission="['users:create', 'users:update']">编辑用户</el-button>
  */
 export const permission: Directive = {
   mounted(el: HTMLElement, binding: DirectiveBinding) {
