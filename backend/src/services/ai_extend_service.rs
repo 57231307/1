@@ -190,7 +190,7 @@ impl AiExtendService {
         dto: &CreateProcessOptDto,
     ) -> Result<RecipeOptResponse, AppError> {
         let ai = AiAnalysisService::new(self.db.clone());
-        Ok(ai.optimize_recipe(dto.request.clone()).await?)
+        ai.optimize_recipe(dto.request.clone()).await
     }
 
     /// 批量落库工艺优化记录（单事务，全部成功或全部回滚）
