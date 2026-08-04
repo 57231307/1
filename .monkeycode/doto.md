@@ -69,6 +69,11 @@
 | P2-Batch-03 | 类八（法律合规剩余）+ 类九（色卡发放） | 8+12+4 | 跨境合规 + 商检/产地证 + 色卡报表/成本/预警/统计 | ✅ 已合并 main（PR #803，bb010ad squash，归档 doto-su.md） |
 | P2-Batch-04 | 类十+类十一+类十二（P2 快速修复） | 2 | 硬编码 role_id==1 修复 + v-role 指令删除 | ✅ 已合并 main（PR #814，f77d232） |
 | P2-Batch-05 | 类十三（导出审计 + 打印水印） | 3 | 3 个导出端点补 Export 审计 + 打印IP水印 + rate_limit确认全局挂载 | ✅ 已合并 main（PR #815，ab4d729） |
+| P2-Batch-06 | 类十二~十三（权限 fail-closed + PII 脱敏 + CRUD 审计） | 3 | extract_resource_info unknown fail-closed + 手机号/身份证脱敏 + CRUD 审计 | ✅ 已合并 main（PR #817，ed62471） |
+| P2-Batch-07 | 类十五~十六（AI 输入校验 + 降级 + 推理耗时） | 4 | create_process_optimization 长度/枚举校验 + anomaly_detection 降级 + 错误文案 + inference_latency_ms | ✅ 已合并 main（PR #819，9d2cf06） |
+| P2-Batch-08 | 类十四（角色校验 + 通配匹配 + 测试） | 4 | is_system/admin 校验 + matches_permission 通配 + require_admin_role 测试 + 文档单复数 | ✅ 已合并 main（PR #820，e0d2810） |
+| P2-Batch-21 | 类二十五（部署脚本加固） | 10 | 日志持久化 + 配置权限600 + 健康检查database + CLI权限/确认/校验/回退 + 回滚验证 | ✅ 已合并 main（PR #821，47c2975） |
+| P2-Batch-19 | 类二十三（售后退货类型 + incoterms 责任划分） | 2 | issue_type 增加 return_goods（前后端）+ incoterms cost_bearer/清关责任接入报价构成 | ✅ 已合并 main（PR #822，ba05490） |
 
 ### 1.3 P2-Batch-01b 遗留未完成项
 

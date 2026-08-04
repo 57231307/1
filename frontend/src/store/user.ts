@@ -13,15 +13,19 @@ function readCachedPerms(): readonly string[] | null {
     const ts = localStorage.getItem(PERMS_CACHE_TTL_KEY);
     if (ts && Date.now() - Number(ts) > PERMS_CACHE_TTL_MS) return null;
     const raw = localStorage.getItem(PERMS_CACHE_KEY);
-    return raw ? Object.freeze(JSON.parse(raw)) as readonly string[] : null;
-  } catch { return null; }
+    return raw ? (Object.freeze(JSON.parse(raw)) as readonly string[]) : null;
+  } catch {
+    return null;
+  }
 }
 
 function writeCachedPerms(perms: readonly string[]): void {
   try {
     localStorage.setItem(PERMS_CACHE_KEY, JSON.stringify(perms));
     localStorage.setItem(PERMS_CACHE_TTL_KEY, String(Date.now()));
-  } catch { /* quota exceeded 等情况静默失败 */ }
+  } catch {
+    /* quota exceeded 等情况静默失败 */
+  }
 }
 
 function clearCachedPerms(): void {
@@ -34,7 +38,9 @@ export const useUserStore = defineStore('user', () => {
   const token = ref<string | null>(null);
   // 20.11-D：初始化时尝试从 localStorage 恢复权限，避免每次刷新都调 API
   const _cachedPerms = readCachedPerms();
-  const userInfo = ref<UserInfo | null>(_cachedPerms ? { permissions: _cachedPerms } as UserInfo : null);
+  const userInfo = ref<UserInfo | null>(
+    _cachedPerms ? ({ permissions: _cachedPerms } as UserInfo) : null
+  );
 
   async function login(loginData: LoginRequest) {
     const res = await loginApi(loginData);

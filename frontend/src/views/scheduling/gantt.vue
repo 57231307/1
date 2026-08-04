@@ -60,7 +60,9 @@ import { useSchG } from './composables/useSchG';
 import { useSchGProc } from './composables/useSchGProc';
 import SchedulingGanttTool from './components/SchedulingGanttTool.vue';
 // V15 P2 20.9-C：SchedulingGanttChart 包含 ECharts，按需加载减少首屏 JS 体积
-const SchedulingGanttChart = defineAsyncComponent(() => import('./components/SchedulingGanttChart.vue'));
+const SchedulingGanttChart = defineAsyncComponent(
+  () => import('./components/SchedulingGanttChart.vue')
+);
 import SchedulingGanttAuto from './components/SchedulingGanttAuto.vue';
 import SchedulingGanttAdjust from './components/SchedulingGanttAdjust.vue';
 import SchedulingGanttConflict from './components/SchedulingGanttConflict.vue';

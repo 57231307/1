@@ -122,7 +122,7 @@ class Request {
       (response: AxiosResponse<ApiResponse>) => {
         const res = response.data;
         if (res.code !== 200 && res.code !== 0) {
-           const safeMessage = getSafeErrorMessage(res.code);
+          const safeMessage = getSafeErrorMessage(res.code);
           showErrorOnce(safeMessage);
           if (res.code === 401) {
             // Wave B-3：凭据由后端 Cookie 管理，前端无需清理 localStorage；
