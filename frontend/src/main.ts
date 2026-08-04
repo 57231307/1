@@ -9,7 +9,7 @@ import en from 'element-plus/es/locale/lang/en';
 import App from './App.vue';
 import router from './router';
 import { i18n, getCurrentLocale } from './i18n';
-import { permission, role } from './directives/permission';
+import { permission } from './directives/permission';
 // V15 P1-20-15 全局 CSS 变量主题（支持亮色/暗黑模式切换）
 import './styles/theme.css';
 // V15 P1-20-10 前端错误监控 SDK（自研轻量方案，监听 error + unhandledrejection + 5min 去重）
