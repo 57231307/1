@@ -100,6 +100,7 @@ pub mod role_permission_service;
 pub mod role_relation_service;
 // V15 P1 12.6：权限委托服务
 pub mod permission_delegation_service;
+pub mod permission_compliance_service;
 pub mod so;
 pub mod user_service;
 pub mod warehouse_service;
