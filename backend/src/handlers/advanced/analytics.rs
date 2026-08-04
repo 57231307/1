@@ -3,6 +3,8 @@
 //! 提供报表模板查询、报表执行与导出能力。
 //! 适配重构后的 `services::report` 模块 API。
 
+use std::sync::Arc;
+
 use axum::{extract::State, Json};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -10,6 +12,8 @@ use std::collections::HashMap;
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
+use crate::models::audit_log::{OperationType, Severity};
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::report::{ExecuteReportRequest, ReportEngineService, ReportFilter};
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -115,7 +119,7 @@ pub struct ReportExecuteRequest {
 /// 导出报表
 pub async fn export_report(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(payload): Json<ReportExportRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = ReportEngineService::new(state.db.clone());
@@ -143,6 +147,32 @@ pub async fn export_report(
         .await?;
 
     let size_kb = bytes.len() / 1024;
+
+    // V15 P2 B11-P2-1：导出审计日志（best-effort，异步不阻塞响应）
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some("analytics_report".to_string()),
+        resource_id: Some(payload.template_code.clone()),
+        resource_name: Some(format!("{}.{}", payload.template_code, payload.format)),
+        description: Some(format!(
+            "用户 {} 导出分析报表 {}（共 {} 行）",
+            auth.username, payload.template_code, report_data.total_rows
+        )),
+        request_method: Some("POST".to_string()),
+        request_path: Some("/api/v1/erp/analytics/reports/export".to_string()),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "format": payload.format,
+            "total": report_data.total_rows,
+            "template_code": payload.template_code,
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
+
     Ok(Json(ApiResponse::success(serde_json::json!({
         "status": "success",
         "format": payload.format,
