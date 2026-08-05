@@ -334,6 +334,31 @@ fn crm_lead_routes() -> Router<AppState> {
             "/leads/import",
             post(crate::handlers::crm_handler::import_leads),
         )
+        // V15 P2 18.1-D4: 渠道 ROI 分析（注册在 /:id 之前避免路径参数匹配）
+        .route(
+            "/leads/channel-roi",
+            get(crate::handlers::crm_handler::get_channel_roi_report),
+        )
+        .route(
+            "/leads/calculate-channel-roi",
+            post(crate::handlers::crm_handler::calculate_channel_roi),
+        )
+        // V15 P2 18.1-D5: 线索分配规则（注册在 /:id 之前避免路径参数匹配）
+        .route(
+            "/leads/allocation-rules",
+            get(crate::handlers::crm_handler::list_allocation_rules)
+                .post(crate::handlers::crm_handler::create_allocation_rule),
+        )
+        // V15 P2 18.1-D6: 线索培育计划（注册在 /:id 之前避免路径参数匹配）
+        .route(
+            "/leads/nurture-plans",
+            get(crate::handlers::crm_handler::list_nurture_plans)
+                .post(crate::handlers::crm_handler::create_nurture_plan),
+        )
+        .route(
+            "/leads/nurture-plans/:id/execute",
+            post(crate::handlers::crm_handler::execute_nurture_plan),
+        )
         .route(
             "/leads/:id",
             get(crate::handlers::crm_handler::get_lead)
@@ -351,6 +376,11 @@ fn crm_lead_routes() -> Router<AppState> {
         .route(
             "/leads/:id/relations",
             get(crate::handlers::crm_handler::get_lead_relation),
+        )
+        // V15 P2 18.1-D5: 自动分配线索
+        .route(
+            "/leads/:id/auto-assign",
+            post(crate::handlers::crm_handler::auto_assign_lead),
         )
 }
 

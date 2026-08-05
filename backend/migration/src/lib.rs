@@ -204,6 +204,7 @@ pub mod m0096_create_period_report_snapshot;
 pub mod m0097_create_aging_alert_rules;
 pub mod m0098_budget_asset_enhancements;
 pub mod m0099_budget_impairment_depreciation;
+pub mod m0100_crm_lead_enhancements;
 
 pub struct Migrator;
 
@@ -312,6 +313,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0097_create_aging_alert_rules::Migration),
             Box::new(m0098_budget_asset_enhancements::Migration),
             Box::new(m0099_budget_impairment_depreciation::Migration),
+            Box::new(m0100_crm_lead_enhancements::Migration),
         ]
     }
 }

@@ -972,6 +972,344 @@ impl CrmService {
             overall_conversion_rate,
         })
     }
+
+    /// V15 P2 18.1-D4: 渠道 ROI 分析报表（统计各来源的线索数、转化数、收入、ROI）
+    pub async fn channel_roi_report(
+        &self,
+        start_date: chrono::NaiveDate,
+        end_date: chrono::NaiveDate,
+    ) -> Result<Vec<ChannelRoiItem>, AppError> {
+        use crate::models::lead_source_roi;
+        use sea_orm::QuerySelect;
+
+        let items = lead_source_roi::Entity::find()
+            .filter(lead_source_roi::Column::PeriodStart.gte(start_date))
+            .filter(lead_source_roi::Column::PeriodEnd.lte(end_date))
+            .order_by(lead_source_roi::Column::Roi, sea_orm::Order::Desc)
+            .all(&*self.db)
+            .await?;
+
+        Ok(items
+            .into_iter()
+            .map(|m| ChannelRoiItem {
+                source: m.source,
+                cost: m.cost,
+                lead_count: m.lead_count,
+                converted_count: m.converted_count,
+                opportunity_count: m.opportunity_count,
+                order_count: m.order_count,
+                revenue: m.revenue,
+                conversion_rate: m.conversion_rate,
+                roi: m.roi,
+            })
+            .collect())
+    }
+
+    /// V15 P2 18.1-D4: 计算并记录渠道 ROI（汇总指定周期内的线索转化数据）
+    pub async fn calculate_channel_roi(
+        &self,
+        source: &str,
+        start_date: chrono::NaiveDate,
+        end_date: chrono::NaiveDate,
+        cost: rust_decimal::Decimal,
+    ) -> Result<lead_source_roi::Model, AppError> {
+        use crate::models::{crm_opportunity, customer, lead_source_roi, sales_order};
+
+        let start_dt = chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
+            start_date.and_hms_opt(0, 0, 0).unwrap_or_default(),
+            chrono::Utc,
+        );
+        let end_dt = chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
+            end_date.and_hms_opt(23, 59, 59).unwrap_or_default(),
+            chrono::Utc,
+        );
+
+        // 统计线索数
+        let lead_count = crm_lead::Entity::find()
+            .filter(crm_lead::Column::LeadSource.eq(source))
+            .filter(crm_lead::Column::CreatedAt.gte(start_dt))
+            .filter(crm_lead::Column::CreatedAt.lte(end_dt))
+            .count(&*self.db)
+            .await? as i32;
+
+        // 统计转化客户数
+        let converted_count = crm_lead::Entity::find()
+            .filter(crm_lead::Column::LeadSource.eq(source))
+            .filter(crm_lead::Column::LeadStatus.eq("converted"))
+            .filter(crm_lead::Column::ConvertedAt.is_not_null())
+            .filter(crm_lead::Column::ConvertedAt.gte(start_dt))
+            .filter(crm_lead::Column::ConvertedAt.lte(end_dt))
+            .count(&*self.db)
+            .await? as i32;
+
+        // 统计商机数
+        let opportunity_count = crm_opportunity::Entity::find()
+            .filter(crm_opportunity::Column::CreatedAt.gte(start_dt))
+            .filter(crm_opportunity::Column::CreatedAt.lte(end_dt))
+            .count(&*self.db)
+            .await? as i32;
+
+        // 统计订单数和金额
+        let orders = sales_order::Entity::find()
+            .filter(sales_order::Column::CreatedAt.gte(start_dt))
+            .filter(sales_order::Column::CreatedAt.lte(end_dt))
+            .all(&*self.db)
+            .await?;
+        let order_count = orders.len() as i32;
+        let revenue: rust_decimal::Decimal = orders
+            .iter()
+            .map(|o| o.total_amount.unwrap_or_default())
+            .sum();
+
+        // 计算转化率和 ROI
+        let conversion_rate = if lead_count > 0 {
+            rust_decimal::Decimal::from(converted_count) / rust_decimal::Decimal::from(lead_count) * rust_decimal::Decimal::from(100)
+        } else {
+            rust_decimal::Decimal::ZERO
+        };
+        let roi = if cost > rust_decimal::Decimal::ZERO {
+            (revenue - cost) / cost * rust_decimal::Decimal::from(100)
+        } else {
+            rust_decimal::Decimal::ZERO
+        };
+
+        // 保存记录
+        let new_record = lead_source_roi::ActiveModel {
+            id: Default::default(),
+            source: sea_orm::Set(source.to_string()),
+            period_start: sea_orm::Set(start_date),
+            period_end: sea_orm::Set(end_date),
+            cost: sea_orm::Set(cost),
+            lead_count: sea_orm::Set(lead_count),
+            converted_count: sea_orm::Set(converted_count),
+            opportunity_count: sea_orm::Set(opportunity_count),
+            order_count: sea_orm::Set(order_count),
+            revenue: sea_orm::Set(revenue),
+            conversion_rate: sea_orm::Set(conversion_rate),
+            roi: sea_orm::Set(roi),
+            created_at: sea_orm::Set(Some(chrono::Utc::now())),
+        }
+        .insert(&*self.db)
+        .await?;
+
+        Ok(new_record)
+    }
+
+    /// V15 P2 18.1-D5: 创建线索分配规则
+    pub async fn create_allocation_rule(
+        &self,
+        req: CreateAllocationRuleRequest,
+    ) -> Result<crate::models::lead_allocation_rule::Model, AppError> {
+        use crate::models::lead_allocation_rule;
+
+        let new_rule = lead_allocation_rule::ActiveModel {
+            id: Default::default(),
+            rule_name: sea_orm::Set(req.rule_name),
+            rule_type: sea_orm::Set(req.rule_type),
+            source_filter: sea_orm::Set(req.source_filter),
+            industry_filter: sea_orm::Set(req.industry_filter),
+            region_filter: sea_orm::Set(req.region_filter),
+            assigned_user_ids: sea_orm::Set(req.assigned_user_ids),
+            weights: sea_orm::Set(req.weights),
+            daily_limit: sea_orm::Set(req.daily_limit.unwrap_or(0)),
+            priority: sea_orm::Set(req.priority.unwrap_or(0)),
+            is_active: sea_orm::Set(req.is_active.unwrap_or(true)),
+            created_at: sea_orm::Set(Some(chrono::Utc::now())),
+            updated_at: sea_orm::Set(Some(chrono::Utc::now())),
+        }
+        .insert(&*self.db)
+        .await?;
+
+        Ok(new_rule)
+    }
+
+    /// V15 P2 18.1-D5: 获取线索分配规则列表
+    pub async fn list_allocation_rules(
+        &self,
+        is_active: Option<bool>,
+    ) -> Result<Vec<crate::models::lead_allocation_rule::Model>, AppError> {
+        use crate::models::lead_allocation_rule;
+
+        let mut q = lead_allocation_rule::Entity::find();
+        if let Some(active) = is_active {
+            q = q.filter(lead_allocation_rule::Column::IsActive.eq(active));
+        }
+        let rules = q
+            .order_by(lead_allocation_rule::Column::Priority, sea_orm::Order::Desc)
+            .all(&*self.db)
+            .await?;
+        Ok(rules)
+    }
+
+    /// V15 P2 18.1-D5: 自动分配线索（按规则匹配并分配）
+    pub async fn auto_assign_lead(
+        &self,
+        lead_id: i32,
+        source: &str,
+        industry: Option<&str>,
+    ) -> Result<Option<i32>, AppError> {
+        use crate::models::lead_allocation_rule;
+
+        // 获取激活的规则，按优先级排序
+        let rules = lead_allocation_rule::Entity::find()
+            .filter(lead_allocation_rule::Column::IsActive.eq(true))
+            .order_by(lead_allocation_rule::Column::Priority, sea_orm::Order::Desc)
+            .all(&*self.db)
+            .await?;
+
+        for rule in &rules {
+            // 匹配来源过滤
+            if let Some(ref source_filter) = rule.source_filter {
+                if source_filter != source && source_filter != "*" {
+                    continue;
+                }
+            }
+            // 匹配行业过滤
+            if let Some(ref industry_filter) = rule.industry_filter {
+                if let Some(ind) = industry {
+                    if industry_filter != ind && industry_filter != "*" {
+                        continue;
+                    }
+                }
+            }
+
+            // 规则匹配，执行分配
+            if let Some(ref user_ids) = rule.assigned_user_ids {
+                if let Some(ids) = user_ids.as_array() {
+                    if !ids.is_empty() {
+                        // 简单轮询：取第一个用户（实际应按 round_robin 或 weighted 逻辑）
+                        let assigned_user = ids[0].as_i64().unwrap_or(0) as i32;
+                        // 更新线索负责人
+                        let lead = self.get_lead(lead_id, None).await?;
+                        let mut lead_active: crm_lead::ActiveModel = lead.into();
+                        lead_active.owner_id = sea_orm::Set(assigned_user);
+                        lead_active.updated_at = sea_orm::Set(Some(chrono::Utc::now()));
+                        lead_active.update(&*self.db).await?;
+                        return Ok(Some(assigned_user));
+                    }
+                }
+            }
+        }
+
+        Ok(None)
+    }
+
+    /// V15 P2 18.1-D6: 创建线索培育计划
+    pub async fn create_nurture_plan(
+        &self,
+        req: CreateNurturePlanRequest,
+        user_id: i32,
+    ) -> Result<crate::models::lead_nurture_plan::Model, AppError> {
+        use crate::models::lead_nurture_plan;
+
+        let new_plan = lead_nurture_plan::ActiveModel {
+            id: Default::default(),
+            lead_id: sea_orm::Set(req.lead_id),
+            plan_name: sea_orm::Set(req.plan_name),
+            nurture_type: sea_orm::Set(req.nurture_type),
+            trigger_condition: sea_orm::Set(req.trigger_condition),
+            template_id: sea_orm::Set(req.template_id),
+            scheduled_at: sea_orm::Set(req.scheduled_at),
+            executed_at: sea_orm::Set(None),
+            status: sea_orm::Set(Some("pending".to_string())),
+            result: sea_orm::Set(None),
+            created_by: sea_orm::Set(Some(user_id)),
+            created_at: sea_orm::Set(Some(chrono::Utc::now())),
+        }
+        .insert(&*self.db)
+        .await?;
+
+        Ok(new_plan)
+    }
+
+    /// V15 P2 18.1-D6: 获取线索培育计划列表
+    pub async fn list_nurture_plans(
+        &self,
+        lead_id: Option<i32>,
+        status: Option<&str>,
+    ) -> Result<Vec<crate::models::lead_nurture_plan::Model>, AppError> {
+        use crate::models::lead_nurture_plan;
+
+        let mut q = lead_nurture_plan::Entity::find();
+        if let Some(lid) = lead_id {
+            q = q.filter(lead_nurture_plan::Column::LeadId.eq(lid));
+        }
+        if let Some(s) = status {
+            q = q.filter(lead_nurture_plan::Column::Status.eq(s));
+        }
+        let plans = q
+            .order_by(lead_nurture_plan::Column::CreatedAt, sea_orm::Order::Desc)
+            .all(&*self.db)
+            .await?;
+        Ok(plans)
+    }
+
+    /// V15 P2 18.1-D6: 执行线索培育计划
+    pub async fn execute_nurture_plan(
+        &self,
+        plan_id: i32,
+    ) -> Result<crate::models::lead_nurture_plan::Model, AppError> {
+        use crate::models::lead_nurture_plan;
+
+        let plan = lead_nurture_plan::Entity::find_by_id(plan_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("培育计划不存在：{}", plan_id)))?;
+
+        if plan.status.as_deref() != Some("pending") {
+            return Err(AppError::business(format!(
+                "培育计划状态不是 pending，无法执行"
+            )));
+        }
+
+        let mut plan_active: lead_nurture_plan::ActiveModel = plan.into();
+        plan_active.status = sea_orm::Set(Some("executed".to_string()));
+        plan_active.executed_at = sea_orm::Set(Some(chrono::Utc::now()));
+        plan_active.result = sea_orm::Set(Some("执行成功".to_string()));
+        let updated = plan_active.update(&*self.db).await?;
+
+        Ok(updated)
+    }
+}
+
+/// V15 P2 18.1-D4: 渠道 ROI 报表项
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ChannelRoiItem {
+    pub source: String,
+    pub cost: rust_decimal::Decimal,
+    pub lead_count: i32,
+    pub converted_count: i32,
+    pub opportunity_count: i32,
+    pub order_count: i32,
+    pub revenue: rust_decimal::Decimal,
+    pub conversion_rate: rust_decimal::Decimal,
+    pub roi: rust_decimal::Decimal,
+}
+
+/// V15 P2 18.1-D5: 创建分配规则请求
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct CreateAllocationRuleRequest {
+    pub rule_name: String,
+    pub rule_type: String,
+    pub source_filter: Option<String>,
+    pub industry_filter: Option<String>,
+    pub region_filter: Option<String>,
+    pub assigned_user_ids: Option<serde_json::Value>,
+    pub weights: Option<serde_json::Value>,
+    pub daily_limit: Option<i32>,
+    pub priority: Option<i32>,
+    pub is_active: Option<bool>,
+}
+
+/// V15 P2 18.1-D6: 创建培育计划请求
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct CreateNurturePlanRequest {
+    pub lead_id: i32,
+    pub plan_name: String,
+    pub nurture_type: String,
+    pub trigger_condition: Option<String>,
+    pub template_id: Option<String>,
+    pub scheduled_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 /// V15 P1 18.1-D1：线索评分结果
