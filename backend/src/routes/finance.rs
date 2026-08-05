@@ -934,4 +934,40 @@ pub fn sub_routes() -> Router<AppState> {
         .merge(ar_reconciliations())
         .merge(currencies())
         .merge(exchange_rates())
+        .merge(period_report_snapshots())
+        .merge(aging_alert_rules())
+}
+
+/// 期末报表快照路由（/period-report-snapshots）
+fn period_report_snapshots() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/period-report-snapshots",
+            get(crate::handlers::period_report_snapshot_handler::list_snapshots)
+                .post(crate::handlers::period_report_snapshot_handler::create_snapshot),
+        )
+        .route(
+            "/period-report-snapshots/:id",
+            get(crate::handlers::period_report_snapshot_handler::get_snapshot),
+        )
+        .route(
+            "/period-report-snapshots/:id/verify",
+            get(crate::handlers::period_report_snapshot_handler::verify_snapshot),
+        )
+}
+
+/// 账龄预警规则路由（/aging-alert-rules）
+fn aging_alert_rules() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/aging-alert-rules",
+            get(crate::handlers::aging_alert_rule_handler::list_rules)
+                .post(crate::handlers::aging_alert_rule_handler::create_rule),
+        )
+        .route(
+            "/aging-alert-rules/:id",
+            get(crate::handlers::aging_alert_rule_handler::get_rule)
+                .put(crate::handlers::aging_alert_rule_handler::update_rule)
+                .delete(crate::handlers::aging_alert_rule_handler::delete_rule),
+        )
 }

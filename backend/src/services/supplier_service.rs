@@ -254,6 +254,9 @@ impl SupplierService {
         if let Some(is_processor) = params.is_processor {
             query = query.filter(supplier::Column::IsProcessor.eq(is_processor));
         }
+        if let Some(ref processor_type) = params.processor_type {
+            query = query.filter(supplier::Column::ProcessorType.eq(processor_type.as_str()));
+        }
         query
     }
 
@@ -997,4 +1000,5 @@ pub struct SupplierQueryParams {
     pub is_enabled: Option<bool>,
     pub category_id: Option<i32>,
     pub is_processor: Option<bool>,
+    pub processor_type: Option<String>,
 }

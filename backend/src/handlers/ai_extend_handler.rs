@@ -55,6 +55,13 @@ pub struct RecordActualResultDto {
     pub actual_avg_qualification_rate: rust_decimal::Decimal,
 }
 
+/// V15 P2 14.2.3：回填实际结果和索赔金额（误判成本追踪）的请求体
+#[derive(Debug, Deserialize)]
+pub struct RecordActualGradeDto {
+    pub actual_grade: String,
+    pub claim_amount: Option<rust_decimal::Decimal>,
+}
+
 // =====================================================
 // 工艺优化端点（5）
 // =====================================================
@@ -513,6 +520,27 @@ pub async fn record_actual_quality_result(
             id,
             body.actual_risk_level,
             body.actual_avg_qualification_rate,
+            Some(&data_scope_ctx),
+        )
+        .await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
+}
+
+/// POST /api/v1/erp/ai/quality-predictions/:id/actual-grade
+/// V15 P2 14.2.3：回填实际结果和索赔金额（误判成本追踪）
+pub async fn record_actual_grade(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i64>,
+    Json(body): Json<RecordActualGradeDto>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
+    let svc = AiExtendService::new(state.db);
+    let model = svc
+        .record_actual_result(
+            id,
+            body.actual_grade,
+            body.claim_amount,
             Some(&data_scope_ctx),
         )
         .await?;

@@ -363,6 +363,11 @@ pub fn ai() -> Router<AppState> {
             "/ai/quality-predictions/:id/actual-result",
             post(ai_extend_handler::record_actual_quality_result),
         )
+        // V15 P2 14.2.3：回填实际结果和索赔金额（误判成本追踪）
+        .route(
+            "/ai/quality-predictions/:id/actual-grade",
+            post(ai_extend_handler::record_actual_grade),
+        )
         // 看板 / 健康检查
         .route("/ai/summary", get(ai_extend_handler::ai_summary))
         .route("/ai/health", get(ai_extend_handler::ai_health))

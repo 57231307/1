@@ -883,7 +883,6 @@ impl AiExtendService {
 
     /// V15 P2 14.2.3：回填实际结果和索赔金额（误判成本追踪）
     /// 写入 actual_grade / claim_amount / claim_recorded_at，供误判成本统计使用。
-    #[allow(dead_code)] // Phase 3: 将在 handler 中接入
     pub async fn record_actual_result(
         &self,
         prediction_id: i64,

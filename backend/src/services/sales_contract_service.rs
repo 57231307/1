@@ -1,4 +1,5 @@
 use crate::models::sales_contract;
+use crate::models::sales_contract_item;
 // 批次 210 P2-5 修复（v12 复审）：合同状态字符串替换为 contract 常量
 use crate::models::status::contract;
 use crate::utils::error::AppError;
@@ -33,6 +34,21 @@ pub struct CreateSalesContractRequest {
     pub payment_terms: Option<String>,
     pub delivery_date: NaiveDate,
     pub remark: Option<String>,
+    /// 合同明细行
+    pub items: Option<Vec<CreateContractItemRequest>>,
+}
+
+/// 创建合同明细行请求
+#[derive(Debug, Clone)]
+pub struct CreateContractItemRequest {
+    pub product_id: Option<i32>,
+    pub product_name: String,
+    pub product_spec: Option<String>,
+    pub unit: String,
+    pub quantity: Decimal,
+    pub unit_price: Decimal,
+    pub delivery_date: Option<NaiveDate>,
+    pub remarks: Option<String>,
 }
 
 /// 合同执行请求
@@ -81,6 +97,9 @@ impl SalesContractService {
         let stamp_tax =
             Self::calculate_stamp_tax(req.contract_type.as_deref(), req.total_amount);
 
+        // 使用事务确保合同和明细行原子创建
+        let txn = self.db.begin().await?;
+
         let active_contract = sales_contract::ActiveModel {
             contract_no: Set(req.contract_no),
             contract_name: Set(req.contract_name),
@@ -95,8 +114,32 @@ impl SalesContractService {
             ..Default::default()
         };
 
-        let contract = active_contract.insert(&*self.db).await?;
-        info!("销售合同创建成功：{}", contract.contract_no);
+        let contract = active_contract.insert(&txn).await?;
+
+        // 创建明细行
+        if let Some(items) = req.items {
+            for (idx, item) in items.iter().enumerate() {
+                let amount = item.quantity * item.unit_price;
+                let active_item = sales_contract_item::ActiveModel {
+                    contract_id: Set(contract.id),
+                    product_id: Set(item.product_id),
+                    product_name: Set(item.product_name.clone()),
+                    product_spec: Set(item.product_spec.clone()),
+                    unit: Set(item.unit.clone()),
+                    quantity: Set(item.quantity),
+                    unit_price: Set(item.unit_price),
+                    amount: Set(amount),
+                    delivery_date: Set(item.delivery_date),
+                    remarks: Set(item.remarks.clone()),
+                    sort_order: Set(idx as i32),
+                    ..Default::default()
+                };
+                active_item.insert(&txn).await?;
+            }
+        }
+
+        txn.commit().await?;
+        info!("销售合同创建成功：{}（含明细行）", contract.contract_no);
         Ok(contract)
     }
 
@@ -153,6 +196,19 @@ impl SalesContractService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售合同不存在：{}", id)))?;
         Ok(contract)
+    }
+
+    /// 获取合同明细行
+    pub async fn get_items(
+        &self,
+        contract_id: i32,
+    ) -> Result<Vec<sales_contract_item::Model>, AppError> {
+        let items = sales_contract_item::Entity::find()
+            .filter(sales_contract_item::Column::ContractId.eq(contract_id))
+            .order_by(sales_contract_item::Column::SortOrder, Order::Asc)
+            .all(&*self.db)
+            .await?;
+        Ok(items)
     }
 
     /// 执行合同（出库或收款）

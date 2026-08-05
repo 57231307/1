@@ -160,3 +160,4 @@
 | 2026-08-04 | P2-Batch-29 | WebSocket 心跳超时断开 | 1 | PR #831 ✓ | 20.3-C 30s Ping + 60s 超时断开 |
 | 2026-08-04 | CI 修复 | Release 清理排序修复 | 1 | PR #832 ✓ | sort -V 混合段数版本号排序错误，改用 --order asc 按创建时间排序 |
 | 2026-08-04 | P2-Batch-30 | Nginx gzip + 移动端触屏按钮 | 2 | PR #833 ✓ | 25.1-F gzip 压缩; Touch targets 44px CSS |
+| 2026-08-05 | P2-Phase-3 | DB migration: suppliers FK + 合同明细 + 快照表 + 预警规则 | 5 | PR #835 ✓ | m0093 suppliers category_id FK; m0094 is_processor+processor_type; m0095 sales_contract_items; m0096 period_report_snapshot; m0097 aging_alert_rules |

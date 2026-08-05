@@ -2,7 +2,8 @@ use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::sales_contract;
 use crate::services::sales_contract_service::{
-    CreateSalesContractRequest, ExecuteSalesContractRequest, SalesContractService,
+    CreateContractItemRequest, CreateSalesContractRequest, ExecuteSalesContractRequest,
+    SalesContractService,
 };
 use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
@@ -42,6 +43,21 @@ pub struct CreateSalesContractRequestDto {
     pub payment_terms: Option<String>,
     pub delivery_date: chrono::NaiveDate,
     pub remark: Option<String>,
+    /// 合同明细行
+    pub items: Option<Vec<CreateContractItemDto>>,
+}
+
+/// 创建合同明细行 DTO
+#[derive(Debug, Deserialize, Serialize)]
+pub struct CreateContractItemDto {
+    pub product_id: Option<i32>,
+    pub product_name: String,
+    pub product_spec: Option<String>,
+    pub unit: String,
+    pub quantity: rust_decimal::Decimal,
+    pub unit_price: rust_decimal::Decimal,
+    pub delivery_date: Option<chrono::NaiveDate>,
+    pub remarks: Option<String>,
 }
 
 /// P1-2o 修复（批次 81 v1 复审）：更新销售合同请求 DTO
@@ -109,6 +125,21 @@ pub async fn get_contract(
     Ok(Json(ApiResponse::success(contract)))
 }
 
+/// 获取销售合同明细行
+pub async fn get_contract_items(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<Vec<crate::models::sales_contract_item::Model>>>, AppError> {
+    info!("用户 {} 正在查询销售合同 {} 的明细行", auth.user_id, id);
+
+    let service = SalesContractService::new(state.db.clone());
+    let items = service.get_items(id).await?;
+    info!("销售合同 {} 明细行查询成功，共 {} 条", id, items.len());
+
+    Ok(Json(ApiResponse::success(items)))
+}
+
 /// 创建销售合同
 #[axum::debug_handler]
 pub async fn create_contract(
@@ -131,6 +162,21 @@ pub async fn create_contract(
         payment_terms: req.payment_terms,
         delivery_date: req.delivery_date,
         remark: req.remark,
+        items: req.items.map(|items| {
+            items
+                .into_iter()
+                .map(|item| CreateContractItemRequest {
+                    product_id: item.product_id,
+                    product_name: item.product_name,
+                    product_spec: item.product_spec,
+                    unit: item.unit,
+                    quantity: item.quantity,
+                    unit_price: item.unit_price,
+                    delivery_date: item.delivery_date,
+                    remarks: item.remarks,
+                })
+                .collect()
+        }),
     };
 
     let contract = service.create(create_req, auth.user_id).await?;
