@@ -6,12 +6,13 @@
 //! - POST /api/v1/erp/slow-queries/refresh 手动触发一次采集
 
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     Json,
 };
 use chrono::{DateTime, Utc};
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Statement,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, Set, Statement,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -237,6 +238,66 @@ pub async fn refresh_slow_queries(
         inserted,
         message,
     })))
+}
+
+/// V15 P2 20.5-C：更新慢查询优化状态请求
+#[derive(Debug, Deserialize)]
+pub struct UpdateOptimizationRequest {
+    /// 优化状态（pending/in_progress/resolved/wont_fix）
+    pub optimization_status: Option<String>,
+    /// 负责人
+    pub assigned_to: Option<String>,
+    /// Jira 工单号
+    pub jira_ticket: Option<String>,
+}
+
+/// V15 P2 20.5-C：更新慢查询优化状态
+///
+/// PUT /api/v1/erp/slow-queries/:id/optimization
+///
+/// 允许管理员更新慢查询的优化状态、负责人和 Jira 工单号。
+pub async fn update_slow_query_optimization(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Path(id): Path<i64>,
+    Json(req): Json<UpdateOptimizationRequest>,
+) -> Result<Json<ApiResponse<SlowQueryDto>>, AppError> {
+    // 校验 optimization_status 合法性
+    if let Some(status) = &req.optimization_status {
+        let valid_statuses = ["pending", "in_progress", "resolved", "wont_fix"];
+        if !valid_statuses.contains(&status.as_str()) {
+            return Err(AppError::bad_request(format!(
+                "optimization_status 必须是 {:?} 之一",
+                valid_statuses
+            )));
+        }
+    }
+
+    // 查询现有记录
+    let existing = slow_query::Entity::find_by_id(id)
+        .one(state.db.as_ref())
+        .await
+        .map_err(|e| AppError::internal(format!("查询慢查询记录失败: {}", e)))?
+        .ok_or_else(|| AppError::not_found(format!("慢查询记录 {} 不存在", id)))?;
+
+    // 更新字段
+    let mut active: slow_query::ActiveModel = existing.into();
+    if let Some(status) = req.optimization_status {
+        active.optimization_status = Set(Some(status));
+    }
+    if let Some(assigned) = req.assigned_to {
+        active.assigned_to = Set(Some(assigned));
+    }
+    if let Some(ticket) = req.jira_ticket {
+        active.jira_ticket = Set(Some(ticket));
+    }
+
+    let updated = active
+        .update(state.db.as_ref())
+        .await
+        .map_err(|e| AppError::internal(format!("更新慢查询优化状态失败: {}", e)))?;
+
+    Ok(Json(ApiResponse::success(updated.into())))
 }
 
 #[cfg(test)]

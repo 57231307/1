@@ -11,6 +11,8 @@
 
 use crate::container::AppState;
 use crate::middleware::rate_limit::rate_limit_ai_endpoint;
+// V15 P2 20.7-B：deprecation 响应头中间件
+use crate::middleware::deprecation;
 use axum::{
     routing::{delete, get, post, put},
     Router,
@@ -380,6 +382,8 @@ pub fn api_gateway() -> Router<AppState> {
         )
         // stats
         .route("/stats", get(api_gateway_handler::get_api_stats))
+        // V15 P2 20.7-B：deprecation 响应头中间件
+        .layer(axum::middleware::from_fn(deprecation::deprecation_headers_middleware))
 }
 
 /// 数据权限路由；注：main 上 data_permission_handler 仅实现基础的 `list_data_permissions` / `get_data_permission` / `set_data_permission` /

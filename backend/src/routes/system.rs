@@ -255,7 +255,7 @@ pub fn audit_logs() -> Router<AppState> {
         )
 }
 
-/// 慢查询审计路由（/slow-queries：列表/统计/手动采集）
+/// 慢查询审计路由（/slow-queries：列表/统计/手动采集/优化状态更新）
 pub fn slow_queries() -> Router<AppState> {
     use crate::handlers::slow_query_handler;
     Router::new()
@@ -267,6 +267,11 @@ pub fn slow_queries() -> Router<AppState> {
         .route(
             "/slow-queries/refresh",
             axum::routing::post(slow_query_handler::refresh_slow_queries),
+        )
+        // V15 P2 20.5-C：慢查询优化任务追踪端点
+        .route(
+            "/slow-queries/:id/optimization",
+            axum::routing::put(slow_query_handler::update_slow_query_optimization),
         )
 }
 

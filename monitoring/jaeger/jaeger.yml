@@ -1,0 +1,111 @@
+# V15 P2 20.1-D：Jaeger 配置（trace 数据保留期 7 天）
+#
+# 部署方式：Jaeger all-in-one（适合开发/测试环境）
+# 生产环境建议使用 Jaeger + Elasticsearch/Cassandra 后端
+#
+# 访问：http://localhost:16686（Jaeger UI）
+#
+# 环境变量：
+#   COLLECTOR_OTLP_ENABLED=true  # 启用 OTLP 收集器
+#   SPAN_STORAGE_TYPE=elasticsearch  # 生产环境使用 ES 存储
+#   ES_SERVER_URLS=http://elasticsearch:9200  # ES 地址
+
+# ==================== 通用配置 ====================
+service:
+  name: jaeger
+
+# ==================== 收集器配置 ====================
+collector:
+  # OTLP gRPC 收集器（端口 4317）
+  otlp:
+    enabled: true
+    grpc:
+      host-port: "0.0.0.0:4317"
+    http:
+      host-port: "0.0.0.0:4318"
+
+# ==================== 存储配置 ====================
+storage:
+  # 默认使用内存存储（开发/测试环境）
+  # 生产环境改为 elasticsearch 或 cassandra
+  type: memory
+
+  # V15 P2 20.1-D：trace 数据保留期配置
+  # 内存存储限制（防止 OOM）
+  memory:
+    # 最大 span 数量（超过后 FIFO 淘汰）
+    max-traces: 100000
+
+  # 生产环境 Elasticsearch 配置示例（取消注释启用）
+  # elasticsearch:
+  #   server-urls: http://elasticsearch:9200
+  #   index-prefix: jaeger
+  #   # V15 P2 20.1-D：trace 数据保留期 7 天
+  #   # ES 索引生命周期管理（ILM）
+  #   # 需要在 ES 中配置 ILM 策略：
+  #   # - hot phase: 保留 7 天
+  #   # - delete phase: 7 天后删除
+  #   username: ""
+  #   password: ""
+  #   # 索引分片和副本配置
+  #   num-shards: 3
+  #   num-replicas: 1
+  #   # 自动创建索引模板
+  #   create-index-templates: true
+
+# ==================== 查询服务配置 ====================
+query:
+  host-port: "0.0.0.0:16686"
+  # UI 配置
+  base-path: /
+
+# ==================== 采样配置 ====================
+# 注意：采样率在应用层通过 OTEL_SAMPLE_RATIO 环境变量配置
+# 此处配置 Jaeger 侧的采样策略（用于生产环境精细控制）
+sampling:
+  # 默认采样策略
+  default:
+    type: probabilistic
+    # 生产环境默认 10% 采样率（与应用层 OTEL_SAMPLE_RATIO 对齐）
+    param: 0.1
+
+  # 按服务名的采样策略（可覆盖默认）
+  # services:
+  #   - service: bingxi-backend
+  #     type: probabilistic
+  #     param: 0.1
+
+  # V15 P2 20.1-C：tail-based sampling 策略说明
+  # tail-based sampling 在 OTel Collector 层配置更灵活
+  # 建议使用 OTel Collector 的 tail_sampling processor：
+  #
+  # processors:
+  #   tail_sampling:
+  #     decision_wait: 10s
+  #     policies:
+  #       # 错误请求 100% 采样
+  #       - name: errors
+  #         type: status_code
+  #         status_code: { status_codes: [ERROR] }
+  #       # 慢请求 100% 采样
+  #       - name: slow-traces
+  #         type: latency
+  #         latency: { threshold_ms: 2000 }
+
+# ==================== Docker Compose 环境变量 ====================
+# 在 docker-compose.yml 中使用：
+#
+# services:
+#   jaeger:
+#     image: jaegertracing/all-in-one:latest
+#     environment:
+#       - COLLECTOR_OTLP_ENABLED=true
+#       - SPAN_STORAGE_TYPE=elasticsearch
+#       - ES_SERVER_URLS=http://elasticsearch:9200
+#       - ES_INDEX_PREFIX=jaeger
+#     ports:
+#       - "16686:16686"  # UI
+#       - "4317:4317"    # OTLP gRPC
+#       - "4318:4318"    # OTLP HTTP
+#     volumes:
+#       - ./jaeger.yml:/etc/jaeger/config.yml

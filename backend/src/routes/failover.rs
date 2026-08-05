@@ -13,7 +13,7 @@ use axum::{
 
 use crate::container::AppState;
 use crate::handlers::failover_handler::{
-    get_failover_metrics, get_failover_status, health_check, post_test_switch,
+    get_failover_metrics, get_failover_status, health_check, post_failback, post_test_switch,
 };
 
 /// 主备隔离路由
@@ -32,4 +32,9 @@ pub fn failover_routes() -> Router<AppState> {
             post(post_test_switch),
         )
         .route("/api/v1/erp/admin/failover/health", get(health_check))
+        // V15 P2 20.4-D：故障回切端点（人工确认后切换回主库）
+        .route(
+            "/api/v1/erp/admin/failover/failback",
+            post(post_failback),
+        )
 }

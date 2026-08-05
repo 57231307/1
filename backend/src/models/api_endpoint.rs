@@ -39,6 +39,12 @@ pub struct Model {
     pub version: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// V15 P2 20.7-B：标记为废弃的时间
+    pub deprecated_at: Option<DateTime<Utc>>,
+    /// V15 P2 20.7-B：计划下线的时间
+    pub sunset_at: Option<DateTime<Utc>>,
+    /// V15 P2 20.7-B：废弃原因说明
+    pub deprecation_note: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

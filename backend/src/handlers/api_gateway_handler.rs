@@ -81,6 +81,12 @@ pub struct UpsertApiEndpointRequest {
     pub request_schema: Option<Value>,
     pub response_schema: Option<Value>,
     pub version: Option<String>,
+    /// V15 P2 20.7-B：废弃时间
+    pub deprecated_at: Option<String>,
+    /// V15 P2 20.7-B：计划下线时间
+    pub sunset_at: Option<String>,
+    /// V15 P2 20.7-B：废弃原因说明
+    pub deprecation_note: Option<String>,
 }
 
 /// 更新 API 密钥请求 DTO
@@ -134,6 +140,10 @@ fn endpoint_to_json(m: api_endpoint::Model) -> Value {
         "version": m.version.unwrap_or_else(|| "v1".to_string()),
         "created_at": m.created_at.to_rfc3339(),
         "updated_at": m.updated_at.to_rfc3339(),
+        // V15 P2 20.7-B：deprecation 字段
+        "deprecated_at": m.deprecated_at.map(|d| d.to_rfc3339()),
+        "sunset_at": m.sunset_at.map(|d| d.to_rfc3339()),
+        "deprecation_note": m.deprecation_note.unwrap_or_default(),
     })
 }
 
@@ -253,7 +263,17 @@ pub async fn get_api_endpoint(
         .one(&*state.db)
         .await?
         .ok_or_else(|| AppError::not_found(format!("API 端点 {} 不存在", id)))?;
-    Ok(Json(ApiResponse::success(endpoint_to_json(m))))
+    
+    // V15 P2 20.7-B：检查端点是否已废弃，添加 deprecation 响应头
+    let mut json_response = endpoint_to_json(m.clone());
+    if m.deprecated_at.is_some() || m.sunset_at.is_some() {
+        // 在 JSON 响应中添加 deprecation 信息
+        if let Some(obj) = json_response.as_object_mut() {
+            obj.insert("is_deprecated".to_string(), json!(true));
+        }
+    }
+    
+    Ok(Json(ApiResponse::success(json_response)))
 }
 
 /// POST /api-gateway/endpoints — 创建 API 端点
@@ -303,6 +323,18 @@ pub async fn create_api_endpoint(
         version: sea_orm::Set(req.version.or_else(|| Some("v1".to_string()))),
         created_at: sea_orm::Set(now),
         updated_at: sea_orm::Set(now),
+        // V15 P2 20.7-B：deprecation 字段
+        deprecated_at: sea_orm::Set(
+            req.deprecated_at
+                .and_then(|d| chrono::DateTime::parse_from_rfc3339(&d).ok())
+                .map(|d| d.with_timezone(&chrono::Utc))
+        ),
+        sunset_at: sea_orm::Set(
+            req.sunset_at
+                .and_then(|d| chrono::DateTime::parse_from_rfc3339(&d).ok())
+                .map(|d| d.with_timezone(&chrono::Utc))
+        ),
+        deprecation_note: sea_orm::Set(req.deprecation_note),
         ..Default::default()
     };
 
@@ -374,6 +406,24 @@ pub async fn update_api_endpoint(
     }
     if let Some(version) = req.version {
         active.version = sea_orm::Set(Some(version));
+    }
+    // V15 P2 20.7-B：deprecation 字段
+    if let Some(deprecated_at) = req.deprecated_at {
+        active.deprecated_at = sea_orm::Set(
+            chrono::DateTime::parse_from_rfc3339(&deprecated_at)
+                .ok()
+                .map(|d| d.with_timezone(&chrono::Utc))
+        );
+    }
+    if let Some(sunset_at) = req.sunset_at {
+        active.sunset_at = sea_orm::Set(
+            chrono::DateTime::parse_from_rfc3339(&sunset_at)
+                .ok()
+                .map(|d| d.with_timezone(&chrono::Utc))
+        );
+    }
+    if let Some(deprecation_note) = req.deprecation_note {
+        active.deprecation_note = sea_orm::Set(Some(deprecation_note));
     }
     active.updated_at = sea_orm::Set(Utc::now());
 

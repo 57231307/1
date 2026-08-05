@@ -4,6 +4,10 @@ pub mod auth_context;
 // V15 P1 20.6-B：API 网关熔断中间件（滑动窗口 5s，失败率 > 50% 触发 open）
 pub mod circuit_breaker;
 pub mod csrf;
+// V15 P2 20.7-B：API 向后兼容性 / deprecation 响应头中间件
+pub mod deprecation;
+// V15 P2 20.6-A：API 网关动态路由中间件
+pub mod dynamic_router;
 pub mod metrics;
 pub mod omni_audit;
 pub mod permission;

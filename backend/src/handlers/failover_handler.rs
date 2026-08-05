@@ -96,6 +96,37 @@ pub async fn health_check(
     }))))
 }
 
+/// 故障回切请求
+#[derive(Debug, Deserialize)]
+pub struct FailbackRequest {
+    /// 功能名：database / cache
+    pub function: String,
+}
+
+/// V15 P2 20.4-D：故障回切（人工确认后切换回主库）
+///
+/// 前置校验：
+/// 1. 当前必须在备库上运行
+/// 2. 主库健康检查通过（连续 5 次 SELECT 1）
+///
+/// 校验通过后执行回切，记录事件和指标。
+pub async fn post_failback(
+    State(state): State<AppState>,
+    Json(req): Json<FailbackRequest>,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    if req.function != "database" && req.function != "cache" {
+        return Err(AppError::bad_request("function 必须是 database 或 cache"));
+    }
+
+    let service = build_service(&state)?;
+    let message = service
+        .failback(&req.function)
+        .await
+        .map_err(AppError::internal)?;
+
+    Ok(Json(ApiResponse::success(message)))
+}
+
 /// 构建 FailoverService（从 AppState 推断）；V15 P0-B17（Batch 484）：重新注入 FailoverExecutor，启用真实 DB 连接切换。 历史：v11 P1-6（批次 143）删除了原 FailoverConfig
 /// 加载逻辑（因执行器在 v8 已删除）， 配置层从未被业务读取属纯死代码。V15 P0-B17 重新引入 FailoverExecutor（ArcSwap 实现）， 业务能力（状态查询 / 事件记录 / 手动切换 / 健康检查）现含真实 DB 连接切换。
 fn build_service(state: &AppState) -> Result<FailoverService, AppError> {
