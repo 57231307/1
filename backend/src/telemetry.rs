@@ -1,3 +1,5 @@
+#![allow(unexpected_cfgs)]
+
 //! P9-6 OpenTelemetry 统一接入层（trace + metrics + log 三位一体）
 //!
 //! 本文件是 OpenTelemetry 集成的统一入口，提供：
@@ -287,7 +289,7 @@ pub fn init() -> TelemetryGuard {
 /// 初始化 OTel TracerProvider，将 `ObservabilityConfig.sample_ratio` 应用到 `TraceIdRatioBased` sampler。
 ///
 /// 当 `OTEL_ENABLED=true` 时由 bootstrap 层调用；返回 `TelemetryGuard` 在 drop 时自动 shutdown provider。
-#[allow(unexpected_cfgs)]
+#[cfg_attr(feature = "otel", allow(unexpected_cfgs))]
 #[cfg(feature = "otel")]
 pub fn init_otel_provider(
     config: &crate::observability::config::ObservabilityConfig,
