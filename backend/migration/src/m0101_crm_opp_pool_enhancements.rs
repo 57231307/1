@@ -1,5 +1,5 @@
-use sea_orm::prelude::*;
-use sea_orm::sea_query::{Table, TableColumn, TableAlterStatement};
+use sea_orm_migration::prelude::*;
+use sea_orm_migration::sea_query::Table;
 
 /// V15 P2 18.2-D5/D6/D7 + 18.3-D5/D6/D7: CRM 商机+公海管理增强
 ///
@@ -23,11 +23,11 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(ColumnDef::new(OpportunityStageHistory::Id).integer().not_null().auto_increment().primary_key())
                     .col(ColumnDef::new(OpportunityStageHistory::OpportunityId).integer().not_null().comment("商机ID"))
-                    .col(ColumnDef::new(OpportunityStageHistory::FromStage).string().nullable().comment("原阶段"))
+                    .col(ColumnDef::new(OpportunityStageHistory::FromStage).string().null().comment("原阶段"))
                     .col(ColumnDef::new(OpportunityStageHistory::ToStage).string().not_null().comment("新阶段"))
                     .col(ColumnDef::new(OpportunityStageHistory::ChangedAt).timestamp_with_time_zone().not_null().comment("变更时间"))
-                    .col(ColumnDef::new(OpportunityStageHistory::ChangedBy).integer().nullable().comment("变更人"))
-                    .col(ColumnDef::new(OpportunityStageHistory::DurationDays).integer().nullable().comment("在原阶段停留天数"))
+                    .col(ColumnDef::new(OpportunityStageHistory::ChangedBy).integer().null().comment("变更人"))
+                    .col(ColumnDef::new(OpportunityStageHistory::DurationDays).integer().null().comment("在原阶段停留天数"))
                     .to_owned(),
             )
             .await?;
@@ -40,10 +40,10 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(ColumnDef::new(Competitor::Id).integer().not_null().auto_increment().primary_key())
                     .col(ColumnDef::new(Competitor::Name).string().not_null().comment("竞争对手名称"))
-                    .col(ColumnDef::new(Competitor::Strengths).text().nullable().comment("优势"))
-                    .col(ColumnDef::new(Competitor::Weaknesses).text().nullable().comment("劣势"))
-                    .col(ColumnDef::new(Competitor::Website).string().nullable().comment("官网"))
-                    .col(ColumnDef::new(Competitor::Notes).text().nullable().comment("备注"))
+                    .col(ColumnDef::new(Competitor::Strengths).text().null().comment("优势"))
+                    .col(ColumnDef::new(Competitor::Weaknesses).text().null().comment("劣势"))
+                    .col(ColumnDef::new(Competitor::Website).string().null().comment("官网"))
+                    .col(ColumnDef::new(Competitor::Notes).text().null().comment("备注"))
                     .col(ColumnDef::new(Competitor::CreatedAt).timestamp_with_time_zone().default(Expr::current_timestamp()))
                     .col(ColumnDef::new(Competitor::UpdatedAt).timestamp_with_time_zone().default(Expr::current_timestamp()))
                     .to_owned(),
@@ -59,8 +59,8 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(OpportunityCompetitor::Id).integer().not_null().auto_increment().primary_key())
                     .col(ColumnDef::new(OpportunityCompetitor::OpportunityId).integer().not_null().comment("商机ID"))
                     .col(ColumnDef::new(OpportunityCompetitor::CompetitorId).integer().not_null().comment("竞争对手ID"))
-                    .col(ColumnDef::new(OpportunityCompetitor::ThreatLevel).string().nullable().comment("威胁级别：low/medium/high"))
-                    .col(ColumnDef::new(OpportunityCompetitor::Notes).text().nullable().comment("备注"))
+                    .col(ColumnDef::new(OpportunityCompetitor::ThreatLevel).string().null().comment("威胁级别：low/medium/high"))
+                    .col(ColumnDef::new(OpportunityCompetitor::Notes).text().null().comment("备注"))
                     .col(ColumnDef::new(OpportunityCompetitor::CreatedAt).timestamp_with_time_zone().default(Expr::current_timestamp()))
                     .to_owned(),
             )
@@ -77,7 +77,7 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(OpportunityFollowUp::FollowUpType).string().not_null().comment("跟进方式：phone/email/visit/meeting/wechat"))
                     .col(ColumnDef::new(OpportunityFollowUp::Content).text().not_null().comment("跟进内容"))
                     .col(ColumnDef::new(OpportunityFollowUp::FollowUpTime).timestamp_with_time_zone().not_null().comment("跟进时间"))
-                    .col(ColumnDef::new(OpportunityFollowUp::NextFollowUpDate).date().nullable().comment("下次跟进日期"))
+                    .col(ColumnDef::new(OpportunityFollowUp::NextFollowUpDate).date().null().comment("下次跟进日期"))
                     .col(ColumnDef::new(OpportunityFollowUp::UserId).integer().not_null().comment("跟进人ID"))
                     .col(ColumnDef::new(OpportunityFollowUp::UserName).string().not_null().comment("跟进人姓名"))
                     .col(ColumnDef::new(OpportunityFollowUp::CreatedAt).timestamp_with_time_zone().default(Expr::current_timestamp()))
@@ -93,9 +93,9 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(CrmRecycleRule::Table)
-                    .add_column(ColumnDef::new(CrmRecycleRule::FollowUpDays).integer().nullable().comment("跟进周期（天）"))
-                    .add_column(ColumnDef::new(CrmRecycleRule::DealDays).integer().nullable().comment("成交周期（天）"))
-                    .add_column(ColumnDef::new(CrmRecycleRule::DepartmentId).integer().nullable().comment("适用部门ID"))
+                    .add_column(ColumnDef::new(CrmRecycleRule::FollowUpDays).integer().null().comment("跟进周期（天）"))
+                    .add_column(ColumnDef::new(CrmRecycleRule::DealDays).integer().null().comment("成交周期（天）"))
+                    .add_column(ColumnDef::new(CrmRecycleRule::DepartmentId).integer().null().comment("适用部门ID"))
                     .to_owned(),
             )
             .await?;
@@ -105,8 +105,8 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(CrmLead::Table)
-                    .add_column(ColumnDef::new(CrmLead::ProtectedUntil).timestamp_with_time_zone().nullable().comment("保护截止时间"))
-                    .add_column(ColumnDef::new(CrmLead::ProtectedBy).integer().nullable().comment("保护人ID"))
+                    .add_column(ColumnDef::new(CrmLead::ProtectedUntil).timestamp_with_time_zone().null().comment("保护截止时间"))
+                    .add_column(ColumnDef::new(CrmLead::ProtectedBy).integer().null().comment("保护人ID"))
                     .to_owned(),
             )
             .await?;
@@ -114,7 +114,7 @@ impl MigrationTrait for Migration {
         // 创建索引
         manager
             .create_index(
-                sea_orm::Index::create()
+                Index::create()
                     .name("idx_opp_stage_history_opp_id")
                     .table(OpportunityStageHistory::Table)
                     .col(OpportunityStageHistory::OpportunityId)
@@ -124,7 +124,7 @@ impl MigrationTrait for Migration {
 
         manager
             .create_index(
-                sea_orm::Index::create()
+                Index::create()
                     .name("idx_opp_follow_up_opp_id")
                     .table(OpportunityFollowUp::Table)
                     .col(OpportunityFollowUp::OpportunityId)

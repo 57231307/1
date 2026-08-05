@@ -773,6 +773,66 @@ pub async fn execute_nurture_plan(
     Ok(Json(ApiResponse::success(serde_json::to_value(plan)?)))
 }
 
+// ===== V15 P2 18.4-D5/D6: 客户数据权限与操作日志 =====
+
+/// GET /api/v1/erp/crm/customers/field-permissions/:role_id - 获取客户字段权限配置
+pub async fn get_customer_field_permissions(
+    Path(role_id): Path<i32>,
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let permissions = service.get_customer_field_permissions(role_id).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(permissions)?)))
+}
+
+/// POST /api/v1/erp/crm/customers/field-permissions - 设置客户字段权限
+pub async fn set_customer_field_permission(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Json(req): Json<crate::services::crm::cust::SetFieldPermissionRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let permission = service.set_customer_field_permission(req).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(permission)?)))
+}
+
+/// GET /api/v1/erp/crm/customers/:id/audit-logs - 获取客户操作日志
+pub async fn list_customer_audit_logs(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Query(params): Query<AuditLogQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let logs = service.list_customer_audit_logs(id, params.operation.as_deref()).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(logs)?)))
+}
+
+// ===== V15 P2 18.5-D5: 客户全生命周期价值（CLV）=====
+
+/// POST /api/v1/erp/crm/customers/:id/clv/calculate - 计算客户 CLV
+pub async fn calculate_customer_clv(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let clv = service.calculate_customer_clv(id).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(clv)?)))
+}
+
+/// GET /api/v1/erp/crm/customers/:id/clv - 获取客户 CLV
+pub async fn get_customer_clv(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let clv = service.get_customer_clv(id).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(clv)?)))
+}
+
 // ===== V15 P2 请求/查询 DTO =====
 
 /// 渠道 ROI 查询参数
@@ -809,4 +869,16 @@ pub struct AutoAssignRequest {
 pub struct NurturePlanQuery {
     pub lead_id: Option<i32>,
     pub status: Option<String>,
+}
+
+/// 阶段停留时长查询参数
+#[derive(Debug, Deserialize)]
+pub struct StageDurationQuery {
+    pub opportunity_id: Option<i32>,
+}
+
+/// 操作日志查询参数
+#[derive(Debug, Deserialize)]
+pub struct AuditLogQuery {
+    pub operation: Option<String>,
 }

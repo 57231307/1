@@ -434,6 +434,15 @@ fn crm_opportunity_routes() -> Router<AppState> {
 /// CRM 客户增强路由（/customers/:id/{summary,360,follow-ups,rfm} + /rfm/distribution）
 fn crm_customer_enhancement_routes() -> Router<AppState> {
     Router::new()
+        // V15 P2 18.4-D5: 客户字段权限（静态路径注册在 /:id 之前）
+        .route(
+            "/customers/field-permissions",
+            post(crate::handlers::crm_handler::set_customer_field_permission),
+        )
+        .route(
+            "/customers/field-permissions/:role_id",
+            get(crate::handlers::crm_handler::get_customer_field_permissions),
+        )
         .route(
             "/customers/:id/summary",
             get(crate::handlers::crm_handler::get_customer_relation_summary),
@@ -450,6 +459,20 @@ fn crm_customer_enhancement_routes() -> Router<AppState> {
         .route(
             "/customers/:id/rfm",
             get(crate::handlers::crm_handler::get_rfm_score),
+        )
+        // V15 P2 18.4-D6: 客户操作日志
+        .route(
+            "/customers/:id/audit-logs",
+            get(crate::handlers::crm_handler::list_customer_audit_logs),
+        )
+        // V15 P2 18.5-D5: 客户 CLV
+        .route(
+            "/customers/:id/clv",
+            get(crate::handlers::crm_handler::get_customer_clv),
+        )
+        .route(
+            "/customers/:id/clv/calculate",
+            post(crate::handlers::crm_handler::calculate_customer_clv),
         )
         .route(
             "/rfm/distribution",

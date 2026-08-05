@@ -1,5 +1,5 @@
-use sea_orm::prelude::*;
-use sea_orm::sea_query::Table;
+use sea_orm_migration::prelude::*;
+use sea_orm_migration::sea_query::Table;
 
 /// V15 P2 18.1-D4/D5/D6: CRM 线索管理增强
 ///
@@ -44,11 +44,11 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(LeadAllocationRule::Id).integer().not_null().auto_increment().primary_key())
                     .col(ColumnDef::new(LeadAllocationRule::RuleName).string().not_null().comment("规则名称"))
                     .col(ColumnDef::new(LeadAllocationRule::RuleType).string().not_null().comment("规则类型：round_robin/weighted/source_based/industry_based"))
-                    .col(ColumnDef::new(LeadAllocationRule::SourceFilter).string().nullable().comment("适用来源过滤"))
-                    .col(ColumnDef::new(LeadAllocationRule::IndustryFilter).string().nullable().comment("适用行业过滤"))
-                    .col(ColumnDef::new(LeadAllocationRule::RegionFilter).string().nullable().comment("适用区域过滤"))
-                    .col(ColumnDef::new(LeadAllocationRule::AssignedUserIds).json().nullable().comment("分配用户ID列表"))
-                    .col(ColumnDef::new(LeadAllocationRule::Weights).json().nullable().comment("权重配置"))
+                    .col(ColumnDef::new(LeadAllocationRule::SourceFilter).string().null().comment("适用来源过滤"))
+                    .col(ColumnDef::new(LeadAllocationRule::IndustryFilter).string().null().comment("适用行业过滤"))
+                    .col(ColumnDef::new(LeadAllocationRule::RegionFilter).string().null().comment("适用区域过滤"))
+                    .col(ColumnDef::new(LeadAllocationRule::AssignedUserIds).json().null().comment("分配用户ID列表"))
+                    .col(ColumnDef::new(LeadAllocationRule::Weights).json().null().comment("权重配置"))
                     .col(ColumnDef::new(LeadAllocationRule::DailyLimit).integer().default(0).comment("每日分配上限"))
                     .col(ColumnDef::new(LeadAllocationRule::Priority).integer().default(0).comment("规则优先级"))
                     .col(ColumnDef::new(LeadAllocationRule::IsActive).boolean().default(true).comment("是否启用"))
@@ -68,13 +68,13 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(LeadNurturePlan::LeadId).integer().not_null().comment("线索ID"))
                     .col(ColumnDef::new(LeadNurturePlan::PlanName).string().not_null().comment("培育计划名称"))
                     .col(ColumnDef::new(LeadNurturePlan::NurtureType).string().not_null().comment("培育类型：email/sms/visit/call"))
-                    .col(ColumnDef::new(LeadNurturePlan::TriggerCondition).string().nullable().comment("触发条件"))
-                    .col(ColumnDef::new(LeadNurturePlan::TemplateId).string().nullable().comment("模板ID"))
-                    .col(ColumnDef::new(LeadNurturePlan::ScheduledAt).timestamp_with_time_zone().nullable().comment("计划执行时间"))
-                    .col(ColumnDef::new(LeadNurturePlan::ExecutedAt).timestamp_with_time_zone().nullable().comment("实际执行时间"))
+                    .col(ColumnDef::new(LeadNurturePlan::TriggerCondition).string().null().comment("触发条件"))
+                    .col(ColumnDef::new(LeadNurturePlan::TemplateId).string().null().comment("模板ID"))
+                    .col(ColumnDef::new(LeadNurturePlan::ScheduledAt).timestamp_with_time_zone().null().comment("计划执行时间"))
+                    .col(ColumnDef::new(LeadNurturePlan::ExecutedAt).timestamp_with_time_zone().null().comment("实际执行时间"))
                     .col(ColumnDef::new(LeadNurturePlan::Status).string().default("pending").comment("状态：pending/executed/failed/cancelled"))
-                    .col(ColumnDef::new(LeadNurturePlan::Result).string().nullable().comment("执行结果"))
-                    .col(ColumnDef::new(LeadNurturePlan::CreatedBy).integer().nullable().comment("创建人"))
+                    .col(ColumnDef::new(LeadNurturePlan::Result).string().null().comment("执行结果"))
+                    .col(ColumnDef::new(LeadNurturePlan::CreatedBy).integer().null().comment("创建人"))
                     .col(ColumnDef::new(LeadNurturePlan::CreatedAt).timestamp_with_time_zone().default(Expr::current_timestamp()))
                     .to_owned(),
             )
@@ -83,7 +83,7 @@ impl MigrationTrait for Migration {
         // 创建索引
         manager
             .create_index(
-                sea_orm::Index::create()
+                Index::create()
                     .name("idx_lead_source_roi_source_period")
                     .table(LeadSourceRoi::Table)
                     .col(LeadSourceRoi::Source)
@@ -94,7 +94,7 @@ impl MigrationTrait for Migration {
 
         manager
             .create_index(
-                sea_orm::Index::create()
+                Index::create()
                     .name("idx_lead_nurture_plan_lead_id")
                     .table(LeadNurturePlan::Table)
                     .col(LeadNurturePlan::LeadId)
