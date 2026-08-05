@@ -885,75 +885,271 @@ impl CrmService {
             order_to_collection_rate: order_to_collection,
         })
     }
+
+    /// V15 P2 18.2-D5: 阶段停留时长分析（统计每个商机在各阶段的停留天数）
+    pub async fn stage_duration_analysis(
+        &self,
+        opportunity_id: Option<i32>,
+    ) -> Result<Vec<StageDurationItem>, AppError> {
+        use crate::models::opportunity_stage_history;
+
+        let mut q = opportunity_stage_history::Entity::find();
+        if let Some(opp_id) = opportunity_id {
+            q = q.filter(opportunity_stage_history::Column::OpportunityId.eq(opp_id));
+        }
+        let records = q
+            .order_by(opportunity_stage_history::Column::ChangedAt, sea_orm::Order::Desc)
+            .all(&*self.db)
+            .await?;
+
+        let mut results = Vec::new();
+        for record in &records {
+            results.push(StageDurationItem {
+                opportunity_id: record.opportunity_id,
+                from_stage: record.from_stage.clone().unwrap_or_default(),
+                to_stage: record.to_stage.clone(),
+                changed_at: record.changed_at,
+                duration_days: record.duration_days.unwrap_or(0),
+            });
+        }
+
+        Ok(results)
+    }
+
+    /// V15 P2 18.2-D5: 记录商机阶段变更（自动计算停留天数）
+    pub async fn record_stage_change(
+        &self,
+        opportunity_id: i32,
+        from_stage: Option<String>,
+        to_stage: &str,
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        use crate::models::opportunity_stage_history;
+
+        // 计算在原阶段的停留天数
+        let duration_days = if let Some(ref old_stage) = from_stage {
+            // 查找上一次进入该阶段的时间
+            let last_entry = opportunity_stage_history::Entity::find()
+                .filter(opportunity_stage_history::Column::OpportunityId.eq(opportunity_id))
+                .filter(opportunity_stage_history::Column::ToStage.eq(old_stage))
+                .order_by(opportunity_stage_history::Column::ChangedAt, sea_orm::Order::Desc)
+                .one(&*self.db)
+                .await?;
+
+            if let Some(entry) = last_entry {
+                let now = chrono::Utc::now();
+                let duration = now.signed_duration_since(entry.changed_at);
+                Some(duration.num_days() as i32)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let new_record = opportunity_stage_history::ActiveModel {
+            id: Default::default(),
+            opportunity_id: sea_orm::Set(opportunity_id),
+            from_stage: sea_orm::Set(from_stage),
+            to_stage: sea_orm::Set(to_stage.to_string()),
+            changed_at: sea_orm::Set(chrono::Utc::now()),
+            changed_by: sea_orm::Set(Some(user_id)),
+            duration_days: sea_orm::Set(duration_days),
+        }
+        .insert(&*self.db)
+        .await?;
+
+        Ok(())
+    }
+
+    /// V15 P2 18.2-D6: 创建竞争对手
+    pub async fn create_competitor(
+        &self,
+        req: CreateCompetitorRequest,
+    ) -> Result<crate::models::competitor::Model, AppError> {
+        use crate::models::competitor;
+
+        let new_competitor = competitor::ActiveModel {
+            id: Default::default(),
+            name: sea_orm::Set(req.name),
+            strengths: sea_orm::Set(req.strengths),
+            weaknesses: sea_orm::Set(req.weaknesses),
+            website: sea_orm::Set(req.website),
+            notes: sea_orm::Set(req.notes),
+            created_at: sea_orm::Set(Some(chrono::Utc::now())),
+            updated_at: sea_orm::Set(Some(chrono::Utc::now())),
+        }
+        .insert(&*self.db)
+        .await?;
+
+        Ok(new_competitor)
+    }
+
+    /// V15 P2 18.2-D6: 获取竞争对手列表
+    pub async fn list_competitors(&self) -> Result<Vec<crate::models::competitor::Model>, AppError> {
+        use crate::models::competitor;
+
+        let competitors = competitor::Entity::find()
+            .order_by(competitor::Column::Name, sea_orm::Order::Asc)
+            .all(&*self.db)
+            .await?;
+
+        Ok(competitors)
+    }
+
+    /// V15 P2 18.2-D6: 添加商机竞争对手关联
+    pub async fn add_opportunity_competitor(
+        &self,
+        opportunity_id: i32,
+        req: AddOpportunityCompetitorRequest,
+    ) -> Result<crate::models::opportunity_competitor::Model, AppError> {
+        use crate::models::opportunity_competitor;
+
+        let new_record = opportunity_competitor::ActiveModel {
+            id: Default::default(),
+            opportunity_id: sea_orm::Set(opportunity_id),
+            competitor_id: sea_orm::Set(req.competitor_id),
+            threat_level: sea_orm::Set(req.threat_level),
+            notes: sea_orm::Set(req.notes),
+            created_at: sea_orm::Set(Some(chrono::Utc::now())),
+        }
+        .insert(&*self.db)
+        .await?;
+
+        Ok(new_record)
+    }
+
+    /// V15 P2 18.2-D6: 获取商机竞争对手列表
+    pub async fn list_opportunity_competitors(
+        &self,
+        opportunity_id: i32,
+    ) -> Result<Vec<OpportunityCompetitorItem>, AppError> {
+        use crate::models::{competitor, opportunity_competitor};
+
+        let records = opportunity_competitor::Entity::find()
+            .filter(opportunity_competitor::Column::OpportunityId.eq(opportunity_id))
+            .all(&*self.db)
+            .await?;
+
+        let mut results = Vec::new();
+        for record in &records {
+            let comp = competitor::Entity::find_by_id(record.competitor_id)
+                .one(&*self.db)
+                .await?;
+            if let Some(c) = comp {
+                results.push(OpportunityCompetitorItem {
+                    id: record.id,
+                    competitor_id: c.id,
+                    competitor_name: c.name,
+                    threat_level: record.threat_level.clone().unwrap_or_else(|| "medium".to_string()),
+                    notes: record.notes.clone(),
+                });
+            }
+        }
+
+        Ok(results)
+    }
+
+    /// V15 P2 18.2-D7: 创建商机跟进记录
+    pub async fn create_opportunity_follow_up(
+        &self,
+        opportunity_id: i32,
+        req: CreateOpportunityFollowUpRequest,
+        user_id: i32,
+        user_name: String,
+    ) -> Result<crate::models::opportunity_follow_up::Model, AppError> {
+        use crate::models::opportunity_follow_up;
+
+        let new_record = opportunity_follow_up::ActiveModel {
+            id: Default::default(),
+            opportunity_id: sea_orm::Set(opportunity_id),
+            follow_up_type: sea_orm::Set(req.follow_up_type),
+            content: sea_orm::Set(req.content),
+            follow_up_time: sea_orm::Set(req.follow_up_time.unwrap_or_else(|| chrono::Utc::now())),
+            next_follow_up_date: sea_orm::Set(req.next_follow_up_date),
+            user_id: sea_orm::Set(user_id),
+            user_name: sea_orm::Set(user_name),
+            created_at: sea_orm::Set(Some(chrono::Utc::now())),
+        }
+        .insert(&*self.db)
+        .await?;
+
+        // 更新商机的最近跟进日期
+        let opportunity = crm_opportunity::Entity::find_by_id(opportunity_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("商机不存在：{}", opportunity_id)))?;
+        let mut opp_active: crm_opportunity::ActiveModel = opportunity.into();
+        opp_active.last_follow_up_date = sea_orm::Set(Some(chrono::Utc::now().date_naive()));
+        if let Some(next_date) = req.next_follow_up_date {
+            opp_active.next_follow_up_date = sea_orm::Set(Some(next_date));
+        }
+        opp_active.updated_at = sea_orm::Set(Some(chrono::Utc::now()));
+        opp_active.update(&*self.db).await?;
+
+        Ok(new_record)
+    }
+
+    /// V15 P2 18.2-D7: 获取商机跟进记录列表
+    pub async fn list_opportunity_follow_ups(
+        &self,
+        opportunity_id: i32,
+    ) -> Result<Vec<crate::models::opportunity_follow_up::Model>, AppError> {
+        use crate::models::opportunity_follow_up;
+
+        let records = opportunity_follow_up::Entity::find()
+            .filter(opportunity_follow_up::Column::OpportunityId.eq(opportunity_id))
+            .order_by(opportunity_follow_up::Column::FollowUpTime, sea_orm::Order::Desc)
+            .all(&*self.db)
+            .await?;
+
+        Ok(records)
+    }
 }
 
-/// V15 P1 18.2-D3：预测准确率结果
+/// V15 P2 18.2-D5: 阶段停留时长项
 #[derive(Debug, Clone, serde::Serialize)]
-pub struct ForecastAccuracyResult {
-    pub year: i32,
-    pub month: u32,
-    pub forecast_amount: Decimal,
-    pub forecast_count: i64,
-    pub actual_amount: Decimal,
-    pub won_count: i64,
-    pub accuracy_rate: f64,
-}
-
-/// V15 P1 18.2-D4：加权预测结果
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct WeightedForecastResult {
-    pub total_opportunities: i64,
-    pub total_estimated_amount: Decimal,
-    pub total_weighted_amount: Decimal,
-    pub details: Vec<WeightedForecastItem>,
-}
-
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct WeightedForecastItem {
+pub struct StageDurationItem {
     pub opportunity_id: i32,
-    pub opportunity_no: String,
-    pub opportunity_name: String,
-    pub stage: String,
-    pub estimated_amount: Decimal,
-    pub win_probability: Decimal,
-    pub weighted_amount: Decimal,
-    pub expected_close_date: Option<chrono::NaiveDate>,
+    pub from_stage: String,
+    pub to_stage: String,
+    pub changed_at: chrono::DateTime<chrono::Utc>,
+    pub duration_days: i32,
 }
 
-/// V15 P1 18.5-D1：转化率分析结果
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct ConversionRateAnalysis {
-    pub period_start: chrono::DateTime<chrono::Utc>,
-    pub period_end: chrono::DateTime<chrono::Utc>,
-    pub total_opportunities: i64,
-    pub won_count: i64,
-    pub lost_count: i64,
-    pub open_count: i64,
-    pub win_rate: f64,
-    pub conversion_rate: f64,
-    pub stage_distribution: Vec<StageCount>,
+/// V15 P2 18.2-D6: 创建竞争对手请求
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct CreateCompetitorRequest {
+    pub name: String,
+    pub strengths: Option<String>,
+    pub weaknesses: Option<String>,
+    pub website: Option<String>,
+    pub notes: Option<String>,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct StageCount {
-    pub stage: String,
-    pub count: i64,
+/// V15 P2 18.2-D6: 添加商机竞争对手请求
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct AddOpportunityCompetitorRequest {
+    pub competitor_id: i32,
+    pub threat_level: Option<String>,
+    pub notes: Option<String>,
 }
 
-/// V15 P1 18.5-D2：销售漏斗报表
+/// V15 P2 18.2-D6: 商机竞争对手项
 #[derive(Debug, Clone, serde::Serialize)]
-pub struct SalesFunnelReport {
-    pub lead_count: u64,
-    pub opportunity_count: i64,
-    pub opportunity_amount: Decimal,
-    pub quotation_count: u64,
-    pub won_count: i64,
-    pub won_amount: Decimal,
-    pub order_count: i64,
-    pub order_amount: Decimal,
-    pub collected_amount: Decimal,
-    pub lead_to_opp_rate: f64,
-    pub opp_to_quotation_rate: f64,
-    pub opp_to_order_rate: f64,
-    pub order_to_collection_rate: f64,
+pub struct OpportunityCompetitorItem {
+    pub id: i32,
+    pub competitor_id: i32,
+    pub competitor_name: String,
+    pub threat_level: String,
+    pub notes: Option<String>,
+}
+
+/// V15 P2 18.2-D7: 创建商机跟进记录请求
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct CreateOpportunityFollowUpRequest {
+    pub follow_up_type: String,
+    pub content: String,
+    pub follow_up_time: Option<chrono::DateTime<chrono::Utc>>,
+    pub next_follow_up_date: Option<chrono::NaiveDate>,
 }

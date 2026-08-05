@@ -387,6 +387,11 @@ fn crm_lead_routes() -> Router<AppState> {
 /// CRM 商机路由（/opportunities，含 CRUD/导出/转化/关单）
 fn crm_opportunity_routes() -> Router<AppState> {
     Router::new()
+        // V15 P2 18.2-D5: 阶段停留时长分析（注册在 /:id 之前避免路径参数匹配）
+        .route(
+            "/opportunities/stage-duration",
+            get(crate::handlers::crm_handler::get_stage_duration_analysis),
+        )
         .route(
             "/opportunities",
             post(crate::handlers::crm_handler::create_opportunity)
@@ -411,6 +416,18 @@ fn crm_opportunity_routes() -> Router<AppState> {
         .route(
             "/opportunities/:id/close-lost",
             post(crate::handlers::crm_handler::close_opportunity_as_lost),
+        )
+        // V15 P2 18.2-D6: 商机竞争对手管理
+        .route(
+            "/opportunities/:id/competitors",
+            get(crate::handlers::crm_handler::list_opportunity_competitors)
+                .post(crate::handlers::crm_handler::add_opportunity_competitor),
+        )
+        // V15 P2 18.2-D7: 商机跟进记录
+        .route(
+            "/opportunities/:id/follow-ups",
+            get(crate::handlers::crm_handler::list_opportunity_follow_ups)
+                .post(crate::handlers::crm_handler::create_opportunity_follow_up),
         )
 }
 
@@ -450,6 +467,16 @@ pub fn crm_business() -> Router<AppState> {
         .merge(crm_customer_enhancement_routes())
 }
 
+/// CRM 竞争对手路由（/competitors）
+fn crm_competitors() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/competitors",
+            get(crate::handlers::crm_handler::list_competitors)
+                .post(crate::handlers::crm_handler::create_competitor),
+        )
+}
+
 /// CRM 域统一入口（子 router path 已加独立前缀，merge 安全）
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -466,4 +493,6 @@ pub fn routes() -> Router<AppState> {
         .merge(crm_sales_users())
         .merge(crm_recycle_rules())
         .merge(crm_business())
+        // V15 P2 18.2-D6: 竞争对手管理
+        .merge(crm_competitors())
 }

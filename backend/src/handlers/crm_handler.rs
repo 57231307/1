@@ -773,6 +773,86 @@ pub async fn execute_nurture_plan(
     Ok(Json(ApiResponse::success(serde_json::to_value(plan)?)))
 }
 
+// ===== V15 P2 18.2-D5/D6/D7: 商机管理增强 =====
+
+/// GET /api/v1/erp/crm/opportunities/stage-duration - 阶段停留时长分析
+pub async fn get_stage_duration_analysis(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Query(params): Query<StageDurationQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let analysis = service.stage_duration_analysis(params.opportunity_id).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(analysis)?)))
+}
+
+/// GET /api/v1/erp/crm/competitors - 获取竞争对手列表
+pub async fn list_competitors(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let competitors = service.list_competitors().await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(competitors)?)))
+}
+
+/// POST /api/v1/erp/crm/competitors - 创建竞争对手
+pub async fn create_competitor(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Json(req): Json<crate::services::crm::opp::CreateCompetitorRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let competitor = service.create_competitor(req).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(competitor)?)))
+}
+
+/// GET /api/v1/erp/crm/opportunities/:id/competitors - 获取商机竞争对手列表
+pub async fn list_opportunity_competitors(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let competitors = service.list_opportunity_competitors(id).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(competitors)?)))
+}
+
+/// POST /api/v1/erp/crm/opportunities/:id/competitors - 添加商机竞争对手
+pub async fn add_opportunity_competitor(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Json(req): Json<crate::services::crm::opp::AddOpportunityCompetitorRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let record = service.add_opportunity_competitor(id, req).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(record)?)))
+}
+
+/// GET /api/v1/erp/crm/opportunities/:id/follow-ups - 获取商机跟进记录列表
+pub async fn list_opportunity_follow_ups(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let follow_ups = service.list_opportunity_follow_ups(id).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(follow_ups)?)))
+}
+
+/// POST /api/v1/erp/crm/opportunities/:id/follow-ups - 创建商机跟进记录
+pub async fn create_opportunity_follow_up(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<crate::services::crm::opp::CreateOpportunityFollowUpRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let follow_up = service.create_opportunity_follow_up(id, req, auth.user_id, auth.username.clone()).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(follow_up)?)))
+}
+
 // ===== V15 P2 请求/查询 DTO =====
 
 /// 渠道 ROI 查询参数
@@ -809,4 +889,10 @@ pub struct AutoAssignRequest {
 pub struct NurturePlanQuery {
     pub lead_id: Option<i32>,
     pub status: Option<String>,
+}
+
+/// 阶段停留时长查询参数
+#[derive(Debug, Deserialize)]
+pub struct StageDurationQuery {
+    pub opportunity_id: Option<i32>,
 }

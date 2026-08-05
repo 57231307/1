@@ -227,6 +227,13 @@ pub mod export_approval_request;
 pub mod crm_recycle_rule;
 pub mod crm_lead;
 pub mod crm_opportunity;
+// V15 P2 18.2-D5: 商机阶段变更历史
+pub mod opportunity_stage_history;
+// V15 P2 18.2-D6: 竞争对手
+pub mod competitor;
+pub mod opportunity_competitor;
+// V15 P2 18.2-D7: 商机跟进记录
+pub mod opportunity_follow_up;
 // 批次 122 v8 复审 P1 修复：CRM 标签字典表（替代 list_tags 硬编码 + create_tag/delete_tag 假实现）
 pub mod crm_tag;
 // V15 P2 18.1-D4: 线索来源 ROI 跟踪
