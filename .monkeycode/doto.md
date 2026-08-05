@@ -166,3 +166,4 @@
 | 2026-08-05 | P2-Phase-5 | 预算科目-会计科目映射 + 资产分类管理 | 2 | PR #839 ✓ | P2-14 budget_items.account_subject_id; P2-17 asset_categories 表 + CRUD + fixed_assets.asset_category_id; m0098 migration |
 | 2026-08-05 | P2-Phase-6 | 现金流比率 + 趋势分析增强 | 2 | PR #840 ✓ | 17.5-D6 现金流比率（OPERATING_CF_RATIO/SALES_CF_RATIO/CF_ADEQUACY_RATIO）; 17.5-D5 趋势分析增强（线性回归+移动平均+趋势方向） |
 | 2026-08-05 | P2-Phase-6B | 预算版本管理 + 资产减值测试 + 折旧政策变更 | 3 | PR #842 ✓ | 17.7-D5 预算版本管理; 17.8-D5 资产减值测试; 17.8-D6 折旧政策变更; m0099 migration |
+| 2026-08-05 | P2-Phase-6C | 调拨审批流 + 资金日报/月报 | 2 | PR #844 ✓ | 17.6-D5 调拨审批流（按金额分级审批）; 17.6-D6 资金日报/月报接口 |
