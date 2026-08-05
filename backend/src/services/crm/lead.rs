@@ -1058,7 +1058,7 @@ impl CrmService {
         let order_count = orders.len() as i32;
         let revenue: rust_decimal::Decimal = orders
             .iter()
-            .map(|o| o.total_amount.unwrap_or_default())
+            .map(|o| o.total_amount)
             .sum();
 
         // 计算转化率和 ROI

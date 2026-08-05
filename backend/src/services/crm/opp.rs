@@ -1153,3 +1153,61 @@ pub struct CreateOpportunityFollowUpRequest {
     pub follow_up_time: Option<chrono::DateTime<chrono::Utc>>,
     pub next_follow_up_date: Option<chrono::NaiveDate>,
 }
+
+/// V15 P2 18.2-D5: 预测准确性结果
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ForecastAccuracyResult {
+    pub total_forecasts: i32,
+    pub accurate_forecasts: i32,
+    pub accuracy_rate: f64,
+    pub avg_deviation: f64,
+}
+
+/// V15 P2 18.2-D5: 加权预测结果
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct WeightedForecastResult {
+    pub total_weighted_amount: rust_decimal::Decimal,
+    pub details: Vec<WeightedForecastItem>,
+}
+
+/// V15 P2 18.2-D5: 加权预测项
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct WeightedForecastItem {
+    pub stage: String,
+    pub count: i32,
+    pub total_amount: rust_decimal::Decimal,
+    pub weight: f64,
+    pub weighted_amount: rust_decimal::Decimal,
+}
+
+/// V15 P2 18.2-D5: 转化率分析
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ConversionRateAnalysis {
+    pub total_leads: i32,
+    pub converted_leads: i32,
+    pub conversion_rate: f64,
+    pub stage_distribution: Vec<StageCount>,
+}
+
+/// V15 P2 18.2-D5: 阶段计数
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct StageCount {
+    pub stage: String,
+    pub count: i32,
+}
+
+/// V15 P2 18.2-D5: 销售漏斗报告
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SalesFunnelReport {
+    pub total_opportunities: i32,
+    pub total_amount: rust_decimal::Decimal,
+    pub stages: Vec<FunnelStage>,
+}
+
+/// V15 P2 18.2-D5: 漏斗阶段
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct FunnelStage {
+    pub stage: String,
+    pub count: i32,
+    pub amount: rust_decimal::Decimal,
+}
