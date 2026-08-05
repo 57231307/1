@@ -30,8 +30,7 @@ impl MigrationTrait for Migration {
                             .name("fk_suppliers_category_id")
                             .from(Suppliers::Table, Suppliers::CategoryId)
                             .to(SupplierCategories::Table, SupplierCategories::Id)
-                            .on_delete(ForeignKeyAction::SetNull)
-                            .to_owned(),
+                            .on_delete(ForeignKeyAction::SetNull),
                     )
                     .to_owned(),
             )
