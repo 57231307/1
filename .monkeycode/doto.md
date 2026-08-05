@@ -164,3 +164,4 @@
  | 2026-08-05 | P2-Phase-3.5 | P2 核实后修正：接入未实现的修复项 | 6 | PR #836 ✓ | m0094 processor_type 筛选接入; m0095 sales_contract_items service/handler/route; m0096 period_report_snapshot service/handler; m0097 aging_alert_rules service/handler; mask_fields 接入 customer_handler; record_actual_grade handler 端点 |
 | 2026-08-05 | P2-Phase-4 | 辅助核算余额增强+账龄业务员维度+穿透查询 | 3 | PR #838 ✓ | P2-4 期初/期末余额计算; P2-7 账龄按 salesperson_id GROUP BY; P2-3 穿透查询总账到辅助明细 |
 | 2026-08-05 | P2-Phase-5 | 预算科目-会计科目映射 + 资产分类管理 | 2 | PR #839 ✓ | P2-14 budget_items.account_subject_id; P2-17 asset_categories 表 + CRUD + fixed_assets.asset_category_id; m0098 migration |
+| 2026-08-05 | P2-Phase-6 | 现金流比率 + 趋势分析增强 | 2 | PR #840 ✓ | 17.5-D6 现金流比率（OPERATING_CF_RATIO/SALES_CF_RATIO/CF_ADEQUACY_RATIO）; 17.5-D5 趋势分析增强（线性回归+移动平均+趋势方向） |
