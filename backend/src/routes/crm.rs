@@ -446,6 +446,11 @@ fn crm_opportunity_routes() -> Router<AppState> {
             "/opportunities/sales-funnel",
             get(crate::handlers::crm_handler::get_sales_funnel),
         )
+        // V15 P2 18.2-D5: 商机阶段变更记录
+        .route(
+            "/opportunities/:id/stage-change",
+            post(crate::handlers::crm_handler::record_opportunity_stage_change),
+        )
 }
 
 /// CRM 客户增强路由（/customers/:id/{summary,360,follow-ups,rfm} + /rfm/distribution）
@@ -480,7 +485,8 @@ fn crm_customer_enhancement_routes() -> Router<AppState> {
         // V15 P2 18.4-D6: 客户操作日志
         .route(
             "/customers/:id/audit-logs",
-            get(crate::handlers::crm_handler::list_customer_audit_logs),
+            get(crate::handlers::crm_handler::list_customer_audit_logs)
+                .post(crate::handlers::crm_handler::create_customer_audit_log),
         )
         // V15 P2 18.5-D5: 客户 CLV
         .route(
