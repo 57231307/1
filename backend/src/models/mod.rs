@@ -6,6 +6,12 @@ pub mod customer_followup;
 pub mod customer_pool_rule;
 pub mod customer_transfer_approval;
 // V15 P1 batch-15 18.4-D2/D3：CRM 团队协作 + 数据共享时效
+// V15 P2 18.4-D5: 客户字段权限配置
+pub mod customer_field_permission;
+// V15 P2 18.4-D6: 客户操作日志
+pub mod customer_audit_log;
+// V15 P2 18.5-D5: 客户全生命周期价值（CLV）
+pub mod customer_lifetime_value;
 pub mod customer_team_member;
 pub mod customer_share;
 pub mod department;

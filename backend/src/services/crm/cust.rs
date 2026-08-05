@@ -430,4 +430,244 @@ impl CrmService {
             "total_customers": customer_ids.len() as u64,
         }))
     }
+
+    /// V15 P2 18.4-D5: 获取客户字段权限配置
+    pub async fn get_customer_field_permissions(
+        &self,
+        role_id: i32,
+    ) -> Result<Vec<crate::models::customer_field_permission::Model>, AppError> {
+        use crate::models::customer_field_permission;
+
+        let permissions = customer_field_permission::Entity::find()
+            .filter(customer_field_permission::Column::RoleId.eq(role_id))
+            .all(&*self.db)
+            .await?;
+
+        Ok(permissions)
+    }
+
+    /// V15 P2 18.4-D5: 设置客户字段权限
+    pub async fn set_customer_field_permission(
+        &self,
+        req: SetFieldPermissionRequest,
+    ) -> Result<crate::models::customer_field_permission::Model, AppError> {
+        use crate::models::customer_field_permission;
+
+        // 检查是否已存在该角色+字段的权限配置
+        let existing = customer_field_permission::Entity::find()
+            .filter(customer_field_permission::Column::RoleId.eq(req.role_id))
+            .filter(customer_field_permission::Column::FieldName.eq(&req.field_name))
+            .one(&*self.db)
+            .await?;
+
+        if let Some(record) = existing {
+            // 更新现有记录
+            let mut active: customer_field_permission::ActiveModel = record.into();
+            active.permission = sea_orm::Set(req.permission);
+            active.mask_pattern = sea_orm::Set(req.mask_pattern);
+            active.updated_at = sea_orm::Set(Some(chrono::Utc::now()));
+            let updated = active.update(&*self.db).await?;
+            Ok(updated)
+        } else {
+            // 创建新记录
+            let new_record = customer_field_permission::ActiveModel {
+                id: Default::default(),
+                role_id: sea_orm::Set(req.role_id),
+                field_name: sea_orm::Set(req.field_name),
+                permission: sea_orm::Set(req.permission),
+                mask_pattern: sea_orm::Set(req.mask_pattern),
+                created_at: sea_orm::Set(Some(chrono::Utc::now())),
+                updated_at: sea_orm::Set(Some(chrono::Utc::now())),
+            }
+            .insert(&*self.db)
+            .await?;
+            Ok(new_record)
+        }
+    }
+
+    /// V15 P2 18.4-D6: 记录客户操作日志
+    pub async fn log_customer_operation(
+        &self,
+        req: CreateAuditLogRequest,
+    ) -> Result<(), AppError> {
+        use crate::models::customer_audit_log;
+
+        let new_log = customer_audit_log::ActiveModel {
+            id: Default::default(),
+            customer_id: sea_orm::Set(req.customer_id),
+            operation: sea_orm::Set(req.operation),
+            field_name: sea_orm::Set(req.field_name),
+            old_value: sea_orm::Set(req.old_value),
+            new_value: sea_orm::Set(req.new_value),
+            user_id: sea_orm::Set(req.user_id),
+            user_name: sea_orm::Set(req.user_name),
+            ip_address: sea_orm::Set(req.ip_address),
+            user_agent: sea_orm::Set(req.user_agent),
+            created_at: sea_orm::Set(Some(chrono::Utc::now())),
+        }
+        .insert(&*self.db)
+        .await?;
+
+        Ok(())
+    }
+
+    /// V15 P2 18.4-D6: 获取客户操作日志列表
+    pub async fn list_customer_audit_logs(
+        &self,
+        customer_id: i32,
+        operation: Option<&str>,
+    ) -> Result<Vec<crate::models::customer_audit_log::Model>, AppError> {
+        use crate::models::customer_audit_log;
+
+        let mut q = customer_audit_log::Entity::find()
+            .filter(customer_audit_log::Column::CustomerId.eq(customer_id));
+        if let Some(op) = operation {
+            q = q.filter(customer_audit_log::Column::Operation.eq(op));
+        }
+        let logs = q
+            .order_by(customer_audit_log::Column::CreatedAt, sea_orm::Order::Desc)
+            .all(&*self.db)
+            .await?;
+
+        Ok(logs)
+    }
+
+    /// V15 P2 18.5-D5: 计算客户全生命周期价值（CLV）
+    pub async fn calculate_customer_clv(
+        &self,
+        customer_id: i32,
+    ) -> Result<crate::models::customer_lifetime_value::Model, AppError> {
+        use crate::models::{customer_lifetime_value, sales_order};
+
+        // 获取客户所有订单
+        let orders = sales_order::Entity::find()
+            .filter(sales_order::Column::CustomerId.eq(customer_id))
+            .order_by(sales_order::Column::CreatedAt, sea_orm::Order::Asc)
+            .all(&*self.db)
+            .await?;
+
+        let total_orders = orders.len() as i32;
+        let total_revenue: rust_decimal::Decimal = orders
+            .iter()
+            .map(|o| o.total_amount)
+            .sum();
+        let avg_order_value = if total_orders > 0 {
+            total_revenue / rust_decimal::Decimal::from(total_orders)
+        } else {
+            rust_decimal::Decimal::ZERO
+        };
+
+        let first_order_date = orders.first().map(|o| o.created_at.date_naive());
+        let last_order_date = orders.last().map(|o| o.created_at.date_naive());
+
+        // 计算客户生命周期天数
+        let lifespan_days = if let (Some(first), Some(last)) = (first_order_date, last_order_date) {
+            (last - first).num_days() as i32
+        } else {
+            0
+        };
+
+        // 计算购买频率（订单数/年）
+        let purchase_frequency = if lifespan_days > 0 && total_orders > 0 {
+            let years = lifespan_days as f64 / 365.0;
+            rust_decimal::Decimal::from(total_orders) / rust_decimal::Decimal::try_from(years).unwrap_or(rust_decimal::Decimal::ONE)
+        } else {
+            rust_decimal::Decimal::ZERO
+        };
+
+        // CLV = 平均订单金额 * 购买频率 * 客户生命周期年数
+        let clv_score = avg_order_value * purchase_frequency * rust_decimal::Decimal::try_from(lifespan_days as f64 / 365.0).unwrap_or(rust_decimal::Decimal::ONE);
+
+        // 客户分层
+        let segment = if clv_score >= rust_decimal::Decimal::from(100000) {
+            "champion"
+        } else if clv_score >= rust_decimal::Decimal::from(50000) {
+            "loyal"
+        } else if clv_score >= rust_decimal::Decimal::from(10000) {
+            "potential"
+        } else if clv_score >= rust_decimal::Decimal::from(1000) {
+            "at_risk"
+        } else {
+            "lost"
+        };
+
+        // 保存或更新 CLV 记录
+        let existing = customer_lifetime_value::Entity::find()
+            .filter(customer_lifetime_value::Column::CustomerId.eq(customer_id))
+            .one(&*self.db)
+            .await?;
+
+        let clv_record = if let Some(record) = existing {
+            let mut active: customer_lifetime_value::ActiveModel = record.into();
+            active.total_orders = sea_orm::Set(total_orders);
+            active.total_revenue = sea_orm::Set(total_revenue);
+            active.avg_order_value = sea_orm::Set(avg_order_value);
+            active.first_order_date = sea_orm::Set(first_order_date);
+            active.last_order_date = sea_orm::Set(last_order_date);
+            active.customer_lifespan_days = sea_orm::Set(lifespan_days);
+            active.purchase_frequency = sea_orm::Set(purchase_frequency);
+            active.clv_score = sea_orm::Set(clv_score);
+            active.segment = sea_orm::Set(Some(segment.to_string()));
+            active.calculated_at = sea_orm::Set(Some(chrono::Utc::now()));
+            active.update(&*self.db).await?
+        } else {
+            let new_record = customer_lifetime_value::ActiveModel {
+                id: Default::default(),
+                customer_id: sea_orm::Set(customer_id),
+                total_orders: sea_orm::Set(total_orders),
+                total_revenue: sea_orm::Set(total_revenue),
+                avg_order_value: sea_orm::Set(avg_order_value),
+                first_order_date: sea_orm::Set(first_order_date),
+                last_order_date: sea_orm::Set(last_order_date),
+                customer_lifespan_days: sea_orm::Set(lifespan_days),
+                purchase_frequency: sea_orm::Set(purchase_frequency),
+                clv_score: sea_orm::Set(clv_score),
+                segment: sea_orm::Set(Some(segment.to_string())),
+                calculated_at: sea_orm::Set(Some(chrono::Utc::now())),
+            }
+            .insert(&*self.db)
+            .await?;
+            new_record
+        };
+
+        Ok(clv_record)
+    }
+
+    /// V15 P2 18.5-D5: 获取客户 CLV 信息
+    pub async fn get_customer_clv(
+        &self,
+        customer_id: i32,
+    ) -> Result<Option<crate::models::customer_lifetime_value::Model>, AppError> {
+        use crate::models::customer_lifetime_value;
+
+        let clv = customer_lifetime_value::Entity::find()
+            .filter(customer_lifetime_value::Column::CustomerId.eq(customer_id))
+            .one(&*self.db)
+            .await?;
+
+        Ok(clv)
+    }
+}
+
+/// V15 P2 18.4-D5: 设置字段权限请求
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct SetFieldPermissionRequest {
+    pub role_id: i32,
+    pub field_name: String,
+    pub permission: String,
+    pub mask_pattern: Option<String>,
+}
+
+/// V15 P2 18.4-D6: 创建操作日志请求
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct CreateAuditLogRequest {
+    pub customer_id: i32,
+    pub operation: String,
+    pub field_name: Option<String>,
+    pub old_value: Option<String>,
+    pub new_value: Option<String>,
+    pub user_id: i32,
+    pub user_name: String,
+    pub ip_address: Option<String>,
+    pub user_agent: Option<String>,
 }
