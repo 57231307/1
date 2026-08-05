@@ -61,6 +61,14 @@ pub fn assist_accounting() -> Router<AppState> {
             "/summary",
             get(assist_accounting_handler::get_assist_summary),
         )
+        .route(
+            "/drill-down",
+            get(assist_accounting_handler::drill_down_to_assist),
+        )
+        .route(
+            "/balance",
+            get(assist_accounting_handler::get_assist_balance),
+        )
 }
 
 /// 业务追溯路由

@@ -315,3 +315,108 @@ pub struct AssistSummaryQueryParams {
     pub accounting_period: String,
     pub dimension_code: Option<String>,
 }
+
+/// P2-3：穿透查询参数
+#[derive(Debug, Deserialize)]
+pub struct DrillDownQueryParams {
+    pub accounting_period: String,
+    pub dimension_code: String,
+    pub dimension_value_id: i32,
+    pub page: Option<u64>,
+    pub page_size: Option<u64>,
+}
+
+/// P2-3：穿透查询 — 从总账余额穿透到辅助核算明细
+pub async fn drill_down_to_assist(
+    State(state): State<AppState>,
+    Query(params): Query<DrillDownQueryParams>,
+) -> Result<Json<ApiResponse<AssistRecordListResponse>>, AppError> {
+    info!(
+        "用户正在执行穿透查询，期间：{}，维度：{}，维度值ID：{}",
+        params.accounting_period, params.dimension_code, params.dimension_value_id
+    );
+
+    let service = AssistAccountingService::new(state.db.clone());
+    let page = params.page.unwrap_or(1).clamp(1, 1000);
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
+
+    let (records, total) = service
+        .drill_down_to_assist(
+            &params.accounting_period,
+            &params.dimension_code,
+            params.dimension_value_id,
+            page,
+            page_size,
+        )
+        .await
+        .map_err(|e| AppError::internal(e.to_string()))?;
+
+    let record_responses: Vec<AssistRecordResponse> = records
+        .into_iter()
+        .map(|r| AssistRecordResponse {
+            id: r.id,
+            business_type: r.business_type,
+            business_no: r.business_no,
+            business_id: r.business_id,
+            account_subject_id: r.account_subject_id,
+            debit_amount: r.debit_amount,
+            credit_amount: r.credit_amount,
+            five_dimension_id: r.five_dimension_id,
+            product_id: r.product_id,
+            batch_no: r.batch_no,
+            color_no: r.color_no,
+            dye_lot_no: r.dye_lot_no,
+            grade: r.grade,
+            warehouse_id: r.warehouse_id,
+            quantity_meters: r.quantity_meters,
+            quantity_kg: r.quantity_kg,
+            workshop_id: r.workshop_id,
+            customer_id: r.customer_id,
+            supplier_id: r.supplier_id,
+            remarks: r.remarks,
+            created_at: r.created_at,
+        })
+        .collect();
+
+    Ok(Json(ApiResponse::success_with_message(
+        AssistRecordListResponse {
+            records: record_responses,
+            total,
+            page,
+            page_size,
+        },
+        "穿透查询成功",
+    )))
+}
+
+/// P2-4：余额查询参数
+#[derive(Debug, Deserialize)]
+pub struct AssistBalanceQueryParams {
+    pub accounting_period: String,
+    pub dimension_code: String,
+    pub dimension_value_id: Option<i32>,
+}
+
+/// P2-4：辅助核算余额增强 — 查询期初/期末余额
+pub async fn get_assist_balance(
+    State(state): State<AppState>,
+    Query(params): Query<AssistBalanceQueryParams>,
+) -> Result<Json<ApiResponse<crate::services::assist_accounting_service::AssistBalanceResult>>, AppError>
+{
+    info!(
+        "正在查询辅助核算余额，期间：{}，维度：{}",
+        params.accounting_period, params.dimension_code
+    );
+
+    let service = AssistAccountingService::new(state.db.clone());
+    let balance = service
+        .calculate_assist_balance(
+            &params.accounting_period,
+            &params.dimension_code,
+            params.dimension_value_id,
+        )
+        .await
+        .map_err(|e| AppError::internal(e.to_string()))?;
+
+    Ok(Json(ApiResponse::success(balance)))
+}

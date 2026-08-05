@@ -461,4 +461,70 @@ impl ArService {
             "invoice_count": invoice_count,
         })
     }
+
+    /// P2-7：按业务员维度 GROUP BY 的账龄报表
+    /// 每个业务员返回一组账龄分桶统计
+    pub async fn get_aging_by_salesperson(
+        &self,
+        baseline_date: Option<chrono::NaiveDate>,
+    ) -> Result<serde_json::Value, AppError> {
+        let today = baseline_date.unwrap_or_else(|| Utc::now().date_naive());
+
+        let sql = r#"
+            SELECT
+                salesperson_id,
+                COALESCE(SUM(CASE WHEN due_date >= $1 THEN unpaid_amount ELSE 0 END), 0) AS not_due,
+                COALESCE(SUM(CASE WHEN due_date < $1 AND ($1 - due_date) <= 30 THEN unpaid_amount ELSE 0 END), 0) AS bucket_0_30,
+                COALESCE(SUM(CASE WHEN ($1 - due_date) BETWEEN 31 AND 60 THEN unpaid_amount ELSE 0 END), 0) AS bucket_31_60,
+                COALESCE(SUM(CASE WHEN ($1 - due_date) BETWEEN 61 AND 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_61_90,
+                COALESCE(SUM(CASE WHEN ($1 - due_date) > 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_90_plus,
+                COUNT(*) AS invoice_count
+            FROM ar_invoices
+            WHERE status <> $2
+              AND unpaid_amount > 0
+              AND salesperson_id IS NOT NULL
+            GROUP BY salesperson_id
+            ORDER BY salesperson_id
+        "#;
+
+        let params: Vec<sea_orm::Value> = vec![
+            today.into(),
+            crate::models::status::common::STATUS_CANCELLED.into(),
+        ];
+
+        let rows: Vec<sea_orm::QueryResult> = self
+            .db
+            .query_all(sea_orm::Statement::from_sql_and_values(
+                sea_orm::DatabaseBackend::Postgres,
+                sql,
+                params,
+            ))
+            .await
+            .map_err(|e| AppError::internal(format!("业务员账龄聚合查询失败: {}", e)))?;
+
+        let result: Vec<serde_json::Value> = rows
+            .into_iter()
+            .map(|row| {
+                let salesperson_id: i32 = row.try_get_by_index::<i32>(0).unwrap_or(0);
+                let (not_due, bucket_0_30, bucket_31_60, bucket_61_90, bucket_90_plus, invoice_count) =
+                    Self::parse_aging_row(&row);
+                let total_overdue = bucket_0_30 + bucket_31_60 + bucket_61_90 + bucket_90_plus;
+                json!({
+                    "salesperson_id": salesperson_id,
+                    "not_due": not_due.to_string(),
+                    "bucket_0_30": bucket_0_30.to_string(),
+                    "bucket_31_60": bucket_31_60.to_string(),
+                    "bucket_61_90": bucket_61_90.to_string(),
+                    "bucket_90_plus": bucket_90_plus.to_string(),
+                    "total_overdue": total_overdue.to_string(),
+                    "invoice_count": invoice_count,
+                })
+            })
+            .collect();
+
+        Ok(json!({
+            "baseline_date": today.to_string(),
+            "by_salesperson": result,
+        }))
+    }
 }
