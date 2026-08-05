@@ -212,3 +212,4 @@ pub mod certificate_of_origin_handler;
 pub mod inventory_write_down_handler;
 pub mod period_report_snapshot_handler;
 pub mod aging_alert_rule_handler;
+pub mod asset_category_handler;

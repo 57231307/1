@@ -12,6 +12,8 @@ pub struct Model {
     pub asset_no: String,
     pub asset_name: String,
     pub asset_category: Option<String>,
+    /// P2-17：资产分类 ID（关联 asset_categories 表）
+    pub asset_category_id: Option<i32>,
     pub specification: Option<String>,
     pub model: Option<String>,
     pub use_department_id: Option<i32>,
