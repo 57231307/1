@@ -8,6 +8,7 @@ use crate::models::dto::crm_dto::{
 };
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::crm::cust::CrmService;
+use chrono::Datelike;
 use crate::utils::error::AppError;
 use crate::utils::export_concurrency::ExportConcurrencyGuard;
 use crate::utils::messages::biz_msg;
@@ -773,6 +774,86 @@ pub async fn execute_nurture_plan(
     Ok(Json(ApiResponse::success(serde_json::to_value(plan)?)))
 }
 
+// ===== V15 P2 18.2-D5/D6/D7: 商机增强 =====
+
+/// GET /api/v1/erp/crm/opportunities/stage-duration - 阶段停留时长分析
+pub async fn get_stage_duration_analysis(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Query(params): Query<StageDurationQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let analysis = service.stage_duration_analysis(params.opportunity_id).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(analysis)?)))
+}
+
+/// GET /api/v1/erp/crm/opportunities/:id/competitors - 获取商机竞争对手
+pub async fn list_opportunity_competitors(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let competitors = service.list_opportunity_competitors(id).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(competitors)?)))
+}
+
+/// POST /api/v1/erp/crm/opportunities/:id/competitors - 添加商机竞争对手
+pub async fn add_opportunity_competitor(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Json(req): Json<crate::services::crm::opp::AddOpportunityCompetitorRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let competitor = service.add_opportunity_competitor(id, req).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(competitor)?)))
+}
+
+/// GET /api/v1/erp/crm/opportunities/:id/follow-ups - 获取商机跟进记录
+pub async fn list_opportunity_follow_ups(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let follow_ups = service.list_opportunity_follow_ups(id).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(follow_ups)?)))
+}
+
+/// POST /api/v1/erp/crm/opportunities/:id/follow-ups - 创建商机跟进记录
+pub async fn create_opportunity_follow_up(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<crate::services::crm::opp::CreateOpportunityFollowUpRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let follow_up = service.create_opportunity_follow_up(id, req, auth.user_id, auth.username.clone()).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(follow_up)?)))
+}
+
+/// GET /api/v1/erp/crm/competitors - 获取竞争对手列表
+pub async fn list_competitors(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let competitors = service.list_competitors().await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(competitors)?)))
+}
+
+/// POST /api/v1/erp/crm/competitors - 创建竞争对手
+pub async fn create_competitor(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Json(req): Json<crate::services::crm::opp::CreateCompetitorRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let competitor = service.create_competitor(req).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(competitor)?)))
+}
+
 // ===== V15 P2 18.4-D5/D6: 客户数据权限与操作日志 =====
 
 /// GET /api/v1/erp/crm/customers/field-permissions/:role_id - 获取客户字段权限配置
@@ -833,6 +914,55 @@ pub async fn get_customer_clv(
     Ok(Json(ApiResponse::success(serde_json::to_value(clv)?)))
 }
 
+// ===== V15 P2 18.2-D4/D5: 商机分析与预测 =====
+
+/// GET /api/v1/erp/crm/opportunities/forecast-accuracy - 预测准确性分析
+pub async fn get_forecast_accuracy(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Query(params): Query<ForecastAccuracyQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let now = chrono::Utc::now();
+    let year = params.year.unwrap_or(now.year());
+    let month = params.month.unwrap_or(now.month());
+    let result = service.forecast_accuracy(year, month).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(result)?)))
+}
+
+/// GET /api/v1/erp/crm/opportunities/weighted-forecast - 加权销售预测
+pub async fn get_weighted_forecast(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Query(params): Query<OwnerQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let result = service.weighted_forecast(params.owner_id).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(result)?)))
+}
+
+/// GET /api/v1/erp/crm/opportunities/conversion-rate - 转化率分析
+pub async fn get_conversion_rate(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Query(params): Query<MonthsBackQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let result = service.conversion_rate_analysis(params.months_back.unwrap_or(12)).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(result)?)))
+}
+
+/// GET /api/v1/erp/crm/opportunities/sales-funnel - 销售漏斗报告
+pub async fn get_sales_funnel(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Query(params): Query<FunnelDateQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let result = service.sales_funnel_report(params.start_date, params.end_date).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(result)?)))
+}
+
 // ===== V15 P2 请求/查询 DTO =====
 
 /// 渠道 ROI 查询参数
@@ -881,4 +1011,30 @@ pub struct StageDurationQuery {
 #[derive(Debug, Deserialize)]
 pub struct AuditLogQuery {
     pub operation: Option<String>,
+}
+
+/// 预测准确性查询参数
+#[derive(Debug, Deserialize)]
+pub struct ForecastAccuracyQuery {
+    pub year: Option<i32>,
+    pub month: Option<u32>,
+}
+
+/// 商机所有者查询参数
+#[derive(Debug, Deserialize)]
+pub struct OwnerQuery {
+    pub owner_id: Option<i32>,
+}
+
+/// 月数查询参数
+#[derive(Debug, Deserialize)]
+pub struct MonthsBackQuery {
+    pub months_back: Option<u32>,
+}
+
+/// 漏斗日期查询参数
+#[derive(Debug, Deserialize)]
+pub struct FunnelDateQuery {
+    pub start_date: Option<chrono::NaiveDate>,
+    pub end_date: Option<chrono::NaiveDate>,
 }

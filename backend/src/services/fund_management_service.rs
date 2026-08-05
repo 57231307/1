@@ -414,7 +414,7 @@ impl FundManagementService {
     }
 
     /// V15 P1 17.6-D5：获取转账记录
-    async fn get_transfer_record(
+    pub async fn get_transfer_record(
         &self,
         transfer_id: i32,
     ) -> Result<crate::models::fund_transfer_record::Model, AppError> {

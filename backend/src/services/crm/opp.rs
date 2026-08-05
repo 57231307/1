@@ -870,10 +870,10 @@ impl CrmService {
         };
 
         Ok(SalesFunnelReport {
-            lead_count,
+            lead_count: lead_count as i64,
             opportunity_count: opp_count,
             opportunity_amount: opp_amount,
-            quotation_count,
+            quotation_count: quotation_count as i64,
             won_count,
             won_amount,
             order_count,
@@ -947,7 +947,7 @@ impl CrmService {
             None
         };
 
-        let new_record = opportunity_stage_history::ActiveModel {
+        opportunity_stage_history::ActiveModel {
             id: Default::default(),
             opportunity_id: sea_orm::Set(opportunity_id),
             from_stage: sea_orm::Set(from_stage),
@@ -1065,7 +1065,7 @@ impl CrmService {
             opportunity_id: sea_orm::Set(opportunity_id),
             follow_up_type: sea_orm::Set(req.follow_up_type),
             content: sea_orm::Set(req.content),
-            follow_up_time: sea_orm::Set(req.follow_up_time.unwrap_or_else(|| chrono::Utc::now())),
+            follow_up_time: sea_orm::Set(req.follow_up_time.unwrap_or_else(chrono::Utc::now)),
             next_follow_up_date: sea_orm::Set(req.next_follow_up_date),
             user_id: sea_orm::Set(user_id),
             user_name: sea_orm::Set(user_name),
@@ -1152,4 +1152,85 @@ pub struct CreateOpportunityFollowUpRequest {
     pub content: String,
     pub follow_up_time: Option<chrono::DateTime<chrono::Utc>>,
     pub next_follow_up_date: Option<chrono::NaiveDate>,
+}
+
+/// V15 P2 18.2-D5: 预测准确性结果
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ForecastAccuracyResult {
+    pub year: i32,
+    pub month: u32,
+    pub forecast_amount: rust_decimal::Decimal,
+    pub forecast_count: i64,
+    pub actual_amount: rust_decimal::Decimal,
+    pub won_count: i64,
+    pub accuracy_rate: f64,
+}
+
+/// V15 P2 18.2-D5: 加权预测结果
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct WeightedForecastResult {
+    pub total_opportunities: i64,
+    pub total_estimated_amount: rust_decimal::Decimal,
+    pub total_weighted_amount: rust_decimal::Decimal,
+    pub details: Vec<WeightedForecastItem>,
+}
+
+/// V15 P2 18.2-D5: 加权预测项
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct WeightedForecastItem {
+    pub opportunity_id: i32,
+    pub opportunity_no: String,
+    pub opportunity_name: String,
+    pub stage: String,
+    pub estimated_amount: rust_decimal::Decimal,
+    pub win_probability: rust_decimal::Decimal,
+    pub weighted_amount: rust_decimal::Decimal,
+    pub expected_close_date: Option<chrono::NaiveDate>,
+}
+
+/// V15 P2 18.2-D5: 转化率分析
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ConversionRateAnalysis {
+    pub period_start: chrono::DateTime<chrono::Utc>,
+    pub period_end: chrono::DateTime<chrono::Utc>,
+    pub total_opportunities: i64,
+    pub won_count: i64,
+    pub lost_count: i64,
+    pub open_count: i64,
+    pub win_rate: f64,
+    pub conversion_rate: f64,
+    pub stage_distribution: Vec<StageCount>,
+}
+
+/// V15 P2 18.2-D5: 阶段计数
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct StageCount {
+    pub stage: String,
+    pub count: i64,
+}
+
+/// V15 P2 18.2-D5: 销售漏斗报告
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SalesFunnelReport {
+    pub lead_count: i64,
+    pub opportunity_count: i64,
+    pub opportunity_amount: rust_decimal::Decimal,
+    pub quotation_count: i64,
+    pub won_count: i64,
+    pub won_amount: rust_decimal::Decimal,
+    pub order_count: i64,
+    pub order_amount: rust_decimal::Decimal,
+    pub collected_amount: rust_decimal::Decimal,
+    pub lead_to_opp_rate: f64,
+    pub opp_to_quotation_rate: f64,
+    pub opp_to_order_rate: f64,
+    pub order_to_collection_rate: f64,
+}
+
+/// V15 P2 18.2-D5: 漏斗阶段
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct FunnelStage {
+    pub stage: String,
+    pub count: i32,
+    pub amount: rust_decimal::Decimal,
 }
