@@ -720,6 +720,10 @@ fn ar_report_routes() -> Router<AppState> {
             "/ar/reports/aging",
             get(ar_report_handler::get_aging_report),
         )
+        .route(
+            "/ar/reports/aging/by-salesperson",
+            get(ar_report_handler::get_aging_by_salesperson),
+        )
 }
 
 /// AR 应收账款路由（合并发票/收款/核销/报表）
