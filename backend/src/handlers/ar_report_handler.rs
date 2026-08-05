@@ -167,3 +167,35 @@ pub async fn get_aging_report(
 
     Ok(Json(ApiResponse::success(report)))
 }
+
+/// P2-7：按业务员维度 GROUP BY 的账龄报表
+/// GET /api/v1/erp/ar/reports/aging/by-salesperson
+pub async fn get_aging_by_salesperson(
+    auth: AuthContext,
+    State(state): State<AppState>,
+    Query(query): Query<ArReportQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    tracing::debug!(user_id = auth.user_id, "AR 按业务员账龄报表查询");
+
+    let cache_key = format!("ar:report:aging-by-sp:{:?}", query.baseline_date);
+    if let Some(cached) = state.cache_service.get(&cache_key).await {
+        if let Ok(value) = serde_json::from_slice::<serde_json::Value>(&cached) {
+            return Ok(Json(ApiResponse::success(value)));
+        }
+    }
+
+    let service = crate::services::ar_service::ArService::new(state.db.clone());
+    let report = service
+        .get_aging_by_salesperson(query.baseline_date)
+        .await
+        .map_err(|e| AppError::internal(format!("获取业务员账龄报表失败: {}", e)))?;
+
+    if let Ok(bytes) = serde_json::to_vec(&report) {
+        state
+            .cache_service
+            .set_with_ttl(cache_key, bytes, REPORT_CACHE_TTL)
+            .await;
+    }
+
+    Ok(Json(ApiResponse::success(report)))
+}

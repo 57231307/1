@@ -39,6 +39,26 @@ pub struct AssistVsGeneralBalanceResult {
     pub is_balanced: bool,
 }
 
+/// 辅助核算汇总聚合内部结构
+struct AssistSummaryAgg {
+    pub total_debit: Decimal,
+    pub total_credit: Decimal,
+}
+
+/// P2-4：辅助核算余额结果
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AssistBalanceResult {
+    pub accounting_period: String,
+    pub dimension_code: String,
+    pub dimension_value_id: Option<i32>,
+    pub opening_balance: Decimal,
+    pub opening_debit: Decimal,
+    pub opening_credit: Decimal,
+    pub current_debit: Decimal,
+    pub current_credit: Decimal,
+    pub closing_balance: Decimal,
+}
+
 impl AssistAccountingService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
@@ -328,6 +348,140 @@ impl AssistAccountingService {
             .all(&*self.db)
             .await
             .map_err(AppError::from)
+    }
+
+    /// P2-3：穿透查询 — 从总账余额穿透到辅助核算明细
+    /// 给定期间+维度编码+维度值 ID，返回该维度值下的所有辅助核算记录
+    pub async fn drill_down_to_assist(
+        &self,
+        accounting_period: &str,
+        dimension_code: &str,
+        dimension_value_id: i32,
+        page: u64,
+        page_size: u64,
+    ) -> Result<(Vec<assist_accounting_record::Model>, u64), AppError> {
+        let query = assist_accounting_record::Entity::find();
+        let query = Self::apply_period_filter(query, Some(accounting_period));
+
+        // 按维度过滤对应的字段
+        let query = match dimension_code {
+            "BATCH" => query.filter(
+                assist_accounting_record::Column::BatchNo.is_not_null(),
+            ),
+            "COLOR" => query.filter(
+                assist_accounting_record::Column::ColorNo.is_not_null(),
+            ),
+            "DYE_LOT" => query.filter(
+                assist_accounting_record::Column::DyeLotNo.is_not_null(),
+            ),
+            "GRADE" => query.filter(
+                assist_accounting_record::Column::Grade.is_not_null(),
+            ),
+            "WORKSHOP" => query.filter(
+                assist_accounting_record::Column::WorkshopId.eq(dimension_value_id),
+            ),
+            "WAREHOUSE" => query.filter(
+                assist_accounting_record::Column::WarehouseId.eq(dimension_value_id),
+            ),
+            "CUSTOMER" => query.filter(
+                assist_accounting_record::Column::CustomerId.eq(dimension_value_id),
+            ),
+            "SUPPLIER" => query.filter(
+                assist_accounting_record::Column::SupplierId.eq(dimension_value_id),
+            ),
+            _ => query,
+        };
+
+        let paginator = query.paginate(&*self.db, page_size);
+        let total = paginator.num_items().await?;
+        let records = paginator.fetch_page(page.saturating_sub(1)).await?;
+        Ok((records, total))
+    }
+
+    /// P2-4：辅助核算余额增强 — 计算指定期间+维度+维度值的期初/期末余额
+    /// 期初余额 = 上期末的（借方累计 - 贷方累计），从 summary 表聚合
+    /// 期末余额 = 期初余额 + 本期借方 - 本期贷方
+    pub async fn calculate_assist_balance(
+        &self,
+        accounting_period: &str,
+        dimension_code: &str,
+        dimension_value_id: Option<i32>,
+    ) -> Result<AssistBalanceResult, AppError> {
+        let (year, month) = parse_period(accounting_period)?;
+
+        // 计算上期
+        let (prev_year, prev_month) = if month == 1 {
+            (year - 1, 12)
+        } else {
+            (year, month - 1)
+        };
+        let prev_period = format!("{:04}-{:02}", prev_year, prev_month);
+
+        // 从 assist_accounting_summary 聚合上期数据
+        let prev_agg = self
+            .aggregate_summary_by_period(&prev_period, dimension_code, dimension_value_id)
+            .await?;
+        let opening_debit = prev_agg.total_debit;
+        let opening_credit = prev_agg.total_credit;
+        let opening_balance = opening_debit - opening_credit;
+
+        // 从 assist_accounting_summary 聚合本期数据
+        let current_agg = self
+            .aggregate_summary_by_period(accounting_period, dimension_code, dimension_value_id)
+            .await?;
+        let current_debit = current_agg.total_debit;
+        let current_credit = current_agg.total_credit;
+        let closing_balance = opening_balance + current_debit - current_credit;
+
+        Ok(AssistBalanceResult {
+            accounting_period: accounting_period.to_string(),
+            dimension_code: dimension_code.to_string(),
+            dimension_value_id,
+            opening_balance,
+            opening_debit,
+            opening_credit,
+            current_debit,
+            current_credit,
+            closing_balance,
+        })
+    }
+
+    /// 内部方法：聚合 summary 表指定期间+维度的借贷合计
+    async fn aggregate_summary_by_period(
+        &self,
+        period: &str,
+        dimension_code: &str,
+        dimension_value_id: Option<i32>,
+    ) -> Result<AssistSummaryAgg, AppError> {
+        use sea_orm::sea_query::Expr;
+
+        let mut query = assist_accounting_summary::Entity::find()
+            .filter(assist_accounting_summary::Column::AccountingPeriod.eq(period))
+            .filter(assist_accounting_summary::Column::DimensionCode.eq(dimension_code));
+
+        if let Some(vid) = dimension_value_id {
+            query = query.filter(assist_accounting_summary::Column::DimensionValueId.eq(vid));
+        }
+
+        let agg: Option<(Option<Decimal>, Option<Decimal>)> = query
+            .select_only()
+            .column_as(
+                Expr::col(assist_accounting_summary::Column::TotalDebit).sum(),
+                "total_debit",
+            )
+            .column_as(
+                Expr::col(assist_accounting_summary::Column::TotalCredit).sum(),
+                "total_credit",
+            )
+            .into_tuple()
+            .one(&*self.db)
+            .await?;
+
+        let (debit_opt, credit_opt) = agg.unwrap_or((None, None));
+        Ok(AssistSummaryAgg {
+            total_debit: debit_opt.unwrap_or(Decimal::ZERO),
+            total_credit: credit_opt.unwrap_or(Decimal::ZERO),
+        })
     }
 }
 
