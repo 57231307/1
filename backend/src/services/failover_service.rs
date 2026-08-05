@@ -457,6 +457,84 @@ impl FailoverService {
         Ok(())
     }
 
+    /// V15 P2 20.4-D：故障回切（人工确认后切换回主库）
+    ///
+    /// 前置校验：
+    /// 1. 当前必须在备库上运行（executor.is_on_backup() == true）
+    /// 2. 主库健康检查必须通过（连续 5 次 SELECT 1 成功）
+    /// 3. 备库 catch-up 检查（若有流复制配置）
+    ///
+    /// 校验通过后执行：
+    /// 1. executor.switch_to_primary() 原子切换回主库
+    /// 2. 更新 status 表（current_state=primary, circuit_state=closed）
+    /// 3. 记录 event（event_type=switch_to_primary）
+    /// 4. 重置 consecutive_failures
+    pub async fn failback(&self, function_name: &str) -> Result<String, String> {
+        info!(function = function_name, "人工确认故障回切");
+
+        // 1. 检查是否在备库上
+        let executor = self
+            .executor
+            .as_ref()
+            .ok_or_else(|| "FailoverExecutor 未配置，无法回切".to_string())?;
+
+        if !executor.is_on_backup() {
+            return Ok(format!("{} 当前已在主库上运行，无需回切", function_name));
+        }
+
+        // 2. 检查主库健康（连续 5 次 SELECT 1）
+        const HEALTH_CHECK_COUNT: u32 = 5;
+        let primary_db = executor.primary_db();
+        let backend = primary_db.get_database_backend();
+        for i in 0..HEALTH_CHECK_COUNT {
+            match primary_db
+                .execute(Statement::from_sql_and_values(
+                    backend,
+                    "SELECT 1",
+                    Vec::new(),
+                ))
+                .await
+            {
+                Ok(_) => {
+                    info!(attempt = i + 1, "failback: 主库健康检查通过");
+                }
+                Err(e) => {
+                    return Err(format!(
+                        "failback: 主库健康检查失败（第 {} 次），中止回切: {}",
+                        i + 1,
+                        e
+                    ));
+                }
+            }
+        }
+
+        // 3. 原子切换回主库
+        executor.switch_to_primary();
+
+        // 4. 更新 status 表
+        self.update_status_on_switch(function_name, "primary", "closed")
+            .await?;
+
+        // 5. 重置 consecutive_failures
+        self.reset_consecutive_failures(function_name).await?;
+
+        // 6. 记录事件
+        self.record_event(
+            function_name,
+            "switch_to_primary",
+            Some("backup"),
+            Some("primary"),
+            Some("manual failback (health check passed)"),
+            None,
+        )
+        .await?;
+
+        // 7. 记录指标
+        self.metrics.record_switch(function_name);
+
+        Ok(format!("已回切 {} 至主库", function_name))
+    }
+
     /// 导出 Prometheus 指标
     pub fn export_metrics(&self) -> Result<String, String> {
         self.metrics.export_text().map_err(|e| e.to_string())
@@ -631,6 +709,11 @@ impl FailoverExecutor {
     /// 备库是否已配置
     pub fn has_backup(&self) -> bool {
         self.backup.is_some()
+    }
+
+    /// 获取主库连接（用于 failback 前置健康检查）
+    pub fn primary_db(&self) -> Arc<DatabaseConnection> {
+        self.primary.clone()
     }
 }
 

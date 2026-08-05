@@ -35,6 +35,15 @@ pub struct Model {
 
     /// 采集时间
     pub captured_at: DateTimeUtc,
+
+    /// V15 P2 20.5-C：优化状态（pending/in_progress/resolved/wont_fix）
+    pub optimization_status: Option<String>,
+
+    /// V15 P2 20.5-C：负责人
+    pub assigned_to: Option<String>,
+
+    /// V15 P2 20.5-C：Jira 工单号
+    pub jira_ticket: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -59,6 +68,12 @@ pub struct SlowQueryDto {
     pub database_name: Option<String>,
     /// 采集时间（ISO8601 字符串）
     pub captured_at: String,
+    /// V15 P2 20.5-C：优化状态
+    pub optimization_status: Option<String>,
+    /// V15 P2 20.5-C：负责人
+    pub assigned_to: Option<String>,
+    /// V15 P2 20.5-C：Jira 工单号
+    pub jira_ticket: Option<String>,
 }
 
 impl From<Model> for SlowQueryDto {
@@ -71,6 +86,9 @@ impl From<Model> for SlowQueryDto {
             rows_examined: m.rows_examined,
             database_name: m.database_name,
             captured_at: m.captured_at.to_rfc3339(),
+            optimization_status: m.optimization_status,
+            assigned_to: m.assigned_to,
+            jira_ticket: m.jira_ticket,
         }
     }
 }

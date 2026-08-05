@@ -40,6 +40,9 @@ pub struct ObservabilityConfig {
     pub sample_ratio: f64,
     /// 导出间隔（秒）
     pub export_interval_secs: u64,
+    /// V15 P2 20.1-C：tail-based sampling 慢请求阈值（毫秒）
+    /// 超过此阈值的请求强制采样（100%），默认 2000ms
+    pub slow_request_threshold_ms: u64,
 }
 
 impl Default for ObservabilityConfig {
@@ -55,6 +58,8 @@ impl Default for ObservabilityConfig {
             // V15 P2 17.7 修复：生产环境默认 10% 采样率（通过 OTEL_SAMPLE_RATIO 环境变量覆盖）
             // 开发环境保持 100% 便于调试
             export_interval_secs: 30,
+            // V15 P2 20.1-C：tail-based sampling 慢请求阈值（默认 2s）
+            slow_request_threshold_ms: 2000,
         }
     }
 }
@@ -85,6 +90,11 @@ impl ObservabilityConfig {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(30),
+            // V15 P2 20.1-C：tail-based sampling 慢请求阈值（默认 2s）
+            slow_request_threshold_ms: std::env::var("OTEL_SLOW_REQUEST_MS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(2000),
         }
     }
 }

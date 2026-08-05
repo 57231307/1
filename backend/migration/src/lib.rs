@@ -207,6 +207,8 @@ pub mod m0099_budget_impairment_depreciation;
 pub mod m0100_crm_lead_enhancements;
 pub mod m0101_crm_opp_pool_enhancements;
 pub mod m0102_crm_data_permission_clv;
+// V15 P2 20.7-B：API 向后兼容性 / deprecation 标注
+pub mod m0103_api_deprecation_fields;
 
 pub struct Migrator;
 
@@ -318,6 +320,8 @@ impl MigratorTrait for Migrator {
             Box::new(m0100_crm_lead_enhancements::Migration),
             Box::new(m0101_crm_opp_pool_enhancements::Migration),
             Box::new(m0102_crm_data_permission_clv::Migration),
+            // V15 P2 20.7-B：API 向后兼容性 / deprecation 标注
+            Box::new(m0103_api_deprecation_fields::Migration),
         ]
     }
 }
