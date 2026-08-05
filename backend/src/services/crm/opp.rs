@@ -1166,6 +1166,8 @@ pub struct ForecastAccuracyResult {
 /// V15 P2 18.2-D5: 加权预测结果
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct WeightedForecastResult {
+    pub total_opportunities: i64,
+    pub total_estimated_amount: rust_decimal::Decimal,
     pub total_weighted_amount: rust_decimal::Decimal,
     pub details: Vec<WeightedForecastItem>,
 }
@@ -1173,18 +1175,26 @@ pub struct WeightedForecastResult {
 /// V15 P2 18.2-D5: 加权预测项
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct WeightedForecastItem {
+    pub opportunity_id: i32,
+    pub opportunity_no: String,
+    pub opportunity_name: String,
     pub stage: String,
-    pub count: i32,
-    pub total_amount: rust_decimal::Decimal,
-    pub weight: f64,
+    pub estimated_amount: rust_decimal::Decimal,
+    pub win_probability: rust_decimal::Decimal,
     pub weighted_amount: rust_decimal::Decimal,
+    pub expected_close_date: Option<chrono::NaiveDate>,
 }
 
 /// V15 P2 18.2-D5: 转化率分析
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct ConversionRateAnalysis {
-    pub total_leads: i32,
-    pub converted_leads: i32,
+    pub period_start: chrono::DateTime<chrono::Utc>,
+    pub period_end: chrono::DateTime<chrono::Utc>,
+    pub total_opportunities: i64,
+    pub won_count: i64,
+    pub lost_count: i64,
+    pub open_count: i64,
+    pub win_rate: f64,
     pub conversion_rate: f64,
     pub stage_distribution: Vec<StageCount>,
 }
@@ -1193,15 +1203,25 @@ pub struct ConversionRateAnalysis {
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct StageCount {
     pub stage: String,
-    pub count: i32,
+    pub count: i64,
 }
 
 /// V15 P2 18.2-D5: 销售漏斗报告
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct SalesFunnelReport {
-    pub total_opportunities: i32,
-    pub total_amount: rust_decimal::Decimal,
-    pub stages: Vec<FunnelStage>,
+    pub lead_count: i64,
+    pub opportunity_count: i64,
+    pub opportunity_amount: rust_decimal::Decimal,
+    pub quotation_count: i64,
+    pub won_count: i64,
+    pub won_amount: rust_decimal::Decimal,
+    pub order_count: i64,
+    pub order_amount: rust_decimal::Decimal,
+    pub collected_amount: rust_decimal::Decimal,
+    pub lead_to_opp_rate: f64,
+    pub opp_to_quotation_rate: f64,
+    pub opp_to_order_rate: f64,
+    pub order_to_collection_rate: f64,
 }
 
 /// V15 P2 18.2-D5: 漏斗阶段
