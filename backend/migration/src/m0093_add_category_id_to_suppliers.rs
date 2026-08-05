@@ -26,12 +26,10 @@ impl MigrationTrait for Migration {
                 Table::alter()
                     .table(Suppliers::Table)
                     .add_foreign_key(
-                        TableForeignKey::new()
+                        ForeignKey::create()
                             .name("fk_suppliers_category_id")
-                            .from_tbl(Suppliers::Table)
-                            .from_col(Suppliers::CategoryId)
-                            .to_tbl(SupplierCategories::Table)
-                            .to_col(SupplierCategories::Id)
+                            .from(Suppliers::Table, Suppliers::CategoryId)
+                            .to(SupplierCategories::Table, SupplierCategories::Id)
                             .on_delete(ForeignKeyAction::SetNull)
                             .to_owned(),
                     )
