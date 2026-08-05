@@ -197,6 +197,32 @@ pub async fn get_trends(
     }))))
 }
 
+/// GET /api/v1/erp/financial-analysis/trend-analysis - 趋势分析增强
+/// V15 P2 17.5-D5：线性回归 + 移动平均 + 趋势方向
+pub async fn get_trend_analysis(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Query(params): Query<TrendQueryParams>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = FinancialAnalysisService::new(state.db.clone());
+
+    let indicator_id: i32 = params
+        .indicator_id
+        .ok_or_else(|| AppError::validation("财务分析请求缺少指标ID"))?;
+
+    let analysis = service
+        .get_trend_analysis(
+            indicator_id,
+            params.start_date.as_deref(),
+            params.end_date.as_deref(),
+            params.period.as_deref(),
+        )
+        .await?;
+
+    info!("趋势分析完成，指标ID: {}", indicator_id);
+    Ok(Json(ApiResponse::success(analysis)))
+}
+
 /// POST /api/v1/erp/financial-analysis/trends - 创建财务趋势数据
 pub async fn create_trend(
     State(state): State<AppState>,
@@ -444,4 +470,39 @@ pub async fn execute_report(
         }),
         message,
     )))
+}
+
+/// POST /api/v1/erp/financial-analysis/cash-flow-ratios - 计算现金流比率
+/// V15 P2 17.5-D6：经营活动现金流量比率、销售现金比率、现金流量充足率
+pub async fn calculate_cash_flow_ratios(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(params): Query<ExecuteReportParams>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let period = params
+        .period
+        .unwrap_or_else(|| chrono::Utc::now().format("%Y-%m").to_string());
+
+    let service = FinancialAnalysisService::new(state.db.clone());
+    let results = service
+        .calculate_cash_flow_ratios(&period, auth.user_id)
+        .await?;
+
+    info!(
+        "用户 {} 计算现金流比率: 期间={}, 指标数={}",
+        auth.username,
+        period,
+        results.len()
+    );
+
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "period": period,
+        "indicators": results.iter().map(|r| serde_json::json!({
+            "indicator_id": r.indicator_id,
+            "indicator_value": r.indicator_value,
+            "target_value": r.target_value,
+            "analysis_date": r.analysis_date,
+        })).collect::<Vec<_>>(),
+        "total": results.len(),
+    }))))
 }

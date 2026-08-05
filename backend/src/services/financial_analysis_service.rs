@@ -78,6 +78,13 @@ struct BalanceSummary {
     non_operating_expenses: Decimal,
     /// 所得税费用（6801）
     income_tax_expense: Decimal,
+    // V15 P2 17.5-D6：现金流字段
+    /// 经营活动现金流入（6001 主营 + 6051 其他业务）
+    operating_cash_inflow: Decimal,
+    /// 经营活动现金流出（6401 主营成本 + 6402 其他业务成本 + 6601/6602/6603 费用）
+    operating_cash_outflow: Decimal,
+    /// 经营活动现金流量净额
+    operating_cash_flow: Decimal,
 }
 
 type SubjectMap = std::collections::HashMap<i32, crate::models::account_subject::Model>;
@@ -158,6 +165,18 @@ fn classify_balance_entry(code: &str, net_balance: Decimal, summary: &mut Balanc
         }
         if code.starts_with("6801") {
             summary.income_tax_expense += net_balance.max(Decimal::ZERO);
+        }
+        // V15 P2 17.5-D6：现金流分类
+        if code.starts_with("6001") || code.starts_with("6051") {
+            summary.operating_cash_inflow += (-net_balance).max(Decimal::ZERO);
+        }
+        if code.starts_with("6401")
+            || code.starts_with("6402")
+            || code.starts_with("6601")
+            || code.starts_with("6602")
+            || code.starts_with("6603")
+        {
+            summary.operating_cash_outflow += net_balance.max(Decimal::ZERO);
         }
     }
 }
@@ -316,6 +335,119 @@ impl FinancialAnalysisService {
         Ok(results)
     }
 
+    /// V15 P2 17.5-D5：趋势分析增强 - 线性回归 + 移动平均
+    /// 返回趋势统计信息：斜率、截距、R²、3期移动平均、5期移动平均、趋势方向
+    pub async fn get_trend_analysis(
+        &self,
+        indicator_id: i32,
+        start_date: Option<&str>,
+        end_date: Option<&str>,
+        period: Option<&str>,
+    ) -> Result<serde_json::Value, AppError> {
+        // 获取趋势数据（按时间正序）
+        let mut query = financial_analysis_result::Entity::find()
+            .filter(financial_analysis_result::Column::IndicatorId.eq(indicator_id));
+
+        if let Some(p) = period {
+            query = query.filter(financial_analysis_result::Column::Period.eq(p));
+        }
+        if let Some(s) = start_date {
+            if let Ok(d) = NaiveDate::parse_from_str(s, "%Y-%m-%d") {
+                query = query.filter(financial_analysis_result::Column::AnalysisDate.gte(d));
+            }
+        }
+        if let Some(e) = end_date {
+            if let Ok(d) = NaiveDate::parse_from_str(e, "%Y-%m-%d") {
+                query = query.filter(financial_analysis_result::Column::AnalysisDate.lte(d));
+            }
+        }
+
+        let results = query
+            .order_by(financial_analysis_result::Column::AnalysisDate, Order::Asc)
+            .all(&*self.db)
+            .await?;
+
+        if results.is_empty() {
+            return Ok(serde_json::json!({
+                "data_points": 0,
+                "message": "无趋势数据",
+            }));
+        }
+
+        let values: Vec<f64> = results
+            .iter()
+            .map(|r| r.indicator_value.to_string().parse::<f64>().unwrap_or(0.0))
+            .collect();
+        let n = values.len() as f64;
+
+        // 线性回归：y = a + bx
+        let x_mean = (n - 1.0) / 2.0;
+        let y_mean = values.iter().sum::<f64>() / n;
+
+        let mut ss_xy = 0.0;
+        let mut ss_xx = 0.0;
+        let mut ss_yy = 0.0;
+        for (i, &v) in values.iter().enumerate() {
+            let x = i as f64;
+            ss_xy += (x - x_mean) * (v - y_mean);
+            ss_xx += (x - x_mean) * (x - x_mean);
+            ss_yy += (v - y_mean) * (v - y_mean);
+        }
+
+        let slope = if ss_xx > 0.0 { ss_xy / ss_xx } else { 0.0 };
+        let intercept = y_mean - slope * x_mean;
+        let r_squared = if ss_xx > 0.0 && ss_yy > 0.0 {
+            (ss_xy * ss_xy) / (ss_xx * ss_yy)
+        } else {
+            0.0
+        };
+
+        // 移动平均
+        let ma3 = Self::moving_average(&values, 3);
+        let ma5 = Self::moving_average(&values, 5);
+
+        // 趋势方向判断
+        let trend_direction = if slope > 0.01 {
+            "上升"
+        } else if slope < -0.01 {
+            "下降"
+        } else {
+            "平稳"
+        };
+
+        Ok(serde_json::json!({
+            "data_points": results.len(),
+            "linear_regression": {
+                "slope": slope,
+                "intercept": intercept,
+                "r_squared": r_squared,
+            },
+            "moving_average": {
+                "ma3": ma3,
+                "ma5": ma5,
+            },
+            "trend_direction": trend_direction,
+            "latest_value": values.last(),
+            "period_range": {
+                "start": results.first().map(|r| r.period.clone()),
+                "end": results.last().map(|r| r.period.clone()),
+            },
+        }))
+    }
+
+    /// 计算移动平均
+    fn moving_average(values: &[f64], window: usize) -> Vec<Option<f64>> {
+        if values.len() < window {
+            return vec![None; values.len()];
+        }
+        let mut result = vec![None; window - 1];
+        for i in (window - 1)..values.len() {
+            let sum: f64 = values[(i - window + 1)..=i].iter().sum();
+            result.push(Some(sum / window as f64));
+        }
+        result
+    }
+
     /// 计算财务指标（流动/速动/资产负债/应收应付周转率）
     pub async fn calculate_indicators(
         &self,
@@ -442,6 +574,126 @@ impl FinancialAnalysisService {
             .await?;
         }
         Ok(results)
+    }
+
+    /// V15 P2 17.5-D6：计算现金流比率
+    /// 经营活动现金流量比率 = 经营活动现金流量净额 / 流动负债
+    /// 销售现金比率 = 经营活动现金流量净额 / 销售收入
+    /// 现金流量充足率 = 经营活动现金流量净额 / (资本支出 + 存货增加 + 现金股利)
+    pub async fn calculate_cash_flow_ratios(
+        &self,
+        period: &str,
+        user_id: i32,
+    ) -> Result<Vec<financial_analysis_result::Model>, AppError> {
+        info!("开始计算现金流比率，期间: {}", period);
+        let (balances, subject_map) = self.fetch_period_balances(period).await?;
+        let mut summary = aggregate_balance_summary(&balances, &subject_map);
+
+        // 计算经营活动现金流量净额
+        summary.operating_cash_flow =
+            summary.operating_cash_inflow - summary.operating_cash_outflow;
+
+        if summary.sales_revenue.is_zero() {
+            summary.sales_revenue = self.fallback_sales_revenue_from_ar().await?;
+        }
+
+        let ratios: [(&str, Option<Decimal>, Option<Decimal>); 3] = [
+            (
+                "OPERATING_CF_RATIO",
+                Self::safe_div(summary.operating_cash_flow, summary.current_liabilities),
+                Some(Decimal::new(40, 2)),
+            ),
+            (
+                "SALES_CF_RATIO",
+                Self::safe_div(summary.operating_cash_flow, summary.sales_revenue),
+                Some(Decimal::new(20, 2)),
+            ),
+            (
+                "CF_ADEQUACY_RATIO",
+                Self::safe_div(
+                    summary.operating_cash_flow,
+                    summary.inventory + summary.selling_expenses + summary.administrative_expenses,
+                ),
+                Some(Decimal::from(1)),
+            ),
+        ];
+
+        // 确保指标定义存在，然后获取所有指标定义
+        self.ensure_cash_flow_indicator_definitions(user_id)
+            .await?;
+        let indicator_defs = financial_analysis::Entity::find()
+            .filter(financial_analysis::Column::Status.eq(master_data::ACTIVE))
+            .all(&*self.db)
+            .await?;
+        let mut results = Vec::new();
+        for (code, value, target) in ratios {
+            self.try_save_indicator(
+                &indicator_defs,
+                code,
+                period,
+                value,
+                target,
+                user_id,
+                &mut results,
+            )
+            .await?;
+        }
+        info!("现金流比率计算完成，期间: {}，共 {} 个指标", period, results.len());
+        Ok(results)
+    }
+
+    /// 确保现金流指标定义存在
+    async fn ensure_cash_flow_indicator_definitions(
+        &self,
+        _user_id: i32,
+    ) -> Result<(), AppError> {
+        let definitions = vec![
+            (
+                "OPERATING_CF_RATIO",
+                "经营活动现金流量比率",
+                "现金流",
+                "经营活动现金流量净额 / 流动负债",
+                "%",
+            ),
+            (
+                "SALES_CF_RATIO",
+                "销售现金比率",
+                "现金流",
+                "经营活动现金流量净额 / 销售收入",
+                "%",
+            ),
+            (
+                "CF_ADEQUACY_RATIO",
+                "现金流量充足率",
+                "现金流",
+                "经营活动现金流量净额 / (资本支出 + 存货增加 + 现金股利)",
+                "比率",
+            ),
+        ];
+
+        for (code, name, type_, formula, unit) in definitions {
+            let existing = financial_analysis::Entity::find()
+                .filter(financial_analysis::Column::IndicatorCode.eq(code))
+                .one(&*self.db)
+                .await?;
+
+            if existing.is_none() {
+                let active = financial_analysis::ActiveModel {
+                    indicator_name: Set(name.to_string()),
+                    indicator_code: Set(code.to_string()),
+                    indicator_type: Set(type_.to_string()),
+                    formula: Set(Some(formula.to_string())),
+                    unit: Set(Some(unit.to_string())),
+                    status: Set(master_data::ACTIVE.to_string()),
+                    remark: Set(None),
+                    ..Default::default()
+                };
+                active.insert(&*self.db).await?;
+                info!("自动创建现金流指标定义: {} ({})", name, code);
+            }
+        }
+
+        Ok(())
     }
 
     /// 安全除法（分母为 0 返回 None，否则四舍五入保留 4 位）
