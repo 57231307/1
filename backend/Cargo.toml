@@ -224,6 +224,8 @@ swagger = ["utoipa-swagger-ui"]
 # 启用后编译 criterion + benches/ 目录下的基准测试
 # 运行：cargo bench --features bench
 bench = ["criterion"]
+# OpenTelemetry 集成 feature
+otel = []
 
 # Lint 配置（clippy 1.81+ 顶层 warn 数组已弃用，改用 Cargo.toml [lints] 段）
 # - [lints.rust]    段配置标准 rustc lint（如 dead_code、unused_*）
