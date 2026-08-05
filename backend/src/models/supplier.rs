@@ -82,6 +82,12 @@ pub struct Model {
     pub updated_by: Option<i32>,
     /// 备注
     pub remarks: Option<String>,
+    /// 供应商分类 ID
+    pub category_id: Option<i32>,
+    /// 是否为加工商
+    pub is_processor: bool,
+    /// 加工商类型（dyeing/printing/finishing）
+    pub processor_type: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -93,11 +99,24 @@ pub enum Relation {
         to = "super::user::Column::Id"
     )]
     User,
+    /// 供应商 - 分类（多对一）
+    #[sea_orm(
+        belongs_to = "super::supplier_category::Entity",
+        from = "Column::CategoryId",
+        to = "super::supplier_category::Column::Id"
+    )]
+    SupplierCategory,
 }
 
 impl Related<super::user::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::User.def()
+    }
+}
+
+impl Related<super::supplier_category::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::SupplierCategory.def()
     }
 }
 
