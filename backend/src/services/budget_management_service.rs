@@ -1,4 +1,4 @@
-use crate::models::{budget_execution, budget_management, budget_plan};
+use crate::models::{budget_execution, budget_management, budget_plan, budget_version};
 // 批次 158 v11 真实接入：审批状态常量替代字符串字面量
 use crate::models::status::approval;
 // 批次 209 P2-5 修复（v12 复审）：预算方案/项目状态字符串替换为 budget 常量
@@ -1233,6 +1233,75 @@ impl BudgetManagementService {
         // 按执行率降序排列（最严重的在前）
         warnings.sort_by(|a, b| b.execution_rate.cmp(&a.execution_rate));
         Ok(warnings)
+    }
+
+    /// V15 P1 17.7-D5：创建预算版本
+    pub async fn create_budget_version(
+        &self,
+        plan_id: i32,
+        version_no: String,
+        version_name: String,
+        total_amount: Decimal,
+        change_reason: Option<String>,
+        user_id: i32,
+    ) -> Result<budget_version::Model, AppError> {
+        info!(
+            "用户 {} 正在创建预算版本：plan_id={}, version_no={}",
+            user_id, plan_id, version_no
+        );
+
+        let active = budget_version::ActiveModel {
+            plan_id: Set(plan_id),
+            version_no: Set(version_no),
+            version_name: Set(version_name),
+            total_amount: Set(total_amount),
+            status: Set("draft".to_string()),
+            change_reason: Set(change_reason),
+            created_by: Set(user_id),
+            ..Default::default()
+        };
+
+        let version = active.insert(&*self.db).await?;
+        info!("预算版本创建成功：id={}", version.id);
+        Ok(version)
+    }
+
+    /// V15 P1 17.7-D5：获取预算版本列表
+    pub async fn get_budget_versions(
+        &self,
+        plan_id: i32,
+    ) -> Result<Vec<budget_version::Model>, AppError> {
+        let versions = budget_version::Entity::find()
+            .filter(budget_version::Column::PlanId.eq(plan_id))
+            .order_by(budget_version::Column::CreatedAt, Order::Desc)
+            .all(&*self.db)
+            .await?;
+        Ok(versions)
+    }
+
+    /// V15 P1 17.7-D5：审批预算版本
+    pub async fn approve_budget_version(
+        &self,
+        version_id: i32,
+        user_id: i32,
+    ) -> Result<budget_version::Model, AppError> {
+        let version = budget_version::Entity::find_by_id(version_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("预算版本不存在：{}", version_id)))?;
+
+        if version.status != "draft" {
+            return Err(AppError::bad_request("只有草稿状态的版本才能审批"));
+        }
+
+        let mut active: budget_version::ActiveModel = version.into();
+        active.status = Set("approved".to_string());
+        active.approved_by = Set(Some(user_id));
+        active.approved_at = Set(Some(chrono::Utc::now()));
+
+        let updated = active.update(&*self.db).await?;
+        info!("预算版本 {} 审批通过", updated.id);
+        Ok(updated)
     }
 }
 

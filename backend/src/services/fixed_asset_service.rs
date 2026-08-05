@@ -1,6 +1,8 @@
 use crate::models::fixed_asset;
 // V15 P1 17.8-D4：资产盘点模型
 use crate::models::{fixed_asset_count, fixed_asset_count_item};
+// V15 P1 17.8-D5/D6：资产减值测试 + 折旧政策变更
+use crate::models::{asset_impairment_test, depreciation_policy_change};
 // 批次 208 P2-5 修复（v12 复审）：硬编码 "active"/"inactive" 替换为 master_data 常量
 use crate::models::status::master_data;
 use crate::utils::error::AppError;
@@ -1224,6 +1226,162 @@ impl FixedAssetService {
             .all(&*self.db)
             .await?;
         Ok(items)
+    }
+
+    /// V15 P1 17.8-D5：创建资产减值测试
+    pub async fn create_impairment_test(
+        &self,
+        asset_id: i32,
+        test_date: NaiveDate,
+        carrying_amount: Decimal,
+        recoverable_amount: Decimal,
+        test_basis: String,
+        notes: Option<String>,
+        user_id: i32,
+    ) -> Result<asset_impairment_test::Model, AppError> {
+        info!(
+            "用户 {} 正在创建资产减值测试：asset_id={}",
+            user_id, asset_id
+        );
+
+        // 计算减值损失（如果可收回金额 < 账面价值）
+        let impairment_loss = if recoverable_amount < carrying_amount {
+            carrying_amount - recoverable_amount
+        } else {
+            Decimal::ZERO
+        };
+
+        let active = asset_impairment_test::ActiveModel {
+            asset_id: Set(asset_id),
+            test_date: Set(test_date),
+            carrying_amount: Set(carrying_amount),
+            recoverable_amount: Set(recoverable_amount),
+            impairment_loss: Set(impairment_loss),
+            test_basis: Set(test_basis),
+            notes: Set(notes),
+            status: Set("pending".to_string()),
+            created_by: Set(user_id),
+            ..Default::default()
+        };
+
+        let test = active.insert(&*self.db).await?;
+        info!("资产减值测试创建成功：id={}", test.id);
+        Ok(test)
+    }
+
+    /// V15 P1 17.8-D5：获取资产减值测试列表
+    pub async fn get_impairment_tests(
+        &self,
+        asset_id: i32,
+    ) -> Result<Vec<asset_impairment_test::Model>, AppError> {
+        let tests = asset_impairment_test::Entity::find()
+            .filter(asset_impairment_test::Column::AssetId.eq(asset_id))
+            .order_by(asset_impairment_test::Column::TestDate, Order::Desc)
+            .all(&*self.db)
+            .await?;
+        Ok(tests)
+    }
+
+    /// V15 P1 17.8-D5：审批资产减值测试
+    pub async fn approve_impairment_test(
+        &self,
+        test_id: i32,
+        user_id: i32,
+    ) -> Result<asset_impairment_test::Model, AppError> {
+        let test = asset_impairment_test::Entity::find_by_id(test_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("减值测试记录不存在：{}", test_id)))?;
+
+        if test.status != "pending" {
+            return Err(AppError::bad_request("只有待审批状态的记录才能审批"));
+        }
+
+        let mut active: asset_impairment_test::ActiveModel = test.into();
+        active.status = Set("approved".to_string());
+        active.reviewed_by = Set(Some(user_id));
+        active.reviewed_at = Set(Some(chrono::Utc::now()));
+
+        let updated = active.update(&*self.db).await?;
+        info!("资产减值测试 {} 审批通过", updated.id);
+        Ok(updated)
+    }
+
+    /// V15 P1 17.8-D6：创建折旧政策变更
+    pub async fn create_depreciation_policy_change(
+        &self,
+        asset_id: i32,
+        change_date: NaiveDate,
+        old_method: String,
+        new_method: String,
+        old_useful_life: Option<i32>,
+        new_useful_life: Option<i32>,
+        old_salvage_rate: Option<Decimal>,
+        new_salvage_rate: Option<Decimal>,
+        reason: String,
+        user_id: i32,
+    ) -> Result<depreciation_policy_change::Model, AppError> {
+        info!(
+            "用户 {} 正在创建折旧政策变更：asset_id={}",
+            user_id, asset_id
+        );
+
+        let active = depreciation_policy_change::ActiveModel {
+            asset_id: Set(asset_id),
+            change_date: Set(change_date),
+            old_method: Set(old_method),
+            new_method: Set(new_method),
+            old_useful_life: Set(old_useful_life),
+            new_useful_life: Set(new_useful_life),
+            old_salvage_rate: Set(old_salvage_rate),
+            new_salvage_rate: Set(new_salvage_rate),
+            reason: Set(reason),
+            status: Set("pending".to_string()),
+            created_by: Set(user_id),
+            ..Default::default()
+        };
+
+        let change = active.insert(&*self.db).await?;
+        info!("折旧政策变更创建成功：id={}", change.id);
+        Ok(change)
+    }
+
+    /// V15 P1 17.8-D6：获取折旧政策变更列表
+    pub async fn get_depreciation_policy_changes(
+        &self,
+        asset_id: i32,
+    ) -> Result<Vec<depreciation_policy_change::Model>, AppError> {
+        let changes = depreciation_policy_change::Entity::find()
+            .filter(depreciation_policy_change::Column::AssetId.eq(asset_id))
+            .order_by(depreciation_policy_change::Column::ChangeDate, Order::Desc)
+            .all(&*self.db)
+            .await?;
+        Ok(changes)
+    }
+
+    /// V15 P1 17.8-D6：审批折旧政策变更
+    pub async fn approve_depreciation_policy_change(
+        &self,
+        change_id: i32,
+        user_id: i32,
+    ) -> Result<depreciation_policy_change::Model, AppError> {
+        let change = depreciation_policy_change::Entity::find_by_id(change_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("折旧政策变更记录不存在：{}", change_id)))?;
+
+        if change.status != "pending" {
+            return Err(AppError::bad_request("只有待审批状态的记录才能审批"));
+        }
+
+        let mut active: depreciation_policy_change::ActiveModel = change.into();
+        active.status = Set("approved".to_string());
+        active.approved_by = Set(Some(user_id));
+        active.approved_at = Set(Some(chrono::Utc::now()));
+
+        let updated = active.update(&*self.db).await?;
+        info!("折旧政策变更 {} 审批通过", updated.id);
+        Ok(updated)
     }
 }
 

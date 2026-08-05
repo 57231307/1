@@ -809,3 +809,73 @@ pub async fn export_budget_items(
     };
     build_xlsx_response_with_watermark(&table, &filename, &watermark)
 }
+
+/// V15 P1 17.7-D5：创建预算版本请求 DTO
+#[derive(Debug, Deserialize, Validate)]
+pub struct CreateBudgetVersionDto {
+    /// 预算方案 ID
+    pub plan_id: i32,
+    /// 版本号
+    #[validate(length(min = 1, message = "版本号不能为空"))]
+    pub version_no: String,
+    /// 版本名称
+    #[validate(length(min = 1, message = "版本名称不能为空"))]
+    pub version_name: String,
+    /// 预算总额
+    pub total_amount: Decimal,
+    /// 变更原因
+    pub change_reason: Option<String>,
+}
+
+/// POST /api/v1/erp/budgets/versions - 创建预算版本
+pub async fn create_budget_version(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<CreateBudgetVersionDto>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    req.validate()?;
+    let service = BudgetManagementService::new(state.db.clone());
+    let version = service
+        .create_budget_version(
+            req.plan_id,
+            req.version_no,
+            req.version_name,
+            req.total_amount,
+            req.change_reason,
+            auth.user_id,
+        )
+        .await?;
+    Ok(Json(serde_json::json!({
+        "code": 200,
+        "message": "预算版本创建成功",
+        "data": version
+    })))
+}
+
+/// GET /api/v1/erp/budgets/versions/:plan_id - 获取预算版本列表
+pub async fn get_budget_versions(
+    State(state): State<AppState>,
+    Path(plan_id): Path<i32>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let service = BudgetManagementService::new(state.db.clone());
+    let versions = service.get_budget_versions(plan_id).await?;
+    Ok(Json(serde_json::json!({
+        "code": 200,
+        "data": versions
+    })))
+}
+
+/// PUT /api/v1/erp/budgets/versions/:id/approve - 审批预算版本
+pub async fn approve_budget_version(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(version_id): Path<i32>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let service = BudgetManagementService::new(state.db.clone());
+    let version = service.approve_budget_version(version_id, auth.user_id).await?;
+    Ok(Json(serde_json::json!({
+        "code": 200,
+        "message": "预算版本审批成功",
+        "data": version
+    })))
+}

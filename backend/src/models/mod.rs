@@ -120,9 +120,12 @@ pub mod cost_collection;
 // P1 模块
 pub mod budget_management;
 pub mod budget_plan;
+pub mod budget_version;
 pub mod customer_credit;
 pub mod fixed_asset;
 pub mod asset_category;
+pub mod asset_impairment_test;
+pub mod depreciation_policy_change;
 pub mod fund_management;
 pub mod purchase_contract;
 pub mod quality_standard;
