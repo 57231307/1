@@ -202,6 +202,7 @@ pub mod m0094_add_processor_fields_to_suppliers;
 pub mod m0095_create_sales_contract_items;
 pub mod m0096_create_period_report_snapshot;
 pub mod m0097_create_aging_alert_rules;
+pub mod m0098_budget_asset_enhancements;
 
 pub struct Migrator;
 
@@ -308,6 +309,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0095_create_sales_contract_items::Migration),
             Box::new(m0096_create_period_report_snapshot::Migration),
             Box::new(m0097_create_aging_alert_rules::Migration),
+            Box::new(m0098_budget_asset_enhancements::Migration),
         ]
     }
 }

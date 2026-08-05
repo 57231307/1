@@ -122,6 +122,7 @@ pub mod budget_management;
 pub mod budget_plan;
 pub mod customer_credit;
 pub mod fixed_asset;
+pub mod asset_category;
 pub mod fund_management;
 pub mod purchase_contract;
 pub mod quality_standard;

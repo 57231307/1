@@ -82,6 +82,8 @@ pub struct CreateBudgetItemRequest {
     pub budget_year: Option<i32>,
     pub planned_amount: Decimal,
     pub remark: Option<String>,
+    /// P2-14：预算科目-会计科目映射
+    pub account_subject_id: Option<i32>,
 }
 
 /// 更新预算科目请求 DTO
@@ -93,6 +95,8 @@ pub struct UpdateBudgetItemRequest {
     pub planned_amount: Option<Decimal>,
     pub status: Option<String>,
     pub remark: Option<String>,
+    /// P2-14：预算科目-会计科目映射
+    pub account_subject_id: Option<Option<i32>>,
 }
 
 /// 创建预算方案请求 DTO
@@ -186,6 +190,7 @@ pub async fn create_budget_item(
                 budget_year: req.budget_year,
                 planned_amount: req.planned_amount,
                 remark: req.remark,
+                account_subject_id: req.account_subject_id,
             },
             auth.user_id,
         )
@@ -230,6 +235,7 @@ pub async fn update_budget_item(
                 planned_amount: req.planned_amount,
                 status: req.status,
                 remark: req.remark,
+                account_subject_id: req.account_subject_id,
             },
             auth.user_id,
         )
@@ -527,6 +533,7 @@ pub async fn create_budget(
         budget_year: req.budget_year,
         planned_amount: req.planned_amount,
         remark: req.remark,
+        account_subject_id: None,
     };
 
     let item = service.create_item(create_req, auth.user_id).await?;
@@ -558,6 +565,7 @@ pub async fn update_budget(
         planned_amount: req.planned_amount,
         status: req.status,
         remark: req.remark,
+        account_subject_id: None,
     };
 
     let item = service.update_item(id, update_req, auth.user_id).await?;
@@ -691,6 +699,7 @@ fn budget_items_export_headers() -> Vec<String> {
         "可用金额".to_string(),
         "状态".to_string(),
         "备注".to_string(),
+        "关联会计科目ID".to_string(),
         "创建时间".to_string(),
     ]
 }
@@ -721,6 +730,7 @@ fn build_budget_item_row(i: &serde_json::Value) -> Vec<String> {
         get_str("available_amount"),
         get_str("status"),
         get_str("remark"),
+        get_str("account_subject_id"),
         get_str("created_at"),
     ]
 }

@@ -23,6 +23,8 @@ pub struct Model {
     /// v11 批次 145 P1-8：备注（最多 500 字符）
     #[sea_orm(column_type = "String(StringLen::N(500))")]
     pub remark: Option<String>,
+    /// P2-14：预算科目-会计科目映射
+    pub account_subject_id: Option<i32>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
