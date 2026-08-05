@@ -470,6 +470,28 @@ pub fn fund_management() -> Router<AppState> {
             "/fund-management/transfers/:id",
             get(fund_management_handler::get_transfer_record),
         )
+        // V15 P1 17.6-D5：调拨审批流
+        .route(
+            "/fund-management/transfers/pending",
+            get(fund_management_handler::get_pending_transfers),
+        )
+        .route(
+            "/fund-management/transfers/:id/approve",
+            post(fund_management_handler::approve_transfer),
+        )
+        .route(
+            "/fund-management/transfers/:id/reject",
+            post(fund_management_handler::reject_transfer),
+        )
+        // V15 P1 17.6-D6：资金日报/月报
+        .route(
+            "/fund-management/reports/daily",
+            get(fund_management_handler::get_fund_daily_report),
+        )
+        .route(
+            "/fund-management/reports/monthly",
+            get(fund_management_handler::get_fund_monthly_report),
+        )
 }
 
 /// AP 应付账款路由：聚合各资源子路由（path 前缀互不重叠，merge 安全）

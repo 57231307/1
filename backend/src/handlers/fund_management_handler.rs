@@ -321,3 +321,93 @@ pub async fn get_transfer_record(
     let record = service.get_transfer_record(id).await?;
     Ok(Json(ApiResponse::success(record)))
 }
+
+/// V15 P1 17.6-D5：审批通过转账
+pub async fn approve_transfer(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<crate::models::fund_transfer_record::Model>>, AppError> {
+    info!("用户 {} 正在审批转账 {}", auth.username, id);
+    let service = FundManagementService::new(state.db.clone());
+    let record = service.approve_transfer(id, auth.user_id).await?;
+    info!("转账 {} 审批成功", id);
+    Ok(Json(ApiResponse::success(record)))
+}
+
+/// V15 P1 17.6-D5：拒绝转账
+pub async fn reject_transfer(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<crate::models::fund_transfer_record::Model>>, AppError> {
+    info!("用户 {} 正在拒绝转账 {}", auth.username, id);
+    let service = FundManagementService::new(state.db.clone());
+    let record = service.reject_transfer(id, auth.user_id).await?;
+    info!("转账 {} 已拒绝", id);
+    Ok(Json(ApiResponse::success(record)))
+}
+
+/// V15 P1 17.6-D5：获取待审批转账列表
+pub async fn get_pending_transfers(
+    Query(params): Query<FundTransferQuery>,
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<Vec<crate::models::fund_transfer_record::Model>>>, AppError> {
+    info!("查询待审批转账列表");
+    let service = FundManagementService::new(state.db.clone());
+    let records = service
+        .get_pending_transfers(
+            params.page.unwrap_or(1).clamp(1, 1000),
+            params.page_size.unwrap_or(20).clamp(1, 100),
+        )
+        .await?;
+    Ok(Json(ApiResponse::success(records)))
+}
+
+/// V15 P1 17.6-D6：资金日报查询参数
+#[derive(Debug, Deserialize)]
+pub struct FundDailyReportQuery {
+    pub date: chrono::NaiveDate,
+}
+
+/// V15 P1 17.6-D6：资金月报查询参数
+#[derive(Debug, Deserialize)]
+pub struct FundMonthlyReportQuery {
+    pub year: i32,
+    pub month: u32,
+}
+
+/// V15 P1 17.6-D6：获取资金日报
+pub async fn get_fund_daily_report(
+    Query(params): Query<FundDailyReportQuery>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<crate::services::fund_management_service::DailyReportSummary>>, AppError>
+{
+    info!(
+        "用户 {} 查询资金日报，日期：{}",
+        auth.username, params.date
+    );
+    let service = FundManagementService::new(state.db.clone());
+    let report = service.get_daily_report(params.date).await?;
+    info!("资金日报查询成功，日期：{}", params.date);
+    Ok(Json(ApiResponse::success(report)))
+}
+
+/// V15 P1 17.6-D6：获取资金月报
+pub async fn get_fund_monthly_report(
+    Query(params): Query<FundMonthlyReportQuery>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<crate::services::fund_management_service::MonthlyReportSummary>>, AppError>
+{
+    info!(
+        "用户 {} 查询资金月报，年月：{}-{}",
+        auth.username, params.year, params.month
+    );
+    let service = FundManagementService::new(state.db.clone());
+    let report = service.get_monthly_report(params.year, params.month).await?;
+    info!("资金月报查询成功，年月：{}-{}", params.year, params.month);
+    Ok(Json(ApiResponse::success(report)))
+}

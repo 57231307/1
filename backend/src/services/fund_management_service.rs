@@ -71,6 +71,18 @@ fn large_transfer_threshold() -> Decimal {
     Decimal::new(100_000, 0)
 }
 
+/// V15 P1 17.6-D5：免审批阈值（金额 <= 此值自动审批）
+fn auto_approve_threshold() -> Decimal {
+    // 1 万（10,000.00）
+    Decimal::new(10_000, 0)
+}
+
+/// V15 P1 17.6-D5：两级审批阈值（金额 > 此值需两级审批）
+fn two_level_approval_threshold() -> Decimal {
+    // 10 万（100,000.00）
+    Decimal::new(100_000, 0)
+}
+
 pub struct FundManagementService {
     db: Arc<DatabaseConnection>,
 }
@@ -355,13 +367,171 @@ impl FundManagementService {
         user_id: i32,
     ) -> Result<crate::models::fund_transfer_record::Model, AppError> {
         Self::validate_transfer_request(&req)?;
+
+        // V15 P1 17.6-D5：根据金额判断是否需要审批
+        let status = if req.amount <= auto_approve_threshold() {
+            // 小额免审批，直接执行
+            "APPROVED".to_string()
+        } else {
+            // 需要审批，创建待审批记录
+            "PENDING".to_string()
+        };
+
+        let record = self.create_transfer_record(&req, user_id, &status).await?;
+
+        // 小额自动审批，直接执行转账
+        if status == "APPROVED" {
+            self.execute_transfer(record.id, user_id).await?;
+            return self.get_transfer_record(record.id).await;
+        }
+
+        Ok(record)
+    }
+
+    /// V15 P1 17.6-D5：创建转账记录（不执行实际转账）
+    async fn create_transfer_record(
+        &self,
+        req: &crate::models::dto::fund_dto::TransferFundRequest,
+        user_id: i32,
+        status: &str,
+    ) -> Result<crate::models::fund_transfer_record::Model, AppError> {
+        let transfer_no = format!("TR{}", chrono::Local::now().format("%Y%m%d%H%M%S"));
+        let record = crate::models::fund_transfer_record::ActiveModel {
+            transfer_no: sea_orm::Set(transfer_no),
+            from_account_id: sea_orm::Set(Some(req.from_account_id)),
+            to_account_id: sea_orm::Set(Some(req.to_account_id)),
+            transfer_date: sea_orm::Set(chrono::Local::now().naive_local().date()),
+            amount: sea_orm::Set(req.amount),
+            transfer_type: sea_orm::Set("TRANSFER".to_string()),
+            status: sea_orm::Set(Some(status.to_string())),
+            purpose: sea_orm::Set(req.reason.clone()),
+            applied_by: sea_orm::Set(Some(user_id)),
+            ..Default::default()
+        }
+        .insert(&*self.db)
+        .await?;
+        Ok(record)
+    }
+
+    /// V15 P1 17.6-D5：获取转账记录
+    async fn get_transfer_record(
+        &self,
+        transfer_id: i32,
+    ) -> Result<crate::models::fund_transfer_record::Model, AppError> {
+        crate::models::fund_transfer_record::Entity::find_by_id(transfer_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("转账记录不存在：{}", transfer_id)))
+    }
+
+    /// V15 P1 17.6-D5：审批通过转账
+    pub async fn approve_transfer(
+        &self,
+        transfer_id: i32,
+        approver_id: i32,
+    ) -> Result<crate::models::fund_transfer_record::Model, AppError> {
+        let record = self.get_transfer_record(transfer_id).await?;
+
+        // 只有待审批状态的记录才能审批
+        if record.status.as_deref() != Some("PENDING") {
+            return Err(AppError::validation(format!(
+                "转账记录 {} 状态为 {:?}，无法审批",
+                transfer_id, record.status
+            )));
+        }
+
+        // 判断是否需要两级审批
+        let current_approval_count = record.approved_by.map(|_| 1).unwrap_or(0);
+        let needs_two_level = record.amount > two_level_approval_threshold();
+
+        if needs_two_level && current_approval_count == 0 {
+            // 第一级审批：更新审批人，保持 pending 状态
+            let mut active: crate::models::fund_transfer_record::ActiveModel = record.into();
+            active.approved_by = sea_orm::Set(Some(approver_id));
+            active.approved_at = sea_orm::Set(Some(chrono::Utc::now().into()));
+            let updated = active.update(&*self.db).await?;
+            info!("转账 {} 第一级审批通过", transfer_id);
+            return Ok(updated);
+        }
+
+        // 单级审批完成或第二级审批通过，执行转账
+        self.execute_transfer(transfer_id, approver_id).await?;
+        self.get_transfer_record(transfer_id).await
+    }
+
+    /// V15 P1 17.6-D5：拒绝转账
+    pub async fn reject_transfer(
+        &self,
+        transfer_id: i32,
+        _rejector_id: i32,
+    ) -> Result<crate::models::fund_transfer_record::Model, AppError> {
+        let record = self.get_transfer_record(transfer_id).await?;
+
+        // 只有待审批状态的记录才能拒绝
+        if record.status.as_deref() != Some("PENDING") {
+            return Err(AppError::validation(format!(
+                "转账记录 {} 状态为 {:?}，无法拒绝",
+                transfer_id, record.status
+            )));
+        }
+
+        let mut active: crate::models::fund_transfer_record::ActiveModel = record.into();
+        active.status = sea_orm::Set(Some("REJECTED".to_string()));
+        let updated = active.update(&*self.db).await?;
+        info!("转账 {} 已被拒绝", transfer_id);
+        Ok(updated)
+    }
+
+    /// V15 P1 17.6-D5：执行实际转账（内部方法）
+    async fn execute_transfer(
+        &self,
+        transfer_id: i32,
+        approver_id: i32,
+    ) -> Result<(), AppError> {
+        let record = self.get_transfer_record(transfer_id).await?;
+
+        let from_account_id = record
+            .from_account_id
+            .ok_or_else(|| AppError::validation("转出账户ID缺失"))?;
+        let to_account_id = record
+            .to_account_id
+            .ok_or_else(|| AppError::validation("转入账户ID缺失"))?;
+
         use sea_orm::TransactionTrait;
         let txn = self.db.begin().await?;
-        Self::deduct_from_account_txn(&txn, req.from_account_id, req.amount, req.fee).await?;
-        Self::credit_to_account_txn(&txn, req.to_account_id, req.amount).await?;
-        let record = Self::insert_transfer_record_txn(&txn, &req, user_id).await?;
+
+        // 从转出账户扣款
+        Self::deduct_from_account_txn(&txn, from_account_id, record.amount, None).await?;
+        // 向转入账户加款
+        Self::credit_to_account_txn(&txn, to_account_id, record.amount).await?;
+
+        // 更新转账记录状态为已完成
+        let mut active: crate::models::fund_transfer_record::ActiveModel = record.into();
+        active.status = sea_orm::Set(Some("COMPLETED".to_string()));
+        active.approved_by = sea_orm::Set(Some(approver_id));
+        active.approved_at = sea_orm::Set(Some(chrono::Utc::now().into()));
+        active.executed_at = sea_orm::Set(Some(chrono::Utc::now().into()));
+        active.update(&txn).await?;
+
         txn.commit().await?;
-        Ok(record)
+        info!("转账 {} 已执行完成", transfer_id);
+        Ok(())
+    }
+
+    /// V15 P1 17.6-D5：获取待审批转账列表
+    pub async fn get_pending_transfers(
+        &self,
+        page: u64,
+        page_size: u64,
+    ) -> Result<Vec<fund_transfer_record::Model>, AppError> {
+        let records = fund_transfer_record::Entity::find()
+            .filter(fund_transfer_record::Column::Status.eq("PENDING"))
+            .order_by(fund_transfer_record::Column::TransferDate, Order::Desc)
+            .paginate(&*self.db, page_size)
+            .fetch_page(page.saturating_sub(1))
+            .await?;
+
+        Ok(records)
     }
 
     /// 校验转账请求（金额、手续费、大额确认）
@@ -424,30 +594,6 @@ impl FundManagementService {
         Ok(())
     }
 
-    /// 创建转账记录
-    async fn insert_transfer_record_txn(
-        txn: &sea_orm::DatabaseTransaction,
-        req: &crate::models::dto::fund_dto::TransferFundRequest,
-        user_id: i32,
-    ) -> Result<crate::models::fund_transfer_record::Model, AppError> {
-        let transfer_no = format!("TR{}", chrono::Local::now().format("%Y%m%d%H%M%S"));
-        let record = crate::models::fund_transfer_record::ActiveModel {
-            transfer_no: sea_orm::Set(transfer_no),
-            from_account_id: sea_orm::Set(Some(req.from_account_id)),
-            to_account_id: sea_orm::Set(Some(req.to_account_id)),
-            transfer_date: sea_orm::Set(chrono::Local::now().naive_local().date()),
-            amount: sea_orm::Set(req.amount),
-            transfer_type: sea_orm::Set("TRANSFER".to_string()),
-            status: sea_orm::Set(Some("COMPLETED".to_string())),
-            purpose: sea_orm::Set(req.reason.clone()),
-            applied_by: sea_orm::Set(Some(user_id)),
-            ..Default::default()
-        }
-        .insert(txn)
-        .await?;
-        Ok(record)
-    }
-
     /// 查询转账记录列表
     pub async fn list_transfer_records(
         &self,
@@ -476,17 +622,6 @@ impl FundManagementService {
             .await?;
 
         Ok(records)
-    }
-
-    /// 查询转账记录详情
-    pub async fn get_transfer_record(
-        &self,
-        id: i32,
-    ) -> Result<fund_transfer_record::Model, AppError> {
-        fund_transfer_record::Entity::find_by_id(id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found("资金转账记录"))
     }
 
     /// V15 P1 17.6-D2：现金流预测
@@ -654,6 +789,185 @@ impl FundManagementService {
             pending_in_count: pending_in_transfers.len() as i64,
         })
     }
+
+    /// V15 P1 17.6-D6：资金日报
+    /// 汇总指定日期各账户的期初余额、转入/转出、期末余额。
+    /// 期初余额 = 当前余额 − 当日净变动（通过反推法计算）。
+    pub async fn get_daily_report(
+        &self,
+        report_date: NaiveDate,
+    ) -> Result<DailyReportSummary, AppError> {
+        let next_date = report_date + Duration::days(1);
+
+        let accounts = fund_management::Entity::find()
+            .filter(fund_management::Column::Status.eq(master_data::ACTIVE))
+            .order_by(fund_management::Column::Id, Order::Asc)
+            .all(&*self.db)
+            .await?;
+
+        let mut account_summaries = Vec::with_capacity(accounts.len());
+        let mut total_opening = Decimal::ZERO;
+        let mut total_closing = Decimal::ZERO;
+        let mut total_inflow = Decimal::ZERO;
+        let mut total_outflow = Decimal::ZERO;
+
+        for acc in &accounts {
+            // 当日转入（to_account_id = 本账户，status = COMPLETED，transfer_date = 当日）
+            let inflow_transfers = fund_transfer_record::Entity::find()
+                .filter(fund_transfer_record::Column::ToAccountId.eq(acc.id))
+                .filter(fund_transfer_record::Column::TransferDate.gte(report_date))
+                .filter(fund_transfer_record::Column::TransferDate.lt(next_date))
+                .filter(fund_transfer_record::Column::Status.eq("COMPLETED"))
+                .all(&*self.db)
+                .await?;
+            let day_inflow: Decimal = inflow_transfers.iter().map(|t| t.amount).sum();
+            let inflow_count = inflow_transfers.len() as i64;
+
+            // 当日转出（from_account_id = 本账户，status = COMPLETED，transfer_date = 当日）
+            let outflow_transfers = fund_transfer_record::Entity::find()
+                .filter(fund_transfer_record::Column::FromAccountId.eq(acc.id))
+                .filter(fund_transfer_record::Column::TransferDate.gte(report_date))
+                .filter(fund_transfer_record::Column::TransferDate.lt(next_date))
+                .filter(fund_transfer_record::Column::Status.eq("COMPLETED"))
+                .all(&*self.db)
+                .await?;
+            let day_outflow: Decimal = outflow_transfers.iter().map(|t| t.amount).sum();
+            let outflow_count = outflow_transfers.len() as i64;
+
+            let net_change = day_inflow - day_outflow;
+            let closing_balance = acc.balance;
+            let opening_balance = closing_balance - net_change;
+
+            total_opening += opening_balance;
+            total_closing += closing_balance;
+            total_inflow += day_inflow;
+            total_outflow += day_outflow;
+
+            account_summaries.push(AccountDailySummary {
+                account_id: acc.id,
+                account_no: acc.account_no.clone(),
+                account_name: acc.account_name.clone(),
+                account_type: acc.account_type.clone(),
+                opening_balance,
+                closing_balance,
+                total_inflow: day_inflow,
+                total_outflow: day_outflow,
+                net_change,
+                inflow_count,
+                outflow_count,
+            });
+        }
+
+        Ok(DailyReportSummary {
+            report_date,
+            accounts: account_summaries,
+            total_opening_balance: total_opening,
+            total_closing_balance: total_closing,
+            total_inflow,
+            total_outflow,
+            total_net_change: total_inflow - total_outflow,
+        })
+    }
+
+    /// V15 P1 17.6-D6：资金月报
+    /// 汇总指定月份各账户的期初余额、总转入/转出、期末余额、日均余额。
+    /// 期初余额 = 当前余额 − 月内净变动（反推法）。
+    pub async fn get_monthly_report(
+        &self,
+        year: i32,
+        month: u32,
+    ) -> Result<MonthlyReportSummary, AppError> {
+        let month_start = NaiveDate::from_ymd_opt(year, month, 1)
+            .ok_or_else(|| AppError::validation("无效的年月"))?;
+        let (next_year, next_month) = if month == 12 {
+            (year + 1, 1)
+        } else {
+            (year, month + 1)
+        };
+        let month_end = NaiveDate::from_ymd_opt(next_year, next_month, 1)
+            .ok_or_else(|| AppError::validation("无效的年月"))?;
+
+        let accounts = fund_management::Entity::find()
+            .filter(fund_management::Column::Status.eq(master_data::ACTIVE))
+            .order_by(fund_management::Column::Id, Order::Asc)
+            .all(&*self.db)
+            .await?;
+
+        let mut account_summaries = Vec::with_capacity(accounts.len());
+        let mut total_opening = Decimal::ZERO;
+        let mut total_closing = Decimal::ZERO;
+        let mut total_inflow = Decimal::ZERO;
+        let mut total_outflow = Decimal::ZERO;
+        let mut total_transfer_count: i64 = 0;
+        let mut total_transfer_amount = Decimal::ZERO;
+
+        for acc in &accounts {
+            // 月内转入
+            let inflow_transfers = fund_transfer_record::Entity::find()
+                .filter(fund_transfer_record::Column::ToAccountId.eq(acc.id))
+                .filter(fund_transfer_record::Column::TransferDate.gte(month_start))
+                .filter(fund_transfer_record::Column::TransferDate.lt(month_end))
+                .filter(fund_transfer_record::Column::Status.eq("COMPLETED"))
+                .all(&*self.db)
+                .await?;
+            let month_inflow: Decimal = inflow_transfers.iter().map(|t| t.amount).sum();
+
+            // 月内转出
+            let outflow_transfers = fund_transfer_record::Entity::find()
+                .filter(fund_transfer_record::Column::FromAccountId.eq(acc.id))
+                .filter(fund_transfer_record::Column::TransferDate.gte(month_start))
+                .filter(fund_transfer_record::Column::TransferDate.lt(month_end))
+                .filter(fund_transfer_record::Column::Status.eq("COMPLETED"))
+                .all(&*self.db)
+                .await?;
+            let month_outflow: Decimal = outflow_transfers.iter().map(|t| t.amount).sum();
+
+            let transfer_count = (inflow_transfers.len() + outflow_transfers.len()) as i64;
+            let total_amount = month_inflow + month_outflow;
+
+            let net_change = month_inflow - month_outflow;
+            let closing_balance = acc.balance;
+            let opening_balance = closing_balance - net_change;
+
+            // 日均余额 = (期初 + 期末) / 2（简化估算）
+            let daily_avg_balance = (opening_balance + closing_balance) / Decimal::from(2);
+
+            total_opening += opening_balance;
+            total_closing += closing_balance;
+            total_inflow += month_inflow;
+            total_outflow += month_outflow;
+            total_transfer_count += transfer_count;
+            total_transfer_amount += total_amount;
+
+            account_summaries.push(AccountMonthlySummary {
+                account_id: acc.id,
+                account_no: acc.account_no.clone(),
+                account_name: acc.account_name.clone(),
+                account_type: acc.account_type.clone(),
+                opening_balance,
+                closing_balance,
+                total_inflow: month_inflow,
+                total_outflow: month_outflow,
+                net_change,
+                daily_avg_balance,
+                transfer_count,
+                total_transfer_amount: total_amount,
+            });
+        }
+
+        Ok(MonthlyReportSummary {
+            year,
+            month,
+            accounts: account_summaries,
+            total_opening_balance: total_opening,
+            total_closing_balance: total_closing,
+            total_inflow,
+            total_outflow,
+            total_net_change: total_inflow - total_outflow,
+            total_transfer_count,
+            total_transfer_amount,
+        })
+    }
 }
 
 /// V15 P1 17.6-D2：现金流预测数据点
@@ -709,4 +1023,64 @@ pub struct BankReconciliationResult {
     pub pending_out_count: i64,
     /// 在途转入笔数
     pub pending_in_count: i64,
+}
+
+/// V15 P1 17.6-D6：资金日报 — 每个账户日维度摘要
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AccountDailySummary {
+    pub account_id: i32,
+    pub account_no: String,
+    pub account_name: String,
+    pub account_type: String,
+    pub opening_balance: Decimal,
+    pub closing_balance: Decimal,
+    pub total_inflow: Decimal,
+    pub total_outflow: Decimal,
+    pub net_change: Decimal,
+    pub inflow_count: i64,
+    pub outflow_count: i64,
+}
+
+/// V15 P1 17.6-D6：资金日报汇总
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DailyReportSummary {
+    pub report_date: NaiveDate,
+    pub accounts: Vec<AccountDailySummary>,
+    pub total_opening_balance: Decimal,
+    pub total_closing_balance: Decimal,
+    pub total_inflow: Decimal,
+    pub total_outflow: Decimal,
+    pub total_net_change: Decimal,
+}
+
+/// V15 P1 17.6-D6：资金月报 — 每个月度维度摘要
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AccountMonthlySummary {
+    pub account_id: i32,
+    pub account_no: String,
+    pub account_name: String,
+    pub account_type: String,
+    pub opening_balance: Decimal,
+    pub closing_balance: Decimal,
+    pub total_inflow: Decimal,
+    pub total_outflow: Decimal,
+    pub net_change: Decimal,
+    pub daily_avg_balance: Decimal,
+    pub transfer_count: i64,
+    pub total_transfer_amount: Decimal,
+}
+
+/// V15 P1 17.6-D6：资金月报汇总
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct MonthlyReportSummary {
+    pub year: i32,
+    pub month: u32,
+    pub accounts: Vec<AccountMonthlySummary>,
+    pub total_opening_balance: Decimal,
+    pub total_closing_balance: Decimal,
+    pub total_inflow: Decimal,
+    pub total_outflow: Decimal,
+    pub total_net_change: Decimal,
+    pub total_transfer_count: i64,
+    pub total_transfer_amount: Decimal,
 }
