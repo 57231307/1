@@ -85,14 +85,6 @@ struct BalanceSummary {
     operating_cash_outflow: Decimal,
     /// 经营活动现金流量净额
     operating_cash_flow: Decimal,
-    /// 投资活动现金流入（6111 投资收益）
-    investing_cash_inflow: Decimal,
-    /// 投资活动现金流出
-    investing_cash_outflow: Decimal,
-    /// 筹资活动现金流入
-    financing_cash_inflow: Decimal,
-    /// 筹资活动现金流出（6603 财务费用中的利息支出）
-    financing_cash_outflow: Decimal,
 }
 
 type SubjectMap = std::collections::HashMap<i32, crate::models::account_subject::Model>;
@@ -185,9 +177,6 @@ fn classify_balance_entry(code: &str, net_balance: Decimal, summary: &mut Balanc
             || code.starts_with("6603")
         {
             summary.operating_cash_outflow += net_balance.max(Decimal::ZERO);
-        }
-        if code.starts_with("6111") {
-            summary.investing_cash_inflow += (-net_balance).max(Decimal::ZERO);
         }
     }
 }
