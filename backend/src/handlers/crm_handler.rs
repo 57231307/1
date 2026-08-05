@@ -8,6 +8,7 @@ use crate::models::dto::crm_dto::{
 };
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::crm::cust::CrmService;
+use chrono::Datelike;
 use crate::utils::error::AppError;
 use crate::utils::export_concurrency::ExportConcurrencyGuard;
 use crate::utils::messages::biz_msg;
@@ -919,9 +920,13 @@ pub async fn get_customer_clv(
 pub async fn get_forecast_accuracy(
     State(state): State<AppState>,
     _auth: AuthContext,
+    Query(params): Query<ForecastAccuracyQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let result = service.forecast_accuracy().await?;
+    let now = chrono::Utc::now();
+    let year = params.year.unwrap_or(now.year());
+    let month = params.month.unwrap_or(now.month());
+    let result = service.forecast_accuracy(year, month).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(result)?)))
 }
 
@@ -929,9 +934,10 @@ pub async fn get_forecast_accuracy(
 pub async fn get_weighted_forecast(
     State(state): State<AppState>,
     _auth: AuthContext,
+    Query(params): Query<OwnerQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let result = service.weighted_forecast(None).await?;
+    let result = service.weighted_forecast(params.owner_id).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(result)?)))
 }
 
@@ -939,9 +945,10 @@ pub async fn get_weighted_forecast(
 pub async fn get_conversion_rate(
     State(state): State<AppState>,
     _auth: AuthContext,
+    Query(params): Query<MonthsBackQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let result = service.conversion_rate_analysis(12).await?;
+    let result = service.conversion_rate_analysis(params.months_back.unwrap_or(12)).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(result)?)))
 }
 
@@ -949,9 +956,10 @@ pub async fn get_conversion_rate(
 pub async fn get_sales_funnel(
     State(state): State<AppState>,
     _auth: AuthContext,
+    Query(params): Query<FunnelDateQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let result = service.sales_funnel_report(None, None).await?;
+    let result = service.sales_funnel_report(params.start_date, params.end_date).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(result)?)))
 }
 
@@ -1003,4 +1011,30 @@ pub struct StageDurationQuery {
 #[derive(Debug, Deserialize)]
 pub struct AuditLogQuery {
     pub operation: Option<String>,
+}
+
+/// 预测准确性查询参数
+#[derive(Debug, Deserialize)]
+pub struct ForecastAccuracyQuery {
+    pub year: Option<i32>,
+    pub month: Option<u32>,
+}
+
+/// 商机所有者查询参数
+#[derive(Debug, Deserialize)]
+pub struct OwnerQuery {
+    pub owner_id: Option<i32>,
+}
+
+/// 月数查询参数
+#[derive(Debug, Deserialize)]
+pub struct MonthsBackQuery {
+    pub months_back: Option<u32>,
+}
+
+/// 漏斗日期查询参数
+#[derive(Debug, Deserialize)]
+pub struct FunnelDateQuery {
+    pub start_date: Option<chrono::NaiveDate>,
+    pub end_date: Option<chrono::NaiveDate>,
 }
