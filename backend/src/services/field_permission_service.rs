@@ -258,6 +258,7 @@ impl FieldPermissionService {
     }
 
     /// 掩码处理 JSON 数据中的字段（无读权限时显示为 "***"）
+    #[allow(dead_code)] // Phase 3: 将在 handler 中接入
     pub fn mask_fields(&self, data: &mut serde_json::Value, permissions: &[FieldPermissionDetail]) {
         if let Some(obj) = data.as_object_mut() {
             for perm in permissions {

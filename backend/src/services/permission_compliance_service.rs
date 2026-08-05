@@ -19,7 +19,6 @@ use sea_orm::{
 };
 use tracing::{info, warn};
 
-use crate::models::audit_log::{self, Entity as AuditLogEntity};
 use crate::models::audit_log::{OperationType, Severity};
 use crate::models::permission_change_audit::{self, Entity as PermissionChangeAuditEntity};
 use crate::models::role::{self, Entity as RoleEntity};
@@ -177,7 +176,7 @@ impl PermissionComplianceService {
                 .format("%H")
                 .to_string();
             if let Ok(hour) = business_hour.parse::<u32>() {
-                let is_off_hours = hour >= OFF_HOURS_START || hour < OFF_HOURS_END;
+                let is_off_hours = !(OFF_HOURS_END..OFF_HOURS_START).contains(&hour);
                 if is_off_hours {
                     alerts.push(PermissionComplianceAlert {
                         alert_type: "off_hours_permission_change".to_string(),
@@ -577,52 +576,6 @@ impl PermissionComplianceService {
             })),
         };
         self.audit_service.clone().record_async(event, None);
-    }
-
-    /// 启动后台定时任务（每 7 天执行一次权限合规审查）
-    pub fn start_background_task(self: &Arc<Self>) -> tokio::task::JoinHandle<()> {
-        let service = self.clone();
-        tokio::spawn(async move {
-            let enabled = std::env::var("PERMISSION_COMPLIANCE_CHECK_ENABLED")
-                .unwrap_or_else(|_| "true".to_string());
-            if enabled == "false" || enabled == "0" {
-                info!("权限合规审查：环境变量禁用，跳过启动");
-                return;
-            }
-
-            let interval_secs = std::env::var("PERMISSION_COMPLIANCE_CHECK_INTERVAL_SECS")
-                .ok()
-                .and_then(|s| s.parse::<u64>().ok())
-                .unwrap_or(DEFAULT_INTERVAL_SECS);
-
-            tokio::time::sleep(std::time::Duration::from_secs(INITIAL_DELAY_SECS)).await;
-
-            let interval = std::time::Duration::from_secs(interval_secs);
-            info!(
-                interval_secs,
-                "权限合规审查：后台任务已启动（每 {} 秒执行一次合规审查）", interval_secs
-            );
-
-            loop {
-                let now = Utc::now();
-                let start = now - Duration::days(7);
-
-                // 14.10-B：异常权限分配识别
-                if let Err(e) = service
-                    .detect_anomalous_permission_assignments(start, now)
-                    .await
-                {
-                    warn!(error = %e, "权限合规审查：异常权限分配识别失败，下次循环继续");
-                }
-
-                // 14.10-C：定期合规审查（系统级配置检查）
-                if let Err(e) = service.periodic_compliance_review().await {
-                    warn!(error = %e, "权限合规审查：定期合规审查失败，下次循环继续");
-                }
-
-                tokio::time::sleep(interval).await;
-            }
-        })
     }
 
     /// 14.10-C：启动权限合规审查定时任务（受 CancellationToken 控制，支持 graceful shutdown）
