@@ -163,6 +163,10 @@ pub fn sales_contracts() -> Router<AppState> {
             put(sales_contract_handler::cancel_contract),
         )
         .route(
+            "/sales-contracts/:id/items",
+            get(sales_contract_handler::get_contract_items),
+        )
+        .route(
             "/sales-contracts/:id/print",
             get(print_handler::sales_contract_print_html),
         )

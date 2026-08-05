@@ -141,7 +141,10 @@ pub async fn list_customers(
             .unwrap_or_default();
         if !field_perms.is_empty() {
             result.items.into_iter().map(|mut v| {
+                // 先过滤无读权限的字段
                 field_perm_svc.filter_fields_by_read_permission(&mut v, &field_perms);
+                // 再对需要掩码的字段进行掩码处理
+                field_perm_svc.mask_fields(&mut v, &field_perms);
                 v
             }).collect()
         } else {
@@ -193,7 +196,10 @@ pub async fn get_customer(
             .await
             .unwrap_or_default();
         if !field_perms.is_empty() {
+            // 先过滤无读权限的字段
             field_perm_svc.filter_fields_by_read_permission(&mut customer_json, &field_perms);
+            // 再对需要掩码的字段进行掩码处理
+            field_perm_svc.mask_fields(&mut customer_json, &field_perms);
         }
     }
 

@@ -362,3 +362,5 @@ pub mod color_card_cost_accounting_service;
 pub mod color_card_inventory_warning_service;
 // V15 P2 类九 10.5-3：色卡发放统计服务（每日 23:00 执行）
 pub mod color_card_issue_statistics_service;
+pub mod period_report_snapshot_service;
+pub mod aging_alert_rule_service;
