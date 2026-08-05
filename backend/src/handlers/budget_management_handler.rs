@@ -533,6 +533,7 @@ pub async fn create_budget(
         budget_year: req.budget_year,
         planned_amount: req.planned_amount,
         remark: req.remark,
+        account_subject_id: None,
     };
 
     let item = service.create_item(create_req, auth.user_id).await?;
@@ -564,6 +565,7 @@ pub async fn update_budget(
         planned_amount: req.planned_amount,
         status: req.status,
         remark: req.remark,
+        account_subject_id: None,
     };
 
     let item = service.update_item(id, update_req, auth.user_id).await?;
