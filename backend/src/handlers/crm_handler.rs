@@ -782,7 +782,7 @@ pub async fn get_stage_duration_analysis(
     Query(params): Query<StageDurationQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let analysis = service.get_stage_duration_analysis(params.opportunity_id).await?;
+    let analysis = service.stage_duration_analysis(params.opportunity_id).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(analysis)?)))
 }
 

@@ -870,10 +870,10 @@ impl CrmService {
         };
 
         Ok(SalesFunnelReport {
-            lead_count,
+            lead_count: lead_count as i64,
             opportunity_count: opp_count,
             opportunity_amount: opp_amount,
-            quotation_count,
+            quotation_count: quotation_count as i64,
             won_count,
             won_amount,
             order_count,
@@ -1157,10 +1157,13 @@ pub struct CreateOpportunityFollowUpRequest {
 /// V15 P2 18.2-D5: 预测准确性结果
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct ForecastAccuracyResult {
-    pub total_forecasts: i32,
-    pub accurate_forecasts: i32,
+    pub year: i32,
+    pub month: u32,
+    pub forecast_amount: rust_decimal::Decimal,
+    pub forecast_count: i64,
+    pub actual_amount: rust_decimal::Decimal,
+    pub won_count: i64,
     pub accuracy_rate: f64,
-    pub avg_deviation: f64,
 }
 
 /// V15 P2 18.2-D5: 加权预测结果

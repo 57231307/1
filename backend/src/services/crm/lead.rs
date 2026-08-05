@@ -1012,7 +1012,7 @@ impl CrmService {
         start_date: chrono::NaiveDate,
         end_date: chrono::NaiveDate,
         cost: rust_decimal::Decimal,
-    ) -> Result<lead_source_roi::Model, AppError> {
+    ) -> Result<crate::models::lead_source_roi::Model, AppError> {
         use crate::models::{crm_opportunity, customer, lead_source_roi, sales_order};
 
         let start_dt = chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
