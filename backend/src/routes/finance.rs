@@ -376,6 +376,14 @@ pub fn financial_analysis() -> Router<AppState> {
             get(financial_analysis_handler::get_trends)
                 .post(financial_analysis_handler::create_trend),
         )
+        .route(
+            "/financial-analysis/cash-flow-ratios",
+            post(financial_analysis_handler::calculate_cash_flow_ratios),
+        )
+        .route(
+            "/financial-analysis/trend-analysis",
+            get(financial_analysis_handler::get_trend_analysis),
+        )
 }
 
 /// 资金管理路由（path 前缀 /fund-management）
