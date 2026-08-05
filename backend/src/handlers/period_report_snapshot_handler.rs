@@ -7,7 +7,7 @@ use crate::services::period_report_snapshot_service::{
     CreateSnapshotRequest, PeriodReportSnapshotService, SnapshotQueryParams,
 };
 use crate::utils::error::AppError;
-use crate::utils::ApiResponse;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
     extract::{Path, Query, State},
     Json,
@@ -63,20 +63,27 @@ pub async fn list_snapshots(
     Query(params): Query<SnapshotQuery>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<period_report_snapshot::Model>>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<period_report_snapshot::Model>>>, AppError> {
     info!("用户 {} 正在查询报表快照列表", auth.user_id);
 
     let service = PeriodReportSnapshotService::new(state.db.clone());
+    let page = params.page.unwrap_or(0);
+    let page_size = params.page_size.unwrap_or(20);
     let (snapshots, total) = service
         .list(SnapshotQueryParams {
             period_id: params.period_id,
             report_type: params.report_type,
-            page: params.page.unwrap_or(0),
-            page_size: params.page_size.unwrap_or(20),
+            page,
+            page_size,
         })
         .await?;
 
-    Ok(Json(ApiResponse::with_total(snapshots, total)))
+    Ok(Json(ApiResponse::success(PaginatedResponse::new(
+        snapshots,
+        total,
+        page,
+        page_size,
+    ))))
 }
 
 /// 获取报表快照详情

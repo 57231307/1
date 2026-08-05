@@ -7,7 +7,7 @@ use crate::services::aging_alert_rule_service::{
     AgingAlertRuleService, AlertRuleQueryParams, CreateAlertRuleRequest, UpdateAlertRuleRequest,
 };
 use crate::utils::error::AppError;
-use crate::utils::ApiResponse;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
     extract::{Path, Query, State},
     Json,
@@ -92,21 +92,28 @@ pub async fn list_rules(
     Query(params): Query<AlertRuleQuery>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<aging_alert_rule::Model>>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<aging_alert_rule::Model>>>, AppError> {
     info!("用户 {} 正在查询账龄预警规则列表", auth.user_id);
 
     let service = AgingAlertRuleService::new(state.db.clone());
+    let page = params.page.unwrap_or(0);
+    let page_size = params.page_size.unwrap_or(20);
     let (rules, total) = service
         .list(AlertRuleQueryParams {
             aging_bucket: params.aging_bucket,
             alert_level: params.alert_level,
             is_active: params.is_active,
-            page: params.page.unwrap_or(0),
-            page_size: params.page_size.unwrap_or(20),
+            page,
+            page_size,
         })
         .await?;
 
-    Ok(Json(ApiResponse::with_total(rules, total)))
+    Ok(Json(ApiResponse::success(PaginatedResponse::new(
+        rules,
+        total,
+        page,
+        page_size,
+    ))))
 }
 
 /// 获取预警规则详情

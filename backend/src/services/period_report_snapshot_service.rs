@@ -4,10 +4,9 @@
 
 use crate::models::period_report_snapshot;
 use crate::utils::error::AppError;
-use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, Set,
+    QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
