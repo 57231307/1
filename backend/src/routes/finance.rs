@@ -974,4 +974,20 @@ fn aging_alert_rules() -> Router<AppState> {
                 .put(crate::handlers::aging_alert_rule_handler::update_rule)
                 .delete(crate::handlers::aging_alert_rule_handler::delete_rule),
         )
+        .merge(asset_categories())
+}
+
+fn asset_categories() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/asset-categories",
+            get(crate::handlers::asset_category_handler::list_categories)
+                .post(crate::handlers::asset_category_handler::create_category),
+        )
+        .route(
+            "/asset-categories/:id",
+            get(crate::handlers::asset_category_handler::get_category)
+                .put(crate::handlers::asset_category_handler::update_category)
+                .delete(crate::handlers::asset_category_handler::delete_category),
+        )
 }

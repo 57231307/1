@@ -364,3 +364,4 @@ pub mod color_card_inventory_warning_service;
 pub mod color_card_issue_statistics_service;
 pub mod period_report_snapshot_service;
 pub mod aging_alert_rule_service;
+pub mod asset_category_service;

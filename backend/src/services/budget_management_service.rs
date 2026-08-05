@@ -49,6 +49,8 @@ pub struct CreateBudgetItemRequest {
     pub budget_year: Option<i32>,
     pub planned_amount: Decimal,
     pub remark: Option<String>,
+    /// P2-14：预算科目-会计科目映射
+    pub account_subject_id: Option<i32>,
 }
 
 /// 更新预算科目请求（v11 批次 145 P1-8：移除 dead_code 标注，扩展字段已接入 budget_management 模型）
@@ -59,6 +61,8 @@ pub struct UpdateBudgetItemRequest {
     pub planned_amount: Option<Decimal>,
     pub status: Option<String>,
     pub remark: Option<String>,
+    /// P2-14：预算科目-会计科目映射
+    pub account_subject_id: Option<Option<i32>>,
 }
 
 /// 创建预算方案请求
@@ -177,6 +181,8 @@ impl BudgetManagementService {
             budget_year: Set(req.budget_year),
             planned_amount: Set(req.planned_amount),
             remark: Set(req.remark),
+            // P2-14：预算科目-会计科目映射
+            account_subject_id: Set(req.account_subject_id),
             ..Default::default()
         };
 
@@ -222,6 +228,10 @@ impl BudgetManagementService {
         }
         if let Some(remark) = req.remark {
             item.remark = Set(Some(remark));
+        }
+        // P2-14：预算科目-会计科目映射
+        if let Some(account_subject_id) = req.account_subject_id {
+            item.account_subject_id = Set(account_subject_id);
         }
 
         let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
