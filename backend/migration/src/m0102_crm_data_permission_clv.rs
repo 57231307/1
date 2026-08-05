@@ -1,5 +1,5 @@
-use sea_orm::prelude::*;
-use sea_orm::sea_query::Table;
+use sea_orm_migration::prelude::*;
+use sea_orm_migration::sea_query::Table;
 
 /// V15 P2 18.4-D5/D6 + 18.5-D3/D4/D5: CRM 数据权限+数据流转增强
 ///

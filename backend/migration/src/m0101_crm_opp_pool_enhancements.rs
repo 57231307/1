@@ -1,5 +1,5 @@
-use sea_orm::prelude::*;
-use sea_orm::sea_query::{Table, TableColumn, TableAlterStatement};
+use sea_orm_migration::prelude::*;
+use sea_orm_migration::sea_query::{Table, TableColumn, TableAlterStatement};
 
 /// V15 P2 18.2-D5/D6/D7 + 18.3-D5/D6/D7: CRM 商机+公海管理增强
 ///
