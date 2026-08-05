@@ -90,8 +90,8 @@ impl PeriodReportSnapshotService {
 
         let snapshots = query
             .order_by(period_report_snapshot::Column::CreatedAt, Order::Desc)
-            .offset((params.page * params.page_size) as u64)
-            .limit(params.page_size as u64)
+            .offset(params.page * params.page_size)
+            .limit(params.page_size)
             .all(&*self.db)
             .await?;
 

@@ -108,8 +108,8 @@ impl AgingAlertRuleService {
 
         let rules = query
             .order_by(aging_alert_rule::Column::Id, Order::Desc)
-            .offset((params.page * params.page_size) as u64)
-            .limit(params.page_size as u64)
+            .offset(params.page * params.page_size)
+            .limit(params.page_size)
             .all(&*self.db)
             .await?;
 
