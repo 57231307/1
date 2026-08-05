@@ -324,8 +324,16 @@ pub async fn create_api_endpoint(
         created_at: sea_orm::Set(now),
         updated_at: sea_orm::Set(now),
         // V15 P2 20.7-B：deprecation 字段
-        deprecated_at: sea_orm::Set(req.deprecated_at.and_then(|d| chrono::DateTime::parse_from_rfc3339(&d).ok()).map(|d| d.with_timezone(&chrono::Utc))),
-        sunset_at: sea_orm::Set(req.sunset_at.and_then(|d| chrono::DateTime::parse_from_rfc3339(&d).ok()).map(|d| d.with_timezone(&chrono::Utc))),
+        deprecated_at: sea_orm::Set(
+            req.deprecated_at
+                .and_then(|d| chrono::DateTime::parse_from_rfc3339(&d).ok())
+                .map(|d| d.with_timezone(&chrono::Utc))
+        ),
+        sunset_at: sea_orm::Set(
+            req.sunset_at
+                .and_then(|d| chrono::DateTime::parse_from_rfc3339(&d).ok())
+                .map(|d| d.with_timezone(&chrono::Utc))
+        ),
         deprecation_note: sea_orm::Set(req.deprecation_note),
         ..Default::default()
     };
@@ -401,10 +409,18 @@ pub async fn update_api_endpoint(
     }
     // V15 P2 20.7-B：deprecation 字段
     if let Some(deprecated_at) = req.deprecated_at {
-        active.deprecated_at = sea_orm::Set(deprecated_at.and_then(|d| chrono::DateTime::parse_from_rfc3339(&d).ok()).map(|d| d.with_timezone(&chrono::Utc)));
+        active.deprecated_at = sea_orm::Set(
+            chrono::DateTime::parse_from_rfc3339(&deprecated_at)
+                .ok()
+                .map(|d| d.with_timezone(&chrono::Utc))
+        );
     }
     if let Some(sunset_at) = req.sunset_at {
-        active.sunset_at = sea_orm::Set(sunset_at.and_then(|d| chrono::DateTime::parse_from_rfc3339(&d).ok()).map(|d| d.with_timezone(&chrono::Utc)));
+        active.sunset_at = sea_orm::Set(
+            chrono::DateTime::parse_from_rfc3339(&sunset_at)
+                .ok()
+                .map(|d| d.with_timezone(&chrono::Utc))
+        );
     }
     if let Some(deprecation_note) = req.deprecation_note {
         active.deprecation_note = sea_orm::Set(Some(deprecation_note));

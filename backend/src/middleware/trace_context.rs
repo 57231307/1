@@ -68,11 +68,10 @@ pub async fn trace_context_middleware(mut request: Request<Body>, next: Next) ->
     if is_5xx || is_slow {
         // 强制采样：在响应头中标记 `X-Trace-Sampled: forced`
         // OTel Collector 可据此决定保留此 trace
-        if let Ok(v) = HeaderValue::from_static("forced") {
-            response
-                .headers_mut()
-                .insert(HeaderName::from_static("x-trace-sampled"), v);
-        }
+        let v = HeaderValue::from_static("forced");
+        response
+            .headers_mut()
+            .insert(HeaderName::from_static("x-trace-sampled"), v);
         tracing::warn!(
             trace_id = %ctx.trace_id,
             span_id = %ctx.span_id,

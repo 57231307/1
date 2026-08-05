@@ -171,6 +171,10 @@ impl SlowQueryCollector {
                 // 数据库名：系统级元数据（暂留空，前端 stats 接口会标注"系统"）
                 database_name: Set(None),
                 captured_at: Set(Utc::now()),
+                // V15 P2 20.5-C：优化任务追踪字段（默认值）
+                optimization_status: Set(None),
+                assigned_to: Set(None),
+                jira_ticket: Set(None),
             };
 
             // 使用 exec_without_returning 避免 last_insert_id 解析问题（参考 omni_audit_service）

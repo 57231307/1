@@ -33,10 +33,9 @@ pub fn add_deprecation_headers(
     if let Some(deprecated_at) = deprecated_at {
         // 使用 HTTP-date 格式：Sun, 06 Nov 1994 08:49:37 GMT
         let deprecation_date = deprecated_at.format("%a, %d %b %Y %H:%M:%S GMT").to_string();
-        headers.insert(
-            "Deprecation",
-            deprecation_date.parse().unwrap_or_default(),
-        );
+        if let Ok(v) = deprecation_date.parse() {
+            headers.insert("Deprecation", v);
+        }
 
         // 添加 Link header 指向 deprecation 文档
         // 格式：Link: <https://example.com/deprecation>; rel="deprecation"
@@ -46,10 +45,9 @@ pub fn add_deprecation_headers(
     // Sunset header (RFC 8594)
     if let Some(sunset_at) = sunset_at {
         let sunset_date = sunset_at.format("%a, %d %b %Y %H:%M:%S GMT").to_string();
-        headers.insert(
-            "Sunset",
-            sunset_date.parse().unwrap_or_default(),
-        );
+        if let Ok(v) = sunset_date.parse() {
+            headers.insert("Sunset", v);
+        }
     }
 }
 
