@@ -629,10 +629,13 @@ impl FinancialAnalysisService {
             ),
         ];
 
-        // 确保指标定义存在
+        // 确保指标定义存在，然后获取所有指标定义
         self.ensure_cash_flow_indicator_definitions(user_id)
             .await?;
-        let indicator_defs = self.ensure_indicator_definitions(user_id).await?;
+        let indicator_defs = financial_analysis::Entity::find()
+            .filter(financial_analysis::Column::Status.eq(master_data::ACTIVE))
+            .all(&*self.db)
+            .await?;
         let mut results = Vec::new();
         for (code, value, target) in ratios {
             self.try_save_indicator(
