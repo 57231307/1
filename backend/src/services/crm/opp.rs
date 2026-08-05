@@ -1226,11 +1226,3 @@ pub struct SalesFunnelReport {
     pub opp_to_order_rate: f64,
     pub order_to_collection_rate: f64,
 }
-
-/// V15 P2 18.2-D5: 漏斗阶段
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct FunnelStage {
-    pub stage: String,
-    pub count: i32,
-    pub amount: rust_decimal::Decimal,
-}

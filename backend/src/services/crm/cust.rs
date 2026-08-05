@@ -492,7 +492,7 @@ impl CrmService {
     ) -> Result<(), AppError> {
         use crate::models::customer_audit_log;
 
-        let new_log = customer_audit_log::ActiveModel {
+        customer_audit_log::ActiveModel {
             id: Default::default(),
             customer_id: sea_orm::Set(req.customer_id),
             operation: sea_orm::Set(req.operation),

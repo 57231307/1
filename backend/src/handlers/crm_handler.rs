@@ -787,6 +787,18 @@ pub async fn get_stage_duration_analysis(
     Ok(Json(ApiResponse::success(serde_json::to_value(analysis)?)))
 }
 
+/// POST /api/v1/erp/crm/opportunities/:id/stage-change - 记录商机阶段变更
+pub async fn record_opportunity_stage_change(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<StageChangeRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    service.record_stage_change(id, req.from_stage, &req.to_stage, auth.user_id).await?;
+    Ok(Json(ApiResponse::success(serde_json::Value::Null)))
+}
+
 /// GET /api/v1/erp/crm/opportunities/:id/competitors - 获取商机竞争对手
 pub async fn list_opportunity_competitors(
     Path(id): Path<i32>,
@@ -888,6 +900,29 @@ pub async fn list_customer_audit_logs(
     let service = CrmService::new(state.db.clone());
     let logs = service.list_customer_audit_logs(id, params.operation.as_deref()).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(logs)?)))
+}
+
+/// POST /api/v1/erp/crm/customers/:id/audit-logs - 创建客户操作日志
+pub async fn create_customer_audit_log(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<CreateAuditLogRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let audit_req = crate::services::crm::cust::CreateAuditLogRequest {
+        customer_id: id,
+        operation: req.operation,
+        field_name: req.field_name,
+        old_value: req.old_value,
+        new_value: req.new_value,
+        user_id: auth.user_id,
+        user_name: auth.username.clone(),
+        ip_address: req.ip_address,
+        user_agent: req.user_agent,
+    };
+    service.log_customer_operation(audit_req).await?;
+    Ok(Json(ApiResponse::success(serde_json::Value::Null)))
 }
 
 // ===== V15 P2 18.5-D5: 客户全生命周期价值（CLV）=====
@@ -1037,4 +1072,22 @@ pub struct MonthsBackQuery {
 pub struct FunnelDateQuery {
     pub start_date: Option<chrono::NaiveDate>,
     pub end_date: Option<chrono::NaiveDate>,
+}
+
+/// 创建审计日志请求
+#[derive(Debug, Deserialize)]
+pub struct CreateAuditLogRequest {
+    pub operation: String,
+    pub field_name: Option<String>,
+    pub old_value: Option<String>,
+    pub new_value: Option<String>,
+    pub ip_address: Option<String>,
+    pub user_agent: Option<String>,
+}
+
+/// 阶段变更请求
+#[derive(Debug, Deserialize)]
+pub struct StageChangeRequest {
+    pub from_stage: Option<String>,
+    pub to_stage: String,
 }
