@@ -229,6 +229,12 @@ pub mod crm_lead;
 pub mod crm_opportunity;
 // 批次 122 v8 复审 P1 修复：CRM 标签字典表（替代 list_tags 硬编码 + create_tag/delete_tag 假实现）
 pub mod crm_tag;
+// V15 P2 18.1-D4: 线索来源 ROI 跟踪
+pub mod lead_source_roi;
+// V15 P2 18.1-D5: 线索分配规则
+pub mod lead_allocation_rule;
+// V15 P2 18.1-D6: 线索培育计划
+pub mod lead_nurture_plan;
 pub mod logistics_waybill;
 // V15 P1 batch-19 缺陷 23.4.2：物流跟踪事件历史表
 pub mod logistics_tracking_event;

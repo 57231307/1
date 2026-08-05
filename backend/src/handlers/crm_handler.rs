@@ -677,3 +677,136 @@ pub async fn get_rfm_distribution(
     let dist = service.get_rfm_distribution().await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(dist)?)))
 }
+
+// ===== V15 P2 18.1-D4: 渠道 ROI 分析 =====
+
+/// GET /api/v1/erp/crm/leads/channel-roi - 渠道 ROI 分析报表
+pub async fn get_channel_roi_report(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Query(params): Query<ChannelRoiQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let start_date = params.start_date.ok_or_else(|| AppError::bad_request("start_date 必填".to_string()))?;
+    let end_date = params.end_date.ok_or_else(|| AppError::bad_request("end_date 必填".to_string()))?;
+    let report = service.channel_roi_report(start_date, end_date).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(report)?)))
+}
+
+/// POST /api/v1/erp/crm/leads/calculate-channel-roi - 计算渠道 ROI
+pub async fn calculate_channel_roi(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Json(req): Json<CalculateChannelRoiRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let result = service.calculate_channel_roi(&req.source, req.start_date, req.end_date, req.cost).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(result)?)))
+}
+
+/// GET /api/v1/erp/crm/leads/allocation-rules - 获取线索分配规则列表
+pub async fn list_allocation_rules(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Query(params): Query<AllocationRuleQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let rules = service.list_allocation_rules(params.is_active).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(rules)?)))
+}
+
+/// POST /api/v1/erp/crm/leads/allocation-rules - 创建线索分配规则
+pub async fn create_allocation_rule(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Json(req): Json<crate::services::crm::lead::CreateAllocationRuleRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let rule = service.create_allocation_rule(req).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(rule)?)))
+}
+
+/// POST /api/v1/erp/crm/leads/:id/auto-assign - 自动分配线索
+pub async fn auto_assign_lead(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Json(req): Json<AutoAssignRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let assigned_user = service.auto_assign_lead(id, &req.source, req.industry.as_deref()).await?;
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "assigned_user_id": assigned_user
+    }))))
+}
+
+/// GET /api/v1/erp/crm/leads/nurture-plans - 获取线索培育计划列表
+pub async fn list_nurture_plans(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Query(params): Query<NurturePlanQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let plans = service.list_nurture_plans(params.lead_id, params.status.as_deref()).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(plans)?)))
+}
+
+/// POST /api/v1/erp/crm/leads/nurture-plans - 创建线索培育计划
+pub async fn create_nurture_plan(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<crate::services::crm::lead::CreateNurturePlanRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let plan = service.create_nurture_plan(req, auth.user_id).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(plan)?)))
+}
+
+/// POST /api/v1/erp/crm/leads/nurture-plans/:id/execute - 执行线索培育计划
+pub async fn execute_nurture_plan(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let plan = service.execute_nurture_plan(id).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(plan)?)))
+}
+
+// ===== V15 P2 请求/查询 DTO =====
+
+/// 渠道 ROI 查询参数
+#[derive(Debug, Deserialize)]
+pub struct ChannelRoiQuery {
+    pub start_date: Option<chrono::NaiveDate>,
+    pub end_date: Option<chrono::NaiveDate>,
+}
+
+/// 计算渠道 ROI 请求
+#[derive(Debug, Deserialize)]
+pub struct CalculateChannelRoiRequest {
+    pub source: String,
+    pub start_date: chrono::NaiveDate,
+    pub end_date: chrono::NaiveDate,
+    pub cost: rust_decimal::Decimal,
+}
+
+/// 分配规则查询参数
+#[derive(Debug, Deserialize)]
+pub struct AllocationRuleQuery {
+    pub is_active: Option<bool>,
+}
+
+/// 自动分配请求
+#[derive(Debug, Deserialize)]
+pub struct AutoAssignRequest {
+    pub source: String,
+    pub industry: Option<String>,
+}
+
+/// 培育计划查询参数
+#[derive(Debug, Deserialize)]
+pub struct NurturePlanQuery {
+    pub lead_id: Option<i32>,
+    pub status: Option<String>,
+}
