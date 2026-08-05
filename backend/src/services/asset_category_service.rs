@@ -53,7 +53,7 @@ impl AssetCategoryService {
     pub async fn create(
         &self,
         req: CreateAssetCategoryRequest,
-        user_id: i32,
+        _user_id: i32,
     ) -> Result<asset_category::Model, AppError> {
         let active = asset_category::ActiveModel {
             id: Default::default(),
