@@ -445,3 +445,158 @@ pub async fn export_assets(
     };
     build_xlsx_response_with_watermark(&table, &filename, &watermark)
 }
+
+/// V15 P1 17.8-D5：创建资产减值测试请求 DTO
+#[derive(Debug, Deserialize, Validate)]
+pub struct CreateImpairmentTestDto {
+    /// 资产 ID
+    pub asset_id: i32,
+    /// 测试日期
+    pub test_date: chrono::NaiveDate,
+    /// 账面价值
+    pub carrying_amount: rust_decimal::Decimal,
+    /// 可收回金额
+    pub recoverable_amount: rust_decimal::Decimal,
+    /// 测试依据
+    #[validate(length(min = 1, message = "测试依据不能为空"))]
+    pub test_basis: String,
+    /// 备注
+    pub notes: Option<String>,
+}
+
+/// POST /api/v1/erp/fixed-assets/impairment-tests - 创建资产减值测试
+pub async fn create_impairment_test(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<CreateImpairmentTestDto>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    req.validate()?;
+    let service = FixedAssetService::new(state.db.clone());
+    let test = service
+        .create_impairment_test(
+            req.asset_id,
+            req.test_date,
+            req.carrying_amount,
+            req.recoverable_amount,
+            req.test_basis,
+            req.notes,
+            auth.user_id,
+        )
+        .await?;
+    Ok(Json(serde_json::json!({
+        "code": 200,
+        "message": "资产减值测试创建成功",
+        "data": test
+    })))
+}
+
+/// GET /api/v1/erp/fixed-assets/impairment-tests/:asset_id - 获取资产减值测试列表
+pub async fn get_impairment_tests(
+    State(state): State<AppState>,
+    Path(asset_id): Path<i32>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let service = FixedAssetService::new(state.db.clone());
+    let tests = service.get_impairment_tests(asset_id).await?;
+    Ok(Json(serde_json::json!({
+        "code": 200,
+        "data": tests
+    })))
+}
+
+/// PUT /api/v1/erp/fixed-assets/impairment-tests/:id/approve - 审批资产减值测试
+pub async fn approve_impairment_test(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(test_id): Path<i32>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let service = FixedAssetService::new(state.db.clone());
+    let test = service.approve_impairment_test(test_id, auth.user_id).await?;
+    Ok(Json(serde_json::json!({
+        "code": 200,
+        "message": "资产减值测试审批成功",
+        "data": test
+    })))
+}
+
+/// V15 P1 17.8-D6：创建折旧政策变更请求 DTO
+#[derive(Debug, Deserialize, Validate)]
+pub struct CreateDepreciationPolicyChangeDto {
+    /// 资产 ID
+    pub asset_id: i32,
+    /// 变更日期
+    pub change_date: chrono::NaiveDate,
+    /// 原折旧方法
+    #[validate(length(min = 1, message = "原折旧方法不能为空"))]
+    pub old_method: String,
+    /// 新折旧方法
+    #[validate(length(min = 1, message = "新折旧方法不能为空"))]
+    pub new_method: String,
+    /// 原使用年限
+    pub old_useful_life: Option<i32>,
+    /// 新使用年限
+    pub new_useful_life: Option<i32>,
+    /// 原残值率
+    pub old_salvage_rate: Option<rust_decimal::Decimal>,
+    /// 新残值率
+    pub new_salvage_rate: Option<rust_decimal::Decimal>,
+    /// 变更原因
+    #[validate(length(min = 1, message = "变更原因不能为空"))]
+    pub reason: String,
+}
+
+/// POST /api/v1/erp/fixed-assets/depreciation-policy-changes - 创建折旧政策变更
+pub async fn create_depreciation_policy_change(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<CreateDepreciationPolicyChangeDto>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    req.validate()?;
+    let service = FixedAssetService::new(state.db.clone());
+    let change = service
+        .create_depreciation_policy_change(
+            req.asset_id,
+            req.change_date,
+            req.old_method,
+            req.new_method,
+            req.old_useful_life,
+            req.new_useful_life,
+            req.old_salvage_rate,
+            req.new_salvage_rate,
+            req.reason,
+            auth.user_id,
+        )
+        .await?;
+    Ok(Json(serde_json::json!({
+        "code": 200,
+        "message": "折旧政策变更创建成功",
+        "data": change
+    })))
+}
+
+/// GET /api/v1/erp/fixed-assets/depreciation-policy-changes/:asset_id - 获取折旧政策变更列表
+pub async fn get_depreciation_policy_changes(
+    State(state): State<AppState>,
+    Path(asset_id): Path<i32>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let service = FixedAssetService::new(state.db.clone());
+    let changes = service.get_depreciation_policy_changes(asset_id).await?;
+    Ok(Json(serde_json::json!({
+        "code": 200,
+        "data": changes
+    })))
+}
+
+/// PUT /api/v1/erp/fixed-assets/depreciation-policy-changes/:id/approve - 审批折旧政策变更
+pub async fn approve_depreciation_policy_change(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(change_id): Path<i32>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let service = FixedAssetService::new(state.db.clone());
+    let change = service.approve_depreciation_policy_change(change_id, auth.user_id).await?;
+    Ok(Json(serde_json::json!({
+        "code": 200,
+        "message": "折旧政策变更审批成功",
+        "data": change
+    })))
+}

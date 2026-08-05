@@ -227,6 +227,32 @@ pub fn fixed_assets() -> Router<AppState> {
             "/fixed-assets/disposals",
             get(fixed_asset_handler::list_disposals),
         )
+        // V15 P1 17.8-D5：资产减值测试
+        .route(
+            "/fixed-assets/impairment-tests",
+            post(fixed_asset_handler::create_impairment_test),
+        )
+        .route(
+            "/fixed-assets/impairment-tests/:asset_id",
+            get(fixed_asset_handler::get_impairment_tests),
+        )
+        .route(
+            "/fixed-assets/impairment-tests/:id/approve",
+            put(fixed_asset_handler::approve_impairment_test),
+        )
+        // V15 P1 17.8-D6：折旧政策变更
+        .route(
+            "/fixed-assets/depreciation-policy-changes",
+            post(fixed_asset_handler::create_depreciation_policy_change),
+        )
+        .route(
+            "/fixed-assets/depreciation-policy-changes/:asset_id",
+            get(fixed_asset_handler::get_depreciation_policy_changes),
+        )
+        .route(
+            "/fixed-assets/depreciation-policy-changes/:id/approve",
+            put(fixed_asset_handler::approve_depreciation_policy_change),
+        )
 }
 
 /// 预算主数据 + 调整路由（/budgets、/budgets/adjust）
@@ -263,6 +289,19 @@ fn budget_master_routes() -> Router<AppState> {
         .route(
             "/budgets/adjust/:id/reject",
             post(budget_management_handler::reject_adjustment),
+        )
+        // V15 P1 17.7-D5：预算版本管理
+        .route(
+            "/budgets/versions",
+            post(budget_management_handler::create_budget_version),
+        )
+        .route(
+            "/budgets/versions/:plan_id",
+            get(budget_management_handler::get_budget_versions),
+        )
+        .route(
+            "/budgets/versions/:id/approve",
+            put(budget_management_handler::approve_budget_version),
         )
 }
 
