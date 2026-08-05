@@ -913,6 +913,48 @@ pub async fn get_customer_clv(
     Ok(Json(ApiResponse::success(serde_json::to_value(clv)?)))
 }
 
+// ===== V15 P2 18.2-D4/D5: 商机分析与预测 =====
+
+/// GET /api/v1/erp/crm/opportunities/forecast-accuracy - 预测准确性分析
+pub async fn get_forecast_accuracy(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let result = service.forecast_accuracy().await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(result)?)))
+}
+
+/// GET /api/v1/erp/crm/opportunities/weighted-forecast - 加权销售预测
+pub async fn get_weighted_forecast(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let result = service.weighted_forecast(None).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(result)?)))
+}
+
+/// GET /api/v1/erp/crm/opportunities/conversion-rate - 转化率分析
+pub async fn get_conversion_rate(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let result = service.conversion_rate_analysis(12).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(result)?)))
+}
+
+/// GET /api/v1/erp/crm/opportunities/sales-funnel - 销售漏斗报告
+pub async fn get_sales_funnel(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let result = service.sales_funnel_report(None, None).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(result)?)))
+}
+
 // ===== V15 P2 请求/查询 DTO =====
 
 /// 渠道 ROI 查询参数

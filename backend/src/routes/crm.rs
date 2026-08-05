@@ -429,6 +429,23 @@ fn crm_opportunity_routes() -> Router<AppState> {
             get(crate::handlers::crm_handler::list_opportunity_follow_ups)
                 .post(crate::handlers::crm_handler::create_opportunity_follow_up),
         )
+        // V15 P2 18.2-D4/D5: 商机分析与预测
+        .route(
+            "/opportunities/forecast-accuracy",
+            get(crate::handlers::crm_handler::get_forecast_accuracy),
+        )
+        .route(
+            "/opportunities/weighted-forecast",
+            get(crate::handlers::crm_handler::get_weighted_forecast),
+        )
+        .route(
+            "/opportunities/conversion-rate",
+            get(crate::handlers::crm_handler::get_conversion_rate),
+        )
+        .route(
+            "/opportunities/sales-funnel",
+            get(crate::handlers::crm_handler::get_sales_funnel),
+        )
 }
 
 /// CRM 客户增强路由（/customers/:id/{summary,360,follow-ups,rfm} + /rfm/distribution）

@@ -947,7 +947,7 @@ impl CrmService {
             None
         };
 
-        let new_record = opportunity_stage_history::ActiveModel {
+        opportunity_stage_history::ActiveModel {
             id: Default::default(),
             opportunity_id: sea_orm::Set(opportunity_id),
             from_stage: sea_orm::Set(from_stage),
@@ -1065,7 +1065,7 @@ impl CrmService {
             opportunity_id: sea_orm::Set(opportunity_id),
             follow_up_type: sea_orm::Set(req.follow_up_type),
             content: sea_orm::Set(req.content),
-            follow_up_time: sea_orm::Set(req.follow_up_time.unwrap_or_else(|| chrono::Utc::now())),
+            follow_up_time: sea_orm::Set(req.follow_up_time.unwrap_or_else(chrono::Utc::now)),
             next_follow_up_date: sea_orm::Set(req.next_follow_up_date),
             user_id: sea_orm::Set(user_id),
             user_name: sea_orm::Set(user_name),

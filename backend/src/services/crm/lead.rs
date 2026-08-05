@@ -980,7 +980,6 @@ impl CrmService {
         end_date: chrono::NaiveDate,
     ) -> Result<Vec<ChannelRoiItem>, AppError> {
         use crate::models::lead_source_roi;
-        use sea_orm::QuerySelect;
 
         let items = lead_source_roi::Entity::find()
             .filter(lead_source_roi::Column::PeriodStart.gte(start_date))
@@ -1013,7 +1012,7 @@ impl CrmService {
         end_date: chrono::NaiveDate,
         cost: rust_decimal::Decimal,
     ) -> Result<crate::models::lead_source_roi::Model, AppError> {
-        use crate::models::{crm_opportunity, customer, lead_source_roi, sales_order};
+        use crate::models::{crm_opportunity, lead_source_roi, sales_order};
 
         let start_dt = chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
             start_date.and_hms_opt(0, 0, 0).unwrap_or_default(),
@@ -1257,9 +1256,7 @@ impl CrmService {
             .ok_or_else(|| AppError::not_found(format!("培育计划不存在：{}", plan_id)))?;
 
         if plan.status.as_deref() != Some("pending") {
-            return Err(AppError::business(format!(
-                "培育计划状态不是 pending，无法执行"
-            )));
+            return Err(AppError::business("培育计划状态不是 pending，无法执行".to_string()));
         }
 
         let mut plan_active: lead_nurture_plan::ActiveModel = plan.into();
