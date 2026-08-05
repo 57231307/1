@@ -126,6 +126,9 @@ impl SupplierService {
             main_market: Set(req.main_market.clone()),
             employee_count: Set(req.employee_count),
             annual_revenue: Set(req.annual_revenue),
+            category_id: Set(req.category_id),
+            is_processor: Set(req.is_processor.unwrap_or(false)),
+            processor_type: Set(req.processor_type.clone()),
             created_by: Set(Some(user_id)),
             ..Default::default()
         }
@@ -244,6 +247,12 @@ impl SupplierService {
         }
         if let Some(is_enabled) = params.is_enabled {
             query = query.filter(supplier::Column::IsEnabled.eq(is_enabled));
+        }
+        if let Some(category_id) = params.category_id {
+            query = query.filter(supplier::Column::CategoryId.eq(category_id));
+        }
+        if let Some(is_processor) = params.is_processor {
+            query = query.filter(supplier::Column::IsProcessor.eq(is_processor));
         }
         query
     }
@@ -449,6 +458,15 @@ impl SupplierService {
         }
         if let Some(v) = req.annual_revenue.take() {
             active.annual_revenue = Set(Some(v));
+        }
+        if let Some(v) = req.category_id.take() {
+            active.category_id = Set(Some(v));
+        }
+        if let Some(v) = req.is_processor.take() {
+            active.is_processor = Set(v);
+        }
+        if let Some(v) = req.processor_type.take() {
+            active.processor_type = Set(Some(v));
         }
         if let Some(v) = req.grade.take() {
             active.grade = Set(Some(v));
@@ -861,6 +879,9 @@ pub struct CreateSupplierRequest {
     pub main_market: Option<String>,
     pub employee_count: Option<i32>,
     pub annual_revenue: Option<Decimal>,
+    pub category_id: Option<i32>,
+    pub is_processor: Option<bool>,
+    pub processor_type: Option<String>,
     #[validate]
     pub contacts: Option<Vec<CreateContactRequest>>,
     #[validate]
@@ -892,6 +913,9 @@ pub struct UpdateSupplierRequest {
     pub main_market: Option<String>,
     pub employee_count: Option<i32>,
     pub annual_revenue: Option<Decimal>,
+    pub category_id: Option<i32>,
+    pub is_processor: Option<bool>,
+    pub processor_type: Option<String>,
     pub grade: Option<String>,
     pub grade_score: Option<Decimal>,
     pub status: Option<String>,
@@ -971,4 +995,6 @@ pub struct SupplierQueryParams {
     pub sort_by: Option<String>,
     pub sort_order: Option<String>,
     pub is_enabled: Option<bool>,
+    pub category_id: Option<i32>,
+    pub is_processor: Option<bool>,
 }

@@ -197,6 +197,11 @@ pub mod m0090_create_dye_vat_occupation;
 pub mod m0091_create_device_connection;
 // V15 P2 B05-P2-10：期末调整记录表（暂估 / 摊销 / 预提）
 pub mod m0092_create_period_adjustment_record;
+pub mod m0093_add_category_id_to_suppliers;
+pub mod m0094_add_processor_fields_to_suppliers;
+pub mod m0095_create_sales_contract_items;
+pub mod m0096_create_period_report_snapshot;
+pub mod m0097_create_aging_alert_rules;
 
 pub struct Migrator;
 
@@ -298,6 +303,11 @@ impl MigratorTrait for Migrator {
             Box::new(m0090_create_dye_vat_occupation::Migration),
             Box::new(m0091_create_device_connection::Migration),
             Box::new(m0092_create_period_adjustment_record::Migration),
+            Box::new(m0093_add_category_id_to_suppliers::Migration),
+            Box::new(m0094_add_processor_fields_to_suppliers::Migration),
+            Box::new(m0095_create_sales_contract_items::Migration),
+            Box::new(m0096_create_period_report_snapshot::Migration),
+            Box::new(m0097_create_aging_alert_rules::Migration),
         ]
     }
 }

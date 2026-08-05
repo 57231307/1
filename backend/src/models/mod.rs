@@ -75,6 +75,7 @@ pub mod warehouse;
 pub mod account_balance;
 pub mod account_subject;
 pub mod accounting_period;
+pub mod period_report_snapshot;
 pub mod voucher;
 pub mod voucher_item;
 // 批次 365 v13 复审 B-P1-8：事件幂等去重表
@@ -112,6 +113,7 @@ pub mod ap_verification_item;
 // 应收账款模块
 pub mod ar_collection;
 pub mod ar_invoice;
+pub mod aging_alert_rule;
 // 成本管理模块
 pub mod cost_analysis;
 pub mod cost_collection;
@@ -124,6 +126,7 @@ pub mod fund_management;
 pub mod purchase_contract;
 pub mod quality_standard;
 pub mod sales_contract;
+pub mod sales_contract_item;
 // P2 模块
 pub mod financial_analysis;
 pub mod financial_analysis_result;
