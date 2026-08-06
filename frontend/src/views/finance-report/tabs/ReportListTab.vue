@@ -314,7 +314,7 @@ const handleExport = () => {
   }
   const reportType = queryForm.report_type;
   const filename = `${getReportTypeLabel(reportType)}_${queryForm.period}`;
-  
+
   // V15 P0 5-1 修复：所有报表类型统一使用后端导出
   const exportApiMap: Record<string, string> = {
     trial_balance: '/finance/reports/trial-balance/export',
@@ -324,7 +324,7 @@ const handleExport = () => {
     general_ledger: '/finance/reports/general-ledger/export',
     subsidiary_ledger: '/finance/reports/subsidiary-ledger/export',
   };
-  
+
   const apiPath = exportApiMap[reportType];
   if (apiPath) {
     const params: Record<string, string> = {};
