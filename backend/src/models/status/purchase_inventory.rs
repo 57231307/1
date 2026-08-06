@@ -122,7 +122,7 @@ pub mod inventory_adjustment {
 }
 
 /// 库存裁片状态（inventory_piece.status，大写值）
-/// 批次 236 v13 真实接入：barcode_scanner_handler.rs、piece_split_handler.rs 中裁片状态字符串字面量统一引用此模块（规则 0）
+/// 批次 236 v13 真接入：barcode_scanner_handler.rs、piece_split_handler.rs 中裁片状态字符串字面量统一引用此模块（规则 0）
 pub mod inventory_piece {
     /// 已发货：裁片已发货
     pub const SHIPPED: &str = "SHIPPED";
@@ -138,6 +138,9 @@ pub mod inventory_piece {
 
     /// 已预留：裁片已为订单预留
     pub const RESERVED: &str = "RESERVED";
+
+    /// 样布：剪大货样产生的样布（V15 P0-F16 批色流程）
+    pub const SAMPLE: &str = "SAMPLE";
 }
 
 /// 采购收货检验状态（purchase_receipt.inspection_status，大写值）
