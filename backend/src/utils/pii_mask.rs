@@ -96,21 +96,6 @@ pub fn mask_pii(text: &str) -> String {
     result
 }
 
-/// 判断字符串是否包含手机号
-pub fn contains_phone(text: &str) -> bool {
-    PHONE_REGEX.is_match(text)
-}
-
-/// 判断字符串是否包含身份证号
-pub fn contains_id_card(text: &str) -> bool {
-    ID_CARD_REGEX.is_match(text)
-}
-
-/// 判断字符串是否包含邮箱
-pub fn contains_email(text: &str) -> bool {
-    EMAIL_REGEX.is_match(text)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -168,14 +153,6 @@ mod tests {
         assert!(masked.contains("138****5678"));
         assert!(masked.contains("1101**********1234"));
         assert!(masked.contains("u***@test.com"));
-    }
-
-    #[test]
-    fn test_contains_helpers() {
-        assert!(contains_phone("电话 13812345678"));
-        assert!(!contains_phone("数字 12345"));
-        assert!(contains_id_card("身份证 110101199001011234"));
-        assert!(contains_email("邮箱 user@test.com"));
     }
 
     #[test]

@@ -129,12 +129,6 @@ impl SlowQueryRecorder {
         }
     }
 
-    /// V15 P2 20.5-B：设置 SQL 文本（用于告警消息中展示）
-    pub fn with_sql_text(mut self, sql: &str) -> Self {
-        self.sql_text = Some(sql.to_string());
-        self
-    }
-
     /// 完成计时；如超过阈值则记录到日志与指标；超过 2 倍阈值时发送告警通知（每小时聚合去重）
     pub fn finish(self) {
         let elapsed = self.start.elapsed();

@@ -440,7 +440,7 @@ impl EventNotificationService {
                             sender_name: Some("系统".to_string()),
                             dedup_key: Some(format!("inventory_alert:{}", product_id)),
                         },
-                        86400, // 24h 去重窗口
+                        crate::services::notification_service::INVENTORY_ALERT_DEDUP_WINDOW_SECS,
                     )
                     .await?;
             }
