@@ -9,7 +9,7 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};
+use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect};
 use serde::Deserialize;
 use std::sync::Arc;
 
@@ -381,6 +381,7 @@ pub async fn export_wage_records(
     auth: AuthContext,
     Query(query): Query<WageRecordListQuery>,
 ) -> Result<axum::response::Response, AppError> {
+    const EXPORT_LIMIT: u64 = 10000;
     let mut q = wage_record::Entity::find().filter(wage_record::Column::IsDeleted.eq(false));
     if let Some(v) = &query.record_no {
         q = q.filter(wage_record::Column::RecordNo.contains(v));
@@ -397,7 +398,7 @@ pub async fn export_wage_records(
     if let Some(v) = query.period_end {
         q = q.filter(wage_record::Column::PeriodEnd.lte(v));
     }
-    q = q.order_by_desc(wage_record::Column::CreatedAt);
+    q = q.order_by_desc(wage_record::Column::CreatedAt).limit(EXPORT_LIMIT);
 
     let records = q.all(&*state.db).await?;
 
@@ -489,10 +490,12 @@ pub async fn export_wage_details(
     Path(id): Path<i32>,
     Query(_q): Query<DetailListQuery>,
 ) -> Result<axum::response::Response, AppError> {
+    const EXPORT_LIMIT: u64 = 10000;
     let items = wage_record_detail::Entity::find()
         .filter(wage_record_detail::Column::WageRecordId.eq(id))
         .filter(wage_record_detail::Column::IsDeleted.eq(false))
         .order_by_desc(wage_record_detail::Column::WageAmount)
+        .limit(EXPORT_LIMIT)
         .all(&*state.db)
         .await?;
 

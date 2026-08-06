@@ -9,7 +9,7 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 use serde::Deserialize;
 use std::sync::Arc;
 
@@ -522,7 +522,7 @@ pub async fn export_energy_consumptions(
     if let Some(v) = &query.recording_method {
         q = q.filter(energy_consumption_record::Column::RecordingMethod.eq(v));
     }
-    q = q.order_by_desc(energy_consumption_record::Column::RecordedAt);
+    q = q.order_by_desc(energy_consumption_record::Column::RecordedAt).limit(10000);
 
     let records = q.all(&*state.db).await?;
     let table = build_energy_consumption_xlsx_table(&records);
@@ -621,9 +621,11 @@ pub async fn export_energy_allocations(
     auth: AuthContext,
     Query(query): Query<AllocationRecordListQuery>,
 ) -> Result<axum::response::Response, AppError> {
+    const EXPORT_LIMIT: u64 = 10000;
     let q = energy_allocation_record::Entity::find()
         .filter(energy_allocation_record::Column::IsDeleted.eq(false))
-        .order_by_desc(energy_allocation_record::Column::CreatedAt);
+        .order_by_desc(energy_allocation_record::Column::CreatedAt)
+        .limit(EXPORT_LIMIT);
 
     let records = q.all(&*state.db).await?;
     let _ = query;

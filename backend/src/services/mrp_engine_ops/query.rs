@@ -5,7 +5,7 @@
 
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};
+use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect};
 
 use crate::models::mrp_result::{Entity as MrpResultEntity, Model as MrpResultModel};
 use crate::models::status::mrp as mrp_status;
@@ -124,6 +124,7 @@ impl MrpEngineService {
 
     /// 导出指定 MRP 计算编号下的所有结果为 xlsx 表格
     pub async fn export_calculation(&self, calculation_id: i32) -> Result<XlsxTable, AppError> {
+        const EXPORT_LIMIT: u64 = 10000;
         // 兼容前端传入 id 形如 "MRP12345" 的计算编号
         let calculation_no = if calculation_id > 0 {
             format!("MRP{}", calculation_id)
@@ -133,6 +134,7 @@ impl MrpEngineService {
 
         // 先按 ID 精确查询
         let results = MrpResultEntity::find_by_id(calculation_id)
+            .limit(EXPORT_LIMIT)
             .all(&*self.db)
             .await?;
 
@@ -141,6 +143,7 @@ impl MrpEngineService {
         } else if !calculation_no.is_empty() {
             MrpResultEntity::find()
                 .filter(crate::models::mrp_result::Column::CalculationNo.eq(&calculation_no))
+                .limit(EXPORT_LIMIT)
                 .all(&*self.db)
                 .await?
         } else {
