@@ -221,7 +221,7 @@ import {
   type AccountSubjectEntity,
 } from '@/api/account-subject';
 import { logger } from '@/utils/logger';
-import { exportToExcel } from '@/utils/export';
+import { exportFromBackend } from '@/utils/export';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -276,16 +276,6 @@ const getCategoryLabel = (category: string) => {
     profit_loss: t('accountSubject.category.profitLoss'),
   };
   return map[category] || category;
-};
-
-const getBalanceTypeLabel = (balanceType: string) => {
-  return balanceType === 'debit'
-    ? t('accountSubject.balanceType.debit')
-    : t('accountSubject.balanceType.credit');
-};
-
-const getStatusLabel = (isEnabled: boolean) => {
-  return isEnabled ? t('accountSubject.status.enabled') : t('accountSubject.status.disabled');
 };
 
 const fetchSubjects = async () => {
@@ -389,45 +379,14 @@ const handleExport = () => {
   type SubjectWithChildren = AccountSubjectEntity & { children?: SubjectWithChildren[] };
   const flatten = (items: SubjectWithChildren[]): AccountSubjectEntity[] => {
     return items.reduce<AccountSubjectEntity[]>((acc, item) => {
-      const { children: _children, ...rest } = item as SubjectWithChildren;
-      void _children;
-      acc.push(rest as AccountSubjectEntity);
+      acc.push(item as AccountSubjectEntity);
       if ((item as SubjectWithChildren).children) {
         acc.push(...flatten((item as SubjectWithChildren).children!));
       }
       return acc;
     }, []);
   };
-  const flat = flatten(subjectList.value as SubjectWithChildren[]);
-  exportToExcel({
-    filename: t('accountSubject.exportFile.filename'),
-    format: 'excel',
-    data: flat.map((s): Record<string, unknown> => ({ ...s })),
-    columns: [
-      { key: 'code', title: t('accountSubject.exportFile.code') },
-      { key: 'name', title: t('accountSubject.exportFile.name') },
-      {
-        key: 'category',
-        title: t('accountSubject.exportFile.category'),
-        formatter: (value: unknown) => getCategoryLabel(String(value)),
-      },
-      {
-        key: 'balance_type',
-        title: t('accountSubject.exportFile.balanceType'),
-        formatter: (value: unknown) => getBalanceTypeLabel(String(value)),
-      },
-      {
-        key: 'level',
-        title: t('accountSubject.exportFile.level'),
-        formatter: (value: unknown) => `L${value}`,
-      },
-      {
-        key: 'is_enabled',
-        title: t('accountSubject.exportFile.status'),
-        formatter: (value: unknown) => getStatusLabel(Boolean(value)),
-      },
-    ],
-  });
+  exportFromBackend('/gl/subjects/export', {}, t('accountSubject.exportFile.filename'));
   logger.info(t('accountSubject.exportedLog'));
 };
 

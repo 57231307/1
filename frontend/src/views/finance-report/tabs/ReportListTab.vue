@@ -159,7 +159,7 @@ import {
   type ReportData,
 } from '@/api/finance-report';
 import { logger } from '@/utils/logger';
-import { exportToExcel } from '@/utils/export';
+import { exportToExcel, exportFromBackend } from '@/utils/export';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -310,6 +310,14 @@ const handlePrint = () => {
 const handleExport = () => {
   if (!reportData.value?.items?.length) {
     ElMessage.warning(t('financeReport.reportListTab.messageGenerateFirst'));
+    return;
+  }
+  if (queryForm.report_type === 'trial_balance') {
+    exportFromBackend(
+      '/finance/reports/trial-balance/export',
+      { period: queryForm.period },
+      `${getReportTypeLabel(queryForm.report_type)}_${queryForm.period}`
+    );
     return;
   }
   const items = reportData.value.items;

@@ -14,7 +14,7 @@ import {
 } from '@/api/finance';
 import { formatMoney, getVchrStatusLabel } from './vchrFmts';
 import { escapeHtml } from '@/utils/print';
-import { exportToExcel } from '@/utils/export';
+import { exportFromBackend } from '@/utils/export';
 
 /**
  * 创建凭证流程操作方法集合
@@ -71,25 +71,7 @@ export function useVchrProc(vouchers: { value: Voucher[] }, fetchVouchers: () =>
 
   /** 导出 Excel（规则 3：禁止 CSV 作为最终交付格式） */
   const handleExportVouchers = () => {
-    exportToExcel({
-      filename: '凭证列表',
-      format: 'excel',
-      data: vouchers.value.map((item): Record<string, unknown> => ({ ...item })),
-      columns: [
-        { key: 'voucher_no', title: '凭证号' },
-        { key: 'voucher_date', title: '凭证日期' },
-        { key: 'voucher_type', title: '凭证类型' },
-        { key: 'total_debit', title: '借方金额' },
-        { key: 'total_credit', title: '贷方金额' },
-        {
-          key: 'status',
-          title: '状态',
-          formatter: (value: unknown) => getVchrStatusLabel(value as Voucher['status']),
-        },
-        { key: 'created_by_name', title: '制单人' },
-        { key: 'created_at', title: '创建时间' },
-      ],
-    });
+    exportFromBackend('/gl/vouchers/export', {}, '凭证列表');
   };
 
   /** 打印当前凭证列表 */

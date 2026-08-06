@@ -208,7 +208,22 @@ async fn dispatch_business_event(
 }
 
 /// 记录简单日志事件（返回 true 表示已处理，无需后续分发）
+/// V15 P0 7.1-1 修复：拆分为子函数降低圈复杂度
 fn log_simple_business_event(db: &Arc<DatabaseConnection>, event: &BusinessEvent) -> bool {
+    if log_payment_inventory_event(event) {
+        return true;
+    }
+    if log_dye_batch_event(db, event) {
+        return true;
+    }
+    if log_wage_outsourcing_event(db, event) {
+        return true;
+    }
+    log_business_mode_event(event)
+}
+
+/// 付款/收款/盘点事件日志
+fn log_payment_inventory_event(event: &BusinessEvent) -> bool {
     match event {
         BusinessEvent::PaymentCompleted { invoice_id, .. } => {
             tracing::info!(
@@ -246,6 +261,13 @@ fn log_simple_business_event(db: &Arc<DatabaseConnection>, event: &BusinessEvent
             );
             true
         }
+        _ => false,
+    }
+}
+
+/// 染色完成事件日志（含工艺优化反馈触发）
+fn log_dye_batch_event(db: &Arc<DatabaseConnection>, event: &BusinessEvent) -> bool {
+    match event {
         BusinessEvent::DyeBatchCompleted {
             batch_id,
             batch_no,
@@ -253,11 +275,16 @@ fn log_simple_business_event(db: &Arc<DatabaseConnection>, event: &BusinessEvent
             ..
         } => {
             tracing::info!(batch_id, batch_no = %batch_no, color_no = ?color_no, "收到染色完成事件，可触发质检单生成/成本结转");
-            // V15 P2 B05-P2-1：染色完成触发工艺优化反馈（异步计算实际工时偏差，失败仅 warn）
             spawn_process_optimization_feedback(db.clone(), *batch_id, batch_no.clone());
             true
         }
-        // V15 Batch04-P1-7：工资事件（凭证已在 wage_service 发布前生成，此处仅记录流转日志）
+        _ => false,
+    }
+}
+
+/// 工资/委外事件日志
+fn log_wage_outsourcing_event(db: &Arc<DatabaseConnection>, event: &BusinessEvent) -> bool {
+    match event {
         BusinessEvent::WageConfirmed {
             wage_record_id,
             record_no,
@@ -271,7 +298,6 @@ fn log_simple_business_event(db: &Arc<DatabaseConnection>, event: &BusinessEvent
                 confirmed_by,
                 "工资已确认（应付工资凭证已由 wage_service 生成），可触发成本归集 direct_labor"
             );
-            // V15 P2 B05-P2-8：工资确认触发人工成本归集（按缸号汇总明细 wage_amount → cost_collection.direct_labor，异步，失败仅 warn）
             spawn_wage_labor_cost_collection(db.clone(), *wage_record_id, record_no.clone());
             true
         }
@@ -290,7 +316,6 @@ fn log_simple_business_event(db: &Arc<DatabaseConnection>, event: &BusinessEvent
             );
             true
         }
-        // V15 Batch04-P1-7：委外加工事件（凭证已在 outsourcing_service 发布前生成）
         BusinessEvent::OutsourcingMaterialIssued {
             order_id,
             order_no,
@@ -357,7 +382,13 @@ fn log_simple_business_event(db: &Arc<DatabaseConnection>, event: &BusinessEvent
             );
             true
         }
-        // V15 Batch04-P1-7：业务模式事件（模式切换/订单关联，下游可触发流程节点校验/库存隔离）
+        _ => false,
+    }
+}
+
+/// 业务模式事件日志
+fn log_business_mode_event(event: &BusinessEvent) -> bool {
+    match event {
         BusinessEvent::BusinessModeChanged {
             mode_id,
             mode_code,

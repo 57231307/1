@@ -213,6 +213,7 @@ pub mod m0103_api_deprecation_fields;
 pub mod m0104_greige_fabric_tracing_fields;
 // V15 P2 缺陷 3.2：拆匹数量之和强校验（original_length/weight）
 pub mod m0105_piece_split_original_length;
+pub mod m0106_batch_dye_lot_unique_constraint;
 
 pub struct Migrator;
 
@@ -330,6 +331,8 @@ impl MigratorTrait for Migrator {
             Box::new(m0104_greige_fabric_tracing_fields::Migration),
             // V15 P2 缺陷 3.2：拆匹数量之和强校验（original_length/weight）
             Box::new(m0105_piece_split_original_length::Migration),
+            // V15 P0 缺陷 1.5-P0：匹号唯一约束修正（batch_no 全局 UNIQUE → (dye_lot_no, batch_no) 组合 UNIQUE）
+            Box::new(m0106_batch_dye_lot_unique_constraint::Migration),
         ]
     }
 }

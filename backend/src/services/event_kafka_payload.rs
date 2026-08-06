@@ -500,28 +500,26 @@ pub mod payload_serde {
         }
     }
 
-    /// 主数据/缺料/染色质量类事件（5 个 variant）转换为 EventPayload
+    /// 主数据/缺料/染色质量类事件转换为 EventPayload（V15 P0 7.1-1 修复：拆分为子函数）
     fn from_other_events(event: &BusinessEvent) -> EventPayload {
-        match event {
-            BusinessEvent::MaterialShortageAlert {
-                material_id,
-                material_name,
-                material_code,
-                required_quantity,
-                available_quantity,
-                shortage_quantity,
-                shortage_level,
-                affected_orders_count,
-            } => EventPayload::MaterialShortageAlert {
-                material_id: *material_id,
-                material_name: material_name.clone(),
-                material_code: material_code.clone(),
-                required_quantity: *required_quantity,
-                available_quantity: *available_quantity,
-                shortage_quantity: *shortage_quantity,
-                shortage_level: shortage_level.clone(),
-                affected_orders_count: *affected_orders_count,
-            },
+        if let Some(p) = from_master_data_events(event) {
+            return p;
+        }
+        if let Some(p) = from_production_events(event) {
+            return p;
+        }
+        if let Some(p) = from_finance_outsourcing_events(event) {
+            return p;
+        }
+        if let Some(p) = from_inventory_business_mode_events(event) {
+            return p;
+        }
+        unreachable!("from_other_events 仅处理主数据/缺料/染色质量类事件")
+    }
+
+    /// 主数据事件：CustomerUpdated / SupplierUpdated / ColorCardIssued
+    fn from_master_data_events(event: &BusinessEvent) -> Option<EventPayload> {
+        Some(match event {
             BusinessEvent::CustomerUpdated {
                 customer_id,
                 customer_name,
@@ -540,6 +538,26 @@ pub mod payload_serde {
                 supplier_name: supplier_name.clone(),
                 user_id: *user_id,
             },
+            BusinessEvent::ColorCardIssued {
+                issue_id,
+                color_card_id,
+                customer_id,
+                issued_by,
+                issued_at,
+            } => EventPayload::ColorCardIssued {
+                issue_id: *issue_id,
+                color_card_id: *color_card_id,
+                customer_id: *customer_id,
+                issued_by: *issued_by,
+                issued_at: *issued_at,
+            },
+            _ => return None,
+        })
+    }
+
+    /// 生产/质检/染色事件
+    fn from_production_events(event: &BusinessEvent) -> Option<EventPayload> {
+        Some(match event {
             BusinessEvent::DyeBatchCompleted {
                 batch_id,
                 batch_no,
@@ -643,19 +661,13 @@ pub mod payload_serde {
                 cost: *cost,
                 recorded_at: *recorded_at,
             },
-            BusinessEvent::ColorCardIssued {
-                issue_id,
-                color_card_id,
-                customer_id,
-                issued_by,
-                issued_at,
-            } => EventPayload::ColorCardIssued {
-                issue_id: *issue_id,
-                color_card_id: *color_card_id,
-                customer_id: *customer_id,
-                issued_by: *issued_by,
-                issued_at: *issued_at,
-            },
+            _ => return None,
+        })
+    }
+
+    /// 工资/委外事件
+    fn from_finance_outsourcing_events(event: &BusinessEvent) -> Option<EventPayload> {
+        Some(match event {
             BusinessEvent::WageConfirmed {
                 wage_record_id,
                 record_no,
@@ -744,6 +756,32 @@ pub mod payload_serde {
                 return_quantity: *return_quantity,
                 voucher_no_receipt: voucher_no_receipt.clone(),
             },
+            _ => return None,
+        })
+    }
+
+    /// 库存/业务模式事件
+    fn from_inventory_business_mode_events(event: &BusinessEvent) -> Option<EventPayload> {
+        Some(match event {
+            BusinessEvent::MaterialShortageAlert {
+                material_id,
+                material_name,
+                material_code,
+                required_quantity,
+                available_quantity,
+                shortage_quantity,
+                shortage_level,
+                affected_orders_count,
+            } => EventPayload::MaterialShortageAlert {
+                material_id: *material_id,
+                material_name: material_name.clone(),
+                material_code: material_code.clone(),
+                required_quantity: *required_quantity,
+                available_quantity: *available_quantity,
+                shortage_quantity: *shortage_quantity,
+                shortage_level: shortage_level.clone(),
+                affected_orders_count: *affected_orders_count,
+            },
             BusinessEvent::BusinessModeChanged {
                 mode_id,
                 mode_code,
@@ -770,8 +808,8 @@ pub mod payload_serde {
                 mode_code: mode_code.clone(),
                 mode_name: mode_name.clone(),
             },
-            _ => unreachable!("from_other_events 仅处理主数据/缺料/染色质量类事件"),
-        }
+            _ => return None,
+        })
     }
 
     impl TryFrom<EventPayload> for BusinessEvent {
@@ -1025,46 +1063,64 @@ pub mod payload_serde {
         })
     }
 
-    /// 主数据/缺料/染色质量类 EventPayload 反向转换为 BusinessEvent
+    /// 主数据/缺料/染色质量类 EventPayload 反向转换为 BusinessEvent（V15 P0 7.1-1 修复：拆分为子函数）
     fn to_other_events(p: EventPayload) -> Result<BusinessEvent, String> {
-        Ok(match p {
-            EventPayload::MaterialShortageAlert {
-                material_id,
-                material_name,
-                material_code,
-                required_quantity,
-                available_quantity,
-                shortage_quantity,
-                shortage_level,
-                affected_orders_count,
-            } => BusinessEvent::MaterialShortageAlert {
-                material_id,
-                material_name,
-                material_code,
-                required_quantity,
-                available_quantity,
-                shortage_quantity,
-                shortage_level,
-                affected_orders_count,
-            },
+        if let Some(e) = to_master_data_events(&p) {
+            return Ok(e);
+        }
+        if let Some(e) = to_production_events(&p) {
+            return Ok(e);
+        }
+        if let Some(e) = to_finance_outsourcing_events(&p) {
+            return Ok(e);
+        }
+        if let Some(e) = to_inventory_business_mode_events(&p) {
+            return Ok(e);
+        }
+        Err("to_other_events 仅处理主数据/缺料/染色质量类 EventPayload".to_string())
+    }
+
+    /// 主数据事件反向转换
+    fn to_master_data_events(p: &EventPayload) -> Option<BusinessEvent> {
+        Some(match p {
             EventPayload::CustomerUpdated {
                 customer_id,
                 customer_name,
                 user_id,
             } => BusinessEvent::CustomerUpdated {
-                customer_id,
-                customer_name,
-                user_id,
+                customer_id: *customer_id,
+                customer_name: customer_name.clone(),
+                user_id: *user_id,
             },
             EventPayload::SupplierUpdated {
                 supplier_id,
                 supplier_name,
                 user_id,
             } => BusinessEvent::SupplierUpdated {
-                supplier_id,
-                supplier_name,
-                user_id,
+                supplier_id: *supplier_id,
+                supplier_name: supplier_name.clone(),
+                user_id: *user_id,
             },
+            EventPayload::ColorCardIssued {
+                issue_id,
+                color_card_id,
+                customer_id,
+                issued_by,
+                issued_at,
+            } => BusinessEvent::ColorCardIssued {
+                issue_id: *issue_id,
+                color_card_id: *color_card_id,
+                customer_id: *customer_id,
+                issued_by: *issued_by,
+                issued_at: *issued_at,
+            },
+            _ => return None,
+        })
+    }
+
+    /// 生产/质检/染色事件反向转换
+    fn to_production_events(p: &EventPayload) -> Option<BusinessEvent> {
+        Some(match p {
             EventPayload::DyeBatchCompleted {
                 batch_id,
                 batch_no,
@@ -1073,12 +1129,12 @@ pub mod payload_serde {
                 planned_quantity,
                 completed_by,
             } => BusinessEvent::DyeBatchCompleted {
-                batch_id,
-                batch_no,
-                color_no,
-                greige_fabric_id,
-                planned_quantity,
-                completed_by,
+                batch_id: *batch_id,
+                batch_no: batch_no.clone(),
+                color_no: color_no.clone(),
+                greige_fabric_id: *greige_fabric_id,
+                planned_quantity: *planned_quantity,
+                completed_by: *completed_by,
             },
             EventPayload::QualityInspectionCompleted {
                 inspection_id,
@@ -1087,11 +1143,11 @@ pub mod payload_serde {
                 result,
                 inspector_id,
             } => BusinessEvent::QualityInspectionCompleted {
-                inspection_id,
-                batch_id,
-                product_id,
-                result,
-                inspector_id,
+                inspection_id: *inspection_id,
+                batch_id: *batch_id,
+                product_id: *product_id,
+                result: result.clone(),
+                inspector_id: *inspector_id,
             },
             EventPayload::ProcessStepReported {
                 step_record_id,
@@ -1102,13 +1158,13 @@ pub mod payload_serde {
                 completed_at,
                 quantity,
             } => BusinessEvent::ProcessStepReported {
-                step_record_id,
-                flow_card_id,
-                route_code,
-                operator_id,
-                started_at,
-                completed_at,
-                quantity,
+                step_record_id: *step_record_id,
+                flow_card_id: *flow_card_id,
+                route_code: route_code.clone(),
+                operator_id: *operator_id,
+                started_at: *started_at,
+                completed_at: *completed_at,
+                quantity: *quantity,
             },
             EventPayload::DyeBatchStatusChanged {
                 batch_id,
@@ -1119,13 +1175,13 @@ pub mod payload_serde {
                 operator_id,
                 transition_at,
             } => BusinessEvent::DyeBatchStatusChanged {
-                batch_id,
-                batch_no,
-                from_status,
-                to_status,
-                transition_code,
-                operator_id,
-                transition_at,
+                batch_id: *batch_id,
+                batch_no: batch_no.clone(),
+                from_status: from_status.clone(),
+                to_status: to_status.clone(),
+                transition_code: transition_code.clone(),
+                operator_id: *operator_id,
+                transition_at: *transition_at,
             },
             EventPayload::FabricInspectionGraded {
                 inspection_id,
@@ -1134,11 +1190,11 @@ pub mod payload_serde {
                 handling_method,
                 inspector_id,
             } => BusinessEvent::FabricInspectionGraded {
-                inspection_id,
-                batch_id,
-                grade,
-                handling_method,
-                inspector_id,
+                inspection_id: *inspection_id,
+                batch_id: *batch_id,
+                grade: grade.clone(),
+                handling_method: handling_method.clone(),
+                inspector_id: *inspector_id,
             },
             EventPayload::ProductionQuantityReported {
                 step_record_id,
@@ -1147,11 +1203,11 @@ pub mod payload_serde {
                 actual_quantity,
                 qualified_quantity,
             } => BusinessEvent::ProductionQuantityReported {
-                step_record_id,
-                flow_card_id,
-                operator_id,
-                actual_quantity,
-                qualified_quantity,
+                step_record_id: *step_record_id,
+                flow_card_id: *flow_card_id,
+                operator_id: *operator_id,
+                actual_quantity: *actual_quantity,
+                qualified_quantity: *qualified_quantity,
             },
             EventPayload::EnergyConsumptionRecorded {
                 record_id,
@@ -1161,36 +1217,30 @@ pub mod payload_serde {
                 cost,
                 recorded_at,
             } => BusinessEvent::EnergyConsumptionRecorded {
-                record_id,
-                workshop,
-                meter_type,
-                consumption,
-                cost,
-                recorded_at,
+                record_id: *record_id,
+                workshop: workshop.clone(),
+                meter_type: meter_type.clone(),
+                consumption: *consumption,
+                cost: *cost,
+                recorded_at: *recorded_at,
             },
-            EventPayload::ColorCardIssued {
-                issue_id,
-                color_card_id,
-                customer_id,
-                issued_by,
-                issued_at,
-            } => BusinessEvent::ColorCardIssued {
-                issue_id,
-                color_card_id,
-                customer_id,
-                issued_by,
-                issued_at,
-            },
+            _ => return None,
+        })
+    }
+
+    /// 工资/委外事件反向转换
+    fn to_finance_outsourcing_events(p: &EventPayload) -> Option<BusinessEvent> {
+        Some(match p {
             EventPayload::WageConfirmed {
                 wage_record_id,
                 record_no,
                 total_amount,
                 confirmed_by,
             } => BusinessEvent::WageConfirmed {
-                wage_record_id,
-                record_no,
-                total_amount,
-                confirmed_by,
+                wage_record_id: *wage_record_id,
+                record_no: record_no.clone(),
+                total_amount: *total_amount,
+                confirmed_by: *confirmed_by,
             },
             EventPayload::WagePaid {
                 wage_record_id,
@@ -1198,10 +1248,10 @@ pub mod payload_serde {
                 total_amount,
                 paid_by,
             } => BusinessEvent::WagePaid {
-                wage_record_id,
-                record_no,
-                total_amount,
-                paid_by,
+                wage_record_id: *wage_record_id,
+                record_no: record_no.clone(),
+                total_amount: *total_amount,
+                paid_by: *paid_by,
             },
             EventPayload::OutsourcingMaterialIssued {
                 order_id,
@@ -1211,12 +1261,12 @@ pub mod payload_serde {
                 issue_quantity,
                 voucher_no_issue,
             } => BusinessEvent::OutsourcingMaterialIssued {
-                order_id,
-                order_no,
-                order_type,
-                supplier_id,
-                issue_quantity,
-                voucher_no_issue,
+                order_id: *order_id,
+                order_no: order_no.clone(),
+                order_type: order_type.clone(),
+                supplier_id: *supplier_id,
+                issue_quantity: *issue_quantity,
+                voucher_no_issue: voucher_no_issue.clone(),
             },
             EventPayload::OutsourcingProcessingRecorded {
                 order_id,
@@ -1224,10 +1274,10 @@ pub mod payload_serde {
                 order_type,
                 supplier_id,
             } => BusinessEvent::OutsourcingProcessingRecorded {
-                order_id,
-                order_no,
-                order_type,
-                supplier_id,
+                order_id: *order_id,
+                order_no: order_no.clone(),
+                order_type: order_type.clone(),
+                supplier_id: *supplier_id,
             },
             EventPayload::OutsourcingOrderSettled {
                 order_id,
@@ -1242,17 +1292,17 @@ pub mod payload_serde {
                 unit_cost,
                 voucher_no_fee,
             } => BusinessEvent::OutsourcingOrderSettled {
-                order_id,
-                order_no,
-                order_type,
-                supplier_id,
-                processing_fee,
-                freight_fee,
-                normal_loss,
-                abnormal_loss,
-                total_cost,
-                unit_cost,
-                voucher_no_fee,
+                order_id: *order_id,
+                order_no: order_no.clone(),
+                order_type: order_type.clone(),
+                supplier_id: *supplier_id,
+                processing_fee: *processing_fee,
+                freight_fee: *freight_fee,
+                normal_loss: *normal_loss,
+                abnormal_loss: *abnormal_loss,
+                total_cost: *total_cost,
+                unit_cost: *unit_cost,
+                voucher_no_fee: voucher_no_fee.clone(),
             },
             EventPayload::OutsourcingOrderCompleted {
                 order_id,
@@ -1262,12 +1312,38 @@ pub mod payload_serde {
                 return_quantity,
                 voucher_no_receipt,
             } => BusinessEvent::OutsourcingOrderCompleted {
-                order_id,
-                order_no,
-                order_type,
-                supplier_id,
-                return_quantity,
-                voucher_no_receipt,
+                order_id: *order_id,
+                order_no: order_no.clone(),
+                order_type: order_type.clone(),
+                supplier_id: *supplier_id,
+                return_quantity: *return_quantity,
+                voucher_no_receipt: voucher_no_receipt.clone(),
+            },
+            _ => return None,
+        })
+    }
+
+    /// 库存/业务模式事件反向转换
+    fn to_inventory_business_mode_events(p: &EventPayload) -> Option<BusinessEvent> {
+        Some(match p {
+            EventPayload::MaterialShortageAlert {
+                material_id,
+                material_name,
+                material_code,
+                required_quantity,
+                available_quantity,
+                shortage_quantity,
+                shortage_level,
+                affected_orders_count,
+            } => BusinessEvent::MaterialShortageAlert {
+                material_id: *material_id,
+                material_name: material_name.clone(),
+                material_code: material_code.clone(),
+                required_quantity: *required_quantity,
+                available_quantity: *available_quantity,
+                shortage_quantity: *shortage_quantity,
+                shortage_level: shortage_level.clone(),
+                affected_orders_count: *affected_orders_count,
             },
             EventPayload::BusinessModeChanged {
                 mode_id,
@@ -1275,10 +1351,10 @@ pub mod payload_serde {
                 mode_name,
                 changed_by,
             } => BusinessEvent::BusinessModeChanged {
-                mode_id,
-                mode_code,
-                mode_name,
-                changed_by,
+                mode_id: *mode_id,
+                mode_code: mode_code.clone(),
+                mode_name: mode_name.clone(),
+                changed_by: *changed_by,
             },
             EventPayload::OrderBusinessModeLinked {
                 document_type,
@@ -1288,16 +1364,14 @@ pub mod payload_serde {
                 mode_code,
                 mode_name,
             } => BusinessEvent::OrderBusinessModeLinked {
-                document_type,
-                document_id,
-                document_no,
-                mode_id,
-                mode_code,
-                mode_name,
+                document_type: document_type.clone(),
+                document_id: *document_id,
+                document_no: document_no.clone(),
+                mode_id: *mode_id,
+                mode_code: mode_code.clone(),
+                mode_name: mode_name.clone(),
             },
-            _ => {
-                return Err("to_other_events 仅处理主数据/缺料/染色质量类 EventPayload".to_string())
-            }
+            _ => return None,
         })
     }
 }
