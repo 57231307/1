@@ -56,7 +56,7 @@ pub struct CreateNotificationRequest {
 const DEDUP_WINDOW_SECS: i64 = 300;
 
 /// V15 P2 缺陷 7.3：库存告警去重窗口（24 小时）
-const INVENTORY_ALERT_DEDUP_WINDOW_SECS: i64 = 86400;
+pub const INVENTORY_ALERT_DEDUP_WINDOW_SECS: i64 = 86400;
 
 /// 通知服务
 pub struct NotificationService {
