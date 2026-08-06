@@ -63,6 +63,14 @@ pub fn routes() -> Router<AppState> {
             "/reminders/send-followups",
             post(bulk_color_approval_handler::send_customer_followup_reminders),
         )
+        .route(
+            "/reminders/check-timeouts",
+            post(bulk_color_approval_handler::check_approval_timeouts),
+        )
+        .route(
+            "/reminders/pending-configurable",
+            get(bulk_color_approval_handler::get_pending_reminders),
+        )
         // 动态路径：/:id 及其子路径
         .route(
             "/:id",

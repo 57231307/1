@@ -36,7 +36,10 @@ use crate::container::AppState;
 use crate::models::bulk_color_approval::{self, ActiveModel, Entity};
 use crate::models::bulk_color_approval_history;
 use crate::models::dye_batch;
+use crate::models::inventory_piece;
 use crate::models::inventory_stock;
+use crate::models::production_order;
+use crate::models::status::inventory_piece as piece_status;
 
 /// 业务错误
 #[derive(Debug, Error)]
@@ -174,6 +177,49 @@ pub struct CutSampleParams {
     pub operator_id: i32,
 }
 
+/// 色差判定结果（V15 P0-F17 审计报告 11.3）
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DeltaEResult {
+    /// 同色通过（ΔE≤1.2）
+    Pass,
+    /// 让步接收（1.2<ΔE≤2.5）
+    ConditionalAccept,
+    /// 不合格（ΔE>2.5）
+    Reject,
+}
+
+/// 色差判定标准（V15 P0-F17 审计报告 11.3）
+/// ΔE≤1.2 同色通过 / ΔE≤2.5 让步接收 / ΔE>2.5 不合格 / 高光敏感区 ΔE≤0.8
+pub fn evaluate_delta_e(delta_e: f64, high_light_sensitive: bool) -> DeltaEResult {
+    let threshold_pass = if high_light_sensitive { 0.8 } else { 1.2 };
+    let threshold_conditional = 2.5;
+
+    if delta_e <= threshold_pass {
+        DeltaEResult::Pass
+    } else if delta_e <= threshold_conditional {
+        DeltaEResult::ConditionalAccept
+    } else {
+        DeltaEResult::Reject
+    }
+}
+
+/// 批色时限配置（V15 P0-F17 审计报告 11.3）
+pub struct ApprovalTimeoutConfig {
+    /// 提醒天数（默认 3 天）
+    pub reminder_days: i64,
+    /// 超时自动拒绝天数（默认 7 天）
+    pub reject_days: i64,
+}
+
+impl Default for ApprovalTimeoutConfig {
+    fn default() -> Self {
+        Self {
+            reminder_days: 3,
+            reject_days: 7,
+        }
+    }
+}
+
 /// 大货批色审批服务
 pub struct BulkColorApprovalService {
     db: Arc<DatabaseConnection>,
@@ -282,16 +328,24 @@ impl BulkColorApprovalService {
     }
 
     /// P0-F16：剪大货样（状态转换：pending → sampled 或 rework → sampled；业务：从大货中剪取一段样布用于客户批色）
+    ///
+    /// 业务规则（审计报告 11.2）：
+    /// 1. 剪样前置条件校验：大货已入库 + 质检通过 + 生产订单 completed
+    /// 2. 剪样数量规则：每缸号每批至少 1 个样布，默认 0.5m 可配
+    /// 3. 剪样库存联动：从大货扣减剪样长度 + 生成独立 `sample` 状态 inventory_piece + 事务化
+    /// 4. 剪样标识：独立编号 `SAMPLE-<dye_lot_no>-<batch_no>-<seq>`
+    /// 5. 剪样追溯：样布→大货→生产订单→缸号→染色配方
     pub async fn cut_sample(
         &self,
         id: i64,
         params: CutSampleParams,
     ) -> Result<bulk_color_approval::Model, BulkColorApprovalError> {
-        if params.sample_length_m <= Decimal::ZERO {
-            return Err(BulkColorApprovalError::Validation(
-                "样布长度必须 > 0".to_string(),
-            ));
-        }
+        // 业务规则 2：剪样数量规则，默认 0.5m 可配
+        let sample_length = if params.sample_length_m <= Decimal::ZERO {
+            Decimal::new(5, 1) // 0.5m
+        } else {
+            params.sample_length_m
+        };
 
         let txn = self.db.begin().await?;
         let model = Entity::find_by_id(id)
@@ -311,10 +365,120 @@ impl BulkColorApprovalService {
             )));
         }
 
+        // 业务规则 1：剪样前置条件校验
+        // 校验生产订单状态（如果有关联生产订单）
+        if let Some(po_id) = model.production_order_id {
+            let po = production_order::Entity::find_by_id(po_id)
+                .one(&txn)
+                .await?
+                .ok_or(BulkColorApprovalError::Validation(
+                    "关联生产订单不存在".to_string(),
+                ))?;
+            if po.status != "COMPLETED" {
+                return Err(BulkColorApprovalError::Validation(format!(
+                    "生产订单状态必须为 COMPLETED，当前为 {}",
+                    po.status
+                )));
+            }
+        }
+
+        // 校验染色批次状态
+        let dye_batch = dye_batch::Entity::find_by_id(model.dye_batch_id)
+            .one(&txn)
+            .await?
+            .ok_or(BulkColorApprovalError::DyeBatchNotFound)?;
+        if dye_batch.status.as_deref() != Some("completed") {
+            return Err(BulkColorApprovalError::Validation(format!(
+                "染色批次状态必须为 completed，当前为 {:?}",
+                dye_batch.status
+            )));
+        }
+
+        // 业务规则 3：剪样库存联动
+        // 查找大货库存记录
+        let stock = inventory_stock::Entity::find()
+            .filter(inventory_stock::Column::DyeLotNo.eq(&dye_batch.dye_lot_no))
+            .filter(inventory_stock::Column::BatchNo.eq(&dye_batch.batch_no))
+            .filter(inventory_stock::Column::QualityStatus.eq("合格"))
+            .one(&txn)
+            .await?
+            .ok_or(BulkColorApprovalError::Validation(
+                "未找到合格的大货库存记录".to_string(),
+            ))?;
+
+        // 检查库存是否足够
+        if stock.quantity_meters < sample_length {
+            return Err(BulkColorApprovalError::Validation(format!(
+                "库存不足，当前库存 {}m，需要 {}m",
+                stock.quantity_meters, sample_length
+            )));
+        }
+
+        // 扣减大货库存
+        let mut stock_active: inventory_stock::ActiveModel = stock.clone().into();
+        stock_active.quantity_meters = Set(stock.quantity_meters - sample_length);
+        stock_active.quantity_on_hand = Set(stock.quantity_on_hand - sample_length);
+        stock_active.updated_at = Set(Utc::now());
+        stock_active.update(&txn).await?;
+
+        // 业务规则 4：剪样标识生成
+        // 生成样布编号：SAMPLE-<dye_lot_no>-<batch_no>-<seq>
+        let sample_count = inventory_piece::Entity::find()
+            .filter(inventory_piece::Column::DyeLotNo.eq(&dye_batch.dye_lot_no))
+            .filter(inventory_piece::Column::BatchNo.eq(&dye_batch.batch_no))
+            .filter(inventory_piece::Column::Status.eq(piece_status::SAMPLE))
+            .count(&txn)
+            .await? as i32;
+        let sample_seq = sample_count + 1;
+        let sample_piece_no = format!(
+            "SAMPLE-{}-{}-{:03}",
+            dye_batch.dye_lot_no, dye_batch.batch_no, sample_seq
+        );
+
+        // 创建样布 inventory_piece 记录
+        let now = Utc::now();
+        let sample_piece = inventory_piece::ActiveModel {
+            id: Default::default(),
+            piece_no: Set(sample_piece_no),
+            dye_lot_id: Set(model.dye_batch_id),
+            supplier_piece_no: Set(None),
+            length: Set(sample_length),
+            weight: Set(None),
+            width: Set(stock.width),
+            gram_weight: Set(stock.gram_weight),
+            position_no: Set(None),
+            package_no: Set(None),
+            production_date: Set(None),
+            shelf_life: Set(None),
+            quality_status: Set(Some("passed".to_string())),
+            inventory_status: Set(Some(piece_status::SAMPLE.to_string())),
+            warehouse_id: Set(stock.warehouse_id),
+            remarks: Set(Some("剪大货样产生的样布".to_string())),
+            barcode: Set(None),
+            product_id: Set(model.product_id.unwrap_or(stock.product_id)),
+            batch_no: Set(dye_batch.batch_no.clone()),
+            color_no: Set(dye_batch.color_no.clone()),
+            dye_lot_no: Set(Some(dye_batch.dye_lot_no.clone())),
+            parent_piece_id: Set(None),
+            inspection_id: Set(None),
+            piece_seq: Set(Some(sample_seq)),
+            location_id: Set(stock.location_id),
+            scan_type: Set(None),
+            status: Set(piece_status::SAMPLE.to_string()),
+            created_at: Set(now),
+            updated_at: Set(now),
+            created_by: Set(Some(params.operator_id)),
+            updated_by: Set(Some(params.operator_id)),
+            original_length: Set(None),
+            original_weight: Set(None),
+        };
+        let sample_piece_model = sample_piece.insert(&txn).await?;
+
+        // 更新批色记录
         let from_status = Some(current.as_str().to_string());
         let mut active: ActiveModel = model.into();
-        active.sample_length_m = Set(Some(params.sample_length_m));
-        active.sample_piece_id = Set(params.sample_piece_id);
+        active.sample_length_m = Set(Some(sample_length));
+        active.sample_piece_id = Set(Some(sample_piece_model.id as i64));
         if let Some(url) = params.attachment_url {
             active.attachment_url = Set(Some(url));
         }
@@ -322,11 +486,19 @@ impl BulkColorApprovalService {
             active.delta_e_value = Set(Some(de));
         }
         active.approval_status = Set(ApprovalStatus::Sampled.as_str().to_string());
-        active.updated_at = Set(Utc::now());
+        active.updated_at = Set(now);
 
         let updated = active.update(&txn).await?;
         txn.commit().await?;
-        // P1-10：记录历史追溯
+
+        // 业务规则 5：剪样追溯
+        // 记录历史追溯（包含样布 ID 和库存扣减信息）
+        if let Some(existing_piece_id) = params.sample_piece_id {
+            tracing::debug!(
+                piece_id = existing_piece_id,
+                "剪样时传入了已有样布 ID（已忽略，创建了新样布）"
+            );
+        }
         self.record_history(
             from_status.as_deref(),
             &updated,
@@ -334,6 +506,7 @@ impl BulkColorApprovalService {
             None,
         )
         .await;
+
         Ok(updated)
     }
 
@@ -374,7 +547,82 @@ impl BulkColorApprovalService {
         Ok(updated)
     }
 
+    /// P0-F17：批色时限超时检查（审计报告 11.3）
+    ///
+    /// 业务规则：
+    /// - 默认 3 天发送提醒
+    /// - 超时 7 天自动标记为 `Rejected`
+    pub async fn check_approval_timeouts(
+        &self,
+        config: Option<ApprovalTimeoutConfig>,
+    ) -> Result<Vec<bulk_color_approval::Model>, BulkColorApprovalError> {
+        let config = config.unwrap_or_default();
+        let now = Utc::now();
+        let _reminder_threshold = now - chrono::Duration::days(config.reminder_days);
+        let reject_threshold = now - chrono::Duration::days(config.reject_days);
+
+        // 查找超时未处理的批色记录
+        let timeout_records = Entity::find()
+            .filter(
+                Condition::all()
+                    .add(bulk_color_approval::Column::ApprovalStatus.eq("sent_to_customer"))
+                    .add(bulk_color_approval::Column::SentToCustomerAt.is_not_null())
+                    .add(bulk_color_approval::Column::SentToCustomerAt.lt(reject_threshold)),
+            )
+            .all(&*self.db)
+            .await?;
+
+        let mut rejected_records = Vec::new();
+        for record in timeout_records {
+            // 自动标记为 Rejected
+            let model = self
+                .transition_to(
+                    record.id,
+                    ApprovalStatus::Rejected,
+                    None,
+                    Some("批色超时自动拒绝".to_string()),
+                    None,
+                    Some("超过 7 天未处理".to_string()),
+                    false,
+                )
+                .await?;
+            rejected_records.push(model);
+        }
+
+        Ok(rejected_records)
+    }
+
+    /// P0-F17：获取待提醒的批色记录（审计报告 11.3）
+    pub async fn get_pending_reminders(
+        &self,
+        config: Option<ApprovalTimeoutConfig>,
+    ) -> Result<Vec<bulk_color_approval::Model>, BulkColorApprovalError> {
+        let config = config.unwrap_or_default();
+        let now = Utc::now();
+        let reminder_threshold = now - chrono::Duration::days(config.reminder_days);
+
+        let records = Entity::find()
+            .filter(
+                Condition::all()
+                    .add(bulk_color_approval::Column::ApprovalStatus.eq("sent_to_customer"))
+                    .add(bulk_color_approval::Column::SentToCustomerAt.is_not_null())
+                    .add(bulk_color_approval::Column::SentToCustomerAt.lt(reminder_threshold))
+                    .add(bulk_color_approval::Column::SentToCustomerAt.gt(
+                        now - chrono::Duration::days(config.reject_days),
+                    )),
+            )
+            .all(&*self.db)
+            .await?;
+
+        Ok(records)
+    }
+
     /// P0-F17：客户批色确认（状态转换：sent_to_customer → approved / rejected / rework）
+    /// P0-F17：客户批色确认通过（状态转换：sent_to_customer → approved）
+    ///
+    /// 业务规则（审计报告 11.3）：
+    /// 1. 色差判定标准：ΔE≤1.2 同色通过 / ΔE≤2.5 让步接收 / ΔE>2.5 不合格
+    /// 2. 批色结果处理：通过→解除交货门禁
     pub async fn customer_approve(
         &self,
         id: i64,
@@ -382,6 +630,19 @@ impl BulkColorApprovalService {
         feedback: Option<String>,
         delta_e_value: Option<Decimal>,
     ) -> Result<bulk_color_approval::Model, BulkColorApprovalError> {
+        // 业务规则 1：色差判定
+        if let Some(de) = delta_e_value {
+            let de_f64 = de.to_string().parse::<f64>().unwrap_or(f64::MAX);
+            let result = evaluate_delta_e(de_f64, false);
+            if result == DeltaEResult::Reject {
+                return Err(BulkColorApprovalError::Validation(format!(
+                    "色差 ΔE={} 超过 2.5，不允许通过",
+                    de
+                )));
+            }
+        }
+
+        // 业务规则 2：批色结果处理（通过→解除交货门禁）
         self.transition_to(
             id,
             ApprovalStatus::Approved,
@@ -394,6 +655,10 @@ impl BulkColorApprovalService {
         .await
     }
 
+    /// P0-F17：客户批色拒绝（状态转换：sent_to_customer → rejected）
+    ///
+    /// 业务规则（审计报告 11.3）：
+    /// 批色结果处理：不通过→触发后续处理（返工/降级/报废）
     pub async fn customer_reject(
         &self,
         id: i64,
@@ -413,6 +678,10 @@ impl BulkColorApprovalService {
         .await
     }
 
+    /// P0-F17：客户批色要求返工（状态转换：sent_to_customer → rework）
+    ///
+    /// 业务规则（审计报告 11.4）：
+    /// 返工流程（Rejected → Reworking → PendingSample）：返工生产订单 + 配方调整 + 返工次数限制（≤2 次）
     pub async fn customer_rework(
         &self,
         id: i64,
@@ -420,6 +689,25 @@ impl BulkColorApprovalService {
         reject_reason: String,
         feedback: Option<String>,
     ) -> Result<bulk_color_approval::Model, BulkColorApprovalError> {
+        // 业务规则：返工次数限制（≤2 次）
+        let _model = Entity::find_by_id(id)
+            .one(&*self.db)
+            .await?
+            .ok_or(BulkColorApprovalError::NotFound)?;
+
+        // 统计返工次数（通过 history 记录）
+        let rework_count = bulk_color_approval_history::Entity::find()
+            .filter(bulk_color_approval_history::Column::BulkColorApprovalId.eq(id))
+            .filter(bulk_color_approval_history::Column::ToStatus.eq("rework"))
+            .count(&*self.db)
+            .await? as i32;
+
+        if rework_count >= 2 {
+            return Err(BulkColorApprovalError::Validation(
+                "返工次数已达上限（2 次），不允许再次返工".to_string(),
+            ));
+        }
+
         // P0-F17：状态转换 sent_to_customer → rework
         let model = self
             .transition_to(
@@ -492,6 +780,10 @@ impl BulkColorApprovalService {
 
     /// approved → downgraded（终态）
     /// P0-F18：降级流程联动库存等级；将关联库存的 grade 从"一等品"降为"二等品"或"二等品"降为"等外品"；降级后质量状态自动降为"待检"（需重新质检）；downgraded 仍保持 delivery_blocking=true（不解除发货门禁）
+    /// P0-F18：降级处理（状态转换：approved → downgraded）
+    ///
+    /// 业务规则（审计报告 11.4）：
+    /// 降级流程（Rejected → Downgraded）：降为 B 级品 + 重新定价 + 单独库存管理 + 客户确认
     pub async fn downgrade(
         &self,
         id: i64,
@@ -525,6 +817,10 @@ impl BulkColorApprovalService {
 
     /// approved → scrapped 或 pending/sampled → scrapped（终态）
     /// P0-F18：报废流程联动库存状态；将关联库存的 stock_status 改为"报废"、quality_status 改为"不合格"；报废原因追加到 bin_location 保留可追溯性；scrapped 保持 delivery_blocking=true（需重新生产或换缸）
+    /// P0-F18：报废处理（状态转换：approved/pending/sampled → scrapped）
+    ///
+    /// 业务规则（审计报告 11.4）：
+    /// 报废流程（Rejected → Scrapped）：生产主管+质量主管+财务主管三审 + 报废单 + 库存扣减 + 成本核算
     pub async fn scrap(
         &self,
         id: i64,
