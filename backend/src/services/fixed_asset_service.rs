@@ -1321,6 +1321,34 @@ impl FixedAssetService {
         reason: String,
         user_id: i32,
     ) -> Result<depreciation_policy_change::Model, AppError> {
+        self.create_depreciation_policy_change_inner(
+            asset_id,
+            change_date,
+            &old_method,
+            &new_method,
+            old_useful_life,
+            new_useful_life,
+            old_salvage_rate,
+            new_salvage_rate,
+            &reason,
+            user_id,
+        )
+        .await
+    }
+
+    async fn create_depreciation_policy_change_inner(
+        &self,
+        asset_id: i32,
+        change_date: NaiveDate,
+        old_method: &str,
+        new_method: &str,
+        old_useful_life: Option<i32>,
+        new_useful_life: Option<i32>,
+        old_salvage_rate: Option<Decimal>,
+        new_salvage_rate: Option<Decimal>,
+        reason: &str,
+        user_id: i32,
+    ) -> Result<depreciation_policy_change::Model, AppError> {
         info!(
             "用户 {} 正在创建折旧政策变更：asset_id={}",
             user_id, asset_id
@@ -1329,13 +1357,13 @@ impl FixedAssetService {
         let active = depreciation_policy_change::ActiveModel {
             asset_id: Set(asset_id),
             change_date: Set(change_date),
-            old_method: Set(old_method),
-            new_method: Set(new_method),
+            old_method: Set(old_method.to_string()),
+            new_method: Set(new_method.to_string()),
             old_useful_life: Set(old_useful_life),
             new_useful_life: Set(new_useful_life),
             old_salvage_rate: Set(old_salvage_rate),
             new_salvage_rate: Set(new_salvage_rate),
-            reason: Set(reason),
+            reason: Set(reason.to_string()),
             status: Set("pending".to_string()),
             created_by: Set(user_id),
             ..Default::default()
