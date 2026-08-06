@@ -9,7 +9,7 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 use serde::Deserialize;
 use std::sync::Arc;
 

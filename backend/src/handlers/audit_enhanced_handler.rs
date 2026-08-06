@@ -129,7 +129,7 @@ pub async fn export_audit_logs(
     auth: AuthContext,
     Query(_query): Query<AuditLogQuery>,
 ) -> Result<Json<ApiResponse<ExportResult>>, AppError> {
-    use sea_orm::{EntityTrait, QueryOrder};
+    use sea_orm::{EntityTrait, QueryOrder, QuerySelect};
 
     const EXPORT_LIMIT: u64 = 10000;
     let logs = audit_log::Entity::find()
