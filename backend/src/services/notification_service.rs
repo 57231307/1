@@ -158,7 +158,7 @@ impl NotificationService {
     ) -> Result<notification::Model, AppError> {
         if let Some(key) = req.dedup_key.as_deref() {
             if self.check_dedup_window(req.user_id, key, window_secs).await? {
-                return Err(AppError::validation(&format!(
+                return Err(AppError::validation(format!(
                     "通知去重：{} 秒窗口内已存在相同 dedup_key",
                     window_secs
                 )));
