@@ -493,6 +493,12 @@ impl BulkColorApprovalService {
 
         // 业务规则 5：剪样追溯
         // 记录历史追溯（包含样布 ID 和库存扣减信息）
+        if let Some(existing_piece_id) = params.sample_piece_id {
+            tracing::debug!(
+                piece_id = existing_piece_id,
+                "剪样时传入了已有样布 ID（已忽略，创建了新样布）"
+            );
+        }
         self.record_history(
             from_status.as_deref(),
             &updated,
@@ -552,7 +558,7 @@ impl BulkColorApprovalService {
     ) -> Result<Vec<bulk_color_approval::Model>, BulkColorApprovalError> {
         let config = config.unwrap_or_default();
         let now = Utc::now();
-        let reminder_threshold = now - chrono::Duration::days(config.reminder_days);
+        let _reminder_threshold = now - chrono::Duration::days(config.reminder_days);
         let reject_threshold = now - chrono::Duration::days(config.reject_days);
 
         // 查找超时未处理的批色记录
@@ -684,7 +690,7 @@ impl BulkColorApprovalService {
         feedback: Option<String>,
     ) -> Result<bulk_color_approval::Model, BulkColorApprovalError> {
         // 业务规则：返工次数限制（≤2 次）
-        let model = Entity::find_by_id(id)
+        let _model = Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or(BulkColorApprovalError::NotFound)?;

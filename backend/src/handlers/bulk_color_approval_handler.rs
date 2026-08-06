@@ -29,8 +29,9 @@ use crate::middleware::auth_context::AuthContext;
 use crate::models::bulk_color_approval;
 use crate::models::bulk_color_approval_history;
 use crate::services::bulk_color_approval_service::{
-    ApprovalReportRow, ApprovalStatistics, BulkColorApprovalError, BulkColorApprovalService,
-    CreateBulkColorApprovalParams, CutSampleParams, ListBulkColorApprovalQuery,
+    ApprovalReportRow, ApprovalStatistics, ApprovalTimeoutConfig, BulkColorApprovalError,
+    BulkColorApprovalService, CreateBulkColorApprovalParams, CutSampleParams,
+    ListBulkColorApprovalQuery,
 };
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -487,6 +488,53 @@ pub async fn send_customer_followup_reminders(
         sent_count,
         threshold_hours,
     })))
+}
+
+/// 超时检查请求 DTO
+#[derive(Debug, Deserialize)]
+pub struct TimeoutCheckQuery {
+    /// 提醒天数（默认 3 天）
+    pub reminder_days: Option<i64>,
+    /// 超时自动拒绝天数（默认 7 天）
+    pub reject_days: Option<i64>,
+}
+
+/// POST /api/v1/erp/bulk-color-approvals/reminders/check-timeouts - 检查超时并自动拒绝
+pub async fn check_approval_timeouts(
+    _auth: AuthContext,
+    State(state): State<AppState>,
+    Query(query): Query<TimeoutCheckQuery>,
+) -> Result<Json<ApiResponse<Vec<BulkColorApprovalInfo>>>, AppError> {
+    let service = BulkColorApprovalService::from_state(&state);
+    let config = ApprovalTimeoutConfig {
+        reminder_days: query.reminder_days.unwrap_or(3),
+        reject_days: query.reject_days.unwrap_or(7),
+    };
+    let records = service
+        .check_approval_timeouts(Some(config))
+        .await
+        .map_err(bca_err)?;
+    let infos: Vec<BulkColorApprovalInfo> = records.into_iter().map(Into::into).collect();
+    Ok(Json(ApiResponse::success(infos)))
+}
+
+/// GET /api/v1/erp/bulk-color-approvals/reminders/pending-configurable - 基于配置的待提醒列表
+pub async fn get_pending_reminders(
+    _auth: AuthContext,
+    State(state): State<AppState>,
+    Query(query): Query<TimeoutCheckQuery>,
+) -> Result<Json<ApiResponse<Vec<BulkColorApprovalInfo>>>, AppError> {
+    let service = BulkColorApprovalService::from_state(&state);
+    let config = ApprovalTimeoutConfig {
+        reminder_days: query.reminder_days.unwrap_or(3),
+        reject_days: query.reject_days.unwrap_or(7),
+    };
+    let records = service
+        .get_pending_reminders(Some(config))
+        .await
+        .map_err(bca_err)?;
+    let infos: Vec<BulkColorApprovalInfo> = records.into_iter().map(Into::into).collect();
+    Ok(Json(ApiResponse::success(infos)))
 }
 
 /// GET /api/v1/erp/bulk-color-approvals/report - 批色报表（按客户/产品/时间段统计通过率）
