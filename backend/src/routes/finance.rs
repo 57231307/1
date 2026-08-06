@@ -224,6 +224,11 @@ pub fn gl() -> Router<AppState> {
             post(voucher_handler::review_voucher),
         )
         .route("/vouchers/:id/post", post(voucher_handler::post_voucher))
+        // V15 修复（A0）：会计凭证打印，返回 docx 成品（规则 3 合规）
+        .route(
+            "/vouchers/:id/print",
+            get(crate::handlers::print_handler::voucher_print_docx),
+        )
         // V15 P0 5-1 修复：凭证导出
         .route("/vouchers/export", get(voucher_handler::export_vouchers))
 }

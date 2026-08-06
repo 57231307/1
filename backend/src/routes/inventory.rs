@@ -125,7 +125,7 @@ fn transfer_routes() -> Router<AppState> {
         )
         .route(
             "/transfers/:id/print",
-            get(print_handler::inventory_transfer_print_html),
+            get(print_handler::inventory_transfer_print_docx),
         )
 }
 

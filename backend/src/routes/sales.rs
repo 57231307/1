@@ -70,7 +70,7 @@ fn sales_order_delivery_report_routes() -> Router<AppState> {
         )
         .route(
             "/orders/:id/print",
-            get(print_handler::sales_order_print_html),
+            get(print_handler::sales_order_print_docx),
         )
         .route("/orders/export", get(sales_order_handler::export_orders))
         .route(
@@ -168,7 +168,7 @@ pub fn sales_contracts() -> Router<AppState> {
         )
         .route(
             "/sales-contracts/:id/print",
-            get(print_handler::sales_contract_print_html),
+            get(print_handler::sales_contract_print_docx),
         )
 }
 

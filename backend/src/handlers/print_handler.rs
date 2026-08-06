@@ -11,18 +11,19 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
     extract::{Path, State},
-    response::Html,
+    response::Response,
 };
 
-async fn render_print_html(
+async fn render_print_docx(
     state: &AppState,
     doc_type: &str,
     doc_id: i32,
-) -> Result<Html<String>, AppError> {
+) -> Result<Response, AppError> {
     let service = PrintService::new(state.db.clone());
     let print_data = service.get_print_data(doc_type, doc_id).await?;
-    let html = service.generate_pdf(&print_data)?;
-    Ok(Html(html))
+    let bytes = service.generate_docx(&print_data)?;
+    let filename = format!("{}_{}", doc_type, doc_id);
+    Ok(crate::utils::docx_export::docx_response(bytes, &filename))
 }
 
 /// V15 P1-1-5：异步记录打印操作审计（best-effort，不阻塞响应）
@@ -34,7 +35,7 @@ fn record_print_audit(state: &AppState, auth: &AuthContext, doc_type: &str, doc_
         severity: Severity::Info,
         resource_type: Some(doc_type.to_string()),
         resource_id: Some(doc_id.to_string()),
-        resource_name: Some(format!("{}_print.html", doc_type)),
+        resource_name: Some(format!("{}_print.docx", doc_type)),
         description: Some(format!(
             "用户 {} 打印 {} #{}",
             auth.username, doc_type, doc_id
@@ -45,61 +46,72 @@ fn record_print_audit(state: &AppState, auth: &AuthContext, doc_type: &str, doc_
         after_snapshot: Some(serde_json::json!({
             "doc_type": doc_type,
             "doc_id": doc_id,
-            "format": "html",
+            "format": "docx",
         })),
     };
     let svc = Arc::new(AuditLogService::new(state.db.clone()));
     svc.record_async(event, None);
 }
 
-pub async fn sales_order_print_html(
+pub async fn sales_order_print_docx(
     Path(doc_id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Html<String>, AppError> {
-    let html = render_print_html(&state, "sales_order", doc_id).await?;
+) -> Result<Response, AppError> {
+    let resp = render_print_docx(&state, "sales_order", doc_id).await?;
     record_print_audit(&state, &auth, "sales_order", doc_id);
-    Ok(html)
+    Ok(resp)
 }
 
-pub async fn sales_contract_print_html(
+pub async fn sales_contract_print_docx(
     Path(doc_id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Html<String>, AppError> {
-    let html = render_print_html(&state, "sales_contract", doc_id).await?;
+) -> Result<Response, AppError> {
+    let resp = render_print_docx(&state, "sales_contract", doc_id).await?;
     record_print_audit(&state, &auth, "sales_contract", doc_id);
-    Ok(html)
+    Ok(resp)
 }
 
-pub async fn purchase_order_print_html(
+pub async fn purchase_order_print_docx(
     Path(doc_id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Html<String>, AppError> {
-    let html = render_print_html(&state, "purchase_order", doc_id).await?;
+) -> Result<Response, AppError> {
+    let resp = render_print_docx(&state, "purchase_order", doc_id).await?;
     record_print_audit(&state, &auth, "purchase_order", doc_id);
-    Ok(html)
+    Ok(resp)
 }
 
-pub async fn purchase_receipt_print_html(
+pub async fn purchase_receipt_print_docx(
     Path(doc_id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Html<String>, AppError> {
-    let html = render_print_html(&state, "purchase_receipt", doc_id).await?;
+) -> Result<Response, AppError> {
+    let resp = render_print_docx(&state, "purchase_receipt", doc_id).await?;
     record_print_audit(&state, &auth, "purchase_receipt", doc_id);
-    Ok(html)
+    Ok(resp)
 }
 
-pub async fn inventory_transfer_print_html(
+pub async fn inventory_transfer_print_docx(
     Path(doc_id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Html<String>, AppError> {
-    let html = render_print_html(&state, "inventory_transfer", doc_id).await?;
+) -> Result<Response, AppError> {
+    let resp = render_print_docx(&state, "inventory_transfer", doc_id).await?;
     record_print_audit(&state, &auth, "inventory_transfer", doc_id);
-    Ok(html)
+    Ok(resp)
+}
+
+/// 会计凭证打印（docx 成品，规则 3 合规）；service 数据层与模板已就绪，A0 补路由接入
+pub async fn voucher_print_docx(
+    Path(doc_id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Response, AppError> {
+    let resp = render_print_docx(&state, "voucher", doc_id).await?;
+    record_print_audit(&state, &auth, "voucher", doc_id);
+    Ok(resp)
 }
 
 /// 打印模板列表响应
@@ -114,7 +126,7 @@ pub struct PrintTemplateDto {
 }
 
 /// 批次 126 v8 复审 P2 修复：系统内置打印模板静态列表；设计说明：打印模板为系统内置（对应 PrintService 支持的 6 种单据类型）， 不需要动态 CRUD 管理
-/// 模板内容字段为简短描述（实际渲染逻辑在 PrintService.generate_pdf）。 若未来需支持用户自定义模板，可新增 print_templates 表 + model + service。
+/// 模板内容字段为简短描述（实际渲染逻辑在 PrintService.generate_docx）。 若未来需支持用户自定义模板，可新增 print_templates 表 + model + service。
 fn builtin_print_templates() -> Vec<PrintTemplateDto> {
     vec![
         PrintTemplateDto {

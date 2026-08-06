@@ -12,15 +12,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-/// HTML 实体转义：将用户提供的数据安全嵌入 HTML，（防止 XSS（跨站脚本攻击）。；转义字符参考 OWASP 推荐：& < > " '）
-fn escape_html(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&#x27;")
-}
-
 /// 打印数据类型
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PrintData {
@@ -871,51 +862,8 @@ impl PrintService {
         })
     }
 
-    /// 生成 HTML
-    pub fn generate_pdf(&self, print_data: &PrintData) -> Result<String, AppError> {
-        let html = format!(
-            r#"<!DOCTYPE html>
-<html>
-<head><title>打印单据 - {}</title>
-<style>body{{font-family:Arial,sans-serif;padding:20px}}h1{{color:#333}}table{{border-collapse:collapse;width:100%}}th,td{{border:1px solid #ddd;padding:8px}}</style>
-</head>
-<body>
-<h1>{}</h1>
-<p>打印时间：{}</p>
-<table>
-<tr><th>字段</th><th>值</th></tr>
-{}
-</table>
-<p>明细数量：{}</p>
-</body>
-</html>"#,
-            print_data.template,
-            print_data.template,
-            chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-            print_data
-                .data
-                .iter()
-                .map(|(k, v)| {
-                    // 将 JSON Value 转为字符串后做 HTML 转义，防止 XSS
-                    let v_str = match v {
-                        serde_json::Value::String(s) => s.clone(),
-                        _ => v.to_string(),
-                    };
-                    format!(
-                        "<tr><td>{}</td><td>{}</td></tr>",
-                        escape_html(k),
-                        escape_html(&v_str)
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join("\n"),
-            print_data.items.len()
-        );
-        Ok(html)
-    }
-
     /// V15 P1 batch-08 缺陷 8：生成 docx 字节流（规则 3 强制要求合同/发票/报表支持 .docx）
-    /// 将 PrintData 转为 Word 文档（标题 + 主表键值对 + 明细表格），；替代原 generate_pdf 实际生成 HTML 的误导实现。
+    /// 将 PrintData 转为 Word 文档（标题 + 主表键值对 + 明细表格）。
     pub fn generate_docx(&self, print_data: &PrintData) -> Result<Vec<u8>, AppError> {
         let title = match print_data.template.as_str() {
             "sales_order" => "销售订单",
