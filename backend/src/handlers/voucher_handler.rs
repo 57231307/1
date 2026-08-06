@@ -381,8 +381,8 @@ pub async fn export_vouchers(
     let query_params = VoucherQueryParams {
         voucher_type: params.voucher_type,
         status: params.status,
-        start_date: params.start_date,
-        end_date: params.end_date,
+        start_date: params.start_date.and_then(|d| d.parse().ok()),
+        end_date: params.end_date.and_then(|d| d.parse().ok()),
         batch_no: params.batch_no,
         color_no: params.color_no,
         page: None,
