@@ -111,6 +111,11 @@ fn finance_report_routes() -> Router<AppState> {
             "/reports/trial-balance",
             get(finance_report_handler::get_trial_balance),
         )
+        // V15 P0 5-1 修复：试算平衡表导出
+        .route(
+            "/reports/trial-balance/export",
+            get(finance_report_handler::export_trial_balance),
+        )
         .route(
             "/reports/general-ledger/:code",
             get(finance_report_handler::get_general_ledger),
@@ -167,6 +172,11 @@ pub fn gl() -> Router<AppState> {
             "/subjects/:id/refresh-balance",
             post(account_subject_handler::refresh_subject_balance),
         )
+        // V15 P0 5-1 修复：会计科目导出
+        .route(
+            "/subjects/export",
+            get(account_subject_handler::export_subjects),
+        )
         .route("/vouchers/types", get(voucher_handler::get_voucher_types))
         .route(
             "/vouchers/generate-no",
@@ -189,6 +199,8 @@ pub fn gl() -> Router<AppState> {
             post(voucher_handler::review_voucher),
         )
         .route("/vouchers/:id/post", post(voucher_handler::post_voucher))
+        // V15 P0 5-1 修复：凭证导出
+        .route("/vouchers/export", get(voucher_handler::export_vouchers))
 }
 
 /// 固定资产路由（path 前缀 /fixed-assets）

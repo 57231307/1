@@ -17,6 +17,7 @@ use crate::services::account_subject_service::{
 };
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
+use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
 
 /// 查询参数
 #[derive(Debug, Deserialize)]
@@ -232,4 +233,51 @@ pub async fn refresh_subject_balance(
         subject,
         "科目余额刷新成功",
     )))
+}
+
+/// V15 P0 5-1 修复：导出会计科目为 xlsx
+pub async fn export_subjects(
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<axum::response::Response, AppError> {
+    info!("用户 {} 导出会计科目", auth.username);
+
+    let service = AccountSubjectService::new(state.db.clone());
+    let subjects = service
+        .get_list(SubjectQueryParams {
+            level: None,
+            parent_id: None,
+            status: None,
+            keyword: None,
+        })
+        .await?;
+
+    let headers = vec![
+        "科目编码".to_string(),
+        "科目名称".to_string(),
+        "余额方向".to_string(),
+        "科目层级".to_string(),
+        "状态".to_string(),
+    ];
+
+    let rows: Vec<Vec<String>> = subjects
+        .iter()
+        .map(|s| {
+            vec![
+                s.code.clone(),
+                s.name.clone(),
+                s.balance_direction.clone().unwrap_or_default(),
+                s.level.to_string(),
+                s.status.clone(),
+            ]
+        })
+        .collect();
+
+    let table = XlsxTable {
+        sheet_name: "会计科目".to_string(),
+        headers,
+        rows,
+    };
+
+    build_xlsx_response(&table, "account_subjects_export")
 }

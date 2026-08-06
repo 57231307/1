@@ -12,6 +12,7 @@ use crate::services::finance_report_service::{
 };
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
+use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
 
 #[derive(Debug, Deserialize)]
 pub struct DateRangeQuery {
@@ -218,4 +219,49 @@ pub async fn drill_down_report(
         }
     };
     Ok(Json(ApiResponse::success(details)))
+}
+
+/// V15 P0 5-1 修复：导出试算平衡表为 xlsx
+pub async fn export_trial_balance(
+    State(state): State<AppState>,
+    Query(query): Query<PeriodQuery>,
+) -> Result<axum::response::Response, AppError> {
+    let service = FinanceReportService::new(state.db.clone());
+    let trial_balance = service.get_trial_balance(query.period).await?;
+
+    let headers = vec![
+        "科目编码".to_string(),
+        "科目名称".to_string(),
+        "期初借方".to_string(),
+        "期初贷方".to_string(),
+        "本期借方".to_string(),
+        "本期贷方".to_string(),
+        "期末借方".to_string(),
+        "期末贷方".to_string(),
+    ];
+
+    let rows: Vec<Vec<String>> = trial_balance
+        .entries
+        .iter()
+        .map(|item| {
+            vec![
+                item.subject_code.clone(),
+                item.subject_name.clone(),
+                item.initial_debit.to_string(),
+                item.initial_credit.to_string(),
+                item.period_debit.to_string(),
+                item.period_credit.to_string(),
+                item.ending_debit.to_string(),
+                item.ending_credit.to_string(),
+            ]
+        })
+        .collect();
+
+    let table = XlsxTable {
+        sheet_name: "试算平衡表".to_string(),
+        headers,
+        rows,
+    };
+
+    build_xlsx_response(&table, "trial_balance_export")
 }

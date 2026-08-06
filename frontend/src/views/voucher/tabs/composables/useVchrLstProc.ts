@@ -15,7 +15,7 @@ import {
   type VoucherEntity,
 } from '@/api/voucher';
 import { getStatusLabel, getTypeLabel } from './vchrLstFmts';
-import { exportToExcel } from '@/utils/export';
+import { exportFromBackend } from '@/utils/export';
 
 /** 接收的列表数据（支持 ref 和 plain value） */
 type ContractListLike = { value: VoucherEntity[] } | VoucherEntity[];
@@ -58,33 +58,7 @@ export function useVchrLstProc(tableData: ContractListLike, loadData: () => Prom
 
   /** 导出 Excel（规则 3：禁止 CSV 作为最终交付格式） */
   const handleExport = () => {
-    const list = getList();
-    exportToExcel({
-      filename: '会计凭证',
-      format: 'excel',
-      data: list.map((item): Record<string, unknown> => ({ ...item })),
-      columns: [
-        { key: 'voucher_no', title: '凭证号' },
-        { key: 'voucher_date', title: '日期' },
-        {
-          key: 'type',
-          title: '类型',
-          formatter: (value: unknown) => getTypeLabel(value as VoucherEntity['type']),
-        },
-        {
-          key: 'description',
-          title: '摘要',
-          formatter: (value: unknown) => (value ? String(value) : '-'),
-        },
-        { key: 'total_debit', title: '借方金额' },
-        { key: 'total_credit', title: '贷方金额' },
-        {
-          key: 'status',
-          title: '状态',
-          formatter: (value: unknown) => getStatusLabel(value as VoucherEntity['status']),
-        },
-      ],
-    });
+    exportFromBackend('/gl/vouchers/export', {}, '会计凭证');
   };
 
   /** 删除凭证 */

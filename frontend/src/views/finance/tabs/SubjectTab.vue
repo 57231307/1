@@ -207,7 +207,7 @@ import {
   deleteSubject as deleteSubjectApi,
   type AccountSubject,
 } from '@/api/finance';
-import { exportToExcel } from '@/utils/export';
+import { exportFromBackend } from '@/utils/export';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -359,33 +359,7 @@ const handlePrintSubjects = () => {
 };
 
 const handleExportSubjects = () => {
-  exportToExcel({
-    filename: t('finance.subjectTab.exportFilename'),
-    format: 'excel',
-    data: subjects.value.map((item): Record<string, unknown> => ({ ...item })),
-    columns: [
-      { key: 'code', title: t('finance.subjectTab.exportColCode') },
-      { key: 'name', title: t('finance.subjectTab.exportColName') },
-      {
-        key: 'category',
-        title: t('finance.subjectTab.exportColCategory'),
-        formatter: (value: unknown) => getCategoryLabel(String(value)),
-      },
-      {
-        key: 'direction',
-        title: t('finance.subjectTab.exportColDirection'),
-        formatter: (value: unknown) =>
-          value === 'debit'
-            ? t('finance.subjectTab.directionDebit')
-            : t('finance.subjectTab.directionCredit'),
-      },
-      {
-        key: 'level',
-        title: t('finance.subjectTab.exportColLevel'),
-        formatter: (value: unknown) => `L${value}`,
-      },
-    ],
-  });
+  exportFromBackend('/gl/subjects/export', {}, t('finance.subjectTab.exportFilename'));
 };
 
 onMounted(() => {

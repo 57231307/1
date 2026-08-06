@@ -15,8 +15,7 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
 
-    /// 批次号
-    #[sea_orm(unique)]
+    /// 批次号（V15 P0 1.5-P0 修复：移除单字段 UNIQUE，改为 (dye_lot_no, batch_no) 组合唯一约束）
     pub batch_no: String,
 
     /// 产品 ID（外键）

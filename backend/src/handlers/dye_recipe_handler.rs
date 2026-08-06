@@ -212,7 +212,9 @@ pub async fn export_dye_recipes(
     build_xlsx_response(&table, "dye_recipes_export")
 }
 
-/// 按查询条件构建导用配方查询（全量不分页）
+/// 按查询条件构建导出配方查询（V15 P0 9-2 修复：添加上限限制防止 OOM）
+const EXPORT_LIMIT: u64 = 10_000;
+
 async fn query_dye_recipes_for_export(
     db: &std::sync::Arc<sea_orm::DatabaseConnection>,
     query: &DyeRecipeListQuery,
@@ -233,8 +235,9 @@ async fn query_dye_recipes_for_export(
     if let Some(status) = &query.status {
         q = q.filter(dye_recipe::Column::Status.eq(status));
     }
-    q = q.order_by_desc(dye_recipe::Column::CreatedAt);
-    // ConnectionTrait 为 DatabaseConnection 实现，需 db.as_ref() 解引用 Arc
+    q = q
+        .order_by_desc(dye_recipe::Column::CreatedAt)
+        .limit(EXPORT_LIMIT);
     Ok(q.all(db.as_ref()).await?)
 }
 

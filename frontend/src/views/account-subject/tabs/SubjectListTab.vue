@@ -221,7 +221,7 @@ import {
   type AccountSubjectEntity,
 } from '@/api/account-subject';
 import { logger } from '@/utils/logger';
-import { exportToExcel } from '@/utils/export';
+import { exportFromBackend } from '@/utils/export';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -399,35 +399,7 @@ const handleExport = () => {
     }, []);
   };
   const flat = flatten(subjectList.value as SubjectWithChildren[]);
-  exportToExcel({
-    filename: t('accountSubject.exportFile.filename'),
-    format: 'excel',
-    data: flat.map((s): Record<string, unknown> => ({ ...s })),
-    columns: [
-      { key: 'code', title: t('accountSubject.exportFile.code') },
-      { key: 'name', title: t('accountSubject.exportFile.name') },
-      {
-        key: 'category',
-        title: t('accountSubject.exportFile.category'),
-        formatter: (value: unknown) => getCategoryLabel(String(value)),
-      },
-      {
-        key: 'balance_type',
-        title: t('accountSubject.exportFile.balanceType'),
-        formatter: (value: unknown) => getBalanceTypeLabel(String(value)),
-      },
-      {
-        key: 'level',
-        title: t('accountSubject.exportFile.level'),
-        formatter: (value: unknown) => `L${value}`,
-      },
-      {
-        key: 'is_enabled',
-        title: t('accountSubject.exportFile.status'),
-        formatter: (value: unknown) => getStatusLabel(Boolean(value)),
-      },
-    ],
-  });
+  exportFromBackend('/gl/subjects/export', {}, t('accountSubject.exportFile.filename'));
   logger.info(t('accountSubject.exportedLog'));
 };
 

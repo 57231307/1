@@ -18,6 +18,7 @@ use crate::services::voucher_service::{
 };
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
+use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
 use rust_decimal::Decimal;
 
 /// 查询参数
@@ -366,4 +367,58 @@ pub async fn delete_voucher(
     info!("用户 {} 删除凭证成功", auth.username);
 
     Ok(Json(ApiResponse::success_with_message((), "凭证删除成功")))
+}
+
+/// V15 P0 5-1 修复：导出凭证列表为 xlsx
+pub async fn export_vouchers(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(params): Query<VoucherQuery>,
+) -> Result<axum::response::Response, AppError> {
+    info!("用户 {} 导出凭证列表", auth.username);
+
+    let service = VoucherService::new(state.db.clone());
+    let query_params = VoucherQueryParams {
+        voucher_type: params.voucher_type,
+        status: params.status,
+        start_date: params.start_date,
+        end_date: params.end_date,
+        batch_no: params.batch_no,
+        color_no: params.color_no,
+        page: None,
+        page_size: None,
+    };
+
+    let (vouchers, _total) = service.get_list(query_params).await?;
+
+    let headers = vec![
+        "凭证号".to_string(),
+        "凭证日期".to_string(),
+        "凭证类型".to_string(),
+        "状态".to_string(),
+        "制单人ID".to_string(),
+        "创建时间".to_string(),
+    ];
+
+    let rows: Vec<Vec<String>> = vouchers
+        .iter()
+        .map(|v| {
+            vec![
+                v.voucher_no.clone(),
+                v.voucher_date.to_string(),
+                v.voucher_type.clone(),
+                v.status.clone(),
+                v.created_by.to_string(),
+                v.created_at.to_string(),
+            ]
+        })
+        .collect();
+
+    let table = XlsxTable {
+        sheet_name: "凭证列表".to_string(),
+        headers,
+        rows,
+    };
+
+    build_xlsx_response(&table, "vouchers_export")
 }
