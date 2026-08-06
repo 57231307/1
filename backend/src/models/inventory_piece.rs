@@ -111,6 +111,14 @@ pub struct Model {
 
     /// 更新人 ID
     pub updated_by: Option<i32>,
+
+    // ========== V15 P2 缺陷 3.2：拆匹数量之和强校验 ==========
+    /// 拆分前原始长度（米），NULL 表示未拆分过的原始匹
+    /// 用于校验：parent.remaining_length + sum(children.length) = original_length
+    pub original_length: Option<Decimal>,
+
+    /// 拆分前原始重量（千克），NULL 表示未拆分过的原始匹
+    pub original_weight: Option<Decimal>,
 }
 
 /// 库存匹数关联关系

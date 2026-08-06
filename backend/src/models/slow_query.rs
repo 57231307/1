@@ -136,6 +136,9 @@ mod tests {
             rows_examined: 1024,
             database_name: Some("bingxi_erp".to_string()),
             captured_at: captured,
+            optimization_status: None,
+            assigned_to: None,
+            jira_ticket: None,
         };
         let dto: SlowQueryDto = m.into();
         assert_eq!(dto.id, 100);
@@ -160,6 +163,9 @@ mod tests {
             rows_examined: 1,
             database_name: None,
             captured_at: "2026-06-18T10:00:00+00:00".to_string(),
+            optimization_status: None,
+            assigned_to: None,
+            jira_ticket: None,
         };
         let json = serde_json::to_string(&dto).expect("序列化应成功");
         assert!(json.contains("\"id\":1"));

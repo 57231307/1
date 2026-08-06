@@ -209,6 +209,10 @@ pub mod m0101_crm_opp_pool_enhancements;
 pub mod m0102_crm_data_permission_clv;
 // V15 P2 20.7-B：API 向后兼容性 / deprecation 标注
 pub mod m0103_api_deprecation_fields;
+// V15 P2 21.3：胚布批次追溯字段补齐（dye_lot_no/color_no）
+pub mod m0104_greige_fabric_tracing_fields;
+// V15 P2 缺陷 3.2：拆匹数量之和强校验（original_length/weight）
+pub mod m0105_piece_split_original_length;
 
 pub struct Migrator;
 
@@ -322,6 +326,10 @@ impl MigratorTrait for Migrator {
             Box::new(m0102_crm_data_permission_clv::Migration),
             // V15 P2 20.7-B：API 向后兼容性 / deprecation 标注
             Box::new(m0103_api_deprecation_fields::Migration),
+            // V15 P2 21.3：胚布批次追溯字段补齐（dye_lot_no/color_no）
+            Box::new(m0104_greige_fabric_tracing_fields::Migration),
+            // V15 P2 缺陷 3.2：拆匹数量之和强校验（original_length/weight）
+            Box::new(m0105_piece_split_original_length::Migration),
         ]
     }
 }

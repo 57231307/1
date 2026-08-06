@@ -1,7 +1,7 @@
 use axum::{extract::State, Json};
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, EntityTrait, Set, TransactionTrait};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
 use serde::{Deserialize, Serialize};
 
 use crate::container::AppState;
@@ -44,13 +44,39 @@ pub async fn split_fabric_piece(
 
     validate_parent_piece(&parent, req.cut_length)?;
 
-    // 2. 更新母卷剩余长度与重量
-    let updated_parent = update_parent_piece(&parent, req.cut_length, req.cut_weight, &txn).await?;
+    // V15 P2 缺陷 3.2：确定原始长度（首次拆分时记录，后续复用）
+    let original_length = parent.original_length.unwrap_or(parent.length + req.cut_length);
+    let original_weight = match (parent.original_weight, parent.weight, req.cut_weight) {
+        (Some(ow), _, _) => Some(ow),
+        (None, Some(pw), Some(cw)) => Some(pw + cw),
+        _ => None,
+    };
+
+    // 2. 更新母卷剩余长度与重量 + 记录原始值
+    let updated_parent = update_parent_piece(
+        &parent,
+        req.cut_length,
+        req.cut_weight,
+        original_length,
+        original_weight,
+        &txn,
+    )
+    .await?;
 
     // 3. 生成新布卷 (子卷)
     let new_piece_no = generate_piece_no(&parent, &req.new_barcode);
-    let new_piece = build_new_piece(&parent, req.cut_length, req.cut_weight, new_piece_no);
+    let new_piece = build_new_piece(
+        &parent,
+        req.cut_length,
+        req.cut_weight,
+        new_piece_no,
+        original_length,
+        original_weight,
+    );
     let inserted_piece = new_piece.insert(&txn).await?;
+
+    // V15 P2 缺陷 3.2：校验 remaining + sum(children) = original
+    validate_split_consistency(&updated_parent, original_length, &txn).await?;
 
     txn.commit().await?;
 
@@ -85,6 +111,8 @@ async fn update_parent_piece(
     parent: &inventory_piece::Model,
     cut_length: Decimal,
     cut_weight: Option<Decimal>,
+    original_length: Decimal,
+    original_weight: Option<Decimal>,
     txn: &sea_orm::DatabaseTransaction,
 ) -> Result<inventory_piece::Model, AppError> {
     let mut active_parent: inventory_piece::ActiveModel = parent.clone().into();
@@ -101,8 +129,35 @@ async fn update_parent_piece(
             ));
         }
     }
+    // V15 P2 缺陷 3.2：记录原始长度/重量（首次拆分时写入）
+    active_parent.original_length = Set(Some(original_length));
+    active_parent.original_weight = Set(original_weight);
     active_parent.updated_at = Set(Utc::now());
     Ok(active_parent.update(txn).await?)
+}
+
+/// V15 P2 缺陷 3.2：校验拆匹一致性
+/// 母卷剩余长度 + 所有子卷长度之和 = 原始长度
+async fn validate_split_consistency(
+    parent: &inventory_piece::Model,
+    original_length: Decimal,
+    txn: &sea_orm::DatabaseTransaction,
+) -> Result<(), AppError> {
+    let children: Vec<inventory_piece::Model> = inventory_piece::Entity::find()
+        .filter(inventory_piece::Column::ParentPieceId.eq(parent.id))
+        .all(txn)
+        .await?;
+
+    let children_total: Decimal = children.iter().map(|c| c.length).sum();
+    let computed_original = parent.length + children_total;
+
+    if computed_original != original_length {
+        return Err(AppError::bad_request(format!(
+            "拆匹一致性校验失败：母卷剩余 ({}) + 子卷总长 ({}) = {}，原始长度为 {}",
+            parent.length, children_total, computed_original, original_length
+        )));
+    }
+    Ok(())
 }
 
 /// 生成新布卷编号（优先使用请求中的条码，否则自动生成）
@@ -124,6 +179,8 @@ fn build_new_piece(
     cut_length: Decimal,
     cut_weight: Option<Decimal>,
     new_piece_no: String,
+    original_length: Decimal,
+    original_weight: Option<Decimal>,
 ) -> inventory_piece::ActiveModel {
     inventory_piece::ActiveModel {
         id: sea_orm::ActiveValue::NotSet,
@@ -162,5 +219,8 @@ fn build_new_piece(
         // v14 批次 426：新增的 nullable 字段，拆分产生的新布卷不设置验布关联字段
         inspection_id: sea_orm::ActiveValue::NotSet,
         piece_seq: sea_orm::ActiveValue::NotSet,
+        // V15 P2 缺陷 3.2：子卷继承母卷的原始长度/重量
+        original_length: Set(Some(original_length)),
+        original_weight: Set(original_weight),
     }
 }

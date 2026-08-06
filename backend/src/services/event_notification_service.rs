@@ -421,23 +421,27 @@ impl EventNotificationService {
                 .unwrap_or((false, true));
 
             if should_internal {
+                // V15 P2 缺陷 7.3：库存告警使用 24h 去重窗口（避免告警轰炸）
                 self.notification_service
-                    .create_notification(CreateNotificationRequest {
-                        user_id,
-                        notification_type: NotificationType::Internal,
-                        title: "库存预警".to_string(),
-                        content: format!(
-                            "产品 '{}' 当前库存 {}，已低于预警阈值 {}",
-                            product_name, current_stock, threshold
-                        ),
-                        priority: NotificationPriority::Urgent,
-                        business_type: Some("INVENTORY".to_string()),
-                        business_id: Some(product_id),
-                        action_url: Some(format!("/inventory/stock/{}", product_id)),
-                        sender_id: None,
-                        sender_name: Some("系统".to_string()),
-                        dedup_key: Some(format!("inventory_alert:{}", product_id)),
-                    })
+                    .create_notification_with_window(
+                        CreateNotificationRequest {
+                            user_id,
+                            notification_type: NotificationType::Internal,
+                            title: "库存预警".to_string(),
+                            content: format!(
+                                "产品 '{}' 当前库存 {}，已低于预警阈值 {}",
+                                product_name, current_stock, threshold
+                            ),
+                            priority: NotificationPriority::Urgent,
+                            business_type: Some("INVENTORY".to_string()),
+                            business_id: Some(product_id),
+                            action_url: Some(format!("/inventory/stock/{}", product_id)),
+                            sender_id: None,
+                            sender_name: Some("系统".to_string()),
+                            dedup_key: Some(format!("inventory_alert:{}", product_id)),
+                        },
+                        crate::services::notification_service::INVENTORY_ALERT_DEDUP_WINDOW_SECS,
+                    )
                     .await?;
             }
 
@@ -467,23 +471,27 @@ impl EventNotificationService {
             UserNotificationSettingService::should_send_internal_from_setting(setting, "INVENTORY");
 
         if should_internal {
+            // V15 P2 缺陷 7.3：库存告警使用 24h 去重窗口
             self.notification_service
-                .create_notification(CreateNotificationRequest {
-                    user_id,
-                    notification_type: NotificationType::Internal,
-                    title: "库存预警".to_string(),
-                    content: format!(
-                        "产品 '{}' 当前库存 {}，已低于预警阈值 {}",
-                        product_name, current_stock, threshold
-                    ),
-                    priority: NotificationPriority::Urgent,
-                    business_type: Some("INVENTORY".to_string()),
-                    business_id: Some(product_id),
-                    action_url: Some(format!("/inventory/stock/{}", product_id)),
-                    sender_id: None,
-                    sender_name: Some("系统".to_string()),
-                    dedup_key: None,
-                })
+                .create_notification_with_window(
+                    CreateNotificationRequest {
+                        user_id,
+                        notification_type: NotificationType::Internal,
+                        title: "库存预警".to_string(),
+                        content: format!(
+                            "产品 '{}' 当前库存 {}，已低于预警阈值 {}",
+                            product_name, current_stock, threshold
+                        ),
+                        priority: NotificationPriority::Urgent,
+                        business_type: Some("INVENTORY".to_string()),
+                        business_id: Some(product_id),
+                        action_url: Some(format!("/inventory/stock/{}", product_id)),
+                        sender_id: None,
+                        sender_name: Some("系统".to_string()),
+                        dedup_key: Some(format!("inventory_alert:{}", product_id)),
+                    },
+                    86400, // 24h 去重窗口
+                )
                 .await?;
         }
 

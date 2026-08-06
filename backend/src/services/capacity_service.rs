@@ -208,7 +208,109 @@ impl CapacityService {
         }
         // 按负荷率降序排列
         results.sort_by_key(|b| std::cmp::Reverse(b.load_rate));
+
+        // V15 P2 缺陷 10.2：负荷 > 80% 自动告警
+        let high_load_items: Vec<&CapacityLoadItem> = results
+            .iter()
+            .filter(|r| r.load_rate > Decimal::from(80))
+            .collect();
+        if !high_load_items.is_empty() {
+            if let Err(e) = self.notify_high_load_alerts(&high_load_items).await {
+                tracing::warn!(
+                    error = %e,
+                    high_load_count = high_load_items.len(),
+                    "缺陷 10.2：负荷告警通知推送失败（不阻断查询，降级为 warn）"
+                );
+            }
+        }
+
         Ok(results)
+    }
+
+    /// V15 P2 缺陷 10.2：负荷 > 80% 自动告警通知
+    /// 策略：对 HIGH/OVERLOADED 工作中心，调用 EventNotificationService
+    /// 推送站内信给计划员/admin/manager，24h 去重防止告警轰炸。
+    async fn notify_high_load_alerts(
+        &self,
+        high_load_items: &[&CapacityLoadItem],
+    ) -> Result<(), AppError> {
+        use crate::models::role::{self, Column as RoleColumn};
+        use crate::models::user::{self, Column as UserColumn};
+        use sea_orm::QueryFilter;
+
+        let Some(notify_svc) = &self.notification_service else {
+            return Ok(());
+        };
+
+        // 通知目标：planner（计划员）+ admin/manager 兜底
+        let target_role_ids: Vec<i32> = role::Entity::find()
+            .filter(
+                RoleColumn::Code
+                    .eq("admin")
+                    .or(RoleColumn::Code.eq("manager"))
+                    .or(RoleColumn::Code.eq("planner")),
+            )
+            .all(&*self.db)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|r| r.id)
+            .collect();
+        if target_role_ids.is_empty() {
+            tracing::warn!("缺陷 10.2：未找到 planner/admin/manager 角色用户，跳过负荷告警");
+            return Ok(());
+        }
+        let notify_user_ids: Vec<i32> = user::Entity::find()
+            .filter(UserColumn::IsActive.eq(true))
+            .filter(UserColumn::RoleId.is_in(target_role_ids))
+            .all(&*self.db)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|u| u.id)
+            .collect();
+        if notify_user_ids.is_empty() {
+            return Ok(());
+        }
+
+        for item in high_load_items {
+            let status_label = if item.status == "OVERLOADED" {
+                "超载"
+            } else {
+                "高负荷"
+            };
+            let title = format!(
+                "工作中心 {} 负荷告警（{}%，{}）",
+                item.work_center_name, item.load_rate, status_label
+            );
+            let current_stock = format!(
+                "计划 {} + 进行中 {} = 总需求 {}",
+                item.planned_quantity, item.in_progress_quantity, item.total_demand
+            );
+            let threshold = format!("日产能 {} {}", item.daily_capacity, item.capacity_unit.as_deref().unwrap_or(""));
+            if let Err(e) = notify_svc
+                .notify_inventory_alert_batch(
+                    &notify_user_ids,
+                    &title,
+                    item.work_center_id,
+                    &current_stock,
+                    &threshold,
+                )
+                .await
+            {
+                tracing::warn!(
+                    error = %e,
+                    wc_id = item.work_center_id,
+                    "缺陷 10.2：单工作中心负荷告警通知失败（继续后续项）"
+                );
+            }
+        }
+
+        tracing::info!(
+            high_load_count = high_load_items.len(),
+            "缺陷 10.2：负荷告警通知已推送"
+        );
+        Ok(())
     }
 
     /// 查询活动工作中心（可选按 ID 过滤）

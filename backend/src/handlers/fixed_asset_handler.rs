@@ -4,7 +4,7 @@ use crate::models::audit_log::{OperationType, Severity};
 use crate::models::fixed_asset;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::fixed_asset_service::{
-    CreateAssetRequest, DepreciationResult, DisposalRequest, FixedAssetService,
+    CreateAssetRequest, DepreciationPolicyChangeRequest, DepreciationResult, DisposalRequest, FixedAssetService,
 };
 use crate::utils::error::AppError;
 use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
@@ -554,16 +554,18 @@ pub async fn create_depreciation_policy_change(
     let service = FixedAssetService::new(state.db.clone());
     let change = service
         .create_depreciation_policy_change(
-            req.asset_id,
-            req.change_date,
-            req.old_method,
-            req.new_method,
-            req.old_useful_life,
-            req.new_useful_life,
-            req.old_salvage_rate,
-            req.new_salvage_rate,
-            req.reason,
-            auth.user_id,
+            DepreciationPolicyChangeRequest {
+                asset_id: req.asset_id,
+                change_date: req.change_date,
+                old_method: req.old_method,
+                new_method: req.new_method,
+                old_useful_life: req.old_useful_life,
+                new_useful_life: req.new_useful_life,
+                old_salvage_rate: req.old_salvage_rate,
+                new_salvage_rate: req.new_salvage_rate,
+                reason: req.reason,
+                user_id: auth.user_id,
+            },
         )
         .await?;
     Ok(Json(serde_json::json!({

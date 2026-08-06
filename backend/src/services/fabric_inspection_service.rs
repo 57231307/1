@@ -660,6 +660,9 @@ impl FabricInspectionService {
             dye_lot_no: Set(model.dye_lot_no.clone()),
             inspection_id: Set(Some(inspection_id)),
             piece_seq: Set(Some(next_seq)),
+            // 验布打卷产生的新匹无需拆匹原始字段
+            original_length: sea_orm::ActiveValue::NotSet,
+            original_weight: sea_orm::ActiveValue::NotSet,
         }
     }
 

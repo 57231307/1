@@ -29,6 +29,21 @@ pub struct AssetQueryParams {
     pub page_size: i64,
 }
 
+/// V15 P1 17.8-D6：折旧政策变更请求参数
+#[derive(Debug, Clone)]
+pub struct DepreciationPolicyChangeRequest {
+    pub asset_id: i32,
+    pub change_date: NaiveDate,
+    pub old_method: String,
+    pub new_method: String,
+    pub old_useful_life: Option<i32>,
+    pub new_useful_life: Option<i32>,
+    pub old_salvage_rate: Option<Decimal>,
+    pub new_salvage_rate: Option<Decimal>,
+    pub reason: String,
+    pub user_id: i32,
+}
+
 /// 创建资产请求
 #[derive(Debug, Clone)]
 pub struct CreateAssetRequest {
@@ -1310,34 +1325,33 @@ impl FixedAssetService {
     /// V15 P1 17.8-D6：创建折旧政策变更
     pub async fn create_depreciation_policy_change(
         &self,
-        asset_id: i32,
-        change_date: NaiveDate,
-        old_method: String,
-        new_method: String,
-        old_useful_life: Option<i32>,
-        new_useful_life: Option<i32>,
-        old_salvage_rate: Option<Decimal>,
-        new_salvage_rate: Option<Decimal>,
-        reason: String,
-        user_id: i32,
+        req: DepreciationPolicyChangeRequest,
+    ) -> Result<depreciation_policy_change::Model, AppError> {
+        self.create_depreciation_policy_change_inner(req)
+            .await
+    }
+
+    async fn create_depreciation_policy_change_inner(
+        &self,
+        req: DepreciationPolicyChangeRequest,
     ) -> Result<depreciation_policy_change::Model, AppError> {
         info!(
             "用户 {} 正在创建折旧政策变更：asset_id={}",
-            user_id, asset_id
+            req.user_id, req.asset_id
         );
 
         let active = depreciation_policy_change::ActiveModel {
-            asset_id: Set(asset_id),
-            change_date: Set(change_date),
-            old_method: Set(old_method),
-            new_method: Set(new_method),
-            old_useful_life: Set(old_useful_life),
-            new_useful_life: Set(new_useful_life),
-            old_salvage_rate: Set(old_salvage_rate),
-            new_salvage_rate: Set(new_salvage_rate),
-            reason: Set(reason),
+            asset_id: Set(req.asset_id),
+            change_date: Set(req.change_date),
+            old_method: Set(req.old_method),
+            new_method: Set(req.new_method),
+            old_useful_life: Set(req.old_useful_life),
+            new_useful_life: Set(req.new_useful_life),
+            old_salvage_rate: Set(req.old_salvage_rate),
+            new_salvage_rate: Set(req.new_salvage_rate),
+            reason: Set(req.reason),
             status: Set("pending".to_string()),
-            created_by: Set(user_id),
+            created_by: Set(req.user_id),
             ..Default::default()
         };
 
