@@ -37,6 +37,24 @@ check_root() {
     fi
 }
 
+# V15 P2 25.1-B 修复：部署前检查端口冲突
+check_ports() {
+    local port=8082
+    local pid
+    pid=$(ss -tlnp | grep ":${port} " | grep -oP 'pid=\K[0-9]+' | head -1)
+    if [ -n "$pid" ]; then
+        local proc_name
+        proc_name=$(ps -p "$pid" -o comm= 2>/dev/null || echo "unknown")
+        # 允许 bingxi 自身进程占用（升级时会被 stop_old_services 杀死）
+        if [[ "$proc_name" == *"bingxi"* ]] || [[ "$proc_name" == *"server"* ]]; then
+            warn "端口 $port 被 bingxi 进程 (PID: $pid) 占用，将由 stop_old_services 处理"
+            return 0
+        fi
+        error "端口 $port 被其他进程占用 (PID: $pid, 进程: $proc_name)，请先释放端口"
+    fi
+    log "端口 $port 检查通过"
+}
+
 # 停止所有旧服务
 stop_old_services() {
     log "停止旧服务..."
@@ -852,6 +870,7 @@ main() {
     exec > >(tee -a "$DEPLOY_LOG_DIR/deploy-$(date +%Y%m%d-%H%M%S).log") 2>&1
 
     check_root
+    check_ports
 
     echo ""
     echo "=========================================="

@@ -272,18 +272,6 @@ X-CSRF-Token: <csrf_token>
 | POST | `/execute` | 执行报表查询 |
 | GET | `/export/{format}` | 导出报表 (PDF/Excel) |
 
-### 多租户管理 (`/api/v1/erp/tenants`)
-
-| 方法 | 路径 | 描述 |
-|------|------|------|
-| GET | `/` | 获取租户列表 |
-| POST | `/` | 创建租户 |
-| GET | `/{id}` | 获取租户详情 |
-| PUT | `/{id}` | 更新租户 |
-| GET | `/{id}/config` | 获取租户配置 |
-| PUT | `/{id}/config` | 更新租户配置 |
-| GET | `/{id}/usage` | 获取使用统计 |
-
 ## 请求/响应格式
 
 ### 标准响应格式

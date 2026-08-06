@@ -1090,6 +1090,60 @@ V15 审计计划第 7068 行合理性评估："当前存在代码残留（teleme
 
 ---
 
+## V15 P2 Batch-21 代码核查结果（2026-08-06）
+
+深入代码核查后，25 个 P2 项实际状态如下：
+
+### 已实现/已清理（7 项，可跳过）
+
+| 缺陷编号 | 描述 | 核查结果 | 证据 |
+|---------|------|---------|------|
+| 25.1-C | 缺少部署日志持久化 | **已实现** | `deploy.sh:850-852` 已有 `exec > >(tee -a "$DEPLOY_LOG_DIR/deploy-$(date +%Y%m%d-%H%M%S).log") 2>&1`，注释标注"V15 P2 25.1-C 修复" |
+| 25.1-E | 缺少部署后业务健康检查 | **已实现** | `deploy.sh:461-466` 的 `health_check()` 已增强为核验 `"status":"healthy"` + `"database":{"status":"healthy"}`，注释标注"V15 P2 25.1-E 修复" |
+| 25.4-C | 无滚动部署能力 | **已实现（蓝绿替代）** | 已实施蓝绿部署（P0-D15），`upgrade.rs:797-849` 有完整 `deploy_release_blue_green` + `cmd_rollback_blue_green`，`nginx.conf` 支持 upstream 切换，`deploy/bingxi-backend@.service` 支持双实例 |
+| 25.4-D | 无金丝雀发布能力 | **已实现** | `deploy-canary.sh` 完整实现 10%→50%→100% 金丝雀发布，配套 `nginx-upstream-canary-10.conf` + `nginx-upstream-canary-50.conf` |
+| 25.4-E | 无灰度发布能力 | **已实现** | 同 25.4-D，`deploy-canary.sh` 已实现灰度发布 |
+| 25.4-P | 无流量切换脚本 | **已实现** | `deploy-canary.sh:66-77` 有 `switch_upstream()` 函数实现 nginx upstream 软链接切换 + `nginx -t` + `nginx -s reload`；Rust CLI `upgrade.rs:298-310` 也有 `switch_nginx_upstream` |
+| 残留项 25 | 监控指标残留 ACTIVE_TENANTS | **已清理** | `telemetry.rs` 中已无 `ACTIVE_TENANTS` 常量定义（当前文件 274 行附近无此常量） |
+
+### 部分实现（6 项，bash CLI 已修但 Rust CLI 未修）
+
+| 缺陷编号 | 描述 | 核查结果 | 证据 |
+|---------|------|---------|------|
+| 25.2-A | CLI 错误处理不统一 | **部分实现** | `util/mod.rs:145-168` Backup/Restore 失败时已改为 `exit(1)`；但 `upgrade.rs` 的 `cmd_upgrade`/`cmd_deploy`/`cmd_rollback` 仍用 `println!("[ERROR]..."); return;` 模式（退出码 0） |
+| 25.2-B | 无 CLI 日志持久化 | **部分实现** | `deploy.sh:531-534` bash CLI 已添加 `exec > >(tee -a "$CLI_LOG") 2>&1`；但 Rust CLI 所有子命令仍仅 `println!` 到 stdout |
+| 25.2-D | 无危险操作二次确认 | **部分实现** | `deploy.sh:551-558` bash CLI 已添加 `confirm_action()` 函数，rollback/update 操作会调用确认；但 Rust CLI 的 `cmd_upgrade`/`cmd_deploy`/`cmd_rollback` 仍无确认提示 |
+| 25.3-C | 缺少版本格式校验 | **部分实现** | `deploy.sh:564-567` bash CLI 已添加 `valid_tag_format()` 校验 `vYYYY.M.D.HHMM`；但 Rust CLI `upgrade.rs:381-388` 仅检查 `v` 前缀 |
+| 25.4-N | 无回滚验证 | **部分实现** | `deploy.sh:497-505` bash CLI 回滚已增加 `health_check`；蓝绿回滚 `upgrade.rs:540-547` 使用 `health_check_instance`；但单实例回滚 `upgrade.rs:591-595` 仅检查 `is_service_active` |
+| 残留项 1 | 代码注释残留 | **部分清理** | `ACTIVE_TENANTS` 常量已删；但 `handlers/advanced/mod.rs:8`（"租户管理"）、`handlers/data_permission_handler.rs:22`（"跨租户"）、`models/slow_query.rs:8`（`idx_slow_query_tenant`）3 处注释未清理 |
+
+### 确实需要修复（12 项）
+
+| 缺陷编号 | 描述 | 说明 |
+|---------|------|------|
+| 25.1-B | 缺少端口冲突检查 | 仅强杀进程，无前置检查 |
+| 25.1-D | `.env` 权限应为 600 | `deploy-latest.sh:359` 仍用 `chmod 640`，`deploy.sh`/`deploy-backend.sh` 未设置权限 |
+| 25.3-B | Rust CLI curl 缺 `-C -` 断点续传 | `util/mod.rs:266-269` 用 `curl -fsSL -m timeout -o output url`，无 `-C -` |
+| 25.3-D | 无版本降级检查 | `upgrade.rs:323-329` 获取版本后直接进入备份流程，无版本比较 |
+| 25.3-F | 无前后端 API 版本兼容性检查 | 部署时替换二进制和前端 dist，未校验版本一致 |
+| 25.3-G | 无配置文件迁移 | `deploy_release` 仅替换二进制和前端，未迁移 config.yaml 格式 |
+| 25.3-I | Rust CLI 升级日志未持久化 | Rust CLI 全程 `println!`，未写入日志文件 |
+| 25.4-H | 无连接 draining | `upgrade.rs:789-793` 切换 nginx 后立即停止旧实例，无 drain 等待 |
+| 25.4-I | 无长任务处理机制 | 后端无长任务断点续传、任务状态持久化到 Redis 等机制 |
+| 25.4-Q | 无升级监控告警 | `upgrade.rs:201-234` 仅有健康检查回滚，无错误率/响应时间/资源使用监控 |
+| 残留项 1（注释） | 3 处注释残留需清理 | `advanced/mod.rs:8` + `data_permission_handler.rs:22` + `slow_query.rs:8` |
+| 残留项 14 | 5 个文档仍含多租户描述 | ARCHITECTURE.md / DEVELOPER_GUIDE.md / CODE_STYLE_GUIDE.md / INTERFACES.md / PROJECT_HEALTH_REPORT.md |
+
+### 修正后统计
+
+| 状态 | 数量 |
+|------|------|
+| 已实现/已清理（可跳过） | 7 |
+| 部分实现（本次不修） | 6 |
+| **确实需要修复** | **12** |
+
+---
+
 ## 关联文档
 
 - [V15 审计计划](file:///workspace/.monkeycode/docs/audits/v15-review-plan-2026-07-15.md)（类二十五第 6893 行起）
