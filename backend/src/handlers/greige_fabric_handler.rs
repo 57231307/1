@@ -69,6 +69,10 @@ pub struct CreateGreigeFabricRequest {
     pub max_stock_point: Option<f64>,
     /// 缺陷 1.2：补货量（公斤）
     pub reorder_quantity: Option<f64>,
+    /// V15 P2 21.3：缸号（染色批次追溯）
+    pub dye_lot_no: Option<String>,
+    /// V15 P2 21.3：色号（颜色批次追溯）
+    pub color_no: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -91,6 +95,10 @@ pub struct UpdateGreigeFabricRequest {
     pub reorder_point: Option<f64>,
     pub max_stock_point: Option<f64>,
     pub reorder_quantity: Option<f64>,
+    /// V15 P2 21.3：缸号（染色批次追溯）
+    pub dye_lot_no: Option<String>,
+    /// V15 P2 21.3：色号（颜色批次追溯）
+    pub color_no: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -216,6 +224,9 @@ pub async fn create_greige_fabric(
         reorder_point: Set(req.reorder_point.and_then(Decimal::from_f64_retain)),
         max_stock_point: Set(req.max_stock_point.and_then(Decimal::from_f64_retain)),
         reorder_quantity: Set(req.reorder_quantity.and_then(Decimal::from_f64_retain)),
+        // V15 P2 21.3：缸号/色号追溯字段
+        dye_lot_no: Set(req.dye_lot_no),
+        color_no: Set(req.color_no),
         created_at: Set(crate::utils::date_utils::utc_now_fixed()),
         updated_at: Set(crate::utils::date_utils::utc_now_fixed()),
     };
@@ -290,6 +301,13 @@ pub async fn update_greige_fabric(
     }
     if let Some(reorder_qty) = req.reorder_quantity {
         fabric.reorder_quantity = Set(Decimal::from_f64_retain(reorder_qty));
+    }
+    // V15 P2 21.3：缸号/色号追溯字段更新
+    if let Some(dye_lot_no) = req.dye_lot_no {
+        fabric.dye_lot_no = Set(Some(dye_lot_no));
+    }
+    if let Some(color_no) = req.color_no {
+        fabric.color_no = Set(Some(color_no));
     }
 
     fabric.updated_at = Set(crate::utils::date_utils::utc_now_fixed());

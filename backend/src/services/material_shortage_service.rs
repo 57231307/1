@@ -765,7 +765,10 @@ impl MaterialShortageService {
 
         let mut map: HashMap<i32, Decimal> = HashMap::new();
         for stock in stocks {
-            *map.entry(stock.product_id).or_insert(Decimal::ZERO) += stock.quantity_available;
+            // V15 P2 缺陷 8.4：可用量 = quantity_available + quantity_incoming（在途采购量）
+            // 避免"虚假缺料"导致重复采购
+            let effective_available = stock.quantity_available + stock.quantity_incoming;
+            *map.entry(stock.product_id).or_insert(Decimal::ZERO) += effective_available;
         }
 
         Ok(map)

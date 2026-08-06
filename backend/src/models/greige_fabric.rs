@@ -63,6 +63,10 @@ pub struct Model {
     /// 缺陷 1.2：补货量（公斤）
     #[sea_orm(column_type = "Decimal(Some((12, 2)))")]
     pub reorder_quantity: Option<Decimal>,
+    /// V15 P2 21.3：缸号（染色批次追溯）
+    pub dye_lot_no: Option<String>,
+    /// V15 P2 21.3：色号（颜色批次追溯）
+    pub color_no: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

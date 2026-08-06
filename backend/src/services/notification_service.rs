@@ -55,6 +55,9 @@ pub struct CreateNotificationRequest {
 /// 缺陷 5.2 修复：去重窗口（5 分钟）
 const DEDUP_WINDOW_SECS: i64 = 300;
 
+/// V15 P2 缺陷 7.3：库存告警去重窗口（24 小时）
+const INVENTORY_ALERT_DEDUP_WINDOW_SECS: i64 = 86400;
+
 /// 通知服务
 pub struct NotificationService {
     db: Arc<DatabaseConnection>,
@@ -69,6 +72,24 @@ impl NotificationService {
     /// 缺陷 5.2 修复：检查 5 分钟窗口内是否已存在相同 dedup_key 的通知
     async fn check_dedup(&self, user_id: i32, dedup_key: &str) -> Result<bool, AppError> {
         let threshold = Utc::now() - chrono::Duration::seconds(DEDUP_WINDOW_SECS);
+        let count = NotificationEntity::find()
+            .filter(notification::Column::UserId.eq(user_id))
+            .filter(notification::Column::DedupKey.eq(dedup_key))
+            .filter(notification::Column::CreatedAt.gt(threshold))
+            .count(&*self.db)
+            .await?;
+        Ok(count > 0)
+    }
+
+    /// V15 P2 缺陷 7.3：检查指定窗口内是否已存在相同 dedup_key 的通知
+    /// 支持自定义去重窗口（如库存告警 24h 去重）
+    pub async fn check_dedup_window(
+        &self,
+        user_id: i32,
+        dedup_key: &str,
+        window_secs: i64,
+    ) -> Result<bool, AppError> {
+        let threshold = Utc::now() - chrono::Duration::seconds(window_secs);
         let count = NotificationEntity::find()
             .filter(notification::Column::UserId.eq(user_id))
             .filter(notification::Column::DedupKey.eq(dedup_key))
@@ -121,6 +142,55 @@ impl NotificationService {
             .broadcast_notification(notification.user_id as i64, &payload);
 
         // 缺陷 5.1 修复：Webhook 类型通知触发外部系统推送
+        if matches!(req.notification_type, NotificationType::Webhook) {
+            self.dispatch_webhook_notification(&notification).await;
+        }
+
+        Ok(notification)
+    }
+
+    /// V15 P2 缺陷 7.3：创建通知消息（支持自定义去重窗口）
+    /// 用于库存告警等需要 24h 去重的场景
+    pub async fn create_notification_with_window(
+        &self,
+        req: CreateNotificationRequest,
+        window_secs: i64,
+    ) -> Result<notification::Model, AppError> {
+        if let Some(key) = req.dedup_key.as_deref() {
+            if self.check_dedup_window(req.user_id, key, window_secs).await? {
+                return Err(AppError::validation(&format!(
+                    "通知去重：{} 秒窗口内已存在相同 dedup_key",
+                    window_secs
+                )));
+            }
+        }
+
+        let active_model = notification::ActiveModel {
+            id: Default::default(),
+            user_id: Set(req.user_id),
+            notification_type: Set(req.notification_type.clone()),
+            title: Set(req.title),
+            content: Set(req.content),
+            priority: Set(req.priority),
+            status: Set(NotificationStatus::Unread),
+            business_type: Set(req.business_type),
+            business_id: Set(req.business_id),
+            action_url: Set(req.action_url),
+            sender_id: Set(req.sender_id),
+            sender_name: Set(req.sender_name),
+            read_at: Set(None),
+            processed_at: Set(None),
+            created_at: Set(Utc::now()),
+            updated_at: Set(Utc::now()),
+            dedup_key: Set(req.dedup_key.clone()),
+        };
+
+        let notification = active_model.insert(&*self.db).await?;
+
+        let payload = build_payload_from_notification(&notification);
+        get_notification_broadcaster()
+            .broadcast_notification(notification.user_id as i64, &payload);
+
         if matches!(req.notification_type, NotificationType::Webhook) {
             self.dispatch_webhook_notification(&notification).await;
         }

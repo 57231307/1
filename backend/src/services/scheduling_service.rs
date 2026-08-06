@@ -175,11 +175,20 @@ pub struct ScheduledOrderQuery {
 /// 排程服务
 pub struct SchedulingService {
     pub(crate) db: Arc<DatabaseConnection>,
+    /// V15 P2 缺陷 9.2：排程冲突自动告警通知服务
+    pub(crate) notification_service:
+        Option<crate::services::event_notification_service::EventNotificationService>,
 }
 
 impl SchedulingService {
     /// 创建排程服务实例
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
+        Self {
+            db: db.clone(),
+            // V15 P2 缺陷 9.2：默认注入 EventNotificationService 用于冲突告警
+            notification_service: Some(
+                crate::services::event_notification_service::EventNotificationService::new(db),
+            ),
+        }
     }
 }

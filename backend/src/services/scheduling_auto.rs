@@ -371,7 +371,119 @@ impl SchedulingService {
         let mut conflicts = Self::detect_time_overlap_conflicts(&wc_orders);
         conflicts.extend(Self::detect_missing_date_conflicts(&orders));
         conflicts.extend(Self::detect_invalid_date_conflicts(&orders));
+
+        // V15 P2 缺陷 9.2：检测到 HIGH 严重度冲突时推送站内信给计划员
+        let high_conflicts: Vec<&ScheduleConflict> = conflicts
+            .iter()
+            .filter(|c| c.severity.as_deref() == Some("HIGH"))
+            .collect();
+        if !high_conflicts.is_empty() {
+            if let Err(e) = self.notify_schedule_conflicts(&high_conflicts).await {
+                tracing::warn!(
+                    error = %e,
+                    conflict_count = high_conflicts.len(),
+                    "缺陷 9.2：排程冲突通知推送失败（不阻断检测，降级为 warn）"
+                );
+            }
+        }
+
         Ok(conflicts)
+    }
+
+    /// V15 P2 缺陷 9.2：排程冲突自动告警通知
+    /// 策略：对 HIGH 严重度冲突，按工作中心聚合后调用 EventNotificationService
+    /// 推送站内信给计划员/admin/manager，24h 去重防止告警轰炸。
+    async fn notify_schedule_conflicts(
+        &self,
+        high_conflicts: &[&ScheduleConflict],
+    ) -> Result<(), AppError> {
+        let Some(notify_svc) = &self.notification_service else {
+            return Ok(());
+        };
+
+        // 通知目标：planner（计划员）+ admin/manager 兜底
+        use crate::models::role::{self, Column as RoleColumn};
+        use crate::models::user::{self, Column as UserColumn};
+        use sea_orm::QueryFilter;
+
+        let target_role_ids: Vec<i32> = role::Entity::find()
+            .filter(
+                RoleColumn::Code
+                    .eq("admin")
+                    .or(RoleColumn::Code.eq("manager"))
+                    .or(RoleColumn::Code.eq("planner")),
+            )
+            .all(&*self.db)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|r| r.id)
+            .collect();
+        if target_role_ids.is_empty() {
+            tracing::warn!("缺陷 9.2：未找到 planner/admin/manager 角色用户，跳过冲突通知");
+            return Ok(());
+        }
+        let notify_user_ids: Vec<i32> = user::Entity::find()
+            .filter(UserColumn::IsActive.eq(true))
+            .filter(UserColumn::RoleId.is_in(target_role_ids))
+            .all(&*self.db)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|u| u.id)
+            .collect();
+        if notify_user_ids.is_empty() {
+            return Ok(());
+        }
+
+        // 按工作中心聚合冲突（同工作中心多条冲突合并为一条通知）
+        use std::collections::HashMap;
+        let mut by_wc: HashMap<i32, Vec<&ScheduleConflict>> = HashMap::new();
+        for conflict in high_conflicts {
+            by_wc
+                .entry(conflict.work_center_id)
+                .or_default()
+                .push(conflict);
+        }
+
+        for (wc_id, wc_conflicts) in by_wc {
+            let first = wc_conflicts.first();
+            let wc_name = first
+                .and_then(|c| c.work_center_name.as_deref())
+                .unwrap_or("未知");
+            let title = format!("工作中心 {} 排程冲突告警（{} 条）", wc_name, wc_conflicts.len());
+            let description = first
+                .map(|c| c.description.as_str())
+                .unwrap_or("排程冲突");
+            let order_nos: Vec<String> = wc_conflicts
+                .iter()
+                .filter_map(|c| c.order_no.clone())
+                .collect();
+            let current_stock = format!("涉及工单：{}", order_nos.join(", "));
+            let threshold = format!("工作中心 {}（ID {}）", wc_name, wc_id);
+            if let Err(e) = notify_svc
+                .notify_inventory_alert_batch(
+                    &notify_user_ids,
+                    &title,
+                    wc_id,
+                    &current_stock,
+                    &threshold,
+                )
+                .await
+            {
+                tracing::warn!(
+                    error = %e,
+                    wc_id,
+                    "缺陷 9.2：单工作中心冲突通知失败（继续后续工作中心）"
+                );
+            }
+        }
+
+        tracing::info!(
+            high_conflict_count = high_conflicts.len(),
+            "缺陷 9.2：排程冲突通知已推送"
+        );
+        Ok(())
     }
 
     /// 检测同一工作中心的时间重叠冲突
@@ -678,6 +790,8 @@ fn group_and_sort_orders_by_dye_lot(
         "priority" => orders.sort_by_key(|o| o.priority),
         "fifo" => orders.sort_by_key(|o| o.created_at),
         "earliest_due" => orders.sort_by_key(|o| o.planned_end_date.unwrap_or(NaiveDate::MAX)),
+        // V15 P2 缺陷 11.2：SPT（最短加工时间）策略 — 按计划数量升序
+        "spt" => orders.sort_by(|a, b| a.planned_quantity.cmp(&b.planned_quantity)),
         _ => orders.sort_by_key(|o| o.priority),
     };
     for group in groups_map.values_mut() {
@@ -686,29 +800,31 @@ fn group_and_sort_orders_by_dye_lot(
     sort_fn(&mut no_dye_lot_orders);
 
     // 3. 组间按策略排序（取组内最小排序键作为组排序键）
-    // 排序键为三元组 (priority, created_at, due_date)，覆盖所有策略：
+    // 排序键为四元组 (priority, created_at, due_date, planned_quantity)，覆盖所有策略：
     // - priority 策略：priority 为主键
     // - fifo 策略：created_at 为主键（priority 为次键保证稳定性）
     // - earliest_due 策略：due_date 为主键（priority 为次键保证稳定性）
-    let group_sort_key =
-        |group: &[ProductionOrderModel]| -> (i32, chrono::DateTime<Utc>, NaiveDate) {
-            group
-                .iter()
-                .map(|o| {
-                    (
-                        o.priority,
-                        o.created_at,
-                        o.planned_end_date.unwrap_or(NaiveDate::MAX),
-                    )
-                })
-                .min()
-                .unwrap_or((
-                    i32::MAX,
-                    chrono::DateTime::<Utc>::from_timestamp(i64::MAX, 0)
-                        .unwrap_or_else(|| chrono::DateTime::<Utc>::from_timestamp(0, 0).unwrap()),
-                    NaiveDate::MAX,
-                ))
-        };
+    // - spt 策略：planned_quantity 为主键（最短加工时间优先）
+    let group_sort_key = |group: &[ProductionOrderModel]| -> (i32, chrono::DateTime<Utc>, NaiveDate, Decimal) {
+        group
+            .iter()
+            .map(|o| {
+                (
+                    o.priority,
+                    o.created_at,
+                    o.planned_end_date.unwrap_or(NaiveDate::MAX),
+                    o.planned_quantity,
+                )
+            })
+            .min()
+            .unwrap_or((
+                i32::MAX,
+                chrono::DateTime::<Utc>::from_timestamp(i64::MAX, 0)
+                    .unwrap_or_else(|| chrono::DateTime::<Utc>::from_timestamp(0, 0).unwrap()),
+                NaiveDate::MAX,
+                Decimal::MAX,
+            ))
+    };
 
     let mut groups: Vec<Vec<ProductionOrderModel>> = groups_map.into_values().collect();
     groups.sort_by_key(|g| group_sort_key(g));
