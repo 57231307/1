@@ -26,14 +26,14 @@ use regex::Regex;
 use std::sync::LazyLock;
 
 /// 手机号正则（11 位，1[3-9] 开头）
-/// 匹配独立的手机号（前后为非数字或字符串边界）
+/// 注意：Rust regex crate 不支持 look-around，此处使用简单匹配
 static PHONE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?<![0-9])(1[3-9][0-9]{9})(?![0-9])").expect("PII_MASK: 手机号正则编译失败")
+    Regex::new(r"1[3-9][0-9]{9}").expect("PII_MASK: 手机号正则编译失败")
 });
 
 /// 身份证号正则（18 位，末位可为 X/x）
 static ID_CARD_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?<![0-9A-Za-z])([1-9][0-9]{5}(?:19|20)[0-9]{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12][0-9]|3[01])[0-9]{3}[0-9Xx])(?![0-9A-Za-z])")
+    Regex::new(r"[1-9][0-9]{5}(?:19|20)[0-9]{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12][0-9]|3[01])[0-9]{3}[0-9Xx]")
         .expect("PII_MASK: 身份证正则编译失败")
 });
 
@@ -62,7 +62,7 @@ pub fn mask_pii(text: &str) -> String {
     // 1. 脱敏手机号：138****5678
     result = PHONE_REGEX
         .replace_all(&result, |caps: &regex::Captures| {
-            let phone = &caps[1];
+            let phone = &caps[0];
             format!("{}****{}", &phone[..3], &phone[7..])
         })
         .to_string();
@@ -70,7 +70,7 @@ pub fn mask_pii(text: &str) -> String {
     // 2. 脱敏身份证号：1101**********1234
     result = ID_CARD_REGEX
         .replace_all(&result, |caps: &regex::Captures| {
-            let id = &caps[1];
+            let id = &caps[0];
             format!("{}**********{}", &id[..4], &id[14..])
         })
         .to_string();
