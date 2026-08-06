@@ -437,7 +437,6 @@ impl SchedulingService {
         }
 
         // 按工作中心聚合冲突（同工作中心多条冲突合并为一条通知）
-        use std::collections::HashMap;
         let mut by_wc: HashMap<i32, Vec<&ScheduleConflict>> = HashMap::new();
         for conflict in high_conflicts {
             by_wc
@@ -452,9 +451,6 @@ impl SchedulingService {
                 .and_then(|c| c.work_center_name.as_deref())
                 .unwrap_or("未知");
             let title = format!("工作中心 {} 排程冲突告警（{} 条）", wc_name, wc_conflicts.len());
-            let description = first
-                .map(|c| c.description.as_str())
-                .unwrap_or("排程冲突");
             let order_nos: Vec<String> = wc_conflicts
                 .iter()
                 .filter_map(|c| c.order_no.clone())
