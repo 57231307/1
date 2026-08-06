@@ -99,13 +99,28 @@ fn finance_report_routes() -> Router<AppState> {
             "/reports/balance-sheet",
             get(finance_report_handler::get_balance_sheet),
         )
+        // V15 P0 5-1 修复：资产负债表导出
+        .route(
+            "/reports/balance-sheet/export",
+            get(finance_report_handler::export_balance_sheet),
+        )
         .route(
             "/reports/income-statement",
             get(finance_report_handler::get_income_statement),
         )
+        // V15 P0 5-1 修复：利润表导出
+        .route(
+            "/reports/income-statement/export",
+            get(finance_report_handler::export_income_statement),
+        )
         .route(
             "/reports/cash-flow",
             get(finance_report_handler::get_cash_flow_statement),
+        )
+        // V15 P0 5-1 修复：现金流量表导出
+        .route(
+            "/reports/cash-flow/export",
+            get(finance_report_handler::export_cash_flow_statement),
         )
         .route(
             "/reports/trial-balance",
@@ -120,9 +135,19 @@ fn finance_report_routes() -> Router<AppState> {
             "/reports/general-ledger/:code",
             get(finance_report_handler::get_general_ledger),
         )
+        // V15 P0 5-1 修复：总账导出
+        .route(
+            "/reports/general-ledger/export",
+            get(finance_report_handler::export_general_ledger),
+        )
         .route(
             "/reports/subsidiary-ledger",
             get(finance_report_handler::get_subsidiary_ledger),
+        )
+        // V15 P0 5-1 修复：明细账导出
+        .route(
+            "/reports/subsidiary-ledger/export",
+            get(finance_report_handler::export_subsidiary_ledger),
         )
         .route(
             "/reports/drill-down",

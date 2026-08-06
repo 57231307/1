@@ -33,6 +33,13 @@ pub struct SubsidiaryLedgerQuery {
     pub end_date: Option<chrono::NaiveDate>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct GeneralLedgerQuery {
+    pub subject_code: String,
+    pub start_date: Option<chrono::NaiveDate>,
+    pub end_date: Option<chrono::NaiveDate>,
+}
+
 /// 获取资产负债表
 pub async fn get_balance_sheet(
     State(state): State<AppState>,
@@ -266,4 +273,285 @@ pub async fn export_trial_balance(
     };
 
     build_xlsx_response(&table, "trial_balance_export")
+}
+
+/// V15 P0 5-1 修复：导出资产负债表为 xlsx
+pub async fn export_balance_sheet(
+    State(state): State<AppState>,
+) -> Result<axum::response::Response, AppError> {
+    const EXPORT_LIMIT: usize = 10000;
+    let service = FinanceReportService::new(state.db.clone());
+    let balance_sheet = service.get_balance_sheet().await?;
+
+    let headers = vec![
+        "类别".to_string(),
+        "项目名称".to_string(),
+        "金额".to_string(),
+        "说明".to_string(),
+    ];
+
+    let mut rows: Vec<Vec<String>> = Vec::new();
+    // 资产
+    for item in balance_sheet.assets.iter().take(EXPORT_LIMIT) {
+        rows.push(vec![
+            "资产".to_string(),
+            item.name.clone(),
+            item.amount.to_string(),
+            item.description.clone().unwrap_or_default(),
+        ]);
+    }
+    // 负债
+    for item in balance_sheet.liabilities.iter().take(EXPORT_LIMIT) {
+        rows.push(vec![
+            "负债".to_string(),
+            item.name.clone(),
+            item.amount.to_string(),
+            item.description.clone().unwrap_or_default(),
+        ]);
+    }
+    // 所有者权益
+    for item in balance_sheet.equity.iter().take(EXPORT_LIMIT) {
+        rows.push(vec![
+            "所有者权益".to_string(),
+            item.name.clone(),
+            item.amount.to_string(),
+            item.description.clone().unwrap_or_default(),
+        ]);
+    }
+
+    let table = XlsxTable {
+        sheet_name: "资产负债表".to_string(),
+        headers,
+        rows,
+    };
+
+    build_xlsx_response(&table, "balance_sheet_export")
+}
+
+/// V15 P0 5-1 修复：导出利润表为 xlsx
+pub async fn export_income_statement(
+    State(state): State<AppState>,
+    Query(query): Query<DateRangeQuery>,
+) -> Result<axum::response::Response, AppError> {
+    const EXPORT_LIMIT: usize = 10000;
+    let service = FinanceReportService::new(state.db.clone());
+    let start_date = query.start_date.unwrap_or_else(|| {
+        chrono::Utc::now()
+            .date_naive()
+            .with_day(1)
+            .unwrap_or_else(|| chrono::Utc::now().date_naive())
+    });
+    let end_date = query
+        .end_date
+        .unwrap_or_else(|| chrono::Utc::now().date_naive());
+    let income_statement = service.get_income_statement(start_date, end_date).await?;
+
+    let headers = vec![
+        "类别".to_string(),
+        "项目名称".to_string(),
+        "金额".to_string(),
+        "说明".to_string(),
+    ];
+
+    let mut rows: Vec<Vec<String>> = Vec::new();
+    // 收入
+    for item in income_statement.revenue.iter().take(EXPORT_LIMIT) {
+        rows.push(vec![
+            "收入".to_string(),
+            item.name.clone(),
+            item.amount.to_string(),
+            item.description.clone().unwrap_or_default(),
+        ]);
+    }
+    // 营业费用
+    for item in income_statement.operating_expenses.iter().take(EXPORT_LIMIT) {
+        rows.push(vec![
+            "营业费用".to_string(),
+            item.name.clone(),
+            item.amount.to_string(),
+            item.description.clone().unwrap_or_default(),
+        ]);
+    }
+
+    let table = XlsxTable {
+        sheet_name: "利润表".to_string(),
+        headers,
+        rows,
+    };
+
+    build_xlsx_response(&table, "income_statement_export")
+}
+
+/// V15 P0 5-1 修复：导出现金流量表为 xlsx
+pub async fn export_cash_flow_statement(
+    State(state): State<AppState>,
+    Query(query): Query<DateRangeQuery>,
+) -> Result<axum::response::Response, AppError> {
+    const EXPORT_LIMIT: usize = 10000;
+    let service = FinanceReportService::new(state.db.clone());
+    let start_date = query.start_date.unwrap_or_else(|| {
+        chrono::Utc::now()
+            .date_naive()
+            .with_day(1)
+            .unwrap_or_else(|| chrono::Utc::now().date_naive())
+    });
+    let end_date = query
+        .end_date
+        .unwrap_or_else(|| chrono::Utc::now().date_naive());
+    let cash_flow = service.get_cash_flow_statement(start_date, end_date).await?;
+
+    let headers = vec![
+        "类别".to_string(),
+        "项目名称".to_string(),
+        "金额".to_string(),
+        "说明".to_string(),
+    ];
+
+    let mut rows: Vec<Vec<String>> = Vec::new();
+    // 经营活动
+    for item in cash_flow.operating_activities.iter().take(EXPORT_LIMIT) {
+        rows.push(vec![
+            "经营活动".to_string(),
+            item.name.clone(),
+            item.amount.to_string(),
+            item.description.clone().unwrap_or_default(),
+        ]);
+    }
+    // 投资活动
+    for item in cash_flow.investing_activities.iter().take(EXPORT_LIMIT) {
+        rows.push(vec![
+            "投资活动".to_string(),
+            item.name.clone(),
+            item.amount.to_string(),
+            item.description.clone().unwrap_or_default(),
+        ]);
+    }
+    // 筹资活动
+    for item in cash_flow.financing_activities.iter().take(EXPORT_LIMIT) {
+        rows.push(vec![
+            "筹资活动".to_string(),
+            item.name.clone(),
+            item.amount.to_string(),
+            item.description.clone().unwrap_or_default(),
+        ]);
+    }
+
+    let table = XlsxTable {
+        sheet_name: "现金流量表".to_string(),
+        headers,
+        rows,
+    };
+
+    build_xlsx_response(&table, "cash_flow_statement_export")
+}
+
+/// V15 P0 5-1 修复：导出总账为 xlsx
+pub async fn export_general_ledger(
+    State(state): State<AppState>,
+    Query(query): Query<GeneralLedgerQuery>,
+) -> Result<axum::response::Response, AppError> {
+    const EXPORT_LIMIT: usize = 10000;
+    let service = FinanceReportService::new(state.db.clone());
+    let start_date = query.start_date.unwrap_or_else(|| {
+        chrono::Utc::now().date_naive().with_day(1).unwrap_or_else(|| chrono::Utc::now().date_naive())
+    });
+    let end_date = query.end_date.unwrap_or_else(|| chrono::Utc::now().date_naive());
+    let ledger = service
+        .get_general_ledger(query.subject_code, start_date, end_date)
+        .await?;
+
+    let headers = vec![
+        "凭证日期".to_string(),
+        "凭证号".to_string(),
+        "行号".to_string(),
+        "摘要".to_string(),
+        "借方".to_string(),
+        "贷方".to_string(),
+        "方向".to_string(),
+        "余额".to_string(),
+    ];
+
+    let rows: Vec<Vec<String>> = ledger
+        .entries
+        .iter()
+        .take(EXPORT_LIMIT)
+        .map(|item| {
+            vec![
+                item.voucher_date.clone(),
+                item.voucher_no.clone(),
+                item.line_no.to_string(),
+                item.summary.clone().unwrap_or_default(),
+                item.debit.to_string(),
+                item.credit.to_string(),
+                item.direction.clone(),
+                item.balance.to_string(),
+            ]
+        })
+        .collect();
+
+    let table = XlsxTable {
+        sheet_name: format!("总账-{}", ledger.subject_name),
+        headers,
+        rows,
+    };
+
+    build_xlsx_response(&table, "general_ledger_export")
+}
+
+/// V15 P0 5-1 修复：导出明细账为 xlsx
+pub async fn export_subsidiary_ledger(
+    State(state): State<AppState>,
+    Query(query): Query<SubsidiaryLedgerQuery>,
+) -> Result<axum::response::Response, AppError> {
+    const EXPORT_LIMIT: usize = 10000;
+    let service = FinanceReportService::new(state.db.clone());
+    let start_date = query.start_date.unwrap_or_else(|| {
+        chrono::Utc::now().date_naive().with_day(1).unwrap_or_else(|| chrono::Utc::now().date_naive())
+    });
+    let end_date = query.end_date.unwrap_or_else(|| chrono::Utc::now().date_naive());
+    let ledger = service
+        .get_subsidiary_ledger(
+            query.dimension_type,
+            query.dimension_value,
+            start_date,
+            end_date,
+        )
+        .await?;
+
+    let headers = vec![
+        "业务日期".to_string(),
+        "业务编号".to_string(),
+        "业务类型".to_string(),
+        "科目编码".to_string(),
+        "科目名称".to_string(),
+        "摘要".to_string(),
+        "借方".to_string(),
+        "贷方".to_string(),
+    ];
+
+    let rows: Vec<Vec<String>> = ledger
+        .entries
+        .iter()
+        .take(EXPORT_LIMIT)
+        .map(|item| {
+            vec![
+                item.business_date.clone(),
+                item.business_no.clone(),
+                item.business_type.clone(),
+                item.subject_code.clone(),
+                item.subject_name.clone(),
+                item.summary.clone().unwrap_or_default(),
+                item.debit.to_string(),
+                item.credit.to_string(),
+            ]
+        })
+        .collect();
+
+    let table = XlsxTable {
+        sheet_name: format!("明细账-{}", ledger.dimension_value),
+        headers,
+        rows,
+    };
+
+    build_xlsx_response(&table, "subsidiary_ledger_export")
 }
