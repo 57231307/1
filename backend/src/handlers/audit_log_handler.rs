@@ -356,10 +356,12 @@ pub async fn export_audit_logs(
     // P0 8-5 修复：审计日志导出仅限 admin
     require_admin_role(&state, &auth).await?;
 
+    const EXPORT_LIMIT: u64 = 10000;
     let cond = build_audit_log_condition(&query);
     let logs = audit_log::Entity::find()
         .filter(cond)
         .order_by_desc(audit_log::Column::CreatedAt)
+        .limit(EXPORT_LIMIT)
         .all(state.db.as_ref())
         .await
         .map_err(|e| AppError::internal(format!("查询审计日志失败: {}", e)))?;

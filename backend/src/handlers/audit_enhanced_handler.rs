@@ -131,8 +131,10 @@ pub async fn export_audit_logs(
 ) -> Result<Json<ApiResponse<ExportResult>>, AppError> {
     use sea_orm::{EntityTrait, QueryOrder};
 
+    const EXPORT_LIMIT: u64 = 10000;
     let logs = audit_log::Entity::find()
         .order_by_desc(audit_log::Column::CreatedAt)
+        .limit(EXPORT_LIMIT)
         .all(state.db.as_ref())
         .await?;
     let count = logs.len();

@@ -375,6 +375,7 @@ pub async fn export_vouchers(
     auth: AuthContext,
     Query(params): Query<VoucherQuery>,
 ) -> Result<axum::response::Response, AppError> {
+    const EXPORT_LIMIT: u64 = 10000;
     info!("用户 {} 导出凭证列表", auth.username);
 
     let service = VoucherService::new(state.db.clone());
@@ -385,8 +386,8 @@ pub async fn export_vouchers(
         end_date: params.end_date.and_then(|d| d.parse().ok()),
         batch_no: params.batch_no,
         color_no: params.color_no,
-        page: None,
-        page_size: None,
+        page: Some(1),
+        page_size: Some(EXPORT_LIMIT),
     };
 
     let (vouchers, _total) = service.get_list(query_params).await?;

@@ -226,6 +226,7 @@ pub async fn export_trial_balance(
     State(state): State<AppState>,
     Query(query): Query<PeriodQuery>,
 ) -> Result<axum::response::Response, AppError> {
+    const EXPORT_LIMIT: usize = 10000;
     let service = FinanceReportService::new(state.db.clone());
     let trial_balance = service.get_trial_balance(query.period).await?;
 
@@ -243,6 +244,7 @@ pub async fn export_trial_balance(
     let rows: Vec<Vec<String>> = trial_balance
         .entries
         .iter()
+        .take(EXPORT_LIMIT)
         .map(|item| {
             vec![
                 item.subject_code.clone(),

@@ -240,6 +240,7 @@ pub async fn export_subjects(
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<axum::response::Response, AppError> {
+    const EXPORT_LIMIT: usize = 10000;
     info!("用户 {} 导出会计科目", auth.username);
 
     let service = AccountSubjectService::new(state.db.clone());
@@ -262,6 +263,7 @@ pub async fn export_subjects(
 
     let rows: Vec<Vec<String>> = subjects
         .iter()
+        .take(EXPORT_LIMIT)
         .map(|s| {
             vec![
                 s.code.clone(),

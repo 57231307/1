@@ -439,8 +439,12 @@ pub async fn export_issue_records(
     // V15 P1 10.4-2：导出同样按 data_scope 过滤数据
     let service = ColorCardIssueService::from_state(&state);
     let scope = effective_data_scope(&auth);
+    // 导出时设置 page_size 为 EXPORT_LIMIT
+    let mut export_query = query.clone();
+    export_query.page = Some(1);
+    export_query.page_size = Some(10000);
     let (records, _total) = service
-        .list_records_with_data_scope(query.clone(), auth.user_id, scope)
+        .list_records_with_data_scope(export_query, auth.user_id, scope)
         .await
         .map_err(issue_err)?;
     let row_count = records.len();

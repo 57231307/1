@@ -441,6 +441,7 @@ impl SalesAnalysisService {
     /// 导出销售分析报告
     /// v11 批次 151 P2-A：接入 ExportParams.format 字段，直接返回 xlsx 字节流；None 或 "xlsx"：返回 xlsx 字节流（规则 3 合规）；"csv"：拒绝（规则 3 禁止 CSV 作为最终交付格式）；其他值：validation 错误
     pub async fn export_report(&self, params: ExportParams) -> Result<Vec<u8>, AppError> {
+        const EXPORT_LIMIT: u64 = 10000;
         info!("导出销售分析报告，参数：{:?}", params);
 
         // v11 批次 151 P2-A：接入 format 字段校验
@@ -464,7 +465,7 @@ impl SalesAnalysisService {
         if let Some(p) = &params.period {
             query = query.filter(sales_analysis::Column::Period.eq(p));
         }
-        let records = query.all(&*self.db).await?;
+        let records = query.limit(EXPORT_LIMIT).all(&*self.db).await?;
 
         // v11 批次 151 P2-A：直接构建 xlsx 字节流，消除原 CSV 中间步骤
         // 表头与原 CSV 保持一致，确保导出字段不丢失
