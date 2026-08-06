@@ -331,11 +331,20 @@ pub async fn export_balance_sheet(
 /// V15 P0 5-1 修复：导出利润表为 xlsx
 pub async fn export_income_statement(
     State(state): State<AppState>,
-    Query(query): Query<PeriodQuery>,
+    Query(query): Query<DateRangeQuery>,
 ) -> Result<axum::response::Response, AppError> {
     const EXPORT_LIMIT: usize = 10000;
     let service = FinanceReportService::new(state.db.clone());
-    let income_statement = service.get_income_statement(query.period).await?;
+    let start_date = query.start_date.unwrap_or_else(|| {
+        chrono::Utc::now()
+            .date_naive()
+            .with_day(1)
+            .unwrap_or_else(|| chrono::Utc::now().date_naive())
+    });
+    let end_date = query
+        .end_date
+        .unwrap_or_else(|| chrono::Utc::now().date_naive());
+    let income_statement = service.get_income_statement(start_date, end_date).await?;
 
     let headers = vec![
         "类别".to_string(),
@@ -376,11 +385,20 @@ pub async fn export_income_statement(
 /// V15 P0 5-1 修复：导出现金流量表为 xlsx
 pub async fn export_cash_flow_statement(
     State(state): State<AppState>,
-    Query(query): Query<PeriodQuery>,
+    Query(query): Query<DateRangeQuery>,
 ) -> Result<axum::response::Response, AppError> {
     const EXPORT_LIMIT: usize = 10000;
     let service = FinanceReportService::new(state.db.clone());
-    let cash_flow = service.get_cash_flow_statement(query.period).await?;
+    let start_date = query.start_date.unwrap_or_else(|| {
+        chrono::Utc::now()
+            .date_naive()
+            .with_day(1)
+            .unwrap_or_else(|| chrono::Utc::now().date_naive())
+    });
+    let end_date = query
+        .end_date
+        .unwrap_or_else(|| chrono::Utc::now().date_naive());
+    let cash_flow = service.get_cash_flow_statement(start_date, end_date).await?;
 
     let headers = vec![
         "类别".to_string(),
