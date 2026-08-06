@@ -312,25 +312,31 @@ const handleExport = () => {
     ElMessage.warning(t('financeReport.reportListTab.messageGenerateFirst'));
     return;
   }
-  if (queryForm.report_type === 'trial_balance') {
-    exportFromBackend(
-      '/finance/reports/trial-balance/export',
-      { period: queryForm.period },
-      `${getReportTypeLabel(queryForm.report_type)}_${queryForm.period}`
-    );
-    return;
+  const reportType = queryForm.report_type;
+  const filename = `${getReportTypeLabel(reportType)}_${queryForm.period}`;
+  
+  // V15 P0 5-1 修复：所有报表类型统一使用后端导出
+  const exportApiMap: Record<string, string> = {
+    trial_balance: '/finance/reports/trial-balance/export',
+    balance_sheet: '/finance/reports/balance-sheet/export',
+    income_statement: '/finance/reports/income-statement/export',
+    cash_flow: '/finance/reports/cash-flow/export',
+    general_ledger: '/finance/reports/general-ledger/export',
+    subsidiary_ledger: '/finance/reports/subsidiary-ledger/export',
+  };
+  
+  const apiPath = exportApiMap[reportType];
+  if (apiPath) {
+    const params: Record<string, string> = {};
+    if (queryForm.period) params.period = queryForm.period;
+    if (reportType === 'general_ledger' || reportType === 'subsidiary_ledger') {
+      // 总账和明细账需要额外参数
+      if (queryForm.subject_code) params.subject_code = queryForm.subject_code;
+    }
+    exportFromBackend(apiPath, params, filename);
+  } else {
+    ElMessage.warning(t('financeReport.reportListTab.unsupportedExportType'));
   }
-  const items = reportData.value.items;
-  const cols = reportColumns.value;
-  exportToExcel({
-    filename: `${getReportTypeLabel(queryForm.report_type)}_${queryForm.period}`,
-    format: 'excel',
-    data: items.map((item): Record<string, unknown> => ({ ...(item as Record<string, unknown>) })),
-    columns: cols.map(c => ({
-      key: c.key,
-      title: c.label,
-    })),
-  });
 };
 </script>
 
