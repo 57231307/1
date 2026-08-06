@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// C-3 修复：数据权限处理器内部的 admin 校验；安全原因：scope_type 控制行/部门级数据可见范围，攻击者改写 admin
-/// 的 scope_type=SELF 可对管理员造成持久性 DoS；为自身设置 scope_type=ALL 造成跨部门/跨租户越权读取。
+/// 的 scope_type=SELF 可对管理员造成持久性 DoS；为自身设置 scope_type=ALL 造成跨部门越权读取。
 async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), AppError> {
     let role_id = auth
         .role_id

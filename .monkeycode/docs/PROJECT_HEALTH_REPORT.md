@@ -86,7 +86,6 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/v1/erp/production", production::routes())
         .nest("/api/v1/erp/purchase", purchase::routes())
         .nest("/api/v1/erp/sales", sales::routes())
-        .nest("/api/v1/erp/tenant", tenant::routes())
         .nest("/api/v1", v1::routes())
         .merge(static_routes::static_assets_handler())
         .merge(create_metrics_router())

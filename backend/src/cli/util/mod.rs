@@ -260,12 +260,13 @@ pub(crate) fn build_release_url(version: &str) -> String {
 }
 
 /// 带镜像源的下载 (自动尝试多个镜像)
+/// V15 P2 25.3-B 修复：添加 `-C -` 断点续传参数，大文件下载中断后可从断点恢复
 pub(crate) fn download_with_mirrors(url: &str, output: &str, timeout: u32) -> bool {
     // 1. 尝试直连
     println!("  尝试直连 GitHub...");
     if run_cmd(
         "curl",
-        &["-fsSL", "-m", &timeout.to_string(), "-o", output, url],
+        &["-fsSL", "-C", "-", "-m", &timeout.to_string(), "-o", output, url],
     )
     .is_ok()
     {
@@ -281,6 +282,8 @@ pub(crate) fn download_with_mirrors(url: &str, output: &str, timeout: u32) -> bo
             "curl",
             &[
                 "-fsSL",
+                "-C",
+                "-",
                 "-m",
                 &timeout.to_string(),
                 "-o",

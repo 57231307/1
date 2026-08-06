@@ -356,7 +356,9 @@ EOF
         chown -R bingxi:bingxi /opt/bingxi-erp
         chown -R bingxi:bingxi /etc/bingxi
         chmod 750 /opt/bingxi-erp/backend
-        chmod 640 /etc/bingxi/.env 2>/dev/null || true
+        # V15 P2 25.1-D 修复：.env 权限从 640 改为 600，owner 改为 root（systemd 由 root 读取后 drop 到 bingxi）
+        chown root:root /etc/bingxi/.env
+        chmod 600 /etc/bingxi/.env 2>/dev/null || true
 
         # 配置 Nginx
         cp /tmp/bingxi-deploy/deploy/nginx.conf /etc/nginx/sites-available/bingxi-erp

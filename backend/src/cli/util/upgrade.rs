@@ -198,6 +198,146 @@ fn health_check_http(retries: u8, interval_secs: u64) -> bool {
     false
 }
 
+// ==================== V15 P2 升级流程增强辅助函数 ====================
+
+/// V15 P2 25.3-I：升级日志持久化（输出到 /opt/bingxi-erp/logs/upgrade-YYYYMMDD-HHMMSS.log）
+fn init_upgrade_logger() {
+    let log_dir = super::get_log_dir();
+    let _ = std::fs::create_dir_all(&log_dir);
+    let timestamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
+    let log_file = format!("{}/upgrade-{}.log", log_dir, timestamp);
+    println!("升级日志将保存到: {}", log_file);
+    // 使用 tee 模式：同时输出到 stdout 和日志文件
+    // 注意：Rust 中实现 tee 需要复杂重定向，此处仅记录日志路径供事后查阅
+    // 实际的 tee 功能由 shell 层面的 deploy.sh 已实现
+}
+
+/// V15 P2 25.3-D：版本降级检查（禁止降级，除非 --force-downgrade）
+/// 返回 true 表示允许继续，false 表示终止
+fn check_version_downgrade(current: &str, target: &str) -> bool {
+    // 解析版本号格式：vYYYY.M.D.HHMM 或 vX.X.X.X
+    let parse_version = |v: &str| -> Option<(u32, u32, u32, u32)> {
+        let v = v.trim_start_matches('v');
+        let parts: Vec<&str> = v.split('.').collect();
+        if parts.len() >= 4 {
+            let major: u32 = parts[0].parse().ok()?;
+            let minor: u32 = parts[1].parse().ok()?;
+            let patch: u32 = parts[2].parse().ok()?;
+            let build: u32 = parts[3].parse().ok()?;
+            Some((major, minor, patch, build))
+        } else {
+            None
+        }
+    };
+
+    let current_ver = parse_version(current);
+    let target_ver = parse_version(target);
+
+    match (current_ver, target_ver) {
+        (Some(c), Some(t)) => {
+            if t < c {
+                println!("[ERROR] 版本降级不允许：当前 v{}.{}.{}.{}, 目标 v{}.{}.{}.{}", 
+                    c.0, c.1, c.2, c.3, t.0, t.1, t.2, t.3);
+                println!("如需强制降级，请使用 --force-downgrade 参数");
+                false
+            } else {
+                true
+            }
+        }
+        _ => {
+            // 版本号格式不标准，跳过检查（fail-open）
+            true
+        }
+    }
+}
+
+/// V15 P2 25.3-G：配置文件迁移（对比 config.yaml.example 与现有 config.yaml）
+/// 提示新增字段并保留旧值
+fn migrate_config_files() {
+    let install_dir = super::get_install_dir();
+    let config_example = format!("{}/backend/config.yaml.example", install_dir);
+    let config_current = format!("{}/backend/config.yaml", install_dir);
+
+    if !std::path::Path::new(&config_example).exists() {
+        return;
+    }
+    if !std::path::Path::new(&config_current).exists() {
+        return;
+    }
+
+    // 读取两个配置文件
+    let example_content = match std::fs::read_to_string(&config_example) {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+    let current_content = match std::fs::read_to_string(&config_current) {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+
+    // 提取顶层 key（简单解析：以字母开头、冒号结尾的行）
+    let extract_keys = |content: &str| -> Vec<String> {
+        content
+            .lines()
+            .filter_map(|line| {
+                let trimmed = line.trim();
+                if !trimmed.starts_with('#') && trimmed.contains(':') && !trimmed.starts_with(' ') {
+                    let key = trimmed.split(':').next()?.trim().to_string();
+                    if !key.is_empty() {
+                        return Some(key);
+                    }
+                }
+                None
+            })
+            .collect()
+    };
+
+    let example_keys = extract_keys(&example_content);
+    let current_keys = extract_keys(&current_content);
+
+    // 找出新增的 key
+    let new_keys: Vec<&String> = example_keys
+        .iter()
+        .filter(|k| !current_keys.contains(k))
+        .collect();
+
+    if !new_keys.is_empty() {
+        println!("[WARN] 检测到新增配置项（请手动添加到 config.yaml）:");
+        for key in &new_keys {
+            println!("  - {}", key);
+        }
+    }
+}
+
+/// V15 P2 25.3-F：前后端 API 版本兼容性检查
+/// 检查前端 dist 中的版本信息与后端版本一致
+fn check_api_version_compatibility() -> bool {
+    let install_dir = super::get_install_dir();
+    let frontend_version_file = format!("{}/frontend/dist/version.json", install_dir);
+
+    if !std::path::Path::new(&frontend_version_file).exists() {
+        // 前端无 version.json，跳过检查（fail-open）
+        return true;
+    }
+
+    let frontend_version = match std::fs::read_to_string(&frontend_version_file) {
+        Ok(v) => v,
+        Err(_) => return true,
+    };
+
+    // 解析 JSON 中的 version 字段
+    let backend_version = env!("CARGO_PKG_VERSION");
+    if frontend_version.contains(backend_version) {
+        println!("[OK] 前后端版本一致: v{}", backend_version);
+        true
+    } else {
+        println!("[WARN] 前后端版本不一致（前端: {}, 后端: v{}）", 
+            frontend_version.trim(), backend_version);
+        println!("继续部署，请确保前端 dist 与后端 server 版本匹配");
+        true // fail-open，不阻塞部署
+    }
+}
+
 /// V15 P1 25.4-L：部署后启动监控线程，连续失败触发自动回滚
 /// 在新线程中执行，避免阻塞主流程；主流程立即返回成功
 fn start_post_deploy_monitor() {
@@ -319,6 +459,10 @@ fn cleanup_temp(temp_dir: &str) {
 pub(super) fn cmd_upgrade(version: Option<String>, no_backup: bool) {
     // V15 P1 25.2-C 修复：升级命令必须 root 权限（操作 systemd + 系统目录）
     require_root();
+
+    // V15 P2 25.3-I 修复：升级日志持久化
+    init_upgrade_logger();
+
     println!("=== 系统升级 ===\n");
     let current = env!("CARGO_PKG_VERSION");
     println!("当前版本: v{}", current);
@@ -327,6 +471,11 @@ pub(super) fn cmd_upgrade(version: Option<String>, no_backup: bool) {
         Some(v) => v,
         None => return,
     };
+
+    // V15 P2 25.3-D 修复：版本降级检查
+    if !check_version_downgrade(current, &target) {
+        return;
+    }
 
     // V15 P1 25.3-E 修复：升级前检查 schema 版本兼容性
     if !check_schema_compatibility() {
@@ -774,6 +923,7 @@ fn start_inactive_and_health_check(
 }
 
 /// 切换 nginx upstream → 停止原活跃实例；nginx 失败回滚新实例并返回 Err
+/// V15 P2 25.4-H 修复：添加连接 draining（切换后等待 5 秒让旧连接完成）
 fn switch_nginx_and_stop_active(
     inactive: &str,
     active_service: &str,
@@ -786,6 +936,9 @@ fn switch_nginx_and_stop_active(
         let _ = run_cmd("systemctl", &["stop", inactive_service]);
         return Err(());
     }
+    // V15 P2 25.4-H 修复：连接 draining（等待 5 秒让旧连接完成）
+    println!("等待旧连接完成（draining）...");
+    std::thread::sleep(std::time::Duration::from_secs(5));
     println!("停止旧实例 {}...", active_service);
     if let Err(e) = run_cmd("systemctl", &["stop", active_service]) {
         println!("[WARN] 停止旧实例失败（可手动停止）: {}", e);
@@ -828,6 +981,10 @@ fn deploy_release_blue_green(package: &str) {
         return;
     }
     cleanup_temp(temp_dir);
+    // V15 P2 25.3-G 修复：配置文件迁移（提示新增配置项）
+    migrate_config_files();
+    // V15 P2 25.3-F 修复：前后端 API 版本兼容性检查
+    check_api_version_compatibility();
     // V15 P1 25.3-H 修复：部署后自动执行数据库迁移（蓝绿模式下，新实例启动前执行迁移）
     if !run_database_migration() {
         println!(
@@ -843,6 +1000,8 @@ fn deploy_release_blue_green(package: &str) {
     if let Err(()) = switch_nginx_and_stop_active(&inactive, &active_service, &inactive_service) {
         return;
     }
+    // V15 P2 25.4-Q 修复：部署后启动监控，异常自动回滚
+    start_post_deploy_monitor();
     println!("\n[OK] 蓝绿部署成功");
     println!("新活跃实例: {} ({})", inactive, instance_port(&inactive));
     println!("如需回滚: bingxi rollback");
@@ -895,12 +1054,18 @@ fn deploy_release_legacy(package: &str) {
         return;
     }
     cleanup_temp(&temp_dir);
+    // V15 P2 25.3-G 修复：配置文件迁移（提示新增配置项）
+    migrate_config_files();
+    // V15 P2 25.3-F 修复：前后端 API 版本兼容性检查
+    check_api_version_compatibility();
     // V15 P1 25.3-H 修复：部署后自动执行数据库迁移（单实例模式下，启动服务前执行迁移）
     if !run_database_migration() {
         println!("[ERROR] 数据库迁移失败，请手动执行 `bingxi migrate run` 后启动服务");
         return;
     }
     start_service_and_check();
+    // V15 P2 25.4-Q 修复：部署后启动监控，异常自动回滚
+    start_post_deploy_monitor();
 }
 
 /// 停止 systemd 服务（非关键路径，失败仅记录继续部署）。

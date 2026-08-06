@@ -5,7 +5,7 @@
 //! 用途：前端慢查询审计页面（/system/slow-query）+ 运维 SQL 性能优化
 //!
 //! 表名：`slow_query_log`（迁移 m0025）
-//! 关键索引：idx_slow_query_captured / idx_slow_query_exec_time / idx_slow_query_tenant
+//! 关键索引：idx_slow_query_captured / idx_slow_query_exec_time
 
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
