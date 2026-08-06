@@ -278,16 +278,6 @@ const getCategoryLabel = (category: string) => {
   return map[category] || category;
 };
 
-const getBalanceTypeLabel = (balanceType: string) => {
-  return balanceType === 'debit'
-    ? t('accountSubject.balanceType.debit')
-    : t('accountSubject.balanceType.credit');
-};
-
-const getStatusLabel = (isEnabled: boolean) => {
-  return isEnabled ? t('accountSubject.status.enabled') : t('accountSubject.status.disabled');
-};
-
 const fetchSubjects = async () => {
   loading.value = true;
   try {
@@ -389,16 +379,13 @@ const handleExport = () => {
   type SubjectWithChildren = AccountSubjectEntity & { children?: SubjectWithChildren[] };
   const flatten = (items: SubjectWithChildren[]): AccountSubjectEntity[] => {
     return items.reduce<AccountSubjectEntity[]>((acc, item) => {
-      const { children: _children, ...rest } = item as SubjectWithChildren;
-      void _children;
-      acc.push(rest as AccountSubjectEntity);
+      acc.push(item as AccountSubjectEntity);
       if ((item as SubjectWithChildren).children) {
         acc.push(...flatten((item as SubjectWithChildren).children!));
       }
       return acc;
     }, []);
   };
-  const flat = flatten(subjectList.value as SubjectWithChildren[]);
   exportFromBackend('/gl/subjects/export', {}, t('accountSubject.exportFile.filename'));
   logger.info(t('accountSubject.exportedLog'));
 };

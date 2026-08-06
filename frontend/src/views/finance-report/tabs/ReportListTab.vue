@@ -313,7 +313,11 @@ const handleExport = () => {
     return;
   }
   if (queryForm.report_type === 'trial_balance') {
-    exportFromBackend('/finance/reports/trial-balance/export', { period: queryForm.period }, `${getReportTypeLabel(queryForm.report_type)}_${queryForm.period}`);
+    exportFromBackend(
+      '/finance/reports/trial-balance/export',
+      { period: queryForm.period },
+      `${getReportTypeLabel(queryForm.report_type)}_${queryForm.period}`
+    );
     return;
   }
   const items = reportData.value.items;
