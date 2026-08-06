@@ -159,7 +159,7 @@ import {
   type ReportData,
 } from '@/api/finance-report';
 import { logger } from '@/utils/logger';
-import { exportToExcel, exportFromBackend } from '@/utils/export';
+import { exportFromBackend } from '@/utils/export';
 
 const { t } = useI18n({ useScope: 'global' });
 
