@@ -905,6 +905,101 @@ impl MaterialShortageService {
         Ok(suggestions)
     }
 
+    /// 获取缺料月报
+    pub async fn get_monthly_report(
+        &self,
+        year: i32,
+        month: u32,
+    ) -> Result<crate::handlers::material_shortage_handler::MonthlyShortageReport, AppError> {
+        use crate::handlers::material_shortage_handler::{
+            MonthlyShortageReport, StatusDistribution, TopShortageMaterial,
+        };
+
+        let start_date = chrono::NaiveDate::from_ymd_opt(year, month, 1)
+            .ok_or_else(|| AppError::validation("无效的年月"))?;
+        let end_date = if month == 12 {
+            chrono::NaiveDate::from_ymd_opt(year + 1, 1, 1)
+        } else {
+            chrono::NaiveDate::from_ymd_opt(year, month + 1, 1)
+        }
+        .ok_or_else(|| AppError::validation("无效的年月"))?;
+
+        // 查询当月所有预警
+        let alerts = alert_model::Entity::find()
+            .filter(alert_model::Column::IdentifiedAt.gte(start_date.and_hms_opt(0, 0, 0).unwrap().and_utc()))
+            .filter(alert_model::Column::IdentifiedAt.lt(end_date.and_hms_opt(0, 0, 0).unwrap().and_utc()))
+            .all(&*self.db)
+            .await?;
+
+        let total_alerts = alerts.len() as i64;
+        let mut critical_count = 0i64;
+        let mut severe_count = 0i64;
+        let mut warning_count = 0i64;
+        let mut resolved_count = 0i64;
+        let mut status_map: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+        let mut material_map: std::collections::HashMap<i32, (String, String, Decimal, i64)> = std::collections::HashMap::new();
+
+        for alert in &alerts {
+            // 级别统计
+            match alert.level.as_str() {
+                "Critical" => critical_count += 1,
+                "Severe" => severe_count += 1,
+                "Warning" => warning_count += 1,
+                _ => {}
+            }
+
+            // 状态统计
+            *status_map.entry(alert.status.clone()).or_default() += 1;
+            if alert.status == "resolved" {
+                resolved_count += 1;
+            }
+
+            // 物料统计
+            let entry = material_map.entry(alert.material_id).or_insert_with(|| {
+                (
+                    alert.material_name.clone(),
+                    alert.material_code.clone().unwrap_or_default(),
+                    Decimal::ZERO,
+                    0,
+                )
+            });
+            entry.2 += alert.shortage_quantity;
+            entry.3 += 1;
+        }
+
+        // Top 10 缺料物料
+        let mut top_materials: Vec<TopShortageMaterial> = material_map
+            .into_iter()
+            .map(|(id, (name, code, qty, count))| TopShortageMaterial {
+                material_id: id,
+                material_name: name,
+                material_code: code,
+                shortage_quantity: qty,
+                alert_count: count,
+            })
+            .collect();
+        top_materials.sort_by(|a, b| b.shortage_quantity.cmp(&a.shortage_quantity));
+        top_materials.truncate(10);
+
+        // 状态分布
+        let status_distribution: Vec<StatusDistribution> = status_map
+            .into_iter()
+            .map(|(status, count)| StatusDistribution { status, count })
+            .collect();
+
+        Ok(MonthlyShortageReport {
+            year,
+            month,
+            total_alerts,
+            critical_count,
+            severe_count,
+            warning_count,
+            resolved_count,
+            top_shortage_materials: top_materials,
+            status_distribution,
+        })
+    }
+
     /// 更新缺料预警状态（V15 P0-B15：持久化状态到 material_shortage_alerts 表）
     /// 状态机：identified → purchase_request → purchase_order → received → resolved；查找该 material_id 最新未解决（status != 'resolved'）的 alert；更新 status 字段；若新状态为 resolved，同步填入 resolved_at；返回更新后的 alert 快照（含 level / status / 物料信息），供 handler 构建 DTO；设计：URL `/:id/status` 中的 id 语义为 material_id（与原桩实现一致），；因 persist_alerts 保证同 material_id 至多一条未解决 alert，故查找唯一。
     pub async fn update_status(

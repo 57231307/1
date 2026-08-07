@@ -226,6 +226,63 @@ pub async fn get_replenishment_suggestions(
     }))))
 }
 
+/// 缺料月报查询参数
+#[derive(Debug, Deserialize)]
+pub struct MonthlyReportParams {
+    pub year: Option<i32>,
+    pub month: Option<u32>,
+}
+
+/// 缺料月报数据
+#[derive(Debug, Serialize)]
+pub struct MonthlyShortageReport {
+    pub year: i32,
+    pub month: u32,
+    pub total_alerts: i64,
+    pub critical_count: i64,
+    pub severe_count: i64,
+    pub warning_count: i64,
+    pub resolved_count: i64,
+    pub top_shortage_materials: Vec<TopShortageMaterial>,
+    pub status_distribution: Vec<StatusDistribution>,
+}
+
+/// 缺料 Top 物料
+#[derive(Debug, Serialize)]
+pub struct TopShortageMaterial {
+    pub material_id: i32,
+    pub material_name: String,
+    pub material_code: String,
+    pub shortage_quantity: Decimal,
+    pub alert_count: i64,
+}
+
+/// 状态分布
+#[derive(Debug, Serialize)]
+pub struct StatusDistribution {
+    pub status: String,
+    pub count: i64,
+}
+
+/// GET /api/v1/erp/material-shortage/report/monthly - 缺料月报
+pub async fn get_monthly_report(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(params): Query<MonthlyReportParams>,
+) -> Result<Json<ApiResponse<MonthlyShortageReport>>, AppError> {
+    tracing::debug!(user_id = auth.user_id, "缺料月报查询");
+    let service = MaterialShortageService::new(state.db.clone());
+
+    use chrono::Datelike;
+    let now = chrono::Utc::now();
+    let year = params.year.unwrap_or_else(|| now.year());
+    let month = params.month.unwrap_or_else(|| now.month());
+
+    let report = service.get_monthly_report(year, month).await?;
+
+    Ok(Json(ApiResponse::success(report)))
+}
+
 /// PUT /api/v1/erp/material-shortage/:id/status - 更新缺料预警状态
 // 批次 94 P2-8 修复：_auth → auth，记录鉴权审计日志（避免 unused 警告）
 // V15 P0-B15（Batch 484）：状态值与 migration m0068 状态机对齐

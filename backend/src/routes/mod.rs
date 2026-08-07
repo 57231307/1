@@ -128,6 +128,10 @@ fn material_shortage_routes() -> Router<AppState> {
             get(material_shortage_handler::get_replenishment_suggestions),
         )
         .route(
+            "/material-shortage/report/monthly",
+            get(material_shortage_handler::get_monthly_report),
+        )
+        .route(
             "/material-shortage/:id/status",
             put(material_shortage_handler::update_shortage_status),
         )
