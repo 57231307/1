@@ -122,7 +122,6 @@ fn purchase_receipt_routes() -> Router<AppState> {
 
 /// 采购检验路由（path 前缀 /inspections）
 fn purchase_inspection_routes() -> Router<AppState> {
-fn purchase_inspection_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/inspections",
@@ -161,7 +160,6 @@ fn purchase_inspection_routes() -> Router<AppState> {
 }
 
 /// 采购退货路由（path 前缀 /returns）
-fn purchase_return_routes() -> Router<AppState> {
 fn purchase_return_routes() -> Router<AppState> {
     Router::new()
         .route(

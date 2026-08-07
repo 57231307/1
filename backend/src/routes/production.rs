@@ -168,6 +168,7 @@ pub fn lab_dip() -> Router<AppState> {
 /// 大货处方与加料处方路由（path 前缀 /production-recipes）；v14 批次 424：大货处方与加料处方流程 真实业务流程： 大货处方单：扫描流转卡条码 → 依据备布数量 → 加载小样处方/历史大货处方 → 根据浴比/浴量
 /// → 填写物料明细 → 计算用量 → 开具大货处方单 → 审核后自动建立生产领用单据 加料处方单：扫描流转卡 → 加载已审核大货处方 → 登记加料物料 → 生成加料处方单 关键约束：同一工单号只能开一张大货处方单，追加物料须开加料处方单
 pub fn production_recipes() -> Router<AppState> {
+    Router::new()
         // ===== 大货处方 CRUD =====
         .route("/production-recipes", get(production_recipe_handler::list))
         .route("/production-recipes", post(production_recipe_handler::create))
@@ -266,6 +267,7 @@ pub fn flow_cards() -> Router<AppState> {
 /// 验布打卷路由（path 前缀 /fabric-inspections 和 /fabric-defects）；v14 批次 426：验布打卷流程贯通 真实业务流程：验布机对接码表/电子称
 /// → 疵点采集 → 生成验布报告 → 卷唛标签打印 → PDA 扫描卷唛条码 → 自动入库 评分制式：四分制（AATCC/ASTM D5430）/ 十分制（梭织布）
 pub fn fabric_inspections() -> Router<AppState> {
+    Router::new()
         // ===== 验布记录 CRUD =====
         .route("/fabric-inspections", get(fabric_inspection_handler::list_inspections))
         .route("/fabric-inspections", post(fabric_inspection_handler::create_inspection))
@@ -331,6 +333,7 @@ pub fn wages() -> Router<AppState> {
 /// 能耗管理路由（v14 批次 428：能耗管理贯通）；业务来源：面料行业真实业务调研文档 §12.6 能耗管理 路由分组： - /energy-meters：能源计量设备 CRUD - /energy-consumptions
 /// 能耗记录 CRUD + 状态机 - /energy-rules：能耗分摊规则 CRUD + 状态机 + 查询生效规则 - /energy-allocations：能耗分摊记录 CRUD + 状态机 + 月末自动分摊
 pub fn energy() -> Router<AppState> {
+    Router::new()
         // ===== 能源计量设备 CRUD =====
         .route("/energy-meters", post(energy_handler::create_energy_meter))
         .route("/energy-meters/by-no/:no", get(energy_handler::get_energy_meter_by_no))
