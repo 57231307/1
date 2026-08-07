@@ -914,7 +914,6 @@ impl MaterialShortageService {
         use crate::handlers::material_shortage_handler::{
             MonthlyShortageReport, StatusDistribution, TopShortageMaterial,
         };
-        use sea_orm::PaginatorTrait;
 
         let start_date = chrono::NaiveDate::from_ymd_opt(year, month, 1)
             .ok_or_else(|| AppError::validation("无效的年月"))?;
