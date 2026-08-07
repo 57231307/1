@@ -4,91 +4,137 @@ use sea_orm::{ConnectionTrait, DatabaseBackend, DatabaseConnection, Statement};
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use tokio::time::{interval, Duration};
+use tokio_util::sync::CancellationToken;
 
 pub struct AuditCleanupService {
     db: Arc<DatabaseConnection>,
     retention_days: i32,
+    permission_audit_retention_days: i32,
+    security_alert_retention_days: i32,
 }
 
 impl AuditCleanupService {
     pub fn new(db: Arc<DatabaseConnection>, retention_days: i32) -> Self {
-        Self { db, retention_days }
+        Self {
+            db,
+            retention_days,
+            permission_audit_retention_days: 2555, // 7 年
+            security_alert_retention_days: 2555,   // 7 年
+        }
     }
 
-    /// 启动定期清理任务
-    pub fn start_cleanup_task(self: Arc<Self>) {
+    /// batch-12 P2-8：启动定期清理任务（返回 JoinHandle + 接受 CancellationToken）
+    pub fn start_cleanup_task(
+        self: Arc<Self>,
+        cancellation_token: CancellationToken,
+    ) -> tokio::task::JoinHandle<()> {
         let service = self.clone();
         tokio::spawn(async move {
-            // 每天执行一次清理
             let mut interval = interval(Duration::from_secs(24 * 60 * 60));
             loop {
-                interval.tick().await;
-                // 批次 7（2026-06-28）：单次清理 panic 隔离
-                // 审计日志清理是长期循环任务，若 panic 会导致 omni_audit_logs / audit_logs
-                // 表无限增长，最终拖挂数据库。确保单次 panic 不退出循环。
-                let result = AssertUnwindSafe(async {
-                    if let Err(e) = service.cleanup_expired_logs().await {
-                        tracing::error!("审计日志清理失败: {}", e);
+                tokio::select! {
+                    _ = interval.tick() => {
+                        let result = AssertUnwindSafe(async {
+                            if let Err(e) = service.cleanup_expired_logs().await {
+                                tracing::error!("审计日志清理失败: {}", e);
+                            }
+                        })
+                        .catch_unwind()
+                        .await;
+                        if let Err(panic_payload) = result {
+                            let panic_msg = panic_payload
+                                .downcast_ref::<String>()
+                                .map(|s| s.as_str())
+                                .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
+                                .unwrap_or("<非字符串 panic payload>");
+                            tracing::error!(
+                                panic = %panic_msg,
+                                "审计日志清理任务 panic 已被隔离，清理循环继续运行"
+                            );
+                        }
                     }
-                })
-                .catch_unwind()
-                .await;
-                if let Err(panic_payload) = result {
-                    let panic_msg = panic_payload
-                        .downcast_ref::<String>()
-                        .map(|s| s.as_str())
-                        .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
-                        .unwrap_or("<非字符串 panic payload>");
-                    tracing::error!(
-                        panic = %panic_msg,
-                        "⚠ 审计日志清理 spawn 任务内 panic 已被隔离，清理循环继续运行（不退出）"
-                    );
+                    _ = cancellation_token.cancelled() => {
+                        tracing::info!("审计日志清理任务收到取消信号，优雅退出");
+                        break;
+                    }
                 }
             }
-        });
+        })
     }
 
-    /// 清理过期的审计日志
+    /// 清理过期的审计日志（分级保留）
     pub async fn cleanup_expired_logs(&self) -> Result<u64, AppError> {
-        // 批次 94 P2-1 修复：原 format! 拼接 SQL 存在注入风险，改用参数化绑定
+        let mut total_deleted = 0u64;
+
+        // omni_audit_logs: 保留 retention_days（默认 365 天）
         let stmt = Statement::from_sql_and_values(
             DatabaseBackend::Postgres,
             "DELETE FROM omni_audit_logs WHERE created_at < NOW() - ($1 * INTERVAL '1 day')",
             [self.retention_days.into()],
         );
-
         let result = self.db.as_ref().execute(stmt).await?;
-
         let deleted_count = result.rows_affected();
-
         if deleted_count > 0 {
             tracing::info!(
-                "已清理 {} 条过期审计日志（保留 {} 天）",
+                "已清理 {} 条过期 omni_audit_logs（保留 {} 天）",
                 deleted_count,
                 self.retention_days
             );
         }
+        total_deleted += deleted_count;
 
-        // 同时清理 audit_logs 表
-        // 批次 94 P2-1 修复：format! 拼接 SQL 改用参数化绑定
+        // audit_logs: 保留 retention_days（默认 365 天）
         let stmt = Statement::from_sql_and_values(
             DatabaseBackend::Postgres,
             "DELETE FROM audit_logs WHERE created_at < NOW() - ($1 * INTERVAL '1 day')",
             [self.retention_days.into()],
         );
-
         let result = self.db.as_ref().execute(stmt).await?;
-
         let deleted_count2 = result.rows_affected();
         if deleted_count2 > 0 {
             tracing::info!(
-                "已清理 {} 条过期操作日志（保留 {} 天）",
+                "已清理 {} 条过期 audit_logs（保留 {} 天）",
                 deleted_count2,
                 self.retention_days
             );
         }
+        total_deleted += deleted_count2;
 
-        Ok(deleted_count + deleted_count2)
+        // permission_change_audits: 保留 7 年（2555 天）
+        let stmt = Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "DELETE FROM permission_change_audits WHERE changed_at < NOW() - ($1 * INTERVAL '1 day')",
+            [self.permission_audit_retention_days.into()],
+        );
+        let result = self.db.as_ref().execute(stmt).await?;
+        let deleted_count3 = result.rows_affected();
+        if deleted_count3 > 0 {
+            tracing::info!(
+                "已清理 {} 条过期 permission_change_audits（保留 {} 天）",
+                deleted_count3,
+                self.permission_audit_retention_days
+            );
+        }
+        total_deleted += deleted_count3;
+
+        // security_alert_logs: 保留 7 年（2555 天）
+        let stmt = Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "DELETE FROM security_alert_logs WHERE created_at < NOW() - ($1 * INTERVAL '1 day')",
+            [self.security_alert_retention_days.into()],
+        );
+        let result = self.db.as_ref().execute(stmt).await?;
+        let deleted_count4 = result.rows_affected();
+        if deleted_count4 > 0 {
+            tracing::info!(
+                "已清理 {} 条过期 security_alert_logs（保留 {} 天）",
+                deleted_count4,
+                self.security_alert_retention_days
+            );
+        }
+        total_deleted += deleted_count4;
+
+        Ok(total_deleted)
     }
 
     /// 获取审计日志统计信息
@@ -111,7 +157,6 @@ impl AuditCleanupService {
             .await?;
 
         if let Some(row) = result {
-            // DB 查询失败应传播错误而非吞掉为 0，避免审计统计与实际不符
             Ok(AuditStats {
                 total_omni_logs: row.try_get::<i64>("", "total_omni_logs")?,
                 total_audit_logs: row.try_get::<i64>("", "total_audit_logs")?,

@@ -1,6 +1,4 @@
-use futures::FutureExt;
 use sea_orm::DatabaseConnection;
-use std::panic::AssertUnwindSafe;
 use std::sync::atomic::AtomicU32;
 use std::sync::Arc;
 
@@ -122,8 +120,8 @@ impl FromRef<AppState> for Arc<MetricsService> {
 impl AppState {
     /// 创建应用全局状态，构造失败时返回错误（例如指标注册冲突；批次 331 v10 复审 P3 修复：使用 AppStateParams 参数对象替代 8 个独立参数）
     pub fn with_secrets_and_cors(params: AppStateParams) -> Result<Self, String> {
-        // 启动审计日志清理任务 + 用户吊销记录定期清理任务（后台任务，失败不阻塞启动）
-        spawn_background_tasks(&params.audit_cleanup);
+        // 启动用户吊销记录清理后台任务（后台任务，失败不阻塞启动）
+        spawn_background_tasks();
         // P2-B/M-2 修复：cookie_secret + webhook_secret 强度校验 + 互不相同校验
         validate_app_secrets(
             &params.cookie_secret,
@@ -157,31 +155,8 @@ struct AppServices {
     custom_order_aftersales: Arc<CustomOrderAfterSalesService>,
 }
 
-/// 启动审计清理 + 用户吊销记录清理后台任务（L-26 修复：保存句柄供 shutdown abort）。
-fn spawn_background_tasks(audit_cleanup: &Arc<AuditCleanupService>) {
-    let cleanup_clone = audit_cleanup.clone();
-    let audit_handle = tokio::spawn(async move {
-        // 批次 8（2026-06-28）：启动器 spawn panic 隔离
-        let result = AssertUnwindSafe(async {
-            cleanup_clone.start_cleanup_task();
-        })
-        .catch_unwind()
-        .await;
-        if let Err(panic_payload) = result {
-            let panic_msg = panic_payload
-                .downcast_ref::<String>()
-                .map(|s| s.as_str())
-                .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
-                .unwrap_or("<非字符串 panic payload>");
-            tracing::error!(
-                panic = %panic_msg,
-                "⚠ 审计清理启动器 spawn panic 已被隔离"
-            );
-        }
-    });
-    if let Ok(mut tasks) = APP_STATE_BACKGROUND_TASKS.lock() {
-        tasks.push(audit_handle);
-    }
+/// 启动用户吊销记录清理后台任务（L-26 修复：保存句柄供 shutdown abort）。
+fn spawn_background_tasks() {
     // v11 批次 145 P1-7：启动用户吊销记录定期清理任务（每 24 小时清理一次）
     let revoked_handle = crate::services::auth_service::start_revoked_user_cleanup_task();
     if let Ok(mut tasks) = APP_STATE_BACKGROUND_TASKS.lock() {

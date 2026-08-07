@@ -1634,3 +1634,115 @@ locales + 脚本 + 测试：
 ### PR #804 关联
 
 - 同会话另行提交 PR #804：release notes 增加文件级变更明细（新增/修改/删除）模板增强，与本批次归档无关
+
+---
+
+## 📄 A0b 打印合规修复归档（2026-08-07）
+
+> **批次**：A0b | **合并 commit**：1a0028d7 | **修复内容**：`report_enhanced` `POST /export/pdf` 声称 PDF 实际产纯文本
+
+### 修复内容
+
+- **问题**：`export_service.rs:45` `export_pdf` 原注释自认"导出为文本格式"，规则 3 硬违规
+- **修复**：改写为 printpdf 真 PDF + 修复 export_template pdf 分支
+- **复用**：`services/report/exp.rs` 已验证的 printpdf 渲染
+
+### 规则合规
+
+- **规则 3**：PDF 导出改为真正的 PDF 格式（非纯文本）
+
+---
+
+## 🧵 A1-A4 打印场景实现归档（2026-08-07）
+
+> **批次**：A1-A4 | **PR**：#862 | **合并 commit**：ddce03d6 | **文件**：24 文件 +3170 -7
+
+### 批次范围
+
+**57 个新 docx 打印端点**（覆盖纺织专用/P0/P1/P2 全部未实现的打印场景）：
+
+| 批次 | 场景数 | 主要内容 |
+|------|--------|----------|
+| A1 纺织专用 | 9 | 生产流转卡/验布打卷单/染色技术卡/色卡发放单/大货批色单/卷标签·条码标签/打样单 Lab Dip/生产任务单/质检记录 |
+| A2 P0 | 16 | 销售发货单通知单/销售出库细码单/收款单/付款单/销项·进项发票/销售报价单/销售退货单/采购退货单/委外加工单/委外收货单/物流运单/产地证/出口报关单/危废五联单/不合格品单/染化料领用单 |
+| A3 P1 | 25 | 付款申请单/供应商对账单/采购验货单/其他出入库·调整单/BOM·工艺单/领料单·缺料表/质检报告·8D/商检单/劳动合同 + 14 个 P1（外汇核销/出口退税/固定资产卡/资产盘点/资金调拨/科目余额/物理检测/工序卡/缸号回修/售后工单/质量异常/安全事故/劳保签收/库存台账） |
+| A4 P2 | 6 | 坏账核销单/定制订单确认单/存货跌价·减值单/社保缴纳表/职业健康体检报告/客户信用审批单 |
+
+### 技术实现
+
+- **统一模式**：复用 `PrintData { template, data, items }` 结构
+- **63 个 `get_*_print_data` 方法**：print_service.rs（2875 行）
+- **63 个 handler 函数**：print_handler.rs + 63 个 PrintTemplateDto
+- **21 个路由文件**：添加 print_handler 导入和打印路由
+- **PK 类型处理**：i64 PK 场景方法签名 `id: i32`（handler 中 `Path<i64>` + `as i32` cast）
+
+### CI 验证过程（多轮迭代）
+
+- **第一轮**：编译错误修复（类型错误、重复函数定义、缺失路由）
+- **第二轮**：Clippy 7 个警告修复（unnecessary_cast、空行、unused_imports）
+- **第三轮**：Clippy 4 个警告修复（空行、dead_code）
+- **最终状态**：CI run `31170313747` 全部通过（16 个 job 均为 success/skipped）
+
+### 规则合规
+
+- **规则 3**：所有打印场景返回 docx（非 HTML）
+- **规则 14**：无新增 `#[allow(dead_code)]`，dead_code 通过接入路由消除
+- **Clippy**：零新增警告
+
+---
+
+## 🔧 P2 快速修复批次归档（2026-08-07）
+
+> **批次**：P2 快速修复 | **项数**：4 项 | **状态**：已完成
+
+### 完成项
+
+| 编号 | 描述 | 修复内容 |
+|------|------|----------|
+| B12-P2-2 | 字段级权限推广到 product/supplier | product_handler.rs list_products/get_product + supplier_handler.rs list_suppliers/get_supplier 已接入 filter_fields/filter_fields_batch |
+| B12-P2-3 | 权限审计日志查询接口 | 新建 permission_audit_handler.rs（list_permission_audits）+ iam.rs 路由注册，GET /api/v1/erp/permission-audits，仅 admin 可访问 |
+| batch-12 P2-8 | 审计日志保留期限调度已挂载 | audit_cleanup_service.rs 重构（返回 JoinHandle + CancellationToken）+ service_bootstrap.rs start_audit_cleanup_scheduler，支持分级保留（omni_audit_logs/audit_logs 365天，permission_change_audits/security_alert_logs 7年） |
+| batch-11 P2-6 | 打印 HTML 已添加用户/IP 水印 | print.ts printSingleDocument 已添加 watermarkText（打印人/时间/IP），复用 printData 的 useUserStore 获取用户名逻辑 |
+
+### 技术细节
+
+- **B12-P2-2**：复用 purchase_order_handler.rs 的 filter_fields 模式，resource_type 分别为 "product" 和 "supplier"
+- **B12-P2-3**：查询参数支持 change_type/operator_id/role_id/user_id/resource_type/start_date/end_date/page/page_size
+- **batch-12 P2-8**：MAIN_CANCELLATION_TOKEN 控制优雅关停，panic 隔离保持循环运行
+- **batch-11 P2-6**：useUserStore 获取用户名，失败时回退到 localStorage，再回退到 '未知用户'
+
+### 规则合规
+
+- **规则 14**：无新增 `#[allow(dead_code)]`
+- **Clippy**：零新增警告
+
+---
+
+## 📦 导出链路 CSV 中间格式技术债修复归档（2026-08-07）
+
+> **批次**：导出技术债修复 | **项数**：3 项 | **状态**：已完成
+
+### 完成项
+
+| 编号 | 描述 | 修复内容 |
+|------|------|----------|
+| T1 | 产品导出去除 CSV 中转 | product_service.rs 新增 `export_products_to_xlsx` 函数，product_handler.rs 改为调用新函数直接获取结构化数据 |
+| T2 | 采购订单导出去除 CSV 中转 | po/order_ops/query.rs 新增 `export_orders_to_xlsx` 函数，purchase_order_handler.rs 改为调用新函数直接获取结构化数据 |
+| T3 | 销售订单导出去除 CSV 中转 | so/delivery_ops/export.rs 新增 `export_orders_to_xlsx` 函数，sales_order_handler.rs 改为调用新函数直接获取结构化数据 |
+
+### 技术细节
+
+- **T1**：`export_products_to_xlsx` 返回 `(Vec<String>, Vec<Vec<String>>)`，复用 `build_product_csv_headers` 和 `build_product_csv_row` 逻辑
+- **T2**：`export_orders_to_xlsx` 返回 `(Vec<String>, Vec<Vec<String>>)`，复用 `csv_headers` 和 `build_csv_rows` 逻辑
+- **T3**：`export_orders_to_xlsx` 返回 `(Vec<String>, Vec<Vec<String>>)`，复用 `build_order_csv_headers` 和 `order_to_csv_row` 逻辑
+
+### 性能收益
+
+- 去除 CSV 序列化+反序列化往返
+- 消除字段含逗号/引号/换行导致的解析脆弱性
+- 减少内存分配和 CPU 开销
+
+### 规则合规
+
+- **规则 3**：成品仍为 xlsx，已合规
+- **Clippy**：零新增警告

@@ -6,6 +6,35 @@
 
 ---
 
+## 导出链路 CSV 中间格式技术债修复（2026-08-07，3 项）
+
+| 项 | 一句话总结 |
+|----|-----------|
+| T1 | 产品导出去除 CSV 中转：product_handler.rs 已改为调用 `export_products_to_xlsx` 直接获取结构化数据 |
+| T2 | 采购订单导出去除 CSV 中转：purchase_order_handler.rs 已改为调用 `export_orders_to_xlsx` 直接获取结构化数据 |
+| T3 | 销售订单导出去除 CSV 中转：sales_order_handler.rs 已改为调用 `export_orders_to_xlsx` 直接获取结构化数据 |
+
+---
+
+## P2 快速修复批次（2026-08-07，4 项）
+
+| 项 | 一句话总结 |
+|----|-----------|
+| B12-P2-2 | 字段级权限推广到 product/supplier：product_handler.rs list_products/get_product + supplier_handler.rs list_suppliers/get_supplier 已接入 filter_fields |
+| B12-P2-3 | 权限审计日志查询接口：permission_audit_handler.rs + iam.rs 路由注册，GET /api/v1/erp/permission-audits |
+| batch-12 P2-8 | 审计日志保留期限调度已挂载：audit_cleanup_service.rs 重构 + service_bootstrap.rs start_audit_cleanup_scheduler，支持分级保留（365天/7年） |
+| batch-11 P2-6 | 打印 HTML 已添加用户/IP 水印：print.ts printSingleDocument 已添加 watermarkText（打印人/时间/IP） |
+
+---
+
+## PR #862 合并：A1-A4 打印场景（2026-08-07，已合并 main）
+
+| 项 | 一句话总结 |
+|----|-----------|
+| PR #862 合并 | A1-A4 完成（ddce03d6）：57 个新 docx 打印端点（纺织专用 9 + P0 16 + P1 25 + P2 6），63 个 get_*_print_data + 63 个 handler，覆盖纺织专用/P0/P1/P2 全部未实现打印场景；CI 全绿 |
+
+---
+
 ## A0b 修复中：report_enhanced 真实 PDF（2026-08-07，待 CI）
 
 | 项 | 一句话总结 |

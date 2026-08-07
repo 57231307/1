@@ -45,6 +45,30 @@ pub async fn list_suppliers(
         }
     }
 
+    // B12-P2-2：字段级权限过滤
+    if let Some(role_id) = auth.role_id {
+        if let Ok(Some(permission)) = state
+            .data_permission_service
+            .get_role_data_permission(role_id, "supplier")
+            .await
+        {
+            // 如果是数组，批量过滤
+            if let Some(arr) = value.as_array_mut() {
+                state.data_permission_service.filter_fields_batch(
+                    arr,
+                    &permission.allowed_fields,
+                    &permission.hidden_fields,
+                );
+            } else {
+                state.data_permission_service.filter_fields(
+                    &mut value,
+                    &permission.allowed_fields,
+                    &permission.hidden_fields,
+                );
+            }
+        }
+    }
+
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -59,9 +83,24 @@ pub async fn get_supplier(
     let data_scope_ctx = auth.to_data_scope_context();
     let supplier = service.get_supplier(id, Some(&data_scope_ctx)).await?;
 
-    let value = serde_json::to_value(supplier).map_err(AppError::from)?;
+    let mut value = serde_json::to_value(supplier).map_err(AppError::from)?;
     // P1-08-5：非管理员对供应商详情手机号/邮箱脱敏
-    let value = crate::utils::field_mask::mask_contact_fields_for_role(value, auth.role_id);
+    value = crate::utils::field_mask::mask_contact_fields_for_role(value, auth.role_id);
+
+    // B12-P2-2：字段级权限过滤
+    if let Some(role_id) = auth.role_id {
+        if let Ok(Some(permission)) = state
+            .data_permission_service
+            .get_role_data_permission(role_id, "supplier")
+            .await
+        {
+            state.data_permission_service.filter_fields(
+                &mut value,
+                &permission.allowed_fields,
+                &permission.hidden_fields,
+            );
+        }
+    }
 
     Ok(Json(ApiResponse::success(value)))
 }

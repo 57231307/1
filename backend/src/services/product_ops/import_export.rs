@@ -29,26 +29,34 @@ struct ValidatedRowFields {
 }
 
 impl ProductService {
-    /// 导出产品数据为 CSV 格式
-    pub async fn export_products_to_csv(
+    /// T1: 导出产品数据为结构化格式（去除 CSV 中转）
+    pub async fn export_products_to_xlsx(
         &self,
         category_id: Option<i32>,
         status: Option<String>,
         search: Option<String>,
-    ) -> Result<Vec<u8>, AppError> {
+    ) -> Result<(Vec<String>, Vec<Vec<String>>), AppError> {
         // 查询产品列表（单页拉取全量用于导出）
         let (products, _total) = self
             .list_products(1, 10000, category_id, status, search)
             .await?;
 
-        // 构建 CSV 表头与行数据
+        // 构建表头
         let headers = Self::build_product_csv_headers();
-        let rows: Vec<std::collections::HashMap<String, String>> =
-            products.iter().map(Self::build_product_csv_row).collect();
 
-        // 生成 CSV 字节流
-        crate::utils::import_export::CsvImporter::generate(&headers, &rows)
-            .map_err(|e| AppError::business(format!("CSV 生成失败: {}", e)))
+        // 构建行数据（直接转为 Vec<Vec<String>>，无需 CSV 中转）
+        let rows: Vec<Vec<String>> = products
+            .iter()
+            .map(|p| {
+                let row = Self::build_product_csv_row(p);
+                headers
+                    .iter()
+                    .map(|h| row.get(h).cloned().unwrap_or_default())
+                    .collect()
+            })
+            .collect();
+
+        Ok((headers, rows))
     }
 
     /// 构建 CSV 表头（19 列）
@@ -140,8 +148,8 @@ impl ProductService {
         row
     }
 
-    /// 生成产品导入模板
-    pub fn generate_product_import_template() -> Result<Vec<u8>, AppError> {
+    /// T1: 生成产品导入模板（结构化格式，去除 CSV 中转）
+    pub fn generate_product_import_template_xlsx() -> Result<(Vec<String>, Vec<Vec<String>>), AppError> {
         let headers = vec![
             "产品编码".to_string(),
             "产品名称".to_string(),
@@ -164,29 +172,29 @@ impl ProductService {
             "产品描述".to_string(),
         ];
 
-        let mut example = std::collections::HashMap::new();
-        example.insert("产品编码".to_string(), "FAB-001".to_string());
-        example.insert("产品名称".to_string(), "纯棉坯布".to_string());
-        example.insert("产品类型".to_string(), "坯布".to_string());
-        example.insert("类别ID".to_string(), "1".to_string());
-        example.insert("规格型号".to_string(), "40S*40S".to_string());
-        example.insert("计量单位".to_string(), "米".to_string());
-        example.insert("标准价格".to_string(), "15.50".to_string());
-        example.insert("成本价格".to_string(), "12.00".to_string());
-        example.insert("面料成分".to_string(), "100%棉".to_string());
-        example.insert("纱支".to_string(), "40S".to_string());
-        example.insert("密度".to_string(), "133*72".to_string());
-        example.insert("幅宽".to_string(), "150.00".to_string());
-        example.insert("克重".to_string(), "120.00".to_string());
-        example.insert("组织结构".to_string(), "平纹".to_string());
-        example.insert("后整理".to_string(), "防水".to_string());
-        example.insert("最小起订量".to_string(), "1000".to_string());
-        example.insert("交货期".to_string(), "15".to_string());
-        example.insert("状态".to_string(), master_data::ACTIVE.to_string());
-        example.insert("产品描述".to_string(), "高品质纯棉坯布".to_string());
+        let example_row = vec![
+            "FAB-001".to_string(),
+            "纯棉坯布".to_string(),
+            "坯布".to_string(),
+            "1".to_string(),
+            "40S*40S".to_string(),
+            "米".to_string(),
+            "15.50".to_string(),
+            "12.00".to_string(),
+            "100%棉".to_string(),
+            "40S".to_string(),
+            "133*72".to_string(),
+            "150.00".to_string(),
+            "120.00".to_string(),
+            "平纹".to_string(),
+            "防水".to_string(),
+            "1000".to_string(),
+            "15".to_string(),
+            master_data::ACTIVE.to_string(),
+            "高品质纯棉坯布".to_string(),
+        ];
 
-        crate::utils::import_export::CsvImporter::generate_template(&headers, Some(&[example]))
-            .map_err(|e| AppError::business(format!("模板生成失败: {}", e)))
+        Ok((headers, vec![example_row]))
     }
 
     /// 获取必填字段值，缺失列时添加错误并返回 None（D08-1 第二梯队拆分：提取 import_products_from_csv 中重复的“取列或报错”模式。）

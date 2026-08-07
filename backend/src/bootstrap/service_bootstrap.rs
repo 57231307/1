@@ -164,6 +164,8 @@ pub async fn bootstrap_full_mode(
     }
     // V15 P1-14.10-C：启动权限合规审查定时任务（异常权限分配识别 + 定期合规审查）
     start_permission_compliance_review(&app_state);
+    // batch-12 P2-8：启动审计日志分级保留清理调度
+    start_audit_cleanup_scheduler(&app_state);
 
     Ok((app_state, shutdown_handles))
 }
@@ -809,6 +811,26 @@ fn start_permission_compliance_review(app_state: &AppState) {
         tasks.push(handle);
     }
     info!("权限合规审查定时任务已启动（14.10-C，受 MAIN_CANCELLATION_TOKEN 控制）");
+}
+
+/// batch-12 P2-8：启动审计日志分级保留清理调度（标准 scheduler 模式）
+fn start_audit_cleanup_scheduler(app_state: &AppState) {
+    let retention_days = resolve_audit_retention_days();
+    let service = std::sync::Arc::new(
+        crate::services::audit_cleanup_service::AuditCleanupService::new(
+            app_state.db.clone(),
+            retention_days,
+        ),
+    );
+    let handle = service.start_cleanup_task(MAIN_CANCELLATION_TOKEN.clone());
+    if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
+        tasks.push(handle);
+    }
+    info!(
+        retention_days,
+        "审计日志分级保留清理调度已启动（omni_audit_logs/audit_logs {}天, permission_change_audits/security_alert_logs 7年）",
+        retention_days
+    );
 }
 
 /// 启动时初始化 8 个辅助核算维度（幂等实现，失败仅 warn 不阻塞启动）。

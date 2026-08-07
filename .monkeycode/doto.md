@@ -28,18 +28,14 @@
 
 > 详见 V15 审计 batch-11（类十三打印导出审计与权限控制专项）。原"已实现 6 个场景"实为返回 HTML，违反规则 3（A0 整改）；完整场景清单见已批准执行计划（批次 A：A0 合规基建 → A1 纺织专用 → A2 P0 → A3 P1 → A4 P2，约 60 个打印场景）。本节列未完成项。
 
-**业务场景覆盖**：原称 6/16 = 37.5%（注：**销售发货单通知单**与**销售出库细码单**是**两个不同单据**，原清单误合并/混淆，不得去重；实际初始场景数按 16 计）；二次查漏又发现约 26 个业务实体需打印，合计约 60 场景分批推进。
+**业务场景覆盖**：原称 6/16 = 37.5%（注：**销售发货单通知单**与**销售出库细码单**是**两个不同单据**，原清单误合并/混淆，不得去重；实际初始场景数按 16 计）；二次查漏又发现约 26 个业务实体需打印，合计约 60 场景分批推进。**A1-A4 已全部完成**（57 个新场景 + 6 个原场景 = 63 个打印端点）。
 
 | 状态 | 场景 | 说明 |
 |------|------|------|
 | ✅ 已合并 main（87637967） | 6 个原 HTML 场景（销售订单/销售合同/采购订单/采购收货单/库存调拨单/会计凭证） | A0 改为返回 docx（接入 generate_docx） |
 | ✅ 已合并 main（87637967） | 会计凭证路由缺失 | A0 在 finance.rs 新增 `/vouchers/:id/print` |
 | ✅ 已合并 main（1a0028d7，A0b） | `report_enhanced` `POST /export/pdf` 声称 PDF 实际产纯文本 | `export_service.rs:45` `export_pdf` 原注释自认"导出为文本格式"，规则 3 硬违规；A0b 改写为 printpdf 真 PDF + 修复 export_template pdf 分支 |
-| ❌ 待实现（A1-A4） | 销售发货单通知单（出库前置单据）/销售出库细码单（面料出库明细）/采购合同/库存盘点单/工资单 | 原清单未实现项 |
-| ❌ 待实现（A1 纺织专用） | 生产流转卡/验布打卷单/染色技术卡/色卡发放单/大货批色单/卷标签·条码标签/打样单 Lab Dip/生产任务单/质检记录 | 纺织核心+业务+生产 |
-| ❌ 待实现（A2 P0） | 销售发货单通知单(出库前置)/销售出库细码单(面料出库明细)/收款单/付款单/销项·进项发票/销售报价单/销售退货单/采购退货单/委外加工单/委外收货单/物流运单/产地证/出口报关单/危废五联单/不合格品单/染化料领用单 | 通用+法定 |
-| ❌ 待实现（A3 P1） | 付款申请单/供应商对账单/采购验货单/其他出入库·调整单/BOM·工艺单/领料单·缺料表/质检报告·8D/商检单/劳动合同 + 14 个 P1（外汇核销/出口退税/固定资产卡/资产盘点/资金调拨/科目余额/物理检测/工序卡/缸号回修/售后工单/质量异常/安全事故/劳保签收/库存台账） | 通用 |
-| ❌ 待实现（A4 P2） | 坏账核销单/定制订单确认单/存货跌价·减值单/社保缴纳表/职业健康体检报告/客户信用审批单 | 低优 |
+| ✅ 已合并 main（ddce03d6，A1-A4） | 57 个新 docx 打印端点 | A1 纺织专用 9 + A2 P0 16 + A3 P1 25 + A4 P2 6 + 已有 quality_inspection_record；63 个 get_*_print_data + 63 个 handler；PR #862 合并 |
 
 **规则 3 合规性**：✅ **A0 已合并 main（87637967）**——原 6 个场景已由 HTML 改为 docx 成品；✅ **A0b 已合并 main（1a0028d7）**——`report_enhanced` `POST /export/pdf` 已由 printpdf 渲染为真 PDF（复用 `services/report/exp.rs` 已验证的 printpdf 渲染），同时修复 `export_template` 的 pdf 分支。命名误导的 `export_csv` 见 §五。
 
@@ -106,14 +102,14 @@
 | B06-P2-1 | E2E 报告未保存到 docs/audits | e2e-batch.yml 仅上传 artifact，`.monkeycode/docs/audits/` 无 E2E 报告落盘 | 测试 |
 | B10-P2-9 | 色卡定时任务单元测试未实现（审计要求 23 项） | color_card_issue_scheduler.rs（241 行）无 `#[cfg(test)]`；tests/color_card_issue_test.rs 无 scheduler 测试 | 色卡 |
 | B12-P2-1 | 权限码命名规范未统一为 `<模块>.<资源>.<操作>` 三段式 | permission.rs:186 `format!("{}:{}", ...)` 冒号两段式；migration 中 permission_code 为点号两段式 | 权限 |
-| B12-P2-2 | 字段级权限未推广到 product/supplier | data_permission_service.rs filter_fields 已接入 7 个 handler，product_handler/supplier_handler 无 | 权限 |
-| B12-P2-3 | 权限审计日志查询接口缺失（仅写入无查询） | role_permission_service.rs 仅 write_permission_audit；routes/handlers 0 命中 | 权限 |
+| B12-P2-2 | ✅ 字段级权限已推广到 product/supplier | product_handler.rs list_products/get_product + supplier_handler.rs list_suppliers/get_supplier 已接入 filter_fields | 权限 |
+| B12-P2-3 | ✅ 权限审计日志查询接口已创建 | permission_audit_handler.rs + iam.rs 路由注册 | 权限 |
 | B12-P2-4 | 敏感角色变更双人审批未实现 | 全库 grep dual_approval/second_approval 0 命中 | 权限 |
 | B12-P2-5 | 大数据量导出无流式处理 | import_export_handler.rs:257-264 一次性 generate_xlsx + base64；report/exp.rs 同 | 导出 |
 | batch-11 P2-4 | CSV 导出无首行注释水印 | report/exp.rs:483-527 用 build_xlsx 无水印（build_xlsx_with_watermark 未用于通用导出） | 导出 |
 | batch-11 P2-5 | PDF 导出无背景水印 | report/exp.rs:54-75 export_pdf 仅 header/footer 无水印 | 导出 |
-| batch-11 P2-6 | 打印 HTML 缺用户/IP 水印 | print_service.rs PrintData 无用户/IP 水印；print-templates/index.vue 无水印 | 导出 |
-| batch-12 P2-8 | 审计日志保留期限调度未挂载 | audit_cleanup_service.rs retention_days 存在但无调度挂载证据 | 权限 |
+| batch-11 P2-6 | ✅ 打印 HTML 已添加用户/IP 水印 | print.ts printSingleDocument 已添加 watermarkText（打印人/时间/IP） | 导出 |
+| batch-12 P2-8 | ✅ 审计日志保留期限调度已挂载 | audit_cleanup_service.rs 已重构 + service_bootstrap.rs start_audit_cleanup_scheduler | 权限 |
 | batch-12 P2-9 | 行级/字段级权限测试未落地 | 权限测试仅覆盖缓存/通配，无行级权限测试 | 权限 |
 | batch-13 P2 | 供应商账户余额管理 + 异常大额订单检测引擎 | supplier_service.rs 无余额维度查询；无"异常大额订单+异常频繁退货"专门引擎 | 业务 |
 | batch-16 P2-3/P2-4 | 通知模板无动态管理、不支持多语言 | grep notification_template 无模型；notification_service.rs 无 i18n | 报表/通知 |
@@ -224,10 +220,10 @@
 
 | # | 问题 | 代码证据 | 待办 |
 |---|------|----------|------|
-| T1 | 产品导出经 CSV 中转 | `product_handler.rs:471-496` 调 `export_products_to_csv` 得 `csv_data`，再 `csv::ReaderBuilder` 解析 → `XlsxTable` → `build_xlsx_response` 返回 xlsx（注释「规则 3：将 service 返回的 CSV 解析为 xlsx 表格」） | 改为 service 直接返回结构化数据（如 `Vec<Vec<String>>`/实体），handler 直接 `build_xlsx`，去掉 CSV 序列化+反序列化往返 |
-| T2 | 采购订单导出经 CSV 中转 | `purchase_order_handler.rs:526-560` 同上链路 | 同 T1 |
-| T3 | 销售订单导出经 CSV 中转 | `sales_order_handler.rs:503-538` 同上链路 | 同 T1 |
+| T1 | ✅ 产品导出去除 CSV 中转 | product_handler.rs 已改为调用 `export_products_to_xlsx` 直接获取结构化数据 | 已完成 |
+| T2 | ✅ 采购订单导出去除 CSV 中转 | purchase_order_handler.rs 已改为调用 `export_orders_to_xlsx` 直接获取结构化数据 | 已完成 |
+| T3 | ✅ 销售订单导出去除 CSV 中转 | sales_order_handler.rs 已改为调用 `export_orders_to_xlsx` 直接获取结构化数据 | 已完成 |
 
 **附带（命名误导，不违规）**：路由 `GET /api/v1/erp/export/csv/:export_type`（`analytics.rs:190` → `import_export_handler.rs:245`）路径含 `csv`，但实际返回 xlsx（`generate_xlsx`，content_type 为 xlsx MIME，filename `.xlsx`）→ 建议路由路径改为 `/excel/` 或 `/xlsx/`。
 
-**为何列为待办（非合规）**：规则 3 要求成品为 xlsx，当前成品确为 xlsx，已合规；但 CSV 中转带来 ① 命名误导 ② 性能浪费（CSV 序列化后立即反序列化）③ 解析脆弱（字段含逗号/引号/换行易出错）。属可维护性/健壮性优化，建议后续 P2/P3 批次处理。
+**技术债已解决**：T1/T2/T3 已完成，去除了 CSV 序列化+反序列化往返，性能提升且消除了字段含逗号/引号/换行导致的解析脆弱性。

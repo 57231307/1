@@ -184,7 +184,7 @@ pub async fn list_products(
         .await?;
 
     // Serialize each product model to Value and mask sensitive fields
-    let masked_products: Vec<serde_json::Value> = products
+    let mut masked_products: Vec<serde_json::Value> = products
         .into_iter()
         .map(|p| {
             serde_json::to_value(p)
@@ -195,6 +195,21 @@ pub async fn list_products(
                 })
         })
         .collect();
+
+    // B12-P2-2：字段级权限过滤
+    if let Some(role_id) = auth.role_id {
+        if let Ok(Some(permission)) = state
+            .data_permission_service
+            .get_role_data_permission(role_id, "product")
+            .await
+        {
+            state.data_permission_service.filter_fields_batch(
+                &mut masked_products,
+                &permission.allowed_fields,
+                &permission.hidden_fields,
+            );
+        }
+    }
 
     Ok(Json(ApiResponse::success(PaginatedResponse::new(
         masked_products,
@@ -207,12 +222,29 @@ pub async fn list_products(
 /// 获取产品详情
 pub async fn get_product(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
-) -> Result<Json<ApiResponse<product::Model>>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let product_service = ProductService::new(state.db.clone(), state.search_client.clone());
     let product = product_service.get_product(id).await?;
-    Ok(Json(ApiResponse::success(product)))
+    let mut product_json = serde_json::to_value(product)?;
+
+    // B12-P2-2：字段级权限过滤
+    if let Some(role_id) = auth.role_id {
+        if let Ok(Some(permission)) = state
+            .data_permission_service
+            .get_role_data_permission(role_id, "product")
+            .await
+        {
+            state.data_permission_service.filter_fields(
+                &mut product_json,
+                &permission.allowed_fields,
+                &permission.hidden_fields,
+            );
+        }
+    }
+
+    Ok(Json(ApiResponse::success(product_json)))
 }
 
 /// 创建产品
@@ -468,26 +500,12 @@ pub async fn export_products(
     let audit_status = query.status.clone();
     let audit_search = query.search.clone();
 
-    let csv_data = product_service
-        .export_products_to_csv(query.category_id, query.status, query.search)
+    // T1: 直接获取结构化数据，去除 CSV 中转
+    let (headers, rows) = product_service
+        .export_products_to_xlsx(query.category_id, query.status, query.search)
         .await
         .map_err(|e| AppError::internal(format!("导出失败: {}", e)))?;
 
-    // 规则 3：将 service 返回的 CSV 解析为 xlsx 表格
-    let mut reader = csv::ReaderBuilder::new()
-        .has_headers(true)
-        .from_reader(csv_data.as_slice());
-    let headers: Vec<String> = reader
-        .headers()
-        .map_err(|e| AppError::internal(format!("CSV解析错误: {}", e)))?
-        .iter()
-        .map(|s| s.to_string())
-        .collect();
-    let mut rows: Vec<Vec<String>> = Vec::new();
-    for result in reader.records() {
-        let record = result.map_err(|e| AppError::internal(format!("CSV解析错误: {}", e)))?;
-        rows.push(record.iter().map(|s| s.to_string()).collect());
-    }
     let row_count = rows.len();
     let table = XlsxTable {
         sheet_name: "产品列表".to_string(),
@@ -560,24 +578,10 @@ pub async fn get_product_import_template(
     State(_state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<axum::response::Response, AppError> {
-    let template_data = ProductService::generate_product_import_template()
+    // T1: 直接获取结构化数据，去除 CSV 中转
+    let (headers, rows) = ProductService::generate_product_import_template_xlsx()
         .map_err(|e| AppError::internal(format!("模板生成失败: {}", e)))?;
 
-    // 规则 3：将 service 返回的 CSV 模板解析为 xlsx 表格
-    let mut reader = csv::ReaderBuilder::new()
-        .has_headers(true)
-        .from_reader(template_data.as_slice());
-    let headers: Vec<String> = reader
-        .headers()
-        .map_err(|e| AppError::internal(format!("CSV解析错误: {}", e)))?
-        .iter()
-        .map(|s| s.to_string())
-        .collect();
-    let mut rows: Vec<Vec<String>> = Vec::new();
-    for result in reader.records() {
-        let record = result.map_err(|e| AppError::internal(format!("CSV解析错误: {}", e)))?;
-        rows.push(record.iter().map(|s| s.to_string()).collect());
-    }
     let table = XlsxTable {
         sheet_name: "产品导入模板".to_string(),
         headers,

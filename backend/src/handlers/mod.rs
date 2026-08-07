@@ -201,6 +201,8 @@ pub mod labor_contract_handler;
 pub mod logistics_tracking_handler;
 pub mod occupational_health_handler;
 pub mod permission_delegation_handler;
+// B12-P2-3：权限变更审计日志查询接口
+pub mod permission_audit_handler;
 pub mod pollution_monitoring_handler;
 pub mod pollution_permit_handler;
 pub mod role_relation_handler;
