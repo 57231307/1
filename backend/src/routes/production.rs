@@ -336,6 +336,7 @@ pub fn wages() -> Router<AppState> {
 pub fn energy() -> Router<AppState> {
     Router::new()
         // ===== 能源计量设备 CRUD =====
+        .route("/energy-meters", get(energy_handler::list_energy_meters))
         .route("/energy-meters", post(energy_handler::create_energy_meter))
         .route("/energy-meters/by-no/:no", get(energy_handler::get_energy_meter_by_no))
         .route("/energy-meters/:id", get(energy_handler::get_energy_meter))

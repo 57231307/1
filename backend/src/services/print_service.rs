@@ -921,7 +921,6 @@ impl PrintService {
 
     /// V15 P1 batch-08 缺陷 8：生成 docx 字节流（规则 3 强制要求合同/发票/报表支持 .docx）
     /// 将 PrintData 转为 Word 文档（标题 + 主表键值对 + 明细表格）。
-
     /// 生产流转卡打印数据
     async fn get_production_flow_card_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::production_flow_card;
