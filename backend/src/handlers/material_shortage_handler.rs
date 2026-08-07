@@ -273,6 +273,7 @@ pub async fn get_monthly_report(
     tracing::debug!(user_id = auth.user_id, "缺料月报查询");
     let service = MaterialShortageService::new(state.db.clone());
 
+    use chrono::Datelike;
     let now = chrono::Utc::now();
     let year = params.year.unwrap_or_else(|| now.year());
     let month = params.month.unwrap_or_else(|| now.month());
