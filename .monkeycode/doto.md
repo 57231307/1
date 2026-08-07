@@ -102,14 +102,8 @@
 | B06-P2-1 | E2E 报告未保存到 docs/audits | e2e-batch.yml 仅上传 artifact，`.monkeycode/docs/audits/` 无 E2E 报告落盘 | 测试 |
 | B10-P2-9 | 色卡定时任务单元测试未实现（审计要求 23 项） | color_card_issue_scheduler.rs（241 行）无 `#[cfg(test)]`；tests/color_card_issue_test.rs 无 scheduler 测试 | 色卡 |
 | B12-P2-1 | 权限码命名规范未统一为 `<模块>.<资源>.<操作>` 三段式 | permission.rs:186 `format!("{}:{}", ...)` 冒号两段式；migration 中 permission_code 为点号两段式 | 权限 |
-| B12-P2-2 | ✅ 字段级权限已推广到 product/supplier | product_handler.rs list_products/get_product + supplier_handler.rs list_suppliers/get_supplier 已接入 filter_fields | 权限 |
-| B12-P2-3 | ✅ 权限审计日志查询接口已创建 | permission_audit_handler.rs + iam.rs 路由注册 | 权限 |
 | B12-P2-4 | 敏感角色变更双人审批未实现 | 全库 grep dual_approval/second_approval 0 命中 | 权限 |
 | B12-P2-5 | 大数据量导出无流式处理 | import_export_handler.rs:257-264 一次性 generate_xlsx + base64；report/exp.rs 同 | 导出 |
-| batch-11 P2-4 | CSV 导出无首行注释水印 | report/exp.rs:483-527 用 build_xlsx 无水印（build_xlsx_with_watermark 未用于通用导出） | 导出 |
-| batch-11 P2-5 | PDF 导出无背景水印 | report/exp.rs:54-75 export_pdf 仅 header/footer 无水印 | 导出 |
-| batch-11 P2-6 | ✅ 打印 HTML 已添加用户/IP 水印 | print.ts printSingleDocument 已添加 watermarkText（打印人/时间/IP） | 导出 |
-| batch-12 P2-8 | ✅ 审计日志保留期限调度已挂载 | audit_cleanup_service.rs 已重构 + service_bootstrap.rs start_audit_cleanup_scheduler | 权限 |
 | batch-12 P2-9 | 行级/字段级权限测试未落地 | 权限测试仅覆盖缓存/通配，无行级权限测试 | 权限 |
 | batch-13 P2 | 供应商账户余额管理 + 异常大额订单检测引擎 | supplier_service.rs 无余额维度查询；无"异常大额订单+异常频繁退货"专门引擎 | 业务 |
 | batch-16 P2-3/P2-4 | 通知模板无动态管理、不支持多语言 | grep notification_template 无模型；notification_service.rs 无 i18n | 报表/通知 |

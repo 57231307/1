@@ -187,7 +187,7 @@ pub fn imports() -> Router<AppState> {
 /// 导出路由
 pub fn exports() -> Router<AppState> {
     Router::new()
-        .route("/csv/:export_type", get(import_export_handler::export_csv))
+        .route("/xlsx/:export_type", get(import_export_handler::export_xlsx))
         .route(
             "/excel/:export_type",
             get(import_export_handler::export_excel_type),

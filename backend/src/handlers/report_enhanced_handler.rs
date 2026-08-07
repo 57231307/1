@@ -446,7 +446,7 @@ pub async fn export_template(
         .execute_custom_report(id, auth.user_id, auth.role_id)
         .await?;
 
-    let format = req.format.unwrap_or_else(|| "csv".to_string());
+    let format = req.format.unwrap_or_else(|| "xlsx".to_string());
     let title = req.title.unwrap_or_else(|| format!("报表模板 {}", id));
 
     let export_data = crate::services::export_service::ExportData {

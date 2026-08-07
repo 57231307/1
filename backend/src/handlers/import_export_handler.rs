@@ -241,8 +241,8 @@ pub async fn download_template(
     }))))
 }
 
-/// GET /api/v1/erp/export/csv/:export_type - 数据导出（xlsx）
-pub async fn export_csv(
+/// GET /api/v1/erp/export/xlsx/:export_type - 数据导出（xlsx）
+pub async fn export_xlsx(
     State(state): State<AppState>,
     auth: AuthContext,
     Path(export_type): Path<String>,
@@ -260,9 +260,7 @@ pub async fn export_csv(
     use base64::Engine;
     let content = base64::engine::general_purpose::STANDARD.encode(&xlsx_bytes);
 
-    // P1 8-6 修复：export_csv 补审计日志（原仅 tracing::info）
-    // 修复背景：原 export_csv 仅 tracing::info 输出，未调 audit_log_service，
-    // 数据导出无审计落库，无法追溯谁导出了什么数据。
+    // 审计日志
     let event = AuditEvent {
         user_id: Some(auth.user_id),
         username: Some(auth.username.clone()),
@@ -278,7 +276,7 @@ pub async fn export_csv(
             data.len()
         )),
         request_method: Some("GET".to_string()),
-        request_path: Some(format!("/api/v1/erp/export/csv/{}", export_type)),
+        request_path: Some(format!("/api/v1/erp/export/xlsx/{}", export_type)),
         before_snapshot: None,
         after_snapshot: Some(serde_json::json!({
             "export_type": export_type,
