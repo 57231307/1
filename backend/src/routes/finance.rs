@@ -557,7 +557,6 @@ pub fn ap() -> Router<AppState> {
 
 /// AP 应付发票路由（path 前缀 /ap/invoices）
 fn ap_invoice_routes() -> Router<AppState> {
-fn ap_invoice_routes() -> Router<AppState> {
     Router::new()
         .route("/ap/invoices", get(ap_invoice_handler::list_ap_invoices))
         .route("/ap/invoices", post(ap_invoice_handler::create_ap_invoice))
@@ -607,7 +606,6 @@ fn ap_invoice_routes() -> Router<AppState> {
 
 /// AP 付款路由（path 前缀 /ap/payments）
 fn ap_payment_routes() -> Router<AppState> {
-fn ap_payment_routes() -> Router<AppState> {
     Router::new()
         .route("/ap/payments", get(ap_payment_handler::list_payments))
         .route("/ap/payments", post(ap_payment_handler::create_payment))
@@ -624,7 +622,6 @@ fn ap_payment_routes() -> Router<AppState> {
 }
 
 /// AP 付款申请路由（path 前缀 /ap/payment-requests）
-fn ap_payment_request_routes() -> Router<AppState> {
 fn ap_payment_request_routes() -> Router<AppState> {
     Router::new()
         .route(
@@ -699,7 +696,6 @@ fn ap_verification_routes() -> Router<AppState> {
 }
 
 /// AP 对账路由（path 前缀 /ap/reconciliations 与 /ap/invoices/:id/relations）
-fn ap_reconciliation_routes() -> Router<AppState> {
 fn ap_reconciliation_routes() -> Router<AppState> {
     Router::new()
         .route(
