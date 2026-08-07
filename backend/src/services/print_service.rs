@@ -1180,7 +1180,7 @@ impl PrintService {
                     let mut row = HashMap::new();
                     row.insert("material_code".to_string(), serde_json::json!(item.material_code));
                     row.insert("material_name".to_string(), serde_json::json!(item.material_name));
-            row.insert("amount".to_string(), serde_json::json!(item.total_amount.to_string()));
+                    row.insert("amount".to_string(), serde_json::json!(item.amount.to_string()));
                     row.insert("unit".to_string(), serde_json::json!(item.unit));
                     row.insert("category".to_string(), serde_json::json!(item.category));
                     item_list.push(row);
@@ -1437,7 +1437,7 @@ impl PrintService {
             row.insert("product_id".to_string(), serde_json::json!(item.product_id));
             row.insert("quantity".to_string(), serde_json::json!(item.quantity.to_string()));
             row.insert("unit_price".to_string(), serde_json::json!(item.unit_price.to_string()));
-            row.insert("amount".to_string(), serde_json::json!(item.amount.to_string()));
+            row.insert("amount".to_string(), serde_json::json!(item.total_amount.to_string()));
             item_list.push(row);
         }
 
