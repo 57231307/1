@@ -1090,7 +1090,7 @@ impl PrintService {
         data.insert("fabric_component".to_string(), serde_json::json!(record.fabric_component.clone()));
         data.insert("light_source".to_string(), serde_json::json!(record.light_source.clone()));
         data.insert("dye_category".to_string(), serde_json::json!(record.dye_category.clone()));
-        data.insert("required_date".to_string(), serde_json::json!(record.required_date.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default()));
+        data.insert("required_date".to_string(), serde_json::json!(record.required_date.format("%Y-%m-%d").to_string()));
         data.insert("status".to_string(), serde_json::json!(record.status.clone()));
 
         let mut item_list = Vec::with_capacity(items.len());
