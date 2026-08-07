@@ -220,7 +220,22 @@ export function printSingleDocument<T extends Record<string, unknown>>(options: 
     : '';
 
   const now = new Date();
-  const printDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const printDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+  // batch-11 P2-6：用户水印 - 从 userStore 获取当前用户名，失败时回退到 localStorage，再回退到 '未知用户'
+  let printUser = '未知用户';
+  try {
+    const userStore = useUserStore();
+    if (userStore.userInfo?.username) {
+      printUser = userStore.userInfo.username;
+    }
+  } catch {
+    const stored = localStorage.getItem('username');
+    if (stored) {
+      printUser = stored;
+    }
+  }
+  const watermarkText = `打印人: ${printUser}  打印时间: ${printDate}  IP: ${window.location.hostname}`;
 
   const html = `
     <!DOCTYPE html>
@@ -239,10 +254,12 @@ export function printSingleDocument<T extends Record<string, unknown>>(options: 
         .sign-area { margin-top: 40px; display: flex; justify-content: space-between; }
         .sign-item { text-align: center; }
         .sign-line { width: 150px; border-bottom: 1px solid #333; margin-top: 40px; }
+        .print-meta { text-align: center; color: #666; font-size: 11px; margin-bottom: 16px; }
       </style>
     </head>
     <body>
       <h1>${escapeHtml(title)}</h1>
+      <div class="print-meta">${escapeHtml(watermarkText)}</div>
       <div class="info-section">${infoHTML}</div>
       <table>
         <thead><tr>${headerCells}</tr></thead>

@@ -10,7 +10,8 @@ use axum::{
 };
 
 use crate::handlers::{
-    department_handler, field_permission_handler, init_handler, role_handler, user_handler,
+    department_handler, field_permission_handler, init_handler, permission_audit_handler,
+    role_handler, user_handler,
 };
 
 /// 用户管理路由（path 前缀 /users，由 routes() 中 merge 装配到 /api/v1/erp 根下）
@@ -89,6 +90,14 @@ pub fn field_permissions() -> Router<AppState> {
         )
 }
 
+/// 权限变更审计日志路由（path 前缀 /permission-audits）
+pub fn permission_audits() -> Router<AppState> {
+    Router::new().route(
+        "/permission-audits",
+        get(permission_audit_handler::list_permission_audits),
+    )
+}
+
 /// IAM 域统一入口（合并所有子路由）；注意：axum 0.7 的 `Router::merge` 会检查 path+method 重叠并 panic， 因此每个子 router 内部 path
 /// 都已加上各自独立前缀（`/users`、`/roles` 等）， 这样 merge 之后 path+method 不会重叠，不再触发 `Overlapping method route` 错误。
 pub fn routes() -> Router<AppState> {
@@ -98,4 +107,5 @@ pub fn routes() -> Router<AppState> {
         .merge(departments())
         .merge(permissions())
         .merge(field_permissions())
+        .merge(permission_audits())
 }

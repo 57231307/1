@@ -523,25 +523,11 @@ pub async fn export_orders(
     // V15 P0-S11：提前 clone 查询条件用于审计日志（避免 service 调用 move 后 borrow of moved value）
     let audit_status = query.status.clone();
 
-    let csv_data = service
-        .export_orders_to_csv(query.status, query.supplier_id)
+    // T2: 直接获取结构化数据，去除 CSV 中转
+    let (headers, rows) = service
+        .export_orders_to_xlsx(query.status, query.supplier_id)
         .await?;
 
-    // 规则 3：将 service 返回的 CSV 解析为 xlsx 表格
-    let mut reader = csv::ReaderBuilder::new()
-        .has_headers(true)
-        .from_reader(csv_data.as_slice());
-    let headers: Vec<String> = reader
-        .headers()
-        .map_err(|e| AppError::internal(format!("CSV解析错误: {}", e)))?
-        .iter()
-        .map(|s| s.to_string())
-        .collect();
-    let mut rows: Vec<Vec<String>> = Vec::new();
-    for result in reader.records() {
-        let record = result.map_err(|e| AppError::internal(format!("CSV解析错误: {}", e)))?;
-        rows.push(record.iter().map(|s| s.to_string()).collect());
-    }
     let row_count = rows.len();
 
     // V15 P1-9-3：采购订单导出条数上限（计划 13.9.1 要求单次 ≤ 10000 条）

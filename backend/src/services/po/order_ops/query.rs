@@ -56,6 +56,34 @@ impl PurchaseOrderService {
             .map_err(|e| AppError::internal(format!("CSV 生成失败: {}", e)))
     }
 
+    /// T2: 导出采购订单为结构化格式（去除 CSV 中转）
+    pub async fn export_orders_to_xlsx(
+        &self,
+        status: Option<String>,
+        supplier_id: Option<i32>,
+    ) -> Result<(Vec<String>, Vec<Vec<String>>), AppError> {
+        // V15 P0-S01：内部调用传 None（导出由调用方决定权限范围，service 不再二次过滤）
+        let (orders, _total) = self
+            .list_orders(1, 10000, status, supplier_id, None)
+            .await?;
+
+        let headers = Self::csv_headers();
+        let rows = Self::build_csv_rows(orders);
+
+        // 将 HashMap 转为 Vec<Vec<String>>
+        let data: Vec<Vec<String>> = rows
+            .iter()
+            .map(|row| {
+                headers
+                    .iter()
+                    .map(|h| row.get(h).cloned().unwrap_or_default())
+                    .collect()
+            })
+            .collect();
+
+        Ok((headers, data))
+    }
+
     /// CSV 导出表头（21 列）
     fn csv_headers() -> Vec<String> {
         vec![
