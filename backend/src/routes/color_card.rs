@@ -132,7 +132,7 @@ pub fn routes() -> Router<AppState> {
         .route("/scan/:code", get(color_card::scan_color_code))
         // 按 ID 扫码查询
         .route("/scan-by-id/:id", get(color_card::scan_color_by_id))
-        // 导出 CSV
+        // 导出 xlsx
         .route(
             "/export/:id",
             get(color_card::export_color_card),
