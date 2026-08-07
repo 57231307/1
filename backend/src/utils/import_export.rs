@@ -122,6 +122,7 @@ impl CsvImporter {
     }
 
     /// 生成 CSV 数据（参数 headers 表头/rows 数据行；返回 Ok(Vec<u8>) CSV 字节数据，Err(AppError) 生成失败）
+    #[cfg(test)]
     pub fn generate(
         headers: &[String],
         rows: &[HashMap<String, String>],
@@ -150,6 +151,7 @@ impl CsvImporter {
     }
 
     /// 生成 CSV 模板（参数 headers 表头列表/examples 示例数据可选；返回 Ok(Vec<u8>) CSV 模板字节数据）
+    #[cfg(test)]
     pub fn generate_template(
         headers: &[String],
         examples: Option<&[HashMap<String, String>]>,
