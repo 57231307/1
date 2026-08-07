@@ -29,28 +29,6 @@ struct ValidatedRowFields {
 }
 
 impl ProductService {
-    /// 导出产品数据为 CSV 格式
-    pub async fn export_products_to_csv(
-        &self,
-        category_id: Option<i32>,
-        status: Option<String>,
-        search: Option<String>,
-    ) -> Result<Vec<u8>, AppError> {
-        // 查询产品列表（单页拉取全量用于导出）
-        let (products, _total) = self
-            .list_products(1, 10000, category_id, status, search)
-            .await?;
-
-        // 构建 CSV 表头与行数据
-        let headers = Self::build_product_csv_headers();
-        let rows: Vec<std::collections::HashMap<String, String>> =
-            products.iter().map(Self::build_product_csv_row).collect();
-
-        // 生成 CSV 字节流
-        crate::utils::import_export::CsvImporter::generate(&headers, &rows)
-            .map_err(|e| AppError::business(format!("CSV 生成失败: {}", e)))
-    }
-
     /// T1: 导出产品数据为结构化格式（去除 CSV 中转）
     pub async fn export_products_to_xlsx(
         &self,
@@ -168,55 +146,6 @@ impl ProductService {
             p.description.clone().unwrap_or_default(),
         );
         row
-    }
-
-    /// 生成产品导入模板
-    pub fn generate_product_import_template() -> Result<Vec<u8>, AppError> {
-        let headers = vec![
-            "产品编码".to_string(),
-            "产品名称".to_string(),
-            "产品类型".to_string(),
-            "类别ID".to_string(),
-            "规格型号".to_string(),
-            "计量单位".to_string(),
-            "标准价格".to_string(),
-            "成本价格".to_string(),
-            "面料成分".to_string(),
-            "纱支".to_string(),
-            "密度".to_string(),
-            "幅宽".to_string(),
-            "克重".to_string(),
-            "组织结构".to_string(),
-            "后整理".to_string(),
-            "最小起订量".to_string(),
-            "交货期".to_string(),
-            "状态".to_string(),
-            "产品描述".to_string(),
-        ];
-
-        let mut example = std::collections::HashMap::new();
-        example.insert("产品编码".to_string(), "FAB-001".to_string());
-        example.insert("产品名称".to_string(), "纯棉坯布".to_string());
-        example.insert("产品类型".to_string(), "坯布".to_string());
-        example.insert("类别ID".to_string(), "1".to_string());
-        example.insert("规格型号".to_string(), "40S*40S".to_string());
-        example.insert("计量单位".to_string(), "米".to_string());
-        example.insert("标准价格".to_string(), "15.50".to_string());
-        example.insert("成本价格".to_string(), "12.00".to_string());
-        example.insert("面料成分".to_string(), "100%棉".to_string());
-        example.insert("纱支".to_string(), "40S".to_string());
-        example.insert("密度".to_string(), "133*72".to_string());
-        example.insert("幅宽".to_string(), "150.00".to_string());
-        example.insert("克重".to_string(), "120.00".to_string());
-        example.insert("组织结构".to_string(), "平纹".to_string());
-        example.insert("后整理".to_string(), "防水".to_string());
-        example.insert("最小起订量".to_string(), "1000".to_string());
-        example.insert("交货期".to_string(), "15".to_string());
-        example.insert("状态".to_string(), master_data::ACTIVE.to_string());
-        example.insert("产品描述".to_string(), "高品质纯棉坯布".to_string());
-
-        crate::utils::import_export::CsvImporter::generate_template(&headers, Some(&[example]))
-            .map_err(|e| AppError::business(format!("模板生成失败: {}", e)))
     }
 
     /// T1: 生成产品导入模板（结构化格式，去除 CSV 中转）

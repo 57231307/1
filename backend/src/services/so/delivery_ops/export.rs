@@ -12,32 +12,6 @@ use super::super::order::SalesService;
 impl SalesService {
     // ========== 数据导出方法 ==========
 
-    /// 导出销售订单为 CSV 格式
-    pub async fn export_orders_to_csv(
-        &self,
-        status: Option<String>,
-        customer_id: Option<i32>,
-        order_no: Option<String>,
-    ) -> Result<Vec<u8>, AppError> {
-        let page_req = crate::models::dto::PageRequest {
-            page: 1,
-            page_size: 10000,
-        };
-        let orders = self
-            .list_orders(page_req, status, customer_id, order_no, None)
-            .await?;
-
-        let headers = Self::build_order_csv_headers();
-        let rows: Vec<std::collections::HashMap<String, String>> = orders
-            .items
-            .into_iter()
-            .map(Self::order_to_csv_row)
-            .collect();
-
-        crate::utils::import_export::CsvImporter::generate(&headers, &rows)
-            .map_err(|e| AppError::business(format!("CSV 生成失败: {}", e)))
-    }
-
     /// T3: 导出销售订单为结构化格式（去除 CSV 中转）
     pub async fn export_orders_to_xlsx(
         &self,

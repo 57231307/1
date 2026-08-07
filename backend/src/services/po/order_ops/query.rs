@@ -38,24 +38,6 @@ impl PurchaseOrderService {
 
     // ========== 数据导出方法 ==========
 
-    /// 导出采购订单为 CSV 格式（D08 Tier 4 子批次9：拆分为 ≤20 行主函数 + 2 个 helper（csv_headers / build_csv_rows））
-    pub async fn export_orders_to_csv(
-        &self,
-        status: Option<String>,
-        supplier_id: Option<i32>,
-    ) -> Result<Vec<u8>, AppError> {
-        // V15 P0-S01：内部调用传 None（导出由调用方决定权限范围，service 不再二次过滤）
-        let (orders, _total) = self
-            .list_orders(1, 10000, status, supplier_id, None)
-            .await?;
-
-        let headers = Self::csv_headers();
-        let rows = Self::build_csv_rows(orders);
-
-        crate::utils::import_export::CsvImporter::generate(&headers, &rows)
-            .map_err(|e| AppError::internal(format!("CSV 生成失败: {}", e)))
-    }
-
     /// T2: 导出采购订单为结构化格式（去除 CSV 中转）
     pub async fn export_orders_to_xlsx(
         &self,
