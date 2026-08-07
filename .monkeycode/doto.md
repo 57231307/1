@@ -32,15 +32,16 @@
 
 | 状态 | 场景 | 说明 |
 |------|------|------|
-| ✅ 已合并 main（PR #859，squash，2026-08-07） | 6 个原 HTML 场景（销售订单/销售合同/采购订单/采购收货单/库存调拨单/会计凭证） | A0 改为返回 docx（接入 generate_docx） |
-| ✅ 已合并 main（PR #859，squash，2026-08-07） | 会计凭证路由缺失 | A0 在 finance.rs 新增 `/vouchers/:id/print` |
+| ✅ 已合并 main（87637967） | 6 个原 HTML 场景（销售订单/销售合同/采购订单/采购收货单/库存调拨单/会计凭证） | A0 改为返回 docx（接入 generate_docx） |
+| ✅ 已合并 main（87637967） | 会计凭证路由缺失 | A0 在 finance.rs 新增 `/vouchers/:id/print` |
+| ✅ 已合并 main（1a0028d7，A0b） | `report_enhanced` `POST /export/pdf` 声称 PDF 实际产纯文本 | `export_service.rs:45` `export_pdf` 原注释自认"导出为文本格式"，规则 3 硬违规；A0b 改写为 printpdf 真 PDF + 修复 export_template pdf 分支 |
 | ❌ 待实现（A1-A4） | 销售发货单通知单（出库前置单据）/销售出库细码单（面料出库明细）/采购合同/库存盘点单/工资单 | 原清单未实现项 |
 | ❌ 待实现（A1 纺织专用） | 生产流转卡/验布打卷单/染色技术卡/色卡发放单/大货批色单/卷标签·条码标签/打样单 Lab Dip/生产任务单/质检记录 | 纺织核心+业务+生产 |
 | ❌ 待实现（A2 P0） | 销售发货单通知单(出库前置)/销售出库细码单(面料出库明细)/收款单/付款单/销项·进项发票/销售报价单/销售退货单/采购退货单/委外加工单/委外收货单/物流运单/产地证/出口报关单/危废五联单/不合格品单/染化料领用单 | 通用+法定 |
 | ❌ 待实现（A3 P1） | 付款申请单/供应商对账单/采购验货单/其他出入库·调整单/BOM·工艺单/领料单·缺料表/质检报告·8D/商检单/劳动合同 + 14 个 P1（外汇核销/出口退税/固定资产卡/资产盘点/资金调拨/科目余额/物理检测/工序卡/缸号回修/售后工单/质量异常/安全事故/劳保签收/库存台账） | 通用 |
 | ❌ 待实现（A4 P2） | 坏账核销单/定制订单确认单/存货跌价·减值单/社保缴纳表/职业健康体检报告/客户信用审批单 | 低优 |
 
-**规则 3 合规性**：✅ **A0 已合并 main（PR #859）**——原 6 个场景已由 HTML 改为 docx 成品；🔧 **A0b 修复中（本 PR）**——`report_enhanced` `POST /export/pdf`（`report_enhanced_handler.rs:228`）原声称 PDF 实际产纯文本（`export_service::export_pdf` 注释自认"导出为文本格式"），属规则 3 硬违规；A0b 将 `ExportService::export_pdf` 改写为 printpdf 真实 PDF（复用 `services/report/exp.rs` 已验证的 printpdf 渲染），同时修复 `export_template` 的 pdf 分支。命名误导的 `export_csv` 见 §五。
+**规则 3 合规性**：✅ **A0 已合并 main（87637967）**——原 6 个场景已由 HTML 改为 docx 成品；✅ **A0b 已合并 main（1a0028d7）**——`report_enhanced` `POST /export/pdf` 已由 printpdf 渲染为真 PDF（复用 `services/report/exp.rs` 已验证的 printpdf 渲染），同时修复 `export_template` 的 pdf 分支。命名误导的 `export_csv` 见 §五。
 
 ---
 
@@ -48,7 +49,7 @@
 
 > P1（257 项）✅ 100% 完成，实际 25 批已合并 main，详细归档见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)。P0 完成后按优先级顺序推进。详细内容见 V15 审计报告 [docs/audits/v15/](file:///workspace/.monkeycode/docs/audits/v15/)。
 
-### 1.1 P2 中优先级（248 项，预估 5-8 批次，按每批 65-99 文件计算）
+### 1.1 P2 中优先级（248 项，已完成约 224 项，剩余约 24 项见 §1.3）
 
 | 类别 | P2 数 | 主要内容 |
 |------|-------|----------|
@@ -77,35 +78,76 @@
 | P2-Batch-08 | 类十四（角色校验 + 通配匹配 + 测试） | 4 | is_system/admin 校验 + matches_permission 通配 + require_admin_role 测试 + 文档单复数 | ✅ 已合并 main（PR #820，e0d2810） |
 | P2-Batch-21 | 类二十五（部署脚本加固） | 10 | 日志持久化 + 配置权限600 + 健康检查database + CLI权限/确认/校验/回退 + 回滚验证 | ✅ 已合并 main（PR #821，47c2975） |
 | P2-Batch-19 | 类二十三（售后退货类型 + incoterms 责任划分） | 2 | issue_type 增加 return_goods（前后端）+ incoterms cost_bearer/清关责任接入报价构成 | ✅ 已合并 main（PR #822，ba05490） |
+| P2-Batch-22 | 类十四+二十（AI explanation + 前端性能/可访问性/权限缓存） | 6 | explanation 字段 + 错误去重 + 焦点重置 + 懒加载 + 权限缓存 + 路由预取 | ✅ 已合并 main（PR #823） |
+| P2-Batch-23 | 类二十五（部署变更文件记录） | 1 | 部署时记录变更文件列表到 deploy-changes.log | ✅ 已合并 main（PR #824） |
+| P2-Batch-24 | CI Release 清理修复 | 1 | 修复 --cleanup-tag 不生效 + 清理无 Release 旧 tag | ✅ 已合并 main（PR #826） |
+| P2-Batch-25/26 | 前端优化 + 后端超时/事务/账龄基准日 | 14 | 懒加载/持久化/alt/基线日/原子性/OTel/manager_id/供应商CRUD/BI超时 | ✅ 已合并 main（PR #827） |
+| P2-Batch-27 | 报表元数据 + AI 速率限制 | 2 | refresh_strategy/cache_ttl_seconds + AI 端点 10 req/min | ✅ 已合并 main（PR #829） |
+| P2-Batch-28 | 角色命名校验 + is_system 约束 + 报表参数 | 3 | 角色编码规范 + admin 约束 + Validate 派生 | ✅ 已合并 main（PR #830） |
+| P2-Batch-29 | WebSocket 心跳超时断开 | 1 | 30s Ping + 60s 超时断开 | ✅ 已合并 main（PR #831） |
+| P2-Batch-30 | Nginx gzip + 触屏按钮 | 2 | gzip 压缩 + 44px CSS | ✅ 已合并 main（PR #833） |
+| P2-Batch-31 | 全域 P2 审计修复（后端/前端/部署） | 20 | 慢查询告警/优化追踪 + 通知订阅调度 + 权限合规 + 供应商评估 + recipe_opt + PII脱敏 + 存货跌价 + 部门服务 | ✅ 已合并 main（PR #834 + #852） |
+| P2-Batch-32 | 缺陷 1.3/3.2/7.3/8.4/9.2/10.2/11.2 | 7 | 胚布追溯字段 + 拆匹强校验 + 告警去重 + 在途采购 + 排程冲突告警 + 负荷告警 + SPT 调度 | ✅ 已合并 main（PR #853） |
+| P2-Phase-3~3.5 | DB migration 5 项 + 接入未实现修复 6 项 | 11 | suppliers FK/合同明细/快照表/预警规则 + service/handler/route 接入 | ✅ 已合并 main（PR #835 + #836） |
+| P2-Phase-4~6C | 财务增强 | 10 | 辅助核算余额 + 账龄业务员维度 + 穿透查询 + 预算映射 + 资产分类 + 现金流比率 + 趋势分析 + 预算版本 + 减值测试 + 折旧政策 + 调拨审批 + 资金日报 | ✅ 已合并 main（PR #838/#839/#840/#842/#844） |
+| P2-Phase-7~9 | CRM 增强 | 14 | 线索 ROI/分配/培育 + 商机竞品/跟进/阶段 + 公海回收/部门差异化/保护 + 字段权限/操作审计/双向同步/主数据/CLV | ✅ 已合并 main（PR #846/#847/#848） |
+| P2-batch-21 部署升级 | 25.1/25.3/25.4 部署 + 残留项 | 11 | 端口冲突 + .env 600 + 断点续传 + 版本降级 + API 兼容 + 配置迁移 + 日志持久化 + draining + 升级监控告警 + 多租户残留 | ✅ 已合并 main（PR #854） |
+| P0 补充批次 | P0-5-1/P0-9-2/batch-10 | 3 | 5 报表导出 API + EXPORT_LIMIT=10000 + 批色 P0 业务规则 | ✅ 已合并 main（PR #855~#858） |
+| A0 | 打印合规(docx) + 打印基建改造 | 2 | 6 场景改 docx + 会计凭证打印路由 | ✅ 已合并 main（87637967） |
 
-### 1.3 P2-Batch-01b 遗留未完成项
+### 1.3 P2 真实未完成项清单（2026-08-07 explore 核实，基于 HEAD=87637967）
 
-| 编号 | 缺陷描述 | 真实状态 | 待办 |
-|------|---------|----------|------|
-| B04-P2-3 | 月末分摊缺端到端集成测试 | ✅ 完全存在（main 无任何 energy/allocation 测试） | 待后续批次补充月末分摊端到端集成测试 |
+> 经代码级核实（文件:行号证据），以下 P2 项**仍未完成**。已合并批次修复的项（B01-P2-1 quality_pred 编译错误、B04-P2-4 物理指标字段、B06-P2-7 覆盖率趋势、B07-P2-3 install 路径、B08-P2-2 登录限流、B11-P2-1 批色报表、batch-18 全项、batch-21 部署 24/25、batch-13 P2 大部分等）不再列出。
 
-### 1.4 P2-Batch-04 修复项（2026-08-03 核实）
+| 编号 | 描述 | 代码证据 | 类别 |
+|------|------|----------|------|
+| B02-P2-3 | handlers 未按业务域分子目录（平铺） | `backend/src/handlers/` 158 个文件，仅 advanced/ + color_card/ 两个子目录 | 可维护性 |
+| B04-P2-3 | 月末分摊缺端到端集成测试 | `backend/tests/` 无 energy/allocation 测试；energy_service.rs 仅纯函数单测 | 测试 |
+| B06-P2-1 | E2E 报告未保存到 docs/audits | e2e-batch.yml 仅上传 artifact，`.monkeycode/docs/audits/` 无 E2E 报告落盘 | 测试 |
+| B10-P2-9 | 色卡定时任务单元测试未实现（审计要求 23 项） | color_card_issue_scheduler.rs（241 行）无 `#[cfg(test)]`；tests/color_card_issue_test.rs 无 scheduler 测试 | 色卡 |
+| B12-P2-1 | 权限码命名规范未统一为 `<模块>.<资源>.<操作>` 三段式 | permission.rs:186 `format!("{}:{}", ...)` 冒号两段式；migration 中 permission_code 为点号两段式 | 权限 |
+| B12-P2-2 | 字段级权限未推广到 product/supplier | data_permission_service.rs filter_fields 已接入 7 个 handler，product_handler/supplier_handler 无 | 权限 |
+| B12-P2-3 | 权限审计日志查询接口缺失（仅写入无查询） | role_permission_service.rs 仅 write_permission_audit；routes/handlers 0 命中 | 权限 |
+| B12-P2-4 | 敏感角色变更双人审批未实现 | 全库 grep dual_approval/second_approval 0 命中 | 权限 |
+| B12-P2-5 | 大数据量导出无流式处理 | import_export_handler.rs:257-264 一次性 generate_xlsx + base64；report/exp.rs 同 | 导出 |
+| batch-11 P2-4 | CSV 导出无首行注释水印 | report/exp.rs:483-527 用 build_xlsx 无水印（build_xlsx_with_watermark 未用于通用导出） | 导出 |
+| batch-11 P2-5 | PDF 导出无背景水印 | report/exp.rs:54-75 export_pdf 仅 header/footer 无水印 | 导出 |
+| batch-11 P2-6 | 打印 HTML 缺用户/IP 水印 | print_service.rs PrintData 无用户/IP 水印；print-templates/index.vue 无水印 | 导出 |
+| batch-12 P2-8 | 审计日志保留期限调度未挂载 | audit_cleanup_service.rs retention_days 存在但无调度挂载证据 | 权限 |
+| batch-12 P2-9 | 行级/字段级权限测试未落地 | 权限测试仅覆盖缓存/通配，无行级权限测试 | 权限 |
+| batch-13 P2 | 供应商账户余额管理 + 异常大额订单检测引擎 | supplier_service.rs 无余额维度查询；无"异常大额订单+异常频繁退货"专门引擎 | 业务 |
+| batch-16 P2-3/P2-4 | 通知模板无动态管理、不支持多语言 | grep notification_template 无模型；notification_service.rs 无 i18n | 报表/通知 |
+| batch-18 P2-6 | 调拨在途库存未独立核算 | inventory_transfer.rs 无 in_transit 字段（in_transit 仅 logistics 事件） | 库存 |
+| batch-18 P2-7 | 缺料月报能力缺失 | material_shortage_handler.rs 无月报/报表端点 | 排程 |
+| batch-18 P2-4 | 瓶颈识别无扩产/外包建议 | capacity_service.rs 无扩产/外包建议逻辑；产能月报缺失 | 排程 |
+| batch-18 P2-5 | 排程与生产订单重复录入/手工转移风险 | scheduling_query.rs 无与生产订单集成校验 | 排程 |
+| batch-18 P2-2 | 委外加工费未按缸号/匹号核算 | outsourcing_service.rs 无缸号/匹号维度加工费核算 | 委外 |
+| batch-21 P2 25.4-I | 无长任务处理机制（状态持久化/断点续传） | upgrade.rs（1190 行）无任务状态持久化；deploy.sh 无任务队列 | 部署 |
+| 前端 16 | vitest 覆盖率阈值仍为 1% | frontend/vitest.config.ts:31-38 thresholds 全部 = 1 | 前端测试 |
+| 前端 18 | dynamic_router 仍为占位实现 | middleware/dynamic_router.rs:17 "模块功能待集成，当前为占位实现"，未挂载路由 | 可观测性 |
 
-| 编号 | 缺陷描述 | 文件 | 修复状态 |
-|------|---------|------|----------|
-| B10-P2-5 | 客户 handler 硬编码 role_id == 1 改为 is_admin_role 函数 | [customer_handler.rs:350](file:///workspace/backend/src/handlers/customer_handler.rs) | ✅ 已修复 |
-| B10-P2-6 | 删除 v-role 指令，统一使用 v-permission 权限码 | [permission.ts](file:///workspace/frontend/src/directives/permission.ts) + [main.ts](file:///workspace/frontend/src/main.ts) | ✅ 已修复 |
-
-**核实结论**：batch-10 和 batch-11 的 P2 任务中，部分已实现（菜单动态加载、permission_audit_log 表、审计日志保留期限、Redis 权限缓存、omni_audit operation_category 字段、打印用户水印、**字段级权限 CRUD 与路由挂载 `routes/iam.rs:77-88,100`、脱敏接入 customer/crm、`rate_limit` 中间件全局挂载 180/min+AI 10/min `middleware_bootstrap.rs:90,197-204`**）。**仍为待实现项（2026-08-06 核实）**：权限审计日志查询接口、敏感角色变更双人审批、CSV/PDF 水印（xlsx 水印已实现，仅 CSV/PDF 缺）、流式导出。
+**P2 真实剩余**：约 24 项未完成（含前端 2 项）；P2 总数 248 项已完成约 224 项。
 
 ### 1.4 P3 低优先级（123 项，按需修复）
 
-| 类别 | P3 数 | 主要内容 |
-|------|-------|----------|
-| 类一~类四 | 11 | 文档 / 注释 / 命名优化 |
-| 类五~类八 | 17 | 测试增强 / 可维护性增强 / 法律合规增强 |
-| 类九~类十二 | 9 | 色卡 / 批色 / 打印 / 权限增强 |
-| 类十三~类十四 | 5 | 打印导出 / 权限增强 |
-| 类十五~类十六 | 25 | 业务主体增强 / AI 增强 |
-| 类十七~类十九 | 11 | 财务 / CRM / 报表增强 |
-| 类二十~类二十二 | 12 | 可观测性 / 胚布 / 库存增强 |
-| 类二十三~类二十五 | 41 | 组织物流 / 前端架构 / 部署升级增强 |
-| **合计** | **123** | |
+> 2026-08-07 explore 核实：**121 项未完成**（2 项已由 P2 顺带完成：25.1-F Nginx gzip、24.1-4 触屏按钮 ≥44px，均在 PR #833）。以下按审计 batch 统计未完成项。
+
+| Batch | P3 未完成 | 主要内容 |
+|-------|----------|----------|
+| batch-01/08/11/16/19 | 0 | 回归验证/无 P3 缺陷 |
+| batch-02/03/06/07 | 4 | MainLayout subMenus 硬编码 path（4-7 注释仍在）、extract_resource_info unknown 注释权衡、10 道精细工序模板未预置、行业词汇中英对照文档缺失、染整 service 测试函数名仍英文、颜色对比度 WCAG 无法自动验证 |
+| batch-04/05 | 4-5 | 10 道精细工序模板未预置、行业词汇对照文档缺失、生产订单成本归集失败未接入 event_retry、AUDIT_RETENTION_DAYS 未走 AppSettings、工序映射文档不足 |
+| batch-09 | 7 | 全部为流程执行类：E2E 报告保存 docs/audits、20/28/29 节奏监控、失败按优先级纳入、禁止死等、每 15 批记忆整理、实时归档、禁止跨批堆积 |
+| batch-10/12 | 2-3 | RBAC 压力测试与性能监控、公共路径白名单测试、HTTP OPTIONS/HEAD 映射完整性 |
+| batch-13 | ~15 | 供应商评估 model 重命名、供货历史查询、价格清单导入、色卡/染色/印花能力字段、加工商前端界面、委外加工报表、按匹号发货、客户多地址/多银行账户、客户特殊工艺、染色完成事件回写、离线报表 ETL、报表追溯、审计日志审查 cron、业务批次追溯 |
+| batch-14 | 2-3 | 销售预测未与订单/库存补货联动、AI 操作审计未区分敏感操作、人工复核状态机不完整 |
+| batch-15 | ~9-11 | 结账操作日志粒度、8 维度配置化、账龄档位配置化、行业基准配置化、调拨频率限制、预算考核报表、折旧起算日灵活、线索字段扩展性、公海客户来源记录、客户合并、转化耗时分析 |
+| batch-17 | ~8-10 | 网络指标采集、企业微信/钉钉渠道、Alertmanager 目标启用、系统资源看板、慢查询阈值 100ms vs 500ms、慢查询周报、Retry-After 单位、迁移跳跃检测、system_version 模型接入、日志冷数据归档 |
+| batch-18 | 2 | 拆匹未生成新匹号（仍 `{parent.piece_no}-CUT-{timestamp}`）、甘特图无拖拽调整后端接口 |
+| batch-20 | ~26 | 触屏按钮尺寸规范、FCP/LCP/TTI 监控、system store、事件总线、组件文档、ColorCardGrid emits、composables try/catch、ARIA 标签、dataZoom 评估、重连降级轮询、票据鉴权、any 残留、chunk 阈值、env.d.ts、fixtures、no-v-html、CSRF cookie、CompanyTab localStorage、logger.error、按钮 loading+debounce、RTL、行级权限评估、超时重试幂等、CSRF 缺失提示、scoped 样式污染 |
+| batch-21 | ~9 | 防火墙配置、回滚不恢复配置文件、UtilCommand --force、升级通知机制、多版本备份、配置热更新、RTO/RPO、缓存预热、升级演练要求、残留项10 历史迁移文件 |
+
+**P3 真实剩余**：约 121 项未完成（按 batch 汇总约 90+，含流程执行类与测试增强类）。
 
 ---
 
