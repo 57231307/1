@@ -76,7 +76,7 @@ fn purchase_order_routes() -> Router<AppState> {
         )
         .route(
             "/orders/:id/print",
-            get(print_handler::purchase_order_print_html),
+            get(print_handler::purchase_order_print_docx),
         )
 }
 
@@ -90,7 +90,7 @@ fn purchase_receipt_routes() -> Router<AppState> {
         )
         .route(
             "/receipts/:id/print",
-            get(print_handler::purchase_receipt_print_html),
+            get(print_handler::purchase_receipt_print_docx),
         )
         .route("/receipts", post(purchase_receipt_handler::create_receipt))
         .route("/receipts/:id", get(purchase_receipt_handler::get_receipt))
