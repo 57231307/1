@@ -486,7 +486,9 @@ pub fn dye_batch_state_machine() -> Router<AppState> {
 /// 质量检验路由（path 前缀 /quality-inspection）；注意：原代码用 `/standards`、`/records`、`/defects` 等带前缀 path，已天然不冲突。
 pub fn quality_inspection() -> Router<AppState> {
     Router::new()
+        .route(
             "/quality-inspection/standards",
+            get(quality_inspection_handler::list_standards),
         )
         .route(
             "/quality-inspection/standards",
