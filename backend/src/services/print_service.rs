@@ -927,7 +927,7 @@ impl PrintService {
     async fn get_production_flow_card_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::production_flow_card;
 
-        let record = Entity::find_by_id(id)
+        let record = production_flow_card::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("生产流转卡 {} 未找到", id)))?;
@@ -955,7 +955,7 @@ impl PrintService {
     async fn get_fabric_inspection_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::fabric_inspection_record;
 
-        let record = Entity::find_by_id(id)
+        let record = fabric_inspection_record::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("验布记录 {} 未找到", id)))?;
@@ -987,7 +987,7 @@ impl PrintService {
     async fn get_dye_batch_card_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::dye_batch;
 
-        let record = Entity::find_by_id(id)
+        let record = dye_batch::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("染色批次卡 {} 未找到", id)))?;
@@ -1012,7 +1012,7 @@ impl PrintService {
     async fn get_color_card_issue_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::color_card_issue;
 
-        let record = Entity::find_by_id(id as i32)
+        let record = color_card_issue::Entity::find_by_id(id as i32)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("色卡发放单 {} 未找到", id)))?;
@@ -1038,7 +1038,7 @@ impl PrintService {
     async fn get_bulk_color_approval_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::bulk_color_approval;
 
-        let record = Entity::find_by_id(id as i32)
+        let record = bulk_color_approval::Entity::find_by_id(id as i32)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("大货色审批单 {} 未找到", id)))?;
@@ -1070,14 +1070,14 @@ impl PrintService {
 
         use crate::models::lab_dip_sample;
 
-        let record = Entity::find_by_id(id)
+        let record = lab_dip_request::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("打样申请单 {} 未找到", id)))?;
 
-        let items = item_model::Entity::find()
-            .filter(item_model::Column::RequestId.eq(id))
-            .order_by(item_model::Column::Id, Order::Asc)
+        let items = lab_dip_sample::Entity::find()
+            .filter(lab_dip_sample::Column::RequestId.eq(id))
+            .order_by(lab_dip_sample::Column::Id, Order::Asc)
             .all(&*self.db)
             .await?;
 
@@ -1118,7 +1118,7 @@ impl PrintService {
     async fn get_production_order_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::production_order;
 
-        let record = Entity::find_by_id(id)
+        let record = production_order::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("生产工单 {} 未找到", id)))?;
@@ -1152,14 +1152,14 @@ impl PrintService {
 
         use crate::models::production_recipe_addition;
 
-        let record = Entity::find_by_id(id)
+        let record = production_recipe::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("生产配方 {} 未找到", id)))?;
 
-        let items = item_model::Entity::find()
-            .filter(item_model::Column::ProductionRecipeId.eq(id))
-            .order_by(item_model::Column::Id, Order::Asc)
+        let items = production_recipe_addition::Entity::find()
+            .filter(production_recipe_addition::Column::ProductionRecipeId.eq(id))
+            .order_by(production_recipe_addition::Column::Id, Order::Asc)
             .all(&*self.db)
             .await?;
 
@@ -1196,7 +1196,7 @@ impl PrintService {
     async fn get_quality_inspection_record_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::quality_inspection_record;
 
-        let record = Entity::find_by_id(id)
+        let record = quality_inspection_record::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("质检记录 {} 未找到", id)))?;
@@ -1229,14 +1229,14 @@ impl PrintService {
 
         use crate::models::sales_delivery_item;
 
-        let record = Entity::find_by_id(id)
+        let record = sales_delivery::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售发货单 {} 未找到", id)))?;
 
-        let items = item_model::Entity::find()
-            .filter(item_model::Column::DeliveryId.eq(id))
-            .order_by(item_model::Column::Id, Order::Asc)
+        let items = sales_delivery_item::Entity::find()
+            .filter(sales_delivery_item::Column::DeliveryId.eq(id))
+            .order_by(sales_delivery_item::Column::Id, Order::Asc)
             .all(&*self.db)
             .await?;
 
@@ -1274,7 +1274,7 @@ impl PrintService {
     async fn get_ar_collection_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::ar_collection;
 
-        let record = Entity::find_by_id(id)
+        let record = ar_collection::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("应收账款收款单 {} 未找到", id)))?;
@@ -1300,7 +1300,7 @@ impl PrintService {
     async fn get_ap_payment_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::ap_payment;
 
-        let record = Entity::find_by_id(id)
+        let record = ap_payment::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("应付账款付款单 {} 未找到", id)))?;
@@ -1328,7 +1328,7 @@ impl PrintService {
     async fn get_ap_invoice_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::ap_invoice;
 
-        let record = Entity::find_by_id(id)
+        let record = ap_invoice::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("应付发票 {} 未找到", id)))?;
@@ -1359,14 +1359,14 @@ impl PrintService {
 
         use crate::models::sales_quotation_item;
 
-        let record = Entity::find_by_id(id as i32)
+        let record = sales_quotation::Entity::find_by_id(id as i32)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售报价单 {} 未找到", id)))?;
 
-        let items = item_model::Entity::find()
-            .filter(item_model::Column::QuotationId.eq(id as i32))
-            .order_by(item_model::Column::Id, Order::Asc)
+        let items = sales_quotation_item::Entity::find()
+            .filter(sales_quotation_item::Column::QuotationId.eq(id as i32))
+            .order_by(sales_quotation_item::Column::Id, Order::Asc)
             .all(&*self.db)
             .await?;
 
@@ -1407,14 +1407,14 @@ impl PrintService {
 
         use crate::models::sales_return_item;
 
-        let record = Entity::find_by_id(id)
+        let record = sales_return::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售退货单 {} 未找到", id)))?;
 
-        let items = item_model::Entity::find()
-            .filter(item_model::Column::ReturnId.eq(id))
-            .order_by(item_model::Column::Id, Order::Asc)
+        let items = sales_return_item::Entity::find()
+            .filter(sales_return_item::Column::ReturnId.eq(id))
+            .order_by(sales_return_item::Column::Id, Order::Asc)
             .all(&*self.db)
             .await?;
 
@@ -1451,14 +1451,14 @@ impl PrintService {
 
         use crate::models::purchase_return_item;
 
-        let record = Entity::find_by_id(id)
+        let record = purchase_return::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购退货单 {} 未找到", id)))?;
 
-        let items = item_model::Entity::find()
-            .filter(item_model::Column::ReturnId.eq(id))
-            .order_by(item_model::Column::Id, Order::Asc)
+        let items = purchase_return_item::Entity::find()
+            .filter(purchase_return_item::Column::ReturnId.eq(id))
+            .order_by(purchase_return_item::Column::Id, Order::Asc)
             .all(&*self.db)
             .await?;
 
@@ -1499,14 +1499,14 @@ impl PrintService {
 
         use crate::models::outsourcing_order_item;
 
-        let record = Entity::find_by_id(id)
+        let record = outsourcing_order::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("委外加工单 {} 未找到", id)))?;
 
-        let items = item_model::Entity::find()
-            .filter(item_model::Column::OutsourcingOrderId.eq(id))
-            .order_by(item_model::Column::Id, Order::Asc)
+        let items = outsourcing_order_item::Entity::find()
+            .filter(outsourcing_order_item::Column::OutsourcingOrderId.eq(id))
+            .order_by(outsourcing_order_item::Column::Id, Order::Asc)
             .all(&*self.db)
             .await?;
 
@@ -1547,7 +1547,7 @@ impl PrintService {
     async fn get_outsourcing_receipt_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::outsourcing_receipt;
 
-        let record = Entity::find_by_id(id)
+        let record = outsourcing_receipt::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("委外收货单 {} 未找到", id)))?;
@@ -1578,7 +1578,7 @@ impl PrintService {
     async fn get_logistics_waybill_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::logistics_waybill;
 
-        let record = Entity::find_by_id(id)
+        let record = logistics_waybill::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("物流运单 {} 未找到", id)))?;
@@ -1605,7 +1605,7 @@ impl PrintService {
     async fn get_certificate_of_origin_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::certificate_of_origin;
 
-        let record = Entity::find_by_id(id)
+        let record = certificate_of_origin::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("原产地证明 {} 未找到", id)))?;
@@ -1633,7 +1633,7 @@ impl PrintService {
     async fn get_export_customs_declaration_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::export_customs_declaration;
 
-        let record = Entity::find_by_id(id)
+        let record = export_customs_declaration::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("出口报关单 {} 未找到", id)))?;
@@ -1658,7 +1658,7 @@ impl PrintService {
     async fn get_solid_waste_disposal_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::solid_waste_disposal_record;
 
-        let record = Entity::find_by_id(id)
+        let record = solid_waste_disposal_record::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("固废处置单 {} 未找到", id)))?;
@@ -1687,7 +1687,7 @@ impl PrintService {
     async fn get_unqualified_product_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::unqualified_product;
 
-        let record = Entity::find_by_id(id)
+        let record = unqualified_product::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("不合格品处理单 {} 未找到", id)))?;
@@ -1714,7 +1714,7 @@ impl PrintService {
     async fn get_chemical_requisition_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::chemical_requisition;
 
-        let record = Entity::find_by_id(id)
+        let record = chemical_requisition::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("化工料领用单 {} 未找到", id)))?;
@@ -1741,7 +1741,7 @@ impl PrintService {
     async fn get_export_inspection_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::export_inspection;
 
-        let record = Entity::find_by_id(id)
+        let record = export_inspection::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("出口检验单 {} 未找到", id)))?;
@@ -1770,14 +1770,14 @@ impl PrintService {
 
         use crate::models::ap_payment_request_item;
 
-        let record = Entity::find_by_id(id)
+        let record = ap_payment_request::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("付款申请单 {} 未找到", id)))?;
 
-        let items = item_model::Entity::find()
-            .filter(item_model::Column::RequestId.eq(id))
-            .order_by(item_model::Column::Id, Order::Asc)
+        let items = ap_payment_request_item::Entity::find()
+            .filter(ap_payment_request_item::Column::RequestId.eq(id))
+            .order_by(ap_payment_request_item::Column::Id, Order::Asc)
             .all(&*self.db)
             .await?;
 
@@ -1811,7 +1811,7 @@ impl PrintService {
     async fn get_ap_reconciliation_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::ap_reconciliation;
 
-        let record = Entity::find_by_id(id)
+        let record = ap_reconciliation::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("应付对账单 {} 未找到", id)))?;
@@ -1840,14 +1840,14 @@ impl PrintService {
 
         use crate::models::purchase_inspection_item;
 
-        let record = Entity::find_by_id(id)
+        let record = purchase_inspection::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购质检单 {} 未找到", id)))?;
 
-        let items = item_model::Entity::find()
-            .filter(item_model::Column::InspectionId.eq(id))
-            .order_by(item_model::Column::Id, Order::Asc)
+        let items = purchase_inspection_item::Entity::find()
+            .filter(purchase_inspection_item::Column::InspectionId.eq(id))
+            .order_by(purchase_inspection_item::Column::Id, Order::Asc)
             .all(&*self.db)
             .await?;
 
@@ -1885,14 +1885,14 @@ impl PrintService {
 
         use crate::models::inventory_adjustment_item;
 
-        let record = Entity::find_by_id(id)
+        let record = inventory_adjustment::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("库存调整单 {} 未找到", id)))?;
 
-        let items = item_model::Entity::find()
-            .filter(item_model::Column::AdjustmentId.eq(id))
-            .order_by(item_model::Column::Id, Order::Asc)
+        let items = inventory_adjustment_item::Entity::find()
+            .filter(inventory_adjustment_item::Column::AdjustmentId.eq(id))
+            .order_by(inventory_adjustment_item::Column::Id, Order::Asc)
             .all(&*self.db)
             .await?;
 
@@ -1930,14 +1930,14 @@ impl PrintService {
 
         use crate::models::bom_item;
 
-        let record = Entity::find_by_id(id)
+        let record = bom::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("物料清单 {} 未找到", id)))?;
 
-        let items = item_model::Entity::find()
-            .filter(item_model::Column::BomId.eq(id))
-            .order_by(item_model::Column::Id, Order::Asc)
+        let items = bom_item::Entity::find()
+            .filter(bom_item::Column::BomId.eq(id))
+            .order_by(bom_item::Column::Id, Order::Asc)
             .all(&*self.db)
             .await?;
 
@@ -1968,7 +1968,7 @@ impl PrintService {
     async fn get_material_shortage_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::material_shortage;
 
-        let record = Entity::find_by_id(id as i32)
+        let record = material_shortage::Entity::find_by_id(id as i32)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("物料缺料预警 {} 未找到", id)))?;
@@ -1998,7 +1998,7 @@ impl PrintService {
     async fn get_quality_8d_report_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::quality_8d_report;
 
-        let record = Entity::find_by_id(id as i32)
+        let record = quality_8d_report::Entity::find_by_id(id as i32)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("8D质量报告 {} 未找到", id)))?;
@@ -2027,7 +2027,7 @@ impl PrintService {
     async fn get_labor_contract_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::labor_contract;
 
-        let record = Entity::find_by_id(id)
+        let record = labor_contract::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("劳动合同 {} 未找到", id)))?;
@@ -2058,14 +2058,14 @@ impl PrintService {
 
         use crate::models::wage_record_detail;
 
-        let record = Entity::find_by_id(id)
+        let record = wage_record::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("工资记录 {} 未找到", id)))?;
 
-        let items = item_model::Entity::find()
-            .filter(item_model::Column::WageRecordId.eq(id))
-            .order_by(item_model::Column::Id, Order::Asc)
+        let items = wage_record_detail::Entity::find()
+            .filter(wage_record_detail::Column::WageRecordId.eq(id))
+            .order_by(wage_record_detail::Column::Id, Order::Asc)
             .all(&*self.db)
             .await?;
 
@@ -2105,7 +2105,7 @@ impl PrintService {
     async fn get_energy_consumption_record_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::energy_consumption_record;
 
-        let record = Entity::find_by_id(id)
+        let record = energy_consumption_record::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("能耗记录 {} 未找到", id)))?;
@@ -2137,7 +2137,7 @@ impl PrintService {
     async fn get_purchase_contract_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::purchase_contract;
 
-        let record = Entity::find_by_id(id)
+        let record = purchase_contract::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购合同 {} 未找到", id)))?;
@@ -2165,7 +2165,7 @@ impl PrintService {
     async fn get_supplier_evaluation_record_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::supplier_evaluation_record;
 
-        let record = Entity::find_by_id(id)
+        let record = supplier_evaluation_record::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("供应商评价记录 {} 未找到", id)))?;
@@ -2190,7 +2190,7 @@ impl PrintService {
     async fn get_safety_accident_report_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::safety_accident_report;
 
-        let record = Entity::find_by_id(id)
+        let record = safety_accident_report::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("安全事故报告 {} 未找到", id)))?;
@@ -2217,7 +2217,7 @@ impl PrintService {
     async fn get_occupational_hazard_monitoring_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::occupational_hazard_monitoring;
 
-        let record = Entity::find_by_id(id)
+        let record = occupational_hazard_monitoring::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("职业病危害监测 {} 未找到", id)))?;
@@ -2245,7 +2245,7 @@ impl PrintService {
     async fn get_pollution_permit_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::pollution_permit;
 
-        let record = Entity::find_by_id(id)
+        let record = pollution_permit::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("排污许可证 {} 未找到", id)))?;
@@ -2272,7 +2272,7 @@ impl PrintService {
     async fn get_process_route_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::process_route;
 
-        let record = Entity::find_by_id(id)
+        let record = process_route::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("工艺路线 {} 未找到", id)))?;
@@ -2297,7 +2297,7 @@ impl PrintService {
     async fn get_foreign_exchange_verification_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::foreign_exchange_verification;
 
-        let record = Entity::find_by_id(id)
+        let record = foreign_exchange_verification::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("外汇核销单 {} 未找到", id)))?;
@@ -2324,7 +2324,7 @@ impl PrintService {
     async fn get_export_refund_declaration_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::export_refund_declaration;
 
-        let record = Entity::find_by_id(id)
+        let record = export_refund_declaration::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("出口退税申报单 {} 未找到", id)))?;
@@ -2351,7 +2351,7 @@ impl PrintService {
     async fn get_fixed_asset_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::fixed_asset;
 
-        let record = Entity::find_by_id(id)
+        let record = fixed_asset::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("固定资产卡片 {} 未找到", id)))?;
@@ -2380,7 +2380,7 @@ impl PrintService {
     async fn get_scheduling_result_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::scheduling_result;
 
-        let record = Entity::find_by_id(id)
+        let record = scheduling_result::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("排程结果 {} 未找到", id)))?;
@@ -2407,7 +2407,7 @@ impl PrintService {
     async fn get_inventory_write_down_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::inventory_write_down;
 
-        let record = Entity::find_by_id(id)
+        let record = inventory_write_down::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("存货跌价准备 {} 未找到", id)))?;
@@ -2435,14 +2435,14 @@ impl PrintService {
 
         use crate::models::fixed_asset_count_item;
 
-        let record = Entity::find_by_id(id)
+        let record = fixed_asset_count::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("固定资产盘点单 {} 未找到", id)))?;
 
-        let items = item_model::Entity::find()
-            .filter(item_model::Column::CountId.eq(id))
-            .order_by(item_model::Column::Id, Order::Asc)
+        let items = fixed_asset_count_item::Entity::find()
+            .filter(fixed_asset_count_item::Column::CountId.eq(id))
+            .order_by(fixed_asset_count_item::Column::Id, Order::Asc)
             .all(&*self.db)
             .await?;
 
@@ -2481,7 +2481,7 @@ impl PrintService {
     async fn get_social_insurance_record_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::social_insurance_record;
 
-        let record = Entity::find_by_id(id)
+        let record = social_insurance_record::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("社保缴纳记录 {} 未找到", id)))?;
@@ -2510,7 +2510,7 @@ impl PrintService {
     async fn get_occupational_health_exam_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::occupational_health_exam;
 
-        let record = Entity::find_by_id(id)
+        let record = occupational_health_exam::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("职业健康体检 {} 未找到", id)))?;
@@ -2535,7 +2535,7 @@ impl PrintService {
     async fn get_dye_batch_rework_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::dye_batch_rework;
 
-        let record = Entity::find_by_id(id)
+        let record = dye_batch_rework::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("染色返工单 {} 未找到", id)))?;
@@ -2562,7 +2562,7 @@ impl PrintService {
     async fn get_bad_debt_writeoff_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::bad_debt_writeoff;
 
-        let record = Entity::find_by_id(id as i32)
+        let record = bad_debt_writeoff::Entity::find_by_id(id as i32)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("坏账核销单 {} 未找到", id)))?;
@@ -2589,7 +2589,7 @@ impl PrintService {
     async fn get_custom_order_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::custom_order;
 
-        let record = Entity::find_by_id(id as i32)
+        let record = custom_order::Entity::find_by_id(id as i32)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("定制订单 {} 未找到", id)))?;
@@ -2622,7 +2622,7 @@ impl PrintService {
     async fn get_ppe_distribution_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::ppe_distribution_record;
 
-        let record = Entity::find_by_id(id)
+        let record = ppe_distribution_record::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("劳保用品发放记录 {} 未找到", id)))?;
@@ -2649,7 +2649,7 @@ impl PrintService {
     async fn get_customer_credit_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::customer_credit;
 
-        let record = Entity::find_by_id(id)
+        let record = customer_credit::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("客户信用额度 {} 未找到", id)))?;
@@ -2677,7 +2677,7 @@ impl PrintService {
     async fn get_after_sales_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::after_sales;
 
-        let record = Entity::find_by_id(id as i32)
+        let record = after_sales::Entity::find_by_id(id as i32)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("售后服务单 {} 未找到", id)))?;
@@ -2706,7 +2706,7 @@ impl PrintService {
     async fn get_quality_issue_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::quality_issue;
 
-        let record = Entity::find_by_id(id as i32)
+        let record = quality_issue::Entity::find_by_id(id as i32)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("质量问题单 {} 未找到", id)))?;
@@ -2734,7 +2734,7 @@ impl PrintService {
     async fn get_ar_reconciliation_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::ar_reconciliation;
 
-        let record = Entity::find_by_id(id)
+        let record = ar_reconciliation::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("应收对账单 {} 未找到", id)))?;
