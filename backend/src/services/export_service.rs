@@ -41,50 +41,67 @@ impl ExportService {
         build_xlsx(&table)
     }
 
-    /// 导出为文本格式（保留旧 export_pdf 行为，仅用于内部调试）
+    /// 导出为真实 PDF 格式（规则 3：禁止以 PDF 名义交付文本，使用 printpdf 生成真实 PDF 字节流）
     pub fn export_pdf(data: &ExportData) -> Result<Vec<u8>, AppError> {
-        let mut content = String::new();
+        use printpdf::*;
+        let (doc, page1, layer1) = PdfDocument::new(data.title.as_str(), Mm(297.0), Mm(210.0), "Layer 1");
+        let layer = doc.get_page(page1).get_layer(layer1);
+        let font = doc
+            .add_builtin_font(BuiltinFont::Helvetica)
+            .map_err(|e| AppError::internal(format!("加载字体失败: {}", e)))?;
+        let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
-        // 标题
-        content.push_str(&format!("{}\n", data.title));
-        content.push_str(&"=".repeat(80));
-        content.push('\n');
-        content.push('\n');
+        // 标题与生成时间
+        layer.use_text(data.title.as_str(), 16.0, Mm(20.0), Mm(280.0), &font);
+        layer.use_text(format!("生成时间: {}", now).as_str(), 10.0, Mm(20.0), Mm(270.0), &font);
 
-        // 表头
-        let header_line = data.headers.join(" | ");
-        content.push_str(&header_line);
-        content.push('\n');
-        content.push_str(&"-".repeat(header_line.len()));
-        content.push('\n');
-
-        // 数据行
+        // 表头与数据（含分页）
+        let mut y_pos = 250.0_f32;
+        let col_width = 35.0_f32;
+        let mut x_pos = 20.0_f32;
+        for h in &data.headers {
+            layer.use_text(h.as_str(), 10.0, Mm(x_pos), Mm(y_pos), &font);
+            x_pos += col_width;
+        }
+        y_pos -= 8.0;
         for row in &data.rows {
-            let row_line = row.join(" | ");
-            content.push_str(&row_line);
-            content.push('\n');
+            let mut x_pos = 20.0_f32;
+            for cell in row {
+                let display = if cell.len() > 15 {
+                    format!("{}...", &cell[..15])
+                } else {
+                    cell.clone()
+                };
+                layer.use_text(display.as_str(), 8.0, Mm(x_pos), Mm(y_pos), &font);
+                x_pos += col_width;
+            }
+            y_pos -= 6.0;
+            if y_pos < 20.0 {
+                let (new_page, new_layer) = doc.add_page(Mm(297.0), Mm(210.0), "Layer 1");
+                let _layer = doc.get_page(new_page).get_layer(new_layer);
+                y_pos = 280.0;
+            }
         }
 
         // 汇总
         if let Some(summary) = &data.summary {
-            content.push('\n');
-            content.push_str(&"=".repeat(80));
-            content.push('\n');
-            for (key, value) in summary {
-                content.push_str(&format!("{}: {}\n", key, value));
+            y_pos -= 6.0;
+            for (k, v) in summary {
+                layer.use_text(format!("{}: {}", k, v).as_str(), 10.0, Mm(20.0), Mm(y_pos), &font);
+                y_pos -= 6.0;
             }
         }
 
-        // 添加页脚
-        content.push('\n');
-        content.push_str(&"-".repeat(80));
-        content.push('\n');
-        content.push_str(&format!(
-            "生成时间: {}\n",
-            chrono::Utc::now().format("%Y-%m-%d %H:%M:%S")
-        ));
+        // 页脚记录数
+        layer.use_text(format!("共 {} 条记录", data.rows.len()).as_str(), 10.0, Mm(20.0), Mm(10.0), &font);
 
-        Ok(content.into_bytes())
+        let mut buffer = Vec::new();
+        {
+            let mut writer = std::io::BufWriter::new(&mut buffer);
+            doc.save(&mut writer)
+                .map_err(|e| AppError::internal(format!("PDF 保存失败: {}", e)))?;
+        }
+        Ok(buffer)
     }
 
     /// V15 P1 batch-08 缺陷 8：导出为 Word 格式（docx）

@@ -6,6 +6,22 @@
 
 ---
 
+## A0b 修复中：report_enhanced 真实 PDF（2026-08-07，待 CI）
+
+| 项 | 一句话总结 |
+|----|-----------|
+| A0b 修复 | `ExportService::export_pdf`（`backend/src/services/export_service.rs`）由纯文本改写 printpdf 真实 PDF，修复 `report_enhanced` `POST /export/pdf` 与 `export_template` pdf 分支以 PDF 名义交付文本的 规则 3 硬违规；复用 `services/report/exp.rs` 已验证的 printpdf 渲染模式；删除原 txt 死代码（规则 0/2） |
+
+---
+
+## PR #859 合并：A0 打印合规+基建（2026-08-07，已合并 main）
+
+| 项 | 一句话总结 |
+|----|-----------|
+| PR #859 合并 | A0 完成（squash，merge commit 87637967）：6 个原 HTML 打印场景改为 docx 成品（接入 generate_docx）+ 会计凭证 `/vouchers/:id/print` 路由 + 删除 generate_pdf/escape_html 死代码 + 模板数据驱动改造；CI 全绿 |
+
+---
+
 ## PR #803 合并：P2-Batch-03（类八法律合规剩余 + 类九色卡发放，2026-08-02，已合并 main）
 
 | 项 | 一句话总结 |
