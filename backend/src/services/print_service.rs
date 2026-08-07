@@ -922,7 +922,6 @@ impl PrintService {
     /// V15 P1 batch-08 缺陷 8：生成 docx 字节流（规则 3 强制要求合同/发票/报表支持 .docx）
     /// 将 PrintData 转为 Word 文档（标题 + 主表键值对 + 明细表格）。
 
-
     /// 生产流转卡打印数据
     async fn get_production_flow_card_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::production_flow_card;
@@ -1012,7 +1011,7 @@ impl PrintService {
     async fn get_color_card_issue_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::color_card_issue;
 
-        let record = color_card_issue::Entity::find_by_id(id as i32)
+        let record = color_card_issue::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("色卡发放单 {} 未找到", id)))?;
@@ -1038,7 +1037,7 @@ impl PrintService {
     async fn get_bulk_color_approval_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::bulk_color_approval;
 
-        let record = bulk_color_approval::Entity::find_by_id(id as i32)
+        let record = bulk_color_approval::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("大货色审批单 {} 未找到", id)))?;
@@ -1362,13 +1361,13 @@ impl PrintService {
 
         use crate::models::sales_quotation_item;
 
-        let record = sales_quotation::Entity::find_by_id(id as i32)
+        let record = sales_quotation::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售报价单 {} 未找到", id)))?;
 
         let items = sales_quotation_item::Entity::find()
-            .filter(sales_quotation_item::Column::QuotationId.eq(id as i32))
+            .filter(sales_quotation_item::Column::QuotationId.eq(id))
             .order_by(sales_quotation_item::Column::Id, Order::Asc)
             .all(&*self.db)
             .await?;
@@ -1971,7 +1970,7 @@ impl PrintService {
     async fn get_material_shortage_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::material_shortage;
 
-        let record = material_shortage::Entity::find_by_id(id as i32)
+        let record = material_shortage::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("物料缺料预警 {} 未找到", id)))?;
@@ -2001,7 +2000,7 @@ impl PrintService {
     async fn get_quality_8d_report_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::quality_8d_report;
 
-        let record = quality_8d_report::Entity::find_by_id(id as i32)
+        let record = quality_8d_report::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("8D质量报告 {} 未找到", id)))?;
@@ -2565,7 +2564,7 @@ impl PrintService {
     async fn get_bad_debt_writeoff_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::bad_debt_writeoff;
 
-        let record = bad_debt_writeoff::Entity::find_by_id(id as i32)
+        let record = bad_debt_writeoff::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("坏账核销单 {} 未找到", id)))?;
@@ -2592,7 +2591,7 @@ impl PrintService {
     async fn get_custom_order_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::custom_order;
 
-        let record = custom_order::Entity::find_by_id(id as i32)
+        let record = custom_order::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("定制订单 {} 未找到", id)))?;
@@ -2680,7 +2679,7 @@ impl PrintService {
     async fn get_after_sales_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::after_sales;
 
-        let record = after_sales::Entity::find_by_id(id as i32)
+        let record = after_sales::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("售后服务单 {} 未找到", id)))?;
@@ -2709,7 +2708,7 @@ impl PrintService {
     async fn get_quality_issue_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::quality_issue;
 
-        let record = quality_issue::Entity::find_by_id(id as i32)
+        let record = quality_issue::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("质量问题单 {} 未找到", id)))?;

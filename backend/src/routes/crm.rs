@@ -21,8 +21,7 @@ use axum::{
     Router,
 };
 
-use crate::handlers::{print_handler,
-    
+use crate::handlers::{
     crm_assignment_handler, crm_customer_handler, crm_pool_handler, customer_credit_handler,
     customer_handler, customer_transfer_approval_handler, five_dimension_handler, missing_handlers,
     sales_analysis_handler,

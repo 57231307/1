@@ -5,7 +5,6 @@
 
 use crate::container::AppState;
 use crate::handlers::social_insurance_handler;
-use crate::handlers::print_handler;
 use axum::{
     routing::{get, post},
     Router,
