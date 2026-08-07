@@ -136,4 +136,17 @@ pub fn routes() -> Router<AppState> {
             "/export/:id",
             get(color_card::export_color_card),
         )
+        // 打印路由
+        .route(
+            "/:id/bulk-approval/print",
+            get(print_handler::bulk_color_approval_print_docx),
+        )
+        .route(
+            "/:id/issue/print",
+            get(print_handler::color_card_issue_print_docx),
+        )
+        .route(
+            "/:id/lab-dip/print",
+            get(print_handler::lab_dip_request_print_docx),
+        )
 }

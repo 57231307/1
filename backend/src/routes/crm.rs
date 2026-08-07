@@ -96,6 +96,10 @@ pub fn customer_credits() -> Router<AppState> {
             "/customer-credits/evaluate",
             post(customer_credit_handler::evaluate_credit),
         )
+        .route(
+            "/customer-credits/:id/print",
+            get(crate::handlers::print_handler::customer_credit_print_docx),
+        )
 }
 
 /// 五维管理路由（path 前缀 /five-dimension）

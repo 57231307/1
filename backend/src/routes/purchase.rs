@@ -122,6 +122,7 @@ fn purchase_receipt_routes() -> Router<AppState> {
 
 /// 采购检验路由（path 前缀 /inspections）
 fn purchase_inspection_routes() -> Router<AppState> {
+fn purchase_inspection_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/inspections",
@@ -153,9 +154,14 @@ fn purchase_inspection_routes() -> Router<AppState> {
             put(purchase_inspection_handler::update_inspection_item)
                 .delete(purchase_inspection_handler::delete_inspection_item),
         )
+        .route(
+            "/purchase/inspections/:id/print",
+            get(print_handler::purchase_inspection_print_docx),
+        )
 }
 
 /// 采购退货路由（path 前缀 /returns）
+fn purchase_return_routes() -> Router<AppState> {
 fn purchase_return_routes() -> Router<AppState> {
     Router::new()
         .route(
@@ -206,6 +212,10 @@ fn purchase_return_routes() -> Router<AppState> {
             "/returns/:id/items/:item_id",
             delete(purchase_return_handler::delete_purchase_return_item),
         )
+        .route(
+            "/purchase/returns/:id/print",
+            get(print_handler::purchase_return_print_docx),
+        )
 }
 
 /// 采购合同路由（path 前缀 /purchase-contracts）
@@ -242,6 +252,10 @@ pub fn purchase_contracts() -> Router<AppState> {
         .route(
             "/purchase-contracts/:id/cancel",
             put(purchase_contract_handler::cancel_contract),
+        )
+        .route(
+            "/purchase-contracts/:id/print",
+            get(print_handler::purchase_contract_print_docx),
         )
 }
 
@@ -387,6 +401,10 @@ pub fn supplier_evaluations() -> Router<AppState> {
         .route(
             "/supplier-evaluations/ratings",
             get(supplier_evaluation_handler::list_ratings),
+        )
+        .route(
+            "/supplier-evaluations/:id/print",
+            get(print_handler::supplier_evaluation_record_print_docx),
         )
 }
 

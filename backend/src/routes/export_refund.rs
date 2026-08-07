@@ -30,6 +30,11 @@ pub fn export_refunds() -> Router<AppState> {
             "/export-refunds/refund-declarations",
             get(export_refund_handler::list_refund_declarations),
         )
+        // 打印路由
+        .route(
+            "/export-refunds/:id/print",
+            get(print_handler::export_refund_declaration_print_docx),
+        )
 }
 
 /// 出口退税域统一入口

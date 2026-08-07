@@ -61,6 +61,10 @@ fn sales_order_delivery_report_routes() -> Router<AppState> {
             post(sales_order_handler::cancel_delivery),
         )
         .route(
+            "/orders/:id/deliveries/:delivery_id/print",
+            get(print_handler::sales_delivery_print_docx),
+        )
+        .route(
             "/orders/statistics",
             get(sales_order_handler::get_order_statistics),
         )

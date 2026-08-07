@@ -16,4 +16,17 @@ pub fn routes() -> Router<AppState> {
             "/certificates/:id",
             get(certificate_of_origin_handler::get_certificate),
         )
+        // 打印路由
+        .route(
+            "/:id/print",
+            get(print_handler::export_inspection_print_docx),
+        )
+        .route(
+            "/:id/customs-declaration/print",
+            get(print_handler::export_customs_declaration_print_docx),
+        )
+        .route(
+            "/certificates/:id/print",
+            get(print_handler::certificate_of_origin_print_docx),
+        )
 }

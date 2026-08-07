@@ -77,4 +77,17 @@ pub fn routes() -> Router<AppState> {
             "/after-sales/:id",
             put(custom_order_handler::update_after_sales),
         )
+        // 打印路由
+        .route(
+            "/:id/print",
+            get(print_handler::custom_order_print_docx),
+        )
+        .route(
+            "/:id/after-sales/print",
+            get(print_handler::after_sales_print_docx),
+        )
+        .route(
+            "/issues/:id/print",
+            get(print_handler::quality_issue_print_docx),
+        )
 }

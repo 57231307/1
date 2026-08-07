@@ -26,6 +26,11 @@ pub fn logistics_tracking() -> Router<AppState> {
             "/logistics-tracking/waybills/:waybill_id/calculate-freight",
             post(logistics_tracking_handler::calculate_freight),
         )
+        // 打印路由
+        .route(
+            "/logistics-tracking/waybills/:id/print",
+            get(print_handler::logistics_waybill_print_docx),
+        )
 }
 
 /// 物流跟踪域统一入口

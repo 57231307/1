@@ -34,6 +34,11 @@ pub fn social_insurance() -> Router<AppState> {
             "/social-insurance/:id/cancel",
             post(social_insurance_handler::cancel),
         )
+        // 打印路由
+        .route(
+            "/social-insurance/:id/print",
+            get(crate::handlers::print_handler::social_insurance_record_print_docx),
+        )
 }
 
 /// 社保公积金域统一入口

@@ -34,4 +34,6 @@ pub fn routes() -> Router<AppState> {
         .route("/:id", get(quality_8d_handler::get_8d))
         .route("/:id/advance", post(quality_8d_handler::advance))
         .route("/:id/close", post(quality_8d_handler::close_8d))
+        // 打印路由
+        .route("/:id/print", get(print_handler::quality_8d_report_print_docx))
 }

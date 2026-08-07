@@ -295,6 +295,14 @@ pub fn fixed_assets() -> Router<AppState> {
             "/fixed-assets/depreciation-policy-changes/:id/approve",
             put(fixed_asset_handler::approve_depreciation_policy_change),
         )
+        .route(
+            "/fixed-assets/:id/print",
+            get(print_handler::fixed_asset_print_docx),
+        )
+        .route(
+            "/fixed-assets/count/:id/print",
+            get(print_handler::fixed_asset_count_print_docx),
+        )
 }
 
 /// 预算主数据 + 调整路由（/budgets、/budgets/adjust）
@@ -549,6 +557,7 @@ pub fn ap() -> Router<AppState> {
 
 /// AP 应付发票路由（path 前缀 /ap/invoices）
 fn ap_invoice_routes() -> Router<AppState> {
+fn ap_invoice_routes() -> Router<AppState> {
     Router::new()
         .route("/ap/invoices", get(ap_invoice_handler::list_ap_invoices))
         .route("/ap/invoices", post(ap_invoice_handler::create_ap_invoice))
@@ -590,9 +599,14 @@ fn ap_invoice_routes() -> Router<AppState> {
             "/ap/invoices/statistics",
             get(ap_invoice_handler::get_statistics),
         )
+        .route(
+            "/ap/invoices/:id/print",
+            get(print_handler::ap_invoice_print_docx),
+        )
 }
 
 /// AP 付款路由（path 前缀 /ap/payments）
+fn ap_payment_routes() -> Router<AppState> {
 fn ap_payment_routes() -> Router<AppState> {
     Router::new()
         .route("/ap/payments", get(ap_payment_handler::list_payments))
@@ -603,9 +617,14 @@ fn ap_payment_routes() -> Router<AppState> {
             "/ap/payments/:id/confirm",
             post(ap_payment_handler::confirm_payment),
         )
+        .route(
+            "/ap/payments/:id/print",
+            get(print_handler::ap_payment_print_docx),
+        )
 }
 
 /// AP 付款申请路由（path 前缀 /ap/payment-requests）
+fn ap_payment_request_routes() -> Router<AppState> {
 fn ap_payment_request_routes() -> Router<AppState> {
     Router::new()
         .route(
@@ -639,6 +658,10 @@ fn ap_payment_request_routes() -> Router<AppState> {
         .route(
             "/ap/payment-requests/:id/reject",
             post(ap_payment_request_handler::reject_request),
+        )
+        .route(
+            "/ap/payment-requests/:id/print",
+            get(print_handler::ap_payment_request_print_docx),
         )
 }
 
@@ -677,6 +700,7 @@ fn ap_verification_routes() -> Router<AppState> {
 
 /// AP 对账路由（path 前缀 /ap/reconciliations 与 /ap/invoices/:id/relations）
 fn ap_reconciliation_routes() -> Router<AppState> {
+fn ap_reconciliation_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/ap/reconciliations",
@@ -709,6 +733,10 @@ fn ap_reconciliation_routes() -> Router<AppState> {
         .route(
             "/ap/invoices/:id/relations",
             get(ap_reconciliation_handler::get_invoice_relations),
+        )
+        .route(
+            "/ap/reconciliation/:id/print",
+            get(print_handler::ap_reconciliation_print_docx),
         )
 }
 
@@ -776,6 +804,10 @@ fn ar_payment_routes() -> Router<AppState> {
         .route(
             "/ar/payments/:id/cancel",
             post(ar_payment_handler::cancel_payment),
+        )
+        .route(
+            "/ar/collections/:id/print",
+            get(print_handler::ar_collection_print_docx),
         )
 }
 
@@ -981,6 +1013,10 @@ pub fn ar_reconciliations() -> Router<AppState> {
             "/ar-reconciliations/:id/close",
             post(ar_reconciliation_handler::close_reconciliation),
         )
+        .route(
+            "/ar-reconciliations/:id/print",
+            get(print_handler::ar_reconciliation_print_docx),
+        )
 }
 
 /// 多币种路由（path 前缀 /currencies）
@@ -1020,6 +1056,11 @@ pub fn exchange_rates() -> Router<AppState> {
         .route(
             "/exchange-rates/query",
             get(currency_handler::get_exchange_rate),
+        )
+        // 打印路由
+        .route(
+            "/exchange-rates/:id/print",
+            get(print_handler::foreign_exchange_verification_print_docx),
         )
 }
 

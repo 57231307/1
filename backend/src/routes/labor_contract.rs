@@ -29,6 +29,11 @@ pub fn labor_contracts() -> Router<AppState> {
             "/labor-contracts/:id/terminate",
             post(labor_contract_handler::terminate),
         )
+        // 打印路由
+        .route(
+            "/labor-contracts/:id/print",
+            get(print_handler::labor_contract_print_docx),
+        )
 }
 
 /// 劳动合同域统一入口

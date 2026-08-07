@@ -59,6 +59,10 @@ pub fn router() -> Router<AppState> {
             "/sales-returns/:id/items/:item_id",
             put(update_return_item).delete(delete_return_item),
         )
+        .route(
+            "/sales-returns/:id/print",
+            get(crate::handlers::print_handler::sales_return_print_docx),
+        )
 }
 
 /// 获取销售退货单列表
