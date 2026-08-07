@@ -120,66 +120,6 @@ impl CsvImporter {
 
         Ok(records)
     }
-
-    /// 生成 CSV 数据（参数 headers 表头/rows 数据行；返回 Ok(Vec<u8>) CSV 字节数据，Err(AppError) 生成失败）
-    #[cfg(test)]
-    pub fn generate(
-        headers: &[String],
-        rows: &[HashMap<String, String>],
-    ) -> Result<Vec<u8>, AppError> {
-        let mut writer = csv::Writer::from_writer(Vec::new());
-
-        // 写入表头
-        writer
-            .write_record(headers)
-            .map_err(|e| AppError::internal(format!("CSV 头写入失败: {}", e)))?;
-
-        // 写入数据
-        for row in rows {
-            let record: Vec<String> = headers
-                .iter()
-                .map(|h| row.get(h).cloned().unwrap_or_default())
-                .collect();
-            writer
-                .write_record(&record)
-                .map_err(|e| AppError::internal(format!("CSV 数据写入失败: {}", e)))?;
-        }
-
-        writer
-            .into_inner()
-            .map_err(|e| AppError::internal(format!("CSV 生成失败: {}", e)))
-    }
-
-    /// 生成 CSV 模板（参数 headers 表头列表/examples 示例数据可选；返回 Ok(Vec<u8>) CSV 模板字节数据）
-    #[cfg(test)]
-    pub fn generate_template(
-        headers: &[String],
-        examples: Option<&[HashMap<String, String>]>,
-    ) -> Result<Vec<u8>, AppError> {
-        let mut writer = csv::Writer::from_writer(Vec::new());
-
-        // 写入表头
-        writer
-            .write_record(headers)
-            .map_err(|e| AppError::internal(format!("CSV 头写入失败: {}", e)))?;
-
-        // 写入示例数据
-        if let Some(examples) = examples {
-            for row in examples {
-                let record: Vec<String> = headers
-                    .iter()
-                    .map(|h| row.get(h).cloned().unwrap_or_default())
-                    .collect();
-                writer
-                    .write_record(&record)
-                    .map_err(|e| AppError::internal(format!("CSV 示例写入失败: {}", e)))?;
-            }
-        }
-
-        writer
-            .into_inner()
-            .map_err(|e| AppError::internal(format!("CSV 模板生成失败: {}", e)))
-    }
 }
 
 /// 字段验证器
@@ -255,6 +195,34 @@ impl FieldValidator {
 mod tests {
     use super::*;
 
+    /// 测试用 CSV 生成函数
+    fn generate_csv(
+        headers: &[String],
+        rows: &[HashMap<String, String>],
+    ) -> Result<Vec<u8>, AppError> {
+        let mut writer = csv::Writer::from_writer(Vec::new());
+
+        // 写入表头
+        writer
+            .write_record(headers)
+            .map_err(|e| AppError::internal(format!("CSV 头写入失败: {}", e)))?;
+
+        // 写入数据
+        for row in rows {
+            let record: Vec<String> = headers
+                .iter()
+                .map(|h| row.get(h).cloned().unwrap_or_default())
+                .collect();
+            writer
+                .write_record(&record)
+                .map_err(|e| AppError::internal(format!("CSV 数据写入失败: {}", e)))?;
+        }
+
+        writer
+            .into_inner()
+            .map_err(|e| AppError::internal(format!("CSV 生成失败: {}", e)))
+    }
+
     #[test]
     fn test_csv_parse() {
         let csv_data = b"name,age,city\nAlice,30,Beijing\nBob,25,Shanghai";
@@ -275,7 +243,7 @@ mod tests {
         row1.insert("age".to_string(), "30".to_string());
         let rows = vec![row1];
 
-        let data = CsvImporter::generate(&headers, &rows).expect("P9-1: CSV 生成失败");
+        let data = generate_csv(&headers, &rows).expect("P9-1: CSV 生成失败");
         let content = String::from_utf8(data).expect("P9-1: UTF-8 解码失败");
         assert!(content.contains("name,age"));
         assert!(content.contains("Alice,30"));
