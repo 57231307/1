@@ -2,6 +2,7 @@
 
 use crate::container::AppState;
 use crate::handlers::labor_contract_handler;
+use crate::handlers::print_handler;
 use axum::{
     routing::{get, post, put},
     Router,

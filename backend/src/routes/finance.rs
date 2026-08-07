@@ -23,7 +23,8 @@ use axum::{
 };
 
 use crate::container::AppState;
-use crate::handlers::{
+use crate::handlers::{print_handler,
+    
     account_subject_handler, accounting_period_handler, ap_invoice_handler, ap_payment_handler,
     ap_payment_request_handler, ap_reconciliation_handler, ap_report_handler,
     ap_verification_handler, ar_invoice_handler, ar_payment_handler,

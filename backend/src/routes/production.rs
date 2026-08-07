@@ -16,7 +16,8 @@ use axum::{
     Router,
 };
 
-use crate::handlers::{
+use crate::handlers::{print_handler,
+    
     business_mode_handler, capacity_handler, cost_collection_handler, dye_batch_handler,
     dye_batch_state_machine_handler, dye_recipe_handler, energy_handler, fabric_inspection_handler,
     flow_card_handler, greige_fabric_handler, lab_dip_handler, missing_handlers, mrp_handler,

@@ -2,6 +2,7 @@
 
 use crate::container::AppState;
 use crate::handlers::occupational_health_handler;
+use crate::handlers::print_handler;
 use axum::{
     routing::{get, post},
     Router,

@@ -2,6 +2,7 @@
 
 use crate::container::AppState;
 use crate::handlers::logistics_tracking_handler;
+use crate::handlers::print_handler;
 use axum::{
     routing::{get, post},
     Router,

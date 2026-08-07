@@ -13,7 +13,8 @@ use axum::{
     Router,
 };
 
-use crate::handlers::{
+use crate::handlers::{print_handler,
+    
     bom_handler, bulk_product_handler, chemical_handler, product_category_handler, product_handler,
     warehouse_handler,
 };

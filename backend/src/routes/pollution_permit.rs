@@ -2,6 +2,7 @@
 
 use crate::container::AppState;
 use crate::handlers::pollution_permit_handler;
+use crate::handlers::print_handler;
 use axum::{
     routing::{get, post},
     Router,
