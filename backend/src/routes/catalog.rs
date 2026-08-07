@@ -140,6 +140,10 @@ pub fn boms() -> Router<AppState> {
             "/boms/versions/:product_id",
             get(bom_handler::get_bom_versions),
         )
+        .route(
+            "/boms/:id/print",
+            get(crate::handlers::print_handler::bom_print_docx),
+        )
 }
 
 /// 染化料主数据 CRUD 路由（path 前缀 /chemicals）
@@ -248,6 +252,10 @@ fn chemical_requisition_routes() -> Router<AppState> {
         .route(
             "/chemical-requisitions/:id/cancel",
             post(chemical_handler::cancel_requisition),
+        )
+        .route(
+            "/chemical-requisitions/:id/print",
+            get(crate::handlers::print_handler::chemical_requisition_print_docx),
         )
 }
 

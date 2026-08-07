@@ -168,6 +168,10 @@ fn adjustment_routes() -> Router<AppState> {
             put(inventory_adjustment_handler::update_item)
                 .delete(inventory_adjustment_handler::delete_item),
         )
+        .route(
+            "/adjustments/:id/print",
+            get(print_handler::inventory_adjustment_print_docx),
+        )
 }
 
 /// 库存预留路由（path 前缀 /reservations）
@@ -238,6 +242,10 @@ fn write_down_routes() -> Router<AppState> {
         .route(
             "/write-downs/:id/confirm",
             post(inventory_write_down_handler::confirm_write_down),
+        )
+        .route(
+            "/write-downs/:id/print",
+            get(print_handler::inventory_write_down_print_docx),
         )
 }
 

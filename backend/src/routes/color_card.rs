@@ -10,6 +10,7 @@ use axum::{
 
 use crate::container::AppState;
 use crate::handlers::color_card;
+use crate::handlers::print_handler;
 
 /// 色卡仓储管理路由（nest 到 /api/v1/erp/color-cards）
 pub fn routes() -> Router<AppState> {
@@ -135,5 +136,18 @@ pub fn routes() -> Router<AppState> {
         .route(
             "/export/:id",
             get(color_card::export_color_card),
+        )
+        // 打印路由
+        .route(
+            "/:id/bulk-approval/print",
+            get(print_handler::bulk_color_approval_print_docx),
+        )
+        .route(
+            "/:id/issue/print",
+            get(print_handler::color_card_issue_print_docx),
+        )
+        .route(
+            "/:id/lab-dip/print",
+            get(print_handler::lab_dip_request_print_docx),
         )
 }

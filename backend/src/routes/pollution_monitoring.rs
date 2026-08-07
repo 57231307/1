@@ -30,6 +30,11 @@ pub fn pollution_monitoring() -> Router<AppState> {
             "/pollution-monitoring/exceedance-alerts",
             get(pollution_monitoring_handler::scan_exceedance_alerts),
         )
+        // 打印路由
+        .route(
+            "/pollution-monitoring/solid-waste-disposals/:id/print",
+            get(crate::handlers::print_handler::solid_waste_disposal_print_docx),
+        )
 }
 
 /// 环境监测与固废处置域统一入口

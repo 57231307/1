@@ -16,7 +16,8 @@ use axum::{
     Router,
 };
 
-use crate::handlers::{
+use crate::handlers::{print_handler,
+    
     business_mode_handler, capacity_handler, cost_collection_handler, dye_batch_handler,
     dye_batch_state_machine_handler, dye_recipe_handler, energy_handler, fabric_inspection_handler,
     flow_card_handler, greige_fabric_handler, lab_dip_handler, missing_handlers, mrp_handler,
@@ -46,6 +47,14 @@ pub fn dye_batches() -> Router<AppState> {
         .route(
             "/dye-batches/export",
             get(dye_batch_handler::export_dye_batches),
+        )
+        .route(
+            "/dye-batches/:id/print",
+            get(print_handler::dye_batch_card_print_docx),
+        )
+        .route(
+            "/dye-batches/rework/:id/print",
+            get(print_handler::dye_batch_rework_print_docx),
         )
 }
 
@@ -200,6 +209,10 @@ pub fn production_recipes() -> Router<AppState> {
             "/production-recipes/additions/:id/close",
             post(production_recipe_handler::close_addition),
         )
+        .route(
+            "/production-recipes/:id/print",
+            get(print_handler::production_recipe_print_docx),
+        )
 }
 
 /// 流转卡与工序流转路由（path 前缀 /process-routes 和 /flow-cards）；v14 批次 425：流转卡条码与车间工序流转
@@ -212,6 +225,10 @@ pub fn flow_cards() -> Router<AppState> {
         .route("/process-routes/:id", get(flow_card_handler::get_process_route))
         .route("/process-routes/:id", put(flow_card_handler::update_process_route))
         .route("/process-routes/:id", delete(flow_card_handler::delete_process_route))
+        .route(
+            "/process-routes/:id/print",
+            get(print_handler::process_route_print_docx),
+        )
         // ===== 流转卡 CRUD =====
         .route("/flow-cards", get(flow_card_handler::list_flow_cards))
         .route("/flow-cards", post(flow_card_handler::create_flow_card))
@@ -242,6 +259,10 @@ pub fn flow_cards() -> Router<AppState> {
         .route("/flow-cards/feedbacks/:id/handle", post(flow_card_handler::handle_feedback))
         .route("/flow-cards/feedbacks/:id/close", post(flow_card_handler::close_feedback))
         .route("/flow-cards/:flow_card_id/feedbacks", get(flow_card_handler::list_feedbacks_by_card))
+        .route(
+            "/flow-cards/:id/print",
+            get(print_handler::production_flow_card_print_docx),
+        )
 }
 
 /// 验布打卷路由（path 前缀 /fabric-inspections 和 /fabric-defects）；v14 批次 426：验布打卷流程贯通 真实业务流程：验布机对接码表/电子称
@@ -265,13 +286,16 @@ pub fn fabric_inspections() -> Router<AppState> {
         .route("/fabric-defects", post(fabric_inspection_handler::create_defect))
         .route("/fabric-defects/:id", get(fabric_inspection_handler::get_defect))
         .route("/fabric-defects/:id", delete(fabric_inspection_handler::delete_defect))
+        .route(
+            "/fabric-inspections/:id/print",
+            get(print_handler::fabric_inspection_print_docx),
+        )
 }
 
 /// 产量工资路由（path 前缀 /wage-rates、/wage-records、/wage-details）；v14 批次 427：产量工资核算贯通 真实业务流程：工序流转扫码
 /// → 工价方案定义 → 工资计算 → 班组汇总 → 进入财务工资核算 三维度产量统计：工序产量 + 设备产量 + 工人产量工资 等级系数：A 级全额/B 级 8 折/C 级不计
 pub fn wages() -> Router<AppState> {
     Router::new()
-        // ===== 工序工价 CRUD =====
         .route("/wage-rates", get(wage_handler::list_wage_rates))
         .route("/wage-rates", post(wage_handler::create_wage_rate))
         .route("/wage-rates/by-no/:no", get(wage_handler::get_wage_rate_by_no))
@@ -301,6 +325,10 @@ pub fn wages() -> Router<AppState> {
         .route("/wage-records/:id/details", get(wage_handler::list_wage_details))
         .route("/wage-records/:id/details/export", get(wage_handler::export_wage_details))
         .route("/wage-details/by-worker/:worker_id", get(wage_handler::list_wage_details_by_worker))
+        .route(
+            "/wages/:id/print",
+            get(print_handler::wage_record_print_docx),
+        )
 }
 
 /// 能耗管理路由（v14 批次 428：能耗管理贯通）；业务来源：面料行业真实业务调研文档 §12.6 能耗管理 路由分组： - /energy-meters：能源计量设备 CRUD - /energy-consumptions
@@ -351,6 +379,10 @@ pub fn energy() -> Router<AppState> {
         .route("/energy-allocations/:id/cancel", post(energy_handler::cancel_energy_allocation))
         // 月末按工时自动分摊
         .route("/energy-allocations/monthly", post(energy_handler::monthly_allocation))
+        .route(
+            "/energy/:id/print",
+            get(print_handler::energy_consumption_record_print_docx),
+        )
 }
 
 /// 委外加工管理路由（path 前缀 /outsourcing-orders、/outsourcing-receipts、/outsourcing-vouchers）；v14 批次 430：委托加工物资贯通 依据：面料行业真实业务调研文档 §5.4 委托加工物资核算三步分录 + §5.5 委外织布场景 + §5.7 损耗率标准 + §6.5 委托加工模式 真实业务流程： 委外订单（draft→issued→processing→received→settled→closed→cancelled）
@@ -388,6 +420,9 @@ pub fn outsourcing() -> Router<AppState> {
         .route("/outsourcing-vouchers/by-no/:no", get(outsourcing_handler::get_outsourcing_voucher_by_no))
         .route("/outsourcing-vouchers/:id/post", post(outsourcing_handler::post_outsourcing_voucher))
         .route("/outsourcing-vouchers/:id", delete(outsourcing_handler::delete_outsourcing_voucher))
+        // ===== 委外打印路由 =====
+        .route("/outsourcing-orders/:id/print", get(print_handler::outsourcing_order_print_docx))
+        .route("/outsourcing-receipts/:id/print", get(print_handler::outsourcing_receipt_print_docx))
 }
 
 /// 多业务模式支持路由（path 前缀 /business-modes、/business-mode-links）；v14 批次 431：多业务模式支持 依据：面料行业真实业务调研文档 §6 业务模式 6 种 真实业务：6 种典型业务模式（坯布经销/成品经销/染整加工/自织自染/委托加工/来料加工） 贯穿采购/库存/生产/委外/销售/结算全链路 路由分组： -
@@ -493,6 +528,14 @@ pub fn quality_inspection() -> Router<AppState> {
             "/quality-inspection/defects/:id/handle",
             post(quality_inspection_handler::process_defect),
         )
+        .route(
+            "/quality/inspections/:id/print",
+            get(print_handler::quality_inspection_record_print_docx),
+        )
+        .route(
+            "/quality/inspections/unqualified/:id/print",
+            get(print_handler::unqualified_product_print_docx),
+        )
 }
 
 /// 成本归集路由（path 前缀 /cost-collections）
@@ -575,6 +618,14 @@ pub fn production() -> Router<AppState> {
         .route(
             "/production-orders/orders/:id/logs",
             get(production_order_handler::get_production_order_logs),
+        )
+        .route(
+            "/production/orders/:id/print",
+            get(print_handler::production_order_print_docx),
+        )
+        .route(
+            "/production/orders/:id/safety-accident/print",
+            get(print_handler::safety_accident_report_print_docx),
         )
 }
 

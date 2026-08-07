@@ -62,4 +62,8 @@ pub fn routes() -> Router<AppState> {
             "/writeoffs/:id/cancel",
             post(bad_debt_handler::cancel_writeoff),
         )
+        .route(
+            "/writeoffs/:id/print",
+            get(crate::handlers::print_handler::bad_debt_writeoff_print_docx),
+        )
 }

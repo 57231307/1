@@ -18,6 +18,10 @@ pub fn hazard_monitorings() -> Router<AppState> {
             "/occupational-health/hazard-monitorings",
             get(occupational_health_handler::list_hazard_monitorings),
         )
+        .route(
+            "/occupational-health/hazard-monitorings/:id/print",
+            get(crate::handlers::print_handler::occupational_hazard_monitoring_print_docx),
+        )
 }
 
 /// 职业健康体检档案路由（path 前缀 /occupational-health/health-exams）
@@ -34,6 +38,10 @@ pub fn health_exams() -> Router<AppState> {
         .route(
             "/occupational-health/health-exams/scan-expiry-warnings",
             post(occupational_health_handler::scan_exam_expiry_warnings),
+        )
+        .route(
+            "/occupational-health/health-exams/:id/print",
+            get(crate::handlers::print_handler::occupational_health_exam_print_docx),
         )
 }
 
@@ -55,6 +63,10 @@ pub fn ppe_distributions() -> Router<AppState> {
         .route(
             "/occupational-health/ppe-distributions/:id/return",
             post(occupational_health_handler::return_ppe),
+        )
+        .route(
+            "/occupational-health/ppe-distributions/:id/print",
+            get(crate::handlers::print_handler::ppe_distribution_print_docx),
         )
 }
 

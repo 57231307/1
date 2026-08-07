@@ -42,4 +42,9 @@ pub fn routes() -> Router<AppState> {
             "/color-prices/:product_color_id",
             get(quotation_handler::list_color_prices).post(quotation_handler::set_color_price),
         )
+        // 打印
+        .route(
+            "/:id/print",
+            get(crate::handlers::print_handler::sales_quotation_print_docx),
+        )
 }

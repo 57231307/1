@@ -131,6 +131,10 @@ fn material_shortage_routes() -> Router<AppState> {
             "/material-shortage/:id/status",
             put(material_shortage_handler::update_shortage_status),
         )
+        .route(
+            "/material-shortage/:id/print",
+            get(print_handler::material_shortage_print_docx),
+        )
 }
 
 /// 生产排程路由（从 production 域提升到根级，path 前缀 /scheduling）
@@ -169,6 +173,10 @@ fn scheduling_routes() -> Router<AppState> {
         .route(
             "/scheduling/results/:id/confirm",
             post(scheduling_handler::confirm_schedule_result),
+        )
+        .route(
+            "/scheduling/results/:id/print",
+            get(print_handler::scheduling_result_print_docx),
         )
 }
 

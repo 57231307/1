@@ -2,6 +2,7 @@
 
 use crate::container::AppState;
 use crate::handlers::labor_contract_handler;
+use crate::handlers::print_handler;
 use axum::{
     routing::{get, post, put},
     Router,
@@ -28,6 +29,11 @@ pub fn labor_contracts() -> Router<AppState> {
         .route(
             "/labor-contracts/:id/terminate",
             post(labor_contract_handler::terminate),
+        )
+        // 打印路由
+        .route(
+            "/labor-contracts/:id/print",
+            get(print_handler::labor_contract_print_docx),
         )
 }
 

@@ -32,6 +32,11 @@ pub fn pollution_permits() -> Router<AppState> {
             "/pollution-permits/:id/revoke",
             post(pollution_permit_handler::revoke),
         )
+        // 打印路由
+        .route(
+            "/pollution-permits/:id/print",
+            get(crate::handlers::print_handler::pollution_permit_print_docx),
+        )
 }
 
 /// 排污许可证管理域统一入口

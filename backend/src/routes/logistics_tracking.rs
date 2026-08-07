@@ -2,6 +2,7 @@
 
 use crate::container::AppState;
 use crate::handlers::logistics_tracking_handler;
+use crate::handlers::print_handler;
 use axum::{
     routing::{get, post},
     Router,
@@ -25,6 +26,11 @@ pub fn logistics_tracking() -> Router<AppState> {
         .route(
             "/logistics-tracking/waybills/:waybill_id/calculate-freight",
             post(logistics_tracking_handler::calculate_freight),
+        )
+        // 打印路由
+        .route(
+            "/logistics-tracking/waybills/:id/print",
+            get(print_handler::logistics_waybill_print_docx),
         )
 }
 

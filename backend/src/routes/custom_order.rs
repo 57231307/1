@@ -12,6 +12,7 @@ use axum::{
 
 use crate::container::AppState;
 use crate::handlers::custom_order_handler;
+use crate::handlers::print_handler;
 
 /// 定制订单路由（nest 到 /api/v1/erp/custom-orders）
 pub fn routes() -> Router<AppState> {
@@ -76,5 +77,18 @@ pub fn routes() -> Router<AppState> {
         .route(
             "/after-sales/:id",
             put(custom_order_handler::update_after_sales),
+        )
+        // 打印路由
+        .route(
+            "/:id/print",
+            get(print_handler::custom_order_print_docx),
+        )
+        .route(
+            "/:id/after-sales/print",
+            get(print_handler::after_sales_print_docx),
+        )
+        .route(
+            "/issues/:id/print",
+            get(print_handler::quality_issue_print_docx),
         )
 }
