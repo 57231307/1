@@ -934,7 +934,7 @@ impl PrintService {
 
         let mut data = HashMap::new();
         data.insert("card_no".to_string(), serde_json::json!(record.card_no.clone()));
-        data.insert("barcode".to_string(), serde_json::json!(record.barcode.clone().unwrap_or_default()));
+        data.insert("barcode".to_string(), serde_json::json!(record.barcode.clone()));
         data.insert("production_order_id".to_string(), serde_json::json!(record.production_order_id));
         data.insert("dye_lot_no".to_string(), serde_json::json!(record.dye_lot_no.clone().unwrap_or_default()));
         data.insert("color_no".to_string(), serde_json::json!(record.color_no.clone().unwrap_or_default()));
@@ -969,8 +969,8 @@ impl PrintService {
         data.insert("inspection_date".to_string(), serde_json::json!(record.inspection_date.format("%Y-%m-%d").to_string()));
         data.insert("inspector_name".to_string(), serde_json::json!(record.inspector_name.clone().unwrap_or_default()));
         data.insert("machine_no".to_string(), serde_json::json!(record.machine_no.clone().unwrap_or_default()));
-        data.insert("scoring_system".to_string(), serde_json::json!(record.scoring_system.clone().unwrap_or_default()));
-        data.insert("inspected_yards".to_string(), serde_json::json!(record.inspected_yards.map(|v| v.to_string()).unwrap_or_default()));
+        data.insert("scoring_system".to_string(), serde_json::json!(record.scoring_system.clone()));
+        data.insert("inspected_yards".to_string(), serde_json::json!(record.inspected_yards.to_string()));
         data.insert("total_defect_points".to_string(), serde_json::json!(record.total_defect_points));
         data.insert("grade".to_string(), serde_json::json!(record.grade.clone().unwrap_or_default()));
         data.insert("abc_grade".to_string(), serde_json::json!(record.abc_grade.clone().unwrap_or_default()));
@@ -994,7 +994,7 @@ impl PrintService {
 
         let mut data = HashMap::new();
         data.insert("batch_no".to_string(), serde_json::json!(record.batch_no.clone()));
-        data.insert("dye_lot_no".to_string(), serde_json::json!(record.dye_lot_no.clone().unwrap_or_default()));
+        data.insert("dye_lot_no".to_string(), serde_json::json!(record.dye_lot_no.clone()));
         data.insert("color_no".to_string(), serde_json::json!(record.color_no.clone().unwrap_or_default()));
         data.insert("planned_quantity".to_string(), serde_json::json!(record.planned_quantity.map(|v| v.to_string()).unwrap_or_default()));
         data.insert("status".to_string(), serde_json::json!(record.status.clone()));
@@ -1050,7 +1050,7 @@ impl PrintService {
         data.insert("color_no".to_string(), serde_json::json!(record.color_no.clone().unwrap_or_default()));
         data.insert("dye_lot_no".to_string(), serde_json::json!(record.dye_lot_no.clone().unwrap_or_default()));
         data.insert("batch_no".to_string(), serde_json::json!(record.batch_no.clone().unwrap_or_default()));
-        data.insert("sample_type".to_string(), serde_json::json!(record.sample_type.clone().unwrap_or_default()));
+        data.insert("sample_type".to_string(), serde_json::json!(record.sample_type.clone()));
         data.insert("approval_status".to_string(), serde_json::json!(record.approval_status.clone()));
         data.insert("approval_date".to_string(), serde_json::json!(record.approval_date.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default()));
         data.insert("customer_feedback".to_string(), serde_json::json!(record.customer_feedback.clone().unwrap_or_default()));
@@ -1096,7 +1096,7 @@ impl PrintService {
         let mut item_list = Vec::with_capacity(items.len());
         for item in items {
             let mut row = HashMap::new();
-            row.insert("version_label".to_string(), serde_json::json!(item.version_label.clone().unwrap_or_default()));
+            row.insert("version_label".to_string(), serde_json::json!(item.version_label.clone()));
             row.insert("recipe_no".to_string(), serde_json::json!(item.recipe_no.clone().unwrap_or_default()));
             row.insert("formula".to_string(), serde_json::json!(item.formula.clone().unwrap_or_default()));
             row.insert("temperature".to_string(), serde_json::json!(item.temperature.map(|v| v.to_string()).unwrap_or_default()));
@@ -1127,7 +1127,7 @@ impl PrintService {
         data.insert("order_no".to_string(), serde_json::json!(record.order_no.clone()));
         data.insert("sales_order_id".to_string(), serde_json::json!(record.sales_order_id));
         data.insert("product_id".to_string(), serde_json::json!(record.product_id));
-        data.insert("planned_quantity".to_string(), serde_json::json!(record.planned_quantity.map(|v| v.to_string()).unwrap_or_default()));
+        data.insert("planned_quantity".to_string(), serde_json::json!(record.planned_quantity.to_string()));
         data.insert("actual_quantity".to_string(), serde_json::json!(record.actual_quantity.map(|v| v.to_string()).unwrap_or_default()));
         data.insert("planned_start_date".to_string(), serde_json::json!(record.planned_start_date.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default()));
         data.insert("planned_end_date".to_string(), serde_json::json!(record.planned_end_date.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default()));
@@ -1137,7 +1137,7 @@ impl PrintService {
         data.insert("color_no".to_string(), serde_json::json!(record.color_no.clone().unwrap_or_default()));
         data.insert("dye_lot_no".to_string(), serde_json::json!(record.dye_lot_no.clone().unwrap_or_default()));
         data.insert("batch_no".to_string(), serde_json::json!(record.batch_no.clone().unwrap_or_default()));
-        data.insert("order_type".to_string(), serde_json::json!(record.order_type.clone().unwrap_or_default()));
+        data.insert("order_type".to_string(), serde_json::json!(record.order_type.clone()));
 
         Ok(PrintData {
             template: "production_order".to_string(),
@@ -1203,16 +1203,16 @@ impl PrintService {
 
         let mut data = HashMap::new();
         data.insert("inspection_no".to_string(), serde_json::json!(record.inspection_no.clone()));
-        data.insert("inspection_type".to_string(), serde_json::json!(record.inspection_type.clone().unwrap_or_default()));
+        data.insert("inspection_type".to_string(), serde_json::json!(record.inspection_type.clone()));
         data.insert("product_id".to_string(), serde_json::json!(record.product_id));
         data.insert("batch_no".to_string(), serde_json::json!(record.batch_no.clone().unwrap_or_default()));
         data.insert("inspection_date".to_string(), serde_json::json!(record.inspection_date.format("%Y-%m-%d").to_string()));
-        data.insert("total_qty".to_string(), serde_json::json!(record.total_qty.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("inspected_qty".to_string(), serde_json::json!(record.inspected_qty.map(|v| v.to_string()).unwrap_or_default()));
+        data.insert("total_qty".to_string(), serde_json::json!(record.total_qty.to_string()));
+        data.insert("inspected_qty".to_string(), serde_json::json!(record.inspected_qty.to_string()));
         data.insert("qualified_qty".to_string(), serde_json::json!(record.qualified_qty.map(|v| v.to_string()).unwrap_or_default()));
         data.insert("unqualified_qty".to_string(), serde_json::json!(record.unqualified_qty.map(|v| v.to_string()).unwrap_or_default()));
         data.insert("qualification_rate".to_string(), serde_json::json!(record.qualification_rate.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("inspection_result".to_string(), serde_json::json!(record.inspection_result.clone().unwrap_or_default()));
+        data.insert("inspection_result".to_string(), serde_json::json!(record.inspection_result.clone()));
         data.insert("grade".to_string(), serde_json::json!(record.grade.clone().unwrap_or_default()));
         data.insert("color_no".to_string(), serde_json::json!(record.color_no.clone().unwrap_or_default()));
 
@@ -1284,7 +1284,7 @@ impl PrintService {
         data.insert("collection_date".to_string(), serde_json::json!(record.collection_date.format("%Y-%m-%d").to_string()));
         data.insert("customer_id".to_string(), serde_json::json!(record.customer_id));
         data.insert("customer_name".to_string(), serde_json::json!(record.customer_name.clone().unwrap_or_default()));
-        data.insert("collection_amount".to_string(), serde_json::json!(record.collection_amount.map(|v| v.to_string()).unwrap_or_default()));
+        data.insert("collection_amount".to_string(), serde_json::json!(record.collection_amount.to_string()));
         data.insert("collection_method".to_string(), serde_json::json!(record.collection_method.clone().unwrap_or_default()));
         data.insert("bank_account".to_string(), serde_json::json!(record.bank_account.clone().unwrap_or_default()));
         data.insert("status".to_string(), serde_json::json!(record.status.clone()));
@@ -1309,10 +1309,10 @@ impl PrintService {
         data.insert("payment_no".to_string(), serde_json::json!(record.payment_no.clone()));
         data.insert("payment_date".to_string(), serde_json::json!(record.payment_date.format("%Y-%m-%d").to_string()));
         data.insert("supplier_id".to_string(), serde_json::json!(record.supplier_id));
-        data.insert("payment_method".to_string(), serde_json::json!(record.payment_method.clone().unwrap_or_default()));
-        data.insert("payment_amount".to_string(), serde_json::json!(record.payment_amount.map(|v| v.to_string()).unwrap_or_default()));
+        data.insert("payment_method".to_string(), serde_json::json!(record.payment_method.clone()));
+        data.insert("payment_amount".to_string(), serde_json::json!(record.payment_amount.to_string()));
         data.insert("payment_status".to_string(), serde_json::json!(record.payment_status.clone()));
-        data.insert("currency".to_string(), serde_json::json!(record.currency.clone().unwrap_or_default()));
+        data.insert("currency".to_string(), serde_json::json!(record.currency.clone()));
         data.insert("bank_name".to_string(), serde_json::json!(record.bank_name.clone().unwrap_or_default()));
         data.insert("bank_account".to_string(), serde_json::json!(record.bank_account.clone().unwrap_or_default()));
         data.insert("transaction_no".to_string(), serde_json::json!(record.transaction_no.clone().unwrap_or_default()));
@@ -1336,15 +1336,15 @@ impl PrintService {
         let mut data = HashMap::new();
         data.insert("invoice_no".to_string(), serde_json::json!(record.invoice_no.clone()));
         data.insert("supplier_id".to_string(), serde_json::json!(record.supplier_id));
-        data.insert("invoice_type".to_string(), serde_json::json!(record.invoice_type.clone().unwrap_or_default()));
+        data.insert("invoice_type".to_string(), serde_json::json!(record.invoice_type.clone()));
         data.insert("invoice_date".to_string(), serde_json::json!(record.invoice_date.format("%Y-%m-%d").to_string()));
         data.insert("due_date".to_string(), serde_json::json!(record.due_date.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default()));
-        data.insert("amount".to_string(), serde_json::json!(record.amount.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("paid_amount".to_string(), serde_json::json!(record.paid_amount.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("unpaid_amount".to_string(), serde_json::json!(record.unpaid_amount.map(|v| v.to_string()).unwrap_or_default()));
+        data.insert("amount".to_string(), serde_json::json!(record.amount.to_string()));
+        data.insert("paid_amount".to_string(), serde_json::json!(record.paid_amount.to_string()));
+        data.insert("unpaid_amount".to_string(), serde_json::json!(record.unpaid_amount.to_string()));
         data.insert("invoice_status".to_string(), serde_json::json!(record.invoice_status.clone()));
-        data.insert("currency".to_string(), serde_json::json!(record.currency.clone().unwrap_or_default()));
-        data.insert("tax_amount".to_string(), serde_json::json!(record.tax_amount.map(|v| v.to_string()).unwrap_or_default()));
+        data.insert("currency".to_string(), serde_json::json!(record.currency.clone()));
+        data.insert("tax_amount".to_string(), serde_json::json!(record.tax_amount.to_string()));
 
         Ok(PrintData {
             template: "ap_invoice".to_string(),
@@ -1426,14 +1426,14 @@ impl PrintService {
         data.insert("warehouse_id".to_string(), serde_json::json!(record.warehouse_id));
         data.insert("reason".to_string(), serde_json::json!(record.reason.clone().unwrap_or_default()));
         data.insert("status".to_string(), serde_json::json!(record.status.clone()));
-        data.insert("total_amount".to_string(), serde_json::json!(record.total_amount.map(|v| v.to_string()).unwrap_or_default()));
+        data.insert("total_amount".to_string(), serde_json::json!(record.total_amount.to_string()));
 
         let mut item_list = Vec::with_capacity(items.len());
         for item in items {
             let mut row = HashMap::new();
             row.insert("product_id".to_string(), serde_json::json!(item.product_id));
-            row.insert("quantity".to_string(), serde_json::json!(item.quantity.map(|v| v.to_string()).unwrap_or_default()));
-            row.insert("unit_price".to_string(), serde_json::json!(item.unit_price.map(|v| v.to_string()).unwrap_or_default()));
+            row.insert("quantity".to_string(), serde_json::json!(item.quantity.to_string()));
+            row.insert("unit_price".to_string(), serde_json::json!(item.unit_price.to_string()));
             row.insert("amount".to_string(), serde_json::json!(item.amount.map(|v| v.to_string()).unwrap_or_default()));
             item_list.push(row);
         }
@@ -1471,14 +1471,14 @@ impl PrintService {
         data.insert("reason_type".to_string(), serde_json::json!(record.reason_type.clone().unwrap_or_default()));
         data.insert("return_status".to_string(), serde_json::json!(record.return_status.clone()));
         data.insert("total_quantity".to_string(), serde_json::json!(record.total_quantity.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("total_amount".to_string(), serde_json::json!(record.total_amount.map(|v| v.to_string()).unwrap_or_default()));
+        data.insert("total_amount".to_string(), serde_json::json!(record.total_amount.to_string()));
 
         let mut item_list = Vec::with_capacity(items.len());
         for item in items {
             let mut row = HashMap::new();
             row.insert("product_id".to_string(), serde_json::json!(item.product_id));
-            row.insert("quantity".to_string(), serde_json::json!(item.quantity.map(|v| v.to_string()).unwrap_or_default()));
-            row.insert("unit_price".to_string(), serde_json::json!(item.unit_price.map(|v| v.to_string()).unwrap_or_default()));
+            row.insert("quantity".to_string(), serde_json::json!(item.quantity.to_string()));
+            row.insert("unit_price".to_string(), serde_json::json!(item.unit_price.to_string()));
             row.insert("total_amount".to_string(), serde_json::json!(item.total_amount.map(|v| v.to_string()).unwrap_or_default()));
             row.insert("color_no".to_string(), serde_json::json!(item.color_no.clone().unwrap_or_default()));
             row.insert("dye_lot_no".to_string(), serde_json::json!(item.dye_lot_no.clone().unwrap_or_default()));
@@ -1559,11 +1559,11 @@ impl PrintService {
         data.insert("color_no".to_string(), serde_json::json!(record.color_no.clone().unwrap_or_default()));
         data.insert("dye_lot_no".to_string(), serde_json::json!(record.dye_lot_no.clone().unwrap_or_default()));
         data.insert("batch_no".to_string(), serde_json::json!(record.batch_no.clone().unwrap_or_default()));
-        data.insert("return_quantity".to_string(), serde_json::json!(record.return_quantity.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("loss_quantity".to_string(), serde_json::json!(record.loss_quantity.map(|v| v.to_string()).unwrap_or_default()));
+        data.insert("return_quantity".to_string(), serde_json::json!(record.return_quantity.to_string()));
+        data.insert("loss_quantity".to_string(), serde_json::json!(record.loss_quantity.to_string()));
         data.insert("loss_rate".to_string(), serde_json::json!(record.loss_rate.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("unit_cost".to_string(), serde_json::json!(record.unit_cost.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("total_cost".to_string(), serde_json::json!(record.total_cost.map(|v| v.to_string()).unwrap_or_default()));
+        data.insert("unit_cost".to_string(), serde_json::json!(record.unit_cost.to_string()));
+        data.insert("total_cost".to_string(), serde_json::json!(record.total_cost.to_string()));
         data.insert("quality_status".to_string(), serde_json::json!(record.quality_status.clone().unwrap_or_default()));
         data.insert("grade".to_string(), serde_json::json!(record.grade.clone().unwrap_or_default()));
 
@@ -1585,8 +1585,8 @@ impl PrintService {
 
         let mut data = HashMap::new();
         data.insert("order_id".to_string(), serde_json::json!(record.order_id));
-        data.insert("logistics_company".to_string(), serde_json::json!(record.logistics_company.clone().unwrap_or_default()));
-        data.insert("tracking_number".to_string(), serde_json::json!(record.tracking_number.clone().unwrap_or_default()));
+        data.insert("logistics_company".to_string(), serde_json::json!(record.logistics_company.clone()));
+        data.insert("tracking_number".to_string(), serde_json::json!(record.tracking_number.clone()));
         data.insert("driver_name".to_string(), serde_json::json!(record.driver_name.clone().unwrap_or_default()));
         data.insert("freight_fee".to_string(), serde_json::json!(record.freight_fee.map(|v| v.to_string()).unwrap_or_default()));
         data.insert("total_weight".to_string(), serde_json::json!(record.total_weight.map(|v| v.to_string()).unwrap_or_default()));
@@ -1612,13 +1612,13 @@ impl PrintService {
 
         let mut data = HashMap::new();
         data.insert("certificate_no".to_string(), serde_json::json!(record.certificate_no.clone()));
-        data.insert("product_name".to_string(), serde_json::json!(record.product_name.clone().unwrap_or_default()));
-        data.insert("hs_code".to_string(), serde_json::json!(record.hs_code.clone().unwrap_or_default()));
-        data.insert("origin_country".to_string(), serde_json::json!(record.origin_country.clone().unwrap_or_default()));
-        data.insert("destination_country".to_string(), serde_json::json!(record.destination_country.clone().unwrap_or_default()));
-        data.insert("quantity".to_string(), serde_json::json!(record.quantity.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("unit".to_string(), serde_json::json!(record.unit.clone().unwrap_or_default()));
-        data.insert("certificate_type".to_string(), serde_json::json!(record.certificate_type.clone().unwrap_or_default()));
+        data.insert("product_name".to_string(), serde_json::json!(record.product_name.clone()));
+        data.insert("hs_code".to_string(), serde_json::json!(record.hs_code.clone()));
+        data.insert("origin_country".to_string(), serde_json::json!(record.origin_country.clone()));
+        data.insert("destination_country".to_string(), serde_json::json!(record.destination_country.clone()));
+        data.insert("quantity".to_string(), serde_json::json!(record.quantity.to_string()));
+        data.insert("unit".to_string(), serde_json::json!(record.unit.clone()));
+        data.insert("certificate_type".to_string(), serde_json::json!(record.certificate_type.clone()));
         data.insert("issue_date".to_string(), serde_json::json!(record.issue_date.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default()));
         data.insert("status".to_string(), serde_json::json!(record.status.clone()));
 
@@ -1643,7 +1643,7 @@ impl PrintService {
         data.insert("sales_order_id".to_string(), serde_json::json!(record.sales_order_id));
         data.insert("export_date".to_string(), serde_json::json!(record.export_date.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default()));
         data.insert("destination_country".to_string(), serde_json::json!(record.destination_country.clone().unwrap_or_default()));
-        data.insert("total_amount".to_string(), serde_json::json!(record.total_amount.map(|v| v.to_string()).unwrap_or_default()));
+        data.insert("total_amount".to_string(), serde_json::json!(record.total_amount.to_string()));
         data.insert("customs_code".to_string(), serde_json::json!(record.customs_code.clone().unwrap_or_default()));
         data.insert("status".to_string(), serde_json::json!(record.status.clone()));
 
@@ -1665,13 +1665,13 @@ impl PrintService {
 
         let mut data = HashMap::new();
         data.insert("manifest_no".to_string(), serde_json::json!(record.manifest_no.clone()));
-        data.insert("waste_type".to_string(), serde_json::json!(record.waste_type.clone().unwrap_or_default()));
-        data.insert("waste_category".to_string(), serde_json::json!(record.waste_category.clone().unwrap_or_default()));
-        data.insert("waste_amount".to_string(), serde_json::json!(record.waste_amount.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("waste_unit".to_string(), serde_json::json!(record.waste_unit.clone().unwrap_or_default()));
+        data.insert("waste_type".to_string(), serde_json::json!(record.waste_type.clone()));
+        data.insert("waste_category".to_string(), serde_json::json!(record.waste_category.clone()));
+        data.insert("waste_amount".to_string(), serde_json::json!(record.waste_amount.to_string()));
+        data.insert("waste_unit".to_string(), serde_json::json!(record.waste_unit.clone()));
         data.insert("generation_date".to_string(), serde_json::json!(record.generation_date.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default()));
         data.insert("disposal_date".to_string(), serde_json::json!(record.disposal_date.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default()));
-        data.insert("disposal_method".to_string(), serde_json::json!(record.disposal_method.clone().unwrap_or_default()));
+        data.insert("disposal_method".to_string(), serde_json::json!(record.disposal_method.clone()));
         data.insert("disposal_vendor_name".to_string(), serde_json::json!(record.disposal_vendor_name.clone().unwrap_or_default()));
         data.insert("transport_license_no".to_string(), serde_json::json!(record.transport_license_no.clone().unwrap_or_default()));
         data.insert("status".to_string(), serde_json::json!(record.status.clone()));
@@ -1696,9 +1696,9 @@ impl PrintService {
         data.insert("unqualified_no".to_string(), serde_json::json!(record.unqualified_no.clone()));
         data.insert("product_id".to_string(), serde_json::json!(record.product_id));
         data.insert("batch_no".to_string(), serde_json::json!(record.batch_no.clone().unwrap_or_default()));
-        data.insert("unqualified_qty".to_string(), serde_json::json!(record.unqualified_qty.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("unqualified_reason".to_string(), serde_json::json!(record.unqualified_reason.clone().unwrap_or_default()));
-        data.insert("handling_method".to_string(), serde_json::json!(record.handling_method.clone().unwrap_or_default()));
+        data.insert("unqualified_qty".to_string(), serde_json::json!(record.unqualified_qty.to_string()));
+        data.insert("unqualified_reason".to_string(), serde_json::json!(record.unqualified_reason.clone()));
+        data.insert("handling_method".to_string(), serde_json::json!(record.handling_method.clone()));
         data.insert("handling_status".to_string(), serde_json::json!(record.handling_status.clone()));
         data.insert("grade".to_string(), serde_json::json!(record.grade.clone().unwrap_or_default()));
         data.insert("handling_result".to_string(), serde_json::json!(record.handling_result.clone().unwrap_or_default()));
@@ -1721,14 +1721,14 @@ impl PrintService {
 
         let mut data = HashMap::new();
         data.insert("requisition_no".to_string(), serde_json::json!(record.requisition_no.clone()));
-        data.insert("requisition_type".to_string(), serde_json::json!(record.requisition_type.clone().unwrap_or_default()));
+        data.insert("requisition_type".to_string(), serde_json::json!(record.requisition_type.clone()));
         data.insert("department_id".to_string(), serde_json::json!(record.department_id));
         data.insert("requisition_date".to_string(), serde_json::json!(record.requisition_date.format("%Y-%m-%d").to_string()));
         data.insert("required_date".to_string(), serde_json::json!(record.required_date.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default()));
         data.insert("dye_batch_id".to_string(), serde_json::json!(record.dye_batch_id));
         data.insert("production_order_id".to_string(), serde_json::json!(record.production_order_id));
         data.insert("status".to_string(), serde_json::json!(record.status.clone()));
-        data.insert("total_amount".to_string(), serde_json::json!(record.total_amount.map(|v| v.to_string()).unwrap_or_default()));
+        data.insert("total_amount".to_string(), serde_json::json!(record.total_amount.to_string()));
 
         Ok(PrintData {
             template: "chemical_requisition".to_string(),
@@ -1749,12 +1749,12 @@ impl PrintService {
         let mut data = HashMap::new();
         data.insert("inspection_no".to_string(), serde_json::json!(record.inspection_no.clone()));
         data.insert("sales_order_id".to_string(), serde_json::json!(record.sales_order_id));
-        data.insert("product_name".to_string(), serde_json::json!(record.product_name.clone().unwrap_or_default()));
-        data.insert("hs_code".to_string(), serde_json::json!(record.hs_code.clone().unwrap_or_default()));
-        data.insert("inspection_type".to_string(), serde_json::json!(record.inspection_type.clone().unwrap_or_default()));
-        data.insert("inspection_agency".to_string(), serde_json::json!(record.inspection_agency.clone().unwrap_or_default()));
+        data.insert("product_name".to_string(), serde_json::json!(record.product_name.clone()));
+        data.insert("hs_code".to_string(), serde_json::json!(record.hs_code.clone()));
+        data.insert("inspection_type".to_string(), serde_json::json!(record.inspection_type.clone()));
+        data.insert("inspection_agency".to_string(), serde_json::json!(record.inspection_agency.clone()));
         data.insert("inspection_date".to_string(), serde_json::json!(record.inspection_date.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default()));
-        data.insert("result".to_string(), serde_json::json!(record.result.clone().unwrap_or_default()));
+        data.insert("result".to_string(), serde_json::json!(record.result.clone()));
         data.insert("certificate_no".to_string(), serde_json::json!(record.certificate_no.clone().unwrap_or_default()));
 
         Ok(PrintData {
@@ -1796,7 +1796,7 @@ impl PrintService {
         for item in items {
             let mut row = HashMap::new();
             row.insert("invoice_id".to_string(), serde_json::json!(item.invoice_id));
-            row.insert("apply_amount".to_string(), serde_json::json!(item.apply_amount.map(|v| v.to_string()).unwrap_or_default()));
+            row.insert("apply_amount".to_string(), serde_json::json!(item.apply_amount.to_string()));
             item_list.push(row);
         }
 
@@ -1821,10 +1821,10 @@ impl PrintService {
         data.insert("supplier_id".to_string(), serde_json::json!(record.supplier_id));
         data.insert("start_date".to_string(), serde_json::json!(record.start_date.format("%Y-%m-%d").to_string()));
         data.insert("end_date".to_string(), serde_json::json!(record.end_date.format("%Y-%m-%d").to_string()));
-        data.insert("opening_balance".to_string(), serde_json::json!(record.opening_balance.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("total_invoice".to_string(), serde_json::json!(record.total_invoice.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("total_payment".to_string(), serde_json::json!(record.total_payment.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("closing_balance".to_string(), serde_json::json!(record.closing_balance.map(|v| v.to_string()).unwrap_or_default()));
+        data.insert("opening_balance".to_string(), serde_json::json!(record.opening_balance.to_string()));
+        data.insert("total_invoice".to_string(), serde_json::json!(record.total_invoice.to_string()));
+        data.insert("total_payment".to_string(), serde_json::json!(record.total_payment.to_string()));
+        data.insert("closing_balance".to_string(), serde_json::json!(record.closing_balance.to_string()));
         data.insert("reconciliation_status".to_string(), serde_json::json!(record.reconciliation_status.clone()));
 
         Ok(PrintData {
@@ -1866,8 +1866,8 @@ impl PrintService {
         for item in items {
             let mut row = HashMap::new();
             row.insert("product_id".to_string(), serde_json::json!(item.product_id));
-            row.insert("item_name".to_string(), serde_json::json!(item.item_name.clone().unwrap_or_default()));
-            row.insert("qualified_quantity".to_string(), serde_json::json!(item.qualified_quantity.map(|v| v.to_string()).unwrap_or_default()));
+            row.insert("item_name".to_string(), serde_json::json!(item.item_name.clone()));
+            row.insert("qualified_quantity".to_string(), serde_json::json!(item.qualified_quantity.to_string()));
             row.insert("unqualified_quantity".to_string(), serde_json::json!(item.unqualified_quantity.map(|v| v.to_string()).unwrap_or_default()));
             item_list.push(row);
         }
@@ -1909,9 +1909,9 @@ impl PrintService {
         for item in items {
             let mut row = HashMap::new();
             row.insert("stock_id".to_string(), serde_json::json!(item.stock_id));
-            row.insert("quantity".to_string(), serde_json::json!(item.quantity.map(|v| v.to_string()).unwrap_or_default()));
-            row.insert("quantity_before".to_string(), serde_json::json!(item.quantity_before.map(|v| v.to_string()).unwrap_or_default()));
-            row.insert("quantity_after".to_string(), serde_json::json!(item.quantity_after.map(|v| v.to_string()).unwrap_or_default()));
+            row.insert("quantity".to_string(), serde_json::json!(item.quantity.to_string()));
+            row.insert("quantity_before".to_string(), serde_json::json!(item.quantity_before.to_string()));
+            row.insert("quantity_after".to_string(), serde_json::json!(item.quantity_after.to_string()));
             row.insert("unit_cost".to_string(), serde_json::json!(item.unit_cost.map(|v| v.to_string()).unwrap_or_default()));
             row.insert("amount".to_string(), serde_json::json!(item.amount.map(|v| v.to_string()).unwrap_or_default()));
             item_list.push(row);
@@ -1951,7 +1951,7 @@ impl PrintService {
         for item in items {
             let mut row = HashMap::new();
             row.insert("material_id".to_string(), serde_json::json!(item.material_id));
-            row.insert("quantity".to_string(), serde_json::json!(item.quantity.map(|v| v.to_string()).unwrap_or_default()));
+            row.insert("quantity".to_string(), serde_json::json!(item.quantity.to_string()));
             row.insert("unit".to_string(), serde_json::json!(item.unit.clone().unwrap_or_default()));
             row.insert("scrap_rate".to_string(), serde_json::json!(item.scrap_rate.map(|v| v.to_string()).unwrap_or_default()));
             item_list.push(row);
@@ -1976,13 +1976,13 @@ impl PrintService {
         let mut data = HashMap::new();
         data.insert("alert_no".to_string(), serde_json::json!(record.alert_no.clone()));
         data.insert("material_id".to_string(), serde_json::json!(record.material_id));
-        data.insert("material_name".to_string(), serde_json::json!(record.material_name.clone().unwrap_or_default()));
+        data.insert("material_name".to_string(), serde_json::json!(record.material_name.clone()));
         data.insert("material_code".to_string(), serde_json::json!(record.material_code.clone().unwrap_or_default()));
-        data.insert("required_quantity".to_string(), serde_json::json!(record.required_quantity.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("available_quantity".to_string(), serde_json::json!(record.available_quantity.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("shortage_quantity".to_string(), serde_json::json!(record.shortage_quantity.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("deficit_rate".to_string(), serde_json::json!(record.deficit_rate.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("level".to_string(), serde_json::json!(record.level.clone().unwrap_or_default()));
+        data.insert("required_quantity".to_string(), serde_json::json!(record.required_quantity.to_string()));
+        data.insert("available_quantity".to_string(), serde_json::json!(record.available_quantity.to_string()));
+        data.insert("shortage_quantity".to_string(), serde_json::json!(record.shortage_quantity.to_string()));
+        data.insert("deficit_rate".to_string(), serde_json::json!(record.deficit_rate.to_string()));
+        data.insert("level".to_string(), serde_json::json!(record.level.clone()));
         data.insert("status".to_string(), serde_json::json!(record.status.clone()));
         data.insert("affected_orders_count".to_string(), serde_json::json!(record.affected_orders_count));
         data.insert("unit".to_string(), serde_json::json!(record.unit.clone().unwrap_or_default()));
@@ -2035,14 +2035,14 @@ impl PrintService {
         let mut data = HashMap::new();
         data.insert("worker_id".to_string(), serde_json::json!(record.worker_id));
         data.insert("contract_no".to_string(), serde_json::json!(record.contract_no.clone()));
-        data.insert("contract_type".to_string(), serde_json::json!(record.contract_type.clone().unwrap_or_default()));
+        data.insert("contract_type".to_string(), serde_json::json!(record.contract_type.clone()));
         data.insert("start_date".to_string(), serde_json::json!(record.start_date.format("%Y-%m-%d").to_string()));
         data.insert("end_date".to_string(), serde_json::json!(record.end_date.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default()));
-        data.insert("probation_salary".to_string(), serde_json::json!(record.probation_salary.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("regular_salary".to_string(), serde_json::json!(record.regular_salary.map(|v| v.to_string()).unwrap_or_default()));
+        data.insert("probation_salary".to_string(), serde_json::json!(record.probation_salary.to_string()));
+        data.insert("regular_salary".to_string(), serde_json::json!(record.regular_salary.to_string()));
         data.insert("position".to_string(), serde_json::json!(record.position.clone().unwrap_or_default()));
         data.insert("department".to_string(), serde_json::json!(record.department.clone().unwrap_or_default()));
-        data.insert("working_hours_system".to_string(), serde_json::json!(record.working_hours_system.clone().unwrap_or_default()));
+        data.insert("working_hours_system".to_string(), serde_json::json!(record.working_hours_system.clone()));
         data.insert("status".to_string(), serde_json::json!(record.status.clone()));
 
         Ok(PrintData {
@@ -2085,7 +2085,7 @@ impl PrintService {
             let mut row = HashMap::new();
             row.insert("worker_name".to_string(), serde_json::json!(item.worker_name.clone().unwrap_or_default()));
             row.insert("equipment_name".to_string(), serde_json::json!(item.equipment_name.clone().unwrap_or_default()));
-            row.insert("wage_type".to_string(), serde_json::json!(item.wage_type.clone().unwrap_or_default()));
+            row.insert("wage_type".to_string(), serde_json::json!(item.wage_type.clone()));
             row.insert("grade".to_string(), serde_json::json!(item.grade.clone().unwrap_or_default()));
             row.insert("actual_quantity".to_string(), serde_json::json!(item.actual_quantity.map(|v| v.to_string()).unwrap_or_default()));
             row.insert("qualified_quantity".to_string(), serde_json::json!(item.qualified_quantity.map(|v| v.to_string()).unwrap_or_default()));
@@ -2112,14 +2112,14 @@ impl PrintService {
 
         let mut data = HashMap::new();
         data.insert("record_no".to_string(), serde_json::json!(record.record_no.clone()));
-        data.insert("meter_type".to_string(), serde_json::json!(record.meter_type.clone().unwrap_or_default()));
+        data.insert("meter_type".to_string(), serde_json::json!(record.meter_type.clone()));
         data.insert("workshop".to_string(), serde_json::json!(record.workshop.clone().unwrap_or_default()));
-        data.insert("unit".to_string(), serde_json::json!(record.unit.clone().unwrap_or_default()));
-        data.insert("previous_reading".to_string(), serde_json::json!(record.previous_reading.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("current_reading".to_string(), serde_json::json!(record.current_reading.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("consumption".to_string(), serde_json::json!(record.consumption.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("unit_price".to_string(), serde_json::json!(record.unit_price.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("total_cost".to_string(), serde_json::json!(record.total_cost.map(|v| v.to_string()).unwrap_or_default()));
+        data.insert("unit".to_string(), serde_json::json!(record.unit.clone()));
+        data.insert("previous_reading".to_string(), serde_json::json!(record.previous_reading.to_string()));
+        data.insert("current_reading".to_string(), serde_json::json!(record.current_reading.to_string()));
+        data.insert("consumption".to_string(), serde_json::json!(record.consumption.to_string()));
+        data.insert("unit_price".to_string(), serde_json::json!(record.unit_price.to_string()));
+        data.insert("total_cost".to_string(), serde_json::json!(record.total_cost.to_string()));
         data.insert("period_start".to_string(), serde_json::json!(record.period_start.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default()));
         data.insert("period_end".to_string(), serde_json::json!(record.period_end.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default()));
         data.insert("dye_lot_no".to_string(), serde_json::json!(record.dye_lot_no.clone().unwrap_or_default()));
@@ -2144,7 +2144,7 @@ impl PrintService {
 
         let mut data = HashMap::new();
         data.insert("contract_no".to_string(), serde_json::json!(record.contract_no.clone()));
-        data.insert("contract_name".to_string(), serde_json::json!(record.contract_name.clone().unwrap_or_default()));
+        data.insert("contract_name".to_string(), serde_json::json!(record.contract_name.clone()));
         data.insert("supplier_id".to_string(), serde_json::json!(record.supplier_id));
         data.insert("total_amount".to_string(), serde_json::json!(record.total_amount.map(|v| v.to_string()).unwrap_or_default()));
         data.insert("signed_date".to_string(), serde_json::json!(record.signed_date.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default()));
@@ -2172,9 +2172,9 @@ impl PrintService {
 
         let mut data = HashMap::new();
         data.insert("supplier_id".to_string(), serde_json::json!(record.supplier_id));
-        data.insert("evaluation_period".to_string(), serde_json::json!(record.evaluation_period.clone().unwrap_or_default()));
+        data.insert("evaluation_period".to_string(), serde_json::json!(record.evaluation_period.clone()));
         data.insert("indicator_id".to_string(), serde_json::json!(record.indicator_id));
-        data.insert("score".to_string(), serde_json::json!(record.score.map(|v| v.to_string()).unwrap_or_default()));
+        data.insert("score".to_string(), serde_json::json!(record.score.to_string()));
         data.insert("weighted_score".to_string(), serde_json::json!(record.weighted_score.map(|v| v.to_string()).unwrap_or_default()));
         data.insert("evaluation_date".to_string(), serde_json::json!(record.evaluation_date.format("%Y-%m-%d").to_string()));
         data.insert("remark".to_string(), serde_json::json!(record.remark.clone().unwrap_or_default()));
@@ -2197,10 +2197,10 @@ impl PrintService {
 
         let mut data = HashMap::new();
         data.insert("accident_no".to_string(), serde_json::json!(record.accident_no.clone()));
-        data.insert("accident_level".to_string(), serde_json::json!(record.accident_level.clone().unwrap_or_default()));
+        data.insert("accident_level".to_string(), serde_json::json!(record.accident_level.clone()));
         data.insert("accident_date".to_string(), serde_json::json!(record.accident_date.format("%Y-%m-%d").to_string()));
         data.insert("location".to_string(), serde_json::json!(record.location.clone().unwrap_or_default()));
-        data.insert("description".to_string(), serde_json::json!(record.description.clone().unwrap_or_default()));
+        data.insert("description".to_string(), serde_json::json!(record.description.clone()));
         data.insert("casualties".to_string(), serde_json::json!(record.casualties.clone().unwrap_or_default()));
         data.insert("direct_loss".to_string(), serde_json::json!(record.direct_loss.map(|v| v.to_string()).unwrap_or_default()));
         data.insert("cause".to_string(), serde_json::json!(record.cause.clone().unwrap_or_default()));
@@ -2223,12 +2223,12 @@ impl PrintService {
             .ok_or_else(|| AppError::not_found(format!("职业病危害监测 {} 未找到", id)))?;
 
         let mut data = HashMap::new();
-        data.insert("hazard_type".to_string(), serde_json::json!(record.hazard_type.clone().unwrap_or_default()));
-        data.insert("hazard_name".to_string(), serde_json::json!(record.hazard_name.clone().unwrap_or_default()));
-        data.insert("monitoring_point".to_string(), serde_json::json!(record.monitoring_point.clone().unwrap_or_default()));
-        data.insert("measured_value".to_string(), serde_json::json!(record.measured_value.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("unit".to_string(), serde_json::json!(record.unit.clone().unwrap_or_default()));
-        data.insert("limit_value".to_string(), serde_json::json!(record.limit_value.map(|v| v.to_string()).unwrap_or_default()));
+        data.insert("hazard_type".to_string(), serde_json::json!(record.hazard_type.clone()));
+        data.insert("hazard_name".to_string(), serde_json::json!(record.hazard_name.clone()));
+        data.insert("monitoring_point".to_string(), serde_json::json!(record.monitoring_point.clone()));
+        data.insert("measured_value".to_string(), serde_json::json!(record.measured_value.to_string()));
+        data.insert("unit".to_string(), serde_json::json!(record.unit.clone()));
+        data.insert("limit_value".to_string(), serde_json::json!(record.limit_value.to_string()));
         data.insert("is_exceeding".to_string(), serde_json::json!(record.is_exceeding));
         data.insert("exceeding_ratio".to_string(), serde_json::json!(record.exceeding_ratio.map(|v| v.to_string()).unwrap_or_default()));
         data.insert("monitoring_date".to_string(), serde_json::json!(record.monitoring_date.format("%Y-%m-%d").to_string()));
@@ -2252,11 +2252,11 @@ impl PrintService {
 
         let mut data = HashMap::new();
         data.insert("permit_no".to_string(), serde_json::json!(record.permit_no.clone()));
-        data.insert("permit_type".to_string(), serde_json::json!(record.permit_type.clone().unwrap_or_default()));
+        data.insert("permit_type".to_string(), serde_json::json!(record.permit_type.clone()));
         data.insert("permit_category".to_string(), serde_json::json!(record.permit_category.clone().unwrap_or_default()));
         data.insert("issue_date".to_string(), serde_json::json!(record.issue_date.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default()));
         data.insert("expiry_date".to_string(), serde_json::json!(record.expiry_date.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default()));
-        data.insert("issuing_authority".to_string(), serde_json::json!(record.issuing_authority.clone().unwrap_or_default()));
+        data.insert("issuing_authority".to_string(), serde_json::json!(record.issuing_authority.clone()));
         data.insert("permitted_capacity".to_string(), serde_json::json!(record.permitted_capacity.map(|v| v.to_string()).unwrap_or_default()));
         data.insert("capacity_unit".to_string(), serde_json::json!(record.capacity_unit.clone().unwrap_or_default()));
         data.insert("status".to_string(), serde_json::json!(record.status.clone()));
@@ -2279,9 +2279,9 @@ impl PrintService {
 
         let mut data = HashMap::new();
         data.insert("route_code".to_string(), serde_json::json!(record.route_code.clone()));
-        data.insert("route_name".to_string(), serde_json::json!(record.route_name.clone().unwrap_or_default()));
+        data.insert("route_name".to_string(), serde_json::json!(record.route_name.clone()));
         data.insert("seq".to_string(), serde_json::json!(record.seq));
-        data.insert("process_type".to_string(), serde_json::json!(record.process_type.clone().unwrap_or_default()));
+        data.insert("process_type".to_string(), serde_json::json!(record.process_type.clone()));
         data.insert("default_duration_minutes".to_string(), serde_json::json!(record.default_duration_minutes));
         data.insert("require_scan".to_string(), serde_json::json!(record.require_scan));
         data.insert("is_active".to_string(), serde_json::json!(record.is_active));
@@ -2307,9 +2307,9 @@ impl PrintService {
         data.insert("customs_declaration_id".to_string(), serde_json::json!(record.customs_declaration_id));
         data.insert("sales_order_id".to_string(), serde_json::json!(record.sales_order_id));
         data.insert("verification_date".to_string(), serde_json::json!(record.verification_date.format("%Y-%m-%d").to_string()));
-        data.insert("foreign_currency_amount".to_string(), serde_json::json!(record.foreign_currency_amount.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("rmb_amount".to_string(), serde_json::json!(record.rmb_amount.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("exchange_rate".to_string(), serde_json::json!(record.exchange_rate.map(|v| v.to_string()).unwrap_or_default()));
+        data.insert("foreign_currency_amount".to_string(), serde_json::json!(record.foreign_currency_amount.to_string()));
+        data.insert("rmb_amount".to_string(), serde_json::json!(record.rmb_amount.to_string()));
+        data.insert("exchange_rate".to_string(), serde_json::json!(record.exchange_rate.to_string()));
         data.insert("bank_code".to_string(), serde_json::json!(record.bank_code.clone().unwrap_or_default()));
         data.insert("status".to_string(), serde_json::json!(record.status.clone()));
 
@@ -2334,10 +2334,10 @@ impl PrintService {
         data.insert("period_year".to_string(), serde_json::json!(record.period_year));
         data.insert("period_month".to_string(), serde_json::json!(record.period_month));
         data.insert("declaration_date".to_string(), serde_json::json!(record.declaration_date.format("%Y-%m-%d").to_string()));
-        data.insert("export_sales_amount".to_string(), serde_json::json!(record.export_sales_amount.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("refundable_vat_amount".to_string(), serde_json::json!(record.refundable_vat_amount.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("actual_refund_amount".to_string(), serde_json::json!(record.actual_refund_amount.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("refund_rate".to_string(), serde_json::json!(record.refund_rate.map(|v| v.to_string()).unwrap_or_default()));
+        data.insert("export_sales_amount".to_string(), serde_json::json!(record.export_sales_amount.to_string()));
+        data.insert("refundable_vat_amount".to_string(), serde_json::json!(record.refundable_vat_amount.to_string()));
+        data.insert("actual_refund_amount".to_string(), serde_json::json!(record.actual_refund_amount.to_string()));
+        data.insert("refund_rate".to_string(), serde_json::json!(record.refund_rate.to_string()));
         data.insert("status".to_string(), serde_json::json!(record.status.clone()));
 
         Ok(PrintData {
@@ -2358,12 +2358,12 @@ impl PrintService {
 
         let mut data = HashMap::new();
         data.insert("asset_no".to_string(), serde_json::json!(record.asset_no.clone()));
-        data.insert("asset_name".to_string(), serde_json::json!(record.asset_name.clone().unwrap_or_default()));
+        data.insert("asset_name".to_string(), serde_json::json!(record.asset_name.clone()));
         data.insert("asset_category".to_string(), serde_json::json!(record.asset_category.clone().unwrap_or_default()));
         data.insert("specification".to_string(), serde_json::json!(record.specification.clone().unwrap_or_default()));
         data.insert("model".to_string(), serde_json::json!(record.model.clone().unwrap_or_default()));
-        data.insert("original_value".to_string(), serde_json::json!(record.original_value.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("accumulated_depreciation".to_string(), serde_json::json!(record.accumulated_depreciation.map(|v| v.to_string()).unwrap_or_default()));
+        data.insert("original_value".to_string(), serde_json::json!(record.original_value.to_string()));
+        data.insert("accumulated_depreciation".to_string(), serde_json::json!(record.accumulated_depreciation.to_string()));
         data.insert("net_value".to_string(), serde_json::json!(record.net_value.map(|v| v.to_string()).unwrap_or_default()));
         data.insert("status".to_string(), serde_json::json!(record.status.clone()));
         data.insert("purchase_date".to_string(), serde_json::json!(record.purchase_date.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default()));
@@ -2387,7 +2387,7 @@ impl PrintService {
 
         let mut data = HashMap::new();
         data.insert("batch_no".to_string(), serde_json::json!(record.batch_no.clone()));
-        data.insert("strategy".to_string(), serde_json::json!(record.strategy.clone().unwrap_or_default()));
+        data.insert("strategy".to_string(), serde_json::json!(record.strategy.clone()));
         data.insert("status".to_string(), serde_json::json!(record.status.clone()));
         data.insert("total_orders".to_string(), serde_json::json!(record.total_orders));
         data.insert("scheduled_orders".to_string(), serde_json::json!(record.scheduled_orders));
@@ -2414,10 +2414,10 @@ impl PrintService {
 
         let mut data = HashMap::new();
         data.insert("product_id".to_string(), serde_json::json!(record.product_id));
-        data.insert("write_down_type".to_string(), serde_json::json!(record.write_down_type.clone().unwrap_or_default()));
-        data.insert("original_cost".to_string(), serde_json::json!(record.original_cost.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("net_realizable_value".to_string(), serde_json::json!(record.net_realizable_value.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("write_down_amount".to_string(), serde_json::json!(record.write_down_amount.map(|v| v.to_string()).unwrap_or_default()));
+        data.insert("write_down_type".to_string(), serde_json::json!(record.write_down_type.clone()));
+        data.insert("original_cost".to_string(), serde_json::json!(record.original_cost.to_string()));
+        data.insert("net_realizable_value".to_string(), serde_json::json!(record.net_realizable_value.to_string()));
+        data.insert("write_down_amount".to_string(), serde_json::json!(record.write_down_amount.to_string()));
         data.insert("reason".to_string(), serde_json::json!(record.reason.clone().unwrap_or_default()));
         data.insert("period".to_string(), serde_json::json!(record.period.clone().unwrap_or_default()));
         data.insert("status".to_string(), serde_json::json!(record.status.clone()));
@@ -2461,8 +2461,8 @@ impl PrintService {
         let mut item_list = Vec::with_capacity(items.len());
         for item in items {
             let mut row = HashMap::new();
-            row.insert("asset_no".to_string(), serde_json::json!(item.asset_no.clone().unwrap_or_default()));
-            row.insert("asset_name".to_string(), serde_json::json!(item.asset_name.clone().unwrap_or_default()));
+            row.insert("asset_no".to_string(), serde_json::json!(item.asset_no.clone()));
+            row.insert("asset_name".to_string(), serde_json::json!(item.asset_name.clone()));
             row.insert("book_original_value".to_string(), serde_json::json!(item.book_original_value.map(|v| v.to_string()).unwrap_or_default()));
             row.insert("actual_original_value".to_string(), serde_json::json!(item.actual_original_value.map(|v| v.to_string()).unwrap_or_default()));
             row.insert("count_result".to_string(), serde_json::json!(item.count_result.clone().unwrap_or_default()));
@@ -2490,13 +2490,13 @@ impl PrintService {
         data.insert("worker_id".to_string(), serde_json::json!(record.worker_id));
         data.insert("period_year".to_string(), serde_json::json!(record.period_year));
         data.insert("period_month".to_string(), serde_json::json!(record.period_month));
-        data.insert("base_amount".to_string(), serde_json::json!(record.base_amount.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("pension_employer".to_string(), serde_json::json!(record.pension_employer.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("pension_employee".to_string(), serde_json::json!(record.pension_employee.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("medical_employer".to_string(), serde_json::json!(record.medical_employer.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("medical_employee".to_string(), serde_json::json!(record.medical_employee.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("total_employer".to_string(), serde_json::json!(record.total_employer.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("total_employee".to_string(), serde_json::json!(record.total_employee.map(|v| v.to_string()).unwrap_or_default()));
+        data.insert("base_amount".to_string(), serde_json::json!(record.base_amount.to_string()));
+        data.insert("pension_employer".to_string(), serde_json::json!(record.pension_employer.to_string()));
+        data.insert("pension_employee".to_string(), serde_json::json!(record.pension_employee.to_string()));
+        data.insert("medical_employer".to_string(), serde_json::json!(record.medical_employer.to_string()));
+        data.insert("medical_employee".to_string(), serde_json::json!(record.medical_employee.to_string()));
+        data.insert("total_employer".to_string(), serde_json::json!(record.total_employer.to_string()));
+        data.insert("total_employee".to_string(), serde_json::json!(record.total_employee.to_string()));
         data.insert("status".to_string(), serde_json::json!(record.status.clone()));
 
         Ok(PrintData {
@@ -2517,11 +2517,11 @@ impl PrintService {
 
         let mut data = HashMap::new();
         data.insert("worker_id".to_string(), serde_json::json!(record.worker_id));
-        data.insert("exam_type".to_string(), serde_json::json!(record.exam_type.clone().unwrap_or_default()));
+        data.insert("exam_type".to_string(), serde_json::json!(record.exam_type.clone()));
         data.insert("exam_date".to_string(), serde_json::json!(record.exam_date.format("%Y-%m-%d").to_string()));
         data.insert("next_exam_date".to_string(), serde_json::json!(record.next_exam_date.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default()));
         data.insert("exam_organization".to_string(), serde_json::json!(record.exam_organization.clone().unwrap_or_default()));
-        data.insert("exam_result".to_string(), serde_json::json!(record.exam_result.clone().unwrap_or_default()));
+        data.insert("exam_result".to_string(), serde_json::json!(record.exam_result.clone()));
         data.insert("contraindications".to_string(), serde_json::json!(record.contraindications.clone().unwrap_or_default()));
 
         Ok(PrintData {
@@ -2541,11 +2541,11 @@ impl PrintService {
             .ok_or_else(|| AppError::not_found(format!("染色返工单 {} 未找到", id)))?;
 
         let mut data = HashMap::new();
-        data.insert("original_batch_no".to_string(), serde_json::json!(record.original_batch_no.clone().unwrap_or_default()));
+        data.insert("original_batch_no".to_string(), serde_json::json!(record.original_batch_no.clone()));
         data.insert("rework_batch_no".to_string(), serde_json::json!(record.rework_batch_no.clone().unwrap_or_default()));
-        data.insert("rework_type".to_string(), serde_json::json!(record.rework_type.clone().unwrap_or_default()));
-        data.insert("rework_reason".to_string(), serde_json::json!(record.rework_reason.clone().unwrap_or_default()));
-        data.insert("original_status".to_string(), serde_json::json!(record.original_status.clone().unwrap_or_default()));
+        data.insert("rework_type".to_string(), serde_json::json!(record.rework_type.clone()));
+        data.insert("rework_reason".to_string(), serde_json::json!(record.rework_reason.clone()));
+        data.insert("original_status".to_string(), serde_json::json!(record.original_status.clone()));
         data.insert("rework_cost".to_string(), serde_json::json!(record.rework_cost.map(|v| v.to_string()).unwrap_or_default()));
         data.insert("status".to_string(), serde_json::json!(record.status.clone()));
         data.insert("started_at".to_string(), serde_json::json!(record.started_at.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default()));
@@ -2570,9 +2570,9 @@ impl PrintService {
         let mut data = HashMap::new();
         data.insert("customer_id".to_string(), serde_json::json!(record.customer_id));
         data.insert("ar_invoice_id".to_string(), serde_json::json!(record.ar_invoice_id));
-        data.insert("writeoff_amount".to_string(), serde_json::json!(record.writeoff_amount.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("reason".to_string(), serde_json::json!(record.reason.clone().unwrap_or_default()));
-        data.insert("applicant_username".to_string(), serde_json::json!(record.applicant_username.clone().unwrap_or_default()));
+        data.insert("writeoff_amount".to_string(), serde_json::json!(record.writeoff_amount.to_string()));
+        data.insert("reason".to_string(), serde_json::json!(record.reason.clone()));
+        data.insert("applicant_username".to_string(), serde_json::json!(record.applicant_username.clone()));
         data.insert("applicant_at".to_string(), serde_json::json!(record.applicant_at.format("%Y-%m-%d").to_string()));
         data.insert("approval_status".to_string(), serde_json::json!(record.approval_status.clone()));
         data.insert("finance_manager_comment".to_string(), serde_json::json!(record.finance_manager_comment.clone().unwrap_or_default()));
@@ -2599,9 +2599,9 @@ impl PrintService {
         data.insert("customer_id".to_string(), serde_json::json!(record.customer_id));
         data.insert("product_id".to_string(), serde_json::json!(record.product_id));
         data.insert("color_id".to_string(), serde_json::json!(record.color_id));
-        data.insert("spec".to_string(), serde_json::json!(record.spec.clone().unwrap_or_default()));
-        data.insert("quantity".to_string(), serde_json::json!(record.quantity.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("unit".to_string(), serde_json::json!(record.unit.clone().unwrap_or_default()));
+        data.insert("spec".to_string(), serde_json::json!(record.spec.clone()));
+        data.insert("quantity".to_string(), serde_json::json!(record.quantity.to_string()));
+        data.insert("unit".to_string(), serde_json::json!(record.unit.clone()));
         data.insert("custom_requirements".to_string(), serde_json::json!(record.custom_requirements.clone().unwrap_or_default()));
         data.insert("yarn_spec".to_string(), serde_json::json!(record.yarn_spec.clone().unwrap_or_default()));
         data.insert("dye_method".to_string(), serde_json::json!(record.dye_method.clone().unwrap_or_default()));
@@ -2609,7 +2609,7 @@ impl PrintService {
         data.insert("status".to_string(), serde_json::json!(record.status.clone()));
         data.insert("expected_delivery_date".to_string(), serde_json::json!(record.expected_delivery_date.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default()));
         data.insert("total_amount".to_string(), serde_json::json!(record.total_amount.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("currency".to_string(), serde_json::json!(record.currency.clone().unwrap_or_default()));
+        data.insert("currency".to_string(), serde_json::json!(record.currency.clone()));
 
         Ok(PrintData {
             template: "custom_order".to_string(),
@@ -2629,8 +2629,8 @@ impl PrintService {
 
         let mut data = HashMap::new();
         data.insert("worker_id".to_string(), serde_json::json!(record.worker_id));
-        data.insert("ppe_name".to_string(), serde_json::json!(record.ppe_name.clone().unwrap_or_default()));
-        data.insert("ppe_type".to_string(), serde_json::json!(record.ppe_type.clone().unwrap_or_default()));
+        data.insert("ppe_name".to_string(), serde_json::json!(record.ppe_name.clone()));
+        data.insert("ppe_type".to_string(), serde_json::json!(record.ppe_type.clone()));
         data.insert("specification".to_string(), serde_json::json!(record.specification.clone().unwrap_or_default()));
         data.insert("quantity".to_string(), serde_json::json!(record.quantity.map(|v| v.to_string()).unwrap_or_default()));
         data.insert("distribution_date".to_string(), serde_json::json!(record.distribution_date.format("%Y-%m-%d").to_string()));
@@ -2659,9 +2659,9 @@ impl PrintService {
         data.insert("customer_name".to_string(), serde_json::json!(record.customer_name.clone().unwrap_or_default()));
         data.insert("credit_level".to_string(), serde_json::json!(record.credit_level.clone().unwrap_or_default()));
         data.insert("credit_score".to_string(), serde_json::json!(record.credit_score.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("credit_limit".to_string(), serde_json::json!(record.credit_limit.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("used_credit".to_string(), serde_json::json!(record.used_credit.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("available_credit".to_string(), serde_json::json!(record.available_credit.map(|v| v.to_string()).unwrap_or_default()));
+        data.insert("credit_limit".to_string(), serde_json::json!(record.credit_limit.to_string()));
+        data.insert("used_credit".to_string(), serde_json::json!(record.used_credit.to_string()));
+        data.insert("available_credit".to_string(), serde_json::json!(record.available_credit.to_string()));
         data.insert("credit_days".to_string(), serde_json::json!(record.credit_days));
         data.insert("last_assessment_date".to_string(), serde_json::json!(record.last_assessment_date.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default()));
         data.insert("status".to_string(), serde_json::json!(record.status.clone()));
@@ -2684,9 +2684,9 @@ impl PrintService {
 
         let mut data = HashMap::new();
         data.insert("custom_order_id".to_string(), serde_json::json!(record.custom_order_id));
-        data.insert("issue_type".to_string(), serde_json::json!(record.issue_type.clone().unwrap_or_default()));
+        data.insert("issue_type".to_string(), serde_json::json!(record.issue_type.clone()));
         data.insert("customer_id".to_string(), serde_json::json!(record.customer_id));
-        data.insert("description".to_string(), serde_json::json!(record.description.clone().unwrap_or_default()));
+        data.insert("description".to_string(), serde_json::json!(record.description.clone()));
         data.insert("status".to_string(), serde_json::json!(record.status.clone()));
         data.insert("opened_at".to_string(), serde_json::json!(record.opened_at.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default()));
         data.insert("closed_at".to_string(), serde_json::json!(record.closed_at.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default()));
@@ -2713,9 +2713,9 @@ impl PrintService {
 
         let mut data = HashMap::new();
         data.insert("custom_order_id".to_string(), serde_json::json!(record.custom_order_id));
-        data.insert("issue_type".to_string(), serde_json::json!(record.issue_type.clone().unwrap_or_default()));
-        data.insert("severity".to_string(), serde_json::json!(record.severity.clone().unwrap_or_default()));
-        data.insert("description".to_string(), serde_json::json!(record.description.clone().unwrap_or_default()));
+        data.insert("issue_type".to_string(), serde_json::json!(record.issue_type.clone()));
+        data.insert("severity".to_string(), serde_json::json!(record.severity.clone()));
+        data.insert("description".to_string(), serde_json::json!(record.description.clone()));
         data.insert("discovered_at".to_string(), serde_json::json!(record.discovered_at.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default()));
         data.insert("resolved_at".to_string(), serde_json::json!(record.resolved_at.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default()));
         data.insert("resolution".to_string(), serde_json::json!(record.resolution.clone().unwrap_or_default()));
@@ -2746,10 +2746,10 @@ impl PrintService {
         data.insert("period_end".to_string(), serde_json::json!(record.period_end.format("%Y-%m-%d").to_string()));
         data.insert("customer_id".to_string(), serde_json::json!(record.customer_id));
         data.insert("customer_name".to_string(), serde_json::json!(record.customer_name.clone().unwrap_or_default()));
-        data.insert("opening_balance".to_string(), serde_json::json!(record.opening_balance.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("total_invoices".to_string(), serde_json::json!(record.total_invoices.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("total_collections".to_string(), serde_json::json!(record.total_collections.map(|v| v.to_string()).unwrap_or_default()));
-        data.insert("closing_balance".to_string(), serde_json::json!(record.closing_balance.map(|v| v.to_string()).unwrap_or_default()));
+        data.insert("opening_balance".to_string(), serde_json::json!(record.opening_balance.to_string()));
+        data.insert("total_invoices".to_string(), serde_json::json!(record.total_invoices.to_string()));
+        data.insert("total_collections".to_string(), serde_json::json!(record.total_collections.to_string()));
+        data.insert("closing_balance".to_string(), serde_json::json!(record.closing_balance.to_string()));
         data.insert("reconciliation_status".to_string(), serde_json::json!(record.reconciliation_status.clone()));
 
         Ok(PrintData {
