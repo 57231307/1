@@ -52,6 +52,8 @@ mod tests {
             total_demand: Decimal::from(100),
             load_rate: Decimal::from(100),
             status: "NORMAL".to_string(),
+            gap_quantity: Decimal::ZERO,
+            suggestions: Vec::new(),
         };
 
         assert_eq!(item.load_rate, Decimal::from(100));

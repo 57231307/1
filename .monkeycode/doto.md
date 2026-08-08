@@ -108,7 +108,7 @@
 | batch-18 P2-6 | 调拨在途库存未独立核算 | inventory_transfer.rs 无 in_transit 字段（in_transit 仅 logistics 事件） | 库存 |
 | batch-18 P2-7 | ✅ 缺料月报能力已实现 | material_shortage_handler.rs get_monthly_report + service get_monthly_report + 路由注册 | 排程 |
 | batch-18 P2-4 | 瓶颈识别无扩产/外包建议 | capacity_service.rs 无扩产/外包建议逻辑；产能月报缺失 | 排程 |
-| batch-18 P2-5 | 排程与生产订单重复录入/手工转移风险 | scheduling_query.rs 无与生产订单集成校验 | 排程 |
+| batch-18 P2-5 | ✅ 排程重复录入校验已实现 | scheduling_query.rs apply_schedule_details_to_orders 添加状态校验和日期保护 | 排程 |
 | batch-18 P2-2 | 委外加工费未按缸号/匹号核算 | outsourcing_service.rs 无缸号/匹号维度加工费核算 | 委外 |
 | batch-21 P2 25.4-I | 无长任务处理机制（状态持久化/断点续传） | upgrade.rs（1190 行）无任务状态持久化；deploy.sh 无任务队列 | 部署 |
 | 前端 16 | vitest 覆盖率阈值仍为 1% | frontend/vitest.config.ts:31-38 thresholds 全部 = 1 | 前端测试 |
