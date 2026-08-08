@@ -100,13 +100,15 @@ impl IntoResponse for AppError {
 
         // batch-17 P3: 为 TooManyRequests 添加 Retry-After HTTP 头
         let mut response = (status, Json(body)).into_response();
-        if let AppError::TooManyRequests { retry_after, .. } = &self {
-            if let Some(seconds) = retry_after {
-                response.headers_mut().insert(
-                    "Retry-After",
-                    seconds.to_string().parse().unwrap(),
-                );
-            }
+        if let AppError::TooManyRequests {
+            retry_after: Some(seconds),
+            ..
+        } = &self
+        {
+            response.headers_mut().insert(
+                "Retry-After",
+                seconds.to_string().parse().unwrap(),
+            );
         }
 
         response

@@ -319,7 +319,7 @@ async fn check_migration_continuity(db: &DatabaseConnection) {
         }
         Err(e) => {
             // seaql_migrations 表可能不存在（首次启动），跳过检查
-            debug!("迁移连续性检查跳过（表可能不存在）: {}", e);
+            tracing::debug!("迁移连续性检查跳过（表可能不存在）: {}", e);
         }
     }
 }
