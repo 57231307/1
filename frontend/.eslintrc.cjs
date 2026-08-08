@@ -24,7 +24,7 @@ module.exports = {
   rules: {
     // Vue 相关规则
     'vue/multi-word-component-names': 'off',
-    'vue/no-v-html': 'off',
+    'vue/no-v-html': 'error',
     'vue/require-default-prop': 'off',
     'vue/require-explicit-emits': 'warn',
     // Vue 2 时代的 filter 规则在 Vue 3 项目不适用，关闭避免 `||` 误报
