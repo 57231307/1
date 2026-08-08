@@ -194,6 +194,22 @@ impl SensitiveActionAlert {
             return Some(SensitiveAction::FinancialOperation);
         }
 
+        // batch-14 P3: AI 模型管理操作（Critical 级别）
+        if resource_lower.contains("ai_model_version")
+            && (action_lower.contains("activate")
+                || action_lower.contains("approve")
+                || action_lower.contains("retire"))
+        {
+            return Some(SensitiveAction::SystemConfig);
+        }
+
+        // batch-14 P3: AI 工艺优化推送操作（High 级别）
+        if resource_lower.contains("ai_process_optimization")
+            && (action_lower.contains("push") || action_lower.contains("link"))
+        {
+            return Some(SensitiveAction::SystemConfig);
+        }
+
         None
     }
 }
