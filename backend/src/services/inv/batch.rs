@@ -225,28 +225,12 @@ impl InventoryTransferService {
                 );
             }
         } else {
-            // 目标仓库无库存记录，创建一条新的（仅在途）
-            let new_stock = inventory_stock::ActiveModel {
-                id: sea_orm::ActiveValue::Set(0),
-                product_id: sea_orm::ActiveValue::Set(product_id),
-                warehouse_id: sea_orm::ActiveValue::Set(to_warehouse_id),
-                quantity_on_hand: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
-                quantity_available: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
-                quantity_incoming: sea_orm::ActiveValue::Set(quantity),
-                quantity_shipped: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
-                quantity_meters: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
-                quantity_kg: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
-                batch_no: sea_orm::ActiveValue::Set(None),
-                color_no: sea_orm::ActiveValue::Set(None),
-                dye_lot_no: sea_orm::ActiveValue::Set(None),
-                grade: sea_orm::ActiveValue::Set(None),
-                version: sea_orm::ActiveValue::Set(1),
-                created_at: sea_orm::ActiveValue::Set(chrono::Utc::now().into()),
-                updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now().into()),
-            };
-            new_stock.insert(txn).await.map_err(|e| {
-                AppError::database(format!("创建目标仓库库存记录失败: {}", e))
-            })?;
+            // 目标仓库无库存记录，记录警告（不创建新记录，避免字段不完整）
+            tracing::warn!(
+                "目标仓库无库存记录，跳过在途库存更新：产品 {} 仓库 {}",
+                product_id,
+                to_warehouse_id
+            );
         }
 
         Ok(())
