@@ -506,7 +506,9 @@ pub async fn detect_abnormal_orders(
     tracing::debug!(user_id = auth.user_id, "检测异常大额订单");
     let service = SupplierService::new(state.db.clone());
     let threshold = params.threshold_ratio.unwrap_or(3.0);
-    let abnormal_orders = service.detect_abnormal_orders(rust_decimal::Decimal::from_f64(threshold).unwrap_or(rust_decimal::Decimal::from(3))).await?;
+    let threshold_decimal = rust_decimal::Decimal::try_from(threshold)
+        .unwrap_or(rust_decimal::Decimal::from(3));
+    let abnormal_orders = service.detect_abnormal_orders(threshold_decimal).await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "abnormal_orders": abnormal_orders,
         "total": abnormal_orders.len(),
