@@ -408,11 +408,18 @@ impl RolePermissionService {
     }
 
     /// 创建新权限记录（含审计日志 + 缓存失效）
+    /// B12-P2-1：自动生成 permission_code（三段式：<模块>.<资源>.<操作>）
     async fn create_new_permission(
         &self,
         request: &AssignPermissionRequest,
         user_id: i32,
     ) -> Result<role_permission::Model, AppError> {
+        // B12-P2-1：生成 permission_code
+        let permission_code = Self::generate_permission_code(
+            &request.resource_type,
+            &request.action,
+        );
+
         let permission = role_permission::ActiveModel {
             id: Default::default(),
             role_id: sea_orm::ActiveValue::Set(request.role_id),
@@ -420,7 +427,7 @@ impl RolePermissionService {
             resource_id: sea_orm::ActiveValue::Set(request.resource_id),
             action: sea_orm::ActiveValue::Set(request.action.clone()),
             allowed: sea_orm::ActiveValue::Set(request.allowed),
-            permission_code: sea_orm::ActiveValue::Set(None),
+            permission_code: sea_orm::ActiveValue::Set(Some(permission_code)),
             created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
             updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
         };
@@ -437,6 +444,13 @@ impl RolePermissionService {
         )
         .await;
         Ok(perm_entity)
+    }
+
+    /// B12-P2-1：生成 permission_code（三段式：<模块>.<资源>.<操作>）
+    fn generate_permission_code(resource_type: &str, action: &str) -> String {
+        use crate::utils::path_utils::resolve_module_prefixed_resource;
+        let module = resolve_module_prefixed_resource(resource_type);
+        format!("{}.{}.{}", module, resource_type, action)
     }
 
     /// 将权限 Model 转换为 RolePermissionDetail

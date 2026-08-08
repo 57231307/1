@@ -192,6 +192,11 @@ pub fn exports() -> Router<AppState> {
             "/excel/:export_type",
             get(import_export_handler::export_excel_type),
         )
+        // B12-P2-5：流式导出端点（直接返回文件，不经过 base64 编码）
+        .route(
+            "/stream/:export_type",
+            get(import_export_handler::export_stream),
+        )
 }
 
 /// 审计日志路由

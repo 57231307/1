@@ -6,6 +6,14 @@
 
 ---
 
+## PR #870 合并：dynamic_router + 权限测试 + 月末分摊测试（2026-08-08，已合并 main）
+
+| 项 | 一句话总结 |
+|----|-----------|
+| PR #870 合并 | 前端 18 dynamic_router 实现 + batch-12 P2-9 权限测试 + B04-P2-3 月末分摊测试（d09850a0）：EndpointCache + 动态路由中间件 + test_data_permission.rs 6 个测试 + test_energy_allocation.rs 12 个测试；4 文件 +221 -3 |
+
+---
+
 ## PR #869 合并：batch-18 P2-6 调拨在途 + 权限测试（2026-08-08，已合并 main）
 
 | 项 | 一句话总结 |
