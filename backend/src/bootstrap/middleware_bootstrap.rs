@@ -87,6 +87,11 @@ pub fn apply_full_mode_layers(app_state: AppState, cors: CorsLayer) -> Router {
     // V15 P1 20.6-B：API 网关熔断中间件（5s 窗口失败率 > 50% 触发 open，30s 后 half-open 探测）
     // 放在 auth_chain 之外、rate_limiting 之内：监控认证后的业务处理 5xx 失败率
     let router = router.layer(axum::middleware::from_fn(circuit_breaker_middleware));
+    // V15 P2 20.6-A：API 网关动态路由中间件（根据 api_endpoints 表状态动态放行/拒绝）
+    let router = router.layer(axum::middleware::from_fn_with_state(
+        s_state.clone(),
+        crate::middleware::dynamic_router::dynamic_router_middleware,
+    ));
     let router = apply_rate_limiting(router, s_rate_limit);
     let router = apply_security_headers(router);
     router.layer(axum::middleware::from_fn(
