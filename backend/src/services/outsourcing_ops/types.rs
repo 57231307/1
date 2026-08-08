@@ -83,6 +83,10 @@ pub struct CreateOutsourcingOrderItemRequest {
     pub remarks: Option<String>,
     /// 缺陷 2.1：关联胚布ID（精确到卷/匹级追溯）
     pub greige_fabric_id: Option<i32>,
+    /// batch-18 P2-2：该缸号/匹号的加工费
+    pub processing_fee: Option<Decimal>,
+    /// batch-18 P2-2：该缸号/匹号的运费
+    pub freight_fee: Option<Decimal>,
 }
 
 /// 更新委外发料明细请求
@@ -96,6 +100,10 @@ pub struct UpdateOutsourcingOrderItemRequest {
     pub unit: Option<String>,
     pub unit_cost: Option<Decimal>,
     pub remarks: Option<String>,
+    /// batch-18 P2-2：该缸号/匹号的加工费
+    pub processing_fee: Option<Decimal>,
+    /// batch-18 P2-2：该缸号/匹号的运费
+    pub freight_fee: Option<Decimal>,
 }
 
 // ============================================================================
