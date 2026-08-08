@@ -453,36 +453,36 @@ impl RolePermissionService {
     }
 
     /// B12-P2-1：根据资源类型解析模块名
-    fn resolve_module_from_resource(resource_type: &str) -> &'static str {
+    fn resolve_module_from_resource(resource_type: &str) -> String {
         match resource_type {
             // IAM 模块
-            "users" | "roles" | "departments" | "permissions" | "field-permissions" => "iam",
+            "users" | "roles" | "departments" | "permissions" | "field-permissions" => "iam".to_string(),
             // 目录模块
-            "products" | "categories" | "warehouses" | "boms" => "catalog",
+            "products" | "categories" | "warehouses" | "boms" => "catalog".to_string(),
             // 销售模块
-            "orders" | "fabric-orders" | "customers" | "customer-credits" | "sales-contracts" | "sales-prices" | "sales-returns" | "quotations" => "sales",
+            "orders" | "fabric-orders" | "customers" | "customer-credits" | "sales-contracts" | "sales-prices" | "sales-returns" | "quotations" => "sales".to_string(),
             // 采购模块
-            "purchase-orders" | "purchase-receipts" | "purchase-returns" | "purchase-contracts" | "purchase-prices" | "suppliers" | "supplier-evaluations" => "purchase",
+            "purchase-orders" | "purchase-receipts" | "purchase-returns" | "purchase-contracts" | "purchase-prices" | "suppliers" | "supplier-evaluations" => "purchase".to_string(),
             // 库存模块
-            "inventory" | "stock" | "transfers" | "adjustments" | "reservations" | "counts" | "batches" | "stock-alerts" | "piece-split" => "inventory",
+            "inventory" | "stock" | "transfers" | "adjustments" | "reservations" | "counts" | "batches" | "stock-alerts" | "piece-split" => "inventory".to_string(),
             // 生产模块
-            "production-orders" | "dye-batches" | "dye-recipes" | "dye-batch-rework" | "dye-batch-quality" | "flow-cards" | "process-routes" | "outsourcing-orders" | "outsourcing-receipts" | "outsourcing-vouchers" | "mrp" | "capacity" | "scheduling" => "production",
+            "production-orders" | "dye-batches" | "dye-recipes" | "dye-batch-rework" | "dye-batch-quality" | "flow-cards" | "process-routes" | "outsourcing-orders" | "outsourcing-receipts" | "outsourcing-vouchers" | "mrp" | "capacity" | "scheduling" => "production".to_string(),
             // 质量模块
-            "quality-inspections" | "quality-issues" | "quality-standards" | "fabric-inspections" | "fabric-defects" => "quality",
+            "quality-inspections" | "quality-issues" | "quality-standards" | "fabric-inspections" | "fabric-defects" => "quality".to_string(),
             // 财务模块
-            "vouchers" | "subjects" | "fixed-assets" | "budgets" | "cost-collections" | "ar" | "ap" | "gl" | "fund-management" | "fund-transfers" | "currencies" | "exchange-rates" | "ar-reconciliations" | "wages" => "finance",
+            "vouchers" | "subjects" | "fixed-assets" | "budgets" | "cost-collections" | "ar" | "ap" | "gl" | "fund-management" | "fund-transfers" | "currencies" | "exchange-rates" | "ar-reconciliations" | "wages" => "finance".to_string(),
             // CRM 模块
-            "crm-leads" | "crm-opportunities" | "crm-customers" | "five-dimension" | "sales-analysis" => "crm",
+            "crm-leads" | "crm-opportunities" | "crm-customers" | "five-dimension" | "sales-analysis" => "crm".to_string(),
             // HR 模块
-            "employees" | "wage-rates" | "wage-records" => "hr",
+            "employees" | "wage-rates" | "wage-records" => "hr".to_string(),
             // 物流模块
-            "logistics" | "ship-orders" | "incoterms" => "logistics",
+            "logistics" | "ship-orders" | "incoterms" => "logistics".to_string(),
             // 系统模块
-            "audit-logs" | "slow-queries" | "system-config" | "print-templates" | "data-import" | "dashboard" => "system",
+            "audit-logs" | "slow-queries" | "system-config" | "print-templates" | "data-import" | "dashboard" => "system".to_string(),
             // AI 模块
-            "ai-forecast" | "ai-inventory-opt" | "ai-anomaly" | "ai-recommendation" | "ai-recipe-opt" | "ai-quality-pred" | "ai-process-opt" | "ai-summary" => "ai",
+            "ai-forecast" | "ai-inventory-opt" | "ai-anomaly" | "ai-recommendation" | "ai-recipe-opt" | "ai-quality-pred" | "ai-process-opt" | "ai-summary" => "ai".to_string(),
             // 默认：使用 resource_type 作为模块名
-            _ => resource_type,
+            _ => resource_type.to_string(),
         }
     }
 
