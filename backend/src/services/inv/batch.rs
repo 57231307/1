@@ -124,6 +124,7 @@ impl InventoryTransferService {
     }
 
     /// 处理单个调拨明细项的库存扣减：校验→扣减→流水→事件→更新明细。
+    /// batch-18 P2-6：扣减源仓库后，同步增加目标仓库的 quantity_incoming（在途库存）
     async fn apply_ship_item_deduction(
         txn: &sea_orm::DatabaseTransaction,
         transfer: &inventory_transfer::Model,
@@ -161,6 +162,16 @@ impl InventoryTransferService {
             item.product_id,
         )
         .await?;
+
+        // batch-18 P2-6：增加目标仓库的 quantity_incoming（在途库存）
+        Self::update_target_warehouse_incoming(
+            txn,
+            transfer.to_warehouse_id,
+            item.product_id,
+            item.quantity,
+        )
+        .await?;
+
         let inserted = Self::build_and_insert_transfer_out_transaction(
             txn,
             transfer,
@@ -173,6 +184,71 @@ impl InventoryTransferService {
         .await?;
         pending_events.push(Self::build_inventory_transaction_created_event(&inserted));
         Self::update_item_shipped_quantity(txn, item).await?;
+        Ok(())
+    }
+
+    /// batch-18 P2-6：更新目标仓库的 quantity_incoming（在途库存）
+    async fn update_target_warehouse_incoming(
+        txn: &sea_orm::DatabaseTransaction,
+        to_warehouse_id: i32,
+        product_id: i32,
+        quantity: rust_decimal::Decimal,
+    ) -> Result<(), AppError> {
+        // 查找目标仓库的库存记录
+        let target_stock = InventoryStockEntity::find()
+            .filter(inventory_stock::Column::WarehouseId.eq(to_warehouse_id))
+            .filter(inventory_stock::Column::ProductId.eq(product_id))
+            .one(txn)
+            .await?;
+
+        if let Some(stock) = target_stock {
+            // 更新 quantity_incoming
+            let update_result = inventory_stock::Entity::update_many()
+                .col_expr(
+                    inventory_stock::Column::QuantityIncoming,
+                    Expr::col(inventory_stock::Column::QuantityIncoming)
+                        .binary(BinOper::Add, Expr::val(quantity)),
+                )
+                .col_expr(
+                    inventory_stock::Column::UpdatedAt,
+                    sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
+                )
+                .filter(inventory_stock::Column::Id.eq(stock.id))
+                .exec(txn)
+                .await?;
+
+            if update_result.rows_affected == 0 {
+                tracing::warn!(
+                    "更新目标仓库在途库存失败：产品 {} 仓库 {}",
+                    product_id,
+                    to_warehouse_id
+                );
+            }
+        } else {
+            // 目标仓库无库存记录，创建一条新的（仅在途）
+            let new_stock = inventory_stock::ActiveModel {
+                id: sea_orm::ActiveValue::Set(0),
+                product_id: sea_orm::ActiveValue::Set(product_id),
+                warehouse_id: sea_orm::ActiveValue::Set(to_warehouse_id),
+                quantity_on_hand: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
+                quantity_available: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
+                quantity_incoming: sea_orm::ActiveValue::Set(quantity),
+                quantity_shipped: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
+                quantity_meters: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
+                quantity_kg: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
+                batch_no: sea_orm::ActiveValue::Set(None),
+                color_no: sea_orm::ActiveValue::Set(None),
+                dye_lot_no: sea_orm::ActiveValue::Set(None),
+                grade: sea_orm::ActiveValue::Set(None),
+                version: sea_orm::ActiveValue::Set(1),
+                created_at: sea_orm::ActiveValue::Set(chrono::Utc::now().into()),
+                updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now().into()),
+            };
+            new_stock.insert(txn).await.map_err(|e| {
+                AppError::database(format!("创建目标仓库库存记录失败: {}", e))
+            })?;
+        }
+
         Ok(())
     }
 
@@ -471,6 +547,7 @@ impl InventoryTransferService {
     }
 
     /// 处理已有库存记录的接收：乐观锁更新 + 写流水 + 收集事件 + 更新明细已收数量。
+    /// batch-18 P2-6：接收时同步扣减目标仓库的 quantity_incoming（在途转实收）
     async fn apply_receive_existing_stock(
         txn: &sea_orm::DatabaseTransaction,
         transfer: &inventory_transfer::Model,
@@ -512,6 +589,15 @@ impl InventoryTransferService {
         )
         .await?;
 
+        // batch-18 P2-6：扣减目标仓库的 quantity_incoming（在途转实收）
+        Self::deduct_target_warehouse_incoming(
+            txn,
+            transfer.to_warehouse_id,
+            item.product_id,
+            item.quantity,
+        )
+        .await?;
+
         let transaction = Self::build_transfer_in_transaction(TransferInTxnFields {
             product_id: item.product_id,
             warehouse_id: transfer.to_warehouse_id,
@@ -535,6 +621,48 @@ impl InventoryTransferService {
         // 先提取 received_quantity 再 move item，避免 use of moved value
         let received_quantity = item.quantity;
         Self::update_item_received_quantity(txn, item, received_quantity).await?;
+        Ok(())
+    }
+
+    /// batch-18 P2-6：扣减目标仓库的 quantity_incoming（在途转实收）
+    async fn deduct_target_warehouse_incoming(
+        txn: &sea_orm::DatabaseTransaction,
+        to_warehouse_id: i32,
+        product_id: i32,
+        quantity: rust_decimal::Decimal,
+    ) -> Result<(), AppError> {
+        let target_stock = InventoryStockEntity::find()
+            .filter(inventory_stock::Column::WarehouseId.eq(to_warehouse_id))
+            .filter(inventory_stock::Column::ProductId.eq(product_id))
+            .one(txn)
+            .await?;
+
+        if let Some(stock) = target_stock {
+            let current_incoming = stock.quantity_incoming;
+            let new_incoming = (current_incoming - quantity).max(rust_decimal::Decimal::ZERO);
+
+            let update_result = inventory_stock::Entity::update_many()
+                .col_expr(
+                    inventory_stock::Column::QuantityIncoming,
+                    sea_orm::sea_query::Expr::val(new_incoming).into(),
+                )
+                .col_expr(
+                    inventory_stock::Column::UpdatedAt,
+                    sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
+                )
+                .filter(inventory_stock::Column::Id.eq(stock.id))
+                .exec(txn)
+                .await?;
+
+            if update_result.rows_affected == 0 {
+                tracing::warn!(
+                    "扣减目标仓库在途库存失败：产品 {} 仓库 {}",
+                    product_id,
+                    to_warehouse_id
+                );
+            }
+        }
+
         Ok(())
     }
 

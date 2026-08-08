@@ -6,6 +6,14 @@
 
 ---
 
+## PR #868 合并：batch-18 P2-2 委外加工费（2026-08-08，已合并 main）
+
+| 项 | 一句话总结 |
+|----|-----------|
+| PR #868 合并 | batch-18 P2-2 委外加工费按缸号/匹号核算（7979e635）：outsourcing_order_item 添加 processing_fee/freight_fee 字段 + migration + DTO 更新；7 文件 +48 -1 |
+
+---
+
 ## PR #867 合并：batch-18 P2-4 瓶颈建议（2026-08-08，已合并 main）
 
 | 项 | 一句话总结 |
