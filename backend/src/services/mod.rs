@@ -96,6 +96,8 @@ pub mod product_service;
 // 批次 D10 拆分：product_service.rs facade 的业务实现子模块（sync/crud/color/import_export）
 pub mod product_ops;
 pub mod role_permission_service;
+// B12-P2-4：敏感角色变更双人审批
+pub mod role_change_approval_service;
 // V15 P1 12.2：角色关系服务（继承 + 互斥）
 pub mod role_relation_service;
 // V15 P1 12.6：权限委托服务

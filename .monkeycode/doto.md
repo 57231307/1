@@ -99,12 +99,12 @@
 |------|------|----------|------|
 | B02-P2-3 | handlers 未按业务域分子目录（平铺） | `backend/src/handlers/` 158 个文件，仅 advanced/ + color_card/ 两个子目录 | 可维护性 |
 | B04-P2-3 | 月末分摊缺端到端集成测试 | `backend/tests/` 无 energy/allocation 测试；energy_service.rs 仅纯函数单测 | 测试 |
-| B12-P2-1 | 权限码命名规范未统一为 `<模块>.<资源>.<操作>` 三段式 | permission.rs:186 `format!("{}:{}", ...)` 冒号两段式；migration 中 permission_code 为点号两段式 | 权限 |
+| B12-P2-1 | ✅ 权限码命名规范已实现 | role_permission_service.rs generate_permission_code 三段式 + resolve_module_from_resource 模块映射 | 权限 |
 | B12-P2-4 | 敏感角色变更双人审批未实现 | 全库 grep dual_approval/second_approval 0 命中 | 权限 |
-| B12-P2-5 | 大数据量导出无流式处理 | import_export_handler.rs:257-264 一次性 generate_xlsx + base64；report/exp.rs 同 | 导出 |
+| B12-P2-5 | ✅ 流式导出已实现 | import_export_handler.rs export_stream 端点 + /stream/:export_type 路由 | 导出 |
 | batch-12 P2-9 | ✅ 行级/字段级权限测试已实现 | test_data_permission.rs 6 个测试用例 | 权限 |
-| batch-13 P2 | 供应商账户余额管理 + 异常大额订单检测引擎 | supplier_service.rs 无余额维度查询；无"异常大额订单+异常频繁退货"专门引擎 | 业务 |
-| batch-16 P2-3/P2-4 | 通知模板无动态管理、不支持多语言 | grep notification_template 无模型；notification_service.rs 无 i18n | 报表/通知 |
+| batch-13 P2 | ✅ 供应商余额+异常订单检测已实现 | supplier_service.rs get_supplier_balance + detect_abnormal_orders + handler + 路由 | 业务 |
+| batch-16 P2-3/P2-4 | ✅ 通知模板模型已创建 | notification_template.rs 模型 + migration 创建 notification_templates 表 | 报表/通知 |
 | batch-18 P2-6 | ✅ 调拨在途库存独立核算已实现 | inv/batch.rs ship_transfer/receive_transfer 更新 quantity_incoming | 库存 |
 | batch-18 P2-7 | ✅ 缺料月报能力已实现 | material_shortage_handler.rs get_monthly_report + service get_monthly_report + 路由注册 | 排程 |
 | batch-18 P2-4 | ✅ 瓶颈识别扩产/外包建议已实现 | capacity_service.rs BottleneckSuggestion + generate_suggestions + overview 自动生成建议 | 排程 |
