@@ -215,7 +215,8 @@ pub async fn refresh_slow_queries(
     State(state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<SlowQueryRefreshResponse>>, AppError> {
-    // 构造采集器（与 main 启动参数一致：阈值 100ms / limit 100）
+    // batch-17 P3: 使用默认阈值配置（100ms / 100 rows）
+    // TODO: 从 AppState.settings 读取配置，需要将 settings 存入 AppState
     let collector = Arc::new(SlowQueryCollector::new(state.db.clone(), 100.0, 100));
 
     let inserted = collector.collect_once().await.map_err(|e| {
