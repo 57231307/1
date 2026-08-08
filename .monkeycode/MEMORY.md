@@ -43,6 +43,7 @@
 | 🔴 **规则 6** | 测试 mock 数据禁止硬编码，必须抽取到 fixtures 文件 | [MEMORY-SU §规则 6](file:///workspace/.monkeycode/MEMORY-SU.md#规则-6测试-mock-数据禁止硬编码pr2026-07-08-追加) |
 | 🔴 **规则 13** | 修复按批次连续执行，CI 全绿自动下一批；**步骤 0 确定审计结果内容是否存在** + **步骤 4 修复后推送前自审**（与规则 20 联动） | [MEMORY-SU §规则 13](file:///workspace/.monkeycode/MEMORY-SU.md#规则-13修复流程自动化与连续执行pr2026-07-11-追加) |
 | 🔴 **规则 15** | 复审按规矩进行，baseline 警告视为错误，8 维度闭环 + 4 轮次状态 | [MEMORY-SU §规则 15](file:///workspace/.monkeycode/MEMORY-SU.md#规则-15复审严格规范--业务财务运行逻辑闭环pr2026-07-13-追加2026-07-17-精简) |
+| 🔴 **规则 22** | 每次 CI 推送必须完成至少 8 个任务，除非用户特批 | [MEMORY-SU §规则 22](file:///workspace/.monkeycode/MEMORY-SU.md#规则-22每次-ci-推送必须完成至少-8-个任务pr2026-08-08-追加) |
 
 ### 1.5 安全合规（PR）
 
