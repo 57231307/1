@@ -161,15 +161,16 @@ async fn validate_split_consistency(
 }
 
 /// 生成新布卷编号（优先使用请求中的条码，否则自动生成）
+/// batch-18 P3：改进匹号生成逻辑，使用日期+序列号格式
 fn generate_piece_no(parent: &inventory_piece::Model, new_barcode: &Option<String>) -> String {
     if let Some(barcode) = new_barcode {
         barcode.clone()
     } else {
-        format!(
-            "{}-CUT-{}",
-            parent.piece_no,
-            Utc::now().timestamp_subsec_millis()
-        )
+        // 使用日期+毫秒时间戳格式，确保唯一性
+        let now = Utc::now();
+        let date_part = now.format("%Y%m%d");
+        let time_part = now.timestamp_millis() % 100000; // 取后5位
+        format!("P{}{:05}", date_part, time_part)
     }
 }
 
