@@ -15,6 +15,7 @@
 //! - **白名单**：健康检查/指标/文档等系统路径不经过动态路由检查
 
 use axum::{
+    body::Body,
     extract::State,
     http::{Request, StatusCode},
     middleware::Next,
@@ -106,11 +107,11 @@ fn is_whitelist_path(path: &str) -> bool {
 ///
 /// 根据 api_endpoints 表的状态动态放行/拒绝请求。
 /// 缓存未命中时放行请求（fail-open），确保可用性。
-pub async fn dynamic_router_middleware<B>(
+pub async fn dynamic_router_middleware(
     State(state): State<crate::container::AppState>,
-    request: Request<B>,
-    next: Next<B>,
-) -> Result<Response, StatusCode> {
+    request: Request<Body>,
+    next: Next,
+) -> Result<Response, Response> {
     let path = request.uri().path().to_string();
     let method = request.method().to_string();
 
@@ -135,7 +136,10 @@ pub async fn dynamic_router_middleware<B>(
                 path = %path,
                 "动态路由：端点已停用"
             );
-            Err(StatusCode::SERVICE_UNAVAILABLE)
+            Err(Response::builder()
+                .status(StatusCode::SERVICE_UNAVAILABLE)
+                .body(Body::from("Service Unavailable"))
+                .unwrap())
         }
         Some(ref s) if s == "deprecated" => {
             // 端点已废弃，放行但添加 Deprecation 头
@@ -164,7 +168,10 @@ pub async fn dynamic_router_middleware<B>(
                                 path = %path,
                                 "动态路由：端点已停用"
                             );
-                            Err(StatusCode::SERVICE_UNAVAILABLE)
+                            Err(Response::builder()
+                                .status(StatusCode::SERVICE_UNAVAILABLE)
+                                .body(Body::from("Service Unavailable"))
+                                .unwrap())
                         }
                         "deprecated" => {
                             let mut response = next.run(request).await;
