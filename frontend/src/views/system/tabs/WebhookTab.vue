@@ -114,7 +114,7 @@
         <el-button @click="webhookDialogVisible = false">{{
           t('system.webhook.form.button.cancel')
         }}</el-button>
-        <el-button type="primary" @click="saveWebhook">{{
+        <el-button type="primary" :loading="submitLoading" @click="saveWebhook">{{
           t('system.webhook.form.button.confirm')
         }}</el-button>
       </template>
@@ -147,6 +147,7 @@ interface WebhookRow {
 
 const webhookList = ref<WebhookRow[]>([]);
 const webhookLoading = ref(false);
+const submitLoading = ref(false);
 const webhookDialogVisible = ref(false);
 const webhookFormRef = ref<FormInstance>();
 const webhookForm = reactive<WebhookRow>({
@@ -194,6 +195,8 @@ const openWebhookDialog = (row?: WebhookRow) => {
 };
 
 const saveWebhook = async () => {
+  if (submitLoading.value) return;
+  submitLoading.value = true;
   try {
     if (webhookForm.id) {
       await request.put(`/webhooks/integrations/${webhookForm.id}`, webhookForm);
@@ -206,6 +209,8 @@ const saveWebhook = async () => {
   } catch (e) {
     const err = e as { message?: string };
     ElMessage.error(err.message || t('system.webhook.message.saveFailed'));
+  } finally {
+    submitLoading.value = false;
   }
 };
 

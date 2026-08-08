@@ -21,6 +21,12 @@ pub struct Model {
     pub confidence: Option<Decimal>,
     pub source: Option<String>,
     pub degraded: bool,
+    /// batch-14 P3: 敏感度级别（critical/high/medium/low）
+    #[sea_orm(default_value = "low")]
+    pub sensitivity_level: String,
+    /// batch-14 P3: 操作类别（inference/management/application）
+    #[sea_orm(default_value = "inference")]
+    pub operation_category: String,
     pub created_at: DateTime<Utc>,
 }
 
