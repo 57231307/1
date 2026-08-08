@@ -127,7 +127,7 @@ impl SchedulingService {
         start_date: chrono::NaiveDate,
         end_date: chrono::NaiveDate,
     ) -> Result<Vec<i32>, AppError> {
-        use crate::models::production_order::{Column, Entity as ProductionOrderEntity};
+        use crate::models::production_order::Column;
         use sea_orm::{ColumnTrait, QueryFilter};
 
         let conflicting_orders = ProductionOrderEntity::find()
