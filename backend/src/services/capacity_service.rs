@@ -88,6 +88,33 @@ pub struct CapacityLoadItem {
     pub total_demand: Decimal,
     pub load_rate: Decimal,
     pub status: String,
+    /// batch-18 P2-4：缺口量（total_demand - daily_capacity，仅超载时 > 0）
+    #[serde(default)]
+    pub gap_quantity: Decimal,
+    /// batch-18 P2-4：扩产/外包建议
+    #[serde(default)]
+    pub suggestions: Vec<BottleneckSuggestion>,
+}
+
+/// batch-18 P2-4：扩产/外包建议类型
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum SuggestionType {
+    /// 扩产建议：增加班次/设备/工时
+    Expansion,
+    /// 外包建议：委外加工
+    Outsourcing,
+    /// 转移建议：将负荷转移到空闲工作中心
+    Transfer,
+}
+
+/// batch-18 P2-4：瓶颈建议
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BottleneckSuggestion {
+    pub suggestion_type: SuggestionType,
+    pub description: String,
+    pub suggested_quantity: Decimal,
+    pub priority: String,
 }
 
 /// 产能概览
@@ -399,7 +426,73 @@ impl CapacityService {
             total_demand,
             load_rate,
             status,
+            gap_quantity: Decimal::ZERO,
+            suggestions: Vec::new(),
         }
+    }
+
+    /// batch-18 P2-4：生成瓶颈建议
+    fn generate_suggestions(
+        load_item: &CapacityLoadItem,
+        idle_work_centers: &[&CapacityLoadItem],
+    ) -> Vec<BottleneckSuggestion> {
+        let mut suggestions = Vec::new();
+        let gap = (load_item.total_demand - load_item.daily_capacity).max(Decimal::ZERO);
+
+        if gap <= Decimal::ZERO {
+            return suggestions;
+        }
+
+        // 建议 1：扩产（负荷率 80%-120%）
+        if load_item.load_rate > Decimal::from(80) && load_item.load_rate <= Decimal::from(120) {
+            suggestions.push(BottleneckSuggestion {
+                suggestion_type: SuggestionType::Expansion,
+                description: format!(
+                    "建议增加班次或加班，预计可增加产能 {} {}",
+                    gap,
+                    load_item.capacity_unit.as_deref().unwrap_or("单位")
+                ),
+                suggested_quantity: gap,
+                priority: "MEDIUM".to_string(),
+            });
+        }
+
+        // 建议 2：外包（负荷率 > 120%）
+        if load_item.load_rate > Decimal::from(120) {
+            suggestions.push(BottleneckSuggestion {
+                suggestion_type: SuggestionType::Outsourcing,
+                description: format!(
+                    "建议将 {} {} 委外加工以缓解产能瓶颈",
+                    gap,
+                    load_item.capacity_unit.as_deref().unwrap_or("单位")
+                ),
+                suggested_quantity: gap,
+                priority: "HIGH".to_string(),
+            });
+        }
+
+        // 建议 3：负荷转移（存在空闲工作中心时）
+        for idle_wc in idle_work_centers {
+            if idle_wc.work_center_id != load_item.work_center_id {
+                let transferable = idle_wc.daily_capacity - idle_wc.total_demand;
+                if transferable > Decimal::ZERO {
+                    suggestions.push(BottleneckSuggestion {
+                        suggestion_type: SuggestionType::Transfer,
+                        description: format!(
+                            "可将部分负荷转移至空闲工作中心 {}（可转移 {} {}）",
+                            idle_wc.work_center_name,
+                            transferable.min(gap),
+                            load_item.capacity_unit.as_deref().unwrap_or("单位")
+                        ),
+                        suggested_quantity: transferable.min(gap),
+                        priority: "MEDIUM".to_string(),
+                    });
+                    break; // 只推荐一个转移目标
+                }
+            }
+        }
+
+        suggestions
     }
 
     /// 产能概览
@@ -425,11 +518,22 @@ impl CapacityService {
             Decimal::ZERO
         };
 
-        // 识别瓶颈工作中心（负荷率 > 80%）
+        // batch-18 P2-4：收集空闲工作中心用于生成建议
+        let idle_work_centers: Vec<&CapacityLoadItem> =
+            load_items.iter().filter(|i| i.status == "IDLE").collect();
+
+        // 识别瓶颈工作中心（负荷率 > 80%）并生成建议
         let bottleneck_work_centers: Vec<CapacityLoadItem> = load_items
             .iter()
             .filter(|i| i.load_rate > Decimal::from(80))
-            .cloned()
+            .map(|item| {
+                let mut item = item.clone();
+                item.gap_quantity =
+                    (item.total_demand - item.daily_capacity).max(Decimal::ZERO);
+                item.suggestions =
+                    Self::generate_suggestions(&item, &idle_work_centers);
+                item
+            })
             .collect();
 
         let overloaded_count = load_items
