@@ -111,8 +111,8 @@ pub async fn bootstrap_full_mode(
     let audit_log = create_audit_log_service(&db);
     shutdown_handles.audit_log = Some(audit_log.clone());
 
-    let retention_days = resolve_audit_retention_days();
-    let audit_cleanup = create_audit_cleanup_service(&db, retention_days);
+    // batch-04/05 P3：使用 settings.audit 替代 resolve_audit_retention_days()
+    let audit_cleanup = create_audit_cleanup_service(&db, settings);
 
     start_background_tasks(&db, settings);
 
@@ -165,7 +165,7 @@ pub async fn bootstrap_full_mode(
     // V15 P1-14.10-C：启动权限合规审查定时任务（异常权限分配识别 + 定期合规审查）
     start_permission_compliance_review(&app_state);
     // batch-12 P2-8：启动审计日志分级保留清理调度
-    start_audit_cleanup_scheduler(&app_state);
+    start_audit_cleanup_scheduler(&app_state, settings);
 
     Ok((app_state, shutdown_handles))
 }
@@ -339,39 +339,15 @@ fn create_audit_log_service(
     audit_log
 }
 
-/// 解析 AUDIT_RETENTION_DAYS（默认 365，生产环境未设置 warn，开发环境未设置 info）。
-fn resolve_audit_retention_days() -> i32 {
-    match std::env::var("AUDIT_RETENTION_DAYS") {
-        Ok(v) => match v.parse::<i32>() {
-            Ok(d) if d > 0 => {
-                info!(retention_days = d, "AUDIT_RETENTION_DAYS 已设置");
-                d
-            }
-            _ => {
-                warn!(value = %v, "AUDIT_RETENTION_DAYS 值无效（应为正整数），使用默认值 365");
-                365
-            }
-        },
-        Err(_) => {
-            if crate::utils::config::is_production() {
-                warn!("生产环境未设置 AUDIT_RETENTION_DAYS，使用默认值 365（建议显式设置审计日志保留天数）");
-            } else {
-                info!("AUDIT_RETENTION_DAYS 未设置，使用默认值 365");
-            }
-            365
-        }
-    }
-}
-
-/// 创建 AuditCleanupService（按 retention_days 自动清理过期审计日志）。
+/// 创建 AuditCleanupService（按 settings.audit 配置自动清理过期审计日志）。
 fn create_audit_cleanup_service(
     db: &Arc<DatabaseConnection>,
-    retention_days: i32,
+    settings: &AppSettings,
 ) -> Arc<crate::services::audit_cleanup_service::AuditCleanupService> {
     Arc::new(
         crate::services::audit_cleanup_service::AuditCleanupService::new(
             db.clone(),
-            retention_days,
+            settings.audit.retention_days,
         ),
     )
 }
@@ -814,12 +790,13 @@ fn start_permission_compliance_review(app_state: &AppState) {
 }
 
 /// batch-12 P2-8：启动审计日志分级保留清理调度（标准 scheduler 模式）
-fn start_audit_cleanup_scheduler(app_state: &AppState) {
-    let retention_days = resolve_audit_retention_days();
+/// batch-04/05 P3：使用 settings.audit 替代 resolve_audit_retention_days()
+fn start_audit_cleanup_scheduler(app_state: &AppState, settings: &AppSettings) {
+    let audit_config = &settings.audit;
     let service = std::sync::Arc::new(
         crate::services::audit_cleanup_service::AuditCleanupService::new(
             app_state.db.clone(),
-            retention_days,
+            audit_config.retention_days,
         ),
     );
     let handle = service.start_cleanup_task(MAIN_CANCELLATION_TOKEN.clone());
@@ -827,9 +804,9 @@ fn start_audit_cleanup_scheduler(app_state: &AppState) {
         tasks.push(handle);
     }
     info!(
-        retention_days,
+        retention_days = audit_config.retention_days,
         "审计日志分级保留清理调度已启动（omni_audit_logs/audit_logs {}天, permission_change_audits/security_alert_logs 7年）",
-        retention_days
+        audit_config.retention_days
     );
 }
 

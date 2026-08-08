@@ -27,6 +27,9 @@ pub struct AppSettings {
     /// 缺失时走 [`FabricIndustryConfig::default()`]，关键配置（如 dyehouse_vat_count）由 main.rs fail-fast 校验。
     #[serde(default)]
     pub fabric_industry: FabricIndustryConfig,
+    /// 审计清理配置（batch-04/05 P3 修复：AUDIT_RETENTION_DAYS 纳入 AppSettings）
+    #[serde(default)]
+    pub audit: AuditConfig,
     pub env: String,
 }
 
@@ -228,6 +231,28 @@ impl Default for FabricIndustryConfig {
             quality_grade_threshold_b: 80.0,
             quality_grade_threshold_c: 60.0,
             dyebatch_status_timeout_secs: 14400,
+        }
+    }
+}
+
+/// 审计清理配置（batch-04/05 P3 修复：AUDIT_RETENTION_DAYS 纳入 AppSettings）
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default)]
+pub struct AuditConfig {
+    /// 通用审计日志保留天数（omni_audit_logs / audit_logs），默认 365
+    pub retention_days: i32,
+    /// 权限变更审计保留天数，默认 2555（7 年）
+    pub permission_audit_retention_days: i32,
+    /// 安全告警日志保留天数，默认 2555（7 年）
+    pub security_alert_retention_days: i32,
+}
+
+impl Default for AuditConfig {
+    fn default() -> Self {
+        Self {
+            retention_days: 365,
+            permission_audit_retention_days: 2555,
+            security_alert_retention_days: 2555,
         }
     }
 }
@@ -492,6 +517,29 @@ impl AppSettings {
         if let Ok(v) = std::env::var("DYEBATCH_STATUS_TIMEOUT") {
             if let Ok(parsed) = v.trim().parse::<u64>() {
                 self.fabric_industry.dyebatch_status_timeout_secs = parsed;
+            }
+        }
+
+        // batch-04/05 P3：审计配置从环境变量覆盖
+        if let Ok(v) = std::env::var("AUDIT_RETENTION_DAYS") {
+            if let Ok(parsed) = v.trim().parse::<i32>() {
+                if parsed > 0 {
+                    self.audit.retention_days = parsed;
+                }
+            }
+        }
+        if let Ok(v) = std::env::var("AUDIT_PERMISSION_RETENTION_DAYS") {
+            if let Ok(parsed) = v.trim().parse::<i32>() {
+                if parsed > 0 {
+                    self.audit.permission_audit_retention_days = parsed;
+                }
+            }
+        }
+        if let Ok(v) = std::env::var("AUDIT_SECURITY_RETENTION_DAYS") {
+            if let Ok(parsed) = v.trim().parse::<i32>() {
+                if parsed > 0 {
+                    self.audit.security_alert_retention_days = parsed;
+                }
             }
         }
 
