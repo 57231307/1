@@ -431,17 +431,21 @@ pub fn create_router(state: AppState) -> Router<()> {
         // ---- 顶层基础设施路由（负载均衡器 / 监控探针友好）----
         // 部署-4 修复：暴露顶层 /health，避免负载均衡器只接受无前缀路径。
         // 复用 system 模块的 health_check 实现（不需鉴权，状态从 AppState 读取）
+        // batch-10/12 P3：添加 HEAD 支持，兼容监控探针
         .route(
             "/health",
-            get(crate::handlers::health_handler::health_check),
+            get(crate::handlers::health_handler::health_check)
+                .head(crate::handlers::health_handler::health_check),
         )
         .route(
             "/health/liveness",
-            get(crate::handlers::health_handler::liveness_check),
+            get(crate::handlers::health_handler::liveness_check)
+                .head(crate::handlers::health_handler::liveness_check),
         )
         .route(
             "/health/readiness",
-            get(crate::handlers::health_handler::readiness_check),
+            get(crate::handlers::health_handler::readiness_check)
+                .head(crate::handlers::health_handler::readiness_check),
         )
         // ---- 基础设施（静态 / 指标 / API 文档）----
         .merge(build_infrastructure_routes())

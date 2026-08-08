@@ -49,6 +49,8 @@ pub fn build_cors_layer(allowed_origins: Vec<String>) -> CorsLayer {
             // P2 2-6 修复：补齐 PATCH 方法，支持 PATCH 部分更新场景的 CORS 预检通过
             Method::PATCH,
             Method::DELETE,
+            // batch-10/12 P3：补齐 HEAD 方法，兼容监控探针
+            Method::HEAD,
             Method::OPTIONS,
         ])
         .allow_headers([
