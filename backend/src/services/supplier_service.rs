@@ -1002,3 +1002,123 @@ pub struct SupplierQueryParams {
     pub is_processor: Option<bool>,
     pub processor_type: Option<String>,
 }
+
+/// batch-13 P2：供应商账户余额
+#[derive(Debug, Serialize)]
+pub struct SupplierBalance {
+    pub supplier_id: i32,
+    pub supplier_name: String,
+    pub total_amount: Decimal,
+    pub paid_amount: Decimal,
+    pub balance: Decimal,
+    pub order_count: i64,
+}
+
+/// batch-13 P2：异常大额订单检测结果
+#[derive(Debug, Serialize)]
+pub struct AbnormalOrderDetection {
+    pub order_id: i32,
+    pub order_no: String,
+    pub supplier_id: i32,
+    pub supplier_name: String,
+    pub order_amount: Decimal,
+    pub average_amount: Decimal,
+    pub deviation_ratio: Decimal,
+    pub abnormal_type: String,
+}
+
+impl SupplierService {
+    /// batch-13 P2：查询供应商账户余额
+    pub async fn get_supplier_balance(
+        &self,
+        supplier_id: i32,
+    ) -> Result<SupplierBalance, AppError> {
+        use crate::models::ap_payment::{self, Entity as ApPaymentEntity};
+        use crate::models::purchase_order::{self, Entity as PurchaseOrderEntity};
+
+        // 查询供应商信息
+        let supplier = supplier::Entity::find_by_id(supplier_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("供应商 {} 不存在", supplier_id)))?;
+
+        // 查询采购订单总金额
+        let orders = PurchaseOrderEntity::find()
+            .filter(purchase_order::Column::SupplierId.eq(supplier_id))
+            .all(&*self.db)
+            .await?;
+
+        let total_amount: Decimal = orders.iter().map(|o| o.total_amount).sum();
+        let order_count = orders.len() as i64;
+
+        // 查询已付款金额
+        let payments = ApPaymentEntity::find()
+            .filter(ap_payment::Column::SupplierId.eq(supplier_id))
+            .all(&*self.db)
+            .await?;
+
+        let paid_amount: Decimal = payments.iter().map(|p| p.payment_amount).sum();
+        let balance = total_amount - paid_amount;
+
+        Ok(SupplierBalance {
+            supplier_id,
+            supplier_name: supplier.supplier_name,
+            total_amount,
+            paid_amount,
+            balance,
+            order_count,
+        })
+    }
+
+    /// batch-13 P2：检测异常大额订单
+    pub async fn detect_abnormal_orders(
+        &self,
+        threshold_ratio: Decimal,
+    ) -> Result<Vec<AbnormalOrderDetection>, AppError> {
+        use crate::models::purchase_order::{self, Entity as PurchaseOrderEntity};
+
+        // 查询所有供应商
+        let suppliers = supplier::Entity::find()
+            .all(&*self.db)
+            .await?;
+
+        let mut abnormal_orders = Vec::new();
+
+        for supplier in suppliers {
+            // 查询该供应商的所有订单
+            let orders = PurchaseOrderEntity::find()
+                .filter(purchase_order::Column::SupplierId.eq(supplier.id))
+                .all(&*self.db)
+                .await?;
+
+            if orders.is_empty() {
+                continue;
+            }
+
+            // 计算平均订单金额
+            let total: Decimal = orders.iter().map(|o| o.total_amount).sum();
+            let average = total / Decimal::from(orders.len());
+
+            // 检测异常大额订单
+            for order in &orders {
+                if average > Decimal::ZERO {
+                    let ratio = order.total_amount / average;
+                    if ratio > threshold_ratio {
+                        abnormal_orders.push(AbnormalOrderDetection {
+                            order_id: order.id,
+                            order_no: order.order_no.clone(),
+                            supplier_id: supplier.id,
+                            supplier_name: supplier.supplier_name.clone(),
+                            order_amount: order.total_amount,
+                            average_amount: average,
+                            deviation_ratio: ratio,
+                            abnormal_type: "大额订单".to_string(),
+                        });
+                    }
+                }
+            }
+        }
+
+        Ok(abnormal_orders)
+    }
+}

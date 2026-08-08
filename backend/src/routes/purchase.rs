@@ -307,6 +307,16 @@ pub fn suppliers() -> Router<AppState> {
         .route("/suppliers/:id", get(supplier_handler::get_supplier))
         .route("/suppliers/:id", put(supplier_handler::update_supplier))
         .route("/suppliers/:id", delete(supplier_handler::delete_supplier))
+        // batch-13 P2：供应商账户余额查询
+        .route(
+            "/suppliers/:id/balance",
+            get(supplier_handler::get_supplier_balance),
+        )
+        // batch-13 P2：异常大额订单检测
+        .route(
+            "/suppliers/abnormal-orders",
+            get(supplier_handler::detect_abnormal_orders),
+        )
         .route(
             "/suppliers/:id/status",
             post(supplier_handler::toggle_supplier_status),

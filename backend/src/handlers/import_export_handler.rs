@@ -357,7 +357,62 @@ pub async fn export_excel_type(
     }))))
 }
 
-/// 导入模板列表项
+/// B12-P2-5：流式导出端点（直接返回文件，不经过 base64 编码）
+/// GET /api/v1/erp/export/stream/:export_type - 流式导出（xlsx）
+pub async fn export_stream(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(export_type): Path<String>,
+    Query(query): Query<ExportQuery>,
+) -> Result<axum::response::Response, AppError> {
+    // V15 P1-9-1：全局导出并发控制（RAII 守卫，函数退出自动递减）
+    let _guard = ExportConcurrencyGuard::acquire()?;
+
+    let service = ImportExportService::new(state.db.clone());
+
+    let (headers, data) = service.export_data(&export_type, &query).await?;
+
+    // 规则 3：导出统一使用 xlsx 格式
+    let xlsx_bytes = ImportExportService::generate_xlsx(&headers, &data)?;
+
+    // 审计日志
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some(export_type.clone()),
+        resource_id: None,
+        resource_name: Some(format!("{}.xlsx", export_type)),
+        description: Some(format!(
+            "用户 {} 流式导出 {} 数据为 xlsx（共 {} 条）",
+            auth.username,
+            export_type,
+            data.len()
+        )),
+        request_method: Some("GET".to_string()),
+        request_path: Some(format!("/api/v1/erp/export/stream/{}", export_type)),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "export_type": export_type,
+            "format": "xlsx",
+            "total": data.len(),
+            "streaming": true,
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
+
+    // 直接返回文件流（不经过 base64 编码，减少内存占用）
+    let response = axum::response::Response::builder()
+        .header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        .header("Content-Disposition", format!("attachment; filename=\"{}.xlsx\"", export_type))
+        .header("Content-Length", xlsx_bytes.len())
+        .body(axum::body::Body::from(xlsx_bytes))
+        .map_err(|e| AppError::internal(format!("构建响应失败: {}", e)))?;
+
+    Ok(response)
+}
 #[derive(Debug, serde::Serialize)]
 pub struct ImportTemplateListItem {
     pub import_type: String,

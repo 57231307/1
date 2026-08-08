@@ -408,11 +408,18 @@ impl RolePermissionService {
     }
 
     /// 创建新权限记录（含审计日志 + 缓存失效）
+    /// B12-P2-1：自动生成 permission_code（三段式：<模块>.<资源>.<操作>）
     async fn create_new_permission(
         &self,
         request: &AssignPermissionRequest,
         user_id: i32,
     ) -> Result<role_permission::Model, AppError> {
+        // B12-P2-1：生成 permission_code
+        let permission_code = Self::generate_permission_code(
+            &request.resource_type,
+            &request.action,
+        );
+
         let permission = role_permission::ActiveModel {
             id: Default::default(),
             role_id: sea_orm::ActiveValue::Set(request.role_id),
@@ -420,7 +427,7 @@ impl RolePermissionService {
             resource_id: sea_orm::ActiveValue::Set(request.resource_id),
             action: sea_orm::ActiveValue::Set(request.action.clone()),
             allowed: sea_orm::ActiveValue::Set(request.allowed),
-            permission_code: sea_orm::ActiveValue::Set(None),
+            permission_code: sea_orm::ActiveValue::Set(Some(permission_code)),
             created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
             updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
         };
@@ -437,6 +444,46 @@ impl RolePermissionService {
         )
         .await;
         Ok(perm_entity)
+    }
+
+    /// B12-P2-1：生成 permission_code（三段式：<模块>.<资源>.<操作>）
+    fn generate_permission_code(resource_type: &str, action: &str) -> String {
+        let module = Self::resolve_module_from_resource(resource_type);
+        format!("{}.{}.{}", module, resource_type, action)
+    }
+
+    /// B12-P2-1：根据资源类型解析模块名
+    fn resolve_module_from_resource(resource_type: &str) -> String {
+        match resource_type {
+            // IAM 模块
+            "users" | "roles" | "departments" | "permissions" | "field-permissions" => "iam".to_string(),
+            // 目录模块
+            "products" | "categories" | "warehouses" | "boms" => "catalog".to_string(),
+            // 销售模块
+            "orders" | "fabric-orders" | "customers" | "customer-credits" | "sales-contracts" | "sales-prices" | "sales-returns" | "quotations" => "sales".to_string(),
+            // 采购模块
+            "purchase-orders" | "purchase-receipts" | "purchase-returns" | "purchase-contracts" | "purchase-prices" | "suppliers" | "supplier-evaluations" => "purchase".to_string(),
+            // 库存模块
+            "inventory" | "stock" | "transfers" | "adjustments" | "reservations" | "counts" | "batches" | "stock-alerts" | "piece-split" => "inventory".to_string(),
+            // 生产模块
+            "production-orders" | "dye-batches" | "dye-recipes" | "dye-batch-rework" | "dye-batch-quality" | "flow-cards" | "process-routes" | "outsourcing-orders" | "outsourcing-receipts" | "outsourcing-vouchers" | "mrp" | "capacity" | "scheduling" => "production".to_string(),
+            // 质量模块
+            "quality-inspections" | "quality-issues" | "quality-standards" | "fabric-inspections" | "fabric-defects" => "quality".to_string(),
+            // 财务模块
+            "vouchers" | "subjects" | "fixed-assets" | "budgets" | "cost-collections" | "ar" | "ap" | "gl" | "fund-management" | "fund-transfers" | "currencies" | "exchange-rates" | "ar-reconciliations" | "wages" => "finance".to_string(),
+            // CRM 模块
+            "crm-leads" | "crm-opportunities" | "crm-customers" | "five-dimension" | "sales-analysis" => "crm".to_string(),
+            // HR 模块
+            "employees" | "wage-rates" | "wage-records" => "hr".to_string(),
+            // 物流模块
+            "logistics" | "ship-orders" | "incoterms" => "logistics".to_string(),
+            // 系统模块
+            "audit-logs" | "slow-queries" | "system-config" | "print-templates" | "data-import" | "dashboard" => "system".to_string(),
+            // AI 模块
+            "ai-forecast" | "ai-inventory-opt" | "ai-anomaly" | "ai-recommendation" | "ai-recipe-opt" | "ai-quality-pred" | "ai-process-opt" | "ai-summary" => "ai".to_string(),
+            // 默认：使用 resource_type 作为模块名
+            _ => resource_type.to_string(),
+        }
     }
 
     /// 将权限 Model 转换为 RolePermissionDetail
