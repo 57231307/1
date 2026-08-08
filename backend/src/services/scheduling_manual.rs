@@ -127,15 +127,14 @@ impl SchedulingService {
         start_date: chrono::NaiveDate,
         end_date: chrono::NaiveDate,
     ) -> Result<Vec<i32>, AppError> {
-        use crate::models::production_order::Column;
         use sea_orm::{ColumnTrait, QueryFilter};
 
         let conflicting_orders = ProductionOrderEntity::find()
-            .filter(Column::WorkCenterId.eq(Some(work_center_id)))
-            .filter(Column::Id.ne(exclude_order_id))
-            .filter(Column::Status.is_in(vec!["SCHEDULED", "IN_PROGRESS"]))
-            .filter(Column::PlannedStartDate.lt(end_date))
-            .filter(Column::PlannedEndDate.gt(start_date))
+            .filter(crate::models::production_order::Column::WorkCenterId.eq(Some(work_center_id)))
+            .filter(crate::models::production_order::Column::Id.ne(exclude_order_id))
+            .filter(crate::models::production_order::Column::Status.is_in(vec!["SCHEDULED", "IN_PROGRESS"]))
+            .filter(crate::models::production_order::Column::PlannedStartDate.lt(end_date))
+            .filter(crate::models::production_order::Column::PlannedEndDate.gt(start_date))
             .all(&*self.db)
             .await?;
 
