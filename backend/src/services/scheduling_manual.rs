@@ -127,7 +127,7 @@ impl SchedulingService {
         start_date: chrono::NaiveDate,
         end_date: chrono::NaiveDate,
     ) -> Result<Vec<i32>, AppError> {
-        use sea_orm::{ColumnTrait, QueryFilter};
+        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
         let conflicting_orders = ProductionOrderEntity::find()
             .filter(crate::models::production_order::Column::WorkCenterId.eq(Some(work_center_id)))
