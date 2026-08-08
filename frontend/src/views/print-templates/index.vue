@@ -333,6 +333,7 @@
     >
       <div v-loading="previewLoading" class="preview-container">
         <!-- Wave B-2 修复（B3-2）：使用 DOMPurify 净化后端返回的 HTML，防止 XSS 注入 -->
+        <!-- eslint-disable-next-line vue/no-v-html -- 安全：已通过 DOMPurify 净化 -->
         <div v-if="previewData" v-html="sanitizedPreview"></div>
         <div v-else class="no-preview">{{ $t('printTemplates.previewDialog.noData') }}</div>
       </div>

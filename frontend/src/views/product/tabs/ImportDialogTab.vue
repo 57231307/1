@@ -35,6 +35,7 @@
       drag
     >
       <el-icon class="el-icon--upload"><Upload /></el-icon>
+      <!-- eslint-disable-next-line vue/no-v-html -- 安全：i18n 翻译文本，无 XSS 风险 -->
       <div class="el-upload__text" v-html="t('product.importDialogTab.uploadText')"></div>
       <template #tip>
         <div class="el-upload__tip">{{ t('product.importDialogTab.uploadTip') }}</div>

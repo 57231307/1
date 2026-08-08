@@ -108,6 +108,9 @@ class Request {
           const csrfToken = loadCsrfToken();
           if (csrfToken) {
             config.headers['X-CSRF-Token'] = csrfToken;
+          } else {
+            // batch-20 P3: CSRF token 缺失时提示用户
+            console.warn('[CSRF] 安全令牌缺失，请求可能被后端拒绝');
           }
         }
 
