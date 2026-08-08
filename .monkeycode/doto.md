@@ -99,8 +99,6 @@
 |------|------|----------|------|
 | B02-P2-3 | handlers 未按业务域分子目录（平铺） | `backend/src/handlers/` 158 个文件，仅 advanced/ + color_card/ 两个子目录 | 可维护性 |
 | B04-P2-3 | 月末分摊缺端到端集成测试 | `backend/tests/` 无 energy/allocation 测试；energy_service.rs 仅纯函数单测 | 测试 |
-| B06-P2-1 | E2E 报告未保存到 docs/audits | e2e-batch.yml 仅上传 artifact，`.monkeycode/docs/audits/` 无 E2E 报告落盘 | 测试 |
-| B10-P2-9 | 色卡定时任务单元测试未实现（审计要求 23 项） | color_card_issue_scheduler.rs（241 行）无 `#[cfg(test)]`；tests/color_card_issue_test.rs 无 scheduler 测试 | 色卡 |
 | B12-P2-1 | 权限码命名规范未统一为 `<模块>.<资源>.<操作>` 三段式 | permission.rs:186 `format!("{}:{}", ...)` 冒号两段式；migration 中 permission_code 为点号两段式 | 权限 |
 | B12-P2-4 | 敏感角色变更双人审批未实现 | 全库 grep dual_approval/second_approval 0 命中 | 权限 |
 | B12-P2-5 | 大数据量导出无流式处理 | import_export_handler.rs:257-264 一次性 generate_xlsx + base64；report/exp.rs 同 | 导出 |
@@ -108,7 +106,7 @@
 | batch-13 P2 | 供应商账户余额管理 + 异常大额订单检测引擎 | supplier_service.rs 无余额维度查询；无"异常大额订单+异常频繁退货"专门引擎 | 业务 |
 | batch-16 P2-3/P2-4 | 通知模板无动态管理、不支持多语言 | grep notification_template 无模型；notification_service.rs 无 i18n | 报表/通知 |
 | batch-18 P2-6 | 调拨在途库存未独立核算 | inventory_transfer.rs 无 in_transit 字段（in_transit 仅 logistics 事件） | 库存 |
-| batch-18 P2-7 | 缺料月报能力缺失 | material_shortage_handler.rs 无月报/报表端点 | 排程 |
+| batch-18 P2-7 | ✅ 缺料月报能力已实现 | material_shortage_handler.rs get_monthly_report + service get_monthly_report + 路由注册 | 排程 |
 | batch-18 P2-4 | 瓶颈识别无扩产/外包建议 | capacity_service.rs 无扩产/外包建议逻辑；产能月报缺失 | 排程 |
 | batch-18 P2-5 | 排程与生产订单重复录入/手工转移风险 | scheduling_query.rs 无与生产订单集成校验 | 排程 |
 | batch-18 P2-2 | 委外加工费未按缸号/匹号核算 | outsourcing_service.rs 无缸号/匹号维度加工费核算 | 委外 |

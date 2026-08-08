@@ -6,6 +6,14 @@
 
 ---
 
+## PR #865 合并：batch-18 P2-7 缺料月报（2026-08-07，已合并 main）
+
+| 项 | 一句话总结 |
+|----|-----------|
+| PR #865 合并 | batch-18 P2-7 缺料月报能力（5d06d08e）：material_shortage_handler.rs get_monthly_report + service get_monthly_report + 路由注册；3 文件 +156 行 |
+
+---
+
 ## PR #863 合并：P2 快速修复 + 导出技术债（2026-08-07，已合并 main）
 
 | 项 | 一句话总结 |
