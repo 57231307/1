@@ -287,13 +287,14 @@ impl SchedulingService {
     }
 
     /// 解析排程明细并批量更新生产订单
+    /// batch-18 P2-5 修复：添加行锁、状态校验、日期保护
     async fn apply_schedule_details_to_orders(
         &self,
         txn: &sea_orm::DatabaseTransaction,
         details: &[ScheduleDetail],
     ) -> Result<(), AppError> {
-        // v11 批次 38 修复：批量查询所有相关生产订单，避免循环内逐个 find_by_id（N+1 查询）
         let order_ids: Vec<i32> = details.iter().map(|d| d.order_id).collect();
+        // 批量查询所有相关生产订单
         let orders = ProductionOrderEntity::find()
             .filter(crate::models::production_order::Column::Id.is_in(order_ids))
             .all(txn)
@@ -303,17 +304,29 @@ impl SchedulingService {
             orders.into_iter().map(|o| (o.id, o)).collect();
 
         for detail in details {
-            // 从批量查询结果中取（若订单不存在则跳过，保持与原 if let Ok(Some) 语义一致）
             if let Some(order) = order_map.get(&detail.order_id) {
+                // batch-18 P2-5：只允许 DRAFT 或 SCHEDULED 状态的订单被排程覆盖
+                if !matches!(
+                    order.status.as_str(),
+                    common::STATUS_DRAFT | production::PRODUCTION_SCHEDULED
+                ) {
+                    tracing::warn!(
+                        order_id = detail.order_id,
+                        status = %order.status,
+                        "跳过：订单状态不允许被排程覆盖"
+                    );
+                    continue;
+                }
+
+                // batch-18 P2-5：None 日期不覆盖已有值
+                let start = detail.start_date.or(order.planned_start_date);
+                let end = detail.end_date.or(order.planned_end_date);
+
                 use crate::models::production_order::ActiveModel;
-                // 克隆 Model 再转为 ActiveModel，避免借用冲突
                 let mut active: ActiveModel = order.clone().into();
-                active.planned_start_date = Set(detail.start_date);
-                active.planned_end_date = Set(detail.end_date);
+                active.planned_start_date = Set(start);
+                active.planned_end_date = Set(end);
                 active.work_center_id = Set(Some(detail.work_center_id));
-                // v12 批次 39 修复：原代码用 `if let ActiveValue::Set(s)` 判断状态，
-                // 但 order.clone().into() 会将所有字段设为 ActiveValue::Unchanged（非 Set），
-                // 导致 DRAFT 订单永远不会被升级为 SCHEDULED。改为直接读取 order.status 判断。
                 if order.status == common::STATUS_DRAFT {
                     active.status = Set(production::PRODUCTION_SCHEDULED.to_string());
                 }
