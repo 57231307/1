@@ -1033,6 +1033,7 @@ impl SupplierService {
         &self,
         supplier_id: i32,
     ) -> Result<SupplierBalance, AppError> {
+        use crate::models::ap_payment::{self, Entity as ApPaymentEntity};
         use crate::models::purchase_order::{self, Entity as PurchaseOrderEntity};
 
         // 查询供应商信息
@@ -1041,16 +1042,23 @@ impl SupplierService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("供应商 {} 不存在", supplier_id)))?;
 
-        // 查询采购订单汇总
+        // 查询采购订单总金额
         let orders = PurchaseOrderEntity::find()
             .filter(purchase_order::Column::SupplierId.eq(supplier_id))
             .all(&*self.db)
             .await?;
 
         let total_amount: Decimal = orders.iter().map(|o| o.total_amount).sum();
-        let paid_amount: Decimal = orders.iter().map(|o| o.paid_amount).sum();
-        let balance = total_amount - paid_amount;
         let order_count = orders.len() as i64;
+
+        // 查询已付款金额
+        let payments = ApPaymentEntity::find()
+            .filter(ap_payment::Column::SupplierId.eq(supplier_id))
+            .all(&*self.db)
+            .await?;
+
+        let paid_amount: Decimal = payments.iter().map(|p| p.payment_amount).sum();
+        let balance = total_amount - paid_amount;
 
         Ok(SupplierBalance {
             supplier_id,

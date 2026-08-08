@@ -448,9 +448,42 @@ impl RolePermissionService {
 
     /// B12-P2-1：生成 permission_code（三段式：<模块>.<资源>.<操作>）
     fn generate_permission_code(resource_type: &str, action: &str) -> String {
-        use crate::utils::path_utils::resolve_module_prefixed_resource;
-        let module = resolve_module_prefixed_resource(resource_type);
+        let module = Self::resolve_module_from_resource(resource_type);
         format!("{}.{}.{}", module, resource_type, action)
+    }
+
+    /// B12-P2-1：根据资源类型解析模块名
+    fn resolve_module_from_resource(resource_type: &str) -> &'static str {
+        match resource_type {
+            // IAM 模块
+            "users" | "roles" | "departments" | "permissions" | "field-permissions" => "iam",
+            // 目录模块
+            "products" | "categories" | "warehouses" | "boms" => "catalog",
+            // 销售模块
+            "orders" | "fabric-orders" | "customers" | "customer-credits" | "sales-contracts" | "sales-prices" | "sales-returns" | "quotations" => "sales",
+            // 采购模块
+            "purchase-orders" | "purchase-receipts" | "purchase-returns" | "purchase-contracts" | "purchase-prices" | "suppliers" | "supplier-evaluations" => "purchase",
+            // 库存模块
+            "inventory" | "stock" | "transfers" | "adjustments" | "reservations" | "counts" | "batches" | "stock-alerts" | "piece-split" => "inventory",
+            // 生产模块
+            "production-orders" | "dye-batches" | "dye-recipes" | "dye-batch-rework" | "dye-batch-quality" | "flow-cards" | "process-routes" | "outsourcing-orders" | "outsourcing-receipts" | "outsourcing-vouchers" | "mrp" | "capacity" | "scheduling" => "production",
+            // 质量模块
+            "quality-inspections" | "quality-issues" | "quality-standards" | "fabric-inspections" | "fabric-defects" => "quality",
+            // 财务模块
+            "vouchers" | "subjects" | "fixed-assets" | "budgets" | "cost-collections" | "ar" | "ap" | "gl" | "fund-management" | "fund-transfers" | "currencies" | "exchange-rates" | "ar-reconciliations" | "wages" => "finance",
+            // CRM 模块
+            "crm-leads" | "crm-opportunities" | "crm-customers" | "five-dimension" | "sales-analysis" => "crm",
+            // HR 模块
+            "employees" | "wage-rates" | "wage-records" => "hr",
+            // 物流模块
+            "logistics" | "ship-orders" | "incoterms" => "logistics",
+            // 系统模块
+            "audit-logs" | "slow-queries" | "system-config" | "print-templates" | "data-import" | "dashboard" => "system",
+            // AI 模块
+            "ai-forecast" | "ai-inventory-opt" | "ai-anomaly" | "ai-recommendation" | "ai-recipe-opt" | "ai-quality-pred" | "ai-process-opt" | "ai-summary" => "ai",
+            // 默认：使用 resource_type 作为模块名
+            _ => resource_type,
+        }
     }
 
     /// 将权限 Model 转换为 RolePermissionDetail
