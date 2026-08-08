@@ -50,12 +50,35 @@ impl SchedulingService {
         req: AdjustScheduleRequest,
     ) -> Result<ScheduleDetail, AppError> {
         use sea_orm::EntityTrait;
-        use sea_orm::{ActiveModelTrait, Set};
+        use sea_orm::{ActiveModelTrait, ColumnTrait, QueryFilter, Set};
 
         let order = ProductionOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
+
+        // batch-18 P3：检查锁定状态
+        if order.status == "locked" {
+            return Err(AppError::business("已锁定的订单不能调整"));
+        }
+
+        // batch-18 P3：冲突检测 - 检查同一工作中心是否有时间重叠
+        if let (Some(wc_id), Some(start), Some(end)) = (
+            req.work_center_id.or(order.work_center_id),
+            req.start_date.or(order.planned_start_date),
+            req.end_date.or(order.planned_end_date),
+        ) {
+            let conflicts = self
+                .detect_schedule_conflicts(order_id, wc_id, start, end)
+                .await?;
+            if !conflicts.is_empty() {
+                tracing::warn!(
+                    order_id = order_id,
+                    conflict_count = conflicts.len(),
+                    "排程调整存在冲突"
+                );
+            }
+        }
 
         use crate::models::production_order::ActiveModel;
         let mut active: ActiveModel = order.clone().into();
@@ -94,6 +117,28 @@ impl SchedulingService {
             end_date: updated.planned_end_date,
             status: Some(updated.status.clone()),
         })
+    }
+
+    /// batch-18 P3：检测排程冲突
+    async fn detect_schedule_conflicts(
+        &self,
+        exclude_order_id: i32,
+        work_center_id: i32,
+        start_date: chrono::NaiveDate,
+        end_date: chrono::NaiveDate,
+    ) -> Result<Vec<i32>, AppError> {
+        use crate::models::production_order::{Column, Entity as ProductionOrderEntity};
+
+        let conflicting_orders = ProductionOrderEntity::find()
+            .filter(Column::WorkCenterId.eq(Some(work_center_id)))
+            .filter(Column::Id.ne(exclude_order_id))
+            .filter(Column::Status.is_in(vec!["SCHEDULED", "IN_PROGRESS"]))
+            .filter(Column::PlannedStartDate.lt(end_date))
+            .filter(Column::PlannedEndDate.gt(start_date))
+            .all(&*self.db)
+            .await?;
+
+        Ok(conflicting_orders.into_iter().map(|o| o.id).collect())
     }
 }
 
