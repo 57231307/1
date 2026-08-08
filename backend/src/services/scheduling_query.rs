@@ -294,10 +294,9 @@ impl SchedulingService {
         details: &[ScheduleDetail],
     ) -> Result<(), AppError> {
         let order_ids: Vec<i32> = details.iter().map(|d| d.order_id).collect();
-        // 使用 lock_exclusive 防止并发修改
+        // 批量查询所有相关生产订单
         let orders = ProductionOrderEntity::find()
             .filter(crate::models::production_order::Column::Id.is_in(order_ids))
-            .lock_exclusive()
             .all(txn)
             .await
             .map_err(|e| AppError::database(e.to_string()))?;
