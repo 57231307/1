@@ -482,3 +482,40 @@ fn record_suppliers_export_audit(state: &AppState, auth: &AuthContext, row_count
     };
     Arc::new(svc).record_async(event, None);
 }
+
+/// batch-13 P2：查询供应商账户余额
+/// GET /api/v1/erp/suppliers/:id/balance
+pub async fn get_supplier_balance(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    tracing::debug!(user_id = auth.user_id, supplier_id = id, "查询供应商账户余额");
+    let service = SupplierService::new(state.db.clone());
+    let balance = service.get_supplier_balance(id).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(balance)?)))
+}
+
+/// batch-13 P2：检测异常大额订单
+/// GET /api/v1/erp/suppliers/abnormal-orders
+pub async fn detect_abnormal_orders(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(params): Query<AbnormalOrderQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    tracing::debug!(user_id = auth.user_id, "检测异常大额订单");
+    let service = SupplierService::new(state.db.clone());
+    let threshold = params.threshold_ratio.unwrap_or(3.0);
+    let abnormal_orders = service.detect_abnormal_orders(rust_decimal::Decimal::from_f64(threshold).unwrap_or(rust_decimal::Decimal::from(3))).await?;
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "abnormal_orders": abnormal_orders,
+        "total": abnormal_orders.len(),
+        "threshold_ratio": threshold,
+    }))))
+}
+
+/// 异常订单查询参数
+#[derive(Debug, Deserialize)]
+pub struct AbnormalOrderQuery {
+    pub threshold_ratio: Option<f64>,
+}
