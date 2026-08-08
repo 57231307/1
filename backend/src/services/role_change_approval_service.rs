@@ -89,9 +89,9 @@ impl RoleChangeApprovalService {
 
         // 生成审批单号
         let approval_no = format!(
-            "RCA-{}-{}",
+            "RCA-{}-{:04}",
             Utc::now().format("%Y%m%d%H%M%S"),
-            rand::random::<u16>()
+            chrono::Utc::now().timestamp_subsec_millis() % 10000
         );
 
         let now = Utc::now();

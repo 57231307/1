@@ -22,6 +22,18 @@ pub enum ApprovalStatus {
     Cancelled,
 }
 
+impl std::fmt::Display for ApprovalStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ApprovalStatus::PendingL1 => write!(f, "pending_l1"),
+            ApprovalStatus::PendingL2 => write!(f, "pending_l2"),
+            ApprovalStatus::Approved => write!(f, "approved"),
+            ApprovalStatus::Rejected => write!(f, "rejected"),
+            ApprovalStatus::Cancelled => write!(f, "cancelled"),
+        }
+    }
+}
+
 /// 变更类型
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[derive(EnumIter, DeriveActiveEnum)]
@@ -33,6 +45,16 @@ pub enum ChangeType {
     AssignPermission,
     #[sea_orm(string_value = "remove_permission")]
     RemovePermission,
+}
+
+impl std::fmt::Display for ChangeType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ChangeType::AssignRole => write!(f, "assign_role"),
+            ChangeType::AssignPermission => write!(f, "assign_permission"),
+            ChangeType::RemovePermission => write!(f, "remove_permission"),
+        }
+    }
 }
 
 /// 角色变更审批模型
