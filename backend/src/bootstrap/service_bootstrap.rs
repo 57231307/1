@@ -208,6 +208,8 @@ async fn run_seaorm_migrator(db: &DatabaseConnection) {
     }
     // V15 P1 25.4-J：迁移完成后检查 schema 兼容性（蓝绿部署保障）
     check_migration_compatibility(db).await;
+    // batch-17 P3：检查迁移连续性，检测是否有跳跃的迁移版本
+    check_migration_continuity(db).await;
 }
 
 /// V15 P1 25.4-J：检查数据库迁移兼容性，检测违反蓝绿部署规范的 schema 设计。
@@ -258,6 +260,66 @@ async fn check_migration_compatibility(db: &DatabaseConnection) {
         }
         Err(e) => {
             warn!(error = %e, "迁移兼容性检查查询失败（不阻塞启动）");
+        }
+    }
+}
+
+/// batch-17 P3: 检查迁移连续性，检测是否有跳跃的迁移版本
+///
+/// 从 seaql_migrations 表读取已 applied 的迁移，检查编号是否连续。
+/// 仅 warn 不阻塞启动，用于发现人为跳过迁移的情况。
+async fn check_migration_continuity(db: &DatabaseConnection) {
+    use sea_orm::{ConnectionTrait, Statement};
+
+    let sql = "SELECT migration_name FROM seaql_migrations ORDER BY migration_name";
+    let result = db
+        .query_all(Statement::from_string(sea_orm::DatabaseBackend::Postgres, sql.to_string()))
+        .await;
+
+    match result {
+        Ok(rows) => {
+            let mut migration_numbers: Vec<u32> = Vec::new();
+            for row in rows {
+                if let Ok(name) = row.try_get::<String>("", "migration_name") {
+                    // 提取 mXXXX 编号
+                    if let Some(num_str) = name.strip_prefix('m') {
+                        if let Some(num) = num_str.split('_').next() {
+                            if let Ok(n) = num.parse::<u32>() {
+                                migration_numbers.push(n);
+                            }
+                        }
+                    }
+                }
+            }
+
+            migration_numbers.sort();
+            migration_numbers.dedup();
+
+            // 检查连续性
+            let mut gaps = Vec::new();
+            for i in 1..migration_numbers.len() {
+                let prev = migration_numbers[i - 1];
+                let curr = migration_numbers[i];
+                if curr != prev + 1 {
+                    for gap in (prev + 1)..curr {
+                        gaps.push(gap);
+                    }
+                }
+            }
+
+            if gaps.is_empty() {
+                info!("迁移连续性检查通过（{} 个迁移）", migration_numbers.len());
+            } else {
+                warn!(
+                    "迁移连续性检查发现跳跃：缺失迁移编号 {:?}（已执行 {} 个迁移）",
+                    gaps,
+                    migration_numbers.len()
+                );
+            }
+        }
+        Err(e) => {
+            // seaql_migrations 表可能不存在（首次启动），跳过检查
+            debug!("迁移连续性检查跳过（表可能不存在）: {}", e);
         }
     }
 }
