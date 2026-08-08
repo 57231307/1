@@ -79,6 +79,8 @@ pub struct AppState {
     pub cache_service: Arc<CacheService>,
     /// V15 P0-B17（Batch 484）：主备切换执行器（维护 primary+backup 两个 DB 连接，ArcSwap 原子切换；备库未配置时 switch_to_backup 返回 Err 降级为仅更新 status 表）
     pub failover_executor: Arc<FailoverExecutor>,
+    /// V15 P2 20.6-A：API 网关动态路由端点缓存
+    pub endpoint_cache: crate::middleware::dynamic_router::EndpointCache,
 }
 
 /// 应用状态构造参数对象（批次 331 v10 复审 P3 修复：聚合 8 个参数消除 too_many_arguments 警告）
@@ -287,6 +289,8 @@ fn construct_app_state(params: AppStateParams, services: AppServices) -> AppStat
         cache_service,
         // V15 P0-B17（Batch 484）：主备切换执行器（main.rs 注入）
         failover_executor: params.failover_executor,
+        // V15 P2 20.6-A：API 网关动态路由端点缓存（TTL 60s）
+        endpoint_cache: crate::middleware::dynamic_router::EndpointCache::new(60),
     }
 }
 
@@ -432,6 +436,8 @@ impl Default for AppState {
                 cache_service,
                 // V15 P0-B17（Batch 484）：测试环境 failover_executor（仅主库）
                 failover_executor: svc.failover_executor,
+                // V15 P2 20.6-A：测试环境 API 网关动态路由端点缓存
+                endpoint_cache: crate::middleware::dynamic_router::EndpointCache::new(60),
             }
         }
     }

@@ -102,10 +102,10 @@
 | B12-P2-1 | 权限码命名规范未统一为 `<模块>.<资源>.<操作>` 三段式 | permission.rs:186 `format!("{}:{}", ...)` 冒号两段式；migration 中 permission_code 为点号两段式 | 权限 |
 | B12-P2-4 | 敏感角色变更双人审批未实现 | 全库 grep dual_approval/second_approval 0 命中 | 权限 |
 | B12-P2-5 | 大数据量导出无流式处理 | import_export_handler.rs:257-264 一次性 generate_xlsx + base64；report/exp.rs 同 | 导出 |
-| batch-12 P2-9 | 行级/字段级权限测试未落地 | 权限测试仅覆盖缓存/通配，无行级权限测试 | 权限 |
+| batch-12 P2-9 | ✅ 行级/字段级权限测试已实现 | test_data_permission.rs 6 个测试用例 | 权限 |
 | batch-13 P2 | 供应商账户余额管理 + 异常大额订单检测引擎 | supplier_service.rs 无余额维度查询；无"异常大额订单+异常频繁退货"专门引擎 | 业务 |
 | batch-16 P2-3/P2-4 | 通知模板无动态管理、不支持多语言 | grep notification_template 无模型；notification_service.rs 无 i18n | 报表/通知 |
-| batch-18 P2-6 | 调拨在途库存未独立核算 | inventory_transfer.rs 无 in_transit 字段（in_transit 仅 logistics 事件） | 库存 |
+| batch-18 P2-6 | ✅ 调拨在途库存独立核算已实现 | inv/batch.rs ship_transfer/receive_transfer 更新 quantity_incoming | 库存 |
 | batch-18 P2-7 | ✅ 缺料月报能力已实现 | material_shortage_handler.rs get_monthly_report + service get_monthly_report + 路由注册 | 排程 |
 | batch-18 P2-4 | ✅ 瓶颈识别扩产/外包建议已实现 | capacity_service.rs BottleneckSuggestion + generate_suggestions + overview 自动生成建议 | 排程 |
 | batch-18 P2-5 | ✅ 排程重复录入校验已实现 | scheduling_query.rs apply_schedule_details_to_orders 添加状态校验和日期保护 | 排程 |

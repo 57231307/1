@@ -6,6 +6,14 @@
 
 ---
 
+## PR #869 合并：batch-18 P2-6 调拨在途 + 权限测试（2026-08-08，已合并 main）
+
+| 项 | 一句话总结 |
+|----|-----------|
+| PR #869 合并 | batch-18 P2-6 调拨在途库存独立核算 + batch-12 P2-9 权限测试 + B04-P2-3 月末分摊测试（bc10cbfd）：inv/batch.rs 更新 quantity_incoming + test_data_permission.rs 6 个测试 + test_energy_allocation.rs 12 个测试；5 文件 +282 行 |
+
+---
+
 ## PR #868 合并：batch-18 P2-2 委外加工费（2026-08-08，已合并 main）
 
 | 项 | 一句话总结 |
