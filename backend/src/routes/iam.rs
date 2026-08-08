@@ -11,7 +11,7 @@ use axum::{
 
 use crate::handlers::{
     department_handler, field_permission_handler, init_handler, permission_audit_handler,
-    role_handler, user_handler,
+    role_change_approval_handler, role_handler, user_handler,
 };
 
 /// 用户管理路由（path 前缀 /users，由 routes() 中 merge 装配到 /api/v1/erp 根下）
@@ -98,6 +98,36 @@ pub fn permission_audits() -> Router<AppState> {
     )
 }
 
+/// B12-P2-4：角色变更审批路由（path 前缀 /role-change-approvals）
+pub fn role_change_approvals() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/role-change-approvals",
+            get(role_change_approval_handler::list_approvals)
+                .post(role_change_approval_handler::create_approval),
+        )
+        .route(
+            "/role-change-approvals/:id",
+            get(role_change_approval_handler::get_approval),
+        )
+        .route(
+            "/role-change-approvals/:id/approve-l1",
+            post(role_change_approval_handler::approve_l1),
+        )
+        .route(
+            "/role-change-approvals/:id/approve-l2",
+            post(role_change_approval_handler::approve_l2),
+        )
+        .route(
+            "/role-change-approvals/:id/reject",
+            post(role_change_approval_handler::reject_approval),
+        )
+        .route(
+            "/role-change-approvals/:id/cancel",
+            post(role_change_approval_handler::cancel_approval),
+        )
+}
+
 /// IAM 域统一入口（合并所有子路由）；注意：axum 0.7 的 `Router::merge` 会检查 path+method 重叠并 panic， 因此每个子 router 内部 path
 /// 都已加上各自独立前缀（`/users`、`/roles` 等）， 这样 merge 之后 path+method 不会重叠，不再触发 `Overlapping method route` 错误。
 pub fn routes() -> Router<AppState> {
@@ -108,4 +138,5 @@ pub fn routes() -> Router<AppState> {
         .merge(permissions())
         .merge(field_permissions())
         .merge(permission_audits())
+        .merge(role_change_approvals())
 }

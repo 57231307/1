@@ -32,6 +32,7 @@ pub mod omni_audit_handler;
 pub mod product_category_handler;
 pub mod product_handler;
 pub mod role_handler;
+pub mod role_change_approval_handler;
 pub mod sales_fabric_order_handler;
 pub mod sales_order_handler;
 // 销售报价单 handler（Week 1）

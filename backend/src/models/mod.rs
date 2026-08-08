@@ -38,7 +38,7 @@ pub mod product_color;
 pub mod role;
 pub mod role_permission;
 pub mod role_conflict;
-// V15 P1 12.2：角色关系表（继承 + 互斥）
+pub mod role_change_approval;
 pub mod role_relation;
 // V15 P1 12.6：权限委托表
 pub mod permission_delegation;
