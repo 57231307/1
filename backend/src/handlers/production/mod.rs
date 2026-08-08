@@ -1,0 +1,22 @@
+//! 生产 Handlers
+
+pub mod production_order_handler;
+pub mod production_recipe_handler;
+pub mod scheduling_handler;
+pub mod capacity_handler;
+pub mod bom_handler;
+pub mod outsourcing_handler;
+pub mod dye_batch_handler;
+pub mod dye_recipe_handler;
+pub mod dye_batch_state_machine_handler;
+pub mod flow_card_handler;
+pub mod fabric_inspection_handler;
+pub mod wage_handler;
+pub mod energy_handler;
+pub mod chemical_handler;
+pub mod barcode_scanner_handler;
+pub mod greige_fabric_handler;
+pub mod bulk_color_approval_handler;
+pub mod lab_dip_handler;
+pub mod material_shortage_handler;
+pub mod mrp_handler;

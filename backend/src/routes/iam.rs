@@ -9,10 +9,11 @@ use axum::{
     Router,
 };
 
-use crate::handlers::{
-    department_handler, field_permission_handler, init_handler, permission_audit_handler,
+use crate::handlers::iam::{
+    department_handler, init_handler, permission_audit_handler,
     role_change_approval_handler, role_handler, user_handler,
 };
+use crate::handlers::system::field_permission_handler;
 
 /// 用户管理路由（path 前缀 /users，由 routes() 中 merge 装配到 /api/v1/erp 根下）
 pub fn users() -> Router<AppState> {
