@@ -148,8 +148,8 @@ impl ProductionOrderService {
         }
     }
 
-    /// 生产订单成本归集（失败仅 warn 不传播，保持原逻辑）
-    /// 批次 356 v13 复审 B-P0-3 修复：commit 成功后调用 CostCollectionService 做成本归集，；避免生产成本无法归集导致产品成本失真、BI 报表成本数据缺失。
+    /// 生产订单成本归集（失败接入 event_retry 重试机制）
+    /// batch-04/05 P3: 接入 EventRetryService，失败时自动重试而非仅 warn
     async fn record_production_cost(&self, updated: &ProductionOrderModel) {
         let cost_service =
             crate::services::cost_collection_service::CostCollectionService::new(self.db.clone());
@@ -171,7 +171,6 @@ impl ProductionOrderService {
             cost_object_no: Some(updated.order_no.clone()),
             batch_no: updated.batch_no.clone(),
             color_no: updated.color_no.clone(),
-            // V15 Batch05-P1-4：按缸号核算成本（生产订单已含 dye_lot_no 字段，从订单读取传入成本归集）
             dye_lot_no: updated.dye_lot_no.clone(),
             workshop: None,
             direct_material: total_material_cost,
@@ -186,8 +185,35 @@ impl ProductionOrderService {
             tracing::warn!(
                 order_id = updated.id,
                 error = %e,
-                "批次 356 B-P0-3: 生产订单成本归集失败，请人工检查"
+                "生产订单成本归集失败，尝试重试"
             );
+
+            // batch-04/05 P3: 接入 event_retry 重试机制
+            let retry_service =
+                crate::services::event_retry_service::EventRetryService::new(self.db.clone());
+            let payload = serde_json::json!({
+                "order_id": updated.id,
+                "order_no": updated.order_no,
+                "product_id": updated.product_id,
+                "cost_price": cost_price,
+                "actual_qty": actual_qty,
+            });
+            if let Err(retry_err) = retry_service
+                .handle_failure(
+                    "production_cost_collection",
+                    payload,
+                    &e.to_string(),
+                    &e.to_string(),
+                    0,
+                )
+                .await
+            {
+                tracing::error!(
+                    order_id = updated.id,
+                    error = %retry_err,
+                    "event_retry 记录失败"
+                );
+            }
         }
     }
 
