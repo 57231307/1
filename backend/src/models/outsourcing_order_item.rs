@@ -40,6 +40,12 @@ pub struct Model {
     /// 明细总成本 = quantity × unit_cost
     #[sea_orm(column_type = "Decimal(Some((14, 4)))")]
     pub total_cost: Decimal,
+    /// batch-18 P2-2：该缸号/匹号的加工费
+    #[sea_orm(column_type = "Decimal(Some((14, 4)))")]
+    pub processing_fee: Decimal,
+    /// batch-18 P2-2：该缸号/匹号的运费
+    #[sea_orm(column_type = "Decimal(Some((14, 4)))")]
+    pub freight_fee: Decimal,
     /// 关联库存流水 ID（可空）
     pub inventory_transaction_id: Option<i32>,
     /// 缺陷 2.1：关联胚布ID（精确到卷/匹级追溯）

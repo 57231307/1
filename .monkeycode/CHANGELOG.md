@@ -6,6 +6,14 @@
 
 ---
 
+## PR #867 合并：batch-18 P2-4 瓶颈建议（2026-08-08，已合并 main）
+
+| 项 | 一句话总结 |
+|----|-----------|
+| PR #867 合并 | batch-18 P2-4 瓶颈识别扩产/外包建议（2cec4ce3）：BottleneckSuggestion + generate_suggestions + overview 自动生成建议；3 文件 +115 -3 |
+
+---
+
 ## PR #866 合并：batch-18 P2-5 排程校验（2026-08-08，已合并 main）
 
 | 项 | 一句话总结 |

@@ -66,6 +66,8 @@ impl OutsourcingOrderItemService {
         let total_cost = req.quantity * req.unit_cost;
         let now = crate::utils::date_utils::utc_now_fixed();
         let unit = req.unit.unwrap_or_else(|| "kg".to_string());
+        let processing_fee = req.processing_fee.unwrap_or(Decimal::ZERO);
+        let freight_fee = req.freight_fee.unwrap_or(Decimal::ZERO);
 
         let active = ItemActiveModel {
             id: Default::default(),
@@ -79,6 +81,8 @@ impl OutsourcingOrderItemService {
             unit: Set(unit),
             unit_cost: Set(req.unit_cost),
             total_cost: Set(total_cost),
+            processing_fee: Set(processing_fee),
+            freight_fee: Set(freight_fee),
             inventory_transaction_id: Set(None),
             greige_fabric_id: Set(req.greige_fabric_id),
             remarks: Set(req.remarks),
@@ -141,6 +145,12 @@ impl OutsourcingOrderItemService {
         }
         if let Some(v) = req.remarks {
             active.remarks = Set(Some(v));
+        }
+        if let Some(v) = req.processing_fee {
+            active.processing_fee = Set(v);
+        }
+        if let Some(v) = req.freight_fee {
+            active.freight_fee = Set(v);
         }
 
         if need_recompute_cost {
