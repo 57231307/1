@@ -162,7 +162,7 @@ async fn validate_split_consistency(
 
 /// 生成新布卷编号（优先使用请求中的条码，否则自动生成）
 /// batch-18 P3：改进匹号生成逻辑，使用日期+序列号格式
-fn generate_piece_no(parent: &inventory_piece::Model, new_barcode: &Option<String>) -> String {
+fn generate_piece_no(_parent: &inventory_piece::Model, new_barcode: &Option<String>) -> String {
     if let Some(barcode) = new_barcode {
         barcode.clone()
     } else {

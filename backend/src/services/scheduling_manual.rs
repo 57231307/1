@@ -50,7 +50,7 @@ impl SchedulingService {
         req: AdjustScheduleRequest,
     ) -> Result<ScheduleDetail, AppError> {
         use sea_orm::EntityTrait;
-        use sea_orm::{ActiveModelTrait, ColumnTrait, QueryFilter, Set};
+        use sea_orm::{ActiveModelTrait, Set};
 
         let order = ProductionOrderEntity::find_by_id(order_id)
             .one(&*self.db)
@@ -128,6 +128,7 @@ impl SchedulingService {
         end_date: chrono::NaiveDate,
     ) -> Result<Vec<i32>, AppError> {
         use crate::models::production_order::{Column, Entity as ProductionOrderEntity};
+        use sea_orm::{ColumnTrait, QueryFilter};
 
         let conflicting_orders = ProductionOrderEntity::find()
             .filter(Column::WorkCenterId.eq(Some(work_center_id)))
