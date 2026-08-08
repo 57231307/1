@@ -109,7 +109,7 @@
 | batch-18 P2-7 | ✅ 缺料月报能力已实现 | material_shortage_handler.rs get_monthly_report + service get_monthly_report + 路由注册 | 排程 |
 | batch-18 P2-4 | ✅ 瓶颈识别扩产/外包建议已实现 | capacity_service.rs BottleneckSuggestion + generate_suggestions + overview 自动生成建议 | 排程 |
 | batch-18 P2-5 | ✅ 排程重复录入校验已实现 | scheduling_query.rs apply_schedule_details_to_orders 添加状态校验和日期保护 | 排程 |
-| batch-18 P2-2 | 委外加工费未按缸号/匹号核算 | outsourcing_service.rs 无缸号/匹号维度加工费核算 | 委外 |
+| batch-18 P2-2 | ✅ 委外加工费按缸号/匹号核算已实现 | outsourcing_order_item 添加 processing_fee/freight_fee 字段 + migration + DTO 更新 | 委外 |
 | batch-21 P2 25.4-I | 无长任务处理机制（状态持久化/断点续传） | upgrade.rs（1190 行）无任务状态持久化；deploy.sh 无任务队列 | 部署 |
 | 前端 16 | vitest 覆盖率阈值仍为 1% | frontend/vitest.config.ts:31-38 thresholds 全部 = 1 | 前端测试 |
 | 前端 18 | dynamic_router 仍为占位实现 | middleware/dynamic_router.rs:17 "模块功能待集成，当前为占位实现"，未挂载路由 | 可观测性 |
