@@ -70,6 +70,7 @@ pub fn apply_full_mode_layers(app_state: AppState, cors: CorsLayer) -> Router {
     let s_csrf = app_state.clone();
     let s_omni_audit = app_state.clone();
     let s_rate_limit = app_state.clone();
+    let s_dynamic_router = app_state.clone();
 
     let router = create_router(app_state);
     let router = apply_body_limit_and_context(router);
@@ -88,7 +89,6 @@ pub fn apply_full_mode_layers(app_state: AppState, cors: CorsLayer) -> Router {
     // 放在 auth_chain 之外、rate_limiting 之内：监控认证后的业务处理 5xx 失败率
     let router = router.layer(axum::middleware::from_fn(circuit_breaker_middleware));
     // V15 P2 20.6-A：API 网关动态路由中间件（根据 api_endpoints 表状态动态放行/拒绝）
-    let s_dynamic_router = app_state.clone();
     let router = router.layer(axum::middleware::from_fn_with_state(
         s_dynamic_router,
         crate::middleware::dynamic_router::dynamic_router_middleware,
