@@ -36,6 +36,8 @@ interface Props {
   autoResize?: boolean;
   showArea?: boolean;
   smooth?: boolean;
+  /** batch-20 P3: 是否启用 dataZoom */
+  enableDataZoom?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -47,6 +49,7 @@ const props = withDefaults(defineProps<Props>(), {
   autoResize: true,
   showArea: false,
   smooth: true,
+  enableDataZoom: false,
 });
 
 const emit = defineEmits<{
@@ -77,6 +80,12 @@ const chartOption = computed<EChartsOption>(() => {
     },
     yAxis: { type: 'value' },
     series: seriesConfig,
+    dataZoom: props.enableDataZoom
+      ? [
+          { type: 'inside', start: 0, end: 100 },
+          { type: 'slider', start: 0, end: 100 },
+        ]
+      : undefined,
   };
 });
 
