@@ -102,6 +102,12 @@ pub struct Model {
 
     /// batch-13 P3：客户特殊工艺要求
     pub special_process: Option<String>,
+
+    /// batch-15 P3：客户来源（manual-手动录入、pool-公海、lead-线索转化、import-导入、api-接口）
+    pub source: Option<String>,
+
+    /// batch-15 P3：公海客户回收原因
+    pub pool_recycle_reason: Option<String>,
 }
 
 /// 客户 Relation
