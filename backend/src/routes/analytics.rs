@@ -105,6 +105,11 @@ pub fn scanner() -> Router<AppState> {
             "/scan-statistics",
             get(barcode_scanner_handler::scan_statistics),
         )
+        // batch-13 P3: 按匹号发货
+        .route(
+            "/ship-by-piece",
+            axum::routing::post(barcode_scanner_handler::ship_by_piece_no),
+        )
 }
 
 /// 报表增强路由（内部 path 已加 /templates、/fields 等子前缀）；整个 router 在 `routes()` 中用
