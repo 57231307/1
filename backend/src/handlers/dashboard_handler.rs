@@ -209,7 +209,7 @@ pub async fn get_system_resources(
     let db_result = state
         .db
         .as_ref()
-        .query_one(sea_orm::Statement::from_string(
+        .query_one(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             db_connections_sql.to_string(),
         ))
@@ -294,7 +294,7 @@ pub struct NetworkMetrics {
 
 /// GET /api/v1/erp/dashboard/network-metrics - 网络指标采集
 pub async fn get_network_metrics(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<NetworkMetrics>>, AppError> {
     // 从 Prometheus 指标获取网络数据
