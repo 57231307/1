@@ -367,3 +367,5 @@ pub mod color_card_issue_statistics_service;
 pub mod period_report_snapshot_service;
 pub mod aging_alert_rule_service;
 pub mod asset_category_service;
+// batch-17 P3: 日志冷数据归档
+pub mod log_archive_service;
