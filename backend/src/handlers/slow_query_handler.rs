@@ -301,6 +301,110 @@ pub async fn update_slow_query_optimization(
     Ok(Json(ApiResponse::success(updated.into())))
 }
 
+/// batch-17 P3: 慢查询周报查询参数
+#[derive(Debug, Deserialize)]
+pub struct WeeklyReportQuery {
+    pub weeks: Option<u32>,
+}
+
+/// batch-17 P3: 慢查询周报数据
+#[derive(Debug, Serialize)]
+pub struct SlowQueryWeeklyReport {
+    pub week_start: String,
+    pub week_end: String,
+    pub total_queries: i64,
+    pub new_queries: i64,
+    pub optimized_queries: i64,
+    pub avg_execution_time: f64,
+    pub top_queries: Vec<SlowQueryStatDto>,
+}
+
+/// GET /api/v1/erp/slow-queries/report/weekly - 慢查询周报
+pub async fn get_weekly_report(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(query): Query<WeeklyReportQuery>,
+) -> Result<Json<ApiResponse<SlowQueryWeeklyReport>>, AppError> {
+    tracing::debug!(user_id = auth.user_id, "慢查询周报查询");
+
+    let weeks = query.weeks.unwrap_or(1);
+    let now = chrono::Utc::now();
+    let week_start = now - chrono::Duration::weeks(weeks as i64);
+
+    // 查询本周慢查询统计
+    let total_queries = slow_query::Entity::find()
+        .filter(slow_query::Column::CreatedAt.gte(week_start))
+        .count(&*state.db)
+        .await
+        .map_err(|e| AppError::internal(format!("查询慢查询总数失败: {}", e)))?;
+
+    // 查询新增慢查询（本周首次出现的）
+    let new_queries = slow_query::Entity::find()
+        .filter(slow_query::Column::CreatedAt.gte(week_start))
+        .filter(slow_query::Column::OptimizationStatus.is_null())
+        .count(&*state.db)
+        .await
+        .map_err(|e| AppError::internal(format!("查询新增慢查询失败: {}", e)))?;
+
+    // 查询已优化的慢查询
+    let optimized_queries = slow_query::Entity::find()
+        .filter(slow_query::Column::CreatedAt.gte(week_start))
+        .filter(slow_query::Column::OptimizationStatus.eq("optimized"))
+        .count(&*state.db)
+        .await
+        .map_err(|e| AppError::internal(format!("查询已优化慢查询失败: {}", e)))?;
+
+    // 查询平均执行时间
+    let avg_sql = format!(
+        "SELECT COALESCE(AVG(mean_exec_time), 0) as avg_time FROM slow_queries WHERE created_at >= '{}'",
+        week_start.format("%Y-%m-%d %H:%M:%S")
+    );
+    let avg_result = state
+        .db
+        .query_one(Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            avg_sql,
+        ))
+        .await
+        .map_err(|e| AppError::internal(format!("查询平均执行时间失败: {}", e)))?;
+    let avg_execution_time = avg_result
+        .map(|r| r.try_get::<f64>("", "avg_time").unwrap_or(0.0))
+        .unwrap_or(0.0);
+
+    // 查询 TOP 10 慢查询
+    let top_queries_raw = slow_query::Entity::find()
+        .filter(slow_query::Column::CreatedAt.gte(week_start))
+        .order_by_desc(slow_query::Column::MeanExecTime)
+        .limit(10)
+        .all(&*state.db)
+        .await
+        .map_err(|e| AppError::internal(format!("查询 TOP 慢查询失败: {}", e)))?;
+
+    let top_queries: Vec<SlowQueryStatDto> = top_queries_raw
+        .into_iter()
+        .map(|q| SlowQueryStatDto {
+            query_pattern: q.query_pattern,
+            calls: q.calls,
+            mean_exec_time: q.mean_exec_time,
+            max_exec_time: q.max_exec_time,
+            total_exec_time: q.total_exec_time,
+            rows_affected: q.rows_affected,
+        })
+        .collect();
+
+    let report = SlowQueryWeeklyReport {
+        week_start: week_start.format("%Y-%m-%d").to_string(),
+        week_end: now.format("%Y-%m-%d").to_string(),
+        total_queries,
+        new_queries,
+        optimized_queries,
+        avg_execution_time,
+        top_queries,
+    };
+
+    Ok(Json(ApiResponse::success(report)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

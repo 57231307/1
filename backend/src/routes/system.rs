@@ -273,6 +273,11 @@ pub fn slow_queries() -> Router<AppState> {
             "/slow-queries/:id/optimization",
             axum::routing::put(slow_query_handler::update_slow_query_optimization),
         )
+        // batch-17 P3：慢查询周报端点
+        .route(
+            "/slow-queries/report/weekly",
+            get(slow_query_handler::get_weekly_report),
+        )
 }
 
 /// 初始化路由（/init，高危接口需 X-Init-Token 头校验）
