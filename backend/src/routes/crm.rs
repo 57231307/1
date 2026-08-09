@@ -25,7 +25,8 @@ use crate::handlers::{
     crm_assignment_handler, crm_customer_handler, crm_pool_handler, customer_address_handler,
     customer_credit_handler, customer_handler, customer_merge_handler,
     customer_transfer_approval_handler, five_dimension_handler, missing_handlers,
-    sales_analysis_handler,
+    opportunity_stage_handler, sales_analysis_handler,
+    conversion_time_handler,
 };
 
 /// 客户管理路由（path 前缀 /customers）

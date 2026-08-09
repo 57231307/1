@@ -1,5 +1,5 @@
 use axum::{extract::State, Json};
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
 use serde::Serialize;
 
 use crate::container::AppState;
