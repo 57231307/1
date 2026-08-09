@@ -76,7 +76,7 @@ pub async fn get_conversion_time_stats(
     let unconverted_count = crm_lead::Entity::find()
         .filter(crm_lead::Column::ConvertedAt.is_null())
         .count(&*state.db)
-        .await?;
+        .await? as i64;
 
     Ok(Json(ApiResponse::success(ConversionTimeStats {
         avg_conversion_days,
