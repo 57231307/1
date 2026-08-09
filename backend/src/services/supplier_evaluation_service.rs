@@ -1,4 +1,4 @@
-use crate::models::supplier_evaluation;
+use crate::models::supplier_evaluation_indicator;
 use crate::models::supplier_evaluation_record;
 // 批次 212 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
@@ -77,21 +77,21 @@ impl SupplierEvaluationService {
     pub async fn get_indicators_list(
         &self,
         params: EvaluationIndicatorQueryParams,
-    ) -> Result<(Vec<supplier_evaluation::Model>, u64), AppError> {
-        let mut query = supplier_evaluation::Entity::find();
+    ) -> Result<(Vec<supplier_evaluation_indicator::Model>, u64), AppError> {
+        let mut query = supplier_evaluation_indicator::Entity::find();
 
         if let Some(category) = &params.category {
-            query = query.filter(supplier_evaluation::Column::Category.eq(category));
+            query = query.filter(supplier_evaluation_indicator::Column::Category.eq(category));
         }
 
         if let Some(status) = &params.status {
-            query = query.filter(supplier_evaluation::Column::Status.eq(status));
+            query = query.filter(supplier_evaluation_indicator::Column::Status.eq(status));
         }
 
         let total = query.clone().count(&*self.db).await?;
 
         let indicators = query
-            .order_by(supplier_evaluation::Column::Id, Order::Desc)
+            .order_by(supplier_evaluation_indicator::Column::Id, Order::Desc)
             .offset((params.page.clamp(1, 1000).saturating_sub(1) * params.page_size) as u64)
             .limit(params.page_size as u64)
             .all(&*self.db)
@@ -104,12 +104,12 @@ impl SupplierEvaluationService {
         &self,
         req: CreateEvaluationIndicatorRequest,
         user_id: i32,
-    ) -> Result<supplier_evaluation::Model, AppError> {
+    ) -> Result<supplier_evaluation_indicator::Model, AppError> {
         info!("用户 {} 正在创建评估指标：{}", user_id, req.indicator_code);
 
         // 检查指标编码是否重复
-        let existing = supplier_evaluation::Entity::find()
-            .filter(supplier_evaluation::Column::IndicatorCode.eq(&req.indicator_code))
+        let existing = supplier_evaluation_indicator::Entity::find()
+            .filter(supplier_evaluation_indicator::Column::IndicatorCode.eq(&req.indicator_code))
             .one(&*self.db)
             .await?;
         if existing.is_some() {
@@ -119,7 +119,7 @@ impl SupplierEvaluationService {
             )));
         }
 
-        let active_indicator = supplier_evaluation::ActiveModel {
+        let active_indicator = supplier_evaluation_indicator::ActiveModel {
             indicator_name: Set(req.indicator_name),
             indicator_code: Set(req.indicator_code),
             category: Set(req.category),
@@ -158,7 +158,7 @@ impl SupplierEvaluationService {
         }
 
         // 查询指标信息以获取权重和满分
-        let indicator = supplier_evaluation::Entity::find_by_id(req.indicator_id)
+        let indicator = supplier_evaluation_indicator::Entity::find_by_id(req.indicator_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| {
@@ -241,8 +241,8 @@ impl SupplierEvaluationService {
     ) -> Result<HashMap<i32, Decimal>, AppError> {
         let indicator_ids: std::collections::HashSet<i32> =
             records.iter().map(|r| r.indicator_id).collect();
-        Ok(supplier_evaluation::Entity::find()
-            .filter(supplier_evaluation::Column::Id.is_in(indicator_ids.iter().cloned()))
+        Ok(supplier_evaluation_indicator::Entity::find()
+            .filter(supplier_evaluation_indicator::Column::Id.is_in(indicator_ids.iter().cloned()))
             .all(db)
             .await?
             .into_iter()
@@ -305,11 +305,11 @@ impl SupplierEvaluationService {
         &self,
         page: u64,
         page_size: u64,
-    ) -> Result<(Vec<supplier_evaluation::Model>, u64), AppError> {
+    ) -> Result<(Vec<supplier_evaluation_indicator::Model>, u64), AppError> {
         info!("查询供应商评级列表，页码：{}，每页：{}", page, page_size);
         // 批次 258 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
-        let paginator = supplier_evaluation::Entity::find()
-            .order_by(supplier_evaluation::Column::Id, Order::Desc)
+        let paginator = supplier_evaluation_indicator::Entity::find()
+            .order_by(supplier_evaluation_indicator::Column::Id, Order::Desc)
             .paginate(&*self.db, page_size);
 
         let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
@@ -334,8 +334,8 @@ impl SupplierEvaluationService {
         records: &[supplier_evaluation_record::Model],
     ) -> Result<HashMap<i32, Decimal>, AppError> {
         let ids: std::collections::HashSet<i32> = records.iter().map(|r| r.indicator_id).collect();
-        Ok(supplier_evaluation::Entity::find()
-            .filter(supplier_evaluation::Column::Id.is_in(ids.iter().cloned()))
+        Ok(supplier_evaluation_indicator::Entity::find()
+            .filter(supplier_evaluation_indicator::Column::Id.is_in(ids.iter().cloned()))
             .all(&*self.db)
             .await?
             .into_iter()
@@ -536,8 +536,8 @@ impl SupplierEvaluationService {
         let today = now.date_naive();
 
         // 查询所有活跃的评估指标
-        let indicators = supplier_evaluation::Entity::find()
-            .filter(supplier_evaluation::Column::Status.eq(master_data::ACTIVE))
+        let indicators = supplier_evaluation_indicator::Entity::find()
+            .filter(supplier_evaluation_indicator::Column::Status.eq(master_data::ACTIVE))
             .all(&*self.db)
             .await?;
 
