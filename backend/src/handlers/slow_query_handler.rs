@@ -531,12 +531,11 @@ pub async fn get_weekly_report(
     let top_queries: Vec<SlowQueryStatDto> = top_queries_raw
         .into_iter()
         .map(|q| SlowQueryStatDto {
-            query_pattern: q.query_pattern,
-            calls: q.calls,
-            mean_exec_time: q.mean_exec_time,
-            max_exec_time: q.max_exec_time,
-            total_exec_time: q.total_exec_time,
-            rows_affected: q.rows_affected,
+            query_text: q.query_text,
+            max_exec_time_ms: q.execution_time_ms,
+            total_calls: q.calls,
+            avg_rows: q.rows_examined as f64,
+            sample_count: 1,
         })
         .collect();
 

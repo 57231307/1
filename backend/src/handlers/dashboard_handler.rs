@@ -254,7 +254,7 @@ pub async fn warmup_cache(
 
     // 预热仪表盘概览数据
     let dashboard_service = DashboardService::new(state.db.clone(), state.cache.clone());
-    if let Ok(_overview) = dashboard_service.get_overview().await {
+    if let Ok(_overview) = dashboard_service.get_overview(None, None).await {
         warmed_up_keys.push("dashboard_overview".to_string());
     }
 
