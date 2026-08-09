@@ -423,6 +423,8 @@ pub fn outsourcing() -> Router<AppState> {
         // ===== 委外打印路由 =====
         .route("/outsourcing-orders/:id/print", get(print_handler::outsourcing_order_print_docx))
         .route("/outsourcing-receipts/:id/print", get(print_handler::outsourcing_receipt_print_docx))
+        // ===== batch-13 P3: 委外加工报表 =====
+        .route("/outsourcing-orders/report", get(outsourcing_handler::get_outsourcing_report))
 }
 
 /// 多业务模式支持路由（path 前缀 /business-modes、/business-mode-links）；v14 批次 431：多业务模式支持 依据：面料行业真实业务调研文档 §6 业务模式 6 种 真实业务：6 种典型业务模式（坯布经销/成品经销/染整加工/自织自染/委托加工/来料加工） 贯穿采购/库存/生产/委外/销售/结算全链路 路由分组： -

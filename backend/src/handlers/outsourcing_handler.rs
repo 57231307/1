@@ -393,3 +393,40 @@ pub async fn delete_outsourcing_voucher(
     voucher_service(&state).delete(id).await?;
     Ok(Json(ApiResponse::success(())))
 }
+
+/// GET /api/v1/erp/outsourcing-orders/report - 委外加工报表
+/// batch-13 P3: 委外加工报表
+pub async fn get_outsourcing_report(
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+
+    // 统计各状态的委外订单数量
+    let orders = outsourcing_order::Entity::find()
+        .all(&*state.db)
+        .await?;
+
+    let total_orders = orders.len() as i64;
+    let draft_orders = orders.iter().filter(|o| o.status == "draft").count() as i64;
+    let issued_orders = orders.iter().filter(|o| o.status == "issued").count() as i64;
+    let processing_orders = orders.iter().filter(|o| o.status == "processing").count() as i64;
+    let received_orders = orders.iter().filter(|o| o.status == "received").count() as i64;
+    let settled_orders = orders.iter().filter(|o| o.status == "settled").count() as i64;
+    let closed_orders = orders.iter().filter(|o| o.status == "closed").count() as i64;
+
+    // 统计总金额
+    let total_amount: rust_decimal::Decimal = orders.iter().map(|o| o.total_amount.unwrap_or_default()).sum();
+
+    let report = serde_json::json!({
+        "total_orders": total_orders,
+        "draft_orders": draft_orders,
+        "issued_orders": issued_orders,
+        "processing_orders": processing_orders,
+        "received_orders": received_orders,
+        "settled_orders": settled_orders,
+        "closed_orders": closed_orders,
+        "total_amount": total_amount,
+    });
+
+    Ok(Json(ApiResponse::success(report)))
+}
