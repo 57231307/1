@@ -11,6 +11,7 @@ import {
   type SalesOrderQueryParams,
 } from '@/api/sales';
 import { logger } from '@/utils/logger';
+import { msg } from '@/utils/message';
 
 export const useSalesStore = defineStore('sales', () => {
   const orders = ref<SalesOrder[]>([]);
@@ -29,6 +30,7 @@ export const useSalesStore = defineStore('sales', () => {
       }
     } catch (error) {
       logger.error('获取订单列表失败:', error);
+      msg.error('sales.fetchFailed');
     } finally {
       loading.value = false;
     }
@@ -45,6 +47,7 @@ export const useSalesStore = defineStore('sales', () => {
       return null;
     } catch (error) {
       logger.error('获取订单详情失败:', error);
+      msg.error('sales.fetchDetailFailed');
       return null;
     }
   };

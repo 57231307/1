@@ -9,6 +9,7 @@ import {
   type InventoryQueryParams,
 } from '@/api/inventory';
 import { logger } from '@/utils/logger';
+import { msg } from '@/utils/message';
 
 export const useInventoryStore = defineStore('inventory', () => {
   const stocks = ref<InventoryStock[]>([]);
@@ -27,6 +28,7 @@ export const useInventoryStore = defineStore('inventory', () => {
       }
     } catch (error) {
       logger.error('获取库存列表失败:', error);
+      msg.error('inventory.fetchFailed');
     } finally {
       loading.value = false;
     }
@@ -39,6 +41,7 @@ export const useInventoryStore = defineStore('inventory', () => {
       if (res.data) alerts.value = res.data;
     } catch (error) {
       logger.error('获取库存预警失败:', error);
+      msg.error('inventory.fetchAlertsFailed');
     }
   };
 
