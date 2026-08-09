@@ -318,6 +318,11 @@ pub fn slow_queries() -> Router<AppState> {
             "/slow-queries/report/weekly",
             get(slow_query_handler::get_weekly_report),
         )
+        // batch-17 P3: 慢查询摘要端点
+        .route(
+            "/slow-queries/summary",
+            get(slow_query_handler::get_slow_query_summary),
+        )
 }
 
 /// 初始化路由（/init，高危接口需 X-Init-Token 头校验）

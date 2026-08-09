@@ -210,6 +210,147 @@ pub async fn get_slow_query_stats(
     })))
 }
 
+/// batch-17 P3: 慢查询摘要数据
+#[derive(Debug, Serialize)]
+pub struct SlowQuerySummary {
+    pub total_queries: i64,
+    pub queries_today: i64,
+    pub avg_execution_time: f64,
+    pub max_execution_time: f64,
+    pub most_frequent_query: Option<String>,
+    pub optimization_status: OptimizationStatusSummary,
+}
+
+/// 优化状态摘要
+#[derive(Debug, Serialize)]
+pub struct OptimizationStatusSummary {
+    pub pending: i64,
+    pub in_progress: i64,
+    pub optimized: i64,
+    pub ignored: i64,
+}
+
+/// GET /api/v1/erp/slow-queries/summary - 慢查询摘要
+pub async fn get_slow_query_summary(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<SlowQuerySummary>>, AppError> {
+    // 查询总数
+    let total_sql = "SELECT COUNT(*) as total FROM slow_queries";
+    let total_result = state
+        .db
+        .query_one(Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            total_sql.to_string(),
+        ))
+        .await
+        .map_err(|e| AppError::internal(format!("查询慢查询总数失败: {}", e)))?;
+    let total_queries = total_result
+        .and_then(|r| r.try_get::<i64>("", "total").ok())
+        .unwrap_or(0);
+
+    // 查询今日新增
+    let today_sql = "SELECT COUNT(*) as today FROM slow_queries WHERE created_at >= CURRENT_DATE";
+    let today_result = state
+        .db
+        .query_one(Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            today_sql.to_string(),
+        ))
+        .await
+        .map_err(|e| AppError::internal(format!("查询今日慢查询失败: {}", e)))?;
+    let queries_today = today_result
+        .and_then(|r| r.try_get::<i64>("", "today").ok())
+        .unwrap_or(0);
+
+    // 查询平均执行时间
+    let avg_sql = "SELECT COALESCE(AVG(mean_exec_time), 0) as avg_time FROM slow_queries";
+    let avg_result = state
+        .db
+        .query_one(Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            avg_sql.to_string(),
+        ))
+        .await
+        .map_err(|e| AppError::internal(format!("查询平均执行时间失败: {}", e)))?;
+    let avg_execution_time = avg_result
+        .and_then(|r| r.try_get::<f64>("", "avg_time").ok())
+        .unwrap_or(0.0);
+
+    // 查询最大执行时间
+    let max_sql = "SELECT COALESCE(MAX(max_exec_time), 0) as max_time FROM slow_queries";
+    let max_result = state
+        .db
+        .query_one(Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            max_sql.to_string(),
+        ))
+        .await
+        .map_err(|e| AppError::internal(format!("查询最大执行时间失败: {}", e)))?;
+    let max_execution_time = max_result
+        .and_then(|r| r.try_get::<f64>("", "max_time").ok())
+        .unwrap_or(0.0);
+
+    // 查询最频繁的查询
+    let frequent_sql = "SELECT query_text FROM slow_queries GROUP BY query_text ORDER BY COUNT(*) DESC LIMIT 1";
+    let frequent_result = state
+        .db
+        .query_one(Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            frequent_sql.to_string(),
+        ))
+        .await
+        .map_err(|e| AppError::internal(format!("查询最频繁查询失败: {}", e)))?;
+    let most_frequent_query = frequent_result
+        .and_then(|r| r.try_get::<String>("", "query_text").ok());
+
+    // 查询优化状态统计
+    let status_sql = "SELECT \
+        COUNT(CASE WHEN optimization_status IS NULL OR optimization_status = 'pending' THEN 1 END) as pending, \
+        COUNT(CASE WHEN optimization_status = 'in_progress' THEN 1 END) as in_progress, \
+        COUNT(CASE WHEN optimization_status = 'optimized' THEN 1 END) as optimized, \
+        COUNT(CASE WHEN optimization_status = 'ignored' THEN 1 END) as ignored \
+        FROM slow_queries";
+    let status_result = state
+        .db
+        .query_one(Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            status_sql.to_string(),
+        ))
+        .await
+        .map_err(|e| AppError::internal(format!("查询优化状态失败: {}", e)))?;
+
+    let optimization_status = OptimizationStatusSummary {
+        pending: status_result
+            .as_ref()
+            .and_then(|r| r.try_get::<i64>("", "pending").ok())
+            .unwrap_or(0),
+        in_progress: status_result
+            .as_ref()
+            .and_then(|r| r.try_get::<i64>("", "in_progress").ok())
+            .unwrap_or(0),
+        optimized: status_result
+            .as_ref()
+            .and_then(|r| r.try_get::<i64>("", "optimized").ok())
+            .unwrap_or(0),
+        ignored: status_result
+            .as_ref()
+            .and_then(|r| r.try_get::<i64>("", "ignored").ok())
+            .unwrap_or(0),
+    };
+
+    let summary = SlowQuerySummary {
+        total_queries,
+        queries_today,
+        avg_execution_time,
+        max_execution_time,
+        most_frequent_query,
+        optimization_status,
+    };
+
+    Ok(Json(ApiResponse::success(summary)))
+}
+
 /// POST /api/v1/erp/slow-queries/refresh；手动触发一次慢查询采集（用于前端"刷新"按钮）；返回：插入条数 + 提示信息
 pub async fn refresh_slow_queries(
     State(state): State<AppState>,
