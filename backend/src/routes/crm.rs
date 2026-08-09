@@ -75,6 +75,11 @@ pub fn customers() -> Router<AppState> {
             "/leads/conversion-stats",
             axum::routing::get(conversion_time_handler::get_conversion_time_stats),
         )
+        // batch-14 P3: 商机阶段停留时长统计
+        .route(
+            "/opportunities/stage-stats",
+            axum::routing::get(opportunity_stage_handler::get_opportunity_stage_stats),
+        )
 }
 
 /// 客户信用路由（path 前缀 /customer-credits）

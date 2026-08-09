@@ -226,3 +226,5 @@ pub mod industry_benchmark_handler;
 pub mod customer_merge_handler;
 // batch-15 P3：转化耗时分析
 pub mod conversion_time_handler;
+// batch-14 P3: 人工复核状态机不完整
+pub mod opportunity_stage_handler;
