@@ -11,13 +11,13 @@
 <script setup lang="ts">
 /**
  * BaseChart 组件 - ECharts 图表基础组件
- * 
+ *
  * 所有图表组件（LineChart、BarChart、PieChart）的基类，提供：
  * - 自动响应式调整
  * - 加载状态显示
  * - ARIA 无障碍支持
  * - 国际化图表标题
- * 
+ *
  * @example
  * <BaseChart :option="chartOption" height="400px" />
  */
