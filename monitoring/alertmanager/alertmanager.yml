@@ -51,13 +51,13 @@ receivers:
         send_resolved: true
         require_tls: true
     # 企业微信 webhook（可选）
-    # webhook_configs:
-    #   - url: 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=YOUR_KEY'
-    #     send_resolved: true
+    webhook_configs:
+      - url: 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=YOUR_KEY'
+        send_resolved: true
     # 钉钉 webhook（可选）
-    # webhook_configs:
-    #   - url: 'https://oapi.dingtalk.com/robot/send?access_token=YOUR_TOKEN'
-    #     send_resolved: true
+    webhook_configs:
+      - url: 'https://oapi.dingtalk.com/robot/send?access_token=YOUR_TOKEN'
+        send_resolved: true
 
   # 警告告警接收者（Warning）
   - name: 'warning-alerts'
