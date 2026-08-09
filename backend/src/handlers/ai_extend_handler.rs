@@ -97,6 +97,17 @@ pub async fn create_process_optimization(
 
     let svc = AiExtendService::new(state.db);
     let (resp, id) = svc.create_process_optimization(dto).await?;
+
+    // batch-14 P3: AI 操作审计 - 区分敏感操作
+    tracing::info!(
+        target: "ai_audit",
+        user_id = auth.user_id,
+        operation = "create_process_optimization",
+        sensitivity = "medium",
+        resource_id = id,
+        "AI 工艺优化请求"
+    );
+
     Ok(Json(ApiResponse::success(serde_json::json!({
         "id": id,
         "response": resp,
