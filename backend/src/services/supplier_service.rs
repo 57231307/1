@@ -1121,4 +1121,47 @@ impl SupplierService {
 
         Ok(abnormal_orders)
     }
+
+    /// batch-13 P3: 供货历史查询
+    pub async fn get_supplier_purchase_history(
+        &self,
+        supplier_id: i32,
+        limit: Option<u64>,
+    ) -> Result<Vec<PurchaseHistoryItem>, AppError> {
+        use crate::models::purchase_order::{self, Entity as PurchaseOrderEntity};
+
+        let limit = limit.unwrap_or(50).min(200);
+
+        let orders = PurchaseOrderEntity::find()
+            .filter(purchase_order::Column::SupplierId.eq(supplier_id))
+            .order_by_desc(purchase_order::Column::OrderDate)
+            .limit(limit)
+            .all(&*self.db)
+            .await?;
+
+        let history: Vec<PurchaseHistoryItem> = orders
+            .into_iter()
+            .map(|o| PurchaseHistoryItem {
+                order_id: o.id,
+                order_no: o.order_no,
+                order_date: o.order_date.to_string(),
+                total_amount: o.total_amount,
+                status: o.order_status,
+                item_count: 0, // TODO: 查询明细数量
+            })
+            .collect();
+
+        Ok(history)
+    }
+}
+
+/// 供货历史记录
+#[derive(Debug, Serialize)]
+pub struct PurchaseHistoryItem {
+    pub order_id: i32,
+    pub order_no: String,
+    pub order_date: String,
+    pub total_amount: Decimal,
+    pub status: String,
+    pub item_count: i32,
 }

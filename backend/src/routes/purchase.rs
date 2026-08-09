@@ -317,6 +317,11 @@ pub fn suppliers() -> Router<AppState> {
             "/suppliers/abnormal-orders",
             get(supplier_handler::detect_abnormal_orders),
         )
+        // batch-13 P3: 供货历史查询
+        .route(
+            "/suppliers/:id/purchase-history",
+            get(supplier_handler::get_supplier_purchase_history),
+        )
         .route(
             "/suppliers/:id/status",
             post(supplier_handler::toggle_supplier_status),
