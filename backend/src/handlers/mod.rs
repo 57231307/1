@@ -216,3 +216,5 @@ pub mod inventory_write_down_handler;
 pub mod period_report_snapshot_handler;
 pub mod aging_alert_rule_handler;
 pub mod asset_category_handler;
+// batch-13 P3：客户多地址支持
+pub mod customer_address_handler;

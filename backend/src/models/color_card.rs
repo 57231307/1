@@ -22,6 +22,12 @@ pub struct Model {
     pub stock_quantity: i32,
     /// V15 P0-F10：已发放数量（与发放记录聚合保持一致）
     pub issued_quantity: i32,
+    /// batch-13 P3：染色能力（reactive/acid/disperse/direct/vat）
+    pub dyeing_capability: Option<String>,
+    /// batch-13 P3：印花能力（screen/digital/transfer/block）
+    pub printing_capability: Option<String>,
+    /// batch-13 P3：色牢度等级（A/B/C/D）
+    pub color_fastness_grade: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

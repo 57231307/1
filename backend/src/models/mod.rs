@@ -441,3 +441,5 @@ pub mod environmental_assessment;
 pub mod female_worker_protection;
 pub mod operation_certificate;
 pub mod safety_accident_report;
+// batch-13 P3：客户多地址支持
+pub mod customer_address;

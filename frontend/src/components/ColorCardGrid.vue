@@ -49,6 +49,8 @@ defineProps<{ items: ColorItemInfo[] }>();
 defineEmits<{
   (e: 'scan', item: ColorItemInfo): void;
   (e: 'delete', item: ColorItemInfo): void;
+  (e: 'edit', item: ColorItemInfo): void;
+  (e: 'select', item: ColorItemInfo): void;
 }>();
 </script>
 
