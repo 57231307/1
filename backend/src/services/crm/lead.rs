@@ -447,6 +447,10 @@ impl CrmService {
         if let Some(v) = req.tags {
             lead_active.tags = Set(Some(v));
         }
+        // batch-15 P3: 线索自定义字段
+        if let Some(v) = req.custom_fields {
+            lead_active.custom_fields = Set(Some(v));
+        }
     }
 
     /// 删除线索

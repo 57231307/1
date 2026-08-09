@@ -58,3 +58,5 @@ pub mod docx_export;
 pub mod export_concurrency;
 // 批次 404 新增：CRUD 通用业务消息常量（集中管理 handler 层硬编码中文消息）
 pub mod messages;
+// batch-17 P3: 迁移跳跃检测
+pub mod migration_jump_detector;

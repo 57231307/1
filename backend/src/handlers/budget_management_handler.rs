@@ -879,3 +879,21 @@ pub async fn approve_budget_version(
         "data": version
     })))
 }
+
+/// GET /api/v1/erp/budgets/assessment - 预算考核报表
+/// batch-15 P3: 预算考核报表
+pub async fn get_budget_assessment(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let service = BudgetManagementService::new(state.db.clone());
+
+    // 获取预算执行汇总
+    let summary = service.get_budget_summary().await?;
+
+    Ok(Json(serde_json::json!({
+        "code": 200,
+        "message": "success",
+        "data": summary
+    })))
+}

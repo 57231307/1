@@ -337,6 +337,11 @@ fn budget_master_routes() -> Router<AppState> {
             "/budgets/adjust/:id/approve",
             post(budget_management_handler::approve_adjustment),
         )
+        // batch-15 P3: 预算考核报表
+        .route(
+            "/budgets/assessment",
+            get(budget_management_handler::get_budget_assessment),
+        )
         .route(
             "/budgets/adjust/:id/reject",
             post(budget_management_handler::reject_adjustment),

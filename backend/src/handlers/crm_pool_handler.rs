@@ -192,10 +192,13 @@ pub async fn recycle_to_pool(
 
     // 记录回收日志
     tracing::info!(
-        "用户 {} 回收客户 {} 到公海，原因: {:?}",
-        auth.username,
-        updated_lead.id,
-        req.reason
+        target: "crm_audit",
+        user_id = auth.user_id,
+        username = %auth.username,
+        lead_id = req.lead_id,
+        reason = ?req.reason,
+        source = "pool_recycle",
+        "客户回收到公海"
     );
 
     Ok(Json(ApiResponse::success_with_message(

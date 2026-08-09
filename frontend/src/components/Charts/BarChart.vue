@@ -12,6 +12,22 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * BarChart 组件 - 柱状图组件
+ *
+ * 基于 ECharts 的柱状图封装，支持：
+ * - 水平/垂直柱状图
+ * - 堆叠模式
+ * - dataZoom 缩放
+ * - 自定义标签显示
+ *
+ * @example
+ * <BarChart
+ *   :x-axis-data="['周一', '周二', '周三']"
+ *   :series="[{ name: '销量', data: [120, 200, 150] }]"
+ *   height="400px"
+ * />
+ */
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { EChartsOption, ECharts } from 'echarts';
