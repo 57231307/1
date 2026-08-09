@@ -61,6 +61,31 @@ pub fn dashboard() -> Router<AppState> {
             get(dashboard_handler::get_dashboard_layout)
                 .put(dashboard_handler::save_dashboard_layout),
         )
+        // batch-17 P3: 系统资源看板端点
+        .route(
+            "/dashboard/system-resources",
+            get(dashboard_handler::get_system_resources),
+        )
+        // batch-21 P3: 缓存预热端点
+        .route(
+            "/dashboard/cache/warmup",
+            post(dashboard_handler::warmup_cache),
+        )
+        // batch-17 P3: 网络指标采集端点
+        .route(
+            "/dashboard/network-metrics",
+            get(dashboard_handler::get_network_metrics),
+        )
+        // batch-15 P3: 账龄档位配置端点
+        .route(
+            "/dashboard/aging-config",
+            get(dashboard_handler::get_aging_config),
+        )
+        // batch-15 P3: 行业基准配置端点
+        .route(
+            "/dashboard/industry-benchmark",
+            get(dashboard_handler::get_industry_benchmark),
+        )
 }
 
 /// 系统更新路由（path 前缀 /system-update）
@@ -106,6 +131,21 @@ pub fn system_update() -> Router<AppState> {
         .route(
             "/system-update/upload",
             post(system_update_handler::upload_and_update),
+        )
+        // batch-21 P3: 配置热更新端点
+        .route(
+            "/system-update/config/reload",
+            post(system_update_handler::reload_config),
+        )
+        // batch-21 P3: RTO/RPO 配置查询
+        .route(
+            "/system-update/rto-rpo",
+            get(system_update_handler::get_rto_rpo_config),
+        )
+        // batch-21 P3: 部署历史查询
+        .route(
+            "/system-update/deployment-history",
+            get(system_update_handler::get_deployment_history),
         )
 }
 
@@ -272,6 +312,16 @@ pub fn slow_queries() -> Router<AppState> {
         .route(
             "/slow-queries/:id/optimization",
             axum::routing::put(slow_query_handler::update_slow_query_optimization),
+        )
+        // batch-17 P3：慢查询周报端点
+        .route(
+            "/slow-queries/report/weekly",
+            get(slow_query_handler::get_weekly_report),
+        )
+        // batch-17 P3: 慢查询摘要端点
+        .route(
+            "/slow-queries/summary",
+            get(slow_query_handler::get_slow_query_summary),
         )
 }
 

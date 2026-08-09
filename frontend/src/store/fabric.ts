@@ -13,6 +13,7 @@ import {
 } from '@/api/fabric';
 import type { ApiResponse } from '@/types/api';
 import { logger } from '@/utils/logger';
+import { msg } from '@/utils/message';
 
 export const useFabricStore = defineStore('fabric', () => {
   const fabrics = ref<Fabric[]>([]);
@@ -32,6 +33,7 @@ export const useFabricStore = defineStore('fabric', () => {
       }
     } catch (error) {
       logger.error('获取面料列表失败:', error);
+      msg.error('fabric.fetchFailed');
     } finally {
       loading.value = false;
     }
@@ -44,6 +46,7 @@ export const useFabricStore = defineStore('fabric', () => {
       if (res.data) categories.value = res.data;
     } catch (error) {
       logger.error('获取面料分类失败:', error);
+      msg.error('fabric.fetchCategoriesFailed');
     }
   };
 

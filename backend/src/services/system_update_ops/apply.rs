@@ -95,6 +95,14 @@ impl SystemUpdateService {
         // batch-17 P3: 记录版本更新日志
         self.log_update(&format!("版本更新记录: {} -> {}", current_version, new_version));
 
+        // batch-21 P3: 升级通知机制 - 记录升级事件
+        tracing::info!(
+            event = "SYSTEM_UPGRADE",
+            from_version = %current_version,
+            to_version = %new_version,
+            "系统升级完成通知"
+        );
+
         self.cleanup_old_backups();
 
         Ok(format!("系统已成功更新到版本 {}", new_version))

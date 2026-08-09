@@ -285,6 +285,11 @@ pub fn purchase_prices() -> Router<AppState> {
             "/purchase-prices/:id/approve",
             post(purchase_price_handler::approve_price),
         )
+        // batch-13 P3: 价格清单导入
+        .route(
+            "/purchase-prices/import",
+            post(purchase_price_handler::import_prices),
+        )
         .route(
             "/purchase-prices/:id/history",
             get(purchase_price_handler::get_price_history),
@@ -316,6 +321,11 @@ pub fn suppliers() -> Router<AppState> {
         .route(
             "/suppliers/abnormal-orders",
             get(supplier_handler::detect_abnormal_orders),
+        )
+        // batch-13 P3: 供货历史查询
+        .route(
+            "/suppliers/:id/purchase-history",
+            get(supplier_handler::get_supplier_purchase_history),
         )
         .route(
             "/suppliers/:id/status",

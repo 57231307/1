@@ -9,6 +9,18 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * BaseChart 组件 - ECharts 图表基础组件
+ *
+ * 所有图表组件（LineChart、BarChart、PieChart）的基类，提供：
+ * - 自动响应式调整
+ * - 加载状态显示
+ * - ARIA 无障碍支持
+ * - 国际化图表标题
+ *
+ * @example
+ * <BaseChart :option="chartOption" height="400px" />
+ */
 import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue';
 import echarts from '@/utils/echarts';
 import type { ECharts, EChartsOption } from '@/utils/echarts';
@@ -16,11 +28,17 @@ import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n({ useScope: 'global' });
 
+/** BaseChart 组件属性 */
 interface Props {
+  /** ECharts 配置选项 */
   option?: EChartsOption;
+  /** 图表高度，默认 400px */
   height?: string;
+  /** 是否显示加载状态 */
   loading?: boolean;
+  /** 是否自动响应容器大小变化 */
   autoResize?: boolean;
+  /** 图表描述（用于无障碍访问） */
   alt?: string;
 }
 

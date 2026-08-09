@@ -521,3 +521,26 @@ pub async fn detect_abnormal_orders(
 pub struct AbnormalOrderQuery {
     pub threshold_ratio: Option<f64>,
 }
+
+/// batch-13 P3: 供货历史查询参数
+#[derive(Debug, Deserialize)]
+pub struct PurchaseHistoryQuery {
+    pub limit: Option<u64>,
+}
+
+/// batch-13 P3: 供货历史查询端点
+/// GET /api/v1/erp/suppliers/:id/purchase-history
+pub async fn get_supplier_purchase_history(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+    Query(params): Query<PurchaseHistoryQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    tracing::debug!(user_id = auth.user_id, supplier_id = id, "查询供货历史");
+    let service = SupplierService::new(state.db.clone());
+    let history = service.get_supplier_purchase_history(id, params.limit).await?;
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "history": history,
+        "total": history.len(),
+    }))))
+}

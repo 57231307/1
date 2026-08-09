@@ -180,3 +180,86 @@ pub async fn get_price_history_by_product(
 
     Ok(Json(ApiResponse::success(history)))
 }
+
+/// batch-13 P3: 价格清单导入请求
+#[derive(Debug, Deserialize)]
+pub struct ImportPriceRequest {
+    pub prices: Vec<ImportPriceItem>,
+}
+
+/// batch-13 P3: 价格清单导入项
+#[derive(Debug, Deserialize)]
+pub struct ImportPriceItem {
+    pub product_id: i32,
+    pub supplier_id: i32,
+    pub price: String,
+    pub currency: Option<String>,
+    pub effective_date: Option<String>,
+    pub expiry_date: Option<String>,
+}
+
+/// batch-13 P3: 价格清单导入响应
+#[derive(Debug, serde::Serialize)]
+pub struct ImportPriceResponse {
+    pub success_count: u32,
+    pub failed_count: u32,
+    pub errors: Vec<String>,
+}
+
+/// POST /api/v1/erp/purchase-prices/import - 价格清单导入
+pub async fn import_prices(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(request): Json<ImportPriceRequest>,
+) -> Result<Json<ApiResponse<ImportPriceResponse>>, AppError> {
+    info!(
+        "用户 {} 正在导入价格清单，共 {} 条",
+        auth.user_id,
+        request.prices.len()
+    );
+
+    let service = PurchasePriceService::new(state.db.clone());
+    let mut success_count = 0;
+    let mut failed_count = 0;
+    let mut errors = Vec::new();
+
+    for (index, item) in request.prices.iter().enumerate() {
+        let price = match item.price.parse::<rust_decimal::Decimal>() {
+            Ok(p) => p,
+            Err(_) => {
+                failed_count += 1;
+                errors.push(format!("第 {} 条价格格式错误: {}", index + 1, item.price));
+                continue;
+            }
+        };
+
+        let input = CreatePurchasePriceInput {
+            product_id: item.product_id,
+            supplier_id: item.supplier_id,
+            price,
+            currency: item.currency.clone(),
+            min_order_qty: None,
+            effective_date: item.effective_date.clone(),
+            expiry_date: item.expiry_date.clone(),
+        };
+
+        match service.create_price(input, auth.user_id).await {
+            Ok(_) => success_count += 1,
+            Err(e) => {
+                failed_count += 1;
+                errors.push(format!("第 {} 条导入失败: {}", index + 1, e));
+            }
+        }
+    }
+
+    info!(
+        "价格清单导入完成: 成功 {}, 失败 {}",
+        success_count, failed_count
+    );
+
+    Ok(Json(ApiResponse::success(ImportPriceResponse {
+        success_count,
+        failed_count,
+        errors,
+    })))
+}
