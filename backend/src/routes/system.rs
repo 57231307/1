@@ -293,6 +293,11 @@ pub fn audit_logs() -> Router<AppState> {
             "/audit-logs/export-logs",
             get(audit_log_handler::list_audit_log_export_logs),
         )
+        // batch-13 P3: 审计日志摘要统计
+        .route(
+            "/audit-logs/summary",
+            get(audit_log_handler::get_audit_log_summary),
+        )
 }
 
 /// 慢查询审计路由（/slow-queries：列表/统计/手动采集/优化状态更新）

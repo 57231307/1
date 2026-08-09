@@ -206,6 +206,10 @@ impl ImportExportService {
             // V15 P0-S08 修复：导入客户时业务负责人默认为操作人
             owner_id: Set(user_id),
             owner_assigned_at: Set(Some(now)),
+            // batch-13 P3：客户特殊工艺和来源字段
+            special_process: Set(None),
+            source: Set(Some("import".to_string())),
+            pool_recycle_reason: Set(None),
         };
 
         active_model.insert(&*self.db).await?;

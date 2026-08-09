@@ -139,6 +139,45 @@ pub async fn scan_inventory(
     }))))
 }
 
+/// 按匹号发货请求
+#[derive(Deserialize)]
+pub struct ShipByPieceNoRequest {
+    pub piece_no: String,
+    pub _order_id: i32,
+}
+
+/// POST /api/v1/erp/barcode/ship-by-piece - 按匹号发货
+/// batch-13 P3: 按匹号发货
+pub async fn ship_by_piece_no(
+    State(state): State<AppState>,
+    Json(req): Json<ShipByPieceNoRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let txn = state.db.begin().await?;
+
+    let piece = inventory_piece::Entity::find()
+        .filter(inventory_piece::Column::PieceNo.eq(&req.piece_no))
+        .one(&txn)
+        .await?
+        .ok_or_else(|| AppError::not_found("未找到该匹号对应的布卷"))?;
+
+    if piece.status == piece_status::SHIPPED {
+        return Err(AppError::bad_request("该布卷已发货"));
+    }
+
+    let mut active_piece: inventory_piece::ActiveModel = piece.clone().into();
+    active_piece.status = Set(piece_status::SHIPPED.to_string());
+    active_piece.updated_at = Set(Utc::now());
+    active_piece.update(&txn).await?;
+
+    txn.commit().await?;
+
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "message": "布卷按匹号发货成功",
+        "piece_no": req.piece_no,
+        "barcode": piece.barcode
+    }))))
+}
+
 /// 扫码历史记录：分页查询已扫码的布卷
 pub async fn scan_history(
     State(state): State<AppState>,

@@ -118,6 +118,9 @@ pub struct Model {
 
     /// 更新人 ID
     pub updated_by: Option<i32>,
+
+    /// batch-15 P3：自定义字段（JSON 格式，用于扩展性）
+    pub custom_fields: Option<serde_json::Value>,
 }
 
 /// CRM 线索关联关系

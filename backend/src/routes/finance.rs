@@ -1117,13 +1117,15 @@ fn aging_alert_rules() -> Router<AppState> {
             get(crate::handlers::aging_alert_rule_handler::list_rules)
                 .post(crate::handlers::aging_alert_rule_handler::create_rule),
         )
-        .route(
-            "/aging-alert-rules/:id",
-            get(crate::handlers::aging_alert_rule_handler::get_rule)
-                .put(crate::handlers::aging_alert_rule_handler::update_rule)
-                .delete(crate::handlers::aging_alert_rule_handler::delete_rule),
-        )
-        .merge(asset_categories())
+         .route(
+             "/aging-alert-rules/:id",
+             get(crate::handlers::aging_alert_rule_handler::get_rule)
+                 .put(crate::handlers::aging_alert_rule_handler::update_rule)
+                 .delete(crate::handlers::aging_alert_rule_handler::delete_rule),
+         )
+         .merge(asset_categories())
+         .merge(aging_grades())
+         .merge(industry_benchmarks())
 }
 
 fn asset_categories() -> Router<AppState> {
@@ -1138,5 +1140,37 @@ fn asset_categories() -> Router<AppState> {
             get(crate::handlers::asset_category_handler::get_category)
                 .put(crate::handlers::asset_category_handler::update_category)
                 .delete(crate::handlers::asset_category_handler::delete_category),
+        )
+}
+
+/// batch-15 P3：账龄档位配置路由
+fn aging_grades() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/aging-grades",
+            get(crate::handlers::aging_grade_handler::list_aging_grades)
+                .post(crate::handlers::aging_grade_handler::create_aging_grade),
+        )
+        .route(
+            "/aging-grades/:id",
+            get(crate::handlers::aging_grade_handler::list_aging_grades)
+                .put(crate::handlers::aging_grade_handler::update_aging_grade)
+                .delete(crate::handlers::aging_grade_handler::delete_aging_grade),
+        )
+}
+
+/// batch-15 P3：行业基准配置路由
+fn industry_benchmarks() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/industry-benchmarks",
+            get(crate::handlers::industry_benchmark_handler::list_industry_benchmarks)
+                .post(crate::handlers::industry_benchmark_handler::create_industry_benchmark),
+        )
+        .route(
+            "/industry-benchmarks/:id",
+            get(crate::handlers::industry_benchmark_handler::list_industry_benchmarks)
+                .put(crate::handlers::industry_benchmark_handler::update_industry_benchmark)
+                .delete(crate::handlers::industry_benchmark_handler::delete_industry_benchmark),
         )
 }

@@ -27,6 +27,10 @@ pub struct Model {
     pub closed_at: Option<DateTime<Utc>>,
     /// 结账人 ID
     pub closed_by: Option<i32>,
+    /// batch-15 P3：结账操作备注
+    pub close_remark: Option<String>,
+    /// batch-15 P3：结账操作 IP
+    pub close_ip: Option<String>,
     /// 创建时间
     pub created_at: DateTime<Utc>,
 }

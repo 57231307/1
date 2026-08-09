@@ -31,6 +31,8 @@ pub struct Model {
     pub status: String,
     pub purchase_date: Option<NaiveDate>,
     pub in_service_date: Option<NaiveDate>,
+    /// batch-15 P3：折旧起算日（可灵活配置，默认为 in_service_date）
+    pub depreciation_start_date: Option<NaiveDate>,
     pub disposal_date: Option<NaiveDate>,
     pub supplier_id: Option<i32>,
     pub supplier_name: Option<String>,

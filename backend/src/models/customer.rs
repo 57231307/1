@@ -99,6 +99,15 @@ pub struct Model {
     /// 业务负责人分配时间（用于公海保护期校验）
     /// V15 P0-S08 修复：保护期 = now - owner_assigned_at < protection_period
     pub owner_assigned_at: Option<DateTime<Utc>>,
+
+    /// batch-13 P3：客户特殊工艺要求
+    pub special_process: Option<String>,
+
+    /// batch-15 P3：客户来源（manual-手动录入、pool-公海、lead-线索转化、import-导入、api-接口）
+    pub source: Option<String>,
+
+    /// batch-15 P3：公海客户回收原因
+    pub pool_recycle_reason: Option<String>,
 }
 
 /// 客户 Relation

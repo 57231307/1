@@ -216,3 +216,15 @@ pub mod inventory_write_down_handler;
 pub mod period_report_snapshot_handler;
 pub mod aging_alert_rule_handler;
 pub mod asset_category_handler;
+// batch-13 P3：客户多地址支持
+pub mod customer_address_handler;
+// batch-15 P3：账龄档位配置化
+pub mod aging_grade_handler;
+// batch-15 P3：行业基准配置化
+pub mod industry_benchmark_handler;
+// batch-15 P3：客户合并
+pub mod customer_merge_handler;
+// batch-15 P3：转化耗时分析
+pub mod conversion_time_handler;
+// batch-14 P3: 人工复核状态机不完整
+pub mod opportunity_stage_handler;

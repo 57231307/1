@@ -540,6 +540,10 @@ impl CrmService {
             inspection_standard: Set(None),
             owner_id: Set(lead.owner_id),
             owner_assigned_at: Set(Some(chrono::Utc::now())),
+            // batch-13 P3：客户特殊工艺和来源字段
+            special_process: Set(None),
+            source: Set(Some("lead".to_string())),
+            pool_recycle_reason: Set(None),
         }
     }
 

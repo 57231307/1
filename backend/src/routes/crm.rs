@@ -22,9 +22,11 @@ use axum::{
 };
 
 use crate::handlers::{
-    crm_assignment_handler, crm_customer_handler, crm_pool_handler, customer_credit_handler,
-    customer_handler, customer_transfer_approval_handler, five_dimension_handler, missing_handlers,
-    sales_analysis_handler,
+    crm_assignment_handler, crm_customer_handler, crm_pool_handler, customer_address_handler,
+    customer_credit_handler, customer_handler, customer_merge_handler,
+    customer_transfer_approval_handler, five_dimension_handler, missing_handlers,
+    opportunity_stage_handler, sales_analysis_handler,
+    conversion_time_handler,
 };
 
 /// 客户管理路由（path 前缀 /customers）
@@ -46,6 +48,38 @@ pub fn customers() -> Router<AppState> {
         .route(
             "/customers/:id/credit",
             get(customer_credit_handler::get_credit),
+        )
+        // batch-13 P3：客户多地址支持
+        .route(
+            "/customers/:id/addresses",
+            get(customer_address_handler::list_customer_addresses),
+        )
+        .route(
+            "/customers/:id/addresses",
+            post(customer_address_handler::create_customer_address),
+        )
+        .route(
+            "/customers/:customer_id/addresses/:address_id",
+            put(customer_address_handler::update_customer_address),
+        )
+        .route(
+            "/customers/:customer_id/addresses/:address_id",
+            delete(customer_address_handler::delete_customer_address),
+        )
+        // batch-15 P3：客户合并
+        .route(
+            "/customers/merge",
+            axum::routing::post(customer_merge_handler::merge_customers),
+        )
+        // batch-15 P3：转化耗时分析
+        .route(
+            "/leads/conversion-stats",
+            axum::routing::get(conversion_time_handler::get_conversion_time_stats),
+        )
+        // batch-14 P3: 商机阶段停留时长统计
+        .route(
+            "/opportunities/stage-stats",
+            axum::routing::get(opportunity_stage_handler::get_opportunity_stage_stats),
         )
 }
 
