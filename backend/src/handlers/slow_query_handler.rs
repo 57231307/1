@@ -251,7 +251,7 @@ pub async fn get_slow_query_summary(
         .unwrap_or(0);
 
     // 查询今日新增
-    let today_sql = "SELECT COUNT(*) as today FROM slow_queries WHERE created_at >= CURRENT_DATE";
+    let today_sql = "SELECT COUNT(*) as today FROM slow_queries WHERE captured_at >= CURRENT_DATE";
     let today_result = state
         .db
         .as_ref()
@@ -480,14 +480,14 @@ pub async fn get_weekly_report(
 
     // 查询本周慢查询统计
     let total_queries = slow_query::Entity::find()
-        .filter(slow_query::Column::CreatedAt.gte(week_start))
+        .filter(slow_query::Column::CapturedAt.gte(week_start))
         .count(state.db.as_ref())
         .await
         .map_err(|e| AppError::internal(format!("查询慢查询总数失败: {}", e)))?;
 
     // 查询新增慢查询（本周首次出现的）
     let new_queries = slow_query::Entity::find()
-        .filter(slow_query::Column::CreatedAt.gte(week_start))
+        .filter(slow_query::Column::CapturedAt.gte(week_start))
         .filter(slow_query::Column::OptimizationStatus.is_null())
         .count(state.db.as_ref())
         .await
@@ -495,7 +495,7 @@ pub async fn get_weekly_report(
 
     // 查询已优化的慢查询
     let optimized_queries = slow_query::Entity::find()
-        .filter(slow_query::Column::CreatedAt.gte(week_start))
+        .filter(slow_query::Column::CapturedAt.gte(week_start))
         .filter(slow_query::Column::OptimizationStatus.eq("optimized"))
         .count(state.db.as_ref())
         .await
@@ -503,7 +503,7 @@ pub async fn get_weekly_report(
 
     // 查询平均执行时间
     let avg_sql = format!(
-        "SELECT COALESCE(AVG(mean_exec_time), 0) as avg_time FROM slow_queries WHERE created_at >= '{}'",
+        "SELECT COALESCE(AVG(mean_exec_time), 0) as avg_time FROM slow_queries WHERE captured_at >= '{}'",
         week_start.format("%Y-%m-%d %H:%M:%S")
     );
     let avg_result = state
@@ -521,8 +521,8 @@ pub async fn get_weekly_report(
 
     // 查询 TOP 10 慢查询
     let top_queries_raw = slow_query::Entity::find()
-        .filter(slow_query::Column::CreatedAt.gte(week_start))
-        .order_by_desc(slow_query::Column::MeanExecTime)
+        .filter(slow_query::Column::CapturedAt.gte(week_start))
+        .order_by_desc(slow_query::Column::ExecutionTimeMs)
         .limit(10)
         .all(state.db.as_ref())
         .await

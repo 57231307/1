@@ -238,7 +238,7 @@ pub async fn import_prices(
             supplier_id: item.supplier_id,
             price,
             currency: item.currency.clone(),
-            min_order_quantity: None,
+            min_order_qty: None,
             effective_date: item.effective_date.clone(),
             expiry_date: item.expiry_date.clone(),
         };
