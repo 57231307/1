@@ -1388,8 +1388,8 @@ impl BudgetManagementService {
     /// 获取预算考核汇总
     pub async fn get_budget_summary(&self) -> Result<BudgetAssessmentSummary, AppError> {
         // 查询所有已审批的预算方案
-        let plans = budget_management::Entity::find()
-            .filter(budget_management::Column::Status.eq(approval::APPROVED))
+        let plans = budget_plan::Entity::find()
+            .filter(budget_plan::Column::Status.eq(approval::APPROVED))
             .all(&*self.db)
             .await?;
 
@@ -1424,8 +1424,8 @@ impl BudgetManagementService {
 
     /// 获取预算预警列表
     pub async fn get_budget_warnings(&self) -> Result<Vec<BudgetWarning>, AppError> {
-        let plans = budget_management::Entity::find()
-            .filter(budget_management::Column::Status.eq(approval::APPROVED))
+        let plans = budget_plan::Entity::find()
+            .filter(budget_plan::Column::Status.eq(approval::APPROVED))
             .all(&*self.db)
             .await?;
 
@@ -1449,10 +1449,10 @@ impl BudgetManagementService {
 
             warnings.push(BudgetWarning {
                 plan_id: plan.id,
-                plan_no: plan.plan_no.unwrap_or_default(),
-                plan_name: plan.plan_name.unwrap_or_default(),
+                plan_no: plan.plan_no,
+                plan_name: plan.plan_name,
                 department_id: plan.department_id,
-                budget_year: plan.budget_year.unwrap_or_default(),
+                budget_year: plan.budget_year,
                 issued_amount: control.issued_amount,
                 executed_amount: control.executed_amount,
                 available_amount: control.available_amount,
