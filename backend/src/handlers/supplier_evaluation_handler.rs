@@ -1,6 +1,6 @@
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
-use crate::models::supplier_evaluation;
+use crate::models::supplier_evaluation_indicator;
 use crate::models::supplier_evaluation_record;
 use crate::services::supplier_evaluation_service::{
     CreateEvaluationIndicatorRequest, SupplierEvaluationService, SupplierScoreResponse,
@@ -38,7 +38,7 @@ pub async fn list_indicators(
     Query(params): Query<EvaluationIndicatorQuery>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<supplier_evaluation::Model>>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<supplier_evaluation_indicator::Model>>>, AppError> {
     info!("用户 {} 正在查询供应商评估指标列表", auth.user_id);
 
     let service = SupplierEvaluationService::new(state.db.clone());

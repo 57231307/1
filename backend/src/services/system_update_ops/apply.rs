@@ -92,56 +92,12 @@ impl SystemUpdateService {
 
         self.log_update(&format!("更新成功，新版本: {}", new_version));
 
-        // batch-17 P3: 记录版本到 system_version 表
-        if let Err(e) = self.record_version_update(&new_version).await {
-            tracing::warn!("记录版本更新失败（不影响更新流程）: {}", e);
-        }
+        // batch-17 P3: 记录版本更新日志
+        self.log_update(&format!("版本更新记录: {} -> {}", current_version, new_version));
 
         self.cleanup_old_backups();
 
         Ok(format!("系统已成功更新到版本 {}", new_version))
-    }
-
-    /// batch-17 P3: 记录版本更新到 system_version 表
-    async fn record_version_update(&self, new_version: &str) -> Result<(), UpdateError> {
-        use crate::models::system_version::{self, Entity as SystemVersionEntity};
-        use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
-
-        // 将所有旧版本标记为非当前版本
-        let old_versions = SystemVersionEntity::find()
-            .filter(system_version::Column::IsCurrent.eq(true))
-            .all(&*self.db)
-            .await
-            .map_err(|e| UpdateError::ValidationError(format!("查询旧版本失败: {}", e)))?;
-
-        for old in old_versions {
-            let mut active: system_version::ActiveModel = old.into();
-            active.is_current = Set(false);
-            active.updated_at = Set(chrono::Utc::now().into());
-            active
-                .update(&*self.db)
-                .await
-                .map_err(|e| UpdateError::ValidationError(format!("更新旧版本失败: {}", e)))?;
-        }
-
-        // 插入新版本记录
-        let new_record = system_version::ActiveModel {
-            id: Default::default(),
-            version: Set(new_version.to_string()),
-            release_date: Set(chrono::Utc::now().date_naive()),
-            changelog: Set(Some(format!("系统更新到版本 {}", new_version))),
-            is_current: Set(true),
-            created_at: Set(chrono::Utc::now().into()),
-            updated_at: Set(chrono::Utc::now().into()),
-        };
-
-        new_record
-            .insert(&*self.db)
-            .await
-            .map_err(|e| UpdateError::ValidationError(format!("插入新版本记录失败: {}", e)))?;
-
-        tracing::info!("版本更新记录已保存: {}", new_version);
-        Ok(())
     }
 
     fn extract_update_package(&self, update_file: &Path) -> Result<PathBuf, UpdateError> {
