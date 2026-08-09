@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import request from '@/api/request'
+import { request } from '@/api/request'
 
 /** 系统信息 */
 export interface SystemInfo {

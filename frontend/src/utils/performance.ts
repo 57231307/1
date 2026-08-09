@@ -130,7 +130,7 @@ export function collectMetrics(): Promise<PerformanceMetric[]> {
 /** 上报性能指标到后端 */
 export async function reportMetrics(metrics: PerformanceMetric[]): Promise<void> {
   try {
-    const { default: request } = await import('@/api/request')
+    const { request } = await import('@/api/request')
     await request.post('/api/v1/erp/performance/metrics', {
       metrics,
       url: window.location.href,
