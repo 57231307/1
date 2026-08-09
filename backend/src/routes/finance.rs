@@ -1117,13 +1117,15 @@ fn aging_alert_rules() -> Router<AppState> {
             get(crate::handlers::aging_alert_rule_handler::list_rules)
                 .post(crate::handlers::aging_alert_rule_handler::create_rule),
         )
-        .route(
-            "/aging-alert-rules/:id",
-            get(crate::handlers::aging_alert_rule_handler::get_rule)
-                .put(crate::handlers::aging_alert_rule_handler::update_rule)
-                .delete(crate::handlers::aging_alert_rule_handler::delete_rule),
-        )
-        .merge(asset_categories())
+         .route(
+             "/aging-alert-rules/:id",
+             get(crate::handlers::aging_alert_rule_handler::get_rule)
+                 .put(crate::handlers::aging_alert_rule_handler::update_rule)
+                 .delete(crate::handlers::aging_alert_rule_handler::delete_rule),
+         )
+         .merge(asset_categories())
+         .merge(aging_grades())
+         .merge(industry_benchmarks())
 }
 
 fn asset_categories() -> Router<AppState> {

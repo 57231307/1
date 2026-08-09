@@ -1,16 +1,14 @@
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, State},
     Json,
 };
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set};
-use serde::Deserialize;
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::customer_address::{
     self, CreateCustomerAddressDto, UpdateCustomerAddressDto,
 };
-use crate::models::dto::PageRequest;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
@@ -140,7 +138,6 @@ async fn clear_default_addresses(
     state: &AppState,
     customer_id: i32,
 ) -> Result<(), AppError> {
-    use sea_orm::ModelTrait;
     let defaults = customer_address::Entity::find()
         .filter(customer_address::Column::CustomerId.eq(customer_id))
         .filter(customer_address::Column::IsDefault.eq(true))

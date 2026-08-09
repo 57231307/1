@@ -143,7 +143,7 @@ pub async fn scan_inventory(
 #[derive(Deserialize)]
 pub struct ShipByPieceNoRequest {
     pub piece_no: String,
-    pub order_id: i32,
+    pub _order_id: i32,
 }
 
 /// POST /api/v1/erp/barcode/ship-by-piece - 按匹号发货

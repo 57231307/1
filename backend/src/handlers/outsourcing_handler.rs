@@ -399,7 +399,7 @@ pub async fn delete_outsourcing_voucher(
 pub async fn get_outsourcing_report(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+    use sea_orm::EntityTrait;
 
     // 统计各状态的委外订单数量
     let orders = outsourcing_order::Entity::find()
