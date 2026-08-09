@@ -309,3 +309,112 @@ pub async fn get_network_metrics(
 
     Ok(Json(ApiResponse::success(metrics)))
 }
+
+/// batch-15 P3: 账龄档位配置
+#[derive(Debug, serde::Serialize)]
+pub struct AgingBucketConfig {
+    pub buckets: Vec<AgingBucket>,
+    pub default_unit: String,
+}
+
+/// 账龄档位
+#[derive(Debug, serde::Serialize)]
+pub struct AgingBucket {
+    pub name: String,
+    pub min_days: i32,
+    pub max_days: Option<i32>,
+    pub color: String,
+}
+
+/// GET /api/v1/erp/dashboard/aging-config - 账龄档位配置查询
+pub async fn get_aging_config(
+    State(_state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<AgingBucketConfig>>, AppError> {
+    let config = AgingBucketConfig {
+        buckets: vec![
+            AgingBucket {
+                name: "0-30天".to_string(),
+                min_days: 0,
+                max_days: Some(30),
+                color: "#52c41a".to_string(),
+            },
+            AgingBucket {
+                name: "31-60天".to_string(),
+                min_days: 31,
+                max_days: Some(60),
+                color: "#faad14".to_string(),
+            },
+            AgingBucket {
+                name: "61-90天".to_string(),
+                min_days: 61,
+                max_days: Some(90),
+                color: "#fa8c16".to_string(),
+            },
+            AgingBucket {
+                name: "90天以上".to_string(),
+                min_days: 91,
+                max_days: None,
+                color: "#f5222d".to_string(),
+            },
+        ],
+        default_unit: "天".to_string(),
+    };
+
+    Ok(Json(ApiResponse::success(config)))
+}
+
+/// batch-15 P3: 行业基准配置
+#[derive(Debug, serde::Serialize)]
+pub struct IndustryBenchmarkConfig {
+    pub benchmarks: Vec<IndustryBenchmark>,
+    pub industry: String,
+}
+
+/// 行业基准
+#[derive(Debug, serde::Serialize)]
+pub struct IndustryBenchmark {
+    pub metric: String,
+    pub benchmark_value: f64,
+    pub unit: String,
+    pub source: String,
+}
+
+/// GET /api/v1/erp/dashboard/industry-benchmark - 行业基准配置查询
+pub async fn get_industry_benchmark(
+    State(_state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<IndustryBenchmarkConfig>>, AppError> {
+    let config = IndustryBenchmarkConfig {
+        industry: "纺织行业".to_string(),
+        benchmarks: vec![
+            IndustryBenchmark {
+                metric: "库存周转率".to_string(),
+                benchmark_value: 6.0,
+                unit: "次/年".to_string(),
+                source: "行业平均".to_string(),
+            },
+            IndustryBenchmark {
+                metric: "应收账款周转率".to_string(),
+                benchmark_value: 8.0,
+                unit: "次/年".to_string(),
+                source: "行业平均".to_string(),
+            },
+            IndustryBenchmark {
+                metric: "毛利率".to_string(),
+                benchmark_value: 25.0,
+                unit: "%".to_string(),
+                source: "行业平均".to_string(),
+            },
+            IndustryBenchmark {
+                defect_rate: 2.0,
+                metric: "次品率".to_string(),
+                benchmark_value: 2.0,
+                unit: "%".to_string(),
+                source: "行业平均".to_string(),
+            },
+        ],
+    };
+
+    Ok(Json(ApiResponse::success(config)))
+}

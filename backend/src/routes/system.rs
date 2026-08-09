@@ -76,6 +76,16 @@ pub fn dashboard() -> Router<AppState> {
             "/dashboard/network-metrics",
             get(dashboard_handler::get_network_metrics),
         )
+        // batch-15 P3: 账龄档位配置端点
+        .route(
+            "/dashboard/aging-config",
+            get(dashboard_handler::get_aging_config),
+        )
+        // batch-15 P3: 行业基准配置端点
+        .route(
+            "/dashboard/industry-benchmark",
+            get(dashboard_handler::get_industry_benchmark),
+        )
 }
 
 /// 系统更新路由（path 前缀 /system-update）
