@@ -1,7 +1,7 @@
 /**
  * useDebounce composable - 防抖函数
  * batch-20 P3: 超时重试幂等
- * 
+ *
  * @param fn - 要防抖的函数
  * @param delay - 延迟时间（毫秒）
  * @returns 防抖后的函数
@@ -20,7 +20,7 @@ export function useDebounce<T extends (...args: unknown[]) => unknown>(
 /**
  * useThrottle composable - 节流函数
  * batch-20 P3: 超时重试幂等
- * 
+ *
  * @param fn - 要节流的函数
  * @param delay - 延迟时间（毫秒）
  * @returns 节流后的函数
