@@ -111,6 +111,10 @@ class Request {
           } else {
             // batch-20 P3: CSRF token 缺失时提示用户
             console.warn('[CSRF] 安全令牌缺失，请求可能被后端拒绝');
+            // 尝试刷新页面获取新的 CSRF token
+            if (typeof window !== 'undefined') {
+              console.warn('[CSRF] 建议刷新页面获取新的安全令牌');
+            }
           }
         }
 
