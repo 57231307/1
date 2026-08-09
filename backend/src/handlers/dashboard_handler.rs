@@ -279,3 +279,33 @@ pub async fn warmup_cache(
         warmed_up_keys,
     })))
 }
+
+/// batch-17 P3: 网络指标数据
+#[derive(Debug, serde::Serialize)]
+pub struct NetworkMetrics {
+    pub requests_per_second: f64,
+    pub average_response_time_ms: f64,
+    pub error_rate: f64,
+    pub active_connections: u32,
+    pub bytes_received: u64,
+    pub bytes_sent: u64,
+}
+
+/// GET /api/v1/erp/dashboard/network-metrics - 网络指标采集
+pub async fn get_network_metrics(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<NetworkMetrics>>, AppError> {
+    // 从 Prometheus 指标获取网络数据
+    // 注意：这里返回基础结构，实际数据需要从 metrics 服务获取
+    let metrics = NetworkMetrics {
+        requests_per_second: 0.0,
+        average_response_time_ms: 0.0,
+        error_rate: 0.0,
+        active_connections: 0,
+        bytes_received: 0,
+        bytes_sent: 0,
+    };
+
+    Ok(Json(ApiResponse::success(metrics)))
+}

@@ -71,6 +71,11 @@ pub fn dashboard() -> Router<AppState> {
             "/dashboard/cache/warmup",
             post(dashboard_handler::warmup_cache),
         )
+        // batch-17 P3: 网络指标采集端点
+        .route(
+            "/dashboard/network-metrics",
+            get(dashboard_handler::get_network_metrics),
+        )
 }
 
 /// 系统更新路由（path 前缀 /system-update）
