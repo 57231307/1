@@ -10,7 +10,7 @@ use axum::{
     extract::{Multipart, State},
     Json,
 };
-use sea_orm::Statement;
+use sea_orm::{ConnectionTrait, Statement};
 use std::path::PathBuf;
 use tokio::fs;
 

@@ -12,7 +12,7 @@ use axum::{
 use chrono::{DateTime, Utc};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set, Statement,
+    QueryOrder, QueryTrait, Set, Statement,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -542,9 +542,9 @@ pub async fn get_weekly_report(
     let report = SlowQueryWeeklyReport {
         week_start: week_start.format("%Y-%m-%d").to_string(),
         week_end: now.format("%Y-%m-%d").to_string(),
-        total_queries,
-        new_queries,
-        optimized_queries,
+        total_queries: total_queries as i64,
+        new_queries: new_queries as i64,
+        optimized_queries: optimized_queries as i64,
         avg_execution_time,
         top_queries,
     };

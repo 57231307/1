@@ -2,7 +2,7 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use sea_orm::Statement;
+use sea_orm::{ConnectionTrait, Statement};
 use serde::Deserialize;
 
 use crate::container::AppState;
