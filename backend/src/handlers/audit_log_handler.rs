@@ -612,6 +612,48 @@ pub async fn record_print_event(
     Ok(Json(ApiResponse::success(())))
 }
 
+/// GET /api/v1/erp/audit-logs/summary - 审计日志摘要统计
+/// batch-13 P3: 审计日志审查
+pub async fn get_audit_log_summary(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    use sea_orm::QuerySelect;
+
+    // 统计各操作类型的数量
+    let operation_stats = audit_log::Entity::find()
+        .select_only()
+        .column(audit_log::Column::OperationType)
+        .column_as(audit_log::Column::Id.count(), "count")
+        .group_by(audit_log::Column::OperationType)
+        .all(&*state.db)
+        .await?;
+
+    // 统计各严重级别的数量
+    let severity_stats = audit_log::Entity::find()
+        .select_only()
+        .column(audit_log::Column::Severity)
+        .column_as(audit_log::Column::Id.count(), "count")
+        .group_by(audit_log::Column::Severity)
+        .all(&*state.db)
+        .await?;
+
+    // 统计最近 24 小时的日志数量
+    let one_day_ago = chrono::Utc::now() - chrono::Duration::days(1);
+    let recent_count = audit_log::Entity::find()
+        .filter(audit_log::Column::CreatedAt.gte(one_day_ago))
+        .count(&*state.db)
+        .await?;
+
+    let summary = serde_json::json!({
+        "operation_stats": operation_stats,
+        "severity_stats": severity_stats,
+        "recent_24h_count": recent_count,
+    });
+
+    Ok(Json(ApiResponse::success(summary)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -676,46 +718,4 @@ mod tests {
         assert!(q.per_page.is_none());
         assert!(q.exporter_user_id.is_none());
     }
-}
-
-/// GET /api/v1/erp/audit-logs/summary - 审计日志摘要统计
-/// batch-13 P3: 审计日志审查
-pub async fn get_audit_log_summary(
-    State(state): State<AppState>,
-    _auth: AuthContext,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    use sea_orm::QuerySelect;
-
-    // 统计各操作类型的数量
-    let operation_stats = audit_log::Entity::find()
-        .select_only()
-        .column(audit_log::Column::OperationType)
-        .column_as(audit_log::Column::Id.count(), "count")
-        .group_by(audit_log::Column::OperationType)
-        .all(&*state.db)
-        .await?;
-
-    // 统计各严重级别的数量
-    let severity_stats = audit_log::Entity::find()
-        .select_only()
-        .column(audit_log::Column::Severity)
-        .column_as(audit_log::Column::Id.count(), "count")
-        .group_by(audit_log::Column::Severity)
-        .all(&*state.db)
-        .await?;
-
-    // 统计最近 24 小时的日志数量
-    let one_day_ago = chrono::Utc::now() - chrono::Duration::days(1);
-    let recent_count = audit_log::Entity::find()
-        .filter(audit_log::Column::CreatedAt.gte(one_day_ago))
-        .count(&*state.db)
-        .await?;
-
-    let summary = serde_json::json!({
-        "operation_stats": operation_stats,
-        "severity_stats": severity_stats,
-        "recent_24h_count": recent_count,
-    });
-
-    Ok(Json(ApiResponse::success(summary)))
 }
