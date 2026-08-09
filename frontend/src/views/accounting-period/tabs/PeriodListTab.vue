@@ -383,11 +383,13 @@ const closePeriod = async (row: AccountingPeriodEntity) => {
       { type: 'warning' }
     );
     await closePeriodApi(row.id);
+    logger.info('结账操作成功', { periodId: row.id, periodName: row.name });
     ElMessage.success(t('accountingPeriod.message.closedSuccess'));
     fetchPeriods();
   } catch (e) {
     if (e !== 'cancel') {
       const err = e as Error;
+      logger.error('结账操作失败', { periodId: row.id, error: err.message });
       ElMessage.error(err.message || t('accountingPeriod.message.closeFailed'));
     }
   }
