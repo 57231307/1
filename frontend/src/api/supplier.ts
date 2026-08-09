@@ -52,6 +52,10 @@ export interface SupplierQueryParams {
   category?: string;
   grade?: string;
   status?: string;
+  /** batch-13 P3: 加工商筛选 */
+  is_processor?: boolean;
+  /** batch-13 P3: 加工商类型筛选 */
+  processor_type?: string;
 }
 
 export interface SupplierEvaluationData {
