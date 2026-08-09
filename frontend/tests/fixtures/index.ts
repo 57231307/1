@@ -11,3 +11,6 @@ export * from './v2-table';
 export * from './inventory';
 export * from './auth-mock';
 export * from './i18n-mock';
+export * from './colorCardIssue';
+export * from './dashboard';
+export * from './fabric';
