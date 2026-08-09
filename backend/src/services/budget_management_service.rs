@@ -1432,9 +1432,18 @@ impl BudgetManagementService {
         let mut warnings = Vec::new();
 
         for plan in plans {
-            let control = self.get_budget_control(plan.id).await?;
-            let execution_rate = if control.total_amount > Decimal::ZERO {
-                (control.executed_amount / control.total_amount * Decimal::from(100)).round_dp(2)
+            // 计算已执行金额
+            let executions = budget_execution::Entity::find()
+                .filter(budget_execution::Column::PlanId.eq(plan.id))
+                .all(&*self.db)
+                .await?;
+
+            let executed_amount: Decimal = executions.iter().map(|e| e.amount).sum();
+            let issued_amount = plan.total_amount; // 简化：假设全部已下达
+            let available_amount = issued_amount - executed_amount;
+
+            let execution_rate = if issued_amount > Decimal::ZERO {
+                (executed_amount / issued_amount * Decimal::from(100)).round_dp(2)
             } else {
                 Decimal::ZERO
             };
@@ -1453,9 +1462,9 @@ impl BudgetManagementService {
                 plan_name: plan.plan_name,
                 department_id: plan.department_id,
                 budget_year: plan.budget_year,
-                issued_amount: control.issued_amount,
-                executed_amount: control.executed_amount,
-                available_amount: control.available_amount,
+                issued_amount,
+                executed_amount,
+                available_amount,
                 execution_rate,
                 warning_level,
             });
