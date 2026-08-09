@@ -112,6 +112,11 @@ pub fn system_update() -> Router<AppState> {
             "/system-update/upload",
             post(system_update_handler::upload_and_update),
         )
+        // batch-21 P3: 配置热更新端点
+        .route(
+            "/system-update/config/reload",
+            post(system_update_handler::reload_config),
+        )
 }
 
 /// BPM 流程与任务路由（/bpm/process、/bpm/tasks、/bpm/business-relation、/bpm/visualization）

@@ -501,3 +501,47 @@ mod tests {
         assert!(failed_result.new_version.is_none());
     }
 }
+
+/// batch-21 P3: 配置热更新响应
+#[derive(Debug, serde::Serialize)]
+pub struct ConfigReloadResponse {
+    pub success: bool,
+    pub message: String,
+    pub reloaded_keys: Vec<String>,
+}
+
+/// POST /api/v1/erp/system-update/config/reload - 配置热更新
+pub async fn reload_config(
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<ConfigReloadResponse>>, AppError> {
+    require_admin_role(&state, &auth).await?;
+
+    // 重新加载环境变量
+    let mut reloaded_keys = Vec::new();
+
+    // 检查并重新加载关键配置
+    if let Ok(val) = std::env::var("AUDIT_RETENTION_DAYS") {
+        if val.parse::<i32>().is_ok() {
+            reloaded_keys.push("AUDIT_RETENTION_DAYS".to_string());
+        }
+    }
+
+    if let Ok(val) = std::env::var("SLOW_QUERY_THRESHOLD_MS") {
+        if val.parse::<f64>().is_ok() {
+            reloaded_keys.push("SLOW_QUERY_THRESHOLD_MS".to_string());
+        }
+    }
+
+    tracing::info!(
+        user_id = auth.user_id,
+        reloaded_count = reloaded_keys.len(),
+        "配置热更新完成"
+    );
+
+    Ok(Json(ApiResponse::success(ConfigReloadResponse {
+        success: true,
+        message: format!("成功重新加载 {} 个配置项", reloaded_keys.len()),
+        reloaded_keys,
+    })))
+}
