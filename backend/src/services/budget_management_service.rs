@@ -1368,3 +1368,99 @@ pub struct BudgetWarning {
     /// 预警级别：yellow（≥80%）/ red（≥100%）
     pub warning_level: String,
 }
+
+/// 预算考核汇总
+#[derive(Debug, Clone, Serialize)]
+pub struct BudgetAssessmentSummary {
+    /// 总预算金额
+    pub total_budget: Decimal,
+    /// 已执行金额
+    pub total_executed: Decimal,
+    /// 执行率
+    pub execution_rate: Decimal,
+    /// 预算方案数量
+    pub plan_count: i64,
+    /// 预警数量
+    pub warning_count: i64,
+}
+
+impl BudgetManagementService {
+    /// 获取预算考核汇总
+    pub async fn get_budget_summary(&self) -> Result<BudgetAssessmentSummary, AppError> {
+        // 查询所有已审批的预算方案
+        let plans = budget_management::Entity::find()
+            .filter(budget_management::Column::Status.eq(approval::APPROVED))
+            .all(&*self.db)
+            .await?;
+
+        let plan_count = plans.len() as i64;
+        let total_budget: Decimal = plans.iter().map(|p| p.total_amount).sum();
+
+        // 查询已执行金额
+        let executions = budget_execution::Entity::find()
+            .all(&*self.db)
+            .await?;
+
+        let total_executed: Decimal = executions.iter().map(|e| e.amount).sum();
+
+        let execution_rate = if total_budget > Decimal::ZERO {
+            (total_executed / total_budget * Decimal::from(100)).round_dp(2)
+        } else {
+            Decimal::ZERO
+        };
+
+        // 查询预警数量
+        let warnings = self.get_budget_warnings().await?;
+        let warning_count = warnings.len() as i64;
+
+        Ok(BudgetAssessmentSummary {
+            total_budget,
+            total_executed,
+            execution_rate,
+            plan_count,
+            warning_count,
+        })
+    }
+
+    /// 获取预算预警列表
+    pub async fn get_budget_warnings(&self) -> Result<Vec<BudgetWarning>, AppError> {
+        let plans = budget_management::Entity::find()
+            .filter(budget_management::Column::Status.eq(approval::APPROVED))
+            .all(&*self.db)
+            .await?;
+
+        let mut warnings = Vec::new();
+
+        for plan in plans {
+            let control = self.get_budget_control(plan.id).await?;
+            let execution_rate = if control.total_amount > Decimal::ZERO {
+                (control.executed_amount / control.total_amount * Decimal::from(100)).round_dp(2)
+            } else {
+                Decimal::ZERO
+            };
+
+            let warning_level = if execution_rate >= Decimal::from(100) {
+                "red".to_string()
+            } else if execution_rate >= Decimal::from(80) {
+                "yellow".to_string()
+            } else {
+                continue;
+            };
+
+            warnings.push(BudgetWarning {
+                plan_id: plan.id,
+                plan_no: plan.plan_no.unwrap_or_default(),
+                plan_name: plan.plan_name.unwrap_or_default(),
+                department_id: plan.department_id,
+                budget_year: plan.budget_year.unwrap_or_default(),
+                issued_amount: control.issued_amount,
+                executed_amount: control.executed_amount,
+                available_amount: control.available_amount,
+                execution_rate,
+                warning_level,
+            });
+        }
+
+        Ok(warnings)
+    }
+}

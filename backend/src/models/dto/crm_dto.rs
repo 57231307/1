@@ -138,6 +138,8 @@ pub struct UpdateLeadRequest {
     pub priority: Option<String>,
     pub rating: Option<i32>,
     pub tags: Option<Vec<String>>,
+    /// batch-15 P3: 自定义字段
+    pub custom_fields: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]
