@@ -369,3 +369,5 @@ pub mod aging_alert_rule_service;
 pub mod asset_category_service;
 // batch-17 P3: 日志冷数据归档
 pub mod log_archive_service;
+// batch-13 P3: 审计日志审查服务
+pub mod audit_review_service;
