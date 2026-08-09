@@ -127,6 +127,11 @@ pub fn system_update() -> Router<AppState> {
             "/system-update/config/reload",
             post(system_update_handler::reload_config),
         )
+        // batch-21 P3: RTO/RPO 配置查询
+        .route(
+            "/system-update/rto-rpo",
+            get(system_update_handler::get_rto_rpo_config),
+        )
 }
 
 /// BPM 流程与任务路由（/bpm/process、/bpm/tasks、/bpm/business-relation、/bpm/visualization）

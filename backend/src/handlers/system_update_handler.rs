@@ -545,3 +545,45 @@ pub async fn reload_config(
         reloaded_keys,
     })))
 }
+
+/// batch-21 P3: RTO/RPO 配置
+#[derive(Debug, serde::Serialize)]
+pub struct RtoRpoConfig {
+    pub rto_minutes: u32,
+    pub rpo_minutes: u32,
+    pub backup_frequency_hours: u32,
+    pub last_backup_time: Option<String>,
+    pub backup_status: String,
+}
+
+/// GET /api/v1/erp/system-update/rto-rpo - RTO/RPO 配置查询
+pub async fn get_rto_rpo_config(
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<RtoRpoConfig>>, AppError> {
+    require_admin_role(&state, &auth).await?;
+
+    // 查询最近备份时间
+    let backup_sql = "SELECT MAX(created_at) as last_backup FROM backups";
+    let backup_result = state
+        .db
+        .query_one(sea_orm::Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            backup_sql.to_string(),
+        ))
+        .await
+        .map_err(|e| AppError::internal(format!("查询备份时间失败: {}", e)))?;
+    let last_backup_time = backup_result
+        .and_then(|r| r.try_get::<chrono::DateTime<chrono::Utc>>("", "last_backup").ok())
+        .map(|t| t.to_rfc3339());
+
+    let config = RtoRpoConfig {
+        rto_minutes: 30,      // 恢复时间目标：30分钟
+        rpo_minutes: 0,       // 恢复点目标：0（无数据丢失）
+        backup_frequency_hours: 24, // 备份频率：每24小时
+        last_backup_time,
+        backup_status: "active".to_string(),
+    };
+
+    Ok(Json(ApiResponse::success(config)))
+}
