@@ -222,3 +222,5 @@ pub mod customer_address_handler;
 pub mod aging_grade_handler;
 // batch-15 P3：行业基准配置化
 pub mod industry_benchmark_handler;
+// batch-15 P3：客户合并
+pub mod customer_merge_handler;

@@ -23,8 +23,9 @@ use axum::{
 
 use crate::handlers::{
     crm_assignment_handler, crm_customer_handler, crm_pool_handler, customer_address_handler,
-    customer_credit_handler, customer_handler, customer_transfer_approval_handler,
-    five_dimension_handler, missing_handlers, sales_analysis_handler,
+    customer_credit_handler, customer_handler, customer_merge_handler,
+    customer_transfer_approval_handler, five_dimension_handler, missing_handlers,
+    sales_analysis_handler,
 };
 
 /// 客户管理路由（path 前缀 /customers）
@@ -63,6 +64,11 @@ pub fn customers() -> Router<AppState> {
         .route(
             "/customers/:customer_id/addresses/:address_id",
             delete(customer_address_handler::delete_customer_address),
+        )
+        // batch-15 P3：客户合并
+        .route(
+            "/customers/merge",
+            axum::routing::post(customer_merge_handler::merge_customers),
         )
 }
 
