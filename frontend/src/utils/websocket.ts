@@ -226,11 +226,14 @@ export class WebSocketClient extends EventTarget {
 
   /**
    * 指数退避重连
+   * batch-20 P3: 重连降级轮询 - 超过最大重连次数后降级为轮询
    */
   private scheduleReconnect(): void {
     this.reconnectAttempts += 1;
     if (this.reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
       this.dispatchEvent(new CustomEvent('max_reconnect_failed'));
+      // batch-20 P3: 降级为轮询模式
+      this.startPollingFallback();
       return;
     }
 
@@ -249,6 +252,33 @@ export class WebSocketClient extends EventTarget {
         detail: { delay, attempt: this.reconnectAttempts },
       })
     );
+  }
+
+  /** 轮询降级定时器 */
+  private pollingTimer: number | null = null;
+
+  /**
+   * batch-20 P3: 降级为轮询模式
+   * 当 WebSocket 重连失败后，降级为 HTTP 轮询获取数据
+   */
+  private startPollingFallback(): void {
+    this.stopPollingFallback();
+    this.dispatchEvent(new CustomEvent('polling_fallback'));
+
+    // 每 30 秒轮询一次
+    this.pollingTimer = window.setInterval(() => {
+      this.dispatchEvent(new CustomEvent('poll'));
+    }, 30000);
+  }
+
+  /**
+   * 停止轮询降级
+   */
+  private stopPollingFallback(): void {
+    if (this.pollingTimer !== null) {
+      clearInterval(this.pollingTimer);
+      this.pollingTimer = null;
+    }
   }
 
   /**
