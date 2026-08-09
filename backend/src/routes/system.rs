@@ -61,6 +61,11 @@ pub fn dashboard() -> Router<AppState> {
             get(dashboard_handler::get_dashboard_layout)
                 .put(dashboard_handler::save_dashboard_layout),
         )
+        // batch-17 P3: 系统资源看板端点
+        .route(
+            "/dashboard/system-resources",
+            get(dashboard_handler::get_system_resources),
+        )
 }
 
 /// 系统更新路由（path 前缀 /system-update）

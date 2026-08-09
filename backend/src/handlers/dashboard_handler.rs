@@ -186,3 +186,50 @@ pub async fn get_low_stock_alerts(
     let alerts = dashboard_service.get_low_stock_alerts().await?;
     Ok(Json(ApiResponse::success(alerts)))
 }
+
+/// batch-17 P3: 系统资源看板数据
+#[derive(Debug, serde::Serialize)]
+pub struct SystemResourceDashboard {
+    pub cpu_usage: f64,
+    pub memory_usage: f64,
+    pub disk_usage: f64,
+    pub uptime_seconds: u64,
+    pub active_connections: u32,
+    pub database_connections: u32,
+    pub cache_hit_rate: f64,
+}
+
+/// GET /api/v1/erp/dashboard/system-resources - 系统资源看板
+pub async fn get_system_resources(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<SystemResourceDashboard>>, AppError> {
+    // 获取数据库连接数
+    let db_connections_sql = "SELECT COUNT(*) as count FROM pg_stat_activity WHERE state = 'active'";
+    let db_result = state
+        .db
+        .query_one(sea_orm::Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            db_connections_sql.to_string(),
+        ))
+        .await
+        .map_err(|e| AppError::internal(format!("查询数据库连接数失败: {}", e)))?;
+    let database_connections = db_result
+        .map(|r| r.try_get::<i64>("", "count").unwrap_or(0) as u32)
+        .unwrap_or(0);
+
+    // 获取缓存命中率（从 metrics 服务）
+    let cache_hit_rate = 0.0; // TODO: 从 metrics 服务获取
+
+    let dashboard = SystemResourceDashboard {
+        cpu_usage: 0.0,    // TODO: 从系统指标获取
+        memory_usage: 0.0, // TODO: 从系统指标获取
+        disk_usage: 0.0,   // TODO: 从系统指标获取
+        uptime_seconds: 0, // TODO: 从系统指标获取
+        active_connections: 0,
+        database_connections,
+        cache_hit_rate,
+    };
+
+    Ok(Json(ApiResponse::success(dashboard)))
+}
