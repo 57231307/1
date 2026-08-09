@@ -99,6 +99,9 @@ pub struct Model {
     /// 业务负责人分配时间（用于公海保护期校验）
     /// V15 P0-S08 修复：保护期 = now - owner_assigned_at < protection_period
     pub owner_assigned_at: Option<DateTime<Utc>>,
+
+    /// batch-13 P3：客户特殊工艺要求
+    pub special_process: Option<String>,
 }
 
 /// 客户 Relation

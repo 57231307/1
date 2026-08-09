@@ -1140,3 +1140,19 @@ fn asset_categories() -> Router<AppState> {
                 .delete(crate::handlers::asset_category_handler::delete_category),
         )
 }
+
+/// batch-15 P3：账龄档位配置路由
+fn aging_grades() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/aging-grades",
+            get(crate::handlers::aging_grade_handler::list_aging_grades)
+                .post(crate::handlers::aging_grade_handler::create_aging_grade),
+        )
+        .route(
+            "/aging-grades/:id",
+            get(crate::handlers::aging_grade_handler::list_aging_grades)
+                .put(crate::handlers::aging_grade_handler::update_aging_grade)
+                .delete(crate::handlers::aging_grade_handler::delete_aging_grade),
+        )
+}
