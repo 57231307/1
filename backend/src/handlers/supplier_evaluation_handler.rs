@@ -60,7 +60,7 @@ pub async fn create_indicator(
     State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateEvaluationIndicatorRequest>,
-) -> Result<Json<ApiResponse<supplier_evaluation::Model>>, AppError> {
+) -> Result<Json<ApiResponse<supplier_evaluation_indicator::Model>>, AppError> {
     info!(
         "用户 {} 正在创建评估指标：{}",
         auth.user_id, req.indicator_code
@@ -127,7 +127,7 @@ pub async fn list_ratings(
     State(state): State<AppState>,
     auth: AuthContext,
     Query(params): Query<EvaluationRecordQuery>,
-) -> Result<Json<ApiResponse<PaginatedResponse<supplier_evaluation::Model>>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<supplier_evaluation_indicator::Model>>>, AppError> {
     info!("用户 {} 正在查询供应商评级列表", auth.user_id);
 
     let page = params.page.unwrap_or(1).clamp(1, 1000) as u64; // 批次 95 P3-3~8：分页 clamp 防 DoS
