@@ -233,3 +233,49 @@ pub async fn get_system_resources(
 
     Ok(Json(ApiResponse::success(dashboard)))
 }
+
+/// batch-21 P3: 缓存预热响应
+#[derive(Debug, serde::Serialize)]
+pub struct CacheWarmupResponse {
+    pub success: bool,
+    pub message: String,
+    pub warmed_up_keys: Vec<String>,
+}
+
+/// POST /api/v1/erp/dashboard/cache/warmup - 缓存预热
+pub async fn warmup_cache(
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<CacheWarmupResponse>>, AppError> {
+    tracing::debug!(user_id = auth.user_id, "缓存预热请求");
+
+    let mut warmed_up_keys = Vec::new();
+
+    // 预热仪表盘概览数据
+    let dashboard_service = DashboardService::new(state.db.clone(), state.cache.clone());
+    if let Ok(_overview) = dashboard_service.get_dashboard_overview().await {
+        warmed_up_keys.push("dashboard_overview".to_string());
+    }
+
+    // 预热销售统计
+    if let Ok(_stats) = dashboard_service.get_sales_statistics(None, None).await {
+        warmed_up_keys.push("sales_statistics".to_string());
+    }
+
+    // 预热库存统计
+    if let Ok(_stats) = dashboard_service.get_inventory_statistics(None, None).await {
+        warmed_up_keys.push("inventory_statistics".to_string());
+    }
+
+    tracing::info!(
+        user_id = auth.user_id,
+        warmed_count = warmed_up_keys.len(),
+        "缓存预热完成"
+    );
+
+    Ok(Json(ApiResponse::success(CacheWarmupResponse {
+        success: true,
+        message: format!("成功预热 {} 个缓存项", warmed_up_keys.len()),
+        warmed_up_keys,
+    })))
+}

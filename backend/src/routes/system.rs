@@ -66,6 +66,11 @@ pub fn dashboard() -> Router<AppState> {
             "/dashboard/system-resources",
             get(dashboard_handler::get_system_resources),
         )
+        // batch-21 P3: 缓存预热端点
+        .route(
+            "/dashboard/cache/warmup",
+            post(dashboard_handler::warmup_cache),
+        )
 }
 
 /// 系统更新路由（path 前缀 /system-update）
