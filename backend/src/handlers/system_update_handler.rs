@@ -567,6 +567,7 @@ pub async fn get_rto_rpo_config(
     let backup_sql = "SELECT MAX(created_at) as last_backup FROM backups";
     let backup_result = state
         .db
+        .as_ref()
         .query_one(sea_orm::Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             backup_sql.to_string(),
@@ -616,6 +617,7 @@ pub async fn get_deployment_history(
     let versions_sql = "SELECT version, release_date, changelog, is_current FROM system_versions ORDER BY release_date DESC LIMIT 10";
     let versions_result = state
         .db
+        .as_ref()
         .query_all(sea_orm::Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             versions_sql.to_string(),

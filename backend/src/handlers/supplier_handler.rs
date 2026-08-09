@@ -544,3 +544,9 @@ pub async fn get_supplier_purchase_history(
         "total": history.len(),
     }))))
 }
+
+/// batch-13 P3: 供货历史查询参数
+#[derive(Debug, Deserialize)]
+pub struct PurchaseHistoryQuery {
+    pub limit: Option<u64>,
+}

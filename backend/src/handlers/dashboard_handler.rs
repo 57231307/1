@@ -208,6 +208,7 @@ pub async fn get_system_resources(
     let db_connections_sql = "SELECT COUNT(*) as count FROM pg_stat_activity WHERE state = 'active'";
     let db_result = state
         .db
+        .as_ref()
         .query_one(sea_orm::Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             db_connections_sql.to_string(),
@@ -253,7 +254,7 @@ pub async fn warmup_cache(
 
     // 预热仪表盘概览数据
     let dashboard_service = DashboardService::new(state.db.clone(), state.cache.clone());
-    if let Ok(_overview) = dashboard_service.get_dashboard_overview().await {
+    if let Ok(_overview) = dashboard_service.get_overview().await {
         warmed_up_keys.push("dashboard_overview".to_string());
     }
 
@@ -407,7 +408,6 @@ pub async fn get_industry_benchmark(
                 source: "行业平均".to_string(),
             },
             IndustryBenchmark {
-                defect_rate: 2.0,
                 metric: "次品率".to_string(),
                 benchmark_value: 2.0,
                 unit: "%".to_string(),

@@ -224,17 +224,26 @@ pub async fn import_prices(
     let mut errors = Vec::new();
 
     for (index, item) in request.prices.iter().enumerate() {
+        let price = match item.price.parse::<rust_decimal::Decimal>() {
+            Ok(p) => p,
+            Err(_) => {
+                failed_count += 1;
+                errors.push(format!("第 {} 条价格格式错误: {}", index + 1, item.price));
+                continue;
+            }
+        };
+
         let input = CreatePurchasePriceInput {
             product_id: item.product_id,
             supplier_id: item.supplier_id,
-            price: item.price.clone(),
-            currency: item.currency.clone().unwrap_or_else(|| "CNY".to_string()),
+            price,
+            currency: item.currency.clone(),
+            min_order_quantity: None,
             effective_date: item.effective_date.clone(),
             expiry_date: item.expiry_date.clone(),
-            created_by: Some(auth.user_id),
         };
 
-        match service.create_price(input).await {
+        match service.create_price(input, auth.user_id).await {
             Ok(_) => success_count += 1,
             Err(e) => {
                 failed_count += 1;

@@ -104,6 +104,7 @@ pub async fn create_transfer(
     );
     let count_result = state
         .db
+        .as_ref()
         .query_one(sea_orm::Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             recent_count_sql,

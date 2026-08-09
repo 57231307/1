@@ -239,6 +239,7 @@ pub async fn get_slow_query_summary(
     let total_sql = "SELECT COUNT(*) as total FROM slow_queries";
     let total_result = state
         .db
+        .as_ref()
         .query_one(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             total_sql.to_string(),
@@ -253,6 +254,7 @@ pub async fn get_slow_query_summary(
     let today_sql = "SELECT COUNT(*) as today FROM slow_queries WHERE created_at >= CURRENT_DATE";
     let today_result = state
         .db
+        .as_ref()
         .query_one(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             today_sql.to_string(),
@@ -267,6 +269,7 @@ pub async fn get_slow_query_summary(
     let avg_sql = "SELECT COALESCE(AVG(mean_exec_time), 0) as avg_time FROM slow_queries";
     let avg_result = state
         .db
+        .as_ref()
         .query_one(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             avg_sql.to_string(),
@@ -281,6 +284,7 @@ pub async fn get_slow_query_summary(
     let max_sql = "SELECT COALESCE(MAX(max_exec_time), 0) as max_time FROM slow_queries";
     let max_result = state
         .db
+        .as_ref()
         .query_one(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             max_sql.to_string(),
@@ -295,6 +299,7 @@ pub async fn get_slow_query_summary(
     let frequent_sql = "SELECT query_text FROM slow_queries GROUP BY query_text ORDER BY COUNT(*) DESC LIMIT 1";
     let frequent_result = state
         .db
+        .as_ref()
         .query_one(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             frequent_sql.to_string(),
@@ -313,6 +318,7 @@ pub async fn get_slow_query_summary(
         FROM slow_queries";
     let status_result = state
         .db
+        .as_ref()
         .query_one(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             status_sql.to_string(),
@@ -475,7 +481,7 @@ pub async fn get_weekly_report(
     // 查询本周慢查询统计
     let total_queries = slow_query::Entity::find()
         .filter(slow_query::Column::CreatedAt.gte(week_start))
-        .count(&*state.db)
+        .count(state.db.as_ref())
         .await
         .map_err(|e| AppError::internal(format!("查询慢查询总数失败: {}", e)))?;
 
@@ -483,7 +489,7 @@ pub async fn get_weekly_report(
     let new_queries = slow_query::Entity::find()
         .filter(slow_query::Column::CreatedAt.gte(week_start))
         .filter(slow_query::Column::OptimizationStatus.is_null())
-        .count(&*state.db)
+        .count(state.db.as_ref())
         .await
         .map_err(|e| AppError::internal(format!("查询新增慢查询失败: {}", e)))?;
 
@@ -491,7 +497,7 @@ pub async fn get_weekly_report(
     let optimized_queries = slow_query::Entity::find()
         .filter(slow_query::Column::CreatedAt.gte(week_start))
         .filter(slow_query::Column::OptimizationStatus.eq("optimized"))
-        .count(&*state.db)
+        .count(state.db.as_ref())
         .await
         .map_err(|e| AppError::internal(format!("查询已优化慢查询失败: {}", e)))?;
 
@@ -502,6 +508,7 @@ pub async fn get_weekly_report(
     );
     let avg_result = state
         .db
+        .as_ref()
         .query_one(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             avg_sql,
@@ -517,7 +524,7 @@ pub async fn get_weekly_report(
         .filter(slow_query::Column::CreatedAt.gte(week_start))
         .order_by_desc(slow_query::Column::MeanExecTime)
         .limit(10)
-        .all(&*state.db)
+        .all(state.db.as_ref())
         .await
         .map_err(|e| AppError::internal(format!("查询 TOP 慢查询失败: {}", e)))?;
 
