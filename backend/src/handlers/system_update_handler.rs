@@ -587,3 +587,69 @@ pub async fn get_rto_rpo_config(
 
     Ok(Json(ApiResponse::success(config)))
 }
+
+/// batch-21 P3: 部署历史记录
+#[derive(Debug, serde::Serialize)]
+pub struct DeploymentHistory {
+    pub deployments: Vec<DeploymentRecord>,
+    pub total: u32,
+}
+
+/// 部署记录
+#[derive(Debug, serde::Serialize)]
+pub struct DeploymentRecord {
+    pub version: String,
+    pub deployed_at: String,
+    pub deployed_by: String,
+    pub status: String,
+    pub changes: Vec<String>,
+}
+
+/// GET /api/v1/erp/system-update/deployment-history - 部署历史查询
+pub async fn get_deployment_history(
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<DeploymentHistory>>, AppError> {
+    require_admin_role(&state, &auth).await?;
+
+    // 查询系统版本历史
+    let versions_sql = "SELECT version, release_date, changelog, is_current FROM system_versions ORDER BY release_date DESC LIMIT 10";
+    let versions_result = state
+        .db
+        .query_all(sea_orm::Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            versions_sql.to_string(),
+        ))
+        .await
+        .map_err(|e| AppError::internal(format!("查询版本历史失败: {}", e)))?;
+
+    let deployments: Vec<DeploymentRecord> = versions_result
+        .into_iter()
+        .map(|row| {
+            let version = row.try_get::<String>("", "version").unwrap_or_default();
+            let release_date = row
+                .try_get::<chrono::NaiveDate>("", "release_date")
+                .map(|d| d.to_string())
+                .unwrap_or_default();
+            let changelog = row
+                .try_get::<String>("", "changelog")
+                .ok();
+            let is_current = row.try_get::<bool>("", "is_current").unwrap_or(false);
+
+            DeploymentRecord {
+                version,
+                deployed_at: release_date,
+                deployed_by: "系统".to_string(),
+                status: if is_current { "current".to_string() } else { "archived".to_string() },
+                changes: changelog.map(|c| vec![c]).unwrap_or_default(),
+            }
+        })
+        .collect();
+
+    let total = deployments.len() as u32;
+
+    Ok(Json(ApiResponse::success(DeploymentHistory {
+        deployments,
+        total,
+    })))
+}

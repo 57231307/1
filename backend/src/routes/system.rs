@@ -142,6 +142,11 @@ pub fn system_update() -> Router<AppState> {
             "/system-update/rto-rpo",
             get(system_update_handler::get_rto_rpo_config),
         )
+        // batch-21 P3: 部署历史查询
+        .route(
+            "/system-update/deployment-history",
+            get(system_update_handler::get_deployment_history),
+        )
 }
 
 /// BPM 流程与任务路由（/bpm/process、/bpm/tasks、/bpm/business-relation、/bpm/visualization）
