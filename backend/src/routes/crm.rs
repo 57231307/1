@@ -70,6 +70,11 @@ pub fn customers() -> Router<AppState> {
             "/customers/merge",
             axum::routing::post(customer_merge_handler::merge_customers),
         )
+        // batch-15 P3：转化耗时分析
+        .route(
+            "/leads/conversion-stats",
+            axum::routing::get(conversion_time_handler::get_conversion_time_stats),
+        )
 }
 
 /// 客户信用路由（path 前缀 /customer-credits）
