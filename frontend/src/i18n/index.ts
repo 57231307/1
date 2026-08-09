@@ -65,6 +65,8 @@ export function setLocale(locale: LocaleCode): void {
     }
     /* 同步更新 <html lang> 属性 */
     document.documentElement.lang = locale;
+    /* batch-20 P3: RTL 支持 - 阿拉伯语等从右到左布局 */
+    document.documentElement.dir = locale.startsWith('ar') ? 'rtl' : 'ltr';
   }
 }
 
