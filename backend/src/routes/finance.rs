@@ -1156,3 +1156,19 @@ fn aging_grades() -> Router<AppState> {
                 .delete(crate::handlers::aging_grade_handler::delete_aging_grade),
         )
 }
+
+/// batch-15 P3：行业基准配置路由
+fn industry_benchmarks() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/industry-benchmarks",
+            get(crate::handlers::industry_benchmark_handler::list_industry_benchmarks)
+                .post(crate::handlers::industry_benchmark_handler::create_industry_benchmark),
+        )
+        .route(
+            "/industry-benchmarks/:id",
+            get(crate::handlers::industry_benchmark_handler::list_industry_benchmarks)
+                .put(crate::handlers::industry_benchmark_handler::update_industry_benchmark)
+                .delete(crate::handlers::industry_benchmark_handler::delete_industry_benchmark),
+        )
+}

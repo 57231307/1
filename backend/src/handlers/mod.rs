@@ -220,3 +220,5 @@ pub mod asset_category_handler;
 pub mod customer_address_handler;
 // batch-15 P3：账龄档位配置化
 pub mod aging_grade_handler;
+// batch-15 P3：行业基准配置化
+pub mod industry_benchmark_handler;
