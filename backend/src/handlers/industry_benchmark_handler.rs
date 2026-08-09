@@ -107,7 +107,7 @@ pub async fn delete_industry_benchmark(
         .await?
         .ok_or_else(|| AppError::not_found("行业基准不存在"))?;
 
-    let mut active: industry_benchmark_config::ActiveModel = existing.into();
+    let active: industry_benchmark_config::ActiveModel = existing.into();
     active.delete(&*state.db).await?;
     Ok(Json(ApiResponse::success("删除成功".to_string())))
 }

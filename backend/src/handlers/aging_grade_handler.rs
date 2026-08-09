@@ -94,7 +94,7 @@ pub async fn delete_aging_grade(
         .await?
         .ok_or_else(|| AppError::not_found("账龄档位不存在"))?;
 
-    let mut active: aging_grade_config::ActiveModel = existing.into();
+    let active: aging_grade_config::ActiveModel = existing.into();
     active.delete(&*state.db).await?;
     Ok(Json(ApiResponse::success("删除成功".to_string())))
 }

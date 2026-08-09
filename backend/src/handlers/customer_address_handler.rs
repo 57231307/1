@@ -128,7 +128,7 @@ pub async fn delete_customer_address(
         return Err(AppError::permission_denied("无权删除该地址"));
     }
 
-    let mut active: customer_address::ActiveModel = existing.into();
+    let active: customer_address::ActiveModel = existing.into();
     active.delete(&*state.db).await?;
     Ok(Json(ApiResponse::success("删除成功".to_string())))
 }
