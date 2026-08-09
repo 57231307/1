@@ -43,11 +43,7 @@
         </el-form-item>
         <!-- batch-13 P3: 加工商筛选 -->
         <el-form-item label="类型">
-          <el-select
-            v-model="localQuery.is_processor"
-            placeholder="全部"
-            clearable
-          >
+          <el-select v-model="localQuery.is_processor" placeholder="全部" clearable>
             <el-option label="供应商" :value="false" />
             <el-option label="加工商" :value="true" />
           </el-select>
