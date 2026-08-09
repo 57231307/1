@@ -2,7 +2,7 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 use serde::Deserialize;
 
 use crate::container::AppState;
@@ -74,7 +74,7 @@ pub async fn update_customer_address(
         .ok_or_else(|| AppError::not_found("收货地址不存在"))?;
 
     if existing.customer_id != customer_id {
-        return Err(AppError::forbidden("无权修改该地址"));
+        return Err(AppError::permission_denied("无权修改该地址"));
     }
 
     // 如果设为默认地址，先取消其他默认地址
@@ -127,7 +127,7 @@ pub async fn delete_customer_address(
         .ok_or_else(|| AppError::not_found("收货地址不存在"))?;
 
     if existing.customer_id != customer_id {
-        return Err(AppError::forbidden("无权删除该地址"));
+        return Err(AppError::permission_denied("无权删除该地址"));
     }
 
     let mut active: customer_address::ActiveModel = existing.into();

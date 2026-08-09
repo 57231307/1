@@ -30,7 +30,7 @@ pub async fn get_conversion_time_stats(
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<ConversionTimeStats>>, AppError> {
     // 查询已转化的线索
-    let converted_leads = cpm_lead::Entity::find()
+    let converted_leads = crm_lead::Entity::find()
         .filter(crm_lead::Column::ConvertedAt.is_not_null())
         .filter(crm_lead::Column::CreatedAt.is_not_null())
         .all(&*state.db)

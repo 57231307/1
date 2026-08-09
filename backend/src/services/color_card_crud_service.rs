@@ -81,6 +81,10 @@ impl ColorCardCrudService {
             // V15 P0-F10：新建色卡默认库存为 0，需后续库存初始化或入库调整
             stock_quantity: Set(0),
             issued_quantity: Set(0),
+            // batch-13 P3：色卡能力字段
+            dyeing_capability: Set(None),
+            printing_capability: Set(None),
+            color_fastness_grade: Set(None),
             created_at: Set(now),
             updated_at: Set(now),
         };

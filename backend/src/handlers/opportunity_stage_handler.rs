@@ -29,9 +29,9 @@ pub async fn get_opportunity_stage_stats(
     State(state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<StageDurationStats>>>, AppError> {
-    // 查询所有已转化的商机
+    // 查询所有已成交的商机
     let opportunities = crm_opportunity::Entity::find()
-        .filter(crm_opportunity::Column::ConvertedAt.is_not_null())
+        .filter(crm_opportunity::Column::ActualCloseDate.is_not_null())
         .filter(crm_opportunity::Column::CreatedAt.is_not_null())
         .all(&*state.db)
         .await?;
@@ -40,9 +40,9 @@ pub async fn get_opportunity_stage_stats(
     let mut stage_map: std::collections::HashMap<String, Vec<f64>> = std::collections::HashMap::new();
 
     for opp in &opportunities {
-        if let (Some(created), Some(converted)) = (opp.created_at, opp.converted_at) {
-            let days = (converted - created).num_days() as f64;
-            let stage = opp.stage.clone().unwrap_or_else(|| "unknown".to_string());
+        if let (Some(created), Some(close_date)) = (opp.created_at, opp.actual_close_date) {
+            let days = (close_date.and_hms_opt(0, 0, 0).unwrap() - created.naive_utc()).num_days() as f64;
+            let stage = opp.opportunity_stage.clone().unwrap_or_else(|| "unknown".to_string());
             stage_map.entry(stage).or_default().push(days);
         }
     }

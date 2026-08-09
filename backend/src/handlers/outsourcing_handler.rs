@@ -415,7 +415,7 @@ pub async fn get_outsourcing_report(
     let closed_orders = orders.iter().filter(|o| o.status == "closed").count() as i64;
 
     // 统计总金额
-    let total_amount: rust_decimal::Decimal = orders.iter().map(|o| o.total_amount.unwrap_or_default()).sum();
+    let total_amount: rust_decimal::Decimal = orders.iter().map(|o| o.total_cost).sum();
 
     let report = serde_json::json!({
         "total_orders": total_orders,
