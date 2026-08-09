@@ -92,6 +92,9 @@ impl SystemUpdateService {
 
         self.log_update(&format!("更新成功，新版本: {}", new_version));
 
+        // batch-17 P3: 记录版本更新日志
+        self.log_update(&format!("版本更新记录: {} -> {}", current_version, new_version));
+
         self.cleanup_old_backups();
 
         Ok(format!("系统已成功更新到版本 {}", new_version))

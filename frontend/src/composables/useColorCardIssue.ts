@@ -7,6 +7,7 @@
 
 import { ref, computed } from 'vue';
 import { msg } from '@/utils/message';
+import { logger } from '@/utils/logger';
 import {
   getIssueList,
   issueColorCard,
@@ -48,6 +49,9 @@ export function useColorCardIssue() {
       const res = await getIssueList({ page_size: 100, ...query });
       records.value = res.data?.items || [];
       total.value = res.data?.total || 0;
+    } catch (e) {
+      logger.error('加载色卡发放记录失败', e);
+      msg.error('loadFailed');
     } finally {
       loading.value = false;
     }
@@ -60,6 +64,10 @@ export function useColorCardIssue() {
       const res = await issueColorCard(dto);
       msg.success('issueSuccess');
       return res.data || null;
+    } catch (e) {
+      logger.error('发放色卡失败', e);
+      msg.error('issueFailed');
+      return null;
     } finally {
       actionLoading.value = false;
     }
@@ -75,6 +83,10 @@ export function useColorCardIssue() {
       const res = await returnIssue(recordId, dto);
       msg.success('returnSuccess');
       return res.data || null;
+    } catch (e) {
+      logger.error('归还色卡失败', e);
+      msg.error('returnFailed');
+      return null;
     } finally {
       actionLoading.value = false;
     }
@@ -87,6 +99,10 @@ export function useColorCardIssue() {
       const res = await markIssueLost(recordId, dto);
       msg.success('lostRecorded');
       return res.data || null;
+    } catch (e) {
+      logger.error('登记遗失失败', e);
+      msg.error('markLostFailed');
+      return null;
     } finally {
       actionLoading.value = false;
     }
@@ -102,6 +118,10 @@ export function useColorCardIssue() {
       const res = await markIssueDamaged(recordId, dto);
       msg.success('damagedMarked');
       return res.data || null;
+    } catch (e) {
+      logger.error('标记损坏失败', e);
+      msg.error('markDamagedFailed');
+      return null;
     } finally {
       actionLoading.value = false;
     }
@@ -114,6 +134,10 @@ export function useColorCardIssue() {
       const res = await cancelIssue(recordId, dto);
       msg.success('issueCancelled');
       return res.data || null;
+    } catch (e) {
+      logger.error('取消发放失败', e);
+      msg.error('cancelFailed');
+      return null;
     } finally {
       actionLoading.value = false;
     }

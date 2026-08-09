@@ -99,7 +99,7 @@ pub mod business_trace_snapshot;
 pub mod supplier;
 pub mod supplier_category;
 pub mod supplier_contact;
-pub mod supplier_evaluation;
+pub mod supplier_evaluation_indicator;
 pub mod supplier_evaluation_record;
 pub mod supplier_product;
 pub mod supplier_qualification;

@@ -9,6 +9,7 @@ import {
   type InventoryStatistics,
 } from '@/api/dashboard';
 import { logger } from '@/utils/logger';
+import { msg } from '@/utils/message';
 
 export const useDashboardStore = defineStore('dashboard', () => {
   const stats = ref<DashboardOverview>({
@@ -35,6 +36,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
       if (res.data) stats.value = res.data;
     } catch (error) {
       logger.error('获取仪表盘概览失败:', error);
+      msg.error('dashboard.fetchFailed');
     } finally {
       loading.value = false;
     }
@@ -47,6 +49,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
       if (res.data) salesStatistics.value = res.data;
     } catch (error) {
       logger.error('获取销售统计失败:', error);
+      msg.error('dashboard.fetchSalesFailed');
     }
   };
 
@@ -57,6 +60,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
       if (res.data) inventoryStatistics.value = res.data;
     } catch (error) {
       logger.error('获取库存统计失败:', error);
+      msg.error('dashboard.fetchInventoryFailed');
     }
   };
 
