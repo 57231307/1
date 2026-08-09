@@ -89,11 +89,38 @@ pub async fn get_transfer(
 }
 
 /// 创建库存调拨
+/// batch-15 P3: 添加调拨频率限制（每小时最多 10 次）
 pub async fn create_transfer(
     State(state): State<AppState>,
     auth: AuthContext,
     Json(request): Json<CreateInventoryTransferRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // batch-15 P3: 检查调拨频率限制
+    let one_hour_ago = chrono::Utc::now() - chrono::Duration::hours(1);
+    let recent_count_sql = format!(
+        "SELECT COUNT(*) as count FROM inventory_transfers WHERE created_by = {} AND created_at >= '{}'",
+        auth.user_id,
+        one_hour_ago.format("%Y-%m-%d %H:%M:%S")
+    );
+    let count_result = state
+        .db
+        .query_one(sea_orm::Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            recent_count_sql,
+        ))
+        .await
+        .map_err(|e| AppError::internal(format!("查询调拨频率失败: {}", e)))?;
+    let recent_count = count_result
+        .map(|r| r.try_get::<i64>("", "count").unwrap_or(0))
+        .unwrap_or(0);
+
+    if recent_count >= 10 {
+        return Err(AppError::business(format!(
+            "调拨频率过高：过去 1 小时内已创建 {} 次调拨，最多允许 10 次",
+            recent_count
+        )));
+    }
+
     let transfer_service = InventoryTransferService::new(state.db.clone());
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     let transfer = transfer_service
