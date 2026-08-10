@@ -143,7 +143,7 @@ mod tests {
     #[tokio::test]
     async fn test_init_token_missing_env() {
         // 确保环境变量未设置
-        std::env::remove_var(INIT_TOKEN_ENV);
+        unsafe { std::env::remove_var(INIT_TOKEN_ENV); }
 
         let app = build_test_app();
         let req = Request::builder()
@@ -159,7 +159,7 @@ mod tests {
     /// 场景 B：未提供 X-Init-Token 头 → 期望 401
     #[tokio::test]
     async fn test_init_token_missing_header() {
-        std::env::set_var(INIT_TOKEN_ENV, "test-secret-token");
+        unsafe { std::env::set_var(INIT_TOKEN_ENV, "test-secret-token"); }
 
         let app = build_test_app();
         let req = Request::builder().uri("/test").body(Body::empty()).unwrap();
@@ -167,13 +167,13 @@ mod tests {
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 
-        std::env::remove_var(INIT_TOKEN_ENV);
+        unsafe { std::env::remove_var(INIT_TOKEN_ENV); }
     }
 
     /// 场景 C：提供错误的 X-Init-Token → 期望 401
     #[tokio::test]
     async fn test_init_token_wrong() {
-        std::env::set_var(INIT_TOKEN_ENV, "correct-token");
+        unsafe { std::env::set_var(INIT_TOKEN_ENV, "correct-token"); }
 
         let app = build_test_app();
         let req = Request::builder()
@@ -185,13 +185,13 @@ mod tests {
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 
-        std::env::remove_var(INIT_TOKEN_ENV);
+        unsafe { std::env::remove_var(INIT_TOKEN_ENV); }
     }
 
     /// 场景 D：提供正确的 X-Init-Token → 期望 200
     #[tokio::test]
     async fn test_init_token_correct() {
-        std::env::set_var(INIT_TOKEN_ENV, "correct-token-abc");
+        unsafe { std::env::set_var(INIT_TOKEN_ENV, "correct-token-abc"); }
 
         let app = build_test_app();
         let req = Request::builder()
@@ -203,13 +203,13 @@ mod tests {
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
-        std::env::remove_var(INIT_TOKEN_ENV);
+        unsafe { std::env::remove_var(INIT_TOKEN_ENV); }
     }
 
     /// 场景 E：INIT_TOKEN 配置为空字符串 → 期望 401（fail-secure）
     #[tokio::test]
     async fn test_init_token_empty_env() {
-        std::env::set_var(INIT_TOKEN_ENV, "");
+        unsafe { std::env::set_var(INIT_TOKEN_ENV, ""); }
 
         let app = build_test_app();
         let req = Request::builder()
@@ -221,6 +221,6 @@ mod tests {
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 
-        std::env::remove_var(INIT_TOKEN_ENV);
+        unsafe { std::env::remove_var(INIT_TOKEN_ENV); }
     }
 }
