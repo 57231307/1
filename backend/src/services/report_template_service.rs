@@ -667,7 +667,7 @@ impl ReportTemplateService {
             .await?;
         let new_version = max_version_row
             .as_ref()
-            .map(|v| v.version.max(current.version) + 1)
+            .map(|v| std::cmp::Ord::max(v.version, current.version) + 1)
             .unwrap_or(current.version + 1);
 
         // 用历史版本字段覆盖当前模板

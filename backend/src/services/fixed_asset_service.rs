@@ -234,7 +234,7 @@ impl FixedAssetService {
                             .to_usize()
                             .unwrap_or(0);
                         let remaining_years =
-                            useful_life_years.saturating_sub(used_years as i32).max(1);
+                            std::cmp::Ord::max(useful_life_years.saturating_sub(used_years as i32), 1);
                         // 年数总和 = n + (n-1) + ... + 1 = n * (n+1) / 2
                         let sum_of_years = useful_life_years * (useful_life_years + 1) / 2;
                         if sum_of_years <= 0 {

@@ -312,7 +312,7 @@ async fn send_alert_for_stock(
     product: &product::Model,
     stock: &StockResponse,
 ) {
-    if let Some(ref s) = setting {
+    if let Some(s) = setting {
         if let Err(e) = event_service
             .notify_inventory_alert_with_setting(
                 0,
