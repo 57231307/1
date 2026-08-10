@@ -373,7 +373,7 @@ impl SalesService {
             )
             .col_expr(
                 sales_order_item::Column::UpdatedAt,
-                sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
+                sea_orm::sea_query::Expr::val(chrono::Utc::now()),
             )
             .exec(txn)
             .await?;

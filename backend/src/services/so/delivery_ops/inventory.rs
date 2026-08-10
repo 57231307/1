@@ -242,7 +242,7 @@ impl SalesService {
             )
             .col_expr(
                 inventory_stock::Column::UpdatedAt,
-                sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
+                sea_orm::sea_query::Expr::val(chrono::Utc::now()),
             )
             .exec(txn)
             .await?;
@@ -311,7 +311,7 @@ impl SalesService {
             )
             .col_expr(
                 inventory_stock::Column::UpdatedAt,
-                sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
+                sea_orm::sea_query::Expr::val(chrono::Utc::now()),
             )
             .exec(txn)
             .await?;
@@ -334,11 +334,11 @@ impl SalesService {
             )
             .col_expr(
                 inventory_reservation::Column::ReleasedAt,
-                sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
+                sea_orm::sea_query::Expr::val(chrono::Utc::now()),
             )
             .col_expr(
                 inventory_reservation::Column::UpdatedAt,
-                sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
+                sea_orm::sea_query::Expr::val(chrono::Utc::now()),
             )
             .exec(txn)
             .await?;
@@ -390,7 +390,7 @@ impl SalesService {
                 )
                 .col_expr(
                     inventory_stock::Column::UpdatedAt,
-                    sea_orm::sea_query::Expr::val(now).into(),
+                    sea_orm::sea_query::Expr::val(now),
                 )
                 .exec(txn)
                 .await?;
@@ -405,11 +405,11 @@ impl SalesService {
             )
             .col_expr(
                 inventory_reservation::Column::ReleasedAt,
-                sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
+                sea_orm::sea_query::Expr::val(chrono::Utc::now()),
             )
             .col_expr(
                 inventory_reservation::Column::UpdatedAt,
-                sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
+                sea_orm::sea_query::Expr::val(chrono::Utc::now()),
             )
             .exec(txn)
             .await?;

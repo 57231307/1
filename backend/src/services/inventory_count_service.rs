@@ -485,15 +485,15 @@ impl InventoryCountService {
             let result = inventory_stock::Entity::update_many()
                 .col_expr(
                     inventory_stock::Column::QuantityOnHand,
-                    Expr::val(item.quantity_actual).into(),
+                    Expr::val(item.quantity_actual),
                 )
                 .col_expr(
                     inventory_stock::Column::QuantityAvailable,
-                    Expr::val(item.quantity_actual).into(),
+                    Expr::val(item.quantity_actual),
                 )
                 .col_expr(
                     inventory_stock::Column::LastCountDate,
-                    Expr::val(Utc::now()).into(),
+                    Expr::val(Utc::now()),
                 )
                 .col_expr(
                     inventory_stock::Column::Version,
@@ -501,7 +501,7 @@ impl InventoryCountService {
                 )
                 .col_expr(
                     inventory_stock::Column::UpdatedAt,
-                    Expr::val(Utc::now()).into(),
+                    Expr::val(Utc::now()),
                 )
                 .filter(inventory_stock::Column::Id.eq(item.stock_id))
                 .filter(inventory_stock::Column::Version.eq(expected_version))
