@@ -495,11 +495,13 @@ impl ExportApprovalService {
         if !is_admin {
             // (approver_user_id = self) OR (applicant_user_id != self)
             use sea_orm::sea_query::Expr;
-            let applicant_filter = format!("applicant_user_id <> {}", user_id);
             select = select.filter(
                 Condition::any()
                     .add(Column::ApproverUserId.eq(user_id))
-                    .add(Expr::cust(&applicant_filter)),
+                    .add(Expr::cust_with_values(
+                        "applicant_user_id <> $1",
+                        [user_id],
+                    )),
             );
         }
 

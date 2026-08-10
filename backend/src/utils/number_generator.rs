@@ -1,8 +1,8 @@
 use crate::utils::error::AppError;
 use chrono::Utc;
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseBackend, DatabaseConnection, EntityTrait,
-    FromQueryResult, PaginatorTrait, QueryFilter, Statement, TransactionTrait,
+    ColumnTrait, ConnectionTrait, DatabaseBackend, DatabaseConnection, DatabaseTransaction,
+    EntityTrait, FromQueryResult, PaginatorTrait, QueryFilter, Statement, TransactionTrait,
 };
 
 /// 通用单号生成器
