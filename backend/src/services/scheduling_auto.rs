@@ -21,7 +21,7 @@ use crate::services::scheduling_service::{
 use crate::utils::error::AppError;
 use chrono::{Duration, NaiveDate, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set};
+use sea_orm::{ExprTrait, ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 use std::collections::HashMap;
 
 /// P9-2 标记：自动排程子模块路径
