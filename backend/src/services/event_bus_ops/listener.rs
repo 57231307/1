@@ -17,7 +17,7 @@ use crate::services::event_bus::{
 use crate::utils::error::AppError;
 use futures::FutureExt;
 use sea_orm::DatabaseConnection;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, EntityTrait, ExprTrait, QueryFilter};
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 
