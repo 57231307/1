@@ -1,8 +1,8 @@
 use crate::utils::error::AppError;
 use chrono::Utc;
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseBackend, DatabaseTransaction, EntityTrait,
-    FromQueryResult, PaginatorTrait, QueryFilter, Statement, TransactionTrait,
+    ColumnTrait, ConnectionTrait, DatabaseBackend, DatabaseConnection, DatabaseTransaction,
+    EntityTrait, FromQueryResult, PaginatorTrait, QueryFilter, Statement, TransactionTrait,
 };
 
 /// 通用单号生成器
@@ -11,7 +11,7 @@ pub struct DocumentNumberGenerator;
 impl DocumentNumberGenerator {
     /// 生成标准格式单号: {前缀}{YYYYMMDD}{3位流水号}（如 PO20230501001；默认 3 位流水号，需更多位数用 generate_no_with_width）
     pub async fn generate_no<'db, E, C>(
-        db: &'db (impl ConnectionTrait + TransactionTrait),
+        db: &'db DatabaseConnection,
         prefix: &str,
         _entity: E,
         column: C,
@@ -27,7 +27,7 @@ impl DocumentNumberGenerator {
 
     /// 生成可指定流水位数的单号: {前缀}{YYYYMMDD}{width位流水号}（使用 pg_advisory_xact_lock 保证并发安全）
     pub async fn generate_no_with_width<'db, E, C>(
-        db: &'db (impl ConnectionTrait + TransactionTrait),
+        db: &'db DatabaseConnection,
         prefix: &str,
         _entity: E,
         column: C,
@@ -45,10 +45,7 @@ impl DocumentNumberGenerator {
         // 批次 9（2026-06-28）：用 PostgreSQL advisory_xact_lock 串行化同前缀同日的单号生成
         // 开启子事务（若调用方已在事务中，PostgreSQL 自动创建 savepoint；
         // advisory_xact_lock 在 savepoint 释放时也会释放，行为正确）
-        let txn = match db.begin().await {
-            Ok(txn) => txn,
-            Err(e) => return Err(AppError::internal(format!("开始事务失败: {:?}", e))),
-        };
+        let txn = db.begin().await.map_err(|e| AppError::internal(format!("开始事务失败: {:?}", e)))?;
 
         // 计算锁 key：prefix + date 字符串的稳定 i64 哈希
         let lock_key = compute_advisory_lock_key(prefix, &today);
