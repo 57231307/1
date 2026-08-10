@@ -17,7 +17,7 @@ use crate::services::event_bus::{
 use crate::utils::error::AppError;
 use futures::FutureExt;
 use sea_orm::DatabaseConnection;
-use sea_orm::{ExprTrait, ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 
@@ -1667,7 +1667,7 @@ async fn update_ar_invoices_customer_name(
     now: chrono::DateTime<chrono::Utc>,
 ) -> Result<(), AppError> {
     use sea_orm::sea_query::Expr;
-    use sea_orm::{ExprTrait, ColumnTrait, EntityTrait, QueryFilter};
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     crate::models::ar_invoice::Entity::update_many()
         .filter(crate::models::ar_invoice::Column::CustomerId.eq(customer_id))
         .col_expr(
@@ -1691,7 +1691,7 @@ async fn update_ar_collections_customer_name(
     now: chrono::DateTime<chrono::Utc>,
 ) -> Result<(), AppError> {
     use sea_orm::sea_query::Expr;
-    use sea_orm::{ExprTrait, ColumnTrait, EntityTrait, QueryFilter};
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     crate::models::ar_collection::Entity::update_many()
         .filter(crate::models::ar_collection::Column::CustomerId.eq(customer_id))
         .col_expr(
@@ -1715,7 +1715,7 @@ async fn update_ar_reconciliations_customer_name(
     now: chrono::DateTime<chrono::Utc>,
 ) -> Result<(), AppError> {
     use sea_orm::sea_query::Expr;
-    use sea_orm::{ExprTrait, ColumnTrait, EntityTrait, QueryFilter};
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     crate::models::ar_reconciliation::Entity::update_many()
         .filter(crate::models::ar_reconciliation::Column::CustomerId.eq(customer_id))
         .col_expr(
@@ -1739,7 +1739,7 @@ async fn update_customer_credits_customer_name(
     now: chrono::DateTime<chrono::Utc>,
 ) -> Result<(), AppError> {
     use sea_orm::sea_query::Expr;
-    use sea_orm::{ExprTrait, ColumnTrait, EntityTrait, QueryFilter};
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     crate::models::customer_credit::Entity::update_many()
         .filter(crate::models::customer_credit::Column::CustomerId.eq(customer_id))
         .col_expr(
@@ -1763,7 +1763,7 @@ async fn update_sales_contracts_customer_name(
     now: chrono::DateTime<chrono::Utc>,
 ) -> Result<(), AppError> {
     use sea_orm::sea_query::Expr;
-    use sea_orm::{ExprTrait, ColumnTrait, EntityTrait, QueryFilter};
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     crate::models::sales_contract::Entity::update_many()
         .filter(crate::models::sales_contract::Column::CustomerId.eq(customer_id))
         .col_expr(
