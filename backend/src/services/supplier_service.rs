@@ -11,7 +11,7 @@ use crate::utils::redis_cache::{
 use crate::utils::response::PaginatedResponse;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{
+use sea_orm::{ExprTrait, 
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
     QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };

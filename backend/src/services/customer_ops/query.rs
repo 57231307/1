@@ -8,7 +8,7 @@
 //! - list_customers_with_filter（带数据权限过滤的列表查询）
 //! - get_customer_with_filter（带数据权限过滤的详情查询，复用 get_customer 行级校验）
 
-use sea_orm::{
+use sea_orm::{ExprTrait, 
     ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
 };
 
