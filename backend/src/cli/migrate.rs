@@ -3,7 +3,7 @@
 //! 提供 `migrate run / rollback / status / fresh / refresh / reset` 等迁移子命令。
 
 use clap::Subcommand;
-use migration::{Migrator, MigratorTrait};
+use migration::{Migrator, MigratorTrait, SchemaManager};
 use sea_orm::{ConnectOptions, Database};
 use std::time::Duration;
 

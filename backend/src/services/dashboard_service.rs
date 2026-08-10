@@ -1,7 +1,7 @@
 use chrono::{DateTime, Datelike, Utc};
 use rust_decimal::Decimal;
 use sea_orm::prelude::*;
-use sea_orm::{
+use sea_orm::{ExprTrait, 
     sea_query::Expr, ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, QueryFilter,
     QueryOrder, QuerySelect, Statement,
 };

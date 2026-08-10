@@ -13,7 +13,7 @@ use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScope
 use crate::utils::error::AppError;
 use crate::utils::xlsx_export::XlsxTable;
 use sea_orm::sea_query::{extension::postgres::PgExpr, Expr};
-use sea_orm::{
+use sea_orm::{ExprTrait, 
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
     QuerySelect, Set, TransactionTrait,
 };
