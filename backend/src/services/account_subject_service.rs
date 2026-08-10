@@ -2,7 +2,7 @@
 //!
 //! 会计科目业务逻辑层
 
-use sea_orm::{
+use sea_orm::{ExprTrait, 
     sea_query::Expr, ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait,
     IntoActiveModel, JoinType, ModelTrait, Order, PaginatorTrait, QueryFilter, QueryOrder,
     QuerySelect, RelationTrait, Set,
