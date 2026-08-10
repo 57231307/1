@@ -149,7 +149,7 @@ impl TrackingCleanupService {
             archive_sql,
             [self.retention_days.into()],
         );
-        self.db.as_ref().execute(stmt).await?;
+        self.db.as_ref().execute_raw(stmt).await?;
 
         // 2. 批量删除已归档的明细（按 id 上限分批，避免锁表）
         let delete_sql = r#"
@@ -167,7 +167,7 @@ impl TrackingCleanupService {
                 delete_sql,
                 [self.retention_days.into(), BATCH_SIZE.into()],
             );
-            let result = self.db.as_ref().execute(stmt).await?;
+            let result = self.db.as_ref().execute_raw(stmt).await?;
             let deleted = result.rows_affected() as i64;
             total_deleted += deleted;
             if deleted < BATCH_SIZE {
@@ -207,7 +207,7 @@ impl TrackingCleanupService {
             archive_sql,
             [self.retention_days.into()],
         );
-        self.db.as_ref().execute(stmt).await?;
+        self.db.as_ref().execute_raw(stmt).await?;
 
         // 批量删除已归档的明细
         let delete_sql = r#"
@@ -225,7 +225,7 @@ impl TrackingCleanupService {
                 delete_sql,
                 [self.retention_days.into(), BATCH_SIZE.into()],
             );
-            let result = self.db.as_ref().execute(stmt).await?;
+            let result = self.db.as_ref().execute_raw(stmt).await?;
             let deleted = result.rows_affected() as i64;
             total_deleted += deleted;
             if deleted < BATCH_SIZE {

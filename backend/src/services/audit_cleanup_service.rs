@@ -72,7 +72,7 @@ impl AuditCleanupService {
             "DELETE FROM omni_audit_logs WHERE created_at < NOW() - ($1 * INTERVAL '1 day')",
             [self.retention_days.into()],
         );
-        let result = self.db.as_ref().execute(stmt).await?;
+        let result = self.db.as_ref().execute_raw(stmt).await?;
         let deleted_count = result.rows_affected();
         if deleted_count > 0 {
             tracing::info!(
@@ -89,7 +89,7 @@ impl AuditCleanupService {
             "DELETE FROM audit_logs WHERE created_at < NOW() - ($1 * INTERVAL '1 day')",
             [self.retention_days.into()],
         );
-        let result = self.db.as_ref().execute(stmt).await?;
+        let result = self.db.as_ref().execute_raw(stmt).await?;
         let deleted_count2 = result.rows_affected();
         if deleted_count2 > 0 {
             tracing::info!(
@@ -106,7 +106,7 @@ impl AuditCleanupService {
             "DELETE FROM permission_change_audits WHERE changed_at < NOW() - ($1 * INTERVAL '1 day')",
             [self.permission_audit_retention_days.into()],
         );
-        let result = self.db.as_ref().execute(stmt).await?;
+        let result = self.db.as_ref().execute_raw(stmt).await?;
         let deleted_count3 = result.rows_affected();
         if deleted_count3 > 0 {
             tracing::info!(
@@ -123,7 +123,7 @@ impl AuditCleanupService {
             "DELETE FROM security_alert_logs WHERE created_at < NOW() - ($1 * INTERVAL '1 day')",
             [self.security_alert_retention_days.into()],
         );
-        let result = self.db.as_ref().execute(stmt).await?;
+        let result = self.db.as_ref().execute_raw(stmt).await?;
         let deleted_count4 = result.rows_affected();
         if deleted_count4 > 0 {
             tracing::info!(
