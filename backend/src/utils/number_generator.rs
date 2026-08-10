@@ -1,8 +1,9 @@
 use crate::utils::error::AppError;
 use chrono::Utc;
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseBackend, DatabaseTransaction, EntityTrait,
-    FromQueryResult, PaginatorTrait, QueryFilter, Statement, TransactionTrait,
+    ColumnTrait, ConnectionTrait, DatabaseBackend, DatabaseConnection, EntityTrait,
+    FromQueryResult, PaginatorTrait, QueryFilter, Statement, TransactionSession,
+    TransactionTrait,
 };
 
 /// 通用单号生成器
@@ -11,7 +12,7 @@ pub struct DocumentNumberGenerator;
 impl DocumentNumberGenerator {
     /// 生成标准格式单号: {前缀}{YYYYMMDD}{3位流水号}（如 PO20230501001；默认 3 位流水号，需更多位数用 generate_no_with_width）
     pub async fn generate_no<'db, E, C>(
-        db: &'db (impl ConnectionTrait + TransactionTrait),
+        db: &'db DatabaseConnection,
         prefix: &str,
         _entity: E,
         column: C,
@@ -27,7 +28,7 @@ impl DocumentNumberGenerator {
 
     /// 生成可指定流水位数的单号: {前缀}{YYYYMMDD}{width位流水号}（使用 pg_advisory_xact_lock 保证并发安全）
     pub async fn generate_no_with_width<'db, E, C>(
-        db: &'db (impl ConnectionTrait + TransactionTrait),
+        db: &'db DatabaseConnection,
         prefix: &str,
         _entity: E,
         column: C,
@@ -65,11 +66,7 @@ impl DocumentNumberGenerator {
             .await?;
 
         // 提交子事务，advisory_xact_lock 自动释放
-        // 使用 match 处理 TransactionError
-        match txn.commit().await {
-            Ok(_) => {},
-            Err(e) => return Err(AppError::internal(format!("提交事务失败: {:?}", e))),
-        }
+        txn.commit().await.map_err(|e| AppError::internal(format!("提交事务失败: {:?}", e)))?;
 
         // 防御：当 width == 0 时退化为 1 位，至少保留流水号
         let width = std::cmp::Ord::max(width, 1);
