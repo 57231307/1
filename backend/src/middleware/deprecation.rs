@@ -10,13 +10,7 @@ pub async fn deprecation_headers_middleware(
     req: Request,
     next: Next,
 ) -> Response {
-    let response = next.run(req).await;
-
-    // 检查是否已设置 deprecation 头（由 handler 设置）
-    // 如果没有设置，则不添加
-    // 这里我们只是确保响应格式正确，实际的 deprecation 信息由 handler 添加
-
-    response
+    next.run(req).await
 }
 
 #[cfg(test)]

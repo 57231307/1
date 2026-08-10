@@ -611,7 +611,7 @@ impl CrmService {
             active.calculated_at = sea_orm::Set(Some(chrono::Utc::now()));
             active.update(&*self.db).await?
         } else {
-            let new_record = customer_lifetime_value::ActiveModel {
+            customer_lifetime_value::ActiveModel {
                 id: Default::default(),
                 customer_id: sea_orm::Set(customer_id),
                 total_orders: sea_orm::Set(total_orders),
@@ -626,8 +626,7 @@ impl CrmService {
                 calculated_at: sea_orm::Set(Some(chrono::Utc::now())),
             }
             .insert(&*self.db)
-            .await?;
-            new_record
+            .await?
         };
 
         Ok(clv_record)

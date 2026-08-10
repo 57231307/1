@@ -211,7 +211,7 @@ impl InventoryTransferService {
                 )
                 .col_expr(
                     inventory_stock::Column::UpdatedAt,
-                    sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
+                    sea_orm::sea_query::Expr::val(chrono::Utc::now()),
                 )
                 .filter(inventory_stock::Column::Id.eq(stock.id))
                 .exec(txn)
@@ -275,11 +275,11 @@ impl InventoryTransferService {
             )
             .col_expr(
                 inventory_stock::Column::QuantityMeters,
-                Expr::val(new_quantity_meters).into(),
+                Expr::val(new_quantity_meters),
             )
             .col_expr(
                 inventory_stock::Column::QuantityKg,
-                Expr::val(new_quantity_kg).into(),
+                Expr::val(new_quantity_kg),
             )
             .col_expr(
                 inventory_stock::Column::Version,
@@ -287,7 +287,7 @@ impl InventoryTransferService {
             )
             .col_expr(
                 inventory_stock::Column::UpdatedAt,
-                sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
+                sea_orm::sea_query::Expr::val(chrono::Utc::now()),
             )
             .filter(inventory_stock::Column::Id.eq(stock_id))
             .filter(inventory_stock::Column::Version.eq(expected_version))
@@ -628,11 +628,11 @@ impl InventoryTransferService {
             let update_result = inventory_stock::Entity::update_many()
                 .col_expr(
                     inventory_stock::Column::QuantityIncoming,
-                    sea_orm::sea_query::Expr::val(new_incoming).into(),
+                    sea_orm::sea_query::Expr::val(new_incoming),
                 )
                 .col_expr(
                     inventory_stock::Column::UpdatedAt,
-                    sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
+                    sea_orm::sea_query::Expr::val(chrono::Utc::now()),
                 )
                 .filter(inventory_stock::Column::Id.eq(stock.id))
                 .exec(txn)
@@ -673,11 +673,11 @@ impl InventoryTransferService {
             )
             .col_expr(
                 inventory_stock::Column::QuantityMeters,
-                Expr::val(new_quantity_meters).into(),
+                Expr::val(new_quantity_meters),
             )
             .col_expr(
                 inventory_stock::Column::QuantityKg,
-                Expr::val(new_quantity_kg).into(),
+                Expr::val(new_quantity_kg),
             )
             .col_expr(
                 inventory_stock::Column::Version,
@@ -685,7 +685,7 @@ impl InventoryTransferService {
             )
             .col_expr(
                 inventory_stock::Column::UpdatedAt,
-                sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
+                sea_orm::sea_query::Expr::val(chrono::Utc::now()),
             )
             .filter(inventory_stock::Column::Id.eq(stock_id))
             .filter(inventory_stock::Column::Version.eq(expected_version))
