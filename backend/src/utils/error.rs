@@ -454,7 +454,7 @@ mod tests {
     #[tokio::test]
     async fn test_production_response_omits_error_type() {
         // 强制设置生产环境
-        std::env::set_var("APP_ENV", "production");
+        unsafe { std::env::set_var("APP_ENV", "production"); }
         let err = AppError::DatabaseError("connection refused".to_string());
         let response = err.into_response();
         let body_json = extract_body_json(response).await;
@@ -469,13 +469,13 @@ mod tests {
             body_json.get("message").is_some(),
             "生产环境响应应包含 message"
         );
-        std::env::remove_var("APP_ENV");
+        unsafe { std::env::remove_var("APP_ENV"); }
     }
 
     /// 漏洞 #11 测试：生产环境响应（APP_ENV=production）**不含** `detail` 字段
     #[tokio::test]
     async fn test_production_response_omits_detail() {
-        std::env::set_var("APP_ENV", "production");
+        unsafe { std::env::set_var("APP_ENV", "production"); }
         let err = AppError::ValidationError("字段 email 格式错误".to_string());
         let response = err.into_response();
         let body_json = extract_body_json(response).await;
@@ -484,14 +484,14 @@ mod tests {
             "生产环境响应不应包含 detail 字段，实际 body: {}",
             body_json
         );
-        std::env::remove_var("APP_ENV");
+        unsafe { std::env::remove_var("APP_ENV"); }
     }
 
     /// 漏洞 #4 / #8 修复测试：开发环境响应**也不包含** `error_type` 和 `detail` 字段
     #[tokio::test]
     async fn test_development_response_omits_error_type_and_detail() {
         // 确保不是 production
-        std::env::remove_var("APP_ENV");
+        unsafe { std::env::remove_var("APP_ENV"); }
         let err = AppError::NotFound("用户 ID=42".to_string());
         let response = err.into_response();
         let body_json = extract_body_json(response).await;
@@ -520,7 +520,7 @@ mod tests {
     /// 漏洞 #4 修复测试：DatabaseError 响应脱敏
     #[tokio::test]
     async fn test_database_error_response_is_sanitized() {
-        std::env::remove_var("APP_ENV");
+        unsafe { std::env::remove_var("APP_ENV"); }
         let sensitive = "duplicate key value violates unique constraint \"users_email_key\"";
         let err = AppError::DatabaseError(sensitive.to_string());
         let response = err.into_response();
@@ -539,7 +539,7 @@ mod tests {
     /// 漏洞 #12 反向测试：to_response() 在生产环境下返回脱敏 message
     #[tokio::test]
     async fn test_to_response_uses_public_message_in_production() {
-        std::env::set_var("APP_ENV", "production");
+        unsafe { std::env::set_var("APP_ENV", "production"); }
         let err = AppError::DatabaseError("internal SQL: SELECT * FROM secrets".to_string());
         let response = err.to_response();
         // 脱敏后不应包含原始 SQL 片段
@@ -554,13 +554,13 @@ mod tests {
             "生产环境 message 应为脱敏文案，实际 message: {}",
             response.message
         );
-        std::env::remove_var("APP_ENV");
+        unsafe { std::env::remove_var("APP_ENV"); }
     }
 
     /// 漏洞 #12 反向测试：to_response() 在非生产环境下也使用脱敏 message
     #[tokio::test]
     async fn test_to_response_uses_public_message_in_development() {
-        std::env::remove_var("APP_ENV");
+        unsafe { std::env::remove_var("APP_ENV"); }
         let err = AppError::DatabaseError("connection timeout with secrets table".to_string());
         let response = err.to_response();
         // 开发环境也不再泄露原始 msg

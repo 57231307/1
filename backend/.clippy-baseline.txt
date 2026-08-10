@@ -38,6 +38,8 @@ warning: associated items `new`, `from_state`, `link_purchase_order`, `record_tr
 warning: associated items `new`, `reconcile_monthly`, `compute_confusion_matrix`, `normalize_risk`, `upsert_report`, and `list_accuracy_reports` are never used
 warning: associated items `new`, `sign_contract`, `verify_signature`, `revoke_signature`, `list_signed_contracts`, and `compute_contract_hash` are never used
 warning: associated items `validate_test_item` and `add_physical_test` are never used
+warning: call to unsafe function `std::env::remove_var` is unsafe and requires unsafe block
+warning: call to unsafe function `std::env::set_var` is unsafe and requires unsafe block
 warning: constant `ACCURACY_THRESHOLD` is never used
 warning: constant `ALIPAY` is never used
 warning: constant `BANK` is never used

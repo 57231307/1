@@ -329,8 +329,10 @@ mod tests {
     #[tokio::test]
     async fn test_redis_rate_limiter_disabled_when_no_url() {
         // 确保没有 RATE_LIMIT_REDIS_URL / REDIS_URL
-        std::env::remove_var("RATE_LIMIT_REDIS_URL");
-        std::env::remove_var("REDIS_URL");
+        unsafe {
+            std::env::remove_var("RATE_LIMIT_REDIS_URL");
+            std::env::remove_var("REDIS_URL");
+        }
 
         let result = check_redis_rate_limit("test:key", 5, Duration::from_secs(60)).await;
         assert!(
@@ -346,8 +348,10 @@ mod tests {
     /// 漏洞 #6 修复单元测试：check_rate_limit 在无 Redis 时回退内存；验证：check_rate_limit 优先 Redis，未配置时回退到内存限流器
     #[tokio::test]
     async fn test_check_rate_limit_falls_back_to_memory() {
-        std::env::remove_var("RATE_LIMIT_REDIS_URL");
-        std::env::remove_var("REDIS_URL");
+        unsafe {
+            std::env::remove_var("RATE_LIMIT_REDIS_URL");
+            std::env::remove_var("REDIS_URL");
+        }
 
         let limiter = MemoryRateLimiter::new(2, Duration::from_secs(60));
         let key = "test:fallback:key";
