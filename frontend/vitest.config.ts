@@ -28,12 +28,12 @@ export default defineConfig({
         'src/main.ts',
         'src/App.vue',
       ],
-      // V15 P1-20-6 覆盖率门槛（当前 1%，待测试补齐批次后回调至 70%）
+      // V15 P1-20-6 覆盖率门槛（当前 1.78%，逐步提升至 70%）
       thresholds: {
-        lines: 1,
-        functions: 1,
-        branches: 1,
-        statements: 1,
+        lines: 2,
+        functions: 2,
+        branches: 2,
+        statements: 2,
         perFile: false,
       },
     },
