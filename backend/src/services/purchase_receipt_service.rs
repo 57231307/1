@@ -244,7 +244,7 @@ mod tests {
         use sea_orm::ConnectionTrait;
         let _ = svc
             .db
-            .execute(sea_orm::Statement::from_sql_and_values(
+            .execute_raw(sea_orm::Statement::from_sql_and_values(
                 svc.db.get_database_backend(),
                 "SELECT 1",
                 Vec::new(),

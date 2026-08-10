@@ -569,7 +569,7 @@ pub async fn get_rto_rpo_config(
     let backup_result = state
         .db
         .as_ref()
-        .query_one(Statement::from_string(
+        .query_one_raw(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             backup_sql.to_string(),
         ))
@@ -619,7 +619,7 @@ pub async fn get_deployment_history(
     let versions_result = state
         .db
         .as_ref()
-        .query_all(Statement::from_string(
+        .query_all_raw(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             versions_sql.to_string(),
         ))

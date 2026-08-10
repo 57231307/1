@@ -159,7 +159,7 @@ pub async fn get_slow_query_stats(
     let query_result = state
         .db
         .as_ref()
-        .query_all(Statement::from_string(
+        .query_all_raw(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             sql.to_string(),
         ))
@@ -192,7 +192,7 @@ pub async fn get_slow_query_stats(
     let count_row = state
         .db
         .as_ref()
-        .query_one(Statement::from_string(
+        .query_one_raw(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             count_sql.to_string(),
         ))
@@ -240,7 +240,7 @@ pub async fn get_slow_query_summary(
     let total_result = state
         .db
         .as_ref()
-        .query_one(Statement::from_string(
+        .query_one_raw(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             total_sql.to_string(),
         ))
@@ -255,7 +255,7 @@ pub async fn get_slow_query_summary(
     let today_result = state
         .db
         .as_ref()
-        .query_one(Statement::from_string(
+        .query_one_raw(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             today_sql.to_string(),
         ))
@@ -270,7 +270,7 @@ pub async fn get_slow_query_summary(
     let avg_result = state
         .db
         .as_ref()
-        .query_one(Statement::from_string(
+        .query_one_raw(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             avg_sql.to_string(),
         ))
@@ -285,7 +285,7 @@ pub async fn get_slow_query_summary(
     let max_result = state
         .db
         .as_ref()
-        .query_one(Statement::from_string(
+        .query_one_raw(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             max_sql.to_string(),
         ))
@@ -300,7 +300,7 @@ pub async fn get_slow_query_summary(
     let frequent_result = state
         .db
         .as_ref()
-        .query_one(Statement::from_string(
+        .query_one_raw(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             frequent_sql.to_string(),
         ))
@@ -319,7 +319,7 @@ pub async fn get_slow_query_summary(
     let status_result = state
         .db
         .as_ref()
-        .query_one(Statement::from_string(
+        .query_one_raw(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             status_sql.to_string(),
         ))
@@ -509,7 +509,7 @@ pub async fn get_weekly_report(
     let avg_result = state
         .db
         .as_ref()
-        .query_one(Statement::from_string(
+        .query_one_raw(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             avg_sql,
         ))

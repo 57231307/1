@@ -209,7 +209,7 @@ pub async fn get_system_resources(
     let db_result = state
         .db
         .as_ref()
-        .query_one(Statement::from_string(
+        .query_one_raw(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             db_connections_sql.to_string(),
         ))

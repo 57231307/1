@@ -91,7 +91,7 @@ impl PurchaseDeliveryCalculator {
     async fn get_supplier_avg_lead_time(&self, supplier_id: i32) -> Result<(i32, i64), AppError> {
         let result: Option<sea_orm::QueryResult> = self
             .db
-            .query_one(Statement::from_sql_and_values(
+            .query_one_raw(Statement::from_sql_and_values(
                 sea_orm::DatabaseBackend::Postgres,
                 r#"
                 SELECT

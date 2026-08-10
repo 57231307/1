@@ -1000,7 +1000,7 @@ impl FinanceReportService {
 
         let rows: Vec<sea_orm::QueryResult> = self
             .db
-            .query_all(sea_orm::Statement::from_sql_and_values(
+            .query_all_raw(sea_orm::Statement::from_sql_and_values(
                 sea_orm::DatabaseBackend::Postgres,
                 sql,
                 params,
