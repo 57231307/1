@@ -327,8 +327,7 @@ impl InventoryAdjustmentService {
                     item.quantity_after * kg_ratio
                 } else {
                     current_quantity_kg
-                })
-                .into(),
+                }),
             )
             .col_expr(
                 inventory_stock::Column::Version,
