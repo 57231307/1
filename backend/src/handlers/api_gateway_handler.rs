@@ -637,7 +637,7 @@ pub async fn create_api_key(
         } else {
             chrono::DateTime::parse_from_rfc3339(s)
                 .ok()
-                .map(|d| (d.with_timezone(&Utc) - Utc::now()).num_days().max(1))
+                .map(|d| std::cmp::Ord::max((d.with_timezone(&Utc) - Utc::now()).num_days(), 1))
         }
     });
 

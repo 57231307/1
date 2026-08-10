@@ -1130,7 +1130,7 @@ impl SupplierService {
     ) -> Result<Vec<PurchaseHistoryItem>, AppError> {
         use crate::models::purchase_order::{self, Entity as PurchaseOrderEntity};
 
-        let limit = limit.unwrap_or(50).min(200);
+        let limit = std::cmp::Ord::min(limit.unwrap_or(50), 200);
 
         let orders = PurchaseOrderEntity::find()
             .filter(purchase_order::Column::SupplierId.eq(supplier_id))

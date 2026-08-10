@@ -68,7 +68,7 @@ impl DocumentNumberGenerator {
         txn.commit().await?;
 
         // 防御：当 width == 0 时退化为 1 位，至少保留流水号
-        let width = width.max(1);
+        let width = std::cmp::Ord::max(width, 1);
         Ok(format!(
             "{}{:0width$}",
             date_prefix,
