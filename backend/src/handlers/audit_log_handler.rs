@@ -12,8 +12,8 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, Set,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -497,7 +497,7 @@ pub async fn list_audit_log_export_logs(
 ) -> Result<Json<ApiResponse<ExportLogListResponse>>, AppError> {
     require_admin_role(&state, &auth).await?;
 
-    let page = query.page.unwrap_or(1).max(1);
+    let page = std::cmp::Ord::max(query.page.unwrap_or(1), 1);
     let per_page = query.per_page.unwrap_or(20).clamp(1, 100);
 
     let mut select = audit_log_export_log::Entity::find()

@@ -3,7 +3,7 @@
 //! 提供报表模板的CRUD操作和持久化功能
 
 use chrono::Utc;
-use sea_orm::{
+use sea_orm::{ExprTrait, 
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
     QueryOrder, Set,
 };
@@ -667,7 +667,7 @@ impl ReportTemplateService {
             .await?;
         let new_version = max_version_row
             .as_ref()
-            .map(|v| v.version.max(current.version) + 1)
+            .map(|v| std::cmp::Ord::max(v.version, current.version) + 1)
             .unwrap_or(current.version + 1);
 
         // 用历史版本字段覆盖当前模板

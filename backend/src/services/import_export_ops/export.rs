@@ -18,7 +18,7 @@
 use crate::services::import_export_service::{ExportQuery, ImportExportService};
 use crate::utils::error::AppError;
 use crate::utils::sql_escape::safe_like_pattern;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
+use sea_orm::{ExprTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
 
 impl ImportExportService {
     /// 导出数据

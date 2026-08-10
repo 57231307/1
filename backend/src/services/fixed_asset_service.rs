@@ -11,7 +11,7 @@ use crate::utils::sql_escape::safe_like_pattern;
 use chrono::NaiveDate;
 use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
-use sea_orm::{
+use sea_orm::{ExprTrait, 
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
     QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
@@ -234,7 +234,7 @@ impl FixedAssetService {
                             .to_usize()
                             .unwrap_or(0);
                         let remaining_years =
-                            useful_life_years.saturating_sub(used_years as i32).max(1);
+                            std::cmp::Ord::max(useful_life_years.saturating_sub(used_years as i32), 1);
                         // 年数总和 = n + (n-1) + ... + 1 = n * (n+1) / 2
                         let sum_of_years = useful_life_years * (useful_life_years + 1) / 2;
                         if sum_of_years <= 0 {

@@ -9,8 +9,8 @@
 //! redis_cache 调用保留在原函数内：get_customer 读穿透 + 回填，delete_customer 失效缓存。
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, Order, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, TransactionTrait,
 };
 
 use crate::models::customer::{self, Entity as CustomerEntity};

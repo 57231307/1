@@ -17,7 +17,7 @@ use crate::services::event_bus::{
 use crate::utils::error::AppError;
 use futures::FutureExt;
 use sea_orm::DatabaseConnection;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, EntityTrait, ExprTrait, QueryFilter};
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 
@@ -1672,11 +1672,11 @@ async fn update_ar_invoices_customer_name(
         .filter(crate::models::ar_invoice::Column::CustomerId.eq(customer_id))
         .col_expr(
             crate::models::ar_invoice::Column::CustomerName,
-            Expr::val(new_name.to_string()).into(),
+            Expr::val(new_name.to_string()),
         )
         .col_expr(
             crate::models::ar_invoice::Column::UpdatedAt,
-            Expr::val(now).into(),
+            Expr::val(now),
         )
         .exec(db)
         .await?;
@@ -1696,11 +1696,11 @@ async fn update_ar_collections_customer_name(
         .filter(crate::models::ar_collection::Column::CustomerId.eq(customer_id))
         .col_expr(
             crate::models::ar_collection::Column::CustomerName,
-            Expr::val(new_name.to_string()).into(),
+            Expr::val(new_name.to_string()),
         )
         .col_expr(
             crate::models::ar_collection::Column::UpdatedAt,
-            Expr::val(now).into(),
+            Expr::val(now),
         )
         .exec(db)
         .await?;
@@ -1720,11 +1720,11 @@ async fn update_ar_reconciliations_customer_name(
         .filter(crate::models::ar_reconciliation::Column::CustomerId.eq(customer_id))
         .col_expr(
             crate::models::ar_reconciliation::Column::CustomerName,
-            Expr::val(new_name.to_string()).into(),
+            Expr::val(new_name.to_string()),
         )
         .col_expr(
             crate::models::ar_reconciliation::Column::UpdatedAt,
-            Expr::val(now).into(),
+            Expr::val(now),
         )
         .exec(db)
         .await?;
@@ -1744,11 +1744,11 @@ async fn update_customer_credits_customer_name(
         .filter(crate::models::customer_credit::Column::CustomerId.eq(customer_id))
         .col_expr(
             crate::models::customer_credit::Column::CustomerName,
-            Expr::val(new_name.to_string()).into(),
+            Expr::val(new_name.to_string()),
         )
         .col_expr(
             crate::models::customer_credit::Column::UpdatedAt,
-            Expr::val(now).into(),
+            Expr::val(now),
         )
         .exec(db)
         .await?;
@@ -1768,11 +1768,11 @@ async fn update_sales_contracts_customer_name(
         .filter(crate::models::sales_contract::Column::CustomerId.eq(customer_id))
         .col_expr(
             crate::models::sales_contract::Column::CustomerName,
-            Expr::val(new_name.to_string()).into(),
+            Expr::val(new_name.to_string()),
         )
         .col_expr(
             crate::models::sales_contract::Column::UpdatedAt,
-            Expr::val(now).into(),
+            Expr::val(now),
         )
         .exec(db)
         .await?;
@@ -1797,11 +1797,11 @@ async fn refresh_supplier_name_redundancy(
         .filter(crate::models::purchase_contract::Column::SupplierId.eq(supplier_id))
         .col_expr(
             crate::models::purchase_contract::Column::SupplierName,
-            Expr::val(new_name.to_string()).into(),
+            Expr::val(new_name.to_string()),
         )
         .col_expr(
             crate::models::purchase_contract::Column::UpdatedAt,
-            Expr::val(now).into(),
+            Expr::val(now),
         )
         .exec(db)
         .await?;
@@ -1811,11 +1811,11 @@ async fn refresh_supplier_name_redundancy(
         .filter(crate::models::fixed_asset::Column::SupplierId.eq(supplier_id))
         .col_expr(
             crate::models::fixed_asset::Column::SupplierName,
-            Expr::val(new_name.to_string()).into(),
+            Expr::val(new_name.to_string()),
         )
         .col_expr(
             crate::models::fixed_asset::Column::UpdatedAt,
-            Expr::val(now).into(),
+            Expr::val(now),
         )
         .exec(db)
         .await?;

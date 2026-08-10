@@ -1,5 +1,5 @@
 [toolchain]
-# SeaORM 2.0 要求 Rust 2024 edition 和 MSRV 1.85
-channel = "1.85"
+# SeaORM 2.0.1 要求 Rust 1.94.0+
+channel = "1.94"
 components = ["rustfmt", "clippy"]
 profile = "minimal"

@@ -8,7 +8,7 @@
 //! - release_reservations（释放订单的库存预留记录）
 
 use rust_decimal::Decimal;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set};
+use sea_orm::{ExprTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set};
 
 use crate::models::status::inventory_reservation as reservation_status;
 use crate::models::{inventory_reservation, inventory_stock};
@@ -242,7 +242,7 @@ impl SalesService {
             )
             .col_expr(
                 inventory_stock::Column::UpdatedAt,
-                sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
+                sea_orm::sea_query::Expr::val(chrono::Utc::now()),
             )
             .exec(txn)
             .await?;
@@ -311,7 +311,7 @@ impl SalesService {
             )
             .col_expr(
                 inventory_stock::Column::UpdatedAt,
-                sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
+                sea_orm::sea_query::Expr::val(chrono::Utc::now()),
             )
             .exec(txn)
             .await?;
@@ -330,15 +330,15 @@ impl SalesService {
             .filter(inventory_reservation::Column::Status.eq(reservation_status::PENDING))
             .col_expr(
                 inventory_reservation::Column::Status,
-                sea_orm::sea_query::Expr::val(reservation_status::CONSUMED.to_string()).into(),
+                sea_orm::sea_query::Expr::val(reservation_status::CONSUMED.to_string()),
             )
             .col_expr(
                 inventory_reservation::Column::ReleasedAt,
-                sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
+                sea_orm::sea_query::Expr::val(chrono::Utc::now()),
             )
             .col_expr(
                 inventory_reservation::Column::UpdatedAt,
-                sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
+                sea_orm::sea_query::Expr::val(chrono::Utc::now()),
             )
             .exec(txn)
             .await?;
@@ -390,7 +390,7 @@ impl SalesService {
                 )
                 .col_expr(
                     inventory_stock::Column::UpdatedAt,
-                    sea_orm::sea_query::Expr::val(now).into(),
+                    sea_orm::sea_query::Expr::val(now),
                 )
                 .exec(txn)
                 .await?;
@@ -401,15 +401,15 @@ impl SalesService {
             .filter(inventory_reservation::Column::Status.eq(reservation_status::PENDING))
             .col_expr(
                 inventory_reservation::Column::Status,
-                sea_orm::sea_query::Expr::val(reservation_status::CANCELLED.to_string()).into(),
+                sea_orm::sea_query::Expr::val(reservation_status::CANCELLED.to_string()),
             )
             .col_expr(
                 inventory_reservation::Column::ReleasedAt,
-                sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
+                sea_orm::sea_query::Expr::val(chrono::Utc::now()),
             )
             .col_expr(
                 inventory_reservation::Column::UpdatedAt,
-                sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
+                sea_orm::sea_query::Expr::val(chrono::Utc::now()),
             )
             .exec(txn)
             .await?;

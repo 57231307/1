@@ -498,7 +498,10 @@ impl ExportApprovalService {
             select = select.filter(
                 Condition::any()
                     .add(Column::ApproverUserId.eq(user_id))
-                    .add(Expr::cust(&format!("applicant_user_id <> {}", user_id))),
+                    .add(Expr::cust_with_values(
+                        "applicant_user_id <> $1",
+                        [user_id],
+                    )),
             );
         }
 

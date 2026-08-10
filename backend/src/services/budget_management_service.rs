@@ -6,7 +6,7 @@ use crate::models::status::budget;
 use crate::utils::error::AppError;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
-use sea_orm::{
+use sea_orm::{ExprTrait, 
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
     QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };

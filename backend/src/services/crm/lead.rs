@@ -703,7 +703,7 @@ impl CrmService {
         );
 
         // 评分封顶 100
-        let final_score = score.min(100);
+        let final_score = std::cmp::Ord::min(score, 100);
 
         // 更新线索评分与优先级
         let mut lead_active: crm_lead::ActiveModel = lead.into();

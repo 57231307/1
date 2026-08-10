@@ -4,7 +4,7 @@
 
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{ExprTrait, ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 
 use crate::models::inventory_stock;
 use crate::models::inventory_transaction;
@@ -25,19 +25,19 @@ impl InventoryStockService {
         let update_result = inventory_stock::Entity::update_many()
             .col_expr(
                 inventory_stock::Column::QuantityOnHand,
-                sea_orm::sea_query::Expr::val(quantity_meters).into(),
+                sea_orm::sea_query::Expr::val(quantity_meters),
             )
             .col_expr(
                 inventory_stock::Column::QuantityAvailable,
-                sea_orm::sea_query::Expr::val(quantity_meters).into(),
+                sea_orm::sea_query::Expr::val(quantity_meters),
             )
             .col_expr(
                 inventory_stock::Column::QuantityMeters,
-                sea_orm::sea_query::Expr::val(quantity_meters).into(),
+                sea_orm::sea_query::Expr::val(quantity_meters),
             )
             .col_expr(
                 inventory_stock::Column::QuantityKg,
-                sea_orm::sea_query::Expr::val(quantity_kg).into(),
+                sea_orm::sea_query::Expr::val(quantity_kg),
             )
             .col_expr(
                 inventory_stock::Column::Version,
@@ -45,7 +45,7 @@ impl InventoryStockService {
             )
             .col_expr(
                 inventory_stock::Column::UpdatedAt,
-                sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
+                sea_orm::sea_query::Expr::val(chrono::Utc::now()),
             )
             .filter(inventory_stock::Column::Id.eq(id))
             .filter(inventory_stock::Column::Version.eq(expected_version))

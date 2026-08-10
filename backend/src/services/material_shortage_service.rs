@@ -9,7 +9,7 @@
 
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{
+use sea_orm::{ExprTrait, 
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
     QueryOrder, Set, TransactionTrait,
 };

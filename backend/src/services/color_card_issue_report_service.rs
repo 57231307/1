@@ -119,7 +119,7 @@ impl ColorCardIssueReportService {
 
     /// 发放明细报表（按客户/色卡/时间过滤，发放时间倒序）
     pub async fn issue_detail_report(&self, params: ReportParams) -> Result<Vec<Value>, AppError> {
-        let page = params.page.unwrap_or(1).max(1);
+        let page = std::cmp::Ord::max(params.page.unwrap_or(1), 1);
         let page_size = params.page_size.unwrap_or(20).clamp(1, 200);
 
         let paginator = IssueEntity::find()

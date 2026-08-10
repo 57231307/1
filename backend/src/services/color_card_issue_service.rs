@@ -12,7 +12,7 @@
 
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{
+use sea_orm::{ExprTrait, 
     ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, EntityTrait, PaginatorTrait,
     QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
@@ -415,7 +415,7 @@ impl ColorCardIssueService {
             .one(&txn)
             .await?
             .ok_or(IssueError::ColorCardNotFound)?;
-        let new_issued = (card.issued_quantity - existing.issue_qty).max(0);
+        let new_issued = std::cmp::Ord::max(card.issued_quantity - existing.issue_qty, 0);
         let mut card_active: color_card::ActiveModel = card.into();
         card_active.issued_quantity = Set(new_issued);
         card_active.updated_at = Set(now);
@@ -470,7 +470,7 @@ impl ColorCardIssueService {
             .one(&txn)
             .await?
             .ok_or(IssueError::ColorCardNotFound)?;
-        let new_issued = (card.issued_quantity - existing.issue_qty).max(0);
+        let new_issued = std::cmp::Ord::max(card.issued_quantity - existing.issue_qty, 0);
         let mut card_active: color_card::ActiveModel = card.into();
         card_active.status = Set(IssueStatus::Lost.as_str().to_string());
         card_active.issued_quantity = Set(new_issued);
@@ -527,7 +527,7 @@ impl ColorCardIssueService {
             .one(&txn)
             .await?
             .ok_or(IssueError::ColorCardNotFound)?;
-        let new_issued = (card.issued_quantity - existing.issue_qty).max(0);
+        let new_issued = std::cmp::Ord::max(card.issued_quantity - existing.issue_qty, 0);
         let mut card_active: color_card::ActiveModel = card.into();
         card_active.issued_quantity = Set(new_issued);
         card_active.updated_at = Set(now);
@@ -575,7 +575,7 @@ impl ColorCardIssueService {
             .one(&txn)
             .await?
             .ok_or(IssueError::ColorCardNotFound)?;
-        let new_issued = (card.issued_quantity - existing.issue_qty).max(0);
+        let new_issued = std::cmp::Ord::max(card.issued_quantity - existing.issue_qty, 0);
         let mut card_active: color_card::ActiveModel = card.into();
         card_active.issued_quantity = Set(new_issued);
         card_active.updated_at = Set(now);

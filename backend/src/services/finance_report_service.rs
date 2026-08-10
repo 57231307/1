@@ -10,7 +10,7 @@ use crate::models::{
 use crate::utils::error::AppError;
 use crate::utils::incoterms::Incoterms2020;
 use rust_decimal::Decimal;
-use sea_orm::{
+use sea_orm::{ExprTrait, 
     sea_query::Expr, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, JoinType,
     QueryFilter, QueryOrder, QuerySelect, RelationTrait,
 };

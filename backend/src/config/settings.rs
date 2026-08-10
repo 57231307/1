@@ -300,7 +300,8 @@ impl AppSettings {
         // 优先级：APP_ENV 环境变量 > config.yaml env 字段（环境变量已设置时不覆盖）
         if std::env::var("APP_ENV").is_err() {
             if !app_settings.env.is_empty() {
-                std::env::set_var("APP_ENV", &app_settings.env);
+                // SAFETY: 在启动时同步环境变量，单线程操作
+                unsafe { std::env::set_var("APP_ENV", &app_settings.env) };
                 tracing::info!(
                     env = %app_settings.env,
                     "从 config.yaml 同步 env 字段到 APP_ENV 环境变量（APP_ENV 原未设置）"

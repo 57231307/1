@@ -6,7 +6,7 @@ use crate::utils::error::AppError;
 use chrono::{TimeZone, Utc};
 use rust_decimal::Decimal;
 use sea_orm::sea_query::Expr;
-use sea_orm::{
+use sea_orm::{ExprTrait, 
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
     QuerySelect, RelationTrait, Set, TransactionTrait,
 };

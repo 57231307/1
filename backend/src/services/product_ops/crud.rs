@@ -15,7 +15,7 @@
 
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{
+use sea_orm::{ExprTrait, 
     ActiveModelTrait, ColumnTrait, EntityTrait, NotSet, Order, PaginatorTrait, QueryFilter,
     QueryOrder, QuerySelect, Set,
 };
@@ -54,7 +54,7 @@ impl ProductService {
     ) -> Result<(Vec<product::Model>, u64), AppError> {
         // 分页参数规范化：page 从 1 开始，page_size 上限 10000（前端 API 外层已 clamp(1,100)，
         // 导出场景需更大上限以支持全量拉取）
-        let page = page.max(1);
+        let page = std::cmp::Ord::max(page, 1);
         let page_size = page_size.clamp(1, 10000);
 
         let mut query = ProductEntity::find();

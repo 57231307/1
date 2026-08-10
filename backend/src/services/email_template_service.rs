@@ -3,7 +3,7 @@
 //! 提供邮件模板的CRUD操作和持久化功能
 
 use chrono::Utc;
-use sea_orm::{
+use sea_orm::{ExprTrait, 
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 use serde::{Deserialize, Serialize};

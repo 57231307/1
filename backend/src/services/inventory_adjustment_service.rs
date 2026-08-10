@@ -9,7 +9,7 @@ use crate::utils::pagination::paginate_with_total;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
-use sea_orm::{
+use sea_orm::{ExprTrait, 
     ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, Order, PaginatorTrait,
     QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
@@ -310,15 +310,15 @@ impl InventoryAdjustmentService {
         let update_result = inventory_stock::Entity::update_many()
             .col_expr(
                 inventory_stock::Column::QuantityOnHand,
-                sea_orm::sea_query::Expr::val(item.quantity_after).into(),
+                sea_orm::sea_query::Expr::val(item.quantity_after),
             )
             .col_expr(
                 inventory_stock::Column::QuantityAvailable,
-                sea_orm::sea_query::Expr::val(item.quantity_after).into(),
+                sea_orm::sea_query::Expr::val(item.quantity_after),
             )
             .col_expr(
                 inventory_stock::Column::QuantityMeters,
-                sea_orm::sea_query::Expr::val(item.quantity_after).into(),
+                sea_orm::sea_query::Expr::val(item.quantity_after),
             )
             .col_expr(
                 inventory_stock::Column::QuantityKg,
@@ -336,7 +336,7 @@ impl InventoryAdjustmentService {
             )
             .col_expr(
                 inventory_stock::Column::UpdatedAt,
-                sea_orm::sea_query::Expr::val(Utc::now()).into(),
+                sea_orm::sea_query::Expr::val(Utc::now()),
             )
             .filter(inventory_stock::Column::Id.eq(item.stock_id))
             .filter(inventory_stock::Column::Version.eq(expected_version))

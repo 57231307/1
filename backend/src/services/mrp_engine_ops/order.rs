@@ -5,7 +5,7 @@
 //! + list_products_for_mrp（产品列表查询）
 
 use chrono::Utc;
-use sea_orm::{
+use sea_orm::{ExprTrait, 
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
     TransactionTrait,
 };

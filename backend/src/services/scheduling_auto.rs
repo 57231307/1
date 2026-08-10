@@ -21,7 +21,7 @@ use crate::services::scheduling_service::{
 use crate::utils::error::AppError;
 use chrono::{Duration, NaiveDate, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set};
+use sea_orm::{ExprTrait, ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 use std::collections::HashMap;
 
 /// P9-2 标记：自动排程子模块路径
@@ -130,7 +130,7 @@ impl SchedulingService {
             return false;
         }
         wc_available_capacity.insert(wc_id, available - quantity);
-        let days_needed = Self::compute_days_needed(quantity, cap.daily_capacity).max(1);
+        let days_needed = std::cmp::Ord::max(Self::compute_days_needed(quantity, cap.daily_capacity), 1);
         let schedule = wc_schedule.entry(wc_id).or_default();
         let assigned_start = self.find_earliest_slot(schedule, start_date, days_needed);
         let assigned_end = assigned_start + Duration::days(days_needed - 1);
@@ -234,7 +234,7 @@ impl SchedulingService {
             if quantity.is_zero() {
                 continue;
             }
-            let days_needed = Self::compute_days_needed(quantity, cap.daily_capacity).max(1);
+            let days_needed = std::cmp::Ord::max(Self::compute_days_needed(quantity, cap.daily_capacity), 1);
             // 在 current_start 之后找无重叠的连续时段
             let assigned_start = self.find_earliest_slot(schedule, current_start, days_needed);
             let assigned_end = assigned_start + Duration::days(days_needed - 1);

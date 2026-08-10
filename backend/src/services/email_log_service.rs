@@ -3,7 +3,7 @@
 //! 提供邮件发送记录的持久化和查询功能
 
 use chrono::Utc;
-use sea_orm::{
+use sea_orm::{ExprTrait, 
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
     QuerySelect, Set,
 };

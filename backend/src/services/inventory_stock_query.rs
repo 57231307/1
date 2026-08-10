@@ -5,7 +5,7 @@
 
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder};
+use sea_orm::{ExprTrait, ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder};
 
 use crate::handlers::inventory_stock_handler_dto::InventorySummaryItem;
 use crate::models::{inventory_stock, inventory_transaction};

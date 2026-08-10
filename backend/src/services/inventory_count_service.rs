@@ -25,7 +25,7 @@ use crate::utils::pagination::paginate_with_total;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::sea_query::Expr;
-use sea_orm::{
+use sea_orm::{ExprTrait, 
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
     QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
@@ -485,15 +485,15 @@ impl InventoryCountService {
             let result = inventory_stock::Entity::update_many()
                 .col_expr(
                     inventory_stock::Column::QuantityOnHand,
-                    Expr::val(item.quantity_actual).into(),
+                    Expr::val(item.quantity_actual),
                 )
                 .col_expr(
                     inventory_stock::Column::QuantityAvailable,
-                    Expr::val(item.quantity_actual).into(),
+                    Expr::val(item.quantity_actual),
                 )
                 .col_expr(
                     inventory_stock::Column::LastCountDate,
-                    Expr::val(Utc::now()).into(),
+                    Expr::val(Utc::now()),
                 )
                 .col_expr(
                     inventory_stock::Column::Version,
@@ -501,7 +501,7 @@ impl InventoryCountService {
                 )
                 .col_expr(
                     inventory_stock::Column::UpdatedAt,
-                    Expr::val(Utc::now()).into(),
+                    Expr::val(Utc::now()),
                 )
                 .filter(inventory_stock::Column::Id.eq(item.stock_id))
                 .filter(inventory_stock::Column::Version.eq(expected_version))
