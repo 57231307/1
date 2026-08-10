@@ -31,10 +31,8 @@ pub async fn run(cmd: AdminCommand) -> Result<(), Box<dyn std::error::Error>> {
 /// 移除了原 --password 命令行参数（会出现在 ps / /proc/<pid>/cmdline 中）
 fn read_password(from_stdin: bool) -> Result<String, String> {
     // 1. 优先从环境变量读取
-    if let Ok(p) = std::env::var("BINGXI_ADMIN_PASSWORD") {
-        if !p.is_empty() {
-            return Ok(p);
-        }
+    if let Ok(p) = std::env::var("BINGXI_ADMIN_PASSWORD") && !p.is_empty() {
+        return Ok(p);
     }
 
     // 2. 从 stdin 读取
