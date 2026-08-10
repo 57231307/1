@@ -65,6 +65,8 @@ impl DocumentNumberGenerator {
             .await?;
 
         // 提交子事务，advisory_xact_lock 自动释放
+        // 显式类型标注确保编译器识别 commit 方法
+        let txn: DatabaseTransaction = txn;
         txn.commit().await?;
 
         // 防御：当 width == 0 时退化为 1 位，至少保留流水号
