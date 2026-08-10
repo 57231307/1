@@ -45,7 +45,7 @@ impl DocumentNumberGenerator {
         // 批次 9（2026-06-28）：用 PostgreSQL advisory_xact_lock 串行化同前缀同日的单号生成
         // 开启子事务（若调用方已在事务中，PostgreSQL 自动创建 savepoint；
         // advisory_xact_lock 在 savepoint 释放时也会释放，行为正确）
-        let txn: DatabaseTransaction = db.begin().await.map_err(AppError::from)?;
+        let txn: DatabaseTransaction = db.begin().await.map_err(|e| AppError::internal(format!("开始事务失败: {}", e)))?;
 
         // 计算锁 key：prefix + date 字符串的稳定 i64 哈希
         let lock_key = compute_advisory_lock_key(prefix, &today);
