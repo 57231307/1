@@ -10,7 +10,7 @@
 //! - create_revenue_voucher_for_delivery / build_revenue_voucher_request / build_revenue_voucher_item
 
 use rust_decimal::Decimal;
-use sea_orm::{
+use sea_orm::{ExprTrait, 
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set, TransactionTrait,
 };
 

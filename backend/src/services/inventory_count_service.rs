@@ -25,7 +25,7 @@ use crate::utils::pagination::paginate_with_total;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::sea_query::Expr;
-use sea_orm::{
+use sea_orm::{ExprTrait, 
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
     QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };

@@ -14,7 +14,7 @@
 //! - 订单状态回退：若所有发货单取消，订单 SHIPPED→APPROVED；部分取消 SHIPPED→PARTIAL_SHIPPED
 
 use rust_decimal::Decimal;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set, TransactionTrait};
+use sea_orm::{ExprTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set, TransactionTrait};
 
 use crate::models::status::inventory_reservation as reservation_status;
 use crate::models::status::sales_delivery as delivery_status;

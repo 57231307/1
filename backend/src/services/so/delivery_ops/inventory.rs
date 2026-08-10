@@ -8,7 +8,7 @@
 //! - release_reservations（释放订单的库存预留记录）
 
 use rust_decimal::Decimal;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set};
+use sea_orm::{ExprTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set};
 
 use crate::models::status::inventory_reservation as reservation_status;
 use crate::models::{inventory_reservation, inventory_stock};

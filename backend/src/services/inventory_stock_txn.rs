@@ -4,7 +4,7 @@
 
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{ExprTrait, ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 
 use crate::models::inventory_stock;
 use crate::models::inventory_transaction;

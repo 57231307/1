@@ -8,7 +8,7 @@
 //! 原 `inventory_transfer_service.rs` 拆分而来。
 
 use sea_orm::sea_query::{BinOper, Expr};
-use sea_orm::{
+use sea_orm::{ExprTrait, 
     ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, Order, QueryFilter, QueryOrder,
     QuerySelect, TransactionTrait,
 };

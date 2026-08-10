@@ -6,7 +6,7 @@ use crate::utils::pagination::paginate_with_total;
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
-use sea_orm::{
+use sea_orm::{ExprTrait, 
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set, TransactionTrait,
 };
 use std::sync::Arc;
