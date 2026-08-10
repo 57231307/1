@@ -38,7 +38,7 @@ impl ArService {
 
         let row: Option<sea_orm::QueryResult> = self
             .db
-            .query_one(sea_orm::Statement::from_sql_and_values(
+            .query_one_raw(sea_orm::Statement::from_sql_and_values(
                 sea_orm::DatabaseBackend::Postgres,
                 sql,
                 params,
@@ -181,7 +181,7 @@ impl ArService {
 
         let rows: Vec<sea_orm::QueryResult> = self
             .db
-            .query_all(sea_orm::Statement::from_sql_and_values(
+            .query_all_raw(sea_orm::Statement::from_sql_and_values(
                 sea_orm::DatabaseBackend::Postgres,
                 sql,
                 params,
@@ -257,7 +257,7 @@ impl ArService {
 
         let rows: Vec<sea_orm::QueryResult> = self
             .db
-            .query_all(sea_orm::Statement::from_sql_and_values(
+            .query_all_raw(sea_orm::Statement::from_sql_and_values(
                 sea_orm::DatabaseBackend::Postgres,
                 sql,
                 params,
@@ -307,7 +307,7 @@ impl ArService {
 
         let result: Option<sea_orm::QueryResult> = self
             .db
-            .query_one(sea_orm::Statement::from_sql_and_values(
+            .query_one_raw(sea_orm::Statement::from_sql_and_values(
                 sea_orm::DatabaseBackend::Postgres,
                 sql,
                 params,
@@ -494,7 +494,7 @@ impl ArService {
 
         let rows: Vec<sea_orm::QueryResult> = self
             .db
-            .query_all(sea_orm::Statement::from_sql_and_values(
+            .query_all_raw(sea_orm::Statement::from_sql_and_values(
                 sea_orm::DatabaseBackend::Postgres,
                 sql,
                 params,

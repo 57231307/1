@@ -52,7 +52,7 @@ impl InitService {
         match Database::connect(opt).await {
             Ok(db) => {
                 let query_result: Result<Option<sea_orm::QueryResult>, sea_orm::DbErr> = db
-                    .query_one(sea_orm::Statement::from_string(
+                    .query_one_raw(sea_orm::Statement::from_string(
                         sea_orm::DatabaseBackend::Postgres,
                         "SELECT 1 as test".to_string(),
                     ))

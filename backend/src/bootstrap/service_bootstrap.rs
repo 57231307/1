@@ -238,7 +238,7 @@ async fn check_migration_compatibility(db: &DatabaseConnection) {
           )
     ";
     match db
-        .query_one(Statement::from_string(DatabaseBackend::Postgres, count_sql))
+        .query_one_raw(Statement::from_string(DatabaseBackend::Postgres, count_sql))
         .await
     {
         Ok(Some(row)) => {
@@ -273,7 +273,7 @@ async fn check_migration_continuity(db: &DatabaseConnection) {
 
     let sql = "SELECT migration_name FROM seaql_migrations ORDER BY migration_name";
     let result = db
-        .query_all(Statement::from_string(sea_orm::DatabaseBackend::Postgres, sql.to_string()))
+        .query_all_raw(Statement::from_string(sea_orm::DatabaseBackend::Postgres, sql.to_string()))
         .await;
 
     match result {

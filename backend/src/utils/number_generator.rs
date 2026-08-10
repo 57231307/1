@@ -51,7 +51,7 @@ impl DocumentNumberGenerator {
         let lock_key = compute_advisory_lock_key(prefix, &today);
 
         // 获取事务级 advisory lock，串行化同 key 的并发请求
-        txn.execute(Statement::from_sql_and_values(
+        txn.execute_raw(Statement::from_sql_and_values(
             DatabaseBackend::Postgres,
             "SELECT pg_advisory_xact_lock($1)",
             [lock_key.into()],
@@ -114,7 +114,7 @@ impl DocumentNumberGenerator {
         // 锁在外层事务 commit/rollback 时自动释放，覆盖完整的 COUNT + INSERT 临界区
         let lock_key = compute_advisory_lock_key(prefix, &today);
 
-        txn.execute(Statement::from_sql_and_values(
+        txn.execute_raw(Statement::from_sql_and_values(
             DatabaseBackend::Postgres,
             "SELECT pg_advisory_xact_lock($1)",
             [lock_key.into()],

@@ -251,7 +251,7 @@ impl TrackingCleanupService {
         let result: Option<sea_orm::QueryResult> = self
             .db
             .as_ref()
-            .query_one(Statement::from_sql_and_values(
+            .query_one_raw(Statement::from_sql_and_values(
                 DatabaseBackend::Postgres,
                 sql,
                 [self.retention_days.into()],

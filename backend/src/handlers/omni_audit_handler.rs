@@ -120,7 +120,7 @@ pub async fn get_dashboard_stats(
         (SELECT COUNT(*) FROM omni_audit_logs WHERE created_at > NOW() - INTERVAL '24 hours' AND request_method IS NOT NULL) AS api_calls_today,
         (SELECT COUNT(*) FROM omni_audit_logs WHERE created_at > NOW() - INTERVAL '24 hours' AND (response_status = 403 OR response_status >= 500)) AS security_alerts_today";
     let result = (*state.db)
-        .query_one(sea_orm::Statement::from_string(
+        .query_one_raw(sea_orm::Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             sql,
         ))
@@ -170,7 +170,7 @@ pub async fn search_logs(
     list_params.push(offset.into());
 
     let rows = (*state.db)
-        .query_all(sea_orm::Statement::from_sql_and_values(
+        .query_all_raw(sea_orm::Statement::from_sql_and_values(
             sea_orm::DatabaseBackend::Postgres,
             list_sql,
             list_params,
@@ -357,7 +357,7 @@ async fn query_total_count(
     use sea_orm::ConnectionTrait;
     let count_sql = format!("SELECT COUNT(*) as total FROM omni_audit_logs{}", where_sql);
     let count_result = (*state.db)
-        .query_one(sea_orm::Statement::from_sql_and_values(
+        .query_one_raw(sea_orm::Statement::from_sql_and_values(
             sea_orm::DatabaseBackend::Postgres,
             count_sql,
             where_params,

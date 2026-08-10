@@ -1,10 +1,9 @@
 [package]
 name = "bingxi-backend"
-version = "2026.617.1"
-edition = "2021"
-# 与 rust-toolchain.toml / .github/workflows/ci-cd.yml (RUST_VERSION=1.94.1) 保持一致
-# 当前用 sea-orm 1.1.20 + sqlx 0.8（稳定版），rustc 1.94 为未来升级 2.0 预留
-rust-version = "1.94"
+version = "2026.810.1"
+edition = "2024"
+# SeaORM 2.0 要求 Rust 2024 edition 和 MSRV 1.85
+rust-version = "1.85"
 authors = ["BingXi Team"]
 description = "面料管理 - Rust 后端服务"
 
@@ -19,12 +18,9 @@ tokio = { version = "1.0", features = ["full"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 
 # 数据库
-# sea-orm 1.1.20 与 sqlx 0.8.4+ 兼容（修了 sqlx 0.8.4 的 TransactionManager::begin 签名变化）
-# 项目代码用 DeriveEntityModel 老式 derive，2.0 改了 ActiveModel::insert/update 为
-# Insert::one/Update::one associated function，项目代码是 1.x 风格 active.insert(db)，
-# 降级到 1.1.20 兼容性最佳
-sea-orm = { version = "1.1.20", features = ["sqlx-postgres", "runtime-tokio", "macros", "with-rust_decimal", "with-chrono"] }
-sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "chrono", "uuid", "json", "macros", "tls-rustls"] }
+# SeaORM 2.0 + SeaQuery 1.0 + SQLx 0.9
+sea-orm = { version = "2.0", features = ["sqlx-postgres", "runtime-tokio", "macros", "with-rust_decimal", "with-chrono"] }
+sqlx = { version = "0.9", features = ["postgres", "runtime-tokio", "chrono", "uuid", "json", "macros", "tls-rustls"] }
 
 # 序列化
 serde = { version = "1.0", features = ["derive"] }

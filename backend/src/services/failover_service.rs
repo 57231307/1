@@ -488,7 +488,7 @@ impl FailoverService {
         let backend = primary_db.get_database_backend();
         for i in 0..HEALTH_CHECK_COUNT {
             match primary_db
-                .execute(Statement::from_sql_and_values(
+                .execute_raw(Statement::from_sql_and_values(
                     backend,
                     "SELECT 1",
                     Vec::new(),
@@ -549,7 +549,7 @@ impl FailoverService {
         let active_db = self.get_active_db();
         let backend = active_db.get_database_backend();
         let db_status = match active_db
-            .execute(Statement::from_sql_and_values(
+            .execute_raw(Statement::from_sql_and_values(
                 backend,
                 "SELECT 1",
                 Vec::new(),
@@ -598,7 +598,7 @@ impl FailoverService {
         let active_db = self.get_active_db();
         let backend = active_db.get_database_backend();
         active_db
-            .execute(Statement::from_sql_and_values(
+            .execute_raw(Statement::from_sql_and_values(
                 backend,
                 "SELECT 1",
                 Vec::new(),
@@ -615,7 +615,7 @@ impl FailoverService {
         let sql = "SELECT COALESCE(COUNT(*), 0) AS sync_count FROM pg_stat_replication WHERE sync_state = 'sync' AND pg_wal_lsn_diff(pg_current_wal_lsn(), replay_lsn) <= $1";
         let rows = self
             .db
-            .query_all(Statement::from_sql_and_values(
+            .query_all_raw(Statement::from_sql_and_values(
                 backend,
                 sql,
                 vec![MAX_LAG_BYTES.into()],

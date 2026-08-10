@@ -150,7 +150,7 @@ impl AuditCleanupService {
         let result: Option<sea_orm::QueryResult> = self
             .db
             .as_ref()
-            .query_one(sea_orm::Statement::from_string(
+            .query_one_raw(sea_orm::Statement::from_string(
                 sea_orm::DatabaseBackend::Postgres,
                 sql.to_string(),
             ))

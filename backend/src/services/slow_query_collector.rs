@@ -136,7 +136,7 @@ impl SlowQueryCollector {
         let query_result: Vec<sea_orm::QueryResult> = self
             .db
             .as_ref()
-            .query_all(Statement::from_sql_and_values(
+            .query_all_raw(Statement::from_sql_and_values(
                 sea_orm::DatabaseBackend::Postgres,
                 sql,
                 [self.threshold_ms.into(), self.limit_rows.into()],

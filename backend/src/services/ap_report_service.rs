@@ -100,7 +100,7 @@ impl ApReportService {
 
         let row: Option<sea_orm::QueryResult> = self
             .db
-            .query_one(sea_orm::Statement::from_sql_and_values(
+            .query_one_raw(sea_orm::Statement::from_sql_and_values(
                 sea_orm::DatabaseBackend::Postgres,
                 main_sql,
                 params,
@@ -151,7 +151,7 @@ impl ApReportService {
         );
         let rows: Vec<sea_orm::QueryResult> = self
             .db
-            .query_all(sea_orm::Statement::from_sql_and_values(
+            .query_all_raw(sea_orm::Statement::from_sql_and_values(
                 sea_orm::DatabaseBackend::Postgres,
                 sql,
                 params,
@@ -196,7 +196,7 @@ impl ApReportService {
         );
         let rows: Vec<sea_orm::QueryResult> = self
             .db
-            .query_all(sea_orm::Statement::from_sql_and_values(
+            .query_all_raw(sea_orm::Statement::from_sql_and_values(
                 sea_orm::DatabaseBackend::Postgres,
                 sql,
                 params,
@@ -353,7 +353,7 @@ impl ApReportService {
         use sea_orm::ConnectionTrait;
         let row: Option<sea_orm::QueryResult> = self
             .db
-            .query_one(sea_orm::Statement::from_sql_and_values(
+            .query_one_raw(sea_orm::Statement::from_sql_and_values(
                 sea_orm::DatabaseBackend::Postgres,
                 sql,
                 params,
@@ -435,7 +435,7 @@ impl ApReportService {
         );
         let row: Option<sea_orm::QueryResult> = self
             .db
-            .query_one(sea_orm::Statement::from_sql_and_values(
+            .query_one_raw(sea_orm::Statement::from_sql_and_values(
                 sea_orm::DatabaseBackend::Postgres,
                 sql,
                 params,
@@ -513,7 +513,7 @@ impl ApReportService {
 
         let row: Option<sea_orm::QueryResult> = self
             .db
-            .query_one(sea_orm::Statement::from_sql_and_values(
+            .query_one_raw(sea_orm::Statement::from_sql_and_values(
                 sea_orm::DatabaseBackend::Postgres,
                 sql,
                 params,
@@ -563,7 +563,7 @@ impl ApReportService {
         );
         let row: Option<sea_orm::QueryResult> = self
             .db
-            .query_one(sea_orm::Statement::from_sql_and_values(
+            .query_one_raw(sea_orm::Statement::from_sql_and_values(
                 sea_orm::DatabaseBackend::Postgres,
                 sql,
                 params,
