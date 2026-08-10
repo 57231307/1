@@ -50,24 +50,24 @@ mod tests {
     #[test]
     fn test_is_production_with_production_value() {
         // 设置为 production
-        env::set_var("APP_ENV", "production");
+        unsafe { env::set_var("APP_ENV", "production"); }
         assert!(is_production(), "APP_ENV=production 时应判定为生产环境");
         // 清理环境变量，避免污染后续测试
-        env::remove_var("APP_ENV");
+        unsafe { env::remove_var("APP_ENV"); }
     }
 
     /// 测试 `APP_ENV=development` 时识别为开发环境
     #[test]
     fn test_is_production_with_development_value() {
-        env::set_var("APP_ENV", "development");
+        unsafe { env::set_var("APP_ENV", "development"); }
         assert!(!is_production(), "APP_ENV=development 时应判定为开发环境");
-        env::remove_var("APP_ENV");
+        unsafe { env::remove_var("APP_ENV"); }
     }
 
     /// 测试 `APP_ENV` 未设置时识别为开发环境（保守策略）
     #[test]
     fn test_is_production_with_unset() {
-        env::remove_var("APP_ENV");
+        unsafe { env::remove_var("APP_ENV"); }
         assert!(
             !is_production(),
             "APP_ENV 未设置时应判定为开发环境（保守策略）"
@@ -77,8 +77,8 @@ mod tests {
     /// 测试 `APP_ENV=PRODUCTION` 大小写不敏感识别
     #[test]
     fn test_is_production_case_insensitive() {
-        env::set_var("APP_ENV", "PRODUCTION");
+        unsafe { env::set_var("APP_ENV", "PRODUCTION"); }
         assert!(is_production(), "APP_ENV=PRODUCTION 大写也应判定为生产环境");
-        env::remove_var("APP_ENV");
+        unsafe { env::remove_var("APP_ENV"); }
     }
 }
