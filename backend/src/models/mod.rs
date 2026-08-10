@@ -447,3 +447,5 @@ pub mod customer_address;
 pub mod aging_grade_config;
 // batch-15 P3：行业基准配置化
 pub mod industry_benchmark_config;
+// batch-21 P2 25.4-I: 长任务处理机制
+pub mod long_running_task;
