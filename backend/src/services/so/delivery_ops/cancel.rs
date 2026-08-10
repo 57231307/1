@@ -65,11 +65,11 @@ impl SalesService {
                 .filter(inventory_reservation::Column::Status.eq(reservation_status::CONSUMED))
                 .col_expr(
                     inventory_reservation::Column::Status,
-                    sea_orm::sea_query::Expr::val(reservation_status::PENDING.to_string()).into(),
+                    sea_orm::sea_query::Expr::val(reservation_status::PENDING.to_string()),
                 )
                 .col_expr(
                     inventory_reservation::Column::ReleasedAt,
-                    sea_orm::sea_query::Expr::val(None::<chrono::DateTime<chrono::Utc>>).into(),
+                    sea_orm::sea_query::Expr::val(None::<chrono::DateTime<chrono::Utc>>),
                 )
                 .col_expr(
                     inventory_reservation::Column::UpdatedAt,

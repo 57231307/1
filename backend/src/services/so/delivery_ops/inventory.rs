@@ -330,7 +330,7 @@ impl SalesService {
             .filter(inventory_reservation::Column::Status.eq(reservation_status::PENDING))
             .col_expr(
                 inventory_reservation::Column::Status,
-                sea_orm::sea_query::Expr::val(reservation_status::CONSUMED.to_string()).into(),
+                sea_orm::sea_query::Expr::val(reservation_status::CONSUMED.to_string()),
             )
             .col_expr(
                 inventory_reservation::Column::ReleasedAt,
@@ -401,7 +401,7 @@ impl SalesService {
             .filter(inventory_reservation::Column::Status.eq(reservation_status::PENDING))
             .col_expr(
                 inventory_reservation::Column::Status,
-                sea_orm::sea_query::Expr::val(reservation_status::CANCELLED.to_string()).into(),
+                sea_orm::sea_query::Expr::val(reservation_status::CANCELLED.to_string()),
             )
             .col_expr(
                 inventory_reservation::Column::ReleasedAt,
