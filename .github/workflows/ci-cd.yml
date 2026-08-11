@@ -2131,16 +2131,6 @@ jobs:
             MSG=$(echo "$line" | cut -d' ' -f2-)
             DISPLAY="- \`${SHORT_HASH}\` ${MSG}"
 
-            # 文件级变更明细：新增 / 修改 / 删除，逐条附加到该 commit 条目下
-            # 使用 --no-renames 使重命名拆分为 删除+新增 两条，便于读者理解
-            while IFS=$'\t' read -r fstat fpath; do
-              case "$fstat" in
-                A|C) DISPLAY="${DISPLAY}\n  - 🆕 \`${fpath}\`" ;;
-                M|T|R) DISPLAY="${DISPLAY}\n  - ✏️ \`${fpath}\`" ;;
-                D) DISPLAY="${DISPLAY}\n  - 🗑️ \`${fpath}\`" ;;
-              esac
-            done < <(git show --name-status --pretty=format: --no-renames "$HASH" 2>/dev/null)
-
             FULL_DETAILED_LIST="${FULL_DETAILED_LIST}${DISPLAY}\n"
 
             # 检测 breaking change（BREAKING CHANGE: 或 type!: 语法）
