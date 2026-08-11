@@ -385,6 +385,21 @@ fn budget_master_routes() -> Router<AppState> {
             "/budgets/versions/:id/approve",
             put(budget_management_handler::approve_budget_version),
         )
+        // V15 P1 17.4-D7: 预算差异分析
+        .route(
+            "/budgets/variance-analysis",
+            post(budget_management_handler::variance_analysis),
+        )
+        // V15 P1 17.4-D8: 多模式预算编制
+        .route(
+            "/budgets/create-with-mode",
+            post(budget_management_handler::create_budget_with_mode),
+        )
+        // V15 P1 17.4-D9: 预算执行预警
+        .route(
+            "/budgets/execution-warnings",
+            get(budget_management_handler::budget_execution_warnings),
+        )
 }
 
 /// 预算明细项路由（/budgets/items）

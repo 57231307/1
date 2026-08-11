@@ -897,3 +897,73 @@ pub async fn get_budget_assessment(
         "data": summary
     })))
 }
+
+/// POST /api/v1/erp/budgets/variance-analysis - 预算差异分析
+pub async fn variance_analysis(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    info!("用户 {} 执行预算差异分析", auth.username);
+    let service = BudgetManagementService::new(state.db.clone());
+    let budget_id = req
+        .get("budget_id")
+        .and_then(|v| v.as_i64())
+        .ok_or_else(|| AppError::validation("budget_id 必填"))? as i32;
+    let period_start = req
+        .get("period_start")
+        .and_then(|v| v.as_str())
+        .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
+    let period_end = req
+        .get("period_end")
+        .and_then(|v| v.as_str())
+        .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
+    let result = service
+        .variance_analysis(budget_id, period_start, period_end)
+        .await?;
+    Ok(Json(serde_json::json!({
+        "code": 200,
+        "data": result
+    })))
+}
+
+/// POST /api/v1/erp/budgets/create-with-mode - 多模式预算编制
+pub async fn create_budget_with_mode(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    info!("用户 {} 创建多模式预算", auth.username);
+    let service = BudgetManagementService::new(state.db.clone());
+    let mode = req
+        .get("mode")
+        .and_then(|v| v.as_str())
+        .unwrap_or("incremental");
+    let result = service
+        .create_budget_with_mode(req, mode, auth.user_id)
+        .await?;
+    Ok(Json(serde_json::json!({
+        "code": 200,
+        "message": "预算创建成功",
+        "data": result
+    })))
+}
+
+/// GET /api/v1/erp/budgets/execution-warnings - 预算执行预警
+pub async fn budget_execution_warnings(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(params): Query<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    info!("用户 {} 查询预算执行预警", auth.username);
+    let service = BudgetManagementService::new(state.db.clone());
+    let threshold = params
+        .get("threshold")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(80.0);
+    let result = service.budget_execution_warnings(threshold).await?;
+    Ok(Json(serde_json::json!({
+        "code": 200,
+        "data": result
+    })))
+}
