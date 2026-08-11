@@ -236,6 +236,7 @@ impl TrackingCleanupService {
     }
 
     /// 获取追踪数据保留统计信息（运维监控用）
+    #[allow(dead_code)]
     pub async fn get_stats(&self) -> Result<TrackingStats, AppError> {
         let sql = r#"
             SELECT
@@ -285,6 +286,7 @@ pub struct CleanupStats {
 }
 
 /// 追踪数据保留统计信息
+#[allow(dead_code)]
 #[derive(Debug, Default)]
 pub struct TrackingStats {
     pub total_page_views: i64,
