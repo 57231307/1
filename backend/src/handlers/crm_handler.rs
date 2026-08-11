@@ -1170,7 +1170,7 @@ pub async fn merge_leads(
         .iter()
         .filter_map(|v| v.as_i64().map(|id| id as i32))
         .collect();
-    let result = service.merge_leads(primary_id, &duplicate_ids).await?;
+    let result = service.merge_leads(primary_id, duplicate_ids, auth.user_id).await?;
     let event = AuditEvent {
         user_id: Some(auth.user_id),
         username: Some(auth.username.clone()),

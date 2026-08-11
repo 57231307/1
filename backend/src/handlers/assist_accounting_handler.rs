@@ -424,7 +424,6 @@ pub async fn get_assist_balance(
 /// GET /api/v1/erp/assist-accounting/check-balance - 辅助核算余额核对
 pub async fn check_assist_vs_general_balance(
     State(state): State<AppState>,
-    auth: AuthContext,
     Query(params): Query<serde_json::Value>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let period = params
@@ -432,10 +431,7 @@ pub async fn check_assist_vs_general_balance(
         .and_then(|v| v.as_str())
         .unwrap_or("");
 
-    info!(
-        "用户 {} 执行辅助核算余额核对: 期间={}",
-        auth.username, period
-    );
+    info!("执行辅助核算余额核对: 期间={}", period);
 
     let service = AssistAccountingService::new(state.db.clone());
     let result = service

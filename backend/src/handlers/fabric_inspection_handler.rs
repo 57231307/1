@@ -243,7 +243,6 @@ pub struct AddPhysicalTestRequestDto {
 /// POST /api/v1/erp/fabric-inspections/physical-tests - 添加物理测试
 pub async fn add_physical_test(
     State(state): State<AppState>,
-    _auth: AuthContext,
     Json(req): Json<AddPhysicalTestRequestDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = crate::services::fabric_inspection_service::FabricPhysicalTestService::new(
