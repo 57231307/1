@@ -18,6 +18,10 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DatabaseTransaction, EntityTrait,
     QueryFilter, Set, TransactionTrait,
 };
+
+use crate::models::{
+    ap_invoice, purchase_order_item, purchase_receipt, purchase_receipt_item, voucher_item,
+};
 use std::sync::Arc;
 
 use crate::models::{ap_invoice, purchase_receipt, purchase_return};
@@ -110,6 +114,7 @@ impl ApInvoiceService {
     }
 
     /// 构造并插入应付单 ActiveModel（账期 30 天 / 初始 DRAFT）
+    /// P1-3 修复：从采购入库明细获取税额
     async fn build_and_insert_receipt_invoice(
         txn: &DatabaseTransaction,
         receipt: &purchase_receipt::Model,
@@ -122,6 +127,25 @@ impl ApInvoiceService {
         // 4. 生成应付单
         let invoice_date = receipt.receipt_date;
         let due_date = invoice_date + Duration::days(payment_terms as i64);
+
+        // P1-3 修复：从采购入库明细获取税额
+        // 通过 order_item_id 关联 purchase_order_item 获取 tax_amount
+        let receipt_items = purchase_receipt_item::Entity::find()
+            .filter(purchase_receipt_item::Column::ReceiptId.eq(receipt.id))
+            .all(txn)
+            .await?;
+
+        let mut tax_amount = Decimal::ZERO;
+        for item in &receipt_items {
+            if let Some(order_item_id) = item.order_item_id {
+                if let Some(order_item) = purchase_order_item::Entity::find_by_id(order_item_id)
+                    .one(txn)
+                    .await?
+                {
+                    tax_amount += order_item.tax_amount;
+                }
+            }
+        }
 
         let invoice = ap_invoice::ActiveModel {
             invoice_no: Set(invoice_no),
@@ -142,11 +166,8 @@ impl ApInvoiceService {
             invoice_status: Set(crate::models::status::common::STATUS_DRAFT.to_string()),
             currency: Set(crate::constants::DEFAULT_CURRENCY.to_string()),
             exchange_rate: Set(DEFAULT_BASE_CURRENCY_EXCHANGE_RATE),
-            // P1-10 修复：tax_amount 应从源单据税额传递。
-            // purchase_receipt 主表与 purchase_receipt_item 均无 tax_amount 字段
-            // （模型设计不记录税额），暂保持 ZERO。
-            // TODO(tech-debt): receipt 模型补充 tax_amount 字段后从源单据传递。
-            tax_amount: Set(Decimal::ZERO),
+            // P1-3 修复：从采购入库明细获取税额
+            tax_amount: Set(tax_amount),
             created_by: Set(user_id),
             ..Default::default()
         }
