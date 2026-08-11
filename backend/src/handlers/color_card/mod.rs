@@ -22,8 +22,9 @@ pub mod scan_export;
 pub use analytics::{
     calculate_expiry_loss, check_all_warnings, check_single_warning, collect_production_cost,
     customer_color_card_ledger, expired_unused_report, export_issue_detail_report,
-    generate_daily_stats, issue_detail_report, issue_summary_report, order_related_report,
-    restore_cost_on_cancel, transfer_issue_cost,
+    generate_daily_stats, issue_detail_report, issue_summary_report, list_by_sales_order,
+    list_customer_color_cards, order_related_report, query_reorder_dye_lot, restore_cost_on_cancel,
+    transfer_issue_cost,
 };
 
 pub use crud::{
