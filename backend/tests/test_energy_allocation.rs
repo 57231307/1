@@ -10,7 +10,6 @@ mod tests {
 
     use chrono::{TimeZone, Utc};
     use rust_decimal::Decimal;
-    use sea_orm::EntityTrait;
 
     use bingxi_backend::services::energy_ops::allocation_record::EnergyAllocationRecordService;
     use bingxi_backend::services::energy_ops::consumption::EnergyConsumptionService;
