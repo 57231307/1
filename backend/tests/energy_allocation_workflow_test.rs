@@ -88,12 +88,17 @@ mod tests {
 
         // 3. 测试查询空数据库
         let query = bingxi_backend::services::energy_ops::allocation_record::AllocationRecordQuery {
-            page: 1,
-            page_size: 10,
             meter_type: None,
             workshop: None,
             dye_lot_no: None,
             production_order_id: None,
+            process_route_id: None,
+            allocation_rule_id: None,
+            status: None,
+            period_start: None,
+            period_end: None,
+            page: Some(1),
+            page_size: Some(10),
         };
         let result = allocation_service.list(query).await;
 
