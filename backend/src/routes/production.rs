@@ -290,6 +290,11 @@ pub fn fabric_inspections() -> Router<AppState> {
             "/fabric-inspections/:id/print",
             get(print_handler::fabric_inspection_print_docx),
         )
+        // V15 P1 17.1-D7: 物理测试
+        .route(
+            "/fabric-inspections/physical-tests",
+            post(fabric_inspection_handler::add_physical_test),
+        )
 }
 
 /// 产量工资路由（path 前缀 /wage-rates、/wage-records、/wage-details）；v14 批次 427：产量工资核算贯通 真实业务流程：工序流转扫码
