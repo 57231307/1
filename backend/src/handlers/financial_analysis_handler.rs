@@ -506,3 +506,26 @@ pub async fn calculate_cash_flow_ratios(
         "total": results.len(),
     }))))
 }
+
+/// GET /api/v1/erp/financial-analysis/dupont - 杜邦分析
+pub async fn get_dupont_analysis(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(params): Query<serde_json::Value>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let period = params
+        .get("period")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| chrono::Utc::now().format("%Y-%m").to_string());
+
+    info!("用户 {} 执行杜邦分析: 期间={}", auth.username, period);
+
+    let service = FinancialAnalysisService::new(state.db.clone());
+    let result = service.dupont_analysis(&period, auth.user_id).await?;
+
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "period": period,
+        "data": result
+    }))))
+}

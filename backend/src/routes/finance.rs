@@ -520,6 +520,11 @@ pub fn financial_analysis() -> Router<AppState> {
             "/financial-analysis/trend-analysis",
             get(financial_analysis_handler::get_trend_analysis),
         )
+        // V15 P1 17.3-D7: 杜邦分析
+        .route(
+            "/financial-analysis/dupont",
+            get(financial_analysis_handler::get_dupont_analysis),
+        )
 }
 
 /// 资金管理路由（path 前缀 /fund-management）
