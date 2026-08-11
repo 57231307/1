@@ -1222,19 +1222,3 @@ pub async fn lead_funnel_report(
         serde_json::to_value(result).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(value)))
 }
-        &AuditEvent {
-            user_id: auth.user_id,
-            operation: OperationType::Query,
-            resource_type: "crm_lead".to_string(),
-            resource_id: None,
-            detail: Some("线索漏斗报表".to_string()),
-            severity: Some(Severity::Info),
-            ip_address: None,
-            user_agent: None,
-        },
-    )
-    .await;
-    let value =
-        serde_json::to_value(result).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
-    Ok(Json(ApiResponse::success(value)))
-}
