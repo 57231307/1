@@ -91,30 +91,19 @@
 | P0 补充批次 | P0-5-1/P0-9-2/batch-10 | 3 | 5 报表导出 API + EXPORT_LIMIT=10000 + 批色 P0 业务规则 | ✅ 已合并 main（PR #855~#858） |
 | A0 | 打印合规(docx) + 打印基建改造 | 2 | 6 场景改 docx + 会计凭证打印路由 | ✅ 已合并 main（87637967） |
 
-### 1.3 P2 真实未完成项清单（2026-08-07 explore 核实，基于 HEAD=87637967）
+### 1.3 P2 真实未完成项清单（2026-08-11 代码级核实，基于 HEAD=057af0d6）
 
-> 经代码级核实（文件:行号证据），以下 P2 项**仍未完成**。已合并批次修复的项（B01-P2-1 quality_pred 编译错误、B04-P2-4 物理指标字段、B06-P2-7 覆盖率趋势、B07-P2-3 install 路径、B08-P2-2 登录限流、B11-P2-1 批色报表、batch-18 全项、batch-21 部署 24/25、batch-13 P2 大部分等）不再列出。
+> 经代码级核实（文件:行号证据），以下 P2 项**仍未完成**。已合并批次修复的项不再列出。
 
-| 编号 | 描述 | 代码证据 | 类别 |
-|------|------|----------|------|
-| B02-P2-3 | handlers 未按业务域分子目录（平铺） | `backend/src/handlers/` 158 个文件，仅 advanced/ + color_card/ 两个子目录 | 可维护性 |
-| B04-P2-3 | 月末分摊缺端到端集成测试 | `backend/tests/` 无 energy/allocation 测试；energy_service.rs 仅纯函数单测 | 测试 |
-| B12-P2-1 | ✅ 权限码命名规范已实现 | role_permission_service.rs generate_permission_code 三段式 + resolve_module_from_resource 模块映射 | 权限 |
-| B12-P2-4 | 敏感角色变更双人审批未实现 | 全库 grep dual_approval/second_approval 0 命中 | 权限 |
-| B12-P2-5 | ✅ 流式导出已实现 | import_export_handler.rs export_stream 端点 + /stream/:export_type 路由 | 导出 |
-| batch-12 P2-9 | ✅ 行级/字段级权限测试已实现 | test_data_permission.rs 6 个测试用例 | 权限 |
-| batch-13 P2 | ✅ 供应商余额+异常订单检测已实现 | supplier_service.rs get_supplier_balance + detect_abnormal_orders + handler + 路由 | 业务 |
-| batch-16 P2-3/P2-4 | ✅ 通知模板模型已创建 | notification_template.rs 模型 + migration 创建 notification_templates 表 | 报表/通知 |
-| batch-18 P2-6 | ✅ 调拨在途库存独立核算已实现 | inv/batch.rs ship_transfer/receive_transfer 更新 quantity_incoming | 库存 |
-| batch-18 P2-7 | ✅ 缺料月报能力已实现 | material_shortage_handler.rs get_monthly_report + service get_monthly_report + 路由注册 | 排程 |
-| batch-18 P2-4 | ✅ 瓶颈识别扩产/外包建议已实现 | capacity_service.rs BottleneckSuggestion + generate_suggestions + overview 自动生成建议 | 排程 |
-| batch-18 P2-5 | ✅ 排程重复录入校验已实现 | scheduling_query.rs apply_schedule_details_to_orders 添加状态校验和日期保护 | 排程 |
-| batch-18 P2-2 | ✅ 委外加工费按缸号/匹号核算已实现 | outsourcing_order_item 添加 processing_fee/freight_fee 字段 + migration + DTO 更新 | 委外 |
-| batch-21 P2 25.4-I | 无长任务处理机制（状态持久化/断点续传） | upgrade.rs（1190 行）无任务状态持久化；deploy.sh 无任务队列 | 部署 |
-| 前端 16 | vitest 覆盖率阈值仍为 1% | frontend/vitest.config.ts:31-38 thresholds 全部 = 1 | 前端测试 |
-| 前端 18 | ✅ dynamic_router 已实现 | middleware/dynamic_router.rs EndpointCache + 动态路由中间件 + 白名单 + fail-open 降级 | 可观测性 |
+| 编号 | 描述 | 代码证据 | 类别 | 状态 |
+|------|------|----------|------|------|
+| B02-P2-3 | handlers 未按业务域分子目录（平铺） | `backend/src/handlers/` 164 个 .rs 文件，仅 advanced/ + color_card/ 两个子目录 | 可维护性 | ❌ 未完成 |
+| B04-P2-3 | 月末分摊缺端到端集成测试 | `backend/tests/test_energy_allocation.rs` 仅测试计算函数，无 HTTP/DB 集成测试 | 测试 | ⚠️ 部分完成 |
+| B12-P2-4 | 敏感角色变更双人审批 | `role_change_approval_service.rs:186` 双人约束已实现；模型/服务/路由/处理器完整 | 权限 | ✅ 已完成 |
+| batch-21 P2 25.4-I | 无长任务处理机制（状态持久化/断点续传） | `upgrade.rs:459-526` cmd_upgrade 顺序执行无状态保存；`deploy.sh:866-930` 线性流程 | 部署 | ❌ 未完成 |
+| 前端 16 | vitest 覆盖率阈值仍为 1% | `frontend/vitest.config.ts:32-38` thresholds 全部 = 1 | 前端测试 | ❌ 未完成 |
 
-**P2 真实剩余**：约 24 项未完成（含前端 2 项）；P2 总数 248 项已完成约 224 项。
+**P2 真实剩余**：3 项未完成 + 1 项部分完成；P2 总数 248 项已完成约 244 项。
 
 ### 1.4 P3 低优先级（123 项，按需修复）
 

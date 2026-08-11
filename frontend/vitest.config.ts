@@ -29,6 +29,7 @@ export default defineConfig({
         'src/App.vue',
       ],
       // V15 P1-20-6 覆盖率门槛（当前 1.78%，逐步提升至 70%）
+      // 2026-08-11: 保持 1%，后续通过补充测试逐步提升
       thresholds: {
         lines: 1,
         functions: 1,
