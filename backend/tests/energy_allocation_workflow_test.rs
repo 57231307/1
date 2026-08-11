@@ -36,8 +36,7 @@ mod tests {
         // 注意：由于使用 SQLite 内存数据库，需要先创建表
         // 这里我们测试服务的实例化和基本方法调用
 
-        // 4. 测试服务实例化
-        assert!(true, "服务实例化成功");
+        // 4. 测试服务实例化成功（无 panic）
 
         // 5. 测试查询空数据库
         let result = consumption_service
@@ -72,8 +71,7 @@ mod tests {
         // 2. 创建服务实例
         let _rule_service = EnergyAllocationRuleService::new(db.clone());
 
-        // 3. 测试服务实例化
-        assert!(true, "分摊规则服务实例化成功");
+        // 3. 测试服务实例化成功（无 panic）
     }
 
     /// 测试分摊记录查询
