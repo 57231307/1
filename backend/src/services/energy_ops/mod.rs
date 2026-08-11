@@ -22,6 +22,5 @@ pub use allocation_rule::{
 };
 pub use consumption::{
     ConsumptionQuery, CreateConsumptionRequest, EnergyConsumptionService, UpdateConsumptionRequest,
-    WorkshopEnergySummary,
 };
 pub use meter::{CreateMeterRequest, EnergyMeterService, MeterQuery, UpdateMeterRequest};
