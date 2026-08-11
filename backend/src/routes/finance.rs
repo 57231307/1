@@ -548,6 +548,21 @@ pub fn fund_management() -> Router<AppState> {
             "/fund-management/reports/monthly",
             get(fund_management_handler::get_fund_monthly_report),
         )
+        // V15 P1 17.6-D7：现金流预测
+        .route(
+            "/fund-management/cash-flow-forecast",
+            get(fund_management_handler::cash_flow_forecast),
+        )
+        // V15 P1 17.6-D8：按类型查询账户
+        .route(
+            "/fund-management/accounts/by-type",
+            get(fund_management_handler::list_accounts_by_type),
+        )
+        // V15 P1 17.6-D9：银行对账
+        .route(
+            "/fund-management/bank-reconciliation",
+            post(fund_management_handler::bank_reconciliation),
+        )
 }
 
 /// AP 应付账款路由：聚合各资源子路由（path 前缀互不重叠，merge 安全）
