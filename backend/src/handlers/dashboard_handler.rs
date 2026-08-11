@@ -204,6 +204,37 @@ pub async fn get_system_resources(
     State(state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<SystemResourceDashboard>>, AppError> {
+    use sysinfo::System;
+
+    // 获取系统信息
+    let mut sys = System::new_all();
+    sys.refresh_all();
+
+    // CPU 使用率
+    let cpu_usage = sys.global_cpu_usage() as f64;
+
+    // 内存使用率
+    let memory_usage = if sys.total_memory() > 0 {
+        (sys.used_memory() as f64 / sys.total_memory() as f64) * 100.0
+    } else {
+        0.0
+    };
+
+    // 磁盘使用率
+    let disks = sysinfo::Disks::new_with_refreshed_list();
+    let disk_usage = if let Some(disk) = disks.first() {
+        if disk.total_space() > 0 {
+            ((disk.total_space() - disk.available_space()) as f64 / disk.total_space() as f64) * 100.0
+        } else {
+            0.0
+        }
+    } else {
+        0.0
+    };
+
+    // 系统运行时间
+    let uptime_seconds = System::uptime();
+
     // 获取数据库连接数
     let db_connections_sql = "SELECT COUNT(*) as count FROM pg_stat_activity WHERE state = 'active'";
     let db_result = state
@@ -223,10 +254,10 @@ pub async fn get_system_resources(
     let cache_hit_rate = 0.0; // TODO: 从 metrics 服务获取
 
     let dashboard = SystemResourceDashboard {
-        cpu_usage: 0.0,    // TODO: 从系统指标获取
-        memory_usage: 0.0, // TODO: 从系统指标获取
-        disk_usage: 0.0,   // TODO: 从系统指标获取
-        uptime_seconds: 0, // TODO: 从系统指标获取
+        cpu_usage,
+        memory_usage,
+        disk_usage,
+        uptime_seconds,
         active_connections: 0,
         database_connections,
         cache_hit_rate,
