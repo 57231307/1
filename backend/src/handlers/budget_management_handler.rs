@@ -301,7 +301,7 @@ pub async fn create_plan(
                 plan_name: req.plan_name.unwrap_or_default(),
                 budget_year: req.budget_year.unwrap_or_else(|| {
                     use chrono::Datelike;
-                    chrono::Utc::now().naive_utc().year()
+                    chrono::Utc::now().naive_utc().date().year()
                 }),
                 budget_type: req.budget_type.unwrap_or_else(|| "年度预算".to_string()),
                 // 部门 ID 缺失时返回 4xx 错误，避免脏 department_id=0 记录
@@ -909,7 +909,7 @@ pub async fn variance_analysis(
     let budget_year = req
         .get("budget_year")
         .and_then(|v| v.as_i64())
-        .unwrap_or_else(|| chrono::Utc::now().naive_utc().year() as i64) as i32;
+        .unwrap_or_else(|| chrono::Utc::now().naive_utc().date().year() as i64) as i32;
     let department_id = req
         .get("department_id")
         .and_then(|v| v.as_i64())
@@ -936,11 +936,11 @@ pub async fn create_budget_with_mode(
     let source_year = req
         .get("source_year")
         .and_then(|v| v.as_i64())
-        .unwrap_or_else(|| chrono::Utc::now().naive_utc().year() as i64) as i32;
+        .unwrap_or_else(|| chrono::Utc::now().naive_utc().date().year() as i64) as i32;
     let target_year = req
         .get("target_year")
         .and_then(|v| v.as_i64())
-        .unwrap_or_else(|| chrono::Utc::now().naive_utc().year() as i64 + 1) as i32;
+        .unwrap_or_else(|| chrono::Utc::now().naive_utc().date().year() as i64 + 1) as i32;
     let department_id = req
         .get("department_id")
         .and_then(|v| v.as_i64())
@@ -971,7 +971,7 @@ pub async fn budget_execution_warnings(
     let budget_year = params
         .get("budget_year")
         .and_then(|v| v.as_i64())
-        .unwrap_or_else(|| chrono::Utc::now().naive_utc().year() as i64) as i32;
+        .unwrap_or_else(|| chrono::Utc::now().naive_utc().date().year() as i64) as i32;
     let result = service.budget_execution_warnings(budget_year).await?;
     Ok(Json(serde_json::json!({
         "code": 200,
