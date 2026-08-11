@@ -8,14 +8,9 @@ mod common;
 mod tests {
     use std::sync::Arc;
 
-    use chrono::{NaiveDate, Utc};
-    use rust_decimal::Decimal;
-    use sea_orm::EntityTrait;
+    use chrono::NaiveDate;
 
-    use bingxi_backend::models::prelude::*;
-    use bingxi_backend::services::energy_ops::allocation_record::{
-        EnergyAllocationRecordService, MonthlyAllocationRequest,
-    };
+    use bingxi_backend::services::energy_ops::allocation_record::EnergyAllocationRecordService;
     use bingxi_backend::services::energy_ops::allocation_rule::EnergyAllocationRuleService;
     use bingxi_backend::services::energy_ops::consumption::EnergyConsumptionService;
     use super::common::setup_test_db;
