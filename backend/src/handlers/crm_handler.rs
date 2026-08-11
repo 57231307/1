@@ -1115,7 +1115,7 @@ pub async fn score_lead(
         after_snapshot: None,
     };
     let svc = Arc::new(AuditLogService::new(state.db.clone()));
-    svc.log_event(event).await;
+    svc.record_async(event, None);
     let value =
         serde_json::to_value(result).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(value)))
@@ -1146,7 +1146,7 @@ pub async fn detect_duplicate_leads(
         after_snapshot: None,
     };
     let svc = Arc::new(AuditLogService::new(state.db.clone()));
-    svc.log_event(event).await;
+    svc.record_async(event, None);
     let value =
         serde_json::to_value(result).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(value)))
@@ -1186,7 +1186,7 @@ pub async fn merge_leads(
         after_snapshot: None,
     };
     let svc = Arc::new(AuditLogService::new(state.db.clone()));
-    svc.log_event(event).await;
+    svc.record_async(event, None);
     let value =
         serde_json::to_value(result).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(value)))
@@ -1217,7 +1217,7 @@ pub async fn lead_funnel_report(
         after_snapshot: None,
     };
     let svc = Arc::new(AuditLogService::new(state.db.clone()));
-    svc.log_event(event).await;
+    svc.record_async(event, None);
     let value =
         serde_json::to_value(result).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(value)))
