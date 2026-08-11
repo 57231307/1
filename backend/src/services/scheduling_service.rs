@@ -35,15 +35,6 @@ pub struct ScheduledOrder {
     pub dependencies: Vec<i32>,
 }
 
-/// 工作中心产能
-#[derive(Debug, Clone)]
-pub struct WorkCenterCapacity {
-    pub work_center_id: i32,
-    pub work_center_name: String,
-    pub daily_capacity: i32,
-    pub utilization: f64,
-}
-
 /// 时间槽
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
