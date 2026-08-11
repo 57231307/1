@@ -602,3 +602,124 @@ pub async fn approve_depreciation_policy_change(
         "data": change
     })))
 }
+
+/// POST /api/v1/erp/fixed-assets/auto-depreciation - 月度自动折旧
+pub async fn auto_monthly_depreciation(
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let service = FixedAssetService::new(state.db.clone());
+    let result = service.auto_monthly_depreciation(auth.user_id).await?;
+    Ok(Json(serde_json::json!({
+        "code": 200,
+        "message": "月度自动折旧完成",
+        "data": result
+    })))
+}
+
+/// 盘点计划请求
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateCountPlanRequestDto {
+    pub plan_name: String,
+    pub plan_date: chrono::NaiveDate,
+    pub asset_ids: Option<Vec<i32>>,
+}
+
+/// POST /api/v1/erp/fixed-assets/count-plans - 创建盘点计划
+pub async fn create_count_plan(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<CreateCountPlanRequestDto>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let service = FixedAssetService::new(state.db.clone());
+    let result = service
+        .create_count_plan(
+            req.plan_name,
+            req.plan_date,
+            req.asset_ids,
+            auth.user_id,
+        )
+        .await?;
+    Ok(Json(serde_json::json!({
+        "code": 200,
+        "message": "盘点计划创建成功",
+        "data": result
+    })))
+}
+
+/// 盘点记录请求
+#[derive(Debug, serde::Deserialize)]
+pub struct RecordCountItemRequestDto {
+    pub plan_id: i32,
+    pub asset_id: i32,
+    pub actual_location: Option<String>,
+    pub actual_condition: Option<String>,
+    pub notes: Option<String>,
+}
+
+/// POST /api/v1/erp/fixed-assets/count-items - 记录盘点明细
+pub async fn record_count_item(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<RecordCountItemRequestDto>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let service = FixedAssetService::new(state.db.clone());
+    let result = service
+        .record_count_item(
+            req.plan_id,
+            req.asset_id,
+            req.actual_location,
+            req.actual_condition,
+            req.notes,
+            auth.user_id,
+        )
+        .await?;
+    Ok(Json(serde_json::json!({
+        "code": 200,
+        "message": "盘点记录成功",
+        "data": result
+    })))
+}
+
+/// PUT /api/v1/erp/fixed-assets/count-plans/:id/complete - 完成盘点
+pub async fn complete_count_plan(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(plan_id): Path<i32>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let service = FixedAssetService::new(state.db.clone());
+    let result = service.complete_count_plan(plan_id, auth.user_id).await?;
+    Ok(Json(serde_json::json!({
+        "code": 200,
+        "message": "盘点完成",
+        "data": result
+    })))
+}
+
+/// GET /api/v1/erp/fixed-assets/count-plans - 查询盘点计划
+pub async fn list_count_plans(
+    State(state): State<AppState>,
+    Query(params): Query<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let service = FixedAssetService::new(state.db.clone());
+    let page = params.get("page").and_then(|v| v.as_i64()).unwrap_or(1) as i32;
+    let page_size = params.get("page_size").and_then(|v| v.as_i64()).unwrap_or(20) as i32;
+    let result = service.list_count_plans(page, page_size).await?;
+    Ok(Json(serde_json::json!({
+        "code": 200,
+        "data": result
+    })))
+}
+
+/// GET /api/v1/erp/fixed-assets/count-plans/:id/items - 查询盘点明细
+pub async fn list_count_items(
+    State(state): State<AppState>,
+    Path(plan_id): Path<i32>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let service = FixedAssetService::new(state.db.clone());
+    let result = service.list_count_items(plan_id).await?;
+    Ok(Json(serde_json::json!({
+        "code": 200,
+        "data": result
+    })))
+}

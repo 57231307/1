@@ -304,6 +304,32 @@ pub fn fixed_assets() -> Router<AppState> {
             "/fixed-assets/count/:id/print",
             get(print_handler::fixed_asset_count_print_docx),
         )
+        // V15 P1 17.5-D7: 月度自动折旧
+        .route(
+            "/fixed-assets/auto-depreciation",
+            post(fixed_asset_handler::auto_monthly_depreciation),
+        )
+        // V15 P1 17.5-D8: 盘点计划
+        .route(
+            "/fixed-assets/count-plans",
+            get(fixed_asset_handler::list_count_plans)
+                .post(fixed_asset_handler::create_count_plan),
+        )
+        // V15 P1 17.5-D9: 盘点记录
+        .route(
+            "/fixed-assets/count-items",
+            post(fixed_asset_handler::record_count_item),
+        )
+        // V15 P1 17.5-D10: 完成盘点
+        .route(
+            "/fixed-assets/count-plans/:id/complete",
+            put(fixed_asset_handler::complete_count_plan),
+        )
+        // V15 P1 17.5-D11: 查询盘点明细
+        .route(
+            "/fixed-assets/count-plans/:id/items",
+            get(fixed_asset_handler::list_count_items),
+        )
 }
 
 /// 预算主数据 + 调整路由（/budgets、/budgets/adjust）
