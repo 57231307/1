@@ -105,6 +105,7 @@ pub struct MockCacheBackend {
     invalidate_prefix_calls: AtomicU64,
 }
 
+#[allow(dead_code)]
 impl MockCacheBackend {
     /// 创建空的 Mock 缓存
     pub fn new() -> Self {
