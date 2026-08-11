@@ -8,7 +8,7 @@ mod common;
 mod tests {
     use std::sync::Arc;
 
-    use chrono::{DateTime, FixedOffset, NaiveDate, TimeZone, Utc};
+    use chrono::{TimeZone, Utc};
 
     use bingxi_backend::services::energy_ops::allocation_record::EnergyAllocationRecordService;
     use bingxi_backend::services::energy_ops::allocation_rule::EnergyAllocationRuleService;
@@ -26,8 +26,8 @@ mod tests {
 
         // 2. 创建服务实例
         let consumption_service = EnergyConsumptionService::new(db.clone());
-        let rule_service = EnergyAllocationRuleService::new(db.clone());
-        let allocation_service = EnergyAllocationRecordService::new(db.clone());
+        let _rule_service = EnergyAllocationRuleService::new(db.clone());
+        let _allocation_service = EnergyAllocationRecordService::new(db.clone());
 
         // 3. 创建测试数据 - 能耗记录
         let period_start = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap().fixed_offset();
