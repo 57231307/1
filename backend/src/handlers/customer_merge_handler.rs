@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum::{extract::State, Json};
 use sea_orm::{ActiveModelTrait, EntityTrait, Set, TransactionTrait, ColumnTrait, QueryFilter};
 use serde::Deserialize;
@@ -5,6 +7,7 @@ use serde::Deserialize;
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::*;
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
@@ -68,9 +71,9 @@ pub async fn merge_customers(
 
     // 3. 转移销售报价
     sales_quotation::Entity::update_many()
-        .filter(sales_quotation::Column::CustomerId.eq(req.source_customer_id))
+        .filter(sales_quotation::Column::CustomerId.eq(req.source_customer_id as i64))
         .set(sales_quotation::ActiveModel {
-            customer_id: Set(req.target_customer_id),
+            customer_id: Set(req.target_customer_id as i64),
             ..Default::default()
         })
         .exec(&txn)
@@ -98,9 +101,9 @@ pub async fn merge_customers(
 
     // 6. 转移 CRM 线索
     crm_lead::Entity::update_many()
-        .filter(crm_lead::Column::CustomerId.eq(Some(req.source_customer_id)))
+        .filter(crm_lead::Column::ConvertedCustomerId.eq(Some(req.source_customer_id)))
         .set(crm_lead::ActiveModel {
-            customer_id: Set(Some(req.target_customer_id)),
+            converted_customer_id: Set(Some(req.target_customer_id)),
             ..Default::default()
         })
         .exec(&txn)
@@ -178,7 +181,7 @@ pub async fn merge_customers(
     source_active.update(&txn).await?;
 
     // 14. 记录审计日志
-    let audit_event = audit_log::AuditEvent {
+    let audit_event = AuditEvent {
         user_id: Some(auth.user_id),
         username: Some(auth.username.clone()),
         operation_type: audit_log::OperationType::Update,
@@ -195,7 +198,7 @@ pub async fn merge_customers(
         before_snapshot: None,
         after_snapshot: None,
     };
-    let audit_svc = crate::services::audit_log_service::AuditLogService::new(state.db.clone());
+    let audit_svc = Arc::new(AuditLogService::new(state.db.clone()));
     audit_svc.record_async(audit_event, None);
 
     txn.commit().await?;

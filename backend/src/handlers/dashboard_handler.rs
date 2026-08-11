@@ -221,7 +221,7 @@ pub async fn get_system_resources(
     };
 
     // 磁盘使用率
-    let disks = sys.disks();
+    let disks = sysinfo::Disks::new_with_refreshed_list();
     let disk_usage = if let Some(disk) = disks.first() {
         if disk.total_space() > 0 {
             ((disk.total_space() - disk.available_space()) as f64 / disk.total_space() as f64) * 100.0
