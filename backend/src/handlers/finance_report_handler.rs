@@ -62,7 +62,7 @@ pub async fn get_income_statement(
             .unwrap_or_else(|| {
                 // Fallback to first day of month
                 chrono::NaiveDate::from_ymd_opt(
-                    chrono::Utc::now().date_naive().year(),
+                    chrono::Utc::now().naive_utc().year(),
                     chrono::Utc::now().date_naive().month(),
                     1,
                 )
@@ -88,7 +88,7 @@ pub async fn get_cash_flow_statement(
             .with_day(1)
             .unwrap_or_else(|| {
                 chrono::NaiveDate::from_ymd_opt(
-                    chrono::Utc::now().date_naive().year(),
+                    chrono::Utc::now().naive_utc().year(),
                     chrono::Utc::now().date_naive().month(),
                     1,
                 )
@@ -127,7 +127,7 @@ pub async fn get_general_ledger(
             .with_day(1)
             .unwrap_or_else(|| {
                 chrono::NaiveDate::from_ymd_opt(
-                    chrono::Utc::now().date_naive().year(),
+                    chrono::Utc::now().naive_utc().year(),
                     chrono::Utc::now().date_naive().month(),
                     1,
                 )
@@ -155,7 +155,7 @@ pub async fn get_subsidiary_ledger(
             .with_day(1)
             .unwrap_or_else(|| {
                 chrono::NaiveDate::from_ymd_opt(
-                    chrono::Utc::now().date_naive().year(),
+                    chrono::Utc::now().naive_utc().year(),
                     chrono::Utc::now().date_naive().month(),
                     1,
                 )
@@ -214,7 +214,7 @@ pub async fn drill_down_report(
                 .subject_prefix
                 .ok_or_else(|| AppError::validation("报表穿透需要 subject_prefix 参数"))?;
             let start_date = query.start_date.unwrap_or_else(|| {
-                chrono::NaiveDate::from_ymd_opt(chrono::Utc::now().date_naive().year(), 1, 1)
+                chrono::NaiveDate::from_ymd_opt(chrono::Utc::now().naive_utc().year(), 1, 1)
                     .unwrap_or_else(|| chrono::Utc::now().date_naive())
             });
             let end_date = query

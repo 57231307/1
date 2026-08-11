@@ -909,7 +909,7 @@ pub async fn variance_analysis(
     let budget_year = req
         .get("budget_year")
         .and_then(|v| v.as_i64())
-        .unwrap_or_else(|| chrono::Utc::now().date_naive().year() as i64) as i32;
+        .unwrap_or_else(|| chrono::Utc::now().naive_utc().year() as i64) as i32;
     let department_id = req
         .get("department_id")
         .and_then(|v| v.as_i64())
@@ -936,11 +936,11 @@ pub async fn create_budget_with_mode(
     let source_year = req
         .get("source_year")
         .and_then(|v| v.as_i64())
-        .unwrap_or_else(|| chrono::Utc::now().date_naive().year() as i64) as i32;
+        .unwrap_or_else(|| chrono::Utc::now().naive_utc().year() as i64) as i32;
     let target_year = req
         .get("target_year")
         .and_then(|v| v.as_i64())
-        .unwrap_or_else(|| chrono::Utc::now().date_naive().year() as i64 + 1) as i32;
+        .unwrap_or_else(|| chrono::Utc::now().naive_utc().year() as i64 + 1) as i32;
     let department_id = req
         .get("department_id")
         .and_then(|v| v.as_i64())
@@ -971,7 +971,7 @@ pub async fn budget_execution_warnings(
     let budget_year = params
         .get("budget_year")
         .and_then(|v| v.as_i64())
-        .unwrap_or_else(|| chrono::Utc::now().date_naive().year() as i64) as i32;
+        .unwrap_or_else(|| chrono::Utc::now().naive_utc().year() as i64) as i32;
     let result = service.budget_execution_warnings(budget_year).await?;
     Ok(Json(serde_json::json!({
         "code": 200,
