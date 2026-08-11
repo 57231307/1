@@ -415,7 +415,7 @@ pub async fn get_fund_monthly_report(
 /// 现金流预测查询参数
 #[derive(Debug, Deserialize)]
 pub struct CashFlowForecastQuery {
-    pub months: Option<u32>,
+    pub days: Option<i32>,
 }
 
 /// GET /api/v1/fund/cash-flow-forecast - 现金流预测
@@ -426,7 +426,7 @@ pub async fn cash_flow_forecast(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 查询现金流预测", auth.username);
     let service = FundManagementService::new(state.db.clone());
-    let result = service.cash_flow_forecast(params.months).await?;
+    let result = service.cash_flow_forecast(params.days).await?;
     let value =
         serde_json::to_value(result).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(value)))
@@ -456,6 +456,7 @@ pub async fn list_accounts_by_type(
 #[derive(Debug, Deserialize)]
 pub struct BankReconciliationQuery {
     pub account_id: i32,
+    pub bank_statement_balance: rust_decimal::Decimal,
     pub statement_date: chrono::NaiveDate,
 }
 
@@ -471,7 +472,7 @@ pub async fn bank_reconciliation(
     );
     let service = FundManagementService::new(state.db.clone());
     let result = service
-        .bank_reconciliation(req.account_id, req.statement_date)
+        .bank_reconciliation(req.account_id, req.bank_statement_balance, req.statement_date)
         .await?;
     let value =
         serde_json::to_value(result).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;

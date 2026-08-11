@@ -326,7 +326,7 @@ pub async fn list_customer_color_cards(
     let customer_id = params
         .get("customer_id")
         .and_then(|v| v.as_i64())
-        .map(|id| id as i32);
+        .ok_or_else(|| AppError::validation("customer_id 必填"))?;
     let svc = ColorCardIssueStatisticsService::new(state.db.clone());
     let result = svc.list_customer_color_cards(customer_id).await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
@@ -344,7 +344,7 @@ pub async fn list_by_sales_order(
     let sales_order_id = params
         .get("sales_order_id")
         .and_then(|v| v.as_i64())
-        .ok_or_else(|| AppError::validation("sales_order_id 必填"))? as i32;
+        .ok_or_else(|| AppError::validation("sales_order_id 必填"))?;
     let svc = ColorCardIssueStatisticsService::new(state.db.clone());
     let result = svc.list_by_sales_order(sales_order_id).await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
@@ -359,12 +359,12 @@ pub async fn query_reorder_dye_lot(
     Query(params): Query<serde_json::Value>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     require_issue_permission(&state, &auth, "read").await?;
-    let dye_lot_no = params
-        .get("dye_lot_no")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let customer_id = params
+        .get("customer_id")
+        .and_then(|v| v.as_i64())
+        .ok_or_else(|| AppError::validation("customer_id 必填"))?;
     let svc = ColorCardIssueStatisticsService::new(state.db.clone());
-    let result = svc.query_reorder_dye_lot(dye_lot_no).await?;
+    let result = svc.query_reorder_dye_lot(customer_id).await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "data": result
     }))))

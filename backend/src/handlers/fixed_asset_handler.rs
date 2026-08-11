@@ -603,13 +603,20 @@ pub async fn approve_depreciation_policy_change(
     })))
 }
 
+/// 自动折旧请求
+#[derive(Debug, serde::Deserialize)]
+pub struct AutoDepreciationRequestDto {
+    pub period: String,
+}
+
 /// POST /api/v1/erp/fixed-assets/auto-depreciation - 月度自动折旧
 pub async fn auto_monthly_depreciation(
     State(state): State<AppState>,
     auth: AuthContext,
+    Json(req): Json<AutoDepreciationRequestDto>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let service = FixedAssetService::new(state.db.clone());
-    let result = service.auto_monthly_depreciation(auth.user_id).await?;
+    let result = service.auto_monthly_depreciation(&req.period, auth.user_id).await?;
     Ok(Json(serde_json::json!({
         "code": 200,
         "message": "月度自动折旧完成",
@@ -621,8 +628,10 @@ pub async fn auto_monthly_depreciation(
 #[derive(Debug, serde::Deserialize)]
 pub struct CreateCountPlanRequestDto {
     pub plan_name: String,
-    pub plan_date: chrono::NaiveDate,
-    pub asset_ids: Option<Vec<i32>>,
+    pub asset_category: Option<String>,
+    pub use_location: Option<String>,
+    pub count_date: Option<chrono::NaiveDate>,
+    pub notes: Option<String>,
 }
 
 /// POST /api/v1/erp/fixed-assets/count-plans - 创建盘点计划
@@ -634,9 +643,13 @@ pub async fn create_count_plan(
     let service = FixedAssetService::new(state.db.clone());
     let result = service
         .create_count_plan(
-            req.plan_name,
-            req.plan_date,
-            req.asset_ids,
+            crate::services::fixed_asset_service::CreateCountPlanRequest {
+                plan_name: req.plan_name,
+                asset_category: req.asset_category,
+                use_location: req.use_location,
+                count_date: req.count_date,
+                notes: req.notes,
+            },
             auth.user_id,
         )
         .await?;
@@ -650,11 +663,13 @@ pub async fn create_count_plan(
 /// 盘点记录请求
 #[derive(Debug, serde::Deserialize)]
 pub struct RecordCountItemRequestDto {
-    pub plan_id: i32,
+    pub count_id: i32,
     pub asset_id: i32,
-    pub actual_location: Option<String>,
-    pub actual_condition: Option<String>,
-    pub notes: Option<String>,
+    pub actual_original_value: Option<rust_decimal::Decimal>,
+    pub actual_net_value: Option<rust_decimal::Decimal>,
+    pub actual_use_location: Option<String>,
+    pub count_result: String,
+    pub remarks: Option<String>,
 }
 
 /// POST /api/v1/erp/fixed-assets/count-items - 记录盘点明细
@@ -666,11 +681,13 @@ pub async fn record_count_item(
     let service = FixedAssetService::new(state.db.clone());
     let result = service
         .record_count_item(
-            req.plan_id,
+            req.count_id,
             req.asset_id,
-            req.actual_location,
-            req.actual_condition,
-            req.notes,
+            req.actual_original_value,
+            req.actual_net_value,
+            req.actual_use_location,
+            req.count_result,
+            req.remarks,
             auth.user_id,
         )
         .await?;
@@ -702,8 +719,8 @@ pub async fn list_count_plans(
     Query(params): Query<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let service = FixedAssetService::new(state.db.clone());
-    let page = params.get("page").and_then(|v| v.as_i64()).unwrap_or(1) as i32;
-    let page_size = params.get("page_size").and_then(|v| v.as_i64()).unwrap_or(20) as i32;
+    let page = params.get("page").and_then(|v| v.as_i64()).unwrap_or(1);
+    let page_size = params.get("page_size").and_then(|v| v.as_i64()).unwrap_or(20);
     let result = service.list_count_plans(page, page_size).await?;
     Ok(Json(serde_json::json!({
         "code": 200,

@@ -233,37 +233,33 @@ pub async fn delete_defect(
 pub struct AddPhysicalTestRequestDto {
     pub inspection_id: i32,
     pub test_item: String,
-    pub test_value: f64,
-    pub unit: Option<String>,
-    pub standard_min: Option<f64>,
-    pub standard_max: Option<f64>,
-    pub notes: Option<String>,
+    pub test_value: rust_decimal::Decimal,
+    pub standard_value: Option<rust_decimal::Decimal>,
+    pub test_result: Option<String>,
+    pub tested_by: Option<i32>,
+    pub remarks: Option<String>,
 }
 
 /// POST /api/v1/erp/fabric-inspections/physical-tests - 添加物理测试
 pub async fn add_physical_test(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Json(req): Json<AddPhysicalTestRequestDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    // 验证测试项
-    crate::services::fabric_inspection_service::FabricInspectionService::validate_test_item(
-        &req.test_item,
-    )?;
-
-    let service = crate::services::fabric_inspection_service::FabricInspectionService::new(
+    let service = crate::services::fabric_inspection_service::FabricPhysicalTestService::new(
         state.db.clone(),
     );
     let result = service
         .add_physical_test(
-            req.inspection_id,
-            &req.test_item,
-            req.test_value,
-            req.unit.as_deref(),
-            req.standard_min,
-            req.standard_max,
-            req.notes.as_deref(),
-            auth.user_id,
+            crate::services::fabric_inspection_service::CreatePhysicalTestRequest {
+                inspection_id: req.inspection_id,
+                test_item: req.test_item,
+                test_value: req.test_value,
+                standard_value: req.standard_value,
+                test_result: req.test_result,
+                tested_by: req.tested_by,
+                remarks: req.remarks,
+            },
         )
         .await?;
 
