@@ -87,16 +87,15 @@ mod tests {
         let allocation_service = EnergyAllocationRecordService::new(db.clone());
 
         // 3. 测试查询空数据库
-        let result = allocation_service
-            .list(
-                1,  // page
-                10, // page_size
-                None,
-                None,
-                None,
-                None,
-            )
-            .await;
+        let query = bingxi_backend::services::energy_ops::allocation_record::AllocationRecordQuery {
+            page: 1,
+            page_size: 10,
+            meter_type: None,
+            workshop: None,
+            dye_lot_no: None,
+            production_order_id: None,
+        };
+        let result = allocation_service.list(query).await;
 
         // 4. 验证结果
         match result {
