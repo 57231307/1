@@ -70,7 +70,7 @@ mod tests {
         let db = Arc::new(db);
 
         // 2. 创建服务实例
-        let rule_service = EnergyAllocationRuleService::new(db.clone());
+        let _rule_service = EnergyAllocationRuleService::new(db.clone());
 
         // 3. 测试服务实例化
         assert!(true, "分摊规则服务实例化成功");
