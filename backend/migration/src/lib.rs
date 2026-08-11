@@ -214,6 +214,17 @@ pub mod m0104_greige_fabric_tracing_fields;
 // V15 P2 缺陷 3.2：拆匹数量之和强校验（original_length/weight）
 pub mod m0105_piece_split_original_length;
 pub mod m0106_batch_dye_lot_unique_constraint;
+// P0-2: 补齐未集成的迁移（2026-08-11 技术债务修复）
+pub mod m0107_add_color_card_capability_fields;
+pub mod m0108_create_customer_addresses;
+pub mod m0109_add_customer_special_process;
+pub mod m0110_create_aging_grade_configs;
+pub mod m0111_create_industry_benchmark_configs;
+pub mod m0112_add_accounting_period_close_fields;
+pub mod m0113_add_fixed_asset_depreciation_start_date;
+pub mod m0114_add_customer_source_fields;
+pub mod m0115_add_crm_lead_custom_fields;
+pub mod m0116_create_long_running_tasks;
 
 pub struct Migrator;
 
@@ -333,6 +344,17 @@ impl MigratorTrait for Migrator {
             Box::new(m0105_piece_split_original_length::Migration),
             // V15 P0 缺陷 1.5-P0：匹号唯一约束修正（batch_no 全局 UNIQUE → (dye_lot_no, batch_no) 组合 UNIQUE）
             Box::new(m0106_batch_dye_lot_unique_constraint::Migration),
+            // P0-2: 补齐未集成的迁移（2026-08-11 技术债务修复）
+            Box::new(m0107_add_color_card_capability_fields::Migration),
+            Box::new(m0108_create_customer_addresses::Migration),
+            Box::new(m0109_add_customer_special_process::Migration),
+            Box::new(m0110_create_aging_grade_configs::Migration),
+            Box::new(m0111_create_industry_benchmark_configs::Migration),
+            Box::new(m0112_add_accounting_period_close_fields::Migration),
+            Box::new(m0113_add_fixed_asset_depreciation_start_date::Migration),
+            Box::new(m0114_add_customer_source_fields::Migration),
+            Box::new(m0115_add_crm_lead_custom_fields::Migration),
+            Box::new(m0116_create_long_running_tasks::Migration),
         ]
     }
 }
