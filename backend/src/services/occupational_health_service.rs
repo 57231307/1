@@ -116,6 +116,7 @@ pub struct PpeDistributionQuery {
 }
 
 /// 职业危害因素超标预警
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct HazardExceedanceAlert {
     pub record: HazardModel,
@@ -156,10 +157,12 @@ pub struct ExamExpiryWarning {
 }
 
 /// 职业危害因素限值参考表（依据：《工作场所有害因素职业接触限值 第1部分：化学有害因素》GBZ 2.1；《工作场所有害因素职业接触限值 第2部分：物理因素》GBZ 2.2）
+#[allow(dead_code)]
 pub struct OccupationalHazardLimitReference;
 
 impl OccupationalHazardLimitReference {
     /// 获取职业危害因素限值（PC-TWA 时间加权平均容许浓度，mg/m³ 或 dB）（返回 None 表示该危害因素未在标准中预置，需用户手动传入 limit_value）
+    #[allow(dead_code)]
     pub fn get_limit(hazard_type: &str, hazard_name: &str) -> Option<Decimal> {
         match (hazard_type, hazard_name) {
             // 化学有害因素（GBZ 2.1）

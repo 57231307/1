@@ -304,6 +304,32 @@ pub fn fixed_assets() -> Router<AppState> {
             "/fixed-assets/count/:id/print",
             get(print_handler::fixed_asset_count_print_docx),
         )
+        // V15 P1 17.5-D7: 月度自动折旧
+        .route(
+            "/fixed-assets/auto-depreciation",
+            post(fixed_asset_handler::auto_monthly_depreciation),
+        )
+        // V15 P1 17.5-D8: 盘点计划
+        .route(
+            "/fixed-assets/count-plans",
+            get(fixed_asset_handler::list_count_plans)
+                .post(fixed_asset_handler::create_count_plan),
+        )
+        // V15 P1 17.5-D9: 盘点记录
+        .route(
+            "/fixed-assets/count-items",
+            post(fixed_asset_handler::record_count_item),
+        )
+        // V15 P1 17.5-D10: 完成盘点
+        .route(
+            "/fixed-assets/count-plans/:id/complete",
+            put(fixed_asset_handler::complete_count_plan),
+        )
+        // V15 P1 17.5-D11: 查询盘点明细
+        .route(
+            "/fixed-assets/count-plans/:id/items",
+            get(fixed_asset_handler::list_count_items),
+        )
 }
 
 /// 预算主数据 + 调整路由（/budgets、/budgets/adjust）
@@ -358,6 +384,21 @@ fn budget_master_routes() -> Router<AppState> {
         .route(
             "/budgets/versions/:id/approve",
             put(budget_management_handler::approve_budget_version),
+        )
+        // V15 P1 17.4-D7: 预算差异分析
+        .route(
+            "/budgets/variance-analysis",
+            post(budget_management_handler::variance_analysis),
+        )
+        // V15 P1 17.4-D8: 多模式预算编制
+        .route(
+            "/budgets/create-with-mode",
+            post(budget_management_handler::create_budget_with_mode),
+        )
+        // V15 P1 17.4-D9: 预算执行预警
+        .route(
+            "/budgets/execution-warnings",
+            get(budget_management_handler::budget_execution_warnings),
         )
 }
 
@@ -479,6 +520,11 @@ pub fn financial_analysis() -> Router<AppState> {
             "/financial-analysis/trend-analysis",
             get(financial_analysis_handler::get_trend_analysis),
         )
+        // V15 P1 17.3-D7: 杜邦分析
+        .route(
+            "/financial-analysis/dupont",
+            get(financial_analysis_handler::get_dupont_analysis),
+        )
 }
 
 /// 资金管理路由（path 前缀 /fund-management）
@@ -547,6 +593,21 @@ pub fn fund_management() -> Router<AppState> {
         .route(
             "/fund-management/reports/monthly",
             get(fund_management_handler::get_fund_monthly_report),
+        )
+        // V15 P1 17.6-D7：现金流预测
+        .route(
+            "/fund-management/cash-flow-forecast",
+            get(fund_management_handler::cash_flow_forecast),
+        )
+        // V15 P1 17.6-D8：按类型查询账户
+        .route(
+            "/fund-management/accounts/by-type",
+            get(fund_management_handler::list_accounts_by_type),
+        )
+        // V15 P1 17.6-D9：银行对账
+        .route(
+            "/fund-management/bank-reconciliation",
+            post(fund_management_handler::bank_reconciliation),
         )
 }
 

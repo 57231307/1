@@ -227,3 +227,44 @@ pub async fn delete_defect(
         "疵点明细删除成功",
     )))
 }
+
+/// 物理测试请求
+#[derive(Debug, serde::Deserialize)]
+pub struct AddPhysicalTestRequestDto {
+    pub inspection_id: i32,
+    pub test_item: String,
+    pub test_value: rust_decimal::Decimal,
+    pub standard_value: Option<rust_decimal::Decimal>,
+    pub test_result: Option<String>,
+    pub tested_by: Option<i32>,
+    pub remarks: Option<String>,
+}
+
+/// POST /api/v1/erp/fabric-inspections/physical-tests - 添加物理测试
+pub async fn add_physical_test(
+    State(state): State<AppState>,
+    Json(req): Json<AddPhysicalTestRequestDto>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = crate::services::fabric_inspection_service::FabricPhysicalTestService::new(
+        state.db.clone(),
+    );
+    let result = service
+        .add_physical_test(
+            crate::services::fabric_inspection_service::CreatePhysicalTestRequest {
+                inspection_id: req.inspection_id,
+                test_item: req.test_item,
+                test_value: req.test_value,
+                standard_value: req.standard_value,
+                test_result: req.test_result,
+                tested_by: req.tested_by,
+                remarks: req.remarks,
+            },
+        )
+        .await?;
+
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "code": 200,
+        "message": "物理测试添加成功",
+        "data": result
+    }))))
+}

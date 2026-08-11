@@ -113,6 +113,7 @@ where
 }
 
 /// 可选的认证上下文（允许未认证的请求）
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OptionalAuthContext {
     pub user_id: Option<i32>,
@@ -120,6 +121,7 @@ pub struct OptionalAuthContext {
     pub role_id: Option<i32>,
 }
 
+#[allow(dead_code)]
 impl OptionalAuthContext {
     pub fn from_claims(claims: AppClaims) -> Self {
         Self {
@@ -140,4 +142,5 @@ impl OptionalAuthContext {
 }
 
 /// 认证上下文提取器类型别名（使用 Extension）
+#[allow(dead_code)]
 pub type Auth = axum::extract::Extension<AuthContext>;

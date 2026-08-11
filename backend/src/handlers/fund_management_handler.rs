@@ -411,3 +411,70 @@ pub async fn get_fund_monthly_report(
     info!("资金月报查询成功，年月：{}-{}", params.year, params.month);
     Ok(Json(ApiResponse::success(report)))
 }
+
+/// 现金流预测查询参数
+#[derive(Debug, Deserialize)]
+pub struct CashFlowForecastQuery {
+    pub days: Option<i32>,
+}
+
+/// GET /api/v1/fund/cash-flow-forecast - 现金流预测
+pub async fn cash_flow_forecast(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(params): Query<CashFlowForecastQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    info!("用户 {} 查询现金流预测", auth.username);
+    let service = FundManagementService::new(state.db.clone());
+    let result = service.cash_flow_forecast(params.days).await?;
+    let value =
+        serde_json::to_value(result).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    Ok(Json(ApiResponse::success(value)))
+}
+
+/// 按类型查询账户查询参数
+#[derive(Debug, Deserialize)]
+pub struct AccountsByTypeQuery {
+    pub account_type: String,
+}
+
+/// GET /api/v1/fund/accounts/by-type - 按类型查询账户
+pub async fn list_accounts_by_type(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(params): Query<AccountsByTypeQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    info!("用户 {} 按类型查询账户：{}", auth.username, params.account_type);
+    let service = FundManagementService::new(state.db.clone());
+    let result = service.list_accounts_by_type(&params.account_type).await?;
+    let value =
+        serde_json::to_value(result).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    Ok(Json(ApiResponse::success(value)))
+}
+
+/// 银行对账查询参数
+#[derive(Debug, Deserialize)]
+pub struct BankReconciliationQuery {
+    pub account_id: i32,
+    pub bank_statement_balance: rust_decimal::Decimal,
+    pub statement_date: chrono::NaiveDate,
+}
+
+/// POST /api/v1/fund/bank-reconciliation - 银行对账
+pub async fn bank_reconciliation(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<BankReconciliationQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    info!(
+        "用户 {} 执行银行对账，账户：{}，日期：{}",
+        auth.username, req.account_id, req.statement_date
+    );
+    let service = FundManagementService::new(state.db.clone());
+    let result = service
+        .bank_reconciliation(req.account_id, req.bank_statement_balance, req.statement_date)
+        .await?;
+    let value =
+        serde_json::to_value(result).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    Ok(Json(ApiResponse::success(value)))
+}

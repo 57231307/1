@@ -71,6 +71,11 @@ pub fn assist_accounting() -> Router<AppState> {
             "/balance",
             get(assist_accounting_handler::get_assist_balance),
         )
+        // V15 P1 17.2-D7: 辅助核算余额核对
+        .route(
+            "/check-balance",
+            get(assist_accounting_handler::check_assist_vs_general_balance),
+        )
 }
 
 /// 业务追溯路由

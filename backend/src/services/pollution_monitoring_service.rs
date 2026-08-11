@@ -86,8 +86,10 @@ pub struct ExceedanceAlert {
 }
 
 /// 污染物排放限值参考表（印染行业国家标准）（依据：《水污染防治法》GB 4287-2012 纺织染整工业水污染物排放标准；《大气污染物综合排放标准》GB 16297；《工业企业厂界环境噪声排放标准》GB 12348）
+#[allow(dead_code)]
 pub struct PollutionLimitReference;
 
+#[allow(dead_code)]
 impl PollutionLimitReference {
     /// 获取污染物排放限值（mg/L, mg/m³, dB）（返回 None 表示该污染物未在标准中预置，需用户手动传入 limit_value）
     pub fn get_limit(monitoring_type: &str, pollutant_name: &str) -> Option<Decimal> {

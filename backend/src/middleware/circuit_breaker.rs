@@ -202,6 +202,7 @@ pub async fn circuit_breaker_middleware(req: Request<Body>, next: Next) -> Respo
 }
 
 /// V15 P1 20.6-B：获取所有路由的熔断器状态（供管理后台 / Prometheus 指标使用）
+#[allow(dead_code)]
 pub fn get_circuit_breaker_states() -> Vec<(String, &'static str, u32, u32)> {
     let Ok(table) = CIRCUIT_BREAKERS.try_lock() else {
         return Vec::new();

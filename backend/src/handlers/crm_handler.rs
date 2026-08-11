@@ -1091,3 +1091,134 @@ pub struct StageChangeRequest {
     pub from_stage: Option<String>,
     pub to_stage: String,
 }
+
+/// POST /api/v1/crm/leads/:id/score - 线索评分
+pub async fn score_lead(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(lead_id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let result = service.score_lead(lead_id).await?;
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Update,
+        severity: Severity::Info,
+        resource_type: Some("crm_lead".to_string()),
+        resource_id: Some(lead_id.to_string()),
+        resource_name: None,
+        description: Some("线索评分".to_string()),
+        request_method: Some("POST".to_string()),
+        request_path: Some(format!("/api/v1/crm/leads/{}/score", lead_id)),
+        before_snapshot: None,
+        after_snapshot: None,
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
+    let value =
+        serde_json::to_value(result).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    Ok(Json(ApiResponse::success(value)))
+}
+
+/// POST /api/v1/crm/leads/detect-duplicates - 重复线索检测
+pub async fn detect_duplicate_leads(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<serde_json::Value>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let mobile_phone = req.get("mobile_phone").and_then(|v| v.as_str());
+    let company_name = req.get("company_name").and_then(|v| v.as_str());
+    let result = service.detect_duplicate_leads(mobile_phone, company_name).await?;
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Query,
+        severity: Severity::Info,
+        resource_type: Some("crm_lead".to_string()),
+        resource_id: None,
+        resource_name: None,
+        description: Some("重复线索检测".to_string()),
+        request_method: Some("POST".to_string()),
+        request_path: Some("/api/v1/crm/leads/detect-duplicates".to_string()),
+        before_snapshot: None,
+        after_snapshot: None,
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
+    let value =
+        serde_json::to_value(result).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    Ok(Json(ApiResponse::success(value)))
+}
+
+/// POST /api/v1/crm/leads/merge - 合并重复线索
+pub async fn merge_leads(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<serde_json::Value>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let primary_id = req
+        .get("primary_id")
+        .and_then(|v| v.as_i64())
+        .ok_or_else(|| AppError::validation("primary_id 必填"))? as i32;
+    let duplicate_ids: Vec<i32> = req
+        .get("duplicate_ids")
+        .and_then(|v| v.as_array())
+        .ok_or_else(|| AppError::validation("duplicate_ids 必填"))?
+        .iter()
+        .filter_map(|v| v.as_i64().map(|id| id as i32))
+        .collect();
+    let result = service.merge_leads(primary_id, duplicate_ids.clone(), auth.user_id).await?;
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Update,
+        severity: Severity::Info,
+        resource_type: Some("crm_lead".to_string()),
+        resource_id: Some(primary_id.to_string()),
+        resource_name: None,
+        description: Some(format!("合并 {} 条重复线索", duplicate_ids.len())),
+        request_method: Some("POST".to_string()),
+        request_path: Some("/api/v1/crm/leads/merge".to_string()),
+        before_snapshot: None,
+        after_snapshot: None,
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
+    let value =
+        serde_json::to_value(result).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    Ok(Json(ApiResponse::success(value)))
+}
+
+/// GET /api/v1/crm/leads/funnel-report - 线索漏斗报表
+pub async fn lead_funnel_report(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(query): Query<FunnelDateQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let result = service
+        .lead_funnel_report(query.start_date, query.end_date)
+        .await?;
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Query,
+        severity: Severity::Info,
+        resource_type: Some("crm_lead".to_string()),
+        resource_id: None,
+        resource_name: None,
+        description: Some("线索漏斗报表".to_string()),
+        request_method: Some("GET".to_string()),
+        request_path: Some("/api/v1/crm/leads/funnel-report".to_string()),
+        before_snapshot: None,
+        after_snapshot: None,
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
+    let value =
+        serde_json::to_value(result).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    Ok(Json(ApiResponse::success(value)))
+}

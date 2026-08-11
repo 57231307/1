@@ -11,7 +11,7 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use chrono::NaiveDate;
+use chrono::{Datelike, NaiveDate};
 use rust_decimal::Decimal;
 use serde::Deserialize;
 use std::sync::Arc;
@@ -300,8 +300,7 @@ pub async fn create_plan(
                 plan_no: req.plan_no.unwrap_or_default(),
                 plan_name: req.plan_name.unwrap_or_default(),
                 budget_year: req.budget_year.unwrap_or_else(|| {
-                    use chrono::Datelike;
-                    chrono::Utc::now().naive_utc().year()
+                    chrono::Utc::now().date_naive().year()
                 }),
                 budget_type: req.budget_type.unwrap_or_else(|| "年度预算".to_string()),
                 // 部门 ID 缺失时返回 4xx 错误，避免脏 department_id=0 记录
@@ -895,5 +894,86 @@ pub async fn get_budget_assessment(
         "code": 200,
         "message": "success",
         "data": summary
+    })))
+}
+
+/// POST /api/v1/erp/budgets/variance-analysis - 预算差异分析
+pub async fn variance_analysis(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    info!("用户 {} 执行预算差异分析", auth.username);
+    let service = BudgetManagementService::new(state.db.clone());
+    let budget_year = req
+        .get("budget_year")
+        .and_then(|v| v.as_i64())
+        .unwrap_or_else(|| chrono::Utc::now().date_naive().year() as i64) as i32;
+    let department_id = req
+        .get("department_id")
+        .and_then(|v| v.as_i64())
+        .map(|id| id as i32);
+    let result = service.variance_analysis(budget_year, department_id).await?;
+    Ok(Json(serde_json::json!({
+        "code": 200,
+        "data": result
+    })))
+}
+
+/// POST /api/v1/erp/budgets/create-with-mode - 多模式预算编制
+pub async fn create_budget_with_mode(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    info!("用户 {} 创建多模式预算", auth.username);
+    let service = BudgetManagementService::new(state.db.clone());
+    let mode = req
+        .get("mode")
+        .and_then(|v| v.as_str())
+        .unwrap_or("incremental");
+    let source_year = req
+        .get("source_year")
+        .and_then(|v| v.as_i64())
+        .unwrap_or_else(|| chrono::Utc::now().date_naive().year() as i64) as i32;
+    let target_year = req
+        .get("target_year")
+        .and_then(|v| v.as_i64())
+        .unwrap_or_else(|| chrono::Utc::now().date_naive().year() as i64 + 1) as i32;
+    let department_id = req
+        .get("department_id")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(1) as i32;
+    let budget_mode = match mode {
+        "zero_based" => crate::services::budget_management_service::BudgetMode::ZeroBased,
+        "rolling" => crate::services::budget_management_service::BudgetMode::Rolling,
+        _ => crate::services::budget_management_service::BudgetMode::Incremental,
+    };
+    let result = service
+        .create_budget_with_mode(budget_mode, source_year, target_year, department_id, auth.user_id)
+        .await?;
+    Ok(Json(serde_json::json!({
+        "code": 200,
+        "message": "预算创建成功",
+        "data": result
+    })))
+}
+
+/// GET /api/v1/erp/budgets/execution-warnings - 预算执行预警
+pub async fn budget_execution_warnings(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(params): Query<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    info!("用户 {} 查询预算执行预警", auth.username);
+    let service = BudgetManagementService::new(state.db.clone());
+    let budget_year = params
+        .get("budget_year")
+        .and_then(|v| v.as_i64())
+        .unwrap_or_else(|| chrono::Utc::now().date_naive().year() as i64) as i32;
+    let result = service.budget_execution_warnings(budget_year).await?;
+    Ok(Json(serde_json::json!({
+        "code": 200,
+        "data": result
     })))
 }

@@ -917,6 +917,7 @@ impl FinancialAnalysisService {
 
     /// V15 P1 17.5-D3：盈利能力比率计算
     /// 计算毛利率、净利率、营业利润率三项盈利能力指标：毛利率 = (销售收入 - 主营业务成本) / 销售收入；营业利润率 = 营业利润 / 销售收入；净利率 = 净利润 / 销售收入
+    #[allow(dead_code)]
     pub async fn calculate_profitability_ratios(
         &self,
         period: &str,
@@ -977,6 +978,7 @@ impl FinancialAnalysisService {
 
     /// V15 P1 17.5-D4：发展能力比率计算
     /// 计算收入增长率、利润增长率、资产增长率：收入增长率 = (本期收入 - 上期收入) / 上期收入 × 100%；利润增长率 = (本期净利润 - 上期净利润) / 上期净利润 × 100%；资产增长率 = (本期总资产 - 上期总资产) / 上期总资产 × 100%
+    #[allow(dead_code)]
     pub async fn calculate_development_ratios(
         &self,
         period: &str,
@@ -1040,6 +1042,7 @@ impl FinancialAnalysisService {
     }
 
     /// 计算增长率 = (本期 - 上期) / 上期 × 100%
+    #[allow(dead_code)]
     fn calc_growth_rate(current: Decimal, prior: Decimal) -> Option<Decimal> {
         if prior.is_zero() {
             return None;
@@ -1051,6 +1054,7 @@ impl FinancialAnalysisService {
     }
 
     /// 计算上期期间（YYYY-MM → 上一个月）
+    #[allow(dead_code)]
     fn prior_period(period: &str) -> Result<String, AppError> {
         let parts: Vec<&str> = period.split('-').collect();
         if parts.len() != 2 {
@@ -1103,6 +1107,7 @@ impl FinancialAnalysisService {
     }
 
     /// V15 P1 17.5-D3：确保盈利能力指标定义存在
+    #[allow(dead_code)]
     async fn ensure_profitability_indicator_definitions(
         &self,
         _user_id: i32,
@@ -1147,6 +1152,7 @@ impl FinancialAnalysisService {
     }
 
     /// V15 P1 17.5-D4：确保发展能力指标定义存在
+    #[allow(dead_code)]
     async fn ensure_development_indicator_definitions(
         &self,
         _user_id: i32,

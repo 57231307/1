@@ -420,6 +420,26 @@ fn crm_lead_routes() -> Router<AppState> {
             "/leads/:id/auto-assign",
             post(crate::handlers::crm_handler::auto_assign_lead),
         )
+        // V15 P1 18.1-D1: 线索评分
+        .route(
+            "/leads/:id/score",
+            post(crate::handlers::crm_handler::score_lead),
+        )
+        // V15 P1 18.1-D2: 重复线索检测
+        .route(
+            "/leads/detect-duplicates",
+            post(crate::handlers::crm_handler::detect_duplicate_leads),
+        )
+        // V15 P1 18.1-D3: 合并重复线索
+        .route(
+            "/leads/merge",
+            post(crate::handlers::crm_handler::merge_leads),
+        )
+        // V15 P1 18.1-D4: 线索漏斗报表
+        .route(
+            "/leads/funnel-report",
+            get(crate::handlers::crm_handler::lead_funnel_report),
+        )
 }
 
 /// CRM 商机路由（/opportunities，含 CRUD/导出/转化/关单）

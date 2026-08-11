@@ -128,6 +128,21 @@ pub fn routes() -> Router<AppState> {
             "/statistics/daily",
             get(color_card::generate_daily_stats),
         )
+        // V15 P1 17.7-D7: 客户色卡查询
+        .route(
+            "/customer-color-cards",
+            get(color_card::list_customer_color_cards),
+        )
+        // V15 P1 17.7-D8: 按销售订单查询色卡
+        .route(
+            "/by-sales-order",
+            get(color_card::list_by_sales_order),
+        )
+        // V15 P1 17.7-D9: 补染查询
+        .route(
+            "/reorder-dye-lot",
+            get(color_card::query_reorder_dye_lot),
+        )
         // 扫码查询
         .route("/scan/:code", get(color_card::scan_color_code))
         // 按 ID 扫码查询
