@@ -8,7 +8,7 @@ mod common;
 mod tests {
     use std::sync::Arc;
 
-    use chrono::NaiveDate;
+    use chrono::{DateTime, FixedOffset, NaiveDate, TimeZone, Utc};
 
     use bingxi_backend::services::energy_ops::allocation_record::EnergyAllocationRecordService;
     use bingxi_backend::services::energy_ops::allocation_rule::EnergyAllocationRuleService;
@@ -30,8 +30,8 @@ mod tests {
         let allocation_service = EnergyAllocationRecordService::new(db.clone());
 
         // 3. 创建测试数据 - 能耗记录
-        let period_start = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
-        let period_end = NaiveDate::from_ymd_opt(2026, 1, 31).unwrap();
+        let period_start = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap().fixed_offset();
+        let period_end = Utc.with_ymd_and_hms(2026, 1, 31, 23, 59, 59).unwrap().fixed_offset();
 
         // 注意：由于使用 SQLite 内存数据库，需要先创建表
         // 这里我们测试服务的实例化和基本方法调用
@@ -123,8 +123,8 @@ mod tests {
         let consumption_service = EnergyConsumptionService::new(db.clone());
 
         // 3. 测试汇总查询
-        let period_start = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
-        let period_end = NaiveDate::from_ymd_opt(2026, 1, 31).unwrap();
+        let period_start = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap().fixed_offset();
+        let period_end = Utc.with_ymd_and_hms(2026, 1, 31, 23, 59, 59).unwrap().fixed_offset();
 
         let result = consumption_service
             .summarize_by_workshop(
