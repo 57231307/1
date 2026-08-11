@@ -45,6 +45,7 @@ pub struct WorkCenterCapacity {
 }
 
 /// 时间槽
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct TimeSlot {
     pub start: NaiveDate,
