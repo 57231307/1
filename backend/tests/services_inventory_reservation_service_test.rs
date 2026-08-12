@@ -1,9 +1,15 @@
 #[cfg(test)]
 mod tests {
     use bingxi_backend::decs;
+    use bingxi_backend::models::inventory_reservation;
+    use bingxi_backend::models::status::inventory_reservation as reservation_status;
+    use bingxi_backend::services::inventory_reservation_service::InventoryReservationService;
     use bingxi_backend::services::test_common::setup_test_db;
     use bingxi_backend::ymd;
+    use bingxi_backend::AppError;
+    use chrono::Utc;
     use rust_decimal::Decimal;
+    use std::sync::Arc;
 
     /// 测试夹具：构建库存预留 Model
     /// 封装 `inventory_reservation::Model` 的构造，便于在各状态门测试中复用。；使用 `decs!` 解析数量字段，使用 `ymd!` 构造固定的预留时间，便于断言。
