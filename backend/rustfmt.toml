@@ -1,4 +1,4 @@
-# 冰溪 ERP 后端 rustfmt 配置
+# Bingxi Management Platform 后端 rustfmt 配置
 # 注意：以下 nightly-only 配置项（imports_layout / group_imports /
 # format_code_in_doc_comments / format_strings / normalize_comments）
 # 在 stable Rust 1.94.1 不可用（"unstable features are only available in

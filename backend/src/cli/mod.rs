@@ -20,7 +20,7 @@ use clap::Parser;
 #[command(name = "bingxi")]
 #[command(author = "Bingxi Team")]
 #[command(version = env!("CARGO_PKG_VERSION"))]
-#[command(about = "Bingxi ERP 系统命令行工具", long_about = None)]
+#[command(about = "Bingxi Management Platform 系统命令行工具", long_about = None)]
 pub enum Command {
     /// 管理员操作
     #[command(subcommand)]

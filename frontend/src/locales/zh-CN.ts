@@ -1,4 +1,4 @@
-/* 中文（简体）翻译 - 秉羲 ERP */
+/* 中文（简体）翻译 - Bingxi Management Platform */
 /* 命名空间：{module}.{section}.{key} */
 export default {
   common: {
@@ -312,8 +312,8 @@ export default {
     },
   },
   login: {
-    title: '秉羲 ERP',
-    subtitle: '秉羲 ERP 系统',
+    title: 'Bingxi Management Platform',
+    subtitle: 'Bingxi Management Platform 系统',
     username: '用户名',
     password: '密码',
     captcha: '验证码',
@@ -395,7 +395,7 @@ export default {
     },
   },
   layout: {
-    brand: '秉羲 ERP',
+    brand: 'Bingxi Management Platform',
     menuAriaLabel: '主导航菜单',
     breadcrumb: {
       home: '首页',
@@ -4185,7 +4185,7 @@ export default {
     },
   },
   setupPage: {
-    title: '秉羲 ERP',
+    title: 'Bingxi Management Platform',
     subtitle: '系统初始化向导',
     steps: {
       environment: '环境检查',

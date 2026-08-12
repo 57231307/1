@@ -1,7 +1,7 @@
 {
-  "name": "秉羲 ERP 系统",
-  "short_name": "秉羲ERP",
-  "description": "面料行业 ERP 管理系统 - 染整/色卡/销售/财务/库存全链路管理",
+  "name": "Bingxi Management Platform",
+  "short_name": "Bingxi Platform",
+  "description": "Bingxi Management Platform - 面料行业全链路管理系统（染整/色卡/销售/财务/库存）",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

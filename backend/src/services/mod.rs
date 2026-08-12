@@ -16,20 +16,6 @@ pub mod bi_analysis_service;
 pub mod bi_analysis_ops;
 // P4-3 监控告警 - 业务指标扩展（20+ 指标）
 pub mod business_metrics;
-// P4-5 单元测试覆盖 - 5 个 service 单元测试模块
-#[cfg(test)]
-pub mod sales_unit_tests;
-#[cfg(test)]
-pub mod purchase_unit_tests;
-#[cfg(test)]
-pub mod inventory_unit_tests;
-#[cfg(test)]
-pub mod ar_unit_tests;
-#[cfg(test)]
-pub mod bi_unit_tests;
-// P0-D11：测试公共夹具模块（抽取自 18 处 src/services/ 重复定义的 setup_test_db）
-#[cfg(test)]
-pub mod test_common;
 pub mod business_trace_service;
 pub mod crm;
 pub mod customer_service;

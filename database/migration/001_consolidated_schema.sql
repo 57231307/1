@@ -1,5 +1,5 @@
 -- ========================================
---  ERP 系统 - 数据库迁移脚本
+--  Bingxi Management Platform - 数据库迁移脚本
 -- 版本：2026-03-15
 -- 说明：包含所有表的完整定义和初始数据
 -- ========================================
@@ -621,7 +621,7 @@ COMMENT ON COLUMN customers.created_by IS '创建人';
 COMMENT ON COLUMN customers.created_at IS '创建时间';
 COMMENT ON COLUMN customers.updated_at IS '更新时间';
 -- ========================================
--- 面料 ERP 系统 - 面料行业适配迁移脚本（阶段 1）
+-- Bingxi Management Platform - 面料行业适配迁移脚本（阶段 1）
 -- 版本：2026-03-15
 -- 说明：产品、库存、总账模块面料行业适配
 -- ========================================
@@ -1030,7 +1030,7 @@ COMMENT ON VIEW v_color_sales_analysis IS '色号销售分析视图';
 DO $$
 BEGIN
     RAISE NOTICE '========================================';
-    RAISE NOTICE '面料 ERP 系统 - 面料行业适配迁移完成';
+    RAISE NOTICE 'Bingxi Management Platform - 面料行业适配迁移完成';
     RAISE NOTICE '版本：2026-03-15';
     RAISE NOTICE '========================================';
     RAISE NOTICE '新增表：2 个';
@@ -1052,7 +1052,7 @@ BEGIN
     RAISE NOTICE '========================================';
 END $$;
 -- ========================================
---  ERP 系统 - 供应商管理模块数据库迁移
+--  Bingxi Management Platform - 供应商管理模块数据库迁移
 -- 版本：2026-03-15
 -- 模块：供应商管理（Supply Chain - Supplier）
 -- 说明：创建供应商管理相关的所有表、索引、触发器
@@ -4674,7 +4674,7 @@ COMMENT ON TABLE quality_standard_references IS '质量标准引用表';
 COMMENT ON COLUMN quality_standard_references.reference_type IS '引用类型（参考/强制）';
 COMMENT ON COLUMN quality_standard_references.is_mandatory IS '是否强制';
 -- ========================================
---  ERP 系统 - 四级批次管理数据库迁移
+--  Bingxi Management Platform - 四级批次管理数据库迁移
 -- 版本：2026-03-16
 -- 模块：四级批次管理（成品 - 色号 - 缸号 - 匹号）
 -- 说明：创建四级批次管理相关的所有表、索引、触发器
@@ -5115,7 +5115,7 @@ CREATE SEQUENCE IF NOT EXISTS batch_trace_log_trace_no_seq
 -- 迁移完成
 -- ========================================
 -- ========================================
---  ERP 系统 - 扩展现有数据库表
+--  Bingxi Management Platform - 扩展现有数据库表
 -- 版本：2026-03-16
 -- 模块：四级批次管理扩展
 -- 说明：扩展产品、色号、销售订单、采购订单表以支持四级批次管理
@@ -5381,7 +5381,7 @@ ADD CONSTRAINT chk_poi_batch_required
 -- 迁移完成
 -- ========================================
 -- ========================================
---  ERP 系统 - BPM 流程引擎数据库迁移
+--  Bingxi Management Platform - BPM 流程引擎数据库迁移
 -- 版本：2026-03-16
 -- 模块：BPM 流程引擎（Business Process Management）
 -- 说明：创建 BPM 流程引擎相关的所有表、索引、触发器
@@ -5868,7 +5868,7 @@ CREATE SEQUENCE IF NOT EXISTS bpm_operation_log_no_seq
 -- 迁移完成
 -- ========================================
 -- ========================================
---  ERP 系统 - BPM 流程引擎扩展表
+--  Bingxi Management Platform - BPM 流程引擎扩展表
 -- 版本：2026-03-16
 -- 模块：BPM 流程引擎扩展
 -- 说明：创建 BPM 流程引擎扩展表（通知、统计、超时等）
@@ -6029,7 +6029,7 @@ CREATE TRIGGER trg_bpm_tc_updated_at
 -- 迁移完成
 -- ========================================
 -- ========================================
---  ERP 系统 - 日志管理数据库迁移
+--  Bingxi Management Platform - 日志管理数据库迁移
 -- 版本：2026-03-16
 -- 模块：日志管理与追踪
 -- 说明：创建日志管理相关的所有表、索引
@@ -6398,7 +6398,7 @@ COMMENT ON COLUMN log_operation_partitioned.operation_time IS '分区键 - 操�
 -- 迁移完成
 -- ========================================
 -- ========================================
---  ERP 系统 - CRM 客户管理扩展数据库迁移
+--  Bingxi Management Platform - CRM 客户管理扩展数据库迁移
 -- 版本：2026-03-16
 -- 模块：CRM 客户管理扩展
 -- 说明：创建 CRM 扩展相关的所有表、索引
@@ -6778,7 +6778,7 @@ INSERT INTO crm_sales_funnel_config (funnel_name, funnel_type, stages, is_defaul
 -- 迁移完成
 -- ========================================
 -- ========================================
---  ERP 系统 - OA 协同办公数据库迁移
+--  Bingxi Management Platform - OA 协同办公数据库迁移
 -- 版本：2026-03-16
 -- 模块：OA 协同办公
 -- 说明：创建 OA 通知、公告相关的所有表、索引
@@ -7007,7 +7007,7 @@ CREATE TRIGGER trg_oa_ums_updated_at
 -- 迁移完成
 -- ========================================
 -- ========================================
---  ERP 系统 - 数据可视化报表数据库迁移
+--  Bingxi Management Platform - 数据可视化报表数据库迁移
 -- 版本：2026-03-16
 -- 模块：数据可视化与决策支持
 -- 说明：创建报表、仪表板相关的所有表、索引
@@ -7345,7 +7345,7 @@ INSERT INTO report_dashboard (dashboard_name, dashboard_code, description, is_de
 -- 迁移完成
 -- ========================================
 -- ========================================
---  ERP 系统 - 功能模块整合测试数据
+--  Bingxi Management Platform - 功能模块整合测试数据
 -- 版本：2026-03-16
 -- 模块：全模块测试数据
 -- 说明：为所有新增模块提供基础测试数据
@@ -7483,7 +7483,7 @@ INSERT INTO crm_follow_up (follow_up_no, lead_id, opportunity_id, follow_up_type
 -- 通知公告
 INSERT INTO oa_announcement (announcement_no, title, content, announcement_type, priority, publisher_id, publisher_name, publish_date, status, is_top) VALUES
 ('ANN20260316001', '关于 2026 年春节放假的通知', '根据公司安排，2026 年春节放假时间为 2 月 15 日至 2 月 22 日，共 8 天。请各部门做好工作安排。', 'company_notice', 'high', 1, '行政部', CURRENT_DATE, 'published', TRUE),
-('ANN20260316002', '系统升级维护通知', '公司 ERP 系统将于本周末进行升级维护，届时系统将暂停使用。请提前做好工作安排。', 'system_notice', 'normal', 1, 'IT 部', CURRENT_DATE, 'published', FALSE);
+ ('ANN20260316002', '系统升级维护通知', '公司 Bingxi Management Platform 将于本周末进行升级维护，届时系统将暂停使用。请提前做好工作安排。', 'system_notice', 'normal', 1, 'IT 部', CURRENT_DATE, 'published', FALSE);
 
 -- 站内消息
 INSERT INTO oa_message (message_no, message_type, title, content, receiver_type, receiver_ids, business_type, business_id) VALUES
@@ -7734,7 +7734,7 @@ COMMENT ON TABLE logistics_waybills IS '物流运单与发货追踪表';
 
 -- Add barcode field to inventory_pieces if not exists
 ALTER TABLE inventory_piece ADD COLUMN IF NOT EXISTS barcode VARCHAR(100) UNIQUE;
---  ERP 系统 - 供应商产品映射模块数据库迁移
+--  Bingxi Management Platform - 供应商产品映射模块数据库迁移
 -- 版本：2026-03-23
 -- 模块：供应商产品映射
 -- 说明：创建供应商产品映射相关的表、索引

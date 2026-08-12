@@ -1,4 +1,4 @@
-/* English (US) translation - BingXi ERP */
+/* English (US) translation - Bingxi Management Platform */
 /* Namespace pattern: {module}.{section}.{key} */
 export default {
   common: {
@@ -312,7 +312,7 @@ export default {
     },
   },
   login: {
-    title: 'BingXi ERP',
+    title: 'Bingxi Management Platform',
     subtitle: 'Fabric Industry Management',
     username: 'Username',
     password: 'Password',
@@ -396,7 +396,7 @@ export default {
     },
   },
   layout: {
-    brand: 'Bingxi ERP',
+    brand: 'Bingxi Management Platform',
     menuAriaLabel: 'Main Navigation Menu',
     breadcrumb: {
       home: 'Home',
@@ -4192,7 +4192,7 @@ export default {
     },
   },
   setupPage: {
-    title: 'Bingxi ERP',
+    title: 'Bingxi Management Platform',
     subtitle: 'System Initialization Wizard',
     steps: {
       environment: 'Environment Check',

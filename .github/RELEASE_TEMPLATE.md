@@ -7,7 +7,7 @@
 ## 模板格式
 
 ```markdown
-# Bingxi ERP {VERSION}
+# Bingxi Management Platform {VERSION}
 
 **发布时间**: {DATE}
 **上一版本**: {PREV_TAG}

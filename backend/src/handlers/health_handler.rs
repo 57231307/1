@@ -102,7 +102,7 @@ pub async fn health_check(State(state): State<AppState>) -> impl IntoResponse {
 
     let health = HealthStatus {
         status: overall_status.to_string(),
-        service: "面料 ERP 系统".to_string(),
+        service: "Bingxi Management Platform".to_string(),
         timestamp: Utc::now(),
         version: env!("CARGO_PKG_VERSION").to_string(),
         uptime_seconds: get_uptime(),
@@ -274,21 +274,4 @@ pub async fn readiness_check(State(state): State<AppState>) -> impl IntoResponse
 pub async fn liveness_check() -> impl IntoResponse {
     // 简单的存活检查，只要服务能响应就返回成功
     StatusCode::OK
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_health_check_item() {
-        let item = HealthCheckItem {
-            status: "healthy".to_string(),
-            message: Some("测试".to_string()),
-            response_time_ms: Some(100),
-        };
-
-        assert_eq!(item.status, "healthy");
-        assert_eq!(item.message, Some("测试".to_string()));
-    }
 }

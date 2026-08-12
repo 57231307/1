@@ -41,7 +41,7 @@ fn backend_health_url() -> String {
 }
 
 pub(super) fn cmd_status() {
-    println!("=== Bingxi ERP 服务状态 ===\n");
+    println!("=== Bingxi Management Platform 服务状态 ===\n");
 
     // 后端服务
     let backend_ok = is_service_active(SERVICE_NAME);

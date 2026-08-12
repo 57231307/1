@@ -22,7 +22,7 @@ impl TotpService {
             1, // skew: 1 = ±30秒的时间窗口容差
             30,
             secret,
-            Some("Bingxi ERP".to_string()),
+            Some("Bingxi Management Platform".to_string()),
             username.to_string(),
         )
         .map_err(|e| AppError::internal(format!("TOTP 生成失败: {}", e)))?;

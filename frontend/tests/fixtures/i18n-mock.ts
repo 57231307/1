@@ -12,7 +12,7 @@ export function createLoginI18nMessagesMock(
   overrides: Record<string, string> = {}
 ): Record<string, string> {
   return {
-    'login.subtitle': '秉羲 ERP 系统',
+    'login.subtitle': 'Bingxi Management Platform 系统',
     'login.lockedAlert': '账号已锁定，请 {minutes} 分钟后重试',
     'login.failedAttempts': '已失败 {count} 次',
     'login.remainingTime': '剩余 {minutes} 分 {seconds} 秒',

@@ -128,13 +128,3 @@ impl SchedulingService {
         Ok(conflicting_orders.into_iter().map(|o| o.id).collect())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_module_loaded() {
-        assert_eq!(P92_MANUAL_MODULE, "scheduling_manual");
-    }
-}

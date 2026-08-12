@@ -2,7 +2,7 @@
 
 ## 概述
 
-本文档描述 ERP 系统部署时的防火墙配置要求。
+本文档描述 Bingxi Management Platform 部署时的防火墙配置要求。
 
 ## 端口要求
 

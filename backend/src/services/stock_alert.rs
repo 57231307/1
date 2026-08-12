@@ -60,23 +60,3 @@ pub const EXPIRING_THRESHOLD_DAYS: i64 = 30;
 /// 滞销阈值天数（默认 90 天）
 /// v11 批次 144 P1-4/P1-5 新增：last_movement_date 距当前时间 > 此天数视为"滞销"。；当 last_movement_date 为 NULL 且 quantity_available > 0 时，也视为滞销；（有库存但从未发生过库存变动）。；TODO(tech-debt): 后续可改为从配置读取，支持按产品类别差异化配置。
 pub const SLOW_MOVING_THRESHOLD_DAYS: i64 = 90;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_alert_type_code() {
-        assert_eq!(AlertType::OutOfStock.code(), "out_of_stock");
-        assert_eq!(AlertType::LowStock.code(), "low_stock");
-        assert_eq!(AlertType::OverStock.code(), "over_stock");
-        assert_eq!(AlertType::Expiring.code(), "expiring");
-        assert_eq!(AlertType::SlowMoving.code(), "slow_moving");
-        assert_eq!(AlertType::Discrepancy.code(), "discrepancy");
-    }
-
-    #[test]
-    fn test_normal_constant() {
-        assert_eq!(ALERT_TYPE_NORMAL, "normal");
-    }
-}

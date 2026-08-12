@@ -1,10 +1,10 @@
-# 冰溪 ERP 系统
+# Bingxi Management Platform
 
 [![Build Status](https://github.com/57231307/1/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/57231307/1/actions/workflows/ci-cd.yml)
 [![License](https://img.shields.io/badge/license-Proprietary-blue)]()
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-> **冰溪 ERP** 是一款面向**面料纺织行业**的现代化企业资源计划系统，覆盖采购、销售、库存、生产、财务、CRM 等核心业务，并集成 **AI 智能分析**、**BI 数据仓库**、**WebSocket 实时通信**、**BPM 审批流** 等能力，赋能企业数字化转型。
+> **Bingxi Management Platform** 是一款面向**面料纺织行业**的现代化企业资源计划平台，覆盖采购、销售、库存、生产、财务、CRM 等核心业务，并集成 **AI 智能分析**、**BI 数据仓库**、**WebSocket 实时通信**、**BPM 审批流** 等能力，赋能企业数字化转型。
 
 ---
 
@@ -28,7 +28,7 @@
 
 ## 🌟 项目介绍
 
-冰溪 ERP 系统是**面向纺织行业的全栈式企业资源计划系统**，单体 Rust 后端 + 单体 Vue 3 前端架构，针对面料纺织行业深度定制（色卡/面料/缸号/批号/定制订单/多色号定价等），并通过 V15 25 大类 195 维度审计与主线八维审计的严格质量保障。
+Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划平台**，单体 Rust 后端 + 单体 Vue 3 前端架构，针对面料纺织行业深度定制（色卡/面料/缸号/批号/定制订单/多色号定价等），并通过 V15 25 大类 195 维度审计与主线八维审计的严格质量保障。
 
 **项目亮点**：
 
@@ -40,26 +40,26 @@
 - 🔒 **合规安全**：RBAC 权限矩阵 + 字段级权限 + 打印导出审计 + 二级审批 + 中国法律合规（劳动法/数据安全法/个人信息保护法）
 - 📈 **可观测性**：trace 链路 + Prometheus 指标 + 慢查询审计 + API 网关熔断 + 流复制故障转移
 
-**项目数据（截至 2026-07-30）**：
+**项目数据（截至 2026-08-12）**：
 
 | 指标 | 数值 |
 |------|------|
-| 后端 Rust 代码 | ~241,000 行 |
-| 前端 TS/Vue 代码 | ~136,000 行 |
-| 后端 Handler | 148 个 |
-| 后端 Service（含子目录） | 390 个 |
-| 后端 Model | 275 个 |
-| 后端 Route 模块 | 40 个 |
-| 后端 Middleware | 18 个 |
+| 后端 Rust 代码 | ~263,500 行 |
+| 前端 TS/Vue 代码 | ~136,600 行 |
+| 后端 Handler | 180 个 |
+| 后端 Service（含子目录） | 410 个 |
+| 后端 Model | 326 个 |
+| 后端 Route 模块 | 43 个 |
+| 后端 Middleware | 20 个 |
 | 数据库迁移 SQL | 57 个 |
-| 后端集成测试 | 50 个 |
+| 后端集成测试 | 55 个 |
 | 前端 Vue 文件 | 376 个 |
-| 前端 TS 文件 | 224 个 |
-| 前端 Views 子模块 | 86 个 |
+| 前端 TS 文件 | 229 个 |
+| 前端 Views 子模块 | 81 个 |
 | 前端 API 模块 | 96 个 |
-| Clippy Baseline | 308 条（174 个为 P1 预留服务 dead_code，待接入路由消除） |
-| 最新版本 | 2026.723.1842 |
-| 最新 PR | #789（docs 同步）/ #788（委外收货主链路统一） |
+| Clippy Baseline | 303 条（以 P1 预留服务 dead_code 为主，待接入路由消除） |
+| 最新版本 | 2026.810.1 |
+| 最新 PR | #905（实现预留功能 + 删除未使用代码 P1-2 技术债务） |
 
 ---
 
@@ -146,7 +146,7 @@
 |------|------|------|
 | 语言 | Rust | 1.94+ |
 | Web 框架 | Axum | 0.7 |
-| ORM | SeaORM | 1.1.20（2.0 升级暂缓） |
+| ORM | SeaORM | 2.0 |
 | 数据库 | PostgreSQL | 15+ |
 | 缓存 | Redis | 7+ |
 | 异步运行时 | Tokio | 1.x |
@@ -155,7 +155,7 @@
 | 密码 | argon2 | 0.5 |
 | JWT | jsonwebtoken | 9.0 |
 | 日志 | tracing | 0.1 |
-| 限流 | governor | 0.6 |
+| 限流 | 自研中间件（rate_limit） | — |
 | 缓存（进程内） | moka | 0.12 |
 | 全局单例 | arc-swap | 1.7 |
 | Excel 导出 | rust_xlsxwriter | 0.95 |
@@ -563,7 +563,7 @@ npm run test:coverage
 
 ### 贡献者
 
-感谢所有为冰溪 ERP 做出贡献的开发者！
+感谢所有为 Bingxi Management Platform 做出贡献的开发者！
 
 <a href="https://github.com/57231307/1/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=57231307/1" />
@@ -573,7 +573,7 @@ npm run test:coverage
 
 ## 📜 许可证
 
-Copyright © 2026 冰溪 ERP. 保留所有权利。
+Copyright © 2026 成都秉羲布艺商行. 保留所有权利。
 
 本项目为**专有软件**，未经授权禁止复制、修改、分发。
 
@@ -631,6 +631,6 @@ Copyright © 2026 冰溪 ERP. 保留所有权利。
 
 **⭐ 如果这个项目对您有帮助，请给我们一个 star！**
 
-Made with ❤️ by 冰溪 ERP Team
+Made with ❤️ by Bingxi Management Platform Team
 
 </div>

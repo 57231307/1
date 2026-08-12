@@ -16,6 +16,11 @@ fn test_metrics_record_methods() {
     metrics.record_backup("database");
     metrics.record_switch("database");
     metrics.set_circuit_state("database", 1);
+
+    // 验证所有记录方法执行成功
+    let text = metrics.export_text().unwrap();
+    assert!(text.contains("failover_primary_total"), "应包含 primary 指标");
+    assert!(text.contains("failover_circuit_state"), "应包含 circuit_state 指标");
 }
 
 #[test]

@@ -1,5 +1,5 @@
 #!/bin/bash
-# 秉羲 ERP 远程部署/更新脚本
+# Bingxi Management Platform 远程部署/更新脚本
 # 用途：从开发机远程部署到服务器
 #
 # ==============================================================================
@@ -203,7 +203,7 @@ deploy_remote() {
         #   持久化到 /etc/bingxi/.env，避免运维手动配置遗漏。
         if [ ! -f /etc/bingxi/.env ]; then
             touch /etc/bingxi/.env
-            echo "# 秉羲 ERP 环境变量（自动生成）" >> /etc/bingxi/.env
+            echo "# Bingxi Management Platform 环境变量（自动生成）" >> /etc/bingxi/.env
             echo "# 生成时间: \$(date)" >> /etc/bingxi/.env
         fi
         source /etc/bingxi/.env 2>/dev/null || true
@@ -394,7 +394,7 @@ main() {
 
     echo ""
     echo "=========================================="
-    echo "  秉羲 ERP 远程部署"
+    echo "  Bingxi Management Platform 远程部署"
     echo "=========================================="
     echo ""
 

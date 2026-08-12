@@ -4,8 +4,8 @@ version = "2026.810.1"
 edition = "2024"
 # SeaORM 2.0.1 要求 Rust 1.94.0+
 rust-version = "1.94"
-authors = ["BingXi Team"]
-description = "面料管理 - Rust 后端服务"
+authors = ["Bingxi Team"]
+description = "Bingxi Management Platform - Rust 后端服务"
 
 [dependencies]
 # Web 框架
