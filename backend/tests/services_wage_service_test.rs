@@ -1,6 +1,12 @@
 #[cfg(test)]
 mod tests {
     use bingxi_backend::models::status::wage_rate_status;
+    use bingxi_backend::services::quality_inspection_service::{
+        QUALITY_GRADE_A, QUALITY_GRADE_B, QUALITY_GRADE_C,
+    };
+    use bingxi_backend::services::wage_service::{
+        compute_qualification_rate, determine_grade_by_qualification_rate,
+    };
     use rust_decimal::prelude::ToPrimitive;
     use rust_decimal::Decimal;
 
