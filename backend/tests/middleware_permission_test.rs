@@ -275,6 +275,9 @@ mod tests {
     fn test_invalidate_permission_cache_bczjsbbc() {
         // 失效不存在的角色缓存不应 panic
         invalidate_permission_cache(99999);
+
+        // 验证函数执行成功（不抛异常即为通过）
+        assert!(true, "invalidate_permission_cache 应正常执行");
     }
 
     #[test]

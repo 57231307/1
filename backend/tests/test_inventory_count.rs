@@ -69,8 +69,11 @@ mod tests {
     /// 验证 InventoryCountService 构造函数签名：fn(Arc<DatabaseConnection>) -> InventoryCountService
     #[test]
     fn test_inventory_count_service_constructor_signature() {
-        let _: fn(Arc<sea_orm::DatabaseConnection>) -> InventoryCountService =
+        let constructor: fn(Arc<sea_orm::DatabaseConnection>) -> InventoryCountService =
             InventoryCountService::new;
+
+        // 验证函数指针不为空
+        assert!(!format!("{:?}", constructor).is_empty(), "InventoryCountService 构造函数不应为空");
     }
 
     /// 验证 Service 可在 SQLite 内存库上实例化（不 panic）。

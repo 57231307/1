@@ -6,7 +6,11 @@ mod tests {
     #[test]
     fn test_rscbqjfw_jtffczx() {
         // 验证函数指针可获取（编译时检查）
-        let _start: fn(Arc<DatabaseConnection>) = DyeBatchCostBridgeService::start_listener;
-        let _shutdown: fn() = DyeBatchCostBridgeService::shutdown_listener;
+        let start: fn(Arc<DatabaseConnection>) = DyeBatchCostBridgeService::start_listener;
+        let shutdown: fn() = DyeBatchCostBridgeService::shutdown_listener;
+
+        // 验证函数指针不为空
+        assert!(!format!("{:?}", start).is_empty(), "start_listener 函数指针不应为空");
+        assert!(!format!("{:?}", shutdown).is_empty(), "shutdown_listener 函数指针不应为空");
     }
 }

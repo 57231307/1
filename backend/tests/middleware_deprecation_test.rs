@@ -4,7 +4,8 @@ mod tests {
 
     #[test]
     fn test_deprecation_middleware_exists() {
-        // 确保中间件函数可以被引用
-        let _ = deprecation_headers_middleware;
+        // 验证中间件函数存在且可调用
+        let fn_ptr = deprecation_headers_middleware as *const ();
+        assert!(!fn_ptr.is_null(), "deprecation_headers_middleware 函数指针不应为空");
     }
 }

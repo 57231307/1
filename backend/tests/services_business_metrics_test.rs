@@ -40,6 +40,12 @@ mod tests {
         m.record_login(true);
         m.record_login(true);
         m.record_login(false);
-        // 验证不 panic
+
+        // 验证登录记录功能正常工作
+        let families = _r.gather();
+        let login_metrics: Vec<_> = families.iter()
+            .filter(|f| f.get_name().contains("login"))
+            .collect();
+        assert!(!login_metrics.is_empty(), "应包含登录相关指标");
     }
 }

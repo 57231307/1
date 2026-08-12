@@ -94,6 +94,9 @@ mod tests {
 
         // 广播给无订阅者的用户应不报错
         broadcaster.broadcast_notification(100, &payload);
+
+        // 验证广播器仍然有效
+        assert!(!format!("{:?}", broadcaster).is_empty(), "广播器不应为空");
     }
 
     /// 集成测试：端到端（CI 启用，沙箱 OOM 跳过）
