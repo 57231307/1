@@ -605,3 +605,17 @@ pub async fn generate_order_no(
         "order_no": order_no
     }))))
 }
+
+/// 计算采购订单总额
+pub async fn calculate_order_total(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = crate::services::po::receipt::PurchaseReceiptService::new(state.db.clone());
+    service.calculate_order_total(id, auth.user_id).await?;
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::json!({"order_id": id}),
+        "订单总额计算完成",
+    )))
+}
