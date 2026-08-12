@@ -650,6 +650,10 @@ fn ap_invoice_routes() -> Router<AppState> {
             post(ap_invoice_handler::cancel_ap_invoice),
         )
         .route(
+            "/ap/invoices/:id/mark-as-paid",
+            post(ap_invoice_handler::mark_ap_invoice_as_paid),
+        )
+        .route(
             "/ap/invoices/auto-generate",
             post(ap_invoice_handler::auto_generate),
         )
