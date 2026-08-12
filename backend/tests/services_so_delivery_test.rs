@@ -1,12 +1,12 @@
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::decs;
-    use crate::models::status::inventory_reservation as reservation_status;
-    use crate::models::status::sales_order as so_status;
-    use crate::search::{ElasticClient, SearchClient};
-    use crate::services::test_common::setup_test_db;
-    use crate::ymd;
+    use bingxi_backend::decs;
+    use bingxi_backend::models::status::inventory_reservation as reservation_status;
+    use bingxi_backend::models::status::sales_order as so_status;
+    use bingxi_backend::search::{ElasticClient, SearchClient};
+    use bingxi_backend::services::test_common::setup_test_db;
+    use bingxi_backend::ymd;
     use std::sync::Arc;
 
     /// 复现 ship_order 的订单状态校验门（不涉及数据库）
