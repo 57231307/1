@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::services::social_insurance_service::*;
 #[cfg(test)]
 mod tests {
 

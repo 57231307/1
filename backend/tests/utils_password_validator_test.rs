@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::utils::password_validator::*;
 #[cfg(test)]
 mod tests {
 

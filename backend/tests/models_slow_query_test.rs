@@ -1,4 +1,5 @@
-    use super::*;
+    use bingxi_backend::models::financial_analysis_result::*;
+    use bingxi_backend::models::slow_query::*;
 #[cfg(test)]
 mod tests {
 

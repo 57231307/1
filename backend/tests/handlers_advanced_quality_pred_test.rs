@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::services::ai::quality_pred::*;
 #[cfg(test)]
 mod tests {
 

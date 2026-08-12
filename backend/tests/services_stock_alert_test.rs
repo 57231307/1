@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::services::stock_alert::*;
 #[cfg(test)]
 mod tests {
 

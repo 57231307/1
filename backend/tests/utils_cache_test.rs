@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::utils::cache::*;
 #[cfg(test)]
 mod csrf_token_tests {
 

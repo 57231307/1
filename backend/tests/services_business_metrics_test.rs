@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
-    use super::*;
+    use bingxi_backend::services::business_metrics::*;
 
     // P9-1: 测试夹具 helper，统一 build_registry_and_metrics 的 expect
     fn build_metrics() -> (Arc<prometheus::Registry>, BusinessMetrics) {

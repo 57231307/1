@@ -1,4 +1,5 @@
-    use super::*;
+    use bingxi_backend::models::notification::*;
+    use bingxi_backend::services::event_notification_service::*;
 #[cfg(test)]
 mod tests {
 

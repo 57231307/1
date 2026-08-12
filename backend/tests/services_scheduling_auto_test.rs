@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::services::scheduling_auto::*;
 #[cfg(test)]
 mod tests {
 

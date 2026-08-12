@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::services::ar::inv::*;
 #[cfg(test)]
 mod tests {
 

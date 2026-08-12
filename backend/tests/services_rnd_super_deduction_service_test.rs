@@ -2,7 +2,7 @@
 mod tests {
     use rust_decimal::Decimal;
     use std::str::FromStr;
-    use super::*;
+    use bingxi_backend::services::rnd_super_deduction_service::*;
 
     #[test]
     fn test_calculate_super_deduction_75_percent() {

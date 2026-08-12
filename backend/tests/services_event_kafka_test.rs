@@ -2,7 +2,9 @@
 mod tests {
     use rust_decimal::Decimal;
     use std::str::FromStr;
-    use super::*;
+    use bingxi_backend::services::dashboard_service::*;
+    use bingxi_backend::services::event_bus::*;
+    use bingxi_backend::services::event_kafka_payload::*;
 
     fn _sample_event() -> BusinessEvent {
         BusinessEvent::PaymentCompleted {

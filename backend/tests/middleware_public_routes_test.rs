@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::middleware::public_routes::*;
 #[cfg(test)]
 mod tests {
 

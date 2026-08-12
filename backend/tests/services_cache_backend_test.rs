@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::services::cache_backend::*;
 #[cfg(test)]
 mod tests {
 

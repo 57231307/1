@@ -5,7 +5,9 @@ mod tests {
     //! 覆盖目标：
     //! - crud_err 4 个变体的错误映射
     //! - item_err 5 个变体的错误映射
-    use super::*;
+    use bingxi_backend::handlers::color_card::error_map::*;
+    use bingxi_backend::services::color_card_item_service::*;
+    use bingxi_backend::services::custom_order_crud_service::*;
 
 
     /// test_crud_err_not_foundys

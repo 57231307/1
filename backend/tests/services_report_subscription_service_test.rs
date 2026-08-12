@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::services::report_subscription_service::*;
 #[cfg(test)]
 mod tests {
 

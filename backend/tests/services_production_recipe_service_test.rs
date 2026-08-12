@@ -2,7 +2,7 @@
 mod tests {
     use rust_decimal::prelude::FromPrimitive;
     use rust_decimal::Decimal;
-    use super::*;
+    use bingxi_backend::services::production_recipe_service::*;
 
     /// 测试大货处方单号生成格式：PR-YYYYMMDDHHMMSS-NNN
     #[test]

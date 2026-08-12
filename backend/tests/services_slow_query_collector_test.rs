@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::services::slow_query_collector::*;
 #[cfg(test)]
 mod tests {
 

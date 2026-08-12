@@ -1,7 +1,8 @@
 #[cfg(test)]
 mod tests {
     use axum::{
-    use super::*;
+    use bingxi_backend::middleware::auth_context::*;
+    use bingxi_backend::services::cache_service::*;
         body::Body,
         http::{Request, StatusCode},
         middleware,

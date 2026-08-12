@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::utils::incoterms::*;
 #[cfg(test)]
 mod tests {
 

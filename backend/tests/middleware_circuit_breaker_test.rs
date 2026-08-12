@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::services::lab_dip_ops::resample::*;
 #[cfg(test)]
 mod tests {
 

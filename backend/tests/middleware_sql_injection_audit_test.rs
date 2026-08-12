@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::middleware::sql_injection_audit::*;
 #[cfg(test)]
 mod tests {
 

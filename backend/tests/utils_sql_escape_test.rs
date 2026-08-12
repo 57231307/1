@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::utils::sql_escape::*;
 #[cfg(test)]
 mod tests {
 

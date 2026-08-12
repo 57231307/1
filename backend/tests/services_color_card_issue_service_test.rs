@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
-    use super::*;
+    use bingxi_backend::services::color_card_issue_service::*;
 
     #[test]
     fn test_issue_status_as_str_qbztys() {

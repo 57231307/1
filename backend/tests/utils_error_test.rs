@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use axum::body::to_bytes;
-    use super::*;
+    use bingxi_backend::utils::error::*;
 
     /// 辅助函数：从 IntoResponse 提取 body JSON
     async fn extract_body_json(response: Response) -> serde_json::Value {

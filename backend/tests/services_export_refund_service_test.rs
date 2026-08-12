@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use rust_decimal::Decimal;
-    use super::*;
+    use bingxi_backend::services::export_refund_service::*;
 
     #[test]
     fn test_calculate_exempt_credit_refund_normal() {

@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::models::status::wage_energy_chemical_business::*;
 #[cfg(test)]
 mod tests {
 

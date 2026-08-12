@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::handlers::business_trace_handler::*;
 #[cfg(test)]
 mod tests {
 

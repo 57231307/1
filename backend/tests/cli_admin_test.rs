@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::cli::admin::*;
 #[cfg(test)]
 mod tests {
 

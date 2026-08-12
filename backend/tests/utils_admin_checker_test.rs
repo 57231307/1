@@ -1,4 +1,5 @@
-    use super::*;
+    use bingxi_backend::services::auth::password_policy_service::*;
+    use bingxi_backend::utils::admin_checker::*;
 #[cfg(test)]
 mod tests {
 

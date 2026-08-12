@@ -1,4 +1,8 @@
-    use super::*;
+    use bingxi_backend::search::elastic::*;
+    use bingxi_backend::search::elastic_ops::client_ops::*;
+    use bingxi_backend::search::elastic_ops::syncer_ops::*;
+    use bingxi_backend::search::elastic_ops::types_ops::*;
+    use bingxi_backend::services::five_dimension_service::*;
 #[cfg(test)]
 mod tests {
 

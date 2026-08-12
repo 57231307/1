@@ -1,4 +1,5 @@
-    use super::*;
+    use bingxi_backend::models::export_approval_request::*;
+    use bingxi_backend::services::bulk_color_approval_service::*;
 #[cfg(test)]
 mod tests {
 

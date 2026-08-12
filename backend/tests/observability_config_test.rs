@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::observability::config::*;
 #[cfg(test)]
 mod tests {
 

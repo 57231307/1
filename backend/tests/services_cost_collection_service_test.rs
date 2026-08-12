@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use rust_decimal::Decimal;
-    use super::*;
+    use bingxi_backend::services::cost_collection_service::*;
 
     #[test]
     fn test_cost_ratio_calculation() {

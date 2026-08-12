@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::handlers::auth_handler::*;
 #[cfg(test)]
 mod tests {
 

@@ -5,7 +5,7 @@ mod tests {
     //! 覆盖目标：
     //! - verify_zip_magic ZIP 文件头校验纯函数（5 个分支）
     //! - VersionResponse / UpdateResult DTO 构造（1 个测试）
-    use super::*;
+    use bingxi_backend::handlers::system_update_handler::*;
 
 
     /// test_verify_zip_magichfzip：PK\x03\x04 开头应返回 true。

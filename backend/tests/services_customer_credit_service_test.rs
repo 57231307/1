@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::services::customer_credit_service::*;
 #[cfg(test)]
 mod tests {
 

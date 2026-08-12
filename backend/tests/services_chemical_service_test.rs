@@ -2,7 +2,9 @@
 mod tests {
     use chrono::NaiveDate;
     use rust_decimal::Decimal;
-    use super::*;
+    use bingxi_backend::handlers::inventory_stock_handler::*;
+    use bingxi_backend::services::chemical_service::*;
+    use bingxi_backend::services::outsourcing_service::*;
 
     #[test]
     fn 测试计算剩余保质期_未过期() {

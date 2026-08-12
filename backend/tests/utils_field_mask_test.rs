@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::utils::field_mask::*;
 #[cfg(test)]
 mod tests {
 

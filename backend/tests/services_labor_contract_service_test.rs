@@ -1,4 +1,5 @@
-    use super::*;
+    use bingxi_backend::services::labor_contract_service::*;
+    use bingxi_backend::services::pollution_permit_service::*;
 #[cfg(test)]
 mod tests {
 

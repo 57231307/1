@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::services::system_update_service::*;
 #[cfg(test)]
 mod tests {
 

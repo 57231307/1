@@ -1,7 +1,8 @@
 #[cfg(test)]
 mod tests {
     use std::fs;
-    use super::*;
+    use bingxi_backend::handlers::production_recipe_handler::*;
+    use bingxi_backend::services::log_cleanup_service::*;
 
     /// 构造唯一临时目录：/tmp/bingxi_log_cleanup_test_<uuid>
     fn make_temp_dir() -> PathBuf {

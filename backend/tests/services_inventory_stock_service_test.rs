@@ -6,7 +6,13 @@ mod tests {
     //! - calculate_quantity_kg 双计量单位换算 4 个分支（齐全/缺失/转换失败/None 回退）
     //! - 库存硬编码状态字符串常量值正确性
     //! - InventoryStockService 实例化
-    use super::*;
+    use bingxi_backend::database::*;
+    use bingxi_backend::handlers::inventory_stock_handler::*;
+    use bingxi_backend::models::permission_delegation::*;
+    use bingxi_backend::services::inventory_stock_service::*;
+    use bingxi_backend::services::user_service::*;
+    use bingxi_backend::utils::dual_unit_converter::*;
+    use bingxi_backend::utils::error::*;
 
     use rust_decimal::Decimal;
     use sea_orm::Database;

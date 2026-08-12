@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use std::net::{Ipv4Addr, Ipv6Addr};
-    use super::*;
+    use bingxi_backend::utils::ssrf_guard::*;
 
     // ============ IPv4 黑名单测试 ============
 

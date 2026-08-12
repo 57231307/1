@@ -2,7 +2,7 @@
 mod tests {
     use axum::body::Body;
     use axum::http::Response;
-    use super::*;
+    use bingxi_backend::middleware::auth_context::*;
 
     #[test]
     fn test_csp_mrzbhgjzl() {

@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::utils::migration_jump_detector::*;
 #[cfg(test)]
 mod tests {
 

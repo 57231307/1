@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::utils::pii_mask::*;
 #[cfg(test)]
 mod tests {
 

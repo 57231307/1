@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use super::CapacityService;
+    use bingxi_backend::services::capacity_service::CapacityService;
 
     /// 无历史数据时置信度应较低
     #[test]

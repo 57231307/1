@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use rust_decimal::Decimal;
-    use super::*;
+    use bingxi_backend::models::status::quality_dyeing::*;
 
     #[test]
     fn 测试计算损耗率_正常() {

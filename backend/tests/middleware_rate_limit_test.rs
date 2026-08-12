@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::middleware::rate_limit::*;
 #[cfg(test)]
 mod tests {
 

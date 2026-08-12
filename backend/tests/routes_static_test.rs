@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::routes::static::*;
 #[cfg(test)]
 mod tests {
 

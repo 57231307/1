@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::utils::path_utils::*;
 #[cfg(test)]
 mod tests {
 

@@ -6,7 +6,7 @@ mod tests {
     use axum::routing::get;
     use axum::Router;
     use tower::ServiceExt;
-    use super::*;
+    use bingxi_backend::middleware::audit_context::*;
 
     async fn echo() -> &'static str {
         "ok"

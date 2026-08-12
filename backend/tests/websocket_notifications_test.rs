@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::websocket::notifications::*;
 #[cfg(test)]
 mod tests {
 

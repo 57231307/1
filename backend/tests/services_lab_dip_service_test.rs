@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::models::status::quality_dyeing::*;
 #[cfg(test)]
 mod tests {
 

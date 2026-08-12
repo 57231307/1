@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::services::pollution_permit_service::*;
 #[cfg(test)]
 mod tests {
 

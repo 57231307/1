@@ -6,7 +6,8 @@ mod tests {
     use axum::routing::get;
     use axum::Router;
     use tower::ServiceExt; // for oneshot()
-    use super::*;
+    use bingxi_backend::middleware::auth_context::*;
+    use bingxi_backend::services::cache_service::*;
 
     async fn hello() -> &'static str {
         "world"

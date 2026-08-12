@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use rust_decimal::Decimal;
-    use super::*;
+    use bingxi_backend::models::custom_order_create_dto::*;
 
     /// 辅助函数：构造最小有效 CreateCustomOrderDto，便于测试 notes 字段透传
     fn make_test_dto(notes: Option<String>) -> CreateCustomOrderDto {

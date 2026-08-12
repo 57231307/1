@@ -1,7 +1,8 @@
 #[cfg(test)]
 mod tests {
     use rust_decimal::Decimal;
-    use super::*;
+    use bingxi_backend::services::energy_service::*;
+    use bingxi_backend::services::outsourcing_service::*;
 
     #[test]
     fn 测试计算消耗量_正常() {

@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::services::dye_batch_cost_bridge_service::*;
 #[cfg(test)]
 mod tests {
 

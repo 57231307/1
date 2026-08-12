@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use rust_decimal_macros::dec;
-    use super::*;
+    use bingxi_backend::services::quotation_approval_service::*;
 
     #[test]
     fn test_approver_role_small_amount_is_salesperson() {

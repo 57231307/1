@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use rust_decimal::Decimal;
-    use super::*;
+    use bingxi_backend::models::status::quality_dyeing::*;
 
     // ===== 四分制扣分计算测试 =====
 

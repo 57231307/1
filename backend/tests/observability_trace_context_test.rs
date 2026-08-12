@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::observability::trace_context::*;
 #[cfg(test)]
 mod tests {
 

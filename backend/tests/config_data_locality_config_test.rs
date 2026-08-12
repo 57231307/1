@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::config::data_locality_config::*;
 #[cfg(test)]
 mod tests {
 

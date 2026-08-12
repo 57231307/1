@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use rust_decimal::Decimal;
-    use super::*;
+    use bingxi_backend::services::ai::quality_pred::*;
 
     /// 构造一条 `QualityInspectionModel` 测试夹具
     fn make_record(

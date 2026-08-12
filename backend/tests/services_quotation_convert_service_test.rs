@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::models::financial_analysis_result::*;
 #[cfg(test)]
 mod tests {
 

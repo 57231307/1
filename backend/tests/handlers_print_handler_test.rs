@@ -4,7 +4,7 @@ mod tests {
     //!
     //! 覆盖目标：
     //! - builtin_print_templates 静态模板列表（5 个测试）
-    use super::*;
+    use bingxi_backend::handlers::print_handler::*;
 
 
     /// test_builtin_print_templatesfh6gmb；验证内置打印模板数量为 6（对应 6 种单据类型）

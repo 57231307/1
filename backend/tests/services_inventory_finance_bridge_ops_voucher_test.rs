@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use rust_decimal::Decimal;
-    use super::*;
+    use bingxi_backend::services::inventory_finance_bridge_ops::voucher::*;
 
     fn d(val: i64, scale: u32) -> Decimal {
         Decimal::new(val, scale)

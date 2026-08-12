@@ -1,4 +1,4 @@
-    use super::*;
+    use bingxi_backend::utils::docx_export::*;
 #[cfg(test)]
 mod tests {
 

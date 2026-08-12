@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use std::env;
-    use super::*;
+    use bingxi_backend::models::status::wage_energy_chemical_business::*;
 
     /// 测试 `APP_ENV=production` 时识别为生产环境
     #[test]
