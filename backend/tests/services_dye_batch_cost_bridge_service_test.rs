@@ -1,6 +1,8 @@
-    use bingxi_backend::services::dye_batch_cost_bridge_service::*;
 #[cfg(test)]
 mod tests {
+    use bingxi_backend::services::dye_batch_cost_bridge_service::*;
+    use sea_orm::DatabaseConnection;
+    use std::sync::Arc;
 
     /// test_rscbqjfw_jtffczx（验证 start_listener / shutdown_listener 方法可调用（编译时检查）。；实际事件监听需数据库连接，标注为编译时检查。）
     #[test]
