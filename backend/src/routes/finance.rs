@@ -650,6 +650,10 @@ fn ap_invoice_routes() -> Router<AppState> {
             post(ap_invoice_handler::cancel_ap_invoice),
         )
         .route(
+            "/ap/invoices/:id/mark-as-paid",
+            post(ap_invoice_handler::mark_ap_invoice_as_paid),
+        )
+        .route(
             "/ap/invoices/auto-generate",
             post(ap_invoice_handler::auto_generate),
         )
@@ -685,6 +689,10 @@ fn ap_payment_routes() -> Router<AppState> {
         .route(
             "/ap/payments/:id/print",
             get(print_handler::ap_payment_print_docx),
+        )
+        .route(
+            "/ap/payments/schedule",
+            get(ap_payment_handler::get_payment_schedule),
         )
 }
 
@@ -850,6 +858,10 @@ fn ar_invoice_routes() -> Router<AppState> {
         .route(
             "/ar/invoices/:id/cancel",
             post(ar_invoice_handler::cancel_ar_invoice),
+        )
+        .route(
+            "/ar/invoices/:id/mark-as-paid",
+            post(ar_invoice_handler::mark_ar_invoice_as_paid),
         )
 }
 

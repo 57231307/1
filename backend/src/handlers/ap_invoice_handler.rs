@@ -229,6 +229,28 @@ pub async fn cancel_ap_invoice(
     )))
 }
 
+/// 标记应付单为已付款
+pub async fn mark_ap_invoice_as_paid(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    info!("用户 {} 标记应付单 ID: {} 为已付款", auth.username, id);
+
+    let service = ApInvoiceService::new(state.db.clone());
+    let invoice = service.mark_as_paid(id, auth.user_id).await?;
+
+    info!(
+        "用户 {} 标记应付单为已付款成功：{}",
+        auth.username, invoice.invoice_no
+    );
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(invoice)?,
+        "应付单已标记为已付款",
+    )))
+}
+
 /// 自动生成应付单（从采购入库单）
 #[derive(Debug, Deserialize)]
 pub struct AutoGenerateRequest {

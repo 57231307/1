@@ -221,6 +221,20 @@ pub async fn cancel_ar_invoice(
     )))
 }
 
+/// 标记应收发票为已收款
+pub async fn mark_ar_invoice_as_paid(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
+    let service = ArInvoiceService::new(state.db.clone());
+    let invoice = service.mark_as_paid(id, auth.user_id).await?;
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(invoice).map_err(|_| AppError::internal("序列化失败"))?,
+        "应收发票已标记为已收款",
+    )))
+}
+
 /// 应收发票导出表头（12 列）
 fn ar_invoices_export_headers() -> Vec<String> {
     vec![
