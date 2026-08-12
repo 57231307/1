@@ -1,7 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::utils::cache::{AppCache, Cache};
+    use std::time::Duration;
+    use bingxi_backend::services::api_key_service::{ApiKeyService, API_KEY_BLACKLIST_PREFIX};
+    use bingxi_backend::utils::cache::{AppCache, Cache};
 
     /// 漏洞 #5 修复单元测试：未撤销的 key 不在黑名单（验证：[`ApiKeyService::is_api_key_revoked`] 对全新 key 返回 false）
     #[test]
