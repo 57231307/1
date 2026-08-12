@@ -1,14 +1,14 @@
 #[cfg(test)]
 mod tests {
     use axum::{
-    use bingxi_backend::middleware::auth_context::*;
-    use bingxi_backend::services::cache_service::*;
         body::Body,
         http::{Request, StatusCode},
         middleware,
         routing::get,
         Router,
     };
+    use bingxi_backend::middleware::auth_context::*;
+    use bingxi_backend::services::cache_service::*;
     use tower::ServiceExt;
 
     /// 创建一个最小化测试 Router

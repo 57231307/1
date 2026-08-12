@@ -1,4 +1,4 @@
-    use bingxi_backend::routes::static::*;
+    use bingxi_backend::routes::r#static::*;
 #[cfg(test)]
 mod tests {
 
