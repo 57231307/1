@@ -518,6 +518,3 @@ impl AppCache {
         // csrf_user_index 是原始 DashMap（无统计字段），无需重置
     }
 }
-
-/// 写入 CSRF Token 单元测试（不经过 AppState，AppCache::new() 即用）
-// 批次 343 v11 复审 P3 修复：移除 #[allow(unused_imports)]，use super::* 已在测试中使用

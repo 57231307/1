@@ -77,5 +77,3 @@ pub async fn optimize_recipe(
     let response = service.optimize_recipe(request).await?;
     Ok(Json(ApiResponse::success(response)))
 }
-
-/// 单元占位，确保文件被视为模块；实际逻辑由 axum 路由调度

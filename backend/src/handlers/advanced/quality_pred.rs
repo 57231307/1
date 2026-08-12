@@ -65,5 +65,3 @@ pub async fn quality_prediction(
     let response = service.predict_quality(request).await?;
     Ok(Json(ApiResponse::success(response)))
 }
-
-/// 单元占位：校验请求体结构正确构造
