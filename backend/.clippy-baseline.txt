@@ -1,3 +1,0 @@
-# Clippy Baseline（2026-08-12 重置）
-# 清空 baseline，让 CI 重新生成准确的警告列表
-# 之前的 baseline 已过时，很多代码已被使用但警告未删除
