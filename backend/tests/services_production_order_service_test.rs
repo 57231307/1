@@ -1,12 +1,11 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::decs;
-    use crate::models::status::common;
-    use crate::models::status::production;
-    use crate::services::test_common::setup_test_db;
-    use crate::utils::error::AppError;
-    use crate::ymd;
+    use bingxi_backend::decs;
+    use bingxi_backend::models::status::common;
+    use bingxi_backend::models::status::production;
+    use bingxi_backend::services::test_common::setup_test_db;
+    use bingxi_backend::utils::error::AppError;
+    use bingxi_backend::ymd;
     use rust_decimal::Decimal;
     use std::str::FromStr;
 

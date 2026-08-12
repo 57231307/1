@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::models::notification::{
+    use bingxi_backend::models::notification::{
         Model as NotificationModel, NotificationPriority, NotificationStatus, NotificationType,
     };
     use chrono::Utc;

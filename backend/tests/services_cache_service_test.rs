@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     #[tokio::test]
     async fn test_cache_set_get() {
@@ -157,7 +156,7 @@ mod tests {
     /// V15 批次 07 P1-8 修复测试：with_metrics 注入后，命中/未命中自动上报 Prometheus
     #[tokio::test]
     async fn test_cache_with_metrics_zdsb_prometheus() {
-        use crate::services::business_metrics::BusinessMetrics;
+        use bingxi_backend::services::business_metrics::BusinessMetrics;
         let registry = prometheus::Registry::new();
         let metrics = Arc::new(BusinessMetrics::new(&registry).expect("BusinessMetrics 注册失败"));
         let cache = CacheService::builder()

@@ -1,6 +1,6 @@
+    use super::*;
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     /// 构造测试用的 LoginResponse 实例
     fn build_test_login_response() -> LoginResponse {

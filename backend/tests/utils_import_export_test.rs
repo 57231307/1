@@ -1,6 +1,6 @@
+    use super::*;
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     /// 测试用 CSV 生成函数
     fn generate_csv(

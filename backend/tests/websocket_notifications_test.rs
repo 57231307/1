@@ -1,6 +1,6 @@
+    use super::*;
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     /// 测试票据签发与消费（正常流程）
     #[test]

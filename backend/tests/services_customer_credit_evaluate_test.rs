@@ -1,8 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
     // 批次 210 P2-5 修复（v12 复审）：测试中硬编码 "active" 替换为 master_data 常量
-    use crate::models::status::master_data;
+    use bingxi_backend::models::status::master_data;
 
     /// 创建测试用的客户信用记录
     fn create_test_credit_model(

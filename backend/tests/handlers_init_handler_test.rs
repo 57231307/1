@@ -3,8 +3,7 @@ mod tests {
     //! 安全漏洞 #5 修复单测：覆盖 get_task_status 权限校验（匿名→401、缺角色→403、缺参→401）
     //! 直接构造 AuthContext 验证 handler 内部逻辑，不依赖真实 DB；用 oneshot + AppState::default() 隔离依赖
 
-    use super::*;
-    use crate::container::AppState;
+    use bingxi_backend::container::AppState;
     use axum::{
         body::Body,
         http::{Request, StatusCode},

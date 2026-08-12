@@ -1,6 +1,6 @@
+    use super::*;
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     /// H-2 测试（v9 复审）：未提供密码时返回错误
     #[test]

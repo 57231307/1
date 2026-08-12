@@ -1,6 +1,6 @@
+    use super::*;
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     /// M8 测试：get_env_file_path 默认返回 /etc/bingxi/.env
     #[test]

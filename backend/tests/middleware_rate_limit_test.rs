@@ -1,6 +1,6 @@
+    use super::*;
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     /// 漏洞 #6 修复单元测试：未配置 Redis 时，check_redis_rate_limit 返回 Ok(None)；验证：默认（无 REDIS_URL /
     /// RATE_LIMIT_REDIS_URL）环境下， Redis 限流器应返回 `Ok(None)`，由调用方（`check_rate_limit`）回退到内存限流

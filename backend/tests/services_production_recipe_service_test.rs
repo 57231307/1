@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
     use rust_decimal::prelude::FromPrimitive;
     use rust_decimal::Decimal;
+    use super::*;
 
     /// 测试大货处方单号生成格式：PR-YYYYMMDDHHMMSS-NNN
     #[test]

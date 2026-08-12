@@ -1,6 +1,6 @@
+    use super::*;
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     /// 测试守卫获取后计数器递增，Drop 后递减
     #[test]

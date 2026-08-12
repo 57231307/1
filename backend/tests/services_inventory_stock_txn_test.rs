@@ -1,8 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
     // 引入 decs! 测试夹具宏，用于从字符串解析 Decimal
-    use crate::decs;
+    use bingxi_backend::decs;
 
     // ========== RecordTransactionArgs 构造测试 ==========
 

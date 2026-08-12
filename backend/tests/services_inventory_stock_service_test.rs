@@ -6,8 +6,8 @@ mod tests {
     //! - calculate_quantity_kg 双计量单位换算 4 个分支（齐全/缺失/转换失败/None 回退）
     //! - 库存硬编码状态字符串常量值正确性
     //! - InventoryStockService 实例化
-
     use super::*;
+
     use rust_decimal::Decimal;
     use sea_orm::Database;
 

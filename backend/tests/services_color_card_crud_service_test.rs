@@ -1,6 +1,6 @@
+    use super::*;
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     /// V15 P2 B05-P2-4：合法流转 draft → issued → received → used → expired
     #[test]

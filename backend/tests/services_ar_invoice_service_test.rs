@@ -1,8 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::decs;
-    use crate::models::status::payment::{PAYMENT_PAID, PAYMENT_PARTIAL_PAID};
+    use bingxi_backend::decs;
+    use bingxi_backend::models::status::payment::{PAYMENT_PAID, PAYMENT_PARTIAL_PAID};
     use rust_decimal::Decimal;
 
     // ========== derive_paid_status 纯函数测试 ==========

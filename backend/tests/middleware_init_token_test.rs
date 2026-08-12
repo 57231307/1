@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
     use axum::{
+    use super::*;
         body::Body,
         http::{Request, StatusCode},
         middleware,

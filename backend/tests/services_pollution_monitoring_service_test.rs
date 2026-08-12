@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
     use rust_decimal::Decimal;
+    use super::*;
 
     #[test]
     fn test_check_exceedance_normal() {

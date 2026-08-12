@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::fs;
+    use super::*;
 
     /// 构造唯一临时目录：/tmp/bingxi_log_cleanup_test_<uuid>
     fn make_temp_dir() -> PathBuf {

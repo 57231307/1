@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::models::status::wage_rate_status;
+    use bingxi_backend::models::status::wage_rate_status;
     use rust_decimal::prelude::ToPrimitive;
     use rust_decimal::Decimal;
 

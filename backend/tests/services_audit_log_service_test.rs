@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::middleware::audit_context::AuditContext;
+    use bingxi_backend::middleware::audit_context::AuditContext;
     use serde_json::json;
 
     /// AuditEvent::new 默认值正确

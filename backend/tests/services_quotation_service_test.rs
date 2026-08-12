@@ -1,12 +1,11 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::decs;
-    use crate::models::quotation_create_dto::{CreateQuotationDto, CreateQuotationItemDto};
-    use crate::models::quotation_update_dto::UpdateQuotationDto;
-    use crate::models::status::quotation as quotation_status;
-    use crate::services::test_common::setup_test_db;
-    use crate::ymd;
+    use bingxi_backend::decs;
+    use bingxi_backend::models::quotation_create_dto::{CreateQuotationDto, CreateQuotationItemDto};
+    use bingxi_backend::models::quotation_update_dto::UpdateQuotationDto;
+    use bingxi_backend::models::status::quotation as quotation_status;
+    use bingxi_backend::services::test_common::setup_test_db;
+    use bingxi_backend::ymd;
     use rust_decimal::Decimal;
     use std::sync::Arc;
 

@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
     use rust_decimal::Decimal;
     use std::str::FromStr;
+    use super::*;
 
     #[test]
     fn test_calculate_super_deduction_75_percent() {

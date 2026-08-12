@@ -1,6 +1,6 @@
+    use super::*;
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     /// AuditLogListQuery 默认值：所有可选字段为 None
     #[test]

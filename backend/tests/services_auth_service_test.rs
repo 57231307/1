@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::services::auth_service_ops::jti::{REVOKED_USERS, REVOKED_USER_TTL_SECS};
+    use bingxi_backend::services::auth_service_ops::jti::{REVOKED_USERS, REVOKED_USER_TTL_SECS};
     use chrono::Duration;
     use jsonwebtoken::{encode, Header};
 

@@ -1,6 +1,6 @@
+    use super::*;
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     // P9-1: 测试夹具 helper，封装 MetricsService 的常见初始化模式
     fn test_metrics_service() -> MetricsService {

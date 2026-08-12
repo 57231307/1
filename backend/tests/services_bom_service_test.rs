@@ -1,11 +1,10 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::decs;
-    use crate::models::bom::BomStatus;
-    use crate::models::status::common;
-    use crate::services::test_common::setup_test_db;
-    use crate::ymd;
+    use bingxi_backend::decs;
+    use bingxi_backend::models::bom::BomStatus;
+    use bingxi_backend::models::status::common;
+    use bingxi_backend::services::test_common::setup_test_db;
+    use bingxi_backend::ymd;
 
     /// 构建测试用 BOM 树节点夹具（封装 `BomTreeNode` 的构造，便于在各测试中复用，；默认 unit 为 "个"，product_name 按 product_id 生成。）
     fn make_bom_tree_node(

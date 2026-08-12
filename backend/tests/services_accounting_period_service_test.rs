@@ -1,9 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::decs;
-    use crate::services::test_common::setup_test_db;
-    use crate::ymd;
+    use bingxi_backend::decs;
+    use bingxi_backend::services::test_common::setup_test_db;
+    use bingxi_backend::ymd;
     use chrono::NaiveDate;
     use std::sync::Arc;
 

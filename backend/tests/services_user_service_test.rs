@@ -1,8 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::models::status::master_data;
-    use crate::services::test_common::setup_test_db;
+    use bingxi_backend::models::status::master_data;
+    use bingxi_backend::services::test_common::setup_test_db;
 
     /// 构造用户模型夹具（复用于多个测试，遵循规则 6 避免硬编码）
     fn make_user_model(id: i32, username: &str, is_active: bool) -> user::Model {

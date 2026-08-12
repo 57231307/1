@@ -1,12 +1,12 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
     use axum::body::Body;
     use axum::http::Request;
     use axum::middleware::from_fn;
     use axum::routing::get;
     use axum::Router;
     use tower::ServiceExt;
+    use super::*;
 
     async fn echo() -> &'static str {
         "ok"

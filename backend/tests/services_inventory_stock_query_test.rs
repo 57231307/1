@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::decs;
+    use bingxi_backend::decs;
     use chrono::{Duration, Utc};
     use rust_decimal::Decimal;
 

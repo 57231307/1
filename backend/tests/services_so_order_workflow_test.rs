@@ -1,10 +1,9 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::decs;
-    use crate::search::{ElasticClient, SearchClient};
-    use crate::services::test_common::setup_test_db;
-    use crate::ymd;
+    use bingxi_backend::decs;
+    use bingxi_backend::search::{ElasticClient, SearchClient};
+    use bingxi_backend::services::test_common::setup_test_db;
+    use bingxi_backend::ymd;
     use chrono::Utc;
     use rust_decimal::Decimal;
     use std::sync::Arc;

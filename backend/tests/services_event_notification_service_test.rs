@@ -1,6 +1,6 @@
+    use super::*;
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     // ========== build_inventory_alert_notification 字段完整性测试 ==========
 

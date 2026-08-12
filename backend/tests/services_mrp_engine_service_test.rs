@@ -1,17 +1,16 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::decs;
-    use crate::models::status::common;
-    use crate::models::status::master_data;
-    use crate::services::test_common::setup_test_db;
-    use crate::utils::error::AppError;
-    use crate::ymd;
+    use bingxi_backend::decs;
+    use bingxi_backend::models::status::common;
+    use bingxi_backend::models::status::master_data;
+    use bingxi_backend::services::test_common::setup_test_db;
+    use bingxi_backend::utils::error::AppError;
+    use bingxi_backend::ymd;
     use chrono::Duration;
     use rust_decimal::Decimal;
     // StockInfo 原 private struct，拆分后提升为 ops::types::StockInfo（pub(crate)），
     // 测试模块直接从 ops 导入（facade 不重导出以保持原 API 表面不变）
-    use crate::services::mrp_engine_ops::StockInfo;
+    use bingxi_backend::services::mrp_engine_ops::StockInfo;
 
     // MRP 专属状态值（源码 mrp_engine_service.rs 中使用，status.rs 暂无 mrp 子模块）
     // 集中定义以便测试引用，避免散落的字符串字面量；未来 status.rs 增设 mrp 子模块后应替换为引用

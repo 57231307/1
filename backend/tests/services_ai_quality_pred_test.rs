@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
     use rust_decimal::Decimal;
+    use super::*;
 
     /// 构造一条 `QualityInspectionModel` 测试夹具
     fn make_record(

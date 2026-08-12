@@ -6,7 +6,6 @@ mod tests {
     //! - DEFAULT_BASE_CURRENCY_EXCHANGE_RATE 常量值正确性（防止 P0-1 缺陷复发）
     //! - 汇率换算逻辑（金额 × 汇率 = 本位币金额）
 
-    use super::*;
 
     /// 防止 P0-1 缺陷复发：默认本位币汇率必须是 1.0，不能是 0.01
     /// 历史缺陷：`Decimal::new(1, 2)` 误用导致自动生成 AP 发票汇率被设为 0.01，；下游按汇率换算本位币金额的财务计算被缩小 100 倍。
@@ -54,7 +53,7 @@ mod tests {
     /// 验证 ap_invoice.invoice_status 字段使用的状态常量值与业务约定一致。；common::STATUS_DRAFT = "DRAFT"（草稿）；ap_invoice::INVOICE_AUDITED = "AUDITED"（已审核，AP 专属）；payment::PAYMENT_PAID = "PAID"（已付款）；payment::PAYMENT_PARTIAL_PAID = "PARTIAL_PAID"（部分付款）；common::STATUS_CANCELLED = "CANCELLED"（已取消）
     #[test]
     fn test_apztclzzqx() {
-        use crate::models::status;
+        use bingxi_backend::models::status;
         assert_eq!(status::common::STATUS_DRAFT, "DRAFT");
         assert_eq!(status::ap_invoice::INVOICE_AUDITED, "AUDITED");
         assert_eq!(status::payment::PAYMENT_PAID, "PAID");
@@ -173,7 +172,7 @@ mod tests {
     /// test_approveztjm_jdraftyx（验证 approve 状态门：仅 DRAFT 状态可审核）
     #[test]
     fn test_approveztjm_jdraftyx() {
-        use crate::models::status;
+        use bingxi_backend::models::status;
         // DRAFT 允许审核
         assert!(can_approve(status::common::STATUS_DRAFT));
 
@@ -187,7 +186,7 @@ mod tests {
     /// test_mark_as_paidztjm_jauditedhpartial_paidyx（验证 mark_as_paid 状态门（P0 3-3 修复）：仅 AUDITED/PARTIAL_PAID 可标记已付清）
     #[test]
     fn test_mark_as_paidztjm_jauditedhpartial_paidyx() {
-        use crate::models::status;
+        use bingxi_backend::models::status;
         // 允许的状态
         assert!(can_mark_as_paid(status::ap_invoice::INVOICE_AUDITED));
         assert!(can_mark_as_paid(status::payment::PAYMENT_PARTIAL_PAID));
@@ -201,7 +200,7 @@ mod tests {
     /// test_cancelztjm_jauditedhpartial_paidyx（验证 cancel 状态门：仅 AUDITED/PARTIAL_PAID 可取消）
     #[test]
     fn test_cancelztjm_jauditedhpartial_paidyx() {
-        use crate::models::status;
+        use bingxi_backend::models::status;
         // 允许的状态
         assert!(can_cancel(status::ap_invoice::INVOICE_AUDITED));
         assert!(can_cancel(status::payment::PAYMENT_PARTIAL_PAID));

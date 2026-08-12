@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
     use bingxi_backend::decs;
     use bingxi_backend::models::status::inventory_reservation as reservation_status;
     use bingxi_backend::models::status::sales_order as so_status;

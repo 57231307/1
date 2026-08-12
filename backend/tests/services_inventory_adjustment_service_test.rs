@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::services::test_common::setup_test_db;
+    use bingxi_backend::services::test_common::setup_test_db;
     use std::sync::Arc;
 
     #[tokio::test]

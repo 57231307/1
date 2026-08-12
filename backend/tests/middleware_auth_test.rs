@@ -1,6 +1,6 @@
+    use super::*;
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     /// 低危 #4 修复：测试 Authorization 头脱敏（正常长度）
     #[test]

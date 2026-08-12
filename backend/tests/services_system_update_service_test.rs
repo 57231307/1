@@ -1,6 +1,6 @@
+    use super::*;
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     /// M8 测试：validate_download_url 合法 GitHub URL 通过
     #[test]

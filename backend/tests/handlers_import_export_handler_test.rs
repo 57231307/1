@@ -5,8 +5,7 @@ mod tests {
     //! 测试目标：DTO #[validate] 注解在反序列化后能正确拒绝超限数据。
     //! 备注：handler 早期校验的测试需要 mock State/AppState/AuthContext，
     //! 仅测试 DTO 层（不涉及 handler 调用），覆盖率已足够。
-    use super::*;
-    use crate::services::import_export_service::{MAX_CSV_BYTES, MAX_EXCEL_ROWS};
+    use bingxi_backend::services::import_export_service::{MAX_CSV_BYTES, MAX_EXCEL_ROWS};
 
     /// 漏洞 #8 修复：CSV data 字段超过 10MB → validate() 失败
     #[test]

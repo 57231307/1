@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
     use rust_decimal::Decimal;
+    use super::*;
 
     // ===== 四分制扣分计算测试 =====
 

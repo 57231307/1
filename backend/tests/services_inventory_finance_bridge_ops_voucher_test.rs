@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
     use rust_decimal::Decimal;
+    use super::*;
 
     fn d(val: i64, scale: u32) -> Decimal {
         Decimal::new(val, scale)

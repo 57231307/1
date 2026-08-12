@@ -1,14 +1,14 @@
 #[cfg(test)]
 mod tests {
-    use crate::decs;
-    use crate::models::ar_reconciliation::Model as ReconciliationModel;
-    use crate::models::status::ar as status_ar;
-    use crate::services::ar::{
+    use bingxi_backend::decs;
+    use bingxi_backend::models::ar_reconciliation::Model as ReconciliationModel;
+    use bingxi_backend::models::status::ar as status_ar;
+    use bingxi_backend::services::ar::{
         ArReconciliationService, CreateReconciliationRequest, UpdateReconciliationRequest,
     };
-    use crate::services::test_common::setup_test_db;
-    use crate::utils::error::AppError;
-    use crate::ymd;
+    use bingxi_backend::services::test_common::setup_test_db;
+    use bingxi_backend::utils::error::AppError;
+    use bingxi_backend::ymd;
     use chrono::Utc;
     use rust_decimal::Decimal;
     use std::sync::Arc;

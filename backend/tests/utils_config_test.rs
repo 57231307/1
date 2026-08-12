@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::env;
+    use super::*;
 
     /// 测试 `APP_ENV=production` 时识别为生产环境
     #[test]

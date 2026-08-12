@@ -1,6 +1,6 @@
+    use super::*;
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     /// M-3 测试（v9 复审）：重试限流器配置正确（10 次/60 秒）
     #[test]

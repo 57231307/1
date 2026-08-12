@@ -1,9 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::decs;
-    use crate::services::test_common::setup_test_db;
-    use crate::ymd;
+    use bingxi_backend::decs;
+    use bingxi_backend::services::test_common::setup_test_db;
+    use bingxi_backend::ymd;
     use chrono::Utc;
     // 批次 415：测试中使用 Arc::new(db)，需导入（文件顶部在批次 357 移除了 unused Arc 导入）
     use std::sync::Arc;

@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
     use chrono::NaiveDate;
     use rust_decimal::Decimal;
+    use super::*;
 
     #[test]
     fn 测试计算剩余保质期_未过期() {

@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
     use rust_decimal::Decimal;
     use std::str::FromStr;
+    use super::*;
 
     fn _sample_event() -> BusinessEvent {
         BusinessEvent::PaymentCompleted {

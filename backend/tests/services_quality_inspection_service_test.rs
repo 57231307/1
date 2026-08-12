@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::decs;
+    use bingxi_backend::decs;
     use std::str::FromStr;
 
     // ===== determine_quality_grade 合格率分级判定 =====

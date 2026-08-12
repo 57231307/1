@@ -1,6 +1,6 @@
+    use super::*;
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     /// 复刻 create_receivable 中的"账期回退 + 到期日"计算，
     /// 避免在单元测试中启动数据库。

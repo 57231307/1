@@ -1,6 +1,6 @@
+    use super::*;
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     /// M8 测试：MAX_RETRY_COUNT 常量值为 5
     #[test]

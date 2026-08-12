@@ -1,6 +1,6 @@
+    use super::*;
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     /// SQL 拼接：默认阈值与 limit（L2 修复后使用 $1/$2 占位符）
     #[test]

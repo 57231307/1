@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::services::event_bus::BusinessEvent;
+    use bingxi_backend::services::event_bus::BusinessEvent;
 
     #[test]
     fn test_build_completed_event_carries_confirmed_order_fields() {

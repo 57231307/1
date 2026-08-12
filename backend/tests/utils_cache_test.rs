@@ -1,6 +1,6 @@
+    use super::*;
 #[cfg(test)]
 mod csrf_token_tests {
-    use super::*;
 
     /// 单元测试：set_csrf_token 写入 + consume_csrf_token 匹配 IP 成功
     #[test]

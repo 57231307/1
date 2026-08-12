@@ -9,8 +9,7 @@ mod tests {
     //! - 核销金额贪心匹配算法
     //! - ArService 实例化
 
-    use super::*;
-    use crate::models::status;
+    use bingxi_backend::models::status;
     use rust_decimal::Decimal;
     use sea_orm::Database;
 

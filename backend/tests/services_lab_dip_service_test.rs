@@ -1,6 +1,6 @@
+    use super::*;
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     /// 测试版本标识生成：1→A, 2→B, 3→C, 4→D
     #[test]

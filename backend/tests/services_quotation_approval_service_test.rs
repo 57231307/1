@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
     use rust_decimal_macros::dec;
+    use super::*;
 
     #[test]
     fn test_approver_role_small_amount_is_salesperson() {

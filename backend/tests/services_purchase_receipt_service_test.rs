@@ -1,12 +1,11 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::decs;
-    use crate::services::purchase_receipt_dto::{
+    use bingxi_backend::decs;
+    use bingxi_backend::services::purchase_receipt_dto::{
         UpdatePurchaseReceiptRequest, UpdateReceiptItemRequest,
     };
-    use crate::services::test_common::setup_test_db;
-    use crate::ymd;
+    use bingxi_backend::services::test_common::setup_test_db;
+    use bingxi_backend::ymd;
     use std::sync::Arc;
 
     /// 构造合法的 CreateReceiptItemRequest（单条明细）

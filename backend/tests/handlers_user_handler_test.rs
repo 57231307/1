@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::container::AppState;
+    use bingxi_backend::container::AppState;
 
     /// V15 P2 14.11-H：require_admin_role 二次校验测试
     /// 场景 1：缺角色用户（role_id=None）→ PermissionDenied（fail-closed，不依赖 DB）

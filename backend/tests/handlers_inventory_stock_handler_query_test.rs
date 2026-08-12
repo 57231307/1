@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::handlers::inventory_stock_handler_dto::CreateStockFabricRequest;
+    use bingxi_backend::handlers::inventory_stock_handler_dto::CreateStockFabricRequest;
 
     #[test]
     fn test_create_stock_fabric_request_deserialize() {

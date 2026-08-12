@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::str::FromStr;
+    use super::*;
 
     #[test]
     fn test_issue_status_as_str_qbztys() {

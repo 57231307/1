@@ -1,6 +1,6 @@
+    use super::*;
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     /// test_rscbqjfw_jtffczx（验证 start_listener / shutdown_listener 方法可调用（编译时检查）。；实际事件监听需数据库连接，标注为编译时检查。）
     #[test]

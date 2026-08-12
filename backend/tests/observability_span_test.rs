@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::observability::trace_context::TraceContext;
+    use bingxi_backend::observability::trace_context::TraceContext;
 
     #[test]
     fn test_root_span_fields() {

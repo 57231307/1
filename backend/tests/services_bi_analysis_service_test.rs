@@ -1,6 +1,6 @@
+    use super::*;
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     /// 测试辅助：构造一个未连接数据库的 service 实例（仅用于参数校验测试）
     /// 由于 DatabaseConnection::default() 在 sea-orm 1.1 中可能不存在或不安全，；测试仅验证参数校验逻辑（在调用 DB 查询前返回错误）。
