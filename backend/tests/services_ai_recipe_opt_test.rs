@@ -3,6 +3,12 @@ mod tests {
     use bingxi_backend::models::dye_recipe::AuxiliariesItem;
     // 批次 212 P2-5 修复：master_data 仅测试使用，移入 #[cfg(test)] 避免 Clippy unused import
     use bingxi_backend::models::status::master_data;
+    use bingxi_backend::models::dye_recipe::Model as DyeRecipeModel;
+    use bingxi_backend::services::ai::recipe_opt::{
+        build_candidates, compute_confidence, compute_similarity, find_typical_params,
+        should_use_knn, weighted_average_params, AggregatedParams, MAX_SIMILARITY,
+        TYPICAL_TEMPERATURE, TYPICAL_TIME_MINUTES,
+    };
     use rust_decimal::Decimal;
 
     /// 染色配方测试夹具参数对象

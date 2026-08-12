@@ -26,7 +26,7 @@ use crate::utils::error::AppError;
 use super::AiAnalysisService;
 
 /// V15 P1 6.2：候选集上限（数据最小化，防止全表扫描）
-pub(crate) const RECIPE_CANDIDATE_LIMIT: u64 = 10_000;
+pub const RECIPE_CANDIDATE_LIMIT: u64 = 10_000;
 
 // =====================================================
 // 输入 / 输出 DTO
@@ -118,19 +118,19 @@ pub struct RecipeOptResponse {
 // =====================================================
 
 /// 相似度评分最大理论值（颜色 1.0 + 布类 0.2 + 染料 0.1 = 1.3）
-pub(crate) const MAX_SIMILARITY: f64 = 1.3;
+pub const MAX_SIMILARITY: f64 = 1.3;
 /// 典型参数回退的温度默认值（°C）
-pub(crate) const TYPICAL_TEMPERATURE: f64 = 80.0;
+pub const TYPICAL_TEMPERATURE: f64 = 80.0;
 /// 典型参数回退的时间默认值（分钟）
-pub(crate) const TYPICAL_TIME_MINUTES: i32 = 45;
+pub const TYPICAL_TIME_MINUTES: i32 = 45;
 /// 典型参数回退的 pH 默认值
-pub(crate) const TYPICAL_PH: f64 = 6.0;
+pub const TYPICAL_PH: f64 = 6.0;
 /// 典型参数回退的浴比默认值
-pub(crate) const TYPICAL_LIQUOR_RATIO: f64 = 8.0;
+pub const TYPICAL_LIQUOR_RATIO: f64 = 8.0;
 
 /// 染料-布类配伍性表（V15 P1 1.1：染料配伍性校验）
 /// 依据 fabric-industry-research §11.2，染料与布类不匹配（如分散染料用于棉）；会生成无效配方推荐，工艺员采纳后可能导致染色失败、批次报废。；返回 true 表示配伍；false 表示不配伍。
-pub(crate) fn is_dye_fabric_compatible(dye_type: &str, fabric_type: &str) -> bool {
+pub fn is_dye_fabric_compatible(dye_type: &str, fabric_type: &str) -> bool {
     let dye = dye_type.trim().to_lowercase();
     let fabric = fabric_type.trim().to_lowercase();
     if dye.is_empty() || fabric.is_empty() {
@@ -156,7 +156,7 @@ pub(crate) fn is_dye_fabric_compatible(dye_type: &str, fabric_type: &str) -> boo
 }
 
 /// 校验染料与布类配伍性，不配伍时返回 422 业务错误（V15 P1 1.1）
-pub(crate) fn validate_dye_fabric_compatibility(
+pub fn validate_dye_fabric_compatibility(
     dye_type: Option<&str>,
     fabric_type: &str,
 ) -> Result<(), AppError> {
@@ -173,7 +173,7 @@ pub(crate) fn validate_dye_fabric_compatibility(
 
 /// V15 P1 6.1：脱敏配方候选集，掩码 remark 中可能含有的手机号/邮箱/身份证号
 /// 算法仅使用 color_no/fabric_type/dye_type/temperature/time/ph/liquor_ratio 字段，；remark 字段不参与算法但会随候选集回写到 candidates_json，须前置脱敏避免 PII 泄露。
-pub(crate) fn sanitize_recipe_for_inference(mut recipe: DyeRecipeModel) -> DyeRecipeModel {
+pub fn sanitize_recipe_for_inference(mut recipe: DyeRecipeModel) -> DyeRecipeModel {
     if let Some(remark) = recipe.remarks.take() {
         recipe.remarks = Some(crate::utils::field_mask::mask_text_pii(&remark));
     }
@@ -185,7 +185,7 @@ pub(crate) fn sanitize_recipe_for_inference(mut recipe: DyeRecipeModel) -> DyeRe
 
 /// 计算两条配方的相似度（0.0 - 1.3）
 /// 评分规则：`color_no` 精确（大小写不敏感）相等 → 1.0；`color_no` 前缀 3 位相同（忽略分隔符）→ 0.7；否则 → 0.0；`fabric_type` 精确相等 → +0.2；`dye_type` 精确相等 → +0.1
-pub(crate) fn compute_similarity(
+pub fn compute_similarity(
     target_color: &str,
     target_fabric: &str,
     target_dye: Option<&str>,
@@ -238,7 +238,7 @@ fn normalize_color(raw: &str) -> String {
 
 /// 内部加权聚合结果
 #[derive(Debug, Clone, Default)]
-pub(crate) struct AggregatedParams {
+pub struct AggregatedParams {
     pub temperature: f64,
     pub time_minutes: f64,
     pub ph_value: f64,
@@ -246,7 +246,7 @@ pub(crate) struct AggregatedParams {
 }
 
 /// 按相似度加权聚合多条命中配方的参数
-pub(crate) fn weighted_average_params(hits: &[(f64, &DyeRecipeModel)]) -> Option<AggregatedParams> {
+pub fn weighted_average_params(hits: &[(f64, &DyeRecipeModel)]) -> Option<AggregatedParams> {
     if hits.is_empty() {
         return None;
     }
@@ -291,7 +291,7 @@ pub(crate) fn weighted_average_params(hits: &[(f64, &DyeRecipeModel)]) -> Option
 
 /// 内置典型参数表（退化兜底，固定 4 字段）
 /// 典型值（兜底，参考规格）：温度：80°C ± 10°C → 默认 80；时间：45min ± 15min → 默认 45；pH：6.0 ± 1.0 → 默认 6.0；浴比：1:8 ± 2 → 默认 8.0
-pub(crate) fn find_typical_params() -> AggregatedParams {
+pub fn find_typical_params() -> AggregatedParams {
     AggregatedParams {
         temperature: TYPICAL_TEMPERATURE,
         time_minutes: TYPICAL_TIME_MINUTES as f64,
@@ -301,7 +301,7 @@ pub(crate) fn find_typical_params() -> AggregatedParams {
 }
 
 /// 计算最终置信度（0.0 - 1.0 归一化）（k-NN 命中：min(命中条数 / K, 1.0) * 平均相似度归一化；退化路径：固定 0.6）
-pub(crate) fn compute_confidence(hits: &[(f64, &DyeRecipeModel)], k: usize) -> f64 {
+pub fn compute_confidence(hits: &[(f64, &DyeRecipeModel)], k: usize) -> f64 {
     if hits.is_empty() {
         return 0.6;
     }
@@ -315,7 +315,7 @@ pub(crate) fn compute_confidence(hits: &[(f64, &DyeRecipeModel)], k: usize) -> f
 }
 
 /// 将候选集合转换为响应中 `candidates` 字段（取相似度 > 0 的前 10 条，并把原始分数归一化到 0.0-1.0。）
-pub(crate) fn build_candidates(
+pub fn build_candidates(
     scored: &[(f64, &DyeRecipeModel)],
     max_n: usize,
 ) -> Vec<RecipeCandidate> {
@@ -476,7 +476,7 @@ fn compute_cost_comparison(
 }
 
 /// 判断是否需要走 k-NN 路径（命中条数 ≥ 3 才走 k-NN，否则退化）
-pub(crate) fn should_use_knn(hit_count: usize) -> bool {
+pub fn should_use_knn(hit_count: usize) -> bool {
     hit_count >= 3
 }
 
