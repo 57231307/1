@@ -855,6 +855,10 @@ fn ar_invoice_routes() -> Router<AppState> {
             "/ar/invoices/:id/cancel",
             post(ar_invoice_handler::cancel_ar_invoice),
         )
+        .route(
+            "/ar/invoices/:id/mark-as-paid",
+            post(ar_invoice_handler::mark_ar_invoice_as_paid),
+        )
 }
 
 /// AR 应收收款路由（/ar/payments）
