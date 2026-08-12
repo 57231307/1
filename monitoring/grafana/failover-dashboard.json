@@ -12,7 +12,7 @@
       }
     ]
   },
-  "description": "冰溪 ERP P0-2 主备隔离监控面板",
+  "description": "Bingxi Management Platform P0-2 主备隔离监控面板",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
@@ -228,7 +228,7 @@
   "time": {"from": "now-1h", "to": "now"},
   "timepicker": {},
   "timezone": "",
-  "title": "冰溪 ERP - 主备隔离监控（P0-2）",
+  "title": "Bingxi Management Platform - 主备隔离监控（P0-2）",
   "uid": "bingxi-failover-p0-2",
   "version": 1,
   "weekStart": ""

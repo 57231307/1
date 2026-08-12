@@ -255,7 +255,7 @@ impl WebhookService {
         let request = client
             .post(url)
             .header("Content-Type", "application/json")
-            .header("User-Agent", "BingXi-ERP-Webhook/1.0")
+            .header("User-Agent", "Bingxi-Management-Platform/1.0")
             .header(
                 crate::observability::trace_context::TRACEPARENT_HEADER,
                 traceparent,

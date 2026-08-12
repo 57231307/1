@@ -1,24 +1,23 @@
-# 冰溪 ERP 系统架构文档
+# Bingxi Management Platform 系统架构文档
 
 ## 概述
 
-冰溪 ERP 是一个面向面料纺织行业的现代化企业资源计划系统，集成了采购、销售、库存、生产、财务、CRM 等核心业务模块，并引入 AI 智能分析能力。系统采用前后端分离架构，后端使用 Rust + Axum 构建高性能 REST/gRPC 双协议服务，前端使用 Vue 3 + Element Plus 构建响应式管理界面。系统具备完整的权限管理（RBAC + 数据范围 + 字段级权限）、审计日志、工作流引擎和法律合规（个人信息保护法/数据安全法/网络安全法）。
+Bingxi Management Platform 是一个面向面料纺织行业的现代化企业资源计划平台，集成了采购、销售、库存、生产、财务、CRM 等核心业务模块，并引入 AI 智能分析能力。系统采用前后端分离架构，后端使用 Rust + Axum 构建高性能 REST/gRPC 双协议服务，前端使用 Vue 3 + Element Plus 构建响应式管理界面。系统具备完整的权限管理（RBAC + 数据范围 + 字段级权限）、审计日志、工作流引擎和法律合规（个人信息保护法/数据安全法/网络安全法）。
 
 ## 技术栈
 
 ### 后端
 
 **语言与运行时**
-- Rust 1.75+
+- Rust 1.94+
 - Tokio 异步运行时
 
 **框架**
 - Axum 0.7 - HTTP 框架
-- Tonic 0.12 - gRPC 框架
-- SeaORM 1.0 - ORM 框架
+- SeaORM 2.0 - ORM 框架
 
 **数据存储**
-- PostgreSQL 15+ / MySQL 8.0+ - 主数据库
+- PostgreSQL 15+ - 主数据库
 - Redis 7.0+ - 缓存和限流
 - 文件存储 - 本地文件系统
 
@@ -36,12 +35,12 @@
 
 **框架**
 - Vue 3.4+ (Composition API)
-- Vite 5.0+ - 构建工具
+- Vite 6.4 - 构建工具
 - TypeScript 5.4+
 
 **UI 组件**
-- Element Plus 2.4+
-- ECharts 5.4+ - 图表库
+- Element Plus 2.6+
+- ECharts 6.1 - 图表库
 
 **状态管理**
 - Pinia 2.1+
@@ -59,12 +58,11 @@ workspace/
 │   │   ├── lib.rs          # 库入口
 │   │   ├── config/         # 配置模块
 │   │   ├── database/       # 数据库连接池
-│   │   ├── grpc/           # gRPC 服务实现
-│   │   ├── handlers/       # HTTP 处理器 (149 个文件)
-│   │   ├── middleware/      # 中间件 (18 个文件)
-│   │   ├── models/         # 数据模型 (287 个文件)
-│   │   ├── routes/         # 路由配置 (26 个文件)
-│   │   ├── services/       # 业务服务层 (388 个文件，按子域拆分)
+│   │   ├── handlers/       # HTTP 处理器 (180 个文件)
+│   │   ├── middleware/      # 中间件 (20 个文件)
+│   │   ├── models/         # 数据模型 (326 个文件)
+│   │   ├── routes/         # 路由配置 (43 个文件)
+│   │   ├── services/       # 业务服务层 (410 个文件，按子域拆分)
 │   │   ├── utils/          # 工具模块
 │   │   └── bin/            # 二进制工具
 │   ├── migrations/         # 数据库迁移
@@ -76,7 +74,7 @@ workspace/
 │   │   ├── components/    # 通用组件
 │   │   ├── router/        # 路由配置
 │   │   ├── store/         # 状态管理
-│   │   ├── views/         # 页面组件 (182 个目录)
+│   │   ├── views/         # 页面组件 (81 个目录)
 │   │   └── utils/         # 工具函数
 │   ├── tests/             # 测试
 │   └── package.json
@@ -86,7 +84,7 @@ workspace/
 ```
 
 **入口点**
-- `backend/src/main.rs` - 后端服务入口，同时启动 HTTP 和 gRPC 服务
+- `backend/src/main.rs` - 后端服务入口，启动 HTTP 服务
 - `frontend/src/main.ts` - 前端应用入口
 - `backend/src/bin/cli.rs` - CLI 运维工具
 
@@ -101,16 +99,16 @@ workspace/
 
 ### 2. 业务逻辑子系统
 **目的**: 实现核心业务逻辑，包括采购、销售、库存、生产等
-**位置**: `backend/src/services/` (101 个服务文件)
+**位置**: `backend/src/services/` (410 个服务文件)
 **关键文件**: `sales_order_service.rs`, `purchase_order_service.rs`, `inventory_service.rs`
 **依赖**: 数据模型、数据库、事件总线
-**被依赖**: HTTP 处理器、gRPC 服务
+**被依赖**: HTTP 处理器
 
 ### 3. 数据访问子系统
 **目的**: 管理数据库连接、ORM 映射和数据迁移
-**位置**: `backend/src/models/` (158 个模型文件), `backend/src/database/`
+**位置**: `backend/src/models/` (326 个模型文件), `backend/src/database/`
 **关键文件**: `sea-orm` 实体定义、迁移文件
-**依赖**: SeaORM、PostgreSQL/MySQL
+**依赖**: SeaORM、PostgreSQL
 **被依赖**: 业务逻辑子系统
 
 ### 4. API 网关子系统
@@ -122,7 +120,7 @@ workspace/
 
 ### 5. 前端展示子系统
 **目的**: 提供用户界面和交互体验
-**位置**: `frontend/src/views/` (60 个页面目录)
+**位置**: `frontend/src/views/` (81 个页面目录)
 **关键文件**: `MainLayout.vue`, `Login.vue`, `Dashboard.vue`
 **依赖**: Vue 3、Element Plus、Pinia
 **被依赖**: 最终用户
@@ -156,7 +154,6 @@ flowchart TB
         end
         subgraph "后端服务"
             AxumHTTP[Axum HTTP 服务]
-            TonicGRPC[Tonic gRPC 服务]
         end
     end
 
@@ -189,7 +186,6 @@ flowchart TB
     
     Nginx --> VueApp
     Nginx --> AxumHTTP
-    Nginx --> TonicGRPC
     
     VueApp --> AxumHTTP
     

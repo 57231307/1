@@ -21,8 +21,6 @@ pub mod biz_msg {
     pub const APPROVE_OK: &str = "审批通过";
     /// 执行成功
     pub const EXECUTE_OK: &str = "执行成功";
-    /// 操作成功
-    pub const OPERATE_OK: &str = "操作成功";
 }
 
 /// AppError 错误消息常量（V15 批次 07 P1-10：集中管理 error.rs 硬编码中文，use crate::utils::messages::err_msg 引用）

@@ -1236,7 +1236,7 @@ export function hasRoutePermission(
 router.beforeEach(async (to, _from, next) => {
   const title = to.meta.title as string;
   if (title) {
-    document.title = `${title} - 秉羲 ERP`;
+    document.title = `${title} - Bingxi Management Platform`;
   }
 
   if (to.path === '/setup') {

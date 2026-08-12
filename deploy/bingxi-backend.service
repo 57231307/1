@@ -1,5 +1,5 @@
 [Unit]
-Description=Bingxi ERP Backend Service
+Description=Bingxi Management Platform Backend Service
 After=network.target postgresql.service
 Wants=network-online.target
 StartLimitIntervalSec=60

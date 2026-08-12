@@ -117,7 +117,7 @@ describe('Login.vue 真实组件测试', () => {
     const { wrapper } = mountLogin();
     await flushPromises();
     // 标题
-    expect(wrapper.find('.login-title').text()).toBe('秉羲 ERP 系统');
+    expect(wrapper.find('.login-title').text()).toBe('Bingxi Management Platform 系统');
     // 用户名输入框存在（el-input 渲染为 input）
     const inputs = wrapper.findAll('input');
     expect(inputs.length).toBeGreaterThanOrEqual(2);

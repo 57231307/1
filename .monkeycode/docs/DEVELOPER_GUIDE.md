@@ -1,8 +1,8 @@
-# 冰溪 ERP 开发者指南
+# Bingxi Management Platform 开发者指南
 
 ## 项目目的
 
-冰溪 ERP 是一个面向面料纺织行业的现代化企业资源计划系统，在更大系统中担任企业数字化转型的核心平台。它集成了采购、销售、库存、生产、财务、CRM 等核心业务模块，并引入 AI 智能分析能力。
+Bingxi Management Platform 是一个面向面料纺织行业的现代化企业资源计划平台，在更大系统中担任企业数字化转型的核心平台。它集成了采购、销售、库存、生产、财务、CRM 等核心业务模块，并引入 AI 智能分析能力。
 
 **核心职责**:
 - 管理企业核心业务流程（采购、销售、库存、生产）
@@ -20,9 +20,9 @@
 
 ### 前置条件
 
-- **Rust**: 1.75+ (后端开发)
+- **Rust**: 1.94+ (后端开发)
 - **Node.js**: 18+ (前端开发)
-- **PostgreSQL**: 15+ 或 MySQL 8.0+ (数据库)
+- **PostgreSQL**: 15+ (数据库)
 - **Redis**: 7.0+ (缓存)
 - **Git**: 版本控制
 
@@ -48,9 +48,7 @@ npm install
 
 ```bash
 # 数据库配置
-DATABASE_URL=postgresql://username:password@localhost:5432/bingxi_erp
-# 或 MySQL
-# DATABASE_URL=mysql://username:password@localhost:3306/bingxi_erp
+DATABASE_URL=postgresql://username:password@localhost:5432/bingxi
 
 # Redis 配置
 REDIS_URL=redis://localhost:6379
@@ -92,7 +90,7 @@ VITE_USE_MOCK=false
 VITE_DEBUG=true
 
 # 应用标题
-VITE_APP_TITLE=冰溪 ERP
+VITE_APP_TITLE=Bingxi Management Platform
 ```
 
 ### 运行

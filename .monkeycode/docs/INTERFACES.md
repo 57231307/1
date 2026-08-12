@@ -1,8 +1,8 @@
-# 冰溪 ERP 接口文档
+# Bingxi Management Platform 接口文档
 
 ## 概述
 
-冰溪 ERP 系统提供 RESTful API 和 gRPC 两种接口方式。REST API 遵循 `/api/v1/erp/` 前缀规范，支持 JSON 格式请求和响应。所有 API 需要 JWT Token 认证（除公开接口外），并支持 CSRF 防护、速率限制等安全机制。
+Bingxi Management Platform 系统提供 RESTful API 和 gRPC 两种接口方式。REST API 遵循 `/api/v1/erp/` 前缀规范，支持 JSON 格式请求和响应。所有 API 需要 JWT Token 认证（除公开接口外），并支持 CSRF 防护、速率限制等安全机制。
 
 ## 认证方式
 

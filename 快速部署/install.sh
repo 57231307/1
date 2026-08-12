@@ -1,5 +1,5 @@
 #!/bin/bash
-# 秉羲 ERP 系统 - 一键安装与管理脚本
+# Bingxi Management Platform 系统 - 一键安装与管理脚本
 # 使用方法: curl -fsSL --http1.1 --retry 3 <install.sh url> | sudo bash -s {install|update|start|stop|status|restart}
 
 set -e
@@ -102,7 +102,7 @@ setup_cli() {
     log "安装 CLI 工具..."
     cat > "$CLI_PATH" << 'CLIEOF'
 #!/bin/bash
-# 秉羲 ERP 系统管理 CLI
+# Bingxi Management Platform 系统管理 CLI
 
 VERSION_FILE="/opt/bingxi-erp/VERSION"
 BACKUP_DIR="/opt/bingxi-erp/backups"
@@ -121,7 +121,7 @@ show_menu() {
     local ver=$(cat "$VERSION_FILE" 2>/dev/null || echo "unknown")
     echo ""
     echo "=========================================="
-    echo "  秉羲 ERP 系统管理工具 v${ver}"
+    echo "  Bingxi Management Platform 系统管理工具 v${ver}"
     echo "=========================================="
     echo ""
     echo "  [1] 启动服务        [6] 更新系统"

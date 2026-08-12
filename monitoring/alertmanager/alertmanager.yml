@@ -1,5 +1,5 @@
 # ========================================
-# ERP 系统 - Alertmanager 告警通知配置
+# Bingxi Management Platform - Alertmanager 告警通知配置
 # ========================================
 # 此配置文件用于配置告警通知方式
 # 包括：邮件、企业微信、钉钉、短信等
@@ -27,7 +27,7 @@ receivers:
         send_resolved: true
         headers:
           Subject: '[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}'
-          From: 'BingXi Alert <alert@bingxi.com>'
+          From: 'Bingxi Alert <alert@bingxi.com>'
           To: 'admin@bingxi.com'
         html: |
           <html>

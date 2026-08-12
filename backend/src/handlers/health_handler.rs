@@ -102,7 +102,7 @@ pub async fn health_check(State(state): State<AppState>) -> impl IntoResponse {
 
     let health = HealthStatus {
         status: overall_status.to_string(),
-        service: "面料 ERP 系统".to_string(),
+        service: "Bingxi Management Platform".to_string(),
         timestamp: Utc::now(),
         version: env!("CARGO_PKG_VERSION").to_string(),
         uptime_seconds: get_uptime(),

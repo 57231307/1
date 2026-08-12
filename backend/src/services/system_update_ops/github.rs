@@ -67,7 +67,7 @@ impl SystemUpdateService {
         })?;
 
         let client = reqwest::Client::builder()
-            .user_agent("BingxiERP/1.0")
+            .user_agent("BingxiManagementPlatform/1.0")
             .redirect(reqwest::redirect::Policy::limited(3))
             .resolve_to_addrs(&api_host, &api_safe_addrs)
             .build()
@@ -221,7 +221,7 @@ impl SystemUpdateService {
         let (dl_host, dl_safe_addrs) = crate::utils::ssrf_guard::validate_url_and_resolve(url)
             .map_err(|e| UpdateError::NetworkError(format!("下载 URL SSRF 校验失败: {}", e)))?;
         reqwest::Client::builder()
-            .user_agent("BingxiERP/1.0")
+            .user_agent("BingxiManagementPlatform/1.0")
             .redirect(reqwest::redirect::Policy::limited(3))
             .resolve_to_addrs(&dl_host, &dl_safe_addrs)
             .build()

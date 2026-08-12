@@ -1,6 +1,6 @@
 # 贡献指南
 
-> 感谢您对冰溪 ERP 项目的关注！我们欢迎所有形式的贡献（代码、文档、测试、反馈）。
+> 感谢您对 Bingxi Management Platform 项目的关注！我们欢迎所有形式的贡献（代码、文档、测试、反馈）。
 > 本指南将帮助您快速上手并遵循项目的最佳实践。
 
 ---
@@ -936,7 +936,7 @@ git push --force-with-lease origin your-branch
 
 ## 🙏 致谢
 
-感谢所有为冰溪 ERP 做出贡献的开发者！
+感谢所有为 Bingxi Management Platform 做出贡献的开发者！
 
 您的每一份贡献都让这个项目变得更好。
 
@@ -946,6 +946,6 @@ git push --force-with-lease origin your-branch
 
 **[⬆ 回到顶部](#贡献指南)**
 
-Made with ❤️ by 冰溪 ERP Team
+Made with ❤️ by Bingxi Management Platform Team
 
 </div>

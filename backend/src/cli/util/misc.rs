@@ -98,7 +98,7 @@ pub(super) fn cmd_config() {
 }
 
 pub(super) fn cmd_info() {
-    println!("=== Bingxi ERP 系统信息 ===\n");
+    println!("=== Bingxi Management Platform 系统信息 ===\n");
 
     println!("CLI 版本: v{}", env!("CARGO_PKG_VERSION"));
     println!("安装目录: {}", get_install_dir());

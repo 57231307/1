@@ -1,5 +1,5 @@
 # ==============================================================================
-# Bingxi ERP CI/CD Pipeline - 严格化 + 全面日志版本
+# Bingxi Management Platform CI/CD Pipeline - 严格化 + 全面日志版本
 #
 # 设计目标：
 #   1. 构建验证严格化（移除所有 `|| true` 降级）
@@ -2220,7 +2220,7 @@ jobs:
           # 按 RELEASE_TEMPLATE.md 模板生成 release notes
           # ============================================================================
           cat > release_notes.md << EOF
-          # Bingxi ERP ${VERSION}
+          # Bingxi Management Platform ${VERSION}
 
           **发布时间**: ${NOW}
           **上一版本**: ${PREV_TAG:-无（首个版本）}
@@ -2337,7 +2337,7 @@ jobs:
           else
             gh release create "$TAG_NAME" \
               --repo ${{ github.repository }} \
-              --title "Bingxi ERP ${VERSION}" \
+              --title "Bingxi Management Platform ${VERSION}" \
               --notes-file release_notes.md \
               --latest \
               "$RELEASE_FILE"
