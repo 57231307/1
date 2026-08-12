@@ -27,19 +27,6 @@ pub enum AdjustType {
     Unlock,
 }
 
-impl AdjustType {
-    pub fn desc(&self) -> &'static str {
-        match self {
-            Self::MoveUp => "上移",
-            Self::MoveDown => "下移",
-            Self::MoveTop => "置顶",
-            Self::MoveBottom => "置底",
-            Self::Lock => "锁定",
-            Self::Unlock => "解锁",
-        }
-    }
-}
-
 impl SchedulingService {
     // adjust_schedule
     // 内容来自原 scheduling_service.rs L531-582
@@ -145,16 +132,6 @@ impl SchedulingService {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_adjust_desc() {
-        assert_eq!(AdjustType::MoveUp.desc(), "上移");
-        assert_eq!(AdjustType::MoveDown.desc(), "下移");
-        assert_eq!(AdjustType::MoveTop.desc(), "置顶");
-        assert_eq!(AdjustType::MoveBottom.desc(), "置底");
-        assert_eq!(AdjustType::Lock.desc(), "锁定");
-        assert_eq!(AdjustType::Unlock.desc(), "解锁");
-    }
 
     #[test]
     fn test_module_loaded() {

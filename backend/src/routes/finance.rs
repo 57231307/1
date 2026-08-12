@@ -91,6 +91,14 @@ fn accounting_period_routes() -> Router<AppState> {
             "/accounting-periods/:id/close",
             post(accounting_period_handler::close_period),
         )
+        .route(
+            "/accounting-periods/:id/reopen",
+            post(accounting_period_handler::reopen_period),
+        )
+        .route(
+            "/accounting-periods/year-end-closing",
+            post(accounting_period_handler::year_end_closing),
+        )
 }
 
 /// 财务报表路由（/reports）

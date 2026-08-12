@@ -65,6 +65,10 @@ fn purchase_order_routes() -> Router<AppState> {
             get(purchase_order_handler::generate_order_no),
         )
         .route(
+            "/orders/:id/calculate-total",
+            post(purchase_order_handler::calculate_order_total),
+        )
+        .route(
             "/orders/:id/items",
             get(purchase_order_handler::list_order_items)
                 .post(purchase_order_handler::create_order_item),

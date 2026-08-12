@@ -36,17 +36,6 @@ pub enum SchedulingAlgo {
     Edd,
 }
 
-impl SchedulingAlgo {
-    pub fn desc(&self) -> &'static str {
-        match self {
-            Self::Fifo => "先进先出",
-            Self::Priority => "优先级优先",
-            Self::Spt => "最短加工时间",
-            Self::Edd => "最早交货期",
-        }
-    }
-}
-
 impl SchedulingService {
     // auto_schedule / detect_conflicts / save_schedule_result
     // 内容来自原 scheduling_service.rs L186-386 + L446-530 + L795-861
@@ -898,14 +887,6 @@ fn build_schedule_result(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_algo_desc() {
-        assert_eq!(SchedulingAlgo::Fifo.desc(), "先进先出");
-        assert_eq!(SchedulingAlgo::Priority.desc(), "优先级优先");
-        assert_eq!(SchedulingAlgo::Spt.desc(), "最短加工时间");
-        assert_eq!(SchedulingAlgo::Edd.desc(), "最早交货期");
-    }
 
     #[test]
     fn test_module_loaded() {

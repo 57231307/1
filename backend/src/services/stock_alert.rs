@@ -38,18 +38,6 @@ pub enum AlertType {
 }
 
 impl AlertType {
-    /// 中文描述
-    pub fn desc(&self) -> &'static str {
-        match self {
-            Self::OutOfStock => "缺货",
-            Self::LowStock => "低于下限",
-            Self::OverStock => "高于上限",
-            Self::Expiring => "即将过期",
-            Self::SlowMoving => "滞销",
-            Self::Discrepancy => "盘点差异",
-        }
-    }
-
     /// 返回前端约定的稳定字符串代码（批次 126 v8 复审 P2 修复：供 inventory_stock_query.compute_alert_type 使用，；作为 alert_type 字段值返回给前端。）
     pub fn code(&self) -> &'static str {
         match self {
@@ -76,16 +64,6 @@ pub const SLOW_MOVING_THRESHOLD_DAYS: i64 = 90;
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_alert_type_desc() {
-        assert_eq!(AlertType::OutOfStock.desc(), "缺货");
-        assert_eq!(AlertType::LowStock.desc(), "低于下限");
-        assert_eq!(AlertType::OverStock.desc(), "高于上限");
-        assert_eq!(AlertType::Expiring.desc(), "即将过期");
-        assert_eq!(AlertType::SlowMoving.desc(), "滞销");
-        assert_eq!(AlertType::Discrepancy.desc(), "盘点差异");
-    }
 
     #[test]
     fn test_alert_type_code() {

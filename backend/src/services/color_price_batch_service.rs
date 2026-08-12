@@ -44,10 +44,6 @@ pub struct ColorPriceBatchService {
 
 // v11 批次 147 P2-B：移除失效的 dead_code 标注（被 handlers/color_price_handler.rs:211,232 真实调用）
 impl ColorPriceBatchService {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
-    }
-
     pub fn from_state(state: &crate::container::AppState) -> Self {
         Self {
             db: state.db.clone(),

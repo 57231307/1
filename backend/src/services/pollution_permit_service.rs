@@ -62,17 +62,6 @@ pub enum ExpiryWarningLevel {
 }
 
 impl ExpiryWarningLevel {
-    /// 中文描述
-    pub fn desc(&self) -> &'static str {
-        match self {
-            Self::Normal => "正常",
-            Self::Warning90Days => "90天到期预警",
-            Self::Warning60Days => "60天到期预警",
-            Self::Warning30Days => "30天到期预警",
-            Self::Expired => "已过期",
-        }
-    }
-
     /// 是否需要预警
     pub fn needs_warning(&self) -> bool {
         !matches!(self, Self::Normal)
