@@ -1,6 +1,7 @@
-    use bingxi_backend::models::status::wage_energy_chemical_business::*;
 #[cfg(test)]
 mod tests {
+    use bingxi_backend::models::status::wage_energy_chemical_business::*;
+    use rust_decimal::Decimal;
 
     #[test]
     fn test_vip_discount() {
