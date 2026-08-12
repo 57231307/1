@@ -1,6 +1,7 @@
-    use bingxi_backend::services::lab_dip_ops::resample::*;
 #[cfg(test)]
 mod tests {
+    use bingxi_backend::services::lab_dip_ops::resample::*;
+    use std::time::{Duration, Instant};
 
     #[test]
     fn test_circuit_entry_closed_state() {
