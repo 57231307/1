@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use axum::http::{Method, StatusCode};
+    use bingxi_backend::middleware::csrf::*;
 
     /// 测试安全方法（GET/HEAD/OPTIONS）通过 matches! 检查
     #[test]
