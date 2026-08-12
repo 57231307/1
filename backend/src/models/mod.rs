@@ -168,6 +168,8 @@ pub mod fixed_asset_depreciation_record;
 // V15 P1 17.8-D4：固定资产盘点单/明细
 pub mod fixed_asset_count;
 pub mod fixed_asset_count_item;
+// V15 P1 17.8-D5：资产减值测试
+pub mod asset_impairment_test;
 // 资金转账记录模块
 pub mod fund_transfer_record;
 // 面料行业核心模块
