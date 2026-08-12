@@ -1,6 +1,7 @@
-    use bingxi_backend::services::data_permission_service::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::services::data_permission_service::*;
+
 
     // ===== DataScope::parse_scope 测试 =====
 

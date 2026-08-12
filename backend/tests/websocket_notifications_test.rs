@@ -1,6 +1,7 @@
-    use bingxi_backend::websocket::notifications::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::websocket::notifications::*;
+
 
     /// 测试票据签发与消费（正常流程）
     #[test]

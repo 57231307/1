@@ -1,6 +1,7 @@
-    use bingxi_backend::utils::color_space_converter::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::utils::color_space_converter::*;
+
 
     #[test]
     fn test_hex_to_rgb_basic() {

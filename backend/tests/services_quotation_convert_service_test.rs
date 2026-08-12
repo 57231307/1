@@ -1,6 +1,7 @@
-    use bingxi_backend::models::financial_analysis_result::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::models::financial_analysis_result::*;
+
 
     #[test]
     fn test_compose_color_no_empty() {

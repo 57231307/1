@@ -1,6 +1,7 @@
-    use bingxi_backend::services::auth::password_policy_service::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::services::auth::password_policy_service::*;
+
 
     #[tokio::test]
     async fn test_mmcl_qmmtg() {

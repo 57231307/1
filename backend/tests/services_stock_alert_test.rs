@@ -1,6 +1,7 @@
-    use bingxi_backend::services::stock_alert::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::services::stock_alert::*;
+
 
     #[test]
     fn test_alert_type_code() {

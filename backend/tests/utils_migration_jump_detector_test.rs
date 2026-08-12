@@ -1,6 +1,7 @@
-    use bingxi_backend::utils::migration_jump_detector::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::utils::migration_jump_detector::*;
+
 
     #[test]
     fn test_detect_migration_jumps_no_gap() {

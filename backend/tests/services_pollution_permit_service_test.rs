@@ -1,6 +1,7 @@
-    use bingxi_backend::services::pollution_permit_service::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::services::pollution_permit_service::*;
+
 
     #[test]
     fn test_classify_expiry_level_normal() {

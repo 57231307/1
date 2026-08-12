@@ -1,6 +1,7 @@
-    use bingxi_backend::utils::audit::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::utils::audit::*;
+
 
     #[test]
     fn test_security_event_display() {

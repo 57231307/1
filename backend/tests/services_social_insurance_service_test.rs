@@ -1,6 +1,7 @@
-    use bingxi_backend::services::social_insurance_service::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::services::social_insurance_service::*;
+
 
     #[test]
     fn test_calculate_insurance_default_rates() {

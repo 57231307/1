@@ -1,6 +1,7 @@
-    use bingxi_backend::utils::path_validator::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::utils::path_validator::*;
+
 
     /// 测试正常目录校验通过
     #[test]

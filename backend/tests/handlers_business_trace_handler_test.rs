@@ -1,6 +1,7 @@
-    use bingxi_backend::handlers::business_trace_handler::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::handlers::business_trace_handler::*;
+
 
     #[test]
     fn test_get_stage_name() {

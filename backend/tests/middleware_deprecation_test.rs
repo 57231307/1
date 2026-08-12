@@ -1,6 +1,7 @@
-    use bingxi_backend::middleware::deprecation::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::middleware::deprecation::*;
+
 
     #[test]
     fn test_deprecation_middleware_exists() {

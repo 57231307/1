@@ -1,7 +1,8 @@
-    use bingxi_backend::models::export_approval_request::*;
-    use bingxi_backend::services::bulk_color_approval_service::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::models::export_approval_request::*;
+    use bingxi_backend::services::bulk_color_approval_service::*;
+
 
     /// 测试风险等级评估
     #[test]

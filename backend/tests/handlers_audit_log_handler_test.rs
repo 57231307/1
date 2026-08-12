@@ -1,6 +1,7 @@
-    use bingxi_backend::handlers::audit_log_handler::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::handlers::audit_log_handler::*;
+
 
     /// AuditLogListQuery 默认值：所有可选字段为 None
     #[test]

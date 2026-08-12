@@ -1,6 +1,7 @@
-    use bingxi_backend::utils::docx_export::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::utils::docx_export::*;
+
 
     #[test]
     fn test_docx_gj_jbbg() {

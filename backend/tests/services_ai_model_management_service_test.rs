@@ -1,6 +1,7 @@
-    use bingxi_backend::services::ai_model_management_service::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::services::ai_model_management_service::*;
+
 
     #[test]
     fn test_validate_model_status_valid() {

@@ -1,6 +1,7 @@
-    use bingxi_backend::routes::r#static::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::routes::r#static::*;
+
 
     /// 测试合法路径：通过
     #[test]

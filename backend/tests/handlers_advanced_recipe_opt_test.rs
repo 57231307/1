@@ -1,6 +1,7 @@
-    use bingxi_backend::handlers::advanced::recipe_opt::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::handlers::advanced::recipe_opt::*;
+
 
     /// 校验：请求体结构正确构造
     #[test]

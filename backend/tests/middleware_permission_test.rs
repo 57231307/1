@@ -1,9 +1,10 @@
-    use bingxi_backend::middleware::permission::*;
+#[cfg(test)]
+mod tests {
+use bingxi_backend::middleware::permission::*;
     use bingxi_backend::models::financial_analysis_result::*;
     use bingxi_backend::services::auth::password_policy_service::*;
     use bingxi_backend::services::report::*;
-#[cfg(test)]
-mod tests {
+
 
     /// 构造测试用权限模型
     fn make_permission(

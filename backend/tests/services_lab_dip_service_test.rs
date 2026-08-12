@@ -1,6 +1,7 @@
-    use bingxi_backend::models::status::quality_dyeing::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::models::status::quality_dyeing::*;
+
 
     /// 测试版本标识生成：1→A, 2→B, 3→C, 4→D
     #[test]

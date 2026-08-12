@@ -1,6 +1,7 @@
-    use bingxi_backend::cli::util::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::cli::util::*;
+
 
     /// M8 测试：get_env_file_path 默认返回 /etc/bingxi/.env
     #[test]

@@ -1,6 +1,7 @@
-    use bingxi_backend::observability::trace_context::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::observability::trace_context::*;
+
 
     #[test]
     fn test_new_root() {

@@ -1,6 +1,7 @@
-    use bingxi_backend::telemetry::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::telemetry::*;
+
 
     #[test]
     fn test_service_metadata() {

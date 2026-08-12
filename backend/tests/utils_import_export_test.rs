@@ -1,7 +1,8 @@
-    use bingxi_backend::utils::error::*;
-    use bingxi_backend::utils::import_export::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::utils::error::*;
+    use bingxi_backend::utils::import_export::*;
+
 
     /// 测试用 CSV 生成函数
     fn generate_csv(

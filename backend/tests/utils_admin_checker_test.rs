@@ -1,7 +1,8 @@
-    use bingxi_backend::services::auth::password_policy_service::*;
-    use bingxi_backend::utils::admin_checker::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::services::auth::password_policy_service::*;
+    use bingxi_backend::utils::admin_checker::*;
+
 
     #[test]
     fn test_cache_entry_expiration() {

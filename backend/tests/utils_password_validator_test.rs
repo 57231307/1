@@ -1,6 +1,7 @@
-    use bingxi_backend::utils::password_validator::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::utils::password_validator::*;
+
 
     #[test]
     fn test_strong_password() {

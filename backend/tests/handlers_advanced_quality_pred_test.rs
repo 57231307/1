@@ -1,6 +1,7 @@
-    use bingxi_backend::services::ai::quality_pred::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::services::ai::quality_pred::*;
+
 
     /// 测试：请求体结构正确构造
     #[test]

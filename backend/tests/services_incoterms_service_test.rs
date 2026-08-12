@@ -1,6 +1,7 @@
-    use bingxi_backend::utils::incoterms::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::utils::incoterms::*;
+
 
     #[test]
     fn test_calculate_costs_exw_no_freight() {

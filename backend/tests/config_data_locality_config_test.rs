@@ -1,6 +1,7 @@
-    use bingxi_backend::config::data_locality_config::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::config::data_locality_config::*;
+
 
     #[test]
     fn test_ip_cidr_contains() {

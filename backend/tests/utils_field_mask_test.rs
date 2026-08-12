@@ -1,6 +1,7 @@
-    use bingxi_backend::utils::field_mask::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::utils::field_mask::*;
+
 
     #[test]
     fn test_mask_phone_normal() {

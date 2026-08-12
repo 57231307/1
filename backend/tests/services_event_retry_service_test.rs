@@ -1,6 +1,7 @@
-    use bingxi_backend::services::event_retry_service::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::services::event_retry_service::*;
+
 
     #[test]
     fn 测试指数退避延迟计算() {

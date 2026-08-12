@@ -1,6 +1,7 @@
-    use bingxi_backend::services::system_update_service::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::services::system_update_service::*;
+
 
     /// M8 测试：validate_download_url 合法 GitHub URL 通过
     #[test]

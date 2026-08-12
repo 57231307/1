@@ -1,6 +1,7 @@
-    use bingxi_backend::services::init_service::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::services::init_service::*;
+
 
     #[test]
     fn to_connection_string_preserves_ip_host() {

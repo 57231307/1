@@ -1,6 +1,7 @@
-    use bingxi_backend::middleware::public_routes::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::middleware::public_routes::*;
+
 
     #[test]
     fn test_health_paths_public() {

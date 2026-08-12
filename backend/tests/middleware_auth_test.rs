@@ -1,6 +1,7 @@
-    use bingxi_backend::middleware::auth::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::middleware::auth::*;
+
 
     /// 低危 #4 修复：测试 Authorization 头脱敏（正常长度）
     #[test]

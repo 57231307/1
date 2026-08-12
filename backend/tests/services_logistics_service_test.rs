@@ -1,6 +1,7 @@
-    use bingxi_backend::services::logistics_service::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::services::logistics_service::*;
+
 
     #[test]
     fn test_freight_max_calculation() {

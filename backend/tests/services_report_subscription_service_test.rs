@@ -1,6 +1,7 @@
-    use bingxi_backend::services::report_subscription_service::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::services::report_subscription_service::*;
+
 
     // ========== 缺陷 2.2 补充：订阅权限校验 — 邮箱格式校验测试 ==========
 

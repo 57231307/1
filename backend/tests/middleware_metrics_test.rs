@@ -1,6 +1,7 @@
-    use bingxi_backend::middleware::metrics::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::middleware::metrics::*;
+
 
     #[test]
     fn test_truncate_route_short() {

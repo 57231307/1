@@ -1,6 +1,7 @@
-    use bingxi_backend::models::status::quality_dyeing::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::models::status::quality_dyeing::*;
+
 
     /// 测试流转卡号生成格式
     #[test]

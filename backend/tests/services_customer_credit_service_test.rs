@@ -1,6 +1,7 @@
-    use bingxi_backend::services::customer_credit_service::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::services::customer_credit_service::*;
+
 
     // ========== clamp_page 纯函数测试 ==========
 

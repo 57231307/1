@@ -1,6 +1,7 @@
-    use bingxi_backend::handlers::slow_query_handler::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::handlers::slow_query_handler::*;
+
 
     /// 列表查询参数默认值
     #[test]

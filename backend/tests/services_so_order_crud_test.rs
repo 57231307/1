@@ -1,6 +1,7 @@
-    use bingxi_backend::services::so::order_crud::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::services::so::order_crud::*;
+
 
     #[test]
     fn test_crud_module_loaded() {

@@ -1,6 +1,7 @@
-    use bingxi_backend::services::period_adjustment_service::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::services::period_adjustment_service::*;
+
 
     /// 测试配方编号自动生成格式
     #[test]

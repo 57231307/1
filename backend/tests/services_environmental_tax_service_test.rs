@@ -1,6 +1,7 @@
-    use bingxi_backend::services::environmental_tax_service::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::services::environmental_tax_service::*;
+
 
     #[test]
     fn test_calculate_tax_cod() {

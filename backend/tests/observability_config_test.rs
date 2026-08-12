@@ -1,6 +1,7 @@
-    use bingxi_backend::observability::config::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::observability::config::*;
+
 
     #[test]
     fn test_default_config() {

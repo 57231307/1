@@ -1,6 +1,7 @@
-    use bingxi_backend::services::failover_service::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::services::failover_service::*;
+
 
     #[test]
     fn test_metrics_creation() {

@@ -1,6 +1,7 @@
-    use bingxi_backend::handlers::auth_handler::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::handlers::auth_handler::*;
+
 
     /// 构造测试用的 LoginResponse 实例
     fn build_test_login_response() -> LoginResponse {

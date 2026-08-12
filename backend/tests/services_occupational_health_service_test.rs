@@ -1,6 +1,7 @@
-    use bingxi_backend::services::occupational_health_service::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::services::occupational_health_service::*;
+
 
     #[test]
     fn test_check_exceedance_normal() {

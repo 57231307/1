@@ -1,5 +1,7 @@
 #[cfg(test)]
 mod tests {
+    use bingxi_backend::services::cache_service::CacheService;
+    use std::time::Duration;
 
     #[tokio::test]
     async fn test_cache_set_get() {

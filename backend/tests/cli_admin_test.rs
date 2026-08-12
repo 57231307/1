@@ -1,6 +1,7 @@
-    use bingxi_backend::cli::admin::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::cli::admin::*;
+
 
     /// H-2 测试（v9 复审）：未提供密码时返回错误
     #[test]

@@ -1,6 +1,7 @@
-    use bingxi_backend::services::business_mode_service::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::services::business_mode_service::*;
+
 
     #[test]
     fn 测试校验业务模式代码_合法() {

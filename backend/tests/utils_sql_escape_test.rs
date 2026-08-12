@@ -1,6 +1,7 @@
-    use bingxi_backend::utils::sql_escape::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::utils::sql_escape::*;
+
 
     #[test]
     fn test_escape_like_pattern() {

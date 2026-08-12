@@ -1,6 +1,7 @@
-    use bingxi_backend::services::stock_alert_notification_scheduler::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::services::stock_alert_notification_scheduler::*;
+
 
     #[test]
     fn test_alert_desc() {

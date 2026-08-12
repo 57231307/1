@@ -5,6 +5,7 @@
 
 #[cfg(test)]
 mod tests {
+    use bingxi_backend::services::custom_order_aftersales_service::*;
     /// 售后类型枚举
     #[derive(Debug, PartialEq)]
     pub enum AfterSalesType {

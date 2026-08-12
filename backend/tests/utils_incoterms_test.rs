@@ -1,10 +1,11 @@
-    use bingxi_backend::services::data_permission_service::*;
+#[cfg(test)]
+mod tests {
+use bingxi_backend::services::data_permission_service::*;
     use bingxi_backend::services::quotation_pricing_service::*;
     use bingxi_backend::services::sensitive_action_alert::*;
     use bingxi_backend::services::stock_alert::*;
     use bingxi_backend::utils::incoterms::*;
-#[cfg(test)]
-mod tests {
+
 
     #[test]
     fn test_from_code_uppercase() {

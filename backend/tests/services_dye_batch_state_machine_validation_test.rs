@@ -1,6 +1,7 @@
-    use bingxi_backend::services::dye_batch_state_machine_validation::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::services::dye_batch_state_machine_validation::*;
+
 
     // ===== 校验纯函数测试 =====
 

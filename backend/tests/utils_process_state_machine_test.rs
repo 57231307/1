@@ -1,7 +1,8 @@
-    use bingxi_backend::services::color_card_issue_service::*;
-    use bingxi_backend::utils::process_state_machine::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::services::color_card_issue_service::*;
+    use bingxi_backend::utils::process_state_machine::*;
+
 
     #[test]
     fn test_next_status_normal_progression() {

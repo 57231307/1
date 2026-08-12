@@ -1,6 +1,7 @@
-    use bingxi_backend::utils::di_container::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::utils::di_container::*;
+
 
     struct TestService {
         pub value: String,

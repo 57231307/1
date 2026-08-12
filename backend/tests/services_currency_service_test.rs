@@ -1,6 +1,7 @@
-    use bingxi_backend::services::currency_service::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::services::currency_service::*;
+
 
     /// M8 测试：合法币种码应通过校验
     #[test]

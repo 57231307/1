@@ -1,8 +1,9 @@
-    use bingxi_backend::container::*;
-    use bingxi_backend::services::business_metrics::*;
-    use bingxi_backend::services::metrics_service::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::container::*;
+    use bingxi_backend::services::business_metrics::*;
+    use bingxi_backend::services::metrics_service::*;
+
 
     // P9-1: 测试夹具 helper，封装 MetricsService 的常见初始化模式
     fn test_metrics_service() -> MetricsService {

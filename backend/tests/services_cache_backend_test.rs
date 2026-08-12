@@ -1,6 +1,7 @@
-    use bingxi_backend::services::cache_backend::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::services::cache_backend::*;
+
 
     #[tokio::test]
     async fn test_memory_backend_set_get() {

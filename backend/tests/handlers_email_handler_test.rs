@@ -1,6 +1,7 @@
-    use bingxi_backend::handlers::email_handler::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::handlers::email_handler::*;
+
 
     #[test]
     fn 测试渲染模板_基本替换() {

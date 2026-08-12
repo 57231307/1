@@ -1,7 +1,8 @@
-    use bingxi_backend::models::notification::*;
-    use bingxi_backend::services::event_notification_service::*;
 #[cfg(test)]
 mod tests {
+use bingxi_backend::models::notification::*;
+    use bingxi_backend::services::event_notification_service::*;
+
 
     // ========== build_inventory_alert_notification 字段完整性测试 ==========
 
