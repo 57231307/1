@@ -36,17 +36,6 @@ pub enum SchedulingAlgo {
     Edd,
 }
 
-impl SchedulingAlgo {
-    pub fn desc(&self) -> &'static str {
-        match self {
-            Self::Fifo => "先进先出",
-            Self::Priority => "优先级优先",
-            Self::Spt => "最短加工时间",
-            Self::Edd => "最早交货期",
-        }
-    }
-}
-
 impl SchedulingService {
     // auto_schedule / detect_conflicts / save_schedule_result
     // 内容来自原 scheduling_service.rs L186-386 + L446-530 + L795-861

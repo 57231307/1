@@ -27,19 +27,6 @@ pub enum AdjustType {
     Unlock,
 }
 
-impl AdjustType {
-    pub fn desc(&self) -> &'static str {
-        match self {
-            Self::MoveUp => "上移",
-            Self::MoveDown => "下移",
-            Self::MoveTop => "置顶",
-            Self::MoveBottom => "置底",
-            Self::Lock => "锁定",
-            Self::Unlock => "解锁",
-        }
-    }
-}
-
 impl SchedulingService {
     // adjust_schedule
     // 内容来自原 scheduling_service.rs L531-582

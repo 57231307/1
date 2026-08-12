@@ -77,16 +77,6 @@ pub enum ContractExpiryLevel {
 }
 
 impl ContractExpiryLevel {
-    pub fn desc(&self) -> &'static str {
-        match self {
-            Self::Normal => "正常",
-            Self::Warning90Days => "90天到期预警",
-            Self::Warning60Days => "60天到期预警",
-            Self::Warning30Days => "30天到期预警",
-            Self::Expired => "已过期",
-        }
-    }
-
     pub fn needs_warning(&self) -> bool {
         !matches!(self, Self::Normal)
     }

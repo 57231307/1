@@ -38,18 +38,6 @@ pub enum AlertType {
 }
 
 impl AlertType {
-    /// 中文描述
-    pub fn desc(&self) -> &'static str {
-        match self {
-            Self::OutOfStock => "缺货",
-            Self::LowStock => "低于下限",
-            Self::OverStock => "高于上限",
-            Self::Expiring => "即将过期",
-            Self::SlowMoving => "滞销",
-            Self::Discrepancy => "盘点差异",
-        }
-    }
-
     /// 返回前端约定的稳定字符串代码（批次 126 v8 复审 P2 修复：供 inventory_stock_query.compute_alert_type 使用，；作为 alert_type 字段值返回给前端。）
     pub fn code(&self) -> &'static str {
         match self {
