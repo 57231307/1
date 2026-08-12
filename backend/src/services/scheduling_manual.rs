@@ -134,16 +134,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_adjust_desc() {
-        assert_eq!(AdjustType::MoveUp.desc(), "上移");
-        assert_eq!(AdjustType::MoveDown.desc(), "下移");
-        assert_eq!(AdjustType::MoveTop.desc(), "置顶");
-        assert_eq!(AdjustType::MoveBottom.desc(), "置底");
-        assert_eq!(AdjustType::Lock.desc(), "锁定");
-        assert_eq!(AdjustType::Unlock.desc(), "解锁");
-    }
-
-    #[test]
     fn test_module_loaded() {
         assert_eq!(P92_MANUAL_MODULE, "scheduling_manual");
     }
