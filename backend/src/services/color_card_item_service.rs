@@ -54,10 +54,6 @@ pub struct ColorCardItemService {
 }
 
 impl ColorCardItemService {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
-    }
-
     pub fn from_state(state: &AppState) -> Self {
         Self {
             db: state.db.clone(),

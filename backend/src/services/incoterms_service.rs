@@ -61,10 +61,6 @@ pub struct IncotermsService {
 }
 
 impl IncotermsService {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
-    }
-
     pub fn from_state(state: &AppState) -> Self {
         Self {
             db: state.db.clone(),

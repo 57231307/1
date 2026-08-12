@@ -46,11 +46,6 @@ pub struct ColorPriceCrudService {
 }
 
 impl ColorPriceCrudService {
-    /// 从数据库连接构造
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
-    }
-
     /// 从 AppState 构造
     pub fn from_state(state: &crate::container::AppState) -> Self {
         Self {

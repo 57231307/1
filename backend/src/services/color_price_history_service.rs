@@ -29,10 +29,6 @@ pub struct ColorPriceHistoryService {
 }
 
 impl ColorPriceHistoryService {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
-    }
-
     pub fn from_state(state: &crate::container::AppState) -> Self {
         Self {
             db: state.db.clone(),
