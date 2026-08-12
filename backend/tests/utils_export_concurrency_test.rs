@@ -1,6 +1,7 @@
-    use bingxi_backend::utils::export_concurrency::*;
 #[cfg(test)]
 mod tests {
+    use bingxi_backend::utils::export_concurrency::*;
+    use std::sync::atomic::Ordering;
 
     /// 测试守卫获取后计数器递增，Drop 后递减
     #[test]
