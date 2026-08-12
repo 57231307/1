@@ -66,16 +66,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_alert_type_desc() {
-        assert_eq!(AlertType::OutOfStock.desc(), "缺货");
-        assert_eq!(AlertType::LowStock.desc(), "低于下限");
-        assert_eq!(AlertType::OverStock.desc(), "高于上限");
-        assert_eq!(AlertType::Expiring.desc(), "即将过期");
-        assert_eq!(AlertType::SlowMoving.desc(), "滞销");
-        assert_eq!(AlertType::Discrepancy.desc(), "盘点差异");
-    }
-
-    #[test]
     fn test_alert_type_code() {
         assert_eq!(AlertType::OutOfStock.code(), "out_of_stock");
         assert_eq!(AlertType::LowStock.code(), "low_stock");

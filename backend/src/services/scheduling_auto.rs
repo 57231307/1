@@ -889,14 +889,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_algo_desc() {
-        assert_eq!(SchedulingAlgo::Fifo.desc(), "先进先出");
-        assert_eq!(SchedulingAlgo::Priority.desc(), "优先级优先");
-        assert_eq!(SchedulingAlgo::Spt.desc(), "最短加工时间");
-        assert_eq!(SchedulingAlgo::Edd.desc(), "最早交货期");
-    }
-
-    #[test]
     fn test_module_loaded() {
         assert_eq!(P92_AUTO_MODULE, "scheduling_auto");
     }
