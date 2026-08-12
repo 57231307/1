@@ -690,6 +690,10 @@ fn ap_payment_routes() -> Router<AppState> {
             "/ap/payments/:id/print",
             get(print_handler::ap_payment_print_docx),
         )
+        .route(
+            "/ap/payments/schedule",
+            get(ap_payment_handler::get_payment_schedule),
+        )
 }
 
 /// AP 付款申请路由（path 前缀 /ap/payment-requests）
