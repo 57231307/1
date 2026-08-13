@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-use bingxi_backend::models::status::quality_dyeing::*;
+use bingxi_backend::services::flow_card_service::{FlowCardService, QualityFeedbackService};
 
 
     /// 测试流转卡号生成格式
