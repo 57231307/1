@@ -175,7 +175,7 @@ pub fn validate_url_and_resolve(
 }
 
 /// 检查主机名是否在黑名单（不需要 DNS 解析的明显内网主机名）
-fn is_blocked_hostname(host: &str) -> bool {
+pub fn is_blocked_hostname(host: &str) -> bool {
     let host_lower = host.to_lowercase();
     // 精确匹配
     if matches!(
@@ -195,14 +195,14 @@ fn is_blocked_hostname(host: &str) -> bool {
 }
 
 /// 检查 IP 是否在被禁止范围
-fn is_blocked_ip(ip: &IpAddr) -> bool {
+pub fn is_blocked_ip(ip: &IpAddr) -> bool {
     match ip {
         IpAddr::V4(v4) => is_blocked_ipv4(v4),
         IpAddr::V6(v6) => is_blocked_ipv6(v6),
     }
 }
 
-fn is_blocked_ipv4(ip: &Ipv4Addr) -> bool {
+pub fn is_blocked_ipv4(ip: &Ipv4Addr) -> bool {
     // 未指定地址 0.0.0.0
     if ip.is_unspecified() {
         return true;
@@ -246,7 +246,7 @@ fn is_blocked_ipv4(ip: &Ipv4Addr) -> bool {
     false
 }
 
-fn is_blocked_ipv6(ip: &Ipv6Addr) -> bool {
+pub fn is_blocked_ipv6(ip: &Ipv6Addr) -> bool {
     // 未指定地址 ::
     if ip.is_unspecified() {
         return true;

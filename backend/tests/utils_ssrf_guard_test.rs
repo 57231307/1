@@ -1,4 +1,4 @@
-use bingxi_backend::middleware::ip_blocker::is_blocked_ip;
+use bingxi_backend::utils::ssrf_guard::is_blocked_ip;
 use bingxi_backend::utils::ssrf_guard::*;
 use std::net::IpAddr;
 use std::net::{Ipv4Addr, Ipv6Addr};
