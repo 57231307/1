@@ -6,7 +6,7 @@ mod tests {
     use std::collections::HashMap;
     // P9-1: 引入 decs! 宏统一测试夹具
     // 批次 343 v11 复审 P3 修复：移除 #[allow(unused_imports)]，decs! 宏已被广泛使用
-    use bingxi_backend::decs;
+    use bingxi_backend::utils::unwrap_safe::decs;
 
     /* 采购订单状态 */
     #[derive(Debug, Clone, PartialEq)]

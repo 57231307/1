@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use bingxi_backend::decs;
+    use bingxi_backend::utils::unwrap_safe::decs;
     use bingxi_backend::services::quality_inspection_service::{
         determine_quality_grade, grade_a_threshold, grade_b_threshold,
         validate_handling_method_by_grade, HANDLING_DOWNGRADE_SALE, HANDLING_REWORK,

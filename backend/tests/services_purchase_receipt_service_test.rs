@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use bingxi_backend::decs;
+    use bingxi_backend::utils::unwrap_safe::decs;
     use bingxi_backend::services::purchase_receipt_dto::{
         UpdatePurchaseReceiptRequest, UpdateReceiptItemRequest,
     };

@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use bingxi_backend::decs;
+    use bingxi_backend::models::inventory_stock;
+    use bingxi_backend::utils::unwrap_safe::decs;
     use bingxi_backend::ymd;
     use chrono::Utc;
     use rust_decimal::Decimal;

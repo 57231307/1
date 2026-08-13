@@ -2,6 +2,7 @@
 
 #[cfg(test)]
 mod tests {
+    use bingxi_backend::utils::unwrap_safe::decs;
     use rust_decimal::Decimal;
     use std::str::FromStr;
 

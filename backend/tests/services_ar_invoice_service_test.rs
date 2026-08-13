@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use bingxi_backend::decs;
+    use bingxi_backend::utils::unwrap_safe::decs;
     use bingxi_backend::models::status::payment::{PAYMENT_PAID, PAYMENT_PARTIAL_PAID};
     use rust_decimal::Decimal;
 

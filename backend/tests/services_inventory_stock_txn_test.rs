@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     // 引入 decs! 测试夹具宏，用于从字符串解析 Decimal
-    use bingxi_backend::decs;
+    use bingxi_backend::utils::unwrap_safe::decs;
 
     // ========== RecordTransactionArgs 构造测试 ==========
 

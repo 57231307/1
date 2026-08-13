@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use bingxi_backend::decs;
+    use bingxi_backend::utils::unwrap_safe::decs;
     use bingxi_backend::models::quotation_create_dto::{CreateQuotationDto, CreateQuotationItemDto};
     use bingxi_backend::models::quotation_update_dto::UpdateQuotationDto;
     use bingxi_backend::models::status::quotation as quotation_status;

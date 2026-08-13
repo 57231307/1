@@ -1,5 +1,6 @@
 #[cfg(test)]
 mod tests {
+    use bingxi_backend::utils::unwrap_safe::decs;
     use bingxi_backend::handlers::inventory_stock_handler_dto::CreateStockFabricRequest;
 
     #[test]
