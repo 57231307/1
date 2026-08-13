@@ -10,6 +10,7 @@ mod tests {
     //! - ArService 实例化
 
     use bingxi_backend::models::status;
+    use bingxi_backend::services::ar_service::ArService;
     use rust_decimal::Decimal;
     use sea_orm::Database;
 
