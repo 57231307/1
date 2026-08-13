@@ -27,7 +27,7 @@ mod tests {
             updated_at: Utc::now(),
             audit_by: None,
             audit_at: None,
-            remark: Some("测试备注".to_string()),
+            notes: Some("测试备注".to_string()),
             attachment_count: Some(0),
         }
     }

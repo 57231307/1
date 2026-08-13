@@ -152,7 +152,7 @@ pub(crate) const MIN_HISTORY_RECORDS: i64 = 5;
 /// 退化路径默认合格率（百分比）
 pub(crate) const FALLBACK_QUALIFICATION_RATE: f64 = 95.0;
 /// 退化路径默认置信度
-pub(crate) const FALLBACK_CONFIDENCE: f64 = 0.3;
+pub const FALLBACK_CONFIDENCE: f64 = 0.3;
 /// 风险等级阈值（≥ 高 / < 高 且 ≥ 中 / < 中）
 pub(crate) const RISK_LEVEL_HIGH: f64 = 60.0;
 pub(crate) const RISK_LEVEL_MEDIUM: f64 = 30.0;
@@ -172,7 +172,7 @@ const ISSUE_KEYWORDS: &[(&str, &[&str])] = &[
 ];
 
 /// 从 `remark` 文本中匹配问题类型关键词（返回匹配到的归因类别（"颜色差异"/"色牢度"/"克重偏差"/"纬密偏差"/"强度不足"/"其他"）。）
-pub(crate) fn extract_issue_keyword(remark: Option<&str>) -> String {
+pub fn extract_issue_keyword(remark: Option<&str>) -> String {
     let text = match remark {
         Some(t) => t,
         None => return "其他".to_string(),
@@ -189,7 +189,7 @@ pub(crate) fn extract_issue_keyword(remark: Option<&str>) -> String {
 
 /// 风险评分计算
 /// 公式：`risk = (100 - avg_rate) * 0.6 + trend_down * 0.4`；`avg_rate`      当前平均合格率（百分比 0-100）；`trend_is_down` 是否处于下降趋势；输出 0-100，越高越危险。
-pub(crate) fn compute_risk_score(avg_rate: f64, trend_is_down: bool) -> f64 {
+pub fn compute_risk_score(avg_rate: f64, trend_is_down: bool) -> f64 {
     let rate_part = ((100.0 - avg_rate).max(0.0) * RISK_WEIGHT_RATE).min(60.0);
     let trend_part = if trend_is_down {
         TREND_DOWN_PENALTY * RISK_WEIGHT_TREND
@@ -200,7 +200,7 @@ pub(crate) fn compute_risk_score(avg_rate: f64, trend_is_down: bool) -> f64 {
 }
 
 /// 风险等级分类（`score >= 60`        → "高"；`30 <= score < 60`   → "中"；`score < 30`         → "低"）
-pub(crate) fn classify_risk_level(score: f64) -> String {
+pub fn classify_risk_level(score: f64) -> String {
     if score >= RISK_LEVEL_HIGH {
         "高".to_string()
     } else if score >= RISK_LEVEL_MEDIUM {
@@ -211,7 +211,7 @@ pub(crate) fn classify_risk_level(score: f64) -> String {
 }
 
 /// 趋势判定（基于变化率）（`rate >  5%`  → "上升"；`rate < -5%`  → "下降"；其他          → "平稳"）
-pub(crate) fn classify_trend(rate: f64) -> String {
+pub fn classify_trend(rate: f64) -> String {
     if rate > TREND_THRESHOLD {
         "上升".to_string()
     } else if rate < -TREND_THRESHOLD {
@@ -223,7 +223,7 @@ pub(crate) fn classify_trend(rate: f64) -> String {
 
 /// 趋势变化率计算
 /// `recent` / `previous` 分别是最近 30 天 / 之前 30 天的平均合格率（百分比）。；返回 `(recent - previous) / previous`（previous=0 时返回 0.0 兜底）。
-pub(crate) fn compute_trend_rate(recent: f64, previous: f64) -> f64 {
+pub fn compute_trend_rate(recent: f64, previous: f64) -> f64 {
     if previous.abs() < 0.0001 {
         return 0.0;
     }
@@ -231,7 +231,7 @@ pub(crate) fn compute_trend_rate(recent: f64, previous: f64) -> f64 {
 }
 
 /// 置信度计算（公式：`min(sample_count / CONFIDENCE_FULL_SAMPLE, 1.0)`，四舍五入到 0.01。；退化路径由调用方传入固定 0.3。）
-pub(crate) fn compute_confidence(sample_count: i64) -> f64 {
+pub fn compute_confidence(sample_count: i64) -> f64 {
     if sample_count <= 0 {
         return FALLBACK_CONFIDENCE;
     }
@@ -264,7 +264,7 @@ fn build_explanation(
 }
 
 /// 风险等级 → 建议措施（严格按等级分档生成 1-3 条建议，确保 UI 列表非空。）
-pub(crate) fn build_recommendations(level: &str) -> Vec<String> {
+pub fn build_recommendations(level: &str) -> Vec<String> {
     match level {
         "高" => vec![
             "立即启动专项整改，召集工艺/质量/生产三方联合复盘".to_string(),
@@ -284,7 +284,7 @@ pub(crate) fn build_recommendations(level: &str) -> Vec<String> {
 }
 
 /// 计算给定一组记录的平均合格率（优先使用记录自身的 `qualification_rate`（百分比 0-100）；缺失时回退到 `qualified_qty / inspected_qty`。；返回百分比 0-100。）
-pub(crate) fn mean_qualification_rate(records: &[QualityInspectionModel]) -> f64 {
+pub fn mean_qualification_rate(records: &[QualityInspectionModel]) -> f64 {
     if records.is_empty() {
         return 0.0;
     }

@@ -33,7 +33,7 @@ mod tests {
             status: Some("active".to_string()),
             level: Some("A".to_string()),
             tags: None,
-            remark: Some("测试备注".to_string()),
+            notes: Some("测试备注".to_string()),
             created_by: Some(1),
             created_at: Utc::now(),
             updated_at: Utc::now(),

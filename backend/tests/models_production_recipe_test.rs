@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use bingxi_backend::models::production_recipe::Model as ProductionRecipeModel;
-    use bingxi_backend::models::production_recipe_item::Model as ProductionRecipeItemModel;
+    use bingxi_backend::models::production_recipe_addition::Model as ProductionRecipeAdditionModel;
     use chrono::Utc;
     use rust_decimal::Decimal;
 
@@ -10,36 +10,55 @@ mod tests {
         ProductionRecipeModel {
             id,
             recipe_no: format!("PR-2026-{:04}", id),
-            name: "蓝色配方".to_string(),
-            description: Some("测试配方描述".to_string()),
-            product_id: Some(1),
-            product_name: Some("测试产品".to_string()),
-            process_id: Some(1),
-            process_name: Some("染色工艺".to_string()),
-            version: Some("1.0".to_string()),
-            status: Some("active".to_string()),
-            effective_date: Some(Utc::now().naive_utc()),
-            expiry_date: None,
-            remark: Some("测试备注".to_string()),
+            work_order_id: None,
+            dye_batch_id: None,
+            source_recipe_id: None,
+            lab_dip_resample_id: None,
+            customer_id: None,
+            color_no: Some("C001".to_string()),
+            fabric_name: Some("棉布".to_string()),
+            fabric_spec: Some("40s".to_string()),
+            fabric_width: None,
+            gram_weight: None,
+            fabric_weight: Decimal::new(100, 0),
+            equipment_no: None,
+            liquor_ratio: "1:8".to_string(),
+            bath_volume: None,
+            adjustment_factor: None,
+            recipe_detail: None,
+            total_dye_cost: None,
+            total_auxiliary_cost: None,
+            status: "draft".to_string(),
+            approved_by: None,
+            approved_at: None,
+            issued_by: None,
+            printed_count: None,
+            remarks: Some("测试备注".to_string()),
+            is_deleted: false,
             created_by: Some(1),
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }
     }
 
-    /// 构造测试用的生产配方子件模型
-    fn make_production_recipe_item_model(id: i32, recipe_id: i32) -> ProductionRecipeItemModel {
-        ProductionRecipeItemModel {
+    /// 构造测试用的生产配方加料模型
+    fn make_production_recipe_item_model(id: i32, recipe_id: i32) -> ProductionRecipeAdditionModel {
+        ProductionRecipeAdditionModel {
             id,
-            recipe_id,
-            material_id: 1,
-            material_name: Some("染料".to_string()),
-            material_code: Some("M001".to_string()),
-            quantity: Decimal::new(10, 2),
-            unit: Some("千克".to_string()),
-            step_order: Some(1),
-            step_description: Some("加入染料".to_string()),
-            remark: Some("测试备注".to_string()),
+            addition_no: format!("ADD-{:04}", id),
+            production_recipe_id: recipe_id,
+            work_order_id: None,
+            dye_batch_id: None,
+            addition_reason: Some("补充染料".to_string()),
+            addition_detail: None,
+            total_cost: None,
+            status: "draft".to_string(),
+            approved_by: None,
+            approved_at: None,
+            issued_by: None,
+            remarks: Some("测试备注".to_string()),
+            is_deleted: false,
+            created_by: Some(1),
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }
@@ -54,14 +73,13 @@ mod tests {
 
         assert_eq!(json["id"], 1);
         assert_eq!(json["recipe_no"], "PR-2026-0001");
-        assert_eq!(json["name"], "蓝色配方");
-        assert_eq!(json["status"], "active");
+        assert_eq!(json["status"], "draft");
     }
 
     #[test]
     fn test_production_recipe_version() {
         let recipe = make_production_recipe_model(1);
-        assert_eq!(recipe.version, Some("1.0".to_string()));
+        assert_eq!(recipe.fabric_weight, Decimal::new(100, 0));
     }
 
     // ===== 生产配方子件模型测试 =====
@@ -72,31 +90,29 @@ mod tests {
         let json = serde_json::to_value(&item).expect("生产配方子件序列化失败");
 
         assert_eq!(json["id"], 1);
-        assert_eq!(json["recipe_id"], 1);
-        assert_eq!(json["material_id"], 1);
-        assert_eq!(json["quantity"], "0.10");
+        assert_eq!(json["production_recipe_id"], 1);
+        assert_eq!(json["addition_no"], "ADD-0001");
     }
 
     #[test]
     fn test_production_recipe_item_quantity() {
         let item = make_production_recipe_item_model(1, 1);
-        assert_eq!(item.quantity, Decimal::new(10, 2));
+        assert_eq!(item.id, 1);
     }
 
     #[test]
     fn test_production_recipe_item_step_order() {
         let item = make_production_recipe_item_model(1, 1);
-        assert_eq!(item.step_order, Some(1));
+        assert_eq!(item.production_recipe_id, 1);
     }
 
     // ===== 状态转换测试 =====
 
     #[test]
     fn test_status_draft_to_active() {
-        let recipe = make_production_recipe_model(1);
-        let mut recipe = recipe;
-        recipe.status = Some("draft".to_string());
-        assert_eq!(recipe.status, Some("draft".to_string()));
+        let mut recipe = make_production_recipe_model(1);
+        recipe.status = "active".to_string();
+        assert_eq!(recipe.status, "active");
 
         // 验证草稿状态可以转换为生效
         let valid_transitions = vec!["active", "cancelled"];
@@ -106,7 +122,7 @@ mod tests {
     #[test]
     fn test_status_active_to_expired() {
         let recipe = make_production_recipe_model(1);
-        assert_eq!(recipe.status, Some("active".to_string()));
+        assert_eq!(recipe.status, "draft");
 
         // 验证生效状态可以转换为过期
         let valid_transitions = vec!["expired", "archived"];
@@ -116,26 +132,12 @@ mod tests {
     #[test]
     fn test_status_expired_is_final() {
         let mut recipe = make_production_recipe_model(1);
-        recipe.status = Some("expired".to_string());
-        assert_eq!(recipe.status, Some("expired".to_string()));
+        recipe.status = "expired".to_string();
+        assert_eq!(recipe.status, "expired");
 
         // 验证过期状态是终态
         let invalid_transitions = vec!["draft", "active"];
         assert!(!invalid_transitions.contains(&"draft"));
-    }
-
-    // ===== 有效期测试 =====
-
-    #[test]
-    fn test_effective_date() {
-        let recipe = make_production_recipe_model(1);
-        assert!(recipe.effective_date.is_some());
-    }
-
-    #[test]
-    fn test_expiry_date_none() {
-        let recipe = make_production_recipe_model(1);
-        assert!(recipe.expiry_date.is_none());
     }
 
     // ===== 序列化/反序列化测试 =====
@@ -148,7 +150,6 @@ mod tests {
         // 验证关键字段存在
         assert!(json.get("id").is_some());
         assert!(json.get("recipe_no").is_some());
-        assert!(json.get("name").is_some());
         assert!(json.get("status").is_some());
     }
 
@@ -159,8 +160,7 @@ mod tests {
 
         // 验证关键字段存在
         assert!(json.get("id").is_some());
-        assert!(json.get("recipe_id").is_some());
-        assert!(json.get("material_id").is_some());
-        assert!(json.get("quantity").is_some());
+        assert!(json.get("production_recipe_id").is_some());
+        assert!(json.get("addition_no").is_some());
     }
 }

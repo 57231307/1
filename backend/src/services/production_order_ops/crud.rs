@@ -110,7 +110,7 @@ impl ProductionOrderService {
     }
 
     /// 验证状态转换是否合法（`pub(crate)` 可见性：测试模块（facade）与 approval 子模块跨 impl 块调用。）
-    pub(crate) fn validate_status_transition(
+    pub fn validate_status_transition(
         current_status: &str,
         new_status: &str,
     ) -> Result<(), AppError> {

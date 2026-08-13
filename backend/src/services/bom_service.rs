@@ -129,7 +129,7 @@ impl BomService {
 
     /// 构建 BOM 明细 ActiveModel 列表（批量插入用）
     /// 纯函数（无 `&self`）：按 `CreateBomItemRequest` 列表构造 `BomItemActiveModel` 列表，；sort_order 缺省时取索引下标。供 `bom_ops::crud` 的 create 调用。
-    pub(crate) fn build_bom_item_models(
+    pub fn build_bom_item_models(
         bom_id: i32,
         items: &[CreateBomItemRequest],
     ) -> Vec<BomItemActiveModel> {
@@ -152,7 +152,7 @@ impl BomService {
 
     /// 构建叶子节点 BomTreeNode
     /// 纯函数（无 `&self`）：由 BOM 明细行构造无子节点的 `BomTreeNode`，；供 `bom_ops::tree` 的 get_bom_tree 在子物料无默认 BOM 时调用。
-    pub(crate) fn build_leaf_bom_node(item: &BomItemModel) -> BomTreeNode {
+    pub fn build_leaf_bom_node(item: &BomItemModel) -> BomTreeNode {
         BomTreeNode {
             id: format!("item-{}", item.id),
             product_id: item.material_id,

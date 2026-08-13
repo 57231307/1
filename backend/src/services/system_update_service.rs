@@ -151,7 +151,7 @@ impl Default for SystemUpdateService {
 
 /// 解析语义版本号字符串为数字数组
 /// 批次 322 v9 复审低危修复：抽取 `compare_versions` 和 `compare_versions_for_sort`；中重复的版本号解析逻辑为共享函数，遵循 DRY 原则。；`pub(crate)`：github 子模块的 `compare_versions` / `compare_versions_for_sort` 调用。；# 示例；"1.2.3" → [1, 2, 3]；"2.0" → [2, 0]；"1.0.0-beta" → [1, 0, 0]（非数字部分被 filter_map 忽略）
-pub(crate) fn parse_version(v: &str) -> Vec<u32> {
+pub fn parse_version(v: &str) -> Vec<u32> {
     v.split('.').filter_map(|s| s.parse().ok()).collect()
 }
 
@@ -238,7 +238,7 @@ fn set_safe_permissions(path: &Path, mode: u32, is_dir: bool) {
 }
 
 /// 校验下载 URL 的域名是否为允许的 GitHub 域名（`pub(crate)`：github 子模块的 `download_update` / `build_safe_download_client` 调用。）
-pub(crate) fn validate_download_url(url_str: &str) -> Result<(), UpdateError> {
+pub fn validate_download_url(url_str: &str) -> Result<(), UpdateError> {
     let parsed = url::Url::parse(url_str)
         .map_err(|e| UpdateError::NetworkError(format!("无效的下载 URL: {e}")))?;
 
@@ -264,7 +264,7 @@ pub(crate) fn validate_download_url(url_str: &str) -> Result<(), UpdateError> {
 
 /// M-2 修复（v9 复审）：校验 asset.name 防止路径穿越
 /// asset.name 来自 GitHub API，若账号被入侵可设置为恶意路径；仅允许字母、数字、点、下划线、连字符，拒绝路径分隔符和特殊字符；`pub(crate)`：github 子模块的 `download_update` 调用。
-pub(crate) fn validate_asset_name(name: &str) -> Result<(), UpdateError> {
+pub fn validate_asset_name(name: &str) -> Result<(), UpdateError> {
     if name.is_empty() {
         return Err(UpdateError::ValidationError("asset.name 为空".to_string()));
     }

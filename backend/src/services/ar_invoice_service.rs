@@ -56,7 +56,7 @@ impl ArInvoiceService {
 
     /// 根据已收金额和发票金额推导付款状态
     /// 批次 409 提取：原 mark_as_paid 方法内联逻辑，提取为独立纯函数便于单元测试。；received >= invoice → PAID（已收齐）；received < invoice → PARTIAL_PAID（部分收款）
-    pub(crate) fn derive_paid_status(received: Decimal, invoice: Decimal) -> &'static str {
+    pub fn derive_paid_status(received: Decimal, invoice: Decimal) -> &'static str {
         if received >= invoice {
             crate::models::status::payment::PAYMENT_PAID
         } else {

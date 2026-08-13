@@ -71,7 +71,7 @@ impl SystemUpdateService {
         Ok(releases)
     }
 
-    pub(crate) fn extract_version_from_filename(&self, filename: &str) -> Option<String> {
+    pub fn extract_version_from_filename(&self, filename: &str) -> Option<String> {
         let parts: Vec<&str> = filename.split('-').collect();
         if parts.len() >= 3 {
             let version_part = parts[2];

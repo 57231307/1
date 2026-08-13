@@ -3,9 +3,15 @@
 #[cfg(test)]
 mod tests {
     use rust_decimal::Decimal;
-    // P9-1: 引入 decs! 宏统一测试夹具
-    // 批次 343 v11 复审 P3 修复：移除 #[allow(unused_imports)]，decs! 宏已被广泛使用
-    use bingxi_backend::decs;
+    use std::str::FromStr;
+
+    /// 测试夹具：解析 Decimal（支持字符串/整数/浮点，内部统一 to_string 后 FromStr 解析）
+    macro_rules! decs {
+        ($x:expr) => {{
+            Decimal::from_str(&$x.to_string())
+                .expect("P9-1: 测试夹具 Decimal 解析失败")
+        }};
+    }
 
     /* 销售数据点 */
     #[derive(Debug, Clone)]

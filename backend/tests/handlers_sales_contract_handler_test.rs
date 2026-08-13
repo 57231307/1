@@ -21,7 +21,7 @@ mod tests {
             currency: Some("CNY".to_string()),
             payment_terms: Some("30天".to_string()),
             delivery_terms: Some("FOB".to_string()),
-            remark: Some("测试备注".to_string()),
+            notes: Some("测试备注".to_string()),
             created_by: Some(1),
             created_at: Utc::now(),
             updated_at: Utc::now(),

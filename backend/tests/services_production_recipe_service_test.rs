@@ -2,6 +2,9 @@
 mod tests {
     use rust_decimal::prelude::FromPrimitive;
     use rust_decimal::Decimal;
+    use bingxi_backend::models::production_recipe::RecipeMaterialItem;
+    use bingxi_backend::models::status::production_recipe as recipe_status;
+    use bingxi_backend::models::status::production_recipe_addition as addition_status;
     use bingxi_backend::services::production_recipe_service::*;
 
     /// 测试大货处方单号生成格式：PR-YYYYMMDDHHMMSS-NNN

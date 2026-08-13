@@ -69,7 +69,7 @@ impl ApInvoiceService {
 //（crate::services::ap_invoice_service::validate_*），与 crate::utils::validator 用法一致。
 
 /// 校验 Decimal 为正数
-pub(crate) fn validate_positive_decimal(value: &Decimal) -> Result<(), validator::ValidationError> {
+pub fn validate_positive_decimal(value: &Decimal) -> Result<(), validator::ValidationError> {
     if *value <= Decimal::ZERO {
         return Err(validator::ValidationError::new("金额必须为正数"));
     }
@@ -77,7 +77,7 @@ pub(crate) fn validate_positive_decimal(value: &Decimal) -> Result<(), validator
 }
 
 /// 校验 Decimal 为非负数
-pub(crate) fn validate_non_negative_decimal(
+pub fn validate_non_negative_decimal(
     value: &Decimal,
 ) -> Result<(), validator::ValidationError> {
     if *value < Decimal::ZERO {
@@ -87,7 +87,7 @@ pub(crate) fn validate_non_negative_decimal(
 }
 
 /// 校验汇率合法：必须大于 0 且不等于 P0-1 历史缺陷值 0.01
-pub(crate) fn validate_exchange_rate(value: &Decimal) -> Result<(), validator::ValidationError> {
+pub fn validate_exchange_rate(value: &Decimal) -> Result<(), validator::ValidationError> {
     if *value <= Decimal::ZERO {
         return Err(validator::ValidationError::new("汇率必须大于0"));
     }

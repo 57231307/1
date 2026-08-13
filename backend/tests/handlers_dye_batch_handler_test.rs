@@ -30,7 +30,7 @@ mod tests {
             actual_end_date: None,
             status: Some(status.to_string()),
             priority: Some("normal".to_string()),
-            remark: Some("测试备注".to_string()),
+            notes: Some("测试备注".to_string()),
             created_by: Some(1),
             created_at: Utc::now(),
             updated_at: Utc::now(),

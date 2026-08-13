@@ -10,7 +10,7 @@ use crate::services::quotation_service::{QuotationService, ServiceError};
 
 impl QuotationService {
     /// 计算小计/税额/总金额
-    pub(crate) fn calculate_totals(
+    pub fn calculate_totals(
         &self,
         dto: &CreateQuotationDto,
     ) -> Result<(Decimal, Decimal, Decimal), ServiceError> {
@@ -35,7 +35,7 @@ impl QuotationService {
     }
 
     /// 业务校验
-    pub(crate) fn validate_create(&self, dto: &CreateQuotationDto) -> Result<(), ServiceError> {
+    pub fn validate_create(&self, dto: &CreateQuotationDto) -> Result<(), ServiceError> {
         if dto.items.is_empty() {
             return Err(ServiceError::Validation("明细至少 1 条".to_string()));
         }
@@ -59,7 +59,7 @@ impl QuotationService {
 
     /// 校验价格条款（贸易术语）并返回解析后的 Incoterms2020 枚举
     /// 批次 111 P1-2：接入 utils/incoterms.rs，用 all()+code() 派生合法代码列表
-    pub(crate) fn validate_price_terms(
+    pub fn validate_price_terms(
         code: &str,
     ) -> Result<crate::utils::incoterms::Incoterms2020, ServiceError> {
         crate::utils::incoterms::Incoterms2020::from_code(code).map_err(|msg| {

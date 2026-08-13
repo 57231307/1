@@ -57,7 +57,7 @@ pub(crate) fn dec_to_f64(d: Option<Decimal>) -> f64 {
 
 /// 维度到 SQL 表达式映射（v11 批次 144 P1-3：透视矩阵维度映射）
 /// 返回 (key_expr, label_expr)：key_expr: 用于 GROUP BY 的唯一标识（text 类型）；label_expr: 用于展示的可读标签；支持的维度：customer: 客户 ID + 客户名称；product: 产品 ID + 产品名称；region: 客户所在省份；category: 产品品类名称；time: 订单月份（YYYY-MM 格式）；批次 252 修复：原 `_ => unreachable!()` 在非法维度时 panic 崩溃，；改为返回 AppError::validation 错误，防御性处理非法输入。
-pub(crate) fn dim_to_expr(dim: &str) -> Result<(&'static str, &'static str), AppError> {
+pub fn dim_to_expr(dim: &str) -> Result<(&'static str, &'static str), AppError> {
     match dim {
         "customer" => Ok(("c.id::text", "COALESCE(c.customer_name, '未知客户')")),
         "product" => Ok(("p.id::text", "COALESCE(p.name, '未知产品')")),
@@ -76,7 +76,7 @@ pub(crate) fn dim_to_expr(dim: &str) -> Result<(&'static str, &'static str), App
 
 /// 度量聚合表达式生成（批次 252 修复：提取为独立函数，消除 unreachable! panic）
 /// 根据 item_level 选择项级或订单级聚合的 SQL 表达式：item_level=true：关联 sales_order_items 表进行项级聚合；item_level=false：订单级聚合，避免 total_amount 重复计算
-pub(crate) fn measure_to_expr(measure: &str, item_level: bool) -> Result<&'static str, AppError> {
+pub fn measure_to_expr(measure: &str, item_level: bool) -> Result<&'static str, AppError> {
     match (measure, item_level) {
         ("total_amount", true) => Ok("COALESCE(SUM(si.total_amount), 0)"),
         ("order_count", true) => Ok("COUNT(DISTINCT s.id)::numeric"),

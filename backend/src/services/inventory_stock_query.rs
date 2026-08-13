@@ -17,7 +17,7 @@ use crate::utils::pagination::paginate_with_total;
 
 /// 根据库存 Model 派生计算 alert_type 字符串
 /// 批次 126 v8 复审 P2 修复：替换原硬编码 "normal"。；v11 批次 144 P1-4 修复：扩展 OverStock（高于上限）和 SlowMoving（滞销）告警判定。；OverStock: max_stock_point > 0 && quantity_available > max_stock_point；SlowMoving: last_movement_date 距今 > SLOW_MOVING_THRESHOLD_DAYS 天；判定优先级（高优先级先返回）：1. stock_status != "正常" → discrepancy（盘点差异/状态异常）；2. quantity_available == 0 && reorder_point > 0 → out_of_stock（缺货）；3. reorder_point > 0 && quantity_available < reorder_point → low_stock（低于下限）；4. max_stock_point > 0 && quantity_available > max_stock_point → over_stock（高于上限）；5. expiry_date 存在且距今 ≤ EXPIRING_THRESHOLD_DAYS 天 → expiring（即将过期）；6. last_movement_date 距今 > SLOW_MOVING_THRESHOLD_DAYS 天 → slow_moving（滞销）；7. 否则 → normal
-pub(crate) fn compute_alert_type(s: &inventory_stock::Model) -> &'static str {
+pub fn compute_alert_type(s: &inventory_stock::Model) -> &'static str {
     // 1. 状态异常优先（冻结/待检等）
     if s.stock_status != "正常" {
         return AlertType::Discrepancy.code();

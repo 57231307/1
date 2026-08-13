@@ -83,7 +83,7 @@ mod tests {
             credit_score: None,
             credit_limit: None,
             credit_days: None,
-            remark: None,
+            notes: None,
         };
 
         // 复现 set_credit_rating 中的默认值填充逻辑
@@ -102,7 +102,7 @@ mod tests {
             credit_score: Some(95),
             credit_limit: Some(decs!("20000")),
             credit_days: Some(60),
-            remark: None,
+            notes: None,
         };
         assert_eq!(
             req_explicit.credit_level.or(Some("B".to_string())),

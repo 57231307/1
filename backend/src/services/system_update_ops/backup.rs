@@ -64,7 +64,7 @@ impl SystemUpdateService {
     }
 
     /// L9 修复（v8 复审）：降为 `pub(crate)`，仅内部 `do_update` 调用，不对外暴露
-    pub(crate) fn rollback(&self, backup_path: &Path) -> Result<(), UpdateError> {
+    pub fn rollback(&self, backup_path: &Path) -> Result<(), UpdateError> {
         self.log_update(&format!("正在回滚到备份: {:?}", backup_path));
 
         let dirs_to_restore = ["backend", "frontend", "config"];

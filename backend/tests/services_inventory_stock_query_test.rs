@@ -28,7 +28,7 @@ mod tests {
             dye_lot_no: Some("DL001".to_string()),
             grade: "一等品".to_string(),
             production_date: None,
-            expiry_date: None,
+            effective_to: None,
             quantity_meters: decs!("100"),
             quantity_kg: decs!("10"),
             gram_weight: Some(decs!("200")),

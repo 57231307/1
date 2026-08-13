@@ -119,7 +119,7 @@ impl FlowCardService {
     }
 
     /// 生成流转卡号：FC-YYYYMMDDHHMMSS-NNN
-    pub(crate) fn generate_card_no() -> String {
+    pub fn generate_card_no() -> String {
         let now = chrono::Utc::now();
         let timestamp = now.format("%Y%m%d%H%M%S");
         let random = crate::utils::random::random_6_digit() % 1000;
@@ -127,7 +127,7 @@ impl FlowCardService {
     }
 
     /// 生成条码：FC + 14位时间戳 + 6位随机数
-    pub(crate) fn generate_barcode() -> String {
+    pub fn generate_barcode() -> String {
         let now = chrono::Utc::now();
         let timestamp = now.format("%Y%m%d%H%M%S");
         let random = crate::utils::random::random_6_digit();
@@ -135,7 +135,7 @@ impl FlowCardService {
     }
 
     /// 状态流转校验（缸号全生命周期状态机）
-    pub(crate) fn validate_status_transition(from: &str, to: &str) -> Result<(), AppError> {
+    pub fn validate_status_transition(from: &str, to: &str) -> Result<(), AppError> {
         let allowed = match from {
             card_status::PENDING => vec![card_status::SCHEDULED, card_status::TERMINATED],
             card_status::SCHEDULED => vec![
@@ -163,7 +163,7 @@ impl FlowCardService {
     }
 
     /// 仅 pending/scheduled 状态可更新
-    pub(crate) fn validate_can_update(status: &str) -> Result<(), AppError> {
+    pub fn validate_can_update(status: &str) -> Result<(), AppError> {
         if status != card_status::PENDING && status != card_status::SCHEDULED {
             return Err(AppError::business(format!(
                 "流转卡状态为 {}，仅 pending/scheduled 状态可更新",
@@ -247,7 +247,7 @@ impl QualityFeedbackService {
     }
 
     /// 生成反馈单号：QF-YYYYMMDDHHMMSS-NNN
-    pub(crate) fn generate_feedback_no() -> String {
+    pub fn generate_feedback_no() -> String {
         let now = chrono::Utc::now();
         let timestamp = now.format("%Y%m%d%H%M%S");
         let random = crate::utils::random::random_6_digit() % 1000;

@@ -70,7 +70,7 @@ impl CustomerCreditService {
 
     /// 分页页码安全约束（防 DoS）
     /// 批次 409 提取：原 get_list 方法内联的 page.clamp(1, 1000) 逻辑，；提取为独立纯函数便于单元测试。；页码 < 1 → 1；页码 > 1000 → 1000；其他 → 原值
-    pub(crate) fn clamp_page(page: i64) -> i64 {
+    pub fn clamp_page(page: i64) -> i64 {
         page.clamp(1, 1000)
     }
     /// 获取客户信用评级

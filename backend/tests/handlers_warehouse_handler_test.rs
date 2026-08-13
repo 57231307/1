@@ -19,7 +19,7 @@ mod tests {
             capacity: Some(rust_decimal::Decimal::new(10000, 0)),
             used_capacity: Some(rust_decimal::Decimal::new(5000, 0)),
             status: Some("active".to_string()),
-            remark: Some("测试备注".to_string()),
+            notes: Some("测试备注".to_string()),
             created_by: Some(1),
             created_at: Utc::now(),
             updated_at: Utc::now(),

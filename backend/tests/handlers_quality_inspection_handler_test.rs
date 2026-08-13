@@ -26,7 +26,7 @@ mod tests {
             unqualified_quantity: Decimal::new(5, 0),
             status: Some(status.to_string()),
             result: Some("qualified".to_string()),
-            remark: Some("测试备注".to_string()),
+            notes: Some("测试备注".to_string()),
             created_by: Some(1),
             created_at: Utc::now(),
             updated_at: Utc::now(),

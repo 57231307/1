@@ -111,7 +111,7 @@ use bingxi_backend::search::elastic::*;
             unit: "米".to_string(),
             color_no: Some("CN-001".to_string()),
             pantone_code: Some("PANTONE-18-1664".to_string()),
-            price: 50.0,
+            base_price: 50.0,
         };
         let json = serde_json::to_string(&doc).unwrap();
         assert!(json.contains("纯棉布"));
@@ -205,7 +205,7 @@ use bingxi_backend::search::elastic::*;
                     unit: "米".to_string(),
                     color_no: None,
                     pantone_code: None,
-                    price: 10.0 * i as f64,
+                    base_price: 10.0 * i as f64,
                 };
                 (format!("P{:03}", i), serde_json::to_value(&doc).unwrap())
             })

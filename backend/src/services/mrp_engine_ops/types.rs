@@ -54,7 +54,7 @@ pub struct MrpCalculationSummary {
 /// 库存信息
 /// 批次 490 D10-3b 拆分：原 private struct 提升为 `pub(crate)`，供 ops 子模块和测试模块共享。；仅 crate 内可见，不对外暴露（facade 不重导出此类型，保持原 API 表面不变）。
 #[derive(Debug, Clone)]
-pub(crate) struct StockInfo {
+pub struct StockInfo {
     pub(crate) on_hand: Decimal,
     pub(crate) in_transit: Decimal,
     pub(crate) safety_stock: Decimal,

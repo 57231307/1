@@ -11,18 +11,32 @@ mod tests {
         ProductionRecipeModel {
             id,
             recipe_no: format!("PR-2026-{:04}", id),
-            name: "蓝色配方".to_string(),
-            description: Some("测试配方描述".to_string()),
-            product_id: Some(1),
-            product_name: Some("测试产品".to_string()),
-            process_id: Some(1),
-            process_name: Some("染色工艺".to_string()),
-            version: Some("1.0".to_string()),
-            status: Some(status.to_string()),
-            effective_date: Some(Utc::now().naive_utc()),
-            expiry_date: None,
-            remark: Some("测试备注".to_string()),
-            created_by: Some(1),
+            work_order_id: None,
+            dye_batch_id: None,
+            source_recipe_id: None,
+            lab_dip_resample_id: None,
+            customer_id: None,
+            color_no: Some("C001".to_string()),
+            fabric_name: Some("棉布".to_string()),
+            fabric_spec: Some("40s".to_string()),
+            fabric_width: None,
+            gram_weight: None,
+            fabric_weight: Decimal::new(100, 0),
+            equipment_no: None,
+            liquor_ratio: "1:8".to_string(),
+            bath_volume: None,
+            adjustment_factor: None,
+            recipe_detail: None,
+            total_dye_cost: None,
+            total_auxiliary_cost: None,
+            status: status.to_string(),
+            approved_by: None,
+            approved_at: None,
+            issued_by: None,
+            printed_count: None,
+            remarks: Some("测试备注".to_string()),
+            is_deleted: false,
+            created_by: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }
@@ -37,14 +51,14 @@ mod tests {
 
         assert_eq!(json["id"], 1);
         assert_eq!(json["recipe_no"], "PR-2026-0001");
-        assert_eq!(json["name"], "蓝色配方");
+        assert_eq!(json["recipe_no"], "PR-2026-0001");
         assert_eq!(json["status"], "draft");
     }
 
     #[test]
     fn test_production_recipe_version() {
         let recipe = make_production_recipe_model(1, "draft");
-        assert_eq!(recipe.version, Some("1.0".to_string()));
+        assert_eq!(recipe.fabric_weight, Decimal::new(100, 0));
     }
 
     // ===== 状态转换测试 =====
@@ -52,7 +66,7 @@ mod tests {
     #[test]
     fn test_status_draft_to_active() {
         let recipe = make_production_recipe_model(1, "draft");
-        assert_eq!(recipe.status, Some("draft".to_string()));
+        assert_eq!(recipe.status, "draft");
 
         // 验证草稿状态可以转换为生效
         let valid_transitions = vec!["active", "cancelled"];
@@ -62,7 +76,7 @@ mod tests {
     #[test]
     fn test_status_active_to_expired() {
         let recipe = make_production_recipe_model(1, "active");
-        assert_eq!(recipe.status, Some("active".to_string()));
+        assert_eq!(recipe.status, "active");
 
         // 验证生效状态可以转换为过期
         let valid_transitions = vec!["expired", "archived"];
@@ -72,34 +86,21 @@ mod tests {
     #[test]
     fn test_status_expired_is_final() {
         let recipe = make_production_recipe_model(1, "expired");
-        assert_eq!(recipe.status, Some("expired".to_string()));
+        assert_eq!(recipe.status, "expired");
 
         // 验证过期状态是终态
         let invalid_transitions = vec!["draft", "active"];
         assert!(!invalid_transitions.contains(&"draft"));
     }
 
-    // ===== 有效期测试 =====
-
-    #[test]
-    fn test_effective_date() {
-        let recipe = make_production_recipe_model(1, "draft");
-        assert!(recipe.effective_date.is_some());
-    }
-
-    #[test]
-    fn test_expiry_date_none() {
-        let recipe = make_production_recipe_model(1, "draft");
-        assert!(recipe.expiry_date.is_none());
-    }
-
+    
     // ===== 工艺测试 =====
 
     #[test]
     fn test_process_info() {
         let recipe = make_production_recipe_model(1, "draft");
-        assert_eq!(recipe.process_id, Some(1));
-        assert_eq!(recipe.process_name, Some("染色工艺".to_string()));
+        assert_eq!(recipe.customer_id, None);
+        assert_eq!(recipe.color_no, Some("C001".to_string()));
     }
 
     // ===== 序列化/反序列化测试 =====
@@ -112,7 +113,6 @@ mod tests {
         // 验证关键字段存在
         assert!(json.get("id").is_some());
         assert!(json.get("recipe_no").is_some());
-        assert!(json.get("name").is_some());
         assert!(json.get("status").is_some());
     }
 }

@@ -47,7 +47,7 @@ impl LabDipRequestService {
     }
 
     /// 生成打样通知单号：LD-YYYYMMDDHHMMSS-NNN
-    pub(crate) fn generate_request_no() -> String {
+    pub fn generate_request_no() -> String {
         let now = chrono::Utc::now();
         let timestamp = now.format("%Y%m%d%H%M%S");
         let random = crate::utils::random::random_6_digit() % 1000;
@@ -115,7 +115,7 @@ impl LabDipSampleService {
     }
 
     /// 根据序号生成版本标识：1→A, 2→B, 3→C, 4→D, 5→E...
-    pub(crate) fn label_from_seq(seq: i32) -> String {
+    pub fn label_from_seq(seq: i32) -> String {
         let c = ((seq - 1) as u8 + b'A') as char;
         c.to_string()
     }
@@ -136,7 +136,7 @@ impl LabDipResampleService {
     }
 
     /// 生成复样单号：RS-YYYYMMDDHHMMSS-NNN
-    pub(crate) fn generate_resample_no() -> String {
+    pub fn generate_resample_no() -> String {
         let now = chrono::Utc::now();
         let timestamp = now.format("%Y%m%d%H%M%S");
         let random = crate::utils::random::random_6_digit() % 1000;

@@ -30,7 +30,7 @@ mod tests {
             dye_lot_no: None,
             grade: "一等品".to_string(),
             production_date: None,
-            expiry_date: None,
+            effective_to: None,
             quantity_meters: quantity_available,
             quantity_kg: Decimal::ZERO,
             gram_weight: None,

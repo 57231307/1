@@ -9,7 +9,7 @@ mod tests {
         inspection_type: &str,
         inspection_date: chrono::NaiveDate,
         qualification_rate: Option<f64>,
-        remark: Option<&str>,
+        notes: Option<&str>,
     ) -> QualityInspectionModel {
         let rate_dec = qualification_rate.and_then(rust_decimal::Decimal::from_f64_retain);
         let is_pass = qualification_rate.unwrap_or(100.0) >= 100.0;
@@ -35,7 +35,7 @@ mod tests {
             } else {
                 "fail".to_string()
             },
-            remark: remark.map(|s| s.to_string()),
+            notes: remark.map(|s| s.to_string()),
             // V15 Batch 485：补齐 v14 批次 421 新增字段（color_no/dye_lot_no/grade）
             // 测试夹具不涉及缸号/颜色追溯，使用 None
             grade: None,

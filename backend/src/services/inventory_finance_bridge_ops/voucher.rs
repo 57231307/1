@@ -1060,7 +1060,7 @@ impl InventoryFinanceBridgeService {
 /// 业务规则：
 /// - total_qty <= 0 时返回 old_cost_price（防除零，兼容库存为 0 的初始化场景）
 /// - 保留 4 位小数精度，避免循环 truncation 误差累积
-pub(crate) fn compute_moving_average_cost(
+pub fn compute_moving_average_cost(
     before_qty: Decimal,
     old_cost_price: Decimal,
     received_qty: Decimal,

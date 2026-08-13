@@ -100,7 +100,7 @@ impl SystemUpdateService {
         Ok(release)
     }
 
-    pub(crate) fn compare_versions(&self, current: &str, latest: &str) -> bool {
+    pub fn compare_versions(&self, current: &str, latest: &str) -> bool {
         // 批次 322 v9 复审低危修复：parse_version 抽取为共享函数，消除与
         // compare_versions_for_sort 的逻辑重复
         let current_parts = parse_version(current);
@@ -120,7 +120,7 @@ impl SystemUpdateService {
         false
     }
 
-    pub(crate) fn compare_versions_for_sort(&self, a: &str, b: &str) -> std::cmp::Ordering {
+    pub fn compare_versions_for_sort(&self, a: &str, b: &str) -> std::cmp::Ordering {
         // 批次 322 v9 复审低危修复：parse_version 抽取为共享函数，消除与
         // compare_versions 的逻辑重复
         let a_parts = parse_version(a);

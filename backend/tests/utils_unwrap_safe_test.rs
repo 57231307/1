@@ -1,6 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use bingxi_backend::utils::unwrap_safe::*;
+    // 宏通过 #[macro_export] 导出到 crate 根，直接使用即可
+    use bingxi_backend::{dec, int, s};
+
     #[test]
     fn test_dec_macro() {
         // P9-1: 用宏替代散落的 expect，验证宏行为

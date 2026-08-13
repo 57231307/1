@@ -1,5 +1,6 @@
 #[cfg(test)]
 mod tests {
+use bingxi_backend::models::status::dye_recipe as recipe_status;
 use bingxi_backend::services::period_adjustment_service::*;
 
 
