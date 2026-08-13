@@ -415,7 +415,7 @@ impl LaborContractService {
     }
 
     /// 校验合同类型
-    fn validate_contract_type(contract_type: &str) -> Result<(), AppError> {
+    pub fn validate_contract_type(contract_type: &str) -> Result<(), AppError> {
         match contract_type {
             "fixed_term" | "permanent" | "task_based" => Ok(()),
             _ => Err(AppError::bad_request(format!(
@@ -426,7 +426,7 @@ impl LaborContractService {
     }
 
     /// 校验工时制度
-    fn validate_working_hours_system(system: &str) -> Result<(), AppError> {
+    pub fn validate_working_hours_system(system: &str) -> Result<(), AppError> {
         match system {
             "standard" | "comprehensive" | "flexible" => Ok(()),
             _ => Err(AppError::bad_request(format!(

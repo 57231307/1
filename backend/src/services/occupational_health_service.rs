@@ -523,7 +523,7 @@ impl OccupationalHealthService {
     }
 
     /// 判定是否超标（纯函数）（业务规则：实测值 > 限值 → is_exceeding=true；超标倍数 = 实测值 / 限值 - 1）
-    fn check_exceedance(measured_value: Decimal, limit_value: Decimal) -> (bool, Option<Decimal>) {
+    pub fn check_exceedance(measured_value: Decimal, limit_value: Decimal) -> (bool, Option<Decimal>) {
         if measured_value > limit_value && limit_value > Decimal::ZERO {
             let ratio = measured_value / limit_value - Decimal::ONE;
             (true, Some(ratio))
@@ -533,7 +533,7 @@ impl OccupationalHealthService {
     }
 
     /// 体检到期预警级别分类（纯函数）
-    fn classify_exam_expiry_level(days_until_expiry: i64) -> ExamExpiryWarningLevel {
+    pub fn classify_exam_expiry_level(days_until_expiry: i64) -> ExamExpiryWarningLevel {
         if days_until_expiry < 0 {
             ExamExpiryWarningLevel::Expired
         } else if days_until_expiry <= 30 {
@@ -548,7 +548,7 @@ impl OccupationalHealthService {
     }
 
     /// 校验危害类型
-    fn validate_hazard_type(hazard_type: &str) -> Result<(), AppError> {
+    pub fn validate_hazard_type(hazard_type: &str) -> Result<(), AppError> {
         match hazard_type {
             "chemical" | "physical" | "dust" | "biological" => Ok(()),
             _ => Err(AppError::bad_request(format!(
@@ -559,7 +559,7 @@ impl OccupationalHealthService {
     }
 
     /// 校验体检类型
-    fn validate_exam_type(exam_type: &str) -> Result<(), AppError> {
+    pub fn validate_exam_type(exam_type: &str) -> Result<(), AppError> {
         match exam_type {
             "pre_employment" | "in_service" | "resignation" => Ok(()),
             _ => Err(AppError::bad_request(format!(
@@ -570,7 +570,7 @@ impl OccupationalHealthService {
     }
 
     /// 校验体检结果
-    fn validate_exam_result(exam_result: &str) -> Result<(), AppError> {
+    pub fn validate_exam_result(exam_result: &str) -> Result<(), AppError> {
         match exam_result {
             "normal" | "abnormal" | "contraindication" => Ok(()),
             _ => Err(AppError::bad_request(format!(
@@ -581,7 +581,7 @@ impl OccupationalHealthService {
     }
 
     /// 校验 PPE 类型
-    fn validate_ppe_type(ppe_type: &str) -> Result<(), AppError> {
+    pub fn validate_ppe_type(ppe_type: &str) -> Result<(), AppError> {
         match ppe_type {
             "mask" | "gloves" | "goggles" | "earplug" | "respirator" | "suit" => Ok(()),
             _ => Err(AppError::bad_request(format!(

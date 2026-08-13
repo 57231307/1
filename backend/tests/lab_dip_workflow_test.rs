@@ -4,158 +4,156 @@
 //! validate_can_update / validate_can_delete）
 //! 打样状态机：PENDING → SAMPLING → SUBMITTED → APPROVED/REJECTED → COMPLETED
 
-#[cfg(test)]
-mod tests {
-    use bingxi_backend::models::status::lab_dip_request as status;
-    use bingxi_backend::services::lab_dip_service::LabDipRequestService;
+use bingxi_backend::models::status::lab_dip_request as status;
+use bingxi_backend::services::lab_dip_service::LabDipRequestService;
+use bingxi_backend::services::lab_dip_request_service::LabDipRequestService;
 
-    // ===== 状态常量值正确性 =====
+// ===== 状态常量值正确性 =====
 
-    /// test_dyztcl_zzqx
-    ///
-    /// 验证打样通知单 6 种状态常量值符合预期（大写风格）。
-    #[test]
-    fn test_dyztcl_zzqx() {
-        assert_eq!(status::PENDING, "PENDING");
-        assert_eq!(status::SAMPLING, "SAMPLING");
-        assert_eq!(status::SUBMITTED, "SUBMITTED");
-        assert_eq!(status::APPROVED, "APPROVED");
-        assert_eq!(status::REJECTED, "REJECTED");
-        assert_eq!(status::COMPLETED, "COMPLETED");
+/// test_dyztcl_zzqx
+///
+/// 验证打样通知单 6 种状态常量值符合预期（大写风格）。
+#[test]
+fn test_dyztcl_zzqx() {
+    assert_eq!(status::PENDING, "PENDING");
+    assert_eq!(status::SAMPLING, "SAMPLING");
+    assert_eq!(status::SUBMITTED, "SUBMITTED");
+    assert_eq!(status::APPROVED, "APPROVED");
+    assert_eq!(status::REJECTED, "REJECTED");
+    assert_eq!(status::COMPLETED, "COMPLETED");
+}
+
+/// test_dyztcl_dxfgyzx
+#[test]
+fn test_dyztcl_dxfgyzx() {
+    for s in [
+        status::PENDING,
+        status::SAMPLING,
+        status::SUBMITTED,
+        status::APPROVED,
+        status::REJECTED,
+        status::COMPLETED,
+    ] {
+        assert!(
+            s.chars().all(|c| c.is_uppercase() || c == '_'),
+            "状态 {} 应全大写",
+            s
+        );
     }
+}
 
-    /// test_dyztcl_dxfgyzx
-    #[test]
-    fn test_dyztcl_dxfgyzx() {
-        for s in [
-            status::PENDING,
-            status::SAMPLING,
-            status::SUBMITTED,
-            status::APPROVED,
-            status::REJECTED,
-            status::COMPLETED,
-        ] {
-            assert!(
-                s.chars().all(|c| c.is_uppercase() || c == '_'),
-                "状态 {} 应全大写",
-                s
-            );
-        }
-    }
+// ===== validate_status_transition 状态流转校验 =====
 
-    // ===== validate_status_transition 状态流转校验 =====
+/// test_validate_status_transition_hflztg
+///
+/// 验证合法流转边：PENDING→SAMPLING、SAMPLING→SUBMITTED、SUBMITTED→APPROVED 等。
+#[test]
+fn test_validate_status_transition_hflztg() {
+    assert!(LabDipRequestService::validate_status_transition(
+        status::PENDING,
+        status::SAMPLING
+    )
+    .is_ok());
+    assert!(LabDipRequestService::validate_status_transition(
+        status::SAMPLING,
+        status::SUBMITTED
+    )
+    .is_ok());
+    assert!(LabDipRequestService::validate_status_transition(
+        status::SUBMITTED,
+        status::APPROVED
+    )
+    .is_ok());
+    assert!(LabDipRequestService::validate_status_transition(
+        status::SUBMITTED,
+        status::REJECTED
+    )
+    .is_ok());
+    assert!(LabDipRequestService::validate_status_transition(
+        status::REJECTED,
+        status::SAMPLING
+    )
+    .is_ok());
+    assert!(LabDipRequestService::validate_status_transition(
+        status::APPROVED,
+        status::COMPLETED
+    )
+    .is_ok());
+}
 
-    /// test_validate_status_transition_hflztg
-    ///
-    /// 验证合法流转边：PENDING→SAMPLING、SAMPLING→SUBMITTED、SUBMITTED→APPROVED 等。
-    #[test]
-    fn test_validate_status_transition_hflztg() {
-        assert!(LabDipRequestService::validate_status_transition(
-            status::PENDING,
-            status::SAMPLING
-        )
-        .is_ok());
-        assert!(LabDipRequestService::validate_status_transition(
-            status::SAMPLING,
-            status::SUBMITTED
-        )
-        .is_ok());
-        assert!(LabDipRequestService::validate_status_transition(
-            status::SUBMITTED,
-            status::APPROVED
-        )
-        .is_ok());
-        assert!(LabDipRequestService::validate_status_transition(
-            status::SUBMITTED,
-            status::REJECTED
-        )
-        .is_ok());
-        assert!(LabDipRequestService::validate_status_transition(
-            status::REJECTED,
-            status::SAMPLING
-        )
-        .is_ok());
-        assert!(LabDipRequestService::validate_status_transition(
-            status::APPROVED,
-            status::COMPLETED
-        )
-        .is_ok());
-    }
+/// test_validate_status_transition_fflzsb
+///
+/// 验证非法流转边：PENDING→APPROVED（跳过打样）、COMPLETED→PENDING（终态回退）等。
+#[test]
+fn test_validate_status_transition_fflzsb() {
+    assert!(LabDipRequestService::validate_status_transition(
+        status::PENDING,
+        status::APPROVED
+    )
+    .is_err());
+    assert!(LabDipRequestService::validate_status_transition(
+        status::COMPLETED,
+        status::PENDING
+    )
+    .is_err());
+    assert!(LabDipRequestService::validate_status_transition(
+        status::APPROVED,
+        status::SAMPLING
+    )
+    .is_err());
+}
 
-    /// test_validate_status_transition_fflzsb
-    ///
-    /// 验证非法流转边：PENDING→APPROVED（跳过打样）、COMPLETED→PENDING（终态回退）等。
-    #[test]
-    fn test_validate_status_transition_fflzsb() {
-        assert!(LabDipRequestService::validate_status_transition(
-            status::PENDING,
-            status::APPROVED
-        )
-        .is_err());
-        assert!(LabDipRequestService::validate_status_transition(
-            status::COMPLETED,
-            status::PENDING
-        )
-        .is_err());
-        assert!(LabDipRequestService::validate_status_transition(
-            status::APPROVED,
-            status::SAMPLING
-        )
-        .is_err());
-    }
+// ===== validate_can_update 可更新校验 =====
 
-    // ===== validate_can_update 可更新校验 =====
+/// test_validate_can_update_kgxzttg
+///
+/// 验证 PENDING 和 SAMPLING 状态允许更新。
+#[test]
+fn test_validate_can_update_kgxzttg() {
+    assert!(LabDipRequestService::validate_can_update(status::PENDING).is_ok());
+    assert!(LabDipRequestService::validate_can_update(status::SAMPLING).is_ok());
+}
 
-    /// test_validate_can_update_kgxzttg
-    ///
-    /// 验证 PENDING 和 SAMPLING 状态允许更新。
-    #[test]
-    fn test_validate_can_update_kgxzttg() {
-        assert!(LabDipRequestService::validate_can_update(status::PENDING).is_ok());
-        assert!(LabDipRequestService::validate_can_update(status::SAMPLING).is_ok());
-    }
+/// test_validate_can_update_bkgxztsb
+///
+/// 验证 SUBMITTED/APPROVED/REJECTED/COMPLETED 状态不允许更新。
+#[test]
+fn test_validate_can_update_bkgxztsb() {
+    assert!(LabDipRequestService::validate_can_update(status::SUBMITTED).is_err());
+    assert!(LabDipRequestService::validate_can_update(status::APPROVED).is_err());
+    assert!(LabDipRequestService::validate_can_update(status::REJECTED).is_err());
+    assert!(LabDipRequestService::validate_can_update(status::COMPLETED).is_err());
+}
 
-    /// test_validate_can_update_bkgxztsb
-    ///
-    /// 验证 SUBMITTED/APPROVED/REJECTED/COMPLETED 状态不允许更新。
-    #[test]
-    fn test_validate_can_update_bkgxztsb() {
-        assert!(LabDipRequestService::validate_can_update(status::SUBMITTED).is_err());
-        assert!(LabDipRequestService::validate_can_update(status::APPROVED).is_err());
-        assert!(LabDipRequestService::validate_can_update(status::REJECTED).is_err());
-        assert!(LabDipRequestService::validate_can_update(status::COMPLETED).is_err());
-    }
+// ===== validate_can_delete 可删除校验 =====
 
-    // ===== validate_can_delete 可删除校验 =====
+/// test validate_can_delete: only PENDING allows delete
+///
+/// 验证只有 PENDING 状态允许删除。
+#[test]
+fn test_validate_can_delete_only_pending() {
+    assert!(LabDipRequestService::validate_can_delete(status::PENDING).is_ok());
+}
 
-    /// test validate_can_delete: only PENDING allows delete
-    ///
-    /// 验证只有 PENDING 状态允许删除。
-    #[test]
-    fn test_validate_can_delete_only_pending() {
-        assert!(LabDipRequestService::validate_can_delete(status::PENDING).is_ok());
-    }
+/// test validate_can_delete: non-PENDING states reject delete
+///
+/// 验证 SAMPLING 及之后的状态不允许删除。
+#[test]
+fn test_validate_can_delete_non_pending_rejected() {
+    assert!(LabDipRequestService::validate_can_delete(status::SAMPLING).is_err());
+    assert!(LabDipRequestService::validate_can_delete(status::SUBMITTED).is_err());
+    assert!(LabDipRequestService::validate_can_delete(status::APPROVED).is_err());
+    assert!(LabDipRequestService::validate_can_delete(status::COMPLETED).is_err());
+}
 
-    /// test validate_can_delete: non-PENDING states reject delete
-    ///
-    /// 验证 SAMPLING 及之后的状态不允许删除。
-    #[test]
-    fn test_validate_can_delete_non_pending_rejected() {
-        assert!(LabDipRequestService::validate_can_delete(status::SAMPLING).is_err());
-        assert!(LabDipRequestService::validate_can_delete(status::SUBMITTED).is_err());
-        assert!(LabDipRequestService::validate_can_delete(status::APPROVED).is_err());
-        assert!(LabDipRequestService::validate_can_delete(status::COMPLETED).is_err());
-    }
+// ===== 完整业务流程测试（需要真实 PostgreSQL，标记 ignore）=====
 
-    // ===== 完整业务流程测试（需要真实 PostgreSQL，标记 ignore）=====
-
-    /// 集成测试：打样全流程 PENDING → SAMPLING → SUBMITTED → APPROVED → COMPLETED
-    ///
-    /// 需要 PostgreSQL + 前置客户/产品/颜色数据。
-    #[tokio::test]
-    #[ignore = "需要 PostgreSQL 测试数据库 + 前置客户/产品/颜色数据"]
-    async fn test_dyqlc_ddydwc() {
-        // 完整流程需 LabDipRequestService + LabDipSampleService 协同，
-        // 留待真实环境验证。
-    }
+/// 集成测试：打样全流程 PENDING → SAMPLING → SUBMITTED → APPROVED → COMPLETED
+///
+/// 需要 PostgreSQL + 前置客户/产品/颜色数据。
+#[tokio::test]
+#[ignore = "需要 PostgreSQL 测试数据库 + 前置客户/产品/颜色数据"]
+async fn test_dyqlc_ddydwc() {
+    // 完整流程需 LabDipRequestService + LabDipSampleService 协同，
+    // 留待真实环境验证。
 }

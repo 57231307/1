@@ -9,6 +9,7 @@ use bingxi_backend::services::event_bus::{BusinessEvent, EVENT_BUS};
 use std::sync::LazyLock;
 use std::time::Duration;
 use tokio::sync::{broadcast, Mutex};
+use chrono::Duration;
 
 // 测试夹具（规则 6：mock 数据抽取到 fixtures，禁止硬编码）
 mod fixtures {

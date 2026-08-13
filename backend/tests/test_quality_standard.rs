@@ -13,6 +13,7 @@
 
 use bingxi_backend::services::quality_standard_service::QualityStandardService;
 use std::sync::Arc;
+use chrono::NaiveDate;
 
 /// 验证 QualityStandardService 构造函数签名：fn(Arc<DatabaseConnection>) -> QualityStandardService
 #[test]

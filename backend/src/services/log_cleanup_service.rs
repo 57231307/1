@@ -124,7 +124,7 @@ impl LogCleanupService {
     }
 
     /// 递归清理目录下所有修改时间早于 cutoff 的文件（保留子目录结构）。
-    fn cleanup_dir_recursive(dir: &Path, cutoff: SystemTime) -> std::io::Result<usize> {
+    pub fn cleanup_dir_recursive(dir: &Path, cutoff: SystemTime) -> std::io::Result<usize> {
         let mut deleted: usize = 0;
         let entries = match std::fs::read_dir(dir) {
             Ok(e) => e,

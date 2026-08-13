@@ -941,7 +941,7 @@ impl CapacityService {
 
     /// 基于历史数据量和预测期限动态计算预测置信度
     /// 历史订单越多、预测期限越短，置信度越高
-    fn calculate_forecast_confidence(
+    pub fn calculate_forecast_confidence(
         historical_order_count: u64,
         days: i32,
         has_current_load: bool,

@@ -185,7 +185,7 @@ impl StockAlertNotificationScheduler {
     }
 
     /// 告警类型中文描述（与 AlertType::desc 保持一致）。
-    fn alert_desc(alert_type: &str) -> &'static str {
+    pub fn alert_desc(alert_type: &str) -> &'static str {
         match alert_type {
             "out_of_stock" => "缺货",
             "low_stock" => "低于下限",

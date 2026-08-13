@@ -68,6 +68,7 @@ fn test_pricing_result_serialize() {
 #[test]
 fn test_tier_price_match_logic() {
     use rust_decimal_macros::dec;
+use chrono::NaiveDate;
     // 阶梯价匹配单元测试（无 DB 依赖）
     let base = dec!(100);
     let qty = dec!(150);

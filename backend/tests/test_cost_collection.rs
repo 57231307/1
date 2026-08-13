@@ -2,6 +2,7 @@
 
 use bingxi_backend::services::cost_collection_service::CreateCostCollectionRequest;
 use rust_decimal::Decimal;
+use chrono::NaiveDate;
 
 #[test]
 fn test_create_cost_collection_request() {

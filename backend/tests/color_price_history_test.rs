@@ -5,6 +5,7 @@ mod history_tests {
     use rust_decimal_macros::dec;
 
     use bingxi_backend::models::color_price_history_dto::{PriceHistoryItem, PriceHistoryQuery};
+use chrono::Utc;
 
     /// 测试 1: 价格历史结构
     #[test]
