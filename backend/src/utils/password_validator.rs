@@ -435,7 +435,7 @@ fn evaluate_strength_and_check_min(
     strength
 }
 
-fn has_consecutive_chars(password: &str) -> bool {
+pub fn has_consecutive_chars(password: &str) -> bool {
     let chars: Vec<char> = password.chars().collect();
     if chars.len() < 3 {
         return false;
@@ -454,7 +454,7 @@ fn has_consecutive_chars(password: &str) -> bool {
     false
 }
 
-fn has_repeated_chars(password: &str) -> bool {
+pub fn has_repeated_chars(password: &str) -> bool {
     let chars: Vec<char> = password.chars().collect();
     if chars.len() < 3 {
         return false;
