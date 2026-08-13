@@ -312,6 +312,7 @@ pub fn init_otel_provider(
 }
 
 /// Telemetry 守卫（drop 时 flush）
+#[derive(Debug)]
 pub struct TelemetryGuard {
     _private: (),
 }
