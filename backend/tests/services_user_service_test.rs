@@ -1,5 +1,4 @@
-use bingxi_backend::models::master_data;
-use bingxi_backend::models::status::master_data;
+use bingxi_backend::models::user;
 use bingxi_backend::services::test_common::setup_test_db;
 use bingxi_backend::services::user_service::UserService;
 use bingxi_backend::utils::error::AppError;
@@ -99,7 +98,7 @@ async fn test_fwslh_sqlitencsjk() {
     let db = setup_test_db().await;
     let service = UserService::new(Arc::new(db));
     // 验证内部 db Arc 已被正确持有
-    assert!(Arc::strong_count(&service.database) >= 1);
+    assert!(Arc::strong_count(&service.db) >= 1);
 }
 
 /// 测试_find_by_id缺失用户返回not_found（验证 find_by_id 在 SQLite 内存库（无表）调用时返回错误（非 panic））
