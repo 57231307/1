@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
 use bingxi_backend::services::flow_card_service::{FlowCardService, QualityFeedbackService};
+use bingxi_backend::models::status::production::flow_card as card_status;
 
 
     /// 测试流转卡号生成格式
