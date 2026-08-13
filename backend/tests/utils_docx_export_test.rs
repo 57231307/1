@@ -1,3 +1,4 @@
+use reqwest::header;
 use bingxi_backend::utils::docx_export::*;
 
 #[test]
