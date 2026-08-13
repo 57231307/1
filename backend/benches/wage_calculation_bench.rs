@@ -4,7 +4,7 @@
 //! 业务场景：车间工序完工后，根据实际产量 + 合格产量 + 工时计算工资
 //! 性能要求：单条工序工资计算 < 100μs（日产万条工序记录时批量计算不阻塞）
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use rust_decimal::Decimal;
 
 use bingxi_backend::models::process_wage_rate::Model as RateModel;

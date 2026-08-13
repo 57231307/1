@@ -1,7 +1,6 @@
 use bingxi_backend::services::data_permission_service::*;
 use bingxi_backend::utils::data_scope::DataScope;
 
-
 // ===== DataScope::parse_scope 测试 =====
 
 #[test]

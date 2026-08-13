@@ -5,9 +5,9 @@
 //! 关联 spec: docs/superpowers/specs/2026-06-16-color-price-extension-design.md §4.1
 
 use axum::{
+    Router,
     // 批次 357 v13 复审 baseline 清零：移除 unused import put
     routing::{delete, get, post},
-    Router,
 };
 
 use crate::container::AppState;

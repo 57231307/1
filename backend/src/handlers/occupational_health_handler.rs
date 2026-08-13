@@ -9,8 +9,8 @@ use crate::services::occupational_health_service::{
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 
 /// 创建职业危害因素检测记录

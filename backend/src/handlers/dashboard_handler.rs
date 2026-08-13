@@ -1,9 +1,11 @@
 use axum::{
-    extract::{Query, State},
     Json,
+    extract::{Query, State},
 };
 use chrono::{DateTime, NaiveDate, TimeZone, Utc};
-use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set, Statement};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set, Statement,
+};
 use serde::Deserialize;
 
 use crate::container::AppState;
@@ -224,7 +226,8 @@ pub async fn get_system_resources(
     let disks = sysinfo::Disks::new_with_refreshed_list();
     let disk_usage = if let Some(disk) = disks.first() {
         if disk.total_space() > 0 {
-            ((disk.total_space() - disk.available_space()) as f64 / disk.total_space() as f64) * 100.0
+            ((disk.total_space() - disk.available_space()) as f64 / disk.total_space() as f64)
+                * 100.0
         } else {
             0.0
         }
@@ -236,7 +239,8 @@ pub async fn get_system_resources(
     let uptime_seconds = System::uptime();
 
     // 获取数据库连接数
-    let db_connections_sql = "SELECT COUNT(*) as count FROM pg_stat_activity WHERE state = 'active'";
+    let db_connections_sql =
+        "SELECT COUNT(*) as count FROM pg_stat_activity WHERE state = 'active'";
     let db_result = state
         .db
         .as_ref()

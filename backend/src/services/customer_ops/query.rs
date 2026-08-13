@@ -8,18 +8,19 @@
 //! - list_customers_with_filter（带数据权限过滤的列表查询）
 //! - get_customer_with_filter（带数据权限过滤的详情查询，复用 get_customer 行级校验）
 
-use sea_orm::{ExprTrait, 
-    ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
+use sea_orm::{
+    ColumnTrait, EntityTrait, ExprTrait, Order, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect,
 };
 
 use crate::models::customer::{self, Entity as CustomerEntity};
 use crate::models::dto::PageRequest;
 use crate::services::customer_ops::types::build_select_only_query;
 use crate::services::customer_service::CustomerService;
-use crate::utils::data_permission::DataPermissionFilter;
-use crate::utils::data_scope::{apply_data_scope, DataScopeContext};
-use crate::utils::error::AppError;
 use crate::utils::PaginatedResponse;
+use crate::utils::data_permission::DataPermissionFilter;
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
+use crate::utils::error::AppError;
 
 impl CustomerService {
     /// 无权限过滤时委托给 list_customers 并转换为 JSON 分页响应

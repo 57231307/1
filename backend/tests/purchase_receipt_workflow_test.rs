@@ -17,8 +17,8 @@ use sea_orm::Database;
 /// 构造最小 CreatePurchaseReceiptRequest（仅必填字段）
 fn sample_request() -> CreatePurchaseReceiptRequest {
     use bingxi_backend::services::purchase_receipt_dto::CreateReceiptItemRequest;
+    use chrono::NaiveDate;
     use rust_decimal::Decimal;
-use chrono::NaiveDate;
 
     CreatePurchaseReceiptRequest {
         order_id: Some(1),

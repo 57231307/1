@@ -119,7 +119,10 @@ impl SchedulingService {
         let conflicting_orders = ProductionOrderEntity::find()
             .filter(crate::models::production_order::Column::WorkCenterId.eq(Some(work_center_id)))
             .filter(crate::models::production_order::Column::Id.ne(exclude_order_id))
-            .filter(crate::models::production_order::Column::Status.is_in(vec!["SCHEDULED", "IN_PROGRESS"]))
+            .filter(
+                crate::models::production_order::Column::Status
+                    .is_in(vec!["SCHEDULED", "IN_PROGRESS"]),
+            )
             .filter(crate::models::production_order::Column::PlannedStartDate.lt(end_date))
             .filter(crate::models::production_order::Column::PlannedEndDate.gt(start_date))
             .all(&*self.db)

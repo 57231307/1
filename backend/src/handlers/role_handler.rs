@@ -7,12 +7,12 @@ use crate::services::role_permission_service::RolePermissionService;
 use crate::services::role_permission_service::{
     AssignPermissionRequest, CreateRoleRequest, UpdateRoleRequest,
 };
-use crate::utils::admin_checker::{clear_admin_role_cache, is_admin_role, ADMIN_ROLE_CODE};
+use crate::utils::admin_checker::{ADMIN_ROLE_CODE, clear_admin_role_cache, is_admin_role};
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
-    extract::{Extension, Path, State},
     Json,
+    extract::{Extension, Path, State},
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;

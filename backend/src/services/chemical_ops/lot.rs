@@ -32,7 +32,7 @@ use crate::utils::error::AppError;
 use crate::services::chemical_ops::types::{
     ChemicalLotQuery, CreateChemicalLotRequest, UpdateChemicalLotRequest,
 };
-use crate::services::chemical_service::{compute_total_cost, ChemicalLotService};
+use crate::services::chemical_service::{ChemicalLotService, compute_total_cost};
 
 impl ChemicalLotService {
     /// 创建染化料批次

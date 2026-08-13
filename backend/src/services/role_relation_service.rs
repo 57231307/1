@@ -15,7 +15,7 @@ use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 use serde::Deserialize;
 
-use crate::models::role_relation::{self, relation_type, Entity as RoleRelationEntity};
+use crate::models::role_relation::{self, Entity as RoleRelationEntity, relation_type};
 use crate::utils::error::AppError;
 
 /// 角色关系服务

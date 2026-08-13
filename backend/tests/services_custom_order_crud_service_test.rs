@@ -1,5 +1,5 @@
-use rust_decimal::Decimal;
 use bingxi_backend::models::custom_order_create_dto::*;
+use rust_decimal::Decimal;
 use sea_orm::entity::prelude::Set;
 
 /// 辅助函数：构造最小有效 CreateCustomOrderDto，便于测试 notes 字段透传

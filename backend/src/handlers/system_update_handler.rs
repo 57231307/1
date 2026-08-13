@@ -7,8 +7,8 @@ use crate::utils::admin_checker::is_admin_role;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
-    extract::{Multipart, State},
     Json,
+    extract::{Multipart, State},
 };
 use std::path::PathBuf;
 use tokio::fs;
@@ -330,8 +330,8 @@ pub struct CheckLocalUpdateResponse {
     pub error: Option<String>,
 }
 
-pub async fn check_for_local_updates(
-) -> Result<Json<ApiResponse<CheckLocalUpdateResponse>>, AppError> {
+pub async fn check_for_local_updates()
+-> Result<Json<ApiResponse<CheckLocalUpdateResponse>>, AppError> {
     let service = SystemUpdateService::new();
     let result = service.check_local_updates();
 

@@ -7,7 +7,6 @@
 use bingxi_backend::services::ap_invoice_service::DEFAULT_BASE_CURRENCY_EXCHANGE_RATE;
 use rust_decimal::Decimal;
 
-
 /// 防止 P0-1 缺陷复发：默认本位币汇率必须是 1.0，不能是 0.01
 /// 历史缺陷：`Decimal::new(1, 2)` 误用导致自动生成 AP 发票汇率被设为 0.01，；下游按汇率换算本位币金额的财务计算被缩小 100 倍。
 #[test]

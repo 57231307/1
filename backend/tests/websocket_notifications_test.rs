@@ -1,6 +1,5 @@
 use bingxi_backend::websocket::notifications::*;
 
-
 /// 测试票据签发与消费（正常流程）
 #[test]
 fn test_ticket_issue_and_consume() {

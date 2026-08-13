@@ -1,6 +1,5 @@
-use bingxi_backend::middleware::public_routes::*;
 use bingxi_backend::middleware::init_token::init_token_middleware;
-
+use bingxi_backend::middleware::public_routes::*;
 
 #[test]
 fn test_health_paths_public() {

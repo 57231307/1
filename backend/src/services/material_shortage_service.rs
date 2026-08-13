@@ -9,9 +9,9 @@
 
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{ExprTrait, 
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    QueryOrder, Set, TransactionTrait,
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, ExprTrait,
+    QueryFilter, QueryOrder, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -926,8 +926,14 @@ impl MaterialShortageService {
 
         // 查询当月所有预警
         let alerts = alert_model::Entity::find()
-            .filter(alert_model::Column::IdentifiedAt.gte(start_date.and_hms_opt(0, 0, 0).unwrap().and_utc()))
-            .filter(alert_model::Column::IdentifiedAt.lt(end_date.and_hms_opt(0, 0, 0).unwrap().and_utc()))
+            .filter(
+                alert_model::Column::IdentifiedAt
+                    .gte(start_date.and_hms_opt(0, 0, 0).unwrap().and_utc()),
+            )
+            .filter(
+                alert_model::Column::IdentifiedAt
+                    .lt(end_date.and_hms_opt(0, 0, 0).unwrap().and_utc()),
+            )
             .all(&*self.db)
             .await?;
 
@@ -936,8 +942,10 @@ impl MaterialShortageService {
         let mut severe_count = 0i64;
         let mut warning_count = 0i64;
         let mut resolved_count = 0i64;
-        let mut status_map: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
-        let mut material_map: std::collections::HashMap<i32, (String, String, Decimal, i64)> = std::collections::HashMap::new();
+        let mut status_map: std::collections::HashMap<String, i64> =
+            std::collections::HashMap::new();
+        let mut material_map: std::collections::HashMap<i32, (String, String, Decimal, i64)> =
+            std::collections::HashMap::new();
 
         for alert in &alerts {
             // 级别统计

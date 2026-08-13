@@ -192,11 +192,7 @@ impl BusinessMetrics {
         let hits = self.cache_hits.get() as f64;
         let misses = self.cache_misses.get() as f64;
         let total = hits + misses;
-        if total == 0.0 {
-            0.0
-        } else {
-            hits / total
-        }
+        if total == 0.0 { 0.0 } else { hits / total }
     }
 
     // ===== 登录便捷方法 =====
@@ -417,8 +413,8 @@ fn register_http_metrics(registry: &Registry) -> Result<(Histogram, Histogram), 
 /// 指标注册表构建器（仅测试用）
 /// 批次 106 P1-2 修复：原 pub fn 改为 #[cfg(test)]，避免生产代码死代码。；生产环境通过 `MetricsService::new()` 内部构造 BusinessMetrics 并注册到同一 Registry。
 #[cfg(test)]
-pub fn build_registry_and_metrics(
-) -> Result<(std::sync::Arc<Registry>, BusinessMetrics), prometheus::Error> {
+pub fn build_registry_and_metrics()
+-> Result<(std::sync::Arc<Registry>, BusinessMetrics), prometheus::Error> {
     let registry = std::sync::Arc::new(Registry::new());
     let metrics = BusinessMetrics::new(&registry)?;
     Ok((registry, metrics))

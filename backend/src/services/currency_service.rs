@@ -257,7 +257,7 @@ impl CurrencyService {
                                 return Err(AppError::business(format!(
                                     "无法找到 {} 到 {} 的汇率",
                                     from_currency, to_currency
-                                )))
+                                )));
                             }
                         }
                     }

@@ -1,6 +1,5 @@
 use bingxi_backend::utils::audit::*;
 
-
 #[test]
 fn test_security_event_display() {
     assert_eq!(SecurityEvent::ResetPassword.to_string(), "RESET_PASSWORD");

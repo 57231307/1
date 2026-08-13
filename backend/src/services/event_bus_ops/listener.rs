@@ -12,7 +12,7 @@
 
 use crate::search::SearchClient;
 use crate::services::event_bus::{
-    lock_event_bus_state, BusinessEvent, EVENT_BUS, MAIN_LISTENER_HANDLE,
+    BusinessEvent, EVENT_BUS, MAIN_LISTENER_HANDLE, lock_event_bus_state,
 };
 use crate::utils::error::AppError;
 use futures::FutureExt;
@@ -1674,10 +1674,7 @@ async fn update_ar_invoices_customer_name(
             crate::models::ar_invoice::Column::CustomerName,
             Expr::val(new_name.to_string()),
         )
-        .col_expr(
-            crate::models::ar_invoice::Column::UpdatedAt,
-            Expr::val(now),
-        )
+        .col_expr(crate::models::ar_invoice::Column::UpdatedAt, Expr::val(now))
         .exec(db)
         .await?;
     Ok(())
@@ -1786,10 +1783,10 @@ async fn refresh_supplier_name_redundancy(
     supplier_id: i32,
     new_name: &str,
 ) -> Result<(), AppError> {
-    use sea_orm::sea_query::Expr;
     use sea_orm::ColumnTrait;
     use sea_orm::EntityTrait;
     use sea_orm::QueryFilter;
+    use sea_orm::sea_query::Expr;
 
     let now = chrono::Utc::now();
     // purchase_contracts

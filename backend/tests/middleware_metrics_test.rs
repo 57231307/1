@@ -1,6 +1,5 @@
 use bingxi_backend::middleware::metrics::*;
 
-
 #[test]
 fn test_truncate_route_short() {
     assert_eq!(truncate_route("/api/v1/erp/users"), "/api/v1/erp/users");

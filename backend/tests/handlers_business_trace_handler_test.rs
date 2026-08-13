@@ -1,6 +1,5 @@
 use bingxi_backend::handlers::business_trace_handler::*;
 
-
 #[test]
 fn test_get_stage_name() {
     assert_eq!(get_stage_name("PURCHASE_RECEIPT"), "采购收货");

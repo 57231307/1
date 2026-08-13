@@ -5,11 +5,11 @@ use crate::services::customer_credit_service::{
     CreditEvaluationResult, CreditLimitAdjustmentRequest, CreditQueryParams, CreditRatingRequest,
     CustomerCreditService,
 };
-use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
+use crate::utils::error::AppError;
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};

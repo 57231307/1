@@ -8,8 +8,8 @@ use crate::services::inventory_stock_service::{CreateStockArgs, InventoryStockSe
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use chrono::Utc;
 use rust_decimal::Decimal;
@@ -22,7 +22,7 @@ use super::inventory_stock_handler_dto::{
     UpdateStockWithVersionRequest,
 };
 // V15 P0-S12/P0-S15 修复（Batch 475c）：导出端点使用水印版 xlsx 工具
-use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
+use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_with_watermark};
 // V15 P0-S11：导出审计日志写入所需依赖
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};

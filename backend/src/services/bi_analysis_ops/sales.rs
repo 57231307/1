@@ -18,8 +18,8 @@ use crate::services::bi_analysis_ops::types::{
     CategoryStat, CategoryStatRow, CustomerRank, CustomerRankRow, ProductRank, ProductRankRow,
     RegionStat, RegionStatRow, TimeSeriesPoint, TimeSeriesRow, TotalRow,
 };
-use crate::services::bi_analysis_service::{build_bi_cache_key, dec_to_f64, BiAnalysisService};
-use crate::utils::data_scope::{build_data_scope_sql, DataScopeContext};
+use crate::services::bi_analysis_service::{BiAnalysisService, build_bi_cache_key, dec_to_f64};
+use crate::utils::data_scope::{DataScopeContext, build_data_scope_sql};
 use crate::utils::error::AppError;
 
 impl BiAnalysisService {

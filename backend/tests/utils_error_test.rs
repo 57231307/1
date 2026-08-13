@@ -1,7 +1,7 @@
 use axum::body::to_bytes;
-use bingxi_backend::utils::error::*;
 use axum::response::IntoResponse;
 use axum::response::Response;
+use bingxi_backend::utils::error::*;
 use serde_json::Value;
 
 /// 辅助函数：从 IntoResponse 提取 body JSON
@@ -16,7 +16,9 @@ async fn extract_body_json(response: Response) -> serde_json::Value {
 #[tokio::test]
 async fn test_production_response_omits_error_type() {
     // 强制设置生产环境
-    unsafe { std::env::set_var("APP_ENV", "production"); }
+    unsafe {
+        std::env::set_var("APP_ENV", "production");
+    }
     let err = AppError::DatabaseError("connection refused".to_string());
     let response = err.into_response();
     let body_json = extract_body_json(response).await;
@@ -31,13 +33,17 @@ async fn test_production_response_omits_error_type() {
         body_json.get("message").is_some(),
         "生产环境响应应包含 message"
     );
-    unsafe { std::env::remove_var("APP_ENV"); }
+    unsafe {
+        std::env::remove_var("APP_ENV");
+    }
 }
 
 /// 漏洞 #11 测试：生产环境响应（APP_ENV=production）**不含** `detail` 字段
 #[tokio::test]
 async fn test_production_response_omits_detail() {
-    unsafe { std::env::set_var("APP_ENV", "production"); }
+    unsafe {
+        std::env::set_var("APP_ENV", "production");
+    }
     let err = AppError::ValidationError("字段 email 格式错误".to_string());
     let response = err.into_response();
     let body_json = extract_body_json(response).await;
@@ -46,14 +52,18 @@ async fn test_production_response_omits_detail() {
         "生产环境响应不应包含 detail 字段，实际 body: {}",
         body_json
     );
-    unsafe { std::env::remove_var("APP_ENV"); }
+    unsafe {
+        std::env::remove_var("APP_ENV");
+    }
 }
 
 /// 漏洞 #4 / #8 修复测试：开发环境响应**也不包含** `error_type` 和 `detail` 字段
 #[tokio::test]
 async fn test_development_response_omits_error_type_and_detail() {
     // 确保不是 production
-    unsafe { std::env::remove_var("APP_ENV"); }
+    unsafe {
+        std::env::remove_var("APP_ENV");
+    }
     let err = AppError::NotFound("用户 ID=42".to_string());
     let response = err.into_response();
     let body_json = extract_body_json(response).await;
@@ -82,7 +92,9 @@ async fn test_development_response_omits_error_type_and_detail() {
 /// 漏洞 #4 修复测试：DatabaseError 响应脱敏
 #[tokio::test]
 async fn test_database_error_response_is_sanitized() {
-    unsafe { std::env::remove_var("APP_ENV"); }
+    unsafe {
+        std::env::remove_var("APP_ENV");
+    }
     let sensitive = "duplicate key value violates unique constraint \"users_email_key\"";
     let err = AppError::DatabaseError(sensitive.to_string());
     let response = err.into_response();
@@ -101,7 +113,9 @@ async fn test_database_error_response_is_sanitized() {
 /// 漏洞 #12 反向测试：to_response() 在生产环境下返回脱敏 message
 #[tokio::test]
 async fn test_to_response_uses_public_message_in_production() {
-    unsafe { std::env::set_var("APP_ENV", "production"); }
+    unsafe {
+        std::env::set_var("APP_ENV", "production");
+    }
     let err = AppError::DatabaseError("internal SQL: SELECT * FROM secrets".to_string());
     let response = err.to_response();
     // 脱敏后不应包含原始 SQL 片段
@@ -116,19 +130,22 @@ async fn test_to_response_uses_public_message_in_production() {
         "生产环境 message 应为脱敏文案，实际 message: {}",
         response.message
     );
-    unsafe { std::env::remove_var("APP_ENV"); }
+    unsafe {
+        std::env::remove_var("APP_ENV");
+    }
 }
 
 /// 漏洞 #12 反向测试：to_response() 在非生产环境下也使用脱敏 message
 #[tokio::test]
 async fn test_to_response_uses_public_message_in_development() {
-    unsafe { std::env::remove_var("APP_ENV"); }
+    unsafe {
+        std::env::remove_var("APP_ENV");
+    }
     let err = AppError::DatabaseError("connection timeout with secrets table".to_string());
     let response = err.to_response();
     // 开发环境也不再泄露原始 msg
     assert!(
-        !response.message.contains("secrets")
-            && !response.message.contains("connection timeout"),
+        !response.message.contains("secrets") && !response.message.contains("connection timeout"),
         "开发环境 message 也不应泄露原始 msg，实际 message: {}",
         response.message
     );

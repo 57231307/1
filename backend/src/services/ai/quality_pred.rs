@@ -35,7 +35,7 @@ use crate::models::quality_inspection_record::{
 };
 use crate::utils::error::AppError;
 
-use super::{mean, AiAnalysisService};
+use super::{AiAnalysisService, mean};
 
 /// 因子贡献（V15 P2 14.7.1：解释各评分因子的权重与贡献）
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -313,11 +313,7 @@ pub fn mean_qualification_rate(records: &[QualityInspectionModel]) -> f64 {
             count += 1;
         }
     }
-    if count == 0 {
-        0.0
-    } else {
-        sum / count as f64
-    }
+    if count == 0 { 0.0 } else { sum / count as f64 }
 }
 
 /// 保留 2 位小数
@@ -746,7 +742,11 @@ fn build_quality_factors(
     factors.push(FactorContribution {
         factor_name: "平均合格率".to_string(),
         weight: round2(rate_weight),
-        contribution: format!("当前合格率 {:.1}%，对风险评分贡献 {:.1} 分", avg_rate, (100.0 - avg_rate).max(0.0) * rate_weight),
+        contribution: format!(
+            "当前合格率 {:.1}%，对风险评分贡献 {:.1} 分",
+            avg_rate,
+            (100.0 - avg_rate).max(0.0) * rate_weight
+        ),
     });
 
     // 趋势因子
@@ -755,7 +755,10 @@ fn build_quality_factors(
         factor_name: "趋势惩罚".to_string(),
         weight: round2(trend_weight),
         contribution: if trend_is_down {
-            format!("下降趋势触发惩罚 +{:.1} 分", TREND_DOWN_PENALTY * trend_weight)
+            format!(
+                "下降趋势触发惩罚 +{:.1} 分",
+                TREND_DOWN_PENALTY * trend_weight
+            )
         } else {
             "趋势平稳，无额外惩罚".to_string()
         },

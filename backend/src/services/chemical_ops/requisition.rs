@@ -32,7 +32,7 @@ use crate::utils::error::AppError;
 use crate::services::chemical_ops::types::{
     ChemicalRequisitionQuery, CreateChemicalRequisitionRequest, UpdateChemicalRequisitionRequest,
 };
-use crate::services::chemical_service::{validate_requisition_type, ChemicalRequisitionService};
+use crate::services::chemical_service::{ChemicalRequisitionService, validate_requisition_type};
 
 impl ChemicalRequisitionService {
     /// 生成领用单号：CR-YYYYMMDDHHMMSS-NNN

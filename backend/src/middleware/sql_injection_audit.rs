@@ -15,7 +15,7 @@
 //! 3. 模式表保守白名单，避免误伤合法业务路径（例如富文本描述中含 `--`）。
 
 use axum::{
-    body::{to_bytes, Body},
+    body::{Body, to_bytes},
     extract::Request,
     http::header::CONTENT_TYPE,
     middleware::Next,

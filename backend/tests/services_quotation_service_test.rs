@@ -256,9 +256,9 @@ fn test_bjdztcl_hbxt() {
 async fn test_quotationservice_new_zqcysjklj() {
     let db = Arc::new(setup_test_db().await);
     let svc = QuotationService::new(db.clone());
+    use bingxi_backend::services::quotation_service::QuotationService;
     use sea_orm::ConnectionTrait;
-use bingxi_backend::services::quotation_service::QuotationService;
-use std::collections::HashSet;
+    use std::collections::HashSet;
     let _ = svc
         .database
         .execute_raw(sea_orm::Statement::from_sql_and_values(
@@ -297,9 +297,7 @@ async fn test_quotationservice_cancel_bczfhapperror() {
     assert!(result.is_err());
     let err = result.unwrap_err();
     let msg = format!("{}", err);
-    assert!(
-        msg.contains("报价单不存在") || msg.contains("not found") || msg.contains("不存在")
-    );
+    assert!(msg.contains("报价单不存在") || msg.contains("not found") || msg.contains("不存在"));
 }
 
 // ============ update 状态机校验测试 ============

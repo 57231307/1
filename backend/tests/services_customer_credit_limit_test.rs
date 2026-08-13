@@ -3,10 +3,10 @@ use bingxi_backend::services::test_common::setup_test_db;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
 use chrono::Utc;
 // 批次 415：测试中使用 Arc::new(db)，需导入（文件顶部在批次 357 移除了 unused Arc 导入）
-use std::sync::Arc;
 use bingxi_backend::models::master_data;
 use bingxi_backend::utils::error::AppError;
 use rust_decimal::Decimal;
+use std::sync::Arc;
 
 /// 构建测试用客户信用模型夹具
 /// 封装 `customer_credit::Model` 的构造，便于在各测试中复用，；默认 available_credit = credit_limit - used_credit，保持业务不变量。
@@ -285,8 +285,7 @@ fn test_kyedjs_edwltgyj() {
 #[test]
 fn test_kyedjs_ddkyxpd() {
     // 场景 1：状态非活跃，无论金额多少都不可用
-    let model_inactive =
-        make_credit_model(1, decs!("10000"), Decimal::ZERO, master_data::INACTIVE);
+    let model_inactive = make_credit_model(1, decs!("10000"), Decimal::ZERO, master_data::INACTIVE);
     let order_amount = decs!("100");
     let available = if model_inactive.status != master_data::ACTIVE {
         false

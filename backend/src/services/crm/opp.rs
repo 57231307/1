@@ -14,7 +14,7 @@ use crate::models::{crm_opportunity, customer, sales_order};
 // 批次 236 v13 P1-1：商机状态常量接入（规则 0）
 use crate::models::status::crm_opportunity as opp_status;
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
 use crate::utils::error::AppError;
 use crate::utils::xlsx_export::XlsxTable;
 use rust_decimal::Decimal;
@@ -898,7 +898,10 @@ impl CrmService {
             q = q.filter(opportunity_stage_history::Column::OpportunityId.eq(opp_id));
         }
         let records = q
-            .order_by(opportunity_stage_history::Column::ChangedAt, sea_orm::Order::Desc)
+            .order_by(
+                opportunity_stage_history::Column::ChangedAt,
+                sea_orm::Order::Desc,
+            )
             .all(&*self.db)
             .await?;
 
@@ -932,7 +935,10 @@ impl CrmService {
             let last_entry = opportunity_stage_history::Entity::find()
                 .filter(opportunity_stage_history::Column::OpportunityId.eq(opportunity_id))
                 .filter(opportunity_stage_history::Column::ToStage.eq(old_stage))
-                .order_by(opportunity_stage_history::Column::ChangedAt, sea_orm::Order::Desc)
+                .order_by(
+                    opportunity_stage_history::Column::ChangedAt,
+                    sea_orm::Order::Desc,
+                )
                 .one(&*self.db)
                 .await?;
 
@@ -986,7 +992,9 @@ impl CrmService {
     }
 
     /// V15 P2 18.2-D6: 获取竞争对手列表
-    pub async fn list_competitors(&self) -> Result<Vec<crate::models::competitor::Model>, AppError> {
+    pub async fn list_competitors(
+        &self,
+    ) -> Result<Vec<crate::models::competitor::Model>, AppError> {
         use crate::models::competitor;
 
         let competitors = competitor::Entity::find()
@@ -1041,7 +1049,10 @@ impl CrmService {
                     id: record.id,
                     competitor_id: c.id,
                     competitor_name: c.name,
-                    threat_level: record.threat_level.clone().unwrap_or_else(|| "medium".to_string()),
+                    threat_level: record
+                        .threat_level
+                        .clone()
+                        .unwrap_or_else(|| "medium".to_string()),
                     notes: record.notes.clone(),
                 });
             }
@@ -1099,7 +1110,10 @@ impl CrmService {
 
         let records = opportunity_follow_up::Entity::find()
             .filter(opportunity_follow_up::Column::OpportunityId.eq(opportunity_id))
-            .order_by(opportunity_follow_up::Column::FollowUpTime, sea_orm::Order::Desc)
+            .order_by(
+                opportunity_follow_up::Column::FollowUpTime,
+                sea_orm::Order::Desc,
+            )
             .all(&*self.db)
             .await?;
 

@@ -1,6 +1,5 @@
 use bingxi_backend::observability::config::*;
 
-
 #[test]
 fn test_default_config() {
     let cfg = ObservabilityConfig::default();

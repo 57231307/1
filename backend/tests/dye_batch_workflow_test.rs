@@ -7,8 +7,8 @@
 use bingxi_backend::models::status::dye_batch_lifecycle_status as status;
 use bingxi_backend::models::status::dye_batch_transition_code as code;
 use bingxi_backend::services::dye_batch_state_machine_service::{
-    get_allowed_transitions, is_terminal_status, is_valid_transition,
-    validate_lifecycle_status, validate_transition_code, validate_transition_with_rule,
+    get_allowed_transitions, is_terminal_status, is_valid_transition, validate_lifecycle_status,
+    validate_transition_code, validate_transition_with_rule,
 };
 
 // ===== 状态常量值正确性 =====
@@ -249,33 +249,30 @@ fn test_get_allowed_transitions_ztfhklb() {
 /// test_validate_transition_with_rule_hflztg
 #[test]
 fn test_validate_transition_with_rule_hflztg() {
-    assert!(validate_transition_with_rule(
-        Some(status::PENDING_SCHEDULE),
-        status::SCHEDULED,
-        code::SCHEDULE,
-    )
-    .is_ok());
     assert!(
-        validate_transition_with_rule(Some(status::DYEING), status::WASHING, code::WASH,)
-            .is_ok()
+        validate_transition_with_rule(
+            Some(status::PENDING_SCHEDULE),
+            status::SCHEDULED,
+            code::SCHEDULE,
+        )
+        .is_ok()
+    );
+    assert!(
+        validate_transition_with_rule(Some(status::DYEING), status::WASHING, code::WASH,).is_ok()
     );
 }
 
 /// test_validate_transition_with_rule_fflzsb
 #[test]
 fn test_validate_transition_with_rule_fflzsb() {
-    assert!(validate_transition_with_rule(
-        Some(status::PENDING_SCHEDULE),
-        status::SHIPPED,
-        code::SHIP,
-    )
-    .is_err());
-    assert!(validate_transition_with_rule(
-        Some(status::SHIPPED),
-        status::STORED,
-        code::INSPECT,
-    )
-    .is_err());
+    assert!(
+        validate_transition_with_rule(Some(status::PENDING_SCHEDULE), status::SHIPPED, code::SHIP,)
+            .is_err()
+    );
+    assert!(
+        validate_transition_with_rule(Some(status::SHIPPED), status::STORED, code::INSPECT,)
+            .is_err()
+    );
 }
 
 // ===== 完整业务流程测试（需要真实 PostgreSQL，标记 ignore）=====

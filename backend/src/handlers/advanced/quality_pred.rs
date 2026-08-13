@@ -15,11 +15,11 @@
 //! 风险评分 / 主要问题归因 / 建议措施 / 月度分段统计；
 //! 当历史 < 5 条时回退到保守默认值（合格率 95% / 置信度 0.3）。
 
-use axum::{extract::State, Json};
+use axum::{Json, extract::State};
 
 use crate::container::AppState;
-use crate::services::ai::quality_pred::{QualityPredRequest, QualityPredResponse};
 use crate::services::ai::AiAnalysisService;
+use crate::services::ai::quality_pred::{QualityPredRequest, QualityPredResponse};
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

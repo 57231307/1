@@ -1,8 +1,8 @@
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use serde::{Deserialize, Serialize};
 use validator::Validate;

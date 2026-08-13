@@ -1,6 +1,5 @@
 use bingxi_backend::handlers::health_handler::*;
 
-
 #[test]
 fn test_health_check_item() {
     let item = HealthCheckItem {

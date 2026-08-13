@@ -19,11 +19,11 @@
 //! - `download_and_update` 调用 `apply::apply_update`（pub）+ `apply::log_update`（`pub(crate)`）
 //! - `fetch_latest_release` 使用 facade 常量 `GITHUB_API_URL` / `GITHUB_REPO`（`pub(crate)`）
 
-use crate::services::system_update_service::{
-    parse_version, validate_asset_name, validate_download_url, GitHubAsset, GitHubRelease,
-    SystemUpdateService, UpdateCheckResult, UpdateError,
-};
 use crate::services::system_update_service::{GITHUB_API_URL, GITHUB_REPO};
+use crate::services::system_update_service::{
+    GitHubAsset, GitHubRelease, SystemUpdateService, UpdateCheckResult, UpdateError, parse_version,
+    validate_asset_name, validate_download_url,
+};
 use std::fs;
 use std::io;
 use std::path::PathBuf;

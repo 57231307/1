@@ -1,6 +1,5 @@
 use bingxi_backend::utils::sql_escape::*;
 
-
 #[test]
 fn test_escape_like_pattern() {
     assert_eq!(escape_like_pattern("test"), "test");

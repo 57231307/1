@@ -3,8 +3,8 @@
 use crate::container::AppState;
 use crate::handlers::pollution_monitoring_handler;
 use axum::{
-    routing::{get, post, put},
     Router,
+    routing::{get, post, put},
 };
 
 /// 环境监测与固废处置路由（path 前缀 /pollution-monitoring）

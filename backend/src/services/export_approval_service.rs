@@ -21,8 +21,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::models::export_approval_request::{
-    sensitive_resources, ActiveModel as ExportApprovalActiveModel, ApprovalContext, ApprovalStatus,
-    Column, Entity, ExportParams, Model, RiskLevel,
+    ActiveModel as ExportApprovalActiveModel, ApprovalContext, ApprovalStatus, Column, Entity,
+    ExportParams, Model, RiskLevel, sensitive_resources,
 };
 use crate::utils::error::AppError;
 
@@ -498,10 +498,7 @@ impl ExportApprovalService {
             select = select.filter(
                 Condition::any()
                     .add(Column::ApproverUserId.eq(user_id))
-                    .add(Expr::cust_with_values(
-                        "applicant_user_id <> $1",
-                        [user_id],
-                    )),
+                    .add(Expr::cust_with_values("applicant_user_id <> $1", [user_id])),
             );
         }
 

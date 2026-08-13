@@ -16,7 +16,7 @@ use sea_orm::{FromQueryResult, Statement};
 
 use crate::services::bi_analysis_ops::types::PivotRow;
 use crate::services::bi_analysis_service::{
-    dec_to_f64, dim_to_expr, measure_to_expr, BiAnalysisService,
+    BiAnalysisService, dec_to_f64, dim_to_expr, measure_to_expr,
 };
 use crate::utils::error::AppError;
 

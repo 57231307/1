@@ -1,5 +1,5 @@
-use rust_decimal::Decimal;
 use bingxi_backend::services::cost_collection_service::*;
+use rust_decimal::Decimal;
 
 #[test]
 fn test_cost_ratio_calculation() {

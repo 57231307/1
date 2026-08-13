@@ -1,6 +1,5 @@
 use bingxi_backend::services::slow_query_collector::*;
 
-
 /// SQL 拼接：默认阈值与 limit（L2 修复后使用 $1/$2 占位符）
 #[test]
 fn test_build_query_sql_default() {

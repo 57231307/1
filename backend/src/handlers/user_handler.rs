@@ -18,8 +18,8 @@ use crate::services::auth::password_policy_service::{
 };
 use crate::utils::response::ApiResponse;
 use axum::{
-    extract::{Extension, Path, State},
     Json,
+    extract::{Extension, Path, State},
 };
 use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};

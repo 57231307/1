@@ -2,9 +2,9 @@ use std::fs;
 use std::path::Path;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::{
+    Registry,
     layer::{Layer, SubscriberExt},
     util::SubscriberInitExt,
-    Registry,
 };
 
 /// 日志配置

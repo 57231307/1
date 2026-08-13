@@ -1,9 +1,8 @@
 //! 出口商检路由
 //! V15 P2 B08-12
 use crate::container::AppState;
-use crate::handlers::{print_handler,
-    certificate_of_origin_handler, export_inspection_handler};
-use axum::{routing::get, Router};
+use crate::handlers::{certificate_of_origin_handler, export_inspection_handler, print_handler};
+use axum::{Router, routing::get};
 
 pub fn routes() -> Router<AppState> {
     Router::new()

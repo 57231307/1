@@ -210,7 +210,7 @@ impl DatabaseConfig {
         // '[', ']' for IPv6, '%' for already-encoded chars). Encoding '.' or any
         // alphabetic character in the host would break DNS / IP resolution, so we
         // pass the host through verbatim.
-        use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
+        use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
         let encoded_username = utf8_percent_encode(&self.username, NON_ALPHANUMERIC).to_string();
         let encoded_password = utf8_percent_encode(&self.password, NON_ALPHANUMERIC).to_string();
         let encoded_name = utf8_percent_encode(&self.name, NON_ALPHANUMERIC).to_string();

@@ -3,8 +3,8 @@
 use crate::container::AppState;
 use crate::handlers::environmental_tax_handler;
 use axum::{
-    routing::{get, post},
     Router,
+    routing::{get, post},
 };
 
 /// 环保税路由（path 前缀 /environmental-tax）

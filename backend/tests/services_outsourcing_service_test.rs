@@ -1,6 +1,6 @@
-use rust_decimal::Decimal;
 use bingxi_backend::models::status::quality_dyeing::*;
 use bingxi_backend::services::quality_dyeing;
+use rust_decimal::Decimal;
 
 #[test]
 fn 测试计算损耗率_正常() {

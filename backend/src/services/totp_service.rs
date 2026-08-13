@@ -191,8 +191,8 @@ impl TotpService {
 
     /// 5. 使用恢复码登录（v11 批次 141 新增，预留接口）（验证恢复码是否匹配，匹配成功后消耗该恢复码（从列表中删除）。；返回 true 表示验证成功，false 表示恢复码无效。）
     pub async fn verify_recovery_code(&self, user_id: i32, code: &str) -> Result<bool, AppError> {
-        use argon2::password_hash::{PasswordHash, PasswordVerifier};
         use argon2::Argon2;
+        use argon2::password_hash::{PasswordHash, PasswordVerifier};
 
         let user_model = user::Entity::find_by_id(user_id)
             .one(&*self.db)

@@ -8,10 +8,10 @@ use std::sync::Arc;
 
 use chrono::{TimeZone, Utc};
 
+use super::common::setup_test_db;
 use bingxi_backend::services::energy_ops::allocation_record::EnergyAllocationRecordService;
 use bingxi_backend::services::energy_ops::allocation_rule::EnergyAllocationRuleService;
 use bingxi_backend::services::energy_ops::consumption::EnergyConsumptionService;
-use super::common::setup_test_db;
 use chrono::Utc;
 
 /// 测试月末分摊完整流程
@@ -29,8 +29,14 @@ async fn test_monthly_allocation_by_duration() {
     let _allocation_service = EnergyAllocationRecordService::new(db.clone());
 
     // 3. 创建测试数据 - 能耗记录
-    let period_start = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap().fixed_offset();
-    let period_end = Utc.with_ymd_and_hms(2026, 1, 31, 23, 59, 59).unwrap().fixed_offset();
+    let period_start = Utc
+        .with_ymd_and_hms(2026, 1, 1, 0, 0, 0)
+        .unwrap()
+        .fixed_offset();
+    let period_end = Utc
+        .with_ymd_and_hms(2026, 1, 31, 23, 59, 59)
+        .unwrap()
+        .fixed_offset();
 
     // 注意：由于使用 SQLite 内存数据库，需要先创建表
     // 这里我们测试服务的实例化和基本方法调用
@@ -39,12 +45,7 @@ async fn test_monthly_allocation_by_duration() {
 
     // 5. 测试查询空数据库
     let result = consumption_service
-        .summarize_by_workshop(
-            period_start,
-            period_end,
-            None,
-            None,
-        )
+        .summarize_by_workshop(period_start, period_end, None, None)
         .await;
 
     // 6. 验证结果
@@ -124,8 +125,14 @@ async fn test_consumption_summary() {
     let consumption_service = EnergyConsumptionService::new(db.clone());
 
     // 3. 测试汇总查询
-    let period_start = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap().fixed_offset();
-    let period_end = Utc.with_ymd_and_hms(2026, 1, 31, 23, 59, 59).unwrap().fixed_offset();
+    let period_start = Utc
+        .with_ymd_and_hms(2026, 1, 1, 0, 0, 0)
+        .unwrap()
+        .fixed_offset();
+    let period_end = Utc
+        .with_ymd_and_hms(2026, 1, 31, 23, 59, 59)
+        .unwrap()
+        .fixed_offset();
 
     let result = consumption_service
         .summarize_by_workshop(

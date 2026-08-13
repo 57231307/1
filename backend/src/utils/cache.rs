@@ -2,8 +2,8 @@
 // 私有项 CachedValue<T> 内部使用。
 
 use dashmap::DashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 /// 缓存统计信息

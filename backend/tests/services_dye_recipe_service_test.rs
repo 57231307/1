@@ -1,7 +1,6 @@
 use bingxi_backend::models::status::dye_recipe as recipe_status;
-use bingxi_backend::services::period_adjustment_service::*;
 use bingxi_backend::services::dye_recipe_service::DyeRecipeService;
-
+use bingxi_backend::services::period_adjustment_service::*;
 
 /// 测试配方编号自动生成格式
 #[test]
@@ -32,79 +31,79 @@ fn test_generate_recipe_no_empty() {
 /// 测试状态流转：草稿 → 已审核（合法）
 #[test]
 fn test_status_transition_draft_to_approved() {
-    assert!(DyeRecipeService::validate_status_transition(
-        recipe_status::DRAFT,
-        recipe_status::APPROVED
-    )
-    .is_ok());
+    assert!(
+        DyeRecipeService::validate_status_transition(recipe_status::DRAFT, recipe_status::APPROVED)
+            .is_ok()
+    );
 }
 
 /// 测试状态流转：草稿 → 已停用（合法）
 #[test]
 fn test_status_transition_draft_to_disabled() {
-    assert!(DyeRecipeService::validate_status_transition(
-        recipe_status::DRAFT,
-        recipe_status::DISABLED
-    )
-    .is_ok());
+    assert!(
+        DyeRecipeService::validate_status_transition(recipe_status::DRAFT, recipe_status::DISABLED)
+            .is_ok()
+    );
 }
 
 /// 测试状态流转：已审核 → 已停用（合法）
 #[test]
 fn test_status_transition_approved_to_disabled() {
-    assert!(DyeRecipeService::validate_status_transition(
-        recipe_status::APPROVED,
-        recipe_status::DISABLED
-    )
-    .is_ok());
+    assert!(
+        DyeRecipeService::validate_status_transition(
+            recipe_status::APPROVED,
+            recipe_status::DISABLED
+        )
+        .is_ok()
+    );
 }
 
 /// 测试状态流转：已停用 → 已审核（合法）
 #[test]
 fn test_status_transition_disabled_to_approved() {
-    assert!(DyeRecipeService::validate_status_transition(
-        recipe_status::DISABLED,
-        recipe_status::APPROVED
-    )
-    .is_ok());
+    assert!(
+        DyeRecipeService::validate_status_transition(
+            recipe_status::DISABLED,
+            recipe_status::APPROVED
+        )
+        .is_ok()
+    );
 }
 
 /// 测试状态流转：草稿 → 草稿（非法，不能自转）
 #[test]
 fn test_status_transition_draft_to_draft_invalid() {
-    assert!(DyeRecipeService::validate_status_transition(
-        recipe_status::DRAFT,
-        recipe_status::DRAFT
-    )
-    .is_err());
+    assert!(
+        DyeRecipeService::validate_status_transition(recipe_status::DRAFT, recipe_status::DRAFT)
+            .is_err()
+    );
 }
 
 /// 测试状态流转：已审核 → 草稿（非法，不能回退到草稿）
 #[test]
 fn test_status_transition_approved_to_draft_invalid() {
-    assert!(DyeRecipeService::validate_status_transition(
-        recipe_status::APPROVED,
-        recipe_status::DRAFT
-    )
-    .is_err());
+    assert!(
+        DyeRecipeService::validate_status_transition(recipe_status::APPROVED, recipe_status::DRAFT)
+            .is_err()
+    );
 }
 
 /// 测试状态流转：已审核 → 已审核（非法，不能自转）
 #[test]
 fn test_status_transition_approved_to_approved_invalid() {
-    assert!(DyeRecipeService::validate_status_transition(
-        recipe_status::APPROVED,
-        recipe_status::APPROVED
-    )
-    .is_err());
+    assert!(
+        DyeRecipeService::validate_status_transition(
+            recipe_status::APPROVED,
+            recipe_status::APPROVED
+        )
+        .is_err()
+    );
 }
 
 /// 测试状态流转：未知状态（非法）
 #[test]
 fn test_status_transition_unknown_status() {
-    assert!(
-        DyeRecipeService::validate_status_transition("未知", recipe_status::APPROVED).is_err()
-    );
+    assert!(DyeRecipeService::validate_status_transition("未知", recipe_status::APPROVED).is_err());
 }
 
 /// 测试删除校验：已审核配方不允许删除
@@ -152,9 +151,7 @@ fn test_validate_can_approve_disabled() {
 /// 测试创建版本校验：已审核状态可创建新版本
 #[test]
 fn test_validate_can_create_version_approved() {
-    assert!(
-        DyeRecipeService::validate_can_create_version(Some(recipe_status::APPROVED)).is_ok()
-    );
+    assert!(DyeRecipeService::validate_can_create_version(Some(recipe_status::APPROVED)).is_ok());
 }
 
 /// 测试创建版本校验：草稿状态不可创建新版本
@@ -166,9 +163,7 @@ fn test_validate_can_create_version_draft() {
 /// 测试创建版本校验：已停用状态不可创建新版本
 #[test]
 fn test_validate_can_create_version_disabled() {
-    assert!(
-        DyeRecipeService::validate_can_create_version(Some(recipe_status::DISABLED)).is_err()
-    );
+    assert!(DyeRecipeService::validate_can_create_version(Some(recipe_status::DISABLED)).is_err());
 }
 
 /// 测试状态常量值正确性

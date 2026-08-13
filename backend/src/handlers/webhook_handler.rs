@@ -1,6 +1,6 @@
 use axum::{
-    extract::{Path, State},
     Json,
+    extract::{Path, State},
 };
 use serde::{Deserialize, Serialize};
 use std::sync::LazyLock;
@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
-use crate::middleware::rate_limit::{check_rate_limit, MemoryRateLimiter};
+use crate::middleware::rate_limit::{MemoryRateLimiter, check_rate_limit};
 use crate::services::webhook_service::{WebhookDeliveryResult, WebhookService};
 use crate::utils::error::AppError;
 use crate::utils::messages::biz_msg;

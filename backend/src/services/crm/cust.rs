@@ -19,11 +19,11 @@ use crate::models::{
     sales_order::{Column as SalesOrderColumn, Entity as SalesOrderEntity},
 };
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{check_resource_owner, DataScopeContext};
+use crate::utils::data_scope::{DataScopeContext, check_resource_owner};
 use crate::utils::error::AppError;
-use sea_orm::{ExprTrait, 
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set,
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use std::sync::Arc;
 
@@ -486,10 +486,7 @@ impl CrmService {
     }
 
     /// V15 P2 18.4-D6: 记录客户操作日志
-    pub async fn log_customer_operation(
-        &self,
-        req: CreateAuditLogRequest,
-    ) -> Result<(), AppError> {
+    pub async fn log_customer_operation(&self, req: CreateAuditLogRequest) -> Result<(), AppError> {
         use crate::models::customer_audit_log;
 
         customer_audit_log::ActiveModel {
@@ -547,10 +544,7 @@ impl CrmService {
             .await?;
 
         let total_orders = orders.len() as i32;
-        let total_revenue: rust_decimal::Decimal = orders
-            .iter()
-            .map(|o| o.total_amount)
-            .sum();
+        let total_revenue: rust_decimal::Decimal = orders.iter().map(|o| o.total_amount).sum();
         let avg_order_value = if total_orders > 0 {
             total_revenue / rust_decimal::Decimal::from(total_orders)
         } else {
@@ -570,13 +564,17 @@ impl CrmService {
         // 计算购买频率（订单数/年）
         let purchase_frequency = if lifespan_days > 0 && total_orders > 0 {
             let years = lifespan_days as f64 / 365.0;
-            rust_decimal::Decimal::from(total_orders) / rust_decimal::Decimal::try_from(years).unwrap_or(rust_decimal::Decimal::ONE)
+            rust_decimal::Decimal::from(total_orders)
+                / rust_decimal::Decimal::try_from(years).unwrap_or(rust_decimal::Decimal::ONE)
         } else {
             rust_decimal::Decimal::ZERO
         };
 
         // CLV = 平均订单金额 * 购买频率 * 客户生命周期年数
-        let clv_score = avg_order_value * purchase_frequency * rust_decimal::Decimal::try_from(lifespan_days as f64 / 365.0).unwrap_or(rust_decimal::Decimal::ONE);
+        let clv_score = avg_order_value
+            * purchase_frequency
+            * rust_decimal::Decimal::try_from(lifespan_days as f64 / 365.0)
+                .unwrap_or(rust_decimal::Decimal::ONE);
 
         // 客户分层
         let segment = if clv_score >= rust_decimal::Decimal::from(100000) {

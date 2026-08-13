@@ -11,8 +11,8 @@
 use std::sync::Arc;
 
 use bingxi_backend::services::bi_analysis_service::BiAnalysisService;
-use sea_orm::{Database, DatabaseConnection};
 use chrono::NaiveDate;
+use sea_orm::{Database, DatabaseConnection};
 
 /// 构造测试用 BiAnalysisService（sqlite::memory: 连接）
 ///

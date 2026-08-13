@@ -3,7 +3,6 @@ use bingxi_backend::services::pollution_permit_service::*;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 
-
 #[test]
 fn test_classify_expiry_level_normal() {
     assert_eq!(

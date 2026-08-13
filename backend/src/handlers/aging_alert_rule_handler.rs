@@ -9,8 +9,8 @@ use crate::services::aging_alert_rule_service::{
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use serde::Deserialize;
 use tracing::info;
@@ -109,10 +109,7 @@ pub async fn list_rules(
         .await?;
 
     Ok(Json(ApiResponse::success(PaginatedResponse::new(
-        rules,
-        total,
-        page,
-        page_size,
+        rules, total, page, page_size,
     ))))
 }
 

@@ -2,7 +2,6 @@ use bingxi_backend::services::ai_model_management_service::*;
 use rust_decimal::Decimal;
 use std::sync::Arc;
 
-
 #[test]
 fn test_validate_model_status_valid() {
     assert!(AiModelManagementService::validate_model_status("draft").is_ok());
@@ -61,24 +60,20 @@ fn test_normalize_risk() {
 
 #[test]
 fn test_validate_metric_range() {
-    let svc = AiModelManagementService::new(std::sync::Arc::new(
-        sea_orm::DatabaseConnection::default(),
-    ));
+    let svc =
+        AiModelManagementService::new(std::sync::Arc::new(sea_orm::DatabaseConnection::default()));
     let _ = svc; // 抑制 unused 警告
-    assert!(AiModelManagementService::validate_metric_range(
-        "accuracy",
-        Some(Decimal::new(85, 2))
-    )
-    .is_ok());
+    assert!(
+        AiModelManagementService::validate_metric_range("accuracy", Some(Decimal::new(85, 2)))
+            .is_ok()
+    );
     assert!(AiModelManagementService::validate_metric_range("accuracy", None).is_ok());
-    assert!(AiModelManagementService::validate_metric_range(
-        "accuracy",
-        Some(Decimal::new(150, 2))
-    )
-    .is_err());
-    assert!(AiModelManagementService::validate_metric_range(
-        "accuracy",
-        Some(Decimal::new(-5, 2))
-    )
-    .is_err());
+    assert!(
+        AiModelManagementService::validate_metric_range("accuracy", Some(Decimal::new(150, 2)))
+            .is_err()
+    );
+    assert!(
+        AiModelManagementService::validate_metric_range("accuracy", Some(Decimal::new(-5, 2)))
+            .is_err()
+    );
 }

@@ -1,7 +1,7 @@
 use bingxi_backend::middleware::audit_context::AuditContext;
-use serde_json::json;
 use sea_orm::ActiveValue;
 use sea_orm::entity::prelude::Set;
+use serde_json::json;
 
 /// AuditEvent::new 默认值正确
 #[test]

@@ -12,13 +12,17 @@
 //!   `check_permission` 查询 mock DB 返回空权限列表，非 admin 请求必被 403 拒绝。
 //! - AuthContext 通过自定义注入中间件写入 request extensions，模拟 auth_middleware 行为。
 
+use axum::Json;
+use axum::http::StatusCode;
+use axum::response::IntoResponse;
+use axum::response::Response;
 use axum::{
+    Router,
     body::Body,
     http::{Request, StatusCode},
-    middleware::{from_fn_with_state, Next},
+    middleware::{Next, from_fn_with_state},
     response::{IntoResponse, Response},
     routing::get,
-    Router,
 };
 use bingxi_backend::container::AppState;
 use bingxi_backend::middleware::auth_context::AuthContext;
@@ -27,10 +31,6 @@ use bingxi_backend::middleware::permission::{
 };
 use serde_json::Value;
 use tower::ServiceExt;
-use axum::Json;
-use axum::http::StatusCode;
-use axum::response::IntoResponse;
-use axum::response::Response;
 
 /// 测试用业务处理器：直接返回 200 + 简易 JSON
 async fn ok_handler() -> impl IntoResponse {

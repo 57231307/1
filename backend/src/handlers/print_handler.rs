@@ -693,7 +693,7 @@ fn builtin_print_templates() -> Vec<PrintTemplateDto> {
             is_default: true,
             created_at: "2026-01-01T00:00:00Z".to_string(),
         },
-PrintTemplateDto {
+        PrintTemplateDto {
             id: 7,
             name: "售后处理单打印模板".to_string(),
             doc_type: "after_sales".to_string(),

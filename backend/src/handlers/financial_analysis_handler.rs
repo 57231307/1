@@ -3,8 +3,8 @@
 //! 提供财务指标查询、趋势分析、报告管理等功能
 
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use serde::Deserialize;
 use tracing::info;

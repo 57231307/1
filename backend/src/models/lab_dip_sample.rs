@@ -6,8 +6,8 @@
 //! 真实业务：技术科打样员根据通知单打 ABCD 多版小样，每版含处方/工艺参数/对色结果，客户从中选 1 版作为 OK 样
 
 use rust_decimal::Decimal;
-use sea_orm::entity::prelude::*;
 use sea_orm::FromJsonQueryResult;
+use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// 处方明细项（染料组合+用量）：含名称、用量、单位、百分比（o.w.f 染料对织物重量百分比）

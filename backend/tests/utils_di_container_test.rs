@@ -1,7 +1,6 @@
 use bingxi_backend::utils::di_container::*;
 use std::sync::Arc;
 
-
 struct TestService {
     pub value: String,
 }

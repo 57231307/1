@@ -4,9 +4,9 @@ use bingxi_backend::models::status::production;
 use bingxi_backend::services::test_common::setup_test_db;
 use bingxi_backend::utils::error::AppError;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
+use bingxi_backend::services::production_order_service::ProductionOrderService;
 use rust_decimal::Decimal;
 use std::str::FromStr;
-use bingxi_backend::services::production_order_service::ProductionOrderService;
 use std::sync::Arc;
 
 /// 复现 deduct_raw_materials_txn 中的 BOM 用量计算（纯算法）（公式：consumption_qty = (bom_quantity * production_qty).round_dp(4)）
@@ -43,10 +43,7 @@ fn calc_added_kg(
 }
 
 /// 复现 complete_production_order 中 actual_quantity 缺省取 planned_quantity 的逻辑
-fn resolve_production_qty(
-    actual_quantity: Option<Decimal>,
-    planned_quantity: Decimal,
-) -> Decimal {
+fn resolve_production_qty(actual_quantity: Option<Decimal>, planned_quantity: Decimal) -> Decimal {
     actual_quantity.unwrap_or(planned_quantity)
 }
 
@@ -141,111 +138,133 @@ fn test_ztcl_gztzhbxt() {
 /// test_ztzh_cgdypchf
 #[test]
 fn test_ztzh_cgdypchf() {
-    assert!(ProductionOrderService::validate_status_transition(
-        common::STATUS_DRAFT,
-        production::PRODUCTION_SCHEDULED
-    )
-    .is_ok());
+    assert!(
+        ProductionOrderService::validate_status_transition(
+            common::STATUS_DRAFT,
+            production::PRODUCTION_SCHEDULED
+        )
+        .is_ok()
+    );
 }
 
 /// test_ztzh_cgddsphf
 #[test]
 fn test_ztzh_cgddsphf() {
-    assert!(ProductionOrderService::validate_status_transition(
-        common::STATUS_DRAFT,
-        production::PRODUCTION_PENDING_APPROVAL
-    )
-    .is_ok());
+    assert!(
+        ProductionOrderService::validate_status_transition(
+            common::STATUS_DRAFT,
+            production::PRODUCTION_PENDING_APPROVAL
+        )
+        .is_ok()
+    );
 }
 
 /// test_ztzh_cgdyqxhf
 #[test]
 fn test_ztzh_cgdyqxhf() {
-    assert!(ProductionOrderService::validate_status_transition(
-        common::STATUS_DRAFT,
-        common::STATUS_CANCELLED
-    )
-    .is_ok());
+    assert!(
+        ProductionOrderService::validate_status_transition(
+            common::STATUS_DRAFT,
+            common::STATUS_CANCELLED
+        )
+        .is_ok()
+    );
 }
 
 /// test_ztzh_ypcdsczhf
 #[test]
 fn test_ztzh_ypcdsczhf() {
-    assert!(ProductionOrderService::validate_status_transition(
-        production::PRODUCTION_SCHEDULED,
-        production::PRODUCTION_IN_PROGRESS
-    )
-    .is_ok());
+    assert!(
+        ProductionOrderService::validate_status_transition(
+            production::PRODUCTION_SCHEDULED,
+            production::PRODUCTION_IN_PROGRESS
+        )
+        .is_ok()
+    );
 }
 
 /// test_ztzh_ypcdyqxhf
 #[test]
 fn test_ztzh_ypcdyqxhf() {
-    assert!(ProductionOrderService::validate_status_transition(
-        production::PRODUCTION_SCHEDULED,
-        common::STATUS_CANCELLED
-    )
-    .is_ok());
+    assert!(
+        ProductionOrderService::validate_status_transition(
+            production::PRODUCTION_SCHEDULED,
+            common::STATUS_CANCELLED
+        )
+        .is_ok()
+    );
 }
 
 /// test_ztzh_sczdywchf
 #[test]
 fn test_ztzh_sczdywchf() {
-    assert!(ProductionOrderService::validate_status_transition(
-        production::PRODUCTION_IN_PROGRESS,
-        common::STATUS_COMPLETED
-    )
-    .is_ok());
+    assert!(
+        ProductionOrderService::validate_status_transition(
+            production::PRODUCTION_IN_PROGRESS,
+            common::STATUS_COMPLETED
+        )
+        .is_ok()
+    );
 }
 
 /// test_ztzh_sczdyqxhf
 #[test]
 fn test_ztzh_sczdyqxhf() {
-    assert!(ProductionOrderService::validate_status_transition(
-        production::PRODUCTION_IN_PROGRESS,
-        common::STATUS_CANCELLED
-    )
-    .is_ok());
+    assert!(
+        ProductionOrderService::validate_status_transition(
+            production::PRODUCTION_IN_PROGRESS,
+            common::STATUS_CANCELLED
+        )
+        .is_ok()
+    );
 }
 
 /// test_ztzh_dspdysphf
 #[test]
 fn test_ztzh_dspdysphf() {
-    assert!(ProductionOrderService::validate_status_transition(
-        production::PRODUCTION_PENDING_APPROVAL,
-        common::STATUS_APPROVED
-    )
-    .is_ok());
+    assert!(
+        ProductionOrderService::validate_status_transition(
+            production::PRODUCTION_PENDING_APPROVAL,
+            common::STATUS_APPROVED
+        )
+        .is_ok()
+    );
 }
 
 /// test_ztzh_dspdyjjhf
 #[test]
 fn test_ztzh_dspdyjjhf() {
-    assert!(ProductionOrderService::validate_status_transition(
-        production::PRODUCTION_PENDING_APPROVAL,
-        production::PRODUCTION_REJECTED
-    )
-    .is_ok());
+    assert!(
+        ProductionOrderService::validate_status_transition(
+            production::PRODUCTION_PENDING_APPROVAL,
+            production::PRODUCTION_REJECTED
+        )
+        .is_ok()
+    );
 }
 
 /// test_ztzh_yspdypchf
 #[test]
 fn test_ztzh_yspdypchf() {
-    assert!(ProductionOrderService::validate_status_transition(
-        common::STATUS_APPROVED,
-        production::PRODUCTION_SCHEDULED
-    )
-    .is_ok());
+    assert!(
+        ProductionOrderService::validate_status_transition(
+            common::STATUS_APPROVED,
+            production::PRODUCTION_SCHEDULED
+        )
+        .is_ok()
+    );
 }
 
 /// test_ztzh_yjjdcghf
 #[test]
 fn test_ztzh_yjjdcghf() {
-    assert!(ProductionOrderService::validate_status_transition(
-        production::PRODUCTION_REJECTED,
-        common::STATUS_DRAFT
-    )
-    .is_ok());
+    assert!(
+        ProductionOrderService::validate_status_transition(
+            production::PRODUCTION_REJECTED,
+            common::STATUS_DRAFT
+        )
+        .is_ok()
+    );
 }
 
 /// test_ztzh_cgbnzjdscz（业务规则：草稿必须先经已排产才能进入生产中，跳级转换应被拒绝。）
@@ -317,8 +336,7 @@ fn test_ztzh_cwxxbhyhmbzt() {
 /// test_ztzh_wzztcwxxbhztm
 #[test]
 fn test_ztzh_wzztcwxxbhztm() {
-    let result =
-        ProductionOrderService::validate_status_transition("FOO", common::STATUS_DRAFT);
+    let result = ProductionOrderService::validate_status_transition("FOO", common::STATUS_DRAFT);
     let err_msg = result.unwrap_err().to_string();
     assert!(err_msg.contains("FOO"), "错误消息应包含未知状态名");
 }

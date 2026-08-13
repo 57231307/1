@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use bingxi_backend::services::business_metrics::*;
+use std::sync::Arc;
 
 // P9-1: 测试夹具 helper，统一 build_registry_and_metrics 的 expect
 fn build_metrics() -> (Arc<prometheus::Registry>, BusinessMetrics) {
@@ -41,7 +41,8 @@ fn test_dljl() {
 
     // 验证登录记录功能正常工作
     let families = _r.gather();
-    let login_metrics: Vec<_> = families.iter()
+    let login_metrics: Vec<_> = families
+        .iter()
         .filter(|f| f.get_name().contains("login"))
         .collect();
     assert!(!login_metrics.is_empty(), "应包含登录相关指标");

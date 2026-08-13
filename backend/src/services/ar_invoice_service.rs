@@ -14,7 +14,7 @@ use tracing::info;
 
 use crate::models::ar_invoice;
 // V15 P0-S02：行级数据权限工具
-use crate::utils::data_scope::{check_resource_owner, DataScopeContext};
+use crate::utils::data_scope::{DataScopeContext, check_resource_owner};
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::ActiveValue::Set;

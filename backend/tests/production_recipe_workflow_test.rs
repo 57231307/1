@@ -183,21 +183,18 @@ fn test_calculate_amounts_jcxssx() {
 /// 验证合法流转边：DRAFT→APPROVED、APPROVED→CLOSED、DRAFT→CANCELLED。
 #[test]
 fn test_validate_status_transition_hflztg() {
-    assert!(ProductionRecipeService::validate_status_transition(
-        status::DRAFT,
-        status::APPROVED
-    )
-    .is_ok());
-    assert!(ProductionRecipeService::validate_status_transition(
-        status::APPROVED,
-        status::CLOSED
-    )
-    .is_ok());
-    assert!(ProductionRecipeService::validate_status_transition(
-        status::DRAFT,
-        status::CANCELLED
-    )
-    .is_ok());
+    assert!(
+        ProductionRecipeService::validate_status_transition(status::DRAFT, status::APPROVED)
+            .is_ok()
+    );
+    assert!(
+        ProductionRecipeService::validate_status_transition(status::APPROVED, status::CLOSED)
+            .is_ok()
+    );
+    assert!(
+        ProductionRecipeService::validate_status_transition(status::DRAFT, status::CANCELLED)
+            .is_ok()
+    );
 }
 
 /// test_validate_status_transition_fflzsb
@@ -206,18 +203,15 @@ fn test_validate_status_transition_hflztg() {
 #[test]
 fn test_validate_status_transition_fflzsb() {
     assert!(
-        ProductionRecipeService::validate_status_transition(status::DRAFT, status::CLOSED)
-            .is_err()
+        ProductionRecipeService::validate_status_transition(status::DRAFT, status::CLOSED).is_err()
     );
     assert!(
-        ProductionRecipeService::validate_status_transition(status::CLOSED, status::DRAFT)
+        ProductionRecipeService::validate_status_transition(status::CLOSED, status::DRAFT).is_err()
+    );
+    assert!(
+        ProductionRecipeService::validate_status_transition(status::CANCELLED, status::APPROVED)
             .is_err()
     );
-    assert!(ProductionRecipeService::validate_status_transition(
-        status::CANCELLED,
-        status::APPROVED
-    )
-    .is_err());
 }
 
 // ===== validate_can_update 可更新校验 =====

@@ -3,7 +3,7 @@
 //! 覆盖节点 start/pause/resume/complete/block 流程
 //! 创建时间: 2026-06-17
 
-use bingxi_backend::utils::process_state_machine::{default_process_nodes, CustomOrderStatus};
+use bingxi_backend::utils::process_state_machine::{CustomOrderStatus, default_process_nodes};
 
 /// 将工艺节点类型映射为对应状态（测试辅助，原 lib 中 dead_code 移入）
 fn node_type_to_status(node_type: &str) -> Option<CustomOrderStatus> {

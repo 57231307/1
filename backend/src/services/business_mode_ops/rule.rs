@@ -21,7 +21,7 @@ use crate::utils::error::AppError;
 use crate::services::business_mode_ops::types::{
     CreateBusinessModeRuleRequest, UpdateBusinessModeRuleRequest,
 };
-use crate::services::business_mode_service::{validate_rule_type, BusinessModeRuleService};
+use crate::services::business_mode_service::{BusinessModeRuleService, validate_rule_type};
 
 impl BusinessModeRuleService {
     /// 创建业务模式规则

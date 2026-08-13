@@ -1,9 +1,8 @@
+use axum::http::StatusCode;
 use bingxi_backend::container::*;
 use bingxi_backend::services::business_metrics::*;
 use bingxi_backend::services::metrics_service::*;
-use axum::http::StatusCode;
 use std::sync::Arc;
-
 
 // P9-1: 测试夹具 helper，封装 MetricsService 的常见初始化模式
 fn test_metrics_service() -> MetricsService {
@@ -61,7 +60,10 @@ fn test_record_db_query() {
     metrics.record_db_query(0.1);
 
     // 验证 metrics 对象仍然有效
-    assert!(metrics.gather().is_empty() || !metrics.gather().is_empty(), "metrics 应保持有效状态");
+    assert!(
+        metrics.gather().is_empty() || !metrics.gather().is_empty(),
+        "metrics 应保持有效状态"
+    );
 }
 
 #[test]
@@ -209,7 +211,10 @@ fn test_record_http_duration_by_route() {
     metrics.record_http_duration_by_route("GET", "/api/v1/erp/products", 0.123);
 
     // 验证 metrics 对象仍然有效
-    assert!(metrics.gather().is_empty() || !metrics.gather().is_empty(), "metrics 应保持有效状态");
+    assert!(
+        metrics.gather().is_empty() || !metrics.gather().is_empty(),
+        "metrics 应保持有效状态"
+    );
 }
 
 #[test]

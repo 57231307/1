@@ -6,8 +6,8 @@
 //!   → 卷唛标签打印 → PDA 扫描卷唛条码 → 自动入库
 
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use serde::Deserialize;
 

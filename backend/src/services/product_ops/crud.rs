@@ -15,9 +15,9 @@
 
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{ExprTrait, 
-    ActiveModelTrait, ColumnTrait, EntityTrait, NotSet, Order, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set,
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, NotSet, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set,
 };
 
 use crate::models::product::{self, Entity as ProductEntity};
@@ -27,7 +27,7 @@ use crate::utils::number_generator::DocumentNumberGenerator;
 // P0-D03（Batch 488）：Redis 分布式缓存接入（get_product 读穿透 + 写失效）
 // V15 P2 B07-P2-6：使用差异化 TTL（PRODUCT_CACHE_TTL_SECS=600s，产品目录低波动率）
 use crate::utils::redis_cache::{
-    cache_key, redis_cache_del, redis_cache_get_json, redis_cache_set_json, PRODUCT_CACHE_TTL_SECS,
+    PRODUCT_CACHE_TTL_SECS, cache_key, redis_cache_del, redis_cache_get_json, redis_cache_set_json,
 };
 use crate::utils::sql_escape::safe_like_pattern;
 

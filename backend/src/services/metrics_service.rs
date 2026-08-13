@@ -20,7 +20,7 @@
 //! `middleware::metrics::metrics_middleware` 会自动按 method/route/status 记录带标签指标。
 //! 调用方通常只需要 `state.metrics.metrics.record_business_operation("create_user")` 即可。
 
-use axum::{extract::State, http::StatusCode, response::Response, routing::get, Router};
+use axum::{Router, extract::State, http::StatusCode, response::Response, routing::get};
 use prometheus::{
     Encoder, Histogram, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGauge, Opts,
     Registry, TextEncoder,

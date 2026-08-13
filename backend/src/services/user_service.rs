@@ -25,7 +25,7 @@ use crate::models::permission_change_audit;
 use crate::middleware::permission::invalidate_permission_cache;
 // P0-D03（Batch 488）：Redis 分布式缓存接入（find_by_id 读穿透 + 写失效）
 use crate::utils::redis_cache::{
-    cache_key, redis_cache_del, redis_cache_get_json, redis_cache_set_json, DEFAULT_CACHE_TTL_SECS,
+    DEFAULT_CACHE_TTL_SECS, cache_key, redis_cache_del, redis_cache_get_json, redis_cache_set_json,
 };
 use sea_orm::DatabaseConnection;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};

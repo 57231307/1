@@ -3,8 +3,8 @@
 //! MRP物料需求计划API端点
 
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use chrono::NaiveDate;
 use rust_decimal::Decimal;

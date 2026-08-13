@@ -1,12 +1,12 @@
 #![allow(dead_code)]
 //! 资产减值测试 Entity
+use chrono::DateTime;
+use chrono::NaiveDate;
+use chrono::Utc;
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
-use chrono::DateTime;
-use chrono::NaiveDate;
-use chrono::Utc;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "asset_impairment_tests")]

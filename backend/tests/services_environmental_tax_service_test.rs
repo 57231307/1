@@ -1,7 +1,6 @@
 use bingxi_backend::services::environmental_tax_service::*;
 use rust_decimal::Decimal;
 
-
 #[test]
 fn test_calculate_tax_cod() {
     let (equivalent, tax) = EnvironmentalTaxService::calculate_tax(

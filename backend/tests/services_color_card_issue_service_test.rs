@@ -1,5 +1,5 @@
-use std::str::FromStr;
 use bingxi_backend::services::color_card_issue_service::*;
+use std::str::FromStr;
 
 #[test]
 fn test_issue_status_as_str_qbztys() {

@@ -1,7 +1,6 @@
 use bingxi_backend::services::logistics_service::*;
 use rust_decimal::Decimal;
 
-
 #[test]
 fn test_freight_max_calculation() {
     // 验证运费取三者最大值的逻辑

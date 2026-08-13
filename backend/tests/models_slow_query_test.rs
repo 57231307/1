@@ -2,7 +2,6 @@ use bingxi_backend::models::financial_analysis_result::*;
 use bingxi_backend::models::slow_query::*;
 use chrono::Utc;
 
-
 /// 模型字段默认值验证
 #[test]
 fn test_model_default_values() {

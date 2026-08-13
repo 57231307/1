@@ -1,6 +1,6 @@
 use sea_orm::DatabaseConnection;
-use std::sync::atomic::AtomicU32;
 use std::sync::Arc;
+use std::sync::atomic::AtomicU32;
 
 use crate::services::audit_cleanup_service::AuditCleanupService;
 use crate::services::audit_log_service::AuditLogService;

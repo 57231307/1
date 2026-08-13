@@ -68,11 +68,7 @@ impl MigrationTrait for Migration {
                             .date()
                             .null(),
                     )
-                    .col(
-                        ColumnDef::new(SalesContractItems::Remarks)
-                            .text()
-                            .null(),
-                    )
+                    .col(ColumnDef::new(SalesContractItems::Remarks).text().null())
                     .col(
                         ColumnDef::new(SalesContractItems::SortOrder)
                             .integer()

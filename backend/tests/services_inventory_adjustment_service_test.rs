@@ -1,8 +1,8 @@
 use bingxi_backend::services::test_common::setup_test_db;
-use std::sync::Arc;
 use bingxi_backend::utils::error::AppError;
 use chrono::Utc;
 use rust_decimal::Decimal;
+use std::sync::Arc;
 
 #[tokio::test]
 async fn test_inventory_adjustment_service_creation() {
@@ -137,10 +137,7 @@ fn test_reason_type_validation() {
 
     for reason in valid_reasons {
         assert!(
-            reason == "damage"
-                || reason == "sample"
-                || reason == "correction"
-                || reason == "other"
+            reason == "damage" || reason == "sample" || reason == "correction" || reason == "other"
         );
     }
 }

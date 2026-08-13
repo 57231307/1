@@ -13,8 +13,8 @@
 //! 避免 axum matchit 把静态段当 :device_id 匹配。
 
 use axum::{
-    routing::{get, post},
     Router,
+    routing::{get, post},
 };
 
 use crate::container::AppState;

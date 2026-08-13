@@ -1,10 +1,10 @@
 use bingxi_backend::models::inventory_stock;
 use bingxi_backend::services::inventory_stock_query::compute_alert_type;
-use bingxi_backend::services::stock_alert::{AlertType, ALERT_TYPE_NORMAL};
-use chrono::{Duration, Utc};
-use rust_decimal::Decimal;
+use bingxi_backend::services::stock_alert::{ALERT_TYPE_NORMAL, AlertType};
 use chrono::Duration;
 use chrono::Utc;
+use chrono::{Duration, Utc};
+use rust_decimal::Decimal;
 
 /// 构造测试用库存 Model（默认"正常"状态）
 fn make_stock_model() -> inventory_stock::Model {

@@ -15,7 +15,7 @@
 //! 已有 XlsxTable 构造点（详见规则 13 步骤 4 自审）。
 
 use crate::utils::error::AppError;
-use axum::http::{header, HeaderValue};
+use axum::http::{HeaderValue, header};
 use axum::response::Response;
 use rust_xlsxwriter::{Format, FormatAlign, FormatBorder, Workbook, Worksheet};
 

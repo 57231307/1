@@ -4,8 +4,8 @@
 //! - validate_custom_condition_safe SQL 注入防御纯函数（6 个分支）
 
 use bingxi_backend::handlers::data_permission_handler::validate_custom_condition_safe;
-use serde_json::{json, Value};
 use serde_json::Value;
+use serde_json::{Value, json};
 
 /// test_validate_custom_condition_nulltg；场景：Value::Null 应通过校验（无自定义条件）
 #[test]

@@ -9,9 +9,9 @@ use std::sync::Arc;
 use chrono::{TimeZone, Utc};
 use rust_decimal::Decimal;
 
+use super::common::setup_test_db;
 use bingxi_backend::services::energy_ops::allocation_record::EnergyAllocationRecordService;
 use bingxi_backend::services::energy_ops::consumption::EnergyConsumptionService;
-use super::common::setup_test_db;
 use chrono::Utc;
 
 /// 测试能耗计算逻辑
@@ -133,8 +133,14 @@ async fn test_consumption_summary_with_db() {
 
     let service = EnergyConsumptionService::new(db.clone());
 
-    let period_start = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap().fixed_offset();
-    let period_end = Utc.with_ymd_and_hms(2026, 1, 31, 23, 59, 59).unwrap().fixed_offset();
+    let period_start = Utc
+        .with_ymd_and_hms(2026, 1, 1, 0, 0, 0)
+        .unwrap()
+        .fixed_offset();
+    let period_end = Utc
+        .with_ymd_and_hms(2026, 1, 31, 23, 59, 59)
+        .unwrap()
+        .fixed_offset();
 
     // 测试查询空数据库
     let result = service

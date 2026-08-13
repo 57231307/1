@@ -2,7 +2,6 @@ use bingxi_backend::services::auth::password_policy_service::*;
 use chrono::Duration;
 use chrono::Utc;
 
-
 #[tokio::test]
 async fn test_mmcl_qmmtg() {
     let svc = PasswordPolicyService::new();

@@ -77,9 +77,7 @@ pub fn validate_positive_decimal(value: &Decimal) -> Result<(), validator::Valid
 }
 
 /// 校验 Decimal 为非负数
-pub fn validate_non_negative_decimal(
-    value: &Decimal,
-) -> Result<(), validator::ValidationError> {
+pub fn validate_non_negative_decimal(value: &Decimal) -> Result<(), validator::ValidationError> {
     if *value < Decimal::ZERO {
         return Err(validator::ValidationError::new("金额不能为负数"));
     }

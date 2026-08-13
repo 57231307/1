@@ -1,6 +1,6 @@
 use bingxi_backend::handlers::voucher_handler::*;
-use bingxi_backend::models::voucher::Model as VoucherModel;
 use bingxi_backend::models::status::finance as status_finance;
+use bingxi_backend::models::voucher::Model as VoucherModel;
 use chrono::Utc;
 use rust_decimal::Decimal;
 use serde_json::json;

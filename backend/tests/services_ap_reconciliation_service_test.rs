@@ -3,11 +3,11 @@ use bingxi_backend::models::status::{common, payment};
 use bingxi_backend::services::test_common::setup_test_db;
 use bingxi_backend::utils::error::AppError;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
+use chrono::NaiveDate;
+use chrono::Utc;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use std::str::FromStr;
-use chrono::NaiveDate;
-use chrono::Utc;
 use std::sync::Arc;
 
 /// 复现 generate_reconciliation 中的期末余额计算公式
@@ -486,7 +486,7 @@ fn test_dzdhgs_recqz() {
 
     assert!(sample_no.starts_with("REC"));
     assert_eq!(sample_no.len(), 3 + 8 + 3); // REC + 8位日期 + 3位序号 = 14
-                                            // 业务文档示例：REC20260315001
+    // 业务文档示例：REC20260315001
     let doc_example = "REC20260315001";
     assert_eq!(doc_example.len(), 14);
     assert!(doc_example.starts_with("REC"));

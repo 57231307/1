@@ -13,6 +13,6 @@ mod elastic_ops;
 // 批次 124 v8 复审 P1 修复：新增导出 SearchSyncer 供 customer_service 注入
 // 批次 125 v8 复审 P1 修复：新增导出 SalesOrderItemDoc 供 order_crud.build_sales_order_doc 使用
 pub use elastic::{
-    ensure_indices, indices, CustomerDoc, DocType, ElasticClient, ProductDoc, SalesOrderDoc,
-    SalesOrderItemDoc, SearchClient, SearchQuery, SearchSyncer,
+    CustomerDoc, DocType, ElasticClient, ProductDoc, SalesOrderDoc, SalesOrderItemDoc,
+    SearchClient, SearchQuery, SearchSyncer, ensure_indices, indices,
 };

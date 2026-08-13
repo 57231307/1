@@ -108,9 +108,9 @@ fn test_createquotationdto_fxlh_bzbjd() {
 /// 包含 quotation_no / status / total_amount 等关键字段。
 #[test]
 fn test_quotationresponsedto_xlh_blhxzd() {
+    use bingxi_backend::services::quotation_service::QuotationService;
+    use chrono::NaiveDate;
     use chrono::Utc;
-use bingxi_backend::services::quotation_service::QuotationService;
-use chrono::NaiveDate;
     let dto = QuotationResponseDto {
         id: 1,
         quotation_no: "QT202606160001".to_string(),

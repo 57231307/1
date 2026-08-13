@@ -1,13 +1,12 @@
 use bingxi_backend::services::system_update_service::*;
 
-
 /// M8 测试：validate_download_url 合法 GitHub URL 通过
 #[test]
 fn test_validate_download_url_valid() {
-    assert!(validate_download_url(
-        "https://github.com/57231307/1/releases/download/v1.0.0/pkg.zip"
-    )
-    .is_ok());
+    assert!(
+        validate_download_url("https://github.com/57231307/1/releases/download/v1.0.0/pkg.zip")
+            .is_ok()
+    );
     assert!(validate_download_url("https://objects.githubusercontent.com/assets/123").is_ok());
 }
 

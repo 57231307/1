@@ -9,9 +9,9 @@
 //! 合规依据：《个人信息保护法》第 14 条（同意原则）+ 第 16 条（撤回权）+ GDPR 第 7 条
 
 use axum::{
+    Json,
     extract::{Query, State},
     http::HeaderMap,
-    Json,
 };
 use serde::{Deserialize, Serialize};
 use validator::Validate;

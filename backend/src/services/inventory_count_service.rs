@@ -14,7 +14,7 @@ use crate::models::status::inventory_count as count_status;
 use crate::models::{inventory_count, inventory_count_item, inventory_stock};
 use crate::services::audit_log_service::AuditLogService;
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
 use crate::utils::error::AppError;
 // 批次 359 v13 复审 B-P1-2 修复：导入 BusinessEvent 和 EVENT_BUS，
 // 在 approve_count commit 成功后发布 InventoryCountCompleted 事件，
@@ -25,9 +25,9 @@ use crate::utils::pagination::paginate_with_total;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::sea_query::Expr;
-use sea_orm::{ExprTrait, 
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, Order,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use std::sync::Arc;
 
@@ -499,10 +499,7 @@ impl InventoryCountService {
                     inventory_stock::Column::Version,
                     Expr::col(inventory_stock::Column::Version).add(1),
                 )
-                .col_expr(
-                    inventory_stock::Column::UpdatedAt,
-                    Expr::val(Utc::now()),
-                )
+                .col_expr(inventory_stock::Column::UpdatedAt, Expr::val(Utc::now()))
                 .filter(inventory_stock::Column::Id.eq(item.stock_id))
                 .filter(inventory_stock::Column::Version.eq(expected_version))
                 .exec(txn)

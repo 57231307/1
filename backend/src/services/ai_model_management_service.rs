@@ -9,8 +9,8 @@
 //! 全部走 SQL 参数化（sea-orm ColumnTrait eq/filter），写操作 Set 注入，
 //! 无字符串拼接 SQL，无 #[allow(...)] 抑制。
 
-use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
+use rust_decimal::prelude::ToPrimitive;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
     QuerySelect, Set,

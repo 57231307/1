@@ -8,8 +8,8 @@ use crate::services::ap_report_service::ApReportService;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
-    extract::{Query, State},
     Json,
+    extract::{Query, State},
 };
 use chrono::NaiveDate;
 use serde::Deserialize;
@@ -189,7 +189,9 @@ pub async fn get_aging_report(
     }
 
     let service = ApReportService::new(state.db.clone());
-    let report = service.get_aging_report(params.supplier_id, params.baseline_date).await?;
+    let report = service
+        .get_aging_report(params.supplier_id, params.baseline_date)
+        .await?;
 
     let value = serde_json::to_value(&report)?;
     if let Ok(bytes) = serde_json::to_vec(&value) {

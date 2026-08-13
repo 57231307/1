@@ -1,6 +1,6 @@
-use rust_decimal::Decimal;
 use bingxi_backend::models::status::quality_dyeing::*;
 use bingxi_backend::services::quality_dyeing;
+use rust_decimal::Decimal;
 
 // ===== 四分制扣分计算测试 =====
 
@@ -154,8 +154,7 @@ fn test_calculate_ten_point_points_weft() {
 fn test_calculate_points_per_100_sq_yards() {
     // (655 × 36 × 100) / (2500 × 55) = 17.1
     let result =
-        calculate_points_per_100_sq_yards(655, Decimal::new(2500, 0), Decimal::new(55, 0))
-            .unwrap();
+        calculate_points_per_100_sq_yards(655, Decimal::new(2500, 0), Decimal::new(55, 0)).unwrap();
     let expected = Decimal::new(171, 1); // 17.1
     assert_eq!(result.round_dp(1), expected);
 }

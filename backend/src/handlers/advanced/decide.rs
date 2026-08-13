@@ -2,7 +2,7 @@
 //!
 //! 包含异常检测、销售合同、销售价格三类与业务决策相关的端点。
 
-use axum::{extract::State, Json};
+use axum::{Json, extract::State};
 use rust_decimal::prelude::ToPrimitive;
 use sea_orm::{EntityTrait, QueryOrder};
 use serde::{Deserialize, Serialize};

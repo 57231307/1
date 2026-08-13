@@ -1,7 +1,6 @@
 use bingxi_backend::services::event_retry_service::*;
 use chrono::Duration;
 
-
 #[test]
 fn 测试指数退避延迟计算() {
     // retry_count=0: 1 * 2^0 = 1 秒

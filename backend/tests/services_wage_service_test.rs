@@ -5,26 +5,24 @@ use bingxi_backend::services::quality_inspection_service::{
 use bingxi_backend::services::wage_service::{
     compute_qualification_rate, determine_grade_by_qualification_rate,
 };
-use rust_decimal::prelude::ToPrimitive;
-use rust_decimal::Decimal;
 use chrono::NaiveDate;
 use chrono::Utc;
+use rust_decimal::Decimal;
+use rust_decimal::prelude::ToPrimitive;
 
 // ===== compute_qualification_rate 合格率计算 =====
 
 /// test_hgljs_zcqk（验证 actual=100, qualified=95 时合格率为 95%。）
 #[test]
 fn test_hgljs_zcqk() {
-    let rate =
-        compute_qualification_rate(Some(Decimal::new(100, 0)), Some(Decimal::new(95, 0)));
+    let rate = compute_qualification_rate(Some(Decimal::new(100, 0)), Some(Decimal::new(95, 0)));
     assert_eq!(rate, Decimal::new(95, 0));
 }
 
 /// test_hgljs_qhg（验证 actual=100, qualified=100 时合格率为 100%。）
 #[test]
 fn test_hgljs_qhg() {
-    let rate =
-        compute_qualification_rate(Some(Decimal::new(100, 0)), Some(Decimal::new(100, 0)));
+    let rate = compute_qualification_rate(Some(Decimal::new(100, 0)), Some(Decimal::new(100, 0)));
     assert_eq!(rate, Decimal::new(100, 0));
 }
 

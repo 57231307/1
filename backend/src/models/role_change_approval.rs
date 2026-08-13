@@ -6,8 +6,7 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// 审批状态
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[derive(EnumIter, DeriveActiveEnum)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, EnumIter, DeriveActiveEnum)]
 #[sea_orm(rs_type = "String", db_type = "String(StringLen::N(20))")]
 pub enum ApprovalStatus {
     #[sea_orm(string_value = "pending_l1")]
@@ -35,8 +34,7 @@ impl std::fmt::Display for ApprovalStatus {
 }
 
 /// 变更类型
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[derive(EnumIter, DeriveActiveEnum)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, EnumIter, DeriveActiveEnum)]
 #[sea_orm(rs_type = "String", db_type = "String(StringLen::N(20))")]
 pub enum ChangeType {
     #[sea_orm(string_value = "assign_role")]

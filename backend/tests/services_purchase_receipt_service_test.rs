@@ -96,10 +96,10 @@ fn test_rkdztcl_dxfg() {
 async fn test_purchasereceiptservice_new_zqcysjklj() {
     let db = Arc::new(setup_test_db().await);
     let svc = PurchaseReceiptService::new(db.clone());
+    use bingxi_backend::services::purchase_receipt_service::PurchaseReceiptService;
+    use bingxi_backend::utils::error::AppError;
     use sea_orm::ConnectionTrait;
-use bingxi_backend::services::purchase_receipt_service::PurchaseReceiptService;
-use bingxi_backend::utils::error::AppError;
-use std::collections::HashSet;
+    use std::collections::HashSet;
     let _ = svc
         .database
         .execute_raw(sea_orm::Statement::from_sql_and_values(

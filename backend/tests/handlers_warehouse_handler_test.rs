@@ -1,8 +1,8 @@
 use bingxi_backend::handlers::warehouse_handler::*;
 use bingxi_backend::models::warehouse::Model as WarehouseModel;
 use chrono::Utc;
-use serde_json::json;
 use rust_decimal::Decimal;
+use serde_json::json;
 
 /// 构造测试用的仓库模型
 fn make_warehouse_model(id: i32) -> WarehouseModel {

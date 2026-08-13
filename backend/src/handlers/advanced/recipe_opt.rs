@@ -16,12 +16,12 @@
 //! 响应：基于历史染配的 k-NN 相似度匹配结果；当历史不足 3 条时退化到
 //! 内置典型参数表（80°C / 45min / pH 6.0 / 浴比 1:8）。
 
-use axum::{extract::State, Json};
+use axum::{Json, extract::State};
 use serde::Deserialize;
 
 use crate::container::AppState;
-use crate::services::ai::recipe_opt::{RecipeOptRequest, RecipeOptResponse};
 use crate::services::ai::AiAnalysisService;
+use crate::services::ai::recipe_opt::{RecipeOptRequest, RecipeOptResponse};
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

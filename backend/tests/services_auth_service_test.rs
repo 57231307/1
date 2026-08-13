@@ -1,6 +1,6 @@
-use bingxi_backend::services::auth_service_ops::jti::{REVOKED_USERS, REVOKED_USER_TTL_SECS};
+use bingxi_backend::services::auth_service_ops::jti::{REVOKED_USER_TTL_SECS, REVOKED_USERS};
 use chrono::Duration;
-use jsonwebtoken::{encode, Header};
+use jsonwebtoken::{Header, encode};
 
 // P9-1: 测试夹具 helper，封装 AuthService 的常见操作
 fn hash_pwd(p: &str) -> String {
@@ -30,10 +30,10 @@ static TEST_JWT_SECRET_CELL: std::sync::OnceLock<String> = std::sync::OnceLock::
 
 /// 生成随机测试密钥
 fn generate_test_secret() -> String {
+    use bingxi_backend::services::auth_service::AuthService;
+    use chrono::Utc;
+    use std::collections::HashMap;
     use std::time::{SystemTime, UNIX_EPOCH};
-use bingxi_backend::services::auth_service::AuthService;
-use chrono::Utc;
-use std::collections::HashMap;
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_nanos())
@@ -445,7 +445,6 @@ async fn test_hash_password_async_uniqueness() {
 #[tokio::test]
 async fn test_verify_password_async_invalid_hash_returns_err() {
     let result =
-        AuthService::verify_password_async("any".to_string(), "not-a-valid-hash".to_string())
-            .await;
+        AuthService::verify_password_async("any".to_string(), "not-a-valid-hash".to_string()).await;
     assert!(result.is_err(), "无效哈希应返回 Err 而非 false");
 }

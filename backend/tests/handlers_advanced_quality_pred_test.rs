@@ -1,6 +1,5 @@
 use bingxi_backend::services::ai::quality_pred::*;
 
-
 /// 测试：请求体结构正确构造
 #[test]
 fn test_request_struct_construction() {

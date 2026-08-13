@@ -283,10 +283,7 @@ impl RoleChangeApprovalService {
     }
 
     /// 查询审批列表
-    pub async fn list(
-        &self,
-        query: RoleChangeApprovalQuery,
-    ) -> Result<ApprovalListVo, AppError> {
+    pub async fn list(&self, query: RoleChangeApprovalQuery) -> Result<ApprovalListVo, AppError> {
         let page = query.page.unwrap_or(1).clamp(1, 1000);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
@@ -296,7 +293,8 @@ impl RoleChangeApprovalService {
             finder = finder.filter(role_change_approval::Column::Status.eq(status.as_str()));
         }
         if let Some(change_type) = &query.change_type {
-            finder = finder.filter(role_change_approval::Column::ChangeType.eq(change_type.as_str()));
+            finder =
+                finder.filter(role_change_approval::Column::ChangeType.eq(change_type.as_str()));
         }
         if let Some(applicant_id) = query.applicant_id {
             finder = finder.filter(role_change_approval::Column::ApplicantId.eq(applicant_id));

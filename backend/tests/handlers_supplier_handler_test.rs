@@ -54,7 +54,10 @@ fn test_supplier_contact_info() {
     // 验证联系信息
     assert_eq!(supplier.contact_person, Some("李四".to_string()));
     assert_eq!(supplier.contact_phone, Some("13900139000".to_string()));
-    assert_eq!(supplier.contact_email, Some("supplier@example.com".to_string()));
+    assert_eq!(
+        supplier.contact_email,
+        Some("supplier@example.com".to_string())
+    );
 }
 
 // ===== 供应商类型测试 =====

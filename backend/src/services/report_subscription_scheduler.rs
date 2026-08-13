@@ -208,7 +208,9 @@ impl ReportSubscriptionScheduler {
                 .map(|v| matches!(v.to_lowercase().as_str(), "true" | "1" | "yes" | "on"))
                 .unwrap_or(true);
             if !enabled {
-                info!("报表订阅调度器：环境变量 REPORT_SUBSCRIPTION_SCHEDULER_ENABLED=false，跳过启动");
+                info!(
+                    "报表订阅调度器：环境变量 REPORT_SUBSCRIPTION_SCHEDULER_ENABLED=false，跳过启动"
+                );
                 return;
             }
 

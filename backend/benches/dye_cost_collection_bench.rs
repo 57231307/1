@@ -4,7 +4,7 @@
 //! 业务场景：大货处方审核时，根据浴比 + 布重 + 浓度计算各染料/助剂用量并归集成本
 //! 性能要求：单次用量计算 < 1ms（一处方含 20-50 种物料时审核不阻塞）
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use rust_decimal::Decimal;
 
 use bingxi_backend::models::production_recipe::RecipeMaterialItem;

@@ -3,7 +3,7 @@ use futures::FutureExt;
 use sea_orm::{ConnectionTrait, DatabaseBackend, DatabaseConnection, Statement};
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
-use tokio::time::{interval, Duration};
+use tokio::time::{Duration, interval};
 use tokio_util::sync::CancellationToken;
 
 pub struct AuditCleanupService {

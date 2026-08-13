@@ -1,6 +1,5 @@
 use bingxi_backend::utils::pii_mask::*;
 
-
 #[test]
 fn test_mask_phone() {
     assert_eq!(mask_pii("手机号: 13812345678"), "手机号: 138****5678");
@@ -17,18 +16,12 @@ fn test_mask_id_card() {
         mask_pii("身份证: 110101199001011234"),
         "身份证: 1101**********1234"
     );
-    assert_eq!(
-        mask_pii("ID: 11010119900101123X"),
-        "ID: 1101**********123X"
-    );
+    assert_eq!(mask_pii("ID: 11010119900101123X"), "ID: 1101**********123X");
 }
 
 #[test]
 fn test_mask_email() {
-    assert_eq!(
-        mask_pii("邮箱: user@example.com"),
-        "邮箱: u***@example.com"
-    );
+    assert_eq!(mask_pii("邮箱: user@example.com"), "邮箱: u***@example.com");
     assert_eq!(
         mask_pii("email: test.user@domain.org"),
         "email: t***@domain.org"

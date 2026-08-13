@@ -24,7 +24,7 @@ use crate::utils::error::AppError;
 use crate::services::outsourcing_ops::types::{
     CreateOutsourcingVoucherRequest, OutsourcingVoucherQuery,
 };
-use crate::services::outsourcing_service::{validate_voucher_type, OutsourcingVoucherService};
+use crate::services::outsourcing_service::{OutsourcingVoucherService, validate_voucher_type};
 
 impl OutsourcingVoucherService {
     /// 创建委外凭证

@@ -6,8 +6,8 @@ use crate::services::logistics_service::{LogisticsService, TrackingEvent};
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
-    extract::{Path, State},
     Json,
+    extract::{Path, State},
 };
 use serde::Deserialize;
 

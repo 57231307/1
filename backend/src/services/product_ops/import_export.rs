@@ -149,7 +149,8 @@ impl ProductService {
     }
 
     /// T1: 生成产品导入模板（结构化格式，去除 CSV 中转）
-    pub fn generate_product_import_template_xlsx() -> Result<(Vec<String>, Vec<Vec<String>>), AppError> {
+    pub fn generate_product_import_template_xlsx()
+    -> Result<(Vec<String>, Vec<Vec<String>>), AppError> {
         let headers = vec![
             "产品编码".to_string(),
             "产品名称".to_string(),

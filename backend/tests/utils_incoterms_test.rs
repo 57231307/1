@@ -4,7 +4,6 @@ use bingxi_backend::services::sensitive_action_alert::*;
 use bingxi_backend::services::stock_alert::*;
 use bingxi_backend::utils::incoterms::*;
 
-
 #[test]
 fn test_from_code_uppercase() {
     assert_eq!(Incoterms2020::from_code("fob").unwrap(), Incoterms2020::Fob);
@@ -114,29 +113,11 @@ fn test_cost_bearer() {
 #[test]
 fn test_clearance_party() {
     // V15 P2 23.5 缺陷3：出口清关除 EXW 外卖方负责
-    assert_eq!(
-        Incoterms2020::Exw.export_clearance_party(),
-        Party::Buyer
-    );
-    assert_eq!(
-        Incoterms2020::Fob.export_clearance_party(),
-        Party::Seller
-    );
-    assert_eq!(
-        Incoterms2020::Ddp.export_clearance_party(),
-        Party::Seller
-    );
+    assert_eq!(Incoterms2020::Exw.export_clearance_party(), Party::Buyer);
+    assert_eq!(Incoterms2020::Fob.export_clearance_party(), Party::Seller);
+    assert_eq!(Incoterms2020::Ddp.export_clearance_party(), Party::Seller);
     // 进口清关除 DDP 外买方负责
-    assert_eq!(
-        Incoterms2020::Ddp.import_clearance_party(),
-        Party::Seller
-    );
-    assert_eq!(
-        Incoterms2020::Fob.import_clearance_party(),
-        Party::Buyer
-    );
-    assert_eq!(
-        Incoterms2020::Exw.import_clearance_party(),
-        Party::Buyer
-    );
+    assert_eq!(Incoterms2020::Ddp.import_clearance_party(), Party::Seller);
+    assert_eq!(Incoterms2020::Fob.import_clearance_party(), Party::Buyer);
+    assert_eq!(Incoterms2020::Exw.import_clearance_party(), Party::Buyer);
 }

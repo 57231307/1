@@ -1,9 +1,9 @@
 use bingxi_backend::handlers::quotation_handler::*;
 use bingxi_backend::models::sales_quotation::Model as QuotationModel;
+use chrono::Duration;
 use chrono::Utc;
 use rust_decimal::Decimal;
 use serde_json::json;
-use chrono::Duration;
 
 /// 构造测试用的报价单模型
 fn make_quotation_model(id: i32, status: &str) -> QuotationModel {

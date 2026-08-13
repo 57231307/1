@@ -5,10 +5,10 @@ use bingxi_backend::services::inventory_reservation_service::InventoryReservatio
 use bingxi_backend::services::test_common::setup_test_db;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
 use bingxi_backend::AppError;
+use bingxi_backend::utils::error::AppError;
 use chrono::Utc;
 use rust_decimal::Decimal;
 use std::sync::Arc;
-use bingxi_backend::utils::error::AppError;
 
 /// 测试夹具：构建库存预留 Model
 /// 封装 `inventory_reservation::Model` 的构造，便于在各状态门测试中复用。；使用 `decs!` 解析数量字段，使用 `ymd!` 构造固定的预留时间，便于断言。

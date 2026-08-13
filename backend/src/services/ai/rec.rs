@@ -9,8 +9,8 @@
 //! 拆分自原 `ai_analysis_service.rs` 的 `// 库存优化` + `// 智能推荐` 两段方法集合。
 
 use chrono::{Duration, Utc};
-use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
+use rust_decimal::prelude::ToPrimitive;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
 use std::collections::HashMap;
 
@@ -23,8 +23,8 @@ use crate::services::mrp_engine_service::{MrpEngineService, RequirementCalcParam
 use crate::utils::error::AppError;
 
 use super::{
-    mean, std_deviation, AbcClassification, AiAnalysisService, InventorySuggestion,
-    InventoryTurnover, SmartRecommendation,
+    AbcClassification, AiAnalysisService, InventorySuggestion, InventoryTurnover,
+    SmartRecommendation, mean, std_deviation,
 };
 
 /// V15 P1 8.4：AI 补货推荐与 MRP 引擎对账差异阈值（>20% 触发人工复核）

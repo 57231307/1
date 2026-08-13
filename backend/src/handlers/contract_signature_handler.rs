@@ -6,8 +6,8 @@ use crate::services::contract_signature_service::{ContractSignatureService, Sign
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
-    extract::{Path, State},
     Json,
+    extract::{Path, State},
 };
 
 /// 签署合同

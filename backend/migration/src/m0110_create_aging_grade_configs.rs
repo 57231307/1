@@ -29,22 +29,14 @@ impl MigrationTrait for Migration {
                             .integer()
                             .not_null(),
                     )
-                    .col(
-                        ColumnDef::new(AgingGradeConfigs::MaxDays)
-                            .integer()
-                            .null(),
-                    )
+                    .col(ColumnDef::new(AgingGradeConfigs::MaxDays).integer().null())
                     .col(
                         ColumnDef::new(AgingGradeConfigs::ProvisionRate)
                             .decimal_len(5, 4)
                             .not_null()
                             .default(0),
                     )
-                    .col(
-                        ColumnDef::new(AgingGradeConfigs::Description)
-                            .text()
-                            .null(),
-                    )
+                    .col(ColumnDef::new(AgingGradeConfigs::Description).text().null())
                     .col(
                         ColumnDef::new(AgingGradeConfigs::IsActive)
                             .boolean()

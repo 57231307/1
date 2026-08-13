@@ -1,6 +1,6 @@
 #![allow(dead_code)]
-use sea_orm::entity::prelude::*;
 use sea_orm::FromJsonQueryResult;
+use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// 审计日志差异快照 JSON 值（与 before/after_snapshot 字段对应）

@@ -164,8 +164,8 @@ impl EmailQueueWorker {
 
     /// 从 EmailLogModel 构造 EmailMessage，包含附件解码
     fn build_email_message(&self, email_log: &EmailLogModel) -> Result<EmailMessage, AppError> {
-        use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
         use base64::Engine;
+        use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
         use std::collections::HashMap;
 
         let to: Vec<String> = email_log
@@ -213,11 +213,7 @@ impl EmailQueueWorker {
                         map.insert(filename, content);
                     }
                 }
-                if map.is_empty() {
-                    None
-                } else {
-                    Some(map)
-                }
+                if map.is_empty() { None } else { Some(map) }
             } else {
                 None
             }

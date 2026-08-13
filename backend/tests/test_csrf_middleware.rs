@@ -12,22 +12,22 @@
 //! - 注入最小化 `AppState::default()`（仅用到 `state.cache`）
 //! - 不依赖数据库，OmniAuditEngine 的后台任务在默认连接上静默失败
 
+use axum::Json;
+use axum::http::StatusCode;
+use axum::response::IntoResponse;
 use axum::{
+    Json, Router,
     body::Body,
     http::{Request, StatusCode},
     middleware::from_fn_with_state,
     response::IntoResponse,
     routing::{get, post},
-    Json, Router,
 };
 use bingxi_backend::container::AppState;
 use bingxi_backend::middleware::csrf::csrf_middleware;
-use serde_json::{json, Value};
-use tower::ServiceExt;
-use axum::Json;
-use axum::http::StatusCode;
-use axum::response::IntoResponse;
 use serde_json::Value;
+use serde_json::{Value, json};
+use tower::ServiceExt;
 
 /// 测试用业务处理器：直接返回 200 + 简易 JSON
 async fn ok_handler() -> impl IntoResponse {

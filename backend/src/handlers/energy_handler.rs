@@ -6,8 +6,8 @@
 //!   能源计量设备管理 → 时间段能耗登记 → 分摊规则定义 → 月末分摊到缸号/工序/订单
 
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 use serde::Deserialize;
@@ -29,7 +29,7 @@ use crate::services::energy_service::{
 };
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
-use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
+use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
 
 // ============================================================================
 // 辅助函数
@@ -522,7 +522,9 @@ pub async fn export_energy_consumptions(
     if let Some(v) = &query.recording_method {
         q = q.filter(energy_consumption_record::Column::RecordingMethod.eq(v));
     }
-    q = q.order_by_desc(energy_consumption_record::Column::RecordedAt).limit(10000);
+    q = q
+        .order_by_desc(energy_consumption_record::Column::RecordedAt)
+        .limit(10000);
 
     let records = q.all(&*state.db).await?;
     let table = build_energy_consumption_xlsx_table(&records);

@@ -20,7 +20,7 @@ use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 
 use crate::utils::cache::{AppCache, Cache};
-use crate::utils::data_scope::{build_data_scope_sql, DataScope, DataScopeContext};
+use crate::utils::data_scope::{DataScope, DataScopeContext, build_data_scope_sql};
 use crate::utils::error::AppError;
 
 // re-export ops 子模块的对外 response struct，保持外部 `use crate::services::bi_analysis_service::{...}` 路径不变

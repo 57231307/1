@@ -1,7 +1,6 @@
 use bingxi_backend::services::occupational_health_service::*;
 use rust_decimal::Decimal;
 
-
 #[test]
 fn test_check_exceedance_normal() {
     let (is_exceeding, ratio) =

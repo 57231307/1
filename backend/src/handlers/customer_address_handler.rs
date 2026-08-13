@@ -1,14 +1,12 @@
 use axum::{
-    extract::{Path, State},
     Json,
+    extract::{Path, State},
 };
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
-use crate::models::customer_address::{
-    self, CreateCustomerAddressDto, UpdateCustomerAddressDto,
-};
+use crate::models::customer_address::{self, CreateCustomerAddressDto, UpdateCustomerAddressDto};
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
@@ -134,10 +132,7 @@ pub async fn delete_customer_address(
 }
 
 /// 清除客户的默认地址标记
-async fn clear_default_addresses(
-    state: &AppState,
-    customer_id: i32,
-) -> Result<(), AppError> {
+async fn clear_default_addresses(state: &AppState, customer_id: i32) -> Result<(), AppError> {
     let defaults = customer_address::Entity::find()
         .filter(customer_address::Column::CustomerId.eq(customer_id))
         .filter(customer_address::Column::IsDefault.eq(true))

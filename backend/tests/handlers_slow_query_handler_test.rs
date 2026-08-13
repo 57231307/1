@@ -1,6 +1,5 @@
 use bingxi_backend::handlers::slow_query_handler::*;
 
-
 /// 列表查询参数默认值
 #[test]
 fn test_list_params_default() {

@@ -1,7 +1,6 @@
 use bingxi_backend::models::notification::*;
 use bingxi_backend::services::event_notification_service::*;
 
-
 // ========== build_inventory_alert_notification 字段完整性测试 ==========
 
 /// 验证库存预警通知请求体的全部字段被正确构造（场景一：常规参数）

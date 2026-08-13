@@ -1,6 +1,5 @@
 use bingxi_backend::handlers::audit_log_handler::*;
 
-
 /// AuditLogListQuery 默认值：所有可选字段为 None
 #[test]
 fn test_list_query_default_values() {

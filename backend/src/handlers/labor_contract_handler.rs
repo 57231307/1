@@ -9,8 +9,8 @@ use crate::services::labor_contract_service::{
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use chrono::NaiveDate;
 use serde::Deserialize;

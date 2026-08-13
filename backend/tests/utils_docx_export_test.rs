@@ -1,6 +1,5 @@
 use bingxi_backend::utils::docx_export::*;
 
-
 #[test]
 fn test_docx_gj_jbbg() {
     let table = DocxTable {

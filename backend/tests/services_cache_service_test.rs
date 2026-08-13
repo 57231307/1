@@ -157,15 +157,15 @@ async fn test_cache_set_with_ttl_h_set_qczdy_ttl() {
 #[tokio::test]
 async fn test_cache_with_metrics_zdsb_prometheus() {
     use bingxi_backend::services::business_metrics::BusinessMetrics;
-use bingxi_backend::utils::cache::TTL_CONFIG;
-use bingxi_backend::utils::cache::TTL_CUSTOMER;
-use bingxi_backend::utils::cache::TTL_DASHBOARD;
-use bingxi_backend::utils::cache::TTL_PERMISSION;
-use bingxi_backend::utils::cache::TTL_PRODUCT;
-use bingxi_backend::utils::cache::TTL_REPORT;
-use bingxi_backend::utils::cache::TTL_USER;
-use chrono::Duration;
-use std::sync::Arc;
+    use bingxi_backend::utils::cache::TTL_CONFIG;
+    use bingxi_backend::utils::cache::TTL_CUSTOMER;
+    use bingxi_backend::utils::cache::TTL_DASHBOARD;
+    use bingxi_backend::utils::cache::TTL_PERMISSION;
+    use bingxi_backend::utils::cache::TTL_PRODUCT;
+    use bingxi_backend::utils::cache::TTL_REPORT;
+    use bingxi_backend::utils::cache::TTL_USER;
+    use chrono::Duration;
+    use std::sync::Arc;
     let registry = prometheus::Registry::new();
     let metrics = Arc::new(BusinessMetrics::new(&registry).expect("BusinessMetrics 注册失败"));
     let cache = CacheService::builder()

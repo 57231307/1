@@ -1,10 +1,10 @@
+use axum::Router;
 use axum::body::Body;
 use axum::http::Request;
 use axum::middleware::from_fn;
 use axum::routing::get;
-use axum::Router;
-use tower::ServiceExt;
 use bingxi_backend::middleware::audit_context::*;
+use tower::ServiceExt;
 
 async fn echo() -> &'static str {
     "ok"

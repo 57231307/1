@@ -170,19 +170,21 @@ impl BusinessTraceService {
 
     /// 构建追溯路径 JSON（stage/bill_type/bill_no/quantity_meters/warehouse_id/created_at）
     fn build_trace_path(traces: &[business_trace_chain::Model]) -> serde_json::Value {
-        json!(traces
-            .iter()
-            .map(|t| {
-                json!({
-                    "stage": t.current_stage,
-                    "bill_type": t.current_bill_type,
-                    "bill_no": t.current_bill_no,
-                    "quantity_meters": t.quantity_meters.to_string(),
-                    "warehouse_id": t.warehouse_id,
-                    "created_at": t.created_at
+        json!(
+            traces
+                .iter()
+                .map(|t| {
+                    json!({
+                        "stage": t.current_stage,
+                        "bill_type": t.current_bill_type,
+                        "bill_no": t.current_bill_no,
+                        "quantity_meters": t.quantity_meters.to_string(),
+                        "warehouse_id": t.warehouse_id,
+                        "created_at": t.created_at
+                    })
                 })
-            })
-            .collect::<Vec<_>>())
+                .collect::<Vec<_>>()
+        )
     }
 
     /// 构建追溯快照 ActiveModel（聚合首/末环节信息与供应商/客户名称）

@@ -1,7 +1,6 @@
 use bingxi_backend::models::export_approval_request::*;
 use bingxi_backend::services::bulk_color_approval_service::*;
 
-
 /// 测试风险等级评估
 #[test]
 fn test_risk_level_from_row_count() {

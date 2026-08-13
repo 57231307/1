@@ -1,6 +1,5 @@
 use bingxi_backend::observability::trace_context::*;
 
-
 #[test]
 fn test_new_root() {
     let ctx = TraceContext::new_root();
@@ -17,15 +16,17 @@ fn test_traceparent_invalid_inputs() {
     // 版本非 hex
     assert!(TraceContext::from_traceparent("ZZ-aaaa-aaaa-aa").is_none());
     // trace_id 全 0
-    assert!(TraceContext::from_traceparent(
-        "00-00000000000000000000000000000000-aaaaaaaaaaaaaaaaaaaaaaaa-01"
-    )
-    .is_none());
+    assert!(
+        TraceContext::from_traceparent(
+            "00-00000000000000000000000000000000-aaaaaaaaaaaaaaaaaaaaaaaa-01"
+        )
+        .is_none()
+    );
     // parent_id 全 0
-    assert!(TraceContext::from_traceparent(
-        "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-0000000000000000-01"
-    )
-    .is_none());
+    assert!(
+        TraceContext::from_traceparent("00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-0000000000000000-01")
+            .is_none()
+    );
     // 空字符串
     assert!(TraceContext::from_traceparent("").is_none());
 }

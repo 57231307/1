@@ -4,8 +4,8 @@ use crate::container::AppState;
 use crate::handlers::export_refund_handler;
 use crate::handlers::print_handler;
 use axum::{
-    routing::{get, post},
     Router,
+    routing::{get, post},
 };
 
 /// 出口退税路由（path 前缀 /export-refunds）

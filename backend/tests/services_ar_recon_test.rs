@@ -251,8 +251,7 @@ fn test_ztmk_scjyxcg() {
         recon_status::DISPUTED,
         recon_status::CLOSED,
     ] {
-        let model =
-            make_reconciliation_model(2, decs!("1000"), decs!("500"), decs!("300"), status);
+        let model = make_reconciliation_model(2, decs!("1000"), decs!("500"), decs!("300"), status);
         let can_delete = model.reconciliation_status.as_deref() == Some(recon_status::DRAFT);
         assert!(!can_delete, "状态 {} 不应允许删除", status);
     }
@@ -283,8 +282,7 @@ fn test_ztmk_fsjyxcg() {
         recon_status::DISPUTED,
         recon_status::CLOSED,
     ] {
-        let model =
-            make_reconciliation_model(2, decs!("1000"), decs!("500"), decs!("300"), status);
+        let model = make_reconciliation_model(2, decs!("1000"), decs!("500"), decs!("300"), status);
         let can_send = model.reconciliation_status.as_deref() == Some(recon_status::DRAFT);
         assert!(!can_send, "状态 {} 不应允许发送", status);
     }
@@ -386,8 +384,7 @@ fn test_ztmk_gbjjcghyfs() {
 
     // None 状态：unwrap_or("draft")，应拒绝
     let resolved = recon_status::DRAFT;
-    let should_reject =
-        resolved != recon_status::CONFIRMED && resolved != recon_status::DISPUTED;
+    let should_reject = resolved != recon_status::CONFIRMED && resolved != recon_status::DISPUTED;
     assert!(should_reject);
 
     // 复现 close 方法的错误构造

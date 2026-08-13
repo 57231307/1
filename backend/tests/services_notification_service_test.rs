@@ -1,8 +1,8 @@
 use bingxi_backend::models::notification::{
     Model as NotificationModel, NotificationPriority, NotificationStatus, NotificationType,
 };
-use chrono::Utc;
 use bingxi_backend::utils::dedup::DEDUP_WINDOW_SECS;
+use chrono::Utc;
 
 /// 构造测试用 notification::Model（避免每个测试重复字段）
 fn make_test_notification(
@@ -91,8 +91,7 @@ fn test_notification_type_non_webhook_no_match() {
     );
     assert!(!matches!(n.notification_type, NotificationType::Webhook));
 
-    let n2 =
-        make_test_notification(NotificationType::Email, NotificationPriority::Normal, None);
+    let n2 = make_test_notification(NotificationType::Email, NotificationPriority::Normal, None);
     assert!(!matches!(n2.notification_type, NotificationType::Webhook));
 }
 

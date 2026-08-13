@@ -18,14 +18,14 @@ use crate::models::dto::PageRequest;
 use crate::models::status::master_data;
 use crate::services::customer_ops::types::CreateCustomerArgs;
 use crate::services::customer_service::CustomerService;
-use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
 use crate::utils::error::AppError;
 // P0-D03（Batch 488）：Redis 分布式缓存接入（get_customer 读穿透 + 写失效）
 // V15 P2 B07-P2-6：使用差异化 TTL（CUSTOMER_CACHE_TTL_SECS=300s，客户数据中低波动率）
-use crate::utils::redis_cache::{
-    cache_key, redis_cache_del, redis_cache_get_json, redis_cache_set_json, CUSTOMER_CACHE_TTL_SECS,
-};
 use crate::utils::PaginatedResponse;
+use crate::utils::redis_cache::{
+    CUSTOMER_CACHE_TTL_SECS, cache_key, redis_cache_del, redis_cache_get_json, redis_cache_set_json,
+};
 
 impl CustomerService {
     /// 创建客户（事务 + lock_exclusive 防重复编码 + PG 提交后 ES 同步）

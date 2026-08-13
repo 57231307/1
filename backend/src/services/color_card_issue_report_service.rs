@@ -10,7 +10,7 @@ use crate::models::customer::{self, Entity as CustomerEntity};
 use crate::utils::error::AppError;
 use chrono::Utc;
 use sea_orm::*;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::Arc;
 
 /// 报表查询参数

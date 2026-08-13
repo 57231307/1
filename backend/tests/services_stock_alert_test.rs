@@ -1,6 +1,5 @@
 use bingxi_backend::services::stock_alert::*;
 
-
 #[test]
 fn test_alert_type_code() {
     assert_eq!(AlertType::OutOfStock.code(), "out_of_stock");

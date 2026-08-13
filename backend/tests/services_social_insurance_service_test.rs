@@ -1,7 +1,6 @@
 use bingxi_backend::services::social_insurance_service::*;
 use rust_decimal::Decimal;
 
-
 #[test]
 fn test_calculate_insurance_default_rates() {
     let config = InsuranceRateConfig::default();
@@ -29,8 +28,7 @@ fn test_calculate_insurance_default_rates() {
 #[test]
 fn test_validate_base_amount_normal() {
     // validate_base_amount 是纯函数，不依赖数据库连接
-    let validation =
-        SocialInsuranceService::validate_base_amount_static(Decimal::new(10000, 0));
+    let validation = SocialInsuranceService::validate_base_amount_static(Decimal::new(10000, 0));
     assert!(validation.is_valid);
     assert!(!validation.is_below_minimum);
     assert!(!validation.is_above_maximum);

@@ -91,7 +91,6 @@ fn test_status_expired_is_final() {
     assert!(!invalid_transitions.contains(&"draft"));
 }
 
-
 // ===== 工艺测试 =====
 
 #[test]

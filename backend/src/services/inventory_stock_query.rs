@@ -5,12 +5,14 @@
 
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{ExprTrait, ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder};
+use sea_orm::{
+    ColumnTrait, EntityTrait, ExprTrait, Order, PaginatorTrait, QueryFilter, QueryOrder,
+};
 
 use crate::handlers::inventory_stock_handler_dto::InventorySummaryItem;
 use crate::models::{inventory_stock, inventory_transaction};
 use crate::services::stock_alert::{
-    AlertType, ALERT_TYPE_NORMAL, EXPIRING_THRESHOLD_DAYS, SLOW_MOVING_THRESHOLD_DAYS,
+    ALERT_TYPE_NORMAL, AlertType, EXPIRING_THRESHOLD_DAYS, SLOW_MOVING_THRESHOLD_DAYS,
 };
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;

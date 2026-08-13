@@ -10,6 +10,12 @@ fn test_rscbqjfw_jtffczx() {
     let shutdown: fn() = DyeBatchCostBridgeService::shutdown_listener;
 
     // 验证函数指针不为空
-    assert!(!format!("{:?}", start).is_empty(), "start_listener 函数指针不应为空");
-    assert!(!format!("{:?}", shutdown).is_empty(), "shutdown_listener 函数指针不应为空");
+    assert!(
+        !format!("{:?}", start).is_empty(),
+        "start_listener 函数指针不应为空"
+    );
+    assert!(
+        !format!("{:?}", shutdown).is_empty(),
+        "shutdown_listener 函数指针不应为空"
+    );
 }

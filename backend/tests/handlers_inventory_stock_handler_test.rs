@@ -66,7 +66,10 @@ fn test_inventory_stock_quantities() {
     assert_eq!(stock.quantity_available, Decimal::new(90, 0));
 
     // 验证可用数量 = 总数量 - 预留数量
-    assert_eq!(stock.quantity_available, stock.quantity_on_hand - stock.quantity_reserved);
+    assert_eq!(
+        stock.quantity_available,
+        stock.quantity_on_hand - stock.quantity_reserved
+    );
 }
 
 // ===== 数量计算测试 =====

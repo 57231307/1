@@ -17,16 +17,15 @@
 
 use crate::container::AppState;
 use axum::{
-    routing::{delete, get, post, put},
     Router,
+    routing::{delete, get, post, put},
 };
 
 use crate::handlers::{
-    crm_assignment_handler, crm_customer_handler, crm_pool_handler, customer_address_handler,
-    customer_credit_handler, customer_handler, customer_merge_handler,
+    conversion_time_handler, crm_assignment_handler, crm_customer_handler, crm_pool_handler,
+    customer_address_handler, customer_credit_handler, customer_handler, customer_merge_handler,
     customer_transfer_approval_handler, five_dimension_handler, missing_handlers,
     opportunity_stage_handler, sales_analysis_handler,
-    conversion_time_handler,
 };
 
 /// 客户管理路由（path 前缀 /customers）
@@ -573,12 +572,11 @@ pub fn crm_business() -> Router<AppState> {
 
 /// CRM 竞争对手路由（/competitors）
 fn crm_competitors() -> Router<AppState> {
-    Router::new()
-        .route(
-            "/competitors",
-            get(crate::handlers::crm_handler::list_competitors)
-                .post(crate::handlers::crm_handler::create_competitor),
-        )
+    Router::new().route(
+        "/competitors",
+        get(crate::handlers::crm_handler::list_competitors)
+            .post(crate::handlers::crm_handler::create_competitor),
+    )
 }
 
 /// CRM 域统一入口（子 router path 已加独立前缀，merge 安全）

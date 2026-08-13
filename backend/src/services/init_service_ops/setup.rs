@@ -7,7 +7,7 @@
 use crate::models::user;
 use crate::services::auth_service::AuthService;
 use crate::services::init_service::{
-    get_init_tasks, DatabaseConfig, InitError, InitService, InitTaskStatus, InitializationResult,
+    DatabaseConfig, InitError, InitService, InitTaskStatus, InitializationResult, get_init_tasks,
 };
 use futures::FutureExt;
 use sea_orm::{

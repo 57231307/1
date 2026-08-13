@@ -1,6 +1,5 @@
 use bingxi_backend::middleware::auth::*;
 
-
 /// 低危 #4 修复：测试 Authorization 头脱敏（正常长度）
 #[test]
 fn test_mask_auth_header_normal_length() {

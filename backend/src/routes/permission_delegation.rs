@@ -3,8 +3,8 @@
 use crate::container::AppState;
 use crate::handlers::permission_delegation_handler;
 use axum::{
-    routing::{get, post},
     Router,
+    routing::{get, post},
 };
 
 /// 权限委托路由（path 前缀 /permission-delegations）

@@ -23,8 +23,8 @@
 //! 避免 axum matchit 把 "report"/"statistics" 当 :id 匹配。
 
 use axum::{
-    routing::{get, post},
     Router,
+    routing::{get, post},
 };
 
 use crate::container::AppState;

@@ -1,5 +1,5 @@
-use rust_decimal::Decimal;
 use bingxi_backend::services::inventory_finance_bridge_ops::voucher::*;
+use rust_decimal::Decimal;
 
 fn d(val: i64, scale: u32) -> Decimal {
     Decimal::new(val, scale)

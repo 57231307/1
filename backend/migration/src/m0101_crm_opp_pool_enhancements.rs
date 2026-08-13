@@ -21,13 +21,49 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(OpportunityStageHistory::Table)
                     .if_not_exists()
-                    .col(ColumnDef::new(OpportunityStageHistory::Id).integer().not_null().auto_increment().primary_key())
-                    .col(ColumnDef::new(OpportunityStageHistory::OpportunityId).integer().not_null().comment("商机ID"))
-                    .col(ColumnDef::new(OpportunityStageHistory::FromStage).string().null().comment("原阶段"))
-                    .col(ColumnDef::new(OpportunityStageHistory::ToStage).string().not_null().comment("新阶段"))
-                    .col(ColumnDef::new(OpportunityStageHistory::ChangedAt).timestamp_with_time_zone().not_null().comment("变更时间"))
-                    .col(ColumnDef::new(OpportunityStageHistory::ChangedBy).integer().null().comment("变更人"))
-                    .col(ColumnDef::new(OpportunityStageHistory::DurationDays).integer().null().comment("在原阶段停留天数"))
+                    .col(
+                        ColumnDef::new(OpportunityStageHistory::Id)
+                            .integer()
+                            .not_null()
+                            .auto_increment()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(OpportunityStageHistory::OpportunityId)
+                            .integer()
+                            .not_null()
+                            .comment("商机ID"),
+                    )
+                    .col(
+                        ColumnDef::new(OpportunityStageHistory::FromStage)
+                            .string()
+                            .null()
+                            .comment("原阶段"),
+                    )
+                    .col(
+                        ColumnDef::new(OpportunityStageHistory::ToStage)
+                            .string()
+                            .not_null()
+                            .comment("新阶段"),
+                    )
+                    .col(
+                        ColumnDef::new(OpportunityStageHistory::ChangedAt)
+                            .timestamp_with_time_zone()
+                            .not_null()
+                            .comment("变更时间"),
+                    )
+                    .col(
+                        ColumnDef::new(OpportunityStageHistory::ChangedBy)
+                            .integer()
+                            .null()
+                            .comment("变更人"),
+                    )
+                    .col(
+                        ColumnDef::new(OpportunityStageHistory::DurationDays)
+                            .integer()
+                            .null()
+                            .comment("在原阶段停留天数"),
+                    )
                     .to_owned(),
             )
             .await?;
@@ -38,14 +74,53 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(Competitor::Table)
                     .if_not_exists()
-                    .col(ColumnDef::new(Competitor::Id).integer().not_null().auto_increment().primary_key())
-                    .col(ColumnDef::new(Competitor::Name).string().not_null().comment("竞争对手名称"))
-                    .col(ColumnDef::new(Competitor::Strengths).text().null().comment("优势"))
-                    .col(ColumnDef::new(Competitor::Weaknesses).text().null().comment("劣势"))
-                    .col(ColumnDef::new(Competitor::Website).string().null().comment("官网"))
-                    .col(ColumnDef::new(Competitor::Notes).text().null().comment("备注"))
-                    .col(ColumnDef::new(Competitor::CreatedAt).timestamp_with_time_zone().default(Expr::current_timestamp()))
-                    .col(ColumnDef::new(Competitor::UpdatedAt).timestamp_with_time_zone().default(Expr::current_timestamp()))
+                    .col(
+                        ColumnDef::new(Competitor::Id)
+                            .integer()
+                            .not_null()
+                            .auto_increment()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(Competitor::Name)
+                            .string()
+                            .not_null()
+                            .comment("竞争对手名称"),
+                    )
+                    .col(
+                        ColumnDef::new(Competitor::Strengths)
+                            .text()
+                            .null()
+                            .comment("优势"),
+                    )
+                    .col(
+                        ColumnDef::new(Competitor::Weaknesses)
+                            .text()
+                            .null()
+                            .comment("劣势"),
+                    )
+                    .col(
+                        ColumnDef::new(Competitor::Website)
+                            .string()
+                            .null()
+                            .comment("官网"),
+                    )
+                    .col(
+                        ColumnDef::new(Competitor::Notes)
+                            .text()
+                            .null()
+                            .comment("备注"),
+                    )
+                    .col(
+                        ColumnDef::new(Competitor::CreatedAt)
+                            .timestamp_with_time_zone()
+                            .default(Expr::current_timestamp()),
+                    )
+                    .col(
+                        ColumnDef::new(Competitor::UpdatedAt)
+                            .timestamp_with_time_zone()
+                            .default(Expr::current_timestamp()),
+                    )
                     .to_owned(),
             )
             .await?;
@@ -56,12 +131,42 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(OpportunityCompetitor::Table)
                     .if_not_exists()
-                    .col(ColumnDef::new(OpportunityCompetitor::Id).integer().not_null().auto_increment().primary_key())
-                    .col(ColumnDef::new(OpportunityCompetitor::OpportunityId).integer().not_null().comment("商机ID"))
-                    .col(ColumnDef::new(OpportunityCompetitor::CompetitorId).integer().not_null().comment("竞争对手ID"))
-                    .col(ColumnDef::new(OpportunityCompetitor::ThreatLevel).string().null().comment("威胁级别：low/medium/high"))
-                    .col(ColumnDef::new(OpportunityCompetitor::Notes).text().null().comment("备注"))
-                    .col(ColumnDef::new(OpportunityCompetitor::CreatedAt).timestamp_with_time_zone().default(Expr::current_timestamp()))
+                    .col(
+                        ColumnDef::new(OpportunityCompetitor::Id)
+                            .integer()
+                            .not_null()
+                            .auto_increment()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(OpportunityCompetitor::OpportunityId)
+                            .integer()
+                            .not_null()
+                            .comment("商机ID"),
+                    )
+                    .col(
+                        ColumnDef::new(OpportunityCompetitor::CompetitorId)
+                            .integer()
+                            .not_null()
+                            .comment("竞争对手ID"),
+                    )
+                    .col(
+                        ColumnDef::new(OpportunityCompetitor::ThreatLevel)
+                            .string()
+                            .null()
+                            .comment("威胁级别：low/medium/high"),
+                    )
+                    .col(
+                        ColumnDef::new(OpportunityCompetitor::Notes)
+                            .text()
+                            .null()
+                            .comment("备注"),
+                    )
+                    .col(
+                        ColumnDef::new(OpportunityCompetitor::CreatedAt)
+                            .timestamp_with_time_zone()
+                            .default(Expr::current_timestamp()),
+                    )
                     .to_owned(),
             )
             .await?;
@@ -72,15 +177,60 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(OpportunityFollowUp::Table)
                     .if_not_exists()
-                    .col(ColumnDef::new(OpportunityFollowUp::Id).integer().not_null().auto_increment().primary_key())
-                    .col(ColumnDef::new(OpportunityFollowUp::OpportunityId).integer().not_null().comment("商机ID"))
-                    .col(ColumnDef::new(OpportunityFollowUp::FollowUpType).string().not_null().comment("跟进方式：phone/email/visit/meeting/wechat"))
-                    .col(ColumnDef::new(OpportunityFollowUp::Content).text().not_null().comment("跟进内容"))
-                    .col(ColumnDef::new(OpportunityFollowUp::FollowUpTime).timestamp_with_time_zone().not_null().comment("跟进时间"))
-                    .col(ColumnDef::new(OpportunityFollowUp::NextFollowUpDate).date().null().comment("下次跟进日期"))
-                    .col(ColumnDef::new(OpportunityFollowUp::UserId).integer().not_null().comment("跟进人ID"))
-                    .col(ColumnDef::new(OpportunityFollowUp::UserName).string().not_null().comment("跟进人姓名"))
-                    .col(ColumnDef::new(OpportunityFollowUp::CreatedAt).timestamp_with_time_zone().default(Expr::current_timestamp()))
+                    .col(
+                        ColumnDef::new(OpportunityFollowUp::Id)
+                            .integer()
+                            .not_null()
+                            .auto_increment()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(OpportunityFollowUp::OpportunityId)
+                            .integer()
+                            .not_null()
+                            .comment("商机ID"),
+                    )
+                    .col(
+                        ColumnDef::new(OpportunityFollowUp::FollowUpType)
+                            .string()
+                            .not_null()
+                            .comment("跟进方式：phone/email/visit/meeting/wechat"),
+                    )
+                    .col(
+                        ColumnDef::new(OpportunityFollowUp::Content)
+                            .text()
+                            .not_null()
+                            .comment("跟进内容"),
+                    )
+                    .col(
+                        ColumnDef::new(OpportunityFollowUp::FollowUpTime)
+                            .timestamp_with_time_zone()
+                            .not_null()
+                            .comment("跟进时间"),
+                    )
+                    .col(
+                        ColumnDef::new(OpportunityFollowUp::NextFollowUpDate)
+                            .date()
+                            .null()
+                            .comment("下次跟进日期"),
+                    )
+                    .col(
+                        ColumnDef::new(OpportunityFollowUp::UserId)
+                            .integer()
+                            .not_null()
+                            .comment("跟进人ID"),
+                    )
+                    .col(
+                        ColumnDef::new(OpportunityFollowUp::UserName)
+                            .string()
+                            .not_null()
+                            .comment("跟进人姓名"),
+                    )
+                    .col(
+                        ColumnDef::new(OpportunityFollowUp::CreatedAt)
+                            .timestamp_with_time_zone()
+                            .default(Expr::current_timestamp()),
+                    )
                     .to_owned(),
             )
             .await?;
@@ -93,9 +243,24 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(CrmRecycleRule::Table)
-                    .add_column(ColumnDef::new(CrmRecycleRule::FollowUpDays).integer().null().comment("跟进周期（天）"))
-                    .add_column(ColumnDef::new(CrmRecycleRule::DealDays).integer().null().comment("成交周期（天）"))
-                    .add_column(ColumnDef::new(CrmRecycleRule::DepartmentId).integer().null().comment("适用部门ID"))
+                    .add_column(
+                        ColumnDef::new(CrmRecycleRule::FollowUpDays)
+                            .integer()
+                            .null()
+                            .comment("跟进周期（天）"),
+                    )
+                    .add_column(
+                        ColumnDef::new(CrmRecycleRule::DealDays)
+                            .integer()
+                            .null()
+                            .comment("成交周期（天）"),
+                    )
+                    .add_column(
+                        ColumnDef::new(CrmRecycleRule::DepartmentId)
+                            .integer()
+                            .null()
+                            .comment("适用部门ID"),
+                    )
                     .to_owned(),
             )
             .await?;
@@ -105,8 +270,18 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(CrmLead::Table)
-                    .add_column(ColumnDef::new(CrmLead::ProtectedUntil).timestamp_with_time_zone().null().comment("保护截止时间"))
-                    .add_column(ColumnDef::new(CrmLead::ProtectedBy).integer().null().comment("保护人ID"))
+                    .add_column(
+                        ColumnDef::new(CrmLead::ProtectedUntil)
+                            .timestamp_with_time_zone()
+                            .null()
+                            .comment("保护截止时间"),
+                    )
+                    .add_column(
+                        ColumnDef::new(CrmLead::ProtectedBy)
+                            .integer()
+                            .null()
+                            .comment("保护人ID"),
+                    )
                     .to_owned(),
             )
             .await?;
@@ -136,10 +311,22 @@ impl MigrationTrait for Migration {
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        manager.drop_table(Table::drop().table(OpportunityFollowUp::Table).to_owned()).await?;
-        manager.drop_table(Table::drop().table(OpportunityCompetitor::Table).to_owned()).await?;
-        manager.drop_table(Table::drop().table(Competitor::Table).to_owned()).await?;
-        manager.drop_table(Table::drop().table(OpportunityStageHistory::Table).to_owned()).await?;
+        manager
+            .drop_table(Table::drop().table(OpportunityFollowUp::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(OpportunityCompetitor::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(Competitor::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(
+                Table::drop()
+                    .table(OpportunityStageHistory::Table)
+                    .to_owned(),
+            )
+            .await?;
         Ok(())
     }
 }

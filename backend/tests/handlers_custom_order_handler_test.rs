@@ -1,10 +1,10 @@
+use axum::Json;
 use bingxi_backend::handlers::custom_order_handler::*;
 use bingxi_backend::models::custom_order::Model as CustomOrderModel;
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::prelude::Json;
 use serde_json::json;
-use axum::Json;
 
 /// 构造测试用的定制订单模型
 fn make_custom_order_model(id: i64, status: &str) -> CustomOrderModel {

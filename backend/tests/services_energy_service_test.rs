@@ -1,6 +1,6 @@
-use rust_decimal::Decimal;
 use bingxi_backend::services::energy_service::*;
 use bingxi_backend::services::outsourcing_service::*;
+use rust_decimal::Decimal;
 
 #[test]
 fn 测试计算消耗量_正常() {

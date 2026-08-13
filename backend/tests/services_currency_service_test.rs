@@ -1,7 +1,6 @@
 use bingxi_backend::services::currency_service::*;
 use bingxi_backend::utils::validation::validate_currency_code;
 
-
 /// M8 测试：合法币种码应通过校验
 #[test]
 fn test_validate_currency_code_valid() {

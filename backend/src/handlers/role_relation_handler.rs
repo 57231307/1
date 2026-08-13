@@ -10,8 +10,8 @@ use crate::services::role_relation_service::{CreateRoleRelationRequest, RoleRela
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use serde::Deserialize;
 

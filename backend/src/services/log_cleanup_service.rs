@@ -11,7 +11,7 @@ use std::time::{Duration, SystemTime};
 
 use futures::FutureExt;
 use std::panic::AssertUnwindSafe;
-use tokio::time::{interval, Interval};
+use tokio::time::{Interval, interval};
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 

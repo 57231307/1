@@ -8,8 +8,8 @@ use chrono::Duration;
 use rust_decimal::Decimal;
 // StockInfo 原 private struct，拆分后提升为 ops::types::StockInfo（pub(crate)），
 // 测试模块直接从 ops 导入（facade 不重导出以保持原 API 表面不变）
-use bingxi_backend::services::mrp_engine_ops::StockInfo;
 use bingxi_backend::models::master_data;
+use bingxi_backend::services::mrp_engine_ops::StockInfo;
 use std::sync::Arc;
 
 // MRP 专属状态值（源码 mrp_engine_service.rs 中使用，status.rs 暂无 mrp 子模块）
@@ -21,7 +21,11 @@ const MRP_STATUS_CANCELLED: &str = "CANCELLED";
 const BOM_STATUS_ACTIVE: &str = "ACTIVE";
 
 /// 构造测试用 StockInfo 夹具（复现 get_stock_info / get_stock_info_batch 中的可用量计算：available = on_hand - safety_stock（下限为 0））
-fn make_stock_info(on_hand_qty: Decimal, in_transit_qty: Decimal, safety_stock_qty: Decimal) -> StockInfo {
+fn make_stock_info(
+    on_hand_qty: Decimal,
+    in_transit_qty: Decimal,
+    safety_stock_qty: Decimal,
+) -> StockInfo {
     let available = on_hand - safety_stock;
     let available = if available > Decimal::ZERO {
         available

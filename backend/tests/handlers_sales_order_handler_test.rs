@@ -156,9 +156,7 @@ fn test_status_transitions_delivered_is_final() {
 
 #[test]
 fn test_create_delivery_dto_default() {
-    let dto = CreateDeliveryDto {
-        warehouse_id: None,
-    };
+    let dto = CreateDeliveryDto { warehouse_id: None };
     assert!(dto.warehouse_id.is_none());
 }
 

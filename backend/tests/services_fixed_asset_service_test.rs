@@ -157,8 +157,7 @@ fn test_calculate_asset_depreciation_round_dp() {
     // 复刻 calculate_asset_depreciation line 516-520 的月折旧计算
     let useful_life_months = useful_life_years * 12;
     let depreciable_amount = original_value - salvage_value;
-    let monthly_depreciation =
-        (depreciable_amount / Decimal::from(useful_life_months)).round_dp(2);
+    let monthly_depreciation = (depreciable_amount / Decimal::from(useful_life_months)).round_dp(2);
 
     // 10000/36 = 277.7777...，round_dp(2) 采用 MidpointAwayFromZero 四舍五入，
     // 第 3 位小数 7 >= 5 进位，结果为 277.78（Decimal::new(27778, 2) = 277.78）

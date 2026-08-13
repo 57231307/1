@@ -18,5 +18,8 @@ fn test_span_business_macro_compiles() {
     let s = span_business!("test_op", user_id = 42);
 
     // 验证宏展开后创建了有效的 span
-    assert!(!format!("{:?}", s).is_empty(), "span_business 宏应创建有效的 span");
+    assert!(
+        !format!("{:?}", s).is_empty(),
+        "span_business 宏应创建有效的 span"
+    );
 }

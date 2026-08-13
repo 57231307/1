@@ -18,7 +18,7 @@ use serde_json::json;
 
 use crate::models::{ar_collection, ar_invoice, ar_reconciliation, ar_reconciliation_item};
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
 use crate::utils::error::AppError;
 
 use super::super::json_helpers::{
@@ -129,10 +129,12 @@ impl ArService {
         if let Some(obj) = result.as_object_mut() {
             obj.insert(
                 "items".to_string(),
-                json!(items
-                    .into_iter()
-                    .map(reconciliation_item_to_json)
-                    .collect::<Vec<_>>()),
+                json!(
+                    items
+                        .into_iter()
+                        .map(reconciliation_item_to_json)
+                        .collect::<Vec<_>>()
+                ),
             );
         }
         Ok(result)
@@ -157,10 +159,12 @@ impl ArService {
             .all(&*self.db)
             .await?;
 
-        Ok(json!(invoices
-            .into_iter()
-            .map(invoice_to_json)
-            .collect::<Vec<_>>()))
+        Ok(json!(
+            invoices
+                .into_iter()
+                .map(invoice_to_json)
+                .collect::<Vec<_>>()
+        ))
     }
 
     /// 获取未核销收款

@@ -3,8 +3,8 @@
 //! 提供客户分配、批量分配和分配历史查询功能
 
 use axum::{
-    extract::{Query, State},
     Json,
+    extract::{Query, State},
 };
 use serde::Deserialize;
 

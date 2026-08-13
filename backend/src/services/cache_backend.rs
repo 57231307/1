@@ -21,8 +21,8 @@
 //! ```
 
 use dashmap::DashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// 缓存后端抽象（生产 CacheService/moka，测试 MockCacheBackend，备用 MemoryCacheBackend/DashMap）
 #[allow(dead_code)]

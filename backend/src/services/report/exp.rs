@@ -14,10 +14,10 @@
 use chrono::Utc;
 use std::io::Write;
 use tracing::info;
-use zip::{write::SimpleFileOptions, CompressionMethod, ZipWriter};
+use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
 
 use crate::utils::error::AppError;
-use crate::utils::xlsx_export::{build_xlsx, XlsxTable};
+use crate::utils::xlsx_export::{XlsxTable, build_xlsx};
 
 use super::{ExcelExportResult, ExportFormat, PdfExportResult, ReportData, ReportEngineService};
 

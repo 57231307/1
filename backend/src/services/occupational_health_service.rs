@@ -523,7 +523,10 @@ impl OccupationalHealthService {
     }
 
     /// 判定是否超标（纯函数）（业务规则：实测值 > 限值 → is_exceeding=true；超标倍数 = 实测值 / 限值 - 1）
-    pub fn check_exceedance(measured_value: Decimal, limit_value: Decimal) -> (bool, Option<Decimal>) {
+    pub fn check_exceedance(
+        measured_value: Decimal,
+        limit_value: Decimal,
+    ) -> (bool, Option<Decimal>) {
         if measured_value > limit_value && limit_value > Decimal::ZERO {
             let ratio = measured_value / limit_value - Decimal::ONE;
             (true, Some(ratio))

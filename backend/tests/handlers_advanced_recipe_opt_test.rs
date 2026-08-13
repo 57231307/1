@@ -1,6 +1,5 @@
 use bingxi_backend::handlers::advanced::recipe_opt::*;
 
-
 /// 校验：请求体结构正确构造
 #[test]
 fn test_request_struct_construction() {

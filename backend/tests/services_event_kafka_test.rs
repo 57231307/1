@@ -1,8 +1,8 @@
-use rust_decimal::Decimal;
-use std::str::FromStr;
 use bingxi_backend::services::dashboard_service::*;
 use bingxi_backend::services::event_bus::*;
 use bingxi_backend::services::event_kafka_payload::*;
+use rust_decimal::Decimal;
+use std::str::FromStr;
 
 fn _sample_event() -> BusinessEvent {
     BusinessEvent::PaymentCompleted {
@@ -120,8 +120,7 @@ fn test_payload_all_variants_round_trip() {
     for event in &cases {
         let payload = EventPayload::from(event);
         let bytes = serde_json::to_vec(&payload).expect("序列化失败");
-        let restored_payload: EventPayload =
-            serde_json::from_slice(&bytes).expect("反序列化失败");
+        let restored_payload: EventPayload = serde_json::from_slice(&bytes).expect("反序列化失败");
         let restored = BusinessEvent::try_from(restored_payload).expect("转换失败");
         let event_type = event_type_name(event);
         let restored_type = event_type_name(&restored);

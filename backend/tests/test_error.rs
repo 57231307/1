@@ -94,8 +94,8 @@ fn test_error_from_serde_json() {
 
 #[test]
 fn test_error_from_validation_errors() {
+    use serde_json::Value;
     use validator::Validate;
-use serde_json::Value;
 
     #[derive(Debug, Validate)]
     struct TestInput {

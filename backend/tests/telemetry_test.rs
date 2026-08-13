@@ -1,6 +1,5 @@
 use bingxi_backend::telemetry::*;
 
-
 #[test]
 fn test_service_metadata() {
     assert_eq!(SERVICE_NAME, "bingxi-backend");
@@ -91,5 +90,8 @@ fn test_metric_names_constants() {
 fn test_telemetry_init() {
     let guard = init();
     // 验证 guard 创建成功
-    assert!(!format!("{:?}", guard).is_empty(), "telemetry guard 不应为空");
+    assert!(
+        !format!("{:?}", guard).is_empty(),
+        "telemetry guard 不应为空"
+    );
 }

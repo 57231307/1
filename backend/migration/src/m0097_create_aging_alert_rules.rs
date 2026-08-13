@@ -69,11 +69,7 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .default(true),
                     )
-                    .col(
-                        ColumnDef::new(AgingAlertRules::Remarks)
-                            .text()
-                            .null(),
-                    )
+                    .col(ColumnDef::new(AgingAlertRules::Remarks).text().null())
                     .col(
                         ColumnDef::new(AgingAlertRules::CreatedAt)
                             .timestamp_with_time_zone()

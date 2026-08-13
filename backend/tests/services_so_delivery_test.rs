@@ -4,11 +4,11 @@ use bingxi_backend::models::status::sales_order as so_status;
 use bingxi_backend::search::{ElasticClient, SearchClient};
 use bingxi_backend::services::test_common::setup_test_db;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
-use std::sync::Arc;
 use bingxi_backend::models::sales_order::so_status;
 use bingxi_backend::utils::error::AppError;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
+use std::sync::Arc;
 
 /// 复现 ship_order 的订单状态校验门（不涉及数据库）
 /// 与 ship_order 中 `if order.status != so_status::APPROVED` 保持一致：仅已审批订单可发货，其余状态返回业务错误。

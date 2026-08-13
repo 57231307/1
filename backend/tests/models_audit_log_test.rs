@@ -55,7 +55,10 @@ fn test_audit_log_request_info() {
 
     // 验证请求信息
     assert_eq!(log.request_method, Some("POST".to_string()));
-    assert_eq!(log.request_path, Some("/api/v1/erp/sales/orders".to_string()));
+    assert_eq!(
+        log.request_path,
+        Some("/api/v1/erp/sales/orders".to_string())
+    );
 }
 
 #[test]

@@ -30,7 +30,7 @@ use crate::utils::error::AppError;
 use crate::services::chemical_ops::types::{
     ChemicalMasterQuery, CreateChemicalMasterRequest, UpdateChemicalMasterRequest,
 };
-use crate::services::chemical_service::{validate_chemical_type, ChemicalMasterService};
+use crate::services::chemical_service::{ChemicalMasterService, validate_chemical_type};
 
 /// 染化料创建过程中校验/预处理后的值
 struct ChemicalCreateValues {

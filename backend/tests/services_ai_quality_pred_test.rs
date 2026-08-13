@@ -1,7 +1,7 @@
-use rust_decimal::Decimal;
 use bingxi_backend::services::ai::quality_pred::*;
 use chrono::NaiveDate;
 use chrono::Utc;
+use rust_decimal::Decimal;
 
 /// 构造一条 `QualityInspectionModel` 测试夹具
 fn make_record(

@@ -2,7 +2,7 @@
 //!
 //! 包含采购合同、采购价格、销售退货三类与库存调整相关的端点。
 
-use axum::{extract::State, Json};
+use axum::{Json, extract::State};
 use rust_decimal::prelude::ToPrimitive;
 use sea_orm::{EntityTrait, QueryOrder};
 use serde::{Deserialize, Serialize};

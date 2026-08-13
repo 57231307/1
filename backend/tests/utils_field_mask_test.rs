@@ -1,6 +1,5 @@
 use bingxi_backend::utils::field_mask::*;
 
-
 #[test]
 fn test_mask_phone_normal() {
     assert_eq!(mask_phone("13812348888"), "138****8888");

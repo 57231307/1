@@ -1,6 +1,5 @@
 use bingxi_backend::services::init_service::*;
 
-
 #[test]
 fn to_connection_string_preserves_ip_host() {
     // 回退测试：确保 host 中合法的 IP 字符（数字、.）不会被错误编码

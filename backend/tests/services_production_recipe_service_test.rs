@@ -1,9 +1,9 @@
-use rust_decimal::prelude::FromPrimitive;
-use rust_decimal::Decimal;
 use bingxi_backend::models::production_recipe::RecipeMaterialItem;
 use bingxi_backend::models::status::production_recipe as recipe_status;
 use bingxi_backend::models::status::production_recipe_addition as addition_status;
 use bingxi_backend::services::production_recipe_service::*;
+use rust_decimal::Decimal;
+use rust_decimal::prelude::FromPrimitive;
 
 /// 测试大货处方单号生成格式：PR-YYYYMMDDHHMMSS-NNN
 #[test]
@@ -185,53 +185,69 @@ fn test_calculate_amounts_invalid() {
 #[test]
 fn test_recipe_status_transition_valid() {
     // 合法流转
-    assert!(ProductionRecipeService::validate_status_transition(
-        recipe_status::DRAFT,
-        recipe_status::APPROVED
-    )
-    .is_ok());
-    assert!(ProductionRecipeService::validate_status_transition(
-        recipe_status::DRAFT,
-        recipe_status::CANCELLED
-    )
-    .is_ok());
-    assert!(ProductionRecipeService::validate_status_transition(
-        recipe_status::APPROVED,
-        recipe_status::CLOSED
-    )
-    .is_ok());
+    assert!(
+        ProductionRecipeService::validate_status_transition(
+            recipe_status::DRAFT,
+            recipe_status::APPROVED
+        )
+        .is_ok()
+    );
+    assert!(
+        ProductionRecipeService::validate_status_transition(
+            recipe_status::DRAFT,
+            recipe_status::CANCELLED
+        )
+        .is_ok()
+    );
+    assert!(
+        ProductionRecipeService::validate_status_transition(
+            recipe_status::APPROVED,
+            recipe_status::CLOSED
+        )
+        .is_ok()
+    );
 }
 
 /// 测试大货处方状态流转非法
 #[test]
 fn test_recipe_status_transition_invalid() {
     // 非法流转
-    assert!(ProductionRecipeService::validate_status_transition(
-        recipe_status::DRAFT,
-        recipe_status::CLOSED
-    )
-    .is_err());
-    assert!(ProductionRecipeService::validate_status_transition(
-        recipe_status::APPROVED,
-        recipe_status::DRAFT
-    )
-    .is_err());
-    assert!(ProductionRecipeService::validate_status_transition(
-        recipe_status::APPROVED,
-        recipe_status::CANCELLED
-    )
-    .is_err());
+    assert!(
+        ProductionRecipeService::validate_status_transition(
+            recipe_status::DRAFT,
+            recipe_status::CLOSED
+        )
+        .is_err()
+    );
+    assert!(
+        ProductionRecipeService::validate_status_transition(
+            recipe_status::APPROVED,
+            recipe_status::DRAFT
+        )
+        .is_err()
+    );
+    assert!(
+        ProductionRecipeService::validate_status_transition(
+            recipe_status::APPROVED,
+            recipe_status::CANCELLED
+        )
+        .is_err()
+    );
     // 终态不可流转
-    assert!(ProductionRecipeService::validate_status_transition(
-        recipe_status::CLOSED,
-        recipe_status::APPROVED
-    )
-    .is_err());
-    assert!(ProductionRecipeService::validate_status_transition(
-        recipe_status::CANCELLED,
-        recipe_status::DRAFT
-    )
-    .is_err());
+    assert!(
+        ProductionRecipeService::validate_status_transition(
+            recipe_status::CLOSED,
+            recipe_status::APPROVED
+        )
+        .is_err()
+    );
+    assert!(
+        ProductionRecipeService::validate_status_transition(
+            recipe_status::CANCELLED,
+            recipe_status::DRAFT
+        )
+        .is_err()
+    );
 }
 
 /// 测试大货处方更新/删除状态校验
@@ -253,34 +269,44 @@ fn test_recipe_validate_can_update_and_delete() {
 #[test]
 fn test_addition_status_transition() {
     // 合法流转
-    assert!(ProductionRecipeAdditionService::validate_status_transition(
-        addition_status::DRAFT,
-        addition_status::APPROVED
-    )
-    .is_ok());
-    assert!(ProductionRecipeAdditionService::validate_status_transition(
-        addition_status::APPROVED,
-        addition_status::CLOSED
-    )
-    .is_ok());
+    assert!(
+        ProductionRecipeAdditionService::validate_status_transition(
+            addition_status::DRAFT,
+            addition_status::APPROVED
+        )
+        .is_ok()
+    );
+    assert!(
+        ProductionRecipeAdditionService::validate_status_transition(
+            addition_status::APPROVED,
+            addition_status::CLOSED
+        )
+        .is_ok()
+    );
 
     // 非法流转
-    assert!(ProductionRecipeAdditionService::validate_status_transition(
-        addition_status::DRAFT,
-        addition_status::CLOSED
-    )
-    .is_err());
-    assert!(ProductionRecipeAdditionService::validate_status_transition(
-        addition_status::APPROVED,
-        addition_status::DRAFT
-    )
-    .is_err());
+    assert!(
+        ProductionRecipeAdditionService::validate_status_transition(
+            addition_status::DRAFT,
+            addition_status::CLOSED
+        )
+        .is_err()
+    );
+    assert!(
+        ProductionRecipeAdditionService::validate_status_transition(
+            addition_status::APPROVED,
+            addition_status::DRAFT
+        )
+        .is_err()
+    );
     // 终态
-    assert!(ProductionRecipeAdditionService::validate_status_transition(
-        addition_status::CLOSED,
-        addition_status::APPROVED
-    )
-    .is_err());
+    assert!(
+        ProductionRecipeAdditionService::validate_status_transition(
+            addition_status::CLOSED,
+            addition_status::APPROVED
+        )
+        .is_err()
+    );
 }
 
 /// 测试 FromPrimitive trait 可用（确保 rust_decimal::prelude::FromPrimitive 引入正确）

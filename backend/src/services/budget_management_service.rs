@@ -6,9 +6,9 @@ use crate::models::status::budget;
 use crate::utils::error::AppError;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
-use sea_orm::{ExprTrait, 
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, Order,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde::Serialize;
 use std::sync::Arc;
@@ -1397,9 +1397,7 @@ impl BudgetManagementService {
         let total_budget: Decimal = plans.iter().map(|p| p.total_amount).sum();
 
         // 查询已执行金额
-        let executions = budget_execution::Entity::find()
-            .all(&*self.db)
-            .await?;
+        let executions = budget_execution::Entity::find().all(&*self.db).await?;
 
         let total_executed: Decimal = executions.iter().map(|e| e.amount).sum();
 

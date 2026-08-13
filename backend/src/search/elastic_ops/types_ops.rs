@@ -1,5 +1,5 @@
 //! DocType 与 SearchQuery 业务方法实现（构造器留在 facade）
-use crate::search::elastic::{indices, DocType, SearchQuery};
+use crate::search::elastic::{DocType, SearchQuery, indices};
 
 impl DocType {
     /// 返回索引名

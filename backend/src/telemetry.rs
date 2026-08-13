@@ -82,7 +82,9 @@ pub fn otlp_endpoint() -> String {
             }
             Err(_) => {
                 if crate::utils::config::is_production() {
-                    tracing::warn!("生产环境未设置 OTEL_EXPORTER_OTLP_ENDPOINT，使用默认值 http://localhost:4317（生产环境建议配置可达的 OTLP Collector）");
+                    tracing::warn!(
+                        "生产环境未设置 OTEL_EXPORTER_OTLP_ENDPOINT，使用默认值 http://localhost:4317（生产环境建议配置可达的 OTLP Collector）"
+                    );
                 } else {
                     tracing::info!(
                         "OTEL_EXPORTER_OTLP_ENDPOINT 未设置，使用默认值 http://localhost:4317"
@@ -107,7 +109,9 @@ pub fn is_otel_enabled() -> bool {
             }
             Err(_) => {
                 if crate::utils::config::is_production() {
-                    tracing::warn!("生产环境未设置 OTEL_ENABLED，默认 false（建议显式设置 OTEL_ENABLED=true 启用 OTel 导出）");
+                    tracing::warn!(
+                        "生产环境未设置 OTEL_ENABLED，默认 false（建议显式设置 OTEL_ENABLED=true 启用 OTel 导出）"
+                    );
                 } else {
                     tracing::info!("OTEL_ENABLED 未设置，默认 false");
                 }

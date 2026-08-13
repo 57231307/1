@@ -1,6 +1,5 @@
 use bingxi_backend::services::dye_batch_state_machine_validation::*;
 
-
 // ===== 校验纯函数测试 =====
 
 #[test]
@@ -364,8 +363,7 @@ fn 测试获取允许流转_终态返回空() {
 #[test]
 fn test_transition_validation_valid_returns_ok() {
     assert!(
-        validate_transition_with_rule(Some("pending_schedule"), "scheduled", "schedule")
-            .is_ok()
+        validate_transition_with_rule(Some("pending_schedule"), "scheduled", "schedule").is_ok()
     );
     assert!(validate_transition_with_rule(Some("dyeing"), "washing", "wash").is_ok());
     assert!(validate_transition_with_rule(Some("stored"), "shipped", "ship").is_ok());
@@ -374,8 +372,7 @@ fn test_transition_validation_valid_returns_ok() {
 #[test]
 fn test_transition_validation_invalid_returns_err() {
     assert!(
-        validate_transition_with_rule(Some("pending_schedule"), "dyeing", "start_dyeing")
-            .is_err()
+        validate_transition_with_rule(Some("pending_schedule"), "dyeing", "start_dyeing").is_err()
     );
     assert!(validate_transition_with_rule(Some("shipped"), "stored", "store").is_err());
 }
@@ -388,8 +385,7 @@ fn test_transition_validation_invalid_status_returns_err() {
     );
     // transition_code 非法
     assert!(
-        validate_transition_with_rule(Some("pending_schedule"), "scheduled", "invalid")
-            .is_err()
+        validate_transition_with_rule(Some("pending_schedule"), "scheduled", "invalid").is_err()
     );
 }
 

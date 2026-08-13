@@ -1,10 +1,10 @@
 // decs 宏在测试中不可用，使用 Decimal::from_str 替代
 use bingxi_backend::services::quality_inspection_service::{
-use rust_decimal::Decimal;
-    determine_quality_grade, grade_a_threshold, grade_b_threshold,
-    validate_handling_method_by_grade, HANDLING_DOWNGRADE_SALE, HANDLING_REWORK,
-    HANDLING_SCRAP, QUALITY_GRADE_A, QUALITY_GRADE_B, QUALITY_GRADE_C,
+    HANDLING_DOWNGRADE_SALE, HANDLING_REWORK, HANDLING_SCRAP, QUALITY_GRADE_A, QUALITY_GRADE_B,
+    QUALITY_GRADE_C, determine_quality_grade, grade_a_threshold, grade_b_threshold,
+    validate_handling_method_by_grade,
 };
+use rust_decimal::Decimal;
 
 // ===== determine_quality_grade 合格率分级判定 =====
 
@@ -61,9 +61,7 @@ fn test_zjfj_noneswlhgl() {
 #[test]
 fn test_djclfsjy_ajpwxbhgcl() {
     // A 级 + 任意处理方式 → 拒绝
-    assert!(
-        validate_handling_method_by_grade(QUALITY_GRADE_A, HANDLING_DOWNGRADE_SALE).is_err()
-    );
+    assert!(validate_handling_method_by_grade(QUALITY_GRADE_A, HANDLING_DOWNGRADE_SALE).is_err());
     assert!(validate_handling_method_by_grade(QUALITY_GRADE_A, HANDLING_REWORK).is_err());
     assert!(validate_handling_method_by_grade(QUALITY_GRADE_A, HANDLING_SCRAP).is_err());
 
@@ -75,9 +73,7 @@ fn test_djclfsjy_ajpwxbhgcl() {
 #[test]
 fn test_djclfsjy_bjpbxjjxs() {
     // B 级 + 降级销售 → 放行
-    assert!(
-        validate_handling_method_by_grade(QUALITY_GRADE_B, HANDLING_DOWNGRADE_SALE).is_ok()
-    );
+    assert!(validate_handling_method_by_grade(QUALITY_GRADE_B, HANDLING_DOWNGRADE_SALE).is_ok());
     // B 级 + 返工/报废 → 拒绝
     assert!(validate_handling_method_by_grade(QUALITY_GRADE_B, HANDLING_REWORK).is_err());
     assert!(validate_handling_method_by_grade(QUALITY_GRADE_B, HANDLING_SCRAP).is_err());
@@ -94,12 +90,10 @@ fn test_djclfsjy_cjpfghbf() {
     assert!(validate_handling_method_by_grade(QUALITY_GRADE_C, HANDLING_REWORK).is_ok());
     assert!(validate_handling_method_by_grade(QUALITY_GRADE_C, HANDLING_SCRAP).is_ok());
     // C 级 + 降级销售 → 拒绝
-    assert!(
-        validate_handling_method_by_grade(QUALITY_GRADE_C, HANDLING_DOWNGRADE_SALE).is_err()
-    );
+    assert!(validate_handling_method_by_grade(QUALITY_GRADE_C, HANDLING_DOWNGRADE_SALE).is_err());
 
-    let err = validate_handling_method_by_grade(QUALITY_GRADE_C, HANDLING_DOWNGRADE_SALE)
-        .unwrap_err();
+    let err =
+        validate_handling_method_by_grade(QUALITY_GRADE_C, HANDLING_DOWNGRADE_SALE).unwrap_err();
     assert!(err.to_string().contains("C 级"));
     assert!(err.to_string().contains("返工"));
     assert!(err.to_string().contains("报废"));

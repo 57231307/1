@@ -1,14 +1,14 @@
 // decs 宏在测试中不可用，使用 Decimal::from_str 替代
 use bingxi_backend::services::test_common::setup_test_db;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
-use chrono::NaiveDate;
-use std::sync::Arc;
 use bingxi_backend::models::accounting_period::period_status;
 use bingxi_backend::services::accounting_period_service::AccountingPeriodService;
 use chrono::DateTime;
 use chrono::Duration;
+use chrono::NaiveDate;
 use chrono::Utc;
 use rust_decimal::Decimal;
+use std::sync::Arc;
 
 // 会计期间状态常量（引用 status::accounting_period 模块，批次 232 v13 P1-1）
 const PERIOD_STATUS_OPEN: &str = period_status::OPEN;
@@ -16,20 +16,12 @@ const PERIOD_STATUS_CLOSED: &str = period_status::CLOSED;
 
 /// 测试夹具：计算下个月月份（复现 init_first_period 与 close_period 中的纯算法逻辑：`if month == 12 { 1 } else { month + 1 }`）
 fn calc_next_month(month: u32) -> u32 {
-    if month == 12 {
-        1
-    } else {
-        month + 1
-    }
+    if month == 12 { 1 } else { month + 1 }
 }
 
 /// 测试夹具：计算下个月所属年份（复现 init_first_period 与 close_period 中的纯算法逻辑：`if month == 12 { year + 1 } else { year }`）
 fn calc_next_month_year(month: u32, year: i32) -> i32 {
-    if month == 12 {
-        year + 1
-    } else {
-        year
-    }
+    if month == 12 { year + 1 } else { year }
 }
 
 /// 测试夹具：格式化期间名称（复现 init_first_period 中的纯算法逻辑：`format!("{} 年 {:02} 月", year, month)`）

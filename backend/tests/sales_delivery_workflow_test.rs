@@ -5,9 +5,7 @@
 //! DB 相关测试通过 service 静态方法或纯函数验证。
 
 use bingxi_backend::models::status::sales_delivery;
-use bingxi_backend::services::so::delivery::{
-    validate_dye_lot_consistency, ShipOrderItemRequest,
-};
+use bingxi_backend::services::so::delivery::{ShipOrderItemRequest, validate_dye_lot_consistency};
 use rust_decimal::Decimal;
 
 /// 构造 ShipOrderItemRequest 测试夹具

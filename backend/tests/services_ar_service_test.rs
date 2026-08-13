@@ -32,10 +32,7 @@ fn can_confirm_payment(current_status: &str) -> bool {
 
 /// 复现 create_payment 中的核销金额贪心匹配算法
 /// 源码位置：create_payment 方法内关联多张发票的扣减循环。；按发票顺序扣减，每张发票扣减 min(剩余收款, 发票未收金额)。；返回各发票的实际核销金额列表 + 剩余未核销金额。
-fn greedy_match(
-    payment_amount: Decimal,
-    unpaid_amounts: &[Decimal],
-) -> (Vec<Decimal>, Decimal) {
+fn greedy_match(payment_amount: Decimal, unpaid_amounts: &[Decimal]) -> (Vec<Decimal>, Decimal) {
     let mut remaining = payment_amount;
     let mut allocations = Vec::with_capacity(unpaid_amounts.len());
     for unpaid in unpaid_amounts {

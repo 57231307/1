@@ -1,14 +1,14 @@
+use axum::Router;
 use axum::body::Body;
 use axum::http::Request;
 use axum::middleware::from_fn;
-use axum::routing::get;
-use axum::Router;
-use tower::ServiceExt; // for oneshot()
-use bingxi_backend::middleware::auth_context::*;
-use bingxi_backend::services::cache_service::*;
 use axum::response::Response;
+use axum::routing::get;
+use bingxi_backend::middleware::auth_context::*;
 use bingxi_backend::middleware::trace::X_TRACE_ID_HEADER;
 use bingxi_backend::middleware::trace::trace_context_middleware;
+use bingxi_backend::services::cache_service::*;
+use tower::ServiceExt; // for oneshot()
 
 async fn hello() -> &'static str {
     "world"

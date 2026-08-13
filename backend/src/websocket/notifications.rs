@@ -18,8 +18,8 @@
 //! V15 P1 20.3-A：WebSocket 消息 ACK 机制（5s 超时重发，最多 3 次）
 //! V15 P1 20.3-B：Redis Pub/Sub 多实例广播（无 Redis 时降级为单实例本地广播）
 
-use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::Query;
+use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::response::IntoResponse;
 use dashmap::DashMap;
 use futures::{FutureExt, SinkExt, StreamExt};
@@ -560,7 +560,10 @@ async fn handle_socket(socket: WebSocket, auth: AuthInfo) {
     let mut recv_task = tokio::spawn(async move {
         while let Some(msg) = receiver.next().await {
             // 更新最后活动时间
-            last_activity_recv.store(chrono::Utc::now().timestamp(), std::sync::atomic::Ordering::Relaxed);
+            last_activity_recv.store(
+                chrono::Utc::now().timestamp(),
+                std::sync::atomic::Ordering::Relaxed,
+            );
             // 批次 8（2026-06-28）：单次消息处理 panic 隔离
             let result = AssertUnwindSafe(async { handle_recv_message(msg, user_id) })
                 .catch_unwind()

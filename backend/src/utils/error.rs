@@ -1,7 +1,7 @@
 use axum::{
+    Json,
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use serde::Serialize;
 use std::fmt;
@@ -105,10 +105,9 @@ impl IntoResponse for AppError {
             ..
         } = &self
         {
-            response.headers_mut().insert(
-                "Retry-After",
-                seconds.to_string().parse().unwrap(),
-            );
+            response
+                .headers_mut()
+                .insert("Retry-After", seconds.to_string().parse().unwrap());
         }
 
         response

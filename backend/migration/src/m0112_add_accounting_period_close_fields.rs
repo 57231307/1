@@ -11,11 +11,7 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(AccountingPeriods::Table)
-                    .add_column(
-                        ColumnDef::new(AccountingPeriods::ClosedBy)
-                            .integer()
-                            .null(),
-                    )
+                    .add_column(ColumnDef::new(AccountingPeriods::ClosedBy).integer().null())
                     .to_owned(),
             )
             .await?;
@@ -39,11 +35,7 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(AccountingPeriods::Table)
-                    .add_column(
-                        ColumnDef::new(AccountingPeriods::CloseNotes)
-                            .text()
-                            .null(),
-                    )
+                    .add_column(ColumnDef::new(AccountingPeriods::CloseNotes).text().null())
                     .to_owned(),
             )
             .await?;

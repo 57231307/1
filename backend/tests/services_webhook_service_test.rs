@@ -1,6 +1,5 @@
 use bingxi_backend::services::webhook_service::*;
 
-
 /// M8 测试：MAX_RETRY_COUNT 常量值为 5
 #[test]
 fn test_max_retry_count_value() {

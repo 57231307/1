@@ -30,7 +30,7 @@ use crate::utils::error::AppError;
 use crate::services::lab_dip_ops::types::{
     CreateLabDipSampleRequest, RecordMatchingResultRequest, UpdateLabDipSampleRequest,
 };
-use crate::services::lab_dip_service::{LabDipSampleService, COLOR_DIFF_OK_GRADE};
+use crate::services::lab_dip_service::{COLOR_DIFF_OK_GRADE, LabDipSampleService};
 
 impl LabDipSampleService {
     /// 创建打样小样

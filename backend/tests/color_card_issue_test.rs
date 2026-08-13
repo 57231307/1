@@ -60,9 +60,9 @@ fn test_compensation_amount_must_be_positive() {
 
 #[test]
 fn test_expected_return_within_30_days() {
+    use chrono::Duration;
+    use chrono::Utc;
     use chrono::{Duration, Utc};
-use chrono::Duration;
-use chrono::Utc;
     let now = Utc::now();
     // 合法：5 天后
     let valid_expected = now + Duration::days(5);

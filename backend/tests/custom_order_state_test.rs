@@ -4,7 +4,7 @@
 //! 创建时间: 2026-06-17
 
 use bingxi_backend::utils::process_state_machine::{
-    can_transition, next_status, CustomOrderStatus,
+    CustomOrderStatus, can_transition, next_status,
 };
 
 #[test]

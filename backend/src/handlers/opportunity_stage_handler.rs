@@ -1,4 +1,4 @@
-use axum::{extract::State, Json};
+use axum::{Json, extract::State};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde::Serialize;
 
@@ -37,12 +37,17 @@ pub async fn get_opportunity_stage_stats(
         .await?;
 
     // 按阶段分组统计
-    let mut stage_map: std::collections::HashMap<String, Vec<f64>> = std::collections::HashMap::new();
+    let mut stage_map: std::collections::HashMap<String, Vec<f64>> =
+        std::collections::HashMap::new();
 
     for opp in &opportunities {
         if let (Some(created), Some(close_date)) = (opp.created_at, opp.actual_close_date) {
-            let days = (close_date.and_hms_opt(0, 0, 0).unwrap() - created.naive_utc()).num_days() as f64;
-            let stage = opp.opportunity_stage.clone().unwrap_or_else(|| "unknown".to_string());
+            let days =
+                (close_date.and_hms_opt(0, 0, 0).unwrap() - created.naive_utc()).num_days() as f64;
+            let stage = opp
+                .opportunity_stage
+                .clone()
+                .unwrap_or_else(|| "unknown".to_string());
             stage_map.entry(stage).or_default().push(days);
         }
     }

@@ -364,33 +364,22 @@ impl AssistAccountingService {
         let query = Self::apply_period_filter(query, Some(accounting_period));
 
         // 按维度过滤对应的字段
-        let query = match dimension_code {
-            "BATCH" => query.filter(
-                assist_accounting_record::Column::BatchNo.is_not_null(),
-            ),
-            "COLOR" => query.filter(
-                assist_accounting_record::Column::ColorNo.is_not_null(),
-            ),
-            "DYE_LOT" => query.filter(
-                assist_accounting_record::Column::DyeLotNo.is_not_null(),
-            ),
-            "GRADE" => query.filter(
-                assist_accounting_record::Column::Grade.is_not_null(),
-            ),
-            "WORKSHOP" => query.filter(
-                assist_accounting_record::Column::WorkshopId.eq(dimension_value_id),
-            ),
-            "WAREHOUSE" => query.filter(
-                assist_accounting_record::Column::WarehouseId.eq(dimension_value_id),
-            ),
-            "CUSTOMER" => query.filter(
-                assist_accounting_record::Column::CustomerId.eq(dimension_value_id),
-            ),
-            "SUPPLIER" => query.filter(
-                assist_accounting_record::Column::SupplierId.eq(dimension_value_id),
-            ),
-            _ => query,
-        };
+        let query =
+            match dimension_code {
+                "BATCH" => query.filter(assist_accounting_record::Column::BatchNo.is_not_null()),
+                "COLOR" => query.filter(assist_accounting_record::Column::ColorNo.is_not_null()),
+                "DYE_LOT" => query.filter(assist_accounting_record::Column::DyeLotNo.is_not_null()),
+                "GRADE" => query.filter(assist_accounting_record::Column::Grade.is_not_null()),
+                "WORKSHOP" => query
+                    .filter(assist_accounting_record::Column::WorkshopId.eq(dimension_value_id)),
+                "WAREHOUSE" => query
+                    .filter(assist_accounting_record::Column::WarehouseId.eq(dimension_value_id)),
+                "CUSTOMER" => query
+                    .filter(assist_accounting_record::Column::CustomerId.eq(dimension_value_id)),
+                "SUPPLIER" => query
+                    .filter(assist_accounting_record::Column::SupplierId.eq(dimension_value_id)),
+                _ => query,
+            };
 
         let paginator = query.paginate(&*self.db, page_size);
         let total = paginator.num_items().await?;

@@ -1,7 +1,6 @@
 use bingxi_backend::models::financial_analysis_result::*;
 use rust_decimal::Decimal;
 
-
 #[test]
 fn test_compose_color_no_empty() {
     let item = sales_quotation_item::Model {

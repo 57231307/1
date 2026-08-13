@@ -7,8 +7,8 @@
 //! - `GET /api/v1/erp/admin/failover/health`
 
 use axum::{
-    routing::{get, post},
     Router,
+    routing::{get, post},
 };
 
 use crate::container::AppState;

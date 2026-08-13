@@ -3,12 +3,12 @@
 //! 提供邮件发送、模板管理和发送记录查询功能
 
 use axum::{
-    extract::{Query, State},
     Json,
+    extract::{Query, State},
 };
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::container::AppState;
@@ -130,8 +130,8 @@ async fn decode_and_validate_attachments(
         _ => return Ok(None),
     };
 
-    use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
     use base64::Engine;
+    use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
     use std::collections::HashMap;
 
     let mut file_map: HashMap<String, Vec<u8>> = HashMap::new();

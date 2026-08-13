@@ -1,7 +1,6 @@
 use bingxi_backend::handlers::auth_handler::*;
 use std::collections::HashSet;
 
-
 /// 构造测试用的 LoginResponse 实例
 fn build_test_login_response() -> LoginResponse {
     LoginResponse {

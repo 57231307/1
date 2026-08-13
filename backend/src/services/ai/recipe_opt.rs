@@ -315,10 +315,7 @@ pub fn compute_confidence(hits: &[(f64, &DyeRecipeModel)], k: usize) -> f64 {
 }
 
 /// 将候选集合转换为响应中 `candidates` 字段（取相似度 > 0 的前 10 条，并把原始分数归一化到 0.0-1.0。）
-pub fn build_candidates(
-    scored: &[(f64, &DyeRecipeModel)],
-    max_n: usize,
-) -> Vec<RecipeCandidate> {
+pub fn build_candidates(scored: &[(f64, &DyeRecipeModel)], max_n: usize) -> Vec<RecipeCandidate> {
     scored
         .iter()
         .filter(|(s, _)| *s > 0.0)
@@ -359,10 +356,7 @@ fn estimate_recipe_cost(recipe: &DyeRecipeModel) -> Option<f64> {
         .and_then(|d| d.to_f64())
         .map(|t| t / 80.0)
         .unwrap_or(1.0);
-    let time_factor = recipe
-        .time_minutes
-        .map(|t| t as f64 / 45.0)
-        .unwrap_or(1.0);
+    let time_factor = recipe.time_minutes.map(|t| t as f64 / 45.0).unwrap_or(1.0);
     Some(round2(aux_cost * temp_factor * time_factor))
 }
 
@@ -384,7 +378,11 @@ fn build_factor_contributions(top: &[(f64, &DyeRecipeModel)]) -> Vec<FactorContr
     for (score, model) in top {
         let color_score = color_similarity("", model.color_no.as_deref().unwrap_or(""));
         let s = *score;
-        let c = if color_score > 0.0 { color_score.min(s) } else { 0.0 };
+        let c = if color_score > 0.0 {
+            color_score.min(s)
+        } else {
+            0.0
+        };
         let f = if s > c + 0.05 { 0.2 } else { 0.0 };
         let d = s - c - f;
         color_sum += c;
@@ -447,7 +445,11 @@ fn compute_cost_comparison(
         .iter()
         .filter_map(|(_, m)| {
             let aux = m.auxiliaries.as_ref()?;
-            Some(aux.iter().map(|a| a.amount.to_f64().unwrap_or(0.0)).sum::<f64>())
+            Some(
+                aux.iter()
+                    .map(|a| a.amount.to_f64().unwrap_or(0.0))
+                    .sum::<f64>(),
+            )
         })
         .sum::<f64>()
         / costs.len() as f64;
@@ -472,7 +474,12 @@ fn compute_cost_comparison(
         String::new()
     };
 
-    (Some(round2(original_cost)), Some(optimized_cost), Some(cost_delta), reason)
+    (
+        Some(round2(original_cost)),
+        Some(optimized_cost),
+        Some(cost_delta),
+        reason,
+    )
 }
 
 /// 判断是否需要走 k-NN 路径（命中条数 ≥ 3 才走 k-NN，否则退化）

@@ -16,7 +16,7 @@ use crate::models::inventory_stock::Entity as InventoryStockEntity;
 use crate::models::sales_order_item::Entity as SalesOrderItemEntity;
 use crate::utils::error::AppError;
 
-use super::{iqr_quartiles, mean, std_deviation, AiAnalysisService, AnomalyDetection};
+use super::{AiAnalysisService, AnomalyDetection, iqr_quartiles, mean, std_deviation};
 
 impl AiAnalysisService {
     /// 异常检测 - 检测销售和库存异常

@@ -60,10 +60,7 @@ pub fn detect_migration_jumps(migrations_dir: &str) -> MigrationJumpResult {
     let has_jump = !missing.is_empty();
 
     if has_jump {
-        warn!(
-            "检测到迁移序列跳跃: 缺失 {:?}",
-            missing
-        );
+        warn!("检测到迁移序列跳跃: 缺失 {:?}", missing);
     }
 
     MigrationJumpResult {

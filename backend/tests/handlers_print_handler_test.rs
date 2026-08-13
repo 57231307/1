@@ -5,7 +5,6 @@
 use bingxi_backend::handlers::print_handler::*;
 use std::collections::HashSet;
 
-
 /// test_builtin_print_templatesfh6gmb；验证内置打印模板数量为 6（对应 6 种单据类型）
 #[test]
 fn test_builtin_print_templatesfh6gmb() {

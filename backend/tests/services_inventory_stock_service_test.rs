@@ -35,17 +35,12 @@ fn test_calculate_quantity_kg_kzhfkqqzzhq() {
     let width = Some(Decimal::new(150, 0));
     let fallback = Decimal::new(999, 0); // 不应被使用
 
-    let result = InventoryStockService::calculate_quantity_kg(
-        quantity_meters,
-        gram_weight,
-        width,
-        fallback,
-    );
+    let result =
+        InventoryStockService::calculate_quantity_kg(quantity_meters, gram_weight, width, fallback);
 
     // 转换器计算：100 × 200 × 1.5 / 1000 = 30.000 kg（注意公式：米 × 克重 × 幅宽(m) ÷ 1000）
     // 100 * 200 * (150/100) / 1000 = 100 * 200 * 1.5 / 1000 = 30000 / 1000 = 30.000
-    let expected =
-        calc_kg(quantity_meters, Decimal::new(200, 0), Decimal::new(150, 0)).unwrap();
+    let expected = calc_kg(quantity_meters, Decimal::new(200, 0), Decimal::new(150, 0)).unwrap();
     assert_eq!(result, expected);
     assert_eq!(result, Decimal::new(30, 0));
     assert_ne!(result, fallback, "不应回退到 fallback 值");
@@ -59,12 +54,8 @@ fn test_calculate_quantity_kg_kzwnonehtfallback() {
     let width = Some(Decimal::new(150, 0));
     let fallback = Decimal::new(250, 0);
 
-    let result = InventoryStockService::calculate_quantity_kg(
-        quantity_meters,
-        gram_weight,
-        width,
-        fallback,
-    );
+    let result =
+        InventoryStockService::calculate_quantity_kg(quantity_meters, gram_weight, width, fallback);
 
     assert_eq!(result, fallback, "gram_weight 为 None 时应回退到 fallback");
 }
@@ -77,12 +68,8 @@ fn test_calculate_quantity_kg_fkwnonehtfallback() {
     let width = None;
     let fallback = Decimal::new(250, 0);
 
-    let result = InventoryStockService::calculate_quantity_kg(
-        quantity_meters,
-        gram_weight,
-        width,
-        fallback,
-    );
+    let result =
+        InventoryStockService::calculate_quantity_kg(quantity_meters, gram_weight, width, fallback);
 
     assert_eq!(result, fallback, "width 为 None 时应回退到 fallback");
 }

@@ -1,6 +1,5 @@
 use bingxi_backend::middleware::sql_injection_audit::*;
 
-
 #[test]
 fn test_dangerous_patterns_non_empty() {
     assert!(!DANGEROUS_PATTERNS.is_empty());

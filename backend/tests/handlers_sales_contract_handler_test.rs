@@ -1,9 +1,9 @@
 use bingxi_backend::handlers::sales_contract_handler::*;
 use bingxi_backend::models::sales_contract::Model as SalesContractModel;
+use chrono::Duration;
 use chrono::Utc;
 use rust_decimal::Decimal;
 use serde_json::json;
-use chrono::Duration;
 
 /// 构造测试用的销售合同模型
 fn make_sales_contract_model(id: i32, status: &str) -> SalesContractModel {

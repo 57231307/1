@@ -2,7 +2,7 @@
 //!
 //! 提供基于关联规则与趋势的智能推荐能力。
 
-use axum::{extract::State, Json};
+use axum::{Json, extract::State};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 

@@ -3,8 +3,8 @@
 use crate::container::AppState;
 use crate::handlers::pollution_permit_handler;
 use axum::{
-    routing::{get, post},
     Router,
+    routing::{get, post},
 };
 
 /// 排污许可证管理路由（path 前缀 /pollution-permits）

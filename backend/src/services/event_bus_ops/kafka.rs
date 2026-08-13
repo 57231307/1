@@ -6,11 +6,11 @@
 //! - `activate_kafka_backend`：将 Kafka 后端写入全局 `EventBusState`
 
 use crate::config::settings::KafkaSettings;
-use crate::services::event_bus::{lock_event_bus_state, BusinessEvent};
+use crate::services::event_bus::{BusinessEvent, lock_event_bus_state};
 use futures::FutureExt;
 use std::panic::AssertUnwindSafe;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use tokio::sync::broadcast;
 
 /// 使用 Kafka 配置初始化事件总线（在 `main.rs` 启动时调用一次）

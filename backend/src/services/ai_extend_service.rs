@@ -25,12 +25,12 @@ use crate::models::ai_quality_prediction::{
     Model as QualityModel,
 };
 use crate::services::lab_dip_service::{CreateLabDipRequestRequest, LabDipRequestService};
-use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
 use crate::utils::error::AppError;
 
+use super::ai::AiAnalysisService;
 use super::ai::quality_pred::{QualityPredRequest, QualityPredResponse};
 use super::ai::recipe_opt::{RecipeOptRequest, RecipeOptResponse};
-use super::ai::AiAnalysisService;
 
 // =====================================================
 // 工艺优化 持久化

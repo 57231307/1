@@ -1,7 +1,6 @@
 use bingxi_backend::utils::path_validator::*;
 use uuid::Uuid;
 
-
 /// 测试正常目录校验通过
 #[test]
 fn test_validate_extracted_paths_normal() {

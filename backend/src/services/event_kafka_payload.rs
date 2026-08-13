@@ -997,7 +997,7 @@ pub mod payload_serde {
                 return Err(
                     "to_inventory_alert_events 仅处理库存计数/低库存告警类 EventPayload"
                         .to_string(),
-                )
+                );
             }
         })
     }

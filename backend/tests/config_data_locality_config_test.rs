@@ -1,6 +1,5 @@
 use bingxi_backend::config::data_locality_config::*;
 
-
 #[test]
 fn test_ip_cidr_contains() {
     let cidr: IpCidr = "10.0.0.0/8".parse().unwrap();

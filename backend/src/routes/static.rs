@@ -1,12 +1,12 @@
 //! 静态资源域路由
 
 use axum::{
+    Router,
     body::Body,
     extract::Path,
-    http::{header, header::HeaderValue, Request, StatusCode},
+    http::{Request, StatusCode, header, header::HeaderValue},
     response::{self, Response},
     routing::get,
-    Router,
 };
 use std::convert::Infallible;
 use std::path::{Component, PathBuf};
@@ -114,7 +114,7 @@ async fn serve_static_asset(Path(path): Path<String>) -> Result<Response, Infall
             return Ok(build_text_response(
                 StatusCode::NOT_FOUND,
                 "/* File not found */",
-            ))
+            ));
         }
     };
     if let Err(resp) = ensure_within_static_dir(&resolved, static_dir.as_ref()) {

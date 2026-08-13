@@ -1,6 +1,5 @@
 use bingxi_backend::services::failover_service::*;
 
-
 #[test]
 fn test_metrics_creation() {
     let m = FailoverMetrics::new();

@@ -1,6 +1,5 @@
 use bingxi_backend::handlers::email_handler::*;
 
-
 #[test]
 fn 测试渲染模板_基本替换() {
     let template = "你好 {{name}}，订单号 {{order_no}} 已确认";

@@ -22,8 +22,8 @@
 // 2 小时（JWT 过期时间）。Redis 后端保证所有实例共享同一黑名单视图。
 // Redis 不可用时自动回退到内存（graceful degradation）。
 
-use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
+use redis::aio::ConnectionManager;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::LazyLock;
@@ -259,7 +259,7 @@ pub const REVOKED_USER_TTL_SECS: i64 = 7 * 24 * 60 * 60;
 pub fn start_revoked_user_cleanup_task() -> tokio::task::JoinHandle<()> {
     use futures::FutureExt;
     use std::panic::AssertUnwindSafe;
-    use tokio::time::{interval, Duration};
+    use tokio::time::{Duration, interval};
 
     tokio::spawn(async move {
         // 每 24 小时执行一次清理

@@ -1,7 +1,6 @@
 use bingxi_backend::services::report_subscription_service::*;
 use bingxi_backend::utils::validation::is_valid_email;
 
-
 // ========== 缺陷 2.2 补充：订阅权限校验 — 邮箱格式校验测试 ==========
 
 /// 合法邮箱应通过校验

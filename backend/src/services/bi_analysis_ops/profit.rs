@@ -17,7 +17,7 @@ use sea_orm::{FromQueryResult, Statement};
 use crate::services::bi_analysis_ops::types::{
     KpiCurrentMetrics, KpiRow, KpiSummary, MoMRow, ProfitAnalysis, ProfitRow, YoYRow,
 };
-use crate::services::bi_analysis_service::{build_bi_cache_key, dec_to_f64, BiAnalysisService};
+use crate::services::bi_analysis_service::{BiAnalysisService, build_bi_cache_key, dec_to_f64};
 use crate::utils::error::AppError;
 
 impl BiAnalysisService {

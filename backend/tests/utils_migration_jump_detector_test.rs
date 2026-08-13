@@ -1,6 +1,5 @@
 use bingxi_backend::utils::migration_jump_detector::*;
 
-
 #[test]
 fn test_detect_migration_jumps_no_gap() {
     // 创建临时目录测试

@@ -11,11 +11,7 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(Customers::Table)
-                    .add_column(
-                        ColumnDef::new(Customers::Source)
-                            .string_len(50)
-                            .null(),
-                    )
+                    .add_column(ColumnDef::new(Customers::Source).string_len(50).null())
                     .to_owned(),
             )
             .await?;
@@ -25,11 +21,7 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(Customers::Table)
-                    .add_column(
-                        ColumnDef::new(Customers::PoolRecycleReason)
-                            .text()
-                            .null(),
-                    )
+                    .add_column(ColumnDef::new(Customers::PoolRecycleReason).text().null())
                     .to_owned(),
             )
             .await?;

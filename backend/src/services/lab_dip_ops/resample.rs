@@ -38,7 +38,7 @@ use crate::utils::error::AppError;
 use crate::services::lab_dip_ops::types::{
     CreateResampleRequest, IssueTechCardRequest, RecordResampleResultRequest,
 };
-use crate::services::lab_dip_service::{LabDipResampleService, COLOR_DIFF_OK_GRADE};
+use crate::services::lab_dip_service::{COLOR_DIFF_OK_GRADE, LabDipResampleService};
 
 impl LabDipResampleService {
     /// 创建复样记录：OK 样确认后大货生产前必须复样

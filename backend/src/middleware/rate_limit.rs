@@ -2,8 +2,8 @@ use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::utils::error::AppError;
 use axum::{body::Body, extract::State, http::Request, middleware::Next, response::Response};
-use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
+use redis::aio::ConnectionManager;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::LazyLock;
@@ -294,10 +294,7 @@ pub async fn anti_brute_force(req: Request<Body>, next: Next) -> Result<Response
 
 /// AI 端点专用速率限制中间件（缺陷 16.4-D4 修复）
 /// 基于 UserID 维度，限制 10 req/min/user，防止 AI 推理 CPU 过载
-pub async fn rate_limit_ai_endpoint(
-    req: Request<Body>,
-    next: Next,
-) -> Result<Response, AppError> {
+pub async fn rate_limit_ai_endpoint(req: Request<Body>, next: Next) -> Result<Response, AppError> {
     let user_id = req
         .extensions()
         .get::<AuthContext>()
@@ -306,8 +303,7 @@ pub async fn rate_limit_ai_endpoint(
 
     let rate_key = format!("ai_rate:{}", user_id);
 
-    let allowed =
-        check_rate_limit(&rate_key, 10, Duration::from_secs(60), &AI_RATE_LIMITER).await;
+    let allowed = check_rate_limit(&rate_key, 10, Duration::from_secs(60), &AI_RATE_LIMITER).await;
 
     if !allowed {
         tracing::warn!("AI rate limit exceeded for user {}", user_id);

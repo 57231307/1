@@ -2,13 +2,13 @@
 use bingxi_backend::search::{ElasticClient, SearchClient};
 use bingxi_backend::services::test_common::setup_test_db;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
-use chrono::Utc;
-use rust_decimal::Decimal;
-use std::sync::Arc;
 use bingxi_backend::models::master_data;
 use bingxi_backend::models::sales_order::so_status;
 use bingxi_backend::utils::error::AppError;
+use chrono::Utc;
+use rust_decimal::Decimal;
 use std::collections::HashSet;
+use std::sync::Arc;
 
 /// 构建测试用销售订单模型夹具
 /// 封装 `sales_order::Model` 的构造，便于在各测试中复用。；默认 subtotal = total_amount（无税/无折扣/无运费），balance_amount = total_amount（未付款），；保持金额一致以匹配 submit_order 中 total_amount_decimal 的解析逻辑。

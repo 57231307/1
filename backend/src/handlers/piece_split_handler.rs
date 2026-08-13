@@ -1,4 +1,4 @@
-use axum::{extract::State, Json};
+use axum::{Json, extract::State};
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
@@ -45,7 +45,9 @@ pub async fn split_fabric_piece(
     validate_parent_piece(&parent, req.cut_length)?;
 
     // V15 P2 缺陷 3.2：确定原始长度（首次拆分时记录，后续复用）
-    let original_length = parent.original_length.unwrap_or(parent.length + req.cut_length);
+    let original_length = parent
+        .original_length
+        .unwrap_or(parent.length + req.cut_length);
     let original_weight = match (parent.original_weight, parent.weight, req.cut_weight) {
         (Some(ow), _, _) => Some(ow),
         (None, Some(pw), Some(cw)) => Some(pw + cw),

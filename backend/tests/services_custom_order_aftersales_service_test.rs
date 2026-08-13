@@ -1,6 +1,5 @@
 use bingxi_backend::services::dye_batch_state_machine_validation::*;
 
-
 #[test]
 fn test_status_transition() {
     // V15 P1 batch-19：opened → accepted → processing → resolved → evaluated → closed

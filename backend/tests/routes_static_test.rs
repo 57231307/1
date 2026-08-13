@@ -1,6 +1,5 @@
 use bingxi_backend::routes::r#static::*;
 
-
 /// 测试合法路径：通过
 #[test]
 fn test_sanitize_accepts_valid_paths() {

@@ -1,8 +1,7 @@
-use bingxi_backend::models::status::quality_dyeing::*;
 use bingxi_backend::models::request::req_status;
+use bingxi_backend::models::status::quality_dyeing::*;
 use bingxi_backend::services::lab_dip_request_service::LabDipRequestService;
 use bingxi_backend::services::quality_dyeing;
-
 
 /// 测试版本标识生成：1→A, 2→B, 3→C, 4→D
 #[test]
@@ -18,67 +17,83 @@ fn test_label_from_seq() {
 #[test]
 fn test_request_status_transition_valid() {
     // 合法流转
-    assert!(LabDipRequestService::validate_status_transition(
-        req_status::PENDING,
-        req_status::SAMPLING
-    )
-    .is_ok());
-    assert!(LabDipRequestService::validate_status_transition(
-        req_status::SAMPLING,
-        req_status::SUBMITTED
-    )
-    .is_ok());
-    assert!(LabDipRequestService::validate_status_transition(
-        req_status::SUBMITTED,
-        req_status::APPROVED
-    )
-    .is_ok());
-    assert!(LabDipRequestService::validate_status_transition(
-        req_status::SUBMITTED,
-        req_status::REJECTED
-    )
-    .is_ok());
-    assert!(LabDipRequestService::validate_status_transition(
-        req_status::REJECTED,
-        req_status::SAMPLING
-    )
-    .is_ok());
-    assert!(LabDipRequestService::validate_status_transition(
-        req_status::APPROVED,
-        req_status::COMPLETED
-    )
-    .is_ok());
+    assert!(
+        LabDipRequestService::validate_status_transition(req_status::PENDING, req_status::SAMPLING)
+            .is_ok()
+    );
+    assert!(
+        LabDipRequestService::validate_status_transition(
+            req_status::SAMPLING,
+            req_status::SUBMITTED
+        )
+        .is_ok()
+    );
+    assert!(
+        LabDipRequestService::validate_status_transition(
+            req_status::SUBMITTED,
+            req_status::APPROVED
+        )
+        .is_ok()
+    );
+    assert!(
+        LabDipRequestService::validate_status_transition(
+            req_status::SUBMITTED,
+            req_status::REJECTED
+        )
+        .is_ok()
+    );
+    assert!(
+        LabDipRequestService::validate_status_transition(
+            req_status::REJECTED,
+            req_status::SAMPLING
+        )
+        .is_ok()
+    );
+    assert!(
+        LabDipRequestService::validate_status_transition(
+            req_status::APPROVED,
+            req_status::COMPLETED
+        )
+        .is_ok()
+    );
 }
 
 /// 测试打样通知单状态流转非法
 #[test]
 fn test_request_status_transition_invalid() {
     // 非法流转
-    assert!(LabDipRequestService::validate_status_transition(
-        req_status::PENDING,
-        req_status::SUBMITTED
-    )
-    .is_err());
-    assert!(LabDipRequestService::validate_status_transition(
-        req_status::PENDING,
-        req_status::APPROVED
-    )
-    .is_err());
-    assert!(LabDipRequestService::validate_status_transition(
-        req_status::SAMPLING,
-        req_status::APPROVED
-    )
-    .is_err());
-    assert!(LabDipRequestService::validate_status_transition(
-        req_status::APPROVED,
-        req_status::SAMPLING
-    )
-    .is_err());
-    assert!(LabDipRequestService::validate_status_transition(
-        req_status::COMPLETED,
-        req_status::SAMPLING
-    )
-    .is_err());
+    assert!(
+        LabDipRequestService::validate_status_transition(
+            req_status::PENDING,
+            req_status::SUBMITTED
+        )
+        .is_err()
+    );
+    assert!(
+        LabDipRequestService::validate_status_transition(req_status::PENDING, req_status::APPROVED)
+            .is_err()
+    );
+    assert!(
+        LabDipRequestService::validate_status_transition(
+            req_status::SAMPLING,
+            req_status::APPROVED
+        )
+        .is_err()
+    );
+    assert!(
+        LabDipRequestService::validate_status_transition(
+            req_status::APPROVED,
+            req_status::SAMPLING
+        )
+        .is_err()
+    );
+    assert!(
+        LabDipRequestService::validate_status_transition(
+            req_status::COMPLETED,
+            req_status::SAMPLING
+        )
+        .is_err()
+    );
 }
 
 /// 测试通知单更新状态校验

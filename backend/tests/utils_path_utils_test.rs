@@ -1,6 +1,5 @@
 use bingxi_backend::utils::path_utils::*;
 
-
 // ===== is_module_prefix 测试 =====
 
 #[test]

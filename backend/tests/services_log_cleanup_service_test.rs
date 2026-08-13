@@ -1,7 +1,7 @@
-use std::fs;
 use bingxi_backend::handlers::production_recipe_handler::*;
 use bingxi_backend::services::log_cleanup_service::*;
 use chrono::Duration;
+use std::fs;
 use std::path::PathBuf;
 use uuid::Uuid;
 
@@ -23,8 +23,7 @@ fn cleanup_deletes_files_older_than_cutoff() {
 
     // cutoff 设为未来 1 小时：当前 mtime < 未来 cutoff，所有文件应被删除
     let future_cutoff = SystemTime::now() + Duration::from_secs(3600);
-    let deleted =
-        LogCleanupService::cleanup_dir_recursive(&dir, future_cutoff).expect("清理失败");
+    let deleted = LogCleanupService::cleanup_dir_recursive(&dir, future_cutoff).expect("清理失败");
 
     assert_eq!(deleted, 2);
     assert!(!dir.join("recent.log").exists());
@@ -40,8 +39,7 @@ fn cleanup_preserves_files_newer_than_cutoff() {
 
     // cutoff 设为过去 1 小时：当前 mtime > 过去 cutoff，文件应保留
     let past_cutoff = SystemTime::now() - Duration::from_secs(3600);
-    let deleted =
-        LogCleanupService::cleanup_dir_recursive(&dir, past_cutoff).expect("清理失败");
+    let deleted = LogCleanupService::cleanup_dir_recursive(&dir, past_cutoff).expect("清理失败");
 
     assert_eq!(deleted, 0);
     assert!(dir.join("keep.log").exists());

@@ -7,8 +7,8 @@
 use std::sync::{Arc, Mutex};
 
 use axum::{
-    routing::{get, post},
     Json, Router,
+    routing::{get, post},
 };
 
 use crate::handlers::init_handler::{InitWithDbRequest, TestDatabaseResponse};

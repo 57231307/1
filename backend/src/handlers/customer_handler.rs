@@ -1,6 +1,6 @@
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 // v9 P1-G 修复：移除未使用的 Serialize import
 use serde::Deserialize;
@@ -11,11 +11,11 @@ use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::PageRequest;
 use crate::services::customer_service::{CreateCustomerArgs, CustomerService, UpdateCustomerArgs};
 use crate::utils::admin_checker::is_admin_role;
-use crate::utils::data_permission::{DataPermissionFilter, DEFAULT_HIDDEN_FIELDS};
+use crate::utils::data_permission::{DEFAULT_HIDDEN_FIELDS, DataPermissionFilter};
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 // V15 P0-S15/P0-S12 补齐（Batch 474）：导出端点使用水印版 xlsx 工具
-use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
+use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_with_watermark};
 
 /// 创建客户请求
 #[derive(Debug, Deserialize, Validate)]
@@ -134,19 +134,25 @@ pub async fn list_customers(
 
     // 12.3-3：字段级读权限过滤（field_permissions 接入）
     let items = if let Some(role_id) = auth.role_id {
-        let field_perm_svc = crate::services::field_permission_service::FieldPermissionService::new(state.db.clone());
+        let field_perm_svc = crate::services::field_permission_service::FieldPermissionService::new(
+            state.db.clone(),
+        );
         let field_perms = field_perm_svc
             .list_field_permissions(Some("customer"), Some(role_id))
             .await
             .unwrap_or_default();
         if !field_perms.is_empty() {
-            result.items.into_iter().map(|mut v| {
-                // 先过滤无读权限的字段
-                field_perm_svc.filter_fields_by_read_permission(&mut v, &field_perms);
-                // 再对需要掩码的字段进行掩码处理
-                field_perm_svc.mask_fields(&mut v, &field_perms);
-                v
-            }).collect()
+            result
+                .items
+                .into_iter()
+                .map(|mut v| {
+                    // 先过滤无读权限的字段
+                    field_perm_svc.filter_fields_by_read_permission(&mut v, &field_perms);
+                    // 再对需要掩码的字段进行掩码处理
+                    field_perm_svc.mask_fields(&mut v, &field_perms);
+                    v
+                })
+                .collect()
         } else {
             result.items
         }
@@ -190,7 +196,9 @@ pub async fn get_customer(
     // 12.3-3：字段级读权限过滤（field_permissions 接入）
     let mut customer_json = customer_json;
     if let Some(role_id) = auth.role_id {
-        let field_perm_svc = crate::services::field_permission_service::FieldPermissionService::new(state.db.clone());
+        let field_perm_svc = crate::services::field_permission_service::FieldPermissionService::new(
+            state.db.clone(),
+        );
         let field_perms = field_perm_svc
             .list_field_permissions(Some("customer"), Some(role_id))
             .await

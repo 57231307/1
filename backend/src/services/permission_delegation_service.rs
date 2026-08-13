@@ -19,7 +19,7 @@ use sea_orm::{
 };
 use serde::Deserialize;
 
-use crate::models::permission_delegation::{self, delegation_status, Entity as DelegationEntity};
+use crate::models::permission_delegation::{self, Entity as DelegationEntity, delegation_status};
 use crate::utils::error::AppError;
 
 /// 权限委托服务

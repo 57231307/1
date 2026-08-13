@@ -6,8 +6,8 @@
 //! - POST /api/v1/erp/slow-queries/refresh 手动触发一次采集
 
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use chrono::{DateTime, Utc};
 use sea_orm::{
@@ -296,7 +296,8 @@ pub async fn get_slow_query_summary(
         .unwrap_or(0.0);
 
     // 查询最频繁的查询
-    let frequent_sql = "SELECT query_text FROM slow_queries GROUP BY query_text ORDER BY COUNT(*) DESC LIMIT 1";
+    let frequent_sql =
+        "SELECT query_text FROM slow_queries GROUP BY query_text ORDER BY COUNT(*) DESC LIMIT 1";
     let frequent_result = state
         .db
         .as_ref()
@@ -306,8 +307,8 @@ pub async fn get_slow_query_summary(
         ))
         .await
         .map_err(|e| AppError::internal(format!("查询最频繁查询失败: {}", e)))?;
-    let most_frequent_query = frequent_result
-        .and_then(|r| r.try_get::<String>("", "query_text").ok());
+    let most_frequent_query =
+        frequent_result.and_then(|r| r.try_get::<String>("", "query_text").ok());
 
     // 查询优化状态统计
     let status_sql = "SELECT \

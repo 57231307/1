@@ -1,8 +1,8 @@
 use bingxi_backend::handlers::customer_handler::*;
 use bingxi_backend::models::customer::Model as CustomerModel;
 use chrono::Utc;
-use serde_json::json;
 use rust_decimal::Decimal;
+use serde_json::json;
 
 /// 构造测试用的客户模型
 fn make_customer_model(id: i32) -> CustomerModel {

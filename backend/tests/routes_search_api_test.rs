@@ -1,5 +1,5 @@
 use bingxi_backend::routes::search_api::SearchParams;
-use bingxi_backend::search::{indices, SearchQuery};
+use bingxi_backend::search::{SearchQuery, indices};
 
 #[test]
 fn test_search_params_to_query() {

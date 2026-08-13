@@ -5,7 +5,6 @@
 //! - VersionResponse / UpdateResult DTO 构造（1 个测试）
 use bingxi_backend::handlers::system_update_handler::*;
 
-
 /// test_verify_zip_magichfzip：PK\x03\x04 开头应返回 true。
 #[test]
 fn test_verify_zip_magichfzip() {

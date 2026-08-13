@@ -4,8 +4,8 @@ use crate::container::AppState;
 use crate::handlers::logistics_tracking_handler;
 use crate::handlers::print_handler;
 use axum::{
-    routing::{get, post},
     Router,
+    routing::{get, post},
 };
 
 /// 物流跟踪路由（path 前缀 /logistics-tracking）

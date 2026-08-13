@@ -1,16 +1,13 @@
 //! P4-5 单元测试 - BI 数据分析服务（5 测试）
 
 // decs 宏在测试中不可用，使用 Decimal::from_str 替代
+use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use std::str::FromStr;
-use chrono::NaiveDate;
 
 /// 测试夹具：解析 Decimal（支持字符串/整数/浮点，内部统一 to_string 后 FromStr 解析）
 macro_rules! decs {
-    ($x:expr) => {{
-        Decimal::from_str(&$x.to_string())
-            .expect("P9-1: 测试夹具 Decimal 解析失败")
-    }};
+    ($x:expr) => {{ Decimal::from_str(&$x.to_string()).expect("P9-1: 测试夹具 Decimal 解析失败") }};
 }
 
 /* 销售数据点 */

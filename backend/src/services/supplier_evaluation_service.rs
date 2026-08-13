@@ -486,7 +486,9 @@ impl SupplierEvaluationService {
                 .map(|v| matches!(v.to_lowercase().as_str(), "true" | "1" | "yes" | "on"))
                 .unwrap_or(true);
             if !enabled {
-                info!("供应商评估调度器：环境变量 SUPPLIER_EVALUATION_SCHEDULER_ENABLED=false，跳过启动");
+                info!(
+                    "供应商评估调度器：环境变量 SUPPLIER_EVALUATION_SCHEDULER_ENABLED=false，跳过启动"
+                );
                 return;
             }
 
@@ -496,13 +498,15 @@ impl SupplierEvaluationService {
                 .filter(|&v| v > 0)
                 .unwrap_or(DEFAULT_EVALUATION_INTERVAL_SECS);
 
-            tokio::time::sleep(std::time::Duration::from_secs(EVALUATION_INITIAL_DELAY_SECS)).await;
+            tokio::time::sleep(std::time::Duration::from_secs(
+                EVALUATION_INITIAL_DELAY_SECS,
+            ))
+            .await;
 
             let interval = std::time::Duration::from_secs(interval_secs);
             info!(
                 interval_secs,
-                "供应商评估调度器：后台任务已启动（每 {} 秒检查一次评估触发条件）",
-                interval_secs
+                "供应商评估调度器：后台任务已启动（每 {} 秒检查一次评估触发条件）", interval_secs
             );
 
             let service = Self::new(db);

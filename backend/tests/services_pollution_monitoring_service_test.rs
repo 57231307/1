@@ -1,5 +1,5 @@
-use rust_decimal::Decimal;
 use bingxi_backend::services::pollution_monitoring_service::*;
+use rust_decimal::Decimal;
 
 #[test]
 fn test_check_exceedance_normal() {

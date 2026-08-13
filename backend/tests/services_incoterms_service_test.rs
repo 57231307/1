@@ -1,7 +1,6 @@
 use bingxi_backend::utils::incoterms::*;
 use rust_decimal::Decimal;
 
-
 #[test]
 fn test_calculate_costs_exw_no_freight() {
     // EXW 不含运费/保费/关税，仅含产品成本

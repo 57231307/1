@@ -73,7 +73,8 @@ fn test_production_order_completion_rate() {
     order.actual_quantity = Some(Decimal::new(50, 0));
 
     // 验证完成率计算
-    let completion_rate = order.actual_quantity.unwrap() / order.planned_quantity * Decimal::new(100, 0);
+    let completion_rate =
+        order.actual_quantity.unwrap() / order.planned_quantity * Decimal::new(100, 0);
     assert_eq!(completion_rate, Decimal::new(50, 0));
 }
 

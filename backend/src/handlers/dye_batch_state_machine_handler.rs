@@ -8,8 +8,8 @@
 //! /shipped/cancelled/terminated/rework
 
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use serde::Deserialize;
 

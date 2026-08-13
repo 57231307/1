@@ -33,8 +33,8 @@ use crate::services::outsourcing_ops::types::{
     CreateOutsourcingOrderRequest, OutsourcingOrderQuery, UpdateOutsourcingOrderRequest,
 };
 use crate::services::outsourcing_service::{
-    classify_loss, compute_abnormal_loss_amount, compute_loss_rate, compute_standard_loss_rate,
-    compute_total_cost, compute_unit_cost, validate_order_type, OutsourcingOrderService,
+    OutsourcingOrderService, classify_loss, compute_abnormal_loss_amount, compute_loss_rate,
+    compute_standard_loss_rate, compute_total_cost, compute_unit_cost, validate_order_type,
 };
 
 /// 校验收回前置条件：订单状态与收回数量

@@ -1,6 +1,5 @@
 use bingxi_backend::utils::password_validator::*;
 
-
 #[test]
 fn test_strong_password() {
     let result = validate_password("MyP@ssw0rd123!");

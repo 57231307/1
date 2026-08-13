@@ -12,8 +12,8 @@
 //! 保留下来的真实测试：QualityStandardService 构造函数签名编译期断言。
 
 use bingxi_backend::services::quality_standard_service::QualityStandardService;
-use std::sync::Arc;
 use chrono::NaiveDate;
+use std::sync::Arc;
 
 /// 验证 QualityStandardService 构造函数签名：fn(Arc<DatabaseConnection>) -> QualityStandardService
 #[test]

@@ -4,7 +4,6 @@ use bingxi_backend::utils::cache::ADMIN_ROLE_CACHE;
 use chrono::Duration;
 use chrono::Utc;
 
-
 #[test]
 fn test_cache_entry_expiration() {
     let entry = AdminCacheEntry::new(true, 5);

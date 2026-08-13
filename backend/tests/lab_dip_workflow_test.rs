@@ -5,8 +5,8 @@
 //! 打样状态机：PENDING → SAMPLING → SUBMITTED → APPROVED/REJECTED → COMPLETED
 
 use bingxi_backend::models::status::lab_dip_request as status;
-use bingxi_backend::services::lab_dip_service::LabDipRequestService;
 use bingxi_backend::services::lab_dip_request_service::LabDipRequestService;
+use bingxi_backend::services::lab_dip_service::LabDipRequestService;
 
 // ===== 状态常量值正确性 =====
 
@@ -49,36 +49,29 @@ fn test_dyztcl_dxfgyzx() {
 /// 验证合法流转边：PENDING→SAMPLING、SAMPLING→SUBMITTED、SUBMITTED→APPROVED 等。
 #[test]
 fn test_validate_status_transition_hflztg() {
-    assert!(LabDipRequestService::validate_status_transition(
-        status::PENDING,
-        status::SAMPLING
-    )
-    .is_ok());
-    assert!(LabDipRequestService::validate_status_transition(
-        status::SAMPLING,
-        status::SUBMITTED
-    )
-    .is_ok());
-    assert!(LabDipRequestService::validate_status_transition(
-        status::SUBMITTED,
-        status::APPROVED
-    )
-    .is_ok());
-    assert!(LabDipRequestService::validate_status_transition(
-        status::SUBMITTED,
-        status::REJECTED
-    )
-    .is_ok());
-    assert!(LabDipRequestService::validate_status_transition(
-        status::REJECTED,
-        status::SAMPLING
-    )
-    .is_ok());
-    assert!(LabDipRequestService::validate_status_transition(
-        status::APPROVED,
-        status::COMPLETED
-    )
-    .is_ok());
+    assert!(
+        LabDipRequestService::validate_status_transition(status::PENDING, status::SAMPLING).is_ok()
+    );
+    assert!(
+        LabDipRequestService::validate_status_transition(status::SAMPLING, status::SUBMITTED)
+            .is_ok()
+    );
+    assert!(
+        LabDipRequestService::validate_status_transition(status::SUBMITTED, status::APPROVED)
+            .is_ok()
+    );
+    assert!(
+        LabDipRequestService::validate_status_transition(status::SUBMITTED, status::REJECTED)
+            .is_ok()
+    );
+    assert!(
+        LabDipRequestService::validate_status_transition(status::REJECTED, status::SAMPLING)
+            .is_ok()
+    );
+    assert!(
+        LabDipRequestService::validate_status_transition(status::APPROVED, status::COMPLETED)
+            .is_ok()
+    );
 }
 
 /// test_validate_status_transition_fflzsb
@@ -86,21 +79,18 @@ fn test_validate_status_transition_hflztg() {
 /// 验证非法流转边：PENDING→APPROVED（跳过打样）、COMPLETED→PENDING（终态回退）等。
 #[test]
 fn test_validate_status_transition_fflzsb() {
-    assert!(LabDipRequestService::validate_status_transition(
-        status::PENDING,
-        status::APPROVED
-    )
-    .is_err());
-    assert!(LabDipRequestService::validate_status_transition(
-        status::COMPLETED,
-        status::PENDING
-    )
-    .is_err());
-    assert!(LabDipRequestService::validate_status_transition(
-        status::APPROVED,
-        status::SAMPLING
-    )
-    .is_err());
+    assert!(
+        LabDipRequestService::validate_status_transition(status::PENDING, status::APPROVED)
+            .is_err()
+    );
+    assert!(
+        LabDipRequestService::validate_status_transition(status::COMPLETED, status::PENDING)
+            .is_err()
+    );
+    assert!(
+        LabDipRequestService::validate_status_transition(status::APPROVED, status::SAMPLING)
+            .is_err()
+    );
 }
 
 // ===== validate_can_update 可更新校验 =====

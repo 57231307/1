@@ -1,17 +1,17 @@
 //! 安全漏洞 #5 修复单测：覆盖 get_task_status 权限校验（匿名→401、缺角色→403、缺参→401）
 //! 直接构造 AuthContext 验证 handler 内部逻辑，不依赖真实 DB；用 oneshot + AppState::default() 隔离依赖
 
-use bingxi_backend::container::AppState;
-use bingxi_backend::handlers::init_handler::get_task_status;
-use bingxi_backend::middleware::auth_context::AuthContext;
+use axum::http::StatusCode;
 use axum::{
+    Router,
     body::Body,
     http::{Request, StatusCode},
     routing::get,
-    Router,
 };
+use bingxi_backend::container::AppState;
+use bingxi_backend::handlers::init_handler::get_task_status;
+use bingxi_backend::middleware::auth_context::AuthContext;
 use tower::ServiceExt;
-use axum::http::StatusCode;
 
 /// 构造一个最小化的测试 Router：仅注册 `get_task_status` + `AppState`。
 fn build_test_app() -> Router {

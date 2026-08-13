@@ -26,9 +26,9 @@
 //! redis_cache_set_json("user:42", &user, 300).await; // 5 分钟 TTL
 //! ```
 
-use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
-use serde::{de::DeserializeOwned, Serialize};
+use redis::aio::ConnectionManager;
+use serde::{Serialize, de::DeserializeOwned};
 use std::sync::Arc;
 use tokio::sync::OnceCell;
 

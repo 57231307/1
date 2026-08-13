@@ -5,8 +5,8 @@
 use crate::container::AppState;
 use crate::handlers::role_relation_handler;
 use axum::{
-    routing::{delete, get, post},
     Router,
+    routing::{delete, get, post},
 };
 
 /// 角色关系路由（path 前缀 /role-relations）

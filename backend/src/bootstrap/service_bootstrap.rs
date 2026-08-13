@@ -249,7 +249,9 @@ async fn check_migration_compatibility(db: &DatabaseConnection) {
                     "⚠ 检测到 {} 个 NOT NULL 无 DEFAULT 的非主键字段（违反 V15 P1 25.4-J 迁移兼容性规范）",
                     count
                 );
-                warn!("  蓝绿部署时旧版本 INSERT 这些字段会失败，请修复迁移使其 NULLABLE 或添加 DEFAULT");
+                warn!(
+                    "  蓝绿部署时旧版本 INSERT 这些字段会失败，请修复迁移使其 NULLABLE 或添加 DEFAULT"
+                );
                 warn!("  规范文档：backend/migration/src/lib.rs 模块注释");
             } else {
                 info!("迁移兼容性检查通过（无 NOT NULL 无 DEFAULT 的非主键字段违规）");
@@ -273,7 +275,10 @@ async fn check_migration_continuity(db: &DatabaseConnection) {
 
     let sql = "SELECT migration_name FROM seaql_migrations ORDER BY migration_name";
     let result = db
-        .query_all_raw(Statement::from_string(sea_orm::DatabaseBackend::Postgres, sql.to_string()))
+        .query_all_raw(Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            sql.to_string(),
+        ))
         .await;
 
     match result {
@@ -341,7 +346,9 @@ fn require_cookie_secret(settings: &AppSettings) -> String {
             cookie_secret.len()
         );
         eprintln!("FATAL: 出于安全考虑，禁止以补 0 / 截断等方式弱化 Cookie 加密密钥");
-        eprintln!("FATAL: 请使用 `openssl rand -hex 32` 生成至少 32 字节（64 个十六进制字符）的强随机密钥");
+        eprintln!(
+            "FATAL: 请使用 `openssl rand -hex 32` 生成至少 32 字节（64 个十六进制字符）的强随机密钥"
+        );
         eprintln!(
             "FATAL: 并通过环境变量 COOKIE_SECRET 或 config.yaml 的 auth.cookie_secret 字段注入"
         );
@@ -358,7 +365,9 @@ fn require_webhook_secret(settings: &AppSettings) -> String {
             eprintln!("FATAL: WEBHOOK_SECRET 环境变量或 auth.webhook_secret 配置必须显式设置");
             eprintln!("FATAL: 出于安全考虑，禁止降级复用 JWT_SECRET 作为 Webhook HMAC 密钥");
             eprintln!("FATAL: 请使用 `openssl rand -hex 32` 生成至少 32 字节的强随机密钥");
-            eprintln!("FATAL: 并通过环境变量 WEBHOOK_SECRET 或 config.yaml 的 auth.webhook_secret 字段注入");
+            eprintln!(
+                "FATAL: 并通过环境变量 WEBHOOK_SECRET 或 config.yaml 的 auth.webhook_secret 字段注入"
+            );
             std::process::exit(1);
         }
     };
@@ -413,7 +422,9 @@ fn resolve_audit_retention_days() -> i32 {
         },
         Err(_) => {
             if crate::utils::config::is_production() {
-                warn!("生产环境未设置 AUDIT_RETENTION_DAYS，使用默认值 365（建议显式设置审计日志保留天数）");
+                warn!(
+                    "生产环境未设置 AUDIT_RETENTION_DAYS，使用默认值 365（建议显式设置审计日志保留天数）"
+                );
             } else {
                 info!("AUDIT_RETENTION_DAYS 未设置，使用默认值 365");
             }
@@ -546,7 +557,9 @@ fn start_background_tasks(db: &Arc<DatabaseConnection>, settings: &AppSettings) 
 async fn connect_backup_database() -> Option<Arc<sea_orm::DatabaseConnection>> {
     let backup_db_url = std::env::var("DATABASE_BACKUP_URL").unwrap_or_default();
     if backup_db_url.is_empty() {
-        info!("DATABASE_BACKUP_URL 未配置，FailoverExecutor 仅主库模式（自动切换将仅更新 status 表，不切换 DB 连接）");
+        info!(
+            "DATABASE_BACKUP_URL 未配置，FailoverExecutor 仅主库模式（自动切换将仅更新 status 表，不切换 DB 连接）"
+        );
         return None;
     }
     match sea_orm::Database::connect(&backup_db_url).await {
@@ -712,7 +725,9 @@ fn start_export_compliance_scheduler(app_state: &AppState) {
     if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
         tasks.push(handle);
     }
-    info!("导出合规审查定时任务已启动（默认每 24 小时扫描前一天 print/export 操作，识别 6 类异常行为）");
+    info!(
+        "导出合规审查定时任务已启动（默认每 24 小时扫描前一天 print/export 操作，识别 6 类异常行为）"
+    );
 }
 
 /// 启动追踪数据 90 天保留策略定时任务（V15 P1 batch-16 缺陷 8.3/8.4）。
@@ -915,7 +930,9 @@ async fn init_es_indices() {
         Ok(v) if !v.is_empty() => v,
         _ => {
             if crate::utils::config::is_production() {
-                warn!("生产环境未设置 ELASTICSEARCH_URL，搜索功能将使用 mock 客户端（建议配置可达的 ES 服务地址）");
+                warn!(
+                    "生产环境未设置 ELASTICSEARCH_URL，搜索功能将使用 mock 客户端（建议配置可达的 ES 服务地址）"
+                );
             } else {
                 info!("ELASTICSEARCH_URL 未设置，搜索功能使用 mock 客户端（开发/测试环境）");
             }

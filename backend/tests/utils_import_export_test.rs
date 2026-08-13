@@ -2,12 +2,8 @@ use bingxi_backend::utils::error::*;
 use bingxi_backend::utils::import_export::*;
 use std::collections::HashMap;
 
-
 /// 测试用 CSV 生成函数
-fn generate_csv(
-    headers: &[String],
-    rows: &[HashMap<String, String>],
-) -> Result<Vec<u8>, AppError> {
+fn generate_csv(headers: &[String], rows: &[HashMap<String, String>]) -> Result<Vec<u8>, AppError> {
     let mut writer = csv::Writer::from_writer(Vec::new());
 
     // 写入表头

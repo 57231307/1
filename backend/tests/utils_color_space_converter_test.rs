@@ -1,6 +1,5 @@
 use bingxi_backend::utils::color_space_converter::*;
 
-
 #[test]
 fn test_hex_to_rgb_basic() {
     // P0 6-2 修复：统一使用 `#` 前缀（与实现一致，避免无前缀格式触发 InvalidHexFormat）

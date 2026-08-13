@@ -3,8 +3,8 @@
 //! 提供产能概览、工作中心管理、负荷分析等 API 接口
 
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use serde::Deserialize;
 

@@ -4,7 +4,6 @@ use chrono::NaiveDate;
 use chrono::Utc;
 use rust_decimal::Decimal;
 
-
 /// 复刻 create_receivable 中的"账期回退 + 到期日"计算，
 /// 避免在单元测试中启动数据库。
 fn compute_due_date(payment_terms_days: i32) -> chrono::NaiveDate {

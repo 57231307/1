@@ -13,8 +13,8 @@
 //! `build_seasonal_factors` 三个方法。
 
 use chrono::{Datelike, Duration, NaiveDate, Utc};
-use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
+use rust_decimal::prelude::ToPrimitive;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 use std::collections::HashMap;
 
@@ -22,7 +22,7 @@ use crate::models::sales_order::Entity as SalesOrderEntity;
 use crate::models::sales_order_item::Entity as SalesOrderItemEntity;
 use crate::utils::error::AppError;
 
-use super::{mean, std_deviation, AiAnalysisService, SalesForecast};
+use super::{AiAnalysisService, SalesForecast, mean, std_deviation};
 
 /// 预测输入参数聚合体（避免函数参数过多触发 clippy::too_many_arguments）
 struct ForecastInputs<'a> {

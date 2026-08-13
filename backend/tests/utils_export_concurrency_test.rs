@@ -1,6 +1,6 @@
+use bingxi_backend::utils::excel::CONCURRENT_EXPORTS;
 use bingxi_backend::utils::export_concurrency::*;
 use std::sync::atomic::Ordering;
-use bingxi_backend::utils::excel::CONCURRENT_EXPORTS;
 
 /// 测试守卫获取后计数器递增，Drop 后递减
 #[test]

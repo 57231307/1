@@ -1,8 +1,8 @@
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use serde::Deserialize;
 use validator::Validate;
@@ -478,7 +478,7 @@ pub async fn get_order_history(
 
 // ========== 数据导出接口 ==========
 
-use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
+use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
 // V15 P0-S11：导出审计日志写入所需依赖
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};

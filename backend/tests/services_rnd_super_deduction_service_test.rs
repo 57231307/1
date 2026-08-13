@@ -1,6 +1,6 @@
+use bingxi_backend::services::rnd_super_deduction_service::*;
 use rust_decimal::Decimal;
 use std::str::FromStr;
-use bingxi_backend::services::rnd_super_deduction_service::*;
 use std::sync::Arc;
 
 #[test]

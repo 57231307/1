@@ -21,12 +21,12 @@ use sea_orm::{
     TransactionTrait,
 };
 
-use crate::models::dto::bpm_dto::{ApproveTaskRequest, TaskQuery};
 use crate::models::dto::PageResponse;
+use crate::models::dto::bpm_dto::{ApproveTaskRequest, TaskQuery};
 use crate::models::status::bpm_instance as instance_status;
 use crate::models::status::bpm_task as task_status;
 use crate::models::{bpm_process_definition, bpm_process_instance, bpm_task};
-use crate::services::bpm_service::{evaluate_bpm_condition, BpmService};
+use crate::services::bpm_service::{BpmService, evaluate_bpm_condition};
 use crate::utils::error::AppError;
 
 /// approve_task 上下文：封装 task/instance/definition
