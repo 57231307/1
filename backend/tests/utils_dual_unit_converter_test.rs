@@ -1,6 +1,7 @@
 // P9-1: 用统一宏替代散落的 expect 调用，集中到 unwrap_safe 模块
 // 批次 343 v11 复审 P3 修复：移除 #[allow(unused_imports)]，dec! 宏已被广泛使用
-use bingxi_backend::dec;
+use bingxi_backend::utils::dual_unit_converter::DualUnitConverter;
+use bingxi_backend::utils::unwrap_safe::dec;
 
 #[test]
 fn test_meters_to_kg_basic() {

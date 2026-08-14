@@ -1,5 +1,6 @@
 use bingxi_backend::services::ai::quality_pred::*;
-use bingxi_backend::{decs, ymd};
+use bingxi_backend::utils::unwrap_safe::decs;
+use bingxi_backend::ymd;
 use chrono::NaiveDate;
 use chrono::Utc;
 use rust_decimal::Decimal;

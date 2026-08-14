@@ -3,7 +3,8 @@ use bingxi_backend::search::elastic_ops::client_ops::*;
 use bingxi_backend::search::elastic_ops::syncer_ops::*;
 use bingxi_backend::search::elastic_ops::types_ops::*;
 use bingxi_backend::services::five_dimension_service::*;
-use bingxi_backend::{decs, ymd};
+use bingxi_backend::utils::unwrap_safe::decs;
+use bingxi_backend::ymd;
 use serde_json::Value;
 use std::sync::Arc;
 

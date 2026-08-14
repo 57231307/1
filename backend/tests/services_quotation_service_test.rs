@@ -3,7 +3,8 @@ use bingxi_backend::models::quotation_create_dto::{CreateQuotationDto, CreateQuo
 use bingxi_backend::models::quotation_update_dto::UpdateQuotationDto;
 use bingxi_backend::models::status::quotation as quotation_status;
 use bingxi_backend::services::test_common::setup_test_db;
-use bingxi_backend::{decs, ymd};
+use bingxi_backend::utils::unwrap_safe::decs;
+use bingxi_backend::ymd;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
 use rust_decimal::Decimal;
 use std::sync::Arc;

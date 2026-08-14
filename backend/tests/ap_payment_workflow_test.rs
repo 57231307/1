@@ -8,7 +8,7 @@ mod common;
 
 use std::sync::Arc;
 
-use bingxi_backend::models::status::{common, payment};
+use bingxi_backend::models::status::payment;
 use bingxi_backend::services::ap_payment_service::{ApPaymentListQuery, ApPaymentService};
 // 批次 490 D10-3b 修复：使用 super:: 限定本地 mod common，避免被 status::common 遮蔽
 use super::common::setup_test_db;

@@ -1,6 +1,7 @@
 // decs 宏在测试中不可用，使用 Decimal::from_str 替代
 use bingxi_backend::handlers::inventory_stock_handler_dto::CreateStockFabricRequest;
-use bingxi_backend::{decs, ymd};
+use bingxi_backend::utils::unwrap_safe::decs;
+use bingxi_backend::ymd;
 
 #[test]
 fn test_create_stock_fabric_request_deserialize() {

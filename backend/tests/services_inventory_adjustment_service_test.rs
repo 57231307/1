@@ -1,5 +1,10 @@
+use bingxi_backend::models::inventory_adjustment;
+use bingxi_backend::services::inventory_adjustment_service::{
+    AdjustmentDetail, AdjustmentItemRequest, CreateAdjustmentRequest, InventoryAdjustmentService,
+};
 use bingxi_backend::services::test_common::setup_test_db;
 use bingxi_backend::utils::error::AppError;
+use bingxi_backend::utils::unwrap_safe::decs;
 use chrono::Utc;
 use rust_decimal::Decimal;
 use std::sync::Arc;
