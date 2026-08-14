@@ -1,4 +1,6 @@
 use bingxi_backend::models::financial_analysis_result::*;
+use bingxi_backend::models::status::sales::sales_quotation_item;
+use bingxi_backend::services::quotation_convert_service::QuotationConvertService;
 use rust_decimal::Decimal;
 
 #[test]

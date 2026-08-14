@@ -650,6 +650,9 @@ fn test_fzhswwidpjgs() {
     assert_eq!(id, "BATCH:10|COLOR:0|DYE_LOT:30|GRADE:|WORKSHOP:40");
 
     // 防御性断言：分隔符格式正确
+    use bingxi_backend::models::status::finance::voucher;
+    use bingxi_backend::services::voucher_service::VoucherService;
+    use bingxi_backend::services::voucher_service::VoucherTypeDefinition;
     let parts: Vec<&str> = id.split('|').collect();
     assert_eq!(parts.len(), 5, "五维 ID 应有 5 个段");
     assert!(parts[0].starts_with("BATCH:"));

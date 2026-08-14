@@ -38,6 +38,8 @@ fn cleanup_preserves_files_newer_than_cutoff() {
     fs::File::create(dir.join("keep.log")).expect("创建文件失败");
 
     // cutoff 设为过去 1 小时：当前 mtime > 过去 cutoff，文件应保留
+    use axum::extract::Path;
+    use std::time::SystemTime;
     let past_cutoff = SystemTime::now() - Duration::from_secs(3600);
     let deleted = LogCleanupService::cleanup_dir_recursive(&dir, past_cutoff).expect("清理失败");
 

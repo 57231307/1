@@ -31,7 +31,7 @@ pub mod log_config;
 pub mod number_generator;
 pub mod pagination;
 // V15 P2 20.8-C：PII（个人身份信息）脱敏工具（待集成）
-// pub mod pii_mask;
+pub mod pii_mask;
 pub mod process_state_machine;
 pub mod random;
 pub mod sql_escape;

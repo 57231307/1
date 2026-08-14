@@ -111,6 +111,7 @@ async fn test_import_data_allows_within_limits() {
     let data = vec![row];
 
     // 使用 unknown import_type 触发 "不支持的导入类型" 错误（说明校验通过）
+    use bingxi_backend::services::import_export_service::ImportExportService;
     let result = service.import_data("unknown_type", &data, 1).await;
     assert!(
         result.is_err(),

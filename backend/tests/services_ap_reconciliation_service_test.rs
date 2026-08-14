@@ -487,6 +487,7 @@ fn test_dzdhgs_recqz() {
     assert!(sample_no.starts_with("REC"));
     assert_eq!(sample_no.len(), 3 + 8 + 3); // REC + 8位日期 + 3位序号 = 14
     // 业务文档示例：REC20260315001
+    use bingxi_backend::services::ap::ap_reconciliation_service::ApReconciliationService;
     let doc_example = "REC20260315001";
     assert_eq!(doc_example.len(), 14);
     assert!(doc_example.starts_with("REC"));

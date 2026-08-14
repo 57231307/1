@@ -16,7 +16,7 @@ use sea_orm::Set;
 use bingxi_backend::models::color_price_dto::{CreateColorPriceDto, ListColorPricesQuery};
 use bingxi_backend::models::product_color_price::ActiveModel as ColorPriceActive;
 use sea_orm::ActiveValue;
-use sea_orm::entity::prelude::Set;
+use sea_orm::Set;
 
 /// 测试 1: CreateColorPriceDto 字段完整性（验证类型正确 + 字段可访问）
 #[tokio::test]

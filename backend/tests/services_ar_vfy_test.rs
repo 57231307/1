@@ -446,6 +446,7 @@ async fn test_zlbgwzlc_xsjk() {
     let db = setup_test_db().await;
     let svc = ArReconciliationService::new(Arc::new(db));
     // 无 schema 时预期返回数据库错误而非 panic
+    use bingxi_backend::services::ar::ArReconciliationService;
     let result = svc.get_aging_report(None, None, None).await;
     assert!(result.is_err());
 }

@@ -715,6 +715,8 @@ fn test_matches_permission_fixed_resource_wildcard_action() {
 #[test]
 fn test_matches_permission_wildcard_resource_still_requires_id_match() {
     // resource_type="*" 不豁免 resource_id 垂直越权防护
+    use bingxi_backend::models::status::role_permission;
+    use http::Method;
     let p = make_permission("*", Some(100), "read");
     assert!(matches_permission(&p, "users", Some(100), "read"));
     assert!(!matches_permission(&p, "users", Some(200), "read"));

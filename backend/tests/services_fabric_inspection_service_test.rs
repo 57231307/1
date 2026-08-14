@@ -222,6 +222,8 @@ fn test_determine_grade_by_ten_point() {
 }
 
 // ===== 疵点类型校验测试 =====
+use bingxi_backend::models::status::fabric_grade;
+use bingxi_backend::services::fabric_defect_service::FabricDefectService;
 
 #[test]
 fn test_validate_defect_type_valid() {

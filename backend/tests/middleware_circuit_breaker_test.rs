@@ -39,6 +39,8 @@ fn test_circuit_entry_half_open_recovery() {
     assert!(!entry.should_reject());
     assert_eq!(entry.state, CircuitState::HalfOpen);
     // 探测成功 → closed
+    use bingxi_backend::middleware::circuit_breaker::CircuitEntry;
+    use bingxi_backend::middleware::circuit_breaker::CircuitState;
     entry.record_result(false);
     assert_eq!(entry.state, CircuitState::Closed);
 }

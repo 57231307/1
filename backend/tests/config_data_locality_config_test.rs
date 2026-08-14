@@ -1,4 +1,5 @@
 use bingxi_backend::config::data_locality_config::*;
+use std::net::Ipv4Addr;
 
 #[test]
 fn test_ip_cidr_contains() {

@@ -120,5 +120,6 @@ fn test_xlsx_dsy_ksyyth() {
     let with_wm = build_xlsx_with_watermark(&table, &wm).expect("应成功");
     let without_wm = build_xlsx(&table).expect("应成功");
     // 退化路径直接调用 build_xlsx，字节流应完全一致
+    use axum::http::header;
     assert_eq!(with_wm, without_wm);
 }

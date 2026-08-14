@@ -229,6 +229,7 @@ fn test_business_event_inventory_transaction_created_btcz() {
     };
 
     // 确认进入了正确变体的分支
+    use bingxi_backend::services::event_bus::BusinessEvent;
     assert!(
         matched,
         "BusinessEvent 应匹配到 InventoryTransactionCreated 变体"

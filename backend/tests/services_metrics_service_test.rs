@@ -259,6 +259,7 @@ fn test_business_metrics_integrated_into_metrics_service() {
     metrics_service.business_metrics.record_login(true);
 
     // gather 后应包含 erp_* 指标家族
+    use prometheus::Registry;
     let gathered = metrics_service.gather();
     let erp_metric_names: Vec<&str> = gathered
         .iter()

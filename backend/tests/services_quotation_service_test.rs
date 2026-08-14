@@ -305,6 +305,7 @@ async fn test_quotationservice_cancel_bczfhapperror() {
 // ============ update 状态机校验测试 ============
 
 /// test_quotationservice_update_bczfhapperror
+use bingxi_backend::utils::error::AppError as ServiceError;
 #[tokio::test]
 async fn test_quotationservice_update_bczfhapperror() {
     let db = setup_test_db().await;

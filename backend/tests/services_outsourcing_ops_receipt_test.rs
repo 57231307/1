@@ -1,4 +1,5 @@
 use bingxi_backend::services::event_bus::BusinessEvent;
+use bingxi_backend::services::outsourcing_service::OutsourcingReceiptService;
 use rust_decimal::Decimal;
 
 #[test]

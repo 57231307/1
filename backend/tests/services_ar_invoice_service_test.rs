@@ -51,6 +51,7 @@ fn test_tdfkzt_ysjexyfpje_fhpartial_paid() {
 }
 
 /// test_tdfkzt_ysjehfpjejwl_bjfhpaid（验证 received == 0 且 invoice == 0 边界场景：0 >= 0 为真，返回 PAID。）
+use bingxi_backend::services::ar::ar_invoice_service::ArInvoiceService;
 #[test]
 fn test_tdfkzt_ysjehfpjejwl_bjfhpaid() {
     let received = Decimal::ZERO;

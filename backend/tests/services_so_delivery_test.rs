@@ -534,8 +534,10 @@ fn test_ghtddjy_cwxxbhghlb() {
     assert!(msg.contains("缸号C"));
 }
 
+use bingxi_backend::models::status::sales::delivery_status;
 /// 测试夹具：构造 ShipOrderItemRequest
 /// 集中构造发货明细，避免每个测试重复字段初始化（规则 6 mock 数据抽取）。；batch_no 默认 None，color_no 默认 None，仅 product_id/quantity/dye_lot_no 可变。
+use bingxi_backend::services::sales_service::SalesService;
 fn build_ship_item(
     product_id: i32,
     quantity: Decimal,

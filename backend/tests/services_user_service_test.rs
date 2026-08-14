@@ -1,3 +1,4 @@
+use bingxi_backend::models::status::master_data;
 use bingxi_backend::models::user;
 use bingxi_backend::services::test_common::setup_test_db;
 use bingxi_backend::services::user_service::UserService;

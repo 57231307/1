@@ -1,5 +1,6 @@
 use bingxi_backend::services::rnd_super_deduction_service::*;
 use rust_decimal::Decimal;
+use sea_orm::DatabaseConnection;
 use std::str::FromStr;
 use std::sync::Arc;
 

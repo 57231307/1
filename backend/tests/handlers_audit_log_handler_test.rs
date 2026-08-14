@@ -49,6 +49,7 @@ fn test_header_str_extract() {
 }
 
 /// V15 缺陷 10-4：ExportLogListQuery 默认分页参数为 None
+use axum::http::HeaderMap;
 #[test]
 fn test_export_log_list_query_default() {
     let q = ExportLogListQuery {

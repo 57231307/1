@@ -124,7 +124,9 @@ fn test_generate_request_no() {
     assert_eq!(parts[2].len(), 3); // 3 位随机
 }
 
+use bingxi_backend::services::lab_dip_service::LabDipResampleService;
 /// 测试复样单号生成格式
+use bingxi_backend::services::lab_dip_service::LabDipSampleService;
 #[test]
 fn test_generate_resample_no() {
     let no = LabDipResampleService::generate_resample_no();

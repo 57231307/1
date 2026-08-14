@@ -224,6 +224,7 @@ fn test_credit_utilization() {
     assert_eq!(utilization, Decimal::from(0));
 
     // 模拟使用 50000
+    use bingxi_backend::models::status::finance::customer_credit;
     let used = Decimal::from(50000);
     let utilization = used / model.credit_limit;
     assert_eq!(
