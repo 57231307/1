@@ -1,6 +1,6 @@
 use bingxi_backend::handlers::purchase_order_handler::*;
 use bingxi_backend::models::purchase_order::Model as PurchaseOrderModel;
-use bingxi_backend::models::status::po as status_po;
+use bingxi_backend::models::status::purchase_order as status_po;
 use chrono::Utc;
 use rust_decimal::Decimal;
 use serde_json::json;
@@ -41,22 +41,22 @@ fn make_purchase_order_model(id: i32, status: &str) -> PurchaseOrderModel {
 
 #[test]
 fn test_po_status_draft() {
-    assert_eq!(status_po::DRAFT, "draft");
+    assert_eq!(status_po::DRAFT, "DRAFT");
 }
 
 #[test]
-fn test_po_status_confirmed() {
-    assert_eq!(status_po::CONFIRMED, "confirmed");
+fn test_po_status_approved() {
+    assert_eq!(status_po::APPROVED, "APPROVED");
 }
 
 #[test]
-fn test_po_status_received() {
-    assert_eq!(status_po::RECEIVED, "received");
+fn test_po_status_partial_received() {
+    assert_eq!(status_po::PARTIAL_RECEIVED, "PARTIAL_RECEIVED");
 }
 
 #[test]
 fn test_po_status_cancelled() {
-    assert_eq!(status_po::CANCELLED, "cancelled");
+    assert_eq!(status_po::CANCELLED, "CANCELLED");
 }
 
 // ===== 模型测试 =====

@@ -8,7 +8,7 @@ use serde_json::json;
 fn make_quality_inspection_model(id: i32, status: &str) -> QualityInspectionModel {
     QualityInspectionModel {
         id,
-        inspection_no: format!("QI-2026-{:04}", id),
+        standard_code: format!("QI-2026-{:04}", id),
         source_type: Some("purchase_receipt".to_string()),
         source_id: Some(1),
         source_no: Some("PR-2026-0001".to_string()),
@@ -39,7 +39,7 @@ fn test_quality_inspection_model_serialization() {
     let json = serde_json::to_value(&inspection).expect("质检单序列化失败");
 
     assert_eq!(json["id"], 1);
-    assert_eq!(json["inspection_no"], "QI-2026-0001");
+    assert_eq!(json["standard_code"], "QI-2026-0001");
     assert_eq!(json["status"], "pending");
 }
 
@@ -163,7 +163,7 @@ fn test_quality_inspection_json_roundtrip() {
 
     // 验证关键字段存在
     assert!(json.get("id").is_some());
-    assert!(json.get("inspection_no").is_some());
+    assert!(json.get("standard_code").is_some());
     assert!(json.get("product_id").is_some());
     assert!(json.get("quantity").is_some());
     assert!(json.get("status").is_some());

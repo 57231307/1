@@ -1,7 +1,6 @@
 use bingxi_backend::models::dye_recipe::AuxiliariesItem;
 // 批次 212 P2-5 修复：master_data 仅测试使用，移入 #[cfg(test)] 避免 Clippy unused import
 use bingxi_backend::models::dye_recipe::Model as DyeRecipeModel;
-use bingxi_backend::models::master_data;
 use bingxi_backend::models::status::master_data;
 use bingxi_backend::services::ai::recipe_opt::{
     AggregatedParams, MAX_SIMILARITY, TYPICAL_TEMPERATURE, TYPICAL_TIME_MINUTES, build_candidates,

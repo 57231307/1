@@ -1,7 +1,6 @@
-use bingxi_backend::models::color_card::card_status;
+use bingxi_backend::models::status::color_card as card_status;
 use bingxi_backend::models::status::wage_energy_chemical_business::*;
-use bingxi_backend::services::color_card_service::ColorCardCrudService;
-use bingxi_backend::services::wage_energy_chemical_business;
+use bingxi_backend::services::color_card_crud_service::ColorCardCrudService;
 
 /// V15 P2 B05-P2-4：合法流转 draft → issued → received → used → expired
 #[test]

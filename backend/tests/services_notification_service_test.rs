@@ -1,7 +1,7 @@
 use bingxi_backend::models::notification::{
     Model as NotificationModel, NotificationPriority, NotificationStatus, NotificationType,
 };
-use bingxi_backend::utils::dedup::DEDUP_WINDOW_SECS;
+use bingxi_backend::services::notification_service::DEDUP_WINDOW_SECS;
 use chrono::Utc;
 
 /// 构造测试用 notification::Model（避免每个测试重复字段）

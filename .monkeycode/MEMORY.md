@@ -30,6 +30,8 @@
 | 🔴 **规则 4** | 复审按规矩进行，baseline 警告视为错误，8 维度闭环 | [MEMORY-SU §规则 4](file:///workspace/.monkeycode/MEMORY-SU.md#规则-4复审严格规范pr2026-07-13-追加) |
 | 🔴 **规则 5** | 每 30 批次 E2E 测试（独立工作流不阻塞主 CI） | [MEMORY-SU §规则 5](file:///workspace/.monkeycode/MEMORY-SU.md#规则-5e2e-测试加强pr2026-07-08-追加2026-07-10-批次-262-修订) |
 | 🔴 **规则 6** | 测试 mock 数据禁止硬编码，必须抽取到 fixtures 文件 | [MEMORY-SU §规则 6](file:///workspace/.monkeycode/MEMORY-SU.md#规则-6测试-mock-数据禁止硬编码pr2026-07-08-追加) |
+| 🔴 **规则 18** | 功能变更必须同步测试代码：修改/新增/删除功能时，测试必须同步更新 | [MEMORY-SU §规则 18](file:///workspace/.monkeycode/MEMORY-SU.md#规则-18功能变更必须同步测试代码pr2026-08-14-追加) |
+| 🔴 **规则 19** | 编码行为规范：编码前先思考、保持简单、精准修改、不过度推断、正确处理错误 | [MEMORY-SU §规则 19](file:///workspace/.monkeycode/MEMORY-SU.md#规则-19编码行为规范pr2026-08-14-追加) |
 
 ### 1.4 安全合规（PR）
 

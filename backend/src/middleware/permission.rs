@@ -266,7 +266,7 @@ fn extract_action_from_query(uri: &axum::http::Uri) -> Option<String> {
     None
 }
 
-fn extract_resource_info(path: &str) -> (String, Option<i32>) {
+pub fn extract_resource_info(path: &str) -> (String, Option<i32>) {
     // 解析API路径，提取资源类型和ID
     let path_parts: Vec<&str> = path.split('/').filter(|p| !p.is_empty()).collect();
 
@@ -341,27 +341,27 @@ use std::sync::LazyLock;
 
 /// 缓存项，包含数据和过期时间
 #[derive(Clone)]
-struct CacheEntry<T: Clone> {
-    data: T,
-    expires_at: DateTime<Utc>,
+pub struct CacheEntry<T: Clone> {
+    pub payload: T,
+    pub expires_at: DateTime<Utc>,
 }
 
 impl<T: Clone> CacheEntry<T> {
-    fn new(data: T, ttl: Duration) -> Self {
+    pub fn new(payload: T, ttl: Duration) -> Self {
         Self {
-            data,
+            payload,
             expires_at: Utc::now() + ttl,
         }
     }
 
-    fn is_expired(&self) -> bool {
+    pub fn is_expired(&self) -> bool {
         Utc::now() > self.expires_at
     }
 }
 
 // Cache: role_id -> CacheEntry<Arc<Vec<role_permission::Model>>>
 // 使用 Arc 包装，克隆时只增加引用计数，不复制数据
-static PERMISSION_CACHE: LazyLock<DashMap<i32, CacheEntry<Arc<Vec<role_permission::Model>>>>> =
+pub static PERMISSION_CACHE: LazyLock<DashMap<i32, CacheEntry<Arc<Vec<role_permission::Model>>>>> =
     LazyLock::new(DashMap::new);
 
 /// 权限缓存 TTL（分钟），可通过环境变量 PERMISSION_CACHE_TTL_MINS 配置，默认 5 分钟。
@@ -555,7 +555,7 @@ async fn check_permission(
             PERMISSION_CACHE.remove(&role_id);
             None
         } else {
-            Some(cached.data.clone())
+            Some(cached.payload.clone())
         }
     } else {
         None
@@ -591,7 +591,7 @@ async fn check_permission(
 
 /// 权限匹配纯函数：resource_type 精确匹配，action 支持 "*"，resource_id 精确匹配防越权
 /// V15 P2 14.11-F：resource_type 支持 "*" 通配（超级权限码 "resource:*" 或 "*:*"）
-fn matches_permission(
+pub fn matches_permission(
     p: &role_permission::Model,
     resource_type: &str,
     resource_id: Option<i32>,

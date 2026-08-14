@@ -8,7 +8,7 @@ use serde_json::json;
 fn make_warehouse_model(id: i32) -> WarehouseModel {
     WarehouseModel {
         id,
-        warehouse_no: format!("WH-{:04}", id),
+        warehouse_code: format!("WH-{:04}", id),
         name: "主仓库".to_string(),
         short_name: Some("主仓".to_string()),
         warehouse_type: Some("general".to_string()),
@@ -33,7 +33,7 @@ fn test_warehouse_model_serialization() {
     let json = serde_json::to_value(&warehouse).expect("仓库序列化失败");
 
     assert_eq!(json["id"], 1);
-    assert_eq!(json["warehouse_no"], "WH-0001");
+    assert_eq!(json["warehouse_code"], "WH-0001");
     assert_eq!(json["name"], "主仓库");
     assert_eq!(json["status"], "active");
 }
@@ -130,7 +130,7 @@ fn test_warehouse_json_roundtrip() {
 
     // 验证关键字段存在
     assert!(json.get("id").is_some());
-    assert!(json.get("warehouse_no").is_some());
+    assert!(json.get("warehouse_code").is_some());
     assert!(json.get("name").is_some());
     assert!(json.get("status").is_some());
 }

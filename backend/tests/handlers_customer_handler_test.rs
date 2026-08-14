@@ -8,7 +8,7 @@ use serde_json::json;
 fn make_customer_model(id: i32) -> CustomerModel {
     CustomerModel {
         id,
-        customer_no: format!("C-2026-{:04}", id),
+        customer_code: format!("C-2026-{:04}", id),
         name: "测试客户".to_string(),
         short_name: Some("测试".to_string()),
         english_name: Some("Test Customer".to_string()),
@@ -47,7 +47,7 @@ fn test_customer_model_serialization() {
     let json = serde_json::to_value(&customer).expect("客户序列化失败");
 
     assert_eq!(json["id"], 1);
-    assert_eq!(json["customer_no"], "C-2026-0001");
+    assert_eq!(json["customer_code"], "C-2026-0001");
     assert_eq!(json["name"], "测试客户");
     assert_eq!(json["status"], "active");
 }
@@ -132,7 +132,7 @@ fn test_customer_json_roundtrip() {
 
     // 验证关键字段存在
     assert!(json.get("id").is_some());
-    assert!(json.get("customer_no").is_some());
+    assert!(json.get("customer_code").is_some());
     assert!(json.get("name").is_some());
     assert!(json.get("status").is_some());
 }

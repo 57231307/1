@@ -1,7 +1,7 @@
 // decs 宏在测试中不可用，使用 Decimal::from_str 替代
 use bingxi_backend::services::test_common::setup_test_db;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
-use bingxi_backend::models::accounting_period::period_status;
+use bingxi_backend::models::status::accounting_period as period_status;
 use bingxi_backend::services::accounting_period_service::AccountingPeriodService;
 use chrono::DateTime;
 use chrono::Duration;

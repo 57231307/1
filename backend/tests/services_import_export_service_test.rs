@@ -7,9 +7,9 @@
 //! 备注：handler 层 DTO 校验 + 早期校验在路由层单测覆盖；
 //! 本处只覆盖 service 层入口校验（最关键的 defense-in-depth 屏障）。
 use bingxi_backend::services::test_common::setup_test_db;
-use bingxi_backend::utils::excel::MAX_CELL_LEN;
-use bingxi_backend::utils::excel::MAX_EXCEL_COLS;
-use bingxi_backend::utils::excel::MAX_EXCEL_ROWS;
+use bingxi_backend::services::import_export_service::MAX_CELL_LEN;
+use bingxi_backend::services::import_export_service::MAX_EXCEL_COLS;
+use bingxi_backend::services::import_export_service::MAX_EXCEL_ROWS;
 use std::sync::Arc;
 
 /// 测试常量定义正确（防止误改后引发业务可用性问题）

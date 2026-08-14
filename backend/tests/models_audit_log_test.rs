@@ -10,7 +10,7 @@ fn make_audit_log_model(id: i32) -> AuditLogModel {
         action: "create".to_string(),
         resource_type: "sales_order".to_string(),
         resource_id: Some(1),
-        resource_no: Some("SO-2026-0001".to_string()),
+        resource_id: Some("SO-2026-0001".to_string()),
         ip_address: Some("192.168.1.1".to_string()),
         user_agent: Some("Mozilla/5.0".to_string()),
         request_method: Some("POST".to_string()),

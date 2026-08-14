@@ -1,6 +1,5 @@
 use bingxi_backend::services::auth::password_policy_service::*;
 use bingxi_backend::utils::admin_checker::*;
-use bingxi_backend::utils::cache::ADMIN_ROLE_CACHE;
 use chrono::Duration;
 use chrono::Utc;
 

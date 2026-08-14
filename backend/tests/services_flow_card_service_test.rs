@@ -1,5 +1,4 @@
-use bingxi_backend::models::color_card::card_status;
-use bingxi_backend::models::status::production::flow_card as card_status;
+use bingxi_backend::models::status::flow_card as card_status;
 use bingxi_backend::services::flow_card_service::{FlowCardService, QualityFeedbackService};
 
 /// 测试流转卡号生成格式

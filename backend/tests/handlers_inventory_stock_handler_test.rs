@@ -28,7 +28,7 @@ fn make_inventory_stock_model(id: i32) -> InventoryStockModel {
         dye_lot_no: Some("DL001".to_string()),
         grade: "一等品".to_string(),
         production_date: Some(Utc::now()),
-        effective_to: None,
+        expiry_date: None,
         quantity_meters: Decimal::new(100, 0),
         quantity_kg: Decimal::new(50, 0),
         gram_weight: Some(Decimal::new(200, 0)),

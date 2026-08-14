@@ -33,7 +33,7 @@ fn backoff_seconds(retry_count: i32) -> i64 {
 }
 
 /// 简易邮箱格式校验（缺陷 2.2 修复：避免引入额外 crate）
-fn is_valid_email(email: &str) -> bool {
+pub fn is_valid_email(email: &str) -> bool {
     let parts: Vec<&str> = email.split('@').collect();
     if parts.len() != 2 || parts[0].is_empty() || parts[1].is_empty() {
         return false;

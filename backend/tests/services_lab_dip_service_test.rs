@@ -1,7 +1,6 @@
-use bingxi_backend::models::request::req_status;
+use bingxi_backend::models::status::lab_dip_request as req_status;
 use bingxi_backend::models::status::quality_dyeing::*;
-use bingxi_backend::services::lab_dip_request_service::LabDipRequestService;
-use bingxi_backend::services::quality_dyeing;
+use bingxi_backend::services::lab_dip_service::LabDipRequestService;
 
 /// 测试版本标识生成：1→A, 2→B, 3→C, 4→D
 #[test]

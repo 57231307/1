@@ -1,5 +1,5 @@
 use bingxi_backend::services::report_subscription_service::*;
-use bingxi_backend::utils::validation::is_valid_email;
+use bingxi_backend::services::report_subscription_service::is_valid_email;
 
 // ========== 缺陷 2.2 补充：订阅权限校验 — 邮箱格式校验测试 ==========
 

@@ -442,7 +442,7 @@ jobs:
           ATTEMPT=1
           while [ "$ATTEMPT" -le "$MAX_ATTEMPTS" ]; do
             echo "  尝试 $ATTEMPT/$MAX_ATTEMPTS..."
-            cargo clippy --all-targets --message-format=json \
+            cargo clippy --all-targets --keep-going --message-format=json \
               --color=always 2>reports/clippy-stderr.txt \
               | tee reports/clippy-output.json > /dev/null
             CLIPPY_MAIN_EXIT=${PIPESTATUS[0]}
@@ -1233,6 +1233,7 @@ jobs:
           mkdir -p reports coverage
           set +e
           cargo llvm-cov nextest \
+            --keep-going \
             --cobertura --output-path coverage/cobertura.xml \
             --no-clean \
             -- --test-threads=1 > reports/llvm-cov-nextest-output.txt 2>&1
@@ -1764,7 +1765,7 @@ jobs:
         run: |
           mkdir -p reports
           echo "🔨 开始构建后端（详细日志输出到 reports/cargo-build.log）"
-          cargo build --release --bin server --bin bingxi --verbose 2>&1 \
+          cargo build --release --keep-going --bin server --bin bingxi --verbose 2>&1 \
             | tee reports/cargo-build.log
           echo "✅ cargo build 完成"
 

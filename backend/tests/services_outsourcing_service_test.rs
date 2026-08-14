@@ -1,5 +1,4 @@
 use bingxi_backend::models::status::quality_dyeing::*;
-use bingxi_backend::services::quality_dyeing;
 use rust_decimal::Decimal;
 
 #[test]

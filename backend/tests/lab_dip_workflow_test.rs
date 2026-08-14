@@ -5,7 +5,6 @@
 //! 打样状态机：PENDING → SAMPLING → SUBMITTED → APPROVED/REJECTED → COMPLETED
 
 use bingxi_backend::models::status::lab_dip_request as status;
-use bingxi_backend::services::lab_dip_request_service::LabDipRequestService;
 use bingxi_backend::services::lab_dip_service::LabDipRequestService;
 
 // ===== 状态常量值正确性 =====

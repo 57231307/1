@@ -1,6 +1,6 @@
 use bingxi_backend::handlers::sales_order_handler::*;
 use bingxi_backend::models::sales_order::Model as SalesOrderModel;
-use bingxi_backend::models::status::so as status_so;
+use bingxi_backend::models::status::sales_order as status_so;
 use bingxi_backend::utils::response::ApiResponse;
 use chrono::Utc;
 use rust_decimal::Decimal;
@@ -49,13 +49,13 @@ fn test_so_status_draft() {
 }
 
 #[test]
-fn test_so_status_confirmed() {
-    assert_eq!(status_so::CONFIRMED, "confirmed");
+fn test_so_status_approved() {
+    assert_eq!(status_so::APPROVED, "approved");
 }
 
 #[test]
-fn test_so_status_delivered() {
-    assert_eq!(status_so::DELIVERED, "delivered");
+fn test_so_status_shipped() {
+    assert_eq!(status_so::SHIPPED, "shipped");
 }
 
 #[test]

@@ -3,7 +3,7 @@ use bingxi_backend::models::status;
 use bingxi_backend::services::test_common::setup_test_db;
 use bingxi_backend::utils::error::AppError;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
-use bingxi_backend::services::purchase_order_service::PurchaseOrderService;
+use bingxi_backend::services::po::order::PurchaseOrderService;
 use rust_decimal::Decimal;
 use std::str::FromStr;
 use std::sync::Arc;
