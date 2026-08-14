@@ -5,6 +5,9 @@ use bingxi_backend::services::test_common::setup_test_db;
 use bingxi_backend::utils::error::AppError;
 use bingxi_backend::ymd;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
+use bingxi_backend::models::status::finance::voucher;
+use bingxi_backend::services::voucher_service::VoucherService;
+use bingxi_backend::services::voucher_service::VoucherTypeDefinition;
 use chrono::Datelike;
 use chrono::Utc;
 use rust_decimal::Decimal;
@@ -650,9 +653,6 @@ fn test_fzhswwidpjgs() {
     assert_eq!(id, "BATCH:10|COLOR:0|DYE_LOT:30|GRADE:|WORKSHOP:40");
 
     // 防御性断言：分隔符格式正确
-    use bingxi_backend::models::status::finance::voucher;
-    use bingxi_backend::services::voucher_service::VoucherService;
-    use bingxi_backend::services::voucher_service::VoucherTypeDefinition;
     let parts: Vec<&str> = id.split('|').collect();
     assert_eq!(parts.len(), 5, "五维 ID 应有 5 个段");
     assert!(parts[0].starts_with("BATCH:"));

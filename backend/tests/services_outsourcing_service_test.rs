@@ -1,4 +1,6 @@
 use bingxi_backend::models::status::quality_dyeing::*;
+use bingxi_backend::models::status::wage_energy_chemical_business::outsourcing_loss_type;
+use bingxi_backend::models::status::wage_energy_chemical_business::outsourcing_order_type;
 use rust_decimal::Decimal;
 
 #[test]
@@ -102,8 +104,6 @@ fn 测试计算非正常损耗金额_正常无超定额() {
 fn 测试计算非正常损耗金额_有超定额() {
     // 发出 100，收回 90，损耗 10，标准 0.05 → 标准损耗 5，超定额 5
     // 单位材料成本 1000 → 非正常损耗金额 5 × 1000 = 5000
-    use bingxi_backend::models::status::wage_energy_chemical_business::outsourcing_loss_type;
-    use bingxi_backend::models::status::wage_energy_chemical_business::outsourcing_order_type;
     let result = compute_abnormal_loss_amount(
         Decimal::new(100, 0),
         Decimal::new(90, 0),

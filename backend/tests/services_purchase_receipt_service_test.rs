@@ -7,6 +7,10 @@ use bingxi_backend::services::purchase_receipt_dto::{
 use bingxi_backend::services::test_common::setup_test_db;
 use bingxi_backend::ymd;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
+use bingxi_backend::services::purchase_receipt_service::PurchaseReceiptService;
+use bingxi_backend::utils::error::AppError;
+use sea_orm::ConnectionTrait;
+use std::collections::HashSet;
 use std::sync::Arc;
 
 /// 构造合法的 CreateReceiptItemRequest（单条明细）
@@ -99,10 +103,6 @@ fn test_rkdztcl_dxfg() {
 async fn test_purchasereceiptservice_new_zqcysjklj() {
     let db = Arc::new(setup_test_db().await);
     let svc = PurchaseReceiptService::new(db.clone());
-    use bingxi_backend::services::purchase_receipt_service::PurchaseReceiptService;
-    use bingxi_backend::utils::error::AppError;
-    use sea_orm::ConnectionTrait;
-    use std::collections::HashSet;
     let _ = svc
         .database
         .execute_raw(sea_orm::Statement::from_sql_and_values(

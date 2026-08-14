@@ -1,3 +1,5 @@
+use bingxi_backend::middleware::circuit_breaker::CircuitEntry;
+use bingxi_backend::middleware::circuit_breaker::CircuitState;
 use bingxi_backend::services::lab_dip_ops::resample::*;
 use std::time::{Duration, Instant};
 
@@ -39,8 +41,6 @@ fn test_circuit_entry_half_open_recovery() {
     assert!(!entry.should_reject());
     assert_eq!(entry.state, CircuitState::HalfOpen);
     // 探测成功 → closed
-    use bingxi_backend::middleware::circuit_breaker::CircuitEntry;
-    use bingxi_backend::middleware::circuit_breaker::CircuitState;
     entry.record_result(false);
     assert_eq!(entry.state, CircuitState::Closed);
 }

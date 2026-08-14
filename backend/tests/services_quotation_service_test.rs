@@ -3,6 +3,7 @@ use bingxi_backend::decs;
 use bingxi_backend::models::quotation_create_dto::{CreateQuotationDto, CreateQuotationItemDto};
 use bingxi_backend::models::quotation_update_dto::UpdateQuotationDto;
 use bingxi_backend::models::status::quotation as quotation_status;
+use bingxi_backend::services::quotation_service::QuotationService;
 use bingxi_backend::services::test_common::setup_test_db;
 use bingxi_backend::ymd;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
@@ -258,9 +259,6 @@ fn test_bjdztcl_hbxt() {
 async fn test_quotationservice_new_zqcysjklj() {
     let db = Arc::new(setup_test_db().await);
     let svc = QuotationService::new(db.clone());
-    use bingxi_backend::services::quotation_service::QuotationService;
-    use sea_orm::ConnectionTrait;
-    use std::collections::HashSet;
     let _ = svc
         .database
         .execute_raw(sea_orm::Statement::from_sql_and_values(
@@ -306,6 +304,8 @@ async fn test_quotationservice_cancel_bczfhapperror() {
 
 /// test_quotationservice_update_bczfhapperror
 use bingxi_backend::utils::error::AppError as ServiceError;
+use sea_orm::ConnectionTrait;
+use std::collections::HashSet;
 #[tokio::test]
 async fn test_quotationservice_update_bczfhapperror() {
     let db = setup_test_db().await;

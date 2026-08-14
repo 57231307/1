@@ -1,3 +1,4 @@
+use bingxi_backend::services::incoterms_service::IncotermsService;
 use bingxi_backend::utils::incoterms::*;
 use rust_decimal::Decimal;
 
@@ -52,7 +53,6 @@ fn test_calculate_costs_ddp_includes_all() {
 #[test]
 fn test_calculate_costs_fob_freight_only() {
     // FOB 含运费，不含保险/关税
-    use bingxi_backend::services::incoterms_service::IncotermsService;
     let (p, f, i, d) = IncotermsService::calculate_costs_by_incoterm(
         Incoterms2020::Fob,
         Decimal::from(1000),

@@ -1,5 +1,6 @@
 // 批次 210 P2-5 修复（v12 复审）：测试中硬编码 "active" 替换为 master_data 常量
 use bingxi_backend::decs;
+use bingxi_backend::models::status::finance::customer_credit;
 use bingxi_backend::models::status::master_data;
 use bingxi_backend::ymd;
 use chrono::Utc;
@@ -224,7 +225,6 @@ fn test_credit_utilization() {
     assert_eq!(utilization, Decimal::from(0));
 
     // 模拟使用 50000
-    use bingxi_backend::models::status::finance::customer_credit;
     let used = Decimal::from(50000);
     let utilization = used / model.credit_limit;
     assert_eq!(

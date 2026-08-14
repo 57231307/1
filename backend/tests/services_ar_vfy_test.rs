@@ -6,6 +6,7 @@ use bingxi_backend::services::test_common::setup_test_db;
 use bingxi_backend::utils::error::AppError;
 use bingxi_backend::ymd;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
+use bingxi_backend::services::ar::ArReconciliationService;
 use rust_decimal::Decimal;
 use std::sync::Arc;
 
@@ -446,7 +447,6 @@ async fn test_zlbgwzlc_xsjk() {
     let db = setup_test_db().await;
     let svc = ArReconciliationService::new(Arc::new(db));
     // 无 schema 时预期返回数据库错误而非 panic
-    use bingxi_backend::services::ar::ArReconciliationService;
     let result = svc.get_aging_report(None, None, None).await;
     assert!(result.is_err());
 }

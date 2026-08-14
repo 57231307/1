@@ -6,6 +6,7 @@
 //!
 //! 备注：handler 层 DTO 校验 + 早期校验在路由层单测覆盖；
 //! 本处只覆盖 service 层入口校验（最关键的 defense-in-depth 屏障）。
+use bingxi_backend::services::import_export_service::ImportExportService;
 use bingxi_backend::services::import_export_service::MAX_CELL_LEN;
 use bingxi_backend::services::import_export_service::MAX_EXCEL_COLS;
 use bingxi_backend::services::import_export_service::MAX_EXCEL_ROWS;
@@ -111,7 +112,6 @@ async fn test_import_data_allows_within_limits() {
     let data = vec![row];
 
     // 使用 unknown import_type 触发 "不支持的导入类型" 错误（说明校验通过）
-    use bingxi_backend::services::import_export_service::ImportExportService;
     let result = service.import_data("unknown_type", &data, 1).await;
     assert!(
         result.is_err(),

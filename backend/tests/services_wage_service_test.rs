@@ -1,4 +1,5 @@
 use bingxi_backend::models::status::wage_rate_status;
+use bingxi_backend::models::status::wage_type;
 use bingxi_backend::services::quality_inspection_service::{
     QUALITY_GRADE_A, QUALITY_GRADE_B, QUALITY_GRADE_C,
 };
@@ -400,7 +401,6 @@ fn test_gzarjfp_lr() {
 fn test_gzarjfp_fzcqxs() {
     let wage = Decimal::new(100, 0);
     // 100 / 3 = 33.33...
-    use bingxi_backend::models::status::wage_type;
     let result = split_wage_among_workers(wage, 3);
     let f = result.to_f64().unwrap();
     assert!((f - 33.3333).abs() < 0.01);

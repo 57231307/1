@@ -2,6 +2,7 @@ use axum::http::StatusCode;
 use bingxi_backend::container::*;
 use bingxi_backend::services::business_metrics::*;
 use bingxi_backend::services::metrics_service::*;
+use prometheus::Registry;
 use std::sync::Arc;
 
 // P9-1: 测试夹具 helper，封装 MetricsService 的常见初始化模式
@@ -259,7 +260,6 @@ fn test_business_metrics_integrated_into_metrics_service() {
     metrics_service.business_metrics.record_login(true);
 
     // gather 后应包含 erp_* 指标家族
-    use prometheus::Registry;
     let gathered = metrics_service.gather();
     let erp_metric_names: Vec<&str> = gathered
         .iter()

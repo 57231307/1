@@ -11,6 +11,7 @@ use rust_decimal::Decimal;
 // StockInfo 原 private struct，拆分后提升为 ops::types::StockInfo（pub(crate)），
 // 测试模块直接从 ops 导入（facade 不重导出以保持原 API 表面不变）
 use bingxi_backend::services::mrp_engine_ops::StockInfo;
+use bingxi_backend::services::mrp_engine_service::MrpEngineService;
 use std::sync::Arc;
 
 // MRP 专属状态值（源码 mrp_engine_service.rs 中使用，status.rs 暂无 mrp 子模块）
@@ -488,6 +489,5 @@ async fn test_cxmrpjg_xyzssjk() {
     let service = MrpEngineService::new(Arc::new(db));
     let result = service.get_results(None, None, None, 1, 10).await;
     // L-18 修复（批次 377 v13 复审）：原 let _ = result 无断言，改为 is_err 断言
-    use bingxi_backend::services::mrp_engine_service::MrpEngineService;
     assert!(result.is_err(), "无 schema 时应返回数据库错误");
 }
