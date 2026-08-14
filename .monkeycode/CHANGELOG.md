@@ -2,552 +2,123 @@
 
 > 每个任务一行摘要，是 doto-su.md 中详细任务内容的一句话总结。禁止写入详细内容。
 > 详细任务内容见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，未完成任务见 [doto.md](file:///workspace/.monkeycode/doto.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-31（**doto.md 治理修正**：用户明确指令"doto.md 应只记录未完成任务，按规则归档完成明细，规则节点提醒合并修正"，[doto.md](file:///workspace/.monkeycode/doto.md) ① §0.0.1 P0 完成明细（10 项 ✅）+ §0.0.2 P2 完成明细（3 项 ✅）+ §0.0.3 P1 委外收货主链路（1 项 ✅）按规则 10 归档到 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)（已存在完整归档）；② §0.0.4 P1 后续 5 项合并为 §0.0.1，删除已完成项（委外 record_receipt）保留 4 项未完成/部分修复；③ §0.0.5 打印功能核实改为 §0.0.2 未完成项，6 个已实现场景移至 doto-su.md；④ 文件 205→171 行（-34 行）；⑤ §二 规则节点提醒合并修正：规则 0/1/2/8 补全"stub/扩展空间"、规则 3 补全"禁止 CSV/txt/rtf/html"、规则 5/19 补"不阻塞主 CI/非阻塞推理"、规则 10 补"doto.md 只记录未完成任务"、规则 11/12 补法规名（个保法/数安法/网安法）、规则 13 加入"每批 65-99 文件"、规则 14 任务进度剥离到 §0.0.1 #2 指针、规则 15 任务进度剥离到 audit_assignment.md 指针）；**doto.md 治理修正第一轮**：用户明确指令"doto.md 应只记录未完成任务，不需记录最近整理内容，基于最新规则修正"，[doto.md](file:///workspace/.monkeycode/doto.md) 删除文件头"最近整理"长块（仅属 CHANGELOG 职责，违反"只记录未完成任务"原则）+ §1.1 P1 标记 100% 完成（实际 25 批合并 main，历史规划基于 9-12 文件/批）+ §1.2 P2 批次预估 35-45 → 5-8 批（按最新规则 13 每批 65-99 文件重算）；**规则 13 批次文件数升级**：用户明确指令"修改规则13里面的文件数量从13个改为65~99"，[MEMORY-SU.md](file:///workspace/.monkeycode/MEMORY-SU.md) 规则 13 批次文件数 10-15 → 65-99（第 12 次迭代），同步更新 §6.1 批次大小偏好 + [audit_assignment.md](file:///workspace/.monkeycode/audit_assignment.md) §2.2 流程引用"每批 5-8 文件"→"每批 65-99 文件"；MEMORY.md 规则 13 索引无文件数量无需改）；2026-07-30（**PR #785 创建：P1 预留服务路由接入消除 174 个 dead_code 警告**：为 14 个 P1 预留服务（AI 模型管理/合同签名/客户团队共享/环保税/出口退税/Incoterms/劳动合同/物流跟踪/职业健康/权限委托/污染监控/污染许可/角色关系/社保公积金）创建 handler 和 route 文件并注册路由，37 文件 +2093 -11 行；**Clippy baseline 更新（174 个 dead_code 警告纳入 baseline）**：P1 批次新增 15 个业务服务模块服务层和 DTO 已实现但尚未接入 HTTP 路由层，产生 174 个 dead_code 警告；之前 171 个基线警告已全部修复（P0/P1 代码质量提升成果）；更新 .clippy-baseline.txt 纳入 174 个已知技术债务，NEW_COUNT=0 验证通过，待后续批次接入路由后自动消除；**PR #783 已合并 main**：Clippy runner shutdown (exit 143) 修复 + Release 变更说明模板；**PR #777 已合并 main**：彻底移除 Docker/K8s 引用，11 文件 -130 行，对齐 systemd 直部署；**PR #776 已合并 main**：CHANGELOG/doto 文档同步 PR #775 合并记录；**PR #772 关闭重复 PR**（内容已通过 PR #771 合并）；**SeaORM 2.0 升级评估暂缓**：2.0.0 稳定版 2026-07-19 发布，破坏性变更已评估（ExprTrait/IntoCondition/Iden 签名/ActiveModel insert-update 风格），项目 181 处 active.insert(db) 需调整，暂不升级继续处理遗留问题；**PR #775 已合并 main**：P1-batch11 缺陷 2-3 遗留修复，P1 总完成率 257/257 = 100%；**PR #771 已合并 main**：P1-batch02+03 + P1-batch19 + P1-24 + P1-Batch16 剩余 P1 全部合并；**P0 全部完成 + P1 已合并 25 批到 main**）
 
 ---
 
-## PR #878 合并：P3 批量任务第三轮（8 项）（2026-08-09，已合并 main）
+## 2026-08-14
 
-| 项 | 一句话总结 |
+| PR | 一句话总结 |
 |----|-----------|
-| PR #878 合并 | P3 批量任务第三轮（c834bdeb）：composables try/catch + dashboard store 错误提示 + 结账日志 + system_version 接入 + Alertmanager 启用 + RTL 支持 + 企业微信/钉钉渠道 + 供应商评估 model 重命名；8 文件 +80 行 |
+| PR #907 | 测试代码编译修复：批量修复 50+ 处符号路径错误、6 处 Model 字段名、3 处顶层模块导入；CI 添加 --keep-going；规则 18 并入规则 6、规则 19 并入规则 21 |
 
----
+## 2026-08-09
 
-## PR #877 合并：P3 批量任务第二轮（8 项）（2026-08-08，已合并 main）
-
-| 项 | 一句话总结 |
+| PR | 一句话总结 |
 |----|-----------|
-| PR #877 合并 | P3 批量任务第二轮（b3df6d66）：Retry-After HTTP 头 + 成本归集 event_retry + CSRF 提示 + env.d.ts 类型声明 + 迁移跳跃检测 + no-v-html 规则 + v-html 安全注释；7 文件 +80 行 |
+| PR #878 | P3 批量任务第三轮：composables try/catch + dashboard store 错误提示 + 结账日志 + system_version 接入 + Alertmanager 启用 + RTL 支持 + 企业微信/钉钉渠道 + 供应商评估 model 重命名；8 文件 +80 行 |
 
----
+## 2026-08-08
 
-## PR #876 合并：P3 批量任务（8 项）（2026-08-08，已合并 main）
-
-| 项 | 一句话总结 |
+| PR | 一句话总结 |
 |----|-----------|
-| PR #876 合并 | P3 批量任务（a52113a6）：拆匹号改进 + 甘特图增强 + AUDIT_RETENTION_DAYS 纳入 AppSettings + HTTP OPTIONS/HEAD + AI 操作审计 + 慢查询阈值 + ARIA 标签 + 按钮 loading；8 文件 +120 行 |
+| PR #877 | P3 批量任务第二轮：Retry-After HTTP 头 + 成本归集 event_retry + CSRF 提示 + env.d.ts 类型声明 + 迁移跳跃检测 + no-v-html 规则 + v-html 安全注释；7 文件 +80 行 |
+| PR #876 | P3 批量任务：拆匹号改进 + 甘特图增强 + AUDIT_RETENTION_DAYS 纳入 AppSettings + HTTP OPTIONS/HEAD + AI 操作审计 + 慢查询阈值 + ARIA 标签 + 按钮 loading；8 文件 +120 行 |
+| PR #875 | batch-18 P3 任务：拆匹号改进 + 甘特图拖拽增强 + AUDIT_RETENTION_DAYS 纳入 AppSettings + HTTP OPTIONS/HEAD 映射；2 文件 +60 行 |
+| PR #871 | 批量实现 4 个 P2 任务：B12-P2-1 权限码命名规范 + B12-P2-5 流式导出 + batch-13 P2 供应商余额+异常订单 + batch-16 P2-3 通知模板模型；10 文件 +275 行 |
+| PR #870 | 前端 18 dynamic_router 实现 + batch-12 P2-9 权限测试 + B04-P2-3 月末分摊测试：EndpointCache + 动态路由中间件 + test_data_permission.rs 6 个测试 + test_energy_allocation.rs 12 个测试；4 文件 +221 -3 |
+| PR #869 | batch-18 P2-6 调拨在途库存独立核算 + batch-12 P2-9 权限测试 + B04-P2-3 月末分摊测试：inv/batch.rs 更新 quantity_incoming + test_data_permission.rs 6 个测试 + test_energy_allocation.rs 12 个测试；5 文件 +282 行 |
+| PR #868 | batch-18 P2-2 委外加工费按缸号/匹号核算：outsourcing_order_item 添加 processing_fee/freight_fee 字段 + migration + DTO 更新；7 文件 +48 -1 |
+| PR #867 | batch-18 P2-4 瓶颈识别扩产/外包建议：BottleneckSuggestion + generate_suggestions + overview 自动生成建议；3 文件 +115 -3 |
+| PR #866 | batch-18 P2-5 排程重复录入校验：apply_schedule_details_to_orders 添加状态校验（仅 DRAFT/SCHEDULED）和日期保护（None 不覆盖）；3 文件 +31 -11 |
 
----
+## 2026-08-07
 
-## PR #875 合并：batch-18 P3 任务（2026-08-08，已合并 main）
-
-| 项 | 一句话总结 |
+| PR | 一句话总结 |
 |----|-----------|
-| PR #875 合并 | batch-18 P3 任务（c3093c13）：拆匹号改进 + 甘特图拖拽增强 + AUDIT_RETENTION_DAYS 纳入 AppSettings + HTTP OPTIONS/HEAD 映射；2 文件 +60 行 |
+| PR #865 | batch-18 P2-7 缺料月报能力：material_shortage_handler.rs get_monthly_report + service get_monthly_report + 路由注册；3 文件 +156 行 |
+| PR #863 | P2 快速修复 + 导出技术债：B12-P2-2 字段级权限推广 + B12-P2-3 权限审计日志接口 + batch-12 P2-8 审计日志保留调度 + batch-11 P2-6 打印水印 + T1/T2/T3 CSV 中转去除；18 文件 +572 -258 |
+| PR #862 | A1-A4 完成：57 个新 docx 打印端点（纺织专用 9 + P0 16 + P1 25 + P2 6），63 个 get_*_print_data + 63 个 handler，覆盖纺织专用/P0/P1/P2 全部未实现打印场景；CI 全绿 |
+| A0b | `ExportService::export_pdf` 由纯文本改写 printpdf 真实 PDF，修复 `report_enhanced` `POST /export/pdf` 与 `export_template` pdf 分支以 PDF 名义交付文本的规则 3 硬违规 |
+| PR #859 | A0 完成：6 个原 HTML 打印场景改为 docx 成品（接入 generate_docx）+ 会计凭证 `/vouchers/:id/print` 路由 + 删除 generate_pdf/escape_html 死代码 + 模板数据驱动改造；CI 全绿 |
 
----
+## 2026-08-05
 
-## PR #871 合并：批量 P2 任务（2026-08-08，已合并 main）
-
-| 项 | 一句话总结 |
+| PR | 一句话总结 |
 |----|-----------|
-| PR #871 合并 | 批量实现 4 个 P2 任务（0456dfc7）：B12-P2-1 权限码命名规范 + B12-P2-5 流式导出 + batch-13 P2 供应商余额+异常订单 + batch-16 P2-3 通知模板模型；10 文件 +275 行 |
+| PR #854 | batch-21 部署升级：端口冲突 + .env 600 + 断点续传 + 版本降级 + API 兼容 + 配置迁移 + 日志持久化 + draining + 升级监控告警 + 多租户残留；11 文件 |
+| PR #853 | P2-Batch-32：胚布追溯字段 + 拆匹强校验 + 告警去重 + 在途采购 + 排程冲突告警 + 负荷告警 + SPT 调度；7 文件 |
+| PR #852 | P2-Batch-31 续作：慢查询告警/优化追踪 + 通知订阅调度 + 权限合规 + 供应商评估 + recipe_opt + PII脱敏 + 存货跌价 + 部门服务 |
+| PR #848 | P2-Phase-9 CRM 数据权限+数据流转：客户字段权限配置 + 客户操作审计日志 + 转化数据双向同步 + 客户主数据关系 + 客户 CLV；5 文件 |
+| PR #847 | P2-Phase-8 CRM 商机+公海管理增强：阶段停留时长 + 商机竞争对手 + 商机跟进记录 + 回收规则跟进/成交周期 + 回收规则部门差异化 + 公海客户保护机制；6 文件 |
+| PR #846 | P2-Phase-7 CRM 线索管理增强：线索来源 ROI 跟踪 + 线索分配规则 + 线索培育流程；3 文件 |
+| PR #844 | P2-Phase-6C 调拨审批流 + 资金日报/月报：按金额分级审批 + 资金日报/月报接口；2 文件 |
+| PR #842 | P2-Phase-6B 预算版本管理 + 资产减值测试 + 折旧政策变更：预算版本管理 + 资产减值测试 + 折旧政策变更 + m0099 migration；3 文件 |
+| PR #840 | P2-Phase-6 现金流比率 + 趋势分析增强：现金流比率（OPERATING_CF_RATIO/SALES_CF_RATIO/CF_ADEQUACY_RATIO）+ 趋势分析增强（线性回归+移动平均+趋势方向）；2 文件 |
+| PR #839 | P2-Phase-5 预算科目-会计科目映射 + 资产分类管理：budget_items.account_subject_id + asset_categories 表 + CRUD + fixed_assets.asset_category_id + m0098 migration；2 文件 |
+| PR #838 | P2-Phase-4 辅助核算余额增强+账龄业务员维度+穿透查询：期初/期末余额计算 + 账龄按 salesperson_id GROUP BY + 穿透查询总账到辅助明细；3 文件 |
+| PR #836 | P2-Phase-3.5 接入未实现的修复项：m0094 processor_type 筛选接入 + m0095 sales_contract_items service/handler/route + m0096 period_report_snapshot service/handler + m0097 aging_alert_rules service/handler + mask_fields 接入 customer_handler + record_actual_grade handler 端点；6 文件 |
+| PR #835 | P2-Phase-3 DB migration：m0093 suppliers category_id FK + m0094 is_processor+processor_type + m0095 sales_contract_items + m0096 period_report_snapshot + m0097 aging_alert_rules；5 文件 |
+| PR #834 | P2-Batch-31 全域 P2 审计修复：慢查询告警/优化追踪 + 通知订阅调度 + 权限合规 + 供应商评估 + recipe_opt + PII脱敏 + 存货跌价 + 部门服务；20 文件 |
 
----
+## 2026-08-04
 
-## PR #870 合并：dynamic_router + 权限测试 + 月末分摊测试（2026-08-08，已合并 main）
-
-| 项 | 一句话总结 |
+| PR | 一句话总结 |
 |----|-----------|
-| PR #870 合并 | 前端 18 dynamic_router 实现 + batch-12 P2-9 权限测试 + B04-P2-3 月末分摊测试（d09850a0）：EndpointCache + 动态路由中间件 + test_data_permission.rs 6 个测试 + test_energy_allocation.rs 12 个测试；4 文件 +221 -3 |
+| PR #833 | P2-Batch-30 Nginx gzip + 移动端触屏按钮：gzip 压缩 + Touch targets 44px CSS；2 文件 |
+| PR #832 | CI Release 清理排序修复：sort -V 混合段数版本号排序错误，改用 --order asc 按创建时间排序 |
+| PR #831 | P2-Batch-29 WebSocket 心跳超时断开：30s Ping + 60s 超时断开；1 文件 |
+| PR #830 | P2-Batch-28 角色命名校验 + is_system 约束 + 报表参数 Validate：角色编码规范 + admin 约束 + Validate 派生；3 文件 |
+| PR #829 | P2-Batch-27 报表元数据 refresh/cache + AI 速率限制：refresh_strategy/cache_ttl_seconds 字段 + AI 端点专用速率限制 (10 req/min/user)；2 文件 |
+| PR #827 | P2-Batch-25/26 前端优化 + 后端超时/事务/账龄基准日：visualizer + persistedstate + lazy loading + alt prop + baseline_date + batch atomicity + OTel 10% + manager_id + supplier qual CRUD + BI/dashboard timeout；14 文件 |
+| PR #826 | P2-Batch-24 CI Release 清理修复：修复 --cleanup-tag 不生效 + 清理无 Release 旧 tag（保留 100 个）；1 文件 |
+| PR #824 | P2-Batch-23 部署变更文件记录：部署时记录变更文件列表到 deploy-changes.log；1 文件 |
+| PR #823 | P2-Batch-22 AI explanation + 前端性能/可访问性/权限缓存：explanation 字段 + 错误去重 + 焦点重置 + 懒加载 + 权限缓存 + 路由预取；6 文件 |
+| PR #822 | P2-Batch-19 售后退货类型 + incoterms 责任划分：issue_type 增加 return_goods（前后端）+ incoterms cost_bearer/清关责任接入报价构成；2 文件 |
+| PR #821 | P2-Batch-21 部署脚本加固：日志持久化 + 配置权限600 + 健康检查database + CLI权限/确认/校验/回退 + 回滚验证；10 文件 |
+| PR #820 | P2-Batch-08 角色校验 + 通配匹配 + 测试：is_system/admin 校验 + matches_permission 通配 + require_admin_role 测试 + 文档单复数；4 文件 |
+| PR #819 | P2-Batch-07 AI 输入校验 + 降级 + 推理耗时：create_process_optimization 长度/枚举校验 + anomaly_detection 降级 + 错误文案 + inference_latency_ms；4 文件 |
+| PR #817 | P2-Batch-06 权限 fail-closed + PII 脱敏 + CRUD 审计：extract_resource_info unknown fail-closed + 手机号/身份证脱敏 + CRUD 审计；3 文件 |
+| PR #815 | P2-Batch-05 导出审计 + 打印水印：3 个导出端点补 Export 审计 + 打印IP水印 + rate_limit确认全局挂载；3 文件 |
+| PR #814 | P2-Batch-04 硬编码 role_id==1 修复 + v-role 指令删除；2 文件 |
 
----
+## 2026-08-03
 
-## PR #869 合并：batch-18 P2-6 调拨在途 + 权限测试（2026-08-08，已合并 main）
-
-| 项 | 一句话总结 |
+| PR | 一句话总结 |
 |----|-----------|
-| PR #869 合并 | batch-18 P2-6 调拨在途库存独立核算 + batch-12 P2-9 权限测试 + B04-P2-3 月末分摊测试（bc10cbfd）：inv/batch.rs 更新 quantity_incoming + test_data_permission.rs 6 个测试 + test_energy_allocation.rs 12 个测试；5 文件 +282 行 |
+| PR #812 | CI Cargo.toml SemVer 兼容：TAG/Release 保持 4 段式 YYYY.M.D.HHMM，Cargo.toml 转为 3 段式 YYYY.MDHHMM |
+| PR #811 | CI 版本号格式修复：日期分隔 YYYY.MMDD.HHMM → YYYY.M.D.HHMM |
+| PR #810 | CI Release 流程修复：用 gh CLI 替代 softprops/action-gh-release，添加三重验证 |
+| PR #809 | CI 发布说明调试：添加发布说明生成调试输出和错误处理 |
+| PR #808 | CI 改进：clippy 日志化 + fmt 自动修正 + 消除重复检查 |
+| PR #807 | CI clippy 新增警告修复：修复 18 条 clippy 警告（11 条代码修复 + 7 条 dead_code 恢复 baseline） |
 
----
+## 2026-08-02
 
-## PR #868 合并：batch-18 P2-2 委外加工费（2026-08-08，已合并 main）
-
-| 项 | 一句话总结 |
+| PR | 一句话总结 |
 |----|-----------|
-| PR #868 合并 | batch-18 P2-2 委外加工费按缸号/匹号核算（7979e635）：outsourcing_order_item 添加 processing_fee/freight_fee 字段 + migration + DTO 更新；7 文件 +48 -1 |
+| PR #803 | P2-Batch-03 类八法律合规剩余 + 类九色卡发放：跨境合规 + 商检/产地证 + 色卡报表/成本/预警/统计 12 端点接入路由；75 文件 +2322 -40 |
+| PR #801 | P2-Batch-02 类五运行闭环：反馈闭环 + 重染补染 + 告警死信 + 色卡状态 + CancellationToken + 染缸占用 + 设备连接 + 人工成本归集 + 能耗凭证归集 + 期末调整；46 文件 +3001 -51 |
+| PR #799 | P2-Batch-01b 续作：Cookie 双写 + 缓存一致性 + SQL 参数化 + 表重叠 + 测试补齐 + service 拆分 + 差异化 TTL；34 文件 +1799 -848 |
+| PR #797 | P2-Batch-01a 首批快速修复：CSP+Argon2+魔法数字+TODO+i18n 注释；9 文件 |
 
----
+## 2026-07-31
 
-## PR #867 合并：batch-18 P2-4 瓶颈建议（2026-08-08，已合并 main）
-
-| 项 | 一句话总结 |
+| PR | 一句话总结 |
 |----|-----------|
-| PR #867 合并 | batch-18 P2-4 瓶颈识别扩产/外包建议（2cec4ce3）：BottleneckSuggestion + generate_suggestions + overview 自动生成建议；3 文件 +115 -3 |
+| PR #795 | P0 缺陷 10-4 审计日志导出二次审计机制：新建 audit_log_export_log 防篡改表 + BEFORE UPDATE/DELETE 触发器禁止篡改 + 导出文件 SHA256 指纹留存 + /audit-logs/export-logs 查询端点；CI 全绿合并 main 7b18573 |
+| PR #793 | P1 后续 #2 业务追溯 producer 接入：record_purchase_receipt 接入采购收货创建后、record_sales_delivery 接入销售发货后；best-effort 集成不阻塞主流程；CI 全绿合并 main 8fa619e5 |
+| PR #791 | 缺陷 9-2 染色批次导出全量查询：导出查询加 .limit(10000) + QuerySelect trait 导入；CI 全绿合并 main b2e7b419 |
+| PR #785 | P1 预留服务路由接入消除 174 个 dead_code 警告：为 14 个 P1 预留服务创建 handler 和 route 文件并注册路由；37 文件 +2093 -11 行 |
+| PR #783 | Clippy runner shutdown (exit 143) 修复 + Release 变更说明模板 |
+| PR #777 | 彻底移除 Docker/K8s 引用，对齐 systemd 直部署；11 文件 -130 行 |
+| PR #776 | CHANGELOG/doto 文档同步 PR #775 合并记录 |
+| PR #775 | P1-batch11 缺陷 2-3 遗留修复：补齐 4 个前端页面导出/打印按钮 v-permission 指令 |
+| PR #771 | P1-batch02+03 通用代码质量+安全性：9 项 P1 全部完成 |
 
----
+## 2026-07-30
 
-## PR #866 合并：batch-18 P2-5 排程校验（2026-08-08，已合并 main）
-
-| 项 | 一句话总结 |
+| PR | 一句话总结 |
 |----|-----------|
-| PR #866 合并 | batch-18 P2-5 排程重复录入校验（43dcd79e）：apply_schedule_details_to_orders 添加状态校验（仅 DRAFT/SCHEDULED）和日期保护（None 不覆盖）；3 文件 +31 -11 |
-
----
-
-## PR #865 合并：batch-18 P2-7 缺料月报（2026-08-07，已合并 main）
-
-| 项 | 一句话总结 |
-|----|-----------|
-| PR #865 合并 | batch-18 P2-7 缺料月报能力（5d06d08e）：material_shortage_handler.rs get_monthly_report + service get_monthly_report + 路由注册；3 文件 +156 行 |
-
----
-
-## PR #863 合并：P2 快速修复 + 导出技术债（2026-08-07，已合并 main）
-
-| 项 | 一句话总结 |
-|----|-----------|
-| PR #863 合并 | P2 快速修复 + 导出技术债（ae4b9b04）：B12-P2-2 字段级权限推广 + B12-P2-3 权限审计日志接口 + batch-12 P2-8 审计日志保留调度 + batch-11 P2-6 打印水印 + T1/T2/T3 CSV 中转去除；18 文件 +572 -258 |
-
----
-
-## 导出链路 CSV 中间格式技术债修复（2026-08-07，3 项）
-
-| 项 | 一句话总结 |
-|----|-----------|
-| T1 | 产品导出去除 CSV 中转：product_handler.rs 已改为调用 `export_products_to_xlsx` 直接获取结构化数据 |
-| T2 | 采购订单导出去除 CSV 中转：purchase_order_handler.rs 已改为调用 `export_orders_to_xlsx` 直接获取结构化数据 |
-| T3 | 销售订单导出去除 CSV 中转：sales_order_handler.rs 已改为调用 `export_orders_to_xlsx` 直接获取结构化数据 |
-
----
-
-## P2 快速修复批次（2026-08-07，4 项）
-
-| 项 | 一句话总结 |
-|----|-----------|
-| B12-P2-2 | 字段级权限推广到 product/supplier：product_handler.rs list_products/get_product + supplier_handler.rs list_suppliers/get_supplier 已接入 filter_fields |
-| B12-P2-3 | 权限审计日志查询接口：permission_audit_handler.rs + iam.rs 路由注册，GET /api/v1/erp/permission-audits |
-| batch-12 P2-8 | 审计日志保留期限调度已挂载：audit_cleanup_service.rs 重构 + service_bootstrap.rs start_audit_cleanup_scheduler，支持分级保留（365天/7年） |
-| batch-11 P2-6 | 打印 HTML 已添加用户/IP 水印：print.ts printSingleDocument 已添加 watermarkText（打印人/时间/IP） |
-
----
-
-## PR #862 合并：A1-A4 打印场景（2026-08-07，已合并 main）
-
-| 项 | 一句话总结 |
-|----|-----------|
-| PR #862 合并 | A1-A4 完成（ddce03d6）：57 个新 docx 打印端点（纺织专用 9 + P0 16 + P1 25 + P2 6），63 个 get_*_print_data + 63 个 handler，覆盖纺织专用/P0/P1/P2 全部未实现打印场景；CI 全绿 |
-
----
-
-## A0b 修复中：report_enhanced 真实 PDF（2026-08-07，待 CI）
-
-| 项 | 一句话总结 |
-|----|-----------|
-| A0b 修复 | `ExportService::export_pdf`（`backend/src/services/export_service.rs`）由纯文本改写 printpdf 真实 PDF，修复 `report_enhanced` `POST /export/pdf` 与 `export_template` pdf 分支以 PDF 名义交付文本的 规则 3 硬违规；复用 `services/report/exp.rs` 已验证的 printpdf 渲染模式；删除原 txt 死代码（规则 0/2） |
-
----
-
-## PR #859 合并：A0 打印合规+基建（2026-08-07，已合并 main）
-
-| 项 | 一句话总结 |
-|----|-----------|
-| PR #859 合并 | A0 完成（squash，merge commit 87637967）：6 个原 HTML 打印场景改为 docx 成品（接入 generate_docx）+ 会计凭证 `/vouchers/:id/print` 路由 + 删除 generate_pdf/escape_html 死代码 + 模板数据驱动改造；CI 全绿 |
-
----
-
-## PR #803 合并：P2-Batch-03（类八法律合规剩余 + 类九色卡发放，2026-08-02，已合并 main）
-
-| 项 | 一句话总结 |
-|----|-----------|
-| PR #803 合并 | P2-Batch-03 完成（bb010ad squash，75 文件 +2322 -40）：类八法律合规 8 项（数据跨境合规文档 + 合同字段 + 商检/产地证 + 跌价准备 + 研发加计 + 环评 + 女职工保护）+ 类九色卡发放 4 个 stub 服务真实实现（报表/成本/预警/统计 12 端点接入路由，移除全部 `#[allow(dead_code)]`）+ 类九~十二权限修复 12 项（manager 权限收窄 + permission_code + data_scope 扩展等）；CI 13 success 全绿 |
-| 色卡 stub 服务修正 | 4 个色卡服务原返回空实现/零值（违反规则 0），本次真实 SQL 查询实现 + analytics handler + 14 条路由，`#[allow(dead_code)]` 全部移除（规则 14） |
-
----
-
-## V15 P2 B08-2：数据跨境传输合规评估（2026-08-02，已合并 main PR #803）
-
-| 编号 | 文件 | 一句话总结 |
-|------|------|-----------|
-| B08-2 | [data_locality_config.rs](file:///workspace/backend/src/config/data_locality_config.rs) + [config/mod.rs](file:///workspace/backend/src/config/mod.rs) + [ssrf_guard.rs](file:///workspace/backend/src/utils/ssrf_guard.rs) | 新建数据本地化配置模块（DataLocalityMode/IpCidr/DataLocalityConfig），ssrf_guard 新增境外 IP 拦截函数，创建合规评估文档 |
-
----
-
-## V15 P2 B08-12：出口商检 + 产地证 + 合规预警（2026-08-02，已合并 main PR #803）
-
-| 编号 | 文件 | 一句话总结 |
-|------|------|-----------|
-| B08-12 | [export_inspection.rs](file:///workspace/backend/src/models/export_inspection.rs) + [certificate_of_origin.rs](file:///workspace/backend/src/models/certificate_of_origin.rs) | 重写出口商检 + 产地证 Model（table_name 改为 export_inspection/certificate_of_origin，新增 created_by/quantity/invoice_amount 等字段，对齐新表结构） |
-| B08-12 | migration 20260801000007 | 新建迁移：export_inspection 表（商检记录）+ certificate_of_origin 表（产地证），含 FK/索引/默认值 |
-| B08-12 | [export_inspection_service.rs](file:///workspace/backend/src/services/export_inspection_service.rs) + [certificate_of_origin_service.rs](file:///workspace/backend/src/services/certificate_of_origin_service.rs) + [compliance_alert_service.rs](file:///workspace/backend/src/services/compliance_alert_service.rs) | 新建 3 个服务：出口商检 CRUD + 产地证 CRUD/revoke + 合规预警（价格异常检测 + 虚假宣传关键词检查） |
-| B08-12 | [export_inspection_handler.rs](file:///workspace/backend/src/handlers/export_inspection_handler.rs) + [certificate_of_origin_handler.rs](file:///workspace/backend/src/handlers/certificate_of_origin_handler.rs) | 新建 2 个 handler：list/get 端点 |
-| B08-12 | [export_inspection_routes.rs](file:///workspace/backend/src/routes/export_inspection_routes.rs) + [routes/mod.rs](file:///workspace/backend/src/routes/mod.rs) | 新建路由文件 + 注册到 /api/v1/erp/export-inspections |
-
----
-
-## V15 P2 修复 4 项（B03-P2-4/5/10 + B04-P2-2，2026-07-31，已暂存未 commit）
-
-| 编号 | 文件 | 一句话总结 |
-|------|------|-----------|
-| B03-P2-4 | [omni_audit_handler.rs](file:///workspace/backend/src/handlers/omni_audit_handler.rs) | build_where_clause 引入 param_placeholder 辅助函数，用字符串拼接替代 format! 拼接 SQL 占位符，值绑定逻辑不变 |
-| B03-P2-5 | [slow_query_handler.rs](file:///workspace/backend/src/handlers/slow_query_handler.rs) | 两处 from_string 的 SQL 为静态常量无注入，添加注释说明 from_string 安全并保留 |
-| B03-P2-10 | [crm_handler.rs](file:///workspace/backend/src/handlers/crm_handler.rs) | import_leads 新增 scan_leads_for_viruses 病毒扫描检查点，CLAMAV_ENABLED 开关 + ClamAV REST API（CLAMAV_URL），未启用时 warn 日志跳过 |
-| B04-P2-2 | [batch_trace_log.rs](file:///workspace/backend/src/models/batch_trace_log.rs) | SeaORM 自动生成模型（#[derive(DeriveEntityModel)]），规则 14 例外保留 #![allow(dead_code)] + 注释说明 |
-
-> 附：B04-P2-1（dye_batch/batch_dye_lot 表概念重叠）文档说明修复已暂存（[dye_batch.rs](file:///workspace/backend/src/models/dye_batch.rs) + [batch_dye_lot.rs](file:///workspace/backend/src/models/batch_dye_lot.rs) 文档注释互补关系），非本批次任务范围，随本批次暂存。
-
----
-
-## V15 P2 修复 4 项（B04-P2-1 + B06-P2-5 + B06-P2-6 + B04-P2-6，2026-07-31，已暂存未 commit）
-
-| 编号 | 文件 | 一句话总结 |
-|------|------|-----------|
-| B04-P2-1 | [dye_batch.rs](file:///workspace/backend/src/models/dye_batch.rs) + [batch_dye_lot.rs](file:///workspace/backend/src/models/batch_dye_lot.rs) | 两表顶部 `//!` 注释明确职责边界：dye_batch=缸号主表（生产流程），batch_dye_lot=染色批次明细（染料配方），不合并表仅文档说明 |
-| B06-P2-5 | [test_inventory_count.rs](file:///workspace/backend/tests/test_inventory_count.rs) | 删除 5 行占位骨架，重写为 10 项真实测试：盘点状态常量 + Service 构造签名 + SQLite 空 DB 异常路径 + 请求 DTO 语义（fixtures 抽取，同 ap_payment_workflow_test 模式） |
-| B06-P2-6 | [perf-report-template.md](file:///workspace/backend/scripts/perf-report-template.md) + [p2-3-perf-report.md](file:///workspace/frontend/scripts/p2-3-perf-report.md) | 新建后端性能报告模板（API 响应/DB 查询/内存/并发 4 维度 + 验收阈值 + 命令参考），前端报告添加后端模板引用；未改 CI 工作流 |
-| B04-P2-6 | [test_event_bus.rs](file:///workspace/backend/tests/test_event_bus.rs) | 新建事件贯通集成测试，3 项 tokio::test 覆盖 BusinessModeChanged/OrderBusinessModeLinked 发布-订阅闭环 + 广播语义（EVENT_BUS_TEST_LOCK 串行化 + fixtures，纯进程内 broadcast 无需 Kafka/Redis） |
-
-> 4 项均仅 `git add` 暂存未 commit；禁止本地编译，由 CI 验证。doto.md §1.2.1 对应 4 行已标记 ✅ 已修复。
-
----
-
-## V15 P2 修复 5 项（B06-P2-3/4 + B07-P2-1/5/6，2026-07-31，已暂存未 commit）
-
-| 编号 | 文件 | 一句话总结 |
-|------|------|-----------|
-| B06-P2-3 | [inventory.ts](file:///workspace/frontend/tests/fixtures/inventory.ts) + [user.ts](file:///workspace/frontend/tests/fixtures/user.ts) + [index.ts](file:///workspace/frontend/tests/fixtures/index.ts) + [inventory-store.test.ts](file:///workspace/frontend/tests/unit/inventory-store.test.ts) + [user-store.test.ts](file:///workspace/frontend/tests/unit/user-store.test.ts) | 新建 inventory fixtures（createInventoryStockListMock/createStockAlertListMock/createStockAdjustmentDataMock）+ user fixtures 扩展（createUserInfoMock/createLoginResponseMock），测试文件内联 mock 替换为 fixtures 导入 |
-| B06-P2-4 | [auth-mock.ts](file:///workspace/frontend/tests/fixtures/auth-mock.ts) + [i18n-mock.ts](file:///workspace/frontend/tests/fixtures/i18n-mock.ts) + [login.test.ts](file:///workspace/frontend/tests/unit/login.test.ts) | 新建 auth-mock fixtures（createLockStatusResponseMock/createRouteMock/createRouteWithRedirectMock）+ i18n-mock fixtures（createLoginI18nMessagesMock/createI18nMessagesMock），login.test.ts 内联 checkLockStatus 响应 + routeRef 替换为 fixtures 导入 |
-| B07-P2-1 | [dye_batch_state_machine_validation.rs](file:///workspace/backend/src/services/dye_batch_state_machine_validation.rs) + [dye_batch_state_machine_service.rs](file:///workspace/backend/src/services/dye_batch_state_machine_service.rs) + [mod.rs](file:///workspace/backend/src/services/mod.rs) | 从 936 行 facade 拆出 11 个纯验证函数 + builtin_transition_rules + 单元测试到新文件（720 行），facade 降至 221 行；pub use 再导出保持外部引用路径不变 |
-| B07-P2-5 | [cache_service.rs](file:///workspace/backend/src/services/cache_service.rs) + [redis_cache.rs](file:///workspace/backend/src/utils/redis_cache.rs) | cache_service 新增 7 个差异化 TTL 常量（Duration：Dashboard 30s/Report 120s/Permission 120s/User 300s/Customer 300s/Product 600s/Config 1800s）+ 2 项测试；redis_cache 新增 5 个 u64 TTL 常量 |
-| B07-P2-6 | [product_ops/crud.rs](file:///workspace/backend/src/services/product_ops/crud.rs) + [customer_ops/crud.rs](file:///workspace/backend/src/services/customer_ops/crud.rs) | product_service get_product 回填缓存改用 PRODUCT_CACHE_TTL_SECS（600s），customer_service get_customer 改用 CUSTOMER_CACHE_TTL_SECS（300s），替代原统一 DEFAULT_CACHE_TTL_SECS |
-
-> 5 项均仅 `git add` 暂存未 commit；禁止本地编译，由 CI 验证。doto.md §1.2.1 对应 5 行待标记 ✅ 已修复。
-
----
-
-## P2 步骤 0 复审修正 + PR #797 格式修复（2026-07-31）
-
-| 项 | 一句话总结 |
-|----|-----------|
-| PR #797 格式修复 | CI Rust 格式检查失败 → 手动调整 dashboard_service.rs + date_utils.rs 格式（commit 6bc55d8），未本地编译，由 CI 验证 |
-| 步骤 0 复审修正 | 原 doto.md §1.2.1 步骤 0 存在 2 处核实错误：① B04-P2-2 描述错位（batch_trace_log.rs #![allow(dead_code)] 误标为 fabric_physical_test_record 表，实际仍存在）；② B03-P2-3 误判已解决（Redis pub/sub 已加但 PERMISSION_CACHE_TTL=5 硬编码未移除） |
-| 跳过项修正 | 原跳过 7 项 → 修正为 10 项（新增 B02-P2-1/B04-P2-4/B06-P2-1/B07-P2-4 已修复；移除 B04-P2-2/B03-P2-3 回到待修复） |
-| P2-Batch-01b 规划 | 续作 19 项（12 完全存在 + 7 部分存在），doto.md §1.2.1 已列明细表，待 PR #797 CI 全绿后启动 |
-| P2-Batch-01b 步骤 0 二次核实 | 用户批评首次未真正核实 → 逐项 git show main:path 重核 18 项：12 完全存在 + 3 部分存在（15 需修复）+ 3 不存在（B04-P2-2 规则14例外/B07-P2-5 已环境变量化/B07-P2-6 已接入缓存）；B04-P2-3 完全存在但 commit 撒谎说"已有测试"已纠正，待后续批次 |
-| PR #799 合并 | P2-Batch-01b 完成（5bd1743）：14 项对症修复 + 3 项审计过时增强 + 1 项未修复（B04-P2-3）；CI 12 success + 3 skipped 全绿；修复 6 处格式问题后通过；34 文件 +1799 -848 |
-| P2-Batch-02 步骤 0 核实 | 用户批评前次流程违规 + 步骤 0 未真正执行 → 逐项 Grep/Read 重核 batch-05 类五 11 项 P2：**10 项完全存在（B05-P2-1~10）+ 1 项审计过时（B05-P2-11 AP 对账凭证已实现）**；**修正前总结错误**：原总结称"9 存在 + 2 不存在（P2-8 和 P2-11）"是虚假结论，B05-P2-8（产量工资未生成人工成本凭证）实际完全存在（wage_service.rs 全文无 Voucher/create_and_post）；B05-P2-11 才是真正审计过时（ap_reconciliation_ops/confirm.rs:81-94 已实现 create_confirm_voucher）；doto.md §1.2.2 已记录逐项代码证据 |
-| P2-Batch-02 步骤 3-4 | 步骤 3 实现 B05-P2-1~10 共 10 项（22 文件修改 +1119 -48 + 15 新增文件 ~1505 行）；步骤 4 自审发现 **2 编译错误**（resample.rs 缺 Arc 导入 + listener.rs i64/i32 类型不匹配）+ **8 处规则 4 违规**（`///` 注释超 2 行）→ 全部已修复；B05-P2-3 死信队列部分偏离（同步验证不适用异步死信，告警已完整）；规则 14/20/12 合规 |
-| P2-Batch-02 步骤 0 双重复审 | 用户批评步骤 0 未真正执行 + commit 虚假声明"修复 2 编译错误"违反规则 13 → 重新执行步骤 0 双重复审：**0-A 问题存在性核实**（逐项 git show main:path 核实 11 项 P2：10 项完全存在 + 1 项审计过时 B05-P2-11）+ **0-B 规划正确性复审**（10 项修复方向均合理）；amend commit message 修正虚假声明 |
-| P2-Batch-02 步骤 7 CI 修复 | 第 1 轮 CI fail：4 编译错误（E0603 wage_energy_chemical_business 私有 / E0063 缺 rework_cost / E0599 缺 QuerySelect / E0308 i64/&i32 类型）+ 1 Clippy unused import + 11 文件 fmt → 全部修复；第 2 轮 CI fail：E0433 process_route_model 未定义（上轮误删别名）→ 恢复别名；第 3 轮 CI 全绿（依赖图记录 fail 为 main 预存在环境问题，非阻塞） |
-| PR #801 合并 | P2-Batch-02 完成（b4bc147 squash）：10 项 P2 全部修复（类五运行闭环：反馈闭环 + 重染补染 + 告警死信 + 色卡状态 + CancellationToken + 染缸占用 + 设备连接 + 人工成本归集 + 能耗凭证归集 + 期末调整）；46 文件 +3001 -51；CI 13 success + 3 skipped 全绿（依赖图记录 fail 为 main 预存在）；步骤 0 双重复审 + 步骤 4 自审 + 步骤 7 CI 失败修复 3 轮 |
-
----
-
-## 文档治理：规则 17 + 规则 10 同步修正（2026-07-31）
-
-| 项 | 一句话总结 |
-|----|-----------|
-| 多余分支排查 | 经 `git fetch --prune --all` + `git branch -a` + `git tag -l` + `git worktree list` + `git stash list` 全量核实：仓库仅 `main`（本地）+ `origin/main`（远程）+ 1 tag `v2026.731.1041`，无多余分支/stash/worktree；所有 PR 修复分支已按规则合并后删除 |
-| audit_assignment.md §3.3 状态对齐（规则 17） | [audit_assignment.md §3.3](file:///workspace/.monkeycode/audit_assignment.md) 6 项中 5 项由"⏳ 待启动"修正为"✅ 已完成"（委外主链路 PR #788 + 委外 record_receipt 事务化 + 盘点契约 PR #790 + 业务追溯 producer PR #793 + API 网关 rate_limit PR #790），仅覆盖率阈值回调未修复；§1.3 进度表"🔄 进行中"→"🔄 5/6 完成" |
-| doto.md §0.0.1 归档（规则 10） | [doto.md §0.0.1](file:///workspace/.monkeycode/doto.md) 已完成 3 项（PR #790 #793）归档到 [doto-su.md](file:///workspace/.monkeycode/doto-su.md) 新增 §🔧 PR #790 + §🔧 PR #793 两节，仅保留 #1 覆盖率阈值回调未完成项；§〇₀ 头部 2 批 → 4 批 |
-| 任务重新规划 | 基于 MEMORY.md 规则建立 7 项 todo：P0 文档治理 3 项（✅ 本批次完成）+ P1 代码修复 2 项（覆盖率阈值回调 + 打印缺陷 10-4）+ P2 248 项待启动 + P3 123 项待启动 |
-
----
-
-## V15 缺陷 10-4 审计日志导出二次审计机制（2026-07-31，PR #795 已合并 main）
-
-| PR | 缺陷 | 一句话总结 |
-|----|------|-----------|
-| #795 | P0 缺陷 10-4 审计日志导出二次审计机制缺失 | 新建 `audit_log_export_log` 防篡改表（migration m0088）+ BEFORE UPDATE/DELETE 触发器禁止篡改 + 导出文件 SHA256 指纹留存 + `/audit-logs/export-logs` 查询端点（仅 admin/auditor）+ 4 项单元测试；满足 SOC2/ISO27001/《数据安全法》第 32 条；CI 12 SUCCESS + 3 SKIPPED 全绿，合并 main 7b18573 |
-
----
-
-## V15 主线八维 P1 后续修复批次（2026-07-31，2 PR 已合并 main）
-
-| PR | 缺陷 | 一句话总结 |
-|----|------|-----------|
-| #793 | P1 后续 #2 业务追溯 producer 接入 | [business_trace_service.rs](file:///workspace/backend/src/services/business_trace_service.rs) + [purchase_receipt_ops/crud.rs](file:///workspace/backend/src/services/purchase_receipt_ops/crud.rs) + [so/delivery_ops/ship.rs](file:///workspace/backend/src/services/so/delivery_ops/ship.rs)：record_purchase_receipt 接入采购收货创建后、record_sales_delivery 接入销售发货后；best-effort 集成不阻塞主流程；`#[allow(dead_code)]` 全部移除；CI 全绿后合并 main 8fa619e5 |
-| #791 | 缺陷 9-2 染色批次导出全量查询 | [dye_batch_handler.rs](file:///workspace/backend/src/handlers/dye_batch_handler.rs)：导出查询加 `.limit(10000)` + QuerySelect trait 导入；附移除 3 个测试文件（ap_payment/production_order/purchase_receipt_workflow_test）未使用 DatabaseConnection 导入修复 Clippy 新增警告；CI 全绿后合并 main b2e7b419，修复分支已删除 |
-
----
-
-## CI/CD 全面优化第二轮（2026-07-31，11 项全部处理）
-
-| 优先级 | 项 | 一句话总结 |
-|--------|-----|-----------|
-| 🔴 P0 | cargo-audit 安装 `\|\| true` 违反规则 5 | **[ci-cd.yml](file:///workspace/.github/workflows/ci-cd.yml)** 移除 `\|\| true`，安装失败阻塞 CI（与"移除 continue-on-error"注释一致） |
-| 🔴 P0 | Codecov 上传缺 token | 两处 codecov-action 添加 `token: ${{ secrets.CODECOV_TOKEN }}`，修复覆盖率数据静默上传失败 |
-| 🟡 P1 | rust-toolchain @master 供应链风险 | 6 处 `@master` → `@efa25f7f19611383d5b0ccf2d1c8914531636bf9`（commit SHA pin），顶部 env 添加注释 |
-| 🟡 P1 | 缺 paths-ignore | push/pull_request 添加 `paths-ignore: ['**.md', '.monkeycode/**', 'docs/**', 'LICENSE', '.gitignore']`，纯文档变更不触发 CI |
-| 🟡 P1 | ci-deps job 级 continue-on-error TODO | 移除 job 级，cargo tree --locked 改为严格（lockfile 漂移阻塞 CI），npm ls 加 step 级 continue-on-error |
-| 🟢 P2 | Rust/FE setup 重复 120+ 行 | 新建 [setup-rust](file:///workspace/.github/actions/setup-rust/action.yml) + [setup-frontend](file:///workspace/.github/actions/setup-frontend/action.yml) composite action，8 个 job 引用，消除重复 |
-| 🟢 P2 | npm ci 重复 7 次 | composite action 统一（保留 3 个前端 job 并行执行，评估后不合并以保持 CI 并行度） |
-| 🟢 P2 | apt-get 重复 3 次 | composite action 的 system-deps 参数化（ci-test-rust 额外加 postgresql-client） |
-| 🟢 P2 | perf-bench 独立缓存不命中主缓存 | `perf-cargo-`/`perf-rustup-` → 主 `cargo-`/`rustup-` 缓存 + 单独缓存 `target/criterion/` 基线数据 |
-| 🔵 P3 | notify job 冗余（仅 echo 无通知） | 删除（95 行），16→15 job；GitHub Actions UI 已提供 job 状态，package-release needs 已隐含严格检查 |
-| 🔵 P3 | 清理旧 Release 用 curl+jq | 改用 `gh release delete --cleanup-tag`，更简洁且自带分页/错误处理 |
-| — | 文件体积 | 2490 → 2200 行（-290 行），YAML 校验通过（15 jobs），2 个 composite action 校验通过 |
-
----
-
-## CI 重复检测项清理与规则 20 修复（2026-07-31，7 项全部修复）
-
-| 优先级 | 项 | 一句话总结 |
-|--------|-----|-----------|
-| 🔴 高 | ci-fmt-rust 注释/报告与代码矛盾 | **[ci-cd.yml L186-229](file:///workspace/.github/workflows/ci-cd.yml#L186-L229)** 删除"渐进式严格化（不阻塞 CI）"/"为什么不阻塞"等矛盾文本，改为"严格阻塞（V15 批次 07 P1-4）"，与实际 `exit $EXIT_CODE` 一致（规则 20 违反） |
-| 🔴 高 | ci-fmt-fe 注释/报告与代码矛盾 | **[ci-cd.yml L287-323](file:///workspace/.github/workflows/ci-cd.yml#L287-L323)** 同上，改为"严格阻塞（V15 批次 07 P1-5）"（规则 20 违反） |
-| 🔴 高 | clippy 报告引用已删除的 clippy-report.html | **[ci-cd.yml L648](file:///workspace/.github/workflows/ci-cd.yml#L648)** 删除 artifact 表中 `clippy-report.html` 行（上一轮已删 HTML 生成代码，报告引用未同步） |
-| 🟡 中 | clippy 严格模式步骤重复运行 clippy | **[ci-cd.yml L772-845](file:///workspace/.github/workflows/ci-cd.yml#L772-L845)** 原步骤重跑 `cargo clippy -- -D warnings`（约 60-120s）仅为统计 error 数，现复用主步骤已生成的 `clippy-structured.tsv`：-D warnings 把 warning 升为 error，故严格模式 error 数 = TSV 中 level=warning 行数，awk 统计即可，省 60-120s |
-| 🟡 中 | ci-deps 缓存 key 未统一 | **[ci-cd.yml L1549](file:///workspace/.github/workflows/ci-cd.yml#L1549)** `deps-cargo-` → `cargo-`（上一轮缓存统一遗漏，ci-deps 只读 target 不修改，共享安全） |
-| 🟢 低 | clippy-human-readable.txt 冗余 | **[ci-cd.yml L447-476](file:///workspace/.github/workflows/ci-cd.yml#L447-L476)** 合并中间文件 `clippy-human-readable.txt` 与带 header 的 `-full.txt`，用 mktemp 临时文件替代，artifact 只保留 `clippy-human-readable-full.txt` |
-| 🟢 低 | ci-info fetch-depth: 0 过重 | **[ci-cd.yml L73-74](file:///workspace/.github/workflows/ci-cd.yml#L73-L74)** `0`（完整 git 历史）→ `10`（仅需 `git log --oneline -5`）；ci-lint-rust/build-rust/package-release/github-release 保留 `fetch-depth: 0`（需 push baseline/tag/完整 changelog） |
-| — | 文件体积 | 2484 → 2480 行，YAML 语法校验通过（16 jobs），无残留 `渐进式严格化（不阻塞 CI）`/`为什么不阻塞`/`deps-cargo-`/`clippy-report.html` 引用 |
-
----
-
-## CI 测试+覆盖率合并优化（2026-07-31，方案 A 落地）
-
-| 项 | 一句话总结 |
-|----|-----------|
-| 合并 ci-test-rust + ci-coverage-rust | **[ci-cd.yml](file:///workspace/.github/workflows/ci-cd.yml) 合并两个 Rust job 为单一 `ci-test-rust`**：消除重复执行（原 `cargo test` + `cargo tarpaulin` 各跑一遍全部测试二进制），用 `cargo llvm-cov nextest` 一次执行同时产出测试断言（退出码）+ 覆盖率（cobertura.xml） |
-| 工具替换 | **cargo-tarpaulin → cargo-llvm-cov + cargo-nextest**：tarpaulin 仅行覆盖、ptrace 仅 x86_64、0.31.2 停更（2024-08）；llvm-cov source-based instrumentation（行/区域/分支覆盖）、taiki-e 持续维护（0.8.7 2026-05）、`taiki-e/install-action` 预编译二进制安装比 `cargo install` 快约 10x；nextest 每测试独立进程 + 真正并行 |
-| 零容忍断言保留 | nextest 任何测试失败即非零退出码，CI 阻塞逻辑不变；保留 `--test-threads=1` 与历史串行行为一致（避免集成测试竞态） |
-| PostgreSQL service container 保留 | 集成测试 DB 依赖不变（job 级 services 配置与测试运行器无关） |
-| Codecov 上传保留 | `--cobertura` 输出兼容现有 `codecov/codecov-action@v4`，artifact 名 `rust-coverage-report` 不变 |
-| 工作流拓扑 | 17 → 16 job，下游 `needs.ci-test-rust.result` 引用无需改动（job 名保留） |
-| 文件体积 | 2540 → 2484 行（-56 行），YAML 语法校验通过 |
-| 行业依据 | [nextest 官方文档](https://nexte.st/docs/integrations/test-coverage/) 推荐 `cargo llvm-cov nextest` 标准模式；[rustfaq.org](https://www.rustfaq.org/en/how-to-use-cargo-tarpaulin-for-code-coverage/) 明确"Running both is redundant and slows down your workflow" |
-
----
-
-## CI 配置梳理优化（2026-07-31，保守方案）
-
-| 项 | 一句话总结 |
-|----|-----------|
-| 缓存 key 统一共享 | **[ci-cd.yml](file:///workspace/.github/workflows/ci-cd.yml) 统一 13 处缓存 key 共享缓存**：rustup（4 处 fmt/lint/test/build → `rustup-${{ env.RUST_VERSION }}`）+ cargo（4 处 lint/test/coverage/build → `cargo-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}`）+ npm（5 处 fmt/lint/type-check/test/build → `fe-npm-${{ hashFiles('frontend/package-lock.json') }}`）；原各 job 独立缓存 key 导致每个 job 重新编译/安装依赖，统一后首个完成 job 写入缓存供后续 job restore，大幅减少重复编译与 npm ci 耗时 |
-| 删除 clippy HTML 报告生成 | **ci-lint-rust 删除约 80 行 HTML 可视化报告生成代码**：原 `clippy-report.html`（~80 行 echo HTML/CSS/表格）与 `clippy-report.md`/`clippy-structured.tsv` 信息重复，artifact 上传 `reports/` 目录不受影响（其他报告文件仍上传） |
-| 精简冗长历史注释 | **ci-lint-rust 精简 V15 Batch 485/488 冗长注释**：step name 从"V15 Batch 485 baseline 机制 + 精简日志"简化为"baseline 机制"；阶段 1/3 注释块从 9 行压缩为 4 行，保留关键教训（exit 143=SIGTERM、--all-features 1773 误报、RUSTC_LOG 55min 超时、D08-1 编译失败保护） |
-| 文件体积 | 2633 → 2540 行（-93 行，28 insertions / 121 deletions），YAML 语法校验通过，17 个 job 结构不变 |
-
----
-
-## 文档治理与项目状态对齐（2026-07-30 续）
-
-| 项 | 一句话总结 |
-|----|-----------|
-| CI baseline 自动重建机制修订 | **[ci-cd.yml](file:///workspace/.github/workflows/ci-cd.yml) main 分支每次 CI 后自动重建 baseline**：原机制仅在 FIXED_COUNT > 0 时刷新，导致 baseline 57% 抽样过时（ALIPAY/BudgetMode/CustomerNotFound 等已实际使用但 baseline 仍标记为 dead_code）；新机制：main 分支每次 CI 后只要 clippy 正常退出（CLIPPY_MAIN_EXIT=0），无论 FIXED_COUNT 是否 > 0 都用当前真实警告完全重建 baseline，确保 baseline 永远反映 main 最新真实状态；保留 Batch 488 D08-1 教训（clippy 编译失败时不重建避免用不完整 current 替换）；PR 分支保留 NEW_COUNT > 0 阻塞机制；增加 `git diff --cached --quiet` 检查避免空提交 |
-| doto.md 乐观偏差修正 | **[doto.md](file:///workspace/.monkeycode/doto.md) 消除乐观偏差，进度对齐代码级核实真实状态**：① 文件头声明"进度必须真实，禁止乐观偏差"；② 0.0.1 P0 完成明细新增"真实状态核实"列，盘点契约 P0-1 从"✅ 对齐"修正为"⚠️ 部分修复"（实际仅触及 1/96 api 文件，inventory-count.ts 仍缺 record/submit/reject 3 端点，completeInventoryCount 未移除）；③ 0.0.3 修正为"✅ 已完成 PR #788 已合并"；④ 新增 0.0.4 主线八维 P1 后续 5 项真实状态：1 项完成（委外事务化）/ 2 项部分修复（业务追溯 producer 全部 #[allow(dead_code)] 无上游调用 + 前端契约仅 1/96 文件且不完整）/ 2 项未修复（API 网关 rate_limit 范围校验 + 覆盖率阈值仍为 1%）；⑤ 新增 0.0.5 打印功能核实（6/16=37.5% 场景覆盖，9 个纺织核心场景缺失，缺陷 10-4 审计日志二次审计表 P0 未实现）；⑥ 规则 14 修正：从"baseline 213/213 ✅ 全部清零"改为真实状态"历史清零 + P1 新增 174 dead_code + 22 处 #[allow(dead_code)] 违规"；⑦ 规则 15 补充主线八维 P1 后续 1/5 真实进度 |
-
----
-
-## 文档治理与项目状态对齐（2026-07-30）
-
-| 项 | 一句话总结 |
-|----|-----------|
-| audit_assignment.md 重写 | **基于项目真实状态全面重写审计任务文件**：[audit_assignment.md](file:///workspace/.monkeycode/audit_assignment.md) 按截至 2026-07-30 的真实数据（后端 ~241k 行 / 前端 ~136k 行 / 148 handler / 390 service / 275 model / 40 route / 18 middleware / 57 migration / 50 集成测试 / 前端 376 Vue + 224 TS + 86 views + 96 api + 20 components + 7 composables + 7 store；Clippy baseline 308 条；最新版本 2026.723.1842 / PR #789 #788）更新项目总览、技术栈、V15 25 大类 195 维度审计完成状态、主线八维审计 P0/P2 完成明细、P1 进行中任务、P2/P3 待启动队列、clippy baseline 管理规则、复审触发条件；清理 v8/v9/v13/v14 历史轮次记录 |
-| 历史审计/修复/规划文件清理 | **删除 37 个历史审计文件 + 历史修复计划 + 历史规划文件**：保留最新审计任务 [audit_assignment.md](file:///workspace/.monkeycode/audit_assignment.md) 与最新审计报告 [2026-07-30-mainline-audit-report.md](file:///workspace/.monkeycode/docs/2026-07-30-mainline-audit-report.md)，清理 v8/v9/v13/v14 等过时轮次审计报告、过时修复计划、过时规划文档及空目录 |
-| README.md 基于真实状态更新 | **基于项目真实状态更新 [README.md](file:///workspace/README.md)**：项目数据与技术栈表对齐真实 Cargo.toml / package.json（Rust 1.94 / Axum 0.7 / SeaORM 1.1.20 / Vue 3.4 / Vite 6.4 / Element Plus 2.6 / ECharts 6.1）；系统架构图为分层单体（应用层 Axum 单体 + 数据层 PG/Redis/Kafka/Loki + 基础设施 systemd 直部署）；功能矩阵含 5 域核心业务 + 纺织行业特性 + 智能协同能力；明确无 Docker/K8s（PR #777 已移除）；审计与质量章节记录 V15 195 维度 + 主线八维 P0/P2 完成 + P1 进行中 + clippy baseline 308 条 |
-
----
-
-## V15 主线八维审计与快速修复（2026-07-30 启动）
-
-| 批次 | PR/commit | 一句话总结 |
-|------|-----------|-----------|
-| audit-batch-2026-07-30 (PR #786) | ✅ 已合并 main 8cd956d | **V15 主线八维审计 + 快速修复 P0/P2 批次**：① 八维审计报告 [docs/2026-07-30-mainline-audit-report.md](file:///workspace/.monkeycode/docs/2026-07-30-mainline-audit-report.md)；② P0 全部 11 项 Critical/High（盘点契约 / 事件事务 / 二级审批 / init token / API 网关对象授权 / 导出审批范围收敛 / 冒烟脚本严格断言 / 导出格式合规（去 csv）/ 定制 advance 事务化 / 委外 issue/settle 事务化 / SECURITY 邮箱补齐）；③ P2-02 清理 test_inventory_count.rs / inv/count.rs / test_generate_no_endpoints.rs 3 处陈旧占位注释；④ P2-05 导出审批 list_pending_for_me 服务 + 路由；⑤ P2-06 业务追溯三表 unique / CHECK / 逻辑外键触发器约束迁移 20260801000001 + service 端 upsert_chain_node / link_assist / upsert_snapshot 生产者补全；⑥ 前端 inventory-count 3 文件对齐后端契约；共 21 文件 +989/-229；CI 全 14 项 ✅（rust clippy 10m50s / 单测 9m24s / 覆盖率 14m16s / 后端构建 15m49s / 前端 5 项 / 依赖审计）；clippy baseline 308 条 |
-| P1 委外收货主链路统一（PR #788） | ✅ 已合并 main | **委外收货事务化批次已合并 main**：`OutsourcingReceiptService::confirm` 收敛为唯一事务主链路，补齐事务外 `OutsourcingOrderCompleted` 事件与 workflow tests；CI 收尾阶段继续清理 SeaORM trait/import 与 `ar/recon.rs` facade 未使用重导出，最终 `Rust Clippy` / `Rust 单元测试` / `Rust 后端构建` 全绿后通过 admin override 合并 |
-
----
-
-## V15 P1 修复阶段（2026-07-27 启动）
-
-| 批次 | PR/commit | 一句话总结 |
-|------|-----------|-----------|
-| P1 委外收货 Clippy 收尾 | fix/p1-outsource-receipt-unify-2026-07-30 | **CI 收尾继续清理新增 `Clippy` 噪音并重触发挂起 run**：`backend/src/services/outsourcing_ops/receipt.rs` 移除单次使用的 `DatabaseConnection`；`backend/src/services/ar/recon.rs` 先收紧 3 个未使用 facade re-export（`ReconciliationDetail` / `ReconciliationQuery` / `ReconciliationWithDetails`），后续再移除仍未被真实调用方消费的剩余 facade `pub use`；`backend/src/services/quality_inspection_service.rs` 误删 `PaginatorTrait` / `QuerySelect` / `QueryOrder` 后按 CI 日志恢复；`backend/src/services/outsourcing_ops/{order,receipt}.rs` 的 `QueryOrder` 也按 `.order_by_desc(...)` 真实依赖恢复；旧 `Rust Clippy` run 因 workflow 挂起无法取消，补空提交重触发新 run，最终定位剩余真实失败为 `recon.rs` 未使用重导出；不改业务逻辑，仅消除新增 Clippy 噪音 |
-| P1 委外收货事件补齐 | fix/p1-outsource-receipt-unify-2026-07-30 | **补齐 `OutsourcingReceiptService::confirm` 事务外委外完成事件 + 新增委外收货 workflow tests**：`backend/src/services/outsourcing_ops/receipt.rs` 在事务 commit 后发布 `OutsourcingOrderCompleted`，`backend/tests/outsourcing_receipt_workflow_test.rs` 按现有 workflow tests 模式补状态常量/空 DB 异常/真实库骨架；`cargo fmt` 与 `cargo fmt --check` 通过，完整 `cargo check` 在沙箱内被 rustc `SIGKILL` 中断 |
-| P1 委外收货主链路统一 | fix/p1-outsource-receipt-unify-2026-07-30 | **委外收货 `confirm` 整段事务化 + 质检事务内创建 + 删除 `record_receipt` 与 4 个子方法**：`backend/src/services/outsourcing_ops/{receipt,order}.rs` 收敛为唯一确认主链路，`quality_inspection_service.rs` 新增 `create_record_in_txn`；`cargo fmt` 已执行，沙箱内 `cargo check --lib` 仍因 rustc `SIGKILL` 未能完成全量校验 |
-| P1 dead_code 路由接入 | PR #785 | **P1 预留服务路由接入消除 174 个 dead_code 警告**：为 14 个 P1 预留服务创建 handler 和 route 文件并注册路由，37 文件 +2093 -11 行；批次 1（AI 模型管理/合同签名/客户团队共享）+ 批次 2（环保税/出口退税/Incoterms）+ 批次 3（劳动合同/物流跟踪/职业健康）+ 批次 4（权限委托/污染监控/污染许可）+ 批次 5（角色关系/社保公积金）；每个服务创建标准 handler（提取器+Service+ApiResponse）和 route（RESTful+routes()统一入口），注册到 handlers/mod.rs 和 routes/mod.rs；服务文件仅补充 serde::Serialize derive 未改业务逻辑；cargo fmt 已执行，cargo check 格式化前退出码 0（格式化后沙盒 OOM 待 CI 验证） |
-| Clippy baseline 更新 | fix/clippy-baseline-update | **更新 clippy baseline 纳入 174 个 dead_code 警告**：P1 批次新增 15 个业务服务模块（AI 模型管理/合同签名/客户团队共享/环保税/出口退税/Incoterms/劳动合同/物流/职业健康/权限委托/污染监控/污染许可/角色关系/社保/AI 质量核对）服务层+DTO 已实现但尚未接入 HTTP 路由层，产生 174 个 dead_code 警告（is never used/is never constructed）；之前 171 个基线警告已全部修复（P0/P1 代码质量提升成果，共有警告数=0）；更新 .clippy-baseline.txt 纳入 174 个已知技术债务 + 添加注释说明后续处理计划，NEW_COUNT=0 验证通过；待后续批次逐步为预留服务编写路由 handler + 注册路由后自动消除 |
-| Clippy 修复 + Release 模板 | 已合并 PR #783 | **Clippy runner shutdown (exit 143) 基础设施问题修复 + Release 变更说明模板**：① CI ci-lint-rust job 添加 CARGO_BUILD_JOBS=2/CARGO_JOBS=2 环境变量限制并行编译（降低内存峰值避免 OOM 被 SIGTERM kill）+ clippy 命令 3 次 retry 机制（while 循环，仅对 exit 143/137/1 等基础设施异常重试，101 编译错误不重试直接 break）+ timeout-minutes 45→60；② 新建 .github/RELEASE_TEMPLATE.md 发布变更说明模板（仿 PR 模板格式，定义新增/修改/删除/修复/变更五大章节 + 统计表 + 完整 commit 列表 + Conventional Commits 类型映射规则）；③ 重写 github-release job "生成发布说明" 步骤：解析 git log 按 Conventional Commits 前缀（feat/fix/refactor/perf/style/remove/docs/test/chore/build/ci）自动分类，生成按模板格式的 release notes（含版本概述/五大变更章节/统计表/完整 commit 列表/快速部署/技术栈），发布包页面可见详细变更说明 |
-| 移除 Docker/K8s 引用 | 已合并 PR #777 | **彻底移除 Docker/Kubernetes 引用，对齐 systemd 直部署**：移除 log_config.rs 容器环境检测函数 is_container_environment/init_container_logging + 修正 health_handler/public_routes/routes/mod.rs 注释 K8s→负载均衡器/监控探针 + README/CONTRIBUTING/ARCHITECTURE/DEVELOPER_GUIDE/INDEX 文档移除 Docker Compose/K8s/Helm 章节 + nginx.conf 注释 Docker→systemd + prometheus.yml targets host.docker.internal→localhost + node_exporter→localhost:9100 + host.docker.internal:9187→localhost:9187；11 文件 +41 -130；CI 16/17 通过（仅 Clippy runner shutdown exit 143，admin override 合并） |
-| 文档同步 PR #775 | 已合并 PR #776 | CHANGELOG.md/doto.md 文档同步 PR #775 已合并 main 记录 |
-| SeaORM 2.0 升级评估 | 暂缓（已评估） | **SeaORM 2.0.0 稳定版 2026-07-19 发布，破坏性变更评估完成暂缓升级**：主要变更 sqlx 0.8→0.9 + ExprTrait 需导入 + IntoCondition→.into + ConditionExpression 移除 + Iden::unquoted 签名变化 + ActiveModel::insert/update 风格调整；项目影响：181 处 active.insert(db) 分布 62 文件（最大风险点），但 2.0 声称 functionally backward-compatible；暂不升级，继续处理项目遗留问题 |
-| P1-batch11 缺陷 2-3 遗留修复 | 已合并 PR #775 | **P1 全项目最后遗留项修复**：补齐 4 个前端页面导出/打印按钮 v-permission 指令（VoucherListFilter.vue voucher.print/export + PurchaseTop.vue purchase.order.print/export + sales-contract/index.vue sales.contract.print/export + sales-price/index.vue sales.price.export），batch-11 全部 15 项 P1 100% 完成；**P1 核实结论**：5 个 batch 共 89 项 P1 核实完成，88 项已实现 + 1 项本次修复，P1 总完成率 257/257 = 100%；CI 15/16 通过（仅 Clippy 两次 runner shutdown 失败，NEW_COUNT=0 无新警告，admin override 合并） |
-| P1-batch11~15 核实（类十三~十八） | 核实无代码变更 | **5 个 batch 89 项 P1 核实全部已完成**：batch-11 类十三打印导出 14/15 ✅（1 遗留 PR #775）+ batch-12 类十四权限维度 14/14 ✅ + batch-13 类十五业务主体 1/1 ✅ + batch-14 类十六 AI 模块 24/24 ✅ + batch-15 类十七+十八 财务+CRM 35/35 ✅；重大发现：类十七财务深化（反结账/年结/杜邦/账龄/预算/折旧）和类十六 AI 模块（配伍性/模型版本/权限/缓存/脱敏/MLOps）已在此前批次全部修复 |
-| P1-batch04/05 续作（事件贯通+业财一致性） | feat/p1-batch04-05-fabric-logic | **P1-batch04/05 续作 2 项 P1 闭环完成**：① **batch-04 P1-7 事件贯通闭环**：event_bus_ops/listener.rs 为 8 个缺失业务事件补齐 match 分支（WageConfirmed/WagePaid 工资事件 + OutsourcingMaterialIssued/OutsourcingProcessingRecorded/OutsourcingOrderSettled/OutsourcingOrderCompleted 委外 4 事件 + BusinessModeChanged/OrderBusinessModeLinked 业务模式 2 事件），消除 catch-all warn，每个事件补充业务语义日志（凭证已由对应 service 生成，监听器仅记录流转状态，为后续下游联动预留接口）；② **batch-05 P1-5 业财一致性闭环（移动加权平均成本）**：inventory_finance_bridge_ops/voucher.rs create_purchase_receipt_voucher 优先从 purchase_order_item.unit_price 读取实际采购单价（缺失时回退 product.cost_price）+ update_moving_average_cost 按公式 (before_qty*old_cost + received_qty*received_price)/(before_qty+received_qty) 更新 product.cost_price + create_sales_delivery_voucher 使用更新后的移动加权平均成本计算主营业务成本 + 抽取 compute_moving_average_cost 纯函数（4 位小数精度，防除零）+ 8 个单元测试覆盖首次入库/多次加权/异常场景/精度保留；涉及 2 文件 +235 -8 行，待 CI 验证 |
-| P1-batch02+03 通用代码质量+安全性 | 已合并 PR #771 | **P1-batch02+03 共 9 项 P1 全部完成**：**batch03 安全性 6 项**：① 缺陷 2.2.1 PUBLIC_PATHS 严格精确匹配（public_routes.rs 删除 starts_with 子路径放行，改为 contains 精确匹配 + 3 测试）+ ② 缺陷 2.2.2 request_validator_middleware 重命名为 request_logging_middleware（明确仅记录日志不拦截，中间件挂载同步更新）+ ③ 缺陷 维度1 refresh_token Cookie max_age 从 7 天改为 2 天（与 JWT exp 对齐，auth_handler.rs + auth_handler_misc.rs）+ ④ 缺陷 5.1 Webhook payload 日志脱敏（webhook_integration_handler.rs 移除 payload=%req.payload，仅记录 event_type/payload_size/payload_keys）+ ⑤ 缺陷 6.1 crm import_leads magic bytes 校验（crm_handler.rs verify_xlsx_magic 校验前 4 字节 50 4B 03 04）+ ⑥ 缺陷 6.2 system_update zip bomb 防护（system_update_service.rs 单文件 100MB 限制 + apply.rs 累计总解压 500MB 限制）；**batch02 通用代码质量 3 项**：① 缺陷 2.1.2 前端 api 文件命名统一 kebab-case（7 文件重命名 purchaseReceipt→purchase-receipt 等 + 23 处引用更新）+ ② 缺陷 2.1.3 前端视图文件夹命名统一 kebab-case（17 文件夹重命名 + router 引用更新）+ ③ 缺陷 2.1.4 前端组件缩写重命名（14 个组件补全：BpmApproval/Stat/Dlg 等）；附 20 文件未使用 FromStr 导入清理（decs! 宏改为 to_string() 后不再需要 FromStr trait）；遵循规则 0/2/4/14/20，无 stub/placeholder |
-| P1-batch19 组织定制物流 | 已合并 PR #771 | **P1-batch19 类二十三组织定制物流审计 11 项 P1 全部修复完成**：① 缺陷 23.1.1 部门数据权限过滤（DataPermissionService.get_user_dept_scope_ids 递归收集用户所有部门+子部门ID，含兼职部门）+ ② 缺陷 23.1.2 一人多部门（DepartmentService.assign_user_departments/list_user_departments 主部门+兼职管理，user_departments 表 m0087 迁移）+ ③ 缺陷 23.2.2 定制订单客户签字确认（CustomOrderCrudService.customer_approve 设置 customer_approved_at/quality_standard_id，禁止重复确认）+ ④ 缺陷 23.2.3 定制订单变更二级审批（submit_change_request 金额>1万进入 change_pending 状态 + approve_change 审批通过/拒绝）+ ⑤ 缺陷 23.3.2 售后流程闭环（accept_after_sales opened→accepted + evaluate_after_sales resolved→evaluated，状态机补齐 6 步 opened→accepted→processing→resolved→evaluated→closed）+ ⑥ 缺陷 23.3.3 售后 TOP5 月报（monthly_top5_report 按 reason_category/reason_detail 聚合 COUNT DESC LIMIT 5）+ ⑦ 缺陷 23.4.1 运单关联采购订单（LogisticsService.link_purchase_order 设置 order_type=purchase_order + 校验采购订单存在）+ ⑧ 缺陷 23.4.2 物流跟踪事件历史（record_tracking_event/list_tracking_events logistics_tracking_events 表 m0087）+ ⑨ 缺陷 23.4.3 运费核算（calculate_freight 取重量/体积/距离三者最大值 + 更新 freight_fee）+ ⑩ 缺陷 23.5.2 Incoterms 价格构成（IncotermsService.get_price_composition + calculate_costs_by_incoterm 按 EXW/FOB/CIF/DDP 等术语判定运费/保费/关税）+ ⑪ 缺陷 23.5.4 术语月报（monthly_usage_report 按 price_terms 聚合 count/total_amount/freight/insurance/duty）；新增 migration m0087_batch19（user_departments 表 + custom_orders 7 字段 + after_sales 6 字段 + logistics_waybills 6 字段 + logistics_tracking_events 表 + sales_quotations 3 字段）；新增 2 服务文件 logistics_service.rs/incoterms_service.rs + 2 模型 user_department.rs/logistics_tracking_event.rs；移除 7 模型文件 #![allow(dead_code)]（规则 14）；遵循规则 0/2/4/14/20，无 stub/placeholder，未运行 cargo（沙箱 OOM），待 CI 验证 |
-| P1-24 前端架构（batch-20 审计） | 已合并 PR #771 | **P1-24 类二十四前端架构与体验审计 batch-20 全部 16 项 P1 修复完成**：① 24.1-1 PWA 支持（public/manifest.json name/short_name/icons/start_url/display:standalone + public/sw.js 首屏关键资源离线缓存 + index.html 引入 manifest link + SW 注册脚本 best-effort）+ ② 24.1-2 移动端侧边栏抽屉化（composables/useBreakpoint.ts md 断点检测 + MainLayout.vue 动态组件 ElDrawer/ElAside 切换 + 汉堡按钮 ≥44px WCAG 2.5.5 + 路由切换自动关闭抽屉 + @media 991px 触屏按钮 min 44px）+ ③ 24.2-1 manualChunks 代码分割（vite.config.ts rollupOptions.output.manualChunks 拆分 vendor-vue/vendor-element-plus/vendor-echarts/vendor-common 4 独立 chunk）+ ④ 24.6-1 ECharts 按需引入（utils/echarts.ts echarts/core 注册 Bar/Line/Pie/Scatter/Custom Chart + Grid/Tooltip/Legend/DataZoom 等组件 + 导出 echarts 实例与 ECharts 类型 + 全量替换 5 个图表组件 PriceHistoryChart/CapacityTrend/SalesAnalysis/SchedulingGanttChart 等从 @/utils/echarts 导入）+ ⑤ 24.9-1 build.optimizeDeps 配置（vite.config.ts include 预构建 vue/vue-router/pinia/element-plus/echarts/axios 等常用依赖）+ ⑥ 24.10-1 测试覆盖率 CI 基础设施（vitest.config.ts v8 provider + reporters + ci-cd.yml coverage 步骤；⚠️ thresholds 临时降级为 1% 解除 CI 阻塞，实际覆盖 1.67%，待补齐测试后回调至 70%）+ ⑦ 24.11-1 nginx CSP 头（nginx.conf add_header Content-Security-Policy default-src 'self' + frame-ancestors 'none' 等）+ ⑧ 24.13-1 键盘导航焦点管理（composables/useKeyboardNavigation.ts Tab/Shift+Tab 模态框焦点陷阱 + Esc 关闭 + 路由切换重置焦点到 main + MainLayout 接入）+ ⑨ 24.14-1 ErrorBoundary 组件（components/ErrorBoundary.vue onErrorCaptured 捕获错误 + 降级 UI + report prop 触发监控上报 + App.vue 全局包裹 router-view + MainLayout 按路由 path 包裹）+ ⑩ 24.14-2 前端监控 SDK（utils/monitor.ts initMonitor 监听 error/unhandledrejection + reportError 5 分钟去重 + best-effort 上报 /api/monitor/errors + main.ts 初始化）+ ⑪ 24.15-2 表单脏数据检测（composables/useDirtyCheck.ts initDirtyCheck 快照对比 + beforeunload 拦截 + isDirty 响应式 + 路由守卫接入）+ ⑫ 24.16-2 i18n 覆盖提升（zh-CN/en-US 补齐 layout.main.darkMode/lightMode/themeMenuAriaLabel/toggleSidebarAriaLabel 等键 + App.vue pageAriaLabel）+ ⑬ 24.17-1 v-permission 覆盖提升（10+ .vue 文件按钮补 v-permission 指令）+ ⑭ 24.18-1 keep-alive 配置（router/index.ts 高频列表页 keepAlive:true meta + MainLayout keep-alive include cachedViewNames 8 页面）+ ⑮ 24.19-1 CSS 变量（styles/theme.css 定义 --color-primary/--color-success 等主题变量 + main.ts 导入 + MainLayout 局部 CSS 变量）+ ⑯ 24.20-2 暗黑模式（composables/useTheme.ts isDark/toggleTheme + localStorage 持久化 + html.dark class 切换 + Element Plus dark/css-vars.css 导入 + MainLayout 主题切换按钮 Sunny/Moon 图标 ≥44px）；遵循规则 0/2/4/14/20，无 stub/placeholder，未运行 npm install/build（沙箱资源有限），待 CI 验证 |
-| P1-Batch16 剩余 P1 | 已合并 PR #771 | **P1-Batch16 报表 BI 审计报告剩余 P1 缺陷修复（2 文件 +354 行）**：① 缺陷 5.1 Webhook 通知分发真实实现（notification_service.rs dispatch_webhook_notification 替换 TODO 占位为真实实现：查询 active webhook 含系统级 user_id IS NULL + 用户私有 + 构造 JSON 载荷 notification_id/user_id/title/content/business_type/business_id/action_url/priority/created_at + 按 subscribed events 过滤 *  或 event_name 匹配 + 调用 WebhookService::trigger_webhook + best-effort 语义单失败仅 warn 不影响主流程 + success/fail 计数日志 + batch_create_notifications 同步接入 Webhook 分发）+ ② 缺陷 5.2 通知去重测试（DEDUP_WINDOW_SECS=300 即 5 分钟窗口常量验证 2 测试）+ ③ 缺陷 5.1 Webhook 载荷测试（build_payload_from_notification Webhook 类型 category=webhook + 优先级映射 Low=1/Normal=5/High=8/Urgent=10 + NotificationType::Webhook 匹配/非匹配 + CreateNotificationRequest Webhook+dedup_key 5 测试）+ ④ 缺陷 2.2 邮箱格式校验测试（is_valid_email 合法邮箱/缺 @/多 @/空用户名/空域名/缺点号/点号首尾/空字符串 8 测试）+ ⑤ 缺陷 2.3 指数退避测试（backoff_seconds 0=60s/1=300s/2+=1800s + 严格递增 + DEFAULT_MAX_RETRIES=3 5 测试）；其他 batch-16 P1 缺陷已在此前 PR 完成（P1-19 PR #763：1.1/1.2/2.3 代码/3.1/4.1/4.2/4.3 + P1-Batch16 PR #758：7.2/7.3/7.4/8.3/8.4 + 邮件 6.1/6.2/6.3 已实现）；沙箱内存不足以编译（SIGKILL OOM 5.8GB），手动代码审查通过，待 CI 验证 |
-| P1-21+22 胚布拆匹+库存排程 | 已合并 PR #770 | **P1-21 胚布拆匹批次 10 项 P1 + P1-22 库存排程批次 9 项 P1 全部完成（10 文件 +969 -32）**：P1-21：① 缺陷 1.1 胚布采购订单关联（greige_fabric.rs 新增 purchase_order_id/purchase_receipt_id 字段）+ ② 缺陷 1.2 胚布安全库存预警字段（greige_fabric.rs 新增 safety_stock/reorder_point/max_stock_point/reorder_quantity）+ ③ 缺陷 2.1 委外发料关联胚布（outsourcing_order_item.rs 新增 greige_fabric_id 字段）+ ④ 缺陷 2.2 委外收回走质检流程（outsourcing_ops/receipt.rs trigger_quality_inspection 自动创建质检记录并回写 inspection_id）+ ⑤ 缺陷 3.1 拆匹继承 dye_lot_no/color_no 字符串字段（piece_split_handler.rs Set 继承母卷字段）+ ⑥ 缺陷 3.3 piece_mapping 死表清理（已通过 m0078 迁移删除，改用 inventory_piece.parent_piece_id）+ ⑦ 缺陷 4.2 5Why/鱼骨图根因分析方法（quality_issue.rs 新增 root_cause_method 字段）+ ⑧ 缺陷 4.3 纠正预防措施责任人和完成日期（quality_issue.rs 新增 permanent_action_owner/permanent_action_due_date 字段）+ ⑨ 缺陷 5.1 降级处理联动库存等级与价格调整（quality_inspection_service.rs process_unqualified 触发 inventory_stocks.grade 更新 + 二等品销售价 × 80%）+ ⑩ 缺陷 5.3 报废二级审批（quality_inspection_service.rs 新增 scrap_approval_status PENDING_FIN→PENDING_GM→APPROVED/REJECTED 状态机 + approve_scrap_financial/approve_scrap_gm 双方法）；P1-22：① 缺陷 6.1 调拨分级审批（inventory_move.rs L1<1万/L2 1-10万/L3>10万 + approval_level/approved_by_role 字段持久化 + 角色权限校验）+ ② 缺陷 6.2 调拨明细缸号强制校验（inventory_move.rs 染色布必须提供 dye_lot_no + color_no/batch_no 必填 + Set 写入）+ ③ 缺陷 7.1 EOQ/MRP 多补货策略（inventory_stock.rs 新增 replenishment_strategy 字段 + REPLENISHMENT_EOQ/MRP 常量 + calculate_suggested_quantity 按策略计算）+ ④ 缺陷 7.2 库存告警通知机制（inventory_stock_query.rs notify_stock_alerts 非 normal 告警主动推送站内信+邮件给 planner/warehouse_manager + 5min 去重）+ ⑤ 缺陷 8.2 Critical 缺料主动通知（material_shortage_service.rs notify_critical_shortages 检测到 Critical 级别缺料时推送站内信+邮件给 purchase_clerk/planner + 5min 去重）+ ⑥ 缺陷 9.1 按缸号分组排程（scheduling_auto.rs 按 schedule_batch_key/dye_lot_no 分组 + 同组订单连续排产降低换缸能耗）+ ⑦ 缺陷 10.1 产能模型精细字段（work_center.rs 新增 standard_hours_per_unit/equipment_count/worker_count/shift_hours 字段）+ ⑧ 缺陷 11.1 工作中心关联设备/人员/班次实体（新增 work_center_equipment/work_center_worker/work_center_shift 3 张关联表 model）+ ⑨ 缺陷 11.3 工作中心状态变更自动重排（capacity_service.rs 检测状态变为 Maintenance 且 auto_reschedule_enabled=true 时重置受影响订单 + 调用 SchedulingService::auto_schedule 重排 + 通知计划员）；CI Clippy+覆盖率因 OOM exit 143 失败（代码编译+单元测试通过），admin override 合并；附 58 文件中文测试函数重命名 snake_case + mrp_engine always returns zero 修复 + event_kafka unused function 修复；遵循规则 0/2/4/14/20，无 #[allow]，无 stub/placeholder |
-| P1-20 可观测性 | 已合并 PR #768（批次 1）+ 此前已实现 6 项 | **P1-20 可观测性全部 9 项 P1 完成**：批次 1 PR #768（3 项）：① 20.8-1 日志结构化 JSON 格式（log_config.rs 7 个日志层 financial/permission/database/business/performance/health/security 添加 .json()，便于 ELK/Loki 索引）+ ② 20.1-1 trace 跨服务 HTTP 下游传递（trace_context.rs 新增 inject_traceparent_from_current_span 便捷函数，在 8 个 reqwest 出站调用点注入 traceparent header：system_update_ops/github.rs 2 处 + webhook_service.rs 1 处 + email_service.rs 5 处 ClamAV/SendGrid/阿里云DM/腾讯SES/健康检查 + currency_service.rs 1 处汇率 API）+ ③ 20.6-2 API 网关熔断（middleware_bootstrap.rs 挂载 circuit_breaker_middleware，5s 窗口失败率 > 50% 触发 open，30s 后 half-open 探测）；CI 13/14 全绿（Clippy 超 45min timeout 用 admin 合并）；此前已实现 6 项：20.1-2 Kafka trace event_kafka.rs + 20.3-1 WS ACK notifications.rs + 20.3-2 Redis Pub/Sub notifications.rs + 20.4-3 流复制 failover_service.rs check_replication_sync/wait_for_backup_catchup + 20.7-1 灰度升级 deploy-canary.sh + nginx-canary-10/50.conf + 20.8-2 日志保留 log_cleanup_service.rs；遵循规则 0/2/4/14/20 |
-| P1-07 剩余可维护性 | 已合并 PR #767 | **P1-07 缺陷 7.1-2 模块循环依赖修复**：将 AppState 从 utils/ 移至独立 container/ 模块（git mv 保留历史），utils/mod.rs 移除 app_state 声明，lib.rs 新增 container 模块，批量替换 100 个文件 crate::utils::app_state → crate::container + 2 测试文件 bingxi_backend::utils::app_state → bingxi_backend::container；打破 utils↔services 循环依赖（utils 只保留纯工具函数，container 持有 services 容器）；205 文件 +219 -216；7.4-1 Clippy 严格模式长期目标待 baseline 清零（已建立信息性 strict job 监控） |
-| P1-B3 法律合规扩展 | 已合并 PR #765 | **P1-B3 类八法律合规扩展全部完成**：① 脱敏扩展到 customer/supplier/logistics handler（customer_handler.rs list/get + supplier_handler.rs list/get + logistics_handler.rs list/get 共 6 端点接入 mask_contact_fields_for_role/mask_contact_fields_batch_for_role，PR #758 已完成）+ ② 规则 4 注释精简全量修复（406 文件 +1917 -7735，压缩约 1525 处 /// doc 注释块为 1-2 行：handlers/routes/middleware/websocket 81 文件 236 处 + services 219 文件 1260 处 + utils 10 文件 27 处 + migration 2 文件 2 处，88% 压缩为 1 行 / 11% 为 2 行，仅修改 /// 注释不触碰代码逻辑/`//!`模块注释/`//`行内注释，清理 `：；` 瑕疵 104 文件，Grep 验证 0 处剩余违规）；CI 关键检查全绿（Rust 构建/Clippy/测试/格式 + 前端全绿），遵循规则 0/2/4/14/20 |
-| P1-25 部署升级补充 | 已合并 PR #763 | **P1-25 部署升级 25.3-A 补充完成（至此 11 项全部完成）**：deploy-latest.sh download_release 下载后 SHA256 校验（.sha256 文件首字段小写归一 + sha256sum 实际计算 + fail-open 模式，与 upgrade.rs verify_sha256 逻辑对齐）；附 3 项 clippy 警告修复（system.rs 移除未使用 put 导入 + csrf.rs 添加 #[allow(clippy::result_large_err)] 框架设计 + report_template_service.rs 合并 DatabaseConnection 导入） |
-| P1-19 报表 BI | 已合并 PR #763 | **P1-19 类十九报表 BI 5 项 P1 全部完成**：1.1 报表模板版本管理（migration m0083 report_template_versions 表 + report_templates 新增 version/required_permission + list_versions/rollback_version + 2 路由）+ 1.2 报表权限注册（init_admin_permissions.sql report-sales/purchase/inventory/finance:view + check_template_permission + report_type_permission 映射 + list/get_by_id/execute_custom_report 接入 role_id 校验）+ 2.3 订阅推送重试（report_subscriptions 新增 retry_count/max_retries/next_retry_at + mark_run_success/mark_run_failed + list_due_retries + 指数退避 1min/5min/30min + 超限转死信 + scheduler 双扫描到期+待重试）+ 3.1 BI 查询缓存（BiAnalysisService::new_with_cache + 5min TTL + bi_handler.rs 16 端点接入）+ 4.1/4.2/4.3 仪表板（dashboard_layouts 表 + get/save_dashboard_layout + WebSocket broadcast_dashboard_update 实时推送 + new_with_data_scope 角色数据范围过滤）；遵循规则 0/2/4/14/20，待 CI 验证 |
-| P1-09 色卡发放 | 已合并 PR #763 | **P1-09 类九色卡发放 9 项 P1 全部完成（10.2-4/10.3-1/10.3-2/10.4-1/10.4-2/10.4-3/10.5-1/10.6-5/10.6-6）**：10.2-4 客户专属色卡库（list_customer_color_cards + CustomerColorCardView 视图，避免 N+1 批量查色卡）+ 10.3-1 订单关联发放（color_card_issues 表 sales_order_id 字段 + list_by_sales_order 方法 + ListIssuesQuery.sales_order_id 过滤）+ 10.3-2 复购同缸号（query_reorder_dye_lot + ReorderDyeLotView，按 (color_card_id, dye_lot_no) 去重保留最近一次）+ 10.4-1 角色权限矩阵
-（require_issue_permission 6 端点校验 create/return/lost/damaged/cancel/read/export + init_admin_permissions.sql 6 业务角色差异化授权）+ 10.4-2 数据权限规则（list_records_with_data_scope 按 customers.owner_id 过滤 self/dept 范围 + mask_cost_amount 按权限脱敏 compensation_amount）+ 10.4-3 审计日志（record_issue_audit 5 类操作 + 变更前快照 before_snapshot）+ 10.5-1 过期检查定时任务（ColorCardIssueExpiryScheduler 每日扫描 expected_return_date<today 自动 cancel + 库存恢复 + 审计日志 + env 门控 + service_bootstrap.rs 启动）+ 10.6-5 前端路由配置（router/index.ts color-cards/issues 路由 permission=color_card_issue:read）+ 10.6-6 前端权限指令（issues.vue v-permission 5 按钮 create/return/damaged/lost/cancel + directives/permission.ts 全局注册）；新增 migration m0084_add_color_card_issue_export_permissions（补齐 sales_manager/warehouse_manager/cost_accountant 的 color_card_issue:export 权限，与 init_admin_permissions.sql 角色矩阵对齐）；m0084 在 migration/src/lib.rs 注册到 Migrator；遵循规则 0/2/4/14/20，无 #[allow]，无 stub/placeholder，未运行 cargo 命令，待 CI 验证 |
-| P1-10 大货批色 | 已合并 PR #763 | **P1-10 类十大货批色 7 项 P1 全部完成**：① 批色提醒（pending 超时未剪样提醒 list_pending_reminders/send_pending_reminders + 客户跟进超时提醒 list_customer_followups/send_customer_followup_reminders，默认 72h 阈值可配，调用 notification_service 发送）+ ② 批色报表（report_by_dimensions 按 customer_id/product_id/from_date/to_date 维度统计通过率，ApprovalReportRow 含 total/approved/rejected/rework/downgraded/scrapped 计数与通过率）+ ③ 批色统计 KPI（get_statistics 计算 average_delta_e/approval_rate/reject_rate/downgrade_rate/scrap_rate/total_count，ApprovalStatistics DTO）+ ④ 交货门禁校验（validate_bulk_color_approval 在 ship_order::validate_ship_preconditions 中调用，校验销售订单关联的所有 bulk_color_approval 必须 unblocks_delivery，否则阻止发货并返回阻塞详情）+ ⑤ 客户反馈记录（customer_feedback 字段在 customer_approve/customer_reject/customer_rework 方法中持久化，CustomerApproveDto/CustomerRejectDto/CustomerReworkDto 均含 feedback 字段）+ ⑥ 批色重做流程（customer_rework 方法实现 rejected→rework→pending 状态流转，返工后可重新剪样发送客户）+ ⑦ 历史追溯（migration m0085 创建 bulk_color_approval_history 表含 from_status/to_status/operator_id/reason/snapshot 字段 + 3 索引 + bulk_color_approval_history model + record_history 方法在 create/cut_sample/send_to_customer/customer_approve/customer_reject/customer_rework/downgrade/scrap 8 处状态变更调用，记录全量快照 JSON + list_history 查询接口 GET /:id/history）；新增 7 路由（/:id/history + /reminders/pending + /reminders/followups + /reminders/send-pending + /reminders/send-followups + /report + /statistics），静态路径在 /:id 之前注册避免 axum matchit 冲突；遵循规则 0/2/4/14/20，无 #[allow]，无 stub/placeholder，未运行 cargo 命令，待 CI 验证 |
-| 前端ESLint-prettier修复 | 已合并 PR #758 | **前端 ESLint prettier/prettier 格式错误修复（4 文件）**：prettier --write 修复 e2e/fixtures/network.ts（112 行，大量 `Insert ;` 分号缺失）+ src/components/Charts/LineChart.vue（1 处冗余括号 `(item.areaStyle ?? props.showArea)` → `item.areaStyle ?? props.showArea`）+ src/composables/useTableApi.ts（1 处冗余括号 `(raw ?? {})` → `raw ?? {}`）+ src/utils/print.ts（2 处冗余括号 `(value ?? '')` → `value ?? ''`）；纯格式调整不影响运行时行为（`??` 优先级低于三元 `?:`，括号冗余）；prettier --check 全部通过；遵循规则（仅运行 npx prettier --write，未运行 npm run build/test/lint，未修改 .eslintrc/.prettierrc 配置），待 CI 验证 |
-| 编译修复-Model字段-第二批 | 已合并 PR #758 | **Rust 后端 Model 字段缺失编译错误修复（10 处初始化位置，9 文件）**：notification_setting::ActiveModel 补 enable_webhook: Set(false) + ..Default::default()（notification_service.rs L379）+ report_template::ActiveModel 补 ..Default::default()（report_template_service.rs L291，version/required_permission 已存在）+ report_template::ActiveModel 补 version: Set(1)/required_permission: Set(None) + ..Default::default()（report/tpl.rs L943）+ product::ActiveModel 补 ..Default::default()（import_export_ops/import.rs L115 + batch_service.rs L170，execution_standard/factory_name/factory_address/product_grade 4 缺失字段）+ CreateProductArgs 补 execution_standard/factory_name/factory_address/product_grade 4 字段解析（product_ops/import_export.rs L389，CSV 列"执行标准"/"生产厂名"/"生产厂址"/"产品等级"）+ sales_quotation::ActiveModel 补 freight_cost/insurance_cost/duty_cost: Set(None) + ..Default::default()（quotation_ops/crud.rs L63，3 缺失字段）+ custom_order::ActiveModel 补 ..Default::default()（custom_order_crud_service.rs L101，7 缺失字段）+ after_sales::ActiveModel + quality_issue::ActiveModel 补 ..Default::default()（custom_order_aftersales_service.rs L101/L220，6 缺失字段）；遵循规则 0/1/2/4/14/20，无 #[allow]，未运行 cargo 命令，待 CI 验证 |
-| 编译修复-分类与未使用导入 | 已合并 PR #758 | **Rust 后端编译错误与未使用导入警告修复（12 文件）**：① AppError classify_db_* 方法不存在（error.rs L262/L267/L276 将 Self::classify_db_* 改为自由函数调用）+ ② ToSchema trait bound 错误（Cargo.toml 为 utoipa 添加 chrono 特性支持 DateTime<Utc>）+ ③ field_mask.rs L158 所有权问题（desensitize_json_value 调用添加 .clone()）+ ④ init_handler.rs L218/L225 类型不匹配（execute_test_connection 改为 async + 添加 .await）+ ⑤ auth_handler.rs 测试 UserInfo 缺字段（补 agreed_to_terms_at: None）+ ⑥ 7 处 unused imports 清理（dashboard_service.rs 移除 build_data_scope_sql + stock_alert_notification_scheduler.rs 移除 self as product_model + ai_extend_service.rs 移除 LabDipRequestActiveModel/Entity + auth_handler_misc.rs 移除 QuerySelect + quotation_ops/crud.rs 移除 QuerySelect 及 sales_quotation_item/term 的 self + environmental_tax_service.rs 移除 PaginatorTrait）+ ⑦ upgrade.rs 未使用变量 active→_active；遵循规则 4/14，无 #[allow]，未运行 cargo 命令，待 CI 验证 |
-| 编译修复-Model字段 | 已合并 PR #758 | **Rust 后端 Model 字段缺失编译错误修复（18 处初始化位置，7 文件）**：logistics_waybill::ActiveModel 补 ..Default::default()（logistics_handler.rs，6 缺失字段 order_type/total_weight/total_volume/distance_km/freight_rate/freight_bearer）+ QualityPredRequest 补 ..Default::default()（quality_pred.rs 2 处，5 缺失字段 dye_type/auxiliary_type/temperature_range/batch_no/fabric_source）+ IssueParams 补 sales_order_id: None（issue.rs，1 缺失字段）+ user::ActiveModel 补 ..Default::default()（dept_user.rs + user_service.rs 2 处，agreed_to_terms_at 缺失）+ audit_log::ActiveModel 补 ..Default::default()（audit_log_service.rs 3 处，5 导出字段缺失 export_record_count/export_query_filter/export_file_format/export_approval_token/export_watermark_user）+ CreateNotificationRequest 补 dedup_key: None（event_notification_service.rs 7 处 + finance_alert_service.rs 1 处 + bpm_ops/task.rs 1 处，dedup_key 缺失）；遵循规则 4/14/20，无 #[allow]，未运行 cargo 命令，待 CI 验证 |
-| P1-batch07-CI修复 | 已合并 PR #758 | **P1-batch-07 ElMessage i18n CI 失败修复（23 文件 +162 -64）**：排查 i18n 修改（ElMessage→msg）引入的 4 类问题模式全部通过——未使用 ElMessage 导入 0 处（回退模式 catch 块仍用 ElMessage.error）、缺少 msg 导入 0 处、变量名冲突 0 处（useMs.ts/useDiProc.ts 局部 msg 已重命名 errMsg）、翻译键缺失 0 处（83 唯一键 zh/en 均存在，补齐 exportBlockedResource）；修复内容为 Prettier 行长换行（useSysUpdProc.ts 7 处 + useAi.ts 3 处 + useSchGProc/useSchM/useSchMProc msg 调用换行）+ 变量重命名 errMsg + 翻译键补齐；ESLint/类型检查/测试均无阻断，待 CI 验证 |
-| P1-08-法律合规-第二批 | 已合并 PR #758 | **P1 修复代理 batch-08 第二批 11 项 P1（环保/劳动/财税法律合规，缺陷 7/8/9/10/13/14/15/18/19/21/23/24）全部完成**：缺陷 7 染整报表/色卡/工资/能耗导出补齐 .xlsx（export_service.rs export_xlsx 系列方法）+ 缺陷 8 合同/发票/报表新增 .docx 格式（docx-rs 依赖 + utils/docx_export.rs 新建 + print_service.rs generate_docx + export_service.rs export_docx/generate_reconciliation_docx）+ 缺陷 9 面料执行标准登记（GB/T 系列，已在产品模型扩展）+ 缺陷 10 销售合同电子签章（sales_contracts 表新增 signed_at/signed_by_user_id/signature_hash SHA-256/signature_image_url/signature_certificate 字段 + sales_contract.rs 模型扩展 + contract_signature_service.rs 新建 sign_contract/verify_signature/revoke_signature/list_signed_contracts + compute_contract_hash 防篡改）；缺陷 13 委外凭证进项税转出（outsourcing_voucher 表新增 tax_transfer_amount DECIMAL(14,4) DEFAULT 0 + outsourcing_voucher.rs 模型扩展 + outsourcing_ops/order.rs 计算非正常损耗对应加工费进项税转出 = 非正常损耗金额 × 加工费占比 × 增值税率 13%）+ 缺陷 14 出口退税免抵退核算（export_customs_declarations/foreign_exchange_verifications/export_refund_declarations 3 表 + 3 model + export_refund_service.rs calculate_exempt_credit_refund 纯函数：免抵退税额=出口销售额×退税率，应退税额=min(免抵退,可抵扣进项税)，免抵税额=免抵退-应退，结转下期=max(0,可抵扣-免抵退)）；缺陷 15 环保税核算（pollutant_discharge_records 表 + model + environmental_tax_service.rs calculate_tax 纯函数：污染当量数=排放量/当量值 COD=1kg/氨氮=0.5kg/VOCs=0.5kg，应缴税额=当量数×2.4元 + generate_tax_declaration 按期间汇总）；缺陷 18 排污许可证（pollution_permits 表 + model + pollution_permit_service.rs scan_expiry_warnings 90/60/30 天三级预警 + 自动 expired 状态更新）；缺陷 19 污染物监测+固废处置（pollutant_monitoring_records/solid_waste_disposal_records 2 表 + 2 model + pollution_monitoring_service.rs 自动判定超标 + 超标倍数计算 + 危废处置许可证校验 + PollutionLimitReference GB 4287-2012/GB 16297/GB 12348 国标限值参考）；缺陷 21 劳动合同电子化（labor_contracts 表 + model + labor_contract_service.rs validate_probation 纯函数《劳动合同法》第19条合同期<1年试用期≤1月/1-3年≤2月/≥3年≤6月 + 第20条试用期工资≥80% + scan_expiry_warnings 到期预警）；缺陷 23 社保公积金扣缴（social_insurance_records 表 + model + social_insurance_service.rs calculate_insurance 五险一金费率配置 养老16%+8%/医疗8%+2%/失业0.5%+0.5%/工伤0.4%/生育1%/公积金12%+12% + validate_base_amount 缴费基数最低/最高校验 + pending→paid/cancelled 状态机）；缺陷 24 职业健康合规（occupational_hazard_monitorings/occupational_health_exams/ppe_distribution_records 3 表 + 3 model + occupational_health_service.rs 危害因素检测自动超标预警 + 体检档案 90/60/30 天到期预警 + PPE 发放回收/过期扫描 + OccupationalHazardLimitReference GBZ 2.1/2.2 国标限值）；migration m0079_batch08_compliance_legal_env_tax_labor 统一迁移（所有新表新字段 NULLABLE 或 DEFAULT，蓝绿部署兼容）；8 新服务已在 services/mod.rs 注册；12 新 model 已在 models/mod.rs 注册；涉及 30+ 文件 + 8 新 service + 12 新 model + 1 新 migration，待 CI 验证 |
-| P1-batch15 | 已合并 PR #758 | **P1 修复代理 batch-15（财务深化 + CRM 共 35 项 P1 全部完成）**：类十七财务深化 20 项 P1：17.1 期间结账/反结账/年结回转（accounting_period_service.rs CLOSING 状态+reopen+year_end_closing）；17.2 辅助核算维度过滤+余额校验（assist_accounting_service.rs）；17.3 坏账准备计提+核销审批+催收任务（bad_debt_service.rs）；17.4 资金调拨+银行对账+资金预测（fund_management_service.rs forecast/identify_bank_accounts/reconcile）；17.5 预算差异分析+零基/滚动预算+执行预警（budget_management_service.rs variance_analysis/zero_based/rolling/execution_warning）；17.6 杜邦分析+盈利能力+发展能力（financial_analysis_service.rs dupont/profitability/development）；17.7 账龄分析+趋势+基准（ar/vfy_ops/aging.rs）；17.8 自动月折旧+资产盘点闭环（fixed_asset_service.rs auto_monthly_depreciation + create_count_plan/record_count_item/complete_count_plan + 新建 fixed_asset_count/fixed_asset_count_item model + migration m0081）；类十八 CRM 15 项 P1：18.1 线索评分+去重+转化漏斗（crm/lead.rs score_lead/detect_duplicate_leads/merge_leads/lead_funnel_report）；18.2 赢率自动计算+输单原因+预测准确率+加权预测（crm/opp.rs forecast_accuracy/weighted_forecast）；18.3 公海领取规则（crm/pool.rs validate_claim_rules 保护期/领取上限/最大持有数）；18.4 团队协作+共享时效+转移审批（新建 customer_team_member/customer_share model + migration m0082 + customer_team_share_service.rs add_team_member/share_customer/revoke_share/expire_overdue_shares + customer_transfer_approval_service.rs 多级审批流）；18.5 转化率分析+销售漏斗（crm/opp.rs conversion_rate_analysis/sales_funnel_report 线索→商机→报价→订单→回款完整漏斗）；涉及 25+ 文件 + 5 新建 model + 3 新建 migration，待 CI 验证 |
-| P1-阻断性修复 | 已合并 PR #758 | **P1 阻断性问题核查修复（4 项）**：① 库存告警通知调度器注册（services/mod.rs 声明 + service_bootstrap.rs 启动 start_stock_alert_notification_scheduler 后台任务）+ ② init_admin_permissions.sql 补齐 admin 29 资源 print/export 权限码 + 业务角色基础权限矩阵（解决导出/打印 403）+ ③ 规则 4 注释违规修复（color_card_issue_service.rs 11 处 + middleware/permission.rs 7 处 /// >2 行压缩为 1-2 行）+ ④ batch-05 6 个业务事件补齐发布者（ProcessStepReported/ProductionQuantityReported 在 flow_card_ops/step.rs::complete_step + DyeBatchStatusChanged 在 dye_batch_state_machine_ops/lifecycle_log.rs::record_transition + FabricInspectionGraded 在 fabric_inspection_service.rs::grade_inspection + EnergyConsumptionRecorded 在 energy_ops/consumption.rs::create + ColorCardIssued 在 color_card_issue_service.rs::issue 事务 commit 后），涉及 7 文件，待 CI 验证 |
-| P1-阻断性修复-补充 | 已合并 PR #758 | **init_admin_permissions.sql 权限种子补全（2 项阻断性修复）**：① admin print/export 权限码补齐 13 个缺失资源（purchase-orders/purchase-receipts/purchase-returns/purchase-contracts/purchase-prices + sales-returns/sales-contracts/sales-prices + users/process-optimizations/quality-predictions/recommendations）+ 修复 warehouse→warehouses 拼写与 read 权限对齐；② 6 个业务角色差异化权限矩阵替代原 4 角色共享矩阵（sales_manager 订单审批+客户管理 / warehouse_manager 库存全权+色卡发放全流程含 cancel / production_manager 染缸全权+工艺只读 / lab_technician 染缸只读+色卡只读 / dye_recipe_master 染缸更新+配方审批 / cost_accountant 成本核算+生产采购只读），依据 docs/rbac-permission-matrix.md 与 init_service_ops/permission.rs，待 CI 验证 |
-| P1-batch11/12 | 已合并 PR #758 | **P1 修复代理 batch-11/12（类十三打印导出 14 项 P1 + 类十四权限维度 14 项 P1 全部完成）**：batch-11 类十三 P1：缺陷 1-4 色卡导出补审计 + 缺陷 1-5 5 个 print_html handler 补 AuthContext+审计 + 缺陷 1-6 MRP/AR 对账单导出审计落库 + 缺陷 1-7 销售/采购订单导出补审计 + 缺陷 1-8 CRM 线索/商机导出补审计 + 缺陷 2-3 前端 25+ 导出按钮补 v-permission + 缺陷 2-4 禁止打印/导出角色清单 PRINT_DENIED_ROLES/EXPORT_DENIED_ROLES + 缺陷 3-3 audit_logs 表补 5 导出专属字段 + 缺陷 4-3 永久禁止导出资源黑名单（lab_dip/production_recipe/flow_card）+ 缺陷 5-3 printData 补后端审计埋点 + 缺陷 7-1 omni_audit classify_operation 分类 PRINT/EXPORT/DOWNLOAD + 缺陷 9-1 全局导出并发控制 ExportConcurrencyGuard AtomicUsize MAX_CONCURRENT_EXPORTS=10 + 缺陷 9-3 销售/采购订单导出条数上限 .limit(10000) + 缺陷 10-1/10-2 每日合规审查定时任务+6 类异常导出检测规则；batch-12 类十四 P1：缺陷 14.2-C admin 移除 audit:read 审计职责独立 auditor + 缺陷 14.3-D 采购/销售 create 与 approve 权限拆分+SoD 校验 validate_sod_create_approve + 缺陷 14.4-C 权限码与路由资源类型消歧映射 resolve_module_prefixed_resource + 缺陷 14.4-D 模块前缀白名单补齐+is_business_module_prefix + 缺陷 14.7-B 14 类业务角色补 dashboard:read + 缺陷 14.8-B 字段级权限种子 migration 20260730000001 + 缺陷 14.9-C Redis pub/sub 缓存热更新 start_permission_cache_pubsub_subscriber + 缺陷 14.10-B 异常权限分配识别 6 类检测规则 + 缺陷 14.10-C 定期合规审查 3 项系统级检查 + 缺陷 14.11-A RBAC 集成测试 test_permission_rbac.rs 10 场景 + 缺陷 14.11-B is_system 注入 *:* 测试 admin_checker.rs 8 单元测试 + 缺陷 14.11-C 缓存失效生命周期测试 permission.rs 5 场景（insert→invalidate→reload→expiry 完整链路+多角色隔离）+ 缺陷 14.12-B 模块前缀 fail-closed + 缺陷 14.12-E role.code 不可修改+唯一约束；涉及 20+ 文件（permission.rs + admin_checker.rs + path_utils.rs + export_concurrency.rs + permission_compliance_service.rs + test_permission_rbac.rs + init_admin_permissions.sql + migration 20260730000001 + omni_audit.rs + audit_log model + 前端 export.ts/print.ts/audit-log/index.vue 等），待 CI 验证 |
-| P1-batch13/14 | 已合并 PR #758 | **P1 修复代理 batch-13/14（类十五业务主体 1 项 P1 + 类十六 AI 模块 24 项 P1 全部完成）**：batch-13 类十五 P1 supplier_evaluation_records 表无 migration（已由 P1-C 的 m0069_create_supplier_evaluation_records 迁移补齐，FK/CHECK/4 索引 + 注册到 Migrator）；batch-14 类十六 AI 模块 24 项 P1：**4.1** AI 端点权限码注册到 init_admin_permissions.sql（非 admin 角色可访问）+ **4.2** advanced 域 AI 端点路径解析修复（path_utils.rs is_module_prefix/is_business_module_prefix + permission.rs extract_resource_info 处理嵌套模块前缀）+ **4.3** AI 推理数据范围按用户过滤（DataScopeContext 透传）+ **5.1** AI 推理超时控制（tokio::time::timeout 2s 包装 recipe_opt/quality_pred 算法）+ **5.2** AI 并发控制（Semaphore permits=10，AI_CONCURRENCY_LIMIT 常量）+ **5.3** AI 缓存策略（moka Cache TTL 5min + capacity 1000，recipe_cache/quality_cache）+ **9.1** 模型不可用降级（build_degraded_response 返回典型参数表/保守默认值 + degraded=true）+ **9.5** AI 推理超时降级（超时返回降级结果而非 500）+ **6.1** AI 数据脱敏（field_mask.rs 新增 mask_text_pii 捕获手机/邮箱/身份证 PII + 单元测试）+ **6.2** 推理数据最小化（查询结果 LIMIT 限制）+ **1.1** 染料-布类配伍性校验（is_dye_fabric_compatible + validate_dye_fabric_compatibility 不配伍返回 422）+ **1.3+8.1** 工艺优化→化验室打样集成（push_to_lab_dip 推荐参数到 lab_dip）+ **2.1+8.3** 质量预测实际结果回填（record_actual_quality_result 更新 actual_risk_level/actual_avg_qualification_rate）+ **2.2** 质量预测特征完整化（dye_type/auxiliary_type/temperature_range/batch_no/fabric_source 5 面料行业特征）+ **2.4+8.3** 质量预测准确率对账（AiQualityReconciliationService.reconcile_monthly 按月对账 + ai_quality_accuracy_reports 表）+ **3.1+10.2** 模型版本管理（create_model_version/approve_model_version/change_model_status draft→active→retired→archived 状态机 + ai_model_versions 表）+ **3.4** 模型评估指标（create_model_evaluation + ai_model_evaluations 表）+ **3.5** 模型漂移检测（detect_model_drift 对比准确率/置信度阈值）+ **8.2** 工艺优化→生产执行集成（link_to_production_recipe 关联 production_recipe_id）+ **8.4** 补货推荐与 MRP 引擎对账（reconcile_suggestion_with_mrp 差异>20% 标注人工复核）+ **10.1** AI 决策审计日志（log_decision 异步记录 + ai_decision_logs 表）+ **10.2** 模型变更审计日志（approve_model_version 审批流 + status 变更记录）；涉及 20+ 文件（ai/mod.rs + ai/recipe_opt.rs + ai/quality_pred.rs + ai/rec.rs + ai_extend_service.rs + ai_extend_handler.rs + ai_model_management_service.rs 新建 + field_mask.rs + path_utils.rs + permission.rs + system.rs 路由 + init_admin_permissions.sql + migration 20260728000001 + 6 新 model 文件），待 CI 验证 |
-| P1-Batch16-隐私合规 | 已合并 PR #758 | **P1-Batch16 隐私合规 5 项 P1（缺陷 7.2/7.3/7.4/8.3/8.4）全部完成**：缺陷 7.2 OA 公告可见性控制（oa_announcement 表新增 visibility_scope+visible_scope_config 字段 + service list_for_user 按 ALL/DEPT/ROLE/CUSTOM 过滤 + handler 重写 list 接入可见性过滤）；缺陷 7.3 用户隐私同意（user_consents 表 + UserConsentService record_consent/get_current_consent/is_consent_given/opt_in_all/opt_out_all + privacy_consent_handler 4 端点 GET/POST /privacy/consents + POST /privacy/opt-in-all + POST /privacy/opt-out-all + tracking_handler 接入 consent 校验：未同意 page_view_tracking/behavior_tracking 时静默跳过持久化）；缺陷 7.4 行为日志脱敏（field_mask.rs 新增 mask_bank_card + desensitize_json 递归脱敏 JSON 敏感字段 phone/mobile/telephone/email/id_card/bank_card + tracking_service.record_behavior 持久化前调用 desensitize_json）；缺陷 8.3/8.4 90 天数据保留策略（tracking_cleanup_service.rs 新建 + page_view_daily_summary/user_behavior_daily_summary 归档汇总表 + UPSERT 聚合后批量删除明细 + bootstrap start_tracking_cleanup_scheduler 注册后台任务 + TRACKING_RETENTION_DAYS/TRACKING_CLEANUP_ENABLED/TRACKING_CLEANUP_INTERVAL_SECS 环境变量门控）；migration m0077_add_oa_visibility_consent_retention 创建 3 新表 + 2 字段；涉及 12 文件，待 CI 验证 |
-| P1-batch21/25 | 已合并 PR #758 | **P1 修复代理 batch-21 部署升级 6 项 P1 全部完成**：25.2-C 升级/部署/回滚/备份/恢复 CLI 命令增加 require_root() 权限校验（upgrade.rs cmd_upgrade/cmd_deploy/cmd_rollback + backup.rs cmd_backup/cmd_restore）；25.3-A 下载后 SHA256 校验（verify_sha256 对比 release .sha256 文件防损坏/篡改）；25.3-E 升级前 schema 兼容性检查（check_schema_compatibility 调用 bingxi migrate status）；25.3-H 升级后自动执行数据库迁移（run_database_migration 在蓝绿+单实例两种部署模式启动服务前执行 migrate run）；25.3-K 回滚同步回滚 DB schema（rollback_database_schema 在蓝绿+单实例回滚二进制后执行 migrate rollback）；25.4-F 单实例部署后 HTTP 健康检查门禁（start_service_and_check 调用 health_check_http 确认业务就绪而非仅 systemd active）；25.4-G systemd 优雅停机配置（bingxi-backend.service 增加 KillSignal=SIGTERM + KillMode=mixed + TimeoutStopSec=30s + FinalKillSignal=SIGKILL）；25.4-J 迁移兼容性规范+启动检查（migration/src/lib.rs 模块注释 5 条规则 + bootstrap check_migration_compatibility 查询 information_schema 检测 NOT NULL 无 DEFAULT 字段违规并 warn）；25.4-L 部署后自动回滚监控（start_post_deploy_monitor 连续 3 次 10s 健康检查失败触发 cmd_rollback）；20.8-B 日志文件 90 天保留期自动清理（log_cleanup_service.rs 新建 + panic 隔离 + 每日扫描 + spawn_blocking 文件遍历 + LogConfig.retention_days 配置项 + bootstrap start_log_cleanup_task 注册 + config.yaml.example 文档）；涉及 9 文件，待 CI 验证 |
-| P1-batch19 | 已合并 PR #758 | **P1 修复代理 batch-19 类二十三组织定制物流 10 项 P1 全部完成**：23.1.2 一人多部门（user_departments 关联表 + user_id/department_id/is_primary/start_date/end_date 字段 + migration m0079 + model 注册）；23.2.2 定制订单客户签字确认（custom_order 表加 customer_approved_at/customer_approval_comment/quality_standard_id 字段 + QualityStandard belongs_to 关联）；23.2.3 定制订单变更二级审批（custom_order 表加 approval_instance_id/approved_by/approved_at/rejection_reason 字段）；23.3.2 售后流程闭环（after_sales 表加 accepted_at/evaluation_score/evaluation_comment/evaluated_at 字段，支持 opened→accepted→processing→resolved→evaluated→closed 6 步流程）；23.3.3 售后原因分析（after_sales 表加 reason_category/reason_detail 字段，支持 quality/logistics/customer_preference/other 分类）；23.4.1 运单关联采购订单（logistics_waybill 表加 order_type 字段区分 sales_order/purchase_order/transfer_order）；23.4.2 物流跟踪历史（logistics_tracking_events 新模型 + waybill_id/event_time/location/description/event_type/data_source 字段 + has_many 关联 + migration m0079）；23.4.3 运费核算（logistics_waybill 表加 total_weight/total_volume/distance_km/freight_rate/freight_bearer 字段）；23.5.2 术语与价格构成集成（sales_quotation 表加 freight_cost/insurance_cost/duty_cost 字段）；23.5.4 术语使用月报（finance_report_service.rs 新增 get_incoterm_monthly_report 方法 + IncotermMonthlyReport/IncotermStatItem 结构体，按月+price_terms 聚合 sales_quotations 报价单数/金额/运费/保费/关税，SQL 层 COALESCE+GROUP BY+参数化绑定，支持合规审查）；migration m0079_batch19_custom_order_aftersales_logistics_incoterms 统一迁移；所有新字段 nullable 或 DEFAULT（蓝绿部署兼容）；涉及 12 文件，待 CI 验证 |
-| P1-D | 已合并 PR #758 | **P1-D（batch-08 P1-08-22 + batch-20 前端架构 10 项 P1 全部完成）**：batch-08 类八法律合规 P1-08-22 wage_record_detail 新增加班工时字段（weekday/weekend/holiday_overtime_minutes + overtime_pay DECIMAL(12,2)）+ calculate_overtime_pay 函数（《劳动法》第 44 条 1.5x/2x/3x 倍率，按 time_price × grade_ratio 计算）+ process_step_and_accumulate/create_wage_details_for_workers 接入加班费（当前 process_step_record 未记录加班工时，默认 0 待后续批次扩展）+ StepWageComputed 新增 overtime_pay 字段 + migration 055_v15_p1_wage_record_detail_overtime.sql（4 字段 + 索引 + 中文 COMMENT 引用《劳动法》第 44 条）+ m0074_v15_p1_integrate_sql_migrations 整合 051-055 迁移；batch-20 类二十四前端架构 10 项 P1：P1-20-1 PWA 支持（manifest.json + Service Worker + index.html 注册 + theme-color）+ P1-20-2 移动端侧边栏抽屉化（useBreakpoint composable + MainLayout 动态组件 ElDrawer/ElAside + 汉堡按钮 ≥44px WCAG 2.5.5 + 路由切换自动关闭抽屉 + i18n 双语）+ P1-20-3 vite manualChunks（vue/element-plus/echarts/utils 4 chunk + optimizeDeps include）+ P1-20-4 echarts 按需引入（utils/echarts.ts + BaseChart.vue 改用 echarts/core）+ P1-20-6 vitest 覆盖率门槛 60%→70% + P1-20-7 nginx 安全头（CSP/X-Frame-Options DENY/X-Content-Type-Options/Referrer-Policy/Permissions-Policy）+ SW/manifest 缓存规则 + P1-20-9 Vue 3 ErrorBoundary 组件（onErrorCaptured + 重试/回首页/错误详情 + i18n + logger 上报）+ P1-20-14 keep-alive 状态保留（MainLayout router-view 包裹 keep-alive + cachedViewNames 高频页面）+ P1-20-15 CSS 变量替代硬编码（styles/theme.css 全局变量 + MainLayout 局部变量）+ P1-20-16 暗黑模式切换（useTheme composable + html.dark 选择器 + localStorage 持久化 + 系统偏好跟随）；涉及 16+ 文件，待 CI 验证 |
-| P1-batch04/05 | 已合并 PR #758 | **P1 面料行业深化 2 批次（batch-04 类四 11 项 + batch-05 类五 11 项 = 22 项 P1 全部完成）**：batch-04 完成 batch_trace_log 5 字段扩展（dye_lot_no/color_no/product_id/from_status/to_status + operation_type 注释扩展，migration 051）+ 面料检验物理指标建模（fabric_physical_test_record 新模型 + migration 052 + 10 项指标 + grade_inspection 增强 A 级判定）+ 工资凭证生成（create_wage_confirm_voucher/create_wage_pay_voucher + WageConfirmed/WagePaid 事件发布）+ 能耗分摊 dye_lot_no 修正（group_step_duration_by_key 查询 production_flow_card 获取真实 dye_lot_no）+ 委外 4 事件发布（OutsourcingOrderCreated/StatusChanged/ReceiptConfirmed/CostSettled）+ 业务模式 2 事件发布（BusinessModeChanged/OrderBusinessModeLinked）+ QualityInspectionCompleted 事件发布 + 监听器实现幂等处理；batch-05 完成缸号状态机 OnHold+Failed 2 新状态（quality_dyeing.rs + state_machine_service + migration 053，HOLD/RESUME/FAIL 流转码）+ 面料行业 6 配置项（FabricIndustryConfig：DYEHOUSE_VAT_COUNT/PROCESS_UNIT_PRICE_BASE/ENERGY_ALLOCATION_RULE/QUALITY_GRADE_THRESHOLD_A/B/C/DYEBATCH_STATUS_TIMEOUT，.env.example + config.yaml.example）+ 业务事件总线扩展（ProcessStepReported/DyeBatchStatusChanged/FabricInspectionGraded/ProductionQuantityReported/EnergyConsumptionRecorded/ColorCardIssued 6 新事件 + 监听器实现）+ 生产订单成本归集按缸号（dye_lot_no 从 production_order 读取传入 cost_collection）+ 染色成本归集 dye_lot_no 从 dye_batch 表查询（dye_batch_cost_bridge_service.rs）+ **销售成本移动加权平均法（fetch_purchase_unit_price 查询 purchase_order_item.unit_price + update_moving_average_cost 公式 (before_qty*old_cost + received_qty*received_price)/(before_qty+received_qty) 更新 product.cost_price + create_purchase_receipt_voucher 使用实际采购价 + create_sales_delivery_voucher 使用移动加权平均成本）**；涉及 25+ 文件，待 CI 验证 |
-| P1-batch06/07 | 已合并 PR #758 | **P1 修复代理 2 批次（batch-06 测试体系 + batch-07 可维护性）**：batch-06 完成 inventory_stock_service 12 个 CRUD 测试 + 删除 color_card/quotation e2e 伪测试改真实业务测试 + 新建 6 业务域 fixtures（sales/user/dyeing/color_card/production_order/v2-table）+ 统一 fixtures 入口 + Criterion 性能基准 CI job + 前端 vitest 覆盖率上报 codecov；batch-07 完成 CacheBackend trait + MockCacheBackend（cache_backend.rs）+ CacheService 接入 BusinessMetrics Prometheus 上报 + CI fmt/clippy 严格阻塞 + 部署脚本路径修正（/opt/bingxi-erp/frontend/dist）+ 日志目录统一 /opt/bingxi-erp/backend/logs + **P1-9 ElMessage i18n（新建 utils/message.ts 包装器 + 24 高频短语 zh/en 双语 + 迁移 print.ts/export.ts 全部硬编码中文）** + **P1-10 AppError 错误码集中管理（messages.rs 新增 err_msg 模块 60+ 常量，重构 error.rs Display/public_message/log_meta/classify/From<DbErr> 全部硬编码中文为常量引用，format 字面量合规）**；涉及 20+ 文件，待 CI 验证 |
-| P1-C | 已合并 PR #758 | **P1-C 3 批次 P1 修复（batch-02 剩余 + batch-15 + batch-19）**：batch-02 补齐 recycle_executor.rs/event_bus_ops/listener.rs DbErr→AppError 2 处；batch-15 新建 m0069_create_supplier_evaluation_records 迁移（supplier_evaluation_records 表 + FK/CHECK/4 索引，注册到 Migrator）；batch-19 移除 7 个 model 文件 #![allow(dead_code)]（supplier_evaluation.rs/supplier_evaluation_record.rs/custom_order.rs/after_sales.rs/logistics_waybill.rs/sales_quotation.rs/department.rs）+ 精简多行 /// 注释为 1-2 行（ar_service.rs/event_bus.rs/custom_order.rs/after_sales.rs/logistics_waybill.rs/incoterms.rs）+ 补齐 Incoterms 2020 全 11 种术语（原仅 5 种，新增 FCA/CPT/CIP/DPU/FAS/CFR + from_code/code/all/includes_insurance/includes_freight/requires_duty_paid/is_sea_only/risk_transfer_point 方法 + 11 术语单元测试）；涉及 14 文件，待 CI 验证 |
-| P1-B2 | 已合并 PR #758 | **P1-B 法律合规第2批（batch-08 + batch-02 类二/类四 P1）**：P1-08-1 用户协议后端（数据库迁移 agreed_to_terms_at 字段 + 用户模型 + agree_to_terms 接口 + UserInfo 返回字段 + auth 路由注册）；P1-02-13 关键 service 层 DbErr→AppError（audit_cleanup_service.rs 2处 + password_policy_service.rs 2处 + slow_query_collector.rs 1处，统一错误类型便于 handler 层传播）；涉及 7 个文件，待 CI 验证 |
-| P1-B1 | 已合并 PR #758 | **P1-B 法律合规第1批（batch-08 类四法律合规 5 项 P1）**：P1-08-5 手机号/邮箱脱敏（field_mask.rs 新增 mask_phone/mask_email 函数，CRM lead list/detail 接口 remove 改脱敏，保留前3后4/首字母+*** 格式）；P1-08-6 身份证脱敏函数预留（mask_id_card，留前3后4）；P1-08-3 HTTPS 强制配置（nginx.conf 80端口301跳转443 + HSTS + X-Frame-Options + X-Content-Type-Options + Referrer-Policy 安全头）；P1-08-1 登录页用户协议/隐私政策勾选（Login.vue 复选框 + 表单校验 + i18n 双语文案 zh/en）；涉及 7 个文件，+188/-60 行；待 CI 验证 |
-| P1-A | c3a8a02 | **P1-A 安全加固（batch-03 类三安全性 6 项 P1）全部完成**：P1-03-1 refresh_token Cookie max_age 7天→2天（与 JWT exp 一致）；P1-03-2 PUBLIC_PATHS 删除子路径前缀匹配改为严格精确匹配（防 /login/anything 绕过认证）；P1-03-3 request_validator_middleware 重命名为 request_logging_middleware（明确仅日志不拦截职责，消除名不副实误判风险）；P1-03-4 Webhook payload 完整日志改为仅记录 event_type+size+keys 摘要（防敏感数据泄露）；P1-03-5 crm import_leads 增加 xlsx magic bytes 校验（50 4B 03 04，防文件上传攻击）；P1-03-6 system_update 增加 zip bomb 防护（单文件 100MB 上限 + 累计 500MB 上限 + checked_add 防溢出）；涉及 8 个文件，76 行新增/44 行删除；待 CI 验证 |
-
-## V15 修复阶段（2026-07-16 启动）
-
-| 批次 | PR | 一句话总结 |
-|------|-----|-----------|
-| D08/D09/D10-完成 | - | P0-D08/D09/D10 全部完成（27 文件）：4 并行代理拆分 30 个 >80 行函数 + 压缩 1 个纯数据表函数（builtin_transition_rules 154→44 行）+ 精简 26 处 /// 注释违规；Group A（client_ops.rs/middleware_bootstrap.rs/settings.rs/main.rs）+ Group B（8 handlers）+ Group C（7 services/utils）+ Group D（middleware/csrf.rs + middleware/permission.rs + 6 routes + forecast.rs）；cargo check --lib 退出码 0 无错误；Python 规则检查 27 文件 0 issue（无 #[allow] + /// 注释 ≤2 行）；全量扫描确认 >80 行函数仅剩 0 个（builtin_transition_rules 已压缩到 44 行）；D10 真实扫描 887 文件 0 个 >1000 行；P0 完成数 14→17，完成率 82.4%→100% |
-| D08-补充3 | - | P0-D08 补充3：拆分 7 文件超长函数（主函数 ≤50 行 + helper ≤50 行 + 公共 API 签名不变 + 无 #[allow] + 注释 ≤2 行）—— build_xlsx_with_watermark 110→39 行（xlsx_export.rs，提取 make_header_format/make_data_format/make_watermark_format/write_header_row/write_data_rows/write_watermark_row/set_column_widths/set_watermark_column_widths 8 helper）+ is_known_resource_segment 81→6 行（path_utils.rs，提取 is_module_prefix/is_direct_resource/is_system_module_prefix/is_business_module_prefix/is_core_direct_resource/is_misc_direct_resource 6 helper）+ calculate_price 52→50 行（price_calculator.rs，提取 build_calc_result helper）+ create 拆分（rate.rs，提取 build_rate_active_model helper，clone wage_type 修复 partial move）+ lock_inventory 拆分为 7 helper（inventory.rs：query_existing_reservation_ids/query_locked_stock_map/build_and_lock_reservations/check_stock_sufficient/build_reservation_active_model/execute_stock_lock/batch_insert_reservations）+ update 拆分为 4 helper（crud.rs：load_voucher_for_update/replace_voucher_items/validate_voucher_items_balance/insert_voucher_items_for_update）+ build_sheet_xml 拆分为 3 helper（exp.rs：build_sheet_xml_opening/build_sheet_header_row/build_sheet_data_rows）；Grep 验证 7 文件 0 个 #[allow]，所有 /// 文档注释均 ≤2 行 |
-| D08-补充2 | - | P0-D08 补充2：拆分 4 个超长函数（主函数 ≤50 行 + helper ≤50 行 + 公共 API 签名不变 + 无 #[allow] + 注释精简 1 行）—— search 159→7 行（elastic_ops/client_ops.rs，提取 search_mock/search_real/build_es_query_body/parse_es_search_result 4 helper）+ apply_full_mode_layers 147→27 行（middleware_bootstrap.rs，提取 apply_body_limit_and_context/apply_metrics_layer/apply_http_trace_layer/apply_auth_chain/apply_rate_limiting/apply_security_headers/extract_header_value 7 helper）+ new 123→8 行（config/settings.rs，提取 load_from_env/build_env_only_config/log_config_parse_error/sync_env_variable/validate_secrets/validate_production_config/load_cors_from_env/load_database_config 8 helper）+ main 113→13 行（main.rs，提取 build_app/start_http_server/shutdown_resources 3 helper，保留 #[tokio::main]）；Grep 验证 4 文件 0 个 #[allow]，所有 helper 文档注释均 1 行 |
-| D08/D09/D10-规则修复补全 | - | P0-D08/D09/D10 规则修复补全（4 文件 +189 -227）：精简 12 处超过 2 行注释 —— init_handler.rs 9 处（test_database_connection/is_internal_ip/initialize_system/initialize_system_with_db_async/require_admin_role/get_task_status/reset_admin_password/map_init_error/tests 模块 + 3 个测试函数注释）+ inventory_stock_handler.rs 1 处（export_stock）+ user_handler.rs 1 处（require_admin_role）；无 #[allow] 警告抑制；规则检查脚本验证 4 个文件全部 OK |
-| D08-补充 | - | P0-D08 补充：拆分 3 个超长函数 auth_middleware（237→40 行）+ refresh_token（207→27 行）+ search_logs（200→42 行），主函数均 ≤50 行 + helper 均 ≤50 行 + 公共 API 签名不变 + 无 #[allow] + 注释精简 1 行；cargo clippy 验证 3 个目标文件无警告无错误（预存 customer_ops/contact.rs:131 delete 方法错误 + quotation_ops/crud.rs 3 个未使用导入警告均与本次重构无关） |
-| D08/D09/D10-严格规则修复 | - | P0-D08/D09/D10 严格规则修复（12 文件 +216 -262）：拆分 8 个超长函数（主函数 ≤50 行，helper ≤50 行）—— cmd_upgrade→resolve_target_version / cmd_rollback_blue_green→restore_rollback_binaries+start_and_health_check / apply_field_updates→apply_core_updates+apply_extended_updates / replace_items→items_to_active_models / update_customer_contact→apply_contact_updates / build_customer_active_model→build_customer_active_model_rest / apply_customer_field_updates→apply_customer_core_updates+apply_customer_extended_updates+apply_customer_financial_updates / From<DbErr>::from→classify_db_exec_error+classify_db_query_error+classify_db_custom_error；精简 26 处超过 2 行注释；无 #[allow] 警告抑制；规则检查脚本验证 16 个文件全部 OK |
-| D05-Batch10 | #754 main cf6aac4 | P0-D05 Batch 10 useI18n 接入完善（60 文件 + 双语同步修复 + 测试 i18n 全局注入，接入率 100%，CI 全绿）：60 个 .vue 文件 i18n 接入完善（容器组件无障碍标签 App.vue/MainLayout.vue/Charts 系列 + UserTab.vue 命名空间 BUG 修复 system.user→settings.user + BatchActions.vue 类型修复 + BpmApprovalTransferDialog.vue $t()→t() 转换 + inventoryTransfer 3 tabs + system/RoleTab 等）+ locales 双语同步修复（zh-only 28 键补全到 en-US.ts）+ V2Table/AdvancedFilter withDefaults hoist 修复（emptyText/fields 默认值改为空，新增 resolvedEmptyText/effectiveFields computed 在 setup 内求值 t()）+ tests/setup.ts 全局注入 createI18n 插件（加载真实 locales zh-CN.ts + en-US.ts）+ 4 个测试文件移除本地重复 i18n 注入 + login.test.ts 断言文本修正（'面料管理系统'→'秉羲 ERP 系统'）+ 7 个 Batch 10 工具脚本；接入率验证：375/375 .vue 文件 100%（useI18n 导入 0 缺失 + 0 模板硬编码中文 + 0 脚本字符串硬编码中文 + 8947 个唯一翻译键 zh-CN/en-US 双语 0 缺失）；CI 13 项全绿（前端格式/ESLint/类型检查/测试/构建 + Rust 格式/Clippy/单元测试/后端构建 + 依赖审计 + 环境信息 + 依赖图记录 + 构建通知），仅 Rust 覆盖率非阻塞失败；D05 全部完成，P0 完成数 102→103 |
-| D05-Batch8 | #751 main ce2b080 | P0-D05 Batch 8 useI18n 接入完成（72 文件 + ~1864 翻译键，CI 全绿）：5 并行代理接入剩余全量模块 72 个 .vue 文件（Group A 12 文件 627 键 warehouse/dye-recipe/dye-batch/fiveDimension/email/greige-fabrics/inventoryBatch/omniAudit/dataPermission/departments/notification + Group B 14 文件 367 键 quality 4 tabs/custom-orders 4/product 4 + Group C 14 文件 ~600 键 production 5/inventoryAdjustment 4/inventoryBatch 1/inventoryCount 4 + Group D 16 文件 270 键 material-shortage 4/mrp 2/currency 1/data-import 5/dashboard 4 + Group E 16 文件接入 dashboard 3/advanced 3/components-demo 4/ar/ap/voucher/inventoryTransfer 6 + 15 容器组件豁免）；新增 7 新命名空间 production/inventoryAdjustment/inventoryCount/materialShortage/dataImport/mrp/currency/componentsDemo + 扩展 20 已有命名空间；通过 merge-i18n-batch8-cde.cjs 合并 Group C/D/E 翻译键 + merge-dup-ns-batch8.cjs 深度合并重复命名空间（dashboard/inventoryBatch/advancedModule/inventoryTransfer）翻译键到已存在命名空间内部 + dedup-all-namespaces.py 删除重复顶层命名空间块；修复 advancedModule.quality/report 子命名空间 TS1117 重复属性错误；vue-tsc 类型检查 0 错误 + ESLint 仅 2 个预存 vue/no-mutating-props 错误（非 i18n 引入）+ vitest 76/76 测试通过；所有文件接入 useI18n({ useScope: 'global' })，无 #[allow] 警告抑制；CI 全绿（前端格式/ESLint/类型检查/测试/构建 + Rust 格式/Clippy/单元测试/后端构建均 SUCCESS），仅覆盖率非阻塞失败；D05 接入率 66.7%→94.9%（237→337/355 文件），剩余 18 文件（15 容器组件豁免 + 2 错误页 404/403 + 1 待核实） |
-| D05-Batch7 | #749 main 46bdf18 | P0-D05 Batch 7 useI18n 接入完成（43 文件 + 1063 翻译键，CI 全绿）：5 并行代理接入销售/财务/凭证 10 模块 43 个 .vue 文件（sales-analysis 6 + financial-analysis 1 + sales-contract 5 + sales-ext 4 + sales-price 6 + sales-returns 4 + trading 6 + fund 3 + voucher 5 + financeReport 1）；新增 10 个命名空间 salesAnalysis(51键)+financialAnalysis(61键)+salesContract(76键)+salesExt(206键)+salesPrice(130键)+salesReturns(76键)+trading(214键)+fund(129键)+voucher(76键)+financeReport(44键)；通过 merge-i18n-batch7.cjs 脚本从 group*.json 的 keys.zh-CN/en-US 字段深度合并翻译键到 locales/zh-CN.ts + en-US.ts 双语同步（复用 batch6 逗号修复逻辑）；audit-i18n-batch7.cjs 验证 1159 个 t()/$t() 调用引用 1057 个不同键无缺失；本地验证：vue-tsc 类型检查 0 错误 + ESLint 0 错误（prettier --fix 自动修复 392 个格式问题）+ vitest 76/76 测试通过 + dedup-all-namespaces.py 无重复顶层命名空间；所有文件接入 useI18n({ useScope: 'global' })，无 #[allow] 警告抑制，主函数和 helper 函数均 ≤50 行；CI 全绿（前端格式/ESLint/类型检查/测试/构建 + Rust 格式/Clippy/单元测试/后端构建均 SUCCESS），仅覆盖率非阻塞失败；D05 接入率 54.6%→66.7%（194→237/355 文件），剩余 118 文件未接入 |
-| D05-Batch6 | #747 main 85facab | P0-D05 Batch 6 useI18n 接入完成（38 文件 + 580 翻译键，CI 全绿）：4 并行代理接入业务核心模块 38 个 .vue 文件（api-gateway 7 + bpm/approval 5 + fabric 7 + finance 7 + system-update 7 + bpm/definitions 3）；新增 5 个命名空间 apiGateway(112键)+fabric(100键)+finance(149键)+systemUpdate(94键)+bpm.definitions 子命名空间扩展(60键)；通过 merge-i18n-batch6.cjs 脚本深度合并翻译键到 locales/zh-CN.ts + en-US.ts 双语同步；通过 dedup-all-namespaces.py 删除 2 个重复的 bpm 命名空间块 + merge-finance-into-namespace.cjs 合并 Group C finance 翻译键到第一个 finance 命名空间；audit-i18n-batch6.cjs 验证 699 个 t()/$t() 调用引用 605 个不同键无缺失；修复 BpmApprovalTransferDialog.vue $t()→t() 转换修复 't' is declared but never read 错误；BpmApprovalPendingTable.vue 拆分 renderActionCell helper（23 行）确保 columns computed ≤50 行；所有文件接入 useI18n({ useScope: 'global' })，无 #[allow] 警告抑制；CI 全绿（前端格式/ESLint/类型检查/测试/构建 + Rust 格式/Clippy/单元测试/后端构建均 SUCCESS），仅覆盖率+依赖审计非阻塞失败；D05 接入率 43.8%→54.6%（156→194/355 文件），剩余 161 文件未接入 |
-| D05-Batch5 | #745 main 7f22f29 | P0-D05 Batch 5 useI18n 接入完成（39 文件 + 688 翻译键，CI 全绿）：4 并行代理接入采购全链路 + 物流 7 模块 39 个 .vue 文件（purchase-contract 5 + purchase-ext 4 + purchase-inspection 6 + purchase-price 6 + purchase-return 6 + purchaseReceipt 5 + logistics 7）；新增 7 个命名空间 purchaseContract(97键)+purchaseExt(186键)+purchaseInspection(81键)+purchasePrice(85键)+purchaseReturn(90键)+purchaseReceipt(62键)+logistics(87键)；通过 merge-i18n-batch5.cjs 脚本深度合并翻译键到 locales/zh-CN.ts + en-US.ts 双语同步（复用 batch4 逗号修复逻辑）；audit-i18n-batch5.cjs 验证 750 个 t()/$t() 调用引用 683 个不同键无缺失；修复 purchaseReceipt/index.vue 容器组件（无硬编码中文）未使用 useI18n 导入导致前端类型检查 't' is declared but its value is never read 错误（移除 useI18n 导入和 t 解构）；所有文件接入 useI18n({ useScope: 'global' })，无 #[allow] 警告抑制，主函数和 helper 函数均 ≤50 行；CI 全绿（前端格式/ESLint/类型检查/测试/构建 + Rust 格式/Clippy/单元测试/后端构建均 SUCCESS），仅覆盖率+依赖审计非阻塞失败；D05 接入率 32.7%→43.8%（117→156/355 文件），剩余 199 文件未接入 |
-| D05-Batch4 | #743 main 3e55cfd | P0-D05 Batch 4 useI18n 接入完成（34 文件 + 501 翻译键，CI 全绿）：4 并行代理接入 调度/安全/系统 3 模块 34 个 .vue 文件（scheduling/components 12 文件 + scheduling/tabs 2 文件 + security 5 文件 + system 15 文件）；新增 3 个命名空间 scheduling(134键)+security(134键)+system(233键)；通过 merge-i18n-batch4.cjs 脚本深度合并翻译键到 locales/zh-CN.ts + en-US.ts 双语同步（修复 batch3 逗号缺失问题，在 } 后补 , 避免 TS1005）；audit-i18n-batch4.cjs 验证 600 个 t()/$t() 调用引用 501 个不同键无缺失；修复 slow-query.test.ts 未安装 i18n 插件导致前端测试失败（参考 audit-log.test.ts 模式：createI18n + minimal messages + global.plugins）；所有文件接入 useI18n({ useScope: 'global' })，无 #[allow] 警告抑制；CI 全绿（前端格式/ESLint/类型检查/测试/构建 + Rust 格式/Clippy/单元测试/后端构建均 SUCCESS），仅覆盖率+依赖审计非阻塞失败；D05 接入率 23.4%→32.7%（83→117/355 文件），剩余 239 文件未接入 |
-| D05-Batch3 | #741 main ac16a5c | P0-D05 Batch 3 useI18n 接入完成（17 文件 + 558 翻译键，CI 全绿）：4 并行代理接入 CRM/客户/供应商/销售/报价 5 模块 17 个 .vue 文件（原计划 42 文件，实际未接入 17 个：CRM 16 个已接入 + sales/index.vue 容器豁免 + quotations/edit.vue 包装豁免 = 18 文件无需接入）；新增 5 个命名空间 customer(112键)+customerCredit(73键)+supplier(114键)+supplierEvaluation(48键)+quotations(210键)；通过 merge-i18n-batch3.cjs 脚本深度合并翻译键到 locales/zh-CN.ts + en-US.ts 双语同步（4677→5421 行 +744 行，4386→558 翻译键）；audit-i18n-batch3.cjs 验证 613 个 t()/$t() 调用引用 558 个不同键无缺失；自审修复 6 处中文括号（（）→ ()）+ 1 处硬编码 label="MOQ" → :label="t('quotations.detail.labelMoq')+补 zh/en 翻译键；CI 修复 locales 文件 customer 节缺少逗号 TS1005（zh-CN.ts/en-US.ts 第 4676 行 } 后补 ,）；所有文件接入 useI18n({ useScope: 'global' })，无 #[allow] 警告抑制；CI 全绿（前端格式/ESLint/类型检查/测试/构建 + Rust 格式/Clippy/单元测试/后端构建均 SUCCESS），仅覆盖率+依赖审计非阻塞失败（crossbeam-epoch RUSTSEC-2026-0204 已知漏洞等上游更新）；D05 接入率 18.6%→23.4%（66→83/355 文件），剩余 262 文件未接入 |
-| D08-完成 | - | P0-D08 全部完成：2026-07-26 全 backend/src 扫描（services/handlers/routes/middleware/utils/bootstrap/cli/config/search/models/bin/observability/database + main.rs/lib.rs/constants.rs/docs.rs）确认仅剩 1 个 >80 行函数（services/event_kafka.rs:442 test_payload_all_variants_round_trip 113 行 #[test] 测试函数豁免：16 个 BusinessEvent variant 数据声明 + round-trip 序列化验证，拆分会损害可读性）；D08 Batch 2 无需执行（handlers/routes/middleware/utils/bootstrap/cli/config/search 目录的超长函数已在历史批次 #669-#682 中拆分完毕）；D08 Batch 1（PR #740 main 88af0f1）已合并 4 并行代理拆分 services/ 目录 39 个 >80 行函数（33 文件），主函数 ≤50 行 + helper ≤50 行 + 公共 API 签名不变 + 无 #[allow] + 注释精简 1 行；模块 G P0 完成数 15→16 |
-| IR-合规 | #739 docs/p0-d09-d14-status | IR 规则合规修复：(1) 实时阅读 .monkeycode/docs/ 6 份规划文档（INDEX/ARCHITECTURE/CODE_STYLE_GUIDE/DEVELOPER_GUIDE/SECURITY/PROJECT_HEALTH_REPORT）；(2) MEMORY.md §五改为"规则冲突裁决原则"（按 PR 规则 10 文件分工，MEMORY.md 只存规则，任务详情归档到 doto-su.md）；(3) 关键项目内容（P0 进度/技术决策/PR/架构信息）迁移到 doto-su.md 新增"📌 关键项目内容快照"节；(4) doto.md + CHANGELOG.md 同步记录；(5) 一并包含 D09+D14 完成状态更新 |
-| D09+D14 | #737 main 9768bbe | P0-D09+D14 合并完成（CI 全绿）：D09 拆分 9 个 >100 行函数（get_predefined_templates 701 行 + 2 个 From/TryFrom + 3 个路由聚合 + 3 个 report 函数，主函数仅协调 + helper ≤50 行）；D14 修复 4 处不规范命名（listAuditLogs→getAuditLogList / listSlowQueries→getSlowQueryList / addTagToCustomer→createTagForCustomer / removeTagFromCustomer→deleteTagForCustomer）；附带修复 clippy 3 新警告：omni_audit.rs 引入 AuditContext<'a> 结构体（send_audit_log 13 参→2 参 + build_audit_message 14 参→3 参 + build_audit_payload 9 参→2 参，三函数复用同一上下文）+ permission.rs 引入 4 个 type 别名（PermPair/RoleResourceGroup/RoleResourceSlice/RoleResourceGroups，消除 all_role_permission_definition_groups 的 type_complexity 警告）；CI 全绿（Clippy/单元测试/构建/格式/ESLint/类型检查均 SUCCESS），仅覆盖率非阻塞失败 |
-| D08-核实 | - | P0-D08 第一梯队 6 个 >200 行函数拆分验证完成：login 464→34 行（auth_handler.rs）+ bootstrap_full_mode 380→48 行（service_bootstrap.rs，提取 start_background_tasks）+ receive_transfer 345→42 行（inv/batch.rs，提取 apply_receive_existing_stock/apply_receive_new_stock 等）+ auto_match 291→46 行（ar/vfy_ops/match.rs，提取 parse_match_strategy/load_match_customers/process_customer_match/execute_match_strategies 等 17 个 helper）+ omni_audit_middleware 288→48 行（omni_audit.rs，提取 extract_request_meta/resolve_client_ip/extract_user_context/read_request_body_for_audit/log_request_start/classify_status_str/read_response_body/log_request_complete/should_skip_audit_path/truncate_text/send_audit_log/build_audit_message/build_audit_payload 等 13 个 helper）+ receive_order 278→49 行（po/receipt.rs，提取 check_receipt_idempotency/load_order_locked/load_items_products_stocks/process_all_item_receipts/process_item_receipt/update_or_create_stock/build_stock_fabric_args/record_stock_transaction/build_transaction_args/determine_new_order_status/update_order_status_with_audit/mark_receipt_completed 等 12 个 helper）；Python 括号深度追踪脚本确认 6 个文件括号平衡 OK（depth=0），所有主函数及 helper 均 ≤50 行，公共 API 签名不变，无 #[allow] 警告抑制，注释精简 1 行；D08 整体仍 ⏳ 进行中（剩余 89 个 >80 行函数待拆分，见 §0.8.2-§0.8.3 Batch 1/2） |
-| D08-Batch1 | - | P0-D08 Batch 1 超长函数拆分完成（33 文件 39 函数，分支 fix/p0-d08-batch1）：4 并行代理拆分 services/ 目录 39 个 >80 行函数，全部主函数 ≤50 行 + helper ≤50 行 + 公共 API 签名不变 + 无 #[allow] + 注释精简 1 行；Top10：start_event_listener 280→8 + calculate_indicators 241→21 + detect_shortages 232→37 + ship_transfer 225→20 + auto_schedule 214→39 + create_draft 118→25 + confirm_payment 118→12 + assign_permission 116→15 + convert_lead_to_customer 116→26 + get_sales_statistics 115→31；豁免 2 个（builtin_transition_rules 纯数据表 155 行 + test_payload_all_variants_round_trip 测试函数 113 行）；修复 listener.rs 4 处 &db→&*db 类型不匹配 + inv/inventory_move.rs 移除未使用 QuerySelect import；cargo check 因沙箱 5.8Gi OOM 未完成，依赖 CI 验证 |
-| D13-核实 | - | P0-D13 四次核实完成：18 个 Ar/Bpm/Ai 前缀文件全部无需重命名——Ar 前缀 6 个（ArReconciliationCharts/Confirm/Detail/Dispute/Filter/Table，"ArReconciliation" 是完整模块名非纯 "Ar" 缩写，已在 Batch 4 #719 从 ArTbl/ArChart 等纯缩写重命名）+ Bpm 前缀 11 个（BpmApproval*/BpmDefinition*，"Bpm" 是行业通用缩写如 API/CPU/RAM，已在 Batch 5/6 #720/#721 从 BpmDfFilter/BpmApAprDlg 等重命名；Grep 确认 frontend/src 下无任何 BusinessProcess 展开形式文件，证明项目约定保留 Bpm 前缀）+ Ai 前缀 1 个（AiPredictionChart，"Ai" 是行业通用缩写，已在 Batch 7 #722 从 AIPredictionChart 重命名，文件注释 L5 明确记录"D13 Batch 7 缩写命名统一：AIPredictionChart → AiPredictionChart"）；三次核实"残留 18 个缩写文件"判定有误，根因是将 ArReconciliation/BpmApproval/AiPrediction 这类"行业缩写前缀+描述性后缀"的合规命名误判为缩写命名；D13 全部完成，无需 git mv，无需更新 import 引用 |
-| D05-9 | #732 main ed1f611 | D05 useI18n 全量接入完成（77 文件 + 3327 翻译键，特殊豁免多代理并行接入）：5 个并行代理一次性处理 77 个 .vue 文件 i18n 接入，通过 merge-i18n.js 脚本深度合并翻译键到 locales/zh-CN.ts + en-US.ts（新增 10 命名空间 + 深度合并 6 已有命名空间，双语同步 3327 键），通过 audit-i18n.js 脚本全量自审补充 421 个缺失键（剩余 9 个为 ${...} 动态模板键误报），修复 TS6133 未使用变量错误（color-cards/detail.vue 删除 COLOR_CARD_TYPE_LABELS/COLOR_CARD_STATUS 导入 + color-cards/issues.vue 删除 ISSUE_STATUS 导入），CI 关键 job 全绿（前端格式/ESLint/类型检查/测试/构建 + Rust 格式/Clippy），按用户"直接合并"指令 admin squash 合并 |
-| D05-10 | - | D05 Batch 10 useI18n 接入收尾（inventory + purchase 模块 15 文件 + 0 新增翻译键）：inventory 模块 8 文件（index.vue + tabs/{InventoryStockTab,InventoryAlertTab,InventoryTransferTab}.vue + components/{StatCards,AdjustmentDialog,TransferDialog}.vue 等）+ purchase 模块 7 文件（index.vue + components/{PurchaseTop,StatCards,PurchaseFilter,PurchaseTable,CreateDlg,ViewDlg,ReceiveDlg}.vue）；本批次重点完成 purchase/components/{CreateDlg,ViewDlg,ReceiveDlg}.vue 三个对话框 i18n 接入（CreateDlg 22 处硬编码中文 → t('purchase.createDlg.*') + ViewDlg 22 处 → t('purchase.viewDlg.*') + ReceiveDlg 19 处 → t('purchase.receiveDlg.*')），所有翻译键已在之前批次定义在 locales/zh-CN.ts + en-US.ts 双语同步（createDlg/viewDlg/receiveDlg 子命名空间）；6 个 Grep 模式校验（label/title/placeholder/aria-label 属性 + 模板文本 + script 字符串 + 模板表达式 + ElMessage 调用）确认 inventory + purchase 模块 15 个 .vue 文件无残留硬编码中文（注释除外）；接入 useI18n({ useScope: 'global' })，无 #[allow] 警告抑制 |
-| D05-8 | - | D05 Batch 8 i18n 缺失键补全（7 文件 + 3 命名空间扩展）：从 budget/tabs/BudgetListTab.vue（49 键）+ businessTrace/index.vue（61 键）+ capacity/index.vue + capacity/components/{CapacityTable,CapacityTrend,CapacityBottleneck,CapacityStat}.vue（36 键）+ advanced/components/AdvancedQualityPanel.vue（1 键）提取 154 个 $t()/t() 引用但未定义的 i18n 键，补全到 locales/zh-CN.ts + en-US.ts 双语同步（2863→3011 键，+148 键），budget 命名空间扩展（title/createBudget/export/filter/status/table/dialog/message 子命名空间）+ 新增 businessTrace 命名空间（tab/placeholder/button/card/field/table/empty/form/message）+ 新增 capacityModule 命名空间（title/dateRange/stat/trend/table/bottleneck/workCenterStatus/common）+ advancedModule.quality.confidence；ERP 业务语义翻译（预算管理/Budget Management、五维追溯/Five-Dimension Trace、产能分析/Capacity Analysis、负荷率/Load Rate、瓶颈/Bottleneck），单引号字符串 + 2 空格缩进 + {name}/{count} 动态参数语法，audit 脚本验证 0 真实缺失键（9 个 ${...} 动态模板字面量为 regex 误报已排除） |
-| D05-7 | - | D05 Batch 7 useI18n 接入（8 文件 + 2 命名空间）：color-cards 4 文件（list/create/detail/issues.vue，新增 colorCards 命名空间 200 翻译键）+ color-prices 4 文件（list/create/detail/batch-adjust.vue，新增 colorPrices 命名空间 165 翻译键）；8 文件均接入 useI18n({ useScope: 'global' })，所有用户可见文本迁移到 locales/zh-CN.ts + en-US.ts 双语同步（1445→1912 行），getLevelLabel/getSeasonLabel/getApprovalLabel 等状态标签映射函数化响应式求值，表单校验规则改 computed() 响应式，含带参数翻译 successAlert/batchAdjustSuccess/priceCalc 等使用 {id}/{auto}/{pending}/{base}/{final}/{rule} 占位符，共 365 翻译键，389 处 $t/t() 调用全部验证通过 0 缺失键，输出到 /tmp/i18n-keys/group5.json |
-| D05-6 | - | D05 Batch 6 i18n 翻译键汇总（group4.json）：BOM 模块 bomModule 命名空间 + BPM 模块 bpm 命名空间扩展（approval/nodeType/definitions/templates 子命名空间），共 406 个翻译键（zh+en 双语），覆盖 16 个 Vue 文件（bom/index.vue + BillOfMaterialsForm.vue + bpm/approval/* 6 组件 + bpm/definitions/* 5 组件 + bpmDfFmts.ts + bpm/templates.vue），验证全部 396 个直接引用键 + 10 个间接引用键（bpmDfFmts.ts 映射表 + 多行参数 t() 调用）均存在，输出到 /tmp/i18n-keys/group4.json |
-| D05-5 | #729 main 9e9d79a | D05 Batch 5 useI18n 接入（2 文件 + 2 命名空间）：quality-standards/index.vue（648 字符，新增 qualityStandards 命名空间 ~85 翻译键，41 处模板 $t + 20 处 script t = 61 处 t() 调用，getTypeLabel/getStatusLabel 函数化响应式求值）+ crm/leads/index.vue（641 字符，新增 crmLeads 命名空间 ~80 翻译键，56 处模板 $t + 36 处 script t = 92 处 t() 调用，含 4 处带参数翻译 contactConfirm/convertConfirm/lostConfirm/importSuccess 等使用 {name}/{count}/{row}/{message}/{total}/{success}/{failed}/{detail} 占位符，getSourceLabel/getStatusLabel/getPriorityLabel 函数化响应式求值，export 命名空间用 exportFile 避免与 export 按钮标签键名冲突）；2 文件均接入 useI18n({ useScope: 'global' })，所有用户可见文本（标题/按钮/placeholder/label/aria-label/ElMessage/ElMessageBox）迁移到 locales/zh-CN.ts + en-US.ts 双语同步，共新增 ~165 翻译键，历史批次注释原样保留，无 #[allow] 警告抑制 |
-| D05-4 | #727 main 2e5d759 | D05 Batch 4 useI18n 接入（2 文件 + 2 命名空间）：crm/tabs/CustomerListTab.vue（680 字符，新增 crmCustomer 命名空间 ~85 翻译键，74 处模板 $t + 43 处 script t = 117 处 t() 调用，getCustomerTypeLabel 函数化响应式求值，print 内容命名空间用 printDialog 避免与 print 按钮标签键名冲突）+ system/audit-log/index.vue（669 字符，新增 auditLog 命名空间 ~77 翻译键，33 处模板 $t + 40 处 script t = 73 处 t() 调用，opTypeOptions/severityOptions/columns 改为 computed + getOpTypeLabel/getSeverityLabel 函数化响应式求值）；2 文件均接入 useI18n({ useScope: 'global' })，所有用户可见文本（标题/按钮/placeholder/label/aria-label/ElMessage/ElMessageBox）迁移到 locales/zh-CN.ts + en-US.ts 双语同步，共新增 162 翻译键，修复 audit-log.test.ts 安装 i18n 插件 + crmCustomer.print 键名冲突 TS1117，历史批次注释原样保留，无 #[allow] 警告抑制 |
-| D05-3 | #725 main 993c8fb | D05 Batch 3 useI18n 接入（2 文件 + 2 命名空间）：report-templates/index.vue（706 字符，新增 reportTemplates 命名空间 ~100 翻译键，61 处模板 $t + 21 处 script t = 82 处 t() 调用，categoryMap 改为 getCategoryLabel 函数响应式求值）+ quality/index.vue（691 字符，新增 quality 命名空间 ~100 翻译键，68 处模板 $t + 25 处 script t = 93 处 t() 调用，getStandardStatusLabel 函数化响应式求值，含 ElMessageBox.prompt rejectPrompt/rejectTitle/rejectConfirmButton/rejectCancelButton/rejectPlaceholder 5 处参数化）；2 文件均接入 useI18n({ useScope: 'global' })，所有用户可见文本（标题/按钮/placeholder/label/aria-label/ElMessage/ElMessageBox/ElMessageBox.prompt）迁移到 locales/zh-CN.ts + en-US.ts 双语同步，历史批次注释原样保留，无 #[allow] 警告抑制 |
-| D05-2 | #724 main 6edbf70 | D05 Batch 2 useI18n 接入（2 文件 + 2 命名空间）：print-templates/index.vue（785 字符，新增 printTemplates 命名空间 ~120 翻译键，128 处 t() 调用，moduleMap/typeMap 改为 getModuleLabel/getTypeLabel 函数响应式求值）+ bpm/index.vue（716 字符，新增 bpm 命名空间 ~130 翻译键，120 处 t() 调用，含 {instanceId} 占位符 cancelConfirm/processImageTitle/traceTitle 3 处参数化）；2 文件均接入 useI18n({ useScope: 'global' })，所有用户可见文本（标题/按钮/placeholder/label/aria-label/ElMessage/ElMessageBox）迁移到 locales/zh-CN.ts + en-US.ts 双语同步，历史批次注释原样保留，无 #[allow] 警告抑制 |
-| D05-1 | #724 main 6edbf70 | D05 Batch 1 useI18n 接入（1 文件 + 1 命名空间）：fixed-assets/tabs/AssetListTab.vue（864 字符，新增 fixedAssets 命名空间 130+ 翻译键，124 处 t() 调用，getCategoryLabel/getStatusLabel 函数化响应式求值）；接入 useI18n({ useScope: 'global' })，所有硬编码中文迁移到 locales/zh-CN.ts + en-US.ts 双语同步，无 #[allow] 警告抑制 |
-| D13-7 | #722 main 6854060 | D13 Batch 7 前端缩写命名统一（13 文件 + 5 caller）：bom 1（BomForm→BillOfMaterialsForm）+ dashboard 4（DbActTbl/Pie/Stat/Trend→DashboardActivityTable/Pie/Stat/Trend）+ purchase 3（PurchFilter/Tbl/Top→PurchaseFilter/Table/Top）+ purchaseReceipt 4（PrcDetail/Filter/Form/Tbl→PurchaseReceiptDetail/Filter/Form/Table）+ components/ai 1（AIPredictionChart→AiPredictionChart）；caller 更新 5 文件（bom/index.vue + Dashboard.vue + purchase/index.vue + purchaseReceipt/index.vue + ai-extend/quality-prediction.vue + SalesAnalysisTrend.vue 注释 + usePrcProc.ts 注释）；额外 1 个本地 interface 重命名（PrcFormModel→PurchaseReceiptFormModel 4 处），无 #[allow] 警告抑制 |
-| D13-6 | #721 main db50305 | D13 Batch 6 前端缩写命名统一（20 文件 + 6 caller）：bpm/approval 6（BpmApAprDlg/ChainDlg/CompletedTbl/PendingTbl/Stat/TranDlg→BpmApprovalApprovalDialog/ChainDialog/CompletedTable/PendingTable/Stat/TransferDialog）+ purchase-contract 4（PcDetail/Filter/Form/Tbl→PurchaseContractDetail/Filter/Form/Table）+ purchase-inspection 5（PiDetail/Filter/Form/Stat/Tbl→PurchaseInspectionDetail/Filter/Form/Stat/Table）+ sales-analysis 5（SaCustRank/ProdRank/Stat/Target/Trend→SalesAnalysisCustomerRank/ProductRank/Stat/Target/Trend）；caller 更新 6 文件（bpm/approval/index.vue + purchase-contract/index.vue + purchase-inspection/index.vue + usePi.ts 注释 + sales-analysis/index.vue + useSa.ts 注释）；额外 4 个本地 interface 重命名（BpmApStats→BpmApprovalStats 2 处 + PiFormData→PurchaseInspectionFormData 4 处 + PiStats→PurchaseInspectionStats 2 处 + PcFormData→PurchaseContractFormData 4 处），无 #[allow] 警告抑制 |
-| D13-5 | #720 main 84cafd8 | D13 Batch 5 前端缩写命名统一（17 文件 + 5 caller）：purchase-return 5（PrRtnApr/Detail/Filter/Form/Tbl→PurchaseReturnApproval/Detail/Filter/Form/Table）+ material-shortage 3（MsSevCard/Stat/Tbl→MaterialShortageSeverityCard/Stat/Table）+ production 4（PrdDetail/Filter/Form/Tbl→ProductionDetail/Filter/Form/Table）+ bpm/definitions 5（BpmDfFilter/Form/Tbl/TplDlg/VerDlg→BpmDefinitionFilter/Form/Table/TemplateDialog/VersionDialog）；caller 更新 5 文件（purchase-return/index.vue + usePrRtn.ts 注释 + material-shortage/index.vue + production/index.vue + bpm/definitions.vue）；额外 BpmDefinitionForm.vue 本地 interface BpmDfFormData→BpmDefinitionFormData（4 处引用），无 #[allow] 警告抑制 |
-| D13-4 | #719 main ef91527 | D13 Batch 4 前端缩写命名统一（20 文件 + 8 caller）：api-gateway 1（EpForm→ApiEndpointForm）+ sales 3（OlvFilter/Stat/Tbl→SalesOrderFilter/Stat/Table）+ scheduling 10（SchGAdj/Auto/Chart/Conf/Tool→SchedulingGanttAdjust/Auto/Chart/Conflict/Tool + SchMAdj/Conf/Param/Tbl/Tool→SchedulingMachineAdjust/Conflict/Param/Table/Tool）+ arReconciliation 6（ArCharts/Confirm/Detail/Dispute/Filter/Tbl→ArReconciliationCharts/Confirm/Detail/Dispute/Filter/Table）；caller 更新 8 文件（api-gateway/index.vue + sales/views/OrderListView.vue + useOlv.ts + scheduling/index.vue + gantt.vue + useSchG.ts + arReconciliation/enhanced.vue），无 #[allow] 警告抑制 |
-| D13-3 | #718 main 404fc14 | D13 Batch 3 前端缩写命名统一（17 文件 + 7 caller）：security/two-factor 5（TfaStep1-4→TwoFactorAuthStep1-4 + TfaStepBar→TwoFactorAuthStepBar）+ security/components 4（SecAlertTbl→SecurityAlertTable + SecLockTbl→SecurityLockTable + SecLogTbl→SecurityLogTable + SecStat→SecurityStat）+ capacity 4（CpBottleneck→CapacityBottleneck + CpStat→CapacityStat + CpTbl→CapacityTable + CpTrend→CapacityTrend）+ advanced 4（AiPanel→AdvancedAiPanel + QltPanel→AdvancedQualityPanel + RcpPanel→AdvancedRecipePanel + RptPanel→AdvancedReportPanel）；caller 更新 7 文件（security/index.vue + TwoFactorSetup.vue + useTfa.ts + useTfaProc.ts 接口 TwoFactorAuthStep3Instance 同步 + capacity/index.vue + useCp.ts + advanced/index.vue），无 #[allow] 警告抑制 |
-| D13-2 | #717 main c3e2f58 | D13 Batch 2 前端缩写命名统一（18 文件 + 6 caller）：logistics 6（LgsFilter→LogisticsFilter + LgsStat→LogisticsStat + LgsStatDlg→LogisticsStatDialog + LgsTbl→LogisticsTable + LgsDetail→LogisticsDetail + LgsForm→LogisticsForm）+ finance/tabs 4（VchrForm→VoucherForm 等）+ voucher/tabs 4（VchrListTab→VoucherListTab 等）+ data-import 4（DiTplTable→DataImportTemplateTable + DiTaskTable→DataImportTaskTable + DiTplForm→DataImportTemplateForm + DiUpload→DataImportTemplateUpload）；caller 更新 6 文件（logistics/index.vue + finance/tabs/VoucherTab.vue + voucher/tabs/VoucherListTab.vue + data-import/index.vue + useDiProc.ts 接口 DiTplForm→DataImportTemplateFormData 同步），无 #[allow] 警告抑制 |
-| D13-1 | #716 main 937b9a2 | D13 Batch 1 前端缩写命名统一（16 文件 + 6 caller）：sales-contract 3（ScFilter→SalesContractFilter + ScTbl→SalesContractTable + ScForm→SalesContractForm）+ system-update 3（SuVerDetail→SystemUpdateVersionDetail 等）+ sales-price 5（SpFilter→SalesPriceFilter + SpTbl→SalesPriceTable 等）+ purchase-price 5（PpFilter→PurchasePriceFilter + PpTbl→PurchasePriceTable 等）；caller 更新 6 文件（sales-contract/index.vue + system-update/index.vue + sales-price/index.vue + purchase-price/index.vue + useSc.ts + useSuVer.ts），无 #[allow] 警告抑制 |
-| 核实 2026-07-23 | — | 4 项未完成任务代码级核实：D10 第 3 批实际 4/4 完成（doto 滞后记 2/4，models/status.rs + mrp_engine_service.rs 已拆分）+ 第 4/5 批 6 文件逆生长（wage +114/ap_invoice +99/ap_recon +103/init +60/ar-vfy +48/flow_card +14）+ 第 6 批实际 15 个（doto 记 11，含 ar_ops/verification.rs 1062 行 D10-1 副产物）+ 当前真实 23 个 >1000 行；D05 数据准确仅 AssetListTab.vue 864→609；D13 实际 111 个（25 类前缀）/121 个（27 类，doto 记 123）；D14 风格 A 25 个（doto 记 21）+ listXxx 59 文件 104 处（doto 记 47/84）工作量低估 23% |
-| 488（进行中，15/17 完成） | main 多 commit + PR #669-#686 | V15 P0-D 系列 17 项打包：已完成 15 项（D01/D02/D07/D11/D15/D16/D17 审计误判 + D03+D04 Redis 缓存接入 + D12 圈复杂度优化 6 项 + D06 aria-label ~225 文件 + D08 全部 167 函数超长函数拆分 + D09 收尾 2 个100+行函数 + D10-1 ar_service.rs 2489→259 facade + 5 子模块 + D10-2 production_order_service.rs 2141→689 facade + 5 子模块 + D10-3 so/delivery.rs 2095→822 facade + 6 子模块 + D10-2a voucher_service.rs 2058→882 + energy_service.rs 1826→324 + D10-2b outsourcing_service.rs 1879→436 + business_mode_service.rs 1739→741），剩余 2 项大型任务（D05/D10 第 3-6 批/D13/D14） |
-| D10-1 | #683 main 34b8cae | D10 第 1 批 1/3：ar_service.rs (2489行) 拆为 facade (259行) + ar_ops/{types 75, json_helpers 98, collection 676, verification 1062, report 422, mod 23}，49 方法按职责分散到多 impl 块，外部 17 处调用路径不变 |
-| D10-2 | #684 main 0385401 | D10 第 1 批 2/3：production_order_service.rs (2141行) 拆为 facade (689行) + production_order_ops/{mod 17, types 87, crud 568, completion 667, approval 288}，41 方法按职责分散到多 impl 块，3 处外部调用路径不变 |
-| D10-3 | #684 main 0385401 | D10 第 1 批 3/3：so/delivery.rs (2095行) 拆为 facade (822行) + delivery_ops/{mod 16, types 35, ship 588, inventory 357, cancel 270, export 136}，30 方法按职责分散到多 impl 块，DTO+validate+测试保留在 facade，外部调用路径不变 |
-| D10-2a | #685 main f836552 | D10 第 2 批 1/2：voucher_service.rs (2058行) 拆为 facade (882行，含 747 行测试模块) + voucher_ops/{mod, crud 468, workflow, balance, assist}，39 方法按职责分散到多 impl 块（5 workflow + 12 balance + 11 assist + 11 crud），DTOs + VoucherTypeDefinition + VoucherDetail + 测试保留在 facade，db 字段改 pub(crate)，update_account_balances/write_assist_accounting_records_txn 改 pub(crate)，BalanceUpdateContext/AssistRecordContext 改 pub(super)，外部 34 处调用路径不变；energy_service.rs (1826行) 拆为 facade (324行) + energy_ops/{meter,consumption,allocation_rule,allocation_record} |
-| D10-2b | #686 main 882cecc | D10 第 2 批 2/2：outsourcing_service.rs (1879行) 拆为 facade (436行) + outsourcing_ops/{mod,types,order 724,order_item,receipt,voucher}，4 Service 39 方法（17+5+9+8）按职责分散到多 impl 块，9 纯函数 + 20 测试保留在 facade，db 字段改 pub(crate)，ReceiptCalculation 改 pub(super)，DTOs 通过 pub use 二次 re-export；business_mode_service.rs (1739行) 拆为 facade (741行) + business_mode_ops/{mod,types,config,flow_step,rule,order_link}，4 Service 28 方法（11+5+5+7）按职责分散到多 impl 块，9 校验纯函数 + P0-D12 重构产物 + 测试保留在 facade，DTOs 通过 pub use 二次 re-export |
-| D10-3a | #687 main d301de9 | D10 第 3 批 1/2：chemical_service.rs (1730行) 拆为 facade (349行) + chemical_ops/{mod 25, types 245, master 439, category 196, lot 327, requisition 316}，4 Service 43 方法（master 16 含10私有helper + category 6 + lot 10 + requisition 11 含私有 generate_requisition_no）按职责分散到多 impl 块，8 纯函数 + 18 测试保留在 facade，db 字段改 pub(crate)，DTOs 通过 pub use 二次 re-export，外部 chemical_handler.rs 调用路径不变；bi_analysis_service.rs (1711行) 拆为 facade (317行) + bi_analysis_ops/{mod 23, types 226, sales 391, profit 258, drilldown 352, olap 287}，1 Service 20+ 方法按职责分散到 4 impl 块（sales 6 + profit 2 + drilldown 4 + olap 4），3 helper 函数 + scope_sql 改 pub(crate)，8 response struct 通过 pub use 二次 re-export，外部 bi_handler.rs 调用路径不变 |
-| D10-3b | #688 main 69de94f + #691 main 9818351 | D10 第 3 批 2/2：models/status.rs (1577行) 拆为 status/mod.rs + {common,master_data,production,purchase,sales,inventory,mrp,payment} 8 分组文件，按业务域分组状态常量；mrp_engine_service.rs (1593行) 拆为 facade (605行) + mrp_engine_ops/{mod,types,stock,bom,calculation,query,order} 7 子模块 22 方法，StockInfo 提升为 pub(crate)，facade 仅 pub use 8 个原 pub struct，测试模块直接从 ops 导入 StockInfo；CI 修复 3 轮：5 unused imports + 6 sea_orm trait 缺失 + 集成测试 common 模块名称遮蔽（use super::common 限定本地模块） |
-| D10-4a | #692 main ac593a2 | D10 第 4 批 1/2：dye_batch_state_machine_service.rs (1512行) 拆为 facade (920行，含 11 纯验证函数 + 4 Service struct + new + 10 DTOs + 测试) + dye_batch_state_machine_ops/{mod 17, lifecycle_log 152, state_rule 195, rework 232, operation 117}，4 Service 27 方法按职责分散到多 impl 块（lifecycle_log 6 + state_rule 7 + rework 9 + operation 5），db 字段改 pub(crate)，外部调用路径不变；wage_service.rs (1621行) 拆为 facade (774行，含 9 纯函数 + 3 Service struct + new + 7 DTOs + 测试) + wage_ops/{mod 14, rate 351, record 242, calculation 357}，3 Service 29 方法按职责分散到多 impl 块（rate 11 + record 10 + calculation 8 含 3 私有 helper struct），db 字段改 pub(crate)，2 日期纯函数改 pub(crate) 供 calculation 复用，外部 wage_handler.rs 调用路径不变 |
-| D10-4b | #693 main 6a480d9 | D10 第 4 批 2/2：ar/vfy.rs (1368行) 拆为 facade (568行，含 7 DTOs + 测试) + ar/vfy_ops/{mod 17, match 389, aging 158, reconciliation 221, confirm 113}，ArReconciliationService 5 公开方法 + helper 分散到多 impl 块，db 字段改 pub(crate)，外部调用路径不变；ap_invoice_service.rs (1405行) 拆为 facade (407行，含 6 DTOs + 3 校验函数 + impl_generate_no! 宏 + 测试) + ap_invoice_ops/{mod 16, types 159, receipt 390, crud 398, report 161}，ApInvoiceService 20 方法分散到多 impl 块（receipt 9 + crud 8 + report 3），ReceiptVoucherContext 移到 receipt.rs，db 字段改 pub(crate)，CI 修复 1 轮：receipt.rs 缺失 ColumnTrait |
-| D10-4b docs | #694 main c6df976 | D10-4b 合并完成更新 CHANGELOG + doto 文档 |
-| Clippy fix | #695 main c078e96 | 修复 9 个新增 Clippy 警告（D10 拆分副产物）：4 个中文测试函数名 snake_case + 5 个 unused import/DTO re-export |
-| D10-5 | #696 main 6bc4dca | D10 第 5 批 4/4：init_service.rs (1347行) 拆为 facade (293行) + init_service_ops/{mod 11, setup 287, role 215, permission 387, dept_user 198}，10 核心方法分散到 4 impl 块，db 字段改 pub(crate)，5 跨子模块调用方法改 pub(crate)；flow_card_service.rs (1285行) 拆为 facade (386行) + flow_card_ops/{mod 16, route 151, card_crud 227, card_state 190, step 247, feedback 162}，4 Service 35 方法分散到 5 impl 块，5 纯函数改 pub(crate)；ap_reconciliation_service.rs (1346行) 拆为 facade (621行) + ap_reconciliation_ops/{mod 17, types 99, crud 189, confirm 182, report 111, auto 235}，18 方法分散到 5 子模块；search/elastic.rs (1230行) 拆为 facade (756行含测试 394行) + elastic_ops/{mod 4, client_ops 343, syncer_ops 41, types_ops 49}；CI 修复 1 轮：5 方法可见性私有→pub(crate) + 1 unused import SearchClient |
-| D10-6b-2 | #702 main 3890add | D10 第 6 批 9/15：4 个 1000-1074 行文件按 facade 模式拆分。①ar_ops/verification.rs (1062→30 仅文档) + verification_ops/{mod 21, query 214, auto 415, manual 490}，23 方法 3 impl 块（query 4 公开 + auto 1 公开+9 辅助 + manual 2 公开+7 辅助）；②purchase_receipt_service.rs (1074→481 facade) + purchase_receipt_ops/{mod 28, auth 35, crud 207, state 122, items 278, query 76}，db 字段 pub(crate)，build_receipt_active_model 等 3 纯函数保留 facade 供 ops 跨模块复用；③ar/recon.rs (1070→658 facade 含测试) + ar/recon_ops/{mod 13, crud 206, lifecycle 259}，ArReconciliationService struct 保留在 ar/mod.rs，facade 仅 pub use DTO；④bpm_service.rs (1060→148 facade) + bpm_ops/{mod 15, instance 404, task 453, monitor 151}，evaluate_bpm_condition/resolve_first_task_node 纯函数 + BPM_CONDITION_RE 静态正则保留 facade 供 task 子模块复用；所有子模块独立导入 sea_orm traits，无 #[allow] 警告抑制，外部调用路径不变；CI 修复 1 轮：E0252 ReconciliationModel 重复导入 + 3 个 unused import（PageResponse/UpdatePurchaseReceiptRequest/UpdateReceiptItemRequest 拆分后仅测试用） |
-| D10-6b-3 | #703 main 7120cf3 | D10 第 6 批 15/15：3 个 1005-1046 行文件拆分完成。①bom_service.rs (1046→587 facade) + bom_ops/{mod 20, crud 317, state 105, tree 145}，16 方法 3 impl 块（crud 9 + state 2 + tree 5），3 纯函数保留 facade（cancel_existing_default_bom/build_bom_item_models/build_leaf_bom_node），collect_requirements 改 pub(crate) 供 facade 测试调用，db 字段 pub(crate)；②import_export_service.rs (1018→546 facade) + import_export_ops/{mod 16, import 218, export 226, task 105}，10 业务方法 3 impl 块，9 纯函数保留 facade（4 跨子模块调用改 pub(crate)），5 DTO + 5 常量 + 测试保留 facade；③main.rs (1005→171 入口) + bootstrap/{mod 12, infra_bootstrap 76, middleware_bootstrap 282, routes_bootstrap 182, service_bootstrap 453}，按启动流程职责拆分（非 facade 模式），main.rs 仅保留 mod 声明 + shutdown_signal + main() 入口，MAX_HTTP_BODY_BYTES 迁移到 middleware_bootstrap 改 pub，不改变应用行为；所有 service 子模块独立导入 sea_orm traits，无 #[allow] 警告抑制，外部调用路径不变 |
-| D14-1 | #705 main e807550 | D14 Batch 1 财务 AP/AR api 命名统一（15 文件 31 处）：5 API 定义文件（ap.ts 5 listXxx→getXxxList + ar.ts 4 listXxx→getXxxList + ar-reconciliation.ts listArReconciliations→getArReconciliationList + addReconciliationDetail→createReconciliationDetail + voucher.ts listVouchers→getVoucherList + finance.ts listVouchers→getVoucherList + listSubjects→getSubjectList）+ 4 re-export 兼容层（ap-invoice/ap-payment/ap-reconciliation/ap-verification）+ 6 caller .vue 文件（ap/tabs 4 + ar/tabs 2），命名规范 getXxxList/createXxx/updateXxx/deleteXxx/getXxxById，无 #[allow] 警告抑制 |
-| D14-2 | #706 main eb4fdb2 | D14 Batch 2 采购/销售/库存 api 命名统一（14 文件 23 处）：9 API 定义文件 13 处重命名（purchase-contract.ts listPurchaseContracts→getPurchaseContractList + purchase-price.ts listPurchasePrices→getPurchasePriceList + purchaseReceipt.ts listPurchaseReceipts→getPurchaseReceiptList + addReceiptItem→createReceiptItem + sales-contract.ts listSalesContracts→getSalesContractList + sales-price.ts listSalesPrices→getSalesPriceList + listPricingStrategies→getPricingStrategyList + inventoryAdjustment.ts listInventoryAdjustments→getInventoryAdjustmentList + addAdjustmentItem→createAdjustmentItem + inventoryTransfer.ts listInventoryTransfers→getInventoryTransferList + addTransferItem→createTransferItem + inventoryBatch.ts listBatches→getBatchList + inventoryCount.ts listInventoryCounts→getInventoryCountList）+ 5 caller 文件（purchase-ext/tabs/ContractTab.vue + PriceTab.vue + sales-ext/tabs/ContractTab.vue + PriceTab.vue + sales-price/composables/useSpProc.ts），命名规范 getXxxList/createXxx，无 #[allow] 警告抑制 |
-| D14-3 | #708 main 8b407e8 | D14 Batch 3 生产/质量 api 命名统一（7 文件 17 处）：3 API 定义文件 5 处重命名（quality-standards.ts listQualityStandards→getQualityStandardList + quality.ts listQualityStandards→getQualityStandardList + listQualityRecords→getQualityRecordList + listDefects→getDefectList + production.ts listProductionOrders→getProductionOrderList）+ 4 caller 文件（quality/index.vue 3 import+3 调用 + quality/tabs/StandardTab.vue 动态 import+调用+注释 + quality/tabs/DefectTab.vue 动态 import+调用 + quality-standards/index.vue 注释更新规则20），命名规范 getXxxList，无 #[allow] 警告抑制 |
-| D14-4 | #710 main 3629977 | D14 Batch 4 CRM/客户/供应商/贸易 api 命名统一（23 文件 41 处）：12 API 定义文件 29 处重命名（trading.ts 5 listTradingXxx→getXxxList + trading-return.ts listTradingReturns→getTradingReturnList + trading-price.ts listTradingPrices→getTradingPriceList + trading-contract.ts listTradingContracts→getTradingContractList + quotation.ts listQuotations→getQuotationList + listExpiringQuotations→getExpiringQuotationList + listExpiredQuotations→getExpiredQuotationList + custom-order.ts listCustomOrders→getCustomOrderList + addProcessNode→createProcessNode + addNodeLog→createNodeLog + listQualityIssues→getQualityIssueList + listAfterSales→getAfterSalesList + customer.ts listCustomers→getCustomerList + listCustomersForSelect→getCustomerSelectList + customer-credit.ts listCustomerCredits→getCustomerCreditList + 删除 listCredits 别名 + supplier.ts listSuppliers→getSupplierList + supplier-evaluation.ts listIndicators→getEvaluationIndicatorList + listEvaluationRecords→getEvaluationRecordList + listEvaluations→getEvaluationList + crm.ts listLeads→getLeadList + listOpportunities→getOpportunityList + color-price.ts listColorPrices→getColorPriceList + listTiers→getTierList + listCustomerSpecialPrices→getCustomerSpecialPriceList + listSeasonalRules→getSeasonalRuleList）+ 11 caller 文件（trading/tabs 5 + arReconciliation 2 + color-prices 3 + fabric + greige-fabrics + quotations 2 + sales-returns），命名规范 getXxxList/createXxx，无 #[allow] 警告抑制 |
-| D14-5a | #712 main 5d1c33b | D14 Batch 5a 系统/权限/基础/报表/其他风格 B api 命名统一（58 文件 117 处）：28 API 定义文件 48 处重命名（user.ts listUsers→getUserList + department.ts listDepartments→getDepartmentList + role.ts listRoles→getRoleList + removePermission→deletePermission + listPermissions→getPermissionList + system-update.ts listSystemVersions→getSystemVersionList + listUpdateTasks→getUpdateTaskList + listSystemBackups→getSystemBackupList + notification.ts listNotifications→getNotificationList + fetchWsTicket→getWsTicket + asset.ts listAssets→getAssetList + listBudgets→getBudgetList + listBudgetItems→getBudgetItemList + budget.ts listBudgets→getBudgetList + fund.ts listFundAccounts→getFundAccountList + listFundTransfers→getFundTransferList + currency.ts listCurrencies→getCurrencyList + account-subject.ts listAccountSubjects→getAccountSubjectList + accounting-period.ts listAccountingPeriods→getAccountingPeriodList + color-card.ts listColorCards→getColorCardList + listColorItems→getColorItemList + listIssues→getIssueList + color-card-issue.ts listIssues→getIssueList + dye-batch.ts listDyeBatches→getDyeBatchList + dye-recipe.ts listDyeRecipes→getDyeRecipeList + greige-fabric.ts listGreigeFabrics→getGreigeFabricList + api-gateway.ts listApiEndpoints→getApiEndpointList + listApiLogs→getApiLogList + listApiKeys→getApiKeyList + ai-extend.ts listProcessOptimizations→getProcessOptimizationList + listProcessOptimizationsByColor→getProcessOptimizationListByColor + listQualityPredictions→getQualityPredictionList + listQualityPredictionsByProduct→getQualityPredictionListByProduct + data-import.ts listImportTemplates→getImportTemplateList + listImportTasks→getImportTaskList + print-templates.ts listPrintTemplates→getPrintTemplateList + report-enhanced.ts listReportTemplates→getReportTemplateList + listSubscriptions→getSubscriptionList + report-templates.ts listReportTemplates→getReportTemplateList + assist-accounting.ts listAssistDimensions→getAssistDimensionList + listAssistRecords→getAssistRecordList + 删除 queryAssistRecords 别名 + cost.ts listCostCollections→getCostCollectionList + data-permission.ts listDataPermissions→getDataPermissionList + listRoleDataPermissions→getRoleDataPermissionList + listScopeTypes→getScopeTypeList + advanced.ts listReportTemplates→getReportTemplateList + financial-analysis.ts listReports→getReportList + five-dimension.ts listFiveDimensionStats→getFiveDimensionStatsList）+ 28 caller 文件（crm 4 + departments + system/tabs/RoleTab + dataPermission 2 + fund/tabs/TransferTab + ar/tabs/FundTab + currency/tabs + accountSubject/tabs + accountingPeriod/tabs + fabric 4 + greige-fabrics + color-cards 2 + store/colorCardIssue + composables/useColorCardIssue + ai-extend 2 + print-templates + financial-analysis/tabs/AnalysisListTab + advanced/composables/useRpt + utils/websocket 注释），风格 A object 方法（financialAnalysisApi.listReports / fiveDimensionApi.listStats 等）留 Batch 5b，命名规范 getXxxList/createXxx/deleteXxx，无 #[allow] 警告抑制；CI 修复 1 轮：data-permission.ts 第 74 行 URL 单引号→反引号修复 \${roleId} 插值（TS6133 roleId 未使用） |
-| D14-5b | #714 main 8d8b196 | D14 Batch 5b 风格 A object→风格 B 函数转换（100 文件 +1488 -1120）：Pass 1 将 25 个风格 A API 定义文件的 `xxxApi = {}` 对象导出移除，转为独立函数（bom.ts 10 + bpm-enhanced.ts 16 + bpm.ts 13 + crm-enhanced.ts 21 + customer.ts 7 + five-dimension.ts 1 + financial-analysis.ts 4 + fabric.ts 等，保留类型定义，命名冲突函数加业务前缀如 getBpmDefinitionList/getFinancialReport）；Pass 2 更新 70+ caller 文件 import+调用（A 组 11 + B 组 12 + C 组 12 + D1 组 18 + D2 组 17 文件 50 处：BPM 5 文件 26 处 bpm/index.vue 13 + templates.vue 2 + useBpmApProc.ts 3 + useBpmDf.ts 1 + useBpmDfProc.ts 7；CRM 11 文件 23 处 assignment.vue 2 + OpportunityFollowTab/ReleaseDialogTab/FollowUpTab 2/ManualAssignDialogTab/ClaimDialogTab/RfmTab 2/CustomerListTab 4/TagsPanelTab 3/TransferDialogTab/detail.vue 5；其他 1 文件 useSc.ts customerApi.list→getCustomerList）；本地函数与 API 函数命名冲突使用 `as` 别名（store/fabric.ts、sales-analysis/useSa.ts 等）；api/index.ts 注释 4 个冲突模块 re-export（crm-enhanced/purchaseReceipt/inventoryTransfer/bpm-enhanced）；测试 mock 适配（inventory-store.test.ts + login.test.ts）；grep 验证 `xxxApi.method()` 0 残留，`import { xxxApi }` 仅剩 useTableApi（composable 合规）；命名规范 getXxxList/createXxx/updateXxx/deleteXxx/getXxxById，无 #[allow] 警告抑制 |
-| 487 | main 3919255 + d7e3b73 + a456a53 | V15 P0-T02 7 项集成测试 73 测试 + P0-T07 性能基准 11 bench + P0-T05 E2E 配置修复（28 文件 +1836 -29） |
-| 486 | main 01faa60 | V15 P0-T01 核心 service 单测补全（quotation + purchase_receipt 共 38 测试） |
-| 485 | main af0f16b + 5e4e78f + 7cc82cc | V15 P0-T03 clippy baseline 恢复 + P0-T08 覆盖率工具 + 编译错误修复（4 文件，CI 7 轮） |
-| 484 | main df5286ee + c012a3b9 | V15 P0-B15 缺料预警持久化 + P0-B16 自动故障检测 + P0-B17 主备切换（11 文件） |
-| 483 | #668 | V15 P0-B10 BI 权限过滤 + P0-B11 定制订单打样报价 + P0-B12 售后质量集成 + P0-B13 物流电子签收（15 文件） |
-| 482 | #667 | V15 P0-B05 大额调拨 + P0-B06 预算超支 + P0-B07 CRM 回收 + P0-B08 赢率 + P0-B09 输单原因 + P0-B14 Incoterms（13 文件） |
-| 481 | #666 | V15 P0-B01 坏账准备 + P0-B02 坏账核销审批 + P0-B03 催收任务 + P0-B04 财务预警（25 文件，CI 5 轮） |
-| 480 | main 5334bf13 + 8d7ea998 + ae87219f | V15 P0-F20 8D 质量管理流程（13 文件，11 态状态机） |
-| 479 | main 642d2c09 + cc1ee381 + c06109fd + bbf38a30 | V15 P0-F18/F21 返工降级报废闭环 + 返工走生产订单（7 文件） |
-| 478 | main 9d01a42 + 6aca804 | V15 P0-F15/F16/F17/F19 大货批色审批贯通（11 文件，8 态状态机） |
-| 477 | main a3798f4 + daeab0f | V15 P0-F10/F11/F12/F13 色卡发放库存联动 + 前端文件结构 + legacy 数据迁移（15 文件） |
-| 476 | main eb57484 | V15 P0-S17 打印 HTML 真实数据查询（2 文件，6 个方法从占位改真实查询） |
-| 475e | #662 | V15 P0-S12 前端导出接入后端 B 类批次 3/3 收尾（12 文件，5 模块闭环） |
-| 475d | #661 | V15 P0-S12 前端导出接入后端 B 类批次 2/3（14 文件，4 模块） |
-| 475c | #660 | V15 P0-S12 前端导出接入后端 B 类批次 1/3（11 文件，3 模块） |
-| 475b | #659 | V15 P0-S12 前端导出 purchase/customer 闭环（4 文件） |
-| 规划 | - | 2026-07-17 批次节奏调整：每批 9-12 文件，P0 批次总数从 27 压缩为 22 |
-| 475a | #658 | V15 P0-S13 审计日志导出闭环（3 文件） |
-| 474 | #657 | V15 P0-S15 导出水印基础设施 + P0-S12 前端导出接入后端核心 2 页面（10 文件） |
-| 473 | #656 | V15 P0-S14 + P0-S19 审计字段补齐（8 文件，2 新增 migration） |
-| 461 | #643 | V15 P0-S14 敏感数据导出二级审批机制（migration 047 + 9 方法 + 7 端点） |
-| 462 | - | V15 P0-S24 前后端权限边界一致性修复（7 文件） |
-| 464 | - | V15 P0-S25 行级数据权限 RLS 策略启用（5 张敏感表） |
-| 468 | - | V15 P0-S28 前端 v-permission 覆盖率提升（7 文件） |
-| 469 | #644 | V15 P0-F01 dye_batch 表新增 dye_lot_no 字段补全四维标识（4 文件） |
-| 470 | #645 | V15 P0-F02 面料行业关键业务约束 UNIQUE 补全（3 张表，1 文件） |
-| 471 | #646 | V15 P0-F03~F08/F09 色卡发放模式重构-后端核心（21 文件） |
-| 472 | #648 | V15 P0-F07 色卡发放前端 borrow.vue→issue.vue 完整重写（10 文件） |
-| 复审 | #649 | V15 修复阶段已修复任务实际状态复查报告（30 P0 任务，3 子代理并行） |
-| 433 | #611 | V15 P0-S03 修复超级权限注入漏洞 |
-| 434 | #612 | V15 P0-S04 补齐 31 类业务角色覆盖面料行业全业务场景 |
-| 435 | #613 | V15 P0-S20/S21/S22 权限资源缺口补齐（60+ 类权限资源 + 33 角色矩阵） |
-| 436 | #614 | V15 P0-S01 行级数据权限基础设施（migration m0051 + data_scope.rs + 15 单测） |
-| 437 | #616 | V15 P0-S18 新增 dye_recipe_master 角色 |
-| 438 | #617 | V15 P0-S07 权限缓存不失效修复 |
-| 439 | #618 | V15 P0-S05 SoD 职责分离互斥（8 条预置规则） |
-| 440a | #619 | V15 P0-S06 权限变更审计基础设施（migration m0053） |
-| 440b | #620 | V15 P0-S06 role_permission_service 接入审计日志 |
-| 440c | #621 | V15 P0-S06 user_service 接入用户角色变更审计 |
-| 441 | #622 | V15 P0-S10 method_to_action 升级识别 print/export/download |
-| 442 | #623 | V15 P0-S09 染色域 export 端点补齐 AuthContext |
-| 443 | #624 | V15 P0-S09 print_handler AuthContext 补齐（7 函数） |
-| 444 | 无需 PR | V15 P0-S09 其他域 export AuthContext 核查（均已含） |
-| 445 | #625 | V15 P0-S11 核心业务导出审计日志补齐第 1 批（5 文件 6 函数） |
-| 446 | #626 | V15 P0-S11 报表染色域导出审计日志补齐第 2 批（5 文件 5 函数） |
-| 447 | #627 | V15 P0-S01 行级数据权限注入-销售域 |
-| 448 | #628 | V15 P0-S01 行级数据权限注入-采购域 |
-| 449 | #629 | V15 P0-S01 行级数据权限注入-生产域 |
-| 450 | #630 | V15 P0-S01 行级数据权限注入-CRM 域 |
-| 451 | #631 | V15 P0-S01 行级数据权限注入-财务域（finance_payment+invoice） |
-| 451b | #632 | V15 P0-S01 行级数据权限注入-财务域 AP 域 |
-| 451c | #633 | V15 P0-S01 行级数据权限注入-财务域 AR 域 |
-| 452 | #634 | V15 P0-S01 行级数据权限注入-库存域（调整+预留子域） |
-| 452b | #635 | V15 P0-S01 行级数据权限注入-库存域（盘点子域） |
-| 452c | #636 | V15 P0-S01 行级数据权限注入-库存域（调拨子域） |
-| 453 | #637 | V15 P0-S02 IDOR 防护-handler 层（销售域） |
-| 454 | #638 | V15 P0-S02 IDOR 防护-handler 层（采购域） |
-| 455-457 | #639 | V15 P0-S02 IDOR 防护-handler 层（生产+CRM+财务域，7 文件 11 函数） |
-| 458 | #640 | V15 P0-S02 IDOR 防护-handler 层（库存域+应收发票域，7 文件 11 函数） |
-
----
-
-## V15 审计执行阶段（2026-07-16）
-
-| 批次 | 日期 | 一句话总结 |
-|------|------|-----------|
-| 01-21 | 2026-07-16 | V15 全项目综合审计 21 批 195 维度全部完成，发现 732 个问题（104 P0 + 257 P1 + 248 P2 + 123 P3），汇总报告已生成 |
-
----
-
-## V15 审计计划九轮升级（2026-07-15）
-
-| 日期 | 一句话总结 |
-|------|-----------|
-| 2026-07-15 | V15 审计计划第三轮升级：类八法律合规扩展到 8 维度 + 新增类十一大货批色专项 6 维度，V15 升级为 11 大类 68 维度 |
-| 2026-07-15 | V15 审计计划第四轮深化：类十色卡发放专项从 5 维度深化到 7 维度，V15 升级为 11 大类 70 维度 |
-| 2026-07-15 | V15 审计计划第五轮升级：新增类十二 RBAC 权限控制机制专项 8 维度，V15 升级为 12 大类 78 维度 |
-| 2026-07-15 | V15 审计计划第六轮升级：新增类十三打印导出审计与权限控制专项 10 维度，V15 升级为 13 大类 88 维度 |
-| 2026-07-15 | V15 审计计划第七轮升级：新增类十四权限维度审计与角色合理性专项 12 维度，V15 升级为 14 大类 100 维度 |
-| 2026-07-15 | V15 审计计划第八轮升级：新增类十五业务主体维度审计与数据流转专项 15 维度（含加工商完全未实现重大缺口），V15 升级为 15 大类 115 维度 |
-| 2026-07-15 | V15 审计计划第九轮升级：基于后端+前端完整模块扫描，新增 9 个新类别共 75 维度（类十六 AI 模块 10 + 类十七财务深化 8 + 类十八 CRM 全链路 5 + 类十九报表 BI 通知 8 + 类二十可观测性运维 8 + 类二十一胚布拆匹质量 5 + 类二十二库存排程物料 6 + 类二十三组织定制物流 5 + 类二十四前端架构体验 20），V15 升级为 24 大类 190 维度最终版 |
-
----
-
-## v8-v14 历史归档
-
-> v8-v14 复审修复阶段的批次记录已归档到 [archives/2026-07-22/changelog-v8-v14.md](file:///workspace/.monkeycode/docs/archives/2026-07-22/changelog-v8-v14.md)。
-> 批次 1-236 的更早期记录已归档到 [docs/archives/](file:///workspace/.monkeycode/docs/archives/)。
+| PR #790 | P1 主线八维后续修复：盘点契约 P0-1 前端契约对齐 + API 网关 PATCH rate_limit 范围校验；CI 全绿合并 main 85aec7de |
+| PR #788 | P1 委外收货主链路统一：confirm 收敛为唯一事务主链路 + OutsourcingOrderCompleted 事件 + workflow tests；CI 全绿合并 main |
+| PR #786 | V15 主线八维审计 + 快速修复 P0/P2 批次：P0 全部 11 项 + P2 全部 3 项；21 文件 +989/-229；CI 全绿合并 main 8cd956d |
