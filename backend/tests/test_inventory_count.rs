@@ -5,16 +5,16 @@
 //! submit_for_approval / approve_count 等）均需数据库事务，
 //! 完整业务流程由 CI 集成环境执行（同 test_quality_standard.rs / ap_payment_workflow_test.rs 模式）。
 
-mod common;
+mod test_common;
 
 use bingxi_backend::models::status::inventory_count as count_status;
 use bingxi_backend::services::inventory_count_service::{
     CountItemInput, CreateCountRequest, InventoryCountService, UpdateCountRequest,
 };
 use chrono::Utc;
-use common::setup_test_db;
 use rust_decimal::Decimal;
 use std::sync::Arc;
+use test_common::setup_test_db;
 
 // 测试夹具（规则 6：mock 数据抽取到 fixtures，禁止硬编码）
 mod fixtures {

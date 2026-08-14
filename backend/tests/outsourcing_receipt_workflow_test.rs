@@ -3,13 +3,13 @@
 //! 覆盖：状态常量值 + Service 实例化 + DB 异常路径 + 完整流程骨架（#[ignore]）。
 //! 委外完成事件由 `OutsourcingReceiptService::confirm` 在事务提交后发布，
 //! workflow 测试覆盖到收回单 `draft -> confirmed` 与订单 `processing -> received` 语义。
-mod common;
+mod test_common;
 
 use std::sync::Arc;
 
 use bingxi_backend::models::status::{outsourcing_order_status, outsourcing_receipt_status};
 use bingxi_backend::services::outsourcing_service::OutsourcingReceiptService;
-use common::setup_test_db;
+use test_common::setup_test_db;
 
 /// test_wwshztcl_zzqx
 ///

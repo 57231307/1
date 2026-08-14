@@ -4,7 +4,7 @@
 //! 纯状态机校验函数 validate_status_transition 为私有方法，通过 DB 异常路径间接验证状态门逻辑。
 //! 完整业务流程测试（create → submit → approve → complete）需要真实 PostgreSQL，标记 #[ignore]。
 
-mod common;
+mod test_common;
 
 use std::sync::Arc;
 
@@ -19,7 +19,7 @@ use bingxi_backend::models::status::common::STATUS_COMPLETED;
 use bingxi_backend::models::status::common::STATUS_DRAFT;
 use bingxi_backend::services::production_order_service::ProductionOrderService;
 use chrono::NaiveDate;
-use common::setup_test_db;
+use test_common::setup_test_db;
 
 /// 构造最小 CreateProductionOrderRequest（仅必填字段）
 fn sample_create_request() -> CreateProductionOrderRequest {

@@ -2,7 +2,7 @@
 //!
 //! 测试能源分摊的实际业务逻辑，而非 Rust 自身算术
 
-mod common;
+mod test_common;
 
 use std::sync::Arc;
 
@@ -11,7 +11,7 @@ use rust_decimal::Decimal;
 use bingxi_backend::services::energy_ops::allocation_record::EnergyAllocationRecordService;
 use bingxi_backend::services::energy_ops::consumption::EnergyConsumptionService;
 use chrono::Utc;
-use common::setup_test_db;
+use test_common::setup_test_db;
 
 /// 测试能耗计算逻辑
 ///

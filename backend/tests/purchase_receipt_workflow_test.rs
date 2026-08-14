@@ -4,15 +4,15 @@
 //! COMPLETED 状态当前在 PurchaseReceiptService 中无公开方法触发，
 //! 集成测试覆盖到 CONFIRMED 流转即可（DRAFT → CONFIRMED）。
 
-mod common;
+mod test_common;
 
 use std::sync::Arc;
 
 use bingxi_backend::models::status::purchase_receipt;
 use bingxi_backend::services::purchase_receipt_dto::CreatePurchaseReceiptRequest;
 use bingxi_backend::services::purchase_receipt_service::PurchaseReceiptService;
-use common::setup_test_db;
 use sea_orm::Database;
+use test_common::setup_test_db;
 
 /// 构造最小 CreatePurchaseReceiptRequest（仅必填字段）
 fn sample_request() -> CreatePurchaseReceiptRequest {
