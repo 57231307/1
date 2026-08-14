@@ -16,11 +16,11 @@
 | 🔴 **规则 0** | 所有预留 API/功能/占位符/路由必须真实实现，禁止 stub/placeholder | [MEMORY-SU §规则 0](file:///workspace/.monkeycode/MEMORY-SU.md#规则-0真实实现强制pr2026-07-04-追加2026-07-17-合并规则-8) |
 | 🔴 **规则 1** | 修改前必须评估关联影响，所有修改为代码级修改 | [MEMORY-SU §规则 1](file:///workspace/.monkeycode/MEMORY-SU.md#规则-1修改前关联影响评估强制pr2026-07-11-追加) |
 
-### 1.2 代码质量（PR）
+### 1.2 代码质量与编码规范（PR）
 
 | 规则 | 一句话核心 | 详细说明 |
 |------|-----------|----------|
-| 🔴 **规则 2** | 禁止 `#[allow(...)]` 警告抑制，所有警告视为错误必须修复；注释必须与功能一致 | [MEMORY-SU §规则 2](file:///workspace/.monkeycode/MEMORY-SU.md#规则-2代码质量强制pr2026-07-12-追加2026-07-17-合并规则-1420) |
+| 🔴 **规则 2** | 禁止警告抑制，注释与功能一致；编码前先思考、保持简单、精准修改、不过度推断、正确处理错误 | [MEMORY-SU §规则 2](file:///workspace/.monkeycode/MEMORY-SU.md#规则-2代码质量与编码规范pr2026-07-12-追加2026-07-17-合并规则-14202026-08-14-合并规则-19) |
 
 ### 1.3 测试与流程（PR）
 
@@ -29,9 +29,7 @@
 | 🔴 **规则 3** | 修复按批次连续执行，CI 全绿自动下一批；步骤 0 核实审计内容 + 步骤 4 推送前自审 | [MEMORY-SU §规则 3](file:///workspace/.monkeycode/MEMORY-SU.md#规则-3修复流程自动化与连续执行pr2026-07-11-追加) |
 | 🔴 **规则 4** | 复审按规矩进行，baseline 警告视为错误，8 维度闭环 | [MEMORY-SU §规则 4](file:///workspace/.monkeycode/MEMORY-SU.md#规则-4复审严格规范pr2026-07-13-追加) |
 | 🔴 **规则 5** | 每 30 批次 E2E 测试（独立工作流不阻塞主 CI） | [MEMORY-SU §规则 5](file:///workspace/.monkeycode/MEMORY-SU.md#规则-5e2e-测试加强pr2026-07-08-追加2026-07-10-批次-262-修订) |
-| 🔴 **规则 6** | 测试 mock 数据禁止硬编码，必须抽取到 fixtures 文件 | [MEMORY-SU §规则 6](file:///workspace/.monkeycode/MEMORY-SU.md#规则-6测试-mock-数据禁止硬编码pr2026-07-08-追加) |
-| 🔴 **规则 18** | 功能变更必须同步测试代码：修改/新增/删除功能时，测试必须同步更新 | [MEMORY-SU §规则 18](file:///workspace/.monkeycode/MEMORY-SU.md#规则-18功能变更必须同步测试代码pr2026-08-14-追加) |
-| 🔴 **规则 19** | 编码行为规范：编码前先思考、保持简单、精准修改、不过度推断、正确处理错误 | [MEMORY-SU §规则 19](file:///workspace/.monkeycode/MEMORY-SU.md#规则-19编码行为规范pr2026-08-14-追加) |
+| 🔴 **规则 6** | 测试 mock 数据禁止硬编码；功能变更必须同步测试代码 | [MEMORY-SU §规则 6](file:///workspace/.monkeycode/MEMORY-SU.md#规则-6测试规范pr2026-07-08-追加2026-08-14-合并规则-18) |
 
 ### 1.4 安全合规（PR）
 
