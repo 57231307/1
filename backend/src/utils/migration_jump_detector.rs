@@ -31,7 +31,8 @@ pub fn detect_migration_jumps(migrations_dir: &str) -> MigrationJumpResult {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
             // 提取迁移 ID（时间戳部分）
-            if let Some(id) = name.split('_').next()  && id.len() >= 14 && id.chars().all(|c| c.is_ascii_digit())  {
+            if let Some(id) = name.split('_').next() {
+                if id.len() >= 14 && id.chars().all(|c| c.is_ascii_digit()) {
                     migration_ids.push(id.to_string());
                 }
             }
@@ -48,7 +49,7 @@ pub fn detect_migration_jumps(migrations_dir: &str) -> MigrationJumpResult {
 
         // 检查是否有跳跃（假设序列号递增）
         if let (Ok(curr_num), Ok(next_num)) = (current.parse::<u64>(), next.parse::<u64>()) {
-            if next_num - curr_num > 1  && has_jump  {
+            if next_num - curr_num > 1 {
                 for gap in (curr_num + 1)..next_num {
                     missing.push(format!("{:014}", gap));
                 }
@@ -57,7 +58,7 @@ pub fn detect_migration_jumps(migrations_dir: &str) -> MigrationJumpResult {
     }
 
     let has_jump = !missing.is_empty();
-
+    if has_jump {
         warn!("检测到迁移序列跳跃: 缺失 {:?}", missing);
     }
 

@@ -327,7 +327,8 @@ async fn run_consumer_loop(
                     continue;
                 }
             };
-            if !initialised  && let Err(e) = init_partition_offset(&pc, partition, &mut last_offsets).await  {
+            if !initialised {
+                if let Err(e) = init_partition_offset(&pc, partition, &mut last_offsets).await {
                     consecutive_failures = consecutive_failures.saturating_add(1);
                     tracing::error!(
                         "Kafka 拉取 partition {} earliest offset 失败: {}",

@@ -192,7 +192,8 @@ fn compute_material_requirements(
     let mut material_requirements: HashMap<i32, MaterialReq> = HashMap::new();
     for item in bom_items {
         for (product_id, bom_id) in product_to_bom {
-            if *bom_id == item.bom_id  && let Some(&demand) = product_demands.get(product_id)  {
+            if *bom_id == item.bom_id {
+                if let Some(&demand) = product_demands.get(product_id) {
                     let scrap_rate = item.scrap_rate.unwrap_or(Decimal::ZERO);
                     // 批次 97 P1-9 修复（v5 复审）：数量计算补 round_dp(4) 防止精度漂移
                     let qty_per_unit = (item.quantity * (Decimal::ONE + scrap_rate)).round_dp(4);

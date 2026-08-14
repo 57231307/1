@@ -262,30 +262,32 @@ pub async fn get_security_alerts(
         std::collections::HashMap::new();
 
     for login in &recent_logins {
-        if let Some(uid) = login.user_id  && let Some(ip) = &login.ip_address   && unique_ips.len() > 3  {
-                user_ips.entry(uid).or_default().push(ip.clone());
+        if let Some(uid) = login.user_id {
+            if let Some(ip) = &login.ip_address {
+                if unique_ips.len() > 3 {
+                    user_ips.entry(uid).or_default().push(ip.clone());
+                }
             }
         }
     }
 
     for (user_id, ips) in &user_ips {
         let unique_ips: std::collections::HashSet<&String> = ips.iter().collect();
-            let username = recent_logins
-                .iter()
-                .find(|l| l.user_id == Some(*user_id))
-                .map(|l| l.username.clone())
-                .unwrap_or_default();
+        let username = recent_logins
+            .iter()
+            .find(|l| l.user_id == Some(*user_id))
+            .map(|l| l.username.clone())
+            .unwrap_or_default();
 
-            alerts.push(SecurityAlert {
-                alert_type: "MULTI_IP_LOGIN".to_string(),
-                user_id: *user_id,
-                username,
-                ip_address: ips.first().cloned().unwrap_or_default(),
-                location: None,
-                detected_at: Utc::now().to_rfc3339(),
-                description: format!("24小时内从 {} 个不同 IP 登录", unique_ips.len()),
-            });
-        }
+        alerts.push(SecurityAlert {
+            alert_type: "MULTI_IP_LOGIN".to_string(),
+            user_id: *user_id,
+            username,
+            ip_address: ips.first().cloned().unwrap_or_default(),
+            location: None,
+            detected_at: Utc::now().to_rfc3339(),
+            description: format!("24小时内从 {} 个不同 IP 登录", unique_ips.len()),
+        });
     }
 
     Ok(Json(ApiResponse::success(alerts)))

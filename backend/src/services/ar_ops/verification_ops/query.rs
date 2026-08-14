@@ -111,7 +111,8 @@ impl ArService {
         // V15 P0-S01：行级数据权限校验（IDOR 防护）
         // ar_reconciliation 表无 department_id，Dept 退化为 Self；
         // ar_reconciliation.created_by 是 Option<i32>（可能为空，空时按"无主数据"处理）。
-        if let Some(ctx) = data_scope  && !check_resource_owner(ctx, reconciliation.created_by, None)  {
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, reconciliation.created_by, None) {
                 return Err(AppError::permission_denied(format!(
                     "无权访问核销单 {}（数据范围限制）",
                     verification_id

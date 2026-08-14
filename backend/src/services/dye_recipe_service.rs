@@ -87,7 +87,8 @@ impl DyeRecipeService {
     /// 生成配方编号（格式：DR-{时间戳}-{4位随机}）
     /// 若调用方提供了非空编号则直接使用
     pub fn generate_recipe_no(provided: Option<&str>) -> String {
-        if let Some(no) = provided  && !no.is_empty()  {
+        if let Some(no) = provided {
+            if !no.is_empty() {
                 return no.to_string();
             }
         }

@@ -1,12 +1,10 @@
-use bingxi_backend::services::auth_service::{AuthService, AppClaims};
+use bingxi_backend::services::auth_service::{AppClaims, AuthService};
 use bingxi_backend::services::auth_service_ops::jti::{
-    REVOKED_USER_TTL_SECS, REVOKED_USERS,
-    unrevoke_user, is_user_token_revoked, revoke_user_jtis, 
-    cleanup_revoked_users, is_jti_revoked,
+    REVOKED_USER_TTL_SECS, REVOKED_USERS, cleanup_revoked_users, is_jti_revoked,
+    is_user_token_revoked, revoke_user_jtis, unrevoke_user,
 };
 use chrono::{Duration, Utc};
-use jsonwebtoken::{Header, encode, EncodingKey};
-
+use jsonwebtoken::{EncodingKey, Header, encode};
 
 // P9-1: 测试夹具 helper，封装 AuthService 的常见操作
 fn hash_pwd(p: &str) -> String {

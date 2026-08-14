@@ -227,19 +227,25 @@ impl QuotationConvertService {
     /// 公开为 `pub` 以便集成测试 `tests/quotation_convert_test.rs` 直接调用。；内部实现细节稳定，可安全作为测试入口暴露。
     pub fn compose_color_no(item: &sales_quotation_item::Model) -> String {
         let mut parts: Vec<String> = Vec::new();
-        if let Some(c) = &item.color_code  && !c.is_empty()   && let Some(p) = &item.pantone_code   && !p.is_empty()  && let Some(c) = &item.cncs_code    && !c.is_empty()   && parts.is_empty()  {
+        if let Some(c) = &item.color_code {
+            if !c.is_empty() {
                 parts.push(c.clone());
             }
         }
+        if let Some(p) = &item.pantone_code {
+            if !p.is_empty() {
                 parts.push(format!("PANTONE:{}", p));
             }
         }
+        if let Some(c) = &item.cncs_code {
+            if !c.is_empty() {
                 parts.push(format!("CNCS:{}", c));
             }
         }
+        if parts.is_empty() {
             "-".to_string()
         } else {
-            parts.join("|")
+            parts.join("/")
         }
     }
 

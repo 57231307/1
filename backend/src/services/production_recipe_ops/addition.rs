@@ -88,7 +88,8 @@ impl ProductionRecipeAdditionService {
 
         // V15 P0-S01：行级数据权限校验（IDOR 防护）
         // production_recipe_addition 表无 department_id，Dept 退化为 Self（按 created_by 校验）
-        if let Some(ctx) = data_scope  && !check_resource_owner(ctx, model.created_by, None)  {
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, model.created_by, None) {
                 return Err(AppError::permission_denied(format!(
                     "无权访问加料处方单 {}（数据范围限制）",
                     id

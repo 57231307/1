@@ -564,7 +564,8 @@ impl RolePermissionService {
             .one(&*self.db)
             .await?;
 
-        if let Some(r) = role  && r.is_system  {
+        if let Some(r) = role {
+            if r.is_system {
                 return Err(AppError::business("系统角色的权限不允许删除".to_string()));
             }
         }

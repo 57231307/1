@@ -241,7 +241,8 @@ impl CapacityService {
             .iter()
             .filter(|r| r.load_rate > Decimal::from(80))
             .collect();
-        if !high_load_items.is_empty()  && let Err(e) = self.notify_high_load_alerts(&high_load_items).await  {
+        if !high_load_items.is_empty() {
+            if let Err(e) = self.notify_high_load_alerts(&high_load_items).await {
                 tracing::warn!(
                     error = %e,
                     high_load_count = high_load_items.len(),

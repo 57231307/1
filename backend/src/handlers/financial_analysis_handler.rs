@@ -326,11 +326,13 @@ pub async fn create_report(
     // 作为报告期间与关联指标的元数据（financial_analysis 表无独立字段）
     let mut remark_parts: Vec<String> = Vec::new();
     remark_parts.push(format!("期间: {} ~ {}", req.period_start, req.period_end));
-    if let Some(ref indicators) = req.indicators  && !indicators.is_empty()   && let Some(ref desc) = req.description  {
+    if let Some(ref indicators) = req.indicators {
+        if !indicators.is_empty() {
             let ids: Vec<String> = indicators.iter().map(|i| i.to_string()).collect();
             remark_parts.push(format!("关联指标: {}", ids.join(",")));
         }
     }
+    if let Some(ref desc) = req.description {
         remark_parts.push(format!("描述: {}", desc));
     }
     let remark = Some(remark_parts.join(" | "));

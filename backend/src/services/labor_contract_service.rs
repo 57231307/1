@@ -122,12 +122,13 @@ impl LaborContractService {
         }
 
         // 结束日期必须晚于开始日期
-        if let Some(end_date) = req.end_date  && end_date <= req.start_date   && let Some(probation_end) = req.probation_end_date  {
+        if let Some(end_date) = req.end_date {
+            if end_date <= req.start_date {
                 return Err(AppError::bad_request("合同结束日期必须晚于开始日期"));
             }
         }
-
-        // 试用期合规校验
+        if let Some(probation_end) = req.probation_end_date {
+            // 试用期合规校验
             let validation = Self::validate_probation(
                 req.start_date,
                 req.end_date,

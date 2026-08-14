@@ -214,13 +214,15 @@ impl TotpService {
         let argon2 = Argon2::default();
         let mut matched_index: Option<usize> = None;
         for (i, hash_str) in hashed_codes.iter().enumerate() {
-            if let Ok(parsed) = PasswordHash::new(hash_str)  && argon2.verify_password(code.as_bytes(), &parsed).is_ok()   && let Some(i) = matched_index  {
+            if let Ok(parsed) = PasswordHash::new(hash_str) {
+                if argon2.verify_password(code.as_bytes(), &parsed).is_ok() {
                     matched_index = Some(i);
                     break;
                 }
             }
         }
 
+        if let Some(i) = matched_index {
             // 消耗该恢复码（从列表中删除）
             hashed_codes.remove(i);
             let new_json = serde_json::to_string(&hashed_codes)

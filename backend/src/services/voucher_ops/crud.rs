@@ -141,11 +141,13 @@ impl VoucherService {
     ) -> Result<(), AppError> {
         let mut subject_codes = std::collections::HashSet::new();
         for item_req in items {
-            if let Some(ref subject_code) = item_req.subject_code  && !subject_code.is_empty()   && subject_codes.is_empty()  {
+            if let Some(ref subject_code) = item_req.subject_code {
+                if !subject_code.is_empty() {
                     subject_codes.insert(subject_code.clone());
                 }
             }
         }
+        if subject_codes.is_empty() {
             return Ok(());
         }
 

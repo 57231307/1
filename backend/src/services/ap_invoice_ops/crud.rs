@@ -39,7 +39,8 @@ impl ApInvoiceService {
         let txn = (*self.db).begin().await?;
 
         // P2-4 修复（批次 84 v1 复审）：金额精度校验，最多 2 位小数（货币精度）
-        if let Some(amount) = req.amount  && amount.round_dp(2) != amount  {
+        if let Some(amount) = req.amount {
+            if amount.round_dp(2) != amount {
                 return Err(AppError::validation("应付单金额精度不能超过 2 位小数"));
             }
         }

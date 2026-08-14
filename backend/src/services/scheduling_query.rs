@@ -86,10 +86,13 @@ impl SchedulingService {
             .filter_map(|o| {
                 let start = o.planned_start_date?;
                 let end = o.planned_end_date?;
-                if let Some(df) = date_from  && end < df   && let Some(dt) = date_to   && start > dt  {
+                if let Some(df) = date_from {
+                    if end < df {
                         return None;
                     }
                 }
+                if let Some(dt) = date_to {
+                    if start > dt {
                         return None;
                     }
                 }

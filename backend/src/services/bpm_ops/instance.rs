@@ -333,7 +333,8 @@ impl BpmService {
 
         let mut chain = Vec::new();
 
-        if let Some(flow_def) = definition.config  && let Some(nodes) = flow_def.get("nodes").and_then(|n| n.as_array())  {
+        if let Some(flow_def) = definition.config {
+            if let Some(nodes) = flow_def.get("nodes").and_then(|n| n.as_array()) {
                 for node in nodes {
                     let node_id = node
                         .get("id")

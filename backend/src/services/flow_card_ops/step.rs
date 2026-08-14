@@ -155,7 +155,8 @@ impl StepRecordService {
         }
 
         // 业务校验：合格产量不能超过实际产量
-        if let (Some(actual), Some(qualified)) = (req.actual_quantity, req.qualified_quantity)  && qualified > actual  {
+        if let (Some(actual), Some(qualified)) = (req.actual_quantity, req.qualified_quantity) {
+            if qualified > actual {
                 return Err(AppError::business("合格产量不能超过实际产量"));
             }
         }

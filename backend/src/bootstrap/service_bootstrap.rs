@@ -285,12 +285,14 @@ async fn check_migration_continuity(db: &DatabaseConnection) {
         Ok(rows) => {
             let mut migration_numbers: Vec<u32> = Vec::new();
             for row in rows {
-                if let Ok(name) = row.try_get::<String>("", "migration_name")
-                    && let Some(num_str) = name.strip_prefix('m')
-                    && let Some(num) = num_str.split('_').next()
-                    && let Ok(n) = num.parse::<u32>()
-                {
-                    migration_numbers.push(n);
+                if let Ok(name) = row.try_get::<String>("", "migration_name") {
+                    if let Some(num_str) = name.strip_prefix('m') {
+                        if let Some(num) = num_str.split('_').next() {
+                            if let Ok(n) = num.parse::<u32>() {
+                                migration_numbers.push(n);
+                            }
+                        }
+                    }
                 }
             }
 

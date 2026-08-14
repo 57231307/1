@@ -239,7 +239,8 @@ impl FabricInspectionService {
         }
 
         // 业务校验：幅宽必须为正
-        if let Some(w) = req.fabric_width_inches  && w <= Decimal::ZERO  {
+        if let Some(w) = req.fabric_width_inches {
+            if w <= Decimal::ZERO {
                 return Err(AppError::business("幅宽必须 > 0"));
             }
         }

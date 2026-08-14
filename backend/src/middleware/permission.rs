@@ -56,7 +56,8 @@ fn extract_role_id(auth: &AuthContext) -> Result<i32, Box<Response>> {
 
 /// V15 P0-S21：校验 segment3 是否在已知资源白名单中
 fn validate_route_whitelist(path: &str) -> Result<(), Box<Response>> {
-    if let Some(segment3) = extract_segment3(path)  && !is_known_resource_segment(segment3)  {
+    if let Some(segment3) = extract_segment3(path) {
+        if !is_known_resource_segment(segment3) {
             warn!(
                 "拒绝未知路由: path={}, segment3={} 不在白名单中",
                 path, segment3

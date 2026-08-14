@@ -158,7 +158,8 @@ impl WageRateService {
         effective_date: chrono::NaiveDate,
         expiry_date: Option<chrono::NaiveDate>,
     ) -> Result<(), AppError> {
-        if let Some(expiry) = expiry_date  && expiry <= effective_date  {
+        if let Some(expiry) = expiry_date {
+            if expiry <= effective_date {
                 return Err(AppError::business("失效日期必须晚于生效日期"));
             }
         }

@@ -155,7 +155,8 @@ impl CrmService {
         // V15 P0-S01：行级数据权限校验（IDOR 防护）
         // customer 表无 department_id，Dept 退化为 Self；
         // customer.created_by 是 Option<i32>，可能为 None（None 时 Self 范围拒绝访问）。
-        if let Some(ctx) = data_scope  && !check_resource_owner(ctx, customer_info.created_by, None)  {
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, customer_info.created_by, None) {
                 return Err(AppError::permission_denied(format!(
                     "无权访问客户 {} 的 360 视图（数据范围限制）",
                     customer_id

@@ -313,7 +313,8 @@ impl SalesService {
         created_by: Option<i32>,
         order_id: i32,
     ) -> Result<(), AppError> {
-        if let Some(ctx) = data_scope  && !crate::utils::data_scope::check_resource_owner(ctx, created_by, None)  {
+        if let Some(ctx) = data_scope {
+            if !crate::utils::data_scope::check_resource_owner(ctx, created_by, None) {
                 return Err(AppError::permission_denied(format!(
                     "无权访问销售订单 {}（数据范围限制）",
                     order_id

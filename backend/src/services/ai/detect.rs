@@ -187,7 +187,8 @@ fn detect_sales_anomalies_for_product(
 
     let mut anomalies = Vec::new();
     for date in check_dates {
-        if let Some(&value) = daily_map.get(&date)  && std_val > 0.0  {
+        if let Some(&value) = daily_map.get(&date) {
+            if std_val > 0.0 {
                 let z_score = (value - mean_val) / std_val;
                 if let Some(anomaly) =
                     build_sales_zscore_anomaly(pid, date, value, mean_val, z_score)

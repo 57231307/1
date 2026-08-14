@@ -79,7 +79,8 @@ impl CustomOrderQualityService {
         }
 
         // ISO 105 色牢度校验：等级范围 1-5
-        if let Some(grade) = dto.color_fastness_grade  && !(1..=5).contains(&grade)  {
+        if let Some(grade) = dto.color_fastness_grade {
+            if !(1..=5).contains(&grade) {
                 return Err(QualityError::Validation(
                     "ISO 105 色牢度等级必须在 1-5 之间".to_string(),
                 ));

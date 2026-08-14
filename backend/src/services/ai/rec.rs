@@ -771,8 +771,7 @@ impl AiAnalysisService {
             .and_hms_opt(0, 0, 0)
             .unwrap_or_default()
             .and_utc();
-        let recent_items =
-            Self::query_sales_items_between(&self.db, recent_start_dt, None).await?;
+        let recent_items = Self::query_sales_items_between(&self.db, recent_start_dt, None).await?;
         let earlier_items =
             Self::query_sales_items_between(&self.db, earlier_start_dt, Some(recent_start_dt))
                 .await?;

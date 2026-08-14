@@ -246,7 +246,8 @@ impl AssistAccountingService {
         query: sea_orm::Select<assist_accounting_record::Entity>,
         accounting_period: Option<&str>,
     ) -> sea_orm::Select<assist_accounting_record::Entity> {
-        if let Some(period) = accounting_period  && let Ok((year, month)) = parse_period(period)  {
+        if let Some(period) = accounting_period {
+            if let Ok((year, month)) = parse_period(period) {
                 let start_date = chrono::NaiveDate::from_ymd_opt(year, month, 1).map(|d| {
                     d.and_hms_opt(0, 0, 0)
                         .unwrap_or_else(|| d.and_hms_opt(0, 0, 0).unwrap_or_default())

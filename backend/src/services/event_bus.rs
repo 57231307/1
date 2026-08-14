@@ -389,26 +389,29 @@ impl EventBus {
         let kafka = state.kafka.as_ref().cloned();
         drop(state);
 
-        if kind == 1  && let Some(k) = kafka   && let Err(e) = k.publish(event).await   && let Err(panic_payload) = result  {
-                tokio::spawn(async move {
-                    // 批次 8（2026-06-28）：一次性 spawn panic 隔离
-                    let result = AssertUnwindSafe(async {
+        if kind == 1 {
+            if let Some(k) = kafka {
+                if let Err(e) = k.publish(event).await {
+                    tokio::spawn(async move {
+                        // 批次 8（2026-06-28）：一次性 spawn panic 隔离
+                        let result = AssertUnwindSafe(async {
                             tracing::error!("事件投递到 Kafka 失败: {}（已写入本地兜底）", e);
+                        })
+                        .catch_unwind()
+                        .await;
+                        if let Err(panic_payload) = result {
+                            let panic_msg = panic_payload
+                                .downcast_ref::<String>()
+                                .map(|s| s.as_str())
+                                .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
+                                .unwrap_or("<非字符串 panic payload>");
+                            tracing::error!(
+                                panic = %panic_msg,
+                                "⚠ Kafka 事件投递 spawn panic 已被隔离（已有本地 channel 兜底）"
+                            );
                         }
-                    })
-                    .catch_unwind()
-                    .await;
-                        let panic_msg = panic_payload
-                            .downcast_ref::<String>()
-                            .map(|s| s.as_str())
-                            .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
-                            .unwrap_or("<非字符串 panic payload>");
-                        tracing::error!(
-                            panic = %panic_msg,
-                            "⚠ Kafka 事件投递 spawn panic 已被隔离（已有本地 channel 兜底）"
-                        );
-                    }
-                });
+                    });
+                }
             }
         }
     }

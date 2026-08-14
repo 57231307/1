@@ -346,7 +346,8 @@ impl AiModelManagementService {
     }
 
     pub fn validate_metric_range(name: &str, value: Option<Decimal>) -> Result<(), AppError> {
-        if let Some(v) = value  && v < Decimal::ZERO || v > Decimal::ONE  {
+        if let Some(v) = value {
+            if v < Decimal::ZERO || v > Decimal::ONE {
                 return Err(AppError::validation(format!(
                     "{} 取值范围 [0.0, 1.0]，当前 {}",
                     name, v

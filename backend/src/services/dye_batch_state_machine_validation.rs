@@ -258,7 +258,8 @@ pub fn is_valid_transition(
     transition_code: &str,
 ) -> bool {
     // 终态不可流转
-    if let Some(from) = from_status  && is_terminal_status(from)  {
+    if let Some(from) = from_status {
+        if is_terminal_status(from) {
             return false;
         }
     }

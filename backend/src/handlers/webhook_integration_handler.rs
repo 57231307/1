@@ -188,7 +188,8 @@ pub async fn update_integration(
 
     // M-4 修复（v9 复审）：所有权校验 — 系统级 webhook（user_id 为 NULL）允许所有认证用户修改，
     // 用户私有 webhook 仅所有者可修改
-    if let Some(owner_id) = existing.user_id  && owner_id != auth.user_id   && let Some(name) = req.name  {
+    if let Some(owner_id) = existing.user_id {
+        if owner_id != auth.user_id {
             return Err(AppError::permission_denied(format!(
                 "无权修改此 Webhook 集成（owner={}, requester={})",
                 owner_id, auth.user_id
@@ -197,6 +198,7 @@ pub async fn update_integration(
     }
 
     let mut active: webhook::ActiveModel = existing.into();
+    if let Some(name) = req.name {
         active.name = Set(name);
     }
     if let Some(url) = req.webhook_url {

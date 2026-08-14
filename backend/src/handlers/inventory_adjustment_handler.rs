@@ -229,7 +229,8 @@ pub async fn reject_adjustment(
         .map_err(|e| AppError::internal(e.to_string()))?;
 
     // 发送审批拒绝通知
-    if let Some(ref event_service) = state.event_notification_service  && let Some(created_by) = detail.adjustment.created_by  {
+    if let Some(ref event_service) = state.event_notification_service {
+        if let Some(created_by) = detail.adjustment.created_by {
             // 批次 114 P1-6：通知发送失败改 warn 日志（原 `let _ =` 静默吞错）
             if let Err(e) = event_service
                 .notify_approval_result(

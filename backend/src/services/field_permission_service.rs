@@ -242,7 +242,8 @@ impl FieldPermissionService {
             let keys_to_remove: Vec<String> = obj
                 .keys()
                 .filter_map(|key| {
-                    if let Some(perm) = perm_map.get(key.as_str())  && !perm.can_read  {
+                    if let Some(perm) = perm_map.get(key.as_str()) {
+                        if !perm.can_read {
                             return Some(key.clone());
                         }
                     }

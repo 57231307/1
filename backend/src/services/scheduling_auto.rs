@@ -370,7 +370,8 @@ impl SchedulingService {
             .iter()
             .filter(|c| c.severity.as_deref() == Some("HIGH"))
             .collect();
-        if !high_conflicts.is_empty()  && let Err(e) = self.notify_schedule_conflicts(&high_conflicts).await  {
+        if !high_conflicts.is_empty() {
+            if let Err(e) = self.notify_schedule_conflicts(&high_conflicts).await {
                 tracing::warn!(
                     error = %e,
                     conflict_count = high_conflicts.len(),

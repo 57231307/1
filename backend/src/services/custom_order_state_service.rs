@@ -130,7 +130,8 @@ impl CustomOrderStateService {
         active.status = Set(next_str);
         active.updated_at = Set(Utc::now());
 
-        if next == CustomOrderStatus::YarnPurchasing  && let Some(qid) = order.quotation_id  {
+        if next == CustomOrderStatus::YarnPurchasing {
+            if let Some(qid) = order.quotation_id {
                 if let Ok(Some(quotation)) = sales_quotation::Entity::find_by_id(qid).one(txn).await
                 {
                     active.total_amount = Set(Some(quotation.total_amount));

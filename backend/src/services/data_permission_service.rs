@@ -241,7 +241,8 @@ impl DataPermissionService {
         role_code: &str,
     ) -> Result<DataScopeFilter, AppError> {
         // admin 角色拥有全部数据权限
-        if let Some(rid) = role_id  && self.is_admin_role(rid).await?  {
+        if let Some(rid) = role_id {
+            if self.is_admin_role(rid).await? {
                 return Ok(DataScopeFilter::all());
             }
         }

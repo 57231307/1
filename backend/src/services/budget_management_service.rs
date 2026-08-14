@@ -759,7 +759,8 @@ impl BudgetManagementService {
             .ok_or_else(|| AppError::not_found(format!("预算方案不存在：{}", plan_id)))?;
 
         // 验证部门匹配
-        if let Some(plan_dept_id) = plan.department_id  && plan_dept_id != department_id  {
+        if let Some(plan_dept_id) = plan.department_id {
+            if plan_dept_id != department_id {
                 return Err(AppError::validation("预算方案与部门不匹配".to_string()));
             }
         }

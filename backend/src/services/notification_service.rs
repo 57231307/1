@@ -105,7 +105,8 @@ impl NotificationService {
         req: CreateNotificationRequest,
     ) -> Result<notification::Model, AppError> {
         // 缺陷 5.2 修复：dedup_key 存在时先查 5 分钟窗口，命中则跳过创建
-        if let Some(key) = req.dedup_key.as_deref()  && self.check_dedup(req.user_id, key).await?  {
+        if let Some(key) = req.dedup_key.as_deref() {
+            if self.check_dedup(req.user_id, key).await? {
                 return Err(AppError::validation(
                     "通知去重：5 分钟窗口内已存在相同 dedup_key",
                 ));

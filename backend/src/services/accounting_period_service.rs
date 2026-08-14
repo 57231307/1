@@ -167,7 +167,8 @@ impl AccountingPeriodService {
             .order_by_desc(accounting_period::Column::Period)
             .one(&txn)
             .await?;
-        if let Some(latest) = latest_closed  && latest.id != period.id  {
+        if let Some(latest) = latest_closed {
+            if latest.id != period.id {
                 return Err(AppError::business(format!(
                     "反结账失败：仅最近一个已结账期间可反结账，最近已结账期间为 {}（{}）",
                     latest.period_name, latest.id

@@ -105,7 +105,8 @@ impl ConnectionManager {
     pub fn unregister(&self, user_id: i64) {
         let key = user_id;
         // 仅在无活跃订阅者时清理（dashmap entry API）
-        if let Some(entry) = self.senders.get(&key)  && entry.receiver_count() == 0   && let Some(tx) = self.senders.get(&key)  {
+        if let Some(entry) = self.senders.get(&key) {
+            if entry.receiver_count() == 0 {
                 drop(entry);
                 self.senders.remove(&key);
             }
@@ -115,6 +116,7 @@ impl ConnectionManager {
     /// 广播通知给指定用户；用途：notification_service.send() 调用此方法推送新通知
     pub fn broadcast(&self, user_id: i64, message: String) {
         let key = user_id;
+        if let Some(tx) = self.senders.get(&key) {
             // L-7 修复（批次 375 v13 复审）：发送失败不再吞错，记录 warn 日志
             //（无活跃订阅者时 send 返回 Err，通常发生在连接关闭过渡期）
             if tx.send(message).is_err() {

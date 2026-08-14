@@ -1,5 +1,5 @@
-use bingxi_backend::services::currency_service::*;
 use bingxi_backend::services::currency_service::validate_currency_code;
+use bingxi_backend::services::currency_service::*;
 
 /// M8 测试：合法币种码应通过校验
 #[test]

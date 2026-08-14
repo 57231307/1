@@ -73,7 +73,8 @@ pub async fn get_stock(
             }
             Ok(None) => {
                 // 没有配置数据权限且不是管理员，使用默认字段隐藏
-                if role_id != 1  && let Some(obj) = response_json.as_object_mut()  {
+                if role_id != 1 {
+                    if let Some(obj) = response_json.as_object_mut() {
                         obj.remove("quantity_on_hand");
                         obj.remove("quantity_available");
                         obj.remove("quantity_reserved");

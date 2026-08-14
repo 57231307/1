@@ -147,13 +147,18 @@ impl AssignmentHistoryService {
 
         // v11 批次 149 P2-A：接入 date_from/date_to filter，按 created_at 范围筛选
         // 字段类型为 Option<String>，前端通常传 "yyyy-MM-dd" 格式；解析失败静默忽略
-        if let Some(date_from) = &query.date_from  && let Ok(date) = chrono::NaiveDate::parse_from_str(date_from, "%Y-%m-%d")   && let Some(naive_dt) = date.and_hms_opt(0, 0, 0)  && let Some(date_to) = &query.date_to    && let Ok(date) = chrono::NaiveDate::parse_from_str(date_to, "%Y-%m-%d")   && let Some(naive_dt) = date.and_hms_opt(23, 59, 59)  {
+        if let Some(date_from) = &query.date_from {
+            if let Ok(date) = chrono::NaiveDate::parse_from_str(date_from, "%Y-%m-%d") {
+                if let Some(naive_dt) = date.and_hms_opt(0, 0, 0) {
                     let dt = Utc.from_utc_datetime(&naive_dt);
                     select =
                         select.filter(crate::models::assignment_history::Column::CreatedAt.gte(dt));
                 }
             }
         }
+        if let Some(date_to) = &query.date_to {
+            if let Ok(date) = chrono::NaiveDate::parse_from_str(date_to, "%Y-%m-%d") {
+                if let Some(naive_dt) = date.and_hms_opt(23, 59, 59) {
                     let dt = Utc.from_utc_datetime(&naive_dt);
                     select =
                         select.filter(crate::models::assignment_history::Column::CreatedAt.lte(dt));

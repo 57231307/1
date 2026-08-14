@@ -205,7 +205,8 @@ impl ExportComplianceService {
     /// 规则 2：大批量导出检测（导出条数 > 上限 80%）
     fn detect_large_exports(&self, logs: &[audit_log::Model], alerts: &mut Vec<ComplianceAlert>) {
         for log in logs {
-            if let Some(count) = log.export_record_count  && count > LARGE_EXPORT_THRESHOLD  {
+            if let Some(count) = log.export_record_count {
+                if count > LARGE_EXPORT_THRESHOLD {
                     alerts.push(ComplianceAlert {
                         alert_type: "large_export".to_string(),
                         user_id: log.user_id,

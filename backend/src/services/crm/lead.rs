@@ -349,7 +349,8 @@ impl CrmService {
         // V15 P0-S01：行级数据权限校验（IDOR 防护）
         // crm_lead 表无 department_id，Dept 退化为 Self；
         // 使用 owner_id（业务负责人）作为归属判定字段。
-        if let Some(ctx) = data_scope  && !check_resource_owner(ctx, Some(lead.owner_id), None)  {
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, Some(lead.owner_id), None) {
                 return Err(AppError::permission_denied(format!(
                     "无权访问线索 {}（数据范围限制）",
                     lead_id
@@ -739,24 +740,23 @@ impl CrmService {
 
         // 按手机号去重
         if let Some(mobile) = mobile_phone {
-            if !mobile.trim().is_empty()  && leads.len() > 1  {
+            if !mobile.trim().is_empty() && leads.len() > 1 {
                 let leads = crm_lead::Entity::find()
                     .filter(crm_lead::Column::MobilePhone.eq(mobile))
                     .filter(crm_lead::Column::LeadStatus.is_not_null())
                     .all(&*self.db)
                     .await?;
-                    groups.push(DuplicateLeadGroup {
-                        match_key: format!("mobile:{}", mobile),
-                        match_type: "mobile_phone".to_string(),
-                        lead_ids: leads.iter().map(|l| l.id).collect(),
-                        lead_nos: leads.iter().map(|l| l.lead_no.clone()).collect(),
-                        company_names: leads
-                            .iter()
-                            .map(|l| l.company_name.clone().unwrap_or_default())
-                            .collect(),
-                        count: leads.len() as i32,
-                    });
-                }
+                groups.push(DuplicateLeadGroup {
+                    match_key: format!("mobile:{}", mobile),
+                    match_type: "mobile_phone".to_string(),
+                    lead_ids: leads.iter().map(|l| l.id).collect(),
+                    lead_nos: leads.iter().map(|l| l.lead_no.clone()).collect(),
+                    company_names: leads
+                        .iter()
+                        .map(|l| l.company_name.clone().unwrap_or_default())
+                        .collect(),
+                    count: leads.len() as i32,
+                });
             }
         }
 
@@ -1170,13 +1170,17 @@ impl CrmService {
             // 匹配行业过滤
             if let Some(ref industry_filter) = rule.industry_filter {
                 if let Some(ind) = industry {
-                    if industry_filter != ind && industry_filter != "*"  && let Some(ref user_ids) = rule.assigned_user_ids   && let Some(ids) = user_ids.as_array()   && !ids.is_empty()  {
+                    if industry_filter != ind && industry_filter != "*" {
                         continue;
                     }
                 }
             }
 
-            // 规则匹配，执行分配
+            // 匹配分配用户
+            if let Some(ref user_ids) = rule.assigned_user_ids {
+                if let Some(ids) = user_ids.as_array() {
+                    if !ids.is_empty() {
+                        // 规则匹配，执行分配
                         // 简单轮询：取第一个用户（实际应按 round_robin 或 weighted 逻辑）
                         let assigned_user = ids[0].as_i64().unwrap_or(0) as i32;
                         // 更新线索负责人

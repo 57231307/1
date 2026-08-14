@@ -399,7 +399,10 @@ impl AuditLogService {
 }
 
 /// 从 `AuditEvent` + `AuditContext` 构造 `ActiveModel`（service 内部共享）
-pub fn build_active_model(event: &AuditEvent, ctx: Option<&AuditContext>) -> audit_log::ActiveModel {
+pub fn build_active_model(
+    event: &AuditEvent,
+    ctx: Option<&AuditContext>,
+) -> audit_log::ActiveModel {
     // 从 ctx 注入请求上下文（缺省值兜底）
     let (request_id, ip_address, user_agent) = match ctx {
         Some(c) => (

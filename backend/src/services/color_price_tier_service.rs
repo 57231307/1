@@ -54,7 +54,8 @@ impl ColorPriceTierService {
         &self,
         dto: CreatePriceTierDto,
     ) -> Result<color_price_tier::Model, TierError> {
-        if let Some(max) = dto.max_quantity  && dto.min_quantity >= max  {
+        if let Some(max) = dto.max_quantity {
+            if dto.min_quantity >= max {
                 return Err(TierError::Validation(
                     "min_quantity 必须小于 max_quantity".to_string(),
                 ));

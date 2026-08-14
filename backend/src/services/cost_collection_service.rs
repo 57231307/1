@@ -256,11 +256,14 @@ impl CostCollectionService {
         let meters = req
             .output_quantity_meters
             .or(collection.output_quantity_meters);
-        if let Some(m) = meters  && m > Decimal::ZERO   && let Some(k) = kg   && k > Decimal::ZERO  {
+        let kg = req.output_quantity_kg.or(collection.output_quantity_kg);
+        if let Some(m) = meters {
+            if m > Decimal::ZERO {
                 active_collection.unit_cost_meters = Set(Some(total / m));
             }
         }
-        let kg = req.output_quantity_kg.or(collection.output_quantity_kg);
+        if let Some(k) = kg {
+            if k > Decimal::ZERO {
                 active_collection.unit_cost_kg = Set(Some(total / k));
             }
         }

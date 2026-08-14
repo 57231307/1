@@ -163,7 +163,8 @@ impl BiAnalysisService {
 
     /// 缺陷 3.1 修复：写入聚合结果到缓存（5 分钟 TTL）
     pub(crate) fn set_cache<T: serde::Serialize>(&self, key: &str, value: &T) {
-        if let Some(cache) = self.cache.as_ref()  && let Ok(v) = serde_json::to_value(value)  {
+        if let Some(cache) = self.cache.as_ref() {
+            if let Ok(v) = serde_json::to_value(value) {
                 cache
                     .get_bi_cache()
                     .set(key.to_string(), v, Some(BI_CACHE_TTL));

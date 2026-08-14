@@ -879,7 +879,8 @@ impl DashboardService {
         let cache_key = "inventory:low_stock".to_string();
 
         // 尝试从缓存获取
-        if let Some(cached) = self.cache.get_inventory_cache().get(&cache_key)  && let Ok(alerts) = serde_json::from_value(cached)  {
+        if let Some(cached) = self.cache.get_inventory_cache().get(&cache_key) {
+            if let Ok(alerts) = serde_json::from_value(cached) {
                 return Ok(alerts);
             }
         }

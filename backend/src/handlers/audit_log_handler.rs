@@ -145,15 +145,20 @@ pub async fn list_audit_logs(
 
     let mut q = audit_log::Entity::find();
 
-    if let Some(start) = &query.start_time  && let Ok(ts) = start.parse::<DateTime<Utc>>()   && let Some(end) = &query.end_time   && let Ok(ts) = end.parse::<DateTime<Utc>>()  && let Some(uid) = query.user_id    && let Some(op) = &query.operation_type  {
+    if let Some(start) = &query.start_time {
+        if let Ok(ts) = start.parse::<DateTime<Utc>>() {
             q = q.filter(audit_log::Column::CreatedAt.gte(ts.naive_utc()));
         }
     }
+    if let Some(end) = &query.end_time {
+        if let Ok(ts) = end.parse::<DateTime<Utc>>() {
             q = q.filter(audit_log::Column::CreatedAt.lte(ts.naive_utc()));
         }
     }
+    if let Some(uid) = query.user_id {
         q = q.filter(audit_log::Column::UserId.eq(uid));
     }
+    if let Some(op) = &query.operation_type {
         q = q.filter(audit_log::Column::OperationType.eq(op.clone()));
     }
     if let Some(sev) = &query.severity {
@@ -250,10 +255,12 @@ fn build_audit_log_condition(query: &AuditLogListQuery) -> sea_orm::Condition {
             cond = cond.add(audit_log::Column::CreatedAt.gte(ts.naive_utc()));
         }
     }
-    if let Some(end) = &query.end_time  && let Ok(ts) = end.parse::<DateTime<Utc>>()   && let Some(uid) = query.user_id  {
+    if let Some(end) = &query.end_time {
+        if let Ok(ts) = end.parse::<DateTime<Utc>>() {
             cond = cond.add(audit_log::Column::CreatedAt.lte(ts.naive_utc()));
         }
     }
+    if let Some(uid) = query.user_id {
         cond = cond.add(audit_log::Column::UserId.eq(uid));
     }
     if let Some(op) = &query.operation_type {

@@ -271,7 +271,8 @@ impl ElasticClient {
             "size": query.size.max(0),
         });
 
-        if let Some(q) = &query.q  && !q.is_empty()   && !query.filters.is_empty()  {
+        if let Some(q) = &query.q {
+            if !q.is_empty() {
                 body["query"] = serde_json::json!({
                     "multi_match": {
                         "query": q,
@@ -281,6 +282,7 @@ impl ElasticClient {
             }
         }
 
+        if !query.filters.is_empty() {
             let filters: Vec<serde_json::Value> = query
                 .filters
                 .iter()

@@ -4,8 +4,8 @@
 //! 备注：handler 早期校验的测试需要 mock State/AppState/AuthContext，
 //! 仅测试 DTO 层（不涉及 handler 调用），覆盖率已足够。
 use bingxi_backend::handlers::import_export_handler::{CsvImportRequest, ExcelImportRequest};
-use bingxi_backend::services::import_export_service::{MAX_CSV_BYTES, MAX_EXCEL_ROWS};
 use bingxi_backend::services::import_export_service::MAX_EXCEL_ROWS;
+use bingxi_backend::services::import_export_service::{MAX_CSV_BYTES, MAX_EXCEL_ROWS};
 use validator::Validate;
 
 /// 漏洞 #8 修复：CSV data 字段超过 10MB → validate() 失败

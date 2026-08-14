@@ -43,7 +43,8 @@ pub async fn csp_middleware(req: Request, next: Next) -> Response {
     let mut response = next.run(req).await;
     let headers = response.headers_mut();
     // 仅在响应头尚未设置 CSP 时注入（避免覆盖路由级精细化配置）
-    if !headers.contains_key("content-security-policy")  && let Ok(value) = HeaderValue::from_str(CSP_POLICY)  {
+    if !headers.contains_key("content-security-policy") {
+        if let Ok(value) = HeaderValue::from_str(CSP_POLICY) {
             headers.insert(HeaderName::from_static("content-security-policy"), value);
         }
     }

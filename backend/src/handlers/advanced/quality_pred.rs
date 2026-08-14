@@ -45,7 +45,8 @@ pub async fn quality_prediction(
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty());
 
-    if let Some(ref t) = inspection_type  && t.chars().count() > 32  {
+    if let Some(ref t) = inspection_type {
+        if t.chars().count() > 32 {
             return Err(AppError::validation(
                 "检验类型 inspection_type 长度不能超过 32",
             ));

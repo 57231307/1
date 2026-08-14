@@ -259,7 +259,8 @@ impl SalesAnalysisService {
         // 统计不同维度ID作为活跃客户近似值
         let mut customer_ids: std::collections::HashSet<i32> = std::collections::HashSet::new();
         for s in &stats {
-            if s.dimension_type == "customer"  && let Some(id) = s.dimension_id  {
+            if s.dimension_type == "customer" {
+                if let Some(id) = s.dimension_id {
                     customer_ids.insert(id);
                 }
             }

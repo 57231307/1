@@ -331,7 +331,8 @@ impl ReportEngineService {
         let use_cache = req.use_cache.unwrap_or(true);
 
         // 尝试从缓存获取
-        if use_cache  && let Some(cached_data) = self.get_cached_data(&cache_key).await?  {
+        if use_cache {
+            if let Some(cached_data) = self.get_cached_data(&cache_key).await? {
                 info!("报表缓存命中: {}", cache_key);
                 return Ok(cached_data);
             }

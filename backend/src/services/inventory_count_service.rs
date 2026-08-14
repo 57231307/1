@@ -246,7 +246,8 @@ impl InventoryCountService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("盘点单 {} 不存在", count_id)))?;
         // V15 P0-S01：行级数据权限 IDOR 校验
-        if let Some(ctx) = data_scope  && !check_resource_owner(ctx, count.created_by, None)  {
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, count.created_by, None) {
                 return Err(AppError::permission_denied(format!(
                     "无权访问盘点单 {}（数据范围限制）",
                     count_id

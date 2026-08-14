@@ -141,7 +141,8 @@ pub async fn create_receipt(
     }
 
     // 发送采购到货通知
-    if let Some(order_id) = receipt.order_id  && let Some(ref event_service) = state.event_notification_service  {
+    if let Some(order_id) = receipt.order_id {
+        if let Some(ref event_service) = state.event_notification_service {
             if let Ok(Some(order)) = purchase_order::Entity::find_by_id(order_id)
                 .one(&*state.db)
                 .await

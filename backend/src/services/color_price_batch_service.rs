@@ -231,7 +231,8 @@ impl ColorPriceBatchService {
         active.approved_at = Set(Some(Utc::now()));
         active.updated_at = Set(Utc::now());
 
-        if new_status == approval::APPROVED  && let Some(h) = last_history.as_ref()  {
+        if new_status == approval::APPROVED {
+            if let Some(h) = last_history.as_ref() {
                 active.base_price = Set(h.new_price);
             }
         }

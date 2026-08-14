@@ -59,10 +59,13 @@ impl ImportExportService {
                     .or(ProductCol::Code.like(like)),
             );
         }
-        if let Some(date_from) = &query.date_from  && let Some(dt) = ImportExportService::parse_date_filter(date_from)   && let Some(date_to) = &query.date_to   && let Some(dt) = ImportExportService::parse_date_filter(date_to)  {
+        if let Some(date_from) = &query.date_from {
+            if let Some(dt) = ImportExportService::parse_date_filter(date_from) {
                 db_query = db_query.filter(ProductCol::CreatedAt.gte(dt));
             }
         }
+        if let Some(date_to) = &query.date_to {
+            if let Some(dt) = ImportExportService::parse_date_filter(date_to) {
                 db_query = db_query.filter(ProductCol::CreatedAt.lte(dt));
             }
         }
@@ -120,10 +123,11 @@ impl ImportExportService {
             );
         }
         if let Some(date_from) = &query.date_from {
-            if let Some(dt) = ImportExportService::parse_date_filter(date_from)  && let Some(date_to) = &query.date_to  {
+            if let Some(dt) = ImportExportService::parse_date_filter(date_from) {
                 db_query = db_query.filter(CustomerCol::CreatedAt.gte(dt));
             }
         }
+        if let Some(date_to) = &query.date_to {
             if let Some(dt) = ImportExportService::parse_date_filter(date_to) {
                 db_query = db_query.filter(CustomerCol::CreatedAt.lte(dt));
             }

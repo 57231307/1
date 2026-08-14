@@ -1,5 +1,5 @@
-use bingxi_backend::utils::data_scope::*;
 use bingxi_backend::utils::data_scope::DataScope;
+use bingxi_backend::utils::data_scope::*;
 
 // ===== DataScope::parse_scope 测试 =====
 

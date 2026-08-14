@@ -111,12 +111,15 @@ pub fn mask_contact_fields_for_role(mut value: Value, role_id: Option<i32>) -> V
     let email_keys = ["contact_email", "email", "email_address"];
     if let Some(obj) = value.as_object_mut() {
         for k in phone_keys.iter() {
-            if let Some(s) = obj.get(*k).and_then(|v| v.as_str())  && !s.is_empty()   && let Some(s) = obj.get(*k).and_then(|v| v.as_str())   && !s.is_empty()  {
+            if let Some(s) = obj.get(*k).and_then(|v| v.as_str()) {
+                if !s.is_empty() {
                     obj.insert(k.to_string(), Value::String(mask_phone(s)));
                 }
             }
         }
         for k in email_keys.iter() {
+            if let Some(s) = obj.get(*k).and_then(|v| v.as_str()) {
+                if !s.is_empty() {
                     obj.insert(k.to_string(), Value::String(mask_email(s)));
                 }
             }

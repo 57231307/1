@@ -864,7 +864,8 @@ async fn process_optimization_feedback_inner(
         .one(db)
         .await?;
 
-    if let Some(route) = dye_route  && let Some(default_minutes) = route.default_duration_minutes  {
+    if let Some(route) = dye_route {
+        if let Some(default_minutes) = route.default_duration_minutes {
             let default_minutes_i64 = default_minutes as i64;
             let deviation = actual_minutes - default_minutes_i64;
             let deviation_pct = if default_minutes_i64 > 0 {
@@ -962,7 +963,7 @@ async fn collect_wage_labor_cost(
     let mut unallocated = Decimal::ZERO;
     for d in &details {
         if let Some(lot) = &d.dye_lot_no {
-            if !lot.is_empty()  && labor_by_lot.is_empty()  {
+            if !lot.is_empty() {
                 *labor_by_lot.entry(lot.clone()).or_insert(Decimal::ZERO) += d.wage_amount;
                 continue;
             }
@@ -970,6 +971,7 @@ async fn collect_wage_labor_cost(
         unallocated += d.wage_amount;
     }
 
+    if labor_by_lot.is_empty() {
         tracing::info!(
             wage_record_id,
             record_no = %record_no,

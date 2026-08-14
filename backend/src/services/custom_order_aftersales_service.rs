@@ -141,7 +141,8 @@ impl CustomOrderAfterSalesService {
             .ok_or(AfterSalesError::NotFound)?;
 
         // 校验状态转换
-        if let Some(new_status) = &dto.status  && !is_valid_transition(&existing.status, new_status)   && let Some(v) = dto.status  {
+        if let Some(new_status) = &dto.status {
+            if !is_valid_transition(&existing.status, new_status) {
                 return Err(AfterSalesError::InvalidState(format!(
                     "{} → {}",
                     existing.status, new_status
@@ -151,6 +152,7 @@ impl CustomOrderAfterSalesService {
 
         let now = Utc::now();
         let mut active: ActiveModel = existing.into();
+        if let Some(v) = &dto.status {
             active.status = Set(v.clone());
             if v == "closed" || v == "resolved" || v == "rejected" {
                 active.closed_at = Set(Some(now));
