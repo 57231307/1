@@ -130,7 +130,6 @@ pub async fn can_access_audit_logs(db: &DatabaseConnection, role_id: i32) -> boo
 }
 
 /// V15 P1-14.11-B：纯函数判断角色 code 是否为 admin（与 is_admin_role 内部逻辑一致）
-#[cfg(test)]
 pub fn should_be_admin_by_code(code: &str) -> bool {
     code == ADMIN_ROLE_CODE
 }
