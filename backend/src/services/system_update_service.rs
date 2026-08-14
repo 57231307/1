@@ -224,7 +224,7 @@ pub(crate) fn extract_zip_entry(
 /// 设置安全权限掩码（P0-2 修复 v9 复审）
 /// is_dir=true 时应用 0o755（所有者可写，其他可读可执行），；is_dir=false 时应用 0o600（仅所有者可读写），；重置 SUID/SGID/粘性位，防止恶意更新包设置特殊权限位导致权限提升；私有可见性：仅本 facade 的 `extract_zip_entry` 调用。
 #[cfg(unix)]
-fn set_safe_permissions(path: &Path, mode: u32, is_dir: bool) {
+pub fn set_safe_permissions(path: &Path, mode: u32, is_dir: bool) {
     use std::os::unix::fs::PermissionsExt;
     let safe_mode = if is_dir { mode & 0o755 } else { mode & 0o600 };
     if let Ok(metadata) = std::fs::metadata(path) {

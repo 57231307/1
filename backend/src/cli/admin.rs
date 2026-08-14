@@ -29,7 +29,7 @@ pub async fn run(cmd: AdminCommand) -> Result<(), Box<dyn std::error::Error>> {
 /// H-2 修复（v9 复审）：安全获取密码
 /// 优先级：BINGXI_ADMIN_PASSWORD 环境变量 > --password-stdin（stdin 读取）
 /// 移除了原 --password 命令行参数（会出现在 ps / /proc/<pid>/cmdline 中）
-fn read_password(from_stdin: bool) -> Result<String, String> {
+pub fn read_password(from_stdin: bool) -> Result<String, String> {
     // 1. 优先从环境变量读取
     if let Ok(p) = std::env::var("BINGXI_ADMIN_PASSWORD")
         && !p.is_empty()

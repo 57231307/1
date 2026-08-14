@@ -34,7 +34,7 @@ async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), 
     Ok(())
 }
 
-fn verify_zip_magic(data: &[u8]) -> bool {
+pub fn verify_zip_magic(data: &[u8]) -> bool {
     data.starts_with(&[0x50, 0x4B, 0x03, 0x04])
 }
 

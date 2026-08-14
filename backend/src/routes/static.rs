@@ -14,7 +14,7 @@ use std::path::{Component, PathBuf};
 use crate::container::AppState;
 
 /// 规范化静态资源路径，拒绝 `..`、绝对路径段、反斜杠（防路径遍历）
-fn sanitize_static_path(input: &str) -> Option<PathBuf> {
+pub fn sanitize_static_path(input: &str) -> Option<PathBuf> {
     if input.is_empty() || input.contains('\\') {
         return None;
     }

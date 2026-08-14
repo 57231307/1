@@ -24,7 +24,7 @@ use crate::utils::error::AppError;
 const DEFAULT_MAX_RETRIES: i32 = 3;
 
 /// 缺陷 2.3 修复：指数退避间隔表（1min / 5min / 30min）
-fn backoff_seconds(retry_count: i32) -> i64 {
+pub fn backoff_seconds(retry_count: i32) -> i64 {
     match retry_count {
         0 => 60,
         1 => 300,

@@ -211,7 +211,7 @@ fn record_permission_denial(
 }
 
 /// V15 P0-S21：提取 URL segment3（/api/v1/erp/{segment3}/...），用于白名单校验
-fn extract_segment3(path: &str) -> Option<&str> {
+pub fn extract_segment3(path: &str) -> Option<&str> {
     let path_parts: Vec<&str> = path.split('/').filter(|p| !p.is_empty()).collect();
     if path_parts.len() >= 4
         && path_parts[0] == "api"
@@ -231,7 +231,7 @@ const PATH_ACTION_KEYWORDS: &[&str] = &[
 ];
 
 /// V15 P0-S20：从路径末段提取动作关键字，非关键字返回 None
-fn extract_action_from_path(path: &str) -> Option<String> {
+pub fn extract_action_from_path(path: &str) -> Option<String> {
     // V15 clippy 修复：使用 rfind 从后向前查找第一个非空段，等价于 filter().next_back() 但更简洁
     let last_segment = path.split('/').rfind(|p| !p.is_empty())?;
     if PATH_ACTION_KEYWORDS.contains(&last_segment) {
@@ -245,7 +245,7 @@ fn extract_action_from_path(path: &str) -> Option<String> {
 const QUERY_ACTION_KEYWORDS: &[&str] = &["print", "export", "download"];
 
 /// V15 P0-S10：从 `?action=xxx` 提取动作，仅识别白名单内动作以防绕过权限
-fn extract_action_from_query(uri: &axum::http::Uri) -> Option<String> {
+pub fn extract_action_from_query(uri: &axum::http::Uri) -> Option<String> {
     let query = uri.query()?;
     // 解析 query string，查找 action 参数
     for pair in query.split('&') {
@@ -324,7 +324,7 @@ pub fn extract_resource_info(path: &str) -> (String, Option<i32>) {
     }
 }
 
-fn method_to_action(method: &Method) -> String {
+pub fn method_to_action(method: &Method) -> String {
     match *method {
         Method::GET => "read",
         Method::POST => "create",

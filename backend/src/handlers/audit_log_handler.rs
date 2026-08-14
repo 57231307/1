@@ -401,14 +401,14 @@ pub async fn export_audit_logs(
 }
 
 /// 计算 SHA256 指纹并返回小写十六进制字符串
-fn hex_sha256(bytes: &[u8]) -> String {
+pub fn hex_sha256(bytes: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(bytes);
     format!("{:x}", hasher.finalize())
 }
 
 /// 从 HeaderMap 提取首个 header 值（IP / User-Agent / X-Request-Id）
-fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
+pub fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
     headers
         .get(name)
         .and_then(|v| v.to_str().ok())
