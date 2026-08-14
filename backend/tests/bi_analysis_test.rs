@@ -11,6 +11,7 @@
 use std::sync::Arc;
 
 use bingxi_backend::services::bi_analysis_service::BiAnalysisService;
+use bingxi_backend::services::notification_service::db;
 use chrono::NaiveDate;
 use sea_orm::{Database, DatabaseConnection};
 

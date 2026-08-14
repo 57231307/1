@@ -1,6 +1,15 @@
 use bingxi_backend::models::status::quality_dyeing::*;
 use bingxi_backend::models::status::wage_energy_chemical_business::outsourcing_loss_type;
 use bingxi_backend::models::status::wage_energy_chemical_business::outsourcing_order_type;
+use bingxi_backend::services::outsourcing_service::classify_loss;
+use bingxi_backend::services::outsourcing_service::compute_abnormal_loss_amount;
+use bingxi_backend::services::outsourcing_service::compute_loss_rate;
+use bingxi_backend::services::outsourcing_service::compute_standard_loss_rate;
+use bingxi_backend::services::outsourcing_service::compute_unit_cost;
+use bingxi_backend::services::outsourcing_service::validate_loss_type;
+use bingxi_backend::services::outsourcing_service::validate_order_status;
+use bingxi_backend::services::outsourcing_service::validate_order_type;
+use bingxi_backend::services::outsourcing_service::validate_voucher_type;
 use rust_decimal::Decimal;
 
 #[test]

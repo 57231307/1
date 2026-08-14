@@ -8,6 +8,7 @@
 //! 本处只覆盖 service 层入口校验（最关键的 defense-in-depth 屏障）。
 use bingxi_backend::services::import_export_service::ImportExportService;
 use bingxi_backend::services::import_export_service::MAX_CELL_LEN;
+use bingxi_backend::services::import_export_service::MAX_CSV_BYTES;
 use bingxi_backend::services::import_export_service::MAX_EXCEL_COLS;
 use bingxi_backend::services::import_export_service::MAX_EXCEL_ROWS;
 use bingxi_backend::services::test_common::setup_test_db;

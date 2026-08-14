@@ -3,6 +3,10 @@ use bingxi_backend::models::status::wage_type;
 use bingxi_backend::services::quality_inspection_service::{
     QUALITY_GRADE_A, QUALITY_GRADE_B, QUALITY_GRADE_C,
 };
+use bingxi_backend::services::wage_service::calculate_wage_for_step;
+use bingxi_backend::services::wage_service::determine_grade_ratio;
+use bingxi_backend::services::wage_service::parse_worker_ids;
+use bingxi_backend::services::wage_service::split_wage_among_workers;
 use bingxi_backend::services::wage_service::{
     compute_qualification_rate, determine_grade_by_qualification_rate,
 };

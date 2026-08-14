@@ -6,6 +6,7 @@ use bingxi_backend::utils::error::AppError;
 use bingxi_backend::ymd;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
 use bingxi_backend::models::status::finance::voucher;
+use bingxi_backend::services::voucher_service::VoucherItemRequest;
 use bingxi_backend::services::voucher_service::VoucherService;
 use bingxi_backend::services::voucher_service::VoucherTypeDefinition;
 use chrono::Datelike;

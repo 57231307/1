@@ -1,4 +1,9 @@
 use bingxi_backend::models::status::quality_dyeing::*;
+use bingxi_backend::services::fabric_inspection_service::calculate_four_point_points;
+use bingxi_backend::services::fabric_inspection_service::calculate_points_per_100_sq_yards;
+use bingxi_backend::services::fabric_inspection_service::calculate_ten_point_points;
+use bingxi_backend::services::fabric_inspection_service::determine_grade_by_four_point;
+use bingxi_backend::services::fabric_inspection_service::determine_grade_by_ten_point;
 use rust_decimal::Decimal;
 
 // ===== 四分制扣分计算测试 =====
