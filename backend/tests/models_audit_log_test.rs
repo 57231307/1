@@ -17,7 +17,6 @@ fn make_audit_log_model(id: i32) -> AuditLogModel {
         request_path: Some("/api/v1/erp/sales/orders".to_string()),
         request_body: Some(r#"{"customer_id": 1}"#.to_string()),
         response_status: Some(200),
-        response_body: Some(r#"{"success": true}"#.to_string()),
         duration_ms: Some(150),
         created_at: Utc::now(),
     }

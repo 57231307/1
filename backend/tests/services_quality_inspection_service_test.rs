@@ -1,10 +1,10 @@
 // decs 宏在测试中不可用，使用 Decimal::from_str 替代
+use bingxi_backend::decs;
 use bingxi_backend::services::quality_inspection_service::{
     HANDLING_DOWNGRADE_SALE, HANDLING_REWORK, HANDLING_SCRAP, QUALITY_GRADE_A, QUALITY_GRADE_B,
     QUALITY_GRADE_C, determine_quality_grade, grade_a_threshold, grade_b_threshold,
     validate_handling_method_by_grade,
 };
-use bingxi_backend::utils::unwrap_safe::decs;
 use bingxi_backend::ymd;
 use rust_decimal::Decimal;
 

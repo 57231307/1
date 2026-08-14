@@ -1,5 +1,5 @@
+use bingxi_backend::decs;
 use bingxi_backend::models::inventory_stock;
-use bingxi_backend::utils::unwrap_safe::decs;
 use bingxi_backend::ymd;
 // decs 宏在测试中不可用，使用 Decimal::from_str 替代
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
@@ -32,7 +32,6 @@ fn make_stock(product_id: i32, quantity_available: Decimal) -> inventory_stock::
         dye_lot_no: None,
         grade: "一等品".to_string(),
         production_date: None,
-        effective_to: None,
         quantity_meters: quantity_available,
         quantity_kg: Decimal::ZERO,
         gram_weight: None,

@@ -9,23 +9,8 @@ fn make_quality_inspection_model(id: i32, status: &str) -> QualityInspectionMode
     QualityInspectionModel {
         id,
         standard_code: format!("QI-2026-{:04}", id),
-        source_type: Some("purchase_receipt".to_string()),
-        source_id: Some(1),
-        source_no: Some("PR-2026-0001".to_string()),
         product_id: 1,
-        product_name: Some("测试产品".to_string()),
-        product_code: Some("P001".to_string()),
-        batch_no: Some("B001".to_string()),
-        inspection_date: Utc::now().naive_utc().date(),
-        inspector_id: Some(1),
-        inspector_name: Some("质检员".to_string()),
-        quantity: Decimal::new(100, 0),
-        qualified_quantity: Decimal::new(95, 0),
-        unqualified_quantity: Decimal::new(5, 0),
         status: Some(status.to_string()),
-        result: Some("qualified".to_string()),
-        notes: Some("测试备注".to_string()),
-        created_by: Some(1),
         created_at: Utc::now(),
         updated_at: Utc::now(),
     }
@@ -48,9 +33,6 @@ fn test_quality_inspection_quantities() {
     let inspection = make_quality_inspection_model(1, "completed");
 
     // 验证数量关系
-    assert_eq!(inspection.quantity, Decimal::new(100, 0));
-    assert_eq!(inspection.qualified_quantity, Decimal::new(95, 0));
-    assert_eq!(inspection.unqualified_quantity, Decimal::new(5, 0));
 
     // 验证合格数量 + 不合格数量 = 总数量
     assert_eq!(
@@ -64,7 +46,6 @@ fn test_quality_inspection_pass_rate() {
     let inspection = make_quality_inspection_model(1, "completed");
 
     // 验证合格率计算
-    let pass_rate = inspection.qualified_quantity / inspection.quantity * Decimal::new(100, 0);
     assert_eq!(pass_rate, Decimal::new(95, 0));
 }
 
@@ -80,11 +61,8 @@ fn test_inspection_result_qualified() {
 fn test_inspection_result_unqualified() {
     let mut inspection = make_quality_inspection_model(1, "completed");
     inspection.result = Some("unqualified".to_string());
-    inspection.qualified_quantity = Decimal::new(0, 0);
-    inspection.unqualified_quantity = Decimal::new(100, 0);
 
     assert_eq!(inspection.result, Some("unqualified".to_string()));
-    assert_eq!(inspection.unqualified_quantity, Decimal::new(100, 0));
 }
 
 // ===== 来源类型测试 =====

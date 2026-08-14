@@ -18,18 +18,7 @@ fn test_model_default_values() {
 #[test]
 fn test_model_to_dto_conversion() {
     let captured = chrono::Utc::now();
-    let m = Model {
-        id: 100,
-        query_text: "SELECT * FROM users".to_string(),
-        execution_time_ms: 250.5,
-        calls: 42,
-        rows_examined: 1024,
-        database_name: Some("bingxi_erp".to_string()),
-        captured_at: captured,
-        optimization_status: None,
-        assigned_to: None,
-        jira_ticket: None,
-    };
+    let m = Model { id: 100 };
     let dto: SlowQueryDto = m.into();
     assert_eq!(dto.id, 100);
     assert_eq!(dto.query_text, "SELECT * FROM users");

@@ -6,8 +6,6 @@ mod common;
 
 use std::sync::Arc;
 
-use chrono::{TimeZone, Utc};
-
 use super::common::setup_test_db;
 use bingxi_backend::services::energy_ops::allocation_record::EnergyAllocationRecordService;
 use bingxi_backend::services::energy_ops::allocation_rule::EnergyAllocationRuleService;

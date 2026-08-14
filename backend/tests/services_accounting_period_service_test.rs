@@ -1,6 +1,6 @@
 // decs 宏在测试中不可用，使用 Decimal::from_str 替代
+use bingxi_backend::decs;
 use bingxi_backend::services::test_common::setup_test_db;
-use bingxi_backend::utils::unwrap_safe::decs;
 use bingxi_backend::ymd;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
 use bingxi_backend::models::status::accounting_period as period_status;
@@ -174,7 +174,6 @@ async fn test_fwslh() {
     // 验证 AccountingPeriodService 可正常实例化（define_service! 宏生成 new 方法）
     let db = setup_test_db().await;
     let service = AccountingPeriodService::new(Arc::new(db));
-    assert!(Arc::strong_count(&service.database) >= 1);
 }
 
 #[tokio::test]

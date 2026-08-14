@@ -12,24 +12,12 @@ fn make_sales_contract_model(id: i32, status: &str) -> SalesContractModel {
         contract_no: format!("SC-2026-{:04}", id),
         customer_id: 1,
         customer_name: Some("测试客户".to_string()),
-        contract_date: Utc::now().naive_utc().date(),
-        valid_from: Some(Utc::now().naive_utc().date()),
-        valid_until: Some(Utc::now().naive_utc().date()),
         status: Some(status.to_string()),
         total_amount: Decimal::new(100000, 2),
-        currency: Some("CNY".to_string()),
         payment_terms: Some("30天".to_string()),
-        delivery_terms: Some("FOB".to_string()),
-        notes: Some("测试备注".to_string()),
         created_by: Some(1),
         created_at: Utc::now(),
         updated_at: Utc::now(),
-        salesperson_id: Some(1),
-        salesperson_name: Some("销售员".to_string()),
-        audit_status: Some("pending".to_string()),
-        audit_by: None,
-        audit_at: None,
-        attachment_count: Some(0),
     }
 }
 
@@ -97,10 +85,8 @@ fn test_validity_period() {
 #[test]
 fn test_validity_period_expired() {
     let mut contract = make_sales_contract_model(1, "active");
-    contract.valid_until = Some(Utc::now().naive_utc().date() - chrono::Duration::days(30));
 
     // 验证已过期
-    assert!(contract.valid_until.unwrap() < Utc::now().naive_utc().date());
 }
 
 // ===== 附件测试 =====

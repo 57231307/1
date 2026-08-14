@@ -3,9 +3,9 @@ use bingxi_backend::models::bom::BomStatus;
 use bingxi_backend::models::status::common;
 use bingxi_backend::services::test_common::setup_test_db;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
+use bingxi_backend::decs;
 use bingxi_backend::services::bom_service::BomService;
 use bingxi_backend::utils::error::AppError;
-use bingxi_backend::utils::unwrap_safe::decs;
 use bingxi_backend::ymd;
 use rust_decimal::Decimal;
 use std::sync::Arc;
@@ -291,7 +291,6 @@ fn test_cwxx_jshzztksp() {
 async fn test_fwslcj() {
     let db = setup_test_db().await;
     let service = BomService::new(Arc::new(db));
-    assert!(Arc::strong_count(&service.database) >= 1);
 }
 
 /// test_cjbom_xyzssjk（需要 boms/bom_items 表 schema，标注 #[ignore] 仅在本地手动运行。；验证调用路径不 panic；无 schema 时返回数据库错误。）

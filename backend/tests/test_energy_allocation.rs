@@ -6,7 +6,6 @@ mod common;
 
 use std::sync::Arc;
 
-use chrono::{TimeZone, Utc};
 use rust_decimal::Decimal;
 
 use super::common::setup_test_db;

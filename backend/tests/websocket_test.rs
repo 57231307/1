@@ -48,14 +48,12 @@ fn test_ticket_invalid() {
 #[test]
 fn test_ws_message_serialize_notification() {
     let msg = WsMessage::Notification {
-        payload: NotificationPayload {
-            id: 42,
-            title: "测试通知".to_string(),
-            content: "通知内容".to_string(),
-            category: "order".to_string(),
-            priority: 5,
-            created_at: "2026-06-17T10:30:00Z".to_string(),
-        },
+        id: 42,
+        title: "测试通知".to_string(),
+        content: "通知内容".to_string(),
+        category: "order".to_string(),
+        priority: 5,
+        created_at: "2026-06-17T10:30:00Z".to_string(),
     };
     let json = serde_json::to_string(&msg).unwrap();
     assert!(json.contains("notification"));
@@ -65,12 +63,8 @@ fn test_ws_message_serialize_notification() {
 
 #[test]
 fn test_ws_message_serialize_ping_pong() {
-    let ping = WsMessage::Ping {
-        created_at: 1234567890,
-    };
-    let pong = WsMessage::Pong {
-        created_at: 1234567890,
-    };
+    let ping = WsMessage::Ping {};
+    let pong = WsMessage::Pong {};
     let ping_json = serde_json::to_string(&ping).unwrap();
     let pong_json = serde_json::to_string(&pong).unwrap();
     assert!(ping_json.contains("ping"));

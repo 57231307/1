@@ -1,9 +1,9 @@
+use bingxi_backend::decs;
 use bingxi_backend::search::elastic::*;
 use bingxi_backend::search::elastic_ops::client_ops::*;
 use bingxi_backend::search::elastic_ops::syncer_ops::*;
 use bingxi_backend::search::elastic_ops::types_ops::*;
 use bingxi_backend::services::five_dimension_service::*;
-use bingxi_backend::utils::unwrap_safe::decs;
 use bingxi_backend::ymd;
 use serde_json::Value;
 use std::sync::Arc;
@@ -112,7 +112,6 @@ fn test_product_doc_serialize() {
         unit: "米".to_string(),
         color_no: Some("CN-001".to_string()),
         pantone_code: Some("PANTONE-18-1664".to_string()),
-        base_price: 50.0,
     };
     let json = serde_json::to_string(&doc).unwrap();
     assert!(json.contains("纯棉布"));
@@ -206,7 +205,6 @@ async fn test_elastic_client_bulk_index() {
                 unit: "米".to_string(),
                 color_no: None,
                 pantone_code: None,
-                base_price: 10.0 * i as f64,
             };
             (format!("P{:03}", i), serde_json::to_value(&doc).unwrap())
         })

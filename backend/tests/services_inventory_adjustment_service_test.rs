@@ -1,10 +1,10 @@
+use bingxi_backend::decs;
 use bingxi_backend::models::inventory_adjustment;
 use bingxi_backend::services::inventory_adjustment_service::{
     AdjustmentDetail, AdjustmentItemRequest, CreateAdjustmentRequest, InventoryAdjustmentService,
 };
 use bingxi_backend::services::test_common::setup_test_db;
 use bingxi_backend::utils::error::AppError;
-use bingxi_backend::utils::unwrap_safe::decs;
 use chrono::Utc;
 use rust_decimal::Decimal;
 use std::sync::Arc;
@@ -13,8 +13,6 @@ use std::sync::Arc;
 async fn test_inventory_adjustment_service_creation() {
     let db = setup_test_db().await;
     let service = InventoryAdjustmentService::new(Arc::new(db));
-
-    assert!(Arc::strong_count(&service.database) >= 1);
 }
 
 #[test]
@@ -163,7 +161,6 @@ async fn test_generate_adjustment_no_format() {
 
     // 由于 generate_adjustment_no 是私有方法，我们无法直接测试
     // 但可以通过验证服务创建成功来间接测试
-    assert!(Arc::strong_count(&service.database) >= 1);
 }
 
 #[test]

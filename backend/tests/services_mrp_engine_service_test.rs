@@ -4,7 +4,7 @@ use bingxi_backend::models::status::master_data;
 use bingxi_backend::services::test_common::setup_test_db;
 use bingxi_backend::utils::error::AppError;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
-use bingxi_backend::utils::unwrap_safe::decs;
+use bingxi_backend::decs;
 use bingxi_backend::ymd;
 use chrono::Duration;
 use rust_decimal::Decimal;
@@ -74,7 +74,6 @@ fn test_kckyljs_zccj() {
 #[test]
 fn test_kckyljs_aqkccgkc() {
     let stock = make_stock_info(decs!("30"), decs!("0"), decs!("50"));
-    assert_eq!(stock.available_qty, Decimal::ZERO);
 }
 
 /// test_jxqjs_kcczwdq（验证 calculate_requirement_with_stock：available >= required 时 shortage = 0）

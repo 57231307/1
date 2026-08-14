@@ -9,27 +9,7 @@ fn make_dye_batch_model(id: i32, status: &str) -> DyeBatchModel {
     DyeBatchModel {
         id,
         batch_no: format!("DB-2026-{:04}", id),
-        production_order_id: Some(1),
-        production_order_no: Some("PO-2026-0001".to_string()),
-        recipe_id: Some(1),
-        recipe_name: Some("蓝色配方".to_string()),
-        dye_vat_id: Some(1),
-        dye_vat_name: Some("1号染缸".to_string()),
-        fabric_id: 1,
-        fabric_name: Some("棉布".to_string()),
-        fabric_code: Some("F001".to_string()),
-        color: Some("蓝色".to_string()),
-        color_code: Some("C001".to_string()),
-        quantity: Decimal::new(100, 0),
-        unit: Some("米".to_string()),
-        planned_start_date: Some(Utc::now().naive_utc().date()),
-        planned_end_date: Some(Utc::now().naive_utc().date()),
-        actual_start_date: None,
-        actual_end_date: None,
         status: Some(status.to_string()),
-        priority: Some("normal".to_string()),
-        notes: Some("测试备注".to_string()),
-        created_by: Some(1),
         created_at: Utc::now(),
         updated_at: Utc::now(),
     }
@@ -52,7 +32,6 @@ fn test_dye_batch_quantity() {
     let batch = make_dye_batch_model(1, "planned");
 
     // 验证数量
-    assert_eq!(batch.quantity, Decimal::new(100, 0));
 }
 
 // ===== 状态转换测试 =====

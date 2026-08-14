@@ -3,8 +3,8 @@ use bingxi_backend::services::test_common::setup_test_db;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
 use chrono::Utc;
 // 批次 415：测试中使用 Arc::new(db)，需导入（文件顶部在批次 357 移除了 unused Arc 导入）
+use bingxi_backend::decs;
 use bingxi_backend::utils::error::AppError;
-use bingxi_backend::utils::unwrap_safe::decs;
 use bingxi_backend::ymd;
 use rust_decimal::Decimal;
 use std::sync::Arc;

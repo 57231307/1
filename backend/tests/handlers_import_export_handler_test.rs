@@ -4,7 +4,6 @@
 //! 备注：handler 早期校验的测试需要 mock State/AppState/AuthContext，
 //! 仅测试 DTO 层（不涉及 handler 调用），覆盖率已足够。
 use bingxi_backend::handlers::import_export_handler::{CsvImportRequest, ExcelImportRequest};
-use bingxi_backend::services::import_export_service::MAX_EXCEL_ROWS;
 use bingxi_backend::services::import_export_service::{MAX_CSV_BYTES, MAX_EXCEL_ROWS};
 use validator::Validate;
 
@@ -15,7 +14,6 @@ fn test_csv_import_request_rejects_exceeding_10mb() {
     let big_csv = "a".repeat(MAX_CSV_BYTES + 1);
     let req = CsvImportRequest {
         import_type: "products".to_string(),
-        payload: big_csv,
     };
 
     // 期望 validate() 失败（被 #[validate(length(max = 10485760))] 拦截）
@@ -37,7 +35,6 @@ fn test_excel_import_request_rejects_exceeding_10k_rows() {
     }
     let req = ExcelImportRequest {
         import_type: "products".to_string(),
-        payload: rows,
     };
 
     // 期望 validate() 失败（被 #[validate(length(max = 10_000))] 拦截）
@@ -56,7 +53,6 @@ fn test_csv_import_request_accepts_exactly_10mb() {
     let csv = "a".repeat(MAX_CSV_BYTES);
     let req = CsvImportRequest {
         import_type: "products".to_string(),
-        payload: csv,
     };
 
     // 期望 validate() 成功

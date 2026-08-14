@@ -1,6 +1,6 @@
 //! P4-5 单元测试 - Inventory 服务（5 测试）
 
-use bingxi_backend::utils::unwrap_safe::decs;
+use bingxi_backend::decs;
 use bingxi_backend::ymd;
 use rust_decimal::Decimal;
 use std::collections::HashMap;

@@ -1,5 +1,4 @@
 use bingxi_backend::services::lab_dip_ops::resample::*;
-use chrono::Duration;
 use std::time::{Duration, Instant};
 
 #[test]

@@ -1,7 +1,6 @@
 //! MemoryCache 单元测试
 
 use bingxi_backend::utils::cache::{Cache, MemoryCache};
-use chrono::Duration;
 use std::thread;
 use std::time::Duration;
 

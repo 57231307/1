@@ -29,7 +29,6 @@ fn make_supplier_model(id: i32) -> SupplierModel {
         main_business: Some("面料生产".to_string()),
         main_market: Some("国内".to_string()),
         employee_count: Some(100),
-        annual_turnover: Some(Decimal::from(5000)),
         status: "active".to_string(),
         created_by: 1,
         created_at: Utc::now(),

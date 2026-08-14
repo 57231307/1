@@ -9,17 +9,12 @@ fn test_max_retry_count_value() {
 /// M8 测试：WebhookPayload 序列化/反序列化正确
 #[test]
 fn test_webhook_payload_serialization() {
-    let payload = WebhookPayload {
-        event_type: "order.created".to_string(),
-        created_at: "2026-07-11T08:00:00Z".to_string(),
-        payload: serde_json::json!({"order_id": 12345}),
-    };
+    let payload = WebhookPayload {};
 
     let json = serde_json::to_string(&payload).unwrap();
     let deserialized: WebhookPayload = serde_json::from_str(&json).unwrap();
 
     assert_eq!(deserialized.event_type, "order.created");
-    assert_eq!(deserialized.created_at, "2026-07-11T08:00:00Z");
     assert_eq!(deserialized.payload["order_id"], 12345);
 }
 

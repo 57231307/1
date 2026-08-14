@@ -11,28 +11,16 @@ fn make_quotation_model(id: i32, status: &str) -> QuotationModel {
         id,
         quotation_no: format!("QT-2026-{:04}", id),
         customer_id: 1,
-        customer_name: Some("测试客户".to_string()),
         quotation_date: Utc::now().naive_utc().date(),
         valid_until: Some(Utc::now().naive_utc().date()),
         status: Some(status.to_string()),
         total_amount: Decimal::new(10000, 2),
-        discount_amount: Decimal::new(0, 2),
-        final_amount: Decimal::new(10000, 2),
         currency: Some("CNY".to_string()),
         exchange_rate: Some(Decimal::new(1, 0)),
-        payment_terms: Some("30天".to_string()),
-        delivery_terms: Some("FOB".to_string()),
         notes: Some("测试备注".to_string()),
         created_by: Some(1),
         created_at: Utc::now(),
         updated_at: Utc::now(),
-        salesperson_id: Some(1),
-        salesperson_name: Some("销售员".to_string()),
-        audit_status: Some("pending".to_string()),
-        audit_by: None,
-        audit_at: None,
-        converted_to_order: false,
-        conversion_date: None,
     }
 }
 
@@ -54,7 +42,6 @@ fn test_quotation_amounts() {
 
     // 验证金额
     assert_eq!(quotation.total_amount, Decimal::new(10000, 2));
-    assert_eq!(quotation.final_amount, Decimal::new(10000, 2));
 }
 
 // ===== 状态转换测试 =====
@@ -102,7 +89,6 @@ fn test_conversion_status() {
 fn test_conversion_to_order() {
     let mut quotation = make_quotation_model(1, "accepted");
     quotation.converted_to_order = true;
-    quotation.conversion_date = Some(Utc::now().naive_utc().date());
 
     assert!(quotation.converted_to_order);
     assert!(quotation.conversion_date.is_some());

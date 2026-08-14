@@ -6,7 +6,6 @@
 //! start_event_listener（需 DB + SearchClient）的下游业务分发由 CI 集成环境执行。
 
 use bingxi_backend::services::event_bus::{BusinessEvent, EVENT_BUS};
-use chrono::Duration;
 use std::sync::LazyLock;
 use std::time::Duration;
 use tokio::sync::{Mutex, broadcast};

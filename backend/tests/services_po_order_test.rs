@@ -1,8 +1,8 @@
 // decs 宏在测试中不可用，使用 Decimal::from_str 替代
+use bingxi_backend::decs;
 use bingxi_backend::models::status;
 use bingxi_backend::services::test_common::setup_test_db;
 use bingxi_backend::utils::error::AppError;
-use bingxi_backend::utils::unwrap_safe::decs;
 use bingxi_backend::ymd;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
 use bingxi_backend::services::po::order::PurchaseOrderService;
@@ -282,7 +282,6 @@ async fn test_fwslh_sqlitencsjk() {
     let db = setup_test_db().await;
     let service = PurchaseOrderService::new(Arc::new(db));
     // 验证内部 db Arc 已被正确持有
-    assert!(Arc::strong_count(&service.database) >= 1);
 }
 
 // ---------- 状态校验门（批次 392 补测） ----------

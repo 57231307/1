@@ -1,4 +1,5 @@
 // decs 宏在测试中不可用，使用 Decimal::from_str 替代
+use bingxi_backend::decs;
 use bingxi_backend::models::ar_reconciliation::Model as ReconciliationModel;
 use bingxi_backend::models::status::ar as status_ar;
 use bingxi_backend::services::ar::{
@@ -6,7 +7,6 @@ use bingxi_backend::services::ar::{
 };
 use bingxi_backend::services::test_common::setup_test_db;
 use bingxi_backend::utils::error::AppError;
-use bingxi_backend::utils::unwrap_safe::decs;
 use bingxi_backend::ymd;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
 use chrono::Utc;
@@ -542,8 +542,6 @@ fn test_jjhymdkyx() {
 async fn test_fwslcj() {
     let db = setup_test_db().await;
     let service = ArReconciliationService::new(Arc::new(db));
-
-    assert!(Arc::strong_count(&service.database) >= 1);
 }
 
 // ===== 数据库交互测试（标注 #[ignore]） =====

@@ -1,9 +1,9 @@
 // decs 宏在测试中不可用，使用 Decimal::from_str 替代
+use bingxi_backend::decs;
 use bingxi_backend::services::purchase_receipt_dto::{
     UpdatePurchaseReceiptRequest, UpdateReceiptItemRequest,
 };
 use bingxi_backend::services::test_common::setup_test_db;
-use bingxi_backend::utils::unwrap_safe::decs;
 use bingxi_backend::ymd;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
 use std::sync::Arc;

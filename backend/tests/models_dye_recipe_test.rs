@@ -7,16 +7,10 @@ fn make_dye_recipe_model(id: i32) -> DyeRecipeModel {
     DyeRecipeModel {
         id,
         recipe_no: format!("DR-2026-{:04}", id),
-        name: "蓝色配方".to_string(),
-        description: Some("测试配方描述".to_string()),
-        color: Some("蓝色".to_string()),
         color_code: Some("C001".to_string()),
         fabric_type: Some("棉布".to_string()),
-        process_type: Some("染色".to_string()),
         dye_type: Some("活性染料".to_string()),
-        concentration: Some(Decimal::new(20, 2)),
         temperature: Some(Decimal::new(60, 0)),
-        duration_minutes: Some(30),
         ph_value: Some(Decimal::new(70, 1)),
         liquor_ratio: Some(Decimal::new(10, 1)),
         status: Some("active".to_string()),
@@ -45,7 +39,6 @@ fn test_dye_recipe_parameters() {
     let recipe = make_dye_recipe_model(1);
 
     // 验证配方参数
-    assert_eq!(recipe.concentration, Some(Decimal::new(20, 2)));
     assert_eq!(recipe.temperature, Some(Decimal::new(60, 0)));
     assert_eq!(recipe.duration_minutes, Some(30));
     assert_eq!(recipe.ph_value, Some(Decimal::new(70, 1)));

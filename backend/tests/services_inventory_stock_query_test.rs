@@ -1,8 +1,6 @@
 use bingxi_backend::models::inventory_stock;
 use bingxi_backend::services::inventory_stock_query::compute_alert_type;
 use bingxi_backend::services::stock_alert::{ALERT_TYPE_NORMAL, AlertType};
-use chrono::Duration;
-use chrono::Utc;
 use chrono::{Duration, Utc};
 use rust_decimal::Decimal;
 

@@ -1,8 +1,5 @@
 #![allow(dead_code)]
 //! 资产减值测试 Entity
-use chrono::DateTime;
-use chrono::NaiveDate;
-use chrono::Utc;
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;

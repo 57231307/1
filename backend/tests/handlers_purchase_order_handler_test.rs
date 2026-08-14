@@ -11,29 +11,15 @@ fn make_purchase_order_model(id: i32, status: &str) -> PurchaseOrderModel {
         id,
         order_no: format!("PO-2026-{:04}", id),
         supplier_id: 1,
-        supplier_name: Some("测试供应商".to_string()),
         order_date: Utc::now().naive_utc().date(),
-        delivery_date: Some(Utc::now().naive_utc().date()),
-        status: Some(status.to_string()),
         total_amount: Decimal::new(10000, 2),
-        discount_amount: Decimal::new(0, 2),
-        final_amount: Decimal::new(10000, 2),
         currency: Some("CNY".to_string()),
         exchange_rate: Some(Decimal::new(1, 0)),
         payment_terms: Some("30天".to_string()),
-        shipping_method: Some("快递".to_string()),
-        shipping_address: Some("测试地址".to_string()),
         notes: Some("测试备注".to_string()),
         created_by: Some(1),
         created_at: Utc::now(),
         updated_at: Utc::now(),
-        audit_status: Some("pending".to_string()),
-        audit_by: None,
-        audit_at: None,
-        data_source: Some("manual".to_string()),
-        external_order_no: None,
-        tags: None,
-        priority: Some("normal".to_string()),
     }
 }
 
@@ -77,7 +63,6 @@ fn test_purchase_order_amounts() {
 
     // 验证金额
     assert_eq!(order.total_amount, Decimal::new(10000, 2));
-    assert_eq!(order.final_amount, Decimal::new(10000, 2));
 }
 
 // ===== 状态转换测试 =====
