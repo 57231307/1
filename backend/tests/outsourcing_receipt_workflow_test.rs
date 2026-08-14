@@ -7,9 +7,9 @@ mod common;
 
 use std::sync::Arc;
 
-use super::common::setup_test_db;
 use bingxi_backend::models::status::{outsourcing_order_status, outsourcing_receipt_status};
 use bingxi_backend::services::outsourcing_service::OutsourcingReceiptService;
+use common::setup_test_db;
 
 /// test_wwshztcl_zzqx
 ///

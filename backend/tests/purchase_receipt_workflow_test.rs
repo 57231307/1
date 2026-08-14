@@ -8,10 +8,10 @@ mod common;
 
 use std::sync::Arc;
 
-use super::common::setup_test_db;
 use bingxi_backend::models::status::purchase_receipt;
 use bingxi_backend::services::purchase_receipt_dto::CreatePurchaseReceiptRequest;
 use bingxi_backend::services::purchase_receipt_service::PurchaseReceiptService;
+use common::setup_test_db;
 use sea_orm::Database;
 
 /// 构造最小 CreatePurchaseReceiptRequest（仅必填字段）

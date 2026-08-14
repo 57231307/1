@@ -7,12 +7,12 @@
 
 mod common;
 
-use super::common::setup_test_db;
 use bingxi_backend::models::status::inventory_count as count_status;
 use bingxi_backend::services::inventory_count_service::{
     CountItemInput, CreateCountRequest, InventoryCountService, UpdateCountRequest,
 };
 use chrono::Utc;
+use common::setup_test_db;
 use rust_decimal::Decimal;
 use std::sync::Arc;
 

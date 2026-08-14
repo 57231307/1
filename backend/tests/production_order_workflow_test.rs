@@ -15,9 +15,9 @@ use bingxi_backend::services::production_order_service::{
 use rust_decimal::Decimal;
 use sea_orm::Database;
 // 批次 490 D10-3b 修复：使用 super:: 限定本地 mod common，避免被 status::common 遮蔽
-use super::common::setup_test_db;
 use bingxi_backend::services::production_order_service::ProductionOrderService;
 use chrono::NaiveDate;
+use common::setup_test_db;
 
 /// 构造最小 CreateProductionOrderRequest（仅必填字段）
 fn sample_create_request() -> CreateProductionOrderRequest {
