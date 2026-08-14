@@ -146,11 +146,11 @@ impl SlowQueryRecorder {
             // 超过 2 倍阈值时发送告警通知（每小时聚合去重）
             if elapsed >= slow_query_threshold() * 2 {
                 if let Some(ns) = &self.notification_service {
+                    let label = self.label;
+                    let elapsed_ms = elapsed.as_millis() as u64;
+                    // V15 P2 20.5-B：使用 SQL hash 做去重，每小时聚合
+                    let hash = sql_hash(self.sql_text.as_deref().unwrap_or(label));
                     if should_send_alert(hash) {
-                        let label = self.label;
-                        let elapsed_ms = elapsed.as_millis() as u64;
-                        // V15 P2 20.5-B：使用 SQL hash 做去重，每小时聚合
-                        let hash = sql_hash(self.sql_text.as_deref().unwrap_or(label));
                         let alert_count = get_alert_count(hash);
                         let sql_preview = self
                             .sql_text

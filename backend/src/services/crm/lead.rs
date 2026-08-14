@@ -740,23 +740,25 @@ impl CrmService {
 
         // 按手机号去重
         if let Some(mobile) = mobile_phone {
-            if !mobile.trim().is_empty() && leads.len() > 1 {
+            if !mobile.trim().is_empty() {
                 let leads = crm_lead::Entity::find()
                     .filter(crm_lead::Column::MobilePhone.eq(mobile))
                     .filter(crm_lead::Column::LeadStatus.is_not_null())
                     .all(&*self.db)
                     .await?;
-                groups.push(DuplicateLeadGroup {
-                    match_key: format!("mobile:{}", mobile),
-                    match_type: "mobile_phone".to_string(),
-                    lead_ids: leads.iter().map(|l| l.id).collect(),
-                    lead_nos: leads.iter().map(|l| l.lead_no.clone()).collect(),
-                    company_names: leads
-                        .iter()
-                        .map(|l| l.company_name.clone().unwrap_or_default())
-                        .collect(),
-                    count: leads.len() as i32,
-                });
+                if leads.len() > 1 {
+                    groups.push(DuplicateLeadGroup {
+                        match_key: format!("mobile:{}", mobile),
+                        match_type: "mobile_phone".to_string(),
+                        lead_ids: leads.iter().map(|l| l.id).collect(),
+                        lead_nos: leads.iter().map(|l| l.lead_no.clone()).collect(),
+                        company_names: leads
+                            .iter()
+                            .map(|l| l.company_name.clone().unwrap_or_default())
+                            .collect(),
+                        count: leads.len() as i32,
+                    });
+                }
             }
         }
 

@@ -264,9 +264,7 @@ pub async fn get_security_alerts(
     for login in &recent_logins {
         if let Some(uid) = login.user_id {
             if let Some(ip) = &login.ip_address {
-                if unique_ips.len() > 3 {
-                    user_ips.entry(uid).or_default().push(ip.clone());
-                }
+                user_ips.entry(uid).or_default().push(ip.clone());
             }
         }
     }
