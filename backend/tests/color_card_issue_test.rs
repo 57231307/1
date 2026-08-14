@@ -63,11 +63,11 @@ fn test_expected_return_within_30_days() {
     use chrono::Duration;
     use chrono::Utc;
     // 合法：5 天后
-    let valid_expected = now + Duration::days(5);
-    let max_valid = now + Duration::days(30);
+    let valid_expected = Utc::now() + Duration::days(5);
+    let max_valid = Utc::now() + Duration::days(30);
     assert!(valid_expected <= max_valid);
 
     // 非法：60 天后
-    let invalid_expected = now + Duration::days(60);
+    let invalid_expected = Utc::now() + Duration::days(60);
     assert!(invalid_expected > max_valid);
 }

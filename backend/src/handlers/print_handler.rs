@@ -641,7 +641,7 @@ pub struct PrintTemplateDto {
 
 /// 批次 126 v8 复审 P2 修复：系统内置打印模板静态列表；设计说明：打印模板为系统内置（对应 PrintService 支持的 6 种单据类型）， 不需要动态 CRUD 管理
 /// 模板内容字段为简短描述（实际渲染逻辑在 PrintService.generate_docx）。 若未来需支持用户自定义模板，可新增 print_templates 表 + model + service。
-fn builtin_print_templates() -> Vec<PrintTemplateDto> {
+pub fn builtin_print_templates() -> Vec<PrintTemplateDto> {
     vec![
         PrintTemplateDto {
             id: 1,
