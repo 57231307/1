@@ -391,8 +391,8 @@ impl EventBus {
 
         if kind == 1 {
             if let Some(k) = kafka {
-                if let Err(e) = k.publish(event).await {
-                    tokio::spawn(async move {
+                tokio::spawn(async move {
+                    if let Err(e) = k.publish(event).await {
                         // 批次 8（2026-06-28）：一次性 spawn panic 隔离
                         let result = AssertUnwindSafe(async {
                             tracing::error!("事件投递到 Kafka 失败: {}（已写入本地兜底）", e);
@@ -410,8 +410,8 @@ impl EventBus {
                                 "⚠ Kafka 事件投递 spawn panic 已被隔离（已有本地 channel 兜底）"
                             );
                         }
-                    });
-                }
+                    }
+                });
             }
         }
     }

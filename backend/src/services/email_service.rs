@@ -127,7 +127,7 @@ pub async fn validate_attachments(attachments: &HashMap<String, Vec<u8>>) -> Res
     // 当前为防御性占位：未配置 CLAMAV_URL 时跳过病毒扫描，仅依赖大小 + 扩展名校验
     if let Ok(clamav_url) = std::env::var("CLAMAV_URL") {
         if !clamav_url.is_empty() {
-            for (filename, content) in &attachments {
+            for (filename, content) in attachments {
                 if let Err(e) = scan_with_clamav(&clamav_url, filename, content).await {
                     return Err(AppError::validation(format!(
                         "附件 '{}' 病毒扫描失败：{}",
