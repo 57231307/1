@@ -418,7 +418,7 @@ async fn test_shdd_xyzssjk() {
 
 use bingxi_backend::models::status::sales::sales_order;
 /// test_wcdd_xyzssjk（需要 sales_orders 表 schema 与真实数据，标注 #[ignore] 仅在本地手动运行。；验证完成不存在的订单返回错误，调用路径不 panic。）
-use bingxi_backend::services::sales_service::SalesService;
+use bingxi_backend::services::so::order::SalesService;
 #[tokio::test]
 #[ignore]
 async fn test_wcdd_xyzssjk() {

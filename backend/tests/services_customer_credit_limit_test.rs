@@ -1,3 +1,4 @@
+use bingxi_backend::models::customer_credit;
 use bingxi_backend::models::status::master_data;
 // decs 宏在测试中不可用，使用 Decimal::from_str 替代
 use bingxi_backend::services::test_common::setup_test_db;
@@ -439,7 +440,6 @@ fn test_credit_limityy_cjcjnonemrl() {
     assert_eq!(limit, Decimal::ZERO);
 }
 
-use bingxi_backend::models::status::finance::customer_credit;
 /// test_credit_limityy_cjcjsomevszcsz（批次 414 技术债务修复验证：创建场景下 credit_limit = Some(v) 时，应使用 v 作为初始额度。）
 use bingxi_backend::services::customer_credit_service::CustomerCreditService;
 #[test]

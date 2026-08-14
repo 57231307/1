@@ -1,3 +1,4 @@
+use bingxi_backend::models::status::sales::sales_delivery as delivery_status;
 // decs 宏在测试中不可用，使用 Decimal::from_str 替代
 use bingxi_backend::models::status::inventory_reservation as reservation_status;
 use bingxi_backend::models::status::sales_order as so_status;
@@ -534,7 +535,6 @@ fn test_ghtddjy_cwxxbhghlb() {
     assert!(msg.contains("缸号C"));
 }
 
-use bingxi_backend::models::status::sales::delivery_status;
 /// 测试夹具：构造 ShipOrderItemRequest
 /// 集中构造发货明细，避免每个测试重复字段初始化（规则 6 mock 数据抽取）。；batch_no 默认 None，color_no 默认 None，仅 product_id/quantity/dye_lot_no 可变。
 use bingxi_backend::services::sales_service::SalesService;
