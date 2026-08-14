@@ -43,6 +43,4 @@
 
 ## 三、技术债待办
 
-| # | 问题 | 代码证据 | 待办 |
-|---|------|----------|------|
-| T4 | 路由路径命名误导 | `GET /api/v1/erp/export/csv/:export_type` 路径含 `csv`，实际返回 xlsx | 建议路由路径改为 `/excel/` 或 `/xlsx/` |
+> 2026-08-14 核实：原 T4（路由路径命名误导）已删除，不存在 `GET /api/v1/erp/export/csv/:export_type` 路由；`/csv` 路由用于导入（`import_csv`），导出路由为 `/export/pdf` 和 `/export/excel`。
