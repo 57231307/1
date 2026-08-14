@@ -1,4 +1,4 @@
-use bingxi_backend::routes::r#static::*;
+use bingxi_backend::routes::static_routes::*;
 
 /// 测试合法路径：通过
 #[test]

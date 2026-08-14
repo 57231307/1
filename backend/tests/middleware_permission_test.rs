@@ -1,11 +1,11 @@
+use axum::http::Method;
 use bingxi_backend::middleware::permission::*;
 use bingxi_backend::models::financial_analysis_result::*;
-use bingxi_backend::models::status::role_permission;
+use bingxi_backend::models::role_permission;
 use bingxi_backend::services::auth::password_policy_service::*;
 use bingxi_backend::services::report::*;
 use chrono::Duration;
 use chrono::Utc;
-use http::Method;
 use std::sync::Arc;
 
 /// 构造测试用权限模型

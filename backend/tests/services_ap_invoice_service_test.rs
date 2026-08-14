@@ -4,7 +4,9 @@
 //! - DEFAULT_BASE_CURRENCY_EXCHANGE_RATE 常量值正确性（防止 P0-1 缺陷复发）
 //! - 汇率换算逻辑（金额 × 汇率 = 本位币金额）
 
-use bingxi_backend::services::ap_invoice_service::DEFAULT_BASE_CURRENCY_EXCHANGE_RATE;
+use bingxi_backend::services::ap_invoice_service::{
+    DEFAULT_BASE_CURRENCY_EXCHANGE_RATE, validate_exchange_rate, validate_positive_decimal,
+};
 use rust_decimal::Decimal;
 
 /// 防止 P0-1 缺陷复发：默认本位币汇率必须是 1.0，不能是 0.01
