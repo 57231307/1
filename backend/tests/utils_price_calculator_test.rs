@@ -1,5 +1,5 @@
 use bingxi_backend::models::status::wage_energy_chemical_business::*;
-use bingxi_backend::services::wage_energy_chemical_business;
+use bingxi_backend::utils::price_calculator::customer_level_discount;
 use rust_decimal::Decimal;
 
 #[test]
