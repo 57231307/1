@@ -1,4 +1,3 @@
-use bingxi_backend::services::business_metrics::build_registry_and_metrics;
 use bingxi_backend::services::business_metrics::*;
 use std::sync::Arc;
 
