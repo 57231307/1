@@ -26,13 +26,13 @@ use crate::services::stock_alert::ALERT_TYPE_NORMAL;
 use crate::utils::error::AppError;
 
 /// 默认扫描间隔（秒）— 每 6 小时扫描一次
-const DEFAULT_INTERVAL_SECS: u64 = 6 * 3600;
+pub const DEFAULT_INTERVAL_SECS: u64 = 6 * 3600;
 
 /// 启动初始延迟（秒）— 避免与启动初始化争抢数据库连接
-const INITIAL_DELAY_SECS: u64 = 180;
+pub const INITIAL_DELAY_SECS: u64 = 180;
 
 /// 单次扫描最多处理的告警数量 — 防止极端积压场景下长时间占用 DB
-const MAX_ALERTS_PER_SCAN: u64 = 500;
+pub const MAX_ALERTS_PER_SCAN: u64 = 500;
 
 /// 库存告警通知调度器
 pub struct StockAlertNotificationScheduler {
