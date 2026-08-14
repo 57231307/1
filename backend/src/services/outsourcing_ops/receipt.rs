@@ -78,7 +78,7 @@ impl OutsourcingReceiptService {
             return Err(AppError::business("收回数量不能为负"));
         }
 
-        Self::validate_create_request(&*self.db, &req).await?;
+        Self::validate_create_request(&self.db, &req).await?;
 
         let now = crate::utils::date_utils::utc_now_fixed();
         let active = Self::build_receipt_active_model(&req, now);

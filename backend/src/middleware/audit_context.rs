@@ -56,15 +56,12 @@ pub fn extract_client_ip(request: &Request<Body>) -> String {
     {
         return real_ip.to_string();
     }
-    if let Some(forwarded) = h.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
-        if let Some(first) = forwarded.split(',').next() {
+    if let Some(forwarded) = h.get("x-forwarded-for").and_then(|v| v.to_str().ok())  && let Some(first) = forwarded.split(',').next()   && !trimmed.is_empty()   && let Some(ConnectInfo(addr)) = request.extensions().get::<ConnectInfo<SocketAddr>>()  {
             let trimmed = first.trim();
-            if !trimmed.is_empty() {
                 return trimmed.to_string();
             }
         }
     }
-    if let Some(ConnectInfo(addr)) = request.extensions().get::<ConnectInfo<SocketAddr>>() {
         return addr.ip().to_string();
     }
     "unknown".to_string()

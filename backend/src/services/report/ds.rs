@@ -51,7 +51,7 @@ impl ReportEngineService {
         &self,
         req: AggregateRequest,
     ) -> Result<Vec<AggregateResult>, AppError> {
-        let orders = Self::fetch_sales_orders(&*self.db, &req).await?;
+        let orders = Self::fetch_sales_orders(&self.db, &req).await?;
         let aggregation = Self::aggregate_sales_by_group(&orders, &req);
         Ok(Self::build_aggregate_results(aggregation))
     }
@@ -108,7 +108,7 @@ impl ReportEngineService {
         &self,
         req: AggregateRequest,
     ) -> Result<Vec<AggregateResult>, AppError> {
-        let orders = Self::fetch_purchase_orders(&*self.db, &req).await?;
+        let orders = Self::fetch_purchase_orders(&self.db, &req).await?;
         let aggregation = Self::group_purchase_orders(&orders, &req);
         Ok(Self::build_aggregate_results(aggregation))
     }
@@ -331,8 +331,7 @@ impl ReportEngineService {
         let use_cache = req.use_cache.unwrap_or(true);
 
         // 尝试从缓存获取
-        if use_cache {
-            if let Some(cached_data) = self.get_cached_data(&cache_key).await? {
+        if use_cache  && let Some(cached_data) = self.get_cached_data(&cache_key).await?  {
                 info!("报表缓存命中: {}", cache_key);
                 return Ok(cached_data);
             }

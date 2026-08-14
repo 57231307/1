@@ -309,8 +309,7 @@ impl AiExtendService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("工艺优化记录不存在: id={}", id)))?;
         // V15 P0-S27：校验归属（created_by 为 i64，需转为 i32 比对 user_id）
-        if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, model.created_by.map(|i| i as i32), None) {
+        if let Some(ctx) = data_scope  && !check_resource_owner(ctx, model.created_by.map(|i| i as i32), None)  {
                 return Err(AppError::permission_denied("无权访问该工艺优化记录"));
             }
         }
@@ -358,7 +357,7 @@ impl AiExtendService {
             .ok_or_else(|| AppError::not_found(format!("工艺优化记录不存在: id={}", id)))?;
         // V15 P0-S27：校验归属
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, model.created_by.map(|i| i as i32), None) {
+            if !check_resource_owner(ctx, model.created_by.map(|i| i as i32), None)  && let Some(score) = dto.feedback_score   && !(1..=5).contains(&score)  {
                 return Err(AppError::permission_denied("无权操作该工艺优化记录"));
             }
         }
@@ -368,8 +367,6 @@ impl AiExtendService {
         active.is_applied = Set(true);
         active.applied_at = Set(Some(now));
         active.applied_by = Set(dto.operator_id);
-        if let Some(score) = dto.feedback_score {
-            if !(1..=5).contains(&score) {
                 return Err(AppError::validation("feedback_score 必须在 1-5 范围内"));
             }
             active.feedback_score = Set(Some(score));

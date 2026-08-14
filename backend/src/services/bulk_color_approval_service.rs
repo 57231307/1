@@ -1342,8 +1342,7 @@ impl BulkColorApprovalService {
                 Ok(ApprovalStatus::Scrapped) => scrapped += 1,
                 _ => {}
             }
-            if let Some(de) = r.delta_e_value {
-                if de > Decimal::ZERO {
+            if let Some(de) = r.delta_e_value  && de > Decimal::ZERO  {
                     delta_e_sum += de;
                     delta_e_count += 1;
                 }

@@ -465,7 +465,7 @@ fn spawn_customer_name_refresh(
     customer_name: String,
 ) {
     tokio::spawn(async move {
-        if let Err(e) = refresh_customer_name_redundancy(&*db, customer_id, &customer_name).await {
+        if let Err(e) = refresh_customer_name_redundancy(&db, customer_id, &customer_name).await {
             tracing::warn!("刷新客户 {} 关联单据冗余字段失败：{}", customer_id, e);
         }
     });
@@ -478,7 +478,7 @@ fn spawn_supplier_name_refresh(
     supplier_name: String,
 ) {
     tokio::spawn(async move {
-        if let Err(e) = refresh_supplier_name_redundancy(&*db, supplier_id, &supplier_name).await {
+        if let Err(e) = refresh_supplier_name_redundancy(&db, supplier_id, &supplier_name).await {
             tracing::warn!("刷新供应商 {} 关联单据冗余字段失败：{}", supplier_id, e);
         }
     });
@@ -864,8 +864,7 @@ async fn process_optimization_feedback_inner(
         .one(db)
         .await?;
 
-    if let Some(route) = dye_route {
-        if let Some(default_minutes) = route.default_duration_minutes {
+    if let Some(route) = dye_route  && let Some(default_minutes) = route.default_duration_minutes  {
             let default_minutes_i64 = default_minutes as i64;
             let deviation = actual_minutes - default_minutes_i64;
             let deviation_pct = if default_minutes_i64 > 0 {
@@ -963,7 +962,7 @@ async fn collect_wage_labor_cost(
     let mut unallocated = Decimal::ZERO;
     for d in &details {
         if let Some(lot) = &d.dye_lot_no {
-            if !lot.is_empty() {
+            if !lot.is_empty()  && labor_by_lot.is_empty()  {
                 *labor_by_lot.entry(lot.clone()).or_insert(Decimal::ZERO) += d.wage_amount;
                 continue;
             }
@@ -971,7 +970,6 @@ async fn collect_wage_labor_cost(
         unallocated += d.wage_amount;
     }
 
-    if labor_by_lot.is_empty() {
         tracing::info!(
             wage_record_id,
             record_no = %record_no,

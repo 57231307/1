@@ -22,15 +22,12 @@ impl FlowCardService {
     /// 创建流转卡
     pub async fn create(&self, req: CreateFlowCardRequest) -> Result<CardModel, AppError> {
         // 业务校验：计划配布数量必须为正
-        if let Some(weight) = req.planned_fabric_weight {
-            if weight <= Decimal::ZERO {
+        if let Some(weight) = req.planned_fabric_weight  && weight <= Decimal::ZERO   && let Some(p) = req.priority   && !(-100..=100).contains(&p)  {
                 return Err(AppError::business("计划配布数量必须 > 0"));
             }
         }
 
         // 业务校验：优先级范围
-        if let Some(p) = req.priority {
-            if !(-100..=100).contains(&p) {
                 return Err(AppError::business("优先级范围 -100 到 100"));
             }
         }

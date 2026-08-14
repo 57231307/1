@@ -45,8 +45,7 @@ impl FinancePaymentService {
         // V15 P0-S01：行级数据权限校验（IDOR 防护）
         // finance_payment 表无 department_id，Dept 退化为 Self；
         // finance_payment.created_by 是 Option<i32>（create_payment 时已显式 Set(Some(auth.user_id))）。
-        if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, payment.created_by, None) {
+        if let Some(ctx) = data_scope  && !check_resource_owner(ctx, payment.created_by, None)  {
                 return Err(AppError::permission_denied(format!(
                     "无权访问付款 {}（数据范围限制）",
                     id

@@ -273,15 +273,13 @@ impl CustomerCreditService {
             }
 
             // 检查信用等级
-            if let Some(ref level) = credit.credit_level {
-                if matches!(level.as_str(), "AAA" | "AA" | "A") {
+            if let Some(ref level) = credit.credit_level  && matches!(level.as_str(), "AAA" | "AA" | "A")   && has_good_record && !has_overdue  {
                     has_good_record = true;
                 }
             }
         }
 
         // 计算分数
-        if has_good_record && !has_overdue {
             90
         } else if has_good_record {
             80

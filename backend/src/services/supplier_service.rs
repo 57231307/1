@@ -327,8 +327,7 @@ impl SupplierService {
         // V15 P0-S01：行级数据权限校验（IDOR 防护）
         // supplier 表无 department_id，Dept 退化为 Self（按 created_by 校验）
         // P0-D03：缓存命中的 model 同样需要校验权限，防止越权读取缓存
-        if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, supplier_model.created_by, None) {
+        if let Some(ctx) = data_scope  && !check_resource_owner(ctx, supplier_model.created_by, None)  {
                 return Err(AppError::permission_denied(format!(
                     "无权访问供应商 {}（数据范围限制）",
                     id

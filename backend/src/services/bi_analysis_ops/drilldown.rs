@@ -32,7 +32,7 @@ impl BiAnalysisService {
         if !(1900..=2999).contains(&year) {
             return Err(AppError::validation("年份无效"));
         }
-        let rows = Self::query_year_month_rows(&*self.db, &self.data_scope, year).await?;
+        let rows = Self::query_year_month_rows(&self.db, &self.data_scope, year).await?;
         Ok(Self::fill_year_month_points(rows, year))
     }
 

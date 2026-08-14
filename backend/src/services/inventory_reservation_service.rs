@@ -182,8 +182,7 @@ impl InventoryReservationService {
             .ok_or_else(|| AppError::not_found(format!("库存预留 {} 未找到", reservation_id)))?;
 
         // V15 P0-S02：行级数据权限 IDOR 校验
-        if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, reservation.created_by, None) {
+        if let Some(ctx) = data_scope  && !check_resource_owner(ctx, reservation.created_by, None)  {
                 return Err(AppError::permission_denied(format!(
                     "无权访问库存预留 {}（数据范围限制）",
                     reservation_id

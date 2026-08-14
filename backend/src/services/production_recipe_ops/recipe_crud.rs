@@ -128,8 +128,7 @@ impl ProductionRecipeService {
         req: &UpdateProductionRecipeRequest,
         model: &RecipeModel,
     ) -> Result<(), AppError> {
-        if let Some(new_work_order_id) = req.work_order_id {
-            if Some(new_work_order_id) != model.work_order_id {
+        if let Some(new_work_order_id) = req.work_order_id  && Some(new_work_order_id) != model.work_order_id   && exists > 0  {
                 let exists = RecipeEntity::find()
                     .filter(production_recipe::Column::WorkOrderId.eq(new_work_order_id))
                     .filter(production_recipe::Column::Id.ne(id))
@@ -137,7 +136,6 @@ impl ProductionRecipeService {
                     .filter(production_recipe::Column::Status.ne(recipe_status::CANCELLED))
                     .count(&*self.db)
                     .await?;
-                if exists > 0 {
                     return Err(AppError::business(format!(
                         "工单 {} 已存在其他大货处方单（一工单一处方约束）",
                         new_work_order_id
@@ -151,11 +149,10 @@ impl ProductionRecipeService {
     /// 校验备布重量和浴比格式
     fn validate_update_fields(req: &UpdateProductionRecipeRequest) -> Result<(), AppError> {
         if let Some(w) = req.fabric_weight {
-            if w <= Decimal::ZERO {
+            if w <= Decimal::ZERO  && let Some(r) = &req.liquor_ratio  {
                 return Err(AppError::business("备布重量必须大于 0"));
             }
         }
-        if let Some(r) = &req.liquor_ratio {
             if r.trim().is_empty() {
                 return Err(AppError::business("浴比不能为空"));
             }

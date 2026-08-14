@@ -488,8 +488,7 @@ impl ColorCardIssueService {
         compensation_amount: Option<Decimal>,
         remark: Option<String>,
     ) -> Result<color_card_issue::Model, IssueError> {
-        if let Some(amt) = compensation_amount {
-            if amt < Decimal::ZERO {
+        if let Some(amt) = compensation_amount  && amt < Decimal::ZERO  {
                 return Err(IssueError::Validation("赔付金额不能为负".to_string()));
             }
         }

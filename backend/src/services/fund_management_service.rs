@@ -537,12 +537,10 @@ impl FundManagementService {
         if req.amount <= Decimal::ZERO {
             return Err(AppError::validation("转账金额必须大于零"));
         }
-        if let Some(fee) = req.fee {
-            if fee < Decimal::ZERO {
+        if let Some(fee) = req.fee  && fee < Decimal::ZERO   && req.amount > large_transfer_threshold() && !req.confirm_large  {
                 return Err(AppError::validation("手续费不能为负"));
             }
         }
-        if req.amount > large_transfer_threshold() && !req.confirm_large {
             return Err(AppError::validation(format!(
                 "大额调拨（>{})必须二次确认，请通过 confirm_large=true 显式确认（V15 P0-B05 强制拦截）",
                 large_transfer_threshold()

@@ -548,8 +548,7 @@ impl PurchaseReturnService {
 
         // V15 P0-S01：行级数据权限校验（IDOR 防护）
         // purchase_return 表有 created_by + department_id，支持完整 Dept
-        if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, return_order.created_by, return_order.department_id) {
+        if let Some(ctx) = data_scope  && !check_resource_owner(ctx, return_order.created_by, return_order.department_id)  {
                 return Err(AppError::permission_denied(format!(
                     "无权访问采购退货单 {}（数据范围限制）",
                     return_id

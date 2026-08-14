@@ -296,8 +296,7 @@ impl OccupationalHealthService {
         }
 
         // next_exam_date 必须晚于体检日期
-        if let Some(next) = req.next_exam_date {
-            if next <= req.exam_date {
+        if let Some(next) = req.next_exam_date  && next <= req.exam_date  {
                 return Err(AppError::bad_request("下次体检日期必须晚于本次体检日期"));
             }
         }
@@ -508,11 +507,10 @@ impl OccupationalHealthService {
         let mut expired_list = Vec::new();
         for model in expired_candidates {
             if let Some(expiry) = model.expiry_date {
-                if expiry < today {
+                if expiry < today  && let Ok(updated) = active.update(&*self.db).await  {
                     let mut active: PpeActiveModel = model.clone().into();
                     active.status = Set("expired".to_string());
                     active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
-                    if let Ok(updated) = active.update(&*self.db).await {
                         expired_list.push(updated);
                     }
                 }

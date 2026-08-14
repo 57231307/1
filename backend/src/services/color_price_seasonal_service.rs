@@ -206,8 +206,7 @@ impl ColorPriceSeasonalService {
         from: chrono::NaiveDate,
         until: Option<chrono::NaiveDate>,
     ) -> Result<(), SeasonalError> {
-        if let Some(u) = until {
-            if from > u {
+        if let Some(u) = until  && from > u  {
                 return Err(SeasonalError::Validation(
                     "valid_from 必须早于 valid_until".to_string(),
                 ));

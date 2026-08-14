@@ -70,8 +70,7 @@ pub fn validate_dye_lot_consistency(items: &[ShipOrderItemRequest]) -> Result<()
     // 按 product_id 分组收集 dye_lot_no
     let mut product_dye_lots: HashMap<i32, std::collections::HashSet<String>> = HashMap::new();
     for item in items {
-        if let Some(dye_lot_no) = &item.dye_lot_no {
-            if !dye_lot_no.is_empty() {
+        if let Some(dye_lot_no) = &item.dye_lot_no  && !dye_lot_no.is_empty()  {
                 product_dye_lots
                     .entry(item.product_id)
                     .or_default()

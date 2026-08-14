@@ -320,7 +320,7 @@ impl ArService {
     }
 
     /// 收款匹配发票（贪心，返回 (inv_id, verify_amount) 列表，并更新 invoice_remaining）
-    fn match_payment_to_invoices<'a>(
+    fn match_payment_to_invoices(
         payment: &ar_collection::Model,
         cust_invoices: &[&'a ar_invoice::Model],
         invoice_remaining: &mut std::collections::HashMap<i32, Decimal>,

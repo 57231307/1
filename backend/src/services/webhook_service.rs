@@ -50,8 +50,7 @@ impl WebhookService {
 
         // 系统级 webhook（user_id 为 NULL）允许所有认证用户访问
         // 用户私有 webhook 仅所有者可操作
-        if let Some(owner_id) = webhook.user_id {
-            if owner_id != user_id {
+        if let Some(owner_id) = webhook.user_id  && owner_id != user_id  {
                 return Err(AppError::permission_denied(format!(
                     "无权操作此 Webhook（webhook_id={}, owner={}, requester={})",
                     webhook_id, owner_id, user_id

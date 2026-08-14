@@ -68,8 +68,7 @@ fn ensure_within_static_dir(
     resolved: &PathBuf,
     dir: Option<&PathBuf>,
 ) -> Result<(), Box<Response>> {
-    if let Some(d) = dir {
-        if !resolved.starts_with(d) {
+    if let Some(d) = dir  && !resolved.starts_with(d)  {
             tracing::warn!(
                 "拒绝符号链接越界访问: resolved={:?}, static_dir={:?}",
                 resolved,

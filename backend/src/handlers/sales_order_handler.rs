@@ -106,8 +106,7 @@ pub async fn list_orders(
                         obj.remove("balance_amount");
 
                         // P1-08-5：手机号/邮箱脱敏（移除金额字段后仍需脱敏联系电话）
-                        if let Some(phone) = obj.get("contact_phone").and_then(|v| v.as_str()) {
-                            if !phone.is_empty() {
+                        if let Some(phone) = obj.get("contact_phone").and_then(|v| v.as_str())  && !phone.is_empty()   && let Some(email) = obj.get("contact_email").and_then(|v| v.as_str())   && !email.is_empty()  && let Some(items) = obj.get_mut("items").and_then(|i| i.as_array_mut())   {
                                 obj.insert(
                                     "contact_phone".to_string(),
                                     serde_json::Value::String(
@@ -116,8 +115,6 @@ pub async fn list_orders(
                                 );
                             }
                         }
-                        if let Some(email) = obj.get("contact_email").and_then(|v| v.as_str()) {
-                            if !email.is_empty() {
                                 obj.insert(
                                     "contact_email".to_string(),
                                     serde_json::Value::String(
@@ -127,7 +124,6 @@ pub async fn list_orders(
                             }
                         }
 
-                        if let Some(items) = obj.get_mut("items").and_then(|i| i.as_array_mut()) {
                             for item in items {
                                 if let Some(item_obj) = item.as_object_mut() {
                                     item_obj.remove("unit_price");

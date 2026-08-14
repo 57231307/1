@@ -160,8 +160,7 @@ pub fn validate_dye_fabric_compatibility(
     dye_type: Option<&str>,
     fabric_type: &str,
 ) -> Result<(), AppError> {
-    if let Some(dye) = dye_type {
-        if !dye.trim().is_empty() && !is_dye_fabric_compatible(dye, fabric_type) {
+    if let Some(dye) = dye_type  && !dye.trim().is_empty() && !is_dye_fabric_compatible(dye, fabric_type)  {
             return Err(AppError::validation(format!(
                 "染料[{}]与布类[{}]不配伍，请检查配方输入",
                 dye, fabric_type
@@ -200,12 +199,10 @@ pub fn compute_similarity(
 
     let mut score = color_score;
     if let Some(c_fabric) = &candidate.fabric_type {
-        if !target_fabric.is_empty() && c_fabric.eq_ignore_ascii_case(target_fabric) {
+        if !target_fabric.is_empty() && c_fabric.eq_ignore_ascii_case(target_fabric)  && let (Some(t_dye), Some(c_dye)) = (target_dye, candidate.dye_type.as_deref())   && !t_dye.is_empty() && c_dye.eq_ignore_ascii_case(t_dye)  {
             score += 0.2;
         }
     }
-    if let (Some(t_dye), Some(c_dye)) = (target_dye, candidate.dye_type.as_deref()) {
-        if !t_dye.is_empty() && c_dye.eq_ignore_ascii_case(t_dye) {
             score += 0.1;
         }
     }

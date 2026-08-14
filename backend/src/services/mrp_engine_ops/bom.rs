@@ -35,8 +35,7 @@ impl MrpEngineService {
         scrap_rate: Option<Decimal>,
     ) -> Decimal {
         // 损耗率>0时按 (1 + scrap/100) 放大数量，保留4位精度
-        if let Some(scrap_rate) = scrap_rate {
-            if scrap_rate > Decimal::ZERO {
+        if let Some(scrap_rate) = scrap_rate  && scrap_rate > Decimal::ZERO  {
                 return (base_quantity * (Decimal::ONE + (scrap_rate / Decimal::from(100))))
                     .round_dp(4);
             }

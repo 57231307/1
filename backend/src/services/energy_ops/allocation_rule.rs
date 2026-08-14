@@ -96,15 +96,13 @@ impl EnergyAllocationRuleService {
         }
 
         // 校验失效日期
-        if let Some(expiry) = req.expiry_date {
-            if expiry <= req.effective_date {
+        if let Some(expiry) = req.expiry_date  && expiry <= req.effective_date   && standard_consumption < Decimal::ZERO  {
                 return Err(AppError::business("失效日期必须晚于生效日期"));
             }
         }
 
         // 校验标准消耗非负
         let standard_consumption = req.standard_consumption_per_unit.unwrap_or(Decimal::ZERO);
-        if standard_consumption < Decimal::ZERO {
             return Err(AppError::business("标准单位能耗不能为负"));
         }
 
@@ -317,8 +315,7 @@ impl EnergyAllocationRuleService {
             .await?;
         // 校验失效日期
         if let Some(r) = &rule {
-            if let Some(expiry) = r.expiry_date {
-                if date > expiry {
+            if let Some(expiry) = r.expiry_date  && date > expiry  {
                     return Ok(None);
                 }
             }

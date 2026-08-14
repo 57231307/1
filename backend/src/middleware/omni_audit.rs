@@ -421,12 +421,10 @@ fn classify_operation(method: &str, uri: &str, query_string: &str) -> String {
     if !query_string.is_empty() {
         for pair in query_string.split('&') {
             let mut parts = pair.splitn(2, '=');
-            if parts.next() == Some("action") {
-                if let Some(value) = parts.next() {
+            if parts.next() == Some("action")  && let Some(value) = parts.next()   && decoded == "download"  {
                     let decoded = percent_encoding::percent_decode_str(value)
                         .decode_utf8()
                         .unwrap_or_default();
-                    if decoded == "download" {
                         return "DOWNLOAD".to_string();
                     }
                 }

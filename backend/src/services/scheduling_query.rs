@@ -52,9 +52,9 @@ impl SchedulingService {
             ?date_to,
             "排程甘特图数据查询开始"
         );
-        let orders = Self::fetch_gantt_orders(&*self.db, work_center_id).await?;
+        let orders = Self::fetch_gantt_orders(&self.db, work_center_id).await?;
         let scheduled_details = Self::build_scheduled_details(&orders, date_from, date_to);
-        let work_centers = Self::fetch_work_centers(&*self.db, &orders).await?;
+        let work_centers = Self::fetch_work_centers(&self.db, &orders).await?;
         Ok(self.build_gantt_data(&scheduled_details, &work_centers))
     }
 
@@ -86,13 +86,10 @@ impl SchedulingService {
             .filter_map(|o| {
                 let start = o.planned_start_date?;
                 let end = o.planned_end_date?;
-                if let Some(df) = date_from {
-                    if end < df {
+                if let Some(df) = date_from  && end < df   && let Some(dt) = date_to   && start > dt  {
                         return None;
                     }
                 }
-                if let Some(dt) = date_to {
-                    if start > dt {
                         return None;
                     }
                 }

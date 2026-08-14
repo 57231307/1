@@ -452,8 +452,7 @@ impl InventoryAdjustmentService {
         // V15 P0-S01：行级数据权限校验（IDOR 防护）
         // inventory_adjustment 表无 department_id，Dept 退化为 Self；
         // inventory_adjustment.created_by 是 Option<i32>。
-        if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, adjustment.created_by, None) {
+        if let Some(ctx) = data_scope  && !check_resource_owner(ctx, adjustment.created_by, None)  {
                 return Err(AppError::permission_denied(format!(
                     "无权访问调整单 {}（数据范围限制）",
                     adjustment_id

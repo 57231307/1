@@ -442,8 +442,7 @@ impl QualityInspectionService {
 
         // P1 batch-18 缺陷 5.1：B 级降级时同步更新 inventory_stocks.grade
         // 防止降级后销售按 A 级定价造成定价错误
-        if req.handling_method == HANDLING_DOWNGRADE_SALE && grade == QUALITY_GRADE_B {
-            if let Err(e) = self.sync_stock_grade_for_downgrade(&result).await {
+        if req.handling_method == HANDLING_DOWNGRADE_SALE && grade == QUALITY_GRADE_B  && let Err(e) = self.sync_stock_grade_for_downgrade(&result).await  {
                 tracing::warn!(
                     unqualified_id = result.id,
                     error = %e,

@@ -237,8 +237,7 @@ impl CrmService {
         // V15 P0-S01：行级数据权限校验（IDOR 防护）
         // crm_opportunity 表无 department_id，Dept 退化为 Self；
         // 使用 owner_id（业务负责人）作为归属判定字段。
-        if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, Some(opportunity.owner_id), None) {
+        if let Some(ctx) = data_scope  && !check_resource_owner(ctx, Some(opportunity.owner_id), None)  {
                 return Err(AppError::permission_denied(format!(
                     "无权访问商机 {}（数据范围限制）",
                     opportunity_id

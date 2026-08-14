@@ -43,8 +43,7 @@ pub async fn get_statistics_report(
         "ap:report:statistics:{:?}:{}:{}",
         params.supplier_id, params.start_date, params.end_date
     );
-    if let Some(cached) = state.cache_service.get(&cache_key).await {
-        if let Ok(value) = serde_json::from_slice::<serde_json::Value>(&cached) {
+    if let Some(cached) = state.cache_service.get(&cache_key).await  && let Ok(value) = serde_json::from_slice::<serde_json::Value>(&cached)  {
             return Ok(Json(ApiResponse::success(value)));
         }
     }

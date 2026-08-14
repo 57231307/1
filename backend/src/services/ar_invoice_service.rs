@@ -286,8 +286,7 @@ impl ArInvoiceService {
             .ok_or_else(|| AppError::not_found(format!("应收单不存在：{}", id)))?;
 
         // V15 P0-S02：行级数据权限 IDOR 校验
-        if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, Some(invoice.created_by), None) {
+        if let Some(ctx) = data_scope  && !check_resource_owner(ctx, Some(invoice.created_by), None)  {
                 return Err(AppError::permission_denied(format!(
                     "无权访问应收单 {}（数据范围限制）",
                     id

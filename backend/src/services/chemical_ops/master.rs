@@ -179,7 +179,7 @@ impl ChemicalMasterService {
     /// 创建染化料主数据
     pub async fn create(&self, req: CreateChemicalMasterRequest) -> Result<MasterModel, AppError> {
         let values = Self::validate_chemical_create_input(&req)?;
-        Self::check_chemical_code_uniqueness(&*self.db, &req.chemical_code).await?;
+        Self::check_chemical_code_uniqueness(&self.db, &req.chemical_code).await?;
         let mut active = Self::init_chemical_master_active(&req, &values);
         Self::fill_chemical_master_extended(&mut active, &req, &values);
         let result = active

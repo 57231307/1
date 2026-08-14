@@ -89,19 +89,15 @@ pub async fn list_slow_queries(
     let mut q = slow_query::Entity::find();
 
     // 时间范围筛选
-    if let Some(start) = &params.start_time {
-        if let Ok(ts) = start.parse::<DateTime<Utc>>() {
+    if let Some(start) = &params.start_time  && let Ok(ts) = start.parse::<DateTime<Utc>>()   && let Some(end) = &params.end_time   && let Ok(ts) = end.parse::<DateTime<Utc>>()  && let Some(min_dur) = params.min_duration   {
             q = q.filter(slow_query::Column::CapturedAt.gte(ts.naive_utc()));
         }
     }
-    if let Some(end) = &params.end_time {
-        if let Ok(ts) = end.parse::<DateTime<Utc>>() {
             q = q.filter(slow_query::Column::CapturedAt.lte(ts.naive_utc()));
         }
     }
 
     // 最小执行时间
-    if let Some(min_dur) = params.min_duration {
         q = q.filter(slow_query::Column::ExecutionTimeMs.gte(min_dur));
     }
 

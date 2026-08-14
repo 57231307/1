@@ -189,8 +189,7 @@ pub(crate) fn extract_zip_entry(
         }
         Ok(0)
     } else {
-        if let Some(p) = outpath.parent() {
-            if !p.exists() {
+        if let Some(p) = outpath.parent()  && !p.exists()   && copied > MAX_SINGLE_FILE_SIZE  {
                 std::fs::create_dir_all(p)?;
             }
         }
@@ -199,7 +198,6 @@ pub(crate) fn extract_zip_entry(
         const MAX_SINGLE_FILE_SIZE: u64 = 100 * 1024 * 1024;
         let mut limited = zip_entry.take(MAX_SINGLE_FILE_SIZE + 1);
         let copied = io::copy(&mut limited, &mut outfile)?;
-        if copied > MAX_SINGLE_FILE_SIZE {
             return Err(UpdateError::ValidationError(format!(
                 "单文件解压大小超过限制 ({}MB)，疑似 zip bomb",
                 MAX_SINGLE_FILE_SIZE / 1024 / 1024

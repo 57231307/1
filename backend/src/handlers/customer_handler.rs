@@ -296,7 +296,7 @@ pub async fn update_customer(
     // - 管理员可修改所有客户
     // - 普通用户只能修改自己创建的客户
     let customer = customer_service.get_customer(id, None).await?;
-    let is_admin = is_admin_role(&*state.db, auth.role_id.unwrap_or(0)).await;
+    let is_admin = is_admin_role(&state.db, auth.role_id.unwrap_or(0)).await;
     let is_owner = customer.created_by == Some(auth.user_id);
     if !is_admin && !is_owner {
         return Err(AppError::permission_denied(
@@ -358,7 +358,7 @@ pub async fn delete_customer(
     // - 管理员可删除所有客户
     // - 普通用户只能删除自己创建的客户
     let customer = customer_service.get_customer(id, None).await?;
-    let is_admin = is_admin_role(&*state.db, auth.role_id.unwrap_or(0)).await;
+    let is_admin = is_admin_role(&state.db, auth.role_id.unwrap_or(0)).await;
     let is_owner = customer.created_by == Some(auth.user_id);
     if !is_admin && !is_owner {
         return Err(AppError::permission_denied("无权删除该客户".to_string()));
@@ -393,7 +393,7 @@ async fn get_permission_filter(
 
     // 管理员角色或全量数据权限不过滤
     // V15 P2 B10-P2-5：使用 is_admin_role 函数替代硬编码 role_id==1 判定
-    if is_admin_role(&*state.db, role_id).await || auth.data_scope.as_deref() == Some("all") {
+    if is_admin_role(&state.db, role_id).await || auth.data_scope.as_deref() == Some("all") {
         return Ok(None);
     }
 

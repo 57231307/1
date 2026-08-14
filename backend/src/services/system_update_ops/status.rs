@@ -46,10 +46,7 @@ impl SystemUpdateService {
             let entry = entry?;
             let path = entry.path();
 
-            if path.is_file() {
-                if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-                    if file_name.ends_with(".zip") && file_name.starts_with("bingxi-erp-") {
-                        if let Some(version) = self.extract_version_from_filename(file_name) {
+            if path.is_file()  && let Some(file_name) = path.file_name().and_then(|n| n.to_str())   && file_name.ends_with(".zip") && file_name.starts_with("bingxi-erp-")  && let Some(version) = self.extract_version_from_filename(file_name)   {
                             let metadata = fs::metadata(&path)?;
                             let created_at: chrono::DateTime<chrono::Utc> =
                                 metadata.created()?.into();

@@ -133,7 +133,7 @@ impl PrintService {
     /// 销售订单打印数据：订单主表 + 客户 + 明细项（含产品）
     async fn get_sales_order_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         let (order, customer, items, products) =
-            Self::fetch_sales_order_relations(&*self.db, id).await?;
+            Self::fetch_sales_order_relations(&self.db, id).await?;
         let data = Self::build_sales_order_main_data(&order, customer.as_ref());
         let item_list = Self::build_sales_order_item_list(items, &products);
         Ok(PrintData {
@@ -437,7 +437,7 @@ impl PrintService {
     /// 采购订单打印数据：订单主表 + 供应商 + 仓库 + 明细项（含产品）
     async fn get_purchase_order_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         let (order, supplier, warehouse, items, product_map) =
-            Self::fetch_purchase_order_relations(&*self.db, id).await?;
+            Self::fetch_purchase_order_relations(&self.db, id).await?;
         let data =
             Self::build_purchase_order_main_data(&order, supplier.as_ref(), warehouse.as_ref());
         let item_list = Self::build_purchase_order_item_list(items, &product_map);

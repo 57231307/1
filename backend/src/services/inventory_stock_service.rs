@@ -381,8 +381,7 @@ impl InventoryStockService {
         width: Option<Decimal>,
         fallback_quantity_kg: Decimal,
     ) -> Decimal {
-        if let Some(gram_weight) = gram_weight {
-            if let Some(width) = width {
+        if let Some(gram_weight) = gram_weight  && let Some(width) = width  {
                 // 使用双计量单位转换器进行精确计算
                 match DualUnitConverter::meters_to_kg(quantity_meters, gram_weight, width) {
                     Ok(kg) => return kg,

@@ -262,8 +262,7 @@ impl ColorPriceCrudService {
         min: Option<Decimal>,
         max: Option<Decimal>,
     ) -> Result<(), CrudError> {
-        if let (Some(lo), Some(hi)) = (min, max) {
-            if lo >= hi {
+        if let (Some(lo), Some(hi)) = (min, max)  && lo >= hi  {
                 return Err(CrudError::Validation(
                     "min_quantity 必须小于 max_quantity".to_string(),
                 ));

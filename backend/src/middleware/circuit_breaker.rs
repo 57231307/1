@@ -76,9 +76,7 @@ impl CircuitEntry {
 
     /// 检查并自动转换状态（open → half-open）
     fn maybe_transition_to_half_open(&mut self) {
-        if self.state == CircuitState::Open {
-            if let Some(opened_at) = self.opened_at {
-                if opened_at.elapsed() >= Duration::from_secs(OPEN_COOLDOWN_SECS) {
+        if self.state == CircuitState::Open  && let Some(opened_at) = self.opened_at   && opened_at.elapsed() >= Duration::from_secs(OPEN_COOLDOWN_SECS)  {
                     self.state = CircuitState::HalfOpen;
                     self.half_open_probes = 0;
                 }

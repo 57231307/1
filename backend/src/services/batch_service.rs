@@ -356,20 +356,15 @@ impl BatchService {
         if let Some(unit) = &req.unit {
             product.unit = Set(unit.clone());
         }
-        if let Some(price) = &req.standard_price {
-            if let Ok(decimal) = price.parse::<rust_decimal::Decimal>() {
+        if let Some(price) = &req.standard_price  && let Ok(decimal) = price.parse::<rust_decimal::Decimal>()   && let Some(price) = &req.cost_price   && let Ok(decimal) = price.parse::<rust_decimal::Decimal>()  && let Some(desc) = &req.description    && let Some(status) = &req.status  {
                 product.standard_price = Set(Some(decimal));
             }
         }
-        if let Some(price) = &req.cost_price {
-            if let Ok(decimal) = price.parse::<rust_decimal::Decimal>() {
                 product.cost_price = Set(Some(decimal));
             }
         }
-        if let Some(desc) = &req.description {
             product.description = Set(Some(desc.clone()));
         }
-        if let Some(status) = &req.status {
             product.status = Set(status.clone());
         }
         product.updated_at = Set(chrono::Utc::now());

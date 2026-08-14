@@ -206,7 +206,7 @@ impl SupplierEvaluationService {
     ) -> Result<SupplierScoreResponse, AppError> {
         info!("查询供应商 {} 的评分", supplier_id);
 
-        let records = Self::fetch_evaluation_records(&*self.db, supplier_id).await?;
+        let records = Self::fetch_evaluation_records(&self.db, supplier_id).await?;
         if records.is_empty() {
             return Err(AppError::not_found(format!(
                 "供应商 {} 暂无评估记录",
@@ -214,7 +214,7 @@ impl SupplierEvaluationService {
             )));
         }
 
-        let weight_map = Self::fetch_indicator_weights(&*self.db, &records).await?;
+        let weight_map = Self::fetch_indicator_weights(&self.db, &records).await?;
         let response = Self::build_score_response(supplier_id, &records, &weight_map);
         info!(
             "供应商 {} 评分查询完成，平均分：{}，等级：{}",

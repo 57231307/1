@@ -107,8 +107,7 @@ impl EventNotificationService {
 
     /// 发送邮件通知（辅助方法）
     async fn send_email_notification(&self, user_id: i32, subject: &str, html_content: String) {
-        if let Some(email_service) = &self.email_service {
-            if let Some(email) = self.get_user_email(user_id).await {
+        if let Some(email_service) = &self.email_service  && let Some(email) = self.get_user_email(user_id).await  {
                 // P1-4b 修复（批次 80 v1 复审）：原 let _ = 静默吞错，
                 // 邮件发送失败时无任何日志，难以排查通知丢失原因。
                 // 改为 if let Err(e) = ... { tracing::warn!(...); }

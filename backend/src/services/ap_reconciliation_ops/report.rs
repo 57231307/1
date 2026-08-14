@@ -21,9 +21,9 @@ impl ApReconciliationService {
         &self,
         supplier_id: Option<i32>,
     ) -> Result<Vec<SupplierApSummary>, AppError> {
-        let invoices = Self::query_invoices_for_summary(&*self.db, supplier_id).await?;
+        let invoices = Self::query_invoices_for_summary(&self.db, supplier_id).await?;
         let mut summary_map = Self::aggregate_invoices_by_supplier(&invoices);
-        Self::enrich_supplier_names(&*self.db, &mut summary_map).await?;
+        Self::enrich_supplier_names(&self.db, &mut summary_map).await?;
         Ok(summary_map.into_values().collect())
     }
 

@@ -116,7 +116,7 @@ impl CrmAssignService {
 
         let limit = req.limit.unwrap_or(100).clamp(1, 1000);
 
-        let assignees = Self::fetch_active_assignees(&*self.db, &req.assignee_user_ids).await?;
+        let assignees = Self::fetch_active_assignees(&self.db, &req.assignee_user_ids).await?;
 
         if assignees.is_empty() {
             return Err(AppError::validation(
@@ -124,7 +124,7 @@ impl CrmAssignService {
             ));
         }
 
-        let pending_leads = Self::fetch_pending_leads(&*self.db, limit).await?;
+        let pending_leads = Self::fetch_pending_leads(&self.db, limit).await?;
 
         if pending_leads.is_empty() {
             info!("自动分配：无 lead_status='new' 的待分配线索");

@@ -262,8 +262,7 @@ pub async fn get_security_alerts(
         std::collections::HashMap::new();
 
     for login in &recent_logins {
-        if let Some(uid) = login.user_id {
-            if let Some(ip) = &login.ip_address {
+        if let Some(uid) = login.user_id  && let Some(ip) = &login.ip_address   && unique_ips.len() > 3  {
                 user_ips.entry(uid).or_default().push(ip.clone());
             }
         }
@@ -271,7 +270,6 @@ pub async fn get_security_alerts(
 
     for (user_id, ips) in &user_ips {
         let unique_ips: std::collections::HashSet<&String> = ips.iter().collect();
-        if unique_ips.len() > 3 {
             let username = recent_logins
                 .iter()
                 .find(|l| l.user_id == Some(*user_id))

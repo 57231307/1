@@ -32,15 +32,15 @@ impl ApReconciliationService {
         user_id: i32,
     ) -> Result<Vec<AutoReconciliationResult>, AppError> {
         // P3 维度 6 修复（批次 87）：补 LIMIT 兜底防止全表加载
-        let suppliers = Self::fetch_all_suppliers(&*self.db).await?;
+        let suppliers = Self::fetch_all_suppliers(&self.db).await?;
         let supplier_ids: Vec<i32> = suppliers.iter().map(|s| s.id).collect();
 
         // v12 批次 39 修复：批量预加载所有供应商的发票数和付款数，避免 for_each_concurrent 内逐个 count（N+1，2N 次查询）
         let invoice_counts =
-            Self::fetch_invoice_counts_by_supplier(&*self.db, &supplier_ids, start_date, end_date)
+            Self::fetch_invoice_counts_by_supplier(&self.db, &supplier_ids, start_date, end_date)
                 .await?;
         let payment_counts =
-            Self::fetch_payment_counts_by_supplier(&*self.db, &supplier_ids, start_date, end_date)
+            Self::fetch_payment_counts_by_supplier(&self.db, &supplier_ids, start_date, end_date)
                 .await?;
 
         let results = Arc::new(Mutex::new(Vec::new()));

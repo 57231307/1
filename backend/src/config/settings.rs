@@ -320,16 +320,13 @@ impl AppSettings {
             ));
         }
 
-        if let Some(cookie_secret) = &app_settings.auth.cookie_secret {
-            if !Self::validate_secret(cookie_secret) {
+        if let Some(cookie_secret) = &app_settings.auth.cookie_secret  && !Self::validate_secret(cookie_secret)   && let Some(webhook_secret) = &app_settings.auth.webhook_secret   && !Self::validate_secret(webhook_secret)  {
                 return Err(ConfigError::Message(
                     "致命错误：COOKIE_SECRET 密钥强度不足或使用默认密钥！生产环境必须提供至少 32 字节的安全随机密钥，且不能包含常见弱模式。".to_string(),
                 ));
             }
         }
 
-        if let Some(webhook_secret) = &app_settings.auth.webhook_secret {
-            if !Self::validate_secret(webhook_secret) {
                 return Err(ConfigError::Message(
                     "致命错误：WEBHOOK_SECRET 密钥强度不足或使用默认/弱模式密钥！生产环境必须提供至少 32 字节的安全随机密钥，且不能包含常见弱模式。".to_string(),
                 ));
@@ -416,7 +413,7 @@ impl AppSettings {
         // 原仅做长度校验（< 32 字节），无法拦截 placeholder/change-me 等弱模式密钥。
         // 改用 validate_secret 后，与 JWT_SECRET / COOKIE_SECRET 共享同一套强度校验。
         if let Ok(audit_secret) = std::env::var("AUDIT_SECRET_KEY") {
-            if !Self::validate_secret(&audit_secret) {
+            if !Self::validate_secret(&audit_secret)  && let Ok(v) = std::env::var("KAFKA_ENABLED")  {
                 return Err(ConfigError::Message(
                     "致命错误：AUDIT_SECRET_KEY 密钥强度不足或使用默认/弱模式密钥！生产环境必须提供至少 32 字节的安全随机密钥，且不能包含常见弱模式。".to_string(),
                 ));
@@ -424,7 +421,6 @@ impl AppSettings {
         }
 
         // Kafka 事件总线后端：从环境变量覆盖
-        if let Ok(v) = std::env::var("KAFKA_ENABLED") {
             self.kafka.enabled = matches!(v.to_lowercase().as_str(), "1" | "true" | "yes" | "on");
         }
         if let Ok(v) = std::env::var("KAFKA_BROKERS") {

@@ -385,8 +385,7 @@ impl CustomerTeamShareService {
             .filter(customer_team_member::Column::IsActive.eq(true))
             .one(&*self.db)
             .await?;
-        if let Some(m) = &operator_member {
-            if m.team_role == team_model::TEAM_ROLE_PRIMARY {
+        if let Some(m) = &operator_member  && m.team_role == team_model::TEAM_ROLE_PRIMARY  {
                 return Ok(());
             }
         }

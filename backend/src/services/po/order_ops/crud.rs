@@ -151,8 +151,7 @@ impl PurchaseOrderService {
         }
 
         // 日期合理性检查
-        if let Some(expected_date) = req.expected_delivery_date {
-            if expected_date < req.order_date {
+        if let Some(expected_date) = req.expected_delivery_date  && expected_date < req.order_date  {
                 tracing::error!("预计交货日期不能早于订单日期");
                 return Err(AppError::bad_request(
                     "预计交货日期不能早于订单日期".to_string(),
@@ -217,12 +216,11 @@ impl PurchaseOrderService {
         let mut product_ids = std::collections::HashSet::new();
         for item in items {
             if let Some(material_id) = item.material_id {
-                if material_id != 0 {
+                if material_id != 0  && product_ids.is_empty()  {
                     product_ids.insert(material_id);
                 }
             }
         }
-        if product_ids.is_empty() {
             return Ok(());
         }
         let existing_products = product::Entity::find()

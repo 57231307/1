@@ -387,8 +387,8 @@ impl AiAnalysisService {
     ) -> Result<Vec<InventoryTurnover>, AppError> {
         let start_date = Utc::now().date_naive() - Duration::days(days);
         let transactions =
-            Self::fetch_turnover_transactions(&*self.db, product_id, start_date).await?;
-        let stocks = Self::fetch_turnover_stocks(&*self.db, product_id).await?;
+            Self::fetch_turnover_transactions(&self.db, product_id, start_date).await?;
+        let stocks = Self::fetch_turnover_stocks(&self.db, product_id).await?;
         let outbound_map = Self::aggregate_outbound_by_product(&transactions);
         let stock_map = Self::aggregate_stock_by_product(&stocks);
         let mut results = Self::build_turnover_results(&outbound_map, &stock_map, days);
@@ -772,9 +772,9 @@ impl AiAnalysisService {
             .unwrap_or_default()
             .and_utc();
         let recent_items =
-            Self::query_sales_items_between(&*self.db, recent_start_dt, None).await?;
+            Self::query_sales_items_between(&self.db, recent_start_dt, None).await?;
         let earlier_items =
-            Self::query_sales_items_between(&*self.db, earlier_start_dt, Some(recent_start_dt))
+            Self::query_sales_items_between(&self.db, earlier_start_dt, Some(recent_start_dt))
                 .await?;
         let recent_sales = Self::aggregate_sales_by_product(&recent_items);
         let earlier_sales = Self::aggregate_sales_by_product(&earlier_items);

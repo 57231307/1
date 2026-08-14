@@ -695,8 +695,7 @@ async fn validate_password_history(
     let history_result = policy_svc
         .validate_with_history(new_password, new_password_hash, &history)
         .await;
-    if !history_result.is_valid {
-        if let Some(history_err) = history_result.errors.iter().find(|e| e.contains("历史")) {
+    if !history_result.is_valid  && let Some(history_err) = history_result.errors.iter().find(|e| e.contains("历史"))  {
             return Err(AppError::bad_request(history_err.clone()));
         }
     }

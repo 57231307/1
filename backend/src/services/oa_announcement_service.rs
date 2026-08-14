@@ -178,8 +178,7 @@ impl OaAnnouncementService {
         if req.effective_date < req.publish_date {
             return Err(AppError::validation("生效日期不能早于发布日期"));
         }
-        if let Some(expiry) = req.expiry_date {
-            if expiry < req.effective_date {
+        if let Some(expiry) = req.expiry_date  && expiry < req.effective_date  {
                 return Err(AppError::validation("失效日期不能早于生效日期"));
             }
         }

@@ -138,8 +138,7 @@ impl CacheService {
         // P2 5-17 修复：检查自定义 TTL 是否已过期
         {
             let custom_exp = self.custom_expirations.read().await;
-            if let Some(deadline) = custom_exp.get(key) {
-                if Instant::now() >= *deadline {
+            if let Some(deadline) = custom_exp.get(key)  && Instant::now() >= *deadline   && let Some(m) = &self.business_metrics  {
                     // 已过期，释放读锁后清理
                     drop(custom_exp);
                     self.custom_expirations.write().await.remove(key);
@@ -147,7 +146,6 @@ impl CacheService {
                     self.inner.invalidate(key).await;
                     self.stats.write().await.misses += 1;
                     // P1-8 修复：过期视为 miss，上报 Prometheus
-                    if let Some(m) = &self.business_metrics {
                         m.record_cache_miss();
                     }
                     return None;

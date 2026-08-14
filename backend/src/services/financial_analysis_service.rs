@@ -312,15 +312,12 @@ impl FinancialAnalysisService {
         }
 
         // 日期范围过滤（analysis_date >= start_date）
-        if let Some(s) = start_date {
-            if let Ok(d) = NaiveDate::parse_from_str(s, "%Y-%m-%d") {
+        if let Some(s) = start_date  && let Ok(d) = NaiveDate::parse_from_str(s, "%Y-%m-%d")   && let Some(e) = end_date   && let Ok(d) = NaiveDate::parse_from_str(e, "%Y-%m-%d")  {
                 query = query.filter(financial_analysis_result::Column::AnalysisDate.gte(d));
             }
         }
 
         // 日期范围过滤（analysis_date <= end_date）
-        if let Some(e) = end_date {
-            if let Ok(d) = NaiveDate::parse_from_str(e, "%Y-%m-%d") {
                 query = query.filter(financial_analysis_result::Column::AnalysisDate.lte(d));
             }
         }
@@ -352,11 +349,10 @@ impl FinancialAnalysisService {
             query = query.filter(financial_analysis_result::Column::Period.eq(p));
         }
         if let Some(s) = start_date {
-            if let Ok(d) = NaiveDate::parse_from_str(s, "%Y-%m-%d") {
+            if let Ok(d) = NaiveDate::parse_from_str(s, "%Y-%m-%d")  && let Some(e) = end_date  {
                 query = query.filter(financial_analysis_result::Column::AnalysisDate.gte(d));
             }
         }
-        if let Some(e) = end_date {
             if let Ok(d) = NaiveDate::parse_from_str(e, "%Y-%m-%d") {
                 query = query.filter(financial_analysis_result::Column::AnalysisDate.lte(d));
             }

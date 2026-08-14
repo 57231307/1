@@ -119,8 +119,8 @@ impl BusinessTraceService {
             .ok_or_else(|| AppError::not_found("No trace found"))?;
 
         // 第一个环节有供应商，最后一个环节有客户
-        let supplier_name = Self::fetch_supplier_name(&*self.db, first_trace.supplier_id).await?;
-        let customer_name = Self::fetch_customer_name(&*self.db, last_trace.customer_id).await?;
+        let supplier_name = Self::fetch_supplier_name(&self.db, first_trace.supplier_id).await?;
+        let customer_name = Self::fetch_customer_name(&self.db, last_trace.customer_id).await?;
         let trace_path = Self::build_trace_path(&traces);
 
         let active_snapshot = Self::build_snapshot_active_model(
