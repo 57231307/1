@@ -44,3 +44,43 @@
 ## 三、技术债待办
 
 > 2026-08-14 核实：原 T4（路由路径命名误导）已删除，不存在 `GET /api/v1/erp/export/csv/:export_type` 路由；`/csv` 路由用于导入（`import_csv`），导出路由为 `/export/pdf` 和 `/export/excel`。
+
+### 3.1 导入导出格式不一致（2026-08-14 核实）
+
+**问题描述**：
+- 后端存在 `import_csv` 函数（`analytics.rs:189`），但前端没有调用它
+- 前端使用 FormData 上传文件（`multipart/form-data`）
+- 后端 `import_products` 函数期望接收 JSON 格式的 `ImportProductsRequest`（包含 `csv_data` 字段）
+- 这是一个前后端不匹配的问题
+
+**代码证据**：
+- 前端：`product.ts:139` 使用 FormData 上传文件
+- 后端：`product_handler.rs:555` 期望接收 JSON 格式的 `ImportProductsRequest`
+- 后端：`analytics.rs:189` 存在 `/csv` 路由，但前端没有调用
+
+**用户要求**：
+- 导入和导出都应该使用 .xlsx 格式
+- 只有合同使用 .docx 格式
+- 需要删除 `import_csv` 函数，统一使用 xlsx 格式
+
+**待办**：
+1. 删除后端 `import_csv` 函数和 `/csv` 路由
+2. 修改 `import_products` 函数，支持 multipart/form-data 格式
+3. 确保前端和后端使用统一的 xlsx 格式
+
+### 3.2 P3 任务状态不明确（2026-08-14 核实）
+
+**问题描述**：
+- CHANGELOG.md 中记录了 P3 任务（PR #878、#877、#876、#875），但 main 分支只有 3 个提交
+- 代码中确实存在 P3 任务的问题（如 `MainLayout.vue:831` 的 TODO 注释）
+- 这说明 P3 任务可能还没有被修复，或者 main 分支被重置了
+
+**代码证据**：
+- `MainLayout.vue:831`：TODO 注释说明 subMenus 映射为硬编码 path 列表（P3 4-7）
+- `error.rs:101`：Retry-After HTTP 头已实现（P3 batch-17）
+- `settings.rs:77`：retention_days 字段已纳入 AppSettings（P3 batch-04/05）
+
+**待办**：
+1. 确认 P3 任务的真实状态（是否已合并到 main 分支）
+2. 如果 P3 任务未合并，需要重新应用这些修复
+3. 更新 doto.md 中的 P3 任务清单，标记已完成的项目
