@@ -29,7 +29,7 @@ fn test_create_stock_fabric_request_deserialize() {
     assert_eq!(req.product_id, 100);
     assert_eq!(req.batch_no, "B20240101");
     assert_eq!(req.color_no, "C001");
-    assert_eq!(req.quantity_meters, crate::decs!("100.00"));
-    assert_eq!(req.gram_weight, Some(crate::decs!("180.00")));
-    assert_eq!(req.width, Some(crate::decs!("180.00")));
+    assert_eq!(req.quantity_meters, bingxi_backend::decs!("100.00"));
+    assert_eq!(req.gram_weight, Some(bingxi_backend::decs!("180.00")));
+    assert_eq!(req.width, Some(bingxi_backend::decs!("180.00")));
 }

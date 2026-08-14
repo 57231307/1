@@ -150,14 +150,14 @@ fn test_jejyhs_ffjy() {
 
 /// 复现 approve 方法内的状态机门判定（源码位置：approve 方法内的状态门。；仅 common::STATUS_DRAFT 状态允许审核转 AUDITED。）
 fn can_approve(current_status: &str) -> bool {
-    current_status == crate::models::status::common::STATUS_DRAFT
+    current_status == bingxi_backend::models::status::common::STATUS_DRAFT
 }
 
 /// 复现 mark_as_paid 方法内的状态机门判定（白名单）（源码位置：mark_as_paid 方法内的状态门（P0 3-3 修复）。；仅 AUDITED / PARTIAL_PAID 状态允许标记为已付清。）
 fn can_mark_as_paid(current_status: &str) -> bool {
     [
-        crate::models::status::ap_invoice::INVOICE_AUDITED,
-        crate::models::status::payment::PAYMENT_PARTIAL_PAID,
+        bingxi_backend::models::status::ap_invoice::INVOICE_AUDITED,
+        bingxi_backend::models::status::payment::PAYMENT_PARTIAL_PAID,
     ]
     .contains(&current_status)
 }
@@ -165,8 +165,8 @@ fn can_mark_as_paid(current_status: &str) -> bool {
 /// 复现 cancel 方法内的状态机门判定（白名单）（源码位置：cancel 方法内的状态门。；仅 AUDITED / PARTIAL_PAID 状态允许取消（且需 paid_amount 为 0）。）
 fn can_cancel(current_status: &str) -> bool {
     [
-        crate::models::status::ap_invoice::INVOICE_AUDITED,
-        crate::models::status::payment::PAYMENT_PARTIAL_PAID,
+        bingxi_backend::models::status::ap_invoice::INVOICE_AUDITED,
+        bingxi_backend::models::status::payment::PAYMENT_PARTIAL_PAID,
     ]
     .contains(&current_status)
 }

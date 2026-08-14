@@ -159,13 +159,13 @@ fn test_mxhh_mrzdzcj() {
 
 // ---------- 订单默认值 ----------
 
-/// test_hbmrz_wzdssycny（验证 create_order_header 中 currency 未指定时使用 crate::constants::DEFAULT_CURRENCY）
+/// test_hbmrz_wzdssycny（验证 create_order_header 中 currency 未指定时使用 bingxi_backend::constants::DEFAULT_CURRENCY）
 #[test]
 fn test_hbmrz_wzdssycny() {
     // 复现 create_order_header 中货币默认值逻辑
-    let currency = crate::constants::DEFAULT_CURRENCY.to_string();
+    let currency = bingxi_backend::constants::DEFAULT_CURRENCY.to_string();
     // 验证未指定时回退到项目默认货币常量
-    assert_eq!(currency, crate::constants::DEFAULT_CURRENCY);
+    assert_eq!(currency, bingxi_backend::constants::DEFAULT_CURRENCY);
     assert_eq!(currency, "CNY");
     // 验证显式指定时不应被默认值覆盖
     let currency_explicit = "USD".to_string();

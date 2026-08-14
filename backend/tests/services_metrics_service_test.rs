@@ -1,3 +1,4 @@
+use axum::extract::State;
 use axum::http::StatusCode;
 use bingxi_backend::container::*;
 use bingxi_backend::services::business_metrics::*;
@@ -128,7 +129,7 @@ fn test_metrics_clone() {
 
 #[tokio::test]
 async fn test_metrics_handler() {
-    let response = metrics_handler(State(crate::container::AppState::default())).await;
+    let response = metrics_handler(State(bingxi_backend::container::AppState::default())).await;
 
     // P9-1: 用 match 处理 handler 返回的 Result
     let response = match response {

@@ -134,7 +134,7 @@ fn calc_ending_balance(
 
 // ============ 凭证状态常量值正确性测试 ============
 
-/// test_pzztcl_zzqx（验证 crate::models::status::voucher 子模块中 4 个状态常量值；与凭证状态机约定一致（小写：draft/submitted/reviewed/posted）。）
+/// test_pzztcl_zzqx（验证 bingxi_backend::models::status::voucher 子模块中 4 个状态常量值；与凭证状态机约定一致（小写：draft/submitted/reviewed/posted）。）
 #[test]
 fn test_pzztcl_zzqx() {
     assert_eq!(voucher_status::VOUCHER_DRAFT, "draft");

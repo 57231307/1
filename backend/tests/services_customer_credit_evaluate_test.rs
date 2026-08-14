@@ -1,6 +1,6 @@
 // 批次 210 P2-5 修复（v12 复审）：测试中硬编码 "active" 替换为 master_data 常量
 use bingxi_backend::decs;
-use bingxi_backend::models::status::finance::customer_credit;
+use bingxi_backend::models::customer_credit;
 use bingxi_backend::models::status::master_data;
 use bingxi_backend::ymd;
 use chrono::Utc;
@@ -22,8 +22,8 @@ fn create_test_credit_model(
         used_credit: Decimal::from(0),
         available_credit: Decimal::from(100000),
         credit_days: Some(30),
-        last_assessment_date: Some(crate::ymd!(2024, 1, 1)),
-        next_assessment_date: Some(crate::ymd!(2025, 1, 1)),
+        last_assessment_date: Some(bingxi_backend::ymd!(2024, 1, 1)),
+        next_assessment_date: Some(bingxi_backend::ymd!(2025, 1, 1)),
         status: status.to_string(),
         created_by: Some(1),
         created_at: chrono::Utc::now(),

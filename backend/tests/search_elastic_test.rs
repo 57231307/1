@@ -73,7 +73,7 @@ fn test_sales_order_doc_serialize() {
         customer_name: "ACME".to_string(),
         total_amount: 1000.0,
         status: "approved".to_string(),
-        created_at: crate::ymd!(2026, 6, 17)
+        created_at: bingxi_backend::ymd!(2026, 6, 17)
             .and_hms_opt(10, 0, 0)
             .unwrap()
             .and_utc(),
@@ -126,7 +126,7 @@ async fn test_elastic_client_index_doc() {
         customer_name: "Test".to_string(),
         total_amount: 100.0,
         status: "draft".to_string(),
-        created_at: crate::ymd!(2026, 6, 17)
+        created_at: bingxi_backend::ymd!(2026, 6, 17)
             .and_hms_opt(0, 0, 0)
             .unwrap()
             .and_utc(),
@@ -150,7 +150,7 @@ async fn test_elastic_client_search() {
             customer_name: format!("客户 {}", i),
             total_amount: 100.0 * i as f64,
             status: "draft".to_string(),
-            created_at: crate::ymd!(2026, 6, 17)
+            created_at: bingxi_backend::ymd!(2026, 6, 17)
                 .and_hms_opt(0, 0, 0)
                 .unwrap()
                 .and_utc(),
@@ -225,7 +225,7 @@ async fn test_search_syncer() {
         customer_name: "Test".to_string(),
         total_amount: 100.0,
         status: "approved".to_string(),
-        created_at: crate::ymd!(2026, 6, 17)
+        created_at: bingxi_backend::ymd!(2026, 6, 17)
             .and_hms_opt(0, 0, 0)
             .unwrap()
             .and_utc(),
