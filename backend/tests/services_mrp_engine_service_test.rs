@@ -4,6 +4,7 @@ use bingxi_backend::models::status::master_data;
 use bingxi_backend::services::test_common::setup_test_db;
 use bingxi_backend::utils::error::AppError;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
+use bingxi_backend::{decs, ymd};
 use chrono::Duration;
 use rust_decimal::Decimal;
 // StockInfo 原 private struct，拆分后提升为 ops::types::StockInfo（pub(crate)），

@@ -1,4 +1,5 @@
 use bingxi_backend::models::inventory_stock;
+use bingxi_backend::{decs, ymd};
 // decs 宏在测试中不可用，使用 Decimal::from_str 替代
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
 use chrono::Utc;

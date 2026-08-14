@@ -3,6 +3,8 @@
 // 批次 343 v11 复审 P3 修复：移除 #[allow(unused_imports)]，decs! 宏已被广泛使用
 // decs 宏在测试中不可用，使用 Decimal::from_str 替代
 
+use bingxi_backend::{decs, ymd};
+
 #[test]
 fn test_convert_unit_request_deserialize() {
     let json = r#"

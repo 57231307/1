@@ -4,6 +4,7 @@ use bingxi_backend::services::test_common::setup_test_db;
 use chrono::Utc;
 // 批次 415：测试中使用 Arc::new(db)，需导入（文件顶部在批次 357 移除了 unused Arc 导入）
 use bingxi_backend::utils::error::AppError;
+use bingxi_backend::{decs, ymd};
 use rust_decimal::Decimal;
 use std::sync::Arc;
 

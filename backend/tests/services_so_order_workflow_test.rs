@@ -4,6 +4,7 @@ use bingxi_backend::services::test_common::setup_test_db;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
 use bingxi_backend::models::status::sales_order as so_status;
 use bingxi_backend::utils::error::AppError;
+use bingxi_backend::{decs, ymd};
 use chrono::Utc;
 use rust_decimal::Decimal;
 use std::collections::HashSet;

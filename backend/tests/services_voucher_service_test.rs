@@ -2,6 +2,7 @@
 use bingxi_backend::models::status::voucher as voucher_status;
 use bingxi_backend::services::test_common::setup_test_db;
 use bingxi_backend::utils::error::AppError;
+use bingxi_backend::{decs, ymd};
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
 use chrono::Datelike;
 use chrono::Utc;

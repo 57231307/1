@@ -1,5 +1,6 @@
 //! P4-5 单元测试 - Inventory 服务（5 测试）
 
+use bingxi_backend::{decs, ymd};
 use rust_decimal::Decimal;
 use std::collections::HashMap;
 // P9-1: 引入 decs! 宏统一测试夹具

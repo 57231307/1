@@ -6,6 +6,7 @@
 //! - 状态分类映射
 //! - 业务规则（订单金额、税额）
 
+use bingxi_backend::{decs, ymd};
 use rust_decimal::Decimal;
 // 批次 351 v12 复审 P1-3：移除未使用的 rust_decimal::prelude::*（测试代码使用全路径）
 // P9-1: 引入 decs! 宏统一测试夹具
