@@ -39,7 +39,9 @@ fn test_ticket_invalid() {
 
 #[test]
 fn test_ws_message_serialize() {
-    let msg = WsMessage::Ping { timestamp: 1234567890 };
+    let msg = WsMessage::Ping {
+        timestamp: 1234567890,
+    };
     let json = serde_json::to_string(&msg).unwrap();
     assert!(json.contains("ping"));
     assert!(json.contains("1234567890"));

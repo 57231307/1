@@ -1,7 +1,7 @@
-use bingxi_backend::services::notification_service::CreateNotificationRequest;
 use bingxi_backend::models::notification::{
     Model as NotificationModel, NotificationPriority, NotificationStatus, NotificationType,
 };
+use bingxi_backend::services::notification_service::CreateNotificationRequest;
 use bingxi_backend::services::notification_service::DEDUP_WINDOW_SECS;
 use chrono::Utc;
 

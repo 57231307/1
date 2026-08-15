@@ -82,7 +82,7 @@ fn test_validity_period() {
     let mut contract = make_sales_contract_model(1, "active");
     contract.effective_date = Some(Utc::now().naive_utc().date());
     contract.expiry_date = Some(Utc::now().naive_utc().date() + chrono::Duration::days(365));
-    
+
     assert!(contract.effective_date.is_some());
     assert!(contract.expiry_date.is_some());
 }

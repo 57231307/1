@@ -11,10 +11,10 @@ use rust_decimal::Decimal;
 // StockInfo 原 private struct，拆分后提升为 ops::types::StockInfo（pub(crate)），
 // 测试模块直接从 ops 导入（facade 不重导出以保持原 API 表面不变）
 use bingxi_backend::services::mrp_engine_ops::StockInfo;
-use bingxi_backend::services::mrp_engine_service::MrpEngineService;
-use bingxi_backend::services::mrp_engine_ops::types::RequirementCalcParams;
 use bingxi_backend::services::mrp_engine_ops::types::MaterialRequirement;
 use bingxi_backend::services::mrp_engine_ops::types::MrpExplodeQuery;
+use bingxi_backend::services::mrp_engine_ops::types::RequirementCalcParams;
+use bingxi_backend::services::mrp_engine_service::MrpEngineService;
 use std::sync::Arc;
 
 // MRP 专属状态值（源码 mrp_engine_service.rs 中使用，status.rs 暂无 mrp 子模块）

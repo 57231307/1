@@ -1,9 +1,10 @@
-use bingxi_backend::services::ap_invoice_service::validate_non_negative_decimal;
 //! AP 发票服务单元测试
 //!
 //! 覆盖目标：
 //! - DEFAULT_BASE_CURRENCY_EXCHANGE_RATE 常量值正确性（防止 P0-1 缺陷复发）
 //! - 汇率换算逻辑（金额 × 汇率 = 本位币金额）
+
+use bingxi_backend::services::ap_invoice_service::validate_non_negative_decimal;
 
 use bingxi_backend::services::ap_invoice_service::{
     DEFAULT_BASE_CURRENCY_EXCHANGE_RATE, validate_exchange_rate, validate_positive_decimal,
