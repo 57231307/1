@@ -36,7 +36,7 @@ use tracing::{info, warn};
 /// 用户服务（处理用户相关的业务逻辑）
 #[derive(Debug, Clone)]
 pub struct UserService {
-    db: Arc<DatabaseConnection>,
+    pub db: Arc<DatabaseConnection>,
 }
 
 impl UserService {

@@ -88,7 +88,7 @@ fn test_xydjpd_mrztclj() {
         credit_score: None,
         credit_limit: None,
         credit_days: None,
-        notes: None,
+        remark: None,
     };
 
     // 复现 set_credit_rating 中的默认值填充逻辑
@@ -107,7 +107,7 @@ fn test_xydjpd_mrztclj() {
         credit_score: Some(95),
         credit_limit: Some(decs!("20000")),
         credit_days: Some(60),
-        notes: None,
+        remark: None,
     };
     assert_eq!(
         req_explicit.credit_level.or(Some("B".to_string())),

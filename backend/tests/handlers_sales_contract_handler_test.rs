@@ -40,7 +40,7 @@ fn test_sales_contract_amount() {
     let contract = make_sales_contract_model(1, "draft");
 
     // 验证金额
-    assert_eq!(contract.total_amount, Decimal::new(100000, 2));
+    assert_eq!(contract.total_amount, Some(Decimal::new(100000, 2)));
 }
 
 // ===== 状态转换测试 =====

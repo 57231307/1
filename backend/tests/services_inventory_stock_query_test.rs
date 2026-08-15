@@ -31,6 +31,15 @@ fn make_stock_model() -> inventory_stock::Model {
         expiry_date: None,
         quantity_meters: Decimal::from(100),
         quantity_kg: Decimal::from(50),
+        gram_weight: None,
+        width: None,
+        location_id: None,
+        shelf_no: None,
+        layer_no: None,
+        stock_status: "正常".to_string(),
+        quality_status: "合格".to_string(),
+        version: 1,
+        replenishment_strategy: "reorder_point".to_string(),
     }
 }
 
