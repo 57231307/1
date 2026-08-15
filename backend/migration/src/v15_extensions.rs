@@ -13,12 +13,10 @@ impl MigrationTrait for Migration {
         // === m0091_create_device_connection.rs ===
 let sql = include_str!("../../migrations/20260801000005_create_device_connection/up.sql");
         manager.get_connection().execute_unprepared(sql).await?;
-        Ok(())
         // === m0092_create_period_adjustment_record.rs ===
 let sql =
             include_str!("../../migrations/20260801000006_create_period_adjustment_record/up.sql");
         manager.get_connection().execute_unprepared(sql).await?;
-        Ok(())
         // === m0093_add_category_id_to_suppliers.rs ===
 // 添加 category_id 字段到 suppliers 表
         manager
@@ -58,8 +56,6 @@ let sql =
                     .to_owned(),
             )
             .await?;
-
-        Ok(())
         // === m0094_add_processor_fields_to_suppliers.rs ===
 // 添加 is_processor 字段到 suppliers 表
         manager
@@ -100,8 +96,6 @@ let sql =
                     .to_owned(),
             )
             .await?;
-
-        Ok(())
         // === m0095_create_sales_contract_items.rs ===
 // 创建 sales_contract_items 表
         manager
@@ -215,8 +209,6 @@ let sql =
                     .to_owned(),
             )
             .await?;
-
-        Ok(())
         // === m0096_create_period_report_snapshot.rs ===
 // 创建 period_report_snapshot 表
         manager
@@ -293,8 +285,6 @@ let sql =
                     .to_owned(),
             )
             .await?;
-
-        Ok(())
         // === m0097_create_aging_alert_rules.rs ===
 // 创建 aging_alert_rules 表
         manager
@@ -396,8 +386,6 @@ let sql =
                     .to_owned(),
             )
             .await?;
-
-        Ok(())
         // === m0098_budget_asset_enhancements.rs ===
 // 1. budget_items 增加 account_subject_id 字段
         manager
@@ -493,8 +481,6 @@ let sql =
                     .to_owned(),
             )
             .await?;
-
-        Ok(())
         // === m0099_budget_impairment_depreciation.rs ===
 // 1. 创建 budget_versions 表
         manager
@@ -744,8 +730,6 @@ let sql =
                     .to_owned(),
             )
             .await?;
-
-        Ok(())
         // === m0100_crm_lead_enhancements.rs ===
 // 18.1-D4: 线索来源 ROI 跟踪表
         manager
@@ -1025,8 +1009,6 @@ let sql =
                     .to_owned(),
             )
             .await?;
-
-        Ok(())
         // === m0101_crm_opp_pool_enhancements.rs ===
 // 18.2-D5: 商机阶段变更历史表（用于计算阶段停留时长）
         manager
@@ -1319,8 +1301,6 @@ let sql =
                     .to_owned(),
             )
             .await?;
-
-        Ok(())
         // === m0102_crm_data_permission_clv.rs ===
 // 18.4-D5: 客户字段权限配置表
         manager
@@ -1562,8 +1542,6 @@ let sql =
                     .to_owned(),
             )
             .await?;
-
-        Ok(())
         // === m0103_api_deprecation_fields.rs ===
 // 添加 deprecated_at 字段
         manager
@@ -1606,8 +1584,6 @@ let sql =
                     .to_owned(),
             )
             .await?;
-
-        Ok(())
         // === m0104_greige_fabric_tracing_fields.rs ===
 // 添加 dye_lot_no 字段（缸号，用于染色批次追溯）
         manager
@@ -1628,8 +1604,6 @@ let sql =
                     .to_owned(),
             )
             .await?;
-
-        Ok(())
         // === m0105_piece_split_original_length.rs ===
 // 添加 original_length 字段（拆分前原始长度，NULL 表示未拆分过的原始匹）
         manager
@@ -1658,12 +1632,454 @@ let sql =
                     .to_owned(),
             )
             .await?;
-
-        Ok(())
         Ok(())
     }
 
-    async fn down(&self, _manager: &SchemaManager) -> Result<(), DbErr> {
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        // === m0091_create_device_connection.rs ===
+let sql = include_str!("../../migrations/20260801000005_create_device_connection/down.sql");
+        manager.get_connection().execute_unprepared(sql).await?;
+        // === m0092_create_period_adjustment_record.rs ===
+let sql = include_str!(
+            "../../migrations/20260801000006_create_period_adjustment_record/down.sql"
+        );
+        manager.get_connection().execute_unprepared(sql).await?;
+        // === m0093_add_category_id_to_suppliers.rs ===
+// 删除索引
+        manager
+            .drop_index(
+                Index::drop()
+                    .name("idx_suppliers_category_id")
+                    .table(Suppliers::Table)
+                    .to_owned(),
+            )
+            .await?;
+
+        // 删除外键约束
+        manager
+            .alter_table(
+                Table::alter()
+                    .table(Suppliers::Table)
+                    .drop_foreign_key("fk_suppliers_category_id")
+                    .to_owned(),
+            )
+            .await?;
+
+        // 删除字段
+        manager
+            .alter_table(
+                Table::alter()
+                    .table(Suppliers::Table)
+                    .drop_column(Suppliers::CategoryId)
+                    .to_owned(),
+            )
+            .await?;
+        // === m0094_add_processor_fields_to_suppliers.rs ===
+// 删除索引
+        manager
+            .drop_index(
+                Index::drop()
+                    .name("idx_suppliers_is_processor")
+                    .table(Suppliers::Table)
+                    .to_owned(),
+            )
+            .await?;
+
+        // 删除字段
+        manager
+            .alter_table(
+                Table::alter()
+                    .table(Suppliers::Table)
+                    .drop_column(Suppliers::ProcessorType)
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .alter_table(
+                Table::alter()
+                    .table(Suppliers::Table)
+                    .drop_column(Suppliers::IsProcessor)
+                    .to_owned(),
+            )
+            .await?;
+        // === m0095_create_sales_contract_items.rs ===
+// 删除索引
+        manager
+            .drop_index(
+                Index::drop()
+                    .name("idx_sales_contract_items_product_id")
+                    .table(SalesContractItems::Table)
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .drop_index(
+                Index::drop()
+                    .name("idx_sales_contract_items_contract_id")
+                    .table(SalesContractItems::Table)
+                    .to_owned(),
+            )
+            .await?;
+
+        // 删除表
+        manager
+            .drop_table(Table::drop().table(SalesContractItems::Table).to_owned())
+            .await?;
+        // === m0096_create_period_report_snapshot.rs ===
+// 删除索引
+        manager
+            .drop_index(
+                Index::drop()
+                    .name("idx_period_report_snapshot_report_type")
+                    .table(PeriodReportSnapshot::Table)
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .drop_index(
+                Index::drop()
+                    .name("idx_period_report_snapshot_period_id")
+                    .table(PeriodReportSnapshot::Table)
+                    .to_owned(),
+            )
+            .await?;
+
+        // 删除表
+        manager
+            .drop_table(Table::drop().table(PeriodReportSnapshot::Table).to_owned())
+            .await?;
+        // === m0097_create_aging_alert_rules.rs ===
+// 删除索引
+        manager
+            .drop_index(
+                Index::drop()
+                    .name("idx_aging_alert_rules_is_active")
+                    .table(AgingAlertRules::Table)
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .drop_index(
+                Index::drop()
+                    .name("idx_aging_alert_rules_aging_bucket")
+                    .table(AgingAlertRules::Table)
+                    .to_owned(),
+            )
+            .await?;
+
+        // 删除表
+        manager
+            .drop_table(Table::drop().table(AgingAlertRules::Table).to_owned())
+            .await?;
+        // === m0098_budget_asset_enhancements.rs ===
+manager
+            .alter_table(
+                Table::alter()
+                    .table(FixedAssets::Table)
+                    .drop_column(FixedAssets::AssetCategoryId)
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .drop_table(Table::drop().table(AssetCategories::Table).to_owned())
+            .await?;
+
+        manager
+            .alter_table(
+                Table::alter()
+                    .table(BudgetItems::Table)
+                    .drop_column(BudgetItems::AccountSubjectId)
+                    .to_owned(),
+            )
+            .await?;
+        // === m0099_budget_impairment_depreciation.rs ===
+manager
+            .drop_table(
+                Table::drop()
+                    .table(DepreciationPolicyChanges::Table)
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .drop_table(Table::drop().table(AssetImpairmentTests::Table).to_owned())
+            .await?;
+
+        manager
+            .drop_table(Table::drop().table(BudgetVersions::Table).to_owned())
+            .await?;
+        // === m0100_crm_lead_enhancements.rs ===
+manager
+            .drop_table(Table::drop().table(LeadNurturePlan::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(LeadAllocationRule::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(LeadSourceRoi::Table).to_owned())
+            .await?;
+        // === m0101_crm_opp_pool_enhancements.rs ===
+manager
+            .drop_table(Table::drop().table(OpportunityFollowUp::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(OpportunityCompetitor::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(Competitor::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(
+                Table::drop()
+                    .table(OpportunityStageHistory::Table)
+                    .to_owned(),
+            )
+            .await?;
+        // === m0102_crm_data_permission_clv.rs ===
+manager
+            .drop_table(Table::drop().table(CustomerLifetimeValue::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(CustomerAuditLog::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(
+                Table::drop()
+                    .table(CustomerFieldPermission::Table)
+                    .to_owned(),
+            )
+            .await?;
+        // === m0103_api_deprecation_fields.rs ===
+// 移除新增字段
+        manager
+            .alter_table(
+                Table::alter()
+                    .table(ApiEndpoints::Table)
+                    .drop_column(ApiEndpoints::DeprecatedAt)
+                    .drop_column(ApiEndpoints::SunsetAt)
+                    .drop_column(ApiEndpoints::DeprecationNote)
+                    .to_owned(),
+            )
+            .await?;
+        // === m0104_greige_fabric_tracing_fields.rs ===
+manager
+            .alter_table(
+                Table::alter()
+                    .table(GreigeFabric::Table)
+                    .drop_column(GreigeFabric::DyeLotNo)
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .alter_table(
+                Table::alter()
+                    .table(GreigeFabric::Table)
+                    .drop_column(GreigeFabric::ColorNo)
+                    .to_owned(),
+            )
+            .await?;
+        // === m0105_piece_split_original_length.rs ===
+manager
+            .alter_table(
+                Table::alter()
+                    .table(InventoryPiece::Table)
+                    .drop_column(InventoryPiece::OriginalLength)
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .alter_table(
+                Table::alter()
+                    .table(InventoryPiece::Table)
+                    .drop_column(InventoryPiece::OriginalWeight)
+                    .to_owned(),
+            )
+            .await?;
         Ok(())
     }
+}
+
+// === m0100_crm_lead_enhancements.rs ===
+#[derive(Iden)]
+enum LeadSourceRoi {
+    Table,
+    Id,
+    Source,
+    PeriodStart,
+    PeriodEnd,
+    Cost,
+    LeadCount,
+    ConvertedCount,
+    OpportunityCount,
+    OrderCount,
+    Revenue,
+    ConversionRate,
+    Roi,
+    CreatedAt,
+}
+
+#[derive(Iden)]
+enum LeadAllocationRule {
+    Table,
+    Id,
+    RuleName,
+    RuleType,
+    SourceFilter,
+    IndustryFilter,
+    RegionFilter,
+    AssignedUserIds,
+    Weights,
+    DailyLimit,
+    Priority,
+    IsActive,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(Iden)]
+enum LeadNurturePlan {
+    Table,
+    Id,
+    LeadId,
+    PlanName,
+    NurtureType,
+    TriggerCondition,
+    TemplateId,
+    ScheduledAt,
+    ExecutedAt,
+    Status,
+    Result,
+    CreatedBy,
+    CreatedAt,
+}
+// === m0101_crm_opp_pool_enhancements.rs ===
+#[derive(Iden)]
+enum OpportunityStageHistory {
+    Table,
+    Id,
+    OpportunityId,
+    FromStage,
+    ToStage,
+    ChangedAt,
+    ChangedBy,
+    DurationDays,
+}
+
+#[derive(Iden)]
+enum Competitor {
+    Table,
+    Id,
+    Name,
+    Strengths,
+    Weaknesses,
+    Website,
+    Notes,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(Iden)]
+enum OpportunityCompetitor {
+    Table,
+    Id,
+    OpportunityId,
+    CompetitorId,
+    ThreatLevel,
+    Notes,
+    CreatedAt,
+}
+
+#[derive(Iden)]
+enum OpportunityFollowUp {
+    Table,
+    Id,
+    OpportunityId,
+    FollowUpType,
+    Content,
+    FollowUpTime,
+    NextFollowUpDate,
+    UserId,
+    UserName,
+    CreatedAt,
+}
+
+#[derive(Iden)]
+enum CrmRecycleRule {
+    Table,
+    FollowUpDays,
+    DealDays,
+    DepartmentId,
+}
+
+#[derive(Iden)]
+enum CrmLead {
+    Table,
+    ProtectedUntil,
+    ProtectedBy,
+}
+// === m0102_crm_data_permission_clv.rs ===
+#[derive(Iden)]
+enum CustomerFieldPermission {
+    Table,
+    Id,
+    RoleId,
+    FieldName,
+    Permission,
+    MaskPattern,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(Iden)]
+enum CustomerAuditLog {
+    Table,
+    Id,
+    CustomerId,
+    Operation,
+    FieldName,
+    OldValue,
+    NewValue,
+    UserId,
+    UserName,
+    IpAddress,
+    UserAgent,
+    CreatedAt,
+}
+
+#[derive(Iden)]
+enum CustomerLifetimeValue {
+    Table,
+    Id,
+    CustomerId,
+    TotalOrders,
+    TotalRevenue,
+    AvgOrderValue,
+    FirstOrderDate,
+    LastOrderDate,
+    CustomerLifespanDays,
+    PurchaseFrequency,
+    ClvScore,
+    Segment,
+    CalculatedAt,
+}
+// === m0104_greige_fabric_tracing_fields.rs ===
+#[derive(Iden)]
+enum GreigeFabric {
+    Table,
+    DyeLotNo,
+    ColorNo,
+}
+// === m0105_piece_split_original_length.rs ===
+#[derive(Iden)]
+enum InventoryPiece {
+    Table,
+    OriginalLength,
+    OriginalWeight,
 }

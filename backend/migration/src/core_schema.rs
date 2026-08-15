@@ -218,32 +218,27 @@ impl MigrationTrait for Migration {
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
         }
-        Ok(())
         // === m0002_add_crm_and_greige_tables.rs ===
 let sql = include_str!("../../migrations/20260518000001_add_crm_and_greige_tables/up.sql");
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
         }
-        Ok(())
         // === m0003_add_dye_tables.rs ===
 let sql = include_str!("../../migrations/20260518000002_add_dye_tables/up.sql");
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
         }
-        Ok(())
         // === m0004_add_field_permissions.rs ===
 let sql = include_str!("../../migrations/20260520000001_add_field_permissions/up.sql");
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
         }
-        Ok(())
         // === m0005_add_basic_data_and_system_tables.rs ===
 let sql =
             include_str!("../../migrations/20260527000001_add_basic_data_and_system_tables/up.sql");
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
         }
-        Ok(())
         // === m0006_add_general_ledger_and_finance_base.rs ===
 let sql = include_str!(
             "../../migrations/20260527000002_add_general_ledger_and_finance_base/up.sql"
@@ -252,10 +247,104 @@ let sql = include_str!(
             manager.get_connection().execute_unprepared(sql).await?;
         }
         Ok(())
-        Ok(())
     }
 
-    async fn down(&self, _manager: &SchemaManager) -> Result<(), DbErr> {
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        // === m0001_initial_schema.rs ===
+let sql = include_str!("../../migrations/20260323000001_initial_schema/down.sql");
+        if !sql.trim().is_empty() {
+            manager.get_connection().execute_unprepared(sql).await?;
+        }
+
+        manager
+            .drop_table(Table::drop().table(Users::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(Departments::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(Roles::Table).to_owned())
+            .await?;
+        // === m0002_add_crm_and_greige_tables.rs ===
+let sql =
+            include_str!("../../migrations/20260518000001_add_crm_and_greige_tables/down.sql");
+        if !sql.trim().is_empty() {
+            manager.get_connection().execute_unprepared(sql).await?;
+        }
+        // === m0003_add_dye_tables.rs ===
+let sql = include_str!("../../migrations/20260518000002_add_dye_tables/down.sql");
+        if !sql.trim().is_empty() {
+            manager.get_connection().execute_unprepared(sql).await?;
+        }
+        // === m0004_add_field_permissions.rs ===
+let sql = include_str!("../../migrations/20260520000001_add_field_permissions/down.sql");
+        if !sql.trim().is_empty() {
+            manager.get_connection().execute_unprepared(sql).await?;
+        }
+        // === m0005_add_basic_data_and_system_tables.rs ===
+let sql = include_str!(
+            "../../migrations/20260527000001_add_basic_data_and_system_tables/down.sql"
+        );
+        if !sql.trim().is_empty() {
+            manager.get_connection().execute_unprepared(sql).await?;
+        }
+        // === m0006_add_general_ledger_and_finance_base.rs ===
+let sql = include_str!(
+            "../../migrations/20260527000002_add_general_ledger_and_finance_base/down.sql"
+        );
+        if !sql.trim().is_empty() {
+            manager.get_connection().execute_unprepared(sql).await?;
+        }
         Ok(())
     }
+}
+
+// === m0001_initial_schema.rs ===
+#[derive(Iden)]
+enum Users {
+    Table,
+    Id,
+    Username,
+    PasswordHash,
+    Email,
+    Phone,
+    RoleId,
+    DepartmentId,
+    IsActive,
+    TotpSecret,
+    IsTotpEnabled,
+    LastLoginAt,
+    IsDeleted,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(Iden)]
+enum Roles {
+    Table,
+    Id,
+    Name,
+    Code,
+    Description,
+    Permissions,
+    IsSystem,
+    IsDeleted,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(Iden)]
+enum Departments {
+    Table,
+    Id,
+    Name,
+    Code,
+    ParentId,
+    ManagerId,
+    Description,
+    SortOrder,
+    IsActive,
+    IsDeleted,
+    CreatedAt,
+    UpdatedAt,
 }

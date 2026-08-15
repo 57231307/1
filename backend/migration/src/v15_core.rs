@@ -67,8 +67,6 @@ manager
                 "#,
             )
             .await?;
-
-        Ok(())
         // === m0062_create_bad_debt_writeoffs.rs ===
 manager
             .get_connection()
@@ -125,8 +123,6 @@ manager
                 "#,
             )
             .await?;
-
-        Ok(())
         // === m0063_create_collection_tasks.rs ===
 manager
             .get_connection()
@@ -190,8 +186,6 @@ manager
                 "#,
             )
             .await?;
-
-        Ok(())
         // === m0064_create_finance_alerts.rs ===
 manager
             .get_connection()
@@ -257,8 +251,6 @@ manager
                 "#,
             )
             .await?;
-
-        Ok(())
         // === m0065_add_custom_order_sample_quotation_fields.rs ===
 manager
             .get_connection()
@@ -293,8 +285,6 @@ manager
                 "#,
             )
             .await?;
-
-        Ok(())
         // === m0066_add_after_sales_quality_issue_id.rs ===
 manager
             .get_connection()
@@ -319,8 +309,6 @@ manager
                 "#,
             )
             .await?;
-
-        Ok(())
         // === m0067_add_logistics_waybill_sign_fields.rs ===
 manager
             .get_connection()
@@ -373,8 +361,6 @@ manager
                 "#,
             )
             .await?;
-
-        Ok(())
         // === m0068_create_material_shortage_tables.rs ===
 manager
             .get_connection()
@@ -481,8 +467,6 @@ manager
                 "#,
             )
             .await?;
-
-        Ok(())
         // === m0069_create_supplier_evaluation_records.rs ===
 manager
             .get_connection()
@@ -523,8 +507,6 @@ manager
                 "#,
             )
             .await?;
-
-        Ok(())
         // === m0070_create_user_role.rs ===
 manager
             .get_connection()
@@ -559,7 +541,6 @@ manager
                 "#,
             )
             .await?;
-        Ok(())
         // === m0071_add_sales_order_id_to_color_card_issues.rs ===
 manager
             .get_connection()
@@ -577,7 +558,6 @@ manager
                 "#,
             )
             .await?;
-        Ok(())
         // === m0072_create_permission_delegations.rs ===
 manager
             .get_connection()
@@ -623,7 +603,6 @@ manager
                 "#,
             )
             .await?;
-        Ok(())
         // === m0073_create_role_relations.rs ===
 manager
             .get_connection()
@@ -680,7 +659,6 @@ manager
                 "#,
             )
             .await?;
-        Ok(())
         // === m0074_v15_p1_integrate_sql_migrations.rs ===
 let db = manager.get_connection();
 
@@ -979,8 +957,6 @@ let db = manager.get_connection();
             CREATE INDEX IF NOT EXISTS "idx_wage_record_detail_worker_id" ON "wage_record_detail" ("worker_id") WHERE "is_deleted" = false;
             CREATE INDEX IF NOT EXISTS "idx_wage_record_detail_step_record_id" ON "wage_record_detail" ("step_record_id") WHERE "is_deleted" = false;
         "#).await?;
-
-        Ok(())
         // === m0075_add_email_queue_fields.rs ===
 manager
             .get_connection()
@@ -1013,12 +989,153 @@ manager
                 "#,
             )
             .await?;
-
-        Ok(())
         Ok(())
     }
 
-    async fn down(&self, _manager: &SchemaManager) -> Result<(), DbErr> {
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        // === m0061_create_bad_debt_provisions.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(
+                r#"
+                DROP TABLE IF EXISTS "bad_debt_provisions";
+                "#,
+            )
+            .await?;
+        // === m0062_create_bad_debt_writeoffs.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(
+                r#"
+                DROP TABLE IF EXISTS "bad_debt_writeoffs";
+                "#,
+            )
+            .await?;
+        // === m0063_create_collection_tasks.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(
+                r#"
+                DROP TABLE IF EXISTS "collection_tasks";
+                "#,
+            )
+            .await?;
+        // === m0064_create_finance_alerts.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(
+                r#"
+                DROP TABLE IF EXISTS "finance_alerts";
+                "#,
+            )
+            .await?;
+        // === m0065_add_custom_order_sample_quotation_fields.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(
+                r#"
+                -- 回滚 custom_orders 新增字段
+                DROP INDEX IF EXISTS "idx_custom_orders_quotation_id";
+                DROP INDEX IF EXISTS "idx_custom_orders_lab_dip_request_id";
+                ALTER TABLE "custom_orders"
+                    DROP COLUMN IF EXISTS "quotation_id";
+                ALTER TABLE "custom_orders"
+                    DROP COLUMN IF EXISTS "lab_dip_request_id";
+                "#,
+            )
+            .await?;
+        // === m0066_add_after_sales_quality_issue_id.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(
+                r#"
+                -- 回滚 after_sales 新增字段
+                DROP INDEX IF EXISTS "idx_after_sales_quality_issue_id";
+                ALTER TABLE "after_sales"
+                    DROP COLUMN IF EXISTS "quality_issue_id";
+                "#,
+            )
+            .await?;
+        // === m0067_add_logistics_waybill_sign_fields.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(
+                r#"
+                -- 回滚 logistics_waybills 新增字段
+                DROP INDEX IF EXISTS "idx_logistics_waybills_signed_at";
+                DROP INDEX IF EXISTS "idx_logistics_waybills_signed_by";
+                ALTER TABLE "logistics_waybills"
+                    DROP COLUMN IF EXISTS "sign_remark";
+                ALTER TABLE "logistics_waybills"
+                    DROP COLUMN IF EXISTS "sign_photo_url";
+                ALTER TABLE "logistics_waybills"
+                    DROP COLUMN IF EXISTS "sign_receipt_url";
+                ALTER TABLE "logistics_waybills"
+                    DROP COLUMN IF EXISTS "signed_at";
+                ALTER TABLE "logistics_waybills"
+                    DROP COLUMN IF EXISTS "signed_by";
+                "#,
+            )
+            .await?;
+        // === m0068_create_material_shortage_tables.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(
+                r#"
+                DROP TABLE IF EXISTS "material_shortage_threshold_configs";
+                DROP TABLE IF EXISTS "material_shortage_alerts";
+                "#,
+            )
+            .await?;
+        // === m0069_create_supplier_evaluation_records.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(
+                r#"
+                DROP TABLE IF EXISTS "supplier_evaluation_records";
+                "#,
+            )
+            .await?;
+        // === m0070_create_user_role.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(r#"DROP TABLE IF EXISTS user_role;"#)
+            .await?;
+        // === m0071_add_sales_order_id_to_color_card_issues.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(
+                r#"
+                DROP INDEX IF EXISTS "idx_issue_sales_order_id";
+                ALTER TABLE "color_card_issues" DROP COLUMN IF EXISTS "sales_order_id";
+                "#,
+            )
+            .await?;
+        // === m0072_create_permission_delegations.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(r#"DROP TABLE IF EXISTS "permission_delegations";"#)
+            .await?;
+        // === m0073_create_role_relations.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(r#"DROP TABLE IF EXISTS "role_relations";"#)
+            .await?;
+        // === m0075_add_email_queue_fields.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(
+                r#"
+                DROP INDEX IF EXISTS "idx_email_logs_pending_retry";
+                ALTER TABLE "email_logs" DROP COLUMN IF EXISTS "text_content";
+                ALTER TABLE "email_logs" DROP COLUMN IF EXISTS "html_content";
+                ALTER TABLE "email_logs" DROP COLUMN IF EXISTS "attachments";
+                ALTER TABLE "email_logs" DROP COLUMN IF EXISTS "next_retry_at";
+                "#,
+            )
+            .await?;
         Ok(())
     }
 }
+
+

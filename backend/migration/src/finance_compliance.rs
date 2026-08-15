@@ -15,7 +15,6 @@ let sql = include_str!("../../migrations/20260716000001_add_data_scope_to_roles/
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
         }
-        Ok(())
         // === m0052_create_role_conflicts.rs ===
 // 创建 role_conflicts 表
         manager
@@ -56,8 +55,6 @@ let sql = include_str!("../../migrations/20260716000001_add_data_scope_to_roles/
                 "#,
             )
             .await?;
-
-        Ok(())
         // === m0053_create_permission_change_audit.rs ===
 manager
             .get_connection()
@@ -98,8 +95,6 @@ manager
                 "#,
             )
             .await?;
-
-        Ok(())
         // === m0054_enable_rls_policies.rs ===
 manager
             .get_connection()
@@ -193,8 +188,6 @@ manager
                 "#,
             )
             .await?;
-
-        Ok(())
         // === m0055_create_export_approval_request.rs ===
 manager
             .get_connection()
@@ -273,8 +266,6 @@ manager
                 "#,
             )
             .await?;
-
-        Ok(())
         // === m0056_add_condition_to_audit_logs.rs ===
 manager
             .get_connection()
@@ -290,8 +281,6 @@ manager
                 "#,
             )
             .await?;
-
-        Ok(())
         // === m0057_create_color_card_issues_and_stock_fields.rs ===
 // 1. 创建 color_card_issues 表（与 color_card_issue.rs model 字段对齐，17 字段 + 5 索引）
         manager
@@ -347,8 +336,6 @@ COMMENT ON COLUMN "color_cards"."issued_quantity" IS '已发放数量（V15 P0-F
 "#,
             )
             .await?;
-
-        Ok(())
         // === m0058_create_bulk_color_approval.rs ===
 manager
             .get_connection()
@@ -412,8 +399,6 @@ manager
                 "#,
             )
             .await?;
-
-        Ok(())
         // === m0059_add_rework_order_fields.rs ===
 manager
             .get_connection()
@@ -465,8 +450,6 @@ manager
                 "#,
             )
             .await?;
-
-        Ok(())
         // === m0060_create_quality_8d_reports.rs ===
 manager
             .get_connection()
@@ -550,10 +533,115 @@ manager
             )
             .await?;
         Ok(())
-        Ok(())
     }
 
-    async fn down(&self, _manager: &SchemaManager) -> Result<(), DbErr> {
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        // === m0051_add_data_scope_to_roles.rs ===
+let sql = include_str!("../../migrations/20260716000001_add_data_scope_to_roles/down.sql");
+        if !sql.trim().is_empty() {
+            manager.get_connection().execute_unprepared(sql).await?;
+        }
+        // === m0052_create_role_conflicts.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(r#"DROP TABLE IF EXISTS role_conflicts;"#)
+            .await?;
+        // === m0053_create_permission_change_audit.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(r#"DROP TABLE IF EXISTS permission_change_audits;"#)
+            .await?;
+        // === m0054_enable_rls_policies.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(
+                r#"
+                -- 回滚顺序：先 DROP POLICY，再 DISABLE ROW LEVEL SECURITY
+                DROP POLICY IF EXISTS crm_opportunity_isolation ON crm_opportunity;
+                ALTER TABLE crm_opportunity DISABLE ROW LEVEL SECURITY;
+
+                DROP POLICY IF EXISTS crm_lead_isolation ON crm_lead;
+                ALTER TABLE crm_lead DISABLE ROW LEVEL SECURITY;
+
+                DROP POLICY IF EXISTS sales_orders_isolation ON sales_orders;
+                ALTER TABLE sales_orders DISABLE ROW LEVEL SECURITY;
+
+                DROP POLICY IF EXISTS suppliers_isolation ON suppliers;
+                ALTER TABLE suppliers DISABLE ROW LEVEL SECURITY;
+
+                DROP POLICY IF EXISTS customers_isolation ON customers;
+                ALTER TABLE customers DISABLE ROW LEVEL SECURITY;
+                "#,
+            )
+            .await?;
+        // === m0055_create_export_approval_request.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(r#"DROP TABLE IF EXISTS export_approval_request;"#)
+            .await?;
+        // === m0056_add_condition_to_audit_logs.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(
+                r#"
+                ALTER TABLE audit_logs DROP COLUMN IF EXISTS condition;
+                ALTER TABLE omni_audit_logs DROP COLUMN IF EXISTS condition;
+                "#,
+            )
+            .await?;
+        // === m0057_create_color_card_issues_and_stock_fields.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(
+                r#"
+ALTER TABLE "color_cards" DROP COLUMN IF EXISTS "issued_quantity";
+ALTER TABLE "color_cards" DROP COLUMN IF EXISTS "stock_quantity";
+DROP TABLE IF EXISTS "color_card_issues";
+"#,
+            )
+            .await?;
+        // === m0058_create_bulk_color_approval.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(
+                r#"
+                DROP TABLE IF EXISTS "bulk_color_approval";
+                "#,
+            )
+            .await?;
+        // === m0059_add_rework_order_fields.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(
+                r#"
+                -- 回滚 dye_batch_rework 新增字段
+                ALTER TABLE "dye_batch_rework"
+                    DROP COLUMN IF EXISTS "production_order_id";
+                DROP INDEX IF EXISTS "idx_dbr_production_order_id";
+
+                -- 回滚 production_orders 新增字段
+                ALTER TABLE "production_orders"
+                    DROP CONSTRAINT IF EXISTS "chk_production_orders_order_type";
+                DROP INDEX IF EXISTS "idx_production_orders_original_batch_id";
+                DROP INDEX IF EXISTS "idx_production_orders_order_type";
+                ALTER TABLE "production_orders"
+                    DROP COLUMN IF EXISTS "original_batch_id";
+                ALTER TABLE "production_orders"
+                    DROP COLUMN IF EXISTS "order_type";
+                "#,
+            )
+            .await?;
+        // === m0060_create_quality_8d_reports.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(
+                r#"
+                DROP TABLE IF EXISTS "quality_8d_reports";
+                "#,
+            )
+            .await?;
         Ok(())
     }
 }
+
+

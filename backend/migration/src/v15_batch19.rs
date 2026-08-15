@@ -1,4 +1,4 @@
-//! V15 批次19：定制/售后/物流
+//! V15 批次19
 //!
 //! 合并自: 10 个迁移文件
 
@@ -81,8 +81,6 @@ manager
                 "#,
             )
             .await?;
-
-        Ok(())
         // === m0082_create_customer_team_and_share.rs ===
 manager
             .get_connection()
@@ -163,8 +161,6 @@ manager
                 "#,
             )
             .await?;
-
-        Ok(())
         // === m0083_create_report_template_versions.rs ===
 manager
             .get_connection()
@@ -252,8 +248,6 @@ manager
                 "#,
             )
             .await?;
-
-        Ok(())
         // === m0084_add_color_card_issue_export_permissions.rs ===
 manager
             .get_connection()
@@ -290,7 +284,6 @@ manager
                 "#,
             )
             .await?;
-        Ok(())
         // === m0085_create_bulk_color_approval_history.rs ===
 manager
             .get_connection()
@@ -322,8 +315,6 @@ manager
                 "#,
             )
             .await?;
-
-        Ok(())
         // === m0086_add_inspection_id_to_outsourcing_receipt.rs ===
 manager
             .get_connection()
@@ -341,7 +332,6 @@ manager
                 "#,
             )
             .await?;
-        Ok(())
         // === m0087_batch19_custom_order_aftersales_logistics_incoterms.rs ===
 manager
             .get_connection()
@@ -471,26 +461,159 @@ manager
                 "#,
             )
             .await?;
-
-        Ok(())
         // === m0088_audit_log_export_log.rs ===
 let sql = include_str!("../../migrations/20260801000002_audit_log_export_log/up.sql");
         manager.get_connection().execute_unprepared(sql).await?;
-        Ok(())
         // === m0089_add_rework_cost_to_dye_batch_rework.rs ===
 let sql = include_str!(
             "../../migrations/20260801000003_add_rework_cost_to_dye_batch_rework/up.sql"
         );
         manager.get_connection().execute_unprepared(sql).await?;
-        Ok(())
         // === m0090_create_dye_vat_occupation.rs ===
 let sql = include_str!("../../migrations/20260801000004_create_dye_vat_occupation/up.sql");
         manager.get_connection().execute_unprepared(sql).await?;
         Ok(())
-        Ok(())
     }
 
-    async fn down(&self, _manager: &SchemaManager) -> Result<(), DbErr> {
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        // === m0081_create_fixed_asset_counts.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(
+                r#"
+                DROP TABLE IF EXISTS "fixed_asset_count_items";
+                DROP TABLE IF EXISTS "fixed_asset_counts";
+                "#,
+            )
+            .await?;
+        // === m0082_create_customer_team_and_share.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(
+                r#"
+                DROP TABLE IF EXISTS "customer_shares";
+                DROP TABLE IF EXISTS "customer_team_members";
+                "#,
+            )
+            .await?;
+        // === m0083_create_report_template_versions.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(
+                r#"
+                DROP TABLE IF EXISTS "dashboard_layouts";
+                DROP TABLE IF EXISTS "report_template_versions";
+                "#,
+            )
+            .await?;
+        // === m0084_add_color_card_issue_export_permissions.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(
+                r#"
+                -- 回滚：撤销本迁移为非 admin 角色授予的 color_card_issue:export 权限
+                -- 仅删除 sales_manager / warehouse_manager / cost_accountant 的 export 权限，
+                -- 不影响 admin 的同名权限（admin 由 init_admin_permissions.sql 维护）。
+                DELETE FROM role_permissions rp
+                USING roles r
+                WHERE rp.role_id = r.id
+                  AND rp.resource_type = 'color_card_issue'
+                  AND rp.action = 'export'
+                  AND r.code IN ('sales_manager', 'warehouse_manager', 'cost_accountant')
+                  AND r.is_system = true;
+                "#,
+            )
+            .await?;
+        // === m0085_create_bulk_color_approval_history.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(
+                r#"
+                DROP TABLE IF EXISTS "bulk_color_approval_history";
+                "#,
+            )
+            .await?;
+        // === m0086_add_inspection_id_to_outsourcing_receipt.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(
+                r#"
+                DROP INDEX IF EXISTS "idx_outsourcing_receipt_inspection_id";
+                ALTER TABLE "outsourcing_receipt" DROP COLUMN IF EXISTS "inspection_id";
+                "#,
+            )
+            .await?;
+        // === m0087_batch19_custom_order_aftersales_logistics_incoterms.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(
+                r#"
+                -- 回滚 sales_quotations 新增字段
+                ALTER TABLE "sales_quotations" DROP COLUMN IF EXISTS "duty_cost";
+                ALTER TABLE "sales_quotations" DROP COLUMN IF EXISTS "insurance_cost";
+                ALTER TABLE "sales_quotations" DROP COLUMN IF EXISTS "freight_cost";
+
+                -- 回滚 logistics_waybills 运费核算字段
+                ALTER TABLE "logistics_waybills" DROP COLUMN IF EXISTS "freight_bearer";
+                ALTER TABLE "logistics_waybills" DROP COLUMN IF EXISTS "freight_rate";
+                ALTER TABLE "logistics_waybills" DROP COLUMN IF EXISTS "distance_km";
+                ALTER TABLE "logistics_waybills" DROP COLUMN IF EXISTS "total_volume";
+                ALTER TABLE "logistics_waybills" DROP COLUMN IF EXISTS "total_weight";
+
+                -- 回滚 logistics_waybills order_type 字段
+                ALTER TABLE "logistics_waybills" DROP COLUMN IF EXISTS "order_type";
+
+                -- 回滚 logistics_tracking_events 表
+                DROP INDEX IF EXISTS "idx_logistics_tracking_events_event_time";
+                DROP INDEX IF EXISTS "idx_logistics_tracking_events_waybill_id";
+                DROP TABLE IF EXISTS "logistics_tracking_events";
+
+                -- 回滚 after_sales 原因分析字段
+                DROP INDEX IF EXISTS "idx_after_sales_reason_category";
+                ALTER TABLE "after_sales" DROP COLUMN IF EXISTS "reason_detail";
+                ALTER TABLE "after_sales" DROP COLUMN IF EXISTS "reason_category";
+
+                -- 回滚 after_sales 受理+评价字段
+                ALTER TABLE "after_sales" DROP COLUMN IF EXISTS "evaluated_at";
+                ALTER TABLE "after_sales" DROP COLUMN IF EXISTS "evaluation_comment";
+                ALTER TABLE "after_sales" DROP COLUMN IF EXISTS "evaluation_score";
+                ALTER TABLE "after_sales" DROP COLUMN IF EXISTS "accepted_at";
+
+                -- 回滚 custom_orders 二级审批字段
+                DROP INDEX IF EXISTS "idx_custom_orders_approval_instance_id";
+                ALTER TABLE "custom_orders" DROP COLUMN IF EXISTS "rejection_reason";
+                ALTER TABLE "custom_orders" DROP COLUMN IF EXISTS "approved_at";
+                ALTER TABLE "custom_orders" DROP COLUMN IF EXISTS "approved_by";
+                ALTER TABLE "custom_orders" DROP COLUMN IF EXISTS "approval_instance_id";
+
+                -- 回滚 custom_orders 客户签字确认字段
+                DROP INDEX IF EXISTS "idx_custom_orders_quality_standard_id";
+                ALTER TABLE "custom_orders" DROP COLUMN IF EXISTS "quality_standard_id";
+                ALTER TABLE "custom_orders" DROP COLUMN IF EXISTS "customer_approval_comment";
+                ALTER TABLE "custom_orders" DROP COLUMN IF EXISTS "customer_approved_at";
+
+                -- 回滚 user_departments 表
+                DROP INDEX IF EXISTS "idx_user_departments_user_primary";
+                DROP INDEX IF EXISTS "idx_user_departments_department_id";
+                DROP INDEX IF EXISTS "idx_user_departments_user_id";
+                DROP TABLE IF EXISTS "user_departments";
+                "#,
+            )
+            .await?;
+        // === m0088_audit_log_export_log.rs ===
+let sql = include_str!("../../migrations/20260801000002_audit_log_export_log/down.sql");
+        manager.get_connection().execute_unprepared(sql).await?;
+        // === m0089_add_rework_cost_to_dye_batch_rework.rs ===
+let sql = include_str!(
+            "../../migrations/20260801000003_add_rework_cost_to_dye_batch_rework/down.sql"
+        );
+        manager.get_connection().execute_unprepared(sql).await?;
+        // === m0090_create_dye_vat_occupation.rs ===
+let sql =
+            include_str!("../../migrations/20260801000004_create_dye_vat_occupation/down.sql");
+        manager.get_connection().execute_unprepared(sql).await?;
         Ok(())
     }
 }
+
+

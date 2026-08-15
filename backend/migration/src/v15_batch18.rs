@@ -1,4 +1,4 @@
-//! V15 批次18：胚布/委外/质量
+//! V15 批次18
 //!
 //! 合并自: 5 个迁移文件
 
@@ -40,8 +40,6 @@ manager
                 "#,
             )
             .await?;
-
-        Ok(())
         // === m0077_add_oa_visibility_consent_retention.rs ===
 manager
             .get_connection()
@@ -127,8 +125,6 @@ manager
                 "#,
             )
             .await?;
-
-        Ok(())
         // === m0078_batch18_greige_outsourcing_quality_scheduling.rs ===
 manager
             .get_connection()
@@ -292,8 +288,6 @@ manager
                 "#,
             )
             .await?;
-
-        Ok(())
         // === m0079_batch08_compliance_legal_env_tax_labor.rs ===
 manager
             .get_connection()
@@ -625,8 +619,6 @@ manager
                 "#,
             )
             .await?;
-
-        Ok(())
         // === m0080_create_collection_templates.rs ===
 manager
             .get_connection()
@@ -674,12 +666,138 @@ manager
                 "#,
             )
             .await?;
-
-        Ok(())
         Ok(())
     }
 
-    async fn down(&self, _manager: &SchemaManager) -> Result<(), DbErr> {
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        // === m0076_add_export_audit_fields.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(
+                r#"
+                DROP INDEX IF EXISTS "idx_audit_log_approval_token";
+                DROP INDEX IF EXISTS "idx_audit_log_export_count";
+                ALTER TABLE "audit_logs" DROP COLUMN IF EXISTS "export_watermark_user";
+                ALTER TABLE "audit_logs" DROP COLUMN IF EXISTS "export_approval_token";
+                ALTER TABLE "audit_logs" DROP COLUMN IF EXISTS "export_file_format";
+                ALTER TABLE "audit_logs" DROP COLUMN IF EXISTS "export_query_filter";
+                ALTER TABLE "audit_logs" DROP COLUMN IF EXISTS "export_record_count";
+                "#,
+            )
+            .await?;
+        // === m0077_add_oa_visibility_consent_retention.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(
+                r#"
+                DROP TABLE IF EXISTS "user_behavior_daily_summary";
+                DROP TABLE IF EXISTS "page_view_daily_summary";
+                DROP TABLE IF EXISTS "user_consents";
+                ALTER TABLE "oa_announcement" DROP COLUMN IF EXISTS "visible_scope_config";
+                ALTER TABLE "oa_announcement" DROP COLUMN IF EXISTS "visibility_scope";
+                "#,
+            )
+            .await?;
+        // === m0078_batch18_greige_outsourcing_quality_scheduling.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(
+                r#"
+                -- 还原 piece_mapping 表（仅结构，数据不可恢复）
+                CREATE TABLE IF NOT EXISTS "piece_mapping" (
+                    "id" SERIAL PRIMARY KEY,
+                    "batch_no" VARCHAR(50),
+                    "product_id" INTEGER,
+                    "piece_no" VARCHAR(50),
+                    "length" DECIMAL(12,2),
+                    "weight" DECIMAL(12,2),
+                    "status" VARCHAR(20),
+                    "created_at" TIMESTAMP NOT NULL DEFAULT NOW()
+                );
+
+                DROP TABLE IF EXISTS "work_center_shift";
+                DROP TABLE IF EXISTS "work_center_worker";
+                DROP TABLE IF EXISTS "work_center_equipment";
+
+                ALTER TABLE "work_centers" DROP COLUMN IF EXISTS "auto_reschedule_enabled";
+                ALTER TABLE "work_centers" DROP COLUMN IF EXISTS "shift_hours";
+                ALTER TABLE "work_centers" DROP COLUMN IF EXISTS "worker_count";
+                ALTER TABLE "work_centers" DROP COLUMN IF EXISTS "equipment_count";
+                ALTER TABLE "work_centers" DROP COLUMN IF EXISTS "standard_hours_per_unit";
+
+                ALTER TABLE "production_orders" DROP COLUMN IF EXISTS "schedule_batch_key";
+
+                ALTER TABLE "inventory_stocks" DROP COLUMN IF EXISTS "replenishment_strategy";
+
+                ALTER TABLE "inventory_transfers" DROP COLUMN IF EXISTS "total_amount";
+                ALTER TABLE "inventory_transfers" DROP COLUMN IF EXISTS "approved_by_role";
+                ALTER TABLE "inventory_transfers" DROP COLUMN IF EXISTS "approval_level";
+
+                ALTER TABLE "unqualified_products" DROP COLUMN IF EXISTS "scrap_loss_amount";
+                ALTER TABLE "unqualified_products" DROP COLUMN IF EXISTS "approved_at_gm";
+                ALTER TABLE "unqualified_products" DROP COLUMN IF EXISTS "approved_at_fin";
+                ALTER TABLE "unqualified_products" DROP COLUMN IF EXISTS "approver_id_gm";
+                ALTER TABLE "unqualified_products" DROP COLUMN IF EXISTS "approver_id_fin";
+                ALTER TABLE "unqualified_products" DROP COLUMN IF EXISTS "scrap_approval_status";
+                ALTER TABLE "unqualified_products" DROP COLUMN IF EXISTS "stock_id";
+                ALTER TABLE "unqualified_products" DROP COLUMN IF EXISTS "stock_grade_synced";
+
+                ALTER TABLE "quality_issues" DROP COLUMN IF EXISTS "permanent_action_completed_at";
+                ALTER TABLE "quality_issues" DROP COLUMN IF EXISTS "permanent_action_due_date";
+                ALTER TABLE "quality_issues" DROP COLUMN IF EXISTS "permanent_action_owner";
+                ALTER TABLE "quality_issues" DROP COLUMN IF EXISTS "root_cause_detail";
+                ALTER TABLE "quality_issues" DROP COLUMN IF EXISTS "root_cause_method";
+
+                ALTER TABLE "outsourcing_order_item" DROP COLUMN IF EXISTS "greige_fabric_id";
+
+                ALTER TABLE "greige_fabric" DROP COLUMN IF EXISTS "reorder_quantity";
+                ALTER TABLE "greige_fabric" DROP COLUMN IF EXISTS "max_stock_point";
+                ALTER TABLE "greige_fabric" DROP COLUMN IF EXISTS "reorder_point";
+                ALTER TABLE "greige_fabric" DROP COLUMN IF EXISTS "safety_stock";
+                ALTER TABLE "greige_fabric" DROP COLUMN IF EXISTS "purchase_receipt_id";
+                ALTER TABLE "greige_fabric" DROP COLUMN IF EXISTS "purchase_order_id";
+                "#,
+            )
+            .await?;
+        // === m0079_batch08_compliance_legal_env_tax_labor.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(
+                r#"
+                DROP TABLE IF EXISTS "ppe_distribution_records";
+                DROP TABLE IF EXISTS "occupational_health_exams";
+                DROP TABLE IF EXISTS "occupational_hazard_monitorings";
+                DROP TABLE IF EXISTS "social_insurance_records";
+                DROP TABLE IF EXISTS "labor_contracts";
+                DROP TABLE IF EXISTS "solid_waste_disposal_records";
+                DROP TABLE IF EXISTS "pollutant_monitoring_records";
+                DROP TABLE IF EXISTS "pollution_permits";
+                DROP TABLE IF EXISTS "pollutant_discharge_records";
+                DROP TABLE IF EXISTS "export_refund_declarations";
+                DROP TABLE IF EXISTS "foreign_exchange_verifications";
+                DROP TABLE IF EXISTS "export_customs_declarations";
+
+                ALTER TABLE "outsourcing_voucher" DROP COLUMN IF EXISTS "tax_transfer_amount";
+
+                ALTER TABLE "sales_contracts" DROP COLUMN IF EXISTS "signature_certificate";
+                ALTER TABLE "sales_contracts" DROP COLUMN IF EXISTS "signature_image_url";
+                ALTER TABLE "sales_contracts" DROP COLUMN IF EXISTS "signature_hash";
+                ALTER TABLE "sales_contracts" DROP COLUMN IF EXISTS "signed_by_user_id";
+                ALTER TABLE "sales_contracts" DROP COLUMN IF EXISTS "signed_at";
+                "#,
+            )
+            .await?;
+        // === m0080_create_collection_templates.rs ===
+manager
+            .get_connection()
+            .execute_unprepared(
+                r#"
+                DROP TABLE IF EXISTS "collection_templates";
+                "#,
+            )
+            .await?;
         Ok(())
     }
 }
+
+

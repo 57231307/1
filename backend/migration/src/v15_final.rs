@@ -45,8 +45,6 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
-
-        Ok(())
         // === m0107_add_color_card_capability_fields.rs ===
 // 添加 dyeing_capability 字段到 color_cards 表
         manager
@@ -89,8 +87,6 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
-
-        Ok(())
         // === m0108_create_customer_addresses.rs ===
 // 创建 customer_addresses 表
         manager
@@ -200,8 +196,6 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
-
-        Ok(())
         // === m0109_add_customer_special_process.rs ===
 // 添加 special_process 字段到 customers 表
         manager
@@ -212,8 +206,6 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
-
-        Ok(())
         // === m0110_create_aging_grade_configs.rs ===
 // 创建 aging_grade_configs 表
         manager
@@ -267,8 +259,6 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
-
-        Ok(())
         // === m0111_create_industry_benchmark_configs.rs ===
 // 创建 industry_benchmark_configs 表
         manager
@@ -340,8 +330,6 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
-
-        Ok(())
         // === m0112_add_accounting_period_close_fields.rs ===
 // 添加 closed_by 字段到 accounting_periods 表
         manager
@@ -376,8 +364,6 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
-
-        Ok(())
         // === m0113_add_fixed_asset_depreciation_start_date.rs ===
 // 添加 depreciation_start_date 字段到 fixed_assets 表
         manager
@@ -392,8 +378,6 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
-
-        Ok(())
         // === m0114_add_customer_source_fields.rs ===
 // 添加 source 字段到 customers 表
         manager
@@ -414,8 +398,6 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
-
-        Ok(())
         // === m0115_add_crm_lead_custom_fields.rs ===
 // 添加 custom_field_1 到 custom_field_5 字段到 crm_leads 表
         manager
@@ -442,8 +424,6 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
-
-        Ok(())
         // === m0116_create_long_running_tasks.rs ===
 // 创建 long_running_tasks 表
         manager
@@ -554,12 +534,205 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
-
-        Ok(())
         Ok(())
     }
 
-    async fn down(&self, _manager: &SchemaManager) -> Result<(), DbErr> {
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        // === m0106_batch_dye_lot_unique_constraint.rs ===
+// 回滚：删除组合唯一约束，恢复 batch_no 单字段 UNIQUE
+        manager
+            .drop_index(
+                Index::drop()
+                    .name("idx_batch_dye_lot_dye_lot_no_batch_no")
+                    .table(BatchDyeLot::Table)
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .drop_index(
+                Index::drop()
+                    .name("idx_dye_batch_dye_lot_no_batch_no")
+                    .table(DyeBatch::Table)
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .name("batch_dye_lot_batch_no_key")
+                    .table(BatchDyeLot::Table)
+                    .col(BatchDyeLot::BatchNo)
+                    .unique()
+                    .to_owned(),
+            )
+            .await?;
+        // === m0107_add_color_card_capability_fields.rs ===
+// 删除字段
+        manager
+            .alter_table(
+                Table::alter()
+                    .table(ColorCards::Table)
+                    .drop_column(ColorCards::DyeingCapability)
+                    .drop_column(ColorCards::PrintingCapability)
+                    .drop_column(ColorCards::ColorFastnessGrade)
+                    .to_owned(),
+            )
+            .await?;
+        // === m0108_create_customer_addresses.rs ===
+// 删除索引
+        manager
+            .drop_index(
+                Index::drop()
+                    .name("idx_customer_addresses_is_default")
+                    .table(CustomerAddresses::Table)
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .drop_index(
+                Index::drop()
+                    .name("idx_customer_addresses_customer_id")
+                    .table(CustomerAddresses::Table)
+                    .to_owned(),
+            )
+            .await?;
+
+        // 删除表
+        manager
+            .drop_table(Table::drop().table(CustomerAddresses::Table).to_owned())
+            .await?;
+        // === m0109_add_customer_special_process.rs ===
+// 删除字段
+        manager
+            .alter_table(
+                Table::alter()
+                    .table(Customers::Table)
+                    .drop_column(Customers::SpecialProcess)
+                    .to_owned(),
+            )
+            .await?;
+        // === m0110_create_aging_grade_configs.rs ===
+// 删除表
+        manager
+            .drop_table(Table::drop().table(AgingGradeConfigs::Table).to_owned())
+            .await?;
+        // === m0111_create_industry_benchmark_configs.rs ===
+// 删除索引
+        manager
+            .drop_index(
+                Index::drop()
+                    .name("idx_industry_benchmark_configs_industry")
+                    .table(IndustryBenchmarkConfigs::Table)
+                    .to_owned(),
+            )
+            .await?;
+
+        // 删除表
+        manager
+            .drop_table(
+                Table::drop()
+                    .table(IndustryBenchmarkConfigs::Table)
+                    .to_owned(),
+            )
+            .await?;
+        // === m0112_add_accounting_period_close_fields.rs ===
+// 删除字段
+        manager
+            .alter_table(
+                Table::alter()
+                    .table(AccountingPeriods::Table)
+                    .drop_column(AccountingPeriods::ClosedBy)
+                    .drop_column(AccountingPeriods::ClosedAt)
+                    .drop_column(AccountingPeriods::CloseNotes)
+                    .to_owned(),
+            )
+            .await?;
+        // === m0113_add_fixed_asset_depreciation_start_date.rs ===
+// 删除字段
+        manager
+            .alter_table(
+                Table::alter()
+                    .table(FixedAssets::Table)
+                    .drop_column(FixedAssets::DepreciationStartDate)
+                    .to_owned(),
+            )
+            .await?;
+        // === m0114_add_customer_source_fields.rs ===
+// 删除字段
+        manager
+            .alter_table(
+                Table::alter()
+                    .table(Customers::Table)
+                    .drop_column(Customers::Source)
+                    .drop_column(Customers::PoolRecycleReason)
+                    .to_owned(),
+            )
+            .await?;
+        // === m0115_add_crm_lead_custom_fields.rs ===
+// 删除字段
+        manager
+            .alter_table(
+                Table::alter()
+                    .table(CrmLeads::Table)
+                    .drop_column(CrmLeads::CustomField1)
+                    .drop_column(CrmLeads::CustomField2)
+                    .drop_column(CrmLeads::CustomField3)
+                    .drop_column(CrmLeads::CustomField4)
+                    .drop_column(CrmLeads::CustomField5)
+                    .to_owned(),
+            )
+            .await?;
+        // === m0116_create_long_running_tasks.rs ===
+// 删除索引
+        manager
+            .drop_index(
+                Index::drop()
+                    .name("idx_long_running_tasks_started_by")
+                    .table(LongRunningTasks::Table)
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .drop_index(
+                Index::drop()
+                    .name("idx_long_running_tasks_task_type")
+                    .table(LongRunningTasks::Table)
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .drop_index(
+                Index::drop()
+                    .name("idx_long_running_tasks_status")
+                    .table(LongRunningTasks::Table)
+                    .to_owned(),
+            )
+            .await?;
+
+        // 删除表
+        manager
+            .drop_table(Table::drop().table(LongRunningTasks::Table).to_owned())
+            .await?;
         Ok(())
     }
+}
+
+// === m0106_batch_dye_lot_unique_constraint.rs ===
+#[derive(Iden)]
+enum BatchDyeLot {
+    Table,
+    DyeLotNo,
+    BatchNo,
+}
+
+#[derive(Iden)]
+enum DyeBatch {
+    Table,
+    DyeLotNo,
+    BatchNo,
 }
