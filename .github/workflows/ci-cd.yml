@@ -1240,6 +1240,13 @@ jobs:
           EXIT_CODE=$?
           set -e
 
+          # 失败时直接打印输出到 CI 日志（方便调试）
+          if [ "$EXIT_CODE" -ne "0" ]; then
+            echo "=== cargo llvm-cov nextest 失败（EXIT_CODE=$EXIT_CODE），输出如下 ==="
+            cat reports/llvm-cov-nextest-output.txt 2>/dev/null || echo "(输出文件不存在)"
+            echo "=== 输出结束 ==="
+          fi
+
           # 统计测试结果（nextest 输出格式："PASS" / "FAIL" 行）
           PASSED=$(awk '/^ PASS /{c++} END{print c+0}' reports/llvm-cov-nextest-output.txt 2>/dev/null)
           FAILED=$(awk '/^ FAIL /{c++} END{print c+0}' reports/llvm-cov-nextest-output.txt 2>/dev/null)
@@ -1272,11 +1279,11 @@ jobs:
               echo ""
               echo "### 编译错误摘要"
               echo ""
-              grep -E "^error\[" reports/llvm-cov-nextest-output.txt 2>/dev/null | head -20
+              { grep -E "^error\[" reports/llvm-cov-nextest-output.txt 2>/dev/null || true; } | head -20
               echo ""
               echo "### 完整输出（最后 50 行）"
               echo ""
-              tail -50 reports/llvm-cov-nextest-output.txt 2>/dev/null
+              { tail -50 reports/llvm-cov-nextest-output.txt 2>/dev/null || true; }
             elif [ "$FAILED" -eq "0" ]; then
               echo "## ✅ 所有 $PASSED 个测试通过（零容忍通过）"
               echo ""
@@ -1286,11 +1293,11 @@ jobs:
               echo ""
               echo "### 失败列表"
               echo ""
-              grep -E "^ FAIL " reports/llvm-cov-nextest-output.txt 2>/dev/null | head -30
+              { grep -E "^ FAIL " reports/llvm-cov-nextest-output.txt 2>/dev/null || true; } | head -30
               echo ""
               echo "### 失败详情"
               echo ""
-              grep -A 10 "^ FAIL " reports/llvm-cov-nextest-output.txt | head -60
+              { grep -A 10 "^ FAIL " reports/llvm-cov-nextest-output.txt 2>/dev/null || true; } | head -60
             fi
           } > reports/cargo-test-report.md
 
@@ -1331,7 +1338,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: backend-test-report
-          path: reports/
+          path: backend/reports/
           retention-days: 90
 
       - name: 上传覆盖率到 Codecov
