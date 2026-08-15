@@ -53,7 +53,82 @@ manager
 
                 -- visibility_scope：可见性范围枚举
                 --   ALL=全员可见（默认）
-                --   DEPT=指定部门可见（visible_scope_config = {"department_ids": [1,2,3]
+                --   DEPT=指定部门可见（visible_scope_config = {"department_ids": [1,2,3]}）
+                --   ROLE=指定角色可见（visible_scope_config = {"role_ids": [1,2,3]}）
+                --   CUSTOM=自定义用户列表（visible_scope_config = {"user_ids": [1,2,3]}）
+                ALTER TABLE "oa_announcement" ADD COLUMN IF NOT EXISTS "visibility_scope" VARCHAR(20) NOT NULL DEFAULT 'ALL';
+                ALTER TABLE "oa_announcement" ADD COLUMN IF NOT EXISTS "visible_scope_config" JSONB;
+
+                COMMENT ON COLUMN "oa_announcement"."visibility_scope" IS '可见性范围：ALL=全员/DEPT=指定部门/ROLE=指定角色/CUSTOM=自定义用户';
+                COMMENT ON COLUMN "oa_announcement"."visible_scope_config" IS '可见性配置 JSON：{"department_ids":[...]}/{"role_ids":[...]}/{"user_ids":[...]}';
+
+                -- ============================================================
+                -- P1 batch-16 缺陷 7.3：用户行为采集隐私合规
+                -- ============================================================
+
+                -- user_consents：用户隐私同意记录表
+                -- 每次 consent 变更新增一条记录，保留审计轨迹
+                CREATE TABLE IF NOT EXISTS "user_consents" (
+                    "id" SERIAL PRIMARY KEY,
+                    "user_id" INTEGER NOT NULL,
+                    "consent_type" VARCHAR(50) NOT NULL,
+                    "consent_given" BOOLEAN NOT NULL,
+                    "consent_text_version" VARCHAR(20),
+                    "consented_at" TIMESTAMP NOT NULL DEFAULT NOW(),
+                    "revoked_at" TIMESTAMP,
+                    "ip_address" VARCHAR(64),
+                    "user_agent" VARCHAR(512),
+                    "created_at" TIMESTAMP NOT NULL DEFAULT NOW()
+                );
+
+                -- 单用户单类型当前最新状态查询索引
+                CREATE INDEX IF NOT EXISTS "idx_user_consents_user_type"
+                    ON "user_consents"("user_id", "consent_type", "consented_at" DESC);
+
+                -- 约束：consent_type 必须为预定义类型
+                ALTER TABLE "user_consents" DROP CONSTRAINT IF EXISTS "chk_user_consents_consent_type";
+                ALTER TABLE "user_consents" ADD CONSTRAINT "chk_user_consents_consent_type"
+                    CHECK ("consent_type" IN ('behavior_tracking', 'page_view_tracking', 'cookie_usage', 'marketing_email'));
+
+                COMMENT ON TABLE "user_consents" IS '用户隐私同意记录表（GDPR/个人信息保护法合规）';
+                COMMENT ON COLUMN "user_consents"."consent_type" IS '同意类型：behavior_tracking/page_view_tracking/cookie_usage/marketing_email';
+                COMMENT ON COLUMN "user_consents"."consent_given" IS '是否同意：true=同意采集，false=退出';
+                COMMENT ON COLUMN "user_consents"."consent_text_version" IS '隐私政策文本版本号（如 v1.0）';
+
+                -- ============================================================
+                -- P1 batch-16 缺陷 8.3/8.4：用户行为日志 90 天保留策略归档表
+                -- ============================================================
+
+                -- page_view_daily_summary：按 path + date 聚合的页面访问汇总
+                CREATE TABLE IF NOT EXISTS "page_view_daily_summary" (
+                    "stat_date" DATE NOT NULL,
+                    "path" VARCHAR(2048) NOT NULL,
+                    "total_views" BIGINT NOT NULL DEFAULT 0,
+                    "unique_sessions" BIGINT NOT NULL DEFAULT 0,
+                    "unique_users" BIGINT NOT NULL DEFAULT 0,
+                    "created_at" TIMESTAMP NOT NULL DEFAULT NOW(),
+                    PRIMARY KEY ("stat_date", "path")
+                );
+
+                COMMENT ON TABLE "page_view_daily_summary" IS '页面访问日聚合表（page_views 90 天归档汇总目标）';
+
+                -- user_behavior_daily_summary：按 event_type + date 聚合的行为汇总
+                CREATE TABLE IF NOT EXISTS "user_behavior_daily_summary" (
+                    "stat_date" DATE NOT NULL,
+                    "event_type" VARCHAR(128) NOT NULL,
+                    "total_count" BIGINT NOT NULL DEFAULT 0,
+                    "unique_users" BIGINT NOT NULL DEFAULT 0,
+                    "unique_sessions" BIGINT NOT NULL DEFAULT 0,
+                    "created_at" TIMESTAMP NOT NULL DEFAULT NOW(),
+                    PRIMARY KEY ("stat_date", "event_type")
+                );
+
+                COMMENT ON TABLE "user_behavior_daily_summary" IS '用户行为日聚合表（user_behaviors 90 天归档汇总目标）';
+                "#,
+            )
+            .await?;
+
+        Ok(())
         // === m0078_batch18_greige_outsourcing_quality_scheduling.rs ===
 manager
             .get_connection()
@@ -591,7 +666,16 @@ manager
 
                 -- 预置 4 套默认模板（按催收类型）
                 INSERT INTO "collection_templates" ("name", "task_type", "overdue_stage", "title", "content", "is_enabled", "sort_order", "remark") VALUES
-                ('电话催收-早期模板', 'phone', 'early', NULL, '您好，我是XX公司的财务专员，您有一笔账款已逾期{overdue_days
+                ('电话催收-早期模板', 'phone', 'early', NULL, '您好，我是XX公司的财务专员，您有一笔账款已逾期{overdue_days}天，金额{overdue_amount}元，请尽快安排付款，谢谢配合。', TRUE, 1, '默认电话催收话术-早期'),
+                ('上门催收-中期模板', 'visit', 'middle', NULL, '尊敬的客户，您司账款已逾期{overdue_days}天，累计欠款{overdue_amount}元。我司将安排专人上门沟通，请配合核实并安排付款。', TRUE, 1, '默认上门催收话术-中期'),
+                ('邮件催收-通用模板', 'email', 'all', '【账款催收通知】逾期{overdue_days}天 - 金额{overdue_amount}元', '尊敬的客户：\n\n经核对，您司于我司的应收账款已逾期{overdue_days}天，未付金额{overdue_amount}元。\n\n请于收到本邮件后7个工作日内安排付款，如有疑问请及时联系我司财务部。\n\n此致\nXX公司财务部', TRUE, 1, '默认邮件催收话术-通用'),
+                ('函件催收-晚期模板', 'letter', 'late', '关于催收逾期账款的函', '致：{customer_name}\n\n经我司财务部门核对，截至发函日，贵司尚欠我司货款{overdue_amount}元，已逾期{overdue_days}天。\n\n鉴于逾期时间较长，特发此函正式催收。请贵司于收到本函后15日内付清上述款项，逾期未付我司将依法采取进一步措施。\n\n特此函告。\n\nXX公司\n{date}', TRUE, 1, '默认函件催收话术-晚期')
+                ON CONFLICT ("name") DO NOTHING;
+                "#,
+            )
+            .await?;
+
+        Ok(())
         Ok(())
     }
 

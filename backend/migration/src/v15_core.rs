@@ -994,7 +994,27 @@ manager
                 ALTER TABLE "email_logs" ADD COLUMN IF NOT EXISTS "next_retry_at" TIMESTAMP;
 
                 -- 2. attachments：附件 JSON 数组
-                --    格式：[{"filename": "report.pdf", "content_base64": "...", "content_type": "application/pdf"
+                --    格式：[{"filename": "report.pdf", "content_base64": "...", "content_type": "application/pdf"}]
+                ALTER TABLE "email_logs" ADD COLUMN IF NOT EXISTS "attachments" JSONB;
+
+                -- 3. html_content / text_content：区分 HTML 与纯文本正文（原 body 字段保留兼容）
+                ALTER TABLE "email_logs" ADD COLUMN IF NOT EXISTS "html_content" TEXT;
+                ALTER TABLE "email_logs" ADD COLUMN IF NOT EXISTS "text_content" TEXT;
+
+                -- 索引：扫描 PENDING + next_retry_at 邮件的高频查询
+                CREATE INDEX IF NOT EXISTS "idx_email_logs_pending_retry"
+                    ON "email_logs"("status", "next_retry_at", "retry_count")
+                    WHERE "status" = 'PENDING';
+
+                COMMENT ON COLUMN "email_logs"."next_retry_at" IS '下次重试时间（指数退避：1min/5min/30min，NULL 表示立即可重试）';
+                COMMENT ON COLUMN "email_logs"."attachments" IS '附件 JSON 数组：[{filename, content_base64, content_type}]';
+                COMMENT ON COLUMN "email_logs"."html_content" IS 'HTML 正文（与 body 区分，body 保留为兼容字段）';
+                COMMENT ON COLUMN "email_logs"."text_content" IS '纯文本正文';
+                "#,
+            )
+            .await?;
+
+        Ok(())
         Ok(())
     }
 

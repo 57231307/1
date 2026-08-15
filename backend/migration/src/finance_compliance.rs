@@ -14,6 +14,8 @@ impl MigrationTrait for Migration {
 let sql = include_str!("../../migrations/20260716000001_add_data_scope_to_roles/up.sql");
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
+        }
+        Ok(())
         // === m0052_create_role_conflicts.rs ===
 // 创建 role_conflicts 表
         manager

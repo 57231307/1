@@ -217,29 +217,41 @@ impl MigrationTrait for Migration {
         let sql = include_str!("../../migrations/20260323000001_initial_schema/up.sql");
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
+        }
+        Ok(())
         // === m0002_add_crm_and_greige_tables.rs ===
 let sql = include_str!("../../migrations/20260518000001_add_crm_and_greige_tables/up.sql");
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
+        }
+        Ok(())
         // === m0003_add_dye_tables.rs ===
 let sql = include_str!("../../migrations/20260518000002_add_dye_tables/up.sql");
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
+        }
+        Ok(())
         // === m0004_add_field_permissions.rs ===
 let sql = include_str!("../../migrations/20260520000001_add_field_permissions/up.sql");
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
+        }
+        Ok(())
         // === m0005_add_basic_data_and_system_tables.rs ===
 let sql =
             include_str!("../../migrations/20260527000001_add_basic_data_and_system_tables/up.sql");
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
+        }
+        Ok(())
         // === m0006_add_general_ledger_and_finance_base.rs ===
 let sql = include_str!(
             "../../migrations/20260527000002_add_general_ledger_and_finance_base/up.sql"
         );
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
+        }
+        Ok(())
         Ok(())
     }
 
