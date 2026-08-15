@@ -16,6 +16,7 @@ use chrono::NaiveDate;
 use serde::Deserialize;
 
 /// 终止劳动合同请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct TerminateLaborContractRequest {
     pub termination_date: NaiveDate,

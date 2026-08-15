@@ -13,6 +13,7 @@ use crate::utils::error::AppError;
 use super::ReportEngineService;
 
 /// cron 表达式 5 字段解析结果（分/时/日/月/周）
+#[allow(dead_code, reason = "预留：cron 表达式解析结果，待接入")]
 struct CronFields {
     minute: std::collections::HashSet<u32>,
     hour: std::collections::HashSet<u32>,

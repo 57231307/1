@@ -30,6 +30,7 @@ use crate::utils::response::ApiResponse;
 // ==================== 响应 DTO ====================
 
 /// 财务预警响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize, Clone)]
 pub struct AlertInfo {
     pub id: i64,
@@ -90,6 +91,7 @@ impl From<finance_alert::Model> for AlertInfo {
 }
 
 /// 分页响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize, Clone)]
 pub struct PagedResponse<T> {
     pub items: Vec<T>,
@@ -99,6 +101,7 @@ pub struct PagedResponse<T> {
 }
 
 /// 批量扫描响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize, Clone)]
 pub struct TriggerScanResponse {
     pub created: Vec<AlertInfo>,

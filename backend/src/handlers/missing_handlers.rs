@@ -36,6 +36,7 @@ use crate::utils::response::ApiResponse;
 // ============================================================================
 
 /// 会计期间列表响应 DTO
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct AccountingPeriodDto {
     pub id: i32,
@@ -97,6 +98,7 @@ pub async fn get_accounting_period_detail(
 }
 
 /// 创建会计期间请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateAccountingPeriodPayload {
     pub year: i32,
@@ -162,6 +164,7 @@ pub async fn create_accounting_period(
 }
 
 /// 更新会计期间（暂只支持重命名）
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateAccountingPeriodPayload {
     #[validate(length(min = 1, max = 50, message = "期间名称不能为空"))]
@@ -245,6 +248,7 @@ pub async fn delete_accounting_period(
 // ============================================================================
 
 /// MRP 历史列表响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct MrpHistoryDto {
     pub calculation_no: String,
@@ -256,6 +260,7 @@ pub struct MrpHistoryDto {
 }
 
 /// MRP 历史列表查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct MrpHistoryListQuery {
     pub calculation_no: Option<String>,
@@ -307,6 +312,7 @@ pub async fn get_mrp_history(
 }
 
 /// MRP 历史详情响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct MrpHistoryDetailDto {
     pub calculation_no: String,
@@ -355,6 +361,7 @@ pub async fn get_mrp_history_detail(
 // ============================================================================
 
 /// 销售用户 DTO
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct SalesUser {
     pub id: i32,

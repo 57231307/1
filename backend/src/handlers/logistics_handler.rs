@@ -21,6 +21,7 @@ use crate::services::ar_invoice_service::ArInvoiceService;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Deserialize)]
 pub struct CreateWaybillRequest {
     pub order_id: i32,
@@ -108,6 +109,7 @@ pub async fn list_waybills(
     Ok(Json(ApiResponse::success(waybills_json)))
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Deserialize)]
 pub struct UpdateWaybillStatusReq {
     pub status: String,
@@ -137,6 +139,7 @@ pub async fn update_waybill_status(
 }
 
 /// V15 P0-B13：电子签收请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Deserialize)]
 pub struct SignWaybillRequest {
     /// 纸质回单扫描件 URL（上传到对象存储后返回）

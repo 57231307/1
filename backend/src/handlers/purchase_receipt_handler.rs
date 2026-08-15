@@ -364,6 +364,7 @@ pub async fn recalculate_receipt_total(
 // =====================================================
 
 /// 采购入库单查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ReceiptQueryParams {
     pub page: Option<u64>,

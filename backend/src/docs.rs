@@ -51,6 +51,7 @@ use utoipa::OpenApi;
         (url = "http://localhost:8082/api/v1/erp", description = "本地开发")
     )
 )]
+#[allow(dead_code, reason = "预留：OpenAPI 文档定义，待接入")]
 pub struct ApiDoc;
 
 impl ApiDoc {

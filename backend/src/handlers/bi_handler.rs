@@ -29,6 +29,7 @@ use crate::utils::response::ApiResponse;
 
 /// GET /api/v1/erp/bi/sales/by-time
 /// 按时间聚合销售
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ByTimeQuery {
     pub start_date: chrono::NaiveDate,
@@ -56,6 +57,7 @@ pub async fn sales_by_time(
 
 /// GET /api/v1/erp/bi/sales/by-customer
 /// 按客户聚合
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ByCustomerQuery {
     pub limit: Option<i64>,
@@ -133,6 +135,7 @@ pub async fn sales_by_category(
 
 /// GET /api/v1/erp/bi/sales/trend
 /// 销售趋势（时间序列）
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct TrendQuery {
     pub days: Option<i32>,
@@ -195,6 +198,7 @@ pub async fn kpi_summary(
 
 /// GET /api/v1/erp/bi/sales/drilldown/year-to-month
 /// 钻取：年 → 月
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct DrillYearMonthQuery {
     pub year: i32,
@@ -218,6 +222,7 @@ pub async fn drilldown_year_to_month(
 
 /// GET /api/v1/erp/bi/sales/drilldown/month-to-day
 /// 钻取：月 → 日
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct DrillMonthDayQuery {
     pub year: i32,
@@ -288,6 +293,7 @@ pub async fn drilldown_product_to_order(
 
 /// POST /api/v1/erp/bi/sales/slice
 /// 切片（固定其他维度）
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct SliceRequest {
     pub dimension: String,
@@ -312,6 +318,7 @@ pub async fn slice(
 
 /// POST /api/v1/erp/bi/sales/dice
 /// 切块（多维范围筛选）
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct DiceRequest {
     pub filters: serde_json::Value,
@@ -335,6 +342,7 @@ pub async fn dice(
 
 /// POST /api/v1/erp/bi/sales/rollup
 /// 上卷（细粒度 → 粗粒度）
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct RollupRequest {
     pub from: String,
@@ -359,6 +367,7 @@ pub async fn rollup(
 
 /// POST /api/v1/erp/bi/sales/pivot
 /// 透视（行列转换）
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct PivotRequest {
     pub row: String,

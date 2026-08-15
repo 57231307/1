@@ -19,6 +19,7 @@ use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 /// 创建BOM请求
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Clone, Deserialize, Serialize, Validate)]
 pub struct CreateBomPayload {
     pub product_id: i32,
@@ -30,6 +31,7 @@ pub struct CreateBomPayload {
 }
 
 /// 创建BOM明细请求
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Clone, Deserialize, Serialize, Validate)]
 pub struct CreateBomItemPayload {
     pub material_id: i32,
@@ -40,6 +42,7 @@ pub struct CreateBomItemPayload {
 }
 
 /// 更新BOM请求
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct UpdateBomPayload {
     pub is_default: Option<bool>,
@@ -49,6 +52,7 @@ pub struct UpdateBomPayload {
 }
 
 /// BOM响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Clone, Serialize)]
 pub struct BomResponse {
     pub id: i32,
@@ -63,6 +67,7 @@ pub struct BomResponse {
 }
 
 /// BOM明细响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Clone, Serialize)]
 pub struct BomItemResponse {
     pub id: i32,
@@ -77,6 +82,7 @@ pub struct BomItemResponse {
 }
 
 /// BOM详情响应（含明细）
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Clone, Serialize)]
 pub struct BomDetailResponse {
     pub bom: BomResponse,
@@ -85,6 +91,7 @@ pub struct BomDetailResponse {
 
 /// BOM列表查询参数
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 pub struct ListBomsQuery {
     pub product_id: Option<i32>,
     pub status: Option<String>,
@@ -401,6 +408,7 @@ pub async fn set_default_bom(
 }
 
 /// BOM树形结构查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct BomTreeQuery {
     pub max_depth: Option<i32>,
@@ -418,6 +426,7 @@ pub async fn get_bom_tree(
 }
 
 /// BOM需求计算请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct BomRequirementRequest {
     pub quantity: rust_decimal::Decimal,
@@ -464,6 +473,7 @@ pub async fn submit_bom(
 }
 
 /// 审核BOM请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ApproveBomRequest {
     pub approved: bool,

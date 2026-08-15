@@ -20,6 +20,7 @@ use std::sync::Arc;
 use tracing::info;
 
 // V15 P0-S12 修复（Batch 475d）：派生 Clone，export_prices 需要 clone 后覆盖分页参数用于全量导出
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Clone, Deserialize)]
 pub struct SalesPriceQuery {
     pub product_id: Option<i32>,
@@ -29,6 +30,7 @@ pub struct SalesPriceQuery {
     pub page_size: Option<i64>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ApprovePriceRequest {
     pub approved: bool,
@@ -129,6 +131,7 @@ pub async fn get_price_history(
     Ok(Json(ApiResponse::success(history)))
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct StrategiesQuery {
     pub page: Option<i64>,

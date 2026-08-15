@@ -9,6 +9,7 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 /// 转化耗时统计
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Serialize)]
 pub struct ConversionTimeStats {
     /// 平均转化时间（天）

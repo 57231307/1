@@ -30,6 +30,7 @@ use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use std::sync::Arc;
 
 /// 创建生产订单请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateProductionOrderPayload {
     #[validate(length(min = 1, message = "订单编号不能为空"))]
@@ -45,6 +46,7 @@ pub struct CreateProductionOrderPayload {
 }
 
 /// 更新生产订单请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateProductionOrderPayload {
     pub planned_quantity: Option<Decimal>,
@@ -57,6 +59,7 @@ pub struct UpdateProductionOrderPayload {
 
 /// P1-2f 修复（批次 81 v1 复审）：更新生产订单状态请求 DTO 替代 update_production_order_status
 /// 中的 Json<serde_json::Value>， 提供强类型校验 + 状态白名单校验
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateProductionOrderStatusDto {
     /// 状态：必填，必须命中白名单
@@ -85,6 +88,7 @@ fn validate_production_order_status(status: &str) -> Result<(), validator::Valid
 }
 
 /// 生产订单响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct ProductionOrderResponse {
     pub id: i32,
@@ -104,6 +108,7 @@ pub struct ProductionOrderResponse {
 }
 
 /// 生产订单列表查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ListProductionOrdersQuery {
     pub status: Option<String>,
@@ -285,6 +290,7 @@ pub async fn update_production_order(
 }
 
 /// 审批请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ApprovalRequest {
     pub approved: bool,
@@ -377,6 +383,7 @@ pub async fn delete_production_order(
 }
 
 /// 更新生产进度请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateProgressRequest {
     pub actual_quantity: Option<Decimal>,

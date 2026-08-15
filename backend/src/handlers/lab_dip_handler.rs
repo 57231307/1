@@ -42,6 +42,7 @@ fn resample_service(state: &AppState) -> LabDipResampleService {
 // 查询参数
 // ============================================================================
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct LabDipRequestListQuery {
     pub page: Option<u64>,
@@ -156,6 +157,7 @@ pub async fn submit_to_customer(
 }
 
 /// 客户确认 OK 样请求体
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ApproveOkSampleRequest {
     pub sample_id: i32,
@@ -179,6 +181,7 @@ pub async fn approve_ok_sample(
 }
 
 /// 客户要求重打请求体
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct RejectRequest {
     pub comment: String,
@@ -214,6 +217,7 @@ pub async fn restart_sampling(
 }
 
 /// 完成建库请求体
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CompleteRequest {
     pub production_recipe_id: i32,

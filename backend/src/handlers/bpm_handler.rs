@@ -57,6 +57,7 @@ pub async fn query_tasks(
 }
 
 /// BPM business relation query params
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct BusinessRelationQuery {
     pub business_type: String,
@@ -161,6 +162,7 @@ pub async fn get_instance_detail(
 }
 
 /// 流程监控统计查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct MonitorQuery {
     pub page: Option<u64>,
@@ -206,6 +208,7 @@ pub async fn list_instances_for_monitor(
 }
 
 /// 转办任务请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct TransferTaskRequest {
     pub new_assignee_id: i32,
@@ -229,6 +232,7 @@ pub async fn transfer_task(
 }
 
 /// 催办任务请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UrgeTaskRequest {
     pub urge_message: String,
@@ -277,6 +281,7 @@ pub async fn get_completed_tasks(
 }
 
 /// 执行审批请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ExecuteApprovalRequest {
     pub task_id: i32,

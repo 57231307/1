@@ -206,12 +206,14 @@ fn build_inventory_suggestions(
 // 数据结构
 // ============================================================================
 
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SalesForecastRequest {
     pub period: String,
     pub product_id: Option<u32>,
 }
 
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SalesForecastResponse {
     pub sales_amount: f64,
@@ -222,6 +224,7 @@ pub struct SalesForecastResponse {
     pub detail: Vec<ForecastDetail>,
 }
 
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ForecastDetail {
     pub date: String,
@@ -230,12 +233,14 @@ pub struct ForecastDetail {
     pub trend: String,
 }
 
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct InventoryOptimizationRequest {
     pub warehouse_id: Option<u32>,
     pub product_id: Option<u32>,
 }
 
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct InventoryOptimizationResponse {
     pub summary: String,
@@ -243,6 +248,7 @@ pub struct InventoryOptimizationResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 pub struct InventorySuggestion {
     pub product_name: String,
     pub suggestion: String,

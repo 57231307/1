@@ -23,6 +23,7 @@ use serde::{Deserialize, Serialize};
 
 /// 可观测性配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code, reason = "预留：可观测性配置，待接入")]
 pub struct ObservabilityConfig {
     /// 服务名
     pub service_name: String,
@@ -101,6 +102,7 @@ impl ObservabilityConfig {
 
 /// 资源属性
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code, reason = "预留：OTLP 资源属性，待接入")]
 pub struct ResourceAttrs {
     pub service_name: String,
     pub service_namespace: String,

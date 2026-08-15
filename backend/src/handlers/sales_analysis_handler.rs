@@ -19,6 +19,7 @@ use serde::Deserialize;
 use std::sync::Arc;
 use tracing::info;
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct SalesStatisticQuery {
     pub statistic_type: Option<String>,
@@ -27,17 +28,20 @@ pub struct SalesStatisticQuery {
     pub page_size: Option<i64>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct TrendQuery {
     pub period: String,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct RankingQuery {
     pub period: Option<String>,
     pub limit: Option<i64>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct TargetQuery {
     pub page: Option<i64>,

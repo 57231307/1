@@ -6,6 +6,7 @@ use crate::models::color_card_item;
 use crate::models::color_card_response_dto::ColorItemInfo;
 
 /// 色号列表查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, serde::Deserialize)]
 pub struct ListItemsQuery {
     pub page: Option<u64>,

@@ -18,6 +18,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use utoipa::ToSchema;
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, serde::Deserialize)]
 pub struct TestDatabaseRequest {
     pub host: String,
@@ -27,12 +28,14 @@ pub struct TestDatabaseRequest {
     pub password: String,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, serde::Serialize)]
 pub struct TestDatabaseResponse {
     pub success: bool,
     pub message: String,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, serde::Deserialize)]
 pub struct InitWithDbRequest {
     pub db_config: DatabaseConfig,
@@ -365,6 +368,7 @@ pub async fn get_task_status(
 }
 
 /// P2 2-7 修复：初始化任务状态响应 DTO，替代原 serde_json::Value 手拼 JSON
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize, ToSchema)]
 pub struct TaskStatusResponse {
     /// 任务 ID
@@ -373,6 +377,7 @@ pub struct TaskStatusResponse {
     pub status: String,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, serde::Deserialize)]
 pub struct ResetPasswordRequest {
     pub username: String,
@@ -380,6 +385,7 @@ pub struct ResetPasswordRequest {
 }
 
 #[derive(Debug, serde::Serialize)]
+#[allow(dead_code, reason = "序列化输出字段")]
 pub struct ResetPasswordResponse {
     pub success: bool,
     pub message: String,

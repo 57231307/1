@@ -18,6 +18,7 @@ use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::response::ApiResponse;
 
 /// 查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct InventoryTransferQuery {
     pub page: Option<u64>,
@@ -29,6 +30,7 @@ pub struct InventoryTransferQuery {
 }
 
 /// 审核库存调拨请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ApproveTransferRequest {
     pub approved: bool,

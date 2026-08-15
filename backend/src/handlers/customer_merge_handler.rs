@@ -12,6 +12,7 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 /// 客户合并请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Deserialize)]
 pub struct MergeCustomerRequest {
     /// 源客户 ID（将被合并的客户）

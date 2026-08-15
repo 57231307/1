@@ -27,10 +27,12 @@ use std::sync::LazyLock;
 
 /// 手机号正则（11 位，1[3-9] 开头）
 /// 注意：Rust regex crate 不支持 look-around，此处使用简单匹配
+#[allow(dead_code, reason = "预留常量")]
 static PHONE_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"1[3-9][0-9]{9}").expect("PII_MASK: 手机号正则编译失败"));
 
 /// 身份证号正则（18 位，末位可为 X/x）
+#[allow(dead_code, reason = "预留常量")]
 static ID_CARD_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"[1-9][0-9]{5}(?:19|20)[0-9]{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12][0-9]|3[01])[0-9]{3}[0-9Xx]",
@@ -39,12 +41,14 @@ static ID_CARD_REGEX: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 /// 邮箱正则
+#[allow(dead_code, reason = "预留常量")]
 static EMAIL_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})")
         .expect("PII_MASK: 邮箱正则编译失败")
 });
 
 /// 密码字段 key 模式（JSON key 或日志字段名）
+#[allow(dead_code, reason = "预留常量")]
 static PASSWORD_KEY_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#""((?:password|passwd|secret|token|credential|api_key|apikey|access_token|refresh_token)(?:_[a-z]+)?)"\s*:\s*"([^"]*)""#)
         .expect("PII_MASK: 密码字段正则编译失败")

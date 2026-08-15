@@ -20,6 +20,7 @@ use validator::Validate;
 
 /// P1-2a 修复（批次 81 v1 复审）：创建预算请求 DTO
 /// 替代 create_budget 中的 Json<serde_json::Value>，提供强类型校验
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateBudgetDto {
     /// 预算编码：可选
@@ -39,6 +40,7 @@ pub struct CreateBudgetDto {
 
 /// P1-2a 修复（批次 81 v1 复审）：更新预算请求 DTO
 /// 替代 update_budget 中的 Json<serde_json::Value>，所有字段可选
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateBudgetDto {
     /// 预算名称：可选
@@ -55,6 +57,7 @@ pub struct UpdateBudgetDto {
 
 /// P1-2a 修复（批次 81 v1 复审）：审批预算请求 DTO
 /// 替代 approve_budget 中的 Json<serde_json::Value>
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct ApproveBudgetDto {
     /// 审批意见：可选
@@ -63,6 +66,7 @@ pub struct ApproveBudgetDto {
 
 /// 预算科目查询参数 DTO
 // V15 P0-S12 修复（Batch 475e）：派生 Clone，export_budget_items 需要 clone 后覆盖分页参数用于全量导出
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Clone, Deserialize)]
 pub struct BudgetItemQuery {
     pub item_type: Option<String>,
@@ -72,6 +76,7 @@ pub struct BudgetItemQuery {
 }
 
 /// 创建预算科目请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 
 pub struct CreateBudgetItemRequest {
@@ -87,6 +92,7 @@ pub struct CreateBudgetItemRequest {
 }
 
 /// 更新预算科目请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 
 pub struct UpdateBudgetItemRequest {
@@ -100,6 +106,7 @@ pub struct UpdateBudgetItemRequest {
 }
 
 /// 创建预算方案请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 
 pub struct CreateBudgetPlanRequest {
@@ -113,6 +120,7 @@ pub struct CreateBudgetPlanRequest {
 }
 
 /// 预算执行请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 
 pub struct BudgetExecuteRequest {
@@ -124,6 +132,7 @@ pub struct BudgetExecuteRequest {
 }
 
 /// 预算审批请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 
 pub struct BudgetApproveRequest {
@@ -131,6 +140,7 @@ pub struct BudgetApproveRequest {
 }
 
 /// 创建预算执行明细请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 
 pub struct CreateBudgetExecutionRequest {
@@ -810,6 +820,7 @@ pub async fn export_budget_items(
 }
 
 /// V15 P1 17.7-D5：创建预算版本请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateBudgetVersionDto {
     /// 预算方案 ID

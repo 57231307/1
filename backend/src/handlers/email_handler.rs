@@ -28,6 +28,7 @@ use crate::utils::response::ApiResponse;
 const EMAIL_PER_USER_PER_HOUR: u32 = 50;
 
 /// 发送邮件请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct SendEmailRequest {
     pub to: Vec<String>,
@@ -47,6 +48,7 @@ pub struct SendEmailRequest {
 }
 
 /// 缺陷 6.3 修复：附件 DTO（客户端上传格式）
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct AttachmentDto {
     /// 文件名（含扩展名）

@@ -297,6 +297,7 @@ impl ArReconciliationService {
 
 /// V15 P1 17.4-D2：账龄趋势分析数据点
 #[derive(Debug, Clone, serde::Serialize)]
+#[allow(dead_code, reason = "预留：账龄趋势分析数据点，待接入")]
 pub struct AgingTrendPoint {
     /// 分析日期
     pub analysis_date: chrono::NaiveDate,

@@ -31,6 +31,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 /// 创建盘点单请求体
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreateCountPayload {
     pub warehouse_id: i32,
@@ -42,6 +43,7 @@ pub struct CreateCountPayload {
 }
 
 /// 盘点单响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct CountResponse {
     pub id: i32,
@@ -86,6 +88,7 @@ impl From<inventory_count::Model> for CountResponse {
 }
 
 /// 盘点明细响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct CountItemResponse {
     pub id: i32,
@@ -124,6 +127,7 @@ impl From<inventory_count_item::Model> for CountItemResponse {
 }
 
 /// 盘点单列表响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct CountListResponse {
     pub counts: Vec<CountSummary>,
@@ -132,6 +136,7 @@ pub struct CountListResponse {
     pub page_size: u64,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct CountSummary {
     pub id: i32,
@@ -146,6 +151,7 @@ pub struct CountSummary {
 }
 
 /// 列表查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ListCountsParams {
     pub page: Option<u64>,
@@ -155,11 +161,13 @@ pub struct ListCountsParams {
 }
 
 /// 录入实盘数量请求体
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct RecordItemsPayload {
     pub items: Vec<RecordItemInput>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct RecordItemInput {
     pub stock_id: i32,
@@ -170,6 +178,7 @@ pub struct RecordItemInput {
 
 /// 更新盘点单请求体
 #[derive(Debug, Deserialize)]
+#[allow(dead_code, reason = "反序列化输入字段")]
 pub struct UpdateCountPayload {
     pub count_date: Option<String>,
     pub notes: Option<String>,

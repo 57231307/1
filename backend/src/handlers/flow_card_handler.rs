@@ -49,6 +49,7 @@ fn feedback_service(state: &AppState) -> QualityFeedbackService {
 // 查询参数
 // ============================================================================
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct FlowCardListQuery {
     pub page: Option<u64>,
@@ -61,6 +62,7 @@ pub struct FlowCardListQuery {
     pub customer_id: Option<i32>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct BarcodeQuery {
     pub barcode: Option<String>,
@@ -203,6 +205,7 @@ pub async fn get_by_barcode(
 // ===== 流转卡状态流转 =====
 
 /// POST /api/v1/erp/flow-cards/:id/schedule - 排缸
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ScheduleRequest {
     pub dye_batch_id: Option<i32>,
@@ -230,6 +233,7 @@ pub async fn start_preparing(
 }
 
 /// POST /api/v1/erp/flow-cards/:id/complete-preparing - 完成备布
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CompletePreparingRequest {
     pub actual_fabric_weight: Decimal,
@@ -292,6 +296,7 @@ pub async fn ship_flow_card(
 }
 
 /// POST /api/v1/erp/flow-cards/:id/terminate - 终止
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct TerminateRequest {
     pub reason: Option<String>,

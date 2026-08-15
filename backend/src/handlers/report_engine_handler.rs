@@ -16,6 +16,7 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use std::sync::Arc;
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct ReportTemplateResponse {
     pub id: String,
@@ -24,6 +25,7 @@ pub struct ReportTemplateResponse {
     pub columns: Vec<ReportColumnResponse>,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct ReportColumnResponse {
     pub field: String,
@@ -63,6 +65,7 @@ pub async fn list_templates(
     Ok(Json(ApiResponse::success(responses)))
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ExecuteReportQuery {
     pub template_id: String,
@@ -76,6 +79,7 @@ pub struct ExecuteReportQuery {
     pub date_end: Option<String>,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct ReportDataResponse {
     pub columns: Vec<String>,
@@ -162,6 +166,7 @@ pub async fn execute_report(
     }
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ExportReportQuery {
     pub template_id: String,
@@ -174,6 +179,7 @@ pub struct ExportReportQuery {
     pub date_end: Option<String>,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct ExportReportResponse {
     pub data: String,
@@ -274,6 +280,7 @@ fn build_export_audit_event(
     }
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct AggregateReportRequest {
     pub data_source: String,
@@ -285,6 +292,7 @@ pub struct AggregateReportRequest {
     pub page_size: Option<u64>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct FilterRequest {
     pub field: String,
@@ -292,6 +300,7 @@ pub struct FilterRequest {
     pub value: String,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct AggregateReportResponse {
     pub columns: Vec<String>,
@@ -407,11 +416,13 @@ fn build_aggregate_response(
     }
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ClearCacheRequest {
     pub data_source: Option<String>,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct ClearCacheResponse {
     pub success: bool,

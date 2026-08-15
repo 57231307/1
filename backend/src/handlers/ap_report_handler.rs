@@ -20,6 +20,7 @@ use tracing::info;
 const REPORT_CACHE_TTL: Duration = Duration::from_secs(60);
 
 /// 查询统计报表参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ApStatisticsQueryParams {
     pub supplier_id: Option<i32>,
@@ -68,6 +69,7 @@ pub async fn get_statistics_report(
 }
 
 /// 查询日报参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ApDailyQueryParams {
     pub supplier_id: Option<i32>,
@@ -115,6 +117,7 @@ pub async fn get_daily_report(
 }
 
 /// 查询月报参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ApMonthlyQueryParams {
     pub supplier_id: Option<i32>,
@@ -163,6 +166,7 @@ pub async fn get_monthly_report(
 }
 
 /// 查询账龄分析参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ApAgingQueryParams {
     pub supplier_id: Option<i32>,

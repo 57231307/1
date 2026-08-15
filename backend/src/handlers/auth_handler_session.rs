@@ -52,6 +52,7 @@ pub async fn record_login_attempt(
     }
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct LogoutResponse {
     pub success: bool,

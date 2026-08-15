@@ -23,6 +23,7 @@ use std::sync::Arc;
 
 /// 查询参数 - 仓库列表
 // V15 P0-S12 修复（Batch 475c）：派生 Clone，export_warehouses 需要 clone 后覆盖分页参数用于全量导出
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Clone, Deserialize, Validate)]
 pub struct WarehouseListQuery {
     pub page: Option<u64>,
@@ -32,6 +33,7 @@ pub struct WarehouseListQuery {
 }
 
 /// 创建仓库请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateWarehouseRequest {
     #[validate(length(min = 1, max = 100, message = "仓库名称不能为空"))]
@@ -48,6 +50,7 @@ pub struct CreateWarehouseRequest {
 }
 
 /// 更新仓库请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateWarehouseRequest {
     #[validate(length(min = 1, max = 100, message = "仓库名称不能为空"))]
@@ -69,6 +72,7 @@ crate::define_crud_handlers!(
 );
 
 /// 查询参数 - 库位列表
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct LocationListQuery {
     pub page: Option<u64>,
@@ -78,6 +82,7 @@ pub struct LocationListQuery {
 }
 
 /// 创建库位请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateLocationRequest {
     #[validate(range(min = 1, message = "仓库ID必须大于0"))]
@@ -91,6 +96,7 @@ pub struct CreateLocationRequest {
 }
 
 /// 更新库位请求（字段对齐 warehouse_locations 表结构）
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateLocationRequest {
     /// 库位编码

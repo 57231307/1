@@ -47,6 +47,7 @@ fn calc_service(state: &AppState) -> WageCalculationService {
 // 查询参数
 // ============================================================================
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct WageRateListQuery {
     pub page: Option<u64>,
@@ -57,6 +58,7 @@ pub struct WageRateListQuery {
     pub status: Option<String>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct WageRecordListQuery {
     pub page: Option<u64>,
@@ -170,6 +172,7 @@ pub async fn get_effective_wage_rate(
     Ok(Json(ApiResponse::success(model)))
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct EffectiveDateQuery {
     pub on_date: Option<chrono::DateTime<chrono::Utc>>,
@@ -286,6 +289,7 @@ pub async fn cancel_wage_record(
     Ok(Json(ApiResponse::success(model)))
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct OperatorRequest {
     pub operator_id: i32,
@@ -333,6 +337,7 @@ pub async fn list_wage_details(
     ))))
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct DetailListQuery {
     pub page: Option<u64>,

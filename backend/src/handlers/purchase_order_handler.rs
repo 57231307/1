@@ -413,6 +413,7 @@ pub async fn delete_order_item(
 
 /// 计算建议交货日期
 /// POST /api/v1/erp/purchase/orders/delivery-date
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CalculateDeliveryRequest {
     pub supplier_id: i32,
@@ -420,12 +421,14 @@ pub struct CalculateDeliveryRequest {
     pub items: Vec<DeliveryItemRequest>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct DeliveryItemRequest {
     pub product_id: i32,
     pub quantity: rust_decimal::Decimal,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct DeliveryDateResponse {
     pub suggested_date: chrono::NaiveDate,
@@ -477,6 +480,7 @@ pub async fn calculate_delivery_date(
 // =====================================================
 
 /// 采购订单查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct OrderQueryParams {
     pub page: Option<u64>,
@@ -486,6 +490,7 @@ pub struct OrderQueryParams {
 }
 
 /// 拒绝订单请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct RejectOrderRequest {
     #[validate(length(min = 1, max = 500, message = "拒绝原因不能为空且最长500字符"))]
@@ -493,6 +498,7 @@ pub struct RejectOrderRequest {
 }
 
 /// 取消采购订单请求（批次 215 P2-1）
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CancelOrderRequest {
     #[validate(length(min = 1, max = 500, message = "取消原因不能为空且最长500字符"))]

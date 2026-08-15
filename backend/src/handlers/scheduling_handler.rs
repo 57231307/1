@@ -19,6 +19,7 @@ use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 /// 自动排程请求体
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct AutoSchedulePayload {
     pub work_center_ids: Option<Vec<i32>>,
@@ -27,6 +28,7 @@ pub struct AutoSchedulePayload {
 }
 
 /// 甘特图数据项响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct GanttItemResponse {
     pub id: String,
@@ -45,6 +47,7 @@ pub struct GanttItemResponse {
 }
 
 /// 工作中心信息响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct WorkCenterInfoResponse {
     pub id: i32,
@@ -54,6 +57,7 @@ pub struct WorkCenterInfoResponse {
 }
 
 /// 日期范围响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct DateRangeResponse {
     pub start: NaiveDate,
@@ -61,6 +65,7 @@ pub struct DateRangeResponse {
 }
 
 /// 甘特图数据响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct GanttDataResponse {
     pub items: Vec<GanttItemResponse>,
@@ -69,6 +74,7 @@ pub struct GanttDataResponse {
 }
 
 /// 排程冲突响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct ConflictResponse {
     pub conflict_type: String,
@@ -82,6 +88,7 @@ pub struct ConflictResponse {
 }
 
 /// 排程明细响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct ScheduleDetailResponse {
     pub order_id: i32,
@@ -94,6 +101,7 @@ pub struct ScheduleDetailResponse {
 }
 
 /// 手动调整排程请求体
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct AdjustSchedulePayload {
     pub work_center_id: Option<i32>,
@@ -104,6 +112,7 @@ pub struct AdjustSchedulePayload {
 
 /// 排程工单响应
 #[derive(Debug, Serialize)]
+#[allow(dead_code, reason = "序列化输出字段")]
 pub struct ScheduledOrderResponse {
     pub order_id: i32,
     pub order_no: String,
@@ -119,6 +128,7 @@ pub struct ScheduledOrderResponse {
 }
 
 /// 甘特图查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct GanttQuery {
     pub work_center_id: Option<i32>,
@@ -127,6 +137,7 @@ pub struct GanttQuery {
 }
 
 /// 排程工单列表查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ScheduledOrdersQuery {
     pub work_center_id: Option<i32>,
@@ -304,6 +315,7 @@ pub async fn adjust_schedule(
 
 /// 前端排程任务调整请求体
 /// 字段语义对齐前端的 start_time / end_time（ISO 字符串），后端解析为日期。
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct AdjustScheduleTaskPayload {
     pub start_time: Option<String>,
@@ -410,6 +422,7 @@ pub async fn list_scheduled_orders(
 }
 
 /// 排程历史查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ScheduleHistoryQuery {
     pub page: Option<u64>,
@@ -417,6 +430,7 @@ pub struct ScheduleHistoryQuery {
 }
 
 /// 排程历史响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct ScheduleHistoryResponse {
     pub id: i32,

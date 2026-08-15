@@ -16,18 +16,21 @@ use axum::{
 use serde::Deserialize;
 
 /// 查询参数：模型名称
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ModelNameQuery {
     pub model_name: Option<String>,
 }
 
 /// 查询参数：报告周期
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct PeriodQuery {
     pub report_period: String,
 }
 
 /// 查询参数：limit
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct LimitQuery {
     pub limit: Option<u64>,

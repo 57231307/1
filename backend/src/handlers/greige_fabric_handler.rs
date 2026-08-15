@@ -16,6 +16,7 @@ use crate::models::greige_fabric;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct GreigeFabricListQuery {
     pub page: Option<u64>,
@@ -29,6 +30,7 @@ pub struct GreigeFabricListQuery {
     pub quality_grade: Option<String>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreateGreigeFabricRequest {
     pub fabric_no: Option<String>,
@@ -75,6 +77,7 @@ pub struct CreateGreigeFabricRequest {
     pub color_no: Option<String>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateGreigeFabricRequest {
     pub fabric_name: Option<String>,
@@ -101,6 +104,7 @@ pub struct UpdateGreigeFabricRequest {
     pub color_no: Option<String>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct StockInRequest {
     pub warehouse_id: i32,
@@ -113,6 +117,7 @@ pub struct StockInRequest {
     pub purchase_receipt_id: Option<i32>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct StockOutRequest {
     pub weight_kg: Option<f64>,

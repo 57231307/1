@@ -22,6 +22,7 @@ use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_
 use rust_decimal::Decimal;
 
 /// 查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CancelReason {
     pub reason: String,
@@ -29,6 +30,7 @@ pub struct CancelReason {
 
 /// 查询参数
 // V15 P0-S12 修复（Batch 475e）：派生 Clone，export_ar_invoices 需要 clone 后覆盖分页参数用于全量导出
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Clone, Deserialize)]
 pub struct ArInvoiceQuery {
     pub customer_id: Option<i32>,
@@ -38,6 +40,7 @@ pub struct ArInvoiceQuery {
 }
 
 /// 创建请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 
 pub struct CreateArInvoiceRequestDto {

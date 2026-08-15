@@ -1101,6 +1101,7 @@ pub struct VoucherItemDetail {
 
 /// V15 P1 batch-19 缺陷 23.5.4：Incoterms 术语使用月报条目
 #[derive(Debug, Serialize, Deserialize)]
+#[allow(dead_code, reason = "预留：Incoterms 术语统计条目，待接入")]
 pub struct IncotermStatItem {
     /// Incoterms 代码（如 FOB / CIF / DDP）
     pub incoterm_code: String,
@@ -1122,6 +1123,7 @@ pub struct IncotermStatItem {
 
 /// V15 P1 batch-19 缺陷 23.5.4：Incoterms 术语使用月报
 #[derive(Debug, Serialize, Deserialize)]
+#[allow(dead_code, reason = "预留：Incoterms 术语月报，待接入")]
 pub struct IncotermMonthlyReport {
     /// 年份
     pub year: i32,

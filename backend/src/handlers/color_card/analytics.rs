@@ -33,6 +33,7 @@ use super::issue::require_issue_permission;
 // ==================== DTO 定义 ====================
 
 /// 报表查询参数（Query string）
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct ReportQuery {
     pub customer_id: Option<i32>,
@@ -57,12 +58,14 @@ impl From<ReportQuery> for ReportParams {
 }
 
 /// 日统计查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Clone, Deserialize)]
 pub struct DailyStatsQuery {
     pub date: NaiveDate,
 }
 
 /// 成本核算结果 DTO
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct CostAmountResult {
     pub amount: rust_decimal::Decimal,

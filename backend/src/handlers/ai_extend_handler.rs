@@ -34,6 +34,7 @@ use crate::utils::response::ApiResponse;
 // =====================================================
 
 /// V15 P1 1.3+8.1：推送工艺优化到化验室打样的请求体
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Default)]
 pub struct PushToLabDipDto {
     /// 可选：覆盖默认对色光源（D65）
@@ -43,12 +44,14 @@ pub struct PushToLabDipDto {
 }
 
 /// V15 P1 8.2：关联生产配方 ID 的请求体
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct LinkToProductionDto {
     pub production_recipe_id: i32,
 }
 
 /// V15 P1 2.1+8.3：回填质量预测实际结果的请求体
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct RecordActualResultDto {
     pub actual_risk_level: String,
@@ -56,6 +59,7 @@ pub struct RecordActualResultDto {
 }
 
 /// V15 P2 14.2.3：回填实际结果和索赔金额（误判成本追踪）的请求体
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct RecordActualGradeDto {
     pub actual_grade: String,
@@ -314,6 +318,7 @@ pub async fn ai_health() -> Result<Json<ApiResponse<serde_json::Value>>, AppErro
     }))))
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ByColorQuery {
     pub color_no: String,
@@ -343,6 +348,7 @@ pub async fn list_process_optimizations_by_color(
     }))))
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ByProductQuery {
     pub product_id: i64,
@@ -374,6 +380,7 @@ pub async fn list_quality_predictions_by_product(
 // 批量（2）
 // =====================================================
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct BatchProcessOptDto {
     pub requests: Vec<CreateProcessOptDto>,
@@ -442,6 +449,7 @@ pub async fn batch_create_process_optimizations(
     }))))
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct BatchQualityPredDto {
     pub requests: Vec<CreateQualityPredDto>,

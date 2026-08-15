@@ -51,6 +51,7 @@ fn order_link_service(state: &AppState) -> BusinessModeOrderLinkService {
 // 查询参数
 // ============================================================================
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct BusinessModeListQuery {
     pub page: Option<u64>,
@@ -63,12 +64,16 @@ pub struct BusinessModeListQuery {
     pub keyword: Option<String>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
+#[allow(dead_code, reason = "预留：按业务模式查询流程节点参数，待实现")]
 pub struct FlowStepListByModeQuery {}
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code, reason = "预留：按业务模式查询规则参数，待实现")]
 pub struct RuleListByModeQuery {}
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct OrderLinkListQuery {
     pub page: Option<u64>,
@@ -83,6 +88,7 @@ pub struct OrderLinkListQuery {
 // ============================================================================
 
 /// 业务模式完整详情响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct BusinessModeFullDetailResponse {
     pub config: business_mode_config::Model,

@@ -38,6 +38,7 @@ pub fn verify_zip_magic(data: &[u8]) -> bool {
     data.starts_with(&[0x50, 0x4B, 0x03, 0x04])
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, serde::Serialize)]
 pub struct VersionResponse {
     pub version: String,
@@ -45,6 +46,7 @@ pub struct VersionResponse {
     pub changelog: Option<String>,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, serde::Serialize)]
 pub struct UpdateStatusResponse {
     pub current_version: String,
@@ -53,6 +55,7 @@ pub struct UpdateStatusResponse {
     pub backup_versions: Vec<String>,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, serde::Serialize)]
 pub struct UpdateResult {
     pub success: bool,
@@ -60,6 +63,7 @@ pub struct UpdateResult {
     pub new_version: Option<String>,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, serde::Serialize)]
 pub struct CheckUpdateResponse {
     pub has_update: bool,
@@ -284,6 +288,7 @@ fn map_update_error(e: UpdateError) -> AppError {
     }
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, serde::Deserialize)]
 pub struct RollbackRequest {
     pub version: String,
@@ -315,6 +320,7 @@ pub async fn rollback_version(
     }
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, serde::Serialize)]
 pub struct LocalReleasesResponse {
     pub releases: Vec<LocalRelease>,
@@ -322,6 +328,7 @@ pub struct LocalReleasesResponse {
 }
 
 #[derive(Debug, serde::Serialize)]
+#[allow(dead_code, reason = "序列化输出字段")]
 pub struct CheckLocalUpdateResponse {
     pub has_update: bool,
     pub current_version: String,
@@ -356,6 +363,7 @@ pub async fn list_local_releases() -> Result<Json<ApiResponse<LocalReleasesRespo
     }
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, serde::Deserialize)]
 pub struct ApplyLocalUpdateRequest {
     pub version: String,

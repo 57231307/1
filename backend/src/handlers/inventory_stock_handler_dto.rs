@@ -6,6 +6,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateStockFabricRequest {
     #[validate(range(min = 1, message = "仓库ID必须大于0"))]
@@ -42,6 +43,7 @@ pub struct CreateStockFabricRequest {
     pub layer_no: Option<String>,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct StockResponse {
     pub id: i32,
@@ -58,6 +60,7 @@ pub struct StockResponse {
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateStockWithVersionRequest {
     pub quantity_on_hand: Option<Decimal>,
@@ -71,6 +74,7 @@ pub struct UpdateStockWithVersionRequest {
     pub version: i32,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct ListStockParams {
     #[validate(range(min = 0, message = "页码不能为负数"))]
@@ -83,6 +87,7 @@ pub struct ListStockParams {
     pub product_id: Option<i32>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct LowStockParams {
     pub warehouse_id: Option<i32>,
@@ -93,6 +98,7 @@ pub struct LowStockParams {
 // ========== 面料行业库存管理接口 ==========
 
 /// 按批次 + 色号查询库存（面料行业版）
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ListStockFabricParams {
     pub page: Option<u64>,
@@ -104,6 +110,7 @@ pub struct ListStockFabricParams {
     pub grade: Option<String>,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct StockFabricResponse {
     pub id: i32,
@@ -125,6 +132,7 @@ pub struct StockFabricResponse {
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ListTransactionParams {
     pub page: Option<u64>,
@@ -138,6 +146,7 @@ pub struct ListTransactionParams {
     pub end_date: Option<chrono::NaiveDateTime>,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Clone, Serialize)]
 pub struct TransactionResponse {
     pub id: i32,
@@ -158,6 +167,7 @@ pub struct TransactionResponse {
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct InventorySummaryItem {
     pub product_id: i32,

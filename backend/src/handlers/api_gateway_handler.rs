@@ -57,6 +57,7 @@ async fn ensure_can_manage_api_key(
 // ============== DTO ==============
 
 /// 查询参数（支持分页 + 关键词 + 状态过滤）
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ApiGwQuery {
     pub page: Option<u64>,
@@ -67,6 +68,7 @@ pub struct ApiGwQuery {
 }
 
 /// 创建/更新 API 端点请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpsertApiEndpointRequest {
     pub path: Option<String>,
@@ -90,6 +92,7 @@ pub struct UpsertApiEndpointRequest {
 }
 
 /// 更新 API 密钥请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateApiKeyGwRequest {
     pub key_name: Option<String>,
@@ -790,6 +793,7 @@ pub async fn regenerate_api_key(
 // ============== 请求 DTO ==============
 
 /// 创建 API 密钥请求（前端 key_name/permissions[]/rate_limit/expires_at）
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreateApiKeyGwRequest {
     pub key_name: String,

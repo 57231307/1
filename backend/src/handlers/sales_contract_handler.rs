@@ -23,6 +23,7 @@ use validator::Validate;
 
 /// 销售合同查询参数 DTO
 // V15 P0-S12 修复（Batch 475d）：派生 Clone，export_contracts 需要 clone 后覆盖分页参数用于全量导出
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Clone, Deserialize)]
 pub struct SalesContractQuery {
     pub keyword: Option<String>,
@@ -33,6 +34,7 @@ pub struct SalesContractQuery {
 }
 
 /// 创建销售合同请求 DTO
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CreateSalesContractRequestDto {
     pub contract_no: String,
@@ -48,6 +50,7 @@ pub struct CreateSalesContractRequestDto {
 }
 
 /// 创建合同明细行 DTO
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CreateContractItemDto {
     pub product_id: Option<i32>,
@@ -62,6 +65,7 @@ pub struct CreateContractItemDto {
 
 /// P1-2o 修复（批次 81 v1 复审）：更新销售合同请求 DTO
 /// 替代 update_contract 中的 Json<serde_json::Value>，提供强类型校验
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct UpdateSalesContractDto {
     /// 合同名称：可选
@@ -72,6 +76,7 @@ pub struct UpdateSalesContractDto {
 }
 
 /// 合同执行请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ExecuteSalesContractRequestDto {
     pub execution_type: String,
@@ -82,6 +87,7 @@ pub struct ExecuteSalesContractRequestDto {
 }
 
 /// 取消合同请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CancelSalesContractRequest {
     pub reason: String,

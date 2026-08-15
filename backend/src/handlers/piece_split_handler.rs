@@ -11,6 +11,7 @@ use crate::models::status::inventory_piece as piece_status;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Deserialize)]
 pub struct SplitPieceRequest {
     /// 母卷/原始布卷 ID
@@ -23,6 +24,7 @@ pub struct SplitPieceRequest {
     pub new_barcode: Option<String>,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Serialize)]
 pub struct SplitPieceResponse {
     pub message: String,

@@ -17,6 +17,7 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 /// 负荷分析查询参数（Handler 层）
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct LoadAnalysisParams {
     pub date_from: Option<String>,
@@ -111,6 +112,7 @@ pub async fn delete_work_center(
 }
 
 /// 产能预测查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CapacityForecastQuery {
     pub days: Option<i32>,
@@ -130,6 +132,7 @@ pub async fn forecast_capacity(
 }
 
 /// 可用产能查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct AvailableCapacityQuery {
     pub date_from: String,
@@ -155,6 +158,7 @@ pub async fn get_available_capacity(
 }
 
 /// 产能负荷预警查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct OverloadCheckQuery {
     pub threshold: Option<rust_decimal::Decimal>,

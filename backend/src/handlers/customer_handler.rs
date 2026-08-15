@@ -18,6 +18,7 @@ use crate::utils::response::ApiResponse;
 use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_with_watermark};
 
 /// 创建客户请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateCustomerRequest {
     #[validate(length(min = 1, max = 50, message = "客户编码长度必须在1到50个字符之间"))]
@@ -69,6 +70,7 @@ fn validate_customer_type(customer_type: &str) -> Result<(), validator::Validati
 }
 
 /// 更新客户请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateCustomerRequest {
     #[validate(length(min = 1, max = 200, message = "客户名称长度必须在1到200个字符之间"))]
@@ -370,6 +372,7 @@ pub async fn delete_customer(
 }
 
 /// 客户查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CustomerListQuery {
     pub page: Option<u64>,

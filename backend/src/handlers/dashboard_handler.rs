@@ -19,6 +19,7 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 /// 查询参数 - 仪表板
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct DashboardQuery {
     pub start_date: Option<NaiveDate>,
@@ -26,6 +27,7 @@ pub struct DashboardQuery {
 }
 
 /// 缺陷 4.1 修复：保存用户仪表板卡片布局请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct SaveLayoutRequest {
     /// 卡片配置 JSON（卡片顺序、可见性、尺寸等）
@@ -35,6 +37,7 @@ pub struct SaveLayoutRequest {
 }
 
 /// 缺陷 4.1 修复：用户仪表板布局响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, serde::Serialize)]
 pub struct DashboardLayoutResponse {
     pub user_id: i32,
@@ -190,6 +193,7 @@ pub async fn get_low_stock_alerts(
 }
 
 /// batch-17 P3: 系统资源看板数据
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, serde::Serialize)]
 pub struct SystemResourceDashboard {
     pub cpu_usage: f64,
@@ -271,6 +275,7 @@ pub async fn get_system_resources(
 }
 
 /// batch-21 P3: 缓存预热响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, serde::Serialize)]
 pub struct CacheWarmupResponse {
     pub success: bool,
@@ -317,6 +322,7 @@ pub async fn warmup_cache(
 }
 
 /// batch-17 P3: 网络指标数据
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, serde::Serialize)]
 pub struct NetworkMetrics {
     pub requests_per_second: f64,
@@ -347,6 +353,7 @@ pub async fn get_network_metrics(
 }
 
 /// batch-15 P3: 账龄档位配置
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, serde::Serialize)]
 pub struct AgingBucketConfig {
     pub buckets: Vec<AgingBucket>,
@@ -355,6 +362,7 @@ pub struct AgingBucketConfig {
 
 /// 账龄档位
 #[derive(Debug, serde::Serialize)]
+#[allow(dead_code, reason = "序列化输出字段")]
 pub struct AgingBucket {
     pub name: String,
     pub min_days: i32,
@@ -401,6 +409,7 @@ pub async fn get_aging_config(
 }
 
 /// batch-15 P3: 行业基准配置
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, serde::Serialize)]
 pub struct IndustryBenchmarkConfig {
     pub benchmarks: Vec<IndustryBenchmark>,
@@ -408,6 +417,7 @@ pub struct IndustryBenchmarkConfig {
 }
 
 /// 行业基准
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, serde::Serialize)]
 pub struct IndustryBenchmark {
     pub metric: String,

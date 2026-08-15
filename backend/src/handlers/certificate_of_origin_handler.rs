@@ -33,6 +33,7 @@ pub async fn get_certificate(
     Ok(Json(serde_json::json!(item)))
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Deserialize)]
 pub struct ListQuery {
     inspection_id: Option<i32>,

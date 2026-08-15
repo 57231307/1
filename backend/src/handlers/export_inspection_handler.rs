@@ -34,6 +34,7 @@ pub async fn get_inspection(
     Ok(Json(serde_json::json!(item)))
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Deserialize)]
 pub struct ListQuery {
     sales_order_id: Option<i32>,

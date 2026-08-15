@@ -22,6 +22,7 @@ use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
 use rust_decimal::Decimal;
 
 /// 查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct VoucherQuery {
     pub voucher_type: Option<String>,
@@ -35,6 +36,7 @@ pub struct VoucherQuery {
 }
 
 /// 创建请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 
 pub struct CreateVoucherRequestDto {
@@ -49,6 +51,7 @@ pub struct CreateVoucherRequestDto {
     pub items: Vec<VoucherItemDto>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 
 pub struct VoucherItemDto {
@@ -285,6 +288,7 @@ pub async fn generate_voucher_no(
 }
 
 /// 更新凭证请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, serde::Deserialize)]
 pub struct UpdateVoucherRequestDto {
     pub voucher_type: Option<String>,

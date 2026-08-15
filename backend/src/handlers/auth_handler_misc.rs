@@ -20,6 +20,7 @@ use axum_extra::extract::cookie::SameSite;
 use serde::{Deserialize, Serialize};
 use time::Duration as CookieDuration;
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct RefreshTokenResponse {
     pub csrf_token: String,
@@ -240,6 +241,7 @@ fn build_refresh_cookies(
     jar.add(new_access).add(new_refresh).add(new_csrf)
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct TotpSetupResponse {
     pub secret: String,
@@ -265,6 +267,7 @@ pub async fn setup_totp(
     }
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct TotpVerifyRequest {
     pub token: String,
@@ -335,6 +338,7 @@ pub async fn get_current_user(
 }
 
 /// P1-08-1：用户确认同意用户协议与隐私政策；记录同意时间到 users.agreed_to_terms_at，满足《个人信息保护法》第 14 条同意要求。
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct AgreeToTermsRequest {
     pub user_agreement_version: Option<String>,

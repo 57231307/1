@@ -16,12 +16,14 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 /// 缺料预警状态更新请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateStatusRequest {
     pub status: String,
 }
 
 /// 缺料预警数据传输对象
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MaterialShortageDto {
     pub id: i32,
@@ -40,6 +42,7 @@ pub struct MaterialShortageDto {
 }
 
 /// 缺料预警列表查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ShortageAlertParams {
     pub level: Option<String>,
@@ -48,6 +51,7 @@ pub struct ShortageAlertParams {
 }
 
 /// 缺料汇总查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ShortageSummaryParams {
     pub product_ids: Option<String>,
@@ -131,6 +135,7 @@ pub async fn get_shortage_summary(
 }
 
 /// 保存预警阈值配置请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct SaveThresholdConfigRequest {
     pub safety_factor: Option<rust_decimal::Decimal>,
@@ -227,6 +232,7 @@ pub async fn get_replenishment_suggestions(
 }
 
 /// 缺料月报查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct MonthlyReportParams {
     pub year: Option<i32>,
@@ -235,6 +241,7 @@ pub struct MonthlyReportParams {
 
 /// 缺料月报数据
 #[derive(Debug, Serialize)]
+#[allow(dead_code, reason = "序列化输出字段")]
 pub struct MonthlyShortageReport {
     pub year: i32,
     pub month: u32,
@@ -248,6 +255,7 @@ pub struct MonthlyShortageReport {
 }
 
 /// 缺料 Top 物料
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct TopShortageMaterial {
     pub material_id: i32,
@@ -258,6 +266,7 @@ pub struct TopShortageMaterial {
 }
 
 /// 状态分布
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct StatusDistribution {
     pub status: String,

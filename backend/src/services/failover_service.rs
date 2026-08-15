@@ -87,13 +87,13 @@ impl FailoverMetrics {
     }
 
     /// 记录主调用
-    #[allow(dead_code)]
+    #[allow(dead_code, reason = "预留")]
     pub fn record_primary(&self, function: &str) {
         self.primary_total.with_label_values(&[function]).inc();
     }
 
     /// 记录主调用失败
-    #[allow(dead_code)]
+    #[allow(dead_code, reason = "预留")]
     pub fn record_primary_failed(&self, function: &str) {
         self.primary_failed_total
             .with_label_values(&[function])
@@ -101,7 +101,7 @@ impl FailoverMetrics {
     }
 
     /// 记录备用调用
-    #[allow(dead_code)]
+    #[allow(dead_code, reason = "预留")]
     pub fn record_backup(&self, function: &str) {
         self.backup_total.with_label_values(&[function]).inc();
     }
@@ -112,7 +112,7 @@ impl FailoverMetrics {
     }
 
     /// 设置熔断器状态
-    #[allow(dead_code)]
+    #[allow(dead_code, reason = "预留")]
     pub fn set_circuit_state(&self, function: &str, state: i64) {
         self.circuit_state.with_label_values(&[function]).set(state);
     }

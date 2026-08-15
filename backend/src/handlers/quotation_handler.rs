@@ -37,6 +37,7 @@ use axum::{
 // ----------------------------------------------------------------------
 
 /// 列表查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ListQuotationsQuery {
     pub page: Option<u64>,
@@ -48,6 +49,7 @@ pub struct ListQuotationsQuery {
 }
 
 /// 列表响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct ListQuotationsResponse {
     pub list: Vec<QuotationResponseDto>,
@@ -57,18 +59,21 @@ pub struct ListQuotationsResponse {
 }
 
 /// 拒绝请求体
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct RejectRequest {
     pub reason: String,
 }
 
 /// 即将到期 / 已过期查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Default)]
 pub struct ExpiryQuery {
     pub days: Option<i32>,
 }
 
 /// 销售订单响应（简化）
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct SalesOrderResponse {
     pub id: i32,
@@ -426,6 +431,7 @@ pub async fn calculate_price(
 // ----------------------------------------------------------------------
 
 /// 色号价格列表分页查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ColorPriceListQuery {
     pub page: Option<u64>,
@@ -519,6 +525,7 @@ pub async fn set_color_price(
 use sea_orm::Set;
 
 /// 色号价格 upsert 请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ColorPriceUpsertRequest {
     pub id: Option<i64>,

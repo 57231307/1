@@ -10,6 +10,7 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 /// 核销查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ArVerificationQuery {
     pub page: Option<u64>,
@@ -20,6 +21,7 @@ pub struct ArVerificationQuery {
 }
 
 /// 手动核销请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ManualVerifyRequest {
     pub invoice_id: i32,

@@ -9,6 +9,7 @@ use crate::middleware::auth_context::AuthContext;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreateWebhookIntegrationRequest {
     pub name: String,
@@ -19,6 +20,7 @@ pub struct CreateWebhookIntegrationRequest {
 }
 
 /// 批次 113 P1-1：Webhook 集成更新请求 DTO；全字段 Option，仅更新传入的字段，未传入字段保持不变。 platform 字段不参与更新（前端语义：创建时确定平台，不可修改）。
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateWebhookIntegrationRequest {
     pub name: Option<String>,
@@ -27,6 +29,7 @@ pub struct UpdateWebhookIntegrationRequest {
     pub is_active: Option<bool>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct SendWebhookMessageRequest {
     pub integration_id: i32,
@@ -37,6 +40,7 @@ pub struct SendWebhookMessageRequest {
     pub title: Option<String>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct WebhookCallbackRequest {
     pub event_type: String,
@@ -44,6 +48,7 @@ pub struct WebhookCallbackRequest {
     pub payload: serde_json::Value,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct WebhookIntegrationItem {
     pub id: i32,
@@ -56,6 +61,7 @@ pub struct WebhookIntegrationItem {
     pub created_at: String,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct WebhookSendResult {
     pub message_id: String,
@@ -64,6 +70,7 @@ pub struct WebhookSendResult {
     pub sent_at: String,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct WebhookCallbackResult {
     pub received: bool,

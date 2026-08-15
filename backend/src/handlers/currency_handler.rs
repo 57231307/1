@@ -14,6 +14,7 @@ use crate::services::currency_service::{
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct CurrencyResponse {
     pub id: i32,
@@ -70,6 +71,7 @@ pub async fn set_base_currency(
     Ok(Json(ApiResponse::success(CurrencyResponse::from(model))))
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreateExchangeRateApiRequest {
     pub from_currency: String,
@@ -78,6 +80,7 @@ pub struct CreateExchangeRateApiRequest {
     pub effective_date: NaiveDate,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct ExchangeRateResponse {
     pub id: i32,
@@ -117,6 +120,7 @@ pub async fn create_exchange_rate(
     ))))
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct GetExchangeRateQuery {
     pub from_currency: String,
@@ -142,6 +146,7 @@ pub async fn get_exchange_rate(
     }
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ListExchangeRatesQuery {
     pub from_currency: Option<String>,
@@ -169,6 +174,7 @@ pub async fn list_exchange_rates(
 // 增强版合并自 currency_enhanced_handler.rs：汇率历史、金额换算、批量同步、支持币种
 // ============================================================================
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ExchangeRateHistoryQuery {
     pub from_currency: String,
@@ -179,6 +185,7 @@ pub struct ExchangeRateHistoryQuery {
     pub page_size: Option<u64>,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct ExchangeRateHistoryResponse {
     pub id: i32,
@@ -206,6 +213,7 @@ impl From<ExchangeRateHistoryModel> for ExchangeRateHistoryResponse {
     }
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ConvertAmountRequest {
     pub from_currency: String,
@@ -215,6 +223,7 @@ pub struct ConvertAmountRequest {
 }
 
 #[derive(Debug, Serialize)]
+#[allow(dead_code, reason = "序列化输出字段")]
 pub struct ConversionResultResponse {
     pub from_currency: String,
     pub to_currency: String,

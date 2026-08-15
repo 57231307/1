@@ -36,7 +36,7 @@ pub struct ScheduledOrder {
 }
 
 /// 时间槽
-#[allow(dead_code)]
+#[allow(dead_code, reason = "预留")]
 #[derive(Debug, Clone)]
 pub struct TimeSlot {
     pub start: NaiveDate,

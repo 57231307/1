@@ -45,6 +45,7 @@ pub struct CreateProcessOptDto {
 }
 
 #[derive(Debug, Serialize)]
+#[allow(dead_code, reason = "预留：工艺优化详情视图，待接入")]
 pub struct ProcessOptDetailVo {
     #[serde(flatten)]
     pub model: ProcessModel,

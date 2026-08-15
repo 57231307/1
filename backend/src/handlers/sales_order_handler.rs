@@ -16,6 +16,7 @@ use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::response::ApiResponse;
 
 /// 查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct SalesOrderQuery {
     pub page: Option<u64>,
@@ -27,6 +28,7 @@ pub struct SalesOrderQuery {
 
 /// P1-2d 修复（批次 81 v1 复审）：创建发货请求 DTO
 /// 替代 create_delivery 中的 Json<serde_json::Value>，提供强类型校验
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateDeliveryDto {
     /// 仓库 ID：可选，缺失时默认 0（保持原向后兼容逻辑）
@@ -444,6 +446,7 @@ pub async fn complete_order(
 
 /// 查询订单变更历史
 /// GET /api/v1/erp/sales/orders/:id/history
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct HistoryQuery {
     pub page: Option<u64>,
@@ -697,6 +700,7 @@ pub async fn cancel_delivery(
 }
 
 /// 取消发货单请求 DTO（批次 216 P2-1）
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CancelDeliveryRequest {
     #[validate(length(min = 1, max = 500, message = "取消原因不能为空且最长500字符"))]

@@ -21,6 +21,7 @@ use validator::Validate;
 
 /// P1-2j 修复（批次 81 v1 复审）：更新固定资产请求 DTO
 /// 替代 update_asset 中的 Json<serde_json::Value>，提供强类型校验
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateAssetDto {
     /// 资产名称：可选
@@ -37,6 +38,7 @@ pub struct UpdateAssetDto {
 
 /// 资产查询参数 DTO
 // V15 P0-S12 修复（Batch 475e）：派生 Clone，export_assets 需要 clone 后覆盖分页参数用于全量导出
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Clone, Deserialize)]
 pub struct AssetQuery {
     pub keyword: Option<String>,
@@ -47,6 +49,7 @@ pub struct AssetQuery {
 }
 
 /// 创建资产请求 DTO
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CreateAssetRequestDto {
     pub asset_no: Option<String>,
@@ -64,12 +67,14 @@ pub struct CreateAssetRequestDto {
 }
 
 /// 计提折旧请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct DepreciateRequest {
     pub period: String,
 }
 
 /// 资产处置请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct DisposalRequestDto {
     pub disposal_type: String,
@@ -312,6 +317,7 @@ pub async fn batch_depreciate(
 
 /// 折旧计算请求
 // 批次 94 P2-9 修复：移除 user_id 字段（鉴权信息应来自 AuthContext 而非请求体，避免伪造）
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct BatchDepreciateRequest {
     pub asset_ids: Vec<i32>,
@@ -448,6 +454,7 @@ pub async fn export_assets(
 }
 
 /// V15 P1 17.8-D5：创建资产减值测试请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateImpairmentTestDto {
     /// 资产 ID
@@ -522,6 +529,7 @@ pub async fn approve_impairment_test(
 }
 
 /// V15 P1 17.8-D6：创建折旧政策变更请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateDepreciationPolicyChangeDto {
     /// 资产 ID
@@ -607,6 +615,7 @@ pub async fn approve_depreciation_policy_change(
 }
 
 /// 自动折旧请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, serde::Deserialize)]
 pub struct AutoDepreciationRequestDto {
     pub period: String,
@@ -630,6 +639,7 @@ pub async fn auto_monthly_depreciation(
 }
 
 /// 盘点计划请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, serde::Deserialize)]
 pub struct CreateCountPlanRequestDto {
     pub plan_name: String,
@@ -666,6 +676,7 @@ pub async fn create_count_plan(
 }
 
 /// 盘点记录请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, serde::Deserialize)]
 pub struct RecordCountItemRequestDto {
     pub count_id: i32,

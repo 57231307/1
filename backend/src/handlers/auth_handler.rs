@@ -30,6 +30,7 @@ use validator::Validate;
 const MAX_FAILED_ATTEMPTS: i32 = 5;
 const LOCKOUT_DURATION_MINUTES: i64 = 30;
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct LoginRequest {
     #[validate(length(min = 3, max = 50, message = "用户名长度必须在3到50个字符之间"))]
@@ -54,6 +55,7 @@ pub struct LoginRequest {
 
 /// 登录响应 DTO - 不再返回 `token`（#10）：access_token 已在 httpOnly Cookie 写入 - 不再返回 `refresh_token`（#13）
 /// refresh_token 已在 httpOnly Cookie 写入 - 仍返回 `csrf_token`：前端 form header 需携带，且由非 httpOnly Cookie 暴露给 JS
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize, ToSchema)]
 pub struct LoginResponse {
     pub csrf_token: String,
@@ -64,6 +66,7 @@ pub struct LoginResponse {
     pub password_expired: bool,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize, ToSchema)]
 pub struct UserInfo {
     pub id: i32,

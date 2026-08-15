@@ -51,6 +51,7 @@ fn operation_service(state: &AppState) -> DyeBatchOperationService {
 // ============================================================================
 
 /// 生命周期日志列表查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct LifecycleLogListQuery {
     pub page: Option<u64>,
@@ -62,6 +63,7 @@ pub struct LifecycleLogListQuery {
 }
 
 /// 状态规则列表查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct StateRuleListQuery {
     pub page: Option<u64>,
@@ -73,6 +75,7 @@ pub struct StateRuleListQuery {
 }
 
 /// 校验状态流转合法性查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CheckTransitionQuery {
     pub from_status: Option<String>,
@@ -81,12 +84,14 @@ pub struct CheckTransitionQuery {
 }
 
 /// 查询允许的流转列表参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct AllowedTransitionsQuery {
     pub from_status: Option<String>,
 }
 
 /// 回修记录列表查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ReworkListQuery {
     pub page: Option<u64>,
@@ -99,6 +104,7 @@ pub struct ReworkListQuery {
 }
 
 /// 操作记录列表查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct OperationListQuery {
     pub page: Option<u64>,
@@ -109,6 +115,7 @@ pub struct OperationListQuery {
 }
 
 /// 审批回修单请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ApproveReworkRequest {
     pub approved_by: i32,

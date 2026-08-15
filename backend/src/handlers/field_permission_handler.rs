@@ -27,6 +27,7 @@ async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), 
 }
 
 /// 字段权限响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct FieldPermissionResponse {
     pub id: i32,
@@ -42,6 +43,7 @@ pub struct FieldPermissionResponse {
 }
 
 /// 字段权限列表查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct FieldPermissionQuery {
     pub resource_type: Option<String>,
@@ -49,6 +51,7 @@ pub struct FieldPermissionQuery {
 }
 
 /// 创建字段权限请求体
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreateFieldPermissionPayload {
     pub role_id: i32,
@@ -60,6 +63,7 @@ pub struct CreateFieldPermissionPayload {
 }
 
 /// 更新字段权限请求体
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateFieldPermissionPayload {
     pub can_read: Option<bool>,

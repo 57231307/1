@@ -15,12 +15,14 @@ use crate::models::status::inventory_piece as piece_status;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Deserialize)]
 pub struct ScanToShipRequest {
     pub barcode: String,
     pub order_id: i32,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Deserialize)]
 pub struct ScanToShipQuery {
     pub barcode: Option<String>,
@@ -30,12 +32,14 @@ pub struct ScanToShipQuery {
 }
 
 /// 扫码盘库请求参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ScanInventoryParams {
     pub barcode: Option<String>,
 }
 
 /// 扫码历史查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ScanHistoryQuery {
     pub page: Option<u64>,
@@ -140,6 +144,7 @@ pub async fn scan_inventory(
 }
 
 /// 按匹号发货请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Deserialize)]
 pub struct ShipByPieceNoRequest {
     pub piece_no: String,
@@ -286,6 +291,7 @@ pub async fn scan_statistics(
     }))))
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(serde::Serialize, sea_orm::FromQueryResult)]
 struct ScanStatisticsRow {
     pub available_count: i64,

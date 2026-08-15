@@ -39,6 +39,7 @@ use crate::utils::response::ApiResponse;
 // ----------------------------------------------------------------------
 
 /// 列表查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ListCustomOrdersQuery {
     pub page: Option<u64>,
@@ -49,6 +50,7 @@ pub struct ListCustomOrdersQuery {
 }
 
 /// 推进请求体
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct AdvanceRequest {
     pub operator_id: i64,
@@ -580,6 +582,7 @@ pub async fn report_quality_issue(
 }
 
 /// GET /api/v1/erp/custom-orders/:id/issues - 异常列表
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ListIssuesQuery {
     pub page: Option<u64>,

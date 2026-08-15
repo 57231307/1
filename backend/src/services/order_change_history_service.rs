@@ -16,6 +16,7 @@ pub struct OrderChangeHistoryService {
 
 /// 订单变更历史记录参数对象（批次 332 v10 复审 P3 修复：引入参数对象消除 record_change 的 too_many_arguments 警告。；聚合订单变更所需的全部字段，避免函数签名携带 9 个参数。）
 #[derive(Debug, Clone)]
+#[allow(dead_code, reason = "预留：订单变更历史记录，待接入")]
 pub struct OrderChangeRecord {
     /// 订单 ID
     pub order_id: i32,

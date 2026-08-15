@@ -6,6 +6,7 @@ use crate::utils::dual_unit_converter::DualUnitConverter;
 use crate::utils::error::AppError;
 
 /// 单位换算请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ConvertUnitRequest {
     /// 原始数值
@@ -19,6 +20,7 @@ pub struct ConvertUnitRequest {
 }
 
 /// 单位换算响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct ConvertUnitResponse {
     /// 换算后的数值
@@ -94,6 +96,7 @@ pub async fn convert_dual_unit(
 }
 
 /// 验证双计量单位一致性请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ValidateDualUnitRequest {
     /// 米数
@@ -109,6 +112,7 @@ pub struct ValidateDualUnitRequest {
 }
 
 /// 验证双计量单位一致性响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct ValidateDualUnitResponse {
     /// 是否一致

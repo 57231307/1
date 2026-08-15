@@ -46,7 +46,7 @@ pub struct CreditRatingRequest {
     /// 信用额度。None 表示更新时保持原值；Some(v) 表示显式设置（含 Some(0)）。
     pub credit_limit: Option<Decimal>,
     pub credit_days: Option<i32>,
-    #[allow(dead_code)]
+    #[allow(dead_code, reason = "预留")]
     pub remark: Option<String>,
 }
 
@@ -56,7 +56,7 @@ pub struct CreditLimitAdjustmentRequest {
     pub customer_id: i32,
     pub adjustment_type: String,
     pub amount: Decimal,
-    #[allow(dead_code)]
+    #[allow(dead_code, reason = "预留")]
     pub reason: String,
 }
 

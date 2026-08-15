@@ -314,6 +314,7 @@ pub async fn calculate_color_price(
 }
 
 /// 价格计算查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, serde::Deserialize)]
 pub struct PriceCalcQuery {
     pub product_id: i64,

@@ -1,9 +1,9 @@
 //! 合规预警服务
 //! V15 P2 B08-12：假冒伪劣/虚假宣传/商业贿赂预警
-#[allow(dead_code)]
+#[allow(dead_code, reason = "预留")]
 pub struct ComplianceAlertService;
 
-#[allow(dead_code)]
+#[allow(dead_code, reason = "预留")]
 impl ComplianceAlertService {
     /// 检查价格异常（低于市场均价 50% 可能为假冒伪劣）
     pub fn check_price_anomaly(

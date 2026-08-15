@@ -488,6 +488,7 @@ pub struct SubjectTreeNode {
 
 /// 科目余额
 #[derive(Debug, Clone)]
+#[allow(dead_code, reason = "预留：科目余额，待接入")]
 pub struct SubjectBalance {
     pub subject_id: i32,
     pub period: String,

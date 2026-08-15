@@ -25,6 +25,7 @@ use crate::utils::xlsx_export::build_xlsx_response;
 use std::sync::Arc;
 
 /// MRP计算请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct MrpCalculatePayload {
     #[validate(length(min = 1, message = "计算项不能为空"))]
@@ -36,6 +37,7 @@ pub struct MrpCalculatePayload {
 }
 
 /// MRP计算项
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct MrpCalculateItemPayload {
     pub product_id: i32,
@@ -44,6 +46,7 @@ pub struct MrpCalculateItemPayload {
 }
 
 /// MRP结果响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct MrpResultResponse {
     pub id: i32,
@@ -62,6 +65,7 @@ pub struct MrpResultResponse {
 }
 
 /// MRP计算结果摘要响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct MrpCalculationSummaryResponse {
     pub calculation_no: String,
@@ -72,6 +76,7 @@ pub struct MrpCalculationSummaryResponse {
 }
 
 /// 物料需求响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct MaterialRequirementResponse {
     pub product_id: i32,
@@ -88,6 +93,7 @@ pub struct MaterialRequirementResponse {
 }
 
 /// MRP结果查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct MrpResultQuery {
     pub calculation_no: Option<String>,
@@ -98,6 +104,7 @@ pub struct MrpResultQuery {
 }
 
 /// 物料需求查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct MrpRequirementQuery {
     pub product_id: Option<i32>,
@@ -107,12 +114,14 @@ pub struct MrpRequirementQuery {
 }
 
 /// MRP产品查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct MrpProductQuery {
     pub keyword: Option<String>,
 }
 
 /// 订单转换请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct ConvertOrderPayload {
     #[validate(length(min = 1, message = "结果ID不能为空"))]

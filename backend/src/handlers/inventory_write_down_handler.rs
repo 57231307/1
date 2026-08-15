@@ -21,6 +21,7 @@ use axum::{
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct WriteDownQuery {
     pub product_id: Option<i32>,
@@ -29,6 +30,7 @@ pub struct WriteDownQuery {
     pub page_size: Option<u64>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreateWriteDownPayload {
     pub product_id: i32,
@@ -39,6 +41,7 @@ pub struct CreateWriteDownPayload {
     pub period: chrono::NaiveDate,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct WriteDownResponse {
     pub id: i32,

@@ -16,6 +16,7 @@ use serde::Deserialize;
 use tracing::info;
 
 /// 查询参数 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct SnapshotQuery {
     pub period_id: Option<i32>,
@@ -25,6 +26,7 @@ pub struct SnapshotQuery {
 }
 
 /// 创建请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreateSnapshotDto {
     pub period_id: i32,

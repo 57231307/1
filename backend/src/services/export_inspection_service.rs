@@ -5,12 +5,12 @@ use crate::utils::error::AppError;
 use sea_orm::*;
 use std::sync::Arc;
 
-#[allow(dead_code)]
+#[allow(dead_code, reason = "预留")]
 pub struct ExportInspectionService {
     db: Arc<DatabaseConnection>,
 }
 
-#[allow(dead_code)]
+#[allow(dead_code, reason = "预留")]
 impl ExportInspectionService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
@@ -89,7 +89,7 @@ impl ExportInspectionService {
     }
 }
 
-#[allow(dead_code)]
+#[allow(dead_code, reason = "预留")]
 pub struct ListParams {
     pub sales_order_id: Option<i32>,
     pub inspection_no: Option<String>,
@@ -98,7 +98,7 @@ pub struct ListParams {
     pub page_size: Option<u64>,
 }
 
-#[allow(dead_code)]
+#[allow(dead_code, reason = "预留")]
 pub struct CreateInspectionReq {
     pub inspection_no: String,
     pub sales_order_id: i32,

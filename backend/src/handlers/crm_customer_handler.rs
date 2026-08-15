@@ -22,6 +22,7 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 /// 客户查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CustomerQueryParams {
     pub page: Option<u64>,
@@ -33,6 +34,7 @@ pub struct CustomerQueryParams {
 
 /// P1-2h 修复（批次 81 v1 复审）：添加标签请求 DTO
 /// 替代 add_tags 中的 Json<serde_json::Value>，提供强类型校验
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct AddTagsDto {
     /// 标签列表：必填，至少 1 个标签
@@ -42,6 +44,7 @@ pub struct AddTagsDto {
 
 /// P1-2h 修复（批次 81 v1 复审）：创建标签请求 DTO
 /// 批次 122 v8 复审 P1 修复：增加 category 字段，真实持久化到 crm_tag 表
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateTagDto {
     /// 标签名称：必填，长度至少 1

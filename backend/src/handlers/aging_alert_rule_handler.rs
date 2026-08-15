@@ -16,6 +16,7 @@ use serde::Deserialize;
 use tracing::info;
 
 /// 查询参数 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct AlertRuleQuery {
     pub aging_bucket: Option<String>,
@@ -26,6 +27,7 @@ pub struct AlertRuleQuery {
 }
 
 /// 创建请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreateAlertRuleDto {
     pub rule_name: String,
@@ -41,6 +43,7 @@ pub struct CreateAlertRuleDto {
 }
 
 /// 更新请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateAlertRuleDto {
     pub rule_name: Option<String>,

@@ -23,6 +23,7 @@ use tracing::{info, warn};
 use validator::Validate;
 
 /// 查询付款申请列表参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ApPaymentRequestQueryParams {
     pub supplier_id: Option<i32>,
@@ -330,6 +331,7 @@ pub async fn approve_request(
 }
 
 /// 拒绝付款申请
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct RejectRequest {
     pub reason: String,

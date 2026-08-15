@@ -30,6 +30,7 @@ use crate::utils::response::ApiResponse;
 // ==================== 响应 DTO ====================
 
 /// 设备连接信息（响应前端用，与 Model 字段一一对应）
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize, Clone)]
 pub struct DeviceConnectionInfo {
     pub id: i64,
@@ -74,6 +75,7 @@ impl From<Model> for DeviceConnectionInfo {
 }
 
 /// 在线设备数响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize, Clone)]
 pub struct OnlineCountResponse {
     pub online_count: u64,
@@ -81,6 +83,7 @@ pub struct OnlineCountResponse {
 }
 
 /// 超时清理手动触发请求（运维排障用）
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct CleanupTimeoutRequest {
     /// 心跳超时阈值（秒，默认 300=5 分钟）
@@ -88,6 +91,7 @@ pub struct CleanupTimeoutRequest {
 }
 
 /// 超时清理响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize, Clone)]
 pub struct CleanupTimeoutResponse {
     pub timed_out_count: u64,
@@ -179,6 +183,7 @@ pub async fn count_online(
 }
 
 /// 在线设备数查询参数
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct OnlineCountQuery {
     pub workshop: Option<String>,

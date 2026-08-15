@@ -20,6 +20,7 @@ use validator::Validate;
 // 统一追加 round_dp(2) 精度校验。#[validate(custom)] 引用改为 crate::utils::validator::validate_amount_range。
 
 /// 客户信用查询参数 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreditQuery {
     pub customer_id: Option<i32>,
@@ -31,6 +32,7 @@ pub struct CreditQuery {
 
 /// 创建/更新信用评级请求 DTO；P1-2b 修复（批次 81 v1 复审）：添加 Validate + 字段校验，用于 create_credit
 /// 批次 414 技术债务修复：credit_limit 改为 Option<Decimal>，区分"未提供"与"显式置 0"
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct CreditRatingRequestDto {
     pub customer_id: i32,
@@ -48,6 +50,7 @@ pub struct CreditRatingRequestDto {
 
 /// P1-2b 修复（批次 81 v1 复审）：更新客户信用请求 DTO
 /// 用于 update_credit，所有字段可选（仅更新提交的字段）
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct UpdateCreditDto {
     #[validate(length(max = 20, message = "信用等级长度不能超过20字符"))]
@@ -61,6 +64,7 @@ pub struct UpdateCreditDto {
 
 /// 信用额度调整请求 DTO
 /// 批次 31 v7 P1-6 修复：添加 Validate + 字段验证
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreditLimitAdjustmentRequestDto {
     #[validate(length(min = 1, max = 20, message = "调整类型长度必须在1到20字符之间"))]
@@ -73,6 +77,7 @@ pub struct CreditLimitAdjustmentRequestDto {
 
 /// 占用/释放信用额度请求 DTO
 /// 批次 31 v7 P1-6 修复：添加 Validate + 字段验证
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreditAmountRequest {
     #[validate(custom(function = "crate::utils::validator::validate_amount_range"))]
@@ -342,6 +347,7 @@ pub async fn delete_credit(
 }
 
 /// 信用评估模型请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreditEvaluationRequest {
     pub customer_id: i32,

@@ -54,6 +54,7 @@ fn voucher_service(state: &AppState) -> OutsourcingVoucherService {
 // 查询参数（HTTP Query 转 Service Query）
 // ============================================================================
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct OutsourcingOrderListQuery {
     pub page: Option<u64>,
@@ -69,11 +70,14 @@ pub struct OutsourcingOrderListQuery {
     pub keyword: Option<String>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
+#[allow(dead_code, reason = "预留：委外订单明细查询参数，待实现")]
 pub struct OutsourcingOrderItemListQuery {
     // 按委外订单查询明细（路径参数 order_id 提供）
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct OutsourcingReceiptListQuery {
     pub page: Option<u64>,
@@ -86,6 +90,7 @@ pub struct OutsourcingReceiptListQuery {
     pub receipt_date_to: Option<chrono::NaiveDate>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct OutsourcingVoucherListQuery {
     pub page: Option<u64>,

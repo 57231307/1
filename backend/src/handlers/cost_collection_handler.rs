@@ -25,6 +25,7 @@ use rust_decimal::Decimal;
 
 /// 查询参数
 // V15 P0-S12 修复（Batch 475e）：派生 Clone，export_collections 需要 clone 后覆盖分页参数用于全量导出
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Clone, Deserialize)]
 pub struct CostCollectionQuery {
     pub batch_no: Option<String>,
@@ -34,6 +35,7 @@ pub struct CostCollectionQuery {
 }
 
 /// 创建请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 
 pub struct CreateCostCollectionRequestDto {
@@ -174,6 +176,7 @@ pub async fn delete_collection(
 }
 
 /// 成本分析查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CostAnalysisQuery {
     pub start_date: Option<String>,
@@ -200,6 +203,7 @@ pub async fn get_cost_analysis_summary(
 }
 
 /// 按批次查询成本参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CostByBatchQuery {
     pub batch_no: Option<String>,
@@ -243,6 +247,7 @@ pub async fn audit_collection(
 }
 
 /// 审核请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct AuditCostRequest {
     pub approved: bool,

@@ -14,6 +14,7 @@ use crate::utils::response::ApiResponse;
 // 统一追加 round_dp(2) 精度校验。#[validate(custom)] 引用改为 crate::utils::validator::validate_amount_range。
 
 /// 收款查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ArPaymentQuery {
     pub page: Option<u64>,
@@ -25,6 +26,7 @@ pub struct ArPaymentQuery {
 
 /// 创建收款请求
 /// 批次 31 v7 P1-6 修复：添加 Validate + 字段验证
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateArPaymentRequest {
     pub customer_id: i32,
@@ -41,6 +43,7 @@ pub struct CreateArPaymentRequest {
 }
 
 /// 更新收款请求
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct UpdateArPaymentRequest {
     pub amount: Option<rust_decimal::Decimal>,

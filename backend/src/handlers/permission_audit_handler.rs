@@ -12,6 +12,7 @@ use crate::utils::admin_checker::is_admin_role;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct PermissionAuditQuery {
     pub change_type: Option<String>,

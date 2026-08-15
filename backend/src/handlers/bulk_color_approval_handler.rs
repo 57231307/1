@@ -39,6 +39,7 @@ use crate::utils::response::ApiResponse;
 // ==================== DTO 定义 ====================
 
 /// 创建批色记录请求 DTO
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct CreateBulkColorApprovalDto {
     pub sales_order_id: i32,
@@ -54,6 +55,7 @@ pub struct CreateBulkColorApprovalDto {
 }
 
 /// 剪大货样请求 DTO（P0-F16）
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct CutSampleDto {
     pub sample_length_m: Decimal,
@@ -63,18 +65,21 @@ pub struct CutSampleDto {
 }
 
 /// 客户批色确认请求 DTO（P0-F17）
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct CustomerApproveDto {
     pub feedback: Option<String>,
     pub delta_e_value: Option<Decimal>,
 }
 
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct CustomerRejectDto {
     pub reject_reason: String,
     pub feedback: Option<String>,
 }
 
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct CustomerReworkDto {
     pub reject_reason: String,
@@ -82,10 +87,12 @@ pub struct CustomerReworkDto {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 pub struct DowngradeDto {
     pub reject_reason: String,
 }
 
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ScrapDto {
     pub reject_reason: String,
@@ -93,6 +100,7 @@ pub struct ScrapDto {
 
 /// 批色记录响应 DTO
 #[derive(Debug, Serialize, Clone)]
+#[allow(dead_code, reason = "序列化输出字段")]
 pub struct BulkColorApprovalInfo {
     pub id: i64,
     pub sales_order_id: i32,
@@ -152,6 +160,7 @@ impl From<bulk_color_approval::Model> for BulkColorApprovalInfo {
 }
 
 /// 通用分页响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize, Clone)]
 pub struct BulkColorApprovalPagedResponse<T> {
     pub items: Vec<T>,
@@ -161,6 +170,7 @@ pub struct BulkColorApprovalPagedResponse<T> {
 }
 
 /// P1-10：批色状态变更历史响应 DTO
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize, Clone)]
 pub struct BulkColorApprovalHistoryInfo {
     pub id: i64,
@@ -189,12 +199,14 @@ impl From<bulk_color_approval_history::Model> for BulkColorApprovalHistoryInfo {
 }
 
 /// P1-10：提醒查询参数（threshold_hours 默认 72 小时 = 3 天）
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ReminderQuery {
     pub threshold_hours: Option<i64>,
 }
 
 /// P1-10：提醒发送结果
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize, Clone)]
 pub struct ReminderSendResult {
     pub sent_count: usize,
@@ -202,6 +214,7 @@ pub struct ReminderSendResult {
 }
 
 /// P1-10：批色报表查询参数
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct ReportQuery {
     pub from_date: Option<DateTime<Utc>>,
@@ -211,6 +224,7 @@ pub struct ReportQuery {
 }
 
 /// P1-10：批色统计查询参数
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct StatisticsQuery {
     pub from_date: Option<DateTime<Utc>>,
@@ -491,6 +505,7 @@ pub async fn send_customer_followup_reminders(
 }
 
 /// 超时检查请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct TimeoutCheckQuery {
     /// 提醒天数（默认 3 天）

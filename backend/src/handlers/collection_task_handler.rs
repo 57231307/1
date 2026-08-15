@@ -31,6 +31,7 @@ use crate::utils::response::ApiResponse;
 // ==================== 响应 DTO ====================
 
 /// 催收任务响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize, Clone)]
 pub struct TaskInfo {
     pub id: i64,
@@ -83,6 +84,7 @@ impl From<collection_task::Model> for TaskInfo {
 }
 
 /// 分页响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize, Clone)]
 pub struct PagedResponse<T> {
     pub items: Vec<T>,
@@ -92,6 +94,7 @@ pub struct PagedResponse<T> {
 }
 
 /// 批量生成响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize, Clone)]
 pub struct AutoGenerateResponse {
     pub created: Vec<TaskInfo>,

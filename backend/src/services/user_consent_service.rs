@@ -42,6 +42,7 @@ pub struct RecordConsentRequest {
 
 /// 同意状态查询参数
 #[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code, reason = "预留：同意状态查询参数，待接入")]
 pub struct ConsentStatusQuery {
     /// 同意类型（不传则返回所有类型的最新状态）
     pub consent_type: Option<String>,
