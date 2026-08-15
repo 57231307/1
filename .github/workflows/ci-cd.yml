@@ -1264,9 +1264,20 @@ jobs:
             echo "**失败**: $FAILED  "
             echo "**总计**: $TOTAL  "
             echo "**行覆盖率**: $COVERAGE_SUMMARY  "
+            echo "**EXIT_CODE**: $EXIT_CODE  "
             echo "**工具**: cargo-llvm-cov nextest（source-based instrumentation）"
             echo ""
-            if [ "$FAILED" -eq "0" ]; then
+            if [ "$EXIT_CODE" -ne "0" ] && [ "$FAILED" -eq "0" ]; then
+              echo "## ❌ 测试编译失败或进程异常退出（EXIT_CODE=$EXIT_CODE）"
+              echo ""
+              echo "### 编译错误摘要"
+              echo ""
+              grep -E "^error\[" reports/llvm-cov-nextest-output.txt 2>/dev/null | head -20
+              echo ""
+              echo "### 完整输出（最后 50 行）"
+              echo ""
+              tail -50 reports/llvm-cov-nextest-output.txt 2>/dev/null
+            elif [ "$FAILED" -eq "0" ]; then
               echo "## ✅ 所有 $PASSED 个测试通过（零容忍通过）"
               echo ""
               echo "覆盖率：$COVERAGE_SUMMARY（信息性，不阻塞 CI）"
@@ -1286,7 +1297,9 @@ jobs:
           {
             echo "## Rust 测试 + 覆盖率"
             echo ""
-            if [ "$FAILED" -eq "0" ]; then
+            if [ "$EXIT_CODE" -ne "0" ] && [ "$FAILED" -eq "0" ]; then
+              echo "❌ 编译失败或进程异常退出（EXIT_CODE=$EXIT_CODE）"
+            elif [ "$FAILED" -eq "0" ]; then
               echo "✅ 通过 $PASSED / $TOTAL（零容忍模式）"
               echo "📊 行覆盖率：$COVERAGE_SUMMARY"
             else
@@ -1299,6 +1312,15 @@ jobs:
             echo ""
             echo "❌ 发现 $FAILED 个测试失败，CI 失败（零容忍）"
             echo "详见 reports/cargo-test-report.md 和 artifacts"
+            exit 1
+          fi
+          # 检查 EXIT_CODE：覆盖编译失败、panic、OOM、信号终止等场景
+          # 此时 FAILED=0，但进程异常退出，必须阻塞 CI
+          if [ "$EXIT_CODE" -ne "0" ]; then
+            echo ""
+            echo "❌ 测试进程异常退出（EXIT_CODE=$EXIT_CODE），CI 失败"
+            echo "可能原因：编译失败、panic、OOM、信号终止"
+            echo "详见 reports/llvm-cov-nextest-output.txt"
             exit 1
           fi
           echo "✅ 所有 $PASSED 个测试通过（覆盖率：$COVERAGE_SUMMARY）"
