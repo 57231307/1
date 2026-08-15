@@ -1,6 +1,6 @@
 use axum::{
-    extract::{Query, State},
     Json,
+    extract::{Query, State},
 };
 use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};
 use serde::Deserialize;
@@ -62,10 +62,7 @@ pub async fn list_permission_audits(
         finder = finder.filter(permission_change_audit::Column::ResourceType.eq(rt.as_str()));
     }
     if let Some(start) = query.start_date {
-        let start_dt = start
-            .and_hms_opt(0, 0, 0)
-            .unwrap_or_default()
-            .and_utc();
+        let start_dt = start.and_hms_opt(0, 0, 0).unwrap_or_default().and_utc();
         finder = finder.filter(permission_change_audit::Column::ChangedAt.gte(start_dt));
     }
     if let Some(end) = query.end_date {

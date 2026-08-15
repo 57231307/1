@@ -83,7 +83,8 @@ impl PeriodReportSnapshotService {
             query = query.filter(period_report_snapshot::Column::PeriodId.eq(period_id));
         }
         if let Some(ref report_type) = params.report_type {
-            query = query.filter(period_report_snapshot::Column::ReportType.eq(report_type.as_str()));
+            query =
+                query.filter(period_report_snapshot::Column::ReportType.eq(report_type.as_str()));
         }
 
         let total = query.clone().count(&*self.db).await?;

@@ -15,10 +15,10 @@ use crate::models::notification::{
 };
 use crate::models::notification_setting::{self, Entity as NotificationSettingEntity};
 use crate::utils::error::AppError;
-use crate::websocket::notifications::{get_notification_broadcaster, NotificationPayload};
+use crate::websocket::notifications::{NotificationPayload, get_notification_broadcaster};
 
 /// 将数据库 notification::Model 转为 WebSocket 推送载荷（批次 24 v6 P0-2 修复：通知创建后实时推送至在线 ws 客户端）
-fn build_payload_from_notification(n: &notification::Model) -> NotificationPayload {
+pub fn build_payload_from_notification(n: &notification::Model) -> NotificationPayload {
     let priority_value = match n.priority {
         NotificationPriority::Low => 1,
         NotificationPriority::Normal => 5,
@@ -53,7 +53,7 @@ pub struct CreateNotificationRequest {
 }
 
 /// 缺陷 5.2 修复：去重窗口（5 分钟）
-const DEDUP_WINDOW_SECS: i64 = 300;
+pub const DEDUP_WINDOW_SECS: i64 = 300;
 
 /// V15 P2 缺陷 7.3：库存告警去重窗口（24 小时）
 pub const INVENTORY_ALERT_DEDUP_WINDOW_SECS: i64 = 86400;
@@ -157,7 +157,10 @@ impl NotificationService {
         window_secs: i64,
     ) -> Result<notification::Model, AppError> {
         if let Some(key) = req.dedup_key.as_deref() {
-            if self.check_dedup_window(req.user_id, key, window_secs).await? {
+            if self
+                .check_dedup_window(req.user_id, key, window_secs)
+                .await?
+            {
                 return Err(AppError::validation(format!(
                     "通知去重：{} 秒窗口内已存在相同 dedup_key",
                     window_secs

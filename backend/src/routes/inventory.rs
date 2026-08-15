@@ -9,8 +9,8 @@
 
 use crate::container::AppState;
 use axum::{
-    routing::{delete, get, post, put},
     Router,
+    routing::{delete, get, post, put},
 };
 
 // v11 批次 143 P1-1：inventory_count_handler 已真实实现（盘点单 CRUD + 差异计算 + 审批流）

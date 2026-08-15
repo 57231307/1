@@ -5,7 +5,7 @@
 use crate::models::status::sales_return as sr_status;
 use crate::models::{inventory_stock, product, sales_return, sales_return_item};
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 use chrono::Utc;

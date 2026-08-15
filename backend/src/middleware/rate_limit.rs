@@ -2,8 +2,8 @@ use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::utils::error::AppError;
 use axum::{body::Body, extract::State, http::Request, middleware::Next, response::Response};
-use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
+use redis::aio::ConnectionManager;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::LazyLock;
@@ -163,7 +163,7 @@ async fn get_redis_rate_limiter() -> Option<Arc<tokio::sync::Mutex<ConnectionMan
 
 /// 分布式限流检查（Redis 后端）；参数 - `key`: 限流键（如 `rate:ip:userid`） - `max_requests`: 窗口内允许的最大请求数 - `window`: 时间窗口（秒）；返回 - `Ok(Some(true))`:
 /// Redis 判定放行 - `Ok(Some(false))`: Redis 判定拒绝 - `Ok(None)`: 未配置 Redis（应回退到内存限流） - `Err(_)`: Redis 调用错误（应回退到内存限流）
-async fn check_redis_rate_limit(
+pub async fn check_redis_rate_limit(
     key: &str,
     max_requests: usize,
     window: Duration,
@@ -186,7 +186,7 @@ async fn check_redis_rate_limit(
 
 /// 通用限流检查：优先 Redis 分布式，回退到内存；M6 修复（v8 复审）：改为 pub(crate) 以供
 /// webhook_handler 等模块复用， 统一分布式限流策略（Redis 优先 + 内存回退），避免各处自行实现内存限流
-pub(crate) async fn check_rate_limit(
+pub async fn check_rate_limit(
     key: &str,
     max_requests: usize,
     window: Duration,
@@ -294,10 +294,7 @@ pub async fn anti_brute_force(req: Request<Body>, next: Next) -> Result<Response
 
 /// AI 端点专用速率限制中间件（缺陷 16.4-D4 修复）
 /// 基于 UserID 维度，限制 10 req/min/user，防止 AI 推理 CPU 过载
-pub async fn rate_limit_ai_endpoint(
-    req: Request<Body>,
-    next: Next,
-) -> Result<Response, AppError> {
+pub async fn rate_limit_ai_endpoint(req: Request<Body>, next: Next) -> Result<Response, AppError> {
     let user_id = req
         .extensions()
         .get::<AuthContext>()
@@ -306,8 +303,7 @@ pub async fn rate_limit_ai_endpoint(
 
     let rate_key = format!("ai_rate:{}", user_id);
 
-    let allowed =
-        check_rate_limit(&rate_key, 10, Duration::from_secs(60), &AI_RATE_LIMITER).await;
+    let allowed = check_rate_limit(&rate_key, 10, Duration::from_secs(60), &AI_RATE_LIMITER).await;
 
     if !allowed {
         tracing::warn!("AI rate limit exceeded for user {}", user_id);

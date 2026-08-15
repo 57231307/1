@@ -15,7 +15,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use crate::utils::error::AppError;
 
 /// 全局导出并发计数器（进程级共享，所有导出 handler 共用）
-static CONCURRENT_EXPORTS: AtomicUsize = AtomicUsize::new(0);
+pub static CONCURRENT_EXPORTS: AtomicUsize = AtomicUsize::new(0);
 
 /// 全局导出并发上限（计划 13.9.2 要求 10）
 pub const MAX_CONCURRENT_EXPORTS: usize = 10;

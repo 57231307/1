@@ -4,8 +4,8 @@
 //! 五维编码：产品ID + 批次号 + 色号 + 缸号 + 等级
 
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use serde::Deserialize;
 use validator::Validate;

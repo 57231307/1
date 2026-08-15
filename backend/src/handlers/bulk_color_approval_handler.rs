@@ -17,8 +17,8 @@
 //!   - 批色统计 KPI（GET /statistics）— P1-10
 
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;

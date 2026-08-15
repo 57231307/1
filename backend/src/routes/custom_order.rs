@@ -5,9 +5,9 @@
 //! 关联 spec: docs/superpowers/specs/2026-06-16-custom-order-design.md §3.2
 
 use axum::{
+    Router,
     // 批次 357 v13 复审 baseline 清零：移除 unused import delete
     routing::{get, post, put},
-    Router,
 };
 
 use crate::container::AppState;

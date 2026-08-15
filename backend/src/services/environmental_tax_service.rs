@@ -143,7 +143,7 @@ impl EnvironmentalTaxService {
 
     /// 计算环保税（纯函数）
     /// 业务规则（《环境保护税法》附表）：污染当量值：COD=1kg、氨氮=0.5kg、VOCs=0.5kg、污泥=1吨；适用税额：每污染当量 1.2 元（最低）- 12 元（最高），取中值 2.4 元；污染当量数 = 排放量 / 污染当量值；应缴税额 = 污染当量数 × 适用税额
-    fn calculate_tax(
+    pub fn calculate_tax(
         discharge_type: &str,
         pollutant_name: &str,
         discharge_amount: Decimal,
@@ -176,7 +176,7 @@ impl EnvironmentalTaxService {
     }
 
     /// 校验排放类型
-    fn validate_discharge_type(discharge_type: &str) -> Result<(), AppError> {
+    pub fn validate_discharge_type(discharge_type: &str) -> Result<(), AppError> {
         match discharge_type {
             "wastewater" | "exhaust" | "solid_waste" => Ok(()),
             _ => Err(AppError::bad_request(format!(

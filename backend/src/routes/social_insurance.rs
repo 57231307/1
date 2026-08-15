@@ -6,8 +6,8 @@
 use crate::container::AppState;
 use crate::handlers::social_insurance_handler;
 use axum::{
-    routing::{get, post},
     Router,
+    routing::{get, post},
 };
 
 /// 社保公积金路由（path 前缀 /social-insurance）

@@ -15,7 +15,7 @@
 //! 3. 模式表保守白名单，避免误伤合法业务路径（例如富文本描述中含 `--`）。
 
 use axum::{
-    body::{to_bytes, Body},
+    body::{Body, to_bytes},
     extract::Request,
     http::header::CONTENT_TYPE,
     middleware::Next,
@@ -29,7 +29,7 @@ const MAX_BODY_AUDIT_SIZE: usize = 1024 * 1024;
 
 /// 已知的 SQL 注入危险模式（白名单，命中即拒绝）；M-7 修复：扩展黑名单，覆盖更多常见 SQL 注入攻击向量： - 时间盲注：SLEEP、pg_sleep、WAITFOR、BENCHMARK - 布尔盲注：更完整的 OR/AND 恒真模式 - 注释绕过：-- 、# 、/* */ - 函数注入：LOAD_FILE、INTO
 /// OUTFILE/DUMPFILE、xp_cmdshell - 信息收集：INFORMATION_SCHEMA、pg_catalog、sysobjects - 编码绕过：CHAR、CONCAT、ASCII、ORD、UNHEX - 堆查询：多语句分隔符 ; 后跟危险关键字；设计原则：模式尽量具体，避免误杀合法业务参数（如 "Order"、"OR" 之类的通用词）。
-const DANGEROUS_PATTERNS: &[&str] = &[
+pub const DANGEROUS_PATTERNS: &[&str] = &[
     // 经典恒真注入
     "' OR '1'='1",
     "' OR 1=1",

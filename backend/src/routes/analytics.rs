@@ -14,8 +14,8 @@ use crate::middleware::rate_limit::rate_limit_ai_endpoint;
 // V15 P2 20.7-B：deprecation 响应头中间件
 use crate::middleware::deprecation;
 use axum::{
-    routing::{delete, get, post, put},
     Router,
+    routing::{delete, get, post, put},
 };
 
 use crate::handlers::{

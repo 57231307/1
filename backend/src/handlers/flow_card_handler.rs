@@ -6,8 +6,8 @@
 //!   扫码应用：白坯出库/染色进度/称料/工序流转/成品入库/发货
 
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use rust_decimal::Decimal;
 use serde::Deserialize;

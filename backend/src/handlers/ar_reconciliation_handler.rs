@@ -1,6 +1,6 @@
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
@@ -443,7 +443,13 @@ pub async fn aging_report(
     );
 
     let service = ArReconciliationService::new(state.db.clone());
-    let report = service.get_aging_report(params.customer_id, params.baseline_date, params.salesperson_id).await?;
+    let report = service
+        .get_aging_report(
+            params.customer_id,
+            params.baseline_date,
+            params.salesperson_id,
+        )
+        .await?;
 
     info!(
         "用户 {} 账龄分析完成，应收总额: {}",

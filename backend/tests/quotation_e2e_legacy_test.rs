@@ -195,10 +195,14 @@ fn test_quotation_response_dto_construction() {
 /// 验证 Service 构造签名：fn(Arc<DatabaseConnection>) -> QuotationService
 #[test]
 fn test_quotation_service_constructor_signature() {
-    let constructor: fn(Arc<sea_orm::DatabaseConnection>) -> QuotationService = QuotationService::new;
+    let constructor: fn(Arc<sea_orm::DatabaseConnection>) -> QuotationService =
+        QuotationService::new;
 
     // 验证函数指针不为空
-    assert!(!format!("{:?}", constructor).is_empty(), "QuotationService 构造函数不应为空");
+    assert!(
+        !format!("{:?}", constructor).is_empty(),
+        "QuotationService 构造函数不应为空"
+    );
 }
 
 /// 验证 ConvertService 构造签名
@@ -208,7 +212,10 @@ fn test_convert_service_constructor_signature() {
         QuotationConvertService::new;
 
     // 验证函数指针不为空
-    assert!(!format!("{:?}", constructor).is_empty(), "QuotationConvertService 构造函数不应为空");
+    assert!(
+        !format!("{:?}", constructor).is_empty(),
+        "QuotationConvertService 构造函数不应为空"
+    );
 }
 
 // ============================================================================

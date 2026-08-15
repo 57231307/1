@@ -4,11 +4,11 @@ use crate::models::purchase_contract;
 use crate::services::purchase_contract_service::{
     CreateContractRequest, ExecuteContractRequest, PurchaseContractService,
 };
-use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
+use crate::utils::error::AppError;
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use serde::{Deserialize, Serialize};
 use tracing::info;

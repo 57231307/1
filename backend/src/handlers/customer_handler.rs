@@ -1,6 +1,6 @@
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 // v9 P1-G 修复：移除未使用的 Serialize import
 use serde::Deserialize;
@@ -11,11 +11,11 @@ use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::PageRequest;
 use crate::services::customer_service::{CreateCustomerArgs, CustomerService, UpdateCustomerArgs};
 use crate::utils::admin_checker::is_admin_role;
-use crate::utils::data_permission::{DataPermissionFilter, DEFAULT_HIDDEN_FIELDS};
+use crate::utils::data_permission::{DEFAULT_HIDDEN_FIELDS, DataPermissionFilter};
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 // V15 P0-S15/P0-S12 补齐（Batch 474）：导出端点使用水印版 xlsx 工具
-use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
+use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_with_watermark};
 
 /// 创建客户请求
 #[derive(Debug, Deserialize, Validate)]
@@ -134,19 +134,25 @@ pub async fn list_customers(
 
     // 12.3-3：字段级读权限过滤（field_permissions 接入）
     let items = if let Some(role_id) = auth.role_id {
-        let field_perm_svc = crate::services::field_permission_service::FieldPermissionService::new(state.db.clone());
+        let field_perm_svc = crate::services::field_permission_service::FieldPermissionService::new(
+            state.db.clone(),
+        );
         let field_perms = field_perm_svc
             .list_field_permissions(Some("customer"), Some(role_id))
             .await
             .unwrap_or_default();
         if !field_perms.is_empty() {
-            result.items.into_iter().map(|mut v| {
-                // 先过滤无读权限的字段
-                field_perm_svc.filter_fields_by_read_permission(&mut v, &field_perms);
-                // 再对需要掩码的字段进行掩码处理
-                field_perm_svc.mask_fields(&mut v, &field_perms);
-                v
-            }).collect()
+            result
+                .items
+                .into_iter()
+                .map(|mut v| {
+                    // 先过滤无读权限的字段
+                    field_perm_svc.filter_fields_by_read_permission(&mut v, &field_perms);
+                    // 再对需要掩码的字段进行掩码处理
+                    field_perm_svc.mask_fields(&mut v, &field_perms);
+                    v
+                })
+                .collect()
         } else {
             result.items
         }
@@ -190,7 +196,9 @@ pub async fn get_customer(
     // 12.3-3：字段级读权限过滤（field_permissions 接入）
     let mut customer_json = customer_json;
     if let Some(role_id) = auth.role_id {
-        let field_perm_svc = crate::services::field_permission_service::FieldPermissionService::new(state.db.clone());
+        let field_perm_svc = crate::services::field_permission_service::FieldPermissionService::new(
+            state.db.clone(),
+        );
         let field_perms = field_perm_svc
             .list_field_permissions(Some("customer"), Some(role_id))
             .await
@@ -288,7 +296,7 @@ pub async fn update_customer(
     // - 管理员可修改所有客户
     // - 普通用户只能修改自己创建的客户
     let customer = customer_service.get_customer(id, None).await?;
-    let is_admin = is_admin_role(&*state.db, auth.role_id.unwrap_or(0)).await;
+    let is_admin = is_admin_role(&state.db, auth.role_id.unwrap_or(0)).await;
     let is_owner = customer.created_by == Some(auth.user_id);
     if !is_admin && !is_owner {
         return Err(AppError::permission_denied(
@@ -350,7 +358,7 @@ pub async fn delete_customer(
     // - 管理员可删除所有客户
     // - 普通用户只能删除自己创建的客户
     let customer = customer_service.get_customer(id, None).await?;
-    let is_admin = is_admin_role(&*state.db, auth.role_id.unwrap_or(0)).await;
+    let is_admin = is_admin_role(&state.db, auth.role_id.unwrap_or(0)).await;
     let is_owner = customer.created_by == Some(auth.user_id);
     if !is_admin && !is_owner {
         return Err(AppError::permission_denied("无权删除该客户".to_string()));
@@ -385,7 +393,7 @@ async fn get_permission_filter(
 
     // 管理员角色或全量数据权限不过滤
     // V15 P2 B10-P2-5：使用 is_admin_role 函数替代硬编码 role_id==1 判定
-    if is_admin_role(&*state.db, role_id).await || auth.data_scope.as_deref() == Some("all") {
+    if is_admin_role(&state.db, role_id).await || auth.data_scope.as_deref() == Some("all") {
         return Ok(None);
     }
 

@@ -4,7 +4,7 @@
 //! 业务场景：前端获取可用凭证类型列表（频繁调用的元数据接口）
 //! 性能要求：单次调用 < 100μs（元数据接口应极快响应）
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
 use bingxi_backend::services::voucher_service::VoucherService;
 

@@ -206,7 +206,7 @@ impl SupplierEvaluationService {
     ) -> Result<SupplierScoreResponse, AppError> {
         info!("查询供应商 {} 的评分", supplier_id);
 
-        let records = Self::fetch_evaluation_records(&*self.db, supplier_id).await?;
+        let records = Self::fetch_evaluation_records(&self.db, supplier_id).await?;
         if records.is_empty() {
             return Err(AppError::not_found(format!(
                 "供应商 {} 暂无评估记录",
@@ -214,7 +214,7 @@ impl SupplierEvaluationService {
             )));
         }
 
-        let weight_map = Self::fetch_indicator_weights(&*self.db, &records).await?;
+        let weight_map = Self::fetch_indicator_weights(&self.db, &records).await?;
         let response = Self::build_score_response(supplier_id, &records, &weight_map);
         info!(
             "供应商 {} 评分查询完成，平均分：{}，等级：{}",
@@ -486,7 +486,9 @@ impl SupplierEvaluationService {
                 .map(|v| matches!(v.to_lowercase().as_str(), "true" | "1" | "yes" | "on"))
                 .unwrap_or(true);
             if !enabled {
-                info!("供应商评估调度器：环境变量 SUPPLIER_EVALUATION_SCHEDULER_ENABLED=false，跳过启动");
+                info!(
+                    "供应商评估调度器：环境变量 SUPPLIER_EVALUATION_SCHEDULER_ENABLED=false，跳过启动"
+                );
                 return;
             }
 
@@ -496,13 +498,15 @@ impl SupplierEvaluationService {
                 .filter(|&v| v > 0)
                 .unwrap_or(DEFAULT_EVALUATION_INTERVAL_SECS);
 
-            tokio::time::sleep(std::time::Duration::from_secs(EVALUATION_INITIAL_DELAY_SECS)).await;
+            tokio::time::sleep(std::time::Duration::from_secs(
+                EVALUATION_INITIAL_DELAY_SECS,
+            ))
+            .await;
 
             let interval = std::time::Duration::from_secs(interval_secs);
             info!(
                 interval_secs,
-                "供应商评估调度器：后台任务已启动（每 {} 秒检查一次评估触发条件）",
-                interval_secs
+                "供应商评估调度器：后台任务已启动（每 {} 秒检查一次评估触发条件）", interval_secs
             );
 
             let service = Self::new(db);

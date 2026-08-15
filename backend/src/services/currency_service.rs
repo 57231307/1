@@ -257,7 +257,7 @@ impl CurrencyService {
                                 return Err(AppError::business(format!(
                                     "无法找到 {} 到 {} 的汇率",
                                     from_currency, to_currency
-                                )))
+                                )));
                             }
                         }
                     }
@@ -432,7 +432,7 @@ const SUPPORTED_CURRENCY_CODES: &[&str] = &[
 ];
 
 /// 校验 ISO 4217 币种码：必须为 3 个大写字母且在常见币种白名单中
-fn validate_currency_code(code: &str) -> Result<(), AppError> {
+pub fn validate_currency_code(code: &str) -> Result<(), AppError> {
     if code.len() != 3 {
         return Err(AppError::business(format!(
             "币种码 {code} 不是有效的 ISO 4217 代码（必须为3个字符）"

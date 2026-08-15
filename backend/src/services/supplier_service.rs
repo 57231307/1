@@ -1,19 +1,19 @@
 use crate::models::{supplier, supplier_contact, supplier_qualification};
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::pagination::paginate_with_total;
 // P0-D03（Batch 488）：Redis 分布式缓存接入（get_supplier 读穿透 + 写失效）
 use crate::utils::redis_cache::{
-    cache_key, redis_cache_del, redis_cache_get_json, redis_cache_set_json, DEFAULT_CACHE_TTL_SECS,
+    DEFAULT_CACHE_TTL_SECS, cache_key, redis_cache_del, redis_cache_get_json, redis_cache_set_json,
 };
 use crate::utils::response::PaginatedResponse;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{ExprTrait, 
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, Order,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -1078,9 +1078,7 @@ impl SupplierService {
         use crate::models::purchase_order::{self, Entity as PurchaseOrderEntity};
 
         // 查询所有供应商
-        let suppliers = supplier::Entity::find()
-            .all(&*self.db)
-            .await?;
+        let suppliers = supplier::Entity::find().all(&*self.db).await?;
 
         let mut abnormal_orders = Vec::new();
 

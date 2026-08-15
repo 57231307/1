@@ -3,8 +3,8 @@
 use crate::container::AppState;
 use crate::handlers::incoterms_handler;
 use axum::{
-    routing::{get, post},
     Router,
+    routing::{get, post},
 };
 
 /// Incoterms 路由（path 前缀 /incoterms）

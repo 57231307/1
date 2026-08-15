@@ -1,8 +1,8 @@
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use axum::{
-    extract::{Query, State},
     Json,
+    extract::{Query, State},
 };
 use serde::Deserialize;
 use std::time::Duration;
@@ -145,7 +145,10 @@ pub async fn get_aging_report(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     tracing::debug!(user_id = auth.user_id, "AR 账龄报表查询");
 
-    let cache_key = format!("ar:report:aging:{:?}:{:?}", query.customer_id, query.salesperson_id);
+    let cache_key = format!(
+        "ar:report:aging:{:?}:{:?}",
+        query.customer_id, query.salesperson_id
+    );
     if let Some(cached) = state.cache_service.get(&cache_key).await {
         if let Ok(value) = serde_json::from_slice::<serde_json::Value>(&cached) {
             return Ok(Json(ApiResponse::success(value)));

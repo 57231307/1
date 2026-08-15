@@ -127,9 +127,8 @@ impl LaborContractService {
                 return Err(AppError::bad_request("合同结束日期必须晚于开始日期"));
             }
         }
-
-        // 试用期合规校验
         if let Some(probation_end) = req.probation_end_date {
+            // 试用期合规校验
             let validation = Self::validate_probation(
                 req.start_date,
                 req.end_date,
@@ -415,7 +414,7 @@ impl LaborContractService {
     }
 
     /// 校验合同类型
-    fn validate_contract_type(contract_type: &str) -> Result<(), AppError> {
+    pub fn validate_contract_type(contract_type: &str) -> Result<(), AppError> {
         match contract_type {
             "fixed_term" | "permanent" | "task_based" => Ok(()),
             _ => Err(AppError::bad_request(format!(
@@ -426,7 +425,7 @@ impl LaborContractService {
     }
 
     /// 校验工时制度
-    fn validate_working_hours_system(system: &str) -> Result<(), AppError> {
+    pub fn validate_working_hours_system(system: &str) -> Result<(), AppError> {
         match system {
             "standard" | "comprehensive" | "flexible" => Ok(()),
             _ => Err(AppError::bad_request(format!(

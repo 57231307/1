@@ -21,10 +21,10 @@ use crate::models::report_template::Entity as ReportTemplateEntity;
 use crate::utils::error::AppError;
 
 /// 缺陷 2.3 修复：最大重试次数默认值
-const DEFAULT_MAX_RETRIES: i32 = 3;
+pub const DEFAULT_MAX_RETRIES: i32 = 3;
 
 /// 缺陷 2.3 修复：指数退避间隔表（1min / 5min / 30min）
-fn backoff_seconds(retry_count: i32) -> i64 {
+pub fn backoff_seconds(retry_count: i32) -> i64 {
     match retry_count {
         0 => 60,
         1 => 300,
@@ -33,7 +33,7 @@ fn backoff_seconds(retry_count: i32) -> i64 {
 }
 
 /// 简易邮箱格式校验（缺陷 2.2 修复：避免引入额外 crate）
-fn is_valid_email(email: &str) -> bool {
+pub fn is_valid_email(email: &str) -> bool {
     let parts: Vec<&str> = email.split('@').collect();
     if parts.len() != 2 || parts[0].is_empty() || parts[1].is_empty() {
         return false;

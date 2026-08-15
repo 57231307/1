@@ -22,38 +22,38 @@ use crate::middleware::audit_context::extract_client_ip as extract_client_ip_hel
 use crate::middleware::public_routes::is_public_path;
 use crate::utils::cache::CsrfConsumeResult;
 use axum::{
+    Json,
     body::Body,
     extract::State,
     http::{Method, Request, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
-    Json,
 };
 use serde_json::json;
 
 /// CSRF 请求头名称（小写形式，对应 HTTP/2 规范）
-const CSRF_HDR_NAME: &str = "x-csrf-token";
+pub const CSRF_HDR_NAME: &str = "x-csrf-token";
 
 /// 业务错误码：缺失 CSRF Token
-const CODE_MISS: &str = "CSRF_TOKEN_MISSING";
+pub const CODE_MISS: &str = "CSRF_TOKEN_MISSING";
 
 /// 业务错误码：CSRF Token 无效或已过期
-const CODE_INVAL: &str = "CSRF_TOKEN_INVALID";
+pub const CODE_INVAL: &str = "CSRF_TOKEN_INVALID";
 
 /// 业务错误码：CSRF Token 绑定的 IP 与请求 IP 不一致（Wave 3 #7）
-const CODE_IP_MM: &str = "CSRF_IP_MISMATCH";
+pub const CODE_IP_MM: &str = "CSRF_IP_MISMATCH";
 
 /// 业务错误消息：缺失 CSRF Token
-const CSRF_MISSING_MSG: &str = "CSRF Token 缺失";
+pub const CSRF_MISSING_MSG: &str = "CSRF Token 缺失";
 
 /// 业务错误消息：CSRF Token 无效或已过期
-const CSRF_INVALID_MSG: &str = "CSRF Token 无效或已过期";
+pub const CSRF_INVALID_MSG: &str = "CSRF Token 无效或已过期";
 
 /// 业务错误消息：CSRF Token 绑定的 IP 与请求 IP 不一致（Wave 3 #7）
-const CSRF_IP_MISMATCH_MSG: &str = "CSRF Token IP 不匹配";
+pub const CSRF_IP_MISMATCH_MSG: &str = "CSRF Token IP 不匹配";
 
 /// 从请求中提取客户端 IP（Wave 3 #7）：转发至 audit_context helper
-fn extract_client_ip(request: &Request<Body>) -> String {
+pub fn extract_client_ip(request: &Request<Body>) -> String {
     extract_client_ip_helper(request)
 }
 
@@ -174,7 +174,7 @@ pub async fn csrf_middleware(
 }
 
 /// 构造 403 CSRF 错误响应（统一 JSON 格式）
-fn csrf_error_response(code: &str, message: &str) -> Response {
+pub fn csrf_error_response(code: &str, message: &str) -> Response {
     let body = json!({
         "success": false,
         "code": code,

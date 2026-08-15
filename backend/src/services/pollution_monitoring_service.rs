@@ -337,7 +337,7 @@ impl PollutionMonitoringService {
     }
 
     /// 校验监测类型
-    fn validate_monitoring_type(monitoring_type: &str) -> Result<(), AppError> {
+    pub fn validate_monitoring_type(monitoring_type: &str) -> Result<(), AppError> {
         match monitoring_type {
             "wastewater" | "exhaust" | "noise" | "solid_waste" => Ok(()),
             _ => Err(AppError::bad_request(format!(
@@ -348,7 +348,7 @@ impl PollutionMonitoringService {
     }
 
     /// 校验废物类型
-    fn validate_waste_type(waste_type: &str) -> Result<(), AppError> {
+    pub fn validate_waste_type(waste_type: &str) -> Result<(), AppError> {
         match waste_type {
             "sludge" | "waste_fabric" | "chemical_waste" => Ok(()),
             _ => Err(AppError::bad_request(format!(
@@ -370,7 +370,7 @@ impl PollutionMonitoringService {
     }
 
     /// 校验处置方式
-    fn validate_disposal_method(method: &str) -> Result<(), AppError> {
+    pub fn validate_disposal_method(method: &str) -> Result<(), AppError> {
         match method {
             "landfill" | "incineration" | "reuse" | "storage" => Ok(()),
             _ => Err(AppError::bad_request(format!(

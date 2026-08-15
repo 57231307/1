@@ -5,7 +5,7 @@
 //! - `migrate` 数据库迁移子命令（占位）
 //! - `util`    工具子命令（服务管理、备份、升级、清理等）
 
-use bingxi_backend::cli::{dispatch, Command};
+use bingxi_backend::cli::{Command, dispatch};
 use clap::Parser;
 
 #[tokio::main]

@@ -1,8 +1,8 @@
 //! 缸号管理Handler（染色批次管理）
 
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -19,7 +19,7 @@ use crate::models::dye_batch;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
-use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
+use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
 use std::sync::Arc;
 
 /// 缸号状态枚举

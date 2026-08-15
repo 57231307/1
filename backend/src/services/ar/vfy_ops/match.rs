@@ -14,7 +14,7 @@ use crate::models::status::ar as ar_status;
 use crate::utils::error::AppError;
 
 use super::super::{
-    generate_reconciliation_no, ArReconciliationService, AutoMatchRequest, AutoMatchResult,
+    ArReconciliationService, AutoMatchRequest, AutoMatchResult, generate_reconciliation_no,
 };
 
 impl ArReconciliationService {
@@ -101,12 +101,12 @@ impl ArReconciliationService {
         customer_id: Option<i32>,
     ) -> Result<Vec<customer::Model>, AppError> {
         if let Some(cid) = customer_id {
-            Ok(vec![customer::Entity::find_by_id(cid)
-                .one(txn)
-                .await?
-                .ok_or_else(|| {
-                    AppError::not_found(format!("客户 {} 不存在", cid))
-                })?])
+            Ok(vec![
+                customer::Entity::find_by_id(cid)
+                    .one(txn)
+                    .await?
+                    .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", cid)))?,
+            ])
         } else {
             // P3 维度 6 修复（批次 87）：LIMIT 兜底防止全表加载
             Ok(customer::Entity::find().limit(10_000).all(txn).await?)

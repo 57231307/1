@@ -25,8 +25,8 @@ use crate::models::sales_order_item::Entity as SalesOrderItemEntity;
 use crate::utils::error::AppError;
 
 use super::{
-    AggregateRequest, AggregateResult, AggregationType, DataSource, ExecuteReportRequest,
-    ReportData, ReportEngineService, ReportMetadata, DEFAULT_CACHE_TTL_SECONDS,
+    AggregateRequest, AggregateResult, AggregationType, DEFAULT_CACHE_TTL_SECONDS, DataSource,
+    ExecuteReportRequest, ReportData, ReportEngineService, ReportMetadata,
 };
 
 impl ReportEngineService {
@@ -51,7 +51,7 @@ impl ReportEngineService {
         &self,
         req: AggregateRequest,
     ) -> Result<Vec<AggregateResult>, AppError> {
-        let orders = Self::fetch_sales_orders(&*self.db, &req).await?;
+        let orders = Self::fetch_sales_orders(&self.db, &req).await?;
         let aggregation = Self::aggregate_sales_by_group(&orders, &req);
         Ok(Self::build_aggregate_results(aggregation))
     }
@@ -108,7 +108,7 @@ impl ReportEngineService {
         &self,
         req: AggregateRequest,
     ) -> Result<Vec<AggregateResult>, AppError> {
-        let orders = Self::fetch_purchase_orders(&*self.db, &req).await?;
+        let orders = Self::fetch_purchase_orders(&self.db, &req).await?;
         let aggregation = Self::group_purchase_orders(&orders, &req);
         Ok(Self::build_aggregate_results(aggregation))
     }

@@ -3,8 +3,8 @@
 use std::process::Command;
 
 use super::{
-    get_install_dir, get_log_dir, is_service_active, require_env, run_cmd, status_icon,
-    SERVICE_NAME,
+    SERVICE_NAME, get_install_dir, get_log_dir, is_service_active, require_env, run_cmd,
+    status_icon,
 };
 
 /// 读取后端服务监听主机（环境变量 SERVER__HOST，默认 127.0.0.1）

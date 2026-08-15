@@ -214,7 +214,7 @@ impl ColorPriceBatchService {
                 return Err(BatchError::Validation(format!(
                     "无效的审批决定: {}（允许: APPROVED / REJECTED）",
                     dto.decision
-                )))
+                )));
             }
         };
 

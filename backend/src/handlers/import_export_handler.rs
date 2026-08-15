@@ -9,8 +9,8 @@
 //! - 校验层次：DTO #[validate] → handler 早期校验（友好提示）→ service 层 defense-in-depth。
 
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -405,8 +405,14 @@ pub async fn export_stream(
 
     // 直接返回文件流（不经过 base64 编码，减少内存占用）
     let response = axum::response::Response::builder()
-        .header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        .header("Content-Disposition", format!("attachment; filename=\"{}.xlsx\"", export_type))
+        .header(
+            "Content-Type",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        .header(
+            "Content-Disposition",
+            format!("attachment; filename=\"{}.xlsx\"", export_type),
+        )
         .header("Content-Length", xlsx_bytes.len())
         .body(axum::body::Body::from(xlsx_bytes))
         .map_err(|e| AppError::internal(format!("构建响应失败: {}", e)))?;

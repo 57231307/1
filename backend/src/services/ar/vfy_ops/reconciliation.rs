@@ -20,7 +20,7 @@ use crate::models::status::ar as ar_status;
 use crate::utils::error::AppError;
 
 use super::super::{
-    generate_reconciliation_no, ArReconciliationService, GenerateReconciliationRequest,
+    ArReconciliationService, GenerateReconciliationRequest, generate_reconciliation_no,
 };
 
 impl ArReconciliationService {

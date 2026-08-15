@@ -16,12 +16,12 @@
 use std::collections::BTreeMap;
 use std::panic::AssertUnwindSafe;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-use futures::stream::Stream;
 use futures::FutureExt;
+use futures::stream::Stream;
 use rskafka::client::partition::{Compression, OffsetAt, PartitionClient, UnknownTopicHandling};
 use rskafka::client::{Client, ClientBuilder};
 use rskafka::record::{Record, RecordAndOffset};
@@ -61,8 +61,7 @@ impl From<&str> for KafkaError {
 
 /// 返回 `BusinessEvent` 对应的事件类型字符串
 /// 批次 121 v8 复审修复：删除 KafkaEventEnvelope struct + from_event + into_event；（零业务调用方，KafkaBackend.publish/subscribe 使用 EventPayload 而非信封结构）。；保留 event_type_name 供测试断言使用，标记 #[cfg(test)] 避免非测试编译时 dead_code。
-#[cfg(test)]
-fn event_type_name(event: &BusinessEvent) -> &'static str {
+pub fn event_type_name(event: &BusinessEvent) -> &'static str {
     match event {
         BusinessEvent::PurchaseReceiptCompleted { .. } => "PurchaseReceiptCompleted",
         BusinessEvent::SalesOrderShipped { .. } => "SalesOrderShipped",

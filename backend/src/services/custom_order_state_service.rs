@@ -20,7 +20,7 @@ use crate::models::process_node::{self, Entity as NodeEntity};
 use crate::models::sales_quotation;
 use crate::models::status::process_node as node_status;
 use crate::utils::process_state_machine::{
-    can_transition, next_status, CustomOrderStatus, StateMachineError,
+    CustomOrderStatus, StateMachineError, can_transition, next_status,
 };
 
 /// 业务错误

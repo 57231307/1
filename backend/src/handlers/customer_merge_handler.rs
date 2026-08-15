@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use axum::{extract::State, Json};
-use sea_orm::{ActiveModelTrait, EntityTrait, Set, TransactionTrait, ColumnTrait, QueryFilter};
+use axum::{Json, extract::State};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
 use serde::Deserialize;
 
 use crate::container::AppState;
@@ -188,7 +188,10 @@ pub async fn merge_customers(
         severity: audit_log::Severity::Info,
         resource_type: Some("customer".to_string()),
         resource_id: Some(req.source_customer_id.to_string()),
-        resource_name: Some(format!("客户合并: {} -> {}", req.source_customer_id, req.target_customer_id)),
+        resource_name: Some(format!(
+            "客户合并: {} -> {}",
+            req.source_customer_id, req.target_customer_id
+        )),
         description: Some(format!(
             "将客户 {} 合并到客户 {}，转移了所有关联数据",
             req.source_customer_id, req.target_customer_id

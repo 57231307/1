@@ -3,8 +3,8 @@
 //! BOM（Bill of Materials）物料清单API端点
 
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};

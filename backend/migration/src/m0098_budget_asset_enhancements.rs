@@ -49,11 +49,7 @@ impl MigrationTrait for Migration {
                             .string_len(100)
                             .not_null(),
                     )
-                    .col(
-                        ColumnDef::new(AssetCategories::ParentId)
-                            .integer()
-                            .null(),
-                    )
+                    .col(ColumnDef::new(AssetCategories::ParentId).integer().null())
                     .col(
                         ColumnDef::new(AssetCategories::DefaultUsefulLife)
                             .integer()

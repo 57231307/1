@@ -3,8 +3,8 @@
 //! B12-P2-4：敏感角色变更双人审批
 
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 
 use crate::container::AppState;

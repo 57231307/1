@@ -9,8 +9,8 @@ use crate::utils::dual_unit_converter::DualUnitConverter;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
-    extract::{Query, State},
     Json,
+    extract::{Query, State},
 };
 use rust_decimal::Decimal;
 use validator::Validate;

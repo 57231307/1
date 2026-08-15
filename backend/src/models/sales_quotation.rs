@@ -4,7 +4,7 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// 销售报价单主表实体
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Default, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "sales_quotations")]
 pub struct Model {
     #[sea_orm(primary_key)]

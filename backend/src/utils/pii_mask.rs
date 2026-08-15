@@ -27,14 +27,15 @@ use std::sync::LazyLock;
 
 /// 手机号正则（11 位，1[3-9] 开头）
 /// 注意：Rust regex crate 不支持 look-around，此处使用简单匹配
-static PHONE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"1[3-9][0-9]{9}").expect("PII_MASK: 手机号正则编译失败")
-});
+static PHONE_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"1[3-9][0-9]{9}").expect("PII_MASK: 手机号正则编译失败"));
 
 /// 身份证号正则（18 位，末位可为 X/x）
 static ID_CARD_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"[1-9][0-9]{5}(?:19|20)[0-9]{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12][0-9]|3[01])[0-9]{3}[0-9Xx]")
-        .expect("PII_MASK: 身份证正则编译失败")
+    Regex::new(
+        r"[1-9][0-9]{5}(?:19|20)[0-9]{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12][0-9]|3[01])[0-9]{3}[0-9Xx]",
+    )
+    .expect("PII_MASK: 身份证正则编译失败")
 });
 
 /// 邮箱正则

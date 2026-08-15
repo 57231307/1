@@ -3,8 +3,8 @@
 use crate::container::AppState;
 use crate::handlers::occupational_health_handler;
 use axum::{
-    routing::{get, post},
     Router,
+    routing::{get, post},
 };
 
 /// 职业危害因素检测记录路由（path 前缀 /occupational-health/hazard-monitorings）

@@ -21,7 +21,7 @@ use crate::observability::span::root_span;
 use crate::observability::trace_context::extract_or_new;
 
 /// 用于在响应头回写 `X-Trace-Id`，方便客户端日志关联
-const X_TRACE_ID_HEADER: &str = "x-trace-id";
+pub const X_TRACE_ID_HEADER: &str = "x-trace-id";
 
 /// V15 P2 20.1-C：tail-based sampling 慢请求阈值（毫秒）
 /// 超过此阈值的请求强制采样（100%），可通过环境变量 `OTEL_SLOW_REQUEST_MS` 配置。

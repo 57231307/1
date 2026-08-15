@@ -16,8 +16,8 @@
 //!   活跃/非活跃实例由 `/etc/nginx/bingxi-upstream.active.conf` 软链接判定。
 
 use super::{
-    build_release_url, download_with_mirrors, fetch_with_mirrors, get_backup_dir, get_install_dir,
-    is_service_active, parse_json_field, require_root, run_cmd, timestamp, GITHUB_REPO,
+    GITHUB_REPO, build_release_url, download_with_mirrors, fetch_with_mirrors, get_backup_dir,
+    get_install_dir, is_service_active, parse_json_field, require_root, run_cmd, timestamp,
 };
 
 // 批次 322 v9 复审低危修复：路径校验逻辑已抽取到共享模块 `utils::path_validator`，
@@ -236,8 +236,10 @@ fn check_version_downgrade(current: &str, target: &str) -> bool {
     match (current_ver, target_ver) {
         (Some(c), Some(t)) => {
             if t < c {
-                println!("[ERROR] 版本降级不允许：当前 v{}.{}.{}.{}, 目标 v{}.{}.{}.{}", 
-                    c.0, c.1, c.2, c.3, t.0, t.1, t.2, t.3);
+                println!(
+                    "[ERROR] 版本降级不允许：当前 v{}.{}.{}.{}, 目标 v{}.{}.{}.{}",
+                    c.0, c.1, c.2, c.3, t.0, t.1, t.2, t.3
+                );
                 println!("如需强制降级，请使用 --force-downgrade 参数");
                 false
             } else {
@@ -331,8 +333,11 @@ fn check_api_version_compatibility() -> bool {
         println!("[OK] 前后端版本一致: v{}", backend_version);
         true
     } else {
-        println!("[WARN] 前后端版本不一致（前端: {}, 后端: v{}）", 
-            frontend_version.trim(), backend_version);
+        println!(
+            "[WARN] 前后端版本不一致（前端: {}, 后端: v{}）",
+            frontend_version.trim(),
+            backend_version
+        );
         println!("继续部署，请确保前端 dist 与后端 server 版本匹配");
         true // fail-open，不阻塞部署
     }

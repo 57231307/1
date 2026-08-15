@@ -389,7 +389,7 @@ impl TrackingService {
 }
 
 /// 解析日期字符串为 DateTime<Utc>
-fn parse_date(s: &Option<String>) -> Result<Option<DateTime<Utc>>, AppError> {
+pub fn parse_date(s: &Option<String>) -> Result<Option<DateTime<Utc>>, AppError> {
     match s {
         Some(s) => {
             // 尝试解析为完整日期时间，失败则按日期解析并补充 00:00:00 UTC

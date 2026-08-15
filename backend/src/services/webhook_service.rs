@@ -7,12 +7,12 @@ use std::sync::Arc;
 use tracing::error;
 
 /// Webhook 最大重试次数上限（超阈值后停增 retry_count 并置 last_error，防 DB 溢出/重试放大；pub crate 供 handler 返回）
-pub(crate) const MAX_RETRY_COUNT: i32 = 5;
+pub const MAX_RETRY_COUNT: i32 = 5;
 
 /// Webhook负载
 /// L8 修复（v8 复审）：降为 pub(crate)，仅模块内部使用，不对外暴露
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct WebhookPayload {
+pub struct WebhookPayload {
     pub(crate) event: String,
     pub(crate) timestamp: String,
     pub(crate) data: serde_json::Value,

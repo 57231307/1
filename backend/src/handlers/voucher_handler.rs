@@ -3,8 +3,8 @@
 //! HTTP 接口层
 
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use serde::Deserialize;
 use tracing::{info, warn};
@@ -18,7 +18,7 @@ use crate::services::voucher_service::{
 };
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
-use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
+use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
 use rust_decimal::Decimal;
 
 /// 查询参数
@@ -257,8 +257,8 @@ pub async fn post_voucher(
 }
 
 /// 获取凭证类型列表（v11 批次 155 P2-C：下沉到 VoucherService::available_voucher_types 静态配置化）
-pub async fn get_voucher_types(
-) -> Json<ApiResponse<Vec<crate::services::voucher_service::VoucherTypeDefinition>>> {
+pub async fn get_voucher_types()
+-> Json<ApiResponse<Vec<crate::services::voucher_service::VoucherTypeDefinition>>> {
     Json(ApiResponse::success(
         crate::services::voucher_service::VoucherService::available_voucher_types(),
     ))

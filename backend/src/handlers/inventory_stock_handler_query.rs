@@ -9,8 +9,8 @@ use crate::services::inventory_stock_service::InventoryStockService;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use rust_decimal::Decimal;
 

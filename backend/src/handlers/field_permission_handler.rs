@@ -7,8 +7,8 @@ use crate::utils::admin_checker::is_admin_role;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use serde::{Deserialize, Serialize};
 

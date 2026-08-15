@@ -357,3 +357,4 @@ pub mod asset_category_service;
 pub mod log_archive_service;
 // batch-13 P3: 审计日志审查服务
 pub mod audit_review_service;
+pub mod test_common;

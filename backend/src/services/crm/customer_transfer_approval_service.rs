@@ -151,7 +151,7 @@ impl CustomerTransferApprovalService {
         let lead = self
             .fetch_and_validate_lead(req.lead_id, req.to_user_id)
             .await?;
-        Self::ensure_no_pending_approval(&*self.db, req.lead_id).await?;
+        Self::ensure_no_pending_approval(&self.db, req.lead_id).await?;
         let is_large_customer = self.check_large_customer(&lead).await?;
         let max_level = if is_large_customer { 2 } else { 1 };
         let approval_no = Self::generate_approval_no(req.lead_id);

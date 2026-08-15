@@ -203,8 +203,8 @@ async fn query_endpoint_status(
     method: &str,
     path: &str,
 ) -> Option<String> {
-    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     use crate::models::api_endpoint::{self, Entity as ApiEndpointEntity};
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
     let result = ApiEndpointEntity::find()
         .filter(api_endpoint::Column::Method.eq(method))

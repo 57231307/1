@@ -24,7 +24,7 @@ use crate::utils::error::AppError;
 use crate::services::chemical_ops::types::{
     ChemicalCategoryQuery, CreateChemicalCategoryRequest, UpdateChemicalCategoryRequest,
 };
-use crate::services::chemical_service::{validate_chemical_type, ChemicalCategoryService};
+use crate::services::chemical_service::{ChemicalCategoryService, validate_chemical_type};
 
 impl ChemicalCategoryService {
     /// 创建染化料分类

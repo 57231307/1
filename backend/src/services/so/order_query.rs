@@ -12,10 +12,10 @@ use super::order::SalesService;
 use crate::models::dto::PageRequest;
 use crate::models::{sales_order, sales_order::Entity as SalesOrderEntity, sales_order_item};
 use crate::services::so::{SalesOrderDetail, SalesOrderItemDetail};
-use crate::utils::data_scope::{apply_data_scope, DataScopeContext};
+use crate::utils::PaginatedResponse;
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
-use crate::utils::PaginatedResponse;
 use sea_orm::{
     ColumnTrait, EntityTrait, LoaderTrait, ModelTrait, Order, PaginatorTrait, QueryFilter,
     QueryOrder, QuerySelect, RelationTrait,

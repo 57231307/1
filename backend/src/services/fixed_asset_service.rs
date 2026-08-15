@@ -9,11 +9,11 @@ use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 use crate::utils::sql_escape::safe_like_pattern;
 use chrono::NaiveDate;
-use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
-use sea_orm::{ExprTrait, 
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+use rust_decimal::prelude::ToPrimitive;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, Order,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -233,8 +233,10 @@ impl FixedAssetService {
                         let used_years = (depreciated_ratio * Decimal::from(useful_life_years))
                             .to_usize()
                             .unwrap_or(0);
-                        let remaining_years =
-                            std::cmp::Ord::max(useful_life_years.saturating_sub(used_years as i32), 1);
+                        let remaining_years = std::cmp::Ord::max(
+                            useful_life_years.saturating_sub(used_years as i32),
+                            1,
+                        );
                         // 年数总和 = n + (n-1) + ... + 1 = n * (n+1) / 2
                         let sum_of_years = useful_life_years * (useful_life_years + 1) / 2;
                         if sum_of_years <= 0 {
@@ -1327,8 +1329,7 @@ impl FixedAssetService {
         &self,
         req: DepreciationPolicyChangeRequest,
     ) -> Result<depreciation_policy_change::Model, AppError> {
-        self.create_depreciation_policy_change_inner(req)
-            .await
+        self.create_depreciation_policy_change_inner(req).await
     }
 
     async fn create_depreciation_policy_change_inner(

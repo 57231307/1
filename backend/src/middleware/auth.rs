@@ -18,7 +18,7 @@ use tracing::{info, warn};
 
 /// 日志脱敏：截断 Authorization 头值，避免完整 Token 写入日志；低危 #4 修复：原实现直接把 `header_val` 拼到 warn 日志中， 可能导致完整 JWT Token 落地到日志文件/聚合系统，违反最小暴露原则
 /// 本函数仅返回格式与长度供排错使用，Token 部分被截断。；参数 - `header_val`: 原始 Authorization 头值（可能含 `Bearer xxx...`）；返回 - 脱敏后的字符串：仅显示前缀与长度，如 `Bearer abc***(len=143)`
-fn mask_auth_header(header_val: &str) -> String {
+pub fn mask_auth_header(header_val: &str) -> String {
     // 截取前 12 个字符（包含 "Bearer " 前缀和 Token 前 6 位），剩余长度记入日志
     const PREFIX_KEEP: usize = 12;
     let total_len = header_val.len();
@@ -33,7 +33,7 @@ fn mask_auth_header(header_val: &str) -> String {
 
 /// 日志脱敏：用户名 PII 截断；低危 #4 修复：warn 级别日志中只保留用户名前 2 字符 + `***`， 避免明文 username
 /// 进入日志聚合系统；保留前 2 字符仍可定位用户。；参数 - `username`: 原始用户名；返回 - 脱敏后的字符串，如 `al***`
-fn mask_username(username: &str) -> String {
+pub fn mask_username(username: &str) -> String {
     let chars: Vec<char> = username.chars().collect();
     if chars.len() <= 2 {
         "***".to_string()

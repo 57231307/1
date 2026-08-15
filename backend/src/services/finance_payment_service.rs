@@ -1,7 +1,7 @@
 use crate::models::finance_payment;
 use crate::models::status::finance_payment as payment_status;
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
 use crate::utils::error::AppError;
 // 批次 260 修复：接入 paginate_with_total 统一分页逻辑
 use crate::utils::pagination::paginate_with_total;

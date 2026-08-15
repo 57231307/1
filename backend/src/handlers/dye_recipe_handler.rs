@@ -5,10 +5,12 @@
 //! 依据：面料行业真实业务调研文档 §11.1 化验室打样流程 + §13.1 批次 423 规划
 
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
+};
 use serde::Deserialize;
 
 use crate::container::AppState;
@@ -22,7 +24,7 @@ use crate::services::dye_recipe_service::{
 };
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
-use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
+use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
 use std::sync::Arc;
 
 /// 列表查询参数（axum Query 反序列化用）

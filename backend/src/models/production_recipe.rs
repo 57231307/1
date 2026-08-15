@@ -7,8 +7,8 @@
 //!          → 填写物料明细 → 计算用量 → 开具大货处方单 → 审核后自动建立生产领用单据
 
 use rust_decimal::Decimal;
-use sea_orm::entity::prelude::*;
 use sea_orm::FromJsonQueryResult;
+use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// 大货处方物料明细项（recipe_detail JSON 数组元素；concentration 浓度百分比 owf% 助剂可空，amount 用量 kg/L 由浓度×布重×浴比/100 计算，category dye/auxiliary）

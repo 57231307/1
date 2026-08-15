@@ -22,8 +22,8 @@
 // 2 小时（JWT 过期时间）。Redis 后端保证所有实例共享同一黑名单视图。
 // Redis 不可用时自动回退到内存（graceful degradation）。
 
-use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
+use redis::aio::ConnectionManager;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::LazyLock;
@@ -187,7 +187,7 @@ pub async fn cleanup_expired_jti(_max_age_secs: i64) {
 //   应迁移到 Redis/DB（按 user_id 维度持久化 revoked_at），此实现仅做 MVP。
 
 /// 用户级 Token 吊销表（user_id -> 吊销时间戳，Unix 秒）（`pub(crate)` 以便 facade 测试夹具直接注入"过期"记录验证清理逻辑。）
-pub(crate) static REVOKED_USERS: LazyLock<RwLock<HashMap<i32, i64>>> =
+pub static REVOKED_USERS: LazyLock<RwLock<HashMap<i32, i64>>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
 
 /// 吊销指定用户的所有活跃 JWT
@@ -253,13 +253,13 @@ pub async fn cleanup_revoked_users() -> usize {
 
 /// 吊销记录 TTL（秒），默认 7 天
 /// v11 批次 145 P1-7：吊销记录超过此时间后自动清理。；JWT 最长有效期 2 小时，7 天后所有旧 Token 已过期，吊销记录无意义。；`pub(crate)` 以便 facade 测试夹具构造"过期"记录时引用同一常量。
-pub(crate) const REVOKED_USER_TTL_SECS: i64 = 7 * 24 * 60 * 60;
+pub const REVOKED_USER_TTL_SECS: i64 = 7 * 24 * 60 * 60;
 
 /// 启动吊销记录定期清理后台任务（v11 批次 145 P1-7：接入 app_state 初始化流程，每 24 小时清理一次过期吊销记录。；此任务为 best-effort，单次清理 panic 不会退出循环。）
 pub fn start_revoked_user_cleanup_task() -> tokio::task::JoinHandle<()> {
     use futures::FutureExt;
     use std::panic::AssertUnwindSafe;
-    use tokio::time::{interval, Duration};
+    use tokio::time::{Duration, interval};
 
     tokio::spawn(async move {
         // 每 24 小时执行一次清理

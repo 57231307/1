@@ -4,9 +4,9 @@
 
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{ExprTrait, 
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, PaginatorTrait,
+    QueryFilter, QueryOrder, Set,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -314,7 +314,11 @@ impl CapacityService {
                 "计划 {} + 进行中 {} = 总需求 {}",
                 item.planned_quantity, item.in_progress_quantity, item.total_demand
             );
-            let threshold = format!("日产能 {} {}", item.daily_capacity, item.capacity_unit.as_deref().unwrap_or(""));
+            let threshold = format!(
+                "日产能 {} {}",
+                item.daily_capacity,
+                item.capacity_unit.as_deref().unwrap_or("")
+            );
             if let Err(e) = notify_svc
                 .notify_inventory_alert_batch(
                     &notify_user_ids,
@@ -528,10 +532,8 @@ impl CapacityService {
             .filter(|i| i.load_rate > Decimal::from(80))
             .map(|item| {
                 let mut item = item.clone();
-                item.gap_quantity =
-                    (item.total_demand - item.daily_capacity).max(Decimal::ZERO);
-                item.suggestions =
-                    Self::generate_suggestions(&item, &idle_work_centers);
+                item.gap_quantity = (item.total_demand - item.daily_capacity).max(Decimal::ZERO);
+                item.suggestions = Self::generate_suggestions(&item, &idle_work_centers);
                 item
             })
             .collect();
@@ -941,7 +943,7 @@ impl CapacityService {
 
     /// 基于历史数据量和预测期限动态计算预测置信度
     /// 历史订单越多、预测期限越短，置信度越高
-    fn calculate_forecast_confidence(
+    pub fn calculate_forecast_confidence(
         historical_order_count: u64,
         days: i32,
         has_current_load: bool,

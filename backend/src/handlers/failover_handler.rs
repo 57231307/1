@@ -6,7 +6,7 @@
 //! - `POST /api/v1/erp/admin/failover/test/switch` — 手动触发切换
 //! - `GET /api/v1/erp/admin/failover/health` — 健康检查
 
-use axum::{extract::State, Json};
+use axum::{Json, extract::State};
 use once_cell::sync::OnceCell;
 use serde::Deserialize;
 use serde_json::json;

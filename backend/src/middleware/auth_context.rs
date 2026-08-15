@@ -4,10 +4,10 @@
 
 use crate::services::auth_service::AppClaims;
 use axum::{
-    extract::FromRequestParts,
-    http::{request::Parts, StatusCode},
-    response::{IntoResponse, Response},
     Json,
+    extract::FromRequestParts,
+    http::{StatusCode, request::Parts},
+    response::{IntoResponse, Response},
 };
 use serde::{Deserialize, Serialize};
 

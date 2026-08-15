@@ -2,8 +2,7 @@ use crate::utils::error::AppError;
 use chrono::Utc;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseBackend, DatabaseTransaction, EntityTrait,
-    FromQueryResult, PaginatorTrait, QueryFilter, Statement, TransactionSession,
-    TransactionTrait,
+    FromQueryResult, PaginatorTrait, QueryFilter, Statement, TransactionSession, TransactionTrait,
 };
 
 /// 通用单号生成器
@@ -43,7 +42,10 @@ impl DocumentNumberGenerator {
         let today = Utc::now().format("%Y%m%d").to_string();
         let date_prefix = format!("{}{}", prefix, today);
 
-        let txn = db.begin().await.map_err(|e| AppError::internal(format!("开始事务失败: {:?}", e)))?;
+        let txn = db
+            .begin()
+            .await
+            .map_err(|e| AppError::internal(format!("开始事务失败: {:?}", e)))?;
 
         let lock_key = compute_advisory_lock_key(prefix, &today);
 
@@ -59,7 +61,9 @@ impl DocumentNumberGenerator {
             .count(&txn)
             .await?;
 
-        txn.commit().await.map_err(|e| AppError::internal(format!("提交事务失败: {:?}", e)))?;
+        txn.commit()
+            .await
+            .map_err(|e| AppError::internal(format!("提交事务失败: {:?}", e)))?;
 
         let width = std::cmp::Ord::max(width, 1);
         Ok(format!(

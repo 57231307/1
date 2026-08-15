@@ -1,6 +1,6 @@
 use axum::{
-    extract::{Path, State},
     Json,
+    extract::{Path, State},
 };
 use serde::{Deserialize, Serialize};
 use std::sync::LazyLock;
@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
-use crate::middleware::rate_limit::{check_rate_limit, MemoryRateLimiter};
+use crate::middleware::rate_limit::{MemoryRateLimiter, check_rate_limit};
 use crate::services::webhook_service::{WebhookDeliveryResult, WebhookService};
 use crate::utils::error::AppError;
 use crate::utils::messages::biz_msg;
@@ -16,12 +16,12 @@ use crate::utils::response::ApiResponse;
 
 /// Webhook 测试端点专用限流器（10 次/分钟/用户） 规则 12 合规：防止攻击者频繁调用 test_webhook 探测内网服务；M6
 /// 修复（v8 复审）：限流器作为内存回退后端，实际检查通过 check_rate_limit （Redis 分布式优先 + 内存回退），多实例部署下共享计数
-static WEBHOOK_TEST_LIMITER: LazyLock<MemoryRateLimiter> =
+pub static WEBHOOK_TEST_LIMITER: LazyLock<MemoryRateLimiter> =
     LazyLock::new(|| MemoryRateLimiter::new(10, Duration::from_secs(60)));
 
 /// M-3 修复（v9 复审）：Webhook 重试端点专用限流器（10 次/分钟/用户） 规则 12 合规：防止攻击者高频调用
 /// retry_webhook 触发大量出站 HTTP 请求， 导致 SSRF 放大攻击。与 test_webhook 共用相同限流策略但独立计数。
-static WEBHOOK_RETRY_LIMITER: LazyLock<MemoryRateLimiter> =
+pub static WEBHOOK_RETRY_LIMITER: LazyLock<MemoryRateLimiter> =
     LazyLock::new(|| MemoryRateLimiter::new(10, Duration::from_secs(60)));
 
 #[derive(Debug, Deserialize)]

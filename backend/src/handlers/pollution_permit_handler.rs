@@ -8,8 +8,8 @@ use crate::services::pollution_permit_service::{
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 
 /// 创建排污许可证

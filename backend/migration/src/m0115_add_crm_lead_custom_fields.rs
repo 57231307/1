@@ -26,16 +26,8 @@ impl MigrationTrait for Migration {
                             .string_len(255)
                             .null(),
                     )
-                    .add_column(
-                        ColumnDef::new(CrmLeads::CustomField4)
-                            .text()
-                            .null(),
-                    )
-                    .add_column(
-                        ColumnDef::new(CrmLeads::CustomField5)
-                            .text()
-                            .null(),
-                    )
+                    .add_column(ColumnDef::new(CrmLeads::CustomField4).text().null())
+                    .add_column(ColumnDef::new(CrmLeads::CustomField5).text().null())
                     .to_owned(),
             )
             .await?;

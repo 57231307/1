@@ -211,7 +211,7 @@ fn record_permission_denial(
 }
 
 /// V15 P0-S21：提取 URL segment3（/api/v1/erp/{segment3}/...），用于白名单校验
-fn extract_segment3(path: &str) -> Option<&str> {
+pub fn extract_segment3(path: &str) -> Option<&str> {
     let path_parts: Vec<&str> = path.split('/').filter(|p| !p.is_empty()).collect();
     if path_parts.len() >= 4
         && path_parts[0] == "api"
@@ -231,7 +231,7 @@ const PATH_ACTION_KEYWORDS: &[&str] = &[
 ];
 
 /// V15 P0-S20：从路径末段提取动作关键字，非关键字返回 None
-fn extract_action_from_path(path: &str) -> Option<String> {
+pub fn extract_action_from_path(path: &str) -> Option<String> {
     // V15 clippy 修复：使用 rfind 从后向前查找第一个非空段，等价于 filter().next_back() 但更简洁
     let last_segment = path.split('/').rfind(|p| !p.is_empty())?;
     if PATH_ACTION_KEYWORDS.contains(&last_segment) {
@@ -245,7 +245,7 @@ fn extract_action_from_path(path: &str) -> Option<String> {
 const QUERY_ACTION_KEYWORDS: &[&str] = &["print", "export", "download"];
 
 /// V15 P0-S10：从 `?action=xxx` 提取动作，仅识别白名单内动作以防绕过权限
-fn extract_action_from_query(uri: &axum::http::Uri) -> Option<String> {
+pub fn extract_action_from_query(uri: &axum::http::Uri) -> Option<String> {
     let query = uri.query()?;
     // 解析 query string，查找 action 参数
     for pair in query.split('&') {
@@ -266,7 +266,7 @@ fn extract_action_from_query(uri: &axum::http::Uri) -> Option<String> {
     None
 }
 
-fn extract_resource_info(path: &str) -> (String, Option<i32>) {
+pub fn extract_resource_info(path: &str) -> (String, Option<i32>) {
     // 解析API路径，提取资源类型和ID
     let path_parts: Vec<&str> = path.split('/').filter(|p| !p.is_empty()).collect();
 
@@ -324,7 +324,7 @@ fn extract_resource_info(path: &str) -> (String, Option<i32>) {
     }
 }
 
-fn method_to_action(method: &Method) -> String {
+pub fn method_to_action(method: &Method) -> String {
     match *method {
         Method::GET => "read",
         Method::POST => "create",
@@ -341,27 +341,27 @@ use std::sync::LazyLock;
 
 /// 缓存项，包含数据和过期时间
 #[derive(Clone)]
-struct CacheEntry<T: Clone> {
-    data: T,
-    expires_at: DateTime<Utc>,
+pub struct CacheEntry<T: Clone> {
+    pub payload: T,
+    pub expires_at: DateTime<Utc>,
 }
 
 impl<T: Clone> CacheEntry<T> {
-    fn new(data: T, ttl: Duration) -> Self {
+    pub fn new(payload: T, ttl: Duration) -> Self {
         Self {
-            data,
+            payload,
             expires_at: Utc::now() + ttl,
         }
     }
 
-    fn is_expired(&self) -> bool {
+    pub fn is_expired(&self) -> bool {
         Utc::now() > self.expires_at
     }
 }
 
 // Cache: role_id -> CacheEntry<Arc<Vec<role_permission::Model>>>
 // 使用 Arc 包装，克隆时只增加引用计数，不复制数据
-static PERMISSION_CACHE: LazyLock<DashMap<i32, CacheEntry<Arc<Vec<role_permission::Model>>>>> =
+pub static PERMISSION_CACHE: LazyLock<DashMap<i32, CacheEntry<Arc<Vec<role_permission::Model>>>>> =
     LazyLock::new(DashMap::new);
 
 /// 权限缓存 TTL（分钟），可通过环境变量 PERMISSION_CACHE_TTL_MINS 配置，默认 5 分钟。
@@ -555,7 +555,7 @@ async fn check_permission(
             PERMISSION_CACHE.remove(&role_id);
             None
         } else {
-            Some(cached.data.clone())
+            Some(cached.payload.clone())
         }
     } else {
         None
@@ -591,7 +591,7 @@ async fn check_permission(
 
 /// 权限匹配纯函数：resource_type 精确匹配，action 支持 "*"，resource_id 精确匹配防越权
 /// V15 P2 14.11-F：resource_type 支持 "*" 通配（超级权限码 "resource:*" 或 "*:*"）
-fn matches_permission(
+pub fn matches_permission(
     p: &role_permission::Model,
     resource_type: &str,
     resource_id: Option<i32>,

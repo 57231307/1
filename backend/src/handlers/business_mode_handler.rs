@@ -7,8 +7,8 @@
 //!   6 种业务模式：坯布经销/成品经销/染整加工/自织自染/委托加工/来料加工
 
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use serde::{Deserialize, Serialize};
 

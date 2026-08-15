@@ -58,7 +58,7 @@ impl EventNotificationService {
     }
 
     /// 构造库存预警通知请求体（批次 409 提取：原 notify_inventory_alert 方法内联的 CreateNotificationRequest 构造逻辑，；提取为独立纯函数便于单元测试通知字段完整性。）
-    fn build_inventory_alert_notification(
+    pub fn build_inventory_alert_notification(
         user_id: i32,
         product_name: &str,
         product_id: i32,

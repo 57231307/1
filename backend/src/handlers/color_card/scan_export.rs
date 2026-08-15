@@ -5,8 +5,8 @@
 //! 行为完全保持一致（仅结构重构）
 
 use axum::{
-    extract::{Path, State},
     Json,
+    extract::{Path, State},
 };
 use std::sync::Arc;
 
@@ -20,7 +20,7 @@ use crate::services::color_card_item_service::ColorCardItemService;
 use crate::services::color_card_scan_service::ColorCardScanService;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
-use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
+use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
 
 use super::error_map::{crud_err, item_err};
 

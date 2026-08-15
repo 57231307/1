@@ -1,9 +1,9 @@
 use chrono::{DateTime, Datelike, Utc};
 use rust_decimal::Decimal;
 use sea_orm::prelude::*;
-use sea_orm::{ExprTrait, 
-    sea_query::Expr, ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, QueryFilter,
-    QueryOrder, QuerySelect, Statement,
+use sea_orm::{
+    ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, FromQueryResult, QueryFilter,
+    QueryOrder, QuerySelect, Statement, sea_query::Expr,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

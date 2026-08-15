@@ -2,8 +2,8 @@ use crate::container::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -270,7 +270,7 @@ pub async fn create_trace_snapshot(
 }
 
 /// 获取环节名称
-fn get_stage_name(stage: &str) -> String {
+pub fn get_stage_name(stage: &str) -> String {
     match stage {
         "PURCHASE_RECEIPT" => "采购收货".to_string(),
         "INVENTORY_IN" => "入库".to_string(),

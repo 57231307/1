@@ -15,7 +15,7 @@ use std::sync::Arc;
 use futures::FutureExt;
 use sea_orm::{ConnectionTrait, DatabaseBackend, DatabaseConnection, Statement};
 use serde::Serialize;
-use tokio::time::{interval, Duration};
+use tokio::time::{Duration, interval};
 
 use crate::utils::error::AppError;
 

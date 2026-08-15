@@ -10,8 +10,9 @@
 //! - create_revenue_voucher_for_delivery / build_revenue_voucher_request / build_revenue_voucher_item
 
 use rust_decimal::Decimal;
-use sea_orm::{ExprTrait, 
-    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set, TransactionTrait,
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, QueryFilter, QuerySelect, Set,
+    TransactionTrait,
 };
 
 use crate::models::status::sales_delivery as delivery_status;

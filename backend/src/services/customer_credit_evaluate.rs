@@ -274,7 +274,7 @@ impl CustomerCreditService {
 
             // 检查信用等级
             if let Some(ref level) = credit.credit_level {
-                if matches!(level.as_str(), "AAA" | "AA" | "A") {
+                if matches!(level.as_str(), "AAA" | "AA" | "A") && has_good_record && !has_overdue {
                     has_good_record = true;
                 }
             }

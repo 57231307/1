@@ -4,7 +4,7 @@
 //! 业务场景：面料库存创建时，根据米数 + 克重 + 幅宽自动计算公斤数
 //! 性能要求：单次计算 < 1ms（大数据量批量创建时避免阻塞）
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use rust_decimal::Decimal;
 use std::str::FromStr;
 

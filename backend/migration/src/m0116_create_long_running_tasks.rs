@@ -57,16 +57,8 @@ impl MigrationTrait for Migration {
                             .json_binary()
                             .null(),
                     )
-                    .col(
-                        ColumnDef::new(LongRunningTasks::ErrorMessage)
-                            .text()
-                            .null(),
-                    )
-                    .col(
-                        ColumnDef::new(LongRunningTasks::StartedBy)
-                            .integer()
-                            .null(),
-                    )
+                    .col(ColumnDef::new(LongRunningTasks::ErrorMessage).text().null())
+                    .col(ColumnDef::new(LongRunningTasks::StartedBy).integer().null())
                     .col(
                         ColumnDef::new(LongRunningTasks::StartedAt)
                             .timestamp_with_time_zone()

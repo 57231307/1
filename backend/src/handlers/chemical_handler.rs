@@ -7,8 +7,8 @@
 //!   → 领用单（生产/化验室/研发，关联染色缸号）
 
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use serde::Deserialize;
 

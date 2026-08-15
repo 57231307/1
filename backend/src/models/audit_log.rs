@@ -1,6 +1,6 @@
 #![allow(dead_code)]
-use sea_orm::entity::prelude::*;
 use sea_orm::FromJsonQueryResult;
+use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// 审计日志差异快照 JSON 值（与 before/after_snapshot 字段对应）
@@ -61,6 +61,18 @@ pub enum Severity {
     Error,
     /// 严重（需立即响应）
     Critical,
+}
+
+impl std::fmt::Display for OperationType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl std::fmt::Display for Severity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
 }
 
 impl Severity {

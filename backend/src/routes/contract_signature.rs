@@ -3,8 +3,8 @@
 use crate::container::AppState;
 use crate::handlers::contract_signature_handler;
 use axum::{
-    routing::{get, post},
     Router,
+    routing::{get, post},
 };
 
 /// 合同签名路由（path 前缀 /contract-signatures）

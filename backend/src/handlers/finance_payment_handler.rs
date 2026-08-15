@@ -9,8 +9,8 @@ use crate::services::finance_payment_service::{CreatePaymentInput, FinancePaymen
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;

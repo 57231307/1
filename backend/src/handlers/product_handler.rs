@@ -1,6 +1,6 @@
 use axum::{
-    extract::{Path, Query, State},
     Extension, Json,
+    extract::{Path, Query, State},
 };
 use serde::Deserialize;
 use validator::Validate;
@@ -482,7 +482,7 @@ pub async fn batch_create_colors(
 
 // ========== 数据导入导出接口 ==========
 
-use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
+use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
 // V15 P0-S11：导出审计日志写入所需依赖
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};

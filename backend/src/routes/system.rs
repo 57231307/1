@@ -11,9 +11,8 @@ use crate::container::AppState;
 use crate::middleware::init_token::init_token_middleware;
 use crate::middleware::rate_limit::rate_limit_ai_endpoint;
 use axum::{
-    middleware,
+    Router, middleware,
     routing::{get, post},
-    Router,
 };
 
 use crate::handlers::{

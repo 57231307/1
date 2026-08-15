@@ -14,18 +14,18 @@
 //! 销售员仅看自己创建的 AI 推理记录，部门经理看本部门（AI 表无 department_id，Dept 退化为 Self），管理员看全部。
 
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use serde::Deserialize;
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
+use crate::services::ai::recipe_opt::RecipeOptResponse;
 use crate::services::ai_extend_service::{
     AcknowledgeQualityPredDto, AiExtendService, ApplyProcessOptDto, CreateProcessOptDto,
     CreateQualityPredDto, ListProcessOptQuery, ListQualityPredQuery,
 };
-use crate::services::ai::recipe_opt::RecipeOptResponse;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
@@ -82,12 +82,25 @@ pub async fn create_process_optimization(
     }
     if let Some(ref dye) = body.request.dye_type {
         let valid_dyes = [
-            "reactive", "活性", "disperse", "分散", "acid", "酸性",
-            "vat", "还原", "direct", "直接", "cationic", "阳离子", "sulfur", "硫化",
+            "reactive",
+            "活性",
+            "disperse",
+            "分散",
+            "acid",
+            "酸性",
+            "vat",
+            "还原",
+            "direct",
+            "直接",
+            "cationic",
+            "阳离子",
+            "sulfur",
+            "硫化",
         ];
         if !dye.trim().is_empty() && !valid_dyes.contains(&dye.as_str()) {
             return Err(AppError::validation(format!(
-                "dye_type 不合法，允许值：{}", valid_dyes.join("/")
+                "dye_type 不合法，允许值：{}",
+                valid_dyes.join("/")
             )));
         }
     }

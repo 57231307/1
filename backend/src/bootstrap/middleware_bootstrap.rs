@@ -5,14 +5,14 @@
 
 use std::time::Duration;
 
+use axum::Router;
 use axum::extract::DefaultBodyLimit;
 use axum::http::{HeaderValue, Method, Request};
-use axum::Router;
 use tower_http::classify::ServerErrorsFailureClass;
 use tower_http::cors::CorsLayer;
 use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::TraceLayer;
-use tracing::{info, warn, Span};
+use tracing::{Span, info, warn};
 
 use crate::container::AppState;
 use crate::middleware::auth::auth_middleware;

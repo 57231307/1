@@ -1,6 +1,6 @@
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use chrono::Datelike;
 use serde::Deserialize;
@@ -12,7 +12,7 @@ use crate::services::finance_report_service::{
 };
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
-use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
+use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
 
 #[derive(Debug, Deserialize)]
 pub struct DateRangeQuery {
@@ -214,8 +214,12 @@ pub async fn drill_down_report(
                 .subject_prefix
                 .ok_or_else(|| AppError::validation("报表穿透需要 subject_prefix 参数"))?;
             let start_date = query.start_date.unwrap_or_else(|| {
-                chrono::NaiveDate::from_ymd_opt(chrono::Datelike::year(&chrono::Utc::now().date_naive()), 1, 1)
-                    .unwrap_or_else(|| chrono::Utc::now().date_naive())
+                chrono::NaiveDate::from_ymd_opt(
+                    chrono::Datelike::year(&chrono::Utc::now().date_naive()),
+                    1,
+                    1,
+                )
+                .unwrap_or_else(|| chrono::Utc::now().date_naive())
             });
             let end_date = query
                 .end_date
@@ -364,7 +368,11 @@ pub async fn export_income_statement(
         ]);
     }
     // 营业费用
-    for item in income_statement.operating_expenses.iter().take(EXPORT_LIMIT) {
+    for item in income_statement
+        .operating_expenses
+        .iter()
+        .take(EXPORT_LIMIT)
+    {
         rows.push(vec![
             "营业费用".to_string(),
             item.name.clone(),
@@ -398,7 +406,9 @@ pub async fn export_cash_flow_statement(
     let end_date = query
         .end_date
         .unwrap_or_else(|| chrono::Utc::now().date_naive());
-    let cash_flow = service.get_cash_flow_statement(start_date, end_date).await?;
+    let cash_flow = service
+        .get_cash_flow_statement(start_date, end_date)
+        .await?;
 
     let headers = vec![
         "类别".to_string(),
@@ -453,9 +463,14 @@ pub async fn export_general_ledger(
     const EXPORT_LIMIT: usize = 10000;
     let service = FinanceReportService::new(state.db.clone());
     let start_date = query.start_date.unwrap_or_else(|| {
-        chrono::Utc::now().date_naive().with_day(1).unwrap_or_else(|| chrono::Utc::now().date_naive())
+        chrono::Utc::now()
+            .date_naive()
+            .with_day(1)
+            .unwrap_or_else(|| chrono::Utc::now().date_naive())
     });
-    let end_date = query.end_date.unwrap_or_else(|| chrono::Utc::now().date_naive());
+    let end_date = query
+        .end_date
+        .unwrap_or_else(|| chrono::Utc::now().date_naive());
     let ledger = service
         .get_general_ledger(query.subject_code, start_date, end_date)
         .await?;
@@ -506,9 +521,14 @@ pub async fn export_subsidiary_ledger(
     const EXPORT_LIMIT: usize = 10000;
     let service = FinanceReportService::new(state.db.clone());
     let start_date = query.start_date.unwrap_or_else(|| {
-        chrono::Utc::now().date_naive().with_day(1).unwrap_or_else(|| chrono::Utc::now().date_naive())
+        chrono::Utc::now()
+            .date_naive()
+            .with_day(1)
+            .unwrap_or_else(|| chrono::Utc::now().date_naive())
     });
-    let end_date = query.end_date.unwrap_or_else(|| chrono::Utc::now().date_naive());
+    let end_date = query
+        .end_date
+        .unwrap_or_else(|| chrono::Utc::now().date_naive());
     let ledger = service
         .get_subsidiary_ledger(
             query.dimension_type,

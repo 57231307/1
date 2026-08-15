@@ -3,8 +3,9 @@
 //! 提供客户分配历史的记录和查询功能
 
 use chrono::{TimeZone, Utc};
-use sea_orm::{ExprTrait, 
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    Set,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;

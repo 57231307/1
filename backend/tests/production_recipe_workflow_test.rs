@@ -4,265 +4,256 @@
 //! validate_status_transition / validate_can_update / validate_can_delete）
 //! 大货处方状态机：DRAFT → APPROVED → CLOSED（或 DRAFT → CANCELLED）
 
-#[cfg(test)]
-mod tests {
-    use bingxi_backend::models::production_recipe::RecipeMaterialItem;
-    use bingxi_backend::models::status::production_recipe as status;
-    use bingxi_backend::services::production_recipe_service::{
-        CalculateAmountsRequest, ProductionRecipeService,
+use bingxi_backend::models::production_recipe::RecipeMaterialItem;
+use bingxi_backend::models::status::production_recipe as status;
+use bingxi_backend::services::production_recipe_service::{
+    CalculateAmountsRequest, ProductionRecipeService,
+};
+use rust_decimal::Decimal;
+
+// ===== 状态常量值正确性 =====
+
+/// test_dhcfztcl_zzqx
+///
+/// 验证大货处方 4 种状态常量值符合预期（小写风格）。
+#[test]
+fn test_dhcfztcl_zzqx() {
+    assert_eq!(status::DRAFT, "draft");
+    assert_eq!(status::APPROVED, "approved");
+    assert_eq!(status::CLOSED, "closed");
+    assert_eq!(status::CANCELLED, "cancelled");
+}
+
+/// test_dhcfztcl_xxfgyzx
+#[test]
+fn test_dhcfztcl_xxfgyzx() {
+    for s in [
+        status::DRAFT,
+        status::APPROVED,
+        status::CLOSED,
+        status::CANCELLED,
+    ] {
+        assert!(
+            s.chars().all(|c| c.is_lowercase() || c == '_'),
+            "状态 {} 应全小写",
+            s
+        );
+    }
+}
+
+// ===== parse_liquor_ratio 浴比解析 =====
+
+/// test_parse_liquor_ratio_bzgs
+///
+/// 验证 "1:8" 解析为 8.0。
+#[test]
+fn test_parse_liquor_ratio_bzgs() {
+    let result = ProductionRecipeService::parse_liquor_ratio("1:8").unwrap();
+    assert_eq!(result, Decimal::new(8, 0));
+}
+
+/// test_parse_liquor_ratio_qjmh
+///
+/// 验证全角冒号 "1：8" 也能正确解析。
+#[test]
+fn test_parse_liquor_ratio_qjmh() {
+    let result = ProductionRecipeService::parse_liquor_ratio("1：8").unwrap();
+    assert_eq!(result, Decimal::new(8, 0));
+}
+
+/// test_parse_liquor_ratio_xggs
+///
+/// 验证斜杠格式 "1/8" 也能正确解析。
+#[test]
+fn test_parse_liquor_ratio_xggs() {
+    let result = ProductionRecipeService::parse_liquor_ratio("1/8").unwrap();
+    assert_eq!(result, Decimal::new(8, 0));
+}
+
+/// test_parse_liquor_ratio_ffgssb
+///
+/// 验证非法格式（空字符串、无冒号、非数字）返回 Err。
+#[test]
+fn test_parse_liquor_ratio_ffgssb() {
+    assert!(ProductionRecipeService::parse_liquor_ratio("").is_err());
+    assert!(ProductionRecipeService::parse_liquor_ratio("abc").is_err());
+    assert!(ProductionRecipeService::parse_liquor_ratio("1").is_err());
+}
+
+// ===== calculate_amounts 用量计算 =====
+
+/// test_calculate_amounts_rlandjs
+///
+/// 验证染料用量 = 浓度% × 布重 × 浴比 / 100。
+/// 2% owf × 500kg × 8（浴比）/ 100 = 80kg
+#[test]
+fn test_calculate_amounts_rlandjs() {
+    let req = CalculateAmountsRequest {
+        fabric_weight: Decimal::new(500, 0),
+        liquor_ratio: "1:8".to_string(),
+        adjustment_factor: None,
+        items: vec![RecipeMaterialItem {
+            material_code: "D001".to_string(),
+            material_name: "活性红".to_string(),
+            concentration: Some(Decimal::new(2, 0)), // 2% owf
+            unit: "kg".to_string(),
+            amount: Decimal::ZERO,
+            category: "dye".to_string(),
+        }],
     };
-    use rust_decimal::Decimal;
+    let result = ProductionRecipeService::calculate_amounts(req).unwrap();
+    assert_eq!(result.len(), 1);
+    // 2% × 500kg = 10kg（不含浴比，染料按浓度对布重计算）
+    // 具体计算公式见 service 实现，此处仅验证返回非零
+    assert!(result[0].amount > Decimal::ZERO, "染料用量应大于 0");
+}
 
-    // ===== 状态常量值正确性 =====
+/// test_calculate_amounts_zjwndbcyz
+///
+/// 验证助剂（concentration=None）的 amount 保持原值不变。
+#[test]
+fn test_calculate_amounts_zjwndbcyz() {
+    let original_amount = Decimal::new(15, 0);
+    let req = CalculateAmountsRequest {
+        fabric_weight: Decimal::new(500, 0),
+        liquor_ratio: "1:8".to_string(),
+        adjustment_factor: None,
+        items: vec![RecipeMaterialItem {
+            material_code: "A001".to_string(),
+            material_name: "匀染剂".to_string(),
+            concentration: None,
+            unit: "kg".to_string(),
+            amount: original_amount,
+            category: "auxiliary".to_string(),
+        }],
+    };
+    let result = ProductionRecipeService::calculate_amounts(req).unwrap();
+    assert_eq!(result[0].amount, original_amount, "助剂用量应保持原值");
+}
 
-    /// test_dhcfztcl_zzqx
-    ///
-    /// 验证大货处方 4 种状态常量值符合预期（小写风格）。
-    #[test]
-    fn test_dhcfztcl_zzqx() {
-        assert_eq!(status::DRAFT, "draft");
-        assert_eq!(status::APPROVED, "approved");
-        assert_eq!(status::CLOSED, "closed");
-        assert_eq!(status::CANCELLED, "cancelled");
-    }
+/// test_calculate_amounts_jcxssx
+///
+/// 验证 adjustment_factor 会按比例放大染料用量。
+#[test]
+fn test_calculate_amounts_jcxssx() {
+    let base_req = CalculateAmountsRequest {
+        fabric_weight: Decimal::new(500, 0),
+        liquor_ratio: "1:8".to_string(),
+        adjustment_factor: None,
+        items: vec![RecipeMaterialItem {
+            material_code: "D001".to_string(),
+            material_name: "活性红".to_string(),
+            concentration: Some(Decimal::new(2, 0)),
+            unit: "kg".to_string(),
+            amount: Decimal::ZERO,
+            category: "dye".to_string(),
+        }],
+    };
+    let base_result = ProductionRecipeService::calculate_amounts(base_req).unwrap();
+    let base_amount = base_result[0].amount;
 
-    /// test_dhcfztcl_xxfgyzx
-    #[test]
-    fn test_dhcfztcl_xxfgyzx() {
-        for s in [
-            status::DRAFT,
-            status::APPROVED,
-            status::CLOSED,
-            status::CANCELLED,
-        ] {
-            assert!(
-                s.chars().all(|c| c.is_lowercase() || c == '_'),
-                "状态 {} 应全小写",
-                s
-            );
-        }
-    }
+    let adjusted_req = CalculateAmountsRequest {
+        fabric_weight: Decimal::new(500, 0),
+        liquor_ratio: "1:8".to_string(),
+        adjustment_factor: Some(Decimal::new(150, 2)), // 1.50 加成
+        items: vec![RecipeMaterialItem {
+            material_code: "D001".to_string(),
+            material_name: "活性红".to_string(),
+            concentration: Some(Decimal::new(2, 0)),
+            unit: "kg".to_string(),
+            amount: Decimal::ZERO,
+            category: "dye".to_string(),
+        }],
+    };
+    let adjusted_result = ProductionRecipeService::calculate_amounts(adjusted_req).unwrap();
+    let adjusted_amount = adjusted_result[0].amount;
 
-    // ===== parse_liquor_ratio 浴比解析 =====
+    assert!(
+        adjusted_amount > base_amount,
+        "加成 1.50 后用量 {} 应大于基础用量 {}",
+        adjusted_amount,
+        base_amount
+    );
+}
 
-    /// test_parse_liquor_ratio_bzgs
-    ///
-    /// 验证 "1:8" 解析为 8.0。
-    #[test]
-    fn test_parse_liquor_ratio_bzgs() {
-        let result = ProductionRecipeService::parse_liquor_ratio("1:8").unwrap();
-        assert_eq!(result, Decimal::new(8, 0));
-    }
+// ===== validate_status_transition 状态流转校验 =====
 
-    /// test_parse_liquor_ratio_qjmh
-    ///
-    /// 验证全角冒号 "1：8" 也能正确解析。
-    #[test]
-    fn test_parse_liquor_ratio_qjmh() {
-        let result = ProductionRecipeService::parse_liquor_ratio("1：8").unwrap();
-        assert_eq!(result, Decimal::new(8, 0));
-    }
+/// test_validate_status_transition_hflztg
+///
+/// 验证合法流转边：DRAFT→APPROVED、APPROVED→CLOSED、DRAFT→CANCELLED。
+#[test]
+fn test_validate_status_transition_hflztg() {
+    assert!(
+        ProductionRecipeService::validate_status_transition(status::DRAFT, status::APPROVED)
+            .is_ok()
+    );
+    assert!(
+        ProductionRecipeService::validate_status_transition(status::APPROVED, status::CLOSED)
+            .is_ok()
+    );
+    assert!(
+        ProductionRecipeService::validate_status_transition(status::DRAFT, status::CANCELLED)
+            .is_ok()
+    );
+}
 
-    /// test_parse_liquor_ratio_xggs
-    ///
-    /// 验证斜杠格式 "1/8" 也能正确解析。
-    #[test]
-    fn test_parse_liquor_ratio_xggs() {
-        let result = ProductionRecipeService::parse_liquor_ratio("1/8").unwrap();
-        assert_eq!(result, Decimal::new(8, 0));
-    }
+/// test_validate_status_transition_fflzsb
+///
+/// 验证非法流转边：DRAFT→CLOSED（跳过审核）、CLOSED→DRAFT（终态回退）等。
+#[test]
+fn test_validate_status_transition_fflzsb() {
+    assert!(
+        ProductionRecipeService::validate_status_transition(status::DRAFT, status::CLOSED).is_err()
+    );
+    assert!(
+        ProductionRecipeService::validate_status_transition(status::CLOSED, status::DRAFT).is_err()
+    );
+    assert!(
+        ProductionRecipeService::validate_status_transition(status::CANCELLED, status::APPROVED)
+            .is_err()
+    );
+}
 
-    /// test_parse_liquor_ratio_ffgssb
-    ///
-    /// 验证非法格式（空字符串、无冒号、非数字）返回 Err。
-    #[test]
-    fn test_parse_liquor_ratio_ffgssb() {
-        assert!(ProductionRecipeService::parse_liquor_ratio("").is_err());
-        assert!(ProductionRecipeService::parse_liquor_ratio("abc").is_err());
-        assert!(ProductionRecipeService::parse_liquor_ratio("1").is_err());
-    }
+// ===== validate_can_update 可更新校验 =====
 
-    // ===== calculate_amounts 用量计算 =====
+/// test validate_can_update: only DRAFT allows update
+#[test]
+fn test_validate_can_update_only_draft() {
+    assert!(ProductionRecipeService::validate_can_update(status::DRAFT).is_ok());
+}
 
-    /// test_calculate_amounts_rlandjs
-    ///
-    /// 验证染料用量 = 浓度% × 布重 × 浴比 / 100。
-    /// 2% owf × 500kg × 8（浴比）/ 100 = 80kg
-    #[test]
-    fn test_calculate_amounts_rlandjs() {
-        let req = CalculateAmountsRequest {
-            fabric_weight: Decimal::new(500, 0),
-            liquor_ratio: "1:8".to_string(),
-            adjustment_factor: None,
-            items: vec![RecipeMaterialItem {
-                material_code: "D001".to_string(),
-                material_name: "活性红".to_string(),
-                concentration: Some(Decimal::new(2, 0)), // 2% owf
-                unit: "kg".to_string(),
-                amount: Decimal::ZERO,
-                category: "dye".to_string(),
-            }],
-        };
-        let result = ProductionRecipeService::calculate_amounts(req).unwrap();
-        assert_eq!(result.len(), 1);
-        // 2% × 500kg = 10kg（不含浴比，染料按浓度对布重计算）
-        // 具体计算公式见 service 实现，此处仅验证返回非零
-        assert!(result[0].amount > Decimal::ZERO, "染料用量应大于 0");
-    }
+/// test validate_can_update: non-DRAFT states reject update
+#[test]
+fn test_validate_can_update_non_draft_rejected() {
+    assert!(ProductionRecipeService::validate_can_update(status::APPROVED).is_err());
+    assert!(ProductionRecipeService::validate_can_update(status::CLOSED).is_err());
+    assert!(ProductionRecipeService::validate_can_update(status::CANCELLED).is_err());
+}
 
-    /// test_calculate_amounts_zjwndbcyz
-    ///
-    /// 验证助剂（concentration=None）的 amount 保持原值不变。
-    #[test]
-    fn test_calculate_amounts_zjwndbcyz() {
-        let original_amount = Decimal::new(15, 0);
-        let req = CalculateAmountsRequest {
-            fabric_weight: Decimal::new(500, 0),
-            liquor_ratio: "1:8".to_string(),
-            adjustment_factor: None,
-            items: vec![RecipeMaterialItem {
-                material_code: "A001".to_string(),
-                material_name: "匀染剂".to_string(),
-                concentration: None,
-                unit: "kg".to_string(),
-                amount: original_amount,
-                category: "auxiliary".to_string(),
-            }],
-        };
-        let result = ProductionRecipeService::calculate_amounts(req).unwrap();
-        assert_eq!(result[0].amount, original_amount, "助剂用量应保持原值");
-    }
+// ===== validate_can_delete 可删除校验 =====
 
-    /// test_calculate_amounts_jcxssx
-    ///
-    /// 验证 adjustment_factor 会按比例放大染料用量。
-    #[test]
-    fn test_calculate_amounts_jcxssx() {
-        let base_req = CalculateAmountsRequest {
-            fabric_weight: Decimal::new(500, 0),
-            liquor_ratio: "1:8".to_string(),
-            adjustment_factor: None,
-            items: vec![RecipeMaterialItem {
-                material_code: "D001".to_string(),
-                material_name: "活性红".to_string(),
-                concentration: Some(Decimal::new(2, 0)),
-                unit: "kg".to_string(),
-                amount: Decimal::ZERO,
-                category: "dye".to_string(),
-            }],
-        };
-        let base_result = ProductionRecipeService::calculate_amounts(base_req).unwrap();
-        let base_amount = base_result[0].amount;
+/// test validate_can_delete: only DRAFT allows delete
+#[test]
+fn test_validate_can_delete_only_draft() {
+    assert!(ProductionRecipeService::validate_can_delete(status::DRAFT).is_ok());
+}
 
-        let adjusted_req = CalculateAmountsRequest {
-            fabric_weight: Decimal::new(500, 0),
-            liquor_ratio: "1:8".to_string(),
-            adjustment_factor: Some(Decimal::new(150, 2)), // 1.50 加成
-            items: vec![RecipeMaterialItem {
-                material_code: "D001".to_string(),
-                material_name: "活性红".to_string(),
-                concentration: Some(Decimal::new(2, 0)),
-                unit: "kg".to_string(),
-                amount: Decimal::ZERO,
-                category: "dye".to_string(),
-            }],
-        };
-        let adjusted_result = ProductionRecipeService::calculate_amounts(adjusted_req).unwrap();
-        let adjusted_amount = adjusted_result[0].amount;
+/// test validate_can_delete: non-DRAFT states reject delete
+#[test]
+fn test_validate_can_delete_non_draft_rejected() {
+    assert!(ProductionRecipeService::validate_can_delete(status::APPROVED).is_err());
+    assert!(ProductionRecipeService::validate_can_delete(status::CLOSED).is_err());
+    assert!(ProductionRecipeService::validate_can_delete(status::CANCELLED).is_err());
+}
 
-        assert!(
-            adjusted_amount > base_amount,
-            "加成 1.50 后用量 {} 应大于基础用量 {}",
-            adjusted_amount,
-            base_amount
-        );
-    }
+// ===== 完整业务流程测试（需要真实 PostgreSQL，标记 ignore）=====
 
-    // ===== validate_status_transition 状态流转校验 =====
-
-    /// test_validate_status_transition_hflztg
-    ///
-    /// 验证合法流转边：DRAFT→APPROVED、APPROVED→CLOSED、DRAFT→CANCELLED。
-    #[test]
-    fn test_validate_status_transition_hflztg() {
-        assert!(ProductionRecipeService::validate_status_transition(
-            status::DRAFT,
-            status::APPROVED
-        )
-        .is_ok());
-        assert!(ProductionRecipeService::validate_status_transition(
-            status::APPROVED,
-            status::CLOSED
-        )
-        .is_ok());
-        assert!(ProductionRecipeService::validate_status_transition(
-            status::DRAFT,
-            status::CANCELLED
-        )
-        .is_ok());
-    }
-
-    /// test_validate_status_transition_fflzsb
-    ///
-    /// 验证非法流转边：DRAFT→CLOSED（跳过审核）、CLOSED→DRAFT（终态回退）等。
-    #[test]
-    fn test_validate_status_transition_fflzsb() {
-        assert!(
-            ProductionRecipeService::validate_status_transition(status::DRAFT, status::CLOSED)
-                .is_err()
-        );
-        assert!(
-            ProductionRecipeService::validate_status_transition(status::CLOSED, status::DRAFT)
-                .is_err()
-        );
-        assert!(ProductionRecipeService::validate_status_transition(
-            status::CANCELLED,
-            status::APPROVED
-        )
-        .is_err());
-    }
-
-    // ===== validate_can_update 可更新校验 =====
-
-    /// test validate_can_update: only DRAFT allows update
-    #[test]
-    fn test_validate_can_update_only_draft() {
-        assert!(ProductionRecipeService::validate_can_update(status::DRAFT).is_ok());
-    }
-
-    /// test validate_can_update: non-DRAFT states reject update
-    #[test]
-    fn test_validate_can_update_non_draft_rejected() {
-        assert!(ProductionRecipeService::validate_can_update(status::APPROVED).is_err());
-        assert!(ProductionRecipeService::validate_can_update(status::CLOSED).is_err());
-        assert!(ProductionRecipeService::validate_can_update(status::CANCELLED).is_err());
-    }
-
-    // ===== validate_can_delete 可删除校验 =====
-
-    /// test validate_can_delete: only DRAFT allows delete
-    #[test]
-    fn test_validate_can_delete_only_draft() {
-        assert!(ProductionRecipeService::validate_can_delete(status::DRAFT).is_ok());
-    }
-
-    /// test validate_can_delete: non-DRAFT states reject delete
-    #[test]
-    fn test_validate_can_delete_non_draft_rejected() {
-        assert!(ProductionRecipeService::validate_can_delete(status::APPROVED).is_err());
-        assert!(ProductionRecipeService::validate_can_delete(status::CLOSED).is_err());
-        assert!(ProductionRecipeService::validate_can_delete(status::CANCELLED).is_err());
-    }
-
-    // ===== 完整业务流程测试（需要真实 PostgreSQL，标记 ignore）=====
-
-    /// 集成测试：大货处方全流程 DRAFT → APPROVED → CLOSED
-    ///
-    /// 需要 PostgreSQL + 前置工单/缸号/客户数据。
-    #[tokio::test]
-    #[ignore = "需要 PostgreSQL 测试数据库 + 前置工单/缸号数据"]
-    async fn test_dhcfqlc_cgdgb() {
-        // 完整流程需 ProductionRecipeService 实例化 + DB 操作，
-        // 留待真实环境验证。
-    }
+/// 集成测试：大货处方全流程 DRAFT → APPROVED → CLOSED
+///
+/// 需要 PostgreSQL + 前置工单/缸号/客户数据。
+#[tokio::test]
+#[ignore = "需要 PostgreSQL 测试数据库 + 前置工单/缸号数据"]
+async fn test_dhcfqlc_cgdgb() {
+    // 完整流程需 ProductionRecipeService 实例化 + DB 操作，
+    // 留待真实环境验证。
 }

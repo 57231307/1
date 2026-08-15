@@ -19,26 +19,26 @@ pub const AUDITOR_ROLE_CODE: &str = "auditor";
 
 /// 管理员角色检查缓存条目
 #[derive(Clone)]
-struct AdminCacheEntry {
-    is_admin: bool,
-    expires_at: DateTime<Utc>,
+pub struct AdminCacheEntry {
+    pub is_admin: bool,
+    pub expires_at: DateTime<Utc>,
 }
 
 impl AdminCacheEntry {
-    fn new(is_admin: bool, ttl_minutes: i64) -> Self {
+    pub fn new(is_admin: bool, ttl_minutes: i64) -> Self {
         Self {
             is_admin,
             expires_at: Utc::now() + Duration::minutes(ttl_minutes),
         }
     }
 
-    fn is_expired(&self) -> bool {
+    pub fn is_expired(&self) -> bool {
         Utc::now() > self.expires_at
     }
 }
 
 /// 管理员角色检查缓存：role_id -> (is_admin, expires_at)
-static ADMIN_ROLE_CACHE: LazyLock<DashMap<i32, AdminCacheEntry>> = LazyLock::new(DashMap::new);
+pub static ADMIN_ROLE_CACHE: LazyLock<DashMap<i32, AdminCacheEntry>> = LazyLock::new(DashMap::new);
 
 /// 管理员角色缓存TTL（5分钟）
 const ADMIN_CACHE_TTL_MINUTES: i64 = 5;
@@ -130,7 +130,6 @@ pub async fn can_access_audit_logs(db: &DatabaseConnection, role_id: i32) -> boo
 }
 
 /// V15 P1-14.11-B：纯函数判断角色 code 是否为 admin（与 is_admin_role 内部逻辑一致）
-#[cfg(test)]
-fn should_be_admin_by_code(code: &str) -> bool {
+pub fn should_be_admin_by_code(code: &str) -> bool {
     code == ADMIN_ROLE_CODE
 }

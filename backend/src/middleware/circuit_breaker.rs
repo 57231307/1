@@ -29,7 +29,7 @@ const HALF_OPEN_PROBE_LIMIT: u32 = 1;
 
 /// 熔断器状态
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum CircuitState {
+pub enum CircuitState {
     /// 关闭（正常放行）
     Closed,
     /// 打开（直接返回 503）
@@ -39,8 +39,8 @@ enum CircuitState {
 }
 
 /// 熔断器条目（每个 route_key 一个）
-struct CircuitEntry {
-    state: CircuitState,
+pub struct CircuitEntry {
+    pub state: CircuitState,
     /// 滑动窗口内的总请求数
     total: u32,
     /// 滑动窗口内的失败请求数
@@ -48,13 +48,13 @@ struct CircuitEntry {
     /// 窗口起始时间（超过 5s 重置窗口）
     window_start: Instant,
     /// 进入 open 状态的时间（用于 30s 冷却判断）
-    opened_at: Option<Instant>,
+    pub opened_at: Option<Instant>,
     /// half-open 状态已放行的探测请求数
     half_open_probes: u32,
 }
 
 impl CircuitEntry {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             state: CircuitState::Closed,
             total: 0,
@@ -88,7 +88,7 @@ impl CircuitEntry {
 
     /// 判断请求是否被熔断拒绝
     /// Closed/HalfOpen(未达探测上限) 放行；Open 或 HalfOpen 已达探测上限 拒绝
-    fn should_reject(&mut self) -> bool {
+    pub fn should_reject(&mut self) -> bool {
         self.maybe_transition_to_half_open();
         match self.state {
             CircuitState::Open => true,
@@ -105,7 +105,7 @@ impl CircuitEntry {
     }
 
     /// 记录请求结果（成功 status < 500，失败 status >= 500）
-    fn record_result(&mut self, is_failure: bool) {
+    pub fn record_result(&mut self, is_failure: bool) {
         self.maybe_reset_window();
         self.total += 1;
         if is_failure {

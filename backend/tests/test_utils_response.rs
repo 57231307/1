@@ -1,6 +1,7 @@
 //! 通用工具函数单元测试
 
 use bingxi_backend::utils::response::ApiResponse;
+use std::collections::HashMap;
 
 #[test]
 fn test_api_response_success() {

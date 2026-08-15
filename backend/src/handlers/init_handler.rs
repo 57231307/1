@@ -4,14 +4,14 @@ use crate::container::AppState;
 use crate::middleware::audit_context::AuditContext;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::init_service::{
-    get_init_tasks, DatabaseConfig, InitRequest, InitService, InitStatus, InitTaskStatus,
+    DatabaseConfig, InitRequest, InitService, InitStatus, InitTaskStatus, get_init_tasks,
 };
 use crate::utils::admin_checker::is_admin_role;
 use crate::utils::audit::{self, SecurityEvent};
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::extract::Query;
-use axum::{extract::State, Extension, Json};
+use axum::{Extension, Json, extract::State};
 use sea_orm::DatabaseConnection;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -304,7 +304,7 @@ pub async fn initialize_system_with_db_async(
 
 /// 初始化子系统处理器内部的 admin 角色二次校验
 /// permission_middleware 不覆盖 init 路径，handler 层必须补 admin 防线；与 user_handler::require_admin_role 实现一致
-async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), AppError> {
+pub async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), AppError> {
     let role_id = auth
         .role_id
         .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行该操作"))?;

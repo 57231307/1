@@ -1,6 +1,7 @@
 //! 成本归集模块单元测试
 
 use bingxi_backend::services::cost_collection_service::CreateCostCollectionRequest;
+use chrono::NaiveDate;
 use rust_decimal::Decimal;
 
 #[test]

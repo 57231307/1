@@ -9,8 +9,8 @@ use crate::utils::admin_checker::is_admin_role;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
-    extract::{Path, State},
     Json,
+    extract::{Path, State},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -31,7 +31,7 @@ async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), 
 
 /// C-3 修复：custom_condition 白名单校验；当前处理器未接收 custom_condition，但接口层已声明字段，保留校验逻辑 以便未来开放时即受到 SQL 注入防御。 白名单规则： - 仅允许 `field op value` 三段式结构 - field: ^[a-z_][a-z0-9_]{0,63}$
 /// (小写字母+下划线+数字) - op: 严格白名单 {=, !=, <, >, <=, >=, IN, NOT IN, LIKE} - value: 字面量（数字/字符串/单引号字符串） - 不允许出现: ;, (, ), /* */, --, UNION, SELECT, INSERT, UPDATE, DELETE, DROP, EXEC
-fn validate_custom_condition_safe(condition: &Value) -> Result<(), AppError> {
+pub fn validate_custom_condition_safe(condition: &Value) -> Result<(), AppError> {
     const FORBIDDEN: &[&str] = &[
         ";", "(", ")", "/*", "*/", "--", "UNION", "SELECT", "INSERT", "UPDATE", "DELETE", "DROP",
         "EXEC", "OR 1=1", "xp_",

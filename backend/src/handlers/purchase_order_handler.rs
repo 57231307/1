@@ -15,8 +15,8 @@ use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::response::ApiResponse;
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use sea_orm::EntityTrait;
 use serde::{Deserialize, Serialize};
@@ -502,7 +502,7 @@ pub struct CancelOrderRequest {
 // ========== 数据导出接口 ==========
 
 // V15 P0-S15 修复（Batch 475b）：导出注入水印（操作员/导出时间/导出条数）
-use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
+use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_with_watermark};
 // V15 P0-S11：导出审计日志写入所需依赖
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};

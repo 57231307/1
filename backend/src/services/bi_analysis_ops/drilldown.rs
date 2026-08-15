@@ -19,8 +19,8 @@ use sea_orm::{DatabaseConnection, FromQueryResult, Statement};
 use crate::services::bi_analysis_ops::types::{
     CustomerOrderRow, ProductOrderRow, TimeSeriesPoint, TimeSeriesRow,
 };
-use crate::services::bi_analysis_service::{dec_to_f64, BiAnalysisService};
-use crate::utils::data_scope::{build_data_scope_sql, DataScopeContext};
+use crate::services::bi_analysis_service::{BiAnalysisService, dec_to_f64};
+use crate::utils::data_scope::{DataScopeContext, build_data_scope_sql};
 use crate::utils::error::AppError;
 
 impl BiAnalysisService {
@@ -32,7 +32,7 @@ impl BiAnalysisService {
         if !(1900..=2999).contains(&year) {
             return Err(AppError::validation("年份无效"));
         }
-        let rows = Self::query_year_month_rows(&*self.db, &self.data_scope, year).await?;
+        let rows = Self::query_year_month_rows(&self.db, &self.data_scope, year).await?;
         Ok(Self::fill_year_month_points(rows, year))
     }
 

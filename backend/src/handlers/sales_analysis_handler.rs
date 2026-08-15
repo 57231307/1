@@ -8,12 +8,12 @@ use crate::services::sales_analysis_service::{
     CreateSalesTargetInput, CustomerRankingParams, ExportParams, ProductRankingParams,
     SalesAnalysisService, SalesTargetDto, UpdateSalesTargetRequest,
 };
+use crate::utils::ApiResponse;
 use crate::utils::error::AppError;
 use crate::utils::xlsx_export::xlsx_response;
-use crate::utils::ApiResponse;
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use serde::Deserialize;
 use std::sync::Arc;

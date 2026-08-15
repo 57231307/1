@@ -33,8 +33,8 @@ use std::sync::Arc;
 // JTI 黑名单与用户级 Token 吊销的 free functions 在 auth_service_ops::jti 中实现，
 // 此处重新导出以保持外部调用路径（如 crate::services::auth_service::revoke_jti）不变。
 pub use crate::services::auth_service_ops::jti::{
-    cleanup_expired_jti, cleanup_revoked_users, is_jti_revoked, is_user_token_revoked, revoke_jti,
-    revoke_user_jtis, start_revoked_user_cleanup_task, unrevoke_user,
+    cleanup_expired_jti, is_jti_revoked, is_user_token_revoked, revoke_jti, revoke_user_jtis,
+    start_revoked_user_cleanup_task, unrevoke_user,
 };
 
 /// JWT 令牌声明（包含用户身份信息和令牌元数据）

@@ -33,9 +33,9 @@ use crate::utils::error::AppError;
 
 // 复用 facade 的纯函数（保持单一来源，避免逻辑重复）
 use crate::services::wage_service::{
-    calculate_overtime_pay, calculate_wage_for_step, compute_qualification_rate,
-    naive_date_to_date_time_tz, naive_date_to_end_of_day_tz, parse_worker_ids, parse_worker_names,
-    split_wage_among_workers, CalculateWageRequest, WageCalculationService,
+    CalculateWageRequest, WageCalculationService, calculate_overtime_pay, calculate_wage_for_step,
+    compute_qualification_rate, naive_date_to_date_time_tz, naive_date_to_end_of_day_tz,
+    parse_worker_ids, parse_worker_names, split_wage_among_workers,
 };
 
 /// 工资计算累计：用于 calculate 拆分时在 helper 间传递汇总

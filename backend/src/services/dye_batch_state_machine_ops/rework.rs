@@ -18,8 +18,8 @@ use crate::models::dye_batch_rework::{
 };
 use crate::models::status::dye_batch_rework_status;
 use crate::services::dye_batch_state_machine_service::{
-    check_rework_eligibility, validate_lifecycle_status, validate_rework_type, CreateReworkRequest,
-    DyeBatchReworkService, ReworkQuery, UpdateReworkRequest,
+    CreateReworkRequest, DyeBatchReworkService, ReworkQuery, UpdateReworkRequest,
+    check_rework_eligibility, validate_lifecycle_status, validate_rework_type,
 };
 use crate::utils::error::AppError;
 

@@ -9,7 +9,7 @@
 //! - `build_docx_with_kv`：键值对形式输出主表数据 + 明细表（适用于合同/对账单）
 
 use crate::utils::error::AppError;
-use axum::http::{header, HeaderValue};
+use axum::http::{HeaderValue, header};
 use axum::response::Response;
 use docx_rs::*;
 

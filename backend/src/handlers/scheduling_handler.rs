@@ -3,8 +3,8 @@
 //! 生产排程API端点，提供自动排程、甘特图数据、冲突检测和手动调整功能
 
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use chrono::NaiveDate;
 use rust_decimal::Decimal;

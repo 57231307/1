@@ -245,7 +245,7 @@ impl QuotationConvertService {
         if parts.is_empty() {
             "-".to_string()
         } else {
-            parts.join("|")
+            parts.join("/")
         }
     }
 

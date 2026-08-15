@@ -33,9 +33,9 @@ use crate::services::business_mode_ops::types::{
     BusinessModeConfigQuery, CreateBusinessModeConfigRequest, UpdateBusinessModeConfigRequest,
 };
 use crate::services::business_mode_service::{
-    check_module_consistency, validate_cost_method, validate_inventory_type,
-    validate_material_source, validate_mode_category, validate_mode_code,
-    validate_settlement_method, BusinessModeConfigService,
+    BusinessModeConfigService, check_module_consistency, validate_cost_method,
+    validate_inventory_type, validate_material_source, validate_mode_category, validate_mode_code,
+    validate_settlement_method,
 };
 
 /// 更新时用于一致性校验的最终值聚合

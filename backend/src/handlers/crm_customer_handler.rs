@@ -3,8 +3,8 @@
 //! 提供客户信息维护、标签管理、联系人管理等 API 接口
 
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use serde::Deserialize;

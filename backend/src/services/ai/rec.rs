@@ -9,8 +9,8 @@
 //! 拆分自原 `ai_analysis_service.rs` 的 `// 库存优化` + `// 智能推荐` 两段方法集合。
 
 use chrono::{Duration, Utc};
-use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
+use rust_decimal::prelude::ToPrimitive;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
 use std::collections::HashMap;
 
@@ -23,8 +23,8 @@ use crate::services::mrp_engine_service::{MrpEngineService, RequirementCalcParam
 use crate::utils::error::AppError;
 
 use super::{
-    mean, std_deviation, AbcClassification, AiAnalysisService, InventorySuggestion,
-    InventoryTurnover, SmartRecommendation,
+    AbcClassification, AiAnalysisService, InventorySuggestion, InventoryTurnover,
+    SmartRecommendation, mean, std_deviation,
 };
 
 /// V15 P1 8.4：AI 补货推荐与 MRP 引擎对账差异阈值（>20% 触发人工复核）
@@ -387,8 +387,8 @@ impl AiAnalysisService {
     ) -> Result<Vec<InventoryTurnover>, AppError> {
         let start_date = Utc::now().date_naive() - Duration::days(days);
         let transactions =
-            Self::fetch_turnover_transactions(&*self.db, product_id, start_date).await?;
-        let stocks = Self::fetch_turnover_stocks(&*self.db, product_id).await?;
+            Self::fetch_turnover_transactions(&self.db, product_id, start_date).await?;
+        let stocks = Self::fetch_turnover_stocks(&self.db, product_id).await?;
         let outbound_map = Self::aggregate_outbound_by_product(&transactions);
         let stock_map = Self::aggregate_stock_by_product(&stocks);
         let mut results = Self::build_turnover_results(&outbound_map, &stock_map, days);
@@ -771,10 +771,9 @@ impl AiAnalysisService {
             .and_hms_opt(0, 0, 0)
             .unwrap_or_default()
             .and_utc();
-        let recent_items =
-            Self::query_sales_items_between(&*self.db, recent_start_dt, None).await?;
+        let recent_items = Self::query_sales_items_between(&self.db, recent_start_dt, None).await?;
         let earlier_items =
-            Self::query_sales_items_between(&*self.db, earlier_start_dt, Some(recent_start_dt))
+            Self::query_sales_items_between(&self.db, earlier_start_dt, Some(recent_start_dt))
                 .await?;
         let recent_sales = Self::aggregate_sales_by_product(&recent_items);
         let earlier_sales = Self::aggregate_sales_by_product(&earlier_items);

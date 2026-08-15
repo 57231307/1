@@ -9,10 +9,10 @@ use crate::models::status::master_data;
 // 批次 236 v13 P1-1：线索状态常量接入（规则 0）
 use crate::models::status::crm_lead as lead_status;
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
 use crate::utils::error::AppError;
 use crate::utils::xlsx_export::XlsxTable;
-use sea_orm::sea_query::{extension::postgres::PgExpr, Expr};
+use sea_orm::sea_query::{Expr, extension::postgres::PgExpr};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
     QuerySelect, Set, TransactionTrait,
@@ -235,7 +235,7 @@ impl CrmService {
 
     /// 读取 xlsx 字节，返回首个 sheet 的数据行（已跳过表头）
     async fn read_xlsx_rows(file_bytes: Vec<u8>) -> Result<Vec<Vec<calamine::Data>>, AppError> {
-        use calamine::{open_workbook_auto_from_rs, Reader};
+        use calamine::{Reader, open_workbook_auto_from_rs};
         use std::io::Cursor;
 
         let cursor = Cursor::new(file_bytes);
@@ -1063,14 +1063,12 @@ impl CrmService {
             .all(&*self.db)
             .await?;
         let order_count = orders.len() as i32;
-        let revenue: rust_decimal::Decimal = orders
-            .iter()
-            .map(|o| o.total_amount)
-            .sum();
+        let revenue: rust_decimal::Decimal = orders.iter().map(|o| o.total_amount).sum();
 
         // 计算转化率和 ROI
         let conversion_rate = if lead_count > 0 {
-            rust_decimal::Decimal::from(converted_count) / rust_decimal::Decimal::from(lead_count) * rust_decimal::Decimal::from(100)
+            rust_decimal::Decimal::from(converted_count) / rust_decimal::Decimal::from(lead_count)
+                * rust_decimal::Decimal::from(100)
         } else {
             rust_decimal::Decimal::ZERO
         };
@@ -1180,10 +1178,11 @@ impl CrmService {
                 }
             }
 
-            // 规则匹配，执行分配
+            // 匹配分配用户
             if let Some(ref user_ids) = rule.assigned_user_ids {
                 if let Some(ids) = user_ids.as_array() {
                     if !ids.is_empty() {
+                        // 规则匹配，执行分配
                         // 简单轮询：取第一个用户（实际应按 round_robin 或 weighted 逻辑）
                         let assigned_user = ids[0].as_i64().unwrap_or(0) as i32;
                         // 更新线索负责人
@@ -1264,7 +1263,9 @@ impl CrmService {
             .ok_or_else(|| AppError::not_found(format!("培育计划不存在：{}", plan_id)))?;
 
         if plan.status.as_deref() != Some("pending") {
-            return Err(AppError::business("培育计划状态不是 pending，无法执行".to_string()));
+            return Err(AppError::business(
+                "培育计划状态不是 pending，无法执行".to_string(),
+            ));
         }
 
         let mut plan_active: lead_nurture_plan::ActiveModel = plan.into();

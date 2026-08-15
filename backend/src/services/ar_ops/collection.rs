@@ -27,7 +27,7 @@ use tracing::{info, warn};
 
 use crate::models::{ar_collection, ar_invoice, ar_reconciliation_item};
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
 use crate::utils::error::AppError;
 
 use super::json_helpers::collection_to_json;

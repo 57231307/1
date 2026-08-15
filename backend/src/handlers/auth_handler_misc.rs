@@ -11,10 +11,10 @@ use crate::utils::cache::Cache;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
+    Json,
     extract::{Extension, State},
     http::HeaderMap,
     response::IntoResponse,
-    Json,
 };
 use axum_extra::extract::cookie::SameSite;
 use serde::{Deserialize, Serialize};
@@ -102,7 +102,7 @@ async fn validate_refresh_claims(
         _ => {
             return Err(AppError::unauthorized(
                 "账号已被禁用，请联系管理员".to_string(),
-            ))
+            ));
         }
     }
     if chrono::Utc::now() > claims.refresh_exp {

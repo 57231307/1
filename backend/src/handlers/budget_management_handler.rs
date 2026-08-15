@@ -3,13 +3,13 @@ use crate::middleware::auth_context::AuthContext;
 use crate::models::{audit_log, budget_execution, budget_management, budget_plan};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::budget_management_service::{BudgetControlResponse, BudgetManagementService};
+use crate::utils::ApiResponse;
 use crate::utils::error::AppError;
 use crate::utils::messages::biz_msg;
-use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
-use crate::utils::ApiResponse;
+use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_with_watermark};
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use chrono::{Datelike, NaiveDate};
 use rust_decimal::Decimal;
@@ -299,9 +299,9 @@ pub async fn create_plan(
             crate::services::budget_management_service::CreateBudgetPlanRequest {
                 plan_no: req.plan_no.unwrap_or_default(),
                 plan_name: req.plan_name.unwrap_or_default(),
-                budget_year: req.budget_year.unwrap_or_else(|| {
-                    chrono::Utc::now().date_naive().year()
-                }),
+                budget_year: req
+                    .budget_year
+                    .unwrap_or_else(|| chrono::Utc::now().date_naive().year()),
                 budget_type: req.budget_type.unwrap_or_else(|| "年度预算".to_string()),
                 // 部门 ID 缺失时返回 4xx 错误，避免脏 department_id=0 记录
                 department_id: req
@@ -871,7 +871,9 @@ pub async fn approve_budget_version(
     Path(version_id): Path<i32>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let service = BudgetManagementService::new(state.db.clone());
-    let version = service.approve_budget_version(version_id, auth.user_id).await?;
+    let version = service
+        .approve_budget_version(version_id, auth.user_id)
+        .await?;
     Ok(Json(serde_json::json!({
         "code": 200,
         "message": "预算版本审批成功",
@@ -905,15 +907,17 @@ pub async fn variance_analysis(
 ) -> Result<Json<serde_json::Value>, AppError> {
     info!("用户 {} 执行预算差异分析", auth.username);
     let service = BudgetManagementService::new(state.db.clone());
-    let budget_year = req
-        .get("budget_year")
-        .and_then(|v| v.as_i64())
-        .unwrap_or_else(|| chrono::Utc::now().date_naive().year() as i64) as i32;
+    let budget_year =
+        req.get("budget_year")
+            .and_then(|v| v.as_i64())
+            .unwrap_or_else(|| chrono::Utc::now().date_naive().year() as i64) as i32;
     let department_id = req
         .get("department_id")
         .and_then(|v| v.as_i64())
         .map(|id| id as i32);
-    let result = service.variance_analysis(budget_year, department_id).await?;
+    let result = service
+        .variance_analysis(budget_year, department_id)
+        .await?;
     Ok(Json(serde_json::json!({
         "code": 200,
         "data": result
@@ -932,14 +936,14 @@ pub async fn create_budget_with_mode(
         .get("mode")
         .and_then(|v| v.as_str())
         .unwrap_or("incremental");
-    let source_year = req
-        .get("source_year")
-        .and_then(|v| v.as_i64())
-        .unwrap_or_else(|| chrono::Utc::now().date_naive().year() as i64) as i32;
-    let target_year = req
-        .get("target_year")
-        .and_then(|v| v.as_i64())
-        .unwrap_or_else(|| chrono::Utc::now().date_naive().year() as i64 + 1) as i32;
+    let source_year =
+        req.get("source_year")
+            .and_then(|v| v.as_i64())
+            .unwrap_or_else(|| chrono::Utc::now().date_naive().year() as i64) as i32;
+    let target_year =
+        req.get("target_year")
+            .and_then(|v| v.as_i64())
+            .unwrap_or_else(|| chrono::Utc::now().date_naive().year() as i64 + 1) as i32;
     let department_id = req
         .get("department_id")
         .and_then(|v| v.as_i64())
@@ -950,7 +954,13 @@ pub async fn create_budget_with_mode(
         _ => crate::services::budget_management_service::BudgetMode::Incremental,
     };
     let result = service
-        .create_budget_with_mode(budget_mode, source_year, target_year, department_id, auth.user_id)
+        .create_budget_with_mode(
+            budget_mode,
+            source_year,
+            target_year,
+            department_id,
+            auth.user_id,
+        )
         .await?;
     Ok(Json(serde_json::json!({
         "code": 200,
@@ -970,7 +980,8 @@ pub async fn budget_execution_warnings(
     let budget_year = params
         .get("budget_year")
         .and_then(|v| v.as_i64())
-        .unwrap_or_else(|| chrono::Utc::now().date_naive().year() as i64) as i32;
+        .unwrap_or_else(|| chrono::Utc::now().date_naive().year() as i64)
+        as i32;
     let result = service.budget_execution_warnings(budget_year).await?;
     Ok(Json(serde_json::json!({
         "code": 200,

@@ -1,6 +1,6 @@
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -401,8 +401,10 @@ pub struct AssistBalanceQueryParams {
 pub async fn get_assist_balance(
     State(state): State<AppState>,
     Query(params): Query<AssistBalanceQueryParams>,
-) -> Result<Json<ApiResponse<crate::services::assist_accounting_service::AssistBalanceResult>>, AppError>
-{
+) -> Result<
+    Json<ApiResponse<crate::services::assist_accounting_service::AssistBalanceResult>>,
+    AppError,
+> {
     info!(
         "正在查询辅助核算余额，期间：{}，维度：{}",
         params.accounting_period, params.dimension_code
@@ -426,17 +428,12 @@ pub async fn check_assist_vs_general_balance(
     State(state): State<AppState>,
     Query(params): Query<serde_json::Value>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let period = params
-        .get("period")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let period = params.get("period").and_then(|v| v.as_str()).unwrap_or("");
 
     info!("执行辅助核算余额核对: 期间={}", period);
 
     let service = AssistAccountingService::new(state.db.clone());
-    let result = service
-        .check_assist_vs_general_balance(period)
-        .await?;
+    let result = service.check_assist_vs_general_balance(period).await?;
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "period": period,

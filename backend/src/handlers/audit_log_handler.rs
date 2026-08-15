@@ -6,14 +6,14 @@
 //! - GET    /api/v1/erp/audit-logs/export    xlsx 导出
 
 use axum::{
+    Json,
     extract::{Path, Query, State},
     http::HeaderMap,
-    Json,
 };
 use chrono::{DateTime, Utc};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -27,7 +27,7 @@ use crate::utils::response::ApiResponse;
 use crate::utils::sql_escape::safe_like_pattern;
 // V15 P0-S15 修复（Batch 475a）：导出注入水印（操作员/导出时间/导出条数）
 use crate::utils::xlsx_export::{
-    build_xlsx_with_watermark, xlsx_response, WatermarkConfig, XlsxTable,
+    WatermarkConfig, XlsxTable, build_xlsx_with_watermark, xlsx_response,
 };
 
 /// V15 P1-14.2-C：审计日志查询要求 admin 或 auditor 角色；安全原因：审计日志含全系统操作记录（含其他用户敏感操作）， 仅依赖全局 permission_middleware 的 RBAC 不够（管理员可能误配
@@ -401,14 +401,14 @@ pub async fn export_audit_logs(
 }
 
 /// 计算 SHA256 指纹并返回小写十六进制字符串
-fn hex_sha256(bytes: &[u8]) -> String {
+pub fn hex_sha256(bytes: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(bytes);
     format!("{:x}", hasher.finalize())
 }
 
 /// 从 HeaderMap 提取首个 header 值（IP / User-Agent / X-Request-Id）
-fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
+pub fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
     headers
         .get(name)
         .and_then(|v| v.to_str().ok())

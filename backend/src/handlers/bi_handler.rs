@@ -9,8 +9,8 @@
 //! 通过 `state.db.clone()` 注入数据库连接到 BiAnalysisService。
 
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use serde::Deserialize;
 

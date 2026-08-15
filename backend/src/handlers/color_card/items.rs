@@ -5,8 +5,8 @@
 //! 行为完全保持一致（仅结构重构）
 
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 
 use crate::container::AppState;
@@ -18,7 +18,7 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 use super::error_map::item_err;
-use super::helpers::{item_to_info, ListItemsQuery};
+use super::helpers::{ListItemsQuery, item_to_info};
 
 /// GET /api/v1/erp/color-cards/:id/items - 色号列表
 pub async fn list_color_items(
@@ -29,7 +29,7 @@ pub async fn list_color_items(
 ) -> Result<Json<ApiResponse<PagedResponse<ColorItemInfo>>>, AppError> {
     let service = ColorCardItemService::from_state(&state);
     let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
-                                                       // v11 批次 36 修复：page_size clamp 防止 DoS
+    // v11 批次 36 修复：page_size clamp 防止 DoS
     let page_size = query.page_size.unwrap_or(100).clamp(1, 100);
 
     let (items, total) = service.list(id, page, page_size).await.map_err(item_err)?;

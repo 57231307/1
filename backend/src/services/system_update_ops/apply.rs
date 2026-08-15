@@ -21,7 +21,7 @@
 //!  `github::download_and_update` 跨模块调用
 
 use crate::services::system_update_service::{
-    extract_zip_entry, LocalRelease, SystemUpdateService, UpdateError,
+    LocalRelease, SystemUpdateService, UpdateError, extract_zip_entry,
 };
 use chrono::Utc;
 use std::fs;
@@ -93,7 +93,10 @@ impl SystemUpdateService {
         self.log_update(&format!("更新成功，新版本: {}", new_version));
 
         // batch-17 P3: 记录版本更新日志
-        self.log_update(&format!("版本更新记录: {} -> {}", current_version, new_version));
+        self.log_update(&format!(
+            "版本更新记录: {} -> {}",
+            current_version, new_version
+        ));
 
         // batch-21 P3: 升级通知机制 - 记录升级事件
         tracing::info!(

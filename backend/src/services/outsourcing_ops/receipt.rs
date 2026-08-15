@@ -58,7 +58,7 @@ impl OutsourcingReceiptService {
     }
 
     /// 构造委外完成事件，供事务提交后发布
-    fn build_completed_event(order: &OrderModel) -> crate::services::event_bus::BusinessEvent {
+    pub fn build_completed_event(order: &OrderModel) -> crate::services::event_bus::BusinessEvent {
         crate::services::event_bus::BusinessEvent::OutsourcingOrderCompleted {
             order_id: order.id,
             order_no: order.order_no.clone(),
@@ -78,7 +78,7 @@ impl OutsourcingReceiptService {
             return Err(AppError::business("收回数量不能为负"));
         }
 
-        Self::validate_create_request(&*self.db, &req).await?;
+        Self::validate_create_request(&self.db, &req).await?;
 
         let now = crate::utils::date_utils::utc_now_fixed();
         let active = Self::build_receipt_active_model(&req, now);

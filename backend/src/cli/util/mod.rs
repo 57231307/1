@@ -244,11 +244,7 @@ pub(crate) fn is_service_active(service: &str) -> bool {
 
 /// 状态图标
 pub(crate) fn status_icon(ok: bool) -> &'static str {
-    if ok {
-        "[OK]"
-    } else {
-        "[STOPPED]"
-    }
+    if ok { "[OK]" } else { "[STOPPED]" }
 }
 
 /// 构建 GitHub Release 下载链接
@@ -266,7 +262,16 @@ pub(crate) fn download_with_mirrors(url: &str, output: &str, timeout: u32) -> bo
     println!("  尝试直连 GitHub...");
     if run_cmd(
         "curl",
-        &["-fsSL", "-C", "-", "-m", &timeout.to_string(), "-o", output, url],
+        &[
+            "-fsSL",
+            "-C",
+            "-",
+            "-m",
+            &timeout.to_string(),
+            "-o",
+            output,
+            url,
+        ],
     )
     .is_ok()
     {

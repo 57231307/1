@@ -19,10 +19,10 @@ use crate::utils::error::AppError;
 use crate::utils::messages::biz_msg;
 use crate::utils::response::ApiResponse;
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// 将 Model 转换为前端期望的 JSON 格式；字段映射： - `code` → `process_key` - `name` →
 /// `process_name` - `config` → 保留原字段，同时提取 `config.nodes` 为顶层 `nodes`

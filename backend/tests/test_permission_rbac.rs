@@ -13,12 +13,12 @@
 //! - AuthContext 通过自定义注入中间件写入 request extensions，模拟 auth_middleware 行为。
 
 use axum::{
+    Json, Router,
     body::Body,
     http::{Request, StatusCode},
-    middleware::{from_fn_with_state, Next},
+    middleware::{Next, from_fn_with_state},
     response::{IntoResponse, Response},
     routing::get,
-    Router,
 };
 use bingxi_backend::container::AppState;
 use bingxi_backend::middleware::auth_context::AuthContext;

@@ -33,7 +33,9 @@ impl ArReconciliationService {
         salesperson_id: Option<i32>,
     ) -> Result<AgingReport, AppError> {
         let today = baseline_date.unwrap_or_else(|| Utc::now().date_naive());
-        let invoices = self.load_unpaid_invoices(customer_id, salesperson_id).await?;
+        let invoices = self
+            .load_unpaid_invoices(customer_id, salesperson_id)
+            .await?;
         let customer_map = Self::group_invoices_by_customer(&invoices);
         let mut overall_buckets = Self::init_aging_buckets();
         let (mut customer_summaries, total_receivable) =

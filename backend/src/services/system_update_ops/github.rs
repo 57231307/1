@@ -19,11 +19,11 @@
 //! - `download_and_update` 调用 `apply::apply_update`（pub）+ `apply::log_update`（`pub(crate)`）
 //! - `fetch_latest_release` 使用 facade 常量 `GITHUB_API_URL` / `GITHUB_REPO`（`pub(crate)`）
 
-use crate::services::system_update_service::{
-    parse_version, validate_asset_name, validate_download_url, GitHubAsset, GitHubRelease,
-    SystemUpdateService, UpdateCheckResult, UpdateError,
-};
 use crate::services::system_update_service::{GITHUB_API_URL, GITHUB_REPO};
+use crate::services::system_update_service::{
+    GitHubAsset, GitHubRelease, SystemUpdateService, UpdateCheckResult, UpdateError, parse_version,
+    validate_asset_name, validate_download_url,
+};
 use std::fs;
 use std::io;
 use std::path::PathBuf;
@@ -100,7 +100,7 @@ impl SystemUpdateService {
         Ok(release)
     }
 
-    pub(crate) fn compare_versions(&self, current: &str, latest: &str) -> bool {
+    pub fn compare_versions(&self, current: &str, latest: &str) -> bool {
         // 批次 322 v9 复审低危修复：parse_version 抽取为共享函数，消除与
         // compare_versions_for_sort 的逻辑重复
         let current_parts = parse_version(current);
@@ -120,7 +120,7 @@ impl SystemUpdateService {
         false
     }
 
-    pub(crate) fn compare_versions_for_sort(&self, a: &str, b: &str) -> std::cmp::Ordering {
+    pub fn compare_versions_for_sort(&self, a: &str, b: &str) -> std::cmp::Ordering {
         // 批次 322 v9 复审低危修复：parse_version 抽取为共享函数，消除与
         // compare_versions 的逻辑重复
         let a_parts = parse_version(a);

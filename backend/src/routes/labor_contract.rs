@@ -4,8 +4,8 @@ use crate::container::AppState;
 use crate::handlers::labor_contract_handler;
 use crate::handlers::print_handler;
 use axum::{
-    routing::{get, post, put},
     Router,
+    routing::{get, post, put},
 };
 
 /// 劳动合同路由（path 前缀 /labor-contracts）

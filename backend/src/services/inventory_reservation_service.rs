@@ -8,7 +8,7 @@ use std::sync::Arc;
 use crate::models::inventory_reservation::{self, Entity as InventoryReservationEntity};
 use crate::models::status::inventory_reservation as reservation_status;
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
 use crate::utils::error::AppError;
 
 /// 库存预留服务

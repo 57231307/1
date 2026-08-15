@@ -38,14 +38,14 @@ use crate::utils::error::AppError;
 use crate::services::lab_dip_ops::types::{
     CreateResampleRequest, IssueTechCardRequest, RecordResampleResultRequest,
 };
-use crate::services::lab_dip_service::{LabDipResampleService, COLOR_DIFF_OK_GRADE};
+use crate::services::lab_dip_service::{COLOR_DIFF_OK_GRADE, LabDipResampleService};
 
 impl LabDipResampleService {
     /// 创建复样记录：OK 样确认后大货生产前必须复样
     pub async fn create(&self, req: CreateResampleRequest) -> Result<ResampleModel, AppError> {
-        Self::validate_resample_request(&*self.db, req.request_id).await?;
+        Self::validate_resample_request(&self.db, req.request_id).await?;
         let source_sample =
-            Self::validate_resample_source_sample(&*self.db, req.request_id, req.source_sample_id)
+            Self::validate_resample_source_sample(&self.db, req.request_id, req.source_sample_id)
                 .await?;
         Self::validate_workshop_fabric_batch(&req.workshop_fabric_batch)?;
         let resample_no = Self::generate_resample_no();
@@ -55,7 +55,7 @@ impl LabDipResampleService {
             .insert(&*self.db)
             .await
             .map_err(|e| AppError::database(format!("复样记录创建失败: {}", e)))?;
-        Self::mark_source_sample_resampling(&*self.db, source_sample, now).await?;
+        Self::mark_source_sample_resampling(&self.db, source_sample, now).await?;
         Ok(result)
     }
 

@@ -1,6 +1,6 @@
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use serde::{Deserialize, Serialize};
 use validator::Validate;
@@ -12,7 +12,7 @@ use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::utils::admin_checker::is_admin_role;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
-use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
+use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
 
 /// P1-2e 修复（批次 81 v1 复审）：解锁账号请求 DTO
 /// 替代 unlock_account 中的 Json<serde_json::Value>，提供强类型校验
@@ -271,23 +271,21 @@ pub async fn get_security_alerts(
 
     for (user_id, ips) in &user_ips {
         let unique_ips: std::collections::HashSet<&String> = ips.iter().collect();
-        if unique_ips.len() > 3 {
-            let username = recent_logins
-                .iter()
-                .find(|l| l.user_id == Some(*user_id))
-                .map(|l| l.username.clone())
-                .unwrap_or_default();
+        let username = recent_logins
+            .iter()
+            .find(|l| l.user_id == Some(*user_id))
+            .map(|l| l.username.clone())
+            .unwrap_or_default();
 
-            alerts.push(SecurityAlert {
-                alert_type: "MULTI_IP_LOGIN".to_string(),
-                user_id: *user_id,
-                username,
-                ip_address: ips.first().cloned().unwrap_or_default(),
-                location: None,
-                detected_at: Utc::now().to_rfc3339(),
-                description: format!("24小时内从 {} 个不同 IP 登录", unique_ips.len()),
-            });
-        }
+        alerts.push(SecurityAlert {
+            alert_type: "MULTI_IP_LOGIN".to_string(),
+            user_id: *user_id,
+            username,
+            ip_address: ips.first().cloned().unwrap_or_default(),
+            location: None,
+            detected_at: Utc::now().to_rfc3339(),
+            description: format!("24小时内从 {} 个不同 IP 登录", unique_ips.len()),
+        });
     }
 
     Ok(Json(ApiResponse::success(alerts)))

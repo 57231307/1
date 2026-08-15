@@ -29,9 +29,11 @@ pub async fn run(cmd: AdminCommand) -> Result<(), Box<dyn std::error::Error>> {
 /// H-2 修复（v9 复审）：安全获取密码
 /// 优先级：BINGXI_ADMIN_PASSWORD 环境变量 > --password-stdin（stdin 读取）
 /// 移除了原 --password 命令行参数（会出现在 ps / /proc/<pid>/cmdline 中）
-fn read_password(from_stdin: bool) -> Result<String, String> {
+pub fn read_password(from_stdin: bool) -> Result<String, String> {
     // 1. 优先从环境变量读取
-    if let Ok(p) = std::env::var("BINGXI_ADMIN_PASSWORD") && !p.is_empty() {
+    if let Ok(p) = std::env::var("BINGXI_ADMIN_PASSWORD")
+        && !p.is_empty()
+    {
         return Ok(p);
     }
 
@@ -64,7 +66,7 @@ fn cmd_hash_password(password_stdin: bool) -> Result<(), String> {
 
     // V15 P2 修复（B03-P2-9）：使用 Rust 原生 argon2 crate 替换 python3 子进程，
     // 消除外部 python3 依赖 + 子进程通信开销 + stdin 密码传递风险
-    use argon2::password_hash::{rand_core::OsRng, PasswordHasher, SaltString};
+    use argon2::password_hash::{PasswordHasher, SaltString, rand_core::OsRng};
 
     let salt = SaltString::generate(&mut OsRng);
     let params = argon2::Params::new(65536, 3, 4, None)

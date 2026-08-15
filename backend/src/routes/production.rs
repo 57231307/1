@@ -12,16 +12,15 @@
 
 use crate::container::AppState;
 use axum::{
-    routing::{delete, get, post, put},
     Router,
+    routing::{delete, get, post, put},
 };
 
-use crate::handlers::{print_handler,
-    
+use crate::handlers::{
     business_mode_handler, capacity_handler, cost_collection_handler, dye_batch_handler,
     dye_batch_state_machine_handler, dye_recipe_handler, energy_handler, fabric_inspection_handler,
     flow_card_handler, greige_fabric_handler, lab_dip_handler, missing_handlers, mrp_handler,
-    outsourcing_handler, production_order_handler, production_recipe_handler,
+    outsourcing_handler, print_handler, production_order_handler, production_recipe_handler,
     quality_inspection_handler, wage_handler,
 };
 

@@ -4,14 +4,15 @@ use crate::models::audit_log::{OperationType, Severity};
 use crate::models::fixed_asset;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::fixed_asset_service::{
-    CreateAssetRequest, DepreciationPolicyChangeRequest, DepreciationResult, DisposalRequest, FixedAssetService,
+    CreateAssetRequest, DepreciationPolicyChangeRequest, DepreciationResult, DisposalRequest,
+    FixedAssetService,
 };
-use crate::utils::error::AppError;
-use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
 use crate::utils::ApiResponse;
+use crate::utils::error::AppError;
+use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_with_watermark};
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -510,7 +511,9 @@ pub async fn approve_impairment_test(
     Path(test_id): Path<i32>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let service = FixedAssetService::new(state.db.clone());
-    let test = service.approve_impairment_test(test_id, auth.user_id).await?;
+    let test = service
+        .approve_impairment_test(test_id, auth.user_id)
+        .await?;
     Ok(Json(serde_json::json!({
         "code": 200,
         "message": "资产减值测试审批成功",
@@ -553,20 +556,18 @@ pub async fn create_depreciation_policy_change(
     req.validate()?;
     let service = FixedAssetService::new(state.db.clone());
     let change = service
-        .create_depreciation_policy_change(
-            DepreciationPolicyChangeRequest {
-                asset_id: req.asset_id,
-                change_date: req.change_date,
-                old_method: req.old_method,
-                new_method: req.new_method,
-                old_useful_life: req.old_useful_life,
-                new_useful_life: req.new_useful_life,
-                old_salvage_rate: req.old_salvage_rate,
-                new_salvage_rate: req.new_salvage_rate,
-                reason: req.reason,
-                user_id: auth.user_id,
-            },
-        )
+        .create_depreciation_policy_change(DepreciationPolicyChangeRequest {
+            asset_id: req.asset_id,
+            change_date: req.change_date,
+            old_method: req.old_method,
+            new_method: req.new_method,
+            old_useful_life: req.old_useful_life,
+            new_useful_life: req.new_useful_life,
+            old_salvage_rate: req.old_salvage_rate,
+            new_salvage_rate: req.new_salvage_rate,
+            reason: req.reason,
+            user_id: auth.user_id,
+        })
         .await?;
     Ok(Json(serde_json::json!({
         "code": 200,
@@ -595,7 +596,9 @@ pub async fn approve_depreciation_policy_change(
     Path(change_id): Path<i32>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let service = FixedAssetService::new(state.db.clone());
-    let change = service.approve_depreciation_policy_change(change_id, auth.user_id).await?;
+    let change = service
+        .approve_depreciation_policy_change(change_id, auth.user_id)
+        .await?;
     Ok(Json(serde_json::json!({
         "code": 200,
         "message": "折旧政策变更审批成功",
@@ -616,7 +619,9 @@ pub async fn auto_monthly_depreciation(
     Json(req): Json<AutoDepreciationRequestDto>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let service = FixedAssetService::new(state.db.clone());
-    let result = service.auto_monthly_depreciation(&req.period, auth.user_id).await?;
+    let result = service
+        .auto_monthly_depreciation(&req.period, auth.user_id)
+        .await?;
     Ok(Json(serde_json::json!({
         "code": 200,
         "message": "月度自动折旧完成",
@@ -720,7 +725,10 @@ pub async fn list_count_plans(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let service = FixedAssetService::new(state.db.clone());
     let page = params.get("page").and_then(|v| v.as_i64()).unwrap_or(1);
-    let page_size = params.get("page_size").and_then(|v| v.as_i64()).unwrap_or(20);
+    let page_size = params
+        .get("page_size")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(20);
     let result = service.list_count_plans(page, page_size).await?;
     Ok(Json(serde_json::json!({
         "code": 200,

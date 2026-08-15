@@ -6,8 +6,8 @@
 //!   工序流转扫码 → 工价方案定义 → 工资计算 → 班组汇总 → 进入财务工资核算
 
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect};
 use serde::Deserialize;
@@ -25,7 +25,7 @@ use crate::services::wage_service::{
 };
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
-use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
+use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
 
 // ============================================================================
 // 辅助函数
@@ -398,7 +398,9 @@ pub async fn export_wage_records(
     if let Some(v) = query.period_end {
         q = q.filter(wage_record::Column::PeriodEnd.lte(v));
     }
-    q = q.order_by_desc(wage_record::Column::CreatedAt).limit(EXPORT_LIMIT);
+    q = q
+        .order_by_desc(wage_record::Column::CreatedAt)
+        .limit(EXPORT_LIMIT);
 
     let records = q.all(&*state.db).await?;
 

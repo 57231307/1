@@ -13,7 +13,7 @@ crate::define_service!(ApiKeyService);
 const API_KEY_BLACKLIST_TTL_SECS: u64 = 7 * 24 * 60 * 60;
 
 /// 黑名单缓存键前缀
-const API_KEY_BLACKLIST_PREFIX: &str = "apikey:revoked:";
+pub const API_KEY_BLACKLIST_PREFIX: &str = "apikey:revoked:";
 
 /// 更新 API 密钥参数对象（批次 413 技术债务清理：引入参数对象消除 update_api_key 的 too_many_arguments 警告。；聚合更新 API 密钥所需的全部可选字段，避免函数签名携带 7 个参数。）
 #[derive(Debug, Clone)]

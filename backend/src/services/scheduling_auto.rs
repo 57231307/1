@@ -21,7 +21,9 @@ use crate::services::scheduling_service::{
 use crate::utils::error::AppError;
 use chrono::{Duration, NaiveDate, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{ExprTrait, ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, QueryFilter, QueryOrder, Set,
+};
 use std::collections::HashMap;
 
 /// P9-2 标记：自动排程子模块路径
@@ -119,7 +121,8 @@ impl SchedulingService {
             return false;
         }
         wc_available_capacity.insert(wc_id, available - quantity);
-        let days_needed = std::cmp::Ord::max(Self::compute_days_needed(quantity, cap.daily_capacity), 1);
+        let days_needed =
+            std::cmp::Ord::max(Self::compute_days_needed(quantity, cap.daily_capacity), 1);
         let schedule = wc_schedule.entry(wc_id).or_default();
         let assigned_start = self.find_earliest_slot(schedule, start_date, days_needed);
         let assigned_end = assigned_start + Duration::days(days_needed - 1);
@@ -223,7 +226,8 @@ impl SchedulingService {
             if quantity.is_zero() {
                 continue;
             }
-            let days_needed = std::cmp::Ord::max(Self::compute_days_needed(quantity, cap.daily_capacity), 1);
+            let days_needed =
+                std::cmp::Ord::max(Self::compute_days_needed(quantity, cap.daily_capacity), 1);
             // 在 current_start 之后找无重叠的连续时段
             let assigned_start = self.find_earliest_slot(schedule, current_start, days_needed);
             let assigned_end = assigned_start + Duration::days(days_needed - 1);
@@ -439,7 +443,11 @@ impl SchedulingService {
             let wc_name = first
                 .and_then(|c| c.work_center_name.as_deref())
                 .unwrap_or("未知");
-            let title = format!("工作中心 {} 排程冲突告警（{} 条）", wc_name, wc_conflicts.len());
+            let title = format!(
+                "工作中心 {} 排程冲突告警（{} 条）",
+                wc_name,
+                wc_conflicts.len()
+            );
             let order_nos: Vec<String> = wc_conflicts
                 .iter()
                 .filter_map(|c| c.order_no.clone())
@@ -790,26 +798,27 @@ fn group_and_sort_orders_by_dye_lot(
     // - fifo 策略：created_at 为主键（priority 为次键保证稳定性）
     // - earliest_due 策略：due_date 为主键（priority 为次键保证稳定性）
     // - spt 策略：planned_quantity 为主键（最短加工时间优先）
-    let group_sort_key = |group: &[ProductionOrderModel]| -> (i32, chrono::DateTime<Utc>, NaiveDate, Decimal) {
-        group
-            .iter()
-            .map(|o| {
-                (
-                    o.priority,
-                    o.created_at,
-                    o.planned_end_date.unwrap_or(NaiveDate::MAX),
-                    o.planned_quantity,
-                )
-            })
-            .min()
-            .unwrap_or((
-                i32::MAX,
-                chrono::DateTime::<Utc>::from_timestamp(i64::MAX, 0)
-                    .unwrap_or_else(|| chrono::DateTime::<Utc>::from_timestamp(0, 0).unwrap()),
-                NaiveDate::MAX,
-                Decimal::MAX,
-            ))
-    };
+    let group_sort_key =
+        |group: &[ProductionOrderModel]| -> (i32, chrono::DateTime<Utc>, NaiveDate, Decimal) {
+            group
+                .iter()
+                .map(|o| {
+                    (
+                        o.priority,
+                        o.created_at,
+                        o.planned_end_date.unwrap_or(NaiveDate::MAX),
+                        o.planned_quantity,
+                    )
+                })
+                .min()
+                .unwrap_or((
+                    i32::MAX,
+                    chrono::DateTime::<Utc>::from_timestamp(i64::MAX, 0)
+                        .unwrap_or_else(|| chrono::DateTime::<Utc>::from_timestamp(0, 0).unwrap()),
+                    NaiveDate::MAX,
+                    Decimal::MAX,
+                ))
+        };
 
     let mut groups: Vec<Vec<ProductionOrderModel>> = groups_map.into_values().collect();
     groups.sort_by_key(|g| group_sort_key(g));

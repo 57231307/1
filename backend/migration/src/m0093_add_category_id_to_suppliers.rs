@@ -11,11 +11,7 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(Suppliers::Table)
-                    .add_column(
-                        ColumnDef::new(Suppliers::CategoryId)
-                            .integer()
-                            .null(),
-                    )
+                    .add_column(ColumnDef::new(Suppliers::CategoryId).integer().null())
                     .to_owned(),
             )
             .await?;

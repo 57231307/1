@@ -9,8 +9,8 @@
 
 use crate::container::AppState;
 use axum::{
-    routing::{delete, get, post, put},
     Router,
+    routing::{delete, get, post, put},
 };
 
 use crate::handlers::{

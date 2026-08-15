@@ -7,10 +7,10 @@ use crate::services::supplier_service::{
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 // V15 P0-S15/P0-S12 补齐（Batch 474）：导出端点使用水印版 xlsx 工具
-use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
+use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_with_watermark};
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
@@ -332,7 +332,9 @@ pub async fn delete_supplier_qualification(
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = SupplierService::new(state.db.clone());
-    service.delete_supplier_qualification(qualification_id).await?;
+    service
+        .delete_supplier_qualification(qualification_id)
+        .await?;
     Ok(Json(ApiResponse::success_with_message(
         serde_json::json!({ "deleted_id": qualification_id }),
         "资质删除成功",
@@ -490,7 +492,11 @@ pub async fn get_supplier_balance(
     auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    tracing::debug!(user_id = auth.user_id, supplier_id = id, "查询供应商账户余额");
+    tracing::debug!(
+        user_id = auth.user_id,
+        supplier_id = id,
+        "查询供应商账户余额"
+    );
     let service = SupplierService::new(state.db.clone());
     let balance = service.get_supplier_balance(id).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(balance)?)))
@@ -506,8 +512,8 @@ pub async fn detect_abnormal_orders(
     tracing::debug!(user_id = auth.user_id, "检测异常大额订单");
     let service = SupplierService::new(state.db.clone());
     let threshold = params.threshold_ratio.unwrap_or(3.0);
-    let threshold_decimal = rust_decimal::Decimal::try_from(threshold)
-        .unwrap_or(rust_decimal::Decimal::from(3));
+    let threshold_decimal =
+        rust_decimal::Decimal::try_from(threshold).unwrap_or(rust_decimal::Decimal::from(3));
     let abnormal_orders = service.detect_abnormal_orders(threshold_decimal).await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "abnormal_orders": abnormal_orders,
@@ -538,7 +544,9 @@ pub async fn get_supplier_purchase_history(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     tracing::debug!(user_id = auth.user_id, supplier_id = id, "查询供货历史");
     let service = SupplierService::new(state.db.clone());
-    let history = service.get_supplier_purchase_history(id, params.limit).await?;
+    let history = service
+        .get_supplier_purchase_history(id, params.limit)
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "history": history,
         "total": history.len(),

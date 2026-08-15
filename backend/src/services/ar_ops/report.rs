@@ -506,8 +506,14 @@ impl ArService {
             .into_iter()
             .map(|row| {
                 let salesperson_id: i32 = row.try_get_by_index::<i32>(0).unwrap_or(0);
-                let (not_due, bucket_0_30, bucket_31_60, bucket_61_90, bucket_90_plus, invoice_count) =
-                    Self::parse_aging_row(&row);
+                let (
+                    not_due,
+                    bucket_0_30,
+                    bucket_31_60,
+                    bucket_61_90,
+                    bucket_90_plus,
+                    invoice_count,
+                ) = Self::parse_aging_row(&row);
                 let total_overdue = bucket_0_30 + bucket_31_60 + bucket_61_90 + bucket_90_plus;
                 json!({
                     "salesperson_id": salesperson_id,

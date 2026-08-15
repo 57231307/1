@@ -28,7 +28,7 @@ pub enum ServiceError {
 
 /// 销售报价单服务
 pub struct QuotationService {
-    pub(crate) db: Arc<DatabaseConnection>,
+    pub db: Arc<DatabaseConnection>,
 }
 
 impl QuotationService {

@@ -237,7 +237,7 @@ impl PollutionPermitService {
     }
 
     /// 校验许可证类型
-    fn validate_permit_type(permit_type: &str) -> Result<(), AppError> {
+    pub fn validate_permit_type(permit_type: &str) -> Result<(), AppError> {
         match permit_type {
             "wastewater" | "exhaust" | "solid_waste" => Ok(()),
             _ => Err(AppError::bad_request(format!(

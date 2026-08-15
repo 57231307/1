@@ -3,8 +3,8 @@
 //! 提供缺料预警列表、手动触发检查、缺料汇总等 API 接口
 
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};

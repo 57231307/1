@@ -11,11 +11,11 @@ use crate::models::user;
 use crate::services::auth_service::{AppClaims, AuthError, AuthService};
 use crate::services::user_service::UserService;
 use argon2::{
-    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
 };
 use chrono::{Duration, Utc};
-use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, Header, Validation};
+use jsonwebtoken::{Algorithm, DecodingKey, Header, Validation, decode, encode};
 
 impl AuthService {
     /// 用户登录认证

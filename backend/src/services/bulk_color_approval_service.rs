@@ -607,9 +607,10 @@ impl BulkColorApprovalService {
                     .add(bulk_color_approval::Column::ApprovalStatus.eq("sent_to_customer"))
                     .add(bulk_color_approval::Column::SentToCustomerAt.is_not_null())
                     .add(bulk_color_approval::Column::SentToCustomerAt.lt(reminder_threshold))
-                    .add(bulk_color_approval::Column::SentToCustomerAt.gt(
-                        now - chrono::Duration::days(config.reject_days),
-                    )),
+                    .add(
+                        bulk_color_approval::Column::SentToCustomerAt
+                            .gt(now - chrono::Duration::days(config.reject_days)),
+                    ),
             )
             .all(&*self.db)
             .await?;

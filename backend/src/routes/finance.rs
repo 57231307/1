@@ -17,14 +17,12 @@
 //! 业务级路径（`/payments`、`/invoices`、`/vouchers` 等），path 不冲突。
 
 use axum::{
-    middleware,
+    Router, middleware,
     routing::{delete, get, post, put},
-    Router,
 };
 
 use crate::container::AppState;
-use crate::handlers::{print_handler,
-    
+use crate::handlers::{
     account_subject_handler, accounting_period_handler, ap_invoice_handler, ap_payment_handler,
     ap_payment_request_handler, ap_reconciliation_handler, ap_report_handler,
     ap_verification_handler, ar_invoice_handler, ar_payment_handler,
@@ -32,7 +30,7 @@ use crate::handlers::{print_handler,
     ar_verification_handler, budget_management_handler, currency_enhanced_handler,
     currency_handler, finance_invoice_handler, finance_payment_handler, finance_report_handler,
     financial_analysis_handler, fixed_asset_handler, fund_management_handler, missing_handlers,
-    omni_audit_handler, voucher_handler,
+    omni_audit_handler, print_handler, voucher_handler,
 };
 
 /// 财务支付与发票路由（/payments、/invoices）
@@ -1203,15 +1201,15 @@ fn aging_alert_rules() -> Router<AppState> {
             get(crate::handlers::aging_alert_rule_handler::list_rules)
                 .post(crate::handlers::aging_alert_rule_handler::create_rule),
         )
-         .route(
-             "/aging-alert-rules/:id",
-             get(crate::handlers::aging_alert_rule_handler::get_rule)
-                 .put(crate::handlers::aging_alert_rule_handler::update_rule)
-                 .delete(crate::handlers::aging_alert_rule_handler::delete_rule),
-         )
-         .merge(asset_categories())
-         .merge(aging_grades())
-         .merge(industry_benchmarks())
+        .route(
+            "/aging-alert-rules/:id",
+            get(crate::handlers::aging_alert_rule_handler::get_rule)
+                .put(crate::handlers::aging_alert_rule_handler::update_rule)
+                .delete(crate::handlers::aging_alert_rule_handler::delete_rule),
+        )
+        .merge(asset_categories())
+        .merge(aging_grades())
+        .merge(industry_benchmarks())
 }
 
 fn asset_categories() -> Router<AppState> {

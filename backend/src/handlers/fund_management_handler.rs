@@ -2,12 +2,12 @@ use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::fund_management;
 use crate::services::fund_management_service::{FundManagementService, UpdateFundAccountRequest};
+use crate::utils::ApiResponse;
 use crate::utils::error::AppError;
 use crate::utils::messages::biz_msg;
-use crate::utils::ApiResponse;
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use rust_decimal::Decimal;
 use serde::Deserialize;
@@ -385,10 +385,7 @@ pub async fn get_fund_daily_report(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<crate::services::fund_management_service::DailyReportSummary>>, AppError>
 {
-    info!(
-        "用户 {} 查询资金日报，日期：{}",
-        auth.username, params.date
-    );
+    info!("用户 {} 查询资金日报，日期：{}", auth.username, params.date);
     let service = FundManagementService::new(state.db.clone());
     let report = service.get_daily_report(params.date).await?;
     info!("资金日报查询成功，日期：{}", params.date);
@@ -400,14 +397,18 @@ pub async fn get_fund_monthly_report(
     Query(params): Query<FundMonthlyReportQuery>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<crate::services::fund_management_service::MonthlyReportSummary>>, AppError>
-{
+) -> Result<
+    Json<ApiResponse<crate::services::fund_management_service::MonthlyReportSummary>>,
+    AppError,
+> {
     info!(
         "用户 {} 查询资金月报，年月：{}-{}",
         auth.username, params.year, params.month
     );
     let service = FundManagementService::new(state.db.clone());
-    let report = service.get_monthly_report(params.year, params.month).await?;
+    let report = service
+        .get_monthly_report(params.year, params.month)
+        .await?;
     info!("资金月报查询成功，年月：{}-{}", params.year, params.month);
     Ok(Json(ApiResponse::success(report)))
 }
@@ -427,8 +428,8 @@ pub async fn cash_flow_forecast(
     info!("用户 {} 查询现金流预测", auth.username);
     let service = FundManagementService::new(state.db.clone());
     let result = service.cash_flow_forecast(params.days).await?;
-    let value =
-        serde_json::to_value(result).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let value = serde_json::to_value(result)
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -444,11 +445,14 @@ pub async fn list_accounts_by_type(
     auth: AuthContext,
     Query(params): Query<AccountsByTypeQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    info!("用户 {} 按类型查询账户：{}", auth.username, params.account_type);
+    info!(
+        "用户 {} 按类型查询账户：{}",
+        auth.username, params.account_type
+    );
     let service = FundManagementService::new(state.db.clone());
     let result = service.list_accounts_by_type(&params.account_type).await?;
-    let value =
-        serde_json::to_value(result).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let value = serde_json::to_value(result)
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -472,9 +476,13 @@ pub async fn bank_reconciliation(
     );
     let service = FundManagementService::new(state.db.clone());
     let result = service
-        .bank_reconciliation(req.account_id, req.bank_statement_balance, req.statement_date)
+        .bank_reconciliation(
+            req.account_id,
+            req.bank_statement_balance,
+            req.statement_date,
+        )
         .await?;
-    let value =
-        serde_json::to_value(result).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let value = serde_json::to_value(result)
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(value)))
 }

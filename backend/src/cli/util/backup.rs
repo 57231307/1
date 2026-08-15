@@ -8,12 +8,12 @@ use std::fs;
 use crate::utils::path_validator::validate_extracted_paths;
 
 /// 获取 .env 文件路径（可通过 BINGXI_ENV_FILE 环境变量配置）
-fn get_env_file_path() -> String {
+pub fn get_env_file_path() -> String {
     std::env::var("BINGXI_ENV_FILE").unwrap_or_else(|_| "/etc/bingxi/.env".to_string())
 }
 
 /// 获取 systemd 服务目录（可通过 BINGXI_SYSTEMD_DIR 环境变量配置）
-fn get_systemd_dir() -> String {
+pub fn get_systemd_dir() -> String {
     std::env::var("BINGXI_SYSTEMD_DIR").unwrap_or_else(|_| "/etc/systemd/system".to_string())
 }
 

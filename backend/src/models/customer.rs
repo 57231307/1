@@ -5,7 +5,7 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// 客户 Model
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Default, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "customers")]
 pub struct Model {
     #[sea_orm(primary_key)]

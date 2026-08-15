@@ -1,6 +1,6 @@
-use sea_orm::{ExprTrait, 
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, TransactionTrait,
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, Order,
+    PaginatorTrait, QueryFilter, QueryOrder, TransactionTrait,
 };
 use std::sync::Arc;
 
@@ -155,9 +155,7 @@ impl RolePermissionService {
             .chars()
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
         {
-            return Err(AppError::business(
-                "角色编码仅允许小写字母、数字和下划线",
-            ));
+            return Err(AppError::business("角色编码仅允许小写字母、数字和下划线"));
         }
         // 缺陷 14.5-C 修复：is_system=true 时 code 必须为 admin（应用层约束）
         if request.is_system.unwrap_or(false) && request.code != "admin" {
@@ -415,10 +413,8 @@ impl RolePermissionService {
         user_id: i32,
     ) -> Result<role_permission::Model, AppError> {
         // B12-P2-1：生成 permission_code
-        let permission_code = Self::generate_permission_code(
-            &request.resource_type,
-            &request.action,
-        );
+        let permission_code =
+            Self::generate_permission_code(&request.resource_type, &request.action);
 
         let permission = role_permission::ActiveModel {
             id: Default::default(),
@@ -456,31 +452,64 @@ impl RolePermissionService {
     fn resolve_module_from_resource(resource_type: &str) -> String {
         match resource_type {
             // IAM 模块
-            "users" | "roles" | "departments" | "permissions" | "field-permissions" => "iam".to_string(),
+            "users" | "roles" | "departments" | "permissions" | "field-permissions" => {
+                "iam".to_string()
+            }
             // 目录模块
             "products" | "categories" | "warehouses" | "boms" => "catalog".to_string(),
             // 销售模块
-            "orders" | "fabric-orders" | "customers" | "customer-credits" | "sales-contracts" | "sales-prices" | "sales-returns" | "quotations" => "sales".to_string(),
+            "orders" | "fabric-orders" | "customers" | "customer-credits" | "sales-contracts"
+            | "sales-prices" | "sales-returns" | "quotations" => "sales".to_string(),
             // 采购模块
-            "purchase-orders" | "purchase-receipts" | "purchase-returns" | "purchase-contracts" | "purchase-prices" | "suppliers" | "supplier-evaluations" => "purchase".to_string(),
+            "purchase-orders"
+            | "purchase-receipts"
+            | "purchase-returns"
+            | "purchase-contracts"
+            | "purchase-prices"
+            | "suppliers"
+            | "supplier-evaluations" => "purchase".to_string(),
             // 库存模块
-            "inventory" | "stock" | "transfers" | "adjustments" | "reservations" | "counts" | "batches" | "stock-alerts" | "piece-split" => "inventory".to_string(),
+            "inventory" | "stock" | "transfers" | "adjustments" | "reservations" | "counts"
+            | "batches" | "stock-alerts" | "piece-split" => "inventory".to_string(),
             // 生产模块
-            "production-orders" | "dye-batches" | "dye-recipes" | "dye-batch-rework" | "dye-batch-quality" | "flow-cards" | "process-routes" | "outsourcing-orders" | "outsourcing-receipts" | "outsourcing-vouchers" | "mrp" | "capacity" | "scheduling" => "production".to_string(),
+            "production-orders"
+            | "dye-batches"
+            | "dye-recipes"
+            | "dye-batch-rework"
+            | "dye-batch-quality"
+            | "flow-cards"
+            | "process-routes"
+            | "outsourcing-orders"
+            | "outsourcing-receipts"
+            | "outsourcing-vouchers"
+            | "mrp"
+            | "capacity"
+            | "scheduling" => "production".to_string(),
             // 质量模块
-            "quality-inspections" | "quality-issues" | "quality-standards" | "fabric-inspections" | "fabric-defects" => "quality".to_string(),
+            "quality-inspections"
+            | "quality-issues"
+            | "quality-standards"
+            | "fabric-inspections"
+            | "fabric-defects" => "quality".to_string(),
             // 财务模块
-            "vouchers" | "subjects" | "fixed-assets" | "budgets" | "cost-collections" | "ar" | "ap" | "gl" | "fund-management" | "fund-transfers" | "currencies" | "exchange-rates" | "ar-reconciliations" | "wages" => "finance".to_string(),
+            "vouchers" | "subjects" | "fixed-assets" | "budgets" | "cost-collections" | "ar"
+            | "ap" | "gl" | "fund-management" | "fund-transfers" | "currencies"
+            | "exchange-rates" | "ar-reconciliations" | "wages" => "finance".to_string(),
             // CRM 模块
-            "crm-leads" | "crm-opportunities" | "crm-customers" | "five-dimension" | "sales-analysis" => "crm".to_string(),
+            "crm-leads" | "crm-opportunities" | "crm-customers" | "five-dimension"
+            | "sales-analysis" => "crm".to_string(),
             // HR 模块
             "employees" | "wage-rates" | "wage-records" => "hr".to_string(),
             // 物流模块
             "logistics" | "ship-orders" | "incoterms" => "logistics".to_string(),
             // 系统模块
-            "audit-logs" | "slow-queries" | "system-config" | "print-templates" | "data-import" | "dashboard" => "system".to_string(),
+            "audit-logs" | "slow-queries" | "system-config" | "print-templates" | "data-import"
+            | "dashboard" => "system".to_string(),
             // AI 模块
-            "ai-forecast" | "ai-inventory-opt" | "ai-anomaly" | "ai-recommendation" | "ai-recipe-opt" | "ai-quality-pred" | "ai-process-opt" | "ai-summary" => "ai".to_string(),
+            "ai-forecast" | "ai-inventory-opt" | "ai-anomaly" | "ai-recommendation"
+            | "ai-recipe-opt" | "ai-quality-pred" | "ai-process-opt" | "ai-summary" => {
+                "ai".to_string()
+            }
             // 默认：使用 resource_type 作为模块名
             _ => resource_type.to_string(),
         }

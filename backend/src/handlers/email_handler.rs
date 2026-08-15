@@ -3,12 +3,12 @@
 //! 提供邮件发送、模板管理和发送记录查询功能
 
 use axum::{
-    extract::{Query, State},
     Json,
+    extract::{Query, State},
 };
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::container::AppState;
@@ -130,8 +130,8 @@ async fn decode_and_validate_attachments(
         _ => return Ok(None),
     };
 
-    use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
     use base64::Engine;
+    use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
     use std::collections::HashMap;
 
     let mut file_map: HashMap<String, Vec<u8>> = HashMap::new();
@@ -262,7 +262,7 @@ pub async fn get_email_statistics(
 
 /// 渲染邮件模板：将 {{key}} / {{ key }} 占位符替换为 params 中对应的值；v11 批次 151 P2-A：接入 SendEmailRequest.template_params - params
 /// 必须为 JSON 对象，key 为占位符名称，value 为替换值 - value 为字符串时直接替换；为其他类型时使用 JSON 字符串表示 - 模板中未匹配到 params 的占位符保持原样（不删除，便于排查模板问题）
-fn render_template(template: &str, params: &serde_json::Value) -> String {
+pub fn render_template(template: &str, params: &serde_json::Value) -> String {
     let mut result = template.to_string();
     if let Some(obj) = params.as_object() {
         for (key, value) in obj {

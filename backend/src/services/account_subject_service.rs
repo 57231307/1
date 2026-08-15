@@ -2,10 +2,10 @@
 //!
 //! 会计科目业务逻辑层
 
-use sea_orm::{ExprTrait, 
-    sea_query::Expr, ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait,
-    IntoActiveModel, JoinType, ModelTrait, Order, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect, RelationTrait, Set,
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, IntoActiveModel,
+    JoinType, ModelTrait, Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
+    RelationTrait, Set, sea_query::Expr,
 };
 use std::sync::Arc;
 use tracing::{info, warn};
@@ -356,8 +356,12 @@ impl AccountSubjectService {
 
         info!(
             "科目余额刷新成功：subject_id={}, period={}, 本期借={}, 本期贷={}, 期末借={}, 期末贷={}",
-            updated.id, period, current_period_debit, current_period_credit,
-            ending_balance_debit, ending_balance_credit
+            updated.id,
+            period,
+            current_period_debit,
+            current_period_credit,
+            ending_balance_debit,
+            ending_balance_credit
         );
         Ok(updated)
     }

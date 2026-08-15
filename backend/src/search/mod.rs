@@ -4,7 +4,7 @@
 
 pub mod elastic;
 // elastic_ops 子模块：elastic.rs facade 的业务方法 impl 块按职责分散至此（实现细节，不对外暴露）
-mod elastic_ops;
+pub mod elastic_ops;
 
 // 批次 104 P0-1 修复：仅 re-export 外部实际使用的项
 // DocType / SalesOrderItemDoc / SearchError / SearchHit / SearchResult
@@ -13,6 +13,6 @@ mod elastic_ops;
 // 批次 124 v8 复审 P1 修复：新增导出 SearchSyncer 供 customer_service 注入
 // 批次 125 v8 复审 P1 修复：新增导出 SalesOrderItemDoc 供 order_crud.build_sales_order_doc 使用
 pub use elastic::{
-    ensure_indices, indices, CustomerDoc, DocType, ElasticClient, ProductDoc, SalesOrderDoc,
-    SalesOrderItemDoc, SearchClient, SearchQuery, SearchSyncer,
+    CustomerDoc, DocType, ElasticClient, ProductDoc, SalesOrderDoc, SalesOrderItemDoc,
+    SearchClient, SearchQuery, SearchSyncer, ensure_indices, indices,
 };

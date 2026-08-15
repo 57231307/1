@@ -483,11 +483,7 @@ impl FundManagementService {
     }
 
     /// V15 P1 17.6-D5：执行实际转账（内部方法）
-    async fn execute_transfer(
-        &self,
-        transfer_id: i32,
-        approver_id: i32,
-    ) -> Result<(), AppError> {
+    async fn execute_transfer(&self, transfer_id: i32, approver_id: i32) -> Result<(), AppError> {
         let record = self.get_transfer_record(transfer_id).await?;
 
         let from_account_id = record

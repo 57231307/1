@@ -161,9 +161,13 @@ impl PurchaseOrderService {
             order_status: Set("DRAFT".to_string()),
             notes: Set(Some(format!(
                 "缺料预警自动生成 | 物料: {} ({}) | 需求量: {} | 可用量: {} | 缺口: {} | 级别: {} | 受影响订单: {}",
-                params.material_name, params.material_code, params.required_quantity,
-                params.available_quantity, params.shortage_quantity,
-                params.shortage_level, params.affected_orders_count
+                params.material_name,
+                params.material_code,
+                params.required_quantity,
+                params.available_quantity,
+                params.shortage_quantity,
+                params.shortage_level,
+                params.affected_orders_count
             ))),
             created_by: Set(1),
             ..Default::default()

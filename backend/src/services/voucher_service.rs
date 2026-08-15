@@ -96,7 +96,7 @@ pub struct VoucherQueryParams {
 /// 凭证 Service（struct 定义保留在 facade，impl 块按职责分散到 `voucher_ops/` 子模块。）
 pub struct VoucherService {
     /// 数据库连接句柄（`pub(crate)` 可见性：voucher_ops 兄弟模块的 impl 块需直接访问此字段。）
-    pub(crate) db: Arc<DatabaseConnection>,
+    pub db: Arc<DatabaseConnection>,
 }
 
 impl VoucherService {

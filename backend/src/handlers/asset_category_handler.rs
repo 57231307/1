@@ -10,8 +10,8 @@ use crate::services::asset_category_service::{
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use rust_decimal::Decimal;
 use serde::Deserialize;
@@ -55,7 +55,10 @@ pub async fn create_category(
     auth: AuthContext,
     Json(req): Json<CreateCategoryDto>,
 ) -> Result<Json<ApiResponse<asset_category::Model>>, AppError> {
-    info!("用户 {} 正在创建资产分类：{}", auth.user_id, req.category_name);
+    info!(
+        "用户 {} 正在创建资产分类：{}",
+        auth.user_id, req.category_name
+    );
 
     let service = AssetCategoryService::new(state.db.clone());
     let category = service
@@ -156,5 +159,8 @@ pub async fn delete_category(
     let service = AssetCategoryService::new(state.db.clone());
     service.delete(id).await?;
 
-    Ok(Json(ApiResponse::success(format!("资产分类 {} 已停用", id))))
+    Ok(Json(ApiResponse::success(format!(
+        "资产分类 {} 已停用",
+        id
+    ))))
 }

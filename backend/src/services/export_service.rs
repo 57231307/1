@@ -4,9 +4,9 @@
 //! v11 批次 161 CI2：移除 CSV 导出，规则 3 要求 xlsx 交付
 //! V15 P1 batch-08 缺陷 8：新增 docx 导出，规则 3 要求合同/发票/报表支持 .docx
 
-use crate::utils::docx_export::{build_docx_with_kv, DocxKeyValue};
+use crate::utils::docx_export::{DocxKeyValue, build_docx_with_kv};
 use crate::utils::error::AppError;
-use crate::utils::xlsx_export::{build_xlsx, XlsxTable};
+use crate::utils::xlsx_export::{XlsxTable, build_xlsx};
 use serde::{Deserialize, Serialize};
 
 /// 导出数据
@@ -44,7 +44,8 @@ impl ExportService {
     /// 导出为真实 PDF 格式（规则 3：禁止以 PDF 名义交付文本，使用 printpdf 生成真实 PDF 字节流）
     pub fn export_pdf(data: &ExportData) -> Result<Vec<u8>, AppError> {
         use printpdf::*;
-        let (doc, page1, layer1) = PdfDocument::new(data.title.as_str(), Mm(297.0), Mm(210.0), "Layer 1");
+        let (doc, page1, layer1) =
+            PdfDocument::new(data.title.as_str(), Mm(297.0), Mm(210.0), "Layer 1");
         let layer = doc.get_page(page1).get_layer(layer1);
         let font = doc
             .add_builtin_font(BuiltinFont::Helvetica)
@@ -53,7 +54,13 @@ impl ExportService {
 
         // 标题与生成时间
         layer.use_text(data.title.as_str(), 16.0, Mm(20.0), Mm(280.0), &font);
-        layer.use_text(format!("生成时间: {}", now).as_str(), 10.0, Mm(20.0), Mm(270.0), &font);
+        layer.use_text(
+            format!("生成时间: {}", now).as_str(),
+            10.0,
+            Mm(20.0),
+            Mm(270.0),
+            &font,
+        );
 
         // 表头与数据（含分页）
         let mut y_pos = 250.0_f32;
@@ -87,13 +94,25 @@ impl ExportService {
         if let Some(summary) = &data.summary {
             y_pos -= 6.0;
             for (k, v) in summary {
-                layer.use_text(format!("{}: {}", k, v).as_str(), 10.0, Mm(20.0), Mm(y_pos), &font);
+                layer.use_text(
+                    format!("{}: {}", k, v).as_str(),
+                    10.0,
+                    Mm(20.0),
+                    Mm(y_pos),
+                    &font,
+                );
                 y_pos -= 6.0;
             }
         }
 
         // 页脚记录数
-        layer.use_text(format!("共 {} 条记录", data.rows.len()).as_str(), 10.0, Mm(20.0), Mm(10.0), &font);
+        layer.use_text(
+            format!("共 {} 条记录", data.rows.len()).as_str(),
+            10.0,
+            Mm(20.0),
+            Mm(10.0),
+            &font,
+        );
 
         let mut buffer = Vec::new();
         {

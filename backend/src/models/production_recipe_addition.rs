@@ -8,8 +8,8 @@
 //! 关键约束：关联的大货处方必须为 approved 状态
 
 use rust_decimal::Decimal;
-use sea_orm::entity::prelude::*;
 use sea_orm::FromJsonQueryResult;
+use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// 加料处方物料明细项（addition_detail JSON 数组元素；amount 加料用量 kg/L/g/ml，category dye/auxiliary）

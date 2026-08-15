@@ -1,14 +1,12 @@
 use axum::{
-    extract::{Path, State},
     Json,
+    extract::{Path, State},
 };
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
-use crate::models::aging_grade_config::{
-    self, CreateAgingGradeDto, UpdateAgingGradeDto,
-};
+use crate::models::aging_grade_config::{self, CreateAgingGradeDto, UpdateAgingGradeDto};
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

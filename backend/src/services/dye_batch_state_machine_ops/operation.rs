@@ -16,7 +16,7 @@ use crate::models::dye_batch_operation::{
     self, ActiveModel as OperationActiveModel, Entity as OperationEntity, Model as OperationModel,
 };
 use crate::services::dye_batch_state_machine_service::{
-    validate_operation_type, CreateOperationRequest, DyeBatchOperationService, OperationQuery,
+    CreateOperationRequest, DyeBatchOperationService, OperationQuery, validate_operation_type,
 };
 use crate::utils::error::AppError;
 

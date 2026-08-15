@@ -7,8 +7,8 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use crate::utils::sql_escape::safe_like_pattern;
 use axum::{
-    extract::{Query, State},
     Json,
+    extract::{Query, State},
 };
 use serde::Deserialize;
 use validator::Validate;

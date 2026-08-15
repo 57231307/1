@@ -17,13 +17,13 @@ use crate::services::tracking_service::{
     BehaviorInput, FunnelQuery, PageViewInput, StatsQuery, TrackingService, UserPathQuery,
 };
 use crate::services::user_consent_service::{
-    UserConsentService, CONSENT_TYPE_BEHAVIOR_TRACKING, CONSENT_TYPE_PAGE_VIEW_TRACKING,
+    CONSENT_TYPE_BEHAVIOR_TRACKING, CONSENT_TYPE_PAGE_VIEW_TRACKING, UserConsentService,
 };
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
-    extract::{Query, State},
     Json,
+    extract::{Query, State},
 };
 use serde::{Deserialize, Serialize};
 use validator::Validate;

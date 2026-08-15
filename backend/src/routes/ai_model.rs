@@ -3,8 +3,8 @@
 use crate::container::AppState;
 use crate::handlers::ai_model_management_handler;
 use axum::{
-    routing::{get, post},
     Router,
+    routing::{get, post},
 };
 
 /// AI 模型管理路由（path 前缀 /ai-models）

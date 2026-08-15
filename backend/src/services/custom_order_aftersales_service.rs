@@ -90,7 +90,9 @@ impl CustomOrderAfterSalesService {
         // 原因：审计计划 23.3 要求支持退货/换货/维修/投诉 4 类，原实现仅有
         // complaint/repair/exchange/refund，缺失"退货"独立类型；退货涉及物流收货、
         // 库存回库，与退款（财务出账）是不同业务。此处保留 refund 以兼容既有场景。
-        if !["complaint", "repair", "exchange", "return_goods", "refund"].contains(&dto.issue_type.as_str()) {
+        if !["complaint", "repair", "exchange", "return_goods", "refund"]
+            .contains(&dto.issue_type.as_str())
+        {
             return Err(AfterSalesError::Validation(format!(
                 "非法售后类型: {}",
                 dto.issue_type
@@ -150,7 +152,7 @@ impl CustomOrderAfterSalesService {
 
         let now = Utc::now();
         let mut active: ActiveModel = existing.into();
-        if let Some(v) = dto.status {
+        if let Some(v) = &dto.status {
             active.status = Set(v.clone());
             if v == "closed" || v == "resolved" || v == "rejected" {
                 active.closed_at = Set(Some(now));

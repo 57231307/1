@@ -8,15 +8,15 @@ use crate::models::dto::crm_dto::{
 };
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::crm::cust::CrmService;
-use chrono::Datelike;
 use crate::utils::error::AppError;
 use crate::utils::export_concurrency::ExportConcurrencyGuard;
 use crate::utils::messages::biz_msg;
 use crate::utils::response::ApiResponse;
 use axum::{
-    extract::{Multipart, Path, Query, State},
     Json,
+    extract::{Multipart, Path, Query, State},
 };
+use chrono::Datelike;
 use serde::Deserialize;
 use serde_json::Value;
 use std::sync::Arc;
@@ -688,8 +688,12 @@ pub async fn get_channel_roi_report(
     Query(params): Query<ChannelRoiQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let start_date = params.start_date.ok_or_else(|| AppError::bad_request("start_date 必填".to_string()))?;
-    let end_date = params.end_date.ok_or_else(|| AppError::bad_request("end_date 必填".to_string()))?;
+    let start_date = params
+        .start_date
+        .ok_or_else(|| AppError::bad_request("start_date 必填".to_string()))?;
+    let end_date = params
+        .end_date
+        .ok_or_else(|| AppError::bad_request("end_date 必填".to_string()))?;
     let report = service.channel_roi_report(start_date, end_date).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(report)?)))
 }
@@ -701,7 +705,9 @@ pub async fn calculate_channel_roi(
     Json(req): Json<CalculateChannelRoiRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let result = service.calculate_channel_roi(&req.source, req.start_date, req.end_date, req.cost).await?;
+    let result = service
+        .calculate_channel_roi(&req.source, req.start_date, req.end_date, req.cost)
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(result)?)))
 }
 
@@ -735,7 +741,9 @@ pub async fn auto_assign_lead(
     Json(req): Json<AutoAssignRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let assigned_user = service.auto_assign_lead(id, &req.source, req.industry.as_deref()).await?;
+    let assigned_user = service
+        .auto_assign_lead(id, &req.source, req.industry.as_deref())
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "assigned_user_id": assigned_user
     }))))
@@ -748,7 +756,9 @@ pub async fn list_nurture_plans(
     Query(params): Query<NurturePlanQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let plans = service.list_nurture_plans(params.lead_id, params.status.as_deref()).await?;
+    let plans = service
+        .list_nurture_plans(params.lead_id, params.status.as_deref())
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(plans)?)))
 }
 
@@ -783,7 +793,9 @@ pub async fn get_stage_duration_analysis(
     Query(params): Query<StageDurationQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let analysis = service.stage_duration_analysis(params.opportunity_id).await?;
+    let analysis = service
+        .stage_duration_analysis(params.opportunity_id)
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(analysis)?)))
 }
 
@@ -795,7 +807,9 @@ pub async fn record_opportunity_stage_change(
     Json(req): Json<StageChangeRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    service.record_stage_change(id, req.from_stage, &req.to_stage, auth.user_id).await?;
+    service
+        .record_stage_change(id, req.from_stage, &req.to_stage, auth.user_id)
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::Value::Null)))
 }
 
@@ -807,7 +821,9 @@ pub async fn list_opportunity_competitors(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
     let competitors = service.list_opportunity_competitors(id).await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(competitors)?)))
+    Ok(Json(ApiResponse::success(serde_json::to_value(
+        competitors,
+    )?)))
 }
 
 /// POST /api/v1/erp/crm/opportunities/:id/competitors - 添加商机竞争对手
@@ -819,7 +835,9 @@ pub async fn add_opportunity_competitor(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
     let competitor = service.add_opportunity_competitor(id, req).await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(competitor)?)))
+    Ok(Json(ApiResponse::success(serde_json::to_value(
+        competitor,
+    )?)))
 }
 
 /// GET /api/v1/erp/crm/opportunities/:id/follow-ups - 获取商机跟进记录
@@ -830,7 +848,9 @@ pub async fn list_opportunity_follow_ups(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
     let follow_ups = service.list_opportunity_follow_ups(id).await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(follow_ups)?)))
+    Ok(Json(ApiResponse::success(serde_json::to_value(
+        follow_ups,
+    )?)))
 }
 
 /// POST /api/v1/erp/crm/opportunities/:id/follow-ups - 创建商机跟进记录
@@ -841,7 +861,9 @@ pub async fn create_opportunity_follow_up(
     Json(req): Json<crate::services::crm::opp::CreateOpportunityFollowUpRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let follow_up = service.create_opportunity_follow_up(id, req, auth.user_id, auth.username.clone()).await?;
+    let follow_up = service
+        .create_opportunity_follow_up(id, req, auth.user_id, auth.username.clone())
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(follow_up)?)))
 }
 
@@ -852,7 +874,9 @@ pub async fn list_competitors(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
     let competitors = service.list_competitors().await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(competitors)?)))
+    Ok(Json(ApiResponse::success(serde_json::to_value(
+        competitors,
+    )?)))
 }
 
 /// POST /api/v1/erp/crm/competitors - 创建竞争对手
@@ -863,7 +887,9 @@ pub async fn create_competitor(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
     let competitor = service.create_competitor(req).await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(competitor)?)))
+    Ok(Json(ApiResponse::success(serde_json::to_value(
+        competitor,
+    )?)))
 }
 
 // ===== V15 P2 18.4-D5/D6: 客户数据权限与操作日志 =====
@@ -876,7 +902,9 @@ pub async fn get_customer_field_permissions(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
     let permissions = service.get_customer_field_permissions(role_id).await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(permissions)?)))
+    Ok(Json(ApiResponse::success(serde_json::to_value(
+        permissions,
+    )?)))
 }
 
 /// POST /api/v1/erp/crm/customers/field-permissions - 设置客户字段权限
@@ -887,7 +915,9 @@ pub async fn set_customer_field_permission(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
     let permission = service.set_customer_field_permission(req).await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(permission)?)))
+    Ok(Json(ApiResponse::success(serde_json::to_value(
+        permission,
+    )?)))
 }
 
 /// GET /api/v1/erp/crm/customers/:id/audit-logs - 获取客户操作日志
@@ -898,7 +928,9 @@ pub async fn list_customer_audit_logs(
     Query(params): Query<AuditLogQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let logs = service.list_customer_audit_logs(id, params.operation.as_deref()).await?;
+    let logs = service
+        .list_customer_audit_logs(id, params.operation.as_deref())
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(logs)?)))
 }
 
@@ -983,7 +1015,9 @@ pub async fn get_conversion_rate(
     Query(params): Query<MonthsBackQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let result = service.conversion_rate_analysis(params.months_back.unwrap_or(12)).await?;
+    let result = service
+        .conversion_rate_analysis(params.months_back.unwrap_or(12))
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(result)?)))
 }
 
@@ -994,7 +1028,9 @@ pub async fn get_sales_funnel(
     Query(params): Query<FunnelDateQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let result = service.sales_funnel_report(params.start_date, params.end_date).await?;
+    let result = service
+        .sales_funnel_report(params.start_date, params.end_date)
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(result)?)))
 }
 
@@ -1116,8 +1152,8 @@ pub async fn score_lead(
     };
     let svc = Arc::new(AuditLogService::new(state.db.clone()));
     svc.record_async(event, None);
-    let value =
-        serde_json::to_value(result).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let value = serde_json::to_value(result)
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -1130,7 +1166,9 @@ pub async fn detect_duplicate_leads(
     let service = CrmService::new(state.db.clone());
     let mobile_phone = req.get("mobile_phone").and_then(|v| v.as_str());
     let company_name = req.get("company_name").and_then(|v| v.as_str());
-    let result = service.detect_duplicate_leads(mobile_phone, company_name).await?;
+    let result = service
+        .detect_duplicate_leads(mobile_phone, company_name)
+        .await?;
     let event = AuditEvent {
         user_id: Some(auth.user_id),
         username: Some(auth.username.clone()),
@@ -1147,8 +1185,8 @@ pub async fn detect_duplicate_leads(
     };
     let svc = Arc::new(AuditLogService::new(state.db.clone()));
     svc.record_async(event, None);
-    let value =
-        serde_json::to_value(result).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let value = serde_json::to_value(result)
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -1170,7 +1208,9 @@ pub async fn merge_leads(
         .iter()
         .filter_map(|v| v.as_i64().map(|id| id as i32))
         .collect();
-    let result = service.merge_leads(primary_id, duplicate_ids.clone(), auth.user_id).await?;
+    let result = service
+        .merge_leads(primary_id, duplicate_ids.clone(), auth.user_id)
+        .await?;
     let event = AuditEvent {
         user_id: Some(auth.user_id),
         username: Some(auth.username.clone()),
@@ -1187,8 +1227,8 @@ pub async fn merge_leads(
     };
     let svc = Arc::new(AuditLogService::new(state.db.clone()));
     svc.record_async(event, None);
-    let value =
-        serde_json::to_value(result).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let value = serde_json::to_value(result)
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -1218,7 +1258,7 @@ pub async fn lead_funnel_report(
     };
     let svc = Arc::new(AuditLogService::new(state.db.clone()));
     svc.record_async(event, None);
-    let value =
-        serde_json::to_value(result).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let value = serde_json::to_value(result)
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(value)))
 }

@@ -11,7 +11,9 @@
 use std::sync::Arc;
 
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, Set,
+};
 use tracing::{info, warn};
 
 use crate::models::notification_subscription::{
@@ -56,10 +58,7 @@ impl NotificationPushScheduler {
             return Ok(0);
         }
 
-        info!(
-            "通知推送调度器：扫描到 {} 条到期订阅，开始处理",
-            count
-        );
+        info!("通知推送调度器：扫描到 {} 条到期订阅，开始处理", count);
 
         let mut processed: u64 = 0;
         for sub in due_subscriptions {
@@ -99,8 +98,7 @@ impl NotificationPushScheduler {
 
         info!(
             subscription_id = sub.id,
-            "通知推送调度器：订阅已处理，下次执行时间: {}",
-            next_run
+            "通知推送调度器：订阅已处理，下次执行时间: {}", next_run
         );
         Ok(())
     }
@@ -114,7 +112,9 @@ impl NotificationPushScheduler {
                 .map(|v| matches!(v.to_lowercase().as_str(), "true" | "1" | "yes" | "on"))
                 .unwrap_or(true);
             if !enabled {
-                info!("通知推送调度器：环境变量 NOTIFICATION_PUSH_SCHEDULER_ENABLED=false，跳过启动");
+                info!(
+                    "通知推送调度器：环境变量 NOTIFICATION_PUSH_SCHEDULER_ENABLED=false，跳过启动"
+                );
                 return;
             }
 
@@ -129,8 +129,7 @@ impl NotificationPushScheduler {
             let interval = std::time::Duration::from_secs(interval_secs);
             info!(
                 interval_secs,
-                "通知推送调度器：后台任务已启动（每 {} 秒扫描一次到期推送订阅）",
-                interval_secs
+                "通知推送调度器：后台任务已启动（每 {} 秒扫描一次到期推送订阅）", interval_secs
             );
 
             loop {

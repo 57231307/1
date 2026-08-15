@@ -5,8 +5,8 @@
 //! V15 P1 10.4-1/2/3：端点级角色权限矩阵 + 数据权限隔离 + 审计日志
 
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
@@ -24,7 +24,7 @@ use crate::services::color_card_issue_service::{
 use crate::services::role_permission_service::RolePermissionService;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
-use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
+use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
 
 // ==================== DTO 定义 ====================
 

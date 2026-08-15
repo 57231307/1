@@ -1,8 +1,8 @@
 //! DualUnitConverter 单元测试
 
 use bingxi_backend::utils::dual_unit_converter::DualUnitConverter;
-use rust_decimal::prelude::FromStr;
 use rust_decimal::Decimal;
+use rust_decimal::prelude::FromStr;
 
 #[test]
 fn test_meters_to_kg_basic() {

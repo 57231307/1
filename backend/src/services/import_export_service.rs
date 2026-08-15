@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::utils::error::AppError;
-use crate::utils::xlsx_export::{build_xlsx, XlsxTable};
+use crate::utils::xlsx_export::{XlsxTable, build_xlsx};
 
 // ============================================================================
 // 安全漏洞 #8：导入端点请求体大小限制常量

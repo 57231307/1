@@ -101,9 +101,9 @@ macro_rules! define_crud_handlers {
 
             // V15 P2 B19-P2-1：创建操作补审计日志（与 update/delete 对齐）
             {
-                use $crate::services::audit_log_service::AuditEvent;
-                use $crate::models::audit_log::{OperationType, Severity};
                 use std::sync::Arc;
+                use $crate::models::audit_log::{OperationType, Severity};
+                use $crate::services::audit_log_service::AuditEvent;
                 let audit_svc = Arc::new(
                     $crate::services::audit_log_service::AuditLogService::new(state.db.clone()),
                 );
@@ -115,16 +115,11 @@ macro_rules! define_crud_handlers {
                     resource_type: Some(stringify!($service_ty).to_string()),
                     resource_id: None,
                     resource_name: None,
-                    description: Some(format!(
-                        "创建记录 user_id={}",
-                        auth.user_id
-                    )),
+                    description: Some(format!("创建记录 user_id={}", auth.user_id)),
                     request_method: Some("POST".to_string()),
                     request_path: None,
                     before_snapshot: None,
-                    after_snapshot: Some(
-                        serde_json::to_value(&item).unwrap_or_default(),
-                    ),
+                    after_snapshot: Some(serde_json::to_value(&item).unwrap_or_default()),
                 };
                 audit_svc.record_async(event, None);
             }

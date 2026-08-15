@@ -11,12 +11,12 @@
 //! - 将 SearchResult<serde_json::Value> 反序列化为对应 Doc 类型
 //! - 错误处理从 StatusCode 改为 AppError
 
-use axum::extract::{Query, State};
 use axum::Json;
+use axum::extract::{Query, State};
 use serde::{Deserialize, Serialize};
 
 use crate::container::AppState;
-use crate::search::{indices, CustomerDoc, DocType, ProductDoc, SalesOrderDoc, SearchQuery};
+use crate::search::{CustomerDoc, DocType, ProductDoc, SalesOrderDoc, SearchQuery, indices};
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 

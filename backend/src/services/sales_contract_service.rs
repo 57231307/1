@@ -6,9 +6,9 @@ use crate::utils::error::AppError;
 use crate::utils::sql_escape::safe_like_pattern;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
-use sea_orm::{ExprTrait, 
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, Order,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use std::sync::Arc;
 use tracing::info;
@@ -74,12 +74,9 @@ impl SalesContractService {
     /// - 购销合同（sale / purchase_sale）：总金额 * 0.3‰
     /// - 加工承揽合同（processing / processing_contract）：总金额 * 0.5‰
     /// - 其他类型：不计算
-    fn calculate_stamp_tax(
-        contract_type: Option<&str>,
-        total_amount: Decimal,
-    ) -> Option<Decimal> {
+    fn calculate_stamp_tax(contract_type: Option<&str>, total_amount: Decimal) -> Option<Decimal> {
         let rate = match contract_type? {
-            "sale" | "purchase_sale" => Decimal::new(3, 4),      // 0.0003 = 0.3‰
+            "sale" | "purchase_sale" => Decimal::new(3, 4), // 0.0003 = 0.3‰
             "processing" | "processing_contract" => Decimal::new(5, 4), // 0.0005 = 0.5‰
             _ => return None,
         };
@@ -94,8 +91,7 @@ impl SalesContractService {
     ) -> Result<sales_contract::Model, AppError> {
         info!("用户 {} 正在创建销售合同：{}", user_id, req.contract_no);
 
-        let stamp_tax =
-            Self::calculate_stamp_tax(req.contract_type.as_deref(), req.total_amount);
+        let stamp_tax = Self::calculate_stamp_tax(req.contract_type.as_deref(), req.total_amount);
 
         // 使用事务确保合同和明细行原子创建
         let txn = self.db.begin().await?;
@@ -248,7 +244,7 @@ impl SalesContractService {
             _ => {
                 return Err(AppError::validation(
                     "无效的执行类型，支持：delivery（出库）、payment（收款）".to_string(),
-                ))
+                ));
             }
         }
 

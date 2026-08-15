@@ -10,9 +10,9 @@ use crate::models::{
 use crate::utils::error::AppError;
 use crate::utils::incoterms::Incoterms2020;
 use rust_decimal::Decimal;
-use sea_orm::{ExprTrait, 
-    sea_query::Expr, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, JoinType,
-    QueryFilter, QueryOrder, QuerySelect, RelationTrait,
+use sea_orm::{
+    ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, ExprTrait, JoinType,
+    QueryFilter, QueryOrder, QuerySelect, RelationTrait, sea_query::Expr,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;

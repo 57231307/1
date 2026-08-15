@@ -320,7 +320,7 @@ impl ColorCardCrudService {
     }
 
     /// B05-P2-4：校验色卡状态流转（draft/active→issued→received→used→expired/lost/archived 终态）。
-    fn validate_color_card_status_transition(from: &str, to: &str) -> Result<(), CrudError> {
+    pub fn validate_color_card_status_transition(from: &str, to: &str) -> Result<(), CrudError> {
         // 终态不可再流转
         if matches!(from, "expired" | "lost" | "archived") {
             return Err(CrudError::InvalidState);

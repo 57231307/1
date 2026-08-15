@@ -1,7 +1,7 @@
 //! 杂项子命令实现：Clean / Config / Info
 
 use super::{
-    get_backup_dir, get_install_dir, get_log_dir, is_service_active, run_cmd, SERVICE_NAME,
+    SERVICE_NAME, get_backup_dir, get_install_dir, get_log_dir, is_service_active, run_cmd,
 };
 
 pub(super) fn cmd_clean(clean_type: &str) {

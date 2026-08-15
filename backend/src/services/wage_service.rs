@@ -31,7 +31,7 @@ use std::sync::Arc;
 use crate::models::process_wage_rate::Model as RateModel;
 use crate::models::status::wage_type;
 use crate::services::quality_inspection_service::{
-    determine_quality_grade, QUALITY_GRADE_A, QUALITY_GRADE_B, QUALITY_GRADE_C,
+    QUALITY_GRADE_A, QUALITY_GRADE_B, QUALITY_GRADE_C, determine_quality_grade,
 };
 
 // ============================================================================

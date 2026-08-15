@@ -9,8 +9,8 @@ use crate::services::period_report_snapshot_service::{
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use serde::Deserialize;
 use tracing::info;
@@ -79,10 +79,7 @@ pub async fn list_snapshots(
         .await?;
 
     Ok(Json(ApiResponse::success(PaginatedResponse::new(
-        snapshots,
-        total,
-        page,
-        page_size,
+        snapshots, total, page, page_size,
     ))))
 }
 

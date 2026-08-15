@@ -28,7 +28,7 @@ use crate::models::production_order::{
     self, ActiveModel, Entity as ProductionOrderEntity, Model as ProductionOrderModel,
 };
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 
@@ -110,7 +110,7 @@ impl ProductionOrderService {
     }
 
     /// 验证状态转换是否合法（`pub(crate)` 可见性：测试模块（facade）与 approval 子模块跨 impl 块调用。）
-    pub(crate) fn validate_status_transition(
+    pub fn validate_status_transition(
         current_status: &str,
         new_status: &str,
     ) -> Result<(), AppError> {

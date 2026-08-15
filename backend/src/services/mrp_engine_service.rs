@@ -31,13 +31,13 @@ use std::sync::Arc;
 // 注意：仅重导出原 pub struct，StockInfo 原 private 不重导出（保持 API 表面不变）
 pub use crate::services::mrp_engine_ops::{
     MaterialRequirement, MrpCalculationItem, MrpCalculationQuery, MrpCalculationRequest,
-    MrpExplodeQuery, RequirementCalcParams,
+    RequirementCalcParams,
 };
 
 /// MRP计算引擎（struct 定义保留在 facade，impl 块按职责分散到 `mrp_engine_ops/` 子模块。）
 pub struct MrpEngineService {
     /// 数据库连接句柄（`pub(crate)` 可见性：mrp_engine_ops 兄弟模块的 impl 块需直接访问此字段。）
-    pub(crate) db: Arc<DatabaseConnection>,
+    pub db: Arc<DatabaseConnection>,
 }
 
 impl MrpEngineService {

@@ -1,4 +1,4 @@
-use axum::{extract::Query, extract::State, Json};
+use axum::{Json, extract::Query, extract::State};
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
@@ -186,7 +186,7 @@ pub async fn scan_history(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // 页码采用 1-based 约定，与全局分页契约保持一致
     let page = params.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
-                                                        // v11 批次 36 修复：page_size clamp 防止 DoS（用户传超大值导致内存爆炸）
+    // v11 批次 36 修复：page_size clamp 防止 DoS（用户传超大值导致内存爆炸）
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
     let mut query = inventory_piece::Entity::find();
@@ -238,8 +238,8 @@ pub async fn scan_statistics(
     State(state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    use sea_orm::sea_query::Expr;
     use sea_orm::QuerySelect;
+    use sea_orm::sea_query::Expr;
 
     let row = inventory_piece::Entity::find()
         .select_only()

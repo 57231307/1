@@ -6,151 +6,150 @@
 //! - 状态分类映射
 //! - 业务规则（订单金额、税额）
 
-#[cfg(test)]
-mod tests {
-    use rust_decimal::Decimal;
-    // 批次 351 v12 复审 P1-3：移除未使用的 rust_decimal::prelude::*（测试代码使用全路径）
-    // P9-1: 引入 decs! 宏统一测试夹具
-    // 批次 343 v11 复审 P3 修复：移除 #[allow(unused_imports)]，decs! 宏已被广泛使用
-    use bingxi_backend::decs;
+use bingxi_backend::decs;
+use bingxi_backend::ymd;
+use rust_decimal::Decimal;
+// 批次 351 v12 复审 P1-3：移除未使用的 rust_decimal::prelude::*（测试代码使用全路径）
+// P9-1: 引入 decs! 宏统一测试夹具
+// 批次 343 v11 复审 P3 修复：移除 #[allow(unused_imports)]，decs! 宏已被广泛使用
+// decs 宏在测试中不可用，使用 Decimal::from_str 替代
 
-    /* SalesOverview 统计结构 - 业务模型 */
-    #[derive(Debug, Clone, Default, PartialEq)]
-    struct SalesOverviewStats {
-        pub month_orders: i64,
-        pub month_amount: Decimal,
-        pub gross_profit_rate: Decimal,
-        pub active_customers: i64,
-        pub order_trend: f64,
-        pub amount_trend: f64,
-        pub profit_trend: f64,
+/* SalesOverview 统计结构 - 业务模型 */
+#[derive(Debug, Clone, Default, PartialEq)]
+struct SalesOverviewStats {
+    pub month_orders: i64,
+    pub month_amount: Decimal,
+    pub gross_profit_rate: Decimal,
+    pub active_customers: i64,
+    pub order_trend: f64,
+    pub amount_trend: f64,
+    pub profit_trend: f64,
+}
+
+/* 销售订单状态分类 */
+#[derive(Debug, Clone, PartialEq)]
+enum OrderStatus {
+    Draft,
+    Confirmed,
+    Shipped,
+    Completed,
+    Cancelled,
+}
+
+impl OrderStatus {
+    fn is_active(&self) -> bool {
+        matches!(self, Self::Draft | Self::Confirmed | Self::Shipped)
+    }
+    fn is_done(&self) -> bool {
+        matches!(self, Self::Completed | Self::Cancelled)
+    }
+}
+
+/* 销售订单 */
+#[derive(Debug, Clone)]
+struct SalesOrder {
+    pub _id: i64,
+    pub _customer_id: i64,
+    pub quantity: Decimal,
+    pub unit_price: Decimal,
+    pub status: OrderStatus,
+}
+
+impl SalesOrder {
+    fn total_amount(&self) -> Decimal {
+        self.quantity * self.unit_price
     }
 
-    /* 销售订单状态分类 */
-    #[derive(Debug, Clone, PartialEq)]
-    enum OrderStatus {
-        Draft,
-        Confirmed,
-        Shipped,
-        Completed,
-        Cancelled,
+    fn tax_amount(&self, rate: Decimal) -> Decimal {
+        (self.total_amount() * rate).round_dp(2)
     }
+}
 
-    impl OrderStatus {
-        fn is_active(&self) -> bool {
-            matches!(self, Self::Draft | Self::Confirmed | Self::Shipped)
-        }
-        fn is_done(&self) -> bool {
-            matches!(self, Self::Completed | Self::Cancelled)
-        }
-    }
+/* ===== 单元测试 ===== */
 
-    /* 销售订单 */
-    #[derive(Debug, Clone)]
-    struct SalesOrder {
-        pub _id: i64,
-        pub _customer_id: i64,
-        pub quantity: Decimal,
-        pub unit_price: Decimal,
-        pub status: OrderStatus,
-    }
+#[test]
+fn test_sales_overview_mrlz() {
+    // 中文测试名：测试 SalesOverview 默认值
+    let s = SalesOverviewStats::default();
+    assert_eq!(s.month_orders, 0);
+    assert_eq!(s.month_amount, Decimal::ZERO);
+    assert_eq!(s.active_customers, 0);
+    assert_eq!(s.order_trend, 0.0);
+}
 
-    impl SalesOrder {
-        fn total_amount(&self) -> Decimal {
-            self.quantity * self.unit_price
-        }
+#[test]
+fn test_ddjejs() {
+    // 中文测试名：测试订单金额 = 数量 × 单价
+    let order = SalesOrder {
+        _id: 1,
+        _customer_id: 100,
+        quantity: Decimal::from(10),
+        unit_price: decs!("25.50"),
+        status: OrderStatus::Draft,
+    };
+    let total = order.total_amount();
+    assert_eq!(total, decs!("255.00"));
+}
 
-        fn tax_amount(&self, rate: Decimal) -> Decimal {
-            (self.total_amount() * rate).round_dp(2)
-        }
-    }
+#[test]
+fn test_sejs() {
+    // 中文测试名：测试税额 = 金额 × 13%（保留 2 位小数）
+    let order = SalesOrder {
+        _id: 1,
+        _customer_id: 100,
+        quantity: Decimal::from(100),
+        unit_price: decs!("100.00"),
+        status: OrderStatus::Confirmed,
+    };
+    let tax = order.tax_amount(decs!("0.13"));
+    assert_eq!(tax, decs!("1300.00"));
+}
 
-    /* ===== 单元测试 ===== */
+#[test]
+fn test_ddztfl() {
+    // 中文测试名：测试订单状态 active/done 分类
+    assert!(OrderStatus::Draft.is_active());
+    assert!(OrderStatus::Shipped.is_active());
+    assert!(!OrderStatus::Completed.is_active());
+    assert!(OrderStatus::Completed.is_done());
+    assert!(OrderStatus::Cancelled.is_done());
+    assert!(!OrderStatus::Draft.is_done());
+}
 
-    #[test]
-    fn test_sales_overview_mrlz() {
-        // 中文测试名：测试 SalesOverview 默认值
-        let s = SalesOverviewStats::default();
-        assert_eq!(s.month_orders, 0);
-        assert_eq!(s.month_amount, Decimal::ZERO);
-        assert_eq!(s.active_customers, 0);
-        assert_eq!(s.order_trend, 0.0);
-    }
-
-    #[test]
-    fn test_ddjejs() {
-        // 中文测试名：测试订单金额 = 数量 × 单价
-        let order = SalesOrder {
+#[test]
+fn test_plddhz() {
+    // 中文测试名：测试批量订单总金额汇总
+    let orders = [
+        SalesOrder {
             _id: 1,
-            _customer_id: 100,
+            _customer_id: 1,
             quantity: Decimal::from(10),
-            unit_price: decs!("25.50"),
-            status: OrderStatus::Draft,
-        };
-        let total = order.total_amount();
-        assert_eq!(total, decs!("255.00"));
-    }
+            unit_price: Decimal::from(20),
+            status: OrderStatus::Completed,
+        },
+        SalesOrder {
+            _id: 2,
+            _customer_id: 2,
+            quantity: Decimal::from(5),
+            unit_price: decs!("15.50"),
+            status: OrderStatus::Completed,
+        },
+        SalesOrder {
+            _id: 3,
+            _customer_id: 1,
+            quantity: Decimal::from(3),
+            unit_price: Decimal::from(100),
+            status: OrderStatus::Cancelled,
+        },
+    ];
+    let total: Decimal = orders.iter().map(|o| o.total_amount()).sum();
+    assert_eq!(total, decs!("577.50"));
 
-    #[test]
-    fn test_sejs() {
-        // 中文测试名：测试税额 = 金额 × 13%（保留 2 位小数）
-        let order = SalesOrder {
-            _id: 1,
-            _customer_id: 100,
-            quantity: Decimal::from(100),
-            unit_price: decs!("100.00"),
-            status: OrderStatus::Confirmed,
-        };
-        let tax = order.tax_amount(decs!("0.13"));
-        assert_eq!(tax, decs!("1300.00"));
-    }
-
-    #[test]
-    fn test_ddztfl() {
-        // 中文测试名：测试订单状态 active/done 分类
-        assert!(OrderStatus::Draft.is_active());
-        assert!(OrderStatus::Shipped.is_active());
-        assert!(!OrderStatus::Completed.is_active());
-        assert!(OrderStatus::Completed.is_done());
-        assert!(OrderStatus::Cancelled.is_done());
-        assert!(!OrderStatus::Draft.is_done());
-    }
-
-    #[test]
-    fn test_plddhz() {
-        // 中文测试名：测试批量订单总金额汇总
-        let orders = [
-            SalesOrder {
-                _id: 1,
-                _customer_id: 1,
-                quantity: Decimal::from(10),
-                unit_price: Decimal::from(20),
-                status: OrderStatus::Completed,
-            },
-            SalesOrder {
-                _id: 2,
-                _customer_id: 2,
-                quantity: Decimal::from(5),
-                unit_price: decs!("15.50"),
-                status: OrderStatus::Completed,
-            },
-            SalesOrder {
-                _id: 3,
-                _customer_id: 1,
-                quantity: Decimal::from(3),
-                unit_price: Decimal::from(100),
-                status: OrderStatus::Cancelled,
-            },
-        ];
-        let total: Decimal = orders.iter().map(|o| o.total_amount()).sum();
-        assert_eq!(total, decs!("577.50"));
-
-        // 仅统计已完成订单
-        let completed_total: Decimal = orders
-            .iter()
-            .filter(|o| o.status == OrderStatus::Completed)
-            .map(|o| o.total_amount())
-            .sum();
-        assert_eq!(completed_total, decs!("277.50"));
-    }
+    // 仅统计已完成订单
+    let completed_total: Decimal = orders
+        .iter()
+        .filter(|o| o.status == OrderStatus::Completed)
+        .map(|o| o.total_amount())
+        .sum();
+    assert_eq!(completed_total, decs!("277.50"));
 }

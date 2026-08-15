@@ -59,10 +59,7 @@ fn test_filter_fields_blacklist() {
     });
 
     let allowed_fields = None;
-    let hidden_fields = Some(vec![
-        "cost_price".to_string(),
-        "secret_field".to_string(),
-    ]);
+    let hidden_fields = Some(vec!["cost_price".to_string(), "secret_field".to_string()]);
 
     service.filter_fields(&mut data, &allowed_fields, &hidden_fields);
 

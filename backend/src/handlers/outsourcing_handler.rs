@@ -10,8 +10,8 @@
 //! 会计分录凭证（issue/fee/receipt/loss 四类凭证）
 
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use serde::Deserialize;
 
@@ -402,9 +402,7 @@ pub async fn get_outsourcing_report(
     use sea_orm::EntityTrait;
 
     // 统计各状态的委外订单数量
-    let orders = outsourcing_order::Entity::find()
-        .all(&*state.db)
-        .await?;
+    let orders = outsourcing_order::Entity::find().all(&*state.db).await?;
 
     let total_orders = orders.len() as i64;
     let draft_orders = orders.iter().filter(|o| o.status == "draft").count() as i64;

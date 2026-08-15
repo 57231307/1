@@ -25,7 +25,7 @@ use crate::services::business_mode_ops::types::{
     UpdateBusinessModeOrderLinkRequest,
 };
 use crate::services::business_mode_service::{
-    validate_document_type, BusinessModeOrderLinkService,
+    BusinessModeOrderLinkService, validate_document_type,
 };
 
 impl BusinessModeOrderLinkService {

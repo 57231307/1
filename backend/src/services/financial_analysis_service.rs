@@ -619,8 +619,7 @@ impl FinancialAnalysisService {
         ];
 
         // 确保指标定义存在，然后获取所有指标定义
-        self.ensure_cash_flow_indicator_definitions(user_id)
-            .await?;
+        self.ensure_cash_flow_indicator_definitions(user_id).await?;
         let indicator_defs = financial_analysis::Entity::find()
             .filter(financial_analysis::Column::Status.eq(master_data::ACTIVE))
             .all(&*self.db)
@@ -638,15 +637,16 @@ impl FinancialAnalysisService {
             )
             .await?;
         }
-        info!("现金流比率计算完成，期间: {}，共 {} 个指标", period, results.len());
+        info!(
+            "现金流比率计算完成，期间: {}，共 {} 个指标",
+            period,
+            results.len()
+        );
         Ok(results)
     }
 
     /// 确保现金流指标定义存在
-    async fn ensure_cash_flow_indicator_definitions(
-        &self,
-        _user_id: i32,
-    ) -> Result<(), AppError> {
+    async fn ensure_cash_flow_indicator_definitions(&self, _user_id: i32) -> Result<(), AppError> {
         let definitions = vec![
             (
                 "OPERATING_CF_RATIO",

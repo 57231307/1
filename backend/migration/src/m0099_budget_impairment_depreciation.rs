@@ -25,11 +25,7 @@ impl MigrationTrait for Migration {
                             .auto_increment()
                             .primary_key(),
                     )
-                    .col(
-                        ColumnDef::new(BudgetVersions::PlanId)
-                            .integer()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(BudgetVersions::PlanId).integer().not_null())
                     .col(
                         ColumnDef::new(BudgetVersions::VersionNo)
                             .string_len(50)
@@ -57,11 +53,7 @@ impl MigrationTrait for Migration {
                             .string_len(500)
                             .null(),
                     )
-                    .col(
-                        ColumnDef::new(BudgetVersions::ApprovedBy)
-                            .integer()
-                            .null(),
-                    )
+                    .col(ColumnDef::new(BudgetVersions::ApprovedBy).integer().null())
                     .col(
                         ColumnDef::new(BudgetVersions::ApprovedAt)
                             .timestamp_with_time_zone()
@@ -274,7 +266,11 @@ impl MigrationTrait for Migration {
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
-            .drop_table(Table::drop().table(DepreciationPolicyChanges::Table).to_owned())
+            .drop_table(
+                Table::drop()
+                    .table(DepreciationPolicyChanges::Table)
+                    .to_owned(),
+            )
             .await?;
 
         manager

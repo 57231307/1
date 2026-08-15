@@ -168,7 +168,7 @@ pub struct GenerateReconciliationRequest {
 
 /// 应收对账 Service
 pub struct ArReconciliationService {
-    pub(crate) db: Arc<DatabaseConnection>,
+    pub db: Arc<DatabaseConnection>,
 }
 
 impl ArReconciliationService {

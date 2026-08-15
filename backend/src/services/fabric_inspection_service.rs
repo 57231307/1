@@ -12,8 +12,8 @@
 //! - 等级判定（首级 first / 次级 second）+ 联动 A/B/C 分级
 //! - 打卷入库（生成匹号 + 创建 inventory_piece + 汇总打卷数据）
 
-use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
+use rust_decimal::prelude::ToPrimitive;
 use sea_orm::DatabaseConnection;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
@@ -93,11 +93,7 @@ pub fn calculate_ten_point_points(
         }
         "weft" => {
             // 纬向：半门幅以上=10，以下=5
-            if is_half_width {
-                10
-            } else {
-                5
-            }
+            if is_half_width { 10 } else { 5 }
         }
         _ => {
             // other 方向按经向规则处理
@@ -731,7 +727,7 @@ impl FabricDefectService {
     }
 
     /// 合法疵点类型校验
-    fn validate_defect_type(defect_type: &str) -> Result<(), AppError> {
+    pub fn validate_defect_type(defect_type: &str) -> Result<(), AppError> {
         let valid_types = [
             "broken_end",
             "oil_stain",

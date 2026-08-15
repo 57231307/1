@@ -12,13 +12,13 @@
 //! 避免 axum matchit 把 "by-issue" 当 :id 匹配。
 
 use axum::{
-    routing::{get, post},
     Router,
+    routing::{get, post},
 };
 
 use crate::container::AppState;
-use crate::handlers::quality_8d_handler;
 use crate::handlers::print_handler;
+use crate::handlers::quality_8d_handler;
 
 /// 8D 质量管理流程路由（nest 到 /api/v1/erp/quality-8d-reports）
 pub fn routes() -> Router<AppState> {

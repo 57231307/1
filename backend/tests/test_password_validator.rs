@@ -1,7 +1,7 @@
 //! 密码验证器单元测试
 
 use bingxi_backend::utils::password_validator::{
-    get_password_feedback, validate_password, PasswordStrength, PasswordValidationResult,
+    PasswordStrength, PasswordValidationResult, get_password_feedback, validate_password,
 };
 
 #[test]

@@ -128,7 +128,7 @@ impl ProductionRecipeService {
     }
 
     /// 生成大货处方单号：PR-YYYYMMDDHHMMSS-NNN（`pub(crate)`：production_recipe_ops::recipe_crud 的 create 方法调用。）
-    pub(crate) fn generate_recipe_no() -> String {
+    pub fn generate_recipe_no() -> String {
         let now = chrono::Utc::now();
         let timestamp = now.format("%Y%m%d%H%M%S");
         let random = crate::utils::random::random_6_digit() % 1000;
@@ -284,7 +284,7 @@ impl ProductionRecipeAdditionService {
     }
 
     /// 生成加料处方单号：PA-YYYYMMDDHHMMSS-NNN（`pub(crate)`：production_recipe_ops::addition 的 create 方法调用。）
-    pub(crate) fn generate_addition_no() -> String {
+    pub fn generate_addition_no() -> String {
         let now = chrono::Utc::now();
         let timestamp = now.format("%Y%m%d%H%M%S");
         let random = crate::utils::random::random_6_digit() % 1000;

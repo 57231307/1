@@ -111,7 +111,7 @@ impl BomService {
     }
 
     /// 递归收集BOM需求
-    pub(crate) fn collect_requirements(
+    pub fn collect_requirements(
         &self,
         node: &BomTreeNode,
         parent_quantity: Decimal,
