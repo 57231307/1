@@ -4,347 +4,38 @@
 
 use sea_orm_migration::prelude::*;
 
+// 导入所有迁移模块
+mod m0001_initial_schema;
+mod m0002_add_crm_and_greige_tables;
+mod m0003_add_dye_tables;
+mod m0004_add_field_permissions;
+mod m0005_add_basic_data_and_system_tables;
+mod m0006_add_general_ledger_and_finance_base;
+
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        // === m0001_initial_schema.rs ===
-// Create `roles` table
-        manager
-            .create_table(
-                Table::create()
-                    .table(Roles::Table)
-                    .if_not_exists()
-                    .col(
-                        ColumnDef::new(Roles::Id)
-                            .integer()
-                            .not_null()
-                            .auto_increment()
-                            .primary_key(),
-                    )
-                    .col(ColumnDef::new(Roles::Name).string_len(100).not_null())
-                    .col(
-                        ColumnDef::new(Roles::Code)
-                            .string_len(50)
-                            .not_null()
-                            .unique_key(),
-                    )
-                    .col(ColumnDef::new(Roles::Description).text())
-                    .col(ColumnDef::new(Roles::Permissions).text())
-                    .col(ColumnDef::new(Roles::IsSystem).boolean().default(false))
-                    .col(
-                        ColumnDef::new(Roles::IsDeleted)
-                            .boolean()
-                            .not_null()
-                            .default(false),
-                    )
-                    .col(
-                        ColumnDef::new(Roles::CreatedAt)
-                            .timestamp_with_time_zone()
-                            .not_null()
-                            .default(Expr::current_timestamp()),
-                    )
-                    .col(
-                        ColumnDef::new(Roles::UpdatedAt)
-                            .timestamp_with_time_zone()
-                            .not_null()
-                            .default(Expr::current_timestamp()),
-                    )
-                    .to_owned(),
-            )
-            .await?;
-
-        // Create `departments` table
-        manager
-            .create_table(
-                Table::create()
-                    .table(Departments::Table)
-                    .if_not_exists()
-                    .col(
-                        ColumnDef::new(Departments::Id)
-                            .integer()
-                            .not_null()
-                            .auto_increment()
-                            .primary_key(),
-                    )
-                    .col(ColumnDef::new(Departments::Name).string_len(100).not_null())
-                    .col(
-                        ColumnDef::new(Departments::Code)
-                            .string_len(50)
-                            .not_null()
-                            .unique_key(),
-                    )
-                    .col(ColumnDef::new(Departments::ParentId).integer())
-                    .col(ColumnDef::new(Departments::ManagerId).integer())
-                    .col(ColumnDef::new(Departments::Description).text())
-                    .col(ColumnDef::new(Departments::SortOrder).integer().default(0))
-                    .col(
-                        ColumnDef::new(Departments::IsActive)
-                            .boolean()
-                            .default(true),
-                    )
-                    .col(
-                        ColumnDef::new(Departments::IsDeleted)
-                            .boolean()
-                            .not_null()
-                            .default(false),
-                    )
-                    .col(
-                        ColumnDef::new(Departments::CreatedAt)
-                            .timestamp_with_time_zone()
-                            .not_null()
-                            .default(Expr::current_timestamp()),
-                    )
-                    .col(
-                        ColumnDef::new(Departments::UpdatedAt)
-                            .timestamp_with_time_zone()
-                            .not_null()
-                            .default(Expr::current_timestamp()),
-                    )
-                    .to_owned(),
-            )
-            .await?;
-
-        // Create `users` table
-        manager
-            .create_table(
-                Table::create()
-                    .table(Users::Table)
-                    .if_not_exists()
-                    .col(
-                        ColumnDef::new(Users::Id)
-                            .integer()
-                            .not_null()
-                            .auto_increment()
-                            .primary_key(),
-                    )
-                    .col(
-                        ColumnDef::new(Users::Username)
-                            .string_len(100)
-                            .not_null()
-                            .unique_key(),
-                    )
-                    .col(
-                        ColumnDef::new(Users::PasswordHash)
-                            .string_len(255)
-                            .not_null(),
-                    )
-                    .col(ColumnDef::new(Users::Email).string_len(255))
-                    .col(ColumnDef::new(Users::Phone).string_len(50))
-                    .col(ColumnDef::new(Users::RoleId).integer())
-                    .col(ColumnDef::new(Users::DepartmentId).integer())
-                    .col(ColumnDef::new(Users::IsActive).boolean().default(true))
-                    .col(ColumnDef::new(Users::TotpSecret).string_len(255))
-                    .col(
-                        ColumnDef::new(Users::IsTotpEnabled)
-                            .boolean()
-                            .default(false),
-                    )
-                    .col(ColumnDef::new(Users::LastLoginAt).timestamp_with_time_zone())
-                    .col(
-                        ColumnDef::new(Users::IsDeleted)
-                            .boolean()
-                            .not_null()
-                            .default(false),
-                    )
-                    .col(
-                        ColumnDef::new(Users::CreatedAt)
-                            .timestamp_with_time_zone()
-                            .not_null()
-                            .default(Expr::current_timestamp()),
-                    )
-                    .col(
-                        ColumnDef::new(Users::UpdatedAt)
-                            .timestamp_with_time_zone()
-                            .not_null()
-                            .default(Expr::current_timestamp()),
-                    )
-                    .to_owned(),
-            )
-            .await?;
-
-        // Indexes for `users`
-        manager
-            .create_index(
-                Index::create()
-                    .name("idx_users_username")
-                    .table(Users::Table)
-                    .col(Users::Username)
-                    .to_owned(),
-            )
-            .await?;
-        manager
-            .create_index(
-                Index::create()
-                    .name("idx_users_role_id")
-                    .table(Users::Table)
-                    .col(Users::RoleId)
-                    .to_owned(),
-            )
-            .await?;
-        manager
-            .create_index(
-                Index::create()
-                    .name("idx_users_department_id")
-                    .table(Users::Table)
-                    .col(Users::DepartmentId)
-                    .to_owned(),
-            )
-            .await?;
-
-        // Indexes for `departments`
-        manager
-            .create_index(
-                Index::create()
-                    .name("idx_departments_parent_id")
-                    .table(Departments::Table)
-                    .col(Departments::ParentId)
-                    .to_owned(),
-            )
-            .await?;
-        manager
-            .create_index(
-                Index::create()
-                    .name("idx_departments_manager_id")
-                    .table(Departments::Table)
-                    .col(Departments::ManagerId)
-                    .to_owned(),
-            )
-            .await?;
-
-        let sql = include_str!("../../migrations/20260323000001_initial_schema/up.sql");
-        if !sql.trim().is_empty() {
-            manager.get_connection().execute_unprepared(sql).await?;
-        }
-        // === m0002_add_crm_and_greige_tables.rs ===
-let sql = include_str!("../../migrations/20260518000001_add_crm_and_greige_tables/up.sql");
-        if !sql.trim().is_empty() {
-            manager.get_connection().execute_unprepared(sql).await?;
-        }
-        // === m0003_add_dye_tables.rs ===
-let sql = include_str!("../../migrations/20260518000002_add_dye_tables/up.sql");
-        if !sql.trim().is_empty() {
-            manager.get_connection().execute_unprepared(sql).await?;
-        }
-        // === m0004_add_field_permissions.rs ===
-let sql = include_str!("../../migrations/20260520000001_add_field_permissions/up.sql");
-        if !sql.trim().is_empty() {
-            manager.get_connection().execute_unprepared(sql).await?;
-        }
-        // === m0005_add_basic_data_and_system_tables.rs ===
-let sql =
-            include_str!("../../migrations/20260527000001_add_basic_data_and_system_tables/up.sql");
-        if !sql.trim().is_empty() {
-            manager.get_connection().execute_unprepared(sql).await?;
-        }
-        // === m0006_add_general_ledger_and_finance_base.rs ===
-let sql = include_str!(
-            "../../migrations/20260527000002_add_general_ledger_and_finance_base/up.sql"
-        );
-        if !sql.trim().is_empty() {
-            manager.get_connection().execute_unprepared(sql).await?;
-        }
+        // 依次执行所有迁移
+        m0001_initial_schema::Migration.up(manager).await?;
+        m0002_add_crm_and_greige_tables::Migration.up(manager).await?;
+        m0003_add_dye_tables::Migration.up(manager).await?;
+        m0004_add_field_permissions::Migration.up(manager).await?;
+        m0005_add_basic_data_and_system_tables::Migration.up(manager).await?;
+        m0006_add_general_ledger_and_finance_base::Migration.up(manager).await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        // === m0001_initial_schema.rs ===
-let sql = include_str!("../../migrations/20260323000001_initial_schema/down.sql");
-        if !sql.trim().is_empty() {
-            manager.get_connection().execute_unprepared(sql).await?;
-        }
-
-        manager
-            .drop_table(Table::drop().table(Users::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(Departments::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(Roles::Table).to_owned())
-            .await?;
-        // === m0002_add_crm_and_greige_tables.rs ===
-let sql =
-            include_str!("../../migrations/20260518000001_add_crm_and_greige_tables/down.sql");
-        if !sql.trim().is_empty() {
-            manager.get_connection().execute_unprepared(sql).await?;
-        }
-        // === m0003_add_dye_tables.rs ===
-let sql = include_str!("../../migrations/20260518000002_add_dye_tables/down.sql");
-        if !sql.trim().is_empty() {
-            manager.get_connection().execute_unprepared(sql).await?;
-        }
-        // === m0004_add_field_permissions.rs ===
-let sql = include_str!("../../migrations/20260520000001_add_field_permissions/down.sql");
-        if !sql.trim().is_empty() {
-            manager.get_connection().execute_unprepared(sql).await?;
-        }
-        // === m0005_add_basic_data_and_system_tables.rs ===
-let sql = include_str!(
-            "../../migrations/20260527000001_add_basic_data_and_system_tables/down.sql"
-        );
-        if !sql.trim().is_empty() {
-            manager.get_connection().execute_unprepared(sql).await?;
-        }
-        // === m0006_add_general_ledger_and_finance_base.rs ===
-let sql = include_str!(
-            "../../migrations/20260527000002_add_general_ledger_and_finance_base/down.sql"
-        );
-        if !sql.trim().is_empty() {
-            manager.get_connection().execute_unprepared(sql).await?;
-        }
+        // 依次回滚所有迁移（逆序）
+        m0006_add_general_ledger_and_finance_base::Migration.down(manager).await?;
+        m0005_add_basic_data_and_system_tables::Migration.down(manager).await?;
+        m0004_add_field_permissions::Migration.down(manager).await?;
+        m0003_add_dye_tables::Migration.down(manager).await?;
+        m0002_add_crm_and_greige_tables::Migration.down(manager).await?;
+        m0001_initial_schema::Migration.down(manager).await?;
         Ok(())
     }
-}
-
-// === m0001_initial_schema.rs ===
-#[derive(Iden)]
-enum Users {
-    Table,
-    Id,
-    Username,
-    PasswordHash,
-    Email,
-    Phone,
-    RoleId,
-    DepartmentId,
-    IsActive,
-    TotpSecret,
-    IsTotpEnabled,
-    LastLoginAt,
-    IsDeleted,
-    CreatedAt,
-    UpdatedAt,
-}
-
-#[derive(Iden)]
-enum Roles {
-    Table,
-    Id,
-    Name,
-    Code,
-    Description,
-    Permissions,
-    IsSystem,
-    IsDeleted,
-    CreatedAt,
-    UpdatedAt,
-}
-
-#[derive(Iden)]
-enum Departments {
-    Table,
-    Id,
-    Name,
-    Code,
-    ParentId,
-    ManagerId,
-    Description,
-    SortOrder,
-    IsActive,
-    IsDeleted,
-    CreatedAt,
-    UpdatedAt,
 }
