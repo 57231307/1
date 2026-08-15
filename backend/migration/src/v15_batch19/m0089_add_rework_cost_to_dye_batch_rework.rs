@@ -18,7 +18,7 @@ pub struct Migration;
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let sql = include_str!(
-            "../../migrations/20260801000003_add_rework_cost_to_dye_batch_rework/up.sql"
+            "../../../migrations/20260801000003_add_rework_cost_to_dye_batch_rework/up.sql"
         );
         manager.get_connection().execute_unprepared(sql).await?;
         Ok(())
@@ -26,7 +26,7 @@ impl MigrationTrait for Migration {
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let sql = include_str!(
-            "../../migrations/20260801000003_add_rework_cost_to_dye_batch_rework/down.sql"
+            "../../../migrations/20260801000003_add_rework_cost_to_dye_batch_rework/down.sql"
         );
         manager.get_connection().execute_unprepared(sql).await?;
         Ok(())
