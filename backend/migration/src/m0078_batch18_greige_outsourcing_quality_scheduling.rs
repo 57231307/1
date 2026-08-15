@@ -108,12 +108,12 @@ impl MigrationTrait for Migration {
                 -- ============================================================
                 -- P1 batch-18 缺陷 6.1：调拨分级审批
                 -- ============================================================
-                ALTER TABLE "inventory_transfer" ADD COLUMN IF NOT EXISTS "approval_level" VARCHAR(20);
-                ALTER TABLE "inventory_transfer" ADD COLUMN IF NOT EXISTS "approved_by_role" VARCHAR(50);
-                ALTER TABLE "inventory_transfer" ADD COLUMN IF NOT EXISTS "total_amount" DECIMAL(14,2) DEFAULT 0;
-                COMMENT ON COLUMN "inventory_transfer"."approval_level" IS '审批层级：L1=常规/L2=经理/L3=总监';
-                COMMENT ON COLUMN "inventory_transfer"."approved_by_role" IS '审批人角色记录';
-                COMMENT ON COLUMN "inventory_transfer"."total_amount" IS '调拨总金额（数量×unit_cost 累计）用于分级审批';
+                ALTER TABLE "inventory_transfers" ADD COLUMN IF NOT EXISTS "approval_level" VARCHAR(20);
+                ALTER TABLE "inventory_transfers" ADD COLUMN IF NOT EXISTS "approved_by_role" VARCHAR(50);
+                ALTER TABLE "inventory_transfers" ADD COLUMN IF NOT EXISTS "total_amount" DECIMAL(14,2) DEFAULT 0;
+                COMMENT ON COLUMN "inventory_transfers"."approval_level" IS '审批层级：L1=常规/L2=经理/L3=总监';
+                COMMENT ON COLUMN "inventory_transfers"."approved_by_role" IS '审批人角色记录';
+                COMMENT ON COLUMN "inventory_transfers"."total_amount" IS '调拨总金额（数量×unit_cost 累计）用于分级审批';
 
                 -- ============================================================
                 -- P1 batch-18 缺陷 7.1：补货策略字段
@@ -230,9 +230,9 @@ impl MigrationTrait for Migration {
 
                 ALTER TABLE "inventory_stocks" DROP COLUMN IF EXISTS "replenishment_strategy";
 
-                ALTER TABLE "inventory_transfer" DROP COLUMN IF EXISTS "total_amount";
-                ALTER TABLE "inventory_transfer" DROP COLUMN IF EXISTS "approved_by_role";
-                ALTER TABLE "inventory_transfer" DROP COLUMN IF EXISTS "approval_level";
+                ALTER TABLE "inventory_transfers" DROP COLUMN IF EXISTS "total_amount";
+                ALTER TABLE "inventory_transfers" DROP COLUMN IF EXISTS "approved_by_role";
+                ALTER TABLE "inventory_transfers" DROP COLUMN IF EXISTS "approval_level";
 
                 ALTER TABLE "unqualified_products" DROP COLUMN IF EXISTS "scrap_loss_amount";
                 ALTER TABLE "unqualified_products" DROP COLUMN IF EXISTS "approved_at_gm";

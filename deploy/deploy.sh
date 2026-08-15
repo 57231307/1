@@ -146,16 +146,6 @@ deploy_backend() {
         cp backend/config.yaml.example "$BACKEND_DIR/config.yaml"
     fi
 
-    # 复制迁移文件
-    mkdir -p "$DEPLOY_DIR/database"
-    if [ -d "/tmp/bingxi-deploy/database/migration" ]; then
-        cp -r /tmp/bingxi-deploy/database/migration "$DEPLOY_DIR/database/"
-    elif [ -d "$(dirname "$0")/../database/migration" ]; then
-        cp -r "$(dirname "$0")/../database/migration" "$DEPLOY_DIR/database/"
-    elif [ -d "database/migration" ]; then
-        cp -r database/migration "$DEPLOY_DIR/database/"
-    fi
-
     # 修复权限问题：创建 bingxi 用户并将文件赋权
     if ! id -u bingxi >/dev/null 2>&1; then
         useradd -m -s /bin/bash bingxi || true

@@ -337,15 +337,8 @@ cors:
 env: \"production\"
 EOF
 
-        # 执行数据库迁移
-        # P2-5 修复（批次 84 v1 复审）：移除 2>/dev/null，保留 stderr 输出便于排错
-        # 保留 || true 避免单个迁移文件失败阻塞整体部署（迁移文件可能存在顺序依赖）
-        # 批次 401 优化：.env 已在前面自动创建并加载，移除 if 判断
-        for f in /tmp/bingxi-deploy/database/migration/*.sql; do
-            if [ -f \"\$f\" ]; then
-                PGPASSWORD=\"\$DATABASE__PASSWORD\" psql -h \"\$DATABASE__HOST\" -U \"\$DATABASE__USERNAME\" -d \"\$DATABASE__NAME\" -f \"\$f\" || echo \"::warning::迁移文件 \$f 执行失败（继续执行后续迁移）\"
-            fi
-        done
+        # 执行数据库迁移（使用 Rust 迁移，编译进二进制）
+        # 迁移已整合到后端二进制中，通过 bingxi migrate run 执行
 
         # 安装服务
         cp /tmp/bingxi-deploy/deploy/bingxi-backend.service /etc/systemd/system/
