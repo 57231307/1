@@ -5,7 +5,7 @@
 //! - 04-06: 中期迁移（销售CRM/生产品质/财务合规）
 //! - 07-11: 近期迁移（V15 各批次）
 
-use sea_orm_migration::prelude::*;
+pub use sea_orm_migration::prelude::*;
 
 pub mod core_schema;
 pub mod business_tables;
