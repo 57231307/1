@@ -38,23 +38,22 @@ fn make_voucher_model(id: i32, status: &str) -> VoucherModel {
 
 #[test]
 fn test_finance_status_draft() {
-    assert_eq!(status_finance::VOUCHER_DRAFT, "draft");
+    assert_eq!(status_finance::voucher::VOUCHER_DRAFT, "draft");
 }
 
 #[test]
 fn test_finance_status_posted() {
-    assert_eq!(status_finance::VOUCHER_POSTED, "posted");
+    assert_eq!(status_finance::voucher::VOUCHER_POSTED, "posted");
 }
 
 #[test]
 fn test_finance_status_audited() {
-    assert_eq!(status_finance::INVOICE_AUDITED, "AUDITED");
+    assert_eq!(status_finance::ap_invoice::INVOICE_AUDITED, "AUDITED");
 }
 
 #[test]
 fn test_finance_status_voided() {
-    // finance 模块无 VOIDED 常量，测试 VOUCHER_REVIEWED 作为替代
-    assert_eq!(status_finance::VOUCHER_REVIEWED, "reviewed");
+    assert_eq!(status_finance::voucher::VOUCHER_REVIEWED, "reviewed");
 }
 
 // ===== 模型测试 =====
