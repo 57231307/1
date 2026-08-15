@@ -15,7 +15,7 @@ pub struct Migration;
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let sql =
-            include_str!("../../migrations/20260708000001_add_password_changed_at_to_users/up.sql");
+            include_str!("../../../migrations/20260708000001_add_password_changed_at_to_users/up.sql");
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
         }
@@ -24,7 +24,7 @@ impl MigrationTrait for Migration {
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let sql = include_str!(
-            "../../migrations/20260708000001_add_password_changed_at_to_users/down.sql"
+            "../../../migrations/20260708000001_add_password_changed_at_to_users/down.sql"
         );
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;

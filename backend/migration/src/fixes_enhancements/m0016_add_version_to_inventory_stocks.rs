@@ -7,7 +7,7 @@ pub struct Migration;
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let sql =
-            include_str!("../../migrations/20260527000012_add_version_to_inventory_stocks/up.sql");
+            include_str!("../../../migrations/20260527000012_add_version_to_inventory_stocks/up.sql");
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
         }
@@ -16,7 +16,7 @@ impl MigrationTrait for Migration {
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let sql = include_str!(
-            "../../migrations/20260527000012_add_version_to_inventory_stocks/down.sql"
+            "../../../migrations/20260527000012_add_version_to_inventory_stocks/down.sql"
         );
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;

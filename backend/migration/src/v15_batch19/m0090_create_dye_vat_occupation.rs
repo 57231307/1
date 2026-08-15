@@ -18,14 +18,14 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let sql = include_str!("../../migrations/20260801000004_create_dye_vat_occupation/up.sql");
+        let sql = include_str!("../../../migrations/20260801000004_create_dye_vat_occupation/up.sql");
         manager.get_connection().execute_unprepared(sql).await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let sql =
-            include_str!("../../migrations/20260801000004_create_dye_vat_occupation/down.sql");
+            include_str!("../../../migrations/20260801000004_create_dye_vat_occupation/down.sql");
         manager.get_connection().execute_unprepared(sql).await?;
         Ok(())
     }

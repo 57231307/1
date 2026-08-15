@@ -21,13 +21,13 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let sql = include_str!("../../migrations/20260801000005_create_device_connection/up.sql");
+        let sql = include_str!("../../../migrations/20260801000005_create_device_connection/up.sql");
         manager.get_connection().execute_unprepared(sql).await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let sql = include_str!("../../migrations/20260801000005_create_device_connection/down.sql");
+        let sql = include_str!("../../../migrations/20260801000005_create_device_connection/down.sql");
         manager.get_connection().execute_unprepared(sql).await?;
         Ok(())
     }

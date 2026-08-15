@@ -14,7 +14,7 @@ pub struct Migration;
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let sql =
-            include_str!("../../migrations/20260704000001_add_notes_to_ar_reconciliations/up.sql");
+            include_str!("../../../migrations/20260704000001_add_notes_to_ar_reconciliations/up.sql");
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
         }
@@ -23,7 +23,7 @@ impl MigrationTrait for Migration {
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let sql = include_str!(
-            "../../migrations/20260704000001_add_notes_to_ar_reconciliations/down.sql"
+            "../../../migrations/20260704000001_add_notes_to_ar_reconciliations/down.sql"
         );
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
