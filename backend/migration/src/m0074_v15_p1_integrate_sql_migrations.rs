@@ -20,6 +20,151 @@ impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let db = manager.get_connection();
 
+        // 0. 创建缺失的基础表（从 SQL 迁移整合）
+        db.execute_unprepared(r#"
+            CREATE TABLE IF NOT EXISTS "fabric_inspection_record" (
+                "id" SERIAL PRIMARY KEY,
+                "inspection_no" VARCHAR(32) NOT NULL,
+                "flow_card_id" INTEGER,
+                "dye_lot_no" VARCHAR(64),
+                "product_id" INTEGER,
+                "product_name" VARCHAR(128),
+                "color_no" VARCHAR(64),
+                "inspection_date" DATE NOT NULL,
+                "inspector_id" INTEGER,
+                "inspector_name" VARCHAR(64),
+                "machine_no" VARCHAR(32),
+                "scoring_system" VARCHAR(16) NOT NULL DEFAULT 'four_point',
+                "inspected_yards" NUMERIC(12,2) NOT NULL DEFAULT 0,
+                "fabric_width_inches" NUMERIC(8,2),
+                "total_defect_points" INTEGER NOT NULL DEFAULT 0,
+                "points_per_100_sq_yards" NUMERIC(10,2),
+                "grade" VARCHAR(16),
+                "qualification_rate" NUMERIC(5,2),
+                "abc_grade" VARCHAR(4),
+                "total_rolls" INTEGER NOT NULL DEFAULT 0,
+                "total_roll_length" NUMERIC(12,2) NOT NULL DEFAULT 0,
+                "total_roll_weight" NUMERIC(12,2) NOT NULL DEFAULT 0,
+                "status" VARCHAR(16) NOT NULL DEFAULT 'pending',
+                "remarks" VARCHAR(256),
+                "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS "dye_batch_state_rule" (
+                "id" SERIAL PRIMARY KEY,
+                "from_status" VARCHAR(50) NOT NULL,
+                "to_status" VARCHAR(50) NOT NULL,
+                "transition_code" VARCHAR(50) NOT NULL,
+                "transition_name" VARCHAR(100) NOT NULL,
+                "is_allowed" BOOLEAN NOT NULL DEFAULT TRUE,
+                "require_operator" BOOLEAN NOT NULL DEFAULT TRUE,
+                "require_equipment" BOOLEAN NOT NULL DEFAULT FALSE,
+                "require_remarks" BOOLEAN NOT NULL DEFAULT FALSE,
+                "validation_logic" JSONB,
+                "description" TEXT,
+                "is_active" BOOLEAN NOT NULL DEFAULT TRUE,
+                "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS "uk_dye_batch_state_rule_trans" ON "dye_batch_state_rule" ("from_status", "to_status", "transition_code");
+
+            CREATE TABLE IF NOT EXISTS "wage_record_detail" (
+                "id" SERIAL PRIMARY KEY,
+                "wage_record_id" INTEGER NOT NULL,
+                "step_record_id" INTEGER NOT NULL,
+                "flow_card_id" INTEGER,
+                "dye_lot_no" VARCHAR(64),
+                "process_route_id" INTEGER,
+                "route_code" VARCHAR(32),
+                "route_name" VARCHAR(64),
+                "process_type" VARCHAR(32),
+                "worker_id" INTEGER NOT NULL,
+                "worker_name" VARCHAR(128),
+                "equipment_id" INTEGER,
+                "equipment_name" VARCHAR(128),
+                "wage_type" VARCHAR(16) NOT NULL,
+                "grade" VARCHAR(2) NOT NULL,
+                "actual_quantity" DECIMAL(12,2) NOT NULL DEFAULT 0,
+                "qualified_quantity" DECIMAL(12,2) NOT NULL DEFAULT 0,
+                "qualification_rate" DECIMAL(6,2) NOT NULL DEFAULT 0,
+                "piece_price" DECIMAL(12,4) NOT NULL DEFAULT 0,
+                "time_price" DECIMAL(12,4) NOT NULL DEFAULT 0,
+                "duration_minutes" INTEGER NOT NULL DEFAULT 0,
+                "base_wage" DECIMAL(12,2) NOT NULL DEFAULT 0,
+                "quality_bonus" DECIMAL(12,2) NOT NULL DEFAULT 0,
+                "final_wage" DECIMAL(12,2) NOT NULL DEFAULT 0,
+                "is_deleted" BOOLEAN NOT NULL DEFAULT FALSE,
+                "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS "outsourcing_order_item" (
+                "id" SERIAL PRIMARY KEY,
+                "outsourcing_order_id" INTEGER NOT NULL,
+                "product_id" INTEGER NOT NULL,
+                "color_no" VARCHAR(64),
+                "dye_lot_no" VARCHAR(64),
+                "batch_no" VARCHAR(64),
+                "warehouse_id" INTEGER,
+                "quantity" DECIMAL(14,4) NOT NULL DEFAULT 0,
+                "unit" VARCHAR(16) NOT NULL DEFAULT 'kg',
+                "unit_cost" DECIMAL(14,4) NOT NULL DEFAULT 0,
+                "total_cost" DECIMAL(14,4) NOT NULL DEFAULT 0,
+                "inventory_transaction_id" INTEGER,
+                "remarks" TEXT,
+                "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS "outsourcing_receipt" (
+                "id" SERIAL PRIMARY KEY,
+                "receipt_no" VARCHAR(64) NOT NULL,
+                "outsourcing_order_id" INTEGER NOT NULL,
+                "receipt_date" DATE NOT NULL,
+                "product_id" INTEGER NOT NULL,
+                "color_no" VARCHAR(64),
+                "dye_lot_no" VARCHAR(64),
+                "batch_no" VARCHAR(64),
+                "warehouse_id" INTEGER,
+                "return_quantity" DECIMAL(14,4) NOT NULL DEFAULT 0,
+                "loss_quantity" DECIMAL(14,4) NOT NULL DEFAULT 0,
+                "loss_type" VARCHAR(16),
+                "loss_rate" DECIMAL(8,4),
+                "is_loss_normal" BOOLEAN NOT NULL DEFAULT TRUE,
+                "unit_cost" DECIMAL(14,4) NOT NULL DEFAULT 0,
+                "total_cost" DECIMAL(14,4) NOT NULL DEFAULT 0,
+                "abnormal_loss_amount" DECIMAL(14,4) NOT NULL DEFAULT 0,
+                "quality_status" VARCHAR(16),
+                "grade" VARCHAR(8),
+                "inventory_transaction_id" INTEGER,
+                "status" VARCHAR(16) NOT NULL DEFAULT 'draft',
+                "remarks" TEXT,
+                "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS "dye_batch_rework" (
+                "id" SERIAL PRIMARY KEY,
+                "original_batch_id" INTEGER NOT NULL,
+                "original_batch_no" VARCHAR(100) NOT NULL,
+                "rework_batch_id" INTEGER,
+                "rework_batch_no" VARCHAR(100),
+                "rework_type" VARCHAR(50) NOT NULL,
+                "rework_reason" TEXT NOT NULL,
+                "original_status" VARCHAR(50) NOT NULL,
+                "approved_by" INTEGER,
+                "approved_at" TIMESTAMPTZ,
+                "status" VARCHAR(30) NOT NULL DEFAULT 'draft',
+                "started_at" TIMESTAMPTZ,
+                "completed_at" TIMESTAMPTZ,
+                "remarks" TEXT,
+                "is_deleted" BOOLEAN NOT NULL DEFAULT FALSE,
+                "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+        "#).await?;
+
         // 1. batch_trace_log 字段扩展
         db.execute_unprepared(r#"
             ALTER TABLE "batch_trace_log" ADD COLUMN IF NOT EXISTS "dye_lot_no" VARCHAR(50);
