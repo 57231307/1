@@ -1210,6 +1210,9 @@ jobs:
       DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
       # 审计模块所需的密钥（仅 CI 用途，禁止用于生产）
       AUDIT_SECRET_KEY: ci-only-audit-signing-key-do-not-use-in-prod-32b
+      # 降低编译并行度，避免 OOM 导致 runner shutdown
+      CARGO_BUILD_JOBS: "1"
+      CARGO_JOBS: "1"
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
