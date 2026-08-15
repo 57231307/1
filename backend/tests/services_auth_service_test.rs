@@ -183,7 +183,7 @@ fn test_token_claims_fields() {
     assert_eq!(decoded.role_id, Some(1));
 
     // 验证时间字段
-    assert!(decoded.iat.created_at() >= now.created_at() - 1);
+    assert!(decoded.iat.timestamp() >= now.timestamp() - 1);
     assert!(decoded.exp > decoded.iat);
     assert!(decoded.refresh_exp > decoded.exp);
 
@@ -205,7 +205,7 @@ async fn test_revoke_user_jtis_blocks_old_iat_token() {
     unrevoke_user(test_user_id).await;
 
     // 模拟"删除前签发"的 Token：iat 在 revoke 之前 1 小时
-    let old_iat = chrono::Utc::now().created_at() - 3600;
+    let old_iat = chrono::Utc::now().timestamp() - 3600;
     assert!(
         !is_user_token_revoked(test_user_id, old_iat).await,
         "未吊销时旧 Token 应判定为有效"
@@ -239,7 +239,7 @@ async fn test_revoke_user_jtis_does_not_block_new_iat_token() {
 
     // 等 10ms 模拟"新 Token 在吊销后签发"
     tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-    let new_iat = chrono::Utc::now().created_at();
+    let new_iat = chrono::Utc::now().timestamp();
 
     assert!(
         !is_user_token_revoked(test_user_id, new_iat).await,
@@ -259,7 +259,7 @@ async fn test_unrevoke_user_clears_revocation() {
         .await
         .expect("revoke_user_jtis 不应失败");
 
-    let old_iat = chrono::Utc::now().created_at() - 60;
+    let old_iat = chrono::Utc::now().timestamp() - 60;
     assert!(is_user_token_revoked(test_user_id, old_iat).await);
 
     unrevoke_user(test_user_id).await;
@@ -281,12 +281,12 @@ async fn test_cleanup_revoked_users_removes_expired() {
     // 注入一条"过期"吊销记录（revoked_at = now - TTL - 1 小时）
     {
         let mut table = REVOKED_USERS.write().await;
-        let expired_ts = chrono::Utc::now().created_at() - REVOKED_USER_TTL_SECS - 3600;
+        let expired_ts = chrono::Utc::now().timestamp() - REVOKED_USER_TTL_SECS - 3600;
         table.insert(test_user_id, expired_ts);
     }
 
     // 验证过期记录存在
-    let old_iat = chrono::Utc::now().created_at() - 60;
+    let old_iat = chrono::Utc::now().timestamp() - 60;
     assert!(
         is_user_token_revoked(test_user_id, old_iat).await,
         "过期吊销记录在清理前应仍存在"
@@ -324,7 +324,7 @@ async fn test_cleanup_revoked_users_keeps_valid() {
     let _removed = cleanup_revoked_users().await;
 
     // 验证未过期记录仍存在
-    let old_iat = chrono::Utc::now().created_at() - 60;
+    let old_iat = chrono::Utc::now().timestamp() - 60;
     assert!(
         is_user_token_revoked(test_user_id, old_iat).await,
         "未过期吊销记录应被保留"
@@ -348,7 +348,7 @@ async fn test_revoke_jti_marks_as_revoked() {
         "test-jti-{}",
         chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)
     );
-    let expires_at = chrono::Utc::now().created_at() + 3600;
+    let expires_at = chrono::Utc::now().timestamp() + 3600;
 
     // revoke 前应未吊销
     assert!(!is_jti_revoked(&test_jti).await, "新 JTI 默认应为有效");
@@ -364,7 +364,7 @@ async fn test_revoke_jti_isolation() {
     let ts = chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0);
     let jti_a = format!("test-jti-a-{}", ts);
     let jti_b = format!("test-jti-b-{}", ts);
-    let expires_at = chrono::Utc::now().created_at() + 3600;
+    let expires_at = chrono::Utc::now().timestamp() + 3600;
 
     revoke_jti(&jti_a, expires_at).await;
 
@@ -381,7 +381,7 @@ async fn test_cleanup_expired_jti_removes_expired_entries() {
     let ts = chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0);
     let expired_jti = format!("test-jti-expired-{}", ts);
     let fresh_jti = format!("test-jti-fresh-{}", ts);
-    let now = chrono::Utc::now().created_at();
+    let now = chrono::Utc::now().timestamp();
 
     // 插入一条已过期（1 小时前到期）和一条未过期（1 小时后到期）
     revoke_jti(&expired_jti, now - 3600).await;

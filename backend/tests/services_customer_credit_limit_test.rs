@@ -341,7 +341,7 @@ async fn test_fwslcj() {
     let db = setup_test_db().await;
     let service = CustomerCreditService::new(Arc::new(db));
 
-    assert!(Arc::strong_count(&service.database) >= 1);
+    assert!(Arc::strong_count(&service.db) >= 1);
 }
 
 /// test_zyxyed_xypjbcz

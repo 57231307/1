@@ -1,4 +1,6 @@
 use bingxi_backend::container::AppState;
+use bingxi_backend::handlers::init_handler::require_admin_role;
+use bingxi_backend::middleware::auth_context::AuthContext;
 use bingxi_backend::utils::error::AppError;
 
 /// V15 P2 14.11-H：require_admin_role 二次校验测试

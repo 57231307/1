@@ -164,7 +164,7 @@ async fn test_cache_with_metrics_zdsb_prometheus() {
     use bingxi_backend::services::cache_service::TTL_PRODUCT;
     use bingxi_backend::services::cache_service::TTL_REPORT;
     use bingxi_backend::services::cache_service::TTL_USER;
-    use chrono::Duration;
+    use std::time::Duration;
     use std::sync::Arc;
     let registry = prometheus::Registry::new();
     let metrics = Arc::new(BusinessMetrics::new(&registry).expect("BusinessMetrics 注册失败"));

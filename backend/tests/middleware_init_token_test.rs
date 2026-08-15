@@ -1,4 +1,3 @@
-use axum::http::StatusCode;
 use axum::{
     Router,
     body::Body,

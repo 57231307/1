@@ -1,3 +1,4 @@
+use bingxi_backend::services::ap_invoice_service::validate_non_negative_decimal;
 //! AP 发票服务单元测试
 //!
 //! 覆盖目标：

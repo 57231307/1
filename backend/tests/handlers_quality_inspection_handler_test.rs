@@ -4,15 +4,19 @@ use chrono::Utc;
 use rust_decimal::Decimal;
 use serde_json::json;
 
-/// 构造测试用的质检单模型
+/// 构造测试用的质检标准模型
 fn make_quality_inspection_model(id: i32, status: &str) -> QualityInspectionModel {
     QualityInspectionModel {
         id,
+        standard_name: format!("测试标准-{}", id),
         standard_code: format!("QI-2026-{:04}", id),
-        product_id: 1,
-        status: Some(status.to_string()),
+        product_id: Some(1),
+        product_category_id: Some(1),
+        inspection_type: "incoming".to_string(),
+        status: status.to_string(),
         created_at: Utc::now(),
         updated_at: Utc::now(),
+        ..Default::default()
     }
 }
 
@@ -29,49 +33,43 @@ fn test_quality_inspection_model_serialization() {
 }
 
 #[test]
-fn test_quality_inspection_quantities() {
+fn test_quality_inspection_sampling_rate() {
     let inspection = make_quality_inspection_model(1, "completed");
 
-    // 验证数量关系
-
-    // 验证合格数量 + 不合格数量 = 总数量
-    assert_eq!(
-        inspection.qualified_quantity + inspection.unqualified_quantity,
-        inspection.quantity
-    );
+    // 验证抽样率设置
+    assert!(inspection.sampling_rate.is_some());
 }
 
 #[test]
-fn test_quality_inspection_pass_rate() {
+fn test_quality_inspection_inspection_type() {
     let inspection = make_quality_inspection_model(1, "completed");
 
-    // 验证合格率计算
-    assert_eq!(pass_rate, Decimal::new(95, 0));
+    // 验证检验类型
+    assert_eq!(inspection.inspection_type, "incoming");
 }
 
-// ===== 结果测试 =====
+// ===== 状态测试 =====
 
 #[test]
-fn test_inspection_result_qualified() {
+fn test_inspection_status_completed() {
     let inspection = make_quality_inspection_model(1, "completed");
-    assert_eq!(inspection.result, Some("qualified".to_string()));
+    assert_eq!(inspection.status, "completed");
 }
 
 #[test]
-fn test_inspection_result_unqualified() {
-    let mut inspection = make_quality_inspection_model(1, "completed");
-    inspection.result = Some("unqualified".to_string());
+fn test_inspection_status_in_progress() {
+    let mut inspection = make_quality_inspection_model(1, "pending");
+    inspection.status = "in_progress".to_string();
 
-    assert_eq!(inspection.result, Some("unqualified".to_string()));
+    assert_eq!(inspection.status, "in_progress");
 }
 
-// ===== 来源类型测试 =====
+// ===== 检验项目测试 =====
 
 #[test]
-fn test_source_type_purchase_receipt() {
+fn test_inspection_items() {
     let inspection = make_quality_inspection_model(1, "pending");
-    assert_eq!(inspection.source_type, Some("purchase_receipt".to_string()));
-    assert_eq!(inspection.source_no, Some("PR-2026-0001".to_string()));
+    assert!(inspection.inspection_items.is_some());
 }
 
 // ===== 状态转换测试 =====
@@ -79,7 +77,7 @@ fn test_source_type_purchase_receipt() {
 #[test]
 fn test_status_pending_to_in_progress() {
     let inspection = make_quality_inspection_model(1, "pending");
-    assert_eq!(inspection.status, Some("pending".to_string()));
+    assert_eq!(inspection.status, "pending");
 
     // 验证待检状态可以转换为进行中
     let valid_transitions = vec!["in_progress", "cancelled"];
@@ -89,7 +87,7 @@ fn test_status_pending_to_in_progress() {
 #[test]
 fn test_status_in_progress_to_completed() {
     let inspection = make_quality_inspection_model(1, "in_progress");
-    assert_eq!(inspection.status, Some("in_progress".to_string()));
+    assert_eq!(inspection.status, "in_progress");
 
     // 验证进行中状态可以转换为已完成
     let valid_transitions = vec!["completed"];
@@ -99,7 +97,7 @@ fn test_status_in_progress_to_completed() {
 #[test]
 fn test_status_completed_is_final() {
     let inspection = make_quality_inspection_model(1, "completed");
-    assert_eq!(inspection.status, Some("completed".to_string()));
+    assert_eq!(inspection.status, "completed");
 
     // 验证已完成状态是终态
     let invalid_transitions = vec!["pending", "in_progress"];
@@ -142,7 +140,6 @@ fn test_quality_inspection_json_roundtrip() {
     // 验证关键字段存在
     assert!(json.get("id").is_some());
     assert!(json.get("standard_code").is_some());
-    assert!(json.get("product_id").is_some());
-    assert!(json.get("quantity").is_some());
+    assert!(json.get("inspection_type").is_some());
     assert!(json.get("status").is_some());
 }

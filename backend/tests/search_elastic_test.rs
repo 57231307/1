@@ -112,6 +112,7 @@ fn test_product_doc_serialize() {
         unit: "米".to_string(),
         color_no: Some("CN-001".to_string()),
         pantone_code: Some("PANTONE-18-1664".to_string()),
+        price: 0.0,
     };
     let json = serde_json::to_string(&doc).unwrap();
     assert!(json.contains("纯棉布"));
@@ -205,6 +206,7 @@ async fn test_elastic_client_bulk_index() {
                 unit: "米".to_string(),
                 color_no: None,
                 pantone_code: None,
+                price: 0.0,
             };
             (format!("P{:03}", i), serde_json::to_value(&doc).unwrap())
         })

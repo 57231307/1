@@ -304,7 +304,7 @@ pub async fn initialize_system_with_db_async(
 
 /// 初始化子系统处理器内部的 admin 角色二次校验
 /// permission_middleware 不覆盖 init 路径，handler 层必须补 admin 防线；与 user_handler::require_admin_role 实现一致
-async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), AppError> {
+pub async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), AppError> {
     let role_id = auth
         .role_id
         .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行该操作"))?;

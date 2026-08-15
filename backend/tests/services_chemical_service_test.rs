@@ -1,6 +1,4 @@
-use bingxi_backend::handlers::inventory_stock_handler::*;
 use bingxi_backend::services::chemical_service::*;
-use bingxi_backend::services::outsourcing_service::*;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 

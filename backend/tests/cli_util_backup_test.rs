@@ -1,4 +1,4 @@
-use bingxi_backend::cli::util::*;
+use bingxi_backend::cli::util::backup::{get_env_file_path, get_systemd_dir};
 
 /// M8 测试：get_env_file_path 默认返回 /etc/bingxi/.env
 #[test]

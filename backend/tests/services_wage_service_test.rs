@@ -1,3 +1,4 @@
+use bingxi_backend::models::process_wage_rate::Model as RateModel;
 use bingxi_backend::models::status::wage_rate_status;
 use bingxi_backend::models::status::wage_type;
 use bingxi_backend::services::quality_inspection_service::{

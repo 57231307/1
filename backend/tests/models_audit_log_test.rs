@@ -1,5 +1,4 @@
 use bingxi_backend::models::audit_log::Model as AuditLogModel;
-use chrono::Utc;
 
 /// 构造测试用的审计日志模型
 fn make_audit_log_model(id: i32) -> AuditLogModel {
@@ -8,8 +7,7 @@ fn make_audit_log_model(id: i32) -> AuditLogModel {
         user_id: Some(1),
         username: Some("test_user".to_string()),
         action: "create".to_string(),
-        resource_type: "sales_order".to_string(),
-        resource_id: Some(1),
+        resource_type: Some("sales_order".to_string()),
         resource_id: Some("SO-2026-0001".to_string()),
         ip_address: Some("192.168.1.1".to_string()),
         user_agent: Some("Mozilla/5.0".to_string()),
@@ -18,7 +16,8 @@ fn make_audit_log_model(id: i32) -> AuditLogModel {
         request_body: Some(r#"{"customer_id": 1}"#.to_string()),
         response_status: Some(200),
         duration_ms: Some(150),
-        created_at: Utc::now(),
+        created_at: Some(chrono::Utc::now()),
+        ..Default::default()
     }
 }
 
@@ -43,7 +42,7 @@ fn test_audit_log_action() {
 #[test]
 fn test_audit_log_resource_type() {
     let log = make_audit_log_model(1);
-    assert_eq!(log.resource_type, "sales_order");
+    assert_eq!(log.resource_type, Some("sales_order".to_string()));
 }
 
 // ===== 请求信息测试 =====

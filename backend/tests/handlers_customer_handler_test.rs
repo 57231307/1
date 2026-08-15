@@ -9,7 +9,7 @@ fn make_customer_model(id: i32) -> CustomerModel {
     CustomerModel {
         id,
         customer_code: format!("C-2026-{:04}", id),
-        customer_type: Some("enterprise".to_string()),
+        customer_type: "enterprise".to_string(),
         province: Some("四川".to_string()),
         city: Some("成都".to_string()),
         address: Some("测试地址".to_string()),
@@ -18,13 +18,14 @@ fn make_customer_model(id: i32) -> CustomerModel {
         contact_email: Some("test@example.com".to_string()),
         bank_name: Some("中国银行".to_string()),
         bank_account: Some("1234567890".to_string()),
-        credit_limit: Some(rust_decimal::Decimal::new(100000, 2)),
-        payment_terms: Some("30天".to_string()),
-        status: Some("active".to_string()),
+        credit_limit: rust_decimal::Decimal::new(100000, 2),
+        payment_terms: 30,
+        status: "active".to_string(),
         notes: Some("测试备注".to_string()),
         created_by: Some(1),
         created_at: Utc::now(),
         updated_at: Utc::now(),
+        ..Default::default()
     }
 }
 
@@ -37,7 +38,7 @@ fn test_customer_model_serialization() {
 
     assert_eq!(json["id"], 1);
     assert_eq!(json["customer_code"], "C-2026-0001");
-    assert_eq!(json["name"], "测试客户");
+    assert_eq!(json["customer_type"], "enterprise");
     assert_eq!(json["status"], "active");
 }
 
@@ -55,16 +56,11 @@ fn test_customer_contact_info() {
 fn test_customer_credit_info() {
     let customer = make_customer_model(1);
 
-    // 验证信用信息
-    assert!(customer.credit_limit.is_some());
-    assert!(customer.credit_used.is_some());
-
     // 验证信用额度
-    let limit = customer.credit_limit.unwrap();
-    let used = customer.credit_used.unwrap();
-    let available = limit - used;
+    let limit = customer.credit_limit;
+    let expected_limit = rust_decimal::Decimal::new(100000, 2);
 
-    assert_eq!(available, rust_decimal::Decimal::new(100000, 2));
+    assert_eq!(limit, expected_limit);
 }
 
 // ===== 客户类型测试 =====
@@ -72,15 +68,7 @@ fn test_customer_credit_info() {
 #[test]
 fn test_customer_type_enterprise() {
     let customer = make_customer_model(1);
-    assert_eq!(customer.customer_type, Some("enterprise".to_string()));
-}
-
-// ===== 客户等级测试 =====
-
-#[test]
-fn test_customer_level_a() {
-    let customer = make_customer_model(1);
-    assert_eq!(customer.level, Some("A".to_string()));
+    assert_eq!(customer.customer_type, "enterprise".to_string());
 }
 
 // ===== 状态测试 =====
@@ -88,7 +76,7 @@ fn test_customer_level_a() {
 #[test]
 fn test_customer_status_active() {
     let customer = make_customer_model(1);
-    assert_eq!(customer.status, Some("active".to_string()));
+    assert_eq!(customer.status, "active".to_string());
 }
 
 // ===== 信用额度测试 =====
@@ -122,7 +110,7 @@ fn test_customer_json_roundtrip() {
     // 验证关键字段存在
     assert!(json.get("id").is_some());
     assert!(json.get("customer_code").is_some());
-    assert!(json.get("name").is_some());
+    assert!(json.get("customer_type").is_some());
     assert!(json.get("status").is_some());
 }
 

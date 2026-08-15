@@ -8,7 +8,7 @@ fn test_api_response_success() {
     let response = ApiResponse::success("test data");
     assert_eq!(response.code, Some(200));
     assert!(response.message.is_none());
-    assert_eq!(response.payload.unwrap(), "test data");
+    assert_eq!(response.data.unwrap(), "test data");
 }
 
 #[test]
@@ -16,7 +16,7 @@ fn test_api_response_error() {
     let response: ApiResponse<()> = ApiResponse::error("Something went wrong");
     assert_eq!(response.code, Some(500));
     assert_eq!(response.message.as_ref().unwrap(), "Something went wrong");
-    assert!(response.payload.is_none());
+    assert!(response.data.is_none());
 }
 
 #[test]
@@ -24,7 +24,7 @@ fn test_api_response_with_message() {
     let response = ApiResponse::success_with_message(42, "custom message");
     assert_eq!(response.code, Some(200));
     assert_eq!(response.message.unwrap(), "custom message");
-    assert_eq!(response.payload.unwrap(), 42);
+    assert_eq!(response.data.unwrap(), 42);
 }
 
 #[test]
@@ -40,7 +40,7 @@ fn test_api_response_json_serialization() {
 fn test_api_response_empty_data() {
     let response: ApiResponse<()> = ApiResponse::success(());
     assert_eq!(response.code, Some(200));
-    assert!(response.payload.is_some());
+    assert!(response.data.is_some());
 }
 
 // 以下 7 个测试原为测试 Rust 标准库（String/Vec/Option/Result/chrono/算术/HashMap），

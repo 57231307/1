@@ -6,7 +6,7 @@ use bingxi_backend::services::test_common::setup_test_db;
 use bingxi_backend::utils::error::AppError;
 use bingxi_backend::ymd;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
-use bingxi_backend::services::production_order_service::ProductionOrderService;
+use bingxi_backend::services::production_order_service::{ProductionOrderService, CreateProductionOrderRequest, UpdateProductionOrderRequest, ProductionOrderQuery};
 use rust_decimal::Decimal;
 use std::str::FromStr;
 use std::sync::Arc;

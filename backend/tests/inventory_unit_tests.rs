@@ -35,7 +35,7 @@ struct LowStockRule {
 
 impl LowStockRule {
     fn is_low(&self, stock: &StockRow) -> bool {
-        stock.available_qty() < self.min_qty
+        stock.available() < self.min_qty
     }
 }
 
@@ -60,7 +60,7 @@ fn test_kckyl() {
         reserved: Decimal::from(30),
         unit_cost: Decimal::from(10),
     };
-    assert_eq!(s.available_qty(), Decimal::from(70));
+    assert_eq!(s.available(), Decimal::from(70));
 }
 
 #[test]

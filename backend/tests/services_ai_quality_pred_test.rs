@@ -1,3 +1,4 @@
+use bingxi_backend::models::quality_inspection_record::Model as QualityInspectionModel;
 use bingxi_backend::decs;
 use bingxi_backend::services::ai::quality_pred::*;
 use bingxi_backend::ymd;

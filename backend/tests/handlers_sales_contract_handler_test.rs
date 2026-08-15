@@ -10,14 +10,16 @@ fn make_sales_contract_model(id: i32, status: &str) -> SalesContractModel {
     SalesContractModel {
         id,
         contract_no: format!("SC-2026-{:04}", id),
+        contract_name: format!("测试合同-{}", id),
         customer_id: 1,
         customer_name: Some("测试客户".to_string()),
-        status: Some(status.to_string()),
-        total_amount: Decimal::new(100000, 2),
+        status: status.to_string(),
+        total_amount: Some(Decimal::new(100000, 2)),
         payment_terms: Some("30天".to_string()),
-        created_by: Some(1),
+        created_by: 1,
         created_at: Utc::now(),
         updated_at: Utc::now(),
+        ..Default::default()
     }
 }
 
@@ -46,7 +48,7 @@ fn test_sales_contract_amount() {
 #[test]
 fn test_status_draft_to_active() {
     let contract = make_sales_contract_model(1, "draft");
-    assert_eq!(contract.status, Some("draft".to_string()));
+    assert_eq!(contract.status, "draft");
 
     // 验证草稿状态可以转换为生效
     let valid_transitions = vec!["active", "cancelled"];
@@ -56,7 +58,7 @@ fn test_status_draft_to_active() {
 #[test]
 fn test_status_active_to_expired() {
     let contract = make_sales_contract_model(1, "active");
-    assert_eq!(contract.status, Some("active".to_string()));
+    assert_eq!(contract.status, "active");
 
     // 验证生效状态可以转换为过期
     let valid_transitions = vec!["expired", "terminated"];
@@ -66,7 +68,7 @@ fn test_status_active_to_expired() {
 #[test]
 fn test_status_expired_is_final() {
     let contract = make_sales_contract_model(1, "expired");
-    assert_eq!(contract.status, Some("expired".to_string()));
+    assert_eq!(contract.status, "expired");
 
     // 验证过期状态是终态
     let invalid_transitions = vec!["draft", "active"];
@@ -77,24 +79,31 @@ fn test_status_expired_is_final() {
 
 #[test]
 fn test_validity_period() {
-    let contract = make_sales_contract_model(1, "active");
-    assert!(contract.valid_from.is_some());
-    assert!(contract.valid_until.is_some());
+    let mut contract = make_sales_contract_model(1, "active");
+    contract.effective_date = Some(Utc::now().naive_utc().date());
+    contract.expiry_date = Some(Utc::now().naive_utc().date() + chrono::Duration::days(365));
+    
+    assert!(contract.effective_date.is_some());
+    assert!(contract.expiry_date.is_some());
 }
 
 #[test]
 fn test_validity_period_expired() {
     let mut contract = make_sales_contract_model(1, "active");
+    contract.effective_date = Some(Utc::now().naive_utc().date() - chrono::Duration::days(365));
+    contract.expiry_date = Some(Utc::now().naive_utc().date() - chrono::Duration::days(1));
 
     // 验证已过期
+    assert!(contract.expiry_date.unwrap() < Utc::now().naive_utc().date());
 }
 
-// ===== 附件测试 =====
+// ===== 电子签章测试 =====
 
 #[test]
-fn test_attachment_count() {
+fn test_electronic_signature() {
     let contract = make_sales_contract_model(1, "draft");
-    assert_eq!(contract.attachment_count, Some(0));
+    assert!(contract.signed_at.is_none());
+    assert!(contract.signed_by_user_id.is_none());
 }
 
 // ===== 序列化/反序列化测试 =====

@@ -35,8 +35,8 @@ fn make_production_recipe_model(id: i32, status: &str) -> ProductionRecipeModel 
         remarks: Some("测试备注".to_string()),
         is_deleted: false,
         created_by: None,
-        created_at: Utc::now(),
-        updated_at: Utc::now(),
+        created_at: Utc::now().fixed_offset(),
+        updated_at: Utc::now().fixed_offset(),
     }
 }
 

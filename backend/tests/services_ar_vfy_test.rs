@@ -1,3 +1,4 @@
+use bingxi_backend::services::ar::AutoMatchRequest;
 // decs 宏在测试中不可用，使用 Decimal::from_str 替代
 use bingxi_backend::decs;
 use bingxi_backend::models::status::ar as ar_status;
@@ -418,7 +419,7 @@ async fn test_fwslh_xsjk() {
     let db = setup_test_db().await;
     let svc = ArReconciliationService::new(Arc::new(db));
     // 验证实例化成功：Arc 引用计数 >= 1
-    assert!(Arc::strong_count(&svc.database) >= 1);
+    assert!(Arc::strong_count(&svc.db) >= 1);
 }
 
 /// test_zddzwzlc_xsjk

@@ -58,7 +58,7 @@ impl OutsourcingReceiptService {
     }
 
     /// 构造委外完成事件，供事务提交后发布
-    fn build_completed_event(order: &OrderModel) -> crate::services::event_bus::BusinessEvent {
+    pub fn build_completed_event(order: &OrderModel) -> crate::services::event_bus::BusinessEvent {
         crate::services::event_bus::BusinessEvent::OutsourcingOrderCompleted {
             order_id: order.id,
             order_no: order.order_no.clone(),

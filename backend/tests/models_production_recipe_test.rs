@@ -1,6 +1,5 @@
 use bingxi_backend::models::production_recipe::Model as ProductionRecipeModel;
 use bingxi_backend::models::production_recipe_addition::Model as ProductionRecipeAdditionModel;
-use chrono::Utc;
 use rust_decimal::Decimal;
 
 /// 构造测试用的生产配方模型
@@ -34,8 +33,8 @@ fn make_production_recipe_model(id: i32) -> ProductionRecipeModel {
         remarks: Some("测试备注".to_string()),
         is_deleted: false,
         created_by: Some(1),
-        created_at: Utc::now(),
-        updated_at: Utc::now(),
+        created_at: chrono::Utc::now().fixed_offset(),
+        updated_at: chrono::Utc::now().fixed_offset(),
     }
 }
 
@@ -57,8 +56,8 @@ fn make_production_recipe_item_model(id: i32, recipe_id: i32) -> ProductionRecip
         remarks: Some("测试备注".to_string()),
         is_deleted: false,
         created_by: Some(1),
-        created_at: Utc::now(),
-        updated_at: Utc::now(),
+        created_at: chrono::Utc::now().fixed_offset(),
+        updated_at: chrono::Utc::now().fixed_offset(),
     }
 }
 

@@ -1,3 +1,5 @@
+use bingxi_backend::services::voucher_service::CreateVoucherRequest;
+use bingxi_backend::services::voucher_service::VoucherQueryParams;
 // decs 宏在测试中不可用，使用 Decimal::from_str 替代
 use bingxi_backend::decs;
 use bingxi_backend::models::status::voucher as voucher_status;
@@ -487,7 +489,7 @@ fn test_ymd_jjhkyx() {
 async fn test_fwslcj() {
     let db = setup_test_db().await;
     let service = VoucherService::new(Arc::new(db));
-    assert!(Arc::strong_count(&service.database) >= 1);
+    assert!(Arc::strong_count(&service.db) >= 1);
 }
 
 // ============ 数据库交互测试（标注 #[ignore]）============

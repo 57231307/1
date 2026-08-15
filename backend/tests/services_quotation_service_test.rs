@@ -3,7 +3,7 @@ use bingxi_backend::decs;
 use bingxi_backend::models::quotation_create_dto::{CreateQuotationDto, CreateQuotationItemDto};
 use bingxi_backend::models::quotation_update_dto::UpdateQuotationDto;
 use bingxi_backend::models::status::quotation as quotation_status;
-use bingxi_backend::services::quotation_service::QuotationService;
+use bingxi_backend::services::quotation_service::{QuotationService, ServiceError};
 use bingxi_backend::services::test_common::setup_test_db;
 use bingxi_backend::ymd;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
@@ -260,9 +260,9 @@ async fn test_quotationservice_new_zqcysjklj() {
     let db = Arc::new(setup_test_db().await);
     let svc = QuotationService::new(db.clone());
     let _ = svc
-        .database
+        .db
         .execute_raw(sea_orm::Statement::from_sql_and_values(
-            svc.database.get_database_backend(),
+            svc.db.get_database_backend(),
             "SELECT 1",
             Vec::new(),
         ))

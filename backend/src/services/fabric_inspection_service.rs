@@ -727,7 +727,7 @@ impl FabricDefectService {
     }
 
     /// 合法疵点类型校验
-    fn validate_defect_type(defect_type: &str) -> Result<(), AppError> {
+    pub fn validate_defect_type(defect_type: &str) -> Result<(), AppError> {
         let valid_types = [
             "broken_end",
             "oil_stain",

@@ -57,9 +57,9 @@ fn test_build_active_model_without_ctx() {
 fn test_build_active_model_with_ctx() {
     let event = AuditEvent::new(OperationType::Login, "auth");
     let ctx = AuditContext {
-        request_id: Some("req-123".to_string()),
-        ip_address: Some("192.168.1.1".to_string()),
-        user_agent: Some("Mozilla/5.0".to_string()),
+        request_id: "req-123".to_string(),
+        ip_address: "192.168.1.1".to_string(),
+        user_agent: "Mozilla/5.0".to_string(),
     };
     let model = build_active_model(&event, Some(&ctx));
     if let ActiveValue::Set(rid) = model.request_id {

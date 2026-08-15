@@ -15,13 +15,12 @@
 use axum::Json;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::response::Response;
 use axum::{
     Router,
     body::Body,
     http::{Request, StatusCode},
     middleware::{Next, from_fn_with_state},
-    response::{IntoResponse, Response},
+    response::IntoResponse,
     routing::get,
 };
 use bingxi_backend::container::AppState;

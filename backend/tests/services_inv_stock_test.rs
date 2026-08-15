@@ -32,6 +32,7 @@ fn make_stock(product_id: i32, quantity_available: Decimal) -> inventory_stock::
         dye_lot_no: None,
         grade: "一等品".to_string(),
         production_date: None,
+        expiry_date: None,
         quantity_meters: quantity_available,
         quantity_kg: Decimal::ZERO,
         gram_weight: None,
@@ -48,14 +49,14 @@ fn make_stock(product_id: i32, quantity_available: Decimal) -> inventory_stock::
 
 /// 测试夹具：复现库存充足判断逻辑（对应业务代码第 49 行 `Some(s) if s.quantity_available >= quantity => continue`。）
 fn is_stock_sufficient(available_qty: Decimal, required: Decimal) -> bool {
-    available >= required
+    available_qty >= required
 }
 
 /// 测试夹具：复现库存不足错误消息（对应业务代码第 54-57 行的 format! 模板。）
 fn format_insufficient_error(product_id: i32, available_qty: Decimal, required: Decimal) -> String {
     format!(
         "调出仓库库存不足，产品 {}，当前库存：{}，需要调拨：{}",
-        product_id, available, required
+        product_id, available_qty, required
     )
 }
 

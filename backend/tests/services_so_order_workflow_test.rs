@@ -1,4 +1,5 @@
 use bingxi_backend::models::status::master_data;
+use bingxi_backend::models::status::sales::sales_order;
 // decs 宏在测试中不可用，使用 Decimal::from_str 替代
 use bingxi_backend::search::{ElasticClient, SearchClient};
 use bingxi_backend::services::test_common::setup_test_db;
@@ -374,7 +375,7 @@ async fn test_fwslcj() {
     let service = SalesService::new(Arc::new(db), search_client);
 
     // 校验服务内部依赖强引用计数 >= 1，证明实例化成功
-    assert!(Arc::strong_count(&service.database) >= 1);
+    assert!(Arc::strong_count(&service.db) >= 1);
 }
 
 /// test_qxdd_xyzssjk
@@ -416,7 +417,6 @@ async fn test_shdd_xyzssjk() {
     assert!(result.is_err());
 }
 
-use bingxi_backend::models::status::sales::sales_order;
 /// test_wcdd_xyzssjk（需要 sales_orders 表 schema 与真实数据，标注 #[ignore] 仅在本地手动运行。；验证完成不存在的订单返回错误，调用路径不 panic。）
 use bingxi_backend::services::so::order::SalesService;
 #[tokio::test]

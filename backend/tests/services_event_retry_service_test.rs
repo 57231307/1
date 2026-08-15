@@ -1,5 +1,5 @@
 use bingxi_backend::services::event_retry_service::*;
-use chrono::Duration;
+use std::time::Duration;
 
 #[test]
 fn 测试指数退避延迟计算() {

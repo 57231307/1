@@ -15,7 +15,7 @@ use crate::services::mrp_engine_service::MrpEngineService;
 
 impl MrpEngineService {
     /// 获取库存信息
-    pub(crate) async fn get_stock_info(&self, product_id: i32) -> Result<StockInfo, AppError> {
+    pub async fn get_stock_info(&self, product_id: i32) -> Result<StockInfo, AppError> {
         let stocks = InventoryStockEntity::find()
             .filter(crate::models::inventory_stock::Column::ProductId.eq(product_id))
             .all(&*self.db)

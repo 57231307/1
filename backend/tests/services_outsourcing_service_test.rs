@@ -5,6 +5,7 @@ use bingxi_backend::services::outsourcing_service::classify_loss;
 use bingxi_backend::services::outsourcing_service::compute_abnormal_loss_amount;
 use bingxi_backend::services::outsourcing_service::compute_loss_rate;
 use bingxi_backend::services::outsourcing_service::compute_standard_loss_rate;
+use bingxi_backend::services::outsourcing_service::compute_total_cost;
 use bingxi_backend::services::outsourcing_service::compute_unit_cost;
 use bingxi_backend::services::outsourcing_service::validate_loss_type;
 use bingxi_backend::services::outsourcing_service::validate_order_status;

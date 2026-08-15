@@ -421,7 +421,7 @@ async fn test_fwslcj() {
     let service = SalesService::new(Arc::new(db), search_client);
 
     // 校验服务内部依赖强引用计数 >= 1，证明实例化成功
-    assert!(Arc::strong_count(&service.database) >= 1);
+    assert!(Arc::strong_count(&service.db) >= 1);
 }
 
 /// test_qxfh_xyzssjk

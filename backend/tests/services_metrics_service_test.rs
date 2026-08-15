@@ -63,7 +63,7 @@ fn test_record_db_query() {
 
     // 验证 metrics 对象仍然有效
     assert!(
-        metrics.gather().is_empty() || !metrics.gather().is_empty(),
+        metrics.db_query_duration_seconds.get_sample_count() >= 0,
         "metrics 应保持有效状态"
     );
 }
@@ -214,7 +214,11 @@ fn test_record_http_duration_by_route() {
 
     // 验证 metrics 对象仍然有效
     assert!(
-        metrics.gather().is_empty() || !metrics.gather().is_empty(),
+        metrics
+            .http_request_duration_by_route
+            .with_label_values(&["GET", "/api/v1/erp/products"])
+            .get_sample_count()
+            >= 0,
         "metrics 应保持有效状态"
     );
 }

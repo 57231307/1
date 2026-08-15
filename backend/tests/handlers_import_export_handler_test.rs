@@ -14,6 +14,7 @@ fn test_csv_import_request_rejects_exceeding_10mb() {
     let big_csv = "a".repeat(MAX_CSV_BYTES + 1);
     let req = CsvImportRequest {
         import_type: "products".to_string(),
+        data: big_csv,
     };
 
     // 期望 validate() 失败（被 #[validate(length(max = 10485760))] 拦截）
@@ -35,6 +36,7 @@ fn test_excel_import_request_rejects_exceeding_10k_rows() {
     }
     let req = ExcelImportRequest {
         import_type: "products".to_string(),
+        data: rows,
     };
 
     // 期望 validate() 失败（被 #[validate(length(max = 10_000))] 拦截）
@@ -53,6 +55,7 @@ fn test_csv_import_request_accepts_exactly_10mb() {
     let csv = "a".repeat(MAX_CSV_BYTES);
     let req = CsvImportRequest {
         import_type: "products".to_string(),
+        data: csv,
     };
 
     // 期望 validate() 成功

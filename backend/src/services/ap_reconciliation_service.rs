@@ -16,7 +16,7 @@ pub use crate::services::ap_reconciliation_ops::types::GenerateReconciliationReq
 
 /// 供应商对账服务
 pub struct ApReconciliationService {
-    pub(crate) db: Arc<DatabaseConnection>,
+    pub db: Arc<DatabaseConnection>,
 }
 
 impl ApReconciliationService {

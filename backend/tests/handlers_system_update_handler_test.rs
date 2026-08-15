@@ -16,7 +16,7 @@ fn test_verify_zip_magichfzip() {
 #[test]
 fn test_verify_zip_magicksj() {
     let payload: [u8; 0] = [];
-    assert!(!verify_zip_magic(&data), "空数据应返回 false");
+    assert!(!verify_zip_magic(&payload), "空数据应返回 false");
 }
 
 /// test_verify_zip_magicfzipwj：JPEG/PNG 文件头应返回 false。

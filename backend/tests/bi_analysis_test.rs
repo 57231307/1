@@ -22,7 +22,7 @@ async fn make_service() -> BiAnalysisService {
     let database: DatabaseConnection = Database::connect("sqlite::memory:")
         .await
         .expect("sqlite 内存数据库连接失败");
-    BiAnalysisService::new(Arc::new(db))
+    BiAnalysisService::new(Arc::new(database))
 }
 
 /// 单元测试：drilldown_year_to_month 无效年份返回 Err（参数校验，不依赖 DB）

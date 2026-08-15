@@ -104,9 +104,9 @@ async fn test_purchasereceiptservice_new_zqcysjklj() {
     let db = Arc::new(setup_test_db().await);
     let svc = PurchaseReceiptService::new(db.clone());
     let _ = svc
-        .database
+        .db
         .execute_raw(sea_orm::Statement::from_sql_and_values(
-            svc.database.get_database_backend(),
+            svc.db.get_database_backend(),
             "SELECT 1",
             Vec::new(),
         ))

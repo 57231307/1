@@ -10,11 +10,8 @@ fn make_warehouse_model(id: i32) -> WarehouseModel {
         id,
         warehouse_code: format!("WH-{:04}", id),
         name: "主仓库".to_string(),
-        address: Some("测试地址".to_string()),
-        capacity: Some(rust_decimal::Decimal::new(10000, 0)),
-        notes: Some("测试备注".to_string()),
-        created_at: Utc::now(),
-        updated_at: Utc::now(),
+        capacity: Some(10000),
+        ..Default::default()
     }
 }
 
@@ -28,7 +25,7 @@ fn test_warehouse_model_serialization() {
     assert_eq!(json["id"], 1);
     assert_eq!(json["warehouse_code"], "WH-0001");
     assert_eq!(json["name"], "主仓库");
-    assert_eq!(json["status"], "active");
+    assert_eq!(json["is_active"], false);
 }
 
 #[test]
@@ -37,40 +34,27 @@ fn test_warehouse_capacity() {
 
     // 验证容量信息
     assert!(warehouse.capacity.is_some());
-    assert!(warehouse.used_capacity.is_some());
 
-    // 验证已用容量 <= 总容量
+    // 验证容量值
     let capacity = warehouse.capacity.unwrap();
-    let used = warehouse.used_capacity.unwrap();
-    assert!(used <= capacity);
+    assert_eq!(capacity, 10000);
 }
 
 #[test]
 fn test_warehouse_available_capacity() {
     let warehouse = make_warehouse_model(1);
 
-    // 验证可用容量计算
+    // 验证容量值
     let capacity = warehouse.capacity.unwrap();
-    let used = warehouse.used_capacity.unwrap();
-    let available = capacity - used;
-
-    assert_eq!(available, rust_decimal::Decimal::new(5000, 0));
-}
-
-// ===== 仓库类型测试 =====
-
-#[test]
-fn test_warehouse_type_general() {
-    let warehouse = make_warehouse_model(1);
-    assert_eq!(warehouse.warehouse_type, Some("general".to_string()));
+    assert_eq!(capacity, 10000);
 }
 
 // ===== 状态测试 =====
 
 #[test]
-fn test_warehouse_status_active() {
+fn test_warehouse_is_active() {
     let warehouse = make_warehouse_model(1);
-    assert_eq!(warehouse.status, Some("active".to_string()));
+    assert_eq!(warehouse.is_active, false);
 }
 
 // ===== 联系信息测试 =====
@@ -80,8 +64,8 @@ fn test_warehouse_contact_info() {
     let warehouse = make_warehouse_model(1);
 
     // 验证联系信息
-    assert_eq!(warehouse.contact_person, Some("张三".to_string()));
-    assert_eq!(warehouse.contact_phone, Some("13800138000".to_string()));
+    assert_eq!(warehouse.phone, None);
+    assert_eq!(warehouse.email, None);
 }
 
 // ===== 容量计算测试 =====
@@ -125,5 +109,5 @@ fn test_warehouse_json_roundtrip() {
     assert!(json.get("id").is_some());
     assert!(json.get("warehouse_code").is_some());
     assert!(json.get("name").is_some());
-    assert!(json.get("status").is_some());
+    assert!(json.get("is_active").is_some());
 }

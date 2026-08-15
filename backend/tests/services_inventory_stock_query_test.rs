@@ -64,7 +64,7 @@ fn test_no_movement_alert() {
     let mut model = make_stock_model();
     model.last_movement_date = Some(Utc::now() - Duration::days(100));
     let alert = compute_alert_type(&model);
-    assert_eq!(alert, AlertType::NoMovement.as_str());
+    assert_eq!(alert, AlertType::SlowMoving.code());
 }
 
 #[test]
@@ -72,5 +72,5 @@ fn test_expired_alert() {
     let mut model = make_stock_model();
     model.expiry_date = Some(Utc::now() - Duration::days(10));
     let alert = compute_alert_type(&model);
-    assert_eq!(alert, AlertType::Expired.as_str());
+    assert_eq!(alert, AlertType::Expiring.code());
 }

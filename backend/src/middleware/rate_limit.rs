@@ -163,7 +163,7 @@ async fn get_redis_rate_limiter() -> Option<Arc<tokio::sync::Mutex<ConnectionMan
 
 /// 分布式限流检查（Redis 后端）；参数 - `key`: 限流键（如 `rate:ip:userid`） - `max_requests`: 窗口内允许的最大请求数 - `window`: 时间窗口（秒）；返回 - `Ok(Some(true))`:
 /// Redis 判定放行 - `Ok(Some(false))`: Redis 判定拒绝 - `Ok(None)`: 未配置 Redis（应回退到内存限流） - `Err(_)`: Redis 调用错误（应回退到内存限流）
-async fn check_redis_rate_limit(
+pub async fn check_redis_rate_limit(
     key: &str,
     max_requests: usize,
     window: Duration,

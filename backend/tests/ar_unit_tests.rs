@@ -122,7 +122,7 @@ fn test_xyedky() {
         limit: Decimal::from(10000),
         used: Decimal::from(3000),
     };
-    assert_eq!(c.available_qty(), Decimal::from(7000));
+    assert_eq!(c.available(), Decimal::from(7000));
     assert!(!c.is_over_limit());
 
     let over = CustomerCredit {

@@ -6,21 +6,24 @@ use rust_decimal::Decimal;
 use serde_json::json;
 
 /// 构造测试用的报价单模型
-fn make_quotation_model(id: i32, status: &str) -> QuotationModel {
+fn make_quotation_model(id: i64, status: &str) -> QuotationModel {
     QuotationModel {
         id,
         quotation_no: format!("QT-2026-{:04}", id),
         customer_id: 1,
+        sales_user_id: 1,
         quotation_date: Utc::now().naive_utc().date(),
-        valid_until: Some(Utc::now().naive_utc().date()),
-        status: Some(status.to_string()),
+        valid_until: Utc::now().naive_utc().date(),
+        status: status.to_string(),
         total_amount: Decimal::new(10000, 2),
-        currency: Some("CNY".to_string()),
-        exchange_rate: Some(Decimal::new(1, 0)),
+        currency: "CNY".to_string(),
+        exchange_rate: Decimal::new(1, 0),
+        base_currency: "CNY".to_string(),
         notes: Some("测试备注".to_string()),
-        created_by: Some(1),
+        created_by: 1,
         created_at: Utc::now(),
         updated_at: Utc::now(),
+        ..Default::default()
     }
 }
 
@@ -49,7 +52,7 @@ fn test_quotation_amounts() {
 #[test]
 fn test_status_draft_to_sent() {
     let quotation = make_quotation_model(1, "draft");
-    assert_eq!(quotation.status, Some("draft".to_string()));
+    assert_eq!(quotation.status, "draft");
 
     // 验证草稿状态可以转换为已发送
     let valid_transitions = vec!["sent", "cancelled"];
@@ -59,7 +62,7 @@ fn test_status_draft_to_sent() {
 #[test]
 fn test_status_sent_to_accepted() {
     let quotation = make_quotation_model(1, "sent");
-    assert_eq!(quotation.status, Some("sent".to_string()));
+    assert_eq!(quotation.status, "sent");
 
     // 验证已发送状态可以转换为已接受
     let valid_transitions = vec!["accepted", "rejected", "expired"];
@@ -69,7 +72,7 @@ fn test_status_sent_to_accepted() {
 #[test]
 fn test_status_accepted_is_final() {
     let quotation = make_quotation_model(1, "accepted");
-    assert_eq!(quotation.status, Some("accepted".to_string()));
+    assert_eq!(quotation.status, "accepted");
 
     // 验证已接受状态是终态
     let invalid_transitions = vec!["draft", "sent"];
@@ -81,17 +84,18 @@ fn test_status_accepted_is_final() {
 #[test]
 fn test_conversion_status() {
     let quotation = make_quotation_model(1, "accepted");
-    assert!(!quotation.converted_to_order);
-    assert!(quotation.conversion_date.is_none());
+    assert!(quotation.converted_sales_order_id.is_none());
+    assert!(quotation.converted_at.is_none());
 }
 
 #[test]
 fn test_conversion_to_order() {
     let mut quotation = make_quotation_model(1, "accepted");
-    quotation.converted_to_order = true;
+    quotation.converted_sales_order_id = Some(1);
+    quotation.converted_at = Some(Utc::now());
 
-    assert!(quotation.converted_to_order);
-    assert!(quotation.conversion_date.is_some());
+    assert!(quotation.converted_sales_order_id.is_some());
+    assert!(quotation.converted_at.is_some());
 }
 
 // ===== 有效期测试 =====
@@ -99,16 +103,16 @@ fn test_conversion_to_order() {
 #[test]
 fn test_valid_until() {
     let quotation = make_quotation_model(1, "draft");
-    assert!(quotation.valid_until.is_some());
+    assert!(quotation.valid_until > Utc::now().naive_utc().date());
 }
 
 #[test]
 fn test_valid_until_expired() {
     let mut quotation = make_quotation_model(1, "sent");
-    quotation.valid_until = Some(Utc::now().naive_utc().date() - chrono::Duration::days(30));
+    quotation.valid_until = Utc::now().naive_utc().date() - chrono::Duration::days(30);
 
     // 验证已过期
-    assert!(quotation.valid_until.unwrap() < Utc::now().naive_utc().date());
+    assert!(quotation.valid_until < Utc::now().naive_utc().date());
 }
 
 // ===== 金额计算测试 =====

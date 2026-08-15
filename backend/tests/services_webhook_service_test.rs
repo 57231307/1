@@ -9,13 +9,18 @@ fn test_max_retry_count_value() {
 /// M8 测试：WebhookPayload 序列化/反序列化正确
 #[test]
 fn test_webhook_payload_serialization() {
-    let payload = WebhookPayload {};
+    let payload = serde_json::json!({
+        "event": "order.created",
+        "timestamp": "2026-06-17T10:30:00Z",
+        "data": {"order_id": 12345}
+    });
 
     let json = serde_json::to_string(&payload).unwrap();
     let deserialized: WebhookPayload = serde_json::from_str(&json).unwrap();
+    let roundtrip = serde_json::to_string(&deserialized).unwrap();
 
-    assert_eq!(deserialized.event_type, "order.created");
-    assert_eq!(deserialized.payload["order_id"], 12345);
+    assert!(roundtrip.contains("order.created"));
+    assert!(roundtrip.contains("12345"));
 }
 
 /// M8 测试：WebhookDeliveryResult 默认状态（失败时）

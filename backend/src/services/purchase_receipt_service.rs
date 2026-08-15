@@ -31,7 +31,7 @@ use std::sync::Arc;
 /// 采购入库服务
 /// 批次 D10 拆分：struct 定义与 `new` 构造器保留在 facade（本文件），；impl 业务方法块分散到 `purchase_receipt_ops` 子模块（auth/crud/state/items/query）。；`db` 字段为 `pub(crate)` 供 ops 子模块访问。
 pub struct PurchaseReceiptService {
-    pub(crate) db: Arc<DatabaseConnection>,
+    pub db: Arc<DatabaseConnection>,
 }
 
 impl PurchaseReceiptService {

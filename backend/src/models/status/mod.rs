@@ -27,15 +27,15 @@
 //! - quality_dyeing：quality_standard/quality_handling/dye_recipe/lab_dip_request/lab_dip_sample/lab_dip_resample/production_recipe/production_recipe_addition/quality_feedback/fabric_inspection/fabric_scoring/fabric_grade/dye_batch_*
 //! - wage_energy_chemical_business：wage_*/energy_*/color_card/chemical_*/outsourcing_*/business_*
 
-mod general;
+pub mod general;
 // production 需为 pub：调用方直接访问 status::production::PRODUCTION_*（文件名与原始内部模块名相同）
 pub mod production;
 pub mod sales;
-mod purchase_inventory;
-mod finance;
-mod bpm_crm_contract;
-mod quality_dyeing;
-mod wage_energy_chemical_business;
+pub mod purchase_inventory;
+pub mod finance;
+pub mod bpm_crm_contract;
+pub mod quality_dyeing;
+pub mod wage_energy_chemical_business;
 
 pub use bpm_crm_contract::*;
 pub use finance::*;

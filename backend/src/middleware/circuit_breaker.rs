@@ -29,7 +29,7 @@ const HALF_OPEN_PROBE_LIMIT: u32 = 1;
 
 /// 熔断器状态
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum CircuitState {
+pub enum CircuitState {
     /// 关闭（正常放行）
     Closed,
     /// 打开（直接返回 503）
@@ -39,7 +39,7 @@ enum CircuitState {
 }
 
 /// 熔断器条目（每个 route_key 一个）
-struct CircuitEntry {
+pub struct CircuitEntry {
     state: CircuitState,
     /// 滑动窗口内的总请求数
     total: u32,

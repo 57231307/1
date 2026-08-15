@@ -1,4 +1,4 @@
-use bingxi_backend::services::so::order_query::OrderQuery;
+use bingxi_backend::services::so::order_query::{OrderQuery, P92_QRY_MODULE};
 // 批次 158 v11 修复 clippy：so_status 仅测试代码引用，use 移入测试模块避免 unused import 警告
 use bingxi_backend::models::status::sales_order as so_status;
 

@@ -10,8 +10,7 @@ fn make_dye_batch_model(id: i32, status: &str) -> DyeBatchModel {
         id,
         batch_no: format!("DB-2026-{:04}", id),
         status: Some(status.to_string()),
-        created_at: Utc::now(),
-        updated_at: Utc::now(),
+        ..Default::default()
     }
 }
 
@@ -66,48 +65,6 @@ fn test_status_completed_is_final() {
     assert!(!invalid_transitions.contains(&"planned"));
 }
 
-// ===== 优先级测试 =====
-
-#[test]
-fn test_priority_normal() {
-    let batch = make_dye_batch_model(1, "planned");
-    assert_eq!(batch.priority, Some("normal".to_string()));
-}
-
-// ===== 日期测试 =====
-
-#[test]
-fn test_planned_dates() {
-    let batch = make_dye_batch_model(1, "planned");
-    assert!(batch.planned_start_date.is_some());
-    assert!(batch.planned_end_date.is_some());
-}
-
-#[test]
-fn test_actual_dates_none_when_planned() {
-    let batch = make_dye_batch_model(1, "planned");
-    assert!(batch.actual_start_date.is_none());
-    assert!(batch.actual_end_date.is_none());
-}
-
-// ===== 配方测试 =====
-
-#[test]
-fn test_recipe_info() {
-    let batch = make_dye_batch_model(1, "planned");
-    assert_eq!(batch.recipe_id, Some(1));
-    assert_eq!(batch.recipe_name, Some("蓝色配方".to_string()));
-}
-
-// ===== 染缸测试 =====
-
-#[test]
-fn test_dye_vat_info() {
-    let batch = make_dye_batch_model(1, "planned");
-    assert_eq!(batch.dye_vat_id, Some(1));
-    assert_eq!(batch.dye_vat_name, Some("1号染缸".to_string()));
-}
-
 // ===== 序列化/反序列化测试 =====
 
 #[test]
@@ -118,7 +75,7 @@ fn test_dye_batch_json_roundtrip() {
     // 验证关键字段存在
     assert!(json.get("id").is_some());
     assert!(json.get("batch_no").is_some());
-    assert!(json.get("fabric_id").is_some());
-    assert!(json.get("quantity").is_some());
+    assert!(json.get("greige_fabric_id").is_some());
+    assert!(json.get("planned_quantity").is_some());
     assert!(json.get("status").is_some());
 }

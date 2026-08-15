@@ -4,7 +4,7 @@ use bingxi_backend::models::status::common;
 use bingxi_backend::services::test_common::setup_test_db;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
 use bingxi_backend::decs;
-use bingxi_backend::services::bom_service::BomService;
+use bingxi_backend::services::bom_service::{BomService, CreateBomRequest, CreateBomItemRequest};
 use bingxi_backend::services::bom_service::BomTreeNode;
 use bingxi_backend::utils::error::AppError;
 use bingxi_backend::ymd;
@@ -231,7 +231,7 @@ async fn test_bomxqsj_dyzjd() {
 #[test]
 fn test_bbhjs_sgbbw1() {
     // 复现 get_next_version 的纯算法：latest = None → 1
-    let latest: Option<BomModel> = None;
+    let latest: Option<bingxi_backend::models::bom::Model> = None;
     let next = match latest {
         Some(bom) => bom.version + 1,
         None => 1,

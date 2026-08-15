@@ -21,7 +21,7 @@ use crate::models::report_template::Entity as ReportTemplateEntity;
 use crate::utils::error::AppError;
 
 /// 缺陷 2.3 修复：最大重试次数默认值
-const DEFAULT_MAX_RETRIES: i32 = 3;
+pub const DEFAULT_MAX_RETRIES: i32 = 3;
 
 /// 缺陷 2.3 修复：指数退避间隔表（1min / 5min / 30min）
 pub fn backoff_seconds(retry_count: i32) -> i64 {

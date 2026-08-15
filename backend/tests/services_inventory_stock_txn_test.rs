@@ -1,3 +1,5 @@
+use bingxi_backend::services::inventory_stock_query::RecordTransactionArgs;
+use bingxi_backend::services::inventory_stock_service::CreateStockFabricArgs;
 // 引入 decs! 测试夹具宏，用于从字符串解析 Decimal
 // decs 宏在测试中不可用，使用 Decimal::from_str 替代
 use bingxi_backend::decs;

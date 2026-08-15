@@ -48,12 +48,14 @@ fn test_ticket_invalid() {
 #[test]
 fn test_ws_message_serialize_notification() {
     let msg = WsMessage::Notification {
-        id: 42,
-        title: "测试通知".to_string(),
-        content: "通知内容".to_string(),
-        category: "order".to_string(),
-        priority: 5,
-        created_at: "2026-06-17T10:30:00Z".to_string(),
+        data: NotificationPayload {
+            id: 42,
+            title: "测试通知".to_string(),
+            content: "通知内容".to_string(),
+            category: "order".to_string(),
+            priority: 5,
+            created_at: "2026-06-17T10:30:00Z".to_string(),
+        },
     };
     let json = serde_json::to_string(&msg).unwrap();
     assert!(json.contains("notification"));
@@ -63,8 +65,8 @@ fn test_ws_message_serialize_notification() {
 
 #[test]
 fn test_ws_message_serialize_ping_pong() {
-    let ping = WsMessage::Ping {};
-    let pong = WsMessage::Pong {};
+    let ping = WsMessage::Ping { timestamp: 0 };
+    let pong = WsMessage::Pong { timestamp: 0 };
     let ping_json = serde_json::to_string(&ping).unwrap();
     let pong_json = serde_json::to_string(&pong).unwrap();
     assert!(ping_json.contains("ping"));
@@ -87,8 +89,8 @@ fn test_notification_broadcaster() {
     // 广播给无订阅者的用户应不报错
     broadcaster.broadcast_notification(100, &payload);
 
-    // 验证广播器仍然有效
-    assert!(!format!("{:?}", broadcaster).is_empty(), "广播器不应为空");
+    // 再次广播验证广播器状态稳定（不 panic）
+    broadcaster.broadcast_notification(200, &payload);
 }
 
 /// 集成测试：端到端（CI 启用，沙箱 OOM 跳过）

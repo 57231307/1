@@ -12,6 +12,9 @@ use rust_decimal::Decimal;
 // 测试模块直接从 ops 导入（facade 不重导出以保持原 API 表面不变）
 use bingxi_backend::services::mrp_engine_ops::StockInfo;
 use bingxi_backend::services::mrp_engine_service::MrpEngineService;
+use bingxi_backend::services::mrp_engine_ops::types::RequirementCalcParams;
+use bingxi_backend::services::mrp_engine_ops::types::MaterialRequirement;
+use bingxi_backend::services::mrp_engine_ops::types::MrpExplodeQuery;
 use std::sync::Arc;
 
 // MRP 专属状态值（源码 mrp_engine_service.rs 中使用，status.rs 暂无 mrp 子模块）
@@ -28,16 +31,16 @@ fn make_stock_info(
     in_transit_qty: Decimal,
     safety_stock_qty: Decimal,
 ) -> StockInfo {
-    let available = on_hand - safety_stock;
+    let available = on_hand_qty - safety_stock_qty;
     let available = if available > Decimal::ZERO {
         available
     } else {
         Decimal::ZERO
     };
     StockInfo {
-        on_hand,
-        in_transit,
-        safety_stock,
+        on_hand: on_hand_qty,
+        in_transit: in_transit_qty,
+        safety_stock: safety_stock_qty,
         available,
     }
 }
@@ -65,10 +68,10 @@ fn test_mrpztclzzqx() {
 #[test]
 fn test_kckyljs_zccj() {
     let stock = make_stock_info(decs!("100"), decs!("20"), decs!("30"));
-    assert_eq!(stock.available_qty, decs!("70"));
-    assert_eq!(stock.on_hand_qty, decs!("100"));
-    assert_eq!(stock.in_transit_qty, decs!("20"));
-    assert_eq!(stock.safety_stock_qty, decs!("30"));
+    assert_eq!(stock.available, decs!("70"));
+    assert_eq!(stock.on_hand, decs!("100"));
+    assert_eq!(stock.in_transit, decs!("20"));
+    assert_eq!(stock.safety_stock, decs!("30"));
 }
 
 /// test_kckyljs_aqkccgkc（验证 get_stock_info 中 on_hand < safety_stock 时 available 下限保护为 0）
@@ -217,7 +220,7 @@ async fn test_jxqjs_klaqkctc() {
         },
         &stock,
     );
-    assert_eq!(req.safety_stock_qty, decs!("20"));
+    assert_eq!(req.safety_stock, decs!("20"));
     assert_eq!(req.available_quantity, decs!("80"));
 }
 
@@ -242,7 +245,7 @@ async fn test_jxqjs_bklaqkcwl() {
         },
         &stock,
     );
-    assert_eq!(req.safety_stock_qty, Decimal::ZERO);
+    assert_eq!(req.safety_stock, Decimal::ZERO);
     // available 仍为 on_hand - safety_stock = 80（stock_info.available_qty）
     assert_eq!(req.available_quantity, decs!("80"));
 }
@@ -311,7 +314,7 @@ fn test_dqtj_sxydqx() {
             required_date: date,
             on_hand_quantity: decs!("50"),
             in_transit_quantity: Decimal::ZERO,
-            safety_stock_qty: Decimal::ZERO,
+            safety_stock: Decimal::ZERO,
             available_quantity: decs!("50"),
             shortage_quantity: decs!("50"),
             source_type: "MANUAL".to_string(),
@@ -324,7 +327,7 @@ fn test_dqtj_sxydqx() {
             required_date: date,
             on_hand_quantity: decs!("100"),
             in_transit_quantity: Decimal::ZERO,
-            safety_stock_qty: Decimal::ZERO,
+            safety_stock: Decimal::ZERO,
             available_quantity: decs!("100"),
             shortage_quantity: Decimal::ZERO,
             source_type: "MANUAL".to_string(),
@@ -337,7 +340,7 @@ fn test_dqtj_sxydqx() {
             required_date: date,
             on_hand_quantity: decs!("10"),
             in_transit_quantity: Decimal::ZERO,
-            safety_stock_qty: Decimal::ZERO,
+            safety_stock: Decimal::ZERO,
             available_quantity: decs!("10"),
             shortage_quantity: decs!("70"),
             source_type: "MANUAL".to_string(),
@@ -445,7 +448,7 @@ fn test_jjh_ymd_ky() {
 async fn test_fwslcj() {
     let db = setup_test_db().await;
     let service = MrpEngineService::new(Arc::new(db));
-    assert!(Arc::strong_count(&service.database) >= 1);
+    assert!(Arc::strong_count(&service.db) >= 1);
 }
 
 /// test_hqkcxx_xyzssjk（需要 inventory_stocks 表 schema，标注 #[ignore] 仅在本地手动运行。；验证 get_stock_info 调用路径不 panic。）
