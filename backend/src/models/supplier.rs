@@ -3,7 +3,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Default, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "suppliers")]
 pub struct Model {
     /// 供应商 ID

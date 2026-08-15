@@ -1,4 +1,7 @@
 use bingxi_backend::services::cache_service::CacheService;
+use bingxi_backend::services::cache_service::{
+    TTL_CONFIG, TTL_CUSTOMER, TTL_DASHBOARD, TTL_PERMISSION, TTL_PRODUCT, TTL_REPORT, TTL_USER,
+};
 use std::time::Duration;
 
 #[tokio::test]
@@ -157,13 +160,6 @@ async fn test_cache_set_with_ttl_h_set_qczdy_ttl() {
 #[tokio::test]
 async fn test_cache_with_metrics_zdsb_prometheus() {
     use bingxi_backend::services::business_metrics::BusinessMetrics;
-    use bingxi_backend::services::cache_service::TTL_CONFIG;
-    use bingxi_backend::services::cache_service::TTL_CUSTOMER;
-    use bingxi_backend::services::cache_service::TTL_DASHBOARD;
-    use bingxi_backend::services::cache_service::TTL_PERMISSION;
-    use bingxi_backend::services::cache_service::TTL_PRODUCT;
-    use bingxi_backend::services::cache_service::TTL_REPORT;
-    use bingxi_backend::services::cache_service::TTL_USER;
     use std::sync::Arc;
     use std::time::Duration;
     let registry = prometheus::Registry::new();

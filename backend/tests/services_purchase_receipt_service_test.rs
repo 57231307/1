@@ -2,6 +2,7 @@ use bingxi_backend::models::status;
 // decs 宏在测试中不可用，使用 Decimal::from_str 替代
 use bingxi_backend::decs;
 use bingxi_backend::services::purchase_receipt_dto::{
+    CreatePurchaseReceiptRequest, CreateReceiptItemRequest,
     UpdatePurchaseReceiptRequest, UpdateReceiptItemRequest,
 };
 use bingxi_backend::services::test_common::setup_test_db;

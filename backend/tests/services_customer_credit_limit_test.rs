@@ -1,5 +1,6 @@
 use bingxi_backend::models::customer_credit;
 use bingxi_backend::models::status::master_data;
+use bingxi_backend::services::customer_credit_service::CreditRatingRequest;
 // decs 宏在测试中不可用，使用 Decimal::from_str 替代
 use bingxi_backend::services::test_common::setup_test_db;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代

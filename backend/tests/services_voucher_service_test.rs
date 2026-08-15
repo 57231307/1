@@ -8,6 +8,7 @@ use bingxi_backend::utils::error::AppError;
 use bingxi_backend::ymd;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
 use bingxi_backend::models::status::finance::voucher;
+use bingxi_backend::models::voucher::Model as VoucherEntityModel;
 use bingxi_backend::services::voucher_service::VoucherItemRequest;
 use bingxi_backend::services::voucher_service::VoucherService;
 use bingxi_backend::services::voucher_service::VoucherTypeDefinition;
@@ -43,8 +44,8 @@ fn make_voucher_item_request(debit: Decimal, credit: Decimal) -> VoucherItemRequ
 }
 
 /// 构建测试用凭证模型夹具（封装 voucher::Model 的构造，状态字段可定制，便于状态门校验测试复用。）
-fn make_voucher_model(status: &str) -> voucher::Model {
-    voucher::Model {
+fn make_voucher_model(status: &str) -> VoucherEntityModel {
+    VoucherEntityModel {
         id: 1,
         voucher_no: "JZ20260101001".to_string(),
         voucher_type: "记".to_string(),

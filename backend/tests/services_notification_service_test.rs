@@ -3,6 +3,7 @@ use bingxi_backend::models::notification::{
 };
 use bingxi_backend::services::notification_service::CreateNotificationRequest;
 use bingxi_backend::services::notification_service::DEDUP_WINDOW_SECS;
+use bingxi_backend::services::notification_service::build_payload_from_notification;
 use chrono::Utc;
 
 /// 构造测试用 notification::Model（避免每个测试重复字段）

@@ -47,7 +47,7 @@ fn test_low_stock_alert() {
     model.quantity_on_hand = Decimal::from(5);
     model.reorder_point = Decimal::from(10);
     let alert = compute_alert_type(&model);
-    assert_eq!(alert, AlertType::LowStock.as_str());
+    assert_eq!(alert, AlertType::LowStock.code());
 }
 
 #[test]
@@ -56,7 +56,7 @@ fn test_overstock_alert() {
     model.quantity_on_hand = Decimal::from(150);
     model.max_stock_point = Decimal::from(100);
     let alert = compute_alert_type(&model);
-    assert_eq!(alert, AlertType::OverStock.as_str());
+    assert_eq!(alert, AlertType::OverStock.code());
 }
 
 #[test]

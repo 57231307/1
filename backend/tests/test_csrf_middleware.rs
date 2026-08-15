@@ -12,13 +12,12 @@
 //! - 注入最小化 `AppState::default()`（仅用到 `state.cache`）
 //! - 不依赖数据库，OmniAuditEngine 的后台任务在默认连接上静默失败
 
-use axum::Json;
-use axum::http::StatusCode;
 use axum::{
     Json, Router,
     body::Body,
     http::{Request, StatusCode},
     middleware::from_fn_with_state,
+    response::IntoResponse,
     routing::{get, post},
 };
 use bingxi_backend::container::AppState;

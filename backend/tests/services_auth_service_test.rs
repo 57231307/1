@@ -1,7 +1,7 @@
 use bingxi_backend::services::auth_service::{AppClaims, AuthService};
 use bingxi_backend::services::auth_service_ops::jti::{
-    REVOKED_USER_TTL_SECS, REVOKED_USERS, cleanup_revoked_users, is_jti_revoked,
-    is_user_token_revoked, revoke_user_jtis, unrevoke_user,
+    REVOKED_USER_TTL_SECS, REVOKED_USERS, cleanup_expired_jti, cleanup_revoked_users,
+    is_jti_revoked, is_user_token_revoked, revoke_jti, revoke_user_jtis, unrevoke_user,
 };
 use chrono::{Duration, Utc};
 use jsonwebtoken::{EncodingKey, Header, encode};

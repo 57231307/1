@@ -303,7 +303,6 @@ async fn test_quotationservice_cancel_bczfhapperror() {
 // ============ update 状态机校验测试 ============
 
 /// test_quotationservice_update_bczfhapperror
-use bingxi_backend::utils::error::AppError as ServiceError;
 use sea_orm::ConnectionTrait;
 use std::collections::HashSet;
 #[tokio::test]
