@@ -1233,7 +1233,6 @@ jobs:
           mkdir -p reports coverage
           set +e
           cargo llvm-cov nextest \
-            --keep-going \
             --cobertura --output-path coverage/cobertura.xml \
             --no-clean \
             -- --test-threads=1 > reports/llvm-cov-nextest-output.txt 2>&1
