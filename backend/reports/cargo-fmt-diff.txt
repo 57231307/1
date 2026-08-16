@@ -1,22 +1,15 @@
 info: syncing channel updates for 1.94-x86_64-unknown-linux-gnu
 info: latest update on 2026-03-26 for version 1.94.1 (e408947bf 2026-03-25)
 info: downloading 5 components
-Diff in /home/runner/work/1/1/backend/tests/handlers_auth_handler_test.rs:112:
-         .expect("LoginResponse 应序列化为 JSON 对象");
+Diff in /home/runner/work/1/1/backend/tests/test_password_validator.rs:52:
+     let result = validate_password("NoDigitsHere!");
+     assert!(!result.is_valid);
+     assert!(
+-        result.errors.iter().any(|e| e.contains("数字") || e.contains("digit"))
++        result
++            .errors
++            .iter()
++            .any(|e| e.contains("数字") || e.contains("digit"))
+     );
+ }
  
-     let actual_fields: std::collections::HashSet<&String> = obj.keys().collect();
--    let expected_fields: std::collections::HashSet<&str> = [
--        "csrf_token",
--        "user",
--        "permissions",
--        "password_expired",
--    ]
--    .into_iter()
--    .collect();
-+    let expected_fields: std::collections::HashSet<&str> =
-+        ["csrf_token", "user", "permissions", "password_expired"]
-+            .into_iter()
-+            .collect();
- 
-     let extra: Vec<&&String> = actual_fields
-         .iter()

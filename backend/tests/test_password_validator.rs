@@ -52,7 +52,10 @@ fn test_missing_digit() {
     let result = validate_password("NoDigitsHere!");
     assert!(!result.is_valid);
     assert!(
-        result.errors.iter().any(|e| e.contains("数字") || e.contains("digit"))
+        result
+            .errors
+            .iter()
+            .any(|e| e.contains("数字") || e.contains("digit"))
     );
 }
 
