@@ -6,9 +6,11 @@ use serde_json::json;
 
 /// 构造测试用的客户模型
 fn make_customer_model(id: i32) -> CustomerModel {
+    let now: DateTime<Utc> = Utc::now();
     CustomerModel {
         id,
         customer_code: format!("C-2026-{:04}", id),
+        customer_name: format!("测试客户-{}", id),
         customer_type: "enterprise".to_string(),
         province: Some("四川".to_string()),
         city: Some("成都".to_string()),
@@ -18,13 +20,14 @@ fn make_customer_model(id: i32) -> CustomerModel {
         contact_email: Some("test@example.com".to_string()),
         bank_name: Some("中国银行".to_string()),
         bank_account: Some("1234567890".to_string()),
-        credit_limit: rust_decimal::Decimal::new(100000, 2),
+        credit_limit: Decimal::new(100000, 2),
         payment_terms: 30,
         status: "active".to_string(),
         notes: Some("测试备注".to_string()),
         created_by: Some(1),
-        created_at: Utc::now(),
-        updated_at: Utc::now(),
+        created_at: now,
+        updated_at: now,
+        owner_id: 1,
         ..Default::default()
     }
 }

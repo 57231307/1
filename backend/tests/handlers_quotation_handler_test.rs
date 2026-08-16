@@ -13,7 +13,7 @@ fn make_quotation_model(id: i64, status: &str) -> QuotationModel {
         customer_id: 1,
         sales_user_id: 1,
         quotation_date: Utc::now().naive_utc().date(),
-        valid_until: Utc::now().naive_utc().date(),
+        valid_until: Utc::now().naive_utc().date() + chrono::Duration::days(30),
         status: status.to_string(),
         total_amount: Decimal::new(10000, 2),
         currency: "CNY".to_string(),
