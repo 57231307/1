@@ -13,6 +13,8 @@ fn make_quality_inspection_model(id: i32, status: &str) -> QualityInspectionMode
         product_id: Some(1),
         product_category_id: Some(1),
         inspection_type: "incoming".to_string(),
+        sampling_rate: Some(rust_decimal::Decimal::new(10, 0)),
+        inspection_items: Some(serde_json::json!([{"item": "外观检查"}])),
         status: status.to_string(),
         created_at: Utc::now(),
         updated_at: Utc::now(),
