@@ -176,7 +176,7 @@ fn test_is_valid_transition_hflzfhtrue() {
     assert!(is_valid_transition(
         Some(status::INSPECTING),
         status::STORED,
-        code::INSPECT,
+        code::STORE,
     ));
     assert!(is_valid_transition(
         Some(status::STORED),
