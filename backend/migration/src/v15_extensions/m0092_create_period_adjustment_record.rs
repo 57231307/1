@@ -21,8 +21,9 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let sql =
-            include_str!("../../../migrations/20260801000006_create_period_adjustment_record/up.sql");
+        let sql = include_str!(
+            "../../../migrations/20260801000006_create_period_adjustment_record/up.sql"
+        );
         manager.get_connection().execute_unprepared(sql).await?;
         Ok(())
     }

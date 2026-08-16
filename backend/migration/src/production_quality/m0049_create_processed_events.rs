@@ -22,7 +22,8 @@ impl MigrationTrait for Migration {
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let sql = include_str!("../../../migrations/20260713000001_create_processed_events/down.sql");
+        let sql =
+            include_str!("../../../migrations/20260713000001_create_processed_events/down.sql");
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
         }

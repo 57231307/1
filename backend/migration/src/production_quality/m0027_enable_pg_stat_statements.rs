@@ -15,7 +15,8 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let sql = include_str!("../../../migrations/20260618000005_enable_pg_stat_statements/up.sql");
+        let sql =
+            include_str!("../../../migrations/20260618000005_enable_pg_stat_statements/up.sql");
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
         }

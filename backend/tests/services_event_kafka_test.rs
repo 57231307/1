@@ -1,7 +1,7 @@
 use bingxi_backend::services::dashboard_service::*;
 use bingxi_backend::services::event_bus::*;
-use bingxi_backend::services::event_kafka_payload::*;
 use bingxi_backend::services::event_kafka::event_type_name;
+use bingxi_backend::services::event_kafka_payload::*;
 use rust_decimal::Decimal;
 use std::str::FromStr;
 

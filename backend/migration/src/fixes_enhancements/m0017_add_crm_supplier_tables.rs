@@ -14,7 +14,8 @@ impl MigrationTrait for Migration {
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let sql = include_str!("../../../migrations/20260528000001_add_crm_supplier_tables/down.sql");
+        let sql =
+            include_str!("../../../migrations/20260528000001_add_crm_supplier_tables/down.sql");
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
         }

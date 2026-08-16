@@ -4,8 +4,8 @@ use bingxi_backend::models::status::common;
 use bingxi_backend::services::test_common::setup_test_db;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
 use bingxi_backend::decs;
-use bingxi_backend::services::bom_service::{BomService, CreateBomItemRequest, CreateBomRequest};
 use bingxi_backend::services::bom_service::BomTreeNode;
+use bingxi_backend::services::bom_service::{BomService, CreateBomItemRequest, CreateBomRequest};
 use bingxi_backend::utils::error::AppError;
 use bingxi_backend::ymd;
 use rust_decimal::Decimal;
