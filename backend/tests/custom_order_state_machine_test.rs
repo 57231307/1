@@ -15,9 +15,11 @@ use std::str::FromStr;
 fn test_full_lifecycle_state_progression() {
     use bingxi_backend::utils::process_state_machine::next_status;
 
-    // draft → yarn_purchasing → dyeing → finishing → delivery → after_sales → completed
+    // draft → lab_dip → quotation → yarn_purchasing → dyeing → finishing → delivery → after_sales → completed
     let mut current = "draft";
     let expected = vec![
+        "lab_dip",
+        "quotation",
         "yarn_purchasing",
         "dyeing",
         "finishing",
