@@ -1238,7 +1238,6 @@ jobs:
           cargo llvm-cov nextest \
             --cobertura --output-path coverage/cobertura.xml \
             --no-clean \
-            --no-fail-fast \
             --test-threads=1 > reports/llvm-cov-nextest-output.txt 2>&1
           EXIT_CODE=$?
           set -e
