@@ -112,8 +112,14 @@ fn test_login_response_field_whitelist() {
         .expect("LoginResponse 应序列化为 JSON 对象");
 
     let actual_fields: std::collections::HashSet<&String> = obj.keys().collect();
-    let expected_fields: std::collections::HashSet<&str> =
-        ["csrf_token", "user", "permissions"].into_iter().collect();
+    let expected_fields: std::collections::HashSet<&str> = [
+        "csrf_token",
+        "user",
+        "permissions",
+        "password_expired",
+    ]
+    .into_iter()
+    .collect();
 
     let extra: Vec<&&String> = actual_fields
         .iter()
