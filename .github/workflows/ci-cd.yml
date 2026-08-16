@@ -2580,15 +2580,25 @@ jobs:
             RUN_REF="${{ github.ref_name }}"
           fi
           echo "🚀 检测到失败，使用全新环境重跑全流程（第 $NEXT 次重跑，ref=$RUN_REF）..."
-          gh workflow run ci-cd.yml \
+          if gh workflow run ci-cd.yml \
+            --repo "${{ github.repository }}" \
             --ref "$RUN_REF" \
             -f retry_count=$NEXT \
-            -f skip_release=true || echo "⚠️ 触发重跑失败，请手动触发 workflow_dispatch"
+            -f skip_release=true; then
+            RETRIGGERED=1
+          else
+            RETRIGGERED=0
+            echo "⚠️ 触发重跑失败，请手动触发 workflow_dispatch"
+          fi
           {
             echo ""
             echo "### 自动重跑"
             echo ""
-            echo "已触发重跑（retry_count=$NEXT，ref=$RUN_REF）。若重跑仍失败，请人工排查，避免循环重试。"
+            if [ "$RETRIGGERED" = "1" ]; then
+              echo "已触发重跑（retry_count=$NEXT，ref=$RUN_REF）。若重跑仍失败，请人工排查，避免循环重试。"
+            else
+              echo "⚠️ 触发重跑失败（retry_count=$NEXT，ref=$RUN_REF）。请手动触发 workflow_dispatch。"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: 重跑次数已达上限（不再自动重跑）

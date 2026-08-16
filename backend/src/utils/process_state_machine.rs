@@ -131,7 +131,7 @@ pub fn can_transition(from: &str, to: &str) -> bool {
     };
 
     if from_status == to_status {
-        return true;
+        return !from_status.is_terminal();
     }
 
     if to_status == CustomOrderStatus::Cancelled && !from_status.is_terminal() {
