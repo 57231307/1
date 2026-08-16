@@ -7,7 +7,7 @@ use rust_decimal::Decimal;
 use serde_json::json;
 
 /// 构造测试用的销售订单模型
-fn make_sales_order_model(id: i32, _status: &str) -> SalesOrderModel {
+fn make_sales_order_model(id: i32, status: &str) -> SalesOrderModel {
     SalesOrderModel {
         id,
         order_no: format!("SO-2026-{:04}", id),
@@ -15,6 +15,7 @@ fn make_sales_order_model(id: i32, _status: &str) -> SalesOrderModel {
         order_date: Utc::now(),
         required_date: Utc::now(),
         total_amount: Decimal::new(10000, 2),
+        status: status.to_string(),
         ..Default::default()
     }
 }
@@ -85,7 +86,7 @@ fn test_sales_order_model_serialization() {
     assert_eq!(json["id"], 1);
     assert_eq!(json["order_no"], "SO-2026-0001");
     assert_eq!(json["customer_id"], 1);
-    assert_eq!(json["status"], "");
+    assert_eq!(json["status"], "draft");
 }
 
 #[test]
@@ -103,7 +104,7 @@ fn test_sales_order_model_amounts() {
 #[test]
 fn test_status_transitions_draft_to_confirmed() {
     let order = make_sales_order_model(1, "draft");
-    assert_eq!(order.status, "");
+    assert_eq!(order.status, "draft");
 
     // 验证草稿状态可以转换为已确认
     let valid_transitions = vec!["confirmed", "cancelled"];
@@ -113,7 +114,7 @@ fn test_status_transitions_draft_to_confirmed() {
 #[test]
 fn test_status_transitions_confirmed_to_delivered() {
     let order = make_sales_order_model(1, "confirmed");
-    assert_eq!(order.status, "");
+    assert_eq!(order.status, "confirmed");
 
     // 验证已确认状态可以转换为已发货
     let valid_transitions = vec!["delivered", "cancelled"];
@@ -123,7 +124,7 @@ fn test_status_transitions_confirmed_to_delivered() {
 #[test]
 fn test_status_transitions_delivered_is_final() {
     let order = make_sales_order_model(1, "delivered");
-    assert_eq!(order.status, "");
+    assert_eq!(order.status, "delivered");
 
     // 验证已发货状态是终态，不能转换
     let invalid_transitions = vec!["draft", "confirmed"];

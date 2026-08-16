@@ -6,7 +6,7 @@ use rust_decimal::Decimal;
 use serde_json::json;
 
 /// 构造测试用的采购订单模型
-fn make_purchase_order_model(id: i32, _status: &str) -> PurchaseOrderModel {
+fn make_purchase_order_model(id: i32, status: &str) -> PurchaseOrderModel {
     PurchaseOrderModel {
         id,
         order_no: format!("PO-2026-{:04}", id),
@@ -16,6 +16,7 @@ fn make_purchase_order_model(id: i32, _status: &str) -> PurchaseOrderModel {
         department_id: 1,
         purchaser_id: 1,
         total_amount: Decimal::new(10000, 2),
+        order_status: status.to_string(),
         ..Default::default()
     }
 }
@@ -46,7 +47,7 @@ fn test_po_status_cancelled() {
 
 #[test]
 fn test_purchase_order_model_serialization() {
-    let order = make_purchase_order_model(1, "draft");
+    let order = make_purchase_order_model(1, status_po::DRAFT);
     let json = serde_json::to_value(&order).expect("采购订单序列化失败");
 
     assert_eq!(json["id"], 1);
@@ -66,7 +67,7 @@ fn test_purchase_order_amounts() {
 
 #[test]
 fn test_status_draft_to_confirmed() {
-    let order = make_purchase_order_model(1, "draft");
+    let order = make_purchase_order_model(1, status_po::DRAFT);
     assert_eq!(order.order_status, "DRAFT");
 
     // 验证草稿状态可以转换为已确认
@@ -76,8 +77,8 @@ fn test_status_draft_to_confirmed() {
 
 #[test]
 fn test_status_confirmed_to_received() {
-    let order = make_purchase_order_model(1, "confirmed");
-    assert_eq!(order.order_status, "DRAFT");
+    let order = make_purchase_order_model(1, "CONFIRMED");
+    assert_eq!(order.order_status, "CONFIRMED");
 
     // 验证已确认状态可以转换为已收货
     let valid_transitions = vec!["received", "cancelled"];
@@ -86,8 +87,8 @@ fn test_status_confirmed_to_received() {
 
 #[test]
 fn test_status_received_is_final() {
-    let order = make_purchase_order_model(1, "received");
-    assert_eq!(order.order_status, "DRAFT");
+    let order = make_purchase_order_model(1, "RECEIVED");
+    assert_eq!(order.order_status, "RECEIVED");
 
     // 验证已收货状态是终态
     let invalid_transitions = vec!["draft", "confirmed"];

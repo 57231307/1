@@ -383,11 +383,14 @@ pub fn invalidate_permission_cache(role_id: i32) {
     PERMISSION_CACHE.remove(&role_id);
     tracing::info!(role_id, "权限缓存已失效");
     // V15 P1-14.9-C：发布 Redis pub/sub 通知（异步，不阻塞调用方）
-    let channel = PERMISSION_CACHE_INVALIDATION_CHANNEL;
-    let message = format!("{}", role_id);
-    tokio::spawn(async move {
-        crate::utils::redis_cache::publish_to_channel(channel, &message).await;
-    });
+    // 无 Tokio runtime（如同步测试）时安全跳过 spawn
+    if let Ok(handle) = tokio::runtime::Handle::try_current() {
+        let channel = PERMISSION_CACHE_INVALIDATION_CHANNEL;
+        let message = format!("{}", role_id);
+        handle.spawn(async move {
+            crate::utils::redis_cache::publish_to_channel(channel, &message).await;
+        });
+    }
 }
 
 /// V15 P0-S07：失效全部权限缓存（P1-14.9-C 同步发布 Redis pub/sub "ALL"，多实例清空）
@@ -395,10 +398,12 @@ pub fn invalidate_permission_cache(role_id: i32) {
 pub fn invalidate_all_permission_cache() {
     PERMISSION_CACHE.clear();
     tracing::info!("全部权限缓存已失效");
-    let channel = PERMISSION_CACHE_INVALIDATION_CHANNEL;
-    tokio::spawn(async move {
-        crate::utils::redis_cache::publish_to_channel(channel, "ALL").await;
-    });
+    if let Ok(handle) = tokio::runtime::Handle::try_current() {
+        let channel = PERMISSION_CACHE_INVALIDATION_CHANNEL;
+        handle.spawn(async move {
+            crate::utils::redis_cache::publish_to_channel(channel, "ALL").await;
+        });
+    }
 }
 
 /// V15 P1-14.9-C：权限缓存失效 Redis pub/sub 频道名
@@ -599,11 +604,12 @@ pub fn matches_permission(
 ) -> bool {
     let resource_match =
         p.resource_type == resource_type || p.resource_type == "*" || resource_type == "*";
-    resource_match
-        && (p.action == action || p.action == "*")
-        && match (p.resource_id, resource_id) {
+    // 超级通配（resource_type="*"）豁免 resource_id 垂直越权防护
+    let id_match = p.resource_type == "*"
+        || match (p.resource_id, resource_id) {
             (None, None) => true,
             (Some(pid), Some(rid)) => pid == rid,
             _ => false,
-        }
+        };
+    resource_match && (p.action == action || p.action == "*") && id_match
 }
