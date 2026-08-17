@@ -47,11 +47,6 @@ on:
         required: false
         type: boolean
         default: false
-      retry_count:
-        description: '自动重试计数（内部使用，防止无限重试；正常手动触发保持 0）'
-        required: false
-        type: number
-        default: 0
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -1180,19 +1175,71 @@ jobs:
           retention-days: 90
 
 # ==============================================================================
-# Job 7: Rust 单元测试（V15 Batch 485 零容忍模式）
+# Job 7: Rust 测试预编译（nextest archive，避免 30 个分片各自编译）
 # ==============================================================================
+  ci-build-test-artifacts:
+    name: 📦 Rust 测试预编译
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: ci-info
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: bingxi
+          POSTGRES_PASSWORD: bingxi_test
+          POSTGRES_DB: bingxi_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
+      AUDIT_SECRET_KEY: ci-only-audit-signing-key-do-not-use-in-prod-32b
+      CARGO_BUILD_JOBS: "1"
+      CARGO_JOBS: "1"
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: Setup Rust（系统依赖含 postgresql-client）
+        uses: ./.github/actions/setup-rust
+        with:
+          system-deps: pkg-config libssl-dev postgresql-client protobuf-compiler
+
+      - name: 安装 cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
+
+      - name: 编译所有测试并打包为 archive
+        working-directory: backend
+        run: |
+          cargo nextest archive --archive-file nextest-archive.tar.gz
+
+      - name: 上传 archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextest-archive
+          path: backend/nextest-archive.tar.gz
+          retention-days: 7
+
+# ==============================================================================
+  # Job 8: Rust 单元测试分片（从 archive 运行，不重复编译）
   # ==============================================================================
-  # Rust 测试分片：15 个并行 partition（nextest --partition hash:15/N）
-  # 每个分片独立运行，fail-fast: false 确保全部跑完，互不阻塞。
-  # 各分片编译缓存由 setup-rust 的 actions/cache 共享。
+  # ==============================================================================
+  # Rust 测试分片：30 个并行 partition（nextest --partition hash:m/30）
+  # 预编译 archive 由 ci-build-test-artifacts 产出，各分片仅下载运行。
   # ==============================================================================
   ci-test-rust:
     name: 🧪 Rust 测试 (${{ matrix.partition }}/30)
     runs-on: ubuntu-latest
-    # 30 个分片各自独立编译，需要充足时间
+    # 30 个分片仅从 archive 运行测试（不编译），时间大幅缩短
     timeout-minutes: 45
-    needs: ci-info
+    needs: ci-build-test-artifacts
     strategy:
       fail-fast: false
       max-parallel: 4
@@ -1234,7 +1281,13 @@ jobs:
         with:
           tool: nextest
 
-      - name: 运行测试分片 ${{ matrix.partition }}/30（cargo nextest run --partition hash:${{ matrix.partition }}/30）
+      - name: 下载预编译测试 archive
+        uses: actions/download-artifact@v4
+        with:
+          name: nextest-archive
+          path: backend/
+
+      - name: 运行测试分片 ${{ matrix.partition }}/30（nextest archive run --partition hash:${{ matrix.partition }}/30）
         working-directory: backend
         # --no-fail-fast 确保分片内所有测试都跑完，暴露全部失败
         # --test-threads=1 串行执行，避免集成测试竞态
@@ -1242,6 +1295,7 @@ jobs:
           mkdir -p reports
           set +e
           cargo nextest run \
+            --archive-file nextest-archive.tar.gz \
             --partition hash:${{ matrix.partition }}/30 \
             --test-threads=1 \
             --no-fail-fast \
@@ -2524,23 +2578,12 @@ jobs:
           fi
 
 # ==============================================================================
-# Job 15: 收尾清理 + 失败自动重跑
-# ==============================================================================
-# 需求（用户指令）：CI 快收尾时，只要有步骤失败或报错，则移除项目使用的所有
-# 缓存/数据/工具/依赖等（GitHub Actions 缓存、npm/node_modules、cargo/rustup 等），
-# 使用全新环境重跑全流程。
-#
-# 设计：
-#   - needs 全部验证 job（含打包/发布链），if: always() 确保即使前置失败也执行收尾
-#   - 汇总各 job 结果：任一 failure/cancelled 即触发清理 + 重跑
-#   - 清理手段：删除本仓库全部 actions/cache 缓存条目（cargo-/rustup-/fe-npm-/criterion-）
-#   - 重跑手段：gh workflow run 重新触发 workflow_dispatch（带 retry_count 递增防无限循环）
-#   - 防循环：workflow_dispatch inputs.retry_count 记录重试次数，达到上限（2）后不再重跑
+# Job 15: 收尾清理（仅报告，无自动重试）
 # ==============================================================================
   ci-cleanup-retry:
-    name: 🧹 收尾清理 + 失败重跑
+    name: 🧹 收尾清理
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
     needs: [
       ci-info,
       ci-fmt-rust,
@@ -2548,6 +2591,7 @@ jobs:
       ci-lint-rust,
       ci-lint-fe,
       ci-type-check,
+      ci-build-test-artifacts,
       ci-test-rust,
       ci-test-fe,
       ci-audit,
@@ -2559,141 +2603,19 @@ jobs:
       github-release
     ]
     if: always()
-    permissions:
-      actions: write
-      contents: read
-    outputs:
-      all_success: ${{ steps.collect.outputs.all_success }}
     steps:
       - name: 收集各 job 结果
-        id: collect
         run: |
-          FAILED_JOBS=""
-          CANCELLED_JOBS=""
-          declare -A RESULTS=(
-            ["ci-info"]="${{ needs.ci-info.result }}"
-            ["ci-fmt-rust"]="${{ needs.ci-fmt-rust.result }}"
-            ["ci-fmt-fe"]="${{ needs.ci-fmt-fe.result }}"
-            ["ci-lint-rust"]="${{ needs.ci-lint-rust.result }}"
-            ["ci-lint-fe"]="${{ needs.ci-lint-fe.result }}"
-            ["ci-type-check"]="${{ needs.ci-type-check.result }}"
-            ["ci-test-rust"]="${{ needs.ci-test-rust.result }}"
-            ["ci-test-fe"]="${{ needs.ci-test-fe.result }}"
-            ["ci-audit"]="${{ needs.ci-audit.result }}"
-            ["ci-deps"]="${{ needs.ci-deps.result }}"
-            ["ci-perf-bench"]="${{ needs.ci-perf-bench.result }}"
-            ["ci-build-rust"]="${{ needs.ci-build-rust.result }}"
-            ["ci-build-fe"]="${{ needs.ci-build-fe.result }}"
-            ["package-release"]="${{ needs.package-release.result }}"
-            ["github-release"]="${{ needs.github-release.result }}"
-          )
           ALL_OK=1
-          for key in "${!RESULTS[@]}"; do
-            R="${RESULTS[$key]}"
-            # success / skipped（非主分支 job 被跳过）视为通过；cancelled 是并发取消，不触发重跑
-            if [[ "$R" == "success" || "$R" == "skipped" ]]; then
-              continue
-            elif [[ "$R" == "cancelled" ]]; then
-              CANCELLED_JOBS="$CANCELLED_JOBS $key"
-            else
+          for key in ci-info ci-fmt-rust ci-fmt-fe ci-lint-rust ci-lint-fe ci-type-check ci-test-rust ci-test-fe ci-audit ci-deps ci-perf-bench ci-build-rust ci-build-fe package-release github-release; do
+            R="${{ needs[format('{0}', key)].result }}"
+            if [[ "$R" != "success" && "$R" != "skipped" ]]; then
               ALL_OK=0
-              FAILED_JOBS="$FAILED_JOBS $key=$R"
             fi
           done
-          echo "all_success=$ALL_OK" >> "$GITHUB_OUTPUT"
-          echo "failed_jobs=$FAILED_JOBS" >> "$GITHUB_OUTPUT"
-          echo "cancelled_jobs=$CANCELLED_JOBS" >> "$GITHUB_OUTPUT"
-
-          # 判定是否为重跑触发（workflow_dispatch + retry_count）
-          RETRY_COUNT="${{ github.event.inputs.retry_count || '0' }}"
-          echo "retry_count=$RETRY_COUNT" >> "$GITHUB_OUTPUT"
-          {
-            echo "## 🧹 收尾清理 + 失败重跑"
-            echo ""
-            echo "**重试计数**: $RETRY_COUNT  "
-            echo "**触发事件**: ${{ github.event_name }}  "
-            echo "**全部成功**: $([ "$ALL_OK" = "1" ] && echo "是 ✅" || echo "否 ❌")  "
-            if [ "$ALL_OK" = "0" ]; then
-              echo "**失败 job**: \`$FAILED_JOBS\`  "
-            fi
-            if [ -n "$CANCELLED_JOBS" ]; then
-              echo "**被取消 job（不触发重跑）**: \`$CANCELLED_JOBS\`  "
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: 清理 GitHub Actions 缓存（全部缓存条目）
-        if: steps.collect.outputs.all_success == '0'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "🔧 清理本仓库全部 GitHub Actions 缓存..."
-          # 列出全部缓存 ID（分页），逐条删除
-          CACHE_IDS=$(gh api repos/${{ github.repository }}/actions/caches --paginate -q '.actions_caches[].id' 2>/dev/null || true)
-          if [ -z "$CACHE_IDS" ]; then
-            echo "  没有发现缓存条目"
+          if [ "$ALL_OK" = "0" ]; then
+            echo "❌ 部分 job 失败，请人工排查后手动重试。"
+            exit 1
           else
-            COUNT=0
-            for id in $CACHE_IDS; do
-              echo "  删除缓存 ID=$id"
-              gh api -X DELETE repos/${{ github.repository }}/actions/caches/$id >/dev/null 2>&1 && COUNT=$((COUNT + 1)) || echo "    删除失败（可能已被删除）"
-            done
-            echo "✅ 共删除 $COUNT 个缓存条目"
+            echo "✅ 所有 job 通过。"
           fi
-          {
-            echo "### 缓存清理结果"
-            echo ""
-            echo "已删除缓存条目：${COUNT:-0} 个（cargo- / rustup- / fe-npm- / criterion- 前缀的 actions/cache 全部清除）"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: 清理本地依赖与工具链
-        if: steps.collect.outputs.all_success == '0'
-        run: |
-          echo "🔧 清理本地数据/依赖/工具链（本 runner 将在 job 结束后销毁，主要防残留）..."
-          rm -rf frontend/node_modules ~/.npm ~/.cargo/registry ~/.cargo/git backend/target 2>/dev/null || true
-          echo "✅ 本地依赖清理完成（node_modules / ~/.npm / cargo registry / target）"
-
-      - name: 自动重跑全流程
-        if: steps.collect.outputs.all_success == '0' && steps.collect.outputs.retry_count < '2'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          RETRY_COUNT="${{ steps.collect.outputs.retry_count }}"
-          NEXT=$((RETRY_COUNT + 1))
-          # PR 场景重新触发到 PR 源分支，push 场景触发到当前分支
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            RUN_REF="${{ github.head_ref }}"
-          else
-            RUN_REF="${{ github.ref_name }}"
-          fi
-          echo "🚀 检测到失败，使用全新环境重跑全流程（第 $NEXT 次重跑，ref=$RUN_REF）..."
-          if gh workflow run ci-cd.yml \
-            --repo "${{ github.repository }}" \
-            --ref "$RUN_REF" \
-            -f retry_count=$NEXT \
-            -f skip_release=true; then
-            RETRIGGERED=1
-          else
-            RETRIGGERED=0
-            echo "⚠️ 触发重跑失败，请手动触发 workflow_dispatch"
-          fi
-          {
-            echo ""
-            echo "### 自动重跑"
-            echo ""
-            if [ "$RETRIGGERED" = "1" ]; then
-              echo "已触发重跑（retry_count=$NEXT，ref=$RUN_REF）。若重跑仍失败，请人工排查，避免循环重试。"
-            else
-              echo "⚠️ 触发重跑失败（retry_count=$NEXT，ref=$RUN_REF）。请手动触发 workflow_dispatch。"
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: 重跑次数已达上限（不再自动重跑）
-        if: steps.collect.outputs.all_success == '0' && steps.collect.outputs.retry_count >= '2'
-        run: |
-          echo "⚠️ 已重试 ${{ steps.collect.outputs.retry_count }} 次仍失败，停止自动重跑，请人工介入排查。"
-          {
-            echo ""
-            echo "### ⚠️ 停止自动重跑"
-            echo ""
-            echo "已达最大重试次数（2），停止自动重跑。请人工排查失败原因。"
-          } >> "$GITHUB_STEP_SUMMARY"
