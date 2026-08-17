@@ -1180,7 +1180,8 @@ jobs:
   ci-build-test-artifacts:
     name: 📦 Rust 测试预编译
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 首次全量编译（CARGO_BUILD_JOBS=1 单线程）约 30-50 分钟，预留充足时间
+    timeout-minutes: 90
     needs: ci-info
     services:
       postgres:
