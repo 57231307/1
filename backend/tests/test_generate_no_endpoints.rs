@@ -114,5 +114,5 @@ fn test_purchase_order_no_format() {
         "采购订单单号格式错误：{}，期望 PO{{yyyyMMdd}}{{3 位流水}}",
         doc_no
     );
-    assert_eq!(doc_no, "PO202606170017");
+    assert_eq!(doc_no, "PO20260617017");
 }

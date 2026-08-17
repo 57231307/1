@@ -45,7 +45,7 @@ async fn test_init_token_missing_env() {
 #[tokio::test]
 async fn test_init_token_missing_header() {
     unsafe {
-        std::env::set_var(INIT_TOKEN_ENV, "test-secret-token");
+        std::env::set_var(INIT_TOKEN_ENV, "test-secret-token-12345678901234567890");
     }
 
     let app = build_test_app();
@@ -63,13 +63,13 @@ async fn test_init_token_missing_header() {
 #[tokio::test]
 async fn test_init_token_wrong() {
     unsafe {
-        std::env::set_var(INIT_TOKEN_ENV, "correct-token");
+        std::env::set_var(INIT_TOKEN_ENV, "correct-token-12345678901234567890");
     }
 
     let app = build_test_app();
     let req = Request::builder()
         .uri("/test")
-        .header(INIT_TOKEN_HEADER, "wrong-token")
+        .header(INIT_TOKEN_HEADER, "wrong-token-12345678901234567890")
         .body(Body::empty())
         .unwrap();
 
@@ -85,13 +85,13 @@ async fn test_init_token_wrong() {
 #[tokio::test]
 async fn test_init_token_correct() {
     unsafe {
-        std::env::set_var(INIT_TOKEN_ENV, "correct-token-abc");
+        std::env::set_var(INIT_TOKEN_ENV, "correct-token-12345678901234567890");
     }
 
     let app = build_test_app();
     let req = Request::builder()
         .uri("/test")
-        .header(INIT_TOKEN_HEADER, "correct-token-abc")
+        .header(INIT_TOKEN_HEADER, "correct-token-12345678901234567890")
         .body(Body::empty())
         .unwrap();
 

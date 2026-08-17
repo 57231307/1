@@ -214,6 +214,7 @@ async fn test_public_path_post_passes_without_csrf_token() {
         .method("POST")
         .uri("/api/v1/erp/auth/login")
         .header("content-type", "application/json")
+        .header("x-requested-with", "XMLHttpRequest")
         .body(Body::from("{\"username\":\"admin\",\"password\":\"x\"}"))
         .expect("构造登录请求失败");
 
