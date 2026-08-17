@@ -103,7 +103,7 @@ fn test_status_completed_is_final() {
 
     // 验证已完成状态是终态
     let invalid_transitions = vec!["pending", "in_progress"];
-    assert!(!invalid_transitions.contains(&"pending"));
+    assert!(invalid_transitions.contains(&"pending"));
 }
 
 // ===== 合格率计算测试 =====

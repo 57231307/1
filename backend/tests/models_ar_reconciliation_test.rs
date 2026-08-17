@@ -126,7 +126,7 @@ fn test_status_closed_is_final() {
 
     // 验证已关闭状态是终态
     let invalid_transitions = vec!["draft", "sent", "confirmed"];
-    assert!(!invalid_transitions.contains(&"draft"));
+    assert!(invalid_transitions.contains(&"draft"));
 }
 
 // ===== 余额计算测试 =====

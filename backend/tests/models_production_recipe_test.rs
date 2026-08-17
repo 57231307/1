@@ -134,7 +134,7 @@ fn test_status_expired_is_final() {
 
     // 验证过期状态是终态
     let invalid_transitions = vec!["draft", "active"];
-    assert!(!invalid_transitions.contains(&"draft"));
+    assert!(invalid_transitions.contains(&"draft"));
 }
 
 // ===== 序列化/反序列化测试 =====

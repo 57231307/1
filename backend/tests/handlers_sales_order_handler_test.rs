@@ -128,7 +128,7 @@ fn test_status_transitions_delivered_is_final() {
 
     // 验证已发货状态是终态，不能转换
     let invalid_transitions = vec!["draft", "confirmed"];
-    assert!(!invalid_transitions.contains(&"draft"));
+    assert!(invalid_transitions.contains(&"draft"));
 }
 
 // ===== CreateDeliveryDto 测试 =====

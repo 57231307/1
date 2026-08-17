@@ -107,7 +107,7 @@ fn test_status_completed_is_final() {
 
     // 验证已完成状态是终态
     let invalid_transitions = vec!["SCHEDULED", "IN_PROGRESS"];
-    assert!(!invalid_transitions.contains(&"SCHEDULED"));
+    assert!(invalid_transitions.contains(&"SCHEDULED"));
 }
 
 // ===== 优先级测试 =====

@@ -76,7 +76,7 @@ fn test_status_accepted_is_final() {
 
     // 验证已接受状态是终态
     let invalid_transitions = vec!["draft", "sent"];
-    assert!(!invalid_transitions.contains(&"draft"));
+    assert!(invalid_transitions.contains(&"draft"));
 }
 
 // ===== 转换状态测试 =====

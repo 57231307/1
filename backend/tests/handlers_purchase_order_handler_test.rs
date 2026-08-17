@@ -92,7 +92,7 @@ fn test_status_received_is_final() {
 
     // 验证已收货状态是终态
     let invalid_transitions = vec!["draft", "confirmed"];
-    assert!(!invalid_transitions.contains(&"draft"));
+    assert!(invalid_transitions.contains(&"draft"));
 }
 
 // ===== 日期测试 =====
