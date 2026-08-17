@@ -1232,7 +1232,7 @@ jobs:
         with:
           tool: nextest
 
-      - name: 运行测试分片 ${{ matrix.partition }}/15（cargo nextest run --partition hash:15/${{ matrix.partition }}）
+      - name: 运行测试分片 ${{ matrix.partition }}/15（cargo nextest run --partition hash:${{ matrix.partition }}/15）
         working-directory: backend
         # --no-fail-fast 确保分片内所有测试都跑完，暴露全部失败
         # --test-threads=1 串行执行，避免集成测试竞态
@@ -1240,7 +1240,7 @@ jobs:
           mkdir -p reports
           set +e
           cargo nextest run \
-            --partition hash:15/${{ matrix.partition }} \
+            --partition hash:${{ matrix.partition }}/15 \
             --test-threads=1 \
             --no-fail-fast \
             > reports/nextest-output.txt 2>&1
