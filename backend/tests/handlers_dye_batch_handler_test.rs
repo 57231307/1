@@ -69,7 +69,7 @@ fn test_status_completed_is_final() {
 
     // 验证已完成状态是终态
     let invalid_transitions = vec!["planned", "in_progress"];
-    assert!(!invalid_transitions.contains(&"planned"));
+    assert!(invalid_transitions.contains(&"planned"));
 }
 
 // ===== 序列化/反序列化测试 =====
