@@ -38,8 +38,8 @@ fn test_classify_expiry_level_expired() {
 #[test]
 fn test_validate_probation_short_contract() {
     // 合同期 6 个月，试用期 1 个月（合法）
-    let start = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
-    let end = NaiveDate::from_ymd_opt(2026, 7, 1).unwrap();
+    let start = NaiveDate::from_ymd_opt(2026, 1, 2).unwrap();
+    let end = NaiveDate::from_ymd_opt(2026, 7, 2).unwrap();
     let probation_end = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
     let result = LaborContractService::validate_probation(
         start,
