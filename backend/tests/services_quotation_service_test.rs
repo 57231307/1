@@ -297,7 +297,12 @@ async fn test_quotationservice_cancel_bczfhapperror() {
     assert!(result.is_err());
     let err = result.unwrap_err();
     let msg = format!("{}", err);
-    assert!(msg.contains("报价单不存在") || msg.contains("not found") || msg.contains("不存在") || msg.contains("未找到"));
+    assert!(
+        msg.contains("报价单不存在")
+            || msg.contains("not found")
+            || msg.contains("不存在")
+            || msg.contains("未找到")
+    );
 }
 
 // ============ update 状态机校验测试 ============
