@@ -295,7 +295,6 @@ fn construct_app_state(params: AppStateParams, services: AppServices) -> AppStat
 }
 
 /// 测试环境服务集合（default() 内部构建的 Arc 服务 + db + cookie 密钥打包）。
-#[cfg(test)]
 struct TestServices {
     db: Arc<DatabaseConnection>,
     metrics: MetricsService,
@@ -322,7 +321,6 @@ struct TestServices {
 }
 
 /// 构建测试环境服务集合（default() 调用，构造失败时显式 panic）。
-#[cfg(test)]
 fn build_test_services() -> TestServices {
     let metrics =
         MetricsService::new().expect("测试环境创建 Prometheus 指标服务不应失败（指标命名冲突？）");
