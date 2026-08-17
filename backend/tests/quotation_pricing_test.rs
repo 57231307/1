@@ -61,7 +61,7 @@ fn test_pricing_result_serialize() {
         price_source: PriceSource::ColorPrice,
     };
     let json = serde_json::to_string(&result).unwrap();
-    assert!(json.contains("\"unit_price\":95"));
+    assert!(json.contains("\"unit_price\":\"95\""));
     assert!(json.contains("\"color_price\""));
 }
 

@@ -19,7 +19,7 @@ use axum::{
 };
 use chrono::{DateTime, Duration, Utc};
 use futures::StreamExt;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, DatabaseConnectionType, EntityTrait, QueryFilter};
 use std::sync::Arc;
 use tracing::warn;
 
@@ -533,6 +533,10 @@ async fn check_permission(
     resource_id: Option<i32>,
     action: &str,
 ) -> bool {
+    // Mock/Disconnected 连接用于测试环境，fail-closed 返回 false
+    if matches!(db.inner, DatabaseConnectionType::Disconnected) {
+        return false;
+    }
     // 检查是否是管理员角色（带缓存）
     if admin_checker::is_admin_role(db, role_id).await {
         return true;

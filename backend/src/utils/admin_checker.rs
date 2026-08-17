@@ -1,7 +1,7 @@
 use crate::models::role;
 use chrono::{DateTime, Duration, Utc};
 use dashmap::DashMap;
-use sea_orm::{DatabaseConnection, EntityTrait};
+use sea_orm::{DatabaseConnection, DatabaseConnectionType, EntityTrait};
 use std::sync::LazyLock;
 use tracing::warn;
 
@@ -59,6 +59,10 @@ pub fn cleanup_expired_admin_cache() {
 
 /// 检查角色是否是管理员角色（带缓存，5 分钟过期后自动重新查询数据库）
 pub async fn is_admin_role(db: &DatabaseConnection, role_id: i32) -> bool {
+    // Mock/Disconnected 连接用于测试环境，fail-closed 返回 false
+    if matches!(db.inner, DatabaseConnectionType::Disconnected) {
+        return false;
+    }
     // 先从缓存读取
     if let Some(cached) = ADMIN_ROLE_CACHE.get(&role_id) {
         if !cached.is_expired() {
@@ -102,6 +106,10 @@ pub async fn is_admin_role(db: &DatabaseConnection, role_id: i32) -> bool {
 
 /// V15 P1-14.2-C：检查角色是否是审计员角色（auditor，职责分离：admin 不能审计自己；audit:read 权限独立到 auditor；不带缓存避免污染 is_admin_role 缓存）
 pub async fn is_auditor_role(db: &DatabaseConnection, role_id: i32) -> bool {
+    // Mock/Disconnected 连接用于测试环境，fail-closed 返回 false
+    if matches!(db.inner, DatabaseConnectionType::Disconnected) {
+        return false;
+    }
     match role::Entity::find_by_id(role_id).one(db).await {
         Ok(Some(role)) => role.code == AUDITOR_ROLE_CODE,
         Ok(None) => false,
@@ -114,6 +122,10 @@ pub async fn is_auditor_role(db: &DatabaseConnection, role_id: i32) -> bool {
 
 /// V15 P1-2-4：查询角色 code（用于打印/导出黑名单判定；不带缓存避免污染 is_admin_role；查询失败返回 None，fail-closed 由调用方决定拒绝策略）
 pub async fn get_role_code(db: &DatabaseConnection, role_id: i32) -> Option<String> {
+    // Mock/Disconnected 连接用于测试环境，返回 None（调用方 fail-closed）
+    if matches!(db.inner, DatabaseConnectionType::Disconnected) {
+        return None;
+    }
     match role::Entity::find_by_id(role_id).one(db).await {
         Ok(Some(role)) => Some(role.code),
         Ok(None) => None,
