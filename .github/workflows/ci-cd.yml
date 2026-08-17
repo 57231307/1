@@ -1182,15 +1182,22 @@ jobs:
 # ==============================================================================
 # Job 7: Rust 单元测试（V15 Batch 485 零容忍模式）
 # ==============================================================================
+  # ==============================================================================
+  # Rust 测试分片：15 个并行 partition（nextest --partition hash:15/N）
+  # 每个分片独立运行，fail-fast: false 确保全部跑完，互不阻塞。
+  # 各分片编译缓存由 setup-rust 的 actions/cache 共享。
+  # ==============================================================================
   ci-test-rust:
-    name: 🧪 Rust 测试 + 覆盖率
+    name: 🧪 Rust 测试 (${{ matrix.partition }}/15)
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     needs: ci-info
-    # 零容忍模式：任何测试失败都阻塞 CI；覆盖率信息性收集，不阻塞
+    strategy:
+      fail-fast: false
+      matrix:
+        # nextest --partition hash:m/n 要求 1 ≤ m ≤ n，因此使用 1..15（非 0-based）
+        partition: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
     # 集成测试依赖 PostgreSQL，使用 service container 提供数据库实例
-    # 2026-07-31 优化：合并原 ci-test-rust + ci-coverage-rust，用 cargo llvm-cov nextest
-    # 一次执行同时产出测试断言（退出码）+ 覆盖率（cobertura.xml），消除重复执行
     services:
       postgres:
         image: postgres:16-alpine
@@ -1206,11 +1213,141 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      # 集成测试所需的数据库连接串（指向 service container）
       DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
-      # 审计模块所需的密钥（仅 CI 用途，禁止用于生产）
       AUDIT_SECRET_KEY: ci-only-audit-signing-key-do-not-use-in-prod-32b
-      # 降低编译并行度，避免 OOM 导致 runner shutdown
+      CARGO_BUILD_JOBS: "1"
+      CARGO_JOBS: "1"
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: Setup Rust（llvm-tools-preview + 系统依赖含 postgresql-client）
+        uses: ./.github/actions/setup-rust
+        with:
+          components: llvm-tools-preview
+          system-deps: pkg-config libssl-dev postgresql-client protobuf-compiler
+
+      - name: 安装 cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
+
+      - name: 运行测试分片 ${{ matrix.partition }}/15（cargo nextest run --partition hash:15/${{ matrix.partition }}）
+        working-directory: backend
+        # --no-fail-fast 确保分片内所有测试都跑完，暴露全部失败
+        # --test-threads=1 串行执行，避免集成测试竞态
+        run: |
+          mkdir -p reports
+          set +e
+          cargo nextest run \
+            --partition hash:15/${{ matrix.partition }} \
+            --test-threads=1 \
+            --no-fail-fast \
+            > reports/nextest-output.txt 2>&1
+          EXIT_CODE=$?
+          set -e
+
+          # 统计测试结果
+          PASSED=$(awk '/^ PASS /{c++} END{print c+0}' reports/nextest-output.txt 2>/dev/null)
+          FAILED=$(awk '/^ FAIL /{c++} END{print c+0}' reports/nextest-output.txt 2>/dev/null)
+          SKIPPED=$(awk '/^ SKIP /{c++} END{print c+0}' reports/nextest-output.txt 2>/dev/null)
+          TOTAL=$((PASSED + FAILED))
+
+          # 生成报告
+          {
+            echo "# Rust 测试分片报告（${{ matrix.partition }}/15）"
+            echo ""
+            echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
+            echo "**分片**: ${{ matrix.partition }}/15  "
+            echo "**通过**: $PASSED  "
+            echo "**失败**: $FAILED  "
+            echo "**跳过**: $SKIPPED  "
+            echo "**总计**: $TOTAL  "
+            echo "**EXIT_CODE**: $EXIT_CODE  "
+            echo ""
+            if [ "$EXIT_CODE" -ne "0" ] && [ "$FAILED" -eq "0" ]; then
+              echo "## ❌ 编译失败或进程异常退出（EXIT_CODE=$EXIT_CODE）"
+              echo ""
+              { grep -E "^error\[" reports/nextest-output.txt 2>/dev/null || true; } | head -20
+              echo ""
+              echo "### 完整输出（最后 50 行）"
+              echo ""
+              { tail -50 reports/nextest-output.txt 2>/dev/null || true; }
+            elif [ "$FAILED" -eq "0" ]; then
+              echo "## ✅ 分片 ${{ matrix.partition }} 全部通过"
+            else
+              echo "## ❌ 分片 ${{ matrix.partition }} 发现 $FAILED 个失败"
+              echo ""
+              echo "### 失败列表"
+              echo ""
+              { grep -E "^ FAIL " reports/nextest-output.txt 2>/dev/null || true; } | head -30
+              echo ""
+              echo "### 失败详情"
+              echo ""
+              { grep -A 10 "^ FAIL " reports/nextest-output.txt 2>/dev/null || true; } | head -60
+            fi
+          } > reports/cargo-test-report.md
+
+          # 写入 Step Summary
+          {
+            echo "## 🧪 Rust 测试分片 ${{ matrix.partition }}/15"
+            echo ""
+            if [ "$EXIT_CODE" -ne "0" ] && [ "$FAILED" -eq "0" ]; then
+              echo "❌ 编译失败或进程异常退出（EXIT_CODE=$EXIT_CODE）"
+            elif [ "$FAILED" -eq "0" ]; then
+              echo "✅ 通过 $PASSED / $TOTAL"
+            else
+              echo "❌ 失败 $FAILED / $TOTAL"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # 零容忍
+          if [ "$FAILED" -gt "0" ]; then
+            echo "❌ 分片 ${{ matrix.partition }} 发现 $FAILED 个测试失败，CI 失败"
+            exit 1
+          fi
+          if [ "$EXIT_CODE" -ne "0" ]; then
+            echo "❌ 分片 ${{ matrix.partition }} 进程异常退出（EXIT_CODE=$EXIT_CODE）"
+            exit 1
+          fi
+          echo "✅ 分片 ${{ matrix.partition }} 全部通过"
+          exit 0
+
+      - name: 上传测试报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-partition-${{ matrix.partition }}
+          path: backend/reports/
+          retention-days: 90
+
+  # ==============================================================================
+  # Rust 覆盖率合并（信息性，不阻塞 CI）
+  # 在所有 15 个分片完成后运行，逐一跑所有测试收集覆盖率
+  # ==============================================================================
+  ci-coverage-rust:
+    name: 📊 Rust 覆盖率
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: ci-test-rust
+    if: success()
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: bingxi
+          POSTGRES_PASSWORD: bingxi_test
+          POSTGRES_DB: bingxi_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
+      AUDIT_SECRET_KEY: ci-only-audit-signing-key-do-not-use-in-prod-32b
       CARGO_BUILD_JOBS: "1"
       CARGO_JOBS: "1"
     steps:
@@ -1228,33 +1365,26 @@ jobs:
         with:
           tool: cargo-llvm-cov,nextest
 
-      - name: 运行测试 + 收集覆盖率（cargo llvm-cov nextest，零容忍）
+      - name: 收集覆盖率（cargo llvm-cov nextest，信息性）
         working-directory: backend
-        # nextest 每个测试独立进程 + 真正并行；llvm-cov source-based instrumentation（行/区域/分支覆盖）
-        # --cobertura 输出兼容 Codecov；保留 --test-threads=1 与历史串行行为一致（避免集成测试竞态）
+        # 先跑 --no-run 编译所有测试（复用缓存），再跑 llvm-cov 收集覆盖率
+        # --no-fail-fast 确保全部跑完，信息性收集覆盖率，不阻塞 CI
         run: |
           mkdir -p reports coverage
           set +e
           cargo llvm-cov nextest \
             --cobertura --output-path coverage/cobertura.xml \
             --no-clean \
-            --test-threads=1 > reports/llvm-cov-nextest-output.txt 2>&1
+            --test-threads=1 \
+            --no-fail-fast \
+            > reports/llvm-cov-output.txt 2>&1
           EXIT_CODE=$?
           set -e
 
-          # 失败时直接打印输出到 CI 日志（方便调试）
-          if [ "$EXIT_CODE" -ne "0" ]; then
-            echo "=== cargo llvm-cov nextest 失败（EXIT_CODE=$EXIT_CODE），输出如下 ==="
-            cat reports/llvm-cov-nextest-output.txt 2>/dev/null || echo "(输出文件不存在)"
-            echo "=== 输出结束 ==="
-          fi
-
-          # 统计测试结果（nextest 输出格式："PASS" / "FAIL" 行）
-          PASSED=$(awk '/^ PASS /{c++} END{print c+0}' reports/llvm-cov-nextest-output.txt 2>/dev/null)
-          FAILED=$(awk '/^ FAIL /{c++} END{print c+0}' reports/llvm-cov-nextest-output.txt 2>/dev/null)
+          PASSED=$(awk '/^ PASS /{c++} END{print c+0}' reports/llvm-cov-output.txt 2>/dev/null)
+          FAILED=$(awk '/^ FAIL /{c++} END{print c+0}' reports/llvm-cov-output.txt 2>/dev/null)
           TOTAL=$((PASSED + FAILED))
 
-          # 提取覆盖率摘要（从 llvm-cov report 输出）
           COVERAGE_SUMMARY="N/A"
           if [ -f coverage/cobertura.xml ]; then
             LINE_RATE=$(grep -o 'line-rate="[^"]*"' coverage/cobertura.xml | head -1 | cut -d'"' -f2)
@@ -1265,83 +1395,35 @@ jobs:
           fi
 
           {
-            echo "# Rust 测试 + 覆盖率报告"
+            echo "# Rust 覆盖率报告"
             echo ""
             echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
-            echo "**模式**: 零容忍（任何测试失败阻塞 CI）  "
             echo "**通过**: $PASSED  "
             echo "**失败**: $FAILED  "
             echo "**总计**: $TOTAL  "
             echo "**行覆盖率**: $COVERAGE_SUMMARY  "
             echo "**EXIT_CODE**: $EXIT_CODE  "
-            echo "**工具**: cargo-llvm-cov nextest（source-based instrumentation）"
+            echo "**模式**: 信息性收集（不阻塞 CI）"
             echo ""
-            if [ "$EXIT_CODE" -ne "0" ] && [ "$FAILED" -eq "0" ]; then
-              echo "## ❌ 测试编译失败或进程异常退出（EXIT_CODE=$EXIT_CODE）"
+            if [ "$FAILED" -gt "0" ]; then
+              echo "## ⚠️ 发现 $FAILED 个测试失败（信息性，不阻塞）"
               echo ""
-              echo "### 编译错误摘要"
-              echo ""
-              { grep -E "^error\[" reports/llvm-cov-nextest-output.txt 2>/dev/null || true; } | head -20
-              echo ""
-              echo "### 完整输出（最后 50 行）"
-              echo ""
-              { tail -50 reports/llvm-cov-nextest-output.txt 2>/dev/null || true; }
-            elif [ "$FAILED" -eq "0" ]; then
-              echo "## ✅ 所有 $PASSED 个测试通过（零容忍通过）"
-              echo ""
-              echo "覆盖率：$COVERAGE_SUMMARY（信息性，不阻塞 CI）"
-            else
-              echo "## ❌ 发现 $FAILED 个测试失败（零容忍，CI 失败）"
-              echo ""
-              echo "### 失败列表"
-              echo ""
-              { grep -E "^ FAIL " reports/llvm-cov-nextest-output.txt 2>/dev/null || true; } | head -30
-              echo ""
-              echo "### 失败详情"
-              echo ""
-              { grep -A 10 "^ FAIL " reports/llvm-cov-nextest-output.txt 2>/dev/null || true; } | head -60
+              { grep -E "^ FAIL " reports/llvm-cov-output.txt 2>/dev/null || true; } | head -30
             fi
-          } > reports/cargo-test-report.md
+            echo ""
+            echo "**覆盖率**: $COVERAGE_SUMMARY"
+          } > reports/coverage-report.md
 
           {
-            echo "## Rust 测试 + 覆盖率"
+            echo "## 📊 Rust 覆盖率"
             echo ""
-            if [ "$EXIT_CODE" -ne "0" ] && [ "$FAILED" -eq "0" ]; then
-              echo "❌ 编译失败或进程异常退出（EXIT_CODE=$EXIT_CODE）"
-            elif [ "$FAILED" -eq "0" ]; then
-              echo "✅ 通过 $PASSED / $TOTAL（零容忍模式）"
-              echo "📊 行覆盖率：$COVERAGE_SUMMARY"
-            else
-              echo "❌ 失败 $FAILED / $TOTAL（零容忍，CI 失败）"
+            echo "📊 行覆盖率：$COVERAGE_SUMMARY"
+            if [ "$FAILED" -gt "0" ]; then
+              echo "⚠️  $FAILED 个测试失败（信息性）"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-          # 零容忍：任何测试失败都阻塞 CI
-          if [ "$FAILED" -gt "0" ]; then
-            echo ""
-            echo "❌ 发现 $FAILED 个测试失败，CI 失败（零容忍）"
-            echo "详见 reports/cargo-test-report.md 和 artifacts"
-            exit 1
-          fi
-          # 检查 EXIT_CODE：覆盖编译失败、panic、OOM、信号终止等场景
-          # 此时 FAILED=0，但进程异常退出，必须阻塞 CI
-          if [ "$EXIT_CODE" -ne "0" ]; then
-            echo ""
-            echo "❌ 测试进程异常退出（EXIT_CODE=$EXIT_CODE），CI 失败"
-            echo "可能原因：编译失败、panic、OOM、信号终止"
-            echo "详见 reports/llvm-cov-nextest-output.txt"
-            exit 1
-          fi
-          echo "✅ 所有 $PASSED 个测试通过（覆盖率：$COVERAGE_SUMMARY）"
           exit 0
-
-      - name: 上传测试报告
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-test-report
-          path: backend/reports/
-          retention-days: 90
 
       - name: 上传覆盖率到 Codecov
         if: always()
@@ -1358,7 +1440,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: rust-coverage-report
-          path: backend/coverage/
+          path: |
+            backend/reports/
+            backend/coverage/
           retention-days: 30
 
 # ==============================================================================
