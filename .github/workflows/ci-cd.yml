@@ -1218,13 +1218,13 @@ jobs:
       - name: 编译所有测试并打包为 archive
         working-directory: backend
         run: |
-          cargo nextest archive --archive-file nextest-archive.tar.gz
+          cargo nextest archive --archive-file nextest-archive.tar.zst
 
       - name: 上传 archive
         uses: actions/upload-artifact@v4
         with:
           name: nextest-archive
-          path: backend/nextest-archive.tar.gz
+          path: backend/nextest-archive.tar.zst
           retention-days: 7
 
 # ==============================================================================
@@ -1295,7 +1295,7 @@ jobs:
           mkdir -p reports
           set +e
           cargo nextest run \
-            --archive-file nextest-archive.tar.gz \
+            --archive-file nextest-archive.tar.zst \
             --partition hash:${{ matrix.partition }}/30 \
             --test-threads=1 \
             --no-fail-fast \
