@@ -2607,9 +2607,13 @@ jobs:
       - name: 收集各 job 结果
         run: |
           ALL_OK=1
-          for key in ci-info ci-fmt-rust ci-fmt-fe ci-lint-rust ci-lint-fe ci-type-check ci-test-rust ci-test-fe ci-audit ci-deps ci-perf-bench ci-build-rust ci-build-fe package-release github-release; do
-            R="${{ needs[format('{0}', key)].result }}"
-            if [[ "$R" != "success" && "$R" != "skipped" ]]; then
+          for r in "${{ needs.ci-info.result }}" "${{ needs.ci-fmt-rust.result }}" "${{ needs.ci-fmt-fe.result }}" \
+                   "${{ needs.ci-lint-rust.result }}" "${{ needs.ci-lint-fe.result }}" "${{ needs.ci-type-check.result }}" \
+                   "${{ needs.ci-build-test-artifacts.result }}" "${{ needs.ci-test-rust.result }}" "${{ needs.ci-test-fe.result }}" \
+                   "${{ needs.ci-audit.result }}" "${{ needs.ci-deps.result }}" "${{ needs.ci-perf-bench.result }}" \
+                   "${{ needs.ci-build-rust.result }}" "${{ needs.ci-build-fe.result }}" \
+                   "${{ needs.package-release.result }}" "${{ needs.github-release.result }}"; do
+            if [[ "$r" != "success" && "$r" != "skipped" ]]; then
               ALL_OK=0
             fi
           done
