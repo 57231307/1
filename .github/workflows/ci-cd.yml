@@ -1179,7 +1179,7 @@ jobs:
   ci-build-test-artifacts:
     name: 📦 Rust 测试预编译
     runs-on: ubuntu-latest
-    # 4 线程编译 + sccache 缓存（首次全量约 10-20 分钟）
+    # 预编译 job：禁用 sccache（冷缓存无加速）+ 单线程编译（SIGTERM 143 内存缘由）
     timeout-minutes: 90
     needs: ci-info
     services:
@@ -1199,8 +1199,8 @@ jobs:
     env:
       DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
       AUDIT_SECRET_KEY: ci-only-audit-signing-key-do-not-use-in-prod-32b
-      CARGO_BUILD_JOBS: "2"
-      CARGO_JOBS: "2"
+      CARGO_BUILD_JOBS: "1"
+      CARGO_JOBS: "1"
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
@@ -1209,6 +1209,7 @@ jobs:
         uses: ./.github/actions/setup-rust
         with:
           system-deps: pkg-config libssl-dev postgresql-client protobuf-compiler
+          sccache: 'false'
 
       - name: 安装 cargo-nextest
         uses: taiki-e/install-action@v2
