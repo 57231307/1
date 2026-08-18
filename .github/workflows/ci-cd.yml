@@ -419,8 +419,8 @@ jobs:
         working-directory: backend
         # baseline 机制：仅 clippy 使用，test 保持零容忍；仅"新增警告"阻塞 CI
         env:
-          CARGO_BUILD_JOBS: "4"
-          CARGO_JOBS: "4"
+          CARGO_BUILD_JOBS: "2"
+          CARGO_JOBS: "2"
         run: |
           mkdir -p reports
           set +e
@@ -1199,8 +1199,8 @@ jobs:
     env:
       DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
       AUDIT_SECRET_KEY: ci-only-audit-signing-key-do-not-use-in-prod-32b
-      CARGO_BUILD_JOBS: "4"
-      CARGO_JOBS: "4"
+      CARGO_BUILD_JOBS: "2"
+      CARGO_JOBS: "2"
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
@@ -1264,8 +1264,8 @@ jobs:
     env:
       DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
       AUDIT_SECRET_KEY: ci-only-audit-signing-key-do-not-use-in-prod-32b
-      CARGO_BUILD_JOBS: "4"
-      CARGO_JOBS: "4"
+      CARGO_BUILD_JOBS: "2"
+      CARGO_JOBS: "2"
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
@@ -1404,8 +1404,8 @@ jobs:
     env:
       DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
       AUDIT_SECRET_KEY: ci-only-audit-signing-key-do-not-use-in-prod-32b
-      CARGO_BUILD_JOBS: "4"
-      CARGO_JOBS: "4"
+      CARGO_BUILD_JOBS: "2"
+      CARGO_JOBS: "2"
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
