@@ -16,6 +16,7 @@ use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 /// 查询参数 - 产品列表
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ProductListQuery {
     pub page: Option<u64>,
@@ -26,6 +27,7 @@ pub struct ProductListQuery {
 }
 
 /// 创建产品请求（面料行业版）
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateProductRequest {
     #[validate(length(max = 200, message = "产品名称长度不能超过200个字符"))]
@@ -72,6 +74,7 @@ pub struct CreateProductRequest {
 }
 
 /// 更新产品请求（面料行业版）
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateProductRequest {
     #[validate(length(max = 200, message = "产品名称长度不能超过200个字符"))]
@@ -117,6 +120,7 @@ pub struct UpdateProductRequest {
 // ========== 色号管理相关结构体 ==========
 
 /// 创建产品色号请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreateProductColorRequest {
     pub color_no: String,
@@ -128,6 +132,7 @@ pub struct CreateProductColorRequest {
 }
 
 /// 更新产品色号请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateProductColorRequest {
     pub color_name: Option<String>,
@@ -139,6 +144,7 @@ pub struct UpdateProductColorRequest {
 }
 
 /// 批量创建色号请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct BatchCreateColorsRequest {
     pub colors: Vec<CreateProductColorRequest>,
@@ -146,6 +152,7 @@ pub struct BatchCreateColorsRequest {
 
 /// 导入产品请求
 #[derive(Debug, Deserialize)]
+#[allow(dead_code, reason = "反序列化输入字段")]
 pub struct ImportProductsRequest {
     /// CSV 数据，每行一个产品，使用逗号分隔
     /// 第一行为表头，后续为数据
@@ -153,6 +160,7 @@ pub struct ImportProductsRequest {
 }
 
 /// 导出产品查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ExportProductsQuery {
     pub category_id: Option<i32>,

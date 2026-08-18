@@ -18,6 +18,7 @@ use serde::Deserialize;
 use tracing::info;
 
 /// 查询参数 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CategoryQuery {
     pub is_active: Option<bool>,
@@ -26,6 +27,7 @@ pub struct CategoryQuery {
 }
 
 /// 创建请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreateCategoryDto {
     pub category_code: String,
@@ -38,6 +40,7 @@ pub struct CreateCategoryDto {
 }
 
 /// 更新请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateCategoryDto {
     pub category_name: Option<String>,

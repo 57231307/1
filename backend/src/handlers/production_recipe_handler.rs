@@ -42,6 +42,7 @@ fn addition_service(state: &AppState) -> ProductionRecipeAdditionService {
 // ============================================================================
 
 /// 大货处方列表查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ProductionRecipeListQuery {
     pub page: Option<u64>,

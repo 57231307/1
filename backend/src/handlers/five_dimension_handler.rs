@@ -21,6 +21,7 @@ use crate::utils::response::ApiResponse;
 
 /// P1-2l 修复（批次 81 v1 复审）：解析五维ID请求 DTO
 /// 替代 parse_five_dimension_id 中的 Json<serde_json::Value>，提供强类型校验
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct ParseFiveDimensionIdDto {
     /// 五维编码：必填，长度至少 1
@@ -29,6 +30,7 @@ pub struct ParseFiveDimensionIdDto {
 }
 
 /// 五维统计请求参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct FiveDimensionStatsParams {
     pub product_id: Option<i32>,
@@ -42,6 +44,7 @@ pub struct FiveDimensionStatsParams {
 }
 
 /// 五维搜索参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct FiveDimensionSearchParams {
     pub keyword: String,

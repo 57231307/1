@@ -12,6 +12,7 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 /// 辅助核算维度响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct AssistDimensionResponse {
     pub id: i32,
@@ -23,6 +24,7 @@ pub struct AssistDimensionResponse {
 }
 
 /// 辅助核算记录响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct AssistRecordResponse {
     pub id: i32,
@@ -49,6 +51,7 @@ pub struct AssistRecordResponse {
 }
 
 /// 辅助核算汇总响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct AssistSummaryResponse {
     pub id: i32,
@@ -65,6 +68,7 @@ pub struct AssistSummaryResponse {
 }
 
 /// 辅助核算列表响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct AssistRecordListResponse {
     pub records: Vec<AssistRecordResponse>,
@@ -74,6 +78,7 @@ pub struct AssistRecordListResponse {
 }
 
 /// 辅助核算查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct AssistRecordQueryParams {
     pub accounting_period: Option<String>,
@@ -216,6 +221,7 @@ pub async fn get_assist_records_by_business(
 }
 
 /// 业务单查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct BusinessQueryParams {
     pub business_type: String,
@@ -310,6 +316,7 @@ pub async fn get_assist_summary(
 }
 
 /// 辅助核算汇总查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct AssistSummaryQueryParams {
     pub accounting_period: String,
@@ -318,6 +325,7 @@ pub struct AssistSummaryQueryParams {
 
 /// P2-3：穿透查询参数
 #[derive(Debug, Deserialize)]
+#[allow(dead_code, reason = "反序列化输入字段")]
 pub struct DrillDownQueryParams {
     pub accounting_period: String,
     pub dimension_code: String,
@@ -390,6 +398,7 @@ pub async fn drill_down_to_assist(
 }
 
 /// P2-4：余额查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct AssistBalanceQueryParams {
     pub accounting_period: String,

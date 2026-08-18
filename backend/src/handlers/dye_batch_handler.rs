@@ -70,6 +70,7 @@ impl DyeBatchStatus {
     }
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct DyeBatchListQuery {
     pub page: Option<u64>,
@@ -80,6 +81,7 @@ pub struct DyeBatchListQuery {
     pub status: Option<String>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreateDyeBatchRequest {
     pub batch_no: Option<String>,
@@ -90,6 +92,7 @@ pub struct CreateDyeBatchRequest {
     pub status: Option<String>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateDyeBatchRequest {
     pub greige_fabric_id: Option<i32>,

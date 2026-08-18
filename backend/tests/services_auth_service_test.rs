@@ -286,7 +286,8 @@ async fn test_cleanup_revoked_users_removes_expired() {
     }
 
     // 验证过期记录存在
-    let old_iat = chrono::Utc::now().timestamp() - 60;
+    // 使用比 revoked_at 更早的 iat（token_iat < revoked_at 才视为已吊销）
+    let old_iat = chrono::Utc::now().timestamp() - REVOKED_USER_TTL_SECS - 7200;
     assert!(
         is_user_token_revoked(test_user_id, old_iat).await,
         "过期吊销记录在清理前应仍存在"
@@ -301,6 +302,7 @@ async fn test_cleanup_revoked_users_removes_expired() {
     );
 
     // 验证过期记录已被清理
+    // 清理后 REVOKED_USERS 表中已无该 user_id，is_user_token_revoked 应返回 false
     assert!(
         !is_user_token_revoked(test_user_id, old_iat).await,
         "清理后过期吊销记录应被移除"

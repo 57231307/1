@@ -13,7 +13,7 @@ fn make_quotation_model(id: i64, status: &str) -> QuotationModel {
         customer_id: 1,
         sales_user_id: 1,
         quotation_date: Utc::now().naive_utc().date(),
-        valid_until: Utc::now().naive_utc().date(),
+        valid_until: Utc::now().naive_utc().date() + chrono::Duration::days(30),
         status: status.to_string(),
         total_amount: Decimal::new(10000, 2),
         currency: "CNY".to_string(),
@@ -76,7 +76,7 @@ fn test_status_accepted_is_final() {
 
     // 验证已接受状态是终态
     let invalid_transitions = vec!["draft", "sent"];
-    assert!(!invalid_transitions.contains(&"draft"));
+    assert!(invalid_transitions.contains(&"draft"));
 }
 
 // ===== 转换状态测试 =====
@@ -132,7 +132,7 @@ fn test_amount_with_exchange_rate() {
     let rate = Decimal::new(720, 2); // 7.20
     let converted = amount * rate;
 
-    assert_eq!(converted, Decimal::new(720000, 4));
+    assert_eq!(converted, Decimal::new(7200000, 4));
 }
 
 // ===== 序列化/反序列化测试 =====

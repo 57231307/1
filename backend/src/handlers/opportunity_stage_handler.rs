@@ -9,6 +9,7 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 /// 阶段停留时长统计
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Serialize)]
 pub struct StageDurationStats {
     /// 阶段名称

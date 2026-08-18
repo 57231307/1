@@ -20,6 +20,7 @@ use tracing::{info, warn};
 use validator::Validate;
 
 /// 查询对账单列表参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ApReconciliationQueryParams {
     pub supplier_id: Option<i32>,
@@ -141,6 +142,7 @@ pub async fn confirm_reconciliation(
 }
 
 /// 提出争议
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct DisputeRequest {
     pub reason: String,
@@ -191,6 +193,7 @@ pub async fn get_supplier_summary(
 }
 
 /// Auto reconciliation request
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct AutoReconcileRequest {
     pub start_date: NaiveDate,

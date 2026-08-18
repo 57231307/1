@@ -629,6 +629,7 @@ pub async fn wage_record_print_docx(
 }
 
 /// 打印模板列表响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(serde::Serialize)]
 pub struct PrintTemplateDto {
     pub id: i32,

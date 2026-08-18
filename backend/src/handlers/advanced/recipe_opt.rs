@@ -26,6 +26,7 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 /// 工艺优化请求体
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Clone, Deserialize)]
 pub struct RecipeOptimizationRequest {
     /// 色号（如 "BL-301"），必填

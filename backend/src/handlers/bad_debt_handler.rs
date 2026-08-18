@@ -40,6 +40,7 @@ use crate::utils::response::ApiResponse;
 // ==================== 响应 DTO ====================
 
 /// 坏账准备计提响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize, Clone)]
 pub struct ProvisionInfo {
     pub id: i64,
@@ -88,6 +89,7 @@ impl From<bad_debt_provision::Model> for ProvisionInfo {
 }
 
 /// 坏账核销申请响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize, Clone)]
 pub struct WriteoffInfo {
     pub id: i64,
@@ -146,6 +148,7 @@ impl From<bad_debt_writeoff::Model> for WriteoffInfo {
 }
 
 /// 分页响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize, Clone)]
 pub struct PagedResponse<T> {
     pub items: Vec<T>,
@@ -155,6 +158,7 @@ pub struct PagedResponse<T> {
 }
 
 /// 批量计提响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize, Clone)]
 pub struct RunProvisionResponse {
     pub created: Vec<ProvisionInfo>,

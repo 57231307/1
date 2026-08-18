@@ -25,7 +25,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// 缓存后端抽象（生产 CacheService/moka，测试 MockCacheBackend，备用 MemoryCacheBackend/DashMap）
-#[allow(dead_code)]
+#[allow(dead_code, reason = "预留")]
 #[async_trait::async_trait]
 pub trait CacheBackend: Send + Sync {
     /// 获取缓存值，未命中返回 None
@@ -45,7 +45,7 @@ pub trait CacheBackend: Send + Sync {
 }
 
 /// 内存缓存后端（DashMap 实现，开发环境用，不支持 LRU 淘汰与 TTL 过期）
-#[allow(dead_code)]
+#[allow(dead_code, reason = "预留")]
 #[derive(Default)]
 pub struct MemoryCacheBackend {
     inner: Arc<DashMap<String, Vec<u8>>>,
@@ -92,7 +92,7 @@ impl CacheBackend for MemoryCacheBackend {
 }
 
 /// Mock 缓存后端（测试用，支持预设返回值、记录调用次数便于断言）
-#[allow(dead_code)]
+#[allow(dead_code, reason = "预留")]
 pub struct MockCacheBackend {
     inner: Arc<DashMap<String, Vec<u8>>>,
     /// get 调用次数
@@ -105,7 +105,7 @@ pub struct MockCacheBackend {
     invalidate_prefix_calls: AtomicU64,
 }
 
-#[allow(dead_code)]
+#[allow(dead_code, reason = "预留")]
 impl MockCacheBackend {
     /// 创建空的 Mock 缓存
     pub fn new() -> Self {

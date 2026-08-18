@@ -47,11 +47,6 @@ on:
         required: false
         type: boolean
         default: false
-      retry_count:
-        description: '自动重试计数（内部使用，防止无限重试；正常手动触发保持 0）'
-        required: false
-        type: number
-        default: 0
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -423,10 +418,9 @@ jobs:
       - name: 运行 clippy（baseline 机制）
         working-directory: backend
         # baseline 机制：仅 clippy 使用，test 保持零容忍；仅"新增警告"阻塞 CI
-        # exit 143 = SIGTERM（OOM/超时）：限制并行编译降内存峰值 + 3 次重试
         env:
-          CARGO_BUILD_JOBS: "1"
-          CARGO_JOBS: "1"
+          CARGO_BUILD_JOBS: "2"
+          CARGO_JOBS: "2"
         run: |
           mkdir -p reports
           set +e
@@ -1180,17 +1174,14 @@ jobs:
           retention-days: 90
 
 # ==============================================================================
-# Job 7: Rust 单元测试（V15 Batch 485 零容忍模式）
+# Job 7: Rust 测试预编译（nextest archive，避免 30 个分片各自编译）
 # ==============================================================================
-  ci-test-rust:
-    name: 🧪 Rust 测试 + 覆盖率
+  ci-build-test-artifacts:
+    name: 📦 Rust 测试预编译
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # 预编译 job：禁用 sccache（冷缓存无加速）+ 单线程编译（SIGTERM 143 内存缘由）
+    timeout-minutes: 90
     needs: ci-info
-    # 零容忍模式：任何测试失败都阻塞 CI；覆盖率信息性收集，不阻塞
-    # 集成测试依赖 PostgreSQL，使用 service container 提供数据库实例
-    # 2026-07-31 优化：合并原 ci-test-rust + ci-coverage-rust，用 cargo llvm-cov nextest
-    # 一次执行同时产出测试断言（退出码）+ 覆盖率（cobertura.xml），消除重复执行
     services:
       postgres:
         image: postgres:16-alpine
@@ -1206,10 +1197,76 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      # 集成测试所需的数据库连接串（指向 service container）
       DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
-      # 审计模块所需的密钥（仅 CI 用途，禁止用于生产）
       AUDIT_SECRET_KEY: ci-only-audit-signing-key-do-not-use-in-prod-32b
+      CARGO_BUILD_JOBS: "1"
+      CARGO_JOBS: "1"
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: Setup Rust（系统依赖含 postgresql-client）
+        uses: ./.github/actions/setup-rust
+        with:
+          system-deps: pkg-config libssl-dev postgresql-client protobuf-compiler
+          sccache: 'false'
+
+      - name: 安装 cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
+
+      - name: 编译所有测试并打包为 archive
+        working-directory: backend
+        run: |
+          cargo nextest archive --archive-file nextest-archive.tar.zst
+
+      - name: 上传 archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextest-archive
+          path: backend/nextest-archive.tar.zst
+          retention-days: 7
+
+# ==============================================================================
+  # Job 8: Rust 单元测试分片（从 archive 运行，不重复编译）
+  # ==============================================================================
+  # ==============================================================================
+  # Rust 测试分片：30 个并行 partition（nextest --partition hash:m/30）
+  # 预编译 archive 由 ci-build-test-artifacts 产出，各分片仅下载运行。
+  # ==============================================================================
+  ci-test-rust:
+    name: 🧪 Rust 测试 (${{ matrix.partition }}/30)
+    runs-on: ubuntu-latest
+    # 30 个分片仅从 archive 运行测试（不编译），时间大幅缩短
+    timeout-minutes: 45
+    needs: ci-build-test-artifacts
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        # nextest --partition hash:m/n 要求 1 ≤ m ≤ n
+        partition: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]
+    # 集成测试依赖 PostgreSQL，使用 service container 提供数据库实例
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: bingxi
+          POSTGRES_PASSWORD: bingxi_test
+          POSTGRES_DB: bingxi_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
+      AUDIT_SECRET_KEY: ci-only-audit-signing-key-do-not-use-in-prod-32b
+      CARGO_BUILD_JOBS: "2"
+      CARGO_JOBS: "2"
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
@@ -1220,35 +1277,175 @@ jobs:
           components: llvm-tools-preview
           system-deps: pkg-config libssl-dev postgresql-client protobuf-compiler
 
+      - name: 安装 cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
+
+      - name: 下载预编译测试 archive
+        uses: actions/download-artifact@v4
+        with:
+          name: nextest-archive
+          path: backend/
+
+      - name: 运行测试分片 ${{ matrix.partition }}/30（nextest archive run --partition hash:${{ matrix.partition }}/30）
+        working-directory: backend
+        # --no-fail-fast 确保分片内所有测试都跑完，暴露全部失败
+        # --test-threads=1 串行执行，避免集成测试竞态
+        run: |
+          mkdir -p reports
+          set +e
+          cargo nextest run \
+            --archive-file nextest-archive.tar.zst \
+            --partition hash:${{ matrix.partition }}/30 \
+            --test-threads=1 \
+            --no-fail-fast \
+            > reports/nextest-output.txt 2>&1
+          EXIT_CODE=$?
+          set -e
+
+          # 统计测试结果
+          PASSED=$(awk '/^ PASS /{c++} END{print c+0}' reports/nextest-output.txt 2>/dev/null)
+          FAILED=$(awk '/^ FAIL /{c++} END{print c+0}' reports/nextest-output.txt 2>/dev/null)
+          SKIPPED=$(awk '/^ SKIP /{c++} END{print c+0}' reports/nextest-output.txt 2>/dev/null)
+          TOTAL=$((PASSED + FAILED))
+
+          # 生成报告
+          {
+            echo "# Rust 测试分片报告（${{ matrix.partition }}/30）"
+            echo ""
+            echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
+            echo "**分片**: ${{ matrix.partition }}/30  "
+            echo "**通过**: $PASSED  "
+            echo "**失败**: $FAILED  "
+            echo "**跳过**: $SKIPPED  "
+            echo "**总计**: $TOTAL  "
+            echo "**EXIT_CODE**: $EXIT_CODE  "
+            echo ""
+            if [ "$EXIT_CODE" -ne "0" ] && [ "$FAILED" -eq "0" ]; then
+              echo "## ❌ 编译失败或进程异常退出（EXIT_CODE=$EXIT_CODE）"
+              echo ""
+              { grep -E "^error\[" reports/nextest-output.txt 2>/dev/null || true; } | head -20
+              echo ""
+              echo "### 完整输出（最后 50 行）"
+              echo ""
+              { tail -50 reports/nextest-output.txt 2>/dev/null || true; }
+            elif [ "$FAILED" -eq "0" ]; then
+              echo "## ✅ 分片 ${{ matrix.partition }} 全部通过"
+            else
+              echo "## ❌ 分片 ${{ matrix.partition }} 发现 $FAILED 个失败"
+              echo ""
+              echo "### 失败列表"
+              echo ""
+              { grep -E "^ FAIL " reports/nextest-output.txt 2>/dev/null || true; } | head -30
+              echo ""
+              echo "### 失败详情"
+              echo ""
+              { grep -A 10 "^ FAIL " reports/nextest-output.txt 2>/dev/null || true; } | head -60
+            fi
+          } > reports/cargo-test-report.md
+
+          # 写入 Step Summary
+          {
+            echo "## 🧪 Rust 测试分片 ${{ matrix.partition }}/30"
+            echo ""
+            if [ "$EXIT_CODE" -ne "0" ] && [ "$FAILED" -eq "0" ]; then
+              echo "❌ 编译失败或进程异常退出（EXIT_CODE=$EXIT_CODE）"
+            elif [ "$FAILED" -eq "0" ]; then
+              echo "✅ 通过 $PASSED / $TOTAL"
+            else
+              echo "❌ 失败 $FAILED / $TOTAL"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # 零容忍
+          if [ "$FAILED" -gt "0" ]; then
+            echo "❌ 分片 ${{ matrix.partition }} 发现 $FAILED 个测试失败，CI 失败"
+            exit 1
+          fi
+          if [ "$EXIT_CODE" -ne "0" ]; then
+            echo "❌ 分片 ${{ matrix.partition }} 进程异常退出（EXIT_CODE=$EXIT_CODE）"
+            exit 1
+          fi
+          echo "✅ 分片 ${{ matrix.partition }} 全部通过"
+          exit 0
+
+      - name: 上传测试报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-partition-${{ matrix.partition }}
+          path: backend/reports/
+          retention-days: 90
+
+  # ==============================================================================
+  # Rust 覆盖率合并（信息性，不阻塞 CI）
+  # 在所有 15 个分片完成后运行，逐一跑所有测试收集覆盖率
+  # ==============================================================================
+  ci-coverage-rust:
+    name: 📊 Rust 覆盖率
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    needs: ci-test-rust
+    if: success()
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: bingxi
+          POSTGRES_PASSWORD: bingxi_test
+          POSTGRES_DB: bingxi_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
+      AUDIT_SECRET_KEY: ci-only-audit-signing-key-do-not-use-in-prod-32b
+      CARGO_BUILD_JOBS: "1"
+      CARGO_JOBS: "1"
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: Setup Rust（llvm-tools-preview + 系统依赖含 postgresql-client）
+        uses: ./.github/actions/setup-rust
+        with:
+          components: llvm-tools-preview
+          system-deps: pkg-config libssl-dev postgresql-client protobuf-compiler
+          sccache: 'false'
+
       - name: 安装 cargo-llvm-cov 与 cargo-nextest
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-llvm-cov,nextest
 
-      - name: 运行测试 + 收集覆盖率（cargo llvm-cov nextest，零容忍）
+      - name: 收集覆盖率（cargo llvm-cov nextest，信息性）
         working-directory: backend
-        # nextest 每个测试独立进程 + 真正并行；llvm-cov source-based instrumentation（行/区域/分支覆盖）
-        # --cobertura 输出兼容 Codecov；保留 --test-threads=1 与历史串行行为一致（避免集成测试竞态）
+        # 先跑 --no-run 编译所有测试（复用缓存），再跑 llvm-cov 收集覆盖率
+        # --no-fail-fast 确保全部跑完，信息性收集覆盖率，不阻塞 CI
         run: |
           mkdir -p reports coverage
           set +e
           cargo llvm-cov nextest \
-            --keep-going \
             --cobertura --output-path coverage/cobertura.xml \
             --no-clean \
-            -- --test-threads=1 > reports/llvm-cov-nextest-output.txt 2>&1
+            --test-threads=1 \
+            --no-fail-fast \
+            > reports/llvm-cov-output.txt 2>&1
           EXIT_CODE=$?
           set -e
 
-          # 统计测试结果（nextest 输出格式："PASS" / "FAIL" 行）
-          PASSED=$(awk '/^ PASS /{c++} END{print c+0}' reports/llvm-cov-nextest-output.txt 2>/dev/null)
-          FAILED=$(awk '/^ FAIL /{c++} END{print c+0}' reports/llvm-cov-nextest-output.txt 2>/dev/null)
+          PASSED=$(awk '/^ PASS /{c++} END{print c+0}' reports/llvm-cov-output.txt 2>/dev/null)
+          FAILED=$(awk '/^ FAIL /{c++} END{print c+0}' reports/llvm-cov-output.txt 2>/dev/null)
           TOTAL=$((PASSED + FAILED))
 
-          # 提取覆盖率摘要（从 llvm-cov report 输出）
           COVERAGE_SUMMARY="N/A"
           if [ -f coverage/cobertura.xml ]; then
-            LINE_RATE=$(grep -o 'line-rate="[^"]*"' coverage/cobertura.xml | head -1 | cut -d'"' -f2)
+            LINE_RATE=$(grep -o 'line-rate="[^"]*"' coverage/cobertura.xml | head -1 | cut -d'"' -f2 || true)
             if [ -n "$LINE_RATE" ]; then
               COVERAGE_PCT=$(awk -v r="$LINE_RATE" 'BEGIN{printf "%.2f", r*100}')
               COVERAGE_SUMMARY="${COVERAGE_PCT}%"
@@ -1256,61 +1453,35 @@ jobs:
           fi
 
           {
-            echo "# Rust 测试 + 覆盖率报告"
+            echo "# Rust 覆盖率报告"
             echo ""
             echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
-            echo "**模式**: 零容忍（任何测试失败阻塞 CI）  "
             echo "**通过**: $PASSED  "
             echo "**失败**: $FAILED  "
             echo "**总计**: $TOTAL  "
             echo "**行覆盖率**: $COVERAGE_SUMMARY  "
-            echo "**工具**: cargo-llvm-cov nextest（source-based instrumentation）"
+            echo "**EXIT_CODE**: $EXIT_CODE  "
+            echo "**模式**: 信息性收集（不阻塞 CI）"
             echo ""
-            if [ "$FAILED" -eq "0" ]; then
-              echo "## ✅ 所有 $PASSED 个测试通过（零容忍通过）"
+            if [ "$FAILED" -gt "0" ]; then
+              echo "## ⚠️ 发现 $FAILED 个测试失败（信息性，不阻塞）"
               echo ""
-              echo "覆盖率：$COVERAGE_SUMMARY（信息性，不阻塞 CI）"
-            else
-              echo "## ❌ 发现 $FAILED 个测试失败（零容忍，CI 失败）"
-              echo ""
-              echo "### 失败列表"
-              echo ""
-              grep -E "^ FAIL " reports/llvm-cov-nextest-output.txt 2>/dev/null | head -30
-              echo ""
-              echo "### 失败详情"
-              echo ""
-              grep -A 10 "^ FAIL " reports/llvm-cov-nextest-output.txt | head -60
+              { grep -E "^ FAIL " reports/llvm-cov-output.txt 2>/dev/null || true; } | head -30
             fi
-          } > reports/cargo-test-report.md
+            echo ""
+            echo "**覆盖率**: $COVERAGE_SUMMARY"
+          } > reports/coverage-report.md
 
           {
-            echo "## Rust 测试 + 覆盖率"
+            echo "## 📊 Rust 覆盖率"
             echo ""
-            if [ "$FAILED" -eq "0" ]; then
-              echo "✅ 通过 $PASSED / $TOTAL（零容忍模式）"
-              echo "📊 行覆盖率：$COVERAGE_SUMMARY"
-            else
-              echo "❌ 失败 $FAILED / $TOTAL（零容忍，CI 失败）"
+            echo "📊 行覆盖率：$COVERAGE_SUMMARY"
+            if [ "$FAILED" -gt "0" ]; then
+              echo "⚠️  $FAILED 个测试失败（信息性）"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-          # 零容忍：任何测试失败都阻塞 CI
-          if [ "$FAILED" -gt "0" ]; then
-            echo ""
-            echo "❌ 发现 $FAILED 个测试失败，CI 失败（零容忍）"
-            echo "详见 reports/cargo-test-report.md 和 artifacts"
-            exit 1
-          fi
-          echo "✅ 所有 $PASSED 个测试通过（覆盖率：$COVERAGE_SUMMARY）"
           exit 0
-
-      - name: 上传测试报告
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-test-report
-          path: reports/
-          retention-days: 90
 
       - name: 上传覆盖率到 Codecov
         if: always()
@@ -1327,7 +1498,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: rust-coverage-report
-          path: backend/coverage/
+          path: |
+            backend/reports/
+            backend/coverage/
           retention-days: 30
 
 # ==============================================================================
@@ -2407,23 +2580,12 @@ jobs:
           fi
 
 # ==============================================================================
-# Job 15: 收尾清理 + 失败自动重跑
-# ==============================================================================
-# 需求（用户指令）：CI 快收尾时，只要有步骤失败或报错，则移除项目使用的所有
-# 缓存/数据/工具/依赖等（GitHub Actions 缓存、npm/node_modules、cargo/rustup 等），
-# 使用全新环境重跑全流程。
-#
-# 设计：
-#   - needs 全部验证 job（含打包/发布链），if: always() 确保即使前置失败也执行收尾
-#   - 汇总各 job 结果：任一 failure/cancelled 即触发清理 + 重跑
-#   - 清理手段：删除本仓库全部 actions/cache 缓存条目（cargo-/rustup-/fe-npm-/criterion-）
-#   - 重跑手段：gh workflow run 重新触发 workflow_dispatch（带 retry_count 递增防无限循环）
-#   - 防循环：workflow_dispatch inputs.retry_count 记录重试次数，达到上限（2）后不再重跑
+# Job 15: 收尾清理（仅报告，无自动重试）
 # ==============================================================================
   ci-cleanup-retry:
-    name: 🧹 收尾清理 + 失败重跑
+    name: 🧹 收尾清理
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
     needs: [
       ci-info,
       ci-fmt-rust,
@@ -2431,6 +2593,7 @@ jobs:
       ci-lint-rust,
       ci-lint-fe,
       ci-type-check,
+      ci-build-test-artifacts,
       ci-test-rust,
       ci-test-fe,
       ci-audit,
@@ -2442,131 +2605,23 @@ jobs:
       github-release
     ]
     if: always()
-    permissions:
-      actions: write
-      contents: read
-    outputs:
-      all_success: ${{ steps.collect.outputs.all_success }}
     steps:
       - name: 收集各 job 结果
-        id: collect
         run: |
-          FAILED_JOBS=""
-          CANCELLED_JOBS=""
-          declare -A RESULTS=(
-            ["ci-info"]="${{ needs.ci-info.result }}"
-            ["ci-fmt-rust"]="${{ needs.ci-fmt-rust.result }}"
-            ["ci-fmt-fe"]="${{ needs.ci-fmt-fe.result }}"
-            ["ci-lint-rust"]="${{ needs.ci-lint-rust.result }}"
-            ["ci-lint-fe"]="${{ needs.ci-lint-fe.result }}"
-            ["ci-type-check"]="${{ needs.ci-type-check.result }}"
-            ["ci-test-rust"]="${{ needs.ci-test-rust.result }}"
-            ["ci-test-fe"]="${{ needs.ci-test-fe.result }}"
-            ["ci-audit"]="${{ needs.ci-audit.result }}"
-            ["ci-deps"]="${{ needs.ci-deps.result }}"
-            ["ci-perf-bench"]="${{ needs.ci-perf-bench.result }}"
-            ["ci-build-rust"]="${{ needs.ci-build-rust.result }}"
-            ["ci-build-fe"]="${{ needs.ci-build-fe.result }}"
-            ["package-release"]="${{ needs.package-release.result }}"
-            ["github-release"]="${{ needs.github-release.result }}"
-          )
           ALL_OK=1
-          for key in "${!RESULTS[@]}"; do
-            R="${RESULTS[$key]}"
-            # success / skipped（非主分支 job 被跳过）视为通过；cancelled 是并发取消，不触发重跑
-            if [[ "$R" == "success" || "$R" == "skipped" ]]; then
-              continue
-            elif [[ "$R" == "cancelled" ]]; then
-              CANCELLED_JOBS="$CANCELLED_JOBS $key"
-            else
+          for r in "${{ needs.ci-info.result }}" "${{ needs.ci-fmt-rust.result }}" "${{ needs.ci-fmt-fe.result }}" \
+                   "${{ needs.ci-lint-rust.result }}" "${{ needs.ci-lint-fe.result }}" "${{ needs.ci-type-check.result }}" \
+                   "${{ needs.ci-build-test-artifacts.result }}" "${{ needs.ci-test-rust.result }}" "${{ needs.ci-test-fe.result }}" \
+                   "${{ needs.ci-audit.result }}" "${{ needs.ci-deps.result }}" "${{ needs.ci-perf-bench.result }}" \
+                   "${{ needs.ci-build-rust.result }}" "${{ needs.ci-build-fe.result }}" \
+                   "${{ needs.package-release.result }}" "${{ needs.github-release.result }}"; do
+            if [[ "$r" != "success" && "$r" != "skipped" ]]; then
               ALL_OK=0
-              FAILED_JOBS="$FAILED_JOBS $key=$R"
             fi
           done
-          echo "all_success=$ALL_OK" >> "$GITHUB_OUTPUT"
-          echo "failed_jobs=$FAILED_JOBS" >> "$GITHUB_OUTPUT"
-          echo "cancelled_jobs=$CANCELLED_JOBS" >> "$GITHUB_OUTPUT"
-
-          # 判定是否为重跑触发（workflow_dispatch + retry_count）
-          RETRY_COUNT="${{ github.event.inputs.retry_count || '0' }}"
-          echo "retry_count=$RETRY_COUNT" >> "$GITHUB_OUTPUT"
-          {
-            echo "## 🧹 收尾清理 + 失败重跑"
-            echo ""
-            echo "**重试计数**: $RETRY_COUNT  "
-            echo "**触发事件**: ${{ github.event_name }}  "
-            echo "**全部成功**: $([ "$ALL_OK" = "1" ] && echo "是 ✅" || echo "否 ❌")  "
-            if [ "$ALL_OK" = "0" ]; then
-              echo "**失败 job**: \`$FAILED_JOBS\`  "
-            fi
-            if [ -n "$CANCELLED_JOBS" ]; then
-              echo "**被取消 job（不触发重跑）**: \`$CANCELLED_JOBS\`  "
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: 清理 GitHub Actions 缓存（全部缓存条目）
-        if: steps.collect.outputs.all_success == '0'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "🔧 清理本仓库全部 GitHub Actions 缓存..."
-          # 列出全部缓存 ID（分页），逐条删除
-          CACHE_IDS=$(gh api repos/${{ github.repository }}/actions/caches --paginate -q '.actions_caches[].id' 2>/dev/null || true)
-          if [ -z "$CACHE_IDS" ]; then
-            echo "  没有发现缓存条目"
+          if [ "$ALL_OK" = "0" ]; then
+            echo "❌ 部分 job 失败，请人工排查后手动重试。"
+            exit 1
           else
-            COUNT=0
-            for id in $CACHE_IDS; do
-              echo "  删除缓存 ID=$id"
-              gh api -X DELETE repos/${{ github.repository }}/actions/caches/$id >/dev/null 2>&1 && COUNT=$((COUNT + 1)) || echo "    删除失败（可能已被删除）"
-            done
-            echo "✅ 共删除 $COUNT 个缓存条目"
+            echo "✅ 所有 job 通过。"
           fi
-          {
-            echo "### 缓存清理结果"
-            echo ""
-            echo "已删除缓存条目：${COUNT:-0} 个（cargo- / rustup- / fe-npm- / criterion- 前缀的 actions/cache 全部清除）"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: 清理本地依赖与工具链
-        if: steps.collect.outputs.all_success == '0'
-        run: |
-          echo "🔧 清理本地数据/依赖/工具链（本 runner 将在 job 结束后销毁，主要防残留）..."
-          rm -rf frontend/node_modules ~/.npm ~/.cargo/registry ~/.cargo/git backend/target 2>/dev/null || true
-          echo "✅ 本地依赖清理完成（node_modules / ~/.npm / cargo registry / target）"
-
-      - name: 自动重跑全流程
-        if: steps.collect.outputs.all_success == '0' && steps.collect.outputs.retry_count < '2'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          RETRY_COUNT="${{ steps.collect.outputs.retry_count }}"
-          NEXT=$((RETRY_COUNT + 1))
-          # PR 场景重新触发到 PR 源分支，push 场景触发到当前分支
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            RUN_REF="${{ github.head_ref }}"
-          else
-            RUN_REF="${{ github.ref_name }}"
-          fi
-          echo "🚀 检测到失败，使用全新环境重跑全流程（第 $NEXT 次重跑，ref=$RUN_REF）..."
-          gh workflow run ci-cd.yml \
-            --ref "$RUN_REF" \
-            -f retry_count=$NEXT \
-            -f skip_release=true || echo "⚠️ 触发重跑失败，请手动触发 workflow_dispatch"
-          {
-            echo ""
-            echo "### 自动重跑"
-            echo ""
-            echo "已触发重跑（retry_count=$NEXT，ref=$RUN_REF）。若重跑仍失败，请人工排查，避免循环重试。"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: 重跑次数已达上限（不再自动重跑）
-        if: steps.collect.outputs.all_success == '0' && steps.collect.outputs.retry_count >= '2'
-        run: |
-          echo "⚠️ 已重试 ${{ steps.collect.outputs.retry_count }} 次仍失败，停止自动重跑，请人工介入排查。"
-          {
-            echo ""
-            echo "### ⚠️ 停止自动重跑"
-            echo ""
-            echo "已达最大重试次数（2），停止自动重跑。请人工排查失败原因。"
-          } >> "$GITHUB_STEP_SUMMARY"

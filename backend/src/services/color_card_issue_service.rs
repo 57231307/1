@@ -168,7 +168,7 @@ pub struct ReorderDyeLotView {
 }
 
 /// 发放管理服务
-#[allow(dead_code)]
+#[allow(dead_code, reason = "预留")]
 pub struct ColorCardIssueService {
     db: Arc<DatabaseConnection>,
 }

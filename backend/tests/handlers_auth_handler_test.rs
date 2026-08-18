@@ -113,7 +113,9 @@ fn test_login_response_field_whitelist() {
 
     let actual_fields: std::collections::HashSet<&String> = obj.keys().collect();
     let expected_fields: std::collections::HashSet<&str> =
-        ["csrf_token", "user", "permissions"].into_iter().collect();
+        ["csrf_token", "user", "permissions", "password_expired"]
+            .into_iter()
+            .collect();
 
     let extra: Vec<&&String> = actual_fields
         .iter()

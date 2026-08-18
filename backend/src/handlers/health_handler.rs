@@ -23,6 +23,7 @@ fn start_time() -> Instant {
 }
 
 /// 健康状态响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize, ToSchema)]
 pub struct HealthStatus {
     /// 服务状态 (healthy, unhealthy, degraded)
@@ -41,6 +42,7 @@ pub struct HealthStatus {
 }
 
 /// 健康检查详情
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize, ToSchema)]
 pub struct HealthChecks {
     /// 数据库连接状态
@@ -52,6 +54,7 @@ pub struct HealthChecks {
 }
 
 /// 单个健康检查项
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize, ToSchema)]
 pub struct HealthCheckItem {
     /// 状态 (healthy, unhealthy)

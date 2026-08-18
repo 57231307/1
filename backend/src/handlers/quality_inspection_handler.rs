@@ -22,6 +22,7 @@ use serde::Deserialize;
 use std::sync::Arc;
 use tracing::info;
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct QualityInspectionQuery {
     pub inspection_type: Option<String>,
@@ -31,6 +32,7 @@ pub struct QualityInspectionQuery {
 }
 
 // V15 P0-S12 修复（Batch 475d）：派生 Clone，export_records 需要 clone 后覆盖分页参数用于全量导出
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Clone, Deserialize)]
 pub struct RecordQuery {
     pub product_id: Option<i32>,
@@ -40,6 +42,7 @@ pub struct RecordQuery {
     pub page_size: Option<i64>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct DefectQuery {
     pub record_id: Option<i32>,

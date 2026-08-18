@@ -48,6 +48,7 @@ fn requisition_service(state: &AppState) -> ChemicalRequisitionService {
 // 查询参数（HTTP Query 转 Service Query）
 // ============================================================================
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ChemicalMasterListQuery {
     pub page: Option<u64>,
@@ -63,6 +64,7 @@ pub struct ChemicalMasterListQuery {
     pub keyword: Option<String>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ChemicalCategoryListQuery {
     pub page: Option<u64>,
@@ -72,11 +74,13 @@ pub struct ChemicalCategoryListQuery {
     pub is_active: Option<bool>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ChemicalCategoryTreeQuery {
     pub parent_id: Option<i32>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ChemicalLotListQuery {
     pub page: Option<u64>,
@@ -90,6 +94,7 @@ pub struct ChemicalLotListQuery {
     pub expiry_before: Option<chrono::NaiveDate>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ChemicalRequisitionListQuery {
     pub page: Option<u64>,
@@ -104,6 +109,7 @@ pub struct ChemicalRequisitionListQuery {
 }
 
 /// 检验报告请求体（用于 pass_inspection / fail_inspection 接口）
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct InspectionReportRequest {
     pub inspection_report_url: Option<String>,
@@ -111,6 +117,7 @@ pub struct InspectionReportRequest {
 
 /// 发料/审批请求体（用于 approve / issue 接口）
 #[derive(Debug, Deserialize)]
+#[allow(dead_code, reason = "反序列化输入字段")]
 pub struct OperatorRequest {
     pub operator_id: Option<i32>,
 }

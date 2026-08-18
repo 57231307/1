@@ -34,6 +34,7 @@ async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), 
 }
 
 // P3 8-19 修复：添加 validator 长度校验，防止超长字段污染审计日志或触发 DB 错误
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, validator::Validate)]
 pub struct TrackEventRequest {
     #[validate(length(max = 64))]

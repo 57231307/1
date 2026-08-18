@@ -18,6 +18,7 @@ use tracing::{info, warn};
 use validator::Validate;
 
 /// 查询核销列表参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ApVerificationQueryParams {
     pub supplier_id: Option<i32>,
@@ -86,6 +87,7 @@ pub async fn get_verification(
 }
 
 /// 自动核销
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct AutoVerifyRequest {
     pub supplier_id: i32,
@@ -147,6 +149,7 @@ pub async fn manual_verify(
 }
 
 /// 取消核销
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CancelVerificationRequest {
     pub reason: String,

@@ -28,6 +28,7 @@ use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
 use std::sync::Arc;
 
 /// 列表查询参数（axum Query 反序列化用）
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct DyeRecipeListQuery {
     pub page: Option<u64>,
@@ -40,12 +41,14 @@ pub struct DyeRecipeListQuery {
 }
 
 /// 审核请求体
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ApproveRecipeRequest {
     pub approved_by: i32,
 }
 
 /// 创建新版本请求体
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreateVersionRequest {
     pub remarks: Option<String>,

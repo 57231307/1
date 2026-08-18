@@ -15,42 +15,72 @@ fn test_valid_password() {
 fn test_too_short_password() {
     let result = validate_password("Short1!");
     assert!(!result.is_valid);
-    assert!(result.errors.iter().any(|e| e.contains("at least")));
+    assert!(
+        result
+            .errors
+            .iter()
+            .any(|e| e.contains("至少") || e.contains("at least"))
+    );
 }
 
 #[test]
 fn test_missing_uppercase() {
     let result = validate_password("lowercase123!");
     assert!(!result.is_valid);
-    assert!(result.errors.iter().any(|e| e.contains("uppercase")));
+    assert!(
+        result
+            .errors
+            .iter()
+            .any(|e| e.contains("大写字母") || e.contains("uppercase"))
+    );
 }
 
 #[test]
 fn test_missing_lowercase() {
     let result = validate_password("UPPERCASE123!");
     assert!(!result.is_valid);
-    assert!(result.errors.iter().any(|e| e.contains("lowercase")));
+    assert!(
+        result
+            .errors
+            .iter()
+            .any(|e| e.contains("小写字母") || e.contains("lowercase"))
+    );
 }
 
 #[test]
 fn test_missing_digit() {
     let result = validate_password("NoDigitsHere!");
     assert!(!result.is_valid);
-    assert!(result.errors.iter().any(|e| e.contains("digit")));
+    assert!(
+        result
+            .errors
+            .iter()
+            .any(|e| e.contains("数字") || e.contains("digit"))
+    );
 }
 
 #[test]
 fn test_missing_special_char() {
     let result = validate_password("NoSpecialChars123");
     assert!(!result.is_valid);
-    assert!(result.errors.iter().any(|e| e.contains("special")));
+    assert!(
+        result
+            .errors
+            .iter()
+            .any(|e| e.contains("特殊字符") || e.contains("special"))
+    );
 }
 
 #[test]
 fn test_common_password() {
     let result = validate_password("password");
     assert!(!result.is_valid);
-    assert!(result.errors.iter().any(|e| e.contains("common")));
+    assert!(
+        result
+            .errors
+            .iter()
+            .any(|e| e.contains("常见") || e.contains("common"))
+    );
 }
 
 #[test]

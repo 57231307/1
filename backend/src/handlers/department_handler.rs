@@ -10,6 +10,7 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 /// 查询参数 - 部门列表
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct DepartmentListQuery {
     pub page: Option<u64>,
@@ -19,6 +20,7 @@ pub struct DepartmentListQuery {
 }
 
 /// 创建部门请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateDepartmentRequest {
     #[validate(length(min = 1, max = 100, message = "部门名称不能为空且最长100字符"))]
@@ -29,6 +31,7 @@ pub struct CreateDepartmentRequest {
 }
 
 /// 更新部门请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateDepartmentRequest {
     #[validate(length(min = 1, max = 100, message = "部门名称不能为空且最长100字符"))]

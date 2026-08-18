@@ -21,6 +21,7 @@ pub async fn get_setting(
 }
 
 /// 更新当前用户的通知偏好设置
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateSettingRequest {
     pub email_enabled: Option<bool>,

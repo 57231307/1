@@ -26,6 +26,7 @@ use crate::utils::response::ApiResponse;
 // ==================== DTO 定义 ====================
 
 /// 启动 8D 流程请求 DTO
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct StartEightDDto {
     pub quality_issue_id: i64,
@@ -37,6 +38,7 @@ pub struct StartEightDDto {
 pub type AdvanceDto = AdvanceStepPayload;
 
 /// 8D 报告响应 DTO
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize, Clone)]
 pub struct EightDReportInfo {
     pub id: i64,
@@ -111,6 +113,7 @@ impl From<quality_8d_report::Model> for EightDReportInfo {
 }
 
 /// 分页响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize, Clone)]
 pub struct EightDPagedResponse<T> {
     pub items: Vec<T>,

@@ -15,6 +15,7 @@ use tracing::info;
 use validator::Validate;
 
 /// 合同查询参数 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ContractQuery {
     pub keyword: Option<String>,
@@ -25,6 +26,7 @@ pub struct ContractQuery {
 }
 
 /// 创建采购合同请求 DTO
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CreateContractRequestDto {
     pub contract_no: String,
@@ -38,6 +40,7 @@ pub struct CreateContractRequestDto {
 
 /// P1-2m 修复（批次 81 v1 复审）：更新采购合同请求 DTO
 /// 替代 update_contract 中的 Json<serde_json::Value>，提供强类型校验
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct UpdateContractDto {
     /// 合同名称：可选
@@ -48,6 +51,7 @@ pub struct UpdateContractDto {
 }
 
 /// 合同执行请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ExecuteContractRequestDto {
     pub execution_type: String,
@@ -59,6 +63,7 @@ pub struct ExecuteContractRequestDto {
 }
 
 /// 取消合同请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CancelContractRequest {
     pub reason: String,

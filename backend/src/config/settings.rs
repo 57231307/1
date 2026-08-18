@@ -65,6 +65,7 @@ pub struct AuthConfig {
     pub webhook_secret: Option<String>,
     /// M-2 修复：是否允许 webhook 复用 JWT_SECRET（仅用于迁移期，默认 false）
     #[serde(default)]
+    #[allow(dead_code, reason = "预留配置字段")]
     pub webhook_inherit_jwt_secret: bool,
 }
 

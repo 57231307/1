@@ -22,6 +22,7 @@ use validator::Validate;
 
 /// 通用财务支付请求 DTO
 /// 批次 31 v7 P1-6 修复：添加 Validate + 字段验证
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreatePaymentRequest {
     #[validate(length(max = 50, message = "支付单号长度不能超过50字符"))]
@@ -36,6 +37,7 @@ pub struct CreatePaymentRequest {
     pub notes: Option<String>,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct PaymentResponse {
     pub id: i32,
@@ -46,6 +48,7 @@ pub struct PaymentResponse {
     pub created_at: DateTime<Utc>,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct PaymentListResponse {
     pub payments: Vec<PaymentResponse>,
@@ -156,6 +159,7 @@ pub async fn list_payments(
     })))
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ListPaymentsParams {
     pub page: Option<u64>,

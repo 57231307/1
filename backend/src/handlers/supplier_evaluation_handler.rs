@@ -15,6 +15,7 @@ use serde::Deserialize;
 use tracing::info;
 use validator::Validate;
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct EvaluationIndicatorQuery {
     pub category: Option<String>,
@@ -25,6 +26,7 @@ pub struct EvaluationIndicatorQuery {
 
 /// P1-2k 修复（批次 81 v1 复审）：更新供应商评估请求 DTO
 /// 替代 update_evaluation 中的 Json<serde_json::Value>，提供强类型校验
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateEvaluationDto {
     /// 评分：可选，0-100
@@ -142,6 +144,7 @@ pub async fn list_ratings(
     )))
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct RankingQuery {
     pub limit: Option<i64>,
@@ -166,6 +169,7 @@ pub async fn get_rankings(
     Ok(Json(ApiResponse::success(rankings)))
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct EvaluationRecordQuery {
     pub supplier_id: Option<i32>,

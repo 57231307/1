@@ -19,13 +19,13 @@ pub mod data_scope {
     /// 全部数据（管理员）
     pub const ALL: &str = "ALL";
     /// 本部门数据
-    #[allow(dead_code)]
+    #[allow(dead_code, reason = "预留")]
     pub const DEPT: &str = "DEPT";
     /// 仅本人数据
-    #[allow(dead_code)]
+    #[allow(dead_code, reason = "预留")]
     pub const SELF: &str = "SELF";
     /// 自定义数据范围
-    #[allow(dead_code)]
+    #[allow(dead_code, reason = "预留")]
     pub const CUSTOM: &str = "CUSTOM";
 }
 

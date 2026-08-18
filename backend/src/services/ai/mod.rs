@@ -79,6 +79,7 @@ pub struct AbcClassification {
 
 /// 库存周转率结果
 #[derive(Debug, Clone)]
+#[allow(dead_code, reason = "预留：库存周转率结果，待接入")]
 pub struct InventoryTurnover {
     pub product_id: i32,
     pub turnover_rate: f64,

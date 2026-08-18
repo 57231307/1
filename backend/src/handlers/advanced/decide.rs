@@ -154,12 +154,14 @@ pub async fn list_sales_prices(
 // 数据结构
 // ============================================================================
 
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AnomalyDetectionRequest {
     pub data_type: String,
     pub date_range: Option<String>,
 }
 
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AnomalyItem {
     pub item: String,
@@ -169,6 +171,7 @@ pub struct AnomalyItem {
     pub detected_at: String,
 }
 
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SalesContract {
     pub id: u32,
@@ -179,6 +182,7 @@ pub struct SalesContract {
     pub status: String,
 }
 
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SalesPrice {
     pub id: u32,

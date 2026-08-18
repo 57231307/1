@@ -13,6 +13,8 @@ fn make_quality_inspection_model(id: i32, status: &str) -> QualityInspectionMode
         product_id: Some(1),
         product_category_id: Some(1),
         inspection_type: "incoming".to_string(),
+        sampling_rate: Some(rust_decimal::Decimal::new(10, 0)),
+        inspection_items: Some(serde_json::json!([{"item": "外观检查"}])),
         status: status.to_string(),
         created_at: Utc::now(),
         updated_at: Utc::now(),
@@ -101,7 +103,7 @@ fn test_status_completed_is_final() {
 
     // 验证已完成状态是终态
     let invalid_transitions = vec!["pending", "in_progress"];
-    assert!(!invalid_transitions.contains(&"pending"));
+    assert!(invalid_transitions.contains(&"pending"));
 }
 
 // ===== 合格率计算测试 =====

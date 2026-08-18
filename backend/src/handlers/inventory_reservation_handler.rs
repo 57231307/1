@@ -10,6 +10,7 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 /// 预留查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ReservationQuery {
     pub page: Option<u64>,
@@ -20,6 +21,7 @@ pub struct ReservationQuery {
 }
 
 /// 创建预留请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreateReservationRequest {
     pub product_id: i32,
@@ -30,6 +32,7 @@ pub struct CreateReservationRequest {
 }
 
 /// 预留响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct ReservationResponse {
     pub id: i32,

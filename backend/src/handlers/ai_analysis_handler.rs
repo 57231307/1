@@ -10,6 +10,7 @@ use crate::services::ai::AiAnalysisService;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct SalesForecastResponse {
     pub product_id: i32,
@@ -19,6 +20,7 @@ pub struct SalesForecastResponse {
     pub trend: String,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ForecastSalesQuery {
     pub product_id: i32,
@@ -63,6 +65,7 @@ pub async fn forecast_sales(
     Ok(Json(ApiResponse::success(responses)))
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct InventorySuggestionResponse {
     pub product_id: i32,
@@ -73,6 +76,7 @@ pub struct InventorySuggestionResponse {
     pub reason: String,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct OptimizeInventoryQuery {
     pub product_id: Option<i32>,
@@ -116,6 +120,7 @@ pub async fn optimize_inventory(
     Ok(Json(ApiResponse::success(responses)))
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct AnomalyDetectionResponse {
     pub entity_type: String,
@@ -126,6 +131,7 @@ pub struct AnomalyDetectionResponse {
     pub detected_at: String,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct DetectAnomaliesQuery {
     pub days: Option<i64>,
@@ -166,6 +172,7 @@ pub async fn detect_anomalies(
     Ok(Json(ApiResponse::success(responses)))
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct SmartRecommendationResponse {
     pub recommendation_type: String,
@@ -175,6 +182,7 @@ pub struct SmartRecommendationResponse {
     pub reason: String,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct RecommendationsQuery {
     pub recommendation_type: Option<String>,

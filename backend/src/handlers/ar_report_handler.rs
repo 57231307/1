@@ -14,6 +14,7 @@ use crate::utils::response::ApiResponse;
 const REPORT_CACHE_TTL: Duration = Duration::from_secs(60);
 
 /// 报表查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ArReportQuery {
     pub start_date: Option<chrono::NaiveDate>,

@@ -20,6 +20,7 @@ use crate::utils::response::ApiResponse;
 use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
 
 /// 查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct SubjectQuery {
     pub level: Option<i32>,
@@ -29,6 +30,7 @@ pub struct SubjectQuery {
 }
 
 /// 创建请求
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CreateSubjectRequestDto {
     pub code: String,
@@ -51,6 +53,7 @@ pub struct CreateSubjectRequestDto {
 }
 
 /// 更新请求
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize)]
 
 pub struct UpdateSubjectRequestDto {
@@ -203,6 +206,7 @@ pub async fn delete_subject(
 }
 
 /// 刷新科目余额查询参数；批次 400 修复（规则 0/8）：接入 AccountSubjectService::refresh_balance， 用于凭证反审核、外部数据导入、余额漂移等场景的科目余额纠正。
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct RefreshBalanceQuery {
     /// 期间，格式 YYYY-MM

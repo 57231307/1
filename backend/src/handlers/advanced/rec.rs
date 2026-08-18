@@ -60,12 +60,14 @@ pub async fn recommendations(
 // 数据结构
 // ============================================================================
 
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RecommendationRequest {
     pub recommendation_type: Option<String>,
     pub limit: Option<usize>,
 }
 
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Recommendation {
     pub content: String,

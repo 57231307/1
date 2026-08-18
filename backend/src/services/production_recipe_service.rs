@@ -265,6 +265,7 @@ pub struct CreateProductionRecipeAdditionRequest {
 
 /// 加料处方查询参数
 #[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code, reason = "预留：加料处方查询参数，待接入")]
 pub struct ProductionRecipeAdditionQuery {
     pub production_recipe_id: Option<i32>,
     pub work_order_id: Option<i32>,

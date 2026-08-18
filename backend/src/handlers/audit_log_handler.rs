@@ -52,6 +52,7 @@ async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), 
 }
 
 /// 列表查询参数（全部可选）
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Default, Deserialize, Serialize)]
 // P1-13 修复（2026-06-25）：路由已挂载至 system::routes()，函数标记已移除。
 // 结构体字段经 serde Deserialize 派生使用，标记保留待编译器验证后清理。
@@ -78,6 +79,7 @@ pub struct AuditLogListQuery {
 }
 
 /// 列表返回项（前端展示用）
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 // P1-13 修复（2026-06-25）：路由已挂载至 system::routes()，函数标记已移除。
 // 结构体字段经 serde Serialize 派生使用，标记保留待编译器验证后清理。
@@ -122,6 +124,7 @@ impl From<audit_log::Model> for AuditLogListItem {
 }
 
 /// 列表返回结构
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 // P1-13 修复（2026-06-25）：路由已挂载至 system::routes()，函数标记已移除。
 pub struct AuditLogListResponse {
@@ -205,6 +208,7 @@ pub async fn list_audit_logs(
 }
 
 /// 审计日志详情（含 before/after 快照原始 JSON）
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 // P1-13 修复（2026-06-25）：路由已挂载至 system::routes()，函数标记已移除。
 // base 字段经 #[serde(flatten)] 使用，其余字段经 Serialize 派生使用。
@@ -461,6 +465,7 @@ async fn record_audit_log_export_tamper_proof(
 
 /// V15 缺陷 10-4：查询审计日志导出二次审计记录（仅 admin/auditor）。
 /// GET /api/v1/erp/audit-logs/export-logs
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ExportLogListQuery {
     pub page: Option<u64>,
@@ -468,6 +473,7 @@ pub struct ExportLogListQuery {
     pub exporter_user_id: Option<i32>,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct ExportLogListItem {
     pub id: i32,
@@ -482,6 +488,7 @@ pub struct ExportLogListItem {
     pub exported_at: String,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct ExportLogListResponse {
     pub items: Vec<ExportLogListItem>,
@@ -544,6 +551,7 @@ pub async fn list_audit_log_export_logs(
 
 /// V15 P1-5-3：前端打印审计埋点请求体；前端 `printData`/`printSingleDocument` 纯前端 window.print 不经过后端 handler， 无法触发
 /// omni_audit 中间件落库。此端点供前端打印完成后 best-effort 上报， 后端写入 audit_logs（OperationType::Print），确保合规审计覆盖前端打印操作。
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct RecordPrintEventRequest {
     /// 资源类型（如 customer / supplier / warehouse，与权限码 resource_type 对应）

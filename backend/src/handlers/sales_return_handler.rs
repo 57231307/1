@@ -19,6 +19,7 @@ use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 /// 销售退货查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Deserialize)]
 pub struct SalesReturnQueryParams {
     pub return_no: Option<String>,
@@ -29,6 +30,7 @@ pub struct SalesReturnQueryParams {
 }
 
 /// 拒绝退货单请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct RejectSalesReturnRequest {
     pub reason: String,
@@ -256,6 +258,7 @@ pub async fn delete_return_item(
 }
 
 /// 更新退货明细请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateReturnItemRequest {
     pub quantity: Option<rust_decimal::Decimal>,

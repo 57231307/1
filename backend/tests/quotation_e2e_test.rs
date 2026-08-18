@@ -138,7 +138,7 @@ fn test_quotationresponsedto_xlh_blhxzd() {
     let json = serde_json::to_string(&dto).unwrap();
     assert!(json.contains("\"QT202606160001\""), "应包含报价单号");
     assert!(json.contains("\"status\":\"draft\""), "应包含状态字段");
-    assert!(json.contains("\"total_amount\":5650"), "应包含总金额");
+    assert!(json.contains("\"total_amount\":\"5650\""), "应包含总金额");
 }
 
 /// test_salesquotationmodel_mrzdz

@@ -20,6 +20,7 @@ use tracing::info;
 
 /// 质量标准查询参数 DTO
 // V15 P0-S12 修复（Batch 475d）：派生 Clone，export_standards 需要 clone 后覆盖分页参数用于全量导出
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Clone, Deserialize)]
 pub struct QualityStandardQuery {
     pub standard_type: Option<String>,
@@ -29,6 +30,7 @@ pub struct QualityStandardQuery {
 }
 
 /// 创建质量标准请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreateQualityStandardRequest {
     /// 标准编码
@@ -50,6 +52,7 @@ pub struct CreateQualityStandardRequest {
 }
 
 /// 更新质量标准请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateQualityStandardRequest {
     /// 标准名称
@@ -65,6 +68,7 @@ pub struct UpdateQualityStandardRequest {
 }
 
 /// 创建版本历史请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreateVersionHistoryRequest {
     /// 标准ID
@@ -78,6 +82,7 @@ pub struct CreateVersionHistoryRequest {
 }
 
 /// 质量标准审批请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct QualityApproveRequest {
     /// 审批意见
@@ -85,6 +90,7 @@ pub struct QualityApproveRequest {
 }
 
 /// 质量标准驳回请求 DTO（批次 157d-2 新增）
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct QualityRejectRequest {
     /// 驳回原因

@@ -13,6 +13,7 @@ use validator::Validate;
 
 /// 批量创建产品请求
 // P2 2-9 修复：DTO 加长度校验，防止超大数组导致服务端资源耗尽
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct BatchCreateProductsPayload {
     #[validate(length(max = 500, message = "批量创建产品数量不能超过 500 条"))]
@@ -21,6 +22,7 @@ pub struct BatchCreateProductsPayload {
 
 /// 批量更新产品请求
 // P2 2-9 修复：DTO 加长度校验，防止超大数组导致服务端资源耗尽
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct BatchUpdateProductsPayload {
     #[validate(length(max = 500, message = "批量更新产品数量不能超过 500 条"))]
@@ -29,6 +31,7 @@ pub struct BatchUpdateProductsPayload {
 
 /// 批量删除产品请求
 // P2 2-9 修复：DTO 加长度校验，防止超大数组导致服务端资源耗尽
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct BatchDeleteProductsPayload {
     #[validate(length(max = 500, message = "批量删除产品数量不能超过 500 条"))]
@@ -36,6 +39,7 @@ pub struct BatchDeleteProductsPayload {
 }
 
 /// 批量操作响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct BatchResponse<T> {
     pub success: bool,

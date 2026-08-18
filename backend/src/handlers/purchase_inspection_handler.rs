@@ -118,6 +118,7 @@ pub async fn complete_inspection(
 // =====================================================
 
 /// 采购质检单查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct InspectionQueryParams {
     pub page: Option<u64>,
@@ -128,6 +129,7 @@ pub struct InspectionQueryParams {
 
 /// P1-2i 修复（批次 81 v1 复审）：创建质检明细请求 DTO 替代 create_inspection_item 中的
 /// Json<serde_json::Value>，提供强类型校验 需要 Serialize：handler 将 DTO 序列化为 Value 回显给前端
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct CreateInspectionItemDto {
     /// 产品 ID：必填
@@ -146,6 +148,7 @@ pub struct CreateInspectionItemDto {
 
 /// P1-2i 修复（批次 81 v1 复审）：更新质检明细请求 DTO 替代 update_inspection_item 中的
 /// Json<serde_json::Value>，所有字段可选 需要 Serialize：handler 将 DTO 序列化为 Value 回显给前端
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct UpdateInspectionItemDto {
     /// 合格数量：可选

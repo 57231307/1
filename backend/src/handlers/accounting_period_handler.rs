@@ -49,6 +49,7 @@ pub async fn close_period(
 }
 
 /// 反结账请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ReopenPeriodRequest {
     pub reason: String,
@@ -70,6 +71,7 @@ pub async fn reopen_period(
 }
 
 /// 年结查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct YearEndClosingQuery {
     pub year: i32,

@@ -8,12 +8,12 @@ use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 
 /// 研发费用加计扣除服务
-#[allow(dead_code)]
+#[allow(dead_code, reason = "预留")]
 pub struct RndSuperDeductionService {
     db: Arc<DatabaseConnection>,
 }
 
-#[allow(dead_code)]
+#[allow(dead_code, reason = "预留")]
 impl RndSuperDeductionService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }

@@ -14,6 +14,7 @@ use rust_decimal::Decimal;
 use serde::Deserialize;
 
 /// 查询参数：术语使用月报年月
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UsageReportQuery {
     pub year: i32,
@@ -21,6 +22,7 @@ pub struct UsageReportQuery {
 }
 
 /// 按 Incoterm 计算价格构成请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CalculateCostsRequest {
     pub incoterm: Incoterms2020,

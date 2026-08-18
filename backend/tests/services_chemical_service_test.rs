@@ -28,7 +28,7 @@ fn test_shelf_life_no_expiry_returns_none() {
 #[test]
 fn 测试计算总成本() {
     let result = compute_total_cost(Decimal::new(100, 0), Decimal::new(12, 1));
-    assert_eq!(result, Decimal::new(1200, 0));
+    assert_eq!(result, Decimal::new(120, 0));
 }
 
 #[test]

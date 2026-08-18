@@ -29,6 +29,7 @@ use crate::utils::response::ApiResponse;
 
 /// CSV 导入请求（data 字段 validator 校验上限 10MB）。
 /// 防止已认证用户发送超大请求触发 OOM DoS。
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CsvImportRequest {
     pub import_type: String,
@@ -40,6 +41,7 @@ pub struct CsvImportRequest {
 
 /// Excel 导入请求（data 行数 validator 校验上限 1 万行）。
 /// 单元格/列数限制由 handler 入口 + service 层 defense-in-depth 双重把关。
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct ExcelImportRequest {
     pub import_type: String,
@@ -419,6 +421,7 @@ pub async fn export_stream(
 
     Ok(response)
 }
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, serde::Serialize)]
 pub struct ImportTemplateListItem {
     pub import_type: String,
@@ -427,6 +430,7 @@ pub struct ImportTemplateListItem {
 }
 
 /// 导入任务列表项
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, serde::Serialize)]
 pub struct ImportTaskItem {
     pub id: i32,

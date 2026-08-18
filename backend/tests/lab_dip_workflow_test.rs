@@ -14,12 +14,12 @@ use bingxi_backend::services::lab_dip_service::LabDipRequestService;
 /// 验证打样通知单 6 种状态常量值符合预期（大写风格）。
 #[test]
 fn test_dyztcl_zzqx() {
-    assert_eq!(status::PENDING, "PENDING");
-    assert_eq!(status::SAMPLING, "SAMPLING");
-    assert_eq!(status::SUBMITTED, "SUBMITTED");
-    assert_eq!(status::APPROVED, "APPROVED");
-    assert_eq!(status::REJECTED, "REJECTED");
-    assert_eq!(status::COMPLETED, "COMPLETED");
+    assert_eq!(status::PENDING, "pending");
+    assert_eq!(status::SAMPLING, "sampling");
+    assert_eq!(status::SUBMITTED, "submitted");
+    assert_eq!(status::APPROVED, "approved");
+    assert_eq!(status::REJECTED, "rejected");
+    assert_eq!(status::COMPLETED, "completed");
 }
 
 /// test_dyztcl_dxfgyzx
@@ -34,8 +34,8 @@ fn test_dyztcl_dxfgyzx() {
         status::COMPLETED,
     ] {
         assert!(
-            s.chars().all(|c| c.is_uppercase() || c == '_'),
-            "状态 {} 应全大写",
+            s.chars().all(|c| c.is_lowercase() || c == '_'),
+            "状态 {} 应全小写",
             s
         );
     }

@@ -53,7 +53,7 @@ fn test_normal_stock_alert() {
 #[test]
 fn test_low_stock_alert() {
     let mut model = make_stock_model();
-    model.quantity_on_hand = Decimal::from(5);
+    model.quantity_available = Decimal::from(5);
     model.reorder_point = Decimal::from(10);
     let alert = compute_alert_type(&model);
     assert_eq!(alert, AlertType::LowStock.code());
@@ -62,10 +62,10 @@ fn test_low_stock_alert() {
 #[test]
 fn test_overstock_alert() {
     let mut model = make_stock_model();
-    model.quantity_on_hand = Decimal::from(150);
+    model.quantity_available = Decimal::from(150);
     model.max_stock_point = Decimal::from(100);
     let alert = compute_alert_type(&model);
-    assert_eq!(alert, AlertType::OverStock.code());
+    assert_eq!(alert, "over_stock");
 }
 
 #[test]

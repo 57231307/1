@@ -26,6 +26,7 @@ pub const P92_QRY_MODULE: &str = "sales_order_query";
 
 /// 销售订单查询条件
 #[derive(Debug, Clone, Default)]
+#[allow(dead_code, reason = "预留：销售订单查询条件，待接入")]
 pub struct OrderQuery {
     /// 客户 ID
     pub customer_id: Option<i32>,

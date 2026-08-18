@@ -14,6 +14,7 @@ use std::sync::Arc;
 
 /// 库存汇总项（用于返回汇总数据）
 #[derive(Debug, Clone)]
+#[allow(dead_code, reason = "预留：库存汇总项，待接入")]
 pub struct InventorySummaryItem {
     pub product_id: i32,
     pub product_name: String,

@@ -9,9 +9,11 @@ use bingxi_backend::utils::process_state_machine::{
 
 #[test]
 fn test_state_machine_complete_matrix() {
-    // 验证所有 6 个合法转换
+    // 验证所有 8 个合法顺序转换
     let valid_transitions = vec![
-        ("draft", "yarn_purchasing"),
+        ("draft", "lab_dip"),
+        ("lab_dip", "quotation"),
+        ("quotation", "yarn_purchasing"),
         ("yarn_purchasing", "dyeing"),
         ("dyeing", "finishing"),
         ("finishing", "delivery"),
@@ -29,6 +31,8 @@ fn test_cancellation_paths() {
     // 任意非终态都可取消
     let non_terminal = vec![
         "draft",
+        "lab_dip",
+        "quotation",
         "yarn_purchasing",
         "dyeing",
         "finishing",
@@ -85,5 +89,5 @@ fn test_status_parsing() {
 #[test]
 fn test_next_status_returns_correct_value() {
     let next = next_status("draft").unwrap();
-    assert_eq!(next, CustomOrderStatus::YarnPurchasing);
+    assert_eq!(next, CustomOrderStatus::LabDip);
 }

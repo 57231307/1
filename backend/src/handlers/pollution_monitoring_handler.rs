@@ -16,6 +16,7 @@ use chrono::NaiveDate;
 use serde::Deserialize;
 
 /// 更新固废处置状态请求体
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateWasteStatusRequest {
     pub status: String,

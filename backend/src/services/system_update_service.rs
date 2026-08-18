@@ -152,7 +152,19 @@ impl Default for SystemUpdateService {
 /// 解析语义版本号字符串为数字数组
 /// 批次 322 v9 复审低危修复：抽取 `compare_versions` 和 `compare_versions_for_sort`；中重复的版本号解析逻辑为共享函数，遵循 DRY 原则。；`pub(crate)`：github 子模块的 `compare_versions` / `compare_versions_for_sort` 调用。；# 示例；"1.2.3" → [1, 2, 3]；"2.0" → [2, 0]；"1.0.0-beta" → [1, 0, 0]（非数字部分被 filter_map 忽略）
 pub fn parse_version(v: &str) -> Vec<u32> {
-    v.split('.').filter_map(|s| s.parse().ok()).collect()
+    let mut result = Vec::new();
+    for segment in v.split('.') {
+        if let Some((n, _)) = segment.split_once('-') {
+            if let Ok(n) = n.parse() {
+                result.push(n);
+            }
+            break;
+        }
+        if let Ok(n) = segment.parse() {
+            result.push(n);
+        }
+    }
+    result
 }
 
 // =====================================================

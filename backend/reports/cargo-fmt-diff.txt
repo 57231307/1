@@ -1,0 +1,17 @@
+info: syncing channel updates for 1.94-x86_64-unknown-linux-gnu
+info: latest update on 2026-03-26 for version 1.94.1 (e408947bf 2026-03-25)
+info: downloading 5 components
+Diff in /home/runner/work/1/1/backend/tests/services_quotation_service_test.rs:297:
+     assert!(result.is_err());
+     let err = result.unwrap_err();
+     let msg = format!("{}", err);
+-    assert!(msg.contains("报价单不存在") || msg.contains("not found") || msg.contains("不存在") || msg.contains("未找到"));
++    assert!(
++        msg.contains("报价单不存在")
++            || msg.contains("not found")
++            || msg.contains("不存在")
++            || msg.contains("未找到")
++    );
+ }
+ 
+ // ============ update 状态机校验测试 ============

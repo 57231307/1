@@ -44,6 +44,7 @@ pub struct CreateCustomsDeclarationRequest {
 
 /// 创建外汇核销单请求
 #[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code, reason = "预留：创建外汇核销单请求，待接入")]
 pub struct CreateFxVerificationRequest {
     pub verification_no: String,
     pub customs_declaration_id: Option<i32>,

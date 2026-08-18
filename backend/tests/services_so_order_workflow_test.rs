@@ -1,6 +1,6 @@
+use bingxi_backend::models::sales_order::Model as SalesOrderEntityModel;
 use bingxi_backend::models::status::master_data;
 use bingxi_backend::models::status::sales::sales_order;
-use bingxi_backend::models::sales_order::Model as SalesOrderEntityModel;
 // decs 宏在测试中不可用，使用 Decimal::from_str 替代
 use bingxi_backend::search::{ElasticClient, SearchClient};
 use bingxi_backend::services::test_common::setup_test_db;

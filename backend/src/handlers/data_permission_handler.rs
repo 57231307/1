@@ -88,6 +88,7 @@ pub fn validate_custom_condition_safe(condition: &Value) -> Result<(), AppError>
 }
 
 /// 设置数据权限请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct SetDataPermissionRequest {
     pub role_id: i32,
@@ -99,6 +100,7 @@ pub struct SetDataPermissionRequest {
 }
 
 /// 数据权限响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct DataPermissionResponse {
     pub id: i32,

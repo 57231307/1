@@ -95,7 +95,7 @@ fn test_sales_order_no_format() {
         "销售订单单号格式错误：{}，期望 SO{{yyyyMMdd}}{{3 位流水}}",
         doc_no
     );
-    assert_eq!(doc_no, "SO202606170042");
+    assert_eq!(doc_no, "SO20260617042");
 }
 
 /// 验证采购订单 generate-no 端点返回的单据号格式（P1-1 补齐）
@@ -114,5 +114,5 @@ fn test_purchase_order_no_format() {
         "采购订单单号格式错误：{}，期望 PO{{yyyyMMdd}}{{3 位流水}}",
         doc_no
     );
-    assert_eq!(doc_no, "PO202606170017");
+    assert_eq!(doc_no, "PO20260617017");
 }

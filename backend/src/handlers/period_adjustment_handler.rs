@@ -25,6 +25,7 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 /// 期末调整信息（响应前端，与 Model 字段一一对应）
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize, Clone)]
 pub struct PeriodAdjustmentInfo {
     pub id: i32,

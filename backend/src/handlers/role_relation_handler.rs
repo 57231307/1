@@ -16,12 +16,14 @@ use axum::{
 use serde::Deserialize;
 
 /// 查询参数：关系类型过滤
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct RelationTypeQuery {
     pub relation_type: Option<String>,
 }
 
 /// 检查角色互斥请求体
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CheckMutualExclusiveRequest {
     /// 用户当前已持有的角色编码列表

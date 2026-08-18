@@ -33,6 +33,7 @@ async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), 
 }
 
 /// 角色响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct RoleResponse {
     pub id: i32,
@@ -45,6 +46,7 @@ pub struct RoleResponse {
 }
 
 /// 角色详情响应（包含权限列表）
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct RoleDetailResponse {
     pub id: i32,
@@ -58,6 +60,7 @@ pub struct RoleDetailResponse {
 }
 
 /// 权限响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct PermissionResponse {
     pub id: i32,
@@ -68,6 +71,7 @@ pub struct PermissionResponse {
 }
 
 /// 角色列表响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct RoleListResponse {
     pub roles: Vec<RoleResponse>,
@@ -75,6 +79,7 @@ pub struct RoleListResponse {
 }
 
 /// 创建角色请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreateRolePayload {
     pub name: String,
@@ -84,6 +89,7 @@ pub struct CreateRolePayload {
 }
 
 /// 更新角色请求（V15 P1-14.12-E：移除 code 字段，禁止修改 role.code 防提权）
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateRolePayload {
     pub name: Option<String>,
@@ -92,6 +98,7 @@ pub struct UpdateRolePayload {
 }
 
 /// 分配权限请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct AssignPermissionPayload {
     pub resource_type: String,

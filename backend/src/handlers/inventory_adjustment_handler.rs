@@ -18,6 +18,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 /// 创建调整单请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreateAdjustmentRequestPayload {
     pub warehouse_id: i32,
@@ -29,6 +30,7 @@ pub struct CreateAdjustmentRequestPayload {
     pub items: Vec<AdjustmentItemPayload>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct AdjustmentItemPayload {
     pub stock_id: i32,
@@ -38,6 +40,7 @@ pub struct AdjustmentItemPayload {
 }
 
 /// 调整单响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct AdjustmentResponse {
     pub id: i32,
@@ -54,6 +57,7 @@ pub struct AdjustmentResponse {
     pub items: Vec<AdjustmentItemResponse>,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct AdjustmentItemResponse {
     pub id: i32,
@@ -67,6 +71,7 @@ pub struct AdjustmentItemResponse {
 }
 
 /// 调整单列表响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct AdjustmentListResponse {
     pub adjustments: Vec<AdjustmentSummary>,
@@ -75,6 +80,7 @@ pub struct AdjustmentListResponse {
     pub page_size: u64,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct AdjustmentSummary {
     pub id: i32,
@@ -316,6 +322,7 @@ pub async fn list_adjustments(
     })))
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ListAdjustmentsParams {
     pub page: Option<u64>,
@@ -367,6 +374,7 @@ pub async fn get_adjustment(
 }
 
 /// 更新调整单请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateAdjustmentRequestPayload {
     pub warehouse_id: Option<i32>,

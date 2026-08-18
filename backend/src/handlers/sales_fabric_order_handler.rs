@@ -17,6 +17,7 @@ use crate::utils::response::{ApiResponse, PaginatedResponse};
 use crate::utils::sql_escape::safe_like_pattern;
 
 /// 查询参数 - 销售订单列表
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct FabricOrderQuery {
     pub page: Option<u64>,
@@ -29,6 +30,7 @@ pub struct FabricOrderQuery {
 }
 
 /// 创建销售订单请求（面料行业版）
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreateFabricOrderRequest {
     pub customer_id: i32,
@@ -48,6 +50,7 @@ pub struct CreateFabricOrderRequest {
 }
 
 /// 销售订单明细请求（面料行业版）；批次 86 v2 复审 P2-11 修复：金额/数量字段 f64 → Decimal（消除精度漂移）， 在 handler 入口添加非负校验 + round_dp(2) 精度校验
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct FabricOrderItemRequest {
     pub product_id: i32,
@@ -75,6 +78,7 @@ pub struct FabricOrderItemRequest {
 }
 
 /// 更新销售订单请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateFabricOrderRequest {
     pub required_date: Option<chrono::DateTime<chrono::Utc>>,

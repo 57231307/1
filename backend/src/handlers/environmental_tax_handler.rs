@@ -14,6 +14,7 @@ use axum::{
 use serde::Deserialize;
 
 /// 查询参数：申报期间
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct PeriodQuery {
     pub period_year: i32,

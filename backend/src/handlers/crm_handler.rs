@@ -24,6 +24,7 @@ use validator::Validate;
 
 /// P1-2g 修复（批次 81 v1 复审）：更新线索状态请求 DTO
 /// 替代 update_lead_status 中的 Json<serde_json::Value>，提供强类型校验
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateLeadStatusDto {
     /// 状态：必填，长度至少 1
@@ -604,6 +605,7 @@ pub async fn get_customer_relation_summary(
 // ===== Task 13: CRM 360 视图与客户增强详情 =====
 
 /// 分页参数（跟进记录等使用）
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct FollowUpQuery {
     pub page: Option<u64>,
@@ -1037,6 +1039,7 @@ pub async fn get_sales_funnel(
 // ===== V15 P2 请求/查询 DTO =====
 
 /// 渠道 ROI 查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ChannelRoiQuery {
     pub start_date: Option<chrono::NaiveDate>,
@@ -1044,6 +1047,7 @@ pub struct ChannelRoiQuery {
 }
 
 /// 计算渠道 ROI 请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CalculateChannelRoiRequest {
     pub source: String,
@@ -1053,6 +1057,7 @@ pub struct CalculateChannelRoiRequest {
 }
 
 /// 分配规则查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct AllocationRuleQuery {
     pub is_active: Option<bool>,
@@ -1060,12 +1065,14 @@ pub struct AllocationRuleQuery {
 
 /// 自动分配请求
 #[derive(Debug, Deserialize)]
+#[allow(dead_code, reason = "反序列化输入字段")]
 pub struct AutoAssignRequest {
     pub source: String,
     pub industry: Option<String>,
 }
 
 /// 培育计划查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct NurturePlanQuery {
     pub lead_id: Option<i32>,
@@ -1074,17 +1081,20 @@ pub struct NurturePlanQuery {
 
 /// 阶段停留时长查询参数
 #[derive(Debug, Deserialize)]
+#[allow(dead_code, reason = "反序列化输入字段")]
 pub struct StageDurationQuery {
     pub opportunity_id: Option<i32>,
 }
 
 /// 操作日志查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct AuditLogQuery {
     pub operation: Option<String>,
 }
 
 /// 预测准确性查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ForecastAccuracyQuery {
     pub year: Option<i32>,
@@ -1092,18 +1102,21 @@ pub struct ForecastAccuracyQuery {
 }
 
 /// 商机所有者查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct OwnerQuery {
     pub owner_id: Option<i32>,
 }
 
 /// 月数查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct MonthsBackQuery {
     pub months_back: Option<u32>,
 }
 
 /// 漏斗日期查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct FunnelDateQuery {
     pub start_date: Option<chrono::NaiveDate>,
@@ -1111,6 +1124,7 @@ pub struct FunnelDateQuery {
 }
 
 /// 创建审计日志请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreateAuditLogRequest {
     pub operation: String,
@@ -1122,6 +1136,7 @@ pub struct CreateAuditLogRequest {
 }
 
 /// 阶段变更请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct StageChangeRequest {
     pub from_stage: Option<String>,

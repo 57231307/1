@@ -13,7 +13,7 @@ pub struct BusinessTraceService {
     db: Arc<DatabaseConnection>,
 }
 
-#[allow(dead_code)]
+#[allow(dead_code, reason = "预留")]
 impl BusinessTraceService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }

@@ -16,6 +16,7 @@ use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
 
 /// P1-2e 修复（批次 81 v1 复审）：解锁账号请求 DTO
 /// 替代 unlock_account 中的 Json<serde_json::Value>，提供强类型校验
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct UnlockAccountDto {
     /// 用户名：必填，长度至少 1
@@ -44,6 +45,7 @@ async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), 
     Ok(())
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct LoginLogQuery {
     pub user_id: Option<i32>,
@@ -53,6 +55,7 @@ pub struct LoginLogQuery {
     pub page_size: Option<u64>,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct LoginLogItem {
     pub id: i32,
@@ -66,6 +69,7 @@ pub struct LoginLogItem {
     pub login_time: String,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct LockStatus {
     pub user_id: i32,
@@ -76,6 +80,7 @@ pub struct LockStatus {
     pub max_attempts: i32,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct SecurityAlert {
     pub alert_type: String,

@@ -21,6 +21,7 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 /// 分配客户请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct AssignCustomerRequest {
     pub lead_id: i32,
@@ -30,6 +31,7 @@ pub struct AssignCustomerRequest {
 }
 
 /// 批量分配请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct BatchAssignRequest {
     pub lead_ids: Vec<i32>,
@@ -341,6 +343,7 @@ pub async fn transfer_lead(
 
 /// GET /api/v1/erp/crm/assignments/workload - 查询销售用户线索负载；v10 P1 批次
 /// 140 新增：辅助端点，查询指定销售用户列表的当前活跃线索数， 用于自动分配前的预览（按负载升序排序，负载最少的优先分配）。
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct WorkloadQuery {
     /// 逗号分隔的用户 ID 列表（如 ?user_ids=1,2,3）

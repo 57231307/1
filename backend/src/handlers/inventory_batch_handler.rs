@@ -14,6 +14,7 @@ use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 /// 查询参数 - 批次列表
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct BatchListQuery {
     pub page: Option<u64>,
@@ -28,6 +29,7 @@ pub struct BatchListQuery {
 }
 
 /// 创建批次请求（面料行业版）
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreateBatchRequest {
     pub batch_no: String,
@@ -49,6 +51,7 @@ pub struct CreateBatchRequest {
 }
 
 /// 更新批次请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateBatchRequest {
     pub color_no: Option<String>,
@@ -63,6 +66,7 @@ pub struct UpdateBatchRequest {
 }
 
 /// 批次转移请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct TransferBatchRequest {
     pub from_warehouse_id: i32,

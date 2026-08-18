@@ -12,6 +12,7 @@ use axum::{
 use serde::Deserialize;
 
 /// 关联采购订单请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct LinkPurchaseOrderRequest {
     pub po_id: i32,

@@ -1,16 +1,23 @@
 use bingxi_backend::handlers::dye_batch_handler::*;
 use bingxi_backend::models::dye_batch::Model as DyeBatchModel;
 use chrono::Utc;
-use rust_decimal::Decimal;
-use serde_json::json;
 
 /// 构造测试用的染色批次模型
 fn make_dye_batch_model(id: i32, status: &str) -> DyeBatchModel {
+    let now: sea_orm::prelude::DateTimeWithTimeZone = chrono::Utc::now().into();
     DyeBatchModel {
         id,
         batch_no: format!("DB-2026-{:04}", id),
+        greige_fabric_id: None,
+        color_no: None,
+        dye_lot_no: String::new(),
+        planned_quantity: None,
         status: Some(status.to_string()),
-        ..Default::default()
+        started_at: None,
+        completed_at: None,
+        is_deleted: None,
+        created_at: now,
+        updated_at: now,
     }
 }
 
@@ -62,7 +69,7 @@ fn test_status_completed_is_final() {
 
     // 验证已完成状态是终态
     let invalid_transitions = vec!["planned", "in_progress"];
-    assert!(!invalid_transitions.contains(&"planned"));
+    assert!(invalid_transitions.contains(&"planned"));
 }
 
 // ===== 序列化/反序列化测试 =====

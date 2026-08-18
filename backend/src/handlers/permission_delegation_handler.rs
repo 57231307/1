@@ -14,6 +14,7 @@ use axum::{
 use serde::Deserialize;
 
 /// 查询参数：委托列表查询
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct DelegationListQuery {
     pub user_id: Option<i32>,
@@ -21,6 +22,7 @@ pub struct DelegationListQuery {
 }
 
 /// 查询参数：委托权限检查
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct DelegatedPermissionQuery {
     pub delegatee_id: i32,
@@ -28,6 +30,7 @@ pub struct DelegatedPermissionQuery {
 }
 
 /// 撤销委托请求体
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct RevokeDelegationRequest {
     pub revoke_reason: Option<String>,

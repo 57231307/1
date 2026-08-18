@@ -43,7 +43,7 @@ pub struct ColorCardCrudService {
     db: Arc<DatabaseConnection>,
 }
 
-#[allow(dead_code)]
+#[allow(dead_code, reason = "预留")]
 impl ColorCardCrudService {
     /// 从数据库连接构造
     pub fn new(db: Arc<DatabaseConnection>) -> Self {

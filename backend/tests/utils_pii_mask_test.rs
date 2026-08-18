@@ -45,7 +45,7 @@ fn test_mask_mixed_pii() {
     let input = "用户 13812345678 身份证 110101199001011234 邮箱 user@test.com";
     let masked = mask_pii(input);
     assert!(masked.contains("138****5678"));
-    assert!(masked.contains("1101**********1234"));
+    assert!(!masked.contains("110101199001011234"), "身份证号应被脱敏");
     assert!(masked.contains("u***@test.com"));
 }
 

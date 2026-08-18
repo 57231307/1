@@ -28,6 +28,7 @@ use crate::utils::response::ApiResponse;
 
 /// P1-2n 修复（批次 81 v1 复审）：切换报表订阅启用状态请求 DTO
 /// 替代 toggle_subscription 中的 Json<serde_json::Value>，提供强类型校验
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct ToggleSubscriptionDto {
     /// 是否启用：必填
@@ -35,6 +36,7 @@ pub struct ToggleSubscriptionDto {
 }
 
 /// 报表执行查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ReportExecuteParams {
     pub page: Option<u64>,
@@ -403,6 +405,7 @@ pub async fn trigger_subscription(
 }
 
 /// 报表模板导出请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct TemplateExportRequest {
     pub format: Option<String>,
@@ -410,6 +413,7 @@ pub struct TemplateExportRequest {
 }
 
 /// 报表导出请求（PDF/Excel 共用）
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ExportRequest {
     pub template_id: String,

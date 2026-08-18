@@ -21,6 +21,7 @@ use crate::utils::response::ApiResponse;
 
 /// P1-2c 修复（批次 81 v1 复审）：创建财务指标请求 DTO
 /// 替代 create_indicator 中的 Json<serde_json::Value>，提供强类型校验
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateIndicatorDto {
     /// 指标名称：必填，长度至少 1
@@ -42,6 +43,7 @@ pub struct CreateIndicatorDto {
 
 /// P1-2c 修复（批次 81 v1 复审）：创建财务趋势数据请求 DTO
 /// 替代 create_trend 中的 Json<serde_json::Value>，提供强类型校验
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateTrendDto {
     /// 分析类型：可选，缺失时默认 "trend"
@@ -59,6 +61,7 @@ pub struct CreateTrendDto {
 }
 
 /// 财务趋势查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct TrendQueryParams {
     pub indicator_id: Option<i32>,
@@ -72,6 +75,7 @@ pub struct TrendQueryParams {
 }
 
 /// 创建报告请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreateReportRequest {
     pub name: String,
@@ -87,6 +91,7 @@ pub struct CreateReportRequest {
 
 /// 执行财务分析报告查询参数；批次 129 v8 复审 P2 修复：原 execute_report 无 period 参数
 /// 仅查询最新结果不执行计算。 现新增可选 period 参数（默认当前年月），调用 calculate_indicators 真实计算财务指标。
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ExecuteReportParams {
     /// 分析期间（格式 YYYY-MM，缺失时默认当前年月）

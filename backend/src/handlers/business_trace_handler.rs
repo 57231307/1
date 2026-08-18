@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::services::business_trace_service::BusinessTraceService;
 
 /// 追溯链响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct TraceChainResponse {
     pub id: i32,
@@ -34,6 +35,7 @@ pub struct TraceChainResponse {
 }
 
 /// 完整追溯链响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct FullTraceChainResponse {
     pub trace_chain_id: String,
@@ -49,6 +51,7 @@ pub struct FullTraceChainResponse {
 }
 
 /// 追溯环节详情
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct TraceStageDetail {
     pub stage_id: i32,
@@ -66,6 +69,7 @@ pub struct TraceStageDetail {
 }
 
 /// 正向追溯参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ForwardTraceParams {
     pub supplier_id: i32,
@@ -73,6 +77,7 @@ pub struct ForwardTraceParams {
 }
 
 /// 反向追溯参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct BackwardTraceParams {
     pub customer_id: i32,
@@ -80,6 +85,7 @@ pub struct BackwardTraceParams {
 }
 
 /// 追溯列表响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct TraceListResponse {
     pub traces: Vec<TraceChainResponse>,

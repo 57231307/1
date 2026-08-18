@@ -23,7 +23,7 @@ fn 测试计算消耗量_相等返回零() {
 #[test]
 fn 测试计算总成本() {
     let result = compute_total_cost(Decimal::new(50, 0), Decimal::new(12, 1));
-    assert_eq!(result, Decimal::new(600, 0));
+    assert_eq!(result, Decimal::new(60, 0));
 }
 
 #[test]

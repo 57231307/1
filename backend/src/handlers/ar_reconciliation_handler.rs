@@ -21,6 +21,7 @@ use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use std::sync::Arc;
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreateReconciliationApiRequest {
     pub reconciliation_no: String,
@@ -33,6 +34,7 @@ pub struct CreateReconciliationApiRequest {
     pub total_collections: Decimal,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Clone, Serialize)]
 pub struct ReconciliationResponse {
     pub id: i32,
@@ -96,6 +98,7 @@ pub async fn create_reconciliation(
         })
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ListReconciliationsQuery {
     pub status: Option<String>,
@@ -161,6 +164,7 @@ pub async fn get_reconciliation(
         .ok_or_else(|| AppError::not_found(format!("对账单 {} 不存在", id)))
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateStatusRequest {
     pub status: String,
@@ -190,13 +194,13 @@ pub async fn update_reconciliation_status(
 //
 // 原状态：service::ar::recon.rs 的 update/delete/confirm/dispute/close/send 方法
 // 已完整实现（含事务 + lock_exclusive + 状态门 + 审计日志），但 /ar-reconciliations
-// 路由仅挂载 list/create/get/update_status 4 端点，导致 6 个 service 方法无业务入口
-// （#[allow(dead_code)] + TODO 标注）。
+// 路由仅挂载 list/create/get/update_status 4 端点，导致 6 个 service 方法无业务入口。
 //
 // 修复：新增 6 个 handler 并挂载到 /ar-reconciliations 路由，移除 service 的 dead_code 标注。
 // ============================================================================
 
 /// 更新对账单请求体（API 层）
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateReconciliationApiRequest {
     pub opening_balance: Option<Decimal>,
@@ -321,6 +325,7 @@ pub async fn close_reconciliation(
 // ============================================================================
 
 /// 自动对账请求参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct AutoMatchQueryParams {
     pub customer_id: Option<i32>,
@@ -330,6 +335,7 @@ pub struct AutoMatchQueryParams {
 }
 
 /// 账龄分析查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct AgingReportQueryParams {
     pub customer_id: Option<i32>,
@@ -339,15 +345,18 @@ pub struct AgingReportQueryParams {
 
 /// 确认对账单请求
 #[derive(Debug, Deserialize)]
+#[allow(dead_code, reason = "反序列化输入字段")]
 pub struct ConfirmRequest {}
 
 /// 争议处理请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct DisputeRequest {
     pub reason: String,
 }
 
 /// 生成对账单 API 请求体
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct GenerateReconciliationApiRequest {
     pub customer_id: i32,
@@ -358,6 +367,7 @@ pub struct GenerateReconciliationApiRequest {
 
 /// 自动对账结果列表查询参数
 #[derive(Debug, Deserialize)]
+#[allow(dead_code, reason = "反序列化输入字段")]
 pub struct ListResultsQuery {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
@@ -368,12 +378,14 @@ pub struct ListResultsQuery {
 }
 
 /// 客户确认请求体
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreateConfirmationRequest {
     pub reconciliation_id: i32,
 }
 
 /// 更新确认状态请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateConfirmationStatusRequest {
     pub status: String,
@@ -382,6 +394,7 @@ pub struct UpdateConfirmationStatusRequest {
 }
 
 /// 创建争议请求体
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreateDisputeApiRequest {
     pub reconciliation_id: Option<i32>,
@@ -392,6 +405,7 @@ pub struct CreateDisputeApiRequest {
 }
 
 /// 解决争议请求体
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ResolveDisputeRequest {
     pub resolution: String,

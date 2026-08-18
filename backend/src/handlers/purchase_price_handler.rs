@@ -11,6 +11,7 @@ use axum::{
 use serde::Deserialize;
 use tracing::info;
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct PurchasePriceQuery {
     pub product_id: Option<i32>,
@@ -20,12 +21,14 @@ pub struct PurchasePriceQuery {
     pub page_size: Option<i64>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ApprovePriceRequest {
     pub approved: bool,
     pub remark: Option<String>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdatePriceRequest {
     pub price: String,
@@ -182,12 +185,14 @@ pub async fn get_price_history_by_product(
 }
 
 /// batch-13 P3: 价格清单导入请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ImportPriceRequest {
     pub prices: Vec<ImportPriceItem>,
 }
 
 /// batch-13 P3: 价格清单导入项
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ImportPriceItem {
     pub product_id: i32,
@@ -199,6 +204,7 @@ pub struct ImportPriceItem {
 }
 
 /// batch-13 P3: 价格清单导入响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, serde::Serialize)]
 pub struct ImportPriceResponse {
     pub success_count: u32,

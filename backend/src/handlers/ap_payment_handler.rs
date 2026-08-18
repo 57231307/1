@@ -20,6 +20,7 @@ use tracing::{info, warn};
 use validator::Validate;
 
 /// 查询付款列表参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ApPaymentQueryParams {
     pub supplier_id: Option<i32>,
@@ -178,6 +179,7 @@ pub async fn confirm_payment(
 }
 
 /// 获取付款计划
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct PaymentScheduleParams {
     pub supplier_id: Option<i32>,

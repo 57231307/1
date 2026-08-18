@@ -18,6 +18,7 @@ use validator::Validate;
 // 统一追加 round_dp(2) 精度校验。#[validate(custom)] 引用改为 crate::utils::validator::validate_amount_range。
 
 /// 资金账户查询参数 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct FundAccountQuery {
     pub account_type: Option<String>,
@@ -27,6 +28,7 @@ pub struct FundAccountQuery {
 }
 
 /// 创建资金账户请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreateFundAccountRequest {
     pub account_name: String,
@@ -40,6 +42,7 @@ pub struct CreateFundAccountRequest {
 
 /// 存款/取款请求 DTO
 /// 批次 31 v7 P1-6 修复：添加 Validate + 字段验证
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct FundTransactionRequest {
     #[validate(custom(function = "crate::utils::validator::validate_amount_range"))]
@@ -50,6 +53,7 @@ pub struct FundTransactionRequest {
 
 /// 冻结资金请求 DTO
 /// 批次 31 v7 P1-6 修复：添加 Validate + 字段验证
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct FreezeFundsRequest {
     #[validate(custom(function = "crate::utils::validator::validate_amount_range"))]
@@ -59,6 +63,7 @@ pub struct FreezeFundsRequest {
 }
 
 /// 资金转账查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct FundTransferQuery {
     pub from_account_id: Option<i32>,
@@ -140,6 +145,7 @@ pub async fn get_account(
 }
 
 /// 更新资金账户请求 DTO
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateFundAccountRequestDto {
     pub account_name: Option<String>,
@@ -366,12 +372,14 @@ pub async fn get_pending_transfers(
 }
 
 /// V15 P1 17.6-D6：资金日报查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct FundDailyReportQuery {
     pub date: chrono::NaiveDate,
 }
 
 /// V15 P1 17.6-D6：资金月报查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct FundMonthlyReportQuery {
     pub year: i32,
@@ -414,6 +422,7 @@ pub async fn get_fund_monthly_report(
 }
 
 /// 现金流预测查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CashFlowForecastQuery {
     pub days: Option<i32>,
@@ -434,6 +443,7 @@ pub async fn cash_flow_forecast(
 }
 
 /// 按类型查询账户查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct AccountsByTypeQuery {
     pub account_type: String,
@@ -457,6 +467,7 @@ pub async fn list_accounts_by_type(
 }
 
 /// 银行对账查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct BankReconciliationQuery {
     pub account_id: i32,

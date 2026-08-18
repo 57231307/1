@@ -198,6 +198,7 @@ pub async fn delete_purchase_return(
 // =====================================================
 
 /// 采购退货单查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ReturnQueryParams {
     pub page: Option<u64>,
@@ -207,6 +208,7 @@ pub struct ReturnQueryParams {
 }
 
 /// 拒绝退货单请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct RejectReturnRequest {
     pub reason: String,

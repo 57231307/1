@@ -14,6 +14,7 @@ use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct AuditLogQuery {
     pub table_name: Option<String>,
@@ -26,6 +27,7 @@ pub struct AuditLogQuery {
     pub page_size: Option<u64>,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct AuditLogItem {
     pub id: i32,
@@ -38,6 +40,7 @@ pub struct AuditLogItem {
     pub created_at: Option<String>,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct ExportResult {
     pub download_url: String,

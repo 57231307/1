@@ -14,17 +14,20 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct DateRangeQuery {
     pub start_date: Option<chrono::NaiveDate>,
     pub end_date: Option<chrono::NaiveDate>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct PeriodQuery {
     pub period: Option<String>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct SubsidiaryLedgerQuery {
     pub dimension_type: String,
@@ -33,6 +36,7 @@ pub struct SubsidiaryLedgerQuery {
     pub end_date: Option<chrono::NaiveDate>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct GeneralLedgerQuery {
     pub subject_code: String,
@@ -177,6 +181,7 @@ pub async fn get_subsidiary_ledger(
 }
 
 /// F-P2-2 修复（批次 387 v13 复审）：报表穿透查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct DrillDownQuery {
     /// 报表类型：balance_sheet / income_statement / cash_flow / trial_balance

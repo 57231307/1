@@ -15,6 +15,7 @@ use rust_decimal::Decimal;
 use serde::Deserialize;
 
 /// 查询参数：退税申报期间（可选）
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct RefundPeriodQuery {
     pub period_year: Option<i32>,
@@ -22,6 +23,7 @@ pub struct RefundPeriodQuery {
 }
 
 /// 生成出口退税申报表请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct GenerateRefundDeclarationRequest {
     pub period_year: i32,

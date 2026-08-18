@@ -14,6 +14,7 @@ use axum::{
 use serde::Deserialize;
 
 /// 查询参数：customer_id
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CustomerIdQuery {
     pub customer_id: i32,
@@ -21,6 +22,7 @@ pub struct CustomerIdQuery {
 }
 
 /// 查询参数：user_id + active_only
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UserTeamsQuery {
     pub user_id: i32,
@@ -28,6 +30,7 @@ pub struct UserTeamsQuery {
 }
 
 /// 查询参数：customer_id + user_id
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct TeamMemberCheckQuery {
     pub customer_id: i32,

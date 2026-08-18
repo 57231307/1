@@ -24,6 +24,7 @@ pub static WEBHOOK_TEST_LIMITER: LazyLock<MemoryRateLimiter> =
 pub static WEBHOOK_RETRY_LIMITER: LazyLock<MemoryRateLimiter> =
     LazyLock::new(|| MemoryRateLimiter::new(10, Duration::from_secs(60)));
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreateWebhookRequest {
     pub name: String,
@@ -32,6 +33,7 @@ pub struct CreateWebhookRequest {
     pub secret: Option<String>,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct WebhookResponse {
     pub id: i32,
@@ -249,6 +251,7 @@ pub async fn retry_webhook(
 
 /// Webhook 执行日志（GET /webhooks/:id/logs）；返回 webhook 的执行状态信息。当前未独立持久化调用日志（无 webhook_logs 表）， 返回 webhooks 表中的 last_* 字段作为执行状态汇总： - last_triggered_at
 /// 上次触发时间 - last_status：上次执行状态（SENDING/SUCCESS/FAILED/ERROR/FAILED_PERMANENT） - retry_count：连续失败重试次数（上限 MAX_RETRY_COUNT=5） - events：订阅事件列表
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct WebhookLogEntry {
     pub id: i32,

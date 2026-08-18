@@ -112,6 +112,7 @@ pub async fn list_sales_returns(
 // 数据结构
 // ============================================================================
 
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PurchaseContract {
     pub id: u32,
@@ -122,6 +123,7 @@ pub struct PurchaseContract {
     pub status: String,
 }
 
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PurchasePrice {
     pub id: u32,
@@ -135,6 +137,7 @@ pub struct PurchasePrice {
     pub status: String,
 }
 
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SalesReturn {
     pub id: u32,

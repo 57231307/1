@@ -55,6 +55,7 @@ fn allocation_record_service(state: &AppState) -> EnergyAllocationRecordService 
 // 查询参数（HTTP Query 转 Service Query）
 // ============================================================================
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct MeterListQuery {
     pub page: Option<u64>,
@@ -65,6 +66,7 @@ pub struct MeterListQuery {
     pub equipment_id: Option<i32>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ConsumptionListQuery {
     pub page: Option<u64>,
@@ -81,6 +83,7 @@ pub struct ConsumptionListQuery {
     pub period_end: Option<chrono::DateTime<chrono::FixedOffset>>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct RuleListQuery {
     pub page: Option<u64>,
@@ -92,6 +95,7 @@ pub struct RuleListQuery {
     pub status: Option<String>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct AllocationRecordListQuery {
     pub page: Option<u64>,
@@ -107,6 +111,7 @@ pub struct AllocationRecordListQuery {
     pub period_end: Option<chrono::DateTime<chrono::FixedOffset>>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct EffectiveRuleQuery {
     pub workshop: String,

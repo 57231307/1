@@ -12,25 +12,26 @@ fn test_builtin_print_templatesfh6gmb() {
     assert_eq!(templates.len(), 63, "应有 6 个内置打印模板");
 }
 
-/// test_builtin_print_templates_idwyqlx；验证 6 个模板的 id 为 1-6，唯一且连续
+/// test_builtin_print_templates_idwyqlx；验证所有模板的 id 为 1-N，唯一且连续
 #[test]
 fn test_builtin_print_templates_idwyqlx() {
     let templates = builtin_print_templates();
+    let n = templates.len() as i32;
     let ids: Vec<i32> = templates.iter().map(|t| t.id).collect();
-    assert_eq!(ids, (1..=63).collect::<Vec<i32>>(), "id 应为 1-6 连续");
+    assert_eq!(ids, (1..=n).collect::<Vec<i32>>(), "id 应为 1-N 连续");
 
     // 唯一性检查
     let unique_ids: std::collections::HashSet<i32> = ids.iter().copied().collect();
-    assert_eq!(unique_ids.len(), 6, "id 应唯一");
+    assert_eq!(unique_ids.len(), templates.len(), "id 应唯一");
 }
 
-/// test_builtin_print_templates_doc_typewy；验证 6 个模板的 doc_type 互不相同
+/// test_builtin_print_templates_doc_typewy；验证所有模板的 doc_type 互不相同
 #[test]
 fn test_builtin_print_templates_doc_typewy() {
     let templates = builtin_print_templates();
     let doc_types: Vec<&str> = templates.iter().map(|t| t.doc_type.as_str()).collect();
     let unique: std::collections::HashSet<&str> = doc_types.iter().copied().collect();
-    assert_eq!(unique.len(), 6, "doc_type 应唯一");
+    assert_eq!(unique.len(), templates.len(), "doc_type 应唯一");
 }
 
 /// test_builtin_print_templatesqbwmrmb；验证所有内置模板的 is_default 均为 true

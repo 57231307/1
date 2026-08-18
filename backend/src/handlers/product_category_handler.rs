@@ -8,6 +8,7 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 /// 查询参数 - 产品类别列表
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct ProductCategoryListQuery {
     pub page: Option<u64>,
@@ -17,6 +18,7 @@ pub struct ProductCategoryListQuery {
 }
 
 /// 创建产品类别请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateProductCategoryRequest {
     #[validate(length(min = 1, max = 100, message = "类别名称不能为空且最长100字符"))]
@@ -26,6 +28,7 @@ pub struct CreateProductCategoryRequest {
 }
 
 /// 更新产品类别请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateProductCategoryRequest {
     #[validate(length(min = 1, max = 100, message = "类别名称不能为空且最长100字符"))]

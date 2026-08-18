@@ -19,6 +19,7 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 /// 公海客户查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct PoolQueryParams {
     pub page: Option<u64>,
@@ -31,12 +32,14 @@ pub struct PoolQueryParams {
 }
 
 /// 领取客户请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ClaimRequest {
     pub lead_id: i32,
 }
 
 /// 回收客户请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct RecycleRequest {
     pub lead_id: i32,
@@ -261,6 +264,7 @@ pub async fn batch_claim(
 // 路由前缀：/pool/rules
 
 /// 创建公海规则请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreatePoolRuleRequest {
     pub name: String,
@@ -273,6 +277,7 @@ pub struct CreatePoolRuleRequest {
 }
 
 /// 更新公海规则请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdatePoolRuleRequest {
     pub rule_value: Option<i32>,

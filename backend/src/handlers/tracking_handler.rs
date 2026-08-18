@@ -29,6 +29,7 @@ use serde::{Deserialize, Serialize};
 use validator::Validate;
 
 /// 页面访问记录请求体；v14 中风险安全修复：添加输入长度约束，防止超大 path/字段触发 DoS
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct PageViewRequest {
     #[validate(length(max = 2048, message = "path 长度不能超过 2048 个字符"))]
@@ -46,12 +47,14 @@ pub struct PageViewRequest {
 }
 
 /// 页面访问记录响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct PageViewResponse {
     pub success: bool,
 }
 
 /// 用户行为记录请求体；v14 中风险安全修复：添加输入长度约束，防止超大 event_type/event_data 触发 DoS
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct BehaviorRequest {
     #[validate(length(max = 128, message = "event_type 长度不能超过 128 个字符"))]
@@ -70,6 +73,7 @@ pub struct BehaviorRequest {
 }
 
 /// 漏斗分析请求体
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct FunnelRequest {
     pub steps: Vec<String>,
@@ -146,6 +150,7 @@ pub async fn get_page_view_stats_by_day(
 }
 
 /// 热门页面排行
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct PopularPagesQuery {
     pub limit: Option<u64>,

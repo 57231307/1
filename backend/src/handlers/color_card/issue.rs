@@ -29,6 +29,7 @@ use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
 // ==================== DTO 定义 ====================
 
 /// 发放色卡请求 DTO
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct IssueColorCardDto {
     pub color_card_id: i64,
@@ -41,6 +42,7 @@ pub struct IssueColorCardDto {
 }
 
 /// 归还色卡请求 DTO
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct ReturnColorCardDto {
     pub actual_return_date: Option<NaiveDate>,
@@ -48,6 +50,7 @@ pub struct ReturnColorCardDto {
 }
 
 /// 登记遗失请求 DTO
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct MarkLostDto {
     pub compensation_amount: Decimal,
@@ -55,6 +58,7 @@ pub struct MarkLostDto {
 }
 
 /// 标记损坏请求 DTO
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct MarkDamagedDto {
     pub compensation_amount: Option<Decimal>,
@@ -62,6 +66,7 @@ pub struct MarkDamagedDto {
 }
 
 /// 取消发放请求 DTO
+#[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct CancelIssueDto {
     pub remark: Option<String>,
@@ -69,6 +74,7 @@ pub struct CancelIssueDto {
 
 /// 发放记录响应 DTO
 #[derive(Debug, Serialize, Clone)]
+#[allow(dead_code, reason = "序列化输出字段")]
 pub struct IssueRecordInfo {
     pub id: i64,
     pub color_card_id: i64,
@@ -112,6 +118,7 @@ impl From<color_card_issue::Model> for IssueRecordInfo {
 }
 
 /// 通用分页响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize, Clone)]
 pub struct IssuePagedResponse<T> {
     pub items: Vec<T>,

@@ -28,6 +28,7 @@ use crate::utils::sql_escape::safe_like_pattern;
 /// 列表查询参数（全部可选）
 // P1-14 修复（2026-06-25）：路由已挂载至 system::routes()，函数标记已移除。
 // 结构体字段经 serde Deserialize 派生使用。
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Default, Deserialize)]
 pub struct SlowQueryListParams {
     /// 起始时间（RFC3339 / ISO8601）
@@ -46,6 +47,7 @@ pub struct SlowQueryListParams {
 
 /// 列表返回包装
 // P1-14 修复（2026-06-25）：路由已挂载，字段经 serde Serialize 派生使用。
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct SlowQueryListResponse {
     pub items: Vec<SlowQueryDto>,
@@ -56,6 +58,7 @@ pub struct SlowQueryListResponse {
 
 /// 统计接口返回包装
 // P1-14 修复（2026-06-25）：路由已挂载，字段经 serde Serialize 派生使用。
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct SlowQueryStatsResponse {
     /// TOP 10 列表（按最大平均执行时间倒序）
@@ -68,6 +71,7 @@ pub struct SlowQueryStatsResponse {
 
 /// 手动刷新接口返回
 // P1-14 修复（2026-06-25）：路由已挂载，字段经 serde Serialize 派生使用。
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct SlowQueryRefreshResponse {
     /// 本次采集写入条数
@@ -211,6 +215,7 @@ pub async fn get_slow_query_stats(
 }
 
 /// batch-17 P3: 慢查询摘要数据
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct SlowQuerySummary {
     pub total_queries: i64,
@@ -222,6 +227,7 @@ pub struct SlowQuerySummary {
 }
 
 /// 优化状态摘要
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct OptimizationStatusSummary {
     pub pending: i64,
@@ -390,6 +396,7 @@ pub async fn refresh_slow_queries(
 }
 
 /// V15 P2 20.5-C：更新慢查询优化状态请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateOptimizationRequest {
     /// 优化状态（pending/in_progress/resolved/wont_fix）
@@ -450,12 +457,14 @@ pub async fn update_slow_query_optimization(
 }
 
 /// batch-17 P3: 慢查询周报查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct WeeklyReportQuery {
     pub weeks: Option<u32>,
 }
 
 /// batch-17 P3: 慢查询周报数据
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct SlowQueryWeeklyReport {
     pub week_start: String,

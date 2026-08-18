@@ -24,6 +24,7 @@ use validator::Validate;
 
 /// 查询应付单列表参数
 // V15 P0-S12 修复（Batch 475e）：派生 Clone，export_ap_invoices 需要 clone 后覆盖分页参数用于全量导出
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Clone, Deserialize)]
 pub struct ApInvoiceQueryParams {
     pub supplier_id: Option<i32>,
@@ -199,6 +200,7 @@ pub async fn approve_ap_invoice(
 }
 
 /// 取消应付单
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CancelInvoiceRequest {
     pub reason: String,
@@ -252,6 +254,7 @@ pub async fn mark_ap_invoice_as_paid(
 }
 
 /// 自动生成应付单（从采购入库单）
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct AutoGenerateRequest {
     pub receipt_id: i32,

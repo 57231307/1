@@ -105,7 +105,7 @@ impl WarehouseService {
             email: Set(None),
             manager_id: Set(manager_id),
             is_active: Set(true),
-            // 批次 93 P1 扩展：接入 description（写入 notes 列，实现原 TODO 占位）
+            // description 写入 notes 列
             notes: Set(req.description),
             // 批次 158 v11 真实接入：capacity 字段持久化（原 #[allow(dead_code)] 移除）
             capacity: Set(req.capacity),

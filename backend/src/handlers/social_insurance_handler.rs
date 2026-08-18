@@ -22,6 +22,7 @@ use chrono::NaiveDate;
 use serde::Deserialize;
 
 /// 按工人查询期间社保记录的查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct WorkerPeriodQuery {
     pub period_year: i32,
@@ -29,6 +30,7 @@ pub struct WorkerPeriodQuery {
 }
 
 /// 确认缴纳请求体
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct MarkPaidRequest {
     pub payment_date: NaiveDate,

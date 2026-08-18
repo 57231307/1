@@ -14,6 +14,7 @@ use axum::response::Response;
 use docx_rs::*;
 
 /// docx 表格数据（标题 + 表头 + 数据行）
+#[allow(dead_code, reason = "预留：docx 表格数据结构，待接入")]
 pub struct DocxTable {
     /// 文档主标题（如 "销售合同" / "应收账款对账单"）
     pub title: String,

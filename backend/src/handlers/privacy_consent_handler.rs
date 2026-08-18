@@ -25,6 +25,7 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 /// consent_type 查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ConsentQuery {
     /// 不传则返回所有类型的最新状态
@@ -32,6 +33,7 @@ pub struct ConsentQuery {
 }
 
 /// 记录单条 consent 响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct RecordConsentResponse {
     pub consent_type: String,

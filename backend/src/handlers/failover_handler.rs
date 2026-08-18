@@ -21,6 +21,7 @@ use crate::utils::response::ApiResponse;
 static GLOBAL_METRICS: OnceCell<Arc<FailoverMetrics>> = OnceCell::new();
 
 /// 主备隔离状态查询响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, serde::Serialize)]
 pub struct StatusResponse {
     pub statuses: Vec<crate::models::failover_status::FailoverStatusDto>,
@@ -60,6 +61,7 @@ pub async fn get_failover_metrics(
 }
 
 /// 手动切换请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct SwitchRequest {
     /// 功能名：database / cache
@@ -97,6 +99,7 @@ pub async fn health_check(
 }
 
 /// 故障回切请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct FailbackRequest {
     /// 功能名：database / cache

@@ -51,6 +51,7 @@ pub async fn list_report_templates(
     Ok(Json(ApiResponse::success(serde_json::to_value(items)?)))
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 struct ReportTemplateDto {
     pub template_name: String,
@@ -111,6 +112,7 @@ pub async fn execute_report(
     }))))
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ReportExecuteRequest {
     pub template_code: String,
@@ -182,6 +184,7 @@ pub async fn export_report(
     }))))
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ReportExportRequest {
     pub template_code: String,

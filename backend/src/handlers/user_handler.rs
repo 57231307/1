@@ -70,6 +70,7 @@ fn validate_password_strength(password: &str) -> Result<(), ValidationError> {
     }
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateUserRequest {
     #[validate(length(min = 3, max = 50, message = "用户名长度必须在3-50之间"))]
@@ -84,6 +85,7 @@ pub struct CreateUserRequest {
     pub department_id: Option<i32>,
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateUserRequest {
     #[validate(email(message = "邮箱格式不正确"))]
@@ -95,6 +97,7 @@ pub struct UpdateUserRequest {
     pub status: Option<String>,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct UserResponse {
     pub id: i32,
@@ -122,6 +125,7 @@ impl From<user::Model> for UserResponse {
     }
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct UserListResponse {
     pub users: Vec<UserResponse>,
@@ -130,6 +134,7 @@ pub struct UserListResponse {
     pub page_size: u64,
 }
 
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct DeleteUserResponse {
     pub success: bool,
@@ -278,6 +283,7 @@ pub async fn list_users(
     })))
 }
 
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ListUsersParams {
     pub page: Option<u64>,
@@ -555,6 +561,7 @@ async fn log_user_deleted_security_event(auth: &AuthContext, existing_user: &use
 }
 
 /// 修改密码请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct ChangePasswordRequest {
     #[validate(length(min = 1, message = "原密码不能为空"))]
@@ -564,6 +571,7 @@ pub struct ChangePasswordRequest {
 }
 
 /// 修改密码响应
+#[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct ChangePasswordResponse {
     pub success: bool,

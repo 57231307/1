@@ -15,6 +15,7 @@ use axum::{
 use serde::Deserialize;
 
 /// 通知列表查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct NotificationListQuery {
     pub page: Option<u64>,
@@ -24,12 +25,14 @@ pub struct NotificationListQuery {
 }
 
 /// 批量操作请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct BatchOperationRequest {
     pub ids: Vec<i32>,
 }
 
 /// 通知设置请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateSettingRequest {
     pub business_type: String,

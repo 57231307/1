@@ -188,6 +188,7 @@ pub async fn toggle_supplier_status(
 }
 
 /// 切换状态请求
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ToggleStatusRequest {
     pub enable: bool,
@@ -523,12 +524,14 @@ pub async fn detect_abnormal_orders(
 }
 
 /// 异常订单查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct AbnormalOrderQuery {
     pub threshold_ratio: Option<f64>,
 }
 
 /// batch-13 P3: 供货历史查询参数
+#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct PurchaseHistoryQuery {
     pub limit: Option<u64>,

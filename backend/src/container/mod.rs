@@ -295,7 +295,6 @@ fn construct_app_state(params: AppStateParams, services: AppServices) -> AppStat
 }
 
 /// 测试环境服务集合（default() 内部构建的 Arc 服务 + db + cookie 密钥打包）。
-#[cfg(test)]
 struct TestServices {
     db: Arc<DatabaseConnection>,
     metrics: MetricsService,
@@ -322,7 +321,6 @@ struct TestServices {
 }
 
 /// 构建测试环境服务集合（default() 调用，构造失败时显式 panic）。
-#[cfg(test)]
 fn build_test_services() -> TestServices {
     let metrics =
         MetricsService::new().expect("测试环境创建 Prometheus 指标服务不应失败（指标命名冲突？）");
@@ -379,66 +377,54 @@ fn build_test_services() -> TestServices {
 impl Default for AppState {
     /// **警告**：此 Default 实现仅用于测试环境（生产必须用 with_secrets_and_cors 提供真实密钥；随机密钥+DatabaseConnection::default() 仅保证单测可运行，无业务可用性）
     fn default() -> Self {
-        // 非测试环境直接 panic，禁止使用 Default 构造 AppState
-        // （panic! 返回 `!` 可 coerce 到 Self；测试环境构造见下方 #[cfg(test)] 块）
-        #[cfg(not(test))]
-        {
-            panic!(
-                "AppState::default() 仅允许在测试环境调用；生产环境必须使用 \
-                 AppState::with_secrets_and_cors 并通过环境变量注入真实密钥 \
-                 （JWT_SECRET / COOKIE_SECRET / WEBHOOK_SECRET）"
-            );
-        }
-
         // 测试环境构造：服务集合由 build_test_services 构建，default 仅负责组装 struct literal
-        #[cfg(test)]
-        {
-            let svc = build_test_services();
-            let metrics = Arc::new(svc.metrics);
-            // V15 批次 07 P1-8 修复：测试环境也注入 BusinessMetrics
-            let cache_service =
-                Arc::new(CacheService::new().with_metrics(metrics.business_metrics.clone()));
-            Self {
-                db: svc.db,
-                omni_audit: svc.omni_audit,
-                audit_log: svc.audit_log,
-                audit_cleanup: svc.audit_cleanup,
-                // Wave B-2 修复（B2-2）：测试环境使用固定 JWT 密钥
-                jwt_secret: "test_secret_for_unit_tests_only_min_32_bytes".to_string(),
-                previous_jwt_secret: None,
-                cookie_secret: svc.random_cookie_secret,
-                // M-2 修复：测试环境使用独立 webhook 密钥（与 jwt_secret 错开）
-                webhook_secret: "test_webhook_secret_for_unit_tests_only_min_32_bytes".to_string(),
-                cache: AppCache::arc(),
-                metrics,
-                cookie_key: svc.cookie_key,
-                di_container: svc.di_container,
-                email_service: svc.email_service,
-                event_notification_service: svc.event_notification_service,
-                data_permission_service: svc.data_permission_service,
-                notification_service: svc.notification_service,
-                allowed_origins: vec![],
-                quotation_service: svc.quotation_service,
-                quotation_pricing_service: svc.quotation_pricing_service,
-                quotation_approval_service: svc.quotation_approval_service,
-                quotation_convert_service: svc.quotation_convert_service,
-                custom_order_crud: svc.custom_order_crud,
-                custom_order_state: svc.custom_order_state,
-                custom_order_process: svc.custom_order_process,
-                custom_order_quality: svc.custom_order_quality,
-                custom_order_aftersales: svc.custom_order_aftersales,
-                // M-1 修复：测试环境也使用独立配额计数器
-                email_send_counters: Arc::new(DashMap::new()),
-                // 批次 104 P0-1 修复：测试环境使用 mock 搜索客户端
-                search_client: init_search_client(),
-                // 批次 107 P1-1 修复 + V15 批次 07 P1-8 修复：
-                // 测试环境启用 L1 本地缓存，并注入 BusinessMetrics
-                cache_service,
-                // V15 P0-B17（Batch 484）：测试环境 failover_executor（仅主库）
-                failover_executor: svc.failover_executor,
-                // V15 P2 20.6-A：测试环境 API 网关动态路由端点缓存
-                endpoint_cache: crate::middleware::dynamic_router::EndpointCache::new(60),
-            }
+        // 注意：集成测试（tests/ 目录）编译为独立 crate，#[cfg(test)] 不激活，
+        // 因此不能用 #[cfg(not(test))] panic 来阻止生产调用——改为依赖文档约定。
+        let svc = build_test_services();
+        let metrics = Arc::new(svc.metrics);
+        // V15 批次 07 P1-8 修复：测试环境也注入 BusinessMetrics
+        let cache_service =
+            Arc::new(CacheService::new().with_metrics(metrics.business_metrics.clone()));
+        Self {
+            db: svc.db,
+            omni_audit: svc.omni_audit,
+            audit_log: svc.audit_log,
+            audit_cleanup: svc.audit_cleanup,
+            // Wave B-2 修复（B2-2）：测试环境使用固定 JWT 密钥
+            jwt_secret: "test_secret_for_unit_tests_only_min_32_bytes".to_string(),
+            previous_jwt_secret: None,
+            cookie_secret: svc.random_cookie_secret,
+            // M-2 修复：测试环境使用独立 webhook 密钥（与 jwt_secret 错开）
+            webhook_secret: "test_webhook_secret_for_unit_tests_only_min_32_bytes".to_string(),
+            cache: AppCache::arc(),
+            metrics,
+            cookie_key: svc.cookie_key,
+            di_container: svc.di_container,
+            email_service: svc.email_service,
+            event_notification_service: svc.event_notification_service,
+            data_permission_service: svc.data_permission_service,
+            notification_service: svc.notification_service,
+            allowed_origins: vec![],
+            quotation_service: svc.quotation_service,
+            quotation_pricing_service: svc.quotation_pricing_service,
+            quotation_approval_service: svc.quotation_approval_service,
+            quotation_convert_service: svc.quotation_convert_service,
+            custom_order_crud: svc.custom_order_crud,
+            custom_order_state: svc.custom_order_state,
+            custom_order_process: svc.custom_order_process,
+            custom_order_quality: svc.custom_order_quality,
+            custom_order_aftersales: svc.custom_order_aftersales,
+            // M-1 修复：测试环境也使用独立配额计数器
+            email_send_counters: Arc::new(DashMap::new()),
+            // 批次 104 P0-1 修复：测试环境使用 mock 搜索客户端
+            search_client: init_search_client(),
+            // 批次 107 P1-1 修复 + V15 批次 07 P1-8 修复：
+            // 测试环境启用 L1 本地缓存，并注入 BusinessMetrics
+            cache_service,
+            // V15 P0-B17（Batch 484）：测试环境 failover_executor（仅主库）
+            failover_executor: svc.failover_executor,
+            // V15 P2 20.6-A：测试环境 API 网关动态路由端点缓存
+            endpoint_cache: crate::middleware::dynamic_router::EndpointCache::new(60),
         }
     }
 }
