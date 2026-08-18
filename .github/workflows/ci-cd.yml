@@ -1385,7 +1385,7 @@ jobs:
   ci-coverage-rust:
     name: 📊 Rust 覆盖率
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     needs: ci-test-rust
     if: success()
     services:
@@ -1405,8 +1405,8 @@ jobs:
     env:
       DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
       AUDIT_SECRET_KEY: ci-only-audit-signing-key-do-not-use-in-prod-32b
-      CARGO_BUILD_JOBS: "2"
-      CARGO_JOBS: "2"
+      CARGO_BUILD_JOBS: "1"
+      CARGO_JOBS: "1"
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
@@ -1416,6 +1416,7 @@ jobs:
         with:
           components: llvm-tools-preview
           system-deps: pkg-config libssl-dev postgresql-client protobuf-compiler
+          sccache: 'false'
 
       - name: 安装 cargo-llvm-cov 与 cargo-nextest
         uses: taiki-e/install-action@v2
