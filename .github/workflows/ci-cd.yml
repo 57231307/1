@@ -418,10 +418,9 @@ jobs:
       - name: 运行 clippy（baseline 机制）
         working-directory: backend
         # baseline 机制：仅 clippy 使用，test 保持零容忍；仅"新增警告"阻塞 CI
-        # exit 143 = SIGTERM（OOM/超时）：限制并行编译降内存峰值 + 3 次重试
         env:
-          CARGO_BUILD_JOBS: "1"
-          CARGO_JOBS: "1"
+          CARGO_BUILD_JOBS: "4"
+          CARGO_JOBS: "4"
         run: |
           mkdir -p reports
           set +e
@@ -1180,7 +1179,7 @@ jobs:
   ci-build-test-artifacts:
     name: 📦 Rust 测试预编译
     runs-on: ubuntu-latest
-    # 首次全量编译（CARGO_BUILD_JOBS=1 单线程）约 30-50 分钟，预留充足时间
+    # 4 线程编译 + sccache 缓存（首次全量约 10-20 分钟）
     timeout-minutes: 90
     needs: ci-info
     services:
@@ -1200,8 +1199,8 @@ jobs:
     env:
       DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
       AUDIT_SECRET_KEY: ci-only-audit-signing-key-do-not-use-in-prod-32b
-      CARGO_BUILD_JOBS: "1"
-      CARGO_JOBS: "1"
+      CARGO_BUILD_JOBS: "4"
+      CARGO_JOBS: "4"
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
@@ -1265,8 +1264,8 @@ jobs:
     env:
       DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
       AUDIT_SECRET_KEY: ci-only-audit-signing-key-do-not-use-in-prod-32b
-      CARGO_BUILD_JOBS: "1"
-      CARGO_JOBS: "1"
+      CARGO_BUILD_JOBS: "4"
+      CARGO_JOBS: "4"
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
@@ -1405,8 +1404,8 @@ jobs:
     env:
       DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
       AUDIT_SECRET_KEY: ci-only-audit-signing-key-do-not-use-in-prod-32b
-      CARGO_BUILD_JOBS: "1"
-      CARGO_JOBS: "1"
+      CARGO_BUILD_JOBS: "4"
+      CARGO_JOBS: "4"
     steps:
       - name: 检出代码
         uses: actions/checkout@v5

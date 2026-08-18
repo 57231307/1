@@ -36,6 +36,23 @@ runs:
         restore-keys: |
           cargo-${{ env.RUST_VERSION }}-
 
+    - name: 安装 sccache（编译缓存，加速重复编译）
+      uses: taiki-e/install-action@v2
+      with:
+        tool: sccache
+
+    - name: 缓存 sccache
+      uses: actions/cache@v5
+      with:
+        path: ~/.cache/sccache
+        key: sccache-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}
+        restore-keys: |
+          sccache-${{ env.RUST_VERSION }}-
+
+    - name: 设置 RUSTC_WRAPPER
+      shell: bash
+      run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+
     - name: 安装系统依赖
       if: inputs.system-deps != ''
       shell: bash
