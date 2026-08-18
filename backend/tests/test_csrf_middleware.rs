@@ -18,7 +18,7 @@ use axum::{
     http::{Request, StatusCode},
     middleware::from_fn_with_state,
     response::IntoResponse,
-    routing::{get, options, post},
+    routing::{get, post},
 };
 use bingxi_backend::container::AppState;
 use bingxi_backend::middleware::csrf::csrf_middleware;
