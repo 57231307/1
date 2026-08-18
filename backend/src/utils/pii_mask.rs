@@ -64,19 +64,20 @@ static PASSWORD_KEY_REGEX: LazyLock<Regex> = LazyLock::new(|| {
 pub fn mask_pii(text: &str) -> String {
     let mut result = text.to_string();
 
-    // 1. 脱敏手机号：138****5678
-    result = PHONE_REGEX
-        .replace_all(&result, |caps: &regex::Captures| {
-            let phone = &caps[0];
-            format!("{}****{}", &phone[..3], &phone[7..])
-        })
-        .to_string();
-
-    // 2. 脱敏身份证号：1101**********1234
+    // 1. 脱敏身份证号（优先于手机号，避免身份证号中的数字被手机号正则误匹配）：
+    //    1101**********1234
     result = ID_CARD_REGEX
         .replace_all(&result, |caps: &regex::Captures| {
             let id = &caps[0];
             format!("{}**********{}", &id[..4], &id[14..])
+        })
+        .to_string();
+
+    // 2. 脱敏手机号：138****5678
+    result = PHONE_REGEX
+        .replace_all(&result, |caps: &regex::Captures| {
+            let phone = &caps[0];
+            format!("{}****{}", &phone[..3], &phone[7..])
         })
         .to_string();
 

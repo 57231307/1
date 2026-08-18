@@ -18,7 +18,7 @@ use axum::{
     http::{Request, StatusCode},
     middleware::from_fn_with_state,
     response::IntoResponse,
-    routing::{get, post},
+    routing::{get, options, post},
 };
 use bingxi_backend::container::AppState;
 use bingxi_backend::middleware::csrf::csrf_middleware;
@@ -36,7 +36,7 @@ async fn ok_handler() -> impl IntoResponse {
 /// 路径与后端 `public_routes::PUBLIC_PATHS` 保持一致，便于覆盖公开路径分支。
 fn build_test_app(state: AppState) -> Router {
     Router::new()
-        .route("/api/v1/erp/business/list", get(ok_handler))
+        .route("/api/v1/erp/business/list", get(ok_handler).options(ok_handler))
         .route("/api/v1/erp/business/create", post(ok_handler))
         // 模拟公开路径（与 PUBLIC_PATHS 中的 /api/v1/erp/auth/login 对齐）
         .route("/api/v1/erp/auth/login", post(ok_handler))
