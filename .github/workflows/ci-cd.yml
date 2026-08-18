@@ -1445,7 +1445,7 @@ jobs:
 
           COVERAGE_SUMMARY="N/A"
           if [ -f coverage/cobertura.xml ]; then
-            LINE_RATE=$(grep -o 'line-rate="[^"]*"' coverage/cobertura.xml | head -1 | cut -d'"' -f2)
+            LINE_RATE=$(grep -o 'line-rate="[^"]*"' coverage/cobertura.xml | head -1 | cut -d'"' -f2 || true)
             if [ -n "$LINE_RATE" ]; then
               COVERAGE_PCT=$(awk -v r="$LINE_RATE" 'BEGIN{printf "%.2f", r*100}')
               COVERAGE_SUMMARY="${COVERAGE_PCT}%"
