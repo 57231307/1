@@ -18,9 +18,8 @@ tokio = { version = "1.0", features = ["full"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 
 # 数据库
-# SeaORM 2.0.2 + SeaQuery 1.0 + SQLx 0.9
+# SeaORM 2.0.2 + SeaQuery 1.0
 sea-orm = { version = "2.0.2", features = ["sqlx-postgres", "runtime-tokio", "macros", "with-rust_decimal", "with-chrono"] }
-sqlx = { version = "0.9", features = ["postgres", "runtime-tokio", "chrono", "uuid", "json", "macros", "tls-rustls"] }
 
 # 序列化
 serde = { version = "1.0", features = ["derive"] }
@@ -39,8 +38,6 @@ regex = "1.10"
 
 # 配置
 config = "0.15"
-# TOML 解析（config 0.14 内置但不 re-export，P0-2 failover config 需要）
-toml = "0.8"
 # 加载 .env 文件（漏洞 #12 修复：统一 is_production 配置来源 APP_ENV）
 dotenvy = "0.15"
 
@@ -97,9 +94,6 @@ arc-swap = "1.7"
 
 # 其他
 futures = "0.3"
-
-# 定时任务
-tokio-cron-scheduler = "0.10"
 
 # 额外工具
 
