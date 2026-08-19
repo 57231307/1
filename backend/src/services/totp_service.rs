@@ -1,7 +1,7 @@
 use crate::models::user;
 use crate::utils::error::AppError;
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
-use totp_rs::{Algorithm, Builder, Secret, Totp};
+use totp_rs::{Algorithm, Builder, Secret};
 crate::define_service!(TotpService);
 
 impl TotpService {
