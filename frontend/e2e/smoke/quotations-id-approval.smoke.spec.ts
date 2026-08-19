@@ -1,13 +1,13 @@
 import { test, expect } from '@playwright/test';
 import { login } from '../fixtures/real-auth';
 
-test.describe('inventory 页面冒烟测试', () => {
+test.describe('quotations id approval 页面冒烟测试', () => {
   test.beforeEach(async ({ page }) => {
     await login(page);
   });
 
   test('页面加载', async ({ page }) => {
-    await page.goto('/inventory');
+    await page.goto('/quotations/1/approval');
     await expect(page.locator('.el-table, .el-table-v2, .el-card, .el-form, .el-tabs, .dashboard-container, canvas, .echarts').first()).toBeAttached({ timeout: 10_000 });
   });
 });
