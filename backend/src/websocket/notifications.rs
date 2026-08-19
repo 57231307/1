@@ -21,6 +21,7 @@
 use axum::extract::Query;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::response::IntoResponse;
+use bytes::Bytes;
 use dashmap::DashMap;
 use futures::{FutureExt, SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
@@ -585,7 +586,7 @@ async fn handle_socket(socket: WebSocket, auth: AuthInfo) {
                     match msg {
                         Ok(msg) => {
                             let result = AssertUnwindSafe(async {
-                                if sender.send(Message::Text(msg)).await.is_err() {
+                                if sender.send(Message::Text(msg.into())).await.is_err() {
                                     tracing::debug!("WebSocket 发送失败，连接可能已关闭");
                                     return false;
                                 }
@@ -616,7 +617,7 @@ async fn handle_socket(socket: WebSocket, auth: AuthInfo) {
                         break;
                     }
                     // 发送 Ping
-                    if sender.send(Message::Ping(vec![])).await.is_err() {
+                    if sender.send(Message::Ping(Bytes::from(vec![]))).await.is_err() {
                         tracing::debug!("WebSocket Ping 发送失败：user_id={}", user_id);
                         break;
                     }

@@ -41,9 +41,9 @@ pub fn customers() -> Router<AppState> {
             "/customers/export",
             get(customer_handler::export_customers),
         )
-        .route("/customers/:id", get(customer_handler::get_customer))
-        .route("/customers/:id", put(customer_handler::update_customer))
-        .route("/customers/:id", delete(customer_handler::delete_customer))
+        .route("/customers/{id}", get(customer_handler::get_customer))
+        .route("/customers/{id}", put(customer_handler::update_customer))
+        .route("/customers/{id}", delete(customer_handler::delete_customer))
         .route(
             "/customers/:id/credit",
             get(customer_credit_handler::get_credit),
@@ -226,7 +226,7 @@ pub fn crm_customers() -> Router<AppState> {
                 .put(crm_customer_handler::update_customer)
                 .delete(crm_customer_handler::delete_customer),
         )
-        .route("/customers/:id/tags", post(crm_customer_handler::add_tags))
+        .route("/customers/{id}/tags", post(crm_customer_handler::add_tags))
         // 批次 90b P2-12：联系人 CRUD（GET 既有，新增 POST/PUT/DELETE）
         .route(
             "/customers/:id/contacts",
@@ -246,7 +246,7 @@ pub fn crm_tags() -> Router<AppState> {
             "/crm/tags",
             get(crm_customer_handler::list_tags).post(crm_customer_handler::create_tag),
         )
-        .route("/crm/tags/:id", delete(crm_customer_handler::delete_tag))
+        .route("/crm/tags/{id}", delete(crm_customer_handler::delete_tag))
 }
 
 /// CRM 公海池路由（path 前缀 /pool）

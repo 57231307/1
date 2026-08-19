@@ -144,9 +144,9 @@ pub fn routes() -> Router<AppState> {
             get(color_card::query_reorder_dye_lot),
         )
         // 扫码查询
-        .route("/scan/:code", get(color_card::scan_color_code))
+        .route("/scan/{code}", get(color_card::scan_color_code))
         // 按 ID 扫码查询
-        .route("/scan-by-id/:id", get(color_card::scan_color_by_id))
+        .route("/scan-by-id/{id}", get(color_card::scan_color_by_id))
         // 导出 xlsx
         .route(
             "/export/:id",

@@ -33,5 +33,5 @@ pub fn routes() -> Router<AppState> {
             "/:id/cancel",
             post(period_adjustment_handler::cancel_adjustment),
         )
-        .route("/:id", get(period_adjustment_handler::get_adjustment))
+        .route("/{id}", get(period_adjustment_handler::get_adjustment))
 }

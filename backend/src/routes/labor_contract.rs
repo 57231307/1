@@ -25,7 +25,7 @@ pub fn labor_contracts() -> Router<AppState> {
             "/labor-contracts/:id",
             get(labor_contract_handler::get_by_id),
         )
-        .route("/labor-contracts/:id", put(labor_contract_handler::update))
+        .route("/labor-contracts/{id}", put(labor_contract_handler::update))
         .route(
             "/labor-contracts/:id/terminate",
             post(labor_contract_handler::terminate),

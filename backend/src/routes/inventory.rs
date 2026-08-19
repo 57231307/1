@@ -48,9 +48,9 @@ fn stock_routes() -> Router<AppState> {
         .route("/stock", post(inventory_stock_handler::create_stock))
         // V15 P0-S12 修复（Batch 475c）：库存导出端点（必须在 /:id 之前注册，避免 axum matchit 把 "export" 当 :id 匹配）
         .route("/stock/export", get(inventory_stock_handler::export_stock))
-        .route("/stock/:id", get(inventory_stock_handler::get_stock))
-        .route("/stock/:id", put(inventory_stock_handler::update_stock))
-        .route("/stock/:id", delete(inventory_stock_handler::delete_stock))
+        .route("/stock/{id}", get(inventory_stock_handler::get_stock))
+        .route("/stock/{id}", put(inventory_stock_handler::update_stock))
+        .route("/stock/{id}", delete(inventory_stock_handler::delete_stock))
         .route(
             "/stock/fabric",
             get(inventory_stock_handler_fabric::list_stock_fabric),
@@ -254,8 +254,8 @@ pub fn batches() -> Router<AppState> {
     Router::new()
         .route("/batches", get(inventory_batch_handler::list_batches))
         .route("/batches", post(inventory_batch_handler::create_batch))
-        .route("/batches/:id", get(inventory_batch_handler::get_batch))
-        .route("/batches/:id", put(inventory_batch_handler::update_batch))
+        .route("/batches/{id}", get(inventory_batch_handler::get_batch))
+        .route("/batches/{id}", put(inventory_batch_handler::update_batch))
         .route(
             "/batches/:id",
             delete(inventory_batch_handler::delete_batch),
@@ -271,14 +271,14 @@ pub fn logistics() -> Router<AppState> {
     Router::new()
         .route("/logistics", get(logistics_handler::list_waybills))
         .route("/logistics", post(logistics_handler::create_waybill))
-        .route("/logistics/:id", get(logistics_handler::get_waybill))
+        .route("/logistics/{id}", get(logistics_handler::get_waybill))
         .route(
             "/logistics/:id",
             put(logistics_handler::update_waybill_status),
         )
         // V15 P0-B13：电子签收路由（DELIVERED → SIGNED）
-        .route("/logistics/:id/sign", post(logistics_handler::sign_waybill))
-        .route("/logistics/:id", delete(logistics_handler::delete_waybill))
+        .route("/logistics/{id}/sign", post(logistics_handler::sign_waybill))
+        .route("/logistics/{id}", delete(logistics_handler::delete_waybill))
 }
 
 /// 库存域统一入口；子 router path 已加独立前缀，merge 时 path+method 互不重叠。

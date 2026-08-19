@@ -38,7 +38,7 @@ fn finance_payment_invoice_routes() -> Router<AppState> {
     Router::new()
         .route("/payments", get(finance_payment_handler::list_payments))
         .route("/payments", post(finance_payment_handler::create_payment))
-        .route("/payments/:id", get(finance_payment_handler::get_payment))
+        .route("/payments/{id}", get(finance_payment_handler::get_payment))
         .route(
             "/invoices",
             get(finance_invoice_handler::list_finance_invoices),
@@ -190,7 +190,7 @@ pub fn gl() -> Router<AppState> {
             get(account_subject_handler::get_subject_tree),
         )
         .route("/subjects", post(account_subject_handler::create_subject))
-        .route("/subjects/:id", get(account_subject_handler::get_subject))
+        .route("/subjects/{id}", get(account_subject_handler::get_subject))
         .route(
             "/subjects/:id",
             put(account_subject_handler::update_subject),
@@ -230,7 +230,7 @@ pub fn gl() -> Router<AppState> {
             "/vouchers/:id/review",
             post(voucher_handler::review_voucher),
         )
-        .route("/vouchers/:id/post", post(voucher_handler::post_voucher))
+        .route("/vouchers/{id}/post", post(voucher_handler::post_voucher))
         // V15 修复（A0）：会计凭证打印，返回 docx 成品（规则 3 合规）
         .route(
             "/vouchers/:id/print",
@@ -250,8 +250,8 @@ pub fn fixed_assets() -> Router<AppState> {
             "/fixed-assets/export",
             get(fixed_asset_handler::export_assets),
         )
-        .route("/fixed-assets/:id", get(fixed_asset_handler::get_asset))
-        .route("/fixed-assets/:id", put(fixed_asset_handler::update_asset))
+        .route("/fixed-assets/{id}", get(fixed_asset_handler::get_asset))
+        .route("/fixed-assets/{id}", put(fixed_asset_handler::update_asset))
         .route(
             "/fixed-assets/:id",
             delete(fixed_asset_handler::delete_asset),
@@ -348,7 +348,7 @@ fn budget_master_routes() -> Router<AppState> {
             "/budgets/export",
             get(budget_management_handler::export_budget_items),
         )
-        .route("/budgets/:id", get(budget_management_handler::get_budget))
+        .route("/budgets/{id}", get(budget_management_handler::get_budget))
         .route(
             "/budgets/:id",
             put(budget_management_handler::update_budget),
@@ -638,7 +638,7 @@ fn ap_invoice_routes() -> Router<AppState> {
             "/ap/invoices/export",
             get(ap_invoice_handler::export_ap_invoices),
         )
-        .route("/ap/invoices/:id", get(ap_invoice_handler::get_ap_invoice))
+        .route("/ap/invoices/{id}", get(ap_invoice_handler::get_ap_invoice))
         .route(
             "/ap/invoices/:id",
             put(ap_invoice_handler::update_ap_invoice),
@@ -686,8 +686,8 @@ fn ap_payment_routes() -> Router<AppState> {
     Router::new()
         .route("/ap/payments", get(ap_payment_handler::list_payments))
         .route("/ap/payments", post(ap_payment_handler::create_payment))
-        .route("/ap/payments/:id", get(ap_payment_handler::get_payment))
-        .route("/ap/payments/:id", put(ap_payment_handler::update_payment))
+        .route("/ap/payments/{id}", get(ap_payment_handler::get_payment))
+        .route("/ap/payments/{id}", put(ap_payment_handler::update_payment))
         .route(
             "/ap/payments/:id/confirm",
             post(ap_payment_handler::confirm_payment),
@@ -848,7 +848,7 @@ fn ar_invoice_routes() -> Router<AppState> {
             "/ar/invoices/export",
             get(ar_invoice_handler::export_ar_invoices),
         )
-        .route("/ar/invoices/:id", get(ar_invoice_handler::get_ar_invoice))
+        .route("/ar/invoices/{id}", get(ar_invoice_handler::get_ar_invoice))
         .route(
             "/ar/invoices/:id",
             put(ar_invoice_handler::update_ar_invoice),
@@ -876,8 +876,8 @@ fn ar_payment_routes() -> Router<AppState> {
     Router::new()
         .route("/ar/payments", get(ar_payment_handler::list_payments))
         .route("/ar/payments", post(ar_payment_handler::create_payment))
-        .route("/ar/payments/:id", get(ar_payment_handler::get_payment))
-        .route("/ar/payments/:id", put(ar_payment_handler::update_payment))
+        .route("/ar/payments/{id}", get(ar_payment_handler::get_payment))
+        .route("/ar/payments/{id}", put(ar_payment_handler::update_payment))
         .route(
             "/ar/payments/:id/confirm",
             post(ar_payment_handler::confirm_payment),

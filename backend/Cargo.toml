@@ -9,8 +9,8 @@ description = "Bingxi Management Platform - Rust 后端服务"
 
 [dependencies]
 # Web 框架
-axum = { version = "0.7", features = ["json", "multipart", "macros", "ws"] }
-tower-http = { version = "0.6", features = ["cors", "trace", "fs", "set-header"] }
+axum = { version = "0.8", features = ["json", "multipart", "macros", "ws"] }
+tower-http = { version = "0.7", features = ["cors", "trace", "fs", "set-header"] }
 
 # 异步运行时
 tokio = { version = "1.0", features = ["full"] }
@@ -29,16 +29,16 @@ serde_json = "1.0"
 # 认证与安全
 argon2 = "0.5"
 uuid = { version = "1.0", default-features = false, features = ["serde", "v4"] }
-jsonwebtoken = "9.0"
+jsonwebtoken = "11.0"
 # URL 解析（用于 SSRF 防护：解析 Webhook URL 主机名后校验内网地址）
 url = "2.5"
 
 # 验证
-validator = { version = "0.16", features = ["derive"] }
+validator = { version = "0.21", features = ["derive"] }
 regex = "1.10"
 
 # 配置
-config = "0.14"
+config = "0.15"
 # TOML 解析（config 0.14 内置但不 re-export，P0-2 failover config 需要）
 toml = "0.8"
 # 加载 .env 文件（漏洞 #12 修复：统一 is_production 配置来源 APP_ENV）
@@ -58,16 +58,16 @@ rust_decimal = { version = "1.0", features = ["serde"] }
 # gRPC
 
 # 错误处理
-thiserror = "1.0"
+thiserror = "2.0"
 
 # HTTP 客户端
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.13", features = ["json"] }
 
 # 进程内 LRU 缓存
 moka = { version = "0.12", features = ["future"] }
 
 # Redis 客户端（P12 批 1 性能优化：缓存层 connection-manager）
-redis = { version = "0.27", features = ["tokio-comp", "connection-manager"] }
+redis = { version = "1.6", features = ["tokio-comp", "connection-manager"] }
 
 # 全局单例
 once_cell = "1.20"
@@ -90,7 +90,7 @@ prometheus = "0.13"
 sysinfo = "0.31"
 
 # 并发数据结构
-dashmap = "5.5"
+dashmap = "6.2"
 
 # V15 P0-B17（Batch 484）：主备切换原子替换 DatabaseConnection
 arc-swap = "1.7"
@@ -108,9 +108,9 @@ clap = { version = "4.4", features = ["derive"] }
 
 # API 文档
 utoipa = { version = "5.2.0", features = ["axum_extras", "chrono"] }
-axum-extra = { version = "0.9.3", features = ["cookie", "cookie-private", "cookie-key-expansion"] }
-totp-rs = { version = "5.5", features = ["qr", "gen_secret"] }
-utoipa-swagger-ui = { version = "8.0.3", features = ["axum"], optional = true }
+axum-extra = { version = "0.12", features = ["cookie", "cookie-private", "cookie-key-expansion"] }
+totp-rs = { version = "6.0", features = ["qr", "gen_secret"] }
+utoipa-swagger-ui = { version = "9.0.2", features = ["axum"], optional = true }
 percent-encoding = "2.3.1"
 fastrand = "2.4.0"
 hex = "0.4.3"
@@ -125,9 +125,9 @@ subtle = "2.6"
 csv = "1.3"
 
 # Excel 处理（v11 批次 142：规则 3 强制要求所有导出使用 xlsx 格式）
-rust_xlsxwriter = "0.95"
+rust_xlsxwriter = "0.98"
 # Excel 读取（v11 批次 157d-4：规则 3 强制要求导入使用 xlsx 格式）
-calamine = "0.26"
+calamine = "0.36"
 # Word 文档生成（V15 P1 batch-08 缺陷 8：规则 3 强制要求合同/发票/报表支持 .docx 格式）
 docx-rs = "0.4"
 

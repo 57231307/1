@@ -22,9 +22,9 @@ fn sales_order_crud_routes() -> Router<AppState> {
     Router::new()
         .route("/orders", get(sales_order_handler::list_orders))
         .route("/orders", post(sales_order_handler::create_order))
-        .route("/orders/:id", get(sales_order_handler::get_order))
-        .route("/orders/:id", put(sales_order_handler::update_order))
-        .route("/orders/:id", delete(sales_order_handler::delete_order))
+        .route("/orders/{id}", get(sales_order_handler::get_order))
+        .route("/orders/{id}", put(sales_order_handler::update_order))
+        .route("/orders/{id}", delete(sales_order_handler::delete_order))
         .route(
             "/orders/:id/submit",
             post(sales_order_handler::submit_order),
@@ -33,7 +33,7 @@ fn sales_order_crud_routes() -> Router<AppState> {
             "/orders/:id/approve",
             post(sales_order_handler::approve_order),
         )
-        .route("/orders/:id/ship", post(sales_order_handler::ship_order))
+        .route("/orders/{id}/ship", post(sales_order_handler::ship_order))
         .route(
             "/orders/:id/complete",
             post(sales_order_handler::complete_order),
