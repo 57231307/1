@@ -291,9 +291,7 @@ const fetchInvoices = async () => {
   try {
     const res = await getAPInvoiceList(invoiceQuery);
     const d = res.data as
-      | { list?: APInvoice[]; items?: APInvoice[]; data?: APInvoice[] }
-      | APInvoice[]
-      | undefined;
+      { list?: APInvoice[]; items?: APInvoice[]; data?: APInvoice[] } | APInvoice[] | undefined;
     if (d && typeof d === 'object' && !Array.isArray(d)) {
       invoices.value = d.list || d.items || d.data || [];
     } else {

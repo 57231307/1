@@ -11,6 +11,8 @@ description = "Bingxi Management Platform - Rust 后端服务"
 # Web 框架
 axum = { version = "0.8", features = ["json", "multipart", "macros", "ws"] }
 tower-http = { version = "0.7", features = ["cors", "trace", "fs", "set-header"] }
+# bytes crate（axum 0.8 ws::Message 使用 bytes::Bytes/BytesMut，需要显式声明依赖）
+bytes = "1.0"
 
 # 异步运行时
 tokio = { version = "1.0", features = ["full"] }

@@ -119,11 +119,7 @@ const columns = computed<ColumnDef<ApprovalTask>[]>(() => [
         ElTag,
         {
           type: getPriorityType(row.priority) as
-            | 'success'
-            | 'warning'
-            | 'info'
-            | 'primary'
-            | 'danger',
+            'success' | 'warning' | 'info' | 'primary' | 'danger',
           size: 'small',
         },
         { default: () => getPriorityTextFmt(row.priority) }

@@ -263,8 +263,7 @@ const fetchCurrencies = async () => {
   try {
     const res = await getCurrencyList();
     const d = (res as { data?: unknown }).data as
-      | Currency[]
-      | { items?: Currency[]; data?: Currency[]; list?: Currency[] };
+      Currency[] | { items?: Currency[]; data?: Currency[]; list?: Currency[] };
     currencyList.value = Array.isArray(d) ? d : d?.items || d?.data || d?.list || [];
   } catch (e) {
     const err = e as Error;

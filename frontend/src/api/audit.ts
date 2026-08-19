@@ -5,14 +5,7 @@ import { request } from './request';
 
 /** 操作类型枚举（与后端 OperationType 同步） */
 export type OperationType =
-  | 'CREATE'
-  | 'UPDATE'
-  | 'DELETE'
-  | 'LOGIN'
-  | 'LOGOUT'
-  | 'EXPORT'
-  | 'QUERY'
-  | 'OTHER';
+  'CREATE' | 'UPDATE' | 'DELETE' | 'LOGIN' | 'LOGOUT' | 'EXPORT' | 'QUERY' | 'OTHER';
 
 /** 严重级别枚举（与后端 Severity 同步） */
 export type Severity = 'INFO' | 'WARN' | 'ERROR' | 'CRITICAL';

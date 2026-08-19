@@ -287,8 +287,7 @@ const fetchFunds = async () => {
   try {
     const res = await getFundAccountList();
     const d = res.data as
-      | { list?: FundAccount[]; items?: FundAccount[]; data?: FundAccount[] }
-      | FundAccount[];
+      { list?: FundAccount[]; items?: FundAccount[]; data?: FundAccount[] } | FundAccount[];
     funds.value = Array.isArray(d) ? d : d?.list || d?.items || [];
   } catch (error) {
     const err = error as Error;

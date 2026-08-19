@@ -165,9 +165,7 @@ const fetchVerifications = async () => {
   try {
     const res = await getAPVerificationList();
     const d = res.data as
-      | { list?: APVerification[]; items?: APVerification[] }
-      | APVerification[]
-      | undefined;
+      { list?: APVerification[]; items?: APVerification[] } | APVerification[] | undefined;
     if (d && typeof d === 'object' && !Array.isArray(d)) {
       verifications.value = d.list || d.items || [];
     } else {
@@ -196,13 +194,9 @@ const openVerificationDialog = async () => {
       getUnverifiedAPPayments(),
     ]);
     const d1 = invRes.data as
-      | { list?: APInvoice[]; items?: APInvoice[]; data?: APInvoice[] }
-      | APInvoice[]
-      | undefined;
+      { list?: APInvoice[]; items?: APInvoice[]; data?: APInvoice[] } | APInvoice[] | undefined;
     const d2 = payRes.data as
-      | { list?: APPayment[]; items?: APPayment[]; data?: APPayment[] }
-      | APPayment[]
-      | undefined;
+      { list?: APPayment[]; items?: APPayment[]; data?: APPayment[] } | APPayment[] | undefined;
     const invs: APInvoice[] =
       d1 && typeof d1 === 'object' && !Array.isArray(d1)
         ? d1.list || d1.items || d1.data || []
