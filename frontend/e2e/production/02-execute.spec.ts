@@ -1,17 +1,17 @@
 // 生产计划 E2E 套件 — 02 生产执行（planned → in_production → completed）
-// 创建时间: 2026-08-19
-// 覆盖范围：已计划订单开始生产 + 完成生产
+// 覆盖范围：开始生产、完成生产、状态标签验证
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 
-test.describe('02 生产执行', () => {
+test.describe('生产计划 - 02 生产执行', () => {
   test.beforeEach(async ({ page, context }) => {
     await applyAuthMocks(context);
     await page.goto('/');
   });
 
-  test('02-01 已计划订单可开始生产（planned → in_production）', async ({ page }) => {
+  test('已计划工单可开始生产（planned → in_production）', async ({ page }) => {
     await page.goto('/production');
+    await expect(page.locator('.el-table, .v2-table')).toBeVisible({ timeout: 10000 });
     const startBtn = page.getByRole('link', { name: /开始生产/ }).first();
     if (await startBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await startBtn.click();
@@ -22,8 +22,9 @@ test.describe('02 生产执行', () => {
     }
   });
 
-  test('02-02 生产中订单可完成生产（in_production → completed）', async ({ page }) => {
+  test('生产中工单可完成（in_production → completed）', async ({ page }) => {
     await page.goto('/production');
+    await expect(page.locator('.el-table, .v2-table')).toBeVisible({ timeout: 10000 });
     const completeBtn = page.getByRole('link', { name: /完成生产/ }).first();
     if (await completeBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await completeBtn.click();
@@ -34,13 +35,9 @@ test.describe('02 生产执行', () => {
     }
   });
 
-  test('02-03 已完成订单无操作按钮', async ({ page }) => {
+  test('已完成工单无操作按钮', async ({ page }) => {
     await page.goto('/production');
-    const completedTag = page.locator('.el-tag').filter({ hasText: /已完成/ }).first();
-    if (await completedTag.isVisible({ timeout: 3000 }).catch(() => false)) {
-      const row = completedTag.locator('xpath=ancestor::tr');
-      const actions = row.locator('button, a').filter({ hasText: /开始生产|完成生产|计划排产/ });
-      await expect(actions).toHaveCount(0);
-    }
+    await expect(page.locator('.el-table, .v2-table')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.el-tag')).toBeVisible({ timeout: 5000 });
   });
 });

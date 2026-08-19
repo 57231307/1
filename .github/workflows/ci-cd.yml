@@ -1863,7 +1863,7 @@ jobs:
   ci-build-rust:
     name: 🏗️ Rust 后端构建
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     needs: ci-info
     # 启用 contents: write 以便提交自动生成的 Cargo.lock 与版本号更新
     permissions:
@@ -1938,7 +1938,7 @@ jobs:
         run: |
           mkdir -p reports
           echo "🔨 开始构建后端（详细日志输出到 reports/cargo-build.log）"
-          cargo build --release --keep-going --bin server --bin bingxi --verbose 2>&1 \
+          CARGO_BUILD_JOBS=4 cargo build --release --keep-going --bin server --bin bingxi --verbose 2>&1 \
             | tee reports/cargo-build.log
           echo "✅ cargo build 完成"
 
