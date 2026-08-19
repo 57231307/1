@@ -204,7 +204,7 @@ const removeItem = (index: number) => {
 };
 
 const calcAmount = (item: { quantity: number; cost_price: number }) => {
-  item.quantity * item.cost_price;
+  return item.quantity * item.cost_price;
 };
 
 watch(

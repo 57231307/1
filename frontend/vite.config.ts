@@ -36,6 +36,7 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'static',
     sourcemap: false,
+    target: 'modules',
     // V15 P1-20-3 chunk 分割策略：将大依赖拆分为独立 chunk，优化首屏加载
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
