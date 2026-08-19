@@ -44,21 +44,22 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 
 | 指标 | 数值 |
 |------|------|
-| 后端 Rust 代码 | ~243,300 行 |
-| 后端 Rust 文件 | 1,051 个 |
+| 后端 Rust 代码 | ~293,700 行（src 243,300 + tests 31,900 + migration 18,400） |
+| 后端 Rust 文件 | 1,424 个（src 1,051 + tests 245 + migration 128） |
 | 后端 Handler | 180 个 |
 | 后端 Service | 405 个 |
 | 后端 Model | 326 个 |
 | 后端 Route 模块 | 43 个 |
 | 后端 Middleware | 20 个 |
-| 后端集成测试 | 245 个 |
-| 前端 Vue 文件 | 376 个 |
-| 前端 TS 文件 | 229 个 |
-| 前端 Views 子模块 | 82 个 |
+| 后端集成测试 | 245 个文件 / 2,023 个测试函数 |
+| 后端迁移文件 | 128 个 Rust 文件（SQL 内联为 raw string） |
+| 前端 Vue 文件 | 376 个（~85,500 行） |
+| 前端 TS 文件 | 229 个（~51,100 行） |
+| 前端 Views 子模块 | 81 个 |
 | 前端 API 模块 | 96 个 |
-| 前端 E2E 测试 | 173 个（116 冒烟 + 57 闭环） |
-| Clippy Baseline | 4,274 条 |
-| 最新版本 | 2026.810.1 |
+| 前端 E2E 测试 | 173 个（116 冒烟 + 51 工作流 + 3 独立 + 3 增强） |
+| Clippy Baseline | 4,274 行（185 条唯一警告） |
+| 最新版本 | 后端 2026.810.1 / 前端 2026.617.0001 |
 
 ---
 
@@ -99,7 +100,7 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 
 ### 4. BI 数据仓库
 
-- **数据仓库**：4 张事实表 + 16 维
+- **数据仓库**：16 个 HTTP 端点（8 维度聚合 + 4 钻取 + 4 切片/上卷），基于 SeaORM raw SQL 真实查询
 - **多维分析**：销售 / 库存 / 财务 / 经营
 - **报表引擎**：模板版本管理 + 订阅推送重试 + BI 查询缓存（5min TTL）
 - **仪表板**：dashboard_layouts + WebSocket 实时推送 + 角色数据范围过滤
@@ -126,7 +127,7 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 
 ### 7. 国际化与前端体验
 
-- **vue-i18n** 中英双语 + 8947 个唯一翻译键
+- **vue-i18n** 中英双语 + 9,424 个翻译键
 - **PWA 支持**：manifest.json + Service Worker + 离线缓存
 - **移动端适配**：响应式 + 侧边栏抽屉化 + 汉堡按钮 ≥44px（WCAG 2.5.5）
 - **性能优化**：manualChunks 代码分割 + ECharts 按需引入 + optimizeDeps + V2Table 虚拟列表
@@ -272,7 +273,7 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 │  └────────────┘  └────────────┘  └────────────┘           │
 │  ┌────────────────────────────────────────────┐            │
 │  │     376 Vue 文件 + 229 TS 文件              │            │
-│  │  (82 views 子模块 + 96 api + 8 composables) │            │
+│  │  (81 views 子模块 + 96 api + 8 composables)  │            │
 │  └────────────────────────────────────────────┘            │
 └────────────────────────────────────────────────────────────┘
 ```
@@ -305,10 +306,10 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 | 能力 | 状态 | 备注 |
 |------|------|------|
 | AI 智能分析 | 已完成 | 工艺优化 / 质量预测 / 补货推荐 / 异常检测 + 模型版本管理 |
-| BI 数据仓库 | 已完成 | 4 表 + 16 维 + 仪表板 + 报表引擎 + 订阅推送 |
+| BI 数据仓库 | 已完成 | 16 个 HTTP 端点 + 仪表板 + 报表引擎 + 订阅推送 |
 | BPM 审批流 | 已完成 | 流程定义 / 实例 / 任务 |
 | WebSocket 实时 | 已完成 | 通知 / 订单 / 库存 / 审批 / 仪表板 |
-| 国际化（i18n） | 已完成 | 中英双语 + 8947 翻译键 |
+| 国际化（i18n） | 已完成 | 中英双语 + 9,424 翻译键 |
 | systemd 部署 | 已完成 | CLI 工具 + 蓝绿部署 + 灰度升级 + SHA256 校验 |
 
 ---
@@ -348,20 +349,25 @@ psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE bingxi_erp_test TO bingxi;
 ```bash
 cd backend
 
-# 复制环境配置
-cp .env.example .env.development
+# 复制环境配置模板（后端使用 .env 文件 + config.yaml）
+cp .env.example .env
+cp config.yaml.example config.yaml
+
+# 编辑 .env 和 config.yaml，替换占位符为真实密钥
+# 密钥生成方法：openssl rand -base64 32
 
 # 安装依赖
 cargo fetch
 
-# 数据库迁移（SQL 已内联到代码中，通过 bingxi CLI 执行）
+# 数据库迁移（需要先设置 DATABASE_URL 环境变量）
+export DATABASE_URL="postgres://bingxi:<password>@localhost:5432/bingxi"
 cargo run --bin bingxi -- migrate run
 
-# 启动服务
+# 启动服务（监听 127.0.0.1:8082）
 cargo run --bin server
 ```
 
-服务将运行在 `http://localhost:8080`。
+服务将运行在 `http://localhost:8082`。
 
 ### 5. 前端启动（开发模式）
 
@@ -390,8 +396,8 @@ npm run dev
 项目采用 systemd 直部署方式，由 CLI 工具 `bingxi` 管理更新：
 
 ```bash
-# 首次安装
-sudo bash install.sh
+# 首次安装（通过 快速部署/install.sh 一键脚本）
+sudo bash 快速部署/install.sh
 
 # 后续更新（CLI 工具拉取 GitHub Release 并校验 SHA256）
 sudo bingxi update
@@ -414,7 +420,7 @@ sudo journalctl -u bingxi-backend -f
 
 | 环境 | 用途 | 部署方式 | 配置 |
 |------|------|---------|------|
-| 开发 | 本地开发 | cargo run + npm run dev | `.env.development` |
+| 开发 | 本地开发 | cargo run + npm run dev | `.env` + `config.yaml` |
 | 测试 | 自动化测试 | cargo test + npm test | `.env.test` |
 | 预发 | 上线前验证 | systemd（staging 服务器） | `.env.staging` |
 | 生产 | 正式环境 | systemd（prod 服务器） | `.env.production` |
@@ -429,7 +435,7 @@ sudo journalctl -u bingxi-backend -f
 - **文件存储**：S3 / OSS 兼容
 - **CDN**：静态资源 CDN 分发
 
-详细部署见 `deploy/` 目录。
+详细部署见 `deploy/` 目录和 `快速部署/install.sh`。
 
 ---
 
@@ -455,7 +461,7 @@ sudo journalctl -u bingxi-backend -f
 
 ### 数据库与重构
 
-- 数据库迁移已内联到代码中（通过 `bingxi migrate run` 执行）
+- 数据库迁移以 Rust 代码内联 SQL（raw string）方式实现，共 128 个迁移文件（通过 `bingxi migrate run` 执行）
 - [重构计划](.monkeycode/docs/refactoring/) — 重构任务清单
 
 ---
@@ -466,14 +472,16 @@ sudo journalctl -u bingxi-backend -f
 
 | 层级 | 数量 | 工具 | 覆盖范围 |
 |------|------|------|---------|
-| 后端集成测试 | 245 | cargo test + nextest | 服务层 + API 层 |
+| 后端集成测试 | 245 文件 / 2,023 函数 | cargo test + nextest | 服务层 + API 层 |
 | 前端 E2E 冒烟测试 | 116 | Playwright | 全部前端路由（1:1 映射） |
-| 前端 E2E 闭环测试 | 57 | Playwright | 15 个模块完整业务流程 |
+| 前端 E2E 工作流测试 | 51 | Playwright | 17 个模块完整业务流程 |
+| 前端 E2E 独立测试 | 3 | Playwright | 色卡 / 色号价格 / 定制订单 |
+| 前端 E2E 增强测试 | 3 | Playwright | 多角色协作 / 网络韧性 / RPA 数据提取 |
 | 性能基准 | 4 | criterion | 库存核算 / 凭证生成 / 染整成本归集 / 产量工资计算 |
 
 ### E2E 测试覆盖
 
-15 个模块的完整业务闭环测试：
+17 个模块的完整业务闭环测试：
 
 | 模块 | 文件数 | 闭环覆盖 |
 |------|--------|---------|
@@ -492,6 +500,8 @@ sudo journalctl -u bingxi-backend -f
 | fabric | 3 | 坯布/染色批次/配方 |
 | system | 2 | 用户管理/审计日志 |
 | ai/mrp/dashboard | 4 | AI工艺优化/质量预测/MRP/仪表盘 |
+| 独立测试 | 3 | 色卡 / 色号价格 / 定制订单 |
+| 增强测试 | 3 | 多角色协作 / 网络韧性 / RPA 数据提取 |
 
 ### 运行测试
 
@@ -504,7 +514,7 @@ cargo test --all
 cd frontend
 npm run test:e2e
 
-# 性能基准测试
+# 性能基准测试（4 项：库存核算 / 凭证生成 / 染整成本归集 / 产量工资计算）
 cd backend
 cargo bench --features bench
 ```
@@ -540,10 +550,10 @@ cargo bench --features bench
 
 所有验证走 GitHub Actions（CI/CD Only）：
 
-- Rust：fmt + clippy（baseline 4,274 条）+ 单元测试 + 后端构建 + 覆盖率
-- 前端：fmt + ESLint + 类型检查 + 测试 + 构建
+- Rust：fmt + clippy（baseline 4,274 行 / 185 条警告）+ nextest 测试（30 分片并行）+ 后端构建 + cargo-llvm-cov 覆盖率
+- 前端：fmt + ESLint + 类型检查 + Vitest 测试 + Vite 构建
 - 依赖审计 + 环境信息 + 依赖图记录
-- E2E 批次测试（独立工作流，PostgreSQL + 后端 + 前端 + Playwright 全链路）
+- E2E 批次测试（独立工作流 `e2e-batch.yml`，PostgreSQL + 后端 + 前端 + Playwright 全链路）
 
 ---
 
