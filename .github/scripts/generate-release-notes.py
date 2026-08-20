@@ -62,15 +62,36 @@ def get_commits(prev_tag):
     return commits
 
 
+def parse_bullets(body):
+    """解析 commit body 中的 conventional commit bullet points。
+
+    识别形如 `- feat(scope): 描述` / `* fix: 描述` 的列表项，返回
+    [{"type": ..., "scope": ..., "desc": ...}, ...]。非 bullet 行或不符合
+    conventional commit 前缀的行被忽略。"""
+    if not body:
+        return []
+    pattern = re.compile(r'^[\*\-]\s+([a-z]+)(?:\(([^)]+)\))?!?:\s+(.+)$')
+    bullets = []
+    for line in body.splitlines():
+        m = pattern.match(line.strip())
+        if m:
+            bullets.append({
+                "type": m.group(1),
+                "scope": m.group(2) or "",
+                "desc": m.group(3).strip(),
+            })
+    return bullets
+
+
 def parse_commit_message(subject, body):
     """解析单个 commit 的 subject 和 body，提取变更项。
-    
+
     支持两种格式：
     1. conventional commit body 中的 bullet points（- feat(xxx): 描述）
     2. squash merge commit body 中的自由文本段落（按关键词分类）
     """
     items = []
-    
+
     # 先尝试解析 conventional commit bullet points
     bullets = parse_bullets(body)
     if bullets:

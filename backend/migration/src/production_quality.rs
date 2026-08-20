@@ -35,6 +35,15 @@ impl MigrationTrait for Migration {
             .up(manager)
             .await?;
         m0028_create_slow_query_log::Migration.up(manager).await?;
+        // 顺序修复：m0044 必须在 m0029 之前执行。
+        // m0044 创建 custom_orders / color_cards / process_nodes / sales_facts 等 31 张表，
+        // m0029 随后对这些表执行 ALTER TABLE ... DROP COLUMN IF EXISTS "tenant_id"。
+        // PostgreSQL 的 DROP COLUMN IF EXISTS 仅保护列不存在，不保护表不存在；
+        // 若 m0029 先于 m0044 执行，会因 "relation xxx does not exist" 中断整个迁移链。
+        // 这也符合 m0044 文件头注释的设计意图："注册在 m0028 之后、m0029 之前"。
+        m0044_integrate_unreferenced_migrations::Migration
+            .up(manager)
+            .await?;
         m0029_drop_tenant_columns::Migration.up(manager).await?;
         m0030_create_crm_recycle_rules::Migration
             .up(manager)
@@ -44,9 +53,6 @@ impl MigrationTrait for Migration {
             .up(manager)
             .await?;
         m0043_add_scan_type_and_industry_columns::Migration
-            .up(manager)
-            .await?;
-        m0044_integrate_unreferenced_migrations::Migration
             .up(manager)
             .await?;
         m0045_add_password_changed_at_to_users::Migration
@@ -84,9 +90,6 @@ impl MigrationTrait for Migration {
         m0045_add_password_changed_at_to_users::Migration
             .down(manager)
             .await?;
-        m0044_integrate_unreferenced_migrations::Migration
-            .down(manager)
-            .await?;
         m0043_add_scan_type_and_industry_columns::Migration
             .down(manager)
             .await?;
@@ -98,6 +101,10 @@ impl MigrationTrait for Migration {
             .down(manager)
             .await?;
         m0029_drop_tenant_columns::Migration.down(manager).await?;
+        // 逆序：m0044 在 m0029 之后回滚（与 up 顺序相反）
+        m0044_integrate_unreferenced_migrations::Migration
+            .down(manager)
+            .await?;
         m0028_create_slow_query_log::Migration.down(manager).await?;
         m0027_enable_pg_stat_statements::Migration
             .down(manager)

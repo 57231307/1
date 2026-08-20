@@ -116,6 +116,7 @@ CREATE TABLE IF NOT EXISTS "custom_orders" (
     "total_amount" DECIMAL(18,2),
     "currency" VARCHAR(10) NOT NULL DEFAULT 'CNY',
     "tenant_id" BIGINT NOT NULL,
+    "notes" TEXT,
     "created_by" BIGINT,
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -135,7 +136,8 @@ COMMENT ON COLUMN "custom_orders"."status" IS '订单状态：draft(草稿) / ya
 COMMENT ON COLUMN "custom_orders"."custom_requirements" IS '客户定制要求（特殊工艺、克重、幅宽等）JSONB';
 COMMENT ON COLUMN "custom_orders"."yarn_spec" IS '指定纱线规格';
 COMMENT ON COLUMN "custom_orders"."dye_method" IS '染色工艺方法';
-COMMENT ON COLUMN "custom_orders"."finishing_method" IS '后整理工艺方法';"#,
+COMMENT ON COLUMN "custom_orders"."finishing_method" IS '后整理工艺方法';
+COMMENT ON COLUMN "custom_orders"."notes" IS '订单备注（批次 88 PH-1，与 m0032 幂等对齐）';"#,
     ),
     (
         "20260617000002_create_process_nodes",
