@@ -5,6 +5,15 @@ use bingxi_backend::services::auth_service_ops::jti::{
 };
 use chrono::{Duration, Utc};
 use jsonwebtoken::{EncodingKey, Header, encode};
+use std::sync::Once;
+
+// jsonwebtoken 11.0: 进程级 CryptoProvider 安装（仅执行一次）
+static INIT_CRYPTO: Once = Once::new();
+fn ensure_crypto_provider() {
+    INIT_CRYPTO.call_once(|| {
+        let _ = jsonwebtoken::crypto::rust_crypto::DEFAULT_PROVIDER.install_default();
+    });
+}
 
 // P9-1: 测试夹具 helper，封装 AuthService 的常见操作
 fn hash_pwd(p: &str) -> String {
@@ -87,6 +96,7 @@ fn test_password_hash_uniqueness() {
 /// 测试 JWT 令牌生成和验证（使用运行时随机密钥）
 #[test]
 fn test_token_generation_and_validation() {
+    ensure_crypto_provider();
     let secret = test_jwt_secret();
 
     // 使用静态方法直接测试令牌生成和验证
@@ -114,6 +124,7 @@ fn test_token_generation_and_validation() {
 /// 测试无效令牌验证
 #[test]
 fn test_invalid_token_validation() {
+    ensure_crypto_provider();
     let secret = test_jwt_secret();
     let wrong_secret = "wrong-secret-key-for-jwt-tokens-32-byte";
 
@@ -138,6 +149,7 @@ fn test_invalid_token_validation() {
 /// 测试过期令牌验证
 #[test]
 fn test_expired_token_validation() {
+    ensure_crypto_provider();
     let secret = test_jwt_secret();
 
     let now = Utc::now();
@@ -161,6 +173,7 @@ fn test_expired_token_validation() {
 /// 测试令牌声明字段完整性
 #[test]
 fn test_token_claims_fields() {
+    ensure_crypto_provider();
     let secret = test_jwt_secret();
 
     let now = Utc::now();
