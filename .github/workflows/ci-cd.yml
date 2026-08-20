@@ -1174,7 +1174,7 @@ jobs:
           retention-days: 90
 
 # ==============================================================================
-# Job 7: Rust 测试预编译（nextest archive，避免 15 个分片各自编译）
+# Job 7: Rust 测试预编译（nextest archive，避免 30 个分片各自编译）
 # ==============================================================================
   ci-build-test-artifacts:
     name: 📦 Rust 测试预编译
@@ -1232,13 +1232,13 @@ jobs:
   # Job 8: Rust 单元测试分片（从 archive 运行，不重复编译）
   # ==============================================================================
   # ==============================================================================
-  # Rust 测试分片：15 个并行 partition（nextest --partition hash:m/15）
+  # Rust 测试分片：30 个并行 partition（nextest --partition hash:m/30）
   # 预编译 archive 由 ci-build-test-artifacts 产出，各分片仅下载运行。
   # ==============================================================================
   ci-test-rust:
-    name: 🧪 Rust 测试 (${{ matrix.partition }}/15)
+    name: 🧪 Rust 测试 (${{ matrix.partition }}/30)
     runs-on: ubuntu-latest
-    # 15 个分片仅从 archive 运行测试（不编译），时间大幅缩短
+    # 30 个分片仅从 archive 运行测试（不编译），时间大幅缩短
     timeout-minutes: 45
     needs: ci-build-test-artifacts
     strategy:
@@ -1246,7 +1246,7 @@ jobs:
       max-parallel: 2
       matrix:
         # nextest --partition hash:m/n 要求 1 ≤ m ≤ n
-        partition: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+        partition: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]
     # 集成测试依赖 PostgreSQL，使用 service container 提供数据库实例
     services:
       postgres:
@@ -1288,7 +1288,7 @@ jobs:
           name: nextest-archive
           path: backend/
 
-      - name: 运行测试分片 ${{ matrix.partition }}/15（nextest archive run --partition hash:${{ matrix.partition }}/15）
+      - name: 运行测试分片 ${{ matrix.partition }}/30（nextest archive run --partition hash:${{ matrix.partition }}/30）
         working-directory: backend
         # --no-fail-fast 确保分片内所有测试都跑完，暴露全部失败
         # --test-threads=1 串行执行，避免集成测试竞态
@@ -1297,7 +1297,7 @@ jobs:
           set +e
           cargo nextest run \
             --archive-file nextest-archive.tar.zst \
-            --partition hash:${{ matrix.partition }}/15 \
+            --partition hash:${{ matrix.partition }}/30 \
             --test-threads=1 \
             --no-fail-fast \
             > reports/nextest-output.txt 2>&1
@@ -1312,10 +1312,10 @@ jobs:
 
           # 生成报告
           {
-            echo "# Rust 测试分片报告（${{ matrix.partition }}/15）"
+            echo "# Rust 测试分片报告（${{ matrix.partition }}/30）"
             echo ""
             echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
-            echo "**分片**: ${{ matrix.partition }}/15  "
+            echo "**分片**: ${{ matrix.partition }}/30  "
             echo "**通过**: $PASSED  "
             echo "**失败**: $FAILED  "
             echo "**跳过**: $SKIPPED  "
@@ -1347,7 +1347,7 @@ jobs:
 
           # 写入 Step Summary
           {
-            echo "## 🧪 Rust 测试分片 ${{ matrix.partition }}/15"
+            echo "## 🧪 Rust 测试分片 ${{ matrix.partition }}/30"
             echo ""
             if [ "$EXIT_CODE" -ne "0" ] && [ "$FAILED" -eq "0" ]; then
               echo "❌ 编译失败或进程异常退出（EXIT_CODE=$EXIT_CODE）"
@@ -1380,7 +1380,7 @@ jobs:
 
   # ==============================================================================
   # Rust 覆盖率合并（信息性，不阻塞 CI）
-  # 在所有 15 个分片完成后运行，逐一跑所有测试收集覆盖率
+  # 在所有 30 个分片完成后运行，逐一跑所有测试收集覆盖率
   # ==============================================================================
   ci-coverage-rust:
     name: 📊 Rust 覆盖率
