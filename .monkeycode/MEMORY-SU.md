@@ -667,6 +667,15 @@
 - **修复**：`AppSettings::new()` 中 `load_sensitive_from_env()` 之后添加 APP_ENV 同步逻辑
 - **配置优先级**：`APP_ENV` 环境变量 > `config.yaml` 的 `env` 字段 > 默认开发环境
 
+### SeaORM 迁移链顺序与表存在性陷阱
+- **根因模式**：聚合迁移模块按 lib.rs 顺序执行（core_schema→business_tables→fixes_enhancements→sales_crm→production_quality→finance_compliance→v15_*），跨模块的表创建/ALTER 顺序依赖极易断裂
+- **ADD/DROP COLUMN IF EXISTS 不保护表不存在**：`ALTER TABLE foo ADD COLUMN IF NOT EXISTS bar` 当表 foo 不存在时仍报 `42P01 relation does not exist`；IF EXISTS 只保护列/表已存在的去重，不保护"表未创建"
+- **表存在性保护模板**：跨模块引用可能未创建的表时，用 `DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='xxx') THEN ALTER TABLE ...; END IF; END $$;` 包裹
+- **m0044 与 m0029 顺序**：m0044 创建 custom_orders/color_cards 等 31 张表，必须在 m0029（对这些表 DROP COLUMN tenant_id）之前；m0044 文件头注释"注册在 m0028 之后、m0029 之前"是设计意图，production_quality.rs 的 up 调用顺序必须与之匹配
+- **重复迁移识别**：m0017/m0018 是纯重复（19 张表与 m0005/m0008/m0009/m0011/m0012/m0013/m0069 列定义完全一致），已删除；m0020（omni_audit_logs 多 15 列）、m0078（含 work_center 独有表）非纯重复，保留
+- **唯一空迁移**：m0025（保留空实现维持迁移历史顺序，删有版本号风险无收益）
+- **SeaORM 版本号**：DeriveMigrationName 基于 struct Migration 名生成；测试阶段无生产库，可 `bingxi migrate fresh` 重置；删迁移对全新库安全，对已应用库需 fresh 重建
+
 ### SeaORM Trait 必导
 - `Entity::find()` → 需 `use sea_orm::EntityTrait;`
 - `.filter()` → 需 `use sea_orm::QueryFilter;`
