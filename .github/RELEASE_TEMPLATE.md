@@ -82,9 +82,9 @@ cp -r frontend/dist/* /var/www/html/
 
 ## 🛠️ 技术栈
 
-- **后端**: Rust + Axum + SeaORM
-- **前端**: Vue 3 + TypeScript + Element Plus
-- **数据库**: PostgreSQL 14+
+- **后端**: Rust 1.94+ + Axum 0.8 + SeaORM 2.0 + PostgreSQL 15+
+- **前端**: Vue 3.5 + TypeScript 5.9 + Element Plus 2.14 + Vite 8
+- **测试**: Playwright 1.40 (E2E) + nextest (Rust) + Vitest 4 (前端单元)
 
 ---
 

@@ -62,20 +62,102 @@ def get_commits(prev_tag):
     return commits
 
 
-def parse_bullets(body):
-    bullets = []
-    for line in body.split("\n"):
+def parse_commit_message(subject, body):
+    """解析单个 commit 的 subject 和 body，提取变更项。
+    
+    支持两种格式：
+    1. conventional commit body 中的 bullet points（- feat(xxx): 描述）
+    2. squash merge commit body 中的自由文本段落（按关键词分类）
+    """
+    items = []
+    
+    # 先尝试解析 conventional commit bullet points
+    bullets = parse_bullets(body)
+    if bullets:
+        for b in bullets:
+            items.append({
+                "type": map_type(b["type"], b["scope"]),
+                "scope": b["scope"],
+                "desc": b["desc"],
+            })
+        return items
+    
+    # 如果没有 bullet points，尝试从 subject 和 body 提取信息
+    # 解析 squash merge commit body 中的多行描述
+    lines = body.split("\n") if body else []
+    current_section = None
+    section_map = {
+        "前端": "feat",
+        "后端": "feat",
+        "E2E": "test",
+        "CI": "chore",
+        "修复": "fix",
+        "新增": "feat",
+        "删除": "remove",
+        "升级": "feat",
+        "文档": "docs",
+        "测试": "test",
+    }
+    
+    for line in lines:
         line = line.strip()
         if not line or line.startswith("Co-authored-by") or line.startswith("Signed-off-by"):
             continue
-        m = re.match(r'^[\*\-]\s+([a-z]+)(?:\(([^)]*)\))?:\s*(.*)$', line)
-        if m:
-            bullets.append({
-                "type": m.group(1),
-                "scope": (m.group(2) or "").strip(),
-                "desc": m.group(3).strip(),
+        
+        # 检测分类标题行（如 "前端：", "后端：", "修复：" 等）
+        section_match = re.match(r'^(前端|后端|E2E|CI|修复|新增|删除|升级|文档|测试|Rust|Playwright|其他)[：:]\s*(.*)$', line)
+        if section_match:
+            current_section = section_map.get(section_match.group(1), "other")
+            rest = section_match.group(2).strip()
+            if rest:
+                items.append({
+                    "type": current_section,
+                    "scope": section_match.group(1),
+                    "desc": rest,
+                })
+            continue
+        
+        # 检测以 - 或 * 开头的列表项
+        bullet_match = re.match(r'^[\*\-]\s+(.+)$', line)
+        if bullet_match:
+            desc = bullet_match.group(1).strip()
+            # 尝试从描述中推断类型
+            inferred_type = "other"
+            for keyword, t in section_map.items():
+                if keyword.lower() in desc.lower():
+                    inferred_type = t
+                    break
+            items.append({
+                "type": inferred_type,
+                "scope": "",
+                "desc": desc,
             })
-    return bullets
+            continue
+        
+        # 普通文本行作为描述
+        if len(line) > 10 and not line.startswith("#"):
+            inferred_type = "other"
+            for keyword, t in section_map.items():
+                if keyword.lower() in line.lower():
+                    inferred_type = t
+                    break
+            items.append({
+                "type": inferred_type,
+                "scope": "",
+                "desc": line,
+            })
+    
+    # 如果 body 没有提取到任何内容，用 subject 本身
+    if not items:
+        ctype = get_commit_type(subject)
+        mtype = TYPE_MAP.get(ctype, "other")
+        items.append({
+            "type": mtype,
+            "scope": "",
+            "desc": subject,
+        })
+    
+    return items
 
 
 def map_type(btype, scope):
@@ -110,30 +192,19 @@ def format_release_notes(version, tag_name, prev_tag, commits):
     seen = set()
 
     for c in commits:
-        bullets = parse_bullets(c["body"])
-
-        if bullets:
-            for b in bullets:
-                mtype = map_type(b["type"], b["scope"])
-                key = f"{b['type']}: {b['desc']}"
-                if key not in seen:
-                    seen.add(key)
-                    sections[mtype].append(f"* {b['desc']}")
-
-            for b in bullets:
-                mtype = map_type(b["type"], b["scope"])
-                if mtype not in ("chore", "docs", "test", "other"):
-                    if b["desc"] not in seen:
-                        summary_items.append(b["desc"])
-                        seen.add(b["desc"])
-                    break
-        else:
-            ctype = get_commit_type(c["subject"])
-            mtype = TYPE_MAP.get(ctype, "other")
+        items = parse_commit_message(c["subject"], c["body"])
+        
+        for item in items:
+            mtype = item["type"]
+            key = f"{mtype}: {item['desc']}"
+            if key not in seen:
+                seen.add(key)
+                sections[mtype].append(f"* {item['desc']}")
+            
             if mtype not in ("chore", "docs", "test", "other"):
-                if c["subject"] not in seen:
-                    summary_items.append(c["subject"])
-                    seen.add(c["subject"])
+                if item["desc"] not in seen:
+                    summary_items.append(item["desc"])
+                    seen.add(item["desc"])
 
     summary = "；".join(summary_items[:3]) if summary_items else "详见下方变更分类"
 
@@ -220,9 +291,9 @@ def format_release_notes(version, tag_name, prev_tag, commits):
     lines.append("")
     lines.append("## 🛠️ 技术栈")
     lines.append("")
-    lines.append("- **后端**: Rust + Axum + SeaORM")
-    lines.append("- **前端**: Vue 3 + TypeScript + Element Plus")
-    lines.append("- **数据库**: PostgreSQL 14+")
+    lines.append("- **后端**: Rust 1.94+ + Axum 0.8 + SeaORM 2.0 + PostgreSQL 15+")
+    lines.append("- **前端**: Vue 3.5 + TypeScript 5.9 + Element Plus 2.14 + Vite 8")
+    lines.append("- **测试**: Playwright 1.40 (E2E) + nextest (Rust) + Vitest 4 (前端单元)")
     lines.append("")
     lines.append("---")
     lines.append("")
