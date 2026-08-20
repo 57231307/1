@@ -39,9 +39,9 @@ pub fn routes() -> Router<AppState> {
             get(bad_debt_handler::list_writeoffs).post(bad_debt_handler::create_writeoff),
         )
         .route("/", get(bad_debt_handler::list_provisions))
-        .route("/:id", get(bad_debt_handler::get_provision))
-        .route("/:id/confirm", post(bad_debt_handler::confirm_provision))
-        .route("/:id/reverse", post(bad_debt_handler::reverse_provision))
+        .route("/{id}", get(bad_debt_handler::get_provision))
+        .route("/{id}/confirm", post(bad_debt_handler::confirm_provision))
+        .route("/{id}/reverse", post(bad_debt_handler::reverse_provision))
         .route(
             "/writeoffs/:id",
             get(bad_debt_handler::get_writeoff),

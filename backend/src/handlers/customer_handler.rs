@@ -47,7 +47,7 @@ pub struct CreateCustomerRequest {
     pub bank_name: Option<String>,
     #[validate(length(max = 50, message = "银行账号长度不能超过50个字符"))]
     pub bank_account: Option<String>,
-    #[validate(custom = "validate_customer_type")]
+    #[validate(custom(function = validate_customer_type))]
     pub customer_type: Option<String>,
     #[validate(length(max = 1000, message = "备注长度不能超过1000个字符"))]
     pub notes: Option<String>,
@@ -97,7 +97,7 @@ pub struct UpdateCustomerRequest {
     pub bank_name: Option<String>,
     #[validate(length(max = 50, message = "银行账号长度不能超过50个字符"))]
     pub bank_account: Option<String>,
-    #[validate(custom = "validate_customer_type")]
+    #[validate(custom(function = validate_customer_type))]
     pub customer_type: Option<String>,
     pub status: Option<String>,
     #[validate(length(max = 1000, message = "备注长度不能超过1000个字符"))]

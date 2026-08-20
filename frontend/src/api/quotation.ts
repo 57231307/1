@@ -7,13 +7,7 @@ import type { ApiResponse } from '@/types/api';
 
 /** 报价单状态（后端 DTO 7 种） */
 export type QuotationStatus =
-  | 'draft'
-  | 'pending_approval'
-  | 'approved'
-  | 'rejected'
-  | 'expired'
-  | 'converted'
-  | 'cancelled';
+  'draft' | 'pending_approval' | 'approved' | 'rejected' | 'expired' | 'converted' | 'cancelled';
 
 /** 货币代码（避免与 @/api/currency 的 Currency 接口冲突） */
 export type CurrencyCode = 'CNY' | 'USD' | 'EUR';

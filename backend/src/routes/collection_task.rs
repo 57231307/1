@@ -32,11 +32,11 @@ pub fn routes() -> Router<AppState> {
             "/",
             get(collection_task_handler::list_tasks).post(collection_task_handler::create_task),
         )
-        .route("/:id", get(collection_task_handler::get_task))
+        .route("/{id}", get(collection_task_handler::get_task))
         .route(
             "/:id/contact",
             post(collection_task_handler::record_contact),
         )
-        .route("/:id/reassign", post(collection_task_handler::reassign))
-        .route("/:id/cancel", post(collection_task_handler::cancel_task))
+        .route("/{id}/reassign", post(collection_task_handler::reassign))
+        .route("/{id}/cancel", post(collection_task_handler::cancel_task))
 }

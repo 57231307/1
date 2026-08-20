@@ -197,7 +197,7 @@ pub fn imports() -> Router<AppState> {
 /// 导出路由
 pub fn exports() -> Router<AppState> {
     Router::new()
-        .route("/xlsx/:export_type", get(import_export_handler::export_xlsx))
+        .route("/xlsx/{export_type}", get(import_export_handler::export_xlsx))
         .route(
             "/excel/:export_type",
             get(import_export_handler::export_excel_type),
@@ -286,7 +286,7 @@ pub fn webhook_integrations() -> Router<AppState> {
             get(webhook_integration_handler::list_integrations)
                 .post(webhook_integration_handler::create_integration),
         )
-        .route("/:id", put(webhook_integration_handler::update_integration))
+        .route("/{id}", put(webhook_integration_handler::update_integration))
         .route(
             "/integration/:id",
             delete(webhook_integration_handler::delete_integration),
@@ -355,10 +355,10 @@ pub fn webhooks() -> Router<AppState> {
             "/",
             get(webhook_handler::list_webhooks).post(webhook_handler::create_webhook),
         )
-        .route("/:id", delete(webhook_handler::delete_webhook))
-        .route("/:id/test", post(webhook_handler::test_webhook))
-        .route("/:id/retry", post(webhook_handler::retry_webhook))
-        .route("/:id/logs", get(webhook_handler::get_webhook_logs))
+        .route("/{id}", delete(webhook_handler::delete_webhook))
+        .route("/{id}/test", post(webhook_handler::test_webhook))
+        .route("/{id}/retry", post(webhook_handler::retry_webhook))
+        .route("/{id}/logs", get(webhook_handler::get_webhook_logs))
 }
 
 /// API 网关管理路由；技术债务修复（2026-06-26）： 前端 api-gateway.ts 调用 /api-gateway/{endpoints,logs,keys,stats}
@@ -379,7 +379,7 @@ pub fn api_gateway() -> Router<AppState> {
         )
         // logs 查询
         .route("/logs", get(api_gateway_handler::list_api_logs))
-        .route("/logs/:id", get(api_gateway_handler::get_api_log))
+        .route("/logs/{id}", get(api_gateway_handler::get_api_log))
         // keys CRUD（list/create/delete/get/update/regenerate 均由 api_gateway_handler 提供）
         .route(
             "/keys",

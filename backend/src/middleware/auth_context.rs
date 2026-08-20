@@ -96,7 +96,6 @@ impl From<AppClaims> for AuthContext {
 
 /// 为 AuthContext 实现 FromRequestParts，使其可以作为 axum 的提取器
 /// 从请求扩展中获取认证信息（由中间件注入）
-#[axum::async_trait]
 impl<S> FromRequestParts<S> for AuthContext
 where
     S: Send + Sync,

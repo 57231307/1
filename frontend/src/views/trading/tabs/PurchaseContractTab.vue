@@ -157,9 +157,7 @@ const fetchPurchaseContracts = async () => {
   try {
     const res = await getTradingContractList({ type: 'purchase' });
     const d = res.data as
-      | { list?: TradingContract[]; items?: TradingContract[] }
-      | TradingContract[]
-      | undefined;
+      { list?: TradingContract[]; items?: TradingContract[] } | TradingContract[] | undefined;
     if (d && typeof d === 'object' && !Array.isArray(d)) {
       purchaseContracts.value = d.list || d.items || [];
     } else {

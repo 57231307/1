@@ -19,14 +19,14 @@ pub fn routes() -> Router<AppState> {
         // 列表 + 创建
         .route("/", get(quotation_handler::list_quotations).post(quotation_handler::create_quotation))
         // 详情 + 更新
-        .route("/:id", get(quotation_handler::get_quotation).put(quotation_handler::update_quotation))
+        .route("/{id}", get(quotation_handler::get_quotation).put(quotation_handler::update_quotation))
         // 审批流
-        .route("/:id/submit", post(quotation_handler::submit_quotation))
-        .route("/:id/approve", post(quotation_handler::approve_quotation))
-        .route("/:id/reject", post(quotation_handler::reject_quotation))
-        .route("/:id/cancel", post(quotation_handler::cancel_quotation))
+        .route("/{id}/submit", post(quotation_handler::submit_quotation))
+        .route("/{id}/approve", post(quotation_handler::approve_quotation))
+        .route("/{id}/reject", post(quotation_handler::reject_quotation))
+        .route("/{id}/cancel", post(quotation_handler::cancel_quotation))
         // 转换
-        .route("/:id/convert", post(quotation_handler::convert_to_sales_order))
+        .route("/{id}/convert", post(quotation_handler::convert_to_sales_order))
         // 贸易条款
         .route(
             "/:id/terms",

@@ -36,25 +36,27 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'static',
     sourcemap: false,
+    target: 'esnext',
     // V15 P1-20-3 chunk 分割策略：将大依赖拆分为独立 chunk，优化首屏加载
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
-        manualChunks: {
-          // Vue 核心
-          'vue-vendor': ['vue', 'vue-router', 'vue-i18n', 'pinia'],
-          // Element Plus UI 库
-          'element-plus': ['element-plus', '@element-plus/icons-vue'],
-          // ECharts 图表库
-          'echarts-vendor': [
-            'echarts',
-            'echarts/core',
-            'echarts/charts',
-            'echarts/components',
-            'echarts/renderers',
-          ],
-          // 工具库（仅引用 package.json 实际存在的依赖，避免 rollup 解析失败）
-          'utils-vendor': ['axios'],
+        // Vite 8 (Rolldown) 不支持对象格式 manualChunks，改为函数
+        manualChunks(id: string) {
+          if (id.includes('node_modules')) {
+            if (id.includes('vue') || id.includes('vue-router') || id.includes('vue-i18n') || id.includes('pinia')) {
+              return 'vue-vendor';
+            }
+            if (id.includes('element-plus') || id.includes('@element-plus/icons-vue')) {
+              return 'element-plus';
+            }
+            if (id.includes('echarts')) {
+              return 'echarts-vendor';
+            }
+            if (id.includes('axios')) {
+              return 'utils-vendor';
+            }
+          }
         },
       },
     },

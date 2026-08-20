@@ -24,9 +24,9 @@ pub fn products() -> Router<AppState> {
         .route("/products", get(product_handler::list_products))
         .route("/products", post(product_handler::create_product))
         .route("/products/select", get(product_handler::list_products))
-        .route("/products/:id", get(product_handler::get_product))
-        .route("/products/:id", put(product_handler::update_product))
-        .route("/products/:id", delete(product_handler::delete_product))
+        .route("/products/{id}", get(product_handler::get_product))
+        .route("/products/{id}", put(product_handler::update_product))
+        .route("/products/{id}", delete(product_handler::delete_product))
         .route(
             "/products/batch/create",
             post(bulk_product_handler::batch_create_products),
@@ -72,9 +72,9 @@ pub fn product_categories() -> Router<AppState> {
     Router::new()
         .route("/categories", get(product_category_handler::list))
         .route("/categories", post(product_category_handler::create))
-        .route("/categories/:id", get(product_category_handler::get))
-        .route("/categories/:id", put(product_category_handler::update))
-        .route("/categories/:id", delete(product_category_handler::delete))
+        .route("/categories/{id}", get(product_category_handler::get))
+        .route("/categories/{id}", put(product_category_handler::update))
+        .route("/categories/{id}", delete(product_category_handler::delete))
         .route(
             "/categories/tree",
             get(product_category_handler::get_product_category_tree),
@@ -89,9 +89,9 @@ pub fn warehouses() -> Router<AppState> {
         .route("/warehouses/select", get(warehouse_handler::list))
         // V15 P0-S12 修复（Batch 475c）：仓库导出端点（必须在 /:id 之前注册，避免 axum matchit 把 "export" 当 :id 匹配）
         .route("/warehouses/export", get(warehouse_handler::export_warehouses))
-        .route("/warehouses/:id", get(warehouse_handler::get))
-        .route("/warehouses/:id", put(warehouse_handler::update))
-        .route("/warehouses/:id", delete(warehouse_handler::delete))
+        .route("/warehouses/{id}", get(warehouse_handler::get))
+        .route("/warehouses/{id}", put(warehouse_handler::update))
+        .route("/warehouses/{id}", delete(warehouse_handler::delete))
         .route(
             "/warehouses/locations",
             get(warehouse_handler::list_locations),
@@ -127,11 +127,11 @@ pub fn boms() -> Router<AppState> {
                 .put(bom_handler::update_bom)
                 .delete(bom_handler::delete_bom),
         )
-        .route("/boms/:id/copy", post(bom_handler::copy_bom))
-        .route("/boms/:id/default", put(bom_handler::set_default_bom))
-        .route("/boms/:id/submit", put(bom_handler::submit_bom))
-        .route("/boms/:id/approve", put(bom_handler::approve_bom))
-        .route("/boms/:id/tree", get(bom_handler::get_bom_tree))
+        .route("/boms/{id}/copy", post(bom_handler::copy_bom))
+        .route("/boms/{id}/default", put(bom_handler::set_default_bom))
+        .route("/boms/{id}/submit", put(bom_handler::submit_bom))
+        .route("/boms/{id}/approve", put(bom_handler::approve_bom))
+        .route("/boms/{id}/tree", get(bom_handler::get_bom_tree))
         .route(
             "/boms/:id/requirements",
             post(bom_handler::calculate_bom_requirements),

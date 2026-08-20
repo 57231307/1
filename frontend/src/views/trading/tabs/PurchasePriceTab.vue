@@ -197,9 +197,7 @@ const fetchPurchasePrices = async () => {
   try {
     const res = await getTradingPriceList({ type: 'purchase' });
     const d = res.data as
-      | { list?: TradingPrice[]; items?: TradingPrice[] }
-      | TradingPrice[]
-      | undefined;
+      { list?: TradingPrice[]; items?: TradingPrice[] } | TradingPrice[] | undefined;
     if (d && typeof d === 'object' && !Array.isArray(d)) {
       purchasePrices.value = d.list || d.items || [];
     } else {

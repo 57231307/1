@@ -36,9 +36,9 @@ fn purchase_order_routes() -> Router<AppState> {
         )
         .route("/orders", get(purchase_order_handler::list_orders))
         .route("/orders", post(purchase_order_handler::create_order))
-        .route("/orders/:id", get(purchase_order_handler::get_order))
-        .route("/orders/:id", put(purchase_order_handler::update_order))
-        .route("/orders/:id", delete(purchase_order_handler::delete_order))
+        .route("/orders/{id}", get(purchase_order_handler::get_order))
+        .route("/orders/{id}", put(purchase_order_handler::update_order))
+        .route("/orders/{id}", delete(purchase_order_handler::delete_order))
         .route(
             "/orders/:id/approve",
             post(purchase_order_handler::approve_order),
@@ -97,7 +97,7 @@ fn purchase_receipt_routes() -> Router<AppState> {
             get(print_handler::purchase_receipt_print_docx),
         )
         .route("/receipts", post(purchase_receipt_handler::create_receipt))
-        .route("/receipts/:id", get(purchase_receipt_handler::get_receipt))
+        .route("/receipts/{id}", get(purchase_receipt_handler::get_receipt))
         .route(
             "/receipts/:id",
             put(purchase_receipt_handler::update_receipt)
@@ -313,9 +313,9 @@ pub fn suppliers() -> Router<AppState> {
             "/suppliers/export",
             get(supplier_handler::export_suppliers),
         )
-        .route("/suppliers/:id", get(supplier_handler::get_supplier))
-        .route("/suppliers/:id", put(supplier_handler::update_supplier))
-        .route("/suppliers/:id", delete(supplier_handler::delete_supplier))
+        .route("/suppliers/{id}", get(supplier_handler::get_supplier))
+        .route("/suppliers/{id}", put(supplier_handler::update_supplier))
+        .route("/suppliers/{id}", delete(supplier_handler::delete_supplier))
         // batch-13 P2：供应商账户余额查询
         .route(
             "/suppliers/:id/balance",

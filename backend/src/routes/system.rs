@@ -156,7 +156,7 @@ fn bpm_process_task_routes() -> Router<AppState> {
             "/bpm/tasks/:task_id/transfer",
             post(bpm_handler::transfer_task),
         )
-        .route("/bpm/tasks/:task_id/urge", post(bpm_handler::urge_task))
+        .route("/bpm/tasks/{task_id}/urge", post(bpm_handler::urge_task))
         .route("/bpm/approval/execute", post(bpm_handler::execute_approval))
 }
 
@@ -266,7 +266,7 @@ pub fn audit_logs() -> Router<AppState> {
             "/audit-logs/export",
             get(audit_log_handler::export_audit_logs),
         )
-        .route("/audit-logs/:id", get(audit_log_handler::get_audit_log))
+        .route("/audit-logs/{id}", get(audit_log_handler::get_audit_log))
         // V15 P1-5-3：前端打印审计埋点端点（POST，已认证用户均可上报）
         .route(
             "/audit-logs/record-print",

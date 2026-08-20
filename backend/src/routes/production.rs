@@ -29,8 +29,8 @@ pub fn dye_batches() -> Router<AppState> {
     Router::new()
         .route("/dye-batches", get(dye_batch_handler::list_dye_batches))
         .route("/dye-batches", post(dye_batch_handler::create_dye_batch))
-        .route("/dye-batches/:id", get(dye_batch_handler::get_dye_batch))
-        .route("/dye-batches/:id", put(dye_batch_handler::update_dye_batch))
+        .route("/dye-batches/{id}", get(dye_batch_handler::get_dye_batch))
+        .route("/dye-batches/{id}", put(dye_batch_handler::update_dye_batch))
         .route(
             "/dye-batches/:id",
             delete(dye_batch_handler::delete_dye_batch),
@@ -99,7 +99,7 @@ pub fn dye_recipes() -> Router<AppState> {
     Router::new()
         .route("/dye-recipes", get(dye_recipe_handler::list_dye_recipes))
         .route("/dye-recipes", post(dye_recipe_handler::create_dye_recipe))
-        .route("/dye-recipes/:id", get(dye_recipe_handler::get_dye_recipe))
+        .route("/dye-recipes/{id}", get(dye_recipe_handler::get_dye_recipe))
         .route(
             "/dye-recipes/:id",
             put(dye_recipe_handler::update_dye_recipe),
@@ -140,29 +140,29 @@ pub fn lab_dip() -> Router<AppState> {
         // ===== 打样通知单 =====
         .route("/lab-dip/requests", get(lab_dip_handler::list_requests))
         .route("/lab-dip/requests", post(lab_dip_handler::create_request))
-        .route("/lab-dip/requests/:id", get(lab_dip_handler::get_request))
-        .route("/lab-dip/requests/:id", put(lab_dip_handler::update_request))
-        .route("/lab-dip/requests/:id", delete(lab_dip_handler::delete_request))
+        .route("/lab-dip/requests/{id}", get(lab_dip_handler::get_request))
+        .route("/lab-dip/requests/{id}", put(lab_dip_handler::update_request))
+        .route("/lab-dip/requests/{id}", delete(lab_dip_handler::delete_request))
         // 状态流转
-        .route("/lab-dip/requests/:id/start-sampling", post(lab_dip_handler::start_sampling))
-        .route("/lab-dip/requests/:id/submit", post(lab_dip_handler::submit_to_customer))
-        .route("/lab-dip/requests/:id/approve", post(lab_dip_handler::approve_ok_sample))
-        .route("/lab-dip/requests/:id/reject", post(lab_dip_handler::reject_and_redo))
-        .route("/lab-dip/requests/:id/restart", post(lab_dip_handler::restart_sampling))
-        .route("/lab-dip/requests/:id/complete", post(lab_dip_handler::complete_request))
+        .route("/lab-dip/requests/{id}/start-sampling", post(lab_dip_handler::start_sampling))
+        .route("/lab-dip/requests/{id}/submit", post(lab_dip_handler::submit_to_customer))
+        .route("/lab-dip/requests/{id}/approve", post(lab_dip_handler::approve_ok_sample))
+        .route("/lab-dip/requests/{id}/reject", post(lab_dip_handler::reject_and_redo))
+        .route("/lab-dip/requests/{id}/restart", post(lab_dip_handler::restart_sampling))
+        .route("/lab-dip/requests/{id}/complete", post(lab_dip_handler::complete_request))
         // ===== 打样小样（ABCD 多版样） =====
         .route("/lab-dip/samples", post(lab_dip_handler::create_sample))
-        .route("/lab-dip/samples/:id", get(lab_dip_handler::get_sample))
-        .route("/lab-dip/samples/:id", put(lab_dip_handler::update_sample))
-        .route("/lab-dip/samples/:id", delete(lab_dip_handler::delete_sample))
-        .route("/lab-dip/samples/:id/matching", post(lab_dip_handler::record_matching_result))
-        .route("/lab-dip/samples/by-request/:request_id", get(lab_dip_handler::list_samples_by_request))
+        .route("/lab-dip/samples/{id}", get(lab_dip_handler::get_sample))
+        .route("/lab-dip/samples/{id}", put(lab_dip_handler::update_sample))
+        .route("/lab-dip/samples/{id}", delete(lab_dip_handler::delete_sample))
+        .route("/lab-dip/samples/{id}/matching", post(lab_dip_handler::record_matching_result))
+        .route("/lab-dip/samples/by-request/{request_id}", get(lab_dip_handler::list_samples_by_request))
         // ===== 复样记录 =====
         .route("/lab-dip/resamples", post(lab_dip_handler::create_resample))
-        .route("/lab-dip/resamples/:id", get(lab_dip_handler::get_resample))
-        .route("/lab-dip/resamples/:id/result", post(lab_dip_handler::record_resample_result))
-        .route("/lab-dip/resamples/:id/tech-card", post(lab_dip_handler::issue_tech_card))
-        .route("/lab-dip/resamples/by-request/:request_id", get(lab_dip_handler::list_resamples_by_request))
+        .route("/lab-dip/resamples/{id}", get(lab_dip_handler::get_resample))
+        .route("/lab-dip/resamples/{id}/result", post(lab_dip_handler::record_resample_result))
+        .route("/lab-dip/resamples/{id}/tech-card", post(lab_dip_handler::issue_tech_card))
+        .route("/lab-dip/resamples/by-request/{request_id}", get(lab_dip_handler::list_resamples_by_request))
 }
 
 /// 大货处方与加料处方路由（path 前缀 /production-recipes）；v14 批次 424：大货处方与加料处方流程 真实业务流程： 大货处方单：扫描流转卡条码 → 依据备布数量 → 加载小样处方/历史大货处方 → 根据浴比/浴量
@@ -172,13 +172,13 @@ pub fn production_recipes() -> Router<AppState> {
         // ===== 大货处方 CRUD =====
         .route("/production-recipes", get(production_recipe_handler::list))
         .route("/production-recipes", post(production_recipe_handler::create))
-        .route("/production-recipes/:id", get(production_recipe_handler::get))
-        .route("/production-recipes/:id", put(production_recipe_handler::update))
-        .route("/production-recipes/:id", delete(production_recipe_handler::delete))
+        .route("/production-recipes/{id}", get(production_recipe_handler::get))
+        .route("/production-recipes/{id}", put(production_recipe_handler::update))
+        .route("/production-recipes/{id}", delete(production_recipe_handler::delete))
         // 大货处方状态流转
-        .route("/production-recipes/:id/approve", post(production_recipe_handler::approve))
-        .route("/production-recipes/:id/close", post(production_recipe_handler::close))
-        .route("/production-recipes/:id/cancel", post(production_recipe_handler::cancel))
+        .route("/production-recipes/{id}/approve", post(production_recipe_handler::approve))
+        .route("/production-recipes/{id}/close", post(production_recipe_handler::close))
+        .route("/production-recipes/{id}/cancel", post(production_recipe_handler::cancel))
         // 用量计算（纯函数，无需路径参数）
         .route("/production-recipes/calculate", post(production_recipe_handler::calculate))
         // 按工单查询大货处方（一工单一处方约束）
@@ -221,9 +221,9 @@ pub fn flow_cards() -> Router<AppState> {
         // ===== 工序路线模板 =====
         .route("/process-routes", get(flow_card_handler::list_process_routes))
         .route("/process-routes", post(flow_card_handler::create_process_route))
-        .route("/process-routes/:id", get(flow_card_handler::get_process_route))
-        .route("/process-routes/:id", put(flow_card_handler::update_process_route))
-        .route("/process-routes/:id", delete(flow_card_handler::delete_process_route))
+        .route("/process-routes/{id}", get(flow_card_handler::get_process_route))
+        .route("/process-routes/{id}", put(flow_card_handler::update_process_route))
+        .route("/process-routes/{id}", delete(flow_card_handler::delete_process_route))
         .route(
             "/process-routes/:id/print",
             get(print_handler::process_route_print_docx),
@@ -232,32 +232,32 @@ pub fn flow_cards() -> Router<AppState> {
         .route("/flow-cards", get(flow_card_handler::list_flow_cards))
         .route("/flow-cards", post(flow_card_handler::create_flow_card))
         .route("/flow-cards/by-barcode", get(flow_card_handler::get_by_barcode))
-        .route("/flow-cards/:id", get(flow_card_handler::get_flow_card))
-        .route("/flow-cards/:id", put(flow_card_handler::update_flow_card))
-        .route("/flow-cards/:id", delete(flow_card_handler::delete_flow_card))
+        .route("/flow-cards/{id}", get(flow_card_handler::get_flow_card))
+        .route("/flow-cards/{id}", put(flow_card_handler::update_flow_card))
+        .route("/flow-cards/{id}", delete(flow_card_handler::delete_flow_card))
         // ===== 流转卡状态机流转 =====
-        .route("/flow-cards/:id/schedule", post(flow_card_handler::schedule))
-        .route("/flow-cards/:id/start-preparing", post(flow_card_handler::start_preparing))
-        .route("/flow-cards/:id/complete-preparing", post(flow_card_handler::complete_preparing))
-        .route("/flow-cards/:id/start-dyeing", post(flow_card_handler::start_dyeing))
-        .route("/flow-cards/:id/complete-dyeing", post(flow_card_handler::complete_dyeing))
-        .route("/flow-cards/:id/start-inspecting", post(flow_card_handler::start_inspecting))
-        .route("/flow-cards/:id/complete", post(flow_card_handler::complete_flow_card))
-        .route("/flow-cards/:id/ship", post(flow_card_handler::ship_flow_card))
-        .route("/flow-cards/:id/terminate", post(flow_card_handler::terminate_flow_card))
-        .route("/flow-cards/:id/reactivate", post(flow_card_handler::reactivate_flow_card))
+        .route("/flow-cards/{id}/schedule", post(flow_card_handler::schedule))
+        .route("/flow-cards/{id}/start-preparing", post(flow_card_handler::start_preparing))
+        .route("/flow-cards/{id}/complete-preparing", post(flow_card_handler::complete_preparing))
+        .route("/flow-cards/{id}/start-dyeing", post(flow_card_handler::start_dyeing))
+        .route("/flow-cards/{id}/complete-dyeing", post(flow_card_handler::complete_dyeing))
+        .route("/flow-cards/{id}/start-inspecting", post(flow_card_handler::start_inspecting))
+        .route("/flow-cards/{id}/complete", post(flow_card_handler::complete_flow_card))
+        .route("/flow-cards/{id}/ship", post(flow_card_handler::ship_flow_card))
+        .route("/flow-cards/{id}/terminate", post(flow_card_handler::terminate_flow_card))
+        .route("/flow-cards/{id}/reactivate", post(flow_card_handler::reactivate_flow_card))
         // ===== 工序流转记录（扫码开始/结束/回修） =====
         .route("/flow-cards/steps/start", post(flow_card_handler::start_step))
-        .route("/flow-cards/steps/:id/complete", post(flow_card_handler::complete_step))
-        .route("/flow-cards/steps/:id", get(flow_card_handler::get_step))
-        .route("/flow-cards/steps/:source_step_id/rework", post(flow_card_handler::create_rework_step))
-        .route("/flow-cards/:flow_card_id/steps", get(flow_card_handler::list_steps_by_card))
+        .route("/flow-cards/steps/{id}/complete", post(flow_card_handler::complete_step))
+        .route("/flow-cards/steps/{id}", get(flow_card_handler::get_step))
+        .route("/flow-cards/steps/{source_step_id}/rework", post(flow_card_handler::create_rework_step))
+        .route("/flow-cards/{flow_card_id}/steps", get(flow_card_handler::list_steps_by_card))
         // ===== 工序质量反馈单 =====
         .route("/flow-cards/feedbacks", post(flow_card_handler::create_feedback))
-        .route("/flow-cards/feedbacks/:id", get(flow_card_handler::get_feedback))
-        .route("/flow-cards/feedbacks/:id/handle", post(flow_card_handler::handle_feedback))
-        .route("/flow-cards/feedbacks/:id/close", post(flow_card_handler::close_feedback))
-        .route("/flow-cards/:flow_card_id/feedbacks", get(flow_card_handler::list_feedbacks_by_card))
+        .route("/flow-cards/feedbacks/{id}", get(flow_card_handler::get_feedback))
+        .route("/flow-cards/feedbacks/{id}/handle", post(flow_card_handler::handle_feedback))
+        .route("/flow-cards/feedbacks/{id}/close", post(flow_card_handler::close_feedback))
+        .route("/flow-cards/{flow_card_id}/feedbacks", get(flow_card_handler::list_feedbacks_by_card))
         .route(
             "/flow-cards/:id/print",
             get(print_handler::production_flow_card_print_docx),
@@ -271,20 +271,20 @@ pub fn fabric_inspections() -> Router<AppState> {
         // ===== 验布记录 CRUD =====
         .route("/fabric-inspections", get(fabric_inspection_handler::list_inspections))
         .route("/fabric-inspections", post(fabric_inspection_handler::create_inspection))
-        .route("/fabric-inspections/by-no/:no", get(fabric_inspection_handler::get_by_no))
-        .route("/fabric-inspections/:id", get(fabric_inspection_handler::get_inspection))
-        .route("/fabric-inspections/:id", put(fabric_inspection_handler::update_inspection))
-        .route("/fabric-inspections/:id", delete(fabric_inspection_handler::delete_inspection))
+        .route("/fabric-inspections/by-no/{no}", get(fabric_inspection_handler::get_by_no))
+        .route("/fabric-inspections/{id}", get(fabric_inspection_handler::get_inspection))
+        .route("/fabric-inspections/{id}", put(fabric_inspection_handler::update_inspection))
+        .route("/fabric-inspections/{id}", delete(fabric_inspection_handler::delete_inspection))
         // ===== 验布记录状态机流转 =====
-        .route("/fabric-inspections/:id/start", post(fabric_inspection_handler::start_inspection))
-        .route("/fabric-inspections/:id/grade", post(fabric_inspection_handler::grade_inspection))
-        .route("/fabric-inspections/:id/roll", post(fabric_inspection_handler::roll_fabric))
-        .route("/fabric-inspections/:id/close", post(fabric_inspection_handler::close_inspection))
+        .route("/fabric-inspections/{id}/start", post(fabric_inspection_handler::start_inspection))
+        .route("/fabric-inspections/{id}/grade", post(fabric_inspection_handler::grade_inspection))
+        .route("/fabric-inspections/{id}/roll", post(fabric_inspection_handler::roll_fabric))
+        .route("/fabric-inspections/{id}/close", post(fabric_inspection_handler::close_inspection))
         // ===== 疵点明细 =====
-        .route("/fabric-inspections/:inspection_id/defects", get(fabric_inspection_handler::list_defects_by_inspection))
+        .route("/fabric-inspections/{inspection_id}/defects", get(fabric_inspection_handler::list_defects_by_inspection))
         .route("/fabric-defects", post(fabric_inspection_handler::create_defect))
-        .route("/fabric-defects/:id", get(fabric_inspection_handler::get_defect))
-        .route("/fabric-defects/:id", delete(fabric_inspection_handler::delete_defect))
+        .route("/fabric-defects/{id}", get(fabric_inspection_handler::get_defect))
+        .route("/fabric-defects/{id}", delete(fabric_inspection_handler::delete_defect))
         .route(
             "/fabric-inspections/:id/print",
             get(print_handler::fabric_inspection_print_docx),
@@ -302,33 +302,33 @@ pub fn wages() -> Router<AppState> {
     Router::new()
         .route("/wage-rates", get(wage_handler::list_wage_rates))
         .route("/wage-rates", post(wage_handler::create_wage_rate))
-        .route("/wage-rates/by-no/:no", get(wage_handler::get_wage_rate_by_no))
-        .route("/wage-rates/:id", get(wage_handler::get_wage_rate))
-        .route("/wage-rates/:id", put(wage_handler::update_wage_rate))
-        .route("/wage-rates/:id", delete(wage_handler::delete_wage_rate))
+        .route("/wage-rates/by-no/{no}", get(wage_handler::get_wage_rate_by_no))
+        .route("/wage-rates/{id}", get(wage_handler::get_wage_rate))
+        .route("/wage-rates/{id}", put(wage_handler::update_wage_rate))
+        .route("/wage-rates/{id}", delete(wage_handler::delete_wage_rate))
         // 工价状态机流转
-        .route("/wage-rates/:id/activate", post(wage_handler::activate_wage_rate))
-        .route("/wage-rates/:id/disable", post(wage_handler::disable_wage_rate))
+        .route("/wage-rates/{id}/activate", post(wage_handler::activate_wage_rate))
+        .route("/wage-rates/{id}/disable", post(wage_handler::disable_wage_rate))
         // 查询工序当前生效的工价
-        .route("/wage-rates/effective/:route_id", get(wage_handler::get_effective_wage_rate))
+        .route("/wage-rates/effective/{route_id}", get(wage_handler::get_effective_wage_rate))
         // ===== 工资记录 CRUD =====
         .route("/wage-records", get(wage_handler::list_wage_records))
         .route("/wage-records", post(wage_handler::create_wage_record))
-        .route("/wage-records/by-no/:no", get(wage_handler::get_wage_record_by_no))
+        .route("/wage-records/by-no/{no}", get(wage_handler::get_wage_record_by_no))
         // V15 P1-08-7：工资记录导出 xlsx（必须在 :id 路由之前注册以避免路径冲突）
         .route("/wage-records/export", get(wage_handler::export_wage_records))
-        .route("/wage-records/:id", get(wage_handler::get_wage_record))
-        .route("/wage-records/:id", put(wage_handler::update_wage_record))
-        .route("/wage-records/:id", delete(wage_handler::delete_wage_record))
+        .route("/wage-records/{id}", get(wage_handler::get_wage_record))
+        .route("/wage-records/{id}", put(wage_handler::update_wage_record))
+        .route("/wage-records/{id}", delete(wage_handler::delete_wage_record))
         // 工资记录状态机流转
-        .route("/wage-records/:id/calculate", post(wage_handler::calculate_wage))
-        .route("/wage-records/:id/confirm", post(wage_handler::confirm_wage_record))
-        .route("/wage-records/:id/pay", post(wage_handler::pay_wage_record))
-        .route("/wage-records/:id/cancel", post(wage_handler::cancel_wage_record))
+        .route("/wage-records/{id}/calculate", post(wage_handler::calculate_wage))
+        .route("/wage-records/{id}/confirm", post(wage_handler::confirm_wage_record))
+        .route("/wage-records/{id}/pay", post(wage_handler::pay_wage_record))
+        .route("/wage-records/{id}/cancel", post(wage_handler::cancel_wage_record))
         // ===== 工资明细 =====
-        .route("/wage-records/:id/details", get(wage_handler::list_wage_details))
-        .route("/wage-records/:id/details/export", get(wage_handler::export_wage_details))
-        .route("/wage-details/by-worker/:worker_id", get(wage_handler::list_wage_details_by_worker))
+        .route("/wage-records/{id}/details", get(wage_handler::list_wage_details))
+        .route("/wage-records/{id}/details/export", get(wage_handler::export_wage_details))
+        .route("/wage-details/by-worker/{worker_id}", get(wage_handler::list_wage_details_by_worker))
         .route(
             "/wages/:id/print",
             get(print_handler::wage_record_print_docx),
@@ -342,45 +342,45 @@ pub fn energy() -> Router<AppState> {
         // ===== 能源计量设备 CRUD =====
         .route("/energy-meters", get(energy_handler::list_energy_meters))
         .route("/energy-meters", post(energy_handler::create_energy_meter))
-        .route("/energy-meters/by-no/:no", get(energy_handler::get_energy_meter_by_no))
-        .route("/energy-meters/:id", get(energy_handler::get_energy_meter))
-        .route("/energy-meters/:id", put(energy_handler::update_energy_meter))
-        .route("/energy-meters/:id", delete(energy_handler::delete_energy_meter))
+        .route("/energy-meters/by-no/{no}", get(energy_handler::get_energy_meter_by_no))
+        .route("/energy-meters/{id}", get(energy_handler::get_energy_meter))
+        .route("/energy-meters/{id}", put(energy_handler::update_energy_meter))
+        .route("/energy-meters/{id}", delete(energy_handler::delete_energy_meter))
         // ===== 能耗记录 CRUD + 状态机 =====
         .route("/energy-consumptions", get(energy_handler::list_energy_consumptions))
         .route("/energy-consumptions", post(energy_handler::create_energy_consumption))
-        .route("/energy-consumptions/by-no/:no", get(energy_handler::get_energy_consumption_by_no))
+        .route("/energy-consumptions/by-no/{no}", get(energy_handler::get_energy_consumption_by_no))
         // V15 P1-08-7：能耗记录导出 xlsx（必须在 :id 路由之前注册以避免路径冲突）
         .route("/energy-consumptions/export", get(energy_handler::export_energy_consumptions))
-        .route("/energy-consumptions/:id", get(energy_handler::get_energy_consumption))
-        .route("/energy-consumptions/:id", put(energy_handler::update_energy_consumption))
-        .route("/energy-consumptions/:id", delete(energy_handler::delete_energy_consumption))
+        .route("/energy-consumptions/{id}", get(energy_handler::get_energy_consumption))
+        .route("/energy-consumptions/{id}", put(energy_handler::update_energy_consumption))
+        .route("/energy-consumptions/{id}", delete(energy_handler::delete_energy_consumption))
         // 能耗记录状态机
-        .route("/energy-consumptions/:id/confirm", post(energy_handler::confirm_energy_consumption))
-        .route("/energy-consumptions/:id/cancel", post(energy_handler::cancel_energy_consumption))
+        .route("/energy-consumptions/{id}/confirm", post(energy_handler::confirm_energy_consumption))
+        .route("/energy-consumptions/{id}/cancel", post(energy_handler::cancel_energy_consumption))
         // ===== 能耗分摊规则 CRUD + 状态机 =====
         .route("/energy-rules", get(energy_handler::list_energy_rules))
         .route("/energy-rules", post(energy_handler::create_energy_rule))
-        .route("/energy-rules/by-no/:no", get(energy_handler::get_energy_rule_by_no))
-        .route("/energy-rules/:id", get(energy_handler::get_energy_rule))
-        .route("/energy-rules/:id", put(energy_handler::update_energy_rule))
-        .route("/energy-rules/:id", delete(energy_handler::delete_energy_rule))
+        .route("/energy-rules/by-no/{no}", get(energy_handler::get_energy_rule_by_no))
+        .route("/energy-rules/{id}", get(energy_handler::get_energy_rule))
+        .route("/energy-rules/{id}", put(energy_handler::update_energy_rule))
+        .route("/energy-rules/{id}", delete(energy_handler::delete_energy_rule))
         // 分摊规则状态机
-        .route("/energy-rules/:id/activate", post(energy_handler::activate_energy_rule))
-        .route("/energy-rules/:id/disable", post(energy_handler::disable_energy_rule))
+        .route("/energy-rules/{id}/activate", post(energy_handler::activate_energy_rule))
+        .route("/energy-rules/{id}/disable", post(energy_handler::disable_energy_rule))
         .route("/energy-rules/effective", get(energy_handler::get_effective_energy_rule))
         // ===== 能耗分摊记录 CRUD + 状态机 =====
         .route("/energy-allocations", get(energy_handler::list_energy_allocations))
         .route("/energy-allocations", post(energy_handler::create_energy_allocation))
-        .route("/energy-allocations/by-no/:no", get(energy_handler::get_energy_allocation_by_no))
+        .route("/energy-allocations/by-no/{no}", get(energy_handler::get_energy_allocation_by_no))
         // V15 P1-08-7：能耗分摊记录导出 xlsx（必须在 :id 路由之前注册以避免路径冲突）
         .route("/energy-allocations/export", get(energy_handler::export_energy_allocations))
-        .route("/energy-allocations/:id", get(energy_handler::get_energy_allocation))
-        .route("/energy-allocations/:id", put(energy_handler::update_energy_allocation))
-        .route("/energy-allocations/:id", delete(energy_handler::delete_energy_allocation))
+        .route("/energy-allocations/{id}", get(energy_handler::get_energy_allocation))
+        .route("/energy-allocations/{id}", put(energy_handler::update_energy_allocation))
+        .route("/energy-allocations/{id}", delete(energy_handler::delete_energy_allocation))
         // 分摊记录状态机
-        .route("/energy-allocations/:id/confirm", post(energy_handler::confirm_energy_allocation))
-        .route("/energy-allocations/:id/cancel", post(energy_handler::cancel_energy_allocation))
+        .route("/energy-allocations/{id}/confirm", post(energy_handler::confirm_energy_allocation))
+        .route("/energy-allocations/{id}/cancel", post(energy_handler::cancel_energy_allocation))
         // 月末按工时自动分摊
         .route("/energy-allocations/monthly", post(energy_handler::monthly_allocation))
         .route(
@@ -396,37 +396,37 @@ pub fn outsourcing() -> Router<AppState> {
         // ===== 委外订单 CRUD =====
         .route("/outsourcing-orders", get(outsourcing_handler::list_outsourcing_orders))
         .route("/outsourcing-orders", post(outsourcing_handler::create_outsourcing_order))
-        .route("/outsourcing-orders/by-no/:no", get(outsourcing_handler::get_outsourcing_order_by_no))
-        .route("/outsourcing-orders/:id", get(outsourcing_handler::get_outsourcing_order))
-        .route("/outsourcing-orders/:id", put(outsourcing_handler::update_outsourcing_order))
-        .route("/outsourcing-orders/:id", delete(outsourcing_handler::delete_outsourcing_order))
+        .route("/outsourcing-orders/by-no/{no}", get(outsourcing_handler::get_outsourcing_order_by_no))
+        .route("/outsourcing-orders/{id}", get(outsourcing_handler::get_outsourcing_order))
+        .route("/outsourcing-orders/{id}", put(outsourcing_handler::update_outsourcing_order))
+        .route("/outsourcing-orders/{id}", delete(outsourcing_handler::delete_outsourcing_order))
         // 委外订单状态机流转
-        .route("/outsourcing-orders/:id/issue", post(outsourcing_handler::issue_outsourcing_order))
-        .route("/outsourcing-orders/:id/processing", post(outsourcing_handler::record_processing))
-        .route("/outsourcing-orders/:id/settle", post(outsourcing_handler::settle_outsourcing_order))
-        .route("/outsourcing-orders/:id/close", post(outsourcing_handler::close_outsourcing_order))
-        .route("/outsourcing-orders/:id/cancel", post(outsourcing_handler::cancel_outsourcing_order))
+        .route("/outsourcing-orders/{id}/issue", post(outsourcing_handler::issue_outsourcing_order))
+        .route("/outsourcing-orders/{id}/processing", post(outsourcing_handler::record_processing))
+        .route("/outsourcing-orders/{id}/settle", post(outsourcing_handler::settle_outsourcing_order))
+        .route("/outsourcing-orders/{id}/close", post(outsourcing_handler::close_outsourcing_order))
+        .route("/outsourcing-orders/{id}/cancel", post(outsourcing_handler::cancel_outsourcing_order))
         // ===== 委外发料明细 =====
-        .route("/outsourcing-orders/items/by-order/:order_id", get(outsourcing_handler::list_outsourcing_items))
+        .route("/outsourcing-orders/items/by-order/{order_id}", get(outsourcing_handler::list_outsourcing_items))
         .route("/outsourcing-orders/items", post(outsourcing_handler::create_outsourcing_item))
-        .route("/outsourcing-orders/items/:id", put(outsourcing_handler::update_outsourcing_item))
-        .route("/outsourcing-orders/items/:id", delete(outsourcing_handler::delete_outsourcing_item))
+        .route("/outsourcing-orders/items/{id}", put(outsourcing_handler::update_outsourcing_item))
+        .route("/outsourcing-orders/items/{id}", delete(outsourcing_handler::delete_outsourcing_item))
         // ===== 委外收回入库单 CRUD + 状态机 =====
         .route("/outsourcing-receipts", get(outsourcing_handler::list_outsourcing_receipts))
         .route("/outsourcing-receipts", post(outsourcing_handler::create_outsourcing_receipt))
-        .route("/outsourcing-receipts/by-no/:no", get(outsourcing_handler::get_outsourcing_receipt_by_no))
-        .route("/outsourcing-receipts/:id/confirm", post(outsourcing_handler::confirm_outsourcing_receipt))
-        .route("/outsourcing-receipts/:id", put(outsourcing_handler::update_outsourcing_receipt))
-        .route("/outsourcing-receipts/:id", delete(outsourcing_handler::delete_outsourcing_receipt))
+        .route("/outsourcing-receipts/by-no/{no}", get(outsourcing_handler::get_outsourcing_receipt_by_no))
+        .route("/outsourcing-receipts/{id}/confirm", post(outsourcing_handler::confirm_outsourcing_receipt))
+        .route("/outsourcing-receipts/{id}", put(outsourcing_handler::update_outsourcing_receipt))
+        .route("/outsourcing-receipts/{id}", delete(outsourcing_handler::delete_outsourcing_receipt))
         // ===== 委外会计分录凭证 =====
         .route("/outsourcing-vouchers", get(outsourcing_handler::list_outsourcing_vouchers))
         .route("/outsourcing-vouchers", post(outsourcing_handler::create_outsourcing_voucher))
-        .route("/outsourcing-vouchers/by-no/:no", get(outsourcing_handler::get_outsourcing_voucher_by_no))
-        .route("/outsourcing-vouchers/:id/post", post(outsourcing_handler::post_outsourcing_voucher))
-        .route("/outsourcing-vouchers/:id", delete(outsourcing_handler::delete_outsourcing_voucher))
+        .route("/outsourcing-vouchers/by-no/{no}", get(outsourcing_handler::get_outsourcing_voucher_by_no))
+        .route("/outsourcing-vouchers/{id}/post", post(outsourcing_handler::post_outsourcing_voucher))
+        .route("/outsourcing-vouchers/{id}", delete(outsourcing_handler::delete_outsourcing_voucher))
         // ===== 委外打印路由 =====
-        .route("/outsourcing-orders/:id/print", get(print_handler::outsourcing_order_print_docx))
-        .route("/outsourcing-receipts/:id/print", get(print_handler::outsourcing_receipt_print_docx))
+        .route("/outsourcing-orders/{id}/print", get(print_handler::outsourcing_order_print_docx))
+        .route("/outsourcing-receipts/{id}/print", get(print_handler::outsourcing_receipt_print_docx))
         // ===== batch-13 P3: 委外加工报表 =====
         .route("/outsourcing-orders/report", get(outsourcing_handler::get_outsourcing_report))
 }
@@ -439,27 +439,27 @@ pub fn business_mode() -> Router<AppState> {
         .route("/business-modes", get(business_mode_handler::list_business_modes).post(business_mode_handler::create_business_mode))
         // 静态路径必须在动态路径 /:id 之前，避免 axum 0.7 Overlapping method route panic
         .route("/business-modes/default", get(business_mode_handler::get_default_business_mode))
-        .route("/business-modes/by-code/:code", get(business_mode_handler::get_business_mode_by_code))
-        .route("/business-modes/:id", get(business_mode_handler::get_business_mode).put(business_mode_handler::update_business_mode).delete(business_mode_handler::delete_business_mode))
+        .route("/business-modes/by-code/{code}", get(business_mode_handler::get_business_mode_by_code))
+        .route("/business-modes/{id}", get(business_mode_handler::get_business_mode).put(business_mode_handler::update_business_mode).delete(business_mode_handler::delete_business_mode))
         // 业务模式配置状态流转
-        .route("/business-modes/:id/set-default", post(business_mode_handler::set_default_business_mode))
+        .route("/business-modes/{id}/set-default", post(business_mode_handler::set_default_business_mode))
         // 业务模式完整详情（含流程节点+规则）
-        .route("/business-modes/:id/detail", get(business_mode_handler::get_business_mode_detail))
+        .route("/business-modes/{id}/detail", get(business_mode_handler::get_business_mode_detail))
         // ===== 业务模式流程节点 CRUD =====
         // 静态路径必须在动态路径 /:id 之前
-        .route("/business-modes/flow-steps/by-mode/:mode_id", get(business_mode_handler::list_flow_steps_by_mode))
+        .route("/business-modes/flow-steps/by-mode/{mode_id}", get(business_mode_handler::list_flow_steps_by_mode))
         .route("/business-modes/flow-steps", post(business_mode_handler::create_flow_step))
-        .route("/business-modes/flow-steps/:id", put(business_mode_handler::update_flow_step).delete(business_mode_handler::delete_flow_step))
+        .route("/business-modes/flow-steps/{id}", put(business_mode_handler::update_flow_step).delete(business_mode_handler::delete_flow_step))
         // ===== 业务模式规则 CRUD =====
         // 静态路径必须在动态路径 /:id 之前
-        .route("/business-modes/rules/by-mode/:mode_id", get(business_mode_handler::list_rules_by_mode))
+        .route("/business-modes/rules/by-mode/{mode_id}", get(business_mode_handler::list_rules_by_mode))
         .route("/business-modes/rules", post(business_mode_handler::create_rule))
-        .route("/business-modes/rules/:id", put(business_mode_handler::update_rule).delete(business_mode_handler::delete_rule))
+        .route("/business-modes/rules/{id}", put(business_mode_handler::update_rule).delete(business_mode_handler::delete_rule))
         // ===== 单据-业务模式关联 CRUD =====
         .route("/business-mode-links", get(business_mode_handler::list_order_links).post(business_mode_handler::link_order))
         // 静态路径必须在动态路径 /:id 之前
-        .route("/business-mode-links/by-document/:doc_type/:doc_id", get(business_mode_handler::get_order_link_by_document))
-        .route("/business-mode-links/:id", put(business_mode_handler::update_order_link).delete(business_mode_handler::delete_order_link))
+        .route("/business-mode-links/by-document/{doc_type}/{doc_id}", get(business_mode_handler::get_order_link_by_document))
+        .route("/business-mode-links/{id}", put(business_mode_handler::update_order_link).delete(business_mode_handler::delete_order_link))
 }
 
 /// 缸号全生命周期状态机路由（path 前缀 /dye-batch-lifecycle-logs、/dye-batch-state-rules、 /dye-batch-reworks、/dye-batch-operations）；v14 批次 432：缸号全生命周期状态机 依据：面料行业真实业务调研文档 §12.7 缸号状态机 + §3.2 缸号全生命周期追踪 真实业务流程：14 种状态流转（待排缸→已排缸→备布中→进缸染色→皂洗→固色→脱水→烘干→验布→入库→发货） 加上回修流转（验布/入库 →
@@ -468,30 +468,30 @@ pub fn dye_batch_state_machine() -> Router<AppState> {
     Router::new()
         // ===== 缸号生命周期日志 =====
         // 静态路径必须在动态路径 /:id 之前，避免 axum 0.7 Overlapping method route panic
-        .route("/dye-batch-lifecycle-logs/by-batch/:batch_id", get(dye_batch_state_machine_handler::list_lifecycle_logs_by_batch))
-        .route("/dye-batch-lifecycle-logs/latest-status/:batch_id", get(dye_batch_state_machine_handler::get_latest_status))
+        .route("/dye-batch-lifecycle-logs/by-batch/{batch_id}", get(dye_batch_state_machine_handler::list_lifecycle_logs_by_batch))
+        .route("/dye-batch-lifecycle-logs/latest-status/{batch_id}", get(dye_batch_state_machine_handler::get_latest_status))
         .route("/dye-batch-lifecycle-logs", get(dye_batch_state_machine_handler::list_lifecycle_logs).post(dye_batch_state_machine_handler::record_transition))
-        .route("/dye-batch-lifecycle-logs/:id", get(dye_batch_state_machine_handler::get_lifecycle_log))
+        .route("/dye-batch-lifecycle-logs/{id}", get(dye_batch_state_machine_handler::get_lifecycle_log))
         // ===== 缸号状态流转规则 =====
         // 静态路径必须在动态路径 /:id 之前
         .route("/dye-batch-state-rules/allowed-transitions", get(dye_batch_state_machine_handler::list_allowed_transitions))
         .route("/dye-batch-state-rules/check", get(dye_batch_state_machine_handler::check_transition))
         .route("/dye-batch-state-rules", get(dye_batch_state_machine_handler::list_state_rules).post(dye_batch_state_machine_handler::create_state_rule))
-        .route("/dye-batch-state-rules/:id", get(dye_batch_state_machine_handler::get_state_rule).put(dye_batch_state_machine_handler::update_state_rule).delete(dye_batch_state_machine_handler::delete_state_rule))
+        .route("/dye-batch-state-rules/{id}", get(dye_batch_state_machine_handler::get_state_rule).put(dye_batch_state_machine_handler::update_state_rule).delete(dye_batch_state_machine_handler::delete_state_rule))
         // ===== 缸号回修记录 =====
         .route("/dye-batch-reworks", get(dye_batch_state_machine_handler::list_reworks).post(dye_batch_state_machine_handler::create_rework))
-        .route("/dye-batch-reworks/:id", get(dye_batch_state_machine_handler::get_rework).put(dye_batch_state_machine_handler::update_rework).delete(dye_batch_state_machine_handler::delete_rework))
+        .route("/dye-batch-reworks/{id}", get(dye_batch_state_machine_handler::get_rework).put(dye_batch_state_machine_handler::update_rework).delete(dye_batch_state_machine_handler::delete_rework))
         // 回修单状态机流转
-        .route("/dye-batch-reworks/:id/approve", post(dye_batch_state_machine_handler::approve_rework))
-        .route("/dye-batch-reworks/:id/start", post(dye_batch_state_machine_handler::start_rework))
-        .route("/dye-batch-reworks/:id/complete", post(dye_batch_state_machine_handler::complete_rework))
-        .route("/dye-batch-reworks/:id/cancel", post(dye_batch_state_machine_handler::cancel_rework))
+        .route("/dye-batch-reworks/{id}/approve", post(dye_batch_state_machine_handler::approve_rework))
+        .route("/dye-batch-reworks/{id}/start", post(dye_batch_state_machine_handler::start_rework))
+        .route("/dye-batch-reworks/{id}/complete", post(dye_batch_state_machine_handler::complete_rework))
+        .route("/dye-batch-reworks/{id}/cancel", post(dye_batch_state_machine_handler::cancel_rework))
         // ===== 缸号操作记录 =====
         // 静态路径必须在动态路径 /:id 之前
-        .route("/dye-batch-operations/by-type/:operation_type", get(dye_batch_state_machine_handler::list_operations_by_type))
-        .route("/dye-batch-operations/by-batch/:batch_id", get(dye_batch_state_machine_handler::list_operations_by_batch))
+        .route("/dye-batch-operations/by-type/{operation_type}", get(dye_batch_state_machine_handler::list_operations_by_type))
+        .route("/dye-batch-operations/by-batch/{batch_id}", get(dye_batch_state_machine_handler::list_operations_by_batch))
         .route("/dye-batch-operations", get(dye_batch_state_machine_handler::list_operations).post(dye_batch_state_machine_handler::create_operation))
-        .route("/dye-batch-operations/:id", get(dye_batch_state_machine_handler::get_operation))
+        .route("/dye-batch-operations/{id}", get(dye_batch_state_machine_handler::get_operation))
 }
 
 /// 质量检验路由（path 前缀 /quality-inspection）；注意：原代码用 `/standards`、`/records`、`/defects` 等带前缀 path，已天然不冲突。

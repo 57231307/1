@@ -7,14 +7,7 @@
  * FE-P2-1 修复（批次 388 v13 复审）：原 status?: string 过于宽泛，收窄为字面量联合类型
  */
 export type ApprovalStatus =
-  | 'draft'
-  | 'pending'
-  | 'approved'
-  | 'rejected'
-  | 'cancelled'
-  | 'expired'
-  | 'active'
-  | 'inactive';
+  'draft' | 'pending' | 'approved' | 'rejected' | 'cancelled' | 'expired' | 'active' | 'inactive';
 
 /**
  * 币种

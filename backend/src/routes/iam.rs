@@ -19,9 +19,9 @@ pub fn users() -> Router<AppState> {
     Router::new()
         .route("/users", get(user_handler::list_users))
         .route("/users", post(user_handler::create_user))
-        .route("/users/:id", get(user_handler::get_user))
-        .route("/users/:id", put(user_handler::update_user))
-        .route("/users/:id", delete(user_handler::delete_user))
+        .route("/users/{id}", get(user_handler::get_user))
+        .route("/users/{id}", put(user_handler::update_user))
+        .route("/users/{id}", delete(user_handler::delete_user))
         .route(
             "/users/change-password",
             post(user_handler::change_password),
@@ -37,9 +37,9 @@ pub fn roles() -> Router<AppState> {
     Router::new()
         .route("/roles", get(role_handler::list_roles))
         .route("/roles", post(role_handler::create_role))
-        .route("/roles/:id", get(role_handler::get_role))
-        .route("/roles/:id", put(role_handler::update_role))
-        .route("/roles/:id", delete(role_handler::delete_role))
+        .route("/roles/{id}", get(role_handler::get_role))
+        .route("/roles/{id}", put(role_handler::update_role))
+        .route("/roles/{id}", delete(role_handler::delete_role))
         .route(
             "/roles/:id/permissions",
             get(role_handler::get_role_permissions),
@@ -60,9 +60,9 @@ pub fn departments() -> Router<AppState> {
     Router::new()
         .route("/departments", get(department_handler::list))
         .route("/departments", post(department_handler::create))
-        .route("/departments/:id", get(department_handler::get))
-        .route("/departments/:id", put(department_handler::update))
-        .route("/departments/:id", delete(department_handler::delete))
+        .route("/departments/{id}", get(department_handler::get))
+        .route("/departments/{id}", put(department_handler::update))
+        .route("/departments/{id}", delete(department_handler::delete))
         .route(
             "/departments/tree",
             get(department_handler::get_department_tree),

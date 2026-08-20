@@ -885,9 +885,9 @@ pub struct CreateSupplierRequest {
     pub category_id: Option<i32>,
     pub is_processor: Option<bool>,
     pub processor_type: Option<String>,
-    #[validate]
+    #[validate(nested)]
     pub contacts: Option<Vec<CreateContactRequest>>,
-    #[validate]
+    #[validate(nested)]
     pub qualifications: Option<Vec<CreateQualificationRequest>>,
 }
 

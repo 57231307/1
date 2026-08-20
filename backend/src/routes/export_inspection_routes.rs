@@ -7,7 +7,7 @@ use axum::{Router, routing::get};
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/", get(export_inspection_handler::list_inspections))
-        .route("/:id", get(export_inspection_handler::get_inspection))
+        .route("/{id}", get(export_inspection_handler::get_inspection))
         .route(
             "/:id/certificates",
             get(certificate_of_origin_handler::list_certificates),

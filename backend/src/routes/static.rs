@@ -181,7 +181,7 @@ async fn serve_wasm_binary(_req: Request<Body>) -> Result<Response, Infallible> 
 /// 静态资源服务路由聚合（Catch-all 通配路由，挂到主 Router）
 pub fn static_assets_handler() -> Router<AppState> {
     Router::<AppState>::new()
-        .route("/static/*path", get(serve_static_asset))
+        .route("/static/{*path}", get(serve_static_asset))
         .route("/bingxi_frontend.js", get(serve_wasm_loader_js))
         .route("/bingxi_frontend_bg.wasm", get(serve_wasm_binary))
 }

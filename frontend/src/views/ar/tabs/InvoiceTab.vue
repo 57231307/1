@@ -324,8 +324,7 @@ const fetchInvoices = async () => {
   try {
     const res = await getARInvoiceList(invoiceQuery);
     const d = res.data as
-      | { list?: ARInvoice[]; items?: ARInvoice[]; data?: ARInvoice[] }
-      | ARInvoice[];
+      { list?: ARInvoice[]; items?: ARInvoice[]; data?: ARInvoice[] } | ARInvoice[];
     invoices.value = Array.isArray(d) ? d : d?.items || d?.data || [];
   } catch (error) {
     const err = error as Error;

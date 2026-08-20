@@ -93,8 +93,7 @@ export function useVchr() {
     try {
       const res = await getSubjectTree();
       const d = res.data as
-        | AccountSubject[]
-        | { items?: AccountSubject[]; data?: AccountSubject[] };
+        AccountSubject[] | { items?: AccountSubject[]; data?: AccountSubject[] };
       subjects.value = Array.isArray(d) ? d : d?.items || d?.data || [];
     } catch (error) {
       const err = error as Error;

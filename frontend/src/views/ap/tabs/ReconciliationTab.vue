@@ -190,9 +190,7 @@ const fetchReconciliations = async () => {
   try {
     const res = await getAPReconciliationList();
     const d = res.data as
-      | { list?: APReconciliation[]; items?: APReconciliation[] }
-      | APReconciliation[]
-      | undefined;
+      { list?: APReconciliation[]; items?: APReconciliation[] } | APReconciliation[] | undefined;
     if (d && typeof d === 'object' && !Array.isArray(d)) {
       reconciliations.value = d.list || d.items || [];
     } else {

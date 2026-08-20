@@ -1,8 +1,7 @@
 use crate::models::user;
 use crate::utils::error::AppError;
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
-use totp_rs::{Algorithm, Secret, TOTP};
-
+use totp_rs::{Algorithm, Builder, Secret};
 crate::define_service!(TotpService);
 
 impl TotpService {
@@ -12,24 +11,22 @@ impl TotpService {
         user_id: i32,
         username: &str,
     ) -> Result<(String, String), AppError> {
-        let secret = Secret::generate_secret()
-            .to_bytes()
-            .map_err(|e| AppError::internal(format!("TOTP密钥生成失败: {}", e)))?;
+        let secret = Secret::generate();
 
-        let totp = TOTP::new(
-            Algorithm::SHA256,
-            6,
-            1, // skew: 1 = ±30秒的时间窗口容差
-            30,
-            secret,
-            Some("Bingxi Management Platform".to_string()),
-            username.to_string(),
-        )
-        .map_err(|e| AppError::internal(format!("TOTP 生成失败: {}", e)))?;
+        let totp = Builder::new()
+            .with_algorithm(Algorithm::SHA256)
+            .with_digits(6)
+            .with_skew(1)
+            .with_step_duration(30)
+            .with_secret(secret.as_bytes().to_vec())
+            .with_issuer(Some("Bingxi Management Platform"))
+            .with_account_name(username)
+            .build()
+            .map_err(|e| AppError::internal(format!("TOTP 生成失败: {}", e)))?;
 
-        let secret_base32 = totp.get_secret_base32();
+        let secret_base32 = secret.to_base32();
         let qr_code = totp
-            .get_qr_base64()
+            .to_qr_base64()
             .map_err(|e| AppError::internal(format!("QR 生成失败: {}", e)))?;
 
         // 临时保存在数据库中，但不开启
@@ -58,27 +55,18 @@ impl TotpService {
             .clone()
             .ok_or_else(|| AppError::bad_request("未生成 TOTP Secret"))?;
 
-        let secret = Secret::Encoded(secret_base32)
-            .to_bytes()
-            .map_err(|e| AppError::internal(format!("TOTP密钥解析失败: {}", e)))?;
-        let totp = TOTP::new(
-            Algorithm::SHA256,
-            6,
-            1, // skew: 1 = ±30秒的时间窗口容差
-            30,
-            secret,
-            None,
-            "".to_string(),
-        )
-        .map_err(|e| AppError::internal(format!("TOTP实例创建失败: {}", e)))?;
+        let secret = Secret::try_from_base32(&secret_base32)
+            .map_err(|e| AppError::internal(format!("TOTP密钥解析失败: {:?}", e)))?;
+        let totp = Builder::new()
+            .with_algorithm(Algorithm::SHA256)
+            .with_digits(6)
+            .with_skew(1)
+            .with_step_duration(30)
+            .with_secret(secret.as_bytes().to_vec())
+            .build()
+            .map_err(|e| AppError::internal(format!("TOTP实例创建失败: {}", e)))?;
 
-        let is_valid = match totp.check_current(token) {
-            Ok(valid) => valid,
-            Err(e) => {
-                tracing::warn!("TOTP 验证内部发生异常: {}", e);
-                false
-            }
-        };
+        let is_valid = totp.check_current(token).is_some();
 
         if is_valid {
             // 验证通过，正式开启
@@ -106,27 +94,18 @@ impl TotpService {
         let secret_base32 = user
             .totp_secret
             .ok_or_else(|| AppError::internal("TOTP Secret未找到"))?;
-        let secret = Secret::Encoded(secret_base32)
-            .to_bytes()
-            .map_err(|e| AppError::internal(format!("TOTP密钥解析失败: {}", e)))?;
-        let totp = TOTP::new(
-            Algorithm::SHA256,
-            6,
-            1, // skew: 1 = ±30秒的时间窗口容差
-            30,
-            secret,
-            None,
-            "".to_string(),
-        )
-        .map_err(|e| AppError::internal(format!("TOTP实例创建失败: {}", e)))?;
+        let secret = Secret::try_from_base32(&secret_base32)
+            .map_err(|e| AppError::internal(format!("TOTP密钥解析失败: {:?}", e)))?;
+        let totp = Builder::new()
+            .with_algorithm(Algorithm::SHA256)
+            .with_digits(6)
+            .with_skew(1)
+            .with_step_duration(30)
+            .with_secret(secret.as_bytes().to_vec())
+            .build()
+            .map_err(|e| AppError::internal(format!("TOTP实例创建失败: {}", e)))?;
 
-        let is_valid = match totp.check_current(token) {
-            Ok(valid) => valid,
-            Err(e) => {
-                tracing::warn!("TOTP 验证内部发生异常: {}", e);
-                false
-            }
-        };
+        let is_valid = totp.check_current(token).is_some();
         Ok(is_valid)
     }
 

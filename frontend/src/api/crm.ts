@@ -42,12 +42,7 @@ export interface Opportunity {
   customer_name: string;
   /** 商机阶段（后端字段名，大写值：QUALIFICATION/NEEDS_ANALYSIS/PROPOSAL/NEGOTIATION/CLOSED_WON/CLOSED_LOST） */
   opportunity_stage?:
-    | 'QUALIFICATION'
-    | 'NEEDS_ANALYSIS'
-    | 'PROPOSAL'
-    | 'NEGOTIATION'
-    | 'CLOSED_WON'
-    | 'CLOSED_LOST';
+    'QUALIFICATION' | 'NEEDS_ANALYSIS' | 'PROPOSAL' | 'NEGOTIATION' | 'CLOSED_WON' | 'CLOSED_LOST';
   /** @deprecated 向后兼容字段，新代码应使用 opportunity_stage */
   stage?:
     | 'qualification'
