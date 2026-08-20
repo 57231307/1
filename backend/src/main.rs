@@ -59,12 +59,8 @@ async fn shutdown_signal() {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // jsonwebtoken 11.0: 需要显式安装 CryptoProvider（rust_crypto feature 默认启用）
-    #[cfg(feature = "rust_crypto")]
-    {
-        use jsonwebtoken::crypto::rust_crypto::DEFAULT_PROVIDER;
-        let _ = DEFAULT_PROVIDER.install_default();
-    }
+    // jsonwebtoken 11.0: 需要显式安装 CryptoProvider
+    let _ = jsonwebtoken::crypto::rust_crypto::DEFAULT_PROVIDER.install_default();
 
     let settings = crate::bootstrap::infra_bootstrap::init_env_and_logging()?;
     let cors = crate::bootstrap::middleware_bootstrap::build_cors_layer(
