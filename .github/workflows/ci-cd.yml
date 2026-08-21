@@ -1207,6 +1207,9 @@ jobs:
         with:
           system-deps: pkg-config libssl-dev postgresql-client protobuf-compiler
           sccache: 'false'
+          # 测试二进制编译峰值高于普通构建：16GB runner 7GB/单元→1路(安全)，
+          # 32GB+ runner 自适应→2路+。避免 2 路 OOM(exit 143 实测)
+          mem_per_unit_gb: '7'
 
       - name: 安装 cargo-nextest
         uses: taiki-e/install-action@v2
@@ -1414,6 +1417,8 @@ jobs:
           components: llvm-tools-preview
           system-deps: pkg-config libssl-dev postgresql-client protobuf-compiler
           sccache: 'false'
+          # 覆盖率跑 cargo llvm-cov nextest 重编译+插桩，内存峰值高，用 7GB/单元（16GB→1 安全）
+          mem_per_unit_gb: '7'
 
       - name: 安装 cargo-llvm-cov 与 cargo-nextest
         uses: taiki-e/install-action@v2

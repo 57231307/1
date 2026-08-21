@@ -13,6 +13,10 @@ inputs:
     description: '是否安装 sccache 编译缓存（预编译 job 应关闭以节省内存）'
     required: false
     default: 'true'
+  mem_per_unit_gb:
+    description: '每个并行编译单元的内存峰值估值(GB)。测试编译峰值高于普通构建：预编译 job 传 7（16GB→1 安全），普通 job 默认 5（16GB→2）'
+    required: false
+    default: '5'
 runs:
   using: composite
   steps:
@@ -85,9 +89,10 @@ runs:
         MEM_TOTAL_GB=$(awk "BEGIN{printf \"%.1f\", ${MEM_TOTAL_KB}/1024/1024}")
         MEM_AVAIL_GB=$(awk "BEGIN{printf \"%.1f\", ${MEM_AVAIL_KB}/1024/1024}")
 
-        # 预留 1.5GB 给系统/服务，剩余按 5GB/单元算最大可并行单元数（不设上限）
+        # 预留 1.5GB 给系统/服务，剩余按每单元峰值算最大可并行单元数（不设上限）
+        # 系数由调用方传入：普通 job 默认 5GB，测试预编译 job 传 7GB（测试二进制编译峰值更高）
         USABLE_GB=$(awk "BEGIN{mx=${MEM_AVAIL_KB}/1024/1024 - 1.5; if(mx<1) mx=1; printf \"%.1f\", mx}")
-        MEM_JOBS=$(awk "BEGIN{j=int(${USABLE_GB}/5); if(j<1) j=1; print j}")
+        MEM_JOBS=$(awk "BEGIN{j=int(${USABLE_GB}/${{ inputs.mem_per_unit_gb }}); if(j<1) j=1; print j}")
 
         # CPU 维度：留 1 核给系统 IO，不封顶（runner 有多少核用多少）
         CPU_JOBS=$(( CPU_CORES > 1 ? CPU_CORES - 1 : 1 ))
@@ -99,7 +104,7 @@ runs:
           JOBS="$CPU_JOBS"
         fi
 
-        echo "::notice::内存 总=${MEM_TOTAL_GB}GB 可用=${MEM_AVAIL_GB}GB CPU=${CPU_CORES}核 → cargo 最大并行度=${JOBS}（内存维度=${MEM_JOBS}@5GB/单元 CPU维度=${CPU_JOBS}，均未封顶）"
+        echo "::notice::内存 总=${MEM_TOTAL_GB}GB 可用=${MEM_AVAIL_GB}GB CPU=${CPU_CORES}核 → cargo 最大并行度=${JOBS}（内存维度=${MEM_JOBS}@${{ inputs.mem_per_unit_gb }}GB/单元 CPU维度=${CPU_JOBS}，均未封顶）"
 
         echo "CARGO_BUILD_JOBS=${JOBS}" >> "$GITHUB_ENV"
         echo "CARGO_JOBS=${JOBS}" >> "$GITHUB_ENV"
