@@ -66,3 +66,41 @@ runs:
       run: |
         sudo apt-get update
         sudo apt-get install -y ${{ inputs.system-deps }}
+
+    - name: 智能探测可用内存并设置并行度（防 OOM，用满不 OOM 的最大上限）
+      shell: bash
+      # 目标：在不 OOM 的前提下用满最大并行度，不设人工上限
+      # 内存维度：可用内存 - 预留(1.5GB 给系统/PostgreSQL/Node) ÷ 每单元峰值(1.2GB)
+      # CPU 维度：总核数 - 1（留 1 核给系统 IO），不封顶
+      # 取两者较小值 = 不 OOM 且不超 CPU 的最大并行度
+      run: |
+        set -eu
+        MEM_TOTAL_KB=$(awk '/^MemTotal:/{print $2}' /proc/meminfo)
+        MEM_AVAIL_KB=$(awk '/^MemAvailable:/{print $2}' /proc/meminfo)
+        CPU_CORES=$(nproc)
+
+        MEM_TOTAL_GB=$(awk "BEGIN{printf \"%.1f\", ${MEM_TOTAL_KB}/1024/1024}")
+        MEM_AVAIL_GB=$(awk "BEGIN{printf \"%.1f\", ${MEM_AVAIL_KB}/1024/1024}")
+
+        # 预留 1.5GB 给系统/服务，剩余按 1.2GB/单元算最大可并行单元数（不设上限）
+        USABLE_GB=$(awk "BEGIN{mx=${MEM_AVAIL_KB}/1024/1024 - 1.5; if(mx<1) mx=1; printf \"%.1f\", mx}")
+        MEM_JOBS=$(awk "BEGIN{j=int(${USABLE_GB}/1.2); if(j<1) j=1; print j}")
+
+        # CPU 维度：留 1 核给系统 IO，不封顶（runner 有多少核用多少）
+        CPU_JOBS=$(( CPU_CORES > 1 ? CPU_CORES - 1 : 1 ))
+
+        # 取两者较小值 = 不 OOM 且不超 CPU 的最大并行度
+        if [ "$MEM_JOBS" -le "$CPU_JOBS" ]; then
+          JOBS="$MEM_JOBS"
+        else
+          JOBS="$CPU_JOBS"
+        fi
+
+        echo "::notice::内存 总=${MEM_TOTAL_GB}GB 可用=${MEM_AVAIL_GB}GB CPU=${CPU_CORES}核 → cargo 最大并行度=${JOBS}（内存维度=${MEM_JOBS} CPU维度=${CPU_JOBS}，均未封顶）"
+
+        echo "CARGO_BUILD_JOBS=${JOBS}" >> "$GITHUB_ENV"
+        echo "CARGO_JOBS=${JOBS}" >> "$GITHUB_ENV"
+        echo "mem_total_gb=${MEM_TOTAL_GB}" >> "$GITHUB_OUTPUT"
+        echo "mem_avail_gb=${MEM_AVAIL_GB}" >> "$GITHUB_OUTPUT"
+        echo "cargo_jobs=${JOBS}" >> "$GITHUB_OUTPUT"
+      id: mem-probe
