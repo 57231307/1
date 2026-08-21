@@ -24,6 +24,12 @@ pub mod quality_standard {
 pub mod quality_handling {
     /// 待处理：不合格品待处理
     pub const PENDING: &str = "pending";
+
+    /// 已处理：不合格品已处理（A.19.5 补充，handling_status 用）
+    pub const APPROVED: &str = "approved";
+
+    /// 已拒绝：不合格品处理被拒绝（A.19.5 补充，handling_status 用）
+    pub const REJECTED: &str = "rejected";
 }
 
 /// 染色配方状态（dye_recipe.status 中文值，v14 批次 423A 常量化，依据 §11.1 化验室打样流程）
