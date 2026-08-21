@@ -245,7 +245,7 @@ impl SchedulingService {
         // A.12 修复：考虑换缸 setup time——若工作中心已有排程，首单起始日延后 DYE_CHANGEOVER_DAYS
         let base_start = self.find_earliest_slot(schedule, start_date, 1);
         let latest_scheduled_end = schedule.iter().map(|(_, e, _, _)| *e).max();
-        let current_start = match latest_scheduled_end {
+        let mut current_start = match latest_scheduled_end {
             Some(last_end) => std::cmp::Ord::max(base_start, last_end + Duration::days(DYE_CHANGEOVER_DAYS + 1)),
             None => base_start,
         };
