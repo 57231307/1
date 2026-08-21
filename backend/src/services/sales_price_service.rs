@@ -110,7 +110,7 @@ impl SalesPriceService {
                 .parse()
                 .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?),
             expiry_date: Set(req.expiry_date.and_then(|d| d.parse().ok())),
-            status: Set("pending".to_string()),
+            status: Set(master_data::PENDING.to_string()),
             created_by: Set(Some(user_id)),
             ..Default::default()
         };
@@ -144,7 +144,7 @@ impl SalesPriceService {
             .ok_or_else(|| AppError::not_found(format!("销售价格 {} 未找到", id)))?;
 
         // 检查状态，只有待审批状态可以批准
-        if price_model.status != "pending" {
+        if price_model.status != master_data::PENDING {
             return Err(AppError::validation(format!(
                 "只有待审批状态的价格可以批准，当前状态：{}",
                 price_model.status
@@ -152,7 +152,7 @@ impl SalesPriceService {
         }
 
         let mut price: sales_price::ActiveModel = price_model.into();
-        price.status = Set("approved".to_string());
+        price.status = Set(master_data::APPROVED.to_string());
         price.approved_by = Set(Some(user_id));
         price.approved_at = Set(Some(chrono::Utc::now()));
 

@@ -6,6 +6,12 @@
 //!
 //! 注意：生产订单状态常量直接定义在文件顶层（非内部子模块），因为调用方引用路径为
 //! `crate::models::status::production::PRODUCTION_*`，本文件即 `status::production` 模块。
+//!
+//! A.18.1 状态大小写规范（历史包袱治理）：
+//! - 生产订单/MRP/排程/工作中心：大写值（SCHEDULED/IN_PROGRESS/PLANNED），与 DB CHECK 约束一致
+//! - 流转卡/工序记录：小写值（pending/scheduled/dyeing），与 DB CHECK 约束一致
+//! - 不统一为单一大小写：改 DB 数据+CHECK 约束+前端风险高，改为加别名常量+规范注释
+//! - 新增代码必须用本模块常量，禁止字面量（A.19 逐步替换存量字面量）
 /// 已排产：草稿审批通过后排入生产计划
 pub const PRODUCTION_SCHEDULED: &str = "SCHEDULED";
 
@@ -91,6 +97,13 @@ pub mod flow_card {
 
     /// 已终止：异常终止（合缸/缸变更/取消）
     pub const TERMINATED: &str = "terminated";
+
+    // A.18.1 大写别名（供需要大写的调用方使用，DB 值保持小写不变）
+    pub const PENDING_UPPER: &str = "PENDING";
+    pub const SCHEDULED_UPPER: &str = "SCHEDULED";
+    pub const COMPLETED_UPPER: &str = "COMPLETED";
+    pub const SHIPPED_UPPER: &str = "SHIPPED";
+    pub const TERMINATED_UPPER: &str = "TERMINATED";
 }
 
 /// 工序流转记录状态（process_step_record.status 小写，v14 批次 425，状态机 pending→in_progress→completed/abnormal/rework）

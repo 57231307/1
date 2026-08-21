@@ -23,6 +23,8 @@ use serde::{Deserialize, Serialize};
 use validator::Validate;
 
 /// 查询采购订单列表
+/// 采购订单列表（分页）
+#[utoipa::path(get, path = "/api/v1/erp/purchase/orders", responses((status = 200, description = "订单列表")), tags = ["Purchase"])]
 pub async fn list_orders(
     Query(params): Query<OrderQueryParams>,
     State(state): State<AppState>,
@@ -92,6 +94,8 @@ pub async fn list_orders(
 }
 
 /// 获取采购订单详情
+/// 获取采购订单详情
+#[utoipa::path(get, path = "/api/v1/erp/purchase/orders/{id}", responses((status = 200, description = "订单详情"), (status = 404, description = "不存在")), tags = ["Purchase"])]
 pub async fn get_order(
     Path(id): Path<i32>,
     State(state): State<AppState>,
@@ -146,6 +150,8 @@ pub async fn get_order(
 
 /// 创建采购订单
 #[axum::debug_handler]
+/// 创建采购订单
+#[utoipa::path(post, path = "/api/v1/erp/purchase/orders", responses((status = 201, description = "创建成功"), (status = 400, description = "参数错误")), tags = ["Purchase"])]
 pub async fn create_order(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -194,6 +200,8 @@ pub async fn create_order(
 
 /// 更新采购订单
 #[axum::debug_handler]
+/// 更新采购订单
+#[utoipa::path(put, path = "/api/v1/erp/purchase/orders/{id}", responses((status = 200, description = "更新成功")), tags = ["Purchase"])]
 pub async fn update_order(
     Path(id): Path<i32>,
     State(state): State<AppState>,
@@ -215,6 +223,8 @@ pub async fn update_order(
 }
 
 /// 删除采购订单
+/// 删除采购订单
+#[utoipa::path(delete, path = "/api/v1/erp/purchase/orders/{id}", responses((status = 200, description = "删除成功")), tags = ["Purchase"])]
 pub async fn delete_order(
     Path(id): Path<i32>,
     State(state): State<AppState>,
@@ -357,6 +367,8 @@ pub async fn list_order_items(
 
 /// 添加订单明细
 #[axum::debug_handler]
+/// 创建采购订单
+#[utoipa::path(post, path = "/api/v1/erp/purchase/orders", responses((status = 201, description = "创建成功"), (status = 400, description = "参数错误")), tags = ["Purchase"])]
 pub async fn create_order_item(
     auth: AuthContext,
     Path(order_id): Path<i32>,
@@ -379,6 +391,8 @@ pub async fn create_order_item(
 
 /// 更新订单明细
 #[axum::debug_handler]
+/// 更新采购订单
+#[utoipa::path(put, path = "/api/v1/erp/purchase/orders/{id}", responses((status = 200, description = "更新成功")), tags = ["Purchase"])]
 pub async fn update_order_item(
     auth: AuthContext,
     Path((_order_id, item_id)): Path<(i32, i32)>,
@@ -397,6 +411,8 @@ pub async fn update_order_item(
 }
 
 /// 删除订单明细
+/// 删除采购订单
+#[utoipa::path(delete, path = "/api/v1/erp/purchase/orders/{id}", responses((status = 200, description = "删除成功")), tags = ["Purchase"])]
 pub async fn delete_order_item(
     auth: AuthContext,
     Path((_order_id, item_id)): Path<(i32, i32)>,

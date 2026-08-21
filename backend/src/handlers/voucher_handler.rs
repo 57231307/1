@@ -77,6 +77,8 @@ pub struct VoucherItemDto {
 }
 
 /// 查询凭证列表
+/// 凭证列表（分页）
+#[utoipa::path(get, path = "/api/v1/erp/finance/vouchers", responses((status = 200, description = "凭证列表")), tags = ["Finance"])]
 pub async fn list_vouchers(
     Query(params): Query<VoucherQuery>,
     State(state): State<AppState>,
@@ -106,6 +108,8 @@ pub async fn list_vouchers(
 }
 
 /// 获取凭证详情
+/// 获取凭证详情
+#[utoipa::path(get, path = "/api/v1/erp/finance/vouchers/{id}", responses((status = 200, description = "凭证详情"), (status = 404, description = "不存在")), tags = ["Finance"])]
 pub async fn get_voucher(
     Path(id): Path<i32>,
     State(state): State<AppState>,
@@ -127,6 +131,8 @@ pub async fn get_voucher(
 
 /// 创建凭证
 #[axum::debug_handler]
+/// 创建凭证
+#[utoipa::path(post, path = "/api/v1/erp/finance/vouchers", responses((status = 201, description = "创建成功"), (status = 400, description = "参数错误")), tags = ["Finance"])]
 pub async fn create_voucher(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -191,6 +197,8 @@ pub async fn create_voucher(
 }
 
 /// 提交凭证
+/// 提交凭证（待审核）
+#[utoipa::path(post, path = "/api/v1/erp/finance/vouchers/{id}/submit", responses((status = 200, description = "提交成功")), tags = ["Finance"])]
 pub async fn submit_voucher(
     Path(id): Path<i32>,
     State(state): State<AppState>,
@@ -214,6 +222,8 @@ pub async fn submit_voucher(
 }
 
 /// 审核凭证
+/// 审核凭证
+#[utoipa::path(post, path = "/api/v1/erp/finance/vouchers/{id}/review", responses((status = 200, description = "审核成功")), tags = ["Finance"])]
 pub async fn review_voucher(
     Path(id): Path<i32>,
     State(state): State<AppState>,
@@ -260,6 +270,8 @@ pub async fn post_voucher(
 }
 
 /// 获取凭证类型列表（v11 批次 155 P2-C：下沉到 VoucherService::available_voucher_types 静态配置化）
+/// 获取凭证详情
+#[utoipa::path(get, path = "/api/v1/erp/finance/vouchers/{id}", responses((status = 200, description = "凭证详情"), (status = 404, description = "不存在")), tags = ["Finance"])]
 pub async fn get_voucher_types()
 -> Json<ApiResponse<Vec<crate::services::voucher_service::VoucherTypeDefinition>>> {
     Json(ApiResponse::success(

@@ -28,6 +28,8 @@ use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use std::sync::Arc;
 
+/// 获取单个库存详情
+#[utoipa::path(get, path = "/api/v1/erp/inventory/stock/{id}", responses((status = 200, description = "库存详情"), (status = 404, description = "不存在")), tags = ["Inventory"])]
 pub async fn get_stock(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -97,6 +99,8 @@ pub async fn get_stock(
     Ok(Json(ApiResponse::success(response_json)))
 }
 
+/// 创建库存记录
+#[utoipa::path(post, path = "/api/v1/erp/inventory/stock", responses((status = 201, description = "创建成功"), (status = 400, description = "参数错误")), tags = ["Inventory"])]
 pub async fn create_stock(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -136,6 +140,8 @@ pub async fn create_stock(
     })))
 }
 
+/// 更新库存
+#[utoipa::path(put, path = "/api/v1/erp/inventory/stock/{id}", responses((status = 200, description = "更新成功"), (status = 404, description = "不存在")), tags = ["Inventory"])]
 pub async fn update_stock(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -200,6 +206,8 @@ pub async fn update_stock(
     })))
 }
 
+/// 删除库存
+#[utoipa::path(delete, path = "/api/v1/erp/inventory/stock/{id}", responses((status = 200, description = "删除成功")), tags = ["Inventory"])]
 pub async fn delete_stock(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -216,6 +224,8 @@ pub async fn delete_stock(
     Ok(Json(ApiResponse::success(())))
 }
 
+/// 库存列表（分页）
+#[utoipa::path(get, path = "/api/v1/erp/inventory/stock", responses((status = 200, description = "库存列表")), tags = ["Inventory"])]
 pub async fn list_stock(
     State(state): State<AppState>,
     auth: AuthContext,

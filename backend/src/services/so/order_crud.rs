@@ -13,6 +13,7 @@
 
 use super::order::SalesService;
 use crate::models::status::sales_order as so_status;
+use crate::models::status::general::common;
 use crate::models::{
     ar_invoice::{self},
     customer, product, sales_order,
@@ -168,8 +169,8 @@ impl SalesService {
             use sea_orm::QueryFilter;
             let unpaid_result = ar_invoice::Entity::find()
                 .filter(ar_invoice::Column::CustomerId.eq(request.customer_id))
-                .filter(ar_invoice::Column::Status.ne("CANCELLED"))
-                .filter(ar_invoice::Column::Status.ne("COMPLETED"))
+                .filter(ar_invoice::Column::Status.ne(common::STATUS_CANCELLED))
+                .filter(ar_invoice::Column::Status.ne(common::STATUS_COMPLETED))
                 .all(txn)
                 .await;
             match unpaid_result {

@@ -29,6 +29,9 @@ use std::collections::HashMap;
 /// P9-2 标记：自动排程子模块路径
 pub const P92_AUTO_MODULE: &str = "scheduling_auto";
 
+/// 换缸准备时间（天）：不同缸号组之间需清洗染缸、换染料，A.12 建模
+const DYE_CHANGEOVER_DAYS: i64 = 1;
+
 /// 排程算法枚举
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SchedulingAlgo {
@@ -126,9 +129,8 @@ impl SchedulingService {
         let schedule = wc_schedule.entry(wc_id).or_default();
         let assigned_start = self.find_earliest_slot(schedule, start_date, days_needed);
         let assigned_end = assigned_start + Duration::days(days_needed - 1);
-        let has_overlap = schedule
-            .iter()
-            .any(|(s, e, _, _)| !(assigned_end < *s || assigned_start > *e));
+        // A.13 修复：复用 check_overlap（捕获 find_earliest_slot 超迭代上限仍有重叠的情况）
+        let has_overlap = Self::check_overlap(schedule, assigned_start, assigned_end);
         if has_overlap {
             conflicts.push(Self::build_time_overlap_conflict(order, wc_id, cap));
         }
@@ -194,14 +196,22 @@ impl SchedulingService {
         }
         let cap = &wc_capacity[&group_wc_id];
 
-        // 2. 校验组总产能是否足够（同缸号订单产能需求汇总）
-        let total_group_qty: Decimal = group.iter().map(|o| o.planned_quantity).sum();
+        // 2. 校验组产能是否足够（同缸号订单产能需求汇总）
+        // A.11 修复：组产能不足时改为部分排程（尽量排能排下的订单，剩余记冲突），
+        // 原实现全组失败（每单记冲突 return false），导致可排的单也被跳过
         let available = wc_available_capacity
             .get(&group_wc_id)
             .copied()
             .unwrap_or(Decimal::ZERO);
-        if total_group_qty > available {
-            // 组产能不足：为组内每单记录冲突
+        // 筛选当前可排的订单（产能够的单），跳过超产能的
+        let schedulable_orders: Vec<&ProductionOrderModel> = group
+            .iter()
+            .filter(|o| {
+                o.planned_quantity <= *wc_available_capacity.get(&group_wc_id).unwrap_or(&Decimal::ZERO)
+            })
+            .collect();
+        // 组全部超产能：每单记冲突
+        if schedulable_orders.is_empty() {
             for order in group {
                 conflicts.push(Self::build_capacity_insufficient_conflict(
                     order,
@@ -212,16 +222,34 @@ impl SchedulingService {
             }
             return false;
         }
+        // 部分超产能的单：记冲突但不阻塞可排单
+        for order in group.iter() {
+            if !schedulable_orders.contains(&order) {
+                conflicts.push(Self::build_capacity_insufficient_conflict(
+                    order,
+                    group_wc_id,
+                    cap,
+                    available,
+                ));
+            }
+        }
 
-        // 3. 扣减组产能
-        wc_available_capacity.insert(group_wc_id, available - total_group_qty);
+        // 3. 扣减组产能（仅扣减可排单的总量，A.11 部分排程）
+        let schedulable_total: Decimal = schedulable_orders.iter().map(|o| o.planned_quantity).sum();
+        wc_available_capacity.insert(group_wc_id, available - schedulable_total);
 
-        // 4. 在同一工作中心为组内每单找连续时段（前单结束后下一日开始）
+        // 4. 在同一工作中心为组内可排单找连续时段（前单结束后下一日开始）
         let schedule = wc_schedule.entry(group_wc_id).or_default();
         let mut group_success = false;
         // 组内首单的起始日：基于工作中心已排程情况找最早槽
-        let mut current_start = self.find_earliest_slot(schedule, start_date, 1);
-        for order in group {
+        // A.12 修复：考虑换缸 setup time——若工作中心已有排程，首单起始日延后 DYE_CHANGEOVER_DAYS
+        let base_start = self.find_earliest_slot(schedule, start_date, 1);
+        let latest_scheduled_end = schedule.iter().map(|(_, e, _, _)| *e).max();
+        let current_start = match latest_scheduled_end {
+            Some(last_end) => base_start.max(last_end + Duration::days(DYE_CHANGEOVER_DAYS + 1)),
+            None => base_start,
+        };
+        for order in &schedulable_orders {
             let quantity = order.planned_quantity;
             if quantity.is_zero() {
                 continue;
@@ -231,10 +259,8 @@ impl SchedulingService {
             // 在 current_start 之后找无重叠的连续时段
             let assigned_start = self.find_earliest_slot(schedule, current_start, days_needed);
             let assigned_end = assigned_start + Duration::days(days_needed - 1);
-            // 检测重叠（同 schedule_single_order 行为）
-            let has_overlap = schedule
-                .iter()
-                .any(|(s, e, _, _)| !(assigned_end < *s || assigned_start > *e));
+            // A.13 修复：复用 check_overlap（同 schedule_single_order 行为）
+            let has_overlap = Self::check_overlap(schedule, assigned_start, assigned_end);
             if has_overlap {
                 conflicts.push(Self::build_time_overlap_conflict(order, group_wc_id, cap));
             }
@@ -280,13 +306,27 @@ impl SchedulingService {
     }
 
     /// 计算工单所需加工天数（按数量/日产能向上取整，最小 1 天）。
+    /// A.1 修复：原用 round() 四舍五入导致系统性产能超排（如 100/30=3.33→round=3，
+    /// 但 3 天仅做 90 件，欠产 10 件）。改用 ceil() 向上取整确保产能不超排。
     fn compute_days_needed(quantity: Decimal, daily_capacity: Decimal) -> i64 {
         if daily_capacity.is_zero() {
             return 1;
         }
         let d = quantity / daily_capacity;
-        let rounded = d.round();
+        let rounded = d.ceil();
         rounded.to_string().parse::<i64>().unwrap_or(1)
+    }
+
+    /// 检测指定 [start, end] 时段是否与已排程记录重叠。
+    /// A.13 修复：提取公用方法消除 find_earliest_slot 与两处调用方的重复重叠检测逻辑。
+    fn check_overlap(
+        schedule: &[(NaiveDate, NaiveDate, i32, String)],
+        start: NaiveDate,
+        end: NaiveDate,
+    ) -> bool {
+        schedule
+            .iter()
+            .any(|(s, e, _, _)| !(end < *s || start > *e))
     }
 
     /// 构造"未指定有效工作中心"冲突。
@@ -690,9 +730,8 @@ impl SchedulingService {
         loop {
             let end_candidate = candidate + Duration::days(days_needed - 1);
 
-            let has_overlap = schedule
-                .iter()
-                .any(|(s, e, _, _)| !(end_candidate < *s || candidate > *e));
+            // A.13 修复：复用 check_overlap 公用方法
+            let has_overlap = Self::check_overlap(schedule, candidate, end_candidate);
 
             if !has_overlap {
                 return candidate;

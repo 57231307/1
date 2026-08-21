@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 //! 销售状态常量分组
 //!
+//! A.18.3 状态大小写规范：销售状态统一小写（draft/pending/approved 等），
+//! 与 DB CHECK 约束一致。新增代码必须引用本模块常量，禁止字面量（A.19 逐步替换存量）。
 //! 批次 490 D10-3b 拆分：从 models/status.rs 抽取的销售/报价/定制订单状态常量子模块组。
 //! 包含：sales_order/sales_delivery/sales_return/quotation/custom_order/quotation_ext/price_approval/custom_order_ext/sales_fabric_order
 

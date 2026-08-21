@@ -59,6 +59,8 @@ pub struct CreateTagDto {
 }
 
 /// POST /api/v1/erp/crm/customers - 创建客户（通过线索）
+/// 创建客户
+#[utoipa::path(post, path = "/api/v1/erp/crm/customers", responses((status = 201, description = "创建成功"), (status = 400, description = "参数错误")), tags = ["CRM"])]
 pub async fn create_customer(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -70,6 +72,8 @@ pub async fn create_customer(
 }
 
 /// GET /api/v1/erp/crm/customers - 获取客户列表（线索列表）
+/// 客户列表（分页）
+#[utoipa::path(get, path = "/api/v1/erp/crm/customers", responses((status = 200, description = "客户列表")), tags = ["CRM"])]
 pub async fn list_customers(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -95,6 +99,8 @@ pub async fn list_customers(
 }
 
 /// GET /api/v1/erp/crm/customers/:id - 获取客户详情
+/// 获取客户详情
+#[utoipa::path(get, path = "/api/v1/erp/crm/customers/{id}", responses((status = 200, description = "客户详情"), (status = 404, description = "不存在")), tags = ["CRM"])]
 pub async fn get_customer(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -108,6 +114,8 @@ pub async fn get_customer(
 }
 
 /// PUT /api/v1/erp/crm/customers/:id - 更新客户
+/// 更新客户
+#[utoipa::path(put, path = "/api/v1/erp/crm/customers/{id}", responses((status = 200, description = "更新成功")), tags = ["CRM"])]
 pub async fn update_customer(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -121,6 +129,8 @@ pub async fn update_customer(
 }
 
 /// DELETE /api/v1/erp/crm/customers/:id - 删除客户
+/// 删除客户
+#[utoipa::path(delete, path = "/api/v1/erp/crm/customers/{id}", responses((status = 200, description = "删除成功")), tags = ["CRM"])]
 pub async fn delete_customer(
     State(state): State<AppState>,
     auth: AuthContext,

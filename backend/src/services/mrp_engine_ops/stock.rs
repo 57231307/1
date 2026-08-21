@@ -8,6 +8,7 @@ use rust_decimal::Decimal;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
 use crate::models::inventory_stock::Entity as InventoryStockEntity;
+use crate::models::product::Entity as ProductEntity;
 use crate::utils::error::AppError;
 
 use super::types::{MaterialRequirement, RequirementCalcParams, StockInfo};
@@ -44,11 +45,20 @@ impl MrpEngineService {
             Decimal::ZERO
         };
 
+        // A.4 修复：从物料主数据读 lead_time，替代硬编码 7 天/层
+        let lead_time_days = ProductEntity::find()
+            .filter(crate::models::product::Column::Id.eq(product_id))
+            .one(&*self.db)
+            .await?
+            .and_then(|p| p.lead_time)
+            .unwrap_or(7);
+
         Ok(StockInfo {
             on_hand,
             in_transit,
             safety_stock,
             available,
+            lead_time_days,
         })
     }
 
@@ -86,6 +96,16 @@ impl MrpEngineService {
         }
 
         let mut result = std::collections::HashMap::new();
+        // A.4 修复：批量查询物料 lead_time，避免 N+1
+        let products = ProductEntity::find()
+            .filter(crate::models::product::Column::Id.is_in(product_ids.to_vec()))
+            .all(&*self.db)
+            .await?;
+        let lead_time_map: std::collections::HashMap<i32, i32> = products
+            .iter()
+            .filter_map(|p| p.lead_time.map(|lt| (p.id, lt)))
+            .collect();
+
         for (product_id, (on_hand, in_transit, safety_stock)) in agg {
             let available = on_hand - safety_stock;
             let available = if available > Decimal::ZERO {
@@ -93,6 +113,7 @@ impl MrpEngineService {
             } else {
                 Decimal::ZERO
             };
+            let lead_time_days = lead_time_map.get(&product_id).copied().unwrap_or(7);
             result.insert(
                 product_id,
                 StockInfo {
@@ -100,6 +121,7 @@ impl MrpEngineService {
                     in_transit,
                     safety_stock,
                     available,
+                    lead_time_days,
                 },
             );
         }

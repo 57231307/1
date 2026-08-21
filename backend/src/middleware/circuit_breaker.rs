@@ -41,12 +41,10 @@ pub enum CircuitState {
 /// 熔断器条目（每个 route_key 一个）
 pub struct CircuitEntry {
     pub state: CircuitState,
-    /// 滑动窗口内的总请求数
-    total: u32,
-    /// 滑动窗口内的失败请求数
-    failures: u32,
-    /// 窗口起始时间（超过 5s 重置窗口）
-    window_start: Instant,
+    /// 真滑动窗口：记录窗口内每个请求的 (时间戳, 是否失败)，统计时移除 5s 前的过期记录。
+    /// A.3 修复：原为翻滚窗口（满 5s 直接清零），边界统计突变（如 4.9s 累积 9 失败，
+    /// 5.0s 窗口重置为 0 不触发熔断）。改为 VecDeque 滑动窗口消除边界效应。
+    window: std::collections::VecDeque<(Instant, bool)>,
     /// 进入 open 状态的时间（用于 30s 冷却判断）
     pub opened_at: Option<Instant>,
     /// half-open 状态已放行的探测请求数
@@ -57,21 +55,26 @@ impl CircuitEntry {
     pub fn new() -> Self {
         Self {
             state: CircuitState::Closed,
-            total: 0,
-            failures: 0,
-            window_start: Instant::now(),
+            window: std::collections::VecDeque::new(),
             opened_at: None,
             half_open_probes: 0,
         }
     }
 
-    /// 滚动窗口：若窗口超过 5s 则重置统计
-    fn maybe_reset_window(&mut self) {
-        if self.window_start.elapsed() >= Duration::from_secs(WINDOW_SECS) {
-            self.total = 0;
-            self.failures = 0;
-            self.window_start = Instant::now();
+    /// 滑动窗口：移除 5s 前的过期记录，返回窗口内 (总数, 失败数)
+    fn evict_and_count(&mut self) -> (u32, u32) {
+        let cutoff = Instant::now() - Duration::from_secs(WINDOW_SECS);
+        // 从队首移除过期记录（按时间顺序入队，队首最旧）
+        while let Some(&(ts, _)) = self.window.front() {
+            if ts < cutoff {
+                self.window.pop_front();
+            } else {
+                break;
+            }
         }
+        let total = self.window.len() as u32;
+        let failures = self.window.iter().filter(|(_, f)| *f).count() as u32;
+        (total, failures)
     }
 
     /// 检查并自动转换状态（open → half-open）
@@ -106,11 +109,9 @@ impl CircuitEntry {
 
     /// 记录请求结果（成功 status < 500，失败 status >= 500）
     pub fn record_result(&mut self, is_failure: bool) {
-        self.maybe_reset_window();
-        self.total += 1;
-        if is_failure {
-            self.failures += 1;
-        }
+        // 滑动窗口：记录当前请求并移除过期记录
+        self.window.push_back((Instant::now(), is_failure));
+        let (total, failures) = self.evict_and_count();
 
         match self.state {
             CircuitState::HalfOpen => {
@@ -122,14 +123,13 @@ impl CircuitEntry {
                     // 探测成功：恢复 closed
                     self.state = CircuitState::Closed;
                     self.opened_at = None;
-                    self.total = 0;
-                    self.failures = 0;
+                    self.window.clear();
                 }
             }
             CircuitState::Closed => {
                 // 仅在窗口内有足够样本（>= 5 个请求）时评估失败率
-                if self.total >= 5 {
-                    let rate = self.failures as f64 / self.total as f64;
+                if total >= 5 {
+                    let rate = failures as f64 / total as f64;
                     if rate > FAILURE_RATE_THRESHOLD {
                         self.state = CircuitState::Open;
                         self.opened_at = Some(Instant::now());

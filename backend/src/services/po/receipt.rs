@@ -562,7 +562,7 @@ impl PurchaseOrderService {
             .ok_or_else(|| AppError::not_found(format!("采购订单 {}", item.order_id)))?;
 
         // 3. 检查状态
-        if order.order_status != "DRAFT" {
+        if order.order_status != crate::models::status::purchase_inventory::purchase_order::DRAFT {
             return Err(AppError::business(format!(
                 "订单状态不允许修改明细，当前状态：{}",
                 order.order_status
@@ -635,7 +635,7 @@ impl PurchaseOrderService {
             .ok_or_else(|| AppError::not_found(format!("采购订单 {}", item.order_id)))?;
 
         // 3. 检查状态
-        if order.order_status != "DRAFT" {
+        if order.order_status != crate::models::status::purchase_inventory::purchase_order::DRAFT {
             return Err(AppError::business(format!(
                 "订单状态不允许删除明细，当前状态：{}",
                 order.order_status

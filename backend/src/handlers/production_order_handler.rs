@@ -118,6 +118,8 @@ pub struct ListProductionOrdersQuery {
 }
 
 /// 创建生产订单
+/// 创建生产订单
+#[utoipa::path(post, path = "/api/v1/erp/production/orders", responses((status = 201, description = "创建成功"), (status = 400, description = "参数错误")), tags = ["Production"])]
 pub async fn create_production_order(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -165,6 +167,8 @@ pub async fn create_production_order(
 }
 
 /// 获取生产订单详情
+/// 获取生产订单详情
+#[utoipa::path(get, path = "/api/v1/erp/production/orders/{id}", responses((status = 200, description = "订单详情"), (status = 404, description = "不存在")), tags = ["Production"])]
 pub async fn get_production_order(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -200,6 +204,8 @@ pub async fn get_production_order(
 }
 
 /// 获取生产订单列表
+/// 生产订单列表（分页）
+#[utoipa::path(get, path = "/api/v1/erp/production/orders", responses((status = 200, description = "订单列表")), tags = ["Production"])]
 pub async fn list_production_orders(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -247,6 +253,8 @@ pub async fn list_production_orders(
 }
 
 /// 更新生产订单
+/// 更新生产订单
+#[utoipa::path(put, path = "/api/v1/erp/production/orders/{id}", responses((status = 200, description = "更新成功")), tags = ["Production"])]
 pub async fn update_production_order(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -298,6 +306,8 @@ pub struct ApprovalRequest {
 }
 
 /// 提交生产订单审批
+/// 提交生产订单审批
+#[utoipa::path(post, path = "/api/v1/erp/production/orders/{id}/submit", responses((status = 200, description = "提交成功")), tags = ["Production"])]
 pub async fn submit_for_approval(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -436,6 +446,8 @@ pub async fn update_production_progress(
 
 /// 获取生产订单操作日志；批次 132 v9 复审 P1：原返回固定空列表 {logs: []}， 现真实查询
 /// audit_logs 表，按 resource_id = order_id 过滤，按 created_at 倒序返回。
+/// 获取生产订单详情
+#[utoipa::path(get, path = "/api/v1/erp/production/orders/{id}", responses((status = 200, description = "订单详情"), (status = 404, description = "不存在")), tags = ["Production"])]
 pub async fn get_production_order_logs(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -452,6 +464,8 @@ pub async fn get_production_order_logs(
 }
 
 /// 更新生产订单状态
+/// 更新生产订单
+#[utoipa::path(put, path = "/api/v1/erp/production/orders/{id}", responses((status = 200, description = "更新成功")), tags = ["Production"])]
 pub async fn update_production_order_status(
     State(state): State<AppState>,
     _auth: AuthContext,

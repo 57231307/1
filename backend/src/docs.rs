@@ -8,7 +8,7 @@
 //! - 本文件恢复 ApiDoc，注册当前已添加 `#[utoipa::path]` 注解的 handler
 //! - 文档覆盖率按模块增量补全（每模块补注解时同步在此注册），不作为技术债挂起；
 //!   B02-P2-4 评估：为 100+ handler 补注解属持续性文档增强，按模块迭代推进而非独立修复项。
-//!   当前覆盖率：2/115 handlers（auth/login + health/health_check）
+//!   当前覆盖率：43/115 handlers（auth 8 + user 5 + role 5 + inventory 5 + sales 5 + purchase 5 + finance 5 + production 5 + crm 5 + health 1，~37%）
 
 use utoipa::OpenApi;
 
@@ -16,10 +16,64 @@ use utoipa::OpenApi;
 #[derive(OpenApi)]
 #[openapi(
     paths(
-        // 认证相关（已添加 utoipa::path 注解）
+        // 认证相关（A.25.1 auth 域补全）
         crate::handlers::auth_handler::login,
-        // 健康检查（已添加 utoipa::path 注解）
+        crate::handlers::auth_handler_session::logout,
+        crate::handlers::auth_handler_misc::refresh_token,
+        crate::handlers::auth_handler_misc::setup_totp,
+        crate::handlers::auth_handler_misc::enable_totp,
+        crate::handlers::auth_handler_misc::get_current_user,
+        crate::handlers::auth_handler_misc::agree_to_terms,
+        // 健康检查
         crate::handlers::health_handler::health_check,
+        // 用户管理（A.25.2）
+        crate::handlers::user_handler::get_user,
+        crate::handlers::user_handler::create_user,
+        crate::handlers::user_handler::list_users,
+        crate::handlers::user_handler::update_user,
+        crate::handlers::user_handler::delete_user,
+        // 角色管理（A.25.2）
+        crate::handlers::role_handler::list_roles,
+        crate::handlers::role_handler::get_role,
+        crate::handlers::role_handler::create_role,
+        crate::handlers::role_handler::update_role,
+        crate::handlers::role_handler::delete_role,
+        // 库存管理（A.25.3）
+        crate::handlers::inventory_stock_handler::get_stock,
+        crate::handlers::inventory_stock_handler::create_stock,
+        crate::handlers::inventory_stock_handler::update_stock,
+        crate::handlers::inventory_stock_handler::delete_stock,
+        crate::handlers::inventory_stock_handler::list_stock,
+        // 销售订单（A.25.4）
+        crate::handlers::sales_order_handler::list_orders,
+        crate::handlers::sales_order_handler::get_order,
+        crate::handlers::sales_order_handler::create_order,
+        crate::handlers::sales_order_handler::update_order,
+        crate::handlers::sales_order_handler::delete_order,
+        // 采购订单（A.25.5）
+        crate::handlers::purchase_order_handler::list_orders,
+        crate::handlers::purchase_order_handler::get_order,
+        crate::handlers::purchase_order_handler::create_order,
+        crate::handlers::purchase_order_handler::update_order,
+        crate::handlers::purchase_order_handler::delete_order,
+        // 财务凭证（A.25.6）
+        crate::handlers::voucher_handler::list_vouchers,
+        crate::handlers::voucher_handler::get_voucher,
+        crate::handlers::voucher_handler::create_voucher,
+        crate::handlers::voucher_handler::submit_voucher,
+        crate::handlers::voucher_handler::review_voucher,
+        // 生产订单（A.25.7）
+        crate::handlers::production_order_handler::create_production_order,
+        crate::handlers::production_order_handler::get_production_order,
+        crate::handlers::production_order_handler::list_production_orders,
+        crate::handlers::production_order_handler::update_production_order,
+        crate::handlers::production_order_handler::submit_for_approval,
+        // 客户管理（A.25.7）
+        crate::handlers::crm_customer_handler::create_customer,
+        crate::handlers::crm_customer_handler::list_customers,
+        crate::handlers::crm_customer_handler::get_customer,
+        crate::handlers::crm_customer_handler::update_customer,
+        crate::handlers::crm_customer_handler::delete_customer,
     ),
     components(
         schemas(
@@ -27,6 +81,9 @@ use utoipa::OpenApi;
             crate::handlers::auth_handler::LoginRequest,
             crate::handlers::auth_handler::LoginResponse,
             crate::handlers::auth_handler::UserInfo,
+            crate::handlers::auth_handler_misc::TotpSetupResponse,
+            crate::handlers::auth_handler_misc::TotpVerifyRequest,
+            crate::handlers::auth_handler_misc::AgreeToTermsRequest,
             // 健康检查
             crate::handlers::health_handler::HealthStatus,
             // 通用响应
@@ -35,6 +92,14 @@ use utoipa::OpenApi;
     ),
     tags(
         (name = "Auth", description = "用户认证和授权"),
+        (name = "User", description = "用户管理"),
+        (name = "Role", description = "角色与权限管理"),
+        (name = "Inventory", description = "库存管理"),
+        (name = "Sales", description = "销售订单管理"),
+        (name = "Purchase", description = "采购订单管理"),
+        (name = "Finance", description = "财务凭证管理"),
+        (name = "Production", description = "生产订单管理"),
+        (name = "CRM", description = "客户关系管理"),
         (name = "health", description = "健康检查与服务状态")
     ),
     info(

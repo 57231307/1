@@ -25,7 +25,9 @@ static BPM_CONDITION_RE: std::sync::LazyLock<Option<regex::Regex>> =
     std::sync::LazyLock::new(|| regex::Regex::new(r"\$\{(\w+)\}\s*(==|!=|>|<|>=|<=)\s*(.+)").ok());
 
 /// 评估 BPM 边条件表达式
-/// 支持的条件格式:`${amount} > 10000` - 变量数值比较；`${status} == 'APPROVED'` - 变量字符串比较；`pub(crate)`：bpm_ops::task 子模块的 `try_advance_to_next_node` 调用。
+/// 支持的条件格式:`${amount} > 10000` - 变量数值比较；`${status} == 'APPROVED'` - 变量字符串比较；
+/// A.14 修复：支持 `&&`（AND）和 `||`（OR）组合，如 `${amount} > 10000 && ${status} == 'APPROVED'`。
+/// `pub(crate)`：bpm_ops::task 子模块的 `try_advance_to_next_node` 调用。
 pub(crate) fn evaluate_bpm_condition(
     condition: &str,
     variables: &Option<serde_json::Value>,
@@ -38,6 +40,31 @@ pub(crate) fn evaluate_bpm_condition(
     let condition = condition.trim();
     if condition.is_empty() {
         return true; // 无条件默认通过
+    }
+
+    // A.14 修复：支持 || (OR) 和 && (AND) 组合
+    // 先按 || 分割（任一为真则整体为真），每段再按 && 分割（全部为真则段为真）
+    let or_parts: Vec<&str> = condition.split("||").map(|s| s.trim()).collect();
+    if or_parts.len() > 1 {
+        return or_parts
+            .iter()
+            .any(|part| evaluate_single_bpm_condition(part, vars));
+    }
+    let and_parts: Vec<&str> = condition.split("&&").map(|s| s.trim()).collect();
+    if and_parts.len() > 1 {
+        return and_parts
+            .iter()
+            .all(|part| evaluate_single_bpm_condition(part, vars));
+    }
+
+    evaluate_single_bpm_condition(condition, vars)
+}
+
+/// 评估单个 BPM 条件表达式（不含 && / || 组合）
+fn evaluate_single_bpm_condition(condition: &str, vars: &serde_json::Value) -> bool {
+    let condition = condition.trim();
+    if condition.is_empty() {
+        return true;
     }
 
     // 提取变量名和比较操作: ${var_name} operator value（使用全局编译的正则）

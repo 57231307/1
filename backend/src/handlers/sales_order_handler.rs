@@ -37,6 +37,8 @@ pub struct CreateDeliveryDto {
 
 /// 获取销售订单列表
 /// GET /api/v1/erp/sales/orders
+/// 销售订单列表（分页）
+#[utoipa::path(get, path = "/api/v1/erp/sales/orders", responses((status = 200, description = "订单列表")), tags = ["Sales"])]
 pub async fn list_orders(
     auth: AuthContext,
     State(state): State<AppState>,
@@ -150,6 +152,8 @@ pub async fn list_orders(
 
 /// 获取销售订单详情
 /// GET /api/v1/erp/sales/orders/:id
+/// 获取销售订单详情
+#[utoipa::path(get, path = "/api/v1/erp/sales/orders/{id}", responses((status = 200, description = "订单详情"), (status = 404, description = "不存在")), tags = ["Sales"])]
 pub async fn get_order(
     auth: AuthContext,
     State(state): State<AppState>,
@@ -226,6 +230,8 @@ pub async fn get_order(
 
 /// 创建销售订单
 /// POST /api/v1/erp/sales/orders
+/// 创建销售订单
+#[utoipa::path(post, path = "/api/v1/erp/sales/orders", responses((status = 201, description = "创建成功"), (status = 400, description = "参数错误")), tags = ["Sales"])]
 pub async fn create_order(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -263,6 +269,8 @@ pub async fn create_order(
 
 /// 更新销售订单
 /// PUT /api/v1/erp/sales/orders/:id
+/// 更新销售订单
+#[utoipa::path(put, path = "/api/v1/erp/sales/orders/{id}", responses((status = 200, description = "更新成功"), (status = 404, description = "不存在")), tags = ["Sales"])]
 pub async fn update_order(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -289,6 +297,8 @@ pub async fn update_order(
 
 /// 删除销售订单
 /// DELETE /api/v1/erp/sales/orders/:id
+/// 删除销售订单
+#[utoipa::path(delete, path = "/api/v1/erp/sales/orders/{id}", responses((status = 200, description = "删除成功")), tags = ["Sales"])]
 pub async fn delete_order(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -453,6 +463,8 @@ pub struct HistoryQuery {
     pub page_size: Option<u64>,
 }
 
+/// 获取销售订单详情
+#[utoipa::path(get, path = "/api/v1/erp/sales/orders/{id}", responses((status = 200, description = "订单详情"), (status = 404, description = "不存在")), tags = ["Sales"])]
 pub async fn get_order_history(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -624,6 +636,8 @@ pub async fn cancel_order(
 
 /// 获取订单发货记录
 /// GET /api/v1/erp/sales/orders/:id/deliveries
+/// 获取销售订单详情
+#[utoipa::path(get, path = "/api/v1/erp/sales/orders/{id}", responses((status = 200, description = "订单详情"), (status = 404, description = "不存在")), tags = ["Sales"])]
 pub async fn get_order_deliveries(
     _auth: AuthContext,
     State(state): State<AppState>,
@@ -711,6 +725,8 @@ pub struct CancelDeliveryRequest {
 
 /// 获取订单统计
 /// GET /api/v1/erp/sales/orders/statistics
+/// 获取销售订单详情
+#[utoipa::path(get, path = "/api/v1/erp/sales/orders/{id}", responses((status = 200, description = "订单详情"), (status = 404, description = "不存在")), tags = ["Sales"])]
 pub async fn get_order_statistics(
     _auth: AuthContext,
     State(state): State<AppState>,

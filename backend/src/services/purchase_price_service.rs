@@ -1,4 +1,5 @@
 use crate::models::purchase_price;
+use crate::models::status::master_data;
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -97,7 +98,7 @@ impl PurchasePriceService {
                 .parse()
                 .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?),
             expiry_date: Set(req.expiry_date.and_then(|d| d.parse().ok())),
-            status: Set("pending".to_string()),
+            status: Set(master_data::PENDING.to_string()),
             created_by: Set(Some(user_id)),
             ..Default::default()
         };
@@ -133,7 +134,7 @@ impl PurchasePriceService {
             .ok_or_else(|| AppError::not_found(format!("采购价格 {} 未找到", id)))?;
 
         let mut price: purchase_price::ActiveModel = price_model.into();
-        price.status = Set("approved".to_string());
+        price.status = Set(master_data::APPROVED.to_string());
         price.approved_by = Set(Some(user_id));
 
         // 使用 update_with_audit 在事务内同步写入审计日志

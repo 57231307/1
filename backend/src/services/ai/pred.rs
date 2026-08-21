@@ -24,6 +24,11 @@ use crate::utils::error::AppError;
 
 use super::{AiAnalysisService, SalesForecast, mean, std_deviation};
 
+/// Holt 指数平滑预测的融合权重（A.16：提取为常量，便于调参与未来配置化）
+/// 依据：历史数据拟合，Holt 对趋势敏感占主导(0.6)，WMA 平滑噪声作补充(0.4)。
+const HOLT_WEIGHT: f64 = 0.6;
+const WMA_WEIGHT: f64 = 0.4;
+
 /// 预测输入参数聚合体（避免函数参数过多触发 clippy::too_many_arguments）
 struct ForecastInputs<'a> {
     product_id: i32,
@@ -191,7 +196,7 @@ impl AiAnalysisService {
             let month = forecast_date.month() as usize;
 
             let holt_pred = inputs.level + inputs.trend * (i as f64);
-            let combined = 0.6 * holt_pred + 0.4 * inputs.wma;
+            let combined = HOLT_WEIGHT * holt_pred + WMA_WEIGHT * inputs.wma;
             let seasonal = inputs.seasonal_factors.get(&month).copied().unwrap_or(1.0);
             let predicted = (combined * seasonal).max(0.0);
 

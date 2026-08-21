@@ -18,6 +18,7 @@ use crate::models::inventory_stock::{
     Entity as InventoryStockEntity, Model as InventoryStockModel,
 };
 use crate::models::inventory_transaction::Entity as InventoryTransactionEntity;
+use crate::models::product::Entity as ProductEntity;
 use crate::models::sales_order_item::Entity as SalesOrderItemEntity;
 use crate::services::mrp_engine_service::{MrpEngineService, RequirementCalcParams};
 use crate::utils::error::AppError;
@@ -62,6 +63,7 @@ impl AiAnalysisService {
         outbound_qtys: Option<&Vec<f64>>,
         transactions: &[crate::models::inventory_transaction::Model],
         abc: &str,
+        lead_time_days: i32,
     ) -> InventorySuggestion {
         let pid = stock.product_id;
         let current = stock.quantity_available.to_f64().unwrap_or(0.0);
@@ -74,7 +76,7 @@ impl AiAnalysisService {
             reorder_point,
             reorder_quantity,
             suggested,
-        ) = self.compute_demand_stats(pid, outbound_qtys, transactions, abc);
+        ) = self.compute_demand_stats(pid, outbound_qtys, transactions, abc, lead_time_days);
 
         let reason = Self::build_suggestion_reason(
             current,
@@ -102,6 +104,7 @@ impl AiAnalysisService {
         outbound_qtys: Option<&Vec<f64>>,
         transactions: &[crate::models::inventory_transaction::Model],
         abc: &str,
+        lead_time_days: i32,
     ) -> (f64, f64, f64, f64, f64, f64) {
         if let Some(qtys) = outbound_qtys {
             let daily_map = self.aggregate_daily_from_transactions(pid, transactions);
@@ -125,8 +128,12 @@ impl AiAnalysisService {
                 _ => 1.28,   // 90% 服务水平
             };
 
-            // 安全库存 = Z * σ * √(LT)  假设提前期 LT = 7 天
-            let lead_time = 7.0_f64;
+            // 安全库存 = Z * σ * √(LT)  A.8 修复：从物料主数据读 lead_time（默认 7 兜底）
+            let lead_time = if lead_time_days > 0 {
+                lead_time_days as f64
+            } else {
+                7.0_f64
+            };
             let ss = service_level_z * std * lead_time.sqrt();
             let rp = avg * lead_time + ss;
             let rq = avg * 30.0;
@@ -212,6 +219,17 @@ impl AiAnalysisService {
             .map(|c| (c.product_id, c.category.as_str()))
             .collect();
 
+        // A.8 修复：批量查询物料 lead_time，替代硬编码 7 天
+        let product_ids: Vec<i32> = stocks.iter().map(|s| s.product_id).collect();
+        let products = ProductEntity::find()
+            .filter(crate::models::product::Column::Id.is_in(product_ids))
+            .all(&*self.db)
+            .await?;
+        let lead_time_map: HashMap<i32, i32> = products
+            .iter()
+            .filter_map(|p| p.lead_time.map(|lt| (p.id, lt)))
+            .collect();
+
         let mut suggestions = Vec::new();
 
         // V15 P1 8.4：初始化 MRP 引擎用于补货推荐与 MRP 对账
@@ -220,17 +238,20 @@ impl AiAnalysisService {
         for stock in stocks {
             let pid = stock.product_id;
             let abc = abc_map.get(&pid).copied().unwrap_or("C");
+            // A.8 修复：从批量查询的 lead_time_map 取物料提前期（默认 7）
+            let lead_time_days = lead_time_map.get(&pid).copied().unwrap_or(7);
 
             let mut suggestion = self.compute_inventory_suggestion(
                 &stock,
                 outbound_by_product.get(&pid),
                 &transactions,
                 abc,
+                lead_time_days,
             );
 
             // V15 P1 8.4：补货推荐与 MRP 引擎对账，差异 > 20% 时在 reason 标注人工复核
             if let Err(e) = self
-                .reconcile_suggestion_with_mrp(&mrp_svc, &mut suggestion)
+                .reconcile_suggestion_with_mrp(&mrp_svc, &mut suggestion, lead_time_days)
                 .await
             {
                 tracing::debug!("MRP 对账失败 product_id={}: {:?}", pid, e);
@@ -248,13 +269,16 @@ impl AiAnalysisService {
         &self,
         mrp_svc: &MrpEngineService,
         suggestion: &mut InventorySuggestion,
+        lead_time_days: i32,
     ) -> Result<(), AppError> {
-        // 入参：以 AI 建议的 reorder_quantity 作为 MRP required_quantity，需求日期=今日+7天（与 lead_time=7 对齐）
+        // 入参：以 AI 建议的 reorder_quantity 作为 MRP required_quantity，需求日期=今日+lead_time 天
+        // A.8 修复：lead_time 从物料主数据取（调用方传入），替代硬编码 7 天
         let required_qty = suggestion.reorder_quantity;
         if required_qty <= Decimal::ZERO {
             return Ok(());
         }
-        let required_date = chrono::Utc::now().date_naive() + Duration::days(7);
+        let lt_days = if lead_time_days > 0 { lead_time_days } else { 7 };
+        let required_date = chrono::Utc::now().date_naive() + Duration::days(lt_days as i64);
         let params = RequirementCalcParams {
             product_id: suggestion.product_id,
             required_quantity: required_qty,

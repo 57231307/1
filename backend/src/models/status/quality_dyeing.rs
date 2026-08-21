@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 //! 质量/染色状态常量分组
 //!
+//! A.18.3 状态大小写规范：质量/染色状态统一小写（pending/sampling/graded 等），
+//! 与 DB CHECK 约束一致。新增代码必须引用本模块常量，禁止字面量（A.19 逐步替换存量）。
 //! 批次 490 D10-3b 拆分：从 models/status.rs 抽取的质量/染色/验布/缸号生命周期状态常量子模块组。
 //! 包含：quality_standard/quality_handling/dye_recipe/lab_dip_request/lab_dip_sample/lab_dip_resample/production_recipe/production_recipe_addition/quality_feedback/fabric_inspection/fabric_scoring/fabric_grade/dye_batch_lifecycle_status/dye_batch_transition_code/dye_batch_rework_type/dye_batch_rework_status/dye_batch_operation_type
 
