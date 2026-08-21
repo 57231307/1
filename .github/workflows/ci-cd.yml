@@ -9,10 +9,14 @@
 # 工作流拓扑：
 #   ci-info → [ci-fmt-rust, ci-fmt-fe, ci-lint-rust, ci-lint-fe, ci-type-check,
 #              ci-test-rust, ci-test-fe, ci-audit, ci-deps, ci-perf-bench,
-#              ci-build-rust, ci-build-fe] → [package-release] → [github-release]
-#              → [ci-cleanup-retry]（收尾：失败时清理全部缓存并自动重跑全流程）
+#              ci-build-rust, ci-build-fe]
+#            → [ci-e2e（测试通过后跑端到端）, ci-dead-code-audit（Clippy 通过后跑）]
+#            → [package-release] → [github-release]
+#            → [ci-cleanup-retry]（收尾：汇总全部 job 结果）
 #
-# 注意：E2E 测试已独立到 .github/workflows/e2e-batch.yml（每 30 批次运行，不阻塞主 CI）
+# 发布门禁：package-release 依赖 ci-e2e + ci-dead-code-audit，main 全绿（含
+#   E2E + 死代码审计）后才允许发布成品包。E2E/死代码仅 main/master/tag push
+#   触发，PR push 不跑（靠其余检查把关，避免拖慢迭代）。
 # ==============================================================================
 
 name: CI/CD Pipeline - 严格构建验证 + 全面日志
@@ -2106,7 +2110,9 @@ jobs:
       ci-test-rust,
       ci-test-fe,
       ci-build-rust,
-      ci-build-fe
+      ci-build-fe,
+      ci-e2e,
+      ci-dead-code-audit
     ]
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -2359,7 +2365,273 @@ jobs:
           fi
 
 # ==============================================================================
-# Job 15: 收尾清理（仅报告，无自动重试）
+# Job 15: E2E 端到端测试（从 e2e-batch.yml 合并，main 全绿发布前必经）
+# ==============================================================================
+  ci-e2e:
+    name: 🎭 E2E 端到端测试
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    # 测试通过后跑 E2E；仅 main/master/tag push 触发（PR 不跑，避免拖慢迭代）
+    needs: [ci-test-rust, ci-build-fe]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: bingxi
+          POSTGRES_PASSWORD: bingxi_test
+          POSTGRES_DB: bingxi_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
+      JWT_SECRET: ci-e2e-jwt-secret-32bytes-do-not-use-in-prod-abc
+      COOKIE_SECRET: ci-e2e-cookie-secret-32bytes-do-not-use-in-prod-xyz
+      WEBHOOK_SECRET: ci-e2e-webhook-secret-32bytes-do-not-use-in-prod-q
+      AUDIT_SECRET_KEY: e2e-only-audit-signing-key-do-not-use-in-prod-32b
+      INIT_TOKEN: ci-e2e-init-token-for-seeding-only-32bytes!
+      TEST_USERNAME: e2e_admin
+      TEST_PASSWORD: E2e@TestPassword2026!
+      APP_ENV: development
+      ENV: development
+      KAFKA_ENABLED: "false"
+      ELASTICSEARCH_URL: ""
+      CACHE_ENABLED: "false"
+      SERVER__HOST: 127.0.0.1
+      SERVER__PORT: "8082"
+      DATABASE__HOST: localhost
+      DATABASE__PORT: "5432"
+      DATABASE__NAME: bingxi_test
+      DATABASE__USERNAME: bingxi
+      DATABASE__PASSWORD: bingxi_test
+      DATABASE__MAX_CONNECTIONS: "10"
+      LOG__LEVEL: info
+      LOG__DIR: /tmp/e2e-logs
+      SLOW_QUERY__ENABLED: "false"
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: Setup Rust（系统依赖含 postgresql-client）
+        uses: ./.github/actions/setup-rust
+        with:
+          system-deps: pkg-config libssl-dev postgresql-client protobuf-compiler
+          sccache: 'false'
+          # E2E 编译 server+bingxi 二进制，内存峰值高，用 7GB/单元
+          mem_per_unit_gb: '7'
+
+      - name: 编译后端（release）
+        working-directory: backend
+        run: |
+          cargo build --release --bin server --bin bingxi 2>&1 | tee /tmp/e2e-cargo-build.log
+          echo "后端编译完成（CARGO_BUILD_JOBS=${CARGO_BUILD_JOBS}）"
+
+      - name: 赋予后端二进制可执行权限
+        run: |
+          chmod +x backend/target/release/server
+          chmod +x backend/target/release/bingxi
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 缓存 npm
+        uses: actions/cache@v5
+        with:
+          path: |
+            frontend/node_modules
+            ~/.npm
+          key: e2e-npm-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: |
+            e2e-npm-
+
+      - name: 安装前端依赖
+        working-directory: frontend
+        run: npm ci --prefer-offline --no-audit
+
+      - name: 安装 Playwright 浏览器
+        working-directory: frontend
+        run: npx playwright install chromium
+
+      - name: 运行数据库迁移
+        working-directory: backend
+        run: |
+          ./target/release/bingxi migrate run
+
+      - name: 启动后端服务
+        working-directory: backend
+        run: |
+          mkdir -p /tmp/e2e-logs
+          ./target/release/server > /tmp/e2e-logs/backend.log 2>&1 &
+          BACKEND_PID=$!
+          echo "BACKEND_PID=$BACKEND_PID" > /tmp/e2e-logs/pid.env
+          for i in $(seq 1 60); do
+            if curl -s http://localhost:8082/health > /dev/null 2>&1; then
+              echo "后端就绪（第 ${i} 次尝试）"
+              break
+            fi
+            sleep 0.5
+          done
+          if ! curl -s http://localhost:8082/health > /dev/null 2>&1; then
+            echo "后端启动失败，日志："
+            cat /tmp/e2e-logs/backend.log
+            exit 1
+          fi
+
+      - name: 初始化系统（创建 E2E 测试管理员）
+        working-directory: backend
+        run: |
+          set +e
+          HTTP_CODE=$(curl -s -w "\n%{http_code}" -X POST http://localhost:8082/api/v1/erp/init/initialize \
+            -H "Content-Type: application/json" \
+            -H "X-Init-Token: ${INIT_TOKEN}" \
+            -H "X-Requested-With: XMLHttpRequest" \
+            -d "{\"admin_username\":\"${TEST_USERNAME}\",\"admin_password\":\"${TEST_PASSWORD}\"}")
+          RESPONSE_BODY=$(echo "$HTTP_CODE" | head -n -1)
+          STATUS_CODE=$(echo "$HTTP_CODE" | tail -n 1)
+          if echo "$RESPONSE_BODY" | grep -q '"code":200'; then exit 0; fi
+          if [ "$STATUS_CODE" = "400" ] && echo "$RESPONSE_BODY" | grep -q '"code":"BUSINESS_ERROR"'; then exit 0; fi
+          echo "初始化失败 HTTP $STATUS_CODE"; tail -n 50 /tmp/e2e-logs/backend.log; exit 1
+
+      - name: 运行 E2E 测试
+        working-directory: frontend
+        run: |
+          mkdir -p reports
+          set +e
+          npx playwright test --project=chromium 2>&1 | tee reports/playwright-output.txt
+          EXIT_CODE=$?
+          set -e
+          {
+            echo "# E2E 测试报告"; echo ""
+            if [ "$EXIT_CODE" -eq "0" ]; then echo "## ✅ 所有 E2E 测试通过"
+            else echo "## ❌ 部分 E2E 测试失败"; echo '```'; head -200 reports/playwright-output.txt; echo '```'
+            fi
+          } > reports/e2e-report.md
+          echo "$EXIT_CODE" > reports/e2e-exit-code.txt
+          exit $EXIT_CODE
+
+      - name: 收集后端日志
+        if: always()
+        run: |
+          if [ -f /tmp/e2e-logs/backend.log ]; then
+            mkdir -p frontend/reports
+            cp /tmp/e2e-logs/backend.log frontend/reports/backend.log
+          fi
+
+      - name: 上传 E2E 报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report-${{ github.run_id }}
+          path: |
+            frontend/playwright-report/
+            frontend/reports/e2e-report.md
+            frontend/reports/backend.log
+            frontend/test-results/
+          retention-days: 30
+
+# ==============================================================================
+# Job 16: 死代码全量审计（从 dead-code-audit.yml 合并，main 发布前必经）
+# ==============================================================================
+  ci-dead-code-audit:
+    name: 🧟 死代码审计
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Clippy 通过后跑（复用编译产物）；仅 main/master/tag push 触发
+    needs: ci-lint-rust
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: Setup Rust（clippy + 系统依赖）
+        uses: ./.github/actions/setup-rust
+        with:
+          components: clippy
+          system-deps: pkg-config libssl-dev protobuf-compiler
+
+      - name: 统计审计前 file-level allow 数
+        id: before
+        run: |
+          BEFORE=$(grep -rln '#!\[allow(dead_code)\]' backend/src 2>/dev/null | wc -l)
+          echo "before_count=$BEFORE" >> $GITHUB_OUTPUT
+          echo "审计前 file-level allow 数: $BEFORE"
+
+      - name: 备份源代码
+        run: cp -r backend/src /tmp/src-backup
+
+      - name: 剥离 file-level #![allow(dead_code)] 与 TODO 注释
+        run: |
+          find backend/src -name '*.rs' -exec sed -i \
+            -e '/^#!\[allow(dead_code)\]$/d' \
+            -e '/^\/\/ TODO(tech-debt):.*$/d' \
+            {} \;
+          REMAINING=$(grep -rln '#!\[allow(dead_code)\]' backend/src 2>/dev/null | wc -l)
+          echo "剥离后剩余 file-level allow: $REMAINING（应为 0）"
+
+      - name: 跑 cargo check 收集 dead_code 警告
+        id: check
+        working-directory: backend
+        run: |
+          set +e
+          cargo check --all-targets --message-format=short 2>&1 | \
+            tee /tmp/cargo-check-output.txt | \
+            grep -E 'warning.*dead_code|error.*dead_code' > /tmp/dead-code-warnings.txt || true
+          WARNING_COUNT=$(wc -l < /tmp/dead-code-warnings.txt 2>/dev/null || echo "0")
+          AFFECTED=$(grep -oE 'src/[^:]+\.rs' /tmp/dead-code-warnings.txt 2>/dev/null | sort -u | wc -l)
+          echo "warning_count=$WARNING_COUNT" >> $GITHUB_OUTPUT
+          echo "affected_files=$AFFECTED" >> $GITHUB_OUTPUT
+          echo "dead_code 警告数: $WARNING_COUNT，受影响文件: $AFFECTED"
+
+      - name: 恢复源代码
+        if: always()
+        run: rm -rf backend/src && cp -r /tmp/src-backup backend/src
+
+      - name: 生成审计报告
+        if: always()
+        run: |
+          {
+            echo "# 死代码审计报告"; echo ""
+            echo "| 指标 | 数值 |"; echo "|------|------|"
+            echo "| 审计前 file-level allow | ${{ steps.before.outputs.before_count }} |"
+            echo "| 剥离后 dead_code 警告 | ${{ steps.check.outputs.warning_count }} |"
+            echo "| 受影响文件 | ${{ steps.check.outputs.affected_files }} |"; echo ""
+            echo "## 按文件统计（前 30）"; echo ""
+            if [ -f /tmp/dead-code-warnings.txt ] && [ -s /tmp/dead-code-warnings.txt ]; then
+              echo "| 文件 | 警告数 |"; echo "|------|--------|"
+              grep -oE 'src/[^:]+\.rs' /tmp/dead-code-warnings.txt | sort | uniq -c | sort -rn | head -30 | \
+                awk '{printf "| `backend/%s` | %s |\n", $2, $1}'
+            else echo "无警告"
+            fi
+          } > /tmp/audit-report.md
+          cat /tmp/audit-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 上传审计报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dead-code-audit-${{ github.run_id }}
+          path: /tmp/audit-report.md
+          retention-days: 30
+        continue-on-error: true
+
+      - name: 阻塞判定（有 dead_code 警告则失败）
+        run: |
+          WC=${{ steps.check.outputs.warning_count }}
+          if [ "$WC" != "0" ] && [ -n "$WC" ]; then
+            echo "❌ 发现 $WC 处 dead_code，阻塞发布"
+            exit 1
+          fi
+          echo "✅ 无死代码"
+
+# ==============================================================================
+# Job 17: 收尾清理（仅报告，无自动重试）
 # ==============================================================================
   ci-cleanup-retry:
     name: 🧹 收尾清理
@@ -2380,6 +2652,8 @@ jobs:
       ci-perf-bench,
       ci-build-rust,
       ci-build-fe,
+      ci-e2e,
+      ci-dead-code-audit,
       package-release,
       github-release
     ]
@@ -2393,6 +2667,7 @@ jobs:
                    "${{ needs.ci-build-test-artifacts.result }}" "${{ needs.ci-test-rust.result }}" "${{ needs.ci-test-fe.result }}" \
                    "${{ needs.ci-audit.result }}" "${{ needs.ci-deps.result }}" "${{ needs.ci-perf-bench.result }}" \
                    "${{ needs.ci-build-rust.result }}" "${{ needs.ci-build-fe.result }}" \
+                   "${{ needs.ci-e2e.result }}" "${{ needs.ci-dead-code-audit.result }}" \
                    "${{ needs.package-release.result }}" "${{ needs.github-release.result }}"; do
             if [[ "$r" != "success" && "$r" != "skipped" ]]; then
               ALL_OK=0
