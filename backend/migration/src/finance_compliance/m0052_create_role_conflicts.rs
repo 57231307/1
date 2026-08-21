@@ -38,15 +38,17 @@ impl MigrationTrait for Migration {
                 CREATE INDEX idx_role_conflicts_b ON role_conflicts (role_b_code);
 
                 -- 预置财务三权分立互斥规则
+                -- 注意：chk_role_order 要求 role_a_code < role_b_code（字典序），
+                -- 交换顺序使 a<b 以满足约束（互斥语义与顺序无关，A-B 与 B-A 等价）
                 INSERT INTO role_conflicts (role_a_code, role_b_code, conflict_type, description) VALUES
                     ('accountant', 'finance_manager', 'sod', '财务制单与审核互斥'),
                     ('accountant', 'cashier', 'sod', '财务制单与出纳互斥'),
-                    ('finance_manager', 'cashier', 'sod', '财务审核与出纳互斥'),
+                    ('cashier', 'finance_manager', 'sod', '财务审核与出纳互斥'),
                     -- 采购与付款互斥
-                    ('purchase_manager', 'cashier', 'sod', '采购审批与付款互斥'),
-                    ('purchase_clerk', 'cashier', 'sod', '采购执行与付款互斥'),
+                    ('cashier', 'purchase_manager', 'sod', '采购审批与付款互斥'),
+                    ('cashier', 'purchase_clerk', 'sod', '采购执行与付款互斥'),
                     -- 销售与收款互斥
-                    ('sales_manager', 'cashier', 'sod', '销售审批与收款互斥'),
+                    ('cashier', 'sales_manager', 'sod', '销售审批与收款互斥'),
                     -- 生产与质量互斥
                     ('production_manager', 'qc_manager', 'sod', '生产与质量管理互斥'),
                     ('dyeing_master', 'quality_inspector', 'sod', '染色主管与质检员互斥')
