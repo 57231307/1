@@ -2370,9 +2370,9 @@ jobs:
   ci-e2e:
     name: 🎭 E2E 端到端测试
     runs-on: ubuntu-latest
-    timeout-minutes: 90
-    # 测试通过后跑 E2E；仅 main/master/tag push 触发（PR 不跑，避免拖慢迭代）
-    needs: [ci-test-rust, ci-build-fe]
+    timeout-minutes: 60
+    # 测试通过后跑 E2E；需 ci-build-rust 提供后端二进制(复用产物不重编)；仅 main/master/tag push 触发
+    needs: [ci-test-rust, ci-build-fe, ci-build-rust]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
     services:
       postgres:
@@ -2417,24 +2417,24 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v5
 
-      - name: Setup Rust（系统依赖含 postgresql-client）
-        uses: ./.github/actions/setup-rust
+      - name: 下载预编译后端二进制（复用 ci-build-rust 产物，不重编）
+        uses: actions/download-artifact@v4
         with:
-          system-deps: pkg-config libssl-dev postgresql-client protobuf-compiler
-          sccache: 'false'
-          # E2E 编译 server+bingxi 二进制，内存峰值高，用 7GB/单元
-          mem_per_unit_gb: '7'
-
-      - name: 编译后端（release）
-        working-directory: backend
-        run: |
-          cargo build --release --bin server --bin bingxi 2>&1 | tee /tmp/e2e-cargo-build.log
-          echo "后端编译完成（CARGO_BUILD_JOBS=${CARGO_BUILD_JOBS}）"
+          name: backend-binary
+          path: backend/target/release
 
       - name: 赋予后端二进制可执行权限
         run: |
           chmod +x backend/target/release/server
           chmod +x backend/target/release/bingxi
+          # 验证二进制可用
+          file backend/target/release/server | head -1
+          file backend/target/release/bingxi | head -1
+
+      - name: 安装 postgresql-client（迁移命令依赖）
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
 
       - name: 安装 Node.js
         uses: actions/setup-node@v4
