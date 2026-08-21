@@ -15,7 +15,6 @@ use axum::{
     extract::{Extension, Path, State},
 };
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 use std::sync::Arc;
 
 /// C-1 修复：处理器内部 admin 角色二次校验（防 `roles:read` 低权用户提权进入写处理器）。
@@ -35,7 +34,7 @@ async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), 
 
 /// 角色响应
 #[allow(dead_code, reason = "序列化输出字段")]
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize)]
 pub struct RoleResponse {
     pub id: i32,
     pub name: String,
@@ -48,7 +47,7 @@ pub struct RoleResponse {
 
 /// 角色详情响应（包含权限列表）
 #[allow(dead_code, reason = "序列化输出字段")]
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize)]
 pub struct RoleDetailResponse {
     pub id: i32,
     pub name: String,
@@ -62,7 +61,7 @@ pub struct RoleDetailResponse {
 
 /// 权限响应
 #[allow(dead_code, reason = "序列化输出字段")]
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize)]
 pub struct PermissionResponse {
     pub id: i32,
     pub resource_type: String,
@@ -73,7 +72,7 @@ pub struct PermissionResponse {
 
 /// 角色列表响应
 #[allow(dead_code, reason = "序列化输出字段")]
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize)]
 pub struct RoleListResponse {
     pub roles: Vec<RoleResponse>,
     pub total: u64,
@@ -109,8 +108,6 @@ pub struct AssignPermissionPayload {
 }
 
 /// 获取角色列表
-/// 获取角色列表
-#[utoipa::path(get, path = "/api/v1/erp/roles", responses((status = 200, description = "角色列表", body = RoleListResponse)), tags = ["Role"])]
 pub async fn list_roles(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -146,8 +143,6 @@ pub async fn list_roles(
 }
 
 /// 获取角色详情
-/// 获取单个角色详情
-#[utoipa::path(get, path = "/api/v1/erp/roles/{id}", responses((status = 200, description = "角色详情", body = RoleDetailResponse), (status = 404, description = "角色不存在")), tags = ["Role"])]
 pub async fn get_role(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -186,8 +181,6 @@ pub async fn get_role(
 }
 
 /// 创建角色
-/// 创建角色
-#[utoipa::path(post, path = "/api/v1/erp/roles", responses((status = 201, description = "创建成功", body = RoleResponse), (status = 400, description = "参数错误")), tags = ["Role"])]
 pub async fn create_role(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -262,8 +255,6 @@ pub async fn create_role(
 }
 
 /// 更新角色
-/// 更新角色
-#[utoipa::path(put, path = "/api/v1/erp/roles/{id}", responses((status = 200, description = "更新成功", body = RoleResponse), (status = 404, description = "角色不存在")), tags = ["Role"])]
 pub async fn update_role(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -371,8 +362,6 @@ fn build_role_detail_response(
 }
 
 /// 删除角色
-/// 删除角色
-#[utoipa::path(delete, path = "/api/v1/erp/roles/{id}", responses((status = 200, description = "删除成功"), (status = 404, description = "角色不存在")), tags = ["Role"])]
 pub async fn delete_role(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -541,8 +530,6 @@ pub async fn remove_permission(
 }
 
 /// 获取角色权限列表
-/// 获取单个角色详情
-#[utoipa::path(get, path = "/api/v1/erp/roles/{id}", responses((status = 200, description = "角色详情", body = RoleDetailResponse), (status = 404, description = "角色不存在")), tags = ["Role"])]
 pub async fn get_role_permissions(
     State(state): State<AppState>,
     _auth: AuthContext,
