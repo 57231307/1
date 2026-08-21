@@ -215,7 +215,10 @@ pub fn get_circuit_breaker_states() -> Vec<(String, &'static str, u32, u32)> {
                 CircuitState::Open => "open",
                 CircuitState::HalfOpen => "half_open",
             };
-            (k.clone(), state_str, e.total, e.failures)
+            // A.3 修复：从 window VecDeque 统计 total/failures（原字段已移除）
+            let total = e.window.len() as u32;
+            let failures = e.window.iter().filter(|(_, f)| *f).count() as u32;
+            (k.clone(), state_str, total, failures)
         })
         .collect()
 }
