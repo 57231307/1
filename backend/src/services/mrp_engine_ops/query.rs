@@ -92,6 +92,7 @@ impl MrpEngineService {
                     in_transit: Decimal::ZERO,
                     safety_stock: Decimal::ZERO,
                     available: Decimal::ZERO,
+                    lead_time_days: 7,
                 });
 
             let shortage = if result.required_quantity > stock_info.available {

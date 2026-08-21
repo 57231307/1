@@ -81,9 +81,8 @@ pub struct RequirementCalcParams {
     pub consider_safety_stock: bool,
     /// 是否考虑在途库存
     pub consider_in_transit: bool,
-    /// 已访问的产品 ID 路径（成环检测，A.2 修复）
-    /// 递归展开 BOM 时记录当前路径上的 product_id，若递归到已存在的 ID 则成环跳过。
-    pub visited_path: std::collections::HashSet<i32>,
+    /// BOM 层级（用于物料需求日期回推）
+    pub bom_level: i32,
 }
 
 /// BOM 递归展开参数对象
