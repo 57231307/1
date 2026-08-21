@@ -18,6 +18,7 @@ use axum::{
 };
 use axum_extra::extract::cookie::SameSite;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use time::Duration as CookieDuration;
 
 #[allow(dead_code, reason = "序列化输出字段")]
@@ -29,6 +30,16 @@ pub struct RefreshTokenResponse {
 
 // P3 7-17 修复：已删除 CsrfTokenResponse（仅被 get_csrf_token 使用，一并清理）
 
+/// 刷新访问令牌（refresh_token 轮换 + CSRF IP 绑定）
+#[utoipa::path(
+    post,
+    path = "/api/v1/erp/auth/refresh",
+    responses(
+        (status = 200, description = "刷新成功，返回新 access token"),
+        (status = 401, description = "refresh token 无效或已吊销")
+    ),
+    tags = ["Auth"]
+)]
 // Wave 3 安全漏洞 #7 修复：CSRF IP 绑定 + 强制轮换；P1 7-1 修复：refresh_token 轮换
 pub async fn refresh_token(
     State(state): State<AppState>,
@@ -242,13 +253,22 @@ fn build_refresh_cookies(
 }
 
 #[allow(dead_code, reason = "序列化输出字段")]
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct TotpSetupResponse {
     pub secret: String,
     pub qr_code: String,
 }
 
-/// 1. 获取 TOTP 绑定信息 (需登录)
+/// 获取 TOTP 绑定信息（生成密钥 + QR 码，需登录）
+#[utoipa::path(
+    get,
+    path = "/api/v1/erp/auth/totp/setup",
+    responses(
+        (status = 200, description = "TOTP 绑定信息", body = ApiResponse<TotpSetupResponse>),
+        (status = 401, description = "未授权")
+    ),
+    tags = ["Auth"]
+)]
 pub async fn setup_totp(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthContext>,
@@ -268,12 +288,23 @@ pub async fn setup_totp(
 }
 
 #[allow(dead_code, reason = "反序列化输入字段")]
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct TotpVerifyRequest {
     pub token: String,
 }
 
-/// 2. 验证并正式启用 TOTP (需登录)
+/// 验证并正式启用 TOTP（需登录，提交验证码确认）
+#[utoipa::path(
+    post,
+    path = "/api/v1/erp/auth/totp/enable",
+    request_body = TotpVerifyRequest,
+    responses(
+        (status = 200, description = "TOTP 启用成功"),
+        (status = 400, description = "验证码错误"),
+        (status = 401, description = "未授权")
+    ),
+    tags = ["Auth"]
+)]
 pub async fn enable_totp(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthContext>,
@@ -311,6 +342,15 @@ pub async fn generate_recovery_codes(
 }
 
 /// 获取当前登录用户信息
+#[utoipa::path(
+    get,
+    path = "/api/v1/erp/auth/me",
+    responses(
+        (status = 200, description = "当前用户信息", body = ApiResponse<UserInfo>),
+        (status = 401, description = "未授权")
+    ),
+    tags = ["Auth"]
+)]
 pub async fn get_current_user(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthContext>,
@@ -339,12 +379,23 @@ pub async fn get_current_user(
 
 /// P1-08-1：用户确认同意用户协议与隐私政策；记录同意时间到 users.agreed_to_terms_at，满足《个人信息保护法》第 14 条同意要求。
 #[allow(dead_code, reason = "反序列化输入字段")]
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct AgreeToTermsRequest {
     pub user_agreement_version: Option<String>,
     pub privacy_policy_version: Option<String>,
 }
 
+/// 用户确认同意用户协议与隐私政策（记录同意时间，满足《个人信息保护法》第 14 条）
+#[utoipa::path(
+    post,
+    path = "/api/v1/erp/auth/agree-terms",
+    request_body = AgreeToTermsRequest,
+    responses(
+        (status = 200, description = "同意记录成功"),
+        (status = 401, description = "未授权")
+    ),
+    tags = ["Auth"]
+)]
 pub async fn agree_to_terms(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthContext>,

@@ -2,6 +2,7 @@
 //!
 //! 应付管理统计报表服务层，负责各类统计报表的生成
 
+use crate::models::status::general::{common, payment};
 use crate::utils::error::AppError;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
@@ -66,7 +67,7 @@ impl ApReportService {
 
         // 规则 12 合规：全部参数使用 $N 参数化绑定
         let mut params: Vec<sea_orm::Value> =
-            vec![start_date.into(), end_date.into(), "CANCELLED".into()];
+            vec![start_date.into(), end_date.into(), common::STATUS_CANCELLED.into()];
         // supplier_id 为 Copy 类型，可直接 map 后 push
         let supplier_filter = supplier_id
             .map(|sid| {
@@ -133,7 +134,7 @@ impl ApReportService {
         use sea_orm::ConnectionTrait;
 
         let mut params: Vec<sea_orm::Value> =
-            vec![start_date.into(), end_date.into(), "CANCELLED".into()];
+            vec![start_date.into(), end_date.into(), common::STATUS_CANCELLED.into()];
         let supplier_filter = supplier_id
             .map(|sid| {
                 params.push(sid.into());
@@ -178,7 +179,7 @@ impl ApReportService {
         use sea_orm::ConnectionTrait;
 
         let mut params: Vec<sea_orm::Value> =
-            vec![start_date.into(), end_date.into(), "CANCELLED".into()];
+            vec![start_date.into(), end_date.into(), common::STATUS_CANCELLED.into()];
         let supplier_filter = supplier_id
             .map(|sid| {
                 params.push(sid.into());
@@ -417,7 +418,7 @@ impl ApReportService {
         label: &str,
     ) -> Result<Decimal, AppError> {
         use sea_orm::ConnectionTrait;
-        let mut params: Vec<sea_orm::Value> = vec!["CANCELLED".into(), boundary_date.into()];
+        let mut params: Vec<sea_orm::Value> = vec![common::STATUS_CANCELLED.into(), boundary_date.into()];
         let supplier_filter = supplier_id
             .map(|sid| {
                 params.push(sid.into());
@@ -480,7 +481,7 @@ impl ApReportService {
         use sea_orm::ConnectionTrait;
 
         // 规则 12 合规：全部参数使用 $N 参数化绑定
-        let mut params: Vec<sea_orm::Value> = vec![today.into(), "PAID".into(), "CANCELLED".into()];
+        let mut params: Vec<sea_orm::Value> = vec![today.into(), payment::PAYMENT_PAID.into(), common::STATUS_CANCELLED.into()];
         let supplier_filter = supplier_id
             .map(|sid| {
                 params.push(sid.into());
@@ -546,7 +547,7 @@ impl ApReportService {
     ) -> Result<AgingNotDueAggregate, AppError> {
         use sea_orm::ConnectionTrait;
 
-        let mut params: Vec<sea_orm::Value> = vec![today.into(), "PAID".into(), "CANCELLED".into()];
+        let mut params: Vec<sea_orm::Value> = vec![today.into(), payment::PAYMENT_PAID.into(), common::STATUS_CANCELLED.into()];
         let supplier_filter = supplier_id
             .map(|sid| {
                 params.push(sid.into());

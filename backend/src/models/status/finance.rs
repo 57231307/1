@@ -3,6 +3,9 @@
 //!
 //! 批次 490 D10-3b 拆分：从 models/status.rs 抽取的财务/应收应付/凭证/会计期间状态常量子模块组。
 //! 包含：ar/ap_invoice/ap_payment_request/voucher/accounting_period/finance_invoice/finance_payment/ap_reconciliation/ap_verification/fixed_asset/cost_collection/accounting_period_closing
+//!
+//! A.18.2 状态大小写规范：财务状态统一小写（draft/submitted/posted 等），
+//! 与 DB CHECK 约束一致。新增代码必须引用本模块常量，禁止字面量（A.19 逐步替换存量）。
 
 /// 应收账款专属状态常量（批次 231 统一小写：ar_collection pending/confirmed/cancelled、ar_reconciliation draft/sent/confirmed/disputed/closed/cancelled、ar_reconciliation_item MATCHED/UNMATCHED；ar_invoice 复用 common 与 payment 常量）
 pub mod ar {

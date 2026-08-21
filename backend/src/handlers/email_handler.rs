@@ -179,6 +179,13 @@ async fn check_email_rate_limit(state: &AppState, user_id: i32) -> Result<(), Ap
         .as_secs();
     let hour_bucket = now / 3600;
     let key = (user_id, hour_bucket);
+
+    // A.17 修复：惰性清理过期小时桶，防止 DashMap 无界增长。
+    // 移除所有 hour_bucket < 当前小时桶的条目（旧小时的计数器已无意义）。
+    state
+        .email_send_counters
+        .retain(|(_, hb), _| *hb >= hour_bucket);
+
     let counter = state
         .email_send_counters
         .entry(key)

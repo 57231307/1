@@ -4,6 +4,7 @@
 //! 包含自动核销、手工核销、取消核销等管理
 
 use crate::models::{ap_invoice, ap_payment, ap_verification, ap_verification_item};
+use crate::models::status::general::common;
 use crate::utils::error::AppError;
 // 批次 259 修复：接入 paginate_with_total 统一分页逻辑
 use crate::utils::pagination::paginate_with_total;
@@ -81,7 +82,7 @@ impl ApVerificationService {
     ) -> Result<Vec<ap_invoice::Model>, AppError> {
         Ok(ap_invoice::Entity::find()
             .filter(ap_invoice::Column::SupplierId.eq(supplier_id))
-            .filter(ap_invoice::Column::InvoiceStatus.ne("CANCELLED"))
+            .filter(ap_invoice::Column::InvoiceStatus.ne(common::STATUS_CANCELLED))
             .filter(ap_invoice::Column::UnpaidAmount.gt(Decimal::ZERO))
             .order_by(ap_invoice::Column::DueDate, Order::Asc)
             .all(txn)
@@ -132,6 +133,10 @@ impl ApVerificationService {
     ) -> (Vec<ApVerificationItemDto>, Decimal) {
         let mut verification_items = Vec::new();
         let mut total_amount = Decimal::ZERO;
+        // A.22 修复：按到期日升序排序后再核销（先清最早到期的发票，符合财务最佳实践）
+        // 原按 invoices.iter() 迭代顺序（DB 返回的 id 顺序）核销，未考虑账期优先级
+        let mut sorted_invoices: Vec<&ap_invoice::Model> = invoices.iter().collect();
+        sorted_invoices.sort_by_key(|inv| inv.due_date);
         let mut invoice_remaining: std::collections::HashMap<i32, Decimal> = invoices
             .iter()
             .map(|inv| (inv.id, inv.unpaid_amount))
@@ -146,7 +151,7 @@ impl ApVerificationService {
                 continue;
             }
 
-            for invoice in invoices.iter() {
+            for invoice in &sorted_invoices {
                 if remaining <= Decimal::ZERO {
                     break;
                 }
@@ -192,7 +197,7 @@ impl ApVerificationService {
             supplier_id: Set(supplier_id),
             verification_type: Set("AUTO".to_string()),
             total_amount: Set(total_amount),
-            verification_status: Set("COMPLETED".to_string()),
+            verification_status: Set(common::STATUS_COMPLETED.to_string()),
             created_by: Set(user_id),
             ..Default::default()
         }
@@ -265,7 +270,7 @@ impl ApVerificationService {
         invoice.unpaid_amount = invoice.amount - invoice.paid_amount;
 
         if invoice.unpaid_amount <= Decimal::ZERO {
-            invoice.invoice_status = "PAID".to_string();
+            invoice.invoice_status = crate::models::status::general::payment::PAYMENT_PAID.to_string();
         } else {
             invoice.invoice_status = "PARTIAL_PAID".to_string();
         }
@@ -394,7 +399,7 @@ impl ApVerificationService {
             invoice.unpaid_amount = invoice.amount - invoice.paid_amount;
 
             if invoice.unpaid_amount <= Decimal::ZERO {
-                invoice.invoice_status = "PAID".to_string();
+                invoice.invoice_status = crate::models::status::general::payment::PAYMENT_PAID.to_string();
             } else {
                 invoice.invoice_status = "PARTIAL_PAID".to_string();
             }
@@ -440,7 +445,7 @@ impl ApVerificationService {
             supplier_id: Set(req.supplier_id),
             verification_type: Set("MANUAL".to_string()),
             total_amount: Set(total_amount),
-            verification_status: Set("COMPLETED".to_string()),
+            verification_status: Set(common::STATUS_COMPLETED.to_string()),
             notes: Set(req.notes),
             created_by: Set(user_id),
             ..Default::default()
@@ -486,7 +491,7 @@ impl ApVerificationService {
             .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("核销单 ID: {}", id)))?;
-        if verification.verification_status == "CANCELLED" {
+        if verification.verification_status == common::STATUS_CANCELLED {
             return Err(AppError::business("核销单已取消"));
         }
         Ok(verification)
@@ -540,7 +545,7 @@ impl ApVerificationService {
             invoice.unpaid_amount = invoice.amount - invoice.paid_amount;
             // 取消核销后状态恢复：paid_amount>=amount→PAID，0<paid_amount<amount→PARTIAL_PAID，否则→AUDITED
             if invoice.paid_amount >= invoice.amount {
-                invoice.invoice_status = "PAID".to_string();
+                invoice.invoice_status = crate::models::status::general::payment::PAYMENT_PAID.to_string();
             } else if invoice.paid_amount > Decimal::ZERO {
                 invoice.invoice_status = "PARTIAL_PAID".to_string();
             } else {
@@ -567,7 +572,7 @@ impl ApVerificationService {
     ) -> Result<ap_verification::Model, AppError> {
         let now = Utc::now();
         let mut verification_active: ap_verification::ActiveModel = verification.into();
-        verification_active.verification_status = Set("CANCELLED".to_string());
+        verification_active.verification_status = Set(common::STATUS_CANCELLED.to_string());
         verification_active.cancelled_by = Set(Some(user_id));
         verification_active.cancelled_at = Set(Some(now));
         verification_active.cancelled_reason = Set(Some(reason));
@@ -632,7 +637,7 @@ impl ApVerificationService {
     ) -> Result<Vec<ap_invoice::Model>, AppError> {
         let invoices = ap_invoice::Entity::find()
             .filter(ap_invoice::Column::SupplierId.eq(supplier_id))
-            .filter(ap_invoice::Column::InvoiceStatus.ne("CANCELLED"))
+            .filter(ap_invoice::Column::InvoiceStatus.ne(common::STATUS_CANCELLED))
             .filter(ap_invoice::Column::UnpaidAmount.gt(Decimal::ZERO))
             .order_by(ap_invoice::Column::DueDate, Order::Asc)
             .all(&*self.db)

@@ -59,6 +59,8 @@ pub struct StockInfo {
     pub in_transit: Decimal,
     pub safety_stock: Decimal,
     pub available: Decimal,
+    /// 物料提前期（天），来自 product.lead_time，A.4 修复：替代硬编码 7 天
+    pub lead_time_days: i32,
 }
 
 /// 物料需求计算参数对象
@@ -79,7 +81,7 @@ pub struct RequirementCalcParams {
     pub consider_safety_stock: bool,
     /// 是否考虑在途库存
     pub consider_in_transit: bool,
-    /// BOM 层级（顶层为 0）
+    /// BOM 层级（用于物料需求日期回推）
     pub bom_level: i32,
 }
 
@@ -105,6 +107,8 @@ pub struct ExplodeBomArgs<'a> {
     pub consider_safety_stock: bool,
     /// 是否考虑在途库存
     pub consider_in_transit: bool,
+    /// 已访问的产品 ID 路径（成环检测，A.2 修复）
+    pub visited_path: std::collections::HashSet<i32>,
 }
 
 /// BOM 展开查询参数（公开接口层，owned 版本）

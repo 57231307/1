@@ -161,6 +161,7 @@ impl MrpEngineService {
                     in_transit: Decimal::ZERO,
                     safety_stock: Decimal::ZERO,
                     available: Decimal::ZERO,
+                    lead_time_days: 7,
                 });
             let requirement = self.calculate_requirement_with_stock(
                 RequirementCalcParams {

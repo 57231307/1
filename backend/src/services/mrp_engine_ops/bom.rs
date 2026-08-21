@@ -44,9 +44,15 @@ impl MrpEngineService {
         base_quantity
     }
 
-    /// 计算物料需求日期（每层7天提前期）
-    fn calculate_material_date(required_date: NaiveDate, current_level: i32) -> NaiveDate {
-        required_date - Duration::days(7 * current_level as i64)
+    /// 计算物料需求日期（按物料主数据 lead_time × BOM 层级回推）
+    /// A.4 修复：原硬编码 7 天/层，改为从物料主数据读 lead_time（默认 7 兜底）
+    fn calculate_material_date(
+        required_date: NaiveDate,
+        current_level: i32,
+        lead_time_days: i32,
+    ) -> NaiveDate {
+        let lt = if lead_time_days > 0 { lead_time_days } else { 7 };
+        required_date - Duration::days((lt * current_level) as i64)
     }
 
     /// 处理单个BOM明细项：计算数量、日期、库存并生成物料需求
@@ -63,12 +69,16 @@ impl MrpEngineService {
         let base_quantity = (args.parent_quantity * item.quantity).round_dp(4);
         let quantity_with_scrap =
             Self::calculate_quantity_with_scrap(base_quantity, item.scrap_rate);
-        let material_date = Self::calculate_material_date(args.required_date, args.current_level);
-
         // v16 批次 43 修复：使用缓存查询库存，避免递归中重复查询
         let stock_info = self
             .get_stock_info_cached(item.material_id, stock_cache)
             .await?;
+        // A.4 修复：用物料主数据 lead_time 替代硬编码 7 天
+        let material_date = Self::calculate_material_date(
+            args.required_date,
+            args.current_level,
+            stock_info.lead_time_days,
+        );
         let requirement = self.calculate_requirement_with_stock(
             RequirementCalcParams {
                 product_id: item.material_id,
@@ -102,6 +112,17 @@ impl MrpEngineService {
             return Ok(());
         }
 
+        // A.2 修复：成环检测——若当前 product_id 已在递归路径上，说明 BOM 存在循环
+        // （A→B→A），跳过此分支避免无限递归白跑 max_level 层且结果虚增。
+        if args.visited_path.contains(&args.product_id) {
+            tracing::warn!(
+                product_id = args.product_id,
+                level = args.current_level,
+                "BOM 递归检测到环，跳过此分支（product_id 已在路径上）"
+            );
+            return Ok(());
+        }
+
         let bom = match self.get_default_bom(args.product_id).await? {
             Some(bom) => bom,
             None => return Ok(()),
@@ -111,6 +132,10 @@ impl MrpEngineService {
             .filter(crate::models::bom_item::Column::BomId.eq(bom.id))
             .all(&*self.db)
             .await?;
+
+        // 将当前 product_id 加入路径，传递给子递归
+        let mut child_path = args.visited_path.clone();
+        child_path.insert(args.product_id);
 
         for item in bom_items {
             let material_id = item.material_id;
@@ -133,6 +158,7 @@ impl MrpEngineService {
                     max_level: args.max_level,
                     consider_safety_stock: args.consider_safety_stock,
                     consider_in_transit: args.consider_in_transit,
+                    visited_path: child_path.clone(),
                 },
                 results,
                 stock_cache,
@@ -167,6 +193,7 @@ impl MrpEngineService {
                 max_level: 10,
                 consider_safety_stock: query.consider_safety_stock,
                 consider_in_transit: query.consider_in_transit,
+                visited_path: std::collections::HashSet::new(),
             },
             &mut requirements,
             &mut stock_cache,

@@ -3,6 +3,7 @@ use crate::models::quality_inspection_record;
 use crate::models::unqualified_product;
 // 批次 212 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
+use crate::models::status::quality_dyeing::quality_handling;
 use crate::utils::error::AppError;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
@@ -420,7 +421,7 @@ impl QualityInspectionService {
             unqualified_qty: Set(req.unqualified_qty),
             unqualified_reason: Set(req.unqualified_reason),
             handling_method: Set(req.handling_method.clone()),
-            handling_status: Set("pending".to_string()),
+            handling_status: Set(quality_handling::PENDING.to_string()),
             handling_by: Set(None),
             handling_at: Set(None),
             remark: Set(req.remark),
@@ -514,7 +515,7 @@ impl QualityInspectionService {
         //    取最新一条（按 effective_date 倒序）
         let standard_price = PriceEntity::find()
             .filter(price_model::Column::ProductId.eq(product_id))
-            .filter(price_model::Column::Status.eq("approved"))
+            .filter(price_model::Column::Status.eq(master_data::APPROVED))
             .filter(
                 price_model::Column::PriceLevel
                     .eq(STANDARD_PRICE_LEVEL_A)
@@ -540,7 +541,7 @@ impl QualityInspectionService {
         let existing_b = PriceEntity::find()
             .filter(price_model::Column::ProductId.eq(product_id))
             .filter(price_model::Column::PriceLevel.eq(DOWNGRADE_PRICE_LEVEL_B))
-            .filter(price_model::Column::Status.eq("approved"))
+            .filter(price_model::Column::Status.eq(master_data::APPROVED))
             .one(&*self.db)
             .await?;
 
@@ -574,7 +575,7 @@ impl QualityInspectionService {
                 effective_date: Set(standard.effective_date),
                 expiry_date: Set(standard.expiry_date),
                 // 二等品价直接 approved（由降级流程触发，避免重复审批延误销售）
-                status: Set("approved".to_string()),
+                status: Set(master_data::APPROVED.to_string()),
                 approved_by: Set(None),
                 approved_at: Set(Some(now)),
                 created_by: Set(None),
@@ -623,7 +624,7 @@ impl QualityInspectionService {
         } else {
             active.scrap_approval_status = Set(unqualified_product::SCRAP_REJECTED.to_string());
             active.approver_id_fin = Set(Some(approver_id));
-            active.handling_status = Set("rejected".to_string());
+            active.handling_status = Set(quality_handling::REJECTED.to_string());
         }
         active.updated_at = Set(chrono::Utc::now());
         let updated = active.update(&*self.db).await?;
@@ -660,7 +661,7 @@ impl QualityInspectionService {
             active.scrap_approval_status = Set(unqualified_product::SCRAP_APPROVED.to_string());
             active.approver_id_gm = Set(Some(approver_id));
             active.approved_at_gm = Set(Some(chrono::Utc::now()));
-            active.handling_status = Set("approved".to_string());
+            active.handling_status = Set(quality_handling::APPROVED.to_string());
             // 总经理审批通过后写入报废损失金额（后续成本核算使用）
             if let Some(amount) = scrap_loss_amount {
                 active.scrap_loss_amount = Set(Some(amount));
@@ -668,7 +669,7 @@ impl QualityInspectionService {
         } else {
             active.scrap_approval_status = Set(unqualified_product::SCRAP_REJECTED.to_string());
             active.approver_id_gm = Set(Some(approver_id));
-            active.handling_status = Set("rejected".to_string());
+            active.handling_status = Set(quality_handling::REJECTED.to_string());
         }
         active.updated_at = Set(chrono::Utc::now());
         let updated = active.update(&*self.db).await?;

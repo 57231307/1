@@ -1,6 +1,6 @@
 use crate::models::quality_standard;
-// 批次 212 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
+use crate::models::status::quality_dyeing::quality_standard as qs_status;
 use crate::utils::error::AppError;
 use chrono::NaiveDate;
 use sea_orm::{
@@ -118,7 +118,7 @@ impl QualityStandardService {
             standard_type: Set(req.standard_type.unwrap_or_else(|| "general".to_string())),
             version: Set(req.version.unwrap_or_else(|| "1.0".to_string())),
             content: Set(req.content.unwrap_or_default()),
-            status: Set("draft".to_string()),
+            status: Set(qs_status::DRAFT.to_string()),
             effective_date: Set(req
                 .effective_date
                 .unwrap_or_else(|| chrono::Utc::now().date_naive())),
@@ -226,7 +226,7 @@ impl QualityStandardService {
             technical_requirements: Set(old_standard.technical_requirements),
             testing_methods: Set(old_standard.testing_methods),
             acceptance_criteria: Set(old_standard.acceptance_criteria),
-            status: Set("draft".to_string()),
+            status: Set(qs_status::DRAFT.to_string()),
             effective_date: Set(chrono::Local::now().date_naive()),
             expiry_date: Set(None),
             ..Default::default()
@@ -255,12 +255,12 @@ impl QualityStandardService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("质量标准不存在：{}", standard_id)))?;
 
-        if standard.status != "draft" && standard.status != "rejected" {
+        if standard.status != qs_status::DRAFT && standard.status != qs_status::REJECTED {
             return Err(AppError::validation("质量标准状态不允许审批".to_string()));
         }
 
         let mut standard_active: quality_standard::ActiveModel = standard.into();
-        standard_active.status = Set("approved".to_string());
+        standard_active.status = Set(qs_status::APPROVED.to_string());
         crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "auto_audit",
@@ -292,12 +292,12 @@ impl QualityStandardService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("质量标准不存在：{}", standard_id)))?;
 
-        if standard.status != "draft" && standard.status != "approved" {
+        if standard.status != qs_status::DRAFT && standard.status != qs_status::APPROVED {
             return Err(AppError::validation("质量标准状态不允许驳回".to_string()));
         }
 
         let mut standard_active: quality_standard::ActiveModel = standard.into();
-        standard_active.status = Set("rejected".to_string());
+        standard_active.status = Set(qs_status::REJECTED.to_string());
         crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "auto_audit",
@@ -325,7 +325,7 @@ impl QualityStandardService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("质量标准不存在：{}", standard_id)))?;
 
-        if standard.status != "approved" {
+        if standard.status != qs_status::APPROVED {
             return Err(AppError::validation("质量标准未审批，无法发布".to_string()));
         }
 

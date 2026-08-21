@@ -4,8 +4,8 @@
 //! 拆分自原 `purchase_order_service.rs`。
 
 use crate::models::{product, purchase_order, purchase_order_item, supplier, warehouse};
-// 批次 211 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
+use crate::models::status::purchase_inventory::purchase_order as po_status;
 use crate::utils::error::AppError;
 use chrono::Utc;
 use rust_decimal::Decimal;
@@ -158,7 +158,7 @@ impl PurchaseOrderService {
             purchaser_id: Set(crate::constants::DEFAULT_PURCHASER_ID),
             currency: Set(crate::constants::DEFAULT_CURRENCY.to_string()),
             exchange_rate: Set(Decimal::new(1, 0)),
-            order_status: Set("DRAFT".to_string()),
+            order_status: Set(po_status::DRAFT.to_string()),
             notes: Set(Some(format!(
                 "缺料预警自动生成 | 物料: {} ({}) | 需求量: {} | 可用量: {} | 缺口: {} | 级别: {} | 受影响订单: {}",
                 params.material_name,
@@ -259,7 +259,7 @@ impl PurchaseOrderService {
             purchaser_id: Set(crate::constants::DEFAULT_PURCHASER_ID),
             currency: Set(crate::constants::DEFAULT_CURRENCY.to_string()),
             exchange_rate: Set(Decimal::new(1, 0)),
-            order_status: Set("DRAFT".to_string()),
+            order_status: Set(po_status::DRAFT.to_string()),
             notes: Set(Some(format!(
                 "库存预警自动生成，当前库存: {}, 补货点: {}, 建议补货量: {}",
                 current_quantity, reorder_point, reorder_quantity

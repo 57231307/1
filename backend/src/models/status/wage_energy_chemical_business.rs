@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 //! 工资/能耗/染化料/委外/业务模式状态常量分组
 //!
+//! A.18.3 状态大小写规范：本组状态统一小写（draft/active/confirmed 等），
+//! 与 DB CHECK 约束一致。新增代码必须引用本模块常量，禁止字面量（A.19 逐步替换存量）。
 //! 批次 490 D10-3b 拆分：从 models/status.rs 抽取的工资/能耗/染化料/委外/业务模式状态常量子模块组。
 //! 包含：wage_rate_status/wage_type/wage_record_status/energy_type/energy_meter_status/energy_recording_method/energy_allocation_basis/energy_record_status/energy_rule_status/color_card/chemical_type/chemical_status/chemical_inspection_status/chemical_lot_status/chemical_requisition_type/chemical_requisition_status/outsourcing_order_type/outsourcing_order_status/outsourcing_loss_type/outsourcing_receipt_status/outsourcing_voucher_type/business_mode_code/business_material_source/business_settlement_method/business_rule_type
 

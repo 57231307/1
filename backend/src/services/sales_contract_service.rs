@@ -102,7 +102,7 @@ impl SalesContractService {
             contract_type: Set(req.contract_type),
             customer_id: Set(req.customer_id),
             total_amount: Set(Some(req.total_amount)),
-            status: Set("draft".to_string()),
+            status: Set(contract::DRAFT.to_string()),
             payment_terms: Set(req.payment_terms),
             delivery_date: Set(Some(req.delivery_date)),
             stamp_tax_amount: Set(stamp_tax),

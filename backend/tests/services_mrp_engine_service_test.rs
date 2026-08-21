@@ -42,6 +42,7 @@ fn make_stock_info(
         in_transit: in_transit_qty,
         safety_stock: safety_stock_qty,
         available,
+        lead_time_days: 7,
     }
 }
 

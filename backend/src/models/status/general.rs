@@ -47,6 +47,12 @@ pub mod master_data {
 
     /// 停用：主数据不可用状态
     pub const INACTIVE: &str = "inactive";
+
+    /// 待审批：主数据待审批状态（价格审批等，A.19 补充）
+    pub const PENDING: &str = "pending";
+
+    /// 已审批：主数据已审批状态（价格审批等，A.19 补充）
+    pub const APPROVED: &str = "approved";
 }
 
 /// 导入任务状态（import_task.status，小写值）

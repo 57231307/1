@@ -162,6 +162,16 @@ fn clear_auth_cookies(
         .add(build_removal_cookie("jwt", true, is_production))
 }
 
+/// 注销当前会话（清除 refresh token cookie + JTI 吊销）
+#[utoipa::path(
+    post,
+    path = "/api/v1/erp/auth/logout",
+    responses(
+        (status = 200, description = "注销成功"),
+        (status = 401, description = "未授权")
+    ),
+    tags = ["Auth"]
+)]
 pub async fn logout(
     State(state): State<AppState>,
     audit_ctx: Option<Extension<AuditContext>>,

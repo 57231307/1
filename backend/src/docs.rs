@@ -8,7 +8,9 @@
 //! - 本文件恢复 ApiDoc，注册当前已添加 `#[utoipa::path]` 注解的 handler
 //! - 文档覆盖率按模块增量补全（每模块补注解时同步在此注册），不作为技术债挂起；
 //!   B02-P2-4 评估：为 100+ handler 补注解属持续性文档增强，按模块迭代推进而非独立修复项。
-//!   当前覆盖率：2/115 handlers（auth/login + health/health_check）
+//!   当前覆盖率：14/115 handlers（auth 8 + user 5 + health 1，~12%）
+//!   其余域（role/inventory/sales/purchase/finance/production/crm）已加 utoipa::path 注解，
+//!   待各 struct 加 ToSchema derive 后注册到 paths。
 
 use utoipa::OpenApi;
 
@@ -16,10 +18,22 @@ use utoipa::OpenApi;
 #[derive(OpenApi)]
 #[openapi(
     paths(
-        // 认证相关（已添加 utoipa::path 注解）
+        // 认证相关（A.25.1 auth 域补全，struct 已加 ToSchema）
         crate::handlers::auth_handler::login,
-        // 健康检查（已添加 utoipa::path 注解）
+        crate::handlers::auth_handler_session::logout,
+        crate::handlers::auth_handler_misc::refresh_token,
+        crate::handlers::auth_handler_misc::setup_totp,
+        crate::handlers::auth_handler_misc::enable_totp,
+        crate::handlers::auth_handler_misc::get_current_user,
+        crate::handlers::auth_handler_misc::agree_to_terms,
+        // 健康检查
         crate::handlers::health_handler::health_check,
+        // 用户管理（A.25.2，struct 已加 ToSchema）
+        crate::handlers::user_handler::get_user,
+        crate::handlers::user_handler::create_user,
+        crate::handlers::user_handler::list_users,
+        crate::handlers::user_handler::update_user,
+        crate::handlers::user_handler::delete_user,
     ),
     components(
         schemas(
@@ -27,6 +41,9 @@ use utoipa::OpenApi;
             crate::handlers::auth_handler::LoginRequest,
             crate::handlers::auth_handler::LoginResponse,
             crate::handlers::auth_handler::UserInfo,
+            crate::handlers::auth_handler_misc::TotpSetupResponse,
+            crate::handlers::auth_handler_misc::TotpVerifyRequest,
+            crate::handlers::auth_handler_misc::AgreeToTermsRequest,
             // 健康检查
             crate::handlers::health_handler::HealthStatus,
             // 通用响应
@@ -35,6 +52,7 @@ use utoipa::OpenApi;
     ),
     tags(
         (name = "Auth", description = "用户认证和授权"),
+        (name = "User", description = "用户管理"),
         (name = "health", description = "健康检查与服务状态")
     ),
     info(

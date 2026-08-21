@@ -23,6 +23,7 @@ use axum::{
 };
 use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use std::sync::Arc;
 use validator::{Validate, ValidationError};
 
@@ -71,7 +72,7 @@ fn validate_password_strength(password: &str) -> Result<(), ValidationError> {
 }
 
 #[allow(dead_code, reason = "反序列化输入字段")]
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct CreateUserRequest {
     #[validate(length(min = 3, max = 50, message = "用户名长度必须在3-50之间"))]
     pub username: String,
@@ -86,7 +87,7 @@ pub struct CreateUserRequest {
 }
 
 #[allow(dead_code, reason = "反序列化输入字段")]
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct UpdateUserRequest {
     #[validate(email(message = "邮箱格式不正确"))]
     pub email: Option<String>,
@@ -98,7 +99,7 @@ pub struct UpdateUserRequest {
 }
 
 #[allow(dead_code, reason = "序列化输出字段")]
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct UserResponse {
     pub id: i32,
     pub username: String,
@@ -126,7 +127,7 @@ impl From<user::Model> for UserResponse {
 }
 
 #[allow(dead_code, reason = "序列化输出字段")]
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct UserListResponse {
     pub users: Vec<UserResponse>,
     pub total: u64,
@@ -135,11 +136,13 @@ pub struct UserListResponse {
 }
 
 #[allow(dead_code, reason = "序列化输出字段")]
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct DeleteUserResponse {
     pub success: bool,
 }
 
+/// 获取单个用户详情
+#[utoipa::path(get, path = "/api/v1/erp/users/{id}", responses((status = 200, description = "用户详情", body = UserResponse), (status = 404, description = "用户不存在")), tags = ["User"])]
 pub async fn get_user(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -181,6 +184,8 @@ pub async fn get_current_user_profile(
     Ok(Json(ApiResponse::success(user.into())))
 }
 
+/// 创建用户
+#[utoipa::path(post, path = "/api/v1/erp/users", request_body = CreateUserRequest, responses((status = 201, description = "创建成功", body = UserResponse), (status = 400, description = "参数错误")), tags = ["User"])]
 pub async fn create_user(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -240,6 +245,8 @@ pub async fn create_user(
     Ok(Json(ApiResponse::success(user.into())))
 }
 
+/// 获取用户列表（分页）
+#[utoipa::path(get, path = "/api/v1/erp/users", responses((status = 200, description = "用户列表", body = UserListResponse)), tags = ["User"])]
 pub async fn list_users(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -293,6 +300,8 @@ pub struct ListUsersParams {
 use axum::extract::Query;
 
 /// 更新用户信息
+/// 更新用户信息
+#[utoipa::path(put, path = "/api/v1/erp/users/{id}", request_body = UpdateUserRequest, responses((status = 200, description = "更新成功", body = UserResponse), (status = 404, description = "用户不存在")), tags = ["User"])]
 pub async fn update_user(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -422,6 +431,8 @@ fn build_update_audit_event(
 }
 
 /// 删除用户（软删除）
+/// 删除用户（软删除）
+#[utoipa::path(delete, path = "/api/v1/erp/users/{id}", responses((status = 200, description = "删除成功", body = DeleteUserResponse), (status = 404, description = "用户不存在")), tags = ["User"])]
 pub async fn delete_user(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -562,7 +573,7 @@ async fn log_user_deleted_security_event(auth: &AuthContext, existing_user: &use
 
 /// 修改密码请求
 #[allow(dead_code, reason = "反序列化输入字段")]
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct ChangePasswordRequest {
     #[validate(length(min = 1, message = "原密码不能为空"))]
     pub old_password: String,
@@ -572,7 +583,7 @@ pub struct ChangePasswordRequest {
 
 /// 修改密码响应
 #[allow(dead_code, reason = "序列化输出字段")]
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct ChangePasswordResponse {
     pub success: bool,
     pub message: String,
