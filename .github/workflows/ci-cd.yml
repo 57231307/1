@@ -418,9 +418,7 @@ jobs:
       - name: 运行 clippy（baseline 机制）
         working-directory: backend
         # baseline 机制：仅 clippy 使用，test 保持零容忍；仅"新增警告"阻塞 CI
-        env:
-          CARGO_BUILD_JOBS: "2"
-          CARGO_JOBS: "2"
+        # 并行度由 setup-rust 智能探测写入 GITHUB_ENV（防 OOM，用满最大上限）
         run: |
           mkdir -p reports
           set +e
@@ -1179,7 +1177,7 @@ jobs:
   ci-build-test-artifacts:
     name: 📦 Rust 测试预编译
     runs-on: ubuntu-latest
-    # 预编译 job：禁用 sccache（冷缓存无加速）+ 单线程编译（SIGTERM 143 内存缘由）
+    # 预编译 job：禁用 sccache（冷缓存无加速）+ 并行度由 setup-rust 智能探测（防 OOM，用满最大上限）
     timeout-minutes: 90
     needs: ci-info
     services:
@@ -1199,8 +1197,7 @@ jobs:
     env:
       DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
       AUDIT_SECRET_KEY: ci-only-audit-signing-key-do-not-use-in-prod-32b
-      CARGO_BUILD_JOBS: "1"
-      CARGO_JOBS: "1"
+      # CARGO_BUILD_JOBS/CARGO_JOBS 由 setup-rust action 智能探测写入 GITHUB_ENV（防 OOM，不硬编码）
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
@@ -1210,6 +1207,9 @@ jobs:
         with:
           system-deps: pkg-config libssl-dev postgresql-client protobuf-compiler
           sccache: 'false'
+          # 测试二进制编译峰值高于普通构建：16GB runner 7GB/单元→1路(安全)，
+          # 32GB+ runner 自适应→2路+。避免 2 路 OOM(exit 143 实测)
+          mem_per_unit_gb: '7'
 
       - name: 安装 cargo-nextest
         uses: taiki-e/install-action@v2
@@ -1243,7 +1243,9 @@ jobs:
     needs: ci-build-test-artifacts
     strategy:
       fail-fast: false
-      max-parallel: 4
+      # 智能并行：GitHub 免费 runner 单 repo 并发上限 20，30 个分区用 max-parallel 20 一轮跑完大半
+      # （每分区 job 是独立 runner，互不抢内存，并行度只受 GitHub 配额限制）
+      max-parallel: 20
       matrix:
         # nextest --partition hash:m/n 要求 1 ≤ m ≤ n
         partition: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]
@@ -1265,8 +1267,7 @@ jobs:
     env:
       DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
       AUDIT_SECRET_KEY: ci-only-audit-signing-key-do-not-use-in-prod-32b
-      CARGO_BUILD_JOBS: "2"
-      CARGO_JOBS: "2"
+      # CARGO_BUILD_JOBS/CARGO_JOBS 由 setup-rust 智能探测写入 GITHUB_ENV（防 OOM，用满最大上限）
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
@@ -1405,8 +1406,7 @@ jobs:
     env:
       DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
       AUDIT_SECRET_KEY: ci-only-audit-signing-key-do-not-use-in-prod-32b
-      CARGO_BUILD_JOBS: "1"
-      CARGO_JOBS: "1"
+      # CARGO_BUILD_JOBS/CARGO_JOBS 由 setup-rust 智能探测写入 GITHUB_ENV（防 OOM，用满最大上限）
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
@@ -1417,6 +1417,8 @@ jobs:
           components: llvm-tools-preview
           system-deps: pkg-config libssl-dev postgresql-client protobuf-compiler
           sccache: 'false'
+          # 覆盖率跑 cargo llvm-cov nextest 重编译+插桩，内存峰值高，用 7GB/单元（16GB→1 安全）
+          mem_per_unit_gb: '7'
 
       - name: 安装 cargo-llvm-cov 与 cargo-nextest
         uses: taiki-e/install-action@v2
@@ -1938,9 +1940,9 @@ jobs:
         run: |
           mkdir -p reports
           echo "🔨 开始构建后端（详细日志输出到 reports/cargo-build.log）"
-          CARGO_BUILD_JOBS=4 cargo build --release --keep-going --bin server --bin bingxi --verbose 2>&1 \
+          cargo build --release --keep-going --bin server --bin bingxi --verbose 2>&1 \
             | tee reports/cargo-build.log
-          echo "✅ cargo build 完成"
+          echo "✅ cargo build 完成（并行度由 setup-rust 智能探测：CARGO_BUILD_JOBS=${CARGO_BUILD_JOBS}）"
 
       - name: 验证后端可执行文件
         run: |
