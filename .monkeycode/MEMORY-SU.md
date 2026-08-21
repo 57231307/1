@@ -667,6 +667,13 @@
 - **修复**：`AppSettings::new()` 中 `load_sensitive_from_env()` 之后添加 APP_ENV 同步逻辑
 - **配置优先级**：`APP_ENV` 环境变量 > `config.yaml` 的 `env` 字段 > 默认开发环境
 
+### 代码深挖审计封板结论（2026-08-21）
+- 九轮全仓库逐层深挖（架构→业务域→状态机→引擎算法→安全→基建→CI/CD）正式封板
+- 25 项问题清单（A.1-A.25）：高 2（排程 round/ceil、BOM 无环检测）、中 8（熔断窗口/MRP提前期/状态机四范式/调度器碎片/DTO薄/AI补货LT/AppState上帝对象/RLS未激活）、低 15
+- 安全存量漏洞 0，密钥泄露扫描（工作区+git 历史）0 发现
+- 高优先级修复序：A.1+A.2(15min) → A.17+A.3(半天) → A.4/A.8(1-2天) → A.21 RLS激活(2-3天,安全收益最大) → A.5/A.7/A.9 架构决策专项
+- 剩余债务集中在生产计划链算法细节与范式收敛，安全实现为全库最扎实部分
+
 ### SeaORM 迁移链顺序与表存在性陷阱
 - **根因模式**：聚合迁移模块按 lib.rs 顺序执行（core_schema→business_tables→fixes_enhancements→sales_crm→production_quality→finance_compliance→v15_*），跨模块的表创建/ALTER 顺序依赖极易断裂
 - **ADD/DROP COLUMN IF EXISTS 不保护表不存在**：`ALTER TABLE foo ADD COLUMN IF NOT EXISTS bar` 当表 foo 不存在时仍报 `42P01 relation does not exist`；IF EXISTS 只保护列/表已存在的去重，不保护"表未创建"
