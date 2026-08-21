@@ -246,7 +246,7 @@ impl SchedulingService {
         let base_start = self.find_earliest_slot(schedule, start_date, 1);
         let latest_scheduled_end = schedule.iter().map(|(_, e, _, _)| *e).max();
         let current_start = match latest_scheduled_end {
-            Some(last_end) => base_start.max(last_end + Duration::days(DYE_CHANGEOVER_DAYS + 1)),
+            Some(last_end) => std::cmp::Ord::max(base_start, last_end + Duration::days(DYE_CHANGEOVER_DAYS + 1)),
             None => base_start,
         };
         for order in &schedulable_orders {
