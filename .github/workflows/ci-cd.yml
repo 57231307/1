@@ -1622,8 +1622,9 @@ jobs:
           mkdir -p reports
           set +e
           # 4.7：--no-dev-deps 跳过 [dev-dependencies]，仅审计生产依赖
-          cargo audit --json --no-dev-deps 2>reports/cargo-audit.json | tee reports/cargo-audit.txt
-          EXIT_CODE=$?
+          # || true 避免 cargo audit exit 5（有漏洞）直接中断 step，由后续 jq 判断 high/critical 决定是否阻塞
+          cargo audit --json --no-dev-deps 2>reports/cargo-audit.json | tee reports/cargo-audit.txt || true
+          EXIT_CODE=${PIPESTATUS[0]}
           set -e
 
           # 解析关键指标
