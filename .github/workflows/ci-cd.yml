@@ -1602,8 +1602,9 @@ jobs:
     timeout-minutes: 15
     needs: ci-info
     # 批次 21 修复：移除 continue-on-error，让审计命令本身失败时阻塞 CI。
-    # 注意：审计步骤内部使用 set +e 捕获漏洞，发现漏洞不会让步骤失败，
-    # 只有 cargo audit / npm audit 命令本身异常时才会阻塞。
+    # 4.7 依赖漏洞扫描加固：high/critical 级别漏洞也会阻塞 CI（exit 1），
+    # low/medium 仅记录在案，不阻塞。
+    # cargo audit 使用 --no-dev-deps，仅审计生产依赖。
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
@@ -1620,18 +1621,26 @@ jobs:
         run: |
           mkdir -p reports
           set +e
-          cargo audit --json 2>reports/cargo-audit.json | tee reports/cargo-audit.txt
+          # 4.7：--no-dev-deps 跳过 [dev-dependencies]，仅审计生产依赖
+          cargo audit --json --no-dev-deps 2>reports/cargo-audit.json | tee reports/cargo-audit.txt
           EXIT_CODE=$?
           set -e
 
           # 解析关键指标
           VULN_COUNT=$(jq '.vulnerabilities.found' reports/cargo-audit.json 2>/dev/null || echo 0)
 
+          # 4.7 依赖漏洞扫描：high/critical 级别漏洞必须阻塞 CI
+          # cargo-audit JSON 中 vulnerabilities.list[].advisory.severity 为
+          # "low" | "medium" | "high" | "critical"（cargo-audit 0.18+ 字段）
+          # --no-dev-deps 跳过 [dev-dependencies]，仅审计生产依赖
+          CRITICAL_HIGH_COUNT=$(jq '[.vulnerabilities.list[]? | select(.advisory.severity == "high" or .advisory.severity == "critical")] | length' reports/cargo-audit.json 2>/dev/null || echo 0)
+
           {
             echo "# Rust 依赖审计报告"
             echo ""
             echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
             echo "**发现漏洞**: $VULN_COUNT  "
+            echo "**high/critical 漏洞**: $CRITICAL_HIGH_COUNT  "
             echo ""
             if [ "$EXIT_CODE" -eq "0" ]; then
               echo "## ✅ 无已知漏洞"
@@ -1641,7 +1650,7 @@ jobs:
               echo "### 漏洞详情"
               echo ""
               echo '```'
-              jq -r '.vulnerabilities.list[]? | "[\(.severity)] \(.package.name) \(.package.version) - \(.advisory.title)"' reports/cargo-audit.json 2>/dev/null | head -30
+              jq -r '.vulnerabilities.list[]? | "[\(.advisory.severity)] \(.package.name) \(.package.version) - \(.advisory.title)"' reports/cargo-audit.json 2>/dev/null | head -30
               echo '```'
               echo ""
               echo "修复：升级到 \`cargo audit fix\` 或手动调整 Cargo.toml"
@@ -1653,10 +1662,18 @@ jobs:
             echo ""
             if [ "$EXIT_CODE" -eq "0" ]; then
               echo "✅ 无漏洞"
+            elif [ "$CRITICAL_HIGH_COUNT" -gt "0" ]; then
+              echo "❌ $VULN_COUNT 个漏洞，其中 $CRITICAL_HIGH_COUNT 个 high/critical（阻塞 CI）"
             else
-              echo "⚠️  $VULN_COUNT 个漏洞（不阻塞，记录在案）"
+              echo "⚠️  $VULN_COUNT 个漏洞，无 high/critical（不阻塞，记录在案）"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+          # high/critical 漏洞存在则阻塞 CI
+          if [ "$CRITICAL_HIGH_COUNT" -gt "0" ]; then
+            echo "::error::检测到 $CRITICAL_HIGH_COUNT 个 high/critical 级别漏洞，阻塞 CI。详见 reports/cargo-audit-report.md"
+            exit 1
+          fi
 
       - name: Setup Frontend
         uses: ./.github/actions/setup-frontend
@@ -1672,11 +1689,16 @@ jobs:
 
           VULN_COUNT=$(jq '.metadata.vulnerabilities | to_entries | map(.value) | add' reports/npm-audit.json 2>/dev/null || echo 0)
 
+          # 4.7：high/critical 级别漏洞必须阻塞 CI
+          # npm audit JSON: .vulnerabilities.<pkg>.severity ∈ {critical, high, moderate, low}
+          NPM_CRITICAL_HIGH_COUNT=$(jq '[.vulnerabilities | to_entries[] | select(.value.severity == "critical" or .value.severity == "high")] | length' reports/npm-audit.json 2>/dev/null || echo 0)
+
           {
             echo "# 前端 npm audit 报告"
             echo ""
             echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
             echo "**发现漏洞**: $VULN_COUNT  "
+            echo "**high/critical 漏洞**: $NPM_CRITICAL_HIGH_COUNT  "
             echo ""
             if [ "$EXIT_CODE" -eq "0" ]; then
               echo "## ✅ 无已知漏洞"
@@ -1698,10 +1720,18 @@ jobs:
             echo ""
             if [ "$EXIT_CODE" -eq "0" ]; then
               echo "✅ 无漏洞"
+            elif [ "$NPM_CRITICAL_HIGH_COUNT" -gt "0" ]; then
+              echo "❌ $VULN_COUNT 个漏洞，其中 $NPM_CRITICAL_HIGH_COUNT 个 high/critical（阻塞 CI）"
             else
-              echo "⚠️  $VULN_COUNT 个漏洞（不阻塞，记录在案）"
+              echo "⚠️  $VULN_COUNT 个漏洞，无 high/critical（不阻塞，记录在案）"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+          # high/critical 漏洞存在则阻塞 CI
+          if [ "$NPM_CRITICAL_HIGH_COUNT" -gt "0" ]; then
+            echo "::error::检测到 $NPM_CRITICAL_HIGH_COUNT 个 high/critical 级别漏洞，阻塞 CI。详见 reports/npm-audit-report.md"
+            exit 1
+          fi
 
       - name: 上传报告
         if: always()

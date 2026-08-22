@@ -252,6 +252,9 @@ impl KafkaBackend {
         let client = self.inner.client.clone();
 
         // 后台消费任务：拉取所有 partition，反序列化后推入 mpsc
+        // 本 spawn 句柄未显式保存，依赖 mpsc channel 生命周期管理：
+        // 当 subscribe() 返回的 rx 被 drop 时，tx.send 失败导致 run_consumer_loop 退出；
+        // 进程退出时 tokio runtime drop 会回收该 task。仅在 Kafka 模式下启动（Redis 模式跳过）。
         tokio::spawn(async move {
             // 批次 8（2026-06-28）：间接长期循环任务 panic 隔离
             // run_consumer_loop 内部有 loop，panic 会导致 Kafka 消费永久停止。

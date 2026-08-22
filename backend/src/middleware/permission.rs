@@ -412,6 +412,11 @@ const PERMISSION_CACHE_INVALIDATION_CHANNEL: &str = "permission_cache_invalidati
 /// V15 P1-14.9-C：启动权限缓存 Redis pub/sub 订阅器（应用启动时调用）
 // 行为：订阅频道，"ALL"→清空本地缓存，"<role_id>"→失效指定角色缓存；
 // 无 Redis 时 no-op；Redis 连接失败仅 warn 不阻塞启动
+//
+// 取消信号说明：本订阅器由 `tokio::spawn(start_permission_cache_pubsub_subscriber())` 启动并
+// 注册到 `MAIN_BACKGROUND_TASKS`，但内部 `while let Some(msg) = stream.next().await` 循环
+// 未响应 `MAIN_CANCELLATION_TOKEN.cancelled()`。shutdown 时由 `shutdown_main_background_tasks()`
+// 先 cancel() 再 abort() 兜底强杀，Redis pubsub 连接随 abort 断开，`stream.next()` 返回 None 自然退出。
 pub async fn start_permission_cache_pubsub_subscriber() {
     let Some(url) = crate::utils::redis_cache::get_redis_url() else {
         tracing::info!("未配置 Redis，权限缓存多实例广播降级为单实例本地失效");

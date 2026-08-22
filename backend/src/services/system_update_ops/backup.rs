@@ -64,8 +64,24 @@ impl SystemUpdateService {
     }
 
     /// L9 修复（v8 复审）：降为 `pub(crate)`，仅内部 `do_update` 调用，不对外暴露
+    ///
+    /// 审计 limitation（26.9 部署后自动回滚监控）：
+    /// - 本方法仅回滚文件系统（backend/frontend/config/VERSION），不回滚 DB migration。
+    ///   若新版本包含破坏性 migration（如 DROP COLUMN / RENAME TABLE），回滚后旧版二进制
+    ///   将面对不兼容的 DB schema，可能导致服务启动失败或数据访问异常。
+    ///   后续需引入 migration 回滚机制（如 sea-orm-migration 的 down 步骤或
+    ///   DB 备份/恢复流程），当前仅文件级回滚属于已知技术债务。
+    /// - 本方法回滚后不执行健康检查（如 HTTP /health 探活或可执行文件冒烟测试），
+    ///   调用方（apply::do_update）在回滚后直接返回错误，运维需人工确认服务可用性。
+    ///   后续应在回滚完成后补充自动健康检查，失败时触发告警或二次回滚。
     pub fn rollback(&self, backup_path: &Path) -> Result<(), UpdateError> {
         self.log_update(&format!("正在回滚到备份: {:?}", backup_path));
+
+        // 审计提醒（26.9）：仅回滚文件，不回滚 DB migration，存在 schema 不一致风险
+        tracing::warn!(
+            backup_path = ?backup_path,
+            "文件级回滚开始：本次回滚不包含 DB migration 回滚，若新版本含破坏性 migration 需人工处理 DB schema"
+        );
 
         let dirs_to_restore = ["backend", "frontend", "config"];
         for dir in dirs_to_restore {
@@ -88,6 +104,12 @@ impl SystemUpdateService {
         }
 
         self.log_update("回滚完成");
+
+        // 审计提醒（26.9）：回滚后无健康检查，需后续补充自动探活
+        tracing::warn!(
+            "文件级回滚完成：当前未执行回滚后健康检查，运维需人工确认服务可用性（后续需补自动 /health 探活）"
+        );
+
         Ok(())
     }
 
