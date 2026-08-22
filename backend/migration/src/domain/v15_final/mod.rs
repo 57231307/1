@@ -17,6 +17,7 @@ mod m0114_add_customer_source_fields;
 mod m0115_add_crm_lead_custom_fields;
 mod m0116_create_long_running_tasks;
 mod m0117_add_defect_type_to_quality_inspection_records;
+mod m0118_add_unique_constraint_product_code;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -61,11 +62,17 @@ impl MigrationTrait for Migration {
         m0117_add_defect_type_to_quality_inspection_records::Migration
             .up(manager)
             .await?;
+        m0118_add_unique_constraint_product_code::Migration
+            .up(manager)
+            .await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
+        m0118_add_unique_constraint_product_code::Migration
+            .down(manager)
+            .await?;
         m0117_add_defect_type_to_quality_inspection_records::Migration
             .down(manager)
             .await?;

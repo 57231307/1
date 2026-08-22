@@ -15,7 +15,8 @@ use tracing::info;
 
 // 纯数据 DTO 已迁移至 models/dto/budget_management_dto.rs
 pub use crate::models::dto::budget_management_dto::*;
-use crate::models::dto::budget_management_dto::{
+// 使用 pub use 再导出，避免外部引用断裂（E0603 修复）
+pub use crate::models::dto::budget_management_dto::{
     BudgetAssessmentSummary, BudgetExecuteRequest, BudgetItemQueryParams,
     BudgetVarianceItem, BudgetWarning, CreateBudgetExecutionParams, CreateBudgetItemRequest,
     CreateBudgetPlanRequest, UpdateBudgetItemRequest,

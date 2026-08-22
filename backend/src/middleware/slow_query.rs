@@ -49,6 +49,19 @@ static SLOW_QUERY_ALERT_STATE: std::sync::LazyLock<Mutex<HashMap<u64, (Instant, 
 /// 慢查询告警去重窗口时长（1 小时）
 const ALERT_DEDUP_WINDOW: Duration = Duration::from_secs(3600);
 
+/// SLOW_QUERY_ALERT_STATE 清理阈值：当去重表条目数超过该值时触发惰性清理，
+/// 避免不同 SQL 文本（动态拼接、新增查询）导致的无界增长（审计 3.14 修复）。
+const ALERT_STATE_CLEANUP_THRESHOLD: usize = 1024;
+
+/// 清理去重表中已超出告警窗口的过期条目，避免无界增长。
+/// 在持锁状态下执行，调用方必须已持有锁。
+fn cleanup_expired_alert_state(
+    state: &mut HashMap<u64, (Instant, u32)>,
+    now: Instant,
+) {
+    state.retain(|_, (last_alert, _)| now.duration_since(*last_alert) < ALERT_DEDUP_WINDOW);
+}
+
 pub fn slow_query_threshold() -> Duration {
     Duration::from_millis(*SLOW_QUERY_THRESHOLD_MS)
 }
@@ -70,6 +83,10 @@ fn should_send_alert(sql_hash: u64) -> bool {
         Err(_) => return true, // 锁中毒时放行
     };
     let now = Instant::now();
+    // 惰性清理：条目数超过阈值时清理过期项，避免无界增长（审计 3.14 修复）
+    if state.len() > ALERT_STATE_CLEANUP_THRESHOLD {
+        cleanup_expired_alert_state(&mut state, now);
+    }
     match state.get_mut(&sql_hash) {
         Some((last_alert, count)) => {
             if now.duration_since(*last_alert) >= ALERT_DEDUP_WINDOW {

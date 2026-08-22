@@ -42,7 +42,8 @@ pub async fn rls_context_middleware(
             // A.21.1：设置 PostgreSQL 会话变量，激活 RLS 策略
             // SET LOCAL 仅在当前连接/事务有效，连接归还连接池后自动失效
             let sql = format!("SET LOCAL app.user_id = '{}'", auth.user_id);
-            if let Err(e) = sqlx::query(&sql).execute(state.db.as_ref()).await {
+            // 用 sea_orm 的 execute_unprepared 执行裸 SQL，避免直接依赖 sqlx（E0433 修复）
+            if let Err(e) = state.db.execute_unprepared(&sql).await {
                 tracing::warn!(
                     error = %e,
                     user_id = auth.user_id,
@@ -57,10 +58,7 @@ pub async fn rls_context_middleware(
 
     // 请求结束后重置 app.user_id（防止连接复用时 RLS 残留）
     // SET LOCAL 在事务结束后自动重置，但显式 RESET 更安全
-    if let Err(e) = sqlx::query("RESET app.user_id")
-        .execute(state.db.as_ref())
-        .await
-    {
+    if let Err(e) = state.db.execute_unprepared("RESET app.user_id").await {
         tracing::debug!(error = %e, "RESET app.user_id（可忽略，SET LOCAL 已自动失效）");
     }
 
