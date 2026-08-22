@@ -4,7 +4,7 @@
 
 // 批次 100 P3-A 修复（v5 复审）：状态字符串常量化，引用 crate::models::status
 
-use crate::models::dto::finance_report_dto::{
+pub use crate::models::dto::finance_report_dto::{
     BalanceSheet, CashFlowStatement, GeneralLedger, GeneralLedgerEntry, IncomeStatement,
     IncotermMonthlyReport, IncotermStatItem, ReportItem, SubsidiaryLedger, SubsidiaryLedgerEntry,
     TrialBalance, TrialBalanceEntry, VoucherItemDetail,

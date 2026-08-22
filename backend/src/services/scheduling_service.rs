@@ -7,7 +7,7 @@
 //! - `scheduling_manual` 排程手动调整（adjust_schedule）
 //! - `scheduling_query`  排程查询与甘特图（get_gantt_data / list_scheduled_orders / get_schedule_history / get_schedule_result / confirm_schedule_result）
 
-use crate::models::dto::scheduling_dto::*;
+pub use crate::models::dto::scheduling_dto::*;
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 

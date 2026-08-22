@@ -10,7 +10,7 @@ use sea_orm::{
 };
 use std::sync::Arc;
 
-use crate::models::dto::capacity_dto::*;
+pub use crate::models::dto::capacity_dto::*;
 use crate::models::production_order::{
     Column as ProductionOrderColumn, Entity as ProductionOrderEntity,
 };
