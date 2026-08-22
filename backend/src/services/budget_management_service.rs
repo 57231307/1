@@ -1239,7 +1239,6 @@ impl BudgetMode {
 }
 
 /// 预算考核汇总（DTO 已迁移至 models/dto/budget_management_dto.rs）
-
 impl BudgetManagementService {
     /// 获取预算考核汇总
     pub async fn get_budget_summary(&self) -> Result<BudgetAssessmentSummary, AppError> {

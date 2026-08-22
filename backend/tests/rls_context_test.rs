@@ -85,9 +85,10 @@ fn build_test_app_no_auth(state: AppState) -> Router {
 /// 构造一个使用 sqlite::memory: 的 AppState（避免依赖 default 的 mock DB 行为）
 async fn build_sqlite_app_state() -> AppState {
     let db = setup_test_db().await;
-    let mut state = AppState::default();
-    state.db = Arc::new(db);
-    state
+    AppState {
+        db: Arc::new(db),
+        ..AppState::default()
+    }
 }
 
 /// 构造并发送一个测试请求，返回响应状态码
@@ -140,8 +141,10 @@ async fn test_non_admin_rls_activated_pg() {
     let db: DatabaseConnection = sea_orm::Database::connect(&db_url)
         .await
         .expect("连接 PostgreSQL 失败");
-    let mut state = AppState::default();
-    state.db = Arc::new(db);
+    let state = AppState {
+        db: Arc::new(db),
+        ..AppState::default()
+    };
 
     let auth = make_auth(2002, "pg_operator", Some("self"));
     let app = build_test_app(state, auth);
@@ -240,7 +243,7 @@ async fn test_no_auth_context_does_not_panic() {
 /// 在 RLS 失效时仍能正确计算数据范围（兜底防线有效）。
 #[tokio::test]
 async fn test_apply_data_scope_still_works_without_rls() {
-    use bingxi_backend::utils::data_scope::{DataScope, DataScopeContext};
+    use bingxi_backend::utils::data_scope::DataScope;
 
     // admin：data_scope=all → DataScope::All
     let admin_auth = make_auth(9003, "admin3", Some("all"));

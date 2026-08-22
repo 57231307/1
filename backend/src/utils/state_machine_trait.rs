@@ -38,13 +38,14 @@
 ///
 /// 各域状态机适配此 trait 后，可统一管理状态流转、校验和测试。
 /// 适配方负责实现：当前状态查询、合法性检查、状态流转。
+// 后续接入 SchedulerRegistry/StateMachine 时会使用
+#[allow(dead_code)]
 pub trait StateMachine {
     /// 状态类型（如 String 枚举值、自定义 enum）
     type State;
     /// 事件类型（触发状态转换的操作，如 "submit"/"approve"/"reject"）
     type Event;
     /// 错误类型（非法转换时的错误）
-
     type Error;
 
     /// 获取当前状态
@@ -65,6 +66,8 @@ pub trait StateMachine {
 }
 
 /// 状态转换结果
+// 后续接入 SchedulerRegistry/StateMachine 时会使用
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct TransitionResult<S> {
     /// 转换前状态

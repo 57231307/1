@@ -27,6 +27,8 @@ use crate::utils::error::AppError;
 use crate::utils::scheduler_framework::Scheduler;
 
 /// 调度器名称（用于 Scheduler trait 统一标识）
+// 后续接入 SchedulerRegistry 时会使用
+#[allow(dead_code)]
 const SCHEDULER_NAME: &str = "stock-alert-notification-scheduler";
 
 /// 默认扫描间隔（秒）— 每 6 小时扫描一次

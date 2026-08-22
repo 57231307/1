@@ -32,6 +32,8 @@ use tokio_util::sync::CancellationToken;
 ///
 /// 各域 scheduler 适配此 trait 后，可统一注册到 SchedulerRegistry，
 /// 由注册中心统一管理启动、停止和生命周期。
+// 后续接入 SchedulerRegistry/StateMachine 时会使用
+#[allow(dead_code)]
 #[async_trait::async_trait]
 pub trait Scheduler: Send + Sync {
     /// 调度器名称（用于日志和监控）
@@ -50,10 +52,14 @@ pub trait Scheduler: Send + Sync {
 ///
 /// 统一管理所有调度器的注册、启动和停止。
 /// 替代各 service 中各自 tokio::spawn 的样板代码。
+// 后续接入 SchedulerRegistry/StateMachine 时会使用
+#[allow(dead_code)]
 pub struct SchedulerRegistry {
     schedulers: Vec<Arc<dyn Scheduler>>,
 }
 
+// 后续接入 SchedulerRegistry/StateMachine 时会使用
+#[allow(dead_code)]
 impl SchedulerRegistry {
     /// 创建空注册中心
     pub fn new() -> Self {

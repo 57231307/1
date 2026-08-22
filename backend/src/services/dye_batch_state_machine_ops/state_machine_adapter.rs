@@ -17,12 +17,16 @@ use crate::services::dye_batch_state_machine_service::{
 };
 use crate::utils::state_machine_trait::{StateMachine, TransitionResult};
 
+// 后续接入 StateMachine 时会使用
+#[allow(dead_code)]
 /// 缸号状态机适配器，实现统一 StateMachine trait
 pub struct DyeBatchStateMachineAdapter {
     /// 当前缸号生命周期状态
     current: String,
 }
 
+// 后续接入 StateMachine 时会使用
+#[allow(dead_code)]
 impl DyeBatchStateMachineAdapter {
     /// 构造适配器，传入初始状态（如 "pending_schedule"）
     pub fn new(initial_state: String) -> Self {
@@ -135,7 +139,7 @@ mod tests {
     /// 终态不可流转
     #[test]
     fn test_terminal_status_blocked() {
-        let mut sm = DyeBatchStateMachineAdapter::new("shipped".to_string());
+        let sm = DyeBatchStateMachineAdapter::new("shipped".to_string());
         assert!(!sm.can_transition(&"schedule".to_string()));
         assert!(sm.available_events().is_empty());
     }

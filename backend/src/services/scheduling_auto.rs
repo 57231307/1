@@ -333,9 +333,11 @@ impl SchedulingService {
     /// A.10.1 回溯框架骨架（暂未集成到 schedule_single_order，A.10.2 再集成）
     ///
     /// max_depth 限制回溯深度，防止最坏情况指数爆炸（默认 3 层）
+    // 后续接入 SchedulerRegistry/StateMachine 时会使用
+    #[allow(dead_code)]
     fn backtrack_schedule(
         &self,
-        schedule: &mut Vec<(NaiveDate, NaiveDate, i32, String)>,
+        schedule: &mut [(NaiveDate, NaiveDate, i32, String)],
         start_date: NaiveDate,
         days_needed: i64,
         max_depth: i32,

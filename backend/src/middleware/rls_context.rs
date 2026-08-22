@@ -27,7 +27,7 @@ use sea_orm::ConnectionTrait;
 /// 仅对非 admin（data_scope != all）的用户设置 RLS 上下文。
 pub async fn rls_context_middleware(
     State(state): State<AppState>,
-    mut request: Request<axum::body::Body>,
+    request: Request<axum::body::Body>,
     next: Next,
 ) -> Response {
     // 从 extensions 获取已认证的 AuthContext（auth 中间件注入）
@@ -36,7 +36,7 @@ pub async fn rls_context_middleware(
         let is_admin_scope = auth
             .data_scope
             .as_deref()
-            .map(|s| DataScope::parse_scope(&s.to_string()) == DataScope::All)
+            .map(|s| DataScope::parse_scope(s) == DataScope::All)
             .unwrap_or(false);
 
         if !is_admin_scope {
