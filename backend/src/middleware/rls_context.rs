@@ -19,6 +19,7 @@ use axum::extract::State;
 use axum::http::Request;
 use axum::middleware::Next;
 use axum::response::Response;
+use sea_orm::ConnectionTrait;
 
 /// RLS 上下文中间件：为已认证请求设置 PostgreSQL 会话变量 app.user_id
 ///
