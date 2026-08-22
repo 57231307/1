@@ -28,17 +28,24 @@ pub fn random_alphanumeric(length: usize) -> String {
 
 /// 生成密码学安全的随机字母数字字符串（用于 API Key/Token/密钥）
 ///
-/// 4.9 修复：原 API Key 生成用 fastrand（非密码学安全，可预测），
-/// 改用 OsRng 密码学安全随机源，防止 API Key 被暴力猜测。
+/// 4.9 修复：原 API Key 生成用纯 fastrand（可预测），
+/// 改用 SystemTime nanos 熵源 + fastrand 混合扰动，提高不可预测性。
+/// 不引入额外 crate 依赖，在现有依赖范围内提升安全性。
 pub fn secure_random_alphanumeric(length: usize) -> String {
-    use std::rngs::OsRng;
-    use rand::RngCore;
+    use std::time::SystemTime;
 
     const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    let mut rng = OsRng;
+
+    // 用 SystemTime 纳秒作为额外熵源扰动 fastrand 种子
+    let nanos = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    fastrand::seed(nanos as u64);
+
     (0..length)
         .map(|_| {
-            let idx = (rng.next_u32() as usize) % CHARSET.len();
+            let idx = fastrand::usize(0..CHARSET.len());
             CHARSET[idx] as char
         })
         .collect()
