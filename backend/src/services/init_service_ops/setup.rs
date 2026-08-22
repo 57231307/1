@@ -311,61 +311,52 @@ impl InitService {
         // 主数据表清单（迁移 + 初始化后行数必须 > 0）
         const MASTER_DATA_TABLES: &[&str] = &["roles", "departments", "role_permissions"];
 
-        // 第一步：检查关键表是否存在（information_schema.tables 查询）
-        let missing_tables: Vec<&str> = CRITICAL_TABLES
-            .iter()
-            .filter(|table| {
-                let stmt = Statement::from_sql_and_values(
-                    sea_orm::DatabaseBackend::Postgres,
-                    "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1",
-                    [sea_orm::Value::from((*table).to_string())],
-                );
-                match self.db.query_one_raw(stmt).await {
-                    Ok(Some(_)) => false,
-                    Ok(None) => {
-                        warn!("迁移后置校验：关键表 [{}] 不存在", table);
-                        true
-                    }
-                    Err(e) => {
-                        warn!("迁移后置校验：查询表 [{}] 存在性失败: {}", table, e);
-                        true
-                    }
+        // 第一步：检查关键表是否存在（循环+await，非闭包）
+        let mut missing_tables: Vec<&str> = Vec::new();
+        for table in CRITICAL_TABLES {
+            let stmt = Statement::from_sql_and_values(
+                sea_orm::DatabaseBackend::Postgres,
+                "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1",
+                [sea_orm::Value::from((*table).to_string())],
+            );
+            match self.db.query_one_raw(stmt).await {
+                Ok(Some(_)) => {}
+                Ok(None) => {
+                    warn!("迁移后置校验：关键表 [{}] 不存在", table);
+                    missing_tables.push(table);
                 }
-            })
-            .copied()
-            .collect();
+                Err(e) => {
+                    warn!("迁移后置校验：查询表 [{}] 存在性失败: {}", table, e);
+                    missing_tables.push(table);
+                }
+            }
+        }
 
-        // 第二步：检查主数据表行数 > 0
-        let empty_tables: Vec<&str> = MASTER_DATA_TABLES
-            .iter()
-            .filter(|table| {
-                // table 来自 const 静态切片，已知为合法标识符名，无 SQL 注入风险
-                let stmt = Statement::from_string(
-                    sea_orm::DatabaseBackend::Postgres,
-                    format!("SELECT COUNT(*) AS cnt FROM \"{}\"", table),
-                );
-                match self.db.query_one_raw(stmt).await {
-                    Ok(Some(row)) => {
-                        let count: i64 = row.try_get_by_index::<i64>(0).unwrap_or(0);
-                        if count <= 0 {
-                            warn!("迁移后置校验：主数据表 [{}] 行数为 0", table);
-                            true
-                        } else {
-                            false
-                        }
-                    }
-                    Ok(None) => {
-                        warn!("迁移后置校验：主数据表 [{}] 行数查询返回空", table);
-                        true
-                    }
-                    Err(e) => {
-                        warn!("迁移后置校验：主数据表 [{}] 行数查询失败: {}", table, e);
-                        true
+        // 第二步：检查主数据表行数 > 0（循环+await，非闭包）
+        let mut empty_tables: Vec<&str> = Vec::new();
+        for table in MASTER_DATA_TABLES {
+            let stmt = Statement::from_string(
+                sea_orm::DatabaseBackend::Postgres,
+                format!("SELECT COUNT(*) AS cnt FROM \"{}\"", table),
+            );
+            match self.db.query_one_raw(stmt).await {
+                Ok(Some(row)) => {
+                    let count: i64 = row.try_get_by_index::<i64>(0).unwrap_or(0);
+                    if count <= 0 {
+                        warn!("迁移后置校验：主数据表 [{}] 行数为 0", table);
+                        empty_tables.push(table);
                     }
                 }
-            })
-            .copied()
-            .collect();
+                Ok(None) => {
+                    warn!("迁移后置校验：主数据表 [{}] 行数查询返回空", table);
+                    empty_tables.push(table);
+                }
+                Err(e) => {
+                    warn!("迁移后置校验：主数据表 [{}] 行数查询失败: {}", table, e);
+                    empty_tables.push(table);
+                }
+            }
+        }
 
         // 汇总告警（不阻塞启动）
         if missing_tables.is_empty() && empty_tables.is_empty() {
