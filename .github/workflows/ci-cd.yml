@@ -418,7 +418,8 @@ jobs:
         with:
           components: clippy
           system-deps: pkg-config libssl-dev protobuf-compiler
-          # Clippy 编译 --all-targets 内存峰值高，用 7GB/单元避免 OOM（exit 143）
+          # Clippy 编译 --all-targets 内存峰值高，禁用 sccache + 7GB/单元避免 OOM（exit 143）
+          sccache: 'false'
           mem_per_unit_gb: '7'
 
       - name: 运行 clippy（baseline 机制）
