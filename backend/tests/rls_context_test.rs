@@ -17,6 +17,7 @@
 //! 参考实现：backend/src/middleware/rls_context.rs
 //! 参考策略：backend/database/rls.sql（customers/suppliers/sales_orders/crm_lead/crm_opportunity）
 
+#[path = "test_common/mod.rs"]
 mod common;
 
 use axum::{
