@@ -118,6 +118,10 @@ impl InitService {
         self.create_admin_user(admin_username, &password_hash, admin_role.id, department_id)
             .await?;
 
+        // 27.8 迁移后置校验：初始化完成后校验关键表存在性 + 主数据行数
+        // 失败仅告警，不阻塞启动
+        self.verify_migration().await;
+
         Ok(InitializationResult {
             success: true,
             message: "系统初始化成功".to_string(),
@@ -281,5 +285,88 @@ impl InitService {
 
         info!("所有数据库迁移脚本执行完成");
         Ok(())
+    }
+
+    /// 迁移后置校验（4.10 TLS 合规 / 27.8 迁移后置校验）
+    ///
+    /// 校验目标：确认迁移产出的关键表存在且主数据行数 > 0。
+    /// 失败时仅 tracing::warn 告警，不阻塞启动（返回 Ok），避免误杀正常流程。
+    ///
+    /// 校验内容：
+    /// - 关键表存在性（information_schema.tables）
+    /// - 关键主数据表行数 > 0（roles / departments / role_permissions）
+    async fn verify_migration(&self) {
+        use sea_orm::Statement;
+
+        // 关键表清单（迁移后必须存在的核心表）
+        const CRITICAL_TABLES: &[&str] = &[
+            "users",
+            "roles",
+            "departments",
+            "role_permissions",
+            "user_departments",
+            "operation_logs",
+        ];
+
+        // 主数据表清单（迁移 + 初始化后行数必须 > 0）
+        const MASTER_DATA_TABLES: &[&str] = &["roles", "departments", "role_permissions"];
+
+        // 第一步：检查关键表是否存在（循环+await，非闭包）
+        let mut missing_tables: Vec<&str> = Vec::new();
+        for table in CRITICAL_TABLES {
+            let stmt = Statement::from_sql_and_values(
+                sea_orm::DatabaseBackend::Postgres,
+                "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1",
+                [sea_orm::Value::from((*table).to_string())],
+            );
+            match self.db.query_one_raw(stmt).await {
+                Ok(Some(_)) => {}
+                Ok(None) => {
+                    warn!("迁移后置校验：关键表 [{}] 不存在", table);
+                    missing_tables.push(table);
+                }
+                Err(e) => {
+                    warn!("迁移后置校验：查询表 [{}] 存在性失败: {}", table, e);
+                    missing_tables.push(table);
+                }
+            }
+        }
+
+        // 第二步：检查主数据表行数 > 0（循环+await，非闭包）
+        let mut empty_tables: Vec<&str> = Vec::new();
+        for table in MASTER_DATA_TABLES {
+            let stmt = Statement::from_string(
+                sea_orm::DatabaseBackend::Postgres,
+                format!("SELECT COUNT(*) AS cnt FROM \"{}\"", table),
+            );
+            match self.db.query_one_raw(stmt).await {
+                Ok(Some(row)) => {
+                    let count: i64 = row.try_get_by_index::<i64>(0).unwrap_or(0);
+                    if count <= 0 {
+                        warn!("迁移后置校验：主数据表 [{}] 行数为 0", table);
+                        empty_tables.push(table);
+                    }
+                }
+                Ok(None) => {
+                    warn!("迁移后置校验：主数据表 [{}] 行数查询返回空", table);
+                    empty_tables.push(table);
+                }
+                Err(e) => {
+                    warn!("迁移后置校验：主数据表 [{}] 行数查询失败: {}", table, e);
+                    empty_tables.push(table);
+                }
+            }
+        }
+
+        // 汇总告警（不阻塞启动）
+        if missing_tables.is_empty() && empty_tables.is_empty() {
+            info!("迁移后置校验通过：{} 张关键表存在，主数据行数均 > 0", CRITICAL_TABLES.len());
+        } else {
+            warn!(
+                missing_tables = ?missing_tables,
+                empty_tables = ?empty_tables,
+                "迁移后置校验发现异常（不阻塞启动，请人工核查迁移结果）"
+            );
+        }
     }
 }

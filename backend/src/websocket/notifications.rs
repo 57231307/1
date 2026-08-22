@@ -336,6 +336,11 @@ pub fn get_notification_broadcaster() -> &'static NotificationBroadcaster {
 
 /// V15 P1 20.3-B：启动 Redis Pub/Sub 订阅器（应用启动时调用） 行为：订阅 `ws:notifications` 频道，收到消息后解析 envelope 并本地投递（含 ACK 跟踪）
 /// 无 Redis 时为 no-op（单实例模式由 broadcast_notification 直接本地投递）。 失败不阻塞应用启动：Redis 连接失败时记录 warn 并退出，由调用方决定是否重试。
+///
+/// 取消信号说明：本订阅器由 `tokio::spawn(start_ws_pubsub_subscriber())` 启动并注册到
+/// `MAIN_BACKGROUND_TASKS`，但内部 `while let Some(msg) = stream.next().await` 循环
+/// 未响应 `MAIN_CANCELLATION_TOKEN.cancelled()`。shutdown 时由 `shutdown_main_background_tasks()`
+/// 先 cancel() 再 abort() 兜底强杀，Redis pubsub 连接随 abort 断开，`stream.next()` 返回 None 自然退出。
 pub async fn start_ws_pubsub_subscriber() {
     let Some(url) = redis_cache::get_redis_url() else {
         tracing::info!("未配置 Redis，WebSocket 多实例广播降级为单实例本地广播");
