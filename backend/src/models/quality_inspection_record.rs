@@ -41,6 +41,9 @@ pub struct Model {
     #[sea_orm(column_name = "inspection_result")]
     pub inspection_result: String,
     pub remark: Option<String>,
+    // 缺陷类型（可选），用于质检记录的缺陷分类
+    #[sea_orm(column_name = "defect_type")]
+    pub defect_type: Option<String>,
     // v14 批次 421 T-P1-4：面料行业质检分级 A 级（合格）/B 级（让步接收，降级销售）/C 级（不合格，返工或报废）
     // 依据：fabric-industry-research.md §4.7 质量检验模块
     #[sea_orm(column_name = "grade")]

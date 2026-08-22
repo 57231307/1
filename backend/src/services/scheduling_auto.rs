@@ -13,8 +13,8 @@ use crate::models::production_order::{
 };
 use crate::models::scheduling_result::ActiveModel as SchedulingActiveModel;
 use crate::models::work_center::{Entity as WorkCenterEntity, Model as WorkCenterModel};
-use crate::services::capacity_service::WorkCenterCapacity;
-use crate::services::scheduling_service::{
+use crate::models::dto::capacity_dto::WorkCenterCapacity;
+use crate::models::dto::scheduling_dto::{
     AutoScheduleRequest, AutoScheduleResult, DateRange, GanttData, ScheduleConflict,
     ScheduleDetail, WorkCenterInfo,
 };
@@ -327,6 +327,42 @@ impl SchedulingService {
         schedule
             .iter()
             .any(|(s, e, _, _)| !(end < *s || start > *e))
+    }
+
+    /// 回溯排程：尝试将订单排入工作中心，排不下时回退尝试其他槽位
+    /// A.10.1 回溯框架骨架（暂未集成到 schedule_single_order，A.10.2 再集成）
+    ///
+    /// max_depth 限制回溯深度，防止最坏情况指数爆炸（默认 3 层）
+    fn backtrack_schedule(
+        &self,
+        schedule: &mut Vec<(NaiveDate, NaiveDate, i32, String)>,
+        start_date: NaiveDate,
+        days_needed: i64,
+        max_depth: i32,
+    ) -> Option<NaiveDate> {
+        let mut depth = 0;
+        let mut candidate = start_date;
+        let max_iterations = 365;
+
+        while depth < max_depth {
+            let end_candidate = candidate + Duration::days(days_needed - 1);
+            if !Self::check_overlap(schedule, candidate, end_candidate) {
+                return Some(candidate);
+            }
+            // 排不下时尝试下一个槽位（跳过冲突区间）
+            let next_start = schedule
+                .iter()
+                .filter(|(_, e, _, _)| *e >= candidate)
+                .map(|(_, e, _, _)| *e + Duration::days(1))
+                .min()
+                .unwrap_or(candidate + Duration::days(1));
+            candidate = next_start;
+            depth += 1;
+            if depth >= max_iterations {
+                break;
+            }
+        }
+        None
     }
 
     /// 构造"未指定有效工作中心"冲突。

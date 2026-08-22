@@ -31,6 +31,10 @@ use crate::models::color_card::{self, Entity as ColorCardEntity};
 use crate::models::color_card_issue::{self, ActiveModel as IssueActive, Entity as IssueEntity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::utils::error::AppError;
+use crate::utils::scheduler_framework::Scheduler;
+
+/// 调度器名称（用于 Scheduler trait 统一标识）
+const SCHEDULER_NAME: &str = "color-card-issue-expiry-scheduler";
 
 /// 默认扫描间隔（秒）— 每 24 小时扫描一次
 const DEFAULT_INTERVAL_SECS: u64 = 86400;
@@ -54,7 +58,9 @@ impl ColorCardIssueExpiryScheduler {
     }
 
     /// 执行一次扫描：查询过期的发放记录并逐个标记为 cancelled（返回本次扫描处理的过期记录数量。）
-    pub async fn run_once(&self) -> Result<u64, AppError> {
+    ///
+    /// 独立于 Scheduler trait 的 run_once，供 start_background_task 与 trait 适配复用。
+    pub async fn scan_once(&self) -> Result<u64, AppError> {
         let today = Utc::now().date_naive();
 
         // 查询过期记录：status='issued' AND expected_return_date < today AND is_deleted=false
@@ -223,7 +229,7 @@ impl ColorCardIssueExpiryScheduler {
             );
 
             loop {
-                match self.run_once().await {
+                match self.scan_once().await {
                     Ok(count) if count > 0 => {
                         info!(count, "色卡发放过期检查：本轮处理 {} 条过期记录", count);
                     }
@@ -237,5 +243,23 @@ impl ColorCardIssueExpiryScheduler {
                 tokio::time::sleep(interval).await;
             }
         })
+    }
+}
+
+#[async_trait::async_trait]
+impl Scheduler for ColorCardIssueExpiryScheduler {
+    fn name(&self) -> &str {
+        SCHEDULER_NAME
+    }
+
+    fn interval_secs(&self) -> u64 {
+        DEFAULT_INTERVAL_SECS
+    }
+
+    async fn run_once(&self) -> Result<(), String> {
+        self.scan_once()
+            .await
+            .map(|_| ())
+            .map_err(|e| e.to_string())
     }
 }

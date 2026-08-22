@@ -5,8 +5,18 @@
 
 pub mod bpm_dto;
 pub mod budget_dto;
+pub mod budget_management_dto;
+pub mod capacity_dto;
 pub mod crm_dto;
+pub mod dye_batch_dto;
+pub mod finance_report_dto;
+pub mod flow_card_dto;
 pub mod fund_dto;
+pub mod fund_management_dto;
+pub mod scheduling_dto;
+pub mod sales_analysis_dto;
+pub mod tracking_dto;
+pub mod wage_dto;
 
 use serde::{Deserialize, Serialize};
 

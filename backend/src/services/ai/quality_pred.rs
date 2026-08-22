@@ -171,8 +171,40 @@ const ISSUE_KEYWORDS: &[(&str, &[&str])] = &[
     ("强度不足", &["强度", "强力", "断裂"]),
 ];
 
-/// 从 `remark` 文本中匹配问题类型关键词（返回匹配到的归因类别（"颜色差异"/"色牢度"/"克重偏差"/"纬密偏差"/"强度不足"/"其他"）。）
-pub fn extract_issue_keyword(remark: Option<&str>) -> String {
+/// defect_type → 标准归因类别的映射
+/// A.15.3：质检记录新增结构化 `defect_type` 字段后，归因优先用该字段，
+/// 避免依赖 remark 关键词匹配的不确定性。映射关系与 remark 关键词输出保持一致：
+/// color_diff → "颜色差异"；color_fastness → "色牢度"；spec → "规格不符"；
+/// damage → "破损"；other → "其他"；未识别值 → "其他"。
+fn map_defect_type_to_issue(defect_type: &str) -> String {
+    match defect_type {
+        "color_diff" => "颜色差异".to_string(),
+        "color_fastness" => "色牢度".to_string(),
+        "spec" => "规格不符".to_string(),
+        "damage" => "破损".to_string(),
+        // other 及未识别值统一归为"其他"
+        _ => "其他".to_string(),
+    }
+}
+
+/// 从质检记录提取问题类型归因（A.15.3：优先用结构化 `defect_type` 字段映射，
+/// 缺失或为空时降级回退到 `remark` 关键词匹配，保证既有逻辑兼容。）
+/// - `defect_type`：质检记录的结构化缺陷类型（color_diff / color_fastness /
+///   spec / damage / other），有值且非空时直接映射到标准归因类别，跳过 remark 匹配。
+/// - `remark`：备注文本，仅在 `defect_type` 为 None 或空串时用于关键词匹配兜底。
+/// 返回归因类别："颜色差异"/"色牢度"/"克重偏差"/"纬密偏差"/"强度不足"/"规格不符"/"破损"/"其他"。
+pub fn extract_issue_keyword(
+    defect_type: Option<&str>,
+    remark: Option<&str>,
+) -> String {
+    // 优先使用结构化 defect_type（非空时直接映射，跳过 remark 关键词匹配）
+    if let Some(dt) = defect_type {
+        let dt = dt.trim();
+        if !dt.is_empty() {
+            return map_defect_type_to_issue(dt);
+        }
+    }
+    // 降级兜底：defect_type 为 None 或空串时，回退到 remark 关键词匹配
     let text = match remark {
         Some(t) => t,
         None => return "其他".to_string(),
@@ -705,7 +737,7 @@ fn compute_top_issues(records: &[QualityInspectionModel]) -> Vec<QualityIssue> {
             continue;
         }
         unqualified_total += 1;
-        let key = extract_issue_keyword(r.remark.as_deref());
+        let key = extract_issue_keyword(r.defect_type.as_deref(), r.remark.as_deref());
         *issue_counter.entry(key).or_insert(0) += 1;
     }
     let mut top_issues: Vec<QualityIssue> = issue_counter

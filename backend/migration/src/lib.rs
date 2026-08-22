@@ -7,17 +7,7 @@
 
 pub use sea_orm_migration::prelude::*;
 
-pub mod core_schema;
-pub mod business_tables;
-pub mod fixes_enhancements;
-pub mod sales_crm;
-pub mod production_quality;
-pub mod finance_compliance;
-pub mod v15_core;
-pub mod v15_batch18;
-pub mod v15_batch19;
-pub mod v15_extensions;
-pub mod v15_final;
+pub mod domain;
 
 pub struct Migrator;
 
@@ -25,17 +15,17 @@ pub struct Migrator;
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         vec![
-            Box::new(core_schema::Migration),
-            Box::new(business_tables::Migration),
-            Box::new(fixes_enhancements::Migration),
-            Box::new(sales_crm::Migration),
-            Box::new(production_quality::Migration),
-            Box::new(finance_compliance::Migration),
-            Box::new(v15_core::Migration),
-            Box::new(v15_batch18::Migration),
-            Box::new(v15_batch19::Migration),
-            Box::new(v15_extensions::Migration),
-            Box::new(v15_final::Migration),
+            Box::new(domain::system::Migration),
+            Box::new(domain::business::Migration),
+            Box::new(domain::fixes::Migration),
+            Box::new(domain::sales_crm::Migration),
+            Box::new(domain::production::Migration),
+            Box::new(domain::finance::Migration),
+            Box::new(domain::v15_core::Migration),
+            Box::new(domain::v15_batch18::Migration),
+            Box::new(domain::v15_batch19::Migration),
+            Box::new(domain::v15_extensions::Migration),
+            Box::new(domain::v15_final::Migration),
         ]
     }
 }

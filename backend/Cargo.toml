@@ -109,6 +109,8 @@ totp-rs = { version = "6.0", features = ["qr", "gen_secret"] }
 utoipa-swagger-ui = { version = "9.0.2", features = ["axum"], optional = true }
 percent-encoding = "2.3.1"
 fastrand = "2.4.0"
+# 4.9 修复：密码学安全随机数（API Key/Token 生成，OsRng 依赖 rand crate）
+rand = "0.9"
 hex = "0.4.3"
 hmac = "0.12"
 sha1 = "0.10"

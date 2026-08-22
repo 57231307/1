@@ -6,10 +6,11 @@ use chrono::Datelike;
 use serde::Deserialize;
 
 use crate::container::AppState;
-use crate::services::finance_report_service::{
-    BalanceSheet, CashFlowStatement, FinanceReportService, GeneralLedger, IncomeStatement,
-    SubsidiaryLedger, TrialBalance, VoucherItemDetail,
+use crate::models::dto::finance_report_dto::{
+    BalanceSheet, CashFlowStatement, GeneralLedger, IncomeStatement, SubsidiaryLedger,
+    TrialBalance, VoucherItemDetail,
 };
+use crate::services::finance_report_service::FinanceReportService;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};

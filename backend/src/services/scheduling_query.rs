@@ -17,7 +17,7 @@ use crate::models::status::common;
 use crate::models::status::production;
 use crate::models::status::scheduling as scheduling_status;
 use crate::models::work_center::{Entity as WorkCenterEntity, Model as WorkCenterModel};
-use crate::services::scheduling_service::{
+use crate::models::dto::scheduling_dto::{
     DateRange, GanttData, GanttItemDto, ScheduleDetail, ScheduledOrder, ScheduledOrderQuery,
     WorkCenterInfo,
 };

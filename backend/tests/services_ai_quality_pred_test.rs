@@ -39,6 +39,8 @@ fn make_record(
             "fail".to_string()
         },
         remark: remark.map(|s| s.to_string()),
+        // A.15.3：质检记录的缺陷类型字段（测试夹具默认不指定，走 remark 关键词兜底）
+        defect_type: None,
         // V15 Batch 485：补齐 v14 批次 421 新增字段（color_no/dye_lot_no/grade）
         // 测试夹具不涉及缸号/颜色追溯，使用 None
         grade: None,
@@ -166,13 +168,28 @@ fn test_fallback_low_data() {
     );
 
     // 问题归因关键词提取
-    assert_eq!(extract_issue_keyword(Some("颜色偏深")), "颜色差异");
-    assert_eq!(extract_issue_keyword(Some("色牢度不合格")), "色牢度");
-    assert_eq!(extract_issue_keyword(Some("克重不足")), "克重偏差");
-    assert_eq!(extract_issue_keyword(Some("纬密偏低")), "纬密偏差");
-    assert_eq!(extract_issue_keyword(Some("强度不够")), "强度不足");
-    assert_eq!(extract_issue_keyword(Some("无匹配项")), "其他");
-    assert_eq!(extract_issue_keyword(None), "其他");
+    // A.15.3：defect_type 为 None 时，降级走 remark 关键词匹配
+    assert_eq!(extract_issue_keyword(None, Some("颜色偏深")), "颜色差异");
+    assert_eq!(extract_issue_keyword(None, Some("色牢度不合格")), "色牢度");
+    assert_eq!(extract_issue_keyword(None, Some("克重不足")), "克重偏差");
+    assert_eq!(extract_issue_keyword(None, Some("纬密偏低")), "纬密偏差");
+    assert_eq!(extract_issue_keyword(None, Some("强度不够")), "强度不足");
+    assert_eq!(extract_issue_keyword(None, Some("无匹配项")), "其他");
+    assert_eq!(extract_issue_keyword(None, None), "其他");
+    // A.15.3：defect_type 有值时优先映射，跳过 remark 关键词匹配
+    assert_eq!(
+        extract_issue_keyword(Some("color_diff"), Some("无匹配项")),
+        "颜色差异"
+    );
+    assert_eq!(
+        extract_issue_keyword(Some("color_fastness"), Some("无匹配项")),
+        "色牢度"
+    );
+    assert_eq!(extract_issue_keyword(Some("spec"), Some("无匹配项")), "规格不符");
+    assert_eq!(extract_issue_keyword(Some("damage"), Some("无匹配项")), "破损");
+    assert_eq!(extract_issue_keyword(Some("other"), Some("无匹配项")), "其他");
+    // A.15.3：defect_type 为空串时降级走 remark 关键词匹配
+    assert_eq!(extract_issue_keyword(Some(""), Some("颜色偏深")), "颜色差异");
 }
 
 /// 测试 5：辅助函数覆盖 - 用真实记录验证 `mean_qualification_rate`

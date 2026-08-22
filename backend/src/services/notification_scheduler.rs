@@ -20,6 +20,10 @@ use crate::models::notification_subscription::{
     ActiveModel as SubActiveModel, Column, Entity as SubscriptionEntity, Model as SubscriptionModel,
 };
 use crate::utils::error::AppError;
+use crate::utils::scheduler_framework::Scheduler;
+
+/// 调度器名称（用于 Scheduler trait 统一标识）
+const SCHEDULER_NAME: &str = "notification-push-scheduler";
 
 /// 默认扫描间隔（秒）— 每分钟扫描一次到期订阅
 const DEFAULT_INTERVAL_SECS: u64 = 60;
@@ -42,7 +46,9 @@ impl NotificationPushScheduler {
     }
 
     /// 执行一次扫描：查询到期订阅，触发推送并更新 next_run_at
-    pub async fn run_once(&self) -> Result<u64, AppError> {
+    ///
+    /// 独立于 Scheduler trait 的 run_once，供 start_background_task 与 trait 适配复用。
+    pub async fn scan_once(&self) -> Result<u64, AppError> {
         let now = Utc::now();
 
         // 查询到期订阅：is_enabled=true AND next_run_at <= now
@@ -133,7 +139,7 @@ impl NotificationPushScheduler {
             );
 
             loop {
-                match self.run_once().await {
+                match self.scan_once().await {
                     Ok(count) if count > 0 => {
                         info!(count, "通知推送调度器：本轮处理 {} 条订阅", count);
                     }
@@ -145,5 +151,23 @@ impl NotificationPushScheduler {
                 tokio::time::sleep(interval).await;
             }
         })
+    }
+}
+
+#[async_trait::async_trait]
+impl Scheduler for NotificationPushScheduler {
+    fn name(&self) -> &str {
+        SCHEDULER_NAME
+    }
+
+    fn interval_secs(&self) -> u64 {
+        DEFAULT_INTERVAL_SECS
+    }
+
+    async fn run_once(&self) -> Result<(), String> {
+        self.scan_once()
+            .await
+            .map(|_| ())
+            .map_err(|e| e.to_string())
     }
 }

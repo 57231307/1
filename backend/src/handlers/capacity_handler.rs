@@ -10,8 +10,9 @@ use serde::Deserialize;
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
-use crate::services::capacity_service::{
-    CapacityService, CreateWorkCenterInput, LoadAnalysisQuery, UpdateWorkCenterInput,
+use crate::services::capacity_service::CapacityService;
+use crate::models::dto::capacity_dto::{
+    CreateWorkCenterInput, LoadAnalysisQuery, UpdateWorkCenterInput,
 };
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;

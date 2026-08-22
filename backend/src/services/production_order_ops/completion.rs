@@ -58,7 +58,7 @@ impl ProductionOrderService {
         let capacity_service =
             crate::services::capacity_service::CapacityService::new(self.db.clone());
         let analysis = capacity_service
-            .load_analysis(crate::services::capacity_service::LoadAnalysisQuery {
+            .load_analysis(crate::models::dto::capacity_dto::LoadAnalysisQuery {
                 date_from: model.planned_start_date,
                 date_to: model.planned_end_date,
                 work_center_id: Some(work_center_id),
