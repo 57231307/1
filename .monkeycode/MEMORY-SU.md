@@ -725,6 +725,30 @@
 - **已合并 PR 分支**：合并时使用 `--delete-branch` 自动删除，若遗漏可用上述 DELETE API 补删
 - **验证**：`gh api repos/{owner}/{repo}/branches --paginate` 确认最终分支列表
 
+### 批量审计修复 CI 编译错误排查经验（PR #926，2026-08-21）
+
+> 批量提交 39 文件改动后经历 6 轮 CI 修复才全绿，以下错误模式值得记住。
+
+| 错误码 | 错误 | 根因 | 修复 |
+|--------|------|------|------|
+| E0425 | cannot find value `PENDING` in module `master_data` | status 模块常量名与引用不一致：master_data 只有 ACTIVE/INACTIVE，没有 PENDING/APPROVED | 在 master_data 模块补 PENDING/APPROVED 常量 |
+| E0753 | expected outer doc comment | `sed -i '1i use ...'` 把 import 插到 `//!` 模块注释前，Rust 要求 `//!` 必须在文件首 | import 移到 `//!` 注释块之后 |
+| E0560/E0026 | RequirementCalcParams has no field `bom_level` | A.2 修复时把 visited_path 加到了 RequirementCalcParams（应属 ExplodeBomArgs），bom_level 被覆盖 | 两个字段归位：RequirementCalcParams=bom_level，ExplodeBomArgs=visited_path |
+| E0027 | pattern does not mention field `visited_path` | 同上连锁：struct 字段位置错误导致 destructure pattern 不匹配 | 同上修复 |
+| E0277 | trait bound `XXXRequest: ToSchema` not satisfied | handler 加了 `#[utoipa::path]` 注解但函数参数 `Json<XXXRequest>` 的 struct 没有 `ToSchema` derive | 只给已加 ToSchema 的 struct（auth+user 域）注册 path；其余域等 struct 加 ToSchema 后再注册 |
+| E0609 | no field `total`/`failures` on type `&CircuitEntry` | A.3 把 total/failures 改为 window VecDeque 后，调试输出函数仍引用旧字段 | 改为从 window 统计 `window.len()` + `window.iter().filter()` |
+| E0034 | multiple `max` found | NaiveDate 的 `Ord::max` 与 migration crate 的 `ExprTrait::max` 方法歧义 | 用 `std::cmp::Ord::max(a, b)` 消歧 |
+| E0384 | cannot assign twice to immutable variable | A.12 换缸建模用 match 表达式初始化 current_start，但循环中需赋值 | `let current_start` 改 `let mut current_start` |
+| E0063 | missing field `lead_time_days` in StockInfo | A.4 给 StockInfo 加 lead_time_days 后，calculation.rs/query.rs/test 里构造 StockInfo 没补字段 | 所有 StockInfo 构造点补 `lead_time_days: 7` |
+
+**经验总结**：
+- 批量改动涉及 struct 字段变更时，必须 grep 所有构造点（`StockInfo {`、`ExplodeBomArgs {`），否则 E0063/E0560 连锁报错
+- 加 `#[utoipa::path]` 注解前确认函数参数的 struct 已 derive ToSchema，否则 E0277
+- `sed -i '1i ...'` 插入 import 不能在 `//!` 模块注释前
+- struct 字段加错结构体（visited_path 加到 RequirementCalcParams 而非 ExplodeBomArgs）会连锁触发 E0560/E0026/E0027
+- 方法歧义（E0034）：当 crate 在作用域注入了同名的 trait 方法（如 migration 的 ExprTrait::max），对基本类型调用 `.max()` 会歧义，用全路径 `std::cmp::Ord::max` 消歧
+- **CI 是唯一验证源**：禁止本地编译，CI 报错后拉 annotations 逐个修复，每次只改报错点，避免引入新错误
+
 > 历史批次修复详情已归档到 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)。
 > 更多历史经验已归档到 [docs/archives/](file:///workspace/.monkeycode/docs/archives/)。
 
