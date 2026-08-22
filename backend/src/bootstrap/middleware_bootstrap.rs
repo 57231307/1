@@ -21,6 +21,7 @@ use crate::middleware::csrf::csrf_middleware;
 use crate::middleware::permission::permission_middleware;
 use crate::middleware::rate_limit::rate_limit_by_ip;
 use crate::middleware::request_validator::request_logging_middleware;
+use crate::middleware::rls_context::rls_context_middleware;
 use crate::routes::create_router;
 
 // ============================================================================
@@ -71,6 +72,7 @@ pub fn apply_full_mode_layers(app_state: AppState, cors: CorsLayer) -> Router {
     let s_omni_audit = app_state.clone();
     let s_rate_limit = app_state.clone();
     let s_dynamic_router = app_state.clone();
+    let s_rls = app_state.clone();
 
     let router = create_router(app_state);
     let router = apply_body_limit_and_context(router);
@@ -85,6 +87,11 @@ pub fn apply_full_mode_layers(app_state: AppState, cors: CorsLayer) -> Router {
         s_omni_audit,
         s_auth,
     );
+    // A.21.2：RLS 行级安全上下文（auth 之后设置 SET LOCAL app.user_id，激活 PostgreSQL RLS）
+    let router = router.layer(axum::middleware::from_fn_with_state(
+        s_rls,
+        rls_context_middleware,
+    ));
     // V15 P1 20.6-B：API 网关熔断中间件（5s 窗口失败率 > 50% 触发 open，30s 后 half-open 探测）
     // 放在 auth_chain 之外、rate_limiting 之内：监控认证后的业务处理 5xx 失败率
     let router = router.layer(axum::middleware::from_fn(circuit_breaker_middleware));

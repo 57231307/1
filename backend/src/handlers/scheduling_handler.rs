@@ -12,9 +12,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
-use crate::services::scheduling_service::{
-    AdjustScheduleRequest, AutoScheduleRequest, ScheduledOrderQuery, SchedulingService,
+use crate::models::dto::scheduling_dto::{
+    AdjustScheduleRequest, AutoScheduleRequest, ScheduledOrderQuery,
 };
+use crate::services::scheduling_service::SchedulingService;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 

@@ -2041,3 +2041,57 @@ locales + 脚本 + 测试：
 - 二十二、胚布拆匹与质量处理审计专项: 100% 完成，详见上方归档
 - 二十三、库存排程物料审计专项: 100% 完成，详见上方归档
 - 二十四、组织定制物流审计专项: 100% 完成，详见上方归档
+
+
+---
+
+## 归档：代码深挖审计已完成项（2026-08-21 从 doto.md 迁出）
+
+### 三十节已完成项（13 项主任务 + 子任务）
+
+| 编号 | 问题 | 位置 | 修复内容 |
+|------|------|------|----------|
+| A.1 | 排程天数用 round() 而非 ceil() → 系统性产能超排 | scheduling_auto.rs `compute_days_needed` | ✅ 已修复（round→ceil） |
+| A.2 | BOM 递归无环检测，成环白跑 10 层且结果虚增 | mrp_engine_ops/bom.rs | ✅ 已修复（visited_path 成环检测） |
+| A.3 | 熔断器为翻滚窗口与注释"滑动窗口"不符，边界统计突变 | circuit_breaker.rs:68 | ✅ 已修复（VecDeque 真滑动窗口） |
+| A.4 | MRP 提前期硬编码 7 天/层，未用物料主数据 | mrp_engine_ops/bom.rs:48 | ✅ 已修复（从 product.lead_time 读取） |
+| A.8 | AI 补货 LT 硬编码 7 天（与 A.4 同源假设） | ai/rec.rs:128 | ✅ 已修复（从 product.lead_time 批量读） |
+| A.11 | 组产能不足全组失败，无部分排程 | scheduling_auto.rs | ✅ 已修复（部分排程，可排单不阻塞） |
+| A.12 | 无换缸 setup time 建模 | scheduling_auto.rs | ✅ 已修复（DYE_CHANGEOVER_DAYS 建模） |
+| A.13 | find_earliest_slot 后二次重叠检测，逻辑重复 | scheduling_auto.rs | ✅ 已修复（check_overlap 公用方法） |
+| A.14 | BPM 条件引擎不支持 &&/\|\| 组合 | bpm_service.rs | ✅ 已修复（&&/\|\| 组合支持） |
+| A.16 | AI 预测权重硬编码 0.6/0.4 | ai/pred.rs | ✅ 已修复（HOLT_WEIGHT/WMA_WEIGHT 常量） |
+| A.17 | email_send_counters DashMap 无清理任务 → 无界增长 | container/mod.rs:75 | ✅ 已修复（惰性清理过期小时桶） |
+| A.22 | 三单匹配贪心按迭代顺序核销，未按账期/优先级排序 | ap_verification_service.rs:129 | ✅ 已修复（按 due_date 升序排序） |
+| A.23 | 集成测试本地默认 sqlite::memory: 回退，与生产 PG 方言有保真度差距（CI 已用 PG16 缓解） | backend/tests/test_common/mod.rs | ✅ 已修复（回退时输出警告提示用 PG） |
+| A.24 | scripts/ 堆积 30+ 一次性 i18n 批处理脚本，未归档清理 | scripts/ | ✅ 已修复（22 个归档到 archived-i18n-batches/） |
+| A.5.1 | 抽取 StateMachine trait 接口（transition/validate/current_state） | 新建 utils/state_machine_trait.rs | ✅ |
+| A.5.2 | 缸号状态机适配 trait（DB 规则表驱动实现） | dye_batch_state_machine_service.rs | ✅ |
+| A.5.3 | 8D 状态机适配 trait（枚举+payload 实现） | quality_8d_service.rs | ✅ |
+| A.5.4 | 定制订单状态机适配 trait（纯函数实现） | custom_order_state_service.rs | ✅ |
+| A.5.5 | BPM 状态机适配 trait（JSON 图遍历实现） | bpm_service.rs | ✅ |
+| A.6.1 | 提取 Scheduler trait + 注册中心 | 新建 utils/scheduler_framework.rs | ✅ |
+| A.6.2 | notification_scheduler 适配 trait | notification_scheduler.rs | ✅ |
+| A.6.3 | report_subscription_scheduler + stock_alert_notification_scheduler + color_card_issue_scheduler 适配 trait | 各 scheduler 文件 | ✅ |
+| A.9.1 | DIContainer 加 resolve/resolve_async trait + 服务注册宏 | utils/di_container.rs | ✅ |
+| A.10.1 | 加回溯框架骨架（backtrack_schedule 函数 + 深度限制参数） | scheduling_auto.rs | ✅ |
+| A.15.1 | 质检表加 defect_type VARCHAR 字段迁移 | migration/ | ✅ |
+| A.18.1 | production.rs 加大写别名常量（IN_PROGRESS→"in_progress"不变，新增大写映射注释） | models/status/production.rs | ✅ |
+| A.18.2 | finance.rs 加大小写统一注释 + 别名 | models/status/finance.rs | ✅ |
+| A.18.3 | sales.rs + quality_dyeing.rs + wage_energy_chemical_business.rs 逐文件统一 | 各 status 文件 | ✅ |
+| A.19.1 | sales 域 service 字面量替换为 status 常量（约 20 处） | so/ + sales_*.rs | ✅ |
+| A.19.2 | purchase 域 service 字面量替换（约 20 处） | po/ + purchase_*.rs | ✅ |
+| A.19.3 | inventory 域 service 字面量替换（约 20 处） | inv/ + inventory_*.rs | ✅ |
+| A.19.4 | finance 域 service 字面量替换（约 20 处） | voucher_*/ + finance_*.rs | ✅ |
+| A.19.5 | production/quality 域 service 字面量替换（约 20 处） | production_*/ + quality_* | ✅ |
+| A.19.6 | 其余域 service 字面量替换（约 40 处） | 剩余 services/*.rs | ✅ |
+| A.20.1 | 设计域分组方案（sales/purchase/inventory/finance/production/crm/system） | 文档 | ✅ |
+| A.21.1 | 实现 SET LOCAL app.user_id 中间件（每请求设置当前用户 ID） | middleware/ 新建 rls_context.rs | ✅ |
+| A.25.1 | auth 域 handler 加 utoipa::path 注解（约 8 个端点） | auth_handler.rs + docs.rs | ✅ |
+| A.25.2 | user/role 域 handler 加注解（约 10 个） | user_handler.rs + role_handler.rs | ✅ |
+| A.25.3 | inventory 域 handler 加注解（约 15 个） | inventory_stock_handler*.rs | ✅ |
+| A.25.4 | sales 域 handler 加注解（约 15 个） | sales_order_handler.rs 等 | ✅ |
+| A.25.5 | purchase 域 handler 加注解（约 15 个） | purchase_order_handler.rs 等 | ✅ |
+| A.25.6 | finance 域 handler 加注解（约 20 个） | voucher/finance/ar/ap handler | ✅ |
+| A.25.7 | production/crm 域 handler 加注解（约 20 个） | production/crm handler | ✅ |
+| A.25.8 | 其余域 handler 加注解（约 12 个） | 剩余 handler | ✅ |

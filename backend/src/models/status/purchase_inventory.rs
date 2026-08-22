@@ -3,6 +3,11 @@
 //!
 //! 批次 490 D10-3b 拆分：从 models/status.rs 抽取的采购/库存状态常量子模块组。
 //! 包含：purchase_order/purchase_receipt/inventory_reservation/inventory_transfer/inventory_count/purchase_return/purchase_inspection/inventory_adjustment/inventory_piece/purchase_receipt_inspection
+//!
+//! 大小写历史包袱说明：本模块下 status 字面量大小写混杂，源于历史数据库迁移遗留——
+//! 单据类（purchase_order/purchase_receipt）用大写（DRAFT/APPROVED/CLOSED），
+//! 库存操作类（inventory_reservation/inventory_transfer/inventory_count 等）用小写（pending/locked/consumed）。
+//! 各子模块内字面量值保持与数据库现状一致，新增状态需先确认对应表的既有值大小写再定义常量。
 
 // 采购订单状态
 pub mod purchase_order {

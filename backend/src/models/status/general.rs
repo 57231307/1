@@ -3,6 +3,12 @@
 //!
 //! 批次 490 D10-3b 拆分：从 models/status.rs 抽取的通用/系统级业务状态常量子模块组。
 //! 包含：common/payment/master_data/import_task/login_log/email_log/active_status/audit_message/health_check/reconcile_result/failover
+//!
+//! 大小写历史包袱说明：本模块下 status 字面量大小写混杂，源于历史数据库迁移遗留——
+//! 主数据/导入任务/健康检查/故障切换等早期表用小写（active/inactive/pending），
+//! 单据/日志/审计等后建表用大写（DRAFT/PENDING/APPROVED）。
+//! 各子模块内字面量值保持与数据库现状一致，common/active_status 用大写、master_data 用小写，
+//! 新增状态需先确认对应表的既有值大小写再定义常量，避免大小写不匹配导致查询失效。
 
 /// 通用状态常量（多业务共用）
 pub mod common {
@@ -53,6 +59,24 @@ pub mod master_data {
 
     /// 已审批：主数据已审批状态（价格审批等，A.19 补充）
     pub const APPROVED: &str = "approved";
+
+    // 以下为 AI 模型版本状态（model_version.status，小写值，A.19.8 补充）
+    // 与 ai_model_management_service.rs validate_model_status 的字面量一一对应
+
+    /// 草稿：模型版本初始状态，可编辑/审批
+    pub const DRAFT: &str = "draft";
+
+    /// 退役：模型版本被新激活版本替代后的降级状态
+    pub const RETIRED: &str = "retired";
+
+    /// 归档：模型版本长期下线，不可再激活
+    pub const ARCHIVED: &str = "archived";
+
+    // 以下为 AI 模型版本审批状态（model_version.approval_status，小写值，A.19.8 补充）
+    // 与 ai_model_management_service.rs validate_approval_status 的字面量一一对应
+
+    /// 已拒绝：模型版本审批未通过
+    pub const REJECTED: &str = "rejected";
 }
 
 /// 导入任务状态（import_task.status，小写值）

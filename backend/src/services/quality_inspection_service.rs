@@ -145,6 +145,8 @@ pub struct CreateInspectionRecordRequest {
     pub qualification_rate: Option<Decimal>,
     pub inspection_result: String,
     pub remark: Option<String>,
+    // 缺陷类型（可选）
+    pub defect_type: Option<String>,
     // v14 批次 421 T-P1-4：面料行业质检等级 A/B/C
     // 可选字段：None 时由 determine_quality_grade 根据 qualification_rate 自动判定
     pub grade: Option<String>,
@@ -347,6 +349,7 @@ impl QualityInspectionService {
             qualification_rate: Set(req.qualification_rate),
             inspection_result: Set(req.inspection_result),
             remark: Set(req.remark),
+            defect_type: Set(req.defect_type),
             grade: Set(Some(grade)),
             color_no: Set(req.color_no),
             dye_lot_no: Set(req.dye_lot_no),

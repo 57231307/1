@@ -60,3 +60,7 @@ pub mod export_concurrency;
 pub mod messages;
 // batch-17 P3: 迁移跳跃检测
 pub mod migration_jump_detector;
+// A.5.1: 可插拔状态机框架 trait（四范式统一接口）
+pub mod state_machine_trait;
+// A.6.1: 统一任务调度框架 trait + 注册中心（5 scheduler 统一管理）
+pub mod scheduler_framework;

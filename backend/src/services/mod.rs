@@ -270,6 +270,8 @@ pub mod failover_service;
 // P0-3 定制订单全流程跟踪服务
 pub mod custom_order_crud_service;
 pub mod custom_order_state_service;
+// A.5.4：定制订单状态机适配 StateMachine trait（纯函数桥接，不改原 service）
+pub mod custom_order_state_machine_adapter;
 pub mod custom_order_process_service;
 pub mod custom_order_quality_service;
 pub mod custom_order_aftersales_service;
@@ -307,6 +309,8 @@ pub mod period_adjustment_service;
 pub mod bulk_color_approval_service;
 // V15 P0-F20 Batch 480：8D 质量管理流程服务（11 状态机：not_started→d0_plan→d1_team→...→d8_recognize→closed）
 pub mod quality_8d_service;
+// A.5.3：8D 状态机适配 StateMachine trait（纯内存校验，不操作 DB）
+pub mod quality_8d_state_machine_adapter;
 // V15 P0-B01/B02/B03/B04 Batch 481：坏账管理 + 催收任务 + 财务预警服务
 pub mod bad_debt_service;
 pub mod collection_task_service;

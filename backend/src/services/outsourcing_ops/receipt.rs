@@ -452,6 +452,7 @@ impl OutsourcingReceiptService {
             qualification_rate,
             inspection_result,
             remark: Some(format!("委外收回单 {} 自动触发质检", receipt.receipt_no)),
+            defect_type: None,
             grade: Some(grade),
             color_no: receipt.color_no.clone(),
             dye_lot_no: receipt.dye_lot_no.clone(),

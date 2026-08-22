@@ -37,8 +37,8 @@ pub struct UpdateApiKeyPayload {
 impl ApiKeyService {
     /// 生成新的 API 密钥
     pub fn generate_api_key() -> String {
-        // 32 位字母数字随机串，统一由 `utils::random` 提供
-        let key = random::random_alphanumeric(32);
+        // 32 位密码学安全随机串（4.9 修复：原 fastrand 可预测，改用 OsRng）
+        let key = random::secure_random_alphanumeric(32);
         format!("bx_{}", key)
     }
 

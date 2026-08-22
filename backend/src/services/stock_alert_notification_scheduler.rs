@@ -24,6 +24,12 @@ use crate::services::event_notification_service::EventNotificationService;
 use crate::services::inventory_stock_query::compute_alert_type;
 use crate::services::stock_alert::ALERT_TYPE_NORMAL;
 use crate::utils::error::AppError;
+use crate::utils::scheduler_framework::Scheduler;
+
+/// 调度器名称（用于 Scheduler trait 统一标识）
+// 后续接入 SchedulerRegistry 时会使用
+#[allow(dead_code)]
+const SCHEDULER_NAME: &str = "stock-alert-notification-scheduler";
 
 /// 默认扫描间隔（秒）— 每 6 小时扫描一次
 pub const DEFAULT_INTERVAL_SECS: u64 = 6 * 3600;
@@ -46,7 +52,9 @@ impl StockAlertNotificationScheduler {
     }
 
     /// 执行一次扫描：查询全部库存记录，对派生告警项推送通知（返回本次扫描发送通知的告警数量。）
-    pub async fn run_once(&self) -> Result<u64, AppError> {
+    ///
+    /// 独立于 Scheduler trait 的 run_once，供 start_background_task 与 trait 适配复用。
+    pub async fn scan_once(&self) -> Result<u64, AppError> {
         let stocks = InventoryStockEntity::find()
             .filter(inventory_stock::Column::QuantityAvailable.gte(rust_decimal::Decimal::ZERO))
             .all(&*self.db)
@@ -227,7 +235,7 @@ impl StockAlertNotificationScheduler {
             );
 
             loop {
-                match self.run_once().await {
+                match self.scan_once().await {
                     Ok(count) if count > 0 => {
                         info!(count, "库存告警通知调度器：本轮发送 {} 条告警通知", count);
                     }
@@ -241,5 +249,23 @@ impl StockAlertNotificationScheduler {
                 tokio::time::sleep(interval).await;
             }
         })
+    }
+}
+
+#[async_trait::async_trait]
+impl Scheduler for StockAlertNotificationScheduler {
+    fn name(&self) -> &str {
+        SCHEDULER_NAME
+    }
+
+    fn interval_secs(&self) -> u64 {
+        DEFAULT_INTERVAL_SECS
+    }
+
+    async fn run_once(&self) -> Result<(), String> {
+        self.scan_once()
+            .await
+            .map(|_| ())
+            .map_err(|e| e.to_string())
     }
 }

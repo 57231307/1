@@ -32,6 +32,12 @@ use crate::models::report_subscription::{
 use crate::services::email_service::EmailService;
 use crate::services::report_subscription_service::ReportSubscriptionService;
 use crate::utils::error::AppError;
+use crate::utils::scheduler_framework::Scheduler;
+
+/// 调度器名称（用于 Scheduler trait 统一标识）
+// 后续接入 SchedulerRegistry 时会使用
+#[allow(dead_code)]
+const SCHEDULER_NAME: &str = "report-subscription-scheduler";
 
 /// 默认扫描间隔（秒）— 每分钟扫描一次到期订阅
 const DEFAULT_INTERVAL_SECS: u64 = 60;
@@ -69,7 +75,9 @@ impl ReportSubscriptionScheduler {
     }
 
     /// 执行一次扫描：查询到期订阅 + 待重试订阅，逐个处理，返回处理数量
-    pub async fn run_once(&self) -> Result<u64, AppError> {
+    ///
+    /// 独立于 Scheduler trait 的 run_once，供 start_background_task 与 trait 适配复用。
+    pub async fn scan_once(&self) -> Result<u64, AppError> {
         let now = Utc::now();
         let svc = ReportSubscriptionService::new(self.db.clone());
 
@@ -231,7 +239,7 @@ impl ReportSubscriptionScheduler {
             );
 
             loop {
-                match self.run_once().await {
+                match self.scan_once().await {
                     Ok(count) if count > 0 => {
                         info!(count, "报表订阅调度器：本轮处理 {} 条订阅", count);
                     }
@@ -245,5 +253,23 @@ impl ReportSubscriptionScheduler {
                 tokio::time::sleep(interval).await;
             }
         })
+    }
+}
+
+#[async_trait::async_trait]
+impl Scheduler for ReportSubscriptionScheduler {
+    fn name(&self) -> &str {
+        SCHEDULER_NAME
+    }
+
+    fn interval_secs(&self) -> u64 {
+        DEFAULT_INTERVAL_SECS
+    }
+
+    async fn run_once(&self) -> Result<(), String> {
+        self.scan_once()
+            .await
+            .map(|_| ())
+            .map_err(|e| e.to_string())
     }
 }
