@@ -8,6 +8,7 @@ use sea_orm_migration::prelude::*;
 mod m0051_add_data_scope_to_roles;
 mod m0052_create_role_conflicts;
 mod m0053_create_permission_change_audit;
+mod m0053b_add_rls_columns_to_customers_suppliers;
 mod m0054_enable_rls_policies;
 mod m0055_create_export_approval_request;
 mod m0056_add_condition_to_audit_logs;
@@ -26,6 +27,10 @@ impl MigrationTrait for Migration {
         m0051_add_data_scope_to_roles::Migration.up(manager).await?;
         m0052_create_role_conflicts::Migration.up(manager).await?;
         m0053_create_permission_change_audit::Migration
+            .up(manager)
+            .await?;
+        // 必须在 m0054 RLS 策略之前补 customers.owner_id 和 suppliers.created_by 列
+        m0053b_add_rls_columns_to_customers_suppliers::Migration
             .up(manager)
             .await?;
         m0054_enable_rls_policies::Migration.up(manager).await?;
@@ -69,6 +74,9 @@ impl MigrationTrait for Migration {
             .down(manager)
             .await?;
         m0054_enable_rls_policies::Migration.down(manager).await?;
+        m0053b_add_rls_columns_to_customers_suppliers::Migration
+            .down(manager)
+            .await?;
         m0053_create_permission_change_audit::Migration
             .down(manager)
             .await?;
