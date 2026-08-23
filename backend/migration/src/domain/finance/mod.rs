@@ -2,8 +2,13 @@
 
 use sea_orm_migration::prelude::*;
 
-#[derive(DeriveMigrationName)]
 pub struct Migration;
+
+impl MigrationName for Migration {
+    fn name() -> &'static str {
+        "m_finance_domain"
+    }
+}
 
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {

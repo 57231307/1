@@ -3,6 +3,9 @@
 //! 按业务域聚合，每个域 1 个迁移文件，共 6 个：
 //! system → business → sales_crm → production → finance → v15
 //!
+//! 迁移名: m_system_domain / m_business_domain / m_sales_crm_domain /
+//!         m_production_domain / m_finance_domain / m_v15_domain
+//!
 //! 顺序说明：
 //! 1. system: 核心表（含 customers.owner_id/suppliers.created_by 补列）
 //! 2. business: 业务表（依赖 system 的基础表）

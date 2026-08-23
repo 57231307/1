@@ -22,8 +22,13 @@ mod m0048_add_user_id_to_webhooks;
 mod m0049_create_processed_events;
 mod m0050_create_event_dead_letters;
 
-#[derive(DeriveMigrationName)]
 pub struct Migration;
+
+impl MigrationName for Migration {
+    fn name() -> &'static str {
+        "m_production_domain"
+    }
+}
 
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {

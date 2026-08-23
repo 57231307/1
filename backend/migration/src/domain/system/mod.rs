@@ -12,8 +12,13 @@ mod m0004_add_field_permissions;
 mod m0005_add_basic_data_and_system_tables;
 mod m0006_add_general_ledger_and_finance_base;
 
-#[derive(DeriveMigrationName)]
 pub struct Migration;
+
+impl MigrationName for Migration {
+    fn name() -> &'static str {
+        "m_system_domain"
+    }
+}
 
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
