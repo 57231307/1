@@ -8,15 +8,16 @@
 #
 # 工作流拓扑：
 #   ci-info → [ci-fmt-rust, ci-fmt-fe, ci-lint-rust, ci-lint-fe, ci-type-check,
-#              ci-test-rust, ci-test-fe, ci-audit, ci-deps, ci-perf-bench,
+#              ci-test-fe, ci-audit, ci-deps, ci-perf-bench,
 #              ci-build-rust, ci-build-fe]
-#            → [ci-e2e（测试通过后跑端到端）, ci-dead-code-audit（Clippy 通过后跑）]
+#            PR 时额外跑: [ci-build-test-artifacts → ci-test-rust],
+#                         [ci-e2e（测试通过后跑端到端）],
+#                         [ci-dead-code-audit（Clippy 通过后跑）]
 #            → [package-release] → [github-release]
 #            → [ci-cleanup-retry]（收尾：汇总全部 job 结果）
 #
-# 发布门禁：package-release 依赖 ci-e2e + ci-dead-code-audit，main 全绿（含
-#   E2E + 死代码审计）后才允许发布成品包。E2E/死代码仅 main/master/tag push
-#   触发，PR push 不跑（靠其余检查把关，避免拖慢迭代）。
+# 发布门禁：E2E + Rust 测试 + 死代码审计在 PR 时验证，合并即视为通过。
+#   主线 push 不重复跑测试（已在 PR 阶段验证），只做构建/格式/审计/发布。
 # ==============================================================================
 
 name: CI/CD Pipeline - 严格构建验证 + 全面日志
@@ -1187,6 +1188,8 @@ jobs:
     # 预编译 job：禁用 sccache（冷缓存无加速）+ 并行度由 setup-rust 智能探测（防 OOM，用满最大上限）
     timeout-minutes: 90
     needs: ci-info
+    # 仅 PR 时运行测试，主线 push 不跑（已在 PR 阶段验证）
+    if: github.event_name == 'pull_request'
     services:
       postgres:
         image: postgres:16-alpine
@@ -1248,6 +1251,8 @@ jobs:
     # 30 个分片仅从 archive 运行测试（不编译），时间大幅缩短
     timeout-minutes: 45
     needs: ci-build-test-artifacts
+    # 仅 PR 时运行测试，主线 push 不跑（已在 PR 阶段验证）
+    if: github.event_name == 'pull_request'
     strategy:
       fail-fast: false
       # 智能并行：GitHub 免费 runner 单 repo 并发上限 20，30 个分区用 max-parallel 20 一轮跑完大半
@@ -2141,12 +2146,9 @@ jobs:
       ci-lint-rust,
       ci-lint-fe,
       ci-type-check,
-      ci-test-rust,
       ci-test-fe,
       ci-build-rust,
-      ci-build-fe,
-      ci-e2e,
-      ci-dead-code-audit
+      ci-build-fe
     ]
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -2401,9 +2403,9 @@ jobs:
     name: 🎭 E2E 端到端测试
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    # 测试通过后跑 E2E；需 ci-build-rust 提供后端二进制(复用产物不重编)；仅 main/master/tag push 触发
-    needs: [ci-test-rust, ci-build-fe, ci-build-rust]
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+    # 测试通过后跑 E2E；需 ci-build-rust 提供后端二进制(复用产物不重编)；PR 时运行
+    needs: [ci-build-fe, ci-build-rust]
+    if: github.event_name == 'pull_request'
     services:
       postgres:
         image: postgres:16-alpine
@@ -2573,9 +2575,9 @@ jobs:
     name: 🧟 死代码审计
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # Clippy 通过后跑（复用编译产物）；仅 main/master/tag push 触发
+    # Clippy 通过后跑（复用编译产物）；PR 时运行
     needs: ci-lint-rust
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+    if: github.event_name == 'pull_request'
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
