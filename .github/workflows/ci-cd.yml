@@ -2527,6 +2527,11 @@ jobs:
             -d "{\"admin_username\":\"${TEST_USERNAME}\",\"admin_password\":\"${TEST_PASSWORD}\"}")
           RESPONSE_BODY=$(echo "$HTTP_CODE" | head -n -1)
           STATUS_CODE=$(echo "$HTTP_CODE" | tail -n 1)
+          echo "=== 初始化诊断 ==="
+          echo "STATUS_CODE=$STATUS_CODE"
+          echo "RESPONSE_BODY=$RESPONSE_BODY"
+          echo "=== 后端日志（最后20行） ==="
+          tail -n 20 /tmp/e2e-logs/backend.log 2>/dev/null || echo "(无后端日志)"
           if echo "$RESPONSE_BODY" | grep -q '"code":200'; then exit 0; fi
           if echo "$RESPONSE_BODY" | grep -q '"code": 200'; then exit 0; fi
           if [ "$STATUS_CODE" = "400" ] && echo "$RESPONSE_BODY" | grep -q '"code":"BUSINESS_ERROR"'; then exit 0; fi
