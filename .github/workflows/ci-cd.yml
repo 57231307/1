@@ -402,7 +402,7 @@ jobs:
   ci-lint-rust:
     name: 🔍 Rust Clippy
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     needs: ci-info
     # 启用 contents: write 以便"提交 baseline 文件"步骤能 push 自动建立的基线
     # baseline 机制：首次跑自动建立基线，后续 PR 仅"新增警告"阻塞 CI
@@ -1398,7 +1398,7 @@ jobs:
   ci-coverage-rust:
     name: 📊 Rust 覆盖率
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     needs: ci-test-rust
     if: success()
     services:
@@ -2402,7 +2402,7 @@ jobs:
   ci-e2e:
     name: 🎭 E2E 端到端测试
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     # 测试通过后跑 E2E；需 ci-build-rust 提供后端二进制(复用产物不重编)；PR 时运行
     needs: [ci-build-fe, ci-build-rust]
     if: github.event_name == 'pull_request'
