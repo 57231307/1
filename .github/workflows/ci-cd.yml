@@ -2528,8 +2528,12 @@ jobs:
           RESPONSE_BODY=$(echo "$HTTP_CODE" | head -n -1)
           STATUS_CODE=$(echo "$HTTP_CODE" | tail -n 1)
           if echo "$RESPONSE_BODY" | grep -q '"code":200'; then exit 0; fi
+          if echo "$RESPONSE_BODY" | grep -q '"code": 200'; then exit 0; fi
           if [ "$STATUS_CODE" = "400" ] && echo "$RESPONSE_BODY" | grep -q '"code":"BUSINESS_ERROR"'; then exit 0; fi
-          echo "初始化失败 HTTP $STATUS_CODE"; tail -n 50 /tmp/e2e-logs/backend.log; exit 1
+          if [ "$STATUS_CODE" = "400" ] && echo "$RESPONSE_BODY" | grep -q '"code": "BUSINESS_ERROR"'; then exit 0; fi
+          echo "初始化失败 HTTP $STATUS_CODE"
+          echo "Response: $RESPONSE_BODY"
+          tail -n 50 /tmp/e2e-logs/backend.log; exit 1
 
       - name: 运行 E2E 测试
         working-directory: frontend
