@@ -181,7 +181,6 @@ COMMENT ON COLUMN "omni_audit_logs"."signature" IS 'HMAC-SHA256 防篡改签名�
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'custom_orders') THEN
-        ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "notes" TEXT;
         COMMENT ON COLUMN "custom_orders"."notes" IS '订单备注（批次 88 PH-1 占位符实现）';
     END IF;
 END $$;
@@ -436,35 +435,6 @@ ALTER TABLE "ar_reconciliations" ADD COLUMN IF NOT EXISTS "reconciliation_status
 ALTER TABLE "ar_reconciliations" ADD COLUMN IF NOT EXISTS "total_collections" DECIMAL(18,4);
 ALTER TABLE "ar_reconciliations" ADD COLUMN IF NOT EXISTS "total_invoices" DECIMAL(18,4);
 ALTER TABLE "ar_reconciliations" ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMPTZ;
-ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "actual_delivery_date" DATE;
-ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "approval_instance_id" BIGINT;
-ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "approved_at" TIMESTAMPTZ;
-ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "approved_by" BIGINT;
-ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "color_id" BIGINT;
-ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ;
-ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "created_by" BIGINT;
-ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "currency" VARCHAR(255);
-ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "custom_requirements" JSONB;
-ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "customer_approval_comment" VARCHAR(255);
-ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "customer_approved_at" TIMESTAMPTZ;
-ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "customer_id" BIGINT;
-ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "dye_method" VARCHAR(255);
-ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "expected_delivery_date" DATE;
-ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "finishing_method" VARCHAR(255);
-ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "lab_dip_request_id" INTEGER;
-ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "order_no" VARCHAR(255);
-ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "product_id" BIGINT;
-ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "quality_standard_id" INTEGER;
-ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "quantity" DECIMAL(18,4);
-ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "quotation_id" BIGINT;
-ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "rejection_reason" VARCHAR(255);
-ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "sales_order_id" BIGINT;
-ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "spec" VARCHAR(255);
-ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "status" VARCHAR(255);
-ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "total_amount" DECIMAL(18,4);
-ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "unit" VARCHAR(255);
-ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMPTZ;
-ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "yarn_spec" VARCHAR(255);
 ALTER TABLE "fixed_asset_disposals" ADD COLUMN IF NOT EXISTS "asset_id" INTEGER;
 ALTER TABLE "fixed_asset_disposals" ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ;
 ALTER TABLE "fixed_asset_disposals" ADD COLUMN IF NOT EXISTS "created_by" INTEGER;
@@ -502,6 +472,42 @@ ALTER TABLE "omni_audit_logs" ADD COLUMN IF NOT EXISTS "trace_id" VARCHAR(255);
 ALTER TABLE "omni_audit_logs" ADD COLUMN IF NOT EXISTS "user_agent" VARCHAR(255);
 ALTER TABLE "omni_audit_logs" ADD COLUMN IF NOT EXISTS "user_id" INTEGER;
 ALTER TABLE "omni_audit_logs" ADD COLUMN IF NOT EXISTS "username" VARCHAR(255);
+
+-- custom_orders 的 ALTER 移至此处，表在 production 域 m0044 中创建
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'custom_orders') THEN
+        ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "notes" TEXT;
+        ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "actual_delivery_date" DATE;
+        ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "approval_instance_id" BIGINT;
+        ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "approved_at" TIMESTAMPTZ;
+        ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "approved_by" BIGINT;
+        ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "color_id" BIGINT;
+        ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ;
+        ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "created_by" BIGINT;
+        ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "currency" VARCHAR(255);
+        ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "custom_requirements" JSONB;
+        ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "customer_approval_comment" VARCHAR(255);
+        ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "customer_approved_at" TIMESTAMPTZ;
+        ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "customer_id" BIGINT;
+        ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "dye_method" VARCHAR(255);
+        ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "expected_delivery_date" DATE;
+        ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "finishing_method" VARCHAR(255);
+        ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "lab_dip_request_id" INTEGER;
+        ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "order_no" VARCHAR(255);
+        ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "product_id" BIGINT;
+        ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "quality_standard_id" INTEGER;
+        ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "quantity" DECIMAL(18,4);
+        ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "quotation_id" BIGINT;
+        ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "rejection_reason" VARCHAR(255);
+        ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "sales_order_id" BIGINT;
+        ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "spec" VARCHAR(255);
+        ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "status" VARCHAR(255);
+        ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "total_amount" DECIMAL(18,4);
+        ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "unit" VARCHAR(255);
+        ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMPTZ;
+        ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "yarn_spec" VARCHAR(255);
+    END IF;
+END $$;
 "#;
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;

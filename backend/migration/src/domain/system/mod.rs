@@ -199,11 +199,7 @@ ALTER TABLE "role_permissions" ADD COLUMN IF NOT EXISTS "permission_code" VARCHA
 ALTER TABLE "webhooks" ADD COLUMN IF NOT EXISTS "last_event" VARCHAR(255);
 ALTER TABLE "webhooks" ADD COLUMN IF NOT EXISTS "last_payload" VARCHAR(255);
 ALTER TABLE "webhooks" ADD COLUMN IF NOT EXISTS "user_id" INTEGER;
-"#;
-        if !sql.trim().is_empty() {
-            manager.get_connection().execute_unprepared(sql).await?;
-        }
-        let sql = r#"
+
 ALTER TABLE "customers" ADD COLUMN IF NOT EXISTS "annual_purchase" DECIMAL(14,2);
 ALTER TABLE "customers" ADD COLUMN IF NOT EXISTS "bank_account" VARCHAR(255);
 ALTER TABLE "customers" ADD COLUMN IF NOT EXISTS "bank_name" VARCHAR(255);
