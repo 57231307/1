@@ -5,10 +5,10 @@
 //! 工作原理：
 //! - 每个已认证请求，在进入 handler 前执行 `SET LOCAL app.user_id = <id>`
 //! - 请求结束后（连接归还连接池）SET LOCAL 自动失效（LOCAL 仅当前事务/会话有效）
-//! - 当 app.user_id 设置后，rls.sql 中的策略自动激活行级数据隔离
+//! - 当 app.user_id 设置后，finance 域迁移中的 RLS 策略自动激活行级数据隔离
 //! - admin/gm 等全权限角色跳过 RLS（在应用层 data_scope=all 时不设置 app.user_id）
 //!
-//! 安全降级（已由 rls.sql 保证）：
+//! 安全降级（已由 finance 域迁移 保证）：
 //! - app.user_id 未设置时 current_setting 返回 NULL，策略放行所有访问
 //! - CI 环境 SUPERUSER 绕过 RLS，仅生产环境生效
 

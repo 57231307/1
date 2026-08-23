@@ -2226,10 +2226,6 @@ jobs:
             cp -r backend/database release/bingxi-erp/ 2>/dev/null || true
           fi
 
-          if [ -d "database/migration" ]; then
-            mkdir -p release/bingxi-erp/database
-            cp -r database/migration release/bingxi-erp/database/
-          fi
 
           cp README.md release/bingxi-erp/ 2>/dev/null || true
 
