@@ -11,14 +11,14 @@ use axum::{
     routing::{get, post},
 };
 
-use crate::container::AppState;
-use crate::handlers::failover_handler::{
+use crate:{container}::AppState;
+use crate:{handlers}:{failover_handler}::{
     get_failover_metrics, get_failover_status, health_check, post_failback, post_test_switch,
 };
 
 /// 主备隔离路由
 pub fn failover_routes() -> Router<AppState> {
-    Router::new()
+    Router:{new}()
         .route(
             "/api/v1/erp/admin/failover/status",
             get(get_failover_status),

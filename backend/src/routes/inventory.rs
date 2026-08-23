@@ -7,14 +7,14 @@
 //! 这样 `routes()` 入口用 `merge` 组合时不会出现 path+method 重叠，
 //! 避免 axum 0.7 `Overlapping method route` panic。
 
-use crate::container::AppState;
+use crate:{container}::AppState;
 use axum::{
     Router,
     routing::{delete, get, post, put},
 };
 
 // v11 批次 143 P1-1：inventory_count_handler 已真实实现（盘点单 CRUD + 差异计算 + 审批流）
-use crate::handlers::{
+use crate:{handlers}::{
     inventory_adjustment_handler, inventory_batch_handler, inventory_count_handler,
     inventory_reservation_handler, inventory_stock_handler, inventory_stock_handler_fabric,
     inventory_stock_handler_query, inventory_transfer_handler, inventory_write_down_handler,
@@ -23,7 +23,7 @@ use crate::handlers::{
 
 /// 库存主路由（nest 到 /api/v1/erp/inventory）；主函数仅做协调：聚合各资源子路由（path 前缀互不重叠，merge 安全）。
 pub fn inventory() -> Router<AppState> {
-    Router::new()
+    Router:{new}()
         .merge(piece_split_routes())
         .merge(stock_routes())
         .merge(transfer_routes())
@@ -35,255 +35,255 @@ pub fn inventory() -> Router<AppState> {
 
 /// 拆匹路由（path 前缀 /piece-split）
 fn piece_split_routes() -> Router<AppState> {
-    Router::new().route(
+    Router:{new}().route(
         "/piece-split",
-        post(crate::handlers::piece_split_handler::split_fabric_piece),
+        post(crate:{handlers}:{piece_split_handler}:{split_fabric_piece}),
     )
 }
 
 /// 库存基础与查询路由（path 前缀 /stock*）
 fn stock_routes() -> Router<AppState> {
-    Router::new()
-        .route("/stock", get(inventory_stock_handler::list_stock))
-        .route("/stock", post(inventory_stock_handler::create_stock))
-        // V15 P0-S12 修复（Batch 475c）：库存导出端点（必须在 /:id 之前注册，避免 axum matchit 把 "export" 当 :id 匹配）
-        .route("/stock/export", get(inventory_stock_handler::export_stock))
-        .route("/stock/{id}", get(inventory_stock_handler::get_stock))
-        .route("/stock/{id}", put(inventory_stock_handler::update_stock))
-        .route("/stock/{id}", delete(inventory_stock_handler::delete_stock))
+    Router:{new}()
+        .route("/stock", get(inventory_stock_handler:{list_stock}))
+        .route("/stock", post(inventory_stock_handler:{create_stock}))
+        // V15 P0-S12 修复（Batch 475c）：库存导出端点（必须在 /{id} 之前注册，避免 axum matchit 把 "export" 当 {id} 匹配）
+        .route("/stock/export", get(inventory_stock_handler:{export_stock}))
+        .route("/stock/{id}", get(inventory_stock_handler:{get_stock}))
+        .route("/stock/{id}", put(inventory_stock_handler:{update_stock}))
+        .route("/stock/{id}", delete(inventory_stock_handler:{delete_stock}))
         .route(
             "/stock/fabric",
-            get(inventory_stock_handler_fabric::list_stock_fabric),
+            get(inventory_stock_handler_fabric:{list_stock_fabric}),
         )
         .route(
             "/stock/fabric",
-            post(inventory_stock_handler_fabric::create_stock_fabric),
+            post(inventory_stock_handler_fabric:{create_stock_fabric}),
         )
         .route(
             "/stock/transactions",
-            get(inventory_stock_handler_query::list_transactions),
+            get(inventory_stock_handler_query:{list_transactions}),
         )
         .route(
             "/stock/summary",
-            get(inventory_stock_handler_query::get_inventory_summary),
+            get(inventory_stock_handler_query:{get_inventory_summary}),
         )
         .route(
             "/stock/low-stock",
-            get(inventory_stock_handler::check_low_stock),
+            get(inventory_stock_handler:{check_low_stock}),
         )
         .route(
-            "/stock/product/:productId",
-            get(inventory_stock_handler_query::get_stock_by_product),
+            "/stock/product/{product}Id",
+            get(inventory_stock_handler_query:{get_stock_by_product}),
         )
         .route(
             "/stock/alerts",
-            get(inventory_stock_handler_query::get_stock_alerts),
+            get(inventory_stock_handler_query:{get_stock_alerts}),
         )
 }
 
 /// 库存调拨路由（path 前缀 /transfers）
 fn transfer_routes() -> Router<AppState> {
-    Router::new()
+    Router:{new}()
         .route(
             "/transfers",
-            get(inventory_transfer_handler::list_transfers),
+            get(inventory_transfer_handler:{list_transfers}),
         )
         .route(
             "/transfers/generate-no",
-            get(inventory_transfer_handler::generate_no),
+            get(inventory_transfer_handler:{generate_no}),
         )
         .route(
             "/transfers",
-            post(inventory_transfer_handler::create_transfer),
+            post(inventory_transfer_handler:{create_transfer}),
         )
         .route(
-            "/transfers/:id",
-            get(inventory_transfer_handler::get_transfer)
-                .put(inventory_transfer_handler::update_transfer)
-                .delete(inventory_transfer_handler::delete_transfer),
+            "/transfers/{id}",
+            get(inventory_transfer_handler:{get_transfer})
+                .put(inventory_transfer_handler:{update_transfer})
+                .delete(inventory_transfer_handler:{delete_transfer}),
         )
         .route(
-            "/transfers/:id/approve",
-            post(inventory_transfer_handler::approve_transfer),
+            "/transfers/{id}/approve",
+            post(inventory_transfer_handler:{approve_transfer}),
         )
         .route(
-            "/transfers/:id/ship",
-            post(inventory_transfer_handler::ship_transfer),
+            "/transfers/{id}/ship",
+            post(inventory_transfer_handler:{ship_transfer}),
         )
         .route(
-            "/transfers/:id/receive",
-            post(inventory_transfer_handler::receive_transfer),
+            "/transfers/{id}/receive",
+            post(inventory_transfer_handler:{receive_transfer}),
         )
         .route(
-            "/transfers/:id/items",
-            get(inventory_transfer_handler::list_items).post(inventory_transfer_handler::add_item),
+            "/transfers/{id}/items",
+            get(inventory_transfer_handler:{list_items}).post(inventory_transfer_handler:{add_item}),
         )
         .route(
-            "/transfers/items/:item_id",
-            put(inventory_transfer_handler::update_item)
-                .delete(inventory_transfer_handler::delete_item),
+            "/transfers/items/{item_id}",
+            put(inventory_transfer_handler:{update_item})
+                .delete(inventory_transfer_handler:{delete_item}),
         )
         .route(
-            "/transfers/:id/print",
-            get(print_handler::inventory_transfer_print_docx),
+            "/transfers/{id}/print",
+            get(print_handler:{inventory_transfer_print_docx}),
         )
 }
 
 /// 库存调整路由（path 前缀 /adjustments）
 fn adjustment_routes() -> Router<AppState> {
-    Router::new()
+    Router:{new}()
         .route(
             "/adjustments",
-            get(inventory_adjustment_handler::list_adjustments),
+            get(inventory_adjustment_handler:{list_adjustments}),
         )
         .route(
             "/adjustments/generate-no",
-            get(inventory_adjustment_handler::generate_no),
+            get(inventory_adjustment_handler:{generate_no}),
         )
         .route(
             "/adjustments",
-            post(inventory_adjustment_handler::create_adjustment),
+            post(inventory_adjustment_handler:{create_adjustment}),
         )
         .route(
-            "/adjustments/:id",
-            get(inventory_adjustment_handler::get_adjustment)
-                .put(inventory_adjustment_handler::update_adjustment)
-                .delete(inventory_adjustment_handler::delete_adjustment),
+            "/adjustments/{id}",
+            get(inventory_adjustment_handler:{get_adjustment})
+                .put(inventory_adjustment_handler:{update_adjustment})
+                .delete(inventory_adjustment_handler:{delete_adjustment}),
         )
         .route(
-            "/adjustments/:id/approve",
-            post(inventory_adjustment_handler::approve_adjustment),
+            "/adjustments/{id}/approve",
+            post(inventory_adjustment_handler:{approve_adjustment}),
         )
         .route(
-            "/adjustments/:id/reject",
-            post(inventory_adjustment_handler::reject_adjustment),
+            "/adjustments/{id}/reject",
+            post(inventory_adjustment_handler:{reject_adjustment}),
         )
         .route(
-            "/adjustments/:id/items",
-            get(inventory_adjustment_handler::list_items)
-                .post(inventory_adjustment_handler::add_item),
+            "/adjustments/{id}/items",
+            get(inventory_adjustment_handler:{list_items})
+                .post(inventory_adjustment_handler:{add_item}),
         )
         .route(
-            "/adjustments/items/:item_id",
-            put(inventory_adjustment_handler::update_item)
-                .delete(inventory_adjustment_handler::delete_item),
+            "/adjustments/items/{item_id}",
+            put(inventory_adjustment_handler:{update_item})
+                .delete(inventory_adjustment_handler:{delete_item}),
         )
         .route(
-            "/adjustments/:id/print",
-            get(print_handler::inventory_adjustment_print_docx),
+            "/adjustments/{id}/print",
+            get(print_handler:{inventory_adjustment_print_docx}),
         )
 }
 
 /// 库存预留路由（path 前缀 /reservations）
 fn reservation_routes() -> Router<AppState> {
-    Router::new()
+    Router:{new}()
         .route(
             "/reservations",
-            get(inventory_reservation_handler::list_reservations)
-                .post(inventory_reservation_handler::create_reservation),
+            get(inventory_reservation_handler:{list_reservations})
+                .post(inventory_reservation_handler:{create_reservation}),
         )
         .route(
-            "/reservations/:id",
-            delete(inventory_reservation_handler::delete_reservation),
+            "/reservations/{id}",
+            delete(inventory_reservation_handler:{delete_reservation}),
         )
         .route(
-            "/reservations/:id/lock",
-            post(inventory_reservation_handler::lock_reservation),
+            "/reservations/{id}/lock",
+            post(inventory_reservation_handler:{lock_reservation}),
         )
         .route(
-            "/reservations/:id/release",
-            post(inventory_reservation_handler::release_reservation),
+            "/reservations/{id}/release",
+            post(inventory_reservation_handler:{release_reservation}),
         )
 }
 
 /// 库存盘点路由（path 前缀 /counts，v11 批次 143 P1-1 真实实现）
 fn count_routes() -> Router<AppState> {
-    Router::new()
+    Router:{new}()
         .route(
             "/counts",
-            get(inventory_count_handler::list_counts).post(inventory_count_handler::create_count),
+            get(inventory_count_handler:{list_counts}).post(inventory_count_handler:{create_count}),
         )
         .route(
-            "/counts/:id",
-            get(inventory_count_handler::get_count)
-                .put(inventory_count_handler::update_count)
-                .delete(inventory_count_handler::delete_count),
+            "/counts/{id}",
+            get(inventory_count_handler:{get_count})
+                .put(inventory_count_handler:{update_count})
+                .delete(inventory_count_handler:{delete_count}),
         )
         .route(
-            "/counts/:id/record",
-            post(inventory_count_handler::record_count_items),
+            "/counts/{id}/record",
+            post(inventory_count_handler:{record_count_items}),
         )
         .route(
-            "/counts/:id/submit",
-            post(inventory_count_handler::submit_for_approval),
+            "/counts/{id}/submit",
+            post(inventory_count_handler:{submit_for_approval}),
         )
         .route(
-            "/counts/:id/approve",
-            post(inventory_count_handler::approve_count),
+            "/counts/{id}/approve",
+            post(inventory_count_handler:{approve_count}),
         )
         .route(
-            "/counts/:id/reject",
-            post(inventory_count_handler::reject_count),
+            "/counts/{id}/reject",
+            post(inventory_count_handler:{reject_count}),
         )
 }
 
 /// 存货跌价准备路由（path 前缀 /write-downs，V15 P2 B08-16）
 fn write_down_routes() -> Router<AppState> {
-    Router::new()
+    Router:{new}()
         .route(
             "/write-downs",
-            get(inventory_write_down_handler::list_write_downs)
-                .post(inventory_write_down_handler::create_write_down),
+            get(inventory_write_down_handler:{list_write_downs})
+                .post(inventory_write_down_handler:{create_write_down}),
         )
         .route(
-            "/write-downs/:id",
-            get(inventory_write_down_handler::get_write_down),
+            "/write-downs/{id}",
+            get(inventory_write_down_handler:{get_write_down}),
         )
         .route(
-            "/write-downs/:id/confirm",
-            post(inventory_write_down_handler::confirm_write_down),
+            "/write-downs/{id}/confirm",
+            post(inventory_write_down_handler:{confirm_write_down}),
         )
         .route(
-            "/write-downs/:id/print",
-            get(print_handler::inventory_write_down_print_docx),
+            "/write-downs/{id}/print",
+            get(print_handler:{inventory_write_down_print_docx}),
         )
 }
 
 /// 批次管理路由（path 前缀 /batches）
 pub fn batches() -> Router<AppState> {
-    Router::new()
-        .route("/batches", get(inventory_batch_handler::list_batches))
-        .route("/batches", post(inventory_batch_handler::create_batch))
-        .route("/batches/{id}", get(inventory_batch_handler::get_batch))
-        .route("/batches/{id}", put(inventory_batch_handler::update_batch))
+    Router:{new}()
+        .route("/batches", get(inventory_batch_handler:{list_batches}))
+        .route("/batches", post(inventory_batch_handler:{create_batch}))
+        .route("/batches/{id}", get(inventory_batch_handler:{get_batch}))
+        .route("/batches/{id}", put(inventory_batch_handler:{update_batch}))
         .route(
-            "/batches/:id",
-            delete(inventory_batch_handler::delete_batch),
+            "/batches/{id}",
+            delete(inventory_batch_handler:{delete_batch}),
         )
         .route(
-            "/batches/:id/transfer",
-            post(inventory_batch_handler::transfer_batch),
+            "/batches/{id}/transfer",
+            post(inventory_batch_handler:{transfer_batch}),
         )
 }
 
 /// 物流管理路由（path 前缀 /logistics）
 pub fn logistics() -> Router<AppState> {
-    Router::new()
-        .route("/logistics", get(logistics_handler::list_waybills))
-        .route("/logistics", post(logistics_handler::create_waybill))
-        .route("/logistics/{id}", get(logistics_handler::get_waybill))
+    Router:{new}()
+        .route("/logistics", get(logistics_handler:{list_waybills}))
+        .route("/logistics", post(logistics_handler:{create_waybill}))
+        .route("/logistics/{id}", get(logistics_handler:{get_waybill}))
         .route(
-            "/logistics/:id",
-            put(logistics_handler::update_waybill_status),
+            "/logistics/{id}",
+            put(logistics_handler:{update_waybill_status}),
         )
         // V15 P0-B13：电子签收路由（DELIVERED → SIGNED）
-        .route("/logistics/{id}/sign", post(logistics_handler::sign_waybill))
-        .route("/logistics/{id}", delete(logistics_handler::delete_waybill))
+        .route("/logistics/{id}/sign", post(logistics_handler:{sign_waybill}))
+        .route("/logistics/{id}", delete(logistics_handler:{delete_waybill}))
 }
 
 /// 库存域统一入口；子 router path 已加独立前缀，merge 时 path+method 互不重叠。
 pub fn routes() -> Router<AppState> {
-    Router::new()
+    Router:{new}()
         .merge(inventory())
         .merge(batches())
         .merge(logistics())

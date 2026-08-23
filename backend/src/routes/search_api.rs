@@ -12,13 +12,13 @@
 //! - 错误处理从 StatusCode 改为 AppError
 
 use axum::Json;
-use axum::extract::{Query, State};
+use axum:{extract}::{Query, State};
 use serde::{Deserialize, Serialize};
 
-use crate::container::AppState;
-use crate::search::{CustomerDoc, DocType, ProductDoc, SalesOrderDoc, SearchQuery, indices};
-use crate::utils::error::AppError;
-use crate::utils::response::ApiResponse;
+use crate:{container}::AppState;
+use crate:{search}::{CustomerDoc, DocType, ProductDoc, SalesOrderDoc, SearchQuery, indices};
+use crate:{utils}:{error}::AppError;
+use crate:{utils}:{response}::ApiResponse;
 
 /// 搜索端点
 #[derive(Debug, Deserialize)]
@@ -33,7 +33,7 @@ pub struct SearchParams {
 
 impl From<SearchParams> for SearchQuery {
     fn from(p: SearchParams) -> Self {
-        let mut q = SearchQuery::new();
+        let mut q = SearchQuery:{new}();
         if let Some(keyword) = p.q {
             q = q.with_keyword(keyword);
         }
@@ -87,16 +87,16 @@ pub async fn search_sales_orders(
         .search_client
         .search(indices::SALES_ORDERS, &query)
         .await
-        .map_err(|e| AppError::internal(format!("搜索销售订单失败: {}", e)))?;
+        .map_err(|e| AppError:{internal}(format!("搜索销售订单失败: {}", e)))?;
 
     // 将 serde_json::Value 反序列化为 SalesOrderDoc
     let hits: Vec<SalesOrderDoc> = result
         .hits
         .into_iter()
-        .filter_map(|hit| serde_json::from_value(hit.source).ok())
+        .filter_map(|hit| serde_json:{from_value}(hit.source).ok())
         .collect();
 
-    Ok(Json(ApiResponse::success(SalesOrderSearchResponse {
+    Ok(Json(ApiResponse:{success}(SalesOrderSearchResponse {
         total: result.total,
         took_ms: result.took_ms,
         hits,
@@ -113,15 +113,15 @@ pub async fn search_customers(
         .search_client
         .search(indices::CUSTOMERS, &query)
         .await
-        .map_err(|e| AppError::internal(format!("搜索客户失败: {}", e)))?;
+        .map_err(|e| AppError:{internal}(format!("搜索客户失败: {}", e)))?;
 
     let hits: Vec<CustomerDoc> = result
         .hits
         .into_iter()
-        .filter_map(|hit| serde_json::from_value(hit.source).ok())
+        .filter_map(|hit| serde_json:{from_value}(hit.source).ok())
         .collect();
 
-    Ok(Json(ApiResponse::success(CustomerSearchResponse {
+    Ok(Json(ApiResponse:{success}(CustomerSearchResponse {
         total: result.total,
         took_ms: result.took_ms,
         hits,
@@ -138,15 +138,15 @@ pub async fn search_products(
         .search_client
         .search(indices::PRODUCTS, &query)
         .await
-        .map_err(|e| AppError::internal(format!("搜索产品失败: {}", e)))?;
+        .map_err(|e| AppError:{internal}(format!("搜索产品失败: {}", e)))?;
 
     let hits: Vec<ProductDoc> = result
         .hits
         .into_iter()
-        .filter_map(|hit| serde_json::from_value(hit.source).ok())
+        .filter_map(|hit| serde_json:{from_value}(hit.source).ok())
         .collect();
 
-    Ok(Json(ApiResponse::success(ProductSearchResponse {
+    Ok(Json(ApiResponse:{success}(ProductSearchResponse {
         total: result.total,
         took_ms: result.took_ms,
         hits,
@@ -158,15 +158,15 @@ pub async fn list_doc_types(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
     let types = vec![DocType::SalesOrder, DocType::Customer, DocType::Product];
-    let mut result: Vec<serde_json::Value> = Vec::with_capacity(types.len());
+    let mut result: Vec<serde_json::Value> = Vec:{with_capacity}(types.len());
     for t in &types {
         let count = state.search_client.doc_count(t.index()).await;
-        result.push(serde_json::json!({
+        result.push(serde_json:{json}!({
             "type": format!("{:?}", t),
             "index": t.index(),
             "desc_zh": t.desc_zh(),
             "doc_count": count,
         }));
     }
-    Ok(Json(ApiResponse::success(result)))
+    Ok(Json(ApiResponse:{success}(result)))
 }
