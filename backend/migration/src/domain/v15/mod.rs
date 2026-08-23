@@ -370,18 +370,38 @@ impl MigrationTrait for Migration {
                     ON "material_shortage_alerts"("identified_at");
 
                 -- CHECK 约束：级别 + 状态 + 数量合法性
-                ALTER TABLE "material_shortage_alerts"
-                    ADD CONSTRAINT IF NOT EXISTS "chk_material_shortage_alerts_level"
-                    CHECK ("level" IN ('Critical', 'Severe', 'Warning', 'Normal'));
-                ALTER TABLE "material_shortage_alerts"
-                    ADD CONSTRAINT IF NOT EXISTS "chk_material_shortage_alerts_status"
-                    CHECK ("status" IN ('identified', 'purchase_request', 'purchase_order', 'received', 'resolved'));
-                ALTER TABLE "material_shortage_alerts"
-                    ADD CONSTRAINT IF NOT EXISTS "chk_material_shortage_alerts_shortage_nonneg"
-                    CHECK ("shortage_quantity" >= 0);
-                ALTER TABLE "material_shortage_alerts"
-                    ADD CONSTRAINT IF NOT EXISTS "chk_material_shortage_alerts_deficit_rate"
-                    CHECK ("deficit_rate" >= 0 AND "deficit_rate" <= 100);
+                DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'chk_material_shortage_alerts_level' AND table_name = 'material_shortage_alerts'
+    ) THEN
+        ALTER TABLE "material_shortage_alerts" ADD CONSTRAINT "chk_material_shortage_alerts_level" CHECK ("level" IN ('Critical', 'Severe', 'Warning', 'Normal'));
+    END IF;
+END $$;
+                DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'chk_material_shortage_alerts_status' AND table_name = 'material_shortage_alerts'
+    ) THEN
+        ALTER TABLE "material_shortage_alerts" ADD CONSTRAINT "chk_material_shortage_alerts_status" CHECK ("status" IN ('identified', 'purchase_request', 'purchase_order', 'received', 'resolved'));
+    END IF;
+END $$;
+                DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'chk_material_shortage_alerts_shortage_nonneg' AND table_name = 'material_shortage_alerts'
+    ) THEN
+        ALTER TABLE "material_shortage_alerts" ADD CONSTRAINT "chk_material_shortage_alerts_shortage_nonneg" CHECK ("shortage_quantity" >= 0);
+    END IF;
+END $$;
+                DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'chk_material_shortage_alerts_deficit_rate' AND table_name = 'material_shortage_alerts'
+    ) THEN
+        ALTER TABLE "material_shortage_alerts" ADD CONSTRAINT "chk_material_shortage_alerts_deficit_rate" CHECK ("deficit_rate" >= 0 AND "deficit_rate" <= 100);
+    END IF;
+END $$;
 
                 COMMENT ON TABLE "material_shortage_alerts" IS 'P0-B15：缺料预警记录表（持久化缺料单据，支持识别→采购申请→采购订单→入库→解除闭环）';
                 COMMENT ON COLUMN "material_shortage_alerts"."alert_no" IS '缺料单号（MS-YYYYMMDD-NNN，识别时自动生成）';
@@ -937,8 +957,14 @@ ALTER TABLE "wage_record_detail" ADD COLUMN IF NOT EXISTS "weekday_overtime_minu
 
                 -- 约束：consent_type 必须为预定义类型
                 ALTER TABLE "user_consents" DROP CONSTRAINT IF EXISTS "chk_user_consents_consent_type";
-                ALTER TABLE "user_consents" ADD CONSTRAINT IF NOT EXISTS "chk_user_consents_consent_type"
-                    CHECK ("consent_type" IN ('behavior_tracking', 'page_view_tracking', 'cookie_usage', 'marketing_email'));
+                DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'chk_user_consents_consent_type' AND table_name = 'user_consents'
+    ) THEN
+        ALTER TABLE "user_consents" ADD CONSTRAINT "chk_user_consents_consent_type" CHECK ("consent_type" IN ('behavior_tracking', 'page_view_tracking', 'cookie_usage', 'marketing_email'));
+    END IF;
+END $$;
 
                 COMMENT ON TABLE "user_consents" IS '用户隐私同意记录表（GDPR/个人信息保护法合规）';
                 COMMENT ON COLUMN "user_consents"."consent_type" IS '同意类型：behavior_tracking/page_view_tracking/cookie_usage/marketing_email';
@@ -2111,8 +2137,14 @@ ALTER TABLE quality_inspection_records
 
                 COMMENT ON COLUMN quality_inspection_records.defect_type IS '结构化缺陷类型：color_diff(色差)/color_fastness(色牢度)/spec(规格不符)/damage(破损)/other';
 
-ALTER TABLE products
-                    ADD CONSTRAINT IF NOT EXISTS uk_products_code UNIQUE (code);
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'uk_products_code' AND table_name = 'products'
+    ) THEN
+        ALTER TABLE "products" ADD CONSTRAINT "uk_products_code" UNIQUE (code);
+    END IF;
+END $$;
 
 -- 序列同步（INSERT 后重置序列，防止主键冲突）
 SELECT setval('collection_templates_id_seq', COALESCE((SELECT MAX(id) FROM "collection_templates"), 0) + 1, false);

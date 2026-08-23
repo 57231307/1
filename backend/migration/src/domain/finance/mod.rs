@@ -407,9 +407,14 @@ COMMENT ON COLUMN "color_cards"."issued_quantity" IS '已发放数量（V15 P0-F
                 -- CHECK 约束：order_type 仅允许 normal / rework
                 ALTER TABLE "production_orders"
                     DROP CONSTRAINT IF EXISTS "chk_production_orders_order_type";
-                ALTER TABLE "production_orders"
-                    ADD CONSTRAINT IF NOT EXISTS "chk_production_orders_order_type"
-                    CHECK ("order_type" IN ('normal', 'rework'));
+                DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'chk_production_orders_order_type' AND table_name = 'production_orders'
+    ) THEN
+        ALTER TABLE "production_orders" ADD CONSTRAINT "chk_production_orders_order_type" CHECK ("order_type" IN ('normal', 'rework'));
+    END IF;
+END $$;
 
                 COMMENT ON COLUMN "production_orders"."order_type" IS '订单类型：normal(正常生产订单) / rework(返工订单，由客户批色 rework 或降级触发)';
                 COMMENT ON COLUMN "production_orders"."original_batch_id" IS '原批次 ID（仅 rework 订单使用，关联 dye_batch.id 记录返工的原批次）';

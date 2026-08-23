@@ -315,9 +315,14 @@ ALTER TABLE "fixed_asset_depreciation_records"
     DROP CONSTRAINT IF EXISTS "fixed_asset_depreciation_records_asset_id_fkey";
 
 -- 2. 重建外键，显式 ON DELETE RESTRICT
-ALTER TABLE "fixed_asset_depreciation_records"
-    ADD CONSTRAINT IF NOT EXISTS "fixed_asset_depreciation_records_asset_id_fkey"
-    FOREIGN KEY ("asset_id") REFERENCES "fixed_assets"("id") ON DELETE RESTRICT;
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'fixed_asset_depreciation_records_asset_id_fkey' AND table_name = 'fixed_asset_depreciation_records'
+    ) THEN
+        ALTER TABLE "fixed_asset_depreciation_records" ADD CONSTRAINT "fixed_asset_depreciation_records_asset_id_fkey" FOREIGN KEY ("asset_id") REFERENCES "fixed_assets"("id") ON DELETE RESTRICT;
+    END IF;
+END $$;
 
 -- 3. 删除冗余单列索引（已被 UNIQUE(asset_id, period) 最左前缀覆盖）
 DROP INDEX IF EXISTS "idx_fa_depreciation_records_asset";
