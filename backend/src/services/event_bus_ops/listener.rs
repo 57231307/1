@@ -1194,7 +1194,7 @@ async fn handle_bpm_process_finished(
     // B-P1-8 修复（批次 366 v13 复审）：事件幂等处理
     let idempotency_service =
         crate::services::event_idempotency_service::EventIdempotencyService::new(db.clone());
-    let event_key = format!("bpm:{::::}", business_type, business_id, approved);
+    let event_key = format!("bpm:{}:{}:{}", business_type, business_id, approved);
     let should_process = match idempotency_service
         .try_mark_processed("event_bus_main", &event_key, "BpmProcessFinished")
         .await
@@ -1387,7 +1387,7 @@ async fn check_low_stock_idempotency(
     let idempotency_service =
         crate::services::event_idempotency_service::EventIdempotencyService::new(db.clone().into());
     let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-    let event_key = format!("low_stock:{::::}", product_id, warehouse_id, today);
+    let event_key = format!("low_stock:{}:{}:{}", product_id, warehouse_id, today);
     match idempotency_service
         .try_mark_processed("event_bus_main", &event_key, "LowStockAlert")
         .await
@@ -1535,7 +1535,7 @@ async fn handle_material_shortage_alert(
     let idempotency_service =
         crate::services::event_idempotency_service::EventIdempotencyService::new(db.clone());
     let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-    let event_key = format!("material_shortage:{::}", material_id, today);
+    let event_key = format!("material_shortage:{}:{}", material_id, today);
     let should_process = match idempotency_service
         .try_mark_processed("event_bus_main", &event_key, "MaterialShortageAlert")
         .await

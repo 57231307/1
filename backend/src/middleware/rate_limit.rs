@@ -237,7 +237,7 @@ pub async fn rate_limit_by_ip(
         .map(|auth| auth.user_id.to_string())
         .unwrap_or_else(|| "anonymous".to_string());
 
-    let rate_key = format!("rate:{::}", ip, user_id);
+    let rate_key = format!("rate:{}:{}", ip, user_id);
 
     // 漏洞 #6 修复：分布式优先，失败回退内存
     let allowed = check_rate_limit(&rate_key, 180, Duration::from_secs(60), &GLOBAL_LIMITER).await;

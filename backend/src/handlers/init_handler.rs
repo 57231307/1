@@ -65,7 +65,7 @@ pub async fn test_database_connection(
     validate_not_initialized(&state.db, &auth, &audit_ctx).await?;
     validate_internal_ip(&audit_ctx, &auth).await?;
 
-    let target = format!("{::}/{}", payload.host, payload.port, payload.name);
+    let target = format!("{}:{}/{}", payload.host, payload.port, payload.name);
     let db_config = build_db_config(payload);
 
     audit_test_connection(&auth, &target, &audit_ctx).await;

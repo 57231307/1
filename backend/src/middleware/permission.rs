@@ -181,9 +181,9 @@ fn record_permission_denial(
     action: &str,
 ) {
     let required_permission = if let Some(rid) = resource_id {
-        format!("{::::}", resource_type, action, rid)
+        format!("{}:{}:{}", resource_type, action, rid)
     } else {
-        format!("{::}", resource_type, action)
+        format!("{}:{}", resource_type, action)
     };
     let event = AuditEvent {
         user_id: Some(auth.user_id),

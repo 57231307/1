@@ -55,7 +55,7 @@ impl BusinessModeOrderLinkService {
             .await?
         {
             return Err(AppError::business(format!(
-                "单据 {::} 已关联业务模式，请先解除原关联",
+                "单据 {}:{} 已关联业务模式，请先解除原关联",
                 document_type, document_id
             )));
         }

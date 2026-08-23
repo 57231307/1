@@ -35,7 +35,7 @@ const BI_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(300);
 /// 缺陷 3.1 修复：构建 BI 查询缓存键
 pub(crate) fn build_bi_cache_key(scope: &DataScopeContext, key_parts: &[&str]) -> String {
     let mut key = format!(
-        "bi:{::::}",
+        "bi:{}:{}:{}",
         scope.scope.as_str(),
         scope.user_id,
         scope.department_id.unwrap_or(0)

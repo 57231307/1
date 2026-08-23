@@ -36,7 +36,7 @@ pub async fn get_statistics_report(
     tracing::debug!(user_id = auth.user_id, "AR 统计报表查询");
 
     let cache_key = format!(
-        "ar:report:statistics:{:?:::?:::?}",
+        "ar:report:statistics:{:?}:{:?}:{:?}",
         query.start_date, query.end_date, query.customer_id
     );
     if let Some(cached) = state.cache_service.get(&cache_key).await {
@@ -73,7 +73,7 @@ pub async fn get_daily_report(
     tracing::debug!(user_id = auth.user_id, "AR 日报表查询");
 
     let cache_key = format!(
-        "ar:report:daily:{:?:::?:::?}",
+        "ar:report:daily:{:?}:{:?}:{:?}",
         query.start_date, query.end_date, query.customer_id
     );
     if let Some(cached) = state.cache_service.get(&cache_key).await {
@@ -110,7 +110,7 @@ pub async fn get_monthly_report(
     tracing::debug!(user_id = auth.user_id, "AR 月报表查询");
 
     let cache_key = format!(
-        "ar:report:monthly:{:?:::?:::?}",
+        "ar:report:monthly:{:?}:{:?}:{:?}",
         query.start_date, query.end_date, query.customer_id
     );
     if let Some(cached) = state.cache_service.get(&cache_key).await {
@@ -147,7 +147,7 @@ pub async fn get_aging_report(
     tracing::debug!(user_id = auth.user_id, "AR 账龄报表查询");
 
     let cache_key = format!(
-        "ar:report:aging:{:?:::?}",
+        "ar:report:aging:{:?}:{:?}",
         query.customer_id, query.salesperson_id
     );
     if let Some(cached) = state.cache_service.get(&cache_key).await {

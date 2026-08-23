@@ -52,7 +52,7 @@ impl EndpointCache {
 
     /// 获取缓存的端点状态
     pub fn get(&self, method: &str, path: &str) -> Option<String> {
-        let key = format!("{::}", method, path);
+        let key = format!("{}:{}", method, path);
         if let Some(entry) = self.cache.get(&key) {
             if entry.cached_at.elapsed() < self.ttl {
                 return Some(entry.status.clone());
@@ -66,7 +66,7 @@ impl EndpointCache {
 
     /// 设置缓存的端点状态
     pub fn set(&self, method: &str, path: &str, status: String) {
-        let key = format!("{::}", method, path);
+        let key = format!("{}:{}", method, path);
         self.cache.insert(
             key,
             CacheEntry {
@@ -78,7 +78,7 @@ impl EndpointCache {
 
     /// 失效指定端点的缓存
     pub fn invalidate(&self, method: &str, path: &str) {
-        let key = format!("{::}", method, path);
+        let key = format!("{}:{}", method, path);
         self.cache.remove(&key);
     }
 

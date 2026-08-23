@@ -205,9 +205,9 @@ pub const PERMISSION_CACHE_TTL_SECS: u64 = 120;
 #[allow(dead_code)]
 pub const CONFIG_CACHE_TTL_SECS: u64 = 1800;
 
-/// 生成标准化的缓存 key（格式 `{service::id}`，如 user:42/product:100/customer:555）
+/// 生成标准化的缓存 key（格式 `{service}:{id}`，如 user:42/product:100/customer:555）
 pub fn cache_key(service: &str, id: impl std::fmt::Display) -> String {
-    format!("{::}", service, id)
+    format!("{}:{}", service, id)
 }
 
 /// V15 P1 20.3-B：获取 Redis URL（供 Pub/Sub 创建独立连接使用）

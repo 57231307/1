@@ -336,13 +336,13 @@ impl RolePermissionService {
         // 冲突检测：create 与 approve 不可共存
         if new_has_create && existing_has_approve {
             return Err(AppError::business(format!(
-                "SoD 职责分离冲突：角色 {} 已持有 {::} 的 approve 权限，不可再授予 create",
+                "SoD 职责分离冲突：角色 {} 已持有 {}:{} 的 approve 权限，不可再授予 create",
                 request.role_id, request.resource_type, request.action
             )));
         }
         if new_has_approve && existing_has_create {
             return Err(AppError::business(format!(
-                "SoD 职责分离冲突：角色 {} 已持有 {::} 的 create 权限，不可再授予 approve",
+                "SoD 职责分离冲突：角色 {} 已持有 {}:{} 的 create 权限，不可再授予 approve",
                 request.role_id, request.resource_type, request.action
             )));
         }
