@@ -273,53 +273,29 @@ async fn check_migration_compatibility(db: &DatabaseConnection) {
 async fn check_migration_continuity(db: &DatabaseConnection) {
     use sea_orm::{ConnectionTrait, Statement};
 
-    let sql = "SELECT migration_name FROM seaql_migrations ORDER BY migration_name";
+    // 聚合迁移后，迁移名格式为 "migration::domain::xxx::Migration"，不再以 m 开头
+    // 连续性检查改为：验证已执行的迁移数量是否 >= 域数量（6 个域）
+    let sql = "SELECT COUNT(*) as cnt FROM seaql_migrations";
     let result = db
-        .query_all_raw(Statement::from_string(
+        .query_one_raw(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             sql.to_string(),
         ))
         .await;
 
     match result {
-        Ok(rows) => {
-            let mut migration_numbers: Vec<u32> = Vec::new();
-            for row in rows {
-                if let Ok(name) = row.try_get::<String>("", "migration_name") {
-                    if let Some(num_str) = name.strip_prefix('m') {
-                        if let Some(num) = num_str.split('_').next() {
-                            if let Ok(n) = num.parse::<u32>() {
-                                migration_numbers.push(n);
-                            }
-                        }
-                    }
-                }
-            }
-
-            migration_numbers.sort();
-            migration_numbers.dedup();
-
-            // 检查连续性
-            let mut gaps = Vec::new();
-            for i in 1..migration_numbers.len() {
-                let prev = migration_numbers[i - 1];
-                let curr = migration_numbers[i];
-                if curr != prev + 1 {
-                    for gap in (prev + 1)..curr {
-                        gaps.push(gap);
-                    }
-                }
-            }
-
-            if gaps.is_empty() {
-                info!("迁移连续性检查通过（{} 个迁移）", migration_numbers.len());
+        Ok(Some(row)) => {
+            let count: i64 = row.try_get_by_index(0).unwrap_or(0);
+            if count >= 6 {
+                info!("迁移连续性检查通过（{count} 个迁移已执行）");
             } else {
                 warn!(
-                    "迁移连续性检查发现跳跃：缺失迁移编号 {:?}（已执行 {} 个迁移）",
-                    gaps,
-                    migration_numbers.len()
+                    "迁移连续性检查发现异常：仅 {count} 个迁移已执行（预期 >= 6）"
                 );
             }
+        }
+        Ok(None) => {
+            tracing::debug!("迁移连续性检查跳过（表为空或不存在）");
         }
         Err(e) => {
             // seaql_migrations 表可能不存在（首次启动），跳过检查
