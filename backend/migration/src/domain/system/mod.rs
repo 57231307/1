@@ -15,7 +15,7 @@ mod m0006_add_general_ledger_and_finance_base;
 pub struct Migration;
 
 impl MigrationName for Migration {
-    fn name() -> &'static str {
+    fn name(&self) -> &'static str {
         "m_system_domain"
     }
 }

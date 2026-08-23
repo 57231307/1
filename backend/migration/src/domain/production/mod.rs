@@ -25,7 +25,7 @@ mod m0050_create_event_dead_letters;
 pub struct Migration;
 
 impl MigrationName for Migration {
-    fn name() -> &'static str {
+    fn name(&self) -> &'static str {
         "m_production_domain"
     }
 }
