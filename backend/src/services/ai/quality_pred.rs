@@ -193,10 +193,7 @@ fn map_defect_type_to_issue(defect_type: &str) -> String {
 ///   spec / damage / other），有值且非空时直接映射到标准归因类别，跳过 remark 匹配。
 /// - `remark`：备注文本，仅在 `defect_type` 为 None 或空串时用于关键词匹配兜底。
 /// 返回归因类别："颜色差异"/"色牢度"/"克重偏差"/"纬密偏差"/"强度不足"/"规格不符"/"破损"/"其他"。
-pub fn extract_issue_keyword(
-    defect_type: Option<&str>,
-    remark: Option<&str>,
-) -> String {
+pub fn extract_issue_keyword(defect_type: Option<&str>, remark: Option<&str>) -> String {
     // 优先使用结构化 defect_type（非空时直接映射，跳过 remark 关键词匹配）
     if let Some(dt) = defect_type {
         let dt = dt.trim();

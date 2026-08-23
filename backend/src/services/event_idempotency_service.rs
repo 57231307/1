@@ -7,9 +7,9 @@
 //! - InventoryTransactionCreated → `inventory_txn:{transaction_id}`
 //! - PaymentCompleted → `ap_paid:{invoice_id}`
 //! - CollectionCompleted → `ar_paid:{invoice_id}`
-//! - BpmProcessFinished → `bpm:{business_type}:{business_id}`
-//! - LowStockAlert → `low_stock:{product_id}:{warehouse_id}:{date}`
-//! - MaterialShortageAlert → `material_shortage:{material_id}:{date}`
+//! - BpmProcessFinished → `bpm:{business_type::business_id}`
+//! - LowStockAlert → `low_stock:{product_id::warehouse_id::date}`
+//! - MaterialShortageAlert → `material_shortage:{material_id::date}`
 //! - SalesOrderShipped → `sales_shipped:{order_id}`
 
 use crate::models::processed_event;

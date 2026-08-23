@@ -10,41 +10,41 @@ use axum::{
     routing::{get, post},
 };
 
-use crate:{container}::AppState;
-use crate:{handlers}:{quotation_handler};
+use crate::container::AppState;
+use crate::handlers::quotation_handler;
 
 /// 销售报价单路由（nest 到 /api/v1/erp/quotations）
 pub fn routes() -> Router<AppState> {
-    Router:{new}()
+    Router::new()
         // 列表 + 创建
-        .route("/", get(quotation_handler:{list_quotations}).post(quotation_handler:{create_quotation}))
+        .route("/", get(quotation_handler::list_quotations).post(quotation_handler::create_quotation))
         // 详情 + 更新
-        .route("/{id}", get(quotation_handler:{get_quotation}).put(quotation_handler:{update_quotation}))
+        .route("/{id}", get(quotation_handler::get_quotation).put(quotation_handler::update_quotation))
         // 审批流
-        .route("/{id}/submit", post(quotation_handler:{submit_quotation}))
-        .route("/{id}/approve", post(quotation_handler:{approve_quotation}))
-        .route("/{id}/reject", post(quotation_handler:{reject_quotation}))
-        .route("/{id}/cancel", post(quotation_handler:{cancel_quotation}))
+        .route("/{id}/submit", post(quotation_handler::submit_quotation))
+        .route("/{id}/approve", post(quotation_handler::approve_quotation))
+        .route("/{id}/reject", post(quotation_handler::reject_quotation))
+        .route("/{id}/cancel", post(quotation_handler::cancel_quotation))
         // 转换
-        .route("/{id}/convert", post(quotation_handler:{convert_to_sales_order}))
+        .route("/{id}/convert", post(quotation_handler::convert_to_sales_order))
         // 贸易条款
         .route(
             "/{id}/terms",
-            get(quotation_handler:{get_quotation_terms}).put(quotation_handler:{set_quotation_terms}),
+            get(quotation_handler::get_quotation_terms).put(quotation_handler::set_quotation_terms),
         )
         // 状态分类
-        .route("/expiring", get(quotation_handler:{list_expiring}))
-        .route("/expired", get(quotation_handler:{list_expired}))
+        .route("/expiring", get(quotation_handler::list_expiring))
+        .route("/expired", get(quotation_handler::list_expired))
         // 定价引擎
-        .route("/calculate-price", post(quotation_handler:{calculate_price}))
+        .route("/calculate-price", post(quotation_handler::calculate_price))
         // 色号价格
         .route(
             "/color-prices/{product_color_id}",
-            get(quotation_handler:{list_color_prices}).post(quotation_handler:{set_color_price}),
+            get(quotation_handler::list_color_prices).post(quotation_handler::set_color_price),
         )
         // 打印
         .route(
             "/{id}/print",
-            get(crate:{handlers}:{print_handler}:{sales_quotation_print_docx}),
+            get(crate::handlers::print_handler::sales_quotation_print_docx),
         )
 }

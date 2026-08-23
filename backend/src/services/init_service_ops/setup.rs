@@ -360,7 +360,10 @@ impl InitService {
 
         // 汇总告警（不阻塞启动）
         if missing_tables.is_empty() && empty_tables.is_empty() {
-            info!("迁移后置校验通过：{} 张关键表存在，主数据行数均 > 0", CRITICAL_TABLES.len());
+            info!(
+                "迁移后置校验通过：{} 张关键表存在，主数据行数均 > 0",
+                CRITICAL_TABLES.len()
+            );
         } else {
             warn!(
                 missing_tables = ?missing_tables,

@@ -16,8 +16,8 @@ use sea_orm::{
 use crate::models::inventory_stock::{self, Entity as InventoryStockEntity};
 use crate::models::inventory_transaction;
 use crate::models::inventory_transfer::{self, Entity as InventoryTransferEntity};
-use crate::models::status::purchase_inventory::inventory_transfer as transfer_status;
 use crate::models::inventory_transfer_item::{self, Entity as InventoryTransferItemEntity};
+use crate::models::status::purchase_inventory::inventory_transfer as transfer_status;
 use crate::utils::error::AppError;
 
 use super::{
@@ -961,7 +961,9 @@ impl InventoryTransferService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("库存调拨单 {} 未找到", transfer_id)))?;
 
-        if transfer.status == transfer_status::SHIPPED || transfer.status == transfer_status::COMPLETED {
+        if transfer.status == transfer_status::SHIPPED
+            || transfer.status == transfer_status::COMPLETED
+        {
             return Err(AppError::business(format!(
                 "调拨单状态 {} 不允许添加明细",
                 transfer.status
@@ -1038,7 +1040,9 @@ impl InventoryTransferService {
             .await?
             .ok_or_else(|| AppError::not_found("调拨单不存在"))?;
 
-        if transfer.status == transfer_status::SHIPPED || transfer.status == transfer_status::COMPLETED {
+        if transfer.status == transfer_status::SHIPPED
+            || transfer.status == transfer_status::COMPLETED
+        {
             return Err(AppError::business(format!(
                 "调拨单状态 {} 不允许修改明细",
                 transfer.status
@@ -1096,7 +1100,9 @@ impl InventoryTransferService {
             .await?
             .ok_or_else(|| AppError::not_found("调拨单不存在"))?;
 
-        if transfer.status == transfer_status::SHIPPED || transfer.status == transfer_status::COMPLETED {
+        if transfer.status == transfer_status::SHIPPED
+            || transfer.status == transfer_status::COMPLETED
+        {
             return Err(AppError::business(format!(
                 "调拨单状态 {} 不允许删除明细",
                 transfer.status

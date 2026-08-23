@@ -37,7 +37,7 @@ fn backend_port() -> String {
 
 /// 拼接后端健康检查 URL
 fn backend_health_url() -> String {
-    format!("http://{}:{}/health", backend_host(), backend_port())
+    format!("http://{::}/health", backend_host(), backend_port())
 }
 
 pub(super) fn cmd_status() {

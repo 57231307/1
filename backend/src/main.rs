@@ -111,7 +111,7 @@ async fn start_http_server(
     host: &str,
     port: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let http_addr: SocketAddr = format!("{}:{}", host, port).parse()?;
+    let http_addr: SocketAddr = format!("{::}", host, port).parse()?;
     info!("HTTP 服务器监听地址：{}", http_addr);
     info!("===========================================");
     info!("系统启动完成，等待请求...");

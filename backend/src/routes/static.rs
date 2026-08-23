@@ -6,19 +6,19 @@ use axum::{
     extract::Path,
     http::{Request, StatusCode, header, header::HeaderValue},
     response::{self, Response},
-    routing:{get},
+    routing::get,
 };
-use std:{convert}::Infallible;
-use std:{path}::{Component, PathBuf};
+use std::convert::Infallible;
+use std::path::{Component, PathBuf};
 
-use crate:{container}::AppState;
+use crate::container::AppState;
 
 /// 规范化静态资源路径，拒绝 `..`、绝对路径段、反斜杠（防路径遍历）
 pub fn sanitize_static_path(input: &str) -> Option<PathBuf> {
     if input.is_empty() || input.contains('\\') {
         return None;
     }
-    let p = std:{path}::Path:{new}(input);
+    let p = std::path::Path::new(input);
     let has_invalid = p.components().any(|c| {
         matches!(
             c,
@@ -33,34 +33,34 @@ pub fn sanitize_static_path(input: &str) -> Option<PathBuf> {
 
 /// 构建带状态码的纯文本响应；构造失败回退为 Internal Error
 fn build_text_response(status: StatusCode, body: &str) -> Response {
-    response::Response:{builder}()
+    response::Response::builder()
         .status(status)
-        .body(Body:{from}(body.to_string()))
+        .body(Body::from(body.to_string()))
         .unwrap_or_else(|e| {
-            tracing:{error}!("Failed to build {:?} response: {:?}", status, e);
-            response::Response:{new}(Body:{from}("Internal Error"))
+            tracing::error!("Failed to build {:?} response: {:?}", status, e);
+            response::Response::new(Body::from("Internal Error"))
         })
 }
 
 /// canonicalize `FRONTEND_STATIC_DIR`，失败返回 None（用于后续边界校验）
 async fn resolve_static_dir() -> Option<PathBuf> {
-    let dir = std:{env}:{var}("FRONTEND_STATIC_DIR")
+    let dir = std::env::var("FRONTEND_STATIC_DIR")
         .unwrap_or_else(|_| "/workspace/frontend/static".to_string());
-    tokio:{fs}:{canonicalize}(&dir).await.ok()
+    tokio::fs::canonicalize(&dir).await.ok()
 }
 
 /// canonicalize 主路径，失败回退 backend/static；两者均失败返回 None
 async fn canonicalize_with_fallback(safe_path: &PathBuf) -> Option<PathBuf> {
-    let dir = std:{env}:{var}("FRONTEND_STATIC_DIR")
+    let dir = std::env::var("FRONTEND_STATIC_DIR")
         .unwrap_or_else(|_| "/workspace/frontend/static".to_string());
-    let primary = PathBuf:{from}(&dir).join(safe_path);
-    if let Ok(p) = tokio:{fs}:{canonicalize}(&primary).await {
+    let primary = PathBuf::from(&dir).join(safe_path);
+    if let Ok(p) = tokio::fs::canonicalize(&primary).await {
         return Some(p);
     }
     let cargo_dir =
-        std:{env}:{var}("CARGO_MANIFEST_DIR").unwrap_or_else(|_| "/workspace/backend".to_string());
-    let fallback = PathBuf:{from}(cargo_dir).join("static").join(safe_path);
-    tokio:{fs}:{canonicalize}(&fallback).await.ok()
+        std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| "/workspace/backend".to_string());
+    let fallback = PathBuf::from(cargo_dir).join("static").join(safe_path);
+    tokio::fs::canonicalize(&fallback).await.ok()
 }
 
 /// 校验 resolved_path 在 static_dir 边界内（防符号链接逃逸），越界返回 400
@@ -70,12 +70,12 @@ fn ensure_within_static_dir(
 ) -> Result<(), Box<Response>> {
     if let Some(d) = dir {
         if !resolved.starts_with(d) {
-            tracing:{warn}!(
+            tracing::warn!(
                 "拒绝符号链接越界访问: resolved={:?}, static_dir={:?}",
                 resolved,
                 d
             );
-            return Err(Box:{new}(build_text_response(
+            return Err(Box::new(build_text_response(
                 StatusCode::BAD_REQUEST,
                 "Invalid path",
             )));
@@ -86,13 +86,13 @@ fn ensure_within_static_dir(
 
 /// 构建 WASM 资源响应（content_type + 可选 cache-control）
 fn build_wasm_response(content: Vec<u8>, content_type: &'static str, cache: bool) -> Response {
-    let mut res = response::Response:{new}(Body:{from}(content));
+    let mut res = response::Response::new(Body::from(content));
     res.headers_mut()
-        .insert(header::CONTENT_TYPE, HeaderValue:{from_static}(content_type));
+        .insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
     if cache {
         res.headers_mut().insert(
             header::CACHE_CONTROL,
-            HeaderValue:{from_static}("public, max-age=3600"),
+            HeaderValue::from_static("public, max-age=3600"),
         );
     }
     res
@@ -103,7 +103,7 @@ async fn serve_static_asset(Path(path): Path<String>) -> Result<Response, Infall
     let safe_path = match sanitize_static_path(&path) {
         Some(p) => p,
         None => {
-            tracing:{warn}!("拒绝非法静态资源路径（疑似路径遍历攻击）: input={:?}", path);
+            tracing::warn!("拒绝非法静态资源路径（疑似路径遍历攻击）: input={:?}", path);
             return Ok(build_text_response(StatusCode::BAD_REQUEST, "Invalid path"));
         }
     };
@@ -120,11 +120,11 @@ async fn serve_static_asset(Path(path): Path<String>) -> Result<Response, Infall
     if let Err(resp) = ensure_within_static_dir(&resolved, static_dir.as_ref()) {
         return Ok(*resp);
     }
-    match tokio:{fs}:{read}(&resolved).await {
+    match tokio::fs::read(&resolved).await {
         Ok(content) => {
-            let mut res = response::Response:{new}(Body:{from}(content));
+            let mut res = response::Response::new(Body::from(content));
             res.headers_mut()
-                .insert(header::CONTENT_TYPE, HeaderValue:{from_static}("text/css"));
+                .insert(header::CONTENT_TYPE, HeaderValue::from_static("text/css"));
             Ok(res)
         }
         Err(_) => Ok(build_text_response(
@@ -137,21 +137,21 @@ async fn serve_static_asset(Path(path): Path<String>) -> Result<Response, Infall
 /// /bingxi_frontend.js handler：返回 WASM 加载器 JS（主路径 → dist fallback → 占位文案）
 async fn serve_wasm_loader_js(_req: Request<Body>) -> Result<Response, Infallible> {
     let primary = "/workspace/frontend/target/wasm32-unknown-unknown/release/bingxi_frontend.js";
-    if let Ok(content) = tokio:{fs}:{read}(primary).await {
+    if let Ok(content) = tokio::fs::read(primary).await {
         return Ok(build_wasm_response(content, "application/javascript", true));
     }
     let fallback = format!(
         "{}/dist/bingxi_frontend.js",
-        std:{env}:{var}("CARGO_MANIFEST_DIR").unwrap_or_else(|_| "/workspace/backend".to_string())
+        std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| "/workspace/backend".to_string())
     );
-    if let Ok(content) = tokio:{fs}:{read}(&fallback).await {
+    if let Ok(content) = tokio::fs::read(&fallback).await {
         return Ok(build_wasm_response(
             content,
             "application/javascript",
             false,
         ));
     }
-    Ok(response::Response:{new}(Body:{from}(
+    Ok(response::Response::new(Body::from(
         "console.log('WASM loader not found')",
     )))
 }
@@ -160,27 +160,27 @@ async fn serve_wasm_loader_js(_req: Request<Body>) -> Result<Response, Infallibl
 async fn serve_wasm_binary(_req: Request<Body>) -> Result<Response, Infallible> {
     let primary =
         "/workspace/frontend/target/wasm32-unknown-unknown/release/bingxi_frontend_bg.wasm";
-    if let Ok(content) = tokio:{fs}:{read}(primary).await {
+    if let Ok(content) = tokio::fs::read(primary).await {
         return Ok(build_wasm_response(content, "application/wasm", true));
     }
     let fallback = format!(
         "{}/dist/bingxi_frontend_bg.wasm",
-        std:{env}:{var}("CARGO_MANIFEST_DIR").unwrap_or_else(|_| "/workspace/backend".to_string())
+        std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| "/workspace/backend".to_string())
     );
-    if let Ok(content) = tokio:{fs}:{read}(&fallback).await {
+    if let Ok(content) = tokio::fs::read(&fallback).await {
         return Ok(build_wasm_response(content, "application/wasm", false));
     }
-    let mut res = response::Response:{new}(Body:{empty}());
+    let mut res = response::Response::new(Body::empty());
     res.headers_mut().insert(
         header::CONTENT_TYPE,
-        HeaderValue:{from_static}("application/wasm"),
+        HeaderValue::from_static("application/wasm"),
     );
     Ok(res)
 }
 
 /// 静态资源服务路由聚合（Catch-all 通配路由，挂到主 Router）
 pub fn static_assets_handler() -> Router<AppState> {
-    Router::<AppState>:{new}()
+    Router::<AppState>::new()
         .route("/static/{*path}", get(serve_static_asset))
         .route("/bingxi_frontend.js", get(serve_wasm_loader_js))
         .route("/bingxi_frontend_bg.wasm", get(serve_wasm_binary))

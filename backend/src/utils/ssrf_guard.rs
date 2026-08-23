@@ -74,7 +74,7 @@ pub fn validate_url(url_str: &str) -> Result<(), AppError> {
     // 使用 ToSocketAddrs 同步解析（DNS 解析延迟可接受；create_webhook 调用频率低）
     // 超时保护：解析失败时拒绝（fail-secure）
     let port = parsed.port_or_known_default().unwrap_or(80);
-    let socket_addr_str = format!("{}:{}", host, port);
+    let socket_addr_str = format!("{::}", host, port);
     match socket_addr_str.to_socket_addrs() {
         Ok(addrs) => {
             for addr in addrs {
@@ -145,7 +145,7 @@ pub fn validate_url_and_resolve(
     }
 
     // 6. 域名解析为 IP 后校验，返回所有安全地址（一次性解析，消除 TOCTOU 窗口）
-    let socket_addr_str = format!("{}:{}", host, port);
+    let socket_addr_str = format!("{::}", host, port);
     match socket_addr_str.to_socket_addrs() {
         Ok(addrs) => {
             let mut safe_addrs = Vec::new();

@@ -2,17 +2,17 @@
 //!
 //! 处理采购订单、采购合同、采购价格、采购收货、采购检验、采购退货、供应商、供应商评估等采购相关接口。
 //!
-//! P2 2-11 文档标注：本模块中 `POST /resource/{id}/{action}` 形式的端点为"动作端点"，
-//! 语义上等价于状态变更（approve/cancel/submit 等），RESTful 规范应为 `PATCH /resource/{id}` + body `{status}`。
+//! P2 2-11 文档标注：本模块中 `POST /resource/:id/{action}` 形式的端点为"动作端点"，
+//! 语义上等价于状态变更（approve/cancel/submit 等），RESTful 规范应为 `PATCH /resource/:id` + body `{status}`。
 //! 短期保留 POST 动作端点以兼容前端；长期计划重构为 PATCH 统一状态变更语义。
 
-use crate:{container}::AppState;
+use crate::container::AppState;
 use axum::{
     Router,
     routing::{delete, get, post, put},
 };
 
-use crate:{handlers}::{
+use crate::handlers::{
     print_handler, purchase_contract_handler, purchase_inspection_handler, purchase_order_handler,
     purchase_price_handler, purchase_receipt_handler, purchase_return_handler,
     supplier_evaluation_handler, supplier_handler,
@@ -20,7 +20,7 @@ use crate:{handlers}::{
 
 /// 采购订单路由（nest 到 /api/v1/erp/purchases）；主函数仅做协调：聚合各资源子路由（path 前缀互不重叠，merge 安全）。
 pub fn purchases() -> Router<AppState> {
-    Router:{new}()
+    Router::new()
         .merge(purchase_order_routes())
         .merge(purchase_receipt_routes())
         .merge(purchase_inspection_routes())
@@ -29,410 +29,410 @@ pub fn purchases() -> Router<AppState> {
 
 /// 采购订单路由（path 前缀 /orders）
 fn purchase_order_routes() -> Router<AppState> {
-    Router:{new}()
+    Router::new()
         .route(
             "/orders/delivery-date",
-            post(purchase_order_handler:{calculate_delivery_date}),
+            post(purchase_order_handler::calculate_delivery_date),
         )
-        .route("/orders", get(purchase_order_handler:{list_orders}))
-        .route("/orders", post(purchase_order_handler:{create_order}))
-        .route("/orders/{id}", get(purchase_order_handler:{get_order}))
-        .route("/orders/{id}", put(purchase_order_handler:{update_order}))
-        .route("/orders/{id}", delete(purchase_order_handler:{delete_order}))
+        .route("/orders", get(purchase_order_handler::list_orders))
+        .route("/orders", post(purchase_order_handler::create_order))
+        .route("/orders/{id}", get(purchase_order_handler::get_order))
+        .route("/orders/{id}", put(purchase_order_handler::update_order))
+        .route("/orders/{id}", delete(purchase_order_handler::delete_order))
         .route(
             "/orders/{id}/approve",
-            post(purchase_order_handler:{approve_order}),
+            post(purchase_order_handler::approve_order),
         )
         .route(
             "/orders/{id}/submit",
-            post(purchase_order_handler:{submit_order}),
+            post(purchase_order_handler::submit_order),
         )
         .route(
             "/orders/{id}/reject",
-            post(purchase_order_handler:{reject_order}),
+            post(purchase_order_handler::reject_order),
         )
         .route(
             "/orders/{id}/close",
-            post(purchase_order_handler:{close_order}),
+            post(purchase_order_handler::close_order),
         )
         .route(
             "/orders/{id}/cancel",
-            post(purchase_order_handler:{cancel_order}),
+            post(purchase_order_handler::cancel_order),
         )
-        .route("/orders/export", get(purchase_order_handler:{export_orders}))
+        .route("/orders/export", get(purchase_order_handler::export_orders))
         .route(
             "/orders/generate-no",
-            get(purchase_order_handler:{generate_order_no}),
+            get(purchase_order_handler::generate_order_no),
         )
         .route(
             "/orders/{id}/calculate-total",
-            post(purchase_order_handler:{calculate_order_total}),
+            post(purchase_order_handler::calculate_order_total),
         )
         .route(
             "/orders/{id}/items",
-            get(purchase_order_handler:{list_order_items})
-                .post(purchase_order_handler:{create_order_item}),
+            get(purchase_order_handler::list_order_items)
+                .post(purchase_order_handler::create_order_item),
         )
         .route(
             "/orders/{id}/items/{item_id}",
-            put(purchase_order_handler:{update_order_item})
-                .delete(purchase_order_handler:{delete_order_item}),
+            put(purchase_order_handler::update_order_item)
+                .delete(purchase_order_handler::delete_order_item),
         )
         .route(
             "/orders/{id}/print",
-            get(print_handler:{purchase_order_print_docx}),
+            get(print_handler::purchase_order_print_docx),
         )
 }
 
 /// 采购收货路由（path 前缀 /receipts）
 fn purchase_receipt_routes() -> Router<AppState> {
-    Router:{new}()
-        .route("/receipts", get(purchase_receipt_handler:{list_receipts}))
+    Router::new()
+        .route("/receipts", get(purchase_receipt_handler::list_receipts))
         .route(
             "/receipts/generate-no",
-            get(purchase_receipt_handler:{generate_no}),
+            get(purchase_receipt_handler::generate_no),
         )
         .route(
             "/receipts/{id}/print",
-            get(print_handler:{purchase_receipt_print_docx}),
+            get(print_handler::purchase_receipt_print_docx),
         )
-        .route("/receipts", post(purchase_receipt_handler:{create_receipt}))
-        .route("/receipts/{id}", get(purchase_receipt_handler:{get_receipt}))
+        .route("/receipts", post(purchase_receipt_handler::create_receipt))
+        .route("/receipts/{id}", get(purchase_receipt_handler::get_receipt))
         .route(
             "/receipts/{id}",
-            put(purchase_receipt_handler:{update_receipt})
-                .delete(purchase_receipt_handler:{delete_receipt}),
+            put(purchase_receipt_handler::update_receipt)
+                .delete(purchase_receipt_handler::delete_receipt),
         )
         .route(
             "/receipts/{id}/confirm",
-            post(purchase_receipt_handler:{confirm_receipt}),
+            post(purchase_receipt_handler::confirm_receipt),
         )
         // v11 批次 154c：手动重算入库单总金额（运维兜底入口）
         .route(
             "/receipts/{id}/recalculate",
-            post(purchase_receipt_handler:{recalculate_receipt_total}),
+            post(purchase_receipt_handler::recalculate_receipt_total),
         )
         .route(
             "/receipts/{id}/items",
-            get(purchase_receipt_handler:{list_receipt_items})
-                .post(purchase_receipt_handler:{create_receipt_item}),
+            get(purchase_receipt_handler::list_receipt_items)
+                .post(purchase_receipt_handler::create_receipt_item),
         )
         .route(
             "/receipts/{id}/items/{item_id}",
-            put(purchase_receipt_handler:{update_receipt_item})
-                .delete(purchase_receipt_handler:{delete_receipt_item}),
+            put(purchase_receipt_handler::update_receipt_item)
+                .delete(purchase_receipt_handler::delete_receipt_item),
         )
 }
 
 /// 采购检验路由（path 前缀 /inspections）
 fn purchase_inspection_routes() -> Router<AppState> {
-    Router:{new}()
+    Router::new()
         .route(
             "/inspections",
-            get(purchase_inspection_handler:{list_inspections}),
+            get(purchase_inspection_handler::list_inspections),
         )
         .route(
             "/inspections",
-            post(purchase_inspection_handler:{create_inspection}),
+            post(purchase_inspection_handler::create_inspection),
         )
         .route(
             "/inspections/{id}",
-            get(purchase_inspection_handler:{get_inspection}),
+            get(purchase_inspection_handler::get_inspection),
         )
         .route(
             "/inspections/{id}",
-            put(purchase_inspection_handler:{update_inspection}),
+            put(purchase_inspection_handler::update_inspection),
         )
         .route(
             "/inspections/{id}/complete",
-            post(purchase_inspection_handler:{complete_inspection}),
+            post(purchase_inspection_handler::complete_inspection),
         )
         .route(
             "/inspections/{id}/items",
-            get(purchase_inspection_handler:{list_inspection_items})
-                .post(purchase_inspection_handler:{create_inspection_item}),
+            get(purchase_inspection_handler::list_inspection_items)
+                .post(purchase_inspection_handler::create_inspection_item),
         )
         .route(
             "/inspections/{id}/items/{item_id}",
-            put(purchase_inspection_handler:{update_inspection_item})
-                .delete(purchase_inspection_handler:{delete_inspection_item}),
+            put(purchase_inspection_handler::update_inspection_item)
+                .delete(purchase_inspection_handler::delete_inspection_item),
         )
         .route(
             "/purchase/inspections/{id}/print",
-            get(print_handler:{purchase_inspection_print_docx}),
+            get(print_handler::purchase_inspection_print_docx),
         )
 }
 
 /// 采购退货路由（path 前缀 /returns）
 fn purchase_return_routes() -> Router<AppState> {
-    Router:{new}()
+    Router::new()
         .route(
             "/returns",
-            get(purchase_return_handler:{list_purchase_returns}),
+            get(purchase_return_handler::list_purchase_returns),
         )
         .route(
             "/returns",
-            post(purchase_return_handler:{create_purchase_return}),
+            post(purchase_return_handler::create_purchase_return),
         )
         .route(
             "/returns/{id}",
-            get(purchase_return_handler:{get_purchase_return}),
+            get(purchase_return_handler::get_purchase_return),
         )
         .route(
             "/returns/{id}",
-            put(purchase_return_handler:{update_purchase_return}),
+            put(purchase_return_handler::update_purchase_return),
         )
         .route(
             "/returns/{id}",
-            delete(purchase_return_handler:{delete_purchase_return}),
+            delete(purchase_return_handler::delete_purchase_return),
         )
         .route(
             "/returns/{id}/submit",
-            post(purchase_return_handler:{submit_purchase_return}),
+            post(purchase_return_handler::submit_purchase_return),
         )
         .route(
             "/returns/{id}/approve",
-            post(purchase_return_handler:{approve_purchase_return}),
+            post(purchase_return_handler::approve_purchase_return),
         )
         .route(
             "/returns/{id}/reject",
-            post(purchase_return_handler:{reject_purchase_return}),
+            post(purchase_return_handler::reject_purchase_return),
         )
         .route(
             "/returns/{id}/items",
-            get(purchase_return_handler:{list_purchase_return_items}),
+            get(purchase_return_handler::list_purchase_return_items),
         )
         .route(
             "/returns/{id}/items",
-            post(purchase_return_handler:{create_purchase_return_item}),
+            post(purchase_return_handler::create_purchase_return_item),
         )
         .route(
             "/returns/{id}/items/{item_id}",
-            put(purchase_return_handler:{update_purchase_return_item}),
+            put(purchase_return_handler::update_purchase_return_item),
         )
         .route(
             "/returns/{id}/items/{item_id}",
-            delete(purchase_return_handler:{delete_purchase_return_item}),
+            delete(purchase_return_handler::delete_purchase_return_item),
         )
         .route(
             "/purchase/returns/{id}/print",
-            get(print_handler:{purchase_return_print_docx}),
+            get(print_handler::purchase_return_print_docx),
         )
 }
 
 /// 采购合同路由（path 前缀 /purchase-contracts）
 pub fn purchase_contracts() -> Router<AppState> {
-    Router:{new}()
+    Router::new()
         .route(
             "/purchase-contracts",
-            get(purchase_contract_handler:{list_contracts}),
+            get(purchase_contract_handler::list_contracts),
         )
         .route(
             "/purchase-contracts",
-            post(purchase_contract_handler:{create_contract}),
+            post(purchase_contract_handler::create_contract),
         )
         .route(
             "/purchase-contracts/{id}",
-            get(purchase_contract_handler:{get_contract}),
+            get(purchase_contract_handler::get_contract),
         )
         .route(
             "/purchase-contracts/{id}",
-            put(purchase_contract_handler:{update_contract}),
+            put(purchase_contract_handler::update_contract),
         )
         .route(
             "/purchase-contracts/{id}",
-            delete(purchase_contract_handler:{delete_contract}),
+            delete(purchase_contract_handler::delete_contract),
         )
         .route(
             "/purchase-contracts/{id}/approve",
-            post(purchase_contract_handler:{approve_contract}),
+            post(purchase_contract_handler::approve_contract),
         )
         .route(
             "/purchase-contracts/{id}/execute",
-            put(purchase_contract_handler:{execute_contract}),
+            put(purchase_contract_handler::execute_contract),
         )
         .route(
             "/purchase-contracts/{id}/cancel",
-            put(purchase_contract_handler:{cancel_contract}),
+            put(purchase_contract_handler::cancel_contract),
         )
         .route(
             "/purchase-contracts/{id}/print",
-            get(print_handler:{purchase_contract_print_docx}),
+            get(print_handler::purchase_contract_print_docx),
         )
 }
 
 /// 采购价格路由（path 前缀 /purchase-prices）
 pub fn purchase_prices() -> Router<AppState> {
-    Router:{new}()
-        .route("/purchase-prices", get(purchase_price_handler:{list_prices}))
+    Router::new()
+        .route("/purchase-prices", get(purchase_price_handler::list_prices))
         .route(
             "/purchase-prices",
-            post(purchase_price_handler:{create_price}),
+            post(purchase_price_handler::create_price),
         )
         .route(
             "/purchase-prices/history/{product_id}",
-            get(purchase_price_handler:{get_price_history_by_product}),
+            get(purchase_price_handler::get_price_history_by_product),
         )
         .route(
             "/purchase-prices/{id}",
-            get(purchase_price_handler:{get_price}),
+            get(purchase_price_handler::get_price),
         )
         .route(
             "/purchase-prices/{id}",
-            put(purchase_price_handler:{update_price}),
+            put(purchase_price_handler::update_price),
         )
         .route(
             "/purchase-prices/{id}",
-            delete(purchase_price_handler:{delete_price}),
+            delete(purchase_price_handler::delete_price),
         )
         .route(
             "/purchase-prices/{id}/approve",
-            post(purchase_price_handler:{approve_price}),
+            post(purchase_price_handler::approve_price),
         )
         // batch-13 P3: 价格清单导入
         .route(
             "/purchase-prices/import",
-            post(purchase_price_handler:{import_prices}),
+            post(purchase_price_handler::import_prices),
         )
         .route(
             "/purchase-prices/{id}/history",
-            get(purchase_price_handler:{get_price_history}),
+            get(purchase_price_handler::get_price_history),
         )
 }
 
 /// 供应商路由（path 前缀 /suppliers）
 pub fn suppliers() -> Router<AppState> {
-    Router:{new}()
-        .route("/suppliers", get(supplier_handler:{list_suppliers}))
-        .route("/suppliers", post(supplier_handler:{create_supplier}))
-        .route("/suppliers/select", get(supplier_handler:{list_suppliers}))
+    Router::new()
+        .route("/suppliers", get(supplier_handler::list_suppliers))
+        .route("/suppliers", post(supplier_handler::create_supplier))
+        .route("/suppliers/select", get(supplier_handler::list_suppliers))
         // V15 P0-S12 + P0-S15 新增（Batch 474）：供应商列表带水印导出
-        // 路由顺序：静态路径 /suppliers/export 必须在 /suppliers/{id} 之前注册，
-        // 避免 axum 把 "export" 当作 {id} 参数匹配
+        // 路由顺序：静态路径 /suppliers/export 必须在 /suppliers/:id 之前注册，
+        // 避免 axum 把 "export" 当作 :id 参数匹配
         .route(
             "/suppliers/export",
-            get(supplier_handler:{export_suppliers}),
+            get(supplier_handler::export_suppliers),
         )
-        .route("/suppliers/{id}", get(supplier_handler:{get_supplier}))
-        .route("/suppliers/{id}", put(supplier_handler:{update_supplier}))
-        .route("/suppliers/{id}", delete(supplier_handler:{delete_supplier}))
+        .route("/suppliers/{id}", get(supplier_handler::get_supplier))
+        .route("/suppliers/{id}", put(supplier_handler::update_supplier))
+        .route("/suppliers/{id}", delete(supplier_handler::delete_supplier))
         // batch-13 P2：供应商账户余额查询
         .route(
             "/suppliers/{id}/balance",
-            get(supplier_handler:{get_supplier_balance}),
+            get(supplier_handler::get_supplier_balance),
         )
         // batch-13 P2：异常大额订单检测
         .route(
             "/suppliers/abnormal-orders",
-            get(supplier_handler:{detect_abnormal_orders}),
+            get(supplier_handler::detect_abnormal_orders),
         )
         // batch-13 P3: 供货历史查询
         .route(
             "/suppliers/{id}/purchase-history",
-            get(supplier_handler:{get_supplier_purchase_history}),
+            get(supplier_handler::get_supplier_purchase_history),
         )
         .route(
             "/suppliers/{id}/status",
-            post(supplier_handler:{toggle_supplier_status}),
+            post(supplier_handler::toggle_supplier_status),
         )
         .route(
             "/suppliers/{id}/contacts",
-            get(supplier_handler:{list_supplier_contacts})
-                .post(supplier_handler:{create_supplier_contact}),
+            get(supplier_handler::list_supplier_contacts)
+                .post(supplier_handler::create_supplier_contact),
         )
         .route(
             "/suppliers/{id}/contacts/{contact_id}",
-            put(supplier_handler:{update_supplier_contact})
-                .delete(supplier_handler:{delete_supplier_contact}),
+            put(supplier_handler::update_supplier_contact)
+                .delete(supplier_handler::delete_supplier_contact),
         )
         .route(
             "/suppliers/{id}/qualifications",
-            get(supplier_handler:{list_supplier_qualifications})
-                .post(supplier_handler:{create_supplier_qualification}),
+            get(supplier_handler::list_supplier_qualifications)
+                .post(supplier_handler::create_supplier_qualification),
         )
         .route(
             "/suppliers/{id}/qualifications/{qualification_id}",
-            put(supplier_handler:{update_supplier_qualification})
-                .delete(supplier_handler:{delete_supplier_qualification}),
+            put(supplier_handler::update_supplier_qualification)
+                .delete(supplier_handler::delete_supplier_qualification),
         )
         .route(
             "/suppliers/{id}/evaluate",
-            post(supplier_evaluation_handler:{create_evaluation_record}),
+            post(supplier_evaluation_handler::create_evaluation_record),
         )
         .route(
             "/suppliers/{id}/evaluations",
-            get(supplier_evaluation_handler:{list_evaluation_records}),
+            get(supplier_evaluation_handler::list_evaluation_records),
         )
 }
 
 /// 供应商评估路由（path 前缀 /supplier-evaluations）
 pub fn supplier_evaluations() -> Router<AppState> {
-    Router:{new}()
+    Router::new()
         .route(
             "/supplier-evaluations",
-            get(supplier_evaluation_handler:{list_evaluations}),
+            get(supplier_evaluation_handler::list_evaluations),
         )
         .route(
             "/supplier-evaluations",
-            post(supplier_evaluation_handler:{create_evaluation}),
+            post(supplier_evaluation_handler::create_evaluation),
         )
         .route(
             "/supplier-evaluations/suppliers/{supplier_id}/score",
-            get(supplier_evaluation_handler:{get_supplier_score_by_path}),
+            get(supplier_evaluation_handler::get_supplier_score_by_path),
         )
         .route(
             "/supplier-evaluations/{id}",
-            get(supplier_evaluation_handler:{get_evaluation}),
+            get(supplier_evaluation_handler::get_evaluation),
         )
         .route(
             "/supplier-evaluations/{id}",
-            put(supplier_evaluation_handler:{update_evaluation}),
+            put(supplier_evaluation_handler::update_evaluation),
         )
         .route(
             "/supplier-evaluations/{id}",
-            delete(supplier_evaluation_handler:{delete_evaluation}),
+            delete(supplier_evaluation_handler::delete_evaluation),
         )
         .route(
             "/supplier-evaluations/indicators",
-            get(supplier_evaluation_handler:{list_indicators}),
+            get(supplier_evaluation_handler::list_indicators),
         )
         .route(
             "/supplier-evaluations/indicators",
-            post(supplier_evaluation_handler:{create_indicator}),
+            post(supplier_evaluation_handler::create_indicator),
         )
         .route(
             "/supplier-evaluations/rankings",
-            get(supplier_evaluation_handler:{get_rankings}),
+            get(supplier_evaluation_handler::get_rankings),
         )
         .route(
             "/supplier-evaluations/records",
-            get(supplier_evaluation_handler:{list_evaluation_records}),
+            get(supplier_evaluation_handler::list_evaluation_records),
         )
         .route(
             "/supplier-evaluations/records",
-            post(supplier_evaluation_handler:{create_evaluation_record}),
+            post(supplier_evaluation_handler::create_evaluation_record),
         )
         .route(
             "/supplier-evaluations/records/{id}",
-            get(supplier_evaluation_handler:{get_evaluation_record}),
+            get(supplier_evaluation_handler::get_evaluation_record),
         )
         .route(
             "/supplier-evaluations/scores/{supplier_id}",
-            get(supplier_evaluation_handler:{get_supplier_score}),
+            get(supplier_evaluation_handler::get_supplier_score),
         )
         .route(
             "/supplier-evaluations/ratings",
-            get(supplier_evaluation_handler:{list_ratings}),
+            get(supplier_evaluation_handler::list_ratings),
         )
         .route(
             "/supplier-evaluations/{id}/print",
-            get(print_handler:{supplier_evaluation_record_print_docx}),
+            get(print_handler::supplier_evaluation_record_print_docx),
         )
 }
 
 /// 采购域统一入口；子 router path 已加独立前缀，merge 时 path+method 互不重叠。
 pub fn routes() -> Router<AppState> {
-    Router:{new}()
+    Router::new()
         .merge(purchases())
         .merge(purchase_contracts())
         .merge(purchase_prices())

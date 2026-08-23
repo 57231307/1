@@ -17,8 +17,7 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let sql =
-            r#"-- CRM 公海回收规则表 migration - crm_recycle_rules
+        let sql = r#"-- CRM 公海回收规则表 migration - crm_recycle_rules
 -- 创建时间: 2026-06-29
 -- 关联修复: 批次 23 v5 P0-4 — CRM 回收规则内存存储导致重启丢失
 --
@@ -56,8 +55,7 @@ ON CONFLICT DO NOTHING;"#;
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let sql =
-            r#"-- 回滚：删除 CRM 公海回收规则表
+        let sql = r#"-- 回滚：删除 CRM 公海回收规则表
 -- 创建时间: 2026-06-29
 -- 关联修复: 批次 23 v5 P0-4
 

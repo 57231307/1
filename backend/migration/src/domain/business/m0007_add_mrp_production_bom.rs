@@ -155,8 +155,7 @@ COMMENT ON TABLE "scheduling_result" IS '排程结果表 - 存储生产排程结
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let sql =
-            r#"-- 回滚批次3：MRP/生产计划 + BOM
+        let sql = r#"-- 回滚批次3：MRP/生产计划 + BOM
 -- 创建时间: 2026-05-27
 -- 描述: 删除生产管理相关表
 

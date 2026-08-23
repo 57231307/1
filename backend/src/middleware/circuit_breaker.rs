@@ -151,7 +151,7 @@ static CIRCUIT_BREAKERS: Lazy<Arc<Mutex<HashMap<String, CircuitEntry>>>> =
 fn extract_route_key(req: &Request<Body>) -> String {
     let method = req.method().as_str();
     let path = req.uri().path();
-    format!("{}:{}", method, path)
+    format!("{::}", method, path)
 }
 
 /// V15 P1 20.6-B：API 网关熔断中间件

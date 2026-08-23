@@ -35,8 +35,7 @@ CREATE INDEX IF NOT EXISTS idx_processed_events_processed_at
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let sql =
-            r#"-- B-P1-8 修复（批次 365 v13 复审）：回滚事件幂等去重表
+        let sql = r#"-- B-P1-8 修复（批次 365 v13 复审）：回滚事件幂等去重表
 DROP TABLE IF EXISTS processed_events;"#;
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;

@@ -9,8 +9,7 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let sql =
-            r#"-- B-P1-7 修复（批次 384 v13 复审）：事件死信队列表
+        let sql = r#"-- B-P1-7 修复（批次 384 v13 复审）：事件死信队列表
 -- 事件处理失败超过最大重试次数后，将事件 payload 持久化到此表，
 -- 供人工排查或补偿处理。
 CREATE TABLE IF NOT EXISTS event_dead_letters (
@@ -54,8 +53,7 @@ COMMENT ON COLUMN event_dead_letters.status IS 'PENDING/DEAD/RESOLVED';"#;
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let sql =
-            r#"-- B-P1-7 修复（批次 384 v13 复审）：回滚事件死信队列表
+        let sql = r#"-- B-P1-7 修复（批次 384 v13 复审）：回滚事件死信队列表
 DROP TABLE IF EXISTS event_dead_letters;"#;
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;

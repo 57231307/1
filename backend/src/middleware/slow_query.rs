@@ -55,10 +55,7 @@ const ALERT_STATE_CLEANUP_THRESHOLD: usize = 1024;
 
 /// 清理去重表中已超出告警窗口的过期条目，避免无界增长。
 /// 在持锁状态下执行，调用方必须已持有锁。
-fn cleanup_expired_alert_state(
-    state: &mut HashMap<u64, (Instant, u32)>,
-    now: Instant,
-) {
+fn cleanup_expired_alert_state(state: &mut HashMap<u64, (Instant, u32)>, now: Instant) {
     state.retain(|_, (last_alert, _)| now.duration_since(*last_alert) < ALERT_DEDUP_WINDOW);
 }
 

@@ -46,7 +46,7 @@ pub fn init_env_and_logging() -> Result<AppSettings, Box<dyn std::error::Error>>
 
     info!("配置加载成功");
     info!(
-        "服务器地址：{}:{}",
+        "服务器地址：{::}",
         settings.server.host, settings.server.port
     );
     info!("日志目录：{}", settings.log.dir);

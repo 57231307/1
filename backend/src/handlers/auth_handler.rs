@@ -50,7 +50,7 @@ pub struct LoginRequest {
 }
 
 // 安全漏洞 #14 修复：LoginResponse 的 permissions 字段改为 `Vec<String>` 资源标识符
-// 格式 `"{resource}:{action}"`（如 "user.list:read"），前端可直接 `permissions.includes("user.list:read")` 判断。
+// 格式 `"{resource::action}"`（如 "user.list:read"），前端可直接 `permissions.includes("user.list:read")` 判断。
 // 原 `UserPermissionDto { resource, action, resource_id }` 结构体已被删除（无其他引用）。
 
 /// 登录响应 DTO - 不再返回 `token`（#10）：access_token 已在 httpOnly Cookie 写入 - 不再返回 `refresh_token`（#13）
@@ -60,7 +60,7 @@ pub struct LoginRequest {
 pub struct LoginResponse {
     pub csrf_token: String,
     pub user: UserInfo,
-    /// 资源标识符列表（`"{resource}:{action}"` 格式）
+    /// 资源标识符列表（`"{resource::action}"` 格式）
     pub permissions: Vec<String>,
     /// 密码是否过期（批次 198 P0-2：true 表示超过 90 天未修改，前端引导改密）
     pub password_expired: bool,
@@ -77,7 +77,7 @@ pub struct UserInfo {
     /// 从 role 表 JOIN 获取，None 表示用户未分配角色或角色不存在。
     pub role_name: Option<String>,
     /// 批次 24 v6 P0-2 修复：补全 permissions 字段，前端刷新页面后从 /auth/me 获取权限列表。
-    /// 与 LoginResponse 顶层 permissions 格式一致（`"{resource}:{action}"`）。
+    /// 与 LoginResponse 顶层 permissions 格式一致（`"{resource::action}"`）。
     pub permissions: Vec<String>,
     /// 批次 29 v7 P0-5 修复：补全 phone 字段（users 表已有此列），前端用户中心展示用
     pub phone: Option<String>,
@@ -102,7 +102,7 @@ pub struct UserInfo {
 
 impl UserInfo {
     /// 批次 24 v6 P0-2 修复：构建包含 role_name 和 permissions 的 UserInfo。 此函数供 login 和 get_current_user 共用，确保前后端类型契约一致。；- `role_name`：从 role 表 code 字段获取（None 表示未分配角色）
-    /// - `permissions`：从 role_permission 表查询 allowed=true 的记录，格式 `"{resource}:{action}"` - `department_name`：批次 29 v7 P0-5 新增，从 departments 表 JOIN 获取
+    /// - `permissions`：从 role_permission 表查询 allowed=true 的记录，格式 `"{resource::action}"` - `department_name`：批次 29 v7 P0-5 新增，从 departments 表 JOIN 获取
     pub async fn build_with_permissions(
         db: &sea_orm::DatabaseConnection,
         user: &crate::models::user::Model,
@@ -173,7 +173,7 @@ impl UserInfo {
                     .map(|perms| {
                         perms
                             .into_iter()
-                            .map(|p| format!("{}:{}", p.resource_type, p.action))
+                            .map(|p| format!("{::}", p.resource_type, p.action))
                             .collect()
                     })
                     .unwrap_or_else(|e| {
@@ -827,7 +827,7 @@ async fn handle_login_success(
     auth_service: &AuthService,
 ) -> Result<axum::response::Response, AppError> {
     // 批次 24 v6 P0-2 修复：使用统一的 build_with_permissions 构建 UserInfo
-    // 安全漏洞 #14 修复：权限列表转换为 `Vec<String>` 资源标识符 `"{resource}:{action}"`
+    // 安全漏洞 #14 修复：权限列表转换为 `Vec<String>` 资源标识符 `"{resource::action}"`
     let user_info = UserInfo::build_with_permissions(state.db.as_ref(), &user).await;
     let permissions = user_info.permissions.clone();
 
@@ -876,5 +876,5 @@ async fn handle_login_success(
 // 验证 LoginResponse 序列化后：
 //   - 不含 `token` 字段（access_token 已在 httpOnly Cookie 写入）
 //   - 不含 `refresh_token` 字段（refresh_token 已在 httpOnly Cookie 写入）
-//   - `permissions` 字段类型为 `Vec<String>` 资源标识符（`"{resource}:{action}"` 格式）
+//   - `permissions` 字段类型为 `Vec<String>` 资源标识符（`"{resource::action}"` 格式）
 // =================================================================

@@ -264,7 +264,7 @@ impl PermissionComplianceService {
                         username: None,
                         audit_log_id: Some(log.id),
                         description: format!(
-                            "超级权限授予告警：操作人 {} 授予角色 {:?} 的 {}:{} 通配符权限",
+                            "超级权限授予告警：操作人 {} 授予角色 {:?} 的 {::} 通配符权限",
                             log.operator_id, log.role_id, resource_type, action
                         ),
                         severity: Severity::Critical,
@@ -407,7 +407,7 @@ impl PermissionComplianceService {
                 continue;
             }
             let key = format!(
-                "{}:{}:{}",
+                "{::::}",
                 log.role_id.unwrap_or(0),
                 log.resource_type.as_deref().unwrap_or(""),
                 log.action.as_deref().unwrap_or("")
@@ -437,7 +437,7 @@ impl PermissionComplianceService {
                         username: None,
                         audit_log_id: Some(last.id),
                         description: format!(
-                            "权限回滚告警：操作人 {} 在 {} 秒内对角色 {:?} 的 {}:{} 先授予后移除（或反之）",
+                            "权限回滚告警：操作人 {} 在 {} 秒内对角色 {:?} 的 {::} 先授予后移除（或反之）",
                             first.operator_id,
                             duration.num_seconds(),
                             first.role_id,

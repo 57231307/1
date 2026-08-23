@@ -939,4 +939,3 @@ impl FundManagementService {
 }
 
 // 纯数据 struct 已迁移至 models/dto/fund_management_dto.rs（顶部已 re-export）
-

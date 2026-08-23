@@ -78,7 +78,10 @@ impl StateMachine for CustomOrderStateMachineAdapter {
         }
     }
 
-    fn transition(&mut self, event: &Self::Event) -> Result<TransitionResult<Self::State>, Self::Error> {
+    fn transition(
+        &mut self,
+        event: &Self::Event,
+    ) -> Result<TransitionResult<Self::State>, Self::Error> {
         if !self.can_transition(event) {
             return Err(format!("非法状态转换: {} -> {}", self.current, event));
         }
@@ -90,14 +93,17 @@ impl StateMachine for CustomOrderStateMachineAdapter {
                 .map_err(|e| format!("推进失败: {e}"))?,
             "cancel" => CustomOrderStatus::Cancelled.as_str().to_string(),
             other => {
-                let target = Self::parse_set_event(other)
-                    .ok_or_else(|| format!("无法解析事件: {other}"))?;
+                let target =
+                    Self::parse_set_event(other).ok_or_else(|| format!("无法解析事件: {other}"))?;
                 target.to_string()
             }
         };
 
         self.current = next.clone();
-        Ok(TransitionResult { from: old, to: next })
+        Ok(TransitionResult {
+            from: old,
+            to: next,
+        })
     }
 
     fn available_events(&self) -> Vec<Self::Event> {
@@ -149,7 +155,16 @@ mod tests {
         let mut sm = CustomOrderStateMachineAdapter::new("draft").unwrap();
         assert_eq!(sm.current_state(), "draft");
 
-        for expected in ["lab_dip", "quotation", "yarn_purchasing", "dyeing", "finishing", "delivery", "after_sales", "completed"] {
+        for expected in [
+            "lab_dip",
+            "quotation",
+            "yarn_purchasing",
+            "dyeing",
+            "finishing",
+            "delivery",
+            "after_sales",
+            "completed",
+        ] {
             let r = sm.transition(&"advance".to_string()).unwrap();
             assert_eq!(r.to, expected);
         }

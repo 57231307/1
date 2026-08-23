@@ -6,8 +6,7 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let sql =
-            r#"-- 批次8：财务应收应付 + 多币种 + 财务分析
+        let sql = r#"-- 批次8：财务应收应付 + 多币种 + 财务分析
 -- 创建时间: 2026-05-27
 -- 描述: 创建财务应收应付、多币种和财务分析相关表
 
@@ -640,8 +639,7 @@ COMMENT ON TABLE "customer_credit_ratings" IS '客户信用评级表';"#;
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let sql =
-            r#"-- 回滚批次8：财务应收应付 + 多币种 + 财务分析
+        let sql = r#"-- 回滚批次8：财务应收应付 + 多币种 + 财务分析
 -- 创建时间: 2026-05-27
 -- 描述: 删除财务应收应付、多币种和财务分析相关表
 

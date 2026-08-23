@@ -18,8 +18,8 @@ use axum::{
 };
 use axum_extra::extract::cookie::SameSite;
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 use time::Duration as CookieDuration;
+use utoipa::ToSchema;
 
 #[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]

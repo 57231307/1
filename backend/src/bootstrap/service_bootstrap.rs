@@ -289,9 +289,7 @@ async fn check_migration_continuity(db: &DatabaseConnection) {
             if count >= 6 {
                 info!("迁移连续性检查通过（{count} 个迁移已执行）");
             } else {
-                warn!(
-                    "迁移连续性检查发现异常：仅 {count} 个迁移已执行（预期 >= 6）"
-                );
+                warn!("迁移连续性检查发现异常：仅 {count} 个迁移已执行（预期 >= 6）");
             }
         }
         Ok(None) => {

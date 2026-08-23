@@ -264,8 +264,7 @@ COMMENT ON TABLE "purchase_prices" IS '采购价格表';"#;
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let sql =
-            r#"-- 回滚批次5：采购管理扩展
+        let sql = r#"-- 回滚批次5：采购管理扩展
 -- 创建时间: 2026-05-27
 -- 描述: 删除采购管理扩展表
 

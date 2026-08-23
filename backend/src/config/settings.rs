@@ -376,7 +376,7 @@ impl AppSettings {
     fn load_database_config(app_settings: &mut AppSettings) {
         if app_settings.database.connection_string.is_empty() {
             app_settings.database.connection_string = format!(
-                "postgres://{}:{}@{}:{}/{}",
+                "postgres://{::}@{::}/{}",
                 app_settings.database.username,
                 app_settings.database.password,
                 app_settings.database.host,

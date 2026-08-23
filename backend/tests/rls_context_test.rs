@@ -38,10 +38,7 @@ use tower::ServiceExt;
 
 /// 测试用业务处理器：返回 200，证明请求穿过中间件后正常到达 handler
 async fn ok_handler() -> impl IntoResponse {
-    (
-        StatusCode::OK,
-        axum::Json(serde_json::json!({"ok": true})),
-    )
+    (StatusCode::OK, axum::Json(serde_json::json!({"ok": true})))
 }
 
 /// AuthContext 注入中间件：将预设 AuthContext 写入 request extensions
@@ -134,7 +131,10 @@ async fn test_non_admin_user_attempts_set_local_degrades_safely() {
 async fn test_non_admin_rls_activated_pg() {
     let db_url = std::env::var("TEST_DATABASE_URL").unwrap_or_default();
     if !db_url.starts_with("postgres") {
-        eprintln!("跳过：TEST_DATABASE_URL 未指向 PostgreSQL（当前: {}）", db_url);
+        eprintln!(
+            "跳过：TEST_DATABASE_URL 未指向 PostgreSQL（当前: {}）",
+            db_url
+        );
         return;
     }
 
@@ -273,5 +273,8 @@ async fn test_apply_data_scope_still_works_without_rls() {
     );
 
     // 验证 DataScopeContext 携带正确的 user_id（apply_data_scope 依赖此值过滤）
-    assert_eq!(op_ctx.user_id, 3002, "应用层 data_scope 上下文应携带正确 user_id");
+    assert_eq!(
+        op_ctx.user_id, 3002,
+        "应用层 data_scope 上下文应携带正确 user_id"
+    );
 }

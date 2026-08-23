@@ -9,16 +9,16 @@
 //! - 内部 path 有重复（`GET /`、相同 `GET /templates` 等）的子 router 走 `nest` 加独立前缀
 //! - nest 后的最终 path 与前端保持一致（如 `/reports/enhanced/...`）
 
-use crate:{container}::AppState;
-use crate:{middleware}:{rate_limit}:{rate_limit_ai_endpoint};
+use crate::container::AppState;
+use crate::middleware::rate_limit::rate_limit_ai_endpoint;
 // V15 P2 20.7-B：deprecation 响应头中间件
-use crate:{middleware}:{deprecation};
+use crate::middleware::deprecation;
 use axum::{
     Router,
     routing::{delete, get, post, put},
 };
 
-use crate:{handlers}::{
+use crate::handlers::{
     advanced, ai_analysis_handler, api_gateway_handler, assist_accounting_handler,
     audit_enhanced_handler, barcode_scanner_handler, business_trace_handler,
     data_permission_handler, dual_unit_converter_handler, email_handler, import_export_handler,
@@ -29,581 +29,584 @@ use crate:{handlers}::{
 
 /// 双计量单位路由
 pub fn dual_unit() -> Router<AppState> {
-    Router:{new}()
+    Router::new()
         .route(
             "/convert",
-            post(dual_unit_converter_handler:{convert_dual_unit}),
+            post(dual_unit_converter_handler::convert_dual_unit),
         )
         .route(
             "/validate",
-            post(dual_unit_converter_handler:{validate_dual_unit}),
+            post(dual_unit_converter_handler::validate_dual_unit),
         )
 }
 
 /// 辅助核算路由
 pub fn assist_accounting() -> Router<AppState> {
-    Router:{new}()
+    Router::new()
         .route(
             "/dimensions",
-            get(assist_accounting_handler:{list_assist_dimensions}),
+            get(assist_accounting_handler::list_assist_dimensions),
         )
         .route(
             "/records",
-            get(assist_accounting_handler:{query_assist_records}),
+            get(assist_accounting_handler::query_assist_records),
         )
         .route(
             "/records/business",
-            get(assist_accounting_handler:{get_assist_records_by_business}),
+            get(assist_accounting_handler::get_assist_records_by_business),
         )
         .route(
             "/records/five-dimension/{five_dimension_id}",
-            get(assist_accounting_handler:{get_assist_records_by_five_dimension}),
+            get(assist_accounting_handler::get_assist_records_by_five_dimension),
         )
         .route(
             "/summary",
-            get(assist_accounting_handler:{get_assist_summary}),
+            get(assist_accounting_handler::get_assist_summary),
         )
         .route(
             "/drill-down",
-            get(assist_accounting_handler:{drill_down_to_assist}),
+            get(assist_accounting_handler::drill_down_to_assist),
         )
         .route(
             "/balance",
-            get(assist_accounting_handler:{get_assist_balance}),
+            get(assist_accounting_handler::get_assist_balance),
         )
         // V15 P1 17.2-D7: 辅助核算余额核对
         .route(
             "/check-balance",
-            get(assist_accounting_handler:{check_assist_vs_general_balance}),
+            get(assist_accounting_handler::check_assist_vs_general_balance),
         )
 }
 
 /// 业务追溯路由
 pub fn business_trace() -> Router<AppState> {
-    Router:{new}()
+    Router::new()
         .route(
             "/five-dimension/{five_dimension_id}",
-            get(business_trace_handler:{get_trace_by_five_dimension}),
+            get(business_trace_handler::get_trace_by_five_dimension),
         )
-        .route("/forward", get(business_trace_handler:{forward_trace}))
-        .route("/backward", get(business_trace_handler:{backward_trace}))
+        .route("/forward", get(business_trace_handler::forward_trace))
+        .route("/backward", get(business_trace_handler::backward_trace))
         .route(
             "/snapshot/{trace_chain_id}",
-            post(business_trace_handler:{create_trace_snapshot}),
+            post(business_trace_handler::create_trace_snapshot),
         )
 }
 
 /// 扫码出库路由
 pub fn scanner() -> Router<AppState> {
-    Router:{new}()
+    Router::new()
         .route(
             "/scan-to-ship",
-            get(barcode_scanner_handler:{scan_to_ship_get})
-                .post(barcode_scanner_handler:{scan_to_ship_post}),
+            get(barcode_scanner_handler::scan_to_ship_get)
+                .post(barcode_scanner_handler::scan_to_ship_post),
         )
         .route(
             "/scan-inventory",
-            get(barcode_scanner_handler:{scan_inventory}),
+            get(barcode_scanner_handler::scan_inventory),
         )
-        .route("/history", get(barcode_scanner_handler:{scan_history}))
+        .route("/history", get(barcode_scanner_handler::scan_history))
         .route(
             "/scan-statistics",
-            get(barcode_scanner_handler:{scan_statistics}),
+            get(barcode_scanner_handler::scan_statistics),
         )
         // batch-13 P3: 按匹号发货
         .route(
             "/ship-by-piece",
-            axum:{routing}:{post}(barcode_scanner_handler:{ship_by_piece_no}),
+            axum::routing::post(barcode_scanner_handler::ship_by_piece_no),
         )
 }
 
 /// 报表增强路由（内部 path 已加 /templates、/fields 等子前缀）；整个 router 在 `routes()` 中用
 /// `nest("/reports/enhanced", ...)` 装配， 最终 path = `/api/v1/erp/reports/enhanced/...`（与前端一致）。
 pub fn reports_enhanced() -> Router<AppState> {
-    Router:{new}()
+    Router::new()
         .route(
             "/fields/{template_type}",
-            get(report_enhanced_handler:{get_available_fields}),
+            get(report_enhanced_handler::get_available_fields),
         )
         .route(
             "/templates",
-            get(report_enhanced_handler:{list_report_templates})
-                .post(report_enhanced_handler:{create_report_template}),
+            get(report_enhanced_handler::list_report_templates)
+                .post(report_enhanced_handler::create_report_template),
         )
         .route(
             "/templates/{id}",
-            get(report_enhanced_handler:{get_report_template})
-                .put(report_enhanced_handler:{update_report_template})
-                .delete(report_enhanced_handler:{delete_report_template}),
+            get(report_enhanced_handler::get_report_template)
+                .put(report_enhanced_handler::update_report_template)
+                .delete(report_enhanced_handler::delete_report_template),
         )
         .route(
             "/templates/{id}/versions",
-            get(report_enhanced_handler:{list_template_versions}),
+            get(report_enhanced_handler::list_template_versions),
         )
         .route(
             "/templates/{id}/rollback/{version}",
-            post(report_enhanced_handler:{rollback_template_version}),
+            post(report_enhanced_handler::rollback_template_version),
         )
         .route(
             "/templates/{id}/execute",
-            post(report_enhanced_handler:{execute_custom_report}),
+            post(report_enhanced_handler::execute_custom_report),
         )
         .route(
             "/templates/{id}/export",
-            post(report_enhanced_handler:{export_template}),
+            post(report_enhanced_handler::export_template),
         )
         .route(
             "/templates/{id}/preview",
-            get(report_enhanced_handler:{preview_template}),
+            get(report_enhanced_handler::preview_template),
         )
-        .route("/export/pdf", post(report_enhanced_handler:{export_pdf}))
-        .route("/export/excel", post(report_enhanced_handler:{export_excel}))
+        .route("/export/pdf", post(report_enhanced_handler::export_pdf))
+        .route("/export/excel", post(report_enhanced_handler::export_excel))
         .route(
             "/subscriptions",
-            get(report_enhanced_handler:{subscriptions}:{list})
-                .post(report_enhanced_handler:{subscriptions}:{create}),
+            get(report_enhanced_handler::subscriptions::list)
+                .post(report_enhanced_handler::subscriptions::create),
         )
         .route(
             "/subscriptions/{id}",
-            get(report_enhanced_handler:{subscriptions}:{get})
-                .put(report_enhanced_handler:{subscriptions}:{update})
-                .delete(report_enhanced_handler:{subscriptions}:{delete}),
+            get(report_enhanced_handler::subscriptions::get)
+                .put(report_enhanced_handler::subscriptions::update)
+                .delete(report_enhanced_handler::subscriptions::delete),
         )
         .route(
             "/subscriptions/{id}/toggle",
-            post(report_enhanced_handler:{toggle_subscription}),
+            post(report_enhanced_handler::toggle_subscription),
         )
         .route(
             "/subscriptions/{id}/trigger",
-            post(report_enhanced_handler:{trigger_subscription}),
+            post(report_enhanced_handler::trigger_subscription),
         )
         .route(
             "/subscriptions/{id}/send",
-            post(report_enhanced_handler:{send_subscription_now}),
+            post(report_enhanced_handler::send_subscription_now),
         )
 }
 
 /// 导入路由
 pub fn imports() -> Router<AppState> {
-    Router:{new}()
-        .route("/csv", post(import_export_handler:{import_csv}))
-        .route("/excel", post(import_export_handler:{import_excel}))
+    Router::new()
+        .route("/csv", post(import_export_handler::import_csv))
+        .route("/excel", post(import_export_handler::import_excel))
         .route(
             "/templates/download/{import_type}",
-            get(import_export_handler:{download_template}),
+            get(import_export_handler::download_template),
         )
 }
 
 /// 导出路由
 pub fn exports() -> Router<AppState> {
-    Router:{new}()
-        .route("/xlsx/{export_type}", get(import_export_handler:{export_xlsx}))
+    Router::new()
+        .route("/xlsx/{export_type}", get(import_export_handler::export_xlsx))
         .route(
             "/excel/{export_type}",
-            get(import_export_handler:{export_excel_type}),
+            get(import_export_handler::export_excel_type),
         )
         // B12-P2-5：流式导出端点（直接返回文件，不经过 base64 编码）
         .route(
             "/stream/{export_type}",
-            get(import_export_handler:{export_stream}),
+            get(import_export_handler::export_stream),
         )
 }
 
 /// 审计日志路由
 pub fn audit() -> Router<AppState> {
-    Router:{new}()
-        .route("/logs", get(audit_enhanced_handler:{list_audit_logs}))
+    Router::new()
+        .route("/logs", get(audit_enhanced_handler::list_audit_logs))
         .route(
             "/logs/export",
-            get(audit_enhanced_handler:{export_audit_logs}),
+            get(audit_enhanced_handler::export_audit_logs),
         )
 }
 
 /// 登录安全路由
 pub fn security() -> Router<AppState> {
-    Router:{new}()
-        .route("/login-logs", get(login_security_handler:{list_login_logs}))
+    Router::new()
+        .route("/login-logs", get(login_security_handler::list_login_logs))
         .route(
             "/lock-status",
-            get(login_security_handler:{check_lock_status}),
+            get(login_security_handler::check_lock_status),
         )
-        .route("/unlock", post(login_security_handler:{unlock_account}))
+        .route("/unlock", post(login_security_handler::unlock_account))
         .route(
             "/login-statistics",
-            get(login_security_handler:{get_login_statistics}),
+            get(login_security_handler::get_login_statistics),
         )
-        .route("/stats", get(login_security_handler:{get_login_statistics}))
+        .route("/stats", get(login_security_handler::get_login_statistics))
         .route(
             "/security-alerts",
-            get(login_security_handler:{get_security_alerts}),
+            get(login_security_handler::get_security_alerts),
         )
-        .route("/alerts", get(login_security_handler:{get_security_alerts}))
+        .route("/alerts", get(login_security_handler::get_security_alerts))
         .route(
             "/alerts/{id}/resolve",
-            post(login_security_handler:{resolve_alert}),
+            post(login_security_handler::resolve_alert),
         )
         .route(
             "/locked-accounts",
-            get(login_security_handler:{get_locked_accounts}),
+            get(login_security_handler::get_locked_accounts),
         )
         .route(
             "/locked-accounts/{id}/unlock",
-            post(login_security_handler:{unlock_account_by_id}),
+            post(login_security_handler::unlock_account_by_id),
         )
         .route(
             "/login-logs/export",
-            get(login_security_handler:{export_login_logs}),
+            get(login_security_handler::export_login_logs),
         )
 }
 
 /// 邮件路由
 pub fn emails() -> Router<AppState> {
-    Router:{new}()
-        .route("/send", post(email_handler:{send_email}))
+    Router::new()
+        .route("/send", post(email_handler::send_email))
         .route(
             "/email-templates",
-            get(email_handler:{list}).post(email_handler:{create}),
+            get(email_handler::list).post(email_handler::create),
         )
         .route(
             "/email-templates/{id}",
-            get(email_handler:{get})
-                .put(email_handler:{update})
-                .delete(email_handler:{delete}),
+            get(email_handler::get)
+                .put(email_handler::update)
+                .delete(email_handler::delete),
         )
-        .route("/email-records", get(email_handler:{get_email_records}))
+        .route("/email-records", get(email_handler::get_email_records))
         .route(
             "/email-statistics",
-            get(email_handler:{get_email_statistics}),
+            get(email_handler::get_email_statistics),
         )
 }
 
-/// Webhook 集成路由（内部 path 保留 `/`、`/callback` 等，nest 装配时再加前缀）；最终 path = `/api/v1/erp/webhooks/integrations/...`（与前端一致）。；批次 113 P1-1 修复 HTTP 语义： - 移除原 `PUT /integration/{id}` 调用
-/// `test_integration`（非幂等动作触发，违反 PUT 语义） - 新增 `PUT /{id}` 调用 `update_integration`（真正的字段更新） - 保留 `DELETE /integration/{id}` 调用 `delete_integration` - 保留 `POST /test-integration/{id}` 作为唯一测试入口（动作触发语义）
+/// Webhook 集成路由（内部 path 保留 `/`、`/callback` 等，nest 装配时再加前缀）；最终 path = `/api/v1/erp/webhooks/integrations/...`（与前端一致）。；批次 113 P1-1 修复 HTTP 语义： - 移除原 `PUT /integration/:id` 调用
+/// `test_integration`（非幂等动作触发，违反 PUT 语义） - 新增 `PUT /:id` 调用 `update_integration`（真正的字段更新） - 保留 `DELETE /integration/:id` 调用 `delete_integration` - 保留 `POST /test-integration/:id` 作为唯一测试入口（动作触发语义）
 pub fn webhook_integrations() -> Router<AppState> {
-    Router:{new}()
+    Router::new()
         .route(
             "/",
-            get(webhook_integration_handler:{list_integrations})
-                .post(webhook_integration_handler:{create_integration}),
+            get(webhook_integration_handler::list_integrations)
+                .post(webhook_integration_handler::create_integration),
         )
-        .route("/{id}", put(webhook_integration_handler:{update_integration}))
+        .route(
+            "/{id}",
+            put(webhook_integration_handler::update_integration),
+        )
         .route(
             "/integration/{id}",
-            delete(webhook_integration_handler:{delete_integration}),
+            delete(webhook_integration_handler::delete_integration),
         )
         .route(
             "/callback",
-            post(webhook_integration_handler:{handle_generic_callback}),
+            post(webhook_integration_handler::handle_generic_callback),
         )
         .route(
             "/test-integration/{id}",
-            post(webhook_integration_handler:{test_integration}),
+            post(webhook_integration_handler::test_integration),
         )
         .route(
             "/wechat/send",
-            post(webhook_integration_handler:{send_wechat_message}),
+            post(webhook_integration_handler::send_wechat_message),
         )
         .route(
             "/dingtalk/send",
-            post(webhook_integration_handler:{send_dingtalk_message}),
+            post(webhook_integration_handler::send_dingtalk_message),
         )
 }
 
-/// AI 智能分析路由；V15 P0-S26：AI 端点权限码注册（对应 PERMISSION_RESOURCES 中 ai-* 资源） 权限映射：/forecast-sales → ai-forecast{read}
-/// /optimize-inventory → ai-inventory-opt{read}， /detect-anomalies → ai-anomaly{read}， /recommendations → ai-recommendation{read}
+/// AI 智能分析路由；V15 P0-S26：AI 端点权限码注册（对应 PERMISSION_RESOURCES 中 ai-* 资源） 权限映射：/forecast-sales → ai-forecast:read
+/// /optimize-inventory → ai-inventory-opt:read， /detect-anomalies → ai-anomaly:read， /recommendations → ai-recommendation:read
 pub fn ai() -> Router<AppState> {
-    Router:{new}()
-        .route("/forecast-sales", get(ai_analysis_handler:{forecast_sales}))
+    Router::new()
+        .route("/forecast-sales", get(ai_analysis_handler::forecast_sales))
         .route(
             "/optimize-inventory",
-            get(ai_analysis_handler:{optimize_inventory}),
+            get(ai_analysis_handler::optimize_inventory),
         )
         .route(
             "/detect-anomalies",
-            get(ai_analysis_handler:{detect_anomalies}),
+            get(ai_analysis_handler::detect_anomalies),
         )
         .route(
             "/recommendations",
-            get(ai_analysis_handler:{get_recommendations}),
+            get(ai_analysis_handler::get_recommendations),
         )
         // 缺陷 16.4-D4 修复：AI 端点专用速率限制（10 req/min/user）
-        .layer(axum:{middleware}:{from_fn}(rate_limit_ai_endpoint))
+        .layer(axum::middleware::from_fn(rate_limit_ai_endpoint))
 }
 
 /// 报表引擎路由
 pub fn reports() -> Router<AppState> {
-    Router:{new}()
+    Router::new()
         .route(
             "/report-templates",
-            get(report_engine_handler:{list_templates})
-                .post(report_engine_handler:{create_custom_template}),
+            get(report_engine_handler::list_templates)
+                .post(report_engine_handler::create_custom_template),
         )
-        .route("/execute", get(report_engine_handler:{execute_report}))
-        .route("/export", get(report_engine_handler:{export_report}))
-        .route("/aggregate", post(report_engine_handler:{aggregate_report}))
+        .route("/execute", get(report_engine_handler::execute_report))
+        .route("/export", get(report_engine_handler::export_report))
+        .route("/aggregate", post(report_engine_handler::aggregate_report))
         .route(
             "/cache/clear",
-            post(report_engine_handler:{clear_report_cache}),
+            post(report_engine_handler::clear_report_cache),
         )
 }
 
-/// Webhook 路由；批次 108 P1-8 修复：补齐 retry/get_logs/test 3 端点，接入 service 中已实现的方法。 - POST /{id}/test  → test_webhook（触发一次 test 事件
-/// 验证配置正确性） - POST /{id}/retry → retry_webhook（重试上一次失败的 webhook 调用） - GET  /{id}/logs  → get_webhook_logs（返回 webhook 执行状态）
+/// Webhook 路由；批次 108 P1-8 修复：补齐 retry/get_logs/test 3 端点，接入 service 中已实现的方法。 - POST /:id/test  → test_webhook（触发一次 test 事件
+/// 验证配置正确性） - POST /:id/retry → retry_webhook（重试上一次失败的 webhook 调用） - GET  /:id/logs  → get_webhook_logs（返回 webhook 执行状态）
 pub fn webhooks() -> Router<AppState> {
-    Router:{new}()
+    Router::new()
         .route(
             "/",
-            get(webhook_handler:{list_webhooks}).post(webhook_handler:{create_webhook}),
+            get(webhook_handler::list_webhooks).post(webhook_handler::create_webhook),
         )
-        .route("/{id}", delete(webhook_handler:{delete_webhook}))
-        .route("/{id}/test", post(webhook_handler:{test_webhook}))
-        .route("/{id}/retry", post(webhook_handler:{retry_webhook}))
-        .route("/{id}/logs", get(webhook_handler:{get_webhook_logs}))
+        .route("/{id}", delete(webhook_handler::delete_webhook))
+        .route("/{id}/test", post(webhook_handler::test_webhook))
+        .route("/{id}/retry", post(webhook_handler::retry_webhook))
+        .route("/{id}/logs", get(webhook_handler::get_webhook_logs))
 }
 
 /// API 网关管理路由；技术债务修复（2026-06-26）： 前端 api-gateway.ts 调用 /api-gateway/{endpoints,logs,keys,stats}
 /// 前缀。 原 api_keys() 挂载在 /api-keys 前缀，与前端不匹配。 新增 api_gateway() 统一挂载到 /api-gateway 前缀下。
 pub fn api_gateway() -> Router<AppState> {
-    Router:{new}()
+    Router::new()
         // endpoints CRUD
         .route(
             "/endpoints",
-            get(api_gateway_handler:{list_api_endpoints})
-                .post(api_gateway_handler:{create_api_endpoint}),
+            get(api_gateway_handler::list_api_endpoints)
+                .post(api_gateway_handler::create_api_endpoint),
         )
         .route(
             "/endpoints/{id}",
-            get(api_gateway_handler:{get_api_endpoint})
-                .put(api_gateway_handler:{update_api_endpoint})
-                .delete(api_gateway_handler:{delete_api_endpoint}),
+            get(api_gateway_handler::get_api_endpoint)
+                .put(api_gateway_handler::update_api_endpoint)
+                .delete(api_gateway_handler::delete_api_endpoint),
         )
         // logs 查询
-        .route("/logs", get(api_gateway_handler:{list_api_logs}))
-        .route("/logs/{id}", get(api_gateway_handler:{get_api_log}))
+        .route("/logs", get(api_gateway_handler::list_api_logs))
+        .route("/logs/{id}", get(api_gateway_handler::get_api_log))
         // keys CRUD（list/create/delete/get/update/regenerate 均由 api_gateway_handler 提供）
         .route(
             "/keys",
-            get(api_gateway_handler:{list_api_keys}).post(api_gateway_handler:{create_api_key}),
+            get(api_gateway_handler::list_api_keys).post(api_gateway_handler::create_api_key),
         )
         .route(
             "/keys/{id}",
-            get(api_gateway_handler:{get_api_key})
-                .put(api_gateway_handler:{update_api_key})
-                .delete(api_gateway_handler:{delete_api_key}),
+            get(api_gateway_handler::get_api_key)
+                .put(api_gateway_handler::update_api_key)
+                .delete(api_gateway_handler::delete_api_key),
         )
         .route(
             "/keys/{id}/regenerate",
-            post(api_gateway_handler:{regenerate_api_key}),
+            post(api_gateway_handler::regenerate_api_key),
         )
         // stats
-        .route("/stats", get(api_gateway_handler:{get_api_stats}))
+        .route("/stats", get(api_gateway_handler::get_api_stats))
         // V15 P2 20.7-B：deprecation 响应头中间件
-        .layer(axum:{middleware}:{from_fn}(deprecation:{deprecation_headers_middleware}))
+        .layer(axum::middleware::from_fn(deprecation::deprecation_headers_middleware))
 }
 
 /// 数据权限路由；注：main 上 data_permission_handler 仅实现基础的 `list_data_permissions` / `get_data_permission` / `set_data_permission` /
 /// `delete_data_permission` / `list_scope_types` / `list_role_data_permissions`，未提供 grant/revoke 角色 / 用户级别 的接口，因此这些路由暂不挂载，避免编译期 E0425。
 pub fn data_permissions() -> Router<AppState> {
-    Router:{new}()
+    Router::new()
         .route(
             "/",
-            get(data_permission_handler:{list_data_permissions})
-                .post(data_permission_handler:{set_data_permission}),
+            get(data_permission_handler::list_data_permissions)
+                .post(data_permission_handler::set_data_permission),
         )
         .route(
             "/{id}",
-            get(data_permission_handler:{get_data_permission})
-                .delete(data_permission_handler:{delete_data_permission}),
+            get(data_permission_handler::get_data_permission)
+                .delete(data_permission_handler::delete_data_permission),
         )
         .route(
             "/scope-types",
-            get(data_permission_handler:{list_scope_types}),
+            get(data_permission_handler::list_scope_types),
         )
         .route(
             "/roles/{role_id}",
-            get(data_permission_handler:{list_role_data_permissions}),
+            get(data_permission_handler::list_role_data_permissions),
         )
 }
 
 /// 消息通知路由；注：main 上 notification_handler 未提供 `create_notification`
 /// / `update_notification`， 因此这两类路由暂不挂载，避免编译期 E0425。
 pub fn notifications() -> Router<AppState> {
-    Router:{new}()
-        .route("/", get(notification_handler:{list_notifications}))
+    Router::new()
+        .route("/", get(notification_handler::list_notifications))
         .route(
             "/notification/{id}",
-            get(notification_handler:{get_notification})
-                .delete(notification_handler:{delete_notification}),
+            get(notification_handler::get_notification)
+                .delete(notification_handler::delete_notification),
         )
         .route(
             "/notification/{id}/read",
-            post(notification_handler:{mark_as_read}),
+            post(notification_handler::mark_as_read),
         )
-        .route("/unread-count", get(notification_handler:{get_unread_count}))
-        .route("/read-all", post(notification_handler:{mark_all_as_read}))
+        .route("/unread-count", get(notification_handler::get_unread_count))
+        .route("/read-all", post(notification_handler::mark_all_as_read))
         .route(
             "/batch-read",
-            post(notification_handler:{batch_mark_as_read}),
+            post(notification_handler::batch_mark_as_read),
         )
         .route(
             "/settings",
-            get(notification_handler:{get_settings}).put(notification_handler:{update_setting}),
+            get(notification_handler::get_settings).put(notification_handler::update_setting),
         )
 }
 
 /// 用户通知偏好路由；注：main 上 user_notification_setting_handler 未提供
 /// `reset_to_default`， 因此 `POST /reset` 路由暂不挂载，避免编译期 E0425。
 pub fn user_notification_settings() -> Router<AppState> {
-    Router:{new}().route(
+    Router::new().route(
         "/",
-        get(user_notification_setting_handler:{get_setting})
-            .put(user_notification_setting_handler:{update_setting}),
+        get(user_notification_setting_handler::get_setting)
+            .put(user_notification_setting_handler::update_setting),
     )
 }
 
 /// 交易管理路由（高级查询）；注：实际定义在 `advanced/` 子模块（拆分到 `advanced/reorder.rs` 和
 /// `advanced/decide.rs`）， 路由挂在 `/advanced` 域下更合适；此处保留独立 `/trading/...` 入口以兼容旧前端调用。
 pub fn trading() -> Router<AppState> {
-    Router:{new}()
+    Router::new()
         .route(
             "/purchase-contracts",
-            get(advanced:{list_purchase_contracts}),
+            get(advanced::list_purchase_contracts),
         )
-        .route("/sales-contracts", get(advanced:{list_sales_contracts}))
-        .route("/sales-prices", get(advanced:{list_sales_prices}))
-        .route("/purchase-prices", get(advanced:{list_purchase_prices}))
-        .route("/sales-returns", get(advanced:{list_sales_returns}))
+        .route("/sales-contracts", get(advanced::list_sales_contracts))
+        .route("/sales-prices", get(advanced::list_sales_prices))
+        .route("/purchase-prices", get(advanced::list_purchase_prices))
+        .route("/sales-returns", get(advanced::list_sales_returns))
 }
 
-/// Advanced 分析路由（nest 到 /api/v1/erp/advanced）；内部 path 与前端 `/advanced/ai/...`、`/advanced/reports/...` 完全一致。；V15 P0-S26：AI 端点权限码注册（对应 PERMISSION_RESOURCES 中 ai-* 资源） 权限映射：/ai/sales-forecast → ai-forecast{read}
-/// /ai/inventory-optimization → ai-inventory-opt{read}， /ai/anomaly-detection → ai-anomaly{read}， /ai/recommendations → ai-recommendation{read}， /ai/recipe-optimization → ai-recipe-opt{read}， /ai/quality-prediction → ai-quality-pred{read}
+/// Advanced 分析路由（nest 到 /api/v1/erp/advanced）；内部 path 与前端 `/advanced/ai/...`、`/advanced/reports/...` 完全一致。；V15 P0-S26：AI 端点权限码注册（对应 PERMISSION_RESOURCES 中 ai-* 资源） 权限映射：/ai/sales-forecast → ai-forecast:read
+/// /ai/inventory-optimization → ai-inventory-opt:read， /ai/anomaly-detection → ai-anomaly:read， /ai/recommendations → ai-recommendation:read， /ai/recipe-optimization → ai-recipe-opt:read， /ai/quality-prediction → ai-quality-pred:read
 pub fn advanced() -> Router<AppState> {
-    Router:{new}()
-        .route("/ai/sales-forecast", post(advanced:{sales_forecast}))
+    Router::new()
+        .route("/ai/sales-forecast", post(advanced::sales_forecast))
         .route(
             "/ai/inventory-optimization",
-            post(advanced:{inventory_optimization}),
+            post(advanced::inventory_optimization),
         )
-        .route("/ai/anomaly-detection", post(advanced:{anomaly_detection}))
-        .route("/ai/recommendations", post(advanced:{recommendations}))
-        .route("/ai/recipe-optimization", post(advanced:{optimize_recipe}))
-        .route("/ai/quality-prediction", post(advanced:{quality_prediction}))
-        .route("/reports/templates", get(advanced:{list_report_templates}))
-        .route("/reports/execute", post(advanced:{execute_report}))
-        .route("/reports/export", post(advanced:{export_report}))
+        .route("/ai/anomaly-detection", post(advanced::anomaly_detection))
+        .route("/ai/recommendations", post(advanced::recommendations))
+        .route("/ai/recipe-optimization", post(advanced::optimize_recipe))
+        .route("/ai/quality-prediction", post(advanced::quality_prediction))
+        .route("/reports/templates", get(advanced::list_report_templates))
+        .route("/reports/execute", post(advanced::execute_report))
+        .route("/reports/export", post(advanced::export_report))
         // 缺陷 16.4-D4 修复：AI 端点专用速率限制（10 req/min/user）
-        .layer(axum:{middleware}:{from_fn}(rate_limit_ai_endpoint))
+        .layer(axum::middleware::from_fn(rate_limit_ai_endpoint))
 }
 
 /// BI 多维分析路由（P3-4 关键路径 demo）；16 个端点： - 8 维度聚合：by-time / by-customer / by-product / by-region / by-category / trend / profit
 /// / kpi - 4 钻取：year-to-month / month-to-day / customer-to-order / product-to-order - 4 切片/上卷：slice / dice / rollup / pivot
 pub fn bi() -> Router<AppState> {
-    Router:{new}()
+    Router::new()
         // 8 个维度聚合
         .route(
             "/sales/by-time",
-            get(crate:{handlers}:{bi_handler}:{sales_by_time}),
+            get(crate::handlers::bi_handler::sales_by_time),
         )
         .route(
             "/sales/by-customer",
-            get(crate:{handlers}:{bi_handler}:{sales_by_customer}),
+            get(crate::handlers::bi_handler::sales_by_customer),
         )
         .route(
             "/sales/by-product",
-            get(crate:{handlers}:{bi_handler}:{sales_by_product}),
+            get(crate::handlers::bi_handler::sales_by_product),
         )
         .route(
             "/sales/by-region",
-            get(crate:{handlers}:{bi_handler}:{sales_by_region}),
+            get(crate::handlers::bi_handler::sales_by_region),
         )
         .route(
             "/sales/by-category",
-            get(crate:{handlers}:{bi_handler}:{sales_by_category}),
+            get(crate::handlers::bi_handler::sales_by_category),
         )
         .route(
             "/sales/trend",
-            get(crate:{handlers}:{bi_handler}:{sales_trend}),
+            get(crate::handlers::bi_handler::sales_trend),
         )
         .route(
             "/sales/profit",
-            get(crate:{handlers}:{bi_handler}:{profit_analysis}),
+            get(crate::handlers::bi_handler::profit_analysis),
         )
         .route(
             "/sales/kpi",
-            get(crate:{handlers}:{bi_handler}:{kpi_summary}),
+            get(crate::handlers::bi_handler::kpi_summary),
         )
         // 4 个钻取
         .route(
             "/sales/drilldown/year-to-month",
-            get(crate:{handlers}:{bi_handler}:{drilldown_year_to_month}),
+            get(crate::handlers::bi_handler::drilldown_year_to_month),
         )
         .route(
             "/sales/drilldown/month-to-day",
-            get(crate:{handlers}:{bi_handler}:{drilldown_month_to_day}),
+            get(crate::handlers::bi_handler::drilldown_month_to_day),
         )
         .route(
             "/sales/drilldown/customer-to-order/{customer_id}",
-            get(crate:{handlers}:{bi_handler}:{drilldown_customer_to_order}),
+            get(crate::handlers::bi_handler::drilldown_customer_to_order),
         )
         .route(
             "/sales/drilldown/product-to-order/{product_id}",
-            get(crate:{handlers}:{bi_handler}:{drilldown_product_to_order}),
+            get(crate::handlers::bi_handler::drilldown_product_to_order),
         )
         // 4 个切片/上卷
         .route(
             "/sales/slice",
-            post(crate:{handlers}:{bi_handler}:{slice}),
+            post(crate::handlers::bi_handler::slice),
         )
         .route(
             "/sales/dice",
-            post(crate:{handlers}:{bi_handler}:{dice}),
+            post(crate::handlers::bi_handler::dice),
         )
         .route(
             "/sales/rollup",
-            post(crate:{handlers}:{bi_handler}:{rollup}),
+            post(crate::handlers::bi_handler::rollup),
         )
         .route(
             "/sales/pivot",
-            post(crate:{handlers}:{bi_handler}:{pivot}),
+            post(crate::handlers::bi_handler::pivot),
         )
 }
 
 /// 跟踪路由；v11 批次 143 P1-2：真实实现追踪分析功能（7 个端点全部挂载） - POST /page-view — 记录页面访问 - GET /page-view/stats — 页面访问统计 - GET /page-view/stats/by-day
 /// — 按日统计 - GET /popular-pages — 热门页面排行 - POST /behavior — 记录用户行为 - POST /funnel — 漏斗分析 - GET /user-path — 用户路径分析
 pub fn tracking() -> Router<AppState> {
-    Router:{new}()
-        .route("/page-view", post(tracking_handler:{track_page_view}))
+    Router::new()
+        .route("/page-view", post(tracking_handler::track_page_view))
         .route(
             "/page-view/stats",
-            get(tracking_handler:{get_page_view_stats}),
+            get(tracking_handler::get_page_view_stats),
         )
         .route(
             "/page-view/stats/by-day",
-            get(tracking_handler:{get_page_view_stats_by_day}),
+            get(tracking_handler::get_page_view_stats_by_day),
         )
-        .route("/popular-pages", get(tracking_handler:{get_popular_pages}))
-        .route("/behavior", post(tracking_handler:{record_behavior}))
-        .route("/funnel", post(tracking_handler:{get_funnel_analysis}))
-        .route("/user-path", get(tracking_handler:{get_user_path}))
+        .route("/popular-pages", get(tracking_handler::get_popular_pages))
+        .route("/behavior", post(tracking_handler::record_behavior))
+        .route("/funnel", post(tracking_handler::get_funnel_analysis))
+        .route("/user-path", get(tracking_handler::get_user_path))
 }
 
 /// 隐私同意路由（V15 P1 batch-16 缺陷 7.3）；提供端点： - GET  /consents — 查询当前用户的所有/指定 consent_type 状态 - POST /consents — 记录单类型同意/退出决定 - POST
 /// /opt-in-all — 一键同意全部追踪（首次登录确认后调用） - POST /opt-out-all — 一键退出全部追踪（行使撤回权）；合规依据：《个人信息保护法》第 14 条（同意原则）+ 第 16 条（撤回权）+ GDPR 第 7 条
 pub fn privacy() -> Router<AppState> {
-    Router:{new}()
+    Router::new()
         .route(
             "/consents",
-            get(privacy_consent_handler:{get_consent_status}),
+            get(privacy_consent_handler::get_consent_status),
         )
-        .route("/consents", post(privacy_consent_handler:{record_consent}))
-        .route("/opt-in-all", post(privacy_consent_handler:{opt_in_all}))
-        .route("/opt-out-all", post(privacy_consent_handler:{opt_out_all}))
+        .route("/consents", post(privacy_consent_handler::record_consent))
+        .route("/opt-in-all", post(privacy_consent_handler::opt_in_all))
+        .route("/opt-out-all", post(privacy_consent_handler::opt_out_all))
 }
 
 /// 分析域统一入口；- 无 path 重复的子 router 走 `merge` - 有 path 重复（`GET /`、`GET /templates` 等）的子 router 走 `nest` 加独立前缀， 这样最终 path 与前端保持一致（如 `/reports/enhanced/...`、`/webhooks/...`）
 /// - `advanced()` 内部 path 以 `/reports`、`/ai` 等开头，nest 到 `/advanced` 后最终 path = `/advanced/reports/...`、`/advanced/ai/...`，与前端调用一致。
 pub fn routes() -> Router<AppState> {
-    Router:{new}()
+    Router::new()
         .merge(dual_unit())
         .nest("/assist-accounting", assist_accounting())
         .nest("/business-trace", business_trace())

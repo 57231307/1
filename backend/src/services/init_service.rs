@@ -221,7 +221,7 @@ impl DatabaseConfig {
         let ssl_mode = self.ssl_mode.as_deref().unwrap_or("prefer");
 
         format!(
-            "postgres://{}:{}@{}:{}/{}?sslmode={}",
+            "postgres://{::}@{::}/{}?sslmode={}",
             encoded_username, encoded_password, self.host, self.port, encoded_name, ssl_mode
         )
     }

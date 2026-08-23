@@ -12,8 +12,8 @@
 //! 通过 `crate::services::so::order::SalesService` 路径访问。
 
 use super::order::SalesService;
-use crate::models::status::sales_order as so_status;
 use crate::models::status::general::common;
+use crate::models::status::sales_order as so_status;
 use crate::models::{
     ar_invoice::{self},
     customer, product, sales_order,

@@ -277,7 +277,11 @@ impl AiAnalysisService {
         if required_qty <= Decimal::ZERO {
             return Ok(());
         }
-        let lt_days = if lead_time_days > 0 { lead_time_days } else { 7 };
+        let lt_days = if lead_time_days > 0 {
+            lead_time_days
+        } else {
+            7
+        };
         let required_date = chrono::Utc::now().date_naive() + Duration::days(lt_days as i64);
         let params = RequirementCalcParams {
             product_id: suggestion.product_id,

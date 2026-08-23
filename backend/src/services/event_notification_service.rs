@@ -338,7 +338,7 @@ impl EventNotificationService {
                 action_url: None,
                 sender_id: Some(approver_id),
                 sender_name: Some(approver_name.to_string()),
-                dedup_key: Some(format!("approval_result:{}:{}", task_title, approver_id)),
+                dedup_key: Some(format!("approval_result:{::}", task_title, approver_id)),
             })
             .await?;
         Ok(())
