@@ -72,7 +72,7 @@ fn stock_routes() -> Router<AppState> {
             get(inventory_stock_handler::check_low_stock),
         )
         .route(
-            "/stock/product/{product}Id",
+            "/stock/product/{productId}",
             get(inventory_stock_handler_query::get_stock_by_product),
         )
         .route(
