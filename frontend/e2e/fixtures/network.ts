@@ -214,6 +214,8 @@ export async function simulateSlowNetwork(
  * expect(requests.length).toBeGreaterThan(0)
  */
 export class RequestObserver {
+  private readonly context: BrowserContext | Page;
+  private readonly urlPattern: string;
   private readonly requests: Array<{
     url: string;
     method: string;
@@ -222,9 +224,12 @@ export class RequestObserver {
   }> = [];
 
   constructor(
-    private readonly context: BrowserContext | Page,
-    private readonly urlPattern: string
-  ) {}
+    context: BrowserContext | Page,
+    urlPattern: string
+  ) {
+    this.context = context;
+    this.urlPattern = urlPattern;
+  }
 
   /**
    * 启动观察（注册 route handler，放行请求但记录响应）
