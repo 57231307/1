@@ -1174,6 +1174,25 @@ END $$;
                 -- ============================================================
                 -- 缺陷 13：委外凭证进项税转出字段（增值税合规）
                 -- ============================================================
+CREATE TABLE IF NOT EXISTS "outsourcing_voucher" (
+    "id" SERIAL PRIMARY KEY,
+    "voucher_no" VARCHAR(255) NOT NULL,
+    "outsourcing_order_id" INTEGER NOT NULL,
+    "voucher_type" VARCHAR(255) NOT NULL,
+    "debit_account" VARCHAR(255) NOT NULL,
+    "credit_account" VARCHAR(255) NOT NULL,
+    "amount" DECIMAL(14,4) NOT NULL DEFAULT 0,
+    "tax_amount" DECIMAL(14,4) NOT NULL DEFAULT 0,
+    "tax_transfer_amount" DECIMAL(14,4) NOT NULL DEFAULT 0,
+    "voucher_date" DATE NOT NULL,
+    "is_posted" BOOLEAN NOT NULL DEFAULT false,
+    "posted_at" TIMESTAMPTZ,
+    "remarks" VARCHAR(255),
+    "created_by" INTEGER,
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
                 ALTER TABLE "outsourcing_voucher" ADD COLUMN IF NOT EXISTS "tax_transfer_amount" DECIMAL(14,4) NOT NULL DEFAULT 0;
                 COMMENT ON COLUMN "outsourcing_voucher"."tax_transfer_amount" IS '进项税转出金额（非正常损耗对应的已抵扣进项税转出）';
 
@@ -1747,6 +1766,9 @@ END $$;
                 --       避免硬编码 role_id；ON CONFLICT 保证幂等。
                 --
                 -- 销售经理（sales_manager）：导出自己客户的色卡发放记录 + 查看成本字段
+-- 确保 role_permissions (role_id, resource_type, action) 唯一约束存在
+CREATE UNIQUE INDEX IF NOT EXISTS "uq_role_permissions_role_resource_action" ON "role_permissions" ("role_id", "resource_type", "action");
+
                 INSERT INTO role_permissions (role_id, resource_type, action, allowed, created_at, updated_at)
                 SELECT r.id, 'color_card_issue', 'export', true, NOW(), NOW()
                 FROM roles r
@@ -1986,7 +2008,7 @@ CREATE TRIGGER "trg_audit_log_export_log_no_delete"
 
 COMMENT ON TABLE "audit_log_export_log" IS
     'V15 缺陷 10-4：审计日志导出二次审计表，防篡改（仅 INSERT，触发器禁止 UPDATE/DELETE）';
-COMMENT ON COLUMN "audit_log_export_log.export_file_hash_sha256" IS
+COMMENT ON COLUMN "audit_log_export_log"."export_file_hash_sha256" IS
     '导出文件 SHA256 指纹，事后比对验证文件未被替换';
 
 -- V15 P2 B05-P2-2：dye_batch_rework 表新增 rework_cost 字段
@@ -2027,7 +2049,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS "uq_dye_vat_occupation_vat_occupied"
 
 COMMENT ON TABLE "dye_vat_occupation" IS
     'V15 P2 B05-P2-6：染缸占用记录表，缸号进入 dyeing 占用 / 离开 dyeing 释放';
-COMMENT ON COLUMN "dye_vat_occupation.status" IS
+COMMENT ON COLUMN "dye_vat_occupation"."status" IS
     '占用状态：occupied（已占用）/ released（已释放）';
 
 -- V15 P2 B05-P2-7：PDA / 工控终端连接资源管理表
@@ -2072,9 +2094,9 @@ CREATE INDEX IF NOT EXISTS "idx_device_connection_last_heartbeat"
 
 COMMENT ON TABLE "device_connection" IS
     'V15 P2 B05-P2-7：PDA/工控终端连接资源管理表，注册/心跳/下线/超时清理全生命周期';
-COMMENT ON COLUMN "device_connection.status" IS
+COMMENT ON COLUMN "device_connection"."status" IS
     '连接状态：online（在线）/ offline（主动下线）/ timeout（心跳超时）';
-COMMENT ON COLUMN "device_connection.device_type" IS
+COMMENT ON COLUMN "device_connection"."device_type" IS
     '设备类型：pda / industrial_terminal / scanner / other';
 
 -- V15 P2 B05-P2-10：期末调整记录表（暂估 / 摊销 / 预提）
@@ -2127,9 +2149,9 @@ CREATE INDEX IF NOT EXISTS "idx_period_adjustment_record_type"
 
 COMMENT ON TABLE "period_adjustment_record" IS
     'V15 P2 B05-P2-10：期末调整记录表，支持暂估/摊销/预提三类调整，确认生成凭证，暂估类可红字冲销';
-COMMENT ON COLUMN "period_adjustment_record.adjustment_type" IS
+COMMENT ON COLUMN "period_adjustment_record"."adjustment_type" IS
     '调整类型：estimate(暂估) / amortization(摊销) / provision(预提)';
-COMMENT ON COLUMN "period_adjustment_record.status" IS
+COMMENT ON COLUMN "period_adjustment_record"."status" IS
     '状态：draft(草稿) / confirmed(已确认) / reversed(已冲销) / cancelled(已取消)';
 
 ALTER TABLE quality_inspection_records
