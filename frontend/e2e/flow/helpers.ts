@@ -144,26 +144,33 @@ export async function loginViaUI(page: Page, username?: string, password?: strin
   const u = username || TEST_USERNAME;
   const p = password || TEST_PASSWORD;
   await page.goto(`${BASE_URL}/login`);
-  // 先用 API 验证登录（设置 cookie + CSRF token），再让浏览器复用
-  const loginResponse = await page.request.post(`${API_BASE}${API_PREFIX}/auth/login`, {
-    data: { username: u, password: p },
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Requested-With': 'XMLHttpRequest',
-    },
-  });
 
-  if (!loginResponse.ok()) {
-    const text = await loginResponse.text();
-    throw new Error(`Login API failed: ${loginResponse.status()} ${text.slice(0, 200)}`);
+  // Element Plus el-input 渲染为 <input class="el-input__inner" placeholder="用户名">
+  // 用 placeholder 定位（比 aria-label 更可靠）
+  const usernameInput = page.locator('input.el-input__inner[placeholder="用户名"]');
+  await usernameInput.waitFor({ state: 'visible', timeout: 30_000 });
+  await usernameInput.fill(u);
+
+  const passwordInput = page.locator('input.el-input__inner[placeholder="密码"]');
+  await passwordInput.waitFor({ state: 'visible', timeout: 30_000 });
+  await passwordInput.fill(p);
+
+  // 必须勾选用户协议（表单验证要求 agreedToTerms=true）
+  const checkbox = page.locator('.el-checkbox').first();
+  const isChecked = await checkbox.locator('input').isChecked().catch(() => false);
+  if (!isChecked) {
+    await checkbox.click();
+    await page.waitForTimeout(500);
   }
 
-  // 从 cookie 中提取 access_token / csrf_token 并注入到浏览器 context
-  const cookies = await page.context().cookies();
-  // API 调用已自动设置了 cookie（withCredentials）
-  // 直接导航到 dashboard
-  await page.goto(`${BASE_URL}/dashboard`);
-  await page.waitForTimeout(2000);
+  // Element Plus el-button type="primary" 渲染为 <button class="el-button el-button--primary">
+  // 用文本定位登录按钮（i18n 中文为 "登录"）
+  const loginButton = page.locator('button.el-button--primary').filter({ hasText: '登录' });
+  await loginButton.waitFor({ state: 'visible', timeout: 10_000 });
+  await loginButton.click();
+
+  // 等待离开 /login 页面（登录成功跳转到 dashboard 或其他页面）
+  await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 60_000 });
 }
 
 export async function loginAsRole(page: Page, role: string): Promise<void> {
