@@ -199,11 +199,11 @@ export async function loginViaUI(page: Page, username?: string, password?: strin
     }
   }
 
-  // 点击登录按钮（不用 force，让 Vue @click 正常触发）
-  const loginButton = page.locator('button.el-button--primary').filter({ hasText: /登录|Login|登 录/i });
-  await loginButton.first().waitFor({ state: 'visible', timeout: 10_000 });
-  // 等待按钮可点击（非 disabled/loading）
-  await loginButton.first().click();
+  // 点击登录按钮——直接点击 button 元素（不用 filter hasText，避免点击到 span）
+  const loginButton = page.locator('form button.el-button--primary').first();
+  await loginButton.waitFor({ state: 'visible', timeout: 10_000 });
+  // 等待按钮非 disabled
+  await loginButton.click();
 
   // 如果 3 秒后仍在 /login，尝试通过表单提交
   await page.waitForTimeout(3000);
