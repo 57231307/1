@@ -184,10 +184,21 @@ export async function loginViaUI(page: Page, username?: string, password?: strin
     }
   }
 
-  // 点击登录按钮
+  // 点击登录按钮（不用 force，让 Vue @click 正常触发）
   const loginButton = page.locator('button.el-button--primary').filter({ hasText: /登录|Login|登 录/i });
   await loginButton.first().waitFor({ state: 'visible', timeout: 10_000 });
-  await loginButton.first().click({ force: true });
+  // 等待按钮可点击（非 disabled/loading）
+  await loginButton.first().click();
+
+  // 如果 3 秒后仍在 /login，尝试通过表单提交
+  await page.waitForTimeout(3000);
+  if (page.url().includes('/login')) {
+    // 尝试通过 dispatchEvent 触发表单提交
+    await page.evaluate(() => {
+      const form = document.querySelector('form');
+      if (form) form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+    });
+  }
 
   // 等待离开 /login 页面
   try {
