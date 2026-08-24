@@ -247,13 +247,6 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
       if (form) form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
     });
   }
-  }
-
-  // 点击登录按钮——直接点击 button 元素（不用 filter hasText，避免点击到 span）
-  const loginButton = page.locator('form button.el-button--primary').first();
-  await loginButton.waitFor({ state: 'visible', timeout: 10_000 });
-  // 等待按钮非 disabled
-  await loginButton.click();
 
   // 如果 3 秒后仍在 /login，尝试通过表单提交
   await page.waitForTimeout(3000);
