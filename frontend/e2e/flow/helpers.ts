@@ -144,13 +144,19 @@ export async function loginViaUI(page: Page, username?: string, password?: strin
   const u = username || TEST_USERNAME;
   const p = password || TEST_PASSWORD;
 
+  // 收集 console 日志和网络请求
+  const consoleLogs: string[] = [];
+  page.on('console', (msg) => {
+    consoleLogs.push(`[console.${msg.type()}] ${msg.text()}`);
+  });
+
   // 先设置语言为中文（CI 浏览器可能默认英文）
   await page.goto(`${BASE_URL}/login`);
   await page.evaluate(() => {
     window.localStorage.setItem('bingxi.locale', 'zh-CN');
   });
   await page.reload();
-  // 等待页面完全加载（Vue + i18n 初始化）
+  // 等待页面完全加载
   await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
 
   // Element Plus el-input：同时匹配中英文 placeholder
@@ -162,30 +168,40 @@ export async function loginViaUI(page: Page, username?: string, password?: strin
   await passwordInput.first().waitFor({ state: 'visible', timeout: 30_000 });
   await passwordInput.first().fill(p);
 
-  // 必须勾选用户协议（表单验证要求 agreedToTerms=true）
-  // Element Plus el-checkbox 点击 .el-checkbox__label 区域更可靠
+  // 必须勾选用户协议
   const checkboxLabel = page.locator('.el-checkbox__label, .el-checkbox').first();
   const isChecked = await page.locator('.el-checkbox input').first().isChecked().catch(() => false);
   if (!isChecked) {
     await checkboxLabel.click();
     await page.waitForTimeout(500);
-    // 再次检查是否勾选
     const stillUnchecked = !(await page.locator('.el-checkbox input').first().isChecked().catch(() => false));
     if (stillUnchecked) {
-      // fallback: 直接点击 checkbox input
       await page.locator('.el-checkbox input').first().click({ force: true }).catch(() => {});
       await page.waitForTimeout(300);
     }
   }
 
-  // Element Plus el-button type="primary"：同时匹配中英文
+  // 点击登录按钮
   const loginButton = page.locator('button.el-button--primary').filter({ hasText: /登录|Login|登 录/i });
   await loginButton.first().waitFor({ state: 'visible', timeout: 10_000 });
-  // 确保按钮不是 disabled 或 loading 状态
   await loginButton.first().click({ force: true });
 
   // 等待离开 /login 页面
-  await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 60_000 });
+  try {
+    await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 60_000 });
+  } catch {
+    // 登录后仍然在 /login，输出诊断信息
+    const currentUrl = page.url();
+    const elMessages = await page.locator('.el-message__content').allTextContents().catch(() => []);
+    console.error(`=== UI 登录失败诊断 ===`);
+    console.error(`当前 URL: ${currentUrl}`);
+    console.error(`ElMessage 提示: ${JSON.stringify(elMessages)}`);
+    console.error(`Console 日志（最后 20 条）:`);
+    consoleLogs.slice(-20).forEach((log) => console.error(log));
+    // 截图
+    await page.screenshot({ path: 'test-results/login-failure-diagnosis.png', fullPage: true });
+    throw new Error(`UI 登录失败: 60s 后仍在 ${currentUrl}，ElMessage: ${JSON.stringify(elMessages)}`);
+  }
 }
 
 export async function loginAsRole(page: Page, role: string): Promise<void> {
