@@ -151,13 +151,14 @@ export async function loginViaUI(page: Page, username?: string, password?: strin
   });
 
   // 先设置语言为中文（CI 浏览器可能默认英文）
-  await page.goto(`${BASE_URL}/login`);
+  // 不用 reload（Vite 依赖优化缓存过期会导致 504），改为先设置 localStorage 再 goto
+  await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
   await page.evaluate(() => {
     window.localStorage.setItem('bingxi.locale', 'zh-CN');
   });
-  await page.reload();
-  // 等待页面完全加载
-  await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
+  // 再次导航触发 i18n 重新加载（不用 reload，用 goto）
+  await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(2000);
 
   // Element Plus el-input：同时匹配中英文 placeholder
   const usernameInput = page.locator('input[placeholder="用户名"], input[placeholder="Username"]');
