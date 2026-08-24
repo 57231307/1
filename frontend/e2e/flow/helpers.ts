@@ -150,17 +150,32 @@ export async function loginViaUI(page: Page, username?: string, password?: strin
     consoleLogs.push(`[console.${msg.type()}] ${msg.text()}`);
   });
 
-  // 导航到登录页（仅一次，避免 Vite 504）
+  // 导航到登录页
   await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
 
-  // 设置语言为中文（CI 浏览器可能默认英文）
-  // 不重新导航（避免 Vite 504），直接设置 localStorage 并等待 Vue 响应
+  // 设置语言为中文
   await page.evaluate(() => {
     window.localStorage.setItem('bingxi.locale', 'zh-CN');
   });
 
-  // 等待 Vue+i18n 加载完成（placeholder 可能是英文，也可能已切换为中文）
-  await page.waitForTimeout(3000);
+  // Vite dev server 首次加载可能触发 504 (Outdated Optimize Dep)
+  // 等待 Vite 自动重新优化完成（504 消失，页面稳定）
+  // 标志：Vite HMR 连接成功且无 504 错误
+  for (let i = 0; i < 30; i++) {
+    const has504 = consoleLogs.some((log) => log.includes('504'));
+    if (!has504 && i > 5) break; // 504 消失后再等几轮
+    // 重新导航触发页面重新加载（Vite 会用优化后的缓存）
+    if (has504 && i < 10) {
+      await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
+      await page.evaluate(() => {
+        window.localStorage.setItem('bingxi.locale', 'zh-CN');
+      });
+    }
+    await page.waitForTimeout(1000);
+  }
+
+  // 清空日志（Vite 已稳定）
+  consoleLogs.length = 0;
 
   // Element Plus el-input：同时匹配中英文 placeholder
   const usernameInput = page.locator('input[placeholder="用户名"], input[placeholder="Username"]');
