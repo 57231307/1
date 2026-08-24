@@ -36,16 +36,14 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:3000',
     headless: true,
-    trace: 'on-first-retry',
+    trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     // CI 环境 actionTimeout 30s（单个操作超时）
     actionTimeout: 30_000,
     // CI 环境导航超时 30s
     navigationTimeout: 30_000,
   },
-  // webServer 数组（规则 5）：同时启动前端 dev server + 后端二进制
-  // - 前端：CI 中启动，本地复用已启动的 dev server
-  // - 后端：总是复用（CI 中由 e2e-batch.yml 启动，本地可手动启动或由 Playwright 启动）
+  // webServer 数组：同时启动前端 dev server + 后端二进制
   webServer: [
     {
       command: 'npm run dev',
@@ -56,8 +54,6 @@ export default defineConfig({
       stderr: 'pipe',
     },
     {
-      // 后端二进制路径：frontend/ → ../backend/target/release/server
-      // 健康检查端点：GET /health（与 e2e-batch.yml 一致，端口 8082）
       command: 'cd ../backend && ./target/release/server',
       url: 'http://localhost:8082/health',
       reuseExistingServer: true,
@@ -66,16 +62,16 @@ export default defineConfig({
       stderr: 'pipe',
     },
   ],
+  // 项目级覆盖：smoke 可并行，flow 串行
   projects: [
-    // 主浏览器：chromium（CI 默认运行）
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
-    // 批次 262：跨浏览器兼容性测试（本地运行，CI 通过 --project 限定）
     {
       name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
+      use: { ...devices['Desktop Firefox'], fullyParallel: true, workers: 2 },
+      testMatch: /smoke\/.*\.spec\.ts/,
     },
     {
       name: 'webkit',

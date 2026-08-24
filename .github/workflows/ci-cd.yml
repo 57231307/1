@@ -2540,7 +2540,14 @@ jobs:
         run: |
           mkdir -p reports
           set +e
-          npx playwright test --project=chromium --shard=${{ matrix.shard }}/8 2>&1 | tee reports/playwright-output.txt
+          SHARD=${{ matrix.shard }}
+          if [ "$SHARD" -ge 0 ] && [ "$SHARD" -le 6 ]; then
+            # 分片 0-6: 运行 flow/ 全流程测试
+            npx playwright test --project=chromium e2e/flow/0${SHARD}-*.spec.ts 2>&1 | tee reports/playwright-output.txt
+          elif [ "$SHARD" -eq 7 ]; then
+            # 分片 7: 运行 smoke 全量页面加载测试
+            npx playwright test --project=chromium e2e/smoke/ 2>&1 | tee reports/playwright-output.txt
+          fi
           EXIT_CODE=$?
           set -e
           {
