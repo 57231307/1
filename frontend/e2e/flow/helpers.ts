@@ -360,3 +360,114 @@ export function genDyeLotNo(): string {
 export function genPieceNo(dyeLotNo: string, seq: number): string {
   return `${dyeLotNo}-${seq.toString().padStart(3, '0')}`;
 }
+
+export async function verifyEntityList<T>(
+  page: Page,
+  endpoint: string,
+  expectMin: number = 0
+): Promise<T[]> {
+  const list = await apiCallRaw<{ items: T[] }>(page, 'GET', `${endpoint}?page=1&page_size=50`);
+  if (list.items.length < expectMin) {
+    throw new Error(`Expected at least ${expectMin} items at ${endpoint}, got ${list.items.length}`);
+  }
+  return list.items;
+}
+
+export async function getEntityField<T = unknown>(
+  page: Page,
+  endpoint: string,
+  id: number,
+  field: string
+): Promise<T> {
+  const entity = await apiCallRaw<Record<string, unknown>>(page, 'GET', `${endpoint}/${id}`);
+  return entity[field] as T;
+}
+
+export async function verifySoDConflict(
+  page: Page,
+  userId: number,
+  roleA: string,
+  roleB: string
+): Promise<boolean> {
+  try {
+    await apiCall(page, 'POST', '/users/assign-role', { user_id: userId, role_codes: [roleA, roleB] });
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+export async function verifyBulkColorDeliveryBlock(
+  page: Page,
+  salesOrderId: number
+): Promise<boolean> {
+  const result = await apiCallExpectFail(page, 'POST', `/sales/orders/${salesOrderId}/ship`);
+  return result.status >= 400;
+}
+
+export async function verifyWeightConversion(
+  meters: number,
+  gramWeight: number,
+  width: number
+): number {
+  // 公斤 = 米 * 克重 * 幅宽 / 1000 / 100 (克→公斤, cm→m)
+  return Number((meters * gramWeight * width / 100000).toFixed(2));
+}
+
+export async function verifyNetWeight(
+  grossWeight: number,
+  paperTubeWeight: number
+): number {
+  return Number((grossWeight - paperTubeWeight).toFixed(2));
+}
+
+export async function getProcessSteps(
+  page: Page,
+  modeCode: string
+): Promise<Array<{ step_code: string; step_name: string; is_required: boolean }>> {
+  try {
+    const modes = await apiCallRaw<{ items: Array<{ id: number; mode_code: string }> }>(
+      page, 'GET', '/business-modes?page=1&page_size=50'
+    );
+    const mode = modes.items.find((m) => m.mode_code === modeCode);
+    if (!mode) return [];
+    const steps = await apiCallRaw<{ items: Array<{ step_code: string; step_name: string; is_required: boolean }> }>(
+      page, 'GET', `/business-modes/${mode.id}/flow-steps?page=1&page_size=20`
+    );
+    return steps.items || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function verifyOutsourcingVoucher(
+  page: Page,
+  orderId: number,
+  voucherType: string
+): Promise<Record<string, unknown> | null> {
+  try {
+    const vouchers = await apiCallRaw<{ items: Array<Record<string, unknown>> }>(
+      page, 'GET', `/finance/outsourcing-vouchers?outsourcing_order_id=${orderId}&voucher_type=${voucherType}&page=1&page_size=5`
+    );
+    return vouchers.items?.[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function verifyTrialBalance(
+  page: Page
+): Promise<{ balanced: boolean; debit_total: number; credit_total: number }> {
+  try {
+    const result = await apiCallRaw<{ debit_total: number; credit_total: number }>(
+      page, 'GET', '/finance/gl/trial-balance'
+    );
+    return {
+      balanced: Math.abs((result.debit_total || 0) - (result.credit_total || 0)) < 0.01,
+      debit_total: result.debit_total || 0,
+      credit_total: result.credit_total || 0,
+    };
+  } catch {
+    return { balanced: false, debit_total: 0, credit_total: 0 };
+  }
+}
