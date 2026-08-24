@@ -159,7 +159,8 @@ export async function loginViaUI(page: Page, username?: string, password?: strin
   if (!isChecked) {
     await checkbox.click().catch(() => {});
   }
-  await page.click('button[type="submit"]');
+  // Element Plus el-button 渲染为 <button class="el-button">，用文本定位
+  await page.locator('button.el-button').filter({ hasText: /登录|submit|Login/i }).first().click();
   await page.waitForURL(/\/(dashboard|$)/, { timeout: 30_000 });
 }
 
