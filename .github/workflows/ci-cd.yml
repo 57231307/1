@@ -2535,13 +2535,23 @@ jobs:
           if [ "$STATUS_CODE" = "400" ] && echo "$RESPONSE_BODY" | grep -q '"code": "BUSINESS_ERROR"'; then exit 0; fi
           echo "初始化失败 HTTP $STATUS_CODE"; tail -n 50 /tmp/e2e-logs/backend.log; exit 1
 
-      - name: 启动前端 dev server
+      - name: 构建前端（预构建避免 Vite 504）
         working-directory: frontend
         run: |
-          npm run dev > /tmp/e2e-logs/frontend.log 2>&1 &
+          npm run build > /tmp/e2e-logs/frontend-build.log 2>&1
+          if [ $? -ne 0 ]; then
+            echo "前端构建失败"
+            tail -30 /tmp/e2e-logs/frontend-build.log
+            exit 1
+          fi
+
+      - name: 启动前端预览服务器
+        working-directory: frontend
+        run: |
+          npx vite preview --port 3000 --host > /tmp/e2e-logs/frontend.log 2>&1 &
           FRONTEND_PID=$!
           echo "FRONTEND_PID=$FRONTEND_PID" >> /tmp/e2e-logs/pid.env
-          for i in $(seq 1 120); do
+          for i in $(seq 1 60); do
             if curl -s http://localhost:3000 > /dev/null 2>&1; then
               echo "前端就绪（第 ${i} 次尝试）"
               break
