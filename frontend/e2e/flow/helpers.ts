@@ -144,9 +144,16 @@ export async function loginViaUI(page: Page, username?: string, password?: strin
   const u = username || TEST_USERNAME;
   const p = password || TEST_PASSWORD;
   await page.goto(`${BASE_URL}/login`);
-  await page.waitForSelector('input[name="username"]', { state: 'visible', timeout: 30_000 });
-  await page.fill('input[name="username"]', u);
-  await page.fill('input[name="password"]', p);
+  // Element Plus el-input 渲染为 <input class="el-input__inner">，不带 name 属性
+  // 用 aria-label 或 placeholder 定位
+  const usernameInput = page.locator('input[aria-label], input.el-input__inner').first();
+  await usernameInput.waitFor({ state: 'visible', timeout: 30_000 });
+  await usernameInput.fill(u);
+
+  const passwordInput = page.locator('input[type="password"]');
+  await passwordInput.waitFor({ state: 'visible', timeout: 30_000 });
+  await passwordInput.fill(p);
+
   const checkbox = page.locator('.el-checkbox').first();
   const isChecked = await checkbox.locator('input').isChecked().catch(() => false);
   if (!isChecked) {
