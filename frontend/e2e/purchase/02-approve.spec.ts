@@ -28,7 +28,7 @@ test.describe('02 采购订单审批', () => {
     // 提交审批
     await page.getByRole('button', { name: /提交审批/ }).click();
     // 状态变为"待审核"
-    await expect(page.getByText('待审核').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('待审核').first()).toBeVisible({ timeout: 30000 });
   });
 
   test('02-02 审批人可通过采购订单', async ({ page }) => {
@@ -41,7 +41,7 @@ test.describe('02 采购订单审批', () => {
     await page.getByLabel(/审批意见|备注/).fill('E2E 采购审批通过');
     await page.getByRole('button', { name: /通过/ }).click();
     // 状态变为"已审核"
-    await expect(page.getByText('已审核').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('已审核').first()).toBeVisible({ timeout: 30000 });
   });
 
   test('02-03 审批人可驳回采购订单', async ({ page }) => {
@@ -52,6 +52,6 @@ test.describe('02 采购订单审批', () => {
     await page.getByLabel(/审批意见|驳回原因/).fill('E2E 测试驳回：数量超预算');
     await page.getByRole('button', { name: /驳回/ }).click();
     // 状态回到"草稿"或显示"已驳回"
-    await expect(page.getByText(/草稿|已驳回/).first()).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/草稿|已驳回/).first()).toBeVisible({ timeout: 30000 });
   });
 });

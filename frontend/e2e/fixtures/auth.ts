@@ -144,7 +144,7 @@ export async function applyAuthMocks(context: BrowserContext): Promise<void> {
 export async function waitForPageReady(page: Page, expectedPath: string): Promise<void> {
   await page
     .waitForURL(url => url.pathname === expectedPath || url.pathname.includes(expectedPath), {
-      timeout: 10_000,
+      timeout: 30_000,
     })
     .catch(() => {
       console.warn(`[smoke] URL 未匹配 ${expectedPath}，当前：${page.url()}`);

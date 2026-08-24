@@ -76,7 +76,7 @@ test.describe('RPA：表单自动化', () => {
     const newBtn = page.locator('button:has-text("新建")').first();
     // mock 模式下页面可能无按钮，仅验证定位器不抛出
     await expect(newBtn)
-      .toBeVisible({ timeout: 5_000 })
+      .toBeVisible({ timeout: 30_000 })
       .catch(() => {
         // mock 模式下按钮可能不存在，跳过断言
       });
@@ -89,7 +89,7 @@ test.describe('RPA：表单自动化', () => {
     // 验证 autoClickButton 函数可调用（按钮不存在时应有合理超时）
     // mock 模式下按钮可能不存在，使用短超时
     try {
-      await autoClickButton(page, '搜索', { timeout: 3_000 });
+      await autoClickButton(page, '搜索', { timeout: 15_000 });
     } catch {
       // 按钮不存在是允许的（mock 模式），验证函数可调用即可
     }

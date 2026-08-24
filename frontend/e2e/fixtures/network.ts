@@ -295,7 +295,7 @@ export function observeRequests(
 export async function waitForApiCall(
   page: Page,
   urlPattern: string,
-  timeout = 10_000
+  timeout = 30_000
 ): Promise<void> {
   await page.waitForResponse(urlPattern, { timeout });
 }

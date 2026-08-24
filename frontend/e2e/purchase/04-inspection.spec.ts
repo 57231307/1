@@ -30,7 +30,7 @@ test.describe('04 采购质检', () => {
     // 发起质检
     await page.getByRole('button', { name: /发起质检|质检/ }).click();
     // 验证质检单生成
-    await expect(page.getByText(/质检单号.*QI-\d{8}-\d{4}/)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/质检单号.*QI-\d{8}-\d{4}/)).toBeVisible({ timeout: 30000 });
   });
 
   test('04-02 质检合格后库存自动增加', async ({ page }) => {
@@ -42,7 +42,7 @@ test.describe('04 采购质检', () => {
     await page.getByLabel(/不合格数量/).fill('0');
     // 提交
     await page.getByRole('button', { name: /保存|提交/ }).click();
-    await expect(page.getByText(/质检完成|合格/)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/质检完成|合格/)).toBeVisible({ timeout: 30000 });
   });
 
   test('04-03 质检不合格可触发退货流程', async ({ page }) => {

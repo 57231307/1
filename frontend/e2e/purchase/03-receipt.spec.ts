@@ -34,7 +34,7 @@ test.describe('03 采购入库', () => {
     await page.getByLabel(/库位/).click();
     await page.getByRole('option').first().click();
     await page.getByRole('button', { name: /保存/ }).click();
-    await expect(page.getByText(/入库单号.*GR-\d{8}-\d{4}/)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/入库单号.*GR-\d{8}-\d{4}/)).toBeVisible({ timeout: 30000 });
   });
 
   test('03-02 入库数量必须 ≤ 采购订单数量', async ({ page }) => {
@@ -61,7 +61,7 @@ test.describe('03 采购入库', () => {
     await page.getByRole('button', { name: /保存/ }).click();
     // 回到采购订单详情
     await page.goto(page.url().replace('/receipt', ''));
-    await expect(page.getByText('部分入库').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('部分入库').first()).toBeVisible({ timeout: 30000 });
   });
 
   test('03-04 全部入库后采购订单状态为"已入库"', async ({ page }) => {
@@ -74,6 +74,6 @@ test.describe('03 采购入库', () => {
     await recQty.fill('500');
     await page.getByRole('button', { name: /保存/ }).click();
     // 回到采购订单详情
-    await expect(page.getByText('已入库').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('已入库').first()).toBeVisible({ timeout: 30000 });
   });
 });

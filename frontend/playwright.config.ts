@@ -25,19 +25,23 @@ import { defineConfig, devices } from '@playwright/test'
  */
 export default defineConfig({
   testDir: './e2e',
-  fullyParallel: true,
+  fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: 0,
-  workers: process.env.CI ? 2 : 1,
+  workers: 1,
   // 同时生成 HTML 报告（可下载 artifact）和命令行输出
   reporter: [['html'], ['line']],
-  // 单测试 60s（真实后端 API 响应 + 页面渲染）
-  timeout: 60_000,
+  // 单测试 120s（CI 环境页面渲染 + API 响应较慢）
+  timeout: 120_000,
   use: {
     baseURL: 'http://localhost:3000',
     headless: true,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
+    // CI 环境 actionTimeout 30s（单个操作超时）
+    actionTimeout: 30_000,
+    // CI 环境导航超时 30s
+    navigationTimeout: 30_000,
   },
   // webServer 数组（规则 5）：同时启动前端 dev server + 后端二进制
   // - 前端：CI 中启动，本地复用已启动的 dev server

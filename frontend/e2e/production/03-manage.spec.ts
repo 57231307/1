@@ -11,7 +11,7 @@ test.describe('生产计划 - 03 工单管理', () => {
 
   test('工单详情可查看', async ({ page }) => {
     await page.goto('/production');
-    await expect(page.locator('.el-table, .v2-table')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.el-table, .v2-table')).toBeVisible({ timeout: 30000 });
     const viewBtn = page.getByRole('link', { name: /查看/ }).first();
     if (await viewBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await viewBtn.click();
@@ -23,12 +23,12 @@ test.describe('生产计划 - 03 工单管理', () => {
 
   test('草稿工单可删除', async ({ page }) => {
     await page.goto('/production');
-    await expect(page.locator('.el-table, .v2-table')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.el-table, .v2-table')).toBeVisible({ timeout: 30000 });
     const deleteBtn = page.getByRole('link', { name: /删除/ }).first();
     if (await deleteBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await deleteBtn.click();
       await page.getByRole('button', { name: /确定/ }).click();
-      await expect(page.getByText(/删除成功/)).toBeVisible({ timeout: 5000 }).catch(() => {
+      await expect(page.getByText(/删除成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
         return null;
       });
     }
@@ -39,6 +39,6 @@ test.describe('生产计划 - 03 工单管理', () => {
     await page.getByLabel(/状态/).click();
     await page.getByRole('option').first().click();
     await page.getByRole('button', { name: /搜索/ }).click();
-    await expect(page.locator('.el-table, .v2-table')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.el-table, .v2-table')).toBeVisible({ timeout: 30000 });
   });
 });

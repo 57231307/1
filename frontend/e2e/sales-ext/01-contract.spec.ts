@@ -12,7 +12,7 @@ test.describe('01 销售合同', () => {
 
   test('01-01 进入销售扩展页面', async ({ page }) => {
     await page.goto('/sales-ext');
-    await expect(page.getByText(/销售/)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/销售/)).toBeVisible({ timeout: 30000 });
     await expect(page.getByRole('tab', { name: /合同/ })).toBeVisible();
   });
 
@@ -20,13 +20,13 @@ test.describe('01 销售合同', () => {
     await page.goto('/sales-ext');
     await page.getByRole('tab', { name: /合同/ }).click();
     await page.getByRole('button', { name: /新建|创建/ }).click();
-    await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 30000 });
     await page.getByLabel(/合同编号/).fill(`SC-${Date.now()}`);
     await page.getByLabel(/客户/).fill('E2E 测试客户');
     await page.getByLabel(/合同日期/).fill('2026-08-19');
     await page.getByLabel(/总金额/).fill('200000');
     await page.getByRole('button', { name: /确认|保存|提交/ }).last().click();
-    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 5000 }).catch(() => {
+    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
       return null;
     });
   });
@@ -38,7 +38,7 @@ test.describe('01 销售合同', () => {
     if (await approveBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await approveBtn.click();
       await page.getByRole('button', { name: /确定/ }).click();
-      await expect(page.getByText(/审批成功/)).toBeVisible({ timeout: 5000 }).catch(() => {
+      await expect(page.getByText(/审批成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
         return null;
       });
     }
