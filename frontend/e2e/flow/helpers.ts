@@ -160,9 +160,9 @@ export async function loginViaUI(page: Page, username?: string, password?: strin
   if (has504) {
     console.log('检测到 Vite 504，等待 5 秒后打开新页面...');
     await page.waitForTimeout(5000);
-    await page.close();
     // 打开新页面（全新的 JS 上下文，无 504 残留）
     const context = page.context();
+    await page.close();
     const newPage = await context.newPage();
     const newLogs: string[] = [];
     newPage.on('console', (msg) => {
