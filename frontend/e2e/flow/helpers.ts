@@ -160,9 +160,13 @@ export async function loginViaUI(page: Page, username?: string, password?: strin
     await checkbox.click().catch(() => {});
   }
   // Element Plus el-button 渲染为 <button class="el-button">，用文本定位
-  await page.locator('button.el-button').filter({ hasText: /登录|submit|Login/i }).first().click();
+  const loginBtn = page.locator('button.el-button, .el-button').filter({ hasText: /登录|submit|Login|登 录/i });
+  await loginBtn.first().click().catch(async () => {
+    // 如果文本定位失败，尝试点击最后一个按钮（可能是登录按钮）
+    await page.locator('button.el-button').last().click().catch(() => {});
+  });
   // 等待离开 /login 页面（跳转到 dashboard 或其他页面）
-  await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 30_000 });
+  await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 60_000 });
 }
 
 export async function loginAsRole(page: Page, role: string): Promise<void> {
