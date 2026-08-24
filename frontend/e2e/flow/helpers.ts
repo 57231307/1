@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import type { Page } from '@playwright/test';
 
 const API_BASE = process.env.API_BASE || 'http://localhost:8082';
