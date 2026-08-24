@@ -5,7 +5,7 @@ import prettier from 'eslint-config-prettier';
 import globals from 'globals';
 
 export default [
-  { ignores: ['node_modules/', 'dist/', 'scripts/', 'tests/', '*.config.*', '*.test.*', 'check_*.js', 'full_test.js', 'comprehensive_test.cjs'] },
+  { ignores: ['node_modules/', 'dist/', 'scripts/', 'e2e/', 'tests/', '*.config.*', '*.test.*', 'check_*.js', 'full_test.js', 'comprehensive_test.cjs'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   ...pluginVue.configs['flat/recommended'],
