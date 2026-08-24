@@ -201,7 +201,6 @@ export async function loginViaUI(page: Page, username?: string, password?: strin
 }
 
 async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string[]): Promise<void> {
-
   // Element Plus el-input：同时匹配中英文 placeholder
   const usernameInput = page.locator('input[placeholder="用户名"], input[placeholder="Username"]');
   await usernameInput.first().waitFor({ state: 'visible', timeout: 30_000 });
@@ -211,17 +210,42 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
   await passwordInput.first().waitFor({ state: 'visible', timeout: 30_000 });
   await passwordInput.first().fill(p);
 
-  // 必须勾选用户协议
+  // 必须勾选用户协议（表单验证要求 agreedToTerms=true）
   const checkboxLabel = page.locator('.el-checkbox__label, .el-checkbox').first();
   const isChecked = await page.locator('.el-checkbox input').first().isChecked().catch(() => false);
+  console.log(`复选框初始状态: checked=${isChecked}`);
   if (!isChecked) {
     await checkboxLabel.click();
     await page.waitForTimeout(500);
     const stillUnchecked = !(await page.locator('.el-checkbox input').first().isChecked().catch(() => false));
+    console.log(`点击后复选框状态: checked=${!stillUnchecked}`);
     if (stillUnchecked) {
       await page.locator('.el-checkbox input').first().click({ force: true }).catch(() => {});
       await page.waitForTimeout(300);
+      const finalCheck = await page.locator('.el-checkbox input').first().isChecked().catch(() => false);
+      console.log(`force click 后复选框状态: checked=${finalCheck}`);
     }
+  }
+
+  // 点击登录按钮
+  const loginButton = page.locator('form button.el-button--primary').first();
+  await loginButton.waitFor({ state: 'visible', timeout: 10_000 });
+  const isDisabled = await loginButton.isDisabled().catch(() => false);
+  console.log(`登录按钮 disabled: ${isDisabled}`);
+  await loginButton.click();
+
+  // 如果 3 秒后仍在 /login，尝试通过表单提交
+  await page.waitForTimeout(3000);
+  if (page.url().includes('/login')) {
+    // 检查是否有表单验证错误
+    const formErrors = await page.locator('.el-form-item__error').allTextContents().catch(() => []);
+    console.log(`表单验证错误: ${JSON.stringify(formErrors)}`);
+    // 尝试通过 dispatchEvent 触发表单提交
+    await page.evaluate(() => {
+      const form = document.querySelector('form');
+      if (form) form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+    });
+  }
   }
 
   // 点击登录按钮——直接点击 button 元素（不用 filter hasText，避免点击到 span）
