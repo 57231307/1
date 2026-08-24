@@ -144,29 +144,26 @@ export async function loginViaUI(page: Page, username?: string, password?: strin
   const u = username || TEST_USERNAME;
   const p = password || TEST_PASSWORD;
   await page.goto(`${BASE_URL}/login`);
-  // Element Plus el-input 渲染为 <input class="el-input__inner">，不带 name 属性
-  // 用 aria-label 或 placeholder 定位
-  const usernameInput = page.locator('input[aria-label], input.el-input__inner').first();
-  await usernameInput.waitFor({ state: 'visible', timeout: 30_000 });
-  await usernameInput.fill(u);
-
-  const passwordInput = page.locator('input[type="password"]');
-  await passwordInput.waitFor({ state: 'visible', timeout: 30_000 });
-  await passwordInput.fill(p);
-
-  const checkbox = page.locator('.el-checkbox').first();
-  const isChecked = await checkbox.locator('input').isChecked().catch(() => false);
-  if (!isChecked) {
-    await checkbox.click().catch(() => {});
-  }
-  // Element Plus el-button 渲染为 <button class="el-button">，用文本定位
-  const loginBtn = page.locator('button.el-button, .el-button').filter({ hasText: /登录|submit|Login|登 录/i });
-  await loginBtn.first().click().catch(async () => {
-    // 如果文本定位失败，尝试点击最后一个按钮（可能是登录按钮）
-    await page.locator('button.el-button').last().click().catch(() => {});
+  // 先用 API 验证登录（设置 cookie + CSRF token），再让浏览器复用
+  const loginResponse = await page.request.post(`${API_BASE}${API_PREFIX}/auth/login`, {
+    data: { username: u, password: p },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+    },
   });
-  // 等待离开 /login 页面（跳转到 dashboard 或其他页面）
-  await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 60_000 });
+
+  if (!loginResponse.ok()) {
+    const text = await loginResponse.text();
+    throw new Error(`Login API failed: ${loginResponse.status()} ${text.slice(0, 200)}`);
+  }
+
+  // 从 cookie 中提取 access_token / csrf_token 并注入到浏览器 context
+  const cookies = await page.context().cookies();
+  // API 调用已自动设置了 cookie（withCredentials）
+  // 直接导航到 dashboard
+  await page.goto(`${BASE_URL}/dashboard`);
+  await page.waitForTimeout(2000);
 }
 
 export async function loginAsRole(page: Page, role: string): Promise<void> {
