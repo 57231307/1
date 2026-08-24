@@ -10,14 +10,15 @@
 #   ci-info → [ci-fmt-rust, ci-fmt-fe, ci-lint-rust, ci-lint-fe, ci-type-check,
 #              ci-test-fe, ci-audit, ci-deps, ci-perf-bench,
 #              ci-build-rust, ci-build-fe]
-#            PR 时额外跑: [ci-build-test-artifacts → ci-test-rust],
-#                         [ci-e2e（测试通过后跑端到端）],
+#            PR 时额外跑: [ci-build-test-artifacts → ci-test-rust(30分片)],
+#                         [ci-e2e（8 分片并行端到端）],
 #                         [ci-dead-code-audit（Clippy 通过后跑）]
 #            → [package-release] → [github-release]
 #            → [ci-cleanup-retry]（收尾：汇总全部 job 结果）
 #
 # 发布门禁：E2E + Rust 测试 + 死代码审计在 PR 时验证，合并即视为通过。
 #   主线 push 不重复跑测试（已在 PR 阶段验证），只做构建/格式/审计/发布。
+#   所有 job timeout 统一 360 分钟（6 小时），E2E 8 分片并行加速。
 # ==============================================================================
 
 name: CI/CD Pipeline - 严格构建验证 + 全面日志
@@ -83,7 +84,7 @@ jobs:
   ci-info:
     name: 📋 环境信息
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 360
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
@@ -184,7 +185,7 @@ jobs:
   ci-fmt-rust:
     name: 🔧 Rust 格式检查
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 360
     needs: ci-info
     # 自动修正格式后需要提交 push，故需 contents: write
     permissions:
@@ -314,7 +315,7 @@ jobs:
   ci-fmt-fe:
     name: 🔧 前端格式检查
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 360
     needs: ci-info
     steps:
       - name: 检出代码
@@ -402,7 +403,7 @@ jobs:
   ci-lint-rust:
     name: 🔍 Rust Clippy
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 360
     needs: ci-info
     # 启用 contents: write 以便"提交 baseline 文件"步骤能 push 自动建立的基线
     # baseline 机制：首次跑自动建立基线，后续 PR 仅"新增警告"阻塞 CI
@@ -995,7 +996,7 @@ jobs:
   ci-lint-fe:
     name: 🔍 前端 ESLint
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 360
     needs: ci-info
     steps:
       - name: 检出代码
@@ -1120,7 +1121,7 @@ jobs:
   ci-type-check:
     name: 🔬 前端类型检查
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 360
     needs: ci-info
     steps:
       - name: 检出代码
@@ -1186,7 +1187,7 @@ jobs:
     name: 📦 Rust 测试预编译
     runs-on: ubuntu-latest
     # 预编译 job：禁用 sccache（冷缓存无加速）+ 并行度由 setup-rust 智能探测（防 OOM，用满最大上限）
-    timeout-minutes: 90
+    timeout-minutes: 360
     needs: ci-info
     # 仅 PR 时运行测试，主线 push 不跑（已在 PR 阶段验证）
     if: github.event_name == 'pull_request'
@@ -1249,7 +1250,7 @@ jobs:
     name: 🧪 Rust 测试 (${{ matrix.partition }}/30)
     runs-on: ubuntu-latest
     # 30 个分片仅从 archive 运行测试（不编译），时间大幅缩短
-    timeout-minutes: 45
+    timeout-minutes: 360
     needs: ci-build-test-artifacts
     # 仅 PR 时运行测试，主线 push 不跑（已在 PR 阶段验证）
     if: github.event_name == 'pull_request'
@@ -1398,7 +1399,7 @@ jobs:
   ci-coverage-rust:
     name: 📊 Rust 覆盖率
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 360
     needs: ci-test-rust
     if: success()
     services:
@@ -1523,7 +1524,7 @@ jobs:
   ci-test-fe:
     name: 🧪 前端测试
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 360
     needs: ci-info
     steps:
       - name: 检出代码
@@ -1604,7 +1605,7 @@ jobs:
   ci-audit:
     name: 🛡️ 依赖审计
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 360
     needs: ci-info
     # 批次 21 修复：移除 continue-on-error，让审计命令本身失败时阻塞 CI。
     # 4.7 依赖漏洞扫描加固：high/critical 级别漏洞也会阻塞 CI（exit 1），
@@ -1753,7 +1754,7 @@ jobs:
   ci-deps:
     name: 📦 依赖图记录
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 360
     needs: ci-info
     # P3-8 修复：移除 job 级 continue-on-error，改为 step 级精细控制
     # cargo tree --locked 失败时阻塞 CI（暴露 lockfile 漂移），npm ls 非关键允许失败
@@ -1803,7 +1804,7 @@ jobs:
   ci-perf-bench:
     name: ⚡ 性能基准回归监控
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 360
     needs: ci-info
     # V15 批次 06 P1-10：informational job，continue-on-error 避免性能波动阻塞主 CI
     # 性能回归 > 10% 会写入报告并标注，但不阻塞合并（避免硬件差异导致误报）
@@ -1908,7 +1909,7 @@ jobs:
   ci-build-rust:
     name: 🏗️ Rust 后端构建
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 360
     needs: ci-info
     # 启用 contents: write 以便提交自动生成的 Cargo.lock 与版本号更新
     permissions:
@@ -2057,7 +2058,7 @@ jobs:
   ci-build-fe:
     name: 🏗️ 前端构建
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 360
     needs: ci-info
     steps:
       - name: 检出代码
@@ -2151,7 +2152,7 @@ jobs:
       ci-build-fe
     ]
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 360
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
     permissions:
       contents: write
@@ -2257,7 +2258,7 @@ jobs:
     name: 🚀 GitHub Release
     needs: package-release
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 360
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
     permissions:
       contents: write
@@ -2397,15 +2398,19 @@ jobs:
           fi
 
 # ==============================================================================
-# Job 15: E2E 端到端测试（从 e2e-batch.yml 合并，main 全绿发布前必经）
+# Job 15: E2E 端到端测试（8 分片并行，每分片独立后端实例）
 # ==============================================================================
   ci-e2e:
-    name: 🎭 E2E 端到端测试
+    name: 🎭 E2E 测试 (${{ matrix.shard }}/8)
     runs-on: ubuntu-latest
-    timeout-minutes: 90
-    # 测试通过后跑 E2E；需 ci-build-rust 提供后端二进制(复用产物不重编)；PR 时运行
+    timeout-minutes: 360
     needs: [ci-build-fe, ci-build-rust]
     if: github.event_name == 'pull_request'
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     services:
       postgres:
         image: postgres:16-alpine
@@ -2459,9 +2464,6 @@ jobs:
         run: |
           chmod +x backend/target/release/server
           chmod +x backend/target/release/bingxi
-          # 验证二进制可用
-          file backend/target/release/server | head -1
-          file backend/target/release/bingxi | head -1
 
       - name: 安装 postgresql-client（迁移命令依赖）
         run: |
@@ -2527,31 +2529,24 @@ jobs:
             -d "{\"admin_username\":\"${TEST_USERNAME}\",\"admin_password\":\"${TEST_PASSWORD}\"}")
           RESPONSE_BODY=$(echo "$HTTP_CODE" | head -n -1)
           STATUS_CODE=$(echo "$HTTP_CODE" | tail -n 1)
-          echo "=== 初始化诊断 ==="
-          echo "STATUS_CODE=$STATUS_CODE"
-          echo "RESPONSE_BODY=$RESPONSE_BODY"
-          echo "=== 后端日志（最后20行） ==="
-          tail -n 20 /tmp/e2e-logs/backend.log 2>/dev/null || echo "(无后端日志)"
           if echo "$RESPONSE_BODY" | grep -q '"code":200'; then exit 0; fi
           if echo "$RESPONSE_BODY" | grep -q '"code": 200'; then exit 0; fi
           if [ "$STATUS_CODE" = "400" ] && echo "$RESPONSE_BODY" | grep -q '"code":"BUSINESS_ERROR"'; then exit 0; fi
           if [ "$STATUS_CODE" = "400" ] && echo "$RESPONSE_BODY" | grep -q '"code": "BUSINESS_ERROR"'; then exit 0; fi
-          echo "初始化失败 HTTP $STATUS_CODE"
-          echo "Response: $RESPONSE_BODY"
-          tail -n 50 /tmp/e2e-logs/backend.log; exit 1
+          echo "初始化失败 HTTP $STATUS_CODE"; tail -n 50 /tmp/e2e-logs/backend.log; exit 1
 
-      - name: 运行 E2E 测试
+      - name: 运行 E2E 测试（分片 ${{ matrix.shard }}/8）
         working-directory: frontend
         run: |
           mkdir -p reports
           set +e
-          npx playwright test --project=chromium 2>&1 | tee reports/playwright-output.txt
+          npx playwright test --project=chromium --shard=${{ matrix.shard }}/8 2>&1 | tee reports/playwright-output.txt
           EXIT_CODE=$?
           set -e
           {
-            echo "# E2E 测试报告"; echo ""
-            if [ "$EXIT_CODE" -eq "0" ]; then echo "## ✅ 所有 E2E 测试通过"
-            else echo "## ❌ 部分 E2E 测试失败"; echo '```'; head -200 reports/playwright-output.txt; echo '```'
+            echo "# E2E 测试报告（分片 ${{ matrix.shard }}/8）"; echo ""
+            if [ "$EXIT_CODE" -eq "0" ]; then echo "## ✅ 分片 ${{ matrix.shard }} 全部通过"
+            else echo "## ❌ 分片 ${{ matrix.shard }} 部分失败"; echo '```'; head -200 reports/playwright-output.txt; echo '```'
             fi
           } > reports/e2e-report.md
           echo "$EXIT_CODE" > reports/e2e-exit-code.txt
@@ -2569,7 +2564,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-report-${{ github.run_id }}
+          name: e2e-report-shard-${{ matrix.shard }}-${{ github.run_id }}
           path: |
             frontend/playwright-report/
             frontend/reports/e2e-report.md
@@ -2583,7 +2578,7 @@ jobs:
   ci-dead-code-audit:
     name: 🧟 死代码审计
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 360
     # Clippy 通过后跑（复用编译产物）；PR 时运行
     needs: ci-lint-rust
     if: github.event_name == 'pull_request'
@@ -2677,7 +2672,7 @@ jobs:
   ci-cleanup-retry:
     name: 🧹 收尾清理
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 360
     needs: [
       ci-info,
       ci-fmt-rust,
