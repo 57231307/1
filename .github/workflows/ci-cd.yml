@@ -2554,6 +2554,20 @@ jobs:
             exit 1
           fi
 
+      - name: 验证登录 API（诊断）
+        run: |
+          echo "=== 验证登录 API ==="
+          LOGIN_RESULT=$(curl -s -w "\n%{http_code}" -X POST http://localhost:8082/api/v1/erp/auth/login \
+            -H "Content-Type: application/json" \
+            -H "X-Requested-With: XMLHttpRequest" \
+            -d "{\"username\":\"${TEST_USERNAME}\",\"password\":\"${TEST_PASSWORD}\"}")
+          LOGIN_BODY=$(echo "$LOGIN_RESULT" | head -n -1)
+          LOGIN_STATUS=$(echo "$LOGIN_RESULT" | tail -n 1)
+          echo "Login HTTP Status: $LOGIN_STATUS"
+          echo "Login Response: $LOGIN_BODY"
+          echo "=== 后端日志最后 10 行 ==="
+          tail -10 /tmp/e2e-logs/backend.log 2>/dev/null || echo "(无后端日志)"
+
       - name: 运行 E2E 测试（分片 ${{ matrix.shard }}/12）
         working-directory: frontend
         run: |
