@@ -19,15 +19,15 @@ pub fn ai_models() -> Router<AppState> {
             get(ai_model_management_handler::list_model_versions),
         )
         .route(
-            "/ai-models/versions/active/:model_name",
+            "/ai-models/versions/active/{model_name}",
             get(ai_model_management_handler::get_active_model_version),
         )
         .route(
-            "/ai-models/versions/:version_id/approve",
+            "/ai-models/versions/{version_id}/approve",
             post(ai_model_management_handler::approve_model_version),
         )
         .route(
-            "/ai-models/versions/:version_id/status",
+            "/ai-models/versions/{version_id}/status",
             post(ai_model_management_handler::change_model_status),
         )
         .route(
@@ -35,11 +35,11 @@ pub fn ai_models() -> Router<AppState> {
             post(ai_model_management_handler::create_model_evaluation),
         )
         .route(
-            "/ai-models/evaluations/:model_version_id",
+            "/ai-models/evaluations/{model_version_id}",
             get(ai_model_management_handler::list_model_evaluations),
         )
         .route(
-            "/ai-models/evaluations/:model_version_id/drift",
+            "/ai-models/evaluations/{model_version_id}/drift",
             get(ai_model_management_handler::detect_model_drift),
         )
         .route(

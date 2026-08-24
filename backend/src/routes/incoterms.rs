@@ -11,7 +11,7 @@ use axum::{
 pub fn incoterms() -> Router<AppState> {
     Router::new()
         .route(
-            "/incoterms/quotations/:quotation_id/price-composition",
+            "/incoterms/quotations/{quotation_id}/price-composition",
             get(incoterms_handler::get_price_composition),
         )
         .route(

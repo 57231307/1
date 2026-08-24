@@ -149,11 +149,11 @@ fn bpm_process_task_routes() -> Router<AppState> {
             get(bpm_handler::get_business_relation),
         )
         .route(
-            "/bpm/visualization/:instance_id",
+            "/bpm/visualization/{instance_id}",
             get(bpm_handler::get_process_visualization),
         )
         .route(
-            "/bpm/tasks/:task_id/transfer",
+            "/bpm/tasks/{task_id}/transfer",
             post(bpm_handler::transfer_task),
         )
         .route("/bpm/tasks/{task_id}/urge", post(bpm_handler::urge_task))
@@ -164,20 +164,20 @@ fn bpm_process_task_routes() -> Router<AppState> {
 fn bpm_instance_routes() -> Router<AppState> {
     Router::new()
         .route(
-            "/bpm/instances/:instance_id/approval-chain",
+            "/bpm/instances/{instance_id}/approval-chain",
             get(bpm_handler::get_approval_chain),
         )
         .route(
-            "/bpm/instances/:instance_id/chain",
+            "/bpm/instances/{instance_id}/chain",
             get(bpm_handler::get_approval_chain),
         )
         .route(
-            "/bpm/instances/:instance_id/detail",
+            "/bpm/instances/{instance_id}/detail",
             get(bpm_handler::get_instance_detail),
         )
         // 批次 157d-3 新增：撤回流程实例
         .route(
-            "/bpm/instances/:instance_id/cancel",
+            "/bpm/instances/{instance_id}/cancel",
             post(bpm_handler::cancel_instance),
         )
 }
@@ -207,26 +207,26 @@ fn bpm_definition_routes() -> Router<AppState> {
                 .post(bpm_definition_handler::create_process_definition),
         )
         .route(
-            "/bpm/definitions/:id",
+            "/bpm/definitions/{id}",
             get(bpm_definition_handler::get_process_definition)
                 .put(bpm_definition_handler::update_process_definition)
                 .delete(bpm_definition_handler::delete_process_definition),
         )
         .route(
-            "/bpm/definitions/:id/versions",
+            "/bpm/definitions/{id}/versions",
             get(bpm_definition_handler::list_versions)
                 .post(bpm_definition_handler::create_version),
         )
         .route(
-            "/bpm/definitions/:id/versions/:version/activate",
+            "/bpm/definitions/{id}/versions/{version}/activate",
             post(bpm_definition_handler::activate_version),
         )
         .route(
-            "/bpm/definitions/:id/template",
+            "/bpm/definitions/{id}/template",
             post(bpm_definition_handler::save_as_template),
         )
         .route(
-            "/bpm/versions/:version_id/activate",
+            "/bpm/versions/{version_id}/activate",
             post(bpm_definition_handler::activate_version_by_id),
         )
         .route(
@@ -234,7 +234,7 @@ fn bpm_definition_routes() -> Router<AppState> {
             get(bpm_definition_handler::list_templates),
         )
         .route(
-            "/bpm/templates/:template_id/create",
+            "/bpm/templates/{template_id}/create",
             post(bpm_definition_handler::create_from_template),
         )
 }
@@ -299,7 +299,7 @@ pub fn slow_queries() -> Router<AppState> {
         )
         // V15 P2 20.5-C：慢查询优化任务追踪端点
         .route(
-            "/slow-queries/:id/optimization",
+            "/slow-queries/{id}/optimization",
             axum::routing::put(slow_query_handler::update_slow_query_optimization),
         )
         // batch-17 P3：慢查询周报端点
@@ -361,22 +361,22 @@ pub fn ai() -> Router<AppState> {
             get(ai_extend_handler::list_process_optimizations_by_color),
         )
         .route(
-            "/ai/process-optimizations/:id",
+            "/ai/process-optimizations/{id}",
             get(ai_extend_handler::get_process_optimization)
                 .delete(ai_extend_handler::delete_process_optimization),
         )
         .route(
-            "/ai/process-optimizations/:id/apply",
+            "/ai/process-optimizations/{id}/apply",
             post(ai_extend_handler::apply_process_optimization),
         )
         // V15 P1 1.3+8.1：工艺优化→化验室打样集成
         .route(
-            "/ai/process-optimizations/:id/push-to-lab-dip",
+            "/ai/process-optimizations/{id}/push-to-lab-dip",
             post(ai_extend_handler::push_to_lab_dip),
         )
         // V15 P1 8.2：工艺优化→生产执行集成
         .route(
-            "/ai/process-optimizations/:id/link-to-production",
+            "/ai/process-optimizations/{id}/link-to-production",
             post(ai_extend_handler::link_to_production),
         )
         // 质量预测
@@ -394,22 +394,22 @@ pub fn ai() -> Router<AppState> {
             get(ai_extend_handler::list_quality_predictions_by_product),
         )
         .route(
-            "/ai/quality-predictions/:id",
+            "/ai/quality-predictions/{id}",
             get(ai_extend_handler::get_quality_prediction)
                 .delete(ai_extend_handler::delete_quality_prediction),
         )
         .route(
-            "/ai/quality-predictions/:id/acknowledge",
+            "/ai/quality-predictions/{id}/acknowledge",
             post(ai_extend_handler::acknowledge_quality_prediction),
         )
         // V15 P1 2.1+8.3：质量预测实际结果回填（对账）
         .route(
-            "/ai/quality-predictions/:id/actual-result",
+            "/ai/quality-predictions/{id}/actual-result",
             post(ai_extend_handler::record_actual_quality_result),
         )
         // V15 P2 14.2.3：回填实际结果和索赔金额（误判成本追踪）
         .route(
-            "/ai/quality-predictions/:id/actual-grade",
+            "/ai/quality-predictions/{id}/actual-grade",
             post(ai_extend_handler::record_actual_grade),
         )
         // 看板 / 健康检查
@@ -437,19 +437,19 @@ pub fn export_approval() -> Router<AppState> {
             get(export_approval_handler::list_pending_for_me),
         )
         .route(
-            "/export-approvals/:id",
+            "/export-approvals/{id}",
             get(export_approval_handler::get_approval_request),
         )
         .route(
-            "/export-approvals/:id/approve",
+            "/export-approvals/{id}/approve",
             post(export_approval_handler::approve_request),
         )
         .route(
-            "/export-approvals/:id/reject",
+            "/export-approvals/{id}/reject",
             post(export_approval_handler::reject_request),
         )
         .route(
-            "/export-approvals/:id/cancel",
+            "/export-approvals/{id}/cancel",
             post(export_approval_handler::cancel_request),
         )
 }

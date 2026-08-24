@@ -26,24 +26,24 @@ fn sales_order_crud_routes() -> Router<AppState> {
         .route("/orders/{id}", put(sales_order_handler::update_order))
         .route("/orders/{id}", delete(sales_order_handler::delete_order))
         .route(
-            "/orders/:id/submit",
+            "/orders/{id}/submit",
             post(sales_order_handler::submit_order),
         )
         .route(
-            "/orders/:id/approve",
+            "/orders/{id}/approve",
             post(sales_order_handler::approve_order),
         )
         .route("/orders/{id}/ship", post(sales_order_handler::ship_order))
         .route(
-            "/orders/:id/complete",
+            "/orders/{id}/complete",
             post(sales_order_handler::complete_order),
         )
         .route(
-            "/orders/:id/reject",
+            "/orders/{id}/reject",
             post(sales_order_handler::reject_order),
         )
         .route(
-            "/orders/:id/cancel",
+            "/orders/{id}/cancel",
             post(sales_order_handler::cancel_order),
         )
 }
@@ -52,16 +52,16 @@ fn sales_order_crud_routes() -> Router<AppState> {
 fn sales_order_delivery_report_routes() -> Router<AppState> {
     Router::new()
         .route(
-            "/orders/:id/deliveries",
+            "/orders/{id}/deliveries",
             get(sales_order_handler::get_order_deliveries)
                 .post(sales_order_handler::create_delivery),
         )
         .route(
-            "/orders/:id/deliveries/:delivery_id/cancel",
+            "/orders/{id}/deliveries/{delivery_id}/cancel",
             post(sales_order_handler::cancel_delivery),
         )
         .route(
-            "/orders/:id/deliveries/:delivery_id/print",
+            "/orders/{id}/deliveries/{delivery_id}/print",
             get(print_handler::sales_delivery_print_docx),
         )
         .route(
@@ -69,11 +69,11 @@ fn sales_order_delivery_report_routes() -> Router<AppState> {
             get(sales_order_handler::get_order_statistics),
         )
         .route(
-            "/orders/:id/history",
+            "/orders/{id}/history",
             get(sales_order_handler::get_order_history),
         )
         .route(
-            "/orders/:id/print",
+            "/orders/{id}/print",
             get(print_handler::sales_order_print_docx),
         )
         .route("/orders/export", get(sales_order_handler::export_orders))
@@ -95,19 +95,19 @@ fn sales_fabric_order_routes() -> Router<AppState> {
             post(sales_fabric_order_handler::create_fabric_order),
         )
         .route(
-            "/fabric-orders/:id",
+            "/fabric-orders/{id}",
             get(sales_fabric_order_handler::get_fabric_order),
         )
         .route(
-            "/fabric-orders/:id",
+            "/fabric-orders/{id}",
             put(sales_fabric_order_handler::update_fabric_order),
         )
         .route(
-            "/fabric-orders/:id",
+            "/fabric-orders/{id}",
             delete(sales_fabric_order_handler::delete_fabric_order),
         )
         .route(
-            "/fabric-orders/:id/approve",
+            "/fabric-orders/{id}/approve",
             post(sales_fabric_order_handler::approve_fabric_order),
         )
 }
@@ -143,35 +143,35 @@ pub fn sales_contracts() -> Router<AppState> {
             get(sales_contract_handler::export_contracts),
         )
         .route(
-            "/sales-contracts/:id",
+            "/sales-contracts/{id}",
             get(sales_contract_handler::get_contract),
         )
         .route(
-            "/sales-contracts/:id",
+            "/sales-contracts/{id}",
             put(sales_contract_handler::update_contract),
         )
         .route(
-            "/sales-contracts/:id",
+            "/sales-contracts/{id}",
             delete(sales_contract_handler::delete_contract),
         )
         .route(
-            "/sales-contracts/:id/approve",
+            "/sales-contracts/{id}/approve",
             post(sales_contract_handler::approve_contract),
         )
         .route(
-            "/sales-contracts/:id/execute",
+            "/sales-contracts/{id}/execute",
             put(sales_contract_handler::execute_contract),
         )
         .route(
-            "/sales-contracts/:id/cancel",
+            "/sales-contracts/{id}/cancel",
             put(sales_contract_handler::cancel_contract),
         )
         .route(
-            "/sales-contracts/:id/items",
+            "/sales-contracts/{id}/items",
             get(sales_contract_handler::get_contract_items),
         )
         .route(
-            "/sales-contracts/:id/print",
+            "/sales-contracts/{id}/print",
             get(print_handler::sales_contract_print_docx),
         )
 }
@@ -187,17 +187,17 @@ pub fn sales_prices() -> Router<AppState> {
             get(sales_price_handler::export_prices),
         )
         .route(
-            "/sales-prices/:id",
+            "/sales-prices/{id}",
             get(sales_price_handler::get_price)
                 .put(sales_price_handler::update_price)
                 .delete(sales_price_handler::delete_price),
         )
         .route(
-            "/sales-prices/:id/approve",
+            "/sales-prices/{id}/approve",
             post(sales_price_handler::approve_price),
         )
         .route(
-            "/sales-prices/history/:product_id",
+            "/sales-prices/history/{product_id}",
             get(sales_price_handler::get_price_history),
         )
         .route(

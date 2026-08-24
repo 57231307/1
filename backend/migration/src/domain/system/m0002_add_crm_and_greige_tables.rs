@@ -6,8 +6,7 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let sql =
-            r#"-- 添加缺失的表：greige_fabric
+        let sql = r#"-- 添加缺失的表：greige_fabric
 -- 修复 CRM 表结构
 
 -- 创建 greige_fabric 表（坯布管理）
@@ -66,8 +65,7 @@ ALTER TABLE "greige_fabric" ADD CONSTRAINT "fk_greige_fabric_warehouse" FOREIGN 
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let sql =
-            r#"-- 回滚 CRM 和坯布表
+        let sql = r#"-- 回滚 CRM 和坯布表
 
 ALTER TABLE "greige_fabric" DROP CONSTRAINT IF EXISTS "fk_greige_fabric_warehouse";
 ALTER TABLE "greige_fabric" DROP CONSTRAINT IF EXISTS "fk_greige_fabric_supplier";

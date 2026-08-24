@@ -19,7 +19,7 @@ pub fn hazard_monitorings() -> Router<AppState> {
             get(occupational_health_handler::list_hazard_monitorings),
         )
         .route(
-            "/occupational-health/hazard-monitorings/:id/print",
+            "/occupational-health/hazard-monitorings/{id}/print",
             get(crate::handlers::print_handler::occupational_hazard_monitoring_print_docx),
         )
 }
@@ -40,7 +40,7 @@ pub fn health_exams() -> Router<AppState> {
             post(occupational_health_handler::scan_exam_expiry_warnings),
         )
         .route(
-            "/occupational-health/health-exams/:id/print",
+            "/occupational-health/health-exams/{id}/print",
             get(crate::handlers::print_handler::occupational_health_exam_print_docx),
         )
 }
@@ -61,11 +61,11 @@ pub fn ppe_distributions() -> Router<AppState> {
             post(occupational_health_handler::scan_expired_ppe),
         )
         .route(
-            "/occupational-health/ppe-distributions/:id/return",
+            "/occupational-health/ppe-distributions/{id}/return",
             post(occupational_health_handler::return_ppe),
         )
         .route(
-            "/occupational-health/ppe-distributions/:id/print",
+            "/occupational-health/ppe-distributions/{id}/print",
             get(crate::handlers::print_handler::ppe_distribution_print_docx),
         )
 }

@@ -15,11 +15,11 @@ pub fn contract_signatures() -> Router<AppState> {
             post(contract_signature_handler::sign_contract),
         )
         .route(
-            "/contract-signatures/:contract_id/verify",
+            "/contract-signatures/{contract_id}/verify",
             get(contract_signature_handler::verify_signature),
         )
         .route(
-            "/contract-signatures/:contract_id/revoke",
+            "/contract-signatures/{contract_id}/revoke",
             post(contract_signature_handler::revoke_signature),
         )
         .route(

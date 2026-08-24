@@ -12,8 +12,13 @@ mod m0004_add_field_permissions;
 mod m0005_add_basic_data_and_system_tables;
 mod m0006_add_general_ledger_and_finance_base;
 
-#[derive(DeriveMigrationName)]
 pub struct Migration;
+
+impl MigrationName for Migration {
+    fn name(&self) -> &'static str {
+        "m_system_domain"
+    }
+}
 
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
@@ -194,11 +199,7 @@ ALTER TABLE "role_permissions" ADD COLUMN IF NOT EXISTS "permission_code" VARCHA
 ALTER TABLE "webhooks" ADD COLUMN IF NOT EXISTS "last_event" VARCHAR(255);
 ALTER TABLE "webhooks" ADD COLUMN IF NOT EXISTS "last_payload" VARCHAR(255);
 ALTER TABLE "webhooks" ADD COLUMN IF NOT EXISTS "user_id" INTEGER;
-"#;
-        if !sql.trim().is_empty() {
-            manager.get_connection().execute_unprepared(sql).await?;
-        }
-        let sql = r#"
+
 ALTER TABLE "customers" ADD COLUMN IF NOT EXISTS "annual_purchase" DECIMAL(14,2);
 ALTER TABLE "customers" ADD COLUMN IF NOT EXISTS "bank_account" VARCHAR(255);
 ALTER TABLE "customers" ADD COLUMN IF NOT EXISTS "bank_name" VARCHAR(255);

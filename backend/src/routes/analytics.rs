@@ -56,7 +56,7 @@ pub fn assist_accounting() -> Router<AppState> {
             get(assist_accounting_handler::get_assist_records_by_business),
         )
         .route(
-            "/records/five-dimension/:five_dimension_id",
+            "/records/five-dimension/{five_dimension_id}",
             get(assist_accounting_handler::get_assist_records_by_five_dimension),
         )
         .route(
@@ -82,13 +82,13 @@ pub fn assist_accounting() -> Router<AppState> {
 pub fn business_trace() -> Router<AppState> {
     Router::new()
         .route(
-            "/five-dimension/:five_dimension_id",
+            "/five-dimension/{five_dimension_id}",
             get(business_trace_handler::get_trace_by_five_dimension),
         )
         .route("/forward", get(business_trace_handler::forward_trace))
         .route("/backward", get(business_trace_handler::backward_trace))
         .route(
-            "/snapshot/:trace_chain_id",
+            "/snapshot/{trace_chain_id}",
             post(business_trace_handler::create_trace_snapshot),
         )
 }
@@ -122,7 +122,7 @@ pub fn scanner() -> Router<AppState> {
 pub fn reports_enhanced() -> Router<AppState> {
     Router::new()
         .route(
-            "/fields/:template_type",
+            "/fields/{template_type}",
             get(report_enhanced_handler::get_available_fields),
         )
         .route(
@@ -131,29 +131,29 @@ pub fn reports_enhanced() -> Router<AppState> {
                 .post(report_enhanced_handler::create_report_template),
         )
         .route(
-            "/templates/:id",
+            "/templates/{id}",
             get(report_enhanced_handler::get_report_template)
                 .put(report_enhanced_handler::update_report_template)
                 .delete(report_enhanced_handler::delete_report_template),
         )
         .route(
-            "/templates/:id/versions",
+            "/templates/{id}/versions",
             get(report_enhanced_handler::list_template_versions),
         )
         .route(
-            "/templates/:id/rollback/:version",
+            "/templates/{id}/rollback/{version}",
             post(report_enhanced_handler::rollback_template_version),
         )
         .route(
-            "/templates/:id/execute",
+            "/templates/{id}/execute",
             post(report_enhanced_handler::execute_custom_report),
         )
         .route(
-            "/templates/:id/export",
+            "/templates/{id}/export",
             post(report_enhanced_handler::export_template),
         )
         .route(
-            "/templates/:id/preview",
+            "/templates/{id}/preview",
             get(report_enhanced_handler::preview_template),
         )
         .route("/export/pdf", post(report_enhanced_handler::export_pdf))
@@ -164,21 +164,21 @@ pub fn reports_enhanced() -> Router<AppState> {
                 .post(report_enhanced_handler::subscriptions::create),
         )
         .route(
-            "/subscriptions/:id",
+            "/subscriptions/{id}",
             get(report_enhanced_handler::subscriptions::get)
                 .put(report_enhanced_handler::subscriptions::update)
                 .delete(report_enhanced_handler::subscriptions::delete),
         )
         .route(
-            "/subscriptions/:id/toggle",
+            "/subscriptions/{id}/toggle",
             post(report_enhanced_handler::toggle_subscription),
         )
         .route(
-            "/subscriptions/:id/trigger",
+            "/subscriptions/{id}/trigger",
             post(report_enhanced_handler::trigger_subscription),
         )
         .route(
-            "/subscriptions/:id/send",
+            "/subscriptions/{id}/send",
             post(report_enhanced_handler::send_subscription_now),
         )
 }
@@ -189,7 +189,7 @@ pub fn imports() -> Router<AppState> {
         .route("/csv", post(import_export_handler::import_csv))
         .route("/excel", post(import_export_handler::import_excel))
         .route(
-            "/templates/download/:import_type",
+            "/templates/download/{import_type}",
             get(import_export_handler::download_template),
         )
 }
@@ -199,12 +199,12 @@ pub fn exports() -> Router<AppState> {
     Router::new()
         .route("/xlsx/{export_type}", get(import_export_handler::export_xlsx))
         .route(
-            "/excel/:export_type",
+            "/excel/{export_type}",
             get(import_export_handler::export_excel_type),
         )
         // B12-P2-5：流式导出端点（直接返回文件，不经过 base64 编码）
         .route(
-            "/stream/:export_type",
+            "/stream/{export_type}",
             get(import_export_handler::export_stream),
         )
 }
@@ -239,7 +239,7 @@ pub fn security() -> Router<AppState> {
         )
         .route("/alerts", get(login_security_handler::get_security_alerts))
         .route(
-            "/alerts/:id/resolve",
+            "/alerts/{id}/resolve",
             post(login_security_handler::resolve_alert),
         )
         .route(
@@ -247,7 +247,7 @@ pub fn security() -> Router<AppState> {
             get(login_security_handler::get_locked_accounts),
         )
         .route(
-            "/locked-accounts/:id/unlock",
+            "/locked-accounts/{id}/unlock",
             post(login_security_handler::unlock_account_by_id),
         )
         .route(
@@ -265,7 +265,7 @@ pub fn emails() -> Router<AppState> {
             get(email_handler::list).post(email_handler::create),
         )
         .route(
-            "/email-templates/:id",
+            "/email-templates/{id}",
             get(email_handler::get)
                 .put(email_handler::update)
                 .delete(email_handler::delete),
@@ -286,9 +286,12 @@ pub fn webhook_integrations() -> Router<AppState> {
             get(webhook_integration_handler::list_integrations)
                 .post(webhook_integration_handler::create_integration),
         )
-        .route("/{id}", put(webhook_integration_handler::update_integration))
         .route(
-            "/integration/:id",
+            "/{id}",
+            put(webhook_integration_handler::update_integration),
+        )
+        .route(
+            "/integration/{id}",
             delete(webhook_integration_handler::delete_integration),
         )
         .route(
@@ -296,7 +299,7 @@ pub fn webhook_integrations() -> Router<AppState> {
             post(webhook_integration_handler::handle_generic_callback),
         )
         .route(
-            "/test-integration/:id",
+            "/test-integration/{id}",
             post(webhook_integration_handler::test_integration),
         )
         .route(
@@ -372,7 +375,7 @@ pub fn api_gateway() -> Router<AppState> {
                 .post(api_gateway_handler::create_api_endpoint),
         )
         .route(
-            "/endpoints/:id",
+            "/endpoints/{id}",
             get(api_gateway_handler::get_api_endpoint)
                 .put(api_gateway_handler::update_api_endpoint)
                 .delete(api_gateway_handler::delete_api_endpoint),
@@ -386,13 +389,13 @@ pub fn api_gateway() -> Router<AppState> {
             get(api_gateway_handler::list_api_keys).post(api_gateway_handler::create_api_key),
         )
         .route(
-            "/keys/:id",
+            "/keys/{id}",
             get(api_gateway_handler::get_api_key)
                 .put(api_gateway_handler::update_api_key)
                 .delete(api_gateway_handler::delete_api_key),
         )
         .route(
-            "/keys/:id/regenerate",
+            "/keys/{id}/regenerate",
             post(api_gateway_handler::regenerate_api_key),
         )
         // stats
@@ -411,7 +414,7 @@ pub fn data_permissions() -> Router<AppState> {
                 .post(data_permission_handler::set_data_permission),
         )
         .route(
-            "/:id",
+            "/{id}",
             get(data_permission_handler::get_data_permission)
                 .delete(data_permission_handler::delete_data_permission),
         )
@@ -420,7 +423,7 @@ pub fn data_permissions() -> Router<AppState> {
             get(data_permission_handler::list_scope_types),
         )
         .route(
-            "/roles/:role_id",
+            "/roles/{role_id}",
             get(data_permission_handler::list_role_data_permissions),
         )
 }
@@ -431,12 +434,12 @@ pub fn notifications() -> Router<AppState> {
     Router::new()
         .route("/", get(notification_handler::list_notifications))
         .route(
-            "/notification/:id",
+            "/notification/{id}",
             get(notification_handler::get_notification)
                 .delete(notification_handler::delete_notification),
         )
         .route(
-            "/notification/:id/read",
+            "/notification/{id}/read",
             post(notification_handler::mark_as_read),
         )
         .route("/unread-count", get(notification_handler::get_unread_count))
@@ -542,11 +545,11 @@ pub fn bi() -> Router<AppState> {
             get(crate::handlers::bi_handler::drilldown_month_to_day),
         )
         .route(
-            "/sales/drilldown/customer-to-order/:customer_id",
+            "/sales/drilldown/customer-to-order/{customer_id}",
             get(crate::handlers::bi_handler::drilldown_customer_to_order),
         )
         .route(
-            "/sales/drilldown/product-to-order/:product_id",
+            "/sales/drilldown/product-to-order/{product_id}",
             get(crate::handlers::bi_handler::drilldown_product_to_order),
         )
         // 4 个切片/上卷

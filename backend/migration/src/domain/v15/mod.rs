@@ -2,8 +2,13 @@
 
 use sea_orm_migration::prelude::*;
 
-#[derive(DeriveMigrationName)]
 pub struct Migration;
+
+impl MigrationName for Migration {
+    fn name(&self) -> &'static str {
+        "m_v15_domain"
+    }
+}
 
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
@@ -365,18 +370,38 @@ impl MigrationTrait for Migration {
                     ON "material_shortage_alerts"("identified_at");
 
                 -- CHECK 约束：级别 + 状态 + 数量合法性
-                ALTER TABLE "material_shortage_alerts"
-                    ADD CONSTRAINT IF NOT EXISTS "chk_material_shortage_alerts_level"
-                    CHECK ("level" IN ('Critical', 'Severe', 'Warning', 'Normal'));
-                ALTER TABLE "material_shortage_alerts"
-                    ADD CONSTRAINT IF NOT EXISTS "chk_material_shortage_alerts_status"
-                    CHECK ("status" IN ('identified', 'purchase_request', 'purchase_order', 'received', 'resolved'));
-                ALTER TABLE "material_shortage_alerts"
-                    ADD CONSTRAINT IF NOT EXISTS "chk_material_shortage_alerts_shortage_nonneg"
-                    CHECK ("shortage_quantity" >= 0);
-                ALTER TABLE "material_shortage_alerts"
-                    ADD CONSTRAINT IF NOT EXISTS "chk_material_shortage_alerts_deficit_rate"
-                    CHECK ("deficit_rate" >= 0 AND "deficit_rate" <= 100);
+                DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'chk_material_shortage_alerts_level' AND table_name = 'material_shortage_alerts'
+    ) THEN
+        ALTER TABLE "material_shortage_alerts" ADD CONSTRAINT "chk_material_shortage_alerts_level" CHECK ("level" IN ('Critical', 'Severe', 'Warning', 'Normal'));
+    END IF;
+END $$;
+                DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'chk_material_shortage_alerts_status' AND table_name = 'material_shortage_alerts'
+    ) THEN
+        ALTER TABLE "material_shortage_alerts" ADD CONSTRAINT "chk_material_shortage_alerts_status" CHECK ("status" IN ('identified', 'purchase_request', 'purchase_order', 'received', 'resolved'));
+    END IF;
+END $$;
+                DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'chk_material_shortage_alerts_shortage_nonneg' AND table_name = 'material_shortage_alerts'
+    ) THEN
+        ALTER TABLE "material_shortage_alerts" ADD CONSTRAINT "chk_material_shortage_alerts_shortage_nonneg" CHECK ("shortage_quantity" >= 0);
+    END IF;
+END $$;
+                DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'chk_material_shortage_alerts_deficit_rate' AND table_name = 'material_shortage_alerts'
+    ) THEN
+        ALTER TABLE "material_shortage_alerts" ADD CONSTRAINT "chk_material_shortage_alerts_deficit_rate" CHECK ("deficit_rate" >= 0 AND "deficit_rate" <= 100);
+    END IF;
+END $$;
 
                 COMMENT ON TABLE "material_shortage_alerts" IS 'P0-B15：缺料预警记录表（持久化缺料单据，支持识别→采购申请→采购订单→入库→解除闭环）';
                 COMMENT ON COLUMN "material_shortage_alerts"."alert_no" IS '缺料单号（MS-YYYYMMDD-NNN，识别时自动生成）';
@@ -932,8 +957,14 @@ ALTER TABLE "wage_record_detail" ADD COLUMN IF NOT EXISTS "weekday_overtime_minu
 
                 -- 约束：consent_type 必须为预定义类型
                 ALTER TABLE "user_consents" DROP CONSTRAINT IF EXISTS "chk_user_consents_consent_type";
-                ALTER TABLE "user_consents" ADD CONSTRAINT IF NOT EXISTS "chk_user_consents_consent_type"
-                    CHECK ("consent_type" IN ('behavior_tracking', 'page_view_tracking', 'cookie_usage', 'marketing_email'));
+                DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'chk_user_consents_consent_type' AND table_name = 'user_consents'
+    ) THEN
+        ALTER TABLE "user_consents" ADD CONSTRAINT "chk_user_consents_consent_type" CHECK ("consent_type" IN ('behavior_tracking', 'page_view_tracking', 'cookie_usage', 'marketing_email'));
+    END IF;
+END $$;
 
                 COMMENT ON TABLE "user_consents" IS '用户隐私同意记录表（GDPR/个人信息保护法合规）';
                 COMMENT ON COLUMN "user_consents"."consent_type" IS '同意类型：behavior_tracking/page_view_tracking/cookie_usage/marketing_email';
@@ -1143,6 +1174,25 @@ ALTER TABLE "wage_record_detail" ADD COLUMN IF NOT EXISTS "weekday_overtime_minu
                 -- ============================================================
                 -- 缺陷 13：委外凭证进项税转出字段（增值税合规）
                 -- ============================================================
+CREATE TABLE IF NOT EXISTS "outsourcing_voucher" (
+    "id" SERIAL PRIMARY KEY,
+    "voucher_no" VARCHAR(255) NOT NULL,
+    "outsourcing_order_id" INTEGER NOT NULL,
+    "voucher_type" VARCHAR(255) NOT NULL,
+    "debit_account" VARCHAR(255) NOT NULL,
+    "credit_account" VARCHAR(255) NOT NULL,
+    "amount" DECIMAL(14,4) NOT NULL DEFAULT 0,
+    "tax_amount" DECIMAL(14,4) NOT NULL DEFAULT 0,
+    "tax_transfer_amount" DECIMAL(14,4) NOT NULL DEFAULT 0,
+    "voucher_date" DATE NOT NULL,
+    "is_posted" BOOLEAN NOT NULL DEFAULT false,
+    "posted_at" TIMESTAMPTZ,
+    "remarks" VARCHAR(255),
+    "created_by" INTEGER,
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
                 ALTER TABLE "outsourcing_voucher" ADD COLUMN IF NOT EXISTS "tax_transfer_amount" DECIMAL(14,4) NOT NULL DEFAULT 0;
                 COMMENT ON COLUMN "outsourcing_voucher"."tax_transfer_amount" IS '进项税转出金额（非正常损耗对应的已抵扣进项税转出）';
 
@@ -1716,6 +1766,9 @@ ALTER TABLE "wage_record_detail" ADD COLUMN IF NOT EXISTS "weekday_overtime_minu
                 --       避免硬编码 role_id；ON CONFLICT 保证幂等。
                 --
                 -- 销售经理（sales_manager）：导出自己客户的色卡发放记录 + 查看成本字段
+-- 确保 role_permissions (role_id, resource_type, action) 唯一约束存在
+CREATE UNIQUE INDEX IF NOT EXISTS "uq_role_permissions_role_resource_action" ON "role_permissions" ("role_id", "resource_type", "action");
+
                 INSERT INTO role_permissions (role_id, resource_type, action, allowed, created_at, updated_at)
                 SELECT r.id, 'color_card_issue', 'export', true, NOW(), NOW()
                 FROM roles r
@@ -1955,7 +2008,7 @@ CREATE TRIGGER "trg_audit_log_export_log_no_delete"
 
 COMMENT ON TABLE "audit_log_export_log" IS
     'V15 缺陷 10-4：审计日志导出二次审计表，防篡改（仅 INSERT，触发器禁止 UPDATE/DELETE）';
-COMMENT ON COLUMN "audit_log_export_log.export_file_hash_sha256" IS
+COMMENT ON COLUMN "audit_log_export_log"."export_file_hash_sha256" IS
     '导出文件 SHA256 指纹，事后比对验证文件未被替换';
 
 -- V15 P2 B05-P2-2：dye_batch_rework 表新增 rework_cost 字段
@@ -1996,7 +2049,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS "uq_dye_vat_occupation_vat_occupied"
 
 COMMENT ON TABLE "dye_vat_occupation" IS
     'V15 P2 B05-P2-6：染缸占用记录表，缸号进入 dyeing 占用 / 离开 dyeing 释放';
-COMMENT ON COLUMN "dye_vat_occupation.status" IS
+COMMENT ON COLUMN "dye_vat_occupation"."status" IS
     '占用状态：occupied（已占用）/ released（已释放）';
 
 -- V15 P2 B05-P2-7：PDA / 工控终端连接资源管理表
@@ -2041,9 +2094,9 @@ CREATE INDEX IF NOT EXISTS "idx_device_connection_last_heartbeat"
 
 COMMENT ON TABLE "device_connection" IS
     'V15 P2 B05-P2-7：PDA/工控终端连接资源管理表，注册/心跳/下线/超时清理全生命周期';
-COMMENT ON COLUMN "device_connection.status" IS
+COMMENT ON COLUMN "device_connection"."status" IS
     '连接状态：online（在线）/ offline（主动下线）/ timeout（心跳超时）';
-COMMENT ON COLUMN "device_connection.device_type" IS
+COMMENT ON COLUMN "device_connection"."device_type" IS
     '设备类型：pda / industrial_terminal / scanner / other';
 
 -- V15 P2 B05-P2-10：期末调整记录表（暂估 / 摊销 / 预提）
@@ -2096,9 +2149,9 @@ CREATE INDEX IF NOT EXISTS "idx_period_adjustment_record_type"
 
 COMMENT ON TABLE "period_adjustment_record" IS
     'V15 P2 B05-P2-10：期末调整记录表，支持暂估/摊销/预提三类调整，确认生成凭证，暂估类可红字冲销';
-COMMENT ON COLUMN "period_adjustment_record.adjustment_type" IS
+COMMENT ON COLUMN "period_adjustment_record"."adjustment_type" IS
     '调整类型：estimate(暂估) / amortization(摊销) / provision(预提)';
-COMMENT ON COLUMN "period_adjustment_record.status" IS
+COMMENT ON COLUMN "period_adjustment_record"."status" IS
     '状态：draft(草稿) / confirmed(已确认) / reversed(已冲销) / cancelled(已取消)';
 
 ALTER TABLE quality_inspection_records
@@ -2106,8 +2159,14 @@ ALTER TABLE quality_inspection_records
 
                 COMMENT ON COLUMN quality_inspection_records.defect_type IS '结构化缺陷类型：color_diff(色差)/color_fastness(色牢度)/spec(规格不符)/damage(破损)/other';
 
-ALTER TABLE products
-                    ADD CONSTRAINT IF NOT EXISTS uk_products_code UNIQUE (code);
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'uk_products_code' AND table_name = 'products'
+    ) THEN
+        ALTER TABLE "products" ADD CONSTRAINT "uk_products_code" UNIQUE (code);
+    END IF;
+END $$;
 
 -- 序列同步（INSERT 后重置序列，防止主键冲突）
 SELECT setval('collection_templates_id_seq', COALESCE((SELECT MAX(id) FROM "collection_templates"), 0) + 1, false);
@@ -3917,6 +3976,288 @@ ALTER TABLE "work_centers" ADD COLUMN IF NOT EXISTS "remarks" VARCHAR(255);
 ALTER TABLE "work_centers" ADD COLUMN IF NOT EXISTS "status" VARCHAR(255);
 ALTER TABLE "work_centers" ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMPTZ;
 ALTER TABLE "work_centers" ADD COLUMN IF NOT EXISTS "work_center_type" VARCHAR(255);
+
+DROP VIEW IF EXISTS "v_business_trace_view" CASCADE;
+
+-- 将所有 TIMESTAMP 列改为 TIMESTAMPTZ（Model 要求带时区）
+ALTER TABLE "account_balances" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "account_balances" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "account_subjects" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "account_subjects" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "accounting_periods" ALTER COLUMN "closed_at" TYPE TIMESTAMPTZ USING "closed_at" AT TIME ZONE 'UTC';
+ALTER TABLE "accounting_periods" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ap_invoice" ALTER COLUMN "approved_at" TYPE TIMESTAMPTZ USING "approved_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ap_invoice" ALTER COLUMN "cancelled_at" TYPE TIMESTAMPTZ USING "cancelled_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ap_invoice" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ap_invoice" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ap_payment" ALTER COLUMN "confirmed_at" TYPE TIMESTAMPTZ USING "confirmed_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ap_payment" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ap_payment" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ap_payment_request" ALTER COLUMN "approved_at" TYPE TIMESTAMPTZ USING "approved_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ap_payment_request" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ap_payment_request" ALTER COLUMN "rejected_at" TYPE TIMESTAMPTZ USING "rejected_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ap_payment_request" ALTER COLUMN "submitted_at" TYPE TIMESTAMPTZ USING "submitted_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ap_payment_request" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ap_payment_request_item" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ap_reconciliation" ALTER COLUMN "confirmed_at" TYPE TIMESTAMPTZ USING "confirmed_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ap_reconciliation" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ap_reconciliation" ALTER COLUMN "disputed_at" TYPE TIMESTAMPTZ USING "disputed_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ap_verification" ALTER COLUMN "cancelled_at" TYPE TIMESTAMPTZ USING "cancelled_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ap_verification" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ap_verification_item" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "api_keys" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "api_keys" ALTER COLUMN "expires_at" TYPE TIMESTAMPTZ USING "expires_at" AT TIME ZONE 'UTC';
+ALTER TABLE "api_keys" ALTER COLUMN "last_used_at" TYPE TIMESTAMPTZ USING "last_used_at" AT TIME ZONE 'UTC';
+ALTER TABLE "api_keys" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "approval_instances" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "approval_instances" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "approval_logs" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "approval_nodes" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "approval_nodes" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "approval_templates" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "approval_templates" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ar_aging_analysis" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ar_aging_analysis" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ar_collections" ALTER COLUMN "confirmed_at" TYPE TIMESTAMPTZ USING "confirmed_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ar_collections" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ar_collections" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ar_invoices" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ar_invoices" ALTER COLUMN "reviewed_at" TYPE TIMESTAMPTZ USING "reviewed_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ar_invoices" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ar_reconciliation_items" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ar_reconciliation_items" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ar_reconciliations" ALTER COLUMN "confirmed_at" TYPE TIMESTAMPTZ USING "confirmed_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ar_reconciliations" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "ar_reconciliations" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "assignment_histories" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "assist_accounting_dimension" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "assist_accounting_dimension" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "assist_accounting_record" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "assist_accounting_summary" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "assist_accounting_summary" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "batch_dye_lot" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "batch_dye_lot" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "batch_trace_log" ALTER COLUMN "operated_at" TYPE TIMESTAMPTZ USING "operated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "bom_items" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "bom_items" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "boms" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "boms" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "budget_adjustments" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "budget_adjustments" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "budget_executions" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "budget_items" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "budget_items" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "budget_plans" ALTER COLUMN "approved_at" TYPE TIMESTAMPTZ USING "approved_at" AT TIME ZONE 'UTC';
+ALTER TABLE "budget_plans" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "budget_plans" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "business_trace_assist_links" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "business_trace_chain" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "business_trace_snapshot" ALTER COLUMN "snapshot_time" TYPE TIMESTAMPTZ USING "snapshot_time" AT TIME ZONE 'UTC';
+ALTER TABLE "business_traces" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "business_traces" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "color_code_mapping" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "color_code_mapping" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "cost_analyses" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "cost_analyses" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "cost_collections" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "cost_collections" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "crm_lead" ALTER COLUMN "converted_at" TYPE TIMESTAMPTZ USING "converted_at" AT TIME ZONE 'UTC';
+ALTER TABLE "crm_lead" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "crm_lead" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "crm_opportunity" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "crm_opportunity" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "currencies" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "currencies" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "customer_credit_ratings" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "customer_credit_ratings" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "customers" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "customers" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "data_permissions" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "data_permissions" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "dye_lot_mapping" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "email_logs" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "email_logs" ALTER COLUMN "sent_at" TYPE TIMESTAMPTZ USING "sent_at" AT TIME ZONE 'UTC';
+ALTER TABLE "email_logs" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "email_templates" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "email_templates" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "event_dead_letters" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "event_dead_letters" ALTER COLUMN "first_failed_at" TYPE TIMESTAMPTZ USING "first_failed_at" AT TIME ZONE 'UTC';
+ALTER TABLE "event_dead_letters" ALTER COLUMN "last_retry_at" TYPE TIMESTAMPTZ USING "last_retry_at" AT TIME ZONE 'UTC';
+ALTER TABLE "event_dead_letters" ALTER COLUMN "resolved_at" TYPE TIMESTAMPTZ USING "resolved_at" AT TIME ZONE 'UTC';
+ALTER TABLE "event_dead_letters" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "exchange_rates" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "exchange_rates" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "finance_payments" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "finance_payments" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "financial_analysis_results" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "financial_indicators" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "financial_indicators" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "fixed_asset_disposals" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "fixed_asset_disposals" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "fixed_assets" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "fixed_assets" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "fund_accounts" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "fund_accounts" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "fund_transfers" ALTER COLUMN "approved_at" TYPE TIMESTAMPTZ USING "approved_at" AT TIME ZONE 'UTC';
+ALTER TABLE "fund_transfers" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "fund_transfers" ALTER COLUMN "executed_at" TYPE TIMESTAMPTZ USING "executed_at" AT TIME ZONE 'UTC';
+ALTER TABLE "fund_transfers" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "inventory_adjustment_items" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "inventory_adjustment_items" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "inventory_adjustments" ALTER COLUMN "adjustment_date" TYPE TIMESTAMPTZ USING "adjustment_date" AT TIME ZONE 'UTC';
+ALTER TABLE "inventory_adjustments" ALTER COLUMN "approved_at" TYPE TIMESTAMPTZ USING "approved_at" AT TIME ZONE 'UTC';
+ALTER TABLE "inventory_adjustments" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "inventory_adjustments" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "inventory_count_items" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "inventory_counts" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "inventory_counts" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "inventory_piece" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "inventory_piece" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "inventory_reservations" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "inventory_reservations" ALTER COLUMN "released_at" TYPE TIMESTAMPTZ USING "released_at" AT TIME ZONE 'UTC';
+ALTER TABLE "inventory_reservations" ALTER COLUMN "reserved_at" TYPE TIMESTAMPTZ USING "reserved_at" AT TIME ZONE 'UTC';
+ALTER TABLE "inventory_reservations" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "inventory_stocks" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "inventory_stocks" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "inventory_transactions" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "inventory_transfer_items" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "inventory_transfers" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "inventory_transfers" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "log_api_accesses" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "log_system" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "logistics_waybills" ALTER COLUMN "actual_arrival" TYPE TIMESTAMPTZ USING "actual_arrival" AT TIME ZONE 'UTC';
+ALTER TABLE "logistics_waybills" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "logistics_waybills" ALTER COLUMN "expected_arrival" TYPE TIMESTAMPTZ USING "expected_arrival" AT TIME ZONE 'UTC';
+ALTER TABLE "logistics_waybills" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "mrp_results" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "mrp_results" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "notification_settings" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "notification_settings" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "notifications" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "notifications" ALTER COLUMN "processed_at" TYPE TIMESTAMPTZ USING "processed_at" AT TIME ZONE 'UTC';
+ALTER TABLE "notifications" ALTER COLUMN "read_at" TYPE TIMESTAMPTZ USING "read_at" AT TIME ZONE 'UTC';
+ALTER TABLE "notifications" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "oa_announcement" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "oa_announcement" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "omni_audit_logs" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "operation_logs" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "password_histories" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "product_categories" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "product_categories" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "product_code_mapping" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "product_code_mapping" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "product_colors" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "product_colors" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "product_supplier_mappings" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "product_supplier_mappings" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "production_orders" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "production_orders" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "products" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "products" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "purchase_contract_executions" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "purchase_contract_executions" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "purchase_contracts" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "purchase_contracts" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "purchase_inspection" ALTER COLUMN "completed_at" TYPE TIMESTAMPTZ USING "completed_at" AT TIME ZONE 'UTC';
+ALTER TABLE "purchase_inspection" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "purchase_inspection" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "purchase_order_items" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "purchase_order_items" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "purchase_orders" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "purchase_orders" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "purchase_prices" ALTER COLUMN "approved_at" TYPE TIMESTAMPTZ USING "approved_at" AT TIME ZONE 'UTC';
+ALTER TABLE "purchase_prices" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "purchase_prices" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "purchase_receipt" ALTER COLUMN "confirmed_at" TYPE TIMESTAMPTZ USING "confirmed_at" AT TIME ZONE 'UTC';
+ALTER TABLE "purchase_receipt" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "purchase_receipt" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "purchase_receipt_item" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "purchase_return" ALTER COLUMN "approved_at" TYPE TIMESTAMPTZ USING "approved_at" AT TIME ZONE 'UTC';
+ALTER TABLE "purchase_return" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "purchase_return" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "purchase_return_item" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "purchase_return_item" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "quality_inspection_records" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "quality_inspection_records" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "quality_inspection_standards" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "quality_inspection_standards" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "quality_standards" ALTER COLUMN "approved_at" TYPE TIMESTAMPTZ USING "approved_at" AT TIME ZONE 'UTC';
+ALTER TABLE "quality_standards" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "quality_standards" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "report_definition" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "report_definition" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "report_subscriptions" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "report_subscriptions" ALTER COLUMN "last_run_at" TYPE TIMESTAMPTZ USING "last_run_at" AT TIME ZONE 'UTC';
+ALTER TABLE "report_subscriptions" ALTER COLUMN "next_run_at" TYPE TIMESTAMPTZ USING "next_run_at" AT TIME ZONE 'UTC';
+ALTER TABLE "report_subscriptions" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "report_templates" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "report_templates" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "role_permissions" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "role_permissions" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "sales_contracts" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "sales_contracts" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "sales_delivery" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "sales_delivery" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "sales_delivery_item" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "sales_order_change_history" ALTER COLUMN "changed_at" TYPE TIMESTAMPTZ USING "changed_at" AT TIME ZONE 'UTC';
+ALTER TABLE "sales_order_change_history" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "sales_order_change_history" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "sales_order_items" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "sales_order_items" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "sales_orders" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "sales_orders" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "sales_prices" ALTER COLUMN "approved_at" TYPE TIMESTAMPTZ USING "approved_at" AT TIME ZONE 'UTC';
+ALTER TABLE "sales_prices" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "sales_prices" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "sales_return" ALTER COLUMN "approved_at" TYPE TIMESTAMPTZ USING "approved_at" AT TIME ZONE 'UTC';
+ALTER TABLE "sales_return" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "sales_return" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "sales_return_item" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "sales_return_item" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "sales_statistics" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "scheduling_result" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "scheduling_result" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "supplier_blacklists" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "supplier_blacklists" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "supplier_categories" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "supplier_categories" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "supplier_contacts" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "supplier_contacts" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "supplier_evaluation_indicators" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "supplier_evaluation_indicators" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "supplier_grades" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "supplier_grades" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "supplier_product_colors" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "supplier_product_colors" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "supplier_products" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "supplier_products" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "supplier_qualifications" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "supplier_qualifications" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "suppliers" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "suppliers" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "system_version" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "system_version" ALTER COLUMN "release_date" TYPE TIMESTAMPTZ USING "release_date" AT TIME ZONE 'UTC';
+ALTER TABLE "system_version" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "unqualified_products" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "unqualified_products" ALTER COLUMN "handling_at" TYPE TIMESTAMPTZ USING "handling_at" AT TIME ZONE 'UTC';
+ALTER TABLE "unqualified_products" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "user_notification_setting" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "user_notification_setting" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+
+ALTER TABLE "voucher_items" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "vouchers" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "vouchers" ALTER COLUMN "posted_at" TYPE TIMESTAMPTZ USING "posted_at" AT TIME ZONE 'UTC';
+ALTER TABLE "vouchers" ALTER COLUMN "reviewed_at" TYPE TIMESTAMPTZ USING "reviewed_at" AT TIME ZONE 'UTC';
+ALTER TABLE "vouchers" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "warehouse_locations" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "warehouse_locations" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "warehouses" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "warehouses" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "webhooks" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "webhooks" ALTER COLUMN "last_triggered_at" TYPE TIMESTAMPTZ USING "last_triggered_at" AT TIME ZONE 'UTC';
+ALTER TABLE "webhooks" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+ALTER TABLE "work_centers" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "work_centers" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
 "#;
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;

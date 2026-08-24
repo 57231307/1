@@ -22,28 +22,28 @@ pub fn routes() -> Router<AppState> {
                 .post(color_card::create_color_card),
         )
         .route(
-            "/:id",
+            "/{id}",
             get(color_card::get_color_card)
                 .put(color_card::update_color_card)
                 .delete(color_card::archive_color_card),
         )
         // 直接标记色卡为遗失（不同于发放记录遗失 /issues/:record_id/lost）
         .route(
-            "/:id/mark-lost",
+            "/{id}/mark-lost",
             post(color_card::mark_card_lost),
         )
         // 色号 CRUD
         .route(
-            "/:id/items",
+            "/{id}/items",
             get(color_card::list_color_items)
                 .post(color_card::create_color_item),
         )
         .route(
-            "/:id/items/batch",
+            "/{id}/items/batch",
             post(color_card::batch_import_items),
         )
         .route(
-            "/:id/items/:item_id",
+            "/{id}/items/{item_id}",
             put(color_card::update_color_item)
                 .delete(color_card::delete_color_item),
         )
@@ -54,23 +54,23 @@ pub fn routes() -> Router<AppState> {
             get(color_card::list_issues),
         )
         .route(
-            "/issues/:record_id",
+            "/issues/{record_id}",
             get(color_card::get_issue),
         )
         .route(
-            "/issues/:record_id/return",
+            "/issues/{record_id}/return",
             post(color_card::return_issue),
         )
         .route(
-            "/issues/:record_id/lost",
+            "/issues/{record_id}/lost",
             post(color_card::mark_issue_lost),
         )
         .route(
-            "/issues/:record_id/damaged",
+            "/issues/{record_id}/damaged",
             post(color_card::mark_issue_damaged),
         )
         .route(
-            "/issues/:record_id/cancel",
+            "/issues/{record_id}/cancel",
             post(color_card::cancel_issue),
         )
         // V15 P1-08-7：色卡发放记录导出 xlsx
@@ -89,7 +89,7 @@ pub fn routes() -> Router<AppState> {
             get(color_card::issue_summary_report),
         )
         .route(
-            "/reports/customer-ledger/:customer_id",
+            "/reports/customer-ledger/{customer_id}",
             get(color_card::customer_color_card_ledger),
         )
         .route(
@@ -97,30 +97,30 @@ pub fn routes() -> Router<AppState> {
             get(color_card::expired_unused_report),
         )
         .route(
-            "/reports/order-related/:sales_order_id",
+            "/reports/order-related/{sales_order_id}",
             get(color_card::order_related_report),
         )
         // V15 P2 类九 10.5-2：库存预警
         .route("/warnings", get(color_card::check_all_warnings))
         .route(
-            "/warnings/:color_card_id",
+            "/warnings/{color_card_id}",
             get(color_card::check_single_warning),
         )
         // V15 P2 类九 10.3-4：成本核算（制作成本归集/发放成本结转/取消恢复/过期损失）
         .route(
-            "/cost/production/:color_card_id",
+            "/cost/production/{color_card_id}",
             get(color_card::collect_production_cost),
         )
         .route(
-            "/cost/issue/:record_id/transfer",
+            "/cost/issue/{record_id}/transfer",
             get(color_card::transfer_issue_cost),
         )
         .route(
-            "/cost/issue/:record_id/restore",
+            "/cost/issue/{record_id}/restore",
             post(color_card::restore_cost_on_cancel),
         )
         .route(
-            "/cost/issue/:record_id/expiry-loss",
+            "/cost/issue/{record_id}/expiry-loss",
             get(color_card::calculate_expiry_loss),
         )
         // V15 P2 类九 10.5-3：发放统计（每日日报）
@@ -149,20 +149,20 @@ pub fn routes() -> Router<AppState> {
         .route("/scan-by-id/{id}", get(color_card::scan_color_by_id))
         // 导出 xlsx
         .route(
-            "/export/:id",
+            "/export/{id}",
             get(color_card::export_color_card),
         )
         // 打印路由
         .route(
-            "/:id/bulk-approval/print",
+            "/{id}/bulk-approval/print",
             get(print_handler::bulk_color_approval_print_docx),
         )
         .route(
-            "/:id/issue/print",
+            "/{id}/issue/print",
             get(print_handler::color_card_issue_print_docx),
         )
         .route(
-            "/:id/lab-dip/print",
+            "/{id}/lab-dip/print",
             get(print_handler::lab_dip_request_print_docx),
         )
 }

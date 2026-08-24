@@ -15,11 +15,11 @@ pub fn team_members() -> Router<AppState> {
             post(customer_team_share_handler::add_team_member),
         )
         .route(
-            "/customer-team-members/:member_id",
+            "/customer-team-members/{member_id}",
             post(customer_team_share_handler::remove_team_member),
         )
         .route(
-            "/customer-team-members/by-customer/:customer_id",
+            "/customer-team-members/by-customer/{customer_id}",
             get(customer_team_share_handler::list_team_members),
         )
         .route(

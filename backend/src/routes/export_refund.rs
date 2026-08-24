@@ -16,7 +16,7 @@ pub fn export_refunds() -> Router<AppState> {
             post(export_refund_handler::create_customs_declaration),
         )
         .route(
-            "/export-refunds/sales-orders/:sales_order_id/documents-verification",
+            "/export-refunds/sales-orders/{sales_order_id}/documents-verification",
             get(export_refund_handler::verify_documents_completeness),
         )
         .route(
@@ -33,7 +33,7 @@ pub fn export_refunds() -> Router<AppState> {
         )
         // 打印路由
         .route(
-            "/export-refunds/:id/print",
+            "/export-refunds/{id}/print",
             get(print_handler::export_refund_declaration_print_docx),
         )
 }

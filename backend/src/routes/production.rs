@@ -30,17 +30,20 @@ pub fn dye_batches() -> Router<AppState> {
         .route("/dye-batches", get(dye_batch_handler::list_dye_batches))
         .route("/dye-batches", post(dye_batch_handler::create_dye_batch))
         .route("/dye-batches/{id}", get(dye_batch_handler::get_dye_batch))
-        .route("/dye-batches/{id}", put(dye_batch_handler::update_dye_batch))
         .route(
-            "/dye-batches/:id",
+            "/dye-batches/{id}",
+            put(dye_batch_handler::update_dye_batch),
+        )
+        .route(
+            "/dye-batches/{id}",
             delete(dye_batch_handler::delete_dye_batch),
         )
         .route(
-            "/dye-batches/:id/complete",
+            "/dye-batches/{id}/complete",
             post(dye_batch_handler::complete_dye_batch),
         )
         .route(
-            "/dye-batches/by-color/:color_code",
+            "/dye-batches/by-color/{color_code}",
             get(dye_batch_handler::get_dye_batches_by_color),
         )
         .route(
@@ -48,11 +51,11 @@ pub fn dye_batches() -> Router<AppState> {
             get(dye_batch_handler::export_dye_batches),
         )
         .route(
-            "/dye-batches/:id/print",
+            "/dye-batches/{id}/print",
             get(print_handler::dye_batch_card_print_docx),
         )
         .route(
-            "/dye-batches/rework/:id/print",
+            "/dye-batches/rework/{id}/print",
             get(print_handler::dye_batch_rework_print_docx),
         )
 }
@@ -69,27 +72,27 @@ pub fn greige_fabrics() -> Router<AppState> {
             post(greige_fabric_handler::create_greige_fabric),
         )
         .route(
-            "/greige-fabrics/:id",
+            "/greige-fabrics/{id}",
             get(greige_fabric_handler::get_greige_fabric),
         )
         .route(
-            "/greige-fabrics/:id",
+            "/greige-fabrics/{id}",
             put(greige_fabric_handler::update_greige_fabric),
         )
         .route(
-            "/greige-fabrics/:id",
+            "/greige-fabrics/{id}",
             delete(greige_fabric_handler::delete_greige_fabric),
         )
         .route(
-            "/greige-fabrics/:id/stock-in",
+            "/greige-fabrics/{id}/stock-in",
             post(greige_fabric_handler::stock_in),
         )
         .route(
-            "/greige-fabrics/:id/stock-out",
+            "/greige-fabrics/{id}/stock-out",
             post(greige_fabric_handler::stock_out),
         )
         .route(
-            "/greige-fabrics/by-supplier/:supplier_id",
+            "/greige-fabrics/by-supplier/{supplier_id}",
             get(greige_fabric_handler::get_greige_by_supplier),
         )
 }
@@ -101,31 +104,31 @@ pub fn dye_recipes() -> Router<AppState> {
         .route("/dye-recipes", post(dye_recipe_handler::create_dye_recipe))
         .route("/dye-recipes/{id}", get(dye_recipe_handler::get_dye_recipe))
         .route(
-            "/dye-recipes/:id",
+            "/dye-recipes/{id}",
             put(dye_recipe_handler::update_dye_recipe),
         )
         .route(
-            "/dye-recipes/:id",
+            "/dye-recipes/{id}",
             delete(dye_recipe_handler::delete_dye_recipe),
         )
         .route(
-            "/dye-recipes/:id/approve",
+            "/dye-recipes/{id}/approve",
             post(dye_recipe_handler::approve_recipe),
         )
         .route(
-            "/dye-recipes/:id/submit",
+            "/dye-recipes/{id}/submit",
             post(dye_recipe_handler::submit_dye_recipe),
         )
         .route(
-            "/dye-recipes/:id/version",
+            "/dye-recipes/{id}/version",
             post(dye_recipe_handler::create_new_version),
         )
         .route(
-            "/dye-recipes/by-color/:color_code",
+            "/dye-recipes/by-color/{color_code}",
             get(dye_recipe_handler::get_recipes_by_color),
         )
         .route(
-            "/dye-recipes/:id/versions",
+            "/dye-recipes/{id}/versions",
             get(dye_recipe_handler::get_recipe_versions),
         )
         .route(
@@ -183,33 +186,33 @@ pub fn production_recipes() -> Router<AppState> {
         .route("/production-recipes/calculate", post(production_recipe_handler::calculate))
         // 按工单查询大货处方（一工单一处方约束）
         .route(
-            "/production-recipes/by-work-order/:work_order_id",
+            "/production-recipes/by-work-order/{work_order_id}",
             get(production_recipe_handler::get_by_work_order),
         )
         // ===== 加料处方（按大货处方 ID 子资源） =====
         .route(
-            "/production-recipes/:id/additions",
+            "/production-recipes/{id}/additions",
             get(production_recipe_handler::list_additions),
         )
         .route(
-            "/production-recipes/:id/additions",
+            "/production-recipes/{id}/additions",
             post(production_recipe_handler::create_addition),
         )
         // 加料处方详情与状态流转（按加料处方 ID）
         .route(
-            "/production-recipes/additions/:id",
+            "/production-recipes/additions/{id}",
             get(production_recipe_handler::get_addition),
         )
         .route(
-            "/production-recipes/additions/:id/approve",
+            "/production-recipes/additions/{id}/approve",
             post(production_recipe_handler::approve_addition),
         )
         .route(
-            "/production-recipes/additions/:id/close",
+            "/production-recipes/additions/{id}/close",
             post(production_recipe_handler::close_addition),
         )
         .route(
-            "/production-recipes/:id/print",
+            "/production-recipes/{id}/print",
             get(print_handler::production_recipe_print_docx),
         )
 }
@@ -225,7 +228,7 @@ pub fn flow_cards() -> Router<AppState> {
         .route("/process-routes/{id}", put(flow_card_handler::update_process_route))
         .route("/process-routes/{id}", delete(flow_card_handler::delete_process_route))
         .route(
-            "/process-routes/:id/print",
+            "/process-routes/{id}/print",
             get(print_handler::process_route_print_docx),
         )
         // ===== 流转卡 CRUD =====
@@ -259,7 +262,7 @@ pub fn flow_cards() -> Router<AppState> {
         .route("/flow-cards/feedbacks/{id}/close", post(flow_card_handler::close_feedback))
         .route("/flow-cards/{flow_card_id}/feedbacks", get(flow_card_handler::list_feedbacks_by_card))
         .route(
-            "/flow-cards/:id/print",
+            "/flow-cards/{id}/print",
             get(print_handler::production_flow_card_print_docx),
         )
 }
@@ -286,7 +289,7 @@ pub fn fabric_inspections() -> Router<AppState> {
         .route("/fabric-defects/{id}", get(fabric_inspection_handler::get_defect))
         .route("/fabric-defects/{id}", delete(fabric_inspection_handler::delete_defect))
         .route(
-            "/fabric-inspections/:id/print",
+            "/fabric-inspections/{id}/print",
             get(print_handler::fabric_inspection_print_docx),
         )
         // V15 P1 17.1-D7: 物理测试
@@ -330,7 +333,7 @@ pub fn wages() -> Router<AppState> {
         .route("/wage-records/{id}/details/export", get(wage_handler::export_wage_details))
         .route("/wage-details/by-worker/{worker_id}", get(wage_handler::list_wage_details_by_worker))
         .route(
-            "/wages/:id/print",
+            "/wages/{id}/print",
             get(print_handler::wage_record_print_docx),
         )
 }
@@ -384,7 +387,7 @@ pub fn energy() -> Router<AppState> {
         // 月末按工时自动分摊
         .route("/energy-allocations/monthly", post(energy_handler::monthly_allocation))
         .route(
-            "/energy/:id/print",
+            "/energy/{id}/print",
             get(print_handler::energy_consumption_record_print_docx),
         )
 }
@@ -519,7 +522,7 @@ pub fn quality_inspection() -> Router<AppState> {
             get(quality_inspection_handler::export_records),
         )
         .route(
-            "/quality-inspection/records/:id",
+            "/quality-inspection/records/{id}",
             get(quality_inspection_handler::get_record),
         )
         .route(
@@ -527,19 +530,19 @@ pub fn quality_inspection() -> Router<AppState> {
             get(quality_inspection_handler::list_defects),
         )
         .route(
-            "/quality-inspection/defects/:id/process",
+            "/quality-inspection/defects/{id}/process",
             post(quality_inspection_handler::process_defect),
         )
         .route(
-            "/quality-inspection/defects/:id/handle",
+            "/quality-inspection/defects/{id}/handle",
             post(quality_inspection_handler::process_defect),
         )
         .route(
-            "/quality/inspections/:id/print",
+            "/quality/inspections/{id}/print",
             get(print_handler::quality_inspection_record_print_docx),
         )
         .route(
-            "/quality/inspections/unqualified/:id/print",
+            "/quality/inspections/unqualified/{id}/print",
             get(print_handler::unqualified_product_print_docx),
         )
 }
@@ -561,19 +564,19 @@ pub fn cost_collections() -> Router<AppState> {
             get(cost_collection_handler::export_collections),
         )
         .route(
-            "/cost-collections/:id",
+            "/cost-collections/{id}",
             get(cost_collection_handler::get_collection),
         )
         .route(
-            "/cost-collections/:id",
+            "/cost-collections/{id}",
             put(cost_collection_handler::update_collection),
         )
         .route(
-            "/cost-collections/:id",
+            "/cost-collections/{id}",
             delete(cost_collection_handler::delete_collection),
         )
         .route(
-            "/cost-collections/:id/audit",
+            "/cost-collections/{id}/audit",
             post(cost_collection_handler::audit_collection),
         )
         .route(
@@ -600,37 +603,37 @@ pub fn production() -> Router<AppState> {
             get(production_order_handler::export_production_orders),
         )
         .route(
-            "/production-orders/orders/:id",
+            "/production-orders/orders/{id}",
             get(production_order_handler::get_production_order)
                 .put(production_order_handler::update_production_order)
                 .delete(production_order_handler::delete_production_order),
         )
         .route(
-            "/production-orders/orders/:id/status",
+            "/production-orders/orders/{id}/status",
             put(production_order_handler::update_production_order_status),
         )
         .route(
-            "/production-orders/orders/:id/submit-approval",
+            "/production-orders/orders/{id}/submit-approval",
             post(production_order_handler::submit_for_approval),
         )
         .route(
-            "/production-orders/orders/:id/approve",
+            "/production-orders/orders/{id}/approve",
             post(production_order_handler::approve_production_order),
         )
         .route(
-            "/production-orders/orders/:id/progress",
+            "/production-orders/orders/{id}/progress",
             post(production_order_handler::update_production_progress),
         )
         .route(
-            "/production-orders/orders/:id/logs",
+            "/production-orders/orders/{id}/logs",
             get(production_order_handler::get_production_order_logs),
         )
         .route(
-            "/production/orders/:id/print",
+            "/production/orders/{id}/print",
             get(print_handler::production_order_print_docx),
         )
         .route(
-            "/production/orders/:id/safety-accident/print",
+            "/production/orders/{id}/safety-accident/print",
             get(print_handler::safety_accident_report_print_docx),
         )
 }
@@ -650,19 +653,19 @@ pub fn mrp_history() -> Router<AppState> {
     Router::new()
         .route("/mrp-history", get(missing_handlers::get_mrp_history))
         .route(
-            "/mrp-history/:id",
+            "/mrp-history/{id}",
             get(missing_handlers::get_mrp_history_detail),
         )
         .route(
-            "/mrp-history/:id/cancel",
+            "/mrp-history/{id}/cancel",
             put(mrp_handler::cancel_calculation),
         )
         .route(
-            "/mrp-history/:id/export",
+            "/mrp-history/{id}/export",
             get(mrp_handler::export_calculation),
         )
         .route(
-            "/mrp-history/:calculation_id/materials/:material_id",
+            "/mrp-history/{calculation_id}/materials/{material_id}",
             get(mrp_handler::get_material_detail),
         )
 }
@@ -688,15 +691,15 @@ pub fn capacity() -> Router<AppState> {
             get(capacity_handler::list_work_centers).post(capacity_handler::create_work_center),
         )
         .route(
-            "/capacity/work-centers/:id",
+            "/capacity/work-centers/{id}",
             put(capacity_handler::update_work_center).delete(capacity_handler::delete_work_center),
         )
         .route(
-            "/capacity/work-centers/:id/forecast",
+            "/capacity/work-centers/{id}/forecast",
             get(capacity_handler::forecast_capacity),
         )
         .route(
-            "/capacity/work-centers/:id/available",
+            "/capacity/work-centers/{id}/available",
             get(capacity_handler::get_available_capacity),
         )
         .route(

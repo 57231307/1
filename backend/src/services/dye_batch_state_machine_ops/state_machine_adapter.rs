@@ -65,7 +65,10 @@ impl StateMachine for DyeBatchStateMachineAdapter {
 
     /// 执行状态转换，返回 TransitionResult（from → to）
     /// 非法转换返回 Err；合法转换更新内部状态并返回 Ok
-    fn transition(&mut self, event: &Self::Event) -> Result<TransitionResult<Self::State>, Self::Error> {
+    fn transition(
+        &mut self,
+        event: &Self::Event,
+    ) -> Result<TransitionResult<Self::State>, Self::Error> {
         if !self.can_transition(event) {
             return Err(format!(
                 "非法状态转换: {} -> (事件: {})",

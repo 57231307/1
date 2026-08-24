@@ -73,39 +73,39 @@ pub fn routes() -> Router<AppState> {
         )
         // 动态路径：/:id 及其子路径
         .route(
-            "/:id",
+            "/{id}",
             get(bulk_color_approval_handler::get_bulk_color_approval),
         )
         .route(
-            "/:id/cut-sample",
+            "/{id}/cut-sample",
             post(bulk_color_approval_handler::cut_sample),
         )
         .route(
-            "/:id/send-to-customer",
+            "/{id}/send-to-customer",
             post(bulk_color_approval_handler::send_to_customer),
         )
         .route(
-            "/:id/approve",
+            "/{id}/approve",
             post(bulk_color_approval_handler::customer_approve),
         )
         .route(
-            "/:id/reject",
+            "/{id}/reject",
             post(bulk_color_approval_handler::customer_reject),
         )
         .route(
-            "/:id/rework",
+            "/{id}/rework",
             post(bulk_color_approval_handler::customer_rework),
         )
         .route(
-            "/:id/downgrade",
+            "/{id}/downgrade",
             post(bulk_color_approval_handler::downgrade),
         )
         .route(
-            "/:id/scrap",
+            "/{id}/scrap",
             post(bulk_color_approval_handler::scrap),
         )
         .route(
-            "/:id/history",
+            "/{id}/history",
             get(bulk_color_approval_handler::list_history),
         )
 }

@@ -22,15 +22,15 @@ pub fn routes() -> Router<AppState> {
         .route("/", post(period_adjustment_handler::create_adjustment))
         .route("/", get(period_adjustment_handler::list_adjustments))
         .route(
-            "/:id/confirm",
+            "/{id}/confirm",
             post(period_adjustment_handler::confirm_adjustment),
         )
         .route(
-            "/:id/reverse",
+            "/{id}/reverse",
             post(period_adjustment_handler::reverse_adjustment),
         )
         .route(
-            "/:id/cancel",
+            "/{id}/cancel",
             post(period_adjustment_handler::cancel_adjustment),
         )
         .route("/{id}", get(period_adjustment_handler::get_adjustment))

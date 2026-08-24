@@ -46,23 +46,23 @@ pub fn products() -> Router<AppState> {
             get(product_handler::get_product_import_template),
         )
         .route(
-            "/products/:product_id/colors",
+            "/products/{product_id}/colors",
             get(product_handler::list_product_colors),
         )
         .route(
-            "/products/:product_id/colors",
+            "/products/{product_id}/colors",
             post(product_handler::create_product_color),
         )
         .route(
-            "/products/:product_id/colors/:color_id",
+            "/products/{product_id}/colors/{color_id}",
             put(product_handler::update_product_color),
         )
         .route(
-            "/products/:product_id/colors/:color_id",
+            "/products/{product_id}/colors/{color_id}",
             delete(product_handler::delete_product_color),
         )
         .route(
-            "/products/:product_id/colors/batch",
+            "/products/{product_id}/colors/batch",
             post(product_handler::batch_create_colors),
         )
 }
@@ -101,15 +101,15 @@ pub fn warehouses() -> Router<AppState> {
             post(warehouse_handler::create_location),
         )
         .route(
-            "/warehouses/locations/:id",
+            "/warehouses/locations/{id}",
             get(warehouse_handler::get_location),
         )
         .route(
-            "/warehouses/locations/:id",
+            "/warehouses/locations/{id}",
             put(warehouse_handler::update_location),
         )
         .route(
-            "/warehouses/locations/:id",
+            "/warehouses/locations/{id}",
             delete(warehouse_handler::delete_location),
         )
 }
@@ -122,7 +122,7 @@ pub fn boms() -> Router<AppState> {
             get(bom_handler::list_boms).post(bom_handler::create_bom),
         )
         .route(
-            "/boms/:id",
+            "/boms/{id}",
             get(bom_handler::get_bom)
                 .put(bom_handler::update_bom)
                 .delete(bom_handler::delete_bom),
@@ -133,15 +133,15 @@ pub fn boms() -> Router<AppState> {
         .route("/boms/{id}/approve", put(bom_handler::approve_bom))
         .route("/boms/{id}/tree", get(bom_handler::get_bom_tree))
         .route(
-            "/boms/:id/requirements",
+            "/boms/{id}/requirements",
             post(bom_handler::calculate_bom_requirements),
         )
         .route(
-            "/boms/versions/:product_id",
+            "/boms/versions/{product_id}",
             get(bom_handler::get_bom_versions),
         )
         .route(
-            "/boms/:id/print",
+            "/boms/{id}/print",
             get(crate::handlers::print_handler::bom_print_docx),
         )
 }
@@ -154,11 +154,11 @@ fn chemical_master_routes() -> Router<AppState> {
             get(chemical_handler::list_chemicals).post(chemical_handler::create_chemical),
         )
         .route(
-            "/chemicals/by-code/:code",
+            "/chemicals/by-code/{code}",
             get(chemical_handler::get_chemical_by_code),
         )
         .route(
-            "/chemicals/:id",
+            "/chemicals/{id}",
             get(chemical_handler::get_chemical)
                 .put(chemical_handler::update_chemical)
                 .delete(chemical_handler::delete_chemical),
@@ -178,7 +178,7 @@ fn chemical_category_routes() -> Router<AppState> {
             get(chemical_handler::get_chemical_category_tree),
         )
         .route(
-            "/chemical-categories/:id",
+            "/chemical-categories/{id}",
             get(chemical_handler::get_chemical_category)
                 .put(chemical_handler::update_chemical_category)
                 .delete(chemical_handler::delete_chemical_category),
@@ -193,29 +193,29 @@ fn chemical_lot_routes() -> Router<AppState> {
             get(chemical_handler::list_chemical_lots).post(chemical_handler::create_chemical_lot),
         )
         .route(
-            "/chemical-lots/by-no/:no",
+            "/chemical-lots/by-no/{no}",
             get(chemical_handler::get_chemical_lot_by_no),
         )
         .route(
-            "/chemical-lots/:id",
+            "/chemical-lots/{id}",
             get(chemical_handler::get_chemical_lot)
                 .put(chemical_handler::update_chemical_lot)
                 .delete(chemical_handler::delete_chemical_lot),
         )
         .route(
-            "/chemical-lots/:id/pass-inspection",
+            "/chemical-lots/{id}/pass-inspection",
             post(chemical_handler::pass_inspection),
         )
         .route(
-            "/chemical-lots/:id/fail-inspection",
+            "/chemical-lots/{id}/fail-inspection",
             post(chemical_handler::fail_inspection),
         )
         .route(
-            "/chemical-lots/:id/consume",
+            "/chemical-lots/{id}/consume",
             post(chemical_handler::consume_lot),
         )
         .route(
-            "/chemical-lots/:id/scrap",
+            "/chemical-lots/{id}/scrap",
             post(chemical_handler::scrap_lot),
         )
 }
@@ -228,33 +228,33 @@ fn chemical_requisition_routes() -> Router<AppState> {
             get(chemical_handler::list_requisitions).post(chemical_handler::create_requisition),
         )
         .route(
-            "/chemical-requisitions/by-no/:no",
+            "/chemical-requisitions/by-no/{no}",
             get(chemical_handler::get_requisition_by_no),
         )
         .route(
-            "/chemical-requisitions/:id",
+            "/chemical-requisitions/{id}",
             get(chemical_handler::get_requisition)
                 .put(chemical_handler::update_requisition)
                 .delete(chemical_handler::delete_requisition),
         )
         .route(
-            "/chemical-requisitions/:id/approve",
+            "/chemical-requisitions/{id}/approve",
             post(chemical_handler::approve_requisition),
         )
         .route(
-            "/chemical-requisitions/:id/issue",
+            "/chemical-requisitions/{id}/issue",
             post(chemical_handler::issue_requisition),
         )
         .route(
-            "/chemical-requisitions/:id/close",
+            "/chemical-requisitions/{id}/close",
             post(chemical_handler::close_requisition),
         )
         .route(
-            "/chemical-requisitions/:id/cancel",
+            "/chemical-requisitions/{id}/cancel",
             post(chemical_handler::cancel_requisition),
         )
         .route(
-            "/chemical-requisitions/:id/print",
+            "/chemical-requisitions/{id}/print",
             get(crate::handlers::print_handler::chemical_requisition_print_docx),
         )
 }

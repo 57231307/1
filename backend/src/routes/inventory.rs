@@ -72,7 +72,7 @@ fn stock_routes() -> Router<AppState> {
             get(inventory_stock_handler::check_low_stock),
         )
         .route(
-            "/stock/product/:productId",
+            "/stock/product/{productId}",
             get(inventory_stock_handler_query::get_stock_by_product),
         )
         .route(
@@ -97,34 +97,34 @@ fn transfer_routes() -> Router<AppState> {
             post(inventory_transfer_handler::create_transfer),
         )
         .route(
-            "/transfers/:id",
+            "/transfers/{id}",
             get(inventory_transfer_handler::get_transfer)
                 .put(inventory_transfer_handler::update_transfer)
                 .delete(inventory_transfer_handler::delete_transfer),
         )
         .route(
-            "/transfers/:id/approve",
+            "/transfers/{id}/approve",
             post(inventory_transfer_handler::approve_transfer),
         )
         .route(
-            "/transfers/:id/ship",
+            "/transfers/{id}/ship",
             post(inventory_transfer_handler::ship_transfer),
         )
         .route(
-            "/transfers/:id/receive",
+            "/transfers/{id}/receive",
             post(inventory_transfer_handler::receive_transfer),
         )
         .route(
-            "/transfers/:id/items",
+            "/transfers/{id}/items",
             get(inventory_transfer_handler::list_items).post(inventory_transfer_handler::add_item),
         )
         .route(
-            "/transfers/items/:item_id",
+            "/transfers/items/{item_id}",
             put(inventory_transfer_handler::update_item)
                 .delete(inventory_transfer_handler::delete_item),
         )
         .route(
-            "/transfers/:id/print",
+            "/transfers/{id}/print",
             get(print_handler::inventory_transfer_print_docx),
         )
 }
@@ -145,31 +145,31 @@ fn adjustment_routes() -> Router<AppState> {
             post(inventory_adjustment_handler::create_adjustment),
         )
         .route(
-            "/adjustments/:id",
+            "/adjustments/{id}",
             get(inventory_adjustment_handler::get_adjustment)
                 .put(inventory_adjustment_handler::update_adjustment)
                 .delete(inventory_adjustment_handler::delete_adjustment),
         )
         .route(
-            "/adjustments/:id/approve",
+            "/adjustments/{id}/approve",
             post(inventory_adjustment_handler::approve_adjustment),
         )
         .route(
-            "/adjustments/:id/reject",
+            "/adjustments/{id}/reject",
             post(inventory_adjustment_handler::reject_adjustment),
         )
         .route(
-            "/adjustments/:id/items",
+            "/adjustments/{id}/items",
             get(inventory_adjustment_handler::list_items)
                 .post(inventory_adjustment_handler::add_item),
         )
         .route(
-            "/adjustments/items/:item_id",
+            "/adjustments/items/{item_id}",
             put(inventory_adjustment_handler::update_item)
                 .delete(inventory_adjustment_handler::delete_item),
         )
         .route(
-            "/adjustments/:id/print",
+            "/adjustments/{id}/print",
             get(print_handler::inventory_adjustment_print_docx),
         )
 }
@@ -183,15 +183,15 @@ fn reservation_routes() -> Router<AppState> {
                 .post(inventory_reservation_handler::create_reservation),
         )
         .route(
-            "/reservations/:id",
+            "/reservations/{id}",
             delete(inventory_reservation_handler::delete_reservation),
         )
         .route(
-            "/reservations/:id/lock",
+            "/reservations/{id}/lock",
             post(inventory_reservation_handler::lock_reservation),
         )
         .route(
-            "/reservations/:id/release",
+            "/reservations/{id}/release",
             post(inventory_reservation_handler::release_reservation),
         )
 }
@@ -204,25 +204,25 @@ fn count_routes() -> Router<AppState> {
             get(inventory_count_handler::list_counts).post(inventory_count_handler::create_count),
         )
         .route(
-            "/counts/:id",
+            "/counts/{id}",
             get(inventory_count_handler::get_count)
                 .put(inventory_count_handler::update_count)
                 .delete(inventory_count_handler::delete_count),
         )
         .route(
-            "/counts/:id/record",
+            "/counts/{id}/record",
             post(inventory_count_handler::record_count_items),
         )
         .route(
-            "/counts/:id/submit",
+            "/counts/{id}/submit",
             post(inventory_count_handler::submit_for_approval),
         )
         .route(
-            "/counts/:id/approve",
+            "/counts/{id}/approve",
             post(inventory_count_handler::approve_count),
         )
         .route(
-            "/counts/:id/reject",
+            "/counts/{id}/reject",
             post(inventory_count_handler::reject_count),
         )
 }
@@ -236,15 +236,15 @@ fn write_down_routes() -> Router<AppState> {
                 .post(inventory_write_down_handler::create_write_down),
         )
         .route(
-            "/write-downs/:id",
+            "/write-downs/{id}",
             get(inventory_write_down_handler::get_write_down),
         )
         .route(
-            "/write-downs/:id/confirm",
+            "/write-downs/{id}/confirm",
             post(inventory_write_down_handler::confirm_write_down),
         )
         .route(
-            "/write-downs/:id/print",
+            "/write-downs/{id}/print",
             get(print_handler::inventory_write_down_print_docx),
         )
 }
@@ -257,11 +257,11 @@ pub fn batches() -> Router<AppState> {
         .route("/batches/{id}", get(inventory_batch_handler::get_batch))
         .route("/batches/{id}", put(inventory_batch_handler::update_batch))
         .route(
-            "/batches/:id",
+            "/batches/{id}",
             delete(inventory_batch_handler::delete_batch),
         )
         .route(
-            "/batches/:id/transfer",
+            "/batches/{id}/transfer",
             post(inventory_batch_handler::transfer_batch),
         )
 }
@@ -273,7 +273,7 @@ pub fn logistics() -> Router<AppState> {
         .route("/logistics", post(logistics_handler::create_waybill))
         .route("/logistics/{id}", get(logistics_handler::get_waybill))
         .route(
-            "/logistics/:id",
+            "/logistics/{id}",
             put(logistics_handler::update_waybill_status),
         )
         // V15 P0-B13：电子签收路由（DELIVERED → SIGNED）

@@ -14,8 +14,7 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let sql =
-            r#"-- 批次 251 v14 中风险修复：webhooks 表添加 last_payload + last_event 列
+        let sql = r#"-- 批次 251 v14 中风险修复：webhooks 表添加 last_payload + last_event 列
 -- 原 webhook 发送时 payload 仅存内存，发送失败后丢失，retry 重构假 payload 无法重投原始数据。
 -- 新增 last_payload（原始业务负载）+ last_event（原始事件类型）列，支持真实重试。
 

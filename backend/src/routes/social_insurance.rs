@@ -19,24 +19,24 @@ pub fn social_insurance() -> Router<AppState> {
         .route("/social-insurance", post(social_insurance_handler::create))
         .route("/social-insurance", get(social_insurance_handler::list))
         .route(
-            "/social-insurance/by-worker/:worker_id",
+            "/social-insurance/by-worker/{worker_id}",
             get(social_insurance_handler::get_by_worker_period),
         )
         .route(
-            "/social-insurance/:id",
+            "/social-insurance/{id}",
             get(social_insurance_handler::get_by_id),
         )
         .route(
-            "/social-insurance/:id/mark-paid",
+            "/social-insurance/{id}/mark-paid",
             post(social_insurance_handler::mark_paid),
         )
         .route(
-            "/social-insurance/:id/cancel",
+            "/social-insurance/{id}/cancel",
             post(social_insurance_handler::cancel),
         )
         // 打印路由
         .route(
-            "/social-insurance/:id/print",
+            "/social-insurance/{id}/print",
             get(crate::handlers::print_handler::social_insurance_record_print_docx),
         )
 }

@@ -17,9 +17,9 @@ use tracing::info;
 pub use crate::models::dto::budget_management_dto::*;
 // 使用 pub use 再导出，避免外部引用断裂（E0603 修复）
 pub use crate::models::dto::budget_management_dto::{
-    BudgetAssessmentSummary, BudgetExecuteRequest, BudgetItemQueryParams,
-    BudgetVarianceItem, BudgetWarning, CreateBudgetExecutionParams, CreateBudgetItemRequest,
-    CreateBudgetPlanRequest, UpdateBudgetItemRequest,
+    BudgetAssessmentSummary, BudgetExecuteRequest, BudgetItemQueryParams, BudgetVarianceItem,
+    BudgetWarning, CreateBudgetExecutionParams, CreateBudgetItemRequest, CreateBudgetPlanRequest,
+    UpdateBudgetItemRequest,
 };
 
 pub struct BudgetManagementService {

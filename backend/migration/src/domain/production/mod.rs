@@ -22,8 +22,13 @@ mod m0048_add_user_id_to_webhooks;
 mod m0049_create_processed_events;
 mod m0050_create_event_dead_letters;
 
-#[derive(DeriveMigrationName)]
 pub struct Migration;
+
+impl MigrationName for Migration {
+    fn name(&self) -> &'static str {
+        "m_production_domain"
+    }
+}
 
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
@@ -251,11 +256,7 @@ ALTER TABLE "webhooks" ADD COLUMN IF NOT EXISTS "retry_count" INTEGER;
 ALTER TABLE "webhooks" ADD COLUMN IF NOT EXISTS "secret" VARCHAR(255);
 ALTER TABLE "webhooks" ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMPTZ;
 ALTER TABLE "webhooks" ADD COLUMN IF NOT EXISTS "url" VARCHAR(255);
-"#;
-        if !sql.trim().is_empty() {
-            manager.get_connection().execute_unprepared(sql).await?;
-        }
-        let sql = r#"
+
 ALTER TABLE "after_sales" ADD COLUMN IF NOT EXISTS "accepted_at" TIMESTAMPTZ;
 ALTER TABLE "after_sales" ADD COLUMN IF NOT EXISTS "evaluated_at" TIMESTAMPTZ;
 ALTER TABLE "after_sales" ADD COLUMN IF NOT EXISTS "evaluation_comment" VARCHAR(255);

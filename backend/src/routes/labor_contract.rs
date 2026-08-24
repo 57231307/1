@@ -18,21 +18,21 @@ pub fn labor_contracts() -> Router<AppState> {
             post(labor_contract_handler::scan_expiry_warnings),
         )
         .route(
-            "/labor-contracts/active-by-worker/:worker_id",
+            "/labor-contracts/active-by-worker/{worker_id}",
             get(labor_contract_handler::get_active_by_worker),
         )
         .route(
-            "/labor-contracts/:id",
+            "/labor-contracts/{id}",
             get(labor_contract_handler::get_by_id),
         )
         .route("/labor-contracts/{id}", put(labor_contract_handler::update))
         .route(
-            "/labor-contracts/:id/terminate",
+            "/labor-contracts/{id}/terminate",
             post(labor_contract_handler::terminate),
         )
         // 打印路由
         .route(
-            "/labor-contracts/:id/print",
+            "/labor-contracts/{id}/print",
             get(print_handler::labor_contract_print_docx),
         )
 }

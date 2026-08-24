@@ -131,11 +131,11 @@ fn material_shortage_routes() -> Router<AppState> {
             get(material_shortage_handler::get_monthly_report),
         )
         .route(
-            "/material-shortage/:id/status",
+            "/material-shortage/{id}/status",
             put(material_shortage_handler::update_shortage_status),
         )
         .route(
-            "/material-shortage/:id/print",
+            "/material-shortage/{id}/print",
             get(print_handler::material_shortage_print_docx),
         )
 }
@@ -157,7 +157,7 @@ fn scheduling_routes() -> Router<AppState> {
             get(scheduling_handler::list_scheduled_orders),
         )
         .route(
-            "/scheduling/tasks/:id/adjust",
+            "/scheduling/tasks/{id}/adjust",
             put(scheduling_handler::adjust_schedule_task),
         )
         .route("/scheduling/{id}", put(scheduling_handler::adjust_schedule))
@@ -170,15 +170,15 @@ fn scheduling_routes() -> Router<AppState> {
             get(scheduling_handler::get_schedule_history),
         )
         .route(
-            "/scheduling/results/:id",
+            "/scheduling/results/{id}",
             get(scheduling_handler::get_schedule_result),
         )
         .route(
-            "/scheduling/results/:id/confirm",
+            "/scheduling/results/{id}/confirm",
             post(scheduling_handler::confirm_schedule_result),
         )
         .route(
-            "/scheduling/results/:id/print",
+            "/scheduling/results/{id}/print",
             get(print_handler::scheduling_result_print_docx),
         )
 }
@@ -200,35 +200,35 @@ fn quality_standards_routes() -> Router<AppState> {
             get(quality_standard_handler::export_standards),
         )
         .route(
-            "/quality-standards/:id",
+            "/quality-standards/{id}",
             get(quality_standard_handler::get_standard),
         )
         .route(
-            "/quality-standards/:id",
+            "/quality-standards/{id}",
             put(quality_standard_handler::update_standard),
         )
         .route(
-            "/quality-standards/:id",
+            "/quality-standards/{id}",
             delete(quality_standard_handler::delete_standard),
         )
         .route(
-            "/quality-standards/:id/versions",
+            "/quality-standards/{id}/versions",
             get(quality_standard_handler::list_versions),
         )
         .route(
-            "/quality-standards/:id/versions",
+            "/quality-standards/{id}/versions",
             post(quality_standard_handler::create_version_history),
         )
         .route(
-            "/quality-standards/:id/approve",
+            "/quality-standards/{id}/approve",
             post(quality_standard_handler::approve_standard),
         )
         .route(
-            "/quality-standards/:id/reject",
+            "/quality-standards/{id}/reject",
             post(quality_standard_handler::reject_standard),
         )
         .route(
-            "/quality-standards/:id/publish",
+            "/quality-standards/{id}/publish",
             post(quality_standard_handler::publish_standard),
         )
 }
@@ -260,7 +260,7 @@ fn print_templates_routes() -> Router<AppState> {
     Router::new()
         .route("/print-templates", get(print_handler::list_print_templates))
         .route(
-            "/print-templates/:id",
+            "/print-templates/{id}",
             get(print_handler::get_print_template),
         )
 }
@@ -294,15 +294,15 @@ fn product_categories_alias() -> Router<AppState> {
             get(crate::handlers::product_category_handler::get_product_category_tree),
         )
         .route(
-            "/product-categories/:id",
+            "/product-categories/{id}",
             get(crate::handlers::product_category_handler::get),
         )
         .route(
-            "/product-categories/:id",
+            "/product-categories/{id}",
             put(crate::handlers::product_category_handler::update),
         )
         .route(
-            "/product-categories/:id",
+            "/product-categories/{id}",
             delete(crate::handlers::product_category_handler::delete),
         )
 }

@@ -34,7 +34,7 @@ pub fn routes() -> Router<AppState> {
         )
         .route("/{id}", get(collection_task_handler::get_task))
         .route(
-            "/:id/contact",
+            "/{id}/contact",
             post(collection_task_handler::record_contact),
         )
         .route("/{id}/reassign", post(collection_task_handler::reassign))

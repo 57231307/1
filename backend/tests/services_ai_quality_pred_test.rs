@@ -185,11 +185,23 @@ fn test_fallback_low_data() {
         extract_issue_keyword(Some("color_fastness"), Some("无匹配项")),
         "色牢度"
     );
-    assert_eq!(extract_issue_keyword(Some("spec"), Some("无匹配项")), "规格不符");
-    assert_eq!(extract_issue_keyword(Some("damage"), Some("无匹配项")), "破损");
-    assert_eq!(extract_issue_keyword(Some("other"), Some("无匹配项")), "其他");
+    assert_eq!(
+        extract_issue_keyword(Some("spec"), Some("无匹配项")),
+        "规格不符"
+    );
+    assert_eq!(
+        extract_issue_keyword(Some("damage"), Some("无匹配项")),
+        "破损"
+    );
+    assert_eq!(
+        extract_issue_keyword(Some("other"), Some("无匹配项")),
+        "其他"
+    );
     // A.15.3：defect_type 为空串时降级走 remark 关键词匹配
-    assert_eq!(extract_issue_keyword(Some(""), Some("颜色偏深")), "颜色差异");
+    assert_eq!(
+        extract_issue_keyword(Some(""), Some("颜色偏深")),
+        "颜色差异"
+    );
 }
 
 /// 测试 5：辅助函数覆盖 - 用真实记录验证 `mean_qualification_rate`

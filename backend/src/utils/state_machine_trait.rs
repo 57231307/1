@@ -57,7 +57,10 @@ pub trait StateMachine {
     /// 执行状态转换，返回转换结果（from→to）
     ///
     /// 实现方需保证：非法转换返回 Err，合法转换更新内部状态并返回 Ok。
-    fn transition(&mut self, event: &Self::Event) -> Result<TransitionResult<Self::State>, Self::Error>;
+    fn transition(
+        &mut self,
+        event: &Self::Event,
+    ) -> Result<TransitionResult<Self::State>, Self::Error>;
 
     /// 获取所有合法的下一步事件列表（可选，用于 UI 展示可操作按钮）
     fn available_events(&self) -> Vec<Self::Event> {

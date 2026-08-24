@@ -12,24 +12,24 @@ use axum::{
 pub fn logistics_tracking() -> Router<AppState> {
     Router::new()
         .route(
-            "/logistics-tracking/waybills/:waybill_id/link-purchase-order",
+            "/logistics-tracking/waybills/{waybill_id}/link-purchase-order",
             post(logistics_tracking_handler::link_purchase_order),
         )
         .route(
-            "/logistics-tracking/waybills/:waybill_id/tracking-events",
+            "/logistics-tracking/waybills/{waybill_id}/tracking-events",
             post(logistics_tracking_handler::record_tracking_event),
         )
         .route(
-            "/logistics-tracking/waybills/:waybill_id/tracking-events",
+            "/logistics-tracking/waybills/{waybill_id}/tracking-events",
             get(logistics_tracking_handler::list_tracking_events),
         )
         .route(
-            "/logistics-tracking/waybills/:waybill_id/calculate-freight",
+            "/logistics-tracking/waybills/{waybill_id}/calculate-freight",
             post(logistics_tracking_handler::calculate_freight),
         )
         // 打印路由
         .route(
-            "/logistics-tracking/waybills/:id/print",
+            "/logistics-tracking/waybills/{id}/print",
             get(print_handler::logistics_waybill_print_docx),
         )
 }

@@ -15,8 +15,7 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let sql =
-            r#"-- 启用 pg_stat_statements 扩展（P13 批 1 B-慢查询审计）
+        let sql = r#"-- 启用 pg_stat_statements 扩展（P13 批 1 B-慢查询审计）
 -- 创建时间: 2026-06-18
 -- 关联计划: 2026-06-18-p13-batch1-comprehensive-plan.md §2.2
 --
@@ -40,8 +39,7 @@ CREATE EXTENSION IF NOT EXISTS pg_stat_statements;"#;
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let sql =
-            r#"-- 停用 pg_stat_statements 扩展（P13 批 1 B-慢查询审计，down 迁移）
+        let sql = r#"-- 停用 pg_stat_statements 扩展（P13 批 1 B-慢查询审计，down 迁移）
 -- 创建时间: 2026-06-18
 -- 关联计划: 2026-06-18-p13-batch1-comprehensive-plan.md §2.2
 --

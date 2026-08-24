@@ -51,7 +51,11 @@ impl MrpEngineService {
         current_level: i32,
         lead_time_days: i32,
     ) -> NaiveDate {
-        let lt = if lead_time_days > 0 { lead_time_days } else { 7 };
+        let lt = if lead_time_days > 0 {
+            lead_time_days
+        } else {
+            7
+        };
         required_date - Duration::days((lt * current_level) as i64)
     }
 

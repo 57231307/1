@@ -29,7 +29,7 @@ pub fn routes() -> Router<AppState> {
         )
         // 静态路径必须在 /:id 之前注册，避免 axum matchit 把 "by-issue" 当 :id 匹配
         .route(
-            "/by-issue/:quality_issue_id",
+            "/by-issue/{quality_issue_id}",
             get(quality_8d_handler::get_by_issue),
         )
         .route("/{id}", get(quality_8d_handler::get_8d))

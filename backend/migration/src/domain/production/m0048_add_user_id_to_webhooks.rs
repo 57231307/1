@@ -37,8 +37,7 @@ COMMENT ON COLUMN "webhooks"."user_id" IS 'Webhook 所有者用户 ID（批次 3
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let sql =
-            r#"-- 回滚：移除 webhooks 表 user_id 列（批次 320 M-4）
+        let sql = r#"-- 回滚：移除 webhooks 表 user_id 列（批次 320 M-4）
 
 DROP INDEX IF EXISTS "idx_webhooks_user";
 

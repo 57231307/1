@@ -25,70 +25,70 @@ pub fn routes() -> Router<AppState> {
         )
         // 详情 + 更新
         .route(
-            "/:id",
+            "/{id}",
             get(custom_order_handler::get_custom_order)
                 .put(custom_order_handler::update_custom_order)
                 .delete(custom_order_handler::cancel_custom_order),
         )
         // 流程推进
         .route(
-            "/:id/advance",
+            "/{id}/advance",
             post(custom_order_handler::advance_custom_order),
         )
         // 工艺节点
         .route(
-            "/:id/nodes",
+            "/{id}/nodes",
             get(custom_order_handler::get_timeline)
                 .post(custom_order_handler::add_process_node),
         )
         .route(
-            "/:id/nodes/:nid",
+            "/{id}/nodes/{nid}",
             put(custom_order_handler::update_process_node),
         )
         .route(
-            "/:id/nodes/:nid/advance",
+            "/{id}/nodes/{nid}/advance",
             post(custom_order_handler::advance_process_node),
         )
         .route(
-            "/:id/nodes/:nid/logs",
+            "/{id}/nodes/{nid}/logs",
             post(custom_order_handler::add_node_log),
         )
         // 工艺时间线
         .route(
-            "/:id/timeline",
+            "/{id}/timeline",
             get(custom_order_handler::get_timeline),
         )
         // 质检
         .route(
-            "/:id/issues",
+            "/{id}/issues",
             get(custom_order_handler::list_quality_issues)
                 .post(custom_order_handler::report_quality_issue),
         )
         .route(
-            "/issues/:id/resolve",
+            "/issues/{id}/resolve",
             put(custom_order_handler::resolve_quality_issue),
         )
         // 售后
         .route(
-            "/:id/after-sales",
+            "/{id}/after-sales",
             get(custom_order_handler::list_after_sales)
                 .post(custom_order_handler::create_after_sales),
         )
         .route(
-            "/after-sales/:id",
+            "/after-sales/{id}",
             put(custom_order_handler::update_after_sales),
         )
         // 打印路由
         .route(
-            "/:id/print",
+            "/{id}/print",
             get(print_handler::custom_order_print_docx),
         )
         .route(
-            "/:id/after-sales/print",
+            "/{id}/after-sales/print",
             get(print_handler::after_sales_print_docx),
         )
         .route(
-            "/issues/:id/print",
+            "/issues/{id}/print",
             get(print_handler::quality_issue_print_docx),
         )
 }

@@ -25,16 +25,16 @@ pub fn pollution_permits() -> Router<AppState> {
         )
         // 参数路由放在静态路径之后
         .route(
-            "/pollution-permits/:id",
+            "/pollution-permits/{id}",
             get(pollution_permit_handler::get_by_id),
         )
         .route(
-            "/pollution-permits/:id/revoke",
+            "/pollution-permits/{id}/revoke",
             post(pollution_permit_handler::revoke),
         )
         // 打印路由
         .route(
-            "/pollution-permits/:id/print",
+            "/pollution-permits/{id}/print",
             get(crate::handlers::print_handler::pollution_permit_print_docx),
         )
 }

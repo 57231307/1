@@ -23,7 +23,7 @@ pub fn routes() -> Router<AppState> {
                 .post(color_price_handler::create_color_price),
         )
         .route(
-            "/:id",
+            "/{id}",
             get(color_price_handler::get_color_price)
                 .put(color_price_handler::update_color_price)
                 .delete(color_price_handler::delete_color_price),
@@ -34,12 +34,12 @@ pub fn routes() -> Router<AppState> {
             post(color_price_handler::batch_adjust_color_prices),
         )
         .route(
-            "/:id/approve",
+            "/{id}/approve",
             post(color_price_handler::approve_color_price),
         )
         // 价格历史
         .route(
-            "/:id/history",
+            "/{id}/history",
             get(color_price_handler::get_color_price_history),
         )
         // 价格计算
@@ -49,12 +49,12 @@ pub fn routes() -> Router<AppState> {
         )
         // 阶梯价
         .route(
-            "/tiers/:price_id",
+            "/tiers/{price_id}",
             get(color_price_handler::list_tiers)
                 .post(color_price_handler::create_tier),
         )
         .route(
-            "/tiers/item/:tier_id",
+            "/tiers/item/{tier_id}",
             delete(color_price_handler::delete_tier),
         )
         // 客户专属价
@@ -70,7 +70,7 @@ pub fn routes() -> Router<AppState> {
                 .post(color_price_handler::create_seasonal_rule),
         )
         .route(
-            "/seasonal-rules/:id",
+            "/seasonal-rules/{id}",
             get(color_price_handler::get_seasonal_rule)
                 .put(color_price_handler::update_seasonal_rule)
                 .delete(color_price_handler::delete_seasonal_rule),

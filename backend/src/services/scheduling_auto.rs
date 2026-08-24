@@ -8,16 +8,16 @@
 //! - 排程结果保存
 
 use super::scheduling_service::SchedulingService;
-use crate::models::production_order::{
-    Entity as ProductionOrderEntity, Model as ProductionOrderModel,
-};
-use crate::models::scheduling_result::ActiveModel as SchedulingActiveModel;
-use crate::models::work_center::{Entity as WorkCenterEntity, Model as WorkCenterModel};
 use crate::models::dto::capacity_dto::WorkCenterCapacity;
 use crate::models::dto::scheduling_dto::{
     AutoScheduleRequest, AutoScheduleResult, DateRange, GanttData, ScheduleConflict,
     ScheduleDetail, WorkCenterInfo,
 };
+use crate::models::production_order::{
+    Entity as ProductionOrderEntity, Model as ProductionOrderModel,
+};
+use crate::models::scheduling_result::ActiveModel as SchedulingActiveModel;
+use crate::models::work_center::{Entity as WorkCenterEntity, Model as WorkCenterModel};
 use crate::utils::error::AppError;
 use chrono::{Duration, NaiveDate, Utc};
 use rust_decimal::Decimal;
@@ -207,7 +207,10 @@ impl SchedulingService {
         let schedulable_orders: Vec<&ProductionOrderModel> = group
             .iter()
             .filter(|o| {
-                o.planned_quantity <= *wc_available_capacity.get(&group_wc_id).unwrap_or(&Decimal::ZERO)
+                o.planned_quantity
+                    <= *wc_available_capacity
+                        .get(&group_wc_id)
+                        .unwrap_or(&Decimal::ZERO)
             })
             .collect();
         // 组全部超产能：每单记冲突
@@ -235,7 +238,8 @@ impl SchedulingService {
         }
 
         // 3. 扣减组产能（仅扣减可排单的总量，A.11 部分排程）
-        let schedulable_total: Decimal = schedulable_orders.iter().map(|o| o.planned_quantity).sum();
+        let schedulable_total: Decimal =
+            schedulable_orders.iter().map(|o| o.planned_quantity).sum();
         wc_available_capacity.insert(group_wc_id, available - schedulable_total);
 
         // 4. 在同一工作中心为组内可排单找连续时段（前单结束后下一日开始）
@@ -246,7 +250,10 @@ impl SchedulingService {
         let base_start = self.find_earliest_slot(schedule, start_date, 1);
         let latest_scheduled_end = schedule.iter().map(|(_, e, _, _)| *e).max();
         let mut current_start = match latest_scheduled_end {
-            Some(last_end) => std::cmp::Ord::max(base_start, last_end + Duration::days(DYE_CHANGEOVER_DAYS + 1)),
+            Some(last_end) => std::cmp::Ord::max(
+                base_start,
+                last_end + Duration::days(DYE_CHANGEOVER_DAYS + 1),
+            ),
             None => base_start,
         };
         for order in &schedulable_orders {

@@ -33,7 +33,7 @@ pub fn routes() -> Router<AppState> {
         )
         .route("/{id}", get(finance_alert_handler::get_alert))
         .route(
-            "/:id/acknowledge",
+            "/{id}/acknowledge",
             post(finance_alert_handler::acknowledge),
         )
         .route("/{id}/resolve", post(finance_alert_handler::resolve))

@@ -37,8 +37,7 @@ DROP TABLE IF EXISTS "audit_alert_rules" CASCADE;"#;
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let sql =
-            r#"-- 批次 202 P1-2 回滚：重新创建 audit_alert_rules 表
+        let sql = r#"-- 批次 202 P1-2 回滚：重新创建 audit_alert_rules 表
 -- 创建时间: 2026-07-08
 -- 关联修复: v12 复审 P1-2 — audit_alert_rule 模型死代码清理
 --

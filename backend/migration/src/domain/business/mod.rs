@@ -14,8 +14,13 @@ mod m0012_add_ap_ar_finance_analysis;
 mod m0013_add_business_process_and_traceability;
 mod m0014_add_saas_notification_report_email_oa;
 
-#[derive(DeriveMigrationName)]
 pub struct Migration;
+
+impl MigrationName for Migration {
+    fn name(&self) -> &'static str {
+        "m_business_domain"
+    }
+}
 
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {

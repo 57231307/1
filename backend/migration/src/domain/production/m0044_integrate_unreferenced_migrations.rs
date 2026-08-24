@@ -1242,7 +1242,7 @@ COMMENT ON COLUMN "user_behaviors"."event_data" IS '事件附加数据（JSON）
 --   - compute_alert_type 扩展 OverStock / SlowMoving 告警判定
 --   - last_movement_date 字段已在 20260613000001_add_missing_columns 中添加，无需重复
 
-ALTER TABLE "inventory_stocks" ADD COLUMN "max_stock_point" DECIMAL(12, 2) NOT NULL DEFAULT 0;
+ALTER TABLE "inventory_stocks" ADD COLUMN IF NOT EXISTS "max_stock_point" DECIMAL(12, 2) NOT NULL DEFAULT 0;
 
 COMMENT ON COLUMN "inventory_stocks"."max_stock_point" IS '库存上限（高于此值触发 OverStock 告警，0 表示未设置）';"#,
     ),
@@ -1267,9 +1267,9 @@ COMMENT ON COLUMN "inventory_stocks"."max_stock_point" IS '库存上限（高于
 --   - create_item / update_item 方法接入这些字段
 --   - budget_management 模型同步扩展
 
-ALTER TABLE "budget_items" ADD COLUMN "budget_year" INT4 NULL;
-ALTER TABLE "budget_items" ADD COLUMN "planned_amount" DECIMAL(14, 2) NOT NULL DEFAULT 0;
-ALTER TABLE "budget_items" ADD COLUMN "remark" VARCHAR(500) NULL;
+ALTER TABLE "budget_items" ADD COLUMN IF NOT EXISTS "budget_year" INT4 NULL;
+ALTER TABLE "budget_items" ADD COLUMN IF NOT EXISTS "planned_amount" DECIMAL(14, 2) NOT NULL DEFAULT 0;
+ALTER TABLE "budget_items" ADD COLUMN IF NOT EXISTS "remark" VARCHAR(500) NULL;
 
 COMMENT ON COLUMN "budget_items"."budget_year" IS '预算年度（可选，用于按年度筛选预算科目）';
 COMMENT ON COLUMN "budget_items"."planned_amount" IS '计划金额（该科目的年度计划预算金额）';

@@ -20,7 +20,7 @@ pub fn permission_delegations() -> Router<AppState> {
             get(permission_delegation_handler::list_delegations),
         )
         .route(
-            "/permission-delegations/active/:delegatee_id",
+            "/permission-delegations/active/{delegatee_id}",
             get(permission_delegation_handler::get_active_delegated_permissions),
         )
         .route(
@@ -33,11 +33,11 @@ pub fn permission_delegations() -> Router<AppState> {
         )
         // 参数路由（delegation_id 为 i64）放在静态路径之后
         .route(
-            "/permission-delegations/:delegation_id",
+            "/permission-delegations/{delegation_id}",
             get(permission_delegation_handler::get_delegation),
         )
         .route(
-            "/permission-delegations/:delegation_id/revoke",
+            "/permission-delegations/{delegation_id}/revoke",
             post(permission_delegation_handler::revoke_delegation),
         )
 }

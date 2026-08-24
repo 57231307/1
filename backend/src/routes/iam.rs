@@ -41,15 +41,15 @@ pub fn roles() -> Router<AppState> {
         .route("/roles/{id}", put(role_handler::update_role))
         .route("/roles/{id}", delete(role_handler::delete_role))
         .route(
-            "/roles/:id/permissions",
+            "/roles/{id}/permissions",
             get(role_handler::get_role_permissions),
         )
         .route(
-            "/roles/:id/permissions",
+            "/roles/{id}/permissions",
             post(role_handler::assign_permission),
         )
         .route(
-            "/roles/permissions/:id",
+            "/roles/permissions/{id}",
             delete(role_handler::remove_permission),
         )
         .route("/roles/permissions", get(role_handler::list_permissions))
@@ -83,7 +83,7 @@ pub fn field_permissions() -> Router<AppState> {
                 .post(field_permission_handler::create_field_permission),
         )
         .route(
-            "/field-permissions/:id",
+            "/field-permissions/{id}",
             get(field_permission_handler::get_field_permission)
                 .put(field_permission_handler::update_field_permission)
                 .delete(field_permission_handler::delete_field_permission),
@@ -107,23 +107,23 @@ pub fn role_change_approvals() -> Router<AppState> {
                 .post(role_change_approval_handler::create_approval),
         )
         .route(
-            "/role-change-approvals/:id",
+            "/role-change-approvals/{id}",
             get(role_change_approval_handler::get_approval),
         )
         .route(
-            "/role-change-approvals/:id/approve-l1",
+            "/role-change-approvals/{id}/approve-l1",
             post(role_change_approval_handler::approve_l1),
         )
         .route(
-            "/role-change-approvals/:id/approve-l2",
+            "/role-change-approvals/{id}/approve-l2",
             post(role_change_approval_handler::approve_l2),
         )
         .route(
-            "/role-change-approvals/:id/reject",
+            "/role-change-approvals/{id}/reject",
             post(role_change_approval_handler::reject_approval),
         )
         .route(
-            "/role-change-approvals/:id/cancel",
+            "/role-change-approvals/{id}/cancel",
             post(role_change_approval_handler::cancel_approval),
         )
 }

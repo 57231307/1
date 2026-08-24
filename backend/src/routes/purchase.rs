@@ -40,23 +40,23 @@ fn purchase_order_routes() -> Router<AppState> {
         .route("/orders/{id}", put(purchase_order_handler::update_order))
         .route("/orders/{id}", delete(purchase_order_handler::delete_order))
         .route(
-            "/orders/:id/approve",
+            "/orders/{id}/approve",
             post(purchase_order_handler::approve_order),
         )
         .route(
-            "/orders/:id/submit",
+            "/orders/{id}/submit",
             post(purchase_order_handler::submit_order),
         )
         .route(
-            "/orders/:id/reject",
+            "/orders/{id}/reject",
             post(purchase_order_handler::reject_order),
         )
         .route(
-            "/orders/:id/close",
+            "/orders/{id}/close",
             post(purchase_order_handler::close_order),
         )
         .route(
-            "/orders/:id/cancel",
+            "/orders/{id}/cancel",
             post(purchase_order_handler::cancel_order),
         )
         .route("/orders/export", get(purchase_order_handler::export_orders))
@@ -65,21 +65,21 @@ fn purchase_order_routes() -> Router<AppState> {
             get(purchase_order_handler::generate_order_no),
         )
         .route(
-            "/orders/:id/calculate-total",
+            "/orders/{id}/calculate-total",
             post(purchase_order_handler::calculate_order_total),
         )
         .route(
-            "/orders/:id/items",
+            "/orders/{id}/items",
             get(purchase_order_handler::list_order_items)
                 .post(purchase_order_handler::create_order_item),
         )
         .route(
-            "/orders/:id/items/:item_id",
+            "/orders/{id}/items/{item_id}",
             put(purchase_order_handler::update_order_item)
                 .delete(purchase_order_handler::delete_order_item),
         )
         .route(
-            "/orders/:id/print",
+            "/orders/{id}/print",
             get(print_handler::purchase_order_print_docx),
         )
 }
@@ -93,32 +93,32 @@ fn purchase_receipt_routes() -> Router<AppState> {
             get(purchase_receipt_handler::generate_no),
         )
         .route(
-            "/receipts/:id/print",
+            "/receipts/{id}/print",
             get(print_handler::purchase_receipt_print_docx),
         )
         .route("/receipts", post(purchase_receipt_handler::create_receipt))
         .route("/receipts/{id}", get(purchase_receipt_handler::get_receipt))
         .route(
-            "/receipts/:id",
+            "/receipts/{id}",
             put(purchase_receipt_handler::update_receipt)
                 .delete(purchase_receipt_handler::delete_receipt),
         )
         .route(
-            "/receipts/:id/confirm",
+            "/receipts/{id}/confirm",
             post(purchase_receipt_handler::confirm_receipt),
         )
         // v11 批次 154c：手动重算入库单总金额（运维兜底入口）
         .route(
-            "/receipts/:id/recalculate",
+            "/receipts/{id}/recalculate",
             post(purchase_receipt_handler::recalculate_receipt_total),
         )
         .route(
-            "/receipts/:id/items",
+            "/receipts/{id}/items",
             get(purchase_receipt_handler::list_receipt_items)
                 .post(purchase_receipt_handler::create_receipt_item),
         )
         .route(
-            "/receipts/:id/items/:item_id",
+            "/receipts/{id}/items/{item_id}",
             put(purchase_receipt_handler::update_receipt_item)
                 .delete(purchase_receipt_handler::delete_receipt_item),
         )
@@ -136,29 +136,29 @@ fn purchase_inspection_routes() -> Router<AppState> {
             post(purchase_inspection_handler::create_inspection),
         )
         .route(
-            "/inspections/:id",
+            "/inspections/{id}",
             get(purchase_inspection_handler::get_inspection),
         )
         .route(
-            "/inspections/:id",
+            "/inspections/{id}",
             put(purchase_inspection_handler::update_inspection),
         )
         .route(
-            "/inspections/:id/complete",
+            "/inspections/{id}/complete",
             post(purchase_inspection_handler::complete_inspection),
         )
         .route(
-            "/inspections/:id/items",
+            "/inspections/{id}/items",
             get(purchase_inspection_handler::list_inspection_items)
                 .post(purchase_inspection_handler::create_inspection_item),
         )
         .route(
-            "/inspections/:id/items/:item_id",
+            "/inspections/{id}/items/{item_id}",
             put(purchase_inspection_handler::update_inspection_item)
                 .delete(purchase_inspection_handler::delete_inspection_item),
         )
         .route(
-            "/purchase/inspections/:id/print",
+            "/purchase/inspections/{id}/print",
             get(print_handler::purchase_inspection_print_docx),
         )
 }
@@ -175,47 +175,47 @@ fn purchase_return_routes() -> Router<AppState> {
             post(purchase_return_handler::create_purchase_return),
         )
         .route(
-            "/returns/:id",
+            "/returns/{id}",
             get(purchase_return_handler::get_purchase_return),
         )
         .route(
-            "/returns/:id",
+            "/returns/{id}",
             put(purchase_return_handler::update_purchase_return),
         )
         .route(
-            "/returns/:id",
+            "/returns/{id}",
             delete(purchase_return_handler::delete_purchase_return),
         )
         .route(
-            "/returns/:id/submit",
+            "/returns/{id}/submit",
             post(purchase_return_handler::submit_purchase_return),
         )
         .route(
-            "/returns/:id/approve",
+            "/returns/{id}/approve",
             post(purchase_return_handler::approve_purchase_return),
         )
         .route(
-            "/returns/:id/reject",
+            "/returns/{id}/reject",
             post(purchase_return_handler::reject_purchase_return),
         )
         .route(
-            "/returns/:id/items",
+            "/returns/{id}/items",
             get(purchase_return_handler::list_purchase_return_items),
         )
         .route(
-            "/returns/:id/items",
+            "/returns/{id}/items",
             post(purchase_return_handler::create_purchase_return_item),
         )
         .route(
-            "/returns/:id/items/:item_id",
+            "/returns/{id}/items/{item_id}",
             put(purchase_return_handler::update_purchase_return_item),
         )
         .route(
-            "/returns/:id/items/:item_id",
+            "/returns/{id}/items/{item_id}",
             delete(purchase_return_handler::delete_purchase_return_item),
         )
         .route(
-            "/purchase/returns/:id/print",
+            "/purchase/returns/{id}/print",
             get(print_handler::purchase_return_print_docx),
         )
 }
@@ -232,31 +232,31 @@ pub fn purchase_contracts() -> Router<AppState> {
             post(purchase_contract_handler::create_contract),
         )
         .route(
-            "/purchase-contracts/:id",
+            "/purchase-contracts/{id}",
             get(purchase_contract_handler::get_contract),
         )
         .route(
-            "/purchase-contracts/:id",
+            "/purchase-contracts/{id}",
             put(purchase_contract_handler::update_contract),
         )
         .route(
-            "/purchase-contracts/:id",
+            "/purchase-contracts/{id}",
             delete(purchase_contract_handler::delete_contract),
         )
         .route(
-            "/purchase-contracts/:id/approve",
+            "/purchase-contracts/{id}/approve",
             post(purchase_contract_handler::approve_contract),
         )
         .route(
-            "/purchase-contracts/:id/execute",
+            "/purchase-contracts/{id}/execute",
             put(purchase_contract_handler::execute_contract),
         )
         .route(
-            "/purchase-contracts/:id/cancel",
+            "/purchase-contracts/{id}/cancel",
             put(purchase_contract_handler::cancel_contract),
         )
         .route(
-            "/purchase-contracts/:id/print",
+            "/purchase-contracts/{id}/print",
             get(print_handler::purchase_contract_print_docx),
         )
 }
@@ -270,23 +270,23 @@ pub fn purchase_prices() -> Router<AppState> {
             post(purchase_price_handler::create_price),
         )
         .route(
-            "/purchase-prices/history/:product_id",
+            "/purchase-prices/history/{product_id}",
             get(purchase_price_handler::get_price_history_by_product),
         )
         .route(
-            "/purchase-prices/:id",
+            "/purchase-prices/{id}",
             get(purchase_price_handler::get_price),
         )
         .route(
-            "/purchase-prices/:id",
+            "/purchase-prices/{id}",
             put(purchase_price_handler::update_price),
         )
         .route(
-            "/purchase-prices/:id",
+            "/purchase-prices/{id}",
             delete(purchase_price_handler::delete_price),
         )
         .route(
-            "/purchase-prices/:id/approve",
+            "/purchase-prices/{id}/approve",
             post(purchase_price_handler::approve_price),
         )
         // batch-13 P3: 价格清单导入
@@ -295,7 +295,7 @@ pub fn purchase_prices() -> Router<AppState> {
             post(purchase_price_handler::import_prices),
         )
         .route(
-            "/purchase-prices/:id/history",
+            "/purchase-prices/{id}/history",
             get(purchase_price_handler::get_price_history),
         )
 }
@@ -318,7 +318,7 @@ pub fn suppliers() -> Router<AppState> {
         .route("/suppliers/{id}", delete(supplier_handler::delete_supplier))
         // batch-13 P2：供应商账户余额查询
         .route(
-            "/suppliers/:id/balance",
+            "/suppliers/{id}/balance",
             get(supplier_handler::get_supplier_balance),
         )
         // batch-13 P2：异常大额订单检测
@@ -328,39 +328,39 @@ pub fn suppliers() -> Router<AppState> {
         )
         // batch-13 P3: 供货历史查询
         .route(
-            "/suppliers/:id/purchase-history",
+            "/suppliers/{id}/purchase-history",
             get(supplier_handler::get_supplier_purchase_history),
         )
         .route(
-            "/suppliers/:id/status",
+            "/suppliers/{id}/status",
             post(supplier_handler::toggle_supplier_status),
         )
         .route(
-            "/suppliers/:id/contacts",
+            "/suppliers/{id}/contacts",
             get(supplier_handler::list_supplier_contacts)
                 .post(supplier_handler::create_supplier_contact),
         )
         .route(
-            "/suppliers/:id/contacts/:contact_id",
+            "/suppliers/{id}/contacts/{contact_id}",
             put(supplier_handler::update_supplier_contact)
                 .delete(supplier_handler::delete_supplier_contact),
         )
         .route(
-            "/suppliers/:id/qualifications",
+            "/suppliers/{id}/qualifications",
             get(supplier_handler::list_supplier_qualifications)
                 .post(supplier_handler::create_supplier_qualification),
         )
         .route(
-            "/suppliers/:id/qualifications/:qualification_id",
+            "/suppliers/{id}/qualifications/{qualification_id}",
             put(supplier_handler::update_supplier_qualification)
                 .delete(supplier_handler::delete_supplier_qualification),
         )
         .route(
-            "/suppliers/:id/evaluate",
+            "/suppliers/{id}/evaluate",
             post(supplier_evaluation_handler::create_evaluation_record),
         )
         .route(
-            "/suppliers/:id/evaluations",
+            "/suppliers/{id}/evaluations",
             get(supplier_evaluation_handler::list_evaluation_records),
         )
 }
@@ -377,19 +377,19 @@ pub fn supplier_evaluations() -> Router<AppState> {
             post(supplier_evaluation_handler::create_evaluation),
         )
         .route(
-            "/supplier-evaluations/suppliers/:supplier_id/score",
+            "/supplier-evaluations/suppliers/{supplier_id}/score",
             get(supplier_evaluation_handler::get_supplier_score_by_path),
         )
         .route(
-            "/supplier-evaluations/:id",
+            "/supplier-evaluations/{id}",
             get(supplier_evaluation_handler::get_evaluation),
         )
         .route(
-            "/supplier-evaluations/:id",
+            "/supplier-evaluations/{id}",
             put(supplier_evaluation_handler::update_evaluation),
         )
         .route(
-            "/supplier-evaluations/:id",
+            "/supplier-evaluations/{id}",
             delete(supplier_evaluation_handler::delete_evaluation),
         )
         .route(
@@ -413,11 +413,11 @@ pub fn supplier_evaluations() -> Router<AppState> {
             post(supplier_evaluation_handler::create_evaluation_record),
         )
         .route(
-            "/supplier-evaluations/records/:id",
+            "/supplier-evaluations/records/{id}",
             get(supplier_evaluation_handler::get_evaluation_record),
         )
         .route(
-            "/supplier-evaluations/scores/:supplier_id",
+            "/supplier-evaluations/scores/{supplier_id}",
             get(supplier_evaluation_handler::get_supplier_score),
         )
         .route(
@@ -425,7 +425,7 @@ pub fn supplier_evaluations() -> Router<AppState> {
             get(supplier_evaluation_handler::list_ratings),
         )
         .route(
-            "/supplier-evaluations/:id/print",
+            "/supplier-evaluations/{id}/print",
             get(print_handler::supplier_evaluation_record_print_docx),
         )
 }

@@ -45,24 +45,24 @@ pub fn customers() -> Router<AppState> {
         .route("/customers/{id}", put(customer_handler::update_customer))
         .route("/customers/{id}", delete(customer_handler::delete_customer))
         .route(
-            "/customers/:id/credit",
+            "/customers/{id}/credit",
             get(customer_credit_handler::get_credit),
         )
         // batch-13 P3：客户多地址支持
         .route(
-            "/customers/:id/addresses",
+            "/customers/{id}/addresses",
             get(customer_address_handler::list_customer_addresses),
         )
         .route(
-            "/customers/:id/addresses",
+            "/customers/{id}/addresses",
             post(customer_address_handler::create_customer_address),
         )
         .route(
-            "/customers/:customer_id/addresses/:address_id",
+            "/customers/{customer_id}/addresses/{address_id}",
             put(customer_address_handler::update_customer_address),
         )
         .route(
-            "/customers/:customer_id/addresses/:address_id",
+            "/customers/{customer_id}/addresses/{address_id}",
             delete(customer_address_handler::delete_customer_address),
         )
         // batch-15 P3：客户合并
@@ -94,35 +94,35 @@ pub fn customer_credits() -> Router<AppState> {
             post(customer_credit_handler::create_credit),
         )
         .route(
-            "/customer-credits/:id",
+            "/customer-credits/{id}",
             get(customer_credit_handler::get_credit),
         )
         .route(
-            "/customer-credits/:id",
+            "/customer-credits/{id}",
             put(customer_credit_handler::update_credit),
         )
         .route(
-            "/customer-credits/:id",
+            "/customer-credits/{id}",
             delete(customer_credit_handler::delete_credit),
         )
         .route(
-            "/customer-credits/:id/rating",
+            "/customer-credits/{id}/rating",
             post(customer_credit_handler::set_credit_rating),
         )
         .route(
-            "/customer-credits/:id/occupy",
+            "/customer-credits/{id}/occupy",
             post(customer_credit_handler::occupy_credit),
         )
         .route(
-            "/customer-credits/:id/release",
+            "/customer-credits/{id}/release",
             post(customer_credit_handler::release_credit),
         )
         .route(
-            "/customer-credits/:id/adjust",
+            "/customer-credits/{id}/adjust",
             post(customer_credit_handler::adjust_credit_limit),
         )
         .route(
-            "/customer-credits/:id/deactivate",
+            "/customer-credits/{id}/deactivate",
             post(customer_credit_handler::deactivate_credit),
         )
         .route(
@@ -130,7 +130,7 @@ pub fn customer_credits() -> Router<AppState> {
             post(customer_credit_handler::evaluate_credit),
         )
         .route(
-            "/customer-credits/:id/print",
+            "/customer-credits/{id}/print",
             get(crate::handlers::print_handler::customer_credit_print_docx),
         )
 }
@@ -151,7 +151,7 @@ pub fn five_dimension() -> Router<AppState> {
             get(five_dimension_handler::search_five_dimension),
         )
         .route(
-            "/five-dimension/:five_dimension_id",
+            "/five-dimension/{five_dimension_id}",
             get(five_dimension_handler::get_stats_by_five_dimension_id),
         )
         .route(
@@ -208,7 +208,7 @@ pub fn sales_analysis() -> Router<AppState> {
             post(sales_analysis_handler::create_target),
         )
         .route(
-            "/sales-analysis/targets/:period",
+            "/sales-analysis/targets/{period}",
             put(sales_analysis_handler::update_sales_target),
         )
 }
@@ -221,7 +221,7 @@ pub fn crm_customers() -> Router<AppState> {
             get(crm_customer_handler::list_customers).post(crm_customer_handler::create_customer),
         )
         .route(
-            "/customers/enhanced/:id",
+            "/customers/enhanced/{id}",
             get(crm_customer_handler::get_customer)
                 .put(crm_customer_handler::update_customer)
                 .delete(crm_customer_handler::delete_customer),
@@ -229,11 +229,11 @@ pub fn crm_customers() -> Router<AppState> {
         .route("/customers/{id}/tags", post(crm_customer_handler::add_tags))
         // 批次 90b P2-12：联系人 CRUD（GET 既有，新增 POST/PUT/DELETE）
         .route(
-            "/customers/:id/contacts",
+            "/customers/{id}/contacts",
             get(crm_customer_handler::list_contacts).post(crm_customer_handler::create_contact),
         )
         .route(
-            "/customers/:id/contacts/:contact_id",
+            "/customers/{id}/contacts/{contact_id}",
             put(crm_customer_handler::update_contact).delete(crm_customer_handler::delete_contact),
         )
 }
@@ -257,7 +257,7 @@ pub fn crm_pool() -> Router<AppState> {
         .route("/pool/recycle", post(crm_pool_handler::recycle_to_pool))
         .route("/pool/batch-claim", post(crm_pool_handler::batch_claim))
         .route(
-            "/pool/:customer_id/claim",
+            "/pool/{customer_id}/claim",
             post(crm_pool_handler::claim_specific),
         )
         // V15 P0-S08 修复：公海规则 CRUD（保护期/领取上限/最大持有数）
@@ -266,7 +266,7 @@ pub fn crm_pool() -> Router<AppState> {
             get(crm_pool_handler::list_pool_rules).post(crm_pool_handler::create_pool_rule),
         )
         .route(
-            "/pool/rules/:id",
+            "/pool/rules/{id}",
             put(crm_pool_handler::update_pool_rule)
                 .delete(crm_pool_handler::delete_pool_rule),
         )
@@ -282,19 +282,19 @@ pub fn crm_transfer_approvals() -> Router<AppState> {
                 .get(customer_transfer_approval_handler::list_approvals),
         )
         .route(
-            "/transfer-approvals/:id",
+            "/transfer-approvals/{id}",
             get(customer_transfer_approval_handler::get_approval),
         )
         .route(
-            "/transfer-approvals/:id/cancel",
+            "/transfer-approvals/{id}/cancel",
             post(customer_transfer_approval_handler::cancel_approval),
         )
         .route(
-            "/transfer-approvals/:id/manager-approve",
+            "/transfer-approvals/{id}/manager-approve",
             post(customer_transfer_approval_handler::manager_approve),
         )
         .route(
-            "/transfer-approvals/:id/director-approve",
+            "/transfer-approvals/{id}/director-approve",
             post(customer_transfer_approval_handler::director_approve),
         )
 }
@@ -347,7 +347,7 @@ pub fn crm_recycle_rules() -> Router<AppState> {
             get(missing_handlers::get_recycle_rules).post(missing_handlers::create_recycle_rule),
         )
         .route(
-            "/recycle-rules/:id",
+            "/recycle-rules/{id}",
             put(missing_handlers::update_recycle_rule)
                 .delete(missing_handlers::delete_recycle_rule),
         )
@@ -393,35 +393,35 @@ fn crm_lead_routes() -> Router<AppState> {
                 .post(crate::handlers::crm_handler::create_nurture_plan),
         )
         .route(
-            "/leads/nurture-plans/:id/execute",
+            "/leads/nurture-plans/{id}/execute",
             post(crate::handlers::crm_handler::execute_nurture_plan),
         )
         .route(
-            "/leads/:id",
+            "/leads/{id}",
             get(crate::handlers::crm_handler::get_lead)
                 .put(crate::handlers::crm_handler::update_lead)
                 .delete(crate::handlers::crm_handler::delete_lead),
         )
         .route(
-            "/leads/:id/status",
+            "/leads/{id}/status",
             put(crate::handlers::crm_handler::update_lead_status),
         )
         .route(
-            "/leads/:id/convert",
+            "/leads/{id}/convert",
             post(crate::handlers::crm_handler::convert_lead),
         )
         .route(
-            "/leads/:id/relations",
+            "/leads/{id}/relations",
             get(crate::handlers::crm_handler::get_lead_relation),
         )
         // V15 P2 18.1-D5: 自动分配线索
         .route(
-            "/leads/:id/auto-assign",
+            "/leads/{id}/auto-assign",
             post(crate::handlers::crm_handler::auto_assign_lead),
         )
         // V15 P1 18.1-D1: 线索评分
         .route(
-            "/leads/:id/score",
+            "/leads/{id}/score",
             post(crate::handlers::crm_handler::score_lead),
         )
         // V15 P1 18.1-D2: 重复线索检测
@@ -460,29 +460,29 @@ fn crm_opportunity_routes() -> Router<AppState> {
             get(crate::handlers::crm_handler::export_opportunities),
         )
         .route(
-            "/opportunities/:id",
+            "/opportunities/{id}",
             get(crate::handlers::crm_handler::get_opportunity)
                 .put(crate::handlers::crm_handler::update_opportunity)
                 .delete(crate::handlers::crm_handler::delete_opportunity),
         )
         .route(
-            "/opportunities/:id/convert",
+            "/opportunities/{id}/convert",
             post(crate::handlers::crm_handler::convert_opportunity_to_order),
         )
         // V15 P0-B09（Batch 482）：商机关单（输单流程），必须填写流失原因
         .route(
-            "/opportunities/:id/close-lost",
+            "/opportunities/{id}/close-lost",
             post(crate::handlers::crm_handler::close_opportunity_as_lost),
         )
         // V15 P2 18.2-D6: 商机竞争对手管理
         .route(
-            "/opportunities/:id/competitors",
+            "/opportunities/{id}/competitors",
             get(crate::handlers::crm_handler::list_opportunity_competitors)
                 .post(crate::handlers::crm_handler::add_opportunity_competitor),
         )
         // V15 P2 18.2-D7: 商机跟进记录
         .route(
-            "/opportunities/:id/follow-ups",
+            "/opportunities/{id}/follow-ups",
             get(crate::handlers::crm_handler::list_opportunity_follow_ups)
                 .post(crate::handlers::crm_handler::create_opportunity_follow_up),
         )
@@ -505,7 +505,7 @@ fn crm_opportunity_routes() -> Router<AppState> {
         )
         // V15 P2 18.2-D5: 商机阶段变更记录
         .route(
-            "/opportunities/:id/stage-change",
+            "/opportunities/{id}/stage-change",
             post(crate::handlers::crm_handler::record_opportunity_stage_change),
         )
 }
@@ -519,39 +519,39 @@ fn crm_customer_enhancement_routes() -> Router<AppState> {
             post(crate::handlers::crm_handler::set_customer_field_permission),
         )
         .route(
-            "/customers/field-permissions/:role_id",
+            "/customers/field-permissions/{role_id}",
             get(crate::handlers::crm_handler::get_customer_field_permissions),
         )
         .route(
-            "/customers/:id/summary",
+            "/customers/{id}/summary",
             get(crate::handlers::crm_handler::get_customer_relation_summary),
         )
         .route(
-            "/customers/:id/360",
+            "/customers/{id}/360",
             get(crate::handlers::crm_handler::get_customer_360),
         )
         .route(
-            "/customers/:id/follow-ups",
+            "/customers/{id}/follow-ups",
             get(crate::handlers::crm_handler::list_follow_ups)
                 .post(crate::handlers::crm_handler::create_follow_up),
         )
         .route(
-            "/customers/:id/rfm",
+            "/customers/{id}/rfm",
             get(crate::handlers::crm_handler::get_rfm_score),
         )
         // V15 P2 18.4-D6: 客户操作日志
         .route(
-            "/customers/:id/audit-logs",
+            "/customers/{id}/audit-logs",
             get(crate::handlers::crm_handler::list_customer_audit_logs)
                 .post(crate::handlers::crm_handler::create_customer_audit_log),
         )
         // V15 P2 18.5-D5: 客户 CLV
         .route(
-            "/customers/:id/clv",
+            "/customers/{id}/clv",
             get(crate::handlers::crm_handler::get_customer_clv),
         )
         .route(
-            "/customers/:id/clv/calculate",
+            "/customers/{id}/clv/calculate",
             post(crate::handlers::crm_handler::calculate_customer_clv),
         )
         .route(

@@ -29,7 +29,7 @@ pub fn routes() -> Router<AppState> {
         .route("/{id}/convert", post(quotation_handler::convert_to_sales_order))
         // 贸易条款
         .route(
-            "/:id/terms",
+            "/{id}/terms",
             get(quotation_handler::get_quotation_terms).put(quotation_handler::set_quotation_terms),
         )
         // 状态分类
@@ -39,12 +39,12 @@ pub fn routes() -> Router<AppState> {
         .route("/calculate-price", post(quotation_handler::calculate_price))
         // 色号价格
         .route(
-            "/color-prices/:product_color_id",
+            "/color-prices/{product_color_id}",
             get(quotation_handler::list_color_prices).post(quotation_handler::set_color_price),
         )
         // 打印
         .route(
-            "/:id/print",
+            "/{id}/print",
             get(crate::handlers::print_handler::sales_quotation_print_docx),
         )
 }

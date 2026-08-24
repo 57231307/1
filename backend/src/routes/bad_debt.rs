@@ -43,27 +43,27 @@ pub fn routes() -> Router<AppState> {
         .route("/{id}/confirm", post(bad_debt_handler::confirm_provision))
         .route("/{id}/reverse", post(bad_debt_handler::reverse_provision))
         .route(
-            "/writeoffs/:id",
+            "/writeoffs/{id}",
             get(bad_debt_handler::get_writeoff),
         )
         .route(
-            "/writeoffs/:id/finance-approve",
+            "/writeoffs/{id}/finance-approve",
             post(bad_debt_handler::finance_approve),
         )
         .route(
-            "/writeoffs/:id/general-manager-approve",
+            "/writeoffs/{id}/general-manager-approve",
             post(bad_debt_handler::general_manager_approve),
         )
         .route(
-            "/writeoffs/:id/reject",
+            "/writeoffs/{id}/reject",
             post(bad_debt_handler::reject_writeoff),
         )
         .route(
-            "/writeoffs/:id/cancel",
+            "/writeoffs/{id}/cancel",
             post(bad_debt_handler::cancel_writeoff),
         )
         .route(
-            "/writeoffs/:id/print",
+            "/writeoffs/{id}/print",
             get(crate::handlers::print_handler::bad_debt_writeoff_print_docx),
         )
 }

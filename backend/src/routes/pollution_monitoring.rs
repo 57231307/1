@@ -23,7 +23,7 @@ pub fn pollution_monitoring() -> Router<AppState> {
             post(pollution_monitoring_handler::create_solid_waste_disposal),
         )
         .route(
-            "/pollution-monitoring/solid-waste-disposals/:id/status",
+            "/pollution-monitoring/solid-waste-disposals/{id}/status",
             put(pollution_monitoring_handler::update_waste_status),
         )
         .route(
@@ -32,7 +32,7 @@ pub fn pollution_monitoring() -> Router<AppState> {
         )
         // 打印路由
         .route(
-            "/pollution-monitoring/solid-waste-disposals/:id/print",
+            "/pollution-monitoring/solid-waste-disposals/{id}/print",
             get(crate::handlers::print_handler::solid_waste_disposal_print_docx),
         )
 }

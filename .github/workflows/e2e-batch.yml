@@ -89,7 +89,7 @@ jobs:
       COOKIE_SECRET: ci-e2e-cookie-secret-32bytes-do-not-use-in-prod-xyz
       WEBHOOK_SECRET: ci-e2e-webhook-secret-32bytes-do-not-use-in-prod-q
       AUDIT_SECRET_KEY: e2e-only-audit-signing-key-do-not-use-in-prod-32b
-      INIT_TOKEN: ci-e2e-init-token-for-seeding-only-32bytes!
+      INIT_TOKEN: ci-e2e-seeding-token-only-32bytes-do-not-use!
       TEST_USERNAME: e2e_admin
       TEST_PASSWORD: E2e@TestPassword2026!
       APP_ENV: development

@@ -32,15 +32,15 @@ pub fn routes() -> Router<AppState> {
         )
         .route("/", get(device_connection_handler::list_devices))
         .route(
-            "/:device_id",
+            "/{device_id}",
             get(device_connection_handler::get_device),
         )
         .route(
-            "/:device_id/heartbeat",
+            "/{device_id}/heartbeat",
             post(device_connection_handler::heartbeat),
         )
         .route(
-            "/:device_id/disconnect",
+            "/{device_id}/disconnect",
             post(device_connection_handler::disconnect),
         )
 }

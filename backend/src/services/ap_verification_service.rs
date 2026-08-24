@@ -3,8 +3,8 @@
 //! 应付核销服务层，负责应付核销的核心业务逻辑
 //! 包含自动核销、手工核销、取消核销等管理
 
-use crate::models::{ap_invoice, ap_payment, ap_verification, ap_verification_item};
 use crate::models::status::general::common;
+use crate::models::{ap_invoice, ap_payment, ap_verification, ap_verification_item};
 use crate::utils::error::AppError;
 // 批次 259 修复：接入 paginate_with_total 统一分页逻辑
 use crate::utils::pagination::paginate_with_total;
@@ -270,7 +270,8 @@ impl ApVerificationService {
         invoice.unpaid_amount = invoice.amount - invoice.paid_amount;
 
         if invoice.unpaid_amount <= Decimal::ZERO {
-            invoice.invoice_status = crate::models::status::general::payment::PAYMENT_PAID.to_string();
+            invoice.invoice_status =
+                crate::models::status::general::payment::PAYMENT_PAID.to_string();
         } else {
             invoice.invoice_status = "PARTIAL_PAID".to_string();
         }
@@ -399,7 +400,8 @@ impl ApVerificationService {
             invoice.unpaid_amount = invoice.amount - invoice.paid_amount;
 
             if invoice.unpaid_amount <= Decimal::ZERO {
-                invoice.invoice_status = crate::models::status::general::payment::PAYMENT_PAID.to_string();
+                invoice.invoice_status =
+                    crate::models::status::general::payment::PAYMENT_PAID.to_string();
             } else {
                 invoice.invoice_status = "PARTIAL_PAID".to_string();
             }
@@ -545,7 +547,8 @@ impl ApVerificationService {
             invoice.unpaid_amount = invoice.amount - invoice.paid_amount;
             // 取消核销后状态恢复：paid_amount>=amount→PAID，0<paid_amount<amount→PARTIAL_PAID，否则→AUDITED
             if invoice.paid_amount >= invoice.amount {
-                invoice.invoice_status = crate::models::status::general::payment::PAYMENT_PAID.to_string();
+                invoice.invoice_status =
+                    crate::models::status::general::payment::PAYMENT_PAID.to_string();
             } else if invoice.paid_amount > Decimal::ZERO {
                 invoice.invoice_status = "PARTIAL_PAID".to_string();
             } else {
