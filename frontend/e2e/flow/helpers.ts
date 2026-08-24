@@ -143,42 +143,48 @@ export async function apiCallExpectFail(
 export async function loginViaUI(page: Page, username?: string, password?: string): Promise<void> {
   const u = username || TEST_USERNAME;
   const p = password || TEST_PASSWORD;
-  await page.goto(`${BASE_URL}/login`);
 
-  // 设置语言为中文（CI 浏览器可能默认英文）
+  // 先设置语言为中文（CI 浏览器可能默认英文）
+  await page.goto(`${BASE_URL}/login`);
   await page.evaluate(() => {
     window.localStorage.setItem('bingxi.locale', 'zh-CN');
   });
   await page.reload();
-  await page.waitForTimeout(1000);
+  // 等待页面完全加载（Vue + i18n 初始化）
+  await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
 
-  // Element Plus el-input 渲染为 <input class="el-input__inner" placeholder="用户名">
-  // 同时支持中英文 placeholder（CI 语言可能是 zh-CN 或 en-US）
-  const usernameInput = page.locator('input.el-input__inner').filter({ has: page.locator('[placeholder]') }).first();
-  // 更精确：用 placeholder 匹配（中英文都支持）
-  const usernameByPlaceholder = page.locator('input[placeholder="用户名"], input[placeholder="Username"]');
-  await usernameByPlaceholder.first().waitFor({ state: 'visible', timeout: 30_000 });
-  await usernameByPlaceholder.first().fill(u);
+  // Element Plus el-input：同时匹配中英文 placeholder
+  const usernameInput = page.locator('input[placeholder="用户名"], input[placeholder="Username"]');
+  await usernameInput.first().waitFor({ state: 'visible', timeout: 30_000 });
+  await usernameInput.first().fill(u);
 
-  const passwordByPlaceholder = page.locator('input[placeholder="密码"], input[placeholder="Password"]');
-  await passwordByPlaceholder.first().waitFor({ state: 'visible', timeout: 30_000 });
-  await passwordByPlaceholder.first().fill(p);
+  const passwordInput = page.locator('input[placeholder="密码"], input[placeholder="Password"]');
+  await passwordInput.first().waitFor({ state: 'visible', timeout: 30_000 });
+  await passwordInput.first().fill(p);
 
   // 必须勾选用户协议（表单验证要求 agreedToTerms=true）
-  const checkbox = page.locator('.el-checkbox').first();
-  const isChecked = await checkbox.locator('input').isChecked().catch(() => false);
+  // Element Plus el-checkbox 点击 .el-checkbox__label 区域更可靠
+  const checkboxLabel = page.locator('.el-checkbox__label, .el-checkbox').first();
+  const isChecked = await page.locator('.el-checkbox input').first().isChecked().catch(() => false);
   if (!isChecked) {
-    await checkbox.click();
+    await checkboxLabel.click();
     await page.waitForTimeout(500);
+    // 再次检查是否勾选
+    const stillUnchecked = !(await page.locator('.el-checkbox input').first().isChecked().catch(() => false));
+    if (stillUnchecked) {
+      // fallback: 直接点击 checkbox input
+      await page.locator('.el-checkbox input').first().click({ force: true }).catch(() => {});
+      await page.waitForTimeout(300);
+    }
   }
 
-  // Element Plus el-button type="primary" 渲染为 <button class="el-button el-button--primary">
-  // 同时支持中英文按钮文本（登录/Login）
+  // Element Plus el-button type="primary"：同时匹配中英文
   const loginButton = page.locator('button.el-button--primary').filter({ hasText: /登录|Login|登 录/i });
   await loginButton.first().waitFor({ state: 'visible', timeout: 10_000 });
-  await loginButton.first().click();
+  // 确保按钮不是 disabled 或 loading 状态
+  await loginButton.first().click({ force: true });
 
-  // 等待离开 /login 页面（登录成功跳转到 dashboard 或其他页面）
+  // 等待离开 /login 页面
   await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 60_000 });
 }
 
