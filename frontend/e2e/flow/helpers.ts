@@ -150,15 +150,17 @@ export async function loginViaUI(page: Page, username?: string, password?: strin
     consoleLogs.push(`[console.${msg.type()}] ${msg.text()}`);
   });
 
-  // 先设置语言为中文（CI 浏览器可能默认英文）
-  // 不用 reload（Vite 依赖优化缓存过期会导致 504），改为先设置 localStorage 再 goto
+  // 导航到登录页（仅一次，避免 Vite 504）
   await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
+
+  // 设置语言为中文（CI 浏览器可能默认英文）
+  // 不重新导航（避免 Vite 504），直接设置 localStorage 并等待 Vue 响应
   await page.evaluate(() => {
     window.localStorage.setItem('bingxi.locale', 'zh-CN');
   });
-  // 再次导航触发 i18n 重新加载（不用 reload，用 goto）
-  await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(2000);
+
+  // 等待 Vue+i18n 加载完成（placeholder 可能是英文，也可能已切换为中文）
+  await page.waitForTimeout(3000);
 
   // Element Plus el-input：同时匹配中英文 placeholder
   const usernameInput = page.locator('input[placeholder="用户名"], input[placeholder="Username"]');
