@@ -145,15 +145,24 @@ export async function loginViaUI(page: Page, username?: string, password?: strin
   const p = password || TEST_PASSWORD;
   await page.goto(`${BASE_URL}/login`);
 
-  // Element Plus el-input 渲染为 <input class="el-input__inner" placeholder="用户名">
-  // 用 placeholder 定位（比 aria-label 更可靠）
-  const usernameInput = page.locator('input.el-input__inner[placeholder="用户名"]');
-  await usernameInput.waitFor({ state: 'visible', timeout: 30_000 });
-  await usernameInput.fill(u);
+  // 设置语言为中文（CI 浏览器可能默认英文）
+  await page.evaluate(() => {
+    window.localStorage.setItem('bingxi.locale', 'zh-CN');
+  });
+  await page.reload();
+  await page.waitForTimeout(1000);
 
-  const passwordInput = page.locator('input.el-input__inner[placeholder="密码"]');
-  await passwordInput.waitFor({ state: 'visible', timeout: 30_000 });
-  await passwordInput.fill(p);
+  // Element Plus el-input 渲染为 <input class="el-input__inner" placeholder="用户名">
+  // 同时支持中英文 placeholder（CI 语言可能是 zh-CN 或 en-US）
+  const usernameInput = page.locator('input.el-input__inner').filter({ has: page.locator('[placeholder]') }).first();
+  // 更精确：用 placeholder 匹配（中英文都支持）
+  const usernameByPlaceholder = page.locator('input[placeholder="用户名"], input[placeholder="Username"]');
+  await usernameByPlaceholder.first().waitFor({ state: 'visible', timeout: 30_000 });
+  await usernameByPlaceholder.first().fill(u);
+
+  const passwordByPlaceholder = page.locator('input[placeholder="密码"], input[placeholder="Password"]');
+  await passwordByPlaceholder.first().waitFor({ state: 'visible', timeout: 30_000 });
+  await passwordByPlaceholder.first().fill(p);
 
   // 必须勾选用户协议（表单验证要求 agreedToTerms=true）
   const checkbox = page.locator('.el-checkbox').first();
@@ -164,10 +173,10 @@ export async function loginViaUI(page: Page, username?: string, password?: strin
   }
 
   // Element Plus el-button type="primary" 渲染为 <button class="el-button el-button--primary">
-  // 用文本定位登录按钮（i18n 中文为 "登录"）
-  const loginButton = page.locator('button.el-button--primary').filter({ hasText: '登录' });
-  await loginButton.waitFor({ state: 'visible', timeout: 10_000 });
-  await loginButton.click();
+  // 同时支持中英文按钮文本（登录/Login）
+  const loginButton = page.locator('button.el-button--primary').filter({ hasText: /登录|Login|登 录/i });
+  await loginButton.first().waitFor({ state: 'visible', timeout: 10_000 });
+  await loginButton.first().click();
 
   // 等待离开 /login 页面（登录成功跳转到 dashboard 或其他页面）
   await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 60_000 });
