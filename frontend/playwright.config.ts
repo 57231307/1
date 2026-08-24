@@ -46,8 +46,7 @@ export default defineConfig({
   // webServer 数组：同时启动前端 dev server + 后端二进制
   webServer: [
     {
-      // CI 中用 vite preview（静态服务器），本地用 dev server
-      command: process.env.CI ? 'npx vite preview --port 3000 --host' : 'npm run dev',
+      command: 'npm run dev',
       url: 'http://localhost:3000',
       reuseExistingServer: true,
       timeout: 120_000,
