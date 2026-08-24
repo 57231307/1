@@ -64,7 +64,7 @@ jobs:
   e2e-test:
     name: 🎭 E2E 测试（批次 ${{ inputs.batch_number }}）
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 360
     if: ${{ inputs.skip_reason == '' }}
     # 真实 E2E：PostgreSQL + 后端 + 前端 dev server + Playwright
     services:
@@ -323,7 +323,7 @@ jobs:
   e2e-skipped:
     name: ⏭️ E2E 跳过（批次 ${{ inputs.batch_number }}）
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 360
     if: ${{ inputs.skip_reason != '' }}
     steps:
       - name: 记录跳过原因

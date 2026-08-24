@@ -25,10 +25,10 @@ import { defineConfig, devices } from '@playwright/test'
  */
 export default defineConfig({
   testDir: './e2e',
-  fullyParallel: false,
+  fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: 0,
-  workers: 1,
+  workers: process.env.CI ? 2 : 1,
   // 同时生成 HTML 报告（可下载 artifact）和命令行输出
   reporter: [['html'], ['line']],
   // 单测试 60s（真实后端 API 响应 + 页面渲染）
