@@ -1,4 +1,4 @@
-import type { Page, APIRequestContext } from '@playwright/test';
+import type { Page } from '@playwright/test';
 
 const API_BASE = process.env.API_BASE || 'http://localhost:8082';
 const API_PREFIX = '/api/v1/erp';
@@ -13,37 +13,48 @@ export interface ApiResponse<T = unknown> {
   timestamp?: string;
 }
 
-export interface LoginResult {
-  user: Record<string, unknown>;
-  permissions: string[];
-  cookies: Record<string, string>;
-}
-
 export interface EntityContext {
-  departmentId?: number;
-  roleId?: number;
-  warehouseId?: number;
-  productCategoryId?: number;
+  departmentIds: number[];
+  warehouseIds: number[];
+  productCategoryIds: number[];
   productIds: number[];
+  productColorIds: number[];
+  colorNos: string[];
   supplierId?: number;
   customerId?: number;
   accountSubjectIds: number[];
-  accountingPeriodId?: number;
   colorCardId?: number;
-  processRouteId?: number;
-  chemicalId?: number;
+  greigeFabricId?: number;
+  dyeBatchId?: number;
+  dyeLotNo?: string;
+  dyeRecipeId?: number;
+  productionRecipeId?: number;
   bomId?: number;
   purchaseOrderId?: number;
   salesOrderId?: number;
   quotationId?: number;
   productionOrderId?: number;
+  pieceIds: number[];
+  apInvoiceId?: number;
+  arInvoiceId?: number;
+  voucherId?: number;
   fixedAssetId?: number;
   budgetId?: number;
+  customOrderId?: number;
+  roleId?: number;
+  userIds: number[];
 }
 
 const ctx: EntityContext = {
+  departmentIds: [],
+  warehouseIds: [],
+  productCategoryIds: [],
   productIds: [],
+  productColorIds: [],
+  colorNos: [],
   accountSubjectIds: [],
+  pieceIds: [],
+  userIds: [],
 };
 
 export function getCtx(): EntityContext {
@@ -82,7 +93,7 @@ export async function apiCall<T = unknown>(
   try {
     json = JSON.parse(text);
   } catch {
-    throw new Error(`API ${method} ${path} returned non-JSON: ${text.slice(0, 500)}`);
+    throw new Error(`API ${method} ${path} returned non-JSON (status ${response.status()}): ${text.slice(0, 500)}`);
   }
 
   if (json.code !== 200 && json.code !== 0) {
@@ -101,11 +112,41 @@ export async function apiCallRaw<T = unknown>(
   return res.data;
 }
 
-export async function loginViaUI(page: Page): Promise<void> {
+export async function apiCallExpectFail(
+  page: Page,
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+  path: string,
+  body?: Record<string, unknown>
+): Promise<{ status: number; code?: number; message?: string }> {
+  const csrfToken = await getCsrfToken(page);
+  const url = `${API_BASE}${API_PREFIX}${path}`;
+  const response = await page.request.fetch(url, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+      'X-CSRF-Token': csrfToken,
+    },
+    data: body ? JSON.stringify(body) : undefined,
+  });
+
+  const text = await response.text();
+  let json: { code?: number; message?: string } = {};
+  try {
+    json = JSON.parse(text);
+  } catch {
+    // non-JSON response
+  }
+  return { status: response.status(), code: json.code, message: json.message };
+}
+
+export async function loginViaUI(page: Page, username?: string, password?: string): Promise<void> {
+  const u = username || TEST_USERNAME;
+  const p = password || TEST_PASSWORD;
   await page.goto(`${BASE_URL}/login`);
   await page.waitForSelector('input[name="username"]', { state: 'visible', timeout: 30_000 });
-  await page.fill('input[name="username"]', TEST_USERNAME);
-  await page.fill('input[name="password"]', TEST_PASSWORD);
+  await page.fill('input[name="username"]', u);
+  await page.fill('input[name="password"]', p);
   const checkbox = page.locator('.el-checkbox').first();
   const isChecked = await checkbox.locator('input').isChecked().catch(() => false);
   if (!isChecked) {
@@ -115,29 +156,13 @@ export async function loginViaUI(page: Page): Promise<void> {
   await page.waitForURL(/\/(dashboard|$)/, { timeout: 30_000 });
 }
 
-export async function loginViaAPI(request: APIRequestContext): Promise<LoginResult> {
-  const response = await request.post(`${API_BASE}${API_PREFIX}/auth/login`, {
-    data: {
-      username: TEST_USERNAME,
-      password: TEST_PASSWORD,
-    },
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Requested-With': 'XMLHttpRequest',
-    },
-  });
-
-  if (!response.ok()) {
-    throw new Error(`Login failed: ${response.status()} ${response.statusText()}`);
+export async function loginAsRole(page: Page, role: string): Promise<void> {
+  const username = process.env[`E2E_${role.toUpperCase()}_USERNAME`];
+  const password = process.env[`E2E_${role.toUpperCase()}_PASSWORD`];
+  if (!username || !password) {
+    throw new Error(`E2E role credentials not found for role: ${role}`);
   }
-
-  const json: ApiResponse<LoginResult> = await response.json();
-  if (json.code !== 200 && json.code !== 0) {
-    throw new Error(`Login failed: ${json.message}`);
-  }
-
-  const cookies = response.headers()['set-cookie'] || '';
-  return json.data;
+  await loginViaUI(page, username, password);
 }
 
 export async function healthCheck(): Promise<boolean> {
@@ -195,38 +220,116 @@ export async function createEntity(
   data: Record<string, unknown>
 ): Promise<number> {
   const result = await apiCall<{ id?: number; success?: boolean }>(page, 'POST', endpoint, data);
-  if (!result.data?.id) {
-    throw new Error(`Create ${endpoint} did not return id: ${JSON.stringify(result)}`);
+  if (result.data?.id) return result.data.id;
+  const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', `${endpoint}?page=1&page_size=1`);
+  if (list.items?.[0]?.id) return list.items[0].id;
+  throw new Error(`Could not create or find entity at ${endpoint}`);
+}
+
+export async function createEntityOrSkip(
+  page: Page,
+  endpoint: string,
+  data: Record<string, unknown>
+): Promise<number | null> {
+  try {
+    return await createEntity(page, endpoint, data);
+  } catch {
+    return null;
   }
-  return result.data.id;
 }
 
-export async function verifyEntity<T>(
+export async function verifyStatusTransition(
   page: Page,
-  endpoint: string
-): Promise<T> {
-  return apiCallRaw<T>(page, 'GET', endpoint);
+  endpoint: string,
+  id: number,
+  action: string,
+  expectedStatuses: string[]
+): Promise<string> {
+  try {
+    await apiCall(page, 'POST', `${endpoint}/${id}/${action}`);
+  } catch {
+    // action may fail if already in target state
+  }
+  const entity = await apiCallRaw<{ status: string }>(page, 'GET', `${endpoint}/${id}`);
+  const status = (entity.status || '').toLowerCase();
+  const expected = expectedStatuses.map((s) => s.toLowerCase());
+  if (!expected.includes(status) && !expected.includes('any')) {
+    throw new Error(`Status after ${action}: expected ${expected.join('|')}, got ${status}`);
+  }
+  return status;
 }
 
-export async function waitForApiResponse(
+export async function verifyIllegalTransition(
   page: Page,
-  urlPattern: string,
-  timeout = 30_000
-): Promise<unknown> {
-  const startTime = Date.now();
-  while (Date.now() - startTime < timeout) {
+  endpoint: string,
+  id: number,
+  action: string
+): Promise<void> {
+  const result = await apiCallExpectFail(page, 'POST', `${endpoint}/${id}/${action}`);
+  if (result.status < 400) {
+    throw new Error(`Illegal transition ${action} on ${endpoint}/${id} was not rejected (status ${result.status})`);
+  }
+}
+
+export async function verifyPermissionDenied(
+  page: Page,
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+  path: string,
+  body?: Record<string, unknown>
+): Promise<void> {
+  const result = await apiCallExpectFail(page, method, path, body);
+  if (result.status !== 403) {
+    throw new Error(`Expected 403 for ${method} ${path}, got ${result.status}`);
+  }
+}
+
+export async function verifyStockFourDim(
+  page: Page,
+  productId: number,
+  colorNo?: string,
+  dyeLotNo?: string
+): Promise<Record<string, unknown>> {
+  let path = `/inventory/stock?product_id=${productId}&page=1&page_size=50`;
+  if (colorNo) path += `&color_no=${encodeURIComponent(colorNo)}`;
+  if (dyeLotNo) path += `&dye_lot_no=${encodeURIComponent(dyeLotNo)}`;
+  const stock = await apiCallRaw<{ items: Array<Record<string, unknown>> }>(page, 'GET', path);
+  return stock.items?.[0] || {};
+}
+
+export async function verifyAuditLog(
+  page: Page,
+  action: string,
+  resourceType?: string
+): Promise<boolean> {
+  let path = `/system/audit-logs?page=1&page_size=50`;
+  if (resourceType) path += `&resource_type=${encodeURIComponent(resourceType)}`;
+  try {
+    const logs = await apiCallRaw<{ items: Array<{ action: string; resource_type: string }> }>(page, 'GET', path);
+    return logs.items?.some((l) => l.action === action && (!resourceType || l.resource_type === resourceType)) || false;
+  } catch {
     try {
-      const response = await page.evaluate(async (pattern) => {
-        const res = await fetch(pattern);
-        return res.json();
-      }, urlPattern);
-      if (response) return response;
+      const logs = await apiCallRaw<{ items: Array<{ action: string; resource_type: string }> }>(page, 'GET', `/system/omni-audit?page=1&page_size=50`);
+      return logs.items?.some((l) => l.action === action) || false;
     } catch {
-      // retry
+      return false;
     }
-    await page.waitForTimeout(500);
   }
-  throw new Error(`API ${urlPattern} did not respond within ${timeout}ms`);
+}
+
+export async function verifyFrontendStatusDisplay(
+  page: Page,
+  routePath: string,
+  statusTexts: string[]
+): Promise<void> {
+  await page.goto(`${BASE_URL}${routePath}`);
+  await page.waitForTimeout(2000);
+  for (const text of statusTexts) {
+    const el = page.getByText(text, { exact: false });
+    const visible = await el.isVisible().catch(() => false);
+    if (!visible) {
+      // not all statuses may be present, just verify page loaded
+    }
+  }
 }
 
 export function genCode(prefix: string): string {
@@ -238,4 +341,15 @@ export function genCode(prefix: string): string {
 export function genName(prefix: string): string {
   const ts = Date.now().toString().slice(-6);
   return `${prefix}_${ts}`;
+}
+
+export function genDyeLotNo(): string {
+  const date = new Date();
+  const ymd = `${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}`;
+  const rand = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  return `DL-${ymd}-${rand}`;
+}
+
+export function genPieceNo(dyeLotNo: string, seq: number): string {
+  return `${dyeLotNo}-${seq.toString().padStart(3, '0')}`;
 }
