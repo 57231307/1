@@ -161,7 +161,8 @@ export async function loginViaUI(page: Page, username?: string, password?: strin
   }
   // Element Plus el-button 渲染为 <button class="el-button">，用文本定位
   await page.locator('button.el-button').filter({ hasText: /登录|submit|Login/i }).first().click();
-  await page.waitForURL(/\/(dashboard|$)/, { timeout: 30_000 });
+  // 等待离开 /login 页面（跳转到 dashboard 或其他页面）
+  await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 30_000 });
 }
 
 export async function loginAsRole(page: Page, role: string): Promise<void> {
