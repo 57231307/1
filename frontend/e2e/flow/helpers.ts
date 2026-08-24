@@ -144,38 +144,39 @@ export async function loginViaUI(page: Page, username?: string, password?: strin
   const u = username || TEST_USERNAME;
   const p = password || TEST_PASSWORD;
 
-  // 收集 console 日志和网络请求
   const consoleLogs: string[] = [];
   page.on('console', (msg) => {
     consoleLogs.push(`[console.${msg.type()}] ${msg.text()}`);
   });
 
-  // 导航到登录页
   await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
-
-  // 设置语言为中文
   await page.evaluate(() => {
     window.localStorage.setItem('bingxi.locale', 'zh-CN');
   });
 
-  // Vite dev server 首次加载可能触发 504 (Outdated Optimize Dep)
-  // 等待 Vite 自动重新优化完成（504 消失，页面稳定）
-  // 标志：Vite HMR 连接成功且无 504 错误
-  for (let i = 0; i < 30; i++) {
+  // 检测 Vite 504，如果出现则重新加载页面
+  let detected504 = false;
+  for (let i = 0; i < 10; i++) {
+    await page.waitForTimeout(1000);
     const has504 = consoleLogs.some((log) => log.includes('504'));
-    if (!has504 && i > 5) break; // 504 消失后再等几轮
-    // 重新导航触发页面重新加载（Vite 会用优化后的缓存）
-    if (has504 && i < 10) {
-      await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
+    if (has504) {
+      detected504 = true;
+      console.log(`检测到 Vite 504，重新加载页面（第 ${i + 1} 次）...`);
+      consoleLogs.length = 0;
+      await page.goto(`${BASE_URL}/login`, { waitUntil: 'networkidle' });
       await page.evaluate(() => {
         window.localStorage.setItem('bingxi.locale', 'zh-CN');
       });
+    } else if (detected504 && i > 2) {
+      console.log(`Vite 504 已消失`);
+      break;
     }
-    await page.waitForTimeout(1000);
   }
 
-  // 清空日志（Vite 已稳定）
-  consoleLogs.length = 0;
+  await loginOnPage(page, u, p, consoleLogs);
+}
+
+async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string[]): Promise<void> {
 
   // Element Plus el-input：同时匹配中英文 placeholder
   const usernameInput = page.locator('input[placeholder="用户名"], input[placeholder="Username"]');
