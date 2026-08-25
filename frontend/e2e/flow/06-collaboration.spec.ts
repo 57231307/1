@@ -85,7 +85,7 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
     const roles = await apiCallRaw<{ items: Array<{ id: number; name: string }> }>(page, 'GET', '/roles?page=1&page_size=10');
     expect(roles.items);
 
-    for (const role of roles?.items?.slice(0, 2)) {
+    for (const role of (roles?.items?.slice(0, 2) ?? [])) {
       try {
         const perms = await apiCallRaw<{ items: Array<{ resource_type: string; action: string }> }>(
           page, 'GET', `/roles/${role.id}/permissions`
