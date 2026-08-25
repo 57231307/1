@@ -283,6 +283,18 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
   // 等待离开 /login 页面
   try {
     await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 60_000 });
+    // 登录成功后，确保 cookie 已设置到 context
+    const cookies = await page.context().cookies();
+    const hasToken = cookies.some((c) => c.name === 'access_token');
+    if (!hasToken) {
+      // 如果 cookie 没有自动设置，手动通过 API 登录注入 cookie
+      const response = await page.request.post(`${API_BASE}${API_PREFIX}/auth/login`, {
+        data: { username: TEST_USERNAME, password: TEST_PASSWORD },
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      });
+      // page.request 的 cookie 会自动保存到 context
+    }
+    LOGGED_IN.done = true;
   } catch {
     // 登录后仍然在 /login，输出诊断信息
     const currentUrl = page.url();
