@@ -29,7 +29,9 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: 0,
   workers: 1,
-  // 同时生成 HTML 报告（可下载 artifact）和命令行输出
+  // 真实登录一次，保存 cookie storageState 供所有 spec 复用（避免每 spec 独立登录触发 429）
+  globalSetup: './e2e/global-setup.ts',
+  // 同时生成 HTML 报告（可下载的 artifact）和命令行输出
   reporter: [['html'], ['line']],
   // 单测试 120s（CI 环境页面渲染 + API 响应较慢）
   timeout: 120_000,
@@ -42,6 +44,8 @@ export default defineConfig({
     actionTimeout: 30_000,
     // CI 环境导航超时 30s
     navigationTimeout: 30_000,
+    // 所有 spec 默认复用 globalSetup 保存的真实登录态（httpOnly cookie）
+    storageState: 'e2e/.auth/storage-state.json',
   },
   // webServer 数组：同时启动前端 dev server + 后端二进制
   webServer: [

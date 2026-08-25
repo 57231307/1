@@ -26,6 +26,13 @@ lerna-debug.log*
 .DS_Store
 Thumbs.db
 
+# Playwright E2E 测试产物（globalSetup 生成的登录态，不应提交）
+e2e/.auth/
+test-results/
+playwright-report/
+blob-report/
+*.trace.zip
+
 # 编辑器与 IDE
 .vscode/
 !.vscode/settings.json
