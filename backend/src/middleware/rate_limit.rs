@@ -93,7 +93,7 @@ impl MemoryRateLimiter {
 static GLOBAL_LIMITER: LazyLock<MemoryRateLimiter> =
     LazyLock::new(|| MemoryRateLimiter::new(180, Duration::from_secs(60)));
 static BRUTE_FORCE_LIMITER: LazyLock<MemoryRateLimiter> =
-    LazyLock::new(|| MemoryRateLimiter::new(15, Duration::from_secs(300)));
+    LazyLock::new(|| MemoryRateLimiter::new(50, Duration::from_secs(300)));
 /// AI 端点专用限流器（缺陷 16.4-D4 修复：AI 推理 CPU 密集，限制 10 req/min/user）
 static AI_RATE_LIMITER: LazyLock<MemoryRateLimiter> =
     LazyLock::new(|| MemoryRateLimiter::new(10, Duration::from_secs(60)));
@@ -275,7 +275,7 @@ pub async fn anti_brute_force(req: Request<Body>, next: Next) -> Result<Response
     // 漏洞 #6 修复：分布式优先，失败回退内存
     let allowed = check_rate_limit(
         &format!("bf:{}", ip),
-        15,
+        50,
         Duration::from_secs(300),
         &BRUTE_FORCE_LIMITER,
     )

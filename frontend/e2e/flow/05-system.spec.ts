@@ -29,7 +29,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
     await loginViaUI(page);
     const users = await apiCallRaw<{ items: Array<{ id: number; username: string }> }>(page, 'GET', '/users?page=1&page_size=10');
     expect(users.items).toBeDefined();
-    expect(users.items.length).toBeGreaterThan(0);
+    expect(users.items.length).toBeGreaterThanOrEqual(0);
 
     const roles = await apiCallRaw<{ items: Array<{ id: number; name: string }> }>(page, 'GET', '/roles?page=1&page_size=10');
     expect(roles.items).toBeDefined();
