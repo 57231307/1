@@ -1,5 +1,5 @@
 import { request } from '@playwright/test';
-import { writeFileSync } from 'fs';
+import { writeFileSync, mkdirSync } from 'fs';
 
 const API_BASE = process.env.API_BASE || 'http://localhost:8082';
 const API_PREFIX = '/api/v1/erp';
@@ -31,6 +31,7 @@ export default async function globalSetup() {
     throw new Error('globalSetup 登录后未获得 access_token cookie');
   }
 
+  mkdirSync('e2e/.auth', { recursive: true });
   writeFileSync(STORAGE_STATE_PATH, JSON.stringify(cookies, null, 2));
   await ctx.dispose();
 }
