@@ -283,18 +283,6 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
   // 等待离开 /login 页面
   try {
     await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 60_000 });
-    // 登录成功后，确保 cookie 已设置到 context
-    const cookies = await page.context().cookies();
-    const hasToken = cookies.some((c) => c.name === 'access_token');
-    if (!hasToken) {
-      // 如果 cookie 没有自动设置，手动通过 API 登录注入 cookie
-      const response = await page.request.post(`${API_BASE}${API_PREFIX}/auth/login`, {
-        data: { username: TEST_USERNAME, password: TEST_PASSWORD },
-        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-      });
-      // page.request 的 cookie 会自动保存到 context
-    }
-    LOGGED_IN.done = true;
   } catch {
     // 登录后仍然在 /login，输出诊断信息
     const currentUrl = page.url();
@@ -308,6 +296,22 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
     await page.screenshot({ path: 'test-results/login-failure-diagnosis.png', fullPage: true });
     throw new Error(`UI 登录失败: 60s 后仍在 ${currentUrl}，ElMessage: ${JSON.stringify(elMessages)}`);
   }
+
+  // 登录成功后，确保 cookie 已设置到 context
+  try {
+    const cookies = await page.context().cookies();
+    const hasToken = cookies.some((c) => c.name === 'access_token');
+    if (!hasToken) {
+      // 如果 cookie 没有自动设置，手动通过 API 登录注入 cookie
+      await page.request.post(`${API_BASE}${API_PREFIX}/auth/login`, {
+        data: { username: TEST_USERNAME, password: TEST_PASSWORD },
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      });
+    }
+  } catch {
+    // API 补充登录可能失败（429 等），不影响 UI 登录成功
+  }
+  LOGGED_IN.done = true;
 }
 
 export async function loginAsRole(page: Page, role: string): Promise<void> {
