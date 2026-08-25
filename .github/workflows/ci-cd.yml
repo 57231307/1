@@ -2401,7 +2401,7 @@ jobs:
 # Job 15: E2E 端到端测试（8 分片并行，每分片独立后端实例）
 # ==============================================================================
   ci-e2e:
-    name: 🎭 E2E 测试 (${{ matrix.shard }}/12)
+    name: 🎭 E2E 测试 (${{ matrix.shard }}/15)
     runs-on: ubuntu-latest
     timeout-minutes: 360
     needs: [ci-build-fe, ci-build-rust]
@@ -2410,7 +2410,7 @@ jobs:
       fail-fast: false
       max-parallel: 8
       matrix:
-        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
     services:
       postgres:
         image: postgres:16-alpine
@@ -2571,23 +2571,24 @@ jobs:
           echo "=== 后端日志最后 10 行 ==="
           tail -10 /tmp/e2e-logs/backend.log 2>/dev/null || echo "(无后端日志)"
 
-      - name: 运行 E2E 测试（分片 ${{ matrix.shard }}/12）
+      - name: 运行 E2E 测试（分片 ${{ matrix.shard }}/15）
         working-directory: frontend
         run: |
           mkdir -p reports
           set +e
           SHARD=${{ matrix.shard }}
           if [ "$SHARD" -le 10 ]; then
-            # 分片 0-10: 运行 flow/ 全流程测试（含扩展测试），按 shard 自动分配
+            # 分片 0-10: 运行 flow/ 全流程测试，按 shard 自动分配
             npx playwright test --project=chromium --shard=$((SHARD + 1))/11 e2e/flow/ 2>&1 | tee reports/playwright-output.txt
-          elif [ "$SHARD" -eq 11 ]; then
-            # 分片 11: 运行 smoke 全量页面加载测试
-            npx playwright test --project=chromium e2e/smoke/ 2>&1 | tee reports/playwright-output.txt
+          else
+            # 分片 11-14: 运行 smoke 页面加载测试，按 shard 分配
+            SMOKE_SHARD=$((SHARD - 10))
+            npx playwright test --project=chromium --shard=${SMOKE_SHARD}/4 e2e/smoke/ 2>&1 | tee reports/playwright-output.txt
           fi
           EXIT_CODE=$?
           set -e
           {
-            echo "# E2E 测试报告（分片 ${{ matrix.shard }}/12）"; echo ""
+            echo "# E2E 测试报告（分片 ${{ matrix.shard }}/15）"; echo ""
             if [ "$EXIT_CODE" -eq "0" ]; then echo "## ✅ 分片 ${{ matrix.shard }} 全部通过"
             else echo "## ❌ 分片 ${{ matrix.shard }} 部分失败"; echo '```'; head -200 reports/playwright-output.txt; echo '```'
             fi
