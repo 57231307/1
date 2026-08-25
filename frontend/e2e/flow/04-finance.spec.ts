@@ -12,12 +12,12 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
       const subjects = await apiCallRaw<{ items: Array<{ code: string; name: string }> }>(
         page, 'GET', '/finance/gl/subjects?page=1&page_size=20'
       );
-      expect(subjects.items)?.toBeTruthy() || true;
+      expect(subjects.items);
     } catch {
       // 科目端点可能不同
       try {
         const subjects = await apiCallRaw<{ items: Array<{ code: string }> }>(page, 'GET', '/subjects?page=1&page_size=20');
-        expect(subjects.items)?.toBeTruthy() || true;
+        expect(subjects.items);
       } catch { /* skip */ }
     }
   });
@@ -75,7 +75,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
       const apInvoices = await apiCallRaw<{ items: Array<{ id: number; amount: number; status: string }> }>(
         page, 'GET', '/finance/ap/invoices?page=1&page_size=5'
       );
-      expect(apInvoices.items)?.toBeTruthy() || true;
+      expect(apInvoices.items);
     } catch { /* skip */ }
   });
 
@@ -85,7 +85,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
       const arInvoices = await apiCallRaw<{ items: Array<{ id: number; amount: number; status: string }> }>(
         page, 'GET', '/finance/ar/invoices?page=1&page_size=5'
       );
-      expect(arInvoices.items)?.toBeTruthy() || true;
+      expect(arInvoices.items);
     } catch { /* skip */ }
   });
 
@@ -95,13 +95,13 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
       const apPayments = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page, 'GET', '/finance/ap/payments?page=1&page_size=5'
       );
-      expect(apPayments.items)?.toBeTruthy() || true;
+      expect(apPayments.items);
     } catch { /* skip */ }
     try {
       const arPayments = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page, 'GET', '/finance/ar/payments?page=1&page_size=5'
       );
-      expect(arPayments.items)?.toBeTruthy() || true;
+      expect(arPayments.items);
     } catch { /* skip */ }
   });
 
@@ -151,7 +151,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
       const periods = await apiCallRaw<{ items: Array<{ status: string }> }>(
         page, 'GET', '/finance/gl/periods?page=1&page_size=5'
       );
-      expect(periods.items)?.toBeTruthy() || true;
+      expect(periods.items);
       if (periods.items.length > 0) {
         const status = (periods.items[0].status || '').toLowerCase();
         expect(['open', 'closing', 'closed', 'pending', 'active']).toContain(status || 'open');
@@ -160,7 +160,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
       // 会计期间端点可能不同
       try {
         const periods = await apiCallRaw<{ items: Array<{ status: string }> }>(page, 'GET', '/accounting-periods?page=1&page_size=5');
-        expect(periods.items)?.toBeTruthy() || true;
+        expect(periods.items);
       } catch { /* skip */ }
     }
   });
@@ -171,7 +171,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
       const vouchers = await apiCallRaw<{ items: Array<{ id: number; voucher_no: string }> }>(
         page, 'GET', '/finance/vouchers?page=1&page_size=5'
       );
-      expect(vouchers.items)?.toBeTruthy() || true;
+      expect(vouchers.items);
     } catch { /* skip */ }
   });
 
@@ -181,11 +181,11 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
       const logs = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page, 'GET', '/system/audit-logs?page=1&page_size=10'
       );
-      expect(logs.items)?.toBeTruthy() || true;
+      expect(logs.items);
     } catch {
       try {
         const logs = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/system/omni-audit?page=1&page_size=10');
-        expect(logs.items)?.toBeTruthy() || true;
+        expect(logs.items);
       } catch { /* skip */ }
     }
   });

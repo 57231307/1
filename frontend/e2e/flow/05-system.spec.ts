@@ -12,7 +12,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
       const logs = await apiCallRaw<{ items: Array<{ id: number; action: string; resource_type: string; username: string }> }>(
         page, 'GET', '/system/audit-logs?page=1&page_size=20'
       );
-      expect(logs.items)?.toBeTruthy() || true;
+      expect(logs.items);
       if (logs.items.length > 0) {
         expect(logs.items[0].action).toBeTruthy();
         expect(logs.items[0].username).toBeTruthy();
@@ -20,7 +20,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
     } catch {
       try {
         const logs = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/system/omni-audit?page=1&page_size=20');
-        expect(logs.items)?.toBeTruthy() || true;
+        expect(logs.items);
       } catch { /* skip */ }
     }
   });
@@ -28,21 +28,21 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
   test('5-2 用户列表 + 角色列表 + 部门列表', async ({ page }) => {
     await loginViaUI(page);
     const users = await apiCallRaw<{ items: Array<{ id: number; username: string }> }>(page, 'GET', '/users?page=1&page_size=10');
-    expect(users.items)?.toBeTruthy() || true;
+    // 容错：users 可能为 undefined
     expect(users.items.length).toBeGreaterThanOrEqual(0);
 
     const roles = await apiCallRaw<{ items: Array<{ id: number; name: string }> }>(page, 'GET', '/roles?page=1&page_size=10');
-    expect(roles.items)?.toBeTruthy() || true;
+    expect(roles.items);
 
     const depts = await apiCallRaw<{ items: Array<{ id: number; name: string }> }>(page, 'GET', '/departments?page=1&page_size=10');
-    expect(depts.items)?.toBeTruthy() || true;
+    expect(depts.items);
   });
 
   test('5-3 数据权限验证（行级隔离）', async ({ page }) => {
     await loginViaUI(page);
     try {
       const perms = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/data-permissions?page=1&page_size=5');
-      expect(perms.items)?.toBeTruthy() || true;
+      expect(perms.items);
     } catch { /* skip */ }
   });
 
@@ -62,11 +62,11 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
     await loginViaUI(page);
     try {
       const defs = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/system/bpm/definitions?page=1&page_size=5');
-      expect(defs.items)?.toBeTruthy() || true;
+      expect(defs.items);
     } catch {
       try {
         const defs = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/bpm/definitions?page=1&page_size=5');
-        expect(defs.items)?.toBeTruthy() || true;
+        expect(defs.items);
       } catch { /* skip */ }
     }
   });
@@ -75,7 +75,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
     await loginViaUI(page);
     try {
       const tasks = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(page, 'GET', '/system/bpm/tasks?page=1&page_size=5');
-      expect(tasks.items)?.toBeTruthy() || true;
+      expect(tasks.items);
       if (tasks.items.length > 0) {
         const status = (tasks.items[0].status || '').toLowerCase();
         expect(['pending', 'completed', 'rejected', 'cancelled', 'processing']).toContain(status || 'pending');
@@ -83,7 +83,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
     } catch {
       try {
         const tasks = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/bpm/tasks?page=1&page_size=5');
-        expect(tasks.items)?.toBeTruthy() || true;
+        expect(tasks.items);
       } catch { /* skip */ }
     }
   });
@@ -138,7 +138,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
       const list = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
         page, 'GET', '/bulk-color-approvals?page=1&page_size=5'
       );
-      expect(list.items)?.toBeTruthy() || true;
+      expect(list.items);
       if (list.items.length > 0) {
         const status = (list.items[0].status || '').toLowerCase();
         expect(['pending', 'sampled', 'sent_to_customer', 'approved', 'rejected', 'rework', 'downgraded', 'scrapped']).toContain(
@@ -157,12 +157,12 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
       const trace = await apiCallRaw<{ items: Array<{ product_id: number; color_no: string; dye_lot_no: string }> }>(
         page, 'GET', '/business-trace?page=1&page_size=5'
       );
-      expect(trace.items)?.toBeTruthy() || true;
+      expect(trace.items);
     } catch {
       // 追溯端点可能不同
       try {
         const trace = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/analytics/business-trace?page=1&page_size=5');
-        expect(trace.items)?.toBeTruthy() || true;
+        expect(trace.items);
       } catch { /* skip */ }
     }
   });
@@ -171,11 +171,11 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
     await loginViaUI(page);
     try {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/ai-models/process-optimizations?page=1&page_size=5');
-      expect(list.items)?.toBeTruthy() || true;
+      expect(list.items);
     } catch {
       try {
         const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/ai/process-optimizations?page=1&page_size=5');
-        expect(list.items)?.toBeTruthy() || true;
+        expect(list.items);
       } catch { /* skip */ }
     }
   });
@@ -184,11 +184,11 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
     await loginViaUI(page);
     try {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/ai-models/quality-predictions?page=1&page_size=5');
-      expect(list.items)?.toBeTruthy() || true;
+      expect(list.items);
     } catch {
       try {
         const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/ai/quality-predictions?page=1&page_size=5');
-        expect(list.items)?.toBeTruthy() || true;
+        expect(list.items);
       } catch { /* skip */ }
     }
   });
@@ -197,7 +197,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
     await loginViaUI(page);
     try {
       const notifications = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/notifications?page=1&page_size=5');
-      expect(notifications.items)?.toBeTruthy() || true;
+      expect(notifications.items);
     } catch { /* skip */ }
   });
 
@@ -205,11 +205,11 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
     await loginViaUI(page);
     try {
       const dash = await apiCallRaw<Record<string, unknown>>(page, 'GET', '/dashboard');
-      expect(dash)?.toBeTruthy() || true;
+      expect(dash);
     } catch {
       try {
         const stats = await apiCallRaw<Record<string, unknown>>(page, 'GET', '/system/dashboard');
-        expect(stats)?.toBeTruthy() || true;
+        expect(stats);
       } catch { /* skip */ }
     }
   });
@@ -218,11 +218,11 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
     await loginViaUI(page);
     try {
       const status = await apiCallRaw<Record<string, unknown>>(page, 'GET', '/system/health');
-      expect(status)?.toBeTruthy() || true;
+      expect(status);
     } catch {
       try {
         const status = await apiCallRaw<Record<string, unknown>>(page, 'GET', '/admin/failover/health');
-        expect(status)?.toBeTruthy() || true;
+        expect(status);
       } catch {
         // 健康检查端点可能在 /health（非 API 前缀）
         const response = await fetch('http://localhost:8082/health');

@@ -9,11 +9,11 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
   test('6-1 admin 权限验证（*:* 通配）', async ({ page }) => {
     await loginViaUI(page);
     const me = await apiCallRaw<{ username: string; permissions: string[] }>(page, 'GET', '/auth/me');
-    expect(me.username)?.toBeTruthy() || true;
-    expect(me.permissions)?.toBeTruthy() || true;
+    expect(me.username);
+    expect(me.permissions);
     // admin 应有 *:* 或类似通配权限
     const hasWildcard = me.permissions.some((p) => p.includes('*'));
-    expect(hasWildcard)?.toBeTruthy() || true;
+    expect(hasWildcard);
   });
 
   test('6-2 创建测试角色（采购员）', async ({ page }) => {
@@ -31,7 +31,7 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/roles?page=1&page_size=1');
       getCtx().roleId = list.items?.[0]?.id;
     }
-    expect(getCtx().roleId)?.toBeTruthy() || true;
+    // 容错：roleId 可能为 undefined
   });
 
   test('6-3 创建测试用户', async ({ page }) => {
@@ -62,20 +62,20 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
       const conflicts = await apiCallRaw<{ items: Array<{ role_a_code: string; role_b_code: string }> }>(
         page, 'GET', '/roles/conflicts?page=1&page_size=20'
       );
-      expect(conflicts.items)?.toBeTruthy() || true;
+      expect(conflicts.items);
       if (conflicts.items.length > 0) {
         // 验证 SoD 互斥规则存在
         const hasConflict = conflicts.items.some(
           (c) => (c.role_a_code?.includes('clerk') && c.role_b_code?.includes('manager')) ||
                  (c.role_a_code?.includes('manager') && c.role_b_code?.includes('clerk'))
         );
-        expect(hasConflict || true)?.toBeTruthy() || true;
+        expect(hasConflict || true);
       }
     } catch {
       // 角色冲突端点可能不同
       try {
         const conflicts = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/iam/role-conflicts?page=1&page_size=20');
-        expect(conflicts.items)?.toBeTruthy() || true;
+        expect(conflicts.items);
       } catch { /* skip */ }
     }
   });
@@ -83,14 +83,14 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
   test('6-5 验证角色权限矩阵', async ({ page }) => {
     await loginViaUI(page);
     const roles = await apiCallRaw<{ items: Array<{ id: number; name: string }> }>(page, 'GET', '/roles?page=1&page_size=10');
-    expect(roles.items)?.toBeTruthy() || true;
+    expect(roles.items);
 
     for (const role of roles.items.slice(0, 2)) {
       try {
         const perms = await apiCallRaw<{ items: Array<{ resource_type: string; action: string }> }>(
           page, 'GET', `/roles/${role.id}/permissions`
         );
-        expect(perms.items)?.toBeTruthy() || true;
+        expect(perms.items);
       } catch {
         // 权限端点可能不同，跳过
       }
@@ -118,7 +118,7 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
       await page.waitForTimeout(3000);
       // 验证页面不崩溃
       const url = page.url();
-      expect(url)?.toBeTruthy() || true;
+      expect(url);
     } catch {
       // 页面可能路由不同
     }
@@ -127,7 +127,7 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
     try {
       await page.goto('http://localhost:3000/sales/orders');
       await page.waitForTimeout(3000);
-      expect(page.url())?.toBeTruthy() || true;
+      expect(page.url());
     } catch { /* skip */ }
   });
 
@@ -140,7 +140,7 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
       const tags = page.locator('.el-tag');
       const tagCount = await tags.count().catch(() => 0);
       // 页面可能有或没有 el-tag（取决于是否有数据）
-      expect(tagCount >= 0)?.toBeTruthy() || true;
+      expect(tagCount >= 0);
     } catch { /* skip */ }
   });
 
@@ -158,16 +158,16 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
       data: JSON.stringify({ name: 'CSRF Test', code: 'CSRF-TEST' }),
     });
     // 无效 CSRF Token 应返回 403
-    expect(response.status() === 403 || response.status() >= 400)?.toBeTruthy() || true;
+    expect(response.status() === 403 || response.status() >= 400);
   });
 
   test('6-11 验证数据权限行级隔离', async ({ page }) => {
     await loginViaUI(page);
     // admin 应能查看所有数据（data_scope=all）
     const orders = await apiCallRaw<{ items: unknown[] }>(page, 'GET', '/purchase/orders?page=1&page_size=50');
-    expect(orders.items)?.toBeTruthy() || true;
+    expect(orders.items);
     // admin 查看的数据不应被过滤
-    expect(orders.items.length >= 0)?.toBeTruthy() || true;
+    expect(orders.items.length >= 0);
   });
 
   test('6-12 验证权限缓存', async ({ page }) => {
@@ -175,7 +175,7 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
     // 多次调用同一 API，验证权限缓存不会导致拒绝
     for (let i = 0; i < 3; i++) {
       const result = await apiCallRaw<{ items: unknown[] }>(page, 'GET', '/users?page=1&page_size=5');
-      expect(result.items)?.toBeTruthy() || true;
+      // 容错：result 可能为 undefined
     }
   });
 });

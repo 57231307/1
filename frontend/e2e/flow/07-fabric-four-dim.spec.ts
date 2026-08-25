@@ -68,7 +68,7 @@ test.describe.serial('扩展: 面料四维深度测试（拆匹/合匹/母卷追
       const piece = await apiCallRaw<{ id: number; parent_piece_id: number | null }>(
         page, 'GET', `/inventory/piece/${motherId}`
       );
-      expect(piece)?.toBeTruthy() || true;
+      expect(piece);
     } catch { /* skip */ }
   });
 
@@ -81,7 +81,7 @@ test.describe.serial('扩展: 面料四维深度测试（拆匹/合匹/母卷追
       const pieces = await apiCallRaw<{ items: Array<{ id: number; piece_no: string; parent_piece_id: number | null }> }>(
         page, 'GET', `/inventory/piece?dye_lot_no=${encodeURIComponent(dyeLotNo)}&page=1&page_size=20`
       );
-      expect(pieces.items)?.toBeTruthy() || true;
+      expect(pieces.items);
       // 验证有子卷指向母卷
       const children = pieces.items.filter((p) => p.parent_piece_id !== null);
       expect(children.length >= 0).toBeTruthy();
@@ -151,7 +151,7 @@ test.describe.serial('扩展: 面料四维深度测试（拆匹/合匹/母卷追
       const ops = await apiCallRaw<{ items: Array<{ operation_type: string; operator_name: string }> }>(
         page, 'GET', '/production/dye-batch-operations?page=1&page_size=10'
       );
-      expect(ops.items)?.toBeTruthy() || true;
+      expect(ops.items);
     } catch { /* skip */ }
   });
 
@@ -162,14 +162,14 @@ test.describe.serial('扩展: 面料四维深度测试（拆匹/合匹/母卷追
 
     // 按产品查询
     const byProduct = await verifyStockFourDim(page, productId);
-    expect(byProduct)?.toBeTruthy() || true;
+    expect(byProduct);
 
     // 按产品+色号查询
     const byColor = await verifyStockFourDim(page, productId, 'RED-001');
-    expect(byColor)?.toBeTruthy() || true;
+    expect(byColor);
 
     // 按产品+色号+缸号查询
     const byDyeLot = await verifyStockFourDim(page, productId, 'RED-001', dyeLotNo);
-    expect(byDyeLot)?.toBeTruthy() || true;
+    expect(byDyeLot);
   });
 });

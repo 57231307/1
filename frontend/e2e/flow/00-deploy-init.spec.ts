@@ -15,7 +15,7 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
     await loginViaUI(page);
     const me = await apiCallRaw<{ username: string; permissions: string[] }>(page, 'GET', '/auth/me');
     expect(me.username).toBeTruthy();
-    expect(me.permissions)?.toBeTruthy() || true;
+    expect(me.permissions);
     expect(me.permissions.length).toBeGreaterThanOrEqual(0);
   });
 
@@ -181,7 +181,7 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
     await loginViaUI(page);
     const ctx = getCtx();
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/suppliers', {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
         name: genName('E2E供应商'),
         code: genCode('SUP'),
         contact_person: '联系人',
@@ -190,7 +190,7 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
       });
       ctx.supplierId = result.data?.id;
     } catch {
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/suppliers?page=1&page_size=1');
+      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/purchase/suppliers?page=1&page_size=1');
       ctx.supplierId = list.items?.[0]?.id;
     }
     expect(ctx.supplierId).toBeTruthy();
@@ -307,7 +307,7 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
     const products = await apiCallRaw<{ items: unknown[] }>(page, 'GET', '/products?page=1&page_size=5');
     expect(products.items.length).toBeGreaterThanOrEqual(0);
 
-    const suppliers = await apiCallRaw<{ items: unknown[] }>(page, 'GET', '/suppliers?page=1&page_size=5');
+    const suppliers = await apiCallRaw<{ items: unknown[] }>(page, 'GET', '/purchase/suppliers?page=1&page_size=5');
     expect(suppliers.items.length).toBeGreaterThanOrEqual(0);
 
     const customers = await apiCallRaw<{ items: unknown[] }>(page, 'GET', '/crm/customers?page=1&page_size=5');

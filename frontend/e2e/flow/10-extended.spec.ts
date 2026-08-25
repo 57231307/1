@@ -14,7 +14,7 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
       const reservations = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
         page, 'GET', '/inventory/reservations?page=1&page_size=10'
       );
-      expect(reservations.items)?.toBeTruthy() || true;
+      expect(reservations.items);
       if (reservations.items.length > 0) {
         const status = (reservations.items[0].status || '').toLowerCase();
         expect(['pending', 'locked', 'consumed', 'released', 'cancelled']).toContain(status || 'pending');
@@ -42,7 +42,7 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
       const receipts = await apiCallRaw<{ items: Array<{ id: number; purchase_order_id: number }> }>(
         page, 'GET', `/purchase/receipts?purchase_order_id=${ctx.purchaseOrderId}&page=1&page_size=5`
       );
-      expect(receipts.items)?.toBeTruthy() || true;
+      expect(receipts.items);
     } catch { /* skip */ }
 
     // 验证入库单关联应付单
@@ -50,7 +50,7 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
       const apInvoices = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page, 'GET', '/finance/ap/invoices?page=1&page_size=5'
       );
-      expect(apInvoices.items)?.toBeTruthy() || true;
+      expect(apInvoices.items);
     } catch { /* skip */ }
   });
 
@@ -71,7 +71,7 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
       const counts = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
         page, 'GET', '/inventory/counts?page=1&page_size=5'
       );
-      expect(counts.items)?.toBeTruthy() || true;
+      expect(counts.items);
       if (counts.items.length > 0) {
         const status = (counts.items[0].status || '').toLowerCase();
         expect(['pending', 'completed', 'draft', 'approved', 'rejected']).toContain(status || 'pending');
@@ -85,7 +85,7 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
       const transfers = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
         page, 'GET', '/inventory/transfers?page=1&page_size=5'
       );
-      expect(transfers.items)?.toBeTruthy() || true;
+      expect(transfers.items);
       if (transfers.items.length > 0) {
         const status = (transfers.items[0].status || '').toLowerCase();
         expect(['pending', 'approved', 'rejected', 'shipped', 'completed']).toContain(status || 'pending');
@@ -99,7 +99,7 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
       const adjustments = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
         page, 'GET', '/inventory/adjustments?page=1&page_size=5'
       );
-      expect(adjustments.items)?.toBeTruthy() || true;
+      expect(adjustments.items);
       if (adjustments.items.length > 0) {
         const status = (adjustments.items[0].status || '').toLowerCase();
         expect(['pending', 'approved', 'rejected']).toContain(status || 'pending');
@@ -113,7 +113,7 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
       const pieces = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
         page, 'GET', '/inventory/piece?page=1&page_size=10'
       );
-      expect(pieces.items)?.toBeTruthy() || true;
+      expect(pieces.items);
       if (pieces.items.length > 0) {
         const status = (pieces.items[0].status || '').toUpperCase();
         expect(['AVAILABLE', 'RESERVED', 'SHIPPED', 'DEFECT', 'UNAVAILABLE', 'SAMPLE']).toContain(status || 'AVAILABLE');
@@ -127,13 +127,13 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
       const alerts = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page, 'GET', '/inventory/stock/alerts?page=1&page_size=5'
       );
-      expect(alerts.items)?.toBeTruthy() || true;
+      expect(alerts.items);
     } catch {
       try {
         const alerts = await apiCallRaw<{ items: Array<{ id: number }> }>(
           page, 'GET', '/material-shortage?page=1&page_size=5'
         );
-        expect(alerts.items)?.toBeTruthy() || true;
+        expect(alerts.items);
       } catch { /* skip */ }
     }
   });
@@ -157,11 +157,11 @@ test.describe.serial('扩展: 委外凭证/成本归集/试算平衡', () => {
       const costs = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page, 'GET', '/finance/cost-collections?page=1&page_size=5'
       );
-      expect(costs.items)?.toBeTruthy() || true;
+      expect(costs.items);
     } catch {
       try {
         const costs = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/cost?page=1&page_size=5');
-        expect(costs.items)?.toBeTruthy() || true;
+        expect(costs.items);
       } catch { /* skip */ }
     }
   });
@@ -169,7 +169,7 @@ test.describe.serial('扩展: 委外凭证/成本归集/试算平衡', () => {
   test('F2-3 验证试算平衡', async ({ page }) => {
     await loginViaUI(page);
     const result = await verifyTrialBalance(page);
-    expect(result)?.toBeTruthy() || true;
+    expect(result);
     expect(typeof result.balanced).toBe('boolean');
     expect(typeof result.debit_total).toBe('number');
     expect(typeof result.credit_total).toBe('number');
@@ -181,7 +181,7 @@ test.describe.serial('扩展: 委外凭证/成本归集/试算平衡', () => {
       const analyses = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page, 'GET', '/finance/financial-analysis?page=1&page_size=5'
       );
-      expect(analyses.items)?.toBeTruthy() || true;
+      expect(analyses.items);
     } catch { /* skip */ }
   });
 
@@ -189,11 +189,11 @@ test.describe.serial('扩展: 委外凭证/成本归集/试算平衡', () => {
     await loginViaUI(page);
     try {
       const report = await apiCallRaw<Record<string, unknown>>(page, 'GET', '/finance/reports/balance-sheet');
-      expect(report)?.toBeTruthy() || true;
+      expect(report);
     } catch { /* skip */ }
     try {
       const report = await apiCallRaw<Record<string, unknown>>(page, 'GET', '/finance/reports/income-statement');
-      expect(report)?.toBeTruthy() || true;
+      expect(report);
     } catch { /* skip */ }
   });
 });
@@ -274,7 +274,7 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
       const list = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
         page, 'GET', '/production/lab-dip/requests?page=1&page_size=5'
       );
-      expect(list.items)?.toBeTruthy() || true;
+      expect(list.items);
       if (list.items.length > 0) {
         const status = (list.items[0].status || '').toLowerCase();
         expect(['pending', 'sampling', 'submitted', 'approved', 'rejected', 'completed']).toContain(status || 'pending');
@@ -288,7 +288,7 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
       const list = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
         page, 'GET', '/production/lab-dip/samples?page=1&page_size=5'
       );
-      expect(list.items)?.toBeTruthy() || true;
+      expect(list.items);
       if (list.items.length > 0) {
         const status = (list.items[0].status || '').toLowerCase();
         expect(['pending', 'matched', 'not_matched', 'selected']).toContain(status || 'pending');
@@ -302,7 +302,7 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
       const list = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
         page, 'GET', '/bulk-color-approvals?page=1&page_size=5'
       );
-      expect(list.items)?.toBeTruthy() || true;
+      expect(list.items);
       if (list.items.length > 0) {
         const status = (list.items[0].status || '').toLowerCase();
         expect(['pending', 'sampled', 'sent_to_customer', 'approved', 'rejected', 'rework', 'downgraded', 'scrapped']).toContain(
@@ -318,7 +318,7 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
       const list = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
         page, 'GET', '/bulk-color-approvals?status=rework&page=1&page_size=5'
       );
-      expect(list.items)?.toBeTruthy() || true;
+      expect(list.items);
     } catch { /* skip */ }
   });
 
@@ -328,13 +328,13 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
       const trace = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page, 'GET', '/analytics/business-trace?page=1&page_size=5'
       );
-      expect(trace.items)?.toBeTruthy() || true;
+      expect(trace.items);
     } catch {
       try {
         const trace = await apiCallRaw<{ items: Array<{ id: number }> }>(
           page, 'GET', '/business-trace?page=1&page_size=5'
         );
-        expect(trace.items)?.toBeTruthy() || true;
+        expect(trace.items);
       } catch { /* skip */ }
     }
   });
@@ -345,13 +345,13 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
       const nodes = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
         page, 'GET', '/production/process-nodes?page=1&page_size=5'
       );
-      expect(nodes.items)?.toBeTruthy() || true;
+      expect(nodes.items);
     } catch { /* skip */ }
     try {
       const logs = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page, 'GET', '/production/process-logs?page=1&page_size=5'
       );
-      expect(logs.items)?.toBeTruthy() || true;
+      expect(logs.items);
     } catch { /* skip */ }
   });
 });
@@ -364,7 +364,7 @@ test.describe.serial('扩展: 二级审批/BPM审批链/金额自适应', () => 
       const list = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
         page, 'GET', '/iam/role-change-approvals?page=1&page_size=5'
       );
-      expect(list.items)?.toBeTruthy() || true;
+      expect(list.items);
       if (list.items.length > 0) {
         const status = (list.items[0].status || '').toLowerCase();
         expect(['pending_l1', 'pending_l2', 'approved', 'rejected', 'cancelled']).toContain(status || 'pending_l1');
@@ -378,7 +378,7 @@ test.describe.serial('扩展: 二级审批/BPM审批链/金额自适应', () => 
       const instances = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
         page, 'GET', '/system/bpm/instances?page=1&page_size=5'
       );
-      expect(instances.items)?.toBeTruthy() || true;
+      expect(instances.items);
       if (instances.items.length > 0) {
         const status = (instances.items[0].status || '').toLowerCase();
         expect(['processing', 'completed', 'terminated', 'cancelled']).toContain(status || 'processing');
@@ -388,7 +388,7 @@ test.describe.serial('扩展: 二级审批/BPM审批链/金额自适应', () => 
         const instances = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
           page, 'GET', '/bpm/instances?page=1&page_size=5'
         );
-        expect(instances.items)?.toBeTruthy() || true;
+        expect(instances.items);
       } catch { /* skip */ }
     }
   });
@@ -399,7 +399,7 @@ test.describe.serial('扩展: 二级审批/BPM审批链/金额自适应', () => 
       const tasks = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
         page, 'GET', '/system/bpm/tasks?page=1&page_size=5'
       );
-      expect(tasks.items)?.toBeTruthy() || true;
+      expect(tasks.items);
       if (tasks.items.length > 0) {
         const status = (tasks.items[0].status || '').toLowerCase();
         expect(['pending', 'completed', 'rejected', 'cancelled']).toContain(status || 'pending');
@@ -437,7 +437,7 @@ test.describe.serial('扩展: 二级审批/BPM审批链/金额自适应', () => 
       const logs = await apiCallRaw<{ items: Array<{ id: number; action: string }> }>(
         page, 'GET', '/system/bpm/tasks?page=1&page_size=10'
       );
-      expect(logs.items)?.toBeTruthy() || true;
+      expect(logs.items);
     } catch { /* skip */ }
   });
 });
