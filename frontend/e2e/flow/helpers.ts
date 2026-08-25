@@ -141,7 +141,23 @@ export async function apiCallExpectFail(
   return { status: response.status(), code: json.code, message: json.message };
 }
 
+const LOGGED_IN = { done: false };
+
 export async function loginViaUI(page: Page, username?: string, password?: string): Promise<void> {
+  // 如果已经登录过（同一个 page context），检查是否还有效
+  if (LOGGED_IN.done) {
+    // 检查 cookie 是否还在（access_token）
+    const cookies = await page.context().cookies();
+    const hasToken = cookies.some((c) => c.name === 'access_token');
+    if (hasToken) {
+      // 已登录，直接导航到 dashboard
+      await page.goto(`${BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded' }).catch(() => {});
+      return;
+    }
+    // cookie 过期了，需要重新登录
+    LOGGED_IN.done = false;
+  }
+
   const u = username || TEST_USERNAME;
   const p = password || TEST_PASSWORD;
 
@@ -155,12 +171,11 @@ export async function loginViaUI(page: Page, username?: string, password?: strin
   // 等 2 秒让 Vite 触发可能的 504
   await page.waitForTimeout(2000);
 
-  // 如果有 504，等 Vite 自动优化完成（5 秒），然后关闭页面打开新页面
+  // 如果有 504，等 Vite 自动优化完成，然后关闭页面打开新页面
   const has504 = consoleLogs.some((log) => log.includes('504'));
   if (has504) {
     console.log('检测到 Vite 504，等待 5 秒后打开新页面...');
     await page.waitForTimeout(5000);
-    // 打开新页面（全新的 JS 上下文，无 504 残留）
     const context = page.context();
     await page.close();
     const newPage = await context.newPage();
@@ -173,7 +188,6 @@ export async function loginViaUI(page: Page, username?: string, password?: strin
       window.localStorage.setItem('bingxi.locale', 'zh-CN');
     });
     await newPage.waitForTimeout(2000);
-    // 检查新页面是否有 504
     const newHas504 = newLogs.some((log) => log.includes('504'));
     if (newHas504) {
       console.log('新页面仍有 504，再等 5 秒重新打开...');
@@ -188,9 +202,13 @@ export async function loginViaUI(page: Page, username?: string, password?: strin
         window.localStorage.setItem('bingxi.locale', 'zh-CN');
       });
       await finalPage.waitForTimeout(2000);
-      return await loginOnPage(finalPage, u, p, newLogs);
+      await loginOnPage(finalPage, u, p, newLogs);
+      LOGGED_IN.done = true;
+      return;
     }
-    return await loginOnPage(newPage, u, p, newLogs);
+    await loginOnPage(newPage, u, p, newLogs);
+    LOGGED_IN.done = true;
+    return;
   }
 
   // 无 504，直接在原页面登录
@@ -199,6 +217,7 @@ export async function loginViaUI(page: Page, username?: string, password?: strin
   });
   await page.waitForTimeout(2000);
   await loginOnPage(page, u, p, consoleLogs);
+  LOGGED_IN.done = true;
 }
 
 async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string[]): Promise<void> {
