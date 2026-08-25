@@ -146,15 +146,29 @@ const LOGGED_IN = { done: false };
 export async function loginViaUI(page: Page, username?: string, password?: string): Promise<void> {
   // 如果已经登录过（同一个 page context），检查是否还有效
   if (LOGGED_IN.done) {
-    // 检查 cookie 是否还在（access_token）
+    // 已登录过，但可能在不同的 BrowserContext 中
+    // 检查 cookie 是否还在
     const cookies = await page.context().cookies();
     const hasToken = cookies.some((c) => c.name === 'access_token');
     if (hasToken) {
-      // 已登录，直接导航到 dashboard
+      // cookie 存在，直接导航
       await page.goto(`${BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded' }).catch(() => {});
       return;
     }
-    // cookie 过期了，需要重新登录
+    // cookie 不在（新 context），用 API 登录注入 cookie（不用 UI，避免 429）
+    try {
+      const loginResp = await page.request.post(`${API_BASE}${API_PREFIX}/auth/login`, {
+        data: { username: TEST_USERNAME, password: TEST_PASSWORD },
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      });
+      if (loginResp.ok()) {
+        // API 登录成功，cookie 已注入 context
+        await page.goto(`${BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded' }).catch(() => {});
+        return;
+      }
+    } catch {
+      // API 登录也失败（可能 429），继续 UI 登录
+    }
     LOGGED_IN.done = false;
   }
 
