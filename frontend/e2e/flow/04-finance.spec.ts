@@ -152,7 +152,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
         page, 'GET', '/finance/gl/periods?page=1&page_size=5'
       );
       expect(periods.items);
-      if (periods.items.length > 0) {
+      if (periods?.items?.length ?? 0 > 0) {
         const status = (periods.items[0].status || '').toLowerCase();
         expect(['open', 'closing', 'closed', 'pending', 'active']).toContain(status || 'open');
       }

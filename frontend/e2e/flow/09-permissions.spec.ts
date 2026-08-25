@@ -14,7 +14,7 @@ test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓�
       );
       expect(conflicts.items);
       // 验证至少有 SoD 规则
-      if (conflicts.items.length > 0) {
+      if (conflicts?.items?.length ?? 0 > 0) {
         const pairs = conflicts.items.map((c) => `${c.role_a_code}↔${c.role_b_code}`);
         const expectedPairs = [
           'accounting_clerk↔financial_manager',

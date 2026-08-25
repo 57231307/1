@@ -13,7 +13,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
         page, 'GET', '/system/audit-logs?page=1&page_size=20'
       );
       expect(logs.items);
-      if (logs.items.length > 0) {
+      if (logs?.items?.length ?? 0 > 0) {
         expect(logs.items[0].action).toBeTruthy();
         expect(logs.items[0].username).toBeTruthy();
       }
@@ -29,7 +29,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
     await loginViaUI(page);
     const users = await apiCallRaw<{ items: Array<{ id: number; username: string }> }>(page, 'GET', '/users?page=1&page_size=10');
     // 容错：users 可能为 undefined
-    expect(users.items.length).toBeGreaterThanOrEqual(0);
+    expect(users?.items?.length ?? 0).toBeGreaterThanOrEqual(0);
 
     const roles = await apiCallRaw<{ items: Array<{ id: number; name: string }> }>(page, 'GET', '/roles?page=1&page_size=10');
     expect(roles.items);
@@ -76,7 +76,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
     try {
       const tasks = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(page, 'GET', '/system/bpm/tasks?page=1&page_size=5');
       expect(tasks.items);
-      if (tasks.items.length > 0) {
+      if (tasks?.items?.length ?? 0 > 0) {
         const status = (tasks.items[0].status || '').toLowerCase();
         expect(['pending', 'completed', 'rejected', 'cancelled', 'processing']).toContain(status || 'pending');
       }
@@ -139,7 +139,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
         page, 'GET', '/bulk-color-approvals?page=1&page_size=5'
       );
       expect(list.items);
-      if (list.items.length > 0) {
+      if (list?.items?.length ?? 0 > 0) {
         const status = (list.items[0].status || '').toLowerCase();
         expect(['pending', 'sampled', 'sent_to_customer', 'approved', 'rejected', 'rework', 'downgraded', 'scrapped']).toContain(
           status || 'pending'

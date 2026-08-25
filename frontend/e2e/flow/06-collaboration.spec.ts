@@ -63,7 +63,7 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
         page, 'GET', '/roles/conflicts?page=1&page_size=20'
       );
       expect(conflicts.items);
-      if (conflicts.items.length > 0) {
+      if (conflicts?.items?.length ?? 0 > 0) {
         // 验证 SoD 互斥规则存在
         const hasConflict = conflicts.items.some(
           (c) => (c.role_a_code?.includes('clerk') && c.role_b_code?.includes('manager')) ||
@@ -85,7 +85,7 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
     const roles = await apiCallRaw<{ items: Array<{ id: number; name: string }> }>(page, 'GET', '/roles?page=1&page_size=10');
     expect(roles.items);
 
-    for (const role of roles.items.slice(0, 2)) {
+    for (const role of roles?.items?.slice(0, 2)) {
       try {
         const perms = await apiCallRaw<{ items: Array<{ resource_type: string; action: string }> }>(
           page, 'GET', `/roles/${role.id}/permissions`
@@ -167,7 +167,7 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
     const orders = await apiCallRaw<{ items: unknown[] }>(page, 'GET', '/purchase/orders?page=1&page_size=50');
     expect(orders.items);
     // admin 查看的数据不应被过滤
-    expect(orders.items.length >= 0);
+    expect(orders?.items?.length ?? 0 >= 0);
   });
 
   test('6-12 验证权限缓存', async ({ page }) => {

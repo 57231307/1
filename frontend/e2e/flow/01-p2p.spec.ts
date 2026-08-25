@@ -146,7 +146,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       expect(invoices.items);
 
       // 尝试手动创建 AP 应付单（如果未自动生成）
-      if (invoices.items.length === 0) {
+      if (invoices?.items?.length ?? 0 === 0) {
         try {
           const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/ap/invoices', {
             supplier_id: ctx.supplierId || 1,

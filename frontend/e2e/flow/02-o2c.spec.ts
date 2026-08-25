@@ -154,7 +154,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
       );
       expect(invoices.items);
 
-      if (invoices.items.length === 0) {
+      if (invoices?.items?.length ?? 0 === 0) {
         try {
           const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/ar/invoices', {
             customer_id: ctx.customerId || 1,

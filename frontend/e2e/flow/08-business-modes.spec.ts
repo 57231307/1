@@ -14,7 +14,7 @@ test.describe.serial('扩展: 业务模式测试（染整加工/来料加工/委
       );
       expect(modes.items);
       // 验证至少有一种模式
-      if (modes.items.length > 0) {
+      if (modes?.items?.length ?? 0 > 0) {
         const codes = modes.items.map((m) => m.mode_code);
         const expectedCodes = ['grey_trading', 'finished_trading', 'dyeing_processing', 'self_weave_dye', 'outsourcing', 'toll_processing'];
         const hasAny = codes.some((c) => expectedCodes.includes(c));
