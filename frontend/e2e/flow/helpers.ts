@@ -212,19 +212,35 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
   await passwordInput.first().fill(p);
 
   // 必须勾选用户协议（表单验证要求 agreedToTerms=true）
-  const checkboxLabel = page.locator('.el-checkbox__label, .el-checkbox').first();
+  // Element Plus el-checkbox 点击 .el-checkbox__inner（视觉复选框区域）
+  const checkboxInner = page.locator('.el-checkbox__inner').first();
   const isChecked = await page.locator('.el-checkbox input').first().isChecked().catch(() => false);
   console.log(`复选框初始状态: checked=${isChecked}`);
   if (!isChecked) {
-    await checkboxLabel.click();
+    // 点击视觉复选框区域（.el-checkbox__inner）
+    await checkboxInner.click();
     await page.waitForTimeout(500);
-    const stillUnchecked = !(await page.locator('.el-checkbox input').first().isChecked().catch(() => false));
-    console.log(`点击后复选框状态: checked=${!stillUnchecked}`);
-    if (stillUnchecked) {
-      await page.locator('.el-checkbox input').first().click({ force: true }).catch(() => {});
+    let nowChecked = await page.locator('.el-checkbox input').first().isChecked().catch(() => false);
+    console.log(`点击 inner 后复选框状态: checked=${nowChecked}`);
+    if (!nowChecked) {
+      // fallback: 点击 label
+      await page.locator('.el-checkbox').first().click();
       await page.waitForTimeout(300);
-      const finalCheck = await page.locator('.el-checkbox input').first().isChecked().catch(() => false);
-      console.log(`force click 后复选框状态: checked=${finalCheck}`);
+      nowChecked = await page.locator('.el-checkbox input').first().isChecked().catch(() => false);
+      console.log(`点击 label 后复选框状态: checked=${nowChecked}`);
+    }
+    if (!nowChecked) {
+      // 最终 fallback: 直接修改 input checked 属性并触发 change 事件
+      await page.evaluate(() => {
+        const input = document.querySelector('.el-checkbox input') as HTMLInputElement;
+        if (input) {
+          input.checked = true;
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      });
+      await page.waitForTimeout(300);
+      console.log('通过 JS 设置 checked=true');
     }
   }
 
