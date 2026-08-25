@@ -1,9 +1,11 @@
 import { test, expect } from '@playwright/test';
-import { login } from '../fixtures/real-auth';
+
 
 test.describe('accounting-period 页面冒烟测试', () => {
-  test.beforeEach(async ({ page }) => {
-    await login(page);
+  test.beforeEach(async ({ page, context }) => {
+    await context.route('**/api/**', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, data: { items: [], total: 0 } }) });
+    });
   });
 
   test('页面加载', async ({ page }) => {
