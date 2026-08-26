@@ -2,14 +2,15 @@ import { test, expect } from '@playwright/test';
 import {
   loginViaUI, apiCall, apiCallRaw, apiCallExpectFail,
   verifyStatusTransition, verifyIllegalTransition, getCtx,
-  genCode, genDyeLotNo, genPieceNo,
-} from './helpers';
+genCode, genDyeLotNo, genPieceNo, ensureTestEntities
+} from './helpers';
 
 test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', () => {
   const dyeLotNo = genDyeLotNo();
 
   test('3-1 创建染色配方（小样处方）', async ({ page }) => {
     await loginViaUI(page);
+    await ensureTestEntities(page);
     const ctx = getCtx();
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/production/dye-recipes', {

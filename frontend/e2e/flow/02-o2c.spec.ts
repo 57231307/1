@@ -2,14 +2,15 @@ import { test, expect } from '@playwright/test';
 import {
   loginViaUI, apiCall, apiCallRaw, apiCallExpectFail,
   verifyStatusTransition, verifyIllegalTransition, verifyStockFourDim,
-  verifyAuditLog, getCtx, genCode, genDyeLotNo, genPieceNo,
-} from './helpers';
+verifyAuditLog, getCtx, genCode, genDyeLotNo, genPieceNo, ensureTestEntities
+} from './helpers';
 
 test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', () => {
   const dyeLotNo = genDyeLotNo();
 
   test('2-1 创建报价单（含色号+缸号要求+色号加价+等级差价）', async ({ page }) => {
     await loginViaUI(page);
+    await ensureTestEntities(page);
     const ctx = getCtx();
     const productId = ctx.productIds[1] || ctx.productIds[0] || 1;
 

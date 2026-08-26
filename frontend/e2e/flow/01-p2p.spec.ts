@@ -2,14 +2,15 @@ import { test, expect } from '@playwright/test';
 import {
   loginViaUI, apiCall, apiCallRaw, apiCallExpectFail,
   verifyStatusTransition, verifyIllegalTransition, verifyStockFourDim,
-  verifyAuditLog, getCtx, genCode, genDyeLotNo, genPieceNo,
-} from './helpers';
+  verifyAuditLog, getCtx, genCode, genDyeLotNo, genPieceNo, ensureTestEntities,
+} from './helpers';
 
 test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () => {
   const dyeLotNo = genDyeLotNo();
 
   test('1-1 创建采购订单（含色号+缸号+双计量）', async ({ page }) => {
     await loginViaUI(page);
+    await ensureTestEntities(page);
     const ctx = getCtx();
     const productId = ctx.productIds[0] || 1;
     try {

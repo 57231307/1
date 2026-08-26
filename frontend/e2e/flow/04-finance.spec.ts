@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
 import {
   loginViaUI, apiCall, apiCallRaw, apiCallExpectFail,
-  verifyIllegalTransition, getCtx, genCode,
-} from './helpers';
+verifyIllegalTransition, getCtx, genCode, ensureTestEntities
+} from './helpers';
 
 test.describe.serial('Shard 4: 财务核算闭环', () => {
 
@@ -45,6 +45,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
 
   test('4-3 凭证状态机：draft → submitted → reviewed → posted', async ({ page }) => {
     await loginViaUI(page);
+    await ensureTestEntities(page);
     const ctx = getCtx();
     const id = ctx.voucherId;
     if (!id) { test.skip(); return; }

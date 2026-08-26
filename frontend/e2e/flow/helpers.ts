@@ -62,6 +62,82 @@ export function getCtx(): EntityContext {
   return ctx;
 }
 
+/**
+ * 确保 EntityContext 有测试所需的基础实体 ID
+ * 分片后每个 shard 独立运行，EntityContext 单例不跨 shard 共享
+ * 此函数在每个 spec 文件开头调用，自行创建或查找实体
+ */
+export async function ensureTestEntities(page: Page): Promise<void> {
+  // 如果已有 warehouseIds，说明已初始化
+  if (ctx.warehouseIds.length > 0) return;
+
+  // 查找仓库
+  try {
+    const warehouses = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/warehouses?page=1&page_size=5');
+    ctx.warehouseIds = warehouses.items?.map((w) => w.id) || [1, 2];
+  } catch { ctx.warehouseIds = [1, 2]; }
+  if (ctx.warehouseIds.length < 2) ctx.warehouseIds.push(ctx.warehouseIds[0] + 1);
+
+  // 查找产品
+  try {
+    const products = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/products?page=1&page_size=5');
+    ctx.productIds = products.items?.map((p) => p.id) || [1];
+  } catch { ctx.productIds = [1]; }
+
+  // 查找产品色号
+  try {
+    const colors = await apiCallRaw<{ items: Array<{ id: number; color_no: string }> }>(page, 'GET', `/product-colors?product_id=${ctx.productIds[0]}&page=1&page_size=5`);
+    ctx.productColorIds = colors.items?.map((c) => c.id) || [];
+    ctx.colorNos = colors.items?.map((c) => c.color_no) || ['TEST-COLOR'];
+  } catch { ctx.colorNos = ['TEST-COLOR']; ctx.productColorIds = [1]; }
+  if (ctx.colorNos.length === 0) ctx.colorNos = ['TEST-COLOR'];
+
+  // 查找供应商
+  try {
+    const suppliers = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/purchase/suppliers?page=1&page_size=1');
+    ctx.supplierId = suppliers.items?.[0]?.id;
+  } catch { ctx.supplierId = undefined; }
+
+  // 查找客户
+  try {
+    const customers = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/crm/customers?page=1&page_size=1');
+    ctx.customerId = customers.items?.[0]?.id;
+  } catch { ctx.customerId = undefined; }
+
+  // 查找会计科目
+  try {
+    const subjects = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/subjects?page=1&page_size=5');
+    ctx.accountSubjectIds = subjects.items?.map((s) => s.id) || [];
+  } catch { ctx.accountSubjectIds = []; }
+
+  // 查找采购订单
+  try {
+    const pos = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/purchase/orders?page=1&page_size=1');
+    ctx.purchaseOrderId = pos.items?.[0]?.id;
+  } catch { ctx.purchaseOrderId = undefined; }
+
+  // 查找销售订单
+  try {
+    const sos = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/sales/orders?page=1&page_size=1');
+    ctx.salesOrderId = sos.items?.[0]?.id;
+  } catch { ctx.salesOrderId = undefined; }
+
+  // 查找报价单
+  try {
+    const qts = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/quotations?page=1&page_size=1');
+    ctx.quotationId = qts.items?.[0]?.id;
+  } catch { ctx.quotationId = undefined; }
+
+  // 查找缸号
+  try {
+    const batches = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/dye-batches?page=1&page_size=1');
+    ctx.dyeBatchId = batches.items?.[0]?.id;
+  } catch { ctx.dyeBatchId = undefined; }
+
+  // 生成缸号
+  if (!ctx.dyeLotNo) ctx.dyeLotNo = genDyeLotNo();
+}
+
 async function getCsrfToken(page: Page): Promise<string> {
   const cookies = await page.context().cookies();
   const csrf = cookies.find((c) => c.name === 'csrf_token');

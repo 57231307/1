@@ -11,9 +11,7 @@ import {
 } from './helpers';
 
 test.describe('库存调拨完整流程', () => {
-  test.beforeAll(async ({ page }) => {
-    await loginViaUI(page);
-  });
+  test.beforeAll(async ({ page }) => { await loginViaUI(page); await ensureTestEntities(page); });
 
   test('调拨：创建→审批→出库→在途→入库→双仓库库存变化验证', async ({ page }) => {
     const ctx = getCtx();

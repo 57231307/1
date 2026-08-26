@@ -3,8 +3,8 @@ import {
   loginViaUI, apiCall, apiCallRaw, apiCallExpectFail,
   verifyBulkColorDeliveryBlock, verifyOutsourcingVoucher,
   verifyTrialBalance, verifyWeightConversion, verifyNetWeight,
-  getCtx, genCode,
-} from './helpers';
+getCtx, genCode, ensureTestEntities
+} from './helpers';
 
 test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量', () => {
 
@@ -24,6 +24,7 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
 
   test('L1-2 验证大货批色发货门禁（未审批阻断发货）', async ({ page }) => {
     await loginViaUI(page);
+    await ensureTestEntities(page);
     const ctx = getCtx();
     if (!ctx.salesOrderId) { test.skip(); return; }
 

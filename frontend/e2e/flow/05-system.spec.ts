@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
 import {
   loginViaUI, apiCall, apiCallRaw, apiCallExpectFail,
-  verifyPermissionDenied, verifyAuditLog, getCtx, genCode,
-} from './helpers';
+verifyPermissionDenied, verifyAuditLog, getCtx, genCode, ensureTestEntities
+} from './helpers';
 
 test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
 
@@ -90,6 +90,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
 
   test('5-7 定制订单 7 阶段状态机', async ({ page }) => {
     await loginViaUI(page);
+    await ensureTestEntities(page);
     const ctx = getCtx();
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/custom-orders', {
