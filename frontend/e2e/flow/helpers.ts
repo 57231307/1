@@ -68,10 +68,7 @@ export function getCtx(): EntityContext {
  * 此函数在每个 spec 文件开头调用，自行创建或查找实体
  */
 export async function ensureTestEntities(page: Page): Promise<void> {
-  // 如果已有 warehouseIds，说明已初始化
-  if (ctx.warehouseIds.length > 0) return;
-
-  // 查找仓库
+  // 查找仓库（每次都执行，确保 shard 间数据独立时也能找到）
   try {
     const warehouses = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/warehouses?page=1&page_size=5');
     ctx.warehouseIds = warehouses.items?.map((w) => w.id) || [1, 2];
@@ -110,38 +107,90 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     ctx.accountSubjectIds = subjects.items?.map((s) => s.id) || [];
   } catch { ctx.accountSubjectIds = []; }
 
-  // 查找采购订单
+  // 查找或创建采购订单
   try {
     const pos = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/purchase/orders?page=1&page_size=1');
     ctx.purchaseOrderId = pos.items?.[0]?.id;
-  } catch { ctx.purchaseOrderId = undefined; }
+  } catch { /* 查找不到 */ }
+  if (!ctx.purchaseOrderId) {
+    try {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/orders', {
+        supplier_id: ctx.supplierId || 1,
+        order_date: new Date().toISOString().slice(0, 10),
+        items: [{ material_id: ctx.productIds[0] || 1, quantity_ordered: '1', unit_price: '1' }],
+      });
+      ctx.purchaseOrderId = result.data?.id;
+    } catch { ctx.purchaseOrderId = undefined; }
+  }
 
-  // 查找销售订单
+  // 查找或创建销售订单
   try {
     const sos = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/sales/orders?page=1&page_size=1');
     ctx.salesOrderId = sos.items?.[0]?.id;
-  } catch { ctx.salesOrderId = undefined; }
+  } catch { /* 查找不到 */ }
+  if (!ctx.salesOrderId) {
+    try {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
+        customer_id: ctx.customerId || 1,
+        order_date: new Date().toISOString().slice(0, 10),
+        items: [{ product_id: ctx.productIds[0] || 1, quantity: '1', unit_price: '1' }],
+      });
+      ctx.salesOrderId = result.data?.id;
+    } catch { ctx.salesOrderId = undefined; }
+  }
 
-  // 查找报价单
+  // 查找或创建报价单
   try {
     const qts = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/quotations?page=1&page_size=1');
     ctx.quotationId = qts.items?.[0]?.id;
-  } catch { ctx.quotationId = undefined; }
+  } catch { /* 查找不到 */ }
+  if (!ctx.quotationId) {
+    try {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/quotations', {
+        customer_id: ctx.customerId || 1,
+        sales_user_id: 1,
+        quotation_date: new Date().toISOString().slice(0, 10),
+        valid_until: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+        currency: 'CNY', exchange_rate: '1', base_currency: 'CNY',
+        price_terms: 'FOB', tax_inclusive: false, tax_rate: '13',
+        items: [{ product_id: ctx.productIds[0] || 1, unit: '米', quantity: '1', unit_price: '1', unit_price_with_tax: '1.13' }],
+      });
+      ctx.quotationId = result.data?.id;
+    } catch { ctx.quotationId = undefined; }
+  }
 
-  // 查找缸号
+  // 查找或创建缸号
   try {
     const batches = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/dye-batches?page=1&page_size=1');
     ctx.dyeBatchId = batches.items?.[0]?.id;
-  } catch { ctx.dyeBatchId = undefined; }
+  } catch { /* 查找不到 */ }
+  if (!ctx.dyeBatchId) {
+    try {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/production/dye-batches', {
+        batch_no: genCode('DB'), color_no: ctx.colorNos[0] || 'TEST', dye_lot_no: ctx.dyeLotNo,
+        planned_quantity: 100, status: 'draft',
+      });
+      ctx.dyeBatchId = result.data?.id;
+    } catch { ctx.dyeBatchId = undefined; }
+  }
 
   // 生成缸号
   if (!ctx.dyeLotNo) ctx.dyeLotNo = genDyeLotNo();
 
-  // 查找染色配方
+  // 查找或创建染色配方
   try {
     const recipes = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/dye-recipes?page=1&page_size=1');
     ctx.dyeRecipeId = recipes.items?.[0]?.id;
-  } catch { ctx.dyeRecipeId = undefined; }
+  } catch { /* 查找不到 */ }
+  if (!ctx.dyeRecipeId) {
+    try {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/production/dye-recipes', {
+        recipe_no: genCode('DR'), recipe_name: 'E2E 自动配方', color_code: ctx.colorNos[0] || 'TEST',
+        color_name: '测试色', fabric_type: '涤纶', dye_type: '分散染色',
+      });
+      ctx.dyeRecipeId = result.data?.id;
+    } catch { ctx.dyeRecipeId = undefined; }
+  }
 
   // 查找大货处方
   try {
@@ -149,11 +198,19 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     ctx.productionRecipeId = prs.items?.[0]?.id;
   } catch { ctx.productionRecipeId = undefined; }
 
-  // 查找 BOM
+  // 查找或创建 BOM
   try {
     const boms = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/boms?page=1&page_size=1');
     ctx.bomId = boms.items?.[0]?.id;
-  } catch { ctx.bomId = undefined; }
+  } catch { /* 查找不到 */ }
+  if (!ctx.bomId) {
+    try {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/boms', {
+        product_id: ctx.productIds[0] || 1, name: 'E2E BOM', version: '1',
+      });
+      ctx.bomId = result.data?.id;
+    } catch { ctx.bomId = undefined; }
+  }
 
   // 查找生产订单
   try {
@@ -161,11 +218,23 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     ctx.productionOrderId = pos.items?.[0]?.id;
   } catch { ctx.productionOrderId = undefined; }
 
-  // 查找凭证
+  // 查找或创建凭证
   try {
     const vs = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/finance/vouchers?page=1&page_size=1');
     ctx.voucherId = vs.items?.[0]?.id;
-  } catch { ctx.voucherId = undefined; }
+  } catch { /* 查找不到 */ }
+  if (!ctx.voucherId) {
+    try {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/vouchers', {
+        voucher_type: 'general', voucher_date: new Date().toISOString().slice(0, 10),
+        items: [
+          { subject_code: '1001', debit: '1', credit: '0', summary: 'E2E' },
+          { subject_code: '1002', debit: '0', credit: '1', summary: 'E2E' },
+        ],
+      });
+      ctx.voucherId = result.data?.id;
+    } catch { ctx.voucherId = undefined; }
+  }
 
   // 查找固定资产
   try {
@@ -191,17 +260,34 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     ctx.arInvoiceId = ars.items?.[0]?.id;
   } catch { ctx.arInvoiceId = undefined; }
 
-  // 查找定制订单
+  // 查找或创建定制订单
   try {
     const cos = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/custom-orders?page=1&page_size=1');
     ctx.customOrderId = cos.items?.[0]?.id;
-  } catch { ctx.customOrderId = undefined; }
+  } catch { /* 查找不到 */ }
+  if (!ctx.customOrderId) {
+    try {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/custom-orders', {
+        customer_id: ctx.customerId || 1, order_no: genCode('CO'),
+        order_date: new Date().toISOString().slice(0, 10), product_name: 'E2E 定制',
+      });
+      ctx.customOrderId = result.data?.id;
+    } catch { ctx.customOrderId = undefined; }
+  }
 
-  // 查找色卡
+  // 查找或创建色卡
   try {
     const ccs = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/color-cards/?page=1&page_size=1');
     ctx.colorCardId = ccs.items?.[0]?.id;
-  } catch { ctx.colorCardId = undefined; }
+  } catch { /* 查找不到 */ }
+  if (!ctx.colorCardId) {
+    try {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/color-cards/', {
+        card_no: genCode('CC'), card_name: 'E2E 色卡', card_type: 'CUSTOM',
+      });
+      ctx.colorCardId = result.data?.id;
+    } catch { ctx.colorCardId = undefined; }
+  }
 
   // 查找坯布
   try {
