@@ -3,7 +3,7 @@ import {
   loginViaUI, apiCall, apiCallRaw, apiCallExpectFail,
   verifyStatusTransition, verifyIllegalTransition, verifyStockFourDim,
 verifyAuditLog, getCtx, genCode, genDyeLotNo, genPieceNo, ensureTestEntities
-} from './helpers';
+} from './helpers';
 
 test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', () => {
   const dyeLotNo = genDyeLotNo();

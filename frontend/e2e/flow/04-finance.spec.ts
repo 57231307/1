@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import {
   loginViaUI, apiCall, apiCallRaw, apiCallExpectFail,
 verifyIllegalTransition, getCtx, genCode, ensureTestEntities
-} from './helpers';
+} from './helpers';
 
 test.describe.serial('Shard 4: 财务核算闭环', () => {
 

@@ -3,7 +3,7 @@ import {
   loginViaUI, apiCall, apiCallRaw, apiCallExpectFail,
   verifyStatusTransition, verifyIllegalTransition, verifyStockFourDim,
   verifyAuditLog, getCtx, genCode, genDyeLotNo, genPieceNo, ensureTestEntities,
-} from './helpers';
+} from './helpers';
 
 test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () => {
   const dyeLotNo = genDyeLotNo();

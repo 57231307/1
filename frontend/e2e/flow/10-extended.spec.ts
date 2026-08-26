@@ -4,7 +4,7 @@ import {
   verifyBulkColorDeliveryBlock, verifyOutsourcingVoucher,
   verifyTrialBalance, verifyWeightConversion, verifyNetWeight,
 getCtx, genCode, ensureTestEntities
-} from './helpers';
+} from './helpers';
 
 test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量', () => {
 

@@ -3,7 +3,7 @@ import {
   loginViaUI, apiCall, apiCallRaw, apiCallExpectFail,
   verifyStatusTransition, verifyIllegalTransition, getCtx,
 genCode, genDyeLotNo, genPieceNo, ensureTestEntities
-} from './helpers';
+} from './helpers';
 
 test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', () => {
   const dyeLotNo = genDyeLotNo();
