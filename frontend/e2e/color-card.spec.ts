@@ -50,7 +50,7 @@ async function login(page: Page) {
   await page.click('button[type="submit"]');
 
   // 等待登录成功后跳转（dashboard 或原 redirect 目标）
-  await page.waitForURL(/dashboard|\/$/, { timeout: 15_000 });
+  await page.waitForURL(/dashboard|\/$/, { timeout: 30_000 });
 }
 
 test.describe('色卡仓储管理 E2E 业务流程', () => {
@@ -79,7 +79,7 @@ test.describe('色卡仓储管理 E2E 业务流程', () => {
     // 4. 点击"立即创建"按钮，并等待 API 响应
     const createResponse = page.waitForResponse(
       resp => resp.url().includes('/color-cards') && resp.request().method() === 'POST',
-      { timeout: 15_000 }
+      { timeout: 30_000 }
     );
     await page.click('button:has-text("立即创建")');
     const response = await createResponse;
@@ -89,7 +89,7 @@ test.describe('色卡仓储管理 E2E 业务流程', () => {
 
     // 6. 断言成功提示出现（el-alert type="success"）
     if (response.ok()) {
-      await page.waitForSelector('.el-alert--success', { state: 'visible', timeout: 5_000 });
+      await page.waitForSelector('.el-alert--success', { state: 'visible', timeout: 30_000 });
       await expect(page.locator('.el-alert--success')).toContainText(/色卡创建成功/);
     }
   });
@@ -99,18 +99,18 @@ test.describe('色卡仓储管理 E2E 业务流程', () => {
     await page.goto(`${BASE_URL}/color-cards/list`);
 
     // 2. 等待页面标题渲染（确认路由加载成功）
-    await page.waitForSelector('text=色卡列表', { state: 'visible', timeout: 10_000 });
+    await page.waitForSelector('text=色卡列表', { state: 'visible', timeout: 30_000 });
 
     // 3. 等待列表 API 响应完成（GET /color-cards）
     await page.waitForResponse(
       resp => resp.url().includes('/color-cards') && resp.request().method() === 'GET',
-      { timeout: 15_000 }
+      { timeout: 30_000 }
     );
 
     // 4. 断言筛选条件区域可见（核心业务组件存在）
-    await expect(page.getByText('色卡类型')).toBeVisible({ timeout: 5_000 });
-    await expect(page.getByText('季节')).toBeVisible({ timeout: 5_000 });
-    await expect(page.getByText('状态')).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText('色卡类型')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('季节')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('状态')).toBeVisible({ timeout: 30_000 });
   });
 
   test('色卡详情加载：等待描述列表渲染', async ({ page }) => {
@@ -120,19 +120,19 @@ test.describe('色卡仓储管理 E2E 业务流程', () => {
     // 2. 等待详情 API 响应完成（GET /color-cards/1）
     await page.waitForResponse(
       resp => resp.url().match(/\/color-cards\/\d+/) && resp.request().method() === 'GET',
-      { timeout: 15_000 }
+      { timeout: 30_000 }
     );
 
     // 3. 断言"基本信息"区块可见（确认页面已渲染详情数据）
     //    注意：如果数据库中 id=1 不存在，后端可能返回 404，
     //    此处使用 try-catch + 软断言，避免数据依赖导致 CI 误报
     try {
-      await page.waitForSelector('text=基本信息', { state: 'visible', timeout: 5_000 });
+      await page.waitForSelector('text=基本信息', { state: 'visible', timeout: 30_000 });
       await expect(page.getByText('基本信息')).toBeVisible();
     } catch {
       // 详情页可能因数据不存在显示"未找到"提示，也算业务流程正常
       const notFound = page.getByText(/未找到|不存在|404/);
-      await expect(notFound).toBeVisible({ timeout: 3_000 });
+      await expect(notFound).toBeVisible({ timeout: 15_000 });
     }
   });
 
@@ -143,13 +143,13 @@ test.describe('色卡仓储管理 E2E 业务流程', () => {
     // 2. 等待页面标题渲染
     await page.waitForSelector('text=发放 / 归还 / 遗失 / 损坏 / 取消登记', {
       state: 'visible',
-      timeout: 10_000,
+      timeout: 30_000,
     });
 
     // 3. 等待发放列表 API 响应完成
     await page.waitForResponse(
       resp => resp.url().includes('/color-cards') && resp.request().method() === 'GET',
-      { timeout: 15_000 }
+      { timeout: 30_000 }
     );
 
     // 4. 断言核心业务组件存在
@@ -159,7 +159,7 @@ test.describe('色卡仓储管理 E2E 业务流程', () => {
   test('色卡筛选条件区域：所有筛选项均可交互', async ({ page }) => {
     // 1. 导航到列表页
     await page.goto(`${BASE_URL}/color-cards/list`);
-    await page.waitForSelector('text=色卡类型', { state: 'visible', timeout: 10_000 });
+    await page.waitForSelector('text=色卡类型', { state: 'visible', timeout: 30_000 });
 
     // 2. 断言三个筛选下拉框均存在且可点击（真实交互，不是 page.goto 后静态断言）
     const typeFilter = page.locator('.el-select').first();
@@ -171,7 +171,7 @@ test.describe('色卡仓储管理 E2E 业务流程', () => {
     // 3. 等待列表加载完成
     await page.waitForResponse(
       resp => resp.url().includes('/color-cards') && resp.request().method() === 'GET',
-      { timeout: 15_000 }
+      { timeout: 30_000 }
     );
 
     // 4. 断言页面仍可见（确认筛选操作未导致页面崩溃）

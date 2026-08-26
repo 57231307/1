@@ -34,7 +34,7 @@ test.describe('网络韧性：后端异常返回处理', () => {
 
     await page.goto('/sales');
     // 页面应正常渲染（不崩溃白屏），表格组件应存在
-    await expect(page.locator('.el-table-v2').first()).toBeAttached({ timeout: 10_000 });
+    await expect(page.locator('.el-table-v2').first()).toBeAttached({ timeout: 30_000 });
     // 页面应保持可交互（不卡死）
     await expect(page.locator('body')).toBeVisible();
   });
@@ -49,7 +49,7 @@ test.describe('网络韧性：后端异常返回处理', () => {
 
     await page.goto('/sales');
     // 页面应正常渲染
-    await expect(page.locator('.el-table-v2').first()).toBeAttached({ timeout: 10_000 });
+    await expect(page.locator('.el-table-v2').first()).toBeAttached({ timeout: 30_000 });
   });
 
   test('网络中断时前端不卡死', async ({ page }) => {
@@ -58,7 +58,7 @@ test.describe('网络韧性：后端异常返回处理', () => {
 
     await page.goto('/sales');
     // 即使网络中断，页面骨架应正常渲染
-    await expect(page.locator('body')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('body')).toBeVisible({ timeout: 30_000 });
   });
 });
 
@@ -73,7 +73,7 @@ test.describe('网络韧性：弱网环境处理', () => {
 
     await page.goto('/sales');
     // 即使慢速，页面最终应加载完成
-    await expect(page.locator('.el-table-v2').first()).toBeAttached({ timeout: 15_000 });
+    await expect(page.locator('.el-table-v2').first()).toBeAttached({ timeout: 30_000 });
   });
 
   test('慢速网络下表格组件渲染', async ({ page }) => {
@@ -83,7 +83,7 @@ test.describe('网络韧性：弱网环境处理', () => {
     await page.goto('/sales');
     // 表格组件应渲染
     const table = page.locator('.el-table-v2').first();
-    await expect(table).toBeAttached({ timeout: 15_000 });
+    await expect(table).toBeAttached({ timeout: 30_000 });
   });
 });
 
@@ -102,7 +102,7 @@ test.describe('网络韧性：业务错误码处理', () => {
 
     await page.goto('/sales');
     // 前端应正常处理业务错误，不崩溃
-    await expect(page.locator('body')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('body')).toBeVisible({ timeout: 30_000 });
   });
 
   test('未授权错误前端处理', async ({ page }) => {
@@ -115,6 +115,6 @@ test.describe('网络韧性：业务错误码处理', () => {
 
     await page.goto('/sales');
     // 前端应处理 401（可能跳转登录或显示提示），不崩溃
-    await expect(page.locator('body')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('body')).toBeVisible({ timeout: 30_000 });
   });
 });

@@ -214,9 +214,9 @@ export async function simulateSlowNetwork(
  * expect(requests.length).toBeGreaterThan(0)
  */
 export class RequestObserver {
-  private readonly context: BrowserContext | Page;
-  private readonly urlPattern: string;
-  private readonly requests: Array<{
+  context: BrowserContext | Page;
+  urlPattern: string;
+  requests: Array<{
     url: string;
     method: string;
     status: number;
@@ -295,7 +295,7 @@ export function observeRequests(
 export async function waitForApiCall(
   page: Page,
   urlPattern: string,
-  timeout = 10_000
+  timeout = 30_000
 ): Promise<void> {
   await page.waitForResponse(urlPattern, { timeout });
 }

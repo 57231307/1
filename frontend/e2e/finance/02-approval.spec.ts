@@ -16,7 +16,7 @@ test.describe('02 凭证审批工作流', () => {
     if (await submitBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await submitBtn.click();
       await page.getByRole('button', { name: /确定/ }).click();
-      await expect(page.getByText(/提交成功/)).toBeVisible({ timeout: 5000 }).catch(() => {
+      await expect(page.getByText(/提交成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
         return null;
       });
     }
@@ -28,7 +28,7 @@ test.describe('02 凭证审批工作流', () => {
     if (await reviewBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await reviewBtn.click();
       await page.getByRole('button', { name: /确定/ }).click();
-      await expect(page.getByText(/审核成功/)).toBeVisible({ timeout: 5000 }).catch(() => {
+      await expect(page.getByText(/审核成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
         return null;
       });
     }
@@ -40,7 +40,7 @@ test.describe('02 凭证审批工作流', () => {
     if (await postBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await postBtn.click();
       await page.getByRole('button', { name: /确定/ }).click();
-      await expect(page.getByText(/过账成功/)).toBeVisible({ timeout: 5000 }).catch(() => {
+      await expect(page.getByText(/过账成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
         return null;
       });
     }

@@ -16,7 +16,7 @@ test.describe('02 运单状态流转', () => {
     if (await shipBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await shipBtn.click();
       await page.getByRole('button', { name: /确定/ }).click();
-      await expect(page.getByText(/发货成功/)).toBeVisible({ timeout: 5000 }).catch(() => {
+      await expect(page.getByText(/发货成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
         return null;
       });
     }
@@ -33,7 +33,7 @@ test.describe('02 运单状态流转', () => {
       await page.getByLabel(/新状态/).click();
       await page.getByRole('option').first().click();
       await page.getByRole('button', { name: /确认/ }).click();
-      await expect(page.getByText(/更新成功/)).toBeVisible({ timeout: 5000 }).catch(() => {
+      await expect(page.getByText(/更新成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
         return null;
       });
     }

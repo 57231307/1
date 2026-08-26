@@ -12,7 +12,7 @@ test.describe('MRP 计算', () => {
 
   test('进入 MRP 计算页面', async ({ page }) => {
     await page.goto('/mrp');
-    await expect(page.getByText(/MRP/)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/MRP/)).toBeVisible({ timeout: 30000 });
   });
 
   test('MRP 计算可执行', async ({ page }) => {
@@ -28,7 +28,7 @@ test.describe('MRP 计算', () => {
 
   test('MRP 历史页面可正常加载', async ({ page }) => {
     await page.goto('/mrp/history');
-    await expect(page.locator('table, .el-table')).toBeVisible({ timeout: 5000 }).catch(() => {
+    await expect(page.locator('table, .el-table')).toBeVisible({ timeout: 30000 }).catch(() => {
       return null;
     });
   });

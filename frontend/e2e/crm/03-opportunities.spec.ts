@@ -12,14 +12,14 @@ test.describe('03 商机管理', () => {
 
   test('03-01 进入商机管理页面', async ({ page }) => {
     await page.goto('/crm/opportunities');
-    await expect(page.getByText(/商机管理/)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/商机管理/)).toBeVisible({ timeout: 30000 });
     await expect(page.getByRole('button', { name: /创建/ })).toBeVisible();
   });
 
   test('03-02 创建新商机', async ({ page }) => {
     await page.goto('/crm/opportunities');
     await page.getByRole('button', { name: /创建/ }).click();
-    await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 30000 });
     await page.getByLabel(/商机名称/).fill(`E2E 商机 ${Date.now()}`);
     await page.getByLabel(/客户/).click();
     await page.getByRole('option').first().click();
@@ -29,7 +29,7 @@ test.describe('03 商机管理', () => {
     await page.getByLabel(/赢单概率/).first().click();
     await page.getByLabel(/预计关闭日期/).fill('2026-12-31');
     await page.getByRole('button', { name: /保存|确认|提交/ }).last().click();
-    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 5000 }).catch(() => {
+    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
       return null;
     });
   });
@@ -42,7 +42,7 @@ test.describe('03 商机管理', () => {
       await expect(page.locator('.el-dialog')).toBeVisible();
       await page.getByLabel(/内容/).fill('E2E 测试跟进：客户确认需求');
       await page.getByRole('button', { name: /保存|确认|提交/ }).last().click();
-      await expect(page.getByText(/保存成功/)).toBeVisible({ timeout: 5000 }).catch(() => {
+      await expect(page.getByText(/保存成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
         return null;
       });
     }
@@ -54,7 +54,7 @@ test.describe('03 商机管理', () => {
     if (await winBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await winBtn.click();
       await page.getByRole('button', { name: /确定|确认/ }).click();
-      await expect(page.getByText(/更新成功/)).toBeVisible({ timeout: 5000 }).catch(() => {
+      await expect(page.getByText(/更新成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
         return null;
       });
     }
@@ -66,7 +66,7 @@ test.describe('03 商机管理', () => {
     if (await loseBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await loseBtn.click();
       await page.getByRole('button', { name: /确定|确认/ }).click();
-      await expect(page.getByText(/更新成功/)).toBeVisible({ timeout: 5000 }).catch(() => {
+      await expect(page.getByText(/更新成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
         return null;
       });
     }

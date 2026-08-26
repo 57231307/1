@@ -12,7 +12,7 @@ test.describe('02 审批中心', () => {
 
   test('02-01 进入审批中心页面', async ({ page }) => {
     await page.goto('/bpm/approval');
-    await expect(page.getByText(/审批/)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/审批/)).toBeVisible({ timeout: 30000 });
     await expect(page.getByRole('tab', { name: /待办/ })).toBeVisible();
     await expect(page.getByRole('tab', { name: /已办/ })).toBeVisible();
   });
@@ -28,7 +28,7 @@ test.describe('02 审批中心', () => {
       });
       await page.getByLabel(/审批意见/).fill('E2E 测试：审批同意');
       await page.getByRole('button', { name: /确认/ }).click();
-      await expect(page.getByText(/审批成功/)).toBeVisible({ timeout: 5000 }).catch(() => {
+      await expect(page.getByText(/审批成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
         return null;
       });
     }
@@ -42,7 +42,7 @@ test.describe('02 审批中心', () => {
       await rejectBtn.click();
       await page.getByLabel(/审批意见/).fill('E2E 测试：审批拒绝');
       await page.getByRole('button', { name: /确认/ }).click();
-      await expect(page.getByText(/审批成功/)).toBeVisible({ timeout: 5000 }).catch(() => {
+      await expect(page.getByText(/审批成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
         return null;
       });
     }

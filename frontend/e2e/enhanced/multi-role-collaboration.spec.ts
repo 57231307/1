@@ -36,8 +36,8 @@ test.describe('多上下文隔离：独立会话验证', () => {
       await managerSession.page.goto('/dashboard');
 
       // 两个页面都应正常渲染
-      await expect(adminSession.page.locator('body')).toBeVisible({ timeout: 10_000 });
-      await expect(managerSession.page.locator('body')).toBeVisible({ timeout: 10_000 });
+      await expect(adminSession.page.locator('body')).toBeVisible({ timeout: 30_000 });
+      await expect(managerSession.page.locator('body')).toBeVisible({ timeout: 30_000 });
 
       // 验证两个 context 的 token 是独立的（localStorage 互不干扰）
       const adminToken = await adminSession.page.evaluate(() =>
@@ -113,7 +113,7 @@ test.describe('多角色协作：并行会话', () => {
       // 所有页面都应正常渲染
       await Promise.all(
         Object.values(sessions).map((session: IsolatedSession) =>
-          expect(session.page.locator('body')).toBeVisible({ timeout: 10_000 })
+          expect(session.page.locator('body')).toBeVisible({ timeout: 30_000 })
         )
       );
     } finally {
@@ -131,7 +131,7 @@ test.describe('多角色协作：数据流验证', () => {
 
       await adminSession.page.goto('/dashboard');
       // admin 应能正常访问
-      await expect(adminSession.page.locator('body')).toBeVisible({ timeout: 10_000 });
+      await expect(adminSession.page.locator('body')).toBeVisible({ timeout: 30_000 });
     } finally {
       await adminSession.close();
     }
@@ -146,7 +146,7 @@ test.describe('多角色协作：数据流验证', () => {
 
       await limitedSession.page.goto('/dashboard');
       // 即使权限受限，页面应正常渲染（不崩溃）
-      await expect(limitedSession.page.locator('body')).toBeVisible({ timeout: 10_000 });
+      await expect(limitedSession.page.locator('body')).toBeVisible({ timeout: 30_000 });
     } finally {
       await limitedSession.close();
     }

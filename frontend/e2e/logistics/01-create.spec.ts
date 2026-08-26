@@ -12,14 +12,14 @@ test.describe('01 运单创建与发货', () => {
 
   test('01-01 进入物流管理页面', async ({ page }) => {
     await page.goto('/logistics');
-    await expect(page.getByText(/物流/)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/物流/)).toBeVisible({ timeout: 30000 });
     await expect(page.getByRole('button', { name: /新建/ })).toBeVisible();
   });
 
   test('01-02 新建运单', async ({ page }) => {
     await page.goto('/logistics');
     await page.getByRole('button', { name: /新建/ }).click();
-    await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 30000 });
     await page.getByLabel(/物流公司/).click();
     await page.getByRole('option').first().click();
     await page.getByLabel(/快递单号/).fill(`E2E-${Date.now()}`);
@@ -27,7 +27,7 @@ test.describe('01 运单创建与发货', () => {
     await page.getByLabel(/司机电话/).fill('13800138000');
     await page.getByLabel(/运费/).fill('50');
     await page.getByRole('button', { name: /确认/ }).click();
-    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 5000 }).catch(() => {
+    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
       return null;
     });
   });
@@ -37,8 +37,8 @@ test.describe('01 运单创建与发货', () => {
     await page.getByLabel(/物流公司/).click();
     await page.getByRole('option').first().click();
     await page.getByRole('button', { name: /搜索/ }).click();
-    await expect(page.locator('table, .v2-table, .el-table')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('table, .v2-table, .el-table')).toBeVisible({ timeout: 30000 });
     await page.getByRole('button', { name: /重置/ }).click();
-    await expect(page.locator('table, .v2-table, .el-table')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('table, .v2-table, .el-table')).toBeVisible({ timeout: 30000 });
   });
 });

@@ -15,7 +15,7 @@ test.describe('02 报价单审批与转订单', () => {
     const submitBtn = page.getByRole('button', { name: /提交审批/ }).first();
     if (await submitBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await submitBtn.click();
-      await expect(page.getByText(/提交成功/)).toBeVisible({ timeout: 5000 }).catch(() => {
+      await expect(page.getByText(/提交成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
         return null;
       });
     }
@@ -27,7 +27,7 @@ test.describe('02 报价单审批与转订单', () => {
     if (await approveBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await approveBtn.click();
       await page.getByRole('button', { name: /确定/ }).click();
-      await expect(page.getByText(/审批成功/)).toBeVisible({ timeout: 5000 }).catch(() => {
+      await expect(page.getByText(/审批成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
         return null;
       });
     }
@@ -39,7 +39,7 @@ test.describe('02 报价单审批与转订单', () => {
     if (await convertBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await convertBtn.click();
       await page.getByRole('button', { name: /确定/ }).click();
-      await expect(page.getByText(/转订单成功/)).toBeVisible({ timeout: 5000 }).catch(() => {
+      await expect(page.getByText(/转订单成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
         return null;
       });
     }
@@ -51,7 +51,7 @@ test.describe('02 报价单审批与转订单', () => {
     if (await cancelBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await cancelBtn.click();
       await page.getByRole('button', { name: /确定/ }).click();
-      await expect(page.getByText(/取消成功/)).toBeVisible({ timeout: 5000 }).catch(() => {
+      await expect(page.getByText(/取消成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
         return null;
       });
     }

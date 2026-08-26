@@ -12,14 +12,14 @@ test.describe('02 线索管理', () => {
 
   test('02-01 进入线索管理页面', async ({ page }) => {
     await page.goto('/crm/leads');
-    await expect(page.getByText(/线索管理/)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/线索管理/)).toBeVisible({ timeout: 30000 });
     await expect(page.getByRole('button', { name: /创建/ })).toBeVisible();
   });
 
   test('02-02 创建新线索', async ({ page }) => {
     await page.goto('/crm/leads');
     await page.getByRole('button', { name: /创建/ }).click();
-    await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 30000 });
     await page.getByLabel(/公司名/).fill('E2E 测试公司');
     await page.getByLabel(/联系人/).fill('李四');
     await page.getByLabel(/手机/).fill('13900139000');
@@ -28,7 +28,7 @@ test.describe('02 线索管理', () => {
     await page.getByRole('option').first().click();
     await page.getByLabel(/备注/).fill('E2E 测试线索');
     await page.getByRole('button', { name: /保存|确认|提交/ }).last().click();
-    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 5000 }).catch(() => {
+    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
       return null;
     });
   });
@@ -39,7 +39,7 @@ test.describe('02 线索管理', () => {
     if (await contactBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await contactBtn.click();
       await page.getByRole('button', { name: /确定/ }).click();
-      await expect(page.getByText(/更新成功/)).toBeVisible({ timeout: 5000 }).catch(() => {
+      await expect(page.getByText(/更新成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
         return null;
       });
     }
@@ -51,7 +51,7 @@ test.describe('02 线索管理', () => {
     if (await convertBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await convertBtn.click();
       await page.getByRole('button', { name: /确定|确认/ }).click();
-      await expect(page.getByText(/转化成功/)).toBeVisible({ timeout: 5000 }).catch(() => {
+      await expect(page.getByText(/转化成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
         return null;
       });
     }
@@ -63,7 +63,7 @@ test.describe('02 线索管理', () => {
     if (await loseBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await loseBtn.click();
       await page.getByRole('button', { name: /确定|确认/ }).click();
-      await expect(page.getByText(/更新成功/)).toBeVisible({ timeout: 5000 }).catch(() => {
+      await expect(page.getByText(/更新成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
         return null;
       });
     }

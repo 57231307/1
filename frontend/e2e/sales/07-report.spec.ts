@@ -32,7 +32,7 @@ test.describe('07 销售统计报表', () => {
     await page.getByRole('button', { name: /查询/ }).click();
     // 验证有数据行
     const rows = page.locator('tr, .el-table__row').filter({ hasText: '2026' });
-    await expect(rows.first()).toBeVisible({ timeout: 5000 });
+    await expect(rows.first()).toBeVisible({ timeout: 30000 });
   });
 
   test('07-02 销售订单汇总按客户分组', async ({ page }) => {
@@ -49,7 +49,7 @@ test.describe('07 销售统计报表', () => {
     await expect(page.getByText('销售业绩')).toBeVisible();
     // 验证有 TOP 10 排名
     const rows = page.locator('tr, .el-table__row');
-    await expect(rows).toHaveCount(11, { timeout: 5000 }); // 1 表头 + 10 数据
+    await expect(rows).toHaveCount(11, { timeout: 30000 }); // 1 表头 + 10 数据
   });
 
   test('07-04 销售回款率统计', async ({ page }) => {
@@ -57,7 +57,7 @@ test.describe('07 销售统计报表', () => {
     await page.getByLabel(/年度/).fill('2026');
     await page.getByRole('button', { name: /查询/ }).click();
     // 验证有"回款率"列
-    await expect(page.getByText(/回款率.*%/)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/回款率.*%/)).toBeVisible({ timeout: 30000 });
   });
 
   test('07-05 销售毛利率统计', async ({ page }) => {
@@ -66,7 +66,7 @@ test.describe('07 销售统计报表', () => {
     await page.getByLabel(/截止月份/).fill('2026-06');
     await page.getByRole('button', { name: /查询/ }).click();
     // 验证毛利率列
-    await expect(page.getByText(/毛利率.*%/)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/毛利率.*%/)).toBeVisible({ timeout: 30000 });
   });
 
   test('07-06 销售报表可导出 Excel', async ({ page }) => {

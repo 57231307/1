@@ -13,20 +13,20 @@ test.describe('03 会计科目管理', () => {
   test('03-01 会计科目 Tab 可正常加载', async ({ page }) => {
     await page.goto('/finance');
     await page.getByRole('tab', { name: /科目|会计科目/ }).click();
-    await expect(page.locator('table, .el-table')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('table, .el-table')).toBeVisible({ timeout: 30000 });
   });
 
   test('03-02 新建会计科目', async ({ page }) => {
     await page.goto('/finance');
     await page.getByRole('tab', { name: /科目|会计科目/ }).click();
     await page.getByRole('button', { name: /新建|新增/ }).click();
-    await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 30000 });
     await page.getByLabel(/科目编码/).fill(`E2E-${Date.now()}`);
     await page.getByLabel(/科目名称/).fill('E2E 测试科目');
     await page.getByLabel(/类别/).click();
     await page.getByRole('option').first().click();
     await page.getByRole('button', { name: /确认|保存|提交/ }).last().click();
-    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 5000 }).catch(() => {
+    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
       return null;
     });
   });

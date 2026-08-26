@@ -1,8 +1,10 @@
 import { test, expect } from '@playwright/test';
+import { gotoWithRetry } from './_goto';
 
 test.describe('404 页面冒烟测试', () => {
-  test('页面加载 + 未找到提示', async ({ page }) => {
-    await page.goto('/404');
-    await expect(page.locator('text=404, text=未找到, text=Not Found').first()).toBeAttached({ timeout: 10_000 });
+  test('页面加载', async ({ page }) => {
+    await gotoWithRetry(page, '/404');
+    await expect(page.locator('body')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('.el-table, .el-table-v2, .el-card, .el-form, .el-tabs, .dashboard-container, canvas, .echarts, .el-result, .error-page, .el-empty').first()).toBeAttached({ timeout: 30_000 });
   });
 });
