@@ -8,6 +8,7 @@ import {
   getCtx,
   verifyStockFourDim,
   verifyAuditLog,
+  ensureTestEntities,
 } from './helpers';
 
 test.describe('库存盘点完整流程', () => {

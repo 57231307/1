@@ -10,6 +10,7 @@ import {
   API_PREFIX,
   TEST_USERNAME,
   TEST_PASSWORD,
+  ensureTestEntities,
 } from './helpers';
 
 test.describe('异常处理与边界条件', () => {

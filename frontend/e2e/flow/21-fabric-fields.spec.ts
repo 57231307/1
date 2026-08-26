@@ -7,6 +7,7 @@ import {
   genCode,
   getCtx,
   BASE_URL,
+  ensureTestEntities,
 } from './helpers';
 
 test.describe('面料单据专用字段全链路验证', () => {

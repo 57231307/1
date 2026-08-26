@@ -8,6 +8,7 @@ import {
   getCtx,
   verifyTrialBalance,
   verifyAuditLog,
+  ensureTestEntities,
 } from './helpers';
 
 test.describe('成本核算完整流程', () => {
