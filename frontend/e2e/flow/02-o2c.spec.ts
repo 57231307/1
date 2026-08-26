@@ -17,31 +17,28 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/quotations', {
         customer_id: ctx.customerId || 1,
+        sales_user_id: 1,
         quotation_date: new Date().toISOString().split('T')[0],
         valid_until: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+        currency: 'CNY', exchange_rate: '1', base_currency: 'CNY',
+        price_terms: 'FOB', tax_inclusive: false, tax_rate: '13',
         items: [
           {
             product_id: productId,
-            quantity: 800,
-            quantity_kg: 160,
-            unit_price: 100,
-            color_no: 'RED-001',
-            color_name: '大红',
-            pantone_code: '179C',
-            grade_required: '一等品',
-            dye_lot_requirement: dyeLotNo,
-            base_price: 100,
-            color_extra_cost: 20,
-            grade_price_diff: 5,
-            final_price: 125,
-            tax_rate: 13,
+            unit: '米',
+            quantity: '800',
+            unit_price: '100',
+            unit_price_with_tax: '113',
+            specification: 'E2E 测试面料',
           },
         ],
-        remarks: 'E2E O2C 订货报价（finished_trading）',
+        notes: 'E2E O2C 订货报价（finished_trading）',
       });
       ctx.quotationId = result.data?.id;
-    } catch {
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/quotations?page=1&page_size=1');
+    } catch (e) {
+      console.log('创建报价单失败，尝试查找已有:', (e as { message?: string }).message || e);
+      try {
+        const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/quotations?page=1&page_size=1');
       ctx.quotationId = list.items?.[0]?.id;
     }
     expect(ctx.quotationId).toBeDefined();

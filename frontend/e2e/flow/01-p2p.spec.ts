@@ -17,25 +17,26 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       const result = await apiCall<{ id?: number; order_no?: string }>(page, 'POST', '/purchase/orders', {
         supplier_id: ctx.supplierId || 1,
         warehouse_id: ctx.warehouseIds[0] || 1,
+        order_date: new Date().toISOString().slice(0, 10),
         expected_delivery_date: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
         items: [
           {
-            product_id: productId,
-            quantity: 1000,
-            quantity_alt: 200,
-            unit_price: 50,
-            tax_percent: 13,
-            color_code: 'RED-001',
-            lot_no: dyeLotNo,
-            batch_no: 'B001',
+            material_id: productId,
+            quantity_ordered: '1000',
+            quantity_alt_ordered: '200',
+            unit_price: '50',
+            tax_rate: '13',
           },
         ],
-        remarks: 'E2E P2P 现货采购（grey_trading）',
+        notes: 'E2E P2P 现货采购（grey_trading）',
       });
       ctx.purchaseOrderId = result.data?.id;
-    } catch {
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/purchase/orders?page=1&page_size=1');
-      ctx.purchaseOrderId = list.items?.[0]?.id;
+    } catch (e) {
+      console.log('创建采购订单失败，尝试查找已有:', (e as { message?: string }).message || e);
+      try {
+        const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/purchase/orders?page=1&page_size=1');
+        ctx.purchaseOrderId = list.items?.[0]?.id;
+      } catch { /* 查找也失败 */ }
     }
     expect(ctx.purchaseOrderId).toBeDefined();
   });
