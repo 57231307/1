@@ -317,29 +317,6 @@ export async function apiCall<T = unknown>(
   path: string,
   body?: Record<string, unknown>
 ): Promise<ApiResponse<T>> {
-  let result = await apiCallInternal<T>(page, method, path, body);
-
-  // CSRF token 一次性消费后失效，刷新后重试
-  if (result.code === 'CSRF_TOKEN_INVALID' || result.code === 'CSRF_TOKEN_MISSING') {
-    console.log(`CSRF token 失效，刷新 cookie 后重试: ${method} ${path}`);
-    await page.request.post(`${API_BASE}${API_PREFIX}/auth/refresh`, {
-      headers: { 'X-Requested-With': 'XMLHttpRequest' },
-    }).catch(() => {});
-    result = await apiCallInternal<T>(page, method, path, body);
-  }
-
-  if (result.code !== 200 && result.code !== 0) {
-    throw new Error(`API ${method} ${path} failed: code=${result.code} message=${result.message}`);
-  }
-  return result;
-}
-
-async function apiCallInternal<T = unknown>(
-  page: Page,
-  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
-  path: string,
-  body?: Record<string, unknown>
-): Promise<ApiResponse<T>> {
   const csrfToken = await getCsrfToken(page);
   const url = `${API_BASE}${API_PREFIX}${path}`;
   const response = await page.request.fetch(url, {
@@ -358,6 +335,18 @@ async function apiCallInternal<T = unknown>(
     json = JSON.parse(text);
   } catch {
     throw new Error(`API ${method} ${path} returned non-JSON (status ${response.status()}): ${text.slice(0, 500)}`);
+  }
+
+  if (json.code !== 200 && json.code !== 0) {
+    throw new Error(`API ${method} ${path} failed: code=${json.code} message=${json.message}`);
+  }
+
+  // POST/PUT/PATCH/DELETE 成功后，后端通过 Set-Cookie 下发新的 csrf_token，
+  // 重新读取 cookie 确保 getCsrfToken 拿到最新值
+  if (method !== 'GET' && method !== 'HEAD') {
+    try {
+      await page.context().cookies();
+    } catch { /* ignore */ }
   }
 
   return json;

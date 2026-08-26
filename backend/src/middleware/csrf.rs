@@ -19,6 +19,7 @@
 
 use crate::container::AppState;
 use crate::middleware::audit_context::extract_client_ip as extract_client_ip_helper;
+use crate::middleware::auth_context::AuthContext;
 use crate::middleware::public_routes::is_public_path;
 use crate::utils::cache::CsrfConsumeResult;
 use axum::{
@@ -29,6 +30,7 @@ use axum::{
     middleware::Next,
     response::{IntoResponse, Response},
 };
+use axum_extra::extract::cookie::{Cookie, PrivateCookieJar, SameSite};
 use serde_json::json;
 
 /// CSRF 请求头名称（小写形式，对应 HTTP/2 规范）
@@ -169,6 +171,47 @@ pub async fn csrf_middleware(
     // 4. 提取客户端 IP + 一次性消费 token（Wave 3 #7 含 IP 校验）
     let client_ip = extract_client_ip(&request);
     consume_csrf_token(&state, &token, &client_ip, &path, &method).map_err(|e| *e)?;
+
+    // 5. 消费成功后轮换：生成新 CSRF Token 存入 cache + Set-Cookie 下发
+    let new_csrf_token = uuid::Uuid::new_v4().to_string();
+    if let Some(auth) = request.extensions().get::<AuthContext>() {
+        let session_id = format!("session-{}", auth.user_id);
+        state.cache.set_csrf_token(
+            new_csrf_token.clone(),
+            session_id,
+            client_ip.clone(),
+            auth.user_id,
+            None,
+        );
+        // 通过 PrivateCookieJar 下发新 csrf_token（非 httpOnly，前端 JS 可读）
+        let cookie_jar = PrivateCookieJar::from_headers(
+            request.headers(),
+            axum_extra::extract::cookie::Key::derive_from(
+                std::env::var("COOKIE_SECRET")
+                    .unwrap_or_else(|_| "default-cookie-secret-32bytes-do-not-use!".to_string())
+                    .as_bytes(),
+            ),
+        );
+        let csrf_cookie = Cookie::build(("csrf_token", new_csrf_token))
+            .path("/")
+            .http_only(false)
+            .same_site(SameSite::Strict)
+            .max_age(time::Duration::seconds(1800))
+            .build();
+        let jar = cookie_jar.add(csrf_cookie);
+        let mut response = next.run(request).await;
+        for cookie in jar.iter() {
+            if let Some(header_value) = cookie.encoded().to_header().1.to_string().strip_prefix("Set-Cookie: ") {
+                response.headers_mut().append(
+                    axum::http::header::SET_COOKIE,
+                    axum::http::HeaderValue::from_str(header_value).unwrap_or_else(|_| {
+                        axum::http::HeaderValue::from_static("")
+                    }),
+                );
+            }
+        }
+        return Ok(response);
+    }
 
     Ok(next.run(request).await)
 }
