@@ -12,7 +12,7 @@ import {
 } from './helpers';
 
 test.describe('库存调拨完整流程', () => {
-  test.beforeEach(async ({ page }) => { await loginViaUI(page); await ensureTestEntities(page); });
+  test.beforeEach(async ({ page }) => { LOGGED_IN.done = false; await loginViaUI(page); await ensureTestEntities(page); });
 
   test('调拨：创建→审批→出库→在途→入库→双仓库库存变化验证', async ({ page }) => {
     const ctx = getCtx();

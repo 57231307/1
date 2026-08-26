@@ -12,7 +12,7 @@ import {
 } from './helpers';
 
 test.describe('采购退货完整流程', () => {
-  test.beforeEach(async ({ page }) => { await loginViaUI(page); await ensureTestEntities(page); });
+  test.beforeEach(async ({ page }) => { LOGGED_IN.done = false; await loginViaUI(page); await ensureTestEntities(page); });
 
   test('采购退货：创建→提交→审批→关联原采购单验证', async ({ page }) => {
     const ctx = getCtx();

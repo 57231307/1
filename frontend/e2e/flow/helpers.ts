@@ -551,19 +551,17 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
     throw new Error(`UI 登录失败: 60s 后仍在 ${currentUrl}，ElMessage: ${JSON.stringify(elMessages)}`);
   }
 
-  // 登录成功后，确保 cookie 已设置到 context
-  try {
-    const cookies = await page.context().cookies();
-    const hasToken = cookies.some((c) => c.name === 'access_token');
-    if (!hasToken) {
-      // 如果 cookie 没有自动设置，手动通过 API 登录注入 cookie
-      await page.request.post(`${API_BASE}${API_PREFIX}/auth/login`, {
-        data: { username: TEST_USERNAME, password: TEST_PASSWORD },
-        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-      });
-    }
-  } catch {
-    // API 补充登录可能失败（429 等），不影响 UI 登录成功
+  // 登录成功后，验证 cookie 已设置
+  const cookies = await page.context().cookies();
+  const hasToken = cookies.some((c) => c.name === 'access_token');
+  const hasCsrf = cookies.some((c) => c.name === 'csrf_token');
+  if (!hasToken || !hasCsrf) {
+    console.error(`=== Cookie 缺失诊断 ===`);
+    console.error(`access_token: ${hasToken}, csrf_token: ${hasCsrf}`);
+    console.error(`所有 cookie: ${cookies.map(c => c.name).join(', ')}`);
+    console.error(`当前 URL: ${page.url()}`);
+    await page.screenshot({ path: 'test-results/cookie-missing-diagnosis.png', fullPage: true });
+    throw new Error(`UI 登录后 cookie 缺失: access_token=${hasToken}, csrf_token=${hasCsrf}`);
   }
   LOGGED_IN.done = true;
 }
