@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { loginViaUI, BASE_URL } from './helpers';
 
 test.describe('100% 前端路由 UI 交互全覆盖', () => {
-  test.beforeAll(async ({ page }) => { await loginViaUI(page); });
+  test.beforeEach(async ({ page }) => { await loginViaUI(page); });
 
   // 辅助：访问页面，验证核心 UI 元素可见
   async function visitPage(page: import('@playwright/test').Page, path: string) {

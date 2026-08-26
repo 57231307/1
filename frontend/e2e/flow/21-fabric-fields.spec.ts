@@ -10,7 +10,7 @@ import {
 } from './helpers';
 
 test.describe('面料单据专用字段全链路验证', () => {
-  test.beforeAll(async ({ page }) => { await loginViaUI(page); await ensureTestEntities(page); });
+  test.beforeEach(async ({ page }) => { await loginViaUI(page); await ensureTestEntities(page); });
 
   // ============================================================
   // 销售订单 — 面料字段最完整的单据（16个面料字段）

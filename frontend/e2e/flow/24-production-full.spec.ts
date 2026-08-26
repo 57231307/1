@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { loginViaUI, apiCall, apiCallRaw, apiCallExpectFail, genCode, getCtx, BASE_URL, safeGet, safeGetList, safePostAction, verifyEndpointHealthy } from './helpers';
 
 test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
-  test.beforeAll(async ({ page }) => { await loginViaUI(page); });
+  test.beforeEach(async ({ page }) => { await loginViaUI(page); });
 
   // ===== API 端点覆盖（所有子模块）=====
   test('流转卡：CRUD+状态机+步骤+反馈+工艺路线', async ({ page }) => {

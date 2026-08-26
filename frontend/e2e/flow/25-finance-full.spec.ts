@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { loginViaUI, apiCall, apiCallRaw, apiCallExpectFail, genCode, getCtx, BASE_URL, safeGet, safeGetList, safePostAction, verifyEndpointHealthy } from './helpers';
 
 test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
-  test.beforeAll(async ({ page }) => { await loginViaUI(page); });
+  test.beforeEach(async ({ page }) => { await loginViaUI(page); });
 
   // ===== API 端点覆盖 =====
   test('资金管理：账户+存取+冻结+转账+审批+报表+预测', async ({ page }) => {

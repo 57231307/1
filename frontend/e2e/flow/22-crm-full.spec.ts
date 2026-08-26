@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { loginViaUI, apiCall, apiCallRaw, apiCallExpectFail, genCode, getCtx, BASE_URL, safeGet, safeGetList, safePostAction, verifyEndpointHealthy } from './helpers';
 
 test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
-  test.beforeAll(async ({ page }) => { await loginViaUI(page); });
+  test.beforeEach(async ({ page }) => { await loginViaUI(page); });
 
   // ===== API 端点覆盖 =====
   test('客户管理：CRUD+导出+地址+信用+360+RFM+CLV', async ({ page }) => {

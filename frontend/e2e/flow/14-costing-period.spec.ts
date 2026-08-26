@@ -11,7 +11,7 @@ import {
 } from './helpers';
 
 test.describe('成本核算完整流程', () => {
-  test.beforeAll(async ({ page }) => { await loginViaUI(page); await ensureTestEntities(page); });
+  test.beforeEach(async ({ page }) => { await loginViaUI(page); await ensureTestEntities(page); });
 
   test('成本归集：创建→料工费验证→审批→成本分析', async ({ page }) => {
     const ctx = getCtx();

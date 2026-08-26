@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { loginViaUI, apiCall, apiCallRaw, apiCallExpectFail, genCode, getCtx, BASE_URL, safeGet, safeGetList, safePostAction, verifyEndpointHealthy } from './helpers';
 
 test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
-  test.beforeAll(async ({ page }) => { await loginViaUI(page); });
+  test.beforeEach(async ({ page }) => { await loginViaUI(page); });
 
   // ===== API 端点覆盖 =====
   test('合同+价格+检验+供应商+定制+库存扩展端点', async ({ page }) => {

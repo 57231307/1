@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { loginViaUI, apiCall, apiCallRaw, apiCallExpectFail, genCode, getCtx, BASE_URL, safeGet, safeGetList, safePostAction, verifyEndpointHealthy } from './helpers';
 
 test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () => {
-  test.beforeAll(async ({ page }) => { await loginViaUI(page); });
+  test.beforeEach(async ({ page }) => { await loginViaUI(page); });
 
   // ===== API 端点覆盖 =====
   test('BI+Webhook+API网关+邮件+通知+扫码+导入导出+AI+报表+高级分析+跟踪+隐私+双计量+权限+审计+产品分类', async ({ page }) => {

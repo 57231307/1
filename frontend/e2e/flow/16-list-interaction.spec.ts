@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { loginViaUI, BASE_URL } from './helpers';
 
 test.describe('列表交互与状态显示', () => {
-  test.beforeAll(async ({ page }) => {
+  test.beforeEach(async ({ page }) => {
     await loginViaUI(page);
   });
 

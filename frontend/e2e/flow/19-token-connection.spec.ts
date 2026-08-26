@@ -9,7 +9,7 @@ import {
 } from './helpers';
 
 test.describe('后端连接状态与 Token 管理', () => {
-  test.beforeAll(async ({ page }) => {
+  test.beforeEach(async ({ page }) => {
     await loginViaUI(page);
   });
 

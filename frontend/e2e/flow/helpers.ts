@@ -136,6 +136,84 @@ export async function ensureTestEntities(page: Page): Promise<void> {
 
   // 生成缸号
   if (!ctx.dyeLotNo) ctx.dyeLotNo = genDyeLotNo();
+
+  // 查找染色配方
+  try {
+    const recipes = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/dye-recipes?page=1&page_size=1');
+    ctx.dyeRecipeId = recipes.items?.[0]?.id;
+  } catch { ctx.dyeRecipeId = undefined; }
+
+  // 查找大货处方
+  try {
+    const prs = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/production-recipes?page=1&page_size=1');
+    ctx.productionRecipeId = prs.items?.[0]?.id;
+  } catch { ctx.productionRecipeId = undefined; }
+
+  // 查找 BOM
+  try {
+    const boms = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/boms?page=1&page_size=1');
+    ctx.bomId = boms.items?.[0]?.id;
+  } catch { ctx.bomId = undefined; }
+
+  // 查找生产订单
+  try {
+    const pos = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/production-orders/orders?page=1&page_size=1');
+    ctx.productionOrderId = pos.items?.[0]?.id;
+  } catch { ctx.productionOrderId = undefined; }
+
+  // 查找凭证
+  try {
+    const vs = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/finance/vouchers?page=1&page_size=1');
+    ctx.voucherId = vs.items?.[0]?.id;
+  } catch { ctx.voucherId = undefined; }
+
+  // 查找固定资产
+  try {
+    const fas = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/fixed-assets?page=1&page_size=1');
+    ctx.fixedAssetId = fas.items?.[0]?.id;
+  } catch { ctx.fixedAssetId = undefined; }
+
+  // 查找预算
+  try {
+    const bs = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/budgets?page=1&page_size=1');
+    ctx.budgetId = bs.items?.[0]?.id;
+  } catch { ctx.budgetId = undefined; }
+
+  // 查找 AP 发票
+  try {
+    const aps = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/ap/invoices?page=1&page_size=1');
+    ctx.apInvoiceId = aps.items?.[0]?.id;
+  } catch { ctx.apInvoiceId = undefined; }
+
+  // 查找 AR 发票
+  try {
+    const ars = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/ar/invoices?page=1&page_size=1');
+    ctx.arInvoiceId = ars.items?.[0]?.id;
+  } catch { ctx.arInvoiceId = undefined; }
+
+  // 查找定制订单
+  try {
+    const cos = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/custom-orders?page=1&page_size=1');
+    ctx.customOrderId = cos.items?.[0]?.id;
+  } catch { ctx.customOrderId = undefined; }
+
+  // 查找色卡
+  try {
+    const ccs = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/color-cards/?page=1&page_size=1');
+    ctx.colorCardId = ccs.items?.[0]?.id;
+  } catch { ctx.colorCardId = undefined; }
+
+  // 查找坯布
+  try {
+    const gfs = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/greige-fabrics?page=1&page_size=1');
+    ctx.greigeFabricId = gfs.items?.[0]?.id;
+  } catch { ctx.greigeFabricId = undefined; }
+
+  // 查找角色 ID
+  try {
+    const roles = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/roles?page=1&page_size=1');
+    ctx.roleId = roles.items?.[0]?.id;
+  } catch { ctx.roleId = undefined; }
 }
 
 async function getCsrfToken(page: Page): Promise<string> {
