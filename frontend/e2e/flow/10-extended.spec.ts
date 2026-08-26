@@ -227,7 +227,7 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
         ctx.customOrderId = list.items?.[0]?.id;
       } catch { /* skip */ }
     }
-    expect(ctx.customOrderId || true).toBeTruthy();
+    expect(ctx.customOrderId).toBeDefined();
   });
 
   test('C1-2 验证定制订单 7 阶段状态机', async ({ page }) => {
@@ -249,7 +249,7 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
 
     // 直接从 draft 跳到 dyeing → 应拒绝
     const result = await apiCallExpectFail(page, 'POST', `/custom-orders/${ctx.customOrderId}/advance`, { to_status: 'dyeing' });
-    expect(result.status >= 400 || result.status === 200).toBeTruthy();
+    expect(result.status >= 400).toBe(true); // 非法转换应被拒
   });
 
   test('C1-4 创建打样通知单（lab_dip_request）', async ({ page }) => {
@@ -264,7 +264,7 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
         fabric_type: '棉涤',
         status: 'pending',
       });
-      expect(result.data?.id || true).toBeTruthy();
+      expect(result.data?.id).toBeDefined();
     } catch { /* skip */ }
   });
 

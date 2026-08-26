@@ -1,0 +1,156 @@
+import { test, expect } from '@playwright/test';
+import {
+  loginViaUI,
+  BASE_URL,
+  API_BASE,
+  API_PREFIX,
+  TEST_USERNAME,
+  TEST_PASSWORD,
+} from './helpers';
+
+test.describe('后端连接状态与 Token 管理', () => {
+  test.beforeAll(async ({ page }) => {
+    await loginViaUI(page);
+  });
+
+  test('登录态持久化：刷新页面后仍保持登录', async ({ page }) => {
+    await page.goto(`${BASE_URL}/dashboard`);
+    await page.waitForTimeout(2000);
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(2000);
+
+    const currentUrl = page.url();
+    expect(currentUrl.includes('/login')).toBe(false);
+  });
+
+  test('未登录访问受保护路由跳转登录页', async ({ browser }) => {
+    // 全新 context，不登录
+    const context = await browser.newContext();
+    const page = await context.newPage();
+
+    await page.goto(`${BASE_URL}/purchase/orders`);
+    await page.waitForTimeout(3000);
+
+    const url = page.url();
+    expect(url.includes('/login') || url.includes('/setup')).toBe(true);
+
+    await context.close();
+  });
+
+  test('setup 页面可达', async ({ browser }) => {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+
+    await page.goto(`${BASE_URL}/setup`);
+    await page.waitForTimeout(2000);
+
+    const hasForm = await page.locator('form, .el-form, .setup-container').first().isVisible({ timeout: 10_000 }).catch(() => false);
+    expect(hasForm).toBe(true);
+
+    await context.close();
+  });
+
+  test('Cookie 安全属性：access_token 为 httpOnly', async ({ context }) => {
+    const cookies = await context.cookies();
+
+    const accessToken = cookies.find(c => c.name === 'access_token');
+    expect(accessToken).toBeDefined();
+    expect(accessToken?.httpOnly).toBe(true);
+
+    const csrfToken = cookies.find(c => c.name === 'csrf_token');
+    expect(csrfToken).toBeDefined();
+    expect(csrfToken?.httpOnly).toBe(false);
+
+    expect(accessToken?.sameSite).toBe('Strict');
+  });
+
+  test('刷新 Token 接口可达', async ({ page, context }) => {
+    // 复用当前 context（已有 cookie），不重新登录
+    const refreshResp = await page.request.post(`${API_BASE}${API_PREFIX}/auth/refresh`, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    });
+
+    // 刷新可能成功（200）或因 refresh_token 过期失败（401）
+    // 验证接口可达即可
+    expect(refreshResp.ok() || refreshResp.status() === 401).toBe(true);
+
+    if (refreshResp.ok()) {
+      const cookiesAfterRefresh = await context.cookies();
+      const newAccessCookie = cookiesAfterRefresh.find(c => c.name === 'access_token');
+      expect(newAccessCookie).toBeDefined();
+    }
+  });
+
+  test('登出后 Cookie 被清除', async ({ page, context }) => {
+    // 复用当前 context 的 cookie 调用登出
+    const csrfToken = (await context.cookies()).find(c => c.name === 'csrf_token')?.value || '';
+
+    const logoutResp = await page.request.post(`${API_BASE}${API_PREFIX}/auth/logout`, {
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-Token': csrfToken,
+      },
+    });
+
+    // 登出可能成功（200）或因 token 失效失败（401）
+    if (logoutResp.ok()) {
+      const cookiesAfter = await context.cookies();
+      const accessCookie = cookiesAfter.find(c => c.name === 'access_token');
+      expect(accessCookie === undefined || (accessCookie?.expires ?? 0) <= Date.now() / 1000 + 1).toBe(true);
+    }
+  });
+
+  test('后端健康检查端点可达', async ({ page }) => {
+    const resp = await page.request.get(`${API_BASE}/health`);
+    expect(resp.ok()).toBe(true);
+
+    const livenessResp = await page.request.get(`${API_BASE}/health/liveness`);
+    expect(livenessResp.ok()).toBe(true);
+
+    const readinessResp = await page.request.get(`${API_BASE}/health/readiness`);
+    expect(readinessResp.ok()).toBe(true);
+  });
+
+  test('API 限流不崩溃（高频请求后恢复）', async ({ page }) => {
+    // 用 auth/me 测试（GET 请求不会触发 brute_force）
+    let rateLimited = false;
+    for (let i = 0; i < 20; i++) {
+      const resp = await page.request.get(`${API_BASE}${API_PREFIX}/auth/me`, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      });
+      if (resp.status() === 429) {
+        rateLimited = true;
+        break;
+      }
+    }
+
+    if (rateLimited) {
+      // 等待限流恢复
+      await page.waitForTimeout(5000);
+      const retryResp = await page.request.get(`${API_BASE}${API_PREFIX}/auth/me`, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      });
+      // 恢复后应可访问或仍被限流（不崩溃）
+      expect(retryResp.status() < 500).toBe(true);
+    }
+    // 没被限流也通过
+  });
+
+  test('401 拦截器：清除 cookie 后访问跳转登录页', async ({ page, context }) => {
+    // 先访问 dashboard
+    await page.goto(`${BASE_URL}/dashboard`);
+    await page.waitForTimeout(2000);
+
+    // 清除 cookie 模拟 token 过期
+    await context.clearCookies();
+
+    // 导航到受保护页面
+    await page.goto(`${BASE_URL}/purchase/orders`);
+    await page.waitForTimeout(3000);
+
+    // 应被重定向到登录页
+    const url = page.url();
+    expect(url.includes('/login')).toBe(true);
+  });
+});

@@ -23,7 +23,7 @@ test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓�
           'sales_clerk↔sales_manager',
         ];
         const hasAny = pairs.some((p) => expectedPairs.some((e) => p.includes(e.split('↔')[0]) && p.includes(e.split('↔')[1])));
-        expect(hasAny || true).toBeTruthy();
+        expect(hasAny).toBe(true);
       }
     } catch {
       try {
@@ -38,14 +38,14 @@ test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓�
     // admin 角色不应被黑名单限制
     const result = await apiCallExpectFail(page, 'GET', '/products/export');
     // admin 可能被允许或被拒绝（取决于角色配置）
-    expect(result.status === 200 || result.status === 403 || result.status >= 400).toBeTruthy();
+    expect(result.status >= 400).toBe(true); // 应返回错误码
   });
 
   test('P1-3 验证染色配方导出仅 dye_recipe_master 可', async ({ page }) => {
     await loginViaUI(page);
     // admin 应该可以导出（有 *:* 权限）或被拒绝（角色黑名单）
     const result = await apiCallExpectFail(page, 'GET', '/production/dye-recipes/export');
-    expect(result.status === 200 || result.status === 403 || result.status >= 400).toBeTruthy();
+    expect(result.status >= 400).toBe(true); // 应返回错误码
   });
 
   test('P1-4 验证权限缓存（多次调用不拒绝）', async ({ page }) => {

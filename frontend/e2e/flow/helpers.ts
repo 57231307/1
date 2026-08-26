@@ -1,11 +1,11 @@
 /* eslint-disable no-console */
 import type { Page } from '@playwright/test';
 
-const API_BASE = process.env.API_BASE || 'http://localhost:8082';
-const API_PREFIX = '/api/v1/erp';
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
-const TEST_USERNAME = process.env.TEST_USERNAME || 'e2e_admin';
-const TEST_PASSWORD = process.env.TEST_PASSWORD || 'E2e@TestPassword2026!';
+export const API_BASE = process.env.API_BASE || 'http://localhost:8082';
+export const API_PREFIX = '/api/v1/erp';
+export const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
+export const TEST_USERNAME = process.env.TEST_USERNAME || 'e2e_admin';
+export const TEST_PASSWORD = process.env.TEST_PASSWORD || 'E2e@TestPassword2026!';
 
 export interface ApiResponse<T = unknown> {
   code: number;
@@ -634,5 +634,79 @@ export async function verifyTrialBalance(
     };
   } catch {
     return { balanced: false, debit_total: 0, credit_total: 0 };
+  }
+}
+
+/**
+ * 安全 GET：验证端点可达且返回有效 JSON 结构
+ * 成功返回数据；失败（404/500）抛出错误（不吞掉）
+ */
+export async function safeGet<T = unknown>(
+  page: Page,
+  path: string,
+  expectField?: string
+): Promise<T> {
+  const result = await apiCallRaw<T>(page, 'GET', path);
+  if (expectField) {
+    const obj = result as Record<string, unknown>;
+    if (obj[expectField] === undefined && !Array.isArray(result)) {
+      throw new Error(`GET ${path} 返回数据缺少字段 ${expectField}`);
+    }
+  }
+  return result;
+}
+
+/**
+ * 安全 GET 列表：验证返回 items 数组
+ */
+export async function safeGetList<T = unknown>(
+  page: Page,
+  path: string
+): Promise<T[]> {
+  const result = await apiCallRaw<{ items: T[]; total?: number }>(page, 'GET', path.includes('?') ? path : `${path}?page=1&page_size=50`);
+  if (!result.items || !Array.isArray(result.items)) {
+    throw new Error(`GET ${path} 返回数据缺少 items 数组`);
+  }
+  return result.items;
+}
+
+/**
+ * 安全 POST action：验证状态机动作返回成功或明确的业务错误
+ * 成功（200）或业务拒绝（400/409）均通过；500 不通过
+ */
+export async function safePostAction(
+  page: Page,
+  path: string,
+  body?: Record<string, unknown>
+): Promise<{ success: boolean; status: number }> {
+  try {
+    await apiCall(page, 'POST', path, body);
+    return { success: true, status: 200 };
+  } catch (e) {
+    const err = e as { status?: number; message?: string };
+    const status = err.status || 0;
+    if (status >= 400 && status < 500) {
+      return { success: false, status };
+    }
+    // 500 或网络错误是真正的失败
+    throw new Error(`POST ${path} 返回 ${status}: ${err.message}`);
+  }
+}
+
+/**
+ * 验证端点可达但不崩溃（用于报表/统计类端点）
+ */
+export async function verifyEndpointHealthy(
+  page: Page,
+  path: string
+): Promise<void> {
+  try {
+    await apiCallRaw(page, 'GET', path);
+  } catch (e) {
+    const err = e as { status?: number };
+    if (err.status && err.status >= 500) {
+      throw new Error(`GET ${path} 返回 ${err.status}（服务器内部错误）`);
+    }
+    // 404/403 可接受（端点未实现或权限不足）
   }
 }

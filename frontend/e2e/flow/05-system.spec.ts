@@ -52,7 +52,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
     try {
       const result = await apiCallExpectFail(page, 'GET', '/production/dye-recipes/export');
       // admin 可能被允许或被拒绝（取决于角色黑名单）
-      expect(result.status === 200 || result.status === 403 || result.status >= 400).toBeTruthy();
+      expect(result.status >= 400).toBe(true); // 应返回错误码
     } catch {
       // 跳过
     }
@@ -129,7 +129,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
 
     // 直接从 draft 跳到 dyeing → 应拒绝（需要先完成 lab_dip + quotation）
     const result = await apiCallExpectFail(page, 'POST', `/custom-orders/${id}/advance`, { to_status: 'dyeing' });
-    expect(result.status >= 400 || result.status === 200).toBeTruthy();
+    expect(result.status >= 400).toBe(true); // 非法转换应被拒
   });
 
   test('5-9 大货批色审批（8 态状态机）', async ({ page }) => {

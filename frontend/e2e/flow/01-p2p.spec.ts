@@ -36,7 +36,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/purchase/orders?page=1&page_size=1');
       ctx.purchaseOrderId = list.items?.[0]?.id;
     }
-    expect(ctx.purchaseOrderId || true).toBeTruthy();
+    expect(ctx.purchaseOrderId).toBeDefined();
   });
 
   test('1-2 采购订单状态机：DRAFT → SUBMITTED → APPROVED', async ({ page }) => {
@@ -163,7 +163,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     } catch {
       // AP 模块可能未就绪
     }
-    expect(ctx.apInvoiceId || true).toBeTruthy();
+    expect(ctx.apInvoiceId).toBeDefined();
   });
 
   test('1-8 付款', async ({ page }) => {

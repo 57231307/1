@@ -43,7 +43,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/quotations?page=1&page_size=1');
       ctx.quotationId = list.items?.[0]?.id;
     }
-    expect(ctx.quotationId || true).toBeTruthy();
+    expect(ctx.quotationId).toBeDefined();
   });
 
   test('2-2 报价单状态机：draft → submitted → approved', async ({ page }) => {
@@ -86,7 +86,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/sales/orders?page=1&page_size=1');
       ctx.salesOrderId = list.items?.[0]?.id;
     }
-    expect(ctx.salesOrderId || true).toBeTruthy();
+    expect(ctx.salesOrderId).toBeDefined();
   });
 
   test('2-5 销售订单审批（含 SoD 验证：创建者不能审批）', async ({ page }) => {
@@ -171,7 +171,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     } catch {
       // AR 模块可能未就绪
     }
-    expect(ctx.arInvoiceId || true).toBeTruthy();
+    expect(ctx.arInvoiceId).toBeDefined();
   });
 
   test('2-9 分次收款（50% + 50%）', async ({ page }) => {

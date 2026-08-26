@@ -37,7 +37,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
         ctx.dyeRecipeId = list.items?.[0]?.id;
       } catch { /* skip */ }
     }
-    expect(ctx.dyeRecipeId || true).toBeTruthy();
+    expect(ctx.dyeRecipeId).toBeDefined();
   });
 
   test('3-2 审批染色配方（草稿 → 已审核）', async ({ page }) => {
@@ -75,7 +75,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
         ctx.dyeLotNo = dyeLotNo;
       } catch { /* skip */ }
     }
-    expect(ctx.dyeBatchId || true).toBeTruthy();
+    expect(ctx.dyeBatchId).toBeDefined();
   });
 
   test('3-4 缸号状态机流转（14 态关键路径）', async ({ page }) => {
@@ -122,7 +122,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
     // 跳过多个状态直接染色 → 应拒绝
     const result = await apiCallExpectFail(page, 'POST', `/production/dye-batches/${id}/start_dyeing`);
     // 如果当前已在 dyeing 之后，再次 start_dyeing 可能返回 400/409
-    expect(result.status >= 400 || result.status === 200).toBeTruthy();
+    expect(result.status >= 400).toBe(true); // 非法转换应被拒
   });
 
   test('3-6 创建大货处方（关联工单+缸号+配方）', async ({ page }) => {
@@ -157,7 +157,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
     } catch {
       // 跳过
     }
-    expect(ctx.productionRecipeId || true).toBeTruthy();
+    expect(ctx.productionRecipeId).toBeDefined();
   });
 
   test('3-7 审批大货处方（draft → approved）', async ({ page }) => {
@@ -193,7 +193,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
         ctx.bomId = list.items?.[0]?.id;
       } catch { /* skip */ }
     }
-    expect(ctx.bomId || true).toBeTruthy();
+    expect(ctx.bomId).toBeDefined();
   });
 
   test('3-9 创建生产工单', async ({ page }) => {
@@ -217,7 +217,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
         ctx.productionOrderId = list.items?.[0]?.id;
       } catch { /* skip */ }
     }
-    expect(ctx.productionOrderId || true).toBeTruthy();
+    expect(ctx.productionOrderId).toBeDefined();
   });
 
   test('3-10 生产工单状态流转', async ({ page }) => {

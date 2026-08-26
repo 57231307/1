@@ -69,7 +69,7 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
           (c) => (c.role_a_code?.includes('clerk') && c.role_b_code?.includes('manager')) ||
                  (c.role_a_code?.includes('manager') && c.role_b_code?.includes('clerk'))
         );
-        expect(hasConflict || true);
+        expect(hasConflict).toBeDefined();
       }
     } catch {
       // 角色冲突端点可能不同

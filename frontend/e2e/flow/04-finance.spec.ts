@@ -40,7 +40,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
     } catch {
       // 凭证模块可能未就绪
     }
-    expect(getCtx().voucherId || true).toBeTruthy();
+    expect(getCtx().voucherId).toBeDefined();
   });
 
   test('4-3 凭证状态机：draft → submitted → reviewed → posted', async ({ page }) => {
@@ -66,7 +66,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
 
     // 对已 posted 的凭证提交 → 应拒绝
     const result = await apiCallExpectFail(page, 'POST', `/finance/vouchers/${id}/submit`);
-    expect(result.status >= 400 || result.status === 200).toBeTruthy();
+    expect(result.status >= 400).toBe(true); // 非法转换应被拒
   });
 
   test('4-5 验证 AP 应付单', async ({ page }) => {
@@ -126,7 +126,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
         ctx.fixedAssetId = list.items?.[0]?.id;
       } catch { /* skip */ }
     }
-    expect(ctx.fixedAssetId || true).toBeTruthy();
+    expect(ctx.fixedAssetId).toBeDefined();
   });
 
   test('4-9 创建预算', async ({ page }) => {
@@ -142,7 +142,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
       });
       ctx.budgetId = result.data?.id;
     } catch { /* skip */ }
-    expect(ctx.budgetId || true).toBeTruthy();
+    expect(ctx.budgetId).toBeDefined();
   });
 
   test('4-10 验证会计期间状态', async ({ page }) => {

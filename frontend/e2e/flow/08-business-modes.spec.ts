@@ -18,7 +18,7 @@ test.describe.serial('扩展: 业务模式测试（染整加工/来料加工/委
         const codes = modes.items.map((m) => m.mode_code);
         const expectedCodes = ['grey_trading', 'finished_trading', 'dyeing_processing', 'self_weave_dye', 'outsourcing', 'toll_processing'];
         const hasAny = codes.some((c) => expectedCodes.includes(c));
-        expect(hasAny || true).toBeTruthy();
+        expect(hasAny).toBe(true);
       }
     } catch {
       // 业务模式端点可能不同
@@ -67,7 +67,7 @@ test.describe.serial('扩展: 业务模式测试（染整加工/来料加工/委
         status: 'draft',
         remarks: 'E2E 委外加工订单',
       });
-      expect(result.data?.id || true).toBeTruthy();
+      expect(result.data?.id).toBeDefined();
     } catch {
       // 委外端点可能不同
     }
