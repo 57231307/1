@@ -39,7 +39,8 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
       console.log('创建报价单失败，尝试查找已有:', (e as { message?: string }).message || e);
       try {
         const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/quotations?page=1&page_size=1');
-      ctx.quotationId = list.items?.[0]?.id;
+        ctx.quotationId = list.items?.[0]?.id;
+      } catch { /* 查找也失败 */ }
     }
     expect(ctx.quotationId).toBeDefined();
   });
