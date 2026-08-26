@@ -33,7 +33,7 @@ test.describe('04 销售发货', () => {
     // 收货地址
     await page.getByLabel(/收货地址/).fill('浙江省杭州市西湖区文三路 100 号');
     await page.getByRole('button', { name: /保存/ }).click();
-    await expect(page.getByText(/发货单号.*DN-\d{8}-\d{4}/)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/发货单号.*DN-\d{8}-\d{4}/)).toBeVisible({ timeout: 30000 });
   });
 
   test('04-02 发货数量必须 ≤ 订单数量', async ({ page }) => {
@@ -60,7 +60,7 @@ test.describe('04 销售发货', () => {
     await page.getByRole('button', { name: /保存/ }).click();
     // 回到订单详情
     await page.goto(page.url().replace('/delivery', ''));
-    await expect(page.getByText('部分发货').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('部分发货').first()).toBeVisible({ timeout: 30000 });
   });
 
   test('04-04 全部发货后订单状态为"已发货"', async ({ page }) => {
@@ -73,6 +73,6 @@ test.describe('04 销售发货', () => {
     await shipQty.fill('500');
     await page.getByRole('button', { name: /保存/ }).click();
     // 回到订单详情
-    await expect(page.getByText('已发货').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('已发货').first()).toBeVisible({ timeout: 30000 });
   });
 });

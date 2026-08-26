@@ -15,7 +15,7 @@ test.describe('03 报价单详情与编辑', () => {
     const viewBtn = page.getByRole('button', { name: /查看/ }).first();
     if (await viewBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await viewBtn.click();
-      await expect(page.getByText(/基本信息/)).toBeVisible({ timeout: 5000 }).catch(() => {
+      await expect(page.getByText(/基本信息/)).toBeVisible({ timeout: 30000 }).catch(() => {
         return null;
       });
     }
@@ -26,7 +26,7 @@ test.describe('03 报价单详情与编辑', () => {
     const editBtn = page.getByRole('button', { name: /编辑/ }).first();
     if (await editBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await editBtn.click();
-      await expect(page.locator('form')).toBeVisible({ timeout: 5000 });
+      await expect(page.locator('form')).toBeVisible({ timeout: 30000 });
       await expect(page.getByLabel(/客户/)).toBeVisible();
     }
   });

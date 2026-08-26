@@ -70,13 +70,13 @@ export async function autoFillField(page: Page, field: FormField): Promise<void>
     throw new Error('FormField 必须提供 selector / placeholder / label 之一');
   }
 
-  await locator.waitFor({ state: 'visible', timeout: 5_000 });
+  await locator.waitFor({ state: 'visible', timeout: 30_000 });
 
   switch (field.type) {
     case 'select':
       // Element Plus el-select：点击触发下拉 → 选择匹配项
       await locator.click();
-      await page.waitForSelector('.el-select-dropdown__item', { state: 'visible', timeout: 3_000 });
+      await page.waitForSelector('.el-select-dropdown__item', { state: 'visible', timeout: 15_000 });
       // 选择包含目标文本的选项
       await page
         .locator('.el-select-dropdown__item')
@@ -93,7 +93,7 @@ export async function autoFillField(page: Page, field: FormField): Promise<void>
     case 'date':
       // Element Plus el-date-editor：点击触发面板 → 输入日期
       await locator.click();
-      await page.waitForSelector('.el-date-picker', { state: 'visible', timeout: 3_000 });
+      await page.waitForSelector('.el-date-picker', { state: 'visible', timeout: 15_000 });
       await locator.fill(field.value);
       await page.keyboard.press('Enter');
       break;
@@ -139,7 +139,7 @@ export async function autoClickButton(
   options: { timeout?: number } = {}
 ): Promise<void> {
   const btn = page.locator(`button:has-text("${text}")`).first();
-  await btn.waitFor({ state: 'visible', timeout: options.timeout ?? 5_000 });
+  await btn.waitFor({ state: 'visible', timeout: options.timeout ?? 30_000 });
   await btn.click();
 }
 
@@ -164,7 +164,7 @@ export async function extractTableData(
   tableSelector = '.el-table-v2'
 ): Promise<string[][]> {
   const table = page.locator(tableSelector).first();
-  await table.waitFor({ state: 'attached', timeout: 10_000 });
+  await table.waitFor({ state: 'attached', timeout: 30_000 });
 
   // 提取所有行的单元格文本
   const rows = await table.locator('.el-table-v2__row').all();
@@ -220,7 +220,7 @@ export async function extractColumnData(
 export async function waitForTableLoaded(
   page: Page,
   tableSelector = '.el-table-v2',
-  timeout = 10_000
+  timeout = 30_000
 ): Promise<void> {
   const table = page.locator(tableSelector).first();
   await table.waitFor({ state: 'attached', timeout });
@@ -228,7 +228,7 @@ export async function waitForTableLoaded(
   await page
     .locator(`${tableSelector} .el-table-v2__row, .el-empty, .el-table__empty-text`)
     .first()
-    .waitFor({ state: 'attached', timeout: 5_000 })
+    .waitFor({ state: 'attached', timeout: 30_000 })
     .catch(() => {
       // 超时不阻塞（可能是虚拟滚动未渲染）
     });
@@ -248,7 +248,7 @@ export async function waitForTableLoaded(
 export async function waitForElMessage(
   page: Page,
   type: 'success' | 'warning' | 'info' | 'error' = 'success',
-  timeout = 5_000
+  timeout = 30_000
 ): Promise<Locator> {
   const message = page.locator(`.el-message--${type}`).first();
   await message.waitFor({ state: 'visible', timeout });

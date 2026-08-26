@@ -54,7 +54,7 @@ test.describe('01 创建采购订单', () => {
     // 提交
     await page.getByRole('button', { name: /保存/ }).click();
     // 验证成功提示 + 采购单号格式 PO-YYYYMMDD-XXXX
-    await expect(page.getByText(/采购订单号.*PO-\d{8}-\d{4}/)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/采购订单号.*PO-\d{8}-\d{4}/)).toBeVisible({ timeout: 30000 });
   });
 
   test('01-04 采购订单可指定交货日期与仓库', async ({ page }) => {

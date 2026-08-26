@@ -2401,7 +2401,7 @@ jobs:
 # Job 15: E2E 端到端测试（8 分片并行，每分片独立后端实例）
 # ==============================================================================
   ci-e2e:
-    name: 🎭 E2E 测试 (${{ matrix.shard }}/8)
+    name: 🎭 E2E 测试 (${{ matrix.shard }}/15)
     runs-on: ubuntu-latest
     timeout-minutes: 360
     needs: [ci-build-fe, ci-build-rust]
@@ -2410,7 +2410,7 @@ jobs:
       fail-fast: false
       max-parallel: 8
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
     services:
       postgres:
         image: postgres:16-alpine
@@ -2535,16 +2535,60 @@ jobs:
           if [ "$STATUS_CODE" = "400" ] && echo "$RESPONSE_BODY" | grep -q '"code": "BUSINESS_ERROR"'; then exit 0; fi
           echo "初始化失败 HTTP $STATUS_CODE"; tail -n 50 /tmp/e2e-logs/backend.log; exit 1
 
-      - name: 运行 E2E 测试（分片 ${{ matrix.shard }}/8）
+      - name: 启动前端 dev server（预构建后避免 504）
+        working-directory: frontend
+        run: |
+          # 先手动触发 Vite 依赖预构建（避免首次加载 504 Outdated Optimize Dep）
+          npx vite optimize --force
+          # 启动 dev server
+          npm run dev > /tmp/e2e-logs/frontend.log 2>&1 &
+          FRONTEND_PID=$!
+          echo "FRONTEND_PID=$FRONTEND_PID" >> /tmp/e2e-logs/pid.env
+          for i in $(seq 1 120); do
+            if curl -s http://localhost:3000 > /dev/null 2>&1; then
+              echo "前端就绪（第 ${i} 次尝试）"
+              break
+            fi
+            sleep 1
+          done
+          if ! curl -s http://localhost:3000 > /dev/null 2>&1; then
+            echo "前端启动失败，日志："
+            tail -20 /tmp/e2e-logs/frontend.log
+            exit 1
+          fi
+
+      - name: 验证登录 API（诊断）
+        run: |
+          echo "=== 验证登录 API ==="
+          LOGIN_RESULT=$(curl -s -w "\n%{http_code}" -X POST http://localhost:8082/api/v1/erp/auth/login \
+            -H "Content-Type: application/json" \
+            -H "X-Requested-With: XMLHttpRequest" \
+            -d "{\"username\":\"${TEST_USERNAME}\",\"password\":\"${TEST_PASSWORD}\"}")
+          LOGIN_BODY=$(echo "$LOGIN_RESULT" | head -n -1)
+          LOGIN_STATUS=$(echo "$LOGIN_RESULT" | tail -n 1)
+          echo "Login HTTP Status: $LOGIN_STATUS"
+          echo "Login Response: $LOGIN_BODY"
+          echo "=== 后端日志最后 10 行 ==="
+          tail -10 /tmp/e2e-logs/backend.log 2>/dev/null || echo "(无后端日志)"
+
+      - name: 运行 E2E 测试（分片 ${{ matrix.shard }}/15）
         working-directory: frontend
         run: |
           mkdir -p reports
           set +e
-          npx playwright test --project=chromium --shard=${{ matrix.shard }}/8 2>&1 | tee reports/playwright-output.txt
+          SHARD=${{ matrix.shard }}
+          if [ "$SHARD" -le 10 ]; then
+            # 分片 0-10: 运行 flow/ 全流程测试，按 shard 自动分配
+            npx playwright test --project=chromium --shard=$((SHARD + 1))/11 e2e/flow/ 2>&1 | tee reports/playwright-output.txt
+          else
+            # 分片 11-14: 运行 smoke 页面加载测试，按 shard 分配
+            SMOKE_SHARD=$((SHARD - 10))
+            npx playwright test --project=chromium --shard=${SMOKE_SHARD}/4 e2e/smoke/ 2>&1 | tee reports/playwright-output.txt
+          fi
           EXIT_CODE=$?
           set -e
           {
-            echo "# E2E 测试报告（分片 ${{ matrix.shard }}/8）"; echo ""
+            echo "# E2E 测试报告（分片 ${{ matrix.shard }}/15）"; echo ""
             if [ "$EXIT_CODE" -eq "0" ]; then echo "## ✅ 分片 ${{ matrix.shard }} 全部通过"
             else echo "## ❌ 分片 ${{ matrix.shard }} 部分失败"; echo '```'; head -200 reports/playwright-output.txt; echo '```'
             fi

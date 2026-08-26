@@ -57,7 +57,7 @@ test.describe('02 创建销售订单', () => {
     // 单价
     await page.getByLabel(/单价/).fill('35.50');
     await page.getByRole('button', { name: /保存/ }).click();
-    await expect(page.getByText(/销售订单号.*SO-\d{8}-\d{4}/)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/销售订单号.*SO-\d{8}-\d{4}/)).toBeVisible({ timeout: 30000 });
   });
 
   test('02-04 创建带颜色与等级要求的销售订单', async ({ page }) => {

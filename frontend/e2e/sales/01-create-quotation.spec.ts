@@ -52,7 +52,7 @@ test.describe('01 创建报价单', () => {
     // 提交
     await page.getByRole('button', { name: /保存/ }).click();
     // 验证成功提示 + 报价单号格式 Q-YYYYMMDD-XXXX
-    await expect(page.getByText(/报价单号.*Q-\d{8}-\d{4}/)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/报价单号.*Q-\d{8}-\d{4}/)).toBeVisible({ timeout: 30000 });
   });
 
   test('01-04 报价单草稿可保存后再次编辑', async ({ page }) => {

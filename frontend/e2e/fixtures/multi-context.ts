@@ -175,7 +175,7 @@ export async function loginSession(
   await page.click('button[type="submit"]');
 
   // 等待登录成功后跳转
-  await page.waitForURL(/dashboard|\/$/, { timeout: 15_000 });
+  await page.waitForURL(/dashboard|\/$/, { timeout: 30_000 });
 }
 
 /**

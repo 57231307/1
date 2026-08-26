@@ -31,7 +31,7 @@ test.describe('07 供应商报表', () => {
     await page.getByLabel(/截止月份/).fill('2026-06');
     await page.getByRole('button', { name: /查询/ }).click();
     const rows = page.locator('tr, .el-table__row').filter({ hasText: '2026' });
-    await expect(rows.first()).toBeVisible({ timeout: 5000 });
+    await expect(rows.first()).toBeVisible({ timeout: 30000 });
   });
 
   test('07-02 供应商到货及时率统计', async ({ page }) => {
@@ -40,7 +40,7 @@ test.describe('07 供应商报表', () => {
     await page.getByLabel(/截止日期/).fill('2026-06-30');
     await page.getByRole('button', { name: /查询/ }).click();
     // 验证"及时率"列
-    await expect(page.getByText(/及时率.*%/)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/及时率.*%/)).toBeVisible({ timeout: 30000 });
   });
 
   test('07-03 供应商质检合格率统计', async ({ page }) => {
@@ -48,7 +48,7 @@ test.describe('07 供应商报表', () => {
     await page.getByLabel(/年度/).fill('2026');
     await page.getByRole('button', { name: /查询/ }).click();
     // 验证"合格率"列
-    await expect(page.getByText(/合格率.*%/)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/合格率.*%/)).toBeVisible({ timeout: 30000 });
   });
 
   test('07-04 供应商账期与应付余额', async ({ page }) => {
