@@ -650,8 +650,8 @@ ALTER TABLE "inventory_count_items" ADD CONSTRAINT "fk_inventory_count_items_cou
 
 CREATE TABLE IF NOT EXISTS "audit_logs" (
     "id" SERIAL PRIMARY KEY,
-    "table_name" VARCHAR(100) NOT NULL,
-    "record_id" INTEGER NOT NULL,
+    "table_name" VARCHAR(100),
+    "record_id" INTEGER,
     "action" VARCHAR(20) NOT NULL,
     "old_data" JSONB,
     "new_data" JSONB,

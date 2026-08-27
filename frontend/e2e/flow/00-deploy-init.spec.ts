@@ -43,9 +43,9 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
     await loginViaUI(page);
     const ctx = getCtx();
     for (const wh of [
-      { name: genName('原料仓'), warehouse_code: genCode("WH-RAW"), location: 'A区', is_active: true },
-      { name: genName('成品仓'), warehouse_code: genCode("WH-FIN"), location: 'B区', is_active: true },
-      { name: genName('染料仓'), code: genCode('WH-DYE'), location: 'C区', is_active: true },
+      { name: genName('原料仓'), code: genCode("WH-RAW"), address: 'A区' },
+      { name: genName('成品仓'), code: genCode("WH-FIN"), address: 'B区' },
+      { name: genName('染料仓'), code: genCode('WH-DYE'), address: 'C区' },
     ]) {
       try {
         const id = await apiCallRaw<{ id: number }>(page, 'POST', '/warehouses', wh).then(r => r.id);
@@ -183,10 +183,8 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
         supplier_name: genName("E2E供应商"),
-        supplier_code: genCode("SUP"),
-        contact_person: '联系人',
         contact_phone: '13800000000',
-        is_active: true,
+        contacts: [{ contact_name: '联系人', mobile_phone: '13800000000', is_primary: true }],
       });
       ctx.supplierId = result.data?.id;
     } catch {
@@ -206,9 +204,8 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
         customer_type: 'wholesale',
         contact_person: '联系人',
         contact_phone: '13900000000',
-        credit_limit: 500000,
+        credit_limit: '500000',
         payment_terms: 30,
-        is_active: true,
       });
       ctx.customerId = result.data?.id;
     } catch {
@@ -222,16 +219,16 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
     await loginViaUI(page);
     const ctx = getCtx();
     const subjects = [
-      { code: '1001', name: '库存现金', subject_type: 'asset' },
-      { code: '1002', name: '银行存款', subject_type: 'asset' },
-      { code: '1122', name: '应收账款', subject_type: 'asset' },
-      { code: '2202', name: '应付账款', subject_type: 'liability' },
-      { code: '6001', name: '主营业务收入', subject_type: 'revenue' },
-      { code: '5001', name: '生产成本', subject_type: 'cost' },
+      { code: '1001', name: '库存现金', level: 1, balance_direction: 'debit' },
+      { code: '1002', name: '银行存款', level: 1, balance_direction: 'debit' },
+      { code: '1122', name: '应收账款', level: 1, balance_direction: 'debit' },
+      { code: '2202', name: '应付账款', level: 1, balance_direction: 'credit' },
+      { code: '6001', name: '主营业务收入', level: 1, balance_direction: 'credit' },
+      { code: '5001', name: '生产成本', level: 1, balance_direction: 'debit' },
     ];
     for (const s of subjects) {
       try {
-        const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/gl/subjects', { ...s, is_active: true });
+        const result = await apiCall<{ id?: number }>(page, 'POST', '/subjects', s);
         if (result.data?.id) ctx.accountSubjectIds.push(result.data.id);
       } catch {
         // 已存在则跳过

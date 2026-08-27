@@ -1,6 +1,6 @@
 use axum::{
     Extension, Json,
-    extract::{Path, Query, State},
+    extract::{Multipart, Path, Query, State},
 };
 use serde::Deserialize;
 use validator::Validate;
@@ -148,15 +148,6 @@ pub struct UpdateProductColorRequest {
 #[derive(Debug, Deserialize)]
 pub struct BatchCreateColorsRequest {
     pub colors: Vec<CreateProductColorRequest>,
-}
-
-/// 导入产品请求
-#[derive(Debug, Deserialize)]
-#[allow(dead_code, reason = "反序列化输入字段")]
-pub struct ImportProductsRequest {
-    /// CSV 数据，每行一个产品，使用逗号分隔
-    /// 第一行为表头，后续为数据
-    pub csv_data: String,
 }
 
 /// 导出产品查询参数
@@ -556,18 +547,34 @@ pub async fn export_products(
     build_xlsx_response(&table, &filename)
 }
 
-/// 导入产品数据
+/// 导入产品数据（multipart/form-data 文件上传，前端用 FormData 发送 xlsx/csv 文件）
 pub async fn import_products(
     State(state): State<AppState>,
     _auth: AuthContext,
-    Json(req): Json<ImportProductsRequest>,
+    mut multipart: Multipart,
 ) -> Result<Json<ApiResponse<crate::utils::import_export::ImportResult>>, AppError> {
     let product_service = ProductService::new(state.db.clone(), state.search_client.clone());
 
-    let csv_bytes = req.csv_data.into_bytes();
+    let mut file_bytes = Vec::new();
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| AppError::bad_request(format!("文件上传解析失败: {}", e)))?
+    {
+        if field.name() == Some("file") {
+            file_bytes = field
+                .bytes()
+                .await
+                .map_err(|e| AppError::internal(format!("读取文件内容失败: {}", e)))?
+                .to_vec();
+        }
+    }
+    if file_bytes.is_empty() {
+        return Err(AppError::bad_request("未收到文件或文件为空"));
+    }
 
     let result: crate::utils::import_export::ImportResult =
-        product_service.import_products_from_csv(&csv_bytes).await?;
+        product_service.import_products_from_csv(&file_bytes).await?;
 
     let msg = if result.is_all_success() {
         format!("成功导入 {} 条产品数据", result.success_count)

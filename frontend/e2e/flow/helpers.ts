@@ -78,10 +78,10 @@ export async function ensureTestEntities(page: Page): Promise<void> {
       try {
         const result = await apiCall<{ id?: number }>(page, 'POST', '/warehouses', {
           name: 'E2E 仓库 ' + i + '-' + Date.now(),
-          warehouse_code: 'E2E-W' + i + Date.now(),
+          code: 'E2E-W' + i + Date.now(),
         });
         if (result.data?.id) ctx.warehouseIds.push(result.data.id);
-      } catch { /* 忽略 */ }
+      } catch (e) { console.error("[ensureTestEntities] 创建失败:", (e as Error).message); }
     }
   }
   if (ctx.warehouseIds.length < 2) ctx.warehouseIds = [1, 2];
@@ -101,7 +101,7 @@ export async function ensureTestEntities(page: Page): Promise<void> {
           product_type: 'fabric',
         });
         if (result.data?.id) ctx.productIds.push(result.data.id);
-      } catch { /* 忽略 */ }
+      } catch (e) { console.error("[ensureTestEntities] 创建失败:", (e as Error).message); }
     }
   }
   if (ctx.productIds.length === 0) ctx.productIds = [1];
@@ -118,7 +118,7 @@ export async function ensureTestEntities(page: Page): Promise<void> {
   try {
     const suppliers = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/purchase/suppliers?page=1&page_size=1');
     ctx.supplierId = suppliers.items?.[0]?.id;
-  } catch { ctx.supplierId = undefined; }
+  } catch (e) { console.error("[ensureTestEntities] supplierId 创建失败:", (e as Error).message); ctx.supplierId = undefined; }
   if (!ctx.supplierId) {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
@@ -126,21 +126,21 @@ export async function ensureTestEntities(page: Page): Promise<void> {
         supplier_type: 'fabric',
       });
       ctx.supplierId = result.data?.id;
-    } catch { ctx.supplierId = undefined; }
+    } catch (e) { console.error("[ensureTestEntities] supplierId 创建失败:", (e as Error).message); ctx.supplierId = undefined; }
   }
 
   // 查找或创建客户
   try {
     const customers = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/crm/customers?page=1&page_size=1');
     ctx.customerId = customers.items?.[0]?.id;
-  } catch { ctx.customerId = undefined; }
+  } catch (e) { console.error("[ensureTestEntities] customerId 创建失败:", (e as Error).message); ctx.customerId = undefined; }
   if (!ctx.customerId) {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
         customer_name: 'E2E 客户 ' + Date.now(),
       });
       ctx.customerId = result.data?.id;
-    } catch { ctx.customerId = undefined; }
+    } catch (e) { console.error("[ensureTestEntities] customerId 创建失败:", (e as Error).message); ctx.customerId = undefined; }
   }
 
   // 查找会计科目
@@ -153,7 +153,7 @@ export async function ensureTestEntities(page: Page): Promise<void> {
   try {
     const pos = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/purchase/orders?page=1&page_size=1');
     ctx.purchaseOrderId = pos.items?.[0]?.id;
-  } catch { /* 查找不到 */ }
+  } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
   if (!ctx.purchaseOrderId) {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/orders', {
@@ -162,14 +162,14 @@ export async function ensureTestEntities(page: Page): Promise<void> {
         items: [{ material_id: ctx.productIds[0] || 1, quantity_ordered: '1', unit_price: '1' }],
       });
       ctx.purchaseOrderId = result.data?.id;
-    } catch { ctx.purchaseOrderId = undefined; }
+    } catch (e) { console.error("[ensureTestEntities] purchaseOrderId 创建失败:", (e as Error).message); ctx.purchaseOrderId = undefined; }
   }
 
   // 查找或创建销售订单
   try {
     const sos = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/sales/orders?page=1&page_size=1');
     ctx.salesOrderId = sos.items?.[0]?.id;
-  } catch { /* 查找不到 */ }
+  } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
   if (!ctx.salesOrderId) {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
@@ -178,14 +178,14 @@ export async function ensureTestEntities(page: Page): Promise<void> {
         items: [{ product_id: ctx.productIds[0] || 1, quantity: '1', unit_price: '1' }],
       });
       ctx.salesOrderId = result.data?.id;
-    } catch { ctx.salesOrderId = undefined; }
+    } catch (e) { console.error("[ensureTestEntities] salesOrderId 创建失败:", (e as Error).message); ctx.salesOrderId = undefined; }
   }
 
   // 查找或创建报价单
   try {
     const qts = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/quotations?page=1&page_size=1');
     ctx.quotationId = qts.items?.[0]?.id;
-  } catch { /* 查找不到 */ }
+  } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
   if (!ctx.quotationId) {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/quotations', {
@@ -198,14 +198,14 @@ export async function ensureTestEntities(page: Page): Promise<void> {
         items: [{ product_id: ctx.productIds[0] || 1, unit: '米', quantity: '1', unit_price: '1', unit_price_with_tax: '1.13' }],
       });
       ctx.quotationId = result.data?.id;
-    } catch { ctx.quotationId = undefined; }
+    } catch (e) { console.error("[ensureTestEntities] quotationId 创建失败:", (e as Error).message); ctx.quotationId = undefined; }
   }
 
   // 查找或创建缸号
   try {
     const batches = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/dye-batches?page=1&page_size=1');
     ctx.dyeBatchId = batches.items?.[0]?.id;
-  } catch { /* 查找不到 */ }
+  } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
   if (!ctx.dyeBatchId) {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/production/dye-batches', {
@@ -213,7 +213,7 @@ export async function ensureTestEntities(page: Page): Promise<void> {
         planned_quantity: 100, status: 'draft',
       });
       ctx.dyeBatchId = result.data?.id;
-    } catch { ctx.dyeBatchId = undefined; }
+    } catch (e) { console.error("[ensureTestEntities] dyeBatchId 创建失败:", (e as Error).message); ctx.dyeBatchId = undefined; }
   }
 
   // 生成缸号
@@ -223,7 +223,7 @@ export async function ensureTestEntities(page: Page): Promise<void> {
   try {
     const recipes = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/dye-recipes?page=1&page_size=1');
     ctx.dyeRecipeId = recipes.items?.[0]?.id;
-  } catch { /* 查找不到 */ }
+  } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
   if (!ctx.dyeRecipeId) {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/production/dye-recipes', {
@@ -231,50 +231,50 @@ export async function ensureTestEntities(page: Page): Promise<void> {
         color_name: '测试色', fabric_type: '涤纶', dye_type: '分散染色',
       });
       ctx.dyeRecipeId = result.data?.id;
-    } catch { ctx.dyeRecipeId = undefined; }
+    } catch (e) { console.error("[ensureTestEntities] dyeRecipeId 创建失败:", (e as Error).message); ctx.dyeRecipeId = undefined; }
   }
 
   // 查找大货处方
   try {
     const prs = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/production-recipes?page=1&page_size=1');
     ctx.productionRecipeId = prs.items?.[0]?.id;
-  } catch { ctx.productionRecipeId = undefined; }
+  } catch (e) { console.error("[ensureTestEntities] productionRecipeId 创建失败:", (e as Error).message); ctx.productionRecipeId = undefined; }
 
   // 查找或创建 BOM
   try {
     const boms = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/boms?page=1&page_size=1');
     ctx.bomId = boms.items?.[0]?.id;
-  } catch { /* 查找不到 */ }
+  } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
   if (!ctx.bomId) {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/boms', {
         product_id: ctx.productIds[0] || 1, name: 'E2E BOM', version: '1',
       });
       ctx.bomId = result.data?.id;
-    } catch { ctx.bomId = undefined; }
+    } catch (e) { console.error("[ensureTestEntities] bomId 创建失败:", (e as Error).message); ctx.bomId = undefined; }
   }
 
   // 查找生产订单
   try {
     const pos = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/production-orders/orders?page=1&page_size=1');
     ctx.productionOrderId = pos.items?.[0]?.id;
-  } catch { ctx.productionOrderId = undefined; }
+  } catch (e) { console.error("[ensureTestEntities] productionOrderId 创建失败:", (e as Error).message); ctx.productionOrderId = undefined; }
 
   // 查找或创建凭证（凭证分录需要 1001/1002 科目，缺失时主动创建）
   try {
-    const vs = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/finance/vouchers?page=1&page_size=1');
+    const vs = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/vouchers?page=1&page_size=1');
     ctx.voucherId = vs.items?.[0]?.id;
-  } catch { /* 查找不到 */ }
+  } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
   if (!ctx.voucherId) {
     // 兜底创建凭证所需的会计科目（种子库可能没有预置）
     for (const subj of [
       { code: '1001', name: '库存现金 E2E', level: 1, balance_direction: 'debit' },
       { code: '1002', name: '银行存款 E2E', level: 1, balance_direction: 'debit' },
     ]) {
-      await apiCall(page, 'POST', '/subjects', subj).catch(() => null);
+      await apiCall(page, 'POST', '/subjects', subj).catch((e) => { console.error("[ensureTestEntities] 科目创建失败:", (e as Error).message); });
     }
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/vouchers', {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/vouchers', {
         voucher_type: 'general', voucher_date: new Date().toISOString().slice(0, 10),
         items: [
           { subject_code: '1001', debit: '1', credit: '0', summary: 'E2E' },
@@ -282,38 +282,38 @@ export async function ensureTestEntities(page: Page): Promise<void> {
         ],
       });
       ctx.voucherId = result.data?.id;
-    } catch { ctx.voucherId = undefined; }
+    } catch (e) { console.error("[ensureTestEntities] voucherId 创建失败:", (e as Error).message); ctx.voucherId = undefined; }
   }
 
   // 查找固定资产
   try {
     const fas = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/fixed-assets?page=1&page_size=1');
     ctx.fixedAssetId = fas.items?.[0]?.id;
-  } catch { ctx.fixedAssetId = undefined; }
+  } catch (e) { console.error("[ensureTestEntities] fixedAssetId 创建失败:", (e as Error).message); ctx.fixedAssetId = undefined; }
 
   // 查找预算
   try {
     const bs = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/budgets?page=1&page_size=1');
     ctx.budgetId = bs.items?.[0]?.id;
-  } catch { ctx.budgetId = undefined; }
+  } catch (e) { console.error("[ensureTestEntities] budgetId 创建失败:", (e as Error).message); ctx.budgetId = undefined; }
 
   // 查找 AP 发票
   try {
     const aps = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/ap/invoices?page=1&page_size=1');
     ctx.apInvoiceId = aps.items?.[0]?.id;
-  } catch { ctx.apInvoiceId = undefined; }
+  } catch (e) { console.error("[ensureTestEntities] apInvoiceId 创建失败:", (e as Error).message); ctx.apInvoiceId = undefined; }
 
   // 查找 AR 发票
   try {
     const ars = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/ar/invoices?page=1&page_size=1');
     ctx.arInvoiceId = ars.items?.[0]?.id;
-  } catch { ctx.arInvoiceId = undefined; }
+  } catch (e) { console.error("[ensureTestEntities] arInvoiceId 创建失败:", (e as Error).message); ctx.arInvoiceId = undefined; }
 
   // 查找或创建定制订单
   try {
     const cos = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/custom-orders?page=1&page_size=1');
     ctx.customOrderId = cos.items?.[0]?.id;
-  } catch { /* 查找不到 */ }
+  } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
   if (!ctx.customOrderId) {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/custom-orders', {
@@ -321,34 +321,34 @@ export async function ensureTestEntities(page: Page): Promise<void> {
         order_date: new Date().toISOString().slice(0, 10), product_name: 'E2E 定制',
       });
       ctx.customOrderId = result.data?.id;
-    } catch { ctx.customOrderId = undefined; }
+    } catch (e) { console.error("[ensureTestEntities] customOrderId 创建失败:", (e as Error).message); ctx.customOrderId = undefined; }
   }
 
   // 查找或创建色卡
   try {
     const ccs = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/color-cards/?page=1&page_size=1');
     ctx.colorCardId = ccs.items?.[0]?.id;
-  } catch { /* 查找不到 */ }
+  } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
   if (!ctx.colorCardId) {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/color-cards/', {
         card_no: genCode('CC'), card_name: 'E2E 色卡', card_type: 'CUSTOM',
       });
       ctx.colorCardId = result.data?.id;
-    } catch { ctx.colorCardId = undefined; }
+    } catch (e) { console.error("[ensureTestEntities] colorCardId 创建失败:", (e as Error).message); ctx.colorCardId = undefined; }
   }
 
   // 查找坯布
   try {
     const gfs = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/greige-fabrics?page=1&page_size=1');
     ctx.greigeFabricId = gfs.items?.[0]?.id;
-  } catch { ctx.greigeFabricId = undefined; }
+  } catch (e) { console.error("[ensureTestEntities] greigeFabricId 创建失败:", (e as Error).message); ctx.greigeFabricId = undefined; }
 
   // 查找角色 ID
   try {
     const roles = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/roles?page=1&page_size=1');
     ctx.roleId = roles.items?.[0]?.id;
-  } catch { ctx.roleId = undefined; }
+  } catch (e) { console.error("[ensureTestEntities] roleId 创建失败:", (e as Error).message); ctx.roleId = undefined; }
 }
 
 async function getCsrfToken(page: Page): Promise<string> {

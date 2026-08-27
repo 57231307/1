@@ -27,18 +27,6 @@ use crate::utils::error::AppError;
 use crate::utils::export_concurrency::ExportConcurrencyGuard;
 use crate::utils::response::ApiResponse;
 
-/// CSV 导入请求（data 字段 validator 校验上限 10MB）。
-/// 防止已认证用户发送超大请求触发 OOM DoS。
-#[allow(dead_code, reason = "反序列化输入字段")]
-#[derive(Debug, Deserialize, Validate)]
-pub struct CsvImportRequest {
-    pub import_type: String,
-    // validator 0.16 的 length(max = ...) 不支持 Rust 表达式，只能用整数字面量。
-    // 10 * 1024 * 1024 = 10485760 字节 = 10 MB。
-    #[validate(length(max = 10485760, message = "CSV 数据超过 10MB 上限"))]
-    pub data: String, // CSV 格式的字符串
-}
-
 /// Excel 导入请求（data 行数 validator 校验上限 1 万行）。
 /// 单元格/列数限制由 handler 入口 + service 层 defense-in-depth 双重把关。
 #[allow(dead_code, reason = "反序列化输入字段")]
@@ -47,78 +35,6 @@ pub struct ExcelImportRequest {
     pub import_type: String,
     #[validate(length(max = 10_000, message = "Excel 数据超过 1 万行上限"))]
     pub data: Vec<Vec<String>>, // 二维数组
-}
-
-/// POST /api/v1/erp/import/csv - CSV导入
-pub async fn import_csv(
-    State(state): State<AppState>,
-    auth: AuthContext,
-    Json(req): Json<CsvImportRequest>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    // 安全漏洞 #8 修复：DTO 校验失败（数据超过 10MB）→ 友好错误
-    // validator crate 自动从 #[validate(length(max = ...))] 注解生成校验逻辑，
-    // 错误通过 `?` 操作符转为 AppError::ValidationError 返回。
-    req.validate()?;
-
-    // 安全漏洞 #8 修复：handler 入口早期校验（defense-in-depth 第二层）
-    // 即使 DTO 校验被绕过（例如：手写请求绕过 axum 提取器层），
-    // 本入口仍以毫秒级速度拒绝超大数据，避免后续解析逻辑耗尽内存。
-    if req.data.len() > MAX_CSV_BYTES {
-        return Err(AppError::validation(format!(
-            "CSV 数据超过 {} 字节上限：当前 {} 字节",
-            MAX_CSV_BYTES,
-            req.data.len()
-        )));
-    }
-
-    let service = ImportExportService::new(state.db.clone());
-
-    // 获取导入模板
-    let template = ImportExportService::get_import_template(&req.import_type)?;
-
-    // 解析CSV数据
-    let rows = ImportExportService::parse_csv(&req.data)?;
-
-    // 批次 127 v8 复审 P2 修复：导入前创建任务记录（status=running）
-    // 即使后续验证失败或导入异常，任务表也会落库一条记录，便于追溯历史导入行为。
-    let task_id = service
-        .create_import_task(&req.import_type, rows.len() as u64, auth.user_id)
-        .await?;
-
-    // 验证数据
-    let errors = ImportExportService::validate_import_data(&rows, &template);
-
-    if !errors.is_empty() {
-        // 验证失败：更新任务记录为 failed 状态（imported=0, failed=rows.len()）
-        let fail_result = ImportResult {
-            imported: 0,
-            failed: rows.len() as u64,
-            errors,
-        };
-        // 任务更新失败不阻断主流程（仅 tracing::warn!），保证用户得到原始验证错误响应
-        if let Err(e) = service.update_import_task(task_id, &fail_result).await {
-            tracing::warn!(error = %e, task_id, "更新导入任务记录为 failed 状态失败");
-        }
-        return Ok(Json(ApiResponse::success(serde_json::to_value(
-            fail_result,
-        )?)));
-    }
-
-    // 执行实际导入
-    let result = service
-        .import_data(&req.import_type, &rows, auth.user_id)
-        .await?;
-
-    // 导入完成：更新任务记录（status=success/failed/partial）
-    if let Err(e) = service.update_import_task(task_id, &result).await {
-        tracing::warn!(error = %e, task_id, "更新导入任务记录为完成状态失败");
-    }
-
-    Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(result)?,
-        "导入完成",
-    )))
-}
 
 /// POST /api/v1/erp/import/excel - Excel导入
 pub async fn import_excel(
