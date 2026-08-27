@@ -46,7 +46,7 @@ pub struct RefreshTokenResponse {
 pub async fn refresh_token(
     State(state): State<AppState>,
     headers: HeaderMap,
-    connect_info: Option<ConnectInfo<std::net::SocketAddr>>,
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
     jar: axum_extra::extract::PrivateCookieJar,
 ) -> Result<axum::response::Response, AppError> {
     let token = extract_refresh_token(&state, &headers, &jar)?;
@@ -57,7 +57,7 @@ pub async fn refresh_token(
         generate_new_tokens(&state, &auth_service, &claims)?;
     revoke_old_token(&state, &token, &claims).await;
 
-    let refresh_ip = extract_client_ip_from_headers(&headers, connect_info);
+    let refresh_ip = extract_client_ip_from_headers(&headers, Some(addr.ip()));
     let csrf_token = rotate_csrf_token(&state, &claims, new_session_id, refresh_ip);
     let jar = build_refresh_cookies(jar, &new_token, &new_refresh_token);
 
@@ -193,7 +193,7 @@ async fn revoke_old_token(
 // 缺少 ConnectInfo 兜底会导致直连部署下登录绑定真实 IP、刷新绑定 "unknown" 的系统性错配。
 fn extract_client_ip_from_headers(
     headers: &HeaderMap,
-    connect_info: Option<ConnectInfo<std::net::SocketAddr>>,
+    peer_ip: Option<std::net::IpAddr>,
 ) -> String {
     headers
         .get("x-real-ip")
@@ -207,7 +207,7 @@ fn extract_client_ip_from_headers(
                 .and_then(|s| s.split(',').next().map(|s| s.trim().to_string()))
                 .filter(|s| !s.is_empty())
         })
-        .or_else(|| connect_info.map(|ci| ci.0.ip().to_string()))
+        .or_else(|| peer_ip.map(|ip| ip.to_string()))
         .unwrap_or_else(|| "unknown".to_string())
 }
 

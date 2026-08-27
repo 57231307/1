@@ -408,7 +408,7 @@ impl AppCache {
         let bound = self.csrf_token_cache.get(&token.to_string());
         match bound {
             Some((session_id, bound_ip)) => {
-                if *bound_ip != client_ip {
+                if bound_ip.as_str() != client_ip {
                     tracing::warn!(
                         client_ip = %client_ip,
                         bound_ip = %bound_ip,
