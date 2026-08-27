@@ -17,7 +17,7 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
       expect(reservations.items);
       if (reservations?.items?.length ?? 0 > 0) {
         const status = (reservations.items[0].status || '').toLowerCase();
-        expect(['pending', 'locked', 'consumed', 'released', 'cancelled']).toContain(status || 'pending');
+        expect(['pending', 'locked', 'consumed', 'released', 'cancelled']).toContain(status ?? '(missing-status)');
       }
     } catch { /* skip */ }
   });
@@ -75,7 +75,7 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
       expect(counts.items);
       if (counts?.items?.length ?? 0 > 0) {
         const status = (counts.items[0].status || '').toLowerCase();
-        expect(['pending', 'completed', 'draft', 'approved', 'rejected']).toContain(status || 'pending');
+        expect(['pending', 'completed', 'draft', 'approved', 'rejected']).toContain(status ?? '(missing-status)');
       }
     } catch { /* skip */ }
   });
@@ -89,7 +89,7 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
       expect(transfers.items);
       if (transfers?.items?.length ?? 0 > 0) {
         const status = (transfers.items[0].status || '').toLowerCase();
-        expect(['pending', 'approved', 'rejected', 'shipped', 'completed']).toContain(status || 'pending');
+        expect(['pending', 'approved', 'rejected', 'shipped', 'completed']).toContain(status ?? '(missing-status)');
       }
     } catch { /* skip */ }
   });
@@ -103,7 +103,7 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
       expect(adjustments.items);
       if (adjustments?.items?.length ?? 0 > 0) {
         const status = (adjustments.items[0].status || '').toLowerCase();
-        expect(['pending', 'approved', 'rejected']).toContain(status || 'pending');
+        expect(['pending', 'approved', 'rejected']).toContain(status ?? '(missing-status)');
       }
     } catch { /* skip */ }
   });
@@ -117,7 +117,7 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
       expect(pieces.items);
       if (pieces?.items?.length ?? 0 > 0) {
         const status = (pieces.items[0].status || '').toUpperCase();
-        expect(['AVAILABLE', 'RESERVED', 'SHIPPED', 'DEFECT', 'UNAVAILABLE', 'SAMPLE']).toContain(status || 'AVAILABLE');
+        expect(['AVAILABLE', 'RESERVED', 'SHIPPED', 'DEFECT', 'UNAVAILABLE', 'SAMPLE']).toContain(status ?? '(missing-status)');
       }
     } catch { /* skip */ }
   });
@@ -239,7 +239,7 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
     const order = await apiCallRaw<{ status: string }>(page, 'GET', `/custom-orders/${ctx.customOrderId}`);
     const status = (order.status || '').toLowerCase();
     expect(['draft', 'lab_dip', 'quotation', 'yarn_purchasing', 'dyeing', 'finishing', 'delivery', 'after_sales', 'completed', 'cancelled', 'pending']).toContain(
-      status || 'draft'
+      status ?? '(missing-status)'
     );
   });
 
@@ -278,7 +278,7 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
       expect(list.items);
       if (list?.items?.length ?? 0 > 0) {
         const status = (list.items[0].status || '').toLowerCase();
-        expect(['pending', 'sampling', 'submitted', 'approved', 'rejected', 'completed']).toContain(status || 'pending');
+        expect(['pending', 'sampling', 'submitted', 'approved', 'rejected', 'completed']).toContain(status ?? '(missing-status)');
       }
     } catch { /* skip */ }
   });
@@ -292,7 +292,7 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
       expect(list.items);
       if (list?.items?.length ?? 0 > 0) {
         const status = (list.items[0].status || '').toLowerCase();
-        expect(['pending', 'matched', 'not_matched', 'selected']).toContain(status || 'pending');
+        expect(['pending', 'matched', 'not_matched', 'selected']).toContain(status ?? '(missing-status)');
       }
     } catch { /* skip */ }
   });
@@ -307,7 +307,7 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
       if (list?.items?.length ?? 0 > 0) {
         const status = (list.items[0].status || '').toLowerCase();
         expect(['pending', 'sampled', 'sent_to_customer', 'approved', 'rejected', 'rework', 'downgraded', 'scrapped']).toContain(
-          status || 'pending'
+          status ?? '(missing-status)'
         );
       }
     } catch { /* skip */ }
@@ -368,7 +368,7 @@ test.describe.serial('扩展: 二级审批/BPM审批链/金额自适应', () => 
       expect(list.items);
       if (list?.items?.length ?? 0 > 0) {
         const status = (list.items[0].status || '').toLowerCase();
-        expect(['pending_l1', 'pending_l2', 'approved', 'rejected', 'cancelled']).toContain(status || 'pending_l1');
+        expect(['pending_l1', 'pending_l2', 'approved', 'rejected', 'cancelled']).toContain(status ?? '(missing-status)');
       }
     } catch { /* skip */ }
   });
@@ -382,7 +382,7 @@ test.describe.serial('扩展: 二级审批/BPM审批链/金额自适应', () => 
       expect(instances.items);
       if (instances?.items?.length ?? 0 > 0) {
         const status = (instances.items[0].status || '').toLowerCase();
-        expect(['processing', 'completed', 'terminated', 'cancelled']).toContain(status || 'processing');
+        expect(['processing', 'completed', 'terminated', 'cancelled']).toContain(status ?? '(missing-status)');
       }
     } catch {
       try {
@@ -403,7 +403,7 @@ test.describe.serial('扩展: 二级审批/BPM审批链/金额自适应', () => 
       expect(tasks.items);
       if (tasks?.items?.length ?? 0 > 0) {
         const status = (tasks.items[0].status || '').toLowerCase();
-        expect(['pending', 'completed', 'rejected', 'cancelled']).toContain(status || 'pending');
+        expect(['pending', 'completed', 'rejected', 'cancelled']).toContain(status ?? '(missing-status)');
       }
     } catch { /* skip */ }
   });

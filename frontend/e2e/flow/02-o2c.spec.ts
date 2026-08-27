@@ -58,7 +58,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
 
     const q = await apiCallRaw<{ status: string }>(page, 'GET', `/quotations/${id}`);
     const status = (q.status || '').toLowerCase();
-    expect(['approved', 'confirmed', 'converted', 'submitted', 'draft', 'expired']).toContain(status || 'approved');
+    expect(['approved', 'confirmed', 'converted', 'submitted', 'draft', 'expired']).toContain(status ?? '(missing-status)');
   });
 
   test('2-3 验证报价单非法转换被拒绝', async ({ page }) => {
@@ -102,7 +102,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     const order = await apiCallRaw<{ status: string }>(page, 'GET', `/sales/orders/${id}`);
     const status = (order.status || '').toLowerCase();
     expect(['approved', 'confirmed', 'pending_shipment', 'shipped', 'partially_shipped', 'completed', 'draft', 'submitted']).toContain(
-      status || 'approved'
+      status ?? '(missing-status)'
     );
   });
 
@@ -130,7 +130,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     const order = await apiCallRaw<{ status: string }>(page, 'GET', `/sales/orders/${id}`);
     const status = (order.status || '').toLowerCase();
     expect(['shipped', 'partially_shipped', 'completed', 'approved', 'confirmed', 'pending_shipment']).toContain(
-      status || 'shipped'
+      status ?? '(missing-status)'
     );
   });
 
@@ -153,7 +153,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
       );
       expect(invoices.items);
 
-      if (invoices?.items?.length ?? 0 === 0) {
+      if ((invoices?.items?.length ?? 0) === 0) {
         try {
           const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/ar/invoices', {
             customer_id: ctx.customerId || 1,

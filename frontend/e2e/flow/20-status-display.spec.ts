@@ -69,7 +69,7 @@ test.describe('前端状态显示与业务逻辑验证', () => {
         break;
       }
     }
-    expect(foundDate || true).toBe(true);
+    expect(foundDate).toBeTruthy();
   });
 
   test('权限不足时按钮行为验证', async ({ page }) => {

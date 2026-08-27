@@ -127,6 +127,13 @@ class Request {
 
     this.instance.interceptors.response.use(
       (response: AxiosResponse<ApiResponse>) => {
+        // Blob 响应（文件下载/导出）无 code 信封，直接放行交给调用方处理二进制
+        if (
+          response.config.responseType === 'blob' ||
+          response.data instanceof Blob
+        ) {
+          return response;
+        }
         const res = response.data;
         if (res.code !== 200 && res.code !== 0) {
           const safeMessage = getSafeErrorMessage(res.code);
@@ -167,6 +174,8 @@ class Request {
           if (isRefreshing) {
             // FE-P1-1 修复：排队请求同时持有 resolve/reject，
             // 刷新成功走 resolve 重放，刷新失败走 reject 让 Promise settle
+            // _retry 前置标记：防止重放后再次 401 时重新进入刷新逻辑形成循环
+            originalRequest._retry = true;
             return new Promise((resolve, reject) => {
               subscribeTokenRefresh(() => resolve(this.instance(originalRequest)), reject);
             });
@@ -191,7 +200,11 @@ class Request {
           }
         }
 
-        if (originalRequest?._retry && shouldRetry(error)) {
+        // 网络层自动重试仅限幂等方法（GET/HEAD）：
+        // POST/PUT/DELETE 重试可能造成重复制单/重复扣减，必须由上层带幂等键显式控制
+        const reqMethod = (originalRequest?.method || '').toLowerCase();
+        const isIdempotent = ['get', 'head', 'options'].includes(reqMethod);
+        if (originalRequest?._retry && isIdempotent && shouldRetry(error)) {
           originalRequest._retryCount = originalRequest._retryCount || 0;
 
           if (originalRequest._retryCount < 3) {

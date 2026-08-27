@@ -218,12 +218,19 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     ctx.productionOrderId = pos.items?.[0]?.id;
   } catch { ctx.productionOrderId = undefined; }
 
-  // 查找或创建凭证
+  // 查找或创建凭证（凭证分录需要 1001/1002 科目，缺失时主动创建）
   try {
     const vs = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/finance/vouchers?page=1&page_size=1');
     ctx.voucherId = vs.items?.[0]?.id;
   } catch { /* 查找不到 */ }
   if (!ctx.voucherId) {
+    // 兜底创建凭证所需的会计科目（种子库可能没有预置）
+    for (const subj of [
+      { code: '1001', name: '库存现金 E2E', level: 1, balance_direction: 'debit' },
+      { code: '1002', name: '银行存款 E2E', level: 1, balance_direction: 'debit' },
+    ]) {
+      await apiCall(page, 'POST', '/subjects', subj).catch(() => null);
+    }
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/vouchers', {
         voucher_type: 'general', voucher_date: new Date().toISOString().slice(0, 10),

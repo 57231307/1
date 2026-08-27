@@ -21,12 +21,17 @@ interface RefreshTokenResponse {
 }
 
 export async function login(data: LoginRequest): Promise<LoginResponse> {
-  const res = await request.post<LoginResponseWithCsrf>('/auth/login', data);
+  // 拦截器返回完整 ApiResponse 信封 {code,data,message}，业务数据在 data 字段
+  const res = await request.post<ApiResponse<LoginResponseWithCsrf>>('/auth/login', data);
+  const payload = res.data;
+  if (!payload) {
+    throw new Error('登录响应数据为空');
+  }
   // Wave B-3：不再写 localStorage。Cookie 由后端 Set-Cookie 自动写入。
   // 转换为标准 LoginResponse（去除 csrf_token 字段）
-  const { csrf_token: _csrf, ...payload } = res;
+  const { csrf_token: _csrf, ...rest } = payload;
   void _csrf;
-  return payload;
+  return rest as LoginResponse;
 }
 
 export function logout(): Promise<void> {
@@ -46,13 +51,20 @@ export function logout(): Promise<void> {
 export async function refreshToken(
   _refreshToken: string
 ): Promise<{ csrf_token?: string; expires_in?: number }> {
-  const res = await request.post<RefreshTokenResponse>('/auth/refresh', {});
+  // 拦截器返回完整 ApiResponse 信封，业务数据在 data 字段
+  const res = await request.post<ApiResponse<RefreshTokenResponse>>('/auth/refresh', {});
   // Cookie 已由后端 Set-Cookie 写入，前端无需再保存
-  return res;
+  return res.data ?? {};
 }
 
 export function getUserInfo(): Promise<UserInfo> {
-  return request.get<UserInfo>('/auth/me');
+  // 拦截器返回完整 ApiResponse 信封，业务数据在 data 字段
+  return request.get<ApiResponse<UserInfo>>('/auth/me').then(res => {
+    if (!res.data) {
+      throw new Error('用户信息响应数据为空');
+    }
+    return res.data;
+  });
 }
 
 /**

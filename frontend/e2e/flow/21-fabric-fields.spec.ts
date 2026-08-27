@@ -11,7 +11,7 @@ import {
 } from './helpers';
 
 test.describe('面料单据专用字段全链路验证', () => {
-  test.beforeEach(async ({ page }) => { LOGGED_IN.done = false; await loginViaUI(page); await ensureTestEntities(page); });
+  test.beforeEach(async ({ page }) => { await loginViaUI(page); await ensureTestEntities(page); });
 
   // ============================================================
   // 销售订单 — 面料字段最完整的单据（16个面料字段）
@@ -978,7 +978,7 @@ test.describe('面料单据专用字段全链路验证', () => {
     if (soList.items?.length > 0) {
       const so = soList.items[0];
       // 销售订单可能有 color_no 字段
-      expect(so.color_no !== undefined || true).toBe(true);
+      expect(so.color_no !== undefined).toBe(true);
     }
 
     // 验证染色配方响应包含 color_code
@@ -988,7 +988,7 @@ test.describe('面料单据专用字段全链路验证', () => {
     if (recipeList.items?.length > 0) {
       const recipe = recipeList.items[0];
       // 染色配方用 color_code
-      expect(recipe.color_code !== undefined || recipe.color_no !== undefined || true).toBe(true);
+      expect(recipe.color_code !== undefined || recipe.color_no !== undefined).toBe(true);
     }
 
     // 验证库存调拨响应包含 color_no

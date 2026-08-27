@@ -193,7 +193,7 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/purchase/suppliers?page=1&page_size=1');
       ctx.supplierId = list.items?.[0]?.id;
     }
-    expect(ctx.supplierId || true).toBeTruthy();
+    expect(ctx.supplierId).toBeTruthy();
   });
 
   test('0-11 创建客户（含信用额度）', async ({ page }) => {
@@ -215,7 +215,7 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/crm/customers?page=1&page_size=1');
       ctx.customerId = list.items?.[0]?.id;
     }
-    expect(ctx.customerId || true).toBeTruthy();
+    expect(ctx.customerId).toBeTruthy();
   });
 
   test('0-12 创建会计科目', async ({ page }) => {
@@ -257,7 +257,7 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
     } catch {
       // 色卡模块可能未就绪
     }
-    expect(ctx.colorCardId || true).toBeTruthy();
+    expect(ctx.colorCardId).toBeTruthy();
   });
 
   test('0-14 创建坯布（关联产品 + 双计量）', async ({ page }) => {

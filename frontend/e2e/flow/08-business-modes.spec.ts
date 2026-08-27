@@ -81,7 +81,7 @@ test.describe.serial('扩展: 业务模式测试（染整加工/来料加工/委
       );
       if (list.items?.length > 0) {
         const status = (list.items[0].status || '').toLowerCase();
-        expect(['draft', 'issued', 'processing', 'received', 'settled', 'closed', 'cancelled']).toContain(status || 'draft');
+        expect(['draft', 'issued', 'processing', 'received', 'settled', 'closed', 'cancelled']).toContain(status ?? '(missing-status)');
       }
     } catch { /* skip */ }
   });

@@ -400,19 +400,29 @@ impl AppCache {
     }
 
     /// 校验并消费一次性 CSRF Token（含 IP 校验）
-    /// 行为：找不到→NotFound；IP 不匹配→IpMismatch（不消费防 DoS 探测）；IP 匹配→Ok（消费并清理反向索引）。参数：token(X-CSRF-Token 头)/client_ip
+    /// 行为：找不到→NotFound；IP 不匹配→IpMismatch（保留原条目及其剩余 TTL，防 DoS 探测同时避免 TTL 刷新为永久）；IP 匹配→Ok（消费并清理反向索引）。参数：token(X-CSRF-Token 头)/client_ip
     pub fn consume_csrf_token(&self, token: &str, client_ip: &str) -> CsrfConsumeResult {
-        // 使用 take 实现"一次性消费"语义：成功匹配后从缓存移除
-        match self.csrf_token_cache.take(&token.to_string()) {
+        // 先 get 校验、匹配后再 take 移除：
+        // 避免"take 后回写 ttl=None 导致 30 分钟有效期变成永久条目"的内存泄漏。
+        // 并发窗口内的重复消费由第二次 take 返回 None 兜底为 NotFound，语义安全。
+        let bound = self.csrf_token_cache.get(&token.to_string());
+        match bound {
             Some((session_id, bound_ip)) => {
-                if bound_ip != client_ip {
-                    // IP 不匹配：把 token 放回缓存（保留合法用户的可用性）
-                    // 重新设置时不再更新反向索引（索引仍指向该 token）。
-                    self.csrf_token_cache
-                        .set(token.to_string(), (session_id, bound_ip), None);
+                if *bound_ip != client_ip {
+                    tracing::warn!(
+                        client_ip = %client_ip,
+                        bound_ip = %bound_ip,
+                        "CSRF Token 绑定的 IP 与请求 IP 不一致（保留原 Token）"
+                    );
                     return CsrfConsumeResult::IpMismatch;
                 }
-                // IP 匹配：清理反向索引（找到 user_id 并移除）。
+                // 二次 take 完成一次性消费语义；None 说明被并发请求抢先消费
+                match self.csrf_token_cache.take(&token.to_string()) {
+                    Some(_) => {}
+                    None => return CsrfConsumeResult::NotFound,
+                }
+                let _ = session_id;
+                // 清理反向索引（找到 user_id 并移除）。
                 // 此处需要按 value 查找 key，DashMap 不直接支持；采用遍历策略。
                 // 对于单次 CSRF 校验，遍历成本可接受（缓存条目数远小于用户会话数）。
                 // 先在独立的代码块中收集 to_remove，避免与后面的 remove 借用冲突。

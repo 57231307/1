@@ -56,7 +56,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
 
     const v = await apiCallRaw<{ status: string }>(page, 'GET', `/finance/vouchers/${id}`);
     const status = (v.status || '').toLowerCase();
-    expect(['draft', 'submitted', 'reviewed', 'posted', 'cancelled']).toContain(status || 'draft');
+    expect(['draft', 'submitted', 'reviewed', 'posted', 'cancelled']).toContain(status ?? '(missing-status)');
   });
 
   test('4-4 验证凭证非法转换（posted → draft 应拒绝）', async ({ page }) => {
@@ -155,7 +155,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
       expect(periods.items);
       if (periods?.items?.length ?? 0 > 0) {
         const status = (periods.items[0].status || '').toLowerCase();
-        expect(['open', 'closing', 'closed', 'pending', 'active']).toContain(status || 'open');
+        expect(['open', 'closing', 'closed', 'pending', 'active']).toContain(status ?? '(missing-status)');
       }
     } catch {
       // 会计期间端点可能不同

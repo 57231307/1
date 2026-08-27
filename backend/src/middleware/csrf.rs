@@ -182,10 +182,12 @@ pub async fn csrf_middleware(
             auth.user_id,
             None,
         );
-        // 通过 Set-Cookie 头下发新 csrf_token（非 httpOnly + 非加密，前端 JS 可读取明文）
+        // 通过 Set-Cookie 头下发新 csrf_token（非加密非 httpOnly，前端 JS 可读取明文）
+        // 注意：不可写 "HttpOnly=false"——按 RFC 6265 §5.2 解析器只认属性名并忽略值，
+        // 写了 HttpOnly 属性即等效开启，前端 document.cookie 将永远读不到该 Cookie。
         let mut response = next.run(request).await;
         let cookie_value = format!(
-            "csrf_token={}; Path=/; HttpOnly=false; SameSite=Strict; Max-Age=1800",
+            "csrf_token={}; Path=/; SameSite=Strict; Max-Age=1800",
             new_csrf_token
         );
         response.headers_mut().append(

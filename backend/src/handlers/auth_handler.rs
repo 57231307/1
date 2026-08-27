@@ -758,7 +758,7 @@ fn prepare_csrf_state(
     Ok((csrf_token, session_id))
 }
 
-/// 构建 3 个登录 Cookie：access_token / refresh_token / csrf_token。
+/// 构建 2 个登录 Cookie：access_token / refresh_token（均为 httpOnly 加密）。
 // B03-P2-1 修复：已移除 legacy "jwt" Cookie 双写。原实现同时写 access_token 与 jwt 两份
 // 同值 Cookie，双 Cookie 并存易产生鉴权不一致；现仅写 access_token，jwt 读取降级为
 // 旧客户端过渡兼容（见 auth 中间件），登出时仍会清除残留 jwt Cookie。
@@ -766,7 +766,6 @@ fn build_login_cookies(
     jar: axum_extra::extract::PrivateCookieJar,
     token: String,
     refresh_token: String,
-    csrf_token: String,
 ) -> axum_extra::extract::PrivateCookieJar {
     let is_production = crate::utils::config::is_production();
     // access_token: httpOnly 防 XSS 窃取，SameSite=Strict 防跨站请求携带
@@ -861,11 +860,13 @@ async fn handle_login_success(
     };
 
     let csrf_token_plain = response.csrf_token.clone();
-    let jar = build_login_cookies(jar, token, refresh_token, csrf_token_plain.clone());
+    let jar = build_login_cookies(jar, token, refresh_token);
     let mut resp = (jar, Json(ApiResponse::success(response))).into_response();
-    // csrf_token 用普通（非加密）Cookie 下发，前端 JS 可读取明文
+    // csrf_token 用普通（非加密、非 httpOnly）Cookie 下发，前端 JS 可读取明文
+    // 注意：不可写 "HttpOnly=false"——按 RFC 6265 §5.2 只认属性名并忽略值，
+    // 写了 HttpOnly 属性即等效开启，前端 document.cookie 将永远读不到。
     let csrf_cookie_header = format!(
-        "csrf_token={}; Path=/; HttpOnly=false; SameSite=Strict; Max-Age=604800",
+        "csrf_token={}; Path=/; SameSite=Strict; Max-Age=604800",
         csrf_token_plain
     );
     resp.headers_mut().append(

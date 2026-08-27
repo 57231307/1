@@ -12,7 +12,7 @@ import {
 } from './helpers';
 
 test.describe('库存盘点完整流程', () => {
-  test.beforeEach(async ({ page }) => { LOGGED_IN.done = false; await loginViaUI(page); await ensureTestEntities(page); });
+  test.beforeEach(async ({ page }) => { await loginViaUI(page); await ensureTestEntities(page); });
 
   test('盘点：创建→录入实盘→提交→审批→调整验证', async ({ page }) => {
     const ctx = getCtx();

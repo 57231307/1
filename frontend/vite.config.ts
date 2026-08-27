@@ -29,6 +29,8 @@ export default defineConfig({
       '/api/': {
         target: 'http://localhost:8082',
         changeOrigin: true,
+        // WebSocket 升级转发（/ws/notifications 通知通道）
+        ws: true,
       },
     },
   },

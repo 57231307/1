@@ -14,7 +14,7 @@ import {
 } from './helpers';
 
 test.describe('异常处理与边界条件', () => {
-  test.beforeEach(async ({ page }) => { LOGGED_IN.done = false; await loginViaUI(page); await ensureTestEntities(page); });
+  test.beforeEach(async ({ page }) => { await loginViaUI(page); await ensureTestEntities(page); });
 
   test('并发编辑冲突：同一用户两个 context 同时修改同一单据', async ({ page, context }) => {
     const ctx = getCtx();

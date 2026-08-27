@@ -52,7 +52,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
 
     const recipe = await apiCallRaw<{ status: string }>(page, 'GET', `/production/dye-recipes/${id}`);
     const status = (recipe.status || '').toLowerCase();
-    expect(['已审核', 'approved', '草稿', 'draft', '已停用', 'disabled', 'active', 'inactive']).toContain(status || '已审核');
+    expect(['已审核', 'approved', '草稿', 'draft', '已停用', 'disabled', 'active', 'inactive']).toContain(status ?? '(missing-status)');
   });
 
   test('3-3 创建染色批次（缸号）', async ({ page }) => {
@@ -110,7 +110,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
     expect(batch);
     const status = (batch.status || '').toLowerCase();
     expect(['stored', 'inspecting', 'drying', 'dehydrating', 'fixing', 'washing', 'dyeing', 'preparing', 'scheduled', 'pending_schedule']).toContain(
-      status || 'stored'
+      status ?? '(missing-status)'
     );
   });
 
@@ -168,7 +168,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
     if (!id) { test.skip(); return; }
     try { await apiCall(page, 'POST', `/production/production-recipes/${id}/approve`); } catch { /* skip */ }
     const recipe = await apiCallRaw<{ status: string }>(page, 'GET', `/production/production-recipes/${id}`);
-    expect(['approved', 'draft', 'closed', 'cancelled']).toContain((recipe.status || '').toLowerCase() || 'approved');
+    expect(['approved', 'draft', 'closed', 'cancelled']).toContain((recipe.status || '(missing-status)').toLowerCase());
   });
 
   test('3-8 创建 BOM', async ({ page }) => {
@@ -242,7 +242,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
 
     const order = await apiCallRaw<{ status: string }>(page, 'GET', `/production/orders/${id}`);
     expect(['draft', 'pending_approval', 'approved', 'scheduled', 'in_progress', 'completed', 'confirmed']).toContain(
-      (order.status || '').toLowerCase() || 'approved'
+      (order.status || '(missing-status)').toLowerCase()
     );
   });
 

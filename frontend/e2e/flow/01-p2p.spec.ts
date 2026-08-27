@@ -66,7 +66,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     const final = await apiCallRaw<{ status: string; order_status?: string }>(page, 'GET', `/purchase/orders/${id}`);
     const finalStatus = (final.status || final.order_status || '').toLowerCase();
     expect(['approved', 'confirmed', 'pending_receipt', 'partially_received', 'received', 'completed', 'closed']).toContain(
-      finalStatus || 'approved'
+      finalStatus ?? '(missing-status)'
     );
   });
 
@@ -107,7 +107,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     const order = await apiCallRaw<{ status: string; order_status?: string }>(page, 'GET', `/purchase/orders/${id}`);
     const status = (order.status || order.order_status || '').toLowerCase();
     expect(['approved', 'confirmed', 'pending_receipt', 'partially_received', 'received', 'completed', 'closed']).toContain(
-      status || 'approved'
+      status ?? '(missing-status)'
     );
   });
 
@@ -148,7 +148,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       expect(invoices.items);
 
       // 尝试手动创建 AP 应付单（如果未自动生成）
-      if (invoices?.items?.length ?? 0 === 0) {
+      if ((invoices?.items?.length ?? 0) === 0) {
         try {
           const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/ap/invoices', {
             supplier_id: ctx.supplierId || 1,
@@ -189,7 +189,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     try {
       const invoice = await apiCallRaw<{ status: string }>(page, 'GET', `/finance/ap/invoices/${ctx.apInvoiceId}`);
       expect(['paid', 'partially_paid', 'unpaid', 'pending', 'approved', 'confirmed']).toContain(
-        (invoice.status || '').toLowerCase() || 'paid'
+        (invoice.status || '(missing-status)').toLowerCase()
       );
     } catch {
       // 跳过
@@ -206,15 +206,15 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     expect(order);
     const status = (order.status || order.order_status || '').toLowerCase();
     expect(['approved', 'confirmed', 'pending_receipt', 'partially_received', 'received', 'completed', 'closed', 'cancelled']).toContain(
-      status || 'approved'
+      status ?? '(missing-status)'
     );
   });
 
   test('1-10 验证审计日志包含采购操作', async ({ page }) => {
     await loginViaUI(page);
     const hasLog = await verifyAuditLog(page, 'create', 'purchase-orders');
-    // 审计日志可能端点不同，验证不崩溃即可
-    expect(typeof hasLog).toBe('boolean');
+    // 审计日志查询成功时必须命中 create 记录（API 失败返回 false 同样判失败）
+    expect(hasLog).toBe(true);
   });
 
   test('1-11 验证供应商报表', async ({ page }) => {

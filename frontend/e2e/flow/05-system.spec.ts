@@ -78,7 +78,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
       expect(tasks.items);
       if (tasks?.items?.length ?? 0 > 0) {
         const status = (tasks.items[0].status || '').toLowerCase();
-        expect(['pending', 'completed', 'rejected', 'cancelled', 'processing']).toContain(status || 'pending');
+        expect(['pending', 'completed', 'rejected', 'cancelled', 'processing']).toContain(status ?? '(missing-status)');
       }
     } catch {
       try {
@@ -117,7 +117,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
       const order = await apiCallRaw<{ status: string }>(page, 'GET', `/custom-orders/${ctx.customOrderId}`);
       const status = (order.status || '').toLowerCase();
       expect(['draft', 'lab_dip', 'quotation', 'yarn_purchasing', 'dyeing', 'finishing', 'delivery', 'after_sales', 'completed', 'cancelled', 'pending']).toContain(
-        status || 'draft'
+        status ?? '(missing-status)'
       );
     }
   });
@@ -143,7 +143,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
       if (list?.items?.length ?? 0 > 0) {
         const status = (list.items[0].status || '').toLowerCase();
         expect(['pending', 'sampled', 'sent_to_customer', 'approved', 'rejected', 'rework', 'downgraded', 'scrapped']).toContain(
-          status || 'pending'
+          status ?? '(missing-status)'
         );
       }
     } catch {
