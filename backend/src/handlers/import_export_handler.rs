@@ -35,6 +35,7 @@ pub struct ExcelImportRequest {
     pub import_type: String,
     #[validate(length(max = 10_000, message = "Excel 数据超过 1 万行上限"))]
     pub data: Vec<Vec<String>>, // 二维数组
+}
 
 /// POST /api/v1/erp/import/excel - Excel导入
 pub async fn import_excel(
