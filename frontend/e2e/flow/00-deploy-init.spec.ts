@@ -43,8 +43,8 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
     await loginViaUI(page);
     const ctx = getCtx();
     for (const wh of [
-      { name: genName('原料仓'), code: genCode('WH-RAW'), location: 'A区', is_active: true },
-      { name: genName('成品仓'), code: genCode('WH-FIN'), location: 'B区', is_active: true },
+      { name: genName('原料仓'), warehouse_code: genCode("WH-RAW"), location: 'A区', is_active: true },
+      { name: genName('成品仓'), warehouse_code: genCode("WH-FIN"), location: 'B区', is_active: true },
       { name: genName('染料仓'), code: genCode('WH-DYE'), location: 'C区', is_active: true },
     ]) {
       try {
@@ -182,8 +182,8 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
     const ctx = getCtx();
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
-        name: genName('E2E供应商'),
-        code: genCode('SUP'),
+        supplier_name: genName("E2E供应商"),
+        supplier_code: genCode("SUP"),
         contact_person: '联系人',
         contact_phone: '13800000000',
         is_active: true,
@@ -201,8 +201,8 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
     const ctx = getCtx();
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
-        name: genName('E2E客户'),
-        code: genCode('CUST'),
+        customer_name: genName("E2E客户"),
+        customer_code: genCode("CUST"),
         customer_type: 'wholesale',
         contact_person: '联系人',
         contact_phone: '13900000000',
