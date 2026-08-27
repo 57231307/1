@@ -52,6 +52,7 @@ macro_rules! define_crud_handlers {
         $query_params:ty,
         $id_ty:ty
     ) => {
+        #[allow(dead_code, reason = "宏生成的 handler 可能未被所有调用方使用")]
         pub async fn list(
             axum::extract::State(state): axum::extract::State<$crate::container::AppState>,
             _auth: $crate::middleware::auth_context::AuthContext,
