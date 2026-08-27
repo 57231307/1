@@ -785,15 +785,7 @@ fn build_login_cookies(
         true,
         CookieDuration::days(2),
     );
-    // csrf_token: http_only=false 以便前端 JS 读取注入 X-CSRF-Token 头
-    // 注意：csrf_token 不通过 PrivateCookieJar 加密，前端需要读取明文值
-    let csrf_cookie = Cookie::build(("csrf_token", csrf_token.clone()))
-        .path("/")
-        .http_only(false)
-        .same_site(SameSite::Strict)
-        .max_age(CookieDuration::days(7))
-        .build();
-    // access_token 和 refresh_token 通过 PrivateCookieJar 加密，csrf_token 用普通 Cookie
+    // csrf_token 不通过 PrivateCookieJar 加密，由调用方用普通 Set-Cookie 头下发明文
     jar.add(access_cookie).add(refresh_cookie)
 }
 
