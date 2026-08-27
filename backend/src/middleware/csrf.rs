@@ -30,7 +30,6 @@ use axum::{
     middleware::Next,
     response::{IntoResponse, Response},
 };
-use axum_extra::extract::cookie::{Cookie, PrivateCookieJar, SameSite};
 use serde_json::json;
 
 /// CSRF 请求头名称（小写形式，对应 HTTP/2 规范）
@@ -183,33 +182,17 @@ pub async fn csrf_middleware(
             auth.user_id,
             None,
         );
-        // 通过 PrivateCookieJar 下发新 csrf_token（非 httpOnly，前端 JS 可读）
-        let cookie_jar = PrivateCookieJar::from_headers(
-            request.headers(),
-            axum_extra::extract::cookie::Key::derive_from(
-                std::env::var("COOKIE_SECRET")
-                    .unwrap_or_else(|_| "default-cookie-secret-32bytes-do-not-use!".to_string())
-                    .as_bytes(),
-            ),
-        );
-        let csrf_cookie = Cookie::build(("csrf_token", new_csrf_token))
-            .path("/")
-            .http_only(false)
-            .same_site(SameSite::Strict)
-            .max_age(time::Duration::seconds(1800))
-            .build();
-        let jar = cookie_jar.add(csrf_cookie);
+        // 通过 Set-Cookie 头下发新 csrf_token（非 httpOnly + 非加密，前端 JS 可读取明文）
         let mut response = next.run(request).await;
-        for cookie in jar.iter() {
-            if let Some(header_value) = cookie.encoded().to_header().1.to_string().strip_prefix("Set-Cookie: ") {
-                response.headers_mut().append(
-                    axum::http::header::SET_COOKIE,
-                    axum::http::HeaderValue::from_str(header_value).unwrap_or_else(|_| {
-                        axum::http::HeaderValue::from_static("")
-                    }),
-                );
-            }
-        }
+        let cookie_value = format!(
+            "csrf_token={}; Path=/; HttpOnly=false; SameSite=Strict; Max-Age=1800",
+            new_csrf_token
+        );
+        response.headers_mut().append(
+            axum::http::header::SET_COOKIE,
+            axum::http::HeaderValue::from_str(&cookie_value)
+                .unwrap_or_else(|_| axum::http::HeaderValue::from_static("")),
+        );
         return Ok(response);
     }
 

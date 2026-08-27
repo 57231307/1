@@ -786,14 +786,15 @@ fn build_login_cookies(
         CookieDuration::days(2),
     );
     // csrf_token: http_only=false 以便前端 JS 读取注入 X-CSRF-Token 头
-    let csrf_cookie = build_session_cookie(
-        "csrf_token",
-        csrf_token,
-        is_production,
-        false,
-        CookieDuration::days(7),
-    );
-    jar.add(access_cookie).add(refresh_cookie).add(csrf_cookie)
+    // 注意：csrf_token 不通过 PrivateCookieJar 加密，前端需要读取明文值
+    let csrf_cookie = Cookie::build(("csrf_token", csrf_token.clone()))
+        .path("/")
+        .http_only(false)
+        .same_site(SameSite::Strict)
+        .max_age(CookieDuration::days(7))
+        .build();
+    // access_token 和 refresh_token 通过 PrivateCookieJar 加密，csrf_token 用普通 Cookie
+    jar.add(access_cookie).add(refresh_cookie)
 }
 
 /// 构建单个登录会话 Cookie：统一 path/secure/same_site，仅 http_only 与 max_age 差异。
@@ -867,8 +868,20 @@ async fn handle_login_success(
         password_expired,
     };
 
-    let jar = build_login_cookies(jar, token, refresh_token, response.csrf_token.clone());
-    Ok((jar, Json(ApiResponse::success(response))).into_response())
+    let csrf_token_plain = response.csrf_token.clone();
+    let jar = build_login_cookies(jar, token, refresh_token, csrf_token_plain.clone());
+    let mut resp = (jar, Json(ApiResponse::success(response))).into_response();
+    // csrf_token 用普通（非加密）Cookie 下发，前端 JS 可读取明文
+    let csrf_cookie_header = format!(
+        "csrf_token={}; Path=/; HttpOnly=false; SameSite=Strict; Max-Age=604800",
+        csrf_token_plain
+    );
+    resp.headers_mut().append(
+        axum::http::header::SET_COOKIE,
+        axum::http::HeaderValue::from_str(&csrf_cookie_header)
+            .unwrap_or_else(|_| axum::http::HeaderValue::from_static("")),
+    );
+    Ok(resp)
 }
 
 // =================================================================

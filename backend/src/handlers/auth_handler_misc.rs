@@ -241,15 +241,8 @@ fn build_refresh_cookies(
     .same_site(SameSite::Strict)
     .max_age(CookieDuration::days(2))
     .build();
-    let new_csrf =
-        axum_extra::extract::cookie::Cookie::build(("csrf_token", csrf_token.to_string()))
-            .path("/")
-            .http_only(false)
-            .secure(is_production)
-            .same_site(SameSite::Strict)
-            .max_age(CookieDuration::days(7))
-            .build();
-    jar.add(new_access).add(new_refresh).add(new_csrf)
+    // csrf_token 不通过 PrivateCookieJar 加密，前端需读取明文
+    jar.add(new_access).add(new_refresh)
 }
 
 #[allow(dead_code, reason = "序列化输出字段")]
