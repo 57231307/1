@@ -78,7 +78,7 @@ export async function ensureTestEntities(page: Page): Promise<void> {
       try {
         const result = await apiCall<{ id?: number }>(page, 'POST', '/warehouses', {
           name: 'E2E 仓库 ' + i + '-' + Date.now(),
-          code: 'E2E-W' + i + Date.now(),
+          warehouse_code: 'E2E-W' + i + Date.now(),
         });
         if (result.data?.id) ctx.warehouseIds.push(result.data.id);
       } catch { /* 忽略 */ }
