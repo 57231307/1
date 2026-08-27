@@ -360,25 +360,48 @@ async function getCsrfToken(page: Page): Promise<string> {
   return csrf.value;
 }
 
+async function refreshCsrfToken(page: Page): Promise<string> {
+  // CSRF token 过期时，调用 /auth/refresh 获取新 token
+  // /auth/refresh 是公开路径，不需要 CSRF 头，只需要 httpOnly refresh_token cookie
+  const response = await page.request.fetch(`${API_BASE}${API_PREFIX}/auth/refresh`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    data: '{}',
+  });
+  if (!response.ok()) {
+    throw new Error(`CSRF refresh failed: ${response.status()}`);
+  }
+  // refresh 响应的 Set-Cookie 会自动写入 context，重新读取
+  const cookies = await page.context().cookies();
+  const csrf = cookies.find((c) => c.name === 'csrf_token');
+  if (!csrf) {
+    throw new Error('csrf_token cookie not found after refresh');
+  }
+  return csrf.value;
+}
+
 export async function apiCall<T = unknown>(
   page: Page,
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
   body?: Record<string, unknown>
 ): Promise<ApiResponse<T>> {
-  const csrfToken = await getCsrfToken(page);
+  let csrfToken = await getCsrfToken(page).catch(() => null) ?? '';
   const url = `${API_BASE}${API_PREFIX}${path}`;
-  const response = await page.request.fetch(url, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Requested-With': 'XMLHttpRequest',
-      'X-CSRF-Token': csrfToken,
-    },
-    data: body ? JSON.stringify(body) : undefined,
-  });
+  const doFetch = async (token: string) => {
+    return page.request.fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-Token': token,
+      },
+      data: body ? JSON.stringify(body) : undefined,
+    });
+  };
 
-  const text = await response.text();
+  let response = await doFetch(csrfToken);
+  let text = await response.text();
   let json: ApiResponse<T>;
   try {
     json = JSON.parse(text);
@@ -386,16 +409,20 @@ export async function apiCall<T = unknown>(
     throw new Error(`API ${method} ${path} returned non-JSON (status ${response.status()}): ${text.slice(0, 500)}`);
   }
 
-  if (json.code !== 200 && json.code !== 0) {
-    throw new Error(`API ${method} ${path} failed: code=${json.code} message=${json.message}`);
+  // CSRF 校验失败：刷新 token 后重试一次
+  if (json.code === 'CSRF_TOKEN_INVALID' || json.code === 'CSRF_TOKEN_MISSING') {
+    try {
+      csrfToken = await refreshCsrfToken(page);
+      response = await doFetch(csrfToken);
+      text = await response.text();
+      json = JSON.parse(text);
+    } catch (e) {
+      throw new Error(`API ${method} ${path} CSRF 重试失败: ${(e as Error).message}`);
+    }
   }
 
-  // POST/PUT/PATCH/DELETE 成功后，后端通过 Set-Cookie 下发新的 csrf_token，
-  // 重新读取 cookie 确保 getCsrfToken 拿到最新值
-  if (method !== 'GET' && method !== 'HEAD') {
-    try {
-      await page.context().cookies();
-    } catch { /* ignore */ }
+  if (json.code !== 200 && json.code !== 0) {
+    throw new Error(`API ${method} ${path} failed: code=${json.code} message=${json.message}`);
   }
 
   return json;

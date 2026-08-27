@@ -187,6 +187,7 @@ macro_rules! define_tuple_crud_handlers {
         $id_ty:ty,
         $not_found_msg:expr
     ) => {
+        #[allow(dead_code, reason = "宏生成的 handler 可能未被所有调用方使用")]
         /// 列表查询
         pub async fn list(
             axum::extract::State(state): axum::extract::State<$crate::container::AppState>,
