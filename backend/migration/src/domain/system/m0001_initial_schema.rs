@@ -304,11 +304,11 @@ COMMENT ON COLUMN "warehouses"."manager_id" IS '仓库管理员ID';
 -- ============================================
 CREATE TABLE "suppliers" (
     "id" SERIAL PRIMARY KEY,
-    "name" VARCHAR(200) NOT NULL,
-    "code" VARCHAR(50) NOT NULL UNIQUE,
-    "contact" VARCHAR(100),
-    "phone" VARCHAR(50),
-    "email" VARCHAR(255),
+    "supplier_name" VARCHAR(200) NOT NULL,
+    "supplier_code" VARCHAR(50) NOT NULL UNIQUE,
+    "contact_person" VARCHAR(100),
+    "contact_phone" VARCHAR(50),
+    "contact_email" VARCHAR(255),
     "address" TEXT,
     "description" TEXT,
     "is_active" BOOLEAN DEFAULT true,
@@ -318,21 +318,21 @@ CREATE TABLE "suppliers" (
 );
 
 COMMENT ON TABLE "suppliers" IS '供应商表';
-COMMENT ON COLUMN "suppliers"."name" IS '供应商名称';
-COMMENT ON COLUMN "suppliers"."code" IS '供应商代码';
-COMMENT ON COLUMN "suppliers"."contact" IS '联系人';
-COMMENT ON COLUMN "suppliers"."phone" IS '联系电话';
+COMMENT ON COLUMN "suppliers"."supplier_name" IS '供应商名称';
+COMMENT ON COLUMN "suppliers"."supplier_code" IS '供应商代码';
+COMMENT ON COLUMN "suppliers"."contact_person" IS '联系人';
+COMMENT ON COLUMN "suppliers"."contact_phone" IS '联系电话';
 
 -- ============================================
 -- 8. 基础数据模块 - 客户表
 -- ============================================
 CREATE TABLE "customers" (
     "id" SERIAL PRIMARY KEY,
-    "name" VARCHAR(200) NOT NULL,
-    "code" VARCHAR(50) NOT NULL UNIQUE,
-    "contact" VARCHAR(100),
-    "phone" VARCHAR(50),
-    "email" VARCHAR(255),
+    "customer_name" VARCHAR(200) NOT NULL,
+    "customer_code" VARCHAR(50) NOT NULL UNIQUE,
+    "contact_person" VARCHAR(100),
+    "contact_phone" VARCHAR(50),
+    "contact_email" VARCHAR(255),
     "address" TEXT,
     "customer_type" VARCHAR(20),
     "credit_limit" DECIMAL(12, 2) DEFAULT 0,
@@ -344,8 +344,8 @@ CREATE TABLE "customers" (
 );
 
 COMMENT ON TABLE "customers" IS '客户表';
-COMMENT ON COLUMN "customers"."name" IS '客户名称';
-COMMENT ON COLUMN "customers"."code" IS '客户代码';
+COMMENT ON COLUMN "customers"."customer_name" IS '客户名称';
+COMMENT ON COLUMN "customers"."customer_code" IS '客户代码';
 COMMENT ON COLUMN "customers"."customer_type" IS '客户类型 - 批发/零售';
 COMMENT ON COLUMN "customers"."credit_limit" IS '信用额度';
 
