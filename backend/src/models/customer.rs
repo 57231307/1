@@ -11,20 +11,24 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
 
-    /// 客户编码（唯一）
-    #[sea_orm(unique)]
+    /// 客户编码（DB 列名为 code，migration/m0001 建表用 code）
+    #[sea_orm(unique, column_name = "code")]
     pub customer_code: String,
 
-    /// 客户名称
+    /// 客户名称（DB 列名为 name）
+    #[sea_orm(column_name = "name")]
     pub customer_name: String,
 
-    /// 联系人
+    /// 联系人（DB 列名为 contact）
+    #[sea_orm(column_name = "contact")]
     pub contact_person: Option<String>,
 
-    /// 联系电话
+    /// 联系电话（DB 列名为 phone）
+    #[sea_orm(column_name = "phone")]
     pub contact_phone: Option<String>,
 
-    /// 联系邮箱
+    /// 联系邮箱（DB 列名为 email）
+    #[sea_orm(column_name = "email")]
     pub contact_email: Option<String>,
 
     /// 地址
