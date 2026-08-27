@@ -68,18 +68,43 @@ export function getCtx(): EntityContext {
  * 此函数在每个 spec 文件开头调用，自行创建或查找实体
  */
 export async function ensureTestEntities(page: Page): Promise<void> {
-  // 查找仓库（每次都执行，确保 shard 间数据独立时也能找到）
+  // 查找或创建仓库
   try {
     const warehouses = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/warehouses?page=1&page_size=5');
-    ctx.warehouseIds = warehouses.items?.map((w) => w.id) || [1, 2];
-  } catch { ctx.warehouseIds = [1, 2]; }
-  if (ctx.warehouseIds.length < 2) ctx.warehouseIds.push(ctx.warehouseIds[0] + 1);
+    ctx.warehouseIds = warehouses.items?.map((w) => w.id) || [];
+  } catch { ctx.warehouseIds = []; }
+  if (ctx.warehouseIds.length < 2) {
+    for (let i = ctx.warehouseIds.length; i < 2; i++) {
+      try {
+        const result = await apiCall<{ id?: number }>(page, 'POST', '/warehouses', {
+          name: 'E2E 仓库 ' + i + '-' + Date.now(),
+          code: 'E2E-W' + i + Date.now(),
+        });
+        if (result.data?.id) ctx.warehouseIds.push(result.data.id);
+      } catch { /* 忽略 */ }
+    }
+  }
+  if (ctx.warehouseIds.length < 2) ctx.warehouseIds = [1, 2];
 
-  // 查找产品
+  // 查找或创建产品
   try {
     const products = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/products?page=1&page_size=5');
-    ctx.productIds = products.items?.map((p) => p.id) || [1];
-  } catch { ctx.productIds = [1]; }
+    ctx.productIds = products.items?.map((p) => p.id) || [];
+  } catch { ctx.productIds = []; }
+  if (ctx.productIds.length === 0) {
+    for (let i = 0; i < 3; i++) {
+      try {
+        const result = await apiCall<{ id?: number }>(page, 'POST', '/products', {
+          name: 'E2E 产品 ' + i + '-' + Date.now(),
+          code: 'E2E-P' + i + Date.now(),
+          unit: '米',
+          product_type: 'fabric',
+        });
+        if (result.data?.id) ctx.productIds.push(result.data.id);
+      } catch { /* 忽略 */ }
+    }
+  }
+  if (ctx.productIds.length === 0) ctx.productIds = [1];
 
   // 查找产品色号
   try {
@@ -89,17 +114,34 @@ export async function ensureTestEntities(page: Page): Promise<void> {
   } catch { ctx.colorNos = ['TEST-COLOR']; ctx.productColorIds = [1]; }
   if (ctx.colorNos.length === 0) ctx.colorNos = ['TEST-COLOR'];
 
-  // 查找供应商
+  // 查找或创建供应商
   try {
     const suppliers = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/purchase/suppliers?page=1&page_size=1');
     ctx.supplierId = suppliers.items?.[0]?.id;
   } catch { ctx.supplierId = undefined; }
+  if (!ctx.supplierId) {
+    try {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
+        supplier_name: 'E2E 供应商 ' + Date.now(),
+        supplier_type: 'fabric',
+      });
+      ctx.supplierId = result.data?.id;
+    } catch { ctx.supplierId = undefined; }
+  }
 
-  // 查找客户
+  // 查找或创建客户
   try {
     const customers = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/crm/customers?page=1&page_size=1');
     ctx.customerId = customers.items?.[0]?.id;
   } catch { ctx.customerId = undefined; }
+  if (!ctx.customerId) {
+    try {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
+        customer_name: 'E2E 客户 ' + Date.now(),
+      });
+      ctx.customerId = result.data?.id;
+    } catch { ctx.customerId = undefined; }
+  }
 
   // 查找会计科目
   try {
