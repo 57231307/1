@@ -160,6 +160,7 @@ pub fn to_traceparent(ctx: &TraceContext) -> String {
 ///
 /// 调用方在 reqwest::Client 请求前调用此函数，把当前 trace 上下文写入 `traceparent` header，
 /// 下游服务通过 `extract_or_new` 解析后即可关联跨服务调用链。
+#[allow(dead_code, reason = "CI 环境 未启用 trace 注入")]
 pub fn inject_trace_context(headers: &mut reqwest::header::HeaderMap, ctx: &TraceContext) {
     let value = to_traceparent(ctx);
     if let Ok(hv) = reqwest::header::HeaderValue::from_str(&value) {
@@ -181,6 +182,7 @@ pub fn traceparent_from_current_span() -> String {
 /// 从当前 span 注入 traceparent 到出站 HTTP 请求头（V15 P1 20.1-A 修复）
 ///
 /// 便捷函数：供 reqwest 调用前使用，无需手动构建 TraceContext。
+#[allow(dead_code, reason = "CI 环境 未启用 trace 注入")]
 /// 内部调用 `traceparent_from_current_span()` 生成 traceparent 字符串后注入。
 pub fn inject_traceparent_from_current_span(headers: &mut reqwest::header::HeaderMap) {
     let value = traceparent_from_current_span();
