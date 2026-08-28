@@ -167,7 +167,11 @@ class Request {
         // - 不再从前端取 refresh_token，浏览器会自动通过 httpOnly Cookie 发送
         // - 调 /auth/refresh 即可，后端会通过 Set-Cookie 头更新 access_token / csrf_token
         // - 重放时不需要重新注入 Authorization 头（Cookie 自动随 withCredentials=true 发送）
-        if (error.response?.status === 401 && !originalRequest?._retry && !(originalRequest as any)?._skipAuthRetry) {
+        if (
+          error.response?.status === 401 &&
+          !originalRequest?._retry &&
+          !(originalRequest as any)?._skipAuthRetry
+        ) {
           if (isRefreshing) {
             // FE-P1-1 修复：排队请求同时持有 resolve/reject，
             // 刷新成功走 resolve 重放，刷新失败走 reject 让 Promise settle
