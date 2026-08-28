@@ -84,6 +84,7 @@ pub struct Model {
     pub notes: Option<String>,
 
     /// 附件 URL 列表
+    #[sea_orm(column_type = "Json")]
     pub attachment_urls: Option<Vec<String>>,
 
     /// 创建人 ID

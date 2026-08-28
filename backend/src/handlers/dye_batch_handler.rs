@@ -176,7 +176,7 @@ pub async fn create_dye_batch(
     let dye_lot_no = req.dye_lot_no.unwrap_or_else(|| "DEFAULT".to_string());
 
     let batch = dye_batch::ActiveModel {
-        id: Set(0),
+        id: NotSet,
         batch_no: Set(batch_no),
         greige_fabric_id: Set(req.greige_fabric_id),
         color_code: Set(req.color_no.clone().unwrap_or_else(|| "TEST".to_string())),
