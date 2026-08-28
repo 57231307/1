@@ -149,6 +149,22 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     ctx.accountSubjectIds = subjects.items?.map((s) => s.id) || [];
   } catch { ctx.accountSubjectIds = []; }
 
+  // 查找或创建部门（采购订单必填 department_id）
+  if (ctx.departmentIds.length === 0) {
+    try {
+      const depts = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/departments?page=1&page_size=5');
+      ctx.departmentIds = depts.items?.map((d) => d.id) || [];
+    } catch { ctx.departmentIds = []; }
+  }
+  if (ctx.departmentIds.length === 0) {
+    try {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/departments', {
+        name: 'E2E 部门-' + Date.now(), code: 'E2E-DEPT-' + Date.now(),
+      });
+      if (result.data?.id) ctx.departmentIds.push(result.data.id);
+    } catch (e) { console.error("[ensureTestEntities] 部门创建失败:", (e as Error).message); }
+  }
+
   // 查找或创建采购订单
   try {
     const pos = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/purchase/orders?page=1&page_size=1');
@@ -159,6 +175,7 @@ export async function ensureTestEntities(page: Page): Promise<void> {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/orders', {
         supplier_id: ctx.supplierId || 1,
         warehouse_id: ctx.warehouseIds[0] || 1,
+        department_id: ctx.departmentIds[0] || 1,
         order_date: new Date().toISOString().slice(0, 10),
         items: [{ material_id: ctx.productIds[0] || 1, quantity_ordered: '1', unit_price: '1' }],
       });
@@ -250,6 +267,7 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/boms', {
         product_id: ctx.productIds[0] || 1, name: 'E2E BOM', version: 1,
+        items: [{ material_id: ctx.productIds[0] || 1, quantity: 1, unit: '米' }],
       });
       ctx.bomId = result.data?.id;
     } catch (e) { console.error("[ensureTestEntities] bomId 创建失败:", (e as Error).message); ctx.bomId = undefined; }

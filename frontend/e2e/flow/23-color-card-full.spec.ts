@@ -6,12 +6,12 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
 
   // ===== API 端点覆盖 =====
   test('色卡：CRUD+明细+预警+成本+扫码+报表', async ({ page }) => {
-    await apiCallRaw(page, 'GET', '/color-cards/?page=1&page_size=5');
+    await apiCallRaw(page, 'GET', '/color-cards?page=1&page_size=5');
     await apiCallRaw(page, 'GET', '/color-cards/warnings');
     await verifyEndpointHealthy(page, '/color-cards/customer-color-cards?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/color-cards/reorder-dye-lot?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/color-cards/statistics/daily');
-    const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/color-cards/?page=1&page_size=1');
+    const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/color-cards?page=1&page_size=1');
     const cardId = list.items?.[0]?.id;
     if (cardId) {
       await apiCallRaw(page, 'GET', `/color-cards/${cardId}`);

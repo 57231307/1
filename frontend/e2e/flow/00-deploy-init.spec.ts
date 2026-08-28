@@ -244,7 +244,7 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
       const result = await apiCall<{ id?: number }>(page, 'POST', '/color-cards', {
         card_no: genCode('CC'),
         card_name: genName('E2E色卡'),
-        card_type: 'seasonal',
+        card_type: 'CUSTOM',
         season: '2026SS',
         total_colors: 2,
         status: 'draft',
