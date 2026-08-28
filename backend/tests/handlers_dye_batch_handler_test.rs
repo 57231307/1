@@ -9,6 +9,8 @@ fn make_dye_batch_model(id: i32, status: &str) -> DyeBatchModel {
         id,
         batch_no: format!("DB-2026-{:04}", id),
         greige_fabric_id: None,
+        color_code: format!("COLOR-{:04}", id),
+        color_name: format!("测试色号-{}", id),
         color_no: None,
         dye_lot_no: String::new(),
         planned_quantity: None,
