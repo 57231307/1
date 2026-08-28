@@ -361,21 +361,20 @@ async function getCsrfToken(page: Page): Promise<string> {
 }
 
 async function refreshCsrfToken(page: Page): Promise<string> {
-  // CSRF token 过期时，调用 /auth/refresh 获取新 token
-  // /auth/refresh 是公开路径，不需要 CSRF 头，只需要 httpOnly refresh_token cookie
-  const response = await page.request.fetch(`${API_BASE}${API_PREFIX}/auth/refresh`, {
-    method: 'POST',
+  // CSRF token 过期时，重新登录获取全新的 access_token + csrf_token
+  // 不用 /auth/refresh（会吊销旧 access_token 导致后续 GET 请求 401）
+  const loginResp = await page.request.post(`${API_BASE}${API_PREFIX}/auth/login`, {
+    data: { username: TEST_USERNAME, password: TEST_PASSWORD },
     headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-    data: '{}',
   });
-  if (!response.ok()) {
-    throw new Error(`CSRF refresh failed: ${response.status()}`);
+  if (!loginResp.ok()) {
+    throw new Error(`CSRF refresh via re-login failed: ${loginResp.status()}`);
   }
-  // refresh 响应的 Set-Cookie 会自动写入 context，重新读取
+  // login 响应的 Set-Cookie 会自动写入 context（access_token + refresh_token + csrf_token）
   const cookies = await page.context().cookies();
   const csrf = cookies.find((c) => c.name === 'csrf_token');
   if (!csrf) {
-    throw new Error('csrf_token cookie not found after refresh');
+    throw new Error('csrf_token cookie not found after re-login');
   }
   return csrf.value;
 }
