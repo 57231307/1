@@ -490,6 +490,11 @@ export async function apiCallExpectFail(
 const LOGGED_IN = { done: false };
 
 export async function loginViaUI(page: Page, username?: string, password?: string): Promise<void> {
+  // 拦截 lock-status 请求（避免 16 shard 并发时后端挂起 5s+ 导致登录超时）
+  await page.route('**/api/v1/erp/lock-status**', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, code: 200, message: 'ok', data: { is_locked: false, failed_attempts: 0, max_attempts: 5, locked_until: null, username: 'e2e', user_id: 0 } }) })
+  ).catch(() => {});
+
   // 如果已经登录过（同一个 page context），检查是否还有效
   if (LOGGED_IN.done) {
     // 已登录过，但可能在不同的 BrowserContext 中
