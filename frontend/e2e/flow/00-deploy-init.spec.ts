@@ -241,7 +241,7 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
     await loginViaUI(page);
     const ctx = getCtx();
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/color-cards/', {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/color-cards', {
         card_no: genCode('CC'),
         card_name: genName('E2E色卡'),
         card_type: 'seasonal',

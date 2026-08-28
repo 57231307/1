@@ -13,6 +13,18 @@ pub struct AuxiliariesItem {
     pub unit: String,
 }
 
+/// 助剂列表 JSON 包装（DB 列为 JSONB，用 New Type 避免 SeaORM 推断为 PG 数组）
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
+pub struct Auxiliaries(pub Vec<AuxiliariesItem>);
+
+impl std::ops::Deref for Auxiliaries {
+    type Target = Vec<AuxiliariesItem>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "dye_recipe")]
 pub struct Model {
@@ -38,7 +50,8 @@ pub struct Model {
     pub ph_value: Option<Decimal>,
     #[sea_orm(column_type = "Decimal(Some((10, 2)))")]
     pub liquor_ratio: Option<Decimal>,
-    pub auxiliaries: Option<Vec<AuxiliariesItem>>,
+    #[sea_orm(column_type = "JsonBinary")]
+    pub auxiliaries: Option<Auxiliaries>,
     pub version: Option<i32>,
     pub parent_recipe_id: Option<i32>,
     pub approved_by: Option<i32>,

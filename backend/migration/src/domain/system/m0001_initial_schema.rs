@@ -386,7 +386,7 @@ CREATE TABLE "sales_orders" (
     "id" SERIAL PRIMARY KEY,
     "order_no" VARCHAR(50) NOT NULL UNIQUE,
     "customer_id" INTEGER NOT NULL,
-    "order_date" DATE NOT NULL,
+    "order_date" TIMESTAMPTZ NOT NULL,
     "delivery_date" DATE,
     "status" VARCHAR(20) NOT NULL DEFAULT 'draft',
     "total_amount" DECIMAL(14, 2) DEFAULT 0,

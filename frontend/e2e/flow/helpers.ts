@@ -158,6 +158,7 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/orders', {
         supplier_id: ctx.supplierId || 1,
+        warehouse_id: ctx.warehouseIds[0] || 1,
         order_date: new Date().toISOString().slice(0, 10),
         items: [{ material_id: ctx.productIds[0] || 1, quantity_ordered: '1', unit_price: '1' }],
       });
@@ -210,7 +211,7 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/production/dye-batches', {
         batch_no: genCode('DB'), color_no: ctx.colorNos[0] || 'TEST', dye_lot_no: ctx.dyeLotNo,
-        planned_quantity: 100, status: 'draft',
+        planned_quantity: 100,
       });
       ctx.dyeBatchId = result.data?.id;
     } catch (e) { console.error("[ensureTestEntities] dyeBatchId 创建失败:", (e as Error).message); ctx.dyeBatchId = undefined; }
@@ -248,7 +249,7 @@ export async function ensureTestEntities(page: Page): Promise<void> {
   if (!ctx.bomId) {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/boms', {
-        product_id: ctx.productIds[0] || 1, name: 'E2E BOM', version: '1',
+        product_id: ctx.productIds[0] || 1, name: 'E2E BOM', version: 1,
       });
       ctx.bomId = result.data?.id;
     } catch (e) { console.error("[ensureTestEntities] bomId 创建失败:", (e as Error).message); ctx.bomId = undefined; }
@@ -273,6 +274,8 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     ]) {
       await apiCall(page, 'POST', '/subjects', subj).catch((e) => { console.error("[ensureTestEntities] 科目创建失败:", (e as Error).message); });
     }
+    // 凭证日期必须落在某个开放会计期间内，缺失时初始化当月期间
+    await apiCall(page, 'POST', '/accounting-periods/init', {}).catch((e) => { console.error("[ensureTestEntities] 会计期间初始化失败:", (e as Error).message); });
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/vouchers', {
         voucher_type: 'general', voucher_date: new Date().toISOString().slice(0, 10),
@@ -318,7 +321,8 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/custom-orders', {
         customer_id: ctx.customerId || 1, order_no: genCode('CO'),
-        order_date: new Date().toISOString().slice(0, 10), product_name: 'E2E 定制',
+        product_id: ctx.productIds[0] || 1,
+        spec: 'E2E 定制规格', quantity: 100, unit: '米',
       });
       ctx.customOrderId = result.data?.id;
     } catch (e) { console.error("[ensureTestEntities] customOrderId 创建失败:", (e as Error).message); ctx.customOrderId = undefined; }
@@ -326,12 +330,12 @@ export async function ensureTestEntities(page: Page): Promise<void> {
 
   // 查找或创建色卡
   try {
-    const ccs = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/color-cards/?page=1&page_size=1');
+    const ccs = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/color-cards?page=1&page_size=1');
     ctx.colorCardId = ccs.items?.[0]?.id;
   } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
   if (!ctx.colorCardId) {
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/color-cards/', {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/color-cards', {
         card_no: genCode('CC'), card_name: 'E2E 色卡', card_type: 'CUSTOM',
       });
       ctx.colorCardId = result.data?.id;

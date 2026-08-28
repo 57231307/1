@@ -167,7 +167,7 @@ impl DyeRecipeService {
             time_minutes: Set(req.time_minutes),
             ph_value: Set(req.ph_value),
             liquor_ratio: Set(req.liquor_ratio),
-            auxiliaries: Set(req.auxiliaries),
+            auxiliaries: Set(req.auxiliaries.map(crate::models::dye_recipe::Auxiliaries)),
             status: Set(Some(
                 req.status
                     .unwrap_or_else(|| recipe_status::DRAFT.to_string()),
@@ -276,7 +276,8 @@ impl DyeRecipeService {
             active.liquor_ratio = Set(Some(liquor_ratio));
         }
         if let Some(auxiliaries) = req.auxiliaries {
-            active.auxiliaries = Set(Some(auxiliaries));
+            active.auxiliaries =
+                Set(Some(crate::models::dye_recipe::Auxiliaries(auxiliaries)));
         }
         if let Some(status) = req.status {
             // 校验状态流转合法性

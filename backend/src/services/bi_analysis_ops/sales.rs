@@ -245,6 +245,7 @@ impl BiAnalysisService {
                 COALESCE(SUM(si.quantity), 0) as quantity,
                 COUNT(DISTINCT si.order_id) as order_count
             FROM products p
+            LEFT JOIN product_categories pc ON pc.id = p.category_id
             LEFT JOIN sales_order_items si ON si.product_id = p.id
             LEFT JOIN sales_orders s ON s.id = si.order_id
                 AND s.status NOT IN ('CANCELLED', 'DRAFT')

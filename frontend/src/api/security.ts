@@ -1,5 +1,6 @@
 import { request } from './request';
 import type { ApiResponse } from '@/types/api';
+import type { AxiosRequestConfig } from 'axios';
 
 /** 账号锁定状态（来自后端 /api/v1/erp/lock-status） */
 export interface LockStatus {
@@ -99,4 +100,6 @@ export const exportLoginLogs = (params?: SecurityQueryParams) =>
 export const checkLockStatus = (username: string) =>
   request.get<ApiResponse<LockStatus>>('/lock-status', {
     params: { username },
-  });
+    timeout: 5000,
+    _skipAuthRetry: true,
+  } as AxiosRequestConfig & { _skipAuthRetry?: boolean });
