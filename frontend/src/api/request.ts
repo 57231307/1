@@ -128,10 +128,7 @@ class Request {
     this.instance.interceptors.response.use(
       (response: AxiosResponse<ApiResponse>) => {
         // Blob 响应（文件下载/导出）无 code 信封，直接放行交给调用方处理二进制
-        if (
-          response.config.responseType === 'blob' ||
-          response.data instanceof Blob
-        ) {
+        if (response.config.responseType === 'blob' || response.data instanceof Blob) {
           return response;
         }
         const res = response.data;

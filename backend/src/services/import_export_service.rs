@@ -2,7 +2,7 @@
 //!
 //! 本文件为 facade 入口，仅保留：
 //! - `ImportExportService` struct + `new` 构造函数
-//! - 公共常量（MAX_CSV_BYTES / MAX_EXCEL_ROWS / MAX_EXCEL_COLS / MAX_CELL_LEN / MAX_EXPORT_ROWS）
+//! - 公共常量（MAX_EXCEL_ROWS / MAX_EXCEL_COLS / MAX_CELL_LEN / MAX_EXPORT_ROWS）
 //! - DTO struct（ImportResult / ImportError / ImportTemplate / ImportColumnDef / ExportQuery）
 //! - 纯函数（无 &self / 无 db 访问）：get_import_template / build_*_template / parse_csv /
 //!   generate_xlsx / validate_import_data / validate_import_data_size /
