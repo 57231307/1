@@ -241,7 +241,7 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
     await loginViaUI(page);
     const ctx = getCtx();
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/color-cards', {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/color-cards/', {
         card_no: genCode('CC'),
         card_name: genName('E2E色卡'),
         card_type: 'seasonal',
@@ -251,8 +251,8 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
         color_fastness_grade: 'A',
       });
       ctx.colorCardId = result.data?.id;
-    } catch {
-      // 色卡模块可能未就绪
+    } catch (e) {
+      console.error('[0-13] 色卡创建失败:', (e as Error).message);
     }
     expect(ctx.colorCardId).toBeTruthy();
   });

@@ -40,10 +40,6 @@ use crate::utils::xlsx_export::{XlsxTable, build_xlsx};
 //    - L4：service 层 defense-in-depth（避免 handler 漏检 / 内部调用绕过）
 // ============================================================================
 
-/// CSV 字符串最大长度：10 MB
-/// 依据：单行 100 字符 × 10 万行 ≈ 10MB，足够覆盖业务批量导入场景
-
-
 /// Excel 最大行数：1 万行
 /// 依据：超过此行数时应分批导入；本服务只做单批次导入
 pub const MAX_EXCEL_ROWS: usize = 10_000;
