@@ -6,8 +6,8 @@ use axum::{
 };
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect, Set,
+    ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, Set,
 };
 use serde::Deserialize;
 
