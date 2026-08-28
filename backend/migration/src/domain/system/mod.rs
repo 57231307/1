@@ -85,7 +85,7 @@ ALTER TABLE "bpm_task" ADD COLUMN IF NOT EXISTS "actual_handler_name" VARCHAR(25
 ALTER TABLE "bpm_task" ADD COLUMN IF NOT EXISTS "approval_opinion" VARCHAR(255);
 ALTER TABLE "bpm_task" ADD COLUMN IF NOT EXISTS "assignee_ids" JSONB;
 ALTER TABLE "bpm_task" ADD COLUMN IF NOT EXISTS "assignee_names" JSONB;
-ALTER TABLE "bpm_task" ADD COLUMN IF NOT EXISTS "attachment_urls" JSONB;
+ALTER TABLE "bpm_task" ADD COLUMN IF NOT EXISTS "attachment_urls" TEXT[];
 ALTER TABLE "bpm_task" ADD COLUMN IF NOT EXISTS "candidate_role_ids" JSONB;
 ALTER TABLE "bpm_task" ADD COLUMN IF NOT EXISTS "candidate_user_ids" JSONB;
 ALTER TABLE "bpm_task" ADD COLUMN IF NOT EXISTS "due_date" TIMESTAMPTZ;
@@ -306,7 +306,7 @@ ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "supplier_product_code" VARCHAR(
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "yarn_count" VARCHAR(255);
 ALTER TABLE "purchase_orders" ADD COLUMN IF NOT EXISTS "actual_delivery_date" DATE;
 ALTER TABLE "purchase_orders" ADD COLUMN IF NOT EXISTS "approved_at" TIMESTAMPTZ;
-ALTER TABLE "purchase_orders" ADD COLUMN IF NOT EXISTS "attachment_urls" JSONB;
+ALTER TABLE "purchase_orders" ADD COLUMN IF NOT EXISTS "attachment_urls" TEXT[];
 ALTER TABLE "purchase_orders" ADD COLUMN IF NOT EXISTS "currency" VARCHAR(10);
 ALTER TABLE "purchase_orders" ADD COLUMN IF NOT EXISTS "department_id" INTEGER;
 ALTER TABLE "purchase_orders" ADD COLUMN IF NOT EXISTS "exchange_rate" DECIMAL(18,6);
