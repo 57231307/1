@@ -2594,18 +2594,17 @@ jobs:
             fi
           } > reports/e2e-report.md
           echo "$EXIT_CODE" > reports/e2e-exit-code.txt
-          # 【临时诊断】CI job 日志在外部无法读取，失败时把失败用例清单与关键错误行
-          # 输出为 check annotation（annotation 可通过公开 API 读取），定位完成后需移除本段
+          # 【临时诊断】CI job 日志在外部无法读取，失败时把 Playwright 输出的首尾片段
+          # 压缩为 check annotation（annotation 可通过公开 API 读取），定位完成后需移除本段
           if [ "$EXIT_CODE" -ne "0" ]; then
-            {
-              grep -E "^[[:space:]]+[0-9]+\) " reports/playwright-output.txt | head -n 10
-              grep -E "Error:|Expected|Received|Timed out" reports/playwright-output.txt | head -n 5
-            } | while IFS= read -r line; do
-              esc="${line//'%'/%25}"
-              esc="${esc//$'\r'/%0D}"
-              esc="${esc//$'\n'/%0A}"
-              echo "::error::$esc"
-            done
+            LINES=$(wc -l < reports/playwright-output.txt 2>/dev/null || echo 0)
+            echo "::error::E2E-分片 ${{ matrix.shard }} 退出码=$EXIT_CODE 输出行数=$LINES"
+            TAILTXT=$(tail -n 25 reports/playwright-output.txt 2>/dev/null | cut -c1-140 \
+              | sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/@NL@/' | tr -d '\n' | sed 's/@NL@/%0A/g')
+            echo "::error::E2E-TAIL: $TAILTXT"
+            HEADTXT=$(head -n 20 reports/playwright-output.txt 2>/dev/null | cut -c1-140 \
+              | sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/@NL@/' | tr -d '\n' | sed 's/@NL@/%0A/g')
+            echo "::error::E2E-HEAD: $HEADTXT"
           fi
           exit $EXIT_CODE
 
