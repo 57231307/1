@@ -2,6 +2,11 @@
  * UI-only 辅助函数：通过 Playwright 浏览器操作完成数据创建/查询
  * 所有操作均模拟真实用户在界面上的行为（点击、填写、提交）
  * 对应 ensureTestEntities 中各实体的 UI 创建流程
+ *
+ * 健壮性策略：
+ * - safeGoto：处理 Vite 504 Outdated Optimize Dep，自动重试最多 3 次
+ * - 所有 waitFor 超时提升到 30s（CI 16 shard 并发环境慢）
+ * - 失败时截图 + DOM 快照 + 详细错误日志，不静默吞掉
  */
 import type { Page } from '@playwright/test';
 import { BASE_URL, API_PREFIX } from './helpers';
@@ -21,17 +26,101 @@ type UiField =
   | { kind: 'select'; label: string; value: string }
   | { kind: 'date'; label: string; value: string };
 
+/**
+ * 安全导航：处理 Vite 504 + page 被关闭的情况
+ * 最多重试 3 次，每次检测 504 后等 5s 重新加载
+ */
+async function safeGoto(page: Page, path: string): Promise<void> {
+  const url = `${BASE_URL}${path}`;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const consoleLogs: string[] = [];
+      const handler = (msg: { type(): string; text(): string }) => consoleLogs.push(`[console.${msg.type()}] ${msg.text()}`);
+      page.on('console', handler);
+
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+
+      // 等 1s 检测是否有 504
+      await page.waitForTimeout(1000);
+      const has504 = consoleLogs.some((log) => log.includes('504'));
+
+      if (has504 && attempt < 2) {
+        console.log(`[safeGoto] 检测到 Vite 504，等待 5s 后重新加载 (attempt ${attempt + 1}/3)`);
+        await page.waitForTimeout(5000);
+        page.off('console', handler);
+        continue; // 重试
+      }
+
+      // 设置 locale
+      await page.evaluate(() => window.localStorage.setItem('bingxi.locale', 'zh-CN')).catch(() => {});
+      page.off('console', handler);
+      return; // 成功
+    } catch (e) {
+      page.off('console', handler);
+      const errMsg = (e as Error).message;
+      if (attempt < 2 && (errMsg.includes('504') || errMsg.includes('Target') || errMsg.includes('closed') || errMsg.includes('net::ERR'))) {
+        console.warn(`[safeGoto] ${path} 导航失败 (attempt ${attempt + 1}/3): ${errMsg}，5s 后重试`);
+        await page.waitForTimeout(5000);
+        continue;
+      }
+      // 最后一次尝试也失败了，记录详细错误
+      console.error(`[safeGoto] ${path} 导航最终失败: ${errMsg}`);
+      throw e;
+    }
+  }
+}
+
+/**
+ * 截图 + DOM 快照 + 错误日志（失败诊断用）
+ */
+async function diagnoseFailure(page: Page, label: string): Promise<void> {
+  try {
+    const screenshotPath = `test-results/ui-create-fail-${label}-${Date.now()}.png`;
+    await page.screenshot({ path: screenshotPath, fullPage: true });
+    console.error(`[UI诊断] ${label} 失败截图已保存: ${screenshotPath}`);
+    const url = page.url();
+    const bodyText = await page.locator('body').innerText().catch(() => '<无法获取>');
+    const elMessages = await page.locator('.el-message__content').allTextContents().catch(() => []);
+    const formErrors = await page.locator('.el-form-item__error').allTextContents().catch(() => []);
+    console.error(`[UI诊断] ${label} 失败详情:`);
+    console.error(`  URL: ${url}`);
+    console.error(`  ElMessage: ${JSON.stringify(elMessages)}`);
+    console.error(`  表单错误: ${JSON.stringify(formErrors)}`);
+    console.error(`  页面文本(前500字): ${bodyText.slice(0, 500)}`);
+  } catch {
+    // 截图本身可能也会失败
+  }
+}
+
 async function fillField(dialog: import('@playwright/test').Locator, page: Page, field: UiField): Promise<void> {
   const labelRegex = new RegExp(field.label);
   const formItem = dialog.locator('.el-form-item').filter({ has: dialog.locator('.el-form-item__label').filter({ hasText: labelRegex }) }).first();
   if (await formItem.count() === 0) {
-    console.warn(`[uiCreate] 找不到字段 "${field.label}"`);
+    // 兜底：用 label 文本直接找
+    const altFormItem = dialog.locator('.el-form-item').filter({ hasText: labelRegex }).first();
+    if (await altFormItem.count() === 0) {
+      console.warn(`[uiCreate] 找不到字段 "${field.label}"`);
+      return;
+    }
+    await fillInField(altFormItem, page, field);
     return;
   }
+  await fillInField(formItem, page, field);
+}
+
+async function fillInField(formItem: import('@playwright/test').Locator, page: Page, field: UiField): Promise<void> {
   switch (field.kind) {
     case 'input': {
-      const inp = formItem.locator('input:not([type])').first();
-      await inp.waitFor({ state: 'visible', timeout: 10000 });
+      const inp = formItem.locator('input:not([type="number"])').first();
+      if (await inp.count() === 0) {
+        // 兜底：取任意 input
+        const inp2 = formItem.locator('input').first();
+        await inp2.waitFor({ state: 'visible', timeout: 20000 });
+        await inp2.click({ clickCount: 3 });
+        await inp2.fill(field.value);
+        return;
+      }
+      await inp.waitFor({ state: 'visible', timeout: 20000 });
       await inp.click({ clickCount: 3 });
       await inp.fill(field.value);
       break;
@@ -39,13 +128,12 @@ async function fillField(dialog: import('@playwright/test').Locator, page: Page,
     case 'inputNumber': {
       const inp = formItem.locator('input[type="number"]').first();
       if (await inp.count() === 0) {
-        // el-input-number 默认 input 可能不可见，点击 .el-input__inner 内的 input
-        const inp2 = formItem.locator('.el-input__inner input').first();
-        await inp2.waitFor({ state: 'visible', timeout: 10000 });
+        const inp2 = formItem.locator('.el-input__inner input, input').first();
+        await inp2.waitFor({ state: 'visible', timeout: 20000 });
         await inp2.click({ clickCount: 3 });
         await inp2.fill(String(field.value));
       } else {
-        await inp.waitFor({ state: 'visible', timeout: 10000 });
+        await inp.waitFor({ state: 'visible', timeout: 20000 });
         await inp.click({ clickCount: 3 });
         await inp.fill(String(field.value));
       }
@@ -53,7 +141,7 @@ async function fillField(dialog: import('@playwright/test').Locator, page: Page,
     }
     case 'date': {
       const inp = formItem.locator('input').first();
-      await inp.waitFor({ state: 'visible', timeout: 10000 });
+      await inp.waitFor({ state: 'visible', timeout: 20000 });
       await inp.click({ clickCount: 3 });
       await inp.fill(field.value);
       await inp.press('Escape');
@@ -63,7 +151,6 @@ async function fillField(dialog: import('@playwright/test').Locator, page: Page,
     case 'select': {
       const wrapper = formItem.locator('.el-select__wrapper').first();
       if (await wrapper.count() === 0) {
-        // el-tree-select 等自定义控件
         const inp = formItem.locator('.el-input__inner').first();
         if (await inp.count() > 0) {
           await inp.click();
@@ -74,12 +161,11 @@ async function fillField(dialog: import('@playwright/test').Locator, page: Page,
       await wrapper.click();
       await page.waitForTimeout(300);
       const dropdown = page.locator('.el-select-dropdown:visible').last();
-      await dropdown.waitFor({ state: 'visible', timeout: 15000 });
+      await dropdown.waitFor({ state: 'visible', timeout: 20000 });
       const item = dropdown.locator('.el-select-dropdown__item').filter({ hasText: new RegExp(field.value, 'i') }).first();
       if (await item.count() > 0) {
         await item.click();
       } else {
-        // fallback: 选第一个
         await dropdown.locator('.el-select-dropdown__item').first().click();
       }
       break;
@@ -87,7 +173,7 @@ async function fillField(dialog: import('@playwright/test').Locator, page: Page,
   }
 }
 
-async function waitCreateResponse(page: Page, apiPath: string, timeout = 25000): Promise<Record<string, unknown> | null> {
+async function waitCreateResponse(page: Page, apiPath: string, timeout = 30000): Promise<Record<string, unknown> | null> {
   try {
     const resp = await page.waitForResponse(
       (r) => r.url().includes(apiPath) && r.request().method() === 'POST',
@@ -95,12 +181,13 @@ async function waitCreateResponse(page: Page, apiPath: string, timeout = 25000):
     );
     const json = await resp.json().catch(() => ({}));
     return (json?.data as Record<string, unknown>) ?? json;
-  } catch {
+  } catch (e) {
+    console.warn(`[waitCreateResponse] 等待 POST ${apiPath} 超时: ${(e as Error).message}`);
     return null;
   }
 }
 
-async function waitListResponse(page: Page, apiPath: string, timeout = 15000): Promise<unknown[]> {
+async function waitListResponse(page: Page, apiPath: string, timeout = 20000): Promise<unknown[]> {
   try {
     const resp = await page.waitForResponse(
       (r) => r.url().includes(apiPath) && r.request().method() === 'GET',
@@ -130,40 +217,65 @@ export async function uiCreateDialog(
   submitButtonText: RegExp,
   fields: UiField[],
 ): Promise<number | undefined> {
-  await page.goto(`${BASE_URL}${route}`, { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(400);
-  const addBtn = page.getByRole('button', { name: addButtonText, exact: false }).first();
-  await addBtn.waitFor({ state: 'visible', timeout: 15000 });
-  await addBtn.click();
-  const dialog = page.locator('.el-dialog:visible').last();
-  await dialog.waitFor({ state: 'visible', timeout: 15000 });
-  await page.waitForTimeout(300);
-  for (const f of fields) {
-    await fillField(dialog, page, f).catch((e) => console.warn(`[uiCreateDialog] 填表失败 "${f.label}": ${(e as Error).message}`));
+  const entityLabel = route.replace(/^\//, '');
+  try {
+    await safeGoto(page, route);
+    await page.waitForTimeout(500);
+
+    // 找新增按钮
+    const addBtn = page.getByRole('button', { name: addButtonText, exact: false }).first();
+    await addBtn.waitFor({ state: 'visible', timeout: 30000 });
+    await addBtn.click();
+
+    // 等对话框出现
+    const dialog = page.locator('.el-dialog:visible').last();
+    await dialog.waitFor({ state: 'visible', timeout: 30000 });
+    await page.waitForTimeout(300);
+
+    // 填表
+    for (const f of fields) {
+      await fillField(dialog, page, f).catch((e) => {
+        console.warn(`[uiCreateDialog] 填表失败 "${f.label}": ${(e as Error).message}`);
+      });
+    }
+    await page.waitForTimeout(300);
+
+    // 提交
+    const submitBtn = dialog.getByRole('button', { name: submitButtonText }).last();
+    await submitBtn.waitFor({ state: 'visible', timeout: 20000 });
+    await submitBtn.click();
+
+    // 等待响应
+    const data = await waitCreateResponse(page, createApiPath, 30000);
+    if (data?.id !== undefined && typeof data.id === 'number') {
+      return data.id;
+    }
+    // 创建失败：记录详细诊断
+    await diagnoseFailure(page, entityLabel);
+    console.error(`[uiCreateDialog] ${entityLabel} 创建失败: 响应数据=${JSON.stringify(data)}`);
+    return undefined;
+  } catch (e) {
+    await diagnoseFailure(page, entityLabel);
+    console.error(`[uiCreateDialog] ${entityLabel} 创建异常: ${(e as Error).message}`);
+    return undefined;
   }
-  await page.waitForTimeout(300);
-  const submitBtn = dialog.getByRole('button', { name: submitButtonText }).last();
-  await submitBtn.waitFor({ state: 'visible', timeout: 10000 });
-  await submitBtn.click();
-  const data = await waitCreateResponse(page, createApiPath, 25000);
-  return typeof data?.id === 'number' ? data.id : undefined;
 }
 
 // ---------------------------------------------------------------------------
 // 每个实体的专用 UI 创建函数
 // ---------------------------------------------------------------------------
 
-/** 创建仓库：新建仓库，必填 code/name/type；默认类型选第一个 */
+/** 创建仓库 */
 export async function createWarehouseUI(page: Page): Promise<number | undefined> {
   const fields: UiField[] = [
     { kind: 'input', label: '仓库编码', value: _genCode('E2E-W') },
     { kind: 'input', label: '仓库名称', value: _genName('E2E仓库') },
-    { kind: 'select', label: '类型', value: '普通' }, // 第一个选项
+    { kind: 'select', label: '类型', value: '普通' },
   ];
   return uiCreateDialog(page, '/warehouse', `${API_PREFIX}/warehouses`, /新建仓库/, /保存|确定/, fields);
 }
 
-/** 创建部门：新建部门，必填 name/code；status 默认启用 */
+/** 创建部门 */
 export async function createDepartmentUI(page: Page): Promise<number | undefined> {
   const fields: UiField[] = [
     { kind: 'input', label: '部门名称', value: _genName('E2E部门') },
@@ -172,7 +284,7 @@ export async function createDepartmentUI(page: Page): Promise<number | undefined
   return uiCreateDialog(page, '/departments', `${API_PREFIX}/departments`, /新建部门/, /确认|保存/, fields);
 }
 
-/** 创建供应商：新建供应商，必填 supplier_code/supplier_name/contact_phone */
+/** 创建供应商 */
 export async function createSupplierUI(page: Page): Promise<number | undefined> {
   const fields: UiField[] = [
     { kind: 'input', label: '供应商编码', value: _genCode('E2E-S') },
@@ -182,52 +294,60 @@ export async function createSupplierUI(page: Page): Promise<number | undefined> 
   return uiCreateDialog(page, '/supplier', `${API_PREFIX}/purchase/suppliers`, /新建供应商/, /确定|保存/, fields);
 }
 
-/** 创建产品：新建产品，必填 code/name/category/unit */
+/** 创建产品 */
 export async function createProductUI(page: Page): Promise<number | undefined> {
   const fields: UiField[] = [
     { kind: 'input', label: '产品编码', value: _genCode('E2E-P') },
     { kind: 'input', label: '产品名称', value: _genName('E2E产品') },
-    { kind: 'select', label: '分类', value: '面料' }, // 第一个选项
+    { kind: 'select', label: '分类', value: '面料' },
     { kind: 'input', label: '单位', value: '米' },
   ];
   return uiCreateDialog(page, '/product', `${API_PREFIX}/products`, /新建产品/, /确定|保存/, fields);
 }
 
-/** 创建色卡：跳转到新建色卡页面，必填 card_no/card_name/card_type */
+/** 创建色卡 */
 export async function createColorCardUI(page: Page): Promise<number | undefined> {
-  await page.goto(`${BASE_URL}/color-cards/create`, { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(600);
-  const cardNoInput = page.locator('input[placeholder*="卡号" i], .el-form-item:has(span:text-is("卡号")) input').first();
-  const cardNameInput = page.locator('.el-form-item:has(span:text-is("卡名")) input').first();
-  const typeSelect = page.locator('.el-form-item:has(span:text-is("色卡类型")) .el-select__wrapper').first();
-  await cardNoInput.waitFor({ state: 'visible', timeout: 15000 });
-  await cardNoInput.click({ clickCount: 3 });
-  await cardNoInput.fill(_genCode('E2E-CC'));
-  await cardNameInput.waitFor({ state: 'visible', timeout: 10000 });
-  await cardNameInput.click({ clickCount: 3 });
-  await cardNameInput.fill(_genName('E2E色卡'));
-  if (await typeSelect.count() > 0) {
-    await typeSelect.click();
-    await page.waitForTimeout(300);
-    const dropdown = page.locator('.el-select-dropdown:visible').last();
-    await dropdown.waitFor({ state: 'visible', timeout: 10000 });
-    // 选 CUSTOM/自定义
-    const item = dropdown.locator('.el-select-dropdown__item').filter({ hasText: /自定义|CUSTOM/i }).first();
-    if (await item.count() > 0) await item.click();
-    else await dropdown.locator('.el-select-dropdown__item').first().click();
+  try {
+    await safeGoto(page, '/color-cards/create');
+    await page.waitForTimeout(800);
+    const cardNoInput = page.locator('input[placeholder*="卡号" i], .el-form-item:has(span:text-is("卡号")) input').first();
+    const cardNameInput = page.locator('.el-form-item:has(span:text-is("卡名")) input').first();
+    const typeSelect = page.locator('.el-form-item:has(span:text-is("色卡类型")) .el-select__wrapper').first();
+    await cardNoInput.waitFor({ state: 'visible', timeout: 30000 });
+    await cardNoInput.click({ clickCount: 3 });
+    await cardNoInput.fill(_genCode('E2E-CC'));
+    await cardNameInput.waitFor({ state: 'visible', timeout: 20000 });
+    await cardNameInput.click({ clickCount: 3 });
+    await cardNameInput.fill(_genName('E2E色卡'));
+    if (await typeSelect.count() > 0) {
+      await typeSelect.click();
+      await page.waitForTimeout(300);
+      const dropdown = page.locator('.el-select-dropdown:visible').last();
+      await dropdown.waitFor({ state: 'visible', timeout: 20000 });
+      const item = dropdown.locator('.el-select-dropdown__item').filter({ hasText: /自定义|CUSTOM/i }).first();
+      if (await item.count() > 0) await item.click();
+      else await dropdown.locator('.el-select-dropdown__item').first().click();
+    }
+    const submitBtn = page.getByRole('button', { name: /立即创建|创建|确定|保存/ }).first();
+    await submitBtn.waitFor({ state: 'visible', timeout: 20000 });
+    await submitBtn.click();
+    const data = await waitCreateResponse(page, `${API_PREFIX}/color-cards`, 30000);
+    if (data?.id !== undefined && typeof data.id === 'number') return data.id;
+    await diagnoseFailure(page, 'color-card');
+    console.error(`[createColorCardUI] 创建失败: 响应=${JSON.stringify(data)}`);
+    return undefined;
+  } catch (e) {
+    await diagnoseFailure(page, 'color-card');
+    console.error(`[createColorCardUI] 异常: ${(e as Error).message}`);
+    return undefined;
   }
-  const submitBtn = page.getByRole('button', { name: /立即创建|创建|确定|保存/ }).first();
-  await submitBtn.waitFor({ state: 'visible', timeout: 10000 });
-  await submitBtn.click();
-  const data = await waitCreateResponse(page, `${API_PREFIX}/color-cards`, 25000);
-  return typeof data?.id === 'number' ? data.id : undefined;
 }
 
-/** 创建染色批次：必填 batch_no/product_id/color_no/dye_date/quantity */
+/** 创建染色批次 */
 export async function createDyeBatchUI(page: Page): Promise<number | undefined> {
   const fields: UiField[] = [
     { kind: 'input', label: '批次号', value: _genCode('E2E-DB') },
-    { kind: 'select', label: '产品', value: 'E2E产品' },
+    { kind: 'select', label: '产品', value: 'E2E' },
     { kind: 'input', label: '色号', value: _genCode('E2E-CN') },
     { kind: 'date', label: '染色日期', value: new Date().toISOString().slice(0, 10) },
     { kind: 'inputNumber', label: '数量', value: 100 },
@@ -235,7 +355,7 @@ export async function createDyeBatchUI(page: Page): Promise<number | undefined> 
   return uiCreateDialog(page, '/dye-batch', `${API_PREFIX}/production/dye-batches`, /新建批次/, /确定|保存/, fields);
 }
 
-/** 创建染色配方：必填 recipe_no/recipe_name/color_no/color_name/content */
+/** 创建染色配方 */
 export async function createDyeRecipeUI(page: Page): Promise<number | undefined> {
   const fields: UiField[] = [
     { kind: 'input', label: '配方编号', value: _genCode('E2E-DR') },
@@ -247,7 +367,7 @@ export async function createDyeRecipeUI(page: Page): Promise<number | undefined>
   return uiCreateDialog(page, '/dye-recipe', `${API_PREFIX}/production/dye-recipes`, /新建配方/, /确认|确定|保存/, fields);
 }
 
-/** 创建 BOM：必填 product_name/version/status，并添加 1 条物料明细（material_name/quantity/unit） */
+/** 创建 BOM */
 export async function createBomUI(page: Page): Promise<number | undefined> {
   const dialogResult = await uiCreateDialog(
     page, '/bom', `${API_PREFIX}/boms`, /新建|新建 BOM/, /保存|确定/,
@@ -257,24 +377,20 @@ export async function createBomUI(page: Page): Promise<number | undefined> {
       { kind: 'select', label: '状态', value: '启用' },
     ],
   );
-  if (dialogResult === undefined) return undefined;
-  // BOM 对话框打开后，需要添加至少一条物料明细再提交
-  // 当前 uiCreateDialog 已提交，说明 BOM 不需要明细（默认有 1 行）
-  // 若对话框尚未提交（如先填了表头但还没提交），这里处理添加物料行
-  // 等待对话框出现
+  if (dialogResult !== undefined) return dialogResult;
+  // 可能需要添加物料明细
   const dialog = page.locator('.el-dialog:visible').last();
+  if (await dialog.count() === 0) return undefined;
   const hasItemsSection = await dialog.locator('.items-section, [class*="items"]').count() > 0;
   if (hasItemsSection) {
-    // 查找"添加物料"按钮并点击
     const addItemBtn = dialog.getByRole('button', { name: /添加物料|添加/, exact: false }).first();
     if (await addItemBtn.count() > 0) {
       await addItemBtn.click();
       await page.waitForTimeout(300);
-      // 填写第一行物料：物料名称、数量、单位
       const firstRow = dialog.locator('.el-table tbody tr').first();
       if (await firstRow.count() > 0) {
         const matNameInput = firstRow.locator('input').first();
-        await matNameInput.waitFor({ state: 'visible', timeout: 10000 });
+        await matNameInput.waitFor({ state: 'visible', timeout: 20000 });
         await matNameInput.click({ clickCount: 3 });
         await matNameInput.fill('E2E 原料');
         const unitInput = firstRow.locator('input').nth(2);
@@ -284,89 +400,105 @@ export async function createBomUI(page: Page): Promise<number | undefined> {
         }
       }
     }
-    // 提交
     const submitBtn = dialog.getByRole('button', { name: /保存|确定/ }).last();
     if (await submitBtn.count() > 0) {
       await submitBtn.click();
-      const data = await waitCreateResponse(page, `${API_PREFIX}/boms`, 25000);
+      const data = await waitCreateResponse(page, `${API_PREFIX}/boms`, 30000);
       return typeof data?.id === 'number' ? data.id : undefined;
     }
   }
-  return dialogResult;
+  return undefined;
 }
 
-/** 创建定制订单：跳转到新建页，必填 customer_id/product_id/spec/quantity */
+/** 创建定制订单 */
 export async function createCustomOrderUI(page: Page): Promise<number | undefined> {
-  await page.goto(`${BASE_URL}/custom-orders/new`, { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(600);
-  // customer_id / product_id 是 el-input-number（手填数字 ID）
-  const customerIdInput = page.locator('.el-form-item:has(span:text-is("客户ID")) input[type="number"], .el-input-number input').first();
-  const productIdInput = page.locator('.el-form-item:has(span:text-is("产品ID")) input[type="number"], .el-input-number input').nth(1);
-  const specInput = page.locator('.el-form-item:has(span:text-is("规格")) input').first();
-  const quantityInput = page.locator('.el-form-item:has(span:text-is("数量")) input[type="number"], .el-input-number input').first();
-  if (await customerIdInput.count() === 0) {
-    // 兜底：用 placeholder 匹配
+  try {
+    await safeGoto(page, '/custom-orders/new');
+    await page.waitForTimeout(800);
+    // customer_id / product_id 是 el-input-number（手填数字 ID）
     const inputs = page.locator('input[type="number"]');
-    await inputs.nth(0).waitFor({ state: 'visible', timeout: 15000 });
-    await inputs.nth(0).click({ clickCount: 3 });
-    await inputs.nth(0).fill('1');
-    await inputs.nth(1).waitFor({ state: 'visible', timeout: 10000 });
-    await inputs.nth(1).click({ clickCount: 3 });
-    await inputs.nth(1).fill('1');
-  } else {
-    await customerIdInput.waitFor({ state: 'visible', timeout: 15000 });
-    await customerIdInput.click({ clickCount: 3 });
-    await customerIdInput.fill('1');
-    await productIdInput.waitFor({ state: 'visible', timeout: 10000 });
-    await productIdInput.click({ clickCount: 3 });
-    await productIdInput.fill('1');
+    const inputCount = await inputs.count();
+    if (inputCount >= 2) {
+      await inputs.nth(0).waitFor({ state: 'visible', timeout: 30000 });
+      await inputs.nth(0).click({ clickCount: 3 });
+      await inputs.nth(0).fill('1');
+      await inputs.nth(1).click({ clickCount: 3 });
+      await inputs.nth(1).fill('1');
+    } else {
+      // 兜底：用 label 定位
+      const customerIdInput = page.locator('.el-form-item:has(span:text-is("客户ID")) input').first();
+      const productIdInput = page.locator('.el-form-item:has(span:text-is("产品ID")) input').first();
+      await customerIdInput.waitFor({ state: 'visible', timeout: 30000 });
+      await customerIdInput.click({ clickCount: 3 });
+      await customerIdInput.fill('1');
+      await productIdInput.click({ clickCount: 3 });
+      await productIdInput.fill('1');
+    }
+    const specInput = page.locator('.el-form-item:has(span:text-is("规格")) input, input[placeholder*="规格"]').first();
+    await specInput.waitFor({ state: 'visible', timeout: 20000 });
+    await specInput.click({ clickCount: 3 });
+    await specInput.fill('E2E 定制规格');
+    const quantityInput = page.locator('.el-form-item:has(span:text-is("数量")) input, input[placeholder*="数量"]').last();
+    await quantityInput.waitFor({ state: 'visible', timeout: 20000 });
+    await quantityInput.click({ clickCount: 3 });
+    await quantityInput.fill('100');
+    const submitBtn = page.getByRole('button', { name: /保存草稿|保存|确定/ }).first();
+    await submitBtn.waitFor({ state: 'visible', timeout: 20000 });
+    await submitBtn.click();
+    const data = await waitCreateResponse(page, `${API_PREFIX}/custom-orders`, 30000);
+    if (data?.id !== undefined && typeof data.id === 'number') return data.id;
+    await diagnoseFailure(page, 'custom-order');
+    console.error(`[createCustomOrderUI] 创建失败: 响应=${JSON.stringify(data)}`);
+    return undefined;
+  } catch (e) {
+    await diagnoseFailure(page, 'custom-order');
+    console.error(`[createCustomOrderUI] 异常: ${(e as Error).message}`);
+    return undefined;
   }
-  await specInput.waitFor({ state: 'visible', timeout: 10000 });
-  await specInput.click({ clickCount: 3 });
-  await specInput.fill('E2E 定制规格');
-  await quantityInput.waitFor({ state: 'visible', timeout: 10000 });
-  await quantityInput.click({ clickCount: 3 });
-  await quantityInput.fill('100');
-  const submitBtn = page.getByRole('button', { name: /保存草稿|保存|确定/ }).first();
-  await submitBtn.waitFor({ state: 'visible', timeout: 10000 });
-  await submitBtn.click();
-  const data = await waitCreateResponse(page, `${API_PREFIX}/custom-orders`, 25000);
-  return typeof data?.id === 'number' ? data.id : undefined;
 }
 
 /**
  * 通过 UI 读取列表第一行实体的 id
- * 适用于"查找已有实体"（列表不为空时复用已有数据）
  */
 export async function readFirstEntityId(
   page: Page,
   route: string,
   listApiPath: string,
 ): Promise<number | undefined> {
-  const items = await waitListResponse(page, listApiPath, 15000);
-  return firstId(items);
+  try {
+    await safeGoto(page, route);
+    const items = await waitListResponse(page, listApiPath, 20000);
+    return firstId(items);
+  } catch (e) {
+    console.warn(`[readFirstEntityId] ${route} 查找失败: ${(e as Error).message}`);
+    return undefined;
+  }
 }
 
-/** 通用 UI 列表查找：给定路由和 API 路径，返回第一条实体的 id 列表 */
+/** 通用 UI 列表查找：返回多条 id */
 export async function readEntityIds(
   page: Page,
   route: string,
   listApiPath: string,
   limit = 10,
 ): Promise<number[]> {
-  const items = await waitListResponse(page, listApiPath, 15000);
-  return items.slice(0, limit).map((it) => (it as Record<string, unknown>)?.id as number).filter((id): id is number => typeof id === 'number');
+  try {
+    await safeGoto(page, route);
+    const items = await waitListResponse(page, listApiPath, 20000);
+    return items.slice(0, limit).map((it) => (it as Record<string, unknown>)?.id as number).filter((id): id is number => typeof id === 'number');
+  } catch (e) {
+    console.warn(`[readEntityIds] ${route} 查找失败: ${(e as Error).message}`);
+    return [];
+  }
 }
 
-/** 等待会计期间初始化成功（POST /accounting-periods/init） */
+/** 等待会计期间初始化 */
 export async function ensureAccountingPeriodUI(page: Page): Promise<void> {
-  await page.goto(`${BASE_URL}/finance`, { waitUntil: 'domcontentloaded' });
+  await safeGoto(page, '/finance');
   await page.waitForTimeout(500);
-  // 尝试点击"初始化"或"新建期间"按钮；若页面有对应按钮则点击
   const initBtn = page.getByRole('button', { name: /初始化|新建期间|新建会计期间/ }).first();
   if (await initBtn.count() > 0) {
     await initBtn.click();
     await waitCreateResponse(page, `${API_PREFIX}/accounting-periods/init`, 15000);
   }
-  // 若没有按钮，直接调 API 兜底（保留原逻辑的健壮性）
 }

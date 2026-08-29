@@ -79,10 +79,9 @@ export async function ensureTestEntities(page: Page): Promise<void> {
   } catch { ctx.warehouseIds = []; }
   if (ctx.warehouseIds.length < 2) {
     for (let i = ctx.warehouseIds.length; i < 2; i++) {
-      try {
-        const id = await createWarehouseUI(page);
-        if (id) ctx.warehouseIds.push(id);
-      } catch (e) { console.error("[ensureTestEntities] 仓库创建失败:", (e as Error).message); }
+      const id = await createWarehouseUI(page);
+      if (id) { ctx.warehouseIds.push(id); }
+      else { console.error("[ensureTestEntities] 仓库 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）"); }
     }
   }
   if (ctx.warehouseIds.length < 2) ctx.warehouseIds = [1, 2];
@@ -93,10 +92,9 @@ export async function ensureTestEntities(page: Page): Promise<void> {
   } catch { ctx.productIds = []; }
   if (ctx.productIds.length === 0) {
     for (let i = 0; i < 3; i++) {
-      try {
-        const id = await createProductUI(page);
-        if (id) ctx.productIds.push(id);
-      } catch (e) { console.error("[ensureTestEntities] 产品创建失败:", (e as Error).message); }
+      const id = await createProductUI(page);
+      if (id) { ctx.productIds.push(id); }
+      else { console.error("[ensureTestEntities] 产品 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）"); }
     }
   }
   if (ctx.productIds.length === 0) ctx.productIds = [1];
@@ -114,10 +112,9 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     ctx.supplierId = await readFirstEntityId(page, '/supplier', `${API_PREFIX}/purchase/suppliers`);
   } catch (e) { console.error("[ensureTestEntities] supplierId 查找失败:", (e as Error).message); ctx.supplierId = undefined; }
   if (!ctx.supplierId) {
-    try {
-      const id = await createSupplierUI(page);
-      ctx.supplierId = id;
-    } catch (e) { console.error("[ensureTestEntities] supplierId 创建失败:", (e as Error).message); ctx.supplierId = undefined; }
+    const id = await createSupplierUI(page);
+    ctx.supplierId = id;
+    if (!id) console.error("[ensureTestEntities] 供应商 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）");
   }
 
   // ---- 5. 客户（仍用 API，表单字段较多且下拉依赖复杂）----
@@ -147,10 +144,9 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     } catch { ctx.departmentIds = []; }
   }
   if (ctx.departmentIds.length === 0) {
-    try {
-      const id = await createDepartmentUI(page);
-      if (id) ctx.departmentIds.push(id);
-    } catch (e) { console.error("[ensureTestEntities] 部门创建失败:", (e as Error).message); }
+    const id = await createDepartmentUI(page);
+    if (id) { ctx.departmentIds.push(id); }
+    else { console.error("[ensureTestEntities] 部门 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）"); }
   }
 
   // ---- 8. 采购订单（保留 API 创建，表单含明细行+下拉依赖）----
@@ -212,10 +208,9 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     ctx.dyeBatchId = await readFirstEntityId(page, '/production', `${API_PREFIX}/production/dye-batches`);
   } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
   if (!ctx.dyeBatchId) {
-    try {
-      const id = await createDyeBatchUI(page);
-      ctx.dyeBatchId = id;
-    } catch (e) { console.error("[ensureTestEntities] dyeBatchId 创建失败:", (e as Error).message); ctx.dyeBatchId = undefined; }
+    const id = await createDyeBatchUI(page);
+    ctx.dyeBatchId = id;
+    if (!id) console.error("[ensureTestEntities] 染色批次 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）");
   }
 
   // 生成缸号
@@ -227,10 +222,9 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     ctx.dyeRecipeId = recipes.items?.[0]?.id;
   } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
   if (!ctx.dyeRecipeId) {
-    try {
-      const id = await createDyeRecipeUI(page);
-      ctx.dyeRecipeId = id;
-    } catch (e) { console.error("[ensureTestEntities] dyeRecipeId 创建失败:", (e as Error).message); ctx.dyeRecipeId = undefined; }
+    const id = await createDyeRecipeUI(page);
+    ctx.dyeRecipeId = id;
+    if (!id) console.error("[ensureTestEntities] 染色配方 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）");
   }
 
   // 查找大货处方
@@ -245,10 +239,9 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     ctx.bomId = boms.items?.[0]?.id;
   } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
   if (!ctx.bomId) {
-    try {
-      const id = await createBomUI(page);
-      ctx.bomId = id;
-    } catch (e) { console.error("[ensureTestEntities] bomId 创建失败:", (e as Error).message); ctx.bomId = undefined; }
+    const id = await createBomUI(page);
+    ctx.bomId = id;
+    if (!id) console.error("[ensureTestEntities] BOM UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）");
   }
 
   // ---- 14. 生产订单（保留 API 查找，暂无创建需求）----
@@ -311,10 +304,9 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     ctx.customOrderId = await readFirstEntityId(page, '/custom-orders', `${API_PREFIX}/custom-orders`);
   } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
   if (!ctx.customOrderId) {
-    try {
-      const id = await createCustomOrderUI(page);
-      ctx.customOrderId = id;
-    } catch (e) { console.error("[ensureTestEntities] customOrderId 创建失败:", (e as Error).message); ctx.customOrderId = undefined; }
+    const id = await createCustomOrderUI(page);
+    ctx.customOrderId = id;
+    if (!id) console.error("[ensureTestEntities] 定制订单 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）");
   }
 
   // ---- 20. 色卡（UI 创建）----
@@ -322,10 +314,9 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     ctx.colorCardId = await readFirstEntityId(page, '/color-cards/list', `${API_PREFIX}/color-cards`);
   } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
   if (!ctx.colorCardId) {
-    try {
-      const id = await createColorCardUI(page);
-      ctx.colorCardId = id;
-    } catch (e) { console.error("[ensureTestEntities] colorCardId 创建失败:", (e as Error).message); ctx.colorCardId = undefined; }
+    const id = await createColorCardUI(page);
+    ctx.colorCardId = id;
+    if (!id) console.error("[ensureTestEntities] 色卡 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）");
   }
 
   // ---- 21. 坯布（保留 API 查找）----
@@ -468,7 +459,7 @@ export async function loginViaUI(page: Page, username?: string, password?: strin
     const cookies = await page.context().cookies();
     const hasToken = cookies.some((c) => c.name === 'access_token');
     if (hasToken) {
-      await page.goto(`${BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded' }).catch(() => {});
+      await page.goto(`${BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
       return;
     }
     LOGGED_IN.done = false;
@@ -477,50 +468,49 @@ export async function loginViaUI(page: Page, username?: string, password?: strin
   const u = username || TEST_USERNAME;
   const p = password || TEST_PASSWORD;
 
-  const consoleLogs: string[] = [];
-  page.on('console', (msg) => {
-    consoleLogs.push(`[console.${msg.type()}] ${msg.text()}`);
-  });
+  // 最多重试 3 次（处理 Vite 504 + page 被关闭）
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const consoleLogs: string[] = [];
+    const handler = (msg: { type(): string; text(): string }) => consoleLogs.push(`[console.${msg.type()}] ${msg.text()}`);
+    page.on('console', handler);
 
-  await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
+    try {
+      // 导航到登录页
+      await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await page.waitForTimeout(1000);
 
-  // 等 2 秒让 Vite 触发可能的 504
-  await page.waitForTimeout(2000);
+      // 检测 504
+      const has504 = consoleLogs.some((log) => log.includes('504'));
+      if (has504) {
+        console.log(`[loginViaUI] 检测到 Vite 504，等待 5s 后重新加载 (attempt ${attempt + 1}/3)`);
+        await page.waitForTimeout(5000);
+        consoleLogs.length = 0;
+        await page.goto(`${BASE_URL}/login`, { waitUntil: 'networkidle', timeout: 30000 });
+      }
 
-  // 如果有 504，等 Vite 自动优化完成（不关闭原 page，直接重新 goto）
-  const has504 = consoleLogs.some((log) => log.includes('504'));
-  if (has504) {
-    console.log('检测到 Vite 504，等待 5 秒后重新加载...');
-    await page.waitForTimeout(5000);
-    consoleLogs.length = 0;
-    await page.goto(`${BASE_URL}/login`, { waitUntil: 'networkidle' });
-    await page.evaluate(() => {
-      window.localStorage.setItem('bingxi.locale', 'zh-CN');
-    });
-    await page.waitForTimeout(2000);
-    // 检查是否还有 504
-    const newHas504 = consoleLogs.some((log) => log.includes('504'));
-    if (newHas504) {
-      console.log('仍有 504，再等 5 秒...');
-      await page.waitForTimeout(5000);
-      await page.goto(`${BASE_URL}/login`, { waitUntil: 'networkidle' });
-      await page.evaluate(() => {
-        window.localStorage.setItem('bingxi.locale', 'zh-CN');
-      });
-      await page.waitForTimeout(2000);
+      // 设置 locale
+      await page.evaluate(() => window.localStorage.setItem('bingxi.locale', 'zh-CN')).catch(() => {});
+      await page.waitForTimeout(1000);
+
+      // 尝试登录
+      await loginOnPage(page, u, p, consoleLogs);
+      LOGGED_IN.done = true;
+      page.off('console', handler);
+      return;
+    } catch (e) {
+      page.off('console', handler);
+      lastError = e as Error;
+      const errMsg = (e as Error).message;
+      console.warn(`[loginViaUI] attempt ${attempt + 1}/3 失败: ${errMsg}`);
+      if (attempt < 2) {
+        console.log(`[loginViaUI] 5s 后重试...`);
+        await page.waitForTimeout(5000);
+      }
     }
-    await loginOnPage(page, u, p, consoleLogs);
-    LOGGED_IN.done = true;
-    return;
   }
-
-  // 无 504，直接在原页面登录
-  await page.evaluate(() => {
-    window.localStorage.setItem('bingxi.locale', 'zh-CN');
-  });
-  await page.waitForTimeout(2000);
-  await loginOnPage(page, u, p, consoleLogs);
-  LOGGED_IN.done = true;
+  // 3 次都失败了
+  throw new Error(`UI 登录失败（3 次重试后）: ${lastError?.message ?? 'unknown error'}`);
 }
 
 async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string[]): Promise<void> {
