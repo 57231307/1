@@ -1,9 +1,17 @@
 /* eslint-disable no-console */
 import type { Page } from '@playwright/test';
 import {
-  createWarehouseUI, createDepartmentUI, createSupplierUI, createProductUI,
-  createColorCardUI, createDyeBatchUI, createDyeRecipeUI, createBomUI,
-  createCustomOrderUI, readFirstEntityId, readEntityIds,
+  createWarehouseUI,
+  createDepartmentUI,
+  createSupplierUI,
+  createProductUI,
+  createColorCardUI,
+  createDyeBatchUI,
+  createDyeRecipeUI,
+  createBomUI,
+  createCustomOrderUI,
+  readFirstEntityId,
+  readEntityIds,
 } from './ui-helpers';
 
 export const API_BASE = process.env.API_BASE || 'http://localhost:8082';
@@ -78,7 +86,10 @@ export function getCtx(): EntityContext {
  * 背景：CSRF Token 为一次性消费，页面请求与 apiCall 并发时可能竞争 token，
  * 前端 CSRF 校验失败会清空 csrf_token Cookie，仅靠重试表单操作无法恢复。
  */
-async function uiCreateWithRetry(page: Page, fn: (p: Page) => Promise<number | undefined>): Promise<number | undefined> {
+async function uiCreateWithRetry(
+  page: Page,
+  fn: (p: Page) => Promise<number | undefined>
+): Promise<number | undefined> {
   const id = await fn(page);
   if (id !== undefined) return id;
   console.warn(`[uiCreateWithRetry] 首次创建失败，强制重新登录后重试一次`);
@@ -91,7 +102,7 @@ export async function ensureTestEntities(page: Page): Promise<void> {
   // 提前检测并强制重新登录，避免逐个实体失败浪费重试时间
   if (LOGGED_IN.done) {
     const cookies = await page.context().cookies();
-    if (!cookies.some((c) => c.name === 'csrf_token')) {
+    if (!cookies.some(c => c.name === 'csrf_token')) {
       console.warn('[ensureTestEntities] 检测到 csrf_token 缺失，强制重新登录');
       await loginViaUI(page, undefined, undefined, true);
     }
@@ -100,12 +111,19 @@ export async function ensureTestEntities(page: Page): Promise<void> {
   // ---- 1. 仓库（UI 创建）----
   try {
     ctx.warehouseIds = await readEntityIds(page, '/warehouse', `${API_PREFIX}/warehouses`);
-  } catch { ctx.warehouseIds = []; }
+  } catch {
+    ctx.warehouseIds = [];
+  }
   if (ctx.warehouseIds.length < 2) {
     for (let i = ctx.warehouseIds.length; i < 2; i++) {
       const id = await uiCreateWithRetry(page, createWarehouseUI);
-      if (id) { ctx.warehouseIds.push(id); }
-      else { console.error("[ensureTestEntities] 仓库 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）"); }
+      if (id) {
+        ctx.warehouseIds.push(id);
+      } else {
+        console.error(
+          '[ensureTestEntities] 仓库 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）'
+        );
+      }
     }
   }
   if (ctx.warehouseIds.length < 2) ctx.warehouseIds = [1, 2];
@@ -113,71 +131,120 @@ export async function ensureTestEntities(page: Page): Promise<void> {
   // ---- 2. 产品（UI 创建）----
   try {
     ctx.productIds = await readEntityIds(page, '/product', `${API_PREFIX}/products`);
-  } catch { ctx.productIds = []; }
+  } catch {
+    ctx.productIds = [];
+  }
   if (ctx.productIds.length === 0) {
     for (let i = 0; i < 3; i++) {
       const id = await uiCreateWithRetry(page, createProductUI);
-      if (id) { ctx.productIds.push(id); }
-      else { console.error("[ensureTestEntities] 产品 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）"); }
+      if (id) {
+        ctx.productIds.push(id);
+      } else {
+        console.error(
+          '[ensureTestEntities] 产品 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）'
+        );
+      }
     }
   }
   if (ctx.productIds.length === 0) ctx.productIds = [1];
 
   // ---- 3. 产品色号（仍用 API，因为色号在详情页创建且依赖 product_id）----
   try {
-    const colors = await apiCallRaw<{ items: Array<{ id: number; color_no: string }> }>(page, 'GET', `/product-colors?product_id=${ctx.productIds[0]}&page=1&page_size=5`);
-    ctx.productColorIds = colors.items?.map((c) => c.id) || [];
-    ctx.colorNos = colors.items?.map((c) => c.color_no) || ['TEST-COLOR'];
-  } catch { ctx.colorNos = ['TEST-COLOR']; ctx.productColorIds = [1]; }
+    const colors = await apiCallRaw<{ items: Array<{ id: number; color_no: string }> }>(
+      page,
+      'GET',
+      `/product-colors?product_id=${ctx.productIds[0]}&page=1&page_size=5`
+    );
+    ctx.productColorIds = colors.items?.map(c => c.id) || [];
+    ctx.colorNos = colors.items?.map(c => c.color_no) || ['TEST-COLOR'];
+  } catch {
+    ctx.colorNos = ['TEST-COLOR'];
+    ctx.productColorIds = [1];
+  }
   if (ctx.colorNos.length === 0) ctx.colorNos = ['TEST-COLOR'];
 
   // ---- 4. 供应商（UI 创建）----
   try {
     ctx.supplierId = await readFirstEntityId(page, '/supplier', `${API_PREFIX}/purchase/suppliers`);
-  } catch (e) { console.error("[ensureTestEntities] supplierId 查找失败:", (e as Error).message); ctx.supplierId = undefined; }
+  } catch (e) {
+    console.error('[ensureTestEntities] supplierId 查找失败:', (e as Error).message);
+    ctx.supplierId = undefined;
+  }
   if (!ctx.supplierId) {
     const id = await uiCreateWithRetry(page, createSupplierUI);
     ctx.supplierId = id;
-    if (!id) console.error("[ensureTestEntities] 供应商 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）");
+    if (!id)
+      console.error(
+        '[ensureTestEntities] 供应商 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）'
+      );
   }
 
   // ---- 5. 客户（仍用 API，表单字段较多且下拉依赖复杂）----
   try {
-    const customers = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/crm/customers?page=1&page_size=1');
+    const customers = await apiCallRaw<{ items: Array<{ id: number }> }>(
+      page,
+      'GET',
+      '/crm/customers?page=1&page_size=1'
+    );
     ctx.customerId = customers.items?.[0]?.id;
-  } catch (e) { console.error("[ensureTestEntities] customerId 创建失败:", (e as Error).message); ctx.customerId = undefined; }
+  } catch (e) {
+    console.error('[ensureTestEntities] customerId 创建失败:', (e as Error).message);
+    ctx.customerId = undefined;
+  }
   if (!ctx.customerId) {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
         customer_name: 'E2E 客户 ' + Date.now(),
       });
       ctx.customerId = result.data?.id;
-    } catch (e) { console.error("[ensureTestEntities] customerId 创建失败:", (e as Error).message); ctx.customerId = undefined; }
+    } catch (e) {
+      console.error('[ensureTestEntities] customerId 创建失败:', (e as Error).message);
+      ctx.customerId = undefined;
+    }
   }
 
   // ---- 6. 会计科目（仍用 API，科目在树形结构中不易 UI 操作）----
   try {
-    const subjects = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/subjects?page=1&page_size=5');
-    ctx.accountSubjectIds = subjects.items?.map((s) => s.id) || [];
-  } catch { ctx.accountSubjectIds = []; }
+    const subjects = await apiCallRaw<{ items: Array<{ id: number }> }>(
+      page,
+      'GET',
+      '/subjects?page=1&page_size=5'
+    );
+    ctx.accountSubjectIds = subjects.items?.map(s => s.id) || [];
+  } catch {
+    ctx.accountSubjectIds = [];
+  }
 
   // ---- 7. 部门（UI 创建）----
   if (ctx.departmentIds.length === 0) {
     try {
       ctx.departmentIds = await readEntityIds(page, '/departments', `${API_PREFIX}/departments`);
-    } catch { ctx.departmentIds = []; }
+    } catch {
+      ctx.departmentIds = [];
+    }
   }
   if (ctx.departmentIds.length === 0) {
     const id = await uiCreateWithRetry(page, createDepartmentUI);
-    if (id) { ctx.departmentIds.push(id); }
-    else { console.error("[ensureTestEntities] 部门 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）"); }
+    if (id) {
+      ctx.departmentIds.push(id);
+    } else {
+      console.error(
+        '[ensureTestEntities] 部门 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）'
+      );
+    }
   }
 
   // ---- 8. 采购订单（保留 API 创建，表单含明细行+下拉依赖）----
   try {
-    const pos = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/purchase/orders?page=1&page_size=1');
+    const pos = await apiCallRaw<{ items: Array<{ id: number }> }>(
+      page,
+      'GET',
+      '/purchase/orders?page=1&page_size=1'
+    );
     ctx.purchaseOrderId = pos.items?.[0]?.id;
-  } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
+  } catch (e) {
+    console.error('[ensureTestEntities] 查找失败:', (e as Error).message);
+  }
   if (!ctx.purchaseOrderId) {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/orders', {
@@ -188,14 +255,23 @@ export async function ensureTestEntities(page: Page): Promise<void> {
         items: [{ product_id: ctx.productIds[0] || 1, quantity_ordered: '1', unit_price: '1' }],
       });
       ctx.purchaseOrderId = result.data?.id;
-    } catch (e) { console.error("[ensureTestEntities] purchaseOrderId 创建失败:", (e as Error).message); ctx.purchaseOrderId = undefined; }
+    } catch (e) {
+      console.error('[ensureTestEntities] purchaseOrderId 创建失败:', (e as Error).message);
+      ctx.purchaseOrderId = undefined;
+    }
   }
 
   // ---- 9. 销售订单（保留 API 创建，表单含明细行+下拉依赖）----
   try {
-    const sos = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/sales/orders?page=1&page_size=1');
+    const sos = await apiCallRaw<{ items: Array<{ id: number }> }>(
+      page,
+      'GET',
+      '/sales/orders?page=1&page_size=1'
+    );
     ctx.salesOrderId = sos.items?.[0]?.id;
-  } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
+  } catch (e) {
+    console.error('[ensureTestEntities] 查找失败:', (e as Error).message);
+  }
   if (!ctx.salesOrderId) {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
@@ -204,14 +280,23 @@ export async function ensureTestEntities(page: Page): Promise<void> {
         items: [{ product_id: ctx.productIds[0] || 1, quantity: '1', unit_price: '1' }],
       });
       ctx.salesOrderId = result.data?.id;
-    } catch (e) { console.error("[ensureTestEntities] salesOrderId 创建失败:", (e as Error).message); ctx.salesOrderId = undefined; }
+    } catch (e) {
+      console.error('[ensureTestEntities] salesOrderId 创建失败:', (e as Error).message);
+      ctx.salesOrderId = undefined;
+    }
   }
 
   // ---- 10. 报价单（保留 API 创建）----
   try {
-    const qts = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/quotations?page=1&page_size=1');
+    const qts = await apiCallRaw<{ items: Array<{ id: number }> }>(
+      page,
+      'GET',
+      '/quotations?page=1&page_size=1'
+    );
     ctx.quotationId = qts.items?.[0]?.id;
-  } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
+  } catch (e) {
+    console.error('[ensureTestEntities] 查找失败:', (e as Error).message);
+  }
   if (!ctx.quotationId) {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/quotations', {
@@ -219,22 +304,46 @@ export async function ensureTestEntities(page: Page): Promise<void> {
         sales_user_id: 1,
         quotation_date: new Date().toISOString().slice(0, 10),
         valid_until: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
-        currency: 'CNY', exchange_rate: '1', base_currency: 'CNY',
-        price_terms: 'FOB', tax_inclusive: false, tax_rate: '13',
-        items: [{ product_id: ctx.productIds[0] || 1, unit: '米', quantity: '1', unit_price: '1', unit_price_with_tax: '1.13' }],
+        currency: 'CNY',
+        exchange_rate: '1',
+        base_currency: 'CNY',
+        price_terms: 'FOB',
+        tax_inclusive: false,
+        tax_rate: '13',
+        items: [
+          {
+            product_id: ctx.productIds[0] || 1,
+            unit: '米',
+            quantity: '1',
+            unit_price: '1',
+            unit_price_with_tax: '1.13',
+          },
+        ],
       });
       ctx.quotationId = result.data?.id;
-    } catch (e) { console.error("[ensureTestEntities] quotationId 创建失败:", (e as Error).message); ctx.quotationId = undefined; }
+    } catch (e) {
+      console.error('[ensureTestEntities] quotationId 创建失败:', (e as Error).message);
+      ctx.quotationId = undefined;
+    }
   }
 
   // ---- 11. 染色批次（UI 创建）----
   try {
-    ctx.dyeBatchId = await readFirstEntityId(page, '/production', `${API_PREFIX}/production/dye-batches`);
-  } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
+    ctx.dyeBatchId = await readFirstEntityId(
+      page,
+      '/production',
+      `${API_PREFIX}/production/dye-batches`
+    );
+  } catch (e) {
+    console.error('[ensureTestEntities] 查找失败:', (e as Error).message);
+  }
   if (!ctx.dyeBatchId) {
     const id = await uiCreateWithRetry(page, createDyeBatchUI);
     ctx.dyeBatchId = id;
-    if (!id) console.error("[ensureTestEntities] 染色批次 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）");
+    if (!id)
+      console.error(
+        '[ensureTestEntities] 染色批次 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）'
+      );
   }
 
   // 生成缸号
@@ -242,123 +351,229 @@ export async function ensureTestEntities(page: Page): Promise<void> {
 
   // ---- 12. 染色配方（UI 创建）----
   try {
-    const recipes = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/dye-recipes?page=1&page_size=1');
+    const recipes = await apiCallRaw<{ items: Array<{ id: number }> }>(
+      page,
+      'GET',
+      '/production/dye-recipes?page=1&page_size=1'
+    );
     ctx.dyeRecipeId = recipes.items?.[0]?.id;
-  } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
+  } catch (e) {
+    console.error('[ensureTestEntities] 查找失败:', (e as Error).message);
+  }
   if (!ctx.dyeRecipeId) {
     const id = await uiCreateWithRetry(page, createDyeRecipeUI);
     ctx.dyeRecipeId = id;
-    if (!id) console.error("[ensureTestEntities] 染色配方 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）");
+    if (!id)
+      console.error(
+        '[ensureTestEntities] 染色配方 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）'
+      );
   }
 
   // 查找大货处方
   try {
-    const prs = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/production-recipes?page=1&page_size=1');
+    const prs = await apiCallRaw<{ items: Array<{ id: number }> }>(
+      page,
+      'GET',
+      '/production/production-recipes?page=1&page_size=1'
+    );
     ctx.productionRecipeId = prs.items?.[0]?.id;
-  } catch (e) { console.error("[ensureTestEntities] productionRecipeId 创建失败:", (e as Error).message); ctx.productionRecipeId = undefined; }
+  } catch (e) {
+    console.error('[ensureTestEntities] productionRecipeId 创建失败:', (e as Error).message);
+    ctx.productionRecipeId = undefined;
+  }
 
   // ---- 13. BOM（UI 创建）----
   try {
-    const boms = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/boms?page=1&page_size=1');
+    const boms = await apiCallRaw<{ items: Array<{ id: number }> }>(
+      page,
+      'GET',
+      '/boms?page=1&page_size=1'
+    );
     ctx.bomId = boms.items?.[0]?.id;
-  } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
+  } catch (e) {
+    console.error('[ensureTestEntities] 查找失败:', (e as Error).message);
+  }
   if (!ctx.bomId) {
     const id = await uiCreateWithRetry(page, createBomUI);
     ctx.bomId = id;
-    if (!id) console.error("[ensureTestEntities] BOM UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）");
+    if (!id)
+      console.error(
+        '[ensureTestEntities] BOM UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）'
+      );
   }
 
   // ---- 14. 生产订单（保留 API 查找，暂无创建需求）----
   try {
-    const pos = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/production-orders/orders?page=1&page_size=1');
+    const pos = await apiCallRaw<{ items: Array<{ id: number }> }>(
+      page,
+      'GET',
+      '/production/production-orders/orders?page=1&page_size=1'
+    );
     ctx.productionOrderId = pos.items?.[0]?.id;
-  } catch (e) { console.error("[ensureTestEntities] productionOrderId 创建失败:", (e as Error).message); ctx.productionOrderId = undefined; }
+  } catch (e) {
+    console.error('[ensureTestEntities] productionOrderId 创建失败:', (e as Error).message);
+    ctx.productionOrderId = undefined;
+  }
 
   // ---- 15. 凭证（保留 API 创建，分录树形选择复杂）----
   try {
-    const vs = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/vouchers?page=1&page_size=1');
+    const vs = await apiCallRaw<{ items: Array<{ id: number }> }>(
+      page,
+      'GET',
+      '/vouchers?page=1&page_size=1'
+    );
     ctx.voucherId = vs.items?.[0]?.id;
-  } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
+  } catch (e) {
+    console.error('[ensureTestEntities] 查找失败:', (e as Error).message);
+  }
   if (!ctx.voucherId) {
     // 兜底创建凭证所需的会计科目（种子库可能没有预置）
     for (const subj of [
       { code: '1001', name: '库存现金 E2E', level: 1, balance_direction: 'debit' },
       { code: '1002', name: '银行存款 E2E', level: 1, balance_direction: 'debit' },
     ]) {
-      await apiCall(page, 'POST', '/subjects', subj).catch((e) => { console.error("[ensureTestEntities] 科目创建失败:", (e as Error).message); });
+      await apiCall(page, 'POST', '/subjects', subj).catch(e => {
+        console.error('[ensureTestEntities] 科目创建失败:', (e as Error).message);
+      });
     }
     // 凭证日期必须落在某个开放会计期间内，缺失时初始化当月期间
-    await apiCall(page, 'POST', '/accounting-periods/init', {}).catch((e) => { console.error("[ensureTestEntities] 会计期间初始化失败:", (e as Error).message); });
+    await apiCall(page, 'POST', '/accounting-periods/init', {}).catch(e => {
+      console.error('[ensureTestEntities] 会计期间初始化失败:', (e as Error).message);
+    });
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/vouchers', {
-        voucher_type: 'general', voucher_date: new Date().toISOString().slice(0, 10),
+        voucher_type: 'general',
+        voucher_date: new Date().toISOString().slice(0, 10),
         items: [
           { subject_code: '1001', debit: '1', credit: '0', summary: 'E2E' },
           { subject_code: '1002', debit: '0', credit: '1', summary: 'E2E' },
         ],
       });
       ctx.voucherId = result.data?.id;
-    } catch (e) { console.error("[ensureTestEntities] voucherId 创建失败:", (e as Error).message); ctx.voucherId = undefined; }
+    } catch (e) {
+      console.error('[ensureTestEntities] voucherId 创建失败:', (e as Error).message);
+      ctx.voucherId = undefined;
+    }
   }
 
   // ---- 16. 固定资产（保留 API 查找）----
   try {
-    const fas = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/fixed-assets?page=1&page_size=1');
+    const fas = await apiCallRaw<{ items: Array<{ id: number }> }>(
+      page,
+      'GET',
+      '/fixed-assets?page=1&page_size=1'
+    );
     ctx.fixedAssetId = fas.items?.[0]?.id;
-  } catch (e) { console.error("[ensureTestEntities] fixedAssetId 创建失败:", (e as Error).message); ctx.fixedAssetId = undefined; }
+  } catch (e) {
+    console.error('[ensureTestEntities] fixedAssetId 创建失败:', (e as Error).message);
+    ctx.fixedAssetId = undefined;
+  }
 
   // ---- 17. 预算（保留 API 查找）----
   try {
-    const bs = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/budgets?page=1&page_size=1');
+    const bs = await apiCallRaw<{ items: Array<{ id: number }> }>(
+      page,
+      'GET',
+      '/budgets?page=1&page_size=1'
+    );
     ctx.budgetId = bs.items?.[0]?.id;
-  } catch (e) { console.error("[ensureTestEntities] budgetId 创建失败:", (e as Error).message); ctx.budgetId = undefined; }
+  } catch (e) {
+    console.error('[ensureTestEntities] budgetId 创建失败:', (e as Error).message);
+    ctx.budgetId = undefined;
+  }
 
   // ---- 18. AP/AR 发票（保留 API 查找）----
   try {
-    const aps = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/ap/invoices?page=1&page_size=1');
+    const aps = await apiCallRaw<{ items: Array<{ id: number }> }>(
+      page,
+      'GET',
+      '/ap/invoices?page=1&page_size=1'
+    );
     ctx.apInvoiceId = aps.items?.[0]?.id;
-  } catch (e) { console.error("[ensureTestEntities] apInvoiceId 创建失败:", (e as Error).message); ctx.apInvoiceId = undefined; }
+  } catch (e) {
+    console.error('[ensureTestEntities] apInvoiceId 创建失败:', (e as Error).message);
+    ctx.apInvoiceId = undefined;
+  }
   try {
-    const ars = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/ar/invoices?page=1&page_size=1');
+    const ars = await apiCallRaw<{ items: Array<{ id: number }> }>(
+      page,
+      'GET',
+      '/ar/invoices?page=1&page_size=1'
+    );
     ctx.arInvoiceId = ars.items?.[0]?.id;
-  } catch (e) { console.error("[ensureTestEntities] arInvoiceId 创建失败:", (e as Error).message); ctx.arInvoiceId = undefined; }
+  } catch (e) {
+    console.error('[ensureTestEntities] arInvoiceId 创建失败:', (e as Error).message);
+    ctx.arInvoiceId = undefined;
+  }
 
   // ---- 19. 定制订单（UI 创建）----
   try {
-    ctx.customOrderId = await readFirstEntityId(page, '/custom-orders', `${API_PREFIX}/custom-orders`);
-  } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
+    ctx.customOrderId = await readFirstEntityId(
+      page,
+      '/custom-orders',
+      `${API_PREFIX}/custom-orders`
+    );
+  } catch (e) {
+    console.error('[ensureTestEntities] 查找失败:', (e as Error).message);
+  }
   if (!ctx.customOrderId) {
     const id = await uiCreateWithRetry(page, createCustomOrderUI);
     ctx.customOrderId = id;
-    if (!id) console.error("[ensureTestEntities] 定制订单 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）");
+    if (!id)
+      console.error(
+        '[ensureTestEntities] 定制订单 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）'
+      );
   }
 
   // ---- 20. 色卡（UI 创建）----
   try {
-    ctx.colorCardId = await readFirstEntityId(page, '/color-cards/list', `${API_PREFIX}/color-cards`);
-  } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
+    ctx.colorCardId = await readFirstEntityId(
+      page,
+      '/color-cards/list',
+      `${API_PREFIX}/color-cards`
+    );
+  } catch (e) {
+    console.error('[ensureTestEntities] 查找失败:', (e as Error).message);
+  }
   if (!ctx.colorCardId) {
     const id = await uiCreateWithRetry(page, createColorCardUI);
     ctx.colorCardId = id;
-    if (!id) console.error("[ensureTestEntities] 色卡 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）");
+    if (!id)
+      console.error(
+        '[ensureTestEntities] 色卡 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）'
+      );
   }
 
   // ---- 21. 坯布（保留 API 查找）----
   try {
-    const gfs = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/greige-fabrics?page=1&page_size=1');
+    const gfs = await apiCallRaw<{ items: Array<{ id: number }> }>(
+      page,
+      'GET',
+      '/production/greige-fabrics?page=1&page_size=1'
+    );
     ctx.greigeFabricId = gfs.items?.[0]?.id;
-  } catch (e) { console.error("[ensureTestEntities] greigeFabricId 创建失败:", (e as Error).message); ctx.greigeFabricId = undefined; }
+  } catch (e) {
+    console.error('[ensureTestEntities] greigeFabricId 创建失败:', (e as Error).message);
+    ctx.greigeFabricId = undefined;
+  }
 
   // ---- 22. 角色 ID（保留 API 查找）----
   try {
-    const roles = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/roles?page=1&page_size=1');
+    const roles = await apiCallRaw<{ items: Array<{ id: number }> }>(
+      page,
+      'GET',
+      '/roles?page=1&page_size=1'
+    );
     ctx.roleId = roles.items?.[0]?.id;
-  } catch (e) { console.error("[ensureTestEntities] roleId 创建失败:", (e as Error).message); ctx.roleId = undefined; }
+  } catch (e) {
+    console.error('[ensureTestEntities] roleId 创建失败:', (e as Error).message);
+    ctx.roleId = undefined;
+  }
 }
 
 async function getCsrfToken(page: Page): Promise<string> {
   const cookies = await page.context().cookies();
-  const csrf = cookies.find((c) => c.name === 'csrf_token');
+  const csrf = cookies.find(c => c.name === 'csrf_token');
   if (!csrf) {
     throw new Error('csrf_token cookie not found — are you logged in?');
   }
@@ -377,7 +592,7 @@ async function refreshCsrfToken(page: Page): Promise<string> {
   }
   // login 响应的 Set-Cookie 会自动写入 context（access_token + refresh_token + csrf_token）
   const cookies = await page.context().cookies();
-  const csrf = cookies.find((c) => c.name === 'csrf_token');
+  const csrf = cookies.find(c => c.name === 'csrf_token');
   if (!csrf) {
     throw new Error('csrf_token cookie not found after re-login');
   }
@@ -390,7 +605,7 @@ export async function apiCall<T = unknown>(
   path: string,
   body?: Record<string, unknown>
 ): Promise<ApiResponse<T>> {
-  let csrfToken = await getCsrfToken(page).catch(() => null) ?? '';
+  let csrfToken = (await getCsrfToken(page).catch(() => null)) ?? '';
   const url = `${API_BASE}${API_PREFIX}${path}`;
   const doFetch = async (token: string) => {
     return page.request.fetch(url, {
@@ -410,7 +625,9 @@ export async function apiCall<T = unknown>(
   try {
     json = JSON.parse(text);
   } catch {
-    throw new Error(`API ${method} ${path} returned non-JSON (status ${response.status()}): ${text.slice(0, 500)}`);
+    throw new Error(
+      `API ${method} ${path} returned non-JSON (status ${response.status()}): ${text.slice(0, 500)}`
+    );
   }
 
   // CSRF 校验失败：刷新 token 后重试一次
@@ -472,24 +689,51 @@ export async function apiCallExpectFail(
 
 const LOGGED_IN = { done: false };
 
-export async function loginViaUI(page: Page, username?: string, password?: string, force = false): Promise<void> {
+export async function loginViaUI(
+  page: Page,
+  username?: string,
+  password?: string,
+  force = false
+): Promise<void> {
   // 拦截 lock-status 请求（避免 16 shard 并发时后端挂起 5s+ 导致登录超时）
-  await page.route('**/api/v1/erp/lock-status**', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, code: 200, message: 'ok', data: { is_locked: false, failed_attempts: 0, max_attempts: 5, locked_until: null, username: 'e2e', user_id: 0 } }) })
-  ).catch(() => {});
+  await page
+    .route('**/api/v1/erp/lock-status**', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          code: 200,
+          message: 'ok',
+          data: {
+            is_locked: false,
+            failed_attempts: 0,
+            max_attempts: 5,
+            locked_until: null,
+            username: 'e2e',
+            user_id: 0,
+          },
+        }),
+      })
+    )
+    .catch(() => {});
 
   // 检查 cookie 是否还在（同 BrowserContext 内已登录则跳过）
   // 注意：必须同时检查 access_token 和 csrf_token —— CSRF 失效场景下前端会清空 csrf_token
   // Cookie 并跳转登录页，仅凭 access_token 存在就跳过登录会导致后续所有 POST 请求 403。
   if (LOGGED_IN.done && !force) {
     const cookies = await page.context().cookies();
-    const hasToken = cookies.some((c) => c.name === 'access_token');
-    const hasCsrf = cookies.some((c) => c.name === 'csrf_token');
+    const hasToken = cookies.some(c => c.name === 'access_token');
+    const hasCsrf = cookies.some(c => c.name === 'csrf_token');
     if (hasToken && hasCsrf) {
-      await page.goto(`${BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+      await page
+        .goto(`${BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded', timeout: 30000 })
+        .catch(() => {});
       return;
     }
-    console.warn(`[loginViaUI] 检测到会话不完整 (access_token=${hasToken}, csrf_token=${hasCsrf})，强制重新登录`);
+    console.warn(
+      `[loginViaUI] 检测到会话不完整 (access_token=${hasToken}, csrf_token=${hasCsrf})，强制重新登录`
+    );
     LOGGED_IN.done = false;
   }
 
@@ -500,7 +744,8 @@ export async function loginViaUI(page: Page, username?: string, password?: strin
   let lastError: Error | null = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     const consoleLogs: string[] = [];
-    const handler = (msg: { type(): string; text(): string }) => consoleLogs.push(`[console.${msg.type()}] ${msg.text()}`);
+    const handler = (msg: { type(): string; text(): string }) =>
+      consoleLogs.push(`[console.${msg.type()}] ${msg.text()}`);
     page.on('console', handler);
 
     try {
@@ -509,7 +754,7 @@ export async function loginViaUI(page: Page, username?: string, password?: strin
       await page.waitForTimeout(1000);
 
       // 检测 504
-      const has504 = consoleLogs.some((log) => log.includes('504'));
+      const has504 = consoleLogs.some(log => log.includes('504'));
       if (has504) {
         console.log(`[loginViaUI] 检测到 Vite 504，等待 5s 后重新加载 (attempt ${attempt + 1}/3)`);
         await page.waitForTimeout(5000);
@@ -518,7 +763,9 @@ export async function loginViaUI(page: Page, username?: string, password?: strin
       }
 
       // 设置 locale
-      await page.evaluate(() => window.localStorage.setItem('bingxi.locale', 'zh-CN')).catch(() => {});
+      await page
+        .evaluate(() => window.localStorage.setItem('bingxi.locale', 'zh-CN'))
+        .catch(() => {});
       await page.waitForTimeout(1000);
 
       // 尝试登录
@@ -554,19 +801,31 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
   // 必须勾选用户协议（表单验证要求 agreedToTerms=true）
   // Element Plus el-checkbox 点击 .el-checkbox__inner（视觉复选框区域）
   const checkboxInner = page.locator('.el-checkbox__inner').first();
-  const isChecked = await page.locator('.el-checkbox input').first().isChecked().catch(() => false);
+  const isChecked = await page
+    .locator('.el-checkbox input')
+    .first()
+    .isChecked()
+    .catch(() => false);
   console.log(`复选框初始状态: checked=${isChecked}`);
   if (!isChecked) {
     // 点击视觉复选框区域（.el-checkbox__inner）
     await checkboxInner.click();
     await page.waitForTimeout(500);
-    let nowChecked = await page.locator('.el-checkbox input').first().isChecked().catch(() => false);
+    let nowChecked = await page
+      .locator('.el-checkbox input')
+      .first()
+      .isChecked()
+      .catch(() => false);
     console.log(`点击 inner 后复选框状态: checked=${nowChecked}`);
     if (!nowChecked) {
       // fallback: 点击 label
       await page.locator('.el-checkbox').first().click();
       await page.waitForTimeout(300);
-      nowChecked = await page.locator('.el-checkbox input').first().isChecked().catch(() => false);
+      nowChecked = await page
+        .locator('.el-checkbox input')
+        .first()
+        .isChecked()
+        .catch(() => false);
       console.log(`点击 label 后复选框状态: checked=${nowChecked}`);
     }
     if (!nowChecked) {
@@ -595,7 +854,10 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
   await page.waitForTimeout(3000);
   if (page.url().includes('/login')) {
     // 检查是否有表单验证错误
-    const formErrors = await page.locator('.el-form-item__error').allTextContents().catch(() => []);
+    const formErrors = await page
+      .locator('.el-form-item__error')
+      .allTextContents()
+      .catch(() => []);
     console.log(`表单验证错误: ${JSON.stringify(formErrors)}`);
     // 尝试通过 dispatchEvent 触发表单提交
     await page.evaluate(() => {
@@ -616,25 +878,30 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
 
   // 等待离开 /login 页面
   try {
-    await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 60_000 });
+    await page.waitForURL(url => !url.pathname.includes('/login'), { timeout: 60_000 });
   } catch {
     // 登录后仍然在 /login，输出诊断信息
     const currentUrl = page.url();
-    const elMessages = await page.locator('.el-message__content').allTextContents().catch(() => []);
+    const elMessages = await page
+      .locator('.el-message__content')
+      .allTextContents()
+      .catch(() => []);
     console.error(`=== UI 登录失败诊断 ===`);
     console.error(`当前 URL: ${currentUrl}`);
     console.error(`ElMessage 提示: ${JSON.stringify(elMessages)}`);
     console.error(`Console 日志（最后 20 条）:`);
-    consoleLogs.slice(-20).forEach((log) => console.error(log));
+    consoleLogs.slice(-20).forEach(log => console.error(log));
     // 截图
     await page.screenshot({ path: 'test-results/login-failure-diagnosis.png', fullPage: true });
-    throw new Error(`UI 登录失败: 60s 后仍在 ${currentUrl}，ElMessage: ${JSON.stringify(elMessages)}`);
+    throw new Error(
+      `UI 登录失败: 60s 后仍在 ${currentUrl}，ElMessage: ${JSON.stringify(elMessages)}`
+    );
   }
 
   // 登录成功后，验证 cookie 已设置
   const cookies = await page.context().cookies();
-  const hasToken = cookies.some((c) => c.name === 'access_token');
-  const hasCsrf = cookies.some((c) => c.name === 'csrf_token');
+  const hasToken = cookies.some(c => c.name === 'access_token');
+  const hasCsrf = cookies.some(c => c.name === 'csrf_token');
   if (!hasToken || !hasCsrf) {
     console.error(`=== Cookie 缺失诊断 ===`);
     console.error(`access_token: ${hasToken}, csrf_token: ${hasCsrf}`);
@@ -667,7 +934,7 @@ export async function healthCheck(): Promise<boolean> {
 export async function waitForBackend(maxRetries = 60, intervalMs = 1000): Promise<void> {
   for (let i = 0; i < maxRetries; i++) {
     if (await healthCheck()) return;
-    await new Promise((r) => setTimeout(r, intervalMs));
+    await new Promise(r => setTimeout(r, intervalMs));
   }
   throw new Error(`Backend not ready after ${maxRetries} retries`);
 }
@@ -711,7 +978,11 @@ export async function createEntity(
 ): Promise<number> {
   const result = await apiCall<{ id?: number; success?: boolean }>(page, 'POST', endpoint, data);
   if (result.data?.id) return result.data.id;
-  const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', `${endpoint}?page=1&page_size=1`);
+  const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+    page,
+    'GET',
+    `${endpoint}?page=1&page_size=1`
+  );
   if (list.items?.[0]?.id) return list.items[0].id;
   throw new Error(`Could not create or find entity at ${endpoint}`);
 }
@@ -742,7 +1013,7 @@ export async function verifyStatusTransition(
   }
   const entity = await apiCallRaw<{ status: string }>(page, 'GET', `${endpoint}/${id}`);
   const status = (entity.status || '').toLowerCase();
-  const expected = expectedStatuses.map((s) => s.toLowerCase());
+  const expected = expectedStatuses.map(s => s.toLowerCase());
   if (!expected.includes(status) && !expected.includes('any')) {
     throw new Error(`Status after ${action}: expected ${expected.join('|')}, got ${status}`);
   }
@@ -757,7 +1028,9 @@ export async function verifyIllegalTransition(
 ): Promise<void> {
   const result = await apiCallExpectFail(page, 'POST', `${endpoint}/${id}/${action}`);
   if (result.status < 400) {
-    throw new Error(`Illegal transition ${action} on ${endpoint}/${id} was not rejected (status ${result.status})`);
+    throw new Error(
+      `Illegal transition ${action} on ${endpoint}/${id} was not rejected (status ${result.status})`
+    );
   }
 }
 
@@ -794,12 +1067,24 @@ export async function verifyAuditLog(
   let path = `/system/audit-logs?page=1&page_size=50`;
   if (resourceType) path += `&resource_type=${encodeURIComponent(resourceType)}`;
   try {
-    const logs = await apiCallRaw<{ items: Array<{ action: string; resource_type: string }> }>(page, 'GET', path);
-    return logs.items?.some((l) => l.action === action && (!resourceType || l.resource_type === resourceType)) || false;
+    const logs = await apiCallRaw<{ items: Array<{ action: string; resource_type: string }> }>(
+      page,
+      'GET',
+      path
+    );
+    return (
+      logs.items?.some(
+        l => l.action === action && (!resourceType || l.resource_type === resourceType)
+      ) || false
+    );
   } catch {
     try {
-      const logs = await apiCallRaw<{ items: Array<{ action: string; resource_type: string }> }>(page, 'GET', `/system/omni-audit?page=1&page_size=50`);
-      return logs.items?.some((l) => l.action === action) || false;
+      const logs = await apiCallRaw<{ items: Array<{ action: string; resource_type: string }> }>(
+        page,
+        'GET',
+        `/system/omni-audit?page=1&page_size=50`
+      );
+      return logs.items?.some(l => l.action === action) || false;
     } catch {
       return false;
     }
@@ -824,7 +1109,9 @@ export async function verifyFrontendStatusDisplay(
 
 export function genCode(prefix: string): string {
   const ts = Date.now().toString().slice(-6);
-  const rand = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  const rand = Math.floor(Math.random() * 1000)
+    .toString()
+    .padStart(3, '0');
   return `${prefix}-${ts}${rand}`;
 }
 
@@ -836,7 +1123,9 @@ export function genName(prefix: string): string {
 export function genDyeLotNo(): string {
   const date = new Date();
   const ymd = `${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}`;
-  const rand = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  const rand = Math.floor(Math.random() * 1000)
+    .toString()
+    .padStart(3, '0');
   return `DL-${ymd}-${rand}`;
 }
 
@@ -851,7 +1140,9 @@ export async function verifyEntityList<T>(
 ): Promise<T[]> {
   const list = await apiCallRaw<{ items: T[] }>(page, 'GET', `${endpoint}?page=1&page_size=50`);
   if (list.items.length < expectMin) {
-    throw new Error(`Expected at least ${expectMin} items at ${endpoint}, got ${list.items.length}`);
+    throw new Error(
+      `Expected at least ${expectMin} items at ${endpoint}, got ${list.items.length}`
+    );
   }
   return list.items;
 }
@@ -873,7 +1164,10 @@ export async function verifySoDConflict(
   roleB: string
 ): Promise<boolean> {
   try {
-    await apiCall(page, 'POST', '/users/assign-role', { user_id: userId, role_codes: [roleA, roleB] });
+    await apiCall(page, 'POST', '/users/assign-role', {
+      user_id: userId,
+      role_codes: [roleA, roleB],
+    });
     return false;
   } catch {
     return true;
@@ -894,13 +1188,10 @@ export async function verifyWeightConversion(
   width: number
 ): number {
   // 公斤 = 米 * 克重 * 幅宽 / 1000 / 100 (克→公斤, cm→m)
-  return Number((meters * gramWeight * width / 100000).toFixed(2));
+  return Number(((meters * gramWeight * width) / 100000).toFixed(2));
 }
 
-export async function verifyNetWeight(
-  grossWeight: number,
-  paperTubeWeight: number
-): number {
+export async function verifyNetWeight(grossWeight: number, paperTubeWeight: number): number {
   return Number((grossWeight - paperTubeWeight).toFixed(2));
 }
 
@@ -910,13 +1201,15 @@ export async function getProcessSteps(
 ): Promise<Array<{ step_code: string; step_name: string; is_required: boolean }>> {
   try {
     const modes = await apiCallRaw<{ items: Array<{ id: number; mode_code: string }> }>(
-      page, 'GET', '/business-modes?page=1&page_size=50'
+      page,
+      'GET',
+      '/business-modes?page=1&page_size=50'
     );
-    const mode = modes.items.find((m) => m.mode_code === modeCode);
+    const mode = modes.items.find(m => m.mode_code === modeCode);
     if (!mode) return [];
-    const steps = await apiCallRaw<{ items: Array<{ step_code: string; step_name: string; is_required: boolean }> }>(
-      page, 'GET', `/business-modes/${mode.id}/flow-steps?page=1&page_size=20`
-    );
+    const steps = await apiCallRaw<{
+      items: Array<{ step_code: string; step_name: string; is_required: boolean }>;
+    }>(page, 'GET', `/business-modes/${mode.id}/flow-steps?page=1&page_size=20`);
     return steps.items || [];
   } catch {
     return [];
@@ -930,7 +1223,9 @@ export async function verifyOutsourcingVoucher(
 ): Promise<Record<string, unknown> | null> {
   try {
     const vouchers = await apiCallRaw<{ items: Array<Record<string, unknown>> }>(
-      page, 'GET', `/finance/outsourcing-vouchers?outsourcing_order_id=${orderId}&voucher_type=${voucherType}&page=1&page_size=5`
+      page,
+      'GET',
+      `/finance/outsourcing-vouchers?outsourcing_order_id=${orderId}&voucher_type=${voucherType}&page=1&page_size=5`
     );
     return vouchers.items?.[0] || null;
   } catch {
@@ -943,7 +1238,9 @@ export async function verifyTrialBalance(
 ): Promise<{ balanced: boolean; debit_total: number; credit_total: number }> {
   try {
     const result = await apiCallRaw<{ debit_total: number; credit_total: number }>(
-      page, 'GET', '/finance/gl/trial-balance'
+      page,
+      'GET',
+      '/finance/gl/trial-balance'
     );
     return {
       balanced: Math.abs((result.debit_total || 0) - (result.credit_total || 0)) < 0.01,
@@ -977,11 +1274,12 @@ export async function safeGet<T = unknown>(
 /**
  * 安全 GET 列表：验证返回 items 数组
  */
-export async function safeGetList<T = unknown>(
-  page: Page,
-  path: string
-): Promise<T[]> {
-  const result = await apiCallRaw<{ items: T[]; total?: number }>(page, 'GET', path.includes('?') ? path : `${path}?page=1&page_size=50`);
+export async function safeGetList<T = unknown>(page: Page, path: string): Promise<T[]> {
+  const result = await apiCallRaw<{ items: T[]; total?: number }>(
+    page,
+    'GET',
+    path.includes('?') ? path : `${path}?page=1&page_size=50`
+  );
   if (!result.items || !Array.isArray(result.items)) {
     throw new Error(`GET ${path} 返回数据缺少 items 数组`);
   }
@@ -1014,10 +1312,7 @@ export async function safePostAction(
 /**
  * 验证端点可达但不崩溃（用于报表/统计类端点）
  */
-export async function verifyEndpointHealthy(
-  page: Page,
-  path: string
-): Promise<void> {
+export async function verifyEndpointHealthy(page: Page, path: string): Promise<void> {
   try {
     await apiCallRaw(page, 'GET', path);
   } catch (e) {
