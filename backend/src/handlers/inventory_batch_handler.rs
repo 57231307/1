@@ -250,7 +250,7 @@ pub async fn update_batch(
 pub async fn delete_batch(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    auth: AuthContext,
+    _auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     // P0 8-3 修复：delete 操作补审计日志
     // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪

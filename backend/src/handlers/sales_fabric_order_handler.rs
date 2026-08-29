@@ -97,7 +97,7 @@ pub struct UpdateFabricOrderRequest {
 /// 获取销售订单列表（面料行业版）
 pub async fn list_fabric_orders(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Query(query): Query<FabricOrderQuery>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<serde_json::Value>>>, AppError> {
     let _data_scope = auth.to_data_scope_context();
@@ -162,7 +162,7 @@ pub async fn get_fabric_order(
 /// 创建销售订单（面料行业版）
 pub async fn create_fabric_order(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Json(req): Json<CreateFabricOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     use chrono::Utc;
@@ -432,7 +432,7 @@ pub async fn update_fabric_order(
 /// 删除销售订单
 pub async fn delete_fabric_order(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     // P0 8-3 修复：delete 操作补审计日志

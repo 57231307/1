@@ -107,7 +107,7 @@ pub async fn list_dye_batches(
     auth: AuthContext,
     Query(query): Query<DyeBatchListQuery>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<dye_batch::Model>>>, AppError> {
-    let data_scope = auth.to_data_scope_context();
+    let _data_scope = auth.to_data_scope_context();
     let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
