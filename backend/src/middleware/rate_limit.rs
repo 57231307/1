@@ -215,6 +215,11 @@ pub async fn rate_limit_by_ip(
     req: Request<Body>,
     next: Next,
 ) -> Result<Response, AppError> {
+    // 非生产环境跳过限流（CI E2E 16 shard 并发测试会触发 180 req/min 限制）
+    if !crate::utils::config::is_production() {
+        return Ok(next.run(req).await);
+    }
+
     // P3 维度 12 修复（批次 87）：复用 audit_context::extract_client_ip helper 消除重复实现
     // P2-12b 修复（批次 83 v1 复审）：三层降级全部失败时返回 400，避免 unknown_ip 聚合
     let ip = {
@@ -256,6 +261,11 @@ pub async fn rate_limit_by_ip(
 /// 防暴力攻击中间件（针对登录端点）
 /// 基于 IP + Username 双维度检查，防止从同一 IP 尝试不同用户名的暴力破解
 pub async fn anti_brute_force(req: Request<Body>, next: Next) -> Result<Response, AppError> {
+    // 非生产环境跳过防暴力检查（CI E2E 16 shard 并发登录会触发 100 req/5min 限制）
+    if !crate::utils::config::is_production() {
+        return Ok(next.run(req).await);
+    }
+
     // P3 维度 12 修复（批次 87）：复用 audit_context::extract_client_ip helper 消除重复实现
     // P2-12b 修复（批次 83 v1 复审）：与 rate_limit_by_ip 对齐三级降级 + 400 兜底
     let ip = {

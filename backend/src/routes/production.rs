@@ -629,11 +629,11 @@ pub fn production() -> Router<AppState> {
             get(production_order_handler::get_production_order_logs),
         )
         .route(
-            "/production/orders/{id}/print",
+            "/production-orders/orders/{id}/print",
             get(print_handler::production_order_print_docx),
         )
         .route(
-            "/production/orders/{id}/safety-accident/print",
+            "/production-orders/orders/{id}/safety-accident/print",
             get(print_handler::safety_accident_report_print_docx),
         )
 }

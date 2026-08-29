@@ -104,8 +104,10 @@ pub struct UpdateDyeBatchRequest {
 
 pub async fn list_dye_batches(
     State(state): State<AppState>,
+    auth: AuthContext,
     Query(query): Query<DyeBatchListQuery>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<dye_batch::Model>>>, AppError> {
+    let data_scope = auth.to_data_scope_context();
     let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
@@ -139,6 +141,7 @@ pub async fn list_dye_batches(
 
 pub async fn get_dye_batch(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<dye_batch::Model>>, AppError> {
     let batch = dye_batch::Entity::find_by_id(id)

@@ -1,5 +1,10 @@
 /* eslint-disable no-console */
 import type { Page } from '@playwright/test';
+import {
+  createWarehouseUI, createDepartmentUI, createSupplierUI, createProductUI,
+  createColorCardUI, createDyeBatchUI, createDyeRecipeUI, createBomUI,
+  createCustomOrderUI, readFirstEntityId, readEntityIds,
+} from './ui-helpers';
 
 export const API_BASE = process.env.API_BASE || 'http://localhost:8082';
 export const API_PREFIX = '/api/v1/erp';
@@ -68,45 +73,35 @@ export function getCtx(): EntityContext {
  * 此函数在每个 spec 文件开头调用，自行创建或查找实体
  */
 export async function ensureTestEntities(page: Page): Promise<void> {
-  // 查找或创建仓库
+  // ---- 1. 仓库（UI 创建）----
   try {
-    const warehouses = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/warehouses?page=1&page_size=5');
-    ctx.warehouseIds = warehouses.items?.map((w) => w.id) || [];
+    ctx.warehouseIds = await readEntityIds(page, '/warehouse', `${API_PREFIX}/warehouses`);
   } catch { ctx.warehouseIds = []; }
   if (ctx.warehouseIds.length < 2) {
     for (let i = ctx.warehouseIds.length; i < 2; i++) {
       try {
-        const result = await apiCall<{ id?: number }>(page, 'POST', '/warehouses', {
-          name: 'E2E 仓库 ' + i + '-' + Date.now(),
-          code: 'E2E-W' + i + Date.now(),
-        });
-        if (result.data?.id) ctx.warehouseIds.push(result.data.id);
-      } catch (e) { console.error("[ensureTestEntities] 创建失败:", (e as Error).message); }
+        const id = await createWarehouseUI(page);
+        if (id) ctx.warehouseIds.push(id);
+      } catch (e) { console.error("[ensureTestEntities] 仓库创建失败:", (e as Error).message); }
     }
   }
   if (ctx.warehouseIds.length < 2) ctx.warehouseIds = [1, 2];
 
-  // 查找或创建产品
+  // ---- 2. 产品（UI 创建）----
   try {
-    const products = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/products?page=1&page_size=5');
-    ctx.productIds = products.items?.map((p) => p.id) || [];
+    ctx.productIds = await readEntityIds(page, '/product', `${API_PREFIX}/products`);
   } catch { ctx.productIds = []; }
   if (ctx.productIds.length === 0) {
     for (let i = 0; i < 3; i++) {
       try {
-        const result = await apiCall<{ id?: number }>(page, 'POST', '/products', {
-          name: 'E2E 产品 ' + i + '-' + Date.now(),
-          code: 'E2E-P' + i + Date.now(),
-          unit: '米',
-          product_type: 'fabric',
-        });
-        if (result.data?.id) ctx.productIds.push(result.data.id);
-      } catch (e) { console.error("[ensureTestEntities] 创建失败:", (e as Error).message); }
+        const id = await createProductUI(page);
+        if (id) ctx.productIds.push(id);
+      } catch (e) { console.error("[ensureTestEntities] 产品创建失败:", (e as Error).message); }
     }
   }
   if (ctx.productIds.length === 0) ctx.productIds = [1];
 
-  // 查找产品色号
+  // ---- 3. 产品色号（仍用 API，因为色号在详情页创建且依赖 product_id）----
   try {
     const colors = await apiCallRaw<{ items: Array<{ id: number; color_no: string }> }>(page, 'GET', `/product-colors?product_id=${ctx.productIds[0]}&page=1&page_size=5`);
     ctx.productColorIds = colors.items?.map((c) => c.id) || [];
@@ -114,22 +109,18 @@ export async function ensureTestEntities(page: Page): Promise<void> {
   } catch { ctx.colorNos = ['TEST-COLOR']; ctx.productColorIds = [1]; }
   if (ctx.colorNos.length === 0) ctx.colorNos = ['TEST-COLOR'];
 
-  // 查找或创建供应商
+  // ---- 4. 供应商（UI 创建）----
   try {
-    const suppliers = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/purchase/suppliers?page=1&page_size=1');
-    ctx.supplierId = suppliers.items?.[0]?.id;
-  } catch (e) { console.error("[ensureTestEntities] supplierId 创建失败:", (e as Error).message); ctx.supplierId = undefined; }
+    ctx.supplierId = await readFirstEntityId(page, '/supplier', `${API_PREFIX}/purchase/suppliers`);
+  } catch (e) { console.error("[ensureTestEntities] supplierId 查找失败:", (e as Error).message); ctx.supplierId = undefined; }
   if (!ctx.supplierId) {
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
-        supplier_name: 'E2E 供应商 ' + Date.now(),
-        supplier_type: 'fabric',
-      });
-      ctx.supplierId = result.data?.id;
+      const id = await createSupplierUI(page);
+      ctx.supplierId = id;
     } catch (e) { console.error("[ensureTestEntities] supplierId 创建失败:", (e as Error).message); ctx.supplierId = undefined; }
   }
 
-  // 查找或创建客户
+  // ---- 5. 客户（仍用 API，表单字段较多且下拉依赖复杂）----
   try {
     const customers = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/crm/customers?page=1&page_size=1');
     ctx.customerId = customers.items?.[0]?.id;
@@ -143,29 +134,26 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     } catch (e) { console.error("[ensureTestEntities] customerId 创建失败:", (e as Error).message); ctx.customerId = undefined; }
   }
 
-  // 查找会计科目
+  // ---- 6. 会计科目（仍用 API，科目在树形结构中不易 UI 操作）----
   try {
     const subjects = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/subjects?page=1&page_size=5');
     ctx.accountSubjectIds = subjects.items?.map((s) => s.id) || [];
   } catch { ctx.accountSubjectIds = []; }
 
-  // 查找或创建部门（采购订单必填 department_id）
+  // ---- 7. 部门（UI 创建）----
   if (ctx.departmentIds.length === 0) {
     try {
-      const depts = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/departments?page=1&page_size=5');
-      ctx.departmentIds = depts.items?.map((d) => d.id) || [];
+      ctx.departmentIds = await readEntityIds(page, '/departments', `${API_PREFIX}/departments`);
     } catch { ctx.departmentIds = []; }
   }
   if (ctx.departmentIds.length === 0) {
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/departments', {
-        name: 'E2E 部门-' + Date.now(), code: 'E2E-DEPT-' + Date.now(),
-      });
-      if (result.data?.id) ctx.departmentIds.push(result.data.id);
+      const id = await createDepartmentUI(page);
+      if (id) ctx.departmentIds.push(id);
     } catch (e) { console.error("[ensureTestEntities] 部门创建失败:", (e as Error).message); }
   }
 
-  // 查找或创建采购订单
+  // ---- 8. 采购订单（保留 API 创建，表单含明细行+下拉依赖）----
   try {
     const pos = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/purchase/orders?page=1&page_size=1');
     ctx.purchaseOrderId = pos.items?.[0]?.id;
@@ -177,13 +165,13 @@ export async function ensureTestEntities(page: Page): Promise<void> {
         warehouse_id: ctx.warehouseIds[0] || 1,
         department_id: ctx.departmentIds[0] || 1,
         order_date: new Date().toISOString().slice(0, 10),
-        items: [{ material_id: ctx.productIds[0] || 1, quantity_ordered: '1', unit_price: '1' }],
+        items: [{ product_id: ctx.productIds[0] || 1, quantity_ordered: '1', unit_price: '1' }],
       });
       ctx.purchaseOrderId = result.data?.id;
     } catch (e) { console.error("[ensureTestEntities] purchaseOrderId 创建失败:", (e as Error).message); ctx.purchaseOrderId = undefined; }
   }
 
-  // 查找或创建销售订单
+  // ---- 9. 销售订单（保留 API 创建，表单含明细行+下拉依赖）----
   try {
     const sos = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/sales/orders?page=1&page_size=1');
     ctx.salesOrderId = sos.items?.[0]?.id;
@@ -199,7 +187,7 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     } catch (e) { console.error("[ensureTestEntities] salesOrderId 创建失败:", (e as Error).message); ctx.salesOrderId = undefined; }
   }
 
-  // 查找或创建报价单
+  // ---- 10. 报价单（保留 API 创建）----
   try {
     const qts = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/quotations?page=1&page_size=1');
     ctx.quotationId = qts.items?.[0]?.id;
@@ -219,36 +207,29 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     } catch (e) { console.error("[ensureTestEntities] quotationId 创建失败:", (e as Error).message); ctx.quotationId = undefined; }
   }
 
-  // 查找或创建缸号
+  // ---- 11. 染色批次（UI 创建）----
   try {
-    const batches = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/dye-batches?page=1&page_size=1');
-    ctx.dyeBatchId = batches.items?.[0]?.id;
+    ctx.dyeBatchId = await readFirstEntityId(page, '/production', `${API_PREFIX}/production/dye-batches`);
   } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
   if (!ctx.dyeBatchId) {
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/production/dye-batches', {
-        batch_no: genCode('DB'), color_no: ctx.colorNos[0] || 'TEST', dye_lot_no: ctx.dyeLotNo,
-        planned_quantity: 100,
-      });
-      ctx.dyeBatchId = result.data?.id;
+      const id = await createDyeBatchUI(page);
+      ctx.dyeBatchId = id;
     } catch (e) { console.error("[ensureTestEntities] dyeBatchId 创建失败:", (e as Error).message); ctx.dyeBatchId = undefined; }
   }
 
   // 生成缸号
   if (!ctx.dyeLotNo) ctx.dyeLotNo = genDyeLotNo();
 
-  // 查找或创建染色配方
+  // ---- 12. 染色配方（UI 创建）----
   try {
     const recipes = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/dye-recipes?page=1&page_size=1');
     ctx.dyeRecipeId = recipes.items?.[0]?.id;
   } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
   if (!ctx.dyeRecipeId) {
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/production/dye-recipes', {
-        recipe_no: genCode('DR'), recipe_name: 'E2E 自动配方', color_code: ctx.colorNos[0] || 'TEST',
-        color_name: '测试色', fabric_type: '涤纶', dye_type: '分散染色',
-      });
-      ctx.dyeRecipeId = result.data?.id;
+      const id = await createDyeRecipeUI(page);
+      ctx.dyeRecipeId = id;
     } catch (e) { console.error("[ensureTestEntities] dyeRecipeId 创建失败:", (e as Error).message); ctx.dyeRecipeId = undefined; }
   }
 
@@ -258,28 +239,25 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     ctx.productionRecipeId = prs.items?.[0]?.id;
   } catch (e) { console.error("[ensureTestEntities] productionRecipeId 创建失败:", (e as Error).message); ctx.productionRecipeId = undefined; }
 
-  // 查找或创建 BOM
+  // ---- 13. BOM（UI 创建）----
   try {
     const boms = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/boms?page=1&page_size=1');
     ctx.bomId = boms.items?.[0]?.id;
   } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
   if (!ctx.bomId) {
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/boms', {
-        product_id: ctx.productIds[0] || 1, name: 'E2E BOM', version: 1,
-        items: [{ material_id: ctx.productIds[0] || 1, quantity: 1, unit: '米' }],
-      });
-      ctx.bomId = result.data?.id;
+      const id = await createBomUI(page);
+      ctx.bomId = id;
     } catch (e) { console.error("[ensureTestEntities] bomId 创建失败:", (e as Error).message); ctx.bomId = undefined; }
   }
 
-  // 查找生产订单
+  // ---- 14. 生产订单（保留 API 查找，暂无创建需求）----
   try {
     const pos = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/production-orders/orders?page=1&page_size=1');
     ctx.productionOrderId = pos.items?.[0]?.id;
   } catch (e) { console.error("[ensureTestEntities] productionOrderId 创建失败:", (e as Error).message); ctx.productionOrderId = undefined; }
 
-  // 查找或创建凭证（凭证分录需要 1001/1002 科目，缺失时主动创建）
+  // ---- 15. 凭证（保留 API 创建，分录树形选择复杂）----
   try {
     const vs = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/vouchers?page=1&page_size=1');
     ctx.voucherId = vs.items?.[0]?.id;
@@ -306,67 +284,57 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     } catch (e) { console.error("[ensureTestEntities] voucherId 创建失败:", (e as Error).message); ctx.voucherId = undefined; }
   }
 
-  // 查找固定资产
+  // ---- 16. 固定资产（保留 API 查找）----
   try {
     const fas = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/fixed-assets?page=1&page_size=1');
     ctx.fixedAssetId = fas.items?.[0]?.id;
   } catch (e) { console.error("[ensureTestEntities] fixedAssetId 创建失败:", (e as Error).message); ctx.fixedAssetId = undefined; }
 
-  // 查找预算
+  // ---- 17. 预算（保留 API 查找）----
   try {
     const bs = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/budgets?page=1&page_size=1');
     ctx.budgetId = bs.items?.[0]?.id;
   } catch (e) { console.error("[ensureTestEntities] budgetId 创建失败:", (e as Error).message); ctx.budgetId = undefined; }
 
-  // 查找 AP 发票
+  // ---- 18. AP/AR 发票（保留 API 查找）----
   try {
     const aps = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/ap/invoices?page=1&page_size=1');
     ctx.apInvoiceId = aps.items?.[0]?.id;
   } catch (e) { console.error("[ensureTestEntities] apInvoiceId 创建失败:", (e as Error).message); ctx.apInvoiceId = undefined; }
-
-  // 查找 AR 发票
   try {
     const ars = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/ar/invoices?page=1&page_size=1');
     ctx.arInvoiceId = ars.items?.[0]?.id;
   } catch (e) { console.error("[ensureTestEntities] arInvoiceId 创建失败:", (e as Error).message); ctx.arInvoiceId = undefined; }
 
-  // 查找或创建定制订单
+  // ---- 19. 定制订单（UI 创建）----
   try {
-    const cos = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/custom-orders?page=1&page_size=1');
-    ctx.customOrderId = cos.items?.[0]?.id;
+    ctx.customOrderId = await readFirstEntityId(page, '/custom-orders', `${API_PREFIX}/custom-orders`);
   } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
   if (!ctx.customOrderId) {
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/custom-orders', {
-        customer_id: ctx.customerId || 1, order_no: genCode('CO'),
-        product_id: ctx.productIds[0] || 1,
-        spec: 'E2E 定制规格', quantity: 100, unit: '米',
-      });
-      ctx.customOrderId = result.data?.id;
+      const id = await createCustomOrderUI(page);
+      ctx.customOrderId = id;
     } catch (e) { console.error("[ensureTestEntities] customOrderId 创建失败:", (e as Error).message); ctx.customOrderId = undefined; }
   }
 
-  // 查找或创建色卡
+  // ---- 20. 色卡（UI 创建）----
   try {
-    const ccs = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/color-cards?page=1&page_size=1');
-    ctx.colorCardId = ccs.items?.[0]?.id;
+    ctx.colorCardId = await readFirstEntityId(page, '/color-cards/list', `${API_PREFIX}/color-cards`);
   } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
   if (!ctx.colorCardId) {
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/color-cards', {
-        card_no: genCode('CC'), card_name: 'E2E 色卡', card_type: 'CUSTOM',
-      });
-      ctx.colorCardId = result.data?.id;
+      const id = await createColorCardUI(page);
+      ctx.colorCardId = id;
     } catch (e) { console.error("[ensureTestEntities] colorCardId 创建失败:", (e as Error).message); ctx.colorCardId = undefined; }
   }
 
-  // 查找坯布
+  // ---- 21. 坯布（保留 API 查找）----
   try {
     const gfs = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/greige-fabrics?page=1&page_size=1');
     ctx.greigeFabricId = gfs.items?.[0]?.id;
   } catch (e) { console.error("[ensureTestEntities] greigeFabricId 创建失败:", (e as Error).message); ctx.greigeFabricId = undefined; }
 
-  // 查找角色 ID
+  // ---- 22. 角色 ID（保留 API 查找）----
   try {
     const roles = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/roles?page=1&page_size=1');
     ctx.roleId = roles.items?.[0]?.id;
@@ -495,48 +463,13 @@ export async function loginViaUI(page: Page, username?: string, password?: strin
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, code: 200, message: 'ok', data: { is_locked: false, failed_attempts: 0, max_attempts: 5, locked_until: null, username: 'e2e', user_id: 0 } }) })
   ).catch(() => {});
 
-  // 优先用 API 登录（避免 16 shard 并发 UI 登录导致后端挂起 60s 超时）
-  if (!LOGGED_IN.done) {
-    try {
-      const loginResp = await page.request.post(`${API_BASE}${API_PREFIX}/auth/login`, {
-        data: { username: username || TEST_USERNAME, password: password || TEST_PASSWORD },
-        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-        timeout: 15000,
-      });
-      if (loginResp.ok()) {
-        LOGGED_IN.done = true;
-        await page.goto(`${BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded' }).catch(() => {});
-        return;
-      }
-    } catch {
-      // API 登录失败（可能后端慢），继续走 UI 登录
-    }
-  }
-
-  // 如果已经登录过（同一个 page context），检查是否还有效
+  // 检查 cookie 是否还在（同 BrowserContext 内已登录则跳过）
   if (LOGGED_IN.done) {
-    // 已登录过，但可能在不同的 BrowserContext 中
-    // 检查 cookie 是否还在
     const cookies = await page.context().cookies();
     const hasToken = cookies.some((c) => c.name === 'access_token');
     if (hasToken) {
-      // cookie 存在，直接导航
       await page.goto(`${BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded' }).catch(() => {});
       return;
-    }
-    // cookie 不在（新 context），用 API 登录注入 cookie（不用 UI，避免 429）
-    try {
-      const loginResp = await page.request.post(`${API_BASE}${API_PREFIX}/auth/login`, {
-        data: { username: TEST_USERNAME, password: TEST_PASSWORD },
-        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-      });
-      if (loginResp.ok()) {
-        // API 登录成功，cookie 已注入 context
-        await page.goto(`${BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded' }).catch(() => {});
-        return;
-      }
-    } catch {
-      // API 登录也失败（可能 429），继续 UI 登录
     }
     LOGGED_IN.done = false;
   }
