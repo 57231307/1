@@ -495,6 +495,24 @@ export async function loginViaUI(page: Page, username?: string, password?: strin
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, code: 200, message: 'ok', data: { is_locked: false, failed_attempts: 0, max_attempts: 5, locked_until: null, username: 'e2e', user_id: 0 } }) })
   ).catch(() => {});
 
+  // 优先用 API 登录（避免 16 shard 并发 UI 登录导致后端挂起 60s 超时）
+  if (!LOGGED_IN.done) {
+    try {
+      const loginResp = await page.request.post(`${API_BASE}${API_PREFIX}/auth/login`, {
+        data: { username: username || TEST_USERNAME, password: password || TEST_PASSWORD },
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        timeout: 15000,
+      });
+      if (loginResp.ok()) {
+        LOGGED_IN.done = true;
+        await page.goto(`${BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded' }).catch(() => {});
+        return;
+      }
+    } catch {
+      // API 登录失败（可能后端慢），继续走 UI 登录
+    }
+  }
+
   // 如果已经登录过（同一个 page context），检查是否还有效
   if (LOGGED_IN.done) {
     // 已登录过，但可能在不同的 BrowserContext 中
