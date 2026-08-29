@@ -146,7 +146,7 @@ pub async fn list_fabric_orders(
 /// 获取销售订单详情
 pub async fn get_fabric_order(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let order = sales_order::Entity::find_by_id(id)
@@ -162,7 +162,7 @@ pub async fn get_fabric_order(
 /// 创建销售订单（面料行业版）
 pub async fn create_fabric_order(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Json(req): Json<CreateFabricOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     use chrono::Utc;

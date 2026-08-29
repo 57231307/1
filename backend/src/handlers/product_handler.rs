@@ -555,13 +555,19 @@ pub async fn import_products(
 ) -> Result<Json<ApiResponse<crate::utils::import_export::ImportResult>>, AppError> {
     let product_service = ProductService::new(state.db.clone(), state.search_client.clone());
 
+    // 导入文件大小上限，与 crm import_leads 保持一致（10MB），
+    // 避免超大文件一次性读入内存打爆进程。
+    const MAX_IMPORT_SIZE: usize = 10 * 1024 * 1024;
+
     let mut file_bytes = Vec::new();
+    let mut file_name = String::new();
     while let Some(field) = multipart
         .next_field()
         .await
         .map_err(|e| AppError::bad_request(format!("文件上传解析失败: {}", e)))?
     {
         if field.name() == Some("file") {
+            file_name = field.file_name().unwrap_or("").to_string();
             file_bytes = field
                 .bytes()
                 .await
@@ -572,9 +578,16 @@ pub async fn import_products(
     if file_bytes.is_empty() {
         return Err(AppError::bad_request("未收到文件或文件为空"));
     }
+    if file_bytes.len() > MAX_IMPORT_SIZE {
+        return Err(AppError::bad_request(format!(
+            "文件大小超过限制 ({}MB)",
+            MAX_IMPORT_SIZE / 1024 / 1024
+        )));
+    }
 
-    let result: crate::utils::import_export::ImportResult =
-        product_service.import_products_from_csv(&file_bytes).await?;
+    let result: crate::utils::import_export::ImportResult = product_service
+        .import_products_from_file(&file_bytes, &file_name)
+        .await?;
 
     let msg = if result.is_all_success() {
         format!("成功导入 {} 条产品数据", result.success_count)

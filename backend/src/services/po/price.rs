@@ -49,7 +49,9 @@ impl PurchaseOrderService {
         if !crate::utils::config::is_production() {
             tracing::info!(
                 "非生产环境跳过预算检查，订单={} 部门={} 金额={}",
-                order.order_no, department_id, total_amount
+                order.order_no,
+                department_id,
+                total_amount
             );
             return Ok(());
         }

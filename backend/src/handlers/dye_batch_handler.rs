@@ -183,7 +183,10 @@ pub async fn create_dye_batch(
         batch_no: Set(batch_no),
         greige_fabric_id: Set(req.greige_fabric_id),
         color_code: Set(req.color_no.clone().unwrap_or_else(|| "TEST".to_string())),
-        color_name: Set(req.color_no.clone().unwrap_or_else(|| "测试色号".to_string())),
+        color_name: Set(req
+            .color_no
+            .clone()
+            .unwrap_or_else(|| "测试色号".to_string())),
         color_no: Set(req.color_no),
         dye_lot_no: Set(dye_lot_no),
         planned_quantity: Set(req.planned_quantity.and_then(Decimal::from_f64_retain)),

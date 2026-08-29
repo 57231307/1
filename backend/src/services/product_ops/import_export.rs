@@ -17,7 +17,8 @@ use crate::models::product;
 use crate::models::status::master_data;
 use crate::services::product_service::{CreateProductArgs, ProductService};
 use crate::utils::error::AppError;
-use crate::utils::import_export::{CsvImporter, FieldValidator, ImportResult};
+use crate::utils::import_export::{CsvImporter, FieldValidator, ImportResult, XlsxImporter};
+use std::collections::HashMap;
 
 /// CSV 导入行校验后的必填字段
 /// D08-1 第二梯队拆分：用于封装 import_products_from_csv 中校验后的 4 个必填字段；（产品编码、产品名称、产品类型、计量单位），避免 validate_import_row 返回 4-tuple。
@@ -432,6 +433,36 @@ impl ProductService {
     /// 从产品 CSV 数据导入
     pub async fn import_products_from_csv(&self, data: &[u8]) -> Result<ImportResult, AppError> {
         let records = CsvImporter::parse(data)?;
+        self.import_records(records).await
+    }
+
+    /// 从产品 xlsx 数据导入
+    pub async fn import_products_from_xlsx(&self, data: &[u8]) -> Result<ImportResult, AppError> {
+        let records = XlsxImporter::parse(data)?;
+        self.import_records(records).await
+    }
+
+    /// 按文件格式自动分派导入（xlsx / csv）
+    ///
+    /// 修复背景：此前无论上传 xlsx 还是 csv，一律走 CSV 文本解析，
+    /// 导致上传 xlsx 必然失败于「无效的 UTF-8 数据」。
+    pub async fn import_products_from_file(
+        &self,
+        data: &[u8],
+        file_name: &str,
+    ) -> Result<ImportResult, AppError> {
+        if is_xlsx_file(data, file_name) {
+            self.import_products_from_xlsx(data).await
+        } else {
+            self.import_products_from_csv(data).await
+        }
+    }
+
+    /// 共用：把解析后的记录逐行落库（CSV 与 xlsx 共用同一套行处理逻辑）
+    async fn import_records(
+        &self,
+        records: Vec<HashMap<String, String>>,
+    ) -> Result<ImportResult, AppError> {
         let mut result = ImportResult::new();
 
         for (row_idx, row) in records.iter().enumerate() {
@@ -442,4 +473,19 @@ impl ProductService {
 
         Ok(result)
     }
+}
+
+/// 判断上传文件是否应按 xlsx 解析
+///
+/// 优先按扩展名判定；扩展名缺失或未知时回退到 magic bytes
+/// （xlsx 为 ZIP 容器，首 4 字节 `50 4B 03 04`，仅靠后缀判断可被绕过）。
+fn is_xlsx_file(data: &[u8], file_name: &str) -> bool {
+    let lower = file_name.to_ascii_lowercase();
+    if lower.ends_with(".xlsx") || lower.ends_with(".xlsm") {
+        return true;
+    }
+    if lower.ends_with(".csv") {
+        return false;
+    }
+    XlsxImporter::verify_magic(data)
 }

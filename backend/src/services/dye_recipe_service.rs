@@ -276,8 +276,7 @@ impl DyeRecipeService {
             active.liquor_ratio = Set(Some(liquor_ratio));
         }
         if let Some(auxiliaries) = req.auxiliaries {
-            active.auxiliaries =
-                Set(Some(crate::models::dye_recipe::Auxiliaries(auxiliaries)));
+            active.auxiliaries = Set(Some(crate::models::dye_recipe::Auxiliaries(auxiliaries)));
         }
         if let Some(status) = req.status {
             // 校验状态流转合法性

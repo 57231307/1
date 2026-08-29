@@ -111,7 +111,7 @@ pub struct ResourceAttrs {
     pub deployment_environment: String,
 }
 
-    #[allow(dead_code, reason = "CI 环境 未启用 observability")]
+#[allow(dead_code, reason = "CI 环境 未启用 observability")]
 impl ResourceAttrs {
     pub fn from_config(cfg: &ObservabilityConfig) -> Self {
         Self {
