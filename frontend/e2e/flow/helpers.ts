@@ -72,14 +72,38 @@ export function getCtx(): EntityContext {
  * 分片后每个 shard 独立运行，EntityContext 单例不跨 shard 共享
  * 此函数在每个 spec 文件开头调用，自行创建或查找实体
  */
+/**
+ * UI 创建 + 失败重试包装：
+ * 首次创建失败时，强制重新登录（恢复可能失效的 CSRF 会话）后重试一次。
+ * 背景：CSRF Token 为一次性消费，页面请求与 apiCall 并发时可能竞争 token，
+ * 前端 CSRF 校验失败会清空 csrf_token Cookie，仅靠重试表单操作无法恢复。
+ */
+async function uiCreateWithRetry(page: Page, fn: (p: Page) => Promise<number | undefined>): Promise<number | undefined> {
+  const id = await fn(page);
+  if (id !== undefined) return id;
+  console.warn(`[uiCreateWithRetry] 首次创建失败，强制重新登录后重试一次`);
+  await loginViaUI(page, undefined, undefined, true);
+  return fn(page);
+}
+
 export async function ensureTestEntities(page: Page): Promise<void> {
+  // 会话预检查：CSRF 校验失败场景下前端会清空 csrf_token Cookie 并跳转登录页，
+  // 提前检测并强制重新登录，避免逐个实体失败浪费重试时间
+  if (LOGGED_IN.done) {
+    const cookies = await page.context().cookies();
+    if (!cookies.some((c) => c.name === 'csrf_token')) {
+      console.warn('[ensureTestEntities] 检测到 csrf_token 缺失，强制重新登录');
+      await loginViaUI(page, undefined, undefined, true);
+    }
+  }
+
   // ---- 1. 仓库（UI 创建）----
   try {
     ctx.warehouseIds = await readEntityIds(page, '/warehouse', `${API_PREFIX}/warehouses`);
   } catch { ctx.warehouseIds = []; }
   if (ctx.warehouseIds.length < 2) {
     for (let i = ctx.warehouseIds.length; i < 2; i++) {
-      const id = await createWarehouseUI(page);
+      const id = await uiCreateWithRetry(page, createWarehouseUI);
       if (id) { ctx.warehouseIds.push(id); }
       else { console.error("[ensureTestEntities] 仓库 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）"); }
     }
@@ -92,7 +116,7 @@ export async function ensureTestEntities(page: Page): Promise<void> {
   } catch { ctx.productIds = []; }
   if (ctx.productIds.length === 0) {
     for (let i = 0; i < 3; i++) {
-      const id = await createProductUI(page);
+      const id = await uiCreateWithRetry(page, createProductUI);
       if (id) { ctx.productIds.push(id); }
       else { console.error("[ensureTestEntities] 产品 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）"); }
     }
@@ -112,7 +136,7 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     ctx.supplierId = await readFirstEntityId(page, '/supplier', `${API_PREFIX}/purchase/suppliers`);
   } catch (e) { console.error("[ensureTestEntities] supplierId 查找失败:", (e as Error).message); ctx.supplierId = undefined; }
   if (!ctx.supplierId) {
-    const id = await createSupplierUI(page);
+    const id = await uiCreateWithRetry(page, createSupplierUI);
     ctx.supplierId = id;
     if (!id) console.error("[ensureTestEntities] 供应商 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）");
   }
@@ -144,7 +168,7 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     } catch { ctx.departmentIds = []; }
   }
   if (ctx.departmentIds.length === 0) {
-    const id = await createDepartmentUI(page);
+    const id = await uiCreateWithRetry(page, createDepartmentUI);
     if (id) { ctx.departmentIds.push(id); }
     else { console.error("[ensureTestEntities] 部门 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）"); }
   }
@@ -208,7 +232,7 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     ctx.dyeBatchId = await readFirstEntityId(page, '/production', `${API_PREFIX}/production/dye-batches`);
   } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
   if (!ctx.dyeBatchId) {
-    const id = await createDyeBatchUI(page);
+    const id = await uiCreateWithRetry(page, createDyeBatchUI);
     ctx.dyeBatchId = id;
     if (!id) console.error("[ensureTestEntities] 染色批次 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）");
   }
@@ -222,7 +246,7 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     ctx.dyeRecipeId = recipes.items?.[0]?.id;
   } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
   if (!ctx.dyeRecipeId) {
-    const id = await createDyeRecipeUI(page);
+    const id = await uiCreateWithRetry(page, createDyeRecipeUI);
     ctx.dyeRecipeId = id;
     if (!id) console.error("[ensureTestEntities] 染色配方 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）");
   }
@@ -239,7 +263,7 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     ctx.bomId = boms.items?.[0]?.id;
   } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
   if (!ctx.bomId) {
-    const id = await createBomUI(page);
+    const id = await uiCreateWithRetry(page, createBomUI);
     ctx.bomId = id;
     if (!id) console.error("[ensureTestEntities] BOM UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）");
   }
@@ -304,7 +328,7 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     ctx.customOrderId = await readFirstEntityId(page, '/custom-orders', `${API_PREFIX}/custom-orders`);
   } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
   if (!ctx.customOrderId) {
-    const id = await createCustomOrderUI(page);
+    const id = await uiCreateWithRetry(page, createCustomOrderUI);
     ctx.customOrderId = id;
     if (!id) console.error("[ensureTestEntities] 定制订单 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）");
   }
@@ -314,7 +338,7 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     ctx.colorCardId = await readFirstEntityId(page, '/color-cards/list', `${API_PREFIX}/color-cards`);
   } catch (e) { console.error("[ensureTestEntities] 查找失败:", (e as Error).message); }
   if (!ctx.colorCardId) {
-    const id = await createColorCardUI(page);
+    const id = await uiCreateWithRetry(page, createColorCardUI);
     ctx.colorCardId = id;
     if (!id) console.error("[ensureTestEntities] 色卡 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）");
   }
@@ -448,20 +472,24 @@ export async function apiCallExpectFail(
 
 const LOGGED_IN = { done: false };
 
-export async function loginViaUI(page: Page, username?: string, password?: string): Promise<void> {
+export async function loginViaUI(page: Page, username?: string, password?: string, force = false): Promise<void> {
   // 拦截 lock-status 请求（避免 16 shard 并发时后端挂起 5s+ 导致登录超时）
   await page.route('**/api/v1/erp/lock-status**', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, code: 200, message: 'ok', data: { is_locked: false, failed_attempts: 0, max_attempts: 5, locked_until: null, username: 'e2e', user_id: 0 } }) })
   ).catch(() => {});
 
   // 检查 cookie 是否还在（同 BrowserContext 内已登录则跳过）
-  if (LOGGED_IN.done) {
+  // 注意：必须同时检查 access_token 和 csrf_token —— CSRF 失效场景下前端会清空 csrf_token
+  // Cookie 并跳转登录页，仅凭 access_token 存在就跳过登录会导致后续所有 POST 请求 403。
+  if (LOGGED_IN.done && !force) {
     const cookies = await page.context().cookies();
     const hasToken = cookies.some((c) => c.name === 'access_token');
-    if (hasToken) {
+    const hasCsrf = cookies.some((c) => c.name === 'csrf_token');
+    if (hasToken && hasCsrf) {
       await page.goto(`${BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
       return;
     }
+    console.warn(`[loginViaUI] 检测到会话不完整 (access_token=${hasToken}, csrf_token=${hasCsrf})，强制重新登录`);
     LOGGED_IN.done = false;
   }
 

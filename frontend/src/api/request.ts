@@ -149,11 +149,21 @@ class Request {
       async error => {
         const originalRequest = error.config;
 
-        // 拦截 HTTP 403 + 业务码 CSRF 校验失败：清空 CSRF Token 并跳转登录
-        // 后端在缺失/无效 CSRF Token 时返回 403 + code 字段（字符串），前端在错误拦截器识别
+        // 拦截 HTTP 403 + 业务码 CSRF 校验失败
+        // CSRF Token 为一次性消费（后端每次成功请求后轮换下发新 token），
+        // 多标签页/并发请求共享同一 csrf_token Cookie 时，后发请求必然携带已消费的旧 token。
+        // 此时先读取最新 Cookie 中的 token 重放一次（带 _csrfRetry 标记防循环），
+        // 仍失败才清空 token 并跳转登录，避免并发请求把用户误踢出登录态。
         if (error.response?.status === 403) {
           const body = error.response.data as { code?: string } | undefined;
           if (body && (body.code === 'CSRF_TOKEN_MISSING' || body.code === 'CSRF_TOKEN_INVALID')) {
+            const isCsrfRetry = (originalRequest as { _csrfRetry?: boolean } | undefined)?._csrfRetry;
+            const freshToken = loadCsrfToken();
+            if (!isCsrfRetry && freshToken) {
+              (originalRequest as { _csrfRetry?: boolean })._csrfRetry = true;
+              originalRequest.headers['X-CSRF-Token'] = freshToken;
+              return this.instance(originalRequest);
+            }
             // csrf_token Cookie 由后端管理；前端只能清空 document.cookie 中非 httpOnly 的 csrf_token
             // 真正彻底清理需调用 logout 接口或后端通过 Set-Cookie + max-age=0 清除
             clearCsrfToken();
