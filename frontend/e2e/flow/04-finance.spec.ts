@@ -42,10 +42,22 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
       const subjects = await apiCallRaw<{
         items: Array<{ code: string; status?: string }>;
       }>(page, 'GET', '/subjects?page=1&page_size=50');
-      const activeCodes = (subjects.items || [])
+      let activeCodes = (subjects.items || [])
         .filter(s => !s.status || s.status === 'active')
         .map(s => s.code);
-      if (activeCodes.length < 1) throw new Error('无任何可用会计科目');
+      // 科目不足 3 个时先创建 E2E 专用科目（CreateSubjectRequestDto: code/name/level）
+      const suffix = Date.now().toString().slice(-6);
+      while (activeCodes.length < 3) {
+        const i = activeCodes.length;
+        const code = `E2E${suffix}${i}`;
+        await apiCall(page, 'POST', '/subjects', {
+          code,
+          name: `E2E科目${i}`,
+          level: 1,
+          balance_direction: 'debit',
+        });
+        activeCodes.push(code);
+      }
       const pick = (i: number) => activeCodes[i % activeCodes.length];
       const amount = 10000;
       const half = amount / 2;
