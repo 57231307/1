@@ -142,13 +142,13 @@ test.describe('成本核算完整流程', () => {
 
     let voucherId: number;
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/vouchers', voucherData);
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/vouchers', voucherData);
       voucherId = result.data?.id!;
     } catch {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',
-        '/finance/vouchers?page=1&page_size=1'
+        '/vouchers?page=1&page_size=1'
       );
       voucherId = list.items?.[0]?.id;
     }
@@ -157,7 +157,7 @@ test.describe('成本核算完整流程', () => {
     const voucher = await apiCallRaw<{
       entries: Array<{ debit: string; credit: string }>;
       status: string;
-    }>(page, 'GET', `/finance/vouchers/${voucherId}`);
+    }>(page, 'GET', `/vouchers/${voucherId}`);
     const totalDebit =
       voucher.entries?.reduce(
         (sum: number, e: { debit: string; credit: string }) => sum + parseFloat(e.debit || '0'),

@@ -1279,7 +1279,7 @@ export async function verifyOutsourcingVoucher(
     const vouchers = await apiCallRaw<{ items: Array<Record<string, unknown>> }>(
       page,
       'GET',
-      `/finance/outsourcing-vouchers?outsourcing_order_id=${orderId}&voucher_type=${voucherType}&page=1&page_size=5`
+      `/outsourcing-vouchers?outsourcing_order_id=${orderId}&voucher_type=${voucherType}&page=1&page_size=5`
     );
     return vouchers.items?.[0] || null;
   } catch {
@@ -1294,7 +1294,7 @@ export async function verifyTrialBalance(
     const result = await apiCallRaw<{ debit_total: number; credit_total: number }>(
       page,
       'GET',
-      '/finance/gl/trial-balance'
+      '/finance/reports/trial-balance'
     );
     return {
       balanced: Math.abs((result.debit_total || 0) - (result.credit_total || 0)) < 0.01,

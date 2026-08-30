@@ -216,7 +216,7 @@ test.describe('异常处理与边界条件', () => {
     const closedPeriod = periods.items?.find(p => p.status === 'closed' || p.status === '已关闭');
 
     if (closedPeriod) {
-      const result = await apiCallExpectFail(page, 'POST', '/finance/vouchers', {
+      const result = await apiCallExpectFail(page, 'POST', '/vouchers', {
         voucher_type: 'general',
         voucher_date: `${closedPeriod.period_name}-15`,
         items: [

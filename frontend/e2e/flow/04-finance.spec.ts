@@ -17,7 +17,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
       const subjects = await apiCallRaw<{ items: Array<{ code: string; name: string }> }>(
         page,
         'GET',
-        '/finance/gl/subjects?page=1&page_size=20'
+        '/subjects?page=1&page_size=20'
       );
       expect(subjects.items);
     } catch {
@@ -38,7 +38,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
   test('4-2 创建凭证（含色号维度成本）', async ({ page }) => {
     await loginViaUI(page);
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/vouchers', {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/vouchers', {
         voucher_date: new Date().toISOString().split('T')[0],
         voucher_type: 'general',
         items: [
@@ -67,18 +67,18 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
     }
 
     try {
-      await apiCall(page, 'POST', `/finance/vouchers/${id}/submit`);
+      await apiCall(page, 'POST', `/vouchers/${id}/submit`);
     } catch {
       /* skip */
     }
     // posted 可能需要审核步骤
     try {
-      await apiCall(page, 'POST', `/finance/vouchers/${id}/post`);
+      await apiCall(page, 'POST', `/vouchers/${id}/post`);
     } catch {
       /* skip */
     }
 
-    const v = await apiCallRaw<{ status: string }>(page, 'GET', `/finance/vouchers/${id}`);
+    const v = await apiCallRaw<{ status: string }>(page, 'GET', `/vouchers/${id}`);
     const status = (v.status || '').toLowerCase();
     expect(['draft', 'submitted', 'reviewed', 'posted', 'cancelled']).toContain(
       status ?? '(missing-status)'
@@ -95,7 +95,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
     }
 
     // 对已 posted 的凭证提交 → 应拒绝
-    const result = await apiCallExpectFail(page, 'POST', `/finance/vouchers/${id}/submit`);
+    const result = await apiCallExpectFail(page, 'POST', `/vouchers/${id}/submit`);
     expect(result.status >= 400).toBe(true); // 非法转换应被拒
   });
 
@@ -104,7 +104,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
     try {
       const apInvoices = await apiCallRaw<{
         items: Array<{ id: number; amount: number; status: string }>;
-      }>(page, 'GET', '/finance/ap/invoices?page=1&page_size=5');
+      }>(page, 'GET', '/ap/invoices?page=1&page_size=5');
       expect(apInvoices.items);
     } catch {
       /* skip */
@@ -116,7 +116,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
     try {
       const arInvoices = await apiCallRaw<{
         items: Array<{ id: number; amount: number; status: string }>;
-      }>(page, 'GET', '/finance/ar/invoices?page=1&page_size=5');
+      }>(page, 'GET', '/ar/invoices?page=1&page_size=5');
       expect(arInvoices.items);
     } catch {
       /* skip */
@@ -129,7 +129,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
       const apPayments = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',
-        '/finance/ap/payments?page=1&page_size=5'
+        '/ap/payments?page=1&page_size=5'
       );
       expect(apPayments.items);
     } catch {
@@ -139,7 +139,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
       const arPayments = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',
-        '/finance/ar/payments?page=1&page_size=5'
+        '/ar/payments?page=1&page_size=5'
       );
       expect(arPayments.items);
     } catch {
@@ -151,7 +151,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
     await loginViaUI(page);
     const ctx = getCtx();
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/fixed-assets', {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/fixed-assets', {
         // CreateAssetRequestDto 字段：asset_no/asset_name/original_value/purchase_date/useful_life/depreciation_method
         asset_name: genName('E2E染缸设备'),
         asset_no: genCode('FA'),
@@ -166,7 +166,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
         const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
           page,
           'GET',
-          '/finance/fixed-assets?page=1&page_size=1'
+          '/fixed-assets?page=1&page_size=1'
         );
         ctx.fixedAssetId = list.items?.[0]?.id;
       } catch {
@@ -180,7 +180,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
     await loginViaUI(page);
     const ctx = getCtx();
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/budgets', {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/budgets', {
         budget_name: genName('E2E预算'),
         budget_year: new Date().getFullYear(),
         budget_type: 'expense',
@@ -200,7 +200,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
       const periods = await apiCallRaw<{ items: Array<{ status: string }> }>(
         page,
         'GET',
-        '/finance/gl/periods?page=1&page_size=5'
+        '/accounting-periods?page=1&page_size=5'
       );
       expect(periods.items);
       if (periods?.items?.length ?? 0 > 0) {
@@ -230,7 +230,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
       const vouchers = await apiCallRaw<{ items: Array<{ id: number; voucher_no: string }> }>(
         page,
         'GET',
-        '/finance/vouchers?page=1&page_size=5'
+        '/vouchers?page=1&page_size=5'
       );
       expect(vouchers.items);
     } catch {

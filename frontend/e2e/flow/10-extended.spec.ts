@@ -76,7 +76,7 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
       const apInvoices = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',
-        '/finance/ap/invoices?page=1&page_size=5'
+        '/ap/invoices?page=1&page_size=5'
       );
       expect(apInvoices.items);
     } catch {
@@ -214,7 +214,7 @@ test.describe.serial('扩展: 委外凭证/成本归集/试算平衡', () => {
       const costs = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',
-        '/finance/cost-collections?page=1&page_size=5'
+        '/production/cost-collections?page=1&page_size=5'
       );
       expect(costs.items);
     } catch {
@@ -246,7 +246,7 @@ test.describe.serial('扩展: 委外凭证/成本归集/试算平衡', () => {
       const analyses = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',
-        '/finance/financial-analysis?page=1&page_size=5'
+        '/financial-analysis?page=1&page_size=5'
       );
       expect(analyses.items);
     } catch {

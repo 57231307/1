@@ -860,13 +860,13 @@ test.describe('面料单据专用字段全链路验证', () => {
 
     let voucherId: number;
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/vouchers', voucherData);
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/vouchers', voucherData);
       voucherId = result.data?.id!;
     } catch {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',
-        '/finance/vouchers?page=1&page_size=1'
+        '/vouchers?page=1&page_size=1'
       );
       voucherId = list.items?.[0]?.id;
     }
@@ -876,7 +876,7 @@ test.describe('面料单据专用字段全链路验证', () => {
         entries: Array<Record<string, unknown>>;
         batch_no: string;
         color_no: string;
-      }>(page, 'GET', `/finance/vouchers/${voucherId}`);
+      }>(page, 'GET', `/vouchers/${voucherId}`);
 
       // 主表面料字段验证
       expect(detail.batch_no).toBe(batchNo);
