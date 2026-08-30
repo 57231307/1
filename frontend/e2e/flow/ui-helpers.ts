@@ -363,7 +363,16 @@ export async function createProductUI(page: Page): Promise<number | undefined> {
   // 若页面此前已挂载（分类列表为旧缓存），reload 强制刷新。
   await safeGoto(page, '/product');
   await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
-  await page.waitForTimeout(1500);
+  // 等待 GET /product-categories 响应完成（分类下拉数据就绪），避免异步竞态
+  await page
+    .waitForResponse(
+      r => r.url().includes('/product-categories') && r.request().method() === 'GET',
+      {
+        timeout: 15_000,
+      }
+    )
+    .catch(() => {});
+  await page.waitForTimeout(500);
   const fields: UiField[] = [
     { kind: 'input', label: '产品编码', value: _genCode('E2E-P') },
     { kind: 'input', label: '产品名称', value: _genName('E2E产品') },

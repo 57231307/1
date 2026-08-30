@@ -38,13 +38,24 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
   test('4-2 创建凭证（含色号维度成本）', async ({ page }) => {
     await loginViaUI(page);
     try {
+      // 先取真实存在的科目编码（CI 库可能没有 1122/6001/2202 种子）
+      const subjects = await apiCallRaw<{
+        items: Array<{ code: string; status?: string }>;
+      }>(page, 'GET', '/subjects?page=1&page_size=50');
+      const activeCodes = (subjects.items || [])
+        .filter(s => !s.status || s.status === 'active')
+        .map(s => s.code);
+      if (activeCodes.length < 1) throw new Error('无任何可用会计科目');
+      const pick = (i: number) => activeCodes[i % activeCodes.length];
+      const amount = 10000;
+      const half = amount / 2;
       const result = await apiCall<{ id?: number }>(page, 'POST', '/vouchers', {
         voucher_date: new Date().toISOString().split('T')[0],
         voucher_type: 'general',
         items: [
-          { subject_code: '1122', debit: 11300, credit: 0 },
-          { subject_code: '6001', debit: 0, credit: 10000 },
-          { subject_code: '2202', debit: 0, credit: 1300 },
+          { subject_code: pick(0), debit: amount, credit: 0 },
+          { subject_code: pick(1), debit: 0, credit: half },
+          { subject_code: pick(2), debit: 0, credit: amount - half },
         ],
         remarks: 'E2E 测试凭证（含色号维度成本）',
       });
