@@ -36,7 +36,7 @@ test.describe('库存盘点完整流程', () => {
       countId = result.data?.id!;
     } catch {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/inventory/counts?page=1&page_size=1');
-      countId = list.items[0]?.id;
+      countId = list.items?.[0]?.id;
     }
     expect(countId).toBeDefined();
 
@@ -52,7 +52,7 @@ test.describe('库存盘点完整流程', () => {
         page, 'GET', `/inventory/stock?product_id=${productId}&warehouse_id=${warehouseId}&page=1&page_size=5`
       );
       if (stockList.items && stockList.items.length > 0) {
-        stockId = stockList.items[0].id;
+        stockId = stockList.items?.[0].id;
       }
     } catch {
       // 查询失败用默认 stock_id
@@ -102,7 +102,7 @@ test.describe('库存盘点完整流程', () => {
       countId = result.data?.id!;
     } catch {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/inventory/counts?page=1&page_size=1');
-      countId = list.items[0]?.id;
+      countId = list.items?.[0]?.id;
     }
 
     // 录入负数实盘数量（后端应拒绝）
@@ -131,7 +131,7 @@ test.describe('库存盘点完整流程', () => {
       countId = result.data?.id!;
     } catch {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/inventory/counts?page=1&page_size=1');
-      countId = list.items[0]?.id;
+      countId = list.items?.[0]?.id;
     }
 
     try { await apiCall(page, 'POST', `/inventory/counts/${countId}/submit`); } catch (e) { console.log(`submit 结果: ${(e as { message?: string }).message || e}`); }

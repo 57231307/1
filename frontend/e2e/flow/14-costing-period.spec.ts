@@ -42,7 +42,7 @@ test.describe('成本核算完整流程', () => {
       costId = result.data?.id!;
     } catch {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/cost-collections?page=1&page_size=1');
-      costId = list.items[0]?.id;
+      costId = list.items?.[0]?.id;
     }
     expect(costId).toBeDefined();
 
@@ -126,7 +126,7 @@ test.describe('成本核算完整流程', () => {
       voucherId = result.data?.id!;
     } catch {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/finance/vouchers?page=1&page_size=1');
-      voucherId = list.items[0]?.id;
+      voucherId = list.items?.[0]?.id;
     }
 
     // 验证凭证借贷平衡
@@ -155,7 +155,7 @@ test.describe('成本核算完整流程', () => {
     );
 
     if (assets.items && assets.items.length > 0) {
-      const asset = assets.items[0];
+      const asset = assets.items?.[0];
 
       // 尝试计提折旧
       try {
@@ -221,7 +221,7 @@ test.describe('成本核算完整流程', () => {
     );
 
     if (budgets.items && budgets.items.length > 0) {
-      const budget = budgets.items[0];
+      const budget = budgets.items?.[0];
       const control = await apiCallRaw<{
         total_budget: string;
         total_executed: string;

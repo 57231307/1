@@ -35,7 +35,7 @@ test.describe('采购退货完整流程', () => {
       returnId = result.data?.id!;
     } catch {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/purchase/returns?page=1&page_size=1');
-      returnId = list.items[0]?.id;
+      returnId = list.items?.[0]?.id;
     }
     expect(returnId).toBeDefined();
 
@@ -104,7 +104,7 @@ test.describe('采购退货完整流程', () => {
       returnId = result.data?.id!;
     } catch {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/sales/sales-returns?page=1&page_size=1');
-      returnId = list.items[0]?.id;
+      returnId = list.items?.[0]?.id;
     }
     expect(returnId).toBeDefined();
 

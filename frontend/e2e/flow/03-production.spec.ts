@@ -266,7 +266,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
       expect(logs.items);
       // 如果有日志，验证状态转换记录
       if (logs?.items?.length ?? 0 > 0) {
-        expect(logs.items[0].transition_code).toBeTruthy();
+        expect(logs.items?.[0].transition_code).toBeTruthy();
       }
     } catch {
       // 日志端点可能不同，跳过

@@ -165,7 +165,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
           ctx.arInvoiceId = result.data?.id;
         } catch { /* skip */ }
       } else {
-        ctx.arInvoiceId = invoices.items[0].id;
+        ctx.arInvoiceId = invoices.items?.[0].id;
       }
     } catch {
       // AR 模块可能未就绪

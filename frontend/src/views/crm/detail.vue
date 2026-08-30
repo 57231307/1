@@ -311,6 +311,8 @@
         </el-button>
       </template>
     </el-dialog>
+    <!-- 空态：客户不存在或加载失败时给出可见提示（避免整页空白） -->
+    <el-empty v-if="!loading && !customer" :description="t('crmDetail.customerNotFound')" />
   </div>
 </template>
 

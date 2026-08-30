@@ -122,6 +122,8 @@
         </el-tab-pane>
       </el-tabs>
     </el-card>
+    <!-- 空态：订单不存在或加载失败时给出可见提示（避免整页空白） -->
+    <el-empty v-else-if="!loading" :description="t('customOrders.detail.notFound')" />
   </div>
 </template>
 

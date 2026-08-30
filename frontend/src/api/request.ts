@@ -151,13 +151,25 @@ class Request {
 
         // 拦截 HTTP 403 + 业务码 CSRF 校验失败：CSRF Token 为一次性消费，
         // 多标签页/并发请求共享同一 csrf_token Cookie 时，后发请求必然携带已消费的旧 token。
-        // 此时先读取最新 Cookie 中的 token 重放一次（带 _csrfRetry 标记防循环），
+        // 恢复顺序：
+        // 1. 后端在消费失败时通过 X-New-CSRF-Token 头下发了恢复 token → 写入 Cookie 后用它重放
+        // 2. 无恢复头时读取最新 Cookie 中的 token 重放一次（带 _csrfRetry 标记防循环）
         // 仍失败才清空 token 并跳转登录，避免并发请求把用户误踢出登录态。
         if (error.response?.status === 403) {
           const body = error.response.data as { code?: string } | undefined;
           if (body && (body.code === 'CSRF_TOKEN_MISSING' || body.code === 'CSRF_TOKEN_INVALID')) {
             const isCsrfRetry = (originalRequest as { _csrfRetry?: boolean } | undefined)
               ?._csrfRetry;
+            // 优先使用后端下发的恢复 token（并发竞败场景的权威来源）
+            const recoveryToken = error.response.headers?.['x-new-csrf-token'] as
+              | string
+              | undefined;
+            if (!isCsrfRetry && recoveryToken) {
+              document.cookie = `csrf_token=${recoveryToken}; Path=/; SameSite=Strict; Max-Age=1800`;
+              (originalRequest as { _csrfRetry?: boolean })._csrfRetry = true;
+              originalRequest.headers['X-CSRF-Token'] = recoveryToken;
+              return this.instance(originalRequest);
+            }
             const freshToken = loadCsrfToken();
             if (!isCsrfRetry && freshToken) {
               (originalRequest as { _csrfRetry?: boolean })._csrfRetry = true;

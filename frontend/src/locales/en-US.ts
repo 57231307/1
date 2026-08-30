@@ -1507,6 +1507,7 @@ export default {
     process: {
       invalidId: 'Invalid process optimization ID',
       loadDetailFailed: 'Failed to load detail',
+      recordNotFound: 'Record not found or has been deleted',
       confirmDelete: 'Delete this process optimization record?',
       createFailed: 'Creation failed',
       detailTitle: 'Process Optimization Detail',
@@ -3070,6 +3071,7 @@ export default {
       messageReasonRequired: 'Please enter the cancellation reason',
       messageCancelSuccess: 'Cancelled successfully',
       messageCancelFailed: 'Failed to cancel',
+      notFound: 'Order not found or has been deleted',
     },
     create: {
       title: 'New Custom Order',
@@ -5388,6 +5390,7 @@ export default {
   crmDetail: {
     title: 'Customer 360 View',
     back: 'Back',
+    customerNotFound: 'Customer not found or has been deleted',
     breadcrumb: {
       home: 'Home',
       crm: 'CRM',

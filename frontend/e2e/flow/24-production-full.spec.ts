@@ -25,7 +25,7 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
       await safePostAction(page, `/production/flow-cards/${cardId}/terminate`);
     }
     const routes = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/process-routes?page=1&page_size=1').catch(() => ({ items: [] as Array<{ id: number }> }));
-    if (routes.items?.[0]?.id) await apiCallRaw(page, 'GET', `/production/process-routes/${routes.items[0].id}`);
+    if (routes.items?.[0]?.id) await apiCallRaw(page, 'GET', `/production/process-routes/${routes.items?.[0].id}`);
   });
 
   test('验布打卷：CRUD+状态机+疵点+物理测试', async ({ page }) => {
@@ -79,7 +79,7 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
     await verifyEndpointHealthy(page, '/production/mrp/requirements');
     await verifyEndpointHealthy(page, '/production/mrp-history?page=1&page_size=5');
     const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/mrp-history?page=1&page_size=1').catch(() => ({ items: [] as Array<{ id: number }> }));
-    if (list.items?.[0]?.id) await apiCallRaw(page, 'GET', `/production/mrp-history/${list.items[0].id}`);
+    if (list.items?.[0]?.id) await apiCallRaw(page, 'GET', `/production/mrp-history/${list.items?.[0].id}`);
     await safePostAction(page, '/production/mrp/calculate', { product_id: 1, quantity: 100 });
   });
 
@@ -99,10 +99,10 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
     await verifyEndpointHealthy(page, '/quality-standards?page=1&page_size=5');
     const stdList = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/quality-standards?page=1&page_size=1').catch(() => ({ items: [] as Array<{ id: number }> }));
     if (stdList.items?.[0]?.id) {
-      await apiCallRaw(page, 'GET', `/quality-standards/${stdList.items[0].id}`);
-      await verifyEndpointHealthy(page, `/quality-standards/${stdList.items[0].id}/versions`);
-      await safePostAction(page, `/quality-standards/${stdList.items[0].id}/approve`);
-      await safePostAction(page, `/quality-standards/${stdList.items[0].id}/publish`);
+      await apiCallRaw(page, 'GET', `/quality-standards/${stdList.items?.[0].id}`);
+      await verifyEndpointHealthy(page, `/quality-standards/${stdList.items?.[0].id}/versions`);
+      await safePostAction(page, `/quality-standards/${stdList.items?.[0].id}/approve`);
+      await safePostAction(page, `/quality-standards/${stdList.items?.[0].id}/publish`);
     }
     // 质量检验
     await verifyEndpointHealthy(page, '/production/quality-inspection/standards?page=1&page_size=5');
@@ -112,16 +112,16 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
     await verifyEndpointHealthy(page, '/boms?page=1&page_size=5');
     const bomList = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/boms?page=1&page_size=1').catch(() => ({ items: [] as Array<{ id: number }> }));
     if (bomList.items?.[0]?.id) {
-      await apiCallRaw(page, 'GET', `/boms/${bomList.items[0].id}`);
-      await verifyEndpointHealthy(page, `/boms/${bomList.items[0].id}/tree`);
-      await safePostAction(page, `/boms/${bomList.items[0].id}/requirements`, { quantity: 100 });
-      await safePostAction(page, `/boms/${bomList.items[0].id}/copy`);
+      await apiCallRaw(page, 'GET', `/boms/${bomList.items?.[0].id}`);
+      await verifyEndpointHealthy(page, `/boms/${bomList.items?.[0].id}/tree`);
+      await safePostAction(page, `/boms/${bomList.items?.[0].id}/requirements`, { quantity: 100 });
+      await safePostAction(page, `/boms/${bomList.items?.[0].id}/copy`);
     }
     // 打样
     await verifyEndpointHealthy(page, '/production/lab-dip/requests?page=1&page_size=5');
     const ldList = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/lab-dip/requests?page=1&page_size=1').catch(() => ({ items: [] as Array<{ id: number }> }));
     if (ldList.items?.[0]?.id) {
-      const reqId = ldList.items[0].id;
+      const reqId = ldList.items?.[0].id;
       await apiCallRaw(page, 'GET', `/production/lab-dip/requests/${reqId}`);
       await verifyEndpointHealthy(page, `/production/lab-dip/samples/by-request/${reqId}`);
       await safePostAction(page, `/production/lab-dip/requests/${reqId}/start-sampling`);

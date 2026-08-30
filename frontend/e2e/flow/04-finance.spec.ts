@@ -154,7 +154,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
       );
       expect(periods.items);
       if (periods?.items?.length ?? 0 > 0) {
-        const status = (periods.items[0].status || '').toLowerCase();
+        const status = (periods.items?.[0].status || '').toLowerCase();
         expect(['open', 'closing', 'closed', 'pending', 'active']).toContain(status ?? '(missing-status)');
       }
     } catch {

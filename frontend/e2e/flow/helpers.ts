@@ -630,10 +630,31 @@ export async function apiCall<T = unknown>(
     );
   }
 
-  // CSRF 校验失败：刷新 token 后重试一次
+  // CSRF 校验失败恢复（两级）：
+  // 1. 优先读取后端 X-New-CSRF-Token 恢复头（并发竞败场景的权威来源，无需重新登录）
+  // 2. 无恢复头时重新登录获取全新 token
   if (json.code === 'CSRF_TOKEN_INVALID' || json.code === 'CSRF_TOKEN_MISSING') {
+    const recoveryToken = response.headers()['x-new-csrf-token'];
     try {
-      csrfToken = await refreshCsrfToken(page);
+      if (recoveryToken) {
+        // 将恢复 token 写入 context Cookie，供后续请求复用
+        const urlObj = new URL(url);
+        await page.context().addCookies([
+          {
+            name: 'csrf_token',
+            value: recoveryToken,
+            domain: urlObj.hostname,
+            path: '/',
+            httpOnly: false,
+            secure: false,
+            sameSite: 'Strict',
+            expires: Math.floor(Date.now() / 1000) + 1800,
+          },
+        ]);
+        csrfToken = recoveryToken;
+      } else {
+        csrfToken = await refreshCsrfToken(page);
+      }
       response = await doFetch(csrfToken);
       text = await response.text();
       json = JSON.parse(text);

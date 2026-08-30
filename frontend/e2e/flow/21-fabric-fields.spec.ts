@@ -76,7 +76,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       soId = result.data?.id!;
     } catch {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/sales/orders?page=1&page_size=1');
-      soId = list.items[0]?.id;
+      soId = list.items?.[0]?.id;
     }
     expect(soId).toBeDefined();
 
@@ -102,7 +102,7 @@ test.describe('面料单据专用字段全链路验证', () => {
 
     // 明细面料字段验证
     expect(detail.items?.length).toBeGreaterThan(0);
-    const item = detail.items[0];
+    const item = detail.items?.[0];
     expect(item.color_no).toBe(colorNo);
     expect(item.color_name).toBe('宝蓝色');
     expect(item.pantone_code).toBe(pantoneCode);
@@ -241,7 +241,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       receiptId = result.data?.id!;
     } catch {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/purchase/receipts?page=1&page_size=1');
-      receiptId = list.items[0]?.id;
+      receiptId = list.items?.[0]?.id;
     }
 
     if (receiptId) {
@@ -251,7 +251,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       }>(page, 'GET', `/purchase/receipts/${receiptId}`);
 
       expect(detail.items?.length).toBeGreaterThan(0);
-      const item = detail.items[0];
+      const item = detail.items?.[0];
 
       // 面料追溯字段精确验证
       expect(item.material_code).toBe(materialCode);
@@ -281,7 +281,7 @@ test.describe('面料单据专用字段全链路验证', () => {
         page, 'GET', `/product-colors?product_id=${productId}&page=1&page_size=5`
       );
       if (colors.items?.length > 0) {
-        colorId = colors.items[0].id;
+        colorId = colors.items?.[0].id;
       }
     } catch {
       // 查询失败，测试无色号关联
@@ -321,7 +321,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       quotationId = result.data?.id!;
     } catch {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/quotations?page=1&page_size=1');
-      quotationId = list.items[0]?.id;
+      quotationId = list.items?.[0]?.id;
     }
 
     if (quotationId) {
@@ -331,7 +331,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       }>(page, 'GET', `/quotations/${quotationId}`);
 
       expect(detail.items?.length).toBeGreaterThan(0);
-      const item = detail.items[0];
+      const item = detail.items?.[0];
 
       expect(Number(item.product_id)).toBe(productId);
       expect(item.specification).toBe('T/C 65/35 45x45 110x76');
@@ -404,7 +404,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       transferId = result.data?.id!;
     } catch {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/inventory/transfers?page=1&page_size=1');
-      transferId = list.items[0]?.id;
+      transferId = list.items?.[0]?.id;
     }
 
     if (transferId) {
@@ -414,7 +414,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       }>(page, 'GET', `/inventory/transfers/${transferId}`);
 
       expect(detail.items?.length).toBeGreaterThan(0);
-      const item = detail.items[0];
+      const item = detail.items?.[0];
 
       expect(item.color_no).toBe(colorNo);
       expect(item.dye_lot_no).toBe(dyeLotNo);
@@ -463,7 +463,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       recipeId = result.data?.id!;
     } catch {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/dye-recipes?page=1&page_size=1');
-      recipeId = list.items[0]?.id;
+      recipeId = list.items?.[0]?.id;
     }
 
     if (recipeId) {
@@ -558,7 +558,7 @@ test.describe('面料单据专用字段全链路验证', () => {
         const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
           page, 'GET', '/fabric/greige?page=1&page_size=1'
         ).catch(() => ({ items: [] }));
-        fabricId = list.items[0]?.id;
+        fabricId = list.items?.[0]?.id;
       }
     }
 
@@ -616,7 +616,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page, 'GET', '/production/outsourcing-orders?page=1&page_size=1'
       ).catch(() => ({ items: [] }));
-      orderId = list.items[0]?.id;
+      orderId = list.items?.[0]?.id;
     }
 
     if (orderId) {
@@ -686,7 +686,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page, 'GET', '/production/cost-collections?page=1&page_size=1'
       );
-      costId = list.items[0]?.id;
+      costId = list.items?.[0]?.id;
     }
 
     if (costId) {
@@ -756,7 +756,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       voucherId = result.data?.id!;
     } catch {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/finance/vouchers?page=1&page_size=1');
-      voucherId = list.items[0]?.id;
+      voucherId = list.items?.[0]?.id;
     }
 
     if (voucherId) {
@@ -815,7 +815,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       batchId = result.data?.id!;
     } catch {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/dye-batches?page=1&page_size=1');
-      batchId = list.items[0]?.id;
+      batchId = list.items?.[0]?.id;
     }
 
     if (batchId) {
@@ -941,7 +941,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       cardId = result.data?.id!;
     } catch {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/color-cards?page=1&page_size=1');
-      cardId = list.items[0]?.id;
+      cardId = list.items?.[0]?.id;
     }
 
     if (cardId) {
@@ -976,7 +976,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       page, 'GET', '/sales/orders?page=1&page_size=1'
     ).catch(() => ({ items: [] }));
     if (soList.items?.length > 0) {
-      const so = soList.items[0];
+      const so = soList.items?.[0];
       // 销售订单可能有 color_no 字段
       expect(so.color_no !== undefined).toBe(true);
     }
@@ -986,7 +986,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       page, 'GET', '/production/dye-recipes?page=1&page_size=1'
     ).catch(() => ({ items: [] }));
     if (recipeList.items?.length > 0) {
-      const recipe = recipeList.items[0];
+      const recipe = recipeList.items?.[0];
       // 染色配方用 color_code
       expect(recipe.color_code !== undefined || recipe.color_no !== undefined).toBe(true);
     }

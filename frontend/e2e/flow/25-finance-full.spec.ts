@@ -55,9 +55,9 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
     await verifyEndpointHealthy(page, '/fixed-assets?page=1&page_size=5');
     const faList = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/fixed-assets?page=1&page_size=1').catch(() => ({ items: [] as Array<{ id: number }> }));
     if (faList.items?.[0]?.id) {
-      await apiCallRaw(page, 'GET', `/fixed-assets/${faList.items[0].id}`);
-      await verifyEndpointHealthy(page, `/fixed-assets/${faList.items[0].id}/depreciation-records`);
-      await safePostAction(page, `/fixed-assets/${faList.items[0].id}/depreciate`);
+      await apiCallRaw(page, 'GET', `/fixed-assets/${faList.items?.[0].id}`);
+      await verifyEndpointHealthy(page, `/fixed-assets/${faList.items?.[0].id}/depreciation-records`);
+      await safePostAction(page, `/fixed-assets/${faList.items?.[0].id}/depreciate`);
     }
     // 科目
     await verifyEndpointHealthy(page, '/subjects?page=1&page_size=50');

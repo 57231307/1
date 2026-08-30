@@ -129,7 +129,28 @@ fn consume_csrf_token(
                 method = %method,
                 "CSRF 验证失败：Token 不存在或已被消费/过期"
             );
-            Err(Box::new(csrf_error_response(CODE_INVAL, CSRF_INVALID_MSG)))
+            // 并发竞争缓解（E2E CI 稳定性修复）：
+            // 一次性消费 + 轮换机制下，同一会话的并发 POST 必有一个携带已消费的旧 token。
+            // 消费失败时同步下发新 token（X-New-CSRF-Token 头），让竞败方立即恢复，
+            // 避免前端被误踢出登录态（多标签页场景同样受益）。
+            // 注意：仅 NotFound（已消费/过期）时下发；IpMismatch/Missing 属攻击面，保持原语义。
+            let recovery_token = uuid::Uuid::new_v4().to_string();
+            let session_seed = format!("recovery-{}", uuid::Uuid::new_v4());
+            state.cache.set_csrf_token(
+                recovery_token.clone(),
+                session_seed,
+                client_ip.to_string(),
+                0,
+                None,
+            );
+            let mut resp = csrf_error_response(CODE_INVAL, CSRF_INVALID_MSG);
+            if let Ok(val) = axum::http::HeaderValue::from_str(&recovery_token) {
+                resp.headers_mut().insert(
+                    axum::http::header::HeaderName::from_static("x-new-csrf-token"),
+                    val,
+                );
+            }
+            Err(Box::new(resp))
         }
     }
 }

@@ -1504,6 +1504,7 @@ export default {
     process: {
       invalidId: '无效的工艺优化 ID',
       loadDetailFailed: '加载详情失败',
+      recordNotFound: '记录不存在或已被删除',
       confirmDelete: '确定删除此工艺优化记录？',
       createFailed: '创建失败',
       detailTitle: '工艺优化详情',
@@ -3151,6 +3152,7 @@ export default {
       messageReasonRequired: '请输入取消原因',
       messageCancelSuccess: '取消成功',
       messageCancelFailed: '取消失败',
+      notFound: '订单不存在或已被删除',
     },
     tracking: {
       title: '订单跟踪',
@@ -5379,6 +5381,7 @@ export default {
   crmDetail: {
     title: '客户 360 视图',
     back: '返回',
+    customerNotFound: '客户不存在或已被删除',
     breadcrumb: {
       home: '首页',
       crm: 'CRM',

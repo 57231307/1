@@ -7,7 +7,26 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
   // ===== API 端点覆盖 =====
   test('客户管理：CRUD+导出+地址+信用+360+RFM+CLV', async ({ page }) => {
     const ctx = getCtx();
-    const customerId = ctx.customerId || 1;
+    // 动态获取客户 id：ctx.customerId 缺失时从列表首个回退（库中不存在 id=1 的保证）
+    let customerId = ctx.customerId;
+    if (!customerId) {
+      try {
+        const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+          page, 'GET', '/crm/customers?page=1&page_size=1'
+        );
+        customerId = list.items?.[0]?.id;
+      } catch { /* 保留 undefined */ }
+    }
+    // 仍无任何客户时创建一个
+    if (!customerId) {
+      try {
+        const created = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
+          customer_name: 'E2E 客户 ' + Date.now(),
+        });
+        customerId = created.data?.id;
+      } catch { /* 后续断言将给出明确失败信息 */ }
+    }
+    if (!customerId) throw new Error('无法获得任何客户 id（列表为空且创建失败）');
 
     await apiCallRaw(page, 'GET', '/crm/customers?page=1&page_size=5');
     await apiCallRaw(page, 'GET', '/crm/customers/select?page=1&page_size=5');
@@ -32,7 +51,7 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     const result = await apiCallExpectFail(page, 'POST', '/crm/customer-credits', { customer_id: 1, credit_limit: '100000', currency: 'CNY' });
     if (result.status < 400) {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/crm/customer-credits?page=1&page_size=1');
-      const creditId = list.items[0]?.id;
+      const creditId = list.items?.[0]?.id;
       if (creditId) {
         await apiCallRaw(page, 'GET', `/crm/customer-credits/${creditId}`);
         await safePostAction(page, `/crm/customer-credits/${creditId}/rating`, { rating: 'A' });
@@ -56,7 +75,7 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     try { leadId = (result as { data?: { id?: number } }).data?.id; } catch { /* */ }
     if (!leadId) {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/crm/leads?page=1&page_size=1');
-      leadId = list.items[0]?.id;
+      leadId = list.items?.[0]?.id;
     }
     if (leadId) {
       await apiCallRaw(page, 'GET', `/crm/leads/${leadId}`);

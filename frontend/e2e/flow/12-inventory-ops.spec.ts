@@ -48,7 +48,7 @@ test.describe('库存调拨完整流程', () => {
       transferId = result.data?.id!;
     } catch {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/inventory/transfers?page=1&page_size=1');
-      transferId = list.items[0]?.id;
+      transferId = list.items?.[0]?.id;
     }
     expect(transferId).toBeDefined();
 
@@ -108,7 +108,7 @@ test.describe('库存调拨完整流程', () => {
       transferId = result.data?.id!;
     } catch {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/inventory/transfers?page=1&page_size=1');
-      transferId = list.items[0]?.id;
+      transferId = list.items?.[0]?.id;
     }
 
     // draft 状态直接入库应被拒

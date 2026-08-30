@@ -160,7 +160,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
           ctx.apInvoiceId = result.data?.id;
         } catch { /* skip */ }
       } else {
-        ctx.apInvoiceId = invoices.items[0].id;
+        ctx.apInvoiceId = invoices.items?.[0].id;
       }
     } catch {
       // AP 模块可能未就绪
