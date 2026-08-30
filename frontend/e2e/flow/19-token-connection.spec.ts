@@ -29,7 +29,8 @@ test.describe('后端连接状态与 Token 管理', () => {
     const context = await browser.newContext();
     const page = await context.newPage();
 
-    await page.goto(`${BASE_URL}/purchase`);
+    // 时间戳查询参数破坏 HTTP 缓存/bfcache，确保守卫 JS 真正执行
+    await page.goto(`${BASE_URL}/purchase?t=${Date.now()}`, { waitUntil: 'domcontentloaded' });
     // 守卫链：/auth/me 401 → refresh 401 → redirect /login；
     // 等待 URL 实际变化（最长 15s），固定 3s 在首次加载慢时会误判
     await page.waitForURL(/\/(login|setup)/, { timeout: 15_000 }).catch(() => {});
@@ -158,9 +159,16 @@ test.describe('后端连接状态与 Token 管理', () => {
 
     // 清除 cookie 模拟 token 过期
     await context.clearCookies();
+    // 同时清除 localStorage 权限缓存（20.11-D：userInfo 会从缓存恢复，导致守卫误判已登录）
+    await page
+      .evaluate(() => {
+        localStorage.removeItem('erp_cached_perms');
+        localStorage.removeItem('erp_cached_perms_ts');
+      })
+      .catch(() => {});
 
-    // 导航到受保护页面
-    await page.goto(`${BASE_URL}/purchase`);
+    // 导航到受保护页面（时间戳参数破坏缓存，确保守卫执行）
+    await page.goto(`${BASE_URL}/purchase?t=${Date.now()}`, { waitUntil: 'domcontentloaded' });
     // 等待重定向到登录页（最长 15s），固定 3s 在加载慢时会误判
     await page.waitForURL(/\/login/, { timeout: 15_000 }).catch(() => {});
 

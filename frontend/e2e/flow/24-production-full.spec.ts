@@ -69,9 +69,11 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
     }
     await verifyEndpointHealthy(page, '/production/fabric-defects?page=1&page_size=5');
     await safePostAction(page, '/production/fabric-inspections/physical-tests', {
+      // AddPhysicalTestRequestDto: inspection_id/test_item/test_value 必填
       inspection_id: 1,
-      test_type: 'tensile',
-      result: 'pass',
+      test_item: 'tensile_strength',
+      test_value: 500,
+      test_result: 'pass',
     });
   });
 
@@ -124,7 +126,16 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
     ).catch(() => ({ items: [] as Array<{ id: number }> }));
     if (list.items?.[0]?.id)
       await apiCallRaw(page, 'GET', `/production/mrp-history/${list.items?.[0].id}`);
-    await safePostAction(page, '/production/mrp/calculate', { product_id: 1, quantity: 100 });
+    await safePostAction(page, '/production/mrp/calculate', {
+      // MrpCalculatePayload: items 必填（product_id/required_quantity/required_date）
+      items: [
+        {
+          product_id: 1,
+          required_quantity: 100,
+          required_date: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+        },
+      ],
+    });
   });
 
   test('产能分析+排程+质量标准+质量检验+BOM+打样+缺料+缸号状态机+委外', async ({ page }) => {

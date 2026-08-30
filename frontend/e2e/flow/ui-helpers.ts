@@ -37,12 +37,11 @@ type UiField =
 async function safeGoto(page: Page, path: string): Promise<void> {
   const url = `${BASE_URL}${path}`;
   for (let attempt = 0; attempt < 3; attempt++) {
+    const consoleLogs: string[] = [];
+    const handler = (msg: { type(): string; text(): string }) =>
+      consoleLogs.push(`[console.${msg.type()}] ${msg.text()}`);
+    page.on('console', handler);
     try {
-      const consoleLogs: string[] = [];
-      const handler = (msg: { type(): string; text(): string }) =>
-        consoleLogs.push(`[console.${msg.type()}] ${msg.text()}`);
-      page.on('console', handler);
-
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
       // 等 1s 检测是否有 504
