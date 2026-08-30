@@ -162,8 +162,7 @@ class Request {
               ?._csrfRetry;
             // 优先使用后端下发的恢复 token（并发竞败场景的权威来源）
             const recoveryToken = error.response.headers?.['x-new-csrf-token'] as
-              | string
-              | undefined;
+              string | undefined;
             if (!isCsrfRetry && recoveryToken) {
               document.cookie = `csrf_token=${recoveryToken}; Path=/; SameSite=Strict; Max-Age=1800`;
               (originalRequest as { _csrfRetry?: boolean })._csrfRetry = true;
