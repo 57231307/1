@@ -157,14 +157,28 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     ctx.productIds = [];
   }
   if (ctx.productIds.length === 0) {
-    for (let i = 0; i < 3; i++) {
-      const id = await uiCreateWithRetry(page, createProductUI);
-      if (id) {
-        ctx.productIds.push(id);
-      } else {
-        console.error(
-          '[ensureTestEntities] 产品 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）'
-        );
+    // 先 UI 尝试一次（下拉交互脆弱：分类 select 点击后偶发不更新 v-model）
+    const uiId = await uiCreateWithRetry(page, createProductUI);
+    if (uiId) {
+      ctx.productIds.push(uiId);
+    } else {
+      console.warn(
+        '[ensureTestEntities] 产品 UI 创建失败，改用 API 兜底创建（保证后续流程不被阻塞）'
+      );
+    }
+    // API 兜底补齐到 3 个
+    while (ctx.productIds.length < 3) {
+      try {
+        const result = await apiCall<{ id?: number }>(page, 'POST', '/products', {
+          product_code: `E2E-P${Date.now().toString().slice(-6)}${ctx.productIds.length}`,
+          product_name: `E2E产品${Date.now().toString().slice(-6)}${ctx.productIds.length}`,
+          unit: '米',
+        });
+        if (result.data?.id) ctx.productIds.push(result.data.id);
+        else break;
+      } catch (e) {
+        console.error('[ensureTestEntities] 产品 API 兜底创建失败:', (e as Error).message);
+        break;
       }
     }
   }
