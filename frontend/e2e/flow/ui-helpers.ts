@@ -413,6 +413,12 @@ export async function createProductUI(page: Page): Promise<number | undefined> {
   await categorySelect.click();
   const dropdown = page.locator('.el-select-dropdown:visible').last();
   await dropdown.waitFor({ state: 'visible', timeout: 20000 });
+  // 等待 option 项真正渲染（排除 loading/空 dropdown 暂态）
+  await dropdown
+    .locator('.el-select-dropdown__item')
+    .first()
+    .waitFor({ state: 'visible', timeout: 10_000 })
+    .catch(() => {});
   const fabricItem = dropdown
     .locator('.el-select-dropdown__item')
     .filter({ hasText: /面料/i })
@@ -424,7 +430,19 @@ export async function createProductUI(page: Page): Promise<number | undefined> {
     console.warn('[createProductUI] 分类下拉无“面料”选项，回退选第一项');
     await dropdown.locator('.el-select-dropdown__item').first().click();
   }
-  await page.waitForTimeout(300);
+  // 验证分类已选中（select 显示非 placeholder 文本），未选中则重试一次
+  await page.waitForTimeout(500);
+  const selectText = (await categorySelect.textContent()) || '';
+  if (selectText.includes('选择分类') || selectText.trim() === '') {
+    console.warn('[createProductUI] 分类未选中，重试一次');
+    await categorySelect.click();
+    const dropdown2 = page.locator('.el-select-dropdown:visible').last();
+    await dropdown2.waitFor({ state: 'visible', timeout: 20000 });
+    const firstItem = dropdown2.locator('.el-select-dropdown__item').first();
+    await firstItem.waitFor({ state: 'visible', timeout: 10_000 });
+    await firstItem.click();
+    await page.waitForTimeout(500);
+  }
   // 提交
   const submitBtn = dialog.getByRole('button', { name: /确定|保存/ }).last();
   await submitBtn.waitFor({ state: 'visible', timeout: 20000 });
