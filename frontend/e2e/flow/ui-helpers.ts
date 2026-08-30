@@ -359,6 +359,12 @@ export async function createSupplierUI(page: Page): Promise<number | undefined> 
 
 /** 创建产品 */
 export async function createProductUI(page: Page): Promise<number | undefined> {
+  // 关键：先整页加载 /product（safeGoto 触发 Vue Router 导航 + 组件挂载），
+  // 确保分类下拉的 categories prop 在“面料”分类创建之后加载。
+  // 若页面此前已挂载（分类列表为旧缓存），reload 强制刷新。
+  await safeGoto(page, '/product');
+  await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+  await page.waitForTimeout(1500);
   const fields: UiField[] = [
     { kind: 'input', label: '产品编码', value: _genCode('E2E-P') },
     { kind: 'input', label: '产品名称', value: _genName('E2E产品') },

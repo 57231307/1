@@ -183,8 +183,15 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
         .click()
         .catch(() => {});
     }
-    // 验证转账按钮
-    const transferBtn = page.locator('button:has-text("账户转账")').first();
+    // 验证转账按钮：按钮在“转账记录”Tab 内（默认激活 account），需先切 Tab
+    // 真实按钮文本是“新建转账”（fund.transferTab.buttonNewTransfer），非“账户转账”
+    await page
+      .locator('.el-tabs__item:has-text("转账记录")')
+      .first()
+      .click()
+      .catch(() => {});
+    await page.waitForTimeout(1000);
+    const transferBtn = page.locator('button:has-text("新建转账")').first();
     await transferBtn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
     const transferVisible = await transferBtn.isVisible().catch(() => false);
     expect(transferVisible).toBe(true);
@@ -303,9 +310,9 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
         .click()
         .catch(() => {});
     }
-    // 验证初始化年度按钮
+    // 验证初始化年度按钮（dialog 关闭动画可能遮挡，给足 10s）
     const initBtn = page.locator('button:has-text("初始化年度")').first();
-    await initBtn.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
+    await initBtn.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
     const initVisible = await initBtn.isVisible().catch(() => false);
     expect(initVisible).toBe(true);
   });
@@ -342,6 +349,13 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
       .locator('.el-table, .el-card, .el-tabs')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
+    // “生成对账”按钮在“对账管理”Tab 内（默认激活 invoice），需先切 Tab
+    await page
+      .locator('.el-tabs__item:has-text("对账管理")')
+      .first()
+      .click()
+      .catch(() => {});
+    await page.waitForTimeout(1000);
     const genBtn = page.locator('button:has-text("生成对账")').first();
     await genBtn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
     const genVisible = await genBtn.isVisible().catch(() => false);

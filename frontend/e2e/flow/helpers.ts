@@ -679,7 +679,13 @@ export async function apiCall<T = unknown>(
       }
       response = await doFetch(csrfToken);
       text = await response.text();
-      json = JSON.parse(text);
+      try {
+        json = JSON.parse(text);
+      } catch {
+        throw new Error(
+          `retry returned non-JSON (status ${response.status()}): ${text.slice(0, 200)}`
+        );
+      }
     } catch (e) {
       throw new Error(`API ${method} ${path} CSRF 重试失败: ${(e as Error).message}`);
     }

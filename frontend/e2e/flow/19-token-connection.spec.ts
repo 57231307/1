@@ -30,7 +30,9 @@ test.describe('后端连接状态与 Token 管理', () => {
     const page = await context.newPage();
 
     await page.goto(`${BASE_URL}/purchase`);
-    await page.waitForTimeout(3000);
+    // 守卫链：/auth/me 401 → refresh 401 → redirect /login；
+    // 等待 URL 实际变化（最长 15s），固定 3s 在首次加载慢时会误判
+    await page.waitForURL(/\/(login|setup)/, { timeout: 15_000 }).catch(() => {});
 
     const url = page.url();
     expect(url.includes('/login') || url.includes('/setup')).toBe(true);
@@ -159,7 +161,8 @@ test.describe('后端连接状态与 Token 管理', () => {
 
     // 导航到受保护页面
     await page.goto(`${BASE_URL}/purchase`);
-    await page.waitForTimeout(3000);
+    // 等待重定向到登录页（最长 15s），固定 3s 在加载慢时会误判
+    await page.waitForURL(/\/login/, { timeout: 15_000 }).catch(() => {});
 
     // 应被重定向到登录页
     const url = page.url();
