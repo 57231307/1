@@ -22,7 +22,7 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
   // 辅助：验证表格+表头
   async function verifyTable(page: import('@playwright/test').Page) {
     const table = page.locator('.el-table').first();
-    const visible = await table.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+    await table.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
     const visible = await table.isVisible().catch(() => false);
     if (visible) {
       const headers = table.locator('th');
@@ -35,7 +35,7 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
   // 辅助：验证新建按钮+弹窗
   async function verifyNewButton(page: import('@playwright/test').Page, btnText: string) {
     const btn = page.locator(`button:has-text("${btnText}")`).first();
-    const visible = await btn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await btn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
     const visible = await btn.isVisible().catch(() => false);
     if (visible) {
       const disabled = await btn.isDisabled().catch(() => false);
@@ -120,7 +120,7 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
   test('报价单新建 /quotations/new', async ({ page }) => {
     await visitPage(page, '/quotations/new');
     const form = page.locator('.el-form, .el-card').first();
-    const visible = await form.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+    await form.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
     const visible = await form.isVisible().catch(() => false);
     expect(visible).toBe(true);
   });
@@ -178,7 +178,7 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
   test('应收 /ar', async ({ page }) => {
     await visitPage(page, '/ar');
     const tab = page.locator('.el-tabs, .el-table, .el-card').first();
-    const visible = await tab.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+    await tab.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
     const visible = await tab.isVisible().catch(() => false);
     expect(visible).toBe(true);
   });
@@ -193,14 +193,14 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
   test('财务总页 /finance', async ({ page }) => {
     await visitPage(page, '/finance');
     const tab = page.locator('.el-tabs, .el-table, .el-card').first();
-    const visible = await tab.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+    await tab.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
     const visible = await tab.isVisible().catch(() => false);
     expect(visible).toBe(true);
   });
   test('财务分析 /financial-analysis', async ({ page }) => {
     await visitPage(page, '/financial-analysis');
     const card = page.locator('.el-card, .el-table, body').first();
-    const visible = await card.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+    await card.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
     const visible = await card.isVisible().catch(() => false);
     expect(visible).toBe(true);
   });
@@ -213,21 +213,21 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
   test('系统总页 /system', async ({ page }) => {
     await visitPage(page, '/system');
     const tab = page.locator('.el-tabs, .el-table').first();
-    const visible = await tab.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+    await tab.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
     const visible = await tab.isVisible().catch(() => false);
     expect(visible).toBe(true);
   });
   test('系统更新 /system-update', async ({ page }) => {
     await visitPage(page, '/system-update');
     const card = page.locator('.el-card, .el-form, body').first();
-    const visible = await card.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+    await card.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
     const visible = await card.isVisible().catch(() => false);
     expect(visible).toBe(true);
   });
   test('个人信息 /system/profile', async ({ page }) => {
     await visitPage(page, '/system/profile');
     const form = page.locator('.el-form, .el-card, body').first();
-    const visible = await form.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+    await form.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
     const visible = await form.isVisible().catch(() => false);
     expect(visible).toBe(true);
   });
@@ -242,7 +242,7 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
   test('数据导入 /data-import', async ({ page }) => {
     await visitPage(page, '/data-import');
     const card = page.locator('.el-card, .el-upload, body').first();
-    const visible = await card.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+    await card.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
     const visible = await card.isVisible().catch(() => false);
     expect(visible).toBe(true);
   });
@@ -253,21 +253,21 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
   test('邮件管理 /email', async ({ page }) => {
     await visitPage(page, '/email');
     const card = page.locator('.el-card, .el-table, body').first();
-    const visible = await card.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+    await card.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
     const visible = await card.isVisible().catch(() => false);
     expect(visible).toBe(true);
   });
   test('双因素认证 /security/two-factor-setup', async ({ page }) => {
     await visitPage(page, '/security/two-factor-setup');
     const card = page.locator('.el-card, .el-form, body').first();
-    const visible = await card.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+    await card.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
     const visible = await card.isVisible().catch(() => false);
     expect(visible).toBe(true);
   });
   test('主备隔离 /admin/failover', async ({ page }) => {
     await visitPage(page, '/admin/failover');
     const card = page.locator('.el-card, .el-form, body').first();
-    const visible = await card.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+    await card.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
     const visible = await card.isVisible().catch(() => false);
     expect(visible).toBe(true);
   });
@@ -296,7 +296,7 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
   test('色卡价格新建 /color-prices/create', async ({ page }) => {
     await visitPage(page, '/color-prices/create');
     const form = page.locator('.el-form, .el-card').first();
-    const visible = await form.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+    await form.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
     const visible = await form.isVisible().catch(() => false);
     expect(visible).toBe(true);
   });
@@ -310,7 +310,7 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
   test('定制订单新建 /custom-orders/new', async ({ page }) => {
     await visitPage(page, '/custom-orders/new');
     const form = page.locator('.el-form, .el-card').first();
-    const visible = await form.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+    await form.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
     const visible = await form.isVisible().catch(() => false);
     expect(visible).toBe(true);
   });
@@ -329,21 +329,21 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
   test('AI扩展 /ai-extend', async ({ page }) => {
     await visitPage(page, '/ai-extend');
     const card = page.locator('.el-card, .el-table, body').first();
-    const visible = await card.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+    await card.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
     const visible = await card.isVisible().catch(() => false);
     expect(visible).toBe(true);
   });
   test('AI工艺优化 /ai-extend/process-optimization', async ({ page }) => {
     await visitPage(page, '/ai-extend/process-optimization');
     const card = page.locator('.el-card, .el-table, body').first();
-    const visible = await card.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+    await card.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
     const visible = await card.isVisible().catch(() => false);
     expect(visible).toBe(true);
   });
   test('AI质量预测 /ai-extend/quality-prediction', async ({ page }) => {
     await visitPage(page, '/ai-extend/quality-prediction');
     const card = page.locator('.el-card, .el-table, body').first();
-    const visible = await card.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+    await card.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
     const visible = await card.isVisible().catch(() => false);
     expect(visible).toBe(true);
   });
@@ -355,7 +355,7 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
   test('BPM /bpm', async ({ page }) => {
     await visitPage(page, '/bpm');
     const tab = page.locator('.el-tabs, .el-table, .el-card').first();
-    const visible = await tab.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+    await tab.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
     const visible = await tab.isVisible().catch(() => false);
     expect(visible).toBe(true);
   });
@@ -376,14 +376,14 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
   test('BI销售分析 /bi/sales-analysis', async ({ page }) => {
     await visitPage(page, '/bi/sales-analysis');
     const card = page.locator('.el-card, canvas, .echarts, body').first();
-    const visible = await card.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+    await card.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
     const visible = await card.isVisible().catch(() => false);
     expect(visible).toBe(true);
   });
   test('扫码 /barcode-scanner', async ({ page }) => {
     await visitPage(page, '/barcode-scanner');
     const card = page.locator('.el-card, .el-input, body').first();
-    const visible = await card.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+    await card.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
     const visible = await card.isVisible().catch(() => false);
     expect(visible).toBe(true);
   });

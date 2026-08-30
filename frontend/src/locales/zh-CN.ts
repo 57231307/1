@@ -3171,6 +3171,7 @@ export default {
       nodeStatusCompleted: '已完成',
       nodeStatusBlocked: '阻塞',
       messageLoadFailed: '加载时间线失败',
+      notFound: '订单不存在或已被删除',
     },
   },
   product: {

@@ -92,6 +92,8 @@
         <el-empty v-if="allLogs.length === 0" :description="t('customOrders.tracking.emptyLogs')" />
       </el-timeline>
     </el-card>
+    <!-- 空态：订单不存在或加载失败时给出可见提示（避免整页空白） -->
+    <el-empty v-if="!loading && !timeline" :description="t('customOrders.tracking.notFound')" />
   </div>
 </template>
 

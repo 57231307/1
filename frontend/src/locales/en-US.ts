@@ -3177,6 +3177,7 @@ export default {
       nodeStatusCompleted: 'Completed',
       nodeStatusBlocked: 'Blocked',
       messageLoadFailed: 'Failed to load timeline',
+      notFound: 'Order not found or has been deleted',
     },
   },
   product: {
