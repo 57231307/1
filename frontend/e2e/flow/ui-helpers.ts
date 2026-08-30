@@ -373,20 +373,70 @@ export async function createProductUI(page: Page): Promise<number | undefined> {
     )
     .catch(() => {});
   await page.waitForTimeout(500);
-  const fields: UiField[] = [
-    { kind: 'input', label: '产品编码', value: _genCode('E2E-P') },
-    { kind: 'input', label: '产品名称', value: _genName('E2E产品') },
-    { kind: 'select', label: '分类', value: '面料' },
-    { kind: 'input', label: '单位', value: '米' },
-  ];
-  return uiCreateDialog(
-    page,
-    '/product',
-    `${API_PREFIX}/products`,
-    /新建产品/,
-    /确定|保存/,
-    fields
-  );
+  // 打开新建产品 dialog
+  const addBtn = page.getByRole('button', { name: /新建产品/ }).first();
+  await addBtn.waitFor({ state: 'visible', timeout: 30000 });
+  await addBtn.click();
+  const dialog = page.locator('.el-dialog:visible').last();
+  await dialog.waitFor({ state: 'visible', timeout: 30000 });
+  await page.waitForTimeout(300);
+  // 填普通输入字段
+  const codeInput = dialog
+    .locator('.el-form-item')
+    .filter({ hasText: '产品编码' })
+    .locator('input')
+    .first();
+  await codeInput.waitFor({ state: 'visible', timeout: 20000 });
+  await codeInput.fill(_genCode('E2E-P'));
+  const nameInput = dialog
+    .locator('.el-form-item')
+    .filter({ hasText: '产品名称' })
+    .locator('input')
+    .first();
+  await nameInput.waitFor({ state: 'visible', timeout: 20000 });
+  await nameInput.fill(_genName('E2E产品'));
+  const unitInput = dialog
+    .locator('.el-form-item')
+    .filter({ hasText: '单位' })
+    .locator('input')
+    .first();
+  if ((await unitInput.count()) > 0) {
+    await unitInput.fill('米').catch(() => {});
+  }
+  // 分类下拉：用 placeholder 定位 select，点击后从全局 dropdown 选“面料”
+  const categorySelect = dialog
+    .locator('.el-form-item:has(.el-select)')
+    .filter({ hasText: '分类' })
+    .locator('.el-select__wrapper, .el-select')
+    .first();
+  await categorySelect.waitFor({ state: 'visible', timeout: 20000 });
+  await categorySelect.click();
+  const dropdown = page.locator('.el-select-dropdown:visible').last();
+  await dropdown.waitFor({ state: 'visible', timeout: 20000 });
+  const fabricItem = dropdown
+    .locator('.el-select-dropdown__item')
+    .filter({ hasText: /面料/i })
+    .first();
+  if ((await fabricItem.count()) > 0) {
+    await fabricItem.click();
+  } else {
+    // 无“面料”选项 → 取第一项（避免空值提交），并告警
+    console.warn('[createProductUI] 分类下拉无“面料”选项，回退选第一项');
+    await dropdown.locator('.el-select-dropdown__item').first().click();
+  }
+  await page.waitForTimeout(300);
+  // 提交
+  const submitBtn = dialog.getByRole('button', { name: /确定|保存/ }).last();
+  await submitBtn.waitFor({ state: 'visible', timeout: 20000 });
+  await submitBtn.click();
+  // 等待响应
+  const data = await waitCreateResponse(page, `${API_PREFIX}/products`, 30000);
+  if (data?.id !== undefined && typeof data.id === 'number') {
+    return data.id;
+  }
+  await diagnoseFailure(page, 'product');
+  console.error(`[createProductUI] 创建失败: 响应数据=${JSON.stringify(data)}`);
+  return undefined;
 }
 
 /** 创建色卡 */
