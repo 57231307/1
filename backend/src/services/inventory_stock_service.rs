@@ -116,9 +116,6 @@ pub struct CreateStockFabricArgs {
     pub layer_no: Option<String>,
 }
 
-/// build_stock_fabric_active 内部传递字段（解构 CreateStockFabricArgs 后 + 计算的 final_quantity_kg）
-/// 避免主函数调用 helper 时传递 13 个参数，使用结构体封装更整洁。
-
 /// 创建面料批次参数对象（缺陷 3 修复：消除 create_batch_fabric 的 too_many_arguments 警告）
 #[derive(Debug, Clone)]
 pub struct CreateBatchFabricArgs {
