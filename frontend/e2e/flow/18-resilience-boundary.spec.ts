@@ -14,7 +14,10 @@ import {
 } from './helpers';
 
 test.describe('异常处理与边界条件', () => {
-  test.beforeEach(async ({ page }) => { await loginViaUI(page); await ensureTestEntities(page); });
+  test.beforeEach(async ({ page }) => {
+    await loginViaUI(page);
+    await ensureTestEntities(page);
+  });
 
   test('并发编辑冲突：同一用户两个 context 同时修改同一单据', async ({ page, context }) => {
     const ctx = getCtx();
@@ -30,7 +33,9 @@ test.describe('异常处理与边界条件', () => {
     const updateData2 = { notes: `并发修改2-${Date.now()}` };
 
     // 第一个 page 先更新
-    const result1 = await apiCall(page, 'PUT', `/purchase/orders/${poId}`, updateData1).catch(() => null);
+    const result1 = await apiCall(page, 'PUT', `/purchase/orders/${poId}`, updateData1).catch(
+      () => null
+    );
 
     // 第二个 page 也尝试更新（可能因乐观锁/版本号冲突被拒）
     const csrf2 = (await context.cookies()).find(c => c.name === 'csrf_token')?.value || '';
@@ -90,7 +95,9 @@ test.describe('异常处理与边界条件', () => {
       ],
     });
 
-    expect(result.status >= 400 || result.code === 'VALIDATION_ERROR' || result.code === 'BUSINESS_ERROR').toBeTruthy();
+    expect(
+      result.status >= 400 || result.code === 'VALIDATION_ERROR' || result.code === 'BUSINESS_ERROR'
+    ).toBeTruthy();
   });
 
   test('金额精度：小数点后 4 位处理', async ({ page }) => {
@@ -179,19 +186,32 @@ test.describe('异常处理与边界条件', () => {
     }
 
     if (soId) {
-      try { await apiCall(page, 'POST', `/sales/orders/${soId}/submit`); } catch (e) { console.log(`submit: ${(e as { message?: string }).message || e}`); }
-      try { await apiCall(page, 'POST', `/sales/orders/${soId}/approve`); } catch (e) { console.log(`approve: ${(e as { message?: string }).message || e}`); }
+      try {
+        await apiCall(page, 'POST', `/sales/orders/${soId}/submit`);
+      } catch (e) {
+        console.log(`submit: ${(e as { message?: string }).message || e}`);
+      }
+      try {
+        await apiCall(page, 'POST', `/sales/orders/${soId}/approve`);
+      } catch (e) {
+        console.log(`approve: ${(e as { message?: string }).message || e}`);
+      }
 
       // 发货应被阻断
       const shipResult = await apiCallExpectFail(page, 'POST', `/sales/orders/${soId}/ship`);
-      expect(shipResult.status === 400 || shipResult.status === 409 || shipResult.status === 422 || shipResult.status === 403).toBe(true);
+      expect(
+        shipResult.status === 400 ||
+          shipResult.status === 409 ||
+          shipResult.status === 422 ||
+          shipResult.status === 403
+      ).toBe(true);
     }
   });
 
   test('会计期间关闭后凭证录入应被阻断', async ({ page }) => {
-    const periods = await apiCallRaw<{ items: Array<{ id: number; status: string; period_name: string }> }>(
-      page, 'GET', '/finance/accounting-periods?page=1&page_size=50'
-    ).catch(() => ({ items: [] }));
+    const periods = await apiCallRaw<{
+      items: Array<{ id: number; status: string; period_name: string }>;
+    }>(page, 'GET', '/finance/accounting-periods?page=1&page_size=50').catch(() => ({ items: [] }));
 
     const closedPeriod = periods.items?.find(p => p.status === 'closed' || p.status === '已关闭');
 
@@ -214,11 +234,23 @@ test.describe('异常处理与边界条件', () => {
     const dyeBatchId = ctx.dyeBatchId;
 
     if (dyeBatchId) {
-      const batch = await apiCallRaw<{ status: string }>(page, 'GET', `/production/dye-batches/${dyeBatchId}`);
+      const batch = await apiCallRaw<{ status: string }>(
+        page,
+        'GET',
+        `/production/dye-batches/${dyeBatchId}`
+      );
       const status = (batch.status || '').toLowerCase();
 
-      if (['completed', 'stored', 'done', '已入库', '已完成'].some(s => status.includes(s.toLowerCase()))) {
-        const result = await apiCallExpectFail(page, 'POST', `/production/dye-batches/${dyeBatchId}/schedule`);
+      if (
+        ['completed', 'stored', 'done', '已入库', '已完成'].some(s =>
+          status.includes(s.toLowerCase())
+        )
+      ) {
+        const result = await apiCallExpectFail(
+          page,
+          'POST',
+          `/production/dye-batches/${dyeBatchId}/schedule`
+        );
         expect(result.status >= 400).toBe(true);
       }
     }

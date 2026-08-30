@@ -12,7 +12,10 @@ import {
 } from './helpers';
 
 test.describe('成本核算完整流程', () => {
-  test.beforeEach(async ({ page }) => { await loginViaUI(page); await ensureTestEntities(page); });
+  test.beforeEach(async ({ page }) => {
+    await loginViaUI(page);
+    await ensureTestEntities(page);
+  });
 
   test('成本归集：创建→料工费验证→审批→成本分析', async ({ page }) => {
     const ctx = getCtx();
@@ -38,10 +41,19 @@ test.describe('成本核算完整流程', () => {
 
     let costId: number;
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/production/cost-collections', costData);
+      const result = await apiCall<{ id?: number }>(
+        page,
+        'POST',
+        '/production/cost-collections',
+        costData
+      );
       costId = result.data?.id!;
     } catch {
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/cost-collections?page=1&page_size=1');
+      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+        page,
+        'GET',
+        '/production/cost-collections?page=1&page_size=1'
+      );
       costId = list.items?.[0]?.id;
     }
     expect(costId).toBeDefined();
@@ -68,18 +80,26 @@ test.describe('成本核算完整流程', () => {
 
     // 审批成本归集
     await apiCall(page, 'POST', `/production/cost-collections/${costId}/audit`);
-    const audited = await apiCallRaw<{ status: string }>(page, 'GET', `/production/cost-collections/${costId}`);
+    const audited = await apiCallRaw<{ status: string }>(
+      page,
+      'GET',
+      `/production/cost-collections/${costId}`
+    );
     expect(audited.status.toLowerCase()).toMatch(/audited|approved/);
 
     // 验证成本分析报表
     const summary = await apiCallRaw<{ total_material_cost: number }>(
-      page, 'GET', '/production/cost-collections/analysis/summary'
+      page,
+      'GET',
+      '/production/cost-collections/analysis/summary'
     );
     expect(summary.total_material_cost).toBeGreaterThanOrEqual(0);
 
     // 按缸号查询成本
     const byBatch = await apiCallRaw<{ items: Array<{ total_cost: number }> }>(
-      page, 'GET', '/production/cost-collections/analysis/by-batch'
+      page,
+      'GET',
+      '/production/cost-collections/analysis/by-batch'
     );
     expect(byBatch.items?.length).toBeGreaterThanOrEqual(0);
 
@@ -125,7 +145,11 @@ test.describe('成本核算完整流程', () => {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/vouchers', voucherData);
       voucherId = result.data?.id!;
     } catch {
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/finance/vouchers?page=1&page_size=1');
+      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+        page,
+        'GET',
+        '/finance/vouchers?page=1&page_size=1'
+      );
       voucherId = list.items?.[0]?.id;
     }
 
@@ -134,12 +158,16 @@ test.describe('成本核算完整流程', () => {
       entries: Array<{ debit: string; credit: string }>;
       status: string;
     }>(page, 'GET', `/finance/vouchers/${voucherId}`);
-    const totalDebit = voucher.entries?.reduce(
-      (sum: number, e: { debit: string; credit: string }) => sum + parseFloat(e.debit || '0'), 0
-    ) || 0;
-    const totalCredit = voucher.entries?.reduce(
-      (sum: number, e: { debit: string; credit: string }) => sum + parseFloat(e.credit || '0'), 0
-    ) || 0;
+    const totalDebit =
+      voucher.entries?.reduce(
+        (sum: number, e: { debit: string; credit: string }) => sum + parseFloat(e.debit || '0'),
+        0
+      ) || 0;
+    const totalCredit =
+      voucher.entries?.reduce(
+        (sum: number, e: { debit: string; credit: string }) => sum + parseFloat(e.credit || '0'),
+        0
+      ) || 0;
     expect(Math.abs(totalDebit - totalCredit)).toBeLessThan(0.01);
 
     // 验证试算平衡
@@ -151,7 +179,9 @@ test.describe('成本核算完整流程', () => {
   test('固定资产折旧：计提→折旧记录验证', async ({ page }) => {
     // 查询已有固定资产
     const assets = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
-      page, 'GET', '/fixed-assets?page=1&page_size=5'
+      page,
+      'GET',
+      '/fixed-assets?page=1&page_size=5'
     );
 
     if (assets.items && assets.items.length > 0) {
@@ -163,7 +193,9 @@ test.describe('成本核算完整流程', () => {
 
         // 验证折旧记录已生成
         const records = await apiCallRaw<{ items: Array<{ amount: number }> }>(
-          page, 'GET', `/fixed-assets/${asset.id}/depreciation-records?page=1&page_size=5`
+          page,
+          'GET',
+          `/fixed-assets/${asset.id}/depreciation-records?page=1&page_size=5`
         );
         expect(records.items?.length).toBeGreaterThanOrEqual(0);
 
@@ -172,7 +204,9 @@ test.describe('成本核算完整流程', () => {
       } catch {
         // 折旧可能因资产状态不允许
         const records = await apiCallRaw<{ items: Array<{ amount: number }> }>(
-          page, 'GET', `/fixed-assets/${asset.id}/depreciation-records?page=1&page_size=5`
+          page,
+          'GET',
+          `/fixed-assets/${asset.id}/depreciation-records?page=1&page_size=5`
         );
         expect(records.items?.length).toBeGreaterThanOrEqual(0);
       }
@@ -194,11 +228,15 @@ test.describe('成本核算完整流程', () => {
         const newAssetId = result.data?.id;
         if (newAssetId) {
           const depResult = await apiCall<{ depreciation_amount: string }>(
-            page, 'POST', `/fixed-assets/${newAssetId}/depreciate`
+            page,
+            'POST',
+            `/fixed-assets/${newAssetId}/depreciate`
           ).catch(() => null);
 
           if (depResult) {
-            expect(parseFloat(String(depResult.data?.depreciation_amount || '0'))).toBeGreaterThan(0);
+            expect(parseFloat(String(depResult.data?.depreciation_amount || '0'))).toBeGreaterThan(
+              0
+            );
           }
         }
       } catch {
@@ -217,7 +255,9 @@ test.describe('成本核算完整流程', () => {
 
     // 查询预算列表
     const budgets = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
-      page, 'GET', '/budgets?page=1&page_size=5'
+      page,
+      'GET',
+      '/budgets?page=1&page_size=5'
     );
 
     if (budgets.items && budgets.items.length > 0) {

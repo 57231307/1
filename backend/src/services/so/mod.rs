@@ -31,6 +31,8 @@ pub mod sales_return;
 pub mod order_crud;
 pub mod order_workflow;
 pub mod order_query;
+// 缺陷 3 修复：面料行业版订单业务逻辑（原 handler 内联逻辑下沉）
+pub mod fabric_order;
 
 // =====================================================
 // DTO 数据结构

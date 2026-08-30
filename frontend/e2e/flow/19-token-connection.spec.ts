@@ -29,7 +29,7 @@ test.describe('后端连接状态与 Token 管理', () => {
     const context = await browser.newContext();
     const page = await context.newPage();
 
-    await page.goto(`${BASE_URL}/purchase/orders`);
+    await page.goto(`${BASE_URL}/purchase`);
     await page.waitForTimeout(3000);
 
     const url = page.url();
@@ -45,7 +45,17 @@ test.describe('后端连接状态与 Token 管理', () => {
     await page.goto(`${BASE_URL}/setup`);
     await page.waitForTimeout(2000);
 
-    const hasForm = await page.locator('form, .el-form, .setup-container').first().isVisible({ timeout: 10_000 }).catch(() => false);
+    await page
+      .locator('form, .el-form, .setup-container')
+      .first()
+      .waitFor({ state: 'visible', timeout: 10_000 })
+      .catch(() => {});
+
+    const hasForm = await page
+      .locator('form, .el-form, .setup-container')
+      .first()
+      .isVisible()
+      .catch(() => false);
     expect(hasForm).toBe(true);
 
     await context.close();
@@ -97,7 +107,9 @@ test.describe('后端连接状态与 Token 管理', () => {
     if (logoutResp.ok()) {
       const cookiesAfter = await context.cookies();
       const accessCookie = cookiesAfter.find(c => c.name === 'access_token');
-      expect(accessCookie === undefined || (accessCookie?.expires ?? 0) <= Date.now() / 1000 + 1).toBe(true);
+      expect(
+        accessCookie === undefined || (accessCookie?.expires ?? 0) <= Date.now() / 1000 + 1
+      ).toBe(true);
     }
   });
 
@@ -146,7 +158,7 @@ test.describe('后端连接状态与 Token 管理', () => {
     await context.clearCookies();
 
     // 导航到受保护页面
-    await page.goto(`${BASE_URL}/purchase/orders`);
+    await page.goto(`${BASE_URL}/purchase`);
     await page.waitForTimeout(3000);
 
     // 应被重定向到登录页

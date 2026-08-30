@@ -12,7 +12,10 @@ import {
 } from './helpers';
 
 test.describe('采购退货完整流程', () => {
-  test.beforeEach(async ({ page }) => { await loginViaUI(page); await ensureTestEntities(page); });
+  test.beforeEach(async ({ page }) => {
+    await loginViaUI(page);
+    await ensureTestEntities(page);
+  });
 
   test('采购退货：创建→提交→审批→关联原采购单验证', async ({ page }) => {
     const ctx = getCtx();
@@ -34,7 +37,11 @@ test.describe('采购退货完整流程', () => {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/returns', returnData);
       returnId = result.data?.id!;
     } catch {
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/purchase/returns?page=1&page_size=1');
+      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+        page,
+        'GET',
+        '/purchase/returns?page=1&page_size=1'
+      );
       returnId = list.items?.[0]?.id;
     }
     expect(returnId).toBeDefined();
@@ -53,23 +60,37 @@ test.describe('采购退货完整流程', () => {
 
     // 验证退货单状态
     const created = await apiCallRaw<{ status: string; supplier_id: number }>(
-      page, 'GET', `/purchase/returns/${returnId}`
+      page,
+      'GET',
+      `/purchase/returns/${returnId}`
     );
     expect(created.status.toLowerCase()).toBe('draft');
     expect(created.supplier_id).toBe(ctx.supplierId || 1);
 
     // 提交退货单
     await apiCall(page, 'POST', `/purchase/returns/${returnId}/submit`);
-    const submitted = await apiCallRaw<{ status: string }>(page, 'GET', `/purchase/returns/${returnId}`);
+    const submitted = await apiCallRaw<{ status: string }>(
+      page,
+      'GET',
+      `/purchase/returns/${returnId}`
+    );
     expect(submitted.status.toLowerCase()).toBe('submitted');
 
     // 审批退货单
     await apiCall(page, 'POST', `/purchase/returns/${returnId}/approve`);
-    const approved = await apiCallRaw<{ status: string }>(page, 'GET', `/purchase/returns/${returnId}`);
+    const approved = await apiCallRaw<{ status: string }>(
+      page,
+      'GET',
+      `/purchase/returns/${returnId}`
+    );
     expect(approved.status.toLowerCase()).toBe('approved');
 
     // 验证非法转换：已审批的退货单不能再次提交
-    const illegalSubmit = await apiCallExpectFail(page, 'POST', `/purchase/returns/${returnId}/submit`);
+    const illegalSubmit = await apiCallExpectFail(
+      page,
+      'POST',
+      `/purchase/returns/${returnId}/submit`
+    );
     expect(illegalSubmit.status).toBeGreaterThanOrEqual(400);
 
     // 验证审计日志
@@ -79,7 +100,11 @@ test.describe('采购退货完整流程', () => {
     // UI 验证：访问采购退货列表页
     await page.goto('/purchase/return');
     await page.waitForTimeout(2000);
-    const tableVisible = await page.locator('.el-table').first().isVisible().catch(() => false);
+    const tableVisible = await page
+      .locator('.el-table')
+      .first()
+      .isVisible()
+      .catch(() => false);
     expect(tableVisible).toBe(true);
   });
 
@@ -100,10 +125,19 @@ test.describe('采购退货完整流程', () => {
 
     let returnId: number;
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/sales/sales-returns', returnData);
+      const result = await apiCall<{ id?: number }>(
+        page,
+        'POST',
+        '/sales/sales-returns',
+        returnData
+      );
       returnId = result.data?.id!;
     } catch {
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/sales/sales-returns?page=1&page_size=1');
+      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+        page,
+        'GET',
+        '/sales/sales-returns?page=1&page_size=1'
+      );
       returnId = list.items?.[0]?.id;
     }
     expect(returnId).toBeDefined();
@@ -121,17 +155,29 @@ test.describe('采购退货完整流程', () => {
 
     // 提交
     await apiCall(page, 'POST', `/sales/sales-returns/${returnId}/submit`);
-    const submitted = await apiCallRaw<{ status: string }>(page, 'GET', `/sales/sales-returns/${returnId}`);
+    const submitted = await apiCallRaw<{ status: string }>(
+      page,
+      'GET',
+      `/sales/sales-returns/${returnId}`
+    );
     expect(submitted.status.toLowerCase()).toBe('submitted');
 
     // 审批
     await apiCall(page, 'POST', `/sales/sales-returns/${returnId}/approve`);
-    const approved = await apiCallRaw<{ status: string }>(page, 'GET', `/sales/sales-returns/${returnId}`);
+    const approved = await apiCallRaw<{ status: string }>(
+      page,
+      'GET',
+      `/sales/sales-returns/${returnId}`
+    );
     expect(approved.status.toLowerCase()).toBe('approved');
 
     // 执行退货（触发入库）
     await apiCall(page, 'POST', `/sales/sales-returns/${returnId}/execute`);
-    const executed = await apiCallRaw<{ status: string }>(page, 'GET', `/sales/sales-returns/${returnId}`);
+    const executed = await apiCallRaw<{ status: string }>(
+      page,
+      'GET',
+      `/sales/sales-returns/${returnId}`
+    );
     expect(executed.status.toLowerCase()).toBe('executed');
 
     // 验证库存增加
@@ -140,7 +186,11 @@ test.describe('采购退货完整流程', () => {
     expect(stockQty).toBeGreaterThanOrEqual(0);
 
     // 验证非法操作：已执行的退货不能再次审批
-    const illegalApprove = await apiCallExpectFail(page, 'POST', `/sales/sales-returns/${returnId}/approve`);
+    const illegalApprove = await apiCallExpectFail(
+      page,
+      'POST',
+      `/sales/sales-returns/${returnId}/approve`
+    );
     expect(illegalApprove.status).toBeGreaterThanOrEqual(400);
   });
 });

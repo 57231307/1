@@ -581,4 +581,266 @@ impl InventoryStockService {
         >(&*self.db, "inventory_stock", active, user_id)
         .await
     }
+
+    // ========== 缺陷 3 修复：批次 CRUD/调拨业务逻辑（原 inventory_batch_handler 内联逻辑下沉） ==========
+
+    /// 批次列表查询（batch_no 非空记录，分页）
+    pub async fn list_batches(
+        &self,
+        page: u64,
+        page_size: u64,
+    ) -> Result<(Vec<inventory_stock::Model>, u64), AppError> {
+        let page = page.clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
+        let page_size = page_size.clamp(1, 100);
+        let paginator = inventory_stock::Entity::find()
+            .filter(inventory_stock::Column::BatchNo.ne(""))
+            .paginate(&*self.db, page_size);
+        let batches = paginator
+            .fetch_page(page.clamp(1, 1000).saturating_sub(1))
+            .await
+            .map_err(|e| AppError::database(format!("获取批次列表失败：{}", e)))?;
+        let total = paginator
+            .num_items()
+            .await
+            .map_err(|e| AppError::database(format!("获取批次总数失败：{}", e)))?;
+        Ok((batches, total))
+    }
+
+    /// 创建批次（入库，面料行业版）
+    pub async fn create_batch_fabric(
+        &self,
+        batch_no: String,
+        product_id: i32,
+        warehouse_id: i32,
+        color_no: String,
+        dye_lot_no: Option<String>,
+        grade: String,
+        quantity_meters: f64,
+        quantity_kg: f64,
+        gram_weight: Option<f64>,
+        width: Option<f64>,
+        production_date: Option<chrono::DateTime<Utc>>,
+        expiry_date: Option<chrono::DateTime<Utc>>,
+    ) -> Result<inventory_stock::Model, AppError> {
+        let meters = Decimal::from_f64_retain(quantity_meters).unwrap_or(Decimal::ZERO);
+        let kg = Decimal::from_f64_retain(quantity_kg).unwrap_or(Decimal::ZERO);
+        let batch = inventory_stock::ActiveModel {
+            id: Set(0),
+            warehouse_id: Set(warehouse_id),
+            product_id: Set(product_id),
+            batch_no: Set(batch_no),
+            color_no: Set(color_no),
+            dye_lot_no: Set(dye_lot_no),
+            grade: Set(if grade.is_empty() {
+                "一等品".to_string()
+            } else {
+                grade
+            }),
+            quantity_on_hand: Set(meters),
+            quantity_available: Set(meters),
+            quantity_reserved: Set(Decimal::ZERO),
+            quantity_incoming: Set(Decimal::ZERO),
+            reorder_point: Set(Decimal::ZERO),
+            max_stock_point: Set(Decimal::ZERO),
+            reorder_quantity: Set(Decimal::ZERO),
+            last_count_date: Set(None),
+            last_movement_date: Set(None),
+            created_at: Set(Utc::now()),
+            updated_at: Set(Utc::now()),
+            // 面料行业字段
+            quantity_meters: Set(meters),
+            quantity_kg: Set(kg),
+            gram_weight: Set(gram_weight.and_then(Decimal::from_f64_retain)),
+            width: Set(width.and_then(Decimal::from_f64_retain)),
+            production_date: Set(production_date),
+            expiry_date: Set(expiry_date),
+            stock_status: Set("正常".to_string()),
+            quality_status: Set("合格".to_string()),
+            location_id: Set(None),
+            shelf_no: Set(None),
+            layer_no: Set(None),
+            bin_location: Set(None),
+            version: Set(0),
+            quantity_shipped: Set(Decimal::ZERO),
+            replenishment_strategy: Set("reorder_point".to_string()),
+        };
+        batch
+            .insert(&*self.db)
+            .await
+            .map_err(|e| AppError::bad_request(format!("创建批次失败：{}", e)))
+    }
+
+    /// 更新批次（部分字段）
+    #[allow(clippy::too_many_arguments)]
+    pub async fn update_batch_fields(
+        &self,
+        id: i32,
+        color_no: Option<String>,
+        dye_lot_no: Option<String>,
+        grade: Option<String>,
+        gram_weight: Option<f64>,
+        width: Option<f64>,
+        expiry_date: Option<chrono::DateTime<Utc>>,
+        stock_status: Option<String>,
+        quality_status: Option<String>,
+    ) -> Result<inventory_stock::Model, AppError> {
+        let existing = inventory_stock::Entity::find_by_id(id)
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::database(format!("获取批次失败：{}", e)))?
+            .ok_or_else(|| AppError::not_found("批次不存在"))?;
+
+        let mut batch: inventory_stock::ActiveModel = existing.into();
+        if let Some(color) = color_no {
+            batch.color_no = Set(color);
+        }
+        if let Some(dye_lot) = dye_lot_no {
+            batch.dye_lot_no = Set(Some(dye_lot));
+        }
+        if let Some(g) = grade {
+            batch.grade = Set(g);
+        }
+        if let Some(gw) = gram_weight {
+            batch.gram_weight = Set(Some(Decimal::from_f64_retain(gw).unwrap_or(Decimal::ZERO)));
+        }
+        if let Some(w) = width {
+            batch.width = Set(Some(Decimal::from_f64_retain(w).unwrap_or(Decimal::ZERO)));
+        }
+        if let Some(exp) = expiry_date {
+            batch.expiry_date = Set(Some(exp));
+        }
+        // 注意：inventory_stock 模型没有 remarks 字段，可以考虑使用其他方式存储
+        if let Some(status) = stock_status {
+            batch.stock_status = Set(status);
+        }
+        if let Some(quality) = quality_status {
+            batch.quality_status = Set(quality);
+        }
+        batch.updated_at = Set(Utc::now());
+
+        batch
+            .update(&*self.db)
+            .await
+            .map_err(|e| AppError::database(format!("更新批次失败：{}", e)))
+    }
+
+    /// 删除批次（审计日志下沉）
+    pub async fn delete_batch_with_audit(&self, id: i32, user_id: i32) -> Result<(), AppError> {
+        // P0 8-3 修复：delete 操作补审计日志（批次 94 P2-10：真实操作人 user_id）
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+            inventory_stock::Entity,
+            _,
+        >(&*self.db, "inventory_batch", id, Some(user_id))
+        .await?;
+        Ok(())
+    }
+
+    /// 批次转移（调拨）：扣减源批次，目标批次累加或新建（事务内完成）
+    pub async fn transfer_batch(
+        &self,
+        id: i32,
+        from_warehouse_id: i32,
+        to_warehouse_id: i32,
+        quantity_meters: f64,
+        quantity_kg: f64,
+    ) -> Result<(), AppError> {
+        use sea_orm::TransactionTrait;
+
+        let _ = from_warehouse_id; // 源仓库以批次记录自身 warehouse_id 为准
+        let txn = (*self.db)
+            .begin()
+            .await
+            .map_err(|e| AppError::database(format!("开启事务失败：{}", e)))?;
+
+        let transfer_meters = Decimal::from_f64_retain(quantity_meters).unwrap_or(Decimal::ZERO);
+        let transfer_kg = Decimal::from_f64_retain(quantity_kg).unwrap_or(Decimal::ZERO);
+
+        // 1. 校验源批次存在且库存充足
+        let source = inventory_stock::Entity::find_by_id(id)
+            .one(&txn)
+            .await
+            .map_err(|e| AppError::database(format!("获取批次失败：{}", e)))?
+            .ok_or_else(|| AppError::not_found("源批次不存在"))?;
+        if source.quantity_available < transfer_meters {
+            return Err(AppError::bad_request("库存数量不足"));
+        }
+
+        // 2. 扣减源批次
+        let mut source_am: inventory_stock::ActiveModel = source.clone().into();
+        source_am.quantity_on_hand = Set(source.quantity_on_hand - transfer_meters);
+        source_am.quantity_available = Set(source.quantity_available - transfer_meters);
+        source_am.updated_at = Set(Utc::now());
+        source_am
+            .update(&txn)
+            .await
+            .map_err(|e| AppError::bad_request(format!("更新源批次失败：{}", e)))?;
+
+        // 3. 目标批次存在则累加，不存在则新建
+        let target = inventory_stock::Entity::find()
+            .filter(inventory_stock::Column::WarehouseId.eq(to_warehouse_id))
+            .filter(inventory_stock::Column::ProductId.eq(source.product_id))
+            .filter(inventory_stock::Column::BatchNo.eq(source.batch_no.clone()))
+            .filter(inventory_stock::Column::ColorNo.eq(source.color_no.clone()))
+            .one(&txn)
+            .await
+            .map_err(|e| AppError::database(format!("查询目标批次失败：{}", e)))?;
+
+        match target {
+            Some(existing) => {
+                let mut t: inventory_stock::ActiveModel = existing.clone().into();
+                t.quantity_on_hand = Set(existing.quantity_on_hand + transfer_meters);
+                t.quantity_available = Set(existing.quantity_available + transfer_meters);
+                t.updated_at = Set(Utc::now());
+                t.update(&txn)
+                    .await
+                    .map_err(|e| AppError::bad_request(format!("更新目标批次失败：{}", e)))?;
+            }
+            None => {
+                let new_batch = inventory_stock::ActiveModel {
+                    id: Set(0),
+                    warehouse_id: Set(to_warehouse_id),
+                    product_id: Set(source.product_id),
+                    batch_no: Set(source.batch_no.clone()),
+                    color_no: Set(source.color_no.clone()),
+                    dye_lot_no: Set(source.dye_lot_no.clone()),
+                    grade: Set(source.grade.clone()),
+                    quantity_on_hand: Set(transfer_meters),
+                    quantity_available: Set(transfer_meters),
+                    quantity_reserved: Set(Decimal::ZERO),
+                    quantity_incoming: Set(Decimal::ZERO),
+                    reorder_point: Set(Decimal::ZERO),
+                    max_stock_point: Set(Decimal::ZERO),
+                    reorder_quantity: Set(Decimal::ZERO),
+                    bin_location: Set(None),
+                    last_count_date: Set(None),
+                    last_movement_date: Set(None),
+                    created_at: Set(Utc::now()),
+                    updated_at: Set(Utc::now()),
+                    quantity_meters: Set(transfer_meters),
+                    quantity_kg: Set(transfer_kg),
+                    gram_weight: Set(source.gram_weight),
+                    width: Set(source.width),
+                    production_date: Set(source.production_date),
+                    expiry_date: Set(source.expiry_date),
+                    stock_status: Set("正常".to_string()),
+                    quality_status: Set("合格".to_string()),
+                    location_id: Set(None),
+                    shelf_no: Set(None),
+                    layer_no: Set(None),
+                    version: Set(0),
+                    quantity_shipped: Set(Decimal::ZERO),
+                    replenishment_strategy: Set("reorder_point".to_string()),
+                };
+                new_batch
+                    .insert(&txn)
+                    .await
+                    .map_err(|e| AppError::bad_request(format!("创建目标批次失败：{}", e)))?;
+            }
+        }
+
+        txn.commit()
+            .await
+            .map_err(|e| AppError::database(format!("提交事务失败：{}", e)))?;
+        Ok(())
+    }
 }

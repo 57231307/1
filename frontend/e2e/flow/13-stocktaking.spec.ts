@@ -12,7 +12,10 @@ import {
 } from './helpers';
 
 test.describe('库存盘点完整流程', () => {
-  test.beforeEach(async ({ page }) => { await loginViaUI(page); await ensureTestEntities(page); });
+  test.beforeEach(async ({ page }) => {
+    await loginViaUI(page);
+    await ensureTestEntities(page);
+  });
 
   test('盘点：创建→录入实盘→提交→审批→调整验证', async ({ page }) => {
     const ctx = getCtx();
@@ -35,13 +38,21 @@ test.describe('库存盘点完整流程', () => {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/inventory/counts', countData);
       countId = result.data?.id!;
     } catch {
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/inventory/counts?page=1&page_size=1');
+      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+        page,
+        'GET',
+        '/inventory/counts?page=1&page_size=1'
+      );
       countId = list.items?.[0]?.id;
     }
     expect(countId).toBeDefined();
 
     // 验证初始状态
-    const created = await apiCallRaw<{ status: string }>(page, 'GET', `/inventory/counts/${countId}`);
+    const created = await apiCallRaw<{ status: string }>(
+      page,
+      'GET',
+      `/inventory/counts/${countId}`
+    );
     expect(created.status.toLowerCase()).toBe('draft');
 
     // 录入实盘数据（后端 RecordItemInput 真实字段：stock_id + quantity_actual 字符串）
@@ -49,7 +60,9 @@ test.describe('库存盘点完整流程', () => {
     let stockId = 1;
     try {
       const stockList = await apiCallRaw<{ items: Array<{ id: number; product_id: number }> }>(
-        page, 'GET', `/inventory/stock?product_id=${productId}&warehouse_id=${warehouseId}&page=1&page_size=5`
+        page,
+        'GET',
+        `/inventory/stock?product_id=${productId}&warehouse_id=${warehouseId}&page=1&page_size=5`
       );
       if (stockList.items && stockList.items.length > 0) {
         stockId = stockList.items?.[0].id;
@@ -70,12 +83,20 @@ test.describe('库存盘点完整流程', () => {
 
     // 提交审批
     await apiCall(page, 'POST', `/inventory/counts/${countId}/submit`);
-    const submitted = await apiCallRaw<{ status: string }>(page, 'GET', `/inventory/counts/${countId}`);
+    const submitted = await apiCallRaw<{ status: string }>(
+      page,
+      'GET',
+      `/inventory/counts/${countId}`
+    );
     expect(submitted.status.toLowerCase()).toBe('pending');
 
     // 审批通过
     await apiCall(page, 'POST', `/inventory/counts/${countId}/approve`);
-    const approved = await apiCallRaw<{ status: string }>(page, 'GET', `/inventory/counts/${countId}`);
+    const approved = await apiCallRaw<{ status: string }>(
+      page,
+      'GET',
+      `/inventory/counts/${countId}`
+    );
     expect(approved.status.toLowerCase()).toBe('approved');
 
     // 验证审计日志
@@ -101,20 +122,33 @@ test.describe('库存盘点完整流程', () => {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/inventory/counts', countData);
       countId = result.data?.id!;
     } catch {
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/inventory/counts?page=1&page_size=1');
+      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+        page,
+        'GET',
+        '/inventory/counts?page=1&page_size=1'
+      );
       countId = list.items?.[0]?.id;
     }
 
     // 录入负数实盘数量（后端应拒绝）
-    const illegalRecord = await apiCallExpectFail(page, 'POST', `/inventory/counts/${countId}/record`, {
-      items: [
-        {
-          stock_id: 1,
-          quantity_actual: '-100',
-        },
-      ],
-    });
-    expect(illegalRecord.status >= 400 || illegalRecord.code === 'VALIDATION_ERROR' || illegalRecord.code === 'BUSINESS_ERROR').toBeTruthy();
+    const illegalRecord = await apiCallExpectFail(
+      page,
+      'POST',
+      `/inventory/counts/${countId}/record`,
+      {
+        items: [
+          {
+            stock_id: 1,
+            quantity_actual: '-100',
+          },
+        ],
+      }
+    );
+    expect(
+      illegalRecord.status >= 400 ||
+        illegalRecord.code === 'VALIDATION_ERROR' ||
+        illegalRecord.code === 'BUSINESS_ERROR'
+    ).toBeTruthy();
   });
 
   test('盘点状态机：已审批不能再次提交', async ({ page }) => {
@@ -130,14 +164,30 @@ test.describe('库存盘点完整流程', () => {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/inventory/counts', countData);
       countId = result.data?.id!;
     } catch {
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/inventory/counts?page=1&page_size=1');
+      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+        page,
+        'GET',
+        '/inventory/counts?page=1&page_size=1'
+      );
       countId = list.items?.[0]?.id;
     }
 
-    try { await apiCall(page, 'POST', `/inventory/counts/${countId}/submit`); } catch (e) { console.log(`submit 结果: ${(e as { message?: string }).message || e}`); }
-    try { await apiCall(page, 'POST', `/inventory/counts/${countId}/approve`); } catch (e) { console.log(`approve 结果: ${(e as { message?: string }).message || e}`); }
+    try {
+      await apiCall(page, 'POST', `/inventory/counts/${countId}/submit`);
+    } catch (e) {
+      console.log(`submit 结果: ${(e as { message?: string }).message || e}`);
+    }
+    try {
+      await apiCall(page, 'POST', `/inventory/counts/${countId}/approve`);
+    } catch (e) {
+      console.log(`approve 结果: ${(e as { message?: string }).message || e}`);
+    }
 
-    const illegalSubmit = await apiCallExpectFail(page, 'POST', `/inventory/counts/${countId}/submit`);
+    const illegalSubmit = await apiCallExpectFail(
+      page,
+      'POST',
+      `/inventory/counts/${countId}/submit`
+    );
     expect(illegalSubmit.status).toBeGreaterThanOrEqual(400);
   });
 });

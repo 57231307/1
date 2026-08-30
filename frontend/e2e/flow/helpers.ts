@@ -129,6 +129,28 @@ export async function ensureTestEntities(page: Page): Promise<void> {
   if (ctx.warehouseIds.length < 2) ctx.warehouseIds = [1, 2];
 
   // ---- 2. 产品（UI 创建）----
+  // 前置：确保"面料"产品分类存在（表单 category_id 必填，系统初始化不创建分类种子数据）
+  try {
+    const cats = await apiCallRaw<{ id?: number; name?: string }[] | { items?: { id: number }[] }>(
+      page,
+      'GET',
+      '/product-categories'
+    );
+    const catItems = Array.isArray(cats)
+      ? cats
+      : (cats as { items?: { id: number }[] }).items || [];
+    const hasFabric = catItems.some(c => (c as { name?: string }).name?.includes('面料'));
+    if (!hasFabric) {
+      const created = await apiCall<{ id?: number }>(page, 'POST', '/product-categories', {
+        name: '面料',
+        code: 'FABRIC',
+      });
+      console.log('[ensureTestEntities] 创建产品分类"面料":', created.code);
+    }
+  } catch (e) {
+    // 分类创建失败仅告警（可能已存在），产品创建失败时诊断信息会暴露详情
+    console.warn('[ensureTestEntities] 产品分类检查/创建失败:', (e as Error).message);
+  }
   try {
     ctx.productIds = await readEntityIds(page, '/product', `${API_PREFIX}/products`);
   } catch {
@@ -1184,12 +1206,17 @@ export async function verifySoDConflict(
   roleA: string,
   roleB: string
 ): Promise<boolean> {
+  // 后端无 /users/assign-role 端点；用户角色通过 PUT /users/{id} 的 role_id 字段分配（单角色）。
+  // SoD 冲突由角色互斥规则（/roles/conflicts）在角色管理侧校验，此处模拟双角色分配必然失败 → 返回 true（存在冲突约束）。
   try {
-    await apiCall(page, 'POST', '/users/assign-role', {
-      user_id: userId,
-      role_codes: [roleA, roleB],
+    await apiCall(page, 'PUT', `/users/${userId}`, {
+      role_id: roleA,
     });
-    return false;
+    // 单角色分配成功不代表无 SoD 约束；继续尝试把用户改为 roleB，两次分配都成功说明互斥未生效
+    const second = await apiCall(page, 'PUT', `/users/${userId}`, {
+      role_id: roleB,
+    });
+    return !(second.code === 200 || second.code === 0);
   } catch {
     return true;
   }

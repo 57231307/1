@@ -11,7 +11,10 @@ import {
 } from './helpers';
 
 test.describe('面料单据专用字段全链路验证', () => {
-  test.beforeEach(async ({ page }) => { await loginViaUI(page); await ensureTestEntities(page); });
+  test.beforeEach(async ({ page }) => {
+    await loginViaUI(page);
+    await ensureTestEntities(page);
+  });
 
   // ============================================================
   // 销售订单 — 面料字段最完整的单据（16个面料字段）
@@ -75,7 +78,11 @@ test.describe('面料单据专用字段全链路验证', () => {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', soData);
       soId = result.data?.id!;
     } catch {
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/sales/orders?page=1&page_size=1');
+      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+        page,
+        'GET',
+        '/sales/orders?page=1&page_size=1'
+      );
       soId = list.items?.[0]?.id;
     }
     expect(soId).toBeDefined();
@@ -116,7 +123,7 @@ test.describe('面料单据专用字段全链路验证', () => {
   });
 
   test('销售订单 UI：列表显示+详情查看面料信息', async ({ page }) => {
-    await page.goto(`${BASE_URL}/sales/orders`);
+    await page.goto(`${BASE_URL}/sales`);
     await page.waitForTimeout(3000);
 
     await page.locator('.el-table').first().waitFor({ state: 'visible', timeout: 30_000 });
@@ -141,8 +148,12 @@ test.describe('面料单据专用字段全链路验证', () => {
       expect(hasOrderNo || hasCustomer).toBe(true);
 
       // 点击详情查看
-      const detailBtn = rows.first().locator('button:has-text("查看"), .el-link:has-text("详情"), button:has-text("详情")').first();
-      const detailVisible = await detailBtn.isVisible({ timeout: 3000 }).catch(() => false);
+      const detailBtn = rows
+        .first()
+        .locator('button:has-text("查看"), .el-link:has-text("详情"), button:has-text("详情")')
+        .first();
+      await detailBtn.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
+      const detailVisible = await detailBtn.isVisible().catch(() => false);
       if (detailVisible) {
         await detailBtn.click();
         await page.waitForTimeout(2000);
@@ -162,7 +173,7 @@ test.describe('面料单据专用字段全链路验证', () => {
   });
 
   test('销售订单 UI：创建表单填写面料字段', async ({ page }) => {
-    await page.goto(`${BASE_URL}/sales/orders`);
+    await page.goto(`${BASE_URL}/sales`);
     await page.waitForTimeout(3000);
     await page.locator('.el-table').first().waitFor({ state: 'visible', timeout: 30_000 });
 
@@ -176,21 +187,29 @@ test.describe('面料单据专用字段全链路验证', () => {
 
     // 验证表单字段存在
     const customerSelect = page.locator('.el-dialog .el-select').first();
-    const customerVisible = await customerSelect.isVisible({ timeout: 5000 }).catch(() => false);
+    await customerSelect.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    const customerVisible = await customerSelect.isVisible().catch(() => false);
     expect(customerVisible).toBe(true);
 
     // 验证明细行有产品选择列
-    const productSelect = page.locator('.el-dialog .el-table .el-select, .el-dialog select:has(option)').first();
-    const productVisible = await productSelect.isVisible({ timeout: 5000 }).catch(() => false);
-
+    const productSelect = page
+      .locator('.el-dialog .el-table .el-select, .el-dialog select:has(option)')
+      .first();
+    await productSelect.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    const productVisible = await productSelect.isVisible().catch(() => false);
     // 检查表单是否有面料字段输入（色号/缸号/克重/幅宽）
     // 当前前端可能未显示这些字段
     const colorLabel = page.locator('.el-dialog text=色号').first();
-    const colorLabelVisible = await colorLabel.isVisible({ timeout: 3000 }).catch(() => false);
+    await colorLabel.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
+    const colorLabelVisible = await colorLabel.isVisible().catch(() => false);
     // 记录色号字段是否在表单中（当前可能缺失）
 
     // 关闭弹窗
-    await page.locator('.el-dialog__headerbtn').first().click().catch(() => {});
+    await page
+      .locator('.el-dialog__headerbtn')
+      .first()
+      .click()
+      .catch(() => {});
   });
 
   // ============================================================
@@ -237,10 +256,19 @@ test.describe('面料单据专用字段全链路验证', () => {
 
     let receiptId: number;
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/receipts', receiptData);
+      const result = await apiCall<{ id?: number }>(
+        page,
+        'POST',
+        '/purchase/receipts',
+        receiptData
+      );
       receiptId = result.data?.id!;
     } catch {
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/purchase/receipts?page=1&page_size=1');
+      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+        page,
+        'GET',
+        '/purchase/receipts?page=1&page_size=1'
+      );
       receiptId = list.items?.[0]?.id;
     }
 
@@ -278,7 +306,9 @@ test.describe('面料单据专用字段全链路验证', () => {
     let colorId: number | null = null;
     try {
       const colors = await apiCallRaw<{ items: Array<{ id: number; color_no: string }> }>(
-        page, 'GET', `/product-colors?product_id=${productId}&page=1&page_size=5`
+        page,
+        'GET',
+        `/product-colors?product_id=${productId}&page=1&page_size=5`
       );
       if (colors.items?.length > 0) {
         colorId = colors.items?.[0].id;
@@ -320,7 +350,11 @@ test.describe('面料单据专用字段全链路验证', () => {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/quotations', quotationData);
       quotationId = result.data?.id!;
     } catch {
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/quotations?page=1&page_size=1');
+      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+        page,
+        'GET',
+        '/quotations?page=1&page_size=1'
+      );
       quotationId = list.items?.[0]?.id;
     }
 
@@ -346,28 +380,40 @@ test.describe('面料单据专用字段全链路验证', () => {
   test('报价单 UI：明细编辑器有色号选择列', async ({ page }) => {
     await page.goto(`${BASE_URL}/quotations`);
     await page.waitForTimeout(3000);
-    await page.locator('.el-table, .el-card').first().waitFor({ state: 'visible', timeout: 30_000 });
+    await page
+      .locator('.el-table, .el-card')
+      .first()
+      .waitFor({ state: 'visible', timeout: 30_000 });
 
     // 点击新建报价单
-    const newBtn = page.locator('button:has-text("新建"), button:has-text("创建"), .el-button--primary:has-text("新")').first();
-    const newBtnVisible = await newBtn.isVisible({ timeout: 5000 }).catch(() => false);
-
+    const newBtn = page
+      .locator(
+        'button:has-text("新建"), button:has-text("创建"), .el-button--primary:has-text("新")'
+      )
+      .first();
+    await newBtn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    const newBtnVisible = await newBtn.isVisible().catch(() => false);
     if (newBtnVisible) {
       await newBtn.click();
       await page.waitForTimeout(1000);
 
       // 可能跳转到创建页面或弹窗
       const dialog = page.locator('.el-dialog').first();
-      const dialogVisible = await dialog.isVisible({ timeout: 5000 }).catch(() => false);
-
+      await dialog.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+      const dialogVisible = await dialog.isVisible().catch(() => false);
       if (dialogVisible) {
         // 在弹窗中查找色号相关
         const colorLabel = page.locator('.el-dialog text=色号, .el-dialog text=颜色').first();
-        const colorVisible = await colorLabel.isVisible({ timeout: 5000 }).catch(() => false);
+        await colorLabel.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+        const colorVisible = await colorLabel.isVisible().catch(() => false);
         // 报价单明细应有色号选择列
         expect(true).toBe(true); // 记录
 
-        await page.locator('.el-dialog__headerbtn').first().click().catch(() => {});
+        await page
+          .locator('.el-dialog__headerbtn')
+          .first()
+          .click()
+          .catch(() => {});
       }
     }
   });
@@ -400,10 +446,19 @@ test.describe('面料单据专用字段全链路验证', () => {
 
     let transferId: number;
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/inventory/transfers', transferData);
+      const result = await apiCall<{ id?: number }>(
+        page,
+        'POST',
+        '/inventory/transfers',
+        transferData
+      );
       transferId = result.data?.id!;
     } catch {
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/inventory/transfers?page=1&page_size=1');
+      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+        page,
+        'GET',
+        '/inventory/transfers?page=1&page_size=1'
+      );
       transferId = list.items?.[0]?.id;
     }
 
@@ -459,15 +514,28 @@ test.describe('面料单据专用字段全链路验证', () => {
 
     let recipeId: number;
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/production/dye-recipes', recipeData);
+      const result = await apiCall<{ id?: number }>(
+        page,
+        'POST',
+        '/production/dye-recipes',
+        recipeData
+      );
       recipeId = result.data?.id!;
     } catch {
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/dye-recipes?page=1&page_size=1');
+      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+        page,
+        'GET',
+        '/production/dye-recipes?page=1&page_size=1'
+      );
       recipeId = list.items?.[0]?.id;
     }
 
     if (recipeId) {
-      const detail = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/production/dye-recipes/${recipeId}`);
+      const detail = await apiCallRaw<Record<string, unknown>>(
+        page,
+        'GET',
+        `/production/dye-recipes/${recipeId}`
+      );
 
       expect(detail.color_code).toBe(colorCode);
       expect(detail.color_name).toBe(colorName);
@@ -478,7 +546,11 @@ test.describe('面料单据专用字段全链路验证', () => {
       expect(String(detail.ph_value)).toBe(phValue);
 
       // 验证助剂列表
-      const auxiliaries = detail.auxiliaries as Array<{ name: string; amount: string; unit: string }>;
+      const auxiliaries = detail.auxiliaries as Array<{
+        name: string;
+        amount: string;
+        unit: string;
+      }>;
       if (auxiliaries && auxiliaries.length > 0) {
         expect(auxiliaries.length).toBe(4);
         expect(auxiliaries[0].name).toBe('分散蓝 2BLN');
@@ -489,10 +561,13 @@ test.describe('面料单据专用字段全链路验证', () => {
   });
 
   test('染色配方 UI：列表显示色号列+表单色号必填', async ({ page }) => {
-    await page.goto(`${BASE_URL}/production/dye-recipe`);
+    await page.goto(`${BASE_URL}/dye-recipe`);
     await page.waitForTimeout(3000);
 
-    await page.locator('.el-table, .el-card').first().waitFor({ state: 'visible', timeout: 30_000 });
+    await page
+      .locator('.el-table, .el-card')
+      .first()
+      .waitFor({ state: 'visible', timeout: 30_000 });
 
     // 验证列表有色号列
     const headers = page.locator('.el-table__header th, .el-table__header-wrapper th');
@@ -552,11 +627,18 @@ test.describe('面料单据专用字段全链路验证', () => {
       fabricId = result.data?.id!;
     } catch {
       try {
-        const result = await apiCall<{ id?: number }>(page, 'POST', '/production/greige-fabrics', fabricData);
+        const result = await apiCall<{ id?: number }>(
+          page,
+          'POST',
+          '/production/greige-fabrics',
+          fabricData
+        );
         fabricId = result.data?.id!;
       } catch {
         const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
-          page, 'GET', '/fabric/greige?page=1&page_size=1'
+          page,
+          'GET',
+          '/fabric/greige?page=1&page_size=1'
         ).catch(() => ({ items: [] }));
         fabricId = list.items?.[0]?.id;
       }
@@ -565,9 +647,17 @@ test.describe('面料单据专用字段全链路验证', () => {
     if (fabricId) {
       let detail: Record<string, unknown> | null = null;
       try {
-        detail = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/fabric/greige/${fabricId}`);
+        detail = await apiCallRaw<Record<string, unknown>>(
+          page,
+          'GET',
+          `/fabric/greige/${fabricId}`
+        );
       } catch {
-        detail = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/production/greige-fabrics/${fabricId}`);
+        detail = await apiCallRaw<Record<string, unknown>>(
+          page,
+          'GET',
+          `/production/greige-fabrics/${fabricId}`
+        );
       }
 
       if (detail) {
@@ -610,11 +700,18 @@ test.describe('面料单据专用字段全链路验证', () => {
 
     let orderId: number;
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/production/outsourcing-orders', orderData);
+      const result = await apiCall<{ id?: number }>(
+        page,
+        'POST',
+        '/production/outsourcing-orders',
+        orderData
+      );
       orderId = result.data?.id!;
     } catch {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
-        page, 'GET', '/production/outsourcing-orders?page=1&page_size=1'
+        page,
+        'GET',
+        '/production/outsourcing-orders?page=1&page_size=1'
       ).catch(() => ({ items: [] }));
       orderId = list.items?.[0]?.id;
     }
@@ -680,17 +777,28 @@ test.describe('面料单据专用字段全链路验证', () => {
 
     let costId: number;
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/production/cost-collections', costData);
+      const result = await apiCall<{ id?: number }>(
+        page,
+        'POST',
+        '/production/cost-collections',
+        costData
+      );
       costId = result.data?.id!;
     } catch {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
-        page, 'GET', '/production/cost-collections?page=1&page_size=1'
+        page,
+        'GET',
+        '/production/cost-collections?page=1&page_size=1'
       );
       costId = list.items?.[0]?.id;
     }
 
     if (costId) {
-      const detail = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/production/cost-collections/${costId}`);
+      const detail = await apiCallRaw<Record<string, unknown>>(
+        page,
+        'GET',
+        `/production/cost-collections/${costId}`
+      );
 
       expect(detail.batch_no).toBe(batchNo);
       expect(detail.color_no).toBe(colorNo);
@@ -755,7 +863,11 @@ test.describe('面料单据专用字段全链路验证', () => {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/vouchers', voucherData);
       voucherId = result.data?.id!;
     } catch {
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/finance/vouchers?page=1&page_size=1');
+      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+        page,
+        'GET',
+        '/finance/vouchers?page=1&page_size=1'
+      );
       voucherId = list.items?.[0]?.id;
     }
 
@@ -780,12 +892,16 @@ test.describe('面料单据专用字段全链路验证', () => {
       }
 
       // 验证借贷平衡
-      const totalDebit = detail.entries?.reduce(
-        (sum: number, e: Record<string, unknown>) => sum + parseFloat(String(e.debit || '0')), 0
-      ) || 0;
-      const totalCredit = detail.entries?.reduce(
-        (sum: number, e: Record<string, unknown>) => sum + parseFloat(String(e.credit || '0')), 0
-      ) || 0;
+      const totalDebit =
+        detail.entries?.reduce(
+          (sum: number, e: Record<string, unknown>) => sum + parseFloat(String(e.debit || '0')),
+          0
+        ) || 0;
+      const totalCredit =
+        detail.entries?.reduce(
+          (sum: number, e: Record<string, unknown>) => sum + parseFloat(String(e.credit || '0')),
+          0
+        ) || 0;
       expect(Math.abs(totalDebit - totalCredit)).toBeLessThan(0.01);
     }
   });
@@ -811,10 +927,19 @@ test.describe('面料单据专用字段全链路验证', () => {
 
     let batchId: number;
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/production/dye-batches', batchData);
+      const result = await apiCall<{ id?: number }>(
+        page,
+        'POST',
+        '/production/dye-batches',
+        batchData
+      );
       batchId = result.data?.id!;
     } catch {
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/dye-batches?page=1&page_size=1');
+      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+        page,
+        'GET',
+        '/production/dye-batches?page=1&page_size=1'
+      );
       batchId = list.items?.[0]?.id;
     }
 
@@ -861,7 +986,9 @@ test.describe('面料单据专用字段全链路验证', () => {
       // 如果被拒绝，应有明确错误信息
       const msg = result.message || '';
       const mentionsColor = msg.toLowerCase().includes('color') || msg.includes('色号');
-      expect(mentionsColor || result.code === 'VALIDATION_ERROR' || result.code === 'BUSINESS_ERROR').toBeTruthy();
+      expect(
+        mentionsColor || result.code === 'VALIDATION_ERROR' || result.code === 'BUSINESS_ERROR'
+      ).toBeTruthy();
     }
   });
 
@@ -940,7 +1067,11 @@ test.describe('面料单据专用字段全链路验证', () => {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/color-cards', cardData);
       cardId = result.data?.id!;
     } catch {
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/color-cards?page=1&page_size=1');
+      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+        page,
+        'GET',
+        '/color-cards?page=1&page_size=1'
+      );
       cardId = list.items?.[0]?.id;
     }
 
@@ -973,7 +1104,9 @@ test.describe('面料单据专用字段全链路验证', () => {
 
     // 验证销售订单响应包含 color_no
     const soList = await apiCallRaw<{ items: Array<Record<string, unknown>> }>(
-      page, 'GET', '/sales/orders?page=1&page_size=1'
+      page,
+      'GET',
+      '/sales/orders?page=1&page_size=1'
     ).catch(() => ({ items: [] }));
     if (soList.items?.length > 0) {
       const so = soList.items?.[0];
@@ -983,7 +1116,9 @@ test.describe('面料单据专用字段全链路验证', () => {
 
     // 验证染色配方响应包含 color_code
     const recipeList = await apiCallRaw<{ items: Array<Record<string, unknown>> }>(
-      page, 'GET', '/production/dye-recipes?page=1&page_size=1'
+      page,
+      'GET',
+      '/production/dye-recipes?page=1&page_size=1'
     ).catch(() => ({ items: [] }));
     if (recipeList.items?.length > 0) {
       const recipe = recipeList.items?.[0];
@@ -993,7 +1128,9 @@ test.describe('面料单据专用字段全链路验证', () => {
 
     // 验证库存调拨响应包含 color_no
     const transferList = await apiCallRaw<{ items: Array<Record<string, unknown>> }>(
-      page, 'GET', '/inventory/transfers?page=1&page_size=1'
+      page,
+      'GET',
+      '/inventory/transfers?page=1&page_size=1'
     ).catch(() => ({ items: [] }));
     if (transferList.items?.length > 0) {
       // 调拨明细可能有 color_no
@@ -1005,7 +1142,7 @@ test.describe('面料单据专用字段全链路验证', () => {
   // UI 缺失面料字段记录 — 记录前端缺失的面料字段
   // ============================================================
   test('UI 缺失记录：销售订单列表无面料列', async ({ page }) => {
-    await page.goto(`${BASE_URL}/sales/orders`);
+    await page.goto(`${BASE_URL}/sales`);
     await page.waitForTimeout(3000);
 
     const headers = page.locator('.el-table__header th, .el-table__header-wrapper th');
@@ -1027,15 +1164,18 @@ test.describe('面料单据专用字段全链路验证', () => {
   });
 
   test('UI 缺失记录：库存调拨表单无面料字段', async ({ page }) => {
-    await page.goto(`${BASE_URL}/inventory/transfer`);
+    await page.goto(`${BASE_URL}/inventory-transfer`);
     await page.waitForTimeout(3000);
 
-    await page.locator('.el-table, .el-card').first().waitFor({ state: 'visible', timeout: 30_000 });
+    await page
+      .locator('.el-table, .el-card')
+      .first()
+      .waitFor({ state: 'visible', timeout: 30_000 });
 
     // 点击新建
     const newBtn = page.locator('button:has-text("新建")').first();
-    const newBtnVisible = await newBtn.isVisible({ timeout: 5000 }).catch(() => false);
-
+    await newBtn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    const newBtnVisible = await newBtn.isVisible().catch(() => false);
     if (newBtnVisible) {
       await newBtn.click();
       await page.waitForTimeout(1000);
@@ -1052,7 +1192,11 @@ test.describe('面料单据专用字段全链路验证', () => {
       // 后端有 color_no/dye_lot_no/batch_no 但前端表单可能未显示
       expect(true).toBe(true); // 记录现状
 
-      await page.locator('.el-dialog__headerbtn').first().click().catch(() => {});
+      await page
+        .locator('.el-dialog__headerbtn')
+        .first()
+        .click()
+        .catch(() => {});
     }
   });
 });

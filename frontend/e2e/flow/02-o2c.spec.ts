@@ -1,8 +1,18 @@
 import { test, expect } from '@playwright/test';
 import {
-  loginViaUI, apiCall, apiCallRaw, apiCallExpectFail,
-  verifyStatusTransition, verifyIllegalTransition, verifyStockFourDim,
-verifyAuditLog, getCtx, genCode, genDyeLotNo, genPieceNo, ensureTestEntities
+  loginViaUI,
+  apiCall,
+  apiCallRaw,
+  apiCallExpectFail,
+  verifyStatusTransition,
+  verifyIllegalTransition,
+  verifyStockFourDim,
+  verifyAuditLog,
+  getCtx,
+  genCode,
+  genDyeLotNo,
+  genPieceNo,
+  ensureTestEntities,
 } from './helpers';
 
 test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', () => {
@@ -20,8 +30,12 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
         sales_user_id: 1,
         quotation_date: new Date().toISOString().split('T')[0],
         valid_until: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
-        currency: 'CNY', exchange_rate: '1', base_currency: 'CNY',
-        price_terms: 'FOB', tax_inclusive: false, tax_rate: '13',
+        currency: 'CNY',
+        exchange_rate: '1',
+        base_currency: 'CNY',
+        price_terms: 'FOB',
+        tax_inclusive: false,
+        tax_rate: '13',
         items: [
           {
             product_id: productId,
@@ -38,9 +52,15 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     } catch (e) {
       console.log('创建报价单失败，尝试查找已有:', (e as { message?: string }).message || e);
       try {
-        const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/quotations?page=1&page_size=1');
+        const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+          page,
+          'GET',
+          '/quotations?page=1&page_size=1'
+        );
         ctx.quotationId = list.items?.[0]?.id;
-      } catch { /* 查找也失败 */ }
+      } catch {
+        /* 查找也失败 */
+      }
     }
     expect(ctx.quotationId).toBeDefined();
   });
@@ -49,23 +69,39 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     await loginViaUI(page);
     const ctx = getCtx();
     const id = ctx.quotationId;
-    if (!id) { test.skip(); return; }
+    if (!id) {
+      test.skip();
+      return;
+    }
 
     // 提交审批
-    try { await apiCall(page, 'POST', `/quotations/${id}/submit`); } catch { /* may already be submitted */ }
+    try {
+      await apiCall(page, 'POST', `/quotations/${id}/submit`);
+    } catch {
+      /* may already be submitted */
+    }
     // 审批通过
-    try { await apiCall(page, 'POST', `/quotations/${id}/approve`); } catch { /* may already be approved */ }
+    try {
+      await apiCall(page, 'POST', `/quotations/${id}/approve`);
+    } catch {
+      /* may already be approved */
+    }
 
     const q = await apiCallRaw<{ status: string }>(page, 'GET', `/quotations/${id}`);
     const status = (q.status || '').toLowerCase();
-    expect(['approved', 'confirmed', 'converted', 'submitted', 'draft', 'expired']).toContain(status ?? '(missing-status)');
+    expect(['approved', 'confirmed', 'converted', 'submitted', 'draft', 'expired']).toContain(
+      status ?? '(missing-status)'
+    );
   });
 
   test('2-3 验证报价单非法转换被拒绝', async ({ page }) => {
     await loginViaUI(page);
     const ctx = getCtx();
     const id = ctx.quotationId;
-    if (!id) { test.skip(); return; }
+    if (!id) {
+      test.skip();
+      return;
+    }
 
     // 对已审批的报价单再次提交 → 应拒绝
     await verifyIllegalTransition(page, '/quotations', id, 'submit');
@@ -75,14 +111,25 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     await loginViaUI(page);
     const ctx = getCtx();
     const qid = ctx.quotationId;
-    if (!qid) { test.skip(); return; }
+    if (!qid) {
+      test.skip();
+      return;
+    }
 
     try {
-      const result = await apiCall<{ id?: number; order_id?: number }>(page, 'POST', `/quotations/${qid}/convert`);
+      const result = await apiCall<{ id?: number; order_id?: number }>(
+        page,
+        'POST',
+        `/quotations/${qid}/convert`
+      );
       ctx.salesOrderId = result.data?.id || result.data?.order_id;
     } catch {
       // 可能已转换或 API 格式不同
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/sales/orders?page=1&page_size=1');
+      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+        page,
+        'GET',
+        '/sales/orders?page=1&page_size=1'
+      );
       ctx.salesOrderId = list.items?.[0]?.id;
     }
     expect(ctx.salesOrderId).toBeDefined();
@@ -92,25 +139,46 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     await loginViaUI(page);
     const ctx = getCtx();
     const id = ctx.salesOrderId;
-    if (!id) { test.skip(); return; }
+    if (!id) {
+      test.skip();
+      return;
+    }
 
     // 提交审批
-    try { await apiCall(page, 'POST', `/sales/orders/${id}/submit`); } catch { /* may already be submitted */ }
+    try {
+      await apiCall(page, 'POST', `/sales/orders/${id}/submit`);
+    } catch {
+      /* may already be submitted */
+    }
     // 审批通过
-    try { await apiCall(page, 'POST', `/sales/orders/${id}/approve`); } catch { /* may already be approved */ }
+    try {
+      await apiCall(page, 'POST', `/sales/orders/${id}/approve`);
+    } catch {
+      /* may already be approved */
+    }
 
     const order = await apiCallRaw<{ status: string }>(page, 'GET', `/sales/orders/${id}`);
     const status = (order.status || '').toLowerCase();
-    expect(['approved', 'confirmed', 'pending_shipment', 'shipped', 'partially_shipped', 'completed', 'draft', 'submitted']).toContain(
-      status ?? '(missing-status)'
-    );
+    expect([
+      'approved',
+      'confirmed',
+      'pending_shipment',
+      'shipped',
+      'partially_shipped',
+      'completed',
+      'draft',
+      'submitted',
+    ]).toContain(status ?? '(missing-status)');
   });
 
   test('2-6 发货（扫码匹号出库，双计量扣减）', async ({ page }) => {
     await loginViaUI(page);
     const ctx = getCtx();
     const id = ctx.salesOrderId;
-    if (!id) { test.skip(); return; }
+    if (!id) {
+      test.skip();
+      return;
+    }
 
     const pieceNo1 = genPieceNo(dyeLotNo, 1);
     const pieceNo2 = genPieceNo(dyeLotNo, 2);
@@ -119,8 +187,22 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
       await apiCall(page, 'POST', `/sales/orders/${id}/ship`, {
         warehouse_id: ctx.warehouseIds[0] || 1,
         items: [
-          { product_id: ctx.productIds[0] || 1, quantity: 500, quantity_kg: 100, piece_no: pieceNo1, color_no: 'RED-001', dye_lot_no: dyeLotNo },
-          { product_id: ctx.productIds[0] || 1, quantity: 300, quantity_kg: 60, piece_no: pieceNo2, color_no: 'RED-001', dye_lot_no: dyeLotNo },
+          {
+            product_id: ctx.productIds[0] || 1,
+            quantity: 500,
+            quantity_kg: 100,
+            piece_no: pieceNo1,
+            color_no: 'RED-001',
+            dye_lot_no: dyeLotNo,
+          },
+          {
+            product_id: ctx.productIds[0] || 1,
+            quantity: 300,
+            quantity_kg: 60,
+            piece_no: pieceNo2,
+            color_no: 'RED-001',
+            dye_lot_no: dyeLotNo,
+          },
         ],
       });
     } catch {
@@ -129,9 +211,14 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
 
     const order = await apiCallRaw<{ status: string }>(page, 'GET', `/sales/orders/${id}`);
     const status = (order.status || '').toLowerCase();
-    expect(['shipped', 'partially_shipped', 'completed', 'approved', 'confirmed', 'pending_shipment']).toContain(
-      status ?? '(missing-status)'
-    );
+    expect([
+      'shipped',
+      'partially_shipped',
+      'completed',
+      'approved',
+      'confirmed',
+      'pending_shipment',
+    ]).toContain(status ?? '(missing-status)');
   });
 
   test('2-7 验证库存扣减（四维查询）', async ({ page }) => {
@@ -148,24 +235,25 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     const ctx = getCtx();
 
     try {
-      const invoices = await apiCallRaw<{ items: Array<{ id: number; amount: number; status: string }> }>(
-        page, 'GET', '/finance/ar/invoices?page=1&page_size=5'
-      );
+      const invoices = await apiCallRaw<{
+        items: Array<{ id: number; amount: number; status: string }>;
+      }>(page, 'GET', '/finance/ar/invoices?page=1&page_size=5');
       expect(invoices.items);
 
       if ((invoices?.items?.length ?? 0) === 0) {
         try {
           const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/ar/invoices', {
+            // CreateArInvoiceRequest：金额字段为 invoice_amount（无 invoice_no/tax_amount）
             customer_id: ctx.customerId || 1,
-            amount: 113000,
-            tax_amount: 13000,
-            invoice_no: genCode('AR'),
+            invoice_amount: 113000,
             invoice_date: new Date().toISOString().split('T')[0],
           });
           ctx.arInvoiceId = result.data?.id;
-        } catch { /* skip */ }
+        } catch {
+          /* skip */
+        }
       } else {
-        ctx.arInvoiceId = invoices.items?.[0].id;
+        ctx.arInvoiceId = invoices.items?.[0]?.id;
       }
     } catch {
       // AR 模块可能未就绪
@@ -176,7 +264,10 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
   test('2-9 分次收款（50% + 50%）', async ({ page }) => {
     await loginViaUI(page);
     const ctx = getCtx();
-    if (!ctx.arInvoiceId) { test.skip(); return; }
+    if (!ctx.arInvoiceId) {
+      test.skip();
+      return;
+    }
 
     // 第一次收款 50%
     try {
@@ -186,15 +277,23 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
         payment_method: 'bank_transfer',
         payment_date: new Date().toISOString().split('T')[0],
       });
-    } catch { /* skip */ }
+    } catch {
+      /* skip */
+    }
 
     // 验证状态为部分付款
     try {
-      const inv = await apiCallRaw<{ status: string }>(page, 'GET', `/finance/ar/invoices/${ctx.arInvoiceId}`);
+      const inv = await apiCallRaw<{ status: string }>(
+        page,
+        'GET',
+        `/finance/ar/invoices/${ctx.arInvoiceId}`
+      );
       expect(['partially_paid', 'paid', 'unpaid', 'pending', 'partial', 'confirmed']).toContain(
         (inv.status || '').toLowerCase() || 'partially_paid'
       );
-    } catch { /* skip */ }
+    } catch {
+      /* skip */
+    }
 
     // 第二次收款 50%
     try {
@@ -204,15 +303,23 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
         payment_method: 'bank_transfer',
         payment_date: new Date().toISOString().split('T')[0],
       });
-    } catch { /* skip */ }
+    } catch {
+      /* skip */
+    }
   });
 
   test('2-10 验证销售报表（按色号/缸号维度）', async ({ page }) => {
     await loginViaUI(page);
     try {
-      const orders = await apiCallRaw<{ items: unknown[] }>(page, 'GET', '/sales/orders?page=1&page_size=5');
+      const orders = await apiCallRaw<{ items: unknown[] }>(
+        page,
+        'GET',
+        '/sales/orders?page=1&page_size=5'
+      );
       expect(orders.items);
-    } catch { /* skip */ }
+    } catch {
+      /* skip */
+    }
   });
 
   test('2-11 验证审计日志包含销售操作', async ({ page }) => {

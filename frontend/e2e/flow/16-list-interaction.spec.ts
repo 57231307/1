@@ -7,7 +7,7 @@ test.describe('列表交互与状态显示', () => {
   });
 
   test('采购订单列表：分页切换+状态标签显示', async ({ page }) => {
-    await page.goto(`${BASE_URL}/purchase/orders`);
+    await page.goto(`${BASE_URL}/purchase`);
     await page.waitForTimeout(3000);
 
     await page.locator('.el-table').first().waitFor({ state: 'visible', timeout: 30_000 });
@@ -35,15 +35,17 @@ test.describe('列表交互与状态显示', () => {
   });
 
   test('库存列表：空数据展示验证', async ({ page }) => {
-    await page.goto(`${BASE_URL}/inventory/stock`);
+    await page.goto(`${BASE_URL}/inventory`);
     await page.waitForTimeout(3000);
 
     const table = page.locator('.el-table').first();
     const empty = page.locator('.el-empty, .el-table__empty-block, .el-table__empty-text').first();
 
-    const tableVisible = await table.isVisible({ timeout: 15_000 }).catch(() => false);
-    const emptyVisible = await empty.isVisible({ timeout: 5_000 }).catch(() => false);
+    await table.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
 
+    const tableVisible = await table.isVisible().catch(() => false);
+    await empty.waitFor({ state: 'visible', timeout: 5_000 }).catch(() => {});
+    const emptyVisible = await empty.isVisible().catch(() => false);
     expect(tableVisible || emptyVisible).toBe(true);
 
     if (tableVisible) {
@@ -60,35 +62,51 @@ test.describe('列表交互与状态显示', () => {
     const container = page.locator('.dashboard-container, .el-card, .el-row').first();
     await container.waitFor({ state: 'visible', timeout: 30_000 });
 
-    const hasStats = await page.locator('.el-statistic, .el-card, [class*="stat"]').first().isVisible().catch(() => false);
-    const hasChart = await page.locator('canvas, .echarts, [class*="chart"]').first().isVisible().catch(() => false);
+    const hasStats = await page
+      .locator('.el-statistic, .el-card, [class*="stat"]')
+      .first()
+      .isVisible()
+      .catch(() => false);
+    const hasChart = await page
+      .locator('canvas, .echarts, [class*="chart"]')
+      .first()
+      .isVisible()
+      .catch(() => false);
     expect(hasStats || hasChart).toBe(true);
   });
 
   test('供应商列表：搜索过滤交互', async ({ page }) => {
     // 真实路由：/purchase/supplier
-    await page.goto(`${BASE_URL}/purchase/supplier`);
+    await page.goto(`${BASE_URL}/supplier`);
     await page.waitForTimeout(3000);
 
-    await page.locator('.el-table, .el-card').first().waitFor({ state: 'visible', timeout: 30_000 });
+    await page
+      .locator('.el-table, .el-card')
+      .first()
+      .waitFor({ state: 'visible', timeout: 30_000 });
 
     // 查找搜索输入框（真实 placeholder 含"供应商名称"或类似）
     const searchInput = page.locator('.filter-form input, .filter-card input').first();
-    const searchVisible = await searchInput.isVisible({ timeout: 5000 }).catch(() => false);
-
+    await searchInput.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    const searchVisible = await searchInput.isVisible().catch(() => false);
     if (searchVisible) {
       await searchInput.fill('测试');
       await page.waitForTimeout(1000);
 
       // 点击查询按钮（真实文本"查询"）
       const searchBtn = page.locator('button:has-text("查询")').first();
-      const searchBtnVisible = await searchBtn.isVisible({ timeout: 3000 }).catch(() => false);
+      await searchBtn.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
+      const searchBtnVisible = await searchBtn.isVisible().catch(() => false);
       if (searchBtnVisible) {
         await searchBtn.click();
         await page.waitForTimeout(2000);
       }
 
-      const tableStillVisible = await page.locator('.el-table').first().isVisible().catch(() => false);
+      const tableStillVisible = await page
+        .locator('.el-table')
+        .first()
+        .isVisible()
+        .catch(() => false);
       expect(tableStillVisible).toBe(true);
 
       await searchInput.clear();
@@ -102,12 +120,19 @@ test.describe('列表交互与状态显示', () => {
 
     // 等待 el-tabs 加载
     const tabs = page.locator('.el-tabs');
-    const tabsVisible = await tabs.first().isVisible({ timeout: 15_000 }).catch(() => false);
-
+    await tabs
+      .first()
+      .waitFor({ state: 'visible', timeout: 15_000 })
+      .catch(() => {});
+    const tabsVisible = await tabs
+      .first()
+      .isVisible()
+      .catch(() => false);
     if (tabsVisible) {
       // 点击第二个 tab
       const secondTab = page.locator('.el-tabs__item').nth(1);
-      const secondTabVisible = await secondTab.isVisible({ timeout: 5000 }).catch(() => false);
+      await secondTab.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+      const secondTabVisible = await secondTab.isVisible().catch(() => false);
       if (secondTabVisible) {
         await secondTab.click();
         await page.waitForTimeout(2000);
