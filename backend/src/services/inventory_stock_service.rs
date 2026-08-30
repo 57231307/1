@@ -118,6 +118,36 @@ pub struct CreateStockFabricArgs {
 
 /// build_stock_fabric_active 内部传递字段（解构 CreateStockFabricArgs 后 + 计算的 final_quantity_kg）
 /// 避免主函数调用 helper 时传递 13 个参数，使用结构体封装更整洁。
+
+/// 创建面料批次参数对象（缺陷 3 修复：消除 create_batch_fabric 的 too_many_arguments 警告）
+#[derive(Debug, Clone)]
+pub struct CreateBatchFabricArgs {
+    /// 批次号
+    pub batch_no: String,
+    /// 产品 ID
+    pub product_id: i32,
+    /// 仓库 ID
+    pub warehouse_id: i32,
+    /// 色号
+    pub color_no: String,
+    /// 染缸批号（可选）
+    pub dye_lot_no: Option<String>,
+    /// 等级
+    pub grade: String,
+    /// 数量（米）
+    pub quantity_meters: f64,
+    /// 数量（公斤）
+    pub quantity_kg: f64,
+    /// 克重（可选）
+    pub gram_weight: Option<f64>,
+    /// 幅宽（可选）
+    pub width: Option<f64>,
+    /// 生产日期（可选）
+    pub production_date: Option<chrono::DateTime<Utc>>,
+    /// 到期日期（可选）
+    pub expiry_date: Option<chrono::DateTime<Utc>>,
+}
+
 struct StockFabricFields {
     warehouse_id: i32,
     product_id: i32,
@@ -609,19 +639,22 @@ impl InventoryStockService {
     /// 创建批次（入库，面料行业版）
     pub async fn create_batch_fabric(
         &self,
-        batch_no: String,
-        product_id: i32,
-        warehouse_id: i32,
-        color_no: String,
-        dye_lot_no: Option<String>,
-        grade: String,
-        quantity_meters: f64,
-        quantity_kg: f64,
-        gram_weight: Option<f64>,
-        width: Option<f64>,
-        production_date: Option<chrono::DateTime<Utc>>,
-        expiry_date: Option<chrono::DateTime<Utc>>,
+        args: CreateBatchFabricArgs,
     ) -> Result<inventory_stock::Model, AppError> {
+        let CreateBatchFabricArgs {
+            batch_no,
+            product_id,
+            warehouse_id,
+            color_no,
+            dye_lot_no,
+            grade,
+            quantity_meters,
+            quantity_kg,
+            gram_weight,
+            width,
+            production_date,
+            expiry_date,
+        } = args;
         let meters = Decimal::from_f64_retain(quantity_meters).unwrap_or(Decimal::ZERO);
         let kg = Decimal::from_f64_retain(quantity_kg).unwrap_or(Decimal::ZERO);
         let batch = inventory_stock::ActiveModel {

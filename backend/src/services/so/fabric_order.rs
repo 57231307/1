@@ -22,7 +22,10 @@ use crate::services::so::order::SalesService;
 use crate::utils::error::AppError;
 
 /// 创建面料销售订单明细请求（handler DTO 直接透传，字段与原 handler 一致）
+/// 批次说明：product_name / batch_no / dye_lot_no 为前端表单冗余字段，明细落库时
+/// 由 sales_order_item 的 color_no/pantone 等专有列承载，此处保留反序列化兼容。
 #[derive(Debug, Deserialize)]
+#[allow(dead_code, reason = "反序列化输入字段（前端表单兼容字段暂不落库）")]
 pub struct FabricOrderItemRequest {
     pub product_id: i32,
     pub product_name: Option<String>,
@@ -50,6 +53,10 @@ pub struct FabricOrderItemRequest {
 
 /// 创建面料销售订单请求
 #[derive(Debug, Deserialize)]
+#[allow(
+    dead_code,
+    reason = "反序列化输入字段（payment_terms/batch_no/color_no 等暂不落库）"
+)]
 pub struct CreateFabricOrderRequest {
     pub customer_id: i32,
     pub order_date: chrono::DateTime<chrono::Utc>,
@@ -69,6 +76,10 @@ pub struct CreateFabricOrderRequest {
 
 /// 更新面料销售订单请求
 #[derive(Debug, Deserialize)]
+#[allow(
+    dead_code,
+    reason = "反序列化输入字段（items/payment_terms 等暂不消费）"
+)]
 pub struct UpdateFabricOrderRequest {
     pub required_date: Option<chrono::DateTime<chrono::Utc>>,
     pub status: Option<String>,
@@ -83,44 +94,49 @@ pub struct UpdateFabricOrderRequest {
     pub quality_standard: Option<String>,
 }
 
+/// 面料行业版订单列表查询参数对象（消除 too_many_arguments 警告）
+pub struct FabricOrderListQuery {
+    pub page: u64,
+    pub page_size: u64,
+    pub customer_id: Option<i32>,
+    pub order_no: Option<String>,
+    pub status: Option<String>,
+    pub batch_no: Option<String>,
+    pub color_no: Option<String>,
+}
+
 impl SalesService {
     /// 面料行业版订单列表（分页 + 过滤，复用 sales_order Entity）
     pub async fn list_fabric_orders(
         &self,
-        page: u64,
-        page_size: u64,
-        customer_id: Option<i32>,
-        order_no: Option<String>,
-        status: Option<String>,
-        batch_no: Option<String>,
-        color_no: Option<String>,
+        query: FabricOrderListQuery,
     ) -> Result<(Vec<sales_order::Model>, u64), AppError> {
-        let page = page.clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
-        let page_size = page_size.clamp(1, 100);
+        let page = query.page.clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
+        let page_size = query.page_size.clamp(1, 100);
 
         let mut query_builder = sales_order::Entity::find();
-        if let Some(cid) = customer_id {
+        if let Some(cid) = query.customer_id {
             query_builder = query_builder.filter(sales_order::Column::CustomerId.eq(cid));
         }
-        if let Some(no) = order_no {
+        if let Some(no) = query.order_no {
             let pattern = crate::utils::sql_escape::safe_like_pattern(&no);
             query_builder = query_builder.filter(sales_order::Column::OrderNo.like(&pattern));
         }
-        if let Some(st) = status {
+        if let Some(st) = query.status {
             query_builder = query_builder.filter(sales_order::Column::Status.eq(st));
         }
         // batch_no / color_no 是面料行业扩展查询条件：
         // sales_order 主表无对应列，需通过明细表匹配后回查主表
         let mut order_ids: Option<Vec<i32>> = None;
-        if batch_no.is_some() || color_no.is_some() {
+        if query.batch_no.is_some() || query.color_no.is_some() {
             use sea_orm::QuerySelect;
             let mut item_query = sales_order_item::Entity::find().select_only();
             item_query = item_query.column(sales_order_item::Column::OrderId);
-            if let Some(bn) = &batch_no {
+            if let Some(bn) = &query.batch_no {
                 item_query = item_query.filter(sales_order_item::Column::ColorNo.is_not_null());
                 let _ = bn; // 明细表无 batch_no 列时忽略（与原 handler 语义一致）
             }
-            if let Some(cn) = &color_no {
+            if let Some(cn) = &query.color_no {
                 item_query = item_query.filter(sales_order_item::Column::ColorNo.eq(cn.clone()));
             }
             item_query = item_query.filter(sales_order_item::Column::OrderId.is_not_null());
@@ -157,11 +173,13 @@ impl SalesService {
     }
 
     /// 面料行业版订单创建（事务：主表 + 明细）
+    /// user_id 保留为扩展位（原 handler 语义：created_by 由调用方传入；当前主表 created_by=None 与原实现一致）
     pub async fn create_fabric_order(
         &self,
         req: CreateFabricOrderRequest,
-        _user_id: i32,
+        user_id: i32,
     ) -> Result<sales_order::Model, AppError> {
+        let _ = user_id;
         // P2-11 修复逻辑下沉：金额/数量非负 + 精度校验
         Self::validate_fabric_order_items(&req.items)?;
 

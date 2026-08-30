@@ -42,20 +42,20 @@ pub async fn list_fabric_orders(
 ) -> Result<Json<ApiResponse<PaginatedResponse<serde_json::Value>>>, AppError> {
     let _data_scope = auth.to_data_scope_context();
     let service = SalesService::new(state.db.clone(), state.search_client.clone());
-    let (orders, total) = service
-        .list_fabric_orders(
-            query.page.unwrap_or(1),
-            query.page_size.unwrap_or(20),
-            query.customer_id,
-            query.order_no,
-            query.status,
-            query.batch_no,
-            query.color_no,
-        )
-        .await?;
-
     let page = query.page.unwrap_or(1).clamp(1, 1000);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
+    let (orders, total) = service
+        .list_fabric_orders(crate::services::so::fabric_order::FabricOrderListQuery {
+            page,
+            page_size,
+            customer_id: query.customer_id,
+            order_no: query.order_no,
+            status: query.status,
+            batch_no: query.batch_no,
+            color_no: query.color_no,
+        })
+        .await?;
+
     let orders_json: Vec<serde_json::Value> = orders
         .into_iter()
         .map(|o: sales_order::Model| {

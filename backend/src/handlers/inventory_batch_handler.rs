@@ -120,18 +120,20 @@ pub async fn create_batch(
     let service = InventoryStockService::new(state.db.clone());
     let created = service
         .create_batch_fabric(
-            req.batch_no,
-            req.product_id,
-            req.warehouse_id,
-            req.color_no,
-            req.dye_lot_no,
-            req.grade,
-            req.quantity_meters,
-            req.quantity_kg,
-            req.gram_weight,
-            req.width,
-            req.production_date,
-            req.expiry_date,
+            crate::services::inventory_stock_service::CreateBatchFabricArgs {
+                batch_no: req.batch_no,
+                product_id: req.product_id,
+                warehouse_id: req.warehouse_id,
+                color_no: req.color_no,
+                dye_lot_no: req.dye_lot_no,
+                grade: req.grade,
+                quantity_meters: req.quantity_meters,
+                quantity_kg: req.quantity_kg,
+                gram_weight: req.gram_weight,
+                width: req.width,
+                production_date: req.production_date,
+                expiry_date: req.expiry_date,
+            },
         )
         .await?;
     Ok(Json(ApiResponse::success_with_message(
