@@ -10,9 +10,17 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
   async function visitAndVerifyTable(page: import('@playwright/test').Page, path: string) {
     await page.goto(`${BASE_URL}${path}`);
     await page.waitForTimeout(3000);
-    const container = page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty, .el-form').first();
+    const container = page
+      .locator(
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty, .el-form'
+      )
+      .first();
     await container.waitFor({ state: 'visible', timeout: 30_000 }).catch(() => {});
-    return page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first();
+    return page
+      .locator(
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+      )
+      .first();
   }
 
   // 辅助：验证按钮可见且可点击
@@ -140,7 +148,11 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 })
       .catch(() => {});
-    const table = page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first();
+    const table = page
+      .locator(
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+      )
+      .first();
     await table.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
     const tableVisible = await table.isVisible().catch(() => false);
     expect(tableVisible).toBe(true);
@@ -379,7 +391,11 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     if (auditTabVisible) {
       await auditTab.click();
       await page.waitForTimeout(2000);
-      const auditTable = page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first();
+      const auditTable = page
+        .locator(
+          '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+        )
+        .first();
       await auditTable.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
       const auditTableVisible = await auditTable.isVisible().catch(() => false);
       expect(auditTableVisible).toBe(true);
@@ -414,7 +430,9 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     await page.goto(`${BASE_URL}/advanced`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty, body')
+      .locator(
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty, body'
+      )
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     const bodyOk = await page.locator('body').isVisible();
@@ -438,7 +456,11 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     if (roleTabVisible) {
       await roleTab.click();
       await page.waitForTimeout(2000);
-      const table = page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first();
+      const table = page
+        .locator(
+          '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+        )
+        .first();
       await table.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
       const tableVisible = await table.isVisible().catch(() => false);
       expect(tableVisible).toBe(true);
@@ -710,7 +732,11 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     const loading = page.locator('.el-loading-mask, .el-loading-spinner, .el-skeleton');
     // 不强制要求 loading 一定出现（可能加载太快），验证页面最终加载完成
     await page.waitForTimeout(3000);
-    const table = page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first();
+    const table = page
+      .locator(
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+      )
+      .first();
     await table.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
     const tableVisible = await table.isVisible().catch(() => false);
     expect(tableVisible).toBe(true);

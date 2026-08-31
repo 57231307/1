@@ -10,7 +10,12 @@ test.describe('前端状态显示与业务逻辑验证', () => {
     await page.goto(`${BASE_URL}/purchase`);
     await page.waitForTimeout(3000);
 
-    await page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first().waitFor({ state: 'visible', timeout: 30_000 });
+    await page
+      .locator(
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+      )
+      .first()
+      .waitFor({ state: 'visible', timeout: 30_000 });
 
     const statusTags = page.locator('.el-table .el-tag');
     const tagCount = await statusTags.count();
@@ -33,7 +38,9 @@ test.describe('前端状态显示与业务逻辑验证', () => {
     await page.waitForTimeout(3000);
 
     await page
-      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper')
+      .locator(
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+      )
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 })
       .catch(() => {});
@@ -64,7 +71,9 @@ test.describe('前端状态显示与业务逻辑验证', () => {
     await page.waitForTimeout(3000);
 
     await page
-      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper')
+      .locator(
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+      )
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 })
       .catch(() => {});
@@ -104,7 +113,11 @@ test.describe('前端状态显示与业务逻辑验证', () => {
     await page.goto(`${BASE_URL}/voucher`);
     await page.waitForTimeout(3000);
 
-    const table = page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first();
+    const table = page
+      .locator(
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+      )
+      .first();
     await table.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
     const tableVisible = await table.isVisible().catch(() => false);
     if (tableVisible) {
@@ -166,7 +179,9 @@ test.describe('前端状态显示与业务逻辑验证', () => {
     await page.waitForTimeout(3000);
 
     await page
-      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper')
+      .locator(
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+      )
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 })
       .catch(() => {});

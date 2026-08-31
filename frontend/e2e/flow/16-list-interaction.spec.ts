@@ -10,7 +10,12 @@ test.describe('列表交互与状态显示', () => {
     await page.goto(`${BASE_URL}/purchase`);
     await page.waitForTimeout(3000);
 
-    await page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first().waitFor({ state: 'visible', timeout: 30_000 });
+    await page
+      .locator(
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+      )
+      .first()
+      .waitFor({ state: 'visible', timeout: 30_000 });
 
     // 验证状态标签（el-tag）存在
     const statusTags = page.locator('.el-table .el-tag');
@@ -29,7 +34,12 @@ test.describe('列表交互与状态显示', () => {
       if (page2Visible) {
         await page2.click();
         await page.waitForTimeout(2000);
-        await page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first().waitFor({ state: 'visible', timeout: 10_000 });
+        await page
+          .locator(
+            '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+          )
+          .first()
+          .waitFor({ state: 'visible', timeout: 10_000 });
       }
     }
   });
@@ -38,7 +48,11 @@ test.describe('列表交互与状态显示', () => {
     await page.goto(`${BASE_URL}/inventory`);
     await page.waitForTimeout(3000);
 
-    const table = page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first();
+    const table = page
+      .locator(
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+      )
+      .first();
     const empty = page.locator('.el-empty, .el-table__empty-block, .el-table__empty-text').first();
 
     await table.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
@@ -103,7 +117,9 @@ test.describe('列表交互与状态显示', () => {
       }
 
       const tableStillVisible = await page
-        .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper')
+        .locator(
+          '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+        )
         .first()
         .isVisible()
         .catch(() => false);

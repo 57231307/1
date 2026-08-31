@@ -84,7 +84,9 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
       await searchBtn.click();
       await page.waitForTimeout(2000);
       const tableOk = await page
-        .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper')
+        .locator(
+          '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+        )
         .first()
         .isVisible()
         .catch(() => false);
@@ -115,7 +117,11 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
       .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
-    const table = page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first();
+    const table = page
+      .locator(
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+      )
+      .first();
     await table.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
     const tableVisible = await table.isVisible().catch(() => false);
     expect(tableVisible).toBe(true);
@@ -144,7 +150,9 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
         await page.waitForTimeout(2000);
       }
       const tableOk = await page
-        .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper')
+        .locator(
+          '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+        )
         .first()
         .isVisible()
         .catch(() => false);
@@ -196,7 +204,11 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
       .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
-    const table = page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first();
+    const table = page
+      .locator(
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+      )
+      .first();
     await table.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
     const tableVisible = await table.isVisible().catch(() => false);
     expect(tableVisible).toBe(true);
@@ -263,7 +275,11 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
       .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
-    const table = page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first();
+    const table = page
+      .locator(
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+      )
+      .first();
     await table.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
     const tableVisible = await table.isVisible().catch(() => false);
     expect(tableVisible).toBe(true);
@@ -315,7 +331,9 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/greige-fabrics`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty, body')
+      .locator(
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty, body'
+      )
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     const bodyOk = await page.locator('body').isVisible();
@@ -326,10 +344,16 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/sales-returns`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty, body')
+      .locator(
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty, body'
+      )
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
-    const table = page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first();
+    const table = page
+      .locator(
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+      )
+      .first();
     await table.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
     const tableVisible = await table.isVisible().catch(() => false);
     expect(tableVisible).toBe(true);
@@ -339,10 +363,16 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/purchase-return`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty, body')
+      .locator(
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty, body'
+      )
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
-    const table = page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first();
+    const table = page
+      .locator(
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+      )
+      .first();
     await table.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
     const tableVisible = await table.isVisible().catch(() => false);
     expect(tableVisible).toBe(true);

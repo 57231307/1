@@ -10,7 +10,12 @@ test.describe('批量操作与弹窗确认', () => {
     await page.goto(`${BASE_URL}/purchase`);
     await page.waitForTimeout(3000);
 
-    await page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first().waitFor({ state: 'visible', timeout: 30_000 });
+    await page
+      .locator(
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+      )
+      .first()
+      .waitFor({ state: 'visible', timeout: 30_000 });
 
     // 查找多选列 checkbox
     const checkboxes = page.locator('.el-table .el-checkbox');
@@ -113,7 +118,12 @@ test.describe('批量操作与弹窗确认', () => {
     await page.goto(`${BASE_URL}/purchase`);
     await page.waitForTimeout(3000);
 
-    await page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first().waitFor({ state: 'visible', timeout: 30_000 });
+    await page
+      .locator(
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+      )
+      .first()
+      .waitFor({ state: 'visible', timeout: 30_000 });
 
     // 查找导出按钮（真实文本"导出"）
     const exportBtn = page.locator('button:has-text("导出")').first();
@@ -139,7 +149,12 @@ test.describe('批量操作与弹窗确认', () => {
     await page.goto(`${BASE_URL}/purchase`);
     await page.waitForTimeout(3000);
 
-    await page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first().waitFor({ state: 'visible', timeout: 30_000 });
+    await page
+      .locator(
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+      )
+      .first()
+      .waitFor({ state: 'visible', timeout: 30_000 });
 
     // 点击新建采购单
     const newBtn = page.locator('button:has-text("新建采购单")').first();

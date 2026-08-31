@@ -214,7 +214,9 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
       }
       // 验证表格不崩溃
       const tableOk = await page
-        .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper')
+        .locator(
+          '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+        )
         .first()
         .waitFor({ state: 'visible', timeout: 5000 })
         .then(() => true)
@@ -278,7 +280,11 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     // 验证表格加载
-    const table = page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first();
+    const table = page
+      .locator(
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+      )
+      .first();
     await table.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
     const tableVisible = await table.isVisible().catch(() => false);
     expect(tableVisible).toBe(true);
@@ -304,7 +310,9 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
         await page.waitForTimeout(2000);
       }
       const tableOk = await page
-        .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper')
+        .locator(
+          '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+        )
         .first()
         .isVisible()
         .catch(() => false);
@@ -319,7 +327,11 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
       .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
-    const table = page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first();
+    const table = page
+      .locator(
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+      )
+      .first();
     await table.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
     const tableVisible = await table.isVisible().catch(() => false);
     expect(tableVisible).toBe(true);
@@ -374,10 +386,16 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/customer`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty, body')
+      .locator(
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty, body'
+      )
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
-    const table = page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first();
+    const table = page
+      .locator(
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+      )
+      .first();
     await table.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
     const tableVisible = await table.isVisible().catch(() => false);
     if (tableVisible) {

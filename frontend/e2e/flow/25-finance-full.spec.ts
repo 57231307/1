@@ -349,14 +349,13 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     // “生成对账”按钮在“对账管理”Tab 内（默认激活 invoice），需先切 Tab
-    await page
-      .locator('.el-tabs__item:has-text("对账管理")')
-      .first()
-      .click()
-      .catch(() => {});
-    await page.waitForTimeout(1000);
+    const recTabItem = page.locator('.el-tabs__item:has-text("对账管理")').first();
+    await recTabItem.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+    await page.keyboard.press('Escape').catch(() => {});
+    await page.waitForTimeout(300);
+    await recTabItem.click({ force: true }).catch(() => {});
     const genBtn = page.locator('button:has-text("生成对账")').first();
-    await genBtn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await genBtn.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
     const genVisible = await genBtn.isVisible().catch(() => false);
     expect(genVisible).toBe(true);
   });

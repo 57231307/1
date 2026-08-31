@@ -88,6 +88,8 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
       }
     }
     if (phyInspId) {
+      // 物理指标仅 inspecting/graded 状态可录入：先把验布记录推进到 inspecting
+      await safePostAction(page, `/production/fabric-inspections/${phyInspId}/start`);
       await safePostAction(page, '/production/fabric-inspections/physical-tests', {
         // AddPhysicalTestRequestDto: inspection_id/test_item/test_value 必填
         inspection_id: phyInspId,

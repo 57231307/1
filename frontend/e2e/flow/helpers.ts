@@ -169,9 +169,10 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     // API 兜底补齐到 3 个
     while (ctx.productIds.length < 3) {
       try {
+        // CreateProductRequest 字段：code/name/category_id/unit
         const result = await apiCall<{ id?: number }>(page, 'POST', '/products', {
-          product_code: `E2E-P${Date.now().toString().slice(-6)}${ctx.productIds.length}`,
-          product_name: `E2E产品${Date.now().toString().slice(-6)}${ctx.productIds.length}`,
+          code: `E2E-P${Date.now().toString().slice(-6)}${ctx.productIds.length}`,
+          name: `E2E产品${Date.now().toString().slice(-6)}${ctx.productIds.length}`,
           unit: '米',
         });
         if (result.data?.id) ctx.productIds.push(result.data.id);

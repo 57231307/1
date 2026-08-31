@@ -115,7 +115,9 @@ test.describe('库存调拨完整流程', () => {
     await page.goto('/inventory/transfer');
     await page.waitForTimeout(2000);
     const tableVisible = await page
-      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper')
+      .locator(
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+      )
       .first()
       .isVisible()
       .catch(() => false);
