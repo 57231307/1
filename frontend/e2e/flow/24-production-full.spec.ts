@@ -68,13 +68,34 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
       await safePostAction(page, `/production/fabric-inspections/${inspId}/close`);
     }
     await verifyEndpointHealthy(page, '/production/fabric-defects?page=1&page_size=5');
-    await safePostAction(page, '/production/fabric-inspections/physical-tests', {
-      // AddPhysicalTestRequestDto: inspection_id/test_item/test_value 必填
-      inspection_id: 1,
-      test_item: 'tensile_strength',
-      test_value: 500,
-      test_result: 'pass',
-    });
+    // 确保有验布记录（CI 库可能为空）：无则先创建一条，物理测试挂在其上
+    let phyInspId = inspId;
+    if (!phyInspId) {
+      try {
+        const created = await apiCall<{ id?: number }>(
+          page,
+          'POST',
+          '/production/fabric-inspections',
+          {
+            inspection_date: new Date().toISOString().split('T')[0],
+            product_name: 'E2E 坯布',
+            color_no: 'E2E-CN',
+          }
+        );
+        phyInspId = created.data?.id;
+      } catch (e) {
+        console.error('[验布] 创建验布记录失败:', (e as Error).message);
+      }
+    }
+    if (phyInspId) {
+      await safePostAction(page, '/production/fabric-inspections/physical-tests', {
+        // AddPhysicalTestRequestDto: inspection_id/test_item/test_value 必填
+        inspection_id: phyInspId,
+        test_item: 'tensile_strength',
+        test_value: 500,
+        test_result: 'pass',
+      });
+    }
   });
 
   test('产量工资：工价+工票+计算+确认+支付', async ({ page }) => {
@@ -225,7 +246,7 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/bom`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-card, .el-empty')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     // 搜索
@@ -244,7 +265,9 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
         await page.waitForTimeout(2000);
       }
       const tableOk = await page
-        .locator('.el-table')
+        .locator(
+          '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+        )
         .first()
         .isVisible()
         .catch(() => false);
@@ -319,11 +342,15 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/dye-recipe`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-card')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     // 验证表格有数据
-    const table = page.locator('.el-table').first();
+    const table = page
+      .locator(
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+      )
+      .first();
     await table.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
     const tableVisible = await table.isVisible().catch(() => false);
     expect(tableVisible).toBe(true);
@@ -364,10 +391,14 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/dye-batch`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-card, .el-empty')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
-    const table = page.locator('.el-table').first();
+    const table = page
+      .locator(
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+      )
+      .first();
     await table.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
     const tableVisible = await table.isVisible().catch(() => false);
     expect(tableVisible).toBe(true);
@@ -394,7 +425,7 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/quality`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-card, .el-tabs')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-tabs')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     const newBtn = page.locator('button:has-text("新建标准")').first();

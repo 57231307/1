@@ -154,12 +154,35 @@ test.describe('后端连接状态与 Token 管理', () => {
     // 没被限流也通过
   });
 
-  test('401 拦截器：清除 cookie 后访问跳转登录页', async ({ page, context }) => {
-    // 先访问 dashboard
-    await page.goto(`${BASE_URL}/dashboard`);
+  test('401 拦截器：清除 cookie 后访问跳转登录页', async ({ browser }) => {
+    // 用显式 context（默认 page fixture 的 context 注入了全局 storageState 登录态）
+    const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const page = await context.newPage();
+
+    // 登录一次获得真实会话（UI 登录，模拟用户操作）
+    await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(1000);
+    await page
+      .evaluate(() => window.localStorage.setItem('bingxi.locale', 'zh-CN'))
+      .catch(() => {});
+    const userInput = page
+      .locator('input[placeholder="用户名"], input[placeholder="Username"]')
+      .first();
+    await userInput.waitFor({ state: 'visible', timeout: 20_000 });
+    await userInput.fill(process.env.TEST_USERNAME || 'e2e_admin');
+    const pwdInput = page
+      .locator('input[placeholder="密码"], input[placeholder="Password"]')
+      .first();
+    await pwdInput.waitFor({ state: 'visible', timeout: 20_000 });
+    await pwdInput.fill(process.env.TEST_PASSWORD || 'E2e@TestPassword2026!');
+    const loginBtn = page.locator('form button.el-button--primary').first();
+    await loginBtn.waitFor({ state: 'visible', timeout: 20_000 });
+    await loginBtn.click();
+    // 等待登录成功跳转
+    await page.waitForURL(/dashboard|purchase|\//, { timeout: 20_000 }).catch(() => {});
     await page.waitForTimeout(2000);
 
-    // 清除 cookie 模拟 token 过期
+    // 清除 cookie 模拟 token 过期（httpOnly cookie 一并被清）
     await context.clearCookies();
     // 同时清除 localStorage 权限缓存（20.11-D：userInfo 会从缓存恢复，导致守卫误判已登录）
     await page
@@ -177,5 +200,7 @@ test.describe('后端连接状态与 Token 管理', () => {
     // 应被重定向到登录页
     const url = page.url();
     expect(url.includes('/login')).toBe(true);
+
+    await context.close();
   });
 });

@@ -87,7 +87,7 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/color-cards/list`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-card, .el-empty')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     // 验证搜索框
@@ -106,7 +106,7 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
         await page.waitForTimeout(2000);
       }
       const tableOk = await page
-        .locator('.el-table')
+        .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper')
         .first()
         .isVisible()
         .catch(() => false);
@@ -144,7 +144,7 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/color-prices/list`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-card, .el-empty')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     // 验证新建价格按钮
@@ -173,7 +173,7 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
   test('色卡借出记录 UI 页面', async ({ page }) => {
     await page.goto(`${BASE_URL}/color-cards/issues`);
     await page.waitForTimeout(3000);
-    const table = page.locator('.el-table').first();
+    const table = page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first();
     await table.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
     const tableVisible = await table.isVisible().catch(() => false);
     if (tableVisible) {

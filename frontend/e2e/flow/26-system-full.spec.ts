@@ -72,7 +72,7 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
     await page.goto(`${BASE_URL}/system`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-card, .el-tabs')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-tabs')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     // 搜索
@@ -93,7 +93,9 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
         await page.waitForTimeout(2000);
       }
       const tableOk = await page
-        .locator('.el-table')
+        .locator(
+          '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+        )
         .first()
         .isVisible()
         .catch(() => false);
@@ -137,7 +139,7 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
     await page.goto(`${BASE_URL}/system/audit-log`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-card, .el-tabs')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-tabs')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     const searchBtn = page.locator('button:has-text("查询")').first();
@@ -147,7 +149,9 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
       await searchBtn.click();
       await page.waitForTimeout(2000);
       const tableOk = await page
-        .locator('.el-table')
+        .locator(
+          '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+        )
         .first()
         .isVisible()
         .catch(() => false);
@@ -169,12 +173,14 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
     // 切换到第二个 Tab
     if (tabCount > 1) {
       await tabs.nth(1).click();
-      await page.waitForTimeout(2000);
-      const tableOk = await page
-        .locator('.el-table')
-        .first()
-        .isVisible()
-        .catch(() => false);
+      // 等待 Tab 对应的表格真实渲染（懒加载组件延迟，固定 2s 不足）
+      const table = page
+        .locator(
+          '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+        )
+        .first();
+      await table.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+      const tableOk = await table.isVisible().catch(() => false);
       expect(tableOk).toBe(true);
     }
     // 新建接口按钮
@@ -222,7 +228,9 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
     await page.goto(`${BASE_URL}/departments`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-card, .el-empty, body')
+      .locator(
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty, body'
+      )
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     const newBtn = page.locator('button:has-text("新建"), button:has-text("新增")').first();

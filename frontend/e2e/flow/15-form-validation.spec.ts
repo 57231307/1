@@ -11,7 +11,7 @@ test.describe('表单校验真实 UI 交互', () => {
     await page.waitForTimeout(3000);
 
     // 等待表格加载
-    await page.locator('.el-table').first().waitFor({ state: 'visible', timeout: 30_000 });
+    await page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first().waitFor({ state: 'visible', timeout: 30_000 });
 
     // 点击新建按钮（真实文本"新建采购单"）
     const newBtn = page.locator('button:has-text("新建采购单")').first();
@@ -54,7 +54,7 @@ test.describe('表单校验真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/sales`);
     await page.waitForTimeout(3000);
 
-    await page.locator('.el-table').first().waitFor({ state: 'visible', timeout: 30_000 });
+    await page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first().waitFor({ state: 'visible', timeout: 30_000 });
 
     // 点击新建按钮（真实文本"新建订单"）
     const newBtn = page.locator('button:has-text("新建订单")').first();
@@ -100,7 +100,7 @@ test.describe('表单校验真实 UI 交互', () => {
     await page.waitForTimeout(3000);
 
     await page
-      .locator('.el-table, .el-card, .el-form')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-form')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
 

@@ -74,7 +74,7 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/purchase-contract`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-card, .el-empty')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     const searchBtn = page.locator('button:has-text("查询")').first();
@@ -84,7 +84,7 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
       await searchBtn.click();
       await page.waitForTimeout(2000);
       const tableOk = await page
-        .locator('.el-table')
+        .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper')
         .first()
         .isVisible()
         .catch(() => false);
@@ -112,10 +112,10 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/purchase-price`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-card, .el-empty')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
-    const table = page.locator('.el-table').first();
+    const table = page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first();
     await table.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
     const tableVisible = await table.isVisible().catch(() => false);
     expect(tableVisible).toBe(true);
@@ -125,7 +125,7 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/supplier`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-card')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     // 搜索
@@ -144,7 +144,7 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
         await page.waitForTimeout(2000);
       }
       const tableOk = await page
-        .locator('.el-table')
+        .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper')
         .first()
         .isVisible()
         .catch(() => false);
@@ -193,10 +193,10 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/sales-contract`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-card, .el-empty')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
-    const table = page.locator('.el-table').first();
+    const table = page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first();
     await table.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
     const tableVisible = await table.isVisible().catch(() => false);
     expect(tableVisible).toBe(true);
@@ -206,7 +206,7 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/inventory-transfer`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-card, .el-empty')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     const newBtn = page.locator('button:has-text("新建")').first();
@@ -235,7 +235,7 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/inventory-count`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-card, .el-empty')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     const newBtn = page.locator('button:has-text("新建")').first();
@@ -260,10 +260,10 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/inventory-adjustment`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-card, .el-empty')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
-    const table = page.locator('.el-table').first();
+    const table = page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first();
     await table.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
     const tableVisible = await table.isVisible().catch(() => false);
     expect(tableVisible).toBe(true);
@@ -273,7 +273,7 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/custom-orders`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-card, .el-empty')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     const newBtn = page.locator('button:has-text("新建"), button:has-text("新增")').first();
@@ -315,7 +315,7 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/greige-fabrics`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-card, .el-empty, body')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty, body')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     const bodyOk = await page.locator('body').isVisible();
@@ -326,10 +326,10 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/sales-returns`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-card, .el-empty, body')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty, body')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
-    const table = page.locator('.el-table').first();
+    const table = page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first();
     await table.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
     const tableVisible = await table.isVisible().catch(() => false);
     expect(tableVisible).toBe(true);
@@ -339,10 +339,10 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/purchase-return`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-card, .el-empty, body')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty, body')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
-    const table = page.locator('.el-table').first();
+    const table = page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first();
     await table.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
     const tableVisible = await table.isVisible().catch(() => false);
     expect(tableVisible).toBe(true);

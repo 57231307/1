@@ -95,7 +95,7 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/fixed-assets`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-card, .el-empty')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     // 搜索
@@ -106,7 +106,9 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
       await searchBtn.click();
       await page.waitForTimeout(2000);
       const tableOk = await page
-        .locator('.el-table')
+        .locator(
+          '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+        )
         .first()
         .isVisible()
         .catch(() => false);
@@ -139,7 +141,7 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/budget`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-card, .el-empty')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     const newBtn = page.locator('button:has-text("新建预算")').first();
@@ -164,7 +166,7 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/fund`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-card, .el-tabs')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-tabs')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     const newBtn = page.locator('button:has-text("新建账户")').first();
@@ -185,14 +187,12 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
     }
     // 验证转账按钮：按钮在“转账记录”Tab 内（默认激活 account），需先切 Tab
     // 真实按钮文本是“新建转账”（fund.transferTab.buttonNewTransfer），非“账户转账”
-    await page
-      .locator('.el-tabs__item:has-text("转账记录")')
-      .first()
-      .click()
-      .catch(() => {});
-    await page.waitForTimeout(1000);
+    const transferTabItem = page.locator('.el-tabs__item:has-text("转账记录")').first();
+    await transferTabItem.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+    await transferTabItem.click();
+    // 等 Tab 面板激活（aria-selected 或按钮可见）
     const transferBtn = page.locator('button:has-text("新建转账")').first();
-    await transferBtn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await transferBtn.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
     const transferVisible = await transferBtn.isVisible().catch(() => false);
     expect(transferVisible).toBe(true);
   });
@@ -201,7 +201,7 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/currency`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-card, .el-tabs')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-tabs')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     const newBtn = page.locator('button:has-text("新建币种")').first();
@@ -226,7 +226,7 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/voucher`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-card, .el-tabs')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-tabs')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     const newBtn = page.locator('button:has-text("新增凭证")').first();
@@ -266,7 +266,7 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/account-subject`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-card')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     const newBtn = page.locator('button:has-text("新建科目")').first();
@@ -291,7 +291,7 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/accounting-period`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-card')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     const newBtn = page.locator('button:has-text("新建期间")').first();
@@ -321,17 +321,16 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/ar-reconciliation`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-card')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     const newBtn = page.locator('button:has-text("新增对账"), button:has-text("新建对账")').first();
-    await newBtn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await newBtn.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
     const newBtnVisible = await newBtn.isVisible().catch(() => false);
     if (newBtnVisible) {
       await newBtn.click();
-      await page.waitForTimeout(1000);
-      const dialog = page.locator('.el-dialog').first();
-      await dialog.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+      const dialog = page.locator('.el-dialog:visible').first();
+      await dialog.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
       const dialogVisible = await dialog.isVisible().catch(() => false);
       expect(dialogVisible).toBe(true);
       await page
@@ -346,7 +345,7 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/ap`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-card, .el-tabs')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-tabs')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     // “生成对账”按钮在“对账管理”Tab 内（默认激活 invoice），需先切 Tab

@@ -12,7 +12,7 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
     await page.waitForTimeout(2000);
     const container = page
       .locator(
-        '.el-table, .el-card, .el-form, .el-empty, .el-tabs, .dashboard-container, canvas, .el-result, .error-page, body'
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-form, .el-empty, .el-tabs, .dashboard-container, canvas, .el-result, .error-page, body'
       )
       .first();
     await container.waitFor({ state: 'visible', timeout: 30_000 }).catch(() => {});
@@ -21,7 +21,7 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
 
   // 辅助：验证表格+表头
   async function verifyTable(page: import('@playwright/test').Page) {
-    const table = page.locator('.el-table').first();
+    const table = page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first();
     await table.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
     const visible = await table.isVisible().catch(() => false);
     if (visible) {

@@ -126,7 +126,7 @@ test.describe('面料单据专用字段全链路验证', () => {
     await page.goto(`${BASE_URL}/sales`);
     await page.waitForTimeout(3000);
 
-    await page.locator('.el-table').first().waitFor({ state: 'visible', timeout: 30_000 });
+    await page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first().waitFor({ state: 'visible', timeout: 30_000 });
 
     // 验证表格有数据行
     const rows = page.locator('.el-table__body tr');
@@ -175,7 +175,7 @@ test.describe('面料单据专用字段全链路验证', () => {
   test('销售订单 UI：创建表单填写面料字段', async ({ page }) => {
     await page.goto(`${BASE_URL}/sales`);
     await page.waitForTimeout(3000);
-    await page.locator('.el-table').first().waitFor({ state: 'visible', timeout: 30_000 });
+    await page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper').first().waitFor({ state: 'visible', timeout: 30_000 });
 
     // 点击新建订单
     const newBtn = page.locator('button:has-text("新建订单")').first();
@@ -381,7 +381,7 @@ test.describe('面料单据专用字段全链路验证', () => {
     await page.goto(`${BASE_URL}/quotations`);
     await page.waitForTimeout(3000);
     await page
-      .locator('.el-table, .el-card')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
 
@@ -565,7 +565,7 @@ test.describe('面料单据专用字段全链路验证', () => {
     await page.waitForTimeout(3000);
 
     await page
-      .locator('.el-table, .el-card')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
 
@@ -1168,7 +1168,7 @@ test.describe('面料单据专用字段全链路验证', () => {
     await page.waitForTimeout(3000);
 
     await page
-      .locator('.el-table, .el-card')
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
 

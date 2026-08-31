@@ -11,6 +11,8 @@ pub const PUBLIC_PATHS: &[&str] = &[
     "/api/v1/erp/health",
     "/api/v1/erp/ready",
     "/api/v1/erp/live",
+    "/health/liveness",
+    "/health/readiness",
     // 认证流程必需端点
     "/api/v1/erp/auth/login",
     "/api/v1/erp/auth/refresh",
