@@ -49,6 +49,7 @@ export interface EntityContext {
   quotationId?: number;
   productionOrderId?: number;
   pieceIds: number[];
+  stockIds: number[];
   apInvoiceId?: number;
   arInvoiceId?: number;
   voucherId?: number;
@@ -68,6 +69,7 @@ const ctx: EntityContext = {
   colorNos: [],
   accountSubjectIds: [],
   pieceIds: [],
+  stockIds: [],
   userIds: [],
 };
 
@@ -318,6 +320,17 @@ export async function ensureTestEntities(page: Page): Promise<void> {
   }
   if (!ctx.salesOrderId) {
     try {
+      // 先创建库存记录（销售订单创建会锁库存，无库存 → BUSINESS_ERROR）
+      const stock = await apiCall<{ id?: number }>(page, 'POST', '/inventory/stock/fabric', {
+        warehouse_id: ctx.warehouseIds[0] || 1,
+        product_id: ctx.productIds[0] || 1,
+        batch_no: `E2E-STK${Date.now().toString().slice(-6)}`,
+        color_no: ctx.colorNos[0] || 'TEST-COLOR',
+        grade: '一等品',
+        quantity_meters: '10000',
+        quantity_kg: '5000',
+      });
+      if (stock.data?.id) ctx.stockIds.push(stock.data.id);
       const result = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
         customer_id: ctx.customerId || 1,
         order_date: new Date().toISOString().slice(0, 10),
