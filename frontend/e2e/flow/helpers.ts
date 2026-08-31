@@ -209,10 +209,19 @@ export async function ensureTestEntities(page: Page): Promise<void> {
   if (!ctx.supplierId) {
     const id = await uiCreateWithRetry(page, createSupplierUI);
     ctx.supplierId = id;
-    if (!id)
-      console.error(
-        '[ensureTestEntities] 供应商 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）'
-      );
+    if (!id) {
+      console.warn('[ensureTestEntities] 供应商 UI 创建失败，改用 API 兜底创建');
+      try {
+        const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
+          supplier_name: `E2E供应商${Date.now().toString().slice(-6)}`,
+          supplier_short_name: 'E2E供',
+          contact_phone: '13800000001',
+        });
+        ctx.supplierId = result.data?.id;
+      } catch (e) {
+        console.error('[ensureTestEntities] 供应商 API 兜底创建失败:', (e as Error).message);
+      }
+    }
   }
 
   // ---- 5. 客户（仍用 API，表单字段较多且下拉依赖复杂）----

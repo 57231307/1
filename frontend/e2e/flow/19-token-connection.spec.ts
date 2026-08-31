@@ -25,8 +25,9 @@ test.describe('后端连接状态与 Token 管理', () => {
   });
 
   test('未登录访问受保护路由跳转登录页', async ({ browser }) => {
-    // 全新 context，不登录
-    const context = await browser.newContext();
+    // 全新 context，不登录（显式置空 storageState：
+    // playwright.config 全局 storageState 会向每个新 context 注入登录 cookie）
+    const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
     const page = await context.newPage();
 
     // 时间戳查询参数破坏 HTTP 缓存/bfcache，确保守卫 JS 真正执行
@@ -42,7 +43,8 @@ test.describe('后端连接状态与 Token 管理', () => {
   });
 
   test('setup 页面可达', async ({ browser }) => {
-    const context = await browser.newContext();
+    // 同上：置空 storageState，避免全局登录态注入影响未登录场景
+    const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
     const page = await context.newPage();
 
     await page.goto(`${BASE_URL}/setup`);
