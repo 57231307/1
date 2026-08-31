@@ -308,10 +308,13 @@ export async function uiCreateDialog(
 
 /** 创建仓库 */
 export async function createWarehouseUI(page: Page): Promise<number | undefined> {
+  // 仓库类型 select 选项为 原料仓/成品仓/半成品仓/退货仓（i18n 中文），
+  // warehouse_type 必填（trigger:change），填错值会导致 select 选不上 →
+  // formRef.validate 失败 → 提交请求不发 → waitCreateResponse 45s 超时
   const fields: UiField[] = [
     { kind: 'input', label: '仓库编码', value: _genCode('E2E-W') },
     { kind: 'input', label: '仓库名称', value: _genName('E2E仓库') },
-    { kind: 'select', label: '类型', value: '普通' },
+    { kind: 'select', label: '类型', value: '原料仓' },
   ];
   return uiCreateDialog(
     page,
@@ -325,9 +328,12 @@ export async function createWarehouseUI(page: Page): Promise<number | undefined>
 
 /** 创建部门 */
 export async function createDepartmentUI(page: Page): Promise<number | undefined> {
+  // 部门表单 status 必填（trigger:change，select 选项 启用/禁用），
+  // 缺该字段会触发 formRef.validate 失败 → 提交请求不发 → waitCreateResponse 超时
   const fields: UiField[] = [
     { kind: 'input', label: '部门名称', value: _genName('E2E部门') },
     { kind: 'input', label: '部门编码', value: _genCode('E2E-D') },
+    { kind: 'select', label: '状态', value: '启用' },
   ];
   return uiCreateDialog(
     page,
