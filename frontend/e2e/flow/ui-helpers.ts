@@ -341,10 +341,16 @@ export async function createDepartmentUI(page: Page): Promise<number | undefined
 
 /** 创建供应商 */
 export async function createSupplierUI(page: Page): Promise<number | undefined> {
+  // 统一社会信用代码：后端校验 length(equal=18)，UI 必须填合法 18 位
+  // 否则表单空串会触发"统一社会信用代码长度必须为18位"VALIDATION_ERROR
+  const creditCode = `91${String(Date.now()).slice(-8).padStart(8, '0')}MA${String(
+    Math.floor(Math.random() * 900000) + 100000
+  )}`;
   const fields: UiField[] = [
     { kind: 'input', label: '供应商编码', value: _genCode('E2E-S') },
     { kind: 'input', label: '供应商名称', value: _genName('E2E供应商') },
     { kind: 'input', label: '联系电话', value: '13800000001' },
+    { kind: 'input', label: '统一社会信用代码', value: creditCode },
   ];
   return uiCreateDialog(
     page,
@@ -504,6 +510,19 @@ export async function createColorCardUI(page: Page): Promise<number | undefined>
 
 /** 创建染色批次 */
 export async function createDyeBatchUI(page: Page): Promise<number | undefined> {
+  // 产品下拉依赖页面挂载时 getProductList（GET /products）加载的 products 列表
+  // 直接打开新建对话框填表，products 可能尚未加载完成 → 下拉空 → “产品” select 超时
+  // 故先整页加载 /dye-batch 并等待 GET /products 响应完成，确保下拉数据就绪
+  await safeGoto(page, '/dye-batch');
+  await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+  await page
+    .waitForResponse(
+      r => r.url().includes('/products') && r.request().method() === 'GET',
+      { timeout: 15_000 }
+    )
+    .catch(() => {});
+  await page.waitForTimeout(500);
+
   const fields: UiField[] = [
     { kind: 'input', label: '批次号', value: _genCode('E2E-DB') },
     { kind: 'select', label: '产品', value: 'E2E' },

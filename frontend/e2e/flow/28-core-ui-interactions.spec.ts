@@ -84,7 +84,7 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
   // P2P 采购到付款流程 UI
   // ================================================================
   test('P2P 采购订单列表：表格+搜索+新建弹窗+必填校验+状态标签', async ({ page }) => {
-    const table = await visitAndVerifyTable(page, '/purchase/orders');
+    const table = await visitAndVerifyTable(page, '/purchase');
     const tableVisible = await table.isVisible().catch(() => false);
     expect(tableVisible).toBe(true);
 
@@ -162,7 +162,7 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
   // O2C 订单到收款流程 UI
   // ================================================================
   test('O2C 销售订单列表：表格+搜索+新建弹窗+必填校验+操作按钮', async ({ page }) => {
-    const table = await visitAndVerifyTable(page, '/sales/orders');
+    const table = await visitAndVerifyTable(page, '/sales');
     const tableVisible = await table.isVisible().catch(() => false);
     expect(tableVisible).toBe(true);
 
@@ -246,7 +246,7 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
   // 生产流程 UI
   // ================================================================
   test('生产订单列表 UI：表格+新建', async ({ page }) => {
-    const table = await visitAndVerifyTable(page, '/production/orders');
+    const table = await visitAndVerifyTable(page, '/production');
     const tableVisible = await table.isVisible().catch(() => false);
     expect(tableVisible).toBe(true);
   });
@@ -353,7 +353,7 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
   // 系统管理流程 UI
   // ================================================================
   test('系统管理 UI：用户列表+搜索+新建+审计日志', async ({ page }) => {
-    const table = await visitAndVerifyTable(page, '/system/users');
+    const table = await visitAndVerifyTable(page, '/system');
     const tableVisible = await table.isVisible().catch(() => false);
     expect(tableVisible).toBe(true);
 
@@ -406,7 +406,7 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
   // 面料四维库存流程 UI
   // ================================================================
   test('库存列表 UI：四维查询+表格+搜索', async ({ page }) => {
-    const table = await visitAndVerifyTable(page, '/inventory/stock');
+    const table = await visitAndVerifyTable(page, '/inventory');
     const tableVisible = await table.isVisible().catch(() => false);
     expect(tableVisible).toBe(true);
 
@@ -503,7 +503,7 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
   // 采购退货流程 UI
   // ================================================================
   test('采购退货列表 UI：表格+状态标签', async ({ page }) => {
-    const table = await visitAndVerifyTable(page, '/purchase/return');
+    const table = await visitAndVerifyTable(page, '/purchase-return');
     const tableVisible = await table.isVisible().catch(() => false);
     expect(tableVisible).toBe(true);
 
@@ -519,7 +519,7 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
   // 库存调拨流程 UI
   // ================================================================
   test('库存调拨列表 UI：搜索+新建弹窗+仓库选择', async ({ page }) => {
-    const table = await visitAndVerifyTable(page, '/inventory/transfer');
+    const table = await visitAndVerifyTable(page, '/inventory-transfer');
     const tableVisible = await table.isVisible().catch(() => false);
     expect(tableVisible).toBe(true);
 
@@ -538,7 +538,7 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
   // 库存盘点流程 UI
   // ================================================================
   test('库存盘点列表 UI：搜索+新建', async ({ page }) => {
-    const table = await visitAndVerifyTable(page, '/inventory/count');
+    const table = await visitAndVerifyTable(page, '/inventory-count');
     const tableVisible = await table.isVisible().catch(() => false);
     expect(tableVisible).toBe(true);
 

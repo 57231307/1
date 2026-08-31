@@ -112,7 +112,7 @@ test.describe('库存调拨完整流程', () => {
     expect(auditLogged).toBe(true);
 
     // UI 验证：访问调拨列表页
-    await page.goto('/inventory/transfer');
+    await page.goto('/inventory-transfer');
     await page.waitForTimeout(2000);
     const tableVisible = await page
       .locator(

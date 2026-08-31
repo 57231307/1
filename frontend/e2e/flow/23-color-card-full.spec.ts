@@ -164,11 +164,12 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
   test('色卡价格批量调价 UI 页面', async ({ page }) => {
     await page.goto(`${BASE_URL}/color-prices/batch-adjust`);
     await page.waitForTimeout(3000);
-    const visible = await page
+    // isVisible 立即返回，组件异步挂载可能尚未渲染 → 改用 waitFor 等待可见
+    const container = page
       .locator('.el-card, .el-form, .el-table, .el-empty, body')
-      .first()
-      .isVisible()
-      .catch(() => false);
+      .first();
+    await container.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+    const visible = await container.isVisible().catch(() => false);
     expect(visible).toBe(true);
   });
 

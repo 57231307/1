@@ -98,7 +98,7 @@ test.describe('采购退货完整流程', () => {
     expect(auditLogged).toBe(true);
 
     // UI 验证：访问采购退货列表页
-    await page.goto('/purchase/return');
+    await page.goto('/purchase-return');
     await page.waitForTimeout(2000);
     const tableVisible = await page
       .locator(
