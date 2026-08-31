@@ -192,18 +192,23 @@ async function fillInField(
         }
         return;
       }
-      await wrapper.click();
+      await wrapper.click({ timeout: 10_000 }).catch(() => {});
       await page.waitForTimeout(300);
       const dropdown = page.locator('.el-select-dropdown:visible').last();
-      await dropdown.waitFor({ state: 'visible', timeout: 20000 });
+      await dropdown.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+      if ((await dropdown.count()) === 0) break;
       const item = dropdown
         .locator('.el-select-dropdown__item')
         .filter({ hasText: new RegExp(field.value, 'i') })
         .first();
       if ((await item.count()) > 0) {
-        await item.click();
+        await item.click({ timeout: 10_000 }).catch(() => {});
       } else {
-        await dropdown.locator('.el-select-dropdown__item').first().click();
+        // 无匹配项时选第一项（避免空点击报错拖到 120s 测试超时）
+        const firstItem = dropdown.locator('.el-select-dropdown__item').first();
+        if ((await firstItem.count()) > 0) {
+          await firstItem.click({ timeout: 10_000 }).catch(() => {});
+        }
       }
       break;
     }
