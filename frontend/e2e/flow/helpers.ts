@@ -90,10 +90,8 @@ async function uiCreateWithRetry(
   page: Page,
   fn: (p: Page) => Promise<number | undefined>
 ): Promise<number | undefined> {
-  const id = await fn(page);
-  if (id !== undefined) return id;
-  console.warn(`[uiCreateWithRetry] 首次创建失败，强制重新登录后重试一次`);
-  await loginViaUI(page, undefined, undefined, true);
+  // 单次尝试：失败即返回 undefined 由调用方 API 兜底。
+  // 原“重登+重试”路径每次失败额外消耗 40-60s，多次实体累积导致 120s 测试超时。
   return fn(page);
 }
 
