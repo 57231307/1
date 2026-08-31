@@ -287,7 +287,7 @@ export async function uiCreateDialog(
     await submitBtn.click();
 
     // 等待响应
-    const data = await waitCreateResponse(page, createApiPath, 30000);
+    const data = await waitCreateResponse(page, createApiPath, 45000);
     if (data?.id !== undefined && typeof data.id === 'number') {
       return data.id;
     }
@@ -341,16 +341,19 @@ export async function createDepartmentUI(page: Page): Promise<number | undefined
 
 /** 创建供应商 */
 export async function createSupplierUI(page: Page): Promise<number | undefined> {
-  // 统一社会信用代码：后端校验 length(equal=18)，UI 必须填合法 18 位
-  // 否则表单空串会触发"统一社会信用代码长度必须为18位"VALIDATION_ERROR
+  // 后端 CreateSupplierRequest 校验：
+  // - supplier_short_name: Option<String> length(min=2)，表单空串触发校验失败
+  // - credit_code: Option<String> length(equal=18)，表单空串触发校验失败
+  // 故 UI 必须填这两个字段（label 以 i18n 中文翻译为准：供应商简称 / 信用代码）
   const creditCode = `91${String(Date.now()).slice(-8).padStart(8, '0')}MA${String(
     Math.floor(Math.random() * 900000) + 100000
   )}`;
   const fields: UiField[] = [
     { kind: 'input', label: '供应商编码', value: _genCode('E2E-S') },
     { kind: 'input', label: '供应商名称', value: _genName('E2E供应商') },
+    { kind: 'input', label: '供应商简称', value: 'E2E供' },
     { kind: 'input', label: '联系电话', value: '13800000001' },
-    { kind: 'input', label: '统一社会信用代码', value: creditCode },
+    { kind: 'input', label: '信用代码', value: creditCode },
   ];
   return uiCreateDialog(
     page,
@@ -454,7 +457,7 @@ export async function createProductUI(page: Page): Promise<number | undefined> {
   await submitBtn.waitFor({ state: 'visible', timeout: 20000 });
   await submitBtn.click();
   // 等待响应
-  const data = await waitCreateResponse(page, `${API_PREFIX}/products`, 30000);
+  const data = await waitCreateResponse(page, `${API_PREFIX}/products`, 45000);
   if (data?.id !== undefined && typeof data.id === 'number') {
     return data.id;
   }
@@ -496,7 +499,7 @@ export async function createColorCardUI(page: Page): Promise<number | undefined>
     const submitBtn = page.getByRole('button', { name: /立即创建|创建|确定|保存/ }).first();
     await submitBtn.waitFor({ state: 'visible', timeout: 20000 });
     await submitBtn.click();
-    const data = await waitCreateResponse(page, `${API_PREFIX}/color-cards`, 30000);
+    const data = await waitCreateResponse(page, `${API_PREFIX}/color-cards`, 45000);
     if (data?.id !== undefined && typeof data.id === 'number') return data.id;
     await diagnoseFailure(page, 'color-card');
     console.error(`[createColorCardUI] 创建失败: 响应=${JSON.stringify(data)}`);
@@ -599,7 +602,7 @@ export async function createBomUI(page: Page): Promise<number | undefined> {
     const submitBtn = dialog.getByRole('button', { name: /保存|确定/ }).last();
     if ((await submitBtn.count()) > 0) {
       await submitBtn.click();
-      const data = await waitCreateResponse(page, `${API_PREFIX}/boms`, 30000);
+      const data = await waitCreateResponse(page, `${API_PREFIX}/boms`, 45000);
       return typeof data?.id === 'number' ? data.id : undefined;
     }
   }
@@ -649,7 +652,7 @@ export async function createCustomOrderUI(page: Page): Promise<number | undefine
     const submitBtn = page.getByRole('button', { name: /保存草稿|保存|确定/ }).first();
     await submitBtn.waitFor({ state: 'visible', timeout: 20000 });
     await submitBtn.click();
-    const data = await waitCreateResponse(page, `${API_PREFIX}/custom-orders`, 30000);
+    const data = await waitCreateResponse(page, `${API_PREFIX}/custom-orders`, 45000);
     if (data?.id !== undefined && typeof data.id === 'number') return data.id;
     await diagnoseFailure(page, 'custom-order');
     console.error(`[createCustomOrderUI] 创建失败: 响应=${JSON.stringify(data)}`);

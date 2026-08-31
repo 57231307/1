@@ -374,11 +374,12 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
       .waitFor({ state: 'visible', timeout: 30_000 });
     await page.goto(`${BASE_URL}/sales-analysis`);
     await page.waitForTimeout(3000);
-    const visible = await page
+    // isVisible 立即返回，组件异步挂载可能未渲染 → 改用 waitFor 等待可见
+    const container = page
       .locator('.el-card, .el-table, .el-empty, body')
-      .first()
-      .isVisible()
-      .catch(() => false);
+      .first();
+    await container.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+    const visible = await container.isVisible().catch(() => false);
     expect(visible).toBe(true);
   });
 
