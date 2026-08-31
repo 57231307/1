@@ -175,8 +175,13 @@ export async function ensureTestEntities(page: Page): Promise<void> {
           name: `E2E产品${Date.now().toString().slice(-6)}${ctx.productIds.length}`,
           unit: '米',
         });
-        if (result.data?.id) ctx.productIds.push(result.data.id);
-        else break;
+        if (result.data?.id) {
+          ctx.productIds.push(result.data.id);
+          console.log('[ensureTestEntities] 产品 API 兜底创建成功 id=', result.data.id);
+        } else {
+          console.error('[ensureTestEntities] 产品 API 兜底未返回 id:', JSON.stringify(result));
+          break;
+        }
       } catch (e) {
         console.error('[ensureTestEntities] 产品 API 兜底创建失败:', (e as Error).message);
         break;
@@ -219,6 +224,9 @@ export async function ensureTestEntities(page: Page): Promise<void> {
           contact_phone: '13800000001',
         });
         ctx.supplierId = result.data?.id;
+        if (!ctx.supplierId) {
+          console.error('[ensureTestEntities] 供应商 API 兜底未返回 id:', JSON.stringify(result));
+        }
       } catch (e) {
         console.error('[ensureTestEntities] 供应商 API 兜底创建失败:', (e as Error).message);
       }
@@ -330,7 +338,12 @@ export async function ensureTestEntities(page: Page): Promise<void> {
         quantity_meters: '10000',
         quantity_kg: '5000',
       });
-      if (stock.data?.id) ctx.stockIds.push(stock.data.id);
+      if (stock.data?.id) {
+        ctx.stockIds.push(stock.data.id);
+        console.log('[ensureTestEntities] 库存兜底创建成功 id=', stock.data.id);
+      } else {
+        console.error('[ensureTestEntities] 库存兜底创建未返回 id:', JSON.stringify(stock));
+      }
       const result = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
         customer_id: ctx.customerId || 1,
         order_date: new Date().toISOString().slice(0, 10),
