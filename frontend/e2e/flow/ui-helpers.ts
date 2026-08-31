@@ -452,6 +452,14 @@ export async function createProductUI(page: Page): Promise<number | undefined> {
     await firstItem.click();
     await page.waitForTimeout(500);
   }
+  // 重试后再次确认分类已选中：未选中则提前返回，避免提交触发必填校验失败后
+  // waitCreateResponse 空等 45s（请求不会发出），让 API 兜底接管
+  const selectText2 = (await categorySelect.textContent()) || '';
+  if (selectText2.includes('选择分类') || selectText2.trim() === '') {
+    console.warn('[createProductUI] 分类仍未选中，跳过 UI 提交（走 API 兜底）');
+    await diagnoseFailure(page, 'product');
+    return undefined;
+  }
   // 提交
   const submitBtn = dialog.getByRole('button', { name: /确定|保存/ }).last();
   await submitBtn.waitFor({ state: 'visible', timeout: 20000 });

@@ -306,7 +306,7 @@ export async function ensureTestEntities(page: Page): Promise<void> {
         warehouse_id: ctx.warehouseIds[0] || 1,
         department_id: ctx.departmentIds[0] || 1,
         order_date: new Date().toISOString().slice(0, 10),
-        items: [{ product_id: ctx.productIds[0] || 1, quantity_ordered: '1', unit_price: '1' }],
+        items: [{ material_id: ctx.productIds[0] || 1, quantity_ordered: '1', unit_price: '1' }],
       });
       ctx.purchaseOrderId = result.data?.id;
     } catch (e) {

@@ -337,6 +337,11 @@ ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "is_net_weight" BOOLEAN
 ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "notes" VARCHAR(255);
 ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "pantone_code" VARCHAR(255);
 ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "paper_tube_weight" DECIMAL(18,4);
+-- 初始 schema 将 quantity/delivered_quantity 声明为 INTEGER，但 model 期望 Decimal（NUMERIC），
+-- SeaORM 解码 INT4 为 Option<Decimal> 时报类型不兼容，导致销售订单创建后回读 detail 500。
+-- 将 quantity 改为 DECIMAL(18,2) 与 model 对齐（delivered_quantity model 未用，保留但同步改类型避免歧义）
+ALTER TABLE "sales_order_items" ALTER COLUMN "quantity" TYPE DECIMAL(18,2) USING "quantity"::DECIMAL(18,2);
+ALTER TABLE "sales_order_items" ALTER COLUMN "delivered_quantity" TYPE DECIMAL(18,2) USING "delivered_quantity"::DECIMAL(18,2);
 ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "quantity_kg" DECIMAL(18,4);
 ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "quantity_meters" DECIMAL(18,4);
 ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "shipped_quantity" DECIMAL(18,4);
