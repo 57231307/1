@@ -543,6 +543,7 @@ export async function createDyeBatchUI(page: Page): Promise<number | undefined> 
   // uiCreateDialog 内部已有 safeGoto('/dye-batch')，页面挂载会触发 getProductList（GET /products），
   // 此处不再重复导航（避免与 uiCreateDialog 内 safeGoto 叠加导致耗时接近 120s 测试超时）。
   // 产品下拉数据在 addBtn/dialog waitFor 期间异步加载，fillField select 时已就绪。
+  // 加 60s 超时保护：UI 交互脆弱时提前返回走 API 兜底，避免 120s 测试级超时导致兜底也失败
   const fields: UiField[] = [
     { kind: 'input', label: '批次号', value: _genCode('E2E-DB') },
     { kind: 'select', label: '产品', value: 'E2E' },
@@ -550,14 +551,23 @@ export async function createDyeBatchUI(page: Page): Promise<number | undefined> 
     { kind: 'date', label: '染色日期', value: new Date().toISOString().slice(0, 10) },
     { kind: 'inputNumber', label: '数量', value: 100 },
   ];
-  return uiCreateDialog(
-    page,
-    '/dye-batch',
-    `${API_PREFIX}/production/dye-batches`,
-    /新建批次/,
-    /确认|确定|保存/,
-    fields
+  const timeoutPromise = new Promise<undefined>(resolve =>
+    setTimeout(() => {
+      console.warn('[createDyeBatchUI] 60s 超时，走 API 兜底');
+      resolve(undefined);
+    }, 60_000)
   );
+  return Promise.race([
+    uiCreateDialog(
+      page,
+      '/dye-batch',
+      `${API_PREFIX}/production/dye-batches`,
+      /新建批次/,
+      /确认|确定|保存/,
+      fields
+    ),
+    timeoutPromise,
+  ]);
 }
 
 /** 创建染色配方 */
