@@ -532,19 +532,9 @@ export async function createColorCardUI(page: Page): Promise<number | undefined>
 
 /** 创建染色批次 */
 export async function createDyeBatchUI(page: Page): Promise<number | undefined> {
-  // 产品下拉依赖页面挂载时 getProductList（GET /products）加载的 products 列表
-  // 直接打开新建对话框填表，products 可能尚未加载完成 → 下拉空 → “产品” select 超时
-  // 故先整页加载 /dye-batch 并等待 GET /products 响应完成，确保下拉数据就绪
-  await safeGoto(page, '/dye-batch');
-  await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
-  await page
-    .waitForResponse(
-      r => r.url().includes('/products') && r.request().method() === 'GET',
-      { timeout: 15_000 }
-    )
-    .catch(() => {});
-  await page.waitForTimeout(500);
-
+  // uiCreateDialog 内部已有 safeGoto('/dye-batch')，页面挂载会触发 getProductList（GET /products），
+  // 此处不再重复导航（避免与 uiCreateDialog 内 safeGoto 叠加导致耗时接近 120s 测试超时）。
+  // 产品下拉数据在 addBtn/dialog waitFor 期间异步加载，fillField select 时已就绪。
   const fields: UiField[] = [
     { kind: 'input', label: '批次号', value: _genCode('E2E-DB') },
     { kind: 'select', label: '产品', value: 'E2E' },
