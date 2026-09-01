@@ -49,6 +49,25 @@ impl MigrationTrait for Migration {
         m0044_integrate_unreferenced_migrations::Migration
             .up(manager)
             .await?;
+        // custom_orders ID 列统一为 BIGINT：对齐 Rust custom_order::Model 的
+        // i64/Option<i64> 与 m0044 的建表声明。若列已是 BIGINT 则无副作用；
+        // 若历史环境为 INT4（INTEGER），消除 SeaORM 解码
+        // "Option<i64> (INT8) is not compatible with SQL type INT4" 的 500
+        {
+            let conn = manager.get_connection();
+            conn.execute_unprepared(
+                r#"
+                ALTER TABLE "custom_orders" ALTER COLUMN "customer_id" TYPE BIGINT USING "customer_id"::BIGINT;
+                ALTER TABLE "custom_orders" ALTER COLUMN "product_id" TYPE BIGINT USING "product_id"::BIGINT;
+                ALTER TABLE "custom_orders" ALTER COLUMN "color_id" TYPE BIGINT USING "color_id"::BIGINT;
+                ALTER TABLE "custom_orders" ALTER COLUMN "sales_order_id" TYPE BIGINT USING "sales_order_id"::BIGINT;
+                ALTER TABLE "custom_orders" ALTER COLUMN "quotation_id" TYPE BIGINT USING "quotation_id"::BIGINT;
+                ALTER TABLE "custom_orders" ALTER COLUMN "created_by" TYPE BIGINT USING "created_by"::BIGINT;
+                ALTER TABLE "custom_orders" ALTER COLUMN "approval_instance_id" TYPE BIGINT USING "approval_instance_id"::BIGINT;
+                "#,
+            )
+            .await?;
+        }
         m0029_drop_tenant_columns::Migration.up(manager).await?;
         m0030_create_crm_recycle_rules::Migration
             .up(manager)

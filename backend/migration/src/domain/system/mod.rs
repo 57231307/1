@@ -354,13 +354,20 @@ ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "width" DECIMAL(18,4);
 -- custom_orders model（Rust i64 / Option<i64>）与 m0044 建表声明（BIGINT）对齐：
 -- 若实际 DB 列为 INT4（历史 INTEGER 建表），SeaORM 解码报
 -- "Option<i64> (INT8) is not compatible with SQL type INT4" → 定制订单创建 500
-ALTER TABLE "custom_orders" ALTER COLUMN "customer_id" TYPE BIGINT USING "customer_id"::BIGINT;
-ALTER TABLE "custom_orders" ALTER COLUMN "product_id" TYPE BIGINT USING "product_id"::BIGINT;
-ALTER TABLE "custom_orders" ALTER COLUMN "color_id" TYPE BIGINT USING "color_id"::BIGINT;
-ALTER TABLE "custom_orders" ALTER COLUMN "sales_order_id" TYPE BIGINT USING "sales_order_id"::BIGINT;
-ALTER TABLE "custom_orders" ALTER COLUMN "quotation_id" TYPE BIGINT USING "quotation_id"::BIGINT;
-ALTER TABLE "custom_orders" ALTER COLUMN "created_by" TYPE BIGINT USING "created_by"::BIGINT;
-ALTER TABLE "custom_orders" ALTER COLUMN "approval_instance_id" TYPE BIGINT USING "approval_instance_id"::BIGINT;
+-- 顺序保护：custom_orders 表由 production 域 m0044 创建，system 域先于 production
+-- 执行，故用 DO 块检查表存在后再 ALTER（与 sales_crm mod.rs 的表存在性保护一致）
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'custom_orders') THEN
+        ALTER TABLE "custom_orders" ALTER COLUMN "customer_id" TYPE BIGINT USING "customer_id"::BIGINT;
+        ALTER TABLE "custom_orders" ALTER COLUMN "product_id" TYPE BIGINT USING "product_id"::BIGINT;
+        ALTER TABLE "custom_orders" ALTER COLUMN "color_id" TYPE BIGINT USING "color_id"::BIGINT;
+        ALTER TABLE "custom_orders" ALTER COLUMN "sales_order_id" TYPE BIGINT USING "sales_order_id"::BIGINT;
+        ALTER TABLE "custom_orders" ALTER COLUMN "quotation_id" TYPE BIGINT USING "quotation_id"::BIGINT;
+        ALTER TABLE "custom_orders" ALTER COLUMN "created_by" TYPE BIGINT USING "created_by"::BIGINT;
+        ALTER TABLE "custom_orders" ALTER COLUMN "approval_instance_id" TYPE BIGINT USING "approval_instance_id"::BIGINT;
+    END IF;
+END $$;
 ALTER TABLE "sales_orders" ADD COLUMN IF NOT EXISTS "approved_at" TIMESTAMPTZ;
 ALTER TABLE "sales_orders" ADD COLUMN IF NOT EXISTS "balance_amount" DECIMAL(18,4);
 ALTER TABLE "sales_orders" ADD COLUMN IF NOT EXISTS "billing_address" VARCHAR(255);
