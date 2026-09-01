@@ -176,11 +176,13 @@ async function fillInField(
     }
     case 'date': {
       const inp = formItem.locator('input').first();
-      await inp.waitFor({ state: 'visible', timeout: 20000 });
-      await inp.click({ clickCount: 3 });
-      await inp.fill(field.value);
-      await inp.press('Escape');
-      await page.waitForTimeout(200);
+      await inp.waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
+      await inp.click({ clickCount: 3 }).catch(() => {});
+      await inp.fill(field.value).catch(() => {});
+      // el-date-picker fill 后需 Enter 确认（Escape 会取消选择清空值，
+      // 导致"请选择染色日期"校验失败 → 请求不发 → 超时）
+      await inp.press('Enter').catch(() => {});
+      await page.waitForTimeout(300);
       break;
     }
     case 'select': {
