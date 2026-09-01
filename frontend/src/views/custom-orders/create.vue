@@ -216,6 +216,9 @@ async function handleSubmit() {
       ...form.value,
       customer_id: form.value.customer_id,
       product_id: form.value.product_id,
+      // 后端 expected_delivery_date 为日期类型，空串 "" 反序列化失败
+      //（"premature end of input" → 422），空串转 null
+      expected_delivery_date: form.value.expected_delivery_date || null,
       custom_requirements,
     };
     const res = await createCustomOrder(payload);
