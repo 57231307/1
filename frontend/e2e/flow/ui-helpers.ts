@@ -688,7 +688,15 @@ export async function createBomUI(page: Page): Promise<number | undefined> {
     await submitBtn.waitFor({ state: 'visible', timeout: 20000 });
     await submitBtn.click();
     const data = await waitCreateResponse(page, `${API_PREFIX}/boms`, 45000);
-    if (typeof data?.id === 'number') return data.id;
+    // BOM 成功响应为 BomDetailResponse { bom: { id }, items }（非扁平 {id}），
+    // 兼容两种结构取 id，否则误判创建失败
+    const bomId =
+      typeof data?.id === 'number'
+        ? data.id
+        : typeof (data as { bom?: { id?: number } })?.bom?.id === 'number'
+          ? (data as { bom: { id: number } }).bom.id
+          : undefined;
+    if (typeof bomId === 'number') return bomId;
     await diagnoseFailure(page, 'bom');
     console.error(`[createBomUI] 创建失败: 响应数据=${JSON.stringify(data)}`);
     return undefined;
