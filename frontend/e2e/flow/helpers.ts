@@ -416,6 +416,7 @@ export async function ensureTestEntities(page: Page): Promise<void> {
       );
       // API 兜底：UI 产品下拉交互脆弱（filterable select 偶发选项不渲染导致 120s 超时），
       // 兜底仅填必填字段创建批次记录，避免 dyeBatchId 缺失阻塞后续流程
+      // status 后端用中文枚举（from_chinese_str），不传时后端默认"待生产"
       try {
         const result = await apiCall<{ id?: number }>(
           page,
@@ -426,7 +427,6 @@ export async function ensureTestEntities(page: Page): Promise<void> {
             color_no: ctx.colorNos[0] || 'TEST-COLOR',
             dye_lot_no: ctx.dyeLotNo || genDyeLotNo(),
             planned_quantity: 100,
-            status: 'planned',
           }
         );
         ctx.dyeBatchId = result.data?.id;
