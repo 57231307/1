@@ -223,32 +223,21 @@ async function waitCreateResponse(
 ): Promise<Record<string, unknown> | null> {
   try {
     // CSRF 一次性消费机制下，UI 提交的第一次 POST 可能 403（token 被并发消费），
-    // 前端 axios 拦截器自动用 X-New-CSRF-Token 恢复头重放第二次 POST 200。
-    // waitForResponse 必须只匹配成功的响应（r.ok()=2xx），跳过 403 重放中间态，
-    // 否则会捕获 403 返回 CSRF_TOKEN_INVALID，误判为创建失败。
+    // 前端 axios 拦截器自动用 X-New-CSRF-Token 恢复头重放第二次 POST。
+    // 跳过 403（CSRF 重放中间态），匹配其他所有响应（200 业务成功 / 400 业务校验失败等），
+    // 业务 400 需被捕获以返回错误信息用于诊断，避免 45s 空等。
     const resp = await page.waitForResponse(
       r =>
         r.url().includes(apiPath) &&
         r.request().method() === 'POST' &&
-        r.ok(),
+        r.status() !== 403,
       { timeout }
     );
     const json = await resp.json().catch(() => ({}));
     return (json?.data as Record<string, unknown>) ?? json;
   } catch (e) {
-    // r.ok() 过滤可能导致所有 POST 都不匹配（全是 403/500），此时回退抓任意 POST
-    // 响应以获取错误信息用于诊断
-    try {
-      const fallback = await page.waitForResponse(
-        r => r.url().includes(apiPath) && r.request().method() === 'POST',
-        { timeout: 3000 }
-      );
-      const json = await fallback.json().catch(() => ({}));
-      return (json?.data as Record<string, unknown>) ?? json;
-    } catch {
-      console.warn(`[waitCreateResponse] 等待 POST ${apiPath} 超时: ${(e as Error).message}`);
-      return null;
-    }
+    console.warn(`[waitCreateResponse] 等待 POST ${apiPath} 超时: ${(e as Error).message}`);
+    return null;
   }
 }
 
