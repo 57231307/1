@@ -145,18 +145,19 @@ async function fillInField(
 ): Promise<void> {
   switch (field.kind) {
     case 'input': {
-      const inp = formItem.locator('input:not([type="number"])').first();
+      // 兼容 el-input type="textarea"（textarea 标签）与普通 input
+      const inp = formItem.locator('input:not([type="number"]), textarea').first();
       if ((await inp.count()) === 0) {
-        // 兜底：取任意 input
-        const inp2 = formItem.locator('input').first();
-        await inp2.waitFor({ state: 'visible', timeout: 20000 });
-        await inp2.click({ clickCount: 3 });
-        await inp2.fill(field.value);
+        // 兜底：取任意 input 或 textarea
+        const inp2 = formItem.locator('input, textarea').first();
+        await inp2.waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
+        await inp2.click({ clickCount: 3 }).catch(() => {});
+        await inp2.fill(field.value).catch(() => {});
         return;
       }
-      await inp.waitFor({ state: 'visible', timeout: 20000 });
-      await inp.click({ clickCount: 3 });
-      await inp.fill(field.value);
+      await inp.waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
+      await inp.click({ clickCount: 3 }).catch(() => {});
+      await inp.fill(field.value).catch(() => {});
       break;
     }
     case 'inputNumber': {

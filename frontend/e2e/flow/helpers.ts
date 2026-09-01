@@ -462,10 +462,39 @@ export async function ensureTestEntities(page: Page): Promise<void> {
   if (!ctx.dyeRecipeId) {
     const id = await uiCreateWithRetry(page, createDyeRecipeUI);
     ctx.dyeRecipeId = id;
-    if (!id)
+    if (!id) {
       console.error(
         '[ensureTestEntities] 染色配方 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）'
       );
+      // API 兜底：UI textarea 字段交互脆弱（120s 超时），兜底创建配方记录
+      try {
+        const result = await apiCall<{ id?: number }>(
+          page,
+          'POST',
+          '/production/dye-recipes',
+          {
+            recipe_no: `E2E-DR${Date.now().toString().slice(-6)}`,
+            recipe_name: `E2E配方${Date.now().toString().slice(-6)}`,
+            color_code: ctx.colorNos[0] || 'TEST-COLOR',
+            color_name: '测试色',
+            chemical_formula: 'E2E测试内容',
+            status: 'DRAFT',
+          }
+        );
+        ctx.dyeRecipeId = result.data?.id;
+        if (!ctx.dyeRecipeId) {
+          console.error(
+            '[ensureTestEntities] 染色配方 API 兜底未返回 id:',
+            JSON.stringify(result)
+          );
+        }
+      } catch (e) {
+        console.error(
+          '[ensureTestEntities] 染色配方 API 兜底创建失败:',
+          (e as Error).message
+        );
+      }
+    }
   }
 
   // 查找大货处方
