@@ -351,6 +351,16 @@ ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "tax_amount" DECIMAL(18
 ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "tax_percent" DECIMAL(18,4);
 ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "total_amount" DECIMAL(18,4);
 ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "width" DECIMAL(18,4);
+-- custom_orders model（Rust i64 / Option<i64>）与 m0044 建表声明（BIGINT）对齐：
+-- 若实际 DB 列为 INT4（历史 INTEGER 建表），SeaORM 解码报
+-- "Option<i64> (INT8) is not compatible with SQL type INT4" → 定制订单创建 500
+ALTER TABLE "custom_orders" ALTER COLUMN "customer_id" TYPE BIGINT USING "customer_id"::BIGINT;
+ALTER TABLE "custom_orders" ALTER COLUMN "product_id" TYPE BIGINT USING "product_id"::BIGINT;
+ALTER TABLE "custom_orders" ALTER COLUMN "color_id" TYPE BIGINT USING "color_id"::BIGINT;
+ALTER TABLE "custom_orders" ALTER COLUMN "sales_order_id" TYPE BIGINT USING "sales_order_id"::BIGINT;
+ALTER TABLE "custom_orders" ALTER COLUMN "quotation_id" TYPE BIGINT USING "quotation_id"::BIGINT;
+ALTER TABLE "custom_orders" ALTER COLUMN "created_by" TYPE BIGINT USING "created_by"::BIGINT;
+ALTER TABLE "custom_orders" ALTER COLUMN "approval_instance_id" TYPE BIGINT USING "approval_instance_id"::BIGINT;
 ALTER TABLE "sales_orders" ADD COLUMN IF NOT EXISTS "approved_at" TIMESTAMPTZ;
 ALTER TABLE "sales_orders" ADD COLUMN IF NOT EXISTS "balance_amount" DECIMAL(18,4);
 ALTER TABLE "sales_orders" ADD COLUMN IF NOT EXISTS "billing_address" VARCHAR(255);
