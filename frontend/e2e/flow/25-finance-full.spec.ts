@@ -243,13 +243,15 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
       const saveBtn = dialog.locator('button:has-text("保存"), button:has-text("确定")').first();
       await saveBtn.click().catch(() => {});
       await page.waitForTimeout(1000);
+      // 凭证表单校验用 ElMessage（warning/error），非 el-form-item__error。
+      // 匹配 .el-message（含 --warning/--error）以捕获所有类型提示
       await page
-        .locator('.el-form-item__error, .el-message--error')
+        .locator('.el-message')
         .first()
         .waitFor({ state: 'visible', timeout: 5000 })
         .catch(() => {});
       const hasError = await page
-        .locator('.el-form-item__error, .el-message--error')
+        .locator('.el-message')
         .first()
         .isVisible()
         .catch(() => false);

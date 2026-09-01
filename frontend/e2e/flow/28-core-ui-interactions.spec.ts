@@ -57,13 +57,15 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
       .first();
     await saveBtn.click().catch(() => {});
     await page.waitForTimeout(1000);
+    // 表单校验用 ElMessage（warning/error）或 el-form-item__error，
+    // 统一匹配 .el-message（含 --warning/--error）以覆盖所有提示类型
     await page
-      .locator('.el-form-item__error, .el-message--error')
+      .locator('.el-message, .el-form-item__error')
       .first()
       .waitFor({ state: 'visible', timeout: 5000 })
       .catch(() => {});
     const hasError = await page
-      .locator('.el-form-item__error, .el-message--error')
+      .locator('.el-message, .el-form-item__error')
       .first()
       .isVisible()
       .catch(() => false);
