@@ -33,8 +33,10 @@ export default defineConfig({
   globalSetup: './e2e/global-setup.ts',
   // 同时生成 HTML 报告（可下载的 artifact）和命令行输出
   reporter: [['html'], ['line']],
-  // 单测试 120s（CI 环境页面渲染 + API 响应较慢）
-  timeout: 120_000,
+  // 单测试 300s：ensureTestEntities 需 UI 创建 10+ 实体（仓库/产品/供应商/dye-batch/
+  // dye-recipe/BOM/定制订单/色卡等），每个 UI 创建 20-40s（safeGoto+对话框+填表+提交），
+  // 120s 会在定制订单等后段实体处耗尽超时导致 page closed 连锁失败
+  timeout: 300_000,
   use: {
     baseURL: 'http://localhost:3000',
     headless: true,
