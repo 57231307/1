@@ -9,11 +9,15 @@
     >
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item :label="$t('bomModule.form.productName')" prop="product_name">
-            <el-input
-              v-model="localFormData.product_name"
+          <el-form-item :label="$t('bomModule.form.productName')" prop="product_id">
+            <el-select
+              v-model="localFormData.product_id"
+              filterable
               :placeholder="$t('bomModule.form.productNamePlaceholder')"
-            />
+              style="width: 100%"
+            >
+              <el-option v-for="p in products" :key="p.id" :label="p.product_name" :value="p.id" />
+            </el-select>
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -77,10 +81,14 @@
       >
         <el-table-column :label="$t('bomModule.form.materialName')" min-width="180">
           <template #default="{ row }">
-            <el-input
-              v-model="row.material_name"
+            <el-select
+              v-model="row.material_id"
+              filterable
               :placeholder="$t('bomModule.form.materialNamePlaceholder')"
-            />
+              style="width: 100%"
+            >
+              <el-option v-for="p in products" :key="p.id" :label="p.product_name" :value="p.id" />
+            </el-select>
           </template>
         </el-table-column>
         <el-table-column :label="$t('bomModule.form.quantity')" width="120">
@@ -131,12 +139,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import type { Bom } from '@/api/bom';
+import { getProductList } from '@/api/product';
+import type { Product } from '@/api/product';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -150,6 +160,7 @@ const props = defineProps<{
     status: 'draft' | 'active' | 'archived';
     remark: string;
     items: Array<{
+      material_id?: number;
       material_name: string;
       quantity: number;
       unit: string;
@@ -168,7 +179,24 @@ const emit = defineEmits<{
 const formRef = ref<FormInstance>();
 const submitLoading = ref(false);
 
+// 后端 CreateBomRequest 必填 product_id + items[].material_id（i32），
+// 表单由名称输入改为产品下拉，直接绑定 ID
+const products = ref<Product[]>([]);
+
+const loadProducts = async () => {
+  try {
+    const res = await getProductList({ page: 1, page_size: 1000 });
+    const data = res.data as { items?: Product[]; list?: Product[] } | undefined;
+    products.value = data?.items || data?.list || [];
+  } catch (error) {
+    ElMessage.warning(t('bomModule.form.productNamePlaceholder'));
+  }
+};
+
+onMounted(loadProducts);
+
 const localFormData = ref({
+  product_id: props.formData.product_id,
   product_name: props.formData.product_name,
   version: props.formData.version,
   is_default: props.formData.is_default,
@@ -181,6 +209,7 @@ watch(
   () => props.formData,
   newVal => {
     localFormData.value = {
+      product_id: newVal.product_id,
       product_name: newVal.product_name,
       version: newVal.version,
       is_default: newVal.is_default,
@@ -193,8 +222,8 @@ watch(
 );
 
 const formRules: FormRules = {
-  product_name: [
-    { required: true, message: t('bomModule.form.productNameRequired'), trigger: 'blur' },
+  product_id: [
+    { required: true, message: t('bomModule.form.productNameRequired'), trigger: 'change' },
   ],
   version: [{ required: true, message: t('bomModule.form.versionRequired'), trigger: 'blur' }],
   status: [{ required: true, message: t('bomModule.form.statusRequired'), trigger: 'change' }],
@@ -202,6 +231,7 @@ const formRules: FormRules = {
 
 const handleAddItem = () => {
   localFormData.value.items.push({
+    material_id: undefined,
     material_name: '',
     quantity: 1,
     unit: '',
@@ -219,7 +249,7 @@ const handleSubmit = async () => {
   await formRef.value.validate(async valid => {
     if (!valid) return;
 
-    const hasEmptyItems = localFormData.value.items.some(item => !item.material_name || !item.unit);
+    const hasEmptyItems = localFormData.value.items.some(item => !item.material_id || !item.unit);
     if (hasEmptyItems) {
       ElMessage.warning(t('bomModule.form.itemsIncomplete'));
       return;
@@ -228,13 +258,14 @@ const handleSubmit = async () => {
     submitLoading.value = true;
     try {
       emit('submit', {
+        product_id: localFormData.value.product_id,
         product_name: localFormData.value.product_name,
         version: localFormData.value.version,
         is_default: localFormData.value.is_default,
         status: localFormData.value.status,
         remark: localFormData.value.remark,
         items: localFormData.value.items,
-      });
+      } as unknown as Partial<Bom>);
     } finally {
       submitLoading.value = false;
     }

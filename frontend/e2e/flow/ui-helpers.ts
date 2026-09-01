@@ -229,10 +229,7 @@ async function waitCreateResponse(
     // 跳过 403（CSRF 重放中间态），匹配其他所有响应（200 业务成功 / 400 业务校验失败等），
     // 业务 400 需被捕获以返回错误信息用于诊断，避免 45s 空等。
     const resp = await page.waitForResponse(
-      r =>
-        r.url().includes(apiPath) &&
-        r.request().method() === 'POST' &&
-        r.status() !== 403,
+      r => r.url().includes(apiPath) && r.request().method() === 'POST' && r.status() !== 403,
       { timeout }
     );
     const json = await resp.json().catch(() => ({}));
@@ -600,7 +597,9 @@ export async function createBomUI(page: Page): Promise<number | undefined> {
     /新建|新建 BOM/,
     /保存|确定/,
     [
-      { kind: 'input', label: '产品名称', value: _genName('E2E BOM') },
+      // BOM 表单产品字段已改为 el-select（后端 CreateBomRequest 必填 product_id），
+      // 物料明细 material_name 也改为物料 select（material_id）
+      { kind: 'select', label: '产品名称', value: 'E2E' },
       { kind: 'input', label: '版本', value: '1' },
       { kind: 'select', label: '状态', value: '启用' },
     ]
@@ -617,10 +616,18 @@ export async function createBomUI(page: Page): Promise<number | undefined> {
       await page.waitForTimeout(300);
       const firstRow = dialog.locator('.el-table tbody tr').first();
       if ((await firstRow.count()) > 0) {
-        const matNameInput = firstRow.locator('input').first();
-        await matNameInput.waitFor({ state: 'visible', timeout: 20000 });
-        await matNameInput.click({ clickCount: 3 });
-        await matNameInput.fill('E2E 原料');
+        // 物料明细首列已改为 el-select（material_id），点击后选第一项
+        const matSelect = firstRow.locator('.el-select').first();
+        if ((await matSelect.count()) > 0) {
+          await matSelect.click().catch(() => {});
+          const dropdown = page.locator('.el-select-dropdown:visible').last();
+          await dropdown.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+          const firstOption = dropdown.locator('.el-select-dropdown__item').first();
+          if ((await firstOption.count()) > 0) {
+            await firstOption.click().catch(() => {});
+          }
+          await page.keyboard.press('Escape').catch(() => {});
+        }
         const unitInput = firstRow.locator('input').nth(2);
         if ((await unitInput.count()) > 0) {
           await unitInput.click({ clickCount: 3 });
