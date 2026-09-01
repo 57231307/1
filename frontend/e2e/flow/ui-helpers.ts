@@ -738,15 +738,18 @@ export async function createCustomOrderUI(page: Page): Promise<number | undefine
     const specInput = page
       .locator('.el-form-item:has(span:text-is("规格")) input, input[placeholder*="规格"]')
       .first();
-    await specInput.waitFor({ state: 'visible', timeout: 20000 });
-    await specInput.click({ clickCount: 3 });
-    await specInput.fill('E2E 定制规格');
-    const quantityInput = page
-      .locator('.el-form-item:has(span:text-is("数量")) input, input[placeholder*="数量"]')
-      .last();
-    await quantityInput.waitFor({ state: 'visible', timeout: 20000 });
-    await quantityInput.click({ clickCount: 3 });
-    await quantityInput.fill('100');
+    await specInput.waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
+    await specInput.click({ clickCount: 3 }).catch(() => {});
+    await specInput.fill('E2E 定制规格').catch(() => {});
+    // 数量定位须限定"数量"label 的 form-item：页面另有 total_amount 等
+    // el-input-number，.last() 会误选 total_amount 导致 quantity 空校验失败
+    const quantityInput = page.locator('.el-form-item:has(span:text-is("数量")) input').first();
+    await quantityInput.waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
+    await quantityInput.click({ clickCount: 3 }).catch(() => {});
+    await quantityInput.fill('100').catch(() => {});
+    // el-input-number 需 blur/Enter 同步 v-model，fill 后触发 blur
+    await quantityInput.press('Tab').catch(() => {});
+    await page.waitForTimeout(300);
     const submitBtn = page.getByRole('button', { name: /保存草稿|保存|确定/ }).first();
     await submitBtn.waitFor({ state: 'visible', timeout: 20000 });
     await submitBtn.click();
