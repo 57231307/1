@@ -566,7 +566,7 @@ export async function createDyeBatchUI(page: Page): Promise<number | undefined> 
     '/dye-batch',
     `${API_PREFIX}/production/dye-batches`,
     /新建批次/,
-    /确定|保存/,
+    /确认|确定|保存/,
     fields
   );
 }
