@@ -590,59 +590,113 @@ export async function createDyeRecipeUI(page: Page): Promise<number | undefined>
 
 /** 创建 BOM */
 export async function createBomUI(page: Page): Promise<number | undefined> {
-  const dialogResult = await uiCreateDialog(
-    page,
-    '/bom',
-    `${API_PREFIX}/boms`,
-    /新建|新建 BOM/,
-    /保存|确定/,
-    [
-      // BOM 表单产品字段已改为 el-select（后端 CreateBomRequest 必填 product_id），
-      // 物料明细 material_name 也改为物料 select（material_id）
-      { kind: 'select', label: '产品名称', value: 'E2E' },
-      { kind: 'input', label: '版本', value: '1' },
-      { kind: 'select', label: '状态', value: '启用' },
-    ]
-  );
-  if (dialogResult !== undefined) return dialogResult;
-  // 可能需要添加物料明细
-  const dialog = page.locator('.el-dialog:visible').last();
-  if ((await dialog.count()) === 0) return undefined;
-  const hasItemsSection = (await dialog.locator('.items-section, [class*="items"]').count()) > 0;
-  if (hasItemsSection) {
+  // 后端 CreateBomPayload 校验 items 至少 1 条（"BOM明细不能为空"），
+  // 且 product_id/material_id 必填（i32）——表单已改为产品/物料下拉。
+  // 独立实现：填字段 → 点"添加物料" → 选物料 select → 填单位 → 提交
+  try {
+    await safeGoto(page, '/bom');
+    await page.waitForTimeout(500);
+    const addBtn = page.getByRole('button', { name: /新建|新建 BOM/, exact: false }).first();
+    await addBtn.waitFor({ state: 'visible', timeout: 30000 });
+    await addBtn.click();
+    const dialog = page.locator('.el-dialog:visible').last();
+    await dialog.waitFor({ state: 'visible', timeout: 30000 });
+    await page.waitForTimeout(300);
+
+    // 产品下拉（el-select，选含 E2E 的项，无则选第一项）
+    const productItem = dialog.locator('.el-form-item').filter({ hasText: '产品名称' }).first();
+    const productSelect = productItem.locator('.el-select__wrapper, .el-select').first();
+    await productSelect.waitFor({ state: 'visible', timeout: 20000 });
+    await productSelect.click();
+    const prodDropdown = page.locator('.el-select-dropdown:visible').last();
+    await prodDropdown.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+    const e2eProd = prodDropdown
+      .locator('.el-select-dropdown__item')
+      .filter({ hasText: /E2E/i })
+      .first();
+    if ((await e2eProd.count()) > 0) {
+      await e2eProd.click();
+    } else {
+      const first = prodDropdown.locator('.el-select-dropdown__item').first();
+      if ((await first.count()) > 0) await first.click();
+    }
+    await page.waitForTimeout(300);
+
+    // 版本
+    const versionInput = dialog
+      .locator('.el-form-item')
+      .filter({ hasText: '版本' })
+      .locator('input')
+      .first();
+    await versionInput.waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
+    await versionInput.fill('1').catch(() => {});
+
+    // 状态下拉（选"启用"或第一项）
+    const statusItem = dialog.locator('.el-form-item').filter({ hasText: '状态' }).first();
+    const statusSelect = statusItem.locator('.el-select__wrapper, .el-select').first();
+    if ((await statusSelect.count()) > 0) {
+      await statusSelect.click();
+      const statusDropdown = page.locator('.el-select-dropdown:visible').last();
+      await statusDropdown.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+      const activeOpt = statusDropdown
+        .locator('.el-select-dropdown__item')
+        .filter({ hasText: /启用|active/i })
+        .first();
+      if ((await activeOpt.count()) > 0) {
+        await activeOpt.click();
+      } else {
+        const first = statusDropdown.locator('.el-select-dropdown__item').first();
+        if ((await first.count()) > 0) await first.click();
+      }
+      await page.waitForTimeout(300);
+    }
+
+    // 添加物料明细（items 至少 1 条，后端校验"BOM明细不能为空"）
     const addItemBtn = dialog.getByRole('button', { name: /添加物料|添加/, exact: false }).first();
     if ((await addItemBtn.count()) > 0) {
       await addItemBtn.click();
       await page.waitForTimeout(300);
       const firstRow = dialog.locator('.el-table tbody tr').first();
       if ((await firstRow.count()) > 0) {
-        // 物料明细首列已改为 el-select（material_id），点击后选第一项
         const matSelect = firstRow.locator('.el-select').first();
         if ((await matSelect.count()) > 0) {
-          await matSelect.click().catch(() => {});
-          const dropdown = page.locator('.el-select-dropdown:visible').last();
-          await dropdown.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
-          const firstOption = dropdown.locator('.el-select-dropdown__item').first();
-          if ((await firstOption.count()) > 0) {
-            await firstOption.click().catch(() => {});
+          await matSelect.click();
+          const matDropdown = page.locator('.el-select-dropdown:visible').last();
+          await matDropdown.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+          const matE2e = matDropdown
+            .locator('.el-select-dropdown__item')
+            .filter({ hasText: /E2E/i })
+            .first();
+          if ((await matE2e.count()) > 0) {
+            await matE2e.click();
+          } else {
+            const first = matDropdown.locator('.el-select-dropdown__item').first();
+            if ((await first.count()) > 0) await first.click();
           }
-          await page.keyboard.press('Escape').catch(() => {});
+          await page.waitForTimeout(300);
         }
         const unitInput = firstRow.locator('input').nth(2);
         if ((await unitInput.count()) > 0) {
-          await unitInput.click({ clickCount: 3 });
-          await unitInput.fill('米');
+          await unitInput.click({ clickCount: 3 }).catch(() => {});
+          await unitInput.fill('米').catch(() => {});
         }
       }
     }
+
+    // 提交
     const submitBtn = dialog.getByRole('button', { name: /保存|确定/ }).last();
-    if ((await submitBtn.count()) > 0) {
-      await submitBtn.click();
-      const data = await waitCreateResponse(page, `${API_PREFIX}/boms`, 45000);
-      return typeof data?.id === 'number' ? data.id : undefined;
-    }
+    await submitBtn.waitFor({ state: 'visible', timeout: 20000 });
+    await submitBtn.click();
+    const data = await waitCreateResponse(page, `${API_PREFIX}/boms`, 45000);
+    if (typeof data?.id === 'number') return data.id;
+    await diagnoseFailure(page, 'bom');
+    console.error(`[createBomUI] 创建失败: 响应数据=${JSON.stringify(data)}`);
+    return undefined;
+  } catch (e) {
+    await diagnoseFailure(page, 'bom');
+    console.error(`[createBomUI] 异常: ${(e as Error).message}`);
+    return undefined;
   }
-  return undefined;
 }
 
 /** 创建定制订单 */
