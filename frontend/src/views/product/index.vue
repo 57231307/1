@@ -115,7 +115,7 @@ const fetchCategories = async () => {
     const data = res.data as unknown;
     const list = Array.isArray(data)
       ? (data as ProductCategory[])
-      : ((data as { items?: ProductCategory[] })?.items) || [];
+      : (data as { items?: ProductCategory[] })?.items || [];
     categories.value = list;
     void buildTree(categories.value);
   } catch (error) {
