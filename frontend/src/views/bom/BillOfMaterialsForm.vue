@@ -260,7 +260,9 @@ const handleSubmit = async () => {
       emit('submit', {
         product_id: localFormData.value.product_id,
         product_name: localFormData.value.product_name,
-        version: localFormData.value.version,
+        // 后端 CreateBomPayload.version 为 Option<i32>，version 输入框是 el-input（字符串），
+        // 提交时转数字，否则 "1" → invalid type: string, expected i32 → 422
+        version: Number(localFormData.value.version),
         is_default: localFormData.value.is_default,
         status: localFormData.value.status,
         remark: localFormData.value.remark,
