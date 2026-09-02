@@ -85,12 +85,43 @@ async function ensureShardUserViaUI(): Promise<void> {
         await termsCheckbox.click().catch(() => {});
         await page.waitForTimeout(200);
       }
+      console.log(
+        `[globalSetup] 协议勾选状态: ${await termsCheckbox
+          .locator('input[type="checkbox"]')
+          .isChecked()
+          .catch(() => 'unknown')}`
+      );
+    } else {
+      console.log('[globalSetup] 未找到协议 checkbox');
     }
+    // 表单校验错误提示（协议未勾等）
+    const formErrors = await page
+      .locator('.el-form-item__error')
+      .allTextContents()
+      .catch(() => []);
+    if (formErrors.length > 0) {
+      console.log(`[globalSetup] 提交前表单错误: ${JSON.stringify(formErrors)}`);
+    }
+    const loginBtn = page.getByRole('button', { name: /登录|登 录/ }).first();
+    console.log(`[globalSetup] 登录按钮可见: ${await loginBtn.isVisible().catch(() => false)}`);
+    await loginBtn.click();
+    // 等待跳转或捕获登录后错误提示
     await page
-      .getByRole('button', { name: /登录|登 录/ })
-      .first()
-      .click();
-    await page.waitForURL(url => !url.pathname.includes('/login'), { timeout: 60_000 });
+      .waitForURL(url => !url.pathname.includes('/login'), { timeout: 60_000 })
+      .catch(async () => {
+        const afterErrors = await page
+          .locator('.el-form-item__error, .el-message__content')
+          .allTextContents()
+          .catch(() => []);
+        const currentUrl = page.url();
+        console.error(
+          `[globalSetup] UI 登录未跳转: url=${currentUrl}, 提示=${JSON.stringify(afterErrors)}`
+        );
+        await page.screenshot({ path: 'e2e/.auth/globalsetup-login-fail.png', fullPage: true });
+        throw new Error(
+          `globalSetup UI 登录未跳转（60s）：url=${currentUrl}，提示=${JSON.stringify(afterErrors)}`
+        );
+      });
 
     // 打开系统管理页（用户管理 Tab）
     await page.goto(`${FRONTEND_BASE}/system`, { waitUntil: 'domcontentloaded' });
