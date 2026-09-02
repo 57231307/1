@@ -2547,20 +2547,23 @@ jobs:
           echo "SHARD_USER=${SHARD_USER}" >> "$GITHUB_ENV"
 
           # 1) 用基础管理员登录拿 access_token + csrf_token
-          LOGIN_RESULT=$(curl -s -D /tmp/login-headers.txt -X POST http://localhost:8082/api/v1/erp/auth/login \
+          #    access_token 是 httpOnly Cookie：用 curl cookie jar 保存；
+          #    csrf_token 同时出现在响应 body（data.csrf_token）与 Set-Cookie，双通道提取
+          LOGIN_RESULT=$(curl -s -c /tmp/login-cookies.txt -D /tmp/login-headers.txt -X POST http://localhost:8082/api/v1/erp/auth/login \
             -H "Content-Type: application/json" \
             -H "X-Requested-With: XMLHttpRequest" \
             -d "{\"username\":\"${TEST_USERNAME}\",\"password\":\"${TEST_PASSWORD}\"}")
           echo "$LOGIN_RESULT" | head -c 200; echo ""
-          CSRF_TOKEN=$(grep -i '^set-cookie: csrf_token=' /tmp/login-headers.txt | head -1 | sed 's/.*csrf_token=\([^;]*\);.*/\1/')
-          ACCESS_TOKEN=$(grep -i '^set-cookie: access_token=' /tmp/login-headers.txt | head -1 | sed 's/.*access_token=\([^;]*\);.*/\1/')
-          if [ -z "$CSRF_TOKEN" ] || [ -z "$ACCESS_TOKEN" ]; then
-            echo "登录失败未获得 token"; cat /tmp/login-headers.txt; exit 1
+          CSRF_TOKEN=$(echo "$LOGIN_RESULT" | grep -oE '"csrf_token":"[^"]+"' | head -1 | sed 's/.*:"//;s/"//')
+          if [ -z "$CSRF_TOKEN" ]; then
+            CSRF_TOKEN=$(grep -i 'csrf_token' /tmp/login-cookies.txt /tmp/login-headers.txt 2>/dev/null | head -1 | sed 's/.*csrf_token[[:space:]=]*\([^;[:space:]]*\).*/\1/')
+          fi
+          if [ -z "$CSRF_TOKEN" ]; then
+            echo "登录失败未获得 csrf_token"; cat /tmp/login-headers.txt; exit 1
           fi
 
-          # 2) 查询 admin 角色 id
-          ROLES=$(curl -s "http://localhost:8082/api/v1/erp/roles?page=1&page_size=50" \
-            -H "Cookie: access_token=${ACCESS_TOKEN}" \
+          # 2) 查询 admin 角色 id（用 cookie jar 携带 httpOnly access_token）
+          ROLES=$(curl -s -b /tmp/login-cookies.txt "http://localhost:8082/api/v1/erp/roles?page=1&page_size=50" \
             -H "X-CSRF-Token: ${CSRF_TOKEN}" \
             -H "X-Requested-With: XMLHttpRequest")
           ADMIN_ROLE_ID=$(echo "$ROLES" | tr '}' '}\n' | grep '"name":"admin"' | grep -oE '"id":[0-9]+' | head -1 | grep -oE '[0-9]+')
@@ -2572,9 +2575,8 @@ jobs:
           if [ -z "$ADMIN_ROLE_ID" ]; then echo "未找到 admin 角色"; echo "$ROLES" | head -c 500; exit 1; fi
 
           # 3) 创建分片专属账号（已存在则跳过）
-          CREATE_CODE=$(curl -s -o /tmp/create-user-resp.txt -w "%{http_code}" -X POST http://localhost:8082/api/v1/erp/users \
+          CREATE_CODE=$(curl -s -b /tmp/login-cookies.txt -o /tmp/create-user-resp.txt -w "%{http_code}" -X POST http://localhost:8082/api/v1/erp/users \
             -H "Content-Type: application/json" \
-            -H "Cookie: access_token=${ACCESS_TOKEN}" \
             -H "X-CSRF-Token: ${CSRF_TOKEN}" \
             -H "X-Requested-With: XMLHttpRequest" \
             -d "{\"username\":\"${SHARD_USER}\",\"password\":\"${TEST_PASSWORD}\",\"role_id\":${ADMIN_ROLE_ID}}")
