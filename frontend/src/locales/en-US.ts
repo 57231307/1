@@ -7253,6 +7253,8 @@ export default {
         realName: 'Name',
         phone: 'Phone',
         email: 'Email',
+        role: 'Role',
+        rolePlaceholder: 'Please select a role',
         status: 'Status',
       },
       validation: {

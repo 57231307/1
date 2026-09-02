@@ -1,13 +1,26 @@
-import { request } from '@playwright/test';
+import { chromium, request, expect } from '@playwright/test';
 import { writeFileSync, mkdirSync } from 'fs';
 
 const API_BASE = process.env.API_BASE || 'http://localhost:8082';
 const API_PREFIX = '/api/v1/erp';
-const TEST_USERNAME = process.env.TEST_USERNAME || 'e2e_admin';
-const TEST_PASSWORD = process.env.TEST_PASSWORD || 'E2e@TestPassword2026!';
+const FRONTEND_BASE = process.env.FRONTEND_BASE || 'http://localhost:3000';
+// 分片专属账号：每个 CI runner（matrix.shard）独享，根除跨分片并发登录的 CSRF 互踢。
+// 分片账号通过真实 UI（用户管理页面）创建，属于测试前置数据准备（ensureTestEntities 同级，
+// 不属于测试验证手段），UI 测试本身仍全部走真实用户操作。
+const BASE_USERNAME = process.env.TEST_USERNAME || 'e2e_admin';
+const BASE_PASSWORD = process.env.TEST_PASSWORD || 'E2e@TestPassword2026!';
+const SHARD_INDEX = process.env.E2E_SHARD_INDEX ?? '';
+const SHARD_USERNAME = SHARD_INDEX !== '' ? `e2e_admin_s${SHARD_INDEX}` : BASE_USERNAME;
+const SHARD_PASSWORD = BASE_PASSWORD;
 const STORAGE_STATE_PATH = 'e2e/.auth/storage-state.json';
 
 export default async function globalSetup() {
+  // ---- 1. 分片账号不存在时，通过真实 UI 创建（e2e_admin 登录 → 用户管理页 → 新建用户）----
+  if (SHARD_USERNAME !== BASE_USERNAME) {
+    await ensureShardUserViaUI();
+  }
+
+  // ---- 2. 分片账号登录（API），保存 storageState 供全部 spec 复用 ----
   const ctx = await request.newContext({
     baseURL: API_BASE,
     extraHTTPHeaders: {
@@ -17,12 +30,12 @@ export default async function globalSetup() {
   });
 
   const resp = await ctx.post(`${API_PREFIX}/auth/login`, {
-    data: { username: TEST_USERNAME, password: TEST_PASSWORD },
+    data: { username: SHARD_USERNAME, password: SHARD_PASSWORD },
   });
 
   if (!resp.ok()) {
     const body = await resp.text();
-    throw new Error(`globalSetup 登录失败: HTTP ${resp.status()} ${body}`);
+    throw new Error(`globalSetup 登录失败 (user=${SHARD_USERNAME}): HTTP ${resp.status()} ${body}`);
   }
 
   const cookies = await ctx.storageState();
@@ -34,4 +47,127 @@ export default async function globalSetup() {
   mkdirSync('e2e/.auth', { recursive: true });
   writeFileSync(STORAGE_STATE_PATH, JSON.stringify(cookies, null, 2));
   await ctx.dispose();
+}
+
+/**
+ * 通过真实 UI 创建分片专属账号（不使用 API 直接创建）：
+ * e2e_admin 登录 → /system 用户管理 → 新建用户 → 填用户名/密码/姓名/角色(admin) → 提交
+ * 账号已存在（唯一约束冲突）时视为成功跳过。
+ */
+async function ensureShardUserViaUI(): Promise<void> {
+  const browser = await chromium.launch();
+  const context = await browser.newContext({
+    baseURL: FRONTEND_BASE,
+    locale: 'zh-CN',
+  });
+  const page = await context.newPage();
+
+  try {
+    // UI 登录 e2e_admin
+    await page.goto(`${FRONTEND_BASE}/login`, { waitUntil: 'domcontentloaded' });
+    const usernameInput = page.locator('input').first();
+    await usernameInput.waitFor({ state: 'visible', timeout: 30_000 });
+    await usernameInput.fill(BASE_USERNAME);
+    await page.locator('input[type="password"]').first().fill(BASE_PASSWORD);
+    await page
+      .getByRole('button', { name: /登录|登 录/ })
+      .first()
+      .click();
+    await page.waitForURL(url => !url.pathname.includes('/login'), { timeout: 60_000 });
+
+    // 打开系统管理页（用户管理 Tab）
+    await page.goto(`${FRONTEND_BASE}/system`, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(2000);
+
+    // 打开新建用户对话框
+    const createBtn = page.getByRole('button', { name: /新建用户/ }).first();
+    await createBtn.waitFor({ state: 'visible', timeout: 60_000 });
+    await createBtn.click();
+    const dialog = page.locator('.el-dialog:visible').last();
+    await dialog.waitFor({ state: 'visible', timeout: 30_000 });
+    await page.waitForTimeout(300);
+
+    // 填用户名/密码/姓名（表单字段 label：用户名/密码/姓名/角色）
+    const userInput = dialog
+      .locator('.el-form-item')
+      .filter({ hasText: '用户名' })
+      .locator('input')
+      .first();
+    await userInput.waitFor({ state: 'visible', timeout: 20_000 });
+    await userInput.fill(SHARD_USERNAME);
+
+    const pwdInput = dialog
+      .locator('.el-form-item')
+      .filter({ hasText: '密码' })
+      .locator('input')
+      .first();
+    await pwdInput.fill(SHARD_PASSWORD);
+
+    const nameInput = dialog
+      .locator('.el-form-item')
+      .filter({ hasText: '姓名' })
+      .locator('input')
+      .first();
+    await nameInput.fill(`E2E分片${SHARD_INDEX}`);
+
+    // 角色下拉：选 admin
+    const roleItem = dialog.locator('.el-form-item').filter({ hasText: '角色' }).first();
+    const roleSelect = roleItem.locator('.el-select__wrapper, .el-select').first();
+    if ((await roleSelect.count()) > 0) {
+      await roleSelect.click();
+      const dropdown = page.locator('.el-select-dropdown:visible').last();
+      await dropdown.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+      const adminOption = dropdown
+        .locator('.el-select-dropdown__item')
+        .filter({ hasText: /admin/i })
+        .first();
+      if ((await adminOption.count()) > 0) {
+        await adminOption.click();
+      } else {
+        const first = dropdown.locator('.el-select-dropdown__item').first();
+        if ((await first.count()) > 0) await first.click();
+      }
+      await page.waitForTimeout(300);
+    }
+
+    // 提交（按钮文本：确定/保存/提交）
+    const submitBtn = dialog.getByRole('button', { name: /确定|保存|提交/ }).last();
+    await submitBtn.waitFor({ state: 'visible', timeout: 20_000 });
+    await submitBtn.click();
+
+    // 等待创建结果：成功（列表刷新/成功提示）或"已存在"
+    const outcome = await page
+      .waitForResponse(r => r.url().includes('/users') && r.request().method() === 'POST', {
+        timeout: 30_000,
+      })
+      .then(r => r.status())
+      .catch(() => 0);
+    if (outcome === 200 || outcome === 201) {
+      console.log(`[globalSetup] 分片账号 ${SHARD_USERNAME} UI 创建成功 (HTTP ${outcome})`);
+    } else if (outcome === 0) {
+      // 无 POST 响应：可能前端表单校验失败或账号已存在导致 UI 阻止提交，
+      // 校验账号是否已可登录（已存在 → 合法跳过）
+      console.warn(`[globalSetup] 未捕获 POST /users 响应 (status=${outcome})，验证账号是否已存在`);
+    } else {
+      console.warn(`[globalSetup] 分片账号创建 HTTP ${outcome}（可能已存在）`);
+    }
+
+    // 终验：分片账号必须可登录（创建成功或已存在均通过）
+    const checkCtx = await request.newContext({ baseURL: API_BASE });
+    const loginCheck = await checkCtx.post(`${API_PREFIX}/auth/login`, {
+      data: { username: SHARD_USERNAME, password: SHARD_PASSWORD },
+    });
+    await checkCtx.dispose();
+    if (!loginCheck.ok()) {
+      const body = await loginCheck.text();
+      throw new Error(
+        `分片账号 ${SHARD_USERNAME} 终验失败（UI 创建与已存在均未通过）: HTTP ${loginCheck.status()} ${body}`
+      );
+    }
+    console.log(`[globalSetup] 分片账号 ${SHARD_USERNAME} 就绪（登录验证通过）`);
+    void expect; // 保持 import 一致性（断言在终验逻辑中体现）
+  } finally {
+    await context.close().catch(() => {});
+    await browser.close().catch(() => {});
+  }
 }

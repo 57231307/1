@@ -17,7 +17,14 @@ import {
 export const API_BASE = process.env.API_BASE || 'http://localhost:8082';
 export const API_PREFIX = '/api/v1/erp';
 export const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
-export const TEST_USERNAME = process.env.TEST_USERNAME || 'e2e_admin';
+// 分片专属账号：globalSetup 已通过真实 UI 创建 e2e_admin_s{shard}（E2E_SHARD_INDEX
+// 由 CI 注入），本分片全部登录（globalSetup storageState + loginViaUI 重登）均使用
+// 该账号，根除跨分片并发登录的 CSRF 互踢
+export const TEST_USERNAME =
+  process.env.TEST_USERNAME ||
+  (process.env.E2E_SHARD_INDEX !== undefined && process.env.E2E_SHARD_INDEX !== ''
+    ? `e2e_admin_s${process.env.E2E_SHARD_INDEX}`
+    : 'e2e_admin');
 export const TEST_PASSWORD = process.env.TEST_PASSWORD || 'E2e@TestPassword2026!';
 
 export interface ApiResponse<T = unknown> {

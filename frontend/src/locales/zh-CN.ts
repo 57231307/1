@@ -7242,6 +7242,8 @@ export default {
         realName: '姓名',
         phone: '手机号',
         email: '邮箱',
+        role: '角色',
+        rolePlaceholder: '请选择角色',
         status: '状态',
       },
       validation: {
