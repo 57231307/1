@@ -70,21 +70,48 @@ async function ensureShardUserViaUI(): Promise<void> {
       .first();
     await usernameInput.waitFor({ state: 'visible', timeout: 30_000 });
     await usernameInput.fill(BASE_USERNAME);
-    await page.locator('input[type="password"]').first().fill(BASE_PASSWORD);
-    // 勾选用户协议（P1-08-1：el-checkbox prop=agreedToTerms 必填，漏勾表单校验失败）
-    const termsCheckbox = page
-      .locator('.el-checkbox')
-      .filter({ hasText: /同意|协议/ })
+    // 密码框：aria-label 定位（show-password 包裹多层 input）
+    const pwdInput = page
+      .locator('input[type="password"], input[aria-label*="密码"]')
       .first();
-    if ((await termsCheckbox.count()) > 0) {
-      const isChecked = await termsCheckbox
-        .locator('input[type="checkbox"]')
-        .isChecked()
-        .catch(() => false);
-      if (!isChecked) {
-        await termsCheckbox.click().catch(() => {});
-        await page.waitForTimeout(200);
-      }
+    await pwdInput.waitFor({ state: 'visible', timeout: 30_000 });
+    await pwdInput.click().catch(() => {});
+    await pwdInput.fill(BASE_PASSWORD);
+    const pwdValue = await pwdInput.inputValue().catch(() => '');
+    console.log(`[globalSetup] 密码已填: ${pwdValue.length > 0}`);
+    // 勾选用户协议：el-checkbox 原生 input 隐藏，必须点 .el-checkbox__inner（真实点击区域）
+    const termsInner = page.locator('.el-checkbox__inner').first();
+    await termsInner.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+    const isCheckedBefore = await page
+      .locator('.el-checkbox input[type="checkbox"]')
+      .first()
+      .isChecked()
+      .catch(() => false);
+    if (!isCheckedBefore) {
+      await termsInner.click({ force: true }).catch(() => {});
+      await page.waitForTimeout(300);
+    }
+    const isCheckedAfter = await page
+      .locator('.el-checkbox input[type="checkbox"]')
+      .first()
+      .isChecked()
+      .catch(() => 'unknown');
+    console.log(`[globalSetup] 协议勾选状态: ${isCheckedBefore} → ${isCheckedAfter}`);
+    if (isCheckedAfter !== true) {
+      // 兜底：JS 直接置值并派发 change（Playwright 点击无效时的可靠途径）
+      await page.evaluate(() => {
+        const box = document.querySelector(
+          '.el-checkbox input[type="checkbox"]'
+        ) as HTMLInputElement | null;
+        if (box && !box.checked) {
+          box.click();
+        }
+      });
+      await page.waitForTimeout(300);
+      console.log(
+        `[globalSetup] JS 兜底后协议状态: ${await page.locator('.el-checkbox input[type="checkbox"]').first().isChecked().catch(() => 'unknown')}`
+      );
+    }
       console.log(
         `[globalSetup] 协议勾选状态: ${await termsCheckbox
           .locator('input[type="checkbox"]')
