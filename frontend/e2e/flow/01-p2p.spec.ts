@@ -31,6 +31,8 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
         {
           supplier_id: ctx.supplierId || 1,
           warehouse_id: ctx.warehouseIds[0] || 1,
+          // 后端 validate_order_request 要求 department_id 必填（"部门 ID 不能为空"）
+          department_id: ctx.departmentIds[0] || 1,
           order_date: new Date().toISOString().slice(0, 10),
           expected_delivery_date: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
           items: [

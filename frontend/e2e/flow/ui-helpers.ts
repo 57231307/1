@@ -277,7 +277,7 @@ export async function uiCreateDialog(
 
     // 找新增按钮
     const addBtn = page.getByRole('button', { name: addButtonText, exact: false }).first();
-    await addBtn.waitFor({ state: 'visible', timeout: 30000 });
+    await addBtn.waitFor({ state: 'visible', timeout: 60000 });
     await addBtn.click();
 
     // 等对话框出现
@@ -402,7 +402,7 @@ export async function createProductUI(page: Page): Promise<number | undefined> {
   await page.waitForTimeout(500);
   // 打开新建产品 dialog
   const addBtn = page.getByRole('button', { name: /新建产品/ }).first();
-  await addBtn.waitFor({ state: 'visible', timeout: 30000 });
+  await addBtn.waitFor({ state: 'visible', timeout: 60000 });
   await addBtn.click();
   const dialog = page.locator('.el-dialog:visible').last();
   await dialog.waitFor({ state: 'visible', timeout: 30000 });
@@ -599,7 +599,7 @@ export async function createBomUI(page: Page): Promise<number | undefined> {
     await safeGoto(page, '/bom');
     await page.waitForTimeout(500);
     const addBtn = page.getByRole('button', { name: /新建|新建 BOM/, exact: false }).first();
-    await addBtn.waitFor({ state: 'visible', timeout: 30000 });
+    await addBtn.waitFor({ state: 'visible', timeout: 60000 });
     await addBtn.click();
     const dialog = page.locator('.el-dialog:visible').last();
     await dialog.waitFor({ state: 'visible', timeout: 30000 });

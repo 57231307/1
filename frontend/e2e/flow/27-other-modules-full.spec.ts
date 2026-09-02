@@ -37,8 +37,18 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
       'GET',
       '/purchase/suppliers?page=1&page_size=1'
     ).catch(() => ({ items: [] as Array<{ id: number }> }));
-    const supId = supList.items?.[0]?.id;
-    if (!supId) throw new Error('无任何供应商（列表为空），无法测试供应商详情');
+    let supId = supList.items?.[0]?.id;
+    if (!supId) {
+      // 分片独立 DB：本分片可能没有任何供应商，前置创建（API 兜底用于测试数据准备）
+      console.warn('[27-other] 供应商列表为空，前置创建供应商');
+      const created = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
+        supplier_name: `E2E供应商${Date.now().toString().slice(-6)}`,
+        supplier_short_name: 'E2E供',
+        contact_phone: '13800000001',
+      }).catch(() => ({ data: undefined }));
+      supId = created.data?.id;
+    }
+    if (!supId) throw new Error('无任何供应商（创建兜底也失败），无法测试供应商详情');
     await apiCallRaw(page, 'GET', `/purchase/suppliers/${supId}`);
     await verifyEndpointHealthy(page, `/purchase/suppliers/${supId}/balance`);
     await verifyEndpointHealthy(page, `/purchase/suppliers/${supId}/purchase-history`);

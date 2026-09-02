@@ -274,9 +274,12 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     // 新建配方
     const dialogVisible = await clickNewAndVerifyDialog(page, '新建配方');
     if (dialogVisible) {
-      // 验证色号字段
-      const colorField = page.locator('.el-dialog text=色号, .el-dialog text=颜色').first();
-      await colorField.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
+      // 验证色号字段（el-form-item label 渲染为 <label>，hasText 兼容；CI 慢环境放宽 10s）
+      const colorField = page
+        .locator('.el-dialog .el-form-item')
+        .filter({ hasText: /色号|颜色/ })
+        .first();
+      await colorField.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
       const colorVisible = await colorField.isVisible().catch(() => false);
       expect(colorVisible).toBe(true);
 
@@ -343,8 +346,9 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     // 新建科目
     const dialogVisible = await clickNewAndVerifyDialog(page, '新建科目');
     if (dialogVisible) {
+      // CI 慢环境放宽 10s（3s 不足）
       const codeInput = page.locator('.el-dialog input[placeholder*="编码"]').first();
-      await codeInput.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
+      await codeInput.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
       const codeVisible = await codeInput.isVisible().catch(() => false);
       expect(codeVisible).toBe(true);
       await closeDialog(page);

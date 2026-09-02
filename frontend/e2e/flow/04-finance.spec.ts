@@ -184,7 +184,9 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
         depreciation_method: 'straight_line',
       });
       ctx.fixedAssetId = result.data?.id;
-    } catch {
+    } catch (e) {
+      // 显式日志：POST 失败原因必须可见（禁止静默吞错），便于 CI 失败分析
+      console.error('[4-8] 固定资产 API 创建失败:', (e as Error).message);
       try {
         const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
           page,
@@ -192,8 +194,11 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
           '/fixed-assets?page=1&page_size=1'
         );
         ctx.fixedAssetId = list.items?.[0]?.id;
-      } catch {
-        /* skip */
+        if (!ctx.fixedAssetId) {
+          console.error('[4-8] fixed-assets 列表为空，无可用已有资产');
+        }
+      } catch (e2) {
+        console.error('[4-8] fixed-assets 列表查找失败:', (e2 as Error).message);
       }
     }
     expect(ctx.fixedAssetId).toBeDefined();
