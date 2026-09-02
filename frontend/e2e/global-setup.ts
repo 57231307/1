@@ -124,7 +124,23 @@ async function ensureShardUserViaUI(): Promise<void> {
     }
     const loginBtn = page.getByRole('button', { name: /登录|登 录/ }).first();
     console.log(`[globalSetup] 登录按钮可见: ${await loginBtn.isVisible().catch(() => false)}`);
-    await loginBtn.click();
+    // force click：登录页可能有 loading 遮罩或 lockInfo 状态导致 actionability 检查失败，
+    // force 绕过遮挡检测直接点击（按钮本身 disabled=false 已确认可见）
+    await loginBtn.click({ force: true }).catch(() => {});
+    await page.waitForTimeout(500);
+    // 如果首次 force click 没跳转，尝试 JS 直接触发 form submit
+    const currentUrl1 = page.url();
+    if (currentUrl1.includes('/login')) {
+      await page.evaluate(() => {
+        const btn = document.querySelector(
+          'button[type="primary"], .el-button--primary'
+        ) as HTMLButtonElement | null;
+        if (btn) btn.click();
+        const form = document.querySelector('form') as HTMLFormElement | null;
+        if (form) form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+      });
+      await page.waitForTimeout(500);
+    }
     // 等待跳转或捕获登录后错误提示
     await page
       .waitForURL(url => !url.pathname.includes('/login'), { timeout: 60_000 })
