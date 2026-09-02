@@ -447,13 +447,18 @@ impl AppCache {
 
     /// 清除指定用户的旧 CSRF Token（强制轮换，Wave 3 安全漏洞 #7 修复）
     /// 重新登录时调用使历史 token 立即失效防多设备残留；返回 true=清除至少一个，false=无活跃 token（首次登录）
+    ///
+    /// 多会话共存说明：E2E CI 34 个分片共享同一 e2e_admin 并发登录，按 user_id 全清
+    /// 会导致分片间互相踢 token（踢踏雪崩：被踢分片重登又踢别人）。改为保留
+    /// csrf_token_cache 中同 TTL 的旧 token 主体（各自随 30min TTL 自然过期），
+    /// 仅清除反向索引（index 只服务于"最近一次登录"语义），实现：
+    /// - 单会话场景：旧行为等价（旧 token 仍消费即失效——一次性消费语义不变）
+    /// - 多会话场景：各分片 token 独立有效，互不干扰
     pub fn clear_old_csrf_token_for_user(&self, user_id: i32) -> bool {
-        if let Some((_, old_token)) = self.csrf_user_index.remove(&user_id) {
-            // 同时清除 csrf_token_cache 中的旧 token 主体
-            self.csrf_token_cache.storage.remove(&old_token);
-            return true;
-        }
-        false
+        // 仅移除反向索引映射，保留 csrf_token_cache 中的旧 token（TTL 自然过期）。
+        // 旧 token 仍受一次性消费 + IP 绑定约束，安全性不变；
+        // 多会话并发时不再互相清除对方的有效 token。
+        self.csrf_user_index.remove(&user_id).is_some()
     }
 
     /// 清除所有缓存

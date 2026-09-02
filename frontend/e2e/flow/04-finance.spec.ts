@@ -7,6 +7,7 @@ import {
   verifyIllegalTransition,
   getCtx,
   genCode,
+  genName,
   ensureTestEntities,
 } from './helpers';
 

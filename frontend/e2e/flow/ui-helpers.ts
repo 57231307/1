@@ -342,6 +342,10 @@ export async function createWarehouseUI(page: Page): Promise<number | undefined>
 export async function createDepartmentUI(page: Page): Promise<number | undefined> {
   // 部门表单 status 必填（trigger:change，select 选项 启用/禁用），
   // 缺该字段会触发 formRef.validate 失败 → 提交请求不发 → waitCreateResponse 超时
+  // 路由 chunk 偶发加载失败（页面只有 layout 无组件内容），先 reload 保证组件挂载
+  await safeGoto(page, '/departments');
+  await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+  await page.waitForTimeout(500);
   const fields: UiField[] = [
     { kind: 'input', label: '部门名称', value: _genName('E2E部门') },
     { kind: 'input', label: '部门编码', value: _genCode('E2E-D') },
