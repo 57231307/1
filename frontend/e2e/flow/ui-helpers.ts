@@ -522,7 +522,8 @@ export async function createColorCardUI(page: Page): Promise<number | undefined>
       if ((await item.count()) > 0) await item.click();
       else await dropdown.locator('.el-select-dropdown__item').first().click();
     }
-    const submitBtn = page.getByRole('button', { name: /立即创建|创建|确定|保存/ }).first();
+    // 色卡创建页提交按钮文本为"提交"（colorCards.create.submit），正则须含"提交"
+    const submitBtn = page.getByRole('button', { name: /提交|立即创建|创建|确定|保存/ }).first();
     await submitBtn.waitFor({ state: 'visible', timeout: 20000 });
     await submitBtn.click();
     const data = await waitCreateResponse(page, `${API_PREFIX}/color-cards`, 45000);
