@@ -71,11 +71,11 @@ async function ensureShardUserViaUI(): Promise<void> {
     await usernameInput.waitFor({ state: 'visible', timeout: 30_000 });
     await usernameInput.fill(BASE_USERNAME);
     // 密码框：aria-label 定位（show-password 包裹多层 input）
-    const pwdInput = page.locator('input[type="password"], input[aria-label*="密码"]').first();
-    await pwdInput.waitFor({ state: 'visible', timeout: 30_000 });
-    await pwdInput.click().catch(() => {});
-    await pwdInput.fill(BASE_PASSWORD);
-    const pwdValue = await pwdInput.inputValue().catch(() => '');
+    const loginPwdInput = page.locator('input[type="password"], input[aria-label*="密码"]').first();
+    await loginPwdInput.waitFor({ state: 'visible', timeout: 30_000 });
+    await loginPwdInput.click().catch(() => {});
+    await loginPwdInput.fill(BASE_PASSWORD);
+    const pwdValue = await loginPwdInput.inputValue().catch(() => '');
     console.log(`[globalSetup] 密码已填: ${pwdValue.length > 0}`);
     // 勾选用户协议：el-checkbox 原生 input 隐藏，必须点 .el-checkbox__inner（真实点击区域）
     const termsInner = page.locator('.el-checkbox__inner').first();
