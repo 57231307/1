@@ -63,12 +63,29 @@ async function ensureShardUserViaUI(): Promise<void> {
   const page = await context.newPage();
 
   try {
-    // UI 登录 e2e_admin
+    // UI 登录 e2e_admin（登录页含"用户协议"勾选必填项，漏勾会阻断提交）
     await page.goto(`${FRONTEND_BASE}/login`, { waitUntil: 'domcontentloaded' });
-    const usernameInput = page.locator('input').first();
+    const usernameInput = page
+      .locator('input[placeholder*="用户名"], input[aria-label*="用户名"]')
+      .first();
     await usernameInput.waitFor({ state: 'visible', timeout: 30_000 });
     await usernameInput.fill(BASE_USERNAME);
     await page.locator('input[type="password"]').first().fill(BASE_PASSWORD);
+    // 勾选用户协议（P1-08-1：el-checkbox prop=agreedToTerms 必填，漏勾表单校验失败）
+    const termsCheckbox = page
+      .locator('.el-checkbox')
+      .filter({ hasText: /同意|协议/ })
+      .first();
+    if ((await termsCheckbox.count()) > 0) {
+      const isChecked = await termsCheckbox
+        .locator('input[type="checkbox"]')
+        .isChecked()
+        .catch(() => false);
+      if (!isChecked) {
+        await termsCheckbox.click().catch(() => {});
+        await page.waitForTimeout(200);
+      }
+    }
     await page
       .getByRole('button', { name: /登录|登 录/ })
       .first()

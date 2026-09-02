@@ -23,7 +23,8 @@ export interface UserCreateRequest {
   email?: string;
   phone?: string;
   department_id?: number;
-  role_ids?: number[];
+  // 后端 CreateUserRequest.role_id 为 Option<i32>（单值，非数组）
+  role_id?: number;
 }
 
 export interface UserUpdateRequest {
@@ -31,7 +32,8 @@ export interface UserUpdateRequest {
   email?: string;
   phone?: string;
   department_id?: number;
-  role_ids?: number[];
+  // 后端 UpdateUserRequest.role_id 为 Option<i32>（单值，非数组）
+  role_id?: number;
   status?: number;
 }
 
