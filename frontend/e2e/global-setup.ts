@@ -71,9 +71,7 @@ async function ensureShardUserViaUI(): Promise<void> {
     await usernameInput.waitFor({ state: 'visible', timeout: 30_000 });
     await usernameInput.fill(BASE_USERNAME);
     // 密码框：aria-label 定位（show-password 包裹多层 input）
-    const pwdInput = page
-      .locator('input[type="password"], input[aria-label*="密码"]')
-      .first();
+    const pwdInput = page.locator('input[type="password"], input[aria-label*="密码"]').first();
     await pwdInput.waitFor({ state: 'visible', timeout: 30_000 });
     await pwdInput.click().catch(() => {});
     await pwdInput.fill(BASE_PASSWORD);
@@ -109,17 +107,12 @@ async function ensureShardUserViaUI(): Promise<void> {
       });
       await page.waitForTimeout(300);
       console.log(
-        `[globalSetup] JS 兜底后协议状态: ${await page.locator('.el-checkbox input[type="checkbox"]').first().isChecked().catch(() => 'unknown')}`
-      );
-    }
-      console.log(
-        `[globalSetup] 协议勾选状态: ${await termsCheckbox
-          .locator('input[type="checkbox"]')
+        `[globalSetup] JS 兜底后协议状态: ${await page
+          .locator('.el-checkbox input[type="checkbox"]')
+          .first()
           .isChecked()
           .catch(() => 'unknown')}`
       );
-    } else {
-      console.log('[globalSetup] 未找到协议 checkbox');
     }
     // 表单校验错误提示（协议未勾等）
     const formErrors = await page
