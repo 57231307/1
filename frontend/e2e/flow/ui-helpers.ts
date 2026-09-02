@@ -498,11 +498,11 @@ export async function createColorCardUI(page: Page): Promise<number | undefined>
     await safeGoto(page, '/color-cards/create');
     await page.waitForTimeout(800);
     const cardNoInput = page
-      .locator('input[placeholder*="卡号" i], .el-form-item:has(span:text-is("卡号")) input')
+      .locator('input[placeholder*="卡号" i], .el-form-item:has(:text-is("卡号")) input')
       .first();
-    const cardNameInput = page.locator('.el-form-item:has(span:text-is("卡名")) input').first();
+    const cardNameInput = page.locator('.el-form-item:has(:text-is("卡名")) input').first();
     const typeSelect = page
-      .locator('.el-form-item:has(span:text-is("色卡类型")) .el-select__wrapper')
+      .locator('.el-form-item:has(:text-is("色卡类型")) .el-select__wrapper')
       .first();
     await cardNoInput.waitFor({ state: 'visible', timeout: 30000 });
     await cardNoInput.click({ clickCount: 3 });
@@ -543,7 +543,8 @@ export async function createDyeBatchUI(page: Page): Promise<number | undefined> 
   // uiCreateDialog 内部已有 safeGoto('/dye-batch')，页面挂载会触发 getProductList（GET /products），
   // 此处不再重复导航（避免与 uiCreateDialog 内 safeGoto 叠加导致耗时接近 120s 测试超时）。
   // 产品下拉数据在 addBtn/dialog waitFor 期间异步加载，fillField select 时已就绪。
-  // 加 60s 超时保护：UI 交互脆弱时提前返回走 API 兜底，避免 120s 测试级超时导致兜底也失败
+  // 加 120s 超时保护：safeGoto 在页面 504 时最多重试 3 次约 108s，
+  // 60s race 会误中断正常创建流程（300s 总超时内 120s 安全）
   const fields: UiField[] = [
     { kind: 'input', label: '批次号', value: _genCode('E2E-DB') },
     { kind: 'select', label: '产品', value: 'E2E' },
@@ -553,9 +554,9 @@ export async function createDyeBatchUI(page: Page): Promise<number | undefined> 
   ];
   const timeoutPromise = new Promise<undefined>(resolve =>
     setTimeout(() => {
-      console.warn('[createDyeBatchUI] 60s 超时，走 API 兜底');
+      console.warn('[createDyeBatchUI] 120s 超时，走 API 兜底');
       resolve(undefined);
-    }, 60_000)
+    }, 120_000)
   );
   return Promise.race([
     uiCreateDialog(
@@ -724,12 +725,8 @@ export async function createCustomOrderUI(page: Page): Promise<number | undefine
       await inputs.nth(1).fill('1');
     } else {
       // 兜底：用 label 定位
-      const customerIdInput = page
-        .locator('.el-form-item:has(span:text-is("客户ID")) input')
-        .first();
-      const productIdInput = page
-        .locator('.el-form-item:has(span:text-is("产品ID")) input')
-        .first();
+      const customerIdInput = page.locator('.el-form-item:has(:text-is("客户ID")) input').first();
+      const productIdInput = page.locator('.el-form-item:has(:text-is("产品ID")) input').first();
       await customerIdInput.waitFor({ state: 'visible', timeout: 30000 });
       await customerIdInput.click({ clickCount: 3 });
       await customerIdInput.fill('1');
@@ -737,14 +734,14 @@ export async function createCustomOrderUI(page: Page): Promise<number | undefine
       await productIdInput.fill('1');
     }
     const specInput = page
-      .locator('.el-form-item:has(span:text-is("规格")) input, input[placeholder*="规格"]')
+      .locator('.el-form-item:has(:text-is("规格")) input, input[placeholder*="规格"]')
       .first();
     await specInput.waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
     await specInput.click({ clickCount: 3 }).catch(() => {});
     await specInput.fill('E2E 定制规格').catch(() => {});
     // 数量定位须限定"数量"label 的 form-item：页面另有 total_amount 等
     // el-input-number，.last() 会误选 total_amount 导致 quantity 空校验失败
-    const quantityInput = page.locator('.el-form-item:has(span:text-is("数量")) input').first();
+    const quantityInput = page.locator('.el-form-item:has(:text-is("数量")) input').first();
     await quantityInput.waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
     await quantityInput.click({ clickCount: 3 }).catch(() => {});
     await quantityInput.fill('100').catch(() => {});

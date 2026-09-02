@@ -376,9 +376,13 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
       await dialog.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
       const dialogVisible = await dialog.isVisible().catch(() => false);
       expect(dialogVisible).toBe(true);
-      // 验证表单有色号字段
-      const colorField = dialog.locator('text=色号, text=颜色名称').first();
-      await colorField.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
+      // 验证表单有色号字段（el-form-item label 渲染为 <label>，
+      // hasText 兼容 label/span，等待放宽至 10s 应对 CI 慢环境）
+      const colorField = dialog
+        .locator('.el-form-item')
+        .filter({ hasText: /色号|颜色名称/ })
+        .first();
+      await colorField.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
       const colorVisible = await colorField.isVisible().catch(() => false);
       expect(colorVisible).toBe(true);
       await page

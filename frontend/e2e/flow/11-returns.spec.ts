@@ -59,31 +59,31 @@ test.describe('采购退货完整流程', () => {
     }
 
     // 验证退货单状态
-    const created = await apiCallRaw<{ status: string; supplier_id: number }>(
+    const created = await apiCallRaw<{ return_status?: string; supplier_id: number }>(
       page,
       'GET',
       `/purchase/returns/${returnId}`
     );
-    expect(created.status.toLowerCase()).toBe('draft');
+    expect((created.return_status ?? '').toLowerCase()).toBe('draft');
     expect(created.supplier_id).toBe(ctx.supplierId || 1);
 
     // 提交退货单
     await apiCall(page, 'POST', `/purchase/returns/${returnId}/submit`);
-    const submitted = await apiCallRaw<{ status: string }>(
+    const submitted = await apiCallRaw<{ return_status?: string }>(
       page,
       'GET',
       `/purchase/returns/${returnId}`
     );
-    expect(submitted.status.toLowerCase()).toBe('submitted');
+    expect((submitted.return_status ?? '').toLowerCase()).toBe('submitted');
 
     // 审批退货单
     await apiCall(page, 'POST', `/purchase/returns/${returnId}/approve`);
-    const approved = await apiCallRaw<{ status: string }>(
+    const approved = await apiCallRaw<{ return_status?: string }>(
       page,
       'GET',
       `/purchase/returns/${returnId}`
     );
-    expect(approved.status.toLowerCase()).toBe('approved');
+    expect((approved.return_status ?? '').toLowerCase()).toBe('approved');
 
     // 验证非法转换：已审批的退货单不能再次提交
     const illegalSubmit = await apiCallExpectFail(

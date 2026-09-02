@@ -98,12 +98,18 @@ async function uiCreateWithRetry(
 }
 
 export async function ensureTestEntities(page: Page): Promise<void> {
-  // 会话预检查：CSRF 校验失败场景下前端会清空 csrf_token Cookie 并跳转登录页，
-  // 提前检测并强制重新登录，避免逐个实体失败浪费重试时间
+  // 会话预检查：CSRF 校验失败场景下前端会清空 csrf_token Cookie并跳转登录页；
+  // 401 后守卫 init/status 失败会安全跳 /setup。检测到 csrf_token 缺失
+  // 或页面已被踢到 /login、/setup 时强制重新登录，避免逐个实体失败浪费重试时间
   if (LOGGED_IN.done) {
     const cookies = await page.context().cookies();
-    if (!cookies.some(c => c.name === 'csrf_token')) {
-      console.warn('[ensureTestEntities] 检测到 csrf_token 缺失，强制重新登录');
+    const hasCsrf = cookies.some(c => c.name === 'csrf_token');
+    const currentUrl = page.url();
+    const kickedOut = currentUrl.includes('/login') || currentUrl.includes('/setup');
+    if (!hasCsrf || kickedOut) {
+      console.warn(
+        `[ensureTestEntities] 会话异常（csrf=${hasCsrf}，url=${currentUrl}），强制重新登录`
+      );
       await loginViaUI(page, undefined, undefined, true);
     }
   }
@@ -418,29 +424,18 @@ export async function ensureTestEntities(page: Page): Promise<void> {
       // 兜底仅填必填字段创建批次记录，避免 dyeBatchId 缺失阻塞后续流程
       // status 后端用中文枚举（from_chinese_str），不传时后端默认"待生产"
       try {
-        const result = await apiCall<{ id?: number }>(
-          page,
-          'POST',
-          '/production/dye-batches',
-          {
-            batch_no: `E2E-DB${Date.now().toString().slice(-6)}`,
-            color_no: ctx.colorNos[0] || 'TEST-COLOR',
-            dye_lot_no: ctx.dyeLotNo || genDyeLotNo(),
-            planned_quantity: 100,
-          }
-        );
+        const result = await apiCall<{ id?: number }>(page, 'POST', '/production/dye-batches', {
+          batch_no: `E2E-DB${Date.now().toString().slice(-6)}`,
+          color_no: ctx.colorNos[0] || 'TEST-COLOR',
+          dye_lot_no: ctx.dyeLotNo || genDyeLotNo(),
+          planned_quantity: 100,
+        });
         ctx.dyeBatchId = result.data?.id;
         if (!ctx.dyeBatchId) {
-          console.error(
-            '[ensureTestEntities] 染色批次 API 兜底未返回 id:',
-            JSON.stringify(result)
-          );
+          console.error('[ensureTestEntities] 染色批次 API 兜底未返回 id:', JSON.stringify(result));
         }
       } catch (e) {
-        console.error(
-          '[ensureTestEntities] 染色批次 API 兜底创建失败:',
-          (e as Error).message
-        );
+        console.error('[ensureTestEntities] 染色批次 API 兜底创建失败:', (e as Error).message);
       }
     }
   }
@@ -468,31 +463,20 @@ export async function ensureTestEntities(page: Page): Promise<void> {
       );
       // API 兜底：UI textarea 字段交互脆弱（120s 超时），兜底创建配方记录
       try {
-        const result = await apiCall<{ id?: number }>(
-          page,
-          'POST',
-          '/production/dye-recipes',
-          {
-            recipe_no: `E2E-DR${Date.now().toString().slice(-6)}`,
-            recipe_name: `E2E配方${Date.now().toString().slice(-6)}`,
-            color_code: ctx.colorNos[0] || 'TEST-COLOR',
-            color_name: '测试色',
-            chemical_formula: 'E2E测试内容',
-            status: 'DRAFT',
-          }
-        );
+        const result = await apiCall<{ id?: number }>(page, 'POST', '/production/dye-recipes', {
+          recipe_no: `E2E-DR${Date.now().toString().slice(-6)}`,
+          recipe_name: `E2E配方${Date.now().toString().slice(-6)}`,
+          color_code: ctx.colorNos[0] || 'TEST-COLOR',
+          color_name: '测试色',
+          chemical_formula: 'E2E测试内容',
+          status: 'DRAFT',
+        });
         ctx.dyeRecipeId = result.data?.id;
         if (!ctx.dyeRecipeId) {
-          console.error(
-            '[ensureTestEntities] 染色配方 API 兜底未返回 id:',
-            JSON.stringify(result)
-          );
+          console.error('[ensureTestEntities] 染色配方 API 兜底未返回 id:', JSON.stringify(result));
         }
       } catch (e) {
-        console.error(
-          '[ensureTestEntities] 染色配方 API 兜底创建失败:',
-          (e as Error).message
-        );
+        console.error('[ensureTestEntities] 染色配方 API 兜底创建失败:', (e as Error).message);
       }
     }
   }
@@ -1033,7 +1017,7 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
 
   // 等待离开 /login 页面
   try {
-    await page.waitForURL(url => !url.pathname.includes('/login'), { timeout: 60_000 });
+    await page.waitForURL(url => !url.pathname.includes('/login'), { timeout: 120_000 });
   } catch {
     // 登录后仍然在 /login，输出诊断信息
     const currentUrl = page.url();
@@ -1049,7 +1033,7 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
     // 截图
     await page.screenshot({ path: 'test-results/login-failure-diagnosis.png', fullPage: true });
     throw new Error(
-      `UI 登录失败: 60s 后仍在 ${currentUrl}，ElMessage: ${JSON.stringify(elMessages)}`
+      `UI 登录失败: 120s 后仍在 ${currentUrl}，ElMessage: ${JSON.stringify(elMessages)}`
     );
   }
 

@@ -172,8 +172,8 @@ test.describe('批量操作与弹窗确认', () => {
       await supplierSelect.click();
       await page.waitForTimeout(500);
 
-      // 验证下拉选项出现
-      const dropdownItems = page.locator('.el-select-dropdown__item');
+      // 验证下拉选项出现（只统计可见 dropdown 的 item，页面可能有隐藏 dropdown 实例）
+      const dropdownItems = page.locator('.el-select-dropdown:visible .el-select-dropdown__item');
       const itemCount = await dropdownItems.count();
       expect(itemCount).toBeGreaterThan(0);
 
