@@ -7,7 +7,7 @@ const API_PREFIX = '/api/v1/erp';
 // 分片账号通过真实 UI（用户管理页面）创建，属于测试前置数据准备（ensureTestEntities 同级，
 // 不属于测试验证手段），UI 测试本身仍全部走真实用户操作。
 const BASE_USERNAME = process.env.TEST_USERNAME || 'e2e_admin';
-const BASE_PASSWORD = process.env.TEST_PASSWORD || 'E2e@TestPassword2026!';
+const BASE_PASSWORD = process.env.TEST_PASSWORD || 'Xk9#mQ2$vL8pW4nR';
 const SHARD_INDEX = process.env.E2E_SHARD_INDEX ?? '';
 const SHARD_USERNAME = SHARD_INDEX !== '' ? `e2e_admin_s${SHARD_INDEX}` : BASE_USERNAME;
 const SHARD_PASSWORD = BASE_PASSWORD;

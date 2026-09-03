@@ -174,7 +174,7 @@ test.describe('后端连接状态与 Token 管理', () => {
       .locator('input[placeholder="密码"], input[placeholder="Password"]')
       .first();
     await pwdInput.waitFor({ state: 'visible', timeout: 20_000 });
-    await pwdInput.fill(process.env.TEST_PASSWORD || 'E2e@TestPassword2026!');
+    await pwdInput.fill(process.env.TEST_PASSWORD || 'Xk9#mQ2$vL8pW4nR');
     const loginBtn = page.locator('form button.el-button--primary').first();
     await loginBtn.waitFor({ state: 'visible', timeout: 20_000 });
     await loginBtn.click();

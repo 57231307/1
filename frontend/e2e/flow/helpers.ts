@@ -25,7 +25,7 @@ export const TEST_USERNAME =
   (process.env.E2E_SHARD_INDEX !== undefined && process.env.E2E_SHARD_INDEX !== ''
     ? `e2e_admin_s${process.env.E2E_SHARD_INDEX}`
     : 'e2e_admin');
-export const TEST_PASSWORD = process.env.TEST_PASSWORD || 'E2e@TestPassword2026!';
+export const TEST_PASSWORD = process.env.TEST_PASSWORD || 'Xk9#mQ2$vL8pW4nR';
 
 export interface ApiResponse<T = unknown> {
   code: number;
