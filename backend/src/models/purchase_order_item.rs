@@ -39,12 +39,12 @@ pub struct Model {
     #[sea_orm(column_type = "Decimal(Some((18, 6)))")]
     pub unit_price_foreign: Decimal,
 
-    /// 折扣率
-    #[sea_orm(column_type = "Decimal(Some((5, 4)))")]
+    /// 折扣率（百分比 0-999.9999，DECIMAL(7,4)；原 (5,4) 最大 9.9999 导致税率 13 溢出）
+    #[sea_orm(column_type = "Decimal(Some((7, 4)))")]
     pub discount_percent: Decimal,
 
-    /// 税率
-    #[sea_orm(column_type = "Decimal(Some((5, 4)))")]
+    /// 税率（百分比 0-999.9999，DECIMAL(7,4)；原 (5,4) 最大 9.9999 导致税率 13 溢出）
+    #[sea_orm(column_type = "Decimal(Some((7, 4)))")]
     pub tax_percent: Decimal,
 
     /// 小计（本位币）

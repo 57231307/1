@@ -205,8 +205,9 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
           },
         ],
       });
-    } catch {
-      // 可能库存不足或状态不允许
+    } catch (e) {
+      // 发货失败必须显式记录（详细日志规则）：库存不足/状态不允许/字段错误各不相同
+      console.error('[2-6] 发货请求失败:', (e as Error).message);
     }
 
     const order = await apiCallRaw<{ status: string }>(page, 'GET', `/sales/orders/${id}`);

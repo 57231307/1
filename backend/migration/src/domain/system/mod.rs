@@ -351,6 +351,10 @@ ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "tax_amount" DECIMAL(18
 ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "tax_percent" DECIMAL(18,4);
 ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "total_amount" DECIMAL(18,4);
 ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "width" DECIMAL(18,4);
+-- purchase_order_items 的折扣率/税率为 DECIMAL(5,4)（最大 9.9999），税率 13 插入
+-- 报 numeric field overflow（backend.log 实证）。百分比应支持 0-999.9999，改 DECIMAL(7,4)
+ALTER TABLE "purchase_order_items" ALTER COLUMN "discount_percent" TYPE DECIMAL(7,4) USING "discount_percent"::DECIMAL(7,4);
+ALTER TABLE "purchase_order_items" ALTER COLUMN "tax_percent" TYPE DECIMAL(7,4) USING "tax_percent"::DECIMAL(7,4);
 -- custom_orders model（Rust i64 / Option<i64>）与 m0044 建表声明（BIGINT）对齐：
 -- 若实际 DB 列为 INT4（历史 INTEGER 建表），SeaORM 解码报
 -- "Option<i64> (INT8) is not compatible with SQL type INT4" → 定制订单创建 500

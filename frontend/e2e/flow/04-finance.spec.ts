@@ -210,11 +210,11 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
     const ctx = getCtx();
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/budgets', {
-        budget_name: genName('E2E预算'),
+        // 后端 CreateBudgetDto 必填 item_name + planned_amount（budget_name/total_amount 不存在）
+        item_name: genName('E2E预算'),
         budget_year: new Date().getFullYear(),
-        budget_type: 'expense',
-        total_amount: 500000,
-        is_active: true,
+        item_type: 'expense',
+        planned_amount: 500000,
       });
       ctx.budgetId = result.data?.id;
     } catch {

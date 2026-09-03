@@ -33,8 +33,8 @@ test.describe('后端连接状态与 Token 管理', () => {
     // 时间戳查询参数破坏 HTTP 缓存/bfcache，确保守卫 JS 真正执行
     await page.goto(`${BASE_URL}/purchase?t=${Date.now()}`, { waitUntil: 'domcontentloaded' });
     // 守卫链：/auth/me 401 → refresh 401 → redirect /login；
-    // 等待 URL 实际变化（最长 15s），固定 3s 在首次加载慢时会误判
-    await page.waitForURL(/\/(login|setup)/, { timeout: 15_000 }).catch(() => {});
+    // 等待 URL 实际变化（CI 慢环境首次 JS 执行可达 20s+，30s 留余量），固定 3s 在首次加载慢时会误判
+    await page.waitForURL(/\/(login|setup)/, { timeout: 30_000 }).catch(() => {});
 
     const url = page.url();
     expect(url.includes('/login') || url.includes('/setup')).toBe(true);
