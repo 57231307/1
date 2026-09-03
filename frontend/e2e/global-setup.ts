@@ -144,18 +144,39 @@ async function ensureShardUserViaUI(): Promise<void> {
       });
 
     // 打开系统管理页（用户管理 Tab，默认 activeTab='user'）
-    await page.goto(`${FRONTEND_BASE}/system`, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(1000);
-    // 诊断：确认 goto 后实际落点（403/404/login/setup 会解释内容不渲染）
-    console.log(`[globalSetup] goto /system 后 URL: ${page.url()}`);
-    // 确保 UserTab 已渲染（等待表格或新建按钮出现）
-    const systemContentReady = await page
-      .locator('.el-table, .el-button:has-text("新建用户")')
-      .first()
-      .waitFor({ state: 'visible', timeout: 60_000 })
-      .then(() => true)
-      .catch(() => false);
-    if (!systemContentReady) {
+    // Vite 冷启动时 /system chunk 按需编译可能返回"页面加载出错"（动态 import 失败），
+    // 与 safeGoto 的 504 重试同策略：检测到即 reload，最多 3 次
+    let systemLoaded = false;
+    for (let attempt = 1; attempt <= 3 && !systemLoaded; attempt++) {
+      await page.goto(`${FRONTEND_BASE}/system`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(1000);
+      const chunkError = await page
+        .locator('.el-message__content')
+        .allTextContents()
+        .then(texts => texts.some(t => t.includes('页面加载出错')))
+        .catch(() => false);
+      if (chunkError) {
+        console.warn(
+          `[globalSetup] /system chunk 加载出错（attempt ${attempt}/3），5s 后 reload 重试`
+        );
+        await page.waitForTimeout(5000);
+        continue;
+      }
+      // 确保 UserTab 已渲染（等待表格或新建按钮出现）
+      systemLoaded = await page
+        .locator('.el-table, .el-button:has-text("新建用户")')
+        .first()
+        .waitFor({ state: 'visible', timeout: 60_000 })
+        .then(() => true)
+        .catch(() => false);
+      if (!systemLoaded && attempt < 3) {
+        console.warn(
+          `[globalSetup] /system 页内容未渲染（attempt ${attempt}/3），5s 后 reload 重试`
+        );
+        await page.waitForTimeout(5000);
+      }
+    }
+    if (!systemLoaded) {
       const bodyText = await page
         .locator('body')
         .textContent()
@@ -165,11 +186,11 @@ async function ensureShardUserViaUI(): Promise<void> {
         .allTextContents()
         .catch(() => []);
       console.error(
-        `[globalSetup] /system 页 60s 无内容: url=${page.url()}, 页面文本(前300)=${(bodyText || '').slice(0, 300)}, 提示=${JSON.stringify(pageErrors)}`
+        `[globalSetup] /system 页 3 次尝试仍无内容: url=${page.url()}, 页面文本(前300)=${(bodyText || '').slice(0, 300)}, 提示=${JSON.stringify(pageErrors)}`
       );
       await page.screenshot({ path: 'e2e/.auth/globalsetup-system-fail.png', fullPage: true });
       throw new Error(
-        `globalSetup /system 页无内容（60s）：url=${page.url()}，页面文本前300=${(bodyText || '').slice(0, 300)}`
+        `globalSetup /system 页无内容（3 次尝试）：url=${page.url()}，页面文本前300=${(bodyText || '').slice(0, 300)}`
       );
     }
 
