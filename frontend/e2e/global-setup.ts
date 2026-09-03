@@ -146,11 +146,32 @@ async function ensureShardUserViaUI(): Promise<void> {
     // 打开系统管理页（用户管理 Tab，默认 activeTab='user'）
     await page.goto(`${FRONTEND_BASE}/system`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(1000);
+    // 诊断：确认 goto 后实际落点（403/404/login/setup 会解释内容不渲染）
+    console.log(`[globalSetup] goto /system 后 URL: ${page.url()}`);
     // 确保 UserTab 已渲染（等待表格或新建按钮出现）
-    await page
+    const systemContentReady = await page
       .locator('.el-table, .el-button:has-text("新建用户")')
       .first()
-      .waitFor({ state: 'visible', timeout: 60_000 });
+      .waitFor({ state: 'visible', timeout: 60_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (!systemContentReady) {
+      const bodyText = await page
+        .locator('body')
+        .textContent()
+        .catch(() => '(body 读取失败)');
+      const pageErrors = await page
+        .locator('.el-message__content, .el-result__title, .el-empty__description')
+        .allTextContents()
+        .catch(() => []);
+      console.error(
+        `[globalSetup] /system 页 60s 无内容: url=${page.url()}, 页面文本(前300)=${(bodyText || '').slice(0, 300)}, 提示=${JSON.stringify(pageErrors)}`
+      );
+      await page.screenshot({ path: 'e2e/.auth/globalsetup-system-fail.png', fullPage: true });
+      throw new Error(
+        `globalSetup /system 页无内容（60s）：url=${page.url()}，页面文本前300=${(bodyText || '').slice(0, 300)}`
+      );
+    }
 
     // 打开新建用户对话框（用 has-text 定位，兼容 el-icon 包裹结构）
     const createBtn = page.locator('.el-button:has-text("新建用户")').first();
