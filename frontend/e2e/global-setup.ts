@@ -87,8 +87,15 @@ async function ensureShardUserViaUI(): Promise<void> {
   const rolesBody = (await rolesResp.json().catch(() => null)) as {
     data?: { items?: Array<{ id: number; name?: string }> } | Array<{ id: number; name?: string }>;
   } | null;
-  const roleList = Array.isArray(rolesBody?.data) ? rolesBody.data : rolesBody?.data?.items || [];
-  const adminRole = roleList.find(r => r.name === 'admin');
+  // 响应结构：data.roles[]（role.name 为中文如"管理员"，code 才是 'admin'）
+  const roleData = rolesBody?.data as
+    | { roles?: Array<{ id: number; name?: string; code?: string }> }
+    | Array<{ id: number; name?: string; code?: string }>
+    | undefined;
+  const roleList = Array.isArray(roleData)
+    ? roleData
+    : roleData?.roles || (rolesBody?.data as { items?: typeof roleData })?.items || [];
+  const adminRole = roleList.find(r => r.code === 'admin' || r.name === 'admin');
   if (!adminRole) {
     await loginCtx.dispose();
     throw new Error(
