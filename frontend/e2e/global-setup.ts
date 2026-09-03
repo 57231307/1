@@ -126,7 +126,6 @@ async function ensureShardUserViaUI(): Promise<void> {
       );
     }
   }
-  }
 
   // 4) 终验：分片账号必须可登录
   const checkCtx = await request.newContext({
