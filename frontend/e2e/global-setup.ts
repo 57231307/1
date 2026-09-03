@@ -104,14 +104,14 @@ async function ensureShardUserViaUI(): Promise<void> {
   }
 
   // 3) POST /users 创建分片账号（已存在视为成功）
+  const createPayload = {
+    username: SHARD_USERNAME,
+    password: SHARD_PASSWORD,
+    role_id: adminRole.id,
+  };
   const createResp = await loginCtx.post(`${API_PREFIX}/users`, {
     headers: { 'X-CSRF-Token': csrfCookie.value, 'X-Requested-With': 'XMLHttpRequest' },
-    data: {
-      username: SHARD_USERNAME,
-      password: SHARD_PASSWORD,
-      real_name: `E2E分片${SHARD_INDEX}`,
-      role_id: adminRole.id,
-    },
+    data: createPayload,
   });
   await loginCtx.dispose();
   if (createResp.ok()) {
@@ -121,8 +121,11 @@ async function ensureShardUserViaUI(): Promise<void> {
     if (body.includes('已存在') || createResp.status() === 409) {
       console.log(`[globalSetup] 分片账号 ${SHARD_USERNAME} 已存在，跳过创建`);
     } else {
-      throw new Error(`分片账号创建失败 HTTP ${createResp.status()} ${body.slice(0, 300)}`);
+      throw new Error(
+        `分片账号创建失败 HTTP ${createResp.status()} payload=${JSON.stringify({ ...createPayload, password: '***' })} body=${body.slice(0, 300)}`
+      );
     }
+  }
   }
 
   // 4) 终验：分片账号必须可登录
