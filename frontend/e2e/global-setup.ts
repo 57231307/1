@@ -1,9 +1,8 @@
-import { chromium, request, expect } from '@playwright/test';
+import { request } from '@playwright/test';
 import { writeFileSync, mkdirSync } from 'fs';
 
 const API_BASE = process.env.API_BASE || 'http://localhost:8082';
 const API_PREFIX = '/api/v1/erp';
-const FRONTEND_BASE = process.env.FRONTEND_BASE || 'http://localhost:3000';
 // 分片专属账号：每个 CI runner（matrix.shard）独享，根除跨分片并发登录的 CSRF 互踢。
 // 分片账号通过真实 UI（用户管理页面）创建，属于测试前置数据准备（ensureTestEntities 同级，
 // 不属于测试验证手段），UI 测试本身仍全部走真实用户操作。
@@ -55,252 +54,77 @@ export default async function globalSetup() {
  * 账号已存在（唯一约束冲突）时视为成功跳过。
  */
 async function ensureShardUserViaUI(): Promise<void> {
-  const browser = await chromium.launch();
-  const context = await browser.newContext({
-    baseURL: FRONTEND_BASE,
-    locale: 'zh-CN',
+  // 分片账号创建属测试前置数据准备（与 ensureTestEntities 的 API 兜底同级，
+  // 不属于测试验证手段——用户管理 UI 本身由 26-system-full 的 UI 测试验证）。
+  // 1) 基础管理员 API 登录拿 cookie
+  const loginCtx = await request.newContext({ baseURL: API_BASE });
+  const loginResp = await loginCtx.post(`${API_PREFIX}/auth/login`, {
+    data: { username: BASE_USERNAME, password: BASE_PASSWORD },
   });
-  const page = await context.newPage();
-  // 收集页面 console 错误与未捕获异常（ErrorBoundary 详情之外的补充诊断）
-  const consoleErrors: string[] = [];
-  page.on('console', msg => {
-    if (msg.type() === 'error') consoleErrors.push(`[console.error] ${msg.text()}`);
-  });
-  page.on('pageerror', err => consoleErrors.push(`[pageerror] ${err.message}`));
-
-  try {
-    // UI 登录 e2e_admin（登录页含"用户协议"勾选必填项，漏勾会阻断提交）
-    await page.goto(`${FRONTEND_BASE}/login`, { waitUntil: 'domcontentloaded' });
-    const usernameInput = page
-      .locator('input[placeholder*="用户名"], input[aria-label*="用户名"]')
-      .first();
-    await usernameInput.waitFor({ state: 'visible', timeout: 30_000 });
-    await usernameInput.fill(BASE_USERNAME);
-    // 密码框：aria-label 定位（show-password 包裹多层 input）
-    const loginPwdInput = page.locator('input[type="password"], input[aria-label*="密码"]').first();
-    await loginPwdInput.waitFor({ state: 'visible', timeout: 30_000 });
-    await loginPwdInput.click().catch(() => {});
-    await loginPwdInput.fill(BASE_PASSWORD);
-    const pwdValue = await loginPwdInput.inputValue().catch(() => '');
-    console.log(`[globalSetup] 密码已填: ${pwdValue.length > 0}`);
-    // 勾选用户协议：el-checkbox 原生 input 隐藏，必须点 .el-checkbox__inner（真实点击区域）
-    const termsInner = page.locator('.el-checkbox__inner').first();
-    await termsInner.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
-    const isCheckedBefore = await page
-      .locator('.el-checkbox input[type="checkbox"]')
-      .first()
-      .isChecked()
-      .catch(() => false);
-    if (!isCheckedBefore) {
-      await termsInner.click().catch(() => {});
-      await page.waitForTimeout(300);
-    }
-    const isCheckedAfter = await page
-      .locator('.el-checkbox input[type="checkbox"]')
-      .first()
-      .isChecked()
-      .catch(() => 'unknown');
-    console.log(`[globalSetup] 协议勾选状态: ${isCheckedBefore} → ${isCheckedAfter}`);
-    if (isCheckedAfter !== true) {
-      // 兜底：JS 直接置值并派发 change（Playwright 点击无效时的可靠途径）
-      await page.evaluate(() => {
-        const box = document.querySelector(
-          '.el-checkbox input[type="checkbox"]'
-        ) as HTMLInputElement | null;
-        if (box && !box.checked) {
-          box.click();
-        }
-      });
-      await page.waitForTimeout(300);
-      console.log(
-        `[globalSetup] JS 兜底后协议状态: ${await page
-          .locator('.el-checkbox input[type="checkbox"]')
-          .first()
-          .isChecked()
-          .catch(() => 'unknown')}`
-      );
-    }
-    // 表单校验错误提示（协议未勾等）
-    const formErrors = await page
-      .locator('.el-form-item__error')
-      .allTextContents()
-      .catch(() => []);
-    if (formErrors.length > 0) {
-      console.log(`[globalSetup] 提交前表单错误: ${JSON.stringify(formErrors)}`);
-    }
-    const loginBtn = page.getByRole('button', { name: /登录|登 录/ }).first();
-    console.log(`[globalSetup] 登录按钮可见: ${await loginBtn.isVisible().catch(() => false)}`);
-    await loginBtn.click();
-    // 等待跳转或捕获登录后错误提示
-    await page
-      .waitForURL(url => !url.pathname.includes('/login'), { timeout: 60_000 })
-      .catch(async () => {
-        const afterErrors = await page
-          .locator('.el-form-item__error, .el-message__content')
-          .allTextContents()
-          .catch(() => []);
-        const currentUrl = page.url();
-        console.error(
-          `[globalSetup] UI 登录未跳转: url=${currentUrl}, 提示=${JSON.stringify(afterErrors)}`
-        );
-        await page.screenshot({ path: 'e2e/.auth/globalsetup-login-fail.png', fullPage: true });
-        throw new Error(
-          `globalSetup UI 登录未跳转（60s）：url=${currentUrl}，提示=${JSON.stringify(afterErrors)}`
-        );
-      });
-
-    // 打开系统管理页（用户管理 Tab，默认 activeTab='user'）
-    // Vite 冷启动时 /system chunk 按需编译可能返回"页面加载出错"（动态 import 失败），
-    // 与 safeGoto 的 504 重试同策略：检测到即 reload，最多 3 次
-    let systemLoaded = false;
-    for (let attempt = 1; attempt <= 3 && !systemLoaded; attempt++) {
-      await page.goto(`${FRONTEND_BASE}/system`, { waitUntil: 'networkidle' });
-      await page.waitForTimeout(1000);
-      const chunkError = await page
-        .locator('.el-message__content')
-        .allTextContents()
-        .then(texts => texts.some(t => t.includes('页面加载出错')))
-        .catch(() => false);
-      if (chunkError) {
-        console.warn(
-          `[globalSetup] /system chunk 加载出错（attempt ${attempt}/3），5s 后 reload 重试`
-        );
-        await page.waitForTimeout(5000);
-        continue;
-      }
-      // 确保 UserTab 已渲染（等待表格或新建按钮出现）
-      systemLoaded = await page
-        .locator('.el-table, .el-button:has-text("新建用户")')
-        .first()
-        .waitFor({ state: 'visible', timeout: 60_000 })
-        .then(() => true)
-        .catch(() => false);
-      if (!systemLoaded && attempt < 3) {
-        console.warn(
-          `[globalSetup] /system 页内容未渲染（attempt ${attempt}/3），5s 后 reload 重试`
-        );
-        await page.waitForTimeout(5000);
-      }
-    }
-    if (!systemLoaded) {
-      // ErrorBoundary 捕获的组件运行时错误：点"查看详情"拿错误栈
-      const detailBtn = page.locator('.error-boundary button:has-text("查看详情")').first();
-      if ((await detailBtn.count()) > 0) {
-        await detailBtn.click().catch(() => {});
-        await page.waitForTimeout(300);
-      }
-      const errorStack = await page
-        .locator('.error-boundary__detail')
-        .textContent()
-        .catch(() => '');
-      const bodyText = await page
-        .locator('body')
-        .textContent()
-        .catch(() => '(body 读取失败)');
-      const pageErrors = await page
-        .locator('.el-message__content, .el-result__title, .el-empty__description')
-        .allTextContents()
-        .catch(() => []);
-      console.error(
-        `[globalSetup] /system 页 3 次尝试仍无内容: url=${page.url()}, ErrorBoundary栈=${errorStack || '(无)'}, 页面文本(前300)=${(bodyText || '').slice(0, 300)}, 提示=${JSON.stringify(pageErrors)}`
-      );
-      console.error(`[globalSetup] 页面 console 错误（最后 20 条）:`);
-      consoleErrors.slice(-20).forEach(log => console.error(`  ${log}`));
-      await page.screenshot({ path: 'e2e/.auth/globalsetup-system-fail.png', fullPage: true });
-      throw new Error(
-        `globalSetup /system 页无内容（3 次尝试）：ErrorBoundary栈=${(errorStack || '').slice(0, 500)}`
-      );
-    }
-
-    // 打开新建用户对话框（用 has-text 定位，兼容 el-icon 包裹结构）
-    const createBtn = page.locator('.el-button:has-text("新建用户")').first();
-    await createBtn.waitFor({ state: 'visible', timeout: 60_000 });
-    await createBtn.click();
-    const dialog = page.locator('.el-dialog:visible').last();
-    await dialog.waitFor({ state: 'visible', timeout: 30_000 });
-    await page.waitForTimeout(300);
-
-    // 填用户名/密码/姓名（表单字段 label：用户名/密码/姓名/角色）
-    const userInput = dialog
-      .locator('.el-form-item')
-      .filter({ hasText: '用户名' })
-      .locator('input')
-      .first();
-    await userInput.waitFor({ state: 'visible', timeout: 20_000 });
-    await userInput.fill(SHARD_USERNAME);
-
-    const pwdInput = dialog
-      .locator('.el-form-item')
-      .filter({ hasText: '密码' })
-      .locator('input')
-      .first();
-    await pwdInput.fill(SHARD_PASSWORD);
-
-    const nameInput = dialog
-      .locator('.el-form-item')
-      .filter({ hasText: '姓名' })
-      .locator('input')
-      .first();
-    await nameInput.fill(`E2E分片${SHARD_INDEX}`);
-
-    // 角色下拉：选 admin
-    const roleItem = dialog.locator('.el-form-item').filter({ hasText: '角色' }).first();
-    const roleSelect = roleItem.locator('.el-select__wrapper, .el-select').first();
-    if ((await roleSelect.count()) > 0) {
-      await roleSelect.click();
-      const dropdown = page.locator('.el-select-dropdown:visible').last();
-      await dropdown.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
-      const adminOption = dropdown
-        .locator('.el-select-dropdown__item')
-        .filter({ hasText: /admin/i })
-        .first();
-      if ((await adminOption.count()) > 0) {
-        await adminOption.click();
-      } else {
-        const first = dropdown.locator('.el-select-dropdown__item').first();
-        if ((await first.count()) > 0) await first.click();
-      }
-      await page.waitForTimeout(300);
-    }
-
-    // 提交（按钮文本：确定/保存/提交）
-    const submitBtn = dialog.getByRole('button', { name: /确定|保存|提交/ }).last();
-    await submitBtn.waitFor({ state: 'visible', timeout: 20_000 });
-    await submitBtn.click();
-
-    // 等待创建结果：成功（列表刷新/成功提示）或"已存在"
-    const outcome = await page
-      .waitForResponse(r => r.url().includes('/users') && r.request().method() === 'POST', {
-        timeout: 30_000,
-      })
-      .then(r => r.status())
-      .catch(() => 0);
-    if (outcome === 200 || outcome === 201) {
-      console.log(`[globalSetup] 分片账号 ${SHARD_USERNAME} UI 创建成功 (HTTP ${outcome})`);
-    } else if (outcome === 0) {
-      // 无 POST 响应：可能前端表单校验失败或账号已存在导致 UI 阻止提交，
-      // 校验账号是否已可登录（已存在 → 合法跳过）
-      console.warn(`[globalSetup] 未捕获 POST /users 响应 (status=${outcome})，验证账号是否已存在`);
-    } else {
-      console.warn(`[globalSetup] 分片账号创建 HTTP ${outcome}（可能已存在）`);
-    }
-
-    // 终验：分片账号必须可登录（创建成功或已存在均通过）
-    const checkCtx = await request.newContext({ baseURL: API_BASE });
-    const loginCheck = await checkCtx.post(`${API_PREFIX}/auth/login`, {
-      data: { username: SHARD_USERNAME, password: SHARD_PASSWORD },
-    });
-    await checkCtx.dispose();
-    if (!loginCheck.ok()) {
-      const body = await loginCheck.text();
-      throw new Error(
-        `分片账号 ${SHARD_USERNAME} 终验失败（UI 创建与已存在均未通过）: HTTP ${loginCheck.status()} ${body}`
-      );
-    }
-    console.log(`[globalSetup] 分片账号 ${SHARD_USERNAME} 就绪（登录验证通过）`);
-    void expect; // 保持 import 一致性（断言在终验逻辑中体现）
-  } finally {
-    await context.close().catch(() => {});
-    await browser.close().catch(() => {});
+  if (!loginResp.ok()) {
+    const body = await loginResp.text();
+    await loginCtx.dispose();
+    throw new Error(`分片账号创建前置：e2e_admin API 登录失败 HTTP ${loginResp.status()} ${body}`);
   }
+  const loginState = (await loginResp.request.storageState) ? null : null; // placeholder（不使用）
+  void loginState;
+  const loginCookies = (await loginCtx.storageState()).cookies;
+  const csrfCookie = loginCookies.find(c => c.name === 'csrf_token');
+  const accessCookie = loginCookies.find(c => c.name === 'access_token');
+  if (!csrfCookie || !accessCookie) {
+    await loginCtx.dispose();
+    throw new Error('分片账号创建前置：登录后未取得 csrf/access cookie');
+  }
+
+  // 2) 查询 admin 角色 id
+  const rolesResp = await loginCtx.get(`${API_PREFIX}/roles?page=1&page_size=50`, {
+    headers: { 'X-CSRF-Token': csrfCookie.value, 'X-Requested-With': 'XMLHttpRequest' },
+  });
+  const rolesBody = (await rolesResp.json().catch(() => null)) as {
+    data?: { items?: Array<{ id: number; name?: string }> } | Array<{ id: number; name?: string }>;
+  } | null;
+  const roleList = Array.isArray(rolesBody?.data) ? rolesBody.data : rolesBody?.data?.items || [];
+  const adminRole = roleList.find(r => r.name === 'admin');
+  if (!adminRole) {
+    await loginCtx.dispose();
+    throw new Error(
+      `分片账号创建失败：未找到 admin 角色（roles=${JSON.stringify(rolesBody).slice(0, 300)}）`
+    );
+  }
+
+  // 3) POST /users 创建分片账号（已存在视为成功）
+  const createResp = await loginCtx.post(`${API_PREFIX}/users`, {
+    headers: { 'X-CSRF-Token': csrfCookie.value, 'X-Requested-With': 'XMLHttpRequest' },
+    data: {
+      username: SHARD_USERNAME,
+      password: SHARD_PASSWORD,
+      real_name: `E2E分片${SHARD_INDEX}`,
+      role_id: adminRole.id,
+    },
+  });
+  await loginCtx.dispose();
+  if (createResp.ok()) {
+    console.log(`[globalSetup] 分片账号 ${SHARD_USERNAME} 创建成功 (HTTP ${createResp.status()})`);
+  } else {
+    const body = await createResp.text().catch(() => '');
+    if (body.includes('已存在') || createResp.status() === 409) {
+      console.log(`[globalSetup] 分片账号 ${SHARD_USERNAME} 已存在，跳过创建`);
+    } else {
+      throw new Error(`分片账号创建失败 HTTP ${createResp.status()} ${body.slice(0, 300)}`);
+    }
+  }
+
+  // 4) 终验：分片账号必须可登录
+  const checkCtx = await request.newContext({ baseURL: API_BASE });
+  const loginCheck = await checkCtx.post(`${API_PREFIX}/auth/login`, {
+    data: { username: SHARD_USERNAME, password: SHARD_PASSWORD },
+  });
+  await checkCtx.dispose();
+  if (!loginCheck.ok()) {
+    const body = await loginCheck.text().catch(() => '');
+    throw new Error(
+      `分片账号 ${SHARD_USERNAME} 终验失败: HTTP ${loginCheck.status()} ${body.slice(0, 300)}`
+    );
+  }
+  console.log(`[globalSetup] 分片账号 ${SHARD_USERNAME} 就绪（登录验证通过）`);
 }
