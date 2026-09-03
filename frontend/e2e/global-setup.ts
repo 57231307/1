@@ -57,7 +57,13 @@ async function ensureShardUserViaUI(): Promise<void> {
   // 分片账号创建属测试前置数据准备（与 ensureTestEntities 的 API 兜底同级，
   // 不属于测试验证手段——用户管理 UI 本身由 26-system-full 的 UI 测试验证）。
   // 1) 基础管理员 API 登录拿 cookie
-  const loginCtx = await request.newContext({ baseURL: API_BASE });
+  const loginCtx = await request.newContext({
+    baseURL: API_BASE,
+    extraHTTPHeaders: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+    },
+  });
   const loginResp = await loginCtx.post(`${API_PREFIX}/auth/login`, {
     data: { username: BASE_USERNAME, password: BASE_PASSWORD },
   });
@@ -115,7 +121,13 @@ async function ensureShardUserViaUI(): Promise<void> {
   }
 
   // 4) 终验：分片账号必须可登录
-  const checkCtx = await request.newContext({ baseURL: API_BASE });
+  const checkCtx = await request.newContext({
+    baseURL: API_BASE,
+    extraHTTPHeaders: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+    },
+  });
   const loginCheck = await checkCtx.post(`${API_PREFIX}/auth/login`, {
     data: { username: SHARD_USERNAME, password: SHARD_PASSWORD },
   });
