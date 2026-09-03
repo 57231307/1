@@ -143,12 +143,17 @@ async function ensureShardUserViaUI(): Promise<void> {
         );
       });
 
-    // 打开系统管理页（用户管理 Tab）
-    await page.goto(`${FRONTEND_BASE}/system`, { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(2000);
+    // 打开系统管理页（用户管理 Tab，默认 activeTab='user'）
+    await page.goto(`${FRONTEND_BASE}/system`, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(1000);
+    // 确保 UserTab 已渲染（等待表格或新建按钮出现）
+    await page
+      .locator('.el-table, .el-button:has-text("新建用户")')
+      .first()
+      .waitFor({ state: 'visible', timeout: 60_000 });
 
-    // 打开新建用户对话框
-    const createBtn = page.getByRole('button', { name: /新建用户/ }).first();
+    // 打开新建用户对话框（用 has-text 定位，兼容 el-icon 包裹结构）
+    const createBtn = page.locator('.el-button:has-text("新建用户")').first();
     await createBtn.waitFor({ state: 'visible', timeout: 60_000 });
     await createBtn.click();
     const dialog = page.locator('.el-dialog:visible').last();
