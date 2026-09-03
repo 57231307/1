@@ -61,6 +61,12 @@ async function ensureShardUserViaUI(): Promise<void> {
     locale: 'zh-CN',
   });
   const page = await context.newPage();
+  // 收集页面 console 错误与未捕获异常（ErrorBoundary 详情之外的补充诊断）
+  const consoleErrors: string[] = [];
+  page.on('console', msg => {
+    if (msg.type() === 'error') consoleErrors.push(`[console.error] ${msg.text()}`);
+  });
+  page.on('pageerror', err => consoleErrors.push(`[pageerror] ${err.message}`));
 
   try {
     // UI 登录 e2e_admin（登录页含"用户协议"勾选必填项，漏勾会阻断提交）
@@ -177,6 +183,16 @@ async function ensureShardUserViaUI(): Promise<void> {
       }
     }
     if (!systemLoaded) {
+      // ErrorBoundary 捕获的组件运行时错误：点"查看详情"拿错误栈
+      const detailBtn = page.locator('.error-boundary button:has-text("查看详情")').first();
+      if ((await detailBtn.count()) > 0) {
+        await detailBtn.click().catch(() => {});
+        await page.waitForTimeout(300);
+      }
+      const errorStack = await page
+        .locator('.error-boundary__detail')
+        .textContent()
+        .catch(() => '');
       const bodyText = await page
         .locator('body')
         .textContent()
@@ -186,11 +202,13 @@ async function ensureShardUserViaUI(): Promise<void> {
         .allTextContents()
         .catch(() => []);
       console.error(
-        `[globalSetup] /system 页 3 次尝试仍无内容: url=${page.url()}, 页面文本(前300)=${(bodyText || '').slice(0, 300)}, 提示=${JSON.stringify(pageErrors)}`
+        `[globalSetup] /system 页 3 次尝试仍无内容: url=${page.url()}, ErrorBoundary栈=${errorStack || '(无)'}, 页面文本(前300)=${(bodyText || '').slice(0, 300)}, 提示=${JSON.stringify(pageErrors)}`
       );
+      console.error(`[globalSetup] 页面 console 错误（最后 20 条）:`);
+      consoleErrors.slice(-20).forEach(log => console.error(`  ${log}`));
       await page.screenshot({ path: 'e2e/.auth/globalsetup-system-fail.png', fullPage: true });
       throw new Error(
-        `globalSetup /system 页无内容（3 次尝试）：url=${page.url()}，页面文本前300=${(bodyText || '').slice(0, 300)}`
+        `globalSetup /system 页无内容（3 次尝试）：ErrorBoundary栈=${(errorStack || '').slice(0, 500)}`
       );
     }
 

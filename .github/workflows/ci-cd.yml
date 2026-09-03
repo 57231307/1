@@ -2619,6 +2619,15 @@ jobs:
             mkdir -p frontend/reports
             cp /tmp/e2e-logs/backend.log frontend/reports/backend.log
           fi
+          # 前端 dev server 日志（Vite 编译错误/chunk 加载失败原因）
+          if [ -f /tmp/e2e-logs/frontend.log ]; then
+            cp /tmp/e2e-logs/frontend.log frontend/reports/frontend.log
+          fi
+          # globalSetup 失败截图（登录/分片账号创建诊断）
+          if [ -d frontend/e2e/.auth ]; then
+            mkdir -p frontend/reports/globalsetup-screenshots
+            cp -r frontend/e2e/.auth/*.png frontend/reports/globalsetup-screenshots/ 2>/dev/null || true
+          fi
 
       - name: 上传 E2E 报告
         if: always()
