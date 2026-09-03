@@ -72,8 +72,6 @@ async function ensureShardUserViaUI(): Promise<void> {
     await loginCtx.dispose();
     throw new Error(`分片账号创建前置：e2e_admin API 登录失败 HTTP ${loginResp.status()} ${body}`);
   }
-  const loginState = (await loginResp.request.storageState) ? null : null; // placeholder（不使用）
-  void loginState;
   const loginCookies = (await loginCtx.storageState()).cookies;
   const csrfCookie = loginCookies.find(c => c.name === 'csrf_token');
   const accessCookie = loginCookies.find(c => c.name === 'access_token');
