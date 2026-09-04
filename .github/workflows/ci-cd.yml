@@ -2489,6 +2489,16 @@ jobs:
         working-directory: frontend
         run: npm ci --prefer-offline --no-audit
 
+      - name: 缓存 Playwright 浏览器
+        uses: actions/cache@v5
+        with:
+          # Playwright 浏览器二进制可跨 job 复用（~150MB/分片×34 分片重复下载，
+          # 且下载偶发卡死数小时）。key 绑定 playwright 版本号
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: |
+            playwright-
+
       - name: 安装 Playwright 浏览器
         working-directory: frontend
         run: npx playwright install chromium

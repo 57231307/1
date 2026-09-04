@@ -147,14 +147,15 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     // 提交审批
     try {
       await apiCall(page, 'POST', `/sales/orders/${id}/submit`);
-    } catch {
-      /* may already be submitted */
+    } catch (e) {
+      // 显式记录（详细日志规则）：submit 失败会导致 approve "draft 无法审核"连锁失败
+      console.error('[2-5] 销售订单 submit 失败:', (e as Error).message);
     }
     // 审批通过
     try {
       await apiCall(page, 'POST', `/sales/orders/${id}/approve`);
-    } catch {
-      /* may already be approved */
+    } catch (e) {
+      console.error('[2-5] 销售订单 approve 失败:', (e as Error).message);
     }
 
     const order = await apiCallRaw<{ status: string }>(page, 'GET', `/sales/orders/${id}`);

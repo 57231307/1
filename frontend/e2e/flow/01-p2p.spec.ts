@@ -85,16 +85,17 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     if (['draft', 'pending_approval'].includes(initialStatus) || initialStatus === '') {
       try {
         await apiCall(page, 'POST', `/purchase/orders/${id}/submit`);
-      } catch {
-        /* may already be submitted */
+      } catch (e) {
+        // 显式记录（详细日志规则）：submit 失败导致 approve "状态不允许审批"连锁失败
+        console.error('[1-2] 采购订单 submit 失败:', (e as Error).message);
       }
     }
 
     // 审批通过
     try {
       await apiCall(page, 'POST', `/purchase/orders/${id}/approve`);
-    } catch {
-      /* may already be approved */
+    } catch (e) {
+      console.error('[1-2] 采购订单 approve 失败:', (e as Error).message);
     }
 
     const final = await apiCallRaw<{ status: string; order_status?: string }>(
