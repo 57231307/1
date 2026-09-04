@@ -2574,12 +2574,16 @@ jobs:
       - name: 运行 E2E 测试（分片 ${{ matrix.shard }}/34）
         working-directory: frontend
         env:
-          # 分片索引：globalSetup 经真实 UI 创建并登录 e2e_admin_s{shard} 独立账号
+          # 分片索引：globalSetup 经 API 创建并登录 e2e_admin_s{shard} 独立账号。
+          # TEST_USERNAME 必须 step 级覆盖（job 级仍是 e2e_admin，会短路 helpers
+          # 的分片派生逻辑，导致 loginViaUI 登回 e2e_admin → created_by 不一致
+          # → "只能提交自己创建的订单" 403）
           E2E_SHARD_INDEX: ${{ matrix.shard }}
+          TEST_USERNAME: e2e_admin_s${{ matrix.shard }}
         run: |
           mkdir -p reports
           set +e
-          echo "本分片使用独立账号: e2e_admin_s${{ matrix.shard }}"
+          echo "本分片使用独立账号: ${TEST_USERNAME}"
           SHARD=${{ matrix.shard }}
           if [ "$SHARD" -le 29 ]; then
             # 分片 0-29: 运行 flow/ 全流程测试，按 shard 自动分配
