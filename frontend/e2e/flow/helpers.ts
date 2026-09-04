@@ -499,6 +499,30 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     ctx.productionRecipeId = undefined;
   }
 
+  // ---- 12.5 BPM 流程定义（测试前置：销售订单 submit 触发 BPM 审批流程，
+  //        "sales_order_approval" 定义不存在则 submit 400 回滚 → approve/ship 连锁失败）----
+  try {
+    await apiCall<{ id?: number }>(page, 'POST', '/bpm/definitions', {
+      name: '销售订单审批流程',
+      code: 'sales_order_approval',
+      description: 'E2E 测试用销售订单审批流程定义',
+      category: 'sales',
+      version: '1.0',
+      config: {
+        nodes: [
+          { node_id: 'start', node_name: '提交审批', node_type: 'start' },
+          { node_id: 'approve', node_name: '审批', node_type: 'approval' },
+          { node_id: 'end', node_name: '完成', node_type: 'end' },
+        ],
+      },
+      status: 'ACTIVE',
+    });
+    console.log('[ensureTestEntities] BPM sales_order_approval 定义已创建/已存在');
+  } catch (e) {
+    // 已存在或 CSRF 恢复失败均视为成功（幂等）
+    console.warn('[ensureTestEntities] BPM 定义创建跳过:', (e as Error).message);
+  }
+
   // ---- 13. BOM（UI 创建）----
   try {
     const boms = await apiCallRaw<{ items: Array<{ id: number }> }>(

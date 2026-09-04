@@ -109,6 +109,23 @@ async function diagnoseFailure(page: Page, label: string): Promise<void> {
     console.error(`  URL: ${url}`);
     console.error(`  ElMessage: ${JSON.stringify(elMessages)}`);
     console.error(`  表单错误: ${JSON.stringify(formErrors)}`);
+    // ErrorBoundary 捕获的组件运行时错误（"页面加载出错"即来源于此）
+    const errorBoundary = await page
+      .locator('.error-boundary')
+      .count()
+      .catch(() => 0);
+    if (errorBoundary > 0) {
+      const detailBtn = page.locator('.error-boundary button:has-text("查看详情")').first();
+      if ((await detailBtn.count()) > 0) {
+        await detailBtn.click().catch(() => {});
+        await page.waitForTimeout(300);
+      }
+      const stack = await page
+        .locator('.error-boundary__detail')
+        .textContent()
+        .catch(() => '');
+      console.error(`  [ErrorBoundary] 组件运行时错误: ${(stack || '').slice(0, 500)}`);
+    }
     console.error(`  页面文本(前500字): ${bodyText.slice(0, 500)}`);
   } catch {
     // 截图本身可能也会失败
