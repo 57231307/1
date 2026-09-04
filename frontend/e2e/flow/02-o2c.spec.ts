@@ -183,23 +183,38 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     const pieceNo1 = genPieceNo(dyeLotNo, 1);
     const pieceNo2 = genPieceNo(dyeLotNo, 2);
 
+    // warehouse_code：从仓库列表取第一个真实编码（ShipOrderRequest 传 code 而非 id）
+    let warehouseCode = 'WH001';
+    try {
+      const whs = await apiCallRaw<{ items: Array<{ id: number; code: string }> }>(
+        page,
+        'GET',
+        '/warehouses?page=1&page_size=10'
+      );
+      const whMatch = whs.items?.find(w => w.id === (ctx.warehouseIds[0] || 1));
+      if (whMatch?.code) warehouseCode = whMatch.code;
+    } catch (e) {
+      console.error('[2-6] 仓库列表获取失败，使用默认编码 WH001:', (e as Error).message);
+    }
+
     try {
       await apiCall(page, 'POST', `/sales/orders/${id}/ship`, {
-        warehouse_id: ctx.warehouseIds[0] || 1,
+        // 后端 ShipOrderRequest 必填 order_id + warehouse_code（非 warehouse_id），
+        // items 仅接受 product_id/quantity/batch_no/color_no/dye_lot_no（匹号映射到 batch_no）
+        order_id: id,
+        warehouse_code: warehouseCode,
         items: [
           {
             product_id: ctx.productIds[0] || 1,
             quantity: 500,
-            quantity_kg: 100,
-            piece_no: pieceNo1,
+            batch_no: pieceNo1,
             color_no: 'RED-001',
             dye_lot_no: dyeLotNo,
           },
           {
             product_id: ctx.productIds[0] || 1,
             quantity: 300,
-            quantity_kg: 60,
-            piece_no: pieceNo2,
+            batch_no: pieceNo2,
             color_no: 'RED-001',
             dye_lot_no: dyeLotNo,
           },
