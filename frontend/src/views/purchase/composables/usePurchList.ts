@@ -116,9 +116,18 @@ export function usePurchList() {
     loading.value = true;
     try {
       const res = await getPurchaseOrderList(queryParams);
-      // 安全检查：防止后端返回 data 为 null 时崩溃
-      if (res.data) orders.value = res.data.list || [];
-      total.value = res.data?.total || 0;
+      // 兼容两种后端响应：data 为数组（ApiResponse<Vec<T>>）或
+      // PaginatedResponse { items/list, total }（历史格式）
+      const payload = res.data as unknown;
+      const list = Array.isArray(payload)
+        ? (payload as PurchaseOrder[])
+        : ((payload as { items?: PurchaseOrder[] })?.items ??
+          (payload as { list?: PurchaseOrder[] })?.list ??
+          []);
+      orders.value = list;
+      total.value = Array.isArray(payload)
+        ? list.length
+        : (payload as { total?: number })?.total || list.length;
 
       // 计算统计数据
       stats.value.monthOrders = total.value;
@@ -137,13 +146,21 @@ export function usePurchList() {
   };
 
   /**
+   * 从列表响应提取数组：兼容 PaginatedResponse { items } 与历史 { list } 格式
+   */
+  const extractList = <T>(payload: unknown): T[] =>
+    Array.isArray(payload)
+      ? (payload as T[])
+      : ((payload as { items?: T[] })?.items ?? (payload as { list?: T[] })?.list ?? []);
+
+  /**
    * 获取供应商列表
    */
   const fetchSuppliers = async () => {
     try {
       const res = await getSupplierList({ page_size: 1000 });
-      // 安全检查：防止后端返回 data 为 null 时崩溃
-      if (res.data) suppliers.value = res.data.list || [];
+      // 后端返回 PaginatedResponse { items }，兼容历史 list 格式
+      suppliers.value = extractList<Supplier>(res.data);
       stats.value.supplierCount = suppliers.value.length;
     } catch (error) {
       logger.error('获取供应商列表失败:', error);
@@ -156,8 +173,7 @@ export function usePurchList() {
   const fetchProducts = async () => {
     try {
       const res = await getProductList({ page_size: 1000 });
-      // 安全检查：防止后端返回 data 为 null 时崩溃
-      if (res.data) products.value = res.data.list || [];
+      products.value = extractList<Product>(res.data);
     } catch (error) {
       logger.error('获取产品列表失败:', error);
     }
@@ -169,8 +185,7 @@ export function usePurchList() {
   const fetchWarehouses = async () => {
     try {
       const res = await getWarehouseList({ page_size: 1000 });
-      // 安全检查：防止后端返回 data 为 null 时崩溃
-      if (res.data) warehouses.value = res.data.list || [];
+      warehouses.value = extractList<Warehouse>(res.data);
     } catch (error) {
       logger.error('获取仓库列表失败:', error);
     }
