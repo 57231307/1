@@ -185,15 +185,22 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     const pieceNo2 = genPieceNo(dyeLotNo, 2);
 
     // warehouse_code：从仓库列表取第一个真实编码（ShipOrderRequest 传 code 而非 id）
+    // 注意 warehouse 列表字段名为 warehouse_code（非 code）
     let warehouseCode = 'WH001';
     try {
-      const whs = await apiCallRaw<{ items: Array<{ id: number; code: string }> }>(
-        page,
-        'GET',
-        '/warehouses?page=1&page_size=10'
-      );
+      const whs = await apiCallRaw<{
+        items?: Array<{ id: number; warehouse_code?: string; code?: string }>;
+      }>(page, 'GET', '/warehouses?page=1&page_size=10');
       const whMatch = whs.items?.find(w => w.id === (ctx.warehouseIds[0] || 1));
-      if (whMatch?.code) warehouseCode = whMatch.code;
+      const code = whMatch?.warehouse_code || whMatch?.code;
+      if (code) {
+        warehouseCode = code;
+        console.log(`[2-6] 发货仓库: id=${whMatch?.id} code=${warehouseCode}`);
+      } else {
+        console.error(
+          `[2-6] 仓库列表未取到编码（ids=${JSON.stringify(ctx.warehouseIds)}，列表长度=${whs.items?.length ?? 0}），使用默认 WH001`
+        );
+      }
     } catch (e) {
       console.error('[2-6] 仓库列表获取失败，使用默认编码 WH001:', (e as Error).message);
     }
