@@ -289,7 +289,7 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     const tableVisible = await table.isVisible().catch(() => false);
     expect(tableVisible).toBe(true);
     // 验证表头存在
-    const headers = table.locator('th');
+    const headers = table.locator('th, .el-table-v2__header-cell');
     const headerCount = await headers.count();
     expect(headerCount).toBeGreaterThan(0);
     // 验证搜索框
@@ -400,7 +400,7 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     await table.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
     const tableVisible = await table.isVisible().catch(() => false);
     if (tableVisible) {
-      const headers = table.locator('th');
+      const headers = table.locator('th, .el-table-v2__header-cell');
       const headerCount = await headers.count();
       expect(headerCount).toBeGreaterThan(0);
     }

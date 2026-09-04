@@ -91,7 +91,7 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     expect(tableVisible).toBe(true);
 
     // 验证表头
-    const headers = table.locator('th');
+    const headers = table.locator('th, .el-table-v2__header-cell');
     const headerCount = await headers.count();
     expect(headerCount).toBeGreaterThan(0);
 
@@ -259,7 +259,7 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     expect(tableVisible).toBe(true);
 
     // 验证色号列
-    const headers = table.locator('th');
+    const headers = table.locator('th, .el-table-v2__header-cell');
     const headerCount = await headers.count();
     let hasColorColumn = false;
     for (let i = 0; i < headerCount; i++) {

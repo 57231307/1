@@ -29,7 +29,7 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
     await table.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
     const visible = await table.isVisible().catch(() => false);
     if (visible) {
-      const headers = table.locator('th');
+      const headers = table.locator('th, .el-table-v2__header-cell');
       const count = await headers.count();
       expect(count).toBeGreaterThan(0);
     }

@@ -184,7 +184,7 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
     await table.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
     const tableVisible = await table.isVisible().catch(() => false);
     if (tableVisible) {
-      const headers = table.locator('th');
+      const headers = table.locator('th, .el-table-v2__header-cell');
       const headerCount = await headers.count();
       expect(headerCount).toBeGreaterThan(0);
     }

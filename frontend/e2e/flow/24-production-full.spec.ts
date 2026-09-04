@@ -357,7 +357,7 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
     const tableVisible = await table.isVisible().catch(() => false);
     expect(tableVisible).toBe(true);
     // 验证表头含色号列
-    const headers = table.locator('th');
+    const headers = table.locator('th, .el-table-v2__header-cell');
     const headerTexts: string[] = [];
     const headerCount = await headers.count();
     for (let i = 0; i < headerCount; i++)

@@ -395,7 +395,7 @@ loadCustomers();
 
     <ElDialog
       :title="dialogTitle"
-      :visible="dialogVisible"
+      v-model="dialogVisible"
       width="500px"
       :aria-label="dialogTitle"
       @close="dialogVisible = false"
@@ -442,7 +442,7 @@ loadCustomers();
 
     <ElDialog
       :title="$t('arReconciliationModule.index.detailTitle')"
-      :visible="viewDialogVisible"
+      v-model="viewDialogVisible"
       width="800px"
       :aria-label="$t('arReconciliationModule.index.detailTitle')"
       @close="viewDialogVisible = false"

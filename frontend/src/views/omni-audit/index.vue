@@ -351,7 +351,7 @@ loadStats();
 
     <ElDialog
       :title="t('omniAudit.index.titleDetail')"
-      :visible="viewDialogVisible"
+      v-model="viewDialogVisible"
       width="800px"
       :aria-label="t('omniAudit.index.ariaDetailDialog')"
       @close="viewDialogVisible = false"
