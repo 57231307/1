@@ -228,9 +228,22 @@ impl StepRecordService {
                 let product_id = flow_card.product_id.ok_or_else(|| {
                     AppError::business("工艺单未关联产品，无法逐匹登记生产匹号")
                 })?;
+                // 生产匹编号语义：生产匹 = 生产单号下的产品生产出来的第 * 匹，
+                // batch_no 记生产单号（工艺单通过 production_order_id 关联生产订单）
+                let production_order = crate::models::production_order::Entity::find_by_id(
+                    flow_card.production_order_id,
+                )
+                .one(&*self.db)
+                .await?
+                .ok_or_else(|| {
+                    AppError::not_found(format!(
+                        "生产订单 {} 不存在，无法逐匹登记生产匹号",
+                        flow_card.production_order_id
+                    ))
+                })?;
                 crate::services::piece_domain_service::create_greige_pieces_from_report(
                     &*self.db,
-                    &flow_card.card_no,
+                    &production_order.order_no,
                     product_id,
                     updated.created_by,
                     pieces,

@@ -10485,6 +10485,7 @@ export default {
       colStatus: 'Status',
       colOperation: 'Operation',
       defaultYes: 'Yes',
+      optionGreige: 'Greige Warehouse',
       optionRaw: 'Raw Material',
       optionFinished: 'Finished Goods',
       optionSemi: 'Semi-Finished',

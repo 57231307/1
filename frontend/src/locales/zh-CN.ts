@@ -10473,6 +10473,7 @@ export default {
       colStatus: '状态',
       colOperation: '操作',
       defaultYes: '是',
+      optionGreige: '胚布仓',
       optionRaw: '原料仓',
       optionFinished: '成品仓',
       optionSemi: '半成品仓',
