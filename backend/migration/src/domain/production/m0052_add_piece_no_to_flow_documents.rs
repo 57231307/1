@@ -18,7 +18,13 @@ ALTER TABLE sales_order_items ADD COLUMN IF NOT EXISTS piece_no VARCHAR(100);
 -- 销售出库条目：染色匹号
 ALTER TABLE sales_delivery_item ADD COLUMN IF NOT EXISTS piece_no VARCHAR(100);
 -- 委外订单条目（发料）：生产匹号（外发染色引用生产匹）
-ALTER TABLE outsourcing_order_item ADD COLUMN IF NOT EXISTS piece_no VARCHAR(100);
+-- outsourcing_order_item 表在 v15 域建表，此处用 DO 块做存在性检查避免顺序依赖
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'outsourcing_order_item') THEN
+        ALTER TABLE outsourcing_order_item ADD COLUMN IF NOT EXISTS piece_no VARCHAR(100);
+    END IF;
+END $$;
 -- 应收对账条目：匹号 + 批号/色号/缸号（对账需要体现）
 ALTER TABLE ar_reconciliation_items ADD COLUMN IF NOT EXISTS piece_no VARCHAR(100);
 ALTER TABLE ar_reconciliation_items ADD COLUMN IF NOT EXISTS batch_no VARCHAR(255);
@@ -40,7 +46,12 @@ ALTER TABLE ap_reconciliation ADD COLUMN IF NOT EXISTS dye_lot_no VARCHAR(255);
 ALTER TABLE purchase_receipt_item DROP COLUMN IF EXISTS piece_no;
 ALTER TABLE sales_order_items DROP COLUMN IF EXISTS piece_no;
 ALTER TABLE sales_delivery_item DROP COLUMN IF EXISTS piece_no;
-ALTER TABLE outsourcing_order_item DROP COLUMN IF EXISTS piece_no;
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'outsourcing_order_item') THEN
+        ALTER TABLE outsourcing_order_item DROP COLUMN IF EXISTS piece_no;
+    END IF;
+END $$;
 ALTER TABLE ar_reconciliation_items DROP COLUMN IF EXISTS piece_no;
 ALTER TABLE ar_reconciliation_items DROP COLUMN IF EXISTS batch_no;
 ALTER TABLE ar_reconciliation_items DROP COLUMN IF EXISTS color_no;
