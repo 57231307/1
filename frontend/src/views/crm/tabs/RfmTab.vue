@@ -138,7 +138,7 @@ const fetchRfmCustomers = async () => {
   rfmLoading.value = true;
   try {
     const res = await getCustomerList({ page: 1, page_size: 100 });
-    rfmCustomers.value = res.data?.list || [];
+    rfmCustomers.value = res.data?.items || [];
     fetchRfmDistribution();
   } catch (error) {
     rfmCustomers.value = [];

@@ -88,7 +88,7 @@ export function useSp() {
   const getCustomers = async () => {
     try {
       const res = await getCustomerList({ page: 1, page_size: 1000 });
-      customers.value = res.data?.list || [];
+      customers.value = res.data?.items || [];
     } catch (error) {
       logger.error('获取客户列表失败:', error);
     }
@@ -98,7 +98,7 @@ export function useSp() {
   const getProducts = async () => {
     try {
       const res = await getProductList({ page: 1, page_size: 1000 });
-      products.value = res.data?.list || [];
+      products.value = res.data?.items || [];
     } catch (error) {
       logger.error('获取产品列表失败:', error);
     }

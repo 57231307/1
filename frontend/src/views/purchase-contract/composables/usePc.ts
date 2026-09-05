@@ -86,7 +86,7 @@ export function usePc() {
   const getSuppliers = async () => {
     try {
       const res = await getSupplierList();
-      suppliers.value = res.data?.list || [];
+      suppliers.value = res.data?.items || [];
     } catch (error) {
       logger.error('获取供应商列表失败:', error);
     }

@@ -31,7 +31,7 @@ export interface BomQueryParams extends QueryParams {
 
 // D14 Batch 5b：原 bomApi.list 转为风格 B 函数
 export const getBomList = (params?: BomQueryParams) =>
-  request.get<ApiResponse<{ list: Bom[]; total: number }>>('/boms', { params });
+  request.get<ApiResponse<{ items: Bom[]; total: number }>>('/boms', { params });
 
 // D14 Batch 5b：原 bomApi.getById 转为风格 B 函数
 export const getBomById = (id: number) => request.get<ApiResponse<Bom>>(`/boms/${id}`);

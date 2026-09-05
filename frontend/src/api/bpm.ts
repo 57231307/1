@@ -74,7 +74,7 @@ export const getBpmTaskList = (params?: {
   status?: string;
   page?: number;
   page_size?: number;
-}) => request.get<ApiResponse<{ list: BPMTask[]; total: number }>>('/bpm/tasks', { params });
+}) => request.get<ApiResponse<{ data: BPMTask[]; total: number }>>('/bpm/tasks', { params });
 
 // D14 Batch 5b：原 bpmApi.transferTask 转为风格 B 函数
 export const transferBpmTask = (taskId: string, targetUserId: number, reason?: string) =>
@@ -111,13 +111,13 @@ export const getBpmMonitorStats = () =>
 
 // D14 Batch 5b：原 bpmApi.getPendingTasksForMonitor 转为风格 B 函数
 export const getBpmPendingTaskList = (params?: MonitorPendingTasksParams) =>
-  request.get<ApiResponse<{ list: BPMTask[]; total: number }>>('/bpm/monitor/pending-tasks', {
+  request.get<ApiResponse<{ data: BPMTask[]; total: number }>>('/bpm/monitor/pending-tasks', {
     params,
   });
 
 // D14 Batch 5b：原 bpmApi.listInstancesForMonitor 转为风格 B 函数
 export const getBpmInstanceListForMonitor = (params?: MonitorInstancesParams) =>
-  request.get<ApiResponse<{ list: BPMInstance[]; total: number }>>('/bpm/monitor/instances', {
+  request.get<ApiResponse<{ data: BPMInstance[]; total: number }>>('/bpm/monitor/instances', {
     params,
   });
 

@@ -101,7 +101,7 @@ export interface SalesStatisticsData {
 
 // D14 Batch 5b：原 salesApi.getOrderList 转为风格 B 函数
 export const getSalesOrderList = (params?: SalesOrderQueryParams) =>
-  request.get<ApiResponse<{ list: SalesOrder[]; total: number }>>('/sales/orders', {
+  request.get<ApiResponse<{ items: SalesOrder[]; total: number }>>('/sales/orders', {
     params,
   });
 

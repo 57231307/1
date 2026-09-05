@@ -47,7 +47,7 @@ export interface PurchaseInspectionQueryParams {
 // D14 Batch 5b：原 purchaseInspectionApi.list 转为风格 B 函数
 // 检验单列表
 export const getPurchaseInspectionList = (params?: PurchaseInspectionQueryParams) =>
-  request.get<ApiResponse<{ list: PurchaseInspection[]; total: number }>>('/purchase/inspections', {
+  request.get<ApiResponse<{ items: PurchaseInspection[]; total: number }>>('/purchase/inspections', {
     params,
   });
 
