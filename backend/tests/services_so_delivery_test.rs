@@ -551,5 +551,6 @@ fn build_ship_item(
         batch_no: None,
         color_no: None,
         dye_lot_no,
+        piece_no: None,
     }
 }

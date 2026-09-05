@@ -37,6 +37,7 @@ fn sample_item() -> CreateReceiptItemRequest {
         production_date: Some(ymd!(2026, 7, 19)),
         shelf_life: Some(365),
         notes: Some("测试明细".to_string()),
+        piece_no: None,
     }
 }
 
