@@ -360,8 +360,14 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     // 新建科目
     const dialogVisible = await clickNewAndVerifyDialog(page, '新建科目');
     if (dialogVisible) {
-      // CI 慢环境放宽 10s（3s 不足）
-      const codeInput = page.locator('.el-dialog input[placeholder*="编码"]').first();
+      // CI 慢环境放宽 10s（3s 不足）；科目编码输入框无 placeholder 文案，
+      // 按表单 label（含"编码"）定位其输入框
+      const codeInput = page
+        .locator('.el-dialog:visible .el-form-item')
+        .filter({ has: page.locator('.el-form-item__label', { hasText: '编码' }) })
+        .first()
+        .locator('input')
+        .first();
       await codeInput.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
       const codeVisible = await codeInput.isVisible().catch(() => false);
       expect(codeVisible).toBe(true);
