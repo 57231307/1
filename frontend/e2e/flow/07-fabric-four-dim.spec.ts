@@ -3,7 +3,6 @@ import {
   loginViaUI,
   apiCall,
   apiCallRaw,
-  apiCallExpectFail,
   getCtx,
   genCode,
   genName,
@@ -198,11 +197,12 @@ test.describe
   test('7-5 仓库类型约束：生产匹入成品仓被拒', async ({ page }) => {
     await loginViaUI(page);
     const pieceNo = `GR-${genCode('P')}-FAIL`;
-    const result = await apiCallExpectFail(
-      page,
-      'POST',
-      `/production/flow-cards/steps/${stepId}/complete`,
-      {
+    // 用 apiCall（带 CSRF 恢复）+ try/catch 捕获业务错误
+    // apiCallExpectFail 不走 CSRF 恢复，会因 token 过期返回 403 误判
+    let status = 0;
+    let message = '';
+    try {
+      await apiCall(page, 'POST', `/production/flow-cards/steps/${stepId}/complete`, {
         actual_quantity: 10,
         qualified_quantity: 10,
         pieces: [
@@ -214,11 +214,15 @@ test.describe
             warehouse_id: finishedWarehouseId,
           },
         ],
-      }
-    );
-    console.log('[7-5] 生产匹入成品仓响应 status=', result.status, 'message=', result.message);
+      });
+    } catch (e) {
+      const err = e as { status?: number; message?: string };
+      status = err.status || 0;
+      message = err.message || '';
+    }
+    console.log('[7-5] 生产匹入成品仓响应 status=', status, 'message=', message);
     // 成品仓只存染色后/工艺后成品，生产匹（胚布 greige）必须入胚布仓
-    expect([400, 409, 422]).toContain(result.status);
+    expect([400, 409, 422]).toContain(status);
   });
 
   test('7-6 染色外发：订单 + 发料 + 回仓确认（染色匹生成）', async ({ page }) => {
