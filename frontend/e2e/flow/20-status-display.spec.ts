@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginViaUI, BASE_URL } from './helpers';
+import { loginViaUI, BASE_URL, apiCall, apiCallRaw, getCtx } from './helpers';
 
 test.describe('前端状态显示与业务逻辑验证', () => {
   test.beforeEach(async ({ page }) => {
@@ -67,6 +67,36 @@ test.describe('前端状态显示与业务逻辑验证', () => {
   });
 
   test('日期格式化显示为 YYYY-MM-DD', async ({ page }) => {
+    // 先确保至少存在一笔采购订单（本用例自建数据，不依赖其他用例/分片），
+    // 空表格没有日期单元格可断言
+    const ctx = getCtx();
+    try {
+      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+        page,
+        'GET',
+        '/purchase/orders?page=1&page_size=1'
+      );
+      if ((list.items?.length ?? 0) === 0) {
+        await apiCall(page, 'POST', '/purchase/orders', {
+          supplier_id: ctx.supplierId || 1,
+          warehouse_id: ctx.warehouseIds[0] || 1,
+          order_date: new Date().toISOString().slice(0, 10),
+          items: [
+            {
+              material_id: ctx.productIds[0] || 1,
+              quantity_ordered: '10',
+              unit_price: '9.90',
+            },
+          ],
+          notes: 'E2E 日期格式显示验证',
+        });
+      }
+    } catch (e) {
+      console.warn(
+        `[日期格式化] 预置采购订单失败（继续尝试断言）: ${(e as Error).message}`
+      );
+    }
+
     await page.goto(`${BASE_URL}/purchase`);
     await page.waitForTimeout(3000);
 

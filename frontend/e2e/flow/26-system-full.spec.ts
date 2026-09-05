@@ -173,10 +173,12 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
     // 切换到第二个 Tab
     if (tabCount > 1) {
       await tabs.nth(1).click();
-      // 等待 Tab 对应的表格真实渲染（懒加载组件延迟，固定 2s 不足）
+      // 等待 Tab 对应的表格真实渲染（懒加载组件延迟，固定 2s 不足）。
+      // 只匹配可见表格：Element Plus 非活动 TabPane 仍留在 DOM（display:none），
+      // 不加 :visible 时 .first() 会命中旧 Tab 的隐藏表格导致断言恒假
       const table = page
         .locator(
-          '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+          '.el-table:visible, .el-table-v2:visible, [role="table"]:visible, .v2-table-wrapper:visible'
         )
         .first();
       await table.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});

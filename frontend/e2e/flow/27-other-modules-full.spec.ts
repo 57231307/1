@@ -308,15 +308,31 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
     if (newBtnVisible) {
       await newBtn.click();
       await page.waitForTimeout(1000);
-      const dialog = page.locator('.el-dialog').first();
+      // 定制订单的真实交互是路由跳转到独立创建页（全屏表单，无 el-dialog）——
+      // 断言"新建入口可用"：弹窗出现，或已跳转创建页且表单渲染
+      const dialog = page.locator('.el-dialog:visible').first();
       await dialog.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
       const dialogVisible = await dialog.isVisible().catch(() => false);
-      expect(dialogVisible).toBe(true);
-      await page
-        .locator('.el-dialog__headerbtn')
-        .first()
-        .click()
-        .catch(() => {});
+      const urlAfter = page.url();
+      const onCreatePage =
+        urlAfter.includes('custom-orders/create') || urlAfter.includes('custom-orders/new');
+      if (!dialogVisible && onCreatePage) {
+        const createForm = page
+          .locator('.el-form:visible')
+          .filter({ has: page.locator('.el-form-item') })
+          .first();
+        await createForm.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+        expect(await createForm.isVisible().catch(() => false)).toBe(true);
+      } else {
+        expect(dialogVisible).toBe(true);
+      }
+      if (dialogVisible) {
+        await page
+          .locator('.el-dialog__headerbtn')
+          .first()
+          .click()
+          .catch(() => {});
+      }
     }
   });
 

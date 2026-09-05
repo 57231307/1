@@ -35,7 +35,7 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     return visible;
   }
 
-  // 辅助：点击新建按钮并验证弹窗
+  // 辅助：点击新建按钮并验证弹窗（只匹配可见对话框）
   async function clickNewAndVerifyDialog(page: import('@playwright/test').Page, btnText: string) {
     const btn = page.locator(`button:has-text("${btnText}")`).first();
     await btn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
@@ -43,7 +43,7 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     if (!visible) return false;
     await btn.click();
     await page.waitForTimeout(1000);
-    const dialog = page.locator('.el-dialog').first();
+    const dialog = page.locator('.el-dialog:visible').first();
     await dialog.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
     const dialogVisible = await dialog.isVisible().catch(() => false);
     return dialogVisible;
@@ -51,11 +51,18 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
 
   // 辅助：验证表单必填校验
   async function verifyRequiredValidation(page: import('@playwright/test').Page) {
-    const dialog = page.locator('.el-dialog').first();
-    const saveBtn = dialog
-      .locator('button:has-text("保存"), button:has-text("确定"), button:has-text("提交")')
-      .first();
-    await saveBtn.click().catch(() => {});
+    // 可见对话框（页面可能挂载多个 el-dialog，隐藏的不参与匹配）
+    const dialog = page.locator('.el-dialog:visible').first();
+    // 提交按钮 = 对话框 footer 的主按钮（各模块文案不一：保存/确定/确认/提交），
+    // 按文案匹配会因文案差异（如 "确认"）匹配不到而 30s 超时
+    const saveBtn = dialog.locator('.el-dialog__footer .el-button--primary').first();
+    try {
+      await saveBtn.click({ timeout: 10_000 });
+      console.log('[verifyRequiredValidation] 已点击 footer 主按钮');
+    } catch (e) {
+      console.error(`[verifyRequiredValidation] 点击主按钮失败: ${(e as Error).message}`);
+      return false;
+    }
     await page.waitForTimeout(1000);
     // 表单校验用 ElMessage（warning/error）或 el-form-item__error，
     // 统一匹配 .el-message（含 --warning/--error）以覆盖所有提示类型
@@ -69,6 +76,13 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
       .first()
       .isVisible()
       .catch(() => false);
+    if (!hasError) {
+      // 诊断输出（IR 详细日志要求）：无任何校验提示时打印对话框文本片段
+      const dialogText = await dialog.innerText().catch(() => '<无法获取>');
+      console.warn(
+        `[verifyRequiredValidation] 未出现校验提示，对话框文本前 200 字: ${dialogText.slice(0, 200)}`
+      );
+    }
     return hasError;
   }
 
