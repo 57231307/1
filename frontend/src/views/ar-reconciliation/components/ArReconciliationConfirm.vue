@@ -35,7 +35,7 @@
         width="120"
         align="right"
       >
-        <template #default="scope">{{ scope.row.confirm_amount.toFixed(2) }}</template>
+        <template #default="scope">{{ Number(scope.row.confirm_amount ?? 0).toFixed(2) }}</template>
       </el-table-column>
       <el-table-column
         prop="disputed_amount"
@@ -43,7 +43,7 @@
         width="120"
         align="right"
       >
-        <template #default="scope">{{ scope.row.disputed_amount.toFixed(2) }}</template>
+        <template #default="scope">{{ fmtNum(scope.row.disputed_amount) }}</template>
       </el-table-column>
       <el-table-column
         prop="confirmed_at"
@@ -80,6 +80,10 @@ import { useI18n } from 'vue-i18n';
 import { CircleCheck, CircleClose } from '@element-plus/icons-vue';
 import type { CustomerConfirmation } from '@/api/ar-reconciliation-enhanced';
 import { getConfirmLabel, getConfirmType } from '../composables/arRecFmts';
+
+// 金额单元格统一转数字格式化（后端 Decimal 序列化为字符串，直接 toFixed 会崩溃）
+const fmtNum = (v: unknown): string => Number(v ?? 0).toFixed(2);
+
 
 const { t } = useI18n({ useScope: 'global' });
 void t;

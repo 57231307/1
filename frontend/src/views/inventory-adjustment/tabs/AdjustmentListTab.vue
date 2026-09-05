@@ -215,6 +215,7 @@ import { Document, Clock, CircleCheck, Money, Plus } from '@element-plus/icons-v
 import { type InventoryAdjustmentEntity } from '@/api/inventory-adjustment';
 import { useTableApi } from '@/composables/useTableApi';
 import { logger } from '@/utils/logger';
+import { formatCurrency } from '@/utils';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -282,7 +283,6 @@ const getStatusType = (status: string) => {
   return map[status] || 'info';
 };
 
-const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`;
 
 const handleQuery = () => {
   page.value = 1;

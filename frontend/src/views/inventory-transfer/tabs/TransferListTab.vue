@@ -229,6 +229,7 @@ import { Document, Clock, CircleCheck, Money, Plus } from '@element-plus/icons-v
 import { type InventoryTransferEntity } from '@/api/inventory-transfer';
 import { useTableApi } from '@/composables/useTableApi';
 import { logger } from '@/utils/logger';
+import { formatCurrency } from '@/utils';
 
 // 批次 34 v9 P1：接入 i18n，替换硬编码中文 ElMessage
 const { t } = useI18n({ useScope: 'global' });
@@ -292,7 +293,6 @@ const getStatusType = (status: string) => {
   };
   return map[status] || 'info';
 };
-const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`;
 
 // handleQuery 同步搜索表单到 useTableApi queryParams 后重置到第 1 页并加载。
 // useTableApi watch 只监听 page/pageSize，不监听 queryParams，所以修改后需手动调 refresh。

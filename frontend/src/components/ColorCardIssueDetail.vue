@@ -41,7 +41,7 @@
       record.remark || '-'
     }}</el-descriptions-item>
     <el-descriptions-item :label="t('components.colorCardIssueDetail.compensationAmount')">
-      {{ record.compensation_amount != null ? `¥${record.compensation_amount.toFixed(2)}` : '-' }}
+      {{ fmtAmount(record.compensation_amount) }}
     </el-descriptions-item>
     <el-descriptions-item :label="t('components.colorCardIssueDetail.returnedBy')">{{
       record.returned_by ?? '-'
@@ -56,6 +56,10 @@
 </template>
 
 <script setup lang="ts">
+
+// 赔偿金额统一转数字格式化（后端 Decimal 序列化为字符串，直接 toFixed 会崩溃），空值显示 '-'
+const fmtAmount = (v: unknown): string => (v == null ? '-' : `¥${Number(v ?? 0).toFixed(2)}`);
+
 // 色卡发放详情展示组件（V15 P0-F12）
 // 创建时间：2026-07-18（Batch 477 P0-F12）
 

@@ -4,15 +4,18 @@
 
 /**
  * 格式化金额为人民币货币字符串
- * @param amount 金额数值
+ * 后端 Decimal 字段经 JSON 序列化为字符串（如 "1234.56"），此处统一转换为数字，
+ * 避免调用方对字符串直接调用 toFixed 触发 TypeError（页面渲染崩溃）
+ * @param amount 金额数值或后端返回的数字字符串（支持 null/undefined，按 0 处理）
  * @returns 格式化后的货币字符串（如 "￥1,234.56"）
  */
-export function formatCurrency(amount: number): string {
+export function formatCurrency(amount: number | string | null | undefined): string {
+  const value = typeof amount === 'number' ? amount : Number(amount);
   return new Intl.NumberFormat('zh-CN', {
     style: 'currency',
     currency: 'CNY',
     minimumFractionDigits: 2,
-  }).format(amount);
+  }).format(Number.isFinite(value) ? value : 0);
 }
 
 /**

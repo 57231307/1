@@ -322,6 +322,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { Back, Plus } from '@element-plus/icons-vue';
+import { formatCurrency } from '@/utils';
 // D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
 import {
   getCustomer360,
@@ -369,7 +370,6 @@ const contactFormRules: FormRules = {
   email: [{ type: 'email', message: t('crmDetail.validation.emailPattern'), trigger: 'blur' }],
 };
 
-const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`;
 
 const getTypeLabel = (type: string) => {
   const labels: Record<string, string> = {

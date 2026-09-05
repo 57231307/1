@@ -1,4 +1,8 @@
 <script setup lang="ts">
+
+// 合格率单元格统一转数字格式化（后端 Decimal 序列化为字符串，直接 toFixed 会崩溃）
+const fmtRate = (v: unknown): string => `${Number(v ?? 0).toFixed(2)}%`;
+
 /**
  * AdvancedQualityPanel - 质量预测 tab 视图组件
  * 任务编号: P13 批 1 B3 I-1（拆分 advanced/index.vue 第 5 个 tab）
@@ -280,7 +284,7 @@ watch(
               align="right"
             />
             <el-table-column :label="t('advancedModule.quality.colAvgRate')" min-width="200">
-              <template #default="{ row }"> {{ row.avg_qualification_rate.toFixed(2) }}% </template>
+              <template #default="{ row }"> {{ fmtRate(row.avg_qualification_rate) }} </template>
             </el-table-column>
           </el-table>
           <el-empty

@@ -358,6 +358,7 @@ import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import { Plus, Coin, Share, Download, Printer } from '@element-plus/icons-vue';
+import { formatCurrency } from '@/utils';
 // D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
 import {
   getCrmTagList,
@@ -460,7 +461,6 @@ const dialogTitle = computed(() =>
   isEdit.value ? t('crmCustomer.dialog.editTitle') : t('crmCustomer.dialog.createTitle')
 );
 
-const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`;
 
 // D05 Batch 4：getCustomerTypeLabel 改为函数返回，使 t() 在每次渲染时响应式求值
 const getCustomerTypeLabel = (type: string) => {

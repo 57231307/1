@@ -32,6 +32,10 @@ import { getCustomerSelectList } from '@/api/customer';
 import { logger } from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
 
+// 金额单元格统一转数字格式化（后端 Decimal 序列化为字符串，直接 toFixed 会崩溃）
+const fmtNum = (v: unknown): string => Number(v ?? 0).toFixed(2);
+
+
 const { t } = useI18n({ useScope: 'global' });
 
 const searchForm = ref({
@@ -316,7 +320,7 @@ loadCustomers();
         width="120"
         align="right"
       >
-        <template #default="scope">{{ scope.row.total_invoice.toFixed(2) }}</template>
+        <template #default="scope">{{ Number(scope.row.total_invoice ?? 0).toFixed(2) }}</template>
       </ElTableColumn>
       <ElTableColumn
         prop="total_payment"
@@ -324,7 +328,7 @@ loadCustomers();
         width="120"
         align="right"
       >
-        <template #default="scope">{{ scope.row.total_payment.toFixed(2) }}</template>
+        <template #default="scope">{{ Number(scope.row.total_payment ?? 0).toFixed(2) }}</template>
       </ElTableColumn>
       <ElTableColumn
         prop="balance"
@@ -332,7 +336,7 @@ loadCustomers();
         width="120"
         align="right"
       >
-        <template #default="scope">{{ scope.row.balance.toFixed(2) }}</template>
+        <template #default="scope">{{ Number(scope.row.balance ?? 0).toFixed(2) }}</template>
       </ElTableColumn>
       <ElTableColumn prop="status" :label="$t('arReconciliationModule.index.status')" width="100">
         <template #default="scope">
@@ -462,16 +466,16 @@ loadCustomers();
             viewData.end_date
           }}</ElDescriptionsItem>
           <ElDescriptionsItem :label="$t('arReconciliationModule.index.invoiceAmount')">{{
-            viewData.total_invoice.toFixed(2)
+            Number(viewData.total_invoice ?? 0).toFixed(2)
           }}</ElDescriptionsItem>
           <ElDescriptionsItem :label="$t('arReconciliationModule.index.paymentAmount')">{{
-            viewData.total_payment.toFixed(2)
+            Number(viewData.total_payment ?? 0).toFixed(2)
           }}</ElDescriptionsItem>
           <ElDescriptionsItem :label="$t('arReconciliationModule.index.adjustmentAmount')">{{
-            viewData.total_adjustment.toFixed(2)
+            Number(viewData.total_adjustment ?? 0).toFixed(2)
           }}</ElDescriptionsItem>
           <ElDescriptionsItem :label="$t('arReconciliationModule.index.balance')">{{
-            viewData.balance.toFixed(2)
+            Number(viewData.balance ?? 0).toFixed(2)
           }}</ElDescriptionsItem>
           <ElDescriptionsItem :label="$t('arReconciliationModule.index.status')">{{
             getStatusLabel(viewData.status)
@@ -516,7 +520,7 @@ loadCustomers();
               width="120"
               align="right"
             >
-              <template #default="scope">{{ scope.row.amount.toFixed(2) }}</template>
+              <template #default="scope">{{ Number(scope.row.amount ?? 0).toFixed(2) }}</template>
             </ElTableColumn>
             <ElTableColumn
               prop="paid_amount"
@@ -524,7 +528,7 @@ loadCustomers();
               width="120"
               align="right"
             >
-              <template #default="scope">{{ scope.row.paid_amount.toFixed(2) }}</template>
+              <template #default="scope">{{ fmtNum(scope.row.paid_amount) }}</template>
             </ElTableColumn>
             <ElTableColumn
               prop="balance"
@@ -532,7 +536,7 @@ loadCustomers();
               width="120"
               align="right"
             >
-              <template #default="scope">{{ scope.row.balance.toFixed(2) }}</template>
+              <template #default="scope">{{ Number(scope.row.balance ?? 0).toFixed(2) }}</template>
             </ElTableColumn>
             <ElTableColumn prop="remark" :label="$t('common.description')" />
           </ElTable>

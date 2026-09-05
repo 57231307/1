@@ -219,6 +219,7 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Download, Printer } from '@element-plus/icons-vue';
 import { deleteCustomer, type Customer } from '@/api/customer';
+import { formatCurrency } from '@/utils';
 // V15 P0-S12 + P0-S15 修复（Batch 474）：客户导出改用后端带水印 xlsx 接口
 // 保留 exportData 仅用于兼容场景（本视图已切换为 exportFromBackend）
 import { exportFromBackend } from '@/utils/export';
@@ -292,7 +293,6 @@ const handleSizeChange = (s: number) => {
   page.value = 1;
 };
 
-const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`;
 
 const getCustomerTypeLabel = (type: string) => {
   const labelMap: Record<string, string> = {
