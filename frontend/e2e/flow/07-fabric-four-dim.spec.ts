@@ -63,7 +63,7 @@ test.describe
     // 复用已有仓库，缺失则补建；优先用 API 查询
     const existing = await apiCallRaw<{
       items: Array<{ id: number; warehouse_type: string | null }>;
-    }>(page, 'GET', '/inventory/warehouses?page=1&page_size=200');
+    }>(page, 'GET', '/warehouses?page=1&page_size=200');
     const greige = existing.items.find(w => w.warehouse_type === 'greige');
     const finished = existing.items.find(w => w.warehouse_type === 'finished');
     greigeWarehouseId = greige?.id || 0;

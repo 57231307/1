@@ -161,7 +161,7 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
     const logs = await apiCallRaw<Record<string, unknown> | unknown[]>(
       page,
       'GET',
-      `/dye-batch-lifecycle-logs/by-batch/${ctx.dyeBatchId || 1}`
+      `/production/dye-batch-lifecycle-logs/by-batch/${ctx.dyeBatchId || 1}`
     );
     expect(logs).toBeDefined();
   });
