@@ -163,9 +163,7 @@ const webhookForm = reactive<WebhookRow>({
 const fetchWebhooks = async () => {
   webhookLoading.value = true;
   try {
-    const res = await request.get<ApiResponse<unknown[]>>(
-      '/webhooks/integrations'
-    );
+    const res = await request.get<ApiResponse<unknown[]>>('/webhooks/integrations');
     // 拦截器返回 ApiResponse 信封，业务数组在 data 字段（信封对象直赋表格会触发 rows not iterable 崩溃）
     webhookList.value = (res.data as WebhookRow[]) ?? [];
   } catch (_e) {

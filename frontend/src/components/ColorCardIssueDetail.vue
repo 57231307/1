@@ -56,7 +56,6 @@
 </template>
 
 <script setup lang="ts">
-
 // 色卡发放详情展示组件（V15 P0-F12）
 // 创建时间：2026-07-18（Batch 477 P0-F12）
 

@@ -61,9 +61,7 @@ const dataPermLoading = ref(false);
 const fetchDataPermissions = async () => {
   dataPermLoading.value = true;
   try {
-    const res = await request.get<ApiResponse<unknown[]>>(
-      '/data-permissions'
-    );
+    const res = await request.get<ApiResponse<unknown[]>>('/data-permissions');
     // 拦截器返回 ApiResponse 信封，业务数组在 data 字段（信封对象直赋表格会触发 rows not iterable 崩溃）
     dataPermissionList.value = (res.data as DataPermissionRow[]) ?? [];
   } catch (_e) {
