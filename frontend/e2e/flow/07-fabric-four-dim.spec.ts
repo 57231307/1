@@ -116,20 +116,25 @@ test.describe
   test('7-3 创建流转卡并推进至备布完成', async ({ page }) => {
     await loginViaUI(page);
     const ctx = getCtx();
-    const card = await apiCall<{ id: number; card_no: string }>(page, 'POST', '/flow-cards', {
-      production_order_id: productionOrderId,
-      product_id: ctx.productIds[0],
-      product_name: genName('E2E胚布'),
-      planned_fabric_weight: 100,
-    });
+    const card = await apiCall<{ id: number; card_no: string }>(
+      page,
+      'POST',
+      '/production/flow-cards',
+      {
+        production_order_id: productionOrderId,
+        product_id: ctx.productIds[0],
+        product_name: genName('E2E胚布'),
+        planned_fabric_weight: 100,
+      }
+    );
     flowCardId = card.data.id;
     console.log('[7-3] 流转卡创建 id=', flowCardId, 'card_no=', card.data.card_no);
     expect(flowCardId).toBeGreaterThan(0);
     // PENDING → SCHEDULED → PREPARING
-    await apiCall(page, 'POST', `/flow-cards/${flowCardId}/schedule`, {});
-    await apiCall(page, 'POST', `/flow-cards/${flowCardId}/start-preparing`);
+    await apiCall(page, 'POST', `/production/flow-cards/${flowCardId}/schedule`, {});
+    await apiCall(page, 'POST', `/production/flow-cards/${flowCardId}/start-preparing`);
     // 完成备布：实际配布数量
-    await apiCall(page, 'POST', `/flow-cards/${flowCardId}/complete-preparing`, {
+    await apiCall(page, 'POST', `/production/flow-cards/${flowCardId}/complete-preparing`, {
       actual_fabric_weight: 100,
     });
     console.log('[7-3] 流转卡状态机推至 preparing 完成');
@@ -139,7 +144,7 @@ test.describe
     await loginViaUI(page);
     const ctx = getCtx();
     // 启动工序
-    const step = await apiCall<{ id: number }>(page, 'POST', '/flow-cards/steps/start', {
+    const step = await apiCall<{ id: number }>(page, 'POST', '/production/flow-cards/steps/start', {
       flow_card_id: flowCardId,
     });
     stepId = step.data.id;
@@ -164,7 +169,7 @@ test.describe
         warehouse_id: greigeWarehouseId,
       },
     ];
-    await apiCall(page, 'POST', `/flow-cards/steps/${stepId}/complete`, {
+    await apiCall(page, 'POST', `/production/flow-cards/steps/${stepId}/complete`, {
       actual_quantity: 100,
       qualified_quantity: 100,
       pieces,
@@ -193,19 +198,24 @@ test.describe
   test('7-5 仓库类型约束：生产匹入成品仓被拒', async ({ page }) => {
     await loginViaUI(page);
     const pieceNo = `GR-${genCode('P')}-FAIL`;
-    const result = await apiCallExpectFail(page, 'POST', `/flow-cards/steps/${stepId}/complete`, {
-      actual_quantity: 10,
-      qualified_quantity: 10,
-      pieces: [
-        {
-          piece_no: pieceNo,
-          machine_no: machineNo,
-          machine_operator: 'E2E约束测试',
-          length: 10,
-          warehouse_id: finishedWarehouseId,
-        },
-      ],
-    });
+    const result = await apiCallExpectFail(
+      page,
+      'POST',
+      `/production/flow-cards/steps/${stepId}/complete`,
+      {
+        actual_quantity: 10,
+        qualified_quantity: 10,
+        pieces: [
+          {
+            piece_no: pieceNo,
+            machine_no: machineNo,
+            machine_operator: 'E2E约束测试',
+            length: 10,
+            warehouse_id: finishedWarehouseId,
+          },
+        ],
+      }
+    );
     console.log('[7-5] 生产匹入成品仓响应 status=', result.status, 'message=', result.message);
     // 成品仓只存染色后/工艺后成品，生产匹（胚布 greige）必须入胚布仓
     expect([400, 409, 422]).toContain(result.status);
@@ -219,7 +229,7 @@ test.describe
     console.log('[7-6] 染色外发订单', orderNo, '缸号=', dyeLotNo);
 
     // 1. 创建委外订单（dyeing + dye_lot_no）
-    const order = await apiCall<{ id: number }>(page, 'POST', '/outsourcing-orders', {
+    const order = await apiCall<{ id: number }>(page, 'POST', '/production/outsourcing-orders', {
       order_no: orderNo,
       order_type: 'dyeing',
       supplier_id: ctx.supplierId,
@@ -234,28 +244,33 @@ test.describe
     console.log('[7-6] 委外订单创建 id=', orderId);
 
     // 2. 发料（draft → issued）
-    await apiCall(page, 'POST', `/outsourcing-orders/${orderId}/issue`);
+    await apiCall(page, 'POST', `/production/outsourcing-orders/${orderId}/issue`);
     console.log('[7-6] 委外订单已发料');
 
     // 3. 回仓创建（draft）
     const receiptNo = genCode('RC');
     const receiptDate = new Date().toISOString().slice(0, 10);
-    const receipt = await apiCall<{ id: number }>(page, 'POST', '/outsourcing-receipts', {
-      receipt_no: receiptNo,
-      outsourcing_order_id: orderId,
-      receipt_date: receiptDate,
-      product_id: ctx.productIds[0],
-      dye_lot_no: dyeLotNo,
-      warehouse_id: finishedWarehouseId,
-      return_quantity: 45,
-      quality_status: 'passed',
-      grade: 'A',
-    });
+    const receipt = await apiCall<{ id: number }>(
+      page,
+      'POST',
+      '/production/outsourcing-receipts',
+      {
+        receipt_no: receiptNo,
+        outsourcing_order_id: orderId,
+        receipt_date: receiptDate,
+        product_id: ctx.productIds[0],
+        dye_lot_no: dyeLotNo,
+        warehouse_id: finishedWarehouseId,
+        return_quantity: 45,
+        quality_status: 'passed',
+        grade: 'A',
+      }
+    );
     const receiptId = receipt.data.id;
     console.log('[7-6] 回仓单创建 id=', receiptId, 'no=', receiptNo);
 
     // 4. 确认回仓（confirm 触发缸号自动建档 + 染色匹生成）
-    await apiCall(page, 'POST', `/outsourcing-receipts/${receiptId}/confirm`);
+    await apiCall(page, 'POST', `/production/outsourcing-receipts/${receiptId}/confirm`);
     console.log('[7-6] 回仓确认完成（染色匹生成）');
 
     // 断言染色匹生成：piece_no={缸号}-001，batch_no=缸号，piece_seq=1
@@ -292,7 +307,7 @@ test.describe
     console.log('[7-7] 净布外发订单', orderNo, '（无缸号）');
 
     // 净布外发：order_type=finishing，无 dye_lot_no
-    const order = await apiCall<{ id: number }>(page, 'POST', '/outsourcing-orders', {
+    const order = await apiCall<{ id: number }>(page, 'POST', '/production/outsourcing-orders', {
       order_no: orderNo,
       order_type: 'finishing',
       supplier_id: ctx.supplierId,
@@ -303,23 +318,28 @@ test.describe
       material_cost: 500,
     });
     const orderId = order.data.id;
-    await apiCall(page, 'POST', `/outsourcing-orders/${orderId}/issue`);
+    await apiCall(page, 'POST', `/production/outsourcing-orders/${orderId}/issue`);
     console.log('[7-7] 净布订单已发料');
 
     const receiptNo = genCode('RC-NET');
     const receiptDate = new Date().toISOString().slice(0, 10);
-    const receipt = await apiCall<{ id: number }>(page, 'POST', '/outsourcing-receipts', {
-      receipt_no: receiptNo,
-      outsourcing_order_id: orderId,
-      receipt_date: receiptDate,
-      product_id: ctx.productIds[0],
-      warehouse_id: finishedWarehouseId,
-      return_quantity: 28,
-      quality_status: 'passed',
-      grade: 'A',
-    });
+    const receipt = await apiCall<{ id: number }>(
+      page,
+      'POST',
+      '/production/outsourcing-receipts',
+      {
+        receipt_no: receiptNo,
+        outsourcing_order_id: orderId,
+        receipt_date: receiptDate,
+        product_id: ctx.productIds[0],
+        warehouse_id: finishedWarehouseId,
+        return_quantity: 28,
+        quality_status: 'passed',
+        grade: 'A',
+      }
+    );
     const receiptId = receipt.data.id;
-    await apiCall(page, 'POST', `/outsourcing-receipts/${receiptId}/confirm`);
+    await apiCall(page, 'POST', `/production/outsourcing-receipts/${receiptId}/confirm`);
     console.log('[7-7] 净布回仓确认完成');
 
     // 断言：净布匹为 greige 类型，无缸号，piece_no={receipt_no}-P01
