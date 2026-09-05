@@ -194,10 +194,9 @@ async fn read_request_body_for_audit(
             Bytes::new()
         }
     };
-    let req = Request::from_parts(parts, Body::from(body_bytes));
-
     // 敏感路径（change-password/reset-totp 等）请求体脱敏为 "[REDACTED]"；
-    // 先截断到审计所需长度再做 PII 脱敏（避免对大请求体做全量正则扫描）
+    // 先截断到审计所需长度再做 PII 脱敏（避免对大请求体做全量正则扫描）。
+    // 注意：审计副本的计算必须在 body_bytes 被 move 进 Request 之前完成
     let is_sensitive_path = is_sensitive_request_body_path(uri);
     let body_for_audit = if is_sensitive_path {
         "[REDACTED]".to_string()
@@ -206,6 +205,7 @@ async fn read_request_body_for_audit(
         let body_str = String::from_utf8_lossy(&body_bytes);
         crate::utils::field_mask::mask_text_pii(&truncate_text(&body_str, 5000))
     };
+    let req = Request::from_parts(parts, Body::from(body_bytes));
 
     (req, Some(body_for_audit))
 }
@@ -271,7 +271,8 @@ async fn read_response_body(
     // 先截断到审计所需长度再做 PII 脱敏（避免对大响应体做全量正则扫描）
     let response_body = String::from_utf8_lossy(&body_bytes);
     // V15 P2 B17-P2-21：响应体日志做 PII 脱敏（手机号/邮箱/身份证号）
-    let response_body = crate::utils::field_mask::mask_text_pii(&truncate_text(&response_body, 5000));
+    let response_body =
+        crate::utils::field_mask::mask_text_pii(&truncate_text(&response_body, 5000));
     let response_content_type = parts
         .headers
         .get(header::CONTENT_TYPE)
