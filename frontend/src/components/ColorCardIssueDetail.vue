@@ -57,9 +57,6 @@
 
 <script setup lang="ts">
 
-// 赔偿金额统一转数字格式化（后端 Decimal 序列化为字符串，直接 toFixed 会崩溃），空值显示 '-'
-const fmtAmount = (v: unknown): string => (v == null ? '-' : `¥${Number(v ?? 0).toFixed(2)}`);
-
 // 色卡发放详情展示组件（V15 P0-F12）
 // 创建时间：2026-07-18（Batch 477 P0-F12）
 
@@ -70,6 +67,9 @@ import type { IssueRecordInfo, IssueStatusValue } from '@/types/colorCardIssue';
 const props = defineProps<{
   record: IssueRecordInfo;
 }>();
+
+// 赔偿金额统一转数字格式化（后端 Decimal 序列化为字符串，直接 toFixed 会崩溃），空值显示 '-'
+const fmtAmount = (v: unknown): string => (v == null ? '-' : `¥${Number(v ?? 0).toFixed(2)}`);
 
 const { t } = useI18n({ useScope: 'global' });
 

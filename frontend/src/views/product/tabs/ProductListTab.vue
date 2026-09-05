@@ -284,7 +284,6 @@ const stats = reactive({
   avgPrice: 0,
 });
 
-
 const buildTree = (items: ProductCategory[]): ProductCategory[] => {
   const map = new Map<number, ProductCategory>();
   const tree: ProductCategory[] = [];

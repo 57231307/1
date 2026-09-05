@@ -293,7 +293,6 @@ const handleSizeChange = (s: number) => {
   page.value = 1;
 };
 
-
 const getCustomerTypeLabel = (type: string) => {
   const labelMap: Record<string, string> = {
     retail: t('customer.index.typeLabel.retail'),

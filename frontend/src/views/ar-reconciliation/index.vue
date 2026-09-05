@@ -35,7 +35,6 @@ import { useTableApi } from '@/composables/useTableApi';
 // 金额单元格统一转数字格式化（后端 Decimal 序列化为字符串，直接 toFixed 会崩溃）
 const fmtNum = (v: unknown): string => Number(v ?? 0).toFixed(2);
 
-
 const { t } = useI18n({ useScope: 'global' });
 
 const searchForm = ref({

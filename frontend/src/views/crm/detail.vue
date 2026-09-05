@@ -370,7 +370,6 @@ const contactFormRules: FormRules = {
   email: [{ type: 'email', message: t('crmDetail.validation.emailPattern'), trigger: 'blur' }],
 };
 
-
 const getTypeLabel = (type: string) => {
   const labels: Record<string, string> = {
     normal: t('crmDetail.customerType.normal'),

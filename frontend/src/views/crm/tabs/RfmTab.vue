@@ -122,7 +122,6 @@ const rfmLoading = ref(false);
 const rfmCustomers = ref<CustomerWithTags[]>([]);
 const rfmDistribution = ref<Record<string, number>>({});
 
-
 const getRfmLevelTag = (level: string) => {
   const tagMap: Record<string, string> = {
     A: 'success',

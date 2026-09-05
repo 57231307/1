@@ -461,7 +461,6 @@ const dialogTitle = computed(() =>
   isEdit.value ? t('crmCustomer.dialog.editTitle') : t('crmCustomer.dialog.createTitle')
 );
 
-
 // D05 Batch 4：getCustomerTypeLabel 改为函数返回，使 t() 在每次渲染时响应式求值
 const getCustomerTypeLabel = (type: string) => {
   const labels: Record<string, string> = {

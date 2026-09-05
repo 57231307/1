@@ -283,7 +283,6 @@ const getStatusType = (status: string) => {
   return map[status] || 'info';
 };
 
-
 const handleQuery = () => {
   page.value = 1;
   fetchAdjustments();
