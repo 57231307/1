@@ -129,6 +129,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import type { FormInstance } from 'element-plus';
 import { request } from '@/api/request';
+import type { ApiResponse } from '@/types/api';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -162,15 +163,11 @@ const webhookForm = reactive<WebhookRow>({
 const fetchWebhooks = async () => {
   webhookLoading.value = true;
   try {
-    const res = await request.get<{ items?: WebhookRow[] } | WebhookRow[]>(
+    const res = await request.get<ApiResponse<unknown[]>>(
       '/webhooks/integrations'
     );
-    const d = res;
-    if (d && typeof d === 'object' && 'items' in d) {
-      webhookList.value = d.items || [];
-    } else {
-      webhookList.value = (d as WebhookRow[]) || [];
-    }
+    // 拦截器返回 ApiResponse 信封，业务数组在 data 字段（信封对象直赋表格会触发 rows not iterable 崩溃）
+    webhookList.value = (res.data as WebhookRow[]) ?? [];
   } catch (_e) {
     webhookList.value = [];
   } finally {

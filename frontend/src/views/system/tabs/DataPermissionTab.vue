@@ -44,6 +44,7 @@
 import { ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { request } from '@/api/request';
+import type { ApiResponse } from '@/types/api';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -60,15 +61,11 @@ const dataPermLoading = ref(false);
 const fetchDataPermissions = async () => {
   dataPermLoading.value = true;
   try {
-    const res = await request.get<{ items?: DataPermissionRow[] } | DataPermissionRow[]>(
+    const res = await request.get<ApiResponse<unknown[]>>(
       '/data-permissions'
     );
-    const d = res;
-    if (d && typeof d === 'object' && 'items' in d) {
-      dataPermissionList.value = d.items || [];
-    } else {
-      dataPermissionList.value = (d as DataPermissionRow[]) || [];
-    }
+    // 拦截器返回 ApiResponse 信封，业务数组在 data 字段（信封对象直赋表格会触发 rows not iterable 崩溃）
+    dataPermissionList.value = (res.data as DataPermissionRow[]) ?? [];
   } catch (_e) {
     dataPermissionList.value = [];
   } finally {
