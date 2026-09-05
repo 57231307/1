@@ -488,14 +488,18 @@ fn is_sensitive_request_body_path(uri: &str) -> bool {
 }
 
 /// 根据请求路径推断模块名称
+/// 跳过 API 前缀（/api/v1/erp）后取首个业务段：
+/// /api/v1/erp/purchase/orders → "purchase"、/api/v1/erp/finance/ap/invoices → "finance"。
+/// 原实现固定取 parts[3]，对 /api/v1/erp 前缀恒返回 "erp"，导致 resource_type 失去模块语义。
 fn infer_module_from_path(path: &str) -> String {
-    let parts: Vec<&str> = path.split('/').collect();
-    if parts.len() >= 4 {
-        parts[3].to_string()
-    } else if parts.len() >= 3 {
-        parts[2].to_string()
-    } else {
-        "unknown".to_string()
+    const API_PREFIXES: [&str; 2] = ["/api/v1/erp/", "/api/v1/"];
+    let business_path = match API_PREFIXES.iter().find(|p| path.starts_with(**p)) {
+        Some(prefix) => &path[prefix.len()..],
+        None => path.trim_start_matches('/'),
+    };
+    match business_path.split('/').next() {
+        Some(module) if !module.is_empty() => module.to_string(),
+        _ => "unknown".to_string(),
     }
 }
 
