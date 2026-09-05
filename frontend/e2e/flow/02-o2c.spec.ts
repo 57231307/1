@@ -235,9 +235,10 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
 
     const order = await apiCallRaw<{ status: string }>(page, 'GET', `/sales/orders/${id}`);
     const status = (order.status || '').toLowerCase();
+    // 后端状态枚举为 partial_shipped（models/status/sales.rs PARTIAL_SHIPPED）
     expect([
       'shipped',
-      'partially_shipped',
+      'partial_shipped',
       'completed',
       'approved',
       'confirmed',

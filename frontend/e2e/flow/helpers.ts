@@ -1232,7 +1232,9 @@ export async function verifyAuditLog(
   action: string,
   resourceType?: string
 ): Promise<boolean> {
-  let path = `/system/audit-logs?page=1&page_size=50`;
+  // 真实路由为 /audit-logs（system.rs 挂 /api/v1/erp 根下，无 /system 前缀）；
+  // /system/audit-logs 会被 omni_audit 中间件以"未知的资源路径"403 拒绝
+  let path = `/audit-logs?page=1&page_size=50`;
   if (resourceType) path += `&resource_type=${encodeURIComponent(resourceType)}`;
   try {
     const logs = await apiCallRaw<{
