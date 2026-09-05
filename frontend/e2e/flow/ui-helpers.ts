@@ -829,6 +829,6 @@ export async function ensureAccountingPeriodUI(page: Page): Promise<void> {
   const initBtn = page.getByRole('button', { name: /初始化|新建期间|新建会计期间/ }).first();
   if ((await initBtn.count()) > 0) {
     await initBtn.click();
-    await waitCreateResponse(page, `${API_PREFIX}/accounting-periods/init`, 15000);
+    await waitCreateResponse(page, `${API_PREFIX}/finance/accounting-periods/init`, 15000);
   }
 }

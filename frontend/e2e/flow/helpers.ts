@@ -203,13 +203,14 @@ export async function ensureTestEntities(page: Page): Promise<void> {
 
   // ---- 3. 产品色号（仍用 API，因为色号在详情页创建且依赖 product_id）----
   try {
-    const colors = await apiCallRaw<{ items: Array<{ id: number; color_no: string }> }>(
+    // 真实端点：GET /products/{id}/colors（返回数组，非分页包装）
+    const colors = await apiCallRaw<Array<{ id: number; color_no: string }>>(
       page,
       'GET',
-      `/product-colors?product_id=${ctx.productIds[0]}&page=1&page_size=5`
+      `/products/${ctx.productIds[0]}/colors`
     );
-    ctx.productColorIds = colors.items?.map(c => c.id) || [];
-    ctx.colorNos = colors.items?.map(c => c.color_no) || ['TEST-COLOR'];
+    ctx.productColorIds = colors?.map(c => c.id) || [];
+    ctx.colorNos = colors?.map(c => c.color_no) || ['TEST-COLOR'];
   } catch {
     ctx.colorNos = ['TEST-COLOR'];
     ctx.productColorIds = [1];
@@ -578,7 +579,7 @@ export async function ensureTestEntities(page: Page): Promise<void> {
       });
     }
     // 凭证日期必须落在某个开放会计期间内，缺失时初始化当月期间
-    await apiCall(page, 'POST', '/accounting-periods/init', {}).catch(e => {
+    await apiCall(page, 'POST', '/finance/accounting-periods/init', {}).catch(e => {
       console.error('[ensureTestEntities] 会计期间初始化失败:', (e as Error).message);
     });
     try {
@@ -1016,6 +1017,18 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
   await loginButton.waitFor({ state: 'visible', timeout: 10_000 });
   const isDisabled = await loginButton.isDisabled().catch(() => false);
   console.log(`登录按钮 disabled: ${isDisabled}`);
+
+  // IR 2026-09-03 详细日志：显式记录登录接口响应状态（成功/失败均打印），
+  // 卡在 /login 时可立即区分"登录请求失败"与"登录成功但跳转未发生"
+  let loginRespStatus = 0;
+  const onLoginResp = (resp: { url(): string; status(): number }) => {
+    if (resp.url().includes('/auth/login')) {
+      loginRespStatus = resp.status();
+      console.log(`[loginViaUI] POST /auth/login 响应状态: ${resp.status()}`);
+    }
+  };
+  page.on('response', onLoginResp);
+
   await loginButton.click();
 
   // 如果 3 秒后仍在 /login，尝试通过表单提交
@@ -1047,8 +1060,14 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
   // 等待离开 /login 页面
   try {
     await page.waitForURL(url => !url.pathname.includes('/login'), { timeout: 120_000 });
+    console.log(
+      `[loginViaUI] 登录成功跳转: ${page.url()}（登录接口状态 ${loginRespStatus || '未捕获'}）`
+    );
   } catch {
     // 登录后仍然在 /login，输出诊断信息
+    console.error(
+      `[loginViaUI] 登录接口响应状态: ${loginRespStatus || '未捕获（请求未到达或未返回）'}`
+    );
     const currentUrl = page.url();
     const elMessages = await page
       .locator('.el-message__content')
@@ -1057,6 +1076,7 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
     console.error(`=== UI 登录失败诊断 ===`);
     console.error(`当前 URL: ${currentUrl}`);
     console.error(`ElMessage 提示: ${JSON.stringify(elMessages)}`);
+    page.off('response', onLoginResp);
     console.error(`Console 日志（最后 20 条）:`);
     consoleLogs.slice(-20).forEach(log => console.error(log));
     // 截图
@@ -1067,6 +1087,7 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
   }
 
   // 登录成功后，验证 cookie 已设置
+  page.off('response', onLoginResp);
   const cookies = await page.context().cookies();
   const hasToken = cookies.some(c => c.name === 'access_token');
   const hasCsrf = cookies.some(c => c.name === 'csrf_token');
@@ -1230,34 +1251,63 @@ export async function verifyStockFourDim(
 export async function verifyAuditLog(
   page: Page,
   action: string,
-  resourceType?: string
+  resourceType?: string,
+  pathIncludes?: string
 ): Promise<boolean> {
-  // 真实路由为 /audit-logs（system.rs 挂 /api/v1/erp 根下，无 /system 前缀）；
-  // /system/audit-logs 会被 omni_audit 中间件以"未知的资源路径"403 拒绝
-  let path = `/audit-logs?page=1&page_size=50`;
-  if (resourceType) path += `&resource_type=${encodeURIComponent(resourceType)}`;
+  // 业务操作审计有两条真实管道，两条都查、任一命中即通过：
+  // 1. omni_audit 中间件（业务 CRUD）→ omni_audit_logs 表，查询端点
+  //    GET /finance/audit/search（module 列存事件类型 CREATE/UPDATE/...，
+  //    resource_type 存路径业务段，如 /api/v1/erp/purchase/orders → "purchase"；
+  //    动作类 POST（submit/approve/audit/depreciate 等）统一记为 CREATE）
+  // 2. handler 显式写入（导出/打印等）→ audit_logs 表，查询端点 GET /audit-logs
+  //    （system.rs 挂 /api/v1/erp 根下，无 /system 前缀）
+  // pathIncludes：可选，按 request_path 子串精确匹配动作端点
   try {
+    const omniPath = `/finance/audit/search?event_type=${encodeURIComponent(action)}&page=1&page_size=50`;
+    const omni = await apiCallRaw<{
+      items: Array<{ module?: string; resource_type?: string; request_path?: string }>;
+    }>(page, 'GET', omniPath);
+    const omniHit =
+      omni.items?.some(
+        l =>
+          l.module === action &&
+          (!resourceType || l.resource_type === resourceType) &&
+          (!pathIncludes || (l.request_path ?? '').includes(pathIncludes))
+      ) || false;
+    if (omniHit) {
+      console.log(
+        `[verifyAuditLog] omni 管道命中: action=${action} resource_type=${resourceType} ` +
+          `pathIncludes=${pathIncludes ?? '-'}`
+      );
+      return true;
+    }
+  } catch (e) {
+    // omni 查询失败（如非 admin 角色无权限）不阻塞，继续查 audit-logs 管道
+    console.warn(`[verifyAuditLog] omni 管道查询失败: ${(e as Error).message}`);
+  }
+
+  try {
+    let path = `/audit-logs?page=1&page_size=50`;
+    if (resourceType) path += `&resource_type=${encodeURIComponent(resourceType)}`;
     const logs = await apiCallRaw<{
       items: Array<{ operation_type?: string; action?: string; resource_type?: string }>;
     }>(page, 'GET', path);
-    return (
+    const hit =
       logs.items?.some(
         l =>
           (l.operation_type ?? l.action) === action &&
           (!resourceType || l.resource_type === resourceType)
-      ) || false
-    );
-  } catch {
-    try {
-      const logs = await apiCallRaw<{ items: Array<{ action: string; resource_type: string }> }>(
-        page,
-        'GET',
-        `/system/omni-audit?page=1&page_size=50`
+      ) || false;
+    if (!hit && resourceType) {
+      console.warn(
+        `[verifyAuditLog] 两管道均未命中: action=${action} resource_type=${resourceType} ` +
+          `audit-logs 返回 ${logs.items?.length ?? 0} 条`
       );
-      return logs.items?.some(l => l.action === action) || false;
-    } catch {
-      return false;
     }
+    return hit;
+  } catch (e) {
+    console.error(`[verifyAuditLog] audit-logs 管道查询失败: ${(e as Error).message}`);
+    return false;
   }
 }
 
