@@ -1504,6 +1504,7 @@ export default {
     process: {
       invalidId: '无效的工艺优化 ID',
       loadDetailFailed: '加载详情失败',
+      recordNotFound: '记录不存在或已被删除',
       confirmDelete: '确定删除此工艺优化记录？',
       createFailed: '创建失败',
       detailTitle: '工艺优化详情',
@@ -3151,6 +3152,7 @@ export default {
       messageReasonRequired: '请输入取消原因',
       messageCancelSuccess: '取消成功',
       messageCancelFailed: '取消失败',
+      notFound: '订单不存在或已被删除',
     },
     tracking: {
       title: '订单跟踪',
@@ -3169,6 +3171,7 @@ export default {
       nodeStatusCompleted: '已完成',
       nodeStatusBlocked: '阻塞',
       messageLoadFailed: '加载时间线失败',
+      notFound: '订单不存在或已被删除',
     },
   },
   product: {
@@ -5379,6 +5382,7 @@ export default {
   crmDetail: {
     title: '客户 360 视图',
     back: '返回',
+    customerNotFound: '客户不存在或已被删除',
     breadcrumb: {
       home: '首页',
       crm: 'CRM',
@@ -7238,6 +7242,8 @@ export default {
         realName: '姓名',
         phone: '手机号',
         email: '邮箱',
+        role: '角色',
+        rolePlaceholder: '请选择角色',
         status: '状态',
       },
       validation: {
@@ -10467,6 +10473,7 @@ export default {
       colStatus: '状态',
       colOperation: '操作',
       defaultYes: '是',
+      optionGreige: '胚布仓',
       optionRaw: '原料仓',
       optionFinished: '成品仓',
       optionSemi: '半成品仓',

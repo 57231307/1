@@ -1,8 +1,16 @@
 import { test, expect } from '@playwright/test';
 import {
-  loginViaUI, apiCall, apiCallRaw, apiCallExpectFail,
-  verifyStatusTransition, verifyIllegalTransition, getCtx,
-  genCode, genDyeLotNo, genPieceNo,
+  loginViaUI,
+  apiCall,
+  apiCallRaw,
+  apiCallExpectFail,
+  verifyStatusTransition,
+  verifyIllegalTransition,
+  getCtx,
+  genCode,
+  genDyeLotNo,
+  genPieceNo,
+  ensureTestEntities,
 } from './helpers';
 
 test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', () => {
@@ -10,6 +18,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
 
   test('3-1 创建染色配方（小样处方）', async ({ page }) => {
     await loginViaUI(page);
+    await ensureTestEntities(page);
     const ctx = getCtx();
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/production/dye-recipes', {
@@ -33,25 +42,55 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
       ctx.dyeRecipeId = result.data?.id;
     } catch {
       try {
-        const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/dye-recipes?page=1&page_size=1');
+        const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+          page,
+          'GET',
+          '/production/dye-recipes?page=1&page_size=1'
+        );
         ctx.dyeRecipeId = list.items?.[0]?.id;
-      } catch { /* skip */ }
+      } catch {
+        /* skip */
+      }
     }
-    expect(ctx.dyeRecipeId || true).toBeTruthy();
+    expect(ctx.dyeRecipeId).toBeDefined();
   });
 
   test('3-2 审批染色配方（草稿 → 已审核）', async ({ page }) => {
     await loginViaUI(page);
     const ctx = getCtx();
     const id = ctx.dyeRecipeId;
-    if (!id) { test.skip(); return; }
+    if (!id) {
+      test.skip();
+      return;
+    }
 
-    try { await apiCall(page, 'POST', `/production/dye-recipes/${id}/submit`); } catch { /* may already be submitted */ }
-    try { await apiCall(page, 'POST', `/production/dye-recipes/${id}/approve`); } catch { /* may already be approved */ }
+    try {
+      await apiCall(page, 'POST', `/production/dye-recipes/${id}/submit`);
+    } catch {
+      /* may already be submitted */
+    }
+    try {
+      await apiCall(page, 'POST', `/production/dye-recipes/${id}/approve`);
+    } catch {
+      /* may already be approved */
+    }
 
-    const recipe = await apiCallRaw<{ status: string }>(page, 'GET', `/production/dye-recipes/${id}`);
+    const recipe = await apiCallRaw<{ status: string }>(
+      page,
+      'GET',
+      `/production/dye-recipes/${id}`
+    );
     const status = (recipe.status || '').toLowerCase();
-    expect(['已审核', 'approved', '草稿', 'draft', '已停用', 'disabled', 'active', 'inactive']).toContain(status || '已审核');
+    expect([
+      '已审核',
+      'approved',
+      '草稿',
+      'draft',
+      '已停用',
+      'disabled',
+      'active',
+      'inactive',
+    ]).toContain(status ?? '(missing-status)');
   });
 
   test('3-3 创建染色批次（缸号）', async ({ page }) => {
@@ -70,19 +109,28 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
       ctx.dyeLotNo = dyeLotNo;
     } catch {
       try {
-        const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/dye-batches?page=1&page_size=1');
+        const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+          page,
+          'GET',
+          '/production/dye-batches?page=1&page_size=1'
+        );
         ctx.dyeBatchId = list.items?.[0]?.id;
         ctx.dyeLotNo = dyeLotNo;
-      } catch { /* skip */ }
+      } catch {
+        /* skip */
+      }
     }
-    expect(ctx.dyeBatchId || true).toBeTruthy();
+    expect(ctx.dyeBatchId).toBeDefined();
   });
 
   test('3-4 缸号状态机流转（14 态关键路径）', async ({ page }) => {
     await loginViaUI(page);
     const ctx = getCtx();
     const id = ctx.dyeBatchId;
-    if (!id) { test.skip(); return; }
+    if (!id) {
+      test.skip();
+      return;
+    }
 
     const transitions = [
       { action: 'schedule', from: 'pending_schedule', to: 'scheduled' },
@@ -105,69 +153,121 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
     }
 
     // 验证最终状态
-    const batch = await apiCallRaw<{ status: string }>(page, 'GET', `/production/dye-batches/${id}`);
+    const batch = await apiCallRaw<{ status: string }>(
+      page,
+      'GET',
+      `/production/dye-batches/${id}`
+    );
     expect(batch);
     const status = (batch.status || '').toLowerCase();
-    expect(['stored', 'inspecting', 'drying', 'dehydrating', 'fixing', 'washing', 'dyeing', 'preparing', 'scheduled', 'pending_schedule']).toContain(
-      status || 'stored'
-    );
+    expect([
+      'stored',
+      'inspecting',
+      'drying',
+      'dehydrating',
+      'fixing',
+      'washing',
+      'dyeing',
+      'preparing',
+      'scheduled',
+      'pending_schedule',
+    ]).toContain(status ?? '(missing-status)');
   });
 
   test('3-5 验证缸号非法转换被拒绝', async ({ page }) => {
     await loginViaUI(page);
     const ctx = getCtx();
     const id = ctx.dyeBatchId;
-    if (!id) { test.skip(); return; }
+    if (!id) {
+      test.skip();
+      return;
+    }
 
     // 跳过多个状态直接染色 → 应拒绝
-    const result = await apiCallExpectFail(page, 'POST', `/production/dye-batches/${id}/start_dyeing`);
+    const result = await apiCallExpectFail(
+      page,
+      'POST',
+      `/production/dye-batches/${id}/start_dyeing`
+    );
     // 如果当前已在 dyeing 之后，再次 start_dyeing 可能返回 400/409
-    expect(result.status >= 400 || result.status === 200).toBeTruthy();
+    expect(result.status >= 400).toBe(true); // 非法转换应被拒
   });
 
   test('3-6 创建大货处方（关联工单+缸号+配方）', async ({ page }) => {
     await loginViaUI(page);
     const ctx = getCtx();
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/production/production-recipes', {
-        recipe_no: genCode('PR'),
-        work_order_id: ctx.productionOrderId || 1,
-        dye_batch_id: ctx.dyeBatchId,
-        source_recipe_id: ctx.dyeRecipeId,
-        customer_id: ctx.customerId,
-        color_no: 'RED-001',
-        fabric_name: '棉涤布',
-        fabric_spec: '65%棉35%涤 40S 133x72',
-        fabric_width: 150,
-        gram_weight: 200,
-        fabric_weight: 200,
-        equipment_no: '染缸001',
-        liquor_ratio: 10,
-        bath_volume: 2000,
-        adjustment_factor: 1.05,
-        recipe_detail: [
-          { material_code: 'R001', material_name: '活性红', concentration: 3, unit: '%', amount: 6, category: 'dye' },
-          { material_code: 'A001', material_name: '匀染剂', concentration: 2, unit: 'g/L', amount: 40, category: 'auxiliary' },
-        ],
-        total_dye_cost: 120,
-        total_auxiliary_cost: 80,
-        status: 'draft',
-      });
+      const result = await apiCall<{ id?: number }>(
+        page,
+        'POST',
+        '/production/production-recipes',
+        {
+          recipe_no: genCode('PR'),
+          work_order_id: ctx.productionOrderId || 1,
+          dye_batch_id: ctx.dyeBatchId,
+          source_recipe_id: ctx.dyeRecipeId,
+          customer_id: ctx.customerId,
+          color_no: 'RED-001',
+          fabric_name: '棉涤布',
+          fabric_spec: '65%棉35%涤 40S 133x72',
+          fabric_width: 150,
+          gram_weight: 200,
+          fabric_weight: 200,
+          equipment_no: '染缸001',
+          liquor_ratio: 10,
+          bath_volume: 2000,
+          adjustment_factor: 1.05,
+          recipe_detail: [
+            {
+              material_code: 'R001',
+              material_name: '活性红',
+              concentration: 3,
+              unit: '%',
+              amount: 6,
+              category: 'dye',
+            },
+            {
+              material_code: 'A001',
+              material_name: '匀染剂',
+              concentration: 2,
+              unit: 'g/L',
+              amount: 40,
+              category: 'auxiliary',
+            },
+          ],
+          total_dye_cost: 120,
+          total_auxiliary_cost: 80,
+          status: 'draft',
+        }
+      );
       ctx.productionRecipeId = result.data?.id;
     } catch {
       // 跳过
     }
-    expect(ctx.productionRecipeId || true).toBeTruthy();
+    expect(ctx.productionRecipeId).toBeDefined();
   });
 
   test('3-7 审批大货处方（draft → approved）', async ({ page }) => {
     await loginViaUI(page);
     const ctx = getCtx();
     const id = ctx.productionRecipeId;
-    if (!id) { test.skip(); return; }
-    try { await apiCall(page, 'POST', `/production/production-recipes/${id}/approve`); } catch { /* skip */ }
-    const recipe = await apiCallRaw<{ status: string }>(page, 'GET', `/production/production-recipes/${id}`);
-    expect(['approved', 'draft', 'closed', 'cancelled']).toContain((recipe.status || '').toLowerCase() || 'approved');
+    if (!id) {
+      test.skip();
+      return;
+    }
+    try {
+      await apiCall(page, 'POST', `/production/production-recipes/${id}/approve`);
+    } catch {
+      /* skip */
+    }
+    const recipe = await apiCallRaw<{ status: string }>(
+      page,
+      'GET',
+      `/production/production-recipes/${id}`
+    );
+    expect(['approved', 'draft', 'closed', 'cancelled']).toContain(
+      (recipe.status || '(missing-status)').toLowerCase()
+    );
   });
 
   test('3-8 创建 BOM', async ({ page }) => {
@@ -189,42 +289,57 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
       ctx.bomId = result.data?.id;
     } catch {
       try {
-        const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/catalog/boms?page=1&page_size=1');
+        const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+          page,
+          'GET',
+          '/catalog/boms?page=1&page_size=1'
+        );
         ctx.bomId = list.items?.[0]?.id;
-      } catch { /* skip */ }
+      } catch {
+        /* skip */
+      }
     }
-    expect(ctx.bomId || true).toBeTruthy();
+    expect(ctx.bomId).toBeDefined();
   });
 
   test('3-9 创建生产工单', async ({ page }) => {
     await loginViaUI(page);
     const ctx = getCtx();
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/production/orders', {
+      const poUrl = '/production/production-orders/orders';
+      const result = await apiCall<{ id?: number }>(page, 'POST', poUrl, {
+        // CreateProductionOrderPayload：order_no 必填，quantity → planned_quantity
+        order_no: genCode('PO-E2E'),
         product_id: ctx.productIds[0] || 1,
-        quantity: 1000,
-        unit: '米',
+        planned_quantity: 1000,
         planned_start_date: new Date().toISOString().split('T')[0],
         planned_end_date: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
-        bom_id: ctx.bomId,
-        warehouse_id: ctx.warehouseIds[0] || 1,
         remarks: 'E2E 生产工单',
       });
       ctx.productionOrderId = result.data?.id;
     } catch {
       try {
-        const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/production/orders?page=1&page_size=1');
+        const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+          page,
+          'GET',
+          '/production/production-orders/orders?page=1&page_size=1'
+        );
         ctx.productionOrderId = list.items?.[0]?.id;
-      } catch { /* skip */ }
+      } catch {
+        /* skip */
+      }
     }
-    expect(ctx.productionOrderId || true).toBeTruthy();
+    expect(ctx.productionOrderId).toBeDefined();
   });
 
   test('3-10 生产工单状态流转', async ({ page }) => {
     await loginViaUI(page);
     const ctx = getCtx();
     const id = ctx.productionOrderId;
-    if (!id) { test.skip(); return; }
+    if (!id) {
+      test.skip();
+      return;
+    }
 
     const transitions = [
       { action: 'submit-approval', to: ['pending_approval', 'approved'] },
@@ -233,16 +348,26 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
 
     for (const t of transitions) {
       try {
-        await apiCall(page, 'POST', `/production/orders/${id}/${t.action}`);
+        await apiCall(page, 'POST', `/production/production-orders/orders/${id}/${t.action}`);
       } catch {
         // 状态可能不允许
       }
     }
 
-    const order = await apiCallRaw<{ status: string }>(page, 'GET', `/production/orders/${id}`);
-    expect(['draft', 'pending_approval', 'approved', 'scheduled', 'in_progress', 'completed', 'confirmed']).toContain(
-      (order.status || '').toLowerCase() || 'approved'
+    const order = await apiCallRaw<{ status: string }>(
+      page,
+      'GET',
+      `/production/production-orders/orders/${id}`
     );
+    expect([
+      'draft',
+      'pending_approval',
+      'approved',
+      'scheduled',
+      'in_progress',
+      'completed',
+      'confirmed',
+    ]).toContain((order.status || '(missing-status)').toLowerCase());
   });
 
   test('3-11 验证匹号格式（{dye_lot_no}-{seq:03}）', async ({ page }) => {
@@ -256,16 +381,19 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
     await loginViaUI(page);
     const ctx = getCtx();
     const id = ctx.dyeBatchId;
-    if (!id) { test.skip(); return; }
+    if (!id) {
+      test.skip();
+      return;
+    }
 
     try {
-      const logs = await apiCallRaw<{ items: Array<{ from_status: string; to_status: string; transition_code: string }> }>(
-        page, 'GET', `/production/dye-batches/${id}/lifecycle-logs?page=1&page_size=20`
-      );
+      const logs = await apiCallRaw<{
+        items: Array<{ from_status: string; to_status: string; transition_code: string }>;
+      }>(page, 'GET', `/production/dye-batches/${id}/lifecycle-logs?page=1&page_size=20`);
       expect(logs.items);
       // 如果有日志，验证状态转换记录
       if (logs?.items?.length ?? 0 > 0) {
-        expect(logs.items[0].transition_code).toBeTruthy();
+        expect(logs.items?.[0].transition_code).toBeTruthy();
       }
     } catch {
       // 日志端点可能不同，跳过

@@ -70,9 +70,11 @@ pub struct OutsourcingOrderListQuery {
     pub keyword: Option<String>,
 }
 
-#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
-#[allow(dead_code, reason = "预留：委外订单明细查询参数，待实现")]
+#[allow(
+    dead_code,
+    reason = "预留：委外订单明细查询参数，待实现（反序列化输入字段）"
+)]
 pub struct OutsourcingOrderItemListQuery {
     // 按委外订单查询明细（路径参数 order_id 提供）
 }

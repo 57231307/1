@@ -398,10 +398,8 @@ const transferRules: FormRules = {
 
 const fetchWarehouseOptions = async () => {
   try {
-    const res = (await getWarehouseList({ page: 1, page_size: 1000 })) as unknown as {
-      data?: { list?: Warehouse[] };
-    };
-    warehouseOptions.value = res.data?.list || [];
+    const res = await getWarehouseList({ page: 1, page_size: 1000 });
+    warehouseOptions.value = res.data?.items || [];
   } catch {
     warehouseOptions.value = [];
   }

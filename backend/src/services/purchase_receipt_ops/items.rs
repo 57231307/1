@@ -66,6 +66,7 @@ impl PurchaseReceiptService {
             quantity_alt: Set(Some(req.quantity_alt)),
             unit_price: Set(Some(req.unit_price.unwrap_or_else(|| Decimal::new(0, 0)))),
             amount: Set(Some(amount)),
+            piece_no: Set(req.piece_no),
             notes: Set(req.notes),
             ..Default::default()
         }

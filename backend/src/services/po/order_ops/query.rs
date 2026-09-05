@@ -9,6 +9,7 @@
 //! 依赖说明：
 //! - `export_orders_to_csv` 内部调用 `list_orders`（定义于 crud 子模块，`pub` 方法，跨 impl 块可直接调用）
 
+use sea_orm::sea_query::Expr;
 use sea_orm::{ColumnTrait, EntityTrait, JoinType, QueryFilter, QuerySelect, RelationTrait};
 
 use crate::models::{product, purchase_order_item};
@@ -21,9 +22,13 @@ impl PurchaseOrderService {
         &self,
         order_id: i32,
     ) -> Result<Vec<PurchaseOrderItemDto>, AppError> {
+        // amount 映射到实体 subtotal 列；returned_quantity 数据库无对应列，置 0
+        // （若 FromQueryResult 按默认列名匹配不到列会 TryGetError 导致接口 500）
         let items = purchase_order_item::Entity::find()
             .column_as(product::Column::Code, "material_code")
             .column_as(product::Column::Name, "material_name")
+            .column_as(purchase_order_item::Column::Subtotal, "amount")
+            .column_as(Expr::value(0), "returned_quantity")
             .join(
                 JoinType::LeftJoin,
                 purchase_order_item::Relation::Product.def(),

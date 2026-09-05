@@ -189,8 +189,13 @@ fn build_new_piece(
 ) -> inventory_piece::ActiveModel {
     inventory_piece::ActiveModel {
         id: sea_orm::ActiveValue::NotSet,
-        // v14 批次 416：dye_lot_id 为 NOT NULL 字段，拆分产生的新布卷继承母卷的缸号
+        // v14 批次 416：拆分产生的新布卷继承母卷的缸号；m0051 起 dye_lot_id 可空（生产匹无缸号）
         dye_lot_id: Set(parent.dye_lot_id),
+        // m0051 匹类型：拆分产生的子卷继承母卷类型（greige/dyed），机台号仅生产匹继承
+        piece_type: Set(parent.piece_type.clone()),
+        machine_no: Set(parent.machine_no.clone()),
+        machine_operator: Set(parent.machine_operator.clone()),
+        warehouse_in_at: Set(parent.warehouse_in_at),
         batch_no: Set(parent.batch_no.clone()),
         product_id: Set(parent.product_id),
         warehouse_id: Set(parent.warehouse_id),

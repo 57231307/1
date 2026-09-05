@@ -39,7 +39,7 @@ export interface WarehouseQueryParams {
 
 // D14 Batch 5b：原 warehouseApi.list 转为风格 B 函数
 export const getWarehouseList = (params?: WarehouseQueryParams) =>
-  request.get<ApiResponse<{ list: Warehouse[]; total: number }>>('/warehouses', { params });
+  request.get<ApiResponse<{ items: Warehouse[]; total: number }>>('/warehouses', { params });
 
 // D14 Batch 5b：原 warehouseApi.getById 转为风格 B 函数
 export const getWarehouseById = (id: number) =>

@@ -64,7 +64,7 @@ export interface CreateEvaluationRequest {
 
 export function getEvaluationIndicatorList(
   params?: SupplierEvaluationQueryParams
-): Promise<ApiResponse<{ list: EvaluationIndicator[]; total: number }>> {
+): Promise<ApiResponse<{ items: EvaluationIndicator[]; total: number }>> {
   return request.get('/purchase/supplier-evaluations/indicators', { params });
 }
 
@@ -76,7 +76,7 @@ export function createIndicator(
 
 export function getEvaluationRecordList(
   params?: SupplierEvaluationQueryParams
-): Promise<ApiResponse<{ list: EvaluationRecord[]; total: number }>> {
+): Promise<ApiResponse<{ items: EvaluationRecord[]; total: number }>> {
   return request.get('/purchase/supplier-evaluations/records', { params });
 }
 
@@ -102,7 +102,7 @@ export function getSupplierRankings(params?: {
 
 export function getEvaluationList(
   params?: SupplierEvaluationQueryParams
-): Promise<ApiResponse<{ list: EvaluationRecord[]; total: number }>> {
+): Promise<ApiResponse<{ items: EvaluationRecord[]; total: number }>> {
   return request.get('/purchase/supplier-evaluations', { params });
 }
 

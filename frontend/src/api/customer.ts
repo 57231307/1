@@ -41,7 +41,7 @@ export interface CustomerQueryParams {
 // D14 Batch 5b：原 customerApi.list 与本函数 URL 同为 /crm/customers，判定为重复，移除对象方法，保留本函数
 export function getCustomerList(
   params?: CustomerQueryParams
-): Promise<ApiResponse<{ list: Customer[]; total: number }>> {
+): Promise<ApiResponse<{ items: Customer[]; total: number }>> {
   return request.get('/crm/customers', { params });
 }
 

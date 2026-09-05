@@ -311,6 +311,8 @@
         </el-button>
       </template>
     </el-dialog>
+    <!-- 空态：客户不存在或加载失败时给出可见提示（避免整页空白） -->
+    <el-empty v-if="!loading && !customer" :description="t('crmDetail.customerNotFound')" />
   </div>
 </template>
 
@@ -320,6 +322,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { Back, Plus } from '@element-plus/icons-vue';
+import { formatCurrency } from '@/utils';
 // D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
 import {
   getCustomer360,
@@ -366,8 +369,6 @@ const contactFormRules: FormRules = {
   phone: [{ required: true, message: t('crmDetail.validation.phoneRequired'), trigger: 'blur' }],
   email: [{ type: 'email', message: t('crmDetail.validation.emailPattern'), trigger: 'blur' }],
 };
-
-const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`;
 
 const getTypeLabel = (type: string) => {
   const labels: Record<string, string> = {

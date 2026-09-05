@@ -1,11 +1,16 @@
 import { test, expect } from '@playwright/test';
 import {
-  loginViaUI, apiCall, apiCallRaw, apiCallExpectFail, getCtx,
-  genCode, genName, genDyeLotNo,
+  loginViaUI,
+  apiCall,
+  apiCallRaw,
+  apiCallExpectFail,
+  getCtx,
+  genCode,
+  genName,
+  genDyeLotNo,
 } from './helpers';
 
 test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版）', () => {
-
   test('0-1 健康检查', async () => {
     const response = await fetch('http://localhost:8082/health');
     expect(response.ok).toBeTruthy();
@@ -13,7 +18,11 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
 
   test('0-2 登录验证 + 权限验证', async ({ page }) => {
     await loginViaUI(page);
-    const me = await apiCallRaw<{ username: string; permissions: string[] }>(page, 'GET', '/auth/me');
+    const me = await apiCallRaw<{ username: string; permissions: string[] }>(
+      page,
+      'GET',
+      '/auth/me'
+    );
     expect(me.username).toBeTruthy();
     expect(me.permissions);
     expect(me.permissions.length).toBeGreaterThanOrEqual(0);
@@ -29,10 +38,16 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
       { name: genName('财务部'), code: genCode('DEPT-FIN'), sort_order: 4, is_active: true },
     ]) {
       try {
-        const id = await apiCallRaw<{ id: number }>(page, 'POST', '/departments', dept).then(r => r.id);
+        const id = await apiCallRaw<{ id: number }>(page, 'POST', '/departments', dept).then(
+          r => r.id
+        );
         ctx.departmentIds.push(id);
       } catch {
-        const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/departments?page=1&page_size=10');
+        const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+          page,
+          'GET',
+          '/departments?page=1&page_size=10'
+        );
         if (list.items?.[0]?.id) ctx.departmentIds.push(list.items[0].id);
       }
     }
@@ -43,15 +58,21 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
     await loginViaUI(page);
     const ctx = getCtx();
     for (const wh of [
-      { name: genName('原料仓'), code: genCode('WH-RAW'), location: 'A区', is_active: true },
-      { name: genName('成品仓'), code: genCode('WH-FIN'), location: 'B区', is_active: true },
-      { name: genName('染料仓'), code: genCode('WH-DYE'), location: 'C区', is_active: true },
+      { name: genName('原料仓'), code: genCode('WH-RAW'), address: 'A区' },
+      { name: genName('成品仓'), code: genCode('WH-FIN'), address: 'B区' },
+      { name: genName('染料仓'), code: genCode('WH-DYE'), address: 'C区' },
     ]) {
       try {
-        const id = await apiCallRaw<{ id: number }>(page, 'POST', '/warehouses', wh).then(r => r.id);
+        const id = await apiCallRaw<{ id: number }>(page, 'POST', '/warehouses', wh).then(
+          r => r.id
+        );
         ctx.warehouseIds.push(id);
       } catch {
-        const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/warehouses?page=1&page_size=10');
+        const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+          page,
+          'GET',
+          '/warehouses?page=1&page_size=10'
+        );
         if (list.items?.[0]?.id) ctx.warehouseIds.push(list.items[0].id);
       }
     }
@@ -66,10 +87,16 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
       { name: genName('成品布类'), code: genCode('CAT-FIN'), is_active: true },
     ]) {
       try {
-        const id = await apiCallRaw<{ id: number }>(page, 'POST', '/categories', cat).then(r => r.id);
+        const id = await apiCallRaw<{ id: number }>(page, 'POST', '/categories', cat).then(
+          r => r.id
+        );
         ctx.productCategoryIds.push(id);
       } catch {
-        const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/categories?page=1&page_size=10');
+        const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+          page,
+          'GET',
+          '/categories?page=1&page_size=10'
+        );
         if (list.items?.[0]?.id) ctx.productCategoryIds.push(list.items[0].id);
       }
     }
@@ -100,7 +127,11 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
       });
       if (result.data?.id) ctx.productIds.push(result.data.id);
     } catch {
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/products?page=1&page_size=1');
+      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+        page,
+        'GET',
+        '/products?page=1&page_size=1'
+      );
       if (list.items?.[0]?.id) ctx.productIds.push(list.items[0].id);
     }
     expect(ctx.productIds.length).toBeGreaterThanOrEqual(0);
@@ -140,8 +171,7 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
     const ctx = getCtx();
     const productId = ctx.productIds[0] || 1;
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/product-colors', {
-        product_id: productId,
+      const result = await apiCall<{ id?: number }>(page, 'POST', `/products/${productId}/colors`, {
         color_no: 'RED-001',
         color_name: '大红',
         pantone_code: '179C',
@@ -161,8 +191,7 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
     const ctx = getCtx();
     const productId = ctx.productIds[0] || 1;
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/product-colors', {
-        product_id: productId,
+      const result = await apiCall<{ id?: number }>(page, 'POST', `/products/${productId}/colors`, {
         color_no: 'BLUE-001',
         color_name: '藏青',
         pantone_code: '19-3939C',
@@ -182,18 +211,20 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
     const ctx = getCtx();
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
-        name: genName('E2E供应商'),
-        code: genCode('SUP'),
-        contact_person: '联系人',
+        supplier_name: genName('E2E供应商'),
         contact_phone: '13800000000',
-        is_active: true,
+        contacts: [{ contact_name: '联系人', mobile_phone: '13800000000', is_primary: true }],
       });
       ctx.supplierId = result.data?.id;
     } catch {
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/purchase/suppliers?page=1&page_size=1');
+      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+        page,
+        'GET',
+        '/purchase/suppliers?page=1&page_size=1'
+      );
       ctx.supplierId = list.items?.[0]?.id;
     }
-    expect(ctx.supplierId || true).toBeTruthy();
+    expect(ctx.supplierId).toBeTruthy();
   });
 
   test('0-11 创建客户（含信用额度）', async ({ page }) => {
@@ -201,37 +232,40 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
     const ctx = getCtx();
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
-        name: genName('E2E客户'),
-        code: genCode('CUST'),
+        customer_name: genName('E2E客户'),
+        customer_code: genCode('CUST'),
         customer_type: 'wholesale',
         contact_person: '联系人',
         contact_phone: '13900000000',
-        credit_limit: 500000,
+        credit_limit: '500000',
         payment_terms: 30,
-        is_active: true,
       });
       ctx.customerId = result.data?.id;
     } catch {
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/crm/customers?page=1&page_size=1');
+      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+        page,
+        'GET',
+        '/crm/customers?page=1&page_size=1'
+      );
       ctx.customerId = list.items?.[0]?.id;
     }
-    expect(ctx.customerId || true).toBeTruthy();
+    expect(ctx.customerId).toBeTruthy();
   });
 
   test('0-12 创建会计科目', async ({ page }) => {
     await loginViaUI(page);
     const ctx = getCtx();
     const subjects = [
-      { code: '1001', name: '库存现金', subject_type: 'asset' },
-      { code: '1002', name: '银行存款', subject_type: 'asset' },
-      { code: '1122', name: '应收账款', subject_type: 'asset' },
-      { code: '2202', name: '应付账款', subject_type: 'liability' },
-      { code: '6001', name: '主营业务收入', subject_type: 'revenue' },
-      { code: '5001', name: '生产成本', subject_type: 'cost' },
+      { code: '1001', name: '库存现金', level: 1, balance_direction: 'debit' },
+      { code: '1002', name: '银行存款', level: 1, balance_direction: 'debit' },
+      { code: '1122', name: '应收账款', level: 1, balance_direction: 'debit' },
+      { code: '2202', name: '应付账款', level: 1, balance_direction: 'credit' },
+      { code: '6001', name: '主营业务收入', level: 1, balance_direction: 'credit' },
+      { code: '5001', name: '生产成本', level: 1, balance_direction: 'debit' },
     ];
     for (const s of subjects) {
       try {
-        const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/gl/subjects', { ...s, is_active: true });
+        const result = await apiCall<{ id?: number }>(page, 'POST', '/subjects', s);
         if (result.data?.id) ctx.accountSubjectIds.push(result.data.id);
       } catch {
         // 已存在则跳过
@@ -245,19 +279,17 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
     const ctx = getCtx();
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/color-cards', {
+        // CreateColorCardDto 仅接受 card_no/card_name/card_type/season/brand/description/cover_image_url
         card_no: genCode('CC'),
         card_name: genName('E2E色卡'),
-        card_type: 'seasonal',
+        card_type: 'CUSTOM',
         season: '2026SS',
-        total_colors: 2,
-        status: 'draft',
-        color_fastness_grade: 'A',
       });
       ctx.colorCardId = result.data?.id;
-    } catch {
-      // 色卡模块可能未就绪
+    } catch (e) {
+      console.error('[0-13] 色卡创建失败:', (e as Error).message);
     }
-    expect(ctx.colorCardId || true).toBeTruthy();
+    expect(ctx.colorCardId).toBeTruthy();
   });
 
   test('0-14 创建坯布（关联产品 + 双计量）', async ({ page }) => {
@@ -266,7 +298,7 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
     const dyeLotNo = genDyeLotNo();
     ctx.dyeLotNo = dyeLotNo;
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/fabric/greige', {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/greige-fabrics', {
         fabric_no: genCode('GF'),
         fabric_name: genName('E2E坯布'),
         product_id: ctx.productIds[0] || 1,
@@ -291,7 +323,11 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
     } catch {
       // 坯布模块可能路由不同
       try {
-        const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/fabric/greige?page=1&page_size=1');
+        const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+          page,
+          'GET',
+          '/greige-fabrics?page=1&page_size=1'
+        );
         ctx.greigeFabricId = list.items?.[0]?.id;
       } catch {
         // 跳过
@@ -304,16 +340,32 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
     await loginViaUI(page);
     const ctx = getCtx();
 
-    const products = await apiCallRaw<{ items: unknown[] }>(page, 'GET', '/products?page=1&page_size=5');
+    const products = await apiCallRaw<{ items: unknown[] }>(
+      page,
+      'GET',
+      '/products?page=1&page_size=5'
+    );
     expect(products?.items?.length ?? 0).toBeGreaterThanOrEqual(0);
 
-    const suppliers = await apiCallRaw<{ items: unknown[] }>(page, 'GET', '/purchase/suppliers?page=1&page_size=5');
+    const suppliers = await apiCallRaw<{ items: unknown[] }>(
+      page,
+      'GET',
+      '/purchase/suppliers?page=1&page_size=5'
+    );
     expect(suppliers?.items?.length ?? 0).toBeGreaterThanOrEqual(0);
 
-    const customers = await apiCallRaw<{ items: unknown[] }>(page, 'GET', '/crm/customers?page=1&page_size=5');
+    const customers = await apiCallRaw<{ items: unknown[] }>(
+      page,
+      'GET',
+      '/crm/customers?page=1&page_size=5'
+    );
     expect(customers?.items?.length ?? 0).toBeGreaterThanOrEqual(0);
 
-    const warehouses = await apiCallRaw<{ items: unknown[] }>(page, 'GET', '/warehouses?page=1&page_size=5');
+    const warehouses = await apiCallRaw<{ items: unknown[] }>(
+      page,
+      'GET',
+      '/warehouses?page=1&page_size=5'
+    );
     expect(warehouses?.items?.length ?? 0).toBeGreaterThanOrEqual(0);
 
     // 验证非法 API 调用被拒绝

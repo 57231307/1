@@ -840,12 +840,12 @@ impl DashboardService {
             sea_orm::DatabaseBackend::Postgres,
             r#"
             SELECT
-                (SELECT COALESCE(SUM(si.quantity), 0)
+                (SELECT COALESCE(SUM(si.quantity), 0::NUMERIC)
                    FROM sales_order_items si
                    INNER JOIN sales_orders s ON s.id = si.order_id
                      AND s.status NOT IN ('CANCELLED', 'DRAFT')
                 ) as sold_quantity,
-                (SELECT COALESCE(SUM(quantity_meters), 0)
+                (SELECT COALESCE(SUM(quantity_meters), 0::NUMERIC)
                    FROM inventory_stocks
                    WHERE stock_status = 'active'
                 ) as stock_quantity

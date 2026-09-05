@@ -90,14 +90,14 @@
           width="120"
           align="right"
         >
-          <template #default="{ row }">¥{{ (row.direct_material || 0).toFixed(2) }}</template>
+          <template #default="{ row }">¥{{ Number(row.direct_material ?? 0).toFixed(2) }}</template>
         </el-table-column>
         <el-table-column
           :label="t('cost.collectionList.table.directLabor')"
           width="120"
           align="right"
         >
-          <template #default="{ row }">¥{{ (row.direct_labor || 0).toFixed(2) }}</template>
+          <template #default="{ row }">¥{{ Number(row.direct_labor ?? 0).toFixed(2) }}</template>
         </el-table-column>
         <el-table-column
           :label="t('cost.collectionList.table.manufacturingOverhead')"
@@ -105,7 +105,7 @@
           align="right"
         >
           <template #default="{ row }"
-            >¥{{ (row.manufacturing_overhead || 0).toFixed(2) }}</template
+            >¥{{ Number(row.manufacturing_overhead ?? 0).toFixed(2) }}</template
           >
         </el-table-column>
         <el-table-column
@@ -114,7 +114,7 @@
           align="right"
         >
           <template #default="{ row }">
-            <span class="text-bold">¥{{ (row.total_cost || 0).toFixed(2) }}</span>
+            <span class="text-bold">¥{{ Number(row.total_cost ?? 0).toFixed(2) }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="status" :label="t('cost.collectionList.table.status')" width="100">

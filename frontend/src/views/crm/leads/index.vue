@@ -348,7 +348,7 @@ const currentRow = ref<LeadRow | null>(null);
 const fetchUsers = async () => {
   try {
     const res = await getUserList();
-    users.value = res.data?.list || [];
+    users.value = res.data?.users || [];
   } catch (error) {
     users.value = [];
   }

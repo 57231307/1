@@ -283,7 +283,7 @@ const fetchAssignableCustomers = async () => {
   try {
     // P1-5：调用真实 API 获取可分配客户（公海池）
     const res = await getCustomerPoolList({ page: 1, page_size: 50 });
-    assignableCustomers.value = (res.data?.list ?? res.data) as AssignableCustomer[];
+    assignableCustomers.value = (res.data?.data ?? res.data) as AssignableCustomer[];
   } catch (error) {
     const err = error as Error;
     logger.warn(t('crmAssignment.message.loadAssignableFailed'), err.message);
@@ -295,7 +295,7 @@ const fetchAssignableCustomers = async () => {
 const fetchUsers = async () => {
   try {
     const res = await getUserList();
-    users.value = res.data?.list || [];
+    users.value = res.data?.data || [];
   } catch (error) {
     users.value = [];
   }

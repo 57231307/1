@@ -114,7 +114,7 @@ export function useSr() {
     loading.value = true;
     try {
       const res = await getSalesReturnList();
-      returnList.value = res.data?.list || [];
+      returnList.value = res.data?.items || [];
     } catch (error: unknown) {
       // v11 批次 163 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
       ElMessage.error(
@@ -130,7 +130,7 @@ export function useSr() {
   const loadSalesOrders = async () => {
     try {
       const res = await getSalesOrderList({ status: 'completed' });
-      salesOrderList.value = (res.data?.list || []) as unknown as SalesOrderOption[];
+      salesOrderList.value = (res.data?.items || []) as unknown as SalesOrderOption[];
     } catch (error: unknown) {
       logger.error('加载销售订单失败', error instanceof Error ? error.message : String(error));
     }
@@ -140,7 +140,7 @@ export function useSr() {
   const loadCustomers = async () => {
     try {
       const res = await getCustomerList();
-      customerList.value = (res.data?.list || []) as unknown as CustomerOption[];
+      customerList.value = (res.data?.items || []) as unknown as CustomerOption[];
     } catch (error: unknown) {
       logger.error('加载客户列表失败', error instanceof Error ? error.message : String(error));
     }
@@ -150,7 +150,7 @@ export function useSr() {
   const loadProducts = async () => {
     try {
       const res = await getProductList();
-      productList.value = (res.data?.list || []) as unknown as ProductOption[];
+      productList.value = (res.data?.items || []) as unknown as ProductOption[];
     } catch (error: unknown) {
       logger.error('加载产品列表失败', error instanceof Error ? error.message : String(error));
     }

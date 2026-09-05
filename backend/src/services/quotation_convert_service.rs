@@ -182,6 +182,7 @@ impl QuotationConvertService {
                 created_at: Set(now),
                 updated_at: Set(now),
                 color_no: Set(Self::compose_color_no(item)),
+                piece_no: Set(None),
                 color_name: Set(None),
                 pantone_code: Set(item.pantone_code.clone()),
                 grade_required: Set(None),

@@ -25,6 +25,7 @@ use crate::handlers::{
 pub fn inventory() -> Router<AppState> {
     Router::new()
         .merge(piece_split_routes())
+        .merge(piece_routes())
         .merge(stock_routes())
         .merge(transfer_routes())
         .merge(adjustment_routes())
@@ -38,6 +39,14 @@ fn piece_split_routes() -> Router<AppState> {
     Router::new().route(
         "/piece-split",
         post(crate::handlers::piece_split_handler::split_fabric_piece),
+    )
+}
+
+/// 匹号查询路由（path 前缀 /pieces）：匹号领域四维追溯查询
+fn piece_routes() -> Router<AppState> {
+    Router::new().route(
+        "/pieces",
+        get(crate::handlers::inventory_piece_handler::list_pieces),
     )
 }
 

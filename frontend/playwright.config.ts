@@ -33,13 +33,18 @@ export default defineConfig({
   globalSetup: './e2e/global-setup.ts',
   // 同时生成 HTML 报告（可下载的 artifact）和命令行输出
   reporter: [['html'], ['line']],
-  // 单测试 120s（CI 环境页面渲染 + API 响应较慢）
-  timeout: 120_000,
+  // 单测试 420s：ensureTestEntities 需 UI 创建 10+ 实体（仓库/产品/供应商/dye-batch/
+  // dye-recipe/BOM/定制订单/色卡等），CI 慢环境下单个页面加载/登录可达 120s，
+  // 300s 在后段实体（色卡 140s 实测）处耗尽导致 page closed 连锁失败
+  timeout: 420_000,
   use: {
     baseURL: 'http://localhost:3000',
     headless: true,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
+    // 浏览器语言设为中文（i18n 浏览器语言协商读 navigator.language，
+    // Playwright 默认 en-US 导致页面英文渲染，E2E 中文文本断言全部失败）
+    locale: 'zh-CN',
     // CI 环境 actionTimeout 30s（单个操作超时）
     actionTimeout: 30_000,
     // CI 环境导航超时 30s

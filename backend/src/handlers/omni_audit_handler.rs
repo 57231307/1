@@ -321,9 +321,16 @@ fn row_to_json(
     let action = row
         .try_get::<String>("", "action")
         .map_err(|e| AppError::internal(format!("审计日志读取 action 失败: {}", e)))?;
-    let created_at = row
-        .try_get::<String>("", "created_at")
-        .map_err(|e| AppError::internal(format!("审计日志读取 created_at 失败: {}", e)))?;
+    // created_at 列为 TIMESTAMP（m0005 建表，后续 ADD COLUMN IF NOT EXISTS 为无操作），
+    // 原样 try_get::<String> 与数据库原生类型不匹配会报错 → 接口 500；
+    // 先按 NaiveDateTime 读取再序列化，失败时回退 TIMESTAMPTZ 读取（防御迁移变更）
+    let created_at = match row.try_get::<chrono::NaiveDateTime>("", "created_at") {
+        Ok(dt) => dt.format("%Y-%m-%d %H:%M:%S").to_string(),
+        Err(_) => row
+            .try_get::<chrono::DateTime<chrono::FixedOffset>>("", "created_at")
+            .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+            .map_err(|e| AppError::internal(format!("审计日志读取 created_at 失败: {}", e)))?,
+    };
     let mut item = serde_json::json!({
         "id": id,
         "trace_id": get_opt_string(row, "trace_id")?,

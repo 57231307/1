@@ -2401,7 +2401,7 @@ jobs:
 # Job 15: E2E 端到端测试（8 分片并行，每分片独立后端实例）
 # ==============================================================================
   ci-e2e:
-    name: 🎭 E2E 测试 (${{ matrix.shard }}/15)
+    name: 🎭 E2E 测试 (${{ matrix.shard }}/34)
     runs-on: ubuntu-latest
     timeout-minutes: 360
     needs: [ci-build-fe, ci-build-rust]
@@ -2410,7 +2410,7 @@ jobs:
       fail-fast: false
       max-parallel: 8
       matrix:
-        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33]
     services:
       postgres:
         image: postgres:16-alpine
@@ -2433,7 +2433,7 @@ jobs:
       AUDIT_SECRET_KEY: e2e-only-audit-signing-key-do-not-use-in-prod-32b
       INIT_TOKEN: ci-e2e-seeding-token-only-32bytes-do-not-use!
       TEST_USERNAME: e2e_admin
-      TEST_PASSWORD: E2e@TestPassword2026!
+      TEST_PASSWORD: "Xk9#mQ2$vL8pW4nR"
       APP_ENV: development
       ENV: development
       KAFKA_ENABLED: "false"
@@ -2488,6 +2488,16 @@ jobs:
       - name: 安装前端依赖
         working-directory: frontend
         run: npm ci --prefer-offline --no-audit
+
+      - name: 缓存 Playwright 浏览器
+        uses: actions/cache@v5
+        with:
+          # Playwright 浏览器二进制可跨 job 复用（~150MB/分片×34 分片重复下载，
+          # 且下载偶发卡死数小时）。key 绑定 playwright 版本号
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: |
+            playwright-
 
       - name: 安装 Playwright 浏览器
         working-directory: frontend
@@ -2571,29 +2581,49 @@ jobs:
           echo "=== 后端日志最后 10 行 ==="
           tail -10 /tmp/e2e-logs/backend.log 2>/dev/null || echo "(无后端日志)"
 
-      - name: 运行 E2E 测试（分片 ${{ matrix.shard }}/15）
+      - name: 运行 E2E 测试（分片 ${{ matrix.shard }}/34）
         working-directory: frontend
+        env:
+          # 分片索引：globalSetup 经 API 创建并登录 e2e_admin_s{shard} 独立账号。
+          # TEST_USERNAME 必须 step 级覆盖（job 级仍是 e2e_admin，会短路 helpers
+          # 的分片派生逻辑，导致 loginViaUI 登回 e2e_admin → created_by 不一致
+          # → "只能提交自己创建的订单" 403）
+          E2E_SHARD_INDEX: ${{ matrix.shard }}
+          TEST_USERNAME: e2e_admin_s${{ matrix.shard }}
         run: |
           mkdir -p reports
           set +e
+          echo "本分片使用独立账号: ${TEST_USERNAME}"
           SHARD=${{ matrix.shard }}
-          if [ "$SHARD" -le 10 ]; then
-            # 分片 0-10: 运行 flow/ 全流程测试，按 shard 自动分配
-            npx playwright test --project=chromium --shard=$((SHARD + 1))/11 e2e/flow/ 2>&1 | tee reports/playwright-output.txt
+          if [ "$SHARD" -le 29 ]; then
+            # 分片 0-29: 运行 flow/ 全流程测试，按 shard 自动分配
+            npx playwright test --project=chromium --shard=$((SHARD + 1))/30 e2e/flow/ 2>&1 | tee reports/playwright-output.txt
           else
-            # 分片 11-14: 运行 smoke 页面加载测试，按 shard 分配
-            SMOKE_SHARD=$((SHARD - 10))
+            # 分片 30-33: 运行 smoke 页面加载测试，按 shard 分配
+            SMOKE_SHARD=$((SHARD - 29))
             npx playwright test --project=chromium --shard=${SMOKE_SHARD}/4 e2e/smoke/ 2>&1 | tee reports/playwright-output.txt
           fi
           EXIT_CODE=$?
           set -e
           {
-            echo "# E2E 测试报告（分片 ${{ matrix.shard }}/15）"; echo ""
+            echo "# E2E 测试报告（分片 ${{ matrix.shard }}/34）"; echo ""
             if [ "$EXIT_CODE" -eq "0" ]; then echo "## ✅ 分片 ${{ matrix.shard }} 全部通过"
             else echo "## ❌ 分片 ${{ matrix.shard }} 部分失败"; echo '```'; head -200 reports/playwright-output.txt; echo '```'
             fi
           } > reports/e2e-report.md
           echo "$EXIT_CODE" > reports/e2e-exit-code.txt
+          # 【临时诊断】CI job 日志在外部无法读取，失败时把 Playwright 输出的首尾片段
+          # 压缩为 check annotation（annotation 可通过公开 API 读取），定位完成后需移除本段
+          if [ "$EXIT_CODE" -ne "0" ]; then
+            LINES=$(wc -l < reports/playwright-output.txt 2>/dev/null || echo 0)
+            echo "::error::E2E-分片 ${{ matrix.shard }} 退出码=$EXIT_CODE 输出行数=$LINES"
+            TAILTXT=$(tail -n 25 reports/playwright-output.txt 2>/dev/null | cut -c1-140 \
+              | sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/@NL@/' | tr -d '\n' | sed 's/@NL@/%0A/g')
+            echo "::error::E2E-TAIL: $TAILTXT"
+            HEADTXT=$(head -n 20 reports/playwright-output.txt 2>/dev/null | cut -c1-140 \
+              | sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/@NL@/' | tr -d '\n' | sed 's/@NL@/%0A/g')
+            echo "::error::E2E-HEAD: $HEADTXT"
+          fi
           exit $EXIT_CODE
 
       - name: 收集后端日志
@@ -2602,6 +2632,15 @@ jobs:
           if [ -f /tmp/e2e-logs/backend.log ]; then
             mkdir -p frontend/reports
             cp /tmp/e2e-logs/backend.log frontend/reports/backend.log
+          fi
+          # 前端 dev server 日志（Vite 编译错误/chunk 加载失败原因）
+          if [ -f /tmp/e2e-logs/frontend.log ]; then
+            cp /tmp/e2e-logs/frontend.log frontend/reports/frontend.log
+          fi
+          # globalSetup 失败截图（登录/分片账号创建诊断）
+          if [ -d frontend/e2e/.auth ]; then
+            mkdir -p frontend/reports/globalsetup-screenshots
+            cp -r frontend/e2e/.auth/*.png frontend/reports/globalsetup-screenshots/ 2>/dev/null || true
           fi
 
       - name: 上传 E2E 报告

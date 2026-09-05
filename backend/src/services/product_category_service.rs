@@ -83,6 +83,13 @@ impl ProductCategoryService {
         let active_model = product_category::ActiveModel {
             id: NotSet,
             name: Set(req.name),
+            // DB 列 code VARCHAR(50) NOT NULL UNIQUE，未传时按名称生成避免 NULL 违反约束
+            code: Set(req.code.unwrap_or_else(|| {
+                format!(
+                    "CAT-{}",
+                    chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+                )
+            })),
             parent_id: Set(req.parent_id),
             description: Set(req.description),
             created_at: Set(Utc::now()),
@@ -131,6 +138,10 @@ impl ProductCategoryService {
 
         if let Some(d) = req.description {
             category.description = Set(Some(d));
+        }
+
+        if let Some(c) = req.code {
+            category.code = Set(c);
         }
 
         category.updated_at = Set(Utc::now());

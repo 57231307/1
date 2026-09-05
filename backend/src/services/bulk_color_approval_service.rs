@@ -440,7 +440,12 @@ impl BulkColorApprovalService {
         let sample_piece = inventory_piece::ActiveModel {
             id: Default::default(),
             piece_no: Set(sample_piece_no),
-            dye_lot_id: Set(model.dye_batch_id),
+            // 样布产生于染色批次之后，属染色匹
+            piece_type: Set("dyed".to_string()),
+            machine_no: Set(None),
+            machine_operator: Set(None),
+            warehouse_in_at: Set(Some(now)),
+            dye_lot_id: Set(Some(model.dye_batch_id)),
             supplier_piece_no: Set(None),
             length: Set(sample_length),
             weight: Set(None),

@@ -43,7 +43,7 @@
         width="130"
         align="right"
       >
-        <template #default="scope">{{ scope.row.invoice_amount.toFixed(2) }}</template>
+        <template #default="scope">{{ Number(scope.row.invoice_amount ?? 0).toFixed(2) }}</template>
       </el-table-column>
       <el-table-column
         prop="payment_amount"
@@ -51,7 +51,7 @@
         width="130"
         align="right"
       >
-        <template #default="scope">{{ scope.row.payment_amount.toFixed(2) }}</template>
+        <template #default="scope">{{ Number(scope.row.payment_amount ?? 0).toFixed(2) }}</template>
       </el-table-column>
       <el-table-column
         prop="difference"
@@ -61,7 +61,7 @@
       >
         <template #default="scope">
           <span :style="{ color: scope.row.difference !== 0 ? '#f56c6c' : '#67c23a' }">
-            {{ scope.row.difference.toFixed(2) }}
+            {{ Number(scope.row.difference ?? 0).toFixed(2) }}
           </span>
         </template>
       </el-table-column>

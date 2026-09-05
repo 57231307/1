@@ -51,6 +51,7 @@
 import { ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { request } from '@/api/request';
+import type { ApiResponse } from '@/types/api';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -67,8 +68,10 @@ const permissionListLoading = ref(false);
 const fetchPermissionList = async () => {
   permissionListLoading.value = true;
   try {
-    const res = await request.get<PermissionRow[]>('/permissions');
-    permissionList.value = res || [];
+    // 拦截器返回 ApiResponse 完整信封，业务数组在 data 字段；
+    // 直接把信封对象赋给 el-table :data 会触发 "rows is not iterable" 整页崩溃
+    const res = await request.get<ApiResponse<PermissionRow[]>>('/permissions');
+    permissionList.value = res.data ?? [];
   } catch (_e) {
     // 接口失败时静默处理，避免向用户暴露内部错误
     permissionList.value = [];

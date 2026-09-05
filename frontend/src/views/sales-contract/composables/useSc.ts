@@ -95,7 +95,7 @@ export function useSc() {
   const getCustomers = async () => {
     try {
       const res = await getCustomerList();
-      customers.value = res.data?.list || [];
+      customers.value = res.data?.items || [];
     } catch (error) {
       logger.error('获取客户列表失败:', error);
     }

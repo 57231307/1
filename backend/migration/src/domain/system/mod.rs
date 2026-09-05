@@ -39,11 +39,11 @@ impl MigrationTrait for Migration {
         let sql = r#"ALTER TABLE "accounting_periods" ADD COLUMN IF NOT EXISTS "close_ip" VARCHAR(255);
 ALTER TABLE "accounting_periods" ADD COLUMN IF NOT EXISTS "close_remark" VARCHAR(255);
 ALTER TABLE "api_keys" ADD COLUMN IF NOT EXISTS "created_by" INTEGER;
-ALTER TABLE "api_keys" ADD COLUMN IF NOT EXISTS "description" VARCHAR(255);
-ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "after_snapshot" VARCHAR(255);
-ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "before_snapshot" VARCHAR(255);
+ALTER TABLE "api_keys" ADD COLUMN IF NOT EXISTS "description" TEXT;
+ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "after_snapshot" JSONB;
+ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "before_snapshot" JSONB;
 ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "condition" TEXT;
-ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "description" VARCHAR(255);
+ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "description" TEXT;
 ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "duration_ms" INTEGER;
 ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "export_approval_token" VARCHAR(255);
 ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "export_file_format" VARCHAR(255);
@@ -51,19 +51,19 @@ ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "export_query_filter" TEXT;
 ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "export_record_count" INTEGER;
 ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "export_watermark_user" VARCHAR(255);
 ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "ip_address" VARCHAR(255);
-ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "new_value" VARCHAR(255);
-ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "old_value" VARCHAR(255);
+ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "new_value" JSONB;
+ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "old_value" JSONB;
 ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "operation_type" VARCHAR(255);
-ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "request_body" VARCHAR(255);
+ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "request_body" TEXT;
 ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "request_id" VARCHAR(255);
 ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "request_method" VARCHAR(255);
-ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "request_path" VARCHAR(255);
+ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "request_path" TEXT;
 ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "resource_id" VARCHAR(255);
-ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "resource_name" VARCHAR(255);
+ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "resource_name" TEXT;
 ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "resource_type" VARCHAR(255);
 ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "response_status" INTEGER;
 ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "severity" VARCHAR(255);
-ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "user_agent" VARCHAR(255);
+ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "user_agent" TEXT;
 ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "username" VARCHAR(255);
 ALTER TABLE "bpm_process_instance" ADD COLUMN IF NOT EXISTS "completed_at" TIMESTAMPTZ;
 ALTER TABLE "bpm_process_instance" ADD COLUMN IF NOT EXISTS "current_handler_ids" JSONB;
@@ -85,7 +85,7 @@ ALTER TABLE "bpm_task" ADD COLUMN IF NOT EXISTS "actual_handler_name" VARCHAR(25
 ALTER TABLE "bpm_task" ADD COLUMN IF NOT EXISTS "approval_opinion" VARCHAR(255);
 ALTER TABLE "bpm_task" ADD COLUMN IF NOT EXISTS "assignee_ids" JSONB;
 ALTER TABLE "bpm_task" ADD COLUMN IF NOT EXISTS "assignee_names" JSONB;
-ALTER TABLE "bpm_task" ADD COLUMN IF NOT EXISTS "attachment_urls" JSONB;
+ALTER TABLE "bpm_task" ADD COLUMN IF NOT EXISTS "attachment_urls" TEXT[];
 ALTER TABLE "bpm_task" ADD COLUMN IF NOT EXISTS "candidate_role_ids" JSONB;
 ALTER TABLE "bpm_task" ADD COLUMN IF NOT EXISTS "candidate_user_ids" JSONB;
 ALTER TABLE "bpm_task" ADD COLUMN IF NOT EXISTS "due_date" TIMESTAMPTZ;
@@ -157,11 +157,11 @@ ALTER TABLE "log_system" ADD COLUMN IF NOT EXISTS "operation" VARCHAR(255);
 ALTER TABLE "log_system" ADD COLUMN IF NOT EXISTS "params" VARCHAR(255);
 ALTER TABLE "log_system" ADD COLUMN IF NOT EXISTS "path" VARCHAR(255);
 ALTER TABLE "log_system" ADD COLUMN IF NOT EXISTS "status_code" INTEGER;
-ALTER TABLE "log_system" ADD COLUMN IF NOT EXISTS "user_agent" VARCHAR(255);
+ALTER TABLE "log_system" ADD COLUMN IF NOT EXISTS "user_agent" TEXT;
 ALTER TABLE "log_system" ADD COLUMN IF NOT EXISTS "user_id" INTEGER;
 ALTER TABLE "log_system" ADD COLUMN IF NOT EXISTS "username" VARCHAR(255);
 ALTER TABLE "omni_audit_logs" ADD COLUMN IF NOT EXISTS "condition" TEXT;
-ALTER TABLE "omni_audit_logs" ADD COLUMN IF NOT EXISTS "description" VARCHAR(255);
+ALTER TABLE "omni_audit_logs" ADD COLUMN IF NOT EXISTS "description" TEXT;
 ALTER TABLE "omni_audit_logs" ADD COLUMN IF NOT EXISTS "export_approval_token" VARCHAR(255);
 ALTER TABLE "omni_audit_logs" ADD COLUMN IF NOT EXISTS "export_record_count" INTEGER;
 ALTER TABLE "omni_audit_logs" ADD COLUMN IF NOT EXISTS "ip_address" VARCHAR(255);
@@ -169,15 +169,15 @@ ALTER TABLE "omni_audit_logs" ADD COLUMN IF NOT EXISTS "new_value" JSONB;
 ALTER TABLE "omni_audit_logs" ADD COLUMN IF NOT EXISTS "old_value" JSONB;
 ALTER TABLE "omni_audit_logs" ADD COLUMN IF NOT EXISTS "operation_category" VARCHAR(255);
 ALTER TABLE "omni_audit_logs" ADD COLUMN IF NOT EXISTS "parent_span_id" VARCHAR(255);
-ALTER TABLE "omni_audit_logs" ADD COLUMN IF NOT EXISTS "request_body" VARCHAR(255);
+ALTER TABLE "omni_audit_logs" ADD COLUMN IF NOT EXISTS "request_body" TEXT;
 ALTER TABLE "omni_audit_logs" ADD COLUMN IF NOT EXISTS "request_method" VARCHAR(255);
-ALTER TABLE "omni_audit_logs" ADD COLUMN IF NOT EXISTS "request_path" VARCHAR(255);
+ALTER TABLE "omni_audit_logs" ADD COLUMN IF NOT EXISTS "request_path" TEXT;
 ALTER TABLE "omni_audit_logs" ADD COLUMN IF NOT EXISTS "resource_id" VARCHAR(255);
-ALTER TABLE "omni_audit_logs" ADD COLUMN IF NOT EXISTS "resource_name" VARCHAR(255);
+ALTER TABLE "omni_audit_logs" ADD COLUMN IF NOT EXISTS "resource_name" TEXT;
 ALTER TABLE "omni_audit_logs" ADD COLUMN IF NOT EXISTS "resource_type" VARCHAR(255);
 ALTER TABLE "omni_audit_logs" ADD COLUMN IF NOT EXISTS "signature" VARCHAR(255);
 ALTER TABLE "omni_audit_logs" ADD COLUMN IF NOT EXISTS "span_id" VARCHAR(255);
-ALTER TABLE "omni_audit_logs" ADD COLUMN IF NOT EXISTS "user_agent" VARCHAR(255);
+ALTER TABLE "omni_audit_logs" ADD COLUMN IF NOT EXISTS "user_agent" TEXT;
 ALTER TABLE "omni_audit_logs" ADD COLUMN IF NOT EXISTS "username" VARCHAR(255);
 ALTER TABLE "quality_inspection_records" ADD COLUMN IF NOT EXISTS "auxiliary_type" VARCHAR(255);
 ALTER TABLE "quality_inspection_records" ADD COLUMN IF NOT EXISTS "color_no" VARCHAR(255);
@@ -286,7 +286,7 @@ ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "batch_level" VARCHAR(255);
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "code" VARCHAR(255);
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "cost_price" DECIMAL(18,4);
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "density" VARCHAR(255);
-ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "description" VARCHAR(255);
+ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "description" TEXT;
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "execution_standard" VARCHAR(255);
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "fabric_composition" VARCHAR(255);
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "factory_address" VARCHAR(255);
@@ -306,7 +306,7 @@ ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "supplier_product_code" VARCHAR(
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "yarn_count" VARCHAR(255);
 ALTER TABLE "purchase_orders" ADD COLUMN IF NOT EXISTS "actual_delivery_date" DATE;
 ALTER TABLE "purchase_orders" ADD COLUMN IF NOT EXISTS "approved_at" TIMESTAMPTZ;
-ALTER TABLE "purchase_orders" ADD COLUMN IF NOT EXISTS "attachment_urls" JSONB;
+ALTER TABLE "purchase_orders" ADD COLUMN IF NOT EXISTS "attachment_urls" TEXT[];
 ALTER TABLE "purchase_orders" ADD COLUMN IF NOT EXISTS "currency" VARCHAR(10);
 ALTER TABLE "purchase_orders" ADD COLUMN IF NOT EXISTS "department_id" INTEGER;
 ALTER TABLE "purchase_orders" ADD COLUMN IF NOT EXISTS "exchange_rate" DECIMAL(18,6);
@@ -337,6 +337,11 @@ ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "is_net_weight" BOOLEAN
 ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "notes" VARCHAR(255);
 ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "pantone_code" VARCHAR(255);
 ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "paper_tube_weight" DECIMAL(18,4);
+-- 初始 schema 将 quantity/delivered_quantity 声明为 INTEGER，但 model 期望 Decimal（NUMERIC），
+-- SeaORM 解码 INT4 为 Option<Decimal> 时报类型不兼容，导致销售订单创建后回读 detail 500。
+-- 将 quantity 改为 DECIMAL(18,2) 与 model 对齐（delivered_quantity model 未用，保留但同步改类型避免歧义）
+ALTER TABLE "sales_order_items" ALTER COLUMN "quantity" TYPE DECIMAL(18,2) USING "quantity"::DECIMAL(18,2);
+ALTER TABLE "sales_order_items" ALTER COLUMN "delivered_quantity" TYPE DECIMAL(18,2) USING "delivered_quantity"::DECIMAL(18,2);
 ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "quantity_kg" DECIMAL(18,4);
 ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "quantity_meters" DECIMAL(18,4);
 ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "shipped_quantity" DECIMAL(18,4);
@@ -346,6 +351,41 @@ ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "tax_amount" DECIMAL(18
 ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "tax_percent" DECIMAL(18,4);
 ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "total_amount" DECIMAL(18,4);
 ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "width" DECIMAL(18,4);
+-- purchase_order_item（单数表，v15 域创建）的折扣率/税率原为 DECIMAL(5,4)（最大 9.9999），
+-- 税率 13 插入报 numeric field overflow（backend.log 实证），已直接修改 v15 建表为 DECIMAL(7,4)。
+-- 注意：model 表名为单数 purchase_order_item（v15 建表）；m0001 的复数 purchase_order_items
+-- 为历史遗留表（model 未使用，不加列不动）。
+-- custom_orders model（Rust i64 / Option<i64>）与 m0044 建表声明（BIGINT）对齐：
+-- 若实际 DB 列为 INT4（历史 INTEGER 建表），SeaORM 解码报
+-- "Option<i64> (INT8) is not compatible with SQL type INT4" → 定制订单创建 500
+-- 顺序保护：custom_orders 表由 production 域 m0044 创建，system 域先于 production
+-- 执行，故用 DO 块逐列检查存在后再 ALTER（quotation_id 等列由后续迁移 ADD COLUMN）
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'custom_orders') THEN
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'custom_orders' AND column_name = 'customer_id') THEN
+            ALTER TABLE "custom_orders" ALTER COLUMN "customer_id" TYPE BIGINT USING "customer_id"::BIGINT;
+        END IF;
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'custom_orders' AND column_name = 'product_id') THEN
+            ALTER TABLE "custom_orders" ALTER COLUMN "product_id" TYPE BIGINT USING "product_id"::BIGINT;
+        END IF;
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'custom_orders' AND column_name = 'color_id') THEN
+            ALTER TABLE "custom_orders" ALTER COLUMN "color_id" TYPE BIGINT USING "color_id"::BIGINT;
+        END IF;
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'custom_orders' AND column_name = 'sales_order_id') THEN
+            ALTER TABLE "custom_orders" ALTER COLUMN "sales_order_id" TYPE BIGINT USING "sales_order_id"::BIGINT;
+        END IF;
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'custom_orders' AND column_name = 'quotation_id') THEN
+            ALTER TABLE "custom_orders" ALTER COLUMN "quotation_id" TYPE BIGINT USING "quotation_id"::BIGINT;
+        END IF;
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'custom_orders' AND column_name = 'created_by') THEN
+            ALTER TABLE "custom_orders" ALTER COLUMN "created_by" TYPE BIGINT USING "created_by"::BIGINT;
+        END IF;
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'custom_orders' AND column_name = 'approval_instance_id') THEN
+            ALTER TABLE "custom_orders" ALTER COLUMN "approval_instance_id" TYPE BIGINT USING "approval_instance_id"::BIGINT;
+        END IF;
+    END IF;
+END $$;
 ALTER TABLE "sales_orders" ADD COLUMN IF NOT EXISTS "approved_at" TIMESTAMPTZ;
 ALTER TABLE "sales_orders" ADD COLUMN IF NOT EXISTS "balance_amount" DECIMAL(18,4);
 ALTER TABLE "sales_orders" ADD COLUMN IF NOT EXISTS "billing_address" VARCHAR(255);

@@ -21,6 +21,8 @@ mod m0047_add_last_payload_to_webhooks;
 mod m0048_add_user_id_to_webhooks;
 mod m0049_create_processed_events;
 mod m0050_create_event_dead_letters;
+mod m0051_add_piece_type_and_machine_no;
+mod m0052_add_piece_no_to_flow_documents;
 
 pub struct Migration;
 
@@ -49,6 +51,50 @@ impl MigrationTrait for Migration {
         m0044_integrate_unreferenced_migrations::Migration
             .up(manager)
             .await?;
+        // custom_orders ID 列统一为 BIGINT：对齐 Rust custom_order::Model 的
+        // i64/Option<i64> 与 m0044 的建表声明。若列已是 BIGINT 则无副作用；
+        // 若历史环境为 INT4（INTEGER），消除 SeaORM 解码
+        // "Option<i64> (INT8) is not compatible with SQL type INT4" 的 500。
+        // quotation_id/approval_instance_id 等列由后续迁移 ADD COLUMN，逐列存在性检查
+        {
+            let conn = manager.get_connection();
+            conn.execute_unprepared(
+                r#"
+                DO $$
+                BEGIN
+                    IF EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_name = 'custom_orders' AND column_name = 'customer_id') THEN
+                        ALTER TABLE "custom_orders" ALTER COLUMN "customer_id" TYPE BIGINT USING "customer_id"::BIGINT;
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_name = 'custom_orders' AND column_name = 'product_id') THEN
+                        ALTER TABLE "custom_orders" ALTER COLUMN "product_id" TYPE BIGINT USING "product_id"::BIGINT;
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_name = 'custom_orders' AND column_name = 'color_id') THEN
+                        ALTER TABLE "custom_orders" ALTER COLUMN "color_id" TYPE BIGINT USING "color_id"::BIGINT;
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_name = 'custom_orders' AND column_name = 'sales_order_id') THEN
+                        ALTER TABLE "custom_orders" ALTER COLUMN "sales_order_id" TYPE BIGINT USING "sales_order_id"::BIGINT;
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_name = 'custom_orders' AND column_name = 'quotation_id') THEN
+                        ALTER TABLE "custom_orders" ALTER COLUMN "quotation_id" TYPE BIGINT USING "quotation_id"::BIGINT;
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_name = 'custom_orders' AND column_name = 'created_by') THEN
+                        ALTER TABLE "custom_orders" ALTER COLUMN "created_by" TYPE BIGINT USING "created_by"::BIGINT;
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_name = 'custom_orders' AND column_name = 'approval_instance_id') THEN
+                        ALTER TABLE "custom_orders" ALTER COLUMN "approval_instance_id" TYPE BIGINT USING "approval_instance_id"::BIGINT;
+                    END IF;
+                END $$;
+                "#,
+            )
+            .await?;
+        }
         m0029_drop_tenant_columns::Migration.up(manager).await?;
         m0030_create_crm_recycle_rules::Migration
             .up(manager)
@@ -70,6 +116,12 @@ impl MigrationTrait for Migration {
         m0048_add_user_id_to_webhooks::Migration.up(manager).await?;
         m0049_create_processed_events::Migration.up(manager).await?;
         m0050_create_event_dead_letters::Migration
+            .up(manager)
+            .await?;
+        m0051_add_piece_type_and_machine_no::Migration
+            .up(manager)
+            .await?;
+        m0052_add_piece_no_to_flow_documents::Migration
             .up(manager)
             .await?;
         let sql = r#"ALTER TABLE "api_keys" ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ;
@@ -373,6 +425,12 @@ ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "insurance_cost" DECIMAL
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
+        m0052_add_piece_no_to_flow_documents::Migration
+            .down(manager)
+            .await?;
+        m0051_add_piece_type_and_machine_no::Migration
+            .down(manager)
+            .await?;
         m0050_create_event_dead_letters::Migration
             .down(manager)
             .await?;

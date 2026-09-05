@@ -43,7 +43,7 @@ export interface FabricQueryParams {
 
 // D14 Batch 5b：原 fabricApi.list 转为风格 B 函数
 export const getFabricList = (params?: FabricQueryParams) =>
-  request.get<ApiResponse<{ list: Fabric[]; total: number }>>('/products', { params });
+  request.get<ApiResponse<{ items: Fabric[]; total: number }>>('/products', { params });
 
 // D14 Batch 5b：原 fabricApi.getById 转为风格 B 函数
 export const getFabricById = (id: number) => request.get<ApiResponse<Fabric>>(`/products/${id}`);

@@ -56,7 +56,7 @@ export interface ProductImportResult {
 
 // D14 Batch 5b：原 productApi.list 转为风格 B 函数
 export const getProductList = (params?: ProductQueryParams) =>
-  request.get<ApiResponse<{ list: Product[]; total: number }>>('/products', { params });
+  request.get<ApiResponse<{ items: Product[]; total: number }>>('/products', { params });
 
 // D14 Batch 5b：原 productApi.getById 转为风格 B 函数
 export const getProductById = (id: number) => request.get<ApiResponse<Product>>(`/products/${id}`);

@@ -21,6 +21,10 @@ pub struct Model {
     pub is_active: bool,
     pub notes: Option<String>,
     /// 仓库容量（批次 158 v11 真实接入：原 handler 字段未持久化，现扩展 schema 接入）
+    /// 仓库类型：greige=胚布仓（只存未染色/未做工艺的胚布）；
+    /// finished=成品仓（只存染色/工艺后成品）；NULL=不校验（兼容存量）
+    pub warehouse_type: Option<String>,
+
     pub capacity: Option<i32>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

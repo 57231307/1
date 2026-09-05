@@ -4,7 +4,6 @@ use crate::models::status::approval;
 // 批次 209 P2-5 修复（v12 复审）：预算方案/项目状态字符串替换为 budget 常量
 use crate::models::status::budget;
 use crate::utils::error::AppError;
-use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, Order,
@@ -83,11 +82,23 @@ impl BudgetManagementService {
 
         info!("用户 {} 正在创建预算科目：{}", user_id, item_code);
 
+        // 层级计算：无父级为一级科目(level=1)，有父级为父级 level+1
+        // （level 列 NOT NULL 无默认值，未显式 Set 会报 null violation 500）
+        let level = match req.parent_id {
+            None => 1,
+            Some(parent_id) => self
+                .get_item_by_id(parent_id)
+                .await
+                .map(|p| p.level + 1)
+                .unwrap_or(1),
+        };
+
         let active_item = budget_management::ActiveModel {
             item_code: Set(item_code),
             item_name: Set(req.item_name),
             item_type: Set(req.item_type.unwrap_or_else(|| "expense".to_string())),
             parent_id: Set(req.parent_id),
+            level: Set(level),
             status: Set(budget::ACTIVE.to_string()),
             // v11 批次 145 P1-8：接入扩展字段（此前被丢弃，造成数据丢失）
             budget_year: Set(req.budget_year),

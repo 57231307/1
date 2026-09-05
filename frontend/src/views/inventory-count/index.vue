@@ -77,7 +77,7 @@ const handleSubmitted = () => {
 const fetchWarehouses = async () => {
   try {
     const res = await getWarehouseList({ page: 1, page_size: 1000 });
-    warehouses.value = (res.data?.list as Warehouse[] | undefined) || [];
+    warehouses.value = (res.data?.items as Warehouse[] | undefined) || [];
   } catch (error) {
     logger.error(t('inventoryCount.index.messageFetchWarehouseFailure'), (error as Error).message);
   }

@@ -53,6 +53,7 @@ pub struct MemoryCacheBackend {
 
 impl MemoryCacheBackend {
     /// 创建空的内存缓存
+    #[allow(dead_code, reason = "CI 环境未启用 cache_backend")]
     pub fn new() -> Self {
         Self::default()
     }
@@ -107,6 +108,7 @@ pub struct MockCacheBackend {
 
 #[allow(dead_code, reason = "预留")]
 impl MockCacheBackend {
+    #[allow(dead_code, reason = "CI 环境未启用 cache_backend")]
     /// 创建空的 Mock 缓存
     pub fn new() -> Self {
         Self {

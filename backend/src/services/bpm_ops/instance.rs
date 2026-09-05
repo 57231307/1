@@ -133,6 +133,8 @@ impl BpmService {
             instance_no: Set(instance_no.clone()),
             business_type: Set(req.business_type.clone()),
             business_id: Set(req.business_id),
+            // applicant_id 与 initiator 同义（发起人），列 NOT NULL 必须显式写入
+            applicant_id: Set(req.initiator_id),
             title: Set(format!("流程审批-{}", req.business_id)),
             initiator_id: Set(req.initiator_id),
             initiator_name: Set("".to_string()),

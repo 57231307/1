@@ -107,6 +107,8 @@ impl WarehouseService {
             is_active: Set(true),
             // description 写入 notes 列
             notes: Set(req.description),
+            // 仓库类型（greige=胚布仓/finished=成品仓/NULL 不校验），匹号领域规则使用
+            warehouse_type: Set(req.warehouse_type.clone()),
             // 批次 158 v11 真实接入：capacity 字段持久化（原 #[allow(dead_code)] 移除）
             capacity: Set(req.capacity),
             created_at: Set(Utc::now()),
@@ -135,6 +137,9 @@ impl WarehouseService {
         }
         if let Some(a) = req.address {
             wh.address = Set(Some(a));
+        }
+        if let Some(wt) = req.warehouse_type {
+            wh.warehouse_type = Set(Some(wt));
         }
         if let Some(m) = req.manager {
             // 仓库经理 ID 解析失败时记录 warn 并跳过更新，避免脏数据

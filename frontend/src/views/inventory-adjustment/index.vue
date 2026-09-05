@@ -89,7 +89,7 @@ const handleApproveSubmitted = () => {
 const fetchWarehouses = async () => {
   try {
     const res = await getWarehouseList({ page: 1, page_size: 1000 });
-    warehouses.value = (res.data?.list as Warehouse[] | undefined) || [];
+    warehouses.value = (res.data?.items as Warehouse[] | undefined) || [];
   } catch (error) {
     logger.error(
       t('inventoryAdjustment.index.messageFetchWarehouseFailed'),
@@ -101,7 +101,7 @@ const fetchWarehouses = async () => {
 const fetchProducts = async () => {
   try {
     const res = await getProductList({ page: 1, page_size: 1000 });
-    products.value = (res.data?.list as Product[] | undefined) || [];
+    products.value = (res.data?.items as Product[] | undefined) || [];
   } catch (error) {
     logger.error(
       t('inventoryAdjustment.index.messageFetchProductFailed'),

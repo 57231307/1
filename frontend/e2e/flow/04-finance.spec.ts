@@ -1,167 +1,255 @@
 import { test, expect } from '@playwright/test';
 import {
-  loginViaUI, apiCall, apiCallRaw, apiCallExpectFail,
-  verifyIllegalTransition, getCtx, genCode,
+  loginViaUI,
+  apiCall,
+  apiCallRaw,
+  apiCallExpectFail,
+  verifyIllegalTransition,
+  getCtx,
+  genCode,
+  genName,
+  ensureTestEntities,
 } from './helpers';
 
 test.describe.serial('Shard 4: 财务核算闭环', () => {
-
   test('4-1 验证会计科目列表', async ({ page }) => {
     await loginViaUI(page);
     try {
       const subjects = await apiCallRaw<{ items: Array<{ code: string; name: string }> }>(
-        page, 'GET', '/finance/gl/subjects?page=1&page_size=20'
+        page,
+        'GET',
+        '/subjects?page=1&page_size=20'
       );
       expect(subjects.items);
     } catch {
       // 科目端点可能不同
       try {
-        const subjects = await apiCallRaw<{ items: Array<{ code: string }> }>(page, 'GET', '/subjects?page=1&page_size=20');
+        const subjects = await apiCallRaw<{ items: Array<{ code: string }> }>(
+          page,
+          'GET',
+          '/subjects?page=1&page_size=20'
+        );
         expect(subjects.items);
-      } catch { /* skip */ }
+      } catch {
+        /* skip */
+      }
     }
   });
 
   test('4-2 创建凭证（含色号维度成本）', async ({ page }) => {
     await loginViaUI(page);
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/vouchers', {
-        voucher_no: genCode('V'),
+      // 先取真实存在的科目编码（CI 库可能没有 1122/6001/2202 种子）
+      const subjects = await apiCallRaw<{
+        items: Array<{ code: string; status?: string }>;
+      }>(page, 'GET', '/subjects?page=1&page_size=50');
+      let activeCodes = (subjects.items || [])
+        .filter(s => !s.status || s.status === 'active')
+        .map(s => s.code);
+      // 科目不足 3 个时先创建 E2E 专用科目（CreateSubjectRequestDto: code/name/level）
+      const suffix = Date.now().toString().slice(-6);
+      while (activeCodes.length < 3) {
+        const i = activeCodes.length;
+        const code = `E2E${suffix}${i}`;
+        await apiCall(page, 'POST', '/subjects', {
+          code,
+          name: `E2E科目${i}`,
+          level: 1,
+          balance_direction: 'debit',
+        });
+        activeCodes.push(code);
+      }
+      const pick = (i: number) => activeCodes[i % activeCodes.length];
+      const amount = 10000;
+      const half = amount / 2;
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/vouchers', {
         voucher_date: new Date().toISOString().split('T')[0],
         voucher_type: 'general',
-        entries: [
-          { subject_code: '1122', direction: 'debit', amount: 11300 },
-          { subject_code: '6001', direction: 'credit', amount: 10000 },
-          { subject_code: '2202', direction: 'credit', amount: 1300 },
+        items: [
+          { subject_code: pick(0), debit: amount, credit: 0 },
+          { subject_code: pick(1), debit: 0, credit: half },
+          { subject_code: pick(2), debit: 0, credit: amount - half },
         ],
         remarks: 'E2E 测试凭证（含色号维度成本）',
       });
       getCtx().voucherId = result.data?.id;
-    } catch {
-      // 凭证模块可能未就绪
+    } catch (e) {
+      // 打印失败原因便于诊断（科目不存在/借贷不平衡等），不再静默吞错
+      console.error('[4-2] 创建凭证失败:', (e as Error).message);
     }
-    expect(getCtx().voucherId || true).toBeTruthy();
+    expect(getCtx().voucherId).toBeDefined();
   });
 
   test('4-3 凭证状态机：draft → submitted → reviewed → posted', async ({ page }) => {
     await loginViaUI(page);
+    await ensureTestEntities(page);
     const ctx = getCtx();
     const id = ctx.voucherId;
-    if (!id) { test.skip(); return; }
+    if (!id) {
+      test.skip();
+      return;
+    }
 
-    try { await apiCall(page, 'POST', `/finance/vouchers/${id}/submit`); } catch { /* skip */ }
+    try {
+      await apiCall(page, 'POST', `/vouchers/${id}/submit`);
+    } catch {
+      /* skip */
+    }
     // posted 可能需要审核步骤
-    try { await apiCall(page, 'POST', `/finance/vouchers/${id}/post`); } catch { /* skip */ }
+    try {
+      await apiCall(page, 'POST', `/vouchers/${id}/post`);
+    } catch {
+      /* skip */
+    }
 
-    const v = await apiCallRaw<{ status: string }>(page, 'GET', `/finance/vouchers/${id}`);
+    const v = await apiCallRaw<{ status: string }>(page, 'GET', `/vouchers/${id}`);
     const status = (v.status || '').toLowerCase();
-    expect(['draft', 'submitted', 'reviewed', 'posted', 'cancelled']).toContain(status || 'draft');
+    expect(['draft', 'submitted', 'reviewed', 'posted', 'cancelled']).toContain(
+      status ?? '(missing-status)'
+    );
   });
 
   test('4-4 验证凭证非法转换（posted → draft 应拒绝）', async ({ page }) => {
     await loginViaUI(page);
     const ctx = getCtx();
     const id = ctx.voucherId;
-    if (!id) { test.skip(); return; }
+    if (!id) {
+      test.skip();
+      return;
+    }
 
     // 对已 posted 的凭证提交 → 应拒绝
-    const result = await apiCallExpectFail(page, 'POST', `/finance/vouchers/${id}/submit`);
-    expect(result.status >= 400 || result.status === 200).toBeTruthy();
+    const result = await apiCallExpectFail(page, 'POST', `/vouchers/${id}/submit`);
+    expect(result.status >= 400).toBe(true); // 非法转换应被拒
   });
 
   test('4-5 验证 AP 应付单', async ({ page }) => {
     await loginViaUI(page);
     try {
-      const apInvoices = await apiCallRaw<{ items: Array<{ id: number; amount: number; status: string }> }>(
-        page, 'GET', '/finance/ap/invoices?page=1&page_size=5'
-      );
+      const apInvoices = await apiCallRaw<{
+        items: Array<{ id: number; amount: number; status: string }>;
+      }>(page, 'GET', '/ap/invoices?page=1&page_size=5');
       expect(apInvoices.items);
-    } catch { /* skip */ }
+    } catch {
+      /* skip */
+    }
   });
 
   test('4-6 验证 AR 应收单', async ({ page }) => {
     await loginViaUI(page);
     try {
-      const arInvoices = await apiCallRaw<{ items: Array<{ id: number; amount: number; status: string }> }>(
-        page, 'GET', '/finance/ar/invoices?page=1&page_size=5'
-      );
+      const arInvoices = await apiCallRaw<{
+        items: Array<{ id: number; amount: number; status: string }>;
+      }>(page, 'GET', '/ar/invoices?page=1&page_size=5');
       expect(arInvoices.items);
-    } catch { /* skip */ }
+    } catch {
+      /* skip */
+    }
   });
 
   test('4-7 验证付款/收款记录', async ({ page }) => {
     await loginViaUI(page);
     try {
       const apPayments = await apiCallRaw<{ items: Array<{ id: number }> }>(
-        page, 'GET', '/finance/ap/payments?page=1&page_size=5'
+        page,
+        'GET',
+        '/ap/payments?page=1&page_size=5'
       );
       expect(apPayments.items);
-    } catch { /* skip */ }
+    } catch {
+      /* skip */
+    }
     try {
       const arPayments = await apiCallRaw<{ items: Array<{ id: number }> }>(
-        page, 'GET', '/finance/ar/payments?page=1&page_size=5'
+        page,
+        'GET',
+        '/ar/payments?page=1&page_size=5'
       );
       expect(arPayments.items);
-    } catch { /* skip */ }
+    } catch {
+      /* skip */
+    }
   });
 
   test('4-8 创建固定资产（染缸设备）', async ({ page }) => {
     await loginViaUI(page);
     const ctx = getCtx();
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/fixed-assets', {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/fixed-assets', {
+        // CreateAssetRequestDto 字段：asset_no/asset_name/original_value/purchase_date/useful_life/depreciation_method
         asset_name: genName('E2E染缸设备'),
-        asset_code: genCode('FA'),
-        acquisition_date: new Date().toISOString().split('T')[0],
-        acquisition_cost: 500000,
+        asset_no: genCode('FA'),
+        purchase_date: new Date().toISOString().split('T')[0],
+        original_value: 500000,
         useful_life: 60,
-        salvage_rate: 0.05,
         depreciation_method: 'straight_line',
-        is_active: true,
       });
       ctx.fixedAssetId = result.data?.id;
-    } catch {
+    } catch (e) {
+      // 显式日志：POST 失败原因必须可见（禁止静默吞错），便于 CI 失败分析
+      console.error('[4-8] 固定资产 API 创建失败:', (e as Error).message);
       try {
-        const list = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/finance/fixed-assets?page=1&page_size=1');
+        const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+          page,
+          'GET',
+          '/fixed-assets?page=1&page_size=1'
+        );
         ctx.fixedAssetId = list.items?.[0]?.id;
-      } catch { /* skip */ }
+        if (!ctx.fixedAssetId) {
+          console.error('[4-8] fixed-assets 列表为空，无可用已有资产');
+        }
+      } catch (e2) {
+        console.error('[4-8] fixed-assets 列表查找失败:', (e2 as Error).message);
+      }
     }
-    expect(ctx.fixedAssetId || true).toBeTruthy();
+    expect(ctx.fixedAssetId).toBeDefined();
   });
 
   test('4-9 创建预算', async ({ page }) => {
     await loginViaUI(page);
     const ctx = getCtx();
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/budgets', {
-        budget_name: genName('E2E预算'),
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/budgets', {
+        // 后端 CreateBudgetDto 必填 item_name + planned_amount（budget_name/total_amount 不存在）
+        item_name: genName('E2E预算'),
         budget_year: new Date().getFullYear(),
-        budget_type: 'expense',
-        total_amount: 500000,
-        is_active: true,
+        item_type: 'expense',
+        planned_amount: 500000,
       });
       ctx.budgetId = result.data?.id;
-    } catch { /* skip */ }
-    expect(ctx.budgetId || true).toBeTruthy();
+    } catch {
+      /* skip */
+    }
+    expect(ctx.budgetId).toBeDefined();
   });
 
   test('4-10 验证会计期间状态', async ({ page }) => {
     await loginViaUI(page);
     try {
       const periods = await apiCallRaw<{ items: Array<{ status: string }> }>(
-        page, 'GET', '/finance/gl/periods?page=1&page_size=5'
+        page,
+        'GET',
+        '/finance/accounting-periods?page=1&page_size=5'
       );
       expect(periods.items);
       if (periods?.items?.length ?? 0 > 0) {
-        const status = (periods.items[0].status || '').toLowerCase();
-        expect(['open', 'closing', 'closed', 'pending', 'active']).toContain(status || 'open');
+        const status = (periods.items?.[0].status || '').toLowerCase();
+        expect(['open', 'closing', 'closed', 'pending', 'active']).toContain(
+          status ?? '(missing-status)'
+        );
       }
     } catch {
       // 会计期间端点可能不同
       try {
-        const periods = await apiCallRaw<{ items: Array<{ status: string }> }>(page, 'GET', '/accounting-periods?page=1&page_size=5');
+        const periods = await apiCallRaw<{ items: Array<{ status: string }> }>(
+          page,
+          'GET',
+          '/finance/accounting-periods?page=1&page_size=5'
+        );
         expect(periods.items);
-      } catch { /* skip */ }
+      } catch {
+        /* skip */
+      }
     }
   });
 
@@ -169,24 +257,36 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
     await loginViaUI(page);
     try {
       const vouchers = await apiCallRaw<{ items: Array<{ id: number; voucher_no: string }> }>(
-        page, 'GET', '/finance/vouchers?page=1&page_size=5'
+        page,
+        'GET',
+        '/vouchers?page=1&page_size=5'
       );
       expect(vouchers.items);
-    } catch { /* skip */ }
+    } catch {
+      /* skip */
+    }
   });
 
   test('4-12 验证财务审计日志', async ({ page }) => {
     await loginViaUI(page);
     try {
       const logs = await apiCallRaw<{ items: Array<{ id: number }> }>(
-        page, 'GET', '/system/audit-logs?page=1&page_size=10'
+        page,
+        'GET',
+        '/system/audit-logs?page=1&page_size=10'
       );
       expect(logs.items);
     } catch {
       try {
-        const logs = await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/system/omni-audit?page=1&page_size=10');
+        const logs = await apiCallRaw<{ items: Array<{ id: number }> }>(
+          page,
+          'GET',
+          '/system/omni-audit?page=1&page_size=10'
+        );
         expect(logs.items);
-      } catch { /* skip */ }
+      } catch {
+        /* skip */
+      }
     }
   });
 });
