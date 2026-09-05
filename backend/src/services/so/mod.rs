@@ -176,6 +176,8 @@ pub struct SalesOrderItemRequest {
     pub color_extra_cost: Option<rust_decimal::Decimal>,
     pub grade_price_diff: Option<rust_decimal::Decimal>,
     pub final_price: Option<rust_decimal::Decimal>,
+    /// 匹号（染色匹号贯穿销售订单条目，匹号领域一期）
+    pub piece_no: Option<String>,
 }
 
 /// 更新销售订单请求

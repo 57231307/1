@@ -371,6 +371,7 @@ impl SalesService {
             created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
             updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
             color_no: sea_orm::ActiveValue::Set(item_req.color_no.clone().unwrap_or_default()),
+            piece_no: sea_orm::ActiveValue::Set(item_req.piece_no.clone()),
             color_name: sea_orm::ActiveValue::Set(item_req.color_name.clone()),
             pantone_code: sea_orm::ActiveValue::Set(item_req.pantone_code.clone()),
             grade_required: sea_orm::ActiveValue::Set(item_req.grade_required.clone()),

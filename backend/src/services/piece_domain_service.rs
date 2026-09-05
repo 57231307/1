@@ -6,7 +6,7 @@
 //! - 仓库类型约束：胚布仓（greige）只能存放未染色/未做工艺的胚布；
 //!   成品仓（finished）只能存放染色/工艺后的成品
 
-use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, QueryFilter, Set};
 use serde::Deserialize;
 
 use crate::models::inventory_piece;
@@ -202,6 +202,7 @@ pub async fn create_piece_from_outsourcing_receipt<C: ConnectionTrait>(
         warehouse_in_at: Set(Some(now_utc)),
         dye_lot_id: Set(dye_lot_id),
         dye_lot_no: Set(dye_lot_no),
+        color_no: Set(None),
         batch_no: Set(receipt_no.to_string()),
         product_id: Set(product_id),
         warehouse_id: Set(warehouse_id),
@@ -227,6 +228,9 @@ pub async fn create_piece_from_outsourcing_receipt<C: ConnectionTrait>(
         created_at: Set(now_utc),
         updated_at: Set(now_utc),
         created_by: Set(None),
+        updated_by: Set(None),
+        original_length: Set(None),
+        original_weight: Set(None),
     };
     Ok(Some(active.insert(db).await?))
 }
