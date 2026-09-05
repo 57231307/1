@@ -52,7 +52,14 @@ export async function refreshToken(
   _refreshToken: string
 ): Promise<{ csrf_token?: string; expires_in?: number }> {
   // 拦截器返回完整 ApiResponse 信封，业务数据在 data 字段
-  const res = await request.post<ApiResponse<RefreshTokenResponse>>('/auth/refresh', {});
+  // _skipAuthRetry 必须置位：refresh 请求自身 401 时若再进入 401 刷新分支，
+  // 会被 isRefreshing 队列挂在外层刷新之后互相等待，形成 Promise 死锁
+  // （守卫 fetchUserInfo 永不 settle → 初始路由解析卡死 → 白屏）
+  const res = await request.post<ApiResponse<RefreshTokenResponse>>(
+    '/auth/refresh',
+    {},
+    { _skipAuthRetry: true } as Parameters<typeof request.post>[2]
+  );
   // Cookie 已由后端 Set-Cookie 写入，前端无需再保存
   return res.data ?? {};
 }
