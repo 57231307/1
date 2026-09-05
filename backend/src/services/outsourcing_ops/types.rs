@@ -106,8 +106,6 @@ pub struct UpdateOutsourcingOrderItemRequest {
     pub processing_fee: Option<Decimal>,
     /// batch-18 P2-2：该缸号/匹号的运费
     pub freight_fee: Option<Decimal>,
-    /// 生产匹号
-    pub piece_no: Option<String>,
 }
 
 // ============================================================================
