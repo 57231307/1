@@ -327,7 +327,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
       expect(dash);
     } catch {
       try {
-        const stats = await apiCallRaw<Record<string, unknown>>(page, 'GET', '/system/dashboard');
+        const stats = await apiCallRaw<Record<string, unknown>>(page, 'GET', '/dashboard');
         expect(stats);
       } catch {
         /* skip */

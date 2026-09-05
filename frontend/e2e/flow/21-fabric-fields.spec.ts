@@ -634,7 +634,7 @@ test.describe('面料单据专用字段全链路验证', () => {
 
     let fabricId: number;
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/fabric/greige', fabricData);
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/greige-fabrics', fabricData);
       fabricId = result.data?.id!;
     } catch {
       try {
@@ -649,7 +649,7 @@ test.describe('面料单据专用字段全链路验证', () => {
         const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
           page,
           'GET',
-          '/fabric/greige?page=1&page_size=1'
+          '/greige-fabrics?page=1&page_size=1'
         ).catch(() => ({ items: [] }));
         fabricId = list.items?.[0]?.id;
       }
@@ -661,7 +661,7 @@ test.describe('面料单据专用字段全链路验证', () => {
         detail = await apiCallRaw<Record<string, unknown>>(
           page,
           'GET',
-          `/fabric/greige/${fabricId}`
+          `/greige-fabrics/${fabricId}`
         );
       } catch {
         detail = await apiCallRaw<Record<string, unknown>>(

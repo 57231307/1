@@ -298,7 +298,7 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
     const dyeLotNo = genDyeLotNo();
     ctx.dyeLotNo = dyeLotNo;
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/fabric/greige', {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/greige-fabrics', {
         fabric_no: genCode('GF'),
         fabric_name: genName('E2E坯布'),
         product_id: ctx.productIds[0] || 1,
@@ -326,7 +326,7 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
         const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
           page,
           'GET',
-          '/fabric/greige?page=1&page_size=1'
+          '/greige-fabrics?page=1&page_size=1'
         );
         ctx.greigeFabricId = list.items?.[0]?.id;
       } catch {

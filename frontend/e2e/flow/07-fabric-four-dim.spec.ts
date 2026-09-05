@@ -6,140 +6,55 @@ import {
   apiCallExpectFail,
   getCtx,
   genDyeLotNo,
-  genPieceNo,
   verifyStockFourDim,
 } from './helpers';
 
 test.describe.serial('扩展: 面料四维深度测试（拆匹/合匹/母卷追溯）', () => {
   const dyeLotNo = genDyeLotNo();
 
-  test('F1-1 创建母卷（原始布卷）', async ({ page }) => {
+  test('F1-1 拆匹契约校验（不存在母卷返回 404）', async ({ page }) => {
     await loginViaUI(page);
-    const ctx = getCtx();
-    const productId = ctx.productIds[0] || 1;
-    const motherPieceNo = genPieceNo(dyeLotNo, 1);
-
-    try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/inventory/piece', {
-        piece_no: motherPieceNo,
-        dye_lot_id: ctx.dyeBatchId || 1,
-        product_id: productId,
-        warehouse_id: ctx.warehouseIds[0] || 1,
-        batch_no: 'B001',
-        color_no: 'RED-001',
-        dye_lot_no: dyeLotNo,
-        length: 1000,
-        weight: 200,
-        width: 150,
-        gram_weight: 200,
-        quality_status: 'passed',
-        inventory_status: 'available',
-        parent_piece_id: null,
-        piece_seq: 1,
-      });
-      if (result.data?.id) ctx.pieceIds.push(result.data.id);
-    } catch {
-      // 端点可能不同
-      try {
-        const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
-          page,
-          'GET',
-          '/inventory/piece?page=1&page_size=1'
-        );
-        if (list.items?.[0]?.id) ctx.pieceIds.push(list.items[0].id);
-      } catch {
-        /* skip */
-      }
-    }
-    expect(ctx.pieceIds.length >= 0).toBeTruthy();
+    // 真实端点 POST /piece-split（inventory.rs）；后端暂无匹号创建/列表 API
+    // （匹号仅由色卡审批小样流程内部创建，产品缺口已记录 doto.md），
+    // 因此此处校验拆匹端点的真实契约：不存在的母卷必须返回 404 NotFound
+    const result = await apiCallExpectFail(page, 'POST', '/piece-split', {
+      parent_piece_id: 999999999,
+      cut_length: '10',
+    });
+    expect(result.status).toBe(404);
   });
 
-  test('F1-2 拆匹（母卷拆分为子卷）', async ({ page }) => {
+  test('F1-2 缸号生命周期日志可查询', async ({ page }) => {
     await loginViaUI(page);
     const ctx = getCtx();
-    if (ctx.pieceIds.length === 0) {
-      test.skip();
-      return;
-    }
-
-    const motherId = ctx.pieceIds[0];
-    const childPieceNo1 = genPieceNo(dyeLotNo, 2);
-    const childPieceNo2 = genPieceNo(dyeLotNo, 3);
-
-    try {
-      await apiCall(page, 'POST', '/inventory/piece/split', {
-        parent_piece_id: motherId,
-        children: [
-          { piece_no: childPieceNo1, length: 400, weight: 80, piece_seq: 2 },
-          { piece_no: childPieceNo2, length: 600, weight: 120, piece_seq: 3 },
-        ],
-      });
-    } catch {
-      // 拆匹端点可能不同
-    }
-
-    // 验证母卷存在
-    try {
-      const piece = await apiCallRaw<{ id: number; parent_piece_id: number | null }>(
-        page,
-        'GET',
-        `/inventory/piece/${motherId}`
-      );
-      expect(piece);
-    } catch {
-      /* skip */
-    }
+    // 真实端点 GET /dye-batch-lifecycle-logs/by-batch/{batch_id}（缸号状态机追溯）
+    const logs = await apiCallRaw<Record<string, unknown> | unknown[]>(
+      page,
+      'GET',
+      `/dye-batch-lifecycle-logs/by-batch/${ctx.dyeBatchId || 1}`
+    );
+    expect(logs).toBeDefined();
   });
 
-  test('F1-3 验证母卷追溯链（子卷→母卷）', async ({ page }) => {
+  test('F1-3 缸号最新状态可查询', async ({ page }) => {
     await loginViaUI(page);
     const ctx = getCtx();
-    if (ctx.pieceIds.length === 0) {
-      test.skip();
-      return;
-    }
-
-    try {
-      const pieces = await apiCallRaw<{
-        items: Array<{ id: number; piece_no: string; parent_piece_id: number | null }>;
-      }>(
-        page,
-        'GET',
-        `/inventory/piece?dye_lot_no=${encodeURIComponent(dyeLotNo)}&page=1&page_size=20`
-      );
-      expect(pieces.items);
-      // 验证有子卷指向母卷
-      const children = pieces.items.filter(p => p.parent_piece_id !== null);
-      expect(children.length >= 0).toBeTruthy();
-    } catch {
-      // 四维查询端点可能不同
-    }
+    // 真实端点 GET /dye-batch-lifecycle-logs/latest-status/{batch_id}
+    const latest = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'GET',
+      `/dye-batch-lifecycle-logs/latest-status/${ctx.dyeBatchId || 1}`
+    );
+    expect(latest).toBeDefined();
   });
 
-  test('F1-4 验证拆匹数量之和 ≤ 母卷原始长度', async ({ page }) => {
+  test('F1-4 拆匹参数校验（非法请求体被拒）', async ({ page }) => {
     await loginViaUI(page);
-    const ctx = getCtx();
-    if (ctx.pieceIds.length === 0) {
-      test.skip();
-      return;
-    }
-
-    try {
-      const mother = await apiCallRaw<{ original_length: number; length: number }>(
-        page,
-        'GET',
-        `/inventory/piece/${ctx.pieceIds[0]}`
-      );
-      const children = await apiCallRaw<{ items: Array<{ length: number }> }>(
-        page,
-        'GET',
-        `/inventory/piece?parent_piece_id=${ctx.pieceIds[0]}&page=1&page_size=20`
-      );
-      const totalChildLength = children.items.reduce((sum, c) => sum + (c.length || 0), 0);
-      expect(totalChildLength).toBeLessThanOrEqual(mother.original_length || mother.length || 0);
-    } catch {
-      /* skip */
-    }
+    // 缺少必填字段（parent_piece_id/cut_length）的请求必须被拒绝
+    const result = await apiCallExpectFail(page, 'POST', '/piece-split', {
+      cut_length: '10',
+    });
+    expect([400, 404, 422]).toContain(result.status);
   });
 
   test('F1-5 合匹（多个缸号合并为一个）', async ({ page }) => {

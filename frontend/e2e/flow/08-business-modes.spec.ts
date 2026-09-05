@@ -39,7 +39,7 @@ test.describe.serial('扩展: 业务模式测试（染整加工/来料加工/委
         const modes = await apiCallRaw<{ items: Array<{ mode_code: string }> }>(
           page,
           'GET',
-          '/business-mode-config?page=1&page_size=20'
+          '/business-modes?page=1&page_size=20'
         );
         expect(modes.items);
       } catch {
@@ -128,7 +128,7 @@ test.describe.serial('扩展: 业务模式测试（染整加工/来料加工/委
       const rules = await apiCallRaw<{ items: Array<{ rule_code: string; rule_type: string }> }>(
         page,
         'GET',
-        '/business-mode-rules?page=1&page_size=20'
+        '/business-modes/rules?page=1&page_size=20'
       );
       expect(rules.items);
     } catch {
@@ -141,7 +141,7 @@ test.describe.serial('扩展: 业务模式测试（染整加工/来料加工/委
     try {
       const links = await apiCallRaw<{
         items: Array<{ document_type: string; mode_snapshot: string }>;
-      }>(page, 'GET', '/business-mode-order-links?page=1&page_size=10');
+      }>(page, 'GET', '/business-mode-links?page=1&page_size=10');
       expect(links.items);
     } catch {
       /* skip */

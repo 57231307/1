@@ -173,20 +173,8 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
     await verifyEndpointHealthy(page, '/scheduling/conflicts');
     await verifyEndpointHealthy(page, '/scheduling/tasks?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/scheduling/history?page=1&page_size=5');
-    // 质量标准
-    await verifyEndpointHealthy(page, '/quality-standards?page=1&page_size=5');
-    const stdList = await apiCallRaw<{ items: Array<{ id: number }> }>(
-      page,
-      'GET',
-      '/quality-standards?page=1&page_size=1'
-    ).catch(() => ({ items: [] as Array<{ id: number }> }));
-    if (stdList.items?.[0]?.id) {
-      await apiCallRaw(page, 'GET', `/quality-standards/${stdList.items?.[0].id}`);
-      await verifyEndpointHealthy(page, `/quality-standards/${stdList.items?.[0].id}/versions`);
-      await safePostAction(page, `/quality-standards/${stdList.items?.[0].id}/approve`);
-      await safePostAction(page, `/quality-standards/${stdList.items?.[0].id}/publish`);
-    }
-    // 质量检验
+    // 质量检验（真实端点：/production/quality-inspection/*，质量标准在其 standards 子路径下；
+    // 原独立的 /quality-standards* 系列端点后端不存在，删除虚构调用，真实覆盖见下方三行）
     await verifyEndpointHealthy(
       page,
       '/production/quality-inspection/standards?page=1&page_size=5'

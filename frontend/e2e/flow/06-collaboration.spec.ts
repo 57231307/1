@@ -76,33 +76,26 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
 
   test('6-4 验证 SoD 职责分离规则', async ({ page }) => {
     await loginViaUI(page);
-    try {
-      const conflicts = await apiCallRaw<{
-        items: Array<{ role_a_code: string; role_b_code: string }>;
-      }>(page, 'GET', '/roles/conflicts?page=1&page_size=20');
-      expect(conflicts.items);
-      if (conflicts?.items?.length ?? 0 > 0) {
-        // 验证 SoD 互斥规则存在
-        const hasConflict = conflicts.items.some(
-          c =>
-            (c.role_a_code?.includes('clerk') && c.role_b_code?.includes('manager')) ||
-            (c.role_a_code?.includes('manager') && c.role_b_code?.includes('clerk'))
-        );
-        expect(hasConflict).toBeDefined();
-      }
-    } catch {
-      // 角色冲突端点可能不同
-      try {
-        const conflicts = await apiCallRaw<{ items: Array<{ id: number }> }>(
-          page,
-          'GET',
-          '/iam/role-conflicts?page=1&page_size=20'
-        );
-        expect(conflicts.items);
-      } catch {
-        /* skip */
-      }
+    // 真实端点：POST /role-relations/check-mutual-exclusive/{role_code}
+    // （role_relation.rs，校验角色与已有角色集合的互斥冲突），先取一个角色再校验其 SoD 检查可用
+    const roles = await apiCallRaw<{ items: Array<{ id: number; code?: string; name?: string }> }>(
+      page,
+      'GET',
+      '/roles?page=1&page_size=5'
+    );
+    const roleCode = roles.items?.[0]?.code || roles.items?.[0]?.name;
+    if (!roleCode) {
+      // 环境无角色数据时跳过（不虚构断言）
+      return;
     }
+    // apiCall 失败（非 200）会抛错使用例失败，成功返回信封 data
+    const check = await apiCall<{ is_exclusive?: boolean; role_code?: string }>(
+      page,
+      'POST',
+      `/role-relations/check-mutual-exclusive/${encodeURIComponent(roleCode)}`,
+      { existing_role_codes: [] }
+    );
+    expect(check.data).toBeDefined();
   });
 
   test('6-5 验证角色权限矩阵', async ({ page }) => {
