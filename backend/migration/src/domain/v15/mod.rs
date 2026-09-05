@@ -3839,6 +3839,8 @@ ALTER TABLE "quality_inspection_records" ADD COLUMN IF NOT EXISTS "inspected_qty
 ALTER TABLE "quality_inspection_records" ADD COLUMN IF NOT EXISTS "inspection_date" DATE;
 ALTER TABLE "quality_inspection_records" ADD COLUMN IF NOT EXISTS "inspection_no" VARCHAR(255);
 ALTER TABLE "quality_inspection_records" ADD COLUMN IF NOT EXISTS "inspection_result" VARCHAR(255);
+-- result 列（m0005 建表 NOT NULL）已被 inspection_result 替代，改为可空避免 NOT NULL 约束冲突
+ALTER TABLE "quality_inspection_records" ALTER COLUMN "result" DROP NOT NULL;
 ALTER TABLE "quality_inspection_records" ADD COLUMN IF NOT EXISTS "inspection_type" VARCHAR(255);
 ALTER TABLE "quality_inspection_records" ADD COLUMN IF NOT EXISTS "inspector_id" INTEGER;
 ALTER TABLE "quality_inspection_records" ADD COLUMN IF NOT EXISTS "product_id" INTEGER;
