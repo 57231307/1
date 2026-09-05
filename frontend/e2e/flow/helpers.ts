@@ -758,6 +758,9 @@ export async function apiCall<T = unknown>(
         'X-CSRF-Token': token,
       },
       data: body ? JSON.stringify(body) : undefined,
+      // CI 16+ 分片并发时后端偶发响应超 30s（Playwright API 默认超时），
+      // 显式放宽到 60s，避免把"慢"误判为失败
+      timeout: 60_000,
     });
   };
 
@@ -1057,9 +1060,10 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
     });
   }
 
-  // 等待离开 /login 页面
+  // 等待离开 /login 页面。快速失败（40s）而非死等 120s：登录请求无响应时
+  // 让外层 loginViaUI 的 3 次重试真正执行（各自重新 goto，绕过单次悬挂）
   try {
-    await page.waitForURL(url => !url.pathname.includes('/login'), { timeout: 120_000 });
+    await page.waitForURL(url => !url.pathname.includes('/login'), { timeout: 40_000 });
     console.log(
       `[loginViaUI] 登录成功跳转: ${page.url()}（登录接口状态 ${loginRespStatus || '未捕获'}）`
     );
@@ -1082,7 +1086,7 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
     // 截图
     await page.screenshot({ path: 'test-results/login-failure-diagnosis.png', fullPage: true });
     throw new Error(
-      `UI 登录失败: 120s 后仍在 ${currentUrl}，ElMessage: ${JSON.stringify(elMessages)}`
+      `UI 登录失败: 40s 内未离开 ${currentUrl}，登录接口状态 ${loginRespStatus || '未捕获'}，ElMessage: ${JSON.stringify(elMessages)}`
     );
   }
 
