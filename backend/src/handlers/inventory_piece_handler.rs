@@ -93,7 +93,7 @@ pub async fn list_pieces(
     let paginator = inventory_piece::Entity::find()
         .filter(condition)
         .order_by_desc(inventory_piece::Column::CreatedAt)
-        .paginate(&state.db, page_size);
+        .paginate(state.db.as_ref(), page_size);
     let total = paginator.num_items().await?;
     // SeaORM paginate 使用 0-based 页码
     let models: Vec<inventory_piece::Model> = paginator.fetch_page(page.saturating_sub(1)).await?;
@@ -103,7 +103,7 @@ pub async fn list_pieces(
     let warehouses: std::collections::HashMap<i32, warehouse::Model> =
         warehouse::Entity::find()
             .filter(warehouse::Column::Id.is_in(warehouse_ids))
-            .all(&state.db)
+            .all(state.db.as_ref())
             .await?
             .into_iter()
             .map(|w| (w.id, w))
