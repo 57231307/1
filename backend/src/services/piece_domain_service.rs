@@ -24,7 +24,7 @@ pub async fn validate_warehouse_for_piece_type<C: ConnectionTrait>(
     db: &C,
     warehouse_id: i32,
     piece_type: &str,
-    /// 净布工艺豁免：净布工艺完成的胚布匹（无缸号）允许入成品仓
+    // 净布工艺豁免：净布工艺完成的胚布匹（无缸号）允许入成品仓
     allow_greige_in_finished: bool,
 ) -> Result<(), AppError> {
     use sea_orm::EntityTrait;

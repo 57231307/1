@@ -49,6 +49,8 @@ pub struct FabricOrderItemRequest {
     pub color_extra_cost: Option<Decimal>,
     pub grade_price_diff: Option<Decimal>,
     pub final_price: Option<Decimal>,
+    /// 染色匹号（匹号领域：销售单据体现染色匹号，可为约定匹号）
+    pub piece_no: Option<String>,
 }
 
 /// 创建面料销售订单请求
@@ -414,6 +416,7 @@ impl SalesService {
             width: Set(item.width),
             batch_requirement: Set(item.batch_requirement.clone()),
             dye_lot_requirement: Set(item.dye_lot_requirement.clone()),
+            piece_no: Set(item.piece_no.clone()),
             base_price: Set(Some(base_price_val)),
             color_extra_cost: Set(color_extra),
             grade_price_diff: Set(grade_diff),

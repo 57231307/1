@@ -56,6 +56,8 @@ pub struct ShipOrderItemRequest {
     pub color_no: Option<String>,
     #[validate(length(max = 50, message = "缸号长度不能超过50个字符"))]
     pub dye_lot_no: Option<String>,
+    /// 染色匹号（匹号领域：出库使用染色匹号）
+    pub piece_no: Option<String>,
 }
 
 // =====================================================

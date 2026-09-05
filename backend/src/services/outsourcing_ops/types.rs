@@ -87,6 +87,8 @@ pub struct CreateOutsourcingOrderItemRequest {
     pub processing_fee: Option<Decimal>,
     /// batch-18 P2-2：该缸号/匹号的运费
     pub freight_fee: Option<Decimal>,
+    /// 生产匹号（外发染色发料引用的生产匹，匹号领域）
+    pub piece_no: Option<String>,
 }
 
 /// 更新委外发料明细请求
@@ -104,6 +106,8 @@ pub struct UpdateOutsourcingOrderItemRequest {
     pub processing_fee: Option<Decimal>,
     /// batch-18 P2-2：该缸号/匹号的运费
     pub freight_fee: Option<Decimal>,
+    /// 生产匹号
+    pub piece_no: Option<String>,
 }
 
 // ============================================================================

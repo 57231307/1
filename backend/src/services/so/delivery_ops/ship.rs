@@ -298,6 +298,7 @@ impl SalesService {
             color_no: Set(item.color_no.clone()),
             dye_lot_id: Set(None),
             dye_lot_no: Set(item.dye_lot_no.clone()),
+            piece_no: Set(item.piece_no.clone()),
             remarks: Set(None),
             unit_price: Set(unit_price),
             amount: Set(line_amount),
