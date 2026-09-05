@@ -178,12 +178,14 @@ async fn read_request_body_for_audit(
     }
 
     let (parts, body) = req.into_parts();
-    // body 读取失败时记录 warn 日志而非静默回退空字节
-    let body_bytes = match to_bytes(body, 50 * 1024).await {
+    // 读取上限 64MB 仅作内存护栏：超限 Err 分支曾以空字节重建请求，
+    // 导致大请求体（>50KB）被静默吞掉、后端拿到空 body。审计副本超长
+    // 由下方 truncate_text 截断，真实请求体必须原样透传
+    let body_bytes = match to_bytes(body, 64 * 1024 * 1024).await {
         Ok(bytes) => bytes,
         Err(e) => {
-            tracing::warn!(
-                "[{}] {} {} 请求体读取失败，审计记录 body 为空: {}",
+            tracing::error!(
+                "[{}] {} {} 请求体读取失败（超 64MB 护栏），body 无法透传: {}",
                 trace_id,
                 method,
                 uri,
@@ -192,20 +194,20 @@ async fn read_request_body_for_audit(
             Bytes::new()
         }
     };
-    let body_str = String::from_utf8_lossy(&body_bytes).to_string();
     let req = Request::from_parts(parts, Body::from(body_bytes));
 
-    // 敏感路径（change-password/reset-totp 等）请求体脱敏为 "[REDACTED]"
+    // 敏感路径（change-password/reset-totp 等）请求体脱敏为 "[REDACTED]"；
+    // 先截断到审计所需长度再做 PII 脱敏（避免对大请求体做全量正则扫描）
     let is_sensitive_path = is_sensitive_request_body_path(uri);
     let body_for_audit = if is_sensitive_path {
         "[REDACTED]".to_string()
     } else {
         // V15 P2 B17-P2-21：非敏感路径请求体也做 PII 脱敏（手机号/邮箱/身份证号）
-        crate::utils::field_mask::mask_text_pii(&body_str)
+        let body_str = String::from_utf8_lossy(&body_bytes);
+        crate::utils::field_mask::mask_text_pii(&truncate_text(&body_str, 5000))
     };
 
-    let truncated_body = truncate_text(&body_for_audit, 5000);
-    (req, Some(truncated_body))
+    (req, Some(body_for_audit))
 }
 
 /// 记录请求开始日志
@@ -250,11 +252,14 @@ async fn read_response_body(
     trace_id: &str,
 ) -> (Response, String, Option<String>) {
     let (parts, body) = response.into_parts();
-    let body_bytes = match to_bytes(body, 10 * 1024).await {
+    // 读取上限 64MB 仅作内存护栏：超限 Err 分支曾以空字节重建响应，
+    // 客户端收到 200+空体（审计搜索等大响应全部中招）。审计副本超长
+    // 由 truncate_text 截断，真实响应体必须原样透传
+    let body_bytes = match to_bytes(body, 64 * 1024 * 1024).await {
         Ok(bytes) => bytes,
         Err(e) => {
-            tracing::warn!(
-                "[{}] {} {} 响应体读取失败，审计记录 response_body 为空: {}",
+            tracing::error!(
+                "[{}] {} {} 响应体读取失败（超 64MB 护栏），body 无法透传: {}",
                 trace_id,
                 method,
                 uri,
@@ -263,9 +268,10 @@ async fn read_response_body(
             Bytes::new()
         }
     };
-    let response_body = String::from_utf8_lossy(&body_bytes).to_string();
+    // 先截断到审计所需长度再做 PII 脱敏（避免对大响应体做全量正则扫描）
+    let response_body = String::from_utf8_lossy(&body_bytes);
     // V15 P2 B17-P2-21：响应体日志做 PII 脱敏（手机号/邮箱/身份证号）
-    let response_body = crate::utils::field_mask::mask_text_pii(&response_body);
+    let response_body = crate::utils::field_mask::mask_text_pii(&truncate_text(&response_body, 5000));
     let response_content_type = parts
         .headers
         .get(header::CONTENT_TYPE)
