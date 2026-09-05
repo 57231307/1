@@ -2,6 +2,7 @@
 // 私有项 CachedValue<T> 内部使用。
 
 use dashmap::DashMap;
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
@@ -273,8 +274,10 @@ pub struct AppCache {
     /// CSRF Token 缓存：key=csrf_token, value=(session_id, ip_address)。
     /// IP 绑定用于防御 CSRF 窃取后的跨 IP 重放（Wave 3 安全漏洞 #7）。
     pub csrf_token_cache: Arc<MemoryCache<String, (String, String)>>,
-    /// CSRF Token 反向索引（key=user_id, value=活跃 csrf_token；原始 DashMap 便于按 value 反查清理；登录时强制轮换防多设备旧 token 残留）
-    pub csrf_user_index: DashMap<i32, String>,
+    /// CSRF Token 用户索引（key=user_id, value=该用户全部存活 token 集合；
+    /// 登录/刷新强制轮换时按用户整集清除，实现"重新登录使历史 token 立即失效"，
+    /// 防多设备旧 token 残留，Wave 3 安全漏洞 #7）
+    pub csrf_user_index: DashMap<i32, HashSet<String>>,
 }
 
 /// CSRF Token 消费结果（Wave 3 安全漏洞 #7）
@@ -373,13 +376,9 @@ impl AppCache {
         self.csrf_token_cache.clone()
     }
 
-    /// 获取 CSRF Token 反向索引（user_id → csrf_token；保留供测试与内部维护，优先使用 clear_old_csrf_token_for_user 访问）
-    pub fn get_csrf_user_index(&self) -> &DashMap<i32, String> {
-        &self.csrf_user_index
-    }
-
-    /// 写入 CSRF Token（含 IP 绑定 + 反向索引维护，Wave 3 安全漏洞 #7 修复）
-    /// 缓存值=(session_id, ip_address) 元组 IP 校验；反向索引 user_id→token 便于登录轮换；旧 token 由调用方写入前清除。参数：token/session_id/ip_address/user_id/ttl（None 用 CSRF_TOKEN_DEFAULT_TTL_SECS）
+    /// 写入 CSRF Token（含 IP 绑定 + 用户索引维护，Wave 3 安全漏洞 #7 修复）
+    /// 缓存值=(session_id, ip_address) 元组 IP 校验；用户索引记录该用户全部存活 token 便于登录轮换整集清除。
+    /// 参数：token/session_id/ip_address/user_id/ttl（None 用 CSRF_TOKEN_DEFAULT_TTL_SECS）
     // 批次 327 v10 复审 P3 修复：移除误报的 #[allow]
     // - too_many_arguments：仅 5 参数（token, session_id, ip_address, user_id, ttl），低于阈值 7
     // - needless_pass_by_value：owned String 来自上游调用方，保留 owned 形式避免生命周期污染
@@ -394,13 +393,17 @@ impl AppCache {
         let effective_ttl = ttl.unwrap_or(Duration::from_secs(CSRF_TOKEN_DEFAULT_TTL_SECS));
         self.csrf_token_cache
             .set(token.clone(), (session_id, ip_address), Some(effective_ttl));
-        // 反向索引不显式 TTL：其生命周期由 csrf_token_cache 的 TTL 隐式决定
-        // （每次 set_csrf_token 都会覆盖 user_id → token 映射；并发场景下后写覆盖前写）
-        self.csrf_user_index.insert(user_id, token);
+        // 用户索引不显式 TTL：其生命周期由 clear_old_csrf_token_for_user（登录/刷新轮换时
+        // 整集清除）与 consume_csrf_token（消费后从集合移除）驱动；残留的已过期 token 集合项
+        // 在该用户下次轮换时随整集清理，不会无限增长
+        self.csrf_user_index
+            .entry(user_id)
+            .or_default()
+            .insert(token);
     }
 
     /// 校验并消费一次性 CSRF Token（含 IP 校验）
-    /// 行为：找不到→NotFound；IP 不匹配→IpMismatch（保留原条目及其剩余 TTL，防 DoS 探测同时避免 TTL 刷新为永久）；IP 匹配→Ok（消费并清理反向索引）。参数：token(X-CSRF-Token 头)/client_ip
+    /// 行为：找不到→NotFound；IP 不匹配→IpMismatch（保留原条目及其剩余 TTL，防 DoS 探测同时避免 TTL 刷新为永久）；IP 匹配→Ok（消费并从用户索引集合移除）。参数：token(X-CSRF-Token 头)/client_ip
     pub fn consume_csrf_token(&self, token: &str, client_ip: &str) -> CsrfConsumeResult {
         // 先 get 校验、匹配后再 take 移除：
         // 避免"take 后回写 ttl=None 导致 30 分钟有效期变成永久条目"的内存泄漏。
@@ -422,14 +425,12 @@ impl AppCache {
                     None => return CsrfConsumeResult::NotFound,
                 }
                 let _ = session_id;
-                // 清理反向索引（找到 user_id 并移除）。
-                // 此处需要按 value 查找 key，DashMap 不直接支持；采用遍历策略。
-                // 对于单次 CSRF 校验，遍历成本可接受（缓存条目数远小于用户会话数）。
-                // 先在独立的代码块中收集 to_remove，避免与后面的 remove 借用冲突。
+                // 清理用户索引中的对应 token（找到持有该 token 的用户并从集合移除；
+                // 集合空时移除用户条目避免空集合堆积）
                 let to_remove: Option<i32> = {
                     let mut found: Option<i32> = None;
                     for entry in self.csrf_user_index.iter() {
-                        if entry.value() == token {
+                        if entry.value().contains(token) {
                             found = Some(*entry.key());
                             break;
                         }
@@ -437,7 +438,14 @@ impl AppCache {
                     found
                 };
                 if let Some(uid) = to_remove {
-                    self.csrf_user_index.remove(&uid);
+                    let mut should_remove_user = false;
+                    if let Some(mut set) = self.csrf_user_index.get_mut(&uid) {
+                        set.remove(token);
+                        should_remove_user = set.is_empty();
+                    }
+                    if should_remove_user {
+                        self.csrf_user_index.remove(&uid);
+                    }
                 }
                 CsrfConsumeResult::Ok
             }
@@ -445,20 +453,29 @@ impl AppCache {
         }
     }
 
-    /// 清除指定用户的旧 CSRF Token（强制轮换，Wave 3 安全漏洞 #7 修复）
-    /// 重新登录时调用使历史 token 立即失效防多设备残留；返回 true=清除至少一个，false=无活跃 token（首次登录）
+    /// 强制轮换：清除指定用户的全部活跃 CSRF Token（Wave 3 安全漏洞 #7 修复）
+    /// 重新登录/刷新时调用使历史 token 立即失效防多设备残留；返回 true=清除了至少一个活跃 token，false=无活跃 token（首次登录）
     ///
-    /// 多会话共存说明：E2E CI 34 个分片共享同一 e2e_admin 并发登录，按 user_id 全清
-    /// 会导致分片间互相踢 token（踢踏雪崩：被踢分片重登又踢别人）。改为保留
-    /// csrf_token_cache 中同 TTL 的旧 token 主体（各自随 30min TTL 自然过期），
-    /// 仅清除反向索引（index 只服务于"最近一次登录"语义），实现：
-    /// - 单会话场景：旧行为等价（旧 token 仍消费即失效——一次性消费语义不变）
-    /// - 多会话场景：各分片 token 独立有效，互不干扰
+    /// 多会话语义说明：重新登录使该用户全部旧 token 失效是本函数的安全本意
+    /// （旧 token 一旦被踢，持有方下一次请求即收到 CSRF_TOKEN_INVALID，重新登录即可恢复）。
+    /// E2E CI 各分片使用独立分片账号（e2e_admin_s{N}，见 e2e/global-setup.ts），
+    /// 按用户清除不会跨分片踢 token；同账号多设备场景下，后登录方踢掉先登录方的
+    /// token 属预期安全行为（后者随下次请求自动恢复会话）。
     pub fn clear_old_csrf_token_for_user(&self, user_id: i32) -> bool {
-        // 仅移除反向索引映射，保留 csrf_token_cache 中的旧 token（TTL 自然过期）。
-        // 旧 token 仍受一次性消费 + IP 绑定约束，安全性不变；
-        // 多会话并发时不再互相清除对方的有效 token。
-        self.csrf_user_index.remove(&user_id).is_some()
+        // 取走该用户的全部存活 token 并从 csrf_token_cache 逐个移除，
+        // 实现"重新登录使历史 token 立即失效"
+        match self.csrf_user_index.remove(&user_id) {
+            Some((_, tokens)) => {
+                let mut removed_any = false;
+                for t in tokens {
+                    if self.csrf_token_cache.take(&t).is_some() {
+                        removed_any = true;
+                    }
+                }
+                removed_any
+            }
+            None => false,
+        }
     }
 
     /// 清除所有缓存
