@@ -21,6 +21,7 @@ mod m0047_add_last_payload_to_webhooks;
 mod m0048_add_user_id_to_webhooks;
 mod m0049_create_processed_events;
 mod m0050_create_event_dead_letters;
+mod m0051_add_piece_type_and_machine_no;
 
 pub struct Migration;
 
@@ -114,6 +115,9 @@ impl MigrationTrait for Migration {
         m0048_add_user_id_to_webhooks::Migration.up(manager).await?;
         m0049_create_processed_events::Migration.up(manager).await?;
         m0050_create_event_dead_letters::Migration
+            .up(manager)
+            .await?;
+        m0051_add_piece_type_and_machine_no::Migration
             .up(manager)
             .await?;
         let sql = r#"ALTER TABLE "api_keys" ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ;
@@ -417,6 +421,9 @@ ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "insurance_cost" DECIMAL
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
+        m0051_add_piece_type_and_machine_no::Migration
+            .down(manager)
+            .await?;
         m0050_create_event_dead_letters::Migration
             .down(manager)
             .await?;
