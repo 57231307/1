@@ -197,7 +197,7 @@ pub async fn create_piece_from_outsourcing_receipt<C: ConnectionTrait>(
                     // batch_no 有单字段 UNIQUE（m0013 DDL），用回仓单号保证唯一；
                     // 缸号维度本身由 dye_lot_no 表达
                     batch_no: Set(format!("{}-RECEIPT", receipt_no)),
-                    product_id,
+                    product_id: Set(product_id),
                     color_id: Set(None),
                     dye_lot_no: Set(lot_no.to_string()),
                     dye_date: Set(now),

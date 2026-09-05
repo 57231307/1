@@ -13,7 +13,7 @@ use axum::{
     Json,
     extract::{Query, State},
 };
-use sea_orm::{Condition, PaginatorTrait, QueryOrder};
+use sea_orm::{ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};
 use serde::Deserialize;
 
 /// 匹号列表查询参数
@@ -36,7 +36,7 @@ pub struct ListPieceParams {
 }
 
 /// 匹号列表响应条目（含仓库名便于追溯展示）
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct PieceResponse {
     pub id: i32,
     pub piece_no: String,
@@ -96,7 +96,7 @@ pub async fn list_pieces(
         .paginate(&state.db, page_size);
     let total = paginator.num_items().await?;
     // SeaORM paginate 使用 0-based 页码
-    let models = paginator.fetch_page(page.saturating_sub(1)).await?;
+    let models: Vec<inventory_piece::Model> = paginator.fetch_page(page.saturating_sub(1)).await?;
 
     // 批量取仓库名（避免 N+1：逐条查询改为一次性收集仓库 ID 查询）
     let warehouse_ids: Vec<i32> = models.iter().map(|p| p.warehouse_id).collect();
