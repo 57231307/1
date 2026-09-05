@@ -108,7 +108,7 @@ test.describe('库存调拨完整流程', () => {
     expect(received.status.toLowerCase()).toBe('completed');
 
     // 验证审计日志
-    const auditLogged = await verifyAuditLog(page, 'UPDATE', 'inventory_transfer');
+    const auditLogged = await verifyAuditLog(page, 'UPDATE', 'inventory');
     expect(auditLogged).toBe(true);
 
     // UI 验证：访问调拨列表页

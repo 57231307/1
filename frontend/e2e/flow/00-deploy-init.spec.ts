@@ -171,8 +171,7 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
     const ctx = getCtx();
     const productId = ctx.productIds[0] || 1;
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/product-colors', {
-        product_id: productId,
+      const result = await apiCall<{ id?: number }>(page, 'POST', `/products/${productId}/colors`, {
         color_no: 'RED-001',
         color_name: '大红',
         pantone_code: '179C',
@@ -192,8 +191,7 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
     const ctx = getCtx();
     const productId = ctx.productIds[0] || 1;
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/product-colors', {
-        product_id: productId,
+      const result = await apiCall<{ id?: number }>(page, 'POST', `/products/${productId}/colors`, {
         color_no: 'BLUE-001',
         color_name: '藏青',
         pantone_code: '19-3939C',

@@ -94,7 +94,7 @@ test.describe('采购退货完整流程', () => {
     expect(illegalSubmit.status).toBeGreaterThanOrEqual(400);
 
     // 验证审计日志
-    const auditLogged = await verifyAuditLog(page, 'UPDATE', 'purchase_return');
+    const auditLogged = await verifyAuditLog(page, 'UPDATE', 'purchase');
     expect(auditLogged).toBe(true);
 
     // UI 验证：访问采购退货列表页

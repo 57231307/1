@@ -349,7 +349,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
 
   test('2-11 验证审计日志包含销售操作', async ({ page }) => {
     await loginViaUI(page);
-    const hasLog = await verifyAuditLog(page, 'CREATE', 'sales_order');
+    const hasLog = await verifyAuditLog(page, 'CREATE', 'sales');
     expect(typeof hasLog).toBe('boolean');
   });
 

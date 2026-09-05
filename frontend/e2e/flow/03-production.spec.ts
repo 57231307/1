@@ -306,7 +306,8 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
     await loginViaUI(page);
     const ctx = getCtx();
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/production/orders', {
+      const poUrl = '/production/production-orders/orders';
+      const result = await apiCall<{ id?: number }>(page, 'POST', poUrl, {
         // CreateProductionOrderPayload：order_no 必填，quantity → planned_quantity
         order_no: genCode('PO-E2E'),
         product_id: ctx.productIds[0] || 1,
@@ -321,7 +322,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
         const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
           page,
           'GET',
-          '/production/orders?page=1&page_size=1'
+          '/production/production-orders/orders?page=1&page_size=1'
         );
         ctx.productionOrderId = list.items?.[0]?.id;
       } catch {
@@ -347,13 +348,17 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
 
     for (const t of transitions) {
       try {
-        await apiCall(page, 'POST', `/production/orders/${id}/${t.action}`);
+        await apiCall(page, 'POST', `/production/production-orders/orders/${id}/${t.action}`);
       } catch {
         // 状态可能不允许
       }
     }
 
-    const order = await apiCallRaw<{ status: string }>(page, 'GET', `/production/orders/${id}`);
+    const order = await apiCallRaw<{ status: string }>(
+      page,
+      'GET',
+      `/production/production-orders/orders/${id}`
+    );
     expect([
       'draft',
       'pending_approval',

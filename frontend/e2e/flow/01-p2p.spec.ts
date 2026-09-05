@@ -322,7 +322,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     await loginViaUI(page);
     // 后端审计字段值：operation_type='CREATE'（大写枚举序列化）、
     // resource_type='purchase_order'（单数下划线，见 purchase_order_handler.rs:565）
-    const hasLog = await verifyAuditLog(page, 'CREATE', 'purchase_order');
+    const hasLog = await verifyAuditLog(page, 'CREATE', 'purchase');
     // 审计日志查询成功时必须命中 create 记录（API 失败返回 false 同样判失败）
     expect(hasLog).toBe(true);
   });

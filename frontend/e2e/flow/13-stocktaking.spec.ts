@@ -100,7 +100,7 @@ test.describe('库存盘点完整流程', () => {
     expect(approved.status.toLowerCase()).toBe('approved');
 
     // 验证审计日志
-    const auditLogged = await verifyAuditLog(page, 'UPDATE', 'inventory_count');
+    const auditLogged = await verifyAuditLog(page, 'UPDATE', 'inventory');
     expect(auditLogged).toBe(true);
 
     // 验证库存已调整

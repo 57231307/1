@@ -104,7 +104,7 @@ test.describe('成本核算完整流程', () => {
     expect(byBatch.items?.length).toBeGreaterThanOrEqual(0);
 
     // 验证审计日志
-    const auditLogged = await verifyAuditLog(page, 'audit', 'cost-collections');
+    const auditLogged = await verifyAuditLog(page, 'CREATE', 'production', '/cost-collections');
     expect(auditLogged).toBe(true);
   });
 
@@ -199,7 +199,7 @@ test.describe('成本核算完整流程', () => {
         );
         expect(records.items?.length).toBeGreaterThanOrEqual(0);
 
-        const auditLogged = await verifyAuditLog(page, 'depreciate', 'fixed-assets');
+        const auditLogged = await verifyAuditLog(page, 'CREATE', 'fixed-assets', '/depreciate');
         expect(auditLogged).toBe(true);
       } catch {
         // 折旧可能因资产状态不允许

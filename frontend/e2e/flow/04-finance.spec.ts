@@ -229,7 +229,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
       const periods = await apiCallRaw<{ items: Array<{ status: string }> }>(
         page,
         'GET',
-        '/accounting-periods?page=1&page_size=5'
+        '/finance/accounting-periods?page=1&page_size=5'
       );
       expect(periods.items);
       if (periods?.items?.length ?? 0 > 0) {
@@ -244,7 +244,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
         const periods = await apiCallRaw<{ items: Array<{ status: string }> }>(
           page,
           'GET',
-          '/accounting-periods?page=1&page_size=5'
+          '/finance/accounting-periods?page=1&page_size=5'
         );
         expect(periods.items);
       } catch {

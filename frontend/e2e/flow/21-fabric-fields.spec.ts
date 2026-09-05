@@ -315,13 +315,14 @@ test.describe('面料单据专用字段全链路验证', () => {
     // 查询产品色号 ID
     let colorId: number | null = null;
     try {
-      const colors = await apiCallRaw<{ items: Array<{ id: number; color_no: string }> }>(
+      // 真实端点：GET /products/{id}/colors（返回数组，非分页包装）
+      const colors = await apiCallRaw<Array<{ id: number; color_no: string }>>(
         page,
         'GET',
-        `/product-colors?product_id=${productId}&page=1&page_size=5`
+        `/products/${productId}/colors`
       );
-      if (colors.items?.length > 0) {
-        colorId = colors.items?.[0].id;
+      if (colors?.length > 0) {
+        colorId = colors[0].id;
       }
     } catch {
       // 查询失败，测试无色号关联
