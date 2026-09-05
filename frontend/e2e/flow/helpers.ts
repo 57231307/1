@@ -1235,14 +1235,14 @@ export async function verifyAuditLog(
   let path = `/system/audit-logs?page=1&page_size=50`;
   if (resourceType) path += `&resource_type=${encodeURIComponent(resourceType)}`;
   try {
-    const logs = await apiCallRaw<{ items: Array<{ action: string; resource_type: string }> }>(
-      page,
-      'GET',
-      path
-    );
+    const logs = await apiCallRaw<{
+      items: Array<{ operation_type?: string; action?: string; resource_type?: string }>;
+    }>(page, 'GET', path);
     return (
       logs.items?.some(
-        l => l.action === action && (!resourceType || l.resource_type === resourceType)
+        l =>
+          (l.operation_type ?? l.action) === action &&
+          (!resourceType || l.resource_type === resourceType)
       ) || false
     );
   } catch {
