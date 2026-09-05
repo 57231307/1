@@ -17,11 +17,6 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     /// 主键 ID
     #[sea_orm(primary_key)]
-
-    /// 匹号/批号/缸号（匹号领域：采购对账需要体现）
-    pub piece_no: Option<String>,
-    pub batch_no: Option<String>,
-    pub dye_lot_no: Option<String>,
     pub id: i32,
 
     /// 对账单号（REC20260315001）
@@ -81,6 +76,11 @@ pub struct Model {
 
     /// 争议原因
     pub disputed_reason: Option<String>,
+
+    /// 匹号/批号/缸号（匹号领域：采购对账需要体现）
+    pub piece_no: Option<String>,
+    pub batch_no: Option<String>,
+    pub dye_lot_no: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

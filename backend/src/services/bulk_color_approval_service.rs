@@ -443,7 +443,7 @@ impl BulkColorApprovalService {
             // 样布产生于染色批次之后，属染色匹
             piece_type: Set("dyed".to_string()),
             machine_no: Set(None),
-            dye_lot_id: Set(model.dye_batch_id),
+            dye_lot_id: Set(Some(model.dye_batch_id)),
             supplier_piece_no: Set(None),
             length: Set(sample_length),
             weight: Set(None),

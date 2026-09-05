@@ -629,7 +629,7 @@ impl FabricInspectionService {
             machine_operator: Set(None),
             // 打卷入库时间
             warehouse_in_at: Set(Some(now_piece)),
-            dye_lot_id: Set(dye_lot_id),
+            dye_lot_id: Set(Some(dye_lot_id)),
             batch_no: Set(dye_lot_no.to_string()),
             product_id: Set(model.product_id.unwrap_or(0)),
             warehouse_id: Set(req.warehouse_id),

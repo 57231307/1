@@ -6,7 +6,7 @@
 //! - 仓库类型约束：胚布仓（greige）只能存放未染色/未做工艺的胚布；
 //!   成品仓（finished）只能存放染色/工艺后的成品
 
-use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
 use serde::Deserialize;
 
 use crate::models::inventory_piece;
@@ -86,14 +86,14 @@ pub async fn create_greige_pieces_from_report<C: ConnectionTrait>(
     let mut created = Vec::with_capacity(pieces.len());
     for piece in pieces {
         validate_warehouse_for_piece_type(db, piece.warehouse_id, PIECE_TYPE_GREIGE, false).await?;
-        let now = crate::utils::date_utils::utc_now_fixed();
+        let now_utc = crate::utils::date_utils::utc_now_fixed().with_timezone(&chrono::Utc);
         let active = inventory_piece::ActiveModel {
             id: sea_orm::ActiveValue::NotSet,
             piece_no: Set(piece.piece_no.clone()),
             piece_type: Set(PIECE_TYPE_GREIGE.to_string()),
             machine_no: Set(piece.machine_no.clone()),
             machine_operator: Set(piece.machine_operator.clone()),
-            warehouse_in_at: Set(Some(now)),
+            warehouse_in_at: Set(Some(now_utc)),
             // 生产匹无缸号
             dye_lot_id: Set(None),
             dye_lot_no: Set(None),
@@ -119,9 +119,13 @@ pub async fn create_greige_pieces_from_report<C: ConnectionTrait>(
             scan_type: Set(None),
             status: Set("available".to_string()),
             remarks: Set(Some(format!("生产报工逐匹登记（工艺单 {}）", card_no))),
-            created_at: Set(now),
-            updated_at: Set(now),
+            created_at: Set(now_utc),
+            updated_at: Set(now_utc),
             created_by: Set(operator_id),
+            updated_by: Set(None),
+            color_no: Set(None),
+            original_length: Set(None),
+            original_weight: Set(None),
         };
         created.push(active.insert(db).await?);
     }
@@ -187,7 +191,7 @@ pub async fn create_piece_from_outsourcing_receipt<C: ConnectionTrait>(
         None
     };
 
-    let now = crate::utils::date_utils::utc_now_fixed();
+    let now_utc = crate::utils::date_utils::utc_now_fixed().with_timezone(&chrono::Utc);
     let piece_no = format!("{}-P01", receipt_no);
     let active = inventory_piece::ActiveModel {
         id: sea_orm::ActiveValue::NotSet,
@@ -195,7 +199,7 @@ pub async fn create_piece_from_outsourcing_receipt<C: ConnectionTrait>(
         piece_type: Set(piece_type.to_string()),
         machine_no: Set(None),
         machine_operator: Set(None),
-        warehouse_in_at: Set(Some(now)),
+        warehouse_in_at: Set(Some(now_utc)),
         dye_lot_id: Set(dye_lot_id),
         dye_lot_no: Set(dye_lot_no),
         batch_no: Set(receipt_no.to_string()),
@@ -220,8 +224,8 @@ pub async fn create_piece_from_outsourcing_receipt<C: ConnectionTrait>(
         scan_type: Set(None),
         status: Set("available".to_string()),
         remarks: Set(Some(remarks.to_string())),
-        created_at: Set(now),
-        updated_at: Set(now),
+        created_at: Set(now_utc),
+        updated_at: Set(now_utc),
         created_by: Set(None),
     };
     Ok(Some(active.insert(db).await?))
