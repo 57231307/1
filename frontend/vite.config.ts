@@ -34,6 +34,19 @@ export default defineConfig({
       },
     },
   },
+  // vite preview（生产构建本地服务）复用同一 proxy 配置：
+  // CI E2E 已切换为 build + preview（规避 dev server 按需编译挂起）
+  preview: {
+    port: 3000,
+    allowedHosts: ['.monkeycode-ai.online'],
+    proxy: {
+      '/api/': {
+        target: 'http://localhost:8082',
+        changeOrigin: true,
+        ws: true,
+      },
+    },
+  },
   build: {
     outDir: 'dist',
     assetsDir: 'static',

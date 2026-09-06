@@ -2548,30 +2548,31 @@ jobs:
       - name: 启动前端 dev server（预构建后避免 504）
         working-directory: frontend
         run: |
-          # 先手动触发 Vite 依赖预构建（避免首次加载 504 Outdated Optimize Dep）
-          npx vite optimize --force
-          # 启动 dev server
-          npm run dev > /tmp/e2e-logs/frontend.log 2>&1 &
+          # 改用生产构建 + vite preview：连续四轮（34041167918/34052705035/
+          # 34057476581/34061578022）十余分片 exit 124，后端全程健康、
+          # Playwright 全程静默，定性为 Vite dev server 按需编译在 CI 慢盘
+          # 上挂死（页面导航 pending 拖垮整个测试进程）。生产包无按需
+          # 编译，彻底消除该挂起层；构建产物在上方前端构建 job 已验证
+          npm run build > /tmp/e2e-logs/frontend-build.log 2>&1 || {
+            echo "前端构建失败，日志："
+            tail -30 /tmp/e2e-logs/frontend-build.log
+            exit 1
+          }
+          npx vite preview --port 3000 --strictPort > /tmp/e2e-logs/frontend.log 2>&1 &
           FRONTEND_PID=$!
           echo "FRONTEND_PID=$FRONTEND_PID" >> /tmp/e2e-logs/pid.env
-          for i in $(seq 1 120); do
+          for i in $(seq 1 60); do
             if curl -s http://localhost:3000 > /dev/null 2>&1; then
-              echo "前端就绪（第 ${i} 次尝试）"
+              echo "前端 preview 就绪（第 ${i} 次尝试）"
               break
             fi
             sleep 1
           done
           if ! curl -s http://localhost:3000 > /dev/null 2>&1; then
-            echo "前端启动失败，日志："
+            echo "前端 preview 启动失败，日志："
             tail -20 /tmp/e2e-logs/frontend.log
             exit 1
           fi
-          # 预热主要路由（触发 Vite 按需编译，把冷启动成本移到测试前；
-          # run 34041167918/34052705035 十余分片在首个页面导航时挂起
-          # exit 124，疑似 Vite 慢盘按需编译卡死）
-          for route in / /dashboard /login /system /warehouse /product /sales /purchase /production /inventory /finance /crm /custom-orders /color-cards /dye-batch; do
-            curl -s -o /dev/null -m 20 "http://localhost:3000${route}" || true
-          done
           echo "路由预热完成"
 
       - name: 验证登录 API（诊断）
