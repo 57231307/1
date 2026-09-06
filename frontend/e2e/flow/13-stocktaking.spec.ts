@@ -19,12 +19,16 @@ test.describe('库存盘点完整流程', () => {
 
   test('盘点：创建→录入实盘→提交→审批→调整验证', async ({ page }) => {
     const ctx = getCtx();
-    const warehouseId = ctx.warehouseIds[0];
     const productId = ctx.productIds[0];
 
     // 记录盘点前库存
     const stockBefore = await verifyStockFourDim(page, productId, ctx.colorNos[0]);
     const qtyBefore = Number(stockBefore.quantity || stockBefore.available_qty || 0);
+
+    // 仓库取实际库存行自带的 warehouse_id：ensureTestEntities 每次 beforeEach
+    // 重查仓库列表，ctx.warehouseIds[0] 会漂移，而库存兜底建仓在先——两者
+    // 可能不一致导致盘点报"仓库 X 下无库存"。用库存行仓库保证数据自洽。
+    const warehouseId = Number(stockBefore.warehouse_id) || ctx.warehouseIds[0];
 
     // 后端 CreateCountPayload 真实字段
     const countData = {
@@ -112,8 +116,11 @@ test.describe('库存盘点完整流程', () => {
   test('盘点拒绝：负数实盘数量应被拒', async ({ page }) => {
     const ctx = getCtx();
 
+    // 仓库取实际库存行自带的 warehouse_id（避免 ctx.warehouseIds 漂移导致
+    // "仓库 X 下无库存"，与第一个盘点测试同因）
+    const stockRow = await verifyStockFourDim(page, ctx.productIds[0], ctx.colorNos[0]);
     const countData = {
-      warehouse_id: ctx.warehouseIds[0],
+      warehouse_id: Number(stockRow.warehouse_id) || ctx.warehouseIds[0],
       count_date: new Date().toISOString(),
     };
 
@@ -154,8 +161,11 @@ test.describe('库存盘点完整流程', () => {
   test('盘点状态机：已审批不能再次提交', async ({ page }) => {
     const ctx = getCtx();
 
+    // 仓库取实际库存行自带的 warehouse_id（避免 ctx.warehouseIds 漂移导致
+    // "仓库 X 下无库存"，与第一个盘点测试同因）
+    const stockRow = await verifyStockFourDim(page, ctx.productIds[0], ctx.colorNos[0]);
     const countData = {
-      warehouse_id: ctx.warehouseIds[0],
+      warehouse_id: Number(stockRow.warehouse_id) || ctx.warehouseIds[0],
       count_date: new Date().toISOString(),
     };
 

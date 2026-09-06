@@ -124,7 +124,10 @@ test.describe('异常处理与边界条件', () => {
 
   test('未认证请求返回 401', async ({ browser }) => {
     // 用全新 context（无 cookie），不触发登录
-    const context = await browser.newContext();
+    // 注意：playwright.config 全局配置了 storageState，browser.newContext() 默认
+    // 继承该登录态（实测被认证为 e2e_admin 返回 200）。必须显式传
+    // storageState: undefined 才能拿到真正无 cookie 的未认证 context。
+    const context = await browser.newContext({ storageState: undefined });
     const page = await context.newPage();
 
     const resp = await page.request.fetch(`${API_BASE}${API_PREFIX}/auth/me`, {
