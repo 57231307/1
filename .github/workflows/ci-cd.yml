@@ -2597,11 +2597,13 @@ jobs:
           SHARD=${{ matrix.shard }}
           if [ "$SHARD" -le 29 ]; then
             # 分片 0-29: 运行 flow/ 全流程测试，按 shard 自动分配
-            npx playwright test --project=chromium --shard=$((SHARD + 1))/30 e2e/flow/ 2>&1 | tee reports/playwright-output.txt
+            # timeout 1200s：单测试 420s × 约 13 个测试 = 5460s 上限，但挂起时分片级 20 分钟强制杀
+            # （shard 15 历史挂起 55 分钟教训：Playwright 在 page 挂起时不退出）
+            timeout 1200 npx playwright test --project=chromium --shard=$((SHARD + 1))/30 e2e/flow/ 2>&1 | tee reports/playwright-output.txt
           else
             # 分片 30-33: 运行 smoke 页面加载测试，按 shard 分配
             SMOKE_SHARD=$((SHARD - 29))
-            npx playwright test --project=chromium --shard=${SMOKE_SHARD}/4 e2e/smoke/ 2>&1 | tee reports/playwright-output.txt
+            timeout 1200 npx playwright test --project=chromium --shard=${SMOKE_SHARD}/4 e2e/smoke/ 2>&1 | tee reports/playwright-output.txt
           fi
           EXIT_CODE=$?
           set -e
@@ -2643,6 +2645,37 @@ jobs:
             cp -r frontend/e2e/.auth/*.png frontend/reports/globalsetup-screenshots/ 2>/dev/null || true
           fi
 
+      - name: E2E UI 操作失败检查（全分片统计）
+        if: always()
+        working-directory: frontend
+        run: |
+          echo "## E2E UI 操作失败统计（分片 ${{ matrix.shard }}/34）" > reports/ui-failures.md
+          echo "" >> reports/ui-failures.md
+          # 扫描 Playwright 输出中的 "[E2E] 操作失败" 日志（catch 清理后的显式日志）
+          FAIL_COUNT=$(grep -c "\[E2E\] 操作失败" reports/playwright-output.txt 2>/dev/null || echo 0)
+          LOGIN_FAIL=$(grep -c "UI 登录失败" reports/playwright-output.txt 2>/dev/null || echo 0)
+          TIMEOUT_FAIL=$(grep -cE "Timeout|超时" reports/playwright-output.txt 2>/dev/null || echo 0)
+          TOTAL_FAIL=$((FAIL_COUNT + LOGIN_FAIL + TIMEOUT_FAIL))
+          if [ "$TOTAL_FAIL" -eq "0" ]; then
+            echo "✅ 无 UI 操作失败" >> reports/ui-failures.md
+            echo "操作失败: 0 | 登录失败: 0 | 超时: 0" >> reports/ui-failures.md
+            echo "::notice::E2E 分片 ${{ matrix.shard }} UI 操作检查通过（无失败）"
+          else
+            echo "❌ 发现 $TOTAL_FAIL 处 UI 操作失败" >> reports/ui-failures.md
+            echo "- 操作失败(catch): $FAIL_COUNT" >> reports/ui-failures.md
+            echo "- 登录失败: $LOGIN_FAIL" >> reports/ui-failures.md
+            echo "- 超时: $TIMEOUT_FAIL" >> reports/ui-failures.md
+            echo "" >> reports/ui-failures.md
+            echo "### 失败明细" >> reports/ui-failures.md
+            echo '```' >> reports/ui-failures.md
+            grep "\[E2E\] 操作失败\|UI 登录失败" reports/playwright-output.txt 2>/dev/null | head -30 >> reports/ui-failures.md || true
+            echo '```' >> reports/ui-failures.md
+            # 有操作失败记失败（但不阻塞 CI，仅记录统计）
+            echo "::warning::E2E 分片 ${{ matrix.shard }} 有 $TOTAL_FAIL 处 UI 操作失败（操作失败 $FAIL_COUNT + 登录失败 $LOGIN_FAIL + 超时 $TIMEOUT_FAIL）"
+          fi
+          # 汇总到 step summary
+          cat reports/ui-failures.md >> "$GITHUB_STEP_SUMMARY"
+
       - name: 上传 E2E 报告
         if: always()
         uses: actions/upload-artifact@v4
@@ -2651,6 +2684,7 @@ jobs:
           path: |
             frontend/playwright-report/
             frontend/reports/e2e-report.md
+            frontend/reports/ui-failures.md
             frontend/reports/backend.log
             frontend/test-results/
           retention-days: 30

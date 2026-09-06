@@ -1086,6 +1086,11 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
     consoleLogs.slice(-20).forEach(log => console.error(log));
     // 截图
     await page.screenshot({ path: 'test-results/login-failure-diagnosis.png', fullPage: true });
+    page.off('response', onLoginResp);
+    // 强制关闭 page 释放挂起的网络请求/等待 promise（防 Playwright runner 挂起）
+    // shard 15 历史挂起 55 分钟教训：waitForURL 的 promise 在后端无响应时永不 resolve，
+    // 即使 timeout Error 抛出，page 挂起的 fetch 连接仍阻止 runner 退出
+    await page.close().catch(() => {});
     throw new Error(
       `UI 登录失败: 40s 内未离开 ${currentUrl}，登录接口状态 ${loginRespStatus || '未捕获'}，ElMessage: ${JSON.stringify(elMessages)}`
     );
