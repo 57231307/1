@@ -15,7 +15,9 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
         '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty, .el-form'
       )
       .first();
-    await container.waitFor({ state: 'visible', timeout: 30_000 }).catch(() => {});
+    await container
+      .waitFor({ state: 'visible', timeout: 30_000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     return page
       .locator(
         '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
@@ -26,7 +28,9 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
   // 辅助：验证按钮可见且可点击
   async function verifyButton(page: import('@playwright/test').Page, text: string) {
     const btn = page.locator(`button:has-text("${text}")`).first();
-    await btn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await btn
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const visible = await btn.isVisible().catch(() => false);
     if (visible) {
       const disabled = await btn.isDisabled().catch(() => false);
@@ -38,13 +42,17 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
   // 辅助：点击新建按钮并验证弹窗（只匹配可见对话框）
   async function clickNewAndVerifyDialog(page: import('@playwright/test').Page, btnText: string) {
     const btn = page.locator(`button:has-text("${btnText}")`).first();
-    await btn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await btn
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const visible = await btn.isVisible().catch(() => false);
     if (!visible) return false;
     await btn.click();
     await page.waitForTimeout(1000);
     const dialog = page.locator('.el-dialog:visible').first();
-    await dialog.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await dialog
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const dialogVisible = await dialog.isVisible().catch(() => false);
     return dialogVisible;
   }
@@ -70,7 +78,7 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
       .locator('.el-message, .el-form-item__error')
       .first()
       .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(() => {});
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const hasError = await page
       .locator('.el-message, .el-form-item__error')
       .first()
@@ -92,7 +100,7 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
       .locator('.el-dialog__headerbtn')
       .first()
       .click()
-      .catch(() => {});
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     await page.waitForTimeout(500);
   }
 
@@ -115,12 +123,16 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
         '.filter-card input, .filter-form input, input[placeholder*="订单"], input[placeholder*="供应商"]'
       )
       .first();
-    await searchInput.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await searchInput
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const searchVisible = await searchInput.isVisible().catch(() => false);
     if (searchVisible) {
       await searchInput.fill('测试');
       const queryBtn = page.locator('button:has-text("查询")').first();
-      await queryBtn.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
+      await queryBtn
+        .waitFor({ state: 'visible', timeout: 3000 })
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       const queryVisible = await queryBtn.isVisible().catch(() => false);
       if (queryVisible) {
         await queryBtn.click();
@@ -136,7 +148,9 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     if (dialogVisible) {
       // 验证表单字段
       const supplierSelect = page.locator('.el-dialog .el-select').first();
-      await supplierSelect.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
+      await supplierSelect
+        .waitFor({ state: 'visible', timeout: 3000 })
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       const supplierVisible = await supplierSelect.isVisible().catch(() => false);
       expect(supplierVisible).toBe(true);
 
@@ -163,13 +177,15 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
       .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 })
-      .catch(() => {});
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const table = page
       .locator(
         '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
       )
       .first();
-    await table.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+    await table
+      .waitFor({ state: 'visible', timeout: 10_000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const tableVisible = await table.isVisible().catch(() => false);
     expect(tableVisible).toBe(true);
   });
@@ -186,12 +202,16 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     const searchInput = page
       .locator('input[placeholder*="订单"], input[placeholder*("客户")]')
       .first();
-    await searchInput.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await searchInput
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const searchVisible = await searchInput.isVisible().catch(() => false);
     if (searchVisible) {
       await searchInput.fill('测试');
       const queryBtn = page.locator('button:has-text("查询")').first();
-      await queryBtn.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
+      await queryBtn
+        .waitFor({ state: 'visible', timeout: 3000 })
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       const queryVisible = await queryBtn.isVisible().catch(() => false);
       if (queryVisible) {
         await queryBtn.click();
@@ -205,7 +225,9 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     if (dialogVisible) {
       // 验证客户选择器
       const customerSelect = page.locator('.el-dialog .el-select').first();
-      await customerSelect.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
+      await customerSelect
+        .waitFor({ state: 'visible', timeout: 3000 })
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       const customerVisible = await customerSelect.isVisible().catch(() => false);
       expect(customerVisible).toBe(true);
 
@@ -236,7 +258,9 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
           'button:has-text("新建"), button:has-text("创建"), .el-button--primary:has-text("新")'
         )
         .first();
-      await newBtn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+      await newBtn
+        .waitFor({ state: 'visible', timeout: 5000 })
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       const newBtnVisible = await newBtn.isVisible().catch(() => false);
       if (newBtnVisible) {
         await newBtn.click();
@@ -247,7 +271,7 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
           .locator('.el-dialog')
           .first()
           .waitFor({ state: 'visible', timeout: 3000 })
-          .catch(() => {});
+          .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
         const hasDialog = await page
           .locator('.el-dialog')
           .first()
@@ -293,7 +317,9 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
         .locator('.el-dialog .el-form-item')
         .filter({ hasText: /色号|颜色/ })
         .first();
-      await colorField.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+      await colorField
+        .waitFor({ state: 'visible', timeout: 10_000 })
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       const colorVisible = await colorField.isVisible().catch(() => false);
       expect(colorVisible).toBe(true);
 
@@ -368,7 +394,9 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
         .first()
         .locator('input')
         .first();
-      await codeInput.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+      await codeInput
+        .waitFor({ state: 'visible', timeout: 10_000 })
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       const codeVisible = await codeInput.isVisible().catch(() => false);
       expect(codeVisible).toBe(true);
       await closeDialog(page);
@@ -387,12 +415,16 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     const searchInput = page
       .locator('input[placeholder*="用户名"], input[placeholder*("姓名")]')
       .first();
-    await searchInput.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await searchInput
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const searchVisible = await searchInput.isVisible().catch(() => false);
     if (searchVisible) {
       await searchInput.fill('admin');
       const queryBtn = page.locator('button:has-text("查询")').first();
-      await queryBtn.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
+      await queryBtn
+        .waitFor({ state: 'visible', timeout: 3000 })
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       const queryVisible = await queryBtn.isVisible().catch(() => false);
       if (queryVisible) {
         await queryBtn.click();
@@ -412,7 +444,9 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     const auditTab = page
       .locator('.el-tabs__item:has-text("审计"), .el-tabs__item:has-text("日志")')
       .first();
-    await auditTab.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
+    await auditTab
+      .waitFor({ state: 'visible', timeout: 3000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const auditTabVisible = await auditTab.isVisible().catch(() => false);
     if (auditTabVisible) {
       await auditTab.click();
@@ -422,7 +456,9 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
           '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
         )
         .first();
-      await auditTable.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+      await auditTable
+        .waitFor({ state: 'visible', timeout: 5000 })
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       const auditTableVisible = await auditTable.isVisible().catch(() => false);
       expect(auditTableVisible).toBe(true);
     }
@@ -438,12 +474,16 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
 
     // 验证搜索区
     const searchArea = page.locator('.el-card.filter-card, .filter-form, .el-form').first();
-    await searchArea.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await searchArea
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const searchVisible = await searchArea.isVisible().catch(() => false);
     if (searchVisible) {
       // 产品搜索
       const productInput = searchArea.locator('input, .el-select').first();
-      await productInput.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
+      await productInput
+        .waitFor({ state: 'visible', timeout: 3000 })
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       const productVisible = await productInput.isVisible().catch(() => false);
       expect(productVisible).toBe(true);
     }
@@ -477,7 +517,9 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
       .waitFor({ state: 'visible', timeout: 30_000 });
     // 切换到角色 Tab
     const roleTab = page.locator('.el-tabs__item:has-text("角色")').first();
-    await roleTab.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await roleTab
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const roleTabVisible = await roleTab.isVisible().catch(() => false);
     if (roleTabVisible) {
       await roleTab.click();
@@ -487,7 +529,9 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
           '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
         )
         .first();
-      await table.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+      await table
+        .waitFor({ state: 'visible', timeout: 5000 })
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       const tableVisible = await table.isVisible().catch(() => false);
       expect(tableVisible).toBe(true);
     }
@@ -517,7 +561,9 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     const refreshBtn = page
       .locator('button:has-text("刷新"), .el-button--primary:has(.el-icon)')
       .first();
-    await refreshBtn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await refreshBtn
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const refreshVisible = await refreshBtn.isVisible().catch(() => false);
     if (refreshVisible) {
       const disabled = await refreshBtn.isDisabled().catch(() => false);
@@ -595,7 +641,9 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     await page.goto(`${BASE_URL}/403`);
     await page.waitForTimeout(2000);
     const content = page.locator('.el-result, .error-page, body').first();
-    await content.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+    await content
+      .waitFor({ state: 'visible', timeout: 10_000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const visible = await content.isVisible().catch(() => false);
     expect(visible).toBe(true);
     const text = await content.textContent();
@@ -606,7 +654,9 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     await page.goto(`${BASE_URL}/404`);
     await page.waitForTimeout(2000);
     const content = page.locator('.error-page, body').first();
-    await content.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+    await content
+      .waitFor({ state: 'visible', timeout: 10_000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const visible = await content.isVisible().catch(() => false);
     expect(visible).toBe(true);
   });
@@ -622,7 +672,9 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     const usernameInput = loginPage
       .locator('input[placeholder="用户名"], input[placeholder="Username"]')
       .first();
-    await usernameInput.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+    await usernameInput
+      .waitFor({ state: 'visible', timeout: 10_000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const usernameVisible = await usernameInput.isVisible().catch(() => false);
     expect(usernameVisible).toBe(true);
 
@@ -630,13 +682,17 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     const passwordInput = loginPage
       .locator('input[placeholder="密码"], input[placeholder="Password"]')
       .first();
-    await passwordInput.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await passwordInput
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const passwordVisible = await passwordInput.isVisible().catch(() => false);
     expect(passwordVisible).toBe(true);
 
     // 验证登录按钮
     const loginBtn = loginPage.locator('form button.el-button--primary').first();
-    await loginBtn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await loginBtn
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const loginBtnVisible = await loginBtn.isVisible().catch(() => false);
     expect(loginBtnVisible).toBe(true);
     const loginBtnDisabled = await loginBtn.isDisabled().catch(() => false);
@@ -644,7 +700,9 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
 
     // 验证复选框（用户协议）
     const checkbox = loginPage.locator('.el-checkbox').first();
-    await checkbox.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await checkbox
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const checkboxVisible = await checkbox.isVisible().catch(() => false);
     expect(checkboxVisible).toBe(true);
 
@@ -655,7 +713,7 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
       .locator('.el-form-item__error, .el-message--error')
       .first()
       .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(() => {});
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const hasError = await loginPage
       .locator('.el-form-item__error, .el-message--error')
       .first()
@@ -677,7 +735,9 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     const menu = page
       .locator('.el-menu, .el-aside, .sidebar-container, [class*="sidebar"]')
       .first();
-    await menu.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+    await menu
+      .waitFor({ state: 'visible', timeout: 10_000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const menuVisible = await menu.isVisible().catch(() => false);
     if (menuVisible) {
       // 验证菜单项存在
@@ -687,7 +747,7 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
 
       // 点击第一个菜单项验证跳转
       const firstItem = menuItems.first();
-      await firstItem.click().catch(() => {});
+      await firstItem.click().catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       await page.waitForTimeout(2000);
       const url = page.url();
       expect(url).toContain('localhost:3000');
@@ -704,7 +764,7 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     await page
       .locator('body')
       .waitFor({ state: 'visible', timeout: 10_000 })
-      .catch(() => {});
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const bodyVisible = await page
       .locator('body')
       .isVisible()
@@ -720,7 +780,7 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     await page
       .locator('body')
       .waitFor({ state: 'visible', timeout: 10_000 })
-      .catch(() => {});
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const bodyVisible = await page
       .locator('body')
       .isVisible()
@@ -763,7 +823,9 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
         '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
       )
       .first();
-    await table.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+    await table
+      .waitFor({ state: 'visible', timeout: 10_000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const tableVisible = await table.isVisible().catch(() => false);
     expect(tableVisible).toBe(true);
   });

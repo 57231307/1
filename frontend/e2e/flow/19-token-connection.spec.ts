@@ -34,7 +34,9 @@ test.describe('后端连接状态与 Token 管理', () => {
     await page.goto(`${BASE_URL}/purchase?t=${Date.now()}`, { waitUntil: 'domcontentloaded' });
     // 守卫链：/auth/me 401 → refresh 401 → redirect /login；
     // 等待 URL 实际变化（CI 慢环境首次 JS 执行可达 20s+，30s 留余量），固定 3s 在首次加载慢时会误判
-    await page.waitForURL(/\/(login|setup)/, { timeout: 60_000 }).catch(() => {});
+    await page
+      .waitForURL(/\/(login|setup)/, { timeout: 60_000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
 
     const url = page.url();
     expect(url.includes('/login') || url.includes('/setup')).toBe(true);
@@ -54,7 +56,7 @@ test.describe('后端连接状态与 Token 管理', () => {
       .locator('form, .el-form, .setup-container')
       .first()
       .waitFor({ state: 'visible', timeout: 10_000 })
-      .catch(() => {});
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
 
     const hasForm = await page
       .locator('form, .el-form, .setup-container')
@@ -164,7 +166,7 @@ test.describe('后端连接状态与 Token 管理', () => {
     await page.waitForTimeout(1000);
     await page
       .evaluate(() => window.localStorage.setItem('bingxi.locale', 'zh-CN'))
-      .catch(() => {});
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const userInput = page
       .locator('input[placeholder="用户名"], input[placeholder="Username"]')
       .first();
@@ -179,7 +181,9 @@ test.describe('后端连接状态与 Token 管理', () => {
     await loginBtn.waitFor({ state: 'visible', timeout: 20_000 });
     await loginBtn.click();
     // 等待登录成功跳转
-    await page.waitForURL(/dashboard|purchase|\//, { timeout: 20_000 }).catch(() => {});
+    await page
+      .waitForURL(/dashboard|purchase|\//, { timeout: 20_000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     await page.waitForTimeout(2000);
 
     // 清除 cookie 模拟 token 过期（httpOnly cookie 一并被清）
@@ -190,13 +194,15 @@ test.describe('后端连接状态与 Token 管理', () => {
         localStorage.removeItem('erp_cached_perms');
         localStorage.removeItem('erp_cached_perms_ts');
       })
-      .catch(() => {});
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
 
     // 导航到受保护页面（时间戳参数破坏缓存，确保守卫执行）
     await page.goto(`${BASE_URL}/purchase?t=${Date.now()}`, { waitUntil: 'domcontentloaded' });
     // 等待重定向到登录页（CI 慢环境守卫链 /auth/me 401 → refresh 401 → redirect
     // 首次 JS 执行可达 20s+，60s 留余量；守卫 init/status 失败安全时落 /setup 也接受）
-    await page.waitForURL(/\/(login|setup)/, { timeout: 60_000 }).catch(() => {});
+    await page
+      .waitForURL(/\/(login|setup)/, { timeout: 60_000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
 
     // 应被重定向到登录页或初始化页（守卫在 init/status 请求失败时失败安全引导至 /setup，
     // 截图证实 401 后可能落在 Setup 向导页——两者都算未登录重定向）

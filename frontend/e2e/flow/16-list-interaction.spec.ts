@@ -55,10 +55,14 @@ test.describe('列表交互与状态显示', () => {
       .first();
     const empty = page.locator('.el-empty, .el-table__empty-block, .el-table__empty-text').first();
 
-    await table.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+    await table
+      .waitFor({ state: 'visible', timeout: 15_000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
 
     const tableVisible = await table.isVisible().catch(() => false);
-    await empty.waitFor({ state: 'visible', timeout: 5_000 }).catch(() => {});
+    await empty
+      .waitFor({ state: 'visible', timeout: 5_000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const emptyVisible = await empty.isVisible().catch(() => false);
     expect(tableVisible || emptyVisible).toBe(true);
 
@@ -101,7 +105,9 @@ test.describe('列表交互与状态显示', () => {
 
     // 查找搜索输入框（真实 placeholder 含"供应商名称"或类似）
     const searchInput = page.locator('.filter-form input, .filter-card input').first();
-    await searchInput.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await searchInput
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const searchVisible = await searchInput.isVisible().catch(() => false);
     if (searchVisible) {
       await searchInput.fill('测试');
@@ -109,7 +115,9 @@ test.describe('列表交互与状态显示', () => {
 
       // 点击查询按钮（真实文本"查询"）
       const searchBtn = page.locator('button:has-text("查询")').first();
-      await searchBtn.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
+      await searchBtn
+        .waitFor({ state: 'visible', timeout: 3000 })
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       const searchBtnVisible = await searchBtn.isVisible().catch(() => false);
       if (searchBtnVisible) {
         await searchBtn.click();
@@ -139,7 +147,7 @@ test.describe('列表交互与状态显示', () => {
     await tabs
       .first()
       .waitFor({ state: 'visible', timeout: 15_000 })
-      .catch(() => {});
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const tabsVisible = await tabs
       .first()
       .isVisible()
@@ -147,7 +155,9 @@ test.describe('列表交互与状态显示', () => {
     if (tabsVisible) {
       // 点击第二个 tab
       const secondTab = page.locator('.el-tabs__item').nth(1);
-      await secondTab.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+      await secondTab
+        .waitFor({ state: 'visible', timeout: 5000 })
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       const secondTabVisible = await secondTab.isVisible().catch(() => false);
       if (secondTabVisible) {
         await secondTab.click();

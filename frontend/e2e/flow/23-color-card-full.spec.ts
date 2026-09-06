@@ -94,12 +94,16 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
     const searchInput = page
       .locator('input[placeholder*="卡号"], input[placeholder*="卡名"]')
       .first();
-    await searchInput.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await searchInput
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const searchVisible = await searchInput.isVisible().catch(() => false);
     if (searchVisible) {
       await searchInput.fill('测试');
       const queryBtn = page.locator('button:has-text("查询")').first();
-      await queryBtn.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
+      await queryBtn
+        .waitFor({ state: 'visible', timeout: 3000 })
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       const btnVisible = await queryBtn.isVisible().catch(() => false);
       if (btnVisible) {
         await queryBtn.click();
@@ -117,7 +121,9 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
     }
     // 验证新建色卡按钮
     const newBtn = page.locator('button:has-text("新建色卡")').first();
-    await newBtn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await newBtn
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const newBtnVisible = await newBtn.isVisible().catch(() => false);
     if (newBtnVisible) {
       await newBtn.click();
@@ -133,7 +139,9 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
     await page.waitForTimeout(3000);
     // 验证表单存在
     const form = page.locator('.el-form, .el-card').first();
-    await form.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+    await form
+      .waitFor({ state: 'visible', timeout: 15_000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const formVisible = await form.isVisible().catch(() => false);
     expect(formVisible).toBe(true);
     // 验证有卡号、卡名、类型输入字段
@@ -151,7 +159,9 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
       .waitFor({ state: 'visible', timeout: 30_000 });
     // 验证新建价格按钮
     const newBtn = page.locator('button:has-text("新建价格")').first();
-    await newBtn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await newBtn
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const newBtnVisible = await newBtn.isVisible().catch(() => false);
     if (newBtnVisible) {
       await newBtn.click();
@@ -165,10 +175,10 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/color-prices/batch-adjust`);
     await page.waitForTimeout(3000);
     // isVisible 立即返回，组件异步挂载可能尚未渲染 → 改用 waitFor 等待可见
-    const container = page
-      .locator('.el-card, .el-form, .el-table, .el-empty, body')
-      .first();
-    await container.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+    const container = page.locator('.el-card, .el-form, .el-table, .el-empty, body').first();
+    await container
+      .waitFor({ state: 'visible', timeout: 15_000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const visible = await container.isVisible().catch(() => false);
     expect(visible).toBe(true);
   });
@@ -181,7 +191,9 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
         '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
       )
       .first();
-    await table.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+    await table
+      .waitFor({ state: 'visible', timeout: 15_000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const tableVisible = await table.isVisible().catch(() => false);
     if (tableVisible) {
       const headers = table.locator('th, .el-table-v2__header-cell');

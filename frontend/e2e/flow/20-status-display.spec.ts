@@ -43,7 +43,7 @@ test.describe('前端状态显示与业务逻辑验证', () => {
       )
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 })
-      .catch(() => {});
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
 
     const cells = page.locator('.el-table__body td');
     const cellCount = await cells.count();
@@ -92,9 +92,7 @@ test.describe('前端状态显示与业务逻辑验证', () => {
         });
       }
     } catch (e) {
-      console.warn(
-        `[日期格式化] 预置采购订单失败（继续尝试断言）: ${(e as Error).message}`
-      );
+      console.warn(`[日期格式化] 预置采购订单失败（继续尝试断言）: ${(e as Error).message}`);
     }
 
     await page.goto(`${BASE_URL}/purchase`);
@@ -106,7 +104,7 @@ test.describe('前端状态显示与业务逻辑验证', () => {
       )
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 })
-      .catch(() => {});
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
 
     const cells = page.locator('.el-table__body td');
     const cellCount = await cells.count();
@@ -134,7 +132,9 @@ test.describe('前端状态显示与业务逻辑验证', () => {
 
     // 验证新建按钮可见（admin 有全部权限）
     const newBtn = page.locator('button:has-text("新建采购单")').first();
-    await newBtn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await newBtn
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const newBtnVisible = await newBtn.isVisible().catch(() => false);
     expect(newBtnVisible).toBe(true);
   });
@@ -148,14 +148,16 @@ test.describe('前端状态显示与业务逻辑验证', () => {
         '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
       )
       .first();
-    await table.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+    await table
+      .waitFor({ state: 'visible', timeout: 15_000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const tableVisible = await table.isVisible().catch(() => false);
     if (tableVisible) {
       const emptyBlock = page.locator('.el-table__empty-block, .el-table__empty-text, .el-empty');
       await emptyBlock
         .first()
         .waitFor({ state: 'visible', timeout: 3000 })
-        .catch(() => {});
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       const emptyVisible = await emptyBlock
         .first()
         .isVisible()
@@ -183,7 +185,9 @@ test.describe('前端状态显示与业务逻辑验证', () => {
     await page.waitForTimeout(2000);
 
     const content = page.locator('.dashboard-container, .el-card, .el-row').first();
-    await content.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+    await content
+      .waitFor({ state: 'visible', timeout: 10_000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const contentVisible = await content.isVisible().catch(() => false);
     expect(contentVisible).toBe(true);
   });
@@ -195,7 +199,9 @@ test.describe('前端状态显示与业务逻辑验证', () => {
 
     // 验证页面在窄屏下不崩溃
     const body = page.locator('body');
-    await body.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+    await body
+      .waitFor({ state: 'visible', timeout: 10_000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const bodyVisible = await body.isVisible().catch(() => false);
     expect(bodyVisible).toBe(true);
 
@@ -214,22 +220,28 @@ test.describe('前端状态显示与业务逻辑验证', () => {
       )
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 })
-      .catch(() => {});
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
 
     // 点击查询按钮触发操作
     const searchBtn = page.locator('button:has-text("查询")').first();
-    await searchBtn.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
+    await searchBtn
+      .waitFor({ state: 'visible', timeout: 3000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const searchVisible = await searchBtn.isVisible().catch(() => false);
     if (searchVisible) {
       await searchBtn.click();
       await page.waitForTimeout(500);
 
       const message = page.locator('.el-message').first();
-      await message.waitFor({ state: 'visible', timeout: 2000 }).catch(() => {});
+      await message
+        .waitFor({ state: 'visible', timeout: 2000 })
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       const messageVisible = await message.isVisible().catch(() => false);
       if (messageVisible) {
         await page.waitForTimeout(4000);
-        await message.waitFor({ state: 'visible', timeout: 1000 }).catch(() => {});
+        await message
+          .waitFor({ state: 'visible', timeout: 1000 })
+          .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
         const messageStillVisible = await message.isVisible().catch(() => false);
         expect(messageStillVisible).toBe(false);
       }

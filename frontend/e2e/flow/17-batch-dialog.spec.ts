@@ -23,7 +23,9 @@ test.describe('批量操作与弹窗确认', () => {
 
     if (checkboxCount > 1) {
       const firstRowCheckbox = checkboxes.nth(1);
-      await firstRowCheckbox.click().catch(() => {});
+      await firstRowCheckbox
+        .click()
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       await page.waitForTimeout(500);
 
       // 查找批量操作按钮
@@ -32,7 +34,9 @@ test.describe('批量操作与弹窗确认', () => {
           'button:has-text("批量审批"), button:has-text("批量通过"), button:has-text("批量提交")'
         )
         .first();
-      await batchApproveBtn.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
+      await batchApproveBtn
+        .waitFor({ state: 'visible', timeout: 3000 })
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       const batchBtnVisible = await batchApproveBtn.isVisible().catch(() => false);
       if (batchBtnVisible) {
         await batchApproveBtn.click();
@@ -42,7 +46,9 @@ test.describe('批量操作与弹窗确认', () => {
         const confirmDialog = page
           .locator('.el-message-box, .el-dialog:has-text("确认"), .el-popconfirm')
           .first();
-        await confirmDialog.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+        await confirmDialog
+          .waitFor({ state: 'visible', timeout: 5000 })
+          .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
         const dialogVisible = await confirmDialog.isVisible().catch(() => false);
         if (dialogVisible) {
           const confirmBtn = page
@@ -50,7 +56,9 @@ test.describe('批量操作与弹窗确认', () => {
               '.el-message-box__btns button:has-text("确定"), .el-dialog button:has-text("确定")'
             )
             .first();
-          await confirmBtn.click().catch(() => {});
+          await confirmBtn
+            .click()
+            .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
           await page.waitForTimeout(2000);
         }
       }
@@ -64,7 +72,7 @@ test.describe('批量操作与弹窗确认', () => {
         .locator('.el-table .el-checkbox.is-checked')
         .first()
         .click()
-        .catch(() => {});
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     }
   });
 
@@ -82,7 +90,9 @@ test.describe('批量操作与弹窗确认', () => {
     const deleteBtn = page
       .locator('button:has-text("删除"), .el-button--danger:has-text("删")')
       .first();
-    await deleteBtn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await deleteBtn
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const deleteVisible = await deleteBtn.isVisible().catch(() => false);
     if (deleteVisible) {
       await deleteBtn.click();
@@ -90,7 +100,9 @@ test.describe('批量操作与弹窗确认', () => {
 
       // 验证确认弹窗
       const popconfirm = page.locator('.el-popconfirm, .el-message-box').first();
-      await popconfirm.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+      await popconfirm
+        .waitFor({ state: 'visible', timeout: 5000 })
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       const popVisible = await popconfirm.isVisible().catch(() => false);
       if (popVisible) {
         // 点击取消
@@ -99,13 +111,17 @@ test.describe('批量操作与弹窗确认', () => {
             '.el-popconfirm button:has-text("取消"), .el-message-box__btns button:has-text("取消")'
           )
           .first();
-        await cancelBtn.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
+        await cancelBtn
+          .waitFor({ state: 'visible', timeout: 3000 })
+          .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
         const cancelVisible = await cancelBtn.isVisible().catch(() => false);
         if (cancelVisible) {
           await cancelBtn.click();
           await page.waitForTimeout(500);
 
-          await popconfirm.waitFor({ state: 'visible', timeout: 2000 }).catch(() => {});
+          await popconfirm
+            .waitFor({ state: 'visible', timeout: 2000 })
+            .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
 
           const popStillVisible = await popconfirm.isVisible().catch(() => false);
           expect(popStillVisible).toBe(false);
@@ -127,7 +143,9 @@ test.describe('批量操作与弹窗确认', () => {
 
     // 查找导出按钮（真实文本"导出"）
     const exportBtn = page.locator('button:has-text("导出")').first();
-    await exportBtn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await exportBtn
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const exportVisible = await exportBtn.isVisible().catch(() => false);
     if (exportVisible) {
       const downloadPromise = page.waitForEvent('download', { timeout: 5000 }).catch(() => null);
@@ -158,15 +176,19 @@ test.describe('批量操作与弹窗确认', () => {
 
     // 点击新建采购单
     const newBtn = page.locator('button:has-text("新建采购单")').first();
-    await newBtn.click().catch(() => {});
+    await newBtn.click().catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
 
     await page.waitForTimeout(1000);
     const dialog = page.locator('.el-dialog').first();
-    await dialog.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+    await dialog
+      .waitFor({ state: 'visible', timeout: 10_000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
 
     // 查找供应商下拉选择（真实 placeholder"选择供应商"）
     const supplierSelect = page.locator('.el-dialog .el-select').first();
-    await supplierSelect.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await supplierSelect
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const selectVisible = await supplierSelect.isVisible().catch(() => false);
     if (selectVisible) {
       await supplierSelect.click();
@@ -197,6 +219,6 @@ test.describe('批量操作与弹窗确认', () => {
       .locator('.el-dialog__headerbtn')
       .first()
       .click()
-      .catch(() => {});
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
   });
 });

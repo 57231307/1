@@ -199,14 +199,18 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
         'input[placeholder*="客户编码"], input[placeholder*="客户"], input[placeholder*="线索"]'
       )
       .first();
-    await searchInput.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await searchInput
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const searchVisible = await searchInput.isVisible().catch(() => false);
     if (searchVisible) {
       await searchInput.fill('测试');
       await page.waitForTimeout(500);
       // 点击查询按钮
       const queryBtn = page.locator('button:has-text("查询")').first();
-      await queryBtn.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
+      await queryBtn
+        .waitFor({ state: 'visible', timeout: 3000 })
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       const btnVisible = await queryBtn.isVisible().catch(() => false);
       if (btnVisible) {
         await queryBtn.click();
@@ -236,24 +240,30 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
       .waitFor({ state: 'visible', timeout: 30_000 });
     // 点击新建客户按钮
     const newBtn = page.locator('button:has-text("新建客户")').first();
-    await newBtn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await newBtn
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const newBtnVisible = await newBtn.isVisible().catch(() => false);
     if (newBtnVisible) {
       await newBtn.click();
       await page.waitForTimeout(1000);
       // 验证弹窗出现
       const dialog = page.locator('.el-dialog').first();
-      await dialog.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+      await dialog
+        .waitFor({ state: 'visible', timeout: 5000 })
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       const dialogVisible = await dialog.isVisible().catch(() => false);
       expect(dialogVisible).toBe(true);
       // 验证表单字段存在
       const codeInput = dialog.locator('input[placeholder*="客户编码"]').first();
-      await codeInput.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
+      await codeInput
+        .waitFor({ state: 'visible', timeout: 3000 })
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       const codeVisible = await codeInput.isVisible().catch(() => false);
       expect(codeVisible).toBe(true);
       // 直接点保存触发必填校验
       const saveBtn = dialog.locator('button:has-text("保存"), button:has-text("确定")').first();
-      await saveBtn.click().catch(() => {});
+      await saveBtn.click().catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       await page.waitForTimeout(1000);
       // 验证校验错误提示
       const hasError = await page
@@ -268,7 +278,7 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
         .locator('.el-dialog__headerbtn')
         .first()
         .click()
-        .catch(() => {});
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     }
   });
 
@@ -285,7 +295,9 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
         '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
       )
       .first();
-    await table.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+    await table
+      .waitFor({ state: 'visible', timeout: 10_000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const tableVisible = await table.isVisible().catch(() => false);
     expect(tableVisible).toBe(true);
     // 验证表头存在
@@ -298,12 +310,16 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
         'input[placeholder*="线索"], input[placeholder*="公司"], input[placeholder*="联系人"]'
       )
       .first();
-    await searchInput.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await searchInput
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const searchVisible = await searchInput.isVisible().catch(() => false);
     if (searchVisible) {
       await searchInput.fill('测试');
       const queryBtn = page.locator('button:has-text("查询")').first();
-      await queryBtn.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
+      await queryBtn
+        .waitFor({ state: 'visible', timeout: 3000 })
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       const btnVisible = await queryBtn.isVisible().catch(() => false);
       if (btnVisible) {
         await queryBtn.click();
@@ -332,25 +348,31 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
         '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
       )
       .first();
-    await table.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+    await table
+      .waitFor({ state: 'visible', timeout: 10_000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const tableVisible = await table.isVisible().catch(() => false);
     expect(tableVisible).toBe(true);
     // 验证新建商机按钮存在
     const newBtn = page.locator('button:has-text("新建商机")').first();
-    await newBtn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await newBtn
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const newBtnVisible = await newBtn.isVisible().catch(() => false);
     if (newBtnVisible) {
       await newBtn.click();
       await page.waitForTimeout(1000);
       const dialog = page.locator('.el-dialog').first();
-      await dialog.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+      await dialog
+        .waitFor({ state: 'visible', timeout: 5000 })
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       const dialogVisible = await dialog.isVisible().catch(() => false);
       expect(dialogVisible).toBe(true);
       await page
         .locator('.el-dialog__headerbtn')
         .first()
         .click()
-        .catch(() => {});
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     }
   });
 
@@ -375,10 +397,10 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     await page.goto(`${BASE_URL}/sales-analysis`);
     await page.waitForTimeout(3000);
     // isVisible 立即返回，组件异步挂载可能未渲染 → 改用 waitFor 等待可见
-    const container = page
-      .locator('.el-card, .el-table, .el-empty, body')
-      .first();
-    await container.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+    const container = page.locator('.el-card, .el-table, .el-empty, body').first();
+    await container
+      .waitFor({ state: 'visible', timeout: 15_000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const visible = await container.isVisible().catch(() => false);
     expect(visible).toBe(true);
   });
@@ -397,7 +419,9 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
         '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
       )
       .first();
-    await table.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+    await table
+      .waitFor({ state: 'visible', timeout: 10_000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const tableVisible = await table.isVisible().catch(() => false);
     if (tableVisible) {
       const headers = table.locator('th, .el-table-v2__header-cell');

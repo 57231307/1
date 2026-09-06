@@ -81,12 +81,16 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
         'input[placeholder*="用户名"], input[placeholder*="姓名"], input[placeholder*="手机"]'
       )
       .first();
-    await searchInput.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await searchInput
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const searchVisible = await searchInput.isVisible().catch(() => false);
     if (searchVisible) {
       await searchInput.fill('admin');
       const queryBtn = page.locator('button:has-text("查询")').first();
-      await queryBtn.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
+      await queryBtn
+        .waitFor({ state: 'visible', timeout: 3000 })
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       const btnVisible = await queryBtn.isVisible().catch(() => false);
       if (btnVisible) {
         await queryBtn.click();
@@ -103,24 +107,28 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
     }
     // 新建用户
     const newBtn = page.locator('button:has-text("新建用户")').first();
-    await newBtn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await newBtn
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const newBtnVisible = await newBtn.isVisible().catch(() => false);
     if (newBtnVisible) {
       await newBtn.click();
       await page.waitForTimeout(1000);
       const dialog = page.locator('.el-dialog').first();
-      await dialog.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+      await dialog
+        .waitFor({ state: 'visible', timeout: 5000 })
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       const dialogVisible = await dialog.isVisible().catch(() => false);
       expect(dialogVisible).toBe(true);
       // 直接保存触发必填校验
       const saveBtn = dialog.locator('button:has-text("保存"), button:has-text("确定")').first();
-      await saveBtn.click().catch(() => {});
+      await saveBtn.click().catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       await page.waitForTimeout(1000);
       await page
         .locator('.el-form-item__error, .el-message--error')
         .first()
         .waitFor({ state: 'visible', timeout: 5000 })
-        .catch(() => {});
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       const hasError = await page
         .locator('.el-form-item__error, .el-message--error')
         .first()
@@ -131,7 +139,7 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
         .locator('.el-dialog__headerbtn')
         .first()
         .click()
-        .catch(() => {});
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     }
   });
 
@@ -143,7 +151,9 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     const searchBtn = page.locator('button:has-text("查询")').first();
-    await searchBtn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await searchBtn
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const searchVisible = await searchBtn.isVisible().catch(() => false);
     if (searchVisible) {
       await searchBtn.click();
@@ -181,26 +191,32 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
           '.el-table:visible, .el-table-v2:visible, [role="table"]:visible, .v2-table-wrapper:visible'
         )
         .first();
-      await table.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+      await table
+        .waitFor({ state: 'visible', timeout: 15_000 })
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       const tableOk = await table.isVisible().catch(() => false);
       expect(tableOk).toBe(true);
     }
     // 新建接口按钮
     const newBtn = page.locator('button:has-text("新建接口")').first();
-    await newBtn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await newBtn
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const newBtnVisible = await newBtn.isVisible().catch(() => false);
     if (newBtnVisible) {
       await newBtn.click();
       await page.waitForTimeout(1000);
       const dialog = page.locator('.el-dialog').first();
-      await dialog.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+      await dialog
+        .waitFor({ state: 'visible', timeout: 5000 })
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       const dialogVisible = await dialog.isVisible().catch(() => false);
       expect(dialogVisible).toBe(true);
       await page
         .locator('.el-dialog__headerbtn')
         .first()
         .click()
-        .catch(() => {});
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     }
   });
 
@@ -236,20 +252,24 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     const newBtn = page.locator('button:has-text("新建"), button:has-text("新增")').first();
-    await newBtn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await newBtn
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const newBtnVisible = await newBtn.isVisible().catch(() => false);
     if (newBtnVisible) {
       await newBtn.click();
       await page.waitForTimeout(1000);
       const dialog = page.locator('.el-dialog').first();
-      await dialog.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+      await dialog
+        .waitFor({ state: 'visible', timeout: 5000 })
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       const dialogVisible = await dialog.isVisible().catch(() => false);
       expect(dialogVisible).toBe(true);
       await page
         .locator('.el-dialog__headerbtn')
         .first()
         .click()
-        .catch(() => {});
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     }
   });
 

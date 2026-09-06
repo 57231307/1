@@ -157,14 +157,18 @@ test.describe('面料单据专用字段全链路验证', () => {
         .first()
         .locator('button:has-text("查看"), .el-link:has-text("详情"), button:has-text("详情")')
         .first();
-      await detailBtn.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
+      await detailBtn
+        .waitFor({ state: 'visible', timeout: 3000 })
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       const detailVisible = await detailBtn.isVisible().catch(() => false);
       if (detailVisible) {
         await detailBtn.click();
         await page.waitForTimeout(2000);
 
         const detailPanel = page.locator('.el-dialog, .el-drawer, .el-main').first();
-        await detailPanel.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+        await detailPanel
+          .waitFor({ state: 'visible', timeout: 10_000 })
+          .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
 
         // 验证详情中有面料相关文本
         const detailText = await detailPanel.textContent().catch(() => '');
@@ -189,15 +193,19 @@ test.describe('面料单据专用字段全链路验证', () => {
 
     // 点击新建订单
     const newBtn = page.locator('button:has-text("新建订单")').first();
-    await newBtn.click().catch(() => {});
+    await newBtn.click().catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     await page.waitForTimeout(1000);
 
     const dialog = page.locator('.el-dialog').first();
-    await dialog.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+    await dialog
+      .waitFor({ state: 'visible', timeout: 10_000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
 
     // 验证表单字段存在
     const customerSelect = page.locator('.el-dialog .el-select').first();
-    await customerSelect.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await customerSelect
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const customerVisible = await customerSelect.isVisible().catch(() => false);
     expect(customerVisible).toBe(true);
 
@@ -205,12 +213,16 @@ test.describe('面料单据专用字段全链路验证', () => {
     const productSelect = page
       .locator('.el-dialog .el-table .el-select, .el-dialog select:has(option)')
       .first();
-    await productSelect.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await productSelect
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const productVisible = await productSelect.isVisible().catch(() => false);
     // 检查表单是否有面料字段输入（色号/缸号/克重/幅宽）
     // 当前前端可能未显示这些字段
     const colorLabel = page.locator('.el-dialog text=色号').first();
-    await colorLabel.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
+    await colorLabel
+      .waitFor({ state: 'visible', timeout: 3000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const colorLabelVisible = await colorLabel.isVisible().catch(() => false);
     // 记录色号字段是否在表单中（当前可能缺失）
 
@@ -219,7 +231,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       .locator('.el-dialog__headerbtn')
       .first()
       .click()
-      .catch(() => {});
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
   });
 
   // ============================================================
@@ -402,7 +414,9 @@ test.describe('面料单据专用字段全链路验证', () => {
         'button:has-text("新建"), button:has-text("创建"), .el-button--primary:has-text("新")'
       )
       .first();
-    await newBtn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await newBtn
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const newBtnVisible = await newBtn.isVisible().catch(() => false);
     if (newBtnVisible) {
       await newBtn.click();
@@ -410,12 +424,16 @@ test.describe('面料单据专用字段全链路验证', () => {
 
       // 可能跳转到创建页面或弹窗
       const dialog = page.locator('.el-dialog').first();
-      await dialog.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+      await dialog
+        .waitFor({ state: 'visible', timeout: 5000 })
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       const dialogVisible = await dialog.isVisible().catch(() => false);
       if (dialogVisible) {
         // 在弹窗中查找色号相关
         const colorLabel = page.locator('.el-dialog text=色号, .el-dialog text=颜色').first();
-        await colorLabel.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+        await colorLabel
+          .waitFor({ state: 'visible', timeout: 5000 })
+          .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
         const colorVisible = await colorLabel.isVisible().catch(() => false);
         // 报价单明细应有色号选择列
         expect(true).toBe(true); // 记录
@@ -424,7 +442,7 @@ test.describe('面料单据专用字段全链路验证', () => {
           .locator('.el-dialog__headerbtn')
           .first()
           .click()
-          .catch(() => {});
+          .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
       }
     }
   });
@@ -1185,14 +1203,18 @@ test.describe('面料单据专用字段全链路验证', () => {
 
     // 点击新建
     const newBtn = page.locator('button:has-text("新建")').first();
-    await newBtn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await newBtn
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const newBtnVisible = await newBtn.isVisible().catch(() => false);
     if (newBtnVisible) {
       await newBtn.click();
       await page.waitForTimeout(1000);
 
       const dialog = page.locator('.el-dialog').first();
-      await dialog.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+      await dialog
+        .waitFor({ state: 'visible', timeout: 10_000 })
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
 
       // 检查表单是否有色号/缸号/批次号字段
       const dialogText = await dialog.textContent().catch(() => '');
@@ -1207,7 +1229,7 @@ test.describe('面料单据专用字段全链路验证', () => {
         .locator('.el-dialog__headerbtn')
         .first()
         .click()
-        .catch(() => {});
+        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     }
   });
 });
