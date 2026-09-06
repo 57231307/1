@@ -283,13 +283,36 @@ pub async fn anti_brute_force(req: Request<Body>, next: Next) -> Result<Response
     }?;
 
     // 漏洞 #6 修复：分布式优先，失败回退内存
-    let allowed = check_rate_limit(
-        &format!("bf:{}", ip),
-        100,
+    // 并发容量调整：key 改为 IP+用户名 双维度（bf:{ip}:{username}）。
+    // 公司级部署（约百人）共享同一出口 IP，原 bf:{ip} 100次/5min 会在上班
+    // 签到潮（全公司 5 分钟内集中登录）误伤正常用户。拆分维度后：
+    // - 同一 IP 整体上限 500 次/5min：容纳百人级签到潮（500 远超正常峰值，
+    //   仍可拦截大规模分布式撞库）
+    // - 同一 IP+用户名 20 次/5min：针对性拦截单账号暴力破解，防护强度不变
+    let username = req
+        .extensions()
+        .get::<AuthContext>()
+        .map(|auth| auth.username.clone())
+        .unwrap_or_default();
+    let overall_allowed = check_rate_limit(
+        &format!("bf:overall:{}", ip),
+        500,
         Duration::from_secs(300),
         &BRUTE_FORCE_LIMITER,
     )
     .await;
+    let allowed = if username.is_empty() {
+        overall_allowed
+    } else {
+        let per_user_allowed = check_rate_limit(
+            &format!("bf:{}:{}", ip, username),
+            20,
+            Duration::from_secs(300),
+            &BRUTE_FORCE_LIMITER,
+        )
+        .await;
+        overall_allowed && per_user_allowed
+    };
 
     if !allowed {
         tracing::warn!("Brute force blocked for IP {}", ip);

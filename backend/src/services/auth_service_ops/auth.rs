@@ -16,6 +16,17 @@ use argon2::{
 };
 use chrono::{Duration, Utc};
 use jsonwebtoken::{Algorithm, DecodingKey, Header, Validation, decode, encode};
+use std::sync::LazyLock;
+use tokio::sync::Semaphore;
+
+/// Argon2id 密码验证并发闸门。
+///
+/// 单次 Argon2id 验证占用约 64MB 内存（m=65536 KiB），且通过 spawn_blocking
+/// 在阻塞线程池执行。无闸门时，瞬时登录峰值（如上班签到潮）会同时启动大量
+/// 验证任务，内存峰值 = 并发数 × 64MB，有触发 OOM 的风险。
+/// 闸门限 8 并发：8 × 64MB = 512MB 峰值可控；其余请求在此排队等待。
+/// 单次验证 50-100ms，99 人登录潮全部验证完仅需约 1-2 秒，用户无感知。
+static ARGON2_VERIFY_GATE: LazyLock<Semaphore> = LazyLock::new(|| Semaphore::new(8));
 
 impl AuthService {
     /// 用户登录认证
@@ -140,7 +151,12 @@ impl AuthService {
 
     /// 异步验证密码（v14 P0-1 修复：用 spawn_blocking 包装 Argon2id 哈希计算，避免阻塞 tokio worker）
     /// Argon2id（m=64MB, t=3, p=4）单次哈希耗时 50-100ms，同步调用会阻塞 async runtime。；生产 async 上下文必须使用此异步版本；测试夹具可继续使用同步版本。
+    /// 并发闸门：同一时刻最多 8 个验证任务（见 ARGON2_VERIFY_GATE），超出排队等待，
+    /// 防止登录峰值触发内存峰值（并发数 × 64MB）。
     pub async fn verify_password_async(password: String, hash: String) -> Result<bool, AuthError> {
+        let _permit = ARGON2_VERIFY_GATE.acquire().await.map_err(|e| {
+            AuthError::HashingError(format!("密码验证闸门已关闭: {}", e))
+        })?;
         tokio::task::spawn_blocking(move || Self::verify_password(&password, &hash))
             .await
             .map_err(|e| AuthError::HashingError(format!("spawn_blocking join 失败: {}", e)))?
