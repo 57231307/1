@@ -15,12 +15,15 @@ test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓�
   test('P1-1 验证角色互斥规则（9 对 SoD）', async ({ page }) => {
     await loginViaUI(page);
     // 后端 GET /roles/conflicts（role_conflicts 表，初始化时写入 9 对 SoD）
-    const conflicts = await apiCallRaw<{
-      items: Array<{ role_a_code: string; role_b_code: string }>;
-    }>(page, 'GET', '/roles/conflicts?page=1&page_size=20');
-    expect(Array.isArray(conflicts.items)).toBe(true);
+    // handler 返回 ApiResponse::success(Vec) → data 本身就是数组
+    const conflicts = await apiCallRaw<Array<{ role_a_code: string; role_b_code: string }>>(
+      page,
+      'GET',
+      '/roles/conflicts?page=1&page_size=20'
+    );
+    expect(Array.isArray(conflicts)).toBe(true);
 
-    const pairs = (conflicts.items || []).map(c => `${c.role_a_code}↔${c.role_b_code}`);
+    const pairs = (conflicts || []).map(c => `${c.role_a_code}↔${c.role_b_code}`);
     if (pairs.length > 0) {
       const expectedPairs = [
         'accounting_clerk↔financial_manager',

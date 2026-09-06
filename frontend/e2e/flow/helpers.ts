@@ -102,7 +102,7 @@ async function uiCreateWithRetry(
   return fn(page);
 }
 
-export async function ensureTestEntities(page: Page): Promise<void> {
+async function ensureTestEntitiesInner(page: Page): Promise<void> {
   // 会话预检查：CSRF 校验失败场景下前端会清空 csrf_token Cookie并跳转登录页；
   // 401 后守卫 init/status 失败会安全跳 /setup。检测到 csrf_token 缺失
   // 或页面已被踢到 /login、/setup 时强制重新登录，避免逐个实体失败浪费重试时间
@@ -712,6 +712,30 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     console.error('[ensureTestEntities] roleId 创建失败:', (e as Error).message);
     ctx.roleId = undefined;
   }
+}
+
+/**
+ * ensureTestEntities 整体护栏：Promise.race 5 分钟上限。
+ * 背景：run 34041167918 的 10 个分片 exit 124（20 分钟强杀），定位为
+ * ensure 内某个 UI 页面操作（safeGoto/页内 JS）在 Node 侧永久挂起，
+ * 后端全程健康。整体超时让挂起的 ensure 变成可跳过的失败，保住分片
+ * 其余测试的执行窗口（一个分片约 13 个测试 × 5 分钟 ensure 上限，
+ * 最坏情况也不会触及 20 分钟分片强杀）。
+ */
+export async function ensureTestEntities(page: Page): Promise<void> {
+  const GUARD_MS = 300_000;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const guard = new Promise<void>(resolve => {
+    timer = setTimeout(() => {
+      console.error(
+        '[ensureTestEntities] ⚠️ 整体超时 5 分钟（内部某步骤在 Node 侧永久挂起），跳过剩余实体创建继续测试'
+      );
+      resolve();
+    }, GUARD_MS);
+  });
+  await Promise.race([ensureTestEntitiesInner(page), guard]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
 }
 
 async function getCsrfToken(page: Page): Promise<string> {

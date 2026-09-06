@@ -36,6 +36,19 @@ type UiField =
  */
 async function safeGoto(page: Page, path: string): Promise<void> {
   const url = `${BASE_URL}${path}`;
+  // 整体 45s 上限：goto 自身 30s，防止 Vite 504 重试循环 + 页内 evaluate
+  // 挂起拖垮整个 ensure（run 34041167918 exit 124 根因链）
+  return Promise.race([safeGotoInner(page, url), timeoutReject(path, 45_000)]);
+}
+
+function timeoutReject(path: string, ms: number): Promise<void> {
+  return new Promise((_, reject) => {
+    setTimeout(() => reject(new Error(`safeGoto ${path} 整体超时 ${ms}ms`)), ms);
+  });
+}
+
+async function safeGotoInner(page: Page, url: string): Promise<void> {
+  const path = url.replace(/^https?:\/\/[^/]+/, '');
   for (let attempt = 0; attempt < 3; attempt++) {
     const consoleLogs: string[] = [];
     const handler = (msg: { type(): string; text(): string }) =>

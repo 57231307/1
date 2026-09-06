@@ -79,6 +79,7 @@ pub struct Model {
 
     // ===== 处方明细与成本 =====
     /// 处方明细 JSON：[{material_code, material_name, concentration, unit, amount, category}]
+    #[sea_orm(column_type = "Json")]
     pub recipe_detail: Option<Vec<RecipeMaterialItem>>,
     /// 染料成本合计
     #[sea_orm(column_type = "Decimal(Some((12, 4)))")]
