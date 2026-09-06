@@ -396,6 +396,12 @@ ALTER TABLE "sales_orders" ADD COLUMN IF NOT EXISTS "shipping_address" VARCHAR(2
 ALTER TABLE "sales_orders" ADD COLUMN IF NOT EXISTS "shipping_cost" DECIMAL(18,4);
 ALTER TABLE "sales_orders" ADD COLUMN IF NOT EXISTS "subtotal" DECIMAL(18,4);
 ALTER TABLE "sales_orders" ADD COLUMN IF NOT EXISTS "tax_amount" DECIMAL(18,4);
+ALTER TABLE "sales_orders" ADD COLUMN IF NOT EXISTS "batch_no" VARCHAR(50);
+ALTER TABLE "sales_orders" ADD COLUMN IF NOT EXISTS "color_no" VARCHAR(50);
+ALTER TABLE "sales_orders" ADD COLUMN IF NOT EXISTS "dye_lot_no" VARCHAR(50);
+ALTER TABLE "sales_orders" ADD COLUMN IF NOT EXISTS "grade" VARCHAR(20);
+ALTER TABLE "sales_orders" ADD COLUMN IF NOT EXISTS "packaging_requirement" VARCHAR(200);
+ALTER TABLE "sales_orders" ADD COLUMN IF NOT EXISTS "quality_standard" VARCHAR(200);
 ALTER TABLE "suppliers" ADD COLUMN IF NOT EXISTS "annual_revenue" DECIMAL(15,2);
 ALTER TABLE "suppliers" ADD COLUMN IF NOT EXISTS "assist_batch" BOOLEAN;
 ALTER TABLE "suppliers" ADD COLUMN IF NOT EXISTS "assist_supplier" BOOLEAN;

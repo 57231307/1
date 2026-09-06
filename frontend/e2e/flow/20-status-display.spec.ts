@@ -80,6 +80,7 @@ test.describe('前端状态显示与业务逻辑验证', () => {
         await apiCall(page, 'POST', '/purchase/orders', {
           supplier_id: ctx.supplierId || 1,
           warehouse_id: ctx.warehouseIds[0] || 1,
+          department_id: ctx.departmentIds[0] || 1,
           order_date: new Date().toISOString().slice(0, 10),
           items: [
             {

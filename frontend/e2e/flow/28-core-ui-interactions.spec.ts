@@ -524,9 +524,11 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     if (roleTabVisible) {
       await roleTab.click();
       await page.waitForTimeout(2000);
+      // Element Plus 非活动 TabPane 仍留在 DOM（display:none），不加 :visible
+      // 时 .first() 会命中用户 Tab 的隐藏表格导致断言恒假（同 26-system-full 修复）
       const table = page
         .locator(
-          '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+          '.el-table:visible, .el-table-v2:visible, [role="table"]:visible, .v2-table-wrapper:visible'
         )
         .first();
       await table
