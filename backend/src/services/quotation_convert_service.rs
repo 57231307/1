@@ -142,9 +142,9 @@ impl QuotationConvertService {
                 quotation.quotation_no,
                 quotation.notes.clone().unwrap_or_default()
             ))),
-            batch_no: Set(None),
-            color_no: Set(None),
-            dye_lot_no: Set(None),
+            batch_no: Set(String::new()),
+            color_no: Set(String::new()),
+            dye_lot_no: Set(String::new()),
             grade: Set(None),
             packaging_requirement: Set(None),
             quality_standard: Set(None),

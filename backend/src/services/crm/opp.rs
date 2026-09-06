@@ -487,9 +487,9 @@ impl CrmService {
                 "从商机自动创建: {} - 预期金额: {:?}",
                 opportunity.opportunity_name, opportunity.estimated_amount
             ))),
-            batch_no: Set(None),
-            color_no: Set(None),
-            dye_lot_no: Set(None),
+            batch_no: Set(String::new()),
+            color_no: Set(String::new()),
+            dye_lot_no: Set(String::new()),
             grade: Set(None),
             packaging_requirement: Set(None),
             quality_standard: Set(None),
