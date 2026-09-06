@@ -2,6 +2,7 @@ use crate::container::AppState;
 use crate::middleware::audit_context::AuditContext;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::audit_log::{OperationType, Severity};
+use crate::models::role_conflict;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::role_permission_service::RolePermissionService;
 use crate::services::role_permission_service::{
