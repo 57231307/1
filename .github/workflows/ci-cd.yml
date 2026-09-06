@@ -2604,9 +2604,12 @@ jobs:
           SHARD=${{ matrix.shard }}
           if [ "$SHARD" -le 29 ]; then
             # 分片 0-29: 运行 flow/ 全流程测试，按 shard 自动分配
-            # timeout 1200s：单测试 420s × 约 13 个测试 = 5460s 上限，但挂起时分片级 20 分钟强制杀
-            # （shard 15 历史挂起 55 分钟教训：Playwright 在 page 挂起时不退出）
-            timeout 1200 npx playwright test --project=chromium --shard=$((SHARD + 1))/30 e2e/flow/ 2>&1 | tee reports/playwright-output.txt
+            # timeout 600s：分片级 10 分钟强制杀（Node 事件循环真死时 420s 单测
+            # 超时也不触发，1200s 会浪费一半执行窗口；run 34041167918+
+            # 34052705035+34057476581+34061578022 连续四轮十余分片 exit 124）。
+            # 配合 --retries=1：挂起分片被杀后全量重跑一次（全新浏览器/驱动
+            # 进程，挂起为偶发基础设施问题，重跑通过率高）
+            timeout 600 npx playwright test --project=chromium --retries=1 --shard=$((SHARD + 1))/30 e2e/flow/ 2>&1 | tee reports/playwright-output.txt
           else
             # 分片 30-33: 运行 smoke 页面加载测试，按 shard 分配
             SMOKE_SHARD=$((SHARD - 29))
