@@ -2566,6 +2566,13 @@ jobs:
             tail -20 /tmp/e2e-logs/frontend.log
             exit 1
           fi
+          # 预热主要路由（触发 Vite 按需编译，把冷启动成本移到测试前；
+          # run 34041167918/34052705035 十余分片在首个页面导航时挂起
+          # exit 124，疑似 Vite 慢盘按需编译卡死）
+          for route in / /dashboard /login /system /warehouse /product /sales /purchase /production /inventory /finance /crm /custom-orders /color-cards /dye-batch; do
+            curl -s -o /dev/null -m 20 "http://localhost:3000${route}" || true
+          done
+          echo "路由预热完成"
 
       - name: 验证登录 API（诊断）
         run: |
