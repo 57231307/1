@@ -1,38 +1,34 @@
 # 未完成任务
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单），进度必须真实，禁止乐观偏差。
-> 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
+> 已完成任务见 [doto-su.md](doto-su.md)，一句话总结见 [CHANGELOG.md](CHANGELOG.md)，规则见 [MEMORY.md](MEMORY.md)。
 
 ---
 
 ## 当前状态
 
-**全部审计任务已完成（268/268，100%）。**
+**追溯字段不可空专项 + E2E 稳定性收敛修复已全部推送（9b863fd），CI run 验证中。**
 
+---
 
-### 待修 Bug 清单（CI 发现，后续批次修复）
+## 未完成任务清单
 
-- [ ] CI #4415 构建失败：piece_domain_service.rs 函数参数误用 doc 注释（E 编译错）——已修，待下一轮 CI 验证
-- [ ] CI #4412 构建失败：omni_audit.rs E0382 借用错误——已修，#4413/#4415 已覆盖验证
-- [ ] E2E 登录卡死（120s 无响应）分片 #11/#12/#13/#24 历史复现——死锁已修+快速失败已加，待 CI 观察是否清零
-- [ ] 采购退货链 items 500（DATABASE_ERROR）历史问题——匹号字段落地后需重测；仍复现则查退货明细外键与错误映射
-- [ ] CI 失败若再出现新 job：按 doto 流程拉日志→记录→下批修复
+### 匹号领域二期（一期已全部完成并归档）
 
-- [ ] 观察 PR #937 下一轮 CI 的 E2E"登录卡死 120s"分片（#11/#12/#13 曾复现）：已修复 401 刷新死锁（请求自等待）并加登录响应状态日志；若仍复现，依据日志区分"登录请求慢/失败"与"跳转未发生"继续定位
-- [ ] 匹号领域功能（需求已由用户确认，设计文档 docs/piece-number-domain-design.md）：生产报工逐匹登记生产匹号+机台号；外发染色回仓生成染色匹号+缸号（净布工艺免缸号）；染色匹号贯穿入库/外发/销售/出库/对账，生产匹号仅限生产环节
-  - [ ] 一期-迁移：inventory_piece 加 piece_type/machine_no、dye_lot_id 可空、唯一约束改部分唯一
-  - [ ] 一期-报工：/flow-cards/feedbacks 支持逐匹登记 → 生成生产匹号
-  - [ ] 一期-回仓：/outsourcing-receipts 生成染色匹号+缸号（强制，净布除外），parent_piece_id 建立血缘
-  - [ ] 一期-单据：入库单/销售订单/销售出库条目加匹号字段并透传；E2E 07-fabric 重写为真实链路
-  - [ ] 二期：外发（其他工艺）/对账单据的匹号字段与校验
-- [ ] 采购退货链（11-returns）依赖物料存在的数据链在产品页 toFixed 崩溃修复后应自愈；若 items 创建仍 500（DATABASE_ERROR），需查退货明细外键与错误映射（500→400 语义）
+- [ ] 二期：外发（其他工艺）/对账单据的匹号字段与校验
 
-所有已完成项已归档到 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，审计报告在 [docs/audits/](file:///workspace/.monkeycode/docs/audits/)。
-
-后续新增任务请在此文件追加。
-
-### 本轮追溯字段不可空专项遗留（2026-09-06 run 34019751699 核查发现）
+### 追溯字段增强
 
 - [ ] 染色匹 color_no 现存空串（piece_domain_service create_piece_from_outsourcing_receipt 调用方无色号参数）——增强：从委外订单/库存行取 color_no 传入，完善染色匹色号追溯
-- [ ] role_conflicts（SoD 互斥规则）只有初始化写入，无查询端点——09-permissions P1-1 用 /roles/conflicts 404 被 try/catch 跳过；待后端补 GET /roles/conflicts 后回归该测试
-- [ ] 观察下一轮 CI：追溯列 NOT NULL DEFAULT '' 迁移在存量库（已有 NULL 行）的 UPDATE 兜底是否生效；盘点/调拨/退货明细插入是否清零 DATABASE_ERROR
+
+### CI 观察（当前 run 34045847324，commit 9b863fd）
+
+- [ ] 观察 CI：追溯列 NOT NULL DEFAULT '' 迁移 + UPDATE 兜底在 CI 库上生效；盘点/调拨/退货明细插入 DATABASE_ERROR 是否清零
+- [ ] 观察 CI：**Playwright/Vite 页面级挂起**（run 34041167918 的 10 个 exit 124 分片，后端全程健康，挂起层在前端——safeGoto 页面加载或页内 JS；与后端假死不同层）若复现，需排查 Vite dev server 冷启动转换超时/页面 JS 死循环，考虑给 safeGoto 加总超时 + ensureTestEntities 加整体超时护栏
+- [ ] 若 CI 仍有失败分片：拉日志→定位→统一修复→推送，直到全绿
+
+### 流程备忘
+
+- [ ] CI 失败若再出现新 job：按 doto 流程拉日志→记录→下批修复
+
+后续新增任务请在此文件追加。

@@ -14,36 +14,24 @@ import {
 test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓存）', () => {
   test('P1-1 验证角色互斥规则（9 对 SoD）', async ({ page }) => {
     await loginViaUI(page);
-    try {
-      const conflicts = await apiCallRaw<{
-        items: Array<{ role_a_code: string; role_b_code: string }>;
-      }>(page, 'GET', '/roles/conflicts?page=1&page_size=20');
-      expect(conflicts.items);
-      // 验证至少有 SoD 规则
-      if (conflicts?.items?.length ?? 0 > 0) {
-        const pairs = conflicts.items.map(c => `${c.role_a_code}↔${c.role_b_code}`);
-        const expectedPairs = [
-          'accounting_clerk↔financial_manager',
-          'purchase_clerk↔purchase_manager',
-          'purchase_manager↔finance_manager',
-          'sales_clerk↔sales_manager',
-        ];
-        const hasAny = pairs.some(p =>
-          expectedPairs.some(e => p.includes(e.split('↔')[0]) && p.includes(e.split('↔')[1]))
-        );
-        expect(hasAny).toBe(true);
-      }
-    } catch {
-      try {
-        const conflicts = await apiCallRaw<{ items: Array<{ id: number }> }>(
-          page,
-          'GET',
-          '/iam/role-conflicts?page=1&page_size=20'
-        );
-        expect(conflicts.items);
-      } catch {
-        /* skip */
-      }
+    // 后端 GET /roles/conflicts（role_conflicts 表，初始化时写入 9 对 SoD）
+    const conflicts = await apiCallRaw<{
+      items: Array<{ role_a_code: string; role_b_code: string }>;
+    }>(page, 'GET', '/roles/conflicts?page=1&page_size=20');
+    expect(Array.isArray(conflicts.items)).toBe(true);
+
+    const pairs = (conflicts.items || []).map(c => `${c.role_a_code}↔${c.role_b_code}`);
+    if (pairs.length > 0) {
+      const expectedPairs = [
+        'accounting_clerk↔financial_manager',
+        'purchase_clerk↔purchase_manager',
+        'purchase_manager↔finance_manager',
+        'sales_clerk↔sales_manager',
+      ];
+      const hasAny = pairs.some(p =>
+        expectedPairs.some(e => p.includes(e.split('↔')[0]) && p.includes(e.split('↔')[1]))
+      );
+      expect(hasAny).toBe(true);
     }
   });
 
