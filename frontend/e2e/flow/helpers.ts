@@ -569,10 +569,11 @@ export async function ensureTestEntities(page: Page): Promise<void> {
     console.error('[ensureTestEntities] 查找失败:', (e as Error).message);
   }
   if (!ctx.voucherId) {
-    // 兜底创建凭证所需的会计科目（种子库可能没有预置）
+    // 兜底创建凭证所需的会计科目（种子库可能没有预置；用随机编码避免与种子冲突）
+    const subjPrefix = 'E2E' + Math.floor(Math.random() * 100000);
     for (const subj of [
-      { code: '1001', name: '库存现金 E2E', level: 1, balance_direction: 'debit' },
-      { code: '1002', name: '银行存款 E2E', level: 1, balance_direction: 'debit' },
+      { code: `${subjPrefix}01`, name: '库存现金 E2E', level: 1, balance_direction: 'debit' },
+      { code: `${subjPrefix}02`, name: '银行存款 E2E', level: 1, balance_direction: 'debit' },
     ]) {
       await apiCall(page, 'POST', '/subjects', subj).catch(e => {
         console.error('[ensureTestEntities] 科目创建失败:', (e as Error).message);
@@ -587,8 +588,8 @@ export async function ensureTestEntities(page: Page): Promise<void> {
         voucher_type: 'general',
         voucher_date: new Date().toISOString().slice(0, 10),
         items: [
-          { subject_code: '1001', debit: '1', credit: '0', summary: 'E2E' },
-          { subject_code: '1002', debit: '0', credit: '1', summary: 'E2E' },
+          { subject_code: `${subjPrefix}01`, debit: '1', credit: '0', summary: 'E2E' },
+          { subject_code: `${subjPrefix}02`, debit: '0', credit: '1', summary: 'E2E' },
         ],
       });
       ctx.voucherId = result.data?.id;
