@@ -563,10 +563,11 @@ async fn check_permission(
     }
 
     // 尝试从缓存加载，检查是否过期
+    // 死锁修复：与 admin_checker 同款问题——DashMap get() 的 Ref 存活期间对同
+    // key remove() 会自死锁（读锁未放、等写锁），缓存过期（默认 TTL 5 分钟）
+    // 时首个并发请求卡死 worker 并堵死同 key 全部后续请求。先释放 Ref 再 remove。
     let permissions = if let Some(cached) = PERMISSION_CACHE.get(&role_id) {
         if cached.is_expired() {
-            // 缓存已过期，移除并重新加载
-            PERMISSION_CACHE.remove(&role_id);
             None
         } else {
             Some(cached.payload.clone())
@@ -574,6 +575,10 @@ async fn check_permission(
     } else {
         None
     };
+    if permissions.is_none() {
+        // Ref 已释放，remove 安全（未命中/未过期时为 no-op 或清理过期项）
+        PERMISSION_CACHE.remove(&role_id);
+    }
 
     let permissions = match permissions {
         Some(perms) => perms,
