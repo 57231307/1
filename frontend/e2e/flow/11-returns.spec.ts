@@ -9,6 +9,7 @@ import {
   verifyStockFourDim,
   verifyAuditLog,
   ensureTestEntities,
+  ensureStockInWarehouse,
 } from './helpers';
 
 test.describe('采购退货完整流程', () => {
@@ -22,12 +23,21 @@ test.describe('采购退货完整流程', () => {
     const poId = ctx.purchaseOrderId;
     expect(poId).toBeDefined();
 
+    // 退货入库依赖库存：以实际库存行为准（修 ctx.warehouseIds 漂移）
+    const stockRow = await ensureStockInWarehouse(
+      page,
+      ctx.productIds[0] || 1,
+      ctx.warehouseIds[0],
+      ctx.colorNos[0]
+    );
+    const warehouseId = Number(stockRow.warehouse_id) || ctx.warehouseIds[0] || 1;
+
     // 后端 CreatePurchaseReturnRequest 真实字段
     const returnData = {
       order_id: poId,
       supplier_id: ctx.supplierId || 1,
       return_date: new Date().toISOString().slice(0, 10),
-      warehouse_id: ctx.warehouseIds[0],
+      warehouse_id: warehouseId,
       reason_type: 'quality',
       reason_detail: '布面疵点超标，客户拒收',
     };
@@ -47,16 +57,13 @@ test.describe('采购退货完整流程', () => {
     expect(returnId).toBeDefined();
 
     // 添加退货明细（后端需要独立端点添加 items）
-    try {
-      await apiCall(page, 'POST', `/purchase/returns/${returnId}/items`, {
-        line_no: 1,
-        material_id: ctx.productIds[0],
-        quantity_returned: '10',
-        unit_price: '15.50',
-      });
-    } catch {
-      // 明细添加可能失败（material_id 不匹配），不影响主流程验证
-    }
+    // 明细缺失会导致 approve 撞"退货单至少需要一行明细"，失败必须暴露
+    await apiCall(page, 'POST', `/purchase/returns/${returnId}/items`, {
+      line_no: 1,
+      material_id: Number(stockRow.product_id) || ctx.productIds[0] || 1,
+      quantity_returned: '10',
+      unit_price: '15.50',
+    });
 
     // 验证退货单状态
     const created = await apiCallRaw<{ return_status?: string; supplier_id: number }>(
@@ -115,12 +122,21 @@ test.describe('采购退货完整流程', () => {
     const soId = ctx.salesOrderId;
     expect(soId).toBeDefined();
 
+    // 销售退货入库依赖库存：以实际库存行为准（修 ctx.warehouseIds 漂移）
+    const stockRow = await ensureStockInWarehouse(
+      page,
+      ctx.productIds[0] || 1,
+      ctx.warehouseIds[0],
+      ctx.colorNos[0]
+    );
+    const warehouseId = Number(stockRow.warehouse_id) || ctx.warehouseIds[0] || 1;
+
     // 后端 CreateSalesReturnRequest 真实字段
     const returnData = {
       order_id: soId,
       customer_id: ctx.customerId || 1,
       return_date: new Date().toISOString().slice(0, 10),
-      warehouse_id: ctx.warehouseIds[0],
+      warehouse_id: warehouseId,
       reason_type: 'customer_cancel',
       reason_detail: '客户取消订单',
     };
@@ -145,15 +161,12 @@ test.describe('采购退货完整流程', () => {
     expect(returnId).toBeDefined();
 
     // 添加退货明细
-    try {
-      await apiCall(page, 'POST', `/sales/sales-returns/${returnId}/items`, {
-        product_id: ctx.productIds[0],
-        quantity: '5',
-        unit_price: '20.00',
-      });
-    } catch {
-      // 明细添加可能失败，不影响主流程
-    }
+    // 明细缺失会导致 submit 撞"至少一行明细"校验，失败必须暴露
+    await apiCall(page, 'POST', `/sales/sales-returns/${returnId}/items`, {
+      product_id: Number(stockRow.product_id) || ctx.productIds[0] || 1,
+      quantity: '5',
+      unit_price: '20.00',
+    });
 
     // 提交
     await apiCall(page, 'POST', `/sales/sales-returns/${returnId}/submit`);

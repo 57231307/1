@@ -237,22 +237,22 @@ test.describe('异常处理与边界条件', () => {
     const dyeBatchId = ctx.dyeBatchId;
 
     if (dyeBatchId) {
-      const batch = await apiCallRaw<{ status: string }>(
+      const batch = await apiCallRaw<{ status?: string }>(
         page,
         'GET',
         `/production/dye-batches/${dyeBatchId}`
       );
-      const status = (batch.status || '').toLowerCase();
+      const status = (batch.status || '').trim();
 
-      if (
-        ['completed', 'stored', 'done', '已入库', '已完成'].some(s =>
-          status.includes(s.toLowerCase())
-        )
-      ) {
+      // 后端 6 态中文状态机：已完成/已取消为终态，任何流转都应被拒
+      if (status === '已完成' || status === '已取消') {
         const result = await apiCallExpectFail(
           page,
-          'POST',
-          `/production/dye-batches/${dyeBatchId}/schedule`
+          'PUT',
+          `/production/dye-batches/${dyeBatchId}`,
+          {
+            status: '生产中',
+          }
         );
         expect(result.status >= 400).toBe(true);
       }

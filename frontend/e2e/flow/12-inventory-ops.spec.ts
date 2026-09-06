@@ -9,6 +9,7 @@ import {
   verifyStockFourDim,
   verifyAuditLog,
   ensureTestEntities,
+  ensureStockInWarehouse,
 } from './helpers';
 
 test.describe('库存调拨完整流程', () => {
@@ -21,9 +22,19 @@ test.describe('库存调拨完整流程', () => {
     const ctx = getCtx();
     expect(ctx.warehouseIds.length).toBeGreaterThanOrEqual(2);
 
-    const fromWarehouseId = ctx.warehouseIds[0];
-    const toWarehouseId = ctx.warehouseIds[1];
-    const productId = ctx.productIds[0];
+    const productId = ctx.productIds[0] || 1;
+
+    // 调出仓库必须有库存：以实际库存行为准（修 ctx.warehouseIds 漂移），
+    // 调入仓库用 ctx 的另一个仓库
+    const stockRow = await ensureStockInWarehouse(
+      page,
+      productId,
+      ctx.warehouseIds[0],
+      ctx.colorNos[0]
+    );
+    const fromWarehouseId = Number(stockRow.warehouse_id) || ctx.warehouseIds[0];
+    const toWarehouseId =
+      ctx.warehouseIds.find(id => id !== fromWarehouseId) || ctx.warehouseIds[1];
 
     // 记录调拨前库存
     const stockBefore = await verifyStockFourDim(page, productId, ctx.colorNos[0]);

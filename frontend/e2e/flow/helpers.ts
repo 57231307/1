@@ -1258,6 +1258,53 @@ export async function verifyStockFourDim(
   return stock.items?.[0] || {};
 }
 
+/**
+ * 确保指定仓库存在指定产品的库存，返回真实库存行（含 id 与 warehouse_id）。
+ *
+ * 解决 ctx.warehouseIds 漂移问题：ensureTestEntities 每次 beforeEach 重查
+ * 仓库列表并可能 UI 新建仓库，而库存兜底创建发生在另一时刻——两者使用的
+ * warehouse_id 可能不一致，导致"仓库 X 下无库存"类业务错误。
+ * 本函数以"实际存在的库存行"为唯一事实来源：查到即返回；查不到则在
+ * 指定仓库创建后重新查询返回。
+ */
+export async function ensureStockInWarehouse(
+  page: Page,
+  productId: number,
+  preferredWarehouseId: number | undefined,
+  colorNo?: string
+): Promise<Record<string, unknown>> {
+  const listStock = async (warehouseId?: number) => {
+    let path = `/inventory/stock?product_id=${productId}&page=1&page_size=50`;
+    if (warehouseId) path += `&warehouse_id=${warehouseId}`;
+    if (colorNo) path += `&color_no=${encodeURIComponent(colorNo)}`;
+    const res = await apiCallRaw<{ items: Array<Record<string, unknown>> }>(page, 'GET', path);
+    return res.items?.[0];
+  };
+
+  // 1. 优先查指定仓库（用传入的仓库 ID，而非漂移的 ctx）
+  const inWarehouse = await listStock(preferredWarehouseId).catch(() => undefined);
+  if (inWarehouse) return inWarehouse;
+
+  // 2. 任意仓库有该产品库存 → 直接用（以真实数据为准）
+  const anywhere = await listStock().catch(() => undefined);
+  if (anywhere) return anywhere;
+
+  // 3. 都没有 → 在指定仓库创建（仓库 ID 缺失时回退 1）
+  await apiCall(page, 'POST', '/inventory/stock/fabric', {
+    warehouse_id: preferredWarehouseId || 1,
+    product_id: productId,
+    batch_no: `E2E-STK${Date.now().toString().slice(-6)}`,
+    color_no: colorNo || 'TEST-COLOR',
+    grade: '一等品',
+    quantity_meters: '10000',
+    quantity_kg: '5000',
+  });
+  const created = await listStock(preferredWarehouseId).catch(() => undefined);
+  if (created) return created;
+  // 创建后仍查不到（理论异常）：返回空对象由调用方处理
+  return {};
+}
+
 export async function verifyAuditLog(
   page: Page,
   action: string,

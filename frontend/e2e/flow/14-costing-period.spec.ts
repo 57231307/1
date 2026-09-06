@@ -78,8 +78,11 @@ test.describe('成本核算完整流程', () => {
     const expectedTotal = dm + dl + mo + pf + df;
     expect(expectedTotal).toBeGreaterThan(0);
 
-    // 审批成本归集
-    await apiCall(page, 'POST', `/production/cost-collections/${costId}/audit`);
+    // 审批成本归集（audit 端点需要 body {approved, comment}，空 body 会 400）
+    await apiCall(page, 'POST', `/production/cost-collections/${costId}/audit`, {
+      approved: true,
+      comment: 'E2E 审核通过',
+    });
     const audited = await apiCallRaw<{ status: string }>(
       page,
       'GET',

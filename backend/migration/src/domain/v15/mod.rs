@@ -3988,6 +3988,8 @@ ALTER TABLE "account_subjects" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING 
 ALTER TABLE "account_subjects" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
 ALTER TABLE "accounting_periods" ALTER COLUMN "closed_at" TYPE TIMESTAMPTZ USING "closed_at" AT TIME ZONE 'UTC';
 ALTER TABLE "accounting_periods" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "accounting_periods" ALTER COLUMN "start_date" TYPE TIMESTAMPTZ USING "start_date" AT TIME ZONE 'UTC';
+ALTER TABLE "accounting_periods" ALTER COLUMN "end_date" TYPE TIMESTAMPTZ USING "end_date" AT TIME ZONE 'UTC';
 ALTER TABLE "ap_invoice" ALTER COLUMN "approved_at" TYPE TIMESTAMPTZ USING "approved_at" AT TIME ZONE 'UTC';
 ALTER TABLE "ap_invoice" ALTER COLUMN "cancelled_at" TYPE TIMESTAMPTZ USING "cancelled_at" AT TIME ZONE 'UTC';
 ALTER TABLE "ap_invoice" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
