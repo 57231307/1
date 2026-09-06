@@ -7,7 +7,7 @@ test.describe('表单校验真实 UI 交互', () => {
   });
 
   test('采购订单表单：必填字段校验', async ({ page }) => {
-    await page.goto(`${BASE_URL}/purchase`);
+    await page.goto(`${BASE_URL}/purchase`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(3000);
 
     // 等待表格加载
@@ -56,7 +56,7 @@ test.describe('表单校验真实 UI 交互', () => {
   });
 
   test('销售订单表单：数量为负数校验', async ({ page }) => {
-    await page.goto(`${BASE_URL}/sales`);
+    await page.goto(`${BASE_URL}/sales`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(3000);
 
     await page
@@ -106,7 +106,7 @@ test.describe('表单校验真实 UI 交互', () => {
   });
 
   test('凭证表单：借贷不平衡校验', async ({ page }) => {
-    await page.goto(`${BASE_URL}/voucher`);
+    await page.goto(`${BASE_URL}/voucher`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(3000);
 
     await page
