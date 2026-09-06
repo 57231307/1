@@ -15,6 +15,11 @@ import {
 } from './helpers';
 
 test.describe.serial('扩展: 二级审批/BPM审批链/金额自适应', () => {
+  test.beforeEach(async ({ page }) => {
+    await loginViaUI(page);
+    await ensureTestEntities(page);
+  });
+
   test('A1-1 验证二级审批（角色变更 pending_l1 → pending_l2 → approved）', async ({ page }) => {
     await loginViaUI(page);
     try {

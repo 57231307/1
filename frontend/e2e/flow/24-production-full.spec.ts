@@ -11,11 +11,13 @@ import {
   safeGetList,
   safePostAction,
   verifyEndpointHealthy,
+  ensureTestEntities,
 } from './helpers';
 
 test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
   test.beforeEach(async ({ page }) => {
     await loginViaUI(page);
+    await ensureTestEntities(page);
   });
 
   // ===== API 端点覆盖（所有子模块）=====

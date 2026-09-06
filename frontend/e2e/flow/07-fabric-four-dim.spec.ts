@@ -187,9 +187,10 @@ test.describe
     expect(p1).toBeDefined();
     expect(p2).toBeDefined();
     // batch_no = 生产单号；warehouse_type = greige；无缸号
+    // （追溯字段不可空规范：dye_lot_no 存空串而非 NULL）
     expect(p1!.batch_no).toBe(productionOrderNo);
     expect(p1!.warehouse_type).toBe('greige');
-    expect(p1!.dye_lot_no).toBeNull();
+    expect(p1!.dye_lot_no || '').toBe('');
     expect(p2!.batch_no).toBe(productionOrderNo);
     expect(p2!.machine_no).toBe(machineNo);
   });
@@ -368,7 +369,8 @@ test.describe
     );
     expect(netPiece.piece_no).toBe(expectedPieceNo);
     expect(netPiece.batch_no).toBe(receiptNo);
-    expect(netPiece.dye_lot_no).toBeNull();
+    // 追溯字段不可空规范：净布外发无缸号存空串
+    expect(netPiece.dye_lot_no || '').toBe('');
   });
 
   test('7-8 四维追溯：按产品 + 缸号查询染色匹', async ({ page }) => {

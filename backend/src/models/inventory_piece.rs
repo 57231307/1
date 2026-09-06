@@ -88,9 +88,9 @@ pub struct Model {
 
     // ========== v14 批次 419：面料行业追溯字段（F-P0-2 修复） ==========
     /// 色号（面料行业追溯字段，冗余存储便于直接查询，无需 JOIN batch_dye_lot 表）
-    pub color_no: Option<String>,
+    pub color_no: String,
     /// 缸号字符串（面料行业追溯字段，冗余存储便于直接查询）
-    pub dye_lot_no: Option<String>,
+    pub dye_lot_no: String,
 
     /// 母卷 ID（如果是拆分或剪裁而来的布卷，指向原始布卷 ID）
     pub parent_piece_id: Option<i32>,

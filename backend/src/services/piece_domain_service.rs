@@ -97,7 +97,7 @@ pub async fn create_greige_pieces_from_report<C: ConnectionTrait>(
             warehouse_in_at: Set(Some(now_utc)),
             // 生产匹无缸号；batch_no = 生产单号（生产匹 = 生产单号下产品的第 * 匹）
             dye_lot_id: Set(None),
-            dye_lot_no: Set(None),
+            dye_lot_no: Set(String::new()),
             batch_no: Set(production_order_no.to_string()),
             product_id: Set(product_id),
             warehouse_id: Set(piece.warehouse_id),
@@ -127,7 +127,7 @@ pub async fn create_greige_pieces_from_report<C: ConnectionTrait>(
             updated_at: Set(now_utc),
             created_by: Set(operator_id),
             updated_by: Set(None),
-            color_no: Set(None),
+            color_no: Set(String::new()),
             original_length: Set(None),
             original_weight: Set(None),
         };
@@ -160,17 +160,18 @@ pub async fn create_piece_from_outsourcing_receipt<C: ConnectionTrait>(
         ));
     };
     // 染色外发：回仓缸号必填（用户规则：染色后必须有缸号）
+    // 追溯字段不可空规范：净布外发无缸号存空串
     let dye_lot_no = match (order_dye_lot_no, receipt_dye_lot_no) {
-        (Some(_), Some(lot)) => Some(lot.to_string()),
+        (Some(_), Some(lot)) => lot.to_string(),
         (Some(_), None) => {
             return Err(AppError::business(
                 "染色外发的回仓单必须填写缸号（dye_lot_no）",
             ))
         }
-        // 净布外发：无缸号
-        (None, _) => None,
+        // 净布外发：无缸号存空串
+        (None, _) => String::new(),
     };
-    let is_dyed = dye_lot_no.is_some();
+    let is_dyed = !dye_lot_no.is_empty();
     let piece_type = if is_dyed {
         PIECE_TYPE_DYED
     } else {
@@ -180,7 +181,7 @@ pub async fn create_piece_from_outsourcing_receipt<C: ConnectionTrait>(
     validate_warehouse_for_piece_type(db, warehouse_id, piece_type, !is_dyed).await?;
 
     let dye_lot_id: Option<i32> = if is_dyed {
-        let lot_no = dye_lot_no.as_deref().unwrap_or_default();
+        let lot_no = dye_lot_no.as_str();
         // 缸号档案 find_or_create：染色回仓是缸号的产生时机，档案缺失时自动补齐
         // （历史实现直接报错"未建档"，导致染色链路在无手工建档入口时完全走不通）
         let existing = crate::models::batch_dye_lot::Entity::find()
@@ -221,7 +222,7 @@ pub async fn create_piece_from_outsourcing_receipt<C: ConnectionTrait>(
     // 用回仓单号维度编号（无缸号可挂）。
     let now_utc = crate::utils::date_utils::utc_now_fixed().with_timezone(&chrono::Utc);
     let (piece_no, piece_seq) = if is_dyed {
-        let lot_no = dye_lot_no.as_deref().unwrap_or_default();
+        let lot_no = dye_lot_no.as_str();
         let max_seq_piece = inventory_piece::Entity::find()
             .filter(inventory_piece::Column::DyeLotId.eq(dye_lot_id))
             .filter(inventory_piece::Column::PieceSeq.is_not_null())
@@ -241,7 +242,7 @@ pub async fn create_piece_from_outsourcing_receipt<C: ConnectionTrait>(
         (format!("{}-P01", receipt_no), Some(1))
     };
     let batch_no_str = if is_dyed {
-        dye_lot_no.clone().unwrap_or_default()
+        dye_lot_no.clone()
     } else {
         receipt_no.to_string()
     };
@@ -254,7 +255,7 @@ pub async fn create_piece_from_outsourcing_receipt<C: ConnectionTrait>(
         warehouse_in_at: Set(Some(now_utc)),
         dye_lot_id: Set(dye_lot_id),
         dye_lot_no: Set(dye_lot_no),
-        color_no: Set(None),
+        color_no: Set(String::new()),
         batch_no: Set(batch_no_str),
         product_id: Set(product_id),
         warehouse_id: Set(warehouse_id),

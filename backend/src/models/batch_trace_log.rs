@@ -20,10 +20,10 @@ pub struct Model {
     pub batch_no: String,
 
     /// V15 P1-2: 染色批号（dye_lot_no），面料行业四维标识之一
-    pub dye_lot_no: Option<String>,
+    pub dye_lot_no: String,
 
     /// V15 P1-2: 色号（color_no），按色号追溯
-    pub color_no: Option<String>,
+    pub color_no: String,
 
     /// V15 P1-2: 产品 ID（product_id），按产品追溯
     pub product_id: Option<i32>,

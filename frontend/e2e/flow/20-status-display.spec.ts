@@ -1,9 +1,10 @@
 import { test, expect } from '@playwright/test';
-import { loginViaUI, BASE_URL, apiCall, apiCallRaw, getCtx } from './helpers';
+import { loginViaUI, BASE_URL, apiCall, apiCallRaw, getCtx, ensureTestEntities } from './helpers';
 
 test.describe('前端状态显示与业务逻辑验证', () => {
   test.beforeEach(async ({ page }) => {
     await loginViaUI(page);
+    await ensureTestEntities(page);
   });
 
   test('采购订单列表：状态标签颜色映射', async ({ page }) => {

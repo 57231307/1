@@ -795,9 +795,24 @@ export async function readFirstEntityId(
   try {
     await safeGoto(page, route);
     const items = await waitListResponse(page, listApiPath, 20000);
-    return firstId(items);
+    const id = firstId(items);
+    if (id !== undefined) return id;
   } catch (e) {
     console.warn(`[readFirstEntityId] ${route} 查找失败: ${(e as Error).message}`);
+  }
+  // 页面路径未命中列表响应（页面懒加载/tab 未激活/页面不发该请求）时，
+  // 直接用 API 查询：避免误判"实体不存在"而反复走 120s UI 创建超时
+  // （run 34019751699 shard-13：dye-batch 查找失败导致每个测试都消耗 120s+20s）
+  try {
+    const resp = await page.request.get(listApiPath, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    });
+    const json = (await resp.json().catch(() => ({}))) as {
+      data?: { items?: Array<{ id?: number }>; list?: Array<{ id?: number }> };
+    };
+    const items = json?.data?.items ?? json?.data?.list ?? [];
+    return firstId(items);
+  } catch {
     return undefined;
   }
 }

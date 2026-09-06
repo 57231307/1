@@ -27,8 +27,8 @@ test.describe('面料单据专用字段全链路验证', () => {
 
     const soData = {
       customer_id: ctx.customerId || 1,
-      order_date: new Date().toISOString().slice(0, 10),
-      required_date: new Date().toISOString().slice(0, 10),
+      order_date: new Date().toISOString(),
+      required_date: new Date().toISOString(),
       shipping_address: '面料收货地址',
       notes: '面料字段全链路测试',
       // 主表面料字段
@@ -64,18 +64,9 @@ test.describe('面料单据专用字段全链路验证', () => {
       ],
     };
 
-    let soId: number;
-    try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', soData);
-      soId = result.data?.id!;
-    } catch {
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
-        page,
-        'GET',
-        '/sales/orders?page=1&page_size=1'
-      );
-      soId = list.items?.[0]?.id;
-    }
+    // 创建失败直接暴露（兜底拿旧单会拿到无面料字段的订单，后续精确断言必失败且掩盖根因）
+    const result = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', soData);
+    const soId = result.data?.id;
     expect(soId).toBeDefined();
 
     // 查询详情，逐字段验证

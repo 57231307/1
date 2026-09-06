@@ -9,9 +9,15 @@ import {
   genName,
   genDyeLotNo,
   getProcessSteps,
+  ensureTestEntities,
 } from './helpers';
 
 test.describe.serial('扩展: 业务模式测试（染整加工/来料加工/委外加工）', () => {
+  test.beforeEach(async ({ page }) => {
+    await loginViaUI(page);
+    await ensureTestEntities(page);
+  });
+
   test('M1-1 验证业务模式列表（6 种模式）', async ({ page }) => {
     await loginViaUI(page);
     try {

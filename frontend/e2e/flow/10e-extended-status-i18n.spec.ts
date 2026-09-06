@@ -15,6 +15,11 @@ import {
 } from './helpers';
 
 test.describe.serial('扩展: 状态显示映射/国际化', () => {
+  test.beforeEach(async ({ page }) => {
+    await loginViaUI(page);
+    await ensureTestEntities(page);
+  });
+
   test('S1-1 验证采购订单页面状态中文显示', async ({ page }) => {
     await loginViaUI(page);
     try {

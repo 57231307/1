@@ -36,10 +36,14 @@ pub struct Model {
     pub updated_at: chrono::DateTime<chrono::Utc>,
 
     // ========== v14 批次 417：面料行业追溯字段（D-P1-4） ==========
+    // 设计规范：追溯字段全部不可空。后补列经迁移补 DEFAULT '' + NOT NULL
+    // （见 migration business mod.ts 对应 ALTER），Model 保持 String。
+    // 背景：列初建时无 DEFAULT，存量行/NotSet 插入均为 NULL，sqlx 解码
+    // String 遇 NULL 报 "Missing value for column"（run 34019751699 shard-11）。
     /// 色号（面料行业追溯字段）
     pub color_no: String,
-    /// 缸号（面料行业追溯字段，白坯布退货时为 NULL）
-    pub dye_lot_no: Option<String>,
+    /// 缸号（面料行业追溯字段，白坯布退货时为空串）
+    pub dye_lot_no: String,
     /// 批号（面料行业追溯字段）
     pub batch_no: String,
 }

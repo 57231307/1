@@ -15,6 +15,11 @@ import {
 } from './helpers';
 
 test.describe.serial('扩展: 委外凭证/成本归集/试算平衡', () => {
+  test.beforeEach(async ({ page }) => {
+    await loginViaUI(page);
+    await ensureTestEntities(page);
+  });
+
   test('F2-1 验证委外凭证（4 类：issue/fee/receipt/loss）', async ({ page }) => {
     await loginViaUI(page);
     // 尝试验证 4 种凭证类型

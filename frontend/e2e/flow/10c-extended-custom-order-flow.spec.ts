@@ -15,6 +15,11 @@ import {
 } from './helpers';
 
 test.describe.serial('扩展: 定制订单全流程（打样→报价→客户确认→投产）', () => {
+  test.beforeEach(async ({ page }) => {
+    await loginViaUI(page);
+    await ensureTestEntities(page);
+  });
+
   test('C1-1 创建定制订单', async ({ page }) => {
     await loginViaUI(page);
     const ctx = getCtx();

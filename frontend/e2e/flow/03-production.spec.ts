@@ -209,7 +209,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
           gram_weight: 200,
           fabric_weight: 200,
           equipment_no: '染缸001',
-          liquor_ratio: 10,
+          liquor_ratio: '1:10',
           bath_volume: 2000,
           adjustment_factor: 1.05,
           recipe_detail: [
@@ -384,14 +384,15 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
     try {
       const logs = await apiCallRaw<{
         items: Array<{ from_status: string; to_status: string; transition_code: string }>;
-      }>(page, 'GET', `/production/dye-batches/${id}/lifecycle-logs?page=1&page_size=20`);
+      }>(page, 'GET', `/production/dye-batch-lifecycle-logs/by-batch/${id}?page=1&page_size=20`);
       expect(logs.items);
       // 如果有日志，验证状态转换记录
       if (logs?.items?.length ?? 0 > 0) {
         expect(logs.items?.[0].transition_code).toBeTruthy();
       }
-    } catch {
-      // 日志端点可能不同，跳过
+    } catch (e) {
+      console.error('[3-12] 缸号生命周期日志查询失败:', (e as Error).message);
+      throw e;
     }
   });
 });

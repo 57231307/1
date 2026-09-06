@@ -85,7 +85,7 @@ test.describe('面料单据专用字段全链路验证', () => {
     const temperature = '130';
     const timeMinutes = 45;
     const phValue = '5.5';
-    const liquorRatio = '1:10';
+    const liquorRatio = 10;
 
     const recipeData = {
       recipe_no: genCode('DR'),
@@ -116,14 +116,11 @@ test.describe('面料单据专用字段全链路验证', () => {
         recipeData
       );
       recipeId = result.data?.id!;
-    } catch {
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
-        page,
-        'GET',
-        '/production/dye-recipes?page=1&page_size=1'
-      );
-      recipeId = list.items?.[0]?.id;
+    } catch (e) {
+      // 创建失败直接暴露（兜底旧配方无自建字段，精确断言会失真）
+      throw e;
     }
+    expect(recipeId).toBeDefined();
 
     if (recipeId) {
       const detail = await apiCallRaw<Record<string, unknown>>(

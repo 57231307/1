@@ -91,12 +91,12 @@ test.describe('成本核算完整流程', () => {
     expect(audited.status.toLowerCase()).toMatch(/audited|approved/);
 
     // 验证成本分析报表
-    const summary = await apiCallRaw<{ total_material_cost: number }>(
+    const summary = await apiCallRaw<{ total_direct_material: number }>(
       page,
       'GET',
       '/production/cost-collections/analysis/summary'
     );
-    expect(summary.total_material_cost).toBeGreaterThanOrEqual(0);
+    expect(Number(summary.total_direct_material)).toBeGreaterThanOrEqual(0);
 
     // 按缸号查询成本
     const byBatch = await apiCallRaw<{ items: Array<{ total_cost: number }> }>(
@@ -122,6 +122,15 @@ test.describe('成本核算完整流程', () => {
     expect(currentPeriod.id).toBeDefined();
 
     // 创建凭证（后端 CreateVoucherRequestDto 真实字段）
+    // 科目用 ensureTestEntities 创建的随机编码（硬编码 1001/1002 与种子冲突 → BAD_REQUEST）
+    const subjCodes = ctx.accountSubjectIds.length
+      ? await Promise.all(
+          ctx.accountSubjectIds.slice(0, 2).map(async id => {
+            const s = await apiCallRaw<{ code: string }>(page, 'GET', `/subjects/${id}`);
+            return s.code;
+          })
+        )
+      : ['1001', '1002'];
     const voucherData = {
       voucher_type: 'general',
       voucher_date: new Date().toISOString().slice(0, 10),
@@ -129,13 +138,13 @@ test.describe('成本核算完整流程', () => {
       source_module: 'e2e_test',
       items: [
         {
-          subject_code: '1001',
+          subject_code: subjCodes[0],
           debit: '100',
           credit: '0',
           summary: '测试借方',
         },
         {
-          subject_code: '1002',
+          subject_code: subjCodes[1],
           debit: '0',
           credit: '100',
           summary: '测试贷方',

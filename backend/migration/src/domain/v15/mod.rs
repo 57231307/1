@@ -3752,6 +3752,7 @@ ALTER TABLE "inventory_transfers" ADD COLUMN IF NOT EXISTS "status" VARCHAR(255)
 ALTER TABLE "inventory_transfers" ADD COLUMN IF NOT EXISTS "to_warehouse_id" INTEGER;
 ALTER TABLE "inventory_transfers" ADD COLUMN IF NOT EXISTS "total_quantity" DECIMAL(18,4);
 ALTER TABLE "inventory_transfers" ADD COLUMN IF NOT EXISTS "transfer_date" TIMESTAMPTZ;
+ALTER TABLE "inventory_transfers" ALTER COLUMN "transfer_date" TYPE TIMESTAMPTZ USING "transfer_date" AT TIME ZONE 'UTC';
 ALTER TABLE "inventory_transfers" ADD COLUMN IF NOT EXISTS "transfer_no" VARCHAR(255);
 ALTER TABLE "inventory_transfers" ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMPTZ;
 ALTER TABLE "logistics_waybills" ADD COLUMN IF NOT EXISTS "actual_arrival" TIMESTAMPTZ;
@@ -4114,6 +4115,7 @@ ALTER TABLE "inventory_adjustments" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ U
 ALTER TABLE "inventory_adjustments" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
 ALTER TABLE "inventory_count_items" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
 ALTER TABLE "inventory_counts" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
+ALTER TABLE "inventory_counts" ALTER COLUMN "count_date" TYPE TIMESTAMPTZ USING "count_date" AT TIME ZONE 'UTC';
 ALTER TABLE "inventory_counts" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
 ALTER TABLE "inventory_piece" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
 ALTER TABLE "inventory_piece" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';

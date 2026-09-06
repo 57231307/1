@@ -9,9 +9,15 @@ import {
   getCtx,
   genCode,
   genName,
+  ensureTestEntities,
 } from './helpers';
 
 test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', () => {
+  test.beforeEach(async ({ page }) => {
+    await loginViaUI(page);
+    await ensureTestEntities(page);
+  });
+
   test('6-1 admin 权限验证（*:* 通配）', async ({ page }) => {
     await loginViaUI(page);
     const me = await apiCallRaw<{ username: string; permissions: string[] }>(

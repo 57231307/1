@@ -122,14 +122,11 @@ test.describe('面料单据专用字段全链路验证', () => {
         costData
       );
       costId = result.data?.id!;
-    } catch {
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
-        page,
-        'GET',
-        '/production/cost-collections?page=1&page_size=1'
-      );
-      costId = list.items?.[0]?.id;
+    } catch (e) {
+      // 创建失败直接暴露（兜底旧成本单无自建字段，精确断言会失真）
+      throw e;
     }
+    expect(costId).toBeDefined();
 
     if (costId) {
       const detail = await apiCallRaw<Record<string, unknown>>(
@@ -141,8 +138,8 @@ test.describe('面料单据专用字段全链路验证', () => {
       expect(detail.batch_no).toBe(batchNo);
       expect(detail.color_no).toBe(colorNo);
       expect(detail.dye_lot_no).toBe(dyeLotNo);
-      expect(String(detail.output_quantity_meters)).toBe(outputMeters);
-      expect(String(detail.output_quantity_kg)).toBe(outputKg);
+      expect(Number(detail.output_quantity_meters)).toBe(Number(outputMeters));
+      expect(Number(detail.output_quantity_kg)).toBe(Number(outputKg));
 
       // 验证单位成本计算
       const totalCost =

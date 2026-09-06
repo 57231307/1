@@ -145,18 +145,10 @@ test.describe('面料单据专用字段全链路验证', () => {
       ],
     };
 
-    let quotationId: number;
-    try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/quotations', quotationData);
-      quotationId = result.data?.id!;
-    } catch {
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
-        page,
-        'GET',
-        '/quotations?page=1&page_size=1'
-      );
-      quotationId = list.items?.[0]?.id;
-    }
+    // 创建失败直接暴露（兜底旧报价单无自建面料字段，精确断言会失真）
+    const qResult = await apiCall<{ id?: number }>(page, 'POST', '/quotations', quotationData);
+    const quotationId = qResult.data?.id;
+    expect(quotationId).toBeDefined();
 
     if (quotationId) {
       const detail = await apiCallRaw<{
@@ -170,7 +162,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       expect(Number(item.product_id)).toBe(productId);
       expect(item.specification).toBe('T/C 65/35 45x45 110x76');
       expect(item.unit).toBe('米');
-      expect(String(item.quantity)).toBe('100');
+      expect(Number(item.quantity)).toBe(100);
       if (colorId) {
         expect(Number(item.color_id)).toBe(colorId);
       }

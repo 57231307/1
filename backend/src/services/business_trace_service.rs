@@ -496,8 +496,8 @@ impl BusinessTraceService {
         use rust_decimal::Decimal;
 
         for item in items {
-            let batch_no = item.batch_no.clone().unwrap_or_default();
-            let color_no = item.color_no.clone().unwrap_or_default();
+            let batch_no = item.batch_no.clone();
+            let color_no = item.color_no.clone();
             let trace_chain_id = if batch_no.is_empty() {
                 format!(
                     "TC-{}-{}",
