@@ -624,7 +624,7 @@ impl ProductionOrderService {
                 product_id: order.product_id,
                 batch_no: order.batch_no.clone(),
                 color_no: order.color_no.clone(),
-                dye_lot_no: order.dye_lot_no.clone(),
+                dye_lot_no: Some(order.dye_lot_no.clone()),
                 grade: "一等品".to_string(),
                 quantity_meters: production_qty,
                 quantity_kg: kg,

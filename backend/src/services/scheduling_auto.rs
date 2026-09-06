@@ -850,7 +850,7 @@ fn group_and_sort_orders_by_dye_lot(
         let batch_key = order
             .schedule_batch_key
             .clone()
-            .or_else(|| order.dye_lot_no.clone());
+            .or_else(|| Some(order.dye_lot_no.clone()));
         match batch_key {
             Some(key) if !key.is_empty() => {
                 groups_map.entry(key).or_default().push(order);

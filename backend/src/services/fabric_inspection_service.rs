@@ -658,8 +658,8 @@ impl FabricInspectionService {
             inventory_status: Set(Some("available".to_string())),
             created_by: Default::default(),
             updated_by: Default::default(),
-            color_no: Set(model.color_no.clone()),
-            dye_lot_no: Set(model.dye_lot_no.clone()),
+            color_no: Set(model.color_no.clone().unwrap_or_default()),
+            dye_lot_no: Set(model.dye_lot_no.clone().unwrap_or_default()),
             inspection_id: Set(Some(inspection_id)),
             piece_seq: Set(Some(next_seq)),
             // 验布打卷产生的新匹无需拆匹原始字段

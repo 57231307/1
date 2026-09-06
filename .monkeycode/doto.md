@@ -30,3 +30,9 @@
 所有已完成项已归档到 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，审计报告在 [docs/audits/](file:///workspace/.monkeycode/docs/audits/)。
 
 后续新增任务请在此文件追加。
+
+### 本轮追溯字段不可空专项遗留（2026-09-06 run 34019751699 核查发现）
+
+- [ ] 染色匹 color_no 现存空串（piece_domain_service create_piece_from_outsourcing_receipt 调用方无色号参数）——增强：从委外订单/库存行取 color_no 传入，完善染色匹色号追溯
+- [ ] role_conflicts（SoD 互斥规则）只有初始化写入，无查询端点——09-permissions P1-1 用 /roles/conflicts 404 被 try/catch 跳过；待后端补 GET /roles/conflicts 后回归该测试
+- [ ] 观察下一轮 CI：追溯列 NOT NULL DEFAULT '' 迁移在存量库（已有 NULL 行）的 UPDATE 兜底是否生效；盘点/调拨/退货明细插入是否清零 DATABASE_ERROR

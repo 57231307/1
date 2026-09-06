@@ -514,7 +514,7 @@ impl BusinessTraceService {
                 product_id: Set(item.product_id),
                 batch_no: Set(batch_no),
                 color_no: Set(color_no),
-                dye_lot_no: Set(item.dye_lot_no.clone()),
+                dye_lot_no: Set(Some(item.dye_lot_no.clone())),
                 grade: Set("N/A".to_string()),
                 current_stage: Set("SALES_DELIVERY".to_string()),
                 current_bill_type: Set("SALES_DELIVERY".to_string()),

@@ -341,7 +341,7 @@ impl SalesService {
             transaction_type: "SALES_DELIVERY".to_string(),
             product_id: item.product_id,
             warehouse_id: ctx.warehouse.id,
-            batch_no: item.batch_no.clone(),
+            batch_no: item.batch_no.clone().unwrap_or_default(),
             color_no: stock_color_no,
             dye_lot_no: stock_dye_lot_no,
             grade: String::new(),
