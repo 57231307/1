@@ -15,6 +15,7 @@ use axum::{
     Json,
     extract::{Extension, Path, State},
 };
+use sea_orm::EntityTrait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 

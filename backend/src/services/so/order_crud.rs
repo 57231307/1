@@ -286,16 +286,22 @@ impl SalesService {
             billing_address: sea_orm::ActiveValue::Set(request.billing_address.clone()),
             notes: sea_orm::ActiveValue::Set(request.notes.clone()),
             // 追溯列不可空（NOT NULL DEFAULT ''）：None 需写空串而非 NULL
-            batch_no: sea_orm::ActiveValue::Set(request.batch_no.clone().unwrap_or_default()),
-            color_no: sea_orm::ActiveValue::Set(request.color_no.clone().unwrap_or_default()),
-            dye_lot_no: sea_orm::ActiveValue::Set(request.dye_lot_no.clone().unwrap_or_default()),
-            grade: sea_orm::ActiveValue::Set(request.grade.clone().unwrap_or_default()),
-            packaging_requirement: sea_orm::ActiveValue::Set(
+            batch_no: sea_orm::ActiveValue::Set(Some(
+                request.batch_no.clone().unwrap_or_default(),
+            )),
+            color_no: sea_orm::ActiveValue::Set(Some(
+                request.color_no.clone().unwrap_or_default(),
+            )),
+            dye_lot_no: sea_orm::ActiveValue::Set(Some(
+                request.dye_lot_no.clone().unwrap_or_default(),
+            )),
+            grade: sea_orm::ActiveValue::Set(Some(request.grade.clone().unwrap_or_default())),
+            packaging_requirement: sea_orm::ActiveValue::Set(Some(
                 request.packaging_requirement.clone().unwrap_or_default(),
-            ),
-            quality_standard: sea_orm::ActiveValue::Set(
+            )),
+            quality_standard: sea_orm::ActiveValue::Set(Some(
                 request.quality_standard.clone().unwrap_or_default(),
-            ),
+            )),
             created_by: sea_orm::ActiveValue::NotSet,
             approved_by: sea_orm::ActiveValue::NotSet,
             approved_at: sea_orm::ActiveValue::NotSet,
