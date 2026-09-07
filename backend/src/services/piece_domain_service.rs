@@ -196,20 +196,38 @@ pub async fn validate_pieces_for_issue<C: ConnectionTrait>(
     Ok(())
 }
 
+/// 委外回仓生成匹记录的上下文参数（聚合 9 个业务字段，替代 10 参数函数签名
+/// 以满足 clippy::too_many_arguments 上限；db 连接保持独立参数）
+pub struct OutsourcingReceiptPieceContext<'a> {
+    pub receipt_no: &'a str,
+    pub receipt_dye_lot_no: Option<&'a str>,
+    pub order_dye_lot_no: Option<&'a str>,
+    pub color_no: Option<&'a str>,
+    pub product_id: i32,
+    pub warehouse_id: Option<i32>,
+    pub length_m: rust_decimal::Decimal,
+    pub grade: Option<&'a str>,
+    pub remarks: &'a str,
+}
+
 pub async fn create_piece_from_outsourcing_receipt<C: ConnectionTrait>(
     db: &C,
-    receipt_no: &str,
-    receipt_dye_lot_no: Option<&str>,
-    order_dye_lot_no: Option<&str>,
-    color_no: Option<&str>,
-    product_id: i32,
-    warehouse_id: Option<i32>,
-    length_m: rust_decimal::Decimal,
-    grade: Option<&str>,
-    remarks: &str,
+    ctx: OutsourcingReceiptPieceContext<'_>,
 ) -> Result<Option<inventory_piece::Model>, AppError> {
     use sea_orm::EntityTrait;
 
+    // 解构上下文为局部变量：与原平铺参数同名，函数体零改动
+    let OutsourcingReceiptPieceContext {
+        receipt_no,
+        receipt_dye_lot_no,
+        order_dye_lot_no,
+        color_no,
+        product_id,
+        warehouse_id,
+        length_m,
+        grade,
+        remarks,
+    } = ctx;
     let Some(warehouse_id) = warehouse_id else {
         return Err(AppError::business(
             "委外回仓单未指定入库仓库，无法生成匹记录",

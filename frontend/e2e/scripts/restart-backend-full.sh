@@ -54,13 +54,14 @@ echo $! > /tmp/e2e-setup-logs/backend-full.pid
 disown $! 2>/dev/null || true
 
 READY=false
-for i in $(seq 1 60); do
+# 完整模式启动含迁移检查，窗口 120 次（同 setup-wizard-real-env.sh 的 60s 上限）
+for i in $(seq 1 120); do
     if curl -s --max-time 2 "http://127.0.0.1:${SETUP_E2E_PORT}/health" 2>/dev/null | grep -q "healthy"; then
         READY=true
         echo "后端完整模式就绪（第 ${i} 次探测）"
         break
     fi
-    sleep 1
+    sleep 0.5
 done
 if [ "$READY" != "true" ]; then
     echo "后端完整模式未就绪，日志："
