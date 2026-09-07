@@ -93,7 +93,9 @@ echo "$BACKEND_PID" > /tmp/e2e-setup-logs/backend.pid
 READY=false
 for i in $(seq 1 300); do
     STATUS=$(curl -s --max-time 2 "http://127.0.0.1:${SETUP_E2E_PORT}/api/v1/erp/init/status" 2>/dev/null || true)
-    if echo "$STATUS" | grep -q '"mode"'; then
+    # 兼容双模式响应形态：Setup 模式裸响应与完整模式 ApiResponse 包装都含
+    # "initialized" 字段（空库可连接时后端走完整模式，CI 实测 72 bytes 形态）
+    if echo "$STATUS" | grep -q '"initialized"'; then
         READY=true
         echo "后端 Setup 模式就绪（第 ${i} 次探测）: $STATUS"
         break
