@@ -21,6 +21,7 @@ interface PieceItem {
   piece_no: string;
   piece_type: string;
   batch_no: string;
+  color_no: string | null;
   dye_lot_no: string | null;
   piece_seq: number | null;
   machine_no: string | null;
@@ -45,6 +46,7 @@ async function fetchPieces(
 test.describe
   .serial('Shard 7: 匹号领域真实链路（报工逐匹→染色外发回仓→净布例外→仓库约束→四维追溯）', () => {
   const dyeLotNo = genDyeLotNo();
+  const colorNo = `CN-${genCode('C')}`;
   let greigeWarehouseId = 0;
   let finishedWarehouseId = 0;
   let productionOrderId = 0;
@@ -243,6 +245,7 @@ test.describe
       supplier_id: ctx.supplierId,
       production_order_id: productionOrderId,
       dye_lot_no: dyeLotNo,
+      color_no: colorNo,
       issue_date: issueDate,
       issue_quantity: 50,
       issue_unit: '米',
@@ -268,6 +271,7 @@ test.describe
         receipt_date: receiptDate,
         product_id: ctx.productIds[0],
         dye_lot_no: dyeLotNo,
+        color_no: colorNo,
         warehouse_id: finishedWarehouseId,
         return_quantity: 45,
         quality_status: 'passed',
@@ -304,6 +308,8 @@ test.describe
     expect(dyed.batch_no).toBe(dyeLotNo);
     expect(dyed.piece_seq).toBe(1);
     expect(dyed.dye_lot_no).toBe(dyeLotNo);
+    // 匹号二期：染色匹色号从回仓单/委外订单透传（追溯链闭环）
+    expect(dyed.color_no).toBe(colorNo);
     expect(dyed.warehouse_type).toBe('finished');
   });
 

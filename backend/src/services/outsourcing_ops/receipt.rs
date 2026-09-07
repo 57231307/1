@@ -324,6 +324,11 @@ impl OutsourcingReceiptService {
             &updated_receipt.receipt_no,
             updated_receipt.dye_lot_no.as_deref(),
             order.dye_lot_no.as_deref(),
+            // 匹号二期：色号追溯——回仓单登记的色号优先，缺省回落委外订单色号
+            updated_receipt
+                .color_no
+                .as_deref()
+                .or(order.color_no.as_deref()),
             updated_receipt.product_id,
             updated_receipt.warehouse_id,
             updated_receipt.return_quantity,

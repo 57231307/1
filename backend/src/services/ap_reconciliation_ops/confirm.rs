@@ -116,6 +116,21 @@ impl ApReconciliationService {
             )));
         }
 
+        // 匹号领域二期：对账单登记匹号时校验——手工对账场景若填写了 piece_no，
+        // 该匹必须真实存在（防止对账引用虚构匹号，账实断裂）
+        if let Some(pn) = reconciliation.piece_no.as_deref().filter(|s| !s.is_empty()) {
+            let exists = crate::models::inventory_piece::Entity::find()
+                .filter(crate::models::inventory_piece::Column::PieceNo.eq(pn))
+                .one(&txn)
+                .await?
+                .is_some();
+            if !exists {
+                return Err(AppError::business(format!(
+                    "对账单引用的生产匹 {pn} 不存在，请核对匹号后再确认"
+                )));
+            }
+        }
+
         let now = Utc::now();
         let mut reconciliation_active: ap_reconciliation::ActiveModel = reconciliation.into();
         reconciliation_active.reconciliation_status =
