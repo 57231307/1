@@ -58,15 +58,25 @@ test.describe.serial('引导页初始化真实链路（真实后端 + 真实 Pos
     ctx = loadContext();
   });
 
-  test('前置断言：后端处于真实 Setup 模式（/init/status 返回 mode=setup 且 initialized=false）', async ({
-    request,
-  }) => {
-    // 真实后端响应（无任何 route mock）：空库无表 → Setup 模式
+  test('前置断言：后端处于未初始化状态（兼容 Setup/完整双模式响应形态）', async ({ request }) => {
+    // 真实后端响应（无任何 route mock）。
+    // 空库（已 CREATE DATABASE 无表）可连接 → 后端以完整模式启动（连接成功
+    // 即完整模式），/init/status 返回 ApiResponse 包装 {code:200,data:{initialized:false}}
+    // —— CI 四轮实测（run 34160705811，72 bytes = 此形态精确匹配）。
+    // 数据库完全不可达时才进 Setup 模式（裸响应 {initialized,mode:'setup'}）。
+    // 两种形态下向导端点（test-database / initialize-with-db）都可用：
+    // 完整模式的 handler 门禁 validate_not_initialized 对空库放行匿名
     const resp = await request.get(`${API_BASE}/api/v1/erp/init/status`);
     expect(resp.ok()).toBeTruthy();
     const body = await resp.json();
-    expect(body.initialized).toBe(false);
-    expect(body.mode).toBe('setup');
+    if (body.code === 200 && body.data !== undefined) {
+      // 完整模式形态
+      expect(body.data.initialized).toBe(false);
+    } else {
+      // Setup 模式形态
+      expect(body.initialized).toBe(false);
+      expect(body.mode).toBe('setup');
+    }
   });
 
   test('环境检查真实通过：/health 404（Setup 模式无该路由）+ /init/status 可达 → 检查全绿', async ({
@@ -160,9 +170,11 @@ test.describe.serial('引导页初始化真实链路（真实后端 + 真实 Pos
   test('后端自退重启后完整模式就绪：/health 200 + /init/status 返回已初始化', async ({
     request,
   }) => {
-    // 真实进程管理：后端 initialize 成功后自退（exit 0），本 step 等效
-    // systemd Restart=always 拉起（同一套环境变量，同库已初始化 → 完整模式）。
-    // 重启脚本自身带 60s 探活，非零退出即真实失败。
+    // 真实进程管理：等效 systemd Restart=always——kill 端口进程后以同一套
+    // 环境变量重新拉起（同库已初始化 → 完整模式 /health 200）。
+    // Setup 模式下后端 initialize 成功后自退（exit 0）；完整模式（空库可连接
+    // 时实际走的模式）handler 无自退，由本脚本 kill 拉起，两种场景殊途同归。
+    // 重启脚本自带 150s 探活，非零退出即真实失败。
     // REPO_ROOT 由 CI step 注入（checkout 目录）；本地默认 /workspace
     execSync('bash frontend/e2e/scripts/restart-backend-full.sh', {
       cwd: process.env.REPO_ROOT || '/workspace',
