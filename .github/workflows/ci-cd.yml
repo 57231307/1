@@ -2914,9 +2914,23 @@ jobs:
         working-directory: frontend
         run: npm ci --prefer-offline --no-audit
 
+      - name: 缓存 Playwright 浏览器（与 ci-e2e 共用同一缓存 key）
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: |
+            playwright-
+
       - name: 安装 Playwright 浏览器
         working-directory: frontend
-        run: npx playwright install --with-deps chromium
+        run: |
+          # 缓存命中时 install 秒过（已存在则跳过下载）；未命中才下载。
+          # 拆分安装：--with-deps 的 apt 环节在连续 apt-get update 后偶发锁
+          # 竞争/超时（run 34135035908 step#9 失败）。runner 镜像已预装
+          # chromium 运行库，系统依赖安装失败仅告警不阻塞
+          npx playwright install chromium
+          npx playwright install-deps chromium || echo "::warning::playwright install-deps 失败（镜像已预装依赖，继续）"
 
       - name: 准备 Setup 模式环境（重置空库 + 启动后端）
         run: |
