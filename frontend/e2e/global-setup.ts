@@ -121,8 +121,13 @@ async function ensureShardUserViaUI(): Promise<void> {
     console.log(`[globalSetup] 分片账号 ${SHARD_USERNAME} 创建成功 (HTTP ${createResp.status()})`);
   } else {
     const body = await createResp.text().catch(() => '');
-    if (body.includes('已存在') || createResp.status() === 409) {
-      console.log(`[globalSetup] 分片账号 ${SHARD_USERNAME} 已存在，跳过创建`);
+    // 幂等：400/409 或文案含"已存在"都视为账号已建（watchdog 重跑同一分片时
+    // 第 1 轮已创建账号，重复 POST 返回 400 BusinessError"用户名已存在"，
+    // run 34076635269 十二分片全部因 400 未被幂等识别而瞬间失败）
+    if (body.includes('已存在') || createResp.status() === 409 || createResp.status() === 400) {
+      console.log(
+        `[globalSetup] 分片账号 ${SHARD_USERNAME} 已存在（HTTP ${createResp.status()}），跳过创建`
+      );
     } else {
       throw new Error(
         `分片账号创建失败 HTTP ${createResp.status()} payload=${JSON.stringify({ ...createPayload, password: '***' })} body=${body.slice(0, 300)}`
