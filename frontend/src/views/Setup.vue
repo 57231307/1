@@ -162,7 +162,7 @@
         <h3>{{ $t('setupPage.complete.successTitle') }}</h3>
         <p>{{ $t('setupPage.complete.successDesc') }}</p>
         <div class="step-actions">
-          <el-button type="primary" @click="goToLogin">{{
+          <el-button type="primary" :loading="goToLoginLoading" @click="goToLogin">{{
             $t('setupPage.complete.goToLogin')
           }}</el-button>
         </div>
@@ -174,6 +174,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
+import { resetInitStatus } from '@/router';
 import { useI18n } from 'vue-i18n';
 import { CircleCheckFilled, CircleCloseFilled } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
@@ -250,7 +251,20 @@ const adminRules = {
   ],
   password: [
     { required: true, message: t('setupPage.validation.passwordRequired'), trigger: 'blur' },
-    { min: 6, message: t('setupPage.validation.passwordMinLength'), trigger: 'blur' },
+    { min: 8, message: t('setupPage.validation.passwordMinLength'), trigger: 'blur' },
+    {
+      // 与后端 PasswordPolicy::default() 对齐：大写+小写+数字+特殊字符
+      validator: ((_rule: unknown, value: string, callback: (error?: Error) => void) => {
+        if (!/[A-Z]/.test(value) || !/[a-z]/.test(value) || !/[0-9]/.test(value)) {
+          callback(new Error(t('setupPage.validation.passwordComplexity')));
+        } else if (!/[^A-Za-z0-9]/.test(value)) {
+          callback(new Error(t('setupPage.validation.passwordComplexity')));
+        } else {
+          callback();
+        }
+      }) as FormItemRule['validator'],
+      trigger: 'blur',
+    },
   ],
   confirmPassword: [
     { required: true, message: t('setupPage.validation.confirmPasswordRequired'), trigger: 'blur' },
@@ -268,12 +282,25 @@ const adminRules = {
   email: [{ type: 'email', message: t('setupPage.validation.emailInvalid'), trigger: 'blur' }],
 };
 
+// 管理员密码规则与后端 PasswordPolicy::default() 对齐（utils/password_validator.rs）：
+// ≥8 位 + 大写 + 小写 + 数字 + 特殊字符。前后端不一致会导致前端放行、
+// 后端 initialize() 拒绝（ValidationError），用户在最后一步被卡死
+const adminPasswordValid = computed(() => {
+  const pwd = adminConfig.value.password;
+  return (
+    pwd.length >= 8 &&
+    /[A-Z]/.test(pwd) &&
+    /[a-z]/.test(pwd) &&
+    /[0-9]/.test(pwd) &&
+    /[^A-Za-z0-9]/.test(pwd)
+  );
+});
+
 const isAdminValid = computed(() => {
   return (
     adminConfig.value.username &&
-    adminConfig.value.password &&
-    adminConfig.value.password === adminConfig.value.confirmPassword &&
-    adminConfig.value.password.length >= 6
+    adminPasswordValid.value &&
+    adminConfig.value.password === adminConfig.value.confirmPassword
   );
 });
 
@@ -281,27 +308,42 @@ const isAdminValid = computed(() => {
 async function checkEnvironment() {
   checking.value = true;
   try {
-    // 检查后端API服务：必须走 /api 代理（dev server 的 /health 未代理会返回
-    // index.html，JSON 解析报 "Unexpected token '<'"）；后端同义端点为 /api/v1/erp/health
-    const healthRes = await fetch('/api/v1/erp/health');
-    const healthData = await healthRes.json();
-    envChecks.value[0].status = healthRes.ok && healthData.status === 'healthy';
-
-    // 检查磁盘空间（通过健康检查接口的checks）
-    if (healthData.checks && healthData.checks.disk) {
-      envChecks.value[1].status = healthData.checks.disk.status === 'healthy';
-    } else {
-      envChecks.value[1].status = true;
+    // Setup 模式（首次部署，数据库未连接）下后端仅暴露 /init/* 路由，
+    // /api/v1/erp/health 返回 404，res.json() 解析抛错 → 三项检查全挂 →
+    // 「下一步」永远禁用，引导流程卡死在步骤 1（部署包 v2026.9.7.1357 后排查发现）。
+    // 修复：以后端可达性为主判定——/init/status 在 Setup 模式与完整模式都存在；
+    // 磁盘/内存仅在 /health 可达（完整模式）时按 checks 校验，不可达时跳过不阻塞。
+    let backendOk = false;
+    try {
+      const statusRes = await fetch('/api/v1/erp/init/status');
+      if (statusRes.ok) {
+        await statusRes.json();
+        backendOk = true;
+      }
+    } catch (error) {
+      logger.error(t('setupPage.message.envCheckFailed'), error);
     }
+    envChecks.value[0].status = backendOk;
 
-    // 检查系统内存（通过健康检查接口的checks）
-    if (healthData.checks && healthData.checks.memory) {
-      envChecks.value[2].status = healthData.checks.memory.status === 'healthy';
-    } else {
-      envChecks.value[2].status = true;
+    // 磁盘/内存：仅完整模式 /health 提供 checks 字段；Setup 模式跳过（默认通过）
+    envChecks.value[1].status = true;
+    envChecks.value[2].status = true;
+    if (backendOk) {
+      try {
+        const healthRes = await fetch('/api/v1/erp/health');
+        if (healthRes.ok) {
+          const healthData = await healthRes.json();
+          if (healthData.checks && healthData.checks.disk) {
+            envChecks.value[1].status = healthData.checks.disk.status === 'healthy';
+          }
+          if (healthData.checks && healthData.checks.memory) {
+            envChecks.value[2].status = healthData.checks.memory.status === 'healthy';
+          }
+        }
+      } catch {
+        // /health 不可达（Setup 模式）：磁盘/内存维持跳过状态，不阻塞引导
+      }
     }
-  } catch (error) {
-    logger.error(t('setupPage.message.envCheckFailed'), error);
   } finally {
     checking.value = false;
   }
@@ -311,9 +353,15 @@ async function checkEnvironment() {
 async function testConnection() {
   testing.value = true;
   try {
+    // X-Init-Token 与 initialize-with-db 保持同一契约形态：部署包
+    // v2026.9.7.1357 的缺陷是该请求漏带此头（401 认证报错），补上以对齐
+    // /init/* 端点的统一请求形态，并为未来服务端强制校验此头留好兼容
     const res = await fetch('/api/v1/erp/init/test-database', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Init-Token': dbConfig.value.init_token,
+      },
       body: JSON.stringify(dbConfig.value),
     });
     const data = await res.json();
@@ -353,12 +401,19 @@ async function install() {
       }),
     });
     const data = await res.json();
-    if (data.success) {
+    // 后端 ApiResponse 顶层无 success 字段（{code,data,message}），成功判定走
+    // code===200 且 data.success（InitializationResult.success）。原 data.success
+    // 顶层判断恒 undefined → 引导成功被 UI 误报为安装失败。
+    const installOk = data.code === 200 ? !!data.data?.success : !!data.success;
+    if (installOk) {
       installed.value = true;
+      // 重置路由守卫的初始化状态缓存：初始化完成后跳转登录页时，
+      // 守卫不再因缓存 initialized=false 把用户拉回 /setup
+      resetInitStatus(true);
       ElMessage.success(t('setupPage.message.installSuccess'));
       currentStep.value = 4;
     } else {
-      ElMessage.error(data.message || t('setupPage.message.installFailed'));
+      ElMessage.error(data.data?.message || data.message || t('setupPage.message.installFailed'));
     }
   } catch (error) {
     ElMessage.error(t('setupPage.message.installFailed'));
@@ -375,8 +430,29 @@ function prevStep() {
   currentStep.value--;
 }
 
-function goToLogin() {
-  router.push('/login');
+// Setup 模式初始化成功后后端会自退进程（systemd 拉起切完整模式），
+// 点击登录前先探活 /health，避免撞上重启窗口的 connection refused
+const goToLoginLoading = ref(false);
+async function goToLogin() {
+  goToLoginLoading.value = true;
+  try {
+    for (let i = 0; i < 30; i++) {
+      try {
+        const res = await fetch('/api/v1/erp/health', { signal: AbortSignal.timeout(2000) });
+        if (res.ok) {
+          router.push('/login');
+          return;
+        }
+      } catch {
+        // 服务重启中，等待后重试
+      }
+      await new Promise(r => setTimeout(r, 1000));
+    }
+    // 30s 未就绪仍跳转（由登录页给出网络错误反馈）
+    router.push('/login');
+  } finally {
+    goToLoginLoading.value = false;
+  }
 }
 
 // 初始化检查

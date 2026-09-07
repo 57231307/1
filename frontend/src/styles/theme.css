@@ -97,3 +97,32 @@ html.dark {
   --bx-box-shadow-base: 0 2px 4px rgba(0, 0, 0, 0.3);
   --bx-box-shadow-dark: 0 2px 4px rgba(0, 0, 0, 0.4);
 }
+
+/* ==========================================================================
+ * 响应式适配（手机竖屏 375px ~ 桌面 1920px）
+ * 手机端与桌面端共用的全局窄屏规则：
+ * - 对话框在窄屏改为近全宽（Element Plus dialog 默认 50%，375px 下仅 187px 不可用）
+ * - 消息框宽度受限
+ * - 表格容器横向滚动（el-table 自带 overflow，此处保证容器不撑破布局）
+ * ========================================================================== */
+@media (max-width: 768px) {
+  .el-dialog {
+    /* el-dialog 默认 --el-dialog-width: 50%，窄屏强制近全宽 */
+    width: 92vw !important;
+    max-width: 92vw;
+  }
+
+  .el-message-box {
+    max-width: 92vw;
+  }
+
+  /* 页面主内容区窄屏收缩内边距 */
+  .el-main {
+    padding: 12px !important;
+  }
+
+  /* 表格容器允许横向滚动（窄屏必然溢出的场景） */
+  .el-table {
+    width: 100%;
+  }
+}
