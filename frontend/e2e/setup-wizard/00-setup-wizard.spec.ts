@@ -106,9 +106,27 @@ test.describe.serial('引导页初始化真实链路（真实后端 + 真实 Pos
     await dbPwd.nth(0).fill('bingxi_test');
     await dbPwd.nth(1).fill(ctx.initToken);
 
+    // IR 详细日志：监听 test-database 真实响应（状态码+体），失败时可直接定位
+    let dbTestStatus = 0;
+    let dbTestBody = '';
+    page.on('response', async resp => {
+      if (resp.url().includes('/init/test-database')) {
+        dbTestStatus = resp.status();
+        dbTestBody = (await resp.text().catch(() => '')) || '';
+        console.log(`[test-database] HTTP ${dbTestStatus}: ${dbTestBody.slice(0, 300)}`);
+      }
+    });
+
     await btn(page, ['测试', '连接', 'Test']).click();
     // 真实 SELECT 1 探测通过 → 成功提示 + 下一步解禁
-    await expect(page.locator('.el-message--success').first()).toBeVisible({ timeout: 15_000 });
+    try {
+      await expect(page.locator('.el-message--success').first()).toBeVisible({ timeout: 15_000 });
+    } catch (e) {
+      console.error(
+        `[诊断] test-database 未出现成功提示：HTTP ${dbTestStatus} body=${dbTestBody.slice(0, 300)}`
+      );
+      throw e;
+    }
     await expect(btn(page, ['下一步', 'Next'])).toBeEnabled({ timeout: 10_000 });
   });
 
