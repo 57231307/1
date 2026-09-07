@@ -840,12 +840,29 @@ export async function readEntityIds(
   try {
     await safeGoto(page, route);
     const items = await waitListResponse(page, listApiPath, 20000);
-    return items
+    const ids = items
       .slice(0, limit)
       .map(it => (it as Record<string, unknown>)?.id as number)
       .filter((id): id is number => typeof id === 'number');
+    if (ids.length > 0) return ids;
   } catch (e) {
     console.warn(`[readEntityIds] ${route} 查找失败: ${(e as Error).message}`);
+  }
+  // 页面路径未命中列表响应时 API 直查兜底：防止误判"实体不存在"导致
+  // 每个测试都重复兜底创建（run 34067844812 产品 id 2,3→5,6→8,9→11,12 风暴）
+  try {
+    const resp = await page.request.get(listApiPath, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    });
+    const json = (await resp.json().catch(() => ({}))) as {
+      data?: { items?: Array<{ id?: number }>; list?: Array<{ id?: number }> };
+    };
+    const items = json?.data?.items ?? json?.data?.list ?? [];
+    return items
+      .slice(0, limit)
+      .map(it => it?.id as number)
+      .filter((id): id is number => typeof id === 'number');
+  } catch {
     return [];
   }
 }

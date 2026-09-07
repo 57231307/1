@@ -114,7 +114,8 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
     if (newBtnVisible) {
       await newBtn.click();
       await page.waitForTimeout(1000);
-      const dialog = page.locator('.el-dialog').first();
+      // 用可见 dialog 定位（页面上可能有隐藏的其它 el-dialog，.first() 会命中错的）
+      const dialog = page.locator('.el-dialog:visible').last();
       await dialog
         .waitFor({ state: 'visible', timeout: 5000 })
         .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
@@ -123,17 +124,17 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
       // 直接保存触发必填校验
       const saveBtn = dialog.locator('button:has-text("保存"), button:has-text("确定")').first();
       await saveBtn.click().catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      await page.waitForTimeout(1000);
-      await page
-        .locator('.el-form-item__error, .el-message--error')
-        .first()
-        .waitFor({ state: 'visible', timeout: 5000 })
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const hasError = await page
-        .locator('.el-form-item__error, .el-message--error')
-        .first()
-        .isVisible()
-        .catch(() => false);
+      // 必填校验错误提示：validate() 异步渲染，轮询等待最多 5s
+      let hasError = false;
+      for (let i = 0; i < 10; i++) {
+        hasError = await page
+          .locator('.el-form-item__error, .el-message--error')
+          .first()
+          .isVisible()
+          .catch(() => false);
+        if (hasError) break;
+        await page.waitForTimeout(500);
+      }
       expect(hasError).toBe(true);
       await page
         .locator('.el-dialog__headerbtn')

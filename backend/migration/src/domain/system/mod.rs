@@ -231,6 +231,12 @@ ALTER TABLE "inventory_count_items" ADD COLUMN IF NOT EXISTS "color_no" VARCHAR(
 UPDATE "inventory_count_items" SET "color_no" = '' WHERE "color_no" IS NULL;
 ALTER TABLE "inventory_count_items" ADD COLUMN IF NOT EXISTS "dye_lot_no" VARCHAR(255) NOT NULL DEFAULT '';
 UPDATE "inventory_count_items" SET "dye_lot_no" = '' WHERE "dye_lot_no" IS NULL;
+-- batch_no：列由 production/mod.rs 以可空 VARCHAR(255) 添加，Model 为 String（非 Option），
+-- NULL 行解码报 Missing value for column 'batch_no'（run 34067844812 shard-12）
+-- 统一收敛为 NOT NULL DEFAULT '' 并清空存量 NULL
+ALTER TABLE "inventory_count_items" ALTER COLUMN "batch_no" SET DEFAULT '';
+UPDATE "inventory_count_items" SET "batch_no" = '' WHERE "batch_no" IS NULL;
+ALTER TABLE "inventory_count_items" ALTER COLUMN "batch_no" SET NOT NULL;
 ALTER TABLE "inventory_count_items" ADD COLUMN IF NOT EXISTS "notes" VARCHAR(255);
 ALTER TABLE "inventory_count_items" ADD COLUMN IF NOT EXISTS "quantity_actual" DECIMAL(10,2);
 ALTER TABLE "inventory_count_items" ADD COLUMN IF NOT EXISTS "quantity_before" DECIMAL(10,2);

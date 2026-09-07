@@ -25,11 +25,16 @@ test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓�
 
     const pairs = (conflicts || []).map(c => `${c.role_a_code}↔${c.role_b_code}`);
     if (pairs.length > 0) {
+      // 对齐 migration/src/domain/finance/mod.rs 预置的财务三权分立互斥种子
       const expectedPairs = [
-        'accounting_clerk↔financial_manager',
-        'purchase_clerk↔purchase_manager',
-        'purchase_manager↔finance_manager',
-        'sales_clerk↔sales_manager',
+        'accountant↔finance_manager',
+        'accountant↔cashier',
+        'cashier↔finance_manager',
+        'cashier↔purchase_manager',
+        'cashier↔purchase_clerk',
+        'cashier↔sales_manager',
+        'production_manager↔qc_manager',
+        'dyeing_master↔quality_inspector',
       ];
       const hasAny = pairs.some(p =>
         expectedPairs.some(e => p.includes(e.split('↔')[0]) && p.includes(e.split('↔')[1]))

@@ -135,7 +135,8 @@ test.describe('面料单据专用字段全链路验证', () => {
       expect(detail.dye_type).toBe(dyeType);
       expect(Number(detail.temperature)).toBe(130);
       expect(Number(detail.time_minutes)).toBe(timeMinutes);
-      expect(String(detail.ph_value)).toBe(phValue);
+      // DECIMAL 回读会带补零（5.5 → "5.50"），数值比较归一
+      expect(Number(detail.ph_value)).toBe(Number(phValue));
 
       // 验证助剂列表
       const auxiliaries = detail.auxiliaries as Array<{
