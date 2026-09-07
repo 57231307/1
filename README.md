@@ -44,24 +44,24 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 
 | 指标 | 数值 |
 |------|------|
-| 后端 Rust 代码 | ~294,000 行（src 243,300 + tests 31,900 + migration 18,400） |
-| 后端 Rust 文件 | 1,424 个（src 1,051 + tests 245 + migration 128） |
-| 后端 Handler | 164 个 |
-| 后端 Service | 230 个 |
-| 后端 Model | 314 个 |
+| 后端 Rust 代码 | ~292,800 行（src + tests + migration 实测） |
+| 后端 Rust 文件 | 1,356 个（src 1,070 + tests 245 + migration 41） |
+| 后端 Handler | 165 个 |
+| 后端 Service | 410 个（含 ops 子模块拆分文件） |
+| 后端 Model | 336 个 |
 | 后端 Route 模块 | 43 个 |
-| 后端 Middleware | 19 个 |
+| 后端 Middleware | 21 个 |
 | 后端业务事件 | 34 种（事件总线 + Kafka + ES 刷新 + 幂等去重） |
 | 后端状态机 | 30+ 个（四种范式：DB规则表/枚举payload/utils纯函数/JSON图遍历） |
-| 后端集成测试 | 245 个文件 / 2,023 个测试函数 |
-| 后端迁移文件 | 128 个 Rust 文件（SQL 内联为 raw string） |
+| 后端集成测试 | 245 个文件 / 2,029 个测试函数 |
+| 后端迁移 | Rust 代码内联 SQL（raw string），`bingxi migrate run` 执行 |
 | 后端基准测试 | 4 个 criterion 基准（染整成本/库存/凭证/工资） |
 | 前端 Vue 文件 | 376 个（~85,500 行） |
 | 前端 TS 文件 | 229 个（~51,100 行） |
 | 前端 Views 子模块 | 86 个 |
 | 前端 API 模块 | 96 个 |
-| 前端 i18n 翻译键 | 9,424 个 |
-| 前端 E2E 测试 | 173 个（116 冒烟 + 51 工作流 + 3 独立 + 3 增强） |
+| 前端 i18n 翻译键 | 10,500+ 个 |
+| 前端 E2E 测试 | 519 个（116 冒烟 + 394 工作流 + 9 Setup 向导真实链路） |
 | Clippy Baseline | 4,274 行（185 条唯一警告） |
 | 最新版本 | 后端 2026.810.1 / 前端 2026.617.0001 |
 | 安全漏洞存量 | 0（密钥泄露扫描工作区+git 历史：0 发现） |
@@ -339,14 +339,12 @@ cd 1
 ### 3. 数据库准备
 
 ```bash
-# 创建数据库
+# 创建数据库（本地开发库名自定；deploy.sh 生产默认 bingxi、CI 测试库为 bingxi_test）
 createdb bingxi_erp
-createdb bingxi_erp_test
 
 # 创建用户
 psql -U postgres -c "CREATE USER bingxi WITH PASSWORD '<your-strong-db-password>';"
 psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE bingxi_erp TO bingxi;"
-psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE bingxi_erp_test TO bingxi;"
 ```
 
 ### 4. 后端启动（开发模式）
@@ -407,9 +405,8 @@ sudo bash 快速部署/install.sh
 # 后续更新（CLI 工具拉取 GitHub Release 并校验 SHA256）
 sudo bingxi update
 
-# 查看服务状态
+# 查看服务状态（前端为 Nginx 静态资源，无独立 systemd 服务）
 sudo systemctl status bingxi-backend
-sudo systemctl status bingxi-frontend
 
 # 查看日志
 sudo journalctl -u bingxi-backend -f
@@ -421,24 +418,20 @@ sudo journalctl -u bingxi-backend -f
 
 ## 部署
 
-### 5 种环境
+### 两类部署环境（只允许生产与测试）
 
 | 环境 | 用途 | 部署方式 | 配置 |
 |------|------|---------|------|
-| 开发 | 本地开发 | cargo run + npm run dev | `.env` + `config.yaml` |
-| 测试 | 自动化测试 | cargo test + npm test | `.env.test` |
-| 预发 | 上线前验证 | systemd（staging 服务器） | `.env.staging` |
-| 生产 | 正式环境 | systemd（prod 服务器） | `.env.production` |
-| 灾备 | 灾难恢复 | systemd（DR 服务器） | `.env.dr` |
+| 生产 | 正式环境 | `deploy/deploy.sh`（服务器执行）或 `deploy/deploy-latest.sh`（远程执行，拉取 GitHub Release） | `/etc/bingxi/.env` + config.yaml |
+| 测试 | 自动化验证 | GitHub Actions（Rust nextest 30 分片 + E2E 34 矩阵 + Setup 真实链路 E2E） | CI 环境变量注入 |
 
 ### 部署架构
 
 - **反向代理**：Nginx（HTTP / WebSocket / CSP 安全头）
 - **应用层**：systemd 服务（CLI 工具 + SHA256 校验 + 健康检查门禁 + 优雅停机 + 回滚机制）
-- **数据层**：PostgreSQL 主备（流复制 + 故障转移）+ Redis 哨兵
-- **事件总线**：Kafka（rskafka 纯 Rust 实现，无 C/C++ 依赖）
-- **文件存储**：S3 / OSS 兼容
-- **CDN**：静态资源 CDN 分发
+- **数据层**：PostgreSQL（连接池 + 迁移自动执行）+ Redis（缓存/限流/会话）
+- **事件总线**：Kafka（rskafka 纯 Rust 实现；缺省降级为内存通道）
+- **初始化**：首次部署通过 Setup 向导（/setup）完成数据库连接 + 管理员创建
 
 详细部署见 `deploy/` 目录和 `快速部署/install.sh`。
 
@@ -479,43 +472,36 @@ sudo journalctl -u bingxi-backend -f
 |------|------|------|---------|
 | 后端集成测试 | 245 文件 / 2,023 函数 | cargo test + nextest | 服务层 + API 层 |
 | 前端 E2E 冒烟测试 | 116 | Playwright | 全部前端路由（1:1 映射） |
-| 前端 E2E 工作流测试 | 51 | Playwright | 17 个模块完整业务流程 |
-| 前端 E2E 独立测试 | 3 | Playwright | 色卡 / 色号价格 / 定制订单 |
-| 前端 E2E 增强测试 | 3 | Playwright | 多角色协作 / 网络韧性 / RPA 数据提取 |
+| 前端 E2E 工作流测试 | 394 | Playwright | 45 个 spec 文件，业务闭环 + 匹号领域 + 响应式矩阵 |
+| 前端 E2E 真实链路测试 | 9 | Playwright（零 mock） | Setup 向导初始化：空库 → UI 真实点击 → 完整模式 → 真实登录 |
 | 性能基准 | 4 | criterion | 库存核算 / 凭证生成 / 染整成本归集 / 产量工资计算 |
 
 ### E2E 测试覆盖
 
-17 个模块的完整业务闭环测试：
+45 个 spec 文件（34 矩阵分片按 Playwright --shard=1/30 轮转执行），覆盖：
 
-| 模块 | 文件数 | 闭环覆盖 |
-|------|--------|---------|
-| inventory | 3 | 台账加载/筛选/预警 → 盘盈盘亏调整 → 调拨创建+审批 |
-| production | 3 | 工单创建/排产 → 生产执行 → 详情/删除/筛选 |
-| crm | 3 | 客户CRUD → 线索生命周期 → 商机赢单/输单 |
-| finance | 3 | 凭证创建 → 审批工作流 → 科目管理 |
-| bpm | 2 | 流程定义CRUD → 审批中心 |
-| quality | 2 | 质量标准审批 → 检验记录+缺陷处理 |
-| logistics | 2 | 运单创建 → 状态流转 |
-| quotations | 3 | 报价单创建 → 审批 → 详情 |
-| sales | 7 | 报价单→订单→审批→发货→应收→收款→报表 |
-| purchase | 7 | 采购单→审批→入库→质检→应付→付款→报表 |
-| purchase-ext | 3 | 合同/价格/退货 |
-| sales-ext | 3 | 合同/价格/退货 |
-| fabric | 3 | 坯布/染色批次/配方 |
-| system | 2 | 用户管理/审计日志 |
-| ai/mrp/dashboard | 4 | AI工艺优化/质量预测/MRP/仪表盘 |
-| 独立测试 | 3 | 色卡 / 色号价格 / 定制订单 |
-| 增强测试 | 3 | 多角色协作 / 网络韧性 / RPA 数据提取 |
+| 类别 | spec 文件 | 覆盖内容 |
+|------|-----------|---------|
+| 部署初始化 | 00-deploy-init | 健康检查 / 登录验证 / 基础数据创建 |
+| 响应式矩阵 | 00-responsive | 21 机型（国产手机/平板 + 苹果全尺寸）+ 断点边界 + 横屏 + 桌面热切换 |
+| 核心业务流 | 01-p2p / 02-o2c / 03-production / 04-finance / 05-system / 06-collaboration | 采购到付款 / 订单到收款 / 生产 / 财务 / 系统 / 协作全闭环 |
+| 匹号领域 | 07-fabric-four-dim | 报工逐匹 → 染色外发回仓 → 净布例外 → 仓库约束 |
+| 业务模式与权限 | 08-business-modes / 09-permissions | 业务模式流程步骤 / 权限矩阵 |
+| 扩展流程 | 10a-10e / 11-returns / 12-inventory-ops / 13-stocktaking / 14-costing-period | 库存审批 / 委外成本 / 定制订单 / BPM / 状态 i18n / 退货 / 库存操作 / 盘点 / 成本期间 |
+| 表单与交互 | 15-form-validation / 16-list-interaction / 17-batch-dialog | 表单校验 / 列表交互 / 批量对话框 |
+| 韧性 | 18-resilience-boundary / 19-token-connection / 20-status-display | 边界 / 令牌与连接 / 状态展示 |
+| 面料业务 | 21a-21e | 面料销售单 / 采购报价 / 调拨配方 / 委外成本凭证 / 必填校验 |
+| 全模块回归 | 22-crm-full … 27-other-modules-full | CRM / 色卡 / 生产 / 财务 / 系统 / 其余模块完整回归 |
+| 路由与 UI 覆盖 | 28a-28c / 29a-29d | 核心 UI 列表/页面/响应式 + 全路由覆盖（采购销售/库存生产/财务系统/CRM AI） |
 
 ### 运行测试
 
 ```bash
-# 后端测试
+# 后端测试（CI 用 nextest 30 分片并行；本地可直接 cargo test）
 cd backend
 cargo test --all
 
-# 前端 E2E 测试
+# 前端 E2E 测试（CI 为 34 矩阵分片按 --shard=x/30 轮转）
 cd frontend
 npm run test:e2e
 
@@ -544,12 +530,14 @@ cargo bench --features bench
 
 项目遵循严格的个人规则（IR）与项目规则（PR）：
 
-- **规则 0**：真实实现强制，禁止 stub/placeholder
-- **规则 3**：成品导出仅 .xlsx/.docx，禁 CSV/txt/html
-- **规则 4**：`///` 注释精简为 1 行（最多 2 行）
-- **规则 13**：修复流程自动化，步骤 0 确认审计内容存在 + 步骤 4 推送前自审
-- **规则 14**：禁止 `#[allow(...)]`，所有警告视为错误
-- **规则 20**：注释与功能一致性，CI 强制检查
+- **规则 0**：所有预留 API/功能/占位符/路由必须真实实现，禁止 stub/placeholder
+- **规则 2**：禁止警告抑制，注释与功能一致
+- **规则 3**：修复按批次连续执行，CI 全绿自动下一批；推送前自审
+- **规则 5**：每 30 批次 E2E 测试（独立工作流不阻塞主 CI）
+- **规则 6**：测试 mock 数据禁止硬编码；功能变更必须同步测试代码
+- **规则 13**：PR 描述必须依据 `/.github/PULL_REQUEST_TEMPLATE.md` 模板填写
+- **规则 15**：个人规则（IR）高于项目规则（PR），优先级 IR > PR > PH > IH
+- 完整规则索引见 `.monkeycode/MEMORY.md`
 
 ### CI/CD
 
@@ -559,6 +547,7 @@ cargo bench --features bench
 - 前端：fmt + ESLint + 类型检查 + Vitest 测试 + Vite 构建
 - 依赖审计 + 环境信息 + 依赖图记录
 - E2E 批次测试（独立工作流 `e2e-batch.yml`，PostgreSQL + 后端 + 前端 + Playwright 全链路）
+- Setup 向导真实链路 E2E（`ci-e2e-setup-wizard` job：独立空库 + Release 真实二进制 + 零 mock，UI 真实点击完成初始化并验证登录）
 
 ---
 
