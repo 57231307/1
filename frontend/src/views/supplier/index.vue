@@ -158,7 +158,7 @@ const formData = reactive({
   contact_phone: '',
   fax: '',
   website: '',
-  email: '',
+  contact_email: '',
   main_business: '',
   taxpayer_type: '',
   bank_name: '',

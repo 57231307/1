@@ -43,7 +43,7 @@ import type { PurchaseReceiptQueryParams } from './purchase';
 export type { PurchaseReceiptQueryParams };
 
 export function getPurchaseReceiptList(params?: PurchaseReceiptQueryParams) {
-  return request.get<ApiResponse<{ list: PurchaseReceiptEntity[]; total: number }>>(
+  return request.get<ApiResponse<{ items: PurchaseReceiptEntity[]; total: number }>>(
     '/purchase/receipts',
     { params }
   );

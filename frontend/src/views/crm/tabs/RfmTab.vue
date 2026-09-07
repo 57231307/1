@@ -104,6 +104,7 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
+import { formatCurrency } from '@/utils';
 // D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
 import {
   getCustomerList,
@@ -121,8 +122,6 @@ const rfmLoading = ref(false);
 const rfmCustomers = ref<CustomerWithTags[]>([]);
 const rfmDistribution = ref<Record<string, number>>({});
 
-const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`;
-
 const getRfmLevelTag = (level: string) => {
   const tagMap: Record<string, string> = {
     A: 'success',
@@ -138,7 +137,7 @@ const fetchRfmCustomers = async () => {
   rfmLoading.value = true;
   try {
     const res = await getCustomerList({ page: 1, page_size: 100 });
-    rfmCustomers.value = res.data?.list || [];
+    rfmCustomers.value = res.data?.items || [];
     fetchRfmDistribution();
   } catch (error) {
     rfmCustomers.value = [];

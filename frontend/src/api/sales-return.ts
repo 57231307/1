@@ -47,7 +47,7 @@ export interface SalesReturnQueryParams {
 
 // D14 Batch 5b：原 salesReturnApi.list 转为风格 B 函数
 export const getSalesReturnList = (params?: SalesReturnQueryParams) =>
-  request.get<ApiResponse<{ list: SalesReturn[]; total: number }>>('/sales-returns', { params });
+  request.get<ApiResponse<{ items: SalesReturn[]; total: number }>>('/sales-returns', { params });
 
 // D14 Batch 5b：原 salesReturnApi.create 转为风格 B 函数
 export const createSalesReturn = (data: Partial<SalesReturn>) =>

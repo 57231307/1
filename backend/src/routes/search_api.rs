@@ -153,11 +153,11 @@ pub async fn search_products(
     })))
 }
 
-/// GET /search/doc-types - 列出可用文档类型 + 各索引文档数（v11 批次 156 P2-D：接入 DocType + doc_count 公共 API）
+/// GET /search/doc-types - 列出可用文档类型 + 各索引文档数（v11 批次 156 P2-D：接入 DocType + doc_count 公共 API；缺陷 5：覆盖全部 20 类业务索引）
 pub async fn list_doc_types(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
-    let types = vec![DocType::SalesOrder, DocType::Customer, DocType::Product];
+    let types = DocType::all();
     let mut result: Vec<serde_json::Value> = Vec::with_capacity(types.len());
     for t in &types {
         let count = state.search_client.doc_count(t.index()).await;

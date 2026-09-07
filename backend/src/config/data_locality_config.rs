@@ -91,6 +91,7 @@ pub struct DataLocalityConfig {
 }
 
 impl DataLocalityConfig {
+    #[allow(dead_code, reason = "CI 环境不启用数据本地化配置")]
     pub fn from_env() -> Result<Self, String> {
         let mode_str = std::env::var("DATA_LOCALITY_MODE").unwrap_or_default();
         let mode = if mode_str.is_empty() {

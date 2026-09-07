@@ -110,7 +110,13 @@ const buildTree = (items: ProductCategory[]): ProductCategory[] => {
 const fetchCategories = async () => {
   try {
     const res = await getProductCategoryList();
-    categories.value = (res.data as ProductCategory[] | undefined) || [];
+    // 后端 list 返回 PaginatedResponse { items, total, page, page_size }，
+    // 兼容直接返回数组的历史格式，避免 res.data 当对象遍历不出分类 option
+    const data = res.data as unknown;
+    const list = Array.isArray(data)
+      ? (data as ProductCategory[])
+      : (data as { items?: ProductCategory[] })?.items || [];
+    categories.value = list;
     void buildTree(categories.value);
   } catch (error) {
     logger.error(t('product.index.messageFetchCategoriesFailed'), (error as Error).message);

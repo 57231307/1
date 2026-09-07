@@ -34,7 +34,7 @@ export const PRODUCTION_ORDER_STATUS = {
 // 获取生产订单列表
 export function getProductionOrderList(
   params?: QueryParams
-): Promise<ApiResponse<{ list: ProductionOrder[]; total: number }>> {
+): Promise<ApiResponse<{ items: ProductionOrder[]; total: number }>> {
   return request.get('/production/production-orders/orders', { params });
 }
 

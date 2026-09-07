@@ -35,7 +35,7 @@ export interface LogisticsQueryParams {
 
 // D14 Batch 5b：原 logisticsApi.list 转为风格 B 函数（运单列表）
 export const getLogisticsList = (params?: LogisticsQueryParams) =>
-  request.get<ApiResponse<{ list: LogisticsWaybill[]; total: number }>>('/inventory/logistics', {
+  request.get<ApiResponse<{ items: LogisticsWaybill[]; total: number }>>('/inventory/logistics', {
     params,
   });
 

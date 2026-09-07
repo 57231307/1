@@ -186,7 +186,6 @@ pub fn reports_enhanced() -> Router<AppState> {
 /// 导入路由
 pub fn imports() -> Router<AppState> {
     Router::new()
-        .route("/csv", post(import_export_handler::import_csv))
         .route("/excel", post(import_export_handler::import_excel))
         .route(
             "/templates/download/{import_type}",

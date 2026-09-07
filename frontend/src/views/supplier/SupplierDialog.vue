@@ -97,9 +97,9 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item :label="t('supplier.dialog.label.email')" prop="email">
+          <el-form-item :label="t('supplier.dialog.label.email')" prop="contact_email">
             <el-input
-              v-model="localFormData.email"
+              v-model="localFormData.contact_email"
               :placeholder="t('supplier.dialog.placeholder.email')"
             />
           </el-form-item>
@@ -252,7 +252,7 @@ interface SupplierFormData {
   contact_phone: string;
   fax: string;
   website: string;
-  email: string;
+  contact_email: string;
   main_business: string;
   taxpayer_type: string;
   bank_name: string;
@@ -277,7 +277,7 @@ const emptyForm = (): SupplierFormData => ({
   contact_phone: '',
   fax: '',
   website: '',
-  email: '',
+  contact_email: '',
   main_business: '',
   taxpayer_type: '',
   bank_name: '',

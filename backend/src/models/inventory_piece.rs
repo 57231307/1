@@ -17,12 +17,25 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
 
-    /// 匹号（内部编码，唯一性由 (dye_lot_id, piece_no) 联合唯一约束保证）
+    /// 匹号（生产匹按 piece_no 全局唯一；染色匹按 (dye_lot_id, piece_no) 唯一，
+    /// 见 m0051 部分唯一索引）
     pub piece_no: String,
 
-    /// 缸号 ID（外键，关联 batch_dye_lot；NOT NULL）
-    /// v14 批次 416 新增：原 Rust 模型缺失此字段，导致 INSERT 时违反 NOT NULL 约束
-    pub dye_lot_id: i32,
+    /// 匹类型：greige=生产匹（胚布，生产环节专用，无缸号）；dyed=染色匹
+    /// （入库/外发/销售/出库/对账使用，必有关联缸号）
+    pub piece_type: String,
+
+    /// 缸号 ID（外键，关联 batch_dye_lot）；生产匹（greige）无缸号，为 NULL
+    pub dye_lot_id: Option<i32>,
+
+    /// 机台号（仅生产匹：胚布织造机台，染色匹为 NULL）
+    pub machine_no: Option<String>,
+
+    /// 开机人（生产匹：什么人开的机器，染色匹为 NULL）
+    pub machine_operator: Option<String>,
+
+    /// 入库时间（何时入的胚布仓库/成品仓库）
+    pub warehouse_in_at: Option<DateTime<Utc>>,
 
     /// 供应商匹号（外部编码）
     pub supplier_piece_no: Option<String>,
@@ -75,9 +88,9 @@ pub struct Model {
 
     // ========== v14 批次 419：面料行业追溯字段（F-P0-2 修复） ==========
     /// 色号（面料行业追溯字段，冗余存储便于直接查询，无需 JOIN batch_dye_lot 表）
-    pub color_no: Option<String>,
+    pub color_no: String,
     /// 缸号字符串（面料行业追溯字段，冗余存储便于直接查询）
-    pub dye_lot_no: Option<String>,
+    pub dye_lot_no: String,
 
     /// 母卷 ID（如果是拆分或剪裁而来的布卷，指向原始布卷 ID）
     pub parent_piece_id: Option<i32>,

@@ -244,12 +244,7 @@ function formatAmount(value?: number): string {
 onMounted(async () => {
   try {
     const res = await getProductList({ page: 1, page_size: 1000, is_active: true });
-    const data = res.data;
-    if (data && typeof data === 'object' && 'list' in data) {
-      products.value = data.list || [];
-    } else {
-      products.value = [];
-    }
+    products.value = res.data?.items || [];
   } catch {
     products.value = [];
   }

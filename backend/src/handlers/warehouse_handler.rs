@@ -47,6 +47,10 @@ pub struct CreateWarehouseRequest {
     pub capacity: Option<i32>,
     // 批次 93 P1 扩展：description 已接入 WarehouseService::create（写入 notes 列）
     pub description: Option<String>,
+    /// 仓库类型：greige=胚布仓（只存未染色/未做工艺的胚布）；finished=成品仓
+    /// （只存染色/工艺后成品）；不传=不校验（匹号领域规则）
+    #[validate(length(max = 20, message = "仓库类型长度不能超过20个字符"))]
+    pub warehouse_type: Option<String>,
 }
 
 /// 更新仓库请求
@@ -61,6 +65,9 @@ pub struct UpdateWarehouseRequest {
     /// 仓库容量（批次 158 v11 真实接入：扩展 schema 持久化，原 #[allow(dead_code)] 移除）
     pub capacity: Option<i32>,
     pub status: Option<String>,
+    /// 仓库类型：greige=胚布仓；finished=成品仓；NULL=不校验
+    #[validate(length(max = 20, message = "仓库类型长度不能超过20个字符"))]
+    pub warehouse_type: Option<String>,
 }
 
 crate::define_crud_handlers!(

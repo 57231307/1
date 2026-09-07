@@ -50,6 +50,8 @@ pub struct Model {
     pub inventory_transaction_id: Option<i32>,
     /// 缺陷 2.1：关联胚布ID（精确到卷/匹级追溯）
     pub greige_fabric_id: Option<i32>,
+    /// 生产匹号（外发染色发料引用的生产匹）
+    pub piece_no: Option<String>,
     /// 备注
     pub remarks: Option<String>,
 

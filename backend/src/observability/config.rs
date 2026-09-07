@@ -67,6 +67,7 @@ impl Default for ObservabilityConfig {
 
 impl ObservabilityConfig {
     /// 从环境变量加载
+    #[allow(dead_code, reason = "CI 环境 未启用 observability")]
     pub fn from_env() -> Self {
         Self {
             service_name: std::env::var("OTEL_SERVICE_NAME")
@@ -110,6 +111,7 @@ pub struct ResourceAttrs {
     pub deployment_environment: String,
 }
 
+#[allow(dead_code, reason = "CI 环境 未启用 observability")]
 impl ResourceAttrs {
     pub fn from_config(cfg: &ObservabilityConfig) -> Self {
         Self {

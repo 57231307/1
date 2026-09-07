@@ -220,17 +220,14 @@ impl MigrationTrait for Migration {
 -- ============================================
 CREATE TABLE "products" (
     "id" SERIAL PRIMARY KEY,
-    "product_no" VARCHAR(50) NOT NULL UNIQUE,
+    "code" VARCHAR(50) NOT NULL UNIQUE,
     "name" VARCHAR(200) NOT NULL,
     "category_id" INTEGER,
-    "spec" VARCHAR(100),
+    "specification" VARCHAR(100),
     "unit" VARCHAR(20),
-    "color" VARCHAR(50),
-    "weight" DECIMAL(10, 2),
     "width" DECIMAL(10, 2),
-    "length" DECIMAL(10, 2),
-    "price" DECIMAL(12, 2) DEFAULT 0,
-    "cost" DECIMAL(12, 2) DEFAULT 0,
+    "standard_price" DECIMAL(12, 2) DEFAULT 0,
+    "cost_price" DECIMAL(12, 2) DEFAULT 0,
     "stock" INTEGER DEFAULT 0,
     "warehouse_id" INTEGER,
     "supplier_id" INTEGER,
@@ -241,19 +238,17 @@ CREATE TABLE "products" (
 );
 
 -- 产品索引
-CREATE INDEX "idx_products_product_no" ON "products" ("product_no");
+CREATE INDEX "idx_products_code" ON "products" ("code");
 CREATE INDEX "idx_products_category_id" ON "products" ("category_id");
 CREATE INDEX "idx_products_warehouse_id" ON "products" ("warehouse_id");
 CREATE INDEX "idx_products_supplier_id" ON "products" ("supplier_id");
 
 COMMENT ON TABLE "products" IS '产品表 - 存储面料产品信息';
-COMMENT ON COLUMN "products"."product_no" IS '产品编号';
+COMMENT ON COLUMN "products"."code" IS '产品编号';
 COMMENT ON COLUMN "products"."name" IS '产品名称';
 COMMENT ON COLUMN "products"."category_id" IS '产品分类ID';
-COMMENT ON COLUMN "products"."spec" IS '规格';
+COMMENT ON COLUMN "products"."specification" IS '规格';
 COMMENT ON COLUMN "products"."unit" IS '单位';
-COMMENT ON COLUMN "products"."color" IS '颜色/色号';
-COMMENT ON COLUMN "products"."weight" IS '克重 (g/m²)';
 COMMENT ON COLUMN "products"."width" IS '幅宽 (cm)';
 
 -- ============================================
@@ -283,7 +278,7 @@ COMMENT ON COLUMN "product_categories"."parent_id" IS '上级分类ID';
 CREATE TABLE "warehouses" (
     "id" SERIAL PRIMARY KEY,
     "name" VARCHAR(100) NOT NULL,
-    "code" VARCHAR(50) NOT NULL UNIQUE,
+    "warehouse_code" VARCHAR(50) NOT NULL UNIQUE,
     "address" TEXT,
     "manager_id" INTEGER,
     "description" TEXT,
@@ -295,7 +290,7 @@ CREATE TABLE "warehouses" (
 
 COMMENT ON TABLE "warehouses" IS '仓库表';
 COMMENT ON COLUMN "warehouses"."name" IS '仓库名称';
-COMMENT ON COLUMN "warehouses"."code" IS '仓库代码';
+COMMENT ON COLUMN "warehouses"."warehouse_code" IS '仓库代码';
 COMMENT ON COLUMN "warehouses"."address" IS '仓库地址';
 COMMENT ON COLUMN "warehouses"."manager_id" IS '仓库管理员ID';
 
@@ -304,11 +299,11 @@ COMMENT ON COLUMN "warehouses"."manager_id" IS '仓库管理员ID';
 -- ============================================
 CREATE TABLE "suppliers" (
     "id" SERIAL PRIMARY KEY,
-    "name" VARCHAR(200) NOT NULL,
-    "code" VARCHAR(50) NOT NULL UNIQUE,
-    "contact" VARCHAR(100),
-    "phone" VARCHAR(50),
-    "email" VARCHAR(255),
+    "supplier_name" VARCHAR(200) NOT NULL,
+    "supplier_code" VARCHAR(50) NOT NULL UNIQUE,
+    "contact_person" VARCHAR(100),
+    "contact_phone" VARCHAR(50),
+    "contact_email" VARCHAR(255),
     "address" TEXT,
     "description" TEXT,
     "is_active" BOOLEAN DEFAULT true,
@@ -318,21 +313,21 @@ CREATE TABLE "suppliers" (
 );
 
 COMMENT ON TABLE "suppliers" IS '供应商表';
-COMMENT ON COLUMN "suppliers"."name" IS '供应商名称';
-COMMENT ON COLUMN "suppliers"."code" IS '供应商代码';
-COMMENT ON COLUMN "suppliers"."contact" IS '联系人';
-COMMENT ON COLUMN "suppliers"."phone" IS '联系电话';
+COMMENT ON COLUMN "suppliers"."supplier_name" IS '供应商名称';
+COMMENT ON COLUMN "suppliers"."supplier_code" IS '供应商代码';
+COMMENT ON COLUMN "suppliers"."contact_person" IS '联系人';
+COMMENT ON COLUMN "suppliers"."contact_phone" IS '联系电话';
 
 -- ============================================
 -- 8. 基础数据模块 - 客户表
 -- ============================================
 CREATE TABLE "customers" (
     "id" SERIAL PRIMARY KEY,
-    "name" VARCHAR(200) NOT NULL,
-    "code" VARCHAR(50) NOT NULL UNIQUE,
-    "contact" VARCHAR(100),
-    "phone" VARCHAR(50),
-    "email" VARCHAR(255),
+    "customer_name" VARCHAR(200) NOT NULL,
+    "customer_code" VARCHAR(50) NOT NULL UNIQUE,
+    "contact_person" VARCHAR(100),
+    "contact_phone" VARCHAR(50),
+    "contact_email" VARCHAR(255),
     "address" TEXT,
     "customer_type" VARCHAR(20),
     "credit_limit" DECIMAL(12, 2) DEFAULT 0,
@@ -344,8 +339,8 @@ CREATE TABLE "customers" (
 );
 
 COMMENT ON TABLE "customers" IS '客户表';
-COMMENT ON COLUMN "customers"."name" IS '客户名称';
-COMMENT ON COLUMN "customers"."code" IS '客户代码';
+COMMENT ON COLUMN "customers"."customer_name" IS '客户名称';
+COMMENT ON COLUMN "customers"."customer_code" IS '客户代码';
 COMMENT ON COLUMN "customers"."customer_type" IS '客户类型 - 批发/零售';
 COMMENT ON COLUMN "customers"."credit_limit" IS '信用额度';
 
@@ -391,7 +386,7 @@ CREATE TABLE "sales_orders" (
     "id" SERIAL PRIMARY KEY,
     "order_no" VARCHAR(50) NOT NULL UNIQUE,
     "customer_id" INTEGER NOT NULL,
-    "order_date" DATE NOT NULL,
+    "order_date" TIMESTAMPTZ NOT NULL,
     "delivery_date" DATE,
     "status" VARCHAR(20) NOT NULL DEFAULT 'draft',
     "total_amount" DECIMAL(14, 2) DEFAULT 0,
@@ -655,8 +650,8 @@ ALTER TABLE "inventory_count_items" ADD CONSTRAINT "fk_inventory_count_items_cou
 
 CREATE TABLE IF NOT EXISTS "audit_logs" (
     "id" SERIAL PRIMARY KEY,
-    "table_name" VARCHAR(100) NOT NULL,
-    "record_id" INTEGER NOT NULL,
+    "table_name" VARCHAR(100),
+    "record_id" INTEGER,
     "action" VARCHAR(20) NOT NULL,
     "old_data" JSONB,
     "new_data" JSONB,

@@ -8,7 +8,7 @@ use tokio::sync::Mutex;
 // SSRF 防护守卫：对 ES base_url 做协议白名单 + 主机名黑名单 + IP 黑名单 + DNS 解析校验
 use crate::utils::ssrf_guard;
 
-/// 3 个核心索引
+/// 20 个业务索引（缺陷 5 修复：3 → 20，覆盖全业务域主数据/单据）
 pub mod indices {
     /// 销售订单索引
     pub const SALES_ORDERS: &str = "sales_orders";
@@ -16,6 +16,64 @@ pub mod indices {
     pub const CUSTOMERS: &str = "customers";
     /// 产品索引
     pub const PRODUCTS: &str = "products";
+    /// 供应商索引
+    pub const SUPPLIERS: &str = "suppliers";
+    /// 仓库索引
+    pub const WAREHOUSES: &str = "warehouses";
+    /// 采购订单索引
+    pub const PURCHASE_ORDERS: &str = "purchase_orders";
+    /// 库存批次索引
+    pub const INVENTORY_BATCHES: &str = "inventory_batches";
+    /// 生产工单索引
+    pub const PRODUCTION_ORDERS: &str = "production_orders";
+    /// 染色批次索引
+    pub const DYE_BATCHES: &str = "dye_batches";
+    /// 染色配方索引
+    pub const DYE_RECIPES: &str = "dye_recipes";
+    /// 色卡索引
+    pub const COLOR_CARDS: &str = "color_cards";
+    /// 色号价格索引
+    pub const COLOR_PRICES: &str = "color_prices";
+    /// BOM 索引
+    pub const BOMS: &str = "boms";
+    /// 定制订单索引
+    pub const CUSTOM_ORDERS: &str = "custom_orders";
+    /// 财务凭证索引
+    pub const VOUCHERS: &str = "vouchers";
+    /// 应收发票索引
+    pub const AR_INVOICES: &str = "ar_invoices";
+    /// 应付发票索引
+    pub const AP_INVOICES: &str = "ap_invoices";
+    /// 销售合同索引
+    pub const SALES_CONTRACTS: &str = "sales_contracts";
+    /// 采购合同索引
+    pub const PURCHASE_CONTRACTS: &str = "purchase_contracts";
+    /// 会计期间索引
+    pub const ACCOUNTING_PERIODS: &str = "accounting_periods";
+
+    /// 全部索引列表（ensure_indices 幂等创建用）
+    pub const ALL: &[&str] = &[
+        SALES_ORDERS,
+        CUSTOMERS,
+        PRODUCTS,
+        SUPPLIERS,
+        WAREHOUSES,
+        PURCHASE_ORDERS,
+        INVENTORY_BATCHES,
+        PRODUCTION_ORDERS,
+        DYE_BATCHES,
+        DYE_RECIPES,
+        COLOR_CARDS,
+        COLOR_PRICES,
+        BOMS,
+        CUSTOM_ORDERS,
+        VOUCHERS,
+        AR_INVOICES,
+        AP_INVOICES,
+        SALES_CONTRACTS,
+        PURCHASE_CONTRACTS,
+        ACCOUNTING_PERIODS,
+    ];
 }
 
 /// 文档类型（通过 /search/doc-types 端点暴露公共 API）
@@ -24,6 +82,23 @@ pub enum DocType {
     SalesOrder,
     Customer,
     Product,
+    Supplier,
+    Warehouse,
+    PurchaseOrder,
+    InventoryBatch,
+    ProductionOrder,
+    DyeBatch,
+    DyeRecipe,
+    ColorCard,
+    ColorPrice,
+    Bom,
+    CustomOrder,
+    Voucher,
+    ArInvoice,
+    ApInvoice,
+    SalesContract,
+    PurchaseContract,
+    AccountingPeriod,
 }
 
 /// 销售订单文档
@@ -244,11 +319,12 @@ pub async fn ensure_indices(base_url: &str) -> Result<(), SearchError> {
         .build()
         .map_err(|e| SearchError::Connection(format!("reqwest 客户端创建失败: {}", e)))?;
 
-    for (index, mapping) in [
-        (indices::SALES_ORDERS, sales_orders_mapping()),
-        (indices::CUSTOMERS, customers_mapping()),
-        (indices::PRODUCTS, products_mapping()),
-    ] {
+    for (index, mapping) in indices::ALL.iter().map(|i| match *i {
+        indices::SALES_ORDERS => (*i, sales_orders_mapping()),
+        indices::CUSTOMERS => (*i, customers_mapping()),
+        indices::PRODUCTS => (*i, products_mapping()),
+        _ => (*i, generic_mapping()),
+    }) {
         let url = format!("{}/{}", base_url, index);
         let resp = http.put(&url).json(&mapping).send().await.map_err(|e| {
             SearchError::Connection(format!(
@@ -272,6 +348,34 @@ pub async fn ensure_indices(base_url: &str) -> Result<(), SearchError> {
         }
     }
     Ok(())
+}
+
+/// 通用索引 mapping（缺陷 5：17 个新增业务索引共享，覆盖常见业务字段）
+fn generic_mapping() -> serde_json::Value {
+    serde_json::json!({
+        "mappings": {
+            "properties": {
+                "id": { "type": "keyword" },
+                "code": { "type": "keyword" },
+                "no": { "type": "keyword" },
+                "order_no": { "type": "keyword" },
+                "batch_no": { "type": "keyword" },
+                "color_no": { "type": "keyword" },
+                "name": { "type": "text", "analyzer": "standard" },
+                "title": { "type": "text", "analyzer": "standard" },
+                "status": { "type": "keyword" },
+                "grade": { "type": "keyword" },
+                "customer_id": { "type": "integer" },
+                "product_id": { "type": "integer" },
+                "warehouse_id": { "type": "integer" },
+                "amount": { "type": "double" },
+                "total_amount": { "type": "double" },
+                "quantity": { "type": "double" },
+                "created_at": { "type": "date" },
+                "updated_at": { "type": "date" }
+            }
+        }
+    })
 }
 
 /// sales_orders 索引 mapping 定义

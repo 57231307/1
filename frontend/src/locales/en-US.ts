@@ -1507,6 +1507,7 @@ export default {
     process: {
       invalidId: 'Invalid process optimization ID',
       loadDetailFailed: 'Failed to load detail',
+      recordNotFound: 'Record not found or has been deleted',
       confirmDelete: 'Delete this process optimization record?',
       createFailed: 'Creation failed',
       detailTitle: 'Process Optimization Detail',
@@ -3070,6 +3071,7 @@ export default {
       messageReasonRequired: 'Please enter the cancellation reason',
       messageCancelSuccess: 'Cancelled successfully',
       messageCancelFailed: 'Failed to cancel',
+      notFound: 'Order not found or has been deleted',
     },
     create: {
       title: 'New Custom Order',
@@ -3175,6 +3177,7 @@ export default {
       nodeStatusCompleted: 'Completed',
       nodeStatusBlocked: 'Blocked',
       messageLoadFailed: 'Failed to load timeline',
+      notFound: 'Order not found or has been deleted',
     },
   },
   product: {
@@ -5388,6 +5391,7 @@ export default {
   crmDetail: {
     title: 'Customer 360 View',
     back: 'Back',
+    customerNotFound: 'Customer not found or has been deleted',
     breadcrumb: {
       home: 'Home',
       crm: 'CRM',
@@ -7249,6 +7253,8 @@ export default {
         realName: 'Name',
         phone: 'Phone',
         email: 'Email',
+        role: 'Role',
+        rolePlaceholder: 'Please select a role',
         status: 'Status',
       },
       validation: {
@@ -10479,6 +10485,7 @@ export default {
       colStatus: 'Status',
       colOperation: 'Operation',
       defaultYes: 'Yes',
+      optionGreige: 'Greige Warehouse',
       optionRaw: 'Raw Material',
       optionFinished: 'Finished Goods',
       optionSemi: 'Semi-Finished',

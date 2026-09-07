@@ -6,8 +6,8 @@ use axum::{
 };
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect, Set,
+    ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, Set,
 };
 use serde::Deserialize;
 
@@ -104,8 +104,10 @@ pub struct UpdateDyeBatchRequest {
 
 pub async fn list_dye_batches(
     State(state): State<AppState>,
+    auth: AuthContext,
     Query(query): Query<DyeBatchListQuery>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<dye_batch::Model>>>, AppError> {
+    let _data_scope = auth.to_data_scope_context();
     let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
@@ -139,6 +141,7 @@ pub async fn list_dye_batches(
 
 pub async fn get_dye_batch(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<dye_batch::Model>>, AppError> {
     let batch = dye_batch::Entity::find_by_id(id)
@@ -176,9 +179,14 @@ pub async fn create_dye_batch(
     let dye_lot_no = req.dye_lot_no.unwrap_or_else(|| "DEFAULT".to_string());
 
     let batch = dye_batch::ActiveModel {
-        id: Set(0),
+        id: NotSet,
         batch_no: Set(batch_no),
         greige_fabric_id: Set(req.greige_fabric_id),
+        color_code: Set(req.color_no.clone().unwrap_or_else(|| "TEST".to_string())),
+        color_name: Set(req
+            .color_no
+            .clone()
+            .unwrap_or_else(|| "测试色号".to_string())),
         color_no: Set(req.color_no),
         dye_lot_no: Set(dye_lot_no),
         planned_quantity: Set(req.planned_quantity.and_then(Decimal::from_f64_retain)),

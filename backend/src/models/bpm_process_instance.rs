@@ -20,6 +20,10 @@ pub struct Model {
 
     pub business_id: i32,
 
+    // DB 列 applicant_id INTEGER NOT NULL（m0001 初始 schema），
+    // model 此前缺失该字段导致 INSERT 不含它 → null violation 500
+    pub applicant_id: i32,
+
     pub title: String,
 
     pub priority: Option<String>,

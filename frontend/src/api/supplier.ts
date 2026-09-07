@@ -41,7 +41,7 @@ export interface Supplier {
 // D14 Batch 5b：原 supplierApi.list 与本函数 URL 同为 /purchase/suppliers，判定为重复，移除对象方法，保留本函数
 export function getSupplierList(
   params?: SupplierQueryParams
-): Promise<ApiResponse<{ list: Supplier[]; total: number }>> {
+): Promise<ApiResponse<{ items: Supplier[]; total: number }>> {
   return request.get('/purchase/suppliers', { params });
 }
 

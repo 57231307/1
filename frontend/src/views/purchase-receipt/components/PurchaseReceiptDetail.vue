@@ -79,7 +79,7 @@
             align="right"
           >
             <template #default="scope">
-              {{ (scope.row.price || 0).toFixed(2) }}
+              {{ Number(scope.row.price ?? 0).toFixed(2) }}
             </template>
           </el-table-column>
           <el-table-column
@@ -89,7 +89,7 @@
             align="right"
           >
             <template #default="scope">
-              {{ (scope.row.amount || 0).toFixed(2) }}
+              {{ Number(scope.row.amount ?? 0).toFixed(2) }}
             </template>
           </el-table-column>
           <el-table-column prop="remark" :label="t('purchaseReceipt.detail.column.remark')" />

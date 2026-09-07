@@ -143,6 +143,8 @@ impl BomService {
                 unit: Set(item_req.unit.clone()),
                 scrap_rate: Set(item_req.scrap_rate),
                 sort_order: Set(Some(item_req.sort_order.unwrap_or(index as i32))),
+                // 显式初始化：bom_items.is_deleted 列无 DB 默认值，NotSet 会报 Missing value
+                is_deleted: Set(false),
                 created_at: Set(Utc::now()),
                 updated_at: Set(Utc::now()),
                 ..Default::default()

@@ -46,7 +46,7 @@ export interface PurchaseReturnQueryParams {
 
 // D14 Batch 5b：原 purchaseReturnApi.list 转为风格 B 函数
 export const getPurchaseReturnList = (params?: PurchaseReturnQueryParams) =>
-  request.get<ApiResponse<{ list: PurchaseReturn[]; total: number }>>('/purchase/returns', {
+  request.get<ApiResponse<{ items: PurchaseReturn[]; total: number }>>('/purchase/returns', {
     params,
   });
 

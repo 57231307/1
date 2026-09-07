@@ -35,6 +35,8 @@ pub struct Model {
     #[sea_orm(column_type = "Decimal(Some((18, 2)))")]
     pub amount: Option<Decimal>,
     pub location_code: Option<String>,
+    /// 染色匹号（匹号领域：入库/出库/销售/对账使用染色匹号）
+    pub piece_no: Option<String>,
     pub package_no: Option<String>,
     pub production_date: Option<NaiveDate>,
     pub shelf_life: Option<i32>,

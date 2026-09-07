@@ -39,7 +39,7 @@
         />
         <el-table-column prop="amount" :label="t('fund.transferTab.columnAmount')" width="140">
           <template #default="{ row }">
-            <span class="balance-positive">¥{{ row.amount.toFixed(2) }}</span>
+            <span class="balance-positive">¥{{ Number(row.amount ?? 0).toFixed(2) }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="status" :label="t('fund.transferTab.columnStatus')" width="100">

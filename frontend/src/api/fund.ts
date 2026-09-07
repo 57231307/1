@@ -42,7 +42,7 @@ export interface FundTransferRecord {
 
 export function getFundAccountList(
   params?: QueryParams
-): Promise<ApiResponse<{ list: FundAccount[]; total: number }>> {
+): Promise<ApiResponse<{ items: FundAccount[]; total: number }>> {
   return request.get('/fund-management/accounts', { params });
 }
 

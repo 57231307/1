@@ -44,7 +44,7 @@ pub struct Model {
     /// 色号（面料行业追溯字段）
     pub color_no: String,
     /// 缸号（面料行业追溯字段，白坯布退货时为 NULL）
-    pub dye_lot_no: Option<String>,
+    pub dye_lot_no: String,
     /// 批号（面料行业追溯字段）
     pub batch_no: String,
 }

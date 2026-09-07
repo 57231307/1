@@ -375,7 +375,7 @@ const viewData = ref<OpportunityRow | null>(null);
 const fetchUsers = async () => {
   try {
     const res = await getUserList();
-    users.value = res.data?.list || [];
+    users.value = res.data?.users || [];
   } catch (error) {
     users.value = [];
   }
@@ -384,7 +384,7 @@ const fetchUsers = async () => {
 const fetchCustomers = async () => {
   try {
     const res = await getCustomerList();
-    customers.value = res.data?.list || [];
+    customers.value = res.data?.items || [];
   } catch (error) {
     customers.value = [];
   }

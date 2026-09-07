@@ -68,7 +68,7 @@
         >
           <template #default="{ row }">
             <span v-if="row.frozen_balance" class="balance-frozen"
-              >¥{{ row.frozen_balance.toFixed(2) }}</span
+              >¥{{ Number(row.frozen_balance ?? 0).toFixed(2) }}</span
             >
             <span v-else>-</span>
           </template>

@@ -53,6 +53,8 @@ pub fn roles() -> Router<AppState> {
             delete(role_handler::remove_permission),
         )
         .route("/roles/permissions", get(role_handler::list_permissions))
+        // SoD 角色互斥规则（axum matchit 静态段优先于 {id} 动态段）
+        .route("/roles/conflicts", get(role_handler::list_role_conflicts))
 }
 
 /// 部门管理路由（path 前缀 /departments）

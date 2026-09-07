@@ -2,6 +2,7 @@ use crate::container::AppState;
 use crate::middleware::audit_context::AuditContext;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::audit_log::{OperationType, Severity};
+use crate::models::role_conflict;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::role_permission_service::RolePermissionService;
 use crate::services::role_permission_service::{
@@ -14,6 +15,7 @@ use axum::{
     Json,
     extract::{Extension, Path, State},
 };
+use sea_orm::{EntityTrait, QueryOrder};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -589,4 +591,18 @@ pub async fn list_permissions(
     }
 
     Ok(Json(ApiResponse::success(permissions)))
+}
+
+/// GET /api/v1/erp/roles/conflicts
+/// 角色互斥规则（SoD 职责分离）列表
+#[allow(dead_code, reason = "E2E P1-1 与前端设置页消费")]
+pub async fn list_role_conflicts(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<Vec<role_conflict::Model>>>, AppError> {
+    let items = role_conflict::Entity::find()
+        .order_by_asc(role_conflict::Column::Id)
+        .all(state.db.as_ref())
+        .await?;
+    Ok(Json(ApiResponse::success(items)))
 }

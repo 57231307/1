@@ -169,9 +169,9 @@ impl ProductionOrderService {
             cost_object_type: Some("production_order".to_string()),
             cost_object_id: Some(updated.id),
             cost_object_no: Some(updated.order_no.clone()),
-            batch_no: updated.batch_no.clone(),
-            color_no: updated.color_no.clone(),
-            dye_lot_no: updated.dye_lot_no.clone(),
+            batch_no: Some(updated.batch_no.clone()),
+            color_no: Some(updated.color_no.clone()),
+            dye_lot_no: Some(updated.dye_lot_no.clone()),
             workshop: None,
             direct_material: total_material_cost,
             direct_labor: Decimal::ZERO,
@@ -622,12 +622,9 @@ impl ProductionOrderService {
             CreateStockFabricArgs {
                 warehouse_id: default_warehouse.id,
                 product_id: order.product_id,
-                batch_no: order
-                    .batch_no
-                    .clone()
-                    .unwrap_or_else(|| order.order_no.clone()),
-                color_no: order.color_no.clone().unwrap_or_default(),
-                dye_lot_no: order.dye_lot_no.clone(),
+                batch_no: order.batch_no.clone(),
+                color_no: order.color_no.clone(),
+                dye_lot_no: Some(order.dye_lot_no.clone()),
                 grade: "一等品".to_string(),
                 quantity_meters: production_qty,
                 quantity_kg: kg,

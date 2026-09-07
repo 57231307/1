@@ -61,7 +61,7 @@ export function useArRec() {
         start_date: searchForm.value.start_date || undefined,
         end_date: searchForm.value.end_date || undefined,
       });
-      tableData.value = res.data?.list || [];
+      tableData.value = res.data?.items || [];
       total.value = res.data?.total || 0;
     } catch {
       ElMessage.error(t('arReconciliationModule.loadResultsFailed'));
@@ -136,7 +136,7 @@ export function useArRec() {
         page: 1,
         page_size: 20,
       });
-      confirmData.value = res.data?.list || [];
+      confirmData.value = (Array.isArray(res.data) ? res.data : res.data?.list) || [];
       confirmTotal.value = res.data?.total || 0;
       confirmDialogVisible.value = true;
     } catch {

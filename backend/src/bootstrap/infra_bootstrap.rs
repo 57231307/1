@@ -84,7 +84,21 @@ pub async fn connect_database(
     settings: &AppSettings,
 ) -> Result<DatabaseConnection, sea_orm::DbErr> {
     // 配置数据库连接池
-    let mut db_opts = ConnectOptions::new(settings.database.connection_string.clone());
+    // 防御：连接串追加 statement_timeout/idle_in_transaction_session_timeout，
+    // 防 PG 侧偶发锁等待/挂死查询永久占用池连接（run 34067844812 shard-0/11
+    // 实测 GET custom-orders/{id} handler 挂死 6 分钟+，池被逐渐占满拖垮分片）
+    let conn_str = if settings.database.connection_string.contains('?') {
+        format!(
+            "{}&options=-c%20statement_timeout%3D30000%20-c%20idle_in_transaction_session_timeout%3D15000",
+            settings.database.connection_string
+        )
+    } else {
+        format!(
+            "{}?options=-c%20statement_timeout%3D30000%20-c%20idle_in_transaction_session_timeout%3D15000",
+            settings.database.connection_string
+        )
+    };
+    let mut db_opts = ConnectOptions::new(conn_str);
     db_opts
         .max_connections(settings.database.max_connections)
         .min_connections(5)

@@ -24,7 +24,7 @@ export const BUDGET_STATUS = {
 
 export function getBudgetList(
   params?: QueryParams
-): Promise<ApiResponse<{ list: Budget[]; total: number }>> {
+): Promise<ApiResponse<{ items: Budget[]; total: number }>> {
   return request.get('/budgets', { params });
 }
 

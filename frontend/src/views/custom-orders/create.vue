@@ -212,10 +212,14 @@ async function handleSubmit() {
     if (!form.value.customer_id || !form.value.product_id) {
       throw new Error(t('customOrders.create.messageCustomerProductRequired'));
     }
+    // 后端 expected_delivery_date 为日期类型，空串 "" 反序列化失败
+    //（"premature end of input" → 422）。先解构排除，空串时不携带该字段
+    const { expected_delivery_date, ...restForm } = form.value;
     const payload = {
-      ...form.value,
+      ...restForm,
       customer_id: form.value.customer_id,
       product_id: form.value.product_id,
+      ...(expected_delivery_date ? { expected_delivery_date } : {}),
       custom_requirements,
     };
     const res = await createCustomOrder(payload);

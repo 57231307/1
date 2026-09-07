@@ -127,6 +127,10 @@ class Request {
 
     this.instance.interceptors.response.use(
       (response: AxiosResponse<ApiResponse>) => {
+        // Blob 响应（文件下载/导出）无 code 信封，直接放行交给调用方处理二进制
+        if (response.config.responseType === 'blob' || response.data instanceof Blob) {
+          return response;
+        }
         const res = response.data;
         if (res.code !== 200 && res.code !== 0) {
           const safeMessage = getSafeErrorMessage(res.code);
@@ -145,11 +149,32 @@ class Request {
       async error => {
         const originalRequest = error.config;
 
-        // 拦截 HTTP 403 + 业务码 CSRF 校验失败：清空 CSRF Token 并跳转登录
-        // 后端在缺失/无效 CSRF Token 时返回 403 + code 字段（字符串），前端在错误拦截器识别
+        // 拦截 HTTP 403 + 业务码 CSRF 校验失败：CSRF Token 为一次性消费，
+        // 多标签页/并发请求共享同一 csrf_token Cookie 时，后发请求必然携带已消费的旧 token。
+        // 恢复顺序：
+        // 1. 后端在消费失败时通过 X-New-CSRF-Token 头下发了恢复 token → 写入 Cookie 后用它重放
+        // 2. 无恢复头时读取最新 Cookie 中的 token 重放一次（带 _csrfRetry 标记防循环）
+        // 仍失败才清空 token 并跳转登录，避免并发请求把用户误踢出登录态。
         if (error.response?.status === 403) {
           const body = error.response.data as { code?: string } | undefined;
           if (body && (body.code === 'CSRF_TOKEN_MISSING' || body.code === 'CSRF_TOKEN_INVALID')) {
+            const isCsrfRetry = (originalRequest as { _csrfRetry?: boolean } | undefined)
+              ?._csrfRetry;
+            // 优先使用后端下发的恢复 token（并发竞败场景的权威来源）
+            const recoveryToken = error.response.headers?.['x-new-csrf-token'] as
+              string | undefined;
+            if (!isCsrfRetry && recoveryToken) {
+              document.cookie = `csrf_token=${recoveryToken}; Path=/; SameSite=Strict; Max-Age=1800`;
+              (originalRequest as { _csrfRetry?: boolean })._csrfRetry = true;
+              originalRequest.headers['X-CSRF-Token'] = recoveryToken;
+              return this.instance(originalRequest);
+            }
+            const freshToken = loadCsrfToken();
+            if (!isCsrfRetry && freshToken) {
+              (originalRequest as { _csrfRetry?: boolean })._csrfRetry = true;
+              originalRequest.headers['X-CSRF-Token'] = freshToken;
+              return this.instance(originalRequest);
+            }
             // csrf_token Cookie 由后端管理；前端只能清空 document.cookie 中非 httpOnly 的 csrf_token
             // 真正彻底清理需调用 logout 接口或后端通过 Set-Cookie + max-age=0 清除
             clearCsrfToken();
@@ -163,10 +188,16 @@ class Request {
         // - 不再从前端取 refresh_token，浏览器会自动通过 httpOnly Cookie 发送
         // - 调 /auth/refresh 即可，后端会通过 Set-Cookie 头更新 access_token / csrf_token
         // - 重放时不需要重新注入 Authorization 头（Cookie 自动随 withCredentials=true 发送）
-        if (error.response?.status === 401 && !originalRequest?._retry) {
+        if (
+          error.response?.status === 401 &&
+          !originalRequest?._retry &&
+          !(originalRequest as any)?._skipAuthRetry
+        ) {
           if (isRefreshing) {
             // FE-P1-1 修复：排队请求同时持有 resolve/reject，
             // 刷新成功走 resolve 重放，刷新失败走 reject 让 Promise settle
+            // _retry 前置标记：防止重放后再次 401 时重新进入刷新逻辑形成循环
+            originalRequest._retry = true;
             return new Promise((resolve, reject) => {
               subscribeTokenRefresh(() => resolve(this.instance(originalRequest)), reject);
             });
@@ -191,7 +222,11 @@ class Request {
           }
         }
 
-        if (originalRequest?._retry && shouldRetry(error)) {
+        // 网络层自动重试仅限幂等方法（GET/HEAD）：
+        // POST/PUT/DELETE 重试可能造成重复制单/重复扣减，必须由上层带幂等键显式控制
+        const reqMethod = (originalRequest?.method || '').toLowerCase();
+        const isIdempotent = ['get', 'head', 'options'].includes(reqMethod);
+        if (originalRequest?._retry && isIdempotent && shouldRetry(error)) {
           originalRequest._retryCount = originalRequest._retryCount || 0;
 
           if (originalRequest._retryCount < 3) {

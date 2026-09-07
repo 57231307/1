@@ -42,7 +42,7 @@
             </div>
             <div class="top-meta">
               <el-tag :type="getDurationTag(item.max_exec_time_ms)" size="small">
-                {{ item.max_exec_time_ms.toFixed(1) }} ms
+                {{ Number(item.max_exec_time_ms ?? 0).toFixed(1) }} ms
               </el-tag>
               <span class="top-calls">{{
                 t('system.slowQuery.text.calls', { count: item.total_calls })

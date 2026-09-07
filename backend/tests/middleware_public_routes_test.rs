@@ -15,6 +15,10 @@ fn test_health_paths_public() {
     assert!(is_public_path("/api/v1/erp/auth/refresh"));
     // 批次 110 P0-1：Webhook 回调端点公开（HMAC 签名验证替代认证）
     assert!(is_public_path("/api/v1/erp/webhooks/integrations/callback"));
+    // 前端路由守卫 checkInitStatus 在登录前调用 GET /init/status 判断系统是否初始化
+    // （公开只读接口，仅返回布尔值不泄露敏感信息），必须放行：
+    // 未放行时 401 → 守卫判 initialized=false → 已初始化系统也被重定向 /setup → 页面内容不渲染
+    assert!(is_public_path("/api/v1/erp/init/status"));
     // 批次 261 修复：initialize 系列高危接口放行 JWT 认证（由 init_token_middleware 认证）
     assert!(is_public_path("/api/v1/erp/init/initialize"));
     assert!(is_public_path("/api/v1/erp/init/initialize-with-db"));
@@ -31,8 +35,8 @@ fn test_business_paths_require_auth() {
     // init 根路径 / tracking / logout 均需认证（initialize 系列除外，由 init_token_middleware 认证）
     assert!(!is_public_path("/init"));
     assert!(!is_public_path("/api/v1/erp/init"));
-    // 只读 init 接口仍需 JWT 认证（test-database/task-status 有 admin 二次校验）
-    assert!(!is_public_path("/api/v1/erp/init/status"));
+    // init 其余只读接口仍需 JWT 认证（test-database/task-status 有 admin 二次校验；
+    // status 因前端登录前守卫依赖而单独公开，见 test_health_paths_public 内说明）
     assert!(!is_public_path("/api/v1/erp/init/test-database"));
     assert!(!is_public_path("/api/v1/erp/init/task-status"));
     assert!(!is_public_path("/api/tracking/page-view"));

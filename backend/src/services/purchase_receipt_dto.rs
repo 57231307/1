@@ -76,6 +76,9 @@ pub struct CreateReceiptItemRequest {
     /// 缸号
     pub lot_no: Option<String>,
 
+    /// 染色匹号（匹号领域：入库使用染色匹号）
+    pub piece_no: Option<String>,
+
     /// 等级
     pub grade: Option<String>,
 
@@ -134,4 +137,6 @@ pub struct UpdateReceiptItemRequest {
     pub unit_price: Option<Decimal>,
     pub location_code: Option<String>,
     pub notes: Option<String>,
+    /// 染色匹号
+    pub piece_no: Option<String>,
 }

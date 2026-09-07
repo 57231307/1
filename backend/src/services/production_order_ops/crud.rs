@@ -246,6 +246,9 @@ impl ProductionOrderService {
             planned_end_date: Set(req.planned_end_date),
             status: Set(crate::models::status::common::STATUS_DRAFT.to_string()),
             priority: Set(req.priority.unwrap_or_default()),
+            // order_type 列 NOT NULL 且无 DB 默认值，普通创建固定 'normal'
+            //（返工路径见 create_rework_order，Set 'rework'）；缺失会 500
+            order_type: Set("normal".to_string()),
             work_center_id: Set(req.work_center_id),
             remarks: Set(req.remarks.clone()),
             created_by: Set(req.created_by),

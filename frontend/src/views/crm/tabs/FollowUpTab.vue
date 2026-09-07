@@ -168,7 +168,7 @@ const getFollowUpTypeLabel = (type: string) => {
 const fetchFollowUps = async () => {
   try {
     const res = await getFollowUpList(props.customerId, query);
-    followUps.value = res.data?.list || [];
+    followUps.value = res.data?.data || [];
     total.value = res.data?.total || 0;
   } catch (error) {
     const err = error as Error;

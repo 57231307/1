@@ -8,7 +8,6 @@
 //! 本处只覆盖 service 层入口校验（最关键的 defense-in-depth 屏障）。
 use bingxi_backend::services::import_export_service::ImportExportService;
 use bingxi_backend::services::import_export_service::MAX_CELL_LEN;
-use bingxi_backend::services::import_export_service::MAX_CSV_BYTES;
 use bingxi_backend::services::import_export_service::MAX_EXCEL_COLS;
 use bingxi_backend::services::import_export_service::MAX_EXCEL_ROWS;
 use bingxi_backend::services::test_common::setup_test_db;
@@ -17,8 +16,6 @@ use std::sync::Arc;
 /// 测试常量定义正确（防止误改后引发业务可用性问题）
 #[test]
 fn test_vuln8_constants_defined_correctly() {
-    // CSV 10MB：业务上限
-    assert_eq!(MAX_CSV_BYTES, 10 * 1024 * 1024, "MAX_CSV_BYTES 应为 10MB");
     // Excel 1 万行
     assert_eq!(MAX_EXCEL_ROWS, 10_000, "MAX_EXCEL_ROWS 应为 1 万行");
     // 100 列

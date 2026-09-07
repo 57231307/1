@@ -44,7 +44,7 @@ export interface PricingStrategyRule {
 
 export function getSalesPriceList(
   params?: QueryParams
-): Promise<ApiResponse<{ list: SalesPrice[]; total: number }>> {
+): Promise<ApiResponse<{ items: SalesPrice[]; total: number }>> {
   return request.get('/sales/sales-prices', { params });
 }
 

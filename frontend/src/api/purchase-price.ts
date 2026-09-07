@@ -24,7 +24,7 @@ export interface PurchasePrice {
 
 export function getPurchasePriceList(
   params?: QueryParams
-): Promise<ApiResponse<{ list: PurchasePrice[]; total: number }>> {
+): Promise<ApiResponse<{ items: PurchasePrice[]; total: number }>> {
   return request.get('/purchase/purchase-prices', { params });
 }
 

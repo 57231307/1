@@ -534,10 +534,16 @@ const handleExport = async () => {
 const handleSubmitForm = async () => {
   try {
     await formRef.value?.validate();
+    // 后端 CreateDyeRecipeRequest 字段为 color_code（表单绑定 color_no），
+    // 提交时映射，否则 serde 忽略 color_no → color_code=None → DB NOT NULL 违反 500
+    const payload = {
+      ...formData,
+      color_code: formData.color_no,
+    };
     if (formData.id) {
-      await updateDyeRecipe(formData.id, formData);
+      await updateDyeRecipe(formData.id, payload);
     } else {
-      await createDyeRecipe(formData);
+      await createDyeRecipe(payload);
     }
     ElMessage.success(t('dyeRecipe.index.messageSaveSuccess'));
     dialogVisible.value = false;

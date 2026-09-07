@@ -114,6 +114,10 @@ pub struct CompleteStepRequest {
     pub abnormal_description: Option<String>,
     pub handling_opinion: Option<String>,
     pub remarks: Option<String>,
+    /// 生产报工逐匹登记（匹号领域：胚布产出必须逐匹登记生产匹号+机台号+开机人）。
+    /// 传入时为工艺单产出创建生产匹（piece_type=greige），仓库必须为胚布仓
+    #[serde(default)]
+    pub pieces: Option<Vec<crate::services::piece_domain_service::ReportPieceInput>>,
 }
 
 // ============================================================================
