@@ -122,6 +122,18 @@ async fn initialize_with_db(
                 e.into_inner()
             });
             *guard = true;
+
+            // 引导成功性修复：Setup 模式主进程只有 /init/* 路由，初始化成功后
+            // /auth/login 等业务路由不存在，用户无法登录（引导流程死路）。
+            // 方案：响应送达后延迟自退进程，systemd（Restart=always）拉起时
+            // config.yaml 指向的库已初始化完成 → 以完整模式启动，业务路由可用。
+            // 延迟 2s：确保 HTTP 响应经过内核缓冲送达前端。
+            tokio::spawn(async {
+                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                tracing::info!("Setup 模式初始化完成，进程自退以切换完整模式（systemd 将自动拉起）");
+                std::process::exit(0);
+            });
+
             Ok(Json(ApiResponse::success_with_message(
                 result,
                 "系统初始化成功",

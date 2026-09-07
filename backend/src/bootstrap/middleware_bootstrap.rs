@@ -57,6 +57,10 @@ pub fn build_cors_layer(allowed_origins: Vec<String>) -> CorsLayer {
             axum::http::header::CONTENT_TYPE,
             axum::http::header::ACCEPT,
             axum::http::header::HeaderName::from_static("x-requested-with"),
+            // 引导页（/setup）的 test-database / initialize-with-db 必带自定义头；
+            // 跨域部署（Origin 白名单直连后端）时浏览器预检要求显式允许，
+            // 缺失会拦截真实请求导致首次部署初始化调用全部失败（同源部署无感）
+            axum::http::header::HeaderName::from_static("x-init-token"),
         ])
         .allow_credentials(true) // 因为改成了 Cookie 鉴权，必须设置为 true
         .max_age(Duration::from_secs(86400)) // 24小时

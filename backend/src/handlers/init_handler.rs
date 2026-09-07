@@ -2,7 +2,7 @@
 
 use crate::container::AppState;
 use crate::middleware::audit_context::AuditContext;
-use crate::middleware::auth_context::AuthContext;
+use crate::middleware::auth_context::{AuthContext, OptionalAuthContext};
 use crate::services::init_service::{
     DatabaseConfig, InitRequest, InitService, InitStatus, InitTaskStatus, get_init_tasks,
 };
@@ -52,17 +52,26 @@ pub async fn get_init_status(State(state): State<AppState>) -> Json<ApiResponse<
     }))
 }
 
-/// 测试数据库连接（P1-1 修复：admin 角色 + port 校验 + 内网 IP 白名单 + 错误脱敏 + 初始化模式约束）
-/// 安全约束：必须登录且具备 admin 角色，端口仅限 1-65535，仅允许内网 IP，已初始化后拒绝调用
+/// 测试数据库连接（Setup 向导专用；PUBLIC_PATHS 放行，认证上下文可匿名）
+/// 安全门禁分层：未初始化时匿名/登录皆可调（匿名系 Setup 向导合法场景，
+/// 但仍受 port 校验 + 内网 IP 白名单约束）；已初始化后一律拒绝（端点禁用）；
+/// 有登录身份时额外要求 admin 角色（防止低权限用户探测内网数据库）
 pub async fn test_database_connection(
     State(state): State<AppState>,
-    auth: AuthContext,
+    auth: OptionalAuthContext,
     audit_ctx: Option<Extension<AuditContext>>,
     Json(payload): Json<TestDatabaseRequest>,
 ) -> Result<Json<ApiResponse<TestDatabaseResponse>>, AppError> {
+    // 门禁次序与安全矩阵：
+    // 1. validate_not_initialized 先行——未初始化时无用户体系可登录，Setup 向导
+    //    匿名调用是合法场景；已初始化后该端点在此直接拒绝（端点已禁用）
+    // 2. validate_admin_role 对有身份请求执行（已初始化后仅限管理员语义，
+    //    且未初始化场景若有登录用户访问同样受 admin 约束）；匿名请求跳过
+    //    （能走到这里必为未初始化，无角色可查，详见函数内注释）
+    // 3. port/ip 校验对匿名与登录请求一视同仁（SSRF 防护不因匿名放宽）
+    validate_not_initialized(&state.db, &auth, &audit_ctx).await?;
     validate_admin_role(&state.db, &auth, &audit_ctx).await?;
     validate_port(&payload.port, &auth, &audit_ctx).await?;
-    validate_not_initialized(&state.db, &auth, &audit_ctx).await?;
     validate_internal_ip(&audit_ctx, &auth).await?;
 
     let target = format!("{}:{}/{}", payload.host, payload.port, payload.name);
@@ -74,16 +83,23 @@ pub async fn test_database_connection(
 
 async fn validate_admin_role(
     db: &Arc<DatabaseConnection>,
-    auth: &AuthContext,
+    auth: &OptionalAuthContext,
     audit_ctx: &Option<Extension<AuditContext>>,
 ) -> Result<(), AppError> {
+    // 匿名请求（Setup 向导场景）跳过 admin 校验：能到达这里说明
+    // validate_not_initialized 已放行（系统未初始化，无用户体系可登录）；
+    // 已初始化系统的请求在 validate_not_initialized 处已被拒绝。
+    // 有身份（JWT 认证）的请求仍执行 admin 校验（已初始化后仅限管理员语义）。
+    if auth.role_id.is_none() {
+        return Ok(());
+    }
     let role_id = if let Some(id) = auth.role_id {
         id
     } else {
         audit::log_security_event(
             SecurityEvent::AuthorizationDenied,
-            auth.user_id,
-            &auth.username,
+            auth.user_id.unwrap_or(0),
+            auth.username.as_deref().unwrap_or("anonymous"),
             auth.role_id,
             Some("test_database_connection"),
             Some("no_role"),
@@ -97,8 +113,8 @@ async fn validate_admin_role(
     if !is_admin_role(db, role_id).await {
         audit::log_security_event(
             SecurityEvent::AuthorizationDenied,
-            auth.user_id,
-            &auth.username,
+            auth.user_id.unwrap_or(0),
+            auth.username.as_deref().unwrap_or("anonymous"),
             auth.role_id,
             Some("test_database_connection"),
             Some("not_admin"),
@@ -112,7 +128,7 @@ async fn validate_admin_role(
 
 async fn validate_port(
     port: &str,
-    auth: &AuthContext,
+    auth: &OptionalAuthContext,
     audit_ctx: &Option<Extension<AuditContext>>,
 ) -> Result<(), AppError> {
     match port.parse::<u16>() {
@@ -120,8 +136,8 @@ async fn validate_port(
         _ => {
             audit::log_security_event(
                 SecurityEvent::AuthorizationDenied,
-                auth.user_id,
-                &auth.username,
+                auth.user_id.unwrap_or(0),
+                auth.username.as_deref().unwrap_or("anonymous"),
                 auth.role_id,
                 Some("test_database_connection"),
                 Some("invalid_port"),
@@ -137,7 +153,7 @@ async fn validate_port(
 
 async fn validate_not_initialized(
     db: &Arc<DatabaseConnection>,
-    auth: &AuthContext,
+    auth: &OptionalAuthContext,
     audit_ctx: &Option<Extension<AuditContext>>,
 ) -> Result<(), AppError> {
     let init_service = InitService::new(db.clone());
@@ -145,8 +161,8 @@ async fn validate_not_initialized(
     if already_initialized {
         audit::log_security_event(
             SecurityEvent::AuthorizationDenied,
-            auth.user_id,
-            &auth.username,
+            auth.user_id.unwrap_or(0),
+            auth.username.as_deref().unwrap_or("anonymous"),
             auth.role_id,
             Some("test_database_connection"),
             Some("system_already_initialized"),
@@ -162,7 +178,7 @@ async fn validate_not_initialized(
 
 async fn validate_internal_ip(
     audit_ctx: &Option<Extension<AuditContext>>,
-    auth: &AuthContext,
+    auth: &OptionalAuthContext,
 ) -> Result<(), AppError> {
     let client_ip = audit_ctx
         .as_deref()
@@ -171,8 +187,8 @@ async fn validate_internal_ip(
     if !is_internal_ip(client_ip) {
         audit::log_security_event(
             SecurityEvent::AuthorizationDenied,
-            auth.user_id,
-            &auth.username,
+            auth.user_id.unwrap_or(0),
+            auth.username.as_deref().unwrap_or("anonymous"),
             auth.role_id,
             Some("test_database_connection"),
             Some("non_internal_ip"),
@@ -198,14 +214,14 @@ fn build_db_config(payload: TestDatabaseRequest) -> DatabaseConfig {
 }
 
 async fn audit_test_connection(
-    auth: &AuthContext,
+    auth: &OptionalAuthContext,
     target: &str,
     audit_ctx: &Option<Extension<AuditContext>>,
 ) {
     audit::log_security_event(
         SecurityEvent::TestDatabaseConnection,
-        auth.user_id,
-        &auth.username,
+        auth.user_id.unwrap_or(0),
+        auth.username.as_deref().unwrap_or("anonymous"),
         auth.role_id,
         Some(target),
         None,

@@ -94,6 +94,30 @@ impl From<AppClaims> for AuthContext {
     }
 }
 
+/// 为 OptionalAuthContext 实现 FromRequestParts：auth_middleware 注入了
+/// AuthContext 则映射为有值上下文，未挂载/未认证（Setup 模式、公开路径）时
+/// 得到 empty 上下文而非 401——供匿名可访问但需在 handler 内自检门禁的端点使用
+/// （如 /init/test-database：未初始化时匿名放行，已初始化时 handler 内拒收）
+impl<S> FromRequestParts<S> for OptionalAuthContext
+where
+    S: Send + Sync,
+{
+    type Rejection = std::convert::Infallible;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        Ok(parts
+            .extensions
+            .get::<AuthContext>()
+            .cloned()
+            .map(|a| OptionalAuthContext {
+                user_id: Some(a.user_id),
+                username: Some(a.username.clone()),
+                role_id: a.role_id,
+            })
+            .unwrap_or_else(OptionalAuthContext::empty))
+    }
+}
+
 /// 为 AuthContext 实现 FromRequestParts，使其可以作为 axum 的提取器
 /// 从请求扩展中获取认证信息（由中间件注入）
 impl<S> FromRequestParts<S> for AuthContext
