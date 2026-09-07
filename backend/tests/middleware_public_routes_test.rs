@@ -35,12 +35,25 @@ fn test_business_paths_require_auth() {
     // init 根路径 / tracking / logout 均需认证（initialize 系列除外，由 init_token_middleware 认证）
     assert!(!is_public_path("/init"));
     assert!(!is_public_path("/api/v1/erp/init"));
-    // init 其余只读接口仍需 JWT 认证（test-database/task-status 有 admin 二次校验；
-    // status 因前端登录前守卫依赖而单独公开，见 test_health_paths_public 内说明）
-    assert!(!is_public_path("/api/v1/erp/init/test-database"));
+    // task-status 仍需 JWT 认证（handler 内 admin 二次校验）
     assert!(!is_public_path("/api/v1/erp/init/task-status"));
     assert!(!is_public_path("/api/tracking/page-view"));
     assert!(!is_public_path("/api/v1/erp/auth/logout"));
+}
+
+/// test-database 公开放行（Setup 向导匿名场景）的分层门禁契约：
+/// 路由层公开，handler 层 OptionalAuthContext 门禁——未初始化时匿名放行
+/// （Setup 向导无用户体系可登录），已初始化时必须有 admin 身份；
+/// port/内网 IP 校验对匿名与登录请求一视同仁（SSRF 防护不因匿名放宽）。
+/// 公开性由 init_handler::validate_admin_role / validate_not_initialized /
+/// validate_internal_ip 三层函数保证，此处仅断言路由层放行 + test-status 反差。
+#[test]
+fn test_init_test_database_public_with_handler_guards() {
+    // Setup 向导"测试数据库连接"公开（原"仍需 JWT"设计使向导必然 401）
+    assert!(is_public_path("/api/v1/erp/init/test-database"));
+    // 精确匹配：变体路径不放行
+    assert!(!is_public_path("/api/v1/erp/init/test-database-async"));
+    assert!(!is_public_path("/api/v1/erp/init/test-database/sub"));
 }
 
 /// P1-03-2 修复：严格精确匹配，子路径不再放行
