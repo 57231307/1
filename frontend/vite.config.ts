@@ -6,6 +6,12 @@ import { ElementPlusResolver } from 'unplugin-vue-components/resolvers';
 import { visualizer } from 'rollup-plugin-visualizer';
 import { resolve } from 'path';
 
+// 后端代理目标：默认 8082（常规后端/CI 34 分片）；Setup 向导真实链路 E2E
+// 用独立后端实例（8083，专用空库），通过 VITE_PROXY_TARGET 环境变量切换。
+// 测试端口同理：VITE_DEV_PORT 覆盖 dev server 监听端口，避免与常规 E2E 冲突
+const PROXY_TARGET = process.env.VITE_PROXY_TARGET || 'http://localhost:8082';
+const DEV_PORT = Number(process.env.VITE_DEV_PORT || 3000);
+
 export default defineConfig({
   plugins: [
     vue(),
@@ -23,11 +29,11 @@ export default defineConfig({
     },
   },
   server: {
-    port: 3000,
+    port: DEV_PORT,
     allowedHosts: ['.monkeycode-ai.online'],
     proxy: {
       '/api/': {
-        target: 'http://localhost:8082',
+        target: PROXY_TARGET,
         changeOrigin: true,
         // WebSocket 升级转发（/ws/notifications 通知通道）
         ws: true,
@@ -37,11 +43,11 @@ export default defineConfig({
   // vite preview（生产构建本地服务）复用同一 proxy 配置：
   // CI E2E 已切换为 build + preview（规避 dev server 按需编译挂起）
   preview: {
-    port: 3000,
+    port: DEV_PORT,
     allowedHosts: ['.monkeycode-ai.online'],
     proxy: {
       '/api/': {
-        target: 'http://localhost:8082',
+        target: PROXY_TARGET,
         changeOrigin: true,
         ws: true,
       },
