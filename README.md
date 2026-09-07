@@ -35,7 +35,7 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 - **行业深度**：覆盖染整全流程（化验室打样→大货处方→流转卡→验布打卷→产量工资→能耗管理→缸号状态机），针对纺织行业特殊业务深度定制
 - **AI 驱动**：工艺优化、质量预测、补货推荐、异常检测 4 类 AI 能力，含模型版本管理与可解释性
 - **实时通信**：WebSocket 推送订单状态、库存预警、审批进度、仪表板更新
-- **自动化部署**：systemd 直部署 + CLI 工具（bingxi update）+ 蓝绿部署 + SHA256 校验
+- **自动化部署**：systemd 直部署 + CLI 工具（bingxi update）+ SHA256 校验
 - **BI 数据仓库**：多维分析 + 仪表板 + 报表引擎 + 订阅推送
 - **合规安全**：RBAC 权限矩阵 + 字段级权限 + 打印导出审计 + 二级审批 + 中国法律合规（劳动法/数据安全法/个人信息保护法）
 - **可观测性**：trace 链路 + Prometheus 指标 + 慢查询审计 + API 网关熔断 + 流复制故障转移
@@ -127,7 +127,7 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 - **故障转移**：流复制 + check_replication_sync + wait_for_backup_catchup
 - **慢查询审计**：> 200ms 全记录 + 阈值告警
 - **API 网关**：路由转发 + 限流 + 熔断（5s 窗口失败率 > 50% 触发 open）
-- **系统升级**：灰度升级（10%/50%）+ SHA256 校验 + schema 兼容性检查 + 蓝绿部署 + 健康检查门禁 + 优雅停机 + 回滚机制 + 部署后自动回滚监控
+- **系统升级**：SHA256 校验 + schema 兼容性检查 + 健康检查门禁 + 优雅停机 + 回滚机制 + 部署后自动回滚监控
 - **日志增强**：结构化 JSON + 90 天保留期自动清理 + 7 个日志层（financial/permission/database/business/performance/health/security）
 
 ### 7. 国际化与前端体验
@@ -315,7 +315,7 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 | BPM 审批流 | 已完成 | 流程定义 / 实例 / 任务 |
 | WebSocket 实时 | 已完成 | 通知 / 订单 / 库存 / 审批 / 仪表板 |
 | 国际化（i18n） | 已完成 | 中英双语 + 9,424 翻译键 |
-| systemd 部署 | 已完成 | CLI 工具 + 蓝绿部署 + 灰度升级 + SHA256 校验 |
+| systemd 部署 | 已完成 | CLI 工具 + SHA256 校验 |
 
 ---
 
@@ -434,7 +434,7 @@ sudo journalctl -u bingxi-backend -f
 ### 部署架构
 
 - **反向代理**：Nginx（HTTP / WebSocket / CSP 安全头）
-- **应用层**：systemd 服务（蓝绿部署 + 灰度升级 + CLI 工具 + SHA256 校验 + 健康检查门禁 + 优雅停机 + 回滚机制）
+- **应用层**：systemd 服务（CLI 工具 + SHA256 校验 + 健康检查门禁 + 优雅停机 + 回滚机制）
 - **数据层**：PostgreSQL 主备（流复制 + 故障转移）+ Redis 哨兵
 - **事件总线**：Kafka（rskafka 纯 Rust 实现，无 C/C++ 依赖）
 - **文件存储**：S3 / OSS 兼容

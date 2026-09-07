@@ -485,24 +485,16 @@ configure_nginx() {
             return
         fi
 
-        # 安装 upstream 配置（蓝绿/灰度切换用）：nginx.conf include 的
-        # /etc/nginx/bingxi-upstream.active.conf 必须存在，否则 nginx -t 直接失败
-        local upstream_installed=0
-        for uf in "$deploy_dir"/bingxi-upstream-*.conf; do
-            if [ -f "$uf" ]; then
-                cp "$uf" /etc/nginx/
-                upstream_installed=1
-            fi
-        done
-        if [ "$upstream_installed" -eq 1 ]; then
-            # 首次部署建立 active 符号链接（默认指向 blue），已存在时不覆盖（保留当前活跃实例）
-            if [ ! -e /etc/nginx/bingxi-upstream.active.conf ]; then
-                ln -sf /etc/nginx/bingxi-upstream-blue.conf /etc/nginx/bingxi-upstream.active.conf
-                log "已创建 upstream active 符号链接（默认 blue）"
-            fi
-        else
-            error "未找到 bingxi-upstream-*.conf upstream 配置文件，nginx.conf include 会失败"
-        fi
+        # 生成 upstream active 配置（单实例直连，无蓝绿/灰度切换机制）：
+        # nginx.conf include 的 /etc/nginx/bingxi-upstream.active.conf 必须存在，
+        # 否则 nginx -t 直接失败。upstream 固定指向本机 8082 后端
+        cat > /etc/nginx/bingxi-upstream.active.conf <<'UPSTREAM_EOF'
+upstream bingxi_backend {
+    server 127.0.0.1:8082;
+    keepalive 32;
+}
+UPSTREAM_EOF
+        log "已生成 upstream 配置（单实例 127.0.0.1:8082）"
 
         # nginx -t 失败必须终止：吞掉失败会让部署打成功横幅而前端 404
         # （原缺陷：2>/dev/null + warn 继续，健康检查只测后端测不出前端死）
