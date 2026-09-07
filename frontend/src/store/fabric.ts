@@ -26,10 +26,11 @@ export const useFabricStore = defineStore('fabric', () => {
     loading.value = true;
     try {
       const res = await getFabricList(params);
-      // 仅在后端返回有效数据时更新，防止 data 为 null 时崩溃
-      if (res.data) {
-        fabrics.value = res.data.list;
-        total.value = res.data.total;
+      // 兼容 PaginatedResponse { items, total }（当前后端格式）与历史 { list, total }
+      const payload = res.data as { items?: Fabric[]; list?: Fabric[]; total?: number } | null;
+      if (payload) {
+        fabrics.value = payload.items || payload.list || [];
+        total.value = payload.total || fabrics.value.length;
       }
     } catch (error) {
       logger.error('获取面料列表失败:', error);

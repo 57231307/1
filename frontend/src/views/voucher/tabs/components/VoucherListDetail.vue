@@ -44,11 +44,11 @@
       <div class="total-row">
         <div class="total-item">
           <span class="label">{{ t('voucher.voucherListDetail.labelDebitTotal') }}</span>
-          <span class="value debit">{{ viewData.total_debit.toFixed(2) }}</span>
+          <span class="value debit">{{ Number(viewData.total_debit ?? 0).toFixed(2) }}</span>
         </div>
         <div class="total-item">
           <span class="label">{{ t('voucher.voucherListDetail.labelCreditTotal') }}</span>
-          <span class="value credit">{{ viewData.total_credit.toFixed(2) }}</span>
+          <span class="value credit">{{ Number(viewData.total_credit ?? 0).toFixed(2) }}</span>
         </div>
       </div>
       <ElDescriptions :column="3" border class="voucher-meta">

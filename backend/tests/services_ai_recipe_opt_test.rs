@@ -1,4 +1,4 @@
-use bingxi_backend::models::dye_recipe::AuxiliariesItem;
+use bingxi_backend::models::dye_recipe::{Auxiliaries, AuxiliariesItem};
 // 批次 212 P2-5 修复：master_data 仅测试使用，移入 #[cfg(test)] 避免 Clippy unused import
 use bingxi_backend::models::dye_recipe::Model as DyeRecipeModel;
 use bingxi_backend::models::status::master_data;
@@ -56,11 +56,11 @@ fn make_recipe(fixture: RecipeFixture<'_>) -> DyeRecipeModel {
         chemical_formula: None,
         ph_value: Some(Decimal::try_from(ph).unwrap_or(Decimal::ZERO)),
         liquor_ratio: Some(Decimal::try_from(liquor).unwrap_or(Decimal::ZERO)),
-        auxiliaries: Some(vec![AuxiliariesItem {
+        auxiliaries: Some(Auxiliaries(vec![AuxiliariesItem {
             name: "助剂A".to_string(),
             amount: Decimal::try_from(1.5_f64).unwrap_or(Decimal::ZERO),
             unit: "g/L".to_string(),
-        }]),
+        }])),
         version: Some(1),
         parent_recipe_id: None,
         approved_by: None,

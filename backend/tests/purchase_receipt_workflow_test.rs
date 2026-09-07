@@ -51,6 +51,7 @@ fn sample_request() -> CreatePurchaseReceiptRequest {
             production_date: None,
             shelf_life: None,
             notes: None,
+            piece_no: None,
         }],
     }
 }

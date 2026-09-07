@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-09-05
+
+| PR | 一句话总结 |
+|----|-----------|
+| PR #937 | fix: 修复 CI #4409 全部 14 失败——后端 CSRF 强制轮换恢复失效语义（用户索引改 token 集合）+ omni_audit 模块推断跳过 /api/v1/erp 前缀 + 公开路径测试对齐 init/status 设计；前端 401 刷新请求自等待死锁白屏（_skipAuthRetry）+ PermissionTab 信封直赋表格整页崩溃 + 全站金额 toFixed 按数字解析（后端 Decimal 为字符串，共享 formatCurrency/局部 fmt）+ 守卫 init 检查去 3s 硬超时 + Setup 健康检查走 /api 代理；E2E 修正 production/会计期间/产品色号错误路径、verifyAuditLog 查 omni 真实管道并对齐 resource_type 真实值、必填校验改 footer 主按钮（按钮文案差异）、Tab 切换可见表格、定制订单断言创建页、日期测试自建数据、登录响应状态日志 |
+
 ## 2026-08-21
 
 | PR | 一句话总结 |

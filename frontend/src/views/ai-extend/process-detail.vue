@@ -78,6 +78,8 @@ onMounted(load);
         >
       </div>
     </div>
+    <!-- 空态：记录不存在或加载失败时给出可见提示（避免整页空白） -->
+    <el-empty v-if="!loading && !model" :description="$t('aiExtend.process.recordNotFound')" />
 
     <template v-if="model">
       <el-row :gutter="16">

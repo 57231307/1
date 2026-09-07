@@ -375,7 +375,7 @@ const selectFromSearch = (item: FiveDimensionItem) => {
 
     <ElDialog
       :title="t('fiveDimension.index.dialogTitleView')"
-      :visible="viewDialogVisible"
+      v-model="viewDialogVisible"
       width="800px"
       :aria-label="t('fiveDimension.index.ariaViewDialog')"
       @close="viewDialogVisible = false"
@@ -447,7 +447,7 @@ const selectFromSearch = (item: FiveDimensionItem) => {
 
     <ElDialog
       :title="t('fiveDimension.index.dialogTitleQuickSearch')"
-      :visible="searchDialogVisible"
+      v-model="searchDialogVisible"
       width="700px"
       :aria-label="t('fiveDimension.index.ariaQuickSearchDialog')"
       @close="searchDialogVisible = false"

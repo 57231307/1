@@ -11,9 +11,19 @@ pub const PUBLIC_PATHS: &[&str] = &[
     "/api/v1/erp/health",
     "/api/v1/erp/ready",
     "/api/v1/erp/live",
+    "/health/liveness",
+    "/health/readiness",
     // 认证流程必需端点
     "/api/v1/erp/auth/login",
     "/api/v1/erp/auth/refresh",
+    // 安全审计 P1-08-1：登录页 handleUsernameBlur 预检查账号锁定状态
+    // （GET /security/lock-status），属登录前公开接口（未登录时无 cookie），
+    // 必须放行否则 401 → axios refresh 拦截 → UI 被刷新流程阻塞（登录按钮 click 超时）
+    "/api/v1/erp/lock-status",
+    // 路由守卫 checkInitStatus 在每次导航调 GET /init/status 判断系统是否初始化，
+    // 属公开只读接口（仅返回布尔值，不泄露敏感信息），未登录/登录后均需访问。
+    // 未放行时 401 → 守卫判 initialized=false → 重定向 /setup → 页面内容不渲染
+    "/api/v1/erp/init/status",
     // 批次 110 P0-1：Webhook 回调端点（第三方平台调用，无法持有 JWT）
     // 安全等价：handle_generic_callback 内部通过 HMAC-SHA256 签名验证替代认证
     // （X-Webhook-Signature 头 + webhook_secret 密钥校验）

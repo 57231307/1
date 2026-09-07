@@ -241,7 +241,7 @@ const supplierList = ref<Supplier[]>([]);
 
 // 批次 268：接入 useTableApi，消除手写 recordPagination + fetchRecords 重复
 // API 参数用驼峰 pageSize，配置 pageSizeKey: 'pageSize'
-// API 返回 res.data.list，useTableApi 默认 listKey='list' 兼容
+// API 返回 res.data?.items，useTableApi 默认 listKey='list' 兼容
 const {
   data: recordList,
   page: recordPage,
@@ -287,7 +287,7 @@ const recordRules = computed(() => ({
 const fetchSuppliers = async () => {
   try {
     const res = await getSupplierList({ page: 1, page_size: 1000 });
-    supplierList.value = res.data?.list || [];
+    supplierList.value = res.data?.items || [];
   } catch (e) {
     logger.error(t('supplierEvaluation.index.message.fetchSuppliersFailed'), String(e));
   }

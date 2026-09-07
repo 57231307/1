@@ -47,6 +47,7 @@
             :placeholder="t('warehouse.index.placeholderType')"
             clearable
           >
+            <el-option :label="t('warehouse.index.optionGreige')" value="greige" />
             <el-option :label="t('warehouse.index.optionRaw')" value="raw" />
             <el-option :label="t('warehouse.index.optionFinished')" value="finished" />
             <el-option :label="t('warehouse.index.optionSemi')" value="semi" />
@@ -217,6 +218,7 @@
                 :placeholder="t('warehouse.index.placeholderSelectType')"
                 style="width: 100%"
               >
+                <el-option :label="t('warehouse.index.optionGreige')" value="greige" />
                 <el-option :label="t('warehouse.index.optionRaw')" value="raw" />
                 <el-option :label="t('warehouse.index.optionFinished')" value="finished" />
                 <el-option :label="t('warehouse.index.optionSemi')" value="semi" />
@@ -401,6 +403,7 @@ const dialogTitle = computed(() =>
 
 const getWarehouseTypeLabel = (type: string) => {
   const labels: Record<string, string> = {
+    greige: t('warehouse.index.optionGreige'),
     raw: t('warehouse.index.optionRaw'),
     finished: t('warehouse.index.optionFinished'),
     semi: t('warehouse.index.optionSemi'),
@@ -411,6 +414,7 @@ const getWarehouseTypeLabel = (type: string) => {
 
 const getWarehouseTypeTag = (type: string) => {
   const tags: Record<string, string> = {
+    greige: 'primary',
     raw: 'warning',
     finished: 'success',
     semi: 'info',

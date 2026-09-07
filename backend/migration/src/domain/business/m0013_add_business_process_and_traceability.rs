@@ -193,8 +193,8 @@ SELECT
     btc.created_at,
     p.name as product_name,
     w.name as warehouse_name,
-    s.name as supplier_name,
-    c.name as customer_name
+    s.supplier_name as supplier_name,
+    c.customer_name as customer_name
 FROM business_trace_chain btc
 LEFT JOIN products p ON btc.product_id = p.id
 LEFT JOIN warehouses w ON btc.warehouse_id = w.id

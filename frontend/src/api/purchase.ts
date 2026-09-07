@@ -87,7 +87,7 @@ export interface PurchaseReceiptQueryParams {
 
 // D14 Batch 5b：原 purchaseApi.getOrderList 转为风格 B 函数
 export const getPurchaseOrderList = (params?: PurchaseOrderQueryParams) =>
-  request.get<ApiResponse<{ list: PurchaseOrder[]; total: number }>>('/purchase/orders', {
+  request.get<ApiResponse<{ items: PurchaseOrder[]; total: number }>>('/purchase/orders', {
     params,
   });
 
@@ -121,7 +121,7 @@ export const rejectPurchaseOrder = (id: number, reason: string) =>
 
 // D14 Batch 5b：原 purchaseApi.getReceipts 转为风格 B 函数
 export const getPurchaseReceiptList = (params?: PurchaseReceiptQueryParams) =>
-  request.get<ApiResponse<{ list: PurchaseReceipt[]; total: number }>>('/purchase/receipts', {
+  request.get<ApiResponse<{ items: PurchaseReceipt[]; total: number }>>('/purchase/receipts', {
     params,
   });
 

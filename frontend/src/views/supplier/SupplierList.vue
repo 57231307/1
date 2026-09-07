@@ -87,7 +87,7 @@
           width="130"
         />
         <el-table-column
-          prop="email"
+          prop="contact_email"
           :label="t('supplier.list.column.email')"
           width="180"
           show-overflow-tooltip

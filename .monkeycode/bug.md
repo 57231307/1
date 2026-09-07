@@ -1,6 +1,7 @@
 # Bug 审计报告
 
 > 2026-08-14 基于 CI 最新失败日志（Run 31764158867）生成。
+> 2026-08-27 核实更新：删除已修复项，仅保留当前仍真实存在的问题。
 
 ---
 
@@ -8,15 +9,16 @@
 
 ### 1.1 警告统计
 
+> 注：CI 使用 baseline 机制，仅阻塞"新增警告"。以下为存量技术债务，不阻塞 CI 通过。
+
 | 类型 | 数量 | 描述 |
 |------|------|------|
 | `clippy::collapsible_if` | ~150 | if 语句可以合并 |
-| `clippy::doc_lazy_continuation` | ~50 | 文档列表项没有缩进 |
 | `clippy::too_many_arguments` | ~20 | 函数参数过多（>7） |
 | `clippy::explicit_auto_deref` | ~30 | 显式解引用，auto-deref 可以处理 |
 | `clippy::needless_lifetimes` | ~5 | 不必要的生命周期 |
 | `clippy::doc_overindented_list_items` | ~3 | 文档列表项过度缩进 |
-| **合计** | **~258** | **需要修复** |
+| **合计** | **~208** | **存量技术债务** |
 
 ### 1.2 警告详情
 
@@ -39,14 +41,14 @@ if condition1 && condition2 {
 }
 ```
 
-**涉及文件**：
+**涉及文件**（已核实存在）：
 - `src/services/production_recipe_ops/addition.rs:91`
 - `src/services/production_recipe_ops/recipe_crud.rs:131,153,264,336`
 - `src/services/flow_card_ops/card_crud.rs:25,32`
 - `src/services/flow_card_ops/step.rs:158`
 - `src/services/fabric_inspection_service.rs:242`
 - `src/services/wage_ops/rate.rs:161`
-- `src/services/energy_ops/allocation_rule.rs:99,319,320`
+- `src/services/energy_ops/allocation_rule.rs:99,320`
 - `src/services/chemical_ops/category.rs:38`
 - `src/services/chemical_ops/requisition.rs:61,75`
 - `src/services/outsourcing_ops/order.rs:134,143`
@@ -57,7 +59,7 @@ if condition1 && condition2 {
 - `src/services/so/order_workflow.rs:402`
 - `src/services/so/order_query.rs:316`
 - `src/services/supplier_service.rs:330`
-- `src/services/po/order_ops/crud.rs:154,219,531`
+- `src/services/po/order_ops/crud.rs:154`
 - `src/services/purchase_return_service.rs:551`
 - `src/services/ap_invoice_ops/crud.rs:42`
 - `src/services/ap_invoice_ops/receipt.rs:139`
@@ -68,10 +70,8 @@ if condition1 && condition2 {
 - `src/services/ar_ops/verification_ops/query.rs:114`
 - `src/services/accounting_period_service.rs:170,191`
 - `src/services/voucher_ops/crud.rs:144`
-- `src/services/bpm_service.rs:125`
 - `src/services/bpm_ops/instance.rs:336`
 - `src/services/bpm_ops/task.rs:203`
-- `src/services/budget_management_service.rs:762`
 - `src/services/cost_collection_service.rs:259,265`
 - `src/services/customer_credit_evaluate.rs:276`
 - `src/services/event_bus.rs:392`
@@ -97,34 +97,7 @@ if condition1 && condition2 {
 - `src/services/inventory_finance_bridge_ops/voucher.rs:131`
 - `src/services/dye_recipe_service.rs:90`
 
-#### 1.2.2 `clippy::doc_lazy_continuation`（~50 处）
-
-**问题描述**：文档列表项没有正确缩进。
-
-**示例**：
-```rust
-// 原代码
-/// - item 1
-/// - item 2
-
-// 修复后
-/// - item 1
-///   - item 2
-```
-
-**涉及文件**：
-- `src/services/production_recipe_ops/mod.rs:10,13,17,20`
-- `src/services/flow_card_service.rs:5,6`
-- `src/services/wage_service.rs:24`
-- `src/services/product_ops/import_export.rs:9,10,11,12`
-- `src/services/so/delivery_ops/cancel.rs:134`
-- `src/services/purchase_receipt_ops/mod.rs:11`
-- `src/services/ap_invoice_service.rs:8,9,10`
-- `src/services/ap_reconciliation_service.rs:5,6`
-- `src/services/lab_dip_ops/request.rs:8`
-- `src/services/lab_dip_ops/resample.rs:8,9`
-
-#### 1.2.3 `clippy::too_many_arguments`（~20 处）
+#### 1.2.2 `clippy::too_many_arguments`（~20 处）
 
 **问题描述**：函数参数过多（>7），建议使用结构体封装。
 
@@ -145,7 +118,7 @@ struct CreateOrderParams {
 fn create_order(params: CreateOrderParams) -> Result<()>
 ```
 
-**涉及文件**：
+**涉及文件**（已核实存在）：
 - `src/services/wage_ops/rate.rs:170`（9 个参数）
 - `src/services/energy_ops/allocation_record.rs:672`（9 个参数）
 - `src/services/role_permission_service.rs:609`（8 个参数）
@@ -155,7 +128,7 @@ fn create_order(params: CreateOrderParams) -> Result<()>
 - `src/services/financial_analysis_service.rs:712`（8 个参数）
 - `src/services/fixed_asset_service.rs:398,579,1029`（9 个参数）
 
-#### 1.2.4 `clippy::explicit_auto_deref`（~30 处）
+#### 1.2.3 `clippy::explicit_auto_deref`（~30 处）
 
 **问题描述**：显式解引用，auto-deref 可以处理。
 
@@ -168,13 +141,11 @@ let value = &*field;
 let value = &field;
 ```
 
-**涉及文件**：
+**涉及文件**（已核实仍含 `&*` 模式）：
 - `src/services/chemical_ops/master.rs:182`
 - `src/services/outsourcing_ops/receipt.rs:81`
 - `src/services/inventory_stock_service.rs:422`
 - `src/services/supplier_evaluation_service.rs:209,217`
-- `src/services/ap_reconciliation_ops/auto.rs:35,40,43`
-- `src/services/ap_reconciliation_ops/report.rs:24,26`
 - `src/services/bi_analysis_ops/drilldown.rs:35`
 - `src/services/bi_analysis_ops/sales.rs:137,138`
 - `src/services/business_trace_service.rs:122,123`
@@ -185,7 +156,7 @@ let value = &field;
 - `src/services/lab_dip_ops/resample.rs:46,48,58`
 - `src/services/event_bus_ops/listener.rs:468,481,1359,1445,1446`
 
-#### 1.2.5 `clippy::needless_lifetimes`（~5 处）
+#### 1.2.4 `clippy::needless_lifetimes`（~5 处）
 
 **问题描述**：不必要的生命周期标注。
 
@@ -201,7 +172,7 @@ fn process(data: &str) -> &str
 **涉及文件**：
 - `src/services/ar_ops/verification_ops/auto.rs:323`
 
-#### 1.2.6 `clippy::doc_overindented_list_items`（~3 处）
+#### 1.2.5 `clippy::doc_overindented_list_items`（~3 处）
 
 **问题描述**：文档列表项过度缩进。
 
@@ -233,7 +204,7 @@ fn process(data: &str) -> &str
 
 ### 3.1 问题描述
 
-- 后端存在 `import_csv` 函数（`analytics.rs:189`），但前端没有调用
+- 后端存在 `import_csv` 函数（`import_export_handler.rs:53`），但前端没有调用
 - 前端使用 FormData 上传文件（`multipart/form-data`）
 - 后端 `import_products` 函数期望接收 JSON 格式的 `ImportProductsRequest`（包含 `csv_data` 字段）
 - 用户要求：导入和导出都应该使用 .xlsx 格式，只有合同使用 .docx 格式
@@ -242,8 +213,11 @@ fn process(data: &str) -> &str
 
 | 文件 | 行号 | 问题 |
 |------|------|------|
-| `backend/src/handlers/import_export_handler.rs` | 51 | `import_csv` 函数存在，但前端未调用 |
-| `backend/src/handlers/product_handler.rs` | 552 | `import_products` 期望 JSON 格式 |
+| `backend/src/handlers/import_export_handler.rs` | 53 | `import_csv` 函数存在，但前端未调用 |
+| `backend/src/handlers/product_handler.rs` | 156 | `ImportProductsRequest` 期望 JSON 格式 |
+| `backend/src/handlers/product_handler.rs` | 159 | `csv_data: String` 字段 |
+| `backend/src/handlers/product_handler.rs` | 560 | `import_products` 函数期望 JSON |
+| `backend/src/routes/analytics.rs` | 189 | `/csv` 路由注册 |
 | `frontend/src/api/product.ts` | 139 | `importProducts` 使用 FormData 上传文件 |
 | `frontend/src/views/product/tabs/ImportDialogTab.vue` | 33 | 接受 .xlsx/.xls/.csv 格式 |
 
@@ -267,10 +241,8 @@ fn process(data: &str) -> &str
 | 任务 | 状态 | 代码证据 |
 |------|------|----------|
 | P3 batch-17：Retry-After HTTP 头 | ✅ 已实现 | `error.rs:101` |
-| P3 batch-04/05：retention_days 纳入 AppSettings | ✅ 已实现 | `settings.rs:77` |
-| P3 batch-14：FallbackValue trait | ✅ 已实现 | `notification.rs:84` |
-| P3 batch-19：写操作 3 级分类 | ✅ 已实现 | `settings.rs:70` |
-| P3 batch-19：用户行为分析 | ✅ 已实现 | `dashboard.rs:213` |
+| P3 batch-04/05：retention_days 纳入 AppSettings | ✅ 已实现 | `service_bootstrap.rs:114,387` |
+| P3 batch-19：用户行为分析 | ✅ 已实现 | `analytics.rs:575` |
 
 ### 4.3 未实现的 P3 任务
 
@@ -286,19 +258,12 @@ fn process(data: &str) -> &str
 
 ### P0/P1（高优先级）
 
-1. **Clippy 警告修复**：~258 个警告需要修复
-   - `clippy::collapsible_if`：~150 处
-   - `clippy::doc_lazy_continuation`：~50 处
-   - `clippy::too_many_arguments`：~20 处
-   - `clippy::explicit_auto_deref`：~30 处
-   - `clippy::needless_lifetimes`：~5 处
-   - `clippy::doc_overindented_list_items`：~3 处
-
-2. **导入导出格式统一**：删除 `import_csv` 函数，统一使用 xlsx 格式
+1. **导入导出格式统一**：删除 `import_csv` 函数，统一使用 xlsx 格式
 
 ### P2（中优先级）
 
-1. **P3 任务实现**：
+1. **Clippy 警告修复**：~208 个存量警告（不阻塞 CI，属技术债务）
+2. **P3 任务实现**：
    - subMenus 动态化（P3 4-7）
    - 长任务处理（P3 25.4-I）
    - 审计日志异步缓冲写入（P3 25.4-M）
@@ -315,24 +280,42 @@ fn process(data: &str) -> &str
 
 ### 6.1 总体评估
 
-- **Clippy 警告**：~258 个，需要修复
+- **Clippy 警告**：~208 个存量技术债务（baseline 机制不阻塞 CI）
 - **测试编译错误**：0 个（脚本误报 6 处）
-- **导入导出格式**：不一致，需要统一
+- **导入导出格式**：前后端不一致，需要统一
 - **P3 任务**：部分已实现，部分未实现
 
 ### 6.2 修复建议
 
-1. **立即修复**：Clippy 警告（~258 个）
-   - 优先修复 `clippy::collapsible_if`（~150 处）
-   - 然后修复 `clippy::doc_lazy_continuation`（~50 处）
-   - 最后修复其他警告（~58 处）
-
-2. **短期修复**：导入导出格式统一
+1. **立即修复**：导入导出格式统一
    - 删除 `import_csv` 函数
    - 修改 `import_products` 函数支持 multipart/form-data
    - 确保前端使用 xlsx 格式
 
-3. **中期修复**：P3 任务实现
+2. **中期修复**：P3 任务实现
    - subMenus 动态化
    - 长任务处理
    - 审计日志异步缓冲写入
+
+3. **长期修复**：Clippy 存量警告清理
+   - 优先 `collapsible_if`（~150 处）
+   - 然后 `explicit_auto_deref`（~30 处）
+   - 最后其他警告（~28 处）
+
+---
+
+## 附：2026-08-27 核实删除项
+
+以下内容经核实已修复或不存在，已从文档中删除：
+
+- ~~1.2.2 `clippy::doc_lazy_continuation`（~50 处）~~：全部 10 个文件已无 lazy continuation
+- ~~1.2.1 中 `bpm_service.rs:125`~~：该行为注释行，非 collapsible_if
+- ~~1.2.1 中 `budget_management_service.rs:762`~~：该行非嵌套 if 模式
+- ~~1.2.1 中 `energy_ops/allocation_rule.rs:319`~~：该行号不匹配
+- ~~1.2.1 中 `po/order_ops/crud.rs:219,531`~~：该行号不匹配
+- ~~1.2.3 中 `ap_reconciliation_ops/auto.rs:35,40,43`~~：已无 `&*` 模式
+- ~~1.2.3 中 `ap_reconciliation_ops/report.rs:24,26`~~：已无 `&*` 模式
+- ~~4.2 中 `P3 batch-14：FallbackValue trait`~~：全仓搜索无 `FallbackValue` 定义
+- ~~4.2 中 `P3 batch-19：写操作 3 级分类 settings.rs:70`~~：该行号不匹配，未找到对应实现
+- ~~4.2 中 `P3 batch-04/05：retention_days settings.rs:77`~~：行号修正为 `service_bootstrap.rs:114,387`
+- ~~4.2 中 `P3 batch-19：用户行为分析 dashboard.rs:213`~~：行号修正为 `analytics.rs:575`

@@ -441,7 +441,7 @@ const fetchSalesContracts = async () => {
   contractLoading.value = true;
   try {
     const res = await getSalesContractList();
-    salesContracts.value = res.data?.list || [];
+    salesContracts.value = res.data?.items || [];
   } catch (error) {
     const err = error as { message?: string };
     ElMessage.error(err.message || t('salesExt.contractTab.messageFetchFailed'));

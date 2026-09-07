@@ -201,6 +201,13 @@ impl PurchaseOrderService {
             notes: Set(req.notes.clone()),
             attachment_urls: Set(req.attachment_urls.clone()),
             created_by: Set(user_id),
+            // 显式初始化金额/数量字段：迁移 ADD COLUMN 未声明 DEFAULT，
+            // 依赖 ..Default::default() 的 NotSet 会导致 SeaORM insert 报
+            // "Missing value for column 'total_amount_foreign'"，故显式赋 0
+            total_amount: Set(Decimal::ZERO),
+            total_amount_foreign: Set(Decimal::ZERO),
+            total_quantity: Set(Decimal::ZERO),
+            total_quantity_alt: Set(Decimal::ZERO),
             ..Default::default()
         }
         .insert(txn)

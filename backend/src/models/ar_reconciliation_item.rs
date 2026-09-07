@@ -57,6 +57,12 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
 
+    /// 匹号/批号/色号/缸号（匹号领域：对账需要体现）
+    pub piece_no: Option<String>,
+    pub batch_no: Option<String>,
+    pub color_no: Option<String>,
+    pub dye_lot_no: Option<String>,
+
     /// 对账单 ID
     pub reconciliation_id: i32,
 

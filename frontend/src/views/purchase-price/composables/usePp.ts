@@ -87,7 +87,7 @@ export function usePp() {
   const getSuppliers = async () => {
     try {
       const res = await getSupplierList({ page: 1, page_size: 1000 });
-      suppliers.value = res.data?.list || [];
+      suppliers.value = res.data?.items || [];
     } catch (error) {
       logger.error('获取供应商列表失败:', error);
     }
@@ -97,7 +97,7 @@ export function usePp() {
   const getProducts = async () => {
     try {
       const res = await getProductList({ page: 1, page_size: 1000 });
-      products.value = res.data?.list || [];
+      products.value = res.data?.items || [];
     } catch (error) {
       logger.error('获取产品列表失败:', error);
     }

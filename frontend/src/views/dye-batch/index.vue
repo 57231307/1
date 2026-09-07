@@ -407,7 +407,10 @@ const syncQueryParams = () => {
 const getProducts = async () => {
   try {
     const res = await getProductList({ page: 1, page_size: 1000 });
-    products.value = res.data?.list || [];
+    // 后端返回 PaginatedResponse { items, total, page, page_size }，
+    // 兼容 list 字段的历史格式，避免 products 为空导致下拉无选项
+    const data = res.data as { items?: Product[]; list?: Product[] } | undefined;
+    products.value = data?.items || data?.list || [];
   } catch (error) {
     logger.error(t('dyeBatch.index.messageFetchProductsFailed'), error);
   }

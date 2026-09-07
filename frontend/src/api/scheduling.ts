@@ -93,6 +93,6 @@ export const getScheduleTaskList = (params?: {
   status?: string;
   work_center_id?: number;
 }) =>
-  request.get<ApiResponse<{ list: ScheduleTask[]; total: number }>>('/scheduling/tasks', {
+  request.get<ApiResponse<{ items: ScheduleTask[]; total: number }>>('/scheduling/tasks', {
     params,
   });

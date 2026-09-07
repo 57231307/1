@@ -310,7 +310,8 @@ database:
   name: \"\${DB_NAME}\"
   username: \"\${DB_USER}\"
   password: \"\${DB_PASS}\"
-  max_connections: 50
+  # 99 人在线规模：池上限 100，需 PG max_connections >= 120
+  max_connections: 100
   min_connections: 5
   # 批次 24 v6 P0-3 修复：生产环境强制 SSL（原 disable 明文传输）
   ssl_mode: \"require\"

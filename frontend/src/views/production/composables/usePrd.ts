@@ -36,7 +36,7 @@ export interface PrdOrderForm {
 export function usePrd() {
   // V2Table 数据
   const { data, loading, page, pageSize, total, queryParams, refresh, reset, setQueryParam } =
-    useTableApi<ProductionOrder>('/production/orders');
+    useTableApi<ProductionOrder>('/production/production-orders/orders');
 
   // 提交对话框 loading
   const submitLoading = ref(false);

@@ -66,9 +66,13 @@ export interface UserInfo {
 // v11 批次 161 CI1 修复：添加可选 items 字段，对齐后端 PaginatedResponse 实际返回结构
 // （后端用 items: Vec<T>，前端用 list: T[]；useTableApi 运行时 fallback 兼容两者）
 export interface PageResult<T = unknown> {
-  list: T[];
-  /** 后端 PaginatedResponse 使用 items 字段（可选，便于直接消费后端分页响应） */
+  /** CRM 域专用字段名（crm service 直接构造 data 字段） */
+  data?: T[];
+  list?: T[];
+  /** 后端 PaginatedResponse 使用 items 字段 */
   items?: T[];
+  /** 用户列表专用字段名（UserListResponse.users） */
+  users?: T[];
   total: number;
   page: number;
   page_size: number;

@@ -9,6 +9,7 @@ use axum::{
     extract::{Path, Query, State},
 };
 use serde::Deserialize;
+use std::time::Duration;
 use validator::Validate;
 
 use crate::container::AppState;
@@ -228,45 +229,56 @@ pub async fn get_custom_order(
     let quality_svc = CustomOrderQualityService::from_state(&state);
     let after_svc = CustomOrderAfterSalesService::from_state(&state);
 
-    let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
-    let nodes = crud_svc.list_process_nodes(id).await.map_err(crud_err)?;
-    let (issues, _) = quality_svc
-        .list_by_order(id, 1, 100)
-        .await
-        .map_err(quality_err)?;
-    let (after_sales_list, _) = after_svc
-        .list_by_order(id, 1, 100)
-        .await
-        .map_err(aftersales_err)?;
+    // 防御：sqlx 0.9 池在 CI 环境偶发 acquire 死锁（acquire_timeout/statement_timeout
+    // 均不生效，run 34067844812/34073033540 多分片 GET /custom-orders/1 挂死 6 分钟+），
+    // handler 整体 15s 超时兜底，超时返回 503 让调用方重试，避免占死 worker
+    let detail = tokio::time::timeout(Duration::from_secs(15), async {
+        let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
+        let nodes = crud_svc.list_process_nodes(id).await.map_err(crud_err)?;
+        let (issues, _) = quality_svc
+            .list_by_order(id, 1, 100)
+            .await
+            .map_err(quality_err)?;
+        let (after_sales_list, _) = after_svc
+            .list_by_order(id, 1, 100)
+            .await
+            .map_err(aftersales_err)?;
+        Ok::<CustomOrderDetail, AppError>(CustomOrderDetail {
+            id: order.id,
+            order_no: order.order_no,
+            customer_id: order.customer_id,
+            product_id: order.product_id,
+            color_id: order.color_id,
+            spec: order.spec,
+            quantity: order.quantity,
+            unit: order.unit,
+            custom_requirements: order.custom_requirements,
+            yarn_spec: order.yarn_spec,
+            dye_method: order.dye_method,
+            finishing_method: order.finishing_method,
+            status: order.status,
+            expected_delivery_date: order.expected_delivery_date,
+            actual_delivery_date: order.actual_delivery_date,
+            sales_order_id: order.sales_order_id,
+            total_amount: order.total_amount,
+            currency: order.currency,
+            created_by: order.created_by,
+            created_at: order.created_at,
+            updated_at: order.updated_at,
+            // 批次 88 PH-1 占位符实现：透传 notes 字段
+            notes: order.notes,
+            process_nodes: map_process_nodes(nodes),
+            quality_issues: map_quality_issues(issues),
+            after_sales: map_after_sales(after_sales_list),
+        })
+    })
+    .await
+    .map_err(|_| {
+        AppError::InternalError("查询定制订单详情超时（数据库连接池 acquire 死锁防御触发）".to_string())
+    })??;
 
-    Ok(Json(ApiResponse::success(CustomOrderDetail {
-        id: order.id,
-        order_no: order.order_no,
-        customer_id: order.customer_id,
-        product_id: order.product_id,
-        color_id: order.color_id,
-        spec: order.spec,
-        quantity: order.quantity,
-        unit: order.unit,
-        custom_requirements: order.custom_requirements,
-        yarn_spec: order.yarn_spec,
-        dye_method: order.dye_method,
-        finishing_method: order.finishing_method,
-        status: order.status,
-        expected_delivery_date: order.expected_delivery_date,
-        actual_delivery_date: order.actual_delivery_date,
-        sales_order_id: order.sales_order_id,
-        total_amount: order.total_amount,
-        currency: order.currency,
-        created_by: order.created_by,
-        created_at: order.created_at,
-        updated_at: order.updated_at,
-        // 批次 88 PH-1 占位符实现：透传 notes 字段
-        notes: order.notes,
-        process_nodes: map_process_nodes(nodes),
-        quality_issues: map_quality_issues(issues),
-        after_sales: map_after_sales(after_sales_list),
-    })))
+    Ok(Json(ApiResponse::success(detail)))
+
 }
 
 /// 转换流程节点列表为响应 DTO

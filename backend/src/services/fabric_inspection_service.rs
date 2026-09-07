@@ -623,7 +623,13 @@ impl FabricInspectionService {
         let now_piece = chrono::Utc::now();
         PieceActiveModel {
             id: Default::default(),
-            dye_lot_id: Set(dye_lot_id),
+            // 验布打卷产生的是染色后布卷（有缸号），匹类型为染色匹
+            piece_type: Set("dyed".to_string()),
+            machine_no: Set(None),
+            machine_operator: Set(None),
+            // 打卷入库时间
+            warehouse_in_at: Set(Some(now_piece)),
+            dye_lot_id: Set(Some(dye_lot_id)),
             batch_no: Set(dye_lot_no.to_string()),
             product_id: Set(model.product_id.unwrap_or(0)),
             warehouse_id: Set(req.warehouse_id),
@@ -652,8 +658,8 @@ impl FabricInspectionService {
             inventory_status: Set(Some("available".to_string())),
             created_by: Default::default(),
             updated_by: Default::default(),
-            color_no: Set(model.color_no.clone()),
-            dye_lot_no: Set(model.dye_lot_no.clone()),
+            color_no: Set(model.color_no.clone().unwrap_or_default()),
+            dye_lot_no: Set(model.dye_lot_no.clone().unwrap_or_default()),
             inspection_id: Set(Some(inspection_id)),
             piece_seq: Set(Some(next_seq)),
             // 验布打卷产生的新匹无需拆匹原始字段

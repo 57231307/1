@@ -24,16 +24,18 @@ pub struct Model {
     pub product_id: i32,
 
     /// 批次号
-    pub batch_no: Option<String>,
+    pub batch_no: String,
 
     /// 色号
-    pub color_no: Option<String>,
+    pub color_no: String,
 
     /// v14 批次 417 新增：缸号 ID（D-P1-5 修复，原 Rust 模型缺失此字段）
     pub dye_lot_id: Option<i32>,
 
     /// v14 批次 417 新增：缸号（D-P1-5 修复，原 Rust 模型缺失此字段）
-    pub dye_lot_no: Option<String>,
+    pub dye_lot_no: String,
+    /// 染色匹号（匹号领域：出库使用染色匹号）
+    pub piece_no: Option<String>,
 
     /// 交货数量
     pub quantity: Decimal,

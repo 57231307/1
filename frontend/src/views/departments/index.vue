@@ -181,8 +181,17 @@ const loadDepartments = async () => {
   loading.value = true;
   try {
     const [listRes, treeRes] = await Promise.all([getDepartmentList(), getDepartmentTree()]);
-    departmentList.value = listRes.data || [];
-    deptTreeData.value = treeRes.data || [];
+    // 兼容 PaginatedResponse { items, total }（当前后端格式）与数组格式：
+    // 直接把包装对象塞给 el-table :data 会触发 el-table 内部
+    // "rows is not iterable"（checkSelectedStatus），被 ErrorBoundary 捕获整页白屏
+    const listPayload = listRes.data as unknown;
+    departmentList.value = Array.isArray(listPayload)
+      ? (listPayload as Department[])
+      : ((listPayload as { items?: Department[] })?.items ?? []);
+    const treePayload = treeRes.data as unknown;
+    deptTreeData.value = Array.isArray(treePayload)
+      ? (treePayload as Department[])
+      : ((treePayload as { items?: Department[] })?.items ?? []);
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     ElMessage.error(

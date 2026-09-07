@@ -12,7 +12,7 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
     Json,
-    extract::{Extension, State},
+    extract::{ConnectInfo, Extension, State},
     http::HeaderMap,
     response::IntoResponse,
 };
@@ -24,6 +24,8 @@ use utoipa::ToSchema;
 #[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize)]
 pub struct RefreshTokenResponse {
+    // csrf_token 仅通过 Set-Cookie 明文 Cookie 下发，响应体不再携带（避免 token 泄漏到日志/代理）
+    #[serde(skip)]
     pub csrf_token: String,
     pub expires_in: u64,
 }
@@ -44,6 +46,7 @@ pub struct RefreshTokenResponse {
 pub async fn refresh_token(
     State(state): State<AppState>,
     headers: HeaderMap,
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
     jar: axum_extra::extract::PrivateCookieJar,
 ) -> Result<axum::response::Response, AppError> {
     let token = extract_refresh_token(&state, &headers, &jar)?;
@@ -54,19 +57,32 @@ pub async fn refresh_token(
         generate_new_tokens(&state, &auth_service, &claims)?;
     revoke_old_token(&state, &token, &claims).await;
 
-    let refresh_ip = extract_client_ip_from_headers(&headers);
+    let refresh_ip = extract_client_ip_from_headers(&headers, Some(addr.ip()));
     let csrf_token = rotate_csrf_token(&state, &claims, new_session_id, refresh_ip);
-    let jar = build_refresh_cookies(jar, &new_token, &new_refresh_token, &csrf_token);
+    let jar = build_refresh_cookies(jar, &new_token, &new_refresh_token);
 
-    Ok((
+    let mut resp = (
         jar,
         Json(ApiResponse::success(RefreshTokenResponse {
-            csrf_token,
+            csrf_token: csrf_token.clone(),
             // 与 access_token Cookie max_age(minutes(30)) = 1800 秒对齐
             expires_in: 1800,
         })),
     )
-        .into_response())
+        .into_response();
+    // 轮换出的新 csrf_token 必须随 Set-Cookie 明文下发：
+    // 旧 token 已被强制轮换清除，若此处不下发，前端刷新一次后所有写请求都会 403。
+    // 同样不可写 "HttpOnly=false"——RFC 6265 §5.2 只认属性名并忽略值。
+    let csrf_cookie_header = format!(
+        "csrf_token={}; Path=/; SameSite=Strict; Max-Age=1800",
+        csrf_token
+    );
+    resp.headers_mut().append(
+        axum::http::header::SET_COOKIE,
+        axum::http::HeaderValue::from_str(&csrf_cookie_header)
+            .unwrap_or_else(|_| axum::http::HeaderValue::from_static("")),
+    );
+    Ok(resp)
 }
 
 // 从 refresh_token Cookie 或 Authorization Bearer 头提取令牌，并检查黑名单
@@ -172,8 +188,13 @@ async fn revoke_old_token(
     }
 }
 
-// 提取客户端 IP：X-Real-IP → X-Forwarded-For(first, trim) → "unknown"
-fn extract_client_ip_from_headers(headers: &HeaderMap) -> String {
+// 提取客户端 IP：X-Real-IP → X-Forwarded-For(first, trim) → ConnectInfo → "unknown"
+// 与 middleware/audit_context.rs 的 extract_client_ip 保持一致的四段回退链；
+// 缺少 ConnectInfo 兜底会导致直连部署下登录绑定真实 IP、刷新绑定 "unknown" 的系统性错配。
+fn extract_client_ip_from_headers(
+    headers: &HeaderMap,
+    peer_ip: Option<std::net::IpAddr>,
+) -> String {
     headers
         .get("x-real-ip")
         .and_then(|v| v.to_str().ok())
@@ -186,6 +207,7 @@ fn extract_client_ip_from_headers(headers: &HeaderMap) -> String {
                 .and_then(|s| s.split(',').next().map(|s| s.trim().to_string()))
                 .filter(|s| !s.is_empty())
         })
+        .or_else(|| peer_ip.map(|ip| ip.to_string()))
         .unwrap_or_else(|| "unknown".to_string())
 }
 
@@ -214,13 +236,13 @@ fn rotate_csrf_token(
     csrf_token
 }
 
-// 构建刷新响应 Cookie：access_token / refresh_token / csrf_token。
+// 构建刷新响应 Cookie：access_token / refresh_token（均为 httpOnly 加密）。
 // B03-P2-1 修复：已移除 legacy "jwt" Cookie 双写，仅刷新 access_token，避免双 Cookie 鉴权不一致。
+// csrf_token 不经过此处：由调用方在响应上以普通 Set-Cookie 头明文下发。
 fn build_refresh_cookies(
     jar: axum_extra::extract::PrivateCookieJar,
     new_token: &str,
     new_refresh_token: &str,
-    csrf_token: &str,
 ) -> axum_extra::extract::PrivateCookieJar {
     let is_production = crate::utils::config::is_production();
     let new_access =
@@ -241,15 +263,8 @@ fn build_refresh_cookies(
     .same_site(SameSite::Strict)
     .max_age(CookieDuration::days(2))
     .build();
-    let new_csrf =
-        axum_extra::extract::cookie::Cookie::build(("csrf_token", csrf_token.to_string()))
-            .path("/")
-            .http_only(false)
-            .secure(is_production)
-            .same_site(SameSite::Strict)
-            .max_age(CookieDuration::days(7))
-            .build();
-    jar.add(new_access).add(new_refresh).add(new_csrf)
+    // csrf_token 不通过 PrivateCookieJar 加密（调用方另行明文下发）
+    jar.add(new_access).add(new_refresh)
 }
 
 #[allow(dead_code, reason = "序列化输出字段")]

@@ -64,9 +64,11 @@ pub struct BusinessModeListQuery {
     pub keyword: Option<String>,
 }
 
-#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
-#[allow(dead_code, reason = "预留：按业务模式查询流程节点参数，待实现")]
+#[allow(
+    dead_code,
+    reason = "预留：按业务模式查询流程节点参数，待实现（反序列化输入字段）"
+)]
 pub struct FlowStepListByModeQuery {}
 
 #[derive(Debug, Deserialize)]

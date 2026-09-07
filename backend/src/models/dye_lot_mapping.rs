@@ -29,7 +29,7 @@ pub struct Model {
     pub product_code: Option<String>,
 
     /// 色号（可选）
-    pub color_no: Option<String>,
+    pub color_no: String,
 
     /// 内部缸号 ID（外键，关联 batch_dye_lot）
     pub batch_dye_lot_id: Option<i32>,

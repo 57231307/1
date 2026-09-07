@@ -23,6 +23,8 @@ pub struct ProductCategoryListQuery {
 pub struct CreateProductCategoryRequest {
     #[validate(length(min = 1, max = 100, message = "类别名称不能为空且最长100字符"))]
     pub name: String,
+    #[validate(length(max = 50, message = "类别代码最长50字符"))]
+    pub code: Option<String>,
     pub parent_id: Option<i32>,
     pub description: Option<String>,
 }
@@ -33,6 +35,8 @@ pub struct CreateProductCategoryRequest {
 pub struct UpdateProductCategoryRequest {
     #[validate(length(min = 1, max = 100, message = "类别名称不能为空且最长100字符"))]
     pub name: Option<String>,
+    #[validate(length(max = 50, message = "类别代码最长50字符"))]
+    pub code: Option<String>,
     pub parent_id: Option<i32>,
     pub description: Option<String>,
 }
