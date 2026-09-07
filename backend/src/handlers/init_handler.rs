@@ -93,23 +93,9 @@ async fn validate_admin_role(
     if auth.role_id.is_none() {
         return Ok(());
     }
-    let role_id = if let Some(id) = auth.role_id {
-        id
-    } else {
-        audit::log_security_event(
-            SecurityEvent::AuthorizationDenied,
-            auth.user_id.unwrap_or(0),
-            auth.username.as_deref().unwrap_or("anonymous"),
-            auth.role_id,
-            Some("test_database_connection"),
-            Some("no_role"),
-            audit_ctx.as_deref(),
-        )
-        .await;
-        return Err(AppError::permission_denied(
-            "用户未分配角色，无法执行该操作",
-        ));
-    };
+    // 此处 auth.role_id 必为 Some（None 已被上面 early return 处理）；
+    // 用 expect 避免 clippy unreachable（else 分支不可达）警告
+    let role_id = auth.role_id.expect("auth.role_id 已由 is_none() 守卫为 Some");
     if !is_admin_role(db, role_id).await {
         audit::log_security_event(
             SecurityEvent::AuthorizationDenied,
