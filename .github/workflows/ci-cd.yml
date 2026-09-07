@@ -2931,8 +2931,12 @@ jobs:
           VITE_DEV_PORT: 3100
         run: |
           mkdir -p /tmp/e2e-setup-logs
-          npx vite --port 3100 --strictPort > /tmp/e2e-setup-logs/frontend.log 2>&1 &
-          echo $! > /tmp/e2e-setup-logs/frontend.pid
+          # nohup + disown：step 结束时 runner 清理进程组，普通 & 进程
+          # 活不到测试 step（与后端启动脚本同因，自审修复）
+          nohup npx vite --port 3100 --strictPort > /tmp/e2e-setup-logs/frontend.log 2>&1 &
+          VITE_PID=$!
+          disown "$VITE_PID" 2>/dev/null || true
+          echo "$VITE_PID" > /tmp/e2e-setup-logs/frontend.pid
           for i in $(seq 1 90); do
             if curl -s http://localhost:3100 > /dev/null 2>&1; then
               echo "前端 dev server 就绪（第 ${i} 次尝试）"

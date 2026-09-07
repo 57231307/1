@@ -48,8 +48,10 @@ export KAFKA_ENABLED=false
 export ELASTICSEARCH_URL=""
 
 cd "$BACKEND_DIR"
-"$BACKEND_BIN" > /tmp/e2e-setup-logs/backend-full.log 2>&1 &
+# nohup + disown：脱离 CI step 进程组（同 setup-wizard-real-env.sh，自审修复）
+nohup "$BACKEND_BIN" > /tmp/e2e-setup-logs/backend-full.log 2>&1 &
 echo $! > /tmp/e2e-setup-logs/backend-full.pid
+disown $! 2>/dev/null || true
 
 READY=false
 for i in $(seq 1 60); do

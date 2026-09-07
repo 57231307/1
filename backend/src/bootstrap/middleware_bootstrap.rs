@@ -253,6 +253,11 @@ fn apply_security_headers(router: Router) -> Router {
 /// 为 Setup 模式应用基础中间件链（TraceLayer + CORS + 安全头）。
 /// Setup 模式仅暴露 /init/* 接口，无需认证/权限/CSRF 等业务中间件。
 pub fn apply_init_mode_layers(router: Router, cors: CorsLayer) -> Router {
+    // audit_context 中间件必须挂载：init handler 的 validate_internal_ip 从
+    // Extension<AuditContext> 提取 client_ip 做内网白名单校验。缺省时
+    // audit_ctx=None → client_ip="unknown" → is_internal_ip=false →
+    // /init/test-database 一律 403，Setup 向导在第 2 步必然卡死（自审发现）
+    let router = apply_body_limit_and_context(router);
     router
         .layer(
             TraceLayer::new_for_http()

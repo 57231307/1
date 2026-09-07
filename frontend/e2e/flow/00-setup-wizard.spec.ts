@@ -6,24 +6,23 @@ import { execSync } from 'child_process';
  * 引导页（/setup）初始化链路真实数据 E2E（禁止 mock，用户指令）
  *
  * 与真实环境的完整契约：
- * - 后端以真实二进制启动（CI: ci-build-rust 产物；本地: GitHub Release 产物）
+ * - 后端以真实二进制启动（CI: ci-build-rust artifact，端口 8083）
  * - 专用空库 bingxi_setup_test（e2e/scripts/setup-wizard-real-env.sh 重置），
  *   空库无表 → 后端启动即 Setup 模式（仅 /init/* 路由）
  * - 初始化通过 UI 真实点击走完：环境检查 → test-database → initialize-with-db
  *   （真实执行迁移 60+ 个 + 种子数据 + Argon2id 管理员哈希）→ 后端自退
- * - 后端重启（prepare-backend-full.sh 拉起）→ 完整模式 → 真实登录验证
+ * - 后端重启（e2e/scripts/restart-backend-full.sh 等效 systemd 拉起）→
+ *   完整模式 → 真实登录验证
  *
- * 前置（由 CI step 或本地脚本完成，本 spec 断言前置成立）：
+ * 前置（由 CI step 运行，本 spec 断言前置成立）：
  *   bash frontend/e2e/scripts/setup-wizard-real-env.sh
  * 凭据文件：/tmp/e2e-setup-logs/test-context.env
  */
 
 const API_BASE = process.env.SETUP_E2E_API_BASE || 'http://127.0.0.1:8083';
-const FRONT_BASE = process.env.SETUP_E2E_FRONT_BASE || 'http://localhost:3100';
 
 /** 读取环境准备脚本写入的凭据（真实 INIT_TOKEN/管理员账号） */
 function loadContext(): {
-  port: string;
   db: string;
   admin: string;
   pass: string;
@@ -36,7 +35,6 @@ function loadContext(): {
     return m[1].trim();
   };
   return {
-    port: get('SETUP_E2E_PORT'),
     db: get('SETUP_E2E_DB'),
     admin: get('SETUP_E2E_ADMIN'),
     pass: get('SETUP_E2E_PASS'),
@@ -143,7 +141,6 @@ test.describe.serial('引导页初始化真实链路（真实后端 + 真实 Pos
   test('初始化后数据库真实校验：users 表有管理员行（PSQL 直查，数据级断言）', async () => {
     // 数据级验证：初始化真实发生（不依赖 UI 状态）。
     // CI（postgres service）：psql 直连；本地（su postgres）：socket 直连
-    const { execSync } = require('child_process') as typeof import('child_process');
     const sql = `SELECT username || '|' || is_active FROM users WHERE username = '${ctx.admin}';`;
     let out = '';
     try {

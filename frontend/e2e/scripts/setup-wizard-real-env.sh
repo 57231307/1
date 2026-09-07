@@ -28,12 +28,10 @@ BACKEND_DIR="$(dirname "$BACKEND_BIN")"
 
 echo "=== [1/5] 重置专用空库 $SETUP_E2E_DB ==="
 # 每次运行从零开始：断开现有连接 → DROP → CREATE（空库无表 → 后端启动即 Setup 模式）
-# CI（postgres service，当前用户即 postgres 超管）与本地（su postgres）兼容
-if id -u postgres >/dev/null 2>&1 && [ "$(id -u)" != "0" -o -d /var/lib/postgresql ]; then
-    PSQL="su postgres -c"
-fi
+# 优先 su postgres（本地 root 环境，socket 信任认证）；
+# 失败（CI postgres service 无 postgres 系统用户）时回退 TCP + bingxi 凭据
 run_psql() {
-    if command -v su >/dev/null 2>&1 && su postgres -c "psql -c 'SELECT 1;'" >/dev/null 2>&1; then
+    if su postgres -c "psql -c 'SELECT 1;'" >/dev/null 2>&1; then
         su postgres -c "psql -q"
     else
         PGPASSWORD=bingxi_test psql -h 127.0.0.1 -U bingxi -d postgres -q
@@ -80,8 +78,12 @@ mkdir -p "$LOG__DIR"
 
 echo "=== [4/5] 启动后端（预期进入 Setup 模式：空库无表连接失败）==="
 cd "$BACKEND_DIR"
-"$BACKEND_BIN" > /tmp/e2e-setup-logs/backend-setup.log 2>&1 &
+# nohup + disown：CI（GitHub Actions）在 step 结束时清理进程组，普通 &
+# 后台进程活不到下一个 step（自审发现）。nohup 脱离 SIGHUP、disown 脱离
+# shell 作业表；runner 对 orphan 进程按"仍运行"处理（与 systemd 服务等效）
+nohup "$BACKEND_BIN" > /tmp/e2e-setup-logs/backend-setup.log 2>&1 &
 BACKEND_PID=$!
+disown "$BACKEND_PID" 2>/dev/null || true
 echo "$BACKEND_PID" > /tmp/e2e-setup-logs/backend.pid
 
 # 探活：Setup 模式下 /health 404（仅 /init/* 路由），用 /init/status 探测
