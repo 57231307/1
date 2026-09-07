@@ -9,7 +9,7 @@
 
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{EntityTrait, QuerySelect, Set, TransactionTrait};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set, TransactionTrait};
 
 use crate::models::ap_reconciliation;
 use crate::models::status::ap_reconciliation as reconciliation_status;
