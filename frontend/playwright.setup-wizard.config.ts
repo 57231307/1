@@ -15,7 +15,7 @@ import { defineConfig, devices } from '@playwright/test';
  *   （Setup 模式 → 完整模式），测试间有严格时序依赖
  */
 export default defineConfig({
-  testDir: './e2e/flow',
+  testDir: './e2e/setup-wizard',
   testMatch: /00-setup-wizard\.spec\.ts/,
   timeout: 180_000,
   expect: { timeout: 15_000 },

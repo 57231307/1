@@ -25,8 +25,8 @@
 - [x] 修复①：拆分 install/install-deps（deps 失败仅告警）；修复②：补 Playwright 缓存层（与 ci-e2e 共用 key，命中免下载，用户指正）
 - [ ] 推送授权后重跑：观察 ci-e2-setup-wizard job 9 个真实测试是否全绿
 - [x] Clippy failure 根因定位：`validate_admin_role` 中 `if let Some(id)=auth.role_id { id } else { ... }` 的 else 分支不可达（前面 `if auth.role_id.is_none() { return Ok(()); }` 已 early return）→ clippy 不可达代码警告 → NEW_COUNT>0 阻塞。已修复（改用 `auth.role_id.expect(...)`，None 已由守卫保证为 Some）
-- [ ] Rust 测试 (2/30) failure：测试不直接构造 AuthContext struct literal、不调用 cookie 函数，本批改动不应破坏现有测试——partition-2 可能是存量 flaky 或与本批无关，待授权重跑确认
-- [ ] E2E 分片 3 failure：待 logs 确认（API 限流，job logs 需 admin 权限）
+- [x] E2E 分片 3 failure 根因：00-setup-wizard.spec.ts 位于 e2e/flow/ 被 34 分片拾取，但分片环境无 setup-wizard 专用前置（test-context.env 不存在）→ beforeAll 抛 ENOENT。修复：spec 移至 e2e/setup-wizard/ 独立目录，专用 config testDir 同步改
+- [ ] E2E 分片 8 failure（07-fabric-four-dim:258）：annotation 显示 `apiCall` 抛错在 `/outsourcing-orders/{id}/issue`，但 `validate_pieces_for_issue` 对空 items 返回 Ok，具体 business error message 被 annotation 截断（无法下载 trace.zip 确认）。推断：匹号二期 commit e0fc24e 引入的新业务约束与测试数据不匹配——待授权重跑后看完整日志定位
   - [x] 🔴 **部署脚本遗漏 INIT_TOKEN 生成**：deploy.sh/deploy-latest.sh 自动生成 JWT/COOKIE/WEBHOOK/AUDIT 四把密钥但无 INIT_TOKEN；init_token_middleware fail-secure（未配置/占位值/长度<32 一律 401）→ 全新部署走引导页第 4 步安装必然 401，用户无从得知应填令牌值（backend/.env.example 占位值也被 is_init_token_strong 拒绝）。修复：两脚本按其它密钥同策略自动生成+持久化 /etc/bingxi/.env（deploy.sh 完成横幅输出值；deploy-latest.sh 提示 grep 命令）
   - [x] 🔴 **HTTP 部署 Cookie Secure 冲突**：nginx.conf 改 80 端口直接服务（443 可选），但 config.yaml env=production → is_production()=true → 登录 Cookie secure(true) → 浏览器 HTTP 下拒存 → 登录成功但会话无法建立（登录异常根因）。修复：utils/config.rs 新增 cookie_secure_for_request(headers)（X-Forwarded-Proto 优先，回退 is_production），login/refresh/logout 三链路统一接入（nginx 已配置 proxy_set_header X-Forwarded-Proto $scheme）
 - 渲染异常（无缺陷）

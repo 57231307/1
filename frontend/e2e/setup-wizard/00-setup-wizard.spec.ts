@@ -17,6 +17,10 @@ import { execSync } from 'child_process';
  * 前置（由 CI step 运行，本 spec 断言前置成立）：
  *   bash frontend/e2e/scripts/setup-wizard-real-env.sh
  * 凭据文件：/tmp/e2e-setup-logs/test-context.env
+ *
+ * 路径隔离：本 spec 位于 e2e/setup-wizard/（不在 e2e/flow/），
+ * 主 CI 的 34 分片 `npx playwright test ... e2e/flow/` 不会拾取，
+ * 仅由 ci-e2e-setup-wizard job 用 playwright.setup-wizard.config.ts 运行
  */
 
 const API_BASE = process.env.SETUP_E2E_API_BASE || 'http://127.0.0.1:8083';
