@@ -360,6 +360,9 @@ async function testConnection() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        // CSRF 中间件要求 AJAX 标识：完整模式（空库可连接时启动形态）的
+        // 中间件栈含 CSRF 校验，缺此头 → 403 CSRF_TOKEN_MISSING（CI 七轮实测）
+        'X-Requested-With': 'XMLHttpRequest',
         'X-Init-Token': dbConfig.value.init_token,
       },
       body: JSON.stringify(dbConfig.value),
@@ -391,6 +394,8 @@ async function install() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        // 同 testConnection：完整模式 CSRF 中间件要求 AJAX 标识
+        'X-Requested-With': 'XMLHttpRequest',
         'X-Init-Token': dbConfig.value.init_token,
       },
       body: JSON.stringify({

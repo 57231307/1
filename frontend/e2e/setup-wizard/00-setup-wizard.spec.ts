@@ -109,6 +109,14 @@ test.describe.serial('引导页初始化真实链路（真实后端 + 真实 Pos
     // IR 详细日志：监听 test-database 真实响应（状态码+体），失败时可直接定位
     let dbTestStatus = 0;
     let dbTestBody = '';
+    let ajaxHeaderSeen = false;
+    page.on('request', req => {
+      if (req.url().includes('/init/test-database')) {
+        // CSRF 中间件契约：完整模式（空库可连接的启动形态）中间件栈含 CSRF
+        // 校验，请求必须携带 AJAX 标识，缺失 → 403 CSRF_TOKEN_MISSING（七轮实测）
+        ajaxHeaderSeen = req.headers()['x-requested-with'] === 'XMLHttpRequest';
+      }
+    });
     page.on('response', async resp => {
       if (resp.url().includes('/init/test-database')) {
         dbTestStatus = resp.status();
@@ -127,6 +135,8 @@ test.describe.serial('引导页初始化真实链路（真实后端 + 真实 Pos
       );
       throw e;
     }
+    // CSRF 契约：AJAX 标识头必须携带（完整模式中间件栈强制要求）
+    expect(ajaxHeaderSeen).toBe(true);
     await expect(btn(page, ['下一步', 'Next'])).toBeEnabled({ timeout: 10_000 });
   });
 
