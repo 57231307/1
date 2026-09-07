@@ -87,11 +87,11 @@ disown "$BACKEND_PID" 2>/dev/null || true
 echo "$BACKEND_PID" > /tmp/e2e-setup-logs/backend.pid
 
 # 探活：Setup 模式下 /health 404（仅 /init/* 路由），用 /init/status 探测。
-# 窗口 120 次（connection refused 瞬回 + 0.5s sleep ≈ 60s 上限）：
-# CI 实测后端启动 ~28s（密钥校验+日志初始化），60 次×0.5s=30s 窗口在
-# 就绪后 1.4s 耗尽导致误报失败（run 34146800636）
+# 窗口 300 次（connection refused 瞬回 + 0.5s sleep ≈ 150s 上限）：
+# CI 实测后端启动耗时波动大（28s → 60s，随 runner 负载），二轮 60s 窗口
+# 在就绪前 1s 耗尽再次误报（run 34154361046）。150s 上限覆盖最慢场景
 READY=false
-for i in $(seq 1 120); do
+for i in $(seq 1 300); do
     STATUS=$(curl -s --max-time 2 "http://127.0.0.1:${SETUP_E2E_PORT}/api/v1/erp/init/status" 2>/dev/null || true)
     if echo "$STATUS" | grep -q '"mode"'; then
         READY=true
