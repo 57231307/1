@@ -41,7 +41,7 @@
       record.remark || '-'
     }}</el-descriptions-item>
     <el-descriptions-item :label="t('components.colorCardIssueDetail.compensationAmount')">
-      {{ record.compensation_amount != null ? `¥${record.compensation_amount.toFixed(2)}` : '-' }}
+      {{ fmtAmount(record.compensation_amount) }}
     </el-descriptions-item>
     <el-descriptions-item :label="t('components.colorCardIssueDetail.returnedBy')">{{
       record.returned_by ?? '-'
@@ -66,6 +66,9 @@ import type { IssueRecordInfo, IssueStatusValue } from '@/types/colorCardIssue';
 const props = defineProps<{
   record: IssueRecordInfo;
 }>();
+
+// 赔偿金额统一转数字格式化（后端 Decimal 序列化为字符串，直接 toFixed 会崩溃），空值显示 '-'
+const fmtAmount = (v: unknown): string => (v == null ? '-' : `¥${Number(v ?? 0).toFixed(2)}`);
 
 const { t } = useI18n({ useScope: 'global' });
 

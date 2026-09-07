@@ -282,7 +282,7 @@ const fetchPurchasePrices = async () => {
   priceLoading.value = true;
   try {
     const res = await getPurchasePriceList(priceQuery);
-    purchasePrices.value = res.data?.list || [];
+    purchasePrices.value = res.data?.items || [];
   } catch (error) {
     const err = error as { message?: string };
     ElMessage.error(err.message || t('purchaseExt.priceTab.fetchFailed'));

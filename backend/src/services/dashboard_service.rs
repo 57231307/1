@@ -3,7 +3,7 @@ use rust_decimal::Decimal;
 use sea_orm::prelude::*;
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, FromQueryResult, QueryFilter,
-    QueryOrder, QuerySelect, Statement, sea_query::Expr,
+    QueryOrder, QuerySelect, Statement, sea_query::Alias, sea_query::Expr,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -379,10 +379,16 @@ impl DashboardService {
         let results = query
             .clone()
             .select_only()
-            .column(sales_order::Column::OrderDate)
+            // order_date 列为 TIMESTAMPTZ，直接解码 NaiveDate 类型不匹配
+            // （run 34067844812 shard-12：mismatched types NaiveDate vs TIMESTAMPTZ），
+            // 用 PG cast ::date 转为日期后按日分组
+            .expr_as(
+                Expr::col(sales_order::Column::OrderDate).cast_as(Alias::new("date")),
+                "order_day",
+            )
             .column_as(Expr::col(sales_order::Column::TotalAmount).sum(), "amount")
-            .group_by(sales_order::Column::OrderDate)
-            .order_by_asc(sales_order::Column::OrderDate)
+            .group_by(Expr::col(sales_order::Column::OrderDate).cast_as(Alias::new("date")))
+            .order_by_asc(Expr::col(sales_order::Column::OrderDate).cast_as(Alias::new("date")))
             .into_tuple::<(chrono::NaiveDate, Option<Decimal>)>()
             .all(self.db.as_ref())
             .await?;
@@ -840,12 +846,12 @@ impl DashboardService {
             sea_orm::DatabaseBackend::Postgres,
             r#"
             SELECT
-                (SELECT COALESCE(SUM(si.quantity), 0)
+                (SELECT COALESCE(SUM(si.quantity), 0::NUMERIC)
                    FROM sales_order_items si
                    INNER JOIN sales_orders s ON s.id = si.order_id
                      AND s.status NOT IN ('CANCELLED', 'DRAFT')
                 ) as sold_quantity,
-                (SELECT COALESCE(SUM(quantity_meters), 0)
+                (SELECT COALESCE(SUM(quantity_meters), 0::NUMERIC)
                    FROM inventory_stocks
                    WHERE stock_status = 'active'
                 ) as stock_quantity

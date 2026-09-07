@@ -97,17 +97,17 @@
           width="120"
         />
         <el-table-column :label="$t('fixedAssets.table.originalValue')" width="120" align="right">
-          <template #default="{ row }">¥{{ row.purchase_amount.toFixed(2) }}</template>
+          <template #default="{ row }">¥{{ Number(row.purchase_amount ?? 0).toFixed(2) }}</template>
         </el-table-column>
         <el-table-column
           :label="$t('fixedAssets.table.accumulatedDepreciation')"
           width="120"
           align="right"
         >
-          <template #default="{ row }">¥{{ row.accumulated_depreciation.toFixed(2) }}</template>
+          <template #default="{ row }">¥{{ fmtNum(row.accumulated_depreciation) }}</template>
         </el-table-column>
         <el-table-column :label="$t('fixedAssets.table.netValue')" width="120" align="right">
-          <template #default="{ row }">¥{{ row.net_value.toFixed(2) }}</template>
+          <template #default="{ row }">¥{{ Number(row.net_value ?? 0).toFixed(2) }}</template>
         </el-table-column>
         <el-table-column prop="status" :label="$t('fixedAssets.table.status')" width="100">
           <template #default="{ row }">
@@ -372,6 +372,10 @@ import {
 import { useUserStore } from '@/store/user';
 import { logger } from '@/utils/logger';
 import { exportFromBackend } from '@/utils/export';
+
+// 金额单元格统一转数字格式化（后端 Decimal 序列化为字符串，直接 toFixed 会崩溃）
+const fmtNum = (v: unknown): string => Number(v ?? 0).toFixed(2);
+
 // 批次 278：迁移到 useTableApi composable，自动管理分页与 loading
 import { useTableApi } from '@/composables/useTableApi';
 

@@ -317,6 +317,24 @@ impl OutsourcingReceiptService {
             .await
             .map_err(|e| AppError::database(format!("入库凭证创建失败: {}", e)))?;
 
+        // 匹号领域：回仓入库生成匹记录（染色匹+缸号必填；净布工艺为无缸号胚布匹，
+        // 允许入成品仓），后续出入库/销售/对账均引用该染色匹号
+        crate::services::piece_domain_service::create_piece_from_outsourcing_receipt(
+            &txn,
+            &updated_receipt.receipt_no,
+            updated_receipt.dye_lot_no.as_deref(),
+            order.dye_lot_no.as_deref(),
+            updated_receipt.product_id,
+            updated_receipt.warehouse_id,
+            updated_receipt.return_quantity,
+            updated_receipt.grade.as_deref(),
+            &format!(
+                "委外回仓 {} 生成（订单 {}）",
+                updated_receipt.receipt_no, order.order_no
+            ),
+        )
+        .await?;
+
         if calc.abnormal_loss_amount > Decimal::ZERO {
             let vat_rate = Decimal::new(13, 2);
             let total_cost_basis = order.material_cost + order.processing_fee + order.freight_fee;

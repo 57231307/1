@@ -34,6 +34,8 @@ pub struct Model {
     pub width: Option<Decimal>,
     pub batch_requirement: Option<String>,
     pub dye_lot_requirement: Option<String>,
+    /// 染色匹号（匹号领域：染色匹号贯穿销售/出库/对账）
+    pub piece_no: Option<String>,
     pub base_price: Option<Decimal>,
     pub color_extra_cost: Decimal,
     pub grade_price_diff: Decimal,

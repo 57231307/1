@@ -112,6 +112,7 @@ impl PurchaseReceiptService {
                     item_req.unit_price.unwrap_or_else(|| Decimal::new(0, 0)),
                 )),
                 amount: Set(Some(amount)),
+                piece_no: Set(item_req.piece_no),
                 notes: Set(item_req.notes),
                 ..Default::default()
             });

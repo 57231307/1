@@ -281,8 +281,9 @@ const isAdminValid = computed(() => {
 async function checkEnvironment() {
   checking.value = true;
   try {
-    // 检查后端API服务
-    const healthRes = await fetch('/health');
+    // 检查后端API服务：必须走 /api 代理（dev server 的 /health 未代理会返回
+    // index.html，JSON 解析报 "Unexpected token '<'"）；后端同义端点为 /api/v1/erp/health
+    const healthRes = await fetch('/api/v1/erp/health');
     const healthData = await healthRes.json();
     envChecks.value[0].status = healthRes.ok && healthData.status === 'healthy';
 

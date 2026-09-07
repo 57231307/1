@@ -290,15 +290,9 @@ const loadGreigeFabrics = async () => {
 
 const loadSuppliers = async () => {
   try {
-    // v11 批次 181 P2-1 修复：使用 supplier API 替代 warehouse API
-    // getSupplierList 返回 { list: Supplier[]; total: number }，提取 list 字段
+    // getSupplierList 返回 PaginatedResponse { items: Supplier[]; total: number }
     const res = await getSupplierList();
-    const d = res.data;
-    if (d && typeof d === 'object' && 'list' in d) {
-      supplierList.value = d.list || [];
-    } else {
-      supplierList.value = [];
-    }
+    supplierList.value = res.data?.items || [];
   } catch (error) {
     ElMessage.error(t('greigeFabrics.index.messageLoadSuppliersFailed'));
   }

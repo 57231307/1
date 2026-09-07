@@ -64,13 +64,19 @@ pub async fn is_admin_role(db: &DatabaseConnection, role_id: i32) -> bool {
         return false;
     }
     // 先从缓存读取
+    // 死锁修复：DashMap 的 get() 返回 Ref（持有分片读锁），Ref 存活期间对同 key
+    // 调用 remove()（需要写锁）会自死锁——本任务永久卡死并占住分片，后续同
+    // key 请求全部排队挂起，几个并发请求即可卡死全部 tokio worker（进程假死、
+    // 不再 accept 连接）。触发条件是缓存过期（TTL 5 分钟），表现为后端启动约
+    // 5 分钟后首个撞上过期缓存的并发请求引发假死。
+    // 修复：if let 块结束时先释放 Ref，再执行 remove。
     if let Some(cached) = ADMIN_ROLE_CACHE.get(&role_id) {
         if !cached.is_expired() {
             return cached.is_admin;
         }
-        // 缓存已过期，移除
-        ADMIN_ROLE_CACHE.remove(&role_id);
     }
+    // Ref 已释放，remove 安全（未命中时为 no-op）
+    ADMIN_ROLE_CACHE.remove(&role_id);
 
     // 从数据库查询
     // 批次 23（2026-06-29 v5 P0-3）：使用 ADMIN_ROLE_CODE 常量替代硬编码 "admin"

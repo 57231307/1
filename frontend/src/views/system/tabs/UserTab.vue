@@ -144,6 +144,15 @@
         <el-form-item :label="t('system.user.dialog.email')" prop="email">
           <el-input v-model="userForm.email" />
         </el-form-item>
+        <el-form-item :label="t('system.user.dialog.role')" prop="role_id">
+          <el-select
+            v-model="userForm.role_id"
+            :placeholder="t('system.user.dialog.rolePlaceholder')"
+            style="width: 100%"
+          >
+            <el-option v-for="r in roles" :key="r.id" :label="r.name" :value="r.id" />
+          </el-select>
+        </el-form-item>
         <el-form-item v-if="userForm.id" :label="t('system.user.dialog.status')">
           <el-switch v-model="userForm.status" :active-value="1" :inactive-value="0" />
         </el-form-item>
@@ -167,6 +176,8 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import { createUser, updateUser, deleteUser as deleteUserApi, type User } from '@/api/user';
+import { getRoleList, type Role } from '@/api/role';
+import { onMounted } from 'vue';
 import { useTableApi } from '@/composables/useTableApi';
 // Batch 462 P0-S24：引入权限码常量，与后端 users 资源对齐
 import { PERMISSIONS } from '@/constants/permissions';
@@ -240,9 +251,26 @@ const userForm = reactive({
   real_name: '',
   phone: '',
   email: '',
+  role_id: undefined as number | undefined,
   department_id: undefined as number | undefined,
   status: 1,
 });
+
+// 角色下拉数据源：创建用户必须分配角色（后端 require_admin_role 校验依赖 role_id，
+// 无角色用户登录后无法执行管理操作）
+const roles = ref<Role[]>([]);
+const fetchRoles = async () => {
+  try {
+    const res = await getRoleList({ page: 1, page_size: 100 });
+    const data = res.data as unknown;
+    roles.value = Array.isArray(data)
+      ? (data as Role[])
+      : ((data as { items?: Role[] })?.items ?? []);
+  } catch {
+    roles.value = [];
+  }
+};
+onMounted(fetchRoles);
 
 // v11 批次 166 P2-1 修复：validator 参数类型化（FormItemRule validator 签名）
 const validateEmail = (_rule: unknown, v: string, cb: (error?: Error) => void) => {
@@ -276,6 +304,13 @@ const userRules: FormRules = {
   ],
   email: [{ validator: validateEmail, trigger: 'blur' }],
   phone: [{ validator: validatePhone, trigger: 'blur' }],
+  role_id: [
+    {
+      required: true,
+      message: t('system.user.dialog.rolePlaceholder'),
+      trigger: 'change',
+    },
+  ],
 };
 
 const openUserDialog = (row?: User) => {
@@ -298,6 +333,7 @@ const openUserDialog = (row?: User) => {
       real_name: '',
       phone: '',
       email: '',
+      role_id: undefined,
       department_id: undefined,
       status: 1,
     });
@@ -326,6 +362,7 @@ const submitUser = async () => {
         real_name: userForm.real_name,
         phone: userForm.phone,
         email: userForm.email,
+        role_id: userForm.role_id,
         department_id: userForm.department_id,
       });
       ElMessage.success(t('settings.user.createSuccess'));

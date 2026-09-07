@@ -121,7 +121,7 @@ impl SupplierService {
             contact_phone: Set(req.contact_phone.clone().unwrap_or_default()),
             fax: Set(req.fax.clone()),
             website: Set(req.website.clone()),
-            email: Set(req.email.clone()),
+            contact_email: Set(req.email.clone()),
             main_business: Set(req.main_business.clone()),
             main_market: Set(req.main_market.clone()),
             employee_count: Set(req.employee_count),
@@ -441,7 +441,7 @@ impl SupplierService {
             active.website = Set(Some(v));
         }
         if let Some(v) = req.email.take() {
-            active.email = Set(Some(v));
+            active.contact_email = Set(Some(v));
         }
     }
 

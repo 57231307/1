@@ -416,7 +416,7 @@ loadDimensions();
 
     <ElDialog
       :title="$t('assistAccounting.detailDialog.title')"
-      :visible="viewDialogVisible"
+      v-model="viewDialogVisible"
       width="800px"
       :aria-label="$t('assistAccounting.detailDialog.ariaLabel')"
       @close="viewDialogVisible = false"

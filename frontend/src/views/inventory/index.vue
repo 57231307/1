@@ -148,7 +148,7 @@ const fetchData = async () => {
   try {
     const { getStockList, getInventoryReport } = await import('@/api/inventory');
     const res = await getStockList(queryParams);
-    stocks.value = res.data?.list || [];
+    stocks.value = res.data?.items || [];
     total.value = res.data?.total || 0;
 
     const summaryRes = await getInventoryReport({});
@@ -191,7 +191,7 @@ const fetchTransfers = async () => {
   try {
     const { getInventoryTransferList } = await import('@/api/inventory');
     const res = await getInventoryTransferList(queryParams);
-    transfers.value = res.data?.list || [];
+    transfers.value = res.data?.items || [];
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     ElMessage.error(
@@ -206,7 +206,7 @@ const fetchWarehouses = async () => {
   try {
     const { getWarehouseList } = await import('@/api/warehouse');
     const res = await getWarehouseList({ page: 1, page_size: 1000 });
-    warehouses.value = res.data?.list || [];
+    warehouses.value = res.data?.items || [];
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     ElMessage.error(

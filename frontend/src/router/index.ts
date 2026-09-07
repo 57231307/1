@@ -1142,35 +1142,37 @@ async function checkInitStatus(): Promise<boolean> {
   if (initStatus !== null) return initStatus;
   // 批次 22 v5 P0-8：默认 false（保守），仅明确成功才置 true
   let result = false;
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3000);
-    const response = await fetch('/api/v1/erp/init/status', {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-    if (response.ok) {
-      const data = await response.json();
-      // 兼容两种格式：
-      // 1. setup 模式：返回 { initialized: false, message: "..." }
-      // 2. 正常模式：返回 { code: 200, data: { initialized: true, ... } }
-      if (data.code === 200 && data.data !== undefined) {
-        result = !!data.data.initialized;
+  // CI/E2E 16+ 分片并发时后端响应显著变慢：不设本地 abort 硬超时（3s 超时会
+  // 把"慢"误判为"未初始化"→ 守卫跳 /setup → 页面白屏连锁失败），
+  // 交由浏览器默认网络超时；重试 3 次共 3 次机会，间隔递增
+  for (let attempt = 0; attempt < 3 && !result; attempt++) {
+    if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * attempt));
+    try {
+      const response = await fetch('/api/v1/erp/init/status', {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        // 兼容两种格式：
+        // 1. setup 模式：返回 { initialized: false, message: "..." }
+        // 2. 正常模式：返回 { code: 200, data: { initialized: true, ... } }
+        if (data.code === 200 && data.data !== undefined) {
+          result = !!data.data.initialized;
+        } else {
+          result = !!data.initialized;
+        }
       } else {
-        result = !!data.initialized;
+        // 批次 22 v5 P0-8：HTTP 错误保持 false，记录日志
+        logger.error(`检查系统初始化状态失败：HTTP ${response.status}（attempt ${attempt + 1}/3）`);
       }
-    } else {
-      // 批次 22 v5 P0-8：HTTP 错误保持 false，记录日志
-      logger.error(`检查系统初始化状态失败：HTTP ${response.status}`);
+    } catch (error) {
+      // 批次 22 v5 P0-8：catch 时保持 false，记录日志
+      logger.error(`检查系统初始化状态失败（attempt ${attempt + 1}/3）:`, error);
     }
-  } catch (error) {
-    // 批次 22 v5 P0-8：catch 时保持 false，记录日志
-    logger.error('检查系统初始化状态失败:', error);
   }
   initStatus = result;
-  return initStatus;
+  return result;
 }
 
 /**

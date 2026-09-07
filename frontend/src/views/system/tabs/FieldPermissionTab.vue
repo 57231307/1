@@ -71,6 +71,7 @@
 import { ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { request } from '@/api/request';
+import type { ApiResponse } from '@/types/api';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -88,15 +89,9 @@ const fieldPermLoading = ref(false);
 const fetchFieldPermissions = async () => {
   fieldPermLoading.value = true;
   try {
-    const res = await request.get<{ items?: FieldPermissionRow[] } | FieldPermissionRow[]>(
-      '/permissions/fields'
-    );
-    const d = res;
-    if (d && typeof d === 'object' && 'items' in d) {
-      fieldPermissionList.value = d.items || [];
-    } else {
-      fieldPermissionList.value = (d as FieldPermissionRow[]) || [];
-    }
+    const res = await request.get<ApiResponse<unknown[]>>('/permissions/fields');
+    // 拦截器返回 ApiResponse 信封，业务数组在 data 字段（信封对象直赋表格会触发 rows not iterable 崩溃）
+    fieldPermissionList.value = (res.data as FieldPermissionRow[]) ?? [];
   } catch (_e) {
     fieldPermissionList.value = [];
   } finally {

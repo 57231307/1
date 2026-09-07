@@ -87,11 +87,11 @@ pub struct Model {
 
     // ========== v14 批次 419：面料行业追溯字段（F-P0-1 修复） ==========
     /// 色号（面料行业追溯字段，记录生产订单对应的颜色）
-    pub color_no: Option<String>,
+    pub color_no: String,
     /// 缸号（面料行业追溯字段，记录生产订单对应的染缸批次）
-    pub dye_lot_no: Option<String>,
+    pub dye_lot_no: String,
     /// 批号（面料行业追溯字段，记录生产订单对应的批号）
-    pub batch_no: Option<String>,
+    pub batch_no: String,
 
     // ========== V15 Batch 479 P0-F21：返工走生产订单流程 ==========
     /// 订单类型：normal 正常生产订单 / rework 返工订单

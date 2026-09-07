@@ -97,7 +97,7 @@ const fetchGreigeFabrics = async () => {
 const fetchSuppliers = async () => {
   try {
     const res = await getSupplierList();
-    suppliers.value = (res.data?.list as Supplier[] | undefined) || [];
+    suppliers.value = (res.data?.items as Supplier[] | undefined) || [];
   } catch (error) {
     const err = error as Error;
     logger.error(t('fabric.index.fetchSuppliersFailed'), err.message);

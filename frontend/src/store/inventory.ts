@@ -21,10 +21,15 @@ export const useInventoryStore = defineStore('inventory', () => {
     loading.value = true;
     try {
       const res = await getStockList(params);
-      // 仅在后端返回有效数据时更新，防止 data 为 null 时崩溃
-      if (res.data) {
-        stocks.value = res.data.list;
-        total.value = res.data.total;
+      // 兼容 PaginatedResponse { items, total }（当前后端格式）与历史 { list, total }
+      const payload = res.data as {
+        items?: InventoryStock[];
+        list?: InventoryStock[];
+        total?: number;
+      } | null;
+      if (payload) {
+        stocks.value = payload.items || payload.list || [];
+        total.value = payload.total || stocks.value.length;
       }
     } catch (error) {
       logger.error('获取库存列表失败:', error);

@@ -16,6 +16,7 @@ fn make_item(product_id: i32, dye_lot_no: Option<&str>) -> ShipOrderItemRequest 
         batch_no: Some("B001".to_string()),
         color_no: Some("C001".to_string()),
         dye_lot_no: dye_lot_no.map(|s| s.to_string()),
+        piece_no: None,
     }
 }
 

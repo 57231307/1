@@ -13,6 +13,8 @@ pub struct Model {
     pub id: i32,
     pub batch_no: String,
     pub greige_fabric_id: Option<i32>,
+    pub color_code: String,
+    pub color_name: String,
     pub color_no: Option<String>,
     // V15 P0-F01：染色批号（dye_lot_no），面料四维标识之一
     // 术语：与 batch_no（缸号=染色批次号，同一概念不同叫法）不同，

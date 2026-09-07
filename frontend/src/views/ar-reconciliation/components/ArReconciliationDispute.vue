@@ -81,7 +81,7 @@
         width="120"
         align="right"
       >
-        <template #default="scope">{{ scope.row.dispute_amount.toFixed(2) }}</template>
+        <template #default="scope">{{ Number(scope.row.dispute_amount ?? 0).toFixed(2) }}</template>
       </el-table-column>
       <el-table-column :label="$t('common.status')" width="100">
         <template #default="scope">

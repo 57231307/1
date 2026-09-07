@@ -143,9 +143,10 @@ fn is_core_direct_resource(part: &str) -> bool {
             | "chemical-categories"
             | "chemical-lots"
             | "chemical-requisitions"
-            // ===== 财务直接资源 =====
-            | "subjects"
+        // ===== 财务直接资源 =====
+        | "subjects"
             | "vouchers"
+            | "accounting-periods"
             | "fixed-assets"
             | "budgets"
             | "financial-analysis"

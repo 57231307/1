@@ -2,7 +2,7 @@
 //!
 //! 本文件为 facade 入口，仅保留：
 //! - `ImportExportService` struct + `new` 构造函数
-//! - 公共常量（MAX_CSV_BYTES / MAX_EXCEL_ROWS / MAX_EXCEL_COLS / MAX_CELL_LEN / MAX_EXPORT_ROWS）
+//! - 公共常量（MAX_EXCEL_ROWS / MAX_EXCEL_COLS / MAX_CELL_LEN / MAX_EXPORT_ROWS）
 //! - DTO struct（ImportResult / ImportError / ImportTemplate / ImportColumnDef / ExportQuery）
 //! - 纯函数（无 &self / 无 db 访问）：get_import_template / build_*_template / parse_csv /
 //!   generate_xlsx / validate_import_data / validate_import_data_size /
@@ -39,10 +39,6 @@ use crate::utils::xlsx_export::{XlsxTable, build_xlsx};
 //    - L3：handler 入口早期校验（拒绝更快、更友好）
 //    - L4：service 层 defense-in-depth（避免 handler 漏检 / 内部调用绕过）
 // ============================================================================
-
-/// CSV 字符串最大长度：10 MB
-/// 依据：单行 100 字符 × 10 万行 ≈ 10MB，足够覆盖业务批量导入场景
-pub const MAX_CSV_BYTES: usize = 10 * 1024 * 1024;
 
 /// Excel 最大行数：1 万行
 /// 依据：超过此行数时应分批导入；本服务只做单批次导入
@@ -244,23 +240,6 @@ impl ImportExportService {
                 },
             ],
         }
-    }
-
-    /// 解析CSV内容
-    /// 批次 340 v11 复审 P1 修复：移除防御性 `#[allow(clippy::needless_pass_by_value)]`，；`content: &str` 是引用类型，clippy 不会对引用类型触发 needless_pass_by_value，；原标注为历史遗留误报防御。
-    pub fn parse_csv(content: &str) -> Result<Vec<Vec<String>>, AppError> {
-        let mut reader = csv::ReaderBuilder::new()
-            .has_headers(true)
-            .from_reader(content.as_bytes());
-
-        let mut rows = Vec::new();
-        for result in reader.records() {
-            let record = result.map_err(|e| AppError::validation(format!("CSV解析错误: {}", e)))?;
-            let row: Vec<String> = record.iter().map(|s| s.to_string()).collect();
-            rows.push(row);
-        }
-
-        Ok(rows)
     }
 
     /// 生成 xlsx 内容（规则 3：面向用户的导出统一使用 xlsx 格式）

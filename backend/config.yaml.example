@@ -23,7 +23,9 @@ database:
   username: "bingxi"
   # ⚠️ 安全警告：生产环境必须通过环境变量 DATABASE_PASSWORD 设置
   password: ""  # 留空，通过环境变量设置
-  max_connections: 50
+  # 并发容量：99 人同时在线、峰值 20-30 人/分钟登录的部署规模下，
+  # 100 连接为高峰期列表/报表并发查询留余量（需 PG max_connections >= 120）
+  max_connections: 100
   # 批次 389 P2-3：移除 AppSettings 未定义的 5 个字段（用户修改不生效，易误导运维）
   # 原字段：min_connections / acquire_timeout_ms / idle_timeout_ms / max_lifetime_ms / ssl_mode / ssl_ca
   # - min_connections: SeaORM 连接池未暴露此配置项，按 max_connections 比例自动管理

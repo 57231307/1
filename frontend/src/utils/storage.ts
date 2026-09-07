@@ -22,7 +22,12 @@ function readCookie(name: string): string | null {
   for (const raw of parts) {
     const cookie = raw.trim();
     if (cookie.startsWith(target)) {
-      return decodeURIComponent(cookie.substring(target.length));
+      try {
+        return decodeURIComponent(cookie.substring(target.length));
+      } catch {
+        // 值含非法 % 序列时返回原始子串，避免 URIError 中断请求链
+        return cookie.substring(target.length);
+      }
     }
   }
   return null;
@@ -45,10 +50,13 @@ export function loadCsrfToken(): string | null {
 }
 
 /**
- * 兼容旧名称：清除 CSRF Token
- * - 后端在登出 / CSRF 校验失败时会通过 Set-Cookie 头自动清除
- * - 这里保留空操作以兼容旧调用方，避免未定义引用
+ * 清除 CSRF Token Cookie
+ * - csrf_token 为非 httpOnly Cookie，前端可直接删除
+ * - CSRF 校验失败后调用，防止带着已知失效的 token 反复撞 403
  */
 export function clearCsrfToken(): void {
-  // 后端负责清除（Set-Cookie + max-age=0），前端无需也无法操作 httpOnly Cookie
+  if (typeof document === 'undefined') {
+    return;
+  }
+  document.cookie = 'csrf_token=; Max-Age=0; Path=/; SameSite=Strict';
 }

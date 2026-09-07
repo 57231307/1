@@ -223,9 +223,12 @@ function syncQueryParams() {
 async function loadCustomers() {
   try {
     const res = await getCustomerList({ page: 1, page_size: 1000 });
-    // getCustomerList 返回 ApiResponse<{ list: Customer[]; total: number }>，
-    // res.data.list 即客户数组，无需 as any
-    customers.value = res.data?.list || [];
+    // 后端返回 PaginatedResponse { items, total }，兼容历史 list 字段
+    const payload = res.data as {
+      items?: Array<{ id: number; customer_name?: string; name?: string }>;
+      list?: Array<{ id: number; customer_name?: string; name?: string }>;
+    } | null;
+    customers.value = payload?.items || payload?.list || [];
   } catch {
     customers.value = [];
   }

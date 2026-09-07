@@ -1,5 +1,6 @@
 import { request } from './request';
 import type { ApiResponse } from '@/types/api';
+import type { AxiosRequestConfig } from 'axios';
 
 /** 账号锁定状态（来自后端 /api/v1/erp/lock-status） */
 export interface LockStatus {
@@ -62,7 +63,7 @@ export const getSecurityStats = () => request.get<ApiResponse<SecurityStats>>('/
 // D14 Batch 5b：原 securityApi.getLoginLogs 转为风格 B 函数
 // 后端路由 GET /api/v1/erp/login-logs
 export const getLoginLogList = (params?: SecurityQueryParams) =>
-  request.get<ApiResponse<{ list: LoginLog[]; total: number }>>('/login-logs', {
+  request.get<ApiResponse<{ items: LoginLog[]; total: number }>>('/login-logs', {
     params,
   });
 
@@ -99,4 +100,6 @@ export const exportLoginLogs = (params?: SecurityQueryParams) =>
 export const checkLockStatus = (username: string) =>
   request.get<ApiResponse<LockStatus>>('/lock-status', {
     params: { username },
-  });
+    timeout: 5000,
+    _skipAuthRetry: true,
+  } as AxiosRequestConfig & { _skipAuthRetry?: boolean });

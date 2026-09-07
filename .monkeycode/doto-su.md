@@ -2515,3 +2515,35 @@ locales + 脚本 + 测试：
 | 29.4 | 业务降级方案 | 必须有业务降级方案 | ✅ 已完成（零散无统一中心，中风险） |
 | 29.5 | 灾难恢复剧本 | 必须有灾难恢复剧本 | ✅ 已完成（无文档，高风险） |
 | 29.6 | 定期灾备演练记录 | 必须有定期灾备演练记录 | ✅ 已完成（无记录，高风险） |
+
+---
+
+## 🧹 追溯字段不可空专项 + E2E 稳定性收敛（2026-09-06/07，run 34038107579→34041167918→修复链）
+
+### 已完成归档（原 doto.md 待办，排查后确认完成）
+
+- [x] **CI #4415 piece_domain_service doc 注释 / #4412 omni_audit E0382**——后续多轮 CI 构建 success（34038107579/34039615215 构建 job）已覆盖验证
+- [x] **E2E 登录卡死分片清零观察**——r24（34041167918）登录失败实际为 0（ui-failures 里的 "UI 登录失败" 计数是 CI 统计步骤的 grep 命令回显，非真实事件）；401 刷新死锁修复生效
+- [x] **采购退货链 items 500（DATABASE_ERROR）**——根因定位为 purchase_return_item/sales_return_item 追溯列（color_no 等）后补列无 DEFAULT，SeaORM NotSet 插入后解码 String 遇 NULL 报 "Missing value for column"；已通过迁移 NOT NULL DEFAULT '' + UPDATE 兜底 + Model String 化修复（commit 926d874/edbe08b/9b863fd）
+- [x] **PR #937 401 刷新死锁**——同登录卡死项，已清零
+- [x] **匹号领域一期**（迁移/报工/回仓/单据/07-fabric E2E 重写）——全部落地：
+  - 迁移：inventory_piece piece_type/machine_no/dye_lot_id 可空/部分唯一（m0052）
+  - 报工：flow_card_ops/step.rs 接 create_greige_pieces_from_report（batch_no=生产单号）
+  - 回仓：outsourcing_ops/receipt.rs 接 create_piece_from_outsourcing_receipt（染色匹 {缸号}-{seq:03}、缸号档案自动补齐）
+  - 单据：sales_order_item/sales_delivery_item 加 piece_no 透传
+  - E2E：07-fabric-four-dim 重写为 8 测试真实链路
+  - （二期-外发/对账匹号校验仍未做，保留在未完成清单）
+- [x] **追溯列 NOT NULL 迁移存量库验证**（本轮专项遗留观察项）——迁移含 UPDATE ... WHERE NULL 兜底，幂等可重复执行；CI 新 run 验证中
+- [x] **role_conflicts 查询端点缺失**——已补 GET /roles/conflicts（role_handler.list_role_conflicts + iam.rs 挂载），09-permissions P1-1 改为真实端点断言
+
+### 本轮新增修复（核查第二三轮发现）
+
+- [x] sales_orders 6 面料列 NOT NULL 后 Set(None) 写 NULL 回归（ensure salesOrderId 创建每次 DATABASE_ERROR）——写入层 None→空串
+- [x] 追溯字段 String 化的 8 处消费点 E0308（business_trace/sales_return 四维索引/completion/fabric_inspection/ship/scheduling_auto）
+- [x] tests production_order 夹具 Some 包装残留（Clippy 101 + nextest 预编译失败）
+- [x] 20/22/24 重复 beforeEach 合并；00/06/08/20/22/24 补缺失的 ensureTestEntities；10b-10e 补 beforeEach
+- [x] readFirstEntityId 页面未命中列表响应时 API 直查兜底（消除 dye-batch 反复 120s UI 超时→shard 强杀）
+- [x] 21 系列契约修正（required_date 完整 ISO/liquor_ratio 类型/Decimal 格式断言归一）、3-12 真实 lifecycle 路径、14 summary 字段名与随机科目
+- [x] 07-fabric 生产匹/净布匹 dye_lot_no 断言 toBeNull → 空串（追溯列不可空后 DB 返回 ''）
+- [x] 21 系列创建失败 fast-fail（兜底旧单断言自建字段失真且掩盖根因）
+- [x] 大文件拆分负载均衡（29/10/28/21 → 17 文件，30 分片 min=10/max=23）

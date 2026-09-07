@@ -476,7 +476,9 @@ impl SalesReturnService {
         // v14 批次 419 修复 T-P0-5：从退货明细获取缸号/色号/批号，
         // 按四维 (product_id, color_no, batch_no, dye_lot_no) 查找匹配库存
         let item_color_no = item.color_no.clone();
-        let item_dye_lot_no = item.dye_lot_no.clone();
+        // 追溯字段不可空规范：sales_return_item.dye_lot_no 已 String 化，
+        // 四维索引 key 的 dye_lot_no 仍为 Option<String>，此处包 Some
+        let item_dye_lot_no = Some(item.dye_lot_no.clone());
         let item_batch_no = item.batch_no.clone();
         let stock = stock_map.get(&(
             item.product_id,

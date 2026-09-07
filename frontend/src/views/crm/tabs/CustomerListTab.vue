@@ -126,7 +126,7 @@
           :label="$t('crmCustomer.table.contactPerson')"
           width="100"
         />
-        <el-table-column prop="phone" :label="$t('crmCustomer.table.phone')" width="130" />
+        <el-table-column prop="contact_phone" :label="$t('crmCustomer.table.phone')" width="130" />
         <el-table-column prop="customer_type" :label="$t('crmCustomer.table.type')" width="100">
           <template #default="{ row }">
             <el-tag :type="getCustomerTypeTag(row.customer_type)" size="small">
@@ -259,9 +259,9 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item :label="$t('crmCustomer.dialog.phone')" prop="phone">
+            <el-form-item :label="$t('crmCustomer.dialog.phone')" prop="contact_phone">
               <el-input
-                v-model="formData.phone"
+                v-model="formData.contact_phone"
                 :placeholder="$t('crmCustomer.dialog.phonePlaceholder')"
               />
             </el-form-item>
@@ -269,9 +269,9 @@
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item :label="$t('crmCustomer.dialog.email')" prop="email">
+            <el-form-item :label="$t('crmCustomer.dialog.email')" prop="contact_email">
               <el-input
-                v-model="formData.email"
+                v-model="formData.contact_email"
                 :placeholder="$t('crmCustomer.dialog.emailPlaceholder')"
               />
             </el-form-item>
@@ -358,6 +358,7 @@ import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import { Plus, Coin, Share, Download, Printer } from '@element-plus/icons-vue';
+import { formatCurrency } from '@/utils';
 // D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
 import {
   getCrmTagList,
@@ -425,8 +426,8 @@ const formData = reactive({
   customer_code: '',
   customer_name: '',
   contact_person: '',
-  phone: '',
-  email: '',
+  contact_phone: '',
+  contact_email: '',
   address: '',
   customer_type: 'normal',
   tax_number: '',
@@ -446,7 +447,7 @@ const formRules = computed<FormRules>(() => ({
   contact_person: [
     { required: true, message: t('crmCustomer.validation.contactPersonRequired'), trigger: 'blur' },
   ],
-  phone: [
+  contact_phone: [
     { required: true, message: t('crmCustomer.validation.phoneRequired'), trigger: 'blur' },
     {
       pattern: /^1[3-9]\d{9}$/,
@@ -459,8 +460,6 @@ const formRules = computed<FormRules>(() => ({
 const dialogTitle = computed(() =>
   isEdit.value ? t('crmCustomer.dialog.editTitle') : t('crmCustomer.dialog.createTitle')
 );
-
-const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`;
 
 // D05 Batch 4：getCustomerTypeLabel 改为函数返回，使 t() 在每次渲染时响应式求值
 const getCustomerTypeLabel = (type: string) => {
@@ -523,8 +522,8 @@ const resetForm = () => {
   formData.customer_code = '';
   formData.customer_name = '';
   formData.contact_person = '';
-  formData.phone = '';
-  formData.email = '';
+  formData.contact_phone = '';
+  formData.contact_email = '';
   formData.address = '';
   formData.customer_type = 'normal';
   formData.tax_number = '';

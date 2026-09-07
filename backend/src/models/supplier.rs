@@ -40,6 +40,8 @@ pub struct Model {
     pub bank_name: String,
     /// 银行账号
     pub bank_account: String,
+    /// 联系人
+    pub contact_person: Option<String>,
     /// 联系电话
     pub contact_phone: String,
     /// 传真
@@ -47,7 +49,7 @@ pub struct Model {
     /// 公司网址
     pub website: Option<String>,
     /// 联系邮箱
-    pub email: Option<String>,
+    pub contact_email: Option<String>,
     /// 主营业务
     pub main_business: Option<String>,
     /// 主要市场

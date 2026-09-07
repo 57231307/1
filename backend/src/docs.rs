@@ -74,6 +74,7 @@ pub struct ApiDoc;
 
 impl ApiDoc {
     /// 创建 OpenAPI 文档
+    #[allow(dead_code, reason = "CI 环境未启用")]
     pub fn new() -> Self {
         Self
     }

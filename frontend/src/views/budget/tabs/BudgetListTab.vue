@@ -70,7 +70,7 @@
           width="120"
         />
         <el-table-column :label="$t('budget.table.totalAmount')" width="140" align="right">
-          <template #default="{ row }">¥{{ row.total_amount.toFixed(2) }}</template>
+          <template #default="{ row }">¥{{ Number(row.total_amount ?? 0).toFixed(2) }}</template>
         </el-table-column>
         <el-table-column prop="status" :label="$t('budget.table.status')" width="100">
           <template #default="{ row }">

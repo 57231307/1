@@ -182,7 +182,7 @@ const currentCustomerId = ref<number | null>(null);
 const fetchCustomers = async () => {
   try {
     const res = await getCustomerList({ page: 1, page_size: 100 });
-    customerOptions.value = res.data?.list || [];
+    customerOptions.value = res.data?.items || [];
   } catch (error) {
     customerOptions.value = [];
   }

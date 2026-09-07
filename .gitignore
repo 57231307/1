@@ -141,3 +141,4 @@ mock-server.js
 docs/project-optimization-report.md
 frontend/coverage/
 .audit-reports/*.json.tmp
+frontend/stats.html

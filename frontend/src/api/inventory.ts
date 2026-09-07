@@ -150,7 +150,7 @@ export interface InventoryReportDetail {
 
 // D14 Batch 5b：原 inventoryApi.getStockList 转为风格 B 函数
 export const getStockList = (params?: InventoryQueryParams) =>
-  request.get<ApiResponse<{ list: InventoryStock[]; total: number }>>('/inventory/stock', {
+  request.get<ApiResponse<{ items: InventoryStock[]; total: number }>>('/inventory/stock', {
     params,
   });
 
@@ -178,7 +178,7 @@ export const createStockAdjustment = (data: StockAdjustmentData) =>
 
 // D14 Batch 5b：原 inventoryApi.getReservations 转为风格 B 函数
 export const getReservationList = (params?: InventoryQueryParams) =>
-  request.get<ApiResponse<{ list: InventoryReservation[]; total: number }>>(
+  request.get<ApiResponse<{ items: InventoryReservation[]; total: number }>>(
     '/inventory/reservations',
     { params }
   );
@@ -193,7 +193,7 @@ export const cancelReservation = (id: number) =>
 
 // D14 Batch 5b：原 inventoryApi.getTransfers 转为风格 B 函数
 export const getInventoryTransferList = (params?: InventoryQueryParams) =>
-  request.get<ApiResponse<{ list: InventoryTransfer[]; total: number }>>('/inventory/transfers', {
+  request.get<ApiResponse<{ items: InventoryTransfer[]; total: number }>>('/inventory/transfers', {
     params,
   });
 

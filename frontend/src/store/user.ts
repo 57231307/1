@@ -43,6 +43,7 @@ export const useUserStore = defineStore('user', () => {
   );
 
   async function login(loginData: LoginRequest) {
+    // loginApi 已在 api 层解包 ApiResponse 信封，返回业务数据 LoginResponse
     const res = await loginApi(loginData);
     // Wave B-3：access_token / refresh_token 由后端写入 httpOnly Cookie，前端不再持有 token
     // FE-P-2/FE-P-3 修复：后端 LoginResponse 顶层 permissions 优先于 user.permissions
@@ -69,6 +70,7 @@ export const useUserStore = defineStore('user', () => {
   }
 
   async function fetchUserInfo() {
+    // getUserInfo 已在 api 层解包 ApiResponse 信封，返回业务数据 UserInfo
     const info = await getUserInfo();
     // 批次 22 v5 P0-5 修复：对 permissions 字段添加 Object.freeze 运行时保护，
     // 防止前端组件恶意修改权限码数组（如 push 注入 admin:write）。

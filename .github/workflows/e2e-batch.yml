@@ -91,7 +91,7 @@ jobs:
       AUDIT_SECRET_KEY: e2e-only-audit-signing-key-do-not-use-in-prod-32b
       INIT_TOKEN: ci-e2e-seeding-token-only-32bytes-do-not-use!
       TEST_USERNAME: e2e_admin
-      TEST_PASSWORD: E2e@TestPassword2026!
+      TEST_PASSWORD: "Xk9#mQ2$vL8pW4nR"
       APP_ENV: development
       ENV: development
       KAFKA_ENABLED: "false"

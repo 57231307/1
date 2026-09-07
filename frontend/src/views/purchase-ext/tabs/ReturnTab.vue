@@ -419,7 +419,7 @@ const fetchPurchaseReturns = async () => {
   returnLoading.value = true;
   try {
     const res = await getPurchaseReturnList(returnQuery);
-    purchaseReturns.value = res.data?.list || [];
+    purchaseReturns.value = res.data?.items || [];
   } catch (error) {
     const err = error as { message?: string };
     ElMessage.error(err.message || t('purchaseExt.returnTab.fetchFailed'));

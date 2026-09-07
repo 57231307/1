@@ -75,6 +75,7 @@ impl OutsourcingOrderItemService {
             product_id: Set(req.product_id),
             color_no: Set(req.color_no),
             dye_lot_no: Set(req.dye_lot_no),
+            piece_no: Set(req.piece_no),
             batch_no: Set(req.batch_no),
             warehouse_id: Set(req.warehouse_id),
             quantity: Set(req.quantity),

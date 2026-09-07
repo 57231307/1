@@ -13,7 +13,11 @@ use serde::Serialize;
 use std::collections::HashMap;
 
 // 死代码清理（2026-06-26）：ImportFormat enum 及 impl 仅在测试中使用，无业务引用，已删除。
-// 业务代码直接使用 import_export_handler 中的 import_csv/import_excel 函数。
+// 死代码清理（2026-06-26）：import_csv 一并删除，不再提供 CSV 专用入口。
+// 当前导入入口：
+//   - `CsvImporter::parse`：CSV 文本解析
+//   - `XlsxImporter::parse`：xlsx 解析（带 magic bytes 校验）
+//   - `import_export_handler::{import_excel, export_xlsx, export_stream}`：HTTP 层入口
 
 /// 导入错误
 #[derive(Debug, Clone, Serialize)]
@@ -119,6 +123,83 @@ impl CsvImporter {
         }
 
         Ok(records)
+    }
+}
+
+/// xlsx 导入工具
+///
+/// xlsx 本质为 ZIP（OOXML），首 4 字节固定为 `50 4B 03 04`。仅靠后缀判断可被绕过
+/// （如把脚本改名成 .xlsx），因此解析前统一做 magic bytes 校验。
+///
+/// 解析结果与 [`CsvImporter::parse`] 保持一致（每行一个「表头 → 值」的 Map），
+/// 便于上层复用同一套行处理逻辑。
+pub struct XlsxImporter;
+
+impl XlsxImporter {
+    /// 校验 xlsx 文件头（ZIP magic bytes）
+    pub fn verify_magic(data: &[u8]) -> bool {
+        data.starts_with(&[0x50, 0x4B, 0x03, 0x04])
+    }
+
+    /// 解析 xlsx 数据（首行为表头，返回每行键值对）
+    pub fn parse(data: &[u8]) -> Result<Vec<HashMap<String, String>>, AppError> {
+        use calamine::{Reader, open_workbook_auto_from_rs};
+        use std::io::Cursor;
+
+        if !Self::verify_magic(data) {
+            return Err(AppError::validation(
+                "文件内容不是有效的 xlsx 格式（magic bytes 校验失败）".to_string(),
+            ));
+        }
+
+        let mut workbook = open_workbook_auto_from_rs(Cursor::new(data.to_vec()))
+            .map_err(|e| AppError::validation(format!("无法解析 xlsx 文件: {}", e)))?;
+
+        let sheet_name = workbook
+            .sheet_names()
+            .first()
+            .cloned()
+            .ok_or_else(|| AppError::validation("xlsx 文件无工作表".to_string()))?;
+        let range = workbook
+            .worksheet_range(&sheet_name)
+            .map_err(|e| AppError::validation(format!("读取工作表失败: {}", e)))?;
+
+        let mut rows_iter = range.rows();
+        // 第一行为表头
+        let headers: Vec<String> = match rows_iter.next() {
+            Some(header_row) => header_row.iter().map(cell_to_string).collect(),
+            None => return Ok(Vec::new()),
+        };
+
+        let mut records = Vec::new();
+        for row in rows_iter {
+            let mut map = HashMap::new();
+            for (col_idx, cell) in row.iter().enumerate() {
+                if let Some(header) = headers.get(col_idx) {
+                    let value = cell_to_string(cell);
+                    if !value.is_empty() {
+                        map.insert(header.clone(), value);
+                    }
+                }
+            }
+            if !map.is_empty() {
+                records.push(map);
+            }
+        }
+
+        Ok(records)
+    }
+}
+
+/// 单元格转字符串（取值口径与 crm/lead.rs 的 extract_cell_string 保持一致）
+fn cell_to_string(cell: &calamine::Data) -> String {
+    match cell {
+        calamine::Data::String(s) => s.trim().to_string(),
+        calamine::Data::Int(n) => n.to_string(),
+        calamine::Data::Float(f) => f.to_string(),
+        calamine::Data::Bool(b) => b.to_string(),
+        calamine::Data::DateTimeIso(s) | calamine::Data::DurationIso(s) => s.clone(),
+        _ => String::new(),
     }
 }
 

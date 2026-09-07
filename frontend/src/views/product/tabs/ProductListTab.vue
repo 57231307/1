@@ -226,6 +226,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatCurrency } from '@/utils';
 // 批次 277：迁移到 useTableApi composable，移除手写分页逻辑
 import { ref, reactive, watch, onMounted, defineEmits, defineExpose } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -282,8 +283,6 @@ const stats = reactive({
   totalCategories: 0,
   avgPrice: 0,
 });
-
-const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`;
 
 const buildTree = (items: ProductCategory[]): ProductCategory[] => {
   const map = new Map<number, ProductCategory>();

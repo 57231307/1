@@ -31,6 +31,8 @@ pub mod sales_return;
 pub mod order_crud;
 pub mod order_workflow;
 pub mod order_query;
+// 缺陷 3 修复：面料行业版订单业务逻辑（原 handler 内联逻辑下沉）
+pub mod fabric_order;
 
 // =====================================================
 // DTO 数据结构
@@ -58,6 +60,12 @@ pub struct SalesOrderDetail {
     pub shipping_address: Option<String>,
     pub billing_address: Option<String>,
     pub notes: Option<String>,
+    pub batch_no: Option<String>,
+    pub color_no: Option<String>,
+    pub dye_lot_no: Option<String>,
+    pub grade: Option<String>,
+    pub packaging_requirement: Option<String>,
+    pub quality_standard: Option<String>,
     pub created_by: Option<i32>,
     pub approved_by: Option<i32>,
     pub approved_at: Option<chrono::DateTime<chrono::Utc>>,
@@ -174,6 +182,8 @@ pub struct SalesOrderItemRequest {
     pub color_extra_cost: Option<rust_decimal::Decimal>,
     pub grade_price_diff: Option<rust_decimal::Decimal>,
     pub final_price: Option<rust_decimal::Decimal>,
+    /// 匹号（染色匹号贯穿销售订单条目，匹号领域一期）
+    pub piece_no: Option<String>,
 }
 
 /// 更新销售订单请求

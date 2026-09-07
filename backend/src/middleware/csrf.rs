@@ -19,6 +19,7 @@
 
 use crate::container::AppState;
 use crate::middleware::audit_context::extract_client_ip as extract_client_ip_helper;
+use crate::middleware::auth_context::AuthContext;
 use crate::middleware::public_routes::is_public_path;
 use crate::utils::cache::CsrfConsumeResult;
 use axum::{
@@ -128,7 +129,28 @@ fn consume_csrf_token(
                 method = %method,
                 "CSRF 验证失败：Token 不存在或已被消费/过期"
             );
-            Err(Box::new(csrf_error_response(CODE_INVAL, CSRF_INVALID_MSG)))
+            // 并发竞争缓解（E2E CI 稳定性修复）：
+            // 一次性消费 + 轮换机制下，同一会话的并发 POST 必有一个携带已消费的旧 token。
+            // 消费失败时同步下发新 token（X-New-CSRF-Token 头），让竞败方立即恢复，
+            // 避免前端被误踢出登录态（多标签页场景同样受益）。
+            // 注意：仅 NotFound（已消费/过期）时下发；IpMismatch/Missing 属攻击面，保持原语义。
+            let recovery_token = uuid::Uuid::new_v4().to_string();
+            let session_seed = format!("recovery-{}", uuid::Uuid::new_v4());
+            state.cache.set_csrf_token(
+                recovery_token.clone(),
+                session_seed,
+                client_ip.to_string(),
+                0,
+                None,
+            );
+            let mut resp = csrf_error_response(CODE_INVAL, CSRF_INVALID_MSG);
+            if let Ok(val) = axum::http::HeaderValue::from_str(&recovery_token) {
+                resp.headers_mut().insert(
+                    axum::http::header::HeaderName::from_static("x-new-csrf-token"),
+                    val,
+                );
+            }
+            Err(Box::new(resp))
         }
     }
 }
@@ -169,6 +191,33 @@ pub async fn csrf_middleware(
     // 4. 提取客户端 IP + 一次性消费 token（Wave 3 #7 含 IP 校验）
     let client_ip = extract_client_ip(&request);
     consume_csrf_token(&state, &token, &client_ip, &path, &method).map_err(|e| *e)?;
+
+    // 5. 消费成功后轮换：生成新 CSRF Token 存入 cache + Set-Cookie 下发
+    let new_csrf_token = uuid::Uuid::new_v4().to_string();
+    if let Some(auth) = request.extensions().get::<AuthContext>() {
+        let session_id = format!("session-{}", auth.user_id);
+        state.cache.set_csrf_token(
+            new_csrf_token.clone(),
+            session_id,
+            client_ip.clone(),
+            auth.user_id,
+            None,
+        );
+        // 通过 Set-Cookie 头下发新 csrf_token（非加密非 httpOnly，前端 JS 可读取明文）
+        // 注意：不可写 "HttpOnly=false"——按 RFC 6265 §5.2 解析器只认属性名并忽略值，
+        // 写了 HttpOnly 属性即等效开启，前端 document.cookie 将永远读不到该 Cookie。
+        let mut response = next.run(request).await;
+        let cookie_value = format!(
+            "csrf_token={}; Path=/; SameSite=Strict; Max-Age=1800",
+            new_csrf_token
+        );
+        response.headers_mut().append(
+            axum::http::header::SET_COOKIE,
+            axum::http::HeaderValue::from_str(&cookie_value)
+                .unwrap_or_else(|_| axum::http::HeaderValue::from_static("")),
+        );
+        return Ok(response);
+    }
 
     Ok(next.run(request).await)
 }

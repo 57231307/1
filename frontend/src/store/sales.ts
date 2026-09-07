@@ -23,10 +23,15 @@ export const useSalesStore = defineStore('sales', () => {
     loading.value = true;
     try {
       const res = await getSalesOrderList(params);
-      // 仅在后端返回有效数据时更新，防止 data 为 null 时崩溃
-      if (res.data) {
-        orders.value = res.data.list;
-        total.value = res.data.total;
+      // 兼容 PaginatedResponse { items, total }（当前后端格式）与历史 { list, total }
+      const payload = res.data as {
+        items?: SalesOrder[];
+        list?: SalesOrder[];
+        total?: number;
+      } | null;
+      if (payload) {
+        orders.value = payload.items || payload.list || [];
+        total.value = payload.total || orders.value.length;
       }
     } catch (error) {
       logger.error('获取订单列表失败:', error);
