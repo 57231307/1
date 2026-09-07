@@ -82,6 +82,17 @@ remote_exec() {
     fi
 }
 
+# SSH 脚本执行封装（heredoc 版）：stdin 读取脚本原文，远端 bash -s 执行。
+# 与 remote_exec（单字符串拼接转义 \$）相比，heredoc 'EOF' 单引号形态让脚本
+# 原样传输——远端变量引用无需反斜杠转义，可读性高且杜绝本地提前展开漏转义
+remote_exec_script() {
+    if [[ "$SSH_AUTH_MODE" == "key" ]]; then
+        ssh -i "$SSH_KEY" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 "$SSH_USER@$SERVER_IP" "bash -s"
+    else
+        sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 "$SSH_USER@$SERVER_IP" "bash -s"
+    fi
+}
+
 # 获取最新版本
 get_latest_version() {
     log "获取最新版本信息..."
@@ -151,7 +162,7 @@ download_release() {
 deploy_remote() {
     log "执行远程部署..."
 
-    remote_exec "
+    remote_exec_script << 'REMOTE_EOF'
         set -e
 
         # 解压发布包
@@ -171,16 +182,16 @@ deploy_remote() {
         sleep 2
 
         # 杀死占用端口的进程
-        pid=\$(ss -tlnp | grep :8082 | grep -oP 'pid=\K[0-9]+' | head -1)
-        if [ -n \"\$pid\" ]; then
-            kill -9 \$pid 2>/dev/null || true
+        pid=$(ss -tlnp | grep :8082 | grep -oP 'pid=\K[0-9]+' | head -1)
+        if [ -n "$pid" ]; then
+            kill -9 $pid 2>/dev/null || true
             sleep 1
         fi
 
         # 备份当前版本
         if [ -f /opt/bingxi-erp/backend/server ]; then
-            mkdir -p /opt/bingxi-erp/backups/backup_\$(date +%Y%m%d_%H%M%S)
-            cp -r /opt/bingxi-erp/backend /opt/bingxi-erp/backups/backup_\$(date +%Y%m%d_%H%M%S)/
+            mkdir -p /opt/bingxi-erp/backups/backup_$(date +%Y%m%d_%H%M%S)
+            cp -r /opt/bingxi-erp/backend /opt/bingxi-erp/backups/backup_$(date +%Y%m%d_%H%M%S)/
             # 只保留最近 5 个备份
             ls -dt /opt/bingxi-erp/backups/backup_* 2>/dev/null | tail -n +6 | xargs rm -rf 2>/dev/null || true
         fi
@@ -203,73 +214,89 @@ deploy_remote() {
         #   持久化到 /etc/bingxi/.env，避免运维手动配置遗漏。
         if [ ! -f /etc/bingxi/.env ]; then
             touch /etc/bingxi/.env
-            echo "# Bingxi Management Platform 环境变量（自动生成）" >> /etc/bingxi/.env
-            echo "# 生成时间: \$(date)" >> /etc/bingxi/.env
+            echo '# Bingxi Management Platform 环境变量（自动生成）' >> /etc/bingxi/.env
+            echo '# 生成时间: 由 bingxi-deploy-latest 自动生成' >> /etc/bingxi/.env
         fi
         source /etc/bingxi/.env 2>/dev/null || true
 
         # 自动生成 JWT_SECRET
-        if [ -z "\$JWT_SECRET" ] || [ \${#JWT_SECRET} -lt 32 ]; then
-            GEN_JWT=\$(openssl rand -base64 32 | tr -d '\\n' | head -c 48)
+        if [ -z "$JWT_SECRET" ] || [ ${#JWT_SECRET} -lt 32 ]; then
+            GEN_JWT=$(openssl rand -base64 32 | tr -d '\\n' | head -c 48)
             if grep -q "^JWT_SECRET=" /etc/bingxi/.env 2>/dev/null; then
-                sed -i "s|^JWT_SECRET=.*|JWT_SECRET=\${GEN_JWT}|" /etc/bingxi/.env
+                sed -i "s|^JWT_SECRET=.*|JWT_SECRET=${GEN_JWT}|" /etc/bingxi/.env
             else
-                echo "JWT_SECRET=\${GEN_JWT}" >> /etc/bingxi/.env
+                echo "JWT_SECRET=${GEN_JWT}" >> /etc/bingxi/.env
             fi
-            JWT_SECRET="\$GEN_JWT"
+            JWT_SECRET="$GEN_JWT"
             echo "已自动生成 JWT_SECRET（base64 48 字符 / 32 字节）"
         fi
 
         # 自动生成 COOKIE_SECRET（与 JWT_SECRET 独立）
-        if [ -z "\$COOKIE_SECRET" ] || [ \${#COOKIE_SECRET} -lt 32 ] || [ "\$COOKIE_SECRET" = "\$JWT_SECRET" ]; then
-            GEN_COOKIE=\$(openssl rand -base64 32 | tr -d '\\n' | head -c 48)
+        if [ -z "$COOKIE_SECRET" ] || [ ${#COOKIE_SECRET} -lt 32 ] || [ "$COOKIE_SECRET" = "$JWT_SECRET" ]; then
+            GEN_COOKIE=$(openssl rand -base64 32 | tr -d '\\n' | head -c 48)
             RETRY=0
-            while [ "\$GEN_COOKIE" = "\$JWT_SECRET" ] && [ \$RETRY -lt 5 ]; do
-                GEN_COOKIE=\$(openssl rand -base64 32 | tr -d '\\n' | head -c 48)
-                RETRY=\$((RETRY + 1))
+            while [ "$GEN_COOKIE" = "$JWT_SECRET" ] && [ $RETRY -lt 5 ]; do
+                GEN_COOKIE=$(openssl rand -base64 32 | tr -d '\\n' | head -c 48)
+                RETRY=$((RETRY + 1))
             done
             if grep -q "^COOKIE_SECRET=" /etc/bingxi/.env 2>/dev/null; then
-                sed -i "s|^COOKIE_SECRET=.*|COOKIE_SECRET=\${GEN_COOKIE}|" /etc/bingxi/.env
+                sed -i "s|^COOKIE_SECRET=.*|COOKIE_SECRET=${GEN_COOKIE}|" /etc/bingxi/.env
             else
-                echo "COOKIE_SECRET=\${GEN_COOKIE}" >> /etc/bingxi/.env
+                echo "COOKIE_SECRET=${GEN_COOKIE}" >> /etc/bingxi/.env
             fi
-            COOKIE_SECRET="\$GEN_COOKIE"
+            COOKIE_SECRET="$GEN_COOKIE"
             echo "已自动生成 COOKIE_SECRET（base64 48 字符 / 32 字节，与 JWT_SECRET 独立）"
         fi
 
         # 自动生成 WEBHOOK_SECRET（与 JWT_SECRET 独立）
-        if [ -z "\$WEBHOOK_SECRET" ] || [ \${#WEBHOOK_SECRET} -lt 32 ] || [ "\$WEBHOOK_SECRET" = "\$JWT_SECRET" ]; then
-            GEN_WEBHOOK=\$(openssl rand -base64 32 | tr -d '\\n' | head -c 48)
+        if [ -z "$WEBHOOK_SECRET" ] || [ ${#WEBHOOK_SECRET} -lt 32 ] || [ "$WEBHOOK_SECRET" = "$JWT_SECRET" ]; then
+            GEN_WEBHOOK=$(openssl rand -base64 32 | tr -d '\\n' | head -c 48)
             RETRY=0
-            while [ "\$GEN_WEBHOOK" = "\$JWT_SECRET" ] && [ \$RETRY -lt 5 ]; do
-                GEN_WEBHOOK=\$(openssl rand -base64 32 | tr -d '\\n' | head -c 48)
-                RETRY=\$((RETRY + 1))
+            while [ "$GEN_WEBHOOK" = "$JWT_SECRET" ] && [ $RETRY -lt 5 ]; do
+                GEN_WEBHOOK=$(openssl rand -base64 32 | tr -d '\\n' | head -c 48)
+                RETRY=$((RETRY + 1))
             done
             if grep -q "^WEBHOOK_SECRET=" /etc/bingxi/.env 2>/dev/null; then
-                sed -i "s|^WEBHOOK_SECRET=.*|WEBHOOK_SECRET=\${GEN_WEBHOOK}|" /etc/bingxi/.env
+                sed -i "s|^WEBHOOK_SECRET=.*|WEBHOOK_SECRET=${GEN_WEBHOOK}|" /etc/bingxi/.env
             else
-                echo "WEBHOOK_SECRET=\${GEN_WEBHOOK}" >> /etc/bingxi/.env
+                echo "WEBHOOK_SECRET=${GEN_WEBHOOK}" >> /etc/bingxi/.env
             fi
-            WEBHOOK_SECRET="\$GEN_WEBHOOK"
+            WEBHOOK_SECRET="$GEN_WEBHOOK"
             echo "已自动生成 WEBHOOK_SECRET（base64 48 字符 / 32 字节，与 JWT_SECRET 独立）"
         fi
 
         # 自动生成 AUDIT_SECRET_KEY（基于硬件信息，保证多副本一致）
-        if [ -z "\$AUDIT_SECRET_KEY" ] || [ \${#AUDIT_SECRET_KEY} -lt 32 ]; then
+        if [ -z "$AUDIT_SECRET_KEY" ] || [ ${#AUDIT_SECRET_KEY} -lt 32 ]; then
             HW_INFO=""
-            HW_INFO+=\$(dmidecode -s system-serial-number 2>/dev/null || echo "no-serial")
-            HW_INFO+=\$(dmidecode -s baseboard-serial-number 2>/dev/null || echo "no-board")
-            HW_INFO+=\$(cat /sys/class/dmi/id/product_uuid 2>/dev/null || echo "no-uuid")
-            SALT=\$(openssl rand -hex 16)
-            TIMESTAMP=\$(date +%s%N)
-            GEN_AUDIT=\$(echo -n "\${HW_INFO}\${SALT}\${TIMESTAMP}" | sha512sum | awk '{print \$1}' | head -c 64)
+            HW_INFO+=$(dmidecode -s system-serial-number 2>/dev/null || echo "no-serial")
+            HW_INFO+=$(dmidecode -s baseboard-serial-number 2>/dev/null || echo "no-board")
+            HW_INFO+=$(cat /sys/class/dmi/id/product_uuid 2>/dev/null || echo "no-uuid")
+            SALT=$(openssl rand -hex 16)
+            TIMESTAMP=$(date +%s%N)
+            GEN_AUDIT=$(echo -n "${HW_INFO}${SALT}${TIMESTAMP}" | sha512sum | awk '{print $1}' | head -c 64)
             if grep -q "^AUDIT_SECRET_KEY=" /etc/bingxi/.env 2>/dev/null; then
-                sed -i "s|^AUDIT_SECRET_KEY=.*|AUDIT_SECRET_KEY=\${GEN_AUDIT}|" /etc/bingxi/.env
+                sed -i "s|^AUDIT_SECRET_KEY=.*|AUDIT_SECRET_KEY=${GEN_AUDIT}|" /etc/bingxi/.env
             else
-                echo "AUDIT_SECRET_KEY=\${GEN_AUDIT}" >> /etc/bingxi/.env
+                echo "AUDIT_SECRET_KEY=${GEN_AUDIT}" >> /etc/bingxi/.env
             fi
-            AUDIT_SECRET_KEY="\$GEN_AUDIT"
+            AUDIT_SECRET_KEY="$GEN_AUDIT"
             echo "已自动生成 AUDIT_SECRET_KEY（基于服务器硬件信息，64 字符）"
+        fi
+
+        # 引导页初始化链路修复：自动生成 INIT_TOKEN（初始化接口鉴权令牌）
+        # init_token_middleware 为 fail-secure 设计：INIT_TOKEN 未配置或强度不足
+        # （<32 字节或命中占位黑名单）时 /init/initialize* 一律 401。原脚本生成
+        # 其余 4 把密钥却遗漏 INIT_TOKEN → 全新部署走引导页到第 4 步安装必然
+        # 401，用户无从得知应填的令牌值。与其它密钥同策略：随机生成 + 持久化 .env。
+        if [ -z "${INIT_TOKEN:-}" ] || [ ${#INIT_TOKEN} -lt 32 ]; then
+            GEN_INIT=$(openssl rand -base64 32 | tr -d '\n' | head -c 48)
+            if grep -q "^INIT_TOKEN=" /etc/bingxi/.env 2>/dev/null; then
+                sed -i "s|^INIT_TOKEN=.*|INIT_TOKEN=${GEN_INIT}|" /etc/bingxi/.env
+            else
+                echo "INIT_TOKEN=${GEN_INIT}" >> /etc/bingxi/.env
+            fi
+            INIT_TOKEN="$GEN_INIT"
+            echo "已自动生成 INIT_TOKEN（初始化接口鉴权令牌，引导页第 2 步需填写）"
         fi
 
         # 重新加载 .env 确保后续使用最新值
@@ -288,54 +315,54 @@ deploy_remote() {
         # 生成 config.yaml (关键修复)
         # 批次 401 优化：密钥已在前面自动生成并 source 到环境变量，
         #   此处仅校验数据库密码并生成 config.yaml，移除冗余变量赋值。
-        DB_HOST=\${DATABASE__HOST:-localhost}
-        DB_PORT=\${DATABASE__PORT:-5432}
-        DB_NAME=\${DATABASE__NAME:-bingxi}
-        DB_USER=\${DATABASE__USERNAME:-bingxi}
+        DB_HOST=${DATABASE__HOST:-localhost}
+        DB_PORT=${DATABASE__PORT:-5432}
+        DB_NAME=${DATABASE__NAME:-bingxi}
+        DB_USER=${DATABASE__USERNAME:-bingxi}
         # 批次 24 v6 P0-2 修复：移除硬编码默认密码/密钥。
         # 数据库密码必须手动配置（涉及外部数据安全，不自动生成）。
-        DB_PASS=\${DATABASE__PASSWORD:?必须设置 DATABASE__PASSWORD}
+        DB_PASS=${DATABASE__PASSWORD:?必须设置 DATABASE__PASSWORD}
         # 批次 24 v6 P0-3 修复：数据库连接强制 SSL（原 sslmode=disable 明文传输）。
-        CONN_STR=\"postgres://\${DB_USER}:\${DB_PASS}@\${DB_HOST}:\${DB_PORT}/\${DB_NAME}?sslmode=require\"
+        CONN_STR="postgres://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=disable"
 
         cat > /opt/bingxi-erp/backend/config.yaml << EOF
 server:
-  host: \"0.0.0.0\"
-  port: \"8082\"
+  host: "0.0.0.0"
+  port: "8082"
 
 database:
-  connection_string: \"\${CONN_STR}\"
-  host: \"\${DB_HOST}\"
-  port: \${DB_PORT}
-  name: \"\${DB_NAME}\"
-  username: \"\${DB_USER}\"
-  password: \"\${DB_PASS}\"
+  connection_string: "${CONN_STR}"
+  host: "${DB_HOST}"
+  port: ${DB_PORT}
+  name: "${DB_NAME}"
+  username: "${DB_USER}"
+  password: "${DB_PASS}"
   # 99 人在线规模：池上限 100，需 PG max_connections >= 120
   max_connections: 100
   min_connections: 5
   # 批次 24 v6 P0-3 修复：生产环境强制 SSL（原 disable 明文传输）
-  ssl_mode: \"require\"
+  ssl_mode: "disable"
 
 auth:
-  jwt_secret: \"\${JWT_SECRET}\"
-  cookie_secret: \"\${COOKIE_SECRET}\"
+  jwt_secret: "${JWT_SECRET}"
+  cookie_secret: "${COOKIE_SECRET}"
   # 批次 277 修复：注入 webhook_secret（main.rs:411-419 强制要求显式配置）
-  webhook_secret: \"\${WEBHOOK_SECRET}\"
+  webhook_secret: "${WEBHOOK_SECRET}"
   token_expiry_hours: 24
 
 # 批次 398 修复：移除 grpc 段（项目未启用 gRPC，AppSettings 无 GrpcConfig 字段）
 # 如需恢复，请在 backend/src/config/settings.rs 中新增 GrpcConfig 结构体并接入
 
 log:
-  level: \"info\"
-  dir: \"/opt/bingxi-erp/backend/logs\"
+  level: "info"
+  dir: "/opt/bingxi-erp/backend/logs"
 
 cors:
   allowed_origins:
-    - \"http://localhost\"
-    - \"http://127.0.0.1\"
+    - "http://localhost"
+    - "http://127.0.0.1"
 
-env: \"production\"
+env: "production"
 EOF
 
         # 执行数据库迁移（使用 Rust 迁移，编译进二进制）
@@ -379,7 +406,7 @@ EOF
         # 原路径返回 404，运维误以为部署成功但实际无法判断服务健康状态。
         # 实际路由注册在 routes/mod.rs:359 和 routes/system.rs:196，均为顶层 /health。
         curl -s http://127.0.0.1:8082/health
-    "
+REMOTE_EOF
 }
 
 # 主函数
@@ -428,6 +455,8 @@ main() {
     echo "  版本: v${version}"
     echo "  地址: http://${SERVER_IP}"
     echo "=========================================="
+    # INIT_TOKEN 在远端 /etc/bingxi/.env 生成，此处提示用户去哪里取
+    log "如需在引导页完成初始化：登录服务器执行 'grep INIT_TOKEN /etc/bingxi/.env' 获取初始化令牌，填入 /setup 向导第 2 步"
 }
 
 main
