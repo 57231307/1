@@ -99,7 +99,7 @@ test.describe.serial('引导页初始化真实链路（真实后端 + 真实 Pos
     });
 
     // 真实数据库凭据（专用空库 bingxi_setup_test）
-    await page.locator('input[placeholder="localhost"]').fill('127.0.0.1');
+    await page.locator('input[placeholder="localhost"]').fill('localhost');
     await page.locator('input[placeholder="5432"]').fill('5432');
     await page.locator('input[placeholder="bingxi"]').first().fill('bingxi');
     const dbPwd = page.locator('input[type="password"]');
@@ -151,7 +151,7 @@ test.describe.serial('引导页初始化真实链路（真实后端 + 真实 Pos
     });
 
     // 步骤 2：真实数据库配置 + 真实 INIT_TOKEN
-    await page.locator('input[placeholder="localhost"]').fill('127.0.0.1');
+    await page.locator('input[placeholder="localhost"]').fill('localhost');
     await page.locator('input[placeholder="5432"]').fill('5432');
     await page.locator('input[placeholder="bingxi"]').first().fill('bingxi');
     const dbPwd = page.locator('input[type="password"]');
