@@ -309,30 +309,44 @@ impl DataPermissionService {
     /// 用户若仅在 users 表有 department_id（历史/未走 assign_user_departments），
     /// 也纳入可见集合，避免 dept 用户因 user_departments 表空而退化为 self。
     pub async fn get_user_dept_scope_ids(&self, user_id: i32) -> Result<Vec<i32>, AppError> {
+        use crate::models::department::{self, Entity as DeptEntity};
         use crate::models::user::Entity as UserEntity;
         use crate::models::user_department::{self, Entity as UserDeptEntity};
 
-        let mut dept_ids: Vec<i32> = Vec::new();
-
-        // 1. users.department_id 主部门单值（历史/兼容路径）
-        if let Ok(Some(user_model)) = UserEntity::find_by_id(user_id)
-            .one(&*self.db)
-            .await
-        {
+        // 1. 用户的全部部门：主部门单值（历史/兼容路径）+ 兼职关联
+        let mut root_dept_ids: Vec<i32> = Vec::new();
+        if let Ok(Some(user_model)) = UserEntity::find_by_id(user_id).one(&*self.db).await {
             if let Some(primary) = user_model.department_id {
-                let subtree = self.collect_dept_subtree(primary).await?;
-                dept_ids.extend(subtree);
+                root_dept_ids.push(primary);
             }
         }
-
-        // 2. user_departments 兼职部门（含主部门标记）
         let user_depts = UserDeptEntity::find()
             .filter(user_department::Column::UserId.eq(user_id))
             .all(&*self.db)
             .await?;
-        for ud in user_depts {
-            let subtree = self.collect_dept_subtree(ud.department_id).await?;
-            dept_ids.extend(subtree);
+        root_dept_ids.extend(user_depts.iter().map(|ud| ud.department_id));
+
+        if root_dept_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // 2. 一次性加载全部门，内存展开各根的子树（避免 N+1 查询）
+        let all_depts = DeptEntity::find().all(&*self.db).await?;
+        let mut children_map: std::collections::HashMap<i32, Vec<i32>> =
+            std::collections::HashMap::new();
+        for d in all_depts {
+            if let Some(parent) = d.parent_id {
+                children_map.entry(parent).or_default().push(d.id);
+            }
+        }
+
+        let mut dept_ids: Vec<i32> = Vec::new();
+        let mut stack: Vec<i32> = root_dept_ids;
+        while let Some(id) = stack.pop() {
+            dept_ids.push(id);
+            if let Some(children) = children_map.get(&id) {
+                stack.extend(children.iter().copied());
+            }
         }
 
         // 去重
@@ -341,20 +355,24 @@ impl DataPermissionService {
         Ok(dept_ids)
     }
 
-    /// m_rls_dept_domain：带 TTL 缓存的可见部门集合解析（auth 中间件调用）。
-    /// 缓存 key=`dept_scope:{user_id}`，TTL 由 `DEPT_SCOPE_TTL_MINS` 控制（默认 5 分钟）。
-    /// 解析失败返回空集合（dept 用户退化为 self+公海，warn 日志）。
-    pub async fn get_user_dept_scope_ids_cached(
+    /// m_rls_dept_domain：带 TTL 缓存的「可见部门集合 + 成员用户集合」解析
+    /// （auth 中间件调用）。一次缓存命中同时返回两组数据，避免每次认证
+    /// 额外查一次 users 表。缓存 key=user_id，TTL 由 `DEPT_SCOPE_TTL_MINS`
+    /// 控制（默认 5 分钟）。解析失败返回空集合（dept 用户退化为 self+公海，
+    /// warn 日志）。
+    pub async fn get_user_dept_scope_cached(
         &self,
         user_id: i32,
-    ) -> Vec<i32> {
+    ) -> (Vec<i32>, Vec<i32>) {
         let ttl_secs = *DEPT_SCOPE_TTL_SECS;
         let now = Utc::now();
         let key = user_id;
 
         if let Some(entry) = DEPT_SCOPE_CACHE.get(&key) {
             if (now - entry.cached_at).num_seconds() < ttl_secs {
-                return (*entry.dept_ids).clone();
+                let ids = (*entry.dept_ids).clone();
+                let members = (*entry.member_user_ids).clone();
+                return (ids, members);
             }
             // 过期：删除并重算
             drop(entry);
@@ -363,14 +381,21 @@ impl DataPermissionService {
 
         match self.get_user_dept_scope_ids(user_id).await {
             Ok(ids) => {
+                // 成员集合与部门集合同源解析（同一缓存项）；成员查询失败时
+                // 成员集合退化为空（应用层 to_data_scope_context 兜底补本人）
+                let members = self
+                    .get_dept_member_user_ids(&ids)
+                    .await
+                    .unwrap_or_default();
                 DEPT_SCOPE_CACHE.insert(
                     key,
                     DeptScopeCacheEntry {
                         dept_ids: Arc::new(ids.clone()),
+                        member_user_ids: Arc::new(members.clone()),
                         cached_at: now,
                     },
                 );
-                ids
+                (ids, members)
             }
             Err(e) => {
                 tracing::warn!(
@@ -378,12 +403,14 @@ impl DataPermissionService {
                     user_id,
                     "解析可见部门集合失败，dept 用户退化为 self+公海"
                 );
-                Vec::new()
+                (Vec::new(), Vec::new())
             }
         }
     }
 
     /// m_rls_dept_domain：部门变更时失效缓存（assign_user_departments 等写点调用）。
+    /// 部门树结构变更（父部门调整/新建子部门）或用户部门批量变更时，
+    /// 由调用方逐用户失效或等待 TTL 到期（部门调整低频，TTL 兜底可接受）。
     pub fn invalidate_dept_scope_cache(user_id: i32) {
         DEPT_SCOPE_CACHE.remove(&user_id);
     }
@@ -409,19 +436,27 @@ impl DataPermissionService {
         Ok(members)
     }
 
-    /// 收集部门子树 ID（含自身，迭代实现避免 async 递归 boxing）
+    /// 收集部门子树 ID（含自身）：一次性加载全部门后内存遍历，
+    /// 避免 BFS 逐层查询的 N+1 问题（部门表为主数据，规模有限）。
+    #[allow(dead_code)]
     async fn collect_dept_subtree(&self, dept_id: i32) -> Result<Vec<i32>, AppError> {
         use crate::models::department::{self, Entity as DeptEntity};
+
+        let all_depts = DeptEntity::find().all(&*self.db).await?;
+        let mut children_map: std::collections::HashMap<i32, Vec<i32>> =
+            std::collections::HashMap::new();
+        for d in all_depts {
+            if let Some(parent) = d.parent_id {
+                children_map.entry(parent).or_default().push(d.id);
+            }
+        }
+
         let mut result = Vec::new();
         let mut stack = vec![dept_id];
         while let Some(id) = stack.pop() {
             result.push(id);
-            let children = DeptEntity::find()
-                .filter(department::Column::ParentId.eq(id))
-                .all(&*self.db)
-                .await?;
-            for child in children {
-                stack.push(child.id);
+            if let Some(children) = children_map.get(&id) {
+                stack.extend(children.iter().copied());
             }
         }
         Ok(result)
@@ -519,12 +554,13 @@ impl DataScopeFilter {
 }
 
 // ============================================================================
-// m_rls_dept_domain：可见部门集合缓存（auth 中间件调用 get_user_dept_scope_ids_cached）
+// m_rls_dept_domain：可见部门范围缓存（auth 中间件调用 get_user_dept_scope_cached）
 // ============================================================================
 
-/// 可见部门集合缓存项
+/// 可见部门范围缓存项（部门集合 + 成员用户集合，同源解析同源失效）
 struct DeptScopeCacheEntry {
     dept_ids: Arc<Vec<i32>>,
+    member_user_ids: Arc<Vec<i32>>,
     cached_at: chrono::DateTime<Utc>,
 }
 

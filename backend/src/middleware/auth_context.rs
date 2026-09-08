@@ -58,7 +58,7 @@ pub struct AuthContext {
     pub data_scope: Option<String>,
     /// RLS dept 语义（m_rls_dept_domain）：可见部门集合的逗号分隔串
     /// （主部门 + 兼职部门 + 子部门，由 auth 中间件调
-    /// data_permission_service.get_user_dept_scope_ids_cached 解析）。
+    /// data_permission_service.get_user_dept_scope_cached 解析）。
     /// 仅 data_scope=dept 用户加载；all/self 用户为 None。RLS 中间件据此
     /// 构造 RlsGuc.dept_ids 写入 task-local，连接池钩子设置 app.dept_ids GUC。
     #[serde(default, skip_serializing_if = "Option::is_none")]
