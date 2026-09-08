@@ -2938,16 +2938,25 @@ jobs:
           export BACKEND_BIN="$GITHUB_WORKSPACE/backend/target/release/server"
           bash frontend/e2e/scripts/setup-wizard-real-env.sh
 
-      - name: 启动前端 dev server（3100 端口，代理到 8083 Setup 后端）
+      - name: 构建前端并启动 preview（3100 端口，代理到 8083 Setup 后端）
         working-directory: frontend
         env:
           VITE_PROXY_TARGET: http://127.0.0.1:8083
           VITE_DEV_PORT: 3100
         run: |
+          # 改用生产构建 + vite preview：与主 CI ci-e2e 同因（十一/十四轮实测
+          # dev server 按需编译在测试中触发 "optimized dependencies changed.
+          # reloading" 整页刷新，打断登录后跳转致 waitForURL 超时）。
+          # preview 无按需编译，彻底消除该挂起层
+          npm run build > /tmp/e2e-setup-logs/frontend-build.log 2>&1 || {
+            echo "前端构建失败，日志："
+            tail -30 /tmp/e2e-setup-logs/frontend-build.log
+            exit 1
+          }
           mkdir -p /tmp/e2e-setup-logs
           # nohup + disown：step 结束时 runner 清理进程组，普通 & 进程
           # 活不到测试 step（与后端启动脚本同因，自审修复）
-          nohup npx vite --port 3100 --strictPort > /tmp/e2e-setup-logs/frontend.log 2>&1 &
+          nohup npx vite preview --port 3100 --strictPort > /tmp/e2e-setup-logs/frontend.log 2>&1 &
           VITE_PID=$!
           disown "$VITE_PID" 2>/dev/null || true
           echo "$VITE_PID" > /tmp/e2e-setup-logs/frontend.pid
