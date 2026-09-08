@@ -71,11 +71,18 @@ export default defineConfig({
       stderr: 'pipe',
     },
   ],
-  // 项目级覆盖：smoke 可并行，flow 串行
+  // 项目级覆盖：smoke 可并行，flow 串行。
+  // testMatch 显式限定 flow/smoke：防止本地裸跑 `npx playwright test` 误拾取
+  // e2e/setup-wizard/（其 beforeAll 依赖 CI 专用环境，缺凭据文件会直接抛错）
+  // 与 e2e 根目录的历史独立 spec（由 e2e-batch.yml 单独管理）
   projects: [
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+      // e2e 根下的历史独立 spec（color-card/color-price/custom-order）归属
+      // 批次工作流 e2e-batch.yml（其命令无路径过滤依赖本配置拾取）；
+      // setup-wizard/ 仅由 playwright.setup-wizard.config.ts 运行
+      testMatch: /(^|\/)(flow|smoke|enhanced)\/.*\.spec\.ts|^[^/]*\.spec\.ts$/,
     },
     {
       name: 'firefox',
@@ -85,6 +92,7 @@ export default defineConfig({
     {
       name: 'webkit',
       use: { ...devices['Desktop Safari'] },
+      testMatch: /(^|\/)(flow|smoke|enhanced)\/.*\.spec\.ts|^[^/]*\.spec\.ts$/,
     },
   ],
 })

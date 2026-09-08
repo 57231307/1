@@ -10,8 +10,9 @@ import { execSync } from 'child_process';
  * - 专用空库 bingxi_setup_test（e2e/scripts/setup-wizard-real-env.sh 重置），
  *   空库无表 → 后端启动即 Setup 模式（仅 /init/* 路由）
  * - 初始化通过 UI 真实点击走完：环境检查 → test-database → initialize-with-db
- *   （真实执行迁移 60+ 个 + 种子数据 + Argon2id 管理员哈希）→ 后端自退
- * - 后端重启（e2e/scripts/restart-backend-full.sh 等效 systemd 拉起）→
+ *   （真实执行迁移 60+ 个 + 种子数据 + Argon2id 管理员哈希）
+ * - 后端重启（e2e/scripts/restart-backend-full.sh 等效 systemd Restart=always
+ *   拉起；Setup 模式后端初始化成功会自退，完整模式由脚本 kill 拉起）→
  *   完整模式 → 真实登录验证
  *
  * 前置（由 CI step 运行，本 spec 断言前置成立）：
@@ -196,9 +197,7 @@ test.describe.serial('引导页初始化真实链路（真实后端 + 真实 Pos
     expect(out.trim()).toBe(`${ctx.admin}|true`);
   });
 
-  test('后端自退重启后完整模式就绪：/health 200 + /init/status 返回已初始化', async ({
-    request,
-  }) => {
+  test('后端重启后完整模式就绪：/health 200 + /init/status 返回已初始化', async ({ request }) => {
     // 真实进程管理：等效 systemd Restart=always——kill 端口进程后以同一套
     // 环境变量重新拉起（同库已初始化 → 完整模式 /health 200）。
     // Setup 模式下后端 initialize 成功后自退（exit 0）；完整模式（空库可连接
