@@ -22,6 +22,9 @@ tokio-util = { version = "0.7", features = ["rt"] }
 # 数据库
 # SeaORM 2.0.2 + SeaQuery 1.0
 sea-orm = { version = "2.0.2", features = ["sqlx-postgres", "runtime-tokio", "macros", "with-rust_decimal", "with-chrono"] }
+# RLS 行级安全上下文钩子需要 sqlx 类型（PgConnection/PoolOptions/PoolConnectionMetadata）；
+# 版本与 sea-orm 内部依赖保持一致（Cargo.lock 已锁定 0.9.0）
+sqlx = { version = "0.9.0", default-features = false, features = ["postgres", "runtime-tokio"] }
 
 # 序列化
 serde = { version = "1.0", features = ["derive"] }
