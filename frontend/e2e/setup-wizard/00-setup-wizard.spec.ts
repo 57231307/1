@@ -192,7 +192,8 @@ test.describe.serial('引导页初始化真实链路（真实后端 + 真实 Pos
     } catch {
       out = execSync(`su postgres -c "psql -d ${ctx.db} -tAc \\"${sql}\\""`).toString();
     }
-    expect(out.trim()).toBe(`${ctx.admin}|t`);
+    // boolean 输出全文 'true'（-tAc 不做缩写）；前缀校验用户名精确匹配
+    expect(out.trim()).toBe(`${ctx.admin}|true`);
   });
 
   test('后端自退重启后完整模式就绪：/health 200 + /init/status 返回已初始化', async ({
