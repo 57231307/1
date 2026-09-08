@@ -66,7 +66,10 @@ pub fn build_cors_layer(allowed_origins: Vec<String>) -> CorsLayer {
         .max_age(Duration::from_secs(86400)) // 24小时
 }
 
-/// 为完整模式路由应用全部中间件链（timeout→security→rate_limit→auth→...→body_limit）。
+/// 为完整模式路由应用全部中间件链。
+/// 执行顺序（外→内）：timeout → security_headers → rate_limiting → dynamic_router
+/// → circuit_breaker → auth → omni_audit → csrf → permission → request_logging
+/// → rls → cors → http_trace → metrics → trace_ctx → audit_ctx → body_limit → handler。
 pub fn apply_full_mode_layers(app_state: AppState, cors: CorsLayer) -> Router {
     let s_auth = app_state.clone();
     let s_permission = app_state.clone();
@@ -82,6 +85,18 @@ pub fn apply_full_mode_layers(app_state: AppState, cors: CorsLayer) -> Router {
     let router = apply_body_limit_and_context(router);
     let router = apply_metrics_layer(router, s_metrics);
     let router = apply_http_trace_layer(router);
+    // A.21.2：RLS 行级安全上下文（auth 之后执行 SET LOCAL app.user_id，激活 PostgreSQL RLS）。
+    // axum 语义：后注册的 .layer() 位于洋葱最外层、先执行。rls_context_middleware 通过
+    // request.extensions().get::<AuthContext>() 读取 auth_middleware 注入的认证上下文，
+    // 因此必须比 auth_chain 先注册（成为其内层），保证 auth 先注入、RLS 在认证通过后执行。
+    // 注册在 cors 之前（cors 更外层）：CORS 预检、非法 Origin、401/403 均在 cors/auth 层短路，
+    // RLS 的 SET/RESET 只对真正穿过认证链的请求执行，避免对未认证请求产生多余 DB 调用。
+    // 缺陷修复记录：此 layer 原先注册在 apply_auth_chain 之后（auth 链外侧），按上述语义
+    // RLS 先于 auth 执行，永远读不到 AuthContext，SET LOCAL 静默跳过、PG RLS 策略从未激活。
+    let router = router.layer(axum::middleware::from_fn_with_state(
+        s_rls,
+        rls_context_middleware,
+    ));
     let router = router.layer(cors);
     let router = apply_auth_chain(
         router,
@@ -91,11 +106,6 @@ pub fn apply_full_mode_layers(app_state: AppState, cors: CorsLayer) -> Router {
         s_omni_audit,
         s_auth,
     );
-    // A.21.2：RLS 行级安全上下文（auth 之后设置 SET LOCAL app.user_id，激活 PostgreSQL RLS）
-    let router = router.layer(axum::middleware::from_fn_with_state(
-        s_rls,
-        rls_context_middleware,
-    ));
     // V15 P1 20.6-B：API 网关熔断中间件（5s 窗口失败率 > 50% 触发 open，30s 后 half-open 探测）
     // 放在 auth_chain 之外、rate_limiting 之内：监控认证后的业务处理 5xx 失败率
     let router = router.layer(axum::middleware::from_fn(circuit_breaker_middleware));
