@@ -17,7 +17,7 @@
 
 - [x] 禁止 mock：E2E 测试一律真实后端 + 真实 PostgreSQL 数据（00-setup-wizard.spec.ts 已重写，0 处 page.route）
 - [x] 禁止本地编译：真实二进制从 GitHub Release 下载（本地 glibc 不兼容 CI 产物，本地运行/编译路线已废弃，rustup 与 release 临时文件已清理出工作区）
-- [x] 禁止推送：git push 冻结，仅本地 commit；CI 验证等用户明确授权推送后触发
+- [x] **推送冻结（2026-09-08 二次冻结）**：git push 一律禁止（含分支/tag），代码修改仅本地 commit；十五轮 run 34188696853 为冻结前已触发的在途 run，仅观察不干预
 
 ### Setup 向导真实链路 E2E（CI 端，待推送后首跑验证）
 
