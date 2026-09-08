@@ -223,7 +223,13 @@ Pinia stores（src/store/）：user / system / dashboard / inventory / fabric / 
 
 1. **RLS layer 顺序（已修复，2026-09-08）**（§2/§3.5）：原注册在 auth_chain 外侧，RLS 先于 auth 执行、`AuthContext` 未注入，`SET LOCAL` 静默跳过、PG RLS 从未激活；已移到 cors 之前（auth_chain 内层）。待 CI（PostgreSQL service）验证。
 2. **RLS 事务/连接池有效性（已修复，2026-09-08）**（§3.5）：旧实现 `SET LOCAL` 事务外无效 + 独立连接与业务查询不保证同连接，RLS 从未激活。已重设计为「task-local + 连接池借出钩子」方案：钩子在业务查询的同一连接上执行会话级 `set_config`，无上下文借出时 RESET 清理残留；无泄漏、fail-open、零 service 层侵入。PG 机制锚点测试 `test_rls_guc_visible_in_same_pool_pg`（#[ignore]）待手动验证。
-3. **RLS 激活的功能回归风险（新发现，需排查）**（§3.5）：RLS 一旦真正激活（本修复后），凡「跨 owner 查询 RLS 表」的业务路径（报表聚合、下拉框全量列表等以非 admin 身份执行的查询）会被 `owner_id = current_setting(...)` 过滤，可能出现数据可见性收窄。上线前需排查 customers/suppliers/sales_orders/crm_lead/crm_opportunity 的非 admin 全量查询场景；必要时以 admin 账号执行或扩展策略条件。
+3. **RLS 激活的功能回归风险（已排查，2026-09-08）**（§3.5）：RLS 策略为 self 级（`owner_id/created_by = current_setting('app.user_id')`），应用层 DataScope 为三级（all/dept/self），粒度错位产生以下风险点：
+   - **R3.1（高）dept 级用户被 RLS 锁出团队数据**：约 10 个 dept 角色（sales_manager/purchase_manager/finance_manager/crm_manager 等）应用层按「本部门」过滤，而 RLS 策略仅匹配 user_id 本人 → dept 用户对 sales_orders（创建人是下属销售）等表的查看/审批/操作全部被拒（USING 不匹配）。角色分布见 `init_service_ops/role.rs`（all 6 / dept ~10 / self ~17）。
+   - **R3.2（高）crm_lead 公海流程断裂**：回收执行器（recycle_executor.rs:127）回公海只改 `lead_status='pool'`、保留原 owner_id，且 crm_lead 策略缺少 customers 那样的 `owner_id = 0` 公海分支 → 公海列表（list_pool）对非 owner 的 self/dept 用户恒为空；领取（claim_pool_customers 的批量 find）查不到目标行，恒报「该客户不在公海中」。customers 公海有 `owner_id = 0` 分支 + 领取后 owner_id=本人过 WITH CHECK ✓，crm_lead/crm_opportunity 无此设计。
+   - **R3.3（中）自动分配/转移无强制 admin 门禁**：auto-assign / transfer_lead / claim 的 handler 未强制 admin 角色，非 admin 触发时 fetch 阶段被 RLS 过滤，分配结果静默为 0（无报错）。
+   - **R3.4（低）BI JOIN 客户维度标签失真**：olap.rs:172 / sales.rs:305 / dashboard_service.rs:516 的 `LEFT JOIN customers` 对 self 用户受 customers RLS 过滤，customer_name 可能为 NULL 显示「未关联客户」；数值聚合（sales_orders 侧）不受影响。sales.rs:163 直接 `FROM customers` 的报表对 self 用户收窄。
+   - **R3.5（低）导出行为变化**：export_customers（import_export_ops/export.rs:109）无应用层 data_scope 过滤，旧行为任何用户导出全量；RLS 激活后 self 用户导出收窄为本人+公海（顺带修复越权导出），需向业务方说明导出量变化。
+   - 修复方向建议：①最小侵入方案——task-local 仅对 `DataScope::Self_` 绑定（dept 用户不设 GUC 走 fail-open，由应用层 dept 过滤兜底，与现状一致），同时为 crm_lead/crm_opportunity 策略补公海分支（`OR lead_status = 'pool'`）或回收时清 owner_id；②完整方案——迁移扩展策略支持 dept EXISTS 子查询（成本高）。
 4. **初始化模式面窄依赖**：Setup 模式仅 `/init/*` + INIT_TOKEN；deploy.sh 已自动生成 INIT_TOKEN，人工部署遗漏会导致 init 401。
 5. **CSRF 一次性消费**：多标签页并发依赖 `X-New-CSRF-Token` 恢复链路，若后端某路径未下发恢复头，前端只能重放一次。
 6. **permission fail-closed**：DB 抖动时全部非公开请求 403，属设计取舍，需在运维监控中区分。
