@@ -48,6 +48,7 @@ fn make_order_model(
         packaging_requirement: None,
         quality_standard: None,
         created_by: Some(1),
+        department_id: None,
         approved_by: None,
         approved_at: None,
         created_at: Utc::now(),
