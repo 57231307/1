@@ -237,17 +237,12 @@ test.describe.serial('引导页初始化真实链路（真实后端 + 真实 Pos
     // admin 角色注入 *:* 通配权限（fetch_role_permissions 真实 DB 查询）
     expect(body.data.permissions).toContain('*:*');
 
-    // Cookie 真实下发（httpOnly Cookie 鉴权链路）
-    const cookies = await (resp as unknown as { headersArray?(): Array<{ name: string }> })
-      .headersArray?.()
-      .then(arr => arr?.map(h => h.name))
-      .catch(() => undefined);
-    // Playwright APIRequestContext 不直接暴露 Set-Cookie 明细，用 storageState 校验
+    // Cookie 真实下发（httpOnly Cookie 鉴权链路）：APIRequestContext 不暴露
+    // Set-Cookie 明细，用 storageState 校验会话 Cookie 已写入 context
     const state = await request.storageState();
     const names = state.cookies.map(c => c.name);
     expect(names).toContain('access_token');
     expect(names).toContain('csrf_token');
-    void cookies;
   });
 
   test('UI 真实登录跳转：向导页去登录 → 登录页渲染', async ({ page }) => {
