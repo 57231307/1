@@ -163,15 +163,17 @@ async fn set_rls_guc(conn: &mut sqlx::postgres::PgConnection, guc: &RlsGuc) {
 /// 注意：PG prepared statement 不允许多命令（"cannot insert multiple commands
 /// into a prepared statement"），两条 RESET 必须独立执行。
 async fn reset_rls_guc(conn: &mut sqlx::postgres::PgConnection) {
-    if let Err(e) = sqlx::query(sqlx::AssertSqlSafe("RESET app.user_id".to_owned()))
-        .execute(conn)
-        .await
+    if let Err(e) =
+        sqlx::query(sqlx::AssertSqlSafe("RESET app.user_id".to_owned()))
+            .execute(&mut *conn)
+            .await
     {
         tracing::debug!(error = %e, "RESET app.user_id 失败（可忽略，下次借出会重试清理）");
     }
-    if let Err(e) = sqlx::query(sqlx::AssertSqlSafe("RESET app.dept_ids".to_owned()))
-        .execute(conn)
-        .await
+    if let Err(e) =
+        sqlx::query(sqlx::AssertSqlSafe("RESET app.dept_ids".to_owned()))
+            .execute(&mut *conn)
+            .await
     {
         tracing::debug!(error = %e, "RESET app.dept_ids 失败（可忽略，下次借出会重试清理）");
     }
