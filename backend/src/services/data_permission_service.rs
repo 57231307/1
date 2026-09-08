@@ -388,6 +388,27 @@ impl DataPermissionService {
         DEPT_SCOPE_CACHE.remove(&user_id);
     }
 
+    /// m_rls_dept_domain：查询可见部门集合的成员用户 ID 集合
+    /// （users.department_id ∈ dept_ids 的用户）。应用层列表过滤
+    /// 「归属人 ∈ 成员集合」语义的数据源，与 RLS 策略口径等价
+    /// （DB 触发器保证 RLS 表 department_id 恒等于归属人部门）。
+    pub async fn get_dept_member_user_ids(&self, dept_ids: &[i32]) -> Result<Vec<i32>, AppError> {
+        use crate::models::user::{self, Column as UserColumn, Entity as UserEntity};
+
+        if dept_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let members = UserEntity::find()
+            .filter(UserColumn::DepartmentId.is_in(dept_ids.to_vec()))
+            .all(&*self.db)
+            .await?
+            .into_iter()
+            .map(|u| u.id)
+            .collect();
+        Ok(members)
+    }
+
     /// 收集部门子树 ID（含自身，迭代实现避免 async 递归 boxing）
     async fn collect_dept_subtree(&self, dept_id: i32) -> Result<Vec<i32>, AppError> {
         use crate::models::department::{self, Entity as DeptEntity};

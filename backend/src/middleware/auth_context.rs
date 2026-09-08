@@ -63,6 +63,12 @@ pub struct AuthContext {
     /// 构造 RlsGuc.dept_ids 写入 task-local，连接池钩子设置 app.dept_ids GUC。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dept_ids: Option<Arc<String>>,
+    /// 可见部门的成员用户 ID 集合（含本人，逗号分隔串）。应用层列表过滤
+    /// 按「归属人 ∈ 成员集合」判断（build_data_scope_condition Dept 分支），
+    /// 与 RLS 策略口径等价（触发器保证 department_id 恒等于归属人部门）。
+    /// 仅 dept 用户加载；all/self 为 None。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dept_member_user_ids: Option<Arc<String>>,
 }
 
 impl AuthContext {
@@ -75,6 +81,7 @@ impl AuthContext {
             department_id: None,
             data_scope: None,
             dept_ids: None,
+            dept_member_user_ids: None,
         }
     }
 
@@ -90,21 +97,29 @@ impl AuthContext {
             .unwrap_or(DataScope::Self_);
 
         // dept_ids CSV 解析为 Vec<i32>：dept 用户的可见部门集合；self/all 为空
-        let dept_ids = self
-            .dept_ids
-            .as_ref()
-            .map(|csv| {
-                csv.split(',')
-                    .filter_map(|s| s.trim().parse::<i32>().ok())
-                    .collect::<Vec<i32>>()
-            })
-            .unwrap_or_default();
+        let parse_csv = |csv: &Option<Arc<String>>| -> Vec<i32> {
+            csv.as_ref()
+                .map(|s| {
+                    s.split(',')
+                        .filter_map(|p| p.trim().parse::<i32>().ok())
+                        .collect::<Vec<i32>>()
+                })
+                .unwrap_or_default()
+        };
+        let dept_ids = parse_csv(&self.dept_ids);
+        let mut dept_member_user_ids = parse_csv(&self.dept_member_user_ids);
+
+        // 成员集合必须包含本人（self 分支语义兜底；auth.rs 已保证，此处再兜一道）
+        if scope == DataScope::Dept && !dept_member_user_ids.contains(&self.user_id) {
+            dept_member_user_ids.push(self.user_id);
+        }
 
         DataScopeContext {
             scope,
             user_id: self.user_id,
             department_id: self.department_id,
             dept_ids,
+            dept_member_user_ids,
         }
     }
 }

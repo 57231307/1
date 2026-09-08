@@ -118,7 +118,7 @@ impl SalesService {
             .await?;
         let order_no = self.generate_unique_order_no(&txn).await?;
         let order_entity = self
-            .create_order_main_record(&request, required_date, order_no, &txn)
+            .create_order_main_record(&request, required_date, order_no, user_id, &txn)
             .await?;
         self.lock_inventory(order_entity.id, &request.items, user_id, &txn)
             .await?;
@@ -259,6 +259,7 @@ impl SalesService {
         request: &CreateSalesOrderRequest,
         required_date: chrono::DateTime<chrono::Utc>,
         order_no: String,
+        user_id: i32,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<sales_order::Model, AppError> {
         let order = sales_order::ActiveModel {
@@ -302,7 +303,9 @@ impl SalesService {
             quality_standard: sea_orm::ActiveValue::Set(Some(
                 request.quality_standard.clone().unwrap_or_default(),
             )),
-            created_by: sea_orm::ActiveValue::NotSet,
+            // m_rls_dept_domain：created_by 填真实 user_id——新 WITH CHECK 要求
+            // 新建行归属明确（NULL 被拒），department_id 触发器依赖此列
+            created_by: sea_orm::ActiveValue::Set(Some(user_id)),
             // m_rls_dept_domain：department_id 由 trg_sales_orders_dept 触发器自动维护
             department_id: sea_orm::ActiveValue::NotSet,
             approved_by: sea_orm::ActiveValue::NotSet,

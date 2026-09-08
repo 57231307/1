@@ -341,6 +341,22 @@ pub async fn auth_middleware(
                             .collect::<Vec<_>>()
                             .join(","),
                     ));
+                    // 成员用户 ID 集合（应用层列表过滤「归属人 ∈ 成员集合」数据源）
+                    if let Ok(mut members) =
+                        dps.get_dept_member_user_ids(&dept_ids).await
+                    {
+                        // 本人必然可见（含用户仅存在于 users.department_id 的兼容路径）
+                        members.push(auth_context.user_id);
+                        members.sort_unstable();
+                        members.dedup();
+                        auth_context.dept_member_user_ids = Some(Arc::new(
+                            members
+                                .iter()
+                                .map(|id| id.to_string())
+                                .collect::<Vec<_>>()
+                                .join(","),
+                        ));
+                    }
                 }
             }
 

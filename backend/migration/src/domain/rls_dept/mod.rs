@@ -194,14 +194,15 @@ CREATE POLICY crm_lead_isolation ON crm_lead
     OR department_id = ANY(app_dept_ids())
   );
 
--- 5. crm_opportunity（owner_id NOT NULL，opportunity_status='pool' 公海）
+-- 5. crm_opportunity（owner_id NOT NULL）
+-- 注意：opportunity_status 业务取值为 OPEN/CLOSED_WON/CLOSED_LOST/draft/cancelled，
+-- 无 'pool' 公海态（公海机制仅存在于 crm_lead 的 lead_status），故无公海分支。
 DROP POLICY IF EXISTS crm_opportunity_isolation ON crm_opportunity;
 CREATE POLICY crm_opportunity_isolation ON crm_opportunity
   FOR ALL
   USING (
     current_setting('app.user_id', true) IS NULL
     OR owner_id = current_setting('app.user_id', true)::int
-    OR opportunity_status = 'pool'
     OR department_id = ANY(app_dept_ids())
   )
   WITH CHECK (
