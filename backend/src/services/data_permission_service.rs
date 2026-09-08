@@ -309,7 +309,7 @@ impl DataPermissionService {
     /// 用户若仅在 users 表有 department_id（历史/未走 assign_user_departments），
     /// 也纳入可见集合，避免 dept 用户因 user_departments 表空而退化为 self。
     pub async fn get_user_dept_scope_ids(&self, user_id: i32) -> Result<Vec<i32>, AppError> {
-        use crate::models::department::{self, Entity as DeptEntity};
+        use crate::models::department::Entity as DeptEntity;
         use crate::models::user::Entity as UserEntity;
         use crate::models::user_department::{self, Entity as UserDeptEntity};
 
@@ -420,7 +420,7 @@ impl DataPermissionService {
     /// 「归属人 ∈ 成员集合」语义的数据源，与 RLS 策略口径等价
     /// （DB 触发器保证 RLS 表 department_id 恒等于归属人部门）。
     pub async fn get_dept_member_user_ids(&self, dept_ids: &[i32]) -> Result<Vec<i32>, AppError> {
-        use crate::models::user::{self, Column as UserColumn, Entity as UserEntity};
+        use crate::models::user::{Column as UserColumn, Entity as UserEntity};
 
         if dept_ids.is_empty() {
             return Ok(Vec::new());
@@ -440,7 +440,7 @@ impl DataPermissionService {
     /// 避免 BFS 逐层查询的 N+1 问题（部门表为主数据，规模有限）。
     #[allow(dead_code)]
     async fn collect_dept_subtree(&self, dept_id: i32) -> Result<Vec<i32>, AppError> {
-        use crate::models::department::{self, Entity as DeptEntity};
+        use crate::models::department::Entity as DeptEntity;
 
         let all_depts = DeptEntity::find().all(&*self.db).await?;
         let mut children_map: std::collections::HashMap<i32, Vec<i32>> =

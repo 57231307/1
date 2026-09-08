@@ -122,6 +122,8 @@ where
     T: ColumnTrait,
     U: ColumnTrait,
 {
+    use sea_orm::sea_query::ExprTrait;
+
     match ctx.scope {
         DataScope::All => Condition::all(),
         DataScope::Dept => {
