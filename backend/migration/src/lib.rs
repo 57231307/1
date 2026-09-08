@@ -1,10 +1,10 @@
 //! 数据库迁移模块
 //!
-//! 按业务域聚合，每个域 1 个迁移文件，共 6 个：
-//! system → business → sales_crm → production → finance → v15
+//! 按业务域聚合，每个域 1 个迁移文件，共 7 个：
+//! system → business → sales_crm → production → finance → v15 → rls_dept
 //!
 //! 迁移名: m_system_domain / m_business_domain / m_sales_crm_domain /
-//!         m_production_domain / m_finance_domain / m_v15_domain
+//!         m_production_domain / m_finance_domain / m_v15_domain / m_rls_dept_domain
 //!
 //! 顺序说明：
 //! 1. system: 核心表（含 customers.owner_id/suppliers.created_by 补列）
@@ -13,6 +13,7 @@
 //! 4. production: 生产/质量（依赖 business 的 custom_orders/process_nodes）
 //! 5. finance: 合规/RLS（依赖 system 的 customers.owner_id/suppliers.created_by）
 //! 6. v15: V15 各批次扩展
+//! 7. rls_dept: RLS dept 语义扩展（依赖 finance 的 5 表 RLS 策略，重写为 dept 级）
 
 pub use sea_orm_migration::prelude::*;
 
@@ -30,6 +31,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::production::Migration),
             Box::new(domain::finance::Migration),
             Box::new(domain::v15::Migration),
+            Box::new(domain::rls_dept::Migration),
         ]
     }
 }

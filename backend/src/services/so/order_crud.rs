@@ -303,6 +303,8 @@ impl SalesService {
                 request.quality_standard.clone().unwrap_or_default(),
             )),
             created_by: sea_orm::ActiveValue::NotSet,
+            // m_rls_dept_domain：department_id 由 trg_sales_orders_dept 触发器自动维护
+            department_id: sea_orm::ActiveValue::NotSet,
             approved_by: sea_orm::ActiveValue::NotSet,
             approved_at: sea_orm::ActiveValue::NotSet,
             created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),

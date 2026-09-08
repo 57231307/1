@@ -33,6 +33,10 @@ pub struct Model {
     pub packaging_requirement: Option<String>,
     pub quality_standard: Option<String>,
     pub created_by: Option<i32>,
+    /// 数据部门 ID（RLS dept 语义，由 trg_sales_orders_dept 触发器自动维护 =
+    /// created_by 指向用户的 department_id；NULL 历史数据保留 NULL）
+    /// m_rls_dept_domain 迁移补列
+    pub department_id: Option<i32>,
     pub approved_by: Option<i32>,
     pub approved_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,

@@ -1,20 +1,19 @@
-//! A.21.3 RLS 上下文机制集成测试（2026-09-08 重新设计后）
+//! A.21.3 RLS 上下文机制集成测试（dept 语义版，m_rls_dept_domain）
 //!
-//! 验证 rls_context_middleware 的核心行为（task-local 方案）：
-//! 1. 非 admin 用户请求进入 handler 时，task-local RLS_USER_ID 已绑定其 user_id
-//!    （生产环境中连接池钩子据此在同一连接上执行 set_config，激活 PG RLS）
-//! 2. admin 用户（data_scope=all）无 task-local 上下文（借出钩子走 RESET 分支）
+//! 验证 rls_context_middleware 的核心行为（task-local RlsGuc 方案）：
+//! 1. 非 admin 用户请求进入 handler 时，task-local RLS_GUC 已绑定其 user_id
+//!    （dept 用户额外绑定 dept_ids 逗号串）
+//! 2. admin 用户（data_scope=all）无 task-local 上下文（钩子走 RESET 分支）
 //! 3. 无 AuthContext（未认证/公开路径）无 task-local 上下文
-//! 4. task-local 未进入作用域的独立 task（模拟 spawn 旁路）读到 None
+//! 4. task-local 未进入作用域的独立 task（spawn 旁路）读到 None
 //!
 //! 设计说明：
-//! - task-local 在进程内可直接观测（探针 handler 读 current_rls_user_id()），
-//!   无需 PG 即可断言中间件行为；sqlite 连接池不安装钩子，无副作用
+//! - task-local 在进程内可直接观测（探针 handler 读 current_rls_guc），无需 PG
 //! - 连接池钩子机制（set_config 在同一连接生效）的 PG 真实验证见
 //!   test_rls_guc_visible_in_same_pool_pg（#[ignore]，需 PostgreSQL）
 //!
 //! 参考实现：backend/src/middleware/rls_context.rs
-//! 参考策略：backend/migration/src/domain/finance/mod.rs（RLS 策略 fail-open）
+//! 参考策略：backend/migration/src/domain/rls_dept/mod.rs（RLS 策略 fail-open）
 
 #[path = "test_common/mod.rs"]
 mod common;
@@ -27,25 +26,30 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
+use bingxi_backend::container::AppState;
 use bingxi_backend::middleware::auth_context::AuthContext;
 use bingxi_backend::middleware::rls_context::{
-    current_rls_user_id, rls_context_middleware, with_rls_context,
+    current_rls_guc, rls_context_middleware, with_rls_context, RlsGuc,
 };
-use bingxi_backend::container::AppState;
 use common::setup_test_db;
 use std::sync::Arc;
 use tower::ServiceExt;
 
-/// 探针处理器：读当前 task 的 RLS user_id 并返回给断言
+/// 探针处理器：读当前 task 的 RLS GUC 并返回给断言
 async fn probe_handler() -> impl IntoResponse {
+    let snapshot = current_rls_guc().map(|g| {
+        serde_json::json!({
+            "user_id": g.user_id,
+            "dept_ids": g.dept_ids.as_ref().map(|s| s.as_str().to_string()),
+        })
+    });
     (
         StatusCode::OK,
-        axum::Json(serde_json::json!({ "rls_user_id": current_rls_user_id() })),
+        axum::Json(serde_json::json!({ "rls_guc": snapshot })),
     )
 }
 
 /// AuthContext 注入中间件：将预设 AuthContext 写入 request extensions
-/// （模拟 auth_middleware 解析 JWT 后注入认证上下文的行为）
 async fn inject_auth(
     axum::extract::State(auth): axum::extract::State<AuthContext>,
     mut request: Request<Body>,
@@ -63,11 +67,23 @@ fn make_auth(user_id: i32, username: &str, data_scope: Option<&str>) -> AuthCont
         role_id: Some(1),
         department_id: None,
         data_scope: data_scope.map(|s| s.to_string()),
+        dept_ids: None,
     }
 }
 
+/// 构造 dept 用户 AuthContext（含 dept_ids）
+fn make_dept_auth(
+    user_id: i32,
+    username: &str,
+    dept_ids_csv: &str,
+) -> AuthContext {
+    let mut auth = make_auth(user_id, username, Some("dept"));
+    auth.dept_ids = Some(Arc::new(dept_ids_csv.to_string()));
+    auth
+}
+
 /// 构建测试 Router，层序与生产一致：
-/// inject_auth（后注册=外层，先执行）→ rls_context_middleware（内层，auth 之后执行）→ probe_handler
+/// inject_auth（外层，先执行）→ rls_context_middleware（内层，auth 之后执行）→ probe_handler
 fn build_test_app(state: AppState, auth: AuthContext) -> Router {
     Router::new()
         .route("/api/v1/erp/test", get(probe_handler))
@@ -75,14 +91,13 @@ fn build_test_app(state: AppState, auth: AuthContext) -> Router {
         .layer(from_fn_with_state(auth, inject_auth))
 }
 
-/// 构建无 AuthContext 注入的 Router（模拟未认证/公开路径）
+/// 构建无 AuthContext 注入的 Router
 fn build_test_app_no_auth(state: AppState) -> Router {
     Router::new()
         .route("/api/v1/erp/test", get(probe_handler))
         .layer(from_fn_with_state(state, rls_context_middleware))
 }
 
-/// 构造一个使用 sqlite::memory: 的 AppState（RLS 钩子仅注册于 PG 构建路径，sqlite 无副作用）
 async fn build_sqlite_app_state() -> AppState {
     let db = setup_test_db().await;
     AppState {
@@ -91,8 +106,8 @@ async fn build_sqlite_app_state() -> AppState {
     }
 }
 
-/// 发送测试请求并解析探针返回的 rls_user_id
-async fn send_probe(app: Router) -> Option<i32> {
+/// 发送测试请求并解析探针返回的 RLS GUC 快照
+async fn send_probe(app: Router) -> Option<serde_json::Value> {
     let req = Request::builder()
         .method("GET")
         .uri("/api/v1/erp/test")
@@ -104,50 +119,63 @@ async fn send_probe(app: Router) -> Option<i32> {
         .await
         .expect("读取响应体失败");
     let json: serde_json::Value = serde_json::from_slice(&body).expect("解析 JSON 失败");
-    json["rls_user_id"].as_i64().map(|v| v as i32)
+    json["rls_guc"].clone()
 }
 
 // =========================================================================
-// 测试 1：非 admin 用户请求时，task-local 已绑定 user_id
+// 测试 1：self 用户绑定 user_id，无 dept_ids
 // =========================================================================
-// 生产环境中，连接池钩子读到该值后在业务查询的同一连接上执行
-// set_config('app.user_id', '<id>', false)，激活 PG RLS 策略。
 
 #[tokio::test]
-async fn test_non_admin_user_binds_rls_context() {
+async fn test_self_user_binds_user_id_only() {
     let state = build_sqlite_app_state().await;
     let auth = make_auth(1001, "operator_user", Some("self"));
     let app = build_test_app(state, auth);
 
-    let bound = send_probe(app).await;
-    assert_eq!(
-        bound,
-        Some(1001),
-        "非 admin 用户的 user_id 应绑定到请求 task-local（连接池钩子据此激活 RLS）"
+    let snap = send_probe(app).await;
+    assert_eq!(snap["user_id"], 1001, "self 用户应绑定 user_id");
+    assert!(
+        snap["dept_ids"].is_null(),
+        "self 用户 dept_ids 应为 None"
     );
 }
 
 // =========================================================================
-// 测试 2：admin 用户（data_scope=all）无 RLS 上下文
+// 测试 2：dept 用户绑定 user_id + dept_ids 逗号串
 // =========================================================================
-// admin 跳过 RLS：task-local 为 None，借出钩子走 RESET 分支，
-// current_setting('app.user_id', true) 返回 NULL，策略放行全量数据。
+
+#[tokio::test]
+async fn test_dept_user_binds_user_id_and_dept_ids() {
+    let state = build_sqlite_app_state().await;
+    let auth = make_dept_auth(2002, "sales_manager", "1,3,5");
+    let app = build_test_app(state, auth);
+
+    let snap = send_probe(app).await;
+    assert_eq!(snap["user_id"], 2002, "dept 用户应绑定 user_id");
+    assert_eq!(
+        snap["dept_ids"].as_str(),
+        Some("1,3,5"),
+        "dept 用户应绑定 dept_ids 逗号串（连接池钩子据此设置 app.dept_ids GUC）"
+    );
+}
+
+// =========================================================================
+// 测试 3：admin 用户（data_scope=all）无 RLS 上下文
+// =========================================================================
 
 #[tokio::test]
 async fn test_admin_user_skips_rls_context() {
     let state = build_sqlite_app_state().await;
     let auth = make_auth(9001, "admin_user", Some("all"));
+    // 即便手动塞了 dept_ids，all 分支也不应绑定（中间件跳过）
     let app = build_test_app(state, auth);
 
-    let bound = send_probe(app).await;
-    assert_eq!(
-        bound, None,
-        "admin（data_scope=all）应无 RLS 上下文（钩子走 RESET 分支，策略 NULL 放行）"
-    );
+    let snap = send_probe(app).await;
+    assert!(snap.is_null(), "admin（data_scope=all）应无 RLS 上下文");
 }
 
 // =========================================================================
-// 测试 3：无 AuthContext（未认证/公开路径）无 RLS 上下文
+// 测试 4：无 AuthContext 无 RLS 上下文
 // =========================================================================
 
 #[tokio::test]
@@ -155,17 +183,13 @@ async fn test_no_auth_context_has_no_rls_binding() {
     let state = build_sqlite_app_state().await;
     let app = build_test_app_no_auth(state);
 
-    let bound = send_probe(app).await;
-    assert_eq!(
-        bound, None,
-        "未认证请求应无 RLS 上下文，中间件不 panic"
-    );
+    let snap = send_probe(app).await;
+    assert!(snap.is_null(), "未认证请求应无 RLS 上下文");
 }
 
 // =========================================================================
-// 测试 4：data_scope=None 的用户走非 admin 分支（最小权限原则）
+// 测试 5：data_scope=None 视为非 admin（最小权限原则）
 // =========================================================================
-// data_scope=None 时 unwrap_or(false) → is_admin_scope=false → 绑定 user_id。
 
 #[tokio::test]
 async fn test_none_data_scope_treated_as_non_admin() {
@@ -173,67 +197,60 @@ async fn test_none_data_scope_treated_as_non_admin() {
     let auth = make_auth(3001, "no_scope_user", None);
     let app = build_test_app(state, auth);
 
-    let bound = send_probe(app).await;
-    assert_eq!(
-        bound,
-        Some(3001),
-        "data_scope=None 应视为非 admin（最小权限原则），绑定 RLS 上下文"
-    );
+    let snap = send_probe(app).await;
+    assert_eq!(snap["user_id"], 3001, "data_scope=None 应视为非 admin，绑定 user_id");
 }
 
 // =========================================================================
-// 测试 5：未进入中间件作用域的独立 task 读到 None（spawn 旁路任务语义）
+// 测试 6：spawn 出的 task 无 task-local（fail-open 语义）
 // =========================================================================
-// spawn 出的任务不继承 task-local：钩子对其借出的连接执行 RESET，
-// RLS fail-open 放行（与旧行为一致，无回归），应用层兜底。
 
 #[tokio::test]
 async fn test_spawned_task_without_scope_reads_none() {
-    let inner = tokio::spawn(async move { current_rls_user_id() });
-    let bound = inner.await.expect("spawn task 执行失败");
-    assert_eq!(
-        bound, None,
-        "未进入 rls_context_middleware 作用域的 task 应读到 None（fail-open 语义）"
-    );
+    let inner = tokio::spawn(async move { current_rls_guc() });
+    let snap = inner.await.expect("spawn task 执行失败");
+    assert!(snap.is_none(), "未进入 rls_context_middleware 作用域的 task 应读到 None");
 }
 
 // =========================================================================
-// 测试 6：with_rls_context 作用域内读到绑定值（钩子验证辅助 API）
+// 测试 7：with_rls_context 作用域内读到绑定值（含 dept_ids）
 // =========================================================================
 
 #[tokio::test]
-async fn test_with_rls_context_scopes_value() {
-    let bound = with_rls_context(Some(4242), async { current_rls_user_id() }).await;
-    assert_eq!(bound, Some(4242), "with_rls_context 作用域内应读到绑定值");
+async fn test_with_rls_context_scopes_guc() {
+    let guc = Some(RlsGuc {
+        user_id: 4242,
+        dept_ids: Some(Arc::new("7,8".to_string())),
+    });
+    let bound = with_rls_context(guc, async { current_rls_guc() }).await;
+    let b = bound.expect("作用域内应读到 GUC");
+    assert_eq!(b.user_id, 4242);
+    assert_eq!(b.dept_ids.as_ref().map(|s| s.as_str()), Some("7,8"));
 
-    let cleared = with_rls_context(None, async { current_rls_user_id() }).await;
-    assert_eq!(cleared, None, "with_rls_context(None) 作用域内应为 None");
+    let cleared = with_rls_context(None, async { current_rls_guc() }).await;
+    assert!(cleared.is_none(), "with_rls_context(None) 作用域内应为 None");
 }
 
 // =========================================================================
-// 测试 7（PG 机制锚点）：连接池钩子在业务查询的同一连接上设置 GUC
+// 测试 8（PG 机制锚点）：连接池钩子在业务查询的同一连接上设置双 GUC
 // =========================================================================
-// 核心机制端到端验证：用与生产一致的 connect 路径（安装 RLS 钩子）连接 PostgreSQL，
-// 在 task-local 上下文内执行查询，断言 current_setting('app.user_id') 在该连接上可见。
-// 这正是旧实现（独立连接 SET LOCAL，事务外无效）做不到的事。
-// SQLite 不支持 set_config，故标记 #[ignore]；TEST_DATABASE_URL 指向 PostgreSQL 时运行：
+// 验证 set_config('app.user_id') + set_config('app.dept_ids') 在借出连接上生效，
+// 且无上下文借出时 RESET 清理双 GUC。需 PostgreSQL（set_config 为 PG 专属）。
+// SQLite 不支持，故标记 #[ignore]；TEST_DATABASE_URL 指向 PG 时运行：
 //   cargo test --test rls_context_test -- --ignored
 #[tokio::test]
-#[ignore = "需 PostgreSQL 环境（set_config 为 PG 专属）。设置 TEST_DATABASE_URL 后 cargo test -- --ignored 运行"]
+#[ignore = "需 PostgreSQL 环境。设置 TEST_DATABASE_URL 后 cargo test -- --ignored 运行"]
 async fn test_rls_guc_visible_in_same_pool_pg() {
     use bingxi_backend::middleware::rls_context::install_rls_pool_hooks;
     use sea_orm::{ConnectOptions, ConnectionTrait, QueryResult};
 
     let db_url = std::env::var("TEST_DATABASE_URL").unwrap_or_default();
     if !db_url.starts_with("postgres") {
-        eprintln!(
-            "跳过：TEST_DATABASE_URL 未指向 PostgreSQL（当前: {db_url}）"
-        );
+        eprintln!("跳过：TEST_DATABASE_URL 未指向 PostgreSQL（当前: {db_url}）");
         return;
     }
 
-    // 与生产 connect_database 相同的钩子安装路径；max=1 保证两次查询
-    // 复用同一物理连接，使「设置可见 / RESET 清理」断言具有确定性
+    // max=1 保证两次查询复用同一物理连接，使「设置可见 / RESET 清理」断言确定性
     let mut opts = ConnectOptions::new(db_url);
     opts.max_connections(1).min_connections(1);
     install_rls_pool_hooks(&mut opts);
@@ -241,44 +258,55 @@ async fn test_rls_guc_visible_in_same_pool_pg() {
         .await
         .expect("连接 PostgreSQL 失败");
 
-    // current_setting(name, true) 在未设置时返回空字符串；归一化为 None 便于断言
-    let read_uid = |row: Option<sea_orm::QueryResult>| -> Option<String> {
-        row.and_then(|r| r.try_get::<String>("", "uid").ok())
+    // current_setting(name, true) 未设置时返回空字符串；归一化为 None 便于断言
+    let read_setting = |row: Option<QueryResult>, key: &str| -> Option<String> {
+        row.and_then(|r| r.try_get::<String>("", key).ok())
             .filter(|s| !s.is_empty())
     };
 
-    // 1) 有上下文：查询应在同一连接上看到 user_id
-    let seen = with_rls_context(Some(2002), async {
+    // 1) dept 上下文：双 GUC 都应在借出连接上可见
+    let guc = RlsGuc {
+        user_id: 2002,
+        dept_ids: Some(Arc::new("1,3,5".to_string())),
+    };
+    let (uid, dept_csv) = with_rls_context(Some(guc), async {
         let row = db
             .query_one(sea_orm::Statement::from_string(
                 sea_orm::DatabaseBackend::Postgres,
-                "SELECT current_setting('app.user_id', true) AS uid".to_owned(),
+                "SELECT current_setting('app.user_id', true) AS uid, \
+                 current_setting('app.dept_ids', true) AS dept_csv".to_owned(),
             ))
             .await
             .expect("查询 current_setting 失败");
-        read_uid(row)
+        (
+            read_setting(row.clone(), "uid"),
+            read_setting(row, "dept_csv"),
+        )
     })
     .await;
+    assert_eq!(uid.as_deref(), Some("2002"), "app.user_id 应在借出连接上设置");
     assert_eq!(
-        seen.as_deref(),
-        Some("2002"),
-        "RLS 钩子应在业务查询的同一连接上设置 app.user_id（机制核心）"
+        dept_csv.as_deref(),
+        Some("1,3,5"),
+        "app.dept_ids 应在借出连接上设置（dept 语义激活）"
     );
 
-    // 2) 无上下文：借出钩子应 RESET 掉上一任设置（不泄漏）
-    let cleared = with_rls_context(None, async {
+    // 2) 无上下文：双 GUC 应被 RESET 清理（防跨请求泄漏）
+    let (uid2, dept_csv2) = with_rls_context(None, async {
         let row = db
             .query_one(sea_orm::Statement::from_string(
                 sea_orm::DatabaseBackend::Postgres,
-                "SELECT current_setting('app.user_id', true) AS uid".to_owned(),
+                "SELECT current_setting('app.user_id', true) AS uid, \
+                 current_setting('app.dept_ids', true) AS dept_csv".to_owned(),
             ))
             .await
             .expect("查询 current_setting 失败");
-        read_uid(row)
+        (
+            read_setting(row.clone(), "uid"),
+            read_setting(row, "dept_csv"),
+        )
     })
     .await;
-    assert_eq!(
-        cleared, None,
-        "无上下文借出时钩子应 RESET app.user_id，current_setting 应为空（防跨请求泄漏）"
-    );
+    assert_eq!(uid2, None, "无上下文借出应 RESET app.user_id");
+    assert_eq!(dept_csv2, None, "无上下文借出应 RESET app.dept_ids");
 }

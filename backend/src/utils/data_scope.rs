@@ -58,13 +58,22 @@ pub struct DataScopeContext {
     pub user_id: i32,
     /// 当前用户部门 ID（dept 范围时使用，None 时退化为 self）
     pub department_id: Option<i32>,
+    /// 可见部门集合（m_rls_dept_domain：主部门 + 兼职 + 子部门，仅 dept 用户加载）
+    /// 用于 build_data_scope_condition 的 dept 分支按 DepartmentId 列 IN 过滤，
+    /// 与 RLS 策略 `department_id = ANY(app_dept_ids())` 口径一致。
+    pub dept_ids: Vec<i32>,
 }
 
-/// 应用行级数据权限过滤条件（All 返回空 Condition，Dept 按 department_id 过滤 None 退化为 self，Self_ 按 created_by=user_id 过滤；ctx 上下文，owner_column 归属人列，dept_column 归属部门列，返回 Condition 可直接用于 .filter()）
+/// 应用行级数据权限过滤条件（All 返回空 Condition，Dept 按 department_id IN(可见部门集合) 过滤，
+/// 无可见部门退化为 self；Self_ 按 owner 列过滤；参数 ctx/owner_column/department_column，返回 Condition）
+///
+/// m_rls_dept_domain 修复：原 dept 分支用 dept_column.eq(dept_id) 把 owner 列误传为 dept 列
+/// （created_by = department_id 错位）；改用 department_column（5 表新增 DepartmentId 列）IN 可见集合，
+/// 与 RLS 策略 `department_id = ANY(app_dept_ids())` 口径一致。
 pub fn build_data_scope_condition<T, U>(
     ctx: &DataScopeContext,
     owner_column: T,
-    dept_column: U,
+    department_column: U,
 ) -> Condition
 where
     T: ColumnTrait,
@@ -76,12 +85,12 @@ where
             Condition::all()
         }
         DataScope::Dept => {
-            // 本部门数据：按部门 ID 过滤
-            // 若用户无部门，退化为 self（按用户 ID 过滤）
-            if let Some(dept_id) = ctx.department_id {
-                Condition::all().add(dept_column.eq(dept_id))
-            } else {
+            // 本部门数据：按 DepartmentId 列 IN 可见部门集合
+            if ctx.dept_ids.is_empty() {
+                // 无可见部门（dept 用户未加载或无部门）退化为 self
                 Condition::all().add(owner_column.eq(ctx.user_id))
+            } else {
+                Condition::all().add(department_column.is_in(ctx.dept_ids.clone()))
             }
         }
         DataScope::Self_ => {
@@ -92,7 +101,10 @@ where
 }
 
 /// 校验资源归属（IDOR 防护）：用于 /:id handler 校验访问权限，参数 ctx/resource_owner_id/resource_dept_id
-/// 规则：All=始终通过；Dept=资源部门 ID 与用户部门匹配通过；Self_=资源归属人 ID 与用户 ID 匹配通过；false 应返回 403
+/// 规则：All=始终通过；Dept=资源部门 ID ∈ 可见部门集合通过；Self_=资源归属人 ID 与用户 ID 匹配通过；false 应返回 403
+///
+/// m_rls_dept_domain：Dept 分支从「单部门 ID 匹配」改为「资源部门 ID ∈ 可见部门集合」，
+/// 与 RLS 策略 dept 分支口径一致。
 pub fn check_resource_owner(
     ctx: &DataScopeContext,
     resource_owner_id: Option<i32>,
@@ -101,10 +113,10 @@ pub fn check_resource_owner(
     match ctx.scope {
         DataScope::All => true,
         DataScope::Dept => {
-            // 本部门数据：部门 ID 匹配
-            match (ctx.department_id, resource_dept_id) {
-                (Some(user_dept), Some(res_dept)) => user_dept == res_dept,
-                _ => false,
+            // 本部门数据：资源部门 ID ∈ 可见部门集合
+            match resource_dept_id {
+                Some(dept_id) => ctx.dept_ids.contains(&dept_id),
+                None => false,
             }
         }
         DataScope::Self_ => {
@@ -153,23 +165,37 @@ pub fn build_data_scope_sql(
             (String::new(), Vec::new())
         }
         DataScope::Dept => {
-            // 本部门数据：通过 EXISTS 子查询关联 users 表
-            // 若用户无部门，退化为 self（按 created_by = user_id 过滤）
-            if let Some(dept_id) = ctx.department_id {
-                let sql = format!(
-                    "AND EXISTS (SELECT 1 FROM users u WHERE u.id = {prefix}created_by AND u.department_id = ${next_index})",
-                    prefix = prefix,
-                    next_index = next_index,
-                );
-                (sql, vec![Value::Int(Some(dept_id))])
-            } else {
-                // 用户无部门时退化为 self（最小权限原则）
+            // 本部门数据：按 DepartmentId 列 IN 可见部门集合（与 RLS 策略
+            // `department_id = ANY(app_dept_ids())` 口径一致）
+            // m_rls_dept_domain 修复：原 EXISTS users 单部门过滤改为 DepartmentId
+            // 冗余列 IN 集合，避免每行关联 users 表点查
+            if ctx.dept_ids.is_empty() {
+                // 无可见部门退化为 self（最小权限原则）
                 let sql = format!(
                     "AND {prefix}created_by = ${next_index}",
                     prefix = prefix,
                     next_index = next_index,
                 );
                 (sql, vec![Value::Int(Some(ctx.user_id))])
+            } else {
+                // PG int[] 数组绑定：Value::Array(ArrayType::Int, Some(Box(vec))
+                // sea-query 要求 postgres-array feature（sea-orm sqlx-postgres 已启用）
+                let sql = format!(
+                    "AND {prefix}department_id = ANY(${next_index}::int[])",
+                    prefix = prefix,
+                    next_index = next_index,
+                );
+                use sea_orm::sea_query::ArrayType;
+                let arr = Value::Array(
+                    ArrayType::Int,
+                    Some(Box::new(
+                        ctx.dept_ids
+                            .iter()
+                            .map(|id| Value::Int(Some(*id)))
+                            .collect(),
+                    )),
+                );
+                (sql, vec![arr])
             }
         }
         DataScope::Self_ => {

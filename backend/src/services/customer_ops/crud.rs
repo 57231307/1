@@ -105,13 +105,13 @@ impl CustomerService {
     ) -> Result<PaginatedResponse<customer::Model>, AppError> {
         let mut query = CustomerEntity::find();
 
-        // V15 P0-S01：行级数据权限过滤（customer 表无 department_id 退化为 Self）
+        // 行级数据权限过滤：owner=CreatedBy，dept=DepartmentId（m_rls_dept_domain）
         if let Some(ctx) = data_scope {
             query = apply_data_scope(
                 query,
                 ctx,
-                customer::Column::CreatedBy,
-                customer::Column::CreatedBy,
+                customer::Column::OwnerId,
+                customer::Column::DepartmentId,
             );
         }
 

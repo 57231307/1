@@ -65,6 +65,11 @@ pub struct Model {
     /// 负责人 ID
     pub owner_id: i32,
 
+    /// 数据部门 ID（RLS dept 语义，由 trg_crm_opportunity_dept 触发器自动维护 =
+    /// owner_id 指向用户的 department_id；公海行 opportunity_status='pool' 由策略放行）
+    /// m_rls_dept_domain 迁移补列
+    pub department_id: Option<i32>,
+
     /// 负责人姓名
     pub owner_name: String,
 

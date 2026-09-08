@@ -10,6 +10,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 /// 认证错误响应
 #[derive(Debug)]
@@ -55,6 +56,13 @@ pub struct AuthContext {
     pub department_id: Option<i32>,
     /// V15 P0-S01 新增：数据范围（行级数据权限） 由权限中间件从 role 表查询注入，"all"/"dept"/"self" None 表示未加载（此时 service 层应按 self 处理，最小权限原则）
     pub data_scope: Option<String>,
+    /// RLS dept 语义（m_rls_dept_domain）：可见部门集合的逗号分隔串
+    /// （主部门 + 兼职部门 + 子部门，由 auth 中间件调
+    /// data_permission_service.get_user_dept_scope_ids_cached 解析）。
+    /// 仅 data_scope=dept 用户加载；all/self 用户为 None。RLS 中间件据此
+    /// 构造 RlsGuc.dept_ids 写入 task-local，连接池钩子设置 app.dept_ids GUC。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dept_ids: Option<Arc<String>>,
 }
 
 impl AuthContext {
@@ -63,9 +71,10 @@ impl AuthContext {
             user_id: claims.sub,
             username: claims.username,
             role_id: claims.role_id,
-            // V15 P0-S01：data_scope 和 department_id 由权限中间件从数据库加载后注入
+            // V15 P0-S01：data_scope/department_id/dept_ids 由权限中间件从数据库加载后注入
             department_id: None,
             data_scope: None,
+            dept_ids: None,
         }
     }
 
@@ -80,10 +89,22 @@ impl AuthContext {
             .map(DataScope::parse_scope)
             .unwrap_or(DataScope::Self_);
 
+        // dept_ids CSV 解析为 Vec<i32>：dept 用户的可见部门集合；self/all 为空
+        let dept_ids = self
+            .dept_ids
+            .as_ref()
+            .map(|csv| {
+                csv.split(',')
+                    .filter_map(|s| s.trim().parse::<i32>().ok())
+                    .collect::<Vec<i32>>()
+            })
+            .unwrap_or_default();
+
         DataScopeContext {
             scope,
             user_id: self.user_id,
             department_id: self.department_id,
+            dept_ids,
         }
     }
 }

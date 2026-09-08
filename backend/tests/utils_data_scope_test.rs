@@ -45,6 +45,7 @@ fn test_check_resource_owner_all_szfh_true() {
         scope: DataScope::All,
         user_id: 1,
         department_id: Some(10),
+        dept_ids: vec![],
     };
     // 无论资源归属如何，all 范围始终返回 true
     assert!(check_resource_owner(&ctx, Some(999), Some(999)));
@@ -58,6 +59,7 @@ fn test_check_resource_owner_dept_bmppfh_true() {
         scope: DataScope::Dept,
         user_id: 1,
         department_id: Some(10),
+        dept_ids: vec![10],
     };
     assert!(check_resource_owner(&ctx, Some(999), Some(10)));
 }
@@ -68,6 +70,7 @@ fn test_check_resource_owner_dept_bmbppfh_false() {
         scope: DataScope::Dept,
         user_id: 1,
         department_id: Some(10),
+        dept_ids: vec![10],
     };
     assert!(!check_resource_owner(&ctx, Some(1), Some(20)));
 }
@@ -78,17 +81,19 @@ fn test_check_resource_owner_dept_zywbmfh_false() {
         scope: DataScope::Dept,
         user_id: 1,
         department_id: Some(10),
+        dept_ids: vec![10],
     };
     assert!(!check_resource_owner(&ctx, Some(1), None));
 }
 
 #[test]
 fn test_check_resource_owner_dept_yhwbmthw_false() {
-    // 用户无部门时，dept 范围无法匹配，返回 false
+    // 用户无可见部门集合时，dept 范围无法匹配，返回 false
     let ctx = DataScopeContext {
         scope: DataScope::Dept,
         user_id: 1,
         department_id: None,
+        dept_ids: vec![],
     };
     assert!(!check_resource_owner(&ctx, Some(1), Some(10)));
 }
@@ -99,6 +104,7 @@ fn test_check_resource_owner_self_gsrppfh_true() {
         scope: DataScope::Self_,
         user_id: 1,
         department_id: Some(10),
+        dept_ids: vec![],
     };
     assert!(check_resource_owner(&ctx, Some(1), Some(20)));
 }
@@ -109,6 +115,7 @@ fn test_check_resource_owner_self_gsrbppfh_false() {
         scope: DataScope::Self_,
         user_id: 1,
         department_id: Some(10),
+        dept_ids: vec![],
     };
     assert!(!check_resource_owner(&ctx, Some(999), Some(10)));
 }
@@ -119,6 +126,7 @@ fn test_check_resource_owner_self_zywgsrfh_false() {
         scope: DataScope::Self_,
         user_id: 1,
         department_id: Some(10),
+        dept_ids: vec![],
     };
     assert!(!check_resource_owner(&ctx, None, Some(10)));
 }

@@ -130,14 +130,13 @@ impl CrmService {
         }
 
         // V15 P0-S01：行级数据权限过滤
-        // crm_opportunity 表无 department_id，Dept 退化为 Self；
-        // CRM 业务数据权限语义为"我负责的商机"，使用 owner_id（i32 必填）作为 owner_column。
+        // 行级数据权限过滤：owner=owner_id，dept=DepartmentId（m_rls_dept_domain）
         if let Some(ctx) = data_scope {
             q = apply_data_scope(
                 q,
                 ctx,
                 crm_opportunity::Column::OwnerId,
-                crm_opportunity::Column::OwnerId, // 无 department_id，Dept 退化为 Self，复用 owner_id
+                crm_opportunity::Column::DepartmentId,
             );
         }
 
@@ -494,6 +493,8 @@ impl CrmService {
             packaging_requirement: Set(None),
             quality_standard: Set(None),
             created_by: Set(Some(user_id)),
+            // m_rls_dept_domain：department_id 由 trg_sales_orders_dept 触发器自动维护
+            department_id: sea_orm::ActiveValue::NotSet,
             approved_by: Set(None),
             approved_at: Set(None),
             created_at: Set(chrono::Utc::now()),

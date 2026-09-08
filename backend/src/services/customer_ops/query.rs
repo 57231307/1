@@ -69,8 +69,8 @@ impl CustomerService {
             query = apply_data_scope(
                 query,
                 ctx,
-                customer::Column::CreatedBy,
-                customer::Column::CreatedBy,
+                customer::Column::OwnerId,
+                customer::Column::DepartmentId,
             );
         }
         if let Some(status) = status {

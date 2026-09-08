@@ -196,6 +196,8 @@ impl ImportExportService {
             customer_type: Set("RETAIL".to_string()),
             notes: Set(None),
             created_by: Set(Some(user_id)),
+            // m_rls_dept_domain：department_id 由 trg_customers_dept 触发器自动维护
+            department_id: sea_orm::ActiveValue::NotSet,
             created_at: Set(now),
             updated_at: Set(now),
             customer_industry: Set(None),

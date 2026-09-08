@@ -377,6 +377,7 @@ impl SalesService {
             packaging_requirement: Set(None),
             quality_standard: Set(None),
             created_by: Set(None),
+            department_id: Set(None),
             approved_by: Set(None),
             approved_at: Set(None),
             created_at: Set(chrono::Utc::now()),

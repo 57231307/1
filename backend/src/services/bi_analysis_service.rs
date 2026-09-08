@@ -118,6 +118,7 @@ impl BiAnalysisService {
                 scope: DataScope::All,
                 user_id: 0,
                 department_id: None,
+                dept_ids: Vec::new(),
             },
             cache: None,
         }

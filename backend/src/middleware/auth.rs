@@ -12,7 +12,7 @@ use axum_extra::extract::cookie::{Key, PrivateCookieJar};
 // V15 P0-S01：auth 中间件需要查询 role 和 user 表以加载 data_scope 和 department_id
 use dashmap::DashMap;
 use sea_orm::EntityTrait;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use std::time::Instant;
 use tracing::{info, warn};
 
@@ -317,6 +317,31 @@ pub async fn auth_middleware(
                     .await
             {
                 auth_context.department_id = user_model.department_id;
+            }
+
+            // m_rls_dept_domain：dept 用户预加载可见部门集合（主+兼职+子部门），
+            // 供 RLS 中间件构造 RlsGuc.dept_ids 写入 task-local，连接池钩子据此
+            // 设置 app.dept_ids GUC。解析失败保持 None（dept 退化为 self+公海）。
+            let is_dept = auth_context
+                .data_scope
+                .as_deref()
+                .map(|s| crate::utils::data_scope::DataScope::parse_scope(s)
+                    == crate::utils::data_scope::DataScope::Dept)
+                .unwrap_or(false);
+            if is_dept {
+                let dps = crate::services::data_permission_service::DataPermissionService::new(
+                    state.db.clone(),
+                );
+                let dept_ids = dps.get_user_dept_scope_ids_cached(auth_context.user_id).await;
+                if !dept_ids.is_empty() {
+                    auth_context.dept_ids = Some(Arc::new(
+                        dept_ids
+                            .iter()
+                            .map(|id| id.to_string())
+                            .collect::<Vec<_>>()
+                            .join(","),
+                    ));
+                }
             }
 
             info!(

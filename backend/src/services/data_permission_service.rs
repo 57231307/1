@@ -5,12 +5,13 @@ use crate::models::data_permission::{self, Entity as DataPermissionEntity};
 use crate::utils::admin_checker;
 use crate::utils::error::AppError;
 use chrono::Utc;
+use dashmap::DashMap;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, Set,
     TransactionTrait,
 };
 use serde_json::Value;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 /// 数据范围类型常量
 /// V15 P2 B12-P2-7：扩展为完整 4 档分级常量（ALL/DEPT/SELF/CUSTOM），
@@ -303,18 +304,88 @@ impl DataPermissionService {
     }
 
     /// V15 P1 batch-19 缺陷 23.1.1：获取用户部门树数据范围（含兼职部门及子部门）
+    ///
+    /// m_rls_dept_domain 扩展：兼容 users.department_id 主部门单值路径——
+    /// 用户若仅在 users 表有 department_id（历史/未走 assign_user_departments），
+    /// 也纳入可见集合，避免 dept 用户因 user_departments 表空而退化为 self。
     pub async fn get_user_dept_scope_ids(&self, user_id: i32) -> Result<Vec<i32>, AppError> {
+        use crate::models::user::Entity as UserEntity;
         use crate::models::user_department::{self, Entity as UserDeptEntity};
+
+        let mut dept_ids: Vec<i32> = Vec::new();
+
+        // 1. users.department_id 主部门单值（历史/兼容路径）
+        if let Ok(Some(user_model)) = UserEntity::find_by_id(user_id)
+            .one(&*self.db)
+            .await
+        {
+            if let Some(primary) = user_model.department_id {
+                let subtree = self.collect_dept_subtree(primary).await?;
+                dept_ids.extend(subtree);
+            }
+        }
+
+        // 2. user_departments 兼职部门（含主部门标记）
         let user_depts = UserDeptEntity::find()
             .filter(user_department::Column::UserId.eq(user_id))
             .all(&*self.db)
             .await?;
-        let mut dept_ids = Vec::new();
         for ud in user_depts {
             let subtree = self.collect_dept_subtree(ud.department_id).await?;
             dept_ids.extend(subtree);
         }
+
+        // 去重
+        dept_ids.sort_unstable();
+        dept_ids.dedup();
         Ok(dept_ids)
+    }
+
+    /// m_rls_dept_domain：带 TTL 缓存的可见部门集合解析（auth 中间件调用）。
+    /// 缓存 key=`dept_scope:{user_id}`，TTL 由 `DEPT_SCOPE_TTL_MINS` 控制（默认 5 分钟）。
+    /// 解析失败返回空集合（dept 用户退化为 self+公海，warn 日志）。
+    pub async fn get_user_dept_scope_ids_cached(
+        &self,
+        user_id: i32,
+    ) -> Vec<i32> {
+        let ttl_secs = *DEPT_SCOPE_TTL_SECS;
+        let now = Utc::now();
+        let key = user_id;
+
+        if let Some(entry) = DEPT_SCOPE_CACHE.get(&key) {
+            if (now - entry.cached_at).num_seconds() < ttl_secs {
+                return (*entry.dept_ids).clone();
+            }
+            // 过期：删除并重算
+            drop(entry);
+            DEPT_SCOPE_CACHE.remove(&key);
+        }
+
+        match self.get_user_dept_scope_ids(user_id).await {
+            Ok(ids) => {
+                DEPT_SCOPE_CACHE.insert(
+                    key,
+                    DeptScopeCacheEntry {
+                        dept_ids: Arc::new(ids.clone()),
+                        cached_at: now,
+                    },
+                );
+                ids
+            }
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    user_id,
+                    "解析可见部门集合失败，dept 用户退化为 self+公海"
+                );
+                Vec::new()
+            }
+        }
+    }
+
+    /// m_rls_dept_domain：部门变更时失效缓存（assign_user_departments 等写点调用）。
+    pub fn invalidate_dept_scope_cache(user_id: i32) {
+        DEPT_SCOPE_CACHE.remove(&user_id);
     }
 
     /// 收集部门子树 ID（含自身，迭代实现避免 async 递归 boxing）
@@ -425,3 +496,23 @@ impl DataScopeFilter {
         matches!(self.scope, DataScopeType::None)
     }
 }
+
+// ============================================================================
+// m_rls_dept_domain：可见部门集合缓存（auth 中间件调用 get_user_dept_scope_ids_cached）
+// ============================================================================
+
+/// 可见部门集合缓存项
+struct DeptScopeCacheEntry {
+    dept_ids: Arc<Vec<i32>>,
+    cached_at: chrono::DateTime<Utc>,
+}
+
+/// 全局可见部门集合缓存（user_id → DeptScopeCacheEntry）
+static DEPT_SCOPE_CACHE: LazyLock<DashMap<i32, DeptScopeCacheEntry>> = LazyLock::new(DashMap::new);
+
+/// 缓存 TTL（秒），可通过环境变量 DEPT_SCOPE_TTL_MINS 配置，默认 5 分钟。
+static DEPT_SCOPE_TTL_SECS: LazyLock<i64> = LazyLock::new(|| {
+    let raw = std::env::var("DEPT_SCOPE_TTL_MINS").unwrap_or_else(|_| "5".to_string());
+    let mins: i64 = raw.parse().unwrap_or(5);
+    mins * 60
+});

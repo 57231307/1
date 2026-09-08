@@ -117,13 +117,13 @@ impl SalesService {
                 sales_order::Relation::Customer.def(),
             );
 
-        // V15 P0-S01：行级数据权限过滤（sales_order 表无 department_id，Dept 退化为 Self）
+        // 行级数据权限过滤：owner=CreatedBy，dept=DepartmentId（m_rls_dept_domain）
         if let Some(ctx) = data_scope {
             query = apply_data_scope(
                 query,
                 ctx,
                 sales_order::Column::CreatedBy,
-                sales_order::Column::CreatedBy,
+                sales_order::Column::DepartmentId,
             );
         }
 

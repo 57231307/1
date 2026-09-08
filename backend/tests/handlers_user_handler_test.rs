@@ -14,6 +14,7 @@ async fn test_require_admin_role_rejects_missing_role() {
         role_id: None,
         department_id: None,
         data_scope: None,
+        dept_ids: None,
     };
     let result = require_admin_role(&state, &auth).await;
     assert!(

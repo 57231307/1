@@ -80,6 +80,10 @@ pub struct Model {
     pub updated_at: DateTimeWithTimeZone,
     /// 创建人 ID
     pub created_by: Option<i32>,
+    /// 数据部门 ID（RLS dept 语义，由 trg_suppliers_dept 触发器自动维护 =
+    /// created_by 指向用户的 department_id；NULL 历史数据保留 NULL）
+    /// m_rls_dept_domain 迁移补列
+    pub department_id: Option<i32>,
     /// 更新人 ID
     pub updated_by: Option<i32>,
     /// 备注
