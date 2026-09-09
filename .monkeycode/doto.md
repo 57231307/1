@@ -8,7 +8,7 @@
 
 ## 当前状态
 
-**文档治理完成（2026-09-09）：README 数据更新、doto/bug 归档、docs/ 移入 .monkeycode、生产服务器日志与 scan_long_fns.py 删除，全部本地 commit。源代码修改已冻结（IR 2026-09-09），仅保留文档修改权限。**
+**文档治理完成（2026-09-09）：README 数据更新、doto/bug 归档、docs/ 移入 .monkeycode、生产服务器日志与 scan_long_fns.py 删除，全部本地 commit。源代码修改冻结已解除（IR 2026-09-09，用户指令）——修复计划（docs/plans/one-round-fix-plan-2026-09-09.md，10 commit）可实施；推送继续冻结，全部改动仅本地 commit。CI 历史问题全量总结见 docs/ci-issues-summary-2026-09-09.md（22 项 + 6 条机制教训）。**
 
 ---
 
@@ -16,8 +16,8 @@
 
 - [x] 禁止 mock：E2E 测试一律真实后端 + 真实 PostgreSQL 数据
 - [x] 禁止本地编译：验证一律走 CI
-- [x] **推送冻结（2026-09-08 二次冻结，持续生效）**：git push 一律禁止（含分支/tag），改动仅本地 commit；推送必须等用户明确授权
-- [x] **源代码修改冻结（IR 2026-09-09）**：禁止修改一切源代码（backend/frontend/.github/scripts/deploy 等）；仅保留文档修改权限（README/CONTRIBUTING/.monkeycode/docs 等 markdown）
+- [x] **推送冻结（2026-09-08 二次冻结，2026-09-09 重申继续生效）**：git push 一律禁止（含分支/tag），改动仅本地 commit；推送必须等用户明确授权
+- [x] **源代码修改冻结已解除（2026-09-09，用户指令）**：按 docs/plans/one-round-fix-plan-2026-09-09.md 实施修复；历史 CI 问题基线见 docs/ci-issues-summary-2026-09-09.md（执行时对照六条机制教训）
 
 ---
 
