@@ -40,6 +40,16 @@
 - [ ] **enhanced mock 清理**：network-resilience.spec.ts 用 page.route mock 注入 403/401，违反禁 mock IR（2026-09-07 前遗留），改真实 token 过期/无权限账号触发
 - [ ] **purchase/sales 业务目录纳入主 CI**：07-supplier-report 等真实下载测试只在 e2e-batch.yml（每 30 批次手动）跑到，主 CI 34 分片 testMatch 未含
 
+### 内部更新功能 + 敏感导出授权审计缺口（2026-09-09 二轮）
+
+- [ ] **system-update 权限门禁零测试**：require_admin_role 挂在 4 个高危端点（update/upload/rollback/local-update）但无 HTTP 层集成测试验证非 admin → 403；后端测试仅 URL 校验/版本比较/zip magic 纯函数。补 handlers_system_update 权限矩阵测试（admin 200 / cashier 403 / 未登录 401）
+- [ ] **system-update E2E 深度**：现仅 2 处 body visible 冒烟；补 check/version/update-status 只读端点真实调用 + version 数据断言；rollback/local-update 在 CI 空库环境的安全路径测试
+- [ ] **bingxi update CLI 零集成测试**：cli/util/upgrade.rs（SHA256 校验 + 健康检查门禁 + 回滚）无任何测试
+- [ ] 🔴 **敏感导出审批可绕过（机制断裂）**：export_customers/export_products 等敏感资源导出端点未强制校验 export-approvals 的 download_token——审批流为旁路，绕过审批可直取客户全量数据。需在 6 类敏感资源（customer/supplier/dye_recipe/price_list/finance_report/audit_log）的 export handler 接入令牌强制校验（fail-closed）或中间件层统一拦截
+- [ ] **导出审批前端零接入**：全前端无一处调用 export-approvals 8 端点，审批创建/审批/令牌下载 UI 不存在
+- [ ] **导出审批测试零覆盖**：令牌签发→verify→消费→record_download 全链路无集成测试；后端仅 4 个纯函数单测；需补审批流集成测试 + E2E（admin 审批后低权限用户持令牌导出成功/无令牌被拒）
+- [ ] **print/export 角色黑名单无端到端验证**：PRINT_DENIED/EXPORT_DENIED（customer/temporary）+ DYE_RECIPE_EXPORT_DENIED（仅 dye_recipe_master）三层清单在 permission 中间件实现且 fail-closed，但因无低权限测试账号（见上轮缺口）从未被真实请求验证
+
 ### 验证类（需推送授权或手动执行）
 
 - [ ] PG 机制锚点测试手动验证：`TEST_DATABASE_URL=... cargo test --test rls_context_test -- --ignored`（test_rls_guc_visible_in_same_pool_pg，CI 不跑 ignored）
