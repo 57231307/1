@@ -1193,3 +1193,78 @@ fn start_service_and_check() {
         );
     }
 }
+
+#[cfg(test)]
+mod upgrade_tests {
+    /// check_version_downgrade 纯函数测试（doto 2026-09-09 bingxi update CLI 零测试缺口）
+    /// 覆盖：正常升级放行 / 版本降级拒绝 / 同版本放行 / 非标格式 fail-open / v 前缀解析
+    use super::check_version_downgrade;
+
+    #[test]
+    fn test_upgrade_allowed() {
+        assert!(
+            check_version_downgrade("2026.9.1.1000", "2026.9.10.2000"),
+            "同主版本号升级应放行"
+        );
+        assert!(
+            check_version_downgrade("2026.8.12.2330", "2026.9.1.1000"),
+            "月份升级应放行"
+        );
+    }
+
+    #[test]
+    fn test_upgrade_downgrade_rejected() {
+        assert!(
+            !check_version_downgrade("2026.9.10.2000", "2026.9.1.1000"),
+            "同月内版本号回退应拒绝（1 < 10）"
+        );
+        assert!(
+            !check_version_downgrade("2026.9.1.1000", "2026.8.20.1000"),
+            "月份降级应拒绝"
+        );
+    }
+
+    #[test]
+    fn test_upgrade_same_version_allowed() {
+        assert!(
+            check_version_downgrade("2026.9.10.1000", "2026.9.10.1000"),
+            "同版本重装应放行（t == c）"
+        );
+    }
+
+    #[test]
+    fn test_upgrade_nonstandard_version_fail_open() {
+        assert!(
+            check_version_downgrade("dev-build", "2026.9.10.1000"),
+            "当前版本非标格式应 fail-open 放行"
+        );
+        assert!(
+            check_version_downgrade("2026.9.10.1000", "unknown"),
+            "目标版本非标格式应 fail-open 放行"
+        );
+        assert!(
+            check_version_downgrade("", ""),
+            "空版本号应 fail-open 放行"
+        );
+    }
+
+    #[test]
+    fn test_upgrade_v_prefix_parsed() {
+        assert!(
+            check_version_downgrade("v2026.9.1.1000", "v2026.9.2.1000"),
+            "v 前缀版本号应正确解析并放行升级"
+        );
+        assert!(
+            !check_version_downgrade("v2026.9.2.1000", "v2026.9.1.1000"),
+            "v 前缀版本号降级应拒绝"
+        );
+    }
+
+    #[test]
+    fn test_upgrade_three_segment_version_fail_open() {
+        assert!(
+            check_version_downgrade("2026.9.1", "2026.9.2"),
+            "三段版本号（缺 build）应 fail-open 放行（解析需四段）"
+        );
+    }
+}

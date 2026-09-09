@@ -183,8 +183,55 @@ const BOUNDARY_ROLES = [
   { code: 'e2e_noperm', name: 'E2E空权限角色', permissions: [] },
 ];
 
+// 黑名单端到端测试角色（33b）：PRINT/EXPORT_DENIED 黑名单按角色 code 精确匹配
+// （backend/src/middleware/permission.rs）。给这两个角色配置 print/export 权限码，
+// 使 33b 断言"持码仍 403"——权限码放行即证明黑名单失效
+const BLACKLIST_TEST_ROLES = [
+  {
+    code: 'customer',
+    name: '客户外部用户（E2E黑名单验证）',
+    permissions: ['dashboard:read', 'product:view', 'product:print', 'product:export'],
+  },
+  {
+    code: 'temporary',
+    name: '临时账号（E2E黑名单验证）',
+    permissions: ['dashboard:read', 'product:view', 'product:print', 'product:export'],
+  },
+];
+
 const ROLE_CREDENTIALS_PATH = 'e2e/.auth/role-credentials.json';
 const DEFAULT_ROLE_PASSWORD = 'E2eRole#2026';
+
+/**
+ * 为角色分配权限码（POST /roles/{id}/permissions 单条模式，幂等）
+ * 权限码格式 'product:print' → { resource_type: 'product', action: 'print', allowed: true }
+ * 单条失败仅告警不中断（黑名单断言对无权限码场景仍成立，只是失去"持码仍拒"精度）
+ */
+async function assignPermissionList(
+  ctx: { post: (url: string, options: object) => Promise<{ ok: boolean; status: () => number }> },
+  roleId: number,
+  permissionCodes: string[],
+  headers: Record<string, string>
+): Promise<void> {
+  for (const code of permissionCodes) {
+    const [resourceType, action] = code.split(':');
+    if (!resourceType || !action) {
+      console.warn(`[globalSetup] 权限码格式非法（应为 resource:action）: ${code}`);
+      continue;
+    }
+    try {
+      const resp = await ctx.post(`${API_PREFIX}/roles/${roleId}/permissions`, {
+        headers,
+        data: { resource_type: resourceType, action, allowed: true },
+      });
+      if (!resp.ok() && resp.status() !== 400 && resp.status() !== 409) {
+        console.warn(`[globalSetup] 权限 ${code} 分配失败 HTTP ${resp.status()}`);
+      }
+    } catch (e) {
+      console.warn(`[globalSetup] 权限 ${code} 分配异常:`, (e as Error).message);
+    }
+  }
+}
 
 /**
  * 全量角色账号 setup：
@@ -231,7 +278,7 @@ export async function ensureRoleUsers(): Promise<void> {
   const existingCodes = new Set(existingRoles.map((r) => r.code).filter(Boolean));
   console.log(`[globalSetup] 后端现有角色 ${existingRoles.length} 个`);
 
-  // 3. 自动补建缺失种子角色 + 边界角色
+  // 3. 自动补建缺失种子角色 + 边界角色 + 黑名单验证角色
   const allRolesToEnsure = [
     ...SEED_ROLES.filter((code) => !existingCodes.has(code)).map((code) => ({
       code,
@@ -239,6 +286,7 @@ export async function ensureRoleUsers(): Promise<void> {
       permissions: [],
     })),
     ...BOUNDARY_ROLES.filter((r) => !existingCodes.has(r.code)),
+    ...BLACKLIST_TEST_ROLES.filter((r) => !existingCodes.has(r.code)),
   ];
 
   const roleCodeToId = new Map<string, number>(
@@ -256,17 +304,21 @@ export async function ensureRoleUsers(): Promise<void> {
         | null;
       if (created?.data?.id) {
         roleCodeToId.set(role.code, created.data.id);
-        // 分配权限
+        // 分配权限（POST /roles/{id}/permissions 单条模式：resource_type+action）
         if (role.permissions.length > 0) {
-          await loginCtx.put(`${API_PREFIX}/roles/${created.data.id}/permissions`, {
-            headers,
-            data: { permissions: role.permissions },
-          });
+          await assignPermissionList(loginCtx, created.data.id, role.permissions, headers);
         }
         console.log(`[globalSetup] 角色 ${role.code} 创建成功 (id=${created.data.id})`);
       }
     } else if (createRoleResp.status() === 400 || createRoleResp.status() === 409) {
       console.log(`[globalSetup] 角色 ${role.code} 已存在，跳过创建`);
+      // 已存在角色也补齐权限码（幂等；33b 黑名单断言依赖"持码仍拒"）
+      if (role.permissions.length > 0) {
+        const roleId = roleCodeToId.get(role.code);
+        if (roleId) {
+          await assignPermissionList(loginCtx, roleId, role.permissions, headers);
+        }
+      }
     }
   }
 

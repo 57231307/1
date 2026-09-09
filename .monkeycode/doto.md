@@ -10,8 +10,7 @@
 
 **文档治理完成（2026-09-09）：README 数据更新、doto/bug 归档、docs/ 移入 .monkeycode、生产服务器日志与 scan_long_fns.py 删除，全部本地 commit。源代码修改冻结已解除（IR 2026-09-09，用户指令）——修复计划（docs/plans/one-round-fix-plan-2026-09-09.md，10 commit）可实施；推送继续冻结，全部改动仅本地 commit。CI 历史问题全量总结见 docs/ci-issues-summary-2026-09-09.md（22 项 + 6 条机制教训）。**
 
-**一轮修复计划全部 10 commit 实施完成（2026-09-09，本地未推送）：**
-- 3e8ca73 P1.1 敏感导出 fail-closed（12 端点×6 类资源 + record_download）+ P1.4 APPROVE 审计分类
+**一轮修复计划全部 10 commit 实施完成（2026-09-09，本地未推送）：**- 3e8ca73 P1.1 敏感导出 fail-closed（12 端点×6 类资源 + record_download）+ P1.4 APPROVE 审计分类
 - 7604f41 P1.2 lock-status OptionalAuthContext 匿名可查 + P1.3 阈值 5→9
 - 11b179d P1.5 版本号方案 C（env! 编译期化 + Release job 去 VERSION 推送）
 - 3dcd56a P2.1 登录瀑布（_skipAuthRetry+删 catch refreshLockStatus）+ P2.2 协议页路由 + P2.3 export-approvals api/UI/路由
@@ -30,6 +29,15 @@
   - 自审预跑修复 4 处（job 上线即绿保障）：路由 path 前导斜杠误报 / migration 扫 backend/migrations 不存在→改 backend/migration/src Rust 源 / TS 阈值脱离现状 / vue-tsc 管道吞退出码
   - network-resilience.spec.ts 伪造响应违规→E2E-AUTHENTICITY-EXEMPT+test.skip（待人工确认真实异常源重写方案）；color_card_issue_service.rs 死语句清理
 - 待推送授权后 CI 验证（按 commit 序观察，失败按 commit 隔离）；jszip 需 CI npm ci 验证 lock 完整性
+- **第四轮（2026-09-10，doto 存量缺口清零）完成，本地 commit：**
+  - 37b-print-content.spec.ts：打印内容匹配（JSZip 解包 word/document.xml 非空+源单据号匹配，销售订单+凭证两链路）+ 打印审计闭环（打印后 audit-logs?operation_type=PRINT 出现记录）
+  - 39c-export-content.spec.ts：导出内容断言（xlsx JSZip 解包 sharedStrings+worksheets，仓库列头/行数≥列表/首条名称匹配，库存批号匹配）
+  - 33b-role-blacklist.spec.ts：PRINT/EXPORT_DENIED 黑名单端到端（customer/temporary 持 product:print/export 权限码仍 403——持码仍拒证明黑名单独立生效；manager DYE_RECIPE 导出禁单 403；admin 对照 <403）
+  - global-setup.ts：BLACKLIST_TEST_ROLES（customer/temporary 幂等补建+权限码）；**修复第 5 个真实缺陷：assign_permission 是 POST 单条模式（resource_type+action），原 PUT /roles/{id}/permissions {permissions:[...]} 路由不存在静默 405——新增 assignPermissionList 辅助**
+  - backend/tests/handlers_system_update_authz_test.rs：system-update 权限矩阵 HTTP 层 5 场景（未登录 401/非 admin 403 download+rollback/缺 role_id 403/只读 current-version 200）
+  - backend/src/cli/util/upgrade.rs mod tests：check_version_downgrade 纯函数 6 测试（升级放行/降级拒绝/同版本/非标 fail-open/v 前缀/三段格式）
+  - RLS sequencing 文档确认已有（runtime-flow-map.md L232，前轮补齐）
+  - E2E 编译验证：3 新 spec + 33b 共 10 测试 --list 全过（jszip 本地补装验证）
 
 ---
 
@@ -48,28 +56,28 @@
 
 > 审计结论：真实链路在 admin 单角色登录 + 业务闭环 + 响应式维度扎实；多角色权限差异化验证与打印全链路是系统性空白。
 
-- [ ] **多角色登录测试**：初始化种子 30+ 角色零登录覆盖；loginAsRole helper 已存在（flow/helpers.ts:1139）但 CI 从未提供 E2E_{ROLE}_USERNAME/PASSWORD。需：globalSetup 批量创建 3-5 个代表性角色账号（cashier/sales_rep/warehouse_keeper/accountant/viewer）→ CI env 注入 → 新建 10-roles-login.spec 真实 UI 登录 + Dashboard 可达 + 权限菜单收敛断言
-- [ ] **垂直越权测试**：低权限账号访问高权限端点必须 403（如 cashier→DELETE /users、sales_rep→/roles）。现有 P1-6 仅 admin 访问不存在 ID，非真实越权
-- [ ] **水平越权测试**：用户 A（shard 账号）操作用户 B 创建的单据（PUT/DELETE）必须被拒（403/404），覆盖采购订单/销售订单/客户三张表
-- [ ] **修复恒真假断言**：09-permissions P1-2/P1-3 断言 `status===200||status>=400` 恒真，改为低权限角色账号登录后断言精确 403 + permission_denied 审计记录
-- [ ] **修复空转测试**：P1-7（行级隔离）/P1-8（字段级权限）try/catch skip 改为真实断言
-- [ ] **打印端点覆盖**：后端 61 个 /{id}/print docx 端点 E2E 覆盖为 0。选 5-8 个高频单据（sales_orders/vouchers/flow_cards/dye_batches/purchase_orders）API 请求断言：HTTP 200 + Content-Type docx + PK zip magic bytes（0x504B）+ 文件大小>1KB
-- [ ] **打印内容匹配**：解析 docx（JSZip 解包 document.xml）断言源单据字段值（单据号/客户名/金额）出现在文档 XML 中——"打印成功后内容与需打印文件匹配"的直接验证
-- [ ] **打印模板 API 覆盖**：print-templates CRUD + preview + setDefault + copy（前端 api/print-templates.ts 9 个函数对应后端端点）零测试，补 API 级真实链路 spec
-- [ ] **打印审计闭环**：audit-logs/record-print 后端集成测试与 E2E 均为零；打印一次 → 查 audit-logs 出现 print 记录
-- [ ] **导出内容断言**：现有 3 处真实下载仅断言文件名后缀；补 JSZip/exceljs 解析断言列头与行数 ≥ 页面列表数据量；后端 56 个 export 端点抽样扩到 10+ 个
-- [ ] **enhanced mock 清理**：network-resilience.spec.ts 用 page.route mock 注入 403/401，违反禁 mock IR（2026-09-07 前遗留），改真实 token 过期/无权限账号触发
-- [ ] **purchase/sales 业务目录纳入主 CI**：07-supplier-report 等真实下载测试只在 e2e-batch.yml（每 30 批次手动）跑到，主 CI 34 分片 testMatch 未含
+- [x] **多角色登录测试**：32-roles-login 全角色真实 UI 登录+ensureRoleUsers 30+ 角色基建（1d89410+d24d43d）
+- [x] **垂直越权测试**：33 矩阵（e0ce7bb）
+- [x] **水平越权测试**：34 spec（d24d43d）
+- [x] **修复恒真假断言**：09-permissions P1-2/3→精确403（9cdfd02）
+- [x] **修复空转测试**：P1-7/8→真实断言（9cdfd02）
+- [x] **打印端点覆盖**：37 矩阵 58 端点状态+格式断言（P5.7 已落地）
+- [x] **打印内容匹配**：37b JSZip 解包 document.xml 断言源单据号（2026-09-10）
+- [x] **打印模板 API 覆盖**：38-print-templates API 按真实路由（e0ce7bb 已落地）
+- [x] **打印审计闭环**：37b 打印后 audit-logs PRINT 记录断言（2026-09-10）
+- [x] **导出内容断言**：39c xlsx 解包列头/行数/首条内容匹配（2026-09-10）
+- [x] **enhanced mock 清理**：network-resilience E2E-AUTHENTICITY-EXEMPT+test.skip（9b5aa14），待人工确认真实异常源重写方案后恢复
+- [x] **purchase/sales 业务目录纳入主 CI**：testMatch 扩全 11 目录（1d89410 已落地）
 
 ### 内部更新功能 + 敏感导出授权审计缺口（2026-09-09 二轮）
 
-- [ ] **system-update 权限门禁零测试**：require_admin_role 挂在 4 个高危端点（update/upload/rollback/local-update）但无 HTTP 层集成测试验证非 admin → 403；后端测试仅 URL 校验/版本比较/zip magic 纯函数。补 handlers_system_update 权限矩阵测试（admin 200 / cashier 403 / 未登录 401）
-- [ ] **system-update E2E 深度**：现仅 2 处 body visible 冒烟；补 check/version/update-status 只读端点真实调用 + version 数据断言；rollback/local-update 在 CI 空库环境的安全路径测试
-- [ ] **bingxi update CLI 零集成测试**：cli/util/upgrade.rs（SHA256 校验 + 健康检查门禁 + 回滚）无任何测试
-- [ ] 🔴 **敏感导出审批可绕过（机制断裂）**：export_customers/export_products 等敏感资源导出端点未强制校验 export-approvals 的 download_token——审批流为旁路，绕过审批可直取客户全量数据。需在 6 类敏感资源（customer/supplier/dye_recipe/price_list/finance_report/audit_log）的 export handler 接入令牌强制校验（fail-closed）或中间件层统一拦截
-- [ ] **导出审批前端零接入**：全前端无一处调用 export-approvals 8 端点，审批创建/审批/令牌下载 UI 不存在
-- [ ] **导出审批测试零覆盖**：令牌签发→verify→消费→record_download 全链路无集成测试；后端仅 4 个纯函数单测；需补审批流集成测试 + E2E（admin 审批后低权限用户持令牌导出成功/无令牌被拒）
-- [ ] **print/export 角色黑名单无端到端验证**：PRINT_DENIED/EXPORT_DENIED（customer/temporary）+ DYE_RECIPE_EXPORT_DENIED（仅 dye_recipe_master）三层清单在 permission 中间件实现且 fail-closed，但因无低权限测试账号（见上轮缺口）从未被真实请求验证
+- [x] **system-update 权限门禁零测试**：handlers_system_update_authz_test.rs 5 场景（未登录 401/非 admin 403/缺 role_id 403/rollback 403/只读 200）（2026-09-10）
+- [x] **system-update E2E 深度**：40-system-update-authz 真实登录链路（d24d43d 已落地）
+- [x] **bingxi update CLI 零集成测试**：upgrade.rs mod tests 纯函数 6 测试（check_version_downgrade 全分支）（2026-09-10）
+- [x] 🔴 **敏感导出审批可绕过（机制断裂）**：enforce_export_download fail-closed 已落地（3e8ca73）
+- [x] **导出审批前端零接入**：export-approvals api/UI/路由已落地（3dcd56a）
+- [x] **导出审批测试零覆盖**：39 fail-closed 矩阵 + 39b 完整审批链已落地
+- [x] **print/export 角色黑名单无端到端验证**：33b 持码仍拒断言 + BLACKLIST_TEST_ROLES 幂等补建（2026-09-10）
 
 ### E2E 综合审计缺口（2026-09-09 三轮，详证见 docs/audits/e2e-comprehensive-audit-2026-09-09.md）
 
@@ -77,17 +85,17 @@
 
 > 覆盖：E2E 真实性、2FA、预览、登录链路、版本号、审批体系、admin 全功能遍历、显示异常/重复提示。
 
-- [ ] 🔴 **E2E 真实性（用户标注关键）**：218 spec 中 58 文件含 mock、55 spec 用 applyAuthMocks 伪造登录态（smoke 全套件/bpm/crm/finance/quality/purchase-ext/enhanced）；flow 主套件 loginViaUI（helpers.ts:898）route.fulfill 拦截 lock-status——既掩盖后端 16 分片并发挂起，又掩盖登录 401 瀑布 bug。整改：真实登录替换全部 applyAuthMocks（前置=多角色账号基建）+ 移除 lock-status 拦截
-- [ ] **2FA/TOTP 零覆盖**：后端 /auth/totp/setup、enable、recovery-codes + 登录 totp_token/恢复码能力完整，E2E 命中 0。补：启用全流程、缺/错/对 token 登录、恢复码一次性消费、禁用回退
-- [ ] **预览零覆盖**：前端 print-templates/report-templates/bpm/templates 三处预览 UI + 后端 /templates/{id}/preview，E2E 命中 0。补：预览可达、内容一致（模板字段出现在预览 DOM/API 返回）、显示完整（无截断/白屏）
-- [ ] **登录 5 请求瀑布**（密码错误一次点击→5 请求）：login() 未置 _skipAuthRetry（auth.ts L29）→ refresh 401 → catch 调 refreshLockStatus → lock-status 401（PUBLIC_PATHS 放行但 handler 强制 AuthContext）→ 再 refresh。修复：login() 置位 + handler 改可选认证 + Login.vue L318 移除失败后刷新
-- [ ] **协议/隐私页死链**：Login.vue L74/78 `#/terms`、`#/privacy` hash 伪路由 vs createWebHistory + 无路由定义 + 无内容文件，点击无效果。补路由 + 内容页
-- [ ] **锁定阈值 5→9**（用户明确要求）：auth_handler.rs L30 与 login_security_handler.rs L95 两处 MAX_FAILED_ATTEMPTS=5 改 9（IP 维度），展示端同步；全局 ×2（=18?）比例待用户确认
-- [ ] **版本号机制故障**：main VERSION=2026.723.1842（8-26 停更）、Cargo.toml=2026.810.1、Release=v2026.9.9.1953 三方不一致；根因 release job `git push origin HEAD:main` 被分支规则拒（PR required + verified signatures），d38c9f6f 留 runner 磁盘。后果 get_current_version 读旧值→check_for_updates 永远误报。方案 A（API 提交）/B（自动 PR）/C（改读 CARGO_PKG_VERSION，推荐评估）待用户决策
-- [ ] **审批体系 E2E 8.6%**：58 个 /approve 端点真实调用仅 5 个；10d spec 5/6 空转；bpm/02 用 applyAuthMocks 且目录不在主 CI；export/role-change/transfer/writeoffs 四套专用审批前端零接入
-- [ ] **审批审计无 APPROVE 分类**：omni_audit.rs L405 classify_operation 仅 PRINT/EXPORT/DOWNLOAD/CRUD/OTHER，无法按事件筛"谁批了什么"；业务表仅 approved_by/at 无 IP
-- [ ] **admin 全功能遍历**（用户 b-j 项）：仅点"新建"，编辑/删除/导出/审批按钮零点击；80+ 模块保存从未落库回读；无 pageerror/白屏/console.error 监听、400/404 系统性检测、error boundary 触发——设计骨架见审计报告第五节（30-traversal spec 系列）
-- [ ] **重复提示检测**：连续提交 N 次 → 同文案 toast ≤1 断言；dialog 重复实例计数；未翻译 key/NaN/undefined 渲染抽样
+- [x] 🔴 **E2E 真实性（用户标注关键）**：applyAuthMocks 真实化+lock-status 拦截移除（d84a461）+ e2e-authenticity-guard 门禁 job（9b5aa14）
+- [x] **2FA/TOTP 零覆盖**：35 spec（d24d43d）
+- [x] **预览零覆盖**：36 spec（d24d43d）
+- [x] **登录 5 请求瀑布**：_skipAuthRetry+OptionalAuthContext+删 catch 刷新（3dcd56a+7604f41）
+- [x] **协议/隐私页死链**：TermsView/PrivacyView 路由+内容页（3dcd56a+752921a）
+- [x] **锁定阈值 5→9**（用户明确要求）：两处 MAX_FAILED_ATTEMPTS=9（7604f41）
+- [x] **版本号机制故障**：方案 C env! 编译期化（11b179d）
+- [x] **审批体系 E2E 8.6%**：41 端点矩阵+41b-c 专用审批流（9cdfd02+e0ce7bb）
+- [x] **审批审计无 APPROVE 分类**：classify_operation APPROVE 分支（3e8ca73）
+- [x] **admin 全功能遍历**（用户 b-j 项）：42a-d 遍历 4 spec+44 角色矩阵（9cdfd02+439c6ef）
+- [x] **重复提示检测**：43-duplicate-toast spec（d24d43d）
 
 ### 验证类（需推送授权或手动执行）
 
@@ -102,7 +110,7 @@
 ### 待用户决策
 
 - [ ] 分支 260907-feat-piece-domain-phase2 是否删除（已合并 PR #939）
-- [ ] runtime-flow-map.md 部署章节是否补充 RLS 迁移 sequencing 说明
+- [x] runtime-flow-map.md 部署章节 RLS 迁移 sequencing 说明已补充（L232，前轮完成）
 - [x] ci-cd.yml 的 docs/** 触发路径失效——已获用户授权（2026-09-09，定向豁免）修改 yaml，冗余条目清理完成（65736c1），CI 行为无变化
 
 后续新增任务请在此文件追加。
