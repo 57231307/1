@@ -9,14 +9,26 @@
       </template>
 
       <div class="filter-bar">
-        <ElSelect v-model="searchForm.status" :placeholder="$t('exportApprovals.placeholderStatus')" clearable style="width: 160px" @change="loadList">
+        <ElSelect
+          v-model="searchForm.status"
+          :placeholder="$t('exportApprovals.placeholderStatus')"
+          clearable
+          style="width: 160px"
+          @change="loadList"
+        >
           <ElOption label="Pending" value="pending" />
           <ElOption label="Approved" value="approved" />
           <ElOption label="Rejected" value="rejected" />
           <ElOption label="Expired" value="expired" />
           <ElOption label="Cancelled" value="cancelled" />
         </ElSelect>
-        <ElSelect v-model="searchForm.resource_type" :placeholder="$t('exportApprovals.placeholderResource')" clearable style="width: 200px" @change="loadList">
+        <ElSelect
+          v-model="searchForm.resource_type"
+          :placeholder="$t('exportApprovals.placeholderResource')"
+          clearable
+          style="width: 200px"
+          @change="loadList"
+        >
           <ElOption label="Customer" value="customer" />
           <ElOption label="Product" value="product" />
           <ElOption label="Supplier" value="supplier" />
@@ -27,10 +39,18 @@
         </ElSelect>
       </div>
 
-      <ElTable :data="list" v-loading="loading" border style="width: 100%">
+      <ElTable v-loading="loading" :data="list" border style="width: 100%">
         <ElTableColumn prop="id" label="ID" width="60" />
-        <ElTableColumn prop="resource_type" :label="$t('exportApprovals.colResource')" width="120" />
-        <ElTableColumn prop="applicant_username" :label="$t('exportApprovals.colApplicant')" width="120" />
+        <ElTableColumn
+          prop="resource_type"
+          :label="$t('exportApprovals.colResource')"
+          width="120"
+        />
+        <ElTableColumn
+          prop="applicant_username"
+          :label="$t('exportApprovals.colApplicant')"
+          width="120"
+        />
         <ElTableColumn prop="status" :label="$t('exportApprovals.colStatus')" width="100">
           <template #default="{ row }">
             <ElTag :type="statusTagType(row.status)">{{ row.status }}</ElTag>
@@ -42,16 +62,36 @@
           <template #default="{ row }">
             <template v-if="row.download_token && row.status === 'approved'">
               <span class="token-text">{{ row.download_token.substring(0, 8) }}...</span>
-              <ElButton text size="small" @click="copyToken(row.download_token)">{{ $t('common.copy') }}</ElButton>
+              <ElButton text size="small" @click="copyToken(row.download_token)">{{
+                $t('common.copy')
+              }}</ElButton>
             </template>
             <span v-else>-</span>
           </template>
         </ElTableColumn>
         <ElTableColumn :label="$t('common.action')" width="200" fixed="right">
           <template #default="{ row }">
-            <ElButton v-if="row.status === 'pending' || row.status === 'pending_l2'" type="primary" size="small" @click="handleApprove(row)">{{ $t('exportApprovals.approve') }}</ElButton>
-            <ElButton v-if="row.status === 'pending' || row.status === 'pending_l2'" type="danger" size="small" @click="handleReject(row)">{{ $t('exportApprovals.reject') }}</ElButton>
-            <ElButton v-if="row.status === 'pending'" text size="small" @click="handleCancel(row)">{{ $t('exportApprovals.cancel') }}</ElButton>
+            <ElButton
+              v-if="row.status === 'pending' || row.status === 'pending_l2'"
+              type="primary"
+              size="small"
+              @click="handleApprove(row)"
+              >{{ $t('exportApprovals.approve') }}</ElButton
+            >
+            <ElButton
+              v-if="row.status === 'pending' || row.status === 'pending_l2'"
+              type="danger"
+              size="small"
+              @click="handleReject(row)"
+              >{{ $t('exportApprovals.reject') }}</ElButton
+            >
+            <ElButton
+              v-if="row.status === 'pending'"
+              text
+              size="small"
+              @click="handleCancel(row)"
+              >{{ $t('exportApprovals.cancel') }}</ElButton
+            >
           </template>
         </ElTableColumn>
       </ElTable>
@@ -72,7 +112,12 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { listApprovals, approveRequest, rejectRequest, cancelRequest } from '@/api/export-approvals';
+import {
+  listApprovals,
+  approveRequest,
+  rejectRequest,
+  cancelRequest,
+} from '@/api/export-approvals';
 import type { ExportApprovalRequest, ListApprovalQuery } from '@/api/export-approvals';
 import { useI18n } from 'vue-i18n';
 
@@ -116,7 +161,9 @@ const loadList = async () => {
 
 const handleApprove = async (row: ExportApprovalRequest) => {
   try {
-    await ElMessageBox.confirm(t('exportApprovals.confirmApprove'), t('common.confirm'), { type: 'warning' });
+    await ElMessageBox.confirm(t('exportApprovals.confirmApprove'), t('common.confirm'), {
+      type: 'warning',
+    });
     await approveRequest(row.id);
     ElMessage.success(t('exportApprovals.approved'));
     loadList();
@@ -127,7 +174,11 @@ const handleApprove = async (row: ExportApprovalRequest) => {
 
 const handleReject = async (row: ExportApprovalRequest) => {
   try {
-    const { value } = await ElMessageBox.prompt(t('exportApprovals.inputRejectReason'), t('exportApprovals.reject'), { type: 'warning' });
+    const { value } = await ElMessageBox.prompt(
+      t('exportApprovals.inputRejectReason'),
+      t('exportApprovals.reject'),
+      { type: 'warning' }
+    );
     await rejectRequest(row.id, value);
     ElMessage.success(t('exportApprovals.rejected'));
     loadList();
@@ -138,7 +189,9 @@ const handleReject = async (row: ExportApprovalRequest) => {
 
 const handleCancel = async (row: ExportApprovalRequest) => {
   try {
-    await ElMessageBox.confirm(t('exportApprovals.confirmCancel'), t('common.confirm'), { type: 'warning' });
+    await ElMessageBox.confirm(t('exportApprovals.confirmCancel'), t('common.confirm'), {
+      type: 'warning',
+    });
     await cancelRequest(row.id);
     ElMessage.success(t('exportApprovals.cancelled'));
     loadList();

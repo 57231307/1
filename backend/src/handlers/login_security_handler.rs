@@ -160,20 +160,20 @@ pub async fn check_lock_status(
         .ok_or_else(|| AppError::bad_request("缺少 username 参数"))?;
 
     // P0 7-1 修复 + 登录瀑布修复：OptionalAuthContext 兼容匿名预检
-    // auth 为 None（登录页匿名预检场景）：放行，仅返回该 username 的锁定状态（公开语义）
-    // auth 为 Some（已登录）：保持越权防护——普通用户仅查自己，admin 可查任意
-    if let Some(auth_ctx) = &auth {
-        let is_admin = if let Some(role_id) = auth_ctx.role_id {
+    // user_id 为 None（登录页匿名预检场景）：放行，仅返回该 username 的锁定状态（公开语义）
+    // user_id 为 Some（已登录）：保持越权防护——普通用户仅查自己，admin 可查任意
+    if auth.user_id.is_some() {
+        let is_admin = if let Some(role_id) = auth.role_id {
             is_admin_role(&state.db, role_id).await
         } else {
             false
         };
-        if !is_admin && auth_ctx.username.as_deref() != Some(username.as_str()) {
+        if !is_admin && auth.username.as_deref() != Some(username.as_str()) {
             tracing::warn!(
                 target: "security_audit",
                 event = "AUTHORIZATION_DENIED",
-                user_id = auth_ctx.user_id,
-                username = ?auth_ctx.username,
+                user_id = auth.user_id,
+                username = ?auth.username,
                 requested_username = %username,
                 "[SECURITY] 非 admin 用户尝试查询他人锁定状态被拒绝"
             );

@@ -40,24 +40,19 @@ export interface ListApprovalQuery {
 }
 
 export function createApproval(body: CreateApprovalPayload) {
-  return request.post<ApiResponse<ExportApprovalRequest>>(
-    '/export-approvals',
-    body,
-  );
+  return request.post<ApiResponse<ExportApprovalRequest>>('/export-approvals', body);
 }
 
 export function listApprovals(params: ListApprovalQuery) {
-  return request.get<ApiResponse<{ items: ExportApprovalRequest[]; total: number; page: number; page_size: number }>>(
-    '/export-approvals',
-    { params },
-  );
+  return request.get<
+    ApiResponse<{ items: ExportApprovalRequest[]; total: number; page: number; page_size: number }>
+  >('/export-approvals', { params });
 }
 
 export function listPendingForMe(params: ListApprovalQuery) {
-  return request.get<ApiResponse<{ items: ExportApprovalRequest[]; total: number; page: number; page_size: number }>>(
-    '/export-approvals/pending-for-me',
-    { params },
-  );
+  return request.get<
+    ApiResponse<{ items: ExportApprovalRequest[]; total: number; page: number; page_size: number }>
+  >('/export-approvals/pending-for-me', { params });
 }
 
 export function getApprovalDetail(id: number) {
@@ -65,28 +60,23 @@ export function getApprovalDetail(id: number) {
 }
 
 export function approveRequest(id: number, comments?: string) {
-  return request.post<ApiResponse<ExportApprovalRequest>>(
-    `/export-approvals/${id}/approve`,
-    { comments },
-  );
+  return request.post<ApiResponse<ExportApprovalRequest>>(`/export-approvals/${id}/approve`, {
+    comments,
+  });
 }
 
 export function rejectRequest(id: number, comments?: string) {
-  return request.post<ApiResponse<ExportApprovalRequest>>(
-    `/export-approvals/${id}/reject`,
-    { comments },
-  );
+  return request.post<ApiResponse<ExportApprovalRequest>>(`/export-approvals/${id}/reject`, {
+    comments,
+  });
 }
 
 export function cancelRequest(id: number) {
-  return request.post<ApiResponse<ExportApprovalRequest>>(
-    `/export-approvals/${id}/cancel`,
-  );
+  return request.post<ApiResponse<ExportApprovalRequest>>(`/export-approvals/${id}/cancel`);
 }
 
 export function verifyToken(token: string) {
-  return request.get<ApiResponse<{ valid: boolean; approval_id: number; resource_type: string; expires_at: string }>>(
-    '/export-approvals/verify-token',
-    { params: { token } },
-  );
+  return request.get<
+    ApiResponse<{ valid: boolean; approval_id: number; resource_type: string; expires_at: string }>
+  >('/export-approvals/verify-token', { params: { token } });
 }
