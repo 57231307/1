@@ -21,6 +21,9 @@ paths = [
   '''生产服务器日志/''',
   '''^dist/''',
   '''^快速部署/''',
+  '''backend/config\.yaml$''',
+  '''backend/out\.txt$''',
+  '''debug_request\.js$''',
 ]
 regexes = [
   '''REDACTED''',
