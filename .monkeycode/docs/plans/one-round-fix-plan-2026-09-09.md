@@ -13,7 +13,7 @@
 | 锁定阈值全局比例 | 维持 ×2（IP 9 次 → 用户全局 18 次） | 用户确认后可改 |
 | 版本号机制 | 方案 C：get_current_version 改编译期 env!；Release job 移除 VERSION 文件提交推送（tag 保留） | A（API 提交）/ B（自动 PR） |
 | 敏感导出 fail-closed | 直接强制，无过渡开关 | 加 env 开关灰度（不推荐，留缺口） |
-| 业务目录纳入主 CI | 本轮仅纳入 purchase/sales（用户点名）；quality/finance/crm/bpm/purchase-ext 去 mock 后观察一轮再纳入 | 全部纳入（CI 时长风险） |
+| 业务目录纳入主 CI | **全部纳入**：purchase/sales/purchase-ext/quality/finance/crm/bpm/enhanced 去 mock 后全部进主 CI testMatch（用户指令：测试全量上线） | 分批纳入（已否决） |
 | 2FA TOTP 码生成 | E2E 内置 RFC 6238 生成器（crypto HMAC-SHA1，免装包） | npm 装 otpauth |
 | 文档/依赖新增 | JSZip（docx/xlsx 解析）加入 frontend devDependencies | exceljs（xlsx 列断言用轻量 XML 解析替代，暂不引入） |
 
@@ -186,8 +186,10 @@ TwoFactorSetup.vue + api（setupTotp/enableTotp/generateRecoveryCodes）+ 路由
 
 ### P3.3 playwright.config.ts
 
-- 主 project（L85）testMatch 扩为含 `purchase|sales` 目录：`/(flow|smoke|enhanced|purchase|sales)\/.*\.spec\.ts`（两处 L85/L95 同步）；
-- 其余业务目录维持 e2e-batch.yml 路径（观察一轮后再纳入）。
+- 主 project（L85/L95 两处）testMatch 扩为全部业务目录：
+  `/(flow|smoke|enhanced|purchase|sales|purchase-ext|quality|finance|crm|bpm)\/.*\.spec\.ts|^[^/]*\.spec\.ts$/`；
+- e2e-batch.yml 保留为手动补跑通道（与主 CI 并存）；
+- 分片数评估：新增约 150+ 测试后，执行时按 flow 目录基线时长估算，必要时 CI 矩阵 34 → 40 分片（ci-cd.yml 一处 matrix 值）。
 
 ---
 
@@ -197,17 +199,37 @@ TwoFactorSetup.vue + api（setupTotp/enableTotp/generateRecoveryCodes）+ 路由
 |---|------------------------------|------|------|
 | 5.1 | flow/31-login-waterfall.spec.ts | 错密码一次点击：断言请求总数 ≤2（login + lock-status 200）、无 /auth/refresh 调用；成功路径 1 请求 | P1.2/P2.1 |
 | 5.2 | flow/32-roles-login.spec.ts | 5 角色真实 UI 登录 + Dashboard 可达 + 侧边栏菜单项随角色收敛（数量/关键项断言） | P3.1 |
-| 5.3 | flow/33-vertical-privilege.spec.ts | viewer/cashier 调高权限端点（DELETE /users 等 6 个）断言 403 + 审计记录；修复 09-permissions P1-2/P1-3 恒真断言（改精确 403）与 P1-7/P1-8 空转（真实断言） | P3.1 |
-| 5.4 | flow/34-horizontal-privilege.spec.ts | 用户 A（分片账号）PUT/DELETE 用户 B 创建的采购/销售/客户单据 → 403/404 | P3.1 |
+| 5.3 | flow/33-vertical-privilege.spec.ts | **全量端点矩阵**：盘点 admin 专属写端点清单（执行时 grep require_admin_role/permission 中间件覆盖面，预期 25-40 个），viewer/cashier 两角色逐端点断言 403 + 审计记录；修复 09-permissions P1-2/P1-3 恒真断言（改精确 403）与 P1-7/P1-8 空转（真实断言） | P3.1 |
+| 5.4 | flow/34-horizontal-privilege.spec.ts | 用户 A（分片账号）PUT/DELETE 用户 B 创建的采购/销售/客户/供应商/报价单据 → 403/404（5 类资源全量） | P3.1 |
 | 5.5 | flow/35-2fa-totp.spec.ts | setup 拿 secret → TOTP 生成 → enable → 退出后登录带 token 成功、错 token 拒绝 → recovery-codes 一次性消费 → 禁用回退单因素 | P3.2 |
 | 5.6 | flow/36-preview.spec.ts | print-templates 预览（字段出现在 DOM）、report-templates 预览、BPM /templates/{id}/preview API 内容断言、预览容器无截断 | P3.2 |
-| 5.7 | flow/37-print-endpoints.spec.ts | 5 个高频单据 print API：200 + docx Content-Type + PK zip magic + >1KB；JSZip 解包 document.xml 断言单据号/客户名字段 | P3.2（devDeps 加 jszip） |
+| 5.7 | flow/37-print-endpoints.spec.ts | **打印 61 端点全量**：配置驱动（端点清单数组，执行时从 routes grep `/{id}/print` 生成）逐端点断言 200 + docx Content-Type + PK zip magic + >1KB + JSZip 解包 document.xml 非空且含源单据标识（单据号字段）；5 个高频单据（sales_orders/vouchers/flow_cards/dye_batches/purchase_orders）加深度字段匹配（客户名/金额） | P3.2（devDeps 加 jszip） |
 | 5.8 | flow/38-print-templates-api.spec.ts | print-templates CRUD + preview + setDefault + copy 全 API 链路（api/print-templates.ts 9 函数对应） | - |
-| 5.9 | flow/39-export-approval.spec.ts | 敏感导出全链路：无 token 403 → 申请 → admin 审批 → 持 token 导出 200 → 令牌二次消费拒；改造 22-crm-full:55 健康检查走审批链 | P1.1/P2.3 |
+| 5.9 | flow/39-export-approval.spec.ts | **导出 56 端点全量**（配置驱动，执行时 grep export 路由生成清单）：6 类敏感资源走审批链（无 token 403 → 申请 → 审批 → 持 token 200 → 令牌二次消费拒 + record_download 落库断言）；非敏感端点直接 200 + jszip 解包断言列头/行数 ≥ 列表数据量；改造 22-crm-full:55 健康检查走审批链 | P1.1/P2.3 |
 | 5.10 | flow/40-system-update-authz.spec.ts | check/version/status 真实调用 + 数据断言；非 admin 403（用 viewer）；rollback/local-update 在 CI 空库环境安全路径 | P3.1 |
-| 5.11 | flow/41-approval-flows.spec.ts | 业务审批扩容：10+ /approve 端点四态（申→批→生效→驳回）；export/role-change/writeoffs/transfer 后端流真实调用（API 级）；audit-logs 出现 APPROVE 记录断言 | P1.1/P1.4 |
-| 5.12 | flow/42-traversal-skeleton.spec.ts | admin 遍历骨架：抽 8-10 模块（覆盖每业务域 1 个）走 新建→保存→列表回读→字段匹配 三段式 + trackPageHealth 全程 + 404（坏 ID）/400（坏参数）抽样 | P3.2 |
+| 5.11 | flow/41-approval-flows.spec.ts | **审批 58 端点全量**（API 级配置驱动）：端点清单执行时从 routes grep `/approve` 生成，每项配置 = 创建前置单据调用链 + approve 调用 + 状态断言 + reject 分支；四套专用流（export/role-change/transfer/writeoffs 双级）+ BPM 引擎显式全流程 spec（任务领取/审批/驳回/流转）；audit-logs 出现 APPROVE 记录断言（P1.4 联动） | P1.1/P1.4 |
+| 5.12 | traversal/ 目录 4 spec（42a-d） | **admin 全功能遍历 86 视图模块全量**——数据驱动框架，见下节详设 | P3.1/P3.2 |
 | 5.13 | flow/43-duplicate-toast.spec.ts | 连续点击提交 5 次 → expectSingleToast + 按钮 loading 禁用断言；dialog 重复实例计数 | P3.2 |
+
+### 5.12 详设：全量遍历框架（用户指令：全量上线，做骨架）
+
+**数据文件 `frontend/e2e/traversal/modules.config.ts`**：86 视图模块逐个登记：
+```
+{ id, route, domain, tier, newButton?: string, formFields?: {selector, value}[], 
+  listApi: string, uniqueKey: string, editAndSave?: boolean, noCreate?: boolean }
+```
+- 清单生成方式：写一次性 node 脚本扫描 `frontend/src/router/index.ts`（123 条路由）+ `frontend/src/api/` 目录导出函数与 URL 映射，自动生成 route↔listApi 初版配置；表单字段（formFields）按 views 逐模块补齐（执行时以页面实际 DOM 结构为准，必填字段给安全合成值：名称带时间戳、金额 1、数量 1、下拉选首项）；
+- 幂等性：每次跑生成带时间戳的记录名，跑完按 uniqueKey 清理（API DELETE，删不掉的标记 skip-cleanup 留数据）。
+
+**分层策略（全量覆盖，方式分级）**：
+- **Tier A（简单 CRUD，预期 ~50 模块）**：配置驱动三段式——visit + trackPageHealth → 点新建 → 填 formFields → 保存 → 断言响应 200 → listApi 回读 → uniqueKey 字段匹配 → 编辑改一字段再保存回读 → 可选删除；
+- **Tier B（复杂单据：多 tab/明细行/级联/审批联动，预期 ~20 模块）**：显式 spec 逐个写真实业务链（如采购订单带 1 行明细、销售订单带客户+商品、生产工单带 BOM）；保存链路触发后端校验 bug 即真实缺陷，逐个记录（doto）并修复；
+- **Tier C（只读/报表/仪表盘/系统配置，预期 ~16 模块）**：visit + 白屏断言 + 表头/卡片渲染断言 + 有保存项的配置页走保存回读（如系统参数）；
+- 全部模块统一断言：零 pageerror、零未捕获 console.error、无 5xx 响应、白屏检测；400/404 抽样扩展为每域 ≥2 个坏 ID/坏参数用例。
+
+**spec 拆分**：`traversal/42a-core.spec.ts`（核心域）、`42b-supply.spec.ts`（采购/库存/生产）、`42c-sales-crm.spec.ts`（销售/CRM/质量）、`42d-finance-system.spec.ts`（财务/系统/审批中心）——4 个 spec，34 分片自动消化。
+
+**CI 数据隔离**：遍历产生的测试数据落 PostgreSQL 真库（禁 mock IR 一致）；分片账号隔离 + uniqueKey 前缀 `TRV{shard}_` 防串扰；run 结束不回滚（CI 空库即抛即用），但 cleanup 路径尽力删除并断言记录残留数。
 
 改造项：`09-permissions.spec.ts`（见 5.3）、`22-crm-full.spec.ts:55`（见 5.9）、打印内容断言依赖 jszip（package.json devDependencies +1）。
 
@@ -234,8 +256,9 @@ TwoFactorSetup.vue + api（setupTotp/enableTotp/generateRecoveryCodes）+ 路由
 | 4 | feat(frontend): 登录瀑布修复 + 协议/隐私页 + 导出审批 UI（P2.1/2.2/2.3） |
 | 5 | test(e2e): 去 mock 化真实登录 + lock-status 拦截移除（P2.4） |
 | 6 | test(backend): 权限矩阵/APPROVE 分类/导出令牌集成测试（P4） |
-| 7 | test(e2e): 角色账号基建 + 健康断言库 + 13 新 spec + 3 改造（P3/P5） |
-| 8 | chore(ci): playwright 业务目录纳入 + jszip（P6） |
+| 7 | test(e2e): 基建——角色账号/健康断言库/TOTP 生成器/遍历配置框架（P3） |
+| 8 | test(e2e): 专项 spec——登录瀑布/2FA/预览/越权矩阵/重复提示/审批流（P5.1-5.6/5.10/5.11/5.13） |
+| 9 | test(e2e): 全量端点矩阵——print 61/export 56/approve 58 配置驱动 + 遍历 86 模块 4 spec + 3 改造 + CI 纳入（P5.7/5.9/5.12/P3.3） |
 
 ---
 
@@ -250,4 +273,8 @@ TwoFactorSetup.vue + api（setupTotp/enableTotp/generateRecoveryCodes）+ 路由
 | flow 16 分片 lock-status 并发挂起可能在拦截移除后复现 | 后端 handler 已改轻量匿名查询；若复现属真实性能问题，记录后另立项（不回加 mock） |
 | 版本号方案 C 影响 check_for_updates 对比口径 | CI 部署验证 /system-update/version 与 tag 一致 |
 | 本地禁止编译 | 后端语法/逻辑靠 CI cargo test；前端 tsc/eslint 本地可跑（属 lint 非编译，允许） |
-| 一轮工作量饱和 | P2.3 仅做 export-approvals 最小闭环；遍历测试仅骨架抽样 8-10 模块；其余按 doto 分批 |
+| **86 模块遍历配置是本轮最大单项工作量** | node 脚本扫路由+api 目录生成初版 → 按域逐模块补表单字段 → 先跑 42a 验证框架 → 复制模式铺开 b/c/d |
+| **全量端点矩阵（print 61/export 56/approve 58）清单准确性** | 执行时从 backend/src/routes grep 生成清单文件，逐端点带"前置调用链"配置；失败端点单独诊断，区分测试配置错 vs 真实缺陷 |
+| **Tier B 复杂单据保存触发后端校验链 bug** | 属全量遍历的预期价值：发现即记录 doto（缺陷编号）→ 小修则本轮修，大修单独立项；测试标 test.fixme 不静默跳过 |
+| **CI E2E 时长增长（新增 ~200 测试）** | 分片矩阵消化；ci-cd.yml matrix 34 → 40（若超时）；print/export 全量矩阵 API 级单测试 ≈ 3-5s，可控 |
+| 一轮工作量饱和 | 分批 commit（9 个），每个 commit 独立可验证；推送授权后按 commit 序观察 CI，失败按 commit 隔离定位 |
