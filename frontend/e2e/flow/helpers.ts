@@ -892,28 +892,9 @@ export async function loginViaUI(
   password?: string,
   force = false
 ): Promise<void> {
-  // 拦截 lock-status 请求（避免 16 shard 并发时后端挂起 5s+ 导致登录超时）
-  await page
-    .route('**/api/v1/erp/lock-status**', route =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          success: true,
-          code: 200,
-          message: 'ok',
-          data: {
-            is_locked: false,
-            failed_attempts: 0,
-            max_attempts: 5,
-            locked_until: null,
-            username: 'e2e',
-            user_id: 0,
-          },
-        }),
-      })
-    )
-    .catch(() => {});
+  // P2.4 去 mock 化：删除 lock-status route.fulfill 拦截
+  // 原因：P1.2 已将 check_lock_status 改为 OptionalAuthContext，
+  // 匿名预检不再 401，16 分片并发挂起若复现属真实性能问题另立项
 
   // 检查 cookie 是否还在（同 BrowserContext 内已登录则跳过）
   // 注意：必须同时检查 access_token 和 csrf_token —— CSRF 失效场景下前端会清空 csrf_token

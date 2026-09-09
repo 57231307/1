@@ -125,17 +125,53 @@ export async function mockBusinessApi(context: BrowserContext): Promise<void> {
 }
 
 /**
- * 一站式应用 auth mock（仅 smoke 测试使用）
+ * 一站式应用 auth 初始化（smoke + bpm/crm/finance/quality/purchase-ext/enhanced 共用）
  *
- * V15 Batch 487 P0-T05 修复（规则 5）：
- * 不再自动调用 mockBusinessApi，让 sales/* / purchase/* 等业务流程 E2E
- * 走真实后端。如需 mock 业务 API（如 enhanced 多上下文隔离测试），
- * 应显式调用 mockBusinessApi(context)。
+ * P2.4 去 mock 化（2026-09-09）：
+ * 实现从 mock 换为真实 API 登录，根除 55 spec 的 mock 依赖。
+ * 保持函数名与签名不变，55 个 spec 的 import 与调用点零改动。
+ *
+ * 登录账号使用与 global-setup 一致的分片账号（TEST_USERNAME/TEST_PASSWORD env），
+ * 登录后 addCookies 注入 Set-Cookie 全量，后续请求自动携带认证态。
+ * injectAuthToken/mockAuthMe/mockInitStatus 三个 mock 函数体保留但不再调用。
  */
 export async function applyAuthMocks(context: BrowserContext): Promise<void> {
-  await injectAuthToken(context);
-  await mockAuthMe(context);
-  await mockInitStatus(context);
+  const { request } = await import('@playwright/test');
+
+  const apiBase = process.env.API_BASE || 'http://localhost:8082';
+  const apiPrefix = '/api/v1/erp';
+  const shardIndex = process.env.E2E_SHARD_INDEX ?? '';
+  const baseUsername = process.env.E2E_BASE_USERNAME || 'e2e_admin';
+  const basePassword = process.env.TEST_PASSWORD || 'Xk9#mQ2$vL8pW4nR';
+  const username = shardIndex !== '' ? `e2e_admin_s${shardIndex}` : baseUsername;
+
+  const ctx = await request.newContext({
+    baseURL: apiBase,
+    extraHTTPHeaders: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+    },
+  });
+
+  const resp = await ctx.post(`${apiPrefix}/auth/login`, {
+    data: { username, password: basePassword },
+  });
+
+  if (!resp.ok()) {
+    const body = await resp.text();
+    await ctx.dispose();
+    throw new Error(`applyAuthMocks 登录失败 (user=${username}): HTTP ${resp.status()} ${body}`);
+  }
+
+  const cookies = await ctx.storageState();
+  const accessCookie = cookies.cookies.find(c => c.name === 'access_token');
+  if (!accessCookie) {
+    await ctx.dispose();
+    throw new Error('applyAuthMocks 登录后未获得 access_token cookie');
+  }
+
+  await context.addCookies(cookies.cookies);
+  await ctx.dispose();
 }
 
 /**
