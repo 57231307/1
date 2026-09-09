@@ -92,7 +92,7 @@ pub struct SecurityAlert {
     pub description: String,
 }
 
-const MAX_FAILED_ATTEMPTS: i32 = 9;
+pub(crate) const MAX_FAILED_ATTEMPTS: i32 = 9;
 const LOCKOUT_DURATION_MINUTES: i64 = 30;
 
 pub async fn list_login_logs(
