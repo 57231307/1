@@ -2727,6 +2727,222 @@ jobs:
             frontend/test-results/
           retention-days: 30
 
+  # ==========================================================================
+  # Job 15b: 全角色权限矩阵（P5.14）
+  # 每角色真实 UI 登录 → 菜单收敛断言 → 全模块三分支断言（可达/被拒/漂移）
+  # → access-map 报告 artifacts；权限回归防护 + 权限体系健康度审计输出
+  # ==========================================================================
+  role-permission-matrix:
+    name: 🔐 角色权限矩阵 (${{ matrix.role_group }}/6)
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    needs: [ci-build-fe, ci-build-rust]
+    if: github.event_name == 'pull_request'
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        # 30+ 角色 + 2 边界角色按域分组为 6 组（组内串行、组间并行）
+        role_group:
+          - "admin:admin,system_admin,auditor"
+          - "finance:finance_manager,accountant,cashier,cost_accountant,inventory_accountant,tax_accountant,ap_accountant,ar_accountant,fixed_assets_accountant,budget_analyst"
+          - "sales:sales_manager,salesperson,after_sales_manager,customer_service,report_viewer"
+          - "supply:purchasing_manager,purchaser,procurement_specialist,supplier_manager,warehouse_manager,warehouse_keeper"
+          - "production:production_manager,production_worker,dyeing_technician,color_card_manager,quality_manager,quality_inspector"
+          - "boundary:e2e_readonly,e2e_noperm,department_manager"
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: bingxi
+          POSTGRES_PASSWORD: bingxi_test
+          POSTGRES_DB: bingxi_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
+      JWT_SECRET: ci-e2e-jwt-secret-32bytes-do-not-use-in-prod-abc
+      COOKIE_SECRET: ci-e2e-cookie-secret-32bytes-do-not-use-in-prod-xyz
+      WEBHOOK_SECRET: ci-e2e-webhook-secret-32bytes-do-not-use-in-prod-q
+      AUDIT_SECRET_KEY: e2e-only-audit-signing-key-do-not-use-in-prod-32b
+      INIT_TOKEN: ci-e2e-seeding-token-only-32bytes-do-not-use!
+      TEST_USERNAME: e2e_admin
+      TEST_PASSWORD: "Xk9#mQ2$vL8pW4nR"
+      E2E_BASE_USERNAME: e2e_admin
+      APP_ENV: development
+      ENV: development
+      KAFKA_ENABLED: "false"
+      ELASTICSEARCH_URL: ""
+      CACHE_ENABLED: "false"
+      SERVER__HOST: 127.0.0.1
+      SERVER__PORT: "8082"
+      DATABASE__HOST: localhost
+      DATABASE__PORT: "5432"
+      DATABASE__NAME: bingxi_test
+      DATABASE__USERNAME: bingxi
+      DATABASE__PASSWORD: bingxi_test
+      DATABASE__MAX_CONNECTIONS: "10"
+      LOG__LEVEL: info
+      LOG__DIR: /tmp/matrix-logs
+      SLOW_QUERY__ENABLED: "false"
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: 下载预编译后端二进制
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-binary
+          path: backend/target/release
+
+      - name: 赋予后端二进制可执行权限
+        run: |
+          chmod +x backend/target/release/server
+          chmod +x backend/target/release/bingxi
+
+      - name: 安装 postgresql-client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 缓存 npm
+        uses: actions/cache@v5
+        with:
+          path: |
+            frontend/node_modules
+            ~/.npm
+          key: e2e-npm-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: |
+            e2e-npm-
+
+      - name: 安装前端依赖
+        working-directory: frontend
+        run: npm ci --prefer-offline --no-audit
+
+      - name: 缓存 Playwright 浏览器
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: |
+            playwright-
+
+      - name: 安装 Playwright 浏览器
+        working-directory: frontend
+        run: npx playwright install chromium
+
+      - name: 运行数据库迁移
+        working-directory: backend
+        run: ./target/release/bingxi migrate run
+
+      - name: 启动后端服务
+        working-directory: backend
+        run: |
+          mkdir -p /tmp/matrix-logs
+          ./target/release/server > /tmp/matrix-logs/backend.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -s http://localhost:8082/health > /dev/null 2>&1; then
+              echo "后端就绪（第 ${i} 次尝试）"
+              break
+            fi
+            sleep 0.5
+          done
+          if ! curl -s http://localhost:8082/health > /dev/null 2>&1; then
+            echo "后端启动失败："; tail -50 /tmp/matrix-logs/backend.log; exit 1
+          fi
+
+      - name: 初始化系统（创建 E2E 基础管理员）
+        working-directory: backend
+        run: |
+          set +e
+          HTTP_CODE=$(curl -s -w "\n%{http_code}" -X POST http://localhost:8082/api/v1/erp/init/initialize \
+            -H "Content-Type: application/json" \
+            -H "X-Init-Token: ${INIT_TOKEN}" \
+            -H "X-Requested-With: XMLHttpRequest" \
+            -d "{\"admin_username\":\"${TEST_USERNAME}\",\"admin_password\":\"${TEST_PASSWORD}\"}")
+          RESPONSE_BODY=$(echo "$HTTP_CODE" | head -n -1)
+          STATUS_CODE=$(echo "$HTTP_CODE" | tail -n 1)
+          if echo "$RESPONSE_BODY" | grep -q '"code":200'; then exit 0; fi
+          if echo "$RESPONSE_BODY" | grep -q '"code": 200'; then exit 0; fi
+          if [ "$STATUS_CODE" = "400" ] && echo "$RESPONSE_BODY" | grep -q 'BUSINESS_ERROR'; then exit 0; fi
+          echo "初始化失败 HTTP $STATUS_CODE"; tail -50 /tmp/matrix-logs/backend.log; exit 1
+
+      - name: 启动前端 preview
+        working-directory: frontend
+        run: |
+          npm run build > /tmp/matrix-logs/frontend-build.log 2>&1 || {
+            echo "前端构建失败："; tail -30 /tmp/matrix-logs/frontend-build.log; exit 1
+          }
+          npx vite preview --port 3000 --strictPort > /tmp/matrix-logs/frontend.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -s http://localhost:3000 > /dev/null 2>&1; then
+              echo "前端 preview 就绪"; break
+            fi
+            sleep 1
+          done
+          if ! curl -s http://localhost:3000 > /dev/null 2>&1; then
+            echo "前端启动失败："; tail -20 /tmp/matrix-logs/frontend.log; exit 1
+          fi
+
+      - name: 生成角色凭证（ensureRoleUsers 经 globalSetup 执行）
+        working-directory: frontend
+        run: |
+          # globalSetup 会执行 ensureRoleUsers：拉角色清单→补建→建账号→写
+          # e2e/.auth/role-credentials.json（矩阵角色凭证的唯一来源）
+          npx playwright test --project=chromium --list e2e/traversal/44-role-matrix.spec.ts > /dev/null 2>&1 || true
+          ls -la e2e/.auth/role-credentials.json 2>/dev/null || {
+            echo "角色凭证文件未生成，诊断："; ls -la e2e/.auth/ 2>/dev/null || true; exit 1
+          }
+
+      - name: 运行角色权限矩阵（${{ matrix.role_group }}）
+        working-directory: frontend
+        env:
+          E2E_MATRIX_ROLES: ${{ matrix.role_group }}
+        run: |
+          mkdir -p reports
+          # 解析组名与角色列表（格式 "group:role1,role2,..."）
+          GROUP="${E2E_MATRIX_ROLES%%:*}"
+          ROLES="${E2E_MATRIX_ROLES#*:}"
+          echo "角色组 $GROUP: $ROLES"
+          set +e
+          IFS=',' read -ra ROLE_ARRAY <<< "$ROLES"
+          OVERALL=0
+          for ROLE in "${ROLE_ARRAY[@]}"; do
+            echo "=== 角色 $ROLE 矩阵执行 ==="
+            E2E_MATRIX_ROLE="$ROLE" timeout 900 \
+              npx playwright test --project=chromium \
+                e2e/traversal/44-role-matrix.spec.ts \
+              > "reports/matrix-${ROLE}.txt" 2>&1
+            RC=$?
+            echo "角色 $ROLE exit=$RC"
+            if [ "$RC" -ne "0" ]; then
+              OVERALL=$RC
+              TAILTXT=$(tail -n 20 "reports/matrix-${ROLE}.txt" 2>/dev/null | cut -c1-140 | tr '\n' ' ' | cut -c1-800)
+              echo "::error::角色 $ROLE 权限矩阵失败: $TAILTXT"
+            fi
+          done
+          exit $OVERALL
+
+      - name: 上传 access-map 报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: access-map-${{ matrix.role_group }}-${{ github.run_id }}
+          path: |
+            frontend/e2e/.auth/access-map/
+            frontend/reports/matrix-*.txt
+          retention-days: 30
+
 # ==============================================================================
 # Job 16: 死代码全量审计（从 dead-code-audit.yml 合并，main 发布前必经）
 # ==============================================================================
