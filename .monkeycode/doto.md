@@ -37,6 +37,6 @@
 
 - [ ] 分支 260907-feat-piece-domain-phase2 是否删除（已合并 PR #939）
 - [ ] runtime-flow-map.md 部署章节是否补充 RLS 迁移 sequencing 说明
-- [ ] ci-cd.yml 的 docs/** 触发路径仍指向已迁移的根目录 docs/（该文件属源代码，冻结期间未动）；文档改动现在不再触发对应 CI job，是否授权修改 yaml
+- [x] ci-cd.yml 的 docs/** 触发路径失效——已获用户授权（2026-09-09，定向豁免）修改 yaml，冗余条目清理完成（65736c1），CI 行为无变化
 
 后续新增任务请在此文件追加。
