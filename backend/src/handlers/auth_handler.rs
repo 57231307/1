@@ -27,7 +27,7 @@ use time::Duration as CookieDuration;
 use utoipa::ToSchema;
 use validator::Validate;
 
-pub(crate) const MAX_FAILED_ATTEMPTS: i32 = 9;
+pub const MAX_FAILED_ATTEMPTS: i32 = 9;
 const LOCKOUT_DURATION_MINUTES: i64 = 30;
 
 #[allow(dead_code, reason = "反序列化输入字段")]

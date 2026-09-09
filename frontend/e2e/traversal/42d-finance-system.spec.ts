@@ -15,7 +15,7 @@ async function visitModule(page: import('@playwright/test').Page, mod: Traversal
   await assertPageHealthy(page, collector, { allowConsoleWarn: true });
 
   if (mod.tier === 'A' && mod.listApi) {
-    const resp = await page.request.get(`${process.env.API_BASE || 'http://localhost:8082'}${mod.listApi.startsWith('/') ? '' : '/'}${mod.listApi}?page=1&page_size=1`);
+    const resp = await page.request.get(`${process.env.API_BASE || 'http://localhost:8082'}/api/v1/erp${mod.listApi.startsWith('/') ? '' : '/'}${mod.listApi}?page=1&page_size=1`);
     expect(resp.status()).toBeLessThan(500);
   }
 

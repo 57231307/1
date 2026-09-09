@@ -2894,12 +2894,15 @@ jobs:
             echo "前端启动失败："; tail -20 /tmp/matrix-logs/frontend.log; exit 1
           fi
 
-      - name: 生成角色凭证（ensureRoleUsers 经 globalSetup 执行）
+      - name: 生成角色凭证（显式执行 ensureRoleUsers）
         working-directory: frontend
         run: |
-          # globalSetup 会执行 ensureRoleUsers：拉角色清单→补建→建账号→写
-          # e2e/.auth/role-credentials.json（矩阵角色凭证的唯一来源）
-          npx playwright test --project=chromium --list e2e/traversal/44-role-matrix.spec.ts > /dev/null 2>&1 || true
+          # --list 模式不触发 globalSetup（playwright list 模式仅 load tests），
+          # 必须显式执行 ensureRoleUsers 生成 e2e/.auth/role-credentials.json
+          # （矩阵角色凭证的唯一来源）。esbuild 转译后 node 执行（免加 tsx 依赖）。
+          npx esbuild e2e/ensure-role-users.ts --bundle --platform=node \
+            --external:@playwright/test --outfile=/tmp/ensure-role-users.cjs
+          node /tmp/ensure-role-users.cjs
           ls -la e2e/.auth/role-credentials.json 2>/dev/null || {
             echo "角色凭证文件未生成，诊断："; ls -la e2e/.auth/ 2>/dev/null || true; exit 1
           }

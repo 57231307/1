@@ -194,7 +194,7 @@ const DEFAULT_ROLE_PASSWORD = 'E2eRole#2026';
  * 4. 凭证写入 role-credentials.json
  * 5. 幂等：角色/账号已存在视为成功跳过
  */
-async function ensureRoleUsers(): Promise<void> {
+export async function ensureRoleUsers(): Promise<void> {
   const loginCtx = await request.newContext({
     baseURL: API_BASE,
     extraHTTPHeaders: {

@@ -25,7 +25,7 @@ async function visitModule(page: import('@playwright/test').Page, mod: Traversal
 
   // Tier A 且有 listApi：列表 API 回读断言（数据层连通性）
   if (mod.tier === 'A' && mod.listApi) {
-    const resp = await page.request.get(`${process.env.API_BASE || 'http://localhost:8082'}${mod.listApi.startsWith('/') ? '' : '/'}${mod.listApi}?page=1&page_size=1`);
+    const resp = await page.request.get(`${process.env.API_BASE || 'http://localhost:8082'}/api/v1/erp${mod.listApi.startsWith('/') ? '' : '/'}${mod.listApi}?page=1&page_size=1`);
     expect(resp.status()).toBeLessThan(500);
   }
 

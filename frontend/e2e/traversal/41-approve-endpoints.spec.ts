@@ -28,6 +28,10 @@ test.describe('P5.11 审批端点全量矩阵', () => {
     if (resolvedPath.includes('{')) continue;
 
     test(`APPROVE ${resolvedPath} [${entity}]`, async ({ page }) => {
+      // 带 CSRF 头：CSRF 缺失同样 403，不带会把 CSRF 拒绝误判为权限缺陷
+      const cookies = await page.context().cookies();
+      const csrf = cookies.find((c) => c.name === 'csrf_token');
+
       const resp = await page.request
         .post(`${API_BASE}${API_PREFIX}${resolvedPath}`, {
           data: { comments: 'E2E 审批矩阵测试' },
@@ -35,6 +39,7 @@ test.describe('P5.11 审批端点全量矩阵', () => {
             // 从 storageState 提取 csrf
             'Content-Type': 'application/json',
             'X-Requested-With': 'XMLHttpRequest',
+            ...(csrf ? { 'X-CSRF-Token': csrf.value } : {}),
           },
         })
         .catch(() => null);

@@ -67,10 +67,18 @@ test.describe('P5.3 垂直越权矩阵', () => {
         test(`${ep.method} ${ep.path} → 403`, async ({ page }) => {
           await loginAsRole(page, role);
 
+          // 带 CSRF 头消除歧义：403 只能来自权限拒绝（CSRF 缺失同样返回 403）
+          const cookies = await page.context().cookies();
+          const csrf = cookies.find((c) => c.name === 'csrf_token');
+
           const resp = await page.request
             .post(`${API_BASE}${API_PREFIX}${ep.path}`, {
               data: ep.body ?? {},
-              headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' },
+              headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/json',
+                ...(csrf ? { 'X-CSRF-Token': csrf.value } : {}),
+              },
             })
             .catch(() => null);
           if (!resp) throw new Error(`网络错误: ${ep.path}`);
