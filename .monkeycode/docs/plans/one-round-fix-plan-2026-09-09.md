@@ -189,7 +189,7 @@ TwoFactorSetup.vue + api（setupTotp/enableTotp/generateRecoveryCodes）+ 路由
 - 主 project（L85/L95 两处）testMatch 扩为全部业务目录：
   `/(flow|smoke|enhanced|purchase|sales|purchase-ext|quality|finance|crm|bpm)\/.*\.spec\.ts|^[^/]*\.spec\.ts$/`；
 - e2e-batch.yml 保留为手动补跑通道（与主 CI 并存）；
-- 分片数评估：新增约 150+ 测试后，执行时按 flow 目录基线时长估算，必要时 CI 矩阵 34 → 40 分片（ci-cd.yml 一处 matrix 值）。
+- 分片数评估：新增约 150+ 测试后，执行时按 flow 目录基线时长估算，必要时 CI 矩阵 34 → 65 分片（ci-cd.yml 一处 matrix 值，用户指令上限）。
 
 ---
 
@@ -276,5 +276,5 @@ TwoFactorSetup.vue + api（setupTotp/enableTotp/generateRecoveryCodes）+ 路由
 | **86 模块遍历配置是本轮最大单项工作量** | node 脚本扫路由+api 目录生成初版 → 按域逐模块补表单字段 → 先跑 42a 验证框架 → 复制模式铺开 b/c/d |
 | **全量端点矩阵（print 61/export 56/approve 58）清单准确性** | 执行时从 backend/src/routes grep 生成清单文件，逐端点带"前置调用链"配置；失败端点单独诊断，区分测试配置错 vs 真实缺陷 |
 | **Tier B 复杂单据保存触发后端校验链 bug** | 属全量遍历的预期价值：发现即记录 doto（缺陷编号）→ 小修则本轮修，大修单独立项；测试标 test.fixme 不静默跳过 |
-| **CI E2E 时长增长（新增 ~200 测试）** | 分片矩阵消化；ci-cd.yml matrix 34 → 40（若超时）；print/export 全量矩阵 API 级单测试 ≈ 3-5s，可控 |
+| **CI E2E 时长增长（新增 ~200 测试）** | 分片矩阵消化；ci-cd.yml matrix 必要时 34 → 65 分片（用户指令上限）；print/export 全量矩阵 API 级单测试 ≈ 3-5s，可控 |
 | 一轮工作量饱和 | 分批 commit（9 个），每个 commit 独立可验证；推送授权后按 commit 序观察 CI，失败按 commit 隔离定位 |
