@@ -9,7 +9,7 @@
 //!   tokio task-local，包裹整个请求处理链
 //! - 生产 PG 连接池钩子（before_acquire / after_connect）在发起查询的请求 task
 //!   内执行，直接在即将使用的这条连接上单条 SQL 双 set_config：
-//!     set_config('app.user_id', '<id>', false), set_config('app.dept_ids', '<csv>', false)
+//!   `set_config('app.user_id', ...) , set_config('app.dept_ids', ...)`（会话级）
 //! - 因此双 GUC 与随后该连接上的业务查询天然同连接、同会话，PG RLS 策略
 //!   （`department_id = ANY(app_dept_ids())`）按 dept 语义激活
 //! - admin/data_scope=all 用户不进作用域 → 双 GUC 均 NULL → 策略 fail-open 放行

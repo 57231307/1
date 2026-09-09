@@ -68,6 +68,7 @@ fn make_auth(user_id: i32, username: &str, data_scope: Option<&str>) -> AuthCont
         department_id: None,
         data_scope: data_scope.map(|s| s.to_string()),
         dept_ids: None,
+        dept_member_user_ids: None,
     }
 }
 
