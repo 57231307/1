@@ -2174,24 +2174,6 @@ jobs:
           echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
           echo "使用编译时的版本: $VERSION"
 
-      - name: 更新版本号文件
-        run: |
-          echo "${{ needs.ci-build-rust.outputs.version }}" > VERSION
-          cat VERSION
-
-      - name: 提交版本号更新
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add VERSION backend/Cargo.toml
-          if git diff --cached --quiet; then
-            echo "版本号未发生变化，跳过提交"
-          else
-            git commit -m "chore(release): 自动更新版本号至 ${{ steps.version.outputs.version }}"
-            git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-            git push origin HEAD:${{ github.ref_name }} || echo "推送失败，可能有冲突"
-          fi
-
       - name: 下载后端产物
         uses: actions/download-artifact@v4
         with:
