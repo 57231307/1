@@ -23,6 +23,23 @@
 
 ## 未完成任务清单
 
+### E2E 权限与打印覆盖缺口（2026-09-09 审计，待推送授权后立项）
+
+> 审计结论：真实链路在 admin 单角色登录 + 业务闭环 + 响应式维度扎实；多角色权限差异化验证与打印全链路是系统性空白。
+
+- [ ] **多角色登录测试**：初始化种子 30+ 角色零登录覆盖；loginAsRole helper 已存在（flow/helpers.ts:1139）但 CI 从未提供 E2E_{ROLE}_USERNAME/PASSWORD。需：globalSetup 批量创建 3-5 个代表性角色账号（cashier/sales_rep/warehouse_keeper/accountant/viewer）→ CI env 注入 → 新建 10-roles-login.spec 真实 UI 登录 + Dashboard 可达 + 权限菜单收敛断言
+- [ ] **垂直越权测试**：低权限账号访问高权限端点必须 403（如 cashier→DELETE /users、sales_rep→/roles）。现有 P1-6 仅 admin 访问不存在 ID，非真实越权
+- [ ] **水平越权测试**：用户 A（shard 账号）操作用户 B 创建的单据（PUT/DELETE）必须被拒（403/404），覆盖采购订单/销售订单/客户三张表
+- [ ] **修复恒真假断言**：09-permissions P1-2/P1-3 断言 `status===200||status>=400` 恒真，改为低权限角色账号登录后断言精确 403 + permission_denied 审计记录
+- [ ] **修复空转测试**：P1-7（行级隔离）/P1-8（字段级权限）try/catch skip 改为真实断言
+- [ ] **打印端点覆盖**：后端 61 个 /{id}/print docx 端点 E2E 覆盖为 0。选 5-8 个高频单据（sales_orders/vouchers/flow_cards/dye_batches/purchase_orders）API 请求断言：HTTP 200 + Content-Type docx + PK zip magic bytes（0x504B）+ 文件大小>1KB
+- [ ] **打印内容匹配**：解析 docx（JSZip 解包 document.xml）断言源单据字段值（单据号/客户名/金额）出现在文档 XML 中——"打印成功后内容与需打印文件匹配"的直接验证
+- [ ] **打印模板 API 覆盖**：print-templates CRUD + preview + setDefault + copy（前端 api/print-templates.ts 9 个函数对应后端端点）零测试，补 API 级真实链路 spec
+- [ ] **打印审计闭环**：audit-logs/record-print 后端集成测试与 E2E 均为零；打印一次 → 查 audit-logs 出现 print 记录
+- [ ] **导出内容断言**：现有 3 处真实下载仅断言文件名后缀；补 JSZip/exceljs 解析断言列头与行数 ≥ 页面列表数据量；后端 56 个 export 端点抽样扩到 10+ 个
+- [ ] **enhanced mock 清理**：network-resilience.spec.ts 用 page.route mock 注入 403/401，违反禁 mock IR（2026-09-07 前遗留），改真实 token 过期/无权限账号触发
+- [ ] **purchase/sales 业务目录纳入主 CI**：07-supplier-report 等真实下载测试只在 e2e-batch.yml（每 30 批次手动）跑到，主 CI 34 分片 testMatch 未含
+
 ### 验证类（需推送授权或手动执行）
 
 - [ ] PG 机制锚点测试手动验证：`TEST_DATABASE_URL=... cargo test --test rls_context_test -- --ignored`（test_rls_guc_visible_in_same_pool_pg，CI 不跑 ignored）
