@@ -2789,6 +2789,7 @@ jobs:
       max-parallel: 3
       matrix:
         # 30+ 角色 + 2 边界角色按域分组为 6 组（组内串行、组间并行）
+        # include 展开：name 为 artifact 安全名（禁止冒号），roles 为 "group:role1,role2"
         role_group:
           - "admin:admin,system_admin,auditor"
           - "finance:finance_manager,accountant,cashier,cost_accountant,inventory_accountant,tax_accountant,ap_accountant,ar_accountant,fixed_assets_accountant,budget_analyst"
@@ -2796,6 +2797,13 @@ jobs:
           - "supply:purchasing_manager,purchaser,procurement_specialist,supplier_manager,warehouse_manager,warehouse_keeper"
           - "production:production_manager,production_worker,dyeing_technician,color_card_manager,quality_manager,quality_inspector"
           - "boundary:e2e_readonly,e2e_noperm,department_manager"
+        include:
+          - { role_group: "admin:admin,system_admin,auditor", group_name: "admin" }
+          - { role_group: "finance:finance_manager,accountant,cashier,cost_accountant,inventory_accountant,tax_accountant,ap_accountant,ar_accountant,fixed_assets_accountant,budget_analyst", group_name: "finance" }
+          - { role_group: "sales:sales_manager,salesperson,after_sales_manager,customer_service,report_viewer", group_name: "sales" }
+          - { role_group: "supply:purchasing_manager,purchaser,procurement_specialist,supplier_manager,warehouse_manager,warehouse_keeper", group_name: "supply" }
+          - { role_group: "production:production_manager,production_worker,dyeing_technician,color_card_manager,quality_manager,quality_inspector", group_name: "production" }
+          - { role_group: "boundary:e2e_readonly,e2e_noperm,department_manager", group_name: "boundary" }
     services:
       postgres:
         image: postgres:16-alpine
@@ -2955,6 +2963,14 @@ jobs:
           ls -la e2e/.auth/role-credentials.json 2>/dev/null || {
             echo "角色凭证文件未生成，诊断："; ls -la e2e/.auth/ 2>/dev/null || true; exit 1
           }
+          # 0 角色守卫：凭证文件为空 {} 说明登录或 roles API 异常（初始化失败等），
+          # 继续跑矩阵只会得到无意义的全空报告，必须在此失败并暴露根因
+          ROLE_COUNT=$(node -e "const c=require('./e2e/.auth/role-credentials.json'); console.log(Object.keys(c).length)")
+          echo "角色凭证数量: $ROLE_COUNT"
+          if [ "$ROLE_COUNT" -eq 0 ]; then
+            echo "::error::ensureRoleUsers 生成了 0 个角色凭证（初始化或 roles API 异常）"
+            exit 1
+          fi
 
       - name: 运行角色权限矩阵（${{ matrix.role_group }}）
         working-directory: frontend
@@ -2989,7 +3005,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: access-map-${{ matrix.role_group }}-${{ github.run_id }}
+          # artifact 名禁止冒号：用 include 展开的 group_name（安全名）
+          name: access-map-${{ matrix.group_name }}-${{ github.run_id }}
           path: |
             frontend/e2e/.auth/access-map/
             frontend/reports/matrix-*.txt

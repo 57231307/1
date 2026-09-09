@@ -272,11 +272,18 @@ export async function ensureRoleUsers(): Promise<void> {
   };
 
   // 2. 拉取角色全量清单
+  // 后端 RoleListResponse 形态为 { roles: [...], total }（非 items 包装），
+  // 兼容两种形态防止字段错位导致解析为空
   const rolesResp = await loginCtx.get(`${API_PREFIX}/roles?page=1&page_size=200`, { headers });
   const rolesBody = (await rolesResp.json().catch(() => null)) as
-    | { data?: { items?: Array<{ id: number; code?: string; name?: string }> } }
+    | {
+        data?: {
+          roles?: Array<{ id: number; code?: string; name?: string }>;
+          items?: Array<{ id: number; code?: string; name?: string }>;
+        };
+      }
     | null;
-  const existingRoles = rolesBody?.data?.items ?? [];
+  const existingRoles = rolesBody?.data?.roles ?? rolesBody?.data?.items ?? [];
   const existingCodes = new Set(existingRoles.map((r) => r.code).filter(Boolean));
   console.log(`[globalSetup] 后端现有角色 ${existingRoles.length} 个`);
 
@@ -324,13 +331,18 @@ export async function ensureRoleUsers(): Promise<void> {
     }
   }
 
-  // 重新拉取角色清单获取补建角色的 id
+  // 重新拉取角色清单获取补建角色的 id（兼容 roles / items 两种响应形态）
   if (allRolesToEnsure.length > 0) {
     const reFetch = await loginCtx.get(`${API_PREFIX}/roles?page=1&page_size=200`, { headers });
     const reBody = (await reFetch.json().catch(() => null)) as
-      | { data?: { items?: Array<{ id: number; code?: string }> } }
+      | {
+          data?: {
+            roles?: Array<{ id: number; code?: string }>;
+            items?: Array<{ id: number; code?: string }>;
+          };
+        }
       | null;
-    for (const r of reBody?.data?.items ?? []) {
+    for (const r of reBody?.data?.roles ?? reBody?.data?.items ?? []) {
       if (r.code) roleCodeToId.set(r.code, r.id);
     }
   }
