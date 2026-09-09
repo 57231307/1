@@ -49,6 +49,10 @@ tokio::task_local! {
 }
 
 /// 在当前 future 上安装 RLS 上下文并执行（测试与内部工具用）。
+///
+/// 生产路径由 rls_context_middleware 直接使用 RLS_GUC.scope（等价实现）；
+/// 本函数仅集成测试（tests/rls_context_test.rs）在 task 级验证钩子行为使用。
+#[allow(dead_code)]
 pub async fn with_rls_context<F, R>(guc: Option<RlsGuc>, fut: F) -> R
 where
     F: std::future::Future<Output = R>,

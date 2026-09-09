@@ -120,7 +120,11 @@ async fn send_probe(app: Router) -> Option<serde_json::Value> {
         .await
         .expect("读取响应体失败");
     let json: serde_json::Value = serde_json::from_slice(&body).expect("解析 JSON 失败");
-    json.get("rls_guc").cloned()
+    // null 字段归一化为 None（admin/未认证场景 rls_guc 序列化为 null）
+    match json.get("rls_guc") {
+        Some(serde_json::Value::Null) | None => None,
+        Some(v) => Some(v.clone()),
+    }
 }
 
 // =========================================================================
