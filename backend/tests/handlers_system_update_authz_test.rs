@@ -38,7 +38,7 @@ async fn inject_auth(
 
 /// 构建系统更新测试 Router（带 AuthContext 注入）：真实 handler + 注入中间件
 fn build_app(state: AppState, auth: AuthContext) -> Router {
-    Router::new()
+    let routes = Router::new()
         .route(
             "/api/v1/erp/system-update/current-version",
             get(system_update_handler::get_version),
@@ -50,7 +50,10 @@ fn build_app(state: AppState, auth: AuthContext) -> Router {
         .route(
             "/api/v1/erp/system-update/rollback",
             post(system_update_handler::rollback_version),
-        )
+        );
+    // with_state 消费 AppState（handlers 有 State<AppState> extractor），再挂注入层
+    routes
+        .with_state(state)
         .layer(from_fn_with_state(auth, inject_auth))
 }
 
@@ -69,6 +72,7 @@ fn build_app_no_auth(state: AppState) -> Router {
             "/api/v1/erp/system-update/rollback",
             post(system_update_handler::rollback_version),
         )
+        .with_state(state)
 }
 
 /// 构造测试用 AuthContext（与 test_permission_rbac 相同字段）
