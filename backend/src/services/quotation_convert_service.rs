@@ -149,6 +149,8 @@ impl QuotationConvertService {
             packaging_requirement: Set(None),
             quality_standard: Set(None),
             created_by: Set(Some(user_id)),
+            // m_rls_dept_domain：department_id 由 trg_sales_orders_dept 触发器自动维护
+            department_id: sea_orm::ActiveValue::NotSet,
             approved_by: Set(None),
             approved_at: Set(None),
             created_at: Set(now),

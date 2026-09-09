@@ -9,6 +9,7 @@ use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use tracing::info;
 
 use crate::config::settings::AppSettings;
+use crate::middleware::rls_context::install_rls_pool_hooks;
 use crate::utils::log_config::{self, LogConfig};
 
 /// 初始化环境变量、健康检查启动时间、配置加载与增强日志系统。
@@ -108,6 +109,8 @@ pub async fn connect_database(
         .max_lifetime(Duration::from_secs(1800))
         .sqlx_logging(true)
         .sqlx_logging_level(tracing::log::LevelFilter::Debug);
+
+    install_rls_pool_hooks(&mut db_opts);
 
     Database::connect(db_opts).await
 }

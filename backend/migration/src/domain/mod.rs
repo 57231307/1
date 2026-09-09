@@ -7,6 +7,7 @@
 //! - production: 生产/质量/委外/事件/failover
 //! - finance: 合规/权限/RLS/色卡/坏账/8D
 //! - v15: V15 各批次（core/batch18/batch19/extensions/final 合并）
+//! - rls_dept: RLS dept 数据范围语义扩展（5 表冗余 department_id + 触发器 + 策略重写）
 
 pub mod system;
 pub mod business;
@@ -14,3 +15,4 @@ pub mod sales_crm;
 pub mod production;
 pub mod finance;
 pub mod v15;
+pub mod rls_dept;

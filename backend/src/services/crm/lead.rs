@@ -9,7 +9,9 @@ use crate::models::status::master_data;
 // 批次 236 v13 P1-1：线索状态常量接入（规则 0）
 use crate::models::status::crm_lead as lead_status;
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
+use crate::utils::data_scope::{
+    apply_department_scope_with_pool, check_resource_owner, DataScopeContext,
+};
 use crate::utils::error::AppError;
 use crate::utils::xlsx_export::XlsxTable;
 use sea_orm::sea_query::{Expr, extension::postgres::PgExpr};
@@ -128,16 +130,15 @@ impl CrmService {
             q = q.filter(crm_lead::Column::Industry.eq(industry));
         }
 
-        // V15 P0-S01：行级数据权限过滤
-        // crm_lead 表无 department_id，Dept 退化为 Self；
-        // CRM 业务数据权限语义为"我负责的线索"，使用 owner_id（i32 必填）作为 owner_column，
-        // 比 created_by（Option<i32>，create_lead 未显式设置）更可靠且符合业务语义。
+        // 行级数据权限过滤：owner=owner_id，dept=DepartmentId（m_rls_dept_domain），
+        // 公海（lead_status='pool'）放行与 RLS 策略同口径
         if let Some(ctx) = data_scope {
-            q = apply_data_scope(
+            q = apply_department_scope_with_pool(
                 q,
                 ctx,
                 crm_lead::Column::OwnerId,
-                crm_lead::Column::OwnerId, // 无 department_id，Dept 退化为 Self，复用 owner_id
+                crm_lead::Column::DepartmentId,
+                crm_lead::Column::LeadStatus.eq("pool"),
             );
         }
 
@@ -346,11 +347,10 @@ impl CrmService {
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("线索 {} 不存在", lead_id)))?;
-        // V15 P0-S01：行级数据权限校验（IDOR 防护）
-        // crm_lead 表无 department_id，Dept 退化为 Self；
-        // 使用 owner_id（业务负责人）作为归属判定字段。
+        // 行级数据权限校验（IDOR 防护）：owner=owner_id，dept=lead.department_id
+        //（m_rls_dept_domain，与 RLS 策略口径一致）
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, Some(lead.owner_id), None) {
+            if !check_resource_owner(ctx, Some(lead.owner_id), lead.department_id) {
                 return Err(AppError::permission_denied(format!(
                     "无权访问线索 {}（数据范围限制）",
                     lead_id
@@ -548,6 +548,8 @@ impl CrmService {
             special_process: Set(None),
             source: Set(Some("lead".to_string())),
             pool_recycle_reason: Set(None),
+            // m_rls_dept_domain：department_id 由 trg_customers_dept 触发器自动维护
+            department_id: sea_orm::ActiveValue::NotSet,
         }
     }
 

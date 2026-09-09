@@ -9,7 +9,7 @@
 
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{EntityTrait, QuerySelect, Set, TransactionTrait};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set, TransactionTrait};
 
 use crate::models::ap_reconciliation;
 use crate::models::status::ap_reconciliation as reconciliation_status;
@@ -114,6 +114,21 @@ impl ApReconciliationService {
                 "对账单状态为{}，不可确认",
                 reconciliation.reconciliation_status
             )));
+        }
+
+        // 匹号领域二期：对账单登记匹号时校验——手工对账场景若填写了 piece_no，
+        // 该匹必须真实存在（防止对账引用虚构匹号，账实断裂）
+        if let Some(pn) = reconciliation.piece_no.as_deref().filter(|s| !s.is_empty()) {
+            let exists = crate::models::inventory_piece::Entity::find()
+                .filter(crate::models::inventory_piece::Column::PieceNo.eq(pn))
+                .one(&txn)
+                .await?
+                .is_some();
+            if !exists {
+                return Err(AppError::business(format!(
+                    "对账单引用的生产匹 {pn} 不存在，请核对匹号后再确认"
+                )));
+            }
         }
 
         let now = Utc::now();

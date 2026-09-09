@@ -87,6 +87,17 @@ impl InitService {
             return Err(InitError::AlreadyInitialized);
         }
 
+        // 管理员密码强度校验（与 reset_password 同一校验器、同一策略）：
+        // 原 create_admin_user 链路无后端强度校验，前端 6 位限制可被绕过，
+        // 弱密码（如 123456）可直接成为系统管理员。放在迁移之前——弱密码
+        // 直接拒绝，不留下"迁移已执行但初始化失败"的中间状态
+        let password_check = crate::utils::password_validator::validate_password(admin_password);
+        if !password_check.is_valid {
+            return Err(InitError::ValidationError(
+                crate::utils::password_validator::get_password_feedback(&password_check),
+            ));
+        }
+
         // Run migrations before creating roles
         self.run_migrations().await?;
 

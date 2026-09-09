@@ -341,10 +341,19 @@ onUnmounted(() => {
 }
 .login-card {
   width: 400px;
+  /* 手机竖屏自适应：max-width 防止溢出小屏 */
+  max-width: calc(100vw - 32px);
   padding: 40px;
   background: #fff;
   border-radius: 8px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* 窄屏收缩卡片留白，保证表单可用 */
+@media (max-width: 480px) {
+  .login-card {
+    padding: 24px 20px;
+  }
 }
 .login-title {
   text-align: center;

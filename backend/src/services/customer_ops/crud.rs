@@ -18,7 +18,9 @@ use crate::models::dto::PageRequest;
 use crate::models::status::master_data;
 use crate::services::customer_ops::types::CreateCustomerArgs;
 use crate::services::customer_service::CustomerService;
-use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
+use crate::utils::data_scope::{
+    apply_department_scope_with_pool, check_resource_owner, DataScopeContext,
+};
 use crate::utils::error::AppError;
 // P0-D03（Batch 488）：Redis 分布式缓存接入（get_customer 读穿透 + 写失效）
 // V15 P2 B07-P2-6：使用差异化 TTL（CUSTOMER_CACHE_TTL_SECS=300s，客户数据中低波动率）
@@ -80,10 +82,11 @@ impl CustomerService {
             model
         };
 
-        // V15 P0-S01：行级数据权限校验（IDOR 防护，customer 表无 department_id 退化为 Self）
+        // 行级数据权限校验（IDOR 防护）：owner=created_by，dept=customer.department_id
+        //（m_rls_dept_domain，与 RLS 策略口径一致）
         // P0-D03：缓存命中的 model 同样需要校验权限，防止越权读取缓存
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, customer.created_by, None) {
+            if !check_resource_owner(ctx, customer.created_by, customer.department_id) {
                 return Err(AppError::permission_denied(format!(
                     "无权访问客户 {}（数据范围限制）",
                     customer_id
@@ -105,13 +108,15 @@ impl CustomerService {
     ) -> Result<PaginatedResponse<customer::Model>, AppError> {
         let mut query = CustomerEntity::find();
 
-        // V15 P0-S01：行级数据权限过滤（customer 表无 department_id 退化为 Self）
+        // 行级数据权限过滤：owner=OwnerId，dept=DepartmentId（m_rls_dept_domain），
+        // 公海（owner_id=0）放行与 RLS 策略同口径
         if let Some(ctx) = data_scope {
-            query = apply_data_scope(
+            query = apply_department_scope_with_pool(
                 query,
                 ctx,
-                customer::Column::CreatedBy,
-                customer::Column::CreatedBy,
+                customer::Column::OwnerId,
+                customer::Column::DepartmentId,
+                customer::Column::OwnerId.eq(0),
             );
         }
 

@@ -80,6 +80,8 @@ fn make_auth(user_id: i32, username: &str, role_id: Option<i32>) -> AuthContext 
         role_id,
         department_id: None,
         data_scope: None,
+        dept_ids: None,
+        dept_member_user_ids: None,
     }
 }
 

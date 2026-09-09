@@ -321,17 +321,24 @@ impl OutsourcingReceiptService {
         // 允许入成品仓），后续出入库/销售/对账均引用该染色匹号
         crate::services::piece_domain_service::create_piece_from_outsourcing_receipt(
             &txn,
-            &updated_receipt.receipt_no,
-            updated_receipt.dye_lot_no.as_deref(),
-            order.dye_lot_no.as_deref(),
-            updated_receipt.product_id,
-            updated_receipt.warehouse_id,
-            updated_receipt.return_quantity,
-            updated_receipt.grade.as_deref(),
-            &format!(
-                "委外回仓 {} 生成（订单 {}）",
-                updated_receipt.receipt_no, order.order_no
-            ),
+            crate::services::piece_domain_service::OutsourcingReceiptPieceContext {
+                receipt_no: &updated_receipt.receipt_no,
+                receipt_dye_lot_no: updated_receipt.dye_lot_no.as_deref(),
+                order_dye_lot_no: order.dye_lot_no.as_deref(),
+                // 匹号二期：色号追溯——回仓单登记的色号优先，缺省回落委外订单色号
+                color_no: updated_receipt
+                    .color_no
+                    .as_deref()
+                    .or(order.color_no.as_deref()),
+                product_id: updated_receipt.product_id,
+                warehouse_id: updated_receipt.warehouse_id,
+                length_m: updated_receipt.return_quantity,
+                grade: updated_receipt.grade.as_deref(),
+                remarks: &format!(
+                    "委外回仓 {} 生成（订单 {}）",
+                    updated_receipt.receipt_no, order.order_no
+                ),
+            },
         )
         .await?;
 

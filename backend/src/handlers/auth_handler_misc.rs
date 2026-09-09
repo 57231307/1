@@ -59,7 +59,9 @@ pub async fn refresh_token(
 
     let refresh_ip = extract_client_ip_from_headers(&headers, Some(addr.ip()));
     let csrf_token = rotate_csrf_token(&state, &claims, new_session_id, refresh_ip);
-    let jar = build_refresh_cookies(jar, &new_token, &new_refresh_token);
+    // Cookie Secure 标志按请求实际协议判定（与 login 链路同策略）：
+    // HTTP 部署下 secure(true) 的 Cookie 被浏览器拒绝存储 → 刷新后会话丢失
+    let jar = build_refresh_cookies(jar, &headers, &new_token, &new_refresh_token);
 
     let mut resp = (
         jar,
@@ -241,15 +243,18 @@ fn rotate_csrf_token(
 // csrf_token 不经过此处：由调用方在响应上以普通 Set-Cookie 头明文下发。
 fn build_refresh_cookies(
     jar: axum_extra::extract::PrivateCookieJar,
+    headers: &HeaderMap,
     new_token: &str,
     new_refresh_token: &str,
 ) -> axum_extra::extract::PrivateCookieJar {
-    let is_production = crate::utils::config::is_production();
+    // Cookie Secure 标志按请求实际协议判定（X-Forwarded-Proto 优先，
+    // 回退 is_production），与 login 链路 build_login_cookies 同策略
+    let is_secure = crate::utils::config::cookie_secure_for_request(headers);
     let new_access =
         axum_extra::extract::cookie::Cookie::build(("access_token", new_token.to_string()))
             .path("/")
             .http_only(true)
-            .secure(is_production)
+            .secure(is_secure)
             .same_site(SameSite::Strict)
             .max_age(CookieDuration::minutes(30))
             .build();
@@ -259,7 +264,7 @@ fn build_refresh_cookies(
     ))
     .path("/")
     .http_only(true)
-    .secure(is_production)
+    .secure(is_secure)
     .same_site(SameSite::Strict)
     .max_age(CookieDuration::days(2))
     .build();

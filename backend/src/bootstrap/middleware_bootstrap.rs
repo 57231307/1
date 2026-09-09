@@ -57,12 +57,19 @@ pub fn build_cors_layer(allowed_origins: Vec<String>) -> CorsLayer {
             axum::http::header::CONTENT_TYPE,
             axum::http::header::ACCEPT,
             axum::http::header::HeaderName::from_static("x-requested-with"),
+            // 引导页（/setup）的 test-database / initialize-with-db 必带自定义头；
+            // 跨域部署（Origin 白名单直连后端）时浏览器预检要求显式允许，
+            // 缺失会拦截真实请求导致首次部署初始化调用全部失败（同源部署无感）
+            axum::http::header::HeaderName::from_static("x-init-token"),
         ])
         .allow_credentials(true) // 因为改成了 Cookie 鉴权，必须设置为 true
         .max_age(Duration::from_secs(86400)) // 24小时
 }
 
-/// 为完整模式路由应用全部中间件链（timeout→security→rate_limit→auth→...→body_limit）。
+/// 为完整模式路由应用全部中间件链。
+/// 执行顺序（外→内）：timeout → security_headers → rate_limiting → dynamic_router
+/// → circuit_breaker → auth → omni_audit → csrf → permission → request_logging
+/// → rls → cors → http_trace → metrics → trace_ctx → audit_ctx → body_limit → handler。
 pub fn apply_full_mode_layers(app_state: AppState, cors: CorsLayer) -> Router {
     let s_auth = app_state.clone();
     let s_permission = app_state.clone();
@@ -78,6 +85,18 @@ pub fn apply_full_mode_layers(app_state: AppState, cors: CorsLayer) -> Router {
     let router = apply_body_limit_and_context(router);
     let router = apply_metrics_layer(router, s_metrics);
     let router = apply_http_trace_layer(router);
+    // A.21.2：RLS 行级安全上下文（auth 之后执行 SET LOCAL app.user_id，激活 PostgreSQL RLS）。
+    // axum 语义：后注册的 .layer() 位于洋葱最外层、先执行。rls_context_middleware 通过
+    // request.extensions().get::<AuthContext>() 读取 auth_middleware 注入的认证上下文，
+    // 因此必须比 auth_chain 先注册（成为其内层），保证 auth 先注入、RLS 在认证通过后执行。
+    // 注册在 cors 之前（cors 更外层）：CORS 预检、非法 Origin、401/403 均在 cors/auth 层短路，
+    // RLS 的 SET/RESET 只对真正穿过认证链的请求执行，避免对未认证请求产生多余 DB 调用。
+    // 缺陷修复记录：此 layer 原先注册在 apply_auth_chain 之后（auth 链外侧），按上述语义
+    // RLS 先于 auth 执行，永远读不到 AuthContext，SET LOCAL 静默跳过、PG RLS 策略从未激活。
+    let router = router.layer(axum::middleware::from_fn_with_state(
+        s_rls,
+        rls_context_middleware,
+    ));
     let router = router.layer(cors);
     let router = apply_auth_chain(
         router,
@@ -87,11 +106,6 @@ pub fn apply_full_mode_layers(app_state: AppState, cors: CorsLayer) -> Router {
         s_omni_audit,
         s_auth,
     );
-    // A.21.2：RLS 行级安全上下文（auth 之后设置 SET LOCAL app.user_id，激活 PostgreSQL RLS）
-    let router = router.layer(axum::middleware::from_fn_with_state(
-        s_rls,
-        rls_context_middleware,
-    ));
     // V15 P1 20.6-B：API 网关熔断中间件（5s 窗口失败率 > 50% 触发 open，30s 后 half-open 探测）
     // 放在 auth_chain 之外、rate_limiting 之内：监控认证后的业务处理 5xx 失败率
     let router = router.layer(axum::middleware::from_fn(circuit_breaker_middleware));
@@ -249,6 +263,11 @@ fn apply_security_headers(router: Router) -> Router {
 /// 为 Setup 模式应用基础中间件链（TraceLayer + CORS + 安全头）。
 /// Setup 模式仅暴露 /init/* 接口，无需认证/权限/CSRF 等业务中间件。
 pub fn apply_init_mode_layers(router: Router, cors: CorsLayer) -> Router {
+    // audit_context 中间件必须挂载：init handler 的 validate_internal_ip 从
+    // Extension<AuditContext> 提取 client_ip 做内网白名单校验。缺省时
+    // audit_ctx=None → client_ip="unknown" → is_internal_ip=false →
+    // /init/test-database 一律 403，Setup 向导在第 2 步必然卡死（自审发现）
+    let router = apply_body_limit_and_context(router);
     router
         .layer(
             TraceLayer::new_for_http()

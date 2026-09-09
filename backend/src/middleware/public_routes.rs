@@ -37,6 +37,12 @@ pub const PUBLIC_PATHS: &[&str] = &[
     "/api/v1/erp/init/initialize",
     "/api/v1/erp/init/initialize-with-db",
     "/api/v1/erp/init/initialize-with-db-async",
+    // Setup 向导"测试数据库连接"：未初始化时无用户体系可登录获取 JWT，
+    // 原"仍需 JWT"设计使向导必然 401（Cookie=false/false/Header=false）。
+    // 安全边界由 handler 门禁保证：validate_not_initialized（初始化后拒绝）
+    // + 已初始化时 validate_admin_role（仅限管理员）。handler 内认证上下文
+    // 改为 OptionalAuthContext（未初始化时匿名通过，已初始化必须有 admin 身份）。
+    "/api/v1/erp/init/test-database",
 ];
 
 /// 公开路径白名单（跳过 JWT 认证）；⚠️ **安全约束**： 1. 仅放行真正不需要身份认证的端点（健康检查、登录、静态资源、初始化） 2.

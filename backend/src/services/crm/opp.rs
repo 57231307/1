@@ -14,7 +14,7 @@ use crate::models::{crm_opportunity, customer, sales_order};
 // 批次 236 v13 P1-1：商机状态常量接入（规则 0）
 use crate::models::status::crm_opportunity as opp_status;
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
+use crate::utils::data_scope::{apply_department_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 use crate::utils::xlsx_export::XlsxTable;
 use rust_decimal::Decimal;
@@ -130,14 +130,13 @@ impl CrmService {
         }
 
         // V15 P0-S01：行级数据权限过滤
-        // crm_opportunity 表无 department_id，Dept 退化为 Self；
-        // CRM 业务数据权限语义为"我负责的商机"，使用 owner_id（i32 必填）作为 owner_column。
+        // 行级数据权限过滤：owner=owner_id，dept=DepartmentId（m_rls_dept_domain）
         if let Some(ctx) = data_scope {
-            q = apply_data_scope(
+            q = apply_department_scope(
                 q,
                 ctx,
                 crm_opportunity::Column::OwnerId,
-                crm_opportunity::Column::OwnerId, // 无 department_id，Dept 退化为 Self，复用 owner_id
+                crm_opportunity::Column::DepartmentId,
             );
         }
 
@@ -234,11 +233,10 @@ impl CrmService {
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("商机 {} 不存在", opportunity_id)))?;
-        // V15 P0-S01：行级数据权限校验（IDOR 防护）
-        // crm_opportunity 表无 department_id，Dept 退化为 Self；
-        // 使用 owner_id（业务负责人）作为归属判定字段。
+        // 行级数据权限校验（IDOR 防护）：owner=owner_id，dept=opportunity.department_id
+        //（m_rls_dept_domain，与 RLS 策略口径一致）
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, Some(opportunity.owner_id), None) {
+            if !check_resource_owner(ctx, Some(opportunity.owner_id), opportunity.department_id) {
                 return Err(AppError::permission_denied(format!(
                     "无权访问商机 {}（数据范围限制）",
                     opportunity_id
@@ -494,6 +492,8 @@ impl CrmService {
             packaging_requirement: Set(None),
             quality_standard: Set(None),
             created_by: Set(Some(user_id)),
+            // m_rls_dept_domain：department_id 由 trg_sales_orders_dept 触发器自动维护
+            department_id: sea_orm::ActiveValue::NotSet,
             approved_by: Set(None),
             approved_at: Set(None),
             created_at: Set(chrono::Utc::now()),

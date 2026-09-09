@@ -62,10 +62,8 @@ echo ""
 
 # 检查部署脚本
 echo "部署脚本:"
-check_file "deploy/deploy.sh" "主部署脚本"
-check_file "deploy/deploy-backend.sh" "后端部署脚本"
-check_file "deploy/deploy-frontend.sh" "前端部署脚本"
-check_file "deploy/deploy-prepare.sh" "部署准备脚本"
+check_file "deploy/deploy.sh" "主部署脚本（生产环境部署）"
+check_file "deploy/deploy-latest.sh" "远程部署脚本（生产环境更新）"
 
 echo ""
 

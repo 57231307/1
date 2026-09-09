@@ -1171,7 +1171,11 @@ async function checkInitStatus(): Promise<boolean> {
       logger.error(`检查系统初始化状态失败（attempt ${attempt + 1}/3）:`, error);
     }
   }
-  initStatus = result;
+  // 失败不缓存：初始化成功后后端自重启切换完整模式，重启窗口内刷新页面
+  // 会探测全失败——若缓存 false 会把用户锁死在 /setup（模块级缓存只在整页
+  // 刷新时清空），后端恢复后仍需再手动刷新才能逃出。仅成功结果缓存，
+  // 失败保持 null 让下一次导航重查（每次重试 3 次共约 3s，开销可接受）。
+  if (result) initStatus = true;
   return result;
 }
 

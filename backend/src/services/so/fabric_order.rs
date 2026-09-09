@@ -181,7 +181,6 @@ impl SalesService {
         req: CreateFabricOrderRequest,
         user_id: i32,
     ) -> Result<sales_order::Model, AppError> {
-        let _ = user_id;
         // P2-11 修复逻辑下沉：金额/数量非负 + 精度校验
         Self::validate_fabric_order_items(&req.items)?;
 
@@ -189,7 +188,8 @@ impl SalesService {
         let order_no = format!("SO{}", chrono::Utc::now().format("%Y%m%d%H%M%S"));
         let total_amount = Self::calculate_fabric_order_totals(&req.items);
 
-        let order = Self::build_fabric_order_active_model(&req, order_no, total_amount);
+        let order =
+            Self::build_fabric_order_active_model(&req, order_no, total_amount, user_id);
         let created_order = order
             .insert(&txn)
             .await
@@ -346,10 +346,15 @@ impl SalesService {
     }
 
     /// 构建订单主表 ActiveModel
+    ///
+    /// m_rls_dept_domain：created_by 填入真实 user_id——sales_orders 新策略
+    /// WITH CHECK 要求新建行归属明确（created_by=NULL 会被拒绝），且 department_id
+    /// 触发器依赖 created_by 计算数据部门。
     fn build_fabric_order_active_model(
         req: &CreateFabricOrderRequest,
         order_no: String,
         total_amount: Decimal,
+        user_id: i32,
     ) -> sales_order::ActiveModel {
         sales_order::ActiveModel {
             id: Set(0),
@@ -376,7 +381,8 @@ impl SalesService {
             grade: Set(None),
             packaging_requirement: Set(None),
             quality_standard: Set(None),
-            created_by: Set(None),
+            created_by: Set(Some(user_id)),
+            department_id: Set(None),
             approved_by: Set(None),
             approved_at: Set(None),
             created_at: Set(chrono::Utc::now()),

@@ -187,10 +187,12 @@ impl ArReconciliationService {
                 matched_amount: Set(None),
                 match_status: Set(ar_status::MATCH_UNMATCHED.to_string()),
                 matched_item_id: Set(None),
+                // 匹号领域二期：发票明细透传面料追溯字段（发票单据已登记缸号/色号/批号；
+                // piece_no 发票无来源字段，保持 None 由销售单据链维护）
                 piece_no: Set(None),
-                batch_no: Set(None),
-                color_no: Set(None),
-                dye_lot_no: Set(None),
+                batch_no: Set(inv.batch_no.clone()),
+                color_no: Set(inv.color_no.clone()),
+                dye_lot_no: Set(inv.dye_lot_no.clone()),
                 remarks: Set(None),
                 created_at: Set(Utc::now()),
                 updated_at: Set(Utc::now()),

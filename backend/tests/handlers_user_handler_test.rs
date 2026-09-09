@@ -14,6 +14,8 @@ async fn test_require_admin_role_rejects_missing_role() {
         role_id: None,
         department_id: None,
         data_scope: None,
+        dept_ids: None,
+        dept_member_user_ids: None,
     };
     let result = require_admin_role(&state, &auth).await;
     assert!(
@@ -35,6 +37,8 @@ async fn test_require_admin_role_rejects_non_admin() {
         role_id: Some(999),
         department_id: None,
         data_scope: None,
+        dept_ids: None,
+        dept_member_user_ids: None,
     };
     let result = require_admin_role(&state, &auth).await;
     assert!(

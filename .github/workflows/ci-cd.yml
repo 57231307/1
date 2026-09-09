@@ -2841,6 +2841,166 @@ jobs:
           echo "✅ 无死代码"
 
 # ==============================================================================
+# Job 16.5: Setup 向导真实链路 E2E（独立空库 + 真实后端 + 零 mock）
+# ==============================================================================
+# 用户指令（2026-09-07）：E2E 禁止 mock，必须真实数据。本 job 专用架构：
+# - 独立空库 bingxi_setup_test（每次 DROP+CREATE，保证后端以 Setup 模式启动）
+# - 真实后端二进制（复用 ci-build-rust 的 backend-binary artifact）
+# - 初始化完全通过 Setup 向导 UI 真实点击完成（test-database → initialize-with-db
+#   → 真实迁移 60+ 个 + 种子数据 + Argon2id 管理员 → 后端自退）
+# - 后端重启完整模式 → 真实登录验证（Argon2id 校验 + Cookie 会话 + *:* 权限）
+# - 不污染 ci-e2e 的 34 分片共享库（bingxi_test 由 CI init step 初始化）
+  ci-e2e-setup-wizard:
+    name: 🧭 Setup 向导真实链路 E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    needs: [ci-build-rust]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: bingxi
+          POSTGRES_PASSWORD: bingxi_test
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      SETUP_E2E_PORT: 8083
+      SETUP_E2E_DB: bingxi_setup_test
+      SETUP_E2E_ADMIN: setup_admin
+      SETUP_E2E_PASS: "Setup@E2E2026!x"
+      SETUP_E2E_INIT_TOKEN: ci-setup-wizard-real-token-0123456789abcdef
+      # 后端启动所需密钥（CI 测试专用，禁止用于生产）
+      JWT_SECRET: ci-e2e-jwt-secret-32bytes-do-not-use-in-prod-abc
+      COOKIE_SECRET: ci-e2e-cookie-secret-32bytes-do-not-use-in-prod-xyz
+      WEBHOOK_SECRET: ci-e2e-webhook-secret-32bytes-do-not-use-in-prod-q
+      AUDIT_SECRET_KEY: e2e-only-audit-signing-key-do-not-use-in-prod-32b
+      APP_ENV: development
+      ENV: development
+      KAFKA_ENABLED: "false"
+      ELASTICSEARCH_URL: ""
+      CACHE_ENABLED: "false"
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: 下载预编译后端二进制（复用 ci-build-rust 产物，不重编）
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-binary
+          path: backend/target/release
+
+      - name: 赋予后端二进制可执行权限
+        run: |
+          chmod +x backend/target/release/server
+          chmod +x backend/target/release/bingxi
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 安装 postgresql-client（数据级断言依赖 psql）
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: 安装前端依赖
+        working-directory: frontend
+        run: npm ci --prefer-offline --no-audit
+
+      - name: 缓存 Playwright 浏览器（与 ci-e2e 共用同一缓存 key）
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: |
+            playwright-
+
+      - name: 安装 Playwright 浏览器
+        working-directory: frontend
+        run: |
+          # 缓存命中时 install 秒过（已存在则跳过下载）；未命中才下载。
+          # 拆分安装：--with-deps 的 apt 环节在连续 apt-get update 后偶发锁
+          # 竞争/超时（run 34135035908 step#9 失败）。runner 镜像已预装
+          # chromium 运行库，系统依赖安装失败仅告警不阻塞
+          npx playwright install chromium
+          npx playwright install-deps chromium || echo "::warning::playwright install-deps 失败（镜像已预装依赖，继续）"
+
+      - name: 准备 Setup 模式环境（重置空库 + 启动后端）
+        run: |
+          # 用真实二进制启动（Setup 模式：空库无表 → 仅暴露 /init/* 路由）
+          export BACKEND_BIN="$GITHUB_WORKSPACE/backend/target/release/server"
+          bash frontend/e2e/scripts/setup-wizard-real-env.sh
+
+      - name: 构建前端并启动 preview（3100 端口，代理到 8083 Setup 后端）
+        working-directory: frontend
+        env:
+          VITE_PROXY_TARGET: http://127.0.0.1:8083
+          VITE_DEV_PORT: 3100
+        run: |
+          # 改用生产构建 + vite preview：与主 CI ci-e2e 同因（十一/十四轮实测
+          # dev server 按需编译在测试中触发 "optimized dependencies changed.
+          # reloading" 整页刷新，打断登录后跳转致 waitForURL 超时）。
+          # preview 无按需编译，彻底消除该挂起层
+          npm run build > /tmp/e2e-setup-logs/frontend-build.log 2>&1 || {
+            echo "前端构建失败，日志："
+            tail -30 /tmp/e2e-setup-logs/frontend-build.log
+            exit 1
+          }
+          mkdir -p /tmp/e2e-setup-logs
+          # nohup + disown：step 结束时 runner 清理进程组，普通 & 进程
+          # 活不到测试 step（与后端启动脚本同因，自审修复）
+          nohup npx vite preview --port 3100 --strictPort > /tmp/e2e-setup-logs/frontend.log 2>&1 &
+          VITE_PID=$!
+          disown "$VITE_PID" 2>/dev/null || true
+          echo "$VITE_PID" > /tmp/e2e-setup-logs/frontend.pid
+          for i in $(seq 1 90); do
+            if curl -s http://localhost:3100 > /dev/null 2>&1; then
+              echo "前端 dev server 就绪（第 ${i} 次尝试）"
+              break
+            fi
+            sleep 1
+          done
+          if ! curl -s http://localhost:3100 > /dev/null 2>&1; then
+            echo "前端启动失败，日志："
+            tail -20 /tmp/e2e-setup-logs/frontend.log
+            exit 1
+          fi
+
+      - name: 运行 Setup 向导真实链路 E2E
+        working-directory: frontend
+        env:
+          # 测试内 restart-backend-full.sh 需要：仓库根 + 真实后端二进制路径
+          REPO_ROOT: ${{ github.workspace }}
+          BACKEND_BIN: ${{ github.workspace }}/backend/target/release/server
+        run: |
+          mkdir -p reports
+          set +e
+          npx playwright test --config=playwright.setup-wizard.config.ts --reporter=line \
+            > reports/setup-wizard-output.txt 2>&1
+          EXIT_CODE=$?
+          cat reports/setup-wizard-output.txt
+          exit $EXIT_CODE
+
+      - name: 上传诊断产物
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: setup-wizard-e2e-${{ github.run_id }}
+          path: |
+            frontend/reports/setup-wizard-output.txt
+            frontend/test-results/
+            /tmp/e2e-setup-logs/
+          retention-days: 30
+        continue-on-error: true
+
+# ==============================================================================
 # Job 17: 收尾清理（仅报告，无自动重试）
 # ==============================================================================
   ci-cleanup-retry:
@@ -2863,6 +3023,7 @@ jobs:
       ci-build-rust,
       ci-build-fe,
       ci-e2e,
+      ci-e2e-setup-wizard,
       ci-dead-code-audit,
       package-release,
       github-release
@@ -2877,7 +3038,7 @@ jobs:
                    "${{ needs.ci-build-test-artifacts.result }}" "${{ needs.ci-test-rust.result }}" "${{ needs.ci-test-fe.result }}" \
                    "${{ needs.ci-audit.result }}" "${{ needs.ci-deps.result }}" "${{ needs.ci-perf-bench.result }}" \
                    "${{ needs.ci-build-rust.result }}" "${{ needs.ci-build-fe.result }}" \
-                   "${{ needs.ci-e2e.result }}" "${{ needs.ci-dead-code-audit.result }}" \
+                   "${{ needs.ci-e2e.result }}" "${{ needs.ci-e2e-setup-wizard.result }}" "${{ needs.ci-dead-code-audit.result }}" \
                    "${{ needs.package-release.result }}" "${{ needs.github-release.result }}"; do
             if [[ "$r" != "success" && "$r" != "skipped" ]]; then
               ALL_OK=0

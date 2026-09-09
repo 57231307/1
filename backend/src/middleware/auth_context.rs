@@ -10,6 +10,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 /// 认证错误响应
 #[derive(Debug)]
@@ -55,6 +56,19 @@ pub struct AuthContext {
     pub department_id: Option<i32>,
     /// V15 P0-S01 新增：数据范围（行级数据权限） 由权限中间件从 role 表查询注入，"all"/"dept"/"self" None 表示未加载（此时 service 层应按 self 处理，最小权限原则）
     pub data_scope: Option<String>,
+    /// RLS dept 语义（m_rls_dept_domain）：可见部门集合的逗号分隔串
+    /// （主部门 + 兼职部门 + 子部门，由 auth 中间件调
+    /// data_permission_service.get_user_dept_scope_cached 解析）。
+    /// 仅 data_scope=dept 用户加载；all/self 用户为 None。RLS 中间件据此
+    /// 构造 RlsGuc.dept_ids 写入 task-local，连接池钩子设置 app.dept_ids GUC。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dept_ids: Option<Arc<String>>,
+    /// 可见部门的成员用户 ID 集合（含本人，逗号分隔串）。应用层列表过滤
+    /// 按「归属人 ∈ 成员集合」判断（build_data_scope_condition Dept 分支），
+    /// 与 RLS 策略口径等价（触发器保证 department_id 恒等于归属人部门）。
+    /// 仅 dept 用户加载；all/self 为 None。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dept_member_user_ids: Option<Arc<String>>,
 }
 
 impl AuthContext {
@@ -63,9 +77,11 @@ impl AuthContext {
             user_id: claims.sub,
             username: claims.username,
             role_id: claims.role_id,
-            // V15 P0-S01：data_scope 和 department_id 由权限中间件从数据库加载后注入
+            // V15 P0-S01：data_scope/department_id/dept_ids 由权限中间件从数据库加载后注入
             department_id: None,
             data_scope: None,
+            dept_ids: None,
+            dept_member_user_ids: None,
         }
     }
 
@@ -80,10 +96,30 @@ impl AuthContext {
             .map(DataScope::parse_scope)
             .unwrap_or(DataScope::Self_);
 
+        // dept_ids CSV 解析为 Vec<i32>：dept 用户的可见部门集合；self/all 为空
+        let parse_csv = |csv: &Option<Arc<String>>| -> Vec<i32> {
+            csv.as_ref()
+                .map(|s| {
+                    s.split(',')
+                        .filter_map(|p| p.trim().parse::<i32>().ok())
+                        .collect::<Vec<i32>>()
+                })
+                .unwrap_or_default()
+        };
+        let dept_ids = parse_csv(&self.dept_ids);
+        let mut dept_member_user_ids = parse_csv(&self.dept_member_user_ids);
+
+        // 成员集合必须包含本人（self 分支语义兜底；auth.rs 已保证，此处再兜一道）
+        if scope == DataScope::Dept && !dept_member_user_ids.contains(&self.user_id) {
+            dept_member_user_ids.push(self.user_id);
+        }
+
         DataScopeContext {
             scope,
             user_id: self.user_id,
             department_id: self.department_id,
+            dept_ids,
+            dept_member_user_ids,
         }
     }
 }
@@ -91,6 +127,30 @@ impl AuthContext {
 impl From<AppClaims> for AuthContext {
     fn from(claims: AppClaims) -> Self {
         Self::from_claims(claims)
+    }
+}
+
+/// 为 OptionalAuthContext 实现 FromRequestParts：auth_middleware 注入了
+/// AuthContext 则映射为有值上下文，未挂载/未认证（Setup 模式、公开路径）时
+/// 得到 empty 上下文而非 401——供匿名可访问但需在 handler 内自检门禁的端点使用
+/// （如 /init/test-database：未初始化时匿名放行，已初始化时 handler 内拒收）
+impl<S> FromRequestParts<S> for OptionalAuthContext
+where
+    S: Send + Sync,
+{
+    type Rejection = std::convert::Infallible;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        Ok(parts
+            .extensions
+            .get::<AuthContext>()
+            .cloned()
+            .map(|a| OptionalAuthContext {
+                user_id: Some(a.user_id),
+                username: Some(a.username.clone()),
+                role_id: a.role_id,
+            })
+            .unwrap_or_else(OptionalAuthContext::empty))
     }
 }
 
@@ -112,7 +172,6 @@ where
 }
 
 /// 可选的认证上下文（允许未认证的请求）
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OptionalAuthContext {
     pub user_id: Option<i32>,

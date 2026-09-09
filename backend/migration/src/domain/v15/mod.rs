@@ -2194,6 +2194,8 @@ ALTER TABLE "material_shortage_alerts" ADD COLUMN IF NOT EXISTS "safety_factor" 
 ALTER TABLE "material_shortage_alerts" ADD COLUMN IF NOT EXISTS "severe_threshold" DECIMAL(18,4) NOT NULL DEFAULT 0;
 ALTER TABLE "outsourcing_order_item" ADD COLUMN IF NOT EXISTS "freight_fee" DECIMAL(18,4) NOT NULL DEFAULT 0;
 ALTER TABLE "outsourcing_order_item" ADD COLUMN IF NOT EXISTS "processing_fee" DECIMAL(18,4) NOT NULL DEFAULT 0;
+ALTER TABLE "outsourcing_order_item" ADD COLUMN IF NOT EXISTS "piece_no" VARCHAR(50);
+COMMENT ON COLUMN "outsourcing_order_item"."piece_no" IS '生产匹号（外发染色发料引用的生产匹，匹号领域二期）';
 ALTER TABLE "outsourcing_receipt" ADD COLUMN IF NOT EXISTS "created_by" INTEGER;
 ALTER TABLE "outsourcing_receipt" ADD COLUMN IF NOT EXISTS "is_deleted" BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE "outsourcing_voucher" ADD COLUMN IF NOT EXISTS "amount" DECIMAL(18,4) NOT NULL DEFAULT 0;

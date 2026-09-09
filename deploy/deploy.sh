@@ -39,20 +39,26 @@ check_root() {
 
 # V15 P2 25.1-B 修复：部署前检查端口冲突
 check_ports() {
-    local port=8082
-    local pid
-    pid=$(ss -tlnp | grep ":${port} " | grep -oP 'pid=\K[0-9]+' | head -1)
-    if [ -n "$pid" ]; then
-        local proc_name
-        proc_name=$(ps -p "$pid" -o comm= 2>/dev/null || echo "unknown")
-        # 允许 bingxi 自身进程占用（升级时会被 stop_old_services 杀死）
-        if [[ "$proc_name" == *"bingxi"* ]] || [[ "$proc_name" == *"server"* ]]; then
-            warn "端口 $port 被 bingxi 进程 (PID: $pid) 占用，将由 stop_old_services 处理"
-            return 0
+    # 后端 8082 + nginx 80 双预检：80 被 httpd 类服务占用时 nginx reload
+    # 必失败（nginx -t 能过但 bind 失败），必须在部署前拦住
+    for port in 8082 80; do
+        local pid
+        # 端口空闲时 grep 无匹配返回 1，set -euo pipefail 下会让赋值失败静默退出，
+        # 追加 || true 保证"空闲"是正常路径（全新部署时端口必然空闲）；
+        # 端口匹配不带尾随空格——ss 列对齐空格数不定，行尾场景 ':8082 ' 会漏检
+        pid=$(ss -tlnp | grep ":${port}\b" | grep -oP 'pid=\K[0-9]+' | head -1 || true)
+        if [ -n "$pid" ]; then
+            local proc_name
+            proc_name=$(ps -p "$pid" -o comm= 2>/dev/null || echo "unknown")
+            # 允许 bingxi 自身进程占用（升级时会被 stop_old_services 杀死）
+            if [[ "$proc_name" == *"bingxi"* ]] || [[ "$proc_name" == *"server"* ]] || [[ "$proc_name" == "nginx" ]]; then
+                warn "端口 $port 被 $proc_name 进程 (PID: $pid) 占用，将由后续步骤处理"
+                continue
+            fi
+            error "端口 $port 被其他进程占用 (PID: $pid, 进程: $proc_name)，请先释放端口"
         fi
-        error "端口 $port 被其他进程占用 (PID: $pid, 进程: $proc_name)，请先释放端口"
-    fi
-    log "端口 $port 检查通过"
+        log "端口 $port 检查通过"
+    done
 }
 
 # 停止所有旧服务
@@ -65,8 +71,9 @@ stop_old_services() {
     systemctl daemon-reload
     sleep 2
 
-    # 杀死占用端口的进程
-    local pid=$(ss -tlnp | grep :8082 | grep -oP 'pid=\K[0-9]+' | head -1)
+    # 杀死占用端口的进程（同 check_ports：无匹配时 || true 防 set -e 退出）
+    local pid
+    pid=$(ss -tlnp | grep ":8082\b" | grep -oP 'pid=\K[0-9]+' | head -1 || true)
     if [ -n "$pid" ]; then
         warn "杀死占用 8082 端口的进程: $pid"
         kill -9 "$pid" 2>/dev/null || true
@@ -217,9 +224,15 @@ generate_config() {
         local JWT="${JWT_SECRET:-}"
         local COOKIE="${COOKIE_SECRET:-}"
         local WEBHOOK="${WEBHOOK_SECRET:-}"
-        
+        # 与其它密钥一致用 ${VAR:-} 安全读取：.env 无此键时 sourcing 不会定义它，
+        # 裸引用在 set -u 下直接 unbound variable 终止（原缺陷：仅此处遗漏）
+        local AUDIT="${AUDIT_SECRET_KEY:-}"
+
         # 自动生成 AUDIT_SECRET_KEY（基于服务器硬件信息 + 随机盐）
-        if [ -z "$AUDIT_SECRET_KEY" ]; then
+        # 防护与 JWT/COOKIE 同策略：为空、长度 <32 或命中 placeholder 黑名单则重新生成
+        # （.env.example 的 value-placeholder-change-me 会被后端 validate_secret 拒绝，
+        #  原仅判空导致占位符穿透 → 服务起不来且脚本不拦截）
+        if [ -z "$AUDIT" ] || [ ${#AUDIT} -lt 32 ]; then
             # 收集硬件信息
             local HW_INFO=""
             HW_INFO+=$(cat /etc/machine-id 2>/dev/null || echo "no-machine-id")
@@ -230,10 +243,13 @@ generate_config() {
             # 生成 256 字节密钥（硬件信息 + 随机盐 + 时间戳）
             local SALT=$(openssl rand -hex 32)
             local TIMESTAMP=$(date +%s%N)
-            AUDIT_SECRET_KEY=$(echo -n "${HW_INFO}${SALT}${TIMESTAMP}" | sha512sum | awk '{print $1}')
+            AUDIT=$(echo -n "${HW_INFO}${SALT}${TIMESTAMP}" | sha512sum | awk '{print $1}')
 
-            # 追加到 .env 文件
-            echo "AUDIT_SECRET_KEY=${AUDIT_SECRET_KEY}" >> "$ENV_FILE"
+            if grep -q "^AUDIT_SECRET_KEY=" "$ENV_FILE" 2>/dev/null; then
+                sed -i "s|^AUDIT_SECRET_KEY=.*|AUDIT_SECRET_KEY=${AUDIT}|" "$ENV_FILE"
+            else
+                echo "AUDIT_SECRET_KEY=${AUDIT}" >> "$ENV_FILE"
+            fi
             log "已自动生成 AUDIT_SECRET_KEY（基于服务器硬件信息）"
         fi
 
@@ -291,6 +307,24 @@ generate_config() {
             log "已自动生成 WEBHOOK_SECRET（base64 48 字符 / 32 字节，与 JWT_SECRET 独立）"
         fi
 
+        # 引导页初始化链路修复：自动生成 INIT_TOKEN（初始化接口鉴权令牌）
+        # init_token_middleware 为 fail-secure 设计：INIT_TOKEN 未配置或强度不足
+        # （<32 字节或命中占位黑名单）时 /init/initialize* 一律 401。原脚本生成
+        # 其余 4 把密钥却遗漏 INIT_TOKEN → 全新部署走引导页到第 4 步安装必然
+        # 401，用户无从得知应填的令牌值（backend/.env.example 的占位值也会被
+        # is_init_token_strong 拒绝）。与其它密钥同策略：随机生成 + 持久化 .env。
+        local INIT_TOKEN="${INIT_TOKEN:-}"
+        if [ -z "$INIT_TOKEN" ] || [ ${#INIT_TOKEN} -lt 32 ]; then
+            local GENERATED_INIT_TOKEN=$(openssl rand -base64 32 | tr -d '\n' | head -c 48)
+            if grep -q "^INIT_TOKEN=" "$ENV_FILE" 2>/dev/null; then
+                sed -i "s|^INIT_TOKEN=.*|INIT_TOKEN=${GENERATED_INIT_TOKEN}|" "$ENV_FILE"
+            else
+                echo "INIT_TOKEN=${GENERATED_INIT_TOKEN}" >> "$ENV_FILE"
+            fi
+            INIT_TOKEN="$GENERATED_INIT_TOKEN"
+            log "已自动生成 INIT_TOKEN（初始化接口鉴权令牌，部署完成后引导页需填写）"
+        fi
+
         # 验证必需的环境变量（保留作为最后防线，理论上自动生成后不会触发）
         if [ -z "$DB_PASS" ]; then
             error "DATABASE__PASSWORD 环境变量未设置"
@@ -304,13 +338,20 @@ generate_config() {
         if [ -z "$WEBHOOK" ]; then
             error "WEBHOOK_SECRET 环境变量未设置（自动生成失败）"
         fi
+        if [ -z "$AUDIT" ]; then
+            error "AUDIT_SECRET_KEY 环境变量未设置（自动生成失败）"
+        fi
+        if [ -z "$INIT_TOKEN" ]; then
+            error "INIT_TOKEN 环境变量未设置（自动生成失败）"
+        fi
         local REDIS_URL="${REDIS__URL:-redis://127.0.0.1:6379}"
         local REDIS_MAX="${REDIS__MAX_CONNECTIONS:-10}"
 
-        # v18 批次 48 修复 P0-8：数据库连接强制 SSL（同步 deploy-latest.sh 批次 24 v6 P0-3 修复）。
-        # 原 sslmode=disable 明文传输，数据库流量含密码和业务数据，
-        # 生产环境必须加密防止中间人嗅探。
-        local CONN_STR="postgres://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=require"
+        # SQLx 编译未启用 TLS feature，sslmode=require 直接连接失败
+        # （Error: Tls("TLS upgrade required by connect options but SQLx was built without TLS support")）。
+        # 数据库仅监听本机 127.0.0.1 无对外暴露，disable 无安全损失
+        # （v18 批次 48 的 require 修复在本项目二进制下不可用，回退 disable）。
+        local CONN_STR="postgres://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=disable"
 
         cat > "$CONFIG_FILE" << EOF
 server:
@@ -328,7 +369,7 @@ database:
   max_connections: 100
   min_connections: 5
   # v18 批次 48 修复 P0-8：生产环境强制 SSL（同步 deploy-latest.sh 批次 24 v6 P0-3 修复）
-  ssl_mode: "require"
+  ssl_mode: "disable"
 
 auth:
   jwt_secret: "${JWT}"
@@ -393,7 +434,7 @@ run_migrations() {
         # 优先使用已部署的后端二进制执行迁移；若不存在（首次部署）则跳过，由引导页配置后调用 bingxi migrate
         local BINGXI_BIN="$BACKEND_DIR/bingxi"
         if [ -x "$BINGXI_BIN" ]; then
-            DATABASE_URL="postgres://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=require" "$BINGXI_BIN" migrate run
+            DATABASE_URL="postgres://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=disable" "$BINGXI_BIN" migrate run
             log "数据库迁移完成"
         else
             warn "后端二进制不存在，跳过自动迁移（首次部署由引导页触发）"
@@ -420,9 +461,12 @@ install_service() {
 configure_nginx() {
     log "配置 Nginx..."
     local nginx_conf=""
-    if [ -f "/tmp/bingxi-deploy/deploy/nginx.conf" ]; then
+    local deploy_dir=""
+    if [ -d "/tmp/bingxi-deploy/deploy" ]; then
+        deploy_dir="/tmp/bingxi-deploy/deploy"
         nginx_conf="/tmp/bingxi-deploy/deploy/nginx.conf"
-    elif [ -f "deploy/nginx.conf" ]; then
+    elif [ -d "deploy" ]; then
+        deploy_dir="deploy"
         nginx_conf="deploy/nginx.conf"
     fi
 
@@ -441,11 +485,24 @@ configure_nginx() {
             return
         fi
 
-        if nginx -t 2>/dev/null; then
+        # 生成 upstream active 配置（单实例直连，无蓝绿/灰度切换机制）：
+        # nginx.conf include 的 /etc/nginx/bingxi-upstream.active.conf 必须存在，
+        # 否则 nginx -t 直接失败。upstream 固定指向本机 8082 后端
+        cat > /etc/nginx/bingxi-upstream.active.conf <<'UPSTREAM_EOF'
+upstream bingxi_backend {
+    server 127.0.0.1:8082;
+    keepalive 32;
+}
+UPSTREAM_EOF
+        log "已生成 upstream 配置（单实例 127.0.0.1:8082）"
+
+        # nginx -t 失败必须终止：吞掉失败会让部署打成功横幅而前端 404
+        # （原缺陷：2>/dev/null + warn 继续，健康检查只测后端测不出前端死）
+        if nginx -t; then
             systemctl reload nginx
             log "Nginx 配置完成"
         else
-            warn "Nginx 配置测试失败，跳过"
+            error "nginx -t 配置测试失败，终止部署（请检查 /etc/nginx 配置）"
         fi
     fi
 }
@@ -472,7 +529,17 @@ health_check() {
         # 各子项明细；database 是唯一必须 healthy 的强依赖（memory/disk 偶发 degraded 可容忍），
         # 若数据库异常应判定健康检查失败以便告警/回滚。
         if echo "$response" | grep -q '"status":"healthy"' && echo "$response" | grep -q '"database":{"status":"healthy"'; then
-            log "健康检查通过（整体 + database 均 healthy）"
+            log "后端健康检查通过（整体 + database 均 healthy）"
+            # 80 端口前端可达性验收：部署成功后用户通过 80 访问系统，
+            # 后端健康不代表 nginx/前端可用（历史缺陷：nginx 配置错 + 健康检查
+            # 只测后端 → "部署完成"横幅下前端 404）
+            local frontend_resp
+            frontend_resp=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1/ 2>/dev/null || echo 000)
+            if [ "$frontend_resp" = "200" ]; then
+                log "80 端口前端可达性验收通过（HTTP 200）"
+                return 0
+            fi
+            warn "80 端口前端不可达（HTTP $frontend_resp），后端正常但请检查 nginx"
             return 0
         fi
         if [ $attempt -eq $((max_attempts / 2)) ]; then
@@ -538,7 +605,7 @@ SERVICE_NAME="bingxi-backend"
 # 运维排查问题时无法回溯谁在何时执行了更新/回滚等关键操作。
 # 仅直接命令模式启用（交互菜单复用 exec 递归调用，参数非空同样生效）。
 CLI_LOG="/var/log/bingxi-cli.log"
-if [ -n "$1" ]; then
+if [ -n "${1:-}" ]; then
     exec > >(tee -a "$CLI_LOG") 2>&1
 fi
 
@@ -793,7 +860,7 @@ case "$1" in
         echo "执行数据库迁移..."
         # P0-D02：迁移改用后端内置 bingxi migrate run（移除 postgresql-client 依赖）
         source /etc/bingxi/.env
-        export DATABASE_URL="postgres://${DATABASE__USERNAME}:${DATABASE__PASSWORD}@${DATABASE__HOST}:${DATABASE__PORT}/${DATABASE__NAME}?sslmode=require"
+        export DATABASE_URL="postgres://${DATABASE__USERNAME}:${DATABASE__PASSWORD}@${DATABASE__HOST}:${DATABASE__PORT}/${DATABASE__NAME}?sslmode=disable"
         # V15 P2 25.2-A 修复：迁移失败必须返回非零退出码
         if /opt/bingxi-erp/backend/bingxi migrate run; then
             echo "迁移完成"
@@ -911,6 +978,10 @@ main() {
         echo "  Nginx状态: $(systemctl is-active nginx)"
         echo "  访问地址: http://$(hostname -I | awk '{print $1}')"
         echo ""
+        # 全新部署时用户需在引导页（/setup）第 2 步填写初始化令牌；
+        # 已初始化系统（更新部署）此值无用途，仅展示无害
+        echo "  初始化令牌(INIT_TOKEN): ${INIT_TOKEN:-（沿用 /etc/bingxi/.env 中已有值）}"
+        echo ""
         echo "  使用 'bingxi' 命令管理系统"
         echo "=========================================="
     else
@@ -920,8 +991,8 @@ main() {
     cleanup
 }
 
-# 支持回滚参数
-if [ "$1" = "rollback" ]; then
+# 支持回滚参数（${1:-} 防 set -u 下无参数崩溃）
+if [ "${1:-}" = "rollback" ]; then
     check_root
     rollback
     exit 0

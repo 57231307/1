@@ -13,7 +13,7 @@ use crate::models::dto::PageRequest;
 use crate::models::{sales_order, sales_order::Entity as SalesOrderEntity, sales_order_item};
 use crate::services::so::{SalesOrderDetail, SalesOrderItemDetail};
 use crate::utils::PaginatedResponse;
-use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
+use crate::utils::data_scope::{apply_department_scope, DataScopeContext};
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 use sea_orm::{
@@ -117,13 +117,13 @@ impl SalesService {
                 sales_order::Relation::Customer.def(),
             );
 
-        // V15 P0-S01：行级数据权限过滤（sales_order 表无 department_id，Dept 退化为 Self）
+        // 行级数据权限过滤：owner=CreatedBy，dept=DepartmentId（m_rls_dept_domain）
         if let Some(ctx) = data_scope {
-            query = apply_data_scope(
+            query = apply_department_scope(
                 query,
                 ctx,
                 sales_order::Column::CreatedBy,
-                sales_order::Column::CreatedBy,
+                sales_order::Column::DepartmentId,
             );
         }
 
@@ -287,8 +287,14 @@ impl SalesService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售订单 {} 未找到", order_id)))?;
 
-        // V15 P0-S01：行级数据权限校验（IDOR 防护，按 created_by 校验）
-        Self::validate_order_data_scope(data_scope, order.created_by, order_id)?;
+        // 行级数据权限校验（IDOR 防护）：owner=created_by，dept=order.department_id
+        //（m_rls_dept_domain，与 RLS 策略口径一致）
+        Self::validate_order_data_scope(
+            data_scope,
+            order.created_by,
+            order.department_id,
+            order_id,
+        )?;
 
         let customer = order
             .find_related(crate::models::customer::Entity)
@@ -318,10 +324,11 @@ impl SalesService {
     fn validate_order_data_scope(
         data_scope: Option<&DataScopeContext>,
         created_by: Option<i32>,
+        department_id: Option<i32>,
         order_id: i32,
     ) -> Result<(), AppError> {
         if let Some(ctx) = data_scope {
-            if !crate::utils::data_scope::check_resource_owner(ctx, created_by, None) {
+            if !crate::utils::data_scope::check_resource_owner(ctx, created_by, department_id) {
                 return Err(AppError::permission_denied(format!(
                     "无权访问销售订单 {}（数据范围限制）",
                     order_id

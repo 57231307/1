@@ -40,3 +40,32 @@ pub fn is_production() -> bool {
         .map(|v| v.eq_ignore_ascii_case("production"))
         .unwrap_or(false)
 }
+
+/// 按请求实际协议判断登录会话 Cookie 的 Secure 标志。
+///
+/// 背景：deploy 包将 nginx 调整为 80 端口 HTTP 直接服务（443 为可选），
+/// 而 config.yaml 的 env 固定为 "production" → is_production() 恒 true →
+/// 登录 Cookie 带 Secure → HTTP 访问下浏览器拒绝存储 → 登录成功但会话
+/// 无法建立（"登录异常"）。反向场景（HTTPS 部署 + env 误配 development）
+/// 若仅依赖 env 会下发非 Secure Cookie，同样不可接受。
+///
+/// 判定规则：
+/// 1. 请求经 nginx 代理时带 `X-Forwarded-Proto`（deploy/nginx.conf 已配置
+///    `proxy_set_header X-Forwarded-Proto $scheme`）——以最外层代理声明的
+///    请求协议为准：https → Secure，http → 非 Secure。
+/// 2. 无该头（直连后端/本地开发）→ 回退 is_production()（保持既有语义）。
+///
+/// 安全边界：Secure=false 仅意味着 Cookie 可经 HTTP 发送。同站 HTTP 明文
+/// 传输的会话令牌本身可被链路窃听，这是 HTTP 部署模式的固有属性；生产
+/// 建议按 nginx.conf 尾注启用 443。直连后端伪造 X-Forwarded-Proto 的场景
+/// 由部署形态排除（后端仅监听 127.0.0.1:8082，仅 nginx 可达）。
+pub fn cookie_secure_for_request(headers: &axum::http::HeaderMap) -> bool {
+    match headers
+        .get("x-forwarded-proto")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.trim().to_ascii_lowercase())
+    {
+        Some(proto) => proto == "https",
+        None => is_production(),
+    }
+}

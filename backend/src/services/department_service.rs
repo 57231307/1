@@ -334,6 +334,10 @@ impl DepartmentService {
         }
 
         txn.commit().await?;
+        // m_rls_dept_domain：部门变更失效可见部门集合缓存
+        crate::services::data_permission_service::DataPermissionService::invalidate_dept_scope_cache(
+            user_id,
+        );
         Ok(results)
     }
 

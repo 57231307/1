@@ -141,19 +141,93 @@ pub async fn create_greige_pieces_from_report<C: ConnectionTrait>(
 /// - 染色外发（订单有 dye_lot_no/dye_batch_id）：回仓必须携带缸号，生成染色匹
 /// - 净布外发（订单无缸号信息）：生成无缸号胚布匹，允许入成品仓（净布豁免）
 #[allow(clippy::too_many_arguments)]
+/// 匹号领域二期：外发发料前匹号校验
+///
+/// 染色/印花外发（piece_no 语义单据）发料时，明细必须引用真实存在且可用的生产匹：
+/// - piece_no 为空 → 拒绝（外发发料必须精确到匹）
+/// - 匹不存在 → 拒绝（防止引用虚构匹号导致回仓对不上账）
+/// - 匹状态非可用（已预留/已发货/缺陷/不可用）→ 拒绝
+pub async fn validate_pieces_for_issue<C: ConnectionTrait>(
+    db: &C,
+    items: &[crate::models::outsourcing_order_item::Model],
+) -> Result<(), AppError> {
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+    use std::collections::HashMap;
+
+    let piece_nos: Vec<String> = items
+        .iter()
+        .filter_map(|it| it.piece_no.clone())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    // 引用的匹批量查询
+    let pieces: HashMap<String, inventory_piece::Model> = if piece_nos.is_empty() {
+        HashMap::new()
+    } else {
+        inventory_piece::Entity::find()
+            .filter(inventory_piece::Column::PieceNo.is_in(piece_nos.clone()))
+            .all(db)
+            .await?
+            .into_iter()
+            .map(|p| (p.piece_no.clone(), p))
+            .collect()
+    };
+
+    for it in items {
+        let piece_no = it.piece_no.as_deref().unwrap_or_default();
+        if piece_no.is_empty() {
+            return Err(AppError::business(format!(
+                "外发明细（缸号 {}）必须填写生产匹号，发料需精确到匹",
+                it.dye_lot_no.as_deref().unwrap_or_default()
+            )));
+        }
+        let Some(piece) = pieces.get(piece_no) else {
+            return Err(AppError::business(format!(
+                "外发明细引用的生产匹 {piece_no} 不存在，请核对匹号"
+            )));
+        };
+        if piece.status != crate::models::status::purchase_inventory::inventory_piece::AVAILABLE {
+            return Err(AppError::business(format!(
+                "生产匹 {piece_no} 当前状态为 {}（非可用），不可外发发料",
+                piece.status
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// 委外回仓生成匹记录的上下文参数（聚合 9 个业务字段，替代 10 参数函数签名
+/// 以满足 clippy::too_many_arguments 上限；db 连接保持独立参数）
+pub struct OutsourcingReceiptPieceContext<'a> {
+    pub receipt_no: &'a str,
+    pub receipt_dye_lot_no: Option<&'a str>,
+    pub order_dye_lot_no: Option<&'a str>,
+    pub color_no: Option<&'a str>,
+    pub product_id: i32,
+    pub warehouse_id: Option<i32>,
+    pub length_m: rust_decimal::Decimal,
+    pub grade: Option<&'a str>,
+    pub remarks: &'a str,
+}
+
 pub async fn create_piece_from_outsourcing_receipt<C: ConnectionTrait>(
     db: &C,
-    receipt_no: &str,
-    receipt_dye_lot_no: Option<&str>,
-    order_dye_lot_no: Option<&str>,
-    product_id: i32,
-    warehouse_id: Option<i32>,
-    length_m: rust_decimal::Decimal,
-    grade: Option<&str>,
-    remarks: &str,
+    ctx: OutsourcingReceiptPieceContext<'_>,
 ) -> Result<Option<inventory_piece::Model>, AppError> {
     use sea_orm::EntityTrait;
 
+    // 解构上下文为局部变量：与原平铺参数同名，函数体零改动
+    let OutsourcingReceiptPieceContext {
+        receipt_no,
+        receipt_dye_lot_no,
+        order_dye_lot_no,
+        color_no,
+        product_id,
+        warehouse_id,
+        length_m,
+        grade,
+        remarks,
+    } = ctx;
     let Some(warehouse_id) = warehouse_id else {
         return Err(AppError::business(
             "委外回仓单未指定入库仓库，无法生成匹记录",
@@ -255,7 +329,8 @@ pub async fn create_piece_from_outsourcing_receipt<C: ConnectionTrait>(
         warehouse_in_at: Set(Some(now_utc)),
         dye_lot_id: Set(dye_lot_id),
         dye_lot_no: Set(dye_lot_no),
-        color_no: Set(String::new()),
+        // 匹号二期：色号从回仓单/委外订单透传（追溯链闭环）；净布外发无色号存空串
+        color_no: Set(color_no.unwrap_or_default().to_string()),
         batch_no: Set(batch_no_str),
         product_id: Set(product_id),
         warehouse_id: Set(warehouse_id),

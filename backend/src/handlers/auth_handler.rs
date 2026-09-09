@@ -264,6 +264,7 @@ pub async fn login(
                 &payload,
                 &audit_ctx,
                 jar,
+                &headers,
                 token,
                 user,
                 &client_ip,
@@ -764,15 +765,19 @@ fn prepare_csrf_state(
 // 旧客户端过渡兼容（见 auth 中间件），登出时仍会清除残留 jwt Cookie。
 fn build_login_cookies(
     jar: axum_extra::extract::PrivateCookieJar,
+    headers: &HeaderMap,
     token: String,
     refresh_token: String,
 ) -> axum_extra::extract::PrivateCookieJar {
-    let is_production = crate::utils::config::is_production();
+    // Cookie Secure 标志按请求实际协议判定（X-Forwarded-Proto 优先，
+    // 回退 is_production）：HTTP 部署下 secure(true) 的 Cookie 会被浏览器
+    // 拒绝存储 → 登录成功但会话无法建立（登录异常根因之一）
+    let is_secure = crate::utils::config::cookie_secure_for_request(headers);
     // access_token: httpOnly 防 XSS 窃取，SameSite=Strict 防跨站请求携带
     let access_cookie = build_session_cookie(
         "access_token",
         token,
-        is_production,
+        is_secure,
         true,
         CookieDuration::minutes(30),
     );
@@ -780,7 +785,7 @@ fn build_login_cookies(
     let refresh_cookie = build_session_cookie(
         "refresh_token",
         refresh_token,
-        is_production,
+        is_secure,
         true,
         CookieDuration::days(2),
     );
@@ -792,14 +797,14 @@ fn build_login_cookies(
 fn build_session_cookie(
     name: &str,
     value: String,
-    is_production: bool,
+    is_secure: bool,
     http_only: bool,
     max_age: CookieDuration,
 ) -> Cookie<'static> {
     Cookie::build((name.to_string(), value))
         .path("/")
         .http_only(http_only)
-        .secure(is_production)
+        .secure(is_secure)
         .same_site(SameSite::Strict)
         .max_age(max_age)
         .build()
@@ -812,6 +817,7 @@ async fn handle_login_success(
     payload: &LoginRequest,
     audit_ctx: &Option<Extension<AuditContext>>,
     jar: axum_extra::extract::PrivateCookieJar,
+    headers: &HeaderMap,
     token: String,
     user: crate::models::user::Model,
     client_ip: &str,
@@ -860,7 +866,7 @@ async fn handle_login_success(
     };
 
     let csrf_token_plain = response.csrf_token.clone();
-    let jar = build_login_cookies(jar, token, refresh_token);
+    let jar = build_login_cookies(jar, headers, token, refresh_token);
     let mut resp = (jar, Json(ApiResponse::success(response))).into_response();
     // csrf_token 用普通（非加密、非 httpOnly）Cookie 下发，前端 JS 可读取明文
     // 注意：不可写 "HttpOnly=false"——按 RFC 6265 §5.2 只认属性名并忽略值，

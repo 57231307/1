@@ -96,6 +96,11 @@ pub struct Model {
     /// V15 P0-S08 修复：客户主数据行级数据权限归属字段
     pub owner_id: i32,
 
+    /// 数据部门 ID（RLS dept 语义，由 trg_customers_dept 触发器自动维护 =
+    /// owner_id 指向用户的 department_id；0 公海行为 NULL）
+    /// m_rls_dept_domain 迁移补列
+    pub department_id: Option<i32>,
+
     /// 业务负责人分配时间（用于公海保护期校验）
     /// V15 P0-S08 修复：保护期 = now - owner_assigned_at < protection_period
     pub owner_assigned_at: Option<DateTime<Utc>>,

@@ -19,7 +19,7 @@ use crate::services::customer_ops::types::build_select_only_query;
 use crate::services::customer_service::CustomerService;
 use crate::utils::PaginatedResponse;
 use crate::utils::data_permission::DataPermissionFilter;
-use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
+use crate::utils::data_scope::{apply_department_scope_with_pool, DataScopeContext};
 use crate::utils::error::AppError;
 
 impl CustomerService {
@@ -66,11 +66,12 @@ impl CustomerService {
         data_scope: Option<&DataScopeContext>,
     ) -> sea_orm::Select<CustomerEntity> {
         if let Some(ctx) = data_scope {
-            query = apply_data_scope(
+            query = apply_department_scope_with_pool(
                 query,
                 ctx,
-                customer::Column::CreatedBy,
-                customer::Column::CreatedBy,
+                customer::Column::OwnerId,
+                customer::Column::DepartmentId,
+                customer::Column::OwnerId.eq(0),
             );
         }
         if let Some(status) = status {

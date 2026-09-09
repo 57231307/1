@@ -336,6 +336,12 @@ impl OutsourcingOrderService {
             )));
         }
 
+        // 匹号领域二期：发料前校验明细匹号——染色/印花外发必须精确到生产匹，
+        // 且匹存在、状态可用（防止虚构匹号/不可用匹外发导致回仓对账断裂）
+        let item_svc = crate::services::outsourcing_service::OutsourcingOrderItemService::new(self.db.clone());
+        let items = item_svc.list_by_order(id).await?;
+        crate::services::piece_domain_service::validate_pieces_for_issue(&*self.db, &items).await?;
+
         let now = crate::utils::date_utils::utc_now_fixed();
         // 生成发料凭证号
         let voucher_no = Self::generate_voucher_no("IS");

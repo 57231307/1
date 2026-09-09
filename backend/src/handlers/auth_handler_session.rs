@@ -138,12 +138,12 @@ fn record_logout_audit(
 fn build_removal_cookie(
     name: &'static str,
     http_only: bool,
-    is_production: bool,
+    is_secure: bool,
 ) -> axum_extra::extract::cookie::Cookie<'static> {
     axum_extra::extract::cookie::Cookie::build((name, ""))
         .path("/")
         .http_only(http_only)
-        .secure(is_production)
+        .secure(is_secure)
         .same_site(SameSite::Strict)
         .max_age(CookieDuration::seconds(0))
         .build()
@@ -154,12 +154,15 @@ fn build_removal_cookie(
 /// 此处仅清除旧客户端残留的过渡 Cookie（max_age=0 立即过期）
 fn clear_auth_cookies(
     jar: axum_extra::extract::PrivateCookieJar,
-    is_production: bool,
+    headers: &HeaderMap,
 ) -> axum_extra::extract::PrivateCookieJar {
-    jar.add(build_removal_cookie("access_token", true, is_production))
-        .add(build_removal_cookie("refresh_token", true, is_production))
-        .add(build_removal_cookie("csrf_token", false, is_production))
-        .add(build_removal_cookie("jwt", true, is_production))
+    // 清除 Cookie 的 Secure 属性必须与写入时一致：浏览器按 name+domain+path+
+    // secure 匹配待删 Cookie，属性不一致会导致 Set-Cookie max_age=0 删除失效
+    let is_secure = crate::utils::config::cookie_secure_for_request(headers);
+    jar.add(build_removal_cookie("access_token", true, is_secure))
+        .add(build_removal_cookie("refresh_token", true, is_secure))
+        .add(build_removal_cookie("csrf_token", false, is_secure))
+        .add(build_removal_cookie("jwt", true, is_secure))
 }
 
 /// 注销当前会话（清除 refresh token cookie + JTI 吊销）
@@ -185,8 +188,9 @@ pub async fn logout(
         logout_user_id,
         logout_username.clone(),
     );
-    // 漏洞 #12 修复：统一从 `crate::utils::config::is_production()` 读取 APP_ENV
-    let jar = clear_auth_cookies(jar, crate::utils::config::is_production());
+    // Cookie Secure 标志按请求实际协议判定（与 login/refresh 链路同策略），
+    // 保证清除 Cookie 的属性与写入时一致，max_age=0 删除才能命中
+    let jar = clear_auth_cookies(jar, &headers);
     Ok((
         jar,
         axum::Json(ApiResponse::success(LogoutResponse { success: true })),
