@@ -127,3 +127,5 @@
 - **E2E 真实数据强制（IR，2026-09-07）**：E2E 测试禁止使用 mock（page.route/网络层拦截/假响应一律禁止），必须用真实后端 + 真实 PostgreSQL 数据链路验证；Setup 向导类测试用独立空库（如 bingxi_setup_test）真实执行迁移与初始化
 - **全程 CI 验证强制（IR，2026-09-07，重申）**：禁止本地编译、禁止本地启动服务做验证（含下载 Release 二进制本地运行）；真实链路验证一律通过 CI job 进行（如 ci-e2e-setup-wizard），本地仅做静态检查（esbuild/prettier/bash -n/yaml 校验）
 - **推送冻结（IR，2026-09-07）**：git push 指令禁止生效，所有改动仅本地 commit；推送必须等用户明确授权后执行
+- **源代码修改冻结（IR，2026-09-09）**：禁止修改一切源代码（backend/frontend/.github/scripts/deploy/monitoring 等代码与配置文件一律只读）；仅保留文档修改权限（README/CONTRIBUTING/.monkeycode/ 下的 markdown 与文档文件）；文档治理类任务（归档/移动/更新数据）照常执行
+- **文档归档规则（IR，2026-09-09）**：doto.md/bug.md 等任务文件过时即归档（用户确认），归档目录 .monkeycode/docs/archives/YYYY-MM-DD/，命名仿照 doto-YYYY-MM-DD-pre-cleanup.md；项目文档统一存放 .monkeycode/docs/（根目录 docs/ 已迁入），根目录只保留 README/CONTRIBUTING/LICENSE
