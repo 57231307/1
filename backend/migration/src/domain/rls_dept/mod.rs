@@ -66,17 +66,29 @@ CREATE INDEX IF NOT EXISTS idx_crm_lead_department ON crm_lead (department_id);
 CREATE INDEX IF NOT EXISTS idx_crm_opportunity_department ON crm_opportunity (department_id);
 
 -- ============================================================================
--- D. 触发器：BEFORE INSERT OR UPDATE OF owner_id/created_by 自动维护 department_id
+-- D. 触发器：BEFORE INSERT OR UPDATE OF 归属列 自动维护 department_id
 -- ============================================================================
 -- D1 动态语义锚点：owner/created_by 变更时触发器重算 department_id，转移归属人
 -- 后新部门经理立即可见、原部门经理失去可见性。users 无对应行（如 owner_id=0
 -- 公海）时 department_id 置 NULL。
-CREATE OR REPLACE FUNCTION sync_data_department() RETURNS TRIGGER
+-- 注意：customers/crm_lead/crm_opportunity 以 owner_id 为归属列，
+-- suppliers/sales_orders 以 created_by 为归属列——plpgsql 函数体引用 NEW 中
+-- 不存在的列会运行时报错（record "new" has no field），故拆为两个函数。
+
+CREATE OR REPLACE FUNCTION sync_data_department_by_owner() RETURNS TRIGGER
 LANGUAGE plpgsql AS $$
 BEGIN
   NEW.department_id := (
-    SELECT department_id FROM users
-    WHERE id = COALESCE(NEW.owner_id, NEW.created_by)
+    SELECT department_id FROM users WHERE id = NEW.owner_id
+  );
+  RETURN NEW;
+END $$;
+
+CREATE OR REPLACE FUNCTION sync_data_department_by_creator() RETURNS TRIGGER
+LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.department_id := (
+    SELECT department_id FROM users WHERE id = NEW.created_by
   );
   RETURN NEW;
 END $$;
@@ -84,27 +96,27 @@ END $$;
 DROP TRIGGER IF EXISTS trg_customers_dept ON customers;
 CREATE TRIGGER trg_customers_dept
   BEFORE INSERT OR UPDATE OF owner_id ON customers
-  FOR EACH ROW EXECUTE FUNCTION sync_data_department();
+  FOR EACH ROW EXECUTE FUNCTION sync_data_department_by_owner();
 
 DROP TRIGGER IF EXISTS trg_suppliers_dept ON suppliers;
 CREATE TRIGGER trg_suppliers_dept
   BEFORE INSERT OR UPDATE OF created_by ON suppliers
-  FOR EACH ROW EXECUTE FUNCTION sync_data_department();
+  FOR EACH ROW EXECUTE FUNCTION sync_data_department_by_creator();
 
 DROP TRIGGER IF EXISTS trg_sales_orders_dept ON sales_orders;
 CREATE TRIGGER trg_sales_orders_dept
   BEFORE INSERT OR UPDATE OF created_by ON sales_orders
-  FOR EACH ROW EXECUTE FUNCTION sync_data_department();
+  FOR EACH ROW EXECUTE FUNCTION sync_data_department_by_creator();
 
 DROP TRIGGER IF EXISTS trg_crm_lead_dept ON crm_lead;
 CREATE TRIGGER trg_crm_lead_dept
   BEFORE INSERT OR UPDATE OF owner_id ON crm_lead
-  FOR EACH ROW EXECUTE FUNCTION sync_data_department();
+  FOR EACH ROW EXECUTE FUNCTION sync_data_department_by_owner();
 
 DROP TRIGGER IF EXISTS trg_crm_opportunity_dept ON crm_opportunity;
 CREATE TRIGGER trg_crm_opportunity_dept
   BEFORE INSERT OR UPDATE OF owner_id ON crm_opportunity
-  FOR EACH ROW EXECUTE FUNCTION sync_data_department();
+  FOR EACH ROW EXECUTE FUNCTION sync_data_department_by_owner();
 
 -- ============================================================================
 -- E. STABLE 函数：把 string_to_array(current_setting('app.dept_ids')) 包装成

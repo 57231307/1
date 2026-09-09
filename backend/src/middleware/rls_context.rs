@@ -106,7 +106,8 @@ pub async fn rls_context_middleware(
 ///
 /// - 有上下文：`SELECT set_config('app.user_id', $uid, false),
 ///   set_config('app.dept_ids', $csv, false)`（dept_ids 为空时只设 user_id）
-/// - 无上下文：`RESET app.user_id; RESET app.dept_ids`（清理上一任残留）
+/// - 无上下文：`RESET app.user_id` 与 `RESET app.dept_ids`（两条独立语句，
+///   PG prepared statement 不允许多命令；清理上一任残留）
 ///
 /// 设置失败仅记录日志并继续借出（返回 Ok(true)）：GUC 为 NULL 策略 fail-open，
 /// 应用层 apply_data_scope 兜底，不阻断业务。仅对 PostgreSQL 生效。

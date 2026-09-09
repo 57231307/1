@@ -189,8 +189,8 @@ where
     query.filter(condition)
 }
 
-/// RLS 5 表专用（m_rls_dept_domain）：dept 分支按 department_id 列 IN 可见部门集合
-/// + self 分支 OR 组合，与 RLS 策略 USING 同形态（列上可走索引）。
+/// RLS 5 表专用（m_rls_dept_domain）：dept 分支按 department_id 列 IN 可见部门集合，
+/// 与 self 分支做 OR 组合，与 RLS 策略 USING 同形态（列上可走索引）。
 /// 适用于无公海语义的 RLS 表（suppliers/sales_orders/crm_opportunity）；
 /// 有公海分支的表（customers/crm_lead）用 apply_department_scope_with_pool。
 pub fn apply_department_scope<E, T, U>(
@@ -208,8 +208,8 @@ where
     query.filter(condition)
 }
 
-/// RLS 5 表专用（m_rls_dept_domain）：dept 分支按 department_id 列 IN 可见部门集合
-/// + self 分支 + 公海分支 OR 组合，与 RLS 策略 USING 完全同形态（列上可走索引）。
+/// RLS 5 表专用（m_rls_dept_domain）：dept 分支按 department_id 列 IN 可见部门集合，
+/// 与 self 分支及公海分支做 OR 组合，与 RLS 策略 USING 完全同形态（列上可走索引）。
 /// 公海行（customers owner_id=0 / crm_lead lead_status='pool'）由 RLS 放行，
 /// 应用层需同口径放行，避免列表过滤遮蔽公海数据。
 /// 示例：apply_department_scope_with_pool(customer::Entity::find(), &ctx,

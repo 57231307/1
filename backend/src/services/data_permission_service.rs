@@ -316,9 +316,7 @@ impl DataPermissionService {
         // 1. 用户的全部部门：主部门单值（历史/兼容路径）+ 兼职关联
         let mut root_dept_ids: Vec<i32> = Vec::new();
         if let Ok(Some(user_model)) = UserEntity::find_by_id(user_id).one(&*self.db).await {
-            if let Some(primary) = user_model.department_id {
-                root_dept_ids.push(primary);
-            }
+            root_dept_ids.extend(user_model.department_id);
         }
         let user_depts = UserDeptEntity::find()
             .filter(user_department::Column::UserId.eq(user_id))

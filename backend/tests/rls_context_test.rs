@@ -120,7 +120,7 @@ async fn send_probe(app: Router) -> Option<serde_json::Value> {
         .await
         .expect("读取响应体失败");
     let json: serde_json::Value = serde_json::from_slice(&body).expect("解析 JSON 失败");
-    json["rls_guc"].clone()
+    json.get("rls_guc").cloned()
 }
 
 // =========================================================================
@@ -133,7 +133,7 @@ async fn test_self_user_binds_user_id_only() {
     let auth = make_auth(1001, "operator_user", Some("self"));
     let app = build_test_app(state, auth);
 
-    let snap = send_probe(app).await;
+    let snap = send_probe(app).await.expect("self 用户应有 GUC 快照");
     assert_eq!(snap["user_id"], 1001, "self 用户应绑定 user_id");
     assert!(
         snap["dept_ids"].is_null(),
@@ -151,7 +151,7 @@ async fn test_dept_user_binds_user_id_and_dept_ids() {
     let auth = make_dept_auth(2002, "sales_manager", "1,3,5");
     let app = build_test_app(state, auth);
 
-    let snap = send_probe(app).await;
+    let snap = send_probe(app).await.expect("dept 用户应有 GUC 快照");
     assert_eq!(snap["user_id"], 2002, "dept 用户应绑定 user_id");
     assert_eq!(
         snap["dept_ids"].as_str(),
@@ -172,7 +172,7 @@ async fn test_admin_user_skips_rls_context() {
     let app = build_test_app(state, auth);
 
     let snap = send_probe(app).await;
-    assert!(snap.is_null(), "admin（data_scope=all）应无 RLS 上下文");
+    assert!(snap.is_none(), "admin（data_scope=all）应无 RLS 上下文");
 }
 
 // =========================================================================
@@ -185,7 +185,7 @@ async fn test_no_auth_context_has_no_rls_binding() {
     let app = build_test_app_no_auth(state);
 
     let snap = send_probe(app).await;
-    assert!(snap.is_null(), "未认证请求应无 RLS 上下文");
+    assert!(snap.is_none(), "未认证请求应无 RLS 上下文");
 }
 
 // =========================================================================
@@ -198,7 +198,7 @@ async fn test_none_data_scope_treated_as_non_admin() {
     let auth = make_auth(3001, "no_scope_user", None);
     let app = build_test_app(state, auth);
 
-    let snap = send_probe(app).await;
+    let snap = send_probe(app).await.expect("data_scope=None 用户应有 GUC 快照");
     assert_eq!(snap["user_id"], 3001, "data_scope=None 应视为非 admin，绑定 user_id");
 }
 
@@ -270,22 +270,36 @@ async fn test_rls_guc_visible_in_same_pool_pg() {
         user_id: 2002,
         dept_ids: Some(Arc::new("1,3,5".to_string())),
     };
-    let (uid, dept_csv) = with_rls_context(Some(guc), async {
+    let uid = with_rls_context(Some(guc), async {
         let row = db
-            .query_one(sea_orm::Statement::from_string(
+            .query_one_raw(sea_orm::Statement::from_string(
                 sea_orm::DatabaseBackend::Postgres,
-                "SELECT current_setting('app.user_id', true) AS uid, \
-                 current_setting('app.dept_ids', true) AS dept_csv".to_owned(),
+                "SELECT current_setting('app.user_id', true) AS uid".to_owned(),
             ))
             .await
-            .expect("查询 current_setting 失败");
-        (
-            read_setting(row.clone(), "uid"),
-            read_setting(row, "dept_csv"),
-        )
+            .expect("查询 app.user_id 失败");
+        read_setting(row, "uid")
     })
     .await;
     assert_eq!(uid.as_deref(), Some("2002"), "app.user_id 应在借出连接上设置");
+
+    let dept_csv = with_rls_context(
+        Some(RlsGuc {
+            user_id: 2002,
+            dept_ids: Some(Arc::new("1,3,5".to_string())),
+        }),
+        async {
+            let row = db
+                .query_one_raw(sea_orm::Statement::from_string(
+                    sea_orm::DatabaseBackend::Postgres,
+                    "SELECT current_setting('app.dept_ids', true) AS dept_csv".to_owned(),
+                ))
+                .await
+                .expect("查询 app.dept_ids 失败");
+            read_setting(row, "dept_csv")
+        },
+    )
+    .await;
     assert_eq!(
         dept_csv.as_deref(),
         Some("1,3,5"),
@@ -293,21 +307,29 @@ async fn test_rls_guc_visible_in_same_pool_pg() {
     );
 
     // 2) 无上下文：双 GUC 应被 RESET 清理（防跨请求泄漏）
-    let (uid2, dept_csv2) = with_rls_context(None, async {
+    let uid2 = with_rls_context(None, async {
         let row = db
-            .query_one(sea_orm::Statement::from_string(
+            .query_one_raw(sea_orm::Statement::from_string(
                 sea_orm::DatabaseBackend::Postgres,
-                "SELECT current_setting('app.user_id', true) AS uid, \
-                 current_setting('app.dept_ids', true) AS dept_csv".to_owned(),
+                "SELECT current_setting('app.user_id', true) AS uid".to_owned(),
             ))
             .await
-            .expect("查询 current_setting 失败");
-        (
-            read_setting(row.clone(), "uid"),
-            read_setting(row, "dept_csv"),
-        )
+            .expect("查询 app.user_id 失败");
+        read_setting(row, "uid")
     })
     .await;
     assert_eq!(uid2, None, "无上下文借出应 RESET app.user_id");
+
+    let dept_csv2 = with_rls_context(None, async {
+        let row = db
+            .query_one_raw(sea_orm::Statement::from_string(
+                sea_orm::DatabaseBackend::Postgres,
+                "SELECT current_setting('app.dept_ids', true) AS dept_csv".to_owned(),
+            ))
+            .await
+            .expect("查询 app.dept_ids 失败");
+        read_setting(row, "dept_csv")
+    })
+    .await;
     assert_eq!(dept_csv2, None, "无上下文借出应 RESET app.dept_ids");
 }
