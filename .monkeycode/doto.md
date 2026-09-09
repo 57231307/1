@@ -50,6 +50,22 @@
 - [ ] **导出审批测试零覆盖**：令牌签发→verify→消费→record_download 全链路无集成测试；后端仅 4 个纯函数单测；需补审批流集成测试 + E2E（admin 审批后低权限用户持令牌导出成功/无令牌被拒）
 - [ ] **print/export 角色黑名单无端到端验证**：PRINT_DENIED/EXPORT_DENIED（customer/temporary）+ DYE_RECIPE_EXPORT_DENIED（仅 dye_recipe_master）三层清单在 permission 中间件实现且 fail-closed，但因无低权限测试账号（见上轮缺口）从未被真实请求验证
 
+### E2E 综合审计缺口（2026-09-09 三轮，详证见 docs/audits/e2e-comprehensive-audit-2026-09-09.md）
+
+> 覆盖：E2E 真实性、2FA、预览、登录链路、版本号、审批体系、admin 全功能遍历、显示异常/重复提示。
+
+- [ ] 🔴 **E2E 真实性（用户标注关键）**：218 spec 中 58 文件含 mock、55 spec 用 applyAuthMocks 伪造登录态（smoke 全套件/bpm/crm/finance/quality/purchase-ext/enhanced）；flow 主套件 loginViaUI（helpers.ts:898）route.fulfill 拦截 lock-status——既掩盖后端 16 分片并发挂起，又掩盖登录 401 瀑布 bug。整改：真实登录替换全部 applyAuthMocks（前置=多角色账号基建）+ 移除 lock-status 拦截
+- [ ] **2FA/TOTP 零覆盖**：后端 /auth/totp/setup、enable、recovery-codes + 登录 totp_token/恢复码能力完整，E2E 命中 0。补：启用全流程、缺/错/对 token 登录、恢复码一次性消费、禁用回退
+- [ ] **预览零覆盖**：前端 print-templates/report-templates/bpm/templates 三处预览 UI + 后端 /templates/{id}/preview，E2E 命中 0。补：预览可达、内容一致（模板字段出现在预览 DOM/API 返回）、显示完整（无截断/白屏）
+- [ ] **登录 5 请求瀑布**（密码错误一次点击→5 请求）：login() 未置 _skipAuthRetry（auth.ts L29）→ refresh 401 → catch 调 refreshLockStatus → lock-status 401（PUBLIC_PATHS 放行但 handler 强制 AuthContext）→ 再 refresh。修复：login() 置位 + handler 改可选认证 + Login.vue L318 移除失败后刷新
+- [ ] **协议/隐私页死链**：Login.vue L74/78 `#/terms`、`#/privacy` hash 伪路由 vs createWebHistory + 无路由定义 + 无内容文件，点击无效果。补路由 + 内容页
+- [ ] **锁定阈值 5→9**（用户明确要求）：auth_handler.rs L30 与 login_security_handler.rs L95 两处 MAX_FAILED_ATTEMPTS=5 改 9（IP 维度），展示端同步；全局 ×2（=18?）比例待用户确认
+- [ ] **版本号机制故障**：main VERSION=2026.723.1842（8-26 停更）、Cargo.toml=2026.810.1、Release=v2026.9.9.1953 三方不一致；根因 release job `git push origin HEAD:main` 被分支规则拒（PR required + verified signatures），d38c9f6f 留 runner 磁盘。后果 get_current_version 读旧值→check_for_updates 永远误报。方案 A（API 提交）/B（自动 PR）/C（改读 CARGO_PKG_VERSION，推荐评估）待用户决策
+- [ ] **审批体系 E2E 8.6%**：58 个 /approve 端点真实调用仅 5 个；10d spec 5/6 空转；bpm/02 用 applyAuthMocks 且目录不在主 CI；export/role-change/transfer/writeoffs 四套专用审批前端零接入
+- [ ] **审批审计无 APPROVE 分类**：omni_audit.rs L405 classify_operation 仅 PRINT/EXPORT/DOWNLOAD/CRUD/OTHER，无法按事件筛"谁批了什么"；业务表仅 approved_by/at 无 IP
+- [ ] **admin 全功能遍历**（用户 b-j 项）：仅点"新建"，编辑/删除/导出/审批按钮零点击；80+ 模块保存从未落库回读；无 pageerror/白屏/console.error 监听、400/404 系统性检测、error boundary 触发——设计骨架见审计报告第五节（30-traversal spec 系列）
+- [ ] **重复提示检测**：连续提交 N 次 → 同文案 toast ≤1 断言；dialog 重复实例计数；未翻译 key/NaN/undefined 渲染抽样
+
 ### 验证类（需推送授权或手动执行）
 
 - [ ] PG 机制锚点测试手动验证：`TEST_DATABASE_URL=... cargo test --test rls_context_test -- --ignored`（test_rls_guc_visible_in_same_pool_pg，CI 不跑 ignored）
