@@ -52,6 +52,8 @@
 
 ### E2E 综合审计缺口（2026-09-09 三轮，详证见 docs/audits/e2e-comprehensive-audit-2026-09-09.md）
 
+> **全部 30 项缺口的修复实施计划已定稿：docs/plans/one-round-fix-plan-2026-09-09.md**（8 commit 划分、逐文件改动表、依赖图、风险清单）。等待用户解除源代码冻结后按计划一轮执行。
+
 > 覆盖：E2E 真实性、2FA、预览、登录链路、版本号、审批体系、admin 全功能遍历、显示异常/重复提示。
 
 - [ ] 🔴 **E2E 真实性（用户标注关键）**：218 spec 中 58 文件含 mock、55 spec 用 applyAuthMocks 伪造登录态（smoke 全套件/bpm/crm/finance/quality/purchase-ext/enhanced）；flow 主套件 loginViaUI（helpers.ts:898）route.fulfill 拦截 lock-status——既掩盖后端 16 分片并发挂起，又掩盖登录 401 瀑布 bug。整改：真实登录替换全部 applyAuthMocks（前置=多角色账号基建）+ 移除 lock-status 拦截
