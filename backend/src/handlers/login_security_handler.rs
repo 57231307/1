@@ -92,7 +92,7 @@ pub struct SecurityAlert {
     pub description: String,
 }
 
-const MAX_FAILED_ATTEMPTS: i32 = 5;
+const MAX_FAILED_ATTEMPTS: i32 = 9;
 const LOCKOUT_DURATION_MINUTES: i64 = 30;
 
 pub async fn list_login_logs(
@@ -152,33 +152,35 @@ pub async fn list_login_logs(
 
 pub async fn check_lock_status(
     State(state): State<AppState>,
-    auth: AuthContext,
+    auth: crate::middleware::auth_context::OptionalAuthContext,
     Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<LockStatus>>, AppError> {
     let username = params
         .get("username")
         .ok_or_else(|| AppError::bad_request("缺少 username 参数"))?;
 
-    // P0 7-1 修复：水平越权防护
-    // 普通用户仅能查询自己的锁定状态；admin 可查询任意用户。
-    // 缺角色直接拒绝（避免 role_id=0 误匹配"超级管理员"角色）。
-    let is_admin = if let Some(role_id) = auth.role_id {
-        is_admin_role(&state.db, role_id).await
-    } else {
-        false
-    };
-    if !is_admin && auth.username != *username {
-        tracing::warn!(
-            target: "security_audit",
-            event = "AUTHORIZATION_DENIED",
-            user_id = auth.user_id,
-            username = %auth.username,
-            requested_username = %username,
-            "[SECURITY] 非 admin 用户尝试查询他人锁定状态被拒绝"
-        );
-        return Err(AppError::permission_denied(
-            "仅管理员可查询其他用户的锁定状态",
-        ));
+    // P0 7-1 修复 + 登录瀑布修复：OptionalAuthContext 兼容匿名预检
+    // auth 为 None（登录页匿名预检场景）：放行，仅返回该 username 的锁定状态（公开语义）
+    // auth 为 Some（已登录）：保持越权防护——普通用户仅查自己，admin 可查任意
+    if let Some(auth_ctx) = &auth {
+        let is_admin = if let Some(role_id) = auth_ctx.role_id {
+            is_admin_role(&state.db, role_id).await
+        } else {
+            false
+        };
+        if !is_admin && auth_ctx.username.as_deref() != Some(username.as_str()) {
+            tracing::warn!(
+                target: "security_audit",
+                event = "AUTHORIZATION_DENIED",
+                user_id = auth_ctx.user_id,
+                username = ?auth_ctx.username,
+                requested_username = %username,
+                "[SECURITY] 非 admin 用户尝试查询他人锁定状态被拒绝"
+            );
+            return Err(AppError::permission_denied(
+                "仅管理员可查询其他用户的锁定状态",
+            ));
+        }
     }
 
     use crate::models::log_login;
