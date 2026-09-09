@@ -265,9 +265,51 @@ test.describe.serial('引导页初始化真实链路（真实后端 + 真实 Pos
     await passwordInput.first().waitFor({ state: 'visible', timeout: 30_000 });
     await passwordInput.first().fill(ctx.pass);
 
+    // P1-08-1：登录表单要求勾选用户协议（agreedToTerms），未勾选时 form.validate
+    // 校验失败 → 不发 login 请求 → waitForURL 超时（与 flow 主配置 loginViaUI
+    // 的复选框三层 fallback 对齐）
+    const checkboxInput = page.locator('.el-checkbox input').first();
+    const isChecked = await checkboxInput.isChecked().catch(() => false);
+    if (!isChecked) {
+      // 点击视觉复选框区域（.el-checkbox__inner）
+      await page.locator('.el-checkbox__inner').first().click();
+      await page.waitForTimeout(500);
+      let nowChecked = await checkboxInput.isChecked().catch(() => false);
+      if (!nowChecked) {
+        // fallback: 点击 label 区域
+        await page.locator('.el-checkbox').first().click();
+        await page.waitForTimeout(300);
+        nowChecked = await checkboxInput.isChecked().catch(() => false);
+      }
+      if (!nowChecked) {
+        // 最终 fallback: 直接设置 input checked 并触发 change 事件
+        await page.evaluate(() => {
+          const input = document.querySelector('.el-checkbox input') as HTMLInputElement;
+          if (input) {
+            input.checked = true;
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+        });
+        await page.waitForTimeout(300);
+      }
+    }
+
     const loginButton = page.locator('form button.el-button--primary').first();
     await loginButton.waitFor({ state: 'visible', timeout: 10_000 });
     await loginButton.click();
+
+    // 与 flow 主配置 loginViaUI 一致：3 秒后仍在 /login 则派发表单 submit
+    // 事件兜底（覆盖 click 未触发 @submit.prevent 的边缘场景）
+    await page.waitForTimeout(3_000);
+    if (page.url().includes('/login')) {
+      await page.evaluate(() => {
+        const form = document.querySelector('form');
+        if (form) {
+          form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+        }
+      });
+    }
 
     // 真实登录成功 → 离开 /login（Cookie 会话建立）
     await page.waitForURL(url => !url.pathname.includes('/login'), { timeout: 40_000 });
