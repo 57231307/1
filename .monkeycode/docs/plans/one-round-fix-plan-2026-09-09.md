@@ -170,12 +170,14 @@ TwoFactorSetup.vue + api（setupTotp/enableTotp/generateRecoveryCodes）+ 路由
 
 ## 5. P3 E2E 基建
 
-### P3.1 种子角色账号（global-setup.ts 扩展）
+### P3.1 种子角色账号（global-setup.ts 扩展 → 全量角色体系）
 
-- `frontend/e2e/global-setup.ts`：新增 `ensureRoleUsers()`——用 e2e_admin 的 API token（复用现有登录 context）调 POST /users + 角色分配端点（执行时以 /users 路由签名为准；若 API 创建被禁则按 ensureShardUserViaUI 的 UI 模式，成本 5 角色 × UI 流程）；
-- 角色 5 个：cashier / sales_rep / warehouse_keeper / accountant / viewer（后端 seed 角色名执行时以 roles 表 seed 文件为准 `grep -rn "cashier\|sales_rep" backend/src/**/seed*` 或迁移）；
-- 凭证写入 `e2e/.auth/role-credentials.json` + CI env（E2E_CASHIER_USERNAME/... 与 loginAsRole 约定对齐）；
-- 幂等：已存在（409/唯一约束）视为成功。
+- `frontend/e2e/global-setup.ts`：新增 `ensureRoleUsers()`——
+  1. **角色清单盘点**：从后端角色体系枚举全部种子角色（执行时 `grep -rn "role_code\|role_code" backend/src/**/seed* backend/migration/` 或调 GET /roles API 取全量清单，预期 30+）；
+  2. **自动补建缺失角色**（用户指令：无角色时基于权限体系自动创建）：权限体系已定义但角色实体缺失的组合，用 e2e_admin 调 POST /roles + PUT /roles/{id}/permissions 自动创建；另建 2 个边界测试角色（单权限只读角色 / 空权限角色）验证权限下界（空权限角色应不可达任何业务模块、菜单为空或仅 dashboard）；
+  3. **每角色一个测试账号**：POST /users + 角色分配（若 API 创建受限则按 ensureShardUserViaUI 的 UI 模式回退，30+ 角色 UI 创建成本高——优先 API）；
+  4. 凭证全量写入 `e2e/.auth/role-credentials.json`（role → {username, password}），CI env 零改动；与 loginAsRole 的 E2E_{ROLE}_USERNAME 约定兼容（loginAsRole 增加从凭证文件读取的分支）；
+  5. 幂等：角色/账号已存在（409/唯一约束）视为成功跳过。
 
 ### P3.2 E2E 公共断言库（flow/helpers.ts 追加）
 
@@ -198,7 +200,7 @@ TwoFactorSetup.vue + api（setupTotp/enableTotp/generateRecoveryCodes）+ 路由
 | # | spec 文件（frontend/e2e/ 下） | 内容 | 依赖 |
 |---|------------------------------|------|------|
 | 5.1 | flow/31-login-waterfall.spec.ts | 错密码一次点击：断言请求总数 ≤2（login + lock-status 200）、无 /auth/refresh 调用；成功路径 1 请求 | P1.2/P2.1 |
-| 5.2 | flow/32-roles-login.spec.ts | 5 角色真实 UI 登录 + Dashboard 可达 + 侧边栏菜单项随角色收敛（数量/关键项断言） | P3.1 |
+| 5.2 | flow/32-roles-login.spec.ts | **全量角色**（30+ 种子 + 补建 + 边界）真实 UI 登录 + Dashboard 可达 + 侧边栏菜单收敛基础断言；深入遍历归 5.14 矩阵 job | P3.1 |
 | 5.3 | flow/33-vertical-privilege.spec.ts | **全量端点矩阵**：盘点 admin 专属写端点清单（执行时 grep require_admin_role/permission 中间件覆盖面，预期 25-40 个），viewer/cashier 两角色逐端点断言 403 + 审计记录；修复 09-permissions P1-2/P1-3 恒真断言（改精确 403）与 P1-7/P1-8 空转（真实断言） | P3.1 |
 | 5.4 | flow/34-horizontal-privilege.spec.ts | 用户 A（分片账号）PUT/DELETE 用户 B 创建的采购/销售/客户/供应商/报价单据 → 403/404（5 类资源全量） | P3.1 |
 | 5.5 | flow/35-2fa-totp.spec.ts | setup 拿 secret → TOTP 生成 → enable → 退出后登录带 token 成功、错 token 拒绝 → recovery-codes 一次性消费 → 禁用回退单因素 | P3.2 |
@@ -210,6 +212,7 @@ TwoFactorSetup.vue + api（setupTotp/enableTotp/generateRecoveryCodes）+ 路由
 | 5.11 | flow/41-approval-flows.spec.ts | **审批 58 端点全量**（API 级配置驱动）：端点清单执行时从 routes grep `/approve` 生成，每项配置 = 创建前置单据调用链 + approve 调用 + 状态断言 + reject 分支；四套专用流（export/role-change/transfer/writeoffs 双级）+ BPM 引擎显式全流程 spec（任务领取/审批/驳回/流转）；audit-logs 出现 APPROVE 记录断言（P1.4 联动） | P1.1/P1.4 |
 | 5.12 | traversal/ 目录 4 spec（42a-d） | **admin 全功能遍历 86 视图模块全量**——数据驱动框架，见下节详设 | P3.1/P3.2 |
 | 5.13 | flow/43-duplicate-toast.spec.ts | 连续点击提交 5 次 → expectSingleToast + 按钮 loading 禁用断言；dialog 重复实例计数 | P3.2 |
+| 5.14 | 独立 CI job role-permission-matrix（traversal/44-role-matrix-*.spec.ts） | **全角色权限全量矩阵**（用户指令新增）——所有角色登录后遍历全部功能，验证权限合理性/角色权限正常/功能隐藏生效/界面显示正常，详设见下节 | P3.1/P3.2/P5.12 框架复用 |
 
 ### 5.12 详设：全量遍历框架（用户指令：全量上线，做骨架）
 
@@ -231,6 +234,37 @@ TwoFactorSetup.vue + api（setupTotp/enableTotp/generateRecoveryCodes）+ 路由
 
 **CI 数据隔离**：遍历产生的测试数据落 PostgreSQL 真库（禁 mock IR 一致）；分片账号隔离 + uniqueKey 前缀 `TRV{shard}_` 防串扰；run 结束不回滚（CI 空库即抛即用），但 cleanup 路径尽力删除并断言记录残留数。
 
+### 5.14 详设：全角色权限全量矩阵 job（用户新增指令）
+
+**目标**：角色体系内**所有角色**（30+ 种子 + 自动补建 + 2 边界角色）逐个登录，遍历项目全部功能，验证四件事：
+1. 权限是否合理（可达集合与预期一致，无越权可达、无漏配被拒）；
+2. 对应角色权限是否正常（API 层 403/200 行为正确）；
+3. 基于角色的功能隐藏是否生效（侧边栏菜单收敛 + 路由守卫拦截）；
+4. 基于角色的界面显示是否正常（每页无崩溃/白屏/渲染异常）。
+
+**独立 CI job（ci-cd.yml 新增 `role-permission-matrix`）**，与主 E2E 分片分离：
+- 前置 setup step：跑 P3.1 `ensureRoleUsers()`（盘点角色 → 自动补建 → 生成 role-credentials.json）；
+- job 内部按角色分组分片（30+ 角色 ÷ 4-5 角色/片 ≈ 8 片；上限遵循 65 分片指令）；
+
+**每角色测试流（数据驱动，复用 5.12 遍历框架与 trackPageHealth）**：
+1. 真实 UI 登录（loginViaUI）→ Dashboard 可达；
+2. **菜单收敛断言**：读侧边栏渲染的菜单项集合，与该角色预期路由集合逐项比对（多出=隐藏失效，缺失=误隐藏）；
+3. **86 模块全遍历**，每模块三分支断言：
+   - 有权限 → 页面正常渲染（白屏/pageerror/5xx 检查 + 关键表格/表单组件出现）；
+   - 无权限 → 菜单无此项 + 直接输 URL 被路由守卫拦截（403 页/跳转）+ API 抽样 403；
+   - 断言实际行为 ∈ 预期分支，任何"该拒却可达"或"该达却被拒"均 fail 并记录；
+4. **界面显示健康**：全页 trackPageHealth + 无未翻译 key（`xxx.yyy` 字面量）+ 无 NaN/undefined 渲染值抽样；
+5. **API 层权限矩阵**：对该角色无权限资源抽样调写端点（5.3 矩阵按角色复用）断言 403 + 审计记录。
+
+**权限预期模型（双轨）**：
+- **结构推导**：角色 → permissions（GET /roles/{id}）→ 前端路由 meta 权限标记（router/index.ts，执行时定位 meta.permission/roles 字段结构）→ 预期可达集合。推导脚本落 `traversal/permission-model.ts`；
+- **黄金基线**：首轮全角色遍历生成实际 access-map 快照（JSON，按角色）→ **人工审核合理性后固化为基线**（"权限是否合理"的判定环节）→ 后续 CI 对比基线，漂移即 fail（防权限回归）；
+- 推导与基线冲突时以基线 fail 提示人工复核（推导模型覆盖不到的动态菜单场景由基线兜底）。
+
+**产物（job artifacts 上传）**：每角色 access-map 报告（可达/被拒/异常三列 + 菜单差异 diff），越权与漏配逐项可读——作为权限体系健康度的持续审计输出。
+
+**执行时定位项**：角色 seed 清单位置、POST /roles 建角色权限点、router meta 权限结构、侧边栏菜单过滤组件（决定菜单断言选择器）。
+
 改造项：`09-permissions.spec.ts`（见 5.3）、`22-crm-full.spec.ts:55`（见 5.9）、打印内容断言依赖 jszip（package.json devDependencies +1）。
 
 导出内容断言（xlsx）：现有 3 处下载断言升级——jszip 解包 xl/worksheets/sheet1.xml 断言列头与行数 ≥ 列表数据量（exceljs 暂不引入）。
@@ -240,7 +274,8 @@ TwoFactorSetup.vue + api（setupTotp/enableTotp/generateRecoveryCodes）+ 路由
 ## 7. P6 CI 配置（1 commit）
 
 - `.github/workflows/ci-cd.yml`：
-  - E2E 分片矩阵 env 增补角色账号注入（E2E_{ROLE}_USERNAME/PASSWORD 从 secrets/变量展开，或 global-setup 生成后写文件由 spec 读取——采用后者则 CI 零改动）；
+  - E2E 分片矩阵 env 增补角色账号注入（凭证由 global-setup 写文件、spec 读取，CI 零改动）；
+  - **新增 job `role-permission-matrix`**（P5.14）：setup step 跑 ensureRoleUsers → 按角色分组分片跑 44-role-matrix spec → artifacts 上传 access-map 报告；分片上限遵循 65 指令；
   - main coverage job 不动。
 - `frontend/package.json`：devDependencies + jszip。
 
@@ -259,6 +294,7 @@ TwoFactorSetup.vue + api（setupTotp/enableTotp/generateRecoveryCodes）+ 路由
 | 7 | test(e2e): 基建——角色账号/健康断言库/TOTP 生成器/遍历配置框架（P3） |
 | 8 | test(e2e): 专项 spec——登录瀑布/2FA/预览/越权矩阵/重复提示/审批流（P5.1-5.6/5.10/5.11/5.13） |
 | 9 | test(e2e): 全量端点矩阵——print 61/export 56/approve 58 配置驱动 + 遍历 86 模块 4 spec + 3 改造 + CI 纳入（P5.7/5.9/5.12/P3.3） |
+| 10 | test(e2e)+ci: 全角色权限矩阵 job——自动补建角色/账号 setup、44-role-matrix 分片 spec、权限模型推导+黄金基线、ci-cd.yml 新增 role-permission-matrix job（P3.1/P5.14/P6） |
 
 ---
 
@@ -274,6 +310,8 @@ TwoFactorSetup.vue + api（setupTotp/enableTotp/generateRecoveryCodes）+ 路由
 | 版本号方案 C 影响 check_for_updates 对比口径 | CI 部署验证 /system-update/version 与 tag 一致 |
 | 本地禁止编译 | 后端语法/逻辑靠 CI cargo test；前端 tsc/eslint 本地可跑（属 lint 非编译，允许） |
 | **86 模块遍历配置是本轮最大单项工作量** | node 脚本扫路由+api 目录生成初版 → 按域逐模块补表单字段 → 先跑 42a 验证框架 → 复制模式铺开 b/c/d |
+| **角色权限矩阵 2580+ 组合的预期准确性**（30+ 角色 × 86 模块） | 双轨模型：RBAC 结构推导 + 黄金基线（首轮快照人工审核后固化）；推导与基线冲突时 fail 提示人工复核；基线审核是"权限合理性"的人工判定环节，避免把现有错误配置固化为预期 |
+| **自动建角色/账号的 API 权限点本身受保护** | 仅 admin 凭证执行 setup；建角色属测试前置数据准备（与 ensureShardUserViaUI 同级） |
 | **全量端点矩阵（print 61/export 56/approve 58）清单准确性** | 执行时从 backend/src/routes grep 生成清单文件，逐端点带"前置调用链"配置；失败端点单独诊断，区分测试配置错 vs 真实缺陷 |
 | **Tier B 复杂单据保存触发后端校验链 bug** | 属全量遍历的预期价值：发现即记录 doto（缺陷编号）→ 小修则本轮修，大修单独立项；测试标 test.fixme 不静默跳过 |
 | **CI E2E 时长增长（新增 ~200 测试）** | 分片矩阵消化；ci-cd.yml matrix 必要时 34 → 65 分片（用户指令上限）；print/export 全量矩阵 API 级单测试 ≈ 3-5s，可控 |
