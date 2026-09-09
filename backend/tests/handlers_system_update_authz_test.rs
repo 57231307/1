@@ -17,7 +17,7 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
     middleware::{Next, from_fn_with_state},
-    response::{IntoResponse, Response},
+    response::Response,
     routing::{get, post},
 };
 use bingxi_backend::container::AppState;

@@ -547,6 +547,7 @@ impl ExportApprovalService {
     }
 
     /// 清理过期 token（定时任务调用）（将已过期但仍为 approved 状态的请求标记为 expired）
+    #[allow(dead_code, reason = "预留定时任务接入点：过期 token 后台清理")]
     pub async fn cleanup_expired_tokens(&self) -> Result<u64, AppError> {
         let now = Utc::now();
         let expired = Entity::find()
