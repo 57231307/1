@@ -135,11 +135,10 @@ pub async fn export_audit_logs(
     Query(_query): Query<AuditLogQuery>,
 ) -> Result<Json<ApiResponse<ExportResult>>, AppError> {
     // 敏感导出 fail-closed：校验审批令牌
-    let approval = crate::services::export_approval_service::ExportApprovalService::new(
-        state.db.clone(),
-    )
-    .enforce_export_download(_query.download_token.as_deref(), "audit_log")
-    .await?;
+    let approval =
+        crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
+            .enforce_export_download(_query.download_token.as_deref(), "audit_log")
+            .await?;
 
     use sea_orm::{EntityTrait, QueryOrder, QuerySelect};
 
@@ -180,11 +179,9 @@ pub async fn export_audit_logs(
     svc.record_async(event, None);
 
     // 敏感导出 fail-closed：记录令牌消费
-    let _ = crate::services::export_approval_service::ExportApprovalService::new(
-        state.db.clone(),
-    )
-    .record_download(approval.id, file_name.clone(), count as i64, String::new())
-    .await;
+    let _ = crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
+        .record_download(approval.id, file_name.clone(), count as i64, String::new())
+        .await;
 
     Ok(Json(ApiResponse::success(ExportResult {
         download_url: format!("/api/v1/erp/downloads/{}", file_name),

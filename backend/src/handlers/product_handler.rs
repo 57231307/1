@@ -497,11 +497,10 @@ pub async fn export_products(
 ) -> Result<axum::response::Response, AppError> {
     // 敏感导出 fail-closed：校验审批令牌（在 query 被 move 前提取）
     let download_token = query.download_token.clone();
-    let approval = crate::services::export_approval_service::ExportApprovalService::new(
-        state.db.clone(),
-    )
-    .enforce_export_download(download_token.as_deref(), "product")
-    .await?;
+    let approval =
+        crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
+            .enforce_export_download(download_token.as_deref(), "product")
+            .await?;
 
     let product_service = ProductService::new(state.db.clone(), state.search_client.clone());
 
@@ -555,11 +554,14 @@ pub async fn export_products(
     svc.record_async(event, None);
 
     // 敏感导出 fail-closed：记录令牌消费
-    let _ = crate::services::export_approval_service::ExportApprovalService::new(
-        state.db.clone(),
-    )
-    .record_download(approval.id, filename.clone(), row_count as i64, String::new())
-    .await;
+    let _ = crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
+        .record_download(
+            approval.id,
+            filename.clone(),
+            row_count as i64,
+            String::new(),
+        )
+        .await;
 
     build_xlsx_response(&table, &filename)
 }

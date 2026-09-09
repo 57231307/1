@@ -142,7 +142,9 @@ fn test_check_resource_owner_self_zywgsrfh_false() {
 // ===== build_data_scope_condition Dept 分支（m_rls_dept_domain 成员集合语义）=====
 
 use bingxi_backend::models::{customer, sales_order};
-use bingxi_backend::utils::data_scope::{build_data_scope_condition, build_department_scope_condition};
+use bingxi_backend::utils::data_scope::{
+    build_data_scope_condition, build_department_scope_condition,
+};
 
 fn condition_sql(condition: &sea_orm::sea_query::Condition) -> String {
     use sea_orm::sea_query::{Cond, PostgresQueryBuilder, Query};

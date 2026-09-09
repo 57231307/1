@@ -130,7 +130,9 @@ async fn initialize_with_db(
             // 延迟 2s：确保 HTTP 响应经过内核缓冲送达前端。
             tokio::spawn(async {
                 tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-                tracing::info!("Setup 模式初始化完成，进程自退以切换完整模式（systemd 将自动拉起）");
+                tracing::info!(
+                    "Setup 模式初始化完成，进程自退以切换完整模式（systemd 将自动拉起）"
+                );
                 std::process::exit(0);
             });
 

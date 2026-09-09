@@ -29,7 +29,7 @@ use axum::{
 use bingxi_backend::container::AppState;
 use bingxi_backend::middleware::auth_context::AuthContext;
 use bingxi_backend::middleware::rls_context::{
-    current_rls_guc, rls_context_middleware, with_rls_context, RlsGuc,
+    RlsGuc, current_rls_guc, rls_context_middleware, with_rls_context,
 };
 use common::setup_test_db;
 use std::sync::Arc;
@@ -73,11 +73,7 @@ fn make_auth(user_id: i32, username: &str, data_scope: Option<&str>) -> AuthCont
 }
 
 /// 构造 dept 用户 AuthContext（含 dept_ids）
-fn make_dept_auth(
-    user_id: i32,
-    username: &str,
-    dept_ids_csv: &str,
-) -> AuthContext {
+fn make_dept_auth(user_id: i32, username: &str, dept_ids_csv: &str) -> AuthContext {
     let mut auth = make_auth(user_id, username, Some("dept"));
     auth.dept_ids = Some(Arc::new(dept_ids_csv.to_string()));
     auth
@@ -139,10 +135,7 @@ async fn test_self_user_binds_user_id_only() {
 
     let snap = send_probe(app).await.expect("self 用户应有 GUC 快照");
     assert_eq!(snap["user_id"], 1001, "self 用户应绑定 user_id");
-    assert!(
-        snap["dept_ids"].is_null(),
-        "self 用户 dept_ids 应为 None"
-    );
+    assert!(snap["dept_ids"].is_null(), "self 用户 dept_ids 应为 None");
 }
 
 // =========================================================================
@@ -202,8 +195,13 @@ async fn test_none_data_scope_treated_as_non_admin() {
     let auth = make_auth(3001, "no_scope_user", None);
     let app = build_test_app(state, auth);
 
-    let snap = send_probe(app).await.expect("data_scope=None 用户应有 GUC 快照");
-    assert_eq!(snap["user_id"], 3001, "data_scope=None 应视为非 admin，绑定 user_id");
+    let snap = send_probe(app)
+        .await
+        .expect("data_scope=None 用户应有 GUC 快照");
+    assert_eq!(
+        snap["user_id"], 3001,
+        "data_scope=None 应视为非 admin，绑定 user_id"
+    );
 }
 
 // =========================================================================
@@ -214,7 +212,10 @@ async fn test_none_data_scope_treated_as_non_admin() {
 async fn test_spawned_task_without_scope_reads_none() {
     let inner = tokio::spawn(async move { current_rls_guc() });
     let snap = inner.await.expect("spawn task 执行失败");
-    assert!(snap.is_none(), "未进入 rls_context_middleware 作用域的 task 应读到 None");
+    assert!(
+        snap.is_none(),
+        "未进入 rls_context_middleware 作用域的 task 应读到 None"
+    );
 }
 
 // =========================================================================
@@ -233,7 +234,10 @@ async fn test_with_rls_context_scopes_guc() {
     assert_eq!(b.dept_ids.as_ref().map(|s| s.as_str()), Some("7,8"));
 
     let cleared = with_rls_context(None, async { current_rls_guc() }).await;
-    assert!(cleared.is_none(), "with_rls_context(None) 作用域内应为 None");
+    assert!(
+        cleared.is_none(),
+        "with_rls_context(None) 作用域内应为 None"
+    );
 }
 
 // =========================================================================
@@ -285,7 +289,11 @@ async fn test_rls_guc_visible_in_same_pool_pg() {
         read_setting(row, "uid")
     })
     .await;
-    assert_eq!(uid.as_deref(), Some("2002"), "app.user_id 应在借出连接上设置");
+    assert_eq!(
+        uid.as_deref(),
+        Some("2002"),
+        "app.user_id 应在借出连接上设置"
+    );
 
     let dept_csv = with_rls_context(
         Some(RlsGuc {

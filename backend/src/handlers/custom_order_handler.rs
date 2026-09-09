@@ -274,11 +274,12 @@ pub async fn get_custom_order(
     })
     .await
     .map_err(|_| {
-        AppError::InternalError("查询定制订单详情超时（数据库连接池 acquire 死锁防御触发）".to_string())
+        AppError::InternalError(
+            "查询定制订单详情超时（数据库连接池 acquire 死锁防御触发）".to_string(),
+        )
     })??;
 
     Ok(Json(ApiResponse::success(detail)))
-
 }
 
 /// 转换流程节点列表为响应 DTO

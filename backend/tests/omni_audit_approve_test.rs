@@ -112,7 +112,11 @@ fn test_classify_download_regression() {
         "DOWNLOAD"
     );
     assert_eq!(
-        classify_operation("GET", "/api/v1/erp/files/1?action=download", "action=download"),
+        classify_operation(
+            "GET",
+            "/api/v1/erp/files/1?action=download",
+            "action=download"
+        ),
         "DOWNLOAD"
     );
 }

@@ -213,21 +213,20 @@ impl StepRecordService {
         // 匹号领域：生产报工逐匹登记（胚布产出必须有匹号+机台号+开机人）
         if let Some(pieces) = &req.pieces {
             if !pieces.is_empty() {
-                let flow_card = crate::models::production_flow_card::Entity::find_by_id(
-                    updated.flow_card_id,
-                )
-                .one(&*self.db)
-                .await?
-                .ok_or_else(|| {
-                    AppError::not_found(format!(
-                        "工艺单 {} 不存在，无法逐匹登记",
-                        updated.flow_card_id
-                    ))
-                })?;
+                let flow_card =
+                    crate::models::production_flow_card::Entity::find_by_id(updated.flow_card_id)
+                        .one(&*self.db)
+                        .await?
+                        .ok_or_else(|| {
+                            AppError::not_found(format!(
+                                "工艺单 {} 不存在，无法逐匹登记",
+                                updated.flow_card_id
+                            ))
+                        })?;
                 // 织造产品必须明确：生产匹挂在产品维度上
-                let product_id = flow_card.product_id.ok_or_else(|| {
-                    AppError::business("工艺单未关联产品，无法逐匹登记生产匹号")
-                })?;
+                let product_id = flow_card
+                    .product_id
+                    .ok_or_else(|| AppError::business("工艺单未关联产品，无法逐匹登记生产匹号"))?;
                 // 生产匹编号语义：生产匹 = 生产单号下的产品生产出来的第 * 匹，
                 // batch_no 记生产单号（工艺单通过 production_order_id 关联生产订单）
                 let production_order = crate::models::production_order::Entity::find_by_id(

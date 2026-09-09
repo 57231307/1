@@ -10,7 +10,10 @@ use bingxi_backend::handlers::login_security_handler::MAX_FAILED_ATTEMPTS as LOG
 #[test]
 fn test_ip_lockout_threshold_is_9() {
     assert_eq!(AUTH_MAX, 9, "auth_handler MAX_FAILED_ATTEMPTS 应为 9");
-    assert_eq!(LOGIN_MAX, 9, "login_security_handler MAX_FAILED_ATTEMPTS 应为 9");
+    assert_eq!(
+        LOGIN_MAX, 9,
+        "login_security_handler MAX_FAILED_ATTEMPTS 应为 9"
+    );
 }
 
 /// 全局锁定阈值 = IP 维度 × 2 = 18

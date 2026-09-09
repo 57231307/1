@@ -298,11 +298,10 @@ pub async fn export_prices(
 ) -> Result<axum::response::Response, AppError> {
     // 敏感导出 fail-closed：校验审批令牌（在 query 被 move 前提取）
     let download_token = query.download_token.clone();
-    let approval = crate::services::export_approval_service::ExportApprovalService::new(
-        state.db.clone(),
-    )
-    .enforce_export_download(download_token.as_deref(), "price_list")
-    .await?;
+    let approval =
+        crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
+            .enforce_export_download(download_token.as_deref(), "price_list")
+            .await?;
 
     let service = SalesPriceService::new(state.db.clone());
 
@@ -332,11 +331,14 @@ pub async fn export_prices(
     record_prices_export_audit(&state, &auth, row_count, &filename);
 
     // 敏感导出 fail-closed：记录令牌消费
-    let _ = crate::services::export_approval_service::ExportApprovalService::new(
-        state.db.clone(),
-    )
-    .record_download(approval.id, filename.clone(), row_count as i64, String::new())
-    .await;
+    let _ = crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
+        .record_download(
+            approval.id,
+            filename.clone(),
+            row_count as i64,
+            String::new(),
+        )
+        .await;
 
     // V15 P0-S15 修复（Batch 475d）：注入水印（操作员/导出时间/导出条数）
     let watermark = WatermarkConfig {

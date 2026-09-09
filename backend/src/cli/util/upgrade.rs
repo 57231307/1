@@ -1242,10 +1242,7 @@ mod upgrade_tests {
             check_version_downgrade("2026.9.10.1000", "unknown"),
             "目标版本非标格式应 fail-open 放行"
         );
-        assert!(
-            check_version_downgrade("", ""),
-            "空版本号应 fail-open 放行"
-        );
+        assert!(check_version_downgrade("", ""), "空版本号应 fail-open 放行");
     }
 
     #[test]

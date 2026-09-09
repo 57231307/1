@@ -561,11 +561,10 @@ pub async fn export_customers(
     auth: AuthContext,
 ) -> Result<axum::response::Response, AppError> {
     // 敏感导出 fail-closed：校验审批令牌
-    let approval = crate::services::export_approval_service::ExportApprovalService::new(
-        state.db.clone(),
-    )
-    .enforce_export_download(query.download_token.as_deref(), "customer")
-    .await?;
+    let approval =
+        crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
+            .enforce_export_download(query.download_token.as_deref(), "customer")
+            .await?;
 
     // V15 P0-S12：复用 list 逻辑，page_size 取上限 10000 防止单次导出过大
     let page_req = PageRequest {
@@ -601,16 +600,14 @@ pub async fn export_customers(
         chrono::Utc::now().format("%Y%m%d%H%M%S")
     );
     // 敏感导出 fail-closed：记录令牌消费（流式导出用 filename + row_count 作逻辑标识）
-    let _ = crate::services::export_approval_service::ExportApprovalService::new(
-        state.db.clone(),
-    )
-    .record_download(
-        approval.id,
-        filename.clone(),
-        row_count as i64,
-        String::new(),
-    )
-    .await;
+    let _ = crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
+        .record_download(
+            approval.id,
+            filename.clone(),
+            row_count as i64,
+            String::new(),
+        )
+        .await;
     record_customers_export_audit(&state, &auth, row_count);
     build_xlsx_response_with_watermark(&table, &filename, &watermark)
 }

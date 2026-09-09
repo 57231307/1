@@ -364,11 +364,10 @@ pub async fn export_audit_logs(
     require_admin_role(&state, &auth).await?;
 
     // 敏感导出 fail-closed：校验审批令牌
-    let approval = crate::services::export_approval_service::ExportApprovalService::new(
-        state.db.clone(),
-    )
-    .enforce_export_download(query.download_token.as_deref(), "audit_log")
-    .await?;
+    let approval =
+        crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
+            .enforce_export_download(query.download_token.as_deref(), "audit_log")
+            .await?;
 
     const EXPORT_LIMIT: u64 = 10000;
     let cond = build_audit_log_condition(&query);
@@ -410,11 +409,9 @@ pub async fn export_audit_logs(
     .await;
 
     // 敏感导出 fail-closed：记录令牌消费（用真实 file_hash + file_size）
-    let _ = crate::services::export_approval_service::ExportApprovalService::new(
-        state.db.clone(),
-    )
-    .record_download(approval.id, filename.clone(), file_size, file_hash)
-    .await;
+    let _ = crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
+        .record_download(approval.id, filename.clone(), file_size, file_hash)
+        .await;
 
     // 规则 3：导出统一使用 xlsx 格式，错误用 AppError 表达，成功返回 200 + xlsx 响应体
     Ok(xlsx_response(xlsx_bytes, &filename))

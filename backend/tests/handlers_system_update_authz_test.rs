@@ -71,7 +71,9 @@ fn make_auth(user_id: i32, username: &str, role_id: Option<i32>) -> AuthContext 
 }
 
 async fn read_json(body: Body) -> Value {
-    let bytes = axum::body::to_bytes(body, 4096).await.expect("读取响应体失败");
+    let bytes = axum::body::to_bytes(body, 4096)
+        .await
+        .expect("读取响应体失败");
     serde_json::from_slice(&bytes).expect("响应体不是合法 JSON")
 }
 
@@ -103,7 +105,10 @@ async fn test_system_update_unauthenticated_401() {
 /// 场景 2：非 admin（role_id=999，mock fail-closed）调用 download_and_update → 403
 #[tokio::test]
 async fn test_system_update_non_admin_403_download() {
-    let app = build_app(AppState::default(), Some(make_auth(2, "e2e_cashier", Some(999))));
+    let app = build_app(
+        AppState::default(),
+        Some(make_auth(2, "e2e_cashier", Some(999))),
+    );
     let resp = app
         .oneshot(
             Request::builder()
@@ -132,7 +137,10 @@ async fn test_system_update_non_admin_403_download() {
 /// （axum extractor 顺序执行：auth 在 Json 前，auth 403 先于 body 解析；带合法 JSON 确保 422 不先触发）
 #[tokio::test]
 async fn test_system_update_non_admin_403_rollback() {
-    let app = build_app(AppState::default(), Some(make_auth(2, "e2e_cashier", Some(999))));
+    let app = build_app(
+        AppState::default(),
+        Some(make_auth(2, "e2e_cashier", Some(999))),
+    );
     let resp = app
         .oneshot(
             Request::builder()
@@ -177,7 +185,10 @@ async fn test_system_update_missing_role_403() {
 /// 场景 5：只读端点 current-version 无权限校验，登录态可达 → 200
 #[tokio::test]
 async fn test_system_update_version_readonly_200() {
-    let app = build_app(AppState::default(), Some(make_auth(1, "e2e_admin", Some(1))));
+    let app = build_app(
+        AppState::default(),
+        Some(make_auth(1, "e2e_admin", Some(1))),
+    );
     let resp = app
         .oneshot(
             Request::builder()

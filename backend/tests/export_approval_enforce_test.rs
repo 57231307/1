@@ -51,7 +51,9 @@ async fn test_enforce_export_download_whitespace_token_fails() {
 #[tokio::test]
 async fn test_enforce_export_download_nonempty_token_reaches_db() {
     let svc = make_service().await;
-    let result = svc.enforce_export_download(Some("some-token-value"), "customer").await;
+    let result = svc
+        .enforce_export_download(Some("some-token-value"), "customer")
+        .await;
     // sqlite 内存库无 export_approval_request 表，verify_download_token 会报错
     assert!(result.is_err(), "非空 token 应进入 DB 校验流程（预期报错）");
     // 错误应为 DB 查询错误而非"需审批令牌"

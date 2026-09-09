@@ -95,7 +95,9 @@ async fn validate_admin_role(
     }
     // 此处 auth.role_id 必为 Some（None 已被上面 early return 处理）；
     // 用 expect 避免 clippy unreachable（else 分支不可达）警告
-    let role_id = auth.role_id.expect("auth.role_id 已由 is_none() 守卫为 Some");
+    let role_id = auth
+        .role_id
+        .expect("auth.role_id 已由 is_none() 守卫为 Some");
     if !is_admin_role(db, role_id).await {
         audit::log_security_event(
             SecurityEvent::AuthorizationDenied,
