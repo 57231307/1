@@ -185,17 +185,19 @@ const BOUNDARY_ROLES = [
 
 // 黑名单端到端测试角色（33b）：PRINT/EXPORT_DENIED 黑名单按角色 code 精确匹配
 // （backend/src/middleware/permission.rs）。给这两个角色配置 print/export 权限码，
-// 使 33b 断言"持码仍 403"——权限码放行即证明黑名单失效
+// 使 33b 断言"持码仍 403"——权限码放行即证明黑名单失效。
+// 端点对应权限码：/boms/{id}/print → boms:print；/stock/export → stock:export
+// （extract_resource_info 按路径第 4 段取 resource_type）
 const BLACKLIST_TEST_ROLES = [
   {
     code: 'customer',
     name: '客户外部用户（E2E黑名单验证）',
-    permissions: ['dashboard:read', 'product:view', 'product:print', 'product:export'],
+    permissions: ['dashboard:read', 'boms:view', 'boms:print', 'stock:export'],
   },
   {
     code: 'temporary',
     name: '临时账号（E2E黑名单验证）',
-    permissions: ['dashboard:read', 'product:view', 'product:print', 'product:export'],
+    permissions: ['dashboard:read', 'boms:view', 'boms:print', 'stock:export'],
   },
 ];
 

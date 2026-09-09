@@ -8,6 +8,14 @@
  *
  * {id} 占位符在执行时替换为真实实体 id（由前置创建调用链提供）
  * 无前置依赖的 print 端点用 default-id 策略：id=1（CI 种子数据固定首条）
+ *
+ * 路径别名修正（2026-09-10 二审）：以下端点为多段 nest 前缀形态，
+ * 按 grep 段名书写会 404，已改为后端 nest 装配后的真实完整路径：
+ * - /certificates/{id}/print          → /export-inspections/certificates/{id}/print
+ * - /issues/{id}/print                → /custom-orders/issues/{id}/print
+ * - /writeoffs/{id}/print|reject      → /bad-debts/writeoffs/{id}/print|reject
+ * - /{id}/after-sales/print           → /custom-orders/{id}/after-sales/print
+ * - /{id}/customs-declaration/print   → /export-inspections/{id}/customs-declaration/print
  */
 
 export const PRINT_ENDPOINTS: string[] = [
@@ -19,7 +27,7 @@ export const PRINT_ENDPOINTS: string[] = [
   '/ar-reconciliations/{id}/print',
   '/ar/collections/{id}/print',
   '/boms/{id}/print',
-  '/certificates/{id}/print',
+  '/export-inspections/certificates/{id}/print',
   '/chemical-requisitions/{id}/print',
   '/customer-credits/{id}/print',
   '/dye-batches/rework/{id}/print',
@@ -31,7 +39,7 @@ export const PRINT_ENDPOINTS: string[] = [
   '/fixed-assets/count/{id}/print',
   '/fixed-assets/{id}/print',
   '/flow-cards/{id}/print',
-  '/issues/{id}/print',
+  '/custom-orders/issues/{id}/print',
   '/labor-contracts/{id}/print',
   '/logistics-tracking/waybills/{id}/print',
   '/material-shortage/{id}/print',
@@ -62,10 +70,10 @@ export const PRINT_ENDPOINTS: string[] = [
   '/vouchers/{id}/print',
   '/wages/{id}/print',
   '/write-downs/{id}/print',
-  '/writeoffs/{id}/print',
-  '/{id}/after-sales/print',
+  '/bad-debts/writeoffs/{id}/print',
+  '/custom-orders/{id}/after-sales/print',
   '/{id}/bulk-approval/print',
-  '/{id}/customs-declaration/print',
+  '/export-inspections/{id}/customs-declaration/print',
   '/{id}/issue/print',
   '/{id}/lab-dip/print',
   '/{id}/print',
@@ -134,7 +142,7 @@ export const APPROVE_ENDPOINTS: Array<{
 }> = [
   { path: '/adjustments/{id}/approve', entity: 'adjustment' },
   { path: '/adjustments/{id}/reject', entity: 'adjustment' },
-  { path: '/ai-models/versions/{version_id}/approve', entity: 'ai_model_version' },
+  { path: '/ai-models/ai-models/versions/{version_id}/approve', entity: 'ai_model_version' },
   { path: '/ap/invoices/{id}/approve', entity: 'ap_invoice', createApi: '/ap/invoices' },
   { path: '/ap/payment-requests/{id}/approve', entity: 'ap_payment_request', createApi: '/ap/payment-requests' },
   { path: '/ap/payment-requests/{id}/reject', entity: 'ap_payment_request', createApi: '/ap/payment-requests' },
@@ -177,7 +185,7 @@ export const APPROVE_ENDPOINTS: Array<{
   { path: '/sales-contracts/{id}/approve', entity: 'sales_contract', createApi: '/sales-contracts' },
   { path: '/sales-prices/{id}/approve', entity: 'sales_price' },
   { path: '/transfers/{id}/approve', entity: 'transfer' },
-  { path: '/writeoffs/{id}/reject', entity: 'writeoff' },
+  { path: '/bad-debts/writeoffs/{id}/reject', entity: 'writeoff' },
   { path: '/{id}/approve', entity: 'generic' },
   { path: '/{id}/reject', entity: 'generic' },
 ];
