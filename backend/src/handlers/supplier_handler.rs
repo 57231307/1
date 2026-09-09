@@ -349,6 +349,14 @@ pub async fn export_suppliers(
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<axum::response::Response, AppError> {
+    // 敏感导出 fail-closed：校验审批令牌（在 params 被 move 前提取）
+    let download_token = params.download_token.clone();
+    let approval = crate::services::export_approval_service::ExportApprovalService::new(
+        state.db.clone(),
+    )
+    .enforce_export_download(download_token.as_deref(), "supplier")
+    .await?;
+
     // V15 P0-S12：复用 list 逻辑，page_size 取上限 10000 防止单次导出过大
     let items = query_suppliers_for_export(&state, &auth, &mut params).await?;
     let row_count = items.len();
@@ -366,6 +374,13 @@ pub async fn export_suppliers(
     );
 
     record_suppliers_export_audit(&state, &auth, row_count);
+
+    // 敏感导出 fail-closed：记录令牌消费
+    let _ = crate::services::export_approval_service::ExportApprovalService::new(
+        state.db.clone(),
+    )
+    .record_download(approval.id, filename.clone(), row_count as i64, String::new())
+    .await;
 
     build_xlsx_response_with_watermark(&table, &filename, &watermark)
 }

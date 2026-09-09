@@ -25,6 +25,8 @@ pub struct AuditLogQuery {
     pub end_date: Option<String>,
     pub page: Option<u64>,
     pub page_size: Option<u64>,
+    /// 敏感导出 fail-closed：导出审批令牌
+    pub download_token: Option<String>,
 }
 
 #[allow(dead_code, reason = "序列化输出字段")]
@@ -132,6 +134,13 @@ pub async fn export_audit_logs(
     auth: AuthContext,
     Query(_query): Query<AuditLogQuery>,
 ) -> Result<Json<ApiResponse<ExportResult>>, AppError> {
+    // 敏感导出 fail-closed：校验审批令牌
+    let approval = crate::services::export_approval_service::ExportApprovalService::new(
+        state.db.clone(),
+    )
+    .enforce_export_download(_query.download_token.as_deref(), "audit_log")
+    .await?;
+
     use sea_orm::{EntityTrait, QueryOrder, QuerySelect};
 
     const EXPORT_LIMIT: u64 = 10000;
@@ -169,6 +178,13 @@ pub async fn export_audit_logs(
     };
     let svc = Arc::new(AuditLogService::new(state.db.clone()));
     svc.record_async(event, None);
+
+    // 敏感导出 fail-closed：记录令牌消费
+    let _ = crate::services::export_approval_service::ExportApprovalService::new(
+        state.db.clone(),
+    )
+    .record_download(approval.id, file_name.clone(), count as i64, String::new())
+    .await;
 
     Ok(Json(ApiResponse::success(ExportResult {
         download_url: format!("/api/v1/erp/downloads/{}", file_name),

@@ -400,12 +400,17 @@ fn build_audit_message(
     }
 }
 
-/// V15 P1-7-1：按 method+path+query 分类操作类型；分类规则（优先级从高到低）： 1. 路径末段为 print / 路径含 /print/ → PRINT 2. 路径末段为 export / 路径含 /export/ / 路径以 /pdf 结尾 → EXPORT 3. 查询参数 action=download / 路径末段为 download → DOWNLOAD
+/// V15 P1-7-1：按 method+path+query 分类操作类型；分类规则（优先级从高到低）： 0. 路径末段含 approve / 路径末段为 reject 或 submit → APPROVE 1. 路径末段为 print / 路径含 /print/ → PRINT 2. 路径末段为 export / 路径含 /export/ / 路径以 /pdf 结尾 → EXPORT 3. 查询参数 action=download / 路径末段为 download → DOWNLOAD
 /// 4. HTTP 方法映射：GET→READ、POST→CREATE、PUT/PATCH→UPDATE、DELETE→DELETE 5. 其他 → OTHER；用途：omni_audit_logs.event_type 字段从硬编码 "API_CALL" 升级为分类标签， 支持 SQL `WHERE event_type = 'EXPORT'` 筛选导出操作，满足合规审计报表分类需求。
 fn classify_operation(method: &str, uri: &str, query_string: &str) -> String {
     // 路径末段（剥离 query string）
     let path = uri.split('?').next().unwrap_or(uri);
     let last_segment = path.split('/').rfind(|p| !p.is_empty()).unwrap_or("");
+
+    // 0. APPROVE：审批/驳回/提交动作（路径末段含 approve，或末段为 reject/submit）
+    if last_segment.contains("approve") || last_segment == "reject" || last_segment == "submit" {
+        return "APPROVE".to_string();
+    }
 
     // 1. PRINT：路径末段为 print，或路径含 /print/
     if last_segment == "print" || path.contains("/print/") {

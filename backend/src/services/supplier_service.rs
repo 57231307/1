@@ -1005,6 +1005,8 @@ pub struct SupplierQueryParams {
     pub category_id: Option<i32>,
     pub is_processor: Option<bool>,
     pub processor_type: Option<String>,
+    /// 敏感导出 fail-closed：导出审批令牌
+    pub download_token: Option<String>,
 }
 
 /// batch-13 P2：供应商账户余额

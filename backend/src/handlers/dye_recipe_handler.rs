@@ -38,6 +38,8 @@ pub struct DyeRecipeListQuery {
     pub color_name: Option<String>,
     pub dye_type: Option<String>,
     pub status: Option<String>,
+    /// 敏感导出 fail-closed：导出审批令牌
+    pub download_token: Option<String>,
 }
 
 /// 审核请求体
@@ -201,6 +203,14 @@ pub async fn export_dye_recipes(
     auth: AuthContext,
     Query(query): Query<DyeRecipeListQuery>,
 ) -> Result<axum::response::Response, AppError> {
+    // 敏感导出 fail-closed：校验审批令牌（在 query 被 move 前提取）
+    let download_token = query.download_token.clone();
+    let approval = crate::services::export_approval_service::ExportApprovalService::new(
+        state.db.clone(),
+    )
+    .enforce_export_download(download_token.as_deref(), "dye_recipe")
+    .await?;
+
     // 导出全量数据（不分页），保留 handler 直接查询以避免 service 暴露过多内部 select
     let recipes = query_dye_recipes_for_export(&state.db, &query).await?;
     let row_count = recipes.len();
@@ -212,6 +222,13 @@ pub async fn export_dye_recipes(
     let table = build_dye_recipes_table(&recipes_json);
 
     record_dye_recipes_export_audit(&state, &auth, row_count, &query);
+
+    // 敏感导出 fail-closed：记录令牌消费
+    let _ = crate::services::export_approval_service::ExportApprovalService::new(
+        state.db.clone(),
+    )
+    .record_download(approval.id, "dye_recipes_export".to_string(), row_count as i64, String::new())
+    .await;
 
     // 规则 3：导出统一使用 xlsx 格式，错误用 AppError 表达，成功返回 200 + xlsx 响应体
     build_xlsx_response(&table, "dye_recipes_export")

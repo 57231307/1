@@ -362,6 +362,36 @@ impl ExportApprovalService {
         Ok(updated)
     }
 
+    /// 敏感导出 fail-closed 校验：导出 handler 在生成文件前必须调用此方法
+    ///
+    /// - token 为 None/空 → 直接 403（fail-closed，禁止无令牌导出敏感资源）
+    /// - 调用 verify_download_token（校验存在性 + status==Approved + 有效期 + 下载次数）
+    /// - 校验返回 Model 的 resource_type == expected_resource（防令牌跨资源复用）
+    /// - 通过后返回 Model，供 handler 调用 record_download 记录下载
+    pub async fn enforce_export_download(
+        &self,
+        token: Option<&str>,
+        expected_resource: &str,
+    ) -> Result<Model, AppError> {
+        let token = token.unwrap_or("").trim();
+        if token.is_empty() {
+            return Err(AppError::permission_denied(
+                "敏感资源导出需先获得导出审批令牌",
+            ));
+        }
+
+        let model = self.verify_download_token(token).await?;
+
+        if model.resource_type != expected_resource {
+            return Err(AppError::permission_denied(format!(
+                "导出令牌资源类型不匹配：期望 {}，实际 {}",
+                expected_resource, model.resource_type
+            )));
+        }
+
+        Ok(model)
+    }
+
     /// 校验下载 token（导出 handler 调用前校验）（返回审批请求记录，校验通过后 handler 生成导出文件并记录 file_path/checksum）
     pub async fn verify_download_token(&self, token: &str) -> Result<Model, AppError> {
         let model = Entity::find()

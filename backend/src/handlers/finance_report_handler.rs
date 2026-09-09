@@ -20,12 +20,16 @@ use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
 pub struct DateRangeQuery {
     pub start_date: Option<chrono::NaiveDate>,
     pub end_date: Option<chrono::NaiveDate>,
+    /// 敏感导出 fail-closed：导出审批令牌
+    pub download_token: Option<String>,
 }
 
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct PeriodQuery {
     pub period: Option<String>,
+    /// 敏感导出 fail-closed：导出审批令牌
+    pub download_token: Option<String>,
 }
 
 #[allow(dead_code, reason = "反序列化输入字段")]
@@ -35,6 +39,8 @@ pub struct SubsidiaryLedgerQuery {
     pub dimension_value: String,
     pub start_date: Option<chrono::NaiveDate>,
     pub end_date: Option<chrono::NaiveDate>,
+    /// 敏感导出 fail-closed：导出审批令牌
+    pub download_token: Option<String>,
 }
 
 #[allow(dead_code, reason = "反序列化输入字段")]
@@ -43,6 +49,8 @@ pub struct GeneralLedgerQuery {
     pub subject_code: String,
     pub start_date: Option<chrono::NaiveDate>,
     pub end_date: Option<chrono::NaiveDate>,
+    /// 敏感导出 fail-closed：导出审批令牌
+    pub download_token: Option<String>,
 }
 
 /// 获取资产负债表
@@ -243,6 +251,14 @@ pub async fn export_trial_balance(
     State(state): State<AppState>,
     Query(query): Query<PeriodQuery>,
 ) -> Result<axum::response::Response, AppError> {
+    // 敏感导出 fail-closed：校验审批令牌
+    let download_token = query.download_token.clone();
+    let approval = crate::services::export_approval_service::ExportApprovalService::new(
+        state.db.clone(),
+    )
+    .enforce_export_download(download_token.as_deref(), "finance_report")
+    .await?;
+
     const EXPORT_LIMIT: usize = 10000;
     let service = FinanceReportService::new(state.db.clone());
     let trial_balance = service.get_trial_balance(query.period).await?;
@@ -282,13 +298,28 @@ pub async fn export_trial_balance(
         rows,
     };
 
+    // 敏感导出 fail-closed：记录令牌消费
+    let _ = crate::services::export_approval_service::ExportApprovalService::new(
+        state.db.clone(),
+    )
+    .record_download(approval.id, "trial_balance_export".to_string(), table.rows.len() as i64, String::new())
+    .await;
+
     build_xlsx_response(&table, "trial_balance_export")
 }
 
 /// V15 P0 5-1 修复：导出资产负债表为 xlsx
 pub async fn export_balance_sheet(
     State(state): State<AppState>,
+    Query(query): Query<PeriodQuery>,
 ) -> Result<axum::response::Response, AppError> {
+    // 敏感导出 fail-closed：校验审批令牌
+    let approval = crate::services::export_approval_service::ExportApprovalService::new(
+        state.db.clone(),
+    )
+    .enforce_export_download(query.download_token.as_deref(), "finance_report")
+    .await?;
+
     const EXPORT_LIMIT: usize = 10000;
     let service = FinanceReportService::new(state.db.clone());
     let balance_sheet = service.get_balance_sheet().await?;
@@ -335,6 +366,13 @@ pub async fn export_balance_sheet(
         rows,
     };
 
+    // 敏感导出 fail-closed：记录令牌消费
+    let _ = crate::services::export_approval_service::ExportApprovalService::new(
+        state.db.clone(),
+    )
+    .record_download(approval.id, "balance_sheet_export".to_string(), table.rows.len() as i64, String::new())
+    .await;
+
     build_xlsx_response(&table, "balance_sheet_export")
 }
 
@@ -343,6 +381,14 @@ pub async fn export_income_statement(
     State(state): State<AppState>,
     Query(query): Query<DateRangeQuery>,
 ) -> Result<axum::response::Response, AppError> {
+    // 敏感导出 fail-closed：校验审批令牌
+    let download_token = query.download_token.clone();
+    let approval = crate::services::export_approval_service::ExportApprovalService::new(
+        state.db.clone(),
+    )
+    .enforce_export_download(download_token.as_deref(), "finance_report")
+    .await?;
+
     const EXPORT_LIMIT: usize = 10000;
     let service = FinanceReportService::new(state.db.clone());
     let start_date = query.start_date.unwrap_or_else(|| {
@@ -393,6 +439,13 @@ pub async fn export_income_statement(
         rows,
     };
 
+    // 敏感导出 fail-closed：记录令牌消费
+    let _ = crate::services::export_approval_service::ExportApprovalService::new(
+        state.db.clone(),
+    )
+    .record_download(approval.id, "income_statement_export".to_string(), table.rows.len() as i64, String::new())
+    .await;
+
     build_xlsx_response(&table, "income_statement_export")
 }
 
@@ -401,6 +454,14 @@ pub async fn export_cash_flow_statement(
     State(state): State<AppState>,
     Query(query): Query<DateRangeQuery>,
 ) -> Result<axum::response::Response, AppError> {
+    // 敏感导出 fail-closed：校验审批令牌
+    let download_token = query.download_token.clone();
+    let approval = crate::services::export_approval_service::ExportApprovalService::new(
+        state.db.clone(),
+    )
+    .enforce_export_download(download_token.as_deref(), "finance_report")
+    .await?;
+
     const EXPORT_LIMIT: usize = 10000;
     let service = FinanceReportService::new(state.db.clone());
     let start_date = query.start_date.unwrap_or_else(|| {
@@ -458,6 +519,13 @@ pub async fn export_cash_flow_statement(
         rows,
     };
 
+    // 敏感导出 fail-closed：记录令牌消费
+    let _ = crate::services::export_approval_service::ExportApprovalService::new(
+        state.db.clone(),
+    )
+    .record_download(approval.id, "cash_flow_statement_export".to_string(), table.rows.len() as i64, String::new())
+    .await;
+
     build_xlsx_response(&table, "cash_flow_statement_export")
 }
 
@@ -466,6 +534,14 @@ pub async fn export_general_ledger(
     State(state): State<AppState>,
     Query(query): Query<GeneralLedgerQuery>,
 ) -> Result<axum::response::Response, AppError> {
+    // 敏感导出 fail-closed：校验审批令牌
+    let download_token = query.download_token.clone();
+    let approval = crate::services::export_approval_service::ExportApprovalService::new(
+        state.db.clone(),
+    )
+    .enforce_export_download(download_token.as_deref(), "finance_report")
+    .await?;
+
     const EXPORT_LIMIT: usize = 10000;
     let service = FinanceReportService::new(state.db.clone());
     let start_date = query.start_date.unwrap_or_else(|| {
@@ -516,6 +592,13 @@ pub async fn export_general_ledger(
         rows,
     };
 
+    // 敏感导出 fail-closed：记录令牌消费
+    let _ = crate::services::export_approval_service::ExportApprovalService::new(
+        state.db.clone(),
+    )
+    .record_download(approval.id, "general_ledger_export".to_string(), table.rows.len() as i64, String::new())
+    .await;
+
     build_xlsx_response(&table, "general_ledger_export")
 }
 
@@ -524,6 +607,14 @@ pub async fn export_subsidiary_ledger(
     State(state): State<AppState>,
     Query(query): Query<SubsidiaryLedgerQuery>,
 ) -> Result<axum::response::Response, AppError> {
+    // 敏感导出 fail-closed：校验审批令牌
+    let download_token = query.download_token.clone();
+    let approval = crate::services::export_approval_service::ExportApprovalService::new(
+        state.db.clone(),
+    )
+    .enforce_export_download(download_token.as_deref(), "finance_report")
+    .await?;
+
     const EXPORT_LIMIT: usize = 10000;
     let service = FinanceReportService::new(state.db.clone());
     let start_date = query.start_date.unwrap_or_else(|| {
@@ -578,6 +669,13 @@ pub async fn export_subsidiary_ledger(
         headers,
         rows,
     };
+
+    // 敏感导出 fail-closed：记录令牌消费
+    let _ = crate::services::export_approval_service::ExportApprovalService::new(
+        state.db.clone(),
+    )
+    .record_download(approval.id, "subsidiary_ledger_export".to_string(), table.rows.len() as i64, String::new())
+    .await;
 
     build_xlsx_response(&table, "subsidiary_ledger_export")
 }
