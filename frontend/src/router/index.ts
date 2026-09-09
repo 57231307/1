@@ -36,6 +36,18 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '登录' },
   },
   {
+    path: '/terms',
+    name: 'Terms',
+    component: () => import('@/views/legal/TermsView.vue'),
+    meta: { title: '用户协议', public: true },
+  },
+  {
+    path: '/privacy',
+    name: 'Privacy',
+    component: () => import('@/views/legal/PrivacyView.vue'),
+    meta: { title: '隐私政策', public: true },
+  },
+  {
     path: '/setup',
     name: 'Setup',
     component: () => import('@/views/Setup.vue'),
@@ -70,6 +82,17 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: '审计日志',
           icon: 'Setting',
+          permission: 'audit-logs:read',
+          requiresAuth: true,
+        },
+      },
+      {
+        path: 'system/export-approvals',
+        name: 'SystemExportApprovals',
+        component: () => import('@/views/system/ExportApprovals.vue'),
+        meta: {
+          title: '导出审批',
+          icon: 'Lock',
           permission: 'audit-logs:read',
           requiresAuth: true,
         },

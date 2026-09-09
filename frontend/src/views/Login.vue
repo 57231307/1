@@ -71,13 +71,13 @@
           <el-checkbox v-model="loginForm.agreedToTerms" size="default">
             <span class="terms-text">
               {{ $t('login.agreeTo') }}
-              <a href="#/terms" target="_blank" class="terms-link">{{
+              <router-link to="/terms" target="_blank" class="terms-link">{{
                 $t('login.userAgreement')
-              }}</a>
+              }}</router-link>
               {{ $t('login.and') }}
-              <a href="#/privacy" target="_blank" class="terms-link">{{
+              <router-link to="/privacy" target="_blank" class="terms-link">{{
                 $t('login.privacyPolicy')
-              }}</a>
+              }}</router-link>
             </span>
           </el-checkbox>
         </el-form-item>
@@ -314,8 +314,9 @@ async function handleLogin() {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
       const message = error instanceof Error ? error.message : String(error);
       ElMessage.error(message || t('login.failedFallback'));
-      // 登录失败后异步检查账号是否被锁定
-      refreshLockStatus();
+      // 登录瀑布修复：删除 catch 内 refreshLockStatus 调用
+      // 原因：login 401 → catch → refreshLockStatus → lock-status 401 → refreshLockStatus 循环
+      // lock-status 匿名预检已由后端 P1.2 修复，blur 预检保留即可
     } finally {
       loading.value = false;
     }
