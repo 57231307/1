@@ -32,8 +32,8 @@ on:
       - 'v*'
     paths-ignore:
       - '**.md'
+      # 项目文档统一存放 .monkeycode/docs/（2026-09-09 由根目录 docs/ 迁入），已被上方通配覆盖
       - '.monkeycode/**'
-      - 'docs/**'
       - 'LICENSE'
       - '.gitignore'
   pull_request:
@@ -43,7 +43,6 @@ on:
     paths-ignore:
       - '**.md'
       - '.monkeycode/**'
-      - 'docs/**'
       - 'LICENSE'
       - '.gitignore'
   workflow_dispatch:
