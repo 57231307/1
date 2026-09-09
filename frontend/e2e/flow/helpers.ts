@@ -1118,12 +1118,11 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
 }
 
 export async function loginAsRole(page: Page, role: string): Promise<void> {
-  const username = process.env[`E2E_${role.toUpperCase()}_USERNAME`];
-  const password = process.env[`E2E_${role.toUpperCase()}_PASSWORD`];
-  if (!username || !password) {
-    throw new Error(`E2E role credentials not found for role: ${role}`);
+  const cred = getRoleCredential(role);
+  if (!cred) {
+    throw new Error(`E2E role credentials not found for role: ${role}（env E2E_${role.toUpperCase()}_USERNAME 与 role-credentials.json 均无）`);
   }
-  await loginViaUI(page, username, password);
+  await loginViaUI(page, cred.username, cred.password);
 }
 
 export async function healthCheck(): Promise<boolean> {
@@ -1608,5 +1607,198 @@ export async function verifyEndpointHealthy(page: Page, path: string): Promise<v
       throw new Error(`GET ${path} 返回 ${err.status}（服务器内部错误）`);
     }
     // 404/403 可接受（端点未实现或权限不足）
+  }
+}
+
+// ==================== P3.2 E2E 公共断言库 ====================
+
+/**
+ * 页面健康收集器：收集 pageerror / console.error / 5xx 响应
+ */
+export interface PageHealthCollector {
+  pageErrors: string[];
+  consoleErrors: string[];
+  serverErrors: Array<{ url: string; status: number }>;
+}
+
+/**
+ * 注册页面健康监控，返回收集器
+ * 使用方式：
+ *   const collector = trackPageHealth(page);
+ *   await page.goto('/some-route');
+ *   ... 操作 ...
+ *   assertPageHealthy(collector);
+ */
+export function trackPageHealth(page: Page): PageHealthCollector {
+  const collector: PageHealthCollector = {
+    pageErrors: [],
+    consoleErrors: [],
+    serverErrors: [],
+  };
+
+  page.on('pageerror', (error) => {
+    collector.pageErrors.push(error.message);
+  });
+
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') {
+      collector.consoleErrors.push(msg.text());
+    }
+  });
+
+  page.on('response', (response) => {
+    const status = response.status();
+    if (status >= 500) {
+      collector.serverErrors.push({ url: response.url(), status });
+    }
+  });
+
+  return collector;
+}
+
+/**
+ * 断言页面健康：零 pageerror + 零未捕获 console.error + 零 5xx + 主容器非白屏
+ */
+export async function assertPageHealthy(
+  page: Page,
+  collector: PageHealthCollector,
+  options?: { allowConsoleWarn?: boolean; whiteListPaths?: string[] },
+): Promise<void> {
+  // 1. 零 pageerror
+  if (collector.pageErrors.length > 0) {
+    throw new Error(
+      `页面存在未捕获错误: ${collector.pageErrors.slice(0, 5).join('; ')}`,
+    );
+  }
+
+  // 2. 零未捕获 console.error（warn 白名单可配）
+  if (!options?.allowConsoleWarn && collector.consoleErrors.length > 0) {
+    throw new Error(
+      `控制台存在 error 输出: ${collector.consoleErrors.slice(0, 5).join('; ')}`,
+    );
+  }
+
+  // 3. 零 5xx 响应（白名单路径可配）
+  const whiteList = options?.whiteListPaths ?? [];
+  const realServerErrors = collector.serverErrors.filter(
+    (e) => !whiteList.some((p) => e.url.includes(p)),
+  );
+  if (realServerErrors.length > 0) {
+    throw new Error(
+      `存在 5xx 服务器错误: ${realServerErrors.slice(0, 5).map((e) => `${e.status} ${e.url}`).join('; ')}`,
+    );
+  }
+
+  // 4. 主容器非白屏（innerText 长度阈值）
+  const mainContent = await page.evaluate(() => {
+    const main = document.querySelector('.app-container, .el-main, main, #app');
+    return main ? main.textContent?.trim().length ?? 0 : 0;
+  });
+  if (mainContent < 10) {
+    throw new Error(`页面主容器内容过少（${mainContent} 字符），疑似白屏`);
+  }
+}
+
+/**
+ * 断言同一文案 toast 实例计数 ≤1
+ */
+export async function expectSingleToast(
+  page: Page,
+  textPattern?: string | RegExp,
+): Promise<void> {
+  const toasts = await page.locator('.el-message').all();
+  let matching = toasts;
+  if (textPattern) {
+    const pattern = typeof textPattern === 'string'
+      ? new RegExp(textPattern)
+      : textPattern;
+    const texts: string[] = [];
+    for (const t of toasts) {
+      const text = (await t.textContent()) ?? '';
+      if (pattern.test(text)) texts.push(text);
+    }
+    matching = toasts.filter(async (_, i) => pattern.test(texts[i] ?? ''));
+  }
+  const count = matching.length;
+  if (count > 1) {
+    throw new Error(`存在 ${count} 个重复 toast 实例（预期 ≤1）`);
+  }
+}
+
+// ==================== P3.2 TOTP 生成器（RFC 6238） ====================
+
+/**
+ * RFC 6238 TOTP 生成器（crypto HMAC-SHA1，免装包）
+ * 与后端 totp setup/enable 端点配合使用
+ */
+export function generateTotp(secretBase32: string, windowOffset = 0): string {
+  const crypto = require('crypto') as typeof import('crypto');
+
+  // Base32 解码
+  const base32Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  let bits = '';
+  for (const ch of secretBase32.toUpperCase().replace(/=+$/, '')) {
+    const idx = base32Chars.indexOf(ch);
+    if (idx < 0) continue;
+    bits += idx.toString(2).padStart(5, '0');
+  }
+
+  const bytes: number[] = [];
+  for (let i = 0; i + 8 <= bits.length; i += 8) {
+    bytes.push(parseInt(bits.slice(i, i + 8), 2));
+  }
+  const key = Buffer.from(bytes);
+
+  // 时间步长（30s）
+  const counter = Math.floor(Date.now() / 30000) + windowOffset;
+  const counterBuffer = Buffer.alloc(8);
+  counterBuffer.writeBigUInt64BE(BigInt(counter));
+
+  // HMAC-SHA1
+  const hmac = crypto.createHmac('sha1', key).update(counterBuffer).digest();
+
+  // 动态截取
+  const offset = hmac[hmac.length - 1] & 0x0f;
+  const code =
+    (((hmac[offset] & 0x7f) << 24) |
+      ((hmac[offset + 1] & 0xff) << 16) |
+      ((hmac[offset + 2] & 0xff) << 8) |
+      (hmac[offset + 3] & 0xff)) %
+    1_000_000;
+
+  return code.toString().padStart(6, '0');
+}
+
+// ==================== P3.1 角色凭证文件读取 ====================
+
+const ROLE_CREDENTIALS_PATH = 'e2e/.auth/role-credentials.json';
+
+interface RoleCredential {
+  username: string;
+  password: string;
+}
+
+/**
+ * 从 role-credentials.json 读取角色凭证（由 global-setup ensureRoleUsers 写入）
+ * loginAsRole 增加从凭证文件读取的分支，兼容 E2E_{ROLE}_USERNAME env 约定
+ */
+export function getRoleCredential(role: string): RoleCredential | null {
+  // 优先 env 变量
+  const envUsername = process.env[`E2E_${role.toUpperCase()}_USERNAME`];
+  const envPassword = process.env[`E2E_${role.toUpperCase()}_PASSWORD`];
+  if (envUsername && envPassword) {
+    return { username: envUsername, password: envPassword };
+  }
+
+  // 回退凭证文件
+  try {
+    const fs = require('fs') as typeof import('fs');
+    if (!fs.existsSync(ROLE_CREDENTIALS_PATH)) return null;
+    const data = JSON.parse(
+      fs.readFileSync(ROLE_CREDENTIALS_PATH, 'utf-8'),
+    ) as Record<string, RoleCredential>;
+    return data[role] ?? null;
+  } catch {
+    return null;
   }
 }

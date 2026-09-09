@@ -22,6 +22,9 @@ export default async function globalSetup() {
     await ensureShardUserViaUI();
   }
 
+  // ---- 1.5 全量角色账号 setup（P3.1）----
+  await ensureRoleUsers();
+
   // ---- 2. 分片账号登录（API），保存 storageState 供全部 spec 复用 ----
   const ctx = await request.newContext({
     baseURL: API_BASE,
@@ -154,4 +157,154 @@ async function ensureShardUserViaUI(): Promise<void> {
     );
   }
   console.log(`[globalSetup] 分片账号 ${SHARD_USERNAME} 就绪（登录验证通过）`);
+}
+
+// ==================== P3.1 全量角色账号 setup ====================
+
+/**
+ * 角色清单（种子角色，预期 30+）
+ * 执行时会从 GET /roles 拉取全量清单补齐
+ */
+const SEED_ROLES = [
+  'admin', 'system_admin', 'department_manager', 'purchasing_manager',
+  'purchaser', 'sales_manager', 'salesperson', 'warehouse_manager',
+  'warehouse_keeper', 'finance_manager', 'accountant', 'cashier',
+  'cost_accountant', 'quality_manager', 'quality_inspector',
+  'production_manager', 'production_worker', 'dyeing_technician',
+  'color_card_manager', 'after_sales_manager', 'customer_service',
+  'report_viewer', 'auditor', 'procurement_specialist', 'supplier_manager',
+  'inventory_accountant', 'tax_accountant', 'ap_accountant', 'ar_accountant',
+  'fixed_assets_accountant', 'budget_analyst',
+];
+
+// 边界测试角色
+const BOUNDARY_ROLES = [
+  { code: 'e2e_readonly', name: 'E2E只读角色', permissions: ['dashboard:read'] },
+  { code: 'e2e_noperm', name: 'E2E空权限角色', permissions: [] },
+];
+
+const ROLE_CREDENTIALS_PATH = 'e2e/.auth/role-credentials.json';
+const DEFAULT_ROLE_PASSWORD = 'E2eRole#2026';
+
+/**
+ * 全量角色账号 setup：
+ * 1. 拉取后端角色全量清单
+ * 2. 自动补建缺失角色 + 边界测试角色
+ * 3. 每角色一个测试账号（API 创建）
+ * 4. 凭证写入 role-credentials.json
+ * 5. 幂等：角色/账号已存在视为成功跳过
+ */
+async function ensureRoleUsers(): Promise<void> {
+  const loginCtx = await request.newContext({
+    baseURL: API_BASE,
+    extraHTTPHeaders: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+    },
+  });
+
+  // 1. 基础管理员登录
+  const loginResp = await loginCtx.post(`${API_PREFIX}/auth/login`, {
+    data: { username: BASE_USERNAME, password: BASE_PASSWORD },
+  });
+  if (!loginResp.ok()) {
+    await loginCtx.dispose();
+    throw new Error(`ensureRoleUsers: ${BASE_USERNAME} 登录失败 HTTP ${loginResp.status()}`);
+  }
+  const loginCookies = (await loginCtx.storageState()).cookies;
+  const csrfCookie = loginCookies.find((c) => c.name === 'csrf_token');
+  if (!csrfCookie) {
+    await loginCtx.dispose();
+    throw new Error('ensureRoleUsers: 未取得 csrf_token cookie');
+  }
+  const headers = {
+    'X-CSRF-Token': csrfCookie.value,
+    'X-Requested-With': 'XMLHttpRequest',
+  };
+
+  // 2. 拉取角色全量清单
+  const rolesResp = await loginCtx.get(`${API_PREFIX}/roles?page=1&page_size=200`, { headers });
+  const rolesBody = (await rolesResp.json().catch(() => null)) as
+    | { data?: { items?: Array<{ id: number; code?: string; name?: string }> } }
+    | null;
+  const existingRoles = rolesBody?.data?.items ?? [];
+  const existingCodes = new Set(existingRoles.map((r) => r.code).filter(Boolean));
+  console.log(`[globalSetup] 后端现有角色 ${existingRoles.length} 个`);
+
+  // 3. 自动补建缺失种子角色 + 边界角色
+  const allRolesToEnsure = [
+    ...SEED_ROLES.filter((code) => !existingCodes.has(code)).map((code) => ({
+      code,
+      name: code,
+      permissions: [],
+    })),
+    ...BOUNDARY_ROLES.filter((r) => !existingCodes.has(r.code)),
+  ];
+
+  const roleCodeToId = new Map<string, number>(
+    existingRoles.map((r) => [r.code, r.id]).filter(([code]) => code),
+  );
+
+  for (const role of allRolesToEnsure) {
+    const createRoleResp = await loginCtx.post(`${API_PREFIX}/roles`, {
+      headers,
+      data: { code: role.code, name: role.name },
+    });
+    if (createRoleResp.ok()) {
+      const created = (await createRoleResp.json().catch(() => null)) as
+        | { data?: { id: number } }
+        | null;
+      if (created?.data?.id) {
+        roleCodeToId.set(role.code, created.data.id);
+        // 分配权限
+        if (role.permissions.length > 0) {
+          await loginCtx.put(`${API_PREFIX}/roles/${created.data.id}/permissions`, {
+            headers,
+            data: { permissions: role.permissions },
+          });
+        }
+        console.log(`[globalSetup] 角色 ${role.code} 创建成功 (id=${created.data.id})`);
+      }
+    } else if (createRoleResp.status() === 400 || createRoleResp.status() === 409) {
+      console.log(`[globalSetup] 角色 ${role.code} 已存在，跳过创建`);
+    }
+  }
+
+  // 重新拉取角色清单获取补建角色的 id
+  if (allRolesToEnsure.length > 0) {
+    const reFetch = await loginCtx.get(`${API_PREFIX}/roles?page=1&page_size=200`, { headers });
+    const reBody = (await reFetch.json().catch(() => null)) as
+      | { data?: { items?: Array<{ id: number; code?: string }> } }
+      | null;
+    for (const r of reBody?.data?.items ?? []) {
+      if (r.code) roleCodeToId.set(r.code, r.id);
+    }
+  }
+
+  // 4. 为每个角色创建测试账号
+  const credentials: Record<string, { username: string; password: string }> = {};
+  for (const [code, roleId] of roleCodeToId) {
+    const username = `e2e_${code}`;
+    const password = DEFAULT_ROLE_PASSWORD;
+    const createResp = await loginCtx.post(`${API_PREFIX}/users`, {
+      headers,
+      data: { username, password, role_id: roleId, real_name: `E2E-${code}` },
+    });
+    if (createResp.ok()) {
+      console.log(`[globalSetup] 角色账号 ${username} 创建成功`);
+    } else if (createResp.status() === 400 || createResp.status() === 409) {
+      // 已存在
+    } else {
+      console.warn(`[globalSetup] 角色账号 ${username} 创建失败 HTTP ${createResp.status()}`);
+    }
+    credentials[code] = { username, password };
+  }
+
+  await loginCtx.dispose();
+
+  // 5. 写入凭证文件
+  const fs = await import('fs');
+  mkdirSync('e2e/.auth', { recursive: true });
+  fs.writeFileSync(ROLE_CREDENTIALS_PATH, JSON.stringify(credentials, null, 2));
+  console.log(`[globalSetup] 角色凭证写入 ${ROLE_CREDENTIALS_PATH}（${Object.keys(credentials).length} 角色）`);
 }
