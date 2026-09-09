@@ -1,0 +1,4 @@
+[advisories]
+ignore = [
+  { id = "RUSTSEC-2026-0235", reason = "rkyv 0.7 为 rust_decimal 传递依赖（serde 归档路径），项目未使用 rkyv 反序列化入口，无攻击面；修复版 0.8 与 rust_decimal 锁定冲突，待上游升级后移除本豁免" }
+]

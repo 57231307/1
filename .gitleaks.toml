@@ -1,0 +1,19 @@
+# gitleaks allowlist：测试样例/文档示例中的假凭据（非真实泄露）
+# mask_pii 单测的 access_token 样例、docs 的 curl 示例、trace_id 测试串
+[extend]
+useDefault = true
+
+[allowlist]
+description = "测试与文档中的合成凭据样例"
+paths = [
+  '''(^|/)tests?/''',
+  '''\.md$''',
+  '''mask_pii|pii_mask''',
+  '''tracing.*test|trace_context''',
+  '''example\.com''',
+]
+regexes = [
+  '''REDACTED''',
+  '''trace_id=[0-9a-f]{16}|span_id=[0-9a-f]{16}''',
+  '''example|placeholder|change-me|dummy|sample|test-token|fake-token|ci-setup-wizard-real-token''',
+]

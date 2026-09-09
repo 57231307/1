@@ -3070,7 +3070,8 @@ jobs:
         uses: gacts/gitleaks@v1
         continue-on-error: false
         with:
-          args: --redact -v
+          # 配置走仓库根 .gitleaks.toml（默认读取，含测试/文档合成凭据 allowlist）
+          config-path: .gitleaks.toml
 
       - name: 静态安全扫描（semgrep 社区规则）
         uses: returntocorp/semgrep-action@v1
