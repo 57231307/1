@@ -1,12 +1,13 @@
 /**
- * P5.12 全量遍历配置——86 视图模块数据驱动框架
+ * P5.12 全量遍历配置——全部视图模块数据驱动框架（完整版）
  *
- * 数据结构：每个模块登记 route + domain + tier + listApi + formFields
- * 清单生成方式：扫描 router/index.ts（126 路由）+ api/ 目录导出函数映射
- * 分层策略：Tier A（简单 CRUD ~50）/ Tier B（复杂单据 ~20）/ Tier C（只读/报表 ~16）
+ * 清单来源：frontend/src/router/index.ts 真实路由（120+ 条）逐模块登记
+ * 分层策略：Tier A（简单 CRUD，visit+新建+填表+保存+回读）
+ *           Tier B（复杂单据，显式 spec 逐个真实业务链）
+ *           Tier C（只读/报表/仪表盘，visit+白屏+表头渲染断言）
  *
- * 执行时以页面实际 DOM 结构为准补齐 formFields，
- * 必填字段给安全合成值：名称带时间戳、金额1、数量1、下拉选首项
+ * uniqueKey：幂等清理依据（跑完按 API DELETE 回收，删不掉标记 skip-cleanup）
+ * formFields：必填字段安全合成值（名称带时间戳、金额 1、数量 1、下拉选首项）
  */
 
 export interface ModuleFormField {
@@ -21,168 +22,149 @@ export interface TraversalModule {
   tier: 'A' | 'B' | 'C';
   listApi?: string;
   uniqueKey?: string;
-  newButton?: string;
-  formFields?: ModuleFormField[];
-  editAndSave?: boolean;
   noCreate?: boolean;
 }
 
 /**
- * 86 模块清单（按域分组）
- * 清单从 router/index.ts 路由 + api/ 目录导出函数映射生成
- * formFields 按页面实际 DOM 逐模块补齐（执行时）
+ * 全量模块清单（router/index.ts 真实路由映射）
  */
 export const TRAVERSAL_MODULES: TraversalModule[] = [
-  // ===== 核心域 =====
+  // ===== 核心域（router 根级）=====
   { id: 'dashboard', route: '/dashboard', domain: 'core', tier: 'C', noCreate: true },
   { id: 'system', route: '/system', domain: 'core', tier: 'C', noCreate: true },
-  { id: 'system-users', route: '/system/users', domain: 'core', tier: 'A', listApi: '/users' },
-  { id: 'system-roles', route: '/system/roles', domain: 'core', tier: 'A', listApi: '/roles' },
-  { id: 'system-departments', route: '/system/departments', domain: 'core', tier: 'A', listApi: '/departments' },
-  { id: 'system-audit-log', route: '/system/audit-log', domain: 'core', tier: 'C', listApi: '/audit-logs', noCreate: true },
-  { id: 'system-export-approvals', route: '/system/export-approvals', domain: 'core', tier: 'A', listApi: '/export-approvals', noCreate: true },
-  { id: 'system-slow-query', route: '/system/slow-query', domain: 'core', tier: 'C', listApi: '/slow-queries', noCreate: true },
-  { id: 'system-webhooks', route: '/system/webhooks', domain: 'core', tier: 'A', listApi: '/webhooks' },
-  { id: 'system-api-gateway', route: '/system/api-gateway', domain: 'core', tier: 'C', noCreate: true },
+  { id: 'departments', route: '/departments', domain: 'core', tier: 'A', listApi: '/departments' },
+  { id: 'notification', route: '/notification', domain: 'core', tier: 'C', noCreate: true },
+  { id: 'data-permission', route: '/data-permission', domain: 'core', tier: 'C', noCreate: true },
+  { id: 'omni-audit', route: '/omni-audit', domain: 'core', tier: 'C', noCreate: true },
+  { id: 'business-trace', route: '/business-trace', domain: 'core', tier: 'C', noCreate: true },
+  { id: 'components-demo', route: '/components-demo', domain: 'core', tier: 'C', noCreate: true },
+  { id: 'workflow', route: '/workflow', domain: 'core', tier: 'C', noCreate: true },
 
-  // ===== 客户/供应商域 =====
-  { id: 'customer', route: '/customer', domain: 'crm', tier: 'A', listApi: '/customers', uniqueKey: 'name' },
-  { id: 'supplier', route: '/supplier', domain: 'crm', tier: 'A', listApi: '/suppliers', uniqueKey: 'name' },
-  { id: 'crm-lead', route: '/crm/leads', domain: 'crm', tier: 'A', listApi: '/crm/leads', uniqueKey: 'lead_name' },
-  { id: 'crm-opportunity', route: '/crm/opportunities', domain: 'crm', tier: 'A', listApi: '/crm/opportunities' },
-  { id: 'crm-customer-credit', route: '/crm/customer-credits', domain: 'crm', tier: 'C', noCreate: true },
+  // ===== system 域 =====
+  { id: 'system-audit-log', route: '/system/audit-log', domain: 'system', tier: 'C', listApi: '/audit-logs', noCreate: true },
+  { id: 'system-export-approvals', route: '/system/export-approvals', domain: 'system', tier: 'C', listApi: '/export-approvals', noCreate: true },
+  { id: 'system-slow-query', route: '/system/slow-query', domain: 'system', tier: 'C', noCreate: true },
+  { id: 'report-templates', route: '/report-templates', domain: 'system', tier: 'A', listApi: '/report-templates' },
+  { id: 'print-templates', route: '/print-templates', domain: 'system', tier: 'A', listApi: '/print-templates' },
+  { id: 'api-gateway', route: '/api-gateway', domain: 'system', tier: 'C', noCreate: true },
+  { id: 'system-update', route: '/system-update', domain: 'system', tier: 'C', noCreate: true },
+  { id: 'system-profile', route: '/system/profile', domain: 'system', tier: 'C', noCreate: true },
+  { id: 'admin-failover', route: '/admin/failover', domain: 'system', tier: 'C', noCreate: true },
+  { id: 'email', route: '/email', domain: 'system', tier: 'A', listApi: '/email/templates' },
+  { id: 'security', route: '/security', domain: 'system', tier: 'C', noCreate: true },
+  { id: 'security-two-factor', route: '/security/two-factor-setup', domain: 'system', tier: 'C', noCreate: true },
+  { id: 'security-change-password', route: '/security/change-password', domain: 'system', tier: 'C', noCreate: true },
+  { id: 'data-import', route: '/data-import', domain: 'system', tier: 'C', noCreate: true },
 
-  // ===== 采购域 =====
-  { id: 'purchase-order', route: '/purchase/orders', domain: 'purchase', tier: 'B', listApi: '/purchase-orders' },
-  { id: 'purchase-receipt', route: '/purchase/receipts', domain: 'purchase', tier: 'B', listApi: '/purchase-receipts' },
-  { id: 'purchase-return', route: '/purchase/returns', domain: 'purchase', tier: 'B', listApi: '/purchase-returns' },
-  { id: 'purchase-inspection', route: '/purchase/inspections', domain: 'purchase', tier: 'B', listApi: '/purchase/inspections' },
-  { id: 'purchase-contract', route: '/purchase/contracts', domain: 'purchase', tier: 'B', listApi: '/purchase-contracts' },
-  { id: 'purchase-price', route: '/purchase/prices', domain: 'purchase', tier: 'A', listApi: '/purchase-prices' },
-  { id: 'supplier-evaluation', route: '/supplier/evaluations', domain: 'purchase', tier: 'A', listApi: '/supplier-evaluations' },
+  // ===== finance 域 =====
+  { id: 'finance', route: '/finance', domain: 'finance', tier: 'C', noCreate: true },
+  { id: 'voucher', route: '/voucher', domain: 'finance', tier: 'B', listApi: '/vouchers' },
+  { id: 'account-subject', route: '/account-subject', domain: 'finance', tier: 'A', listApi: '/account-subjects' },
+  { id: 'accounting-period', route: '/accounting-period', domain: 'finance', tier: 'A', listApi: '/accounting-periods' },
+  { id: 'finance-report', route: '/finance-report', domain: 'finance', tier: 'C', noCreate: true },
+  { id: 'ar-reconciliation', route: '/ar-reconciliation', domain: 'finance', tier: 'B', listApi: '/ar-reconciliations' },
+  { id: 'ar-reconciliation-enhanced', route: '/ar-reconciliation/enhanced', domain: 'finance', tier: 'C', noCreate: true },
+  { id: 'fixed-assets', route: '/fixed-assets', domain: 'finance', tier: 'B', listApi: '/fixed-assets' },
+  { id: 'cost', route: '/cost', domain: 'finance', tier: 'C', noCreate: true },
+  { id: 'budget', route: '/budget', domain: 'finance', tier: 'B', listApi: '/budgets' },
+  { id: 'fund', route: '/fund', domain: 'finance', tier: 'C', noCreate: true },
+  { id: 'financial-analysis', route: '/financial-analysis', domain: 'finance', tier: 'C', noCreate: true },
+  { id: 'currency', route: '/currency', domain: 'finance', tier: 'A', listApi: '/exchange-rates' },
+  { id: 'ap', route: '/ap', domain: 'finance', tier: 'B', listApi: '/ap/invoices' },
+  { id: 'ar', route: '/ar', domain: 'finance', tier: 'B', listApi: '/ar/invoices' },
+  { id: 'assist-accounting', route: '/assist-accounting', domain: 'finance', tier: 'C', noCreate: true },
 
-  // ===== 销售域 =====
-  { id: 'sales-order', route: '/sales/orders', domain: 'sales', tier: 'B', listApi: '/sales-orders' },
-  { id: 'sales-delivery', route: '/sales/deliveries', domain: 'sales', tier: 'B', listApi: '/sales-deliveries' },
-  { id: 'sales-return', route: '/sales/returns', domain: 'sales', tier: 'B', listApi: '/sales-returns' },
-  { id: 'sales-quotation', route: '/sales/quotations', domain: 'sales', tier: 'B', listApi: '/sales-quotations' },
-  { id: 'sales-price', route: '/sales/prices', domain: 'sales', tier: 'A', listApi: '/sales-prices' },
-  { id: 'export-refund', route: '/sales/export-refunds', domain: 'sales', tier: 'B', listApi: '/export-refunds' },
-
-  // ===== 库存域 =====
-  { id: 'inventory', route: '/inventory', domain: 'inventory', tier: 'C', listApi: '/inventory', noCreate: true },
-  { id: 'inventory-count', route: '/inventory/counts', domain: 'inventory', tier: 'B', listApi: '/inventory-counts' },
-  { id: 'warehouse', route: '/inventory/warehouses', domain: 'inventory', tier: 'A', listApi: '/warehouses' },
-  { id: 'stock-move', route: '/inventory/stock-moves', domain: 'inventory', tier: 'B', listApi: '/stock-moves' },
-
-  // ===== 生产域 =====
-  { id: 'production-order', route: '/production/orders', domain: 'production', tier: 'B', listApi: '/production-orders' },
-  { id: 'bom', route: '/fabric/bom', domain: 'production', tier: 'A', listApi: '/boms' },
-  { id: 'dye-batch', route: '/production/dye-batches', domain: 'production', tier: 'B', listApi: '/dye-batches' },
-  { id: 'dye-recipe', route: '/production/dye-recipes', domain: 'production', tier: 'A', listApi: '/dye-recipes' },
-  { id: 'flow-card', route: '/production/flow-cards', domain: 'production', tier: 'B', listApi: '/flow-cards' },
-  { id: 'color-card', route: '/fabric/color-card', domain: 'production', tier: 'B', listApi: '/color-cards' },
-  { id: 'color-card-issue', route: '/fabric/color-card-issues', domain: 'production', tier: 'B', listApi: '/color-card-issues' },
-
-  // ===== 质量域 =====
-  { id: 'quality-inspection', route: '/quality/inspections', domain: 'quality', tier: 'B', listApi: '/quality-inspections' },
-  { id: 'quality-standard', route: '/quality/standards', domain: 'quality', tier: 'A', listApi: '/quality-standards' },
-
-  // ===== 财务域 =====
-  { id: 'finance-voucher', route: '/finance/vouchers', domain: 'finance', tier: 'B', listApi: '/vouchers' },
-  { id: 'finance-accounting-period', route: '/finance/accounting-periods', domain: 'finance', tier: 'A', listApi: '/accounting-periods' },
-  { id: 'finance-trial-balance', route: '/finance/trial-balance', domain: 'finance', tier: 'C', noCreate: true },
-  { id: 'finance-balance-sheet', route: '/finance/balance-sheet', domain: 'finance', tier: 'C', noCreate: true },
-  { id: 'finance-income-statement', route: '/finance/income-statement', domain: 'finance', tier: 'C', noCreate: true },
-  { id: 'finance-cash-flow', route: '/finance/cash-flow', domain: 'finance', tier: 'C', noCreate: true },
-  { id: 'finance-general-ledger', route: '/finance/general-ledger', domain: 'finance', tier: 'C', noCreate: true },
-  { id: 'finance-subsidiary-ledger', route: '/finance/subsidiary-ledger', domain: 'finance', tier: 'C', noCreate: true },
-  { id: 'finance-asset', route: '/finance/assets', domain: 'finance', tier: 'B', listApi: '/fixed-assets' },
-  { id: 'finance-asset-count', route: '/finance/asset-counts', domain: 'finance', tier: 'B', listApi: '/fixed-assets/count' },
-  { id: 'finance-ap-invoice', route: '/ap/invoices', domain: 'finance', tier: 'B', listApi: '/ap/invoices' },
-  { id: 'finance-ap-payment', route: '/ap/payments', domain: 'finance', tier: 'B', listApi: '/ap/payments' },
-  { id: 'finance-ap-reconciliation', route: '/ap/reconciliation', domain: 'finance', tier: 'B', listApi: '/ap/reconciliation' },
-  { id: 'finance-ar-collection', route: '/ar/collections', domain: 'finance', tier: 'B', listApi: '/ar/collections' },
-  { id: 'finance-ar-reconciliation', route: '/ar/reconciliations', domain: 'finance', tier: 'B', listApi: '/ar-reconciliations' },
-  { id: 'finance-exchange-rate', route: '/finance/exchange-rates', domain: 'finance', tier: 'A', listApi: '/exchange-rates' },
-  { id: 'finance-account-subject', route: '/finance/account-subjects', domain: 'finance', tier: 'A', listApi: '/account-subjects' },
-
-  // ===== 面料域 =====
-  { id: 'fabric-catalog', route: '/fabric/catalog', domain: 'fabric', tier: 'A', listApi: '/fabric/catalog' },
-  { id: 'fabric-grey', route: '/fabric/grey', domain: 'fabric', tier: 'A', listApi: '/fabric/grey' },
-  { id: 'fabric-finished', route: '/fabric/finished', domain: 'fabric', tier: 'A', listApi: '/fabric/finished' },
-
-  // ===== 审批/系统配置域 =====
-  { id: 'approval-center', route: '/approval/center', domain: 'approval', tier: 'C', noCreate: true },
-  { id: 'role-change-approval', route: '/approval/role-change', domain: 'approval', tier: 'B' },
-  { id: 'transfer-approval', route: '/approval/transfer', domain: 'approval', tier: 'B' },
-  { id: 'writeoff-approval', route: '/approval/writeoffs', domain: 'approval', tier: 'B' },
-  { id: 'print-templates', route: '/system/print-templates', domain: 'core', tier: 'A', listApi: '/print-templates' },
-  { id: 'report-templates', route: '/system/report-templates', domain: 'core', tier: 'A', listApi: '/report-templates' },
-
-  // ===== BI/报表域 =====
-  { id: 'bi-dashboard', route: '/bi/dashboard', domain: 'bi', tier: 'C', noCreate: true },
-  { id: 'bi-analysis', route: '/bi/analysis', domain: 'bi', tier: 'C', noCreate: true },
-
-  // ===== 其他模块（扩展补齐）=====
-  { id: 'custom-order', route: '/custom-order', domain: 'sales', tier: 'B', listApi: '/custom-orders' },
+  // ===== sales 域 =====
+  { id: 'sales', route: '/sales', domain: 'sales', tier: 'C', noCreate: true },
+  { id: 'sales-returns', route: '/sales-returns', domain: 'sales', tier: 'B', listApi: '/sales-returns' },
+  { id: 'sales-contract', route: '/sales-contract', domain: 'sales', tier: 'B', listApi: '/sales-contracts' },
+  { id: 'sales-price', route: '/sales-price', domain: 'sales', tier: 'A', listApi: '/sales-prices' },
+  { id: 'sales-ext', route: '/sales-ext', domain: 'sales', tier: 'C', noCreate: true },
+  { id: 'sales-analysis-bi', route: '/bi/sales-analysis', domain: 'sales', tier: 'C', noCreate: true },
+  { id: 'quotations', route: '/quotations', domain: 'sales', tier: 'B', listApi: '/sales-quotations' },
+  { id: 'quotations-new', route: '/quotations/new', domain: 'sales', tier: 'B', noCreate: true },
+  { id: 'custom-orders', route: '/custom-orders', domain: 'sales', tier: 'B', listApi: '/custom-orders' },
   { id: 'after-sales', route: '/after-sales', domain: 'sales', tier: 'B', listApi: '/after-sales' },
-  { id: 'barcode-scanner', route: '/inventory/barcode', domain: 'inventory', tier: 'C', noCreate: true },
-  { id: 'ai-extend', route: '/ai/extend', domain: 'core', tier: 'C', noCreate: true },
-  { id: 'notification', route: '/notifications', domain: 'core', tier: 'C', noCreate: true },
+  { id: 'logistics', route: '/logistics', domain: 'sales', tier: 'C', noCreate: true },
+  { id: 'trading', route: '/trading', domain: 'sales', tier: 'C', noCreate: true },
+
+  // ===== purchase 域 =====
+  { id: 'purchase', route: '/purchase', domain: 'purchase', tier: 'C', noCreate: true },
+  { id: 'purchase-receipt', route: '/purchase-receipt', domain: 'purchase', tier: 'B', listApi: '/purchase-receipts' },
+  { id: 'purchase-contract', route: '/purchase-contract', domain: 'purchase', tier: 'B', listApi: '/purchase-contracts' },
+  { id: 'purchase-price', route: '/purchase-price', domain: 'purchase', tier: 'A', listApi: '/purchase-prices' },
+  { id: 'purchase-inspection', route: '/purchase-inspection', domain: 'purchase', tier: 'B', listApi: '/purchase/inspections' },
+  { id: 'purchase-return', route: '/purchase-return', domain: 'purchase', tier: 'B', listApi: '/purchase/returns' },
+  { id: 'purchase-ext', route: '/purchase-ext', domain: 'purchase', tier: 'C', noCreate: true },
+  { id: 'supplier-evaluation', route: '/supplier-evaluation', domain: 'purchase', tier: 'A', listApi: '/supplier-evaluations' },
+
+  // ===== crm 域 =====
+  { id: 'crm', route: '/crm', domain: 'crm', tier: 'C', noCreate: true },
+  { id: 'crm-pool', route: '/crm/pool', domain: 'crm', tier: 'C', noCreate: true },
+  { id: 'crm-assignment', route: '/crm/assignment', domain: 'crm', tier: 'C', noCreate: true },
+  { id: 'crm-leads', route: '/crm/leads', domain: 'crm', tier: 'A', listApi: '/crm/leads' },
+  { id: 'crm-opportunities', route: '/crm/opportunities', domain: 'crm', tier: 'A', listApi: '/crm/opportunities' },
+  { id: 'customer', route: '/customer', domain: 'crm', tier: 'A', listApi: '/customers', uniqueKey: 'name' },
+  { id: 'customer-credit', route: '/customer-credit', domain: 'crm', tier: 'C', noCreate: true },
+
+  // ===== supplier 域 =====
+  { id: 'supplier', route: '/supplier', domain: 'supplier', tier: 'A', listApi: '/suppliers', uniqueKey: 'name' },
+
+  // ===== product/fabric 域 =====
+  { id: 'product', route: '/product', domain: 'product', tier: 'A', listApi: '/products', uniqueKey: 'name' },
+  { id: 'fabric', route: '/fabric', domain: 'fabric', tier: 'C', noCreate: true },
+  { id: 'greige-fabrics', route: '/greige-fabrics', domain: 'fabric', tier: 'A', listApi: '/greige-fabrics' },
+  { id: 'color-cards-list', route: '/color-cards/list', domain: 'fabric', tier: 'B', listApi: '/color-cards' },
+  { id: 'color-cards-issues', route: '/color-cards/issues', domain: 'fabric', tier: 'B', listApi: '/color-card-issues' },
+  { id: 'color-prices-list', route: '/color-prices/list', domain: 'fabric', tier: 'A', listApi: '/color-prices' },
+  { id: 'color-prices-batch', route: '/color-prices/batch-adjust', domain: 'fabric', tier: 'C', noCreate: true },
+  { id: 'dye-recipe', route: '/dye-recipe', domain: 'fabric', tier: 'B', listApi: '/dye-recipes' },
+  { id: 'dye-batch', route: '/dye-batch', domain: 'fabric', tier: 'B', listApi: '/dye-batches' },
+
+  // ===== inventory 域 =====
+  { id: 'inventory', route: '/inventory', domain: 'inventory', tier: 'C', noCreate: true },
+  { id: 'warehouse', route: '/warehouse', domain: 'inventory', tier: 'A', listApi: '/warehouses' },
+  { id: 'inventory-count', route: '/inventory-count', domain: 'inventory', tier: 'B', listApi: '/inventory-counts' },
+  { id: 'inventory-transfer', route: '/inventory-transfer', domain: 'inventory', tier: 'B', listApi: '/transfers' },
+  { id: 'inventory-adjustment', route: '/inventory-adjustment', domain: 'inventory', tier: 'B', listApi: '/adjustments' },
+  { id: 'inventory-batch', route: '/inventory-batch', domain: 'inventory', tier: 'C', noCreate: true },
+  { id: 'five-dimension', route: '/five-dimension', domain: 'inventory', tier: 'C', noCreate: true },
+  { id: 'barcode-scanner', route: '/barcode-scanner', domain: 'inventory', tier: 'C', noCreate: true },
+
+  // ===== production 域 =====
+  { id: 'production', route: '/production', domain: 'production', tier: 'C', noCreate: true },
+  { id: 'bom', route: '/bom', domain: 'production', tier: 'A', listApi: '/boms' },
+  { id: 'mrp', route: '/mrp', domain: 'production', tier: 'C', noCreate: true },
+  { id: 'mrp-history', route: '/mrp/history', domain: 'production', tier: 'C', noCreate: true },
+  { id: 'capacity', route: '/capacity', domain: 'production', tier: 'C', noCreate: true },
+  { id: 'material-shortage', route: '/material-shortage', domain: 'production', tier: 'C', noCreate: true },
+  { id: 'scheduling', route: '/scheduling', domain: 'production', tier: 'C', noCreate: true },
+  { id: 'scheduling-gantt', route: '/scheduling/gantt', domain: 'production', tier: 'C', noCreate: true },
+  { id: 'process-routes', route: '/process-routes', domain: 'production', tier: 'A', listApi: '/process-routes' },
+
+  // ===== quality 域 =====
+  { id: 'quality', route: '/quality', domain: 'quality', tier: 'C', noCreate: true },
+  { id: 'quality-standards', route: '/quality-standards', domain: 'quality', tier: 'A', listApi: '/quality-standards' },
+
+  // ===== bpm 域 =====
+  { id: 'bpm', route: '/bpm', domain: 'bpm', tier: 'C', noCreate: true },
+  { id: 'bpm-definitions', route: '/bpm/definitions', domain: 'bpm', tier: 'C', noCreate: true },
+  { id: 'bpm-templates', route: '/bpm/templates', domain: 'bpm', tier: 'C', noCreate: true },
+  { id: 'bpm-approval', route: '/bpm/approval', domain: 'bpm', tier: 'C', noCreate: true },
+
+  // ===== advanced/ai 域 =====
+  { id: 'advanced', route: '/advanced', domain: 'advanced', tier: 'C', noCreate: true },
+  { id: 'ai-extend', route: '/ai-extend', domain: 'advanced', tier: 'C', noCreate: true },
+  { id: 'ai-extend-process-opt', route: '/ai-extend/process-optimization', domain: 'advanced', tier: 'C', noCreate: true },
+  { id: 'ai-extend-quality-pred', route: '/ai-extend/quality-prediction', domain: 'advanced', tier: 'C', noCreate: true },
 ];
 
 /**
- * 端点清单（从 backend/src/routes grep 生成）
+ * 端点矩阵配置见 ./endpoints.config.ts（print 58 / export 50 / approve 48 全量）
  */
-export const PRINT_ENDPOINTS = [
-  '/purchase/orders/{id}/print',
-  '/purchase/receipts/{id}/print',
-  '/purchase/inspections/{id}/print',
-  '/purchase/returns/{id}/print',
-  '/purchase-contracts/{id}/print',
-  '/supplier-evaluations/{id}/print',
-  '/social-insurance/{id}/print',
-  '/vouchers/{id}/print',
-  '/fixed-assets/{id}/print',
-  '/fixed-assets/count/{id}/print',
-  '/ap/invoices/{id}/print',
-  '/ap/payments/{id}/print',
-  '/ap/payment-requests/{id}/print',
-  '/ap/reconciliation/{id}/print',
-  '/ar/collections/{id}/print',
-  '/ar-reconciliations/{id}/print',
-  '/exchange-rates/{id}/print',
-  '/customer-credits/{id}/print',
-  '/export-refunds/{id}/print',
-  '/boms/{id}/print',
-  // 完整清单执行时从 routes grep 补齐（65 端点）
-];
-
-export const EXPORT_ENDPOINTS = [
-  '/customers/export',
-  '/suppliers/export',
-  '/products/export',
-  '/dye-recipes/export',
-  '/sales-prices/export',
-  '/audit-logs/export',
-  '/audit/logs/export',
-  '/finance/trial-balance/export',
-  '/finance/balance-sheet/export',
-  '/finance/income-statement/export',
-  '/finance/cash-flow/export',
-  '/finance/general-ledger/export',
-  '/finance/subsidiary-ledger/export',
-  // 完整清单执行时从 routes grep 补齐（68 端点）
-];
-
-export const APPROVE_ENDPOINTS = [
-  '/purchase-orders/{id}/approve',
-  '/sales-orders/{id}/approve',
-  '/export-approvals/{id}/approve',
-  '/role-change-requests/{id}/approve',
-  '/transfers/{id}/approve',
-  '/writeoffs/{id}/approve',
-  '/sales-quotations/{id}/approve',
-  // 完整清单执行时从 routes grep 补齐（53 端点）
-];
+export {
+  PRINT_ENDPOINTS,
+  SENSITIVE_EXPORT_ENDPOINTS,
+  NON_SENSITIVE_EXPORT_ENDPOINTS,
+  APPROVE_ENDPOINTS,
+} from './endpoints.config';

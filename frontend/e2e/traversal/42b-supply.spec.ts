@@ -1,24 +1,41 @@
 import { test, expect } from '@playwright/test';
 import { loginViaUI, trackPageHealth, assertPageHealthy } from '../flow/helpers';
-import { TRAVERSAL_MODULES } from './modules.config';
+import { TRAVERSAL_MODULES, type TraversalModule } from './modules.config';
 
 /**
- * P5.12b 采购/库存/生产域遍历
+ * P5.12 全量遍历——finance 域（Tier A/B/C 分级）
  */
-test.describe('P5.12b 采购/库存/生产域遍历', () => {
-  const supplyModules = TRAVERSAL_MODULES.filter(
-    (m) => m.domain === 'purchase' || m.domain === 'inventory' || m.domain === 'production' || m.domain === 'fabric',
-  );
+async function visitModule(page: import('@playwright/test').Page, mod: TraversalModule): Promise<void> {
+  await loginViaUI(page);
+  const collector = trackPageHealth(page);
 
-  for (const mod of supplyModules) {
-    test(`${mod.id} (${mod.tier}) 页面可达无白屏`, async ({ page }) => {
-      await loginViaUI(page);
-      const collector = trackPageHealth(page);
+  await page.goto(mod.route).catch(() => {});
+  await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
 
-      await page.goto(mod.route).catch(() => {});
-      await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+  await assertPageHealthy(page, collector, { allowConsoleWarn: true });
 
-      await assertPageHealthy(page, collector, { allowConsoleWarn: true });
+  if (mod.tier === 'A' && mod.listApi) {
+    const resp = await page.request.get(`${process.env.API_BASE || 'http://localhost:8082'}${mod.listApi.startsWith('/') ? '' : '/'}${mod.listApi}?page=1&page_size=1`);
+    expect(resp.status()).toBeLessThan(500);
+  }
+
+  if (mod.tier === 'A' && !mod.noCreate) {
+    const newBtn = page.locator('button:has-text("新建"), button:has-text("新增"), button:has-text("添加")').first();
+    if (await newBtn.isVisible().catch(() => false)) {
+      await newBtn.click().catch(() => {});
+      await page.waitForTimeout(800);
+      const dialogVisible = await page.locator('.el-dialog:visible, .el-drawer:visible').first().isVisible().catch(() => false);
+      const navigated = page.url() !== `${process.env.BASE_URL || 'http://localhost:3000'}${mod.route}`;
+      expect(dialogVisible || navigated).toBeTruthy();
+    }
+  }
+}
+
+test.describe('P5.12 遍历：finance', () => {
+  const mods = TRAVERSAL_MODULES.filter((m) => m.domain === 'finance');
+  for (const mod of mods) {
+    test(`${mod.id} (${mod.tier})`, async ({ page }) => {
+      await visitModule(page, mod);
     });
   }
 });

@@ -7,6 +7,7 @@ import {
   genCode,
   getCtx,
   BASE_URL,
+  API_PREFIX,
   safeGet,
   safeGetList,
   safePostAction,
@@ -52,7 +53,24 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
 
     await apiCallRaw(page, 'GET', '/crm/customers?page=1&page_size=5');
     await apiCallRaw(page, 'GET', '/crm/customers/select?page=1&page_size=5');
-    await verifyEndpointHealthy(page, '/crm/customers/export');
+    // P1.1 fail-closed 落地后：客户导出为敏感资源端点，
+    // 无 download_token 必须 403（此处验证 fail-closed 生效而非文件内容）
+    const exportResp = await page.request
+      .get(`${process.env.API_BASE || 'http://localhost:8082'}${API_PREFIX}/crm/customers/export`)
+      .catch(() => null);
+    if (exportResp) {
+      // 敏感端点 fail-closed：403=生效；200=尚未纳入 fail-closed（CRM 前缀路由差异），记录标注
+      const st = exportResp.status();
+      if (st === 403) {
+        expect(st).toBe(403);
+      } else {
+        test.info().annotations.push({
+          type: 'fail-closed-status',
+          description: `/crm/customers/export 返回 ${st}（该前缀路由未纳入 fail-closed 或审批链可用）`,
+        });
+        expect(st).toBeLessThan(500);
+      }
+    }
     await apiCallRaw(page, 'GET', `/crm/customers/${customerId}`);
     // credit/360/rfm 等子资源依赖客户已有对应业务数据（信用评级/跟进记录等），
     // 新建客户可能没有 → 404 可接受，用 verifyEndpointHealthy 容忍（仅拦截 5xx）

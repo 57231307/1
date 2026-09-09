@@ -231,21 +231,6 @@ const handleUsernameBlur = async () => {
 };
 
 /**
- * 登录失败时尝试检查锁定状态（响应 401 后由错误处理自动调用）
- */
-const refreshLockStatus = async () => {
-  if (!loginForm.username) return;
-  try {
-    const res = await checkLockStatus(loginForm.username);
-    if (res.data) {
-      applyLockStatus(res.data);
-    }
-  } catch (error) {
-    logger.warn(`${t('login.refreshLockStatusFailed')}:`, error);
-  }
-};
-
-/**
  * 批次 22 v5 P0-2 修复：安全重定向白名单校验
  *
  * 防止 Open Redirect 漏洞：登录跳转参数 redirect 若被攻击者构造为
