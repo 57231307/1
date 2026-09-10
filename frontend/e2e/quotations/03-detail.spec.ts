@@ -13,18 +13,20 @@ test.describe('03 报价单详情与编辑', () => {
   test('03-01 报价单详情可查看', async ({ page }) => {
     await page.goto('/quotations');
     const viewBtn = page.getByRole('button', { name: /查看/ }).first();
-    if (await viewBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await viewBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
       await viewBtn.click();
-      await expect(page.getByText(/基本信息/)).toBeVisible({ timeout: 30000 }).catch(() => {
+      await expect(page.getByText(/基本信息/)).toBeVisible({ timeout: 30000 }).catch((e) => {
+      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
+
         return null;
-      });
+          });
     }
   });
 
   test('03-02 草稿报价单可编辑', async ({ page }) => {
     await page.goto('/quotations');
     const editBtn = page.getByRole('button', { name: /编辑/ }).first();
-    if (await editBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await editBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
       await editBtn.click();
       await expect(page.locator('form')).toBeVisible({ timeout: 30000 });
       await expect(page.getByLabel(/客户/)).toBeVisible();

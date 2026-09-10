@@ -914,7 +914,7 @@ export async function loginViaUI(
     if (hasToken && hasCsrf) {
       await page
         .goto(`${BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded', timeout: 30000 })
-        .catch(() => {});
+        .catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
       return;
     }
     console.warn(
@@ -951,7 +951,7 @@ export async function loginViaUI(
       // 设置 locale
       await page
         .evaluate(() => window.localStorage.setItem('bingxi.locale', 'zh-CN'))
-        .catch(() => {});
+        .catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
       await page.waitForTimeout(1000);
 
       // 尝试登录
@@ -1109,7 +1109,7 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
     // 强制关闭 page 释放挂起的网络请求/等待 promise（防 Playwright runner 挂起）
     // shard 15 历史挂起 55 分钟教训：waitForURL 的 promise 在后端无响应时永不 resolve，
     // 即使 timeout Error 抛出，page 挂起的 fetch 连接仍阻止 runner 退出
-    await page.close().catch(() => {});
+    await page.close().catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
     throw new Error(
       `UI 登录失败: 40s 内未离开 ${currentUrl}，登录接口状态 ${loginRespStatus || '未捕获'}，ElMessage: ${JSON.stringify(elMessages)}`
     );
@@ -1407,7 +1407,7 @@ export async function verifyFrontendStatusDisplay(
   await page.waitForTimeout(2000);
   for (const text of statusTexts) {
     const el = page.getByText(text, { exact: false });
-    const visible = await el.isVisible().catch(() => false);
+    const visible = await el.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     if (!visible) {
       // not all statuses may be present, just verify page loaded
     }

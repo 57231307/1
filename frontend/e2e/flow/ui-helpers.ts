@@ -71,7 +71,7 @@ async function safeGotoInner(page: Page, url: string): Promise<void> {
       // 设置 locale
       await page
         .evaluate(() => window.localStorage.setItem('bingxi.locale', 'zh-CN'))
-        .catch(() => {});
+        .catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
       page.off('console', handler);
       return; // 成功
     } catch (e) {
@@ -136,7 +136,7 @@ async function diagnoseFailure(page: Page, label: string): Promise<void> {
     if (errorBoundary > 0) {
       const detailBtn = page.locator('.error-boundary button:has-text("查看详情")').first();
       if ((await detailBtn.count()) > 0) {
-        await detailBtn.click().catch(() => {});
+        await detailBtn.click().catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
         await page.waitForTimeout(300);
       }
       const stack = await page
@@ -189,14 +189,14 @@ async function fillInField(
       if ((await inp.count()) === 0) {
         // 兜底：取任意 input 或 textarea
         const inp2 = formItem.locator('input, textarea').first();
-        await inp2.waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
-        await inp2.click({ clickCount: 3 }).catch(() => {});
-        await inp2.fill(field.value).catch(() => {});
+        await inp2.waitFor({ state: 'visible', timeout: 20000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+        await inp2.click({ clickCount: 3 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+        await inp2.fill(field.value).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
         return;
       }
-      await inp.waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
-      await inp.click({ clickCount: 3 }).catch(() => {});
-      await inp.fill(field.value).catch(() => {});
+      await inp.waitFor({ state: 'visible', timeout: 20000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+      await inp.click({ clickCount: 3 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+      await inp.fill(field.value).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
       break;
     }
     case 'inputNumber': {
@@ -215,12 +215,12 @@ async function fillInField(
     }
     case 'date': {
       const inp = formItem.locator('input').first();
-      await inp.waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
-      await inp.click({ clickCount: 3 }).catch(() => {});
-      await inp.fill(field.value).catch(() => {});
+      await inp.waitFor({ state: 'visible', timeout: 20000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+      await inp.click({ clickCount: 3 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+      await inp.fill(field.value).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
       // el-date-picker fill 后需 Enter 确认（Escape 会取消选择清空值，
       // 导致"请选择染色日期"校验失败 → 请求不发 → 超时）
-      await inp.press('Enter').catch(() => {});
+      await inp.press('Enter').catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
       await page.waitForTimeout(300);
       break;
     }
@@ -234,22 +234,22 @@ async function fillInField(
         }
         return;
       }
-      await wrapper.click({ timeout: 10_000 }).catch(() => {});
+      await wrapper.click({ timeout: 10_000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
       await page.waitForTimeout(300);
       const dropdown = page.locator('.el-select-dropdown:visible').last();
-      await dropdown.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+      await dropdown.waitFor({ state: 'visible', timeout: 10_000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
       if ((await dropdown.count()) === 0) break;
       const item = dropdown
         .locator('.el-select-dropdown__item')
         .filter({ hasText: new RegExp(field.value, 'i') })
         .first();
       if ((await item.count()) > 0) {
-        await item.click({ timeout: 10_000 }).catch(() => {});
+        await item.click({ timeout: 10_000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
       } else {
         // 无匹配项时选第一项（避免空点击报错拖到 120s 测试超时）
         const firstItem = dropdown.locator('.el-select-dropdown__item').first();
         if ((await firstItem.count()) > 0) {
-          await firstItem.click({ timeout: 10_000 }).catch(() => {});
+          await firstItem.click({ timeout: 10_000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
         }
       }
       break;
@@ -390,7 +390,7 @@ export async function createDepartmentUI(page: Page): Promise<number | undefined
   // 缺该字段会触发 formRef.validate 失败 → 提交请求不发 → waitCreateResponse 超时
   // 路由 chunk 偶发加载失败（页面只有 layout 无组件内容），先 reload 保证组件挂载
   await safeGoto(page, '/departments');
-  await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+  await page.reload({ waitUntil: 'domcontentloaded' }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
   await page.waitForTimeout(500);
   const fields: UiField[] = [
     { kind: 'input', label: '部门名称', value: _genName('E2E部门') },
@@ -439,7 +439,7 @@ export async function createProductUI(page: Page): Promise<number | undefined> {
   // 确保分类下拉的 categories prop 在“面料”分类创建之后加载。
   // 若页面此前已挂载（分类列表为旧缓存），reload 强制刷新。
   await safeGoto(page, '/product');
-  await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+  await page.reload({ waitUntil: 'domcontentloaded' }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
   // 等待 GET /product-categories 响应完成（分类下拉数据就绪），避免异步竞态
   await page
     .waitForResponse(
@@ -448,7 +448,7 @@ export async function createProductUI(page: Page): Promise<number | undefined> {
         timeout: 15_000,
       }
     )
-    .catch(() => {});
+    .catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
   await page.waitForTimeout(500);
   // 打开新建产品 dialog
   const addBtn = page.getByRole('button', { name: /新建产品/ }).first();
@@ -478,7 +478,7 @@ export async function createProductUI(page: Page): Promise<number | undefined> {
     .locator('input')
     .first();
   if ((await unitInput.count()) > 0) {
-    await unitInput.fill('米').catch(() => {});
+    await unitInput.fill('米').catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
   }
   // 分类下拉：用 placeholder 定位 select，点击后从全局 dropdown 选“面料”
   const categorySelect = dialog
@@ -495,7 +495,7 @@ export async function createProductUI(page: Page): Promise<number | undefined> {
     .locator('.el-select-dropdown__item')
     .first()
     .waitFor({ state: 'visible', timeout: 10_000 })
-    .catch(() => {});
+    .catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
   const fabricItem = dropdown
     .locator('.el-select-dropdown__item')
     .filter({ hasText: /面料/i })
@@ -661,7 +661,7 @@ export async function createBomUI(page: Page): Promise<number | undefined> {
     await productSelect.waitFor({ state: 'visible', timeout: 20000 });
     await productSelect.click();
     const prodDropdown = page.locator('.el-select-dropdown:visible').last();
-    await prodDropdown.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+    await prodDropdown.waitFor({ state: 'visible', timeout: 10_000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
     const e2eProd = prodDropdown
       .locator('.el-select-dropdown__item')
       .filter({ hasText: /E2E/i })
@@ -680,8 +680,8 @@ export async function createBomUI(page: Page): Promise<number | undefined> {
       .filter({ hasText: '版本' })
       .locator('input')
       .first();
-    await versionInput.waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
-    await versionInput.fill('1').catch(() => {});
+    await versionInput.waitFor({ state: 'visible', timeout: 20000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+    await versionInput.fill('1').catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
 
     // 状态下拉（选"启用"或第一项）
     const statusItem = dialog.locator('.el-form-item').filter({ hasText: '状态' }).first();
@@ -689,7 +689,7 @@ export async function createBomUI(page: Page): Promise<number | undefined> {
     if ((await statusSelect.count()) > 0) {
       await statusSelect.click();
       const statusDropdown = page.locator('.el-select-dropdown:visible').last();
-      await statusDropdown.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+      await statusDropdown.waitFor({ state: 'visible', timeout: 10_000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
       const activeOpt = statusDropdown
         .locator('.el-select-dropdown__item')
         .filter({ hasText: /启用|active/i })
@@ -714,7 +714,7 @@ export async function createBomUI(page: Page): Promise<number | undefined> {
         if ((await matSelect.count()) > 0) {
           await matSelect.click();
           const matDropdown = page.locator('.el-select-dropdown:visible').last();
-          await matDropdown.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+          await matDropdown.waitFor({ state: 'visible', timeout: 10_000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
           const matE2e = matDropdown
             .locator('.el-select-dropdown__item')
             .filter({ hasText: /E2E/i })
@@ -729,8 +729,8 @@ export async function createBomUI(page: Page): Promise<number | undefined> {
         }
         const unitInput = firstRow.locator('input').nth(2);
         if ((await unitInput.count()) > 0) {
-          await unitInput.click({ clickCount: 3 }).catch(() => {});
-          await unitInput.fill('米').catch(() => {});
+          await unitInput.click({ clickCount: 3 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+          await unitInput.fill('米').catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
         }
       }
     }
@@ -786,17 +786,17 @@ export async function createCustomOrderUI(page: Page): Promise<number | undefine
     const specInput = page
       .locator('.el-form-item:has(:text-is("规格")) input, input[placeholder*="规格"]')
       .first();
-    await specInput.waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
-    await specInput.click({ clickCount: 3 }).catch(() => {});
-    await specInput.fill('E2E 定制规格').catch(() => {});
+    await specInput.waitFor({ state: 'visible', timeout: 20000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+    await specInput.click({ clickCount: 3 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+    await specInput.fill('E2E 定制规格').catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
     // 数量定位须限定"数量"label 的 form-item：页面另有 total_amount 等
     // el-input-number，.last() 会误选 total_amount 导致 quantity 空校验失败
     const quantityInput = page.locator('.el-form-item:has(:text-is("数量")) input').first();
-    await quantityInput.waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
-    await quantityInput.click({ clickCount: 3 }).catch(() => {});
-    await quantityInput.fill('100').catch(() => {});
+    await quantityInput.waitFor({ state: 'visible', timeout: 20000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+    await quantityInput.click({ clickCount: 3 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+    await quantityInput.fill('100').catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
     // el-input-number 需 blur/Enter 同步 v-model，fill 后触发 blur
-    await quantityInput.press('Tab').catch(() => {});
+    await quantityInput.press('Tab').catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
     await page.waitForTimeout(300);
     const submitBtn = page.getByRole('button', { name: /保存草稿|保存|确定/ }).first();
     await submitBtn.waitFor({ state: 'visible', timeout: 20000 });

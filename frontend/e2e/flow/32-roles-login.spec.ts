@@ -30,7 +30,7 @@ test.describe('P5.2 全量角色登录', () => {
       await loginAsRole(page, role);
 
       // 等待跳转离开 /login
-      await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 15000 }).catch(() => {});
+      await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 15000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
 
       // 空权限角色可能被重定向回登录或 403 页——也算通过（权限下界生效）
       const currentPath = page.url();

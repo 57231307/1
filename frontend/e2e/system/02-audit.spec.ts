@@ -28,11 +28,13 @@ test.describe('02 审计日志', () => {
   test('02-03 审计日志详情可查看', async ({ page }) => {
     await page.goto('/system/audit-log');
     const detailBtn = page.getByRole('link', { name: /详情/ }).first();
-    if (await detailBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await detailBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
       await detailBtn.click();
-      await expect(page.locator('.el-drawer')).toBeVisible({ timeout: 30000 }).catch(() => {
+      await expect(page.locator('.el-drawer')).toBeVisible({ timeout: 30000 }).catch((e) => {
+      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
+
         return null;
-      });
+          });
       await expect(page.getByText(/操作时间|操作类型/)).toBeVisible();
     }
   });

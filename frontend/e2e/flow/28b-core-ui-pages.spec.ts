@@ -31,9 +31,9 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     await btn
       .waitFor({ state: 'visible', timeout: 5000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const visible = await btn.isVisible().catch(() => false);
+    const visible = await btn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     if (visible) {
-      const disabled = await btn.isDisabled().catch(() => false);
+      const disabled = await btn.isDisabled().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
       expect(disabled).toBe(false);
     }
     return visible;
@@ -45,7 +45,7 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     await btn
       .waitFor({ state: 'visible', timeout: 5000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const visible = await btn.isVisible().catch(() => false);
+    const visible = await btn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     if (!visible) return false;
     await btn.click();
     await page.waitForTimeout(1000);
@@ -53,7 +53,7 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     await dialog
       .waitFor({ state: 'visible', timeout: 5000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const dialogVisible = await dialog.isVisible().catch(() => false);
+    const dialogVisible = await dialog.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     return dialogVisible;
   }
 
@@ -83,7 +83,7 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
       .locator('.el-message, .el-form-item__error')
       .first()
       .isVisible()
-      .catch(() => false);
+      .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     if (!hasError) {
       // 诊断输出（IR 详细日志要求）：无任何校验提示时打印对话框文本片段
       const dialogText = await dialog.innerText().catch(() => '<无法获取>');
@@ -131,9 +131,9 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     await refreshBtn
       .waitFor({ state: 'visible', timeout: 5000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const refreshVisible = await refreshBtn.isVisible().catch(() => false);
+    const refreshVisible = await refreshBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     if (refreshVisible) {
-      const disabled = await refreshBtn.isDisabled().catch(() => false);
+      const disabled = await refreshBtn.isDisabled().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
       expect(disabled).toBe(false);
     }
   });
@@ -143,7 +143,7 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
   // ================================================================
   test('采购退货列表 UI：表格+状态标签', async ({ page }) => {
     const table = await visitAndVerifyTable(page, '/purchase-return');
-    const tableVisible = await table.isVisible().catch(() => false);
+    const tableVisible = await table.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     expect(tableVisible).toBe(true);
 
     const tags = table.locator('.el-tag');
@@ -159,7 +159,7 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
   // ================================================================
   test('库存调拨列表 UI：搜索+新建弹窗+仓库选择', async ({ page }) => {
     const table = await visitAndVerifyTable(page, '/inventory-transfer');
-    const tableVisible = await table.isVisible().catch(() => false);
+    const tableVisible = await table.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     expect(tableVisible).toBe(true);
 
     // 新建
@@ -178,7 +178,7 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
   // ================================================================
   test('库存盘点列表 UI：搜索+新建', async ({ page }) => {
     const table = await visitAndVerifyTable(page, '/inventory-count');
-    const tableVisible = await table.isVisible().catch(() => false);
+    const tableVisible = await table.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     expect(tableVisible).toBe(true);
 
     const dialogVisible = await clickNewAndVerifyDialog(page, '新建');
@@ -211,7 +211,7 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     await content
       .waitFor({ state: 'visible', timeout: 10_000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const visible = await content.isVisible().catch(() => false);
+    const visible = await content.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     expect(visible).toBe(true);
     const text = await content.textContent();
     expect(text?.length).toBeGreaterThan(0);
@@ -224,7 +224,7 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     await content
       .waitFor({ state: 'visible', timeout: 10_000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const visible = await content.isVisible().catch(() => false);
+    const visible = await content.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     expect(visible).toBe(true);
   });
 });

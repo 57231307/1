@@ -17,8 +17,8 @@ async function visitModule(page: import('@playwright/test').Page, mod: Traversal
   await loginViaUI(page);
   const collector = trackPageHealth(page);
 
-  await page.goto(mod.route).catch(() => {});
-  await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+  await page.goto(mod.route).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+  await page.waitForLoadState('networkidle', { timeout: 15000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
 
   // 统一健康断言
   await assertPageHealthy(page, collector, { allowConsoleWarn: true });
@@ -32,11 +32,11 @@ async function visitModule(page: import('@playwright/test').Page, mod: Traversal
   // 有新建入口的 Tier A：点新建按钮弹窗出现
   if (mod.tier === 'A' && !mod.noCreate) {
     const newBtn = page.locator('button:has-text("新建"), button:has-text("新增"), button:has-text("添加")').first();
-    if (await newBtn.isVisible().catch(() => false)) {
-      await newBtn.click().catch(() => {});
+    if (await newBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
+      await newBtn.click().catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
       await page.waitForTimeout(800);
       // 弹窗或跳转出现即算通过（部分模块跳转新页面）
-      const dialogVisible = await page.locator('.el-dialog:visible, .el-drawer:visible').first().isVisible().catch(() => false);
+      const dialogVisible = await page.locator('.el-dialog:visible, .el-drawer:visible').first().isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
       const navigated = page.url() !== `${process.env.BASE_URL || 'http://localhost:3000'}${mod.route}`;
       expect(dialogVisible || navigated).toBeTruthy();
     }

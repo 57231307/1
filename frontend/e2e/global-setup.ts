@@ -126,7 +126,7 @@ async function ensureShardUserViaUI(): Promise<void> {
   if (createResp.ok()) {
     console.log(`[globalSetup] 分片账号 ${SHARD_USERNAME} 创建成功 (HTTP ${createResp.status()})`);
   } else {
-    const body = await createResp.text().catch(() => '');
+    const body = await createResp.text().catch((e) => { console.warn(`[ensureShardUserViaUI] 创建响应体读取失败: ${(e as Error).message}`); return ''; });
     // 幂等：400/409 或文案含"已存在"都视为账号已建（watchdog 重跑同一分片时
     // 第 1 轮已创建账号，重复 POST 返回 400 BusinessError"用户名已存在"，
     // run 34076635269 十二分片全部因 400 未被幂等识别而瞬间失败）
@@ -154,7 +154,7 @@ async function ensureShardUserViaUI(): Promise<void> {
   });
   await checkCtx.dispose();
   if (!loginCheck.ok()) {
-    const body = await loginCheck.text().catch(() => '');
+    const body = await loginCheck.text().catch((e) => { console.warn(`[ensureShardUserViaUI] 创建响应体读取失败: ${(e as Error).message}`); return ''; });
     throw new Error(
       `分片账号 ${SHARD_USERNAME} 终验失败: HTTP ${loginCheck.status()} ${body.slice(0, 300)}`
     );

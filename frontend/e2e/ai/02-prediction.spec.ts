@@ -23,9 +23,11 @@ test.describe('02 AI 质量预测', () => {
     await page.getByLabel(/检验类型/).click();
     await page.getByRole('option').first().click();
     await page.getByRole('button', { name: /确认|提交/ }).last().click();
-    await expect(page.getByText(/创建成功|保存成功|预测完成/)).toBeVisible({ timeout: 30000 }).catch(() => {
+    await expect(page.getByText(/创建成功|保存成功|预测完成/)).toBeVisible({ timeout: 30000 }).catch((e) => {
+      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
+
       return null;
-    });
+        });
   });
 
   test('02-03 质量预测列表可正常加载', async ({ page }) => {
@@ -36,12 +38,14 @@ test.describe('02 AI 质量预测', () => {
   test('02-04 未确认预测可确认处理', async ({ page }) => {
     await page.goto('/ai-extend/quality-prediction');
     const ackBtn = page.getByRole('link', { name: /确认/ }).first();
-    if (await ackBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await ackBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
       await ackBtn.click();
       await page.getByRole('button', { name: /确定/ }).click();
-      await expect(page.getByText(/确认成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
+      await expect(page.getByText(/确认成功/)).toBeVisible({ timeout: 30000 }).catch((e) => {
+      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
+
         return null;
-      });
+          });
     }
   });
 });

@@ -170,7 +170,7 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
       await page.waitForTimeout(3000);
       // 检查页面是否有 el-tag 组件渲染
       const tags = page.locator('.el-tag');
-      const tagCount = await tags.count().catch(() => 0);
+      const tagCount = await tags.count().catch((e) => { console.warn(`[06] el-tag 计数失败: ${(e as Error).message}`); return 0; });
       // 页面可能有或没有 el-tag（取决于是否有数据）
       expect(tagCount >= 0);
     } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 

@@ -13,47 +13,55 @@ test.describe('02 报价单审批与转订单', () => {
   test('02-01 草稿报价单可提交审批', async ({ page }) => {
     await page.goto('/quotations');
     const submitBtn = page.getByRole('button', { name: /提交审批/ }).first();
-    if (await submitBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await submitBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
       await submitBtn.click();
-      await expect(page.getByText(/提交成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
+      await expect(page.getByText(/提交成功/)).toBeVisible({ timeout: 30000 }).catch((e) => {
+      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
+
         return null;
-      });
+          });
     }
   });
 
   test('02-02 待审批报价单可批准', async ({ page }) => {
     await page.goto('/quotations');
     const approveBtn = page.getByRole('button', { name: /批准/ }).first();
-    if (await approveBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await approveBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
       await approveBtn.click();
       await page.getByRole('button', { name: /确定/ }).click();
-      await expect(page.getByText(/审批成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
+      await expect(page.getByText(/审批成功/)).toBeVisible({ timeout: 30000 }).catch((e) => {
+      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
+
         return null;
-      });
+          });
     }
   });
 
   test('02-03 已批准报价单可转为销售订单', async ({ page }) => {
     await page.goto('/quotations');
     const convertBtn = page.getByRole('button', { name: /转订单/ }).first();
-    if (await convertBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await convertBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
       await convertBtn.click();
       await page.getByRole('button', { name: /确定/ }).click();
-      await expect(page.getByText(/转订单成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
+      await expect(page.getByText(/转订单成功/)).toBeVisible({ timeout: 30000 }).catch((e) => {
+      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
+
         return null;
-      });
+          });
     }
   });
 
   test('02-04 草稿报价单可取消', async ({ page }) => {
     await page.goto('/quotations');
     const cancelBtn = page.getByRole('button', { name: /取消/ }).first();
-    if (await cancelBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await cancelBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
       await cancelBtn.click();
       await page.getByRole('button', { name: /确定/ }).click();
-      await expect(page.getByText(/取消成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
+      await expect(page.getByText(/取消成功/)).toBeVisible({ timeout: 30000 }).catch((e) => {
+      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
+
         return null;
-      });
+          });
     }
   });
 });

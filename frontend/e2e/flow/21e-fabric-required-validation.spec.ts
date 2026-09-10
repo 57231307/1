@@ -234,7 +234,7 @@ test.describe('面料单据专用字段全链路验证', () => {
     await newBtn
       .waitFor({ state: 'visible', timeout: 5000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const newBtnVisible = await newBtn.isVisible().catch(() => false);
+    const newBtnVisible = await newBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     if (newBtnVisible) {
       await newBtn.click();
       await page.waitForTimeout(1000);

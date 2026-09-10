@@ -15,15 +15,15 @@ test.describe('P5.13 重复提示', () => {
     const collector = trackPageHealth(page);
 
     // 导航到一个有提交按钮的页面（客户管理）
-    await page.goto('/system/users').catch(() => {});
-    await page.waitForLoadState('networkidle').catch(() => {});
+    await page.goto('/system/users').catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+    await page.waitForLoadState('networkidle').catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
 
     // 找一个提交按钮，快速连续点击
     const submitBtn = page.locator('button[type="submit"], button:has-text("保存"), button:has-text("确认")').first();
-    if (await submitBtn.isVisible().catch(() => false)) {
+    if (await submitBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
       // 快速连续点击 5 次
       for (let i = 0; i < 5; i++) {
-        await submitBtn.click({ timeout: 1000 }).catch(() => {});
+        await submitBtn.click({ timeout: 1000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
       }
     }
 

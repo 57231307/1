@@ -25,13 +25,13 @@ test.describe('P5.1 登录瀑布', () => {
     await page.fill('input[type="password"]', 'WrongPassword123!');
     // 勾选协议
     const checkbox = page.locator('input[type="checkbox"], .el-checkbox');
-    if (await checkbox.isVisible().catch(() => false)) {
-      await checkbox.check().catch(() => {});
+    if (await checkbox.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
+      await checkbox.check().catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
     }
     await page.click('button[type="submit"], button:has-text("登录")');
 
     // 等待错误提示出现
-    await expect(page.locator('.el-message--error')).toBeVisible({ timeout: 10000 }).catch(() => {});
+    await expect(page.locator('.el-message--error')).toBeVisible({ timeout: 10000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
 
     // 断言：只有 login 请求，没有 refresh
     const loginCalls = requests.filter((r) => r === '/auth/login');

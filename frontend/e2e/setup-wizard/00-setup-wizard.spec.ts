@@ -269,17 +269,17 @@ test.describe.serial('引导页初始化真实链路（真实后端 + 真实 Pos
     // 校验失败 → 不发 login 请求 → waitForURL 超时（与 flow 主配置 loginViaUI
     // 的复选框三层 fallback 对齐）
     const checkboxInput = page.locator('.el-checkbox input').first();
-    const isChecked = await checkboxInput.isChecked().catch(() => false);
+    const isChecked = await checkboxInput.isChecked().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     if (!isChecked) {
       // 点击视觉复选框区域（.el-checkbox__inner）
       await page.locator('.el-checkbox__inner').first().click();
       await page.waitForTimeout(500);
-      let nowChecked = await checkboxInput.isChecked().catch(() => false);
+      let nowChecked = await checkboxInput.isChecked().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
       if (!nowChecked) {
         // fallback: 点击 label 区域
         await page.locator('.el-checkbox').first().click();
         await page.waitForTimeout(300);
-        nowChecked = await checkboxInput.isChecked().catch(() => false);
+        nowChecked = await checkboxInput.isChecked().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
       }
       if (!nowChecked) {
         // 最终 fallback: 直接设置 input checked 并触发 change 事件

@@ -131,7 +131,7 @@ test.describe('库存调拨完整流程', () => {
       )
       .first()
       .isVisible()
-      .catch(() => false);
+      .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     expect(tableVisible).toBe(true);
   });
 

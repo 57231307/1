@@ -40,7 +40,7 @@ test.describe('面料多色号定价扩展', () => {
     await page.goto(`${BASE_URL}/color-prices/list`);
     // 点击第一个详情链接
     const detailLink = page.locator('a:has-text("详情"), button:has-text("详情")').first();
-    if (await detailLink.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await detailLink.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
       await detailLink.click();
       await page.waitForLoadState('networkidle');
     }

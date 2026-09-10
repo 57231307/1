@@ -48,7 +48,7 @@ test.describe.serial('扩展: 状态显示映射/国际化', () => {
       await page.goto('http://localhost:3000/purchase/orders');
       await page.waitForTimeout(3000);
       const tags = page.locator('.el-tag');
-      const count = await tags.count().catch(() => 0);
+      const count = await tags.count().catch((e) => { console.warn(`[10e] 文本计数失败: ${(e as Error).message}`); return 0; });
       expect(count >= 0).toBeTruthy();
     } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
