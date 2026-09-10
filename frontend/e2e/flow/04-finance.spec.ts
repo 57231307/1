@@ -232,8 +232,8 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
           status ?? '(missing-status)'
         );
       }
-    } catch {
-      // 会计期间端点可能不同
+    } catch (e) {
+      console.warn(`[E2E] 兜底捕获: ${(e as Error).message}`); // 会计期间端点可能不同
       try {
         const periods = await apiCallRaw<{ items: Array<{ status: string }> }>(
           page,

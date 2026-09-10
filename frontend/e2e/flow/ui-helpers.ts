@@ -109,7 +109,7 @@ async function diagnoseFailure(page: Page, label: string): Promise<void> {
     const bodyText = await page
       .locator('body')
       .innerText()
-      .catch(() => '<无法获取>');
+      .catch((e) => { console.warn(`[E2E] 文本兜底读取: ${(e as Error).message}`); return '<兜底>'; });
     const elMessages = await page
       .locator('.el-message__content')
       .allTextContents()
@@ -132,7 +132,7 @@ async function diagnoseFailure(page: Page, label: string): Promise<void> {
     const errorBoundary = await page
       .locator('.error-boundary')
       .count()
-      .catch(() => 0);
+      .catch((e) => { console.warn(`[E2E] 计数兜底: ${(e as Error).message}`); return 0; });
     if (errorBoundary > 0) {
       const detailBtn = page.locator('.error-boundary button:has-text("查看详情")').first();
       if ((await detailBtn.count()) > 0) {
@@ -936,7 +936,7 @@ export async function uiDeleteRow(
     let targetRow: import('@playwright/test').Locator | null = null;
     for (let i = 0; i < rowCount; i++) {
       const row = rows.nth(i);
-      const cellText = await row.locator('td').filter({ hasText: String(rowIdentifier.value) }).first().textContent().catch(() => '');
+      const cellText = await row.locator('td').filter({ hasText: String(rowIdentifier.value) }).first().textContent().catch((e) => { console.warn(`[uiDeleteRow] 单元格文本读取异常: ${(e as Error).message}`); return ''; });
       if (cellText && cellText.includes(String(rowIdentifier.value))) {
         targetRow = row;
         console.log(`[uiDeleteRow] 匹配到目标行（第 ${i + 1} 行）`);
@@ -958,7 +958,7 @@ export async function uiDeleteRow(
     // 确认弹窗
     await page.waitForTimeout(500);
     const confirmBtn = page.getByRole('button', { name: confirmText }).last();
-    if (await confirmBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await confirmBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[uiDeleteRow] 确认弹窗可见性查询失败: ${(e as Error).message}`); return false; })) {
       await confirmBtn.click();
       console.log(`[uiDeleteRow] 已确认删除`);
     }
@@ -976,7 +976,7 @@ export async function uiDeleteRow(
     const countAfter = await rowsAfter.count();
     let stillExists = false;
     for (let i = 0; i < countAfter; i++) {
-      const cellText = await rowsAfter.nth(i).locator('td').filter({ hasText: String(rowIdentifier.value) }).first().textContent().catch(() => '');
+      const cellText = await rowsAfter.nth(i).locator('td').filter({ hasText: String(rowIdentifier.value) }).first().textContent().catch((e) => { console.warn(`[E2E] 文本读取失败: ${(e as Error).message}`); return ''; });
       if (cellText && cellText.includes(String(rowIdentifier.value))) {
         stillExists = true;
         break;
@@ -1018,7 +1018,7 @@ export async function uiToggleStatus(
     let targetRow: import('@playwright/test').Locator | null = null;
     for (let i = 0; i < rowCount; i++) {
       const row = rows.nth(i);
-      const cellText = await row.locator('td').filter({ hasText: String(rowIdentifier.value) }).first().textContent().catch(() => '');
+      const cellText = await row.locator('td').filter({ hasText: String(rowIdentifier.value) }).first().textContent().catch((e) => { console.warn(`[uiDeleteRow] 单元格文本读取异常: ${(e as Error).message}`); return ''; });
       if (cellText && cellText.includes(String(rowIdentifier.value))) {
         targetRow = row;
         break;
@@ -1032,10 +1032,10 @@ export async function uiToggleStatus(
     // 找状态开关（el-switch 或 el-button 带"停用"/"启用"文案）
     const switchEl = targetRow.locator('.el-switch').first();
     const statusBtn = targetRow.locator('button:has-text("停用"), button:has-text("启用"), button:has-text("禁用")').first();
-    if (await switchEl.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await switchEl.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 可见性查询失败: ${(e as Error).message}`); return false; })) {
       await switchEl.click();
       console.log(`[uiToggleStatus] 已点击状态开关`);
-    } else if (await statusBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    } else if (await statusBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 可见性查询失败: ${(e as Error).message}`); return false; })) {
       await statusBtn.click();
       console.log(`[uiToggleStatus] 已点击状态按钮`);
     } else {
@@ -1046,7 +1046,7 @@ export async function uiToggleStatus(
     await page.waitForTimeout(2000);
 
     // 验证状态文本
-    const rowText = await targetRow.textContent().catch(() => '');
+    const rowText = await targetRow.textContent().catch((e) => { console.warn(`[uiToggleStatus] 行文本读取失败: ${(e as Error).message}`); return ''; });
     if (rowText.includes(expectedStatusAfter)) {
       console.log(`[uiToggleStatus] ✅ ${entityLabel} 状态切换成功，当前=${expectedStatusAfter}`);
       return true;
@@ -1091,7 +1091,7 @@ export async function uiExportDownload(
     if (options?.acceptConfirm) {
       await page.waitForTimeout(500);
       const confirmBtn = page.getByRole('button', { name: /确定|确认|导出/ }).last();
-      if (await confirmBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      if (await confirmBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 可见性查询失败: ${(e as Error).message}`); return false; })) {
         await confirmBtn.click();
       }
     }
@@ -1145,7 +1145,7 @@ export async function uiImportUpload(
     // 可选：下载模板
     if (options?.templateDownloadText) {
       const templateBtn = dialog.getByRole('button', { name: options.templateDownloadText }).first();
-      if (await templateBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      if (await templateBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[uiImportUpload] 模板下载按钮不可见: ${(e as Error).message}`); return false; })) {
         const templateDownload = page.waitForEvent('download', { timeout: 10000 });
         await templateBtn.click();
         const templateFile = await templateDownload;
@@ -1162,7 +1162,7 @@ export async function uiImportUpload(
 
     // 点击确认导入
     const submitBtn = dialog.getByRole('button', { name: submitText }).first();
-    if (await submitBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+    if (await submitBtn.isVisible({ timeout: 5000 }).catch((e) => { console.warn(`[uiImportUpload] 确认按钮不可见: ${(e as Error).message}`); return false; })) {
       await submitBtn.click();
       console.log(`[uiImportUpload] 已点击确认导入`);
     }
@@ -1170,7 +1170,7 @@ export async function uiImportUpload(
     // 等待结果提示
     await page.waitForTimeout(3000);
     const message = page.locator('.el-message__content').last();
-    const messageText = await message.textContent().catch(() => '');
+    const messageText = await message.textContent().catch((e) => { console.warn(`[uiImportUpload] 结果提示文本读取失败: ${(e as Error).message}`); return ''; });
     console.log(`[uiImportUpload] ${entityLabel} 导入结果: ${messageText || '无提示消息'}`);
     return messageText || null;
   } catch (e) {

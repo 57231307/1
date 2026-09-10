@@ -36,7 +36,7 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
       page,
       'GET',
       '/purchase/suppliers?page=1&page_size=1'
-    ).catch(() => ({ items: [] as Array<{ id: number }> }));
+    ).catch((e) => { console.warn(`[E2E] 列表回读失败（返回空）: ${(e as Error).message}`); return { items: [] as Array<{ id: number }> }; });
     let supId = supList.items?.[0]?.id;
     if (!supId) {
       // 分片独立 DB：本分片可能没有任何供应商，前置创建（API 兜底用于测试数据准备）

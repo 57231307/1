@@ -1839,6 +1839,7 @@ export function getRoleCredential(role: string): RoleCredential | null {
       console.error(
         `[getRoleCredential] 凭证文件存在但无角色 ${role}，可用键: ${Object.keys(data).slice(0, 8).join(',')}…共 ${Object.keys(data).length}`,
       );
+      console.error(`[getRoleCredential][诊断] 文件前 200 字符: ${JSON.stringify(data).slice(0, 200)}`);
     }
     return cred ?? null;
   } catch (e) {

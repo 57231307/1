@@ -41,7 +41,8 @@ test.describe('库存盘点完整流程', () => {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/inventory/counts', countData);
       countId = result.data?.id!;
-    } catch {
+    } catch (e) {
+      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',
@@ -128,7 +129,8 @@ test.describe('库存盘点完整流程', () => {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/inventory/counts', countData);
       countId = result.data?.id!;
-    } catch {
+    } catch (e) {
+      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',
@@ -173,7 +175,8 @@ test.describe('库存盘点完整流程', () => {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/inventory/counts', countData);
       countId = result.data?.id!;
-    } catch {
+    } catch (e) {
+      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',

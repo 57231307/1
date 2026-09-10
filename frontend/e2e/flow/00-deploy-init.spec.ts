@@ -48,7 +48,8 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
           r => r.id
         );
         ctx.departmentIds.push(id);
-      } catch {
+      } catch (e) {
+        console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
         const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
           page,
           'GET',
@@ -73,7 +74,8 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
           r => r.id
         );
         ctx.warehouseIds.push(id);
-      } catch {
+      } catch (e) {
+        console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
         const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
           page,
           'GET',
@@ -97,7 +99,8 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
           r => r.id
         );
         ctx.productCategoryIds.push(id);
-      } catch {
+      } catch (e) {
+        console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
         const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
           page,
           'GET',
@@ -132,7 +135,8 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
         is_active: true,
       });
       if (result.data?.id) ctx.productIds.push(result.data.id);
-    } catch {
+    } catch (e) {
+      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',
@@ -222,7 +226,8 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
         contacts: [{ contact_name: '联系人', mobile_phone: '13800000000', is_primary: true }],
       });
       ctx.supplierId = result.data?.id;
-    } catch {
+    } catch (e) {
+      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',
@@ -247,7 +252,8 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
         payment_terms: 30,
       });
       ctx.customerId = result.data?.id;
-    } catch {
+    } catch (e) {
+      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',
@@ -326,8 +332,8 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
         is_active: true,
       });
       ctx.greigeFabricId = result.data?.id;
-    } catch {
-      // 坯布模块可能路由不同
+    } catch (e) {
+      console.warn(`[E2E] 兜底捕获: ${(e as Error).message}`); // 坯布模块可能路由不同
       try {
         const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
           page,

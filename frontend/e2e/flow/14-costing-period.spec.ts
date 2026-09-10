@@ -48,7 +48,8 @@ test.describe('成本核算完整流程', () => {
         costData
       );
       costId = result.data?.id!;
-    } catch {
+    } catch (e) {
+      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',
@@ -156,7 +157,8 @@ test.describe('成本核算完整流程', () => {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/vouchers', voucherData);
       voucherId = result.data?.id!;
-    } catch {
+    } catch (e) {
+      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',
@@ -213,8 +215,8 @@ test.describe('成本核算完整流程', () => {
 
         const auditLogged = await verifyAuditLog(page, 'CREATE', 'fixed-assets', '/depreciate');
         expect(auditLogged).toBe(true);
-      } catch {
-        // 折旧可能因资产状态不允许
+      } catch (e) {
+        console.warn(`[E2E] 兜底捕获: ${(e as Error).message}`); // 折旧可能因资产状态不允许
         const records = await apiCallRaw<{ items: Array<{ amount: number }> }>(
           page,
           'GET',

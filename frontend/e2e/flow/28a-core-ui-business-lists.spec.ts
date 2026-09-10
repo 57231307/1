@@ -86,7 +86,7 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
       .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     if (!hasError) {
       // 诊断输出（IR 详细日志要求）：无任何校验提示时打印对话框文本片段
-      const dialogText = await dialog.innerText().catch(() => '<无法获取>');
+      const dialogText = await dialog.innerText().catch((e) => { console.warn(`[E2E] 文本兜底读取: ${(e as Error).message}`); return '<兜底>'; });
       console.warn(
         `[verifyRequiredValidation] 未出现校验提示，对话框文本前 200 字: ${dialogText.slice(0, 200)}`
       );

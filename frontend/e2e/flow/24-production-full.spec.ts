@@ -28,7 +28,7 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
       page,
       'GET',
       '/production/flow-cards?page=1&page_size=1'
-    ).catch(() => ({ items: [] as Array<{ id: number }> }));
+    ).catch((e) => { console.warn(`[E2E] 列表回读失败（返回空）: ${(e as Error).message}`); return { items: [] as Array<{ id: number }> }; });
     const cardId = list.items?.[0]?.id;
     if (cardId) {
       await apiCallRaw(page, 'GET', `/production/flow-cards/${cardId}`);
@@ -48,7 +48,7 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
       page,
       'GET',
       '/production/process-routes?page=1&page_size=1'
-    ).catch(() => ({ items: [] as Array<{ id: number }> }));
+    ).catch((e) => { console.warn(`[E2E] 列表回读失败（返回空）: ${(e as Error).message}`); return { items: [] as Array<{ id: number }> }; });
     if (routes.items?.[0]?.id)
       await apiCallRaw(page, 'GET', `/production/process-routes/${routes.items?.[0].id}`);
   });
@@ -59,7 +59,7 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
       page,
       'GET',
       '/production/fabric-inspections?page=1&page_size=1'
-    ).catch(() => ({ items: [] as Array<{ id: number }> }));
+    ).catch((e) => { console.warn(`[E2E] 列表回读失败（返回空）: ${(e as Error).message}`); return { items: [] as Array<{ id: number }> }; });
     const inspId = list.items?.[0]?.id;
     if (inspId) {
       await apiCallRaw(page, 'GET', `/production/fabric-inspections/${inspId}`);
@@ -110,7 +110,7 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
       page,
       'GET',
       '/production/wage-records?page=1&page_size=1'
-    ).catch(() => ({ items: [] as Array<{ id: number }> }));
+    ).catch((e) => { console.warn(`[E2E] 列表回读失败（返回空）: ${(e as Error).message}`); return { items: [] as Array<{ id: number }> }; });
     const recordId = list.items?.[0]?.id;
     if (recordId) {
       await apiCallRaw(page, 'GET', `/production/wage-records/${recordId}`);
@@ -131,7 +131,7 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
       page,
       'GET',
       '/production/energy-consumptions?page=1&page_size=1'
-    ).catch(() => ({ items: [] as Array<{ id: number }> }));
+    ).catch((e) => { console.warn(`[E2E] 列表回读失败（返回空）: ${(e as Error).message}`); return { items: [] as Array<{ id: number }> }; });
     const consId = list.items?.[0]?.id;
     if (consId) {
       await apiCallRaw(page, 'GET', `/production/energy-consumptions/${consId}`);
@@ -148,7 +148,7 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
       page,
       'GET',
       '/production/mrp-history?page=1&page_size=1'
-    ).catch(() => ({ items: [] as Array<{ id: number }> }));
+    ).catch((e) => { console.warn(`[E2E] 列表回读失败（返回空）: ${(e as Error).message}`); return { items: [] as Array<{ id: number }> }; });
     if (list.items?.[0]?.id)
       await apiCallRaw(page, 'GET', `/production/mrp-history/${list.items?.[0].id}`);
     await safePostAction(page, '/production/mrp/calculate', {
@@ -189,7 +189,7 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
       page,
       'GET',
       '/boms?page=1&page_size=1'
-    ).catch(() => ({ items: [] as Array<{ id: number }> }));
+    ).catch((e) => { console.warn(`[E2E] 列表回读失败（返回空）: ${(e as Error).message}`); return { items: [] as Array<{ id: number }> }; });
     if (bomList.items?.[0]?.id) {
       await apiCallRaw(page, 'GET', `/boms/${bomList.items?.[0].id}`);
       await verifyEndpointHealthy(page, `/boms/${bomList.items?.[0].id}/tree`);
@@ -202,7 +202,7 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
       page,
       'GET',
       '/production/lab-dip/requests?page=1&page_size=1'
-    ).catch(() => ({ items: [] as Array<{ id: number }> }));
+    ).catch((e) => { console.warn(`[E2E] 列表回读失败（返回空）: ${(e as Error).message}`); return { items: [] as Array<{ id: number }> }; });
     if (ldList.items?.[0]?.id) {
       const reqId = ldList.items?.[0].id;
       await apiCallRaw(page, 'GET', `/production/lab-dip/requests/${reqId}`);

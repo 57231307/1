@@ -123,7 +123,8 @@ test.describe('面料单据专用字段全链路验证', () => {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/color-cards', cardData);
       cardId = result.data?.id!;
-    } catch {
+    } catch (e) {
+      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',
@@ -245,7 +246,7 @@ test.describe('面料单据专用字段全链路验证', () => {
         .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
 
       // 检查表单是否有色号/缸号/批次号字段
-      const dialogText = await dialog.textContent().catch(() => '');
+      const dialogText = await dialog.textContent().catch((e) => { console.warn(`[E2E] 文本读取失败（返回空）: ${(e as Error).message}`); return ''; });
       const hasColorNo = dialogText?.includes('色号');
       const hasDyeLotNo = dialogText?.includes('缸号');
       const hasBatchNo = dialogText?.includes('批次');

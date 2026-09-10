@@ -246,8 +246,8 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
         items: Array<{ product_id: number; color_no: string; dye_lot_no: string }>;
       }>(page, 'GET', '/business-trace?page=1&page_size=5');
       expect(trace.items);
-    } catch {
-      // 追溯端点可能不同
+    } catch (e) {
+      console.warn(`[E2E] 兜底捕获: ${(e as Error).message}`); // 追溯端点可能不同
       try {
         const trace = await apiCallRaw<{ items: Array<{ id: number }> }>(
           page,
@@ -330,9 +330,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
       try {
         const stats = await apiCallRaw<Record<string, unknown>>(page, 'GET', '/dashboard');
         expect(stats);
-      } catch {
-        /* skip */
-      }
+      } catch (e) { console.warn(`[E2E] skip（容错忽略）: ${(e as Error).message}`); }
      }
   });
 
@@ -349,8 +347,8 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
           '/admin/failover/health'
         );
         expect(status);
-      } catch {
-        // 健康检查端点可能在 /health（非 API 前缀）
+      } catch (e) {
+        console.warn(`[E2E] 兜底捕获: ${(e as Error).message}`); // 健康检查端点可能在 /health（非 API 前缀）
         const response = await fetch('http://localhost:8082/health');
         expect(response.ok).toBeTruthy();
       }

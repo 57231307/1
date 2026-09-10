@@ -126,8 +126,8 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
         `/quotations/${qid}/convert`
       );
       ctx.salesOrderId = result.data?.id || result.data?.order_id;
-    } catch {
-      // 可能已转换或 API 格式不同
+    } catch (e) {
+      console.warn(`[E2E] 兜底捕获: ${(e as Error).message}`); // 可能已转换或 API 格式不同
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',

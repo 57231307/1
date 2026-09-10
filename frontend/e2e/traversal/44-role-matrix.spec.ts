@@ -48,7 +48,7 @@ test.describe(`P5.14 角色权限矩阵: ${role}`, () => {
         document.querySelectorAll('.el-menu a[href], aside a[href], nav a[href]'),
       );
       return links.map((a) => (a as HTMLAnchorElement).getAttribute('href') ?? '');
-    }).catch(() => [] as string[]);
+    }).catch((e) => { console.warn(`[44] 文本收集失败（返回空）: ${(e as Error).message}`); return [] as string[]; });
 
     // 拉取角色权限做推导（从 storageState cookie 登录态调 API）
     const derived = await deriveFromMenu(menuHrefs);

@@ -48,7 +48,8 @@ test.describe('面料单据专用字段全链路验证', () => {
         transferData
       );
       transferId = result.data?.id!;
-    } catch {
+    } catch (e) {
+      console.warn(`[21c] 调拨单创建失败（回退查询列表）: ${(e as Error).message}`);
       // list_transfers 返回 ApiResponse<Vec<Model>>：data 是数组（无 items 包装）
       const list = await apiCallRaw<
         Array<{ id: number }> | { items?: Array<{ id: number }> }
@@ -231,7 +232,8 @@ test.describe('面料单据专用字段全链路验证', () => {
           fabricData
         );
         fabricId = result.data?.id!;
-      } catch {
+      } catch (e) {
+        console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
         const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
           page,
           'GET',

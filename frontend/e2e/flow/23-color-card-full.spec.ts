@@ -52,7 +52,7 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
       page,
       'GET',
       '/color-cards/issues?page=1&page_size=1'
-    ).catch(() => ({ items: [] as Array<{ id: number }> }));
+    ).catch((e) => { console.warn(`[E2E] 列表回读失败（返回空）: ${(e as Error).message}`); return { items: [] as Array<{ id: number }> }; });
     const issueId = issues.items?.[0]?.id;
     if (issueId) {
       await apiCallRaw(page, 'GET', `/color-cards/issues/${issueId}`);
@@ -71,7 +71,7 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
       page,
       'GET',
       '/color-prices?page=1&page_size=1'
-    ).catch(() => ({ items: [] as Array<{ id: number }> }));
+    ).catch((e) => { console.warn(`[E2E] 列表回读失败（返回空）: ${(e as Error).message}`); return { items: [] as Array<{ id: number }> }; });
     const priceId = list.items?.[0]?.id;
     if (priceId) {
       await apiCallRaw(page, 'GET', `/color-prices/${priceId}`);

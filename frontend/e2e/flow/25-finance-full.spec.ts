@@ -31,7 +31,7 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
       page,
       'GET',
       '/fund-management/accounts?page=1&page_size=1'
-    ).catch(() => ({ items: [] as Array<{ id: number }> }));
+    ).catch((e) => { console.warn(`[E2E] 列表回读失败（返回空）: ${(e as Error).message}`); return { items: [] as Array<{ id: number }> }; });
     const acctId = list.items?.[0]?.id;
     if (acctId) {
       await apiCallRaw(page, 'GET', `/fund-management/accounts/${acctId}`);
@@ -75,7 +75,7 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
       page,
       'GET',
       '/fixed-assets?page=1&page_size=1'
-    ).catch(() => ({ items: [] as Array<{ id: number }> }));
+    ).catch((e) => { console.warn(`[E2E] 列表回读失败（返回空）: ${(e as Error).message}`); return { items: [] as Array<{ id: number }> }; });
     if (faList.items?.[0]?.id) {
       await apiCallRaw(page, 'GET', `/fixed-assets/${faList.items?.[0].id}`);
       await verifyEndpointHealthy(

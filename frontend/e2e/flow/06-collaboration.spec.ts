@@ -43,7 +43,8 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
         is_system: false,
       });
       getCtx().roleId = result.data?.id;
-    } catch {
+    } catch (e) {
+      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',
@@ -68,8 +69,8 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
         is_active: true,
       });
       if (result.data?.id) ctx.userIds.push(result.data.id);
-    } catch {
-      // 用户可能已存在
+    } catch (e) {
+      console.warn(`[E2E] 兜底捕获: ${(e as Error).message}`); // 用户可能已存在
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',

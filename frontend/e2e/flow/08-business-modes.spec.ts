@@ -39,8 +39,8 @@ test.describe.serial('扩展: 业务模式测试（染整加工/来料加工/委
         const hasAny = codes.some(c => expectedCodes.includes(c));
         expect(hasAny).toBe(true);
       }
-    } catch {
-      // 业务模式端点可能不同
+    } catch (e) {
+      console.warn(`[E2E] 兜底捕获: ${(e as Error).message}`); // 业务模式端点可能不同
       try {
         const modes = await apiCallRaw<{ items: Array<{ mode_code: string }> }>(
           page,

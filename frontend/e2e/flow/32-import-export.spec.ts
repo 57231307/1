@@ -89,12 +89,12 @@ test.describe.serial('P0 导入导出：真实 UI 点击验证', () => {
   test('产品：UI 导入→模板下载→上传→导入结果验证→列表回读', async ({ page }) => {
     test.setTimeout(180_000);
     await page.goto(`${BASE_URL}/product`);
-    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch((e) => { console.warn(`[P0] 等待失败: ${(e as Error).message}`); });
     await page.waitForTimeout(1000);
 
     // 找导入按钮
     const importBtn = page.getByRole('button', { name: /导入|import|上传/i }).first();
-    const hasImportBtn = await importBtn.isVisible({ timeout: 5000 }).catch(() => false);
+    const hasImportBtn = await importBtn.isVisible({ timeout: 5000 }).catch((e) => { console.warn(`[P0] 元素查询失败: ${(e as Error).message}`); return false; });
     if (!hasImportBtn) {
       console.log('[P0-导入-产品] 产品列表页无导入按钮，跳过');
       test.skip();
@@ -107,12 +107,12 @@ test.describe.serial('P0 导入导出：真实 UI 点击验证', () => {
 
     // 等导入弹窗
     const dialog = page.locator('.el-dialog:visible').last();
-    await dialog.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+    await dialog.waitFor({ state: 'visible', timeout: 10000 }).catch((e) => { console.warn('[P0-导入-产品] 弹窗可见性查询失败:', (e as Error).message); });
     console.log('[P0-导入-产品] 导入弹窗已打开');
 
     // 下载模板
     const templateBtn = dialog.getByRole('button', { name: /模板|template|下载/i }).first();
-    const hasTemplate = await templateBtn.isVisible({ timeout: 3000 }).catch(() => false);
+    const hasTemplate = await templateBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[P0] 元素查询失败: ${(e as Error).message}`); return false; });
     if (hasTemplate) {
       const templateDownload = page.waitForEvent('download', { timeout: 10000 });
       await templateBtn.click();
@@ -142,7 +142,7 @@ test.describe.serial('P0 导入导出：真实 UI 点击验证', () => {
 
     // 上传文件（用下载的模板或新建临时 CSV）
     const fileInput = dialog.locator('input[type="file"]').first();
-    const hasFileInput = await fileInput.isVisible({ timeout: 3000 }).catch(() => false);
+    const hasFileInput = await fileInput.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[P0] 元素查询失败: ${(e as Error).message}`); return false; });
     if (!hasFileInput) {
       console.log('[P0-导入-产品] 导入弹窗无文件输入控件，跳过上传');
       test.skip();
@@ -160,7 +160,7 @@ test.describe.serial('P0 导入导出：真实 UI 点击验证', () => {
 
     // 点击确认导入
     const submitBtn = dialog.getByRole('button', { name: /确定|确认|导入|上传/i }).first();
-    if (await submitBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+    if (await submitBtn.isVisible({ timeout: 5000 }).catch((e) => { console.warn(`[P0] 元素查询失败: ${(e as Error).message}`); return false; })) {
       await submitBtn.click();
       console.log('[P0-导入-产品] 已点击确认导入');
     }
@@ -168,14 +168,14 @@ test.describe.serial('P0 导入导出：真实 UI 点击验证', () => {
     // 等待结果
     await page.waitForTimeout(5000);
     const message = page.locator('.el-message__content').last();
-    const messageText = await message.textContent().catch(() => '');
+    const messageText = await message.textContent().catch((e) => { console.warn(`[P0] 文本读取失败: ${(e as Error).message}`); return ''; });
     console.log(`[P0-导入-产品] 导入结果消息: ${messageText || '无消息'}`);
 
     // 验证导入的数据出现在列表中
     await page.reload();
     await page.waitForTimeout(2000);
     const importedProductCode = `P0-IMP-${TS}`;
-    const found = await page.locator('.el-table__row').filter({ hasText: importedProductCode }).first().isVisible({ timeout: 10000 }).catch(() => false);
+    const found = await page.locator('.el-table__row').filter({ hasText: importedProductCode }).first().isVisible({ timeout: 10000 }).catch((e) => { console.warn(`[P0] 元素查询失败: ${(e as Error).message}`); return false; });
     console.log(`[P0-导入-产品] 导入数据列表回读: ${found ? '✅ 列表中找到导入的产品' : '❌ 列表中未找到（可能导入失败或列表分页）'}`);
     console.log('[P0-导入-产品] ✅ 导入全流程验证完成');
   });
@@ -196,11 +196,11 @@ test.describe.serial('P0 导入导出：真实 UI 点击验证', () => {
   test('BOM：UI 导出→下载文件验证', async ({ page }) => {
     test.setTimeout(120_000);
     await page.goto(`${BASE_URL}/bom`);
-    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch((e) => { console.warn(`[P0] 等待失败: ${(e as Error).message}`); });
     await page.waitForTimeout(1000);
 
     const exportBtn = page.getByRole('button', { name: /导出|export|下载/i }).first();
-    const hasExport = await exportBtn.isVisible({ timeout: 5000 }).catch(() => false);
+    const hasExport = await exportBtn.isVisible({ timeout: 5000 }).catch((e) => { console.warn(`[P0] 元素查询失败: ${(e as Error).message}`); return false; });
     if (!hasExport) {
       console.log('[P0-导出-BOM] BOM 列表页无导出按钮，跳过');
       test.skip();

@@ -46,7 +46,8 @@ test.describe('采购退货完整流程', () => {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/returns', returnData);
       returnId = result.data?.id!;
-    } catch {
+    } catch (e) {
+      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',
@@ -150,7 +151,8 @@ test.describe('采购退货完整流程', () => {
         returnData
       );
       returnId = result.data?.id!;
-    } catch {
+    } catch (e) {
+      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',

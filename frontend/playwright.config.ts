@@ -42,6 +42,8 @@ export default defineConfig({
     headless: true,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
+    // 诊断模式（用户指令：尽可能多获取测试日志便于错误分析，减少 CI 重跑次数）
+    video: 'retain-on-failure',
     // 浏览器语言设为中文（i18n 浏览器语言协商读 navigator.language，
     // Playwright 默认 en-US 导致页面英文渲染，E2E 中文文本断言全部失败）
     locale: 'zh-CN',

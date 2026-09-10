@@ -419,5 +419,23 @@ export async function ensureRoleUsers(): Promise<void> {
   const fs = await import('fs');
   mkdirSync('e2e/.auth', { recursive: true });
   fs.writeFileSync(ROLE_CREDENTIALS_PATH, JSON.stringify(credentials, null, 2));
-  console.log(`[globalSetup] 角色凭证写入 ${ROLE_CREDENTIALS_PATH}（${Object.keys(credentials).length} 角色）`);
+  const credKeys = Object.keys(credentials);
+  console.log(`[globalSetup] 角色凭证写入 ${ROLE_CREDENTIALS_PATH}（${credKeys.length} 角色）`);
+  // 诊断：打印凭证键样本（前 10 个）+ 关键角色存在性
+  console.log(`[globalSetup][诊断] 凭证键样本: ${credKeys.slice(0, 10).join(', ')}${credKeys.length > 10 ? ` …共 ${credKeys.length}` : ''}`);
+  for (const mustHave of ['admin', 'cashier', 'report_viewer', 'customer', 'temporary', 'manager']) {
+    console.log(`[globalSetup][诊断] 角色 ${mustHave}: ${credKeys.includes(mustHave) ? '✅有' : '❌无'}`);
+  }
+  // 回读验证：确保写出的文件可读且键完整
+  try {
+    const verifyRaw = fs.readFileSync(ROLE_CREDENTIALS_PATH, 'utf-8');
+    const verifyData = JSON.parse(verifyRaw) as Record<string, { username: string; password: string }>;
+    const verifyCount = Object.keys(verifyData).length;
+    console.log(`[globalSetup][诊断] 回读验证：文件 ${verifyRaw.length}B，可解析角色 ${verifyCount} 个，cwd=${process.cwd()}`);
+    if (verifyCount !== credKeys.length) {
+      console.error(`[globalSetup][诊断] ⚠️ 回读数量 ${verifyCount} ≠ 写入数量 ${credKeys.length}！`);
+    }
+  } catch (e) {
+    console.error(`[globalSetup][诊断] ⚠️ 回读验证失败: ${(e as Error).message}`);
+  }
 }
