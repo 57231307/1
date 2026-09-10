@@ -901,3 +901,280 @@ export async function ensureAccountingPeriodUI(page: Page): Promise<void> {
     await waitCreateResponse(page, `${API_PREFIX}/finance/accounting-periods/init`, 15000);
   }
 }
+
+// ============================================================
+// UI 驱动通用工具：删除/停用/导出/导入（2026-09-10 用户指令）
+// 所有操作基于真实 UI 点击，非 API 调用
+// ============================================================
+
+/**
+ * UI 驱动删除列表行
+ * 1. 导航到列表页
+ * 2. 找到目标行的删除按钮（el-button type=danger link）
+ * 3. 点击删除 → 确认弹窗（el-popconfirm/el-message-box）
+ * 4. 等待列表刷新，验证该行消失
+ *
+ * @returns true=删除成功且行消失，false=删除失败或行仍在
+ */
+export async function uiDeleteRow(
+  page: Page,
+  route: string,
+  rowIdentifier: { column: string; value: string | number },
+  options?: { confirmText?: RegExp; listApiPath?: string }
+): Promise<boolean> {
+  const entityLabel = route.replace(/^\//, '');
+  const confirmText = options?.confirmText ?? /确定|确认|是|删除/;
+  try {
+    await safeGoto(page, route);
+    await page.waitForTimeout(1000);
+
+    // 找目标行：遍历行，匹配标识列值
+    const rows = page.locator('.el-table__row');
+    const rowCount = await rows.count();
+    console.log(`[uiDeleteRow] ${entityLabel} 列表共 ${rowCount} 行，查找 ${rowIdentifier.column}=${rowIdentifier.value}`);
+
+    let targetRow: import('@playwright/test').Locator | null = null;
+    for (let i = 0; i < rowCount; i++) {
+      const row = rows.nth(i);
+      const cellText = await row.locator('td').filter({ hasText: String(rowIdentifier.value) }).first().textContent().catch(() => '');
+      if (cellText && cellText.includes(String(rowIdentifier.value))) {
+        targetRow = row;
+        console.log(`[uiDeleteRow] 匹配到目标行（第 ${i + 1} 行）`);
+        break;
+      }
+    }
+
+    if (!targetRow) {
+      console.warn(`[uiDeleteRow] ${entityLabel} 未找到 ${rowIdentifier.column}=${rowIdentifier.value} 的行`);
+      return false;
+    }
+
+    // 点删除按钮（el-button type=danger link）
+    const deleteBtn = targetRow.locator('button.el-button--danger, button:has-text("删除")').first();
+    await deleteBtn.waitFor({ state: 'visible', timeout: 5000 });
+    await deleteBtn.click();
+    console.log(`[uiDeleteRow] 已点击删除按钮`);
+
+    // 确认弹窗
+    await page.waitForTimeout(500);
+    const confirmBtn = page.getByRole('button', { name: confirmText }).last();
+    if (await confirmBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await confirmBtn.click();
+      console.log(`[uiDeleteRow] 已确认删除`);
+    }
+
+    // 等待列表刷新
+    await page.waitForTimeout(2000);
+    if (options?.listApiPath) {
+      await waitListResponse(page, options.listApiPath, 15000).catch((e) => {
+        console.warn(`[uiDeleteRow] 列表刷新响应等待失败:`, (e as Error).message);
+      });
+    }
+
+    // 验证行消失
+    const rowsAfter = page.locator('.el-table__row');
+    const countAfter = await rowsAfter.count();
+    let stillExists = false;
+    for (let i = 0; i < countAfter; i++) {
+      const cellText = await rowsAfter.nth(i).locator('td').filter({ hasText: String(rowIdentifier.value) }).first().textContent().catch(() => '');
+      if (cellText && cellText.includes(String(rowIdentifier.value))) {
+        stillExists = true;
+        break;
+      }
+    }
+
+    if (stillExists) {
+      console.error(`[uiDeleteRow] ❌ ${entityLabel} 删除后行仍存在（${rowIdentifier.column}=${rowIdentifier.value}）`);
+      return false;
+    }
+    console.log(`[uiDeleteRow] ✅ ${entityLabel} 删除成功，行已消失（列表 ${rowCount}→${countAfter} 行）`);
+    return true;
+  } catch (e) {
+    console.error(`[uiDeleteRow] ${entityLabel} 删除异常:`, (e as Error).message);
+    return false;
+  }
+}
+
+/**
+ * UI 驱动切换行状态（停用/启用）
+ * 1. 导航到列表页
+ * 2. 找到目标行的状态切换开关（el-switch / el-button 状态按钮）
+ * 3. 点击切换
+ * 4. 验证状态文本已变更
+ */
+export async function uiToggleStatus(
+  page: Page,
+  route: string,
+  rowIdentifier: { column: string; value: string | number },
+  expectedStatusAfter: string
+): Promise<boolean> {
+  const entityLabel = route.replace(/^\//, '');
+  try {
+    await safeGoto(page, route);
+    await page.waitForTimeout(1000);
+
+    const rows = page.locator('.el-table__row');
+    const rowCount = await rows.count();
+    let targetRow: import('@playwright/test').Locator | null = null;
+    for (let i = 0; i < rowCount; i++) {
+      const row = rows.nth(i);
+      const cellText = await row.locator('td').filter({ hasText: String(rowIdentifier.value) }).first().textContent().catch(() => '');
+      if (cellText && cellText.includes(String(rowIdentifier.value))) {
+        targetRow = row;
+        break;
+      }
+    }
+    if (!targetRow) {
+      console.warn(`[uiToggleStatus] ${entityLabel} 未找到目标行`);
+      return false;
+    }
+
+    // 找状态开关（el-switch 或 el-button 带"停用"/"启用"文案）
+    const switchEl = targetRow.locator('.el-switch').first();
+    const statusBtn = targetRow.locator('button:has-text("停用"), button:has-text("启用"), button:has-text("禁用")').first();
+    if (await switchEl.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await switchEl.click();
+      console.log(`[uiToggleStatus] 已点击状态开关`);
+    } else if (await statusBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await statusBtn.click();
+      console.log(`[uiToggleStatus] 已点击状态按钮`);
+    } else {
+      console.warn(`[uiToggleStatus] ${entityLabel} 未找到状态切换控件`);
+      return false;
+    }
+
+    await page.waitForTimeout(2000);
+
+    // 验证状态文本
+    const rowText = await targetRow.textContent().catch(() => '');
+    if (rowText.includes(expectedStatusAfter)) {
+      console.log(`[uiToggleStatus] ✅ ${entityLabel} 状态切换成功，当前=${expectedStatusAfter}`);
+      return true;
+    }
+    console.error(`[uiToggleStatus] ❌ ${entityLabel} 状态切换后未显示"${expectedStatusAfter}"`);
+    return false;
+  } catch (e) {
+    console.error(`[uiToggleStatus] ${entityLabel} 状态切换异常:`, (e as Error).message);
+    return false;
+  }
+}
+
+/**
+ * UI 驱动导出文件下载
+ * 1. 导航到列表页
+ * 2. 点击导出按钮
+ * 3. 等待下载事件触发
+ * 4. 验证文件名 + 文件大小 + 文件类型
+ *
+ * @returns 下载文件信息（filename/suggestedFilename/size）或 null
+ */
+export async function uiExportDownload(
+  page: Page,
+  route: string,
+  exportButtonText: RegExp,
+  options?: { acceptConfirm?: boolean }
+): Promise<{ filename: string; size: number } | null> {
+  const entityLabel = route.replace(/^\//, '');
+  try {
+    await safeGoto(page, route);
+    await page.waitForTimeout(1000);
+
+    const exportBtn = page.getByRole('button', { name: exportButtonText, exact: false }).first();
+    await exportBtn.waitFor({ state: 'visible', timeout: 10000 });
+    console.log(`[uiExportDownload] ${entityLabel} 找到导出按钮`);
+
+    // 设置下载监听
+    const downloadPromise = page.waitForEvent('download', { timeout: 30000 });
+    await exportBtn.click();
+    console.log(`[uiExportDownload] 已点击导出按钮`);
+
+    if (options?.acceptConfirm) {
+      await page.waitForTimeout(500);
+      const confirmBtn = page.getByRole('button', { name: /确定|确认|导出/ }).last();
+      if (await confirmBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await confirmBtn.click();
+      }
+    }
+
+    const download = await downloadPromise;
+    const filename = download.suggestedFilename();
+    const path = await download.path();
+    const size = path ? (await import('fs')).statSync(path).size : 0;
+    console.log(`[uiExportDownload] ✅ ${entityLabel} 导出成功：文件名=${filename} 大小=${size}B`);
+    return { filename, size };
+  } catch (e) {
+    console.error(`[uiExportDownload] ❌ ${entityLabel} 导出失败:`, (e as Error).message);
+    return null;
+  }
+}
+
+/**
+ * UI 驱动导入文件上传
+ * 1. 导航到列表页
+ * 2. 点击导入按钮
+ * 3. 等待导入弹窗出现
+ * 4. 上传文件（setInputFiles）
+ * 5. 点击确认导入
+ * 6. 等待导入结果提示（成功/失败/部分成功）
+ *
+ * @returns 导入结果文本或 null
+ */
+export async function uiImportUpload(
+  page: Page,
+  route: string,
+  importButtonText: RegExp,
+  filePath: string,
+  options?: { submitText?: RegExp; templateDownloadText?: RegExp }
+): Promise<string | null> {
+  const entityLabel = route.replace(/^\//, '');
+  const submitText = options?.submitText ?? /确定|确认|导入|上传/;
+  try {
+    await safeGoto(page, route);
+    await page.waitForTimeout(1000);
+
+    const importBtn = page.getByRole('button', { name: importButtonText, exact: false }).first();
+    await importBtn.waitFor({ state: 'visible', timeout: 10000 });
+    await importBtn.click();
+    console.log(`[uiImportUpload] ${entityLabel} 已点击导入按钮`);
+
+    // 等导入弹窗
+    const dialog = page.locator('.el-dialog:visible').last();
+    await dialog.waitFor({ state: 'visible', timeout: 10000 });
+    await page.waitForTimeout(500);
+
+    // 可选：下载模板
+    if (options?.templateDownloadText) {
+      const templateBtn = dialog.getByRole('button', { name: options.templateDownloadText }).first();
+      if (await templateBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+        const templateDownload = page.waitForEvent('download', { timeout: 10000 });
+        await templateBtn.click();
+        const templateFile = await templateDownload;
+        console.log(`[uiImportUpload] 模板下载成功：${templateFile.suggestedFilename()}`);
+      }
+    }
+
+    // 找文件输入（el-upload 的 input[type=file]）
+    const fileInput = dialog.locator('input[type="file"]').first();
+    await fileInput.setInputFiles(filePath);
+    console.log(`[uiImportUpload] 已上传文件: ${filePath}`);
+
+    await page.waitForTimeout(1000);
+
+    // 点击确认导入
+    const submitBtn = dialog.getByRole('button', { name: submitText }).first();
+    if (await submitBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await submitBtn.click();
+      console.log(`[uiImportUpload] 已点击确认导入`);
+    }
+
+    // 等待结果提示
+    await page.waitForTimeout(3000);
+    const message = page.locator('.el-message__content').last();
+    const messageText = await message.textContent().catch(() => '');
+    console.log(`[uiImportUpload] ${entityLabel} 导入结果: ${messageText || '无提示消息'}`);
+    return messageText || null;
+  } catch (e) {
+    console.error(`[uiImportUpload] ❌ ${entityLabel} 导入异常:`, (e as Error).message);
+    return null;
+  }
+}
