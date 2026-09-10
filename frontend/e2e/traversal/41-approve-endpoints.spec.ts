@@ -47,7 +47,12 @@ test.describe('P5.11 审批端点全量矩阵', () => {
         const bizCode = codeMatch ? codeMatch[1] : '';
 
         // 权限拒绝：admin 持 *:* 被拒为真缺陷
-        if (bizCode.includes('PERMISSION') || bizCode.includes('FORBIDDEN')) {
+        // forbidden_response 业务码为数字 403（response.rs:164），另有 PERMISSION_DENIED 字符串形态
+        if (
+          bizCode === '403' ||
+          bizCode.includes('PERMISSION') ||
+          bizCode.includes('FORBIDDEN')
+        ) {
           throw new Error(`${resolvedPath} admin 账号被权限拒绝——${msg}`);
         }
         // 其余（实体缺失 NOT_FOUND/状态机 BUSINESS_ERROR/校验 VALIDATION 等）＝前置数据缺失
