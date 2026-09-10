@@ -195,7 +195,7 @@ test.describe('面料单据专用字段全链路验证', () => {
 
     let voucherId: number;
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/vouchers', voucherData);
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/vouchers', voucherData);
       voucherId = result.data?.id!;
     } catch {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(

@@ -107,7 +107,7 @@ test.describe('成本核算完整流程', () => {
     expect(byBatch.items?.length).toBeGreaterThanOrEqual(0);
 
     // 验证审计日志
-    const auditLogged = await verifyAuditLog(page, 'CREATE', 'production', '/cost-collections');
+    const auditLogged = await verifyAuditLog(page, 'CREATE', 'production', '/production/cost-collections');
     expect(auditLogged).toBe(true);
   });
 
@@ -154,7 +154,7 @@ test.describe('成本核算完整流程', () => {
 
     let voucherId: number;
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/vouchers', voucherData);
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/vouchers', voucherData);
       voucherId = result.data?.id!;
     } catch {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
@@ -236,7 +236,7 @@ test.describe('成本核算完整流程', () => {
       };
 
       try {
-        const result = await apiCall<{ id?: number }>(page, 'POST', '/fixed-assets', assetData);
+        const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/fixed-assets', assetData);
         const newAssetId = result.data?.id;
         if (newAssetId) {
           const depResult = await apiCall<{ depreciation_amount: string }>(

@@ -235,7 +235,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       // 尝试手动创建 AP 应付单（如果未自动生成）
       if ((invoices?.items?.length ?? 0) === 0) {
         try {
-          const result = await apiCall<{ id?: number }>(page, 'POST', '/ap/invoices', {
+          const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/ap/invoices', {
             // CreateApInvoiceRequest：invoice_no 非后端字段（应 inset_type），保留 amount/tax_amount/invoice_date
             supplier_id: ctx.supplierId || 1,
             amount: 56500,
@@ -265,7 +265,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     }
 
     try {
-      await apiCall(page, 'POST', '/ap/payments', {
+      await apiCall(page, 'POST', '/finance/ap/payments', {
         ap_invoice_id: ctx.apInvoiceId,
         amount: 56500,
         payment_method: 'bank_transfer',

@@ -51,7 +51,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
       while (activeCodes.length < 3) {
         const i = activeCodes.length;
         const code = `E2E${suffix}${i}`;
-        await apiCall(page, 'POST', '/subjects', {
+        await apiCall(page, 'POST', '/finance/subjects', {
           code,
           name: `E2E科目${i}`,
           level: 1,
@@ -62,7 +62,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
       const pick = (i: number) => activeCodes[i % activeCodes.length];
       const amount = 10000;
       const half = amount / 2;
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/vouchers', {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/vouchers', {
         voucher_date: new Date().toISOString().split('T')[0],
         voucher_type: 'general',
         items: [
@@ -175,7 +175,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
     await loginViaUI(page);
     const ctx = getCtx();
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/fixed-assets', {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/fixed-assets', {
         // CreateAssetRequestDto 字段：asset_no/asset_name/original_value/purchase_date/useful_life/depreciation_method
         asset_name: genName('E2E染缸设备'),
         asset_no: genCode('FA'),
@@ -209,7 +209,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
     await loginViaUI(page);
     const ctx = getCtx();
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/budgets', {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/budgets', {
         // 后端 CreateBudgetDto 必填 item_name + planned_amount（budget_name/total_amount 不存在）
         item_name: genName('E2E预算'),
         budget_year: new Date().getFullYear(),

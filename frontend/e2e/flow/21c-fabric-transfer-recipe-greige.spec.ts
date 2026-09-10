@@ -216,7 +216,7 @@ test.describe('面料单据专用字段全链路验证', () => {
 
     let fabricId: number;
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/greige-fabrics', fabricData);
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/production/greige-fabrics', fabricData);
       fabricId = result.data?.id!;
     } catch {
       try {
