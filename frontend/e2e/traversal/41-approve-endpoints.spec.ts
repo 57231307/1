@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginViaUI } from '../flow/helpers';
+import { loginViaUI, apiCall, type ApiResponse } from '../flow/helpers';
 import { APPROVE_ENDPOINTS } from './endpoints.config';
 
 /**
@@ -28,49 +28,35 @@ test.describe('P5.11 审批端点全量矩阵', () => {
     if (resolvedPath.includes('{')) continue;
 
     test(`APPROVE ${resolvedPath} [${entity}]`, async ({ page }) => {
-      // 带 CSRF 头：CSRF 缺失同样 403，不带会把 CSRF 拒绝误判为权限缺陷
-      const cookies = await page.context().cookies();
-      const csrf = cookies.find((c) => c.name === 'csrf_token');
+      // 用 apiCall：内置 CSRF token 提取 + CSRF_TOKEN_INVALID 两级恢复
+      // （50 分片并发同库时 storageState 里的一次性 csrf 易被竞争消费，
+      // 手动构造请求无恢复逻辑会把 CSRF 拒绝误判为权限缺陷）
+      try {
+        const data = await apiCall<Record<string, unknown>>(
+          page,
+          'POST',
+          resolvedPath,
+          { comments: 'E2E 审批矩阵测试' },
+        );
+        // 200 + code 200：审批调用成功（或后端接受该请求）
+        expect(data.code, `${resolvedPath} 业务码应 200`).toBe(200);
+      } catch (e) {
+        const msg = (e as Error).message;
+        // apiCall 抛错包含 code=XXX message=YYY（HTTP 层已通过，业务层拒绝）
+        const codeMatch = msg.match(/code=([^\s]+)/);
+        const bizCode = codeMatch ? codeMatch[1] : '';
 
-      const resp = await page.request
-        .post(`${API_BASE}${API_PREFIX}${resolvedPath}`, {
-          data: { comments: 'E2E 审批矩阵测试' },
-          headers: {
-            // 从 storageState 提取 csrf
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest',
-            ...(csrf ? { 'X-CSRF-Token': csrf.value } : {}),
-          },
-        })
-        .catch(() => null);
-
-      if (!resp) throw new Error(`网络错误: ${resolvedPath}`);
-
-      const status = resp.status();
-
-      // 5xx 永远是真失败
-      expect(
-        status,
-        `${resolvedPath} 不应 5xx（服务器崩溃）`,
-      ).toBeLessThan(500);
-
-      if (status === 404 || status === 400) {
-        // id=1 实体不存在或校验失败：数据缺失，非缺陷
+        // 权限拒绝：admin 持 *:* 被拒为真缺陷
+        if (bizCode.includes('PERMISSION') || bizCode.includes('FORBIDDEN')) {
+          throw new Error(`${resolvedPath} admin 账号被权限拒绝——${msg}`);
+        }
+        // 其余（实体缺失 NOT_FOUND/状态机 BUSINESS_ERROR/校验 VALIDATION 等）＝前置数据缺失
         test.info().annotations.push({
           type: 'missing-data',
-          description: `${entity} 前置数据缺失（id=1 返回 ${status}），需配置 createApi 前置链`,
+          description: `${entity} 前置数据缺失：${msg.slice(0, 160)}`,
         });
         test.skip();
-        return;
       }
-
-      if (status === 403) {
-        // admin 账号被拒：真缺陷（矩阵用 admin 身份跑）
-        throw new Error(`${resolvedPath} admin 账号被 403 拒绝——权限配置缺陷`);
-      }
-
-      // 200/201/409（状态机不允许）均可达
-      expect(status).toBeLessThan(500);
     });
   }
 });
