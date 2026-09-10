@@ -16,7 +16,7 @@ test.describe('P5.4 水平越权', () => {
   test('用户无法修改他人创建的客户', async ({ page }) => {
     // 创建客户 A
     const customerName = genName('HozCust');
-    const createResp = await apiCall(page, 'POST', '/customers', {
+    const createResp = await apiCall(page, 'POST', '/crm/customers', {
       name: customerName,
       customer_type: 'enterprise',
       contact_person: '测试',
@@ -36,7 +36,7 @@ test.describe('P5.4 水平越权', () => {
 
   test('用户无法修改他人创建的供应商', async ({ page }) => {
     const supplierName = genName('HozSup');
-    const createResp = await apiCall(page, 'POST', '/suppliers', {
+    const createResp = await apiCall(page, 'POST', '/purchase/suppliers', {
       name: supplierName,
       supplier_type: 'material',
       contact_person: '测试',
@@ -52,7 +52,7 @@ test.describe('P5.4 水平越权', () => {
     // 创建采购订单后尝试用另一账号删除
     // 基础断言：创建成功
     const orderNo = genName('HozPO');
-    const createResp = await apiCall(page, 'POST', '/purchase-orders', {
+    const createResp = await apiCall(page, 'POST', '/purchase/orders', {
       order_no: orderNo,
       supplier_id: 1,
       order_date: new Date().toISOString().slice(0, 10),
