@@ -263,14 +263,14 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
       // 后端 list_ar_invoices 返回 ApiResponse<Vec<Model>>：data 是数组（无 items 包装）
       const invoices = await apiCallRaw<
         Array<{ id: number; amount: number; status: string }> | { items?: Array<{ id: number; amount: number; status: string }> }
-      >(page, 'GET', '/finance/ar/invoices?page=1&page_size=5');
+      >(page, 'GET', '/ar/invoices?page=1&page_size=5');
       const invoiceList = Array.isArray(invoices)
         ? invoices
         : ((invoices as { items?: Array<{ id: number; amount: number; status: string }> }).items ?? []);
 
       if ((invoiceList.length ?? 0) === 0) {
         try {
-          const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/ar/invoices', {
+          const result = await apiCall<{ id?: number }>(page, 'POST', '/ar/invoices', {
             // CreateArInvoiceRequest：金额字段为 invoice_amount（无 invoice_no/tax_amount）
             customer_id: ctx.customerId || 1,
             invoice_amount: 113000,
@@ -299,7 +299,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
 
     // 第一次收款 50%
     try {
-      await apiCall(page, 'POST', '/finance/ar/payments', {
+      await apiCall(page, 'POST', '/ar/payments', {
         ar_invoice_id: ctx.arInvoiceId,
         amount: 56500,
         payment_method: 'bank_transfer',
@@ -314,7 +314,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
       const inv = await apiCallRaw<{ status: string }>(
         page,
         'GET',
-        `/finance/ar/invoices/${ctx.arInvoiceId}`
+        `/ar/invoices/${ctx.arInvoiceId}`
       );
       expect(['partially_paid', 'paid', 'unpaid', 'pending', 'partial', 'confirmed']).toContain(
         (inv.status || '').toLowerCase() || 'partially_paid'
@@ -325,7 +325,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
 
     // 第二次收款 50%
     try {
-      await apiCall(page, 'POST', '/finance/ar/payments', {
+      await apiCall(page, 'POST', '/ar/payments', {
         ar_invoice_id: ctx.arInvoiceId,
         amount: 56500,
         payment_method: 'bank_transfer',

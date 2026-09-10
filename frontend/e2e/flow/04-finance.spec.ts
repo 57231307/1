@@ -17,7 +17,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
     // 后端 list_subjects 返回 ApiResponse<Vec<Model>>：data 是数组（无 items 包装）
     const subjects = await apiCallRaw<
       Array<{ code: string; name: string }> | { items?: Array<{ code: string; name: string }> }
-    >(page, 'GET', '/finance/subjects?page=1&page_size=20');
+    >(page, 'GET', '/subjects?page=1&page_size=20');
     const subjectList = Array.isArray(subjects)
       ? subjects
       : ((subjects as { items?: Array<{ code: string; name: string }> }).items ?? []);
@@ -30,7 +30,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
       // 先取真实存在的科目编码（CI 库可能没有 1122/6001/2202 种子）
       const subjects = await apiCallRaw<
         Array<{ code: string; status?: string }> | { items?: Array<{ code: string; status?: string }> }
-      >(page, 'GET', '/finance/subjects?page=1&page_size=50');
+      >(page, 'GET', '/subjects?page=1&page_size=50');
       // 后端 list_subjects 返回 ApiResponse<Vec<Model>>：data 是数组（非 items 包装）
       const subjectList = Array.isArray(subjects)
         ? subjects
@@ -43,7 +43,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
       while (activeCodes.length < 3) {
         const i = activeCodes.length;
         const code = `E2E${suffix}${i}`;
-        await apiCall(page, 'POST', '/finance/subjects', {
+        await apiCall(page, 'POST', '/subjects', {
           code,
           name: `E2E科目${i}`,
           level: 1,
@@ -54,7 +54,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
       const pick = (i: number) => activeCodes[i % activeCodes.length];
       const amount = 10000;
       const half = amount / 2;
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/vouchers', {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/vouchers', {
         voucher_date: new Date().toISOString().split('T')[0],
         voucher_type: 'general',
         items: [
@@ -83,18 +83,18 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
     }
 
     try {
-      await apiCall(page, 'POST', `/finance/vouchers/${id}/submit`);
+      await apiCall(page, 'POST', `/vouchers/${id}/submit`);
     } catch {
       /* skip */
     }
     // posted 可能需要审核步骤
     try {
-      await apiCall(page, 'POST', `/finance/vouchers/${id}/post`);
+      await apiCall(page, 'POST', `/vouchers/${id}/post`);
     } catch {
       /* skip */
     }
 
-    const v = await apiCallRaw<{ status: string }>(page, 'GET', `/finance/vouchers/${id}`);
+    const v = await apiCallRaw<{ status: string }>(page, 'GET', `/vouchers/${id}`);
     const status = (v.status || '').toLowerCase();
     expect(['draft', 'submitted', 'reviewed', 'posted', 'cancelled']).toContain(
       status ?? '(missing-status)'
@@ -111,7 +111,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
     }
 
     // 对已 posted 的凭证提交 → 应拒绝
-    const result = await apiCallExpectFail(page, 'POST', `/finance/vouchers/${id}/submit`);
+    const result = await apiCallExpectFail(page, 'POST', `/vouchers/${id}/submit`);
     expect(result.status >= 400).toBe(true); // 非法转换应被拒
   });
 
@@ -167,7 +167,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
     await loginViaUI(page);
     const ctx = getCtx();
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/fixed-assets', {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/fixed-assets', {
         // CreateAssetRequestDto 字段：asset_no/asset_name/original_value/purchase_date/useful_life/depreciation_method
         asset_name: genName('E2E染缸设备'),
         asset_no: genCode('FA'),
@@ -201,7 +201,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
     await loginViaUI(page);
     const ctx = getCtx();
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/budgets', {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/budgets', {
         // 后端 CreateBudgetDto 必填 item_name + planned_amount（budget_name/total_amount 不存在）
         item_name: genName('E2E预算'),
         budget_year: new Date().getFullYear(),

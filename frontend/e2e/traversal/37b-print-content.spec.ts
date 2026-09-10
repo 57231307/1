@@ -165,7 +165,7 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
       const vs = await apiCallRaw<{ items: Array<{ id: number; voucher_no?: string; no?: string }> }>(
         page,
         'GET',
-        '/finance/vouchers?page=1&page_size=1'
+        '/vouchers?page=1&page_size=1'
       );
       voucherId = vs.items?.[0]?.id;
       voucherNo = vs.items?.[0]?.voucher_no ?? vs.items?.[0]?.no;
@@ -183,9 +183,9 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
     console.log(`[37b] 凭证 voucherId=${voucherId} no=${voucherNo ?? '?'}`);
 
     const printResp = await page.request
-      .get(`${API_BASE}${API_PREFIX}/finance/vouchers/${voucherId}/print`)
+      .get(`${API_BASE}${API_PREFIX}/vouchers/${voucherId}/print`)
       .catch(() => null);
-    if (!printResp) throw new Error(`网络错误: /finance/vouchers/${voucherId}/print`);
+    if (!printResp) throw new Error(`网络错误: /vouchers/${voucherId}/print`);
     const status = printResp.status();
     console.log(`[37b] 凭证打印 → ${status}`);
     if (status === 404 || status === 400) {
