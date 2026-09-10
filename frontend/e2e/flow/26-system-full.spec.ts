@@ -136,7 +136,7 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
         .locator('.el-form-item__error, .el-message--error')
         .first()
         .isVisible()
-        .catch(() => false);
+        .catch((e) => { console.warn('[26-system] 表单校验提示查询失败:', (e as Error).message); return false; });
       console.log(`[E2E] 用户表单校验提示渲染: ${hasError}（主断言走网络层）`);
       expect(userPostFired).toBe(false);
       await page

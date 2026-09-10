@@ -113,6 +113,7 @@ test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓�
         type: 'endpoint-missing',
         description: '/field-permissions 端点未实现（404）',
       });
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -132,6 +133,7 @@ test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓�
         type: 'endpoint-missing',
         description: '/customer-field-permissions 端点未实现（404）',
       });
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }

@@ -24,6 +24,7 @@ test.describe('P5.4 水平越权', () => {
     });
     const customerId = createResp?.id ?? createResp?.data?.id;
     if (!customerId) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }

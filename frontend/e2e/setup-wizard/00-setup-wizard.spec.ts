@@ -121,7 +121,7 @@ test.describe.serial('引导页初始化真实链路（真实后端 + 真实 Pos
     page.on('response', async resp => {
       if (resp.url().includes('/init/test-database')) {
         dbTestStatus = resp.status();
-        dbTestBody = (await resp.text().catch(() => '')) || '';
+        dbTestBody = (await resp.text().catch((e) => { console.warn('[setup-wizard] 响应体读取失败:', (e as Error).message); return ''; })) || '';
         console.log(`[test-database] HTTP ${dbTestStatus}: ${dbTestBody.slice(0, 300)}`);
       }
     });

@@ -68,6 +68,7 @@ test.describe('39c 导出内容断言', () => {
         type: 'missing-data',
         description: `仓库导出返回 ${status}（端点或数据缺失）`,
       });
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -131,6 +132,7 @@ test.describe('39c 导出内容断言', () => {
     console.log(`[39c] /stock/export → ${status}`);
     if (status === 404 || status === 400) {
       test.info().annotations.push({ type: 'missing-data', description: `库存导出返回 ${status}` });
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }

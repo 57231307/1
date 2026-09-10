@@ -23,6 +23,7 @@ import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { mockApiError, mockNetworkFailure, simulateSlowNetwork } from '../fixtures/network';
 
+console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
 test.skip(true, 'E2E-AUTHENTICITY-EXEMPT: 依赖响应伪造，违反 E2E 真实数据 IR，待人工确认恢复方案');
 
 test.describe('网络韧性：后端异常返回处理', () => {

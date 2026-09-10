@@ -37,6 +37,7 @@ test.describe('P5.11b 专用审批流', () => {
 
     if (!pending) {
       test.info().annotations.push({ type: 'missing-data', description: '无待审坏账核销单据（CI 种子库）' });
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -71,6 +72,7 @@ test.describe('P5.11b 专用审批流', () => {
 
     if (!pending) {
       test.info().annotations.push({ type: 'missing-data', description: '无待审资金转账单据' });
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -97,6 +99,7 @@ test.describe('P5.11b 专用审批流', () => {
 
     if (!pending) {
       test.info().annotations.push({ type: 'missing-data', description: '无待审角色变更申请' });
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -147,6 +150,7 @@ test.describe('P5.11c BPM 引擎全流程', () => {
       | null;
     const items = body?.data?.items ?? [];
     if (items.length === 0) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }

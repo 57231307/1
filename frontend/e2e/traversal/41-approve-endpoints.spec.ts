@@ -60,6 +60,7 @@ test.describe('P5.11 审批端点全量矩阵', () => {
           type: 'missing-data',
           description: `${entity} 前置数据缺失：${msg.slice(0, 160)}`,
         });
+        console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
         test.skip();
       }
     });

@@ -34,7 +34,8 @@ test.describe('P5.10 系统更新授权', () => {
   test('viewer 无权限查询系统更新（403）', async ({ page }) => {
     await loginAsRole(page, 'report_viewer').catch(async () => {
       // report_viewer 可能未创建，尝试 readonly
-      await loginAsRole(page, 'e2e_readonly').catch(() => {
+      await loginAsRole(page, 'e2e_readonly').catch((e) => {
+        console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
         test.skip();
       });
     });

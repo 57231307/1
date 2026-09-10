@@ -48,6 +48,7 @@ test.describe('P5.7 打印端点全量矩阵', () => {
           type: 'missing-data',
           description: `端点 ${resolvedPath} 返回 ${status}，需补种子数据后重跑`,
         });
+        console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
         test.skip();
         return;
       }

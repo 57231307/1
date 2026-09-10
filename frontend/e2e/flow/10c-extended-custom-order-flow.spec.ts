@@ -60,6 +60,7 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
     await loginViaUI(page);
     const ctx = getCtx();
     if (!ctx.customOrderId) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -89,6 +90,7 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
     await loginViaUI(page);
     const ctx = getCtx();
     if (!ctx.customOrderId) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }

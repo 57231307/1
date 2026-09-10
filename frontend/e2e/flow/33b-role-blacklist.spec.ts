@@ -44,6 +44,7 @@ test.describe('33b 角色黑名单（print/export/dye-recipe）', () => {
           type: 'missing-data',
           description: 'boms/1 不存在（种子缺失），打印黑名单断言需种子数据',
         });
+        console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
         test.skip();
         return;
       }
@@ -90,6 +91,7 @@ test.describe('33b 角色黑名单（print/export/dye-recipe）', () => {
         type: 'missing-data',
         description: 'dye-recipes/1 不存在（种子缺失），黑名单断言需种子数据',
       });
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -115,6 +117,7 @@ test.describe('33b 角色黑名单（print/export/dye-recipe）', () => {
         type: 'missing-data',
         description: 'admin 对照 boms/1 404（种子缺失），端点存在性由 37 矩阵判定',
       });
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }

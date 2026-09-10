@@ -69,6 +69,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     const ctx = getCtx();
     const id = ctx.purchaseOrderId;
     if (!id) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -120,6 +121,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     const ctx = getCtx();
     const id = ctx.purchaseOrderId;
     if (!id) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -133,6 +135,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     const ctx = getCtx();
     const id = ctx.purchaseOrderId;
     if (!id) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -263,6 +266,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     const ctx = getCtx();
 
     if (!ctx.apInvoiceId) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -298,6 +302,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     const ctx = getCtx();
     const id = ctx.purchaseOrderId;
     if (!id) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }

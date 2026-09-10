@@ -991,7 +991,7 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
     .locator('.el-checkbox input')
     .first()
     .isChecked()
-    .catch(() => false);
+    .catch((e) => { console.warn('[loginViaUI] 复选框状态查询失败:', (e as Error).message); return false; });
   console.log(`复选框初始状态: checked=${isChecked}`);
   if (!isChecked) {
     // 点击视觉复选框区域（.el-checkbox__inner）
@@ -1001,7 +1001,7 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
       .locator('.el-checkbox input')
       .first()
       .isChecked()
-      .catch(() => false);
+      .catch((e) => { console.warn('[loginViaUI] 复选框状态查询失败:', (e as Error).message); return false; });
     console.log(`点击 inner 后复选框状态: checked=${nowChecked}`);
     if (!nowChecked) {
       // fallback: 点击 label
@@ -1011,7 +1011,7 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
         .locator('.el-checkbox input')
         .first()
         .isChecked()
-        .catch(() => false);
+        .catch((e) => { console.warn('[loginViaUI] 复选框状态查询失败:', (e as Error).message); return false; });
       console.log(`点击 label 后复选框状态: checked=${nowChecked}`);
     }
     if (!nowChecked) {
@@ -1032,7 +1032,7 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
   // 点击登录按钮
   const loginButton = page.locator('form button.el-button--primary').first();
   await loginButton.waitFor({ state: 'visible', timeout: 10_000 });
-  const isDisabled = await loginButton.isDisabled().catch(() => false);
+  const isDisabled = await loginButton.isDisabled().catch((e) => { console.warn('[loginViaUI] 按钮状态查询失败:', (e as Error).message); return false; });
   console.log(`登录按钮 disabled: ${isDisabled}`);
 
   // IR 2026-09-03 详细日志：显式记录登录接口响应状态（成功/失败均打印），

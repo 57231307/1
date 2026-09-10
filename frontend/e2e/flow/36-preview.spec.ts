@@ -23,6 +23,7 @@ test.describe('P5.6 预览', () => {
     const listResp = await apiCall(page, 'GET', '/print-templates?page=1&page_size=10');
     const items = listResp?.items ?? listResp?.data?.items;
     if (!items || items.length === 0) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -46,6 +47,7 @@ test.describe('P5.6 预览', () => {
     const listResp = await apiCall(page, 'GET', '/report-templates?page=1&page_size=10').catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     const items = listResp?.items ?? listResp?.data?.items;
     if (!items || items.length === 0) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -67,6 +69,7 @@ test.describe('P5.6 预览', () => {
     const listResp = await apiCall(page, 'GET', '/bpm/templates?page=1&page_size=10').catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     const items = listResp?.items ?? listResp?.data?.items;
     if (!items || items.length === 0) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }

@@ -32,6 +32,7 @@ test.describe(`P5.14 角色权限矩阵: ${role}`, () => {
   test('登录 + 全模块三分支断言 + access-map 生成', async ({ page }) => {
     const cred = getRoleCredential(role);
     if (!cred) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }

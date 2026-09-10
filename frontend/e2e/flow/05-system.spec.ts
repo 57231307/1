@@ -199,6 +199,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
     const ctx = getCtx();
     const id = ctx.customOrderId;
     if (!id) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }

@@ -81,6 +81,7 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
         type: 'missing-data',
         description: '无销售订单且兜底创建失败，需补种子数据后重跑',
       });
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -99,6 +100,7 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
         type: 'missing-data',
         description: `打印端点返回 ${printStatus}（打印模板或数据缺失）`,
       });
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -177,6 +179,7 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
         type: 'missing-data',
         description: '无凭证种子数据，跳过凭证打印内容断言',
       });
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -190,6 +193,7 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
     console.log(`[37b] 凭证打印 → ${status}`);
     if (status === 404 || status === 400) {
       test.info().annotations.push({ type: 'missing-data', description: `凭证打印返回 ${status}` });
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }

@@ -78,6 +78,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
     const ctx = getCtx();
     const id = ctx.voucherId;
     if (!id) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -106,6 +107,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
     const ctx = getCtx();
     const id = ctx.voucherId;
     if (!id) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }

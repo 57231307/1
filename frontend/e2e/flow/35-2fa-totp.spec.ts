@@ -19,6 +19,7 @@ test.describe('P5.5 2FA TOTP', () => {
     const setupResp = await apiCall(page, 'POST', '/auth/totp/setup');
     const secret = setupResp?.secret ?? setupResp?.data?.secret;
     if (!secret) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -42,6 +43,7 @@ test.describe('P5.5 2FA TOTP', () => {
     const setupResp = await apiCall(page, 'POST', '/auth/totp/setup');
     const secret = setupResp?.secret ?? setupResp?.data?.secret;
     if (!secret) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -62,6 +64,7 @@ test.describe('P5.5 2FA TOTP', () => {
     const recoveryResp = await apiCall(page, 'POST', '/auth/recovery-codes');
     const codes = recoveryResp?.codes ?? recoveryResp?.data?.codes;
     if (!codes || !Array.isArray(codes) || codes.length === 0) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }

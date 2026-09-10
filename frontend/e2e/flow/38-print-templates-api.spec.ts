@@ -46,6 +46,7 @@ test.describe('P5.8 print-templates API 链路', () => {
     );
     const items = Array.isArray(list) ? (list as Array<{ id: number }>) : list?.items ?? list?.data?.items ?? [];
     if (items.length === 0) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }

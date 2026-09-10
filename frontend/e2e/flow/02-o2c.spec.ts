@@ -70,6 +70,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     const ctx = getCtx();
     const id = ctx.quotationId;
     if (!id) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -99,6 +100,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     const ctx = getCtx();
     const id = ctx.quotationId;
     if (!id) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -112,6 +114,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     const ctx = getCtx();
     const qid = ctx.quotationId;
     if (!qid) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -140,6 +143,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     const ctx = getCtx();
     const id = ctx.salesOrderId;
     if (!id) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -177,6 +181,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     const ctx = getCtx();
     const id = ctx.salesOrderId;
     if (!id) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -293,6 +298,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     await loginViaUI(page);
     const ctx = getCtx();
     if (!ctx.arInvoiceId) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }

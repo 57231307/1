@@ -52,6 +52,7 @@ test.describe('P5.9b 敏感导出完整审批链', () => {
         type: 'approval-create',
         description: `创建审批申请返回 ${createResp.status()}，完整链需审批角色配置`,
       });
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -78,6 +79,7 @@ test.describe('P5.9b 敏感导出完整审批链', () => {
         type: 'self-approve',
         description: `自审批返回 ${approveResp.status()}——若为申请人自审限制则语义正确`,
       });
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -124,6 +126,7 @@ test.describe('P5.9b 敏感导出完整审批链', () => {
       | null;
     const approvalId = createBody?.data?.id;
     if (!approvalId) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -137,6 +140,7 @@ test.describe('P5.9b 敏感导出完整审批链', () => {
       | null;
     const token = approveBody?.data?.download_token;
     if (!token) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }

@@ -60,6 +60,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
     const ctx = getCtx();
     const id = ctx.dyeRecipeId;
     if (!id) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -128,6 +129,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
     const ctx = getCtx();
     const id = ctx.dyeBatchId;
     if (!id) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -163,6 +165,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
     const ctx = getCtx();
     const id = ctx.dyeBatchId;
     if (!id) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -247,6 +250,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
     const ctx = getCtx();
     const id = ctx.productionRecipeId;
     if (!id) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -332,6 +336,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
     const ctx = getCtx();
     const id = ctx.productionOrderId;
     if (!id) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -377,6 +382,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
     const ctx = getCtx();
     const id = ctx.dyeBatchId;
     if (!id) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }

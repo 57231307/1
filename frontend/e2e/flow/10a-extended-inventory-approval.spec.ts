@@ -40,6 +40,7 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
     await ensureTestEntities(page);
     const ctx = getCtx();
     if (!ctx.salesOrderId) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -53,6 +54,7 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
     await loginViaUI(page);
     const ctx = getCtx();
     if (!ctx.purchaseOrderId) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }

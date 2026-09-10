@@ -72,6 +72,7 @@ test.describe('P5.9 非敏感导出矩阵', () => {
           type: 'missing-data',
           description: `端点 ${path} 返回 ${status}，需补种子数据`,
         });
+        console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
         test.skip();
         return;
       }
