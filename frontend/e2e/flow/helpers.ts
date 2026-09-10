@@ -1793,12 +1793,26 @@ export function getRoleCredential(role: string): RoleCredential | null {
   // 回退凭证文件
   try {
     const fs = require('fs') as typeof import('fs');
-    if (!fs.existsSync(ROLE_CREDENTIALS_PATH)) return null;
+    // IR 详细日志：读取失败必须可见（run 34442679467 分片 41-49 全量
+    // credential not found 而文件写入 37 角色——静默 catch 掩盖了根因）
+    if (!fs.existsSync(ROLE_CREDENTIALS_PATH)) {
+      console.error(
+        `[getRoleCredential] 凭证文件不存在: ${ROLE_CREDENTIALS_PATH}（cwd=${process.cwd()}）`,
+      );
+      return null;
+    }
     const data = JSON.parse(
       fs.readFileSync(ROLE_CREDENTIALS_PATH, 'utf-8'),
     ) as Record<string, RoleCredential>;
-    return data[role] ?? null;
-  } catch {
+    const cred = data[role];
+    if (!cred) {
+      console.error(
+        `[getRoleCredential] 凭证文件存在但无角色 ${role}，可用键: ${Object.keys(data).slice(0, 8).join(',')}…共 ${Object.keys(data).length}`,
+      );
+    }
+    return cred ?? null;
+  } catch (e) {
+    console.error(`[getRoleCredential] 凭证文件读取异常: ${(e as Error).message}`);
     return null;
   }
 }
