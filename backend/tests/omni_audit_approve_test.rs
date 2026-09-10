@@ -151,13 +151,17 @@ fn test_classify_http_method_mapping() {
 }
 
 /// 边界：approve 出现在非末段位置（如 /approve-requests/1）不触发 APPROVE
+/// （classify 只看路径末段：/approve-requests/1 的末段是 id "1" → READ 归类）
 #[test]
 fn test_classify_approve_not_last_segment() {
-    // "approve-requests" 末段是 "approve-requests"，不含 "approve" 子串？
-    // last_segment.contains("approve") → "approve-requests".contains("approve") = true → APPROVE
-    // 这是预期行为：approve-requests 路径归 APPROVE
+    // 末段为数字 id，非 approve 关键字 → 常规 READ（GET）
     assert_eq!(
         classify_operation("GET", "/api/v1/erp/approve-requests/1", ""),
+        "READ"
+    );
+    // 对照：末段含 approve 的路径才归 APPROVE
+    assert_eq!(
+        classify_operation("GET", "/api/v1/erp/approve-requests", ""),
         "APPROVE"
     );
 }
