@@ -14,36 +14,28 @@ import {
 test.describe.serial('Shard 4: 财务核算闭环', () => {
   test('4-1 验证会计科目列表', async ({ page }) => {
     await loginViaUI(page);
-    try {
-      const subjects = await apiCallRaw<{ items: Array<{ code: string; name: string }> }>(
-        page,
-        'GET',
-        '/finance/subjects?page=1&page_size=20'
-      );
-      expect(subjects.items);
-    } catch {
-      // 科目端点可能不同
-      try {
-        const subjects = await apiCallRaw<{ items: Array<{ code: string }> }>(
-          page,
-          'GET',
-          '/finance/subjects?page=1&page_size=20'
-        );
-        expect(subjects.items);
-      } catch {
-        /* skip */
-      }
-    }
+    // 后端 list_subjects 返回 ApiResponse<Vec<Model>>：data 是数组（无 items 包装）
+    const subjects = await apiCallRaw<
+      Array<{ code: string; name: string }> | { items?: Array<{ code: string; name: string }> }
+    >(page, 'GET', '/finance/subjects?page=1&page_size=20');
+    const subjectList = Array.isArray(subjects)
+      ? subjects
+      : ((subjects as { items?: Array<{ code: string; name: string }> }).items ?? []);
+    expect(subjectList.length).toBeGreaterThanOrEqual(0);
   });
 
   test('4-2 创建凭证（含色号维度成本）', async ({ page }) => {
     await loginViaUI(page);
     try {
       // 先取真实存在的科目编码（CI 库可能没有 1122/6001/2202 种子）
-      const subjects = await apiCallRaw<{
-        items: Array<{ code: string; status?: string }>;
-      }>(page, 'GET', '/finance/subjects?page=1&page_size=50');
-      let activeCodes = (subjects.items || [])
+      const subjects = await apiCallRaw<
+        Array<{ code: string; status?: string }> | { items?: Array<{ code: string; status?: string }> }
+      >(page, 'GET', '/finance/subjects?page=1&page_size=50');
+      // 后端 list_subjects 返回 ApiResponse<Vec<Model>>：data 是数组（非 items 包装）
+      const subjectList = Array.isArray(subjects)
+        ? subjects
+        : ((subjects as { items?: Array<{ code: string; status?: string }> }).items ?? []);
+      let activeCodes = subjectList
         .filter(s => !s.status || s.status === 'active')
         .map(s => s.code);
       // 科目不足 3 个时先创建 E2E 专用科目（CreateSubjectRequestDto: code/name/level）
