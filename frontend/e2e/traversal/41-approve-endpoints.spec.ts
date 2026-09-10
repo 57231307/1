@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginViaUI, apiCall, type ApiResponse } from '../flow/helpers';
+import { loginViaUI, apiCall } from '../flow/helpers';
 import { APPROVE_ENDPOINTS } from './endpoints.config';
 
 /**
