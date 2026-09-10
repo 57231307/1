@@ -262,7 +262,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     try {
       const invoices = await apiCallRaw<{
         items: Array<{ id: number; amount: number; status: string }>;
-      }>(page, 'GET', '/ar/invoices?page=1&page_size=5');
+      }>(page, 'GET', '/finance/ar/invoices?page=1&page_size=5');
       expect(invoices.items);
 
       if ((invoices?.items?.length ?? 0) === 0) {
@@ -311,7 +311,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
       const inv = await apiCallRaw<{ status: string }>(
         page,
         'GET',
-        `/ar/invoices/${ctx.arInvoiceId}`
+        `/finance/ar/invoices/${ctx.arInvoiceId}`
       );
       expect(['partially_paid', 'paid', 'unpaid', 'pending', 'partial', 'confirmed']).toContain(
         (inv.status || '').toLowerCase() || 'partially_paid'

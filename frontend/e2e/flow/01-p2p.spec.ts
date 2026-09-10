@@ -229,7 +229,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     try {
       const invoices = await apiCallRaw<{
         items: Array<{ id: number; amount: number; status: string }>;
-      }>(page, 'GET', '/ap/invoices?page=1&page_size=5');
+      }>(page, 'GET', '/finance/ap/invoices?page=1&page_size=5');
       expect(invoices.items);
 
       // 尝试手动创建 AP 应付单（如果未自动生成）
@@ -280,7 +280,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       const invoice = await apiCallRaw<{ status: string }>(
         page,
         'GET',
-        `/ap/invoices/${ctx.apInvoiceId}`
+        `/finance/ap/invoices/${ctx.apInvoiceId}`
       );
       expect(['paid', 'partially_paid', 'unpaid', 'pending', 'approved', 'confirmed']).toContain(
         (invoice.status || '(missing-status)').toLowerCase()
