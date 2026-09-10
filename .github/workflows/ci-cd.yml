@@ -2647,7 +2647,9 @@ jobs:
             EXIT_CODE=$?
           else
             # 分片 55-74: 运行 traversal 全量遍历 + 端点矩阵（20 片）
-            TRV_SHARD=$((SHARD - 54))
+            # TRV_SHARD = SHARD-55（0 基），shard=(TRV_SHARD+1)/20：
+            # 55→1/20 … 74→20/20（原 SHARD-54 导致 2/20 起跑、74 越界 21/20）
+            TRV_SHARD=$((SHARD - 55))
             mkdir -p reports
             set +e
             run_trv_shard() {
