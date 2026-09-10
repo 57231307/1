@@ -227,13 +227,16 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     const ctx = getCtx();
 
     try {
-      const invoices = await apiCallRaw<{
-        items: Array<{ id: number; amount: number; status: string }>;
-      }>(page, 'GET', '/finance/ap/invoices?page=1&page_size=5');
-      expect(invoices.items);
+      // 后端 list_ap_invoices 返回 ApiResponse<Vec<Model>>：data 是数组（无 items 包装）
+      const invoices = await apiCallRaw<
+        Array<{ id: number; amount: number; status: string }> | { items?: Array<{ id: number; amount: number; status: string }> }
+      >(page, 'GET', '/finance/ap/invoices?page=1&page_size=5');
+      const invoiceList = Array.isArray(invoices)
+        ? invoices
+        : ((invoices as { items?: Array<{ id: number; amount: number; status: string }> }).items ?? []);
 
       // 尝试手动创建 AP 应付单（如果未自动生成）
-      if ((invoices?.items?.length ?? 0) === 0) {
+      if ((invoiceList.length ?? 0) === 0) {
         try {
           const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/ap/invoices', {
             // CreateApInvoiceRequest：invoice_no 非后端字段（应 inset_type），保留 amount/tax_amount/invoice_date
@@ -247,7 +250,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
           /* skip */
         }
       } else {
-        ctx.apInvoiceId = invoices.items?.[0]?.id;
+        ctx.apInvoiceId = invoiceList[0]?.id;
       }
     } catch {
       // AP 模块可能未就绪
