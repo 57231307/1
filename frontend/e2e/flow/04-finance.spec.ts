@@ -18,7 +18,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
       const subjects = await apiCallRaw<{ items: Array<{ code: string; name: string }> }>(
         page,
         'GET',
-        '/subjects?page=1&page_size=20'
+        '/finance/subjects?page=1&page_size=20'
       );
       expect(subjects.items);
     } catch {
@@ -27,7 +27,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
         const subjects = await apiCallRaw<{ items: Array<{ code: string }> }>(
           page,
           'GET',
-          '/subjects?page=1&page_size=20'
+          '/finance/subjects?page=1&page_size=20'
         );
         expect(subjects.items);
       } catch {
@@ -42,7 +42,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
       // 先取真实存在的科目编码（CI 库可能没有 1122/6001/2202 种子）
       const subjects = await apiCallRaw<{
         items: Array<{ code: string; status?: string }>;
-      }>(page, 'GET', '/subjects?page=1&page_size=50');
+      }>(page, 'GET', '/finance/subjects?page=1&page_size=50');
       let activeCodes = (subjects.items || [])
         .filter(s => !s.status || s.status === 'active')
         .map(s => s.code);
@@ -91,18 +91,18 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
     }
 
     try {
-      await apiCall(page, 'POST', `/vouchers/${id}/submit`);
+      await apiCall(page, 'POST', `/finance/vouchers/${id}/submit`);
     } catch {
       /* skip */
     }
     // posted 可能需要审核步骤
     try {
-      await apiCall(page, 'POST', `/vouchers/${id}/post`);
+      await apiCall(page, 'POST', `/finance/vouchers/${id}/post`);
     } catch {
       /* skip */
     }
 
-    const v = await apiCallRaw<{ status: string }>(page, 'GET', `/vouchers/${id}`);
+    const v = await apiCallRaw<{ status: string }>(page, 'GET', `/finance/vouchers/${id}`);
     const status = (v.status || '').toLowerCase();
     expect(['draft', 'submitted', 'reviewed', 'posted', 'cancelled']).toContain(
       status ?? '(missing-status)'
@@ -119,7 +119,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
     }
 
     // 对已 posted 的凭证提交 → 应拒绝
-    const result = await apiCallExpectFail(page, 'POST', `/vouchers/${id}/submit`);
+    const result = await apiCallExpectFail(page, 'POST', `/finance/vouchers/${id}/submit`);
     expect(result.status >= 400).toBe(true); // 非法转换应被拒
   });
 
