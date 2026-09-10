@@ -90,7 +90,10 @@ async function ensureShardUserViaUI(): Promise<void> {
   const rolesResp = await loginCtx.get(`${API_PREFIX}/roles?page=1&page_size=50`, {
     headers: { 'X-CSRF-Token': csrfCookie.value, 'X-Requested-With': 'XMLHttpRequest' },
   });
-  const rolesBody = (await rolesResp.json().catch(() => null)) as {
+  const rolesBody = (await rolesResp.json().catch((e) => {
+    console.warn(`[assignPermissionList] 权限分配失败（不影响角色账号创建）:`, (e as Error).message);
+    return null;
+  })) as {
     data?: { items?: Array<{ id: number; name?: string }> } | Array<{ id: number; name?: string }>;
   } | null;
   // 响应结构：data.roles[]（role.name 为中文如"管理员"，code 才是 'admin'）
@@ -304,7 +307,10 @@ export async function ensureRoleUsers(): Promise<void> {
   // 后端 RoleListResponse 形态为 { roles: [...], total }（非 items 包装），
   // 兼容两种形态防止字段错位导致解析为空
   const rolesResp = await loginCtx.get(`${API_PREFIX}/roles?page=1&page_size=200`, { headers });
-  const rolesBody = (await rolesResp.json().catch(() => null)) as
+  const rolesBody = (await rolesResp.json().catch((e) => {
+    console.warn(`[assignPermissionList] 权限分配失败（不影响角色账号创建）:`, (e as Error).message);
+    return null;
+  })) as
     | {
         data?: {
           roles?: Array<{ id: number; code?: string; name?: string }>;
@@ -340,7 +346,10 @@ export async function ensureRoleUsers(): Promise<void> {
       { code: role.code, name: role.name },
     );
     if (createRoleResp.ok()) {
-      const created = (await createRoleResp.json().catch(() => null)) as
+      const created = (await createRoleResp.json().catch((e) => {
+    console.warn(`[assignPermissionList] 权限分配失败（不影响角色账号创建）:`, (e as Error).message);
+    return null;
+  })) as
         | { data?: { id: number } }
         | null;
       if (created?.data?.id) {
@@ -366,7 +375,10 @@ export async function ensureRoleUsers(): Promise<void> {
   // 重新拉取角色清单获取补建角色的 id（兼容 roles / items 两种响应形态）
   if (allRolesToEnsure.length > 0) {
     const reFetch = await loginCtx.get(`${API_PREFIX}/roles?page=1&page_size=200`, { headers });
-    const reBody = (await reFetch.json().catch(() => null)) as
+    const reBody = (await reFetch.json().catch((e) => {
+    console.warn(`[assignPermissionList] 权限分配失败（不影响角色账号创建）:`, (e as Error).message);
+    return null;
+  })) as
       | {
           data?: {
             roles?: Array<{ id: number; code?: string }>;

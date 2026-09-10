@@ -34,9 +34,7 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
           '/crm/customers?page=1&page_size=1'
         );
         customerId = list.items?.[0]?.id;
-      } catch {
-        /* 保留 undefined */
-      }
+      } catch (e) { console.warn(`[E2E] catch: ${(e as Error).message}`); /* 保留 undefined */ }
     }
     // 仍无任何客户时创建一个
     if (!customerId) {
@@ -45,9 +43,7 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
           customer_name: 'E2E 客户 ' + Date.now(),
         });
         customerId = created.data?.id;
-      } catch {
-        /* 后续断言将给出明确失败信息 */
-      }
+      } catch (e) { console.warn(`[E2E] catch: ${(e as Error).message}`); /* 后续断言将给出明确失败信息 */ }
     }
     if (!customerId) throw new Error('无法获得任何客户 id（列表为空且创建失败）');
 
@@ -57,7 +53,7 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     // 无 download_token 必须 403（此处验证 fail-closed 生效而非文件内容）
     const exportResp = await page.request
       .get(`${process.env.API_BASE || 'http://localhost:8082'}${API_PREFIX}/crm/customers/export`)
-      .catch(() => null);
+      .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     if (exportResp) {
       // 敏感端点 fail-closed：403=生效；200=尚未纳入 fail-closed（CRM 前缀路由差异），记录标注
       const st = exportResp.status();
@@ -130,9 +126,7 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     let leadId: number | undefined;
     try {
       leadId = (result as { data?: { id?: number } }).data?.id;
-    } catch {
-      /* */
-    }
+    } catch (e) { console.warn(`[E2E] catch: ${(e as Error).message}`); }
     if (!leadId) {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,

@@ -39,7 +39,7 @@ test.describe('P5.10 系统更新授权', () => {
       });
     });
 
-    const resp = await apiCall(page, 'GET', '/system-update/version').catch(() => null);
+    const resp = await apiCall(page, 'GET', '/system-update/version').catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     // viewer 应被拒绝或返回 403
     // 如果 apiCall 抛出 403，resp 为 null——也算通过
     expect(resp === null || resp?.error).toBeTruthy();

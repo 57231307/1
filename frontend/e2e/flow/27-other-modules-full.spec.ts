@@ -45,7 +45,7 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
         supplier_name: `E2E供应商${Date.now().toString().slice(-6)}`,
         supplier_short_name: 'E2E供',
         contact_phone: '13800000001',
-      }).catch(() => ({ data: undefined }));
+      }).catch((e) => { console.warn(`[E2E] 失败: ${(e as Error).message}`); return { data: undefined }; })
       supId = created.data?.id;
     }
     if (!supId) throw new Error('无任何供应商（创建兜底也失败），无法测试供应商详情');

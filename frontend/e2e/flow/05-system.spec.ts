@@ -31,9 +31,9 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
           '/system/omni-audit?page=1&page_size=20'
         );
         expect(logs.items);
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         /* skip */
-      }
+       }
     }
   });
 
@@ -71,9 +71,9 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
         '/data-permissions?page=1&page_size=5'
       );
       expect(perms.items);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 
   test('5-4 字段级权限验证（染色配方导出仅 dye_recipe_master 可）', async ({ page }) => {
@@ -83,9 +83,9 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
       const result = await apiCallExpectFail(page, 'GET', '/production/dye-recipes/export');
       // admin 可能被允许或被拒绝（取决于角色黑名单）
       expect(result.status >= 400).toBe(true); // 应返回错误码
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       // 跳过
-    }
+     }
   });
 
   test('5-5 BPM 流程定义', async ({ page }) => {
@@ -105,9 +105,9 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
           '/bpm/definitions?page=1&page_size=5'
         );
         expect(defs.items);
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         /* skip */
-      }
+       }
     }
   });
 
@@ -134,9 +134,9 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
           '/bpm/tasks?page=1&page_size=5'
         );
         expect(tasks.items);
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         /* skip */
-      }
+       }
     }
   });
 
@@ -166,9 +166,9 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
           '/custom-orders?page=1&page_size=1'
         );
         ctx.customOrderId = list.items?.[0]?.id;
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         /* skip */
-      }
+       }
     }
 
     if (ctx.customOrderId) {
@@ -232,9 +232,9 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
           'scrapped',
         ]).toContain(status ?? '(missing-status)');
       }
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       // 大货批色模块可能未就绪
-    }
+     }
   });
 
   test('5-10 坯布五维追溯（产品→色号→缸号→匹号）', async ({ page }) => {
@@ -254,9 +254,9 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
           '/analytics/business-trace?page=1&page_size=5'
         );
         expect(trace.items);
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         /* skip */
-      }
+       }
     }
   });
 
@@ -277,9 +277,9 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
           '/ai/process-optimizations?page=1&page_size=5'
         );
         expect(list.items);
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         /* skip */
-      }
+       }
     }
   });
 
@@ -300,9 +300,9 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
           '/ai/quality-predictions?page=1&page_size=5'
         );
         expect(list.items);
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         /* skip */
-      }
+       }
     }
   });
 
@@ -315,9 +315,9 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
         '/notifications?page=1&page_size=5'
       );
       expect(notifications.items);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 
   test('5-14 仪表盘', async ({ page }) => {
@@ -325,14 +325,14 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
     try {
       const dash = await apiCallRaw<Record<string, unknown>>(page, 'GET', '/dashboard');
       expect(dash);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       try {
         const stats = await apiCallRaw<Record<string, unknown>>(page, 'GET', '/dashboard');
         expect(stats);
       } catch {
         /* skip */
       }
-    }
+     }
   });
 
   test('5-15 系统健康状态', async ({ page }) => {
@@ -340,7 +340,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
     try {
       const status = await apiCallRaw<Record<string, unknown>>(page, 'GET', '/system/health');
       expect(status);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       try {
         const status = await apiCallRaw<Record<string, unknown>>(
           page,
@@ -353,6 +353,6 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
         const response = await fetch('http://localhost:8082/health');
         expect(response.ok).toBeTruthy();
       }
-    }
+     }
   });
 });

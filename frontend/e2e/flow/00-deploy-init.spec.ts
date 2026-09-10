@@ -166,9 +166,9 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
         is_active: true,
       });
       if (result.data?.id) ctx.productIds.push(result.data.id);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       // 产品可能已存在
-    }
+     }
     expect(ctx.productIds.length).toBeGreaterThanOrEqual(0);
   });
 
@@ -186,9 +186,9 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
       });
       if (result.data?.id) ctx.productColorIds.push(result.data.id);
       ctx.colorNos.push('RED-001');
-    } catch {
+    } catch (e) { console.warn(`[E2E] catch: ${(e as Error).message}`); 
       ctx.colorNos.push('RED-001');
-    }
+     }
     expect(ctx.colorNos).toContain('RED-001');
   });
 
@@ -206,9 +206,9 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
       });
       if (result.data?.id) ctx.productColorIds.push(result.data.id);
       ctx.colorNos.push('BLUE-001');
-    } catch {
+    } catch (e) { console.warn(`[E2E] catch: ${(e as Error).message}`); 
       ctx.colorNos.push('BLUE-001');
-    }
+     }
     expect(ctx.colorNos).toContain('BLUE-001');
   });
 
@@ -273,9 +273,9 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
       try {
         const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/subjects', s);
         if (result.data?.id) ctx.accountSubjectIds.push(result.data.id);
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         // 已存在则跳过
-      }
+       }
     }
     expect(ctx.accountSubjectIds.length).toBeGreaterThanOrEqual(0);
   });
@@ -335,9 +335,9 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
           '/greige-fabrics?page=1&page_size=1'
         );
         ctx.greigeFabricId = list.items?.[0]?.id;
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         // 跳过
-      }
+       }
     }
     expect(ctx.dyeLotNo).toBeTruthy();
   });

@@ -113,11 +113,17 @@ async function diagnoseFailure(page: Page, label: string): Promise<void> {
     const elMessages = await page
       .locator('.el-message__content')
       .allTextContents()
-      .catch(() => []);
+      .catch((e) => {
+        console.warn('[ui-helpers] 选择器批量查询失败:', (e as Error).message);
+        return [];
+      });
     const formErrors = await page
       .locator('.el-form-item__error')
       .allTextContents()
-      .catch(() => []);
+      .catch((e) => {
+        console.warn('[ui-helpers] 选择器批量查询失败:', (e as Error).message);
+        return [];
+      });
     console.error(`[UI诊断] ${label} 失败详情:`);
     console.error(`  URL: ${url}`);
     console.error(`  ElMessage: ${JSON.stringify(elMessages)}`);
@@ -136,12 +142,15 @@ async function diagnoseFailure(page: Page, label: string): Promise<void> {
       const stack = await page
         .locator('.error-boundary__detail')
         .textContent()
-        .catch(() => '');
+        .catch((e) => {
+          console.warn('[ui-helpers] error-boundary 详情读取失败:', (e as Error).message);
+          return '';
+        });
       console.error(`  [ErrorBoundary] 组件运行时错误: ${(stack || '').slice(0, 500)}`);
     }
     console.error(`  页面文本(前500字): ${bodyText.slice(0, 500)}`);
-  } catch {
-    // 截图本身可能也会失败
+  } catch (e) {
+    console.warn('[ui-helpers] 页面截图失败（截图功能降级，诊断信息见上方日志）:', (e as Error).message);
   }
 }
 
@@ -262,7 +271,10 @@ async function waitCreateResponse(
       r => r.url().includes(apiPath) && r.request().method() === 'POST' && r.status() !== 403,
       { timeout }
     );
-    const json = await resp.json().catch(() => ({}));
+    const json = await resp.json().catch((e) => {
+      console.warn(`[waitCreateResponse] POST ${apiPath} 响应非 JSON:`, (e as Error).message);
+      return {};
+    });
     return (json?.data as Record<string, unknown>) ?? json;
   } catch (e) {
     console.warn(`[waitCreateResponse] 等待 POST ${apiPath} 超时: ${(e as Error).message}`);
@@ -276,9 +288,13 @@ async function waitListResponse(page: Page, apiPath: string, timeout = 20000): P
       r => r.url().includes(apiPath) && r.request().method() === 'GET',
       { timeout }
     );
-    const json = await resp.json().catch(() => ({}));
+    const json = await resp.json().catch((e) => {
+      console.warn(`[waitListResponse] GET ${apiPath} 响应非 JSON:`, (e as Error).message);
+      return {};
+    });
     return (json?.data?.items ?? json?.data?.list ?? []) as unknown[];
-  } catch {
+  } catch (e) {
+    console.warn(`[waitListResponse] 等待 GET ${apiPath} 超时: ${(e as Error).message}`);
     return [];
   }
 }
@@ -820,12 +836,16 @@ export async function readFirstEntityId(
     const resp = await page.request.get(listApiPath, {
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     });
-    const json = (await resp.json().catch(() => ({}))) as {
+    const json = (await resp.json().catch((e) => {
+      console.warn(`[readFirstEntityId] ${listApiPath} 响应非 JSON:`, (e as Error).message);
+      return {};
+    })) as {
       data?: { items?: Array<{ id?: number }>; list?: Array<{ id?: number }> };
     };
     const items = json?.data?.items ?? json?.data?.list ?? [];
     return firstId(items);
-  } catch {
+  } catch (e) {
+    console.warn(`[readFirstEntityId] ${listApiPath} API 直查失败:`, (e as Error).message);
     return undefined;
   }
 }
@@ -854,7 +874,10 @@ export async function readEntityIds(
     const resp = await page.request.get(listApiPath, {
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     });
-    const json = (await resp.json().catch(() => ({}))) as {
+    const json = (await resp.json().catch((e) => {
+      console.warn(`[readEntityIds] ${listApiPath} 响应非 JSON:`, (e as Error).message);
+      return {};
+    })) as {
       data?: { items?: Array<{ id?: number }>; list?: Array<{ id?: number }> };
     };
     const items = json?.data?.items ?? json?.data?.list ?? [];
@@ -862,7 +885,8 @@ export async function readEntityIds(
       .slice(0, limit)
       .map(it => it?.id as number)
       .filter((id): id is number => typeof id === 'number');
-  } catch {
+  } catch (e) {
+    console.warn(`[readEntityIds] ${listApiPath} API 直查失败:`, (e as Error).message);
     return [];
   }
 }

@@ -71,9 +71,9 @@ test.describe('库存盘点完整流程', () => {
       if (stockList.items && stockList.items.length > 0) {
         stockId = stockList.items?.[0].id;
       }
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       // 查询失败用默认 stock_id
-    }
+     }
 
     await apiCall(page, 'POST', `/inventory/counts/${countId}/record`, {
       items: [

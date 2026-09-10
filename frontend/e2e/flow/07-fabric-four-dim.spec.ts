@@ -222,6 +222,7 @@ test.describe
       const err = e as { status?: number; message?: string };
       status = err.status || 0;
       message = err.message || '';
+      console.warn('[7-5] 生产匹入成品仓被拒（预期行为）: status=', status, 'message=', message);
     }
     console.log('[7-5] 生产匹入成品仓响应 status=', status, 'message=', message);
     // 成品仓只存染色后/工艺后成品，生产匹（胚布 greige）必须入胚布仓

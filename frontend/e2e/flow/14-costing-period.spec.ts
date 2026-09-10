@@ -243,7 +243,7 @@ test.describe('成本核算完整流程', () => {
             page,
             'POST',
             `/fixed-assets/${newAssetId}/depreciate`
-          ).catch(() => null);
+          ).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
 
           if (depResult) {
             expect(parseFloat(String(depResult.data?.depreciation_amount || '0'))).toBeGreaterThan(
@@ -251,9 +251,9 @@ test.describe('成本核算完整流程', () => {
             );
           }
         }
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         // 创建可能因缺少必填字段失败
-      }
+       }
     }
   });
 
@@ -278,7 +278,7 @@ test.describe('成本核算完整流程', () => {
         total_budget: string;
         total_executed: string;
         execution_rate: string;
-      }>(page, 'GET', `/budgets/control/${budget.id}`).catch(() => null);
+      }>(page, 'GET', `/budgets/control/${budget.id}`).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
 
       if (control) {
         expect(parseFloat(control.total_budget)).toBeGreaterThanOrEqual(0);

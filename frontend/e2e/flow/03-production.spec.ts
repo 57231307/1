@@ -48,9 +48,9 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
           '/production/dye-recipes?page=1&page_size=1'
         );
         ctx.dyeRecipeId = list.items?.[0]?.id;
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         /* skip */
-      }
+       }
     }
     expect(ctx.dyeRecipeId).toBeDefined();
   });
@@ -66,14 +66,14 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
 
     try {
       await apiCall(page, 'POST', `/production/dye-recipes/${id}/submit`);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* may already be submitted */
-    }
+     }
     try {
       await apiCall(page, 'POST', `/production/dye-recipes/${id}/approve`);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* may already be approved */
-    }
+     }
 
     const recipe = await apiCallRaw<{ status: string }>(
       page,
@@ -116,9 +116,9 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
         );
         ctx.dyeBatchId = list.items?.[0]?.id;
         ctx.dyeLotNo = dyeLotNo;
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         /* skip */
-      }
+       }
     }
     expect(ctx.dyeBatchId).toBeDefined();
   });
@@ -143,9 +143,9 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
         await apiCall(page, 'PUT', `/production/dye-batches/${id}`, {
           status: step.status,
         });
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         // 流转被拒（可能测试重跑时状态已推进）：重新读取当前状态决定后续
-      }
+       }
       const batch = await apiCallRaw<{ status?: string }>(
         page,
         'GET',
@@ -236,9 +236,9 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
         }
       );
       ctx.productionRecipeId = result.data?.id;
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       // 跳过
-    }
+     }
     expect(ctx.productionRecipeId).toBeDefined();
   });
 
@@ -252,9 +252,9 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
     }
     try {
       await apiCall(page, 'POST', `/production/production-recipes/${id}/approve`);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
     const recipe = await apiCallRaw<{ status: string }>(
       page,
       'GET',
@@ -290,9 +290,9 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
           '/catalog/boms?page=1&page_size=1'
         );
         ctx.bomId = list.items?.[0]?.id;
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         /* skip */
-      }
+       }
     }
     expect(ctx.bomId).toBeDefined();
   });
@@ -320,9 +320,9 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
           '/production/production-orders/orders?page=1&page_size=1'
         );
         ctx.productionOrderId = list.items?.[0]?.id;
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         /* skip */
-      }
+       }
     }
     expect(ctx.productionOrderId).toBeDefined();
   });
@@ -344,9 +344,9 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
     for (const t of transitions) {
       try {
         await apiCall(page, 'POST', `/production/production-orders/orders/${id}/${t.action}`);
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         // 状态可能不允许
-      }
+       }
     }
 
     const order = await apiCallRaw<{ status: string }>(

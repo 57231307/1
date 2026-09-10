@@ -66,9 +66,9 @@ test.describe(`P5.14 角色权限矩阵: ${role}`, () => {
         let actual: 'reachable' | 'denied' | 'error' = 'reachable';
         try {
           await assertPageHealthy(page, collector, { allowConsoleWarn: true });
-        } catch {
+        } catch (e) { console.warn(`[E2E] catch: ${(e as Error).message}`); 
           actual = 'error';
-        }
+         }
 
         const currentPath = page.url().replace(process.env.BASE_URL || 'http://localhost:3000', '');
         if (currentPath.includes('/login') || currentPath.includes('/403')) {

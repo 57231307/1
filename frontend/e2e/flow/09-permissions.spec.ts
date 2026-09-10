@@ -106,7 +106,7 @@ test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓�
       page,
       'GET',
       '/field-permissions?page=1&page_size=10'
-    ).catch(() => null);
+    ).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     if (perms === null) {
       // 端点未实现：明确标注而非静默
       test.info().annotations.push({
@@ -126,7 +126,7 @@ test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓�
       page,
       'GET',
       '/customer-field-permissions?page=1&page_size=10'
-    ).catch(() => null);
+    ).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     if (perms === null) {
       test.info().annotations.push({
         type: 'endpoint-missing',
@@ -160,8 +160,8 @@ test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓�
       // 验证有 permission_denied 记录
       const denied = logs.items.filter(l => l.resource_type === 'permission_denied');
       expect(denied.length >= 0).toBeTruthy();
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 });

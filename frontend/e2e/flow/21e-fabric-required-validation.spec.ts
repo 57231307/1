@@ -164,7 +164,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       page,
       'GET',
       '/sales/orders?page=1&page_size=1'
-    ).catch(() => ({ items: [] }));
+    ).catch((e) => { console.warn(`[E2E] 失败: ${(e as Error).message}`); return { items: [] }; });
     if (soList.items?.length > 0) {
       const so = soList.items?.[0];
       // 销售订单可能有 color_no 字段
@@ -176,7 +176,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       page,
       'GET',
       '/production/dye-recipes?page=1&page_size=1'
-    ).catch(() => ({ items: [] }));
+    ).catch((e) => { console.warn(`[E2E] 失败: ${(e as Error).message}`); return { items: [] }; });
     if (recipeList.items?.length > 0) {
       const recipe = recipeList.items?.[0];
       // 染色配方用 color_code
@@ -188,7 +188,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       page,
       'GET',
       '/inventory/transfers?page=1&page_size=1'
-    ).catch(() => ({ items: [] }));
+    ).catch((e) => { console.warn(`[E2E] 失败: ${(e as Error).message}`); return { items: [] }; });
     if (transferList.items?.length > 0) {
       // 调拨明细可能有 color_no
       expect(true).toBe(true);

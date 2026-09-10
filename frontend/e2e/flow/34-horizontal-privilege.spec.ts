@@ -56,7 +56,7 @@ test.describe('P5.4 水平越权', () => {
       order_no: orderNo,
       supplier_id: 1,
       order_date: new Date().toISOString().slice(0, 10),
-    }).catch(() => null);
+    }).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     // 即使创建失败（缺供应商），也不断言——主要验证 API 可达
     expect(createResp !== undefined).toBeTruthy();
   });

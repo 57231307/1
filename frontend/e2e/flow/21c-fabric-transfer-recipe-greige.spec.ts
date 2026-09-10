@@ -236,7 +236,7 @@ test.describe('面料单据专用字段全链路验证', () => {
           page,
           'GET',
           '/greige-fabrics?page=1&page_size=1'
-        ).catch(() => ({ items: [] }));
+        ).catch((e) => { console.warn(`[E2E] 失败: ${(e as Error).message}`); return { items: [] }; });
         fabricId = list.items?.[0]?.id;
       }
     }
@@ -249,13 +249,13 @@ test.describe('面料单据专用字段全链路验证', () => {
           'GET',
           `/greige-fabrics/${fabricId}`
         );
-      } catch {
+      } catch (e) { console.warn(`[E2E] catch: ${(e as Error).message}`); 
         detail = await apiCallRaw<Record<string, unknown>>(
           page,
           'GET',
           `/production/greige-fabrics/${fabricId}`
         );
-      }
+       }
 
       if (detail) {
         expect(detail.fabric_name).toBe(fabricName);

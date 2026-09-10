@@ -129,11 +129,11 @@ test.describe('色卡仓储管理 E2E 业务流程', () => {
     try {
       await page.waitForSelector('text=基本信息', { state: 'visible', timeout: 30_000 });
       await expect(page.getByText('基本信息')).toBeVisible();
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       // 详情页可能因数据不存在显示"未找到"提示，也算业务流程正常
       const notFound = page.getByText(/未找到|不存在|404/);
       await expect(notFound).toBeVisible({ timeout: 15_000 });
-    }
+     }
   });
 
   test('色卡发放管理页面加载：等待核心组件渲染', async ({ page }) => {

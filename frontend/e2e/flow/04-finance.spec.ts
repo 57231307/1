@@ -84,15 +84,15 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
 
     try {
       await apiCall(page, 'POST', `/vouchers/${id}/submit`);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
     // posted 可能需要审核步骤
     try {
       await apiCall(page, 'POST', `/vouchers/${id}/post`);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
 
     const v = await apiCallRaw<{ status: string }>(page, 'GET', `/vouchers/${id}`);
     const status = (v.status || '').toLowerCase();
@@ -122,9 +122,9 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
         items: Array<{ id: number; amount: number; status: string }>;
       }>(page, 'GET', '/ap/invoices?page=1&page_size=5');
       expect(apInvoices.items);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 
   test('4-6 验证 AR 应收单', async ({ page }) => {
@@ -134,9 +134,9 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
         items: Array<{ id: number; amount: number; status: string }>;
       }>(page, 'GET', '/ar/invoices?page=1&page_size=5');
       expect(arInvoices.items);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 
   test('4-7 验证付款/收款记录', async ({ page }) => {
@@ -148,9 +148,9 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
         '/ap/payments?page=1&page_size=5'
       );
       expect(apPayments.items);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
     try {
       const arPayments = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
@@ -158,9 +158,9 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
         '/ar/payments?page=1&page_size=5'
       );
       expect(arPayments.items);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 
   test('4-8 创建固定资产（染缸设备）', async ({ page }) => {
@@ -209,9 +209,9 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
         planned_amount: 500000,
       });
       ctx.budgetId = result.data?.id;
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
     expect(ctx.budgetId).toBeDefined();
   });
 
@@ -239,9 +239,9 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
           '/finance/accounting-periods?page=1&page_size=5'
         );
         expect(periods.items);
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         /* skip */
-      }
+       }
     }
   });
 
@@ -254,9 +254,9 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
         '/vouchers?page=1&page_size=5'
       );
       expect(vouchers.items);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 
   test('4-12 验证财务审计日志', async ({ page }) => {
@@ -276,9 +276,9 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
           '/system/omni-audit?page=1&page_size=10'
         );
         expect(logs.items);
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         /* skip */
-      }
+       }
     }
   });
 });

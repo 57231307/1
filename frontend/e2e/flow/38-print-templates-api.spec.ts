@@ -55,7 +55,7 @@ test.describe('P5.8 print-templates API 链路', () => {
       page,
       'GET',
       `/print-templates/${templateId}`,
-    ).catch(() => null);
+    ).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
 
     expect(detail, `模板 ${templateId} detail 应可达`).toBeTruthy();
   });
@@ -63,7 +63,7 @@ test.describe('P5.8 print-templates API 链路', () => {
   test('不存在的模板 id → 404（非 5xx）', async ({ page }) => {
     const resp = await page.request
       .get(`${API_BASE}${API_PREFIX}/print-templates/99999999`)
-      .catch(() => null);
+      .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     if (!resp) throw new Error('网络错误');
     const status = resp.status();
     expect(status).toBeLessThan(500);

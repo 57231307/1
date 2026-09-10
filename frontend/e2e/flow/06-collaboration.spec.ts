@@ -121,9 +121,9 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
           `/roles/${role.id}/permissions`
         );
         expect(perms.items);
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         // 权限端点可能不同，跳过
-      }
+       }
     }
   });
 
@@ -149,18 +149,18 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
       // 验证页面不崩溃
       const url = page.url();
       expect(url);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       // 页面可能路由不同
-    }
+     }
 
     // 访问销售订单列表页
     try {
       await page.goto('http://localhost:3000/sales/orders');
       await page.waitForTimeout(3000);
       expect(page.url());
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 
   test('6-9 验证 el-tag 状态颜色映射', async ({ page }) => {
@@ -173,9 +173,9 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
       const tagCount = await tags.count().catch(() => 0);
       // 页面可能有或没有 el-tag（取决于是否有数据）
       expect(tagCount >= 0);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 
   test('6-10 验证 CSRF 保护', async ({ page }) => {

@@ -30,7 +30,7 @@ test.describe('P5.5 2FA TOTP', () => {
     const enableResp = await apiCall(page, 'POST', '/auth/totp/enable', {
       secret,
       code: totpCode,
-    }).catch(() => null);
+    }).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     expect(enableResp !== null).toBeTruthy();
 
     await assertPageHealthy(page, collector, { allowConsoleWarn: true });
@@ -50,7 +50,7 @@ test.describe('P5.5 2FA TOTP', () => {
     const enableResp = await apiCall(page, 'POST', '/auth/totp/enable', {
       secret,
       code: '000000',
-    }).catch(() => null);
+    }).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
 
     // 应失败或返回错误
     expect(enableResp === null || enableResp?.error).toBeTruthy();

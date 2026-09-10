@@ -48,9 +48,9 @@ test.describe.serial('扩展: 业务模式测试（染整加工/来料加工/委
           '/business-modes?page=1&page_size=20'
         );
         expect(modes.items);
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         /* skip */
-      }
+       }
     }
   });
 
@@ -98,9 +98,9 @@ test.describe.serial('扩展: 业务模式测试（染整加工/来料加工/委
         }
       );
       expect(result.data?.id).toBeDefined();
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       // 委外端点可能不同
-    }
+     }
   });
 
   test('M1-5 委外加工订单状态流转', async ({ page }) => {
@@ -123,9 +123,9 @@ test.describe.serial('扩展: 业务模式测试（染整加工/来料加工/委
           'cancelled',
         ]).toContain(status ?? '(missing-status)');
       }
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 
   test('M1-6 验证委外加工模式规则', async ({ page }) => {
@@ -137,9 +137,9 @@ test.describe.serial('扩展: 业务模式测试（染整加工/来料加工/委
         '/business-modes/rules?page=1&page_size=20'
       );
       expect(rules.items);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 
   test('M1-7 验证业务模式快照（mode_snapshot）', async ({ page }) => {
@@ -149,8 +149,8 @@ test.describe.serial('扩展: 业务模式测试（染整加工/来料加工/委
         items: Array<{ document_type: string; mode_snapshot: string }>;
       }>(page, 'GET', '/business-mode-links?page=1&page_size=10');
       expect(links.items);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 });

@@ -148,7 +148,7 @@ test.describe('批量操作与弹窗确认', () => {
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
     const exportVisible = await exportBtn.isVisible().catch(() => false);
     if (exportVisible) {
-      const downloadPromise = page.waitForEvent('download', { timeout: 5000 }).catch(() => null);
+      const downloadPromise = page.waitForEvent('download', { timeout: 5000 }).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
       await exportBtn.click();
       await page.waitForTimeout(1000);
 

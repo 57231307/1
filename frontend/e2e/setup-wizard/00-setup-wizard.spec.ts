@@ -190,9 +190,9 @@ test.describe.serial('引导页初始化真实链路（真实后端 + 真实 Pos
       out = execSync(
         `PGPASSWORD=bingxi_test psql -h 127.0.0.1 -U bingxi -d ${ctx.db} -tAc "${sql}"`
       ).toString();
-    } catch {
+    } catch (e) { console.warn(`[E2E] catch: ${(e as Error).message}`); 
       out = execSync(`su postgres -c "psql -d ${ctx.db} -tAc \\"${sql}\\""`).toString();
-    }
+     }
     // boolean 输出全文 'true'（-tAc 不做缩写）；前缀校验用户名精确匹配
     expect(out.trim()).toBe(`${ctx.admin}|true`);
   });

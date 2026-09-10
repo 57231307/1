@@ -122,7 +122,8 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   // ---- 1. 仓库（UI 创建）----
   try {
     ctx.warehouseIds = await readEntityIds(page, '/warehouse', `${API_PREFIX}/warehouses`);
-  } catch {
+  } catch (e) {
+    console.warn('[ensureTestEntities] 仓库列表查询失败（可能空库）:', (e as Error).message);
     ctx.warehouseIds = [];
   }
   if (ctx.warehouseIds.length < 2) {
@@ -164,7 +165,8 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   }
   try {
     ctx.productIds = await readEntityIds(page, '/product', `${API_PREFIX}/products`);
-  } catch {
+  } catch (e) {
+    console.warn('[ensureTestEntities] 产品列表查询失败（可能空库）:', (e as Error).message);
     ctx.productIds = [];
   }
   if (ctx.productIds.length === 0) {
@@ -211,7 +213,8 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     );
     ctx.productColorIds = colors?.map(c => c.id) || [];
     ctx.colorNos = colors?.map(c => c.color_no) || ['TEST-COLOR'];
-  } catch {
+  } catch (e) {
+    console.warn('[ensureTestEntities] 色号查询失败（产品可能无色号）:', (e as Error).message);
     ctx.colorNos = ['TEST-COLOR'];
     ctx.productColorIds = [1];
   }
@@ -277,7 +280,8 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
       '/subjects?page=1&page_size=5'
     );
     ctx.accountSubjectIds = subjects.items?.map(s => s.id) || [];
-  } catch {
+  } catch (e) {
+    console.warn('[ensureTestEntities] 会计科目查询失败（可能空库）:', (e as Error).message);
     ctx.accountSubjectIds = [];
   }
 
@@ -285,9 +289,9 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   if (ctx.departmentIds.length === 0) {
     try {
       ctx.departmentIds = await readEntityIds(page, '/departments', `${API_PREFIX}/departments`);
-    } catch {
+    } catch (e) { console.warn(`[E2E] catch: ${(e as Error).message}`); 
       ctx.departmentIds = [];
-    }
+     }
   }
   if (ctx.departmentIds.length === 0) {
     const id = await uiCreateWithRetry(page, createDepartmentUI);
@@ -772,7 +776,10 @@ export async function apiCall<T = unknown>(
   path: string,
   body?: Record<string, unknown>
 ): Promise<ApiResponse<T>> {
-  let csrfToken = (await getCsrfToken(page).catch(() => null)) ?? '';
+  let csrfToken = (await getCsrfToken(page).catch((e) => {
+    console.warn(`[apiCall] ${method} ${path} CSRF cookie 提取失败（未登录态）: ${(e as Error).message}`);
+    return null;
+  })) ?? '';
   const url = `${API_BASE}${API_PREFIX}${path}`;
   const doFetch = async (token: string) => {
     return page.request.fetch(url, {
@@ -879,7 +886,8 @@ export async function apiCallExpectFail(
   try {
     json = JSON.parse(text);
   } catch {
-    // non-JSON response
+    // IR 详细日志：非 JSON 响应必须可见（404 空响应/HTML 错误页等）
+    console.warn(`[apiCall] 非 JSON 响应 status=${response.status()} body 前 120 字符: ${text.slice(0, 120)}`);
   }
   return { status: response.status(), code: json.code, message: json.message };
 }
@@ -1047,7 +1055,10 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
     const formErrors = await page
       .locator('.el-form-item__error')
       .allTextContents()
-      .catch(() => []);
+      .catch((e) => {
+        console.warn('[loginViaUI] 表单验证错误元素查询失败:', (e as Error).message);
+        return [];
+      });
     console.log(`表单验证错误: ${JSON.stringify(formErrors)}`);
     // 尝试通过 dispatchEvent 触发表单提交
     await page.evaluate(() => {
@@ -1082,7 +1093,10 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
     const elMessages = await page
       .locator('.el-message__content')
       .allTextContents()
-      .catch(() => []);
+      .catch((e) => {
+        console.warn('[loginViaUI] toast 消息查询失败:', (e as Error).message);
+        return [];
+      });
     console.error(`=== UI 登录失败诊断 ===`);
     console.error(`当前 URL: ${currentUrl}`);
     console.error(`ElMessage 提示: ${JSON.stringify(elMessages)}`);
@@ -1129,7 +1143,8 @@ export async function healthCheck(): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE}/health`);
     return response.ok;
-  } catch {
+  } catch (e) {
+    console.warn(`[healthCheck] 后端健康检查失败（${API_BASE}/health）:`, (e as Error).message);
     return false;
   }
 }
@@ -1197,7 +1212,8 @@ export async function createEntityOrSkip(
 ): Promise<number | null> {
   try {
     return await createEntity(page, endpoint, data);
-  } catch {
+  } catch (e) {
+    console.warn(`[createEntityOrSkip] ${endpoint} 实体创建失败（降级为 skip）:`, (e as Error).message);
     return null;
   }
 }
@@ -1211,8 +1227,9 @@ export async function verifyStatusTransition(
 ): Promise<string> {
   try {
     await apiCall(page, 'POST', `${endpoint}/${id}/${action}`);
-  } catch {
-    // action may fail if already in target state
+  } catch (e) {
+    // 状态机容忍：action 可能因已处于目标状态被拒（重跑幂等），显式记录
+    console.log(`[verifyStatusTransition] ${endpoint}/${id}/${action} 状态机拒绝（幂等容忍）:`, (e as Error).message);
   }
   const entity = await apiCallRaw<{ status: string }>(page, 'GET', `${endpoint}/${id}`);
   const status = (entity.status || '').toLowerCase();
@@ -1286,11 +1303,17 @@ export async function ensureStockInWarehouse(
   };
 
   // 1. 优先查指定仓库（用传入的仓库 ID，而非漂移的 ctx）
-  const inWarehouse = await listStock(preferredWarehouseId).catch(() => undefined);
+  const inWarehouse = await listStock(preferredWarehouseId).catch((e) => {
+    console.warn(`[ensureStockInWarehouse] 指定仓库 ${preferredWarehouseId ?? '?'} 库存查询失败:`, (e as Error).message);
+    return undefined;
+  });
   if (inWarehouse) return inWarehouse;
 
   // 2. 任意仓库有该产品库存 → 直接用（以真实数据为准）
-  const anywhere = await listStock().catch(() => undefined);
+  const anywhere = await listStock().catch((e) => {
+    console.warn('[ensureStockInWarehouse] 全仓库库存查询失败:', (e as Error).message);
+    return undefined;
+  });
   if (anywhere) return anywhere;
 
   // 3. 都没有 → 在指定仓库创建（仓库 ID 缺失时回退 1）
@@ -1303,7 +1326,10 @@ export async function ensureStockInWarehouse(
     quantity_meters: '10000',
     quantity_kg: '5000',
   });
-  const created = await listStock(preferredWarehouseId).catch(() => undefined);
+  const created = await listStock(preferredWarehouseId).catch((e) => {
+    console.warn('[ensureStockInWarehouse] 创建后库存查询失败:', (e as Error).message);
+    return undefined;
+  });
   if (created) return created;
   // 创建后仍查不到（理论异常）：返回空对象由调用方处理
   return {};
@@ -1446,6 +1472,7 @@ export async function verifySoDConflict(
 ): Promise<boolean> {
   // 后端无 /users/assign-role 端点；用户角色通过 PUT /users/{id} 的 role_id 字段分配（单角色）。
   // SoD 冲突由角色互斥规则（/roles/conflicts）在角色管理侧校验，此处模拟双角色分配必然失败 → 返回 true（存在冲突约束）。
+  console.log(`[verifySoDConflict] userId=${userId} 模拟双角色 ${roleA}+${roleB}（后端单角色模型，按存在冲突约束处理）`);
   try {
     await apiCall(page, 'PUT', `/users/${userId}`, {
       role_id: roleA,
@@ -1455,9 +1482,9 @@ export async function verifySoDConflict(
       role_id: roleB,
     });
     return !(second.code === 200 || second.code === 0);
-  } catch {
+  } catch (e) { console.warn(`[E2E] catch: ${(e as Error).message}`); 
     return true;
-  }
+   }
 }
 
 export async function verifyBulkColorDeliveryBlock(
@@ -1497,7 +1524,8 @@ export async function getProcessSteps(
       items: Array<{ step_code: string; step_name: string; is_required: boolean }>;
     }>(page, 'GET', `/business-modes/${mode.id}/flow-steps?page=1&page_size=20`);
     return steps.items || [];
-  } catch {
+  } catch (e) {
+    console.warn(`[getProcessSteps] 业务模式 ${modeCode} 流程步骤查询失败:`, (e as Error).message);
     return [];
   }
 }
@@ -1514,7 +1542,8 @@ export async function verifyOutsourcingVoucher(
       `/outsourcing-vouchers?outsourcing_order_id=${orderId}&voucher_type=${voucherType}&page=1&page_size=5`
     );
     return vouchers.items?.[0] || null;
-  } catch {
+  } catch (e) {
+    console.warn(`[verifyOutsourcingVoucher] order=${orderId} type=${voucherType} 凭证查询失败:`, (e as Error).message);
     return null;
   }
 }
@@ -1533,7 +1562,8 @@ export async function verifyTrialBalance(
       debit_total: result.debit_total || 0,
       credit_total: result.credit_total || 0,
     };
-  } catch {
+  } catch (e) {
+    console.warn('[verifyTrialBalance] 试算平衡查询失败（按不平衡处理）:', (e as Error).message);
     return { balanced: false, debit_total: 0, credit_total: 0 };
   }
 }

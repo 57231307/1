@@ -89,7 +89,7 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
     // ---- 2. 真实打印请求（浏览器上下文 cookie + 真实后端）----
     const printResp = await page.request
       .get(`${API_BASE}${API_PREFIX}/sales/orders/${salesOrderId}/print`)
-      .catch(() => null);
+      .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     if (!printResp) throw new Error(`网络错误: /sales/orders/${salesOrderId}/print`);
     const printStatus = printResp.status();
     console.log(`[37b] 打印请求 /sales/orders/${salesOrderId}/print → ${printStatus}`);
@@ -136,7 +136,7 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
       .get(
         `${API_BASE}${API_PREFIX}/audit-logs?operation_type=PRINT&page=1&page_size=20`
       )
-      .catch(() => null);
+      .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     if (!auditResp) throw new Error('网络错误: /audit-logs');
     expect(auditResp.status(), '审计列表应可查询（admin）').toBe(200);
     const auditJson = (await auditResp.json()) as ApiResponse<{
@@ -184,7 +184,7 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
 
     const printResp = await page.request
       .get(`${API_BASE}${API_PREFIX}/vouchers/${voucherId}/print`)
-      .catch(() => null);
+      .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     if (!printResp) throw new Error(`网络错误: /vouchers/${voucherId}/print`);
     const status = printResp.status();
     console.log(`[37b] 凭证打印 → ${status}`);

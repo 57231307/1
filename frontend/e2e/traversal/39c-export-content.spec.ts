@@ -59,7 +59,7 @@ test.describe('39c 导出内容断言', () => {
     // ---- 2. 真实导出 ----
     const exportResp = await page.request
       .get(`${API_BASE}${API_PREFIX}/warehouses/export`)
-      .catch(() => null);
+      .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     if (!exportResp) throw new Error('网络错误: /warehouses/export');
     const status = exportResp.status();
     console.log(`[39c] /warehouses/export → ${status}`);
@@ -125,7 +125,7 @@ test.describe('39c 导出内容断言', () => {
 
     const exportResp = await page.request
       .get(`${API_BASE}${API_PREFIX}/inventory/stock/export`)
-      .catch(() => null);
+      .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     if (!exportResp) throw new Error('网络错误: /inventory/stock/export');
     const status = exportResp.status();
     console.log(`[39c] /stock/export → ${status}`);

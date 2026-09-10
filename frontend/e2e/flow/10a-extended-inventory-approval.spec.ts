@@ -30,9 +30,9 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
           status ?? '(missing-status)'
         );
       }
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 
   test('L1-2 验证大货批色发货门禁（未审批阻断发货）', async ({ page }) => {
@@ -67,9 +67,9 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
         `/purchase/receipts?purchase_order_id=${ctx.purchaseOrderId}&page=1&page_size=5`
       );
       expect(receipts.items);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
 
     // 验证入库单关联应付单
     try {
@@ -79,9 +79,9 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
         '/ap/invoices?page=1&page_size=5'
       );
       expect(apInvoices.items);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 
   test('L1-4 验证双计量换算（米→公斤）', async () => {
@@ -110,9 +110,9 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
           status ?? '(missing-status)'
         );
       }
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 
   test('L1-7 验证库存调拨状态机', async ({ page }) => {
@@ -130,9 +130,9 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
           status ?? '(missing-status)'
         );
       }
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 
   test('L1-8 验证库存调整状态机', async ({ page }) => {
@@ -148,9 +148,9 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
         const status = (adjustments.items?.[0].status || '').toLowerCase();
         expect(['pending', 'approved', 'rejected']).toContain(status ?? '(missing-status)');
       }
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 
   test('L1-9 验证匹号状态机', async ({ page }) => {
@@ -183,9 +183,9 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
           '/material-shortage?page=1&page_size=5'
         );
         expect(alerts.items);
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         /* skip */
-      }
+       }
     }
   });
 });

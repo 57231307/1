@@ -49,9 +49,9 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
           '/custom-orders?page=1&page_size=1'
         );
         ctx.customOrderId = list.items?.[0]?.id;
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         /* skip */
-      }
+       }
     }
     expect(ctx.customOrderId).toBeDefined();
   });
@@ -116,9 +116,9 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
         status: 'pending',
       });
       expect(result.data?.id).toBeDefined();
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 
   test('C1-5 验证打样状态机（pending → sampling → submitted → approved/rejected）', async ({
@@ -138,9 +138,9 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
           status ?? '(missing-status)'
         );
       }
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 
   test('C1-6 验证打样小样状态机（pending → matched/not_matched/selected）', async ({ page }) => {
@@ -158,9 +158,9 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
           status ?? '(missing-status)'
         );
       }
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 
   test('C1-7 验证大货批色 8 态状态机', async ({ page }) => {
@@ -185,9 +185,9 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
           'scrapped',
         ]).toContain(status ?? '(missing-status)');
       }
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 
   test('C1-8 验证大货批色回修流程（rework → sampled）', async ({ page }) => {
@@ -199,9 +199,9 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
         '/bulk-color-approvals?status=rework&page=1&page_size=5'
       );
       expect(list.items);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 
   test('C1-9 验证坯布五维追溯链', async ({ page }) => {
@@ -221,9 +221,9 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
           '/business-trace?page=1&page_size=5'
         );
         expect(trace.items);
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         /* skip */
-      }
+       }
     }
   });
 
@@ -236,9 +236,9 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
         '/production/process-nodes?page=1&page_size=5'
       );
       expect(nodes.items);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
     try {
       const logs = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
@@ -246,8 +246,8 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
         '/production/process-logs?page=1&page_size=5'
       );
       expect(logs.items);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 });

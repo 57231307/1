@@ -25,11 +25,11 @@ test.describe('P5.11b 专用审批流', () => {
     // 列表取一条待审 writeoff
     const list = await page.request
       .get(`${API_BASE}${API_PREFIX}/writeoffs?page=1&page_size=5`)
-      .catch(() => null);
+      .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     if (!list) throw new Error('网络错误');
     expect(list.status()).toBeLessThan(500);
 
-    const body = (await list.json().catch(() => null)) as
+    const body = (await list.json().catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; })) as
       | { data?: { items?: Array<{ id: number; status?: string }> } }
       | null;
     const items = body?.data?.items ?? [];
@@ -45,25 +45,25 @@ test.describe('P5.11b 专用审批流', () => {
     const l1 = await page.request.post(
       `${API_BASE}${API_PREFIX}/writeoffs/${pending.id}/finance-approve`,
       { data: { comments: 'E2E 财务一级审批' }, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' } },
-    ).catch(() => null);
+    ).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     if (l1) expect(l1.status()).toBeLessThan(500);
 
     // 二级：general-manager-approve
     const l2 = await page.request.post(
       `${API_BASE}${API_PREFIX}/writeoffs/${pending.id}/general-manager-approve`,
       { data: { comments: 'E2E 总经理二级审批' }, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' } },
-    ).catch(() => null);
+    ).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     if (l2) expect(l2.status()).toBeLessThan(500);
   });
 
   test('资金转账审批链', async ({ page }) => {
     const list = await page.request
       .get(`${API_BASE}${API_PREFIX}/fund-management/transfers?page=1&page_size=5`)
-      .catch(() => null);
+      .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     if (!list) throw new Error('网络错误');
     expect(list.status()).toBeLessThan(500);
 
-    const body = (await list.json().catch(() => null)) as
+    const body = (await list.json().catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; })) as
       | { data?: { items?: Array<{ id: number; status?: string }> } }
       | null;
     const items = body?.data?.items ?? [];
@@ -78,18 +78,18 @@ test.describe('P5.11b 专用审批流', () => {
     const resp = await page.request.post(
       `${API_BASE}${API_PREFIX}/fund-management/transfers/${pending.id}/approve`,
       { data: { comments: 'E2E 转账审批' }, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' } },
-    ).catch(() => null);
+    ).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     if (resp) expect(resp.status()).toBeLessThan(500);
   });
 
   test('角色变更审批链', async ({ page }) => {
     const list = await page.request
       .get(`${API_BASE}${API_PREFIX}/role-change-approvals?page=1&page_size=5`)
-      .catch(() => null);
+      .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     if (!list) throw new Error('网络错误');
     expect(list.status()).toBeLessThan(500);
 
-    const body = (await list.json().catch(() => null)) as
+    const body = (await list.json().catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; })) as
       | { data?: { items?: Array<{ id: number; status?: string }> } }
       | null;
     const items = body?.data?.items ?? [];
@@ -104,7 +104,7 @@ test.describe('P5.11b 专用审批流', () => {
     const resp = await page.request.post(
       `${API_BASE}${API_PREFIX}/role-change-approvals/${pending.id}/approve`,
       { data: { comments: 'E2E 角色变更审批' }, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' } },
-    ).catch(() => null);
+    ).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     if (resp) expect(resp.status()).toBeLessThan(500);
   });
 });
@@ -118,31 +118,31 @@ test.describe('P5.11c BPM 引擎全流程', () => {
     // 1. 任务列表
     const tasks = await page.request
       .get(`${API_BASE}${API_PREFIX}/bpm/tasks?page=1&page_size=10`)
-      .catch(() => null);
+      .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     if (!tasks) throw new Error('网络错误');
     expect(tasks.status()).toBeLessThan(500);
 
     // 2. 待办任务
     const pending = await page.request
       .get(`${API_BASE}${API_PREFIX}/bpm/tasks/pending?page=1&page_size=10`)
-      .catch(() => null);
+      .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     if (pending) expect(pending.status()).toBeLessThan(500);
 
     // 3. 已办任务
     const completed = await page.request
       .get(`${API_BASE}${API_PREFIX}/bpm/tasks/completed?page=1&page_size=10`)
-      .catch(() => null);
+      .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     if (completed) expect(completed.status()).toBeLessThan(500);
   });
 
   test('流程实例审批链查询', async ({ page }) => {
     const list = await page.request
       .get(`${API_BASE}${API_PREFIX}/bpm/instances?page=1&page_size=5`)
-      .catch(() => null);
+      .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     if (!list) throw new Error('网络错误');
     expect(list.status()).toBeLessThan(500);
 
-    const body = (await list.json().catch(() => null)) as
+    const body = (await list.json().catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; })) as
       | { data?: { items?: Array<{ id: number }> } }
       | null;
     const items = body?.data?.items ?? [];
@@ -153,7 +153,7 @@ test.describe('P5.11c BPM 引擎全流程', () => {
 
     const chain = await page.request
       .get(`${API_BASE}${API_PREFIX}/bpm/instances/${items[0].id}/approval-chain`)
-      .catch(() => null);
+      .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     if (chain) expect(chain.status()).toBeLessThan(500);
   });
 
@@ -161,7 +161,7 @@ test.describe('P5.11c BPM 引擎全流程', () => {
     for (const ep of ['/bpm/definitions', '/bpm/templates']) {
       const resp = await page.request
         .get(`${API_BASE}${API_PREFIX}${ep}?page=1&page_size=5`)
-        .catch(() => null);
+        .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
       if (resp) expect(resp.status()).toBeLessThan(500);
     }
   });

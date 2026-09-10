@@ -32,7 +32,7 @@ test.describe('P5.7 打印端点全量矩阵', () => {
     test(`PRINT ${resolvedPath}`, async ({ page }) => {
       const resp = await page.request
         .get(`${API_BASE}${API_PREFIX}${resolvedPath}`)
-        .catch(() => null);
+        .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
 
       if (!resp) {
         // 网络错误：后端不可达，全矩阵统一失败

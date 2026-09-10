@@ -113,9 +113,9 @@ test.describe('面料单据专用字段全链路验证', () => {
       if (colors?.length > 0) {
         colorId = colors[0].id;
       }
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       // 查询失败，测试无色号关联
-    }
+     }
 
     const unitPrice = '25.50';
     const taxRate = '13';

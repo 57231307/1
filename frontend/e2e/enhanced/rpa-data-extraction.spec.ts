@@ -90,9 +90,9 @@ test.describe('RPA：表单自动化', () => {
     // mock 模式下按钮可能不存在，使用短超时
     try {
       await autoClickButton(page, '搜索', { timeout: 15_000 });
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       // 按钮不存在是允许的（mock 模式），验证函数可调用即可
-    }
+     }
   });
 });
 

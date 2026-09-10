@@ -241,9 +241,9 @@ export class RequestObserver {
       let body: string | null = null;
       try {
         body = await response.text();
-      } catch {
+      } catch (e) { console.warn(`[E2E] catch: ${(e as Error).message}`); 
         body = null;
-      }
+       }
       this.requests.push({
         url: request.url(),
         method: request.method(),

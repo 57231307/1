@@ -27,7 +27,7 @@ test.describe('P5.9 敏感导出 fail-closed 矩阵', () => {
     test(`FAIL-CLOSED ${path} [${resource}] 无 token 403`, async ({ page }) => {
       const resp = await page.request
         .get(`${API_BASE}${API_PREFIX}${path}`)
-        .catch(() => null);
+        .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
 
       if (!resp) throw new Error(`网络错误: ${path}`);
 
@@ -41,7 +41,7 @@ test.describe('P5.9 敏感导出 fail-closed 矩阵', () => {
     test(`FAIL-CLOSED ${path} [${resource}] 伪造 token 403`, async ({ page }) => {
       const resp = await page.request
         .get(`${API_BASE}${API_PREFIX}${path}?download_token=fake-token-for-e2e-test`)
-        .catch(() => null);
+        .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
 
       if (!resp) throw new Error(`网络错误: ${path}`);
 
@@ -62,7 +62,7 @@ test.describe('P5.9 非敏感导出矩阵', () => {
     test(`EXPORT ${path}`, async ({ page }) => {
       const resp = await page.request
         .get(`${API_BASE}${API_PREFIX}${path}`)
-        .catch(() => null);
+        .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
 
       if (!resp) throw new Error(`网络错误: ${path}`);
 

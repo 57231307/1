@@ -34,7 +34,7 @@ test.describe('33b 角色黑名单（print/export/dye-recipe）', () => {
 
       const resp = await page.request
         .get(`${API_BASE}${API_PREFIX}/boms/1/print`)
-        .catch(() => null);
+        .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
       if (!resp) throw new Error('网络错误: /boms/1/print');
 
       const status = resp.status();
@@ -60,7 +60,7 @@ test.describe('33b 角色黑名单（print/export/dye-recipe）', () => {
 
       const resp = await page.request
         .get(`${API_BASE}${API_PREFIX}/stock/export`)
-        .catch(() => null);
+        .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
       if (!resp) throw new Error('网络错误: /stock/export');
 
       // /stock/export 是非敏感导出：黑名单是唯一防线——403 即黑名单直接生效，
@@ -80,7 +80,7 @@ test.describe('33b 角色黑名单（print/export/dye-recipe）', () => {
 
     const resp = await page.request
       .get(`${API_BASE}${API_PREFIX}/dye-recipes/1/export`)
-      .catch(() => null);
+      .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     if (!resp) throw new Error('网络错误: /dye-recipes/1/export');
 
     const status = resp.status();
@@ -105,7 +105,7 @@ test.describe('33b 角色黑名单（print/export/dye-recipe）', () => {
 
     const resp = await page.request
       .get(`${API_BASE}${API_PREFIX}/boms/1/print`)
-      .catch(() => null);
+      .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     if (!resp) throw new Error('网络错误: /boms/1/print');
 
     const status = resp.status();
