@@ -49,12 +49,16 @@ test.describe('面料单据专用字段全链路验证', () => {
       );
       transferId = result.data?.id!;
     } catch {
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+      // list_transfers 返回 ApiResponse<Vec<Model>>：data 是数组（无 items 包装）
+      const list = await apiCallRaw<
+        Array<{ id: number }> | { items?: Array<{ id: number }> }
+      >(
         page,
         'GET',
         '/inventory/transfers?page=1&page_size=1'
       );
-      transferId = list.items?.[0]?.id;
+      const transferList = Array.isArray(list) ? list : (list.items ?? []);
+      transferId = transferList[0]?.id;
     }
 
     if (transferId) {
