@@ -205,12 +205,38 @@ const ROLE_CREDENTIALS_PATH = 'e2e/.auth/role-credentials.json';
 const DEFAULT_ROLE_PASSWORD = 'E2eRole#2026';
 
 /**
+ * CSRF 一次性消费的恢复包装：写请求 403（CSRF_TOKEN_INVALID）时读取
+ * 响应头 X-New-CSRF-Token 更新 headers 并重试一次（每分片独立登录，
+ * 并发分片同库时旧 token 必被竞争消费，无恢复则后续全部写请求 403）
+ */
+async function requestWithCsrfRecovery(
+  ctx: {
+    post: (url: string, options: object) => Promise<{ ok: boolean; status: () => number; headers: () => Record<string, string> }>;
+    put: (url: string, options: object) => Promise<{ ok: boolean; status: () => number; headers: () => Record<string, string> }>;
+  },
+  method: 'post' | 'put',
+  url: string,
+  headers: Record<string, string>,
+  data: Record<string, unknown>
+): Promise<{ ok: boolean; status: () => number; headers: () => Record<string, string> }> {
+  let resp = await ctx[method](url, { headers, data });
+  if (resp.status() === 403) {
+    const newToken = resp.headers()['x-new-csrf-token'];
+    if (newToken) {
+      headers['X-CSRF-Token'] = newToken;
+      resp = await ctx[method](url, { headers, data });
+    }
+  }
+  return resp;
+}
+
+/**
  * 为角色分配权限码（POST /roles/{id}/permissions 单条模式，幂等）
  * 权限码格式 'product:print' → { resource_type: 'product', action: 'print', allowed: true }
  * 单条失败仅告警不中断（黑名单断言对无权限码场景仍成立，只是失去"持码仍拒"精度）
  */
 async function assignPermissionList(
-  ctx: { post: (url: string, options: object) => Promise<{ ok: boolean; status: () => number }> },
+  ctx: { post: (url: string, options: object) => Promise<{ ok: boolean; status: () => number; headers: () => Record<string, string> }> },
   roleId: number,
   permissionCodes: string[],
   headers: Record<string, string>
@@ -222,10 +248,13 @@ async function assignPermissionList(
       continue;
     }
     try {
-      const resp = await ctx.post(`${API_PREFIX}/roles/${roleId}/permissions`, {
+      const resp = await requestWithCsrfRecovery(
+        ctx,
+        'post',
+        `${API_PREFIX}/roles/${roleId}/permissions`,
         headers,
-        data: { resource_type: resourceType, action, allowed: true },
-      });
+        { resource_type: resourceType, action, allowed: true },
+      );
       if (!resp.ok() && resp.status() !== 400 && resp.status() !== 409) {
         console.warn(`[globalSetup] 权限 ${code} 分配失败 HTTP ${resp.status()}`);
       }
@@ -303,10 +332,13 @@ export async function ensureRoleUsers(): Promise<void> {
   );
 
   for (const role of allRolesToEnsure) {
-    const createRoleResp = await loginCtx.post(`${API_PREFIX}/roles`, {
+    const createRoleResp = await requestWithCsrfRecovery(
+      loginCtx,
+      'post',
+      `${API_PREFIX}/roles`,
       headers,
-      data: { code: role.code, name: role.name },
-    });
+      { code: role.code, name: role.name },
+    );
     if (createRoleResp.ok()) {
       const created = (await createRoleResp.json().catch(() => null)) as
         | { data?: { id: number } }
@@ -352,10 +384,13 @@ export async function ensureRoleUsers(): Promise<void> {
   for (const [code, roleId] of roleCodeToId) {
     const username = `e2e_${code}`;
     const password = DEFAULT_ROLE_PASSWORD;
-    const createResp = await loginCtx.post(`${API_PREFIX}/users`, {
+    const createResp = await requestWithCsrfRecovery(
+      loginCtx,
+      'post',
+      `${API_PREFIX}/users`,
       headers,
-      data: { username, password, role_id: roleId, real_name: `E2E-${code}` },
-    });
+      { username, password, role_id: roleId, real_name: `E2E-${code}` },
+    );
     if (createResp.ok()) {
       console.log(`[globalSetup] 角色账号 ${username} 创建成功`);
     } else if (createResp.status() === 400 || createResp.status() === 409) {
