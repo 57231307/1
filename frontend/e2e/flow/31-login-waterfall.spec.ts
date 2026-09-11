@@ -1,5 +1,6 @@
 import { test, expect } from '../diagnose-fixture';
 import { loginViaUI } from './helpers';
+import { safeGoto } from './ui-helpers';
 
 /**
  * P5.1 登录瀑布测试
@@ -29,11 +30,11 @@ test.describe('P5.1 登录瀑布', () => {
       }
     });
 
-    // 故意用错密码触发 401
-    await page.goto('/');
+    // 故意用错密码触发 401；safeGoto 处理 Vite 冷启动 504 Outdated Optimize Dep 重试
+    await safeGoto(page, '/');
     // 等登录表单渲染后再填（dev server 冷启动 504 重试后表单可能延迟出现）
     const userInput = page.locator('input[placeholder*="用户名"], input[name="username"]').first();
-    await userInput.waitFor({ state: 'visible', timeout: 30000 }).catch((e) => { console.warn(`[E2E] 登录表单未出现: ${(e as Error).message}`); });
+    await userInput.waitFor({ state: 'visible', timeout: 45000 }).catch((e) => { console.warn(`[E2E] 登录表单未出现: ${(e as Error).message}`); });
     await userInput.fill('e2e_admin');
     await page.locator('input[type="password"]').first().fill('WrongPassword123!');
     // 勾选协议

@@ -18,9 +18,9 @@ test.describe('P5.4 水平越权', () => {
     const customerName = genName('HozCust');
     const createResp = await apiCall(page, 'POST', '/crm/customers', {
       customer_name: customerName,
-      customer_type: 'enterprise',
+      customer_type: 'wholesale',
       contact_person: '测试',
-      phone: '13800000000',
+      contact_phone: '13800000000',
     });
     const customerId = createResp?.id ?? createResp?.data?.id;
     if (!customerId) {
@@ -41,7 +41,7 @@ test.describe('P5.4 水平越权', () => {
       supplier_name: supplierName,
       supplier_type: 'material',
       contact_person: '测试',
-      phone: '13800000000',
+      contact_phone: '13800000000',
     });
     const supplierId = createResp?.id ?? createResp?.data?.id;
     if (supplierId) {

@@ -1,5 +1,10 @@
 /* eslint-disable no-console */
 import type { Page } from '@playwright/test';
+// ESM 环境无 require（Playwright 原生 ESM 加载链），fs/crypto 必须静态导入；
+// 此前 require('fs')/require('crypto') 抛 "require is not defined" 导致
+// getRoleCredential 恒返 null（全角色 credentials not found）与 generateTotp 崩溃
+import { existsSync, readFileSync } from 'fs';
+import * as nodeCrypto from 'crypto';
 import {
   createWarehouseUI,
   createDepartmentUI,
@@ -1762,7 +1767,7 @@ export async function expectSingleToast(
  * 与后端 totp setup/enable 端点配合使用
  */
 export function generateTotp(secretBase32: string, windowOffset = 0): string {
-  const crypto = require('crypto') as typeof import('crypto');
+  const crypto = nodeCrypto;
 
   // Base32 解码
   const base32Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
@@ -1822,17 +1827,16 @@ export function getRoleCredential(role: string): RoleCredential | null {
 
   // 回退凭证文件
   try {
-    const fs = require('fs') as typeof import('fs');
     // IR 详细日志：读取失败必须可见（run 34442679467 分片 41-49 全量
     // credential not found 而文件写入 37 角色——静默 catch 掩盖了根因）
-    if (!fs.existsSync(ROLE_CREDENTIALS_PATH)) {
+    if (!existsSync(ROLE_CREDENTIALS_PATH)) {
       console.error(
         `[getRoleCredential] 凭证文件不存在: ${ROLE_CREDENTIALS_PATH}（cwd=${process.cwd()}）`,
       );
       return null;
     }
     const data = JSON.parse(
-      fs.readFileSync(ROLE_CREDENTIALS_PATH, 'utf-8'),
+      readFileSync(ROLE_CREDENTIALS_PATH, 'utf-8'),
     ) as Record<string, RoleCredential>;
     const cred = data[role];
     if (!cred) {

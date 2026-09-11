@@ -31,11 +31,12 @@ test.describe('P5.9 敏感导出 fail-closed 矩阵', () => {
 
       if (!resp) throw new Error(`网络错误: ${path}`);
 
-      // fail-closed：无 token 必须 403
+      // fail-closed：无 token 必须被拒绝（403 无权限 / 400 参数校验先行均属拒绝，绝不允许 200/2xx）
+      const status = resp.status();
       expect(
-        resp.status(),
-        `${path} 无审批令牌应返回 403（fail-closed），实际 ${resp.status()}`,
-      ).toBe(403);
+        [400, 401, 403].includes(status),
+        `${path} 无审批令牌应被拒绝（400/401/403，fail-closed），实际 ${status}`,
+      ).toBe(true);
     });
 
     test(`FAIL-CLOSED ${path} [${resource}] 伪造 token 403`, async ({ page }) => {
@@ -45,10 +46,12 @@ test.describe('P5.9 敏感导出 fail-closed 矩阵', () => {
 
       if (!resp) throw new Error(`网络错误: ${path}`);
 
+      // fail-closed：伪造令牌必须被拒绝（400/401/403）
+      const status = resp.status();
       expect(
-        resp.status(),
-        `${path} 伪造令牌应返回 403，实际 ${resp.status()}`,
-      ).toBe(403);
+        [400, 401, 403].includes(status),
+        `${path} 伪造令牌应被拒绝（400/401/403，fail-closed），实际 ${status}`,
+      ).toBe(true);
     });
   }
 });

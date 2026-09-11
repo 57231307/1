@@ -96,6 +96,9 @@ export const SENSITIVE_EXPORT_ENDPOINTS: Array<{ path: string; resource: string 
   { path: '/finance/reports/general-ledger/export', resource: 'finance_report' },
   { path: '/finance/reports/subsidiary-ledger/export', resource: 'finance_report' },
   { path: '/audit-logs/export', resource: 'audit_log' },
+  // /logs/export 后端同样走 enforce_export_download fail-closed（审计日志导出为敏感操作），
+  // 归类到敏感清单（第三轮 CI 59 分片 403 修复：原错放非敏感清单期望 200）
+  { path: '/logs/export', resource: 'audit_log' },
 ];
 
 /** 非敏感导出端点（直接 200 + xlsx 断言） */
@@ -112,7 +115,6 @@ export const NON_SENSITIVE_EXPORT_ENDPOINTS: string[] = [
   '/color-cards/issues/export',
   '/crm/leads/export',
   '/login-logs/export',
-  '/logs/export',
   '/crm/opportunities/export',
   '/sales/orders/export',
   '/production/production-orders/orders/export',

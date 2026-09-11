@@ -182,6 +182,14 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
         await userTab.click();
         await page.waitForTimeout(2000);
         console.log('[31c-用户] 已切到用户 Tab');
+        // keyword 搜索过滤（用户列表可能分页，直接搜索新建账号确保第一页可见）
+        const keywordInput = page.locator('.filter-card input').first();
+        if (await keywordInput.isVisible({ timeout: 4000 }).catch(() => false)) {
+          await keywordInput.fill(username);
+          await keywordInput.press('Enter');
+          await page.waitForTimeout(2000);
+          console.log('[31c-用户] 已按用户名过滤列表');
+        }
         if (await openEditDialog(page, '/system', username, true)) {
           toggled = await toggleStatusInDialog(page, '禁用', /确定|保存/);
         }
