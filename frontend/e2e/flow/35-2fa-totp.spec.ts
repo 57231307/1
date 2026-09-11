@@ -15,8 +15,8 @@ test.describe('P5.5 2FA TOTP', () => {
     await loginViaUI(page);
     const collector = trackPageHealth(page);
 
-    // 1. setup 拿 secret
-    const setupResp = await apiCall(page, 'POST', '/auth/totp/setup');
+    // 1. setup 拿 secret（后端 GET /auth/totp/setup，非 POST）
+    const setupResp = await apiCall(page, 'GET', '/auth/totp/setup');
     const secret = setupResp?.secret ?? setupResp?.data?.secret;
     if (!secret) {
       console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
@@ -40,7 +40,7 @@ test.describe('P5.5 2FA TOTP', () => {
   test('错 TOTP code 拒绝', async ({ page }) => {
     await loginViaUI(page);
 
-    const setupResp = await apiCall(page, 'POST', '/auth/totp/setup');
+    const setupResp = await apiCall(page, 'GET', '/auth/totp/setup');
     const secret = setupResp?.secret ?? setupResp?.data?.secret;
     if (!secret) {
       console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
@@ -61,7 +61,8 @@ test.describe('P5.5 2FA TOTP', () => {
   test('生成恢复码并消费', async ({ page }) => {
     await loginViaUI(page);
 
-    const recoveryResp = await apiCall(page, 'POST', '/auth/recovery-codes');
+    // 后端真实路径为 /auth/totp/recovery-codes（nest 在 /auth 下的 totp 子组）
+    const recoveryResp = await apiCall(page, 'POST', '/auth/totp/recovery-codes');
     const codes = recoveryResp?.codes ?? recoveryResp?.data?.codes;
     if (!codes || !Array.isArray(codes) || codes.length === 0) {
       console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');

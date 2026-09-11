@@ -307,8 +307,15 @@ export async function ensureRoleUsers(): Promise<void> {
   // 后端 RoleListResponse 形态为 { roles: [...], total }（非 items 包装），
   // 兼容两种形态防止字段错位导致解析为空
   const rolesResp = await loginCtx.get(`${API_PREFIX}/roles?page=1&page_size=200`, { headers });
+  if (!rolesResp.ok()) {
+    const body = await rolesResp.text().catch(() => '');
+    await loginCtx.dispose();
+    throw new Error(
+      `ensureRoleUsers: 角色清单拉取失败 HTTP ${rolesResp.status()}（role-credentials.json 无法生成，后续角色测试将全部失败）: ${body.slice(0, 200)}`,
+    );
+  }
   const rolesBody = (await rolesResp.json().catch((e) => {
-    console.warn(`[assignPermissionList] 权限分配失败（不影响角色账号创建）:`, (e as Error).message);
+    console.error(`[globalSetup] 角色清单 JSON 解析失败（原错误消息前缀错位已修正）:`, (e as Error).message);
     return null;
   })) as
     | {
@@ -373,12 +380,21 @@ export async function ensureRoleUsers(): Promise<void> {
   }
 
   // 重新拉取角色清单获取补建角色的 id（兼容 roles / items 两种响应形态）
-  if (allRolesToEnsure.length > 0) {
+  // 无条件重拉：角色已存在（409 分支）时 roleCodeToId 也可能缺 id（步骤 2 解析不全），
+  // 只有重拉才能保证步骤 4 为全部角色创建测试账号
+  {
     const reFetch = await loginCtx.get(`${API_PREFIX}/roles?page=1&page_size=200`, { headers });
+    if (!reFetch.ok()) {
+      const body = await reFetch.text().catch(() => '');
+      await loginCtx.dispose();
+      throw new Error(
+        `ensureRoleUsers: 角色清单重拉失败 HTTP ${reFetch.status()}: ${body.slice(0, 200)}`,
+      );
+    }
     const reBody = (await reFetch.json().catch((e) => {
-    console.warn(`[assignPermissionList] 权限分配失败（不影响角色账号创建）:`, (e as Error).message);
-    return null;
-  })) as
+      console.error(`[globalSetup] 角色清单重拉 JSON 解析失败:`, (e as Error).message);
+      return null;
+    })) as
       | {
           data?: {
             roles?: Array<{ id: number; code?: string }>;
@@ -386,9 +402,17 @@ export async function ensureRoleUsers(): Promise<void> {
           };
         }
       | null;
-    for (const r of reBody?.data?.roles ?? reBody?.data?.items ?? []) {
+    const refetched = reBody?.data?.roles ?? reBody?.data?.items ?? [];
+    if (refetched.length === 0) {
+      await loginCtx.dispose();
+      throw new Error(
+        `ensureRoleUsers: 角色清单重拉后仍为空（响应结构异常），roleCodeToId=${roleCodeToId.size}，原始片段=${JSON.stringify(reBody).slice(0, 200)}`,
+      );
+    }
+    for (const r of refetched) {
       if (r.code) roleCodeToId.set(r.code, r.id);
     }
+    console.log(`[globalSetup] 角色清单重拉完成，共 ${refetched.length} 角色，roleCodeToId=${roleCodeToId.size}`);
   }
 
   // 4. 为每个角色创建测试账号

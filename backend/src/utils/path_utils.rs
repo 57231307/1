@@ -213,9 +213,22 @@ fn is_misc_direct_resource(part: &str) -> bool {
             | "sales-forecast"
             | "inventory-optimization"
             | "anomaly-detection"
-            // ===== 审计与日志直接资源 =====
-            | "logs"
-            | "health"
-            | "system-config"
+        // ===== 审计与日志直接资源 =====
+        | "logs"
+        | "health"
+        | "system-config"
+        // V16 P0：审批流与 AI 模型直接资源（traversal 全量对照补齐，admin 被拒修复）
+        | "export-approvals"
+        | "role-change-approvals"
+        | "ai-models"
+        // V16 P0：外贸/职业健康/物流域直接资源（37-print 矩阵 403 修复）
+        | "export-inspections"
+        | "export-refunds"
+        | "labor-contracts"
+        | "logistics-tracking"
+        | "occupational-health"
+        | "pollution-monitoring"
+        | "pollution-permits"
+        | "social-insurance"
     )
 }

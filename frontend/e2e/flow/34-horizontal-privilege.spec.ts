@@ -17,7 +17,7 @@ test.describe('P5.4 水平越权', () => {
     // 创建客户 A
     const customerName = genName('HozCust');
     const createResp = await apiCall(page, 'POST', '/crm/customers', {
-      name: customerName,
+      customer_name: customerName,
       customer_type: 'enterprise',
       contact_person: '测试',
       phone: '13800000000',
@@ -38,7 +38,7 @@ test.describe('P5.4 水平越权', () => {
   test('用户无法修改他人创建的供应商', async ({ page }) => {
     const supplierName = genName('HozSup');
     const createResp = await apiCall(page, 'POST', '/purchase/suppliers', {
-      name: supplierName,
+      supplier_name: supplierName,
       supplier_type: 'material',
       contact_person: '测试',
       phone: '13800000000',

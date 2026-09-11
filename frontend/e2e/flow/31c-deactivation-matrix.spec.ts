@@ -22,10 +22,12 @@ const API_PREFIX = '/api/v1/erp';
 const TS = Date.now().toString().slice(-8);
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 
-/** 在列表中按唯一文本找行 → 点编辑 → 等弹窗可见 */
-async function openEditDialog(page: import('@playwright/test').Page, route: string, rowText: string): Promise<boolean> {
-  await safeGoto(page, route);
-  await page.waitForTimeout(1500);
+/** 在列表中按唯一文本找行 → 点编辑 → 等弹窗可见；skipNavigation=true 时跳过 goto（已在目标页且已切 Tab） */
+async function openEditDialog(page: import('@playwright/test').Page, route: string, rowText: string, skipNavigation = false): Promise<boolean> {
+  if (!skipNavigation) {
+    await safeGoto(page, route);
+    await page.waitForTimeout(1500);
+  }
   const rows = page.locator('.el-table__row');
   const count = await rows.count();
   console.log(`[31c] ${route} 列表 ${count} 行，查找 ${rowText}`);
@@ -172,7 +174,7 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
 
     let toggled = false;
     try {
-      // /system 页用户 Tab
+      // /system 页用户 Tab；已切 Tab 后跳过重新导航（safeGoto 会重置回默认 Tab）
       await page.goto(`${BASE_URL}/system`);
       await page.waitForTimeout(2500);
       const userTab = page.locator('.el-tabs__item:has-text("用户")').first();
@@ -180,7 +182,7 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
         await userTab.click();
         await page.waitForTimeout(2000);
         console.log('[31c-用户] 已切到用户 Tab');
-        if (await openEditDialog(page, '/system', username)) {
+        if (await openEditDialog(page, '/system', username, true)) {
           toggled = await toggleStatusInDialog(page, '禁用', /确定|保存/);
         }
       } else {

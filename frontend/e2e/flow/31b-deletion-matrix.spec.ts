@@ -26,6 +26,8 @@ interface DelCase {
   getApi?: (id: number) => string;
   /** 删除路径（默认 `${createApi}/${id}`） */
   deleteApi?: (id: number) => string;
+  /** 删除前预处理（如固定资产需先 PUT status=inactive 才允许删除） */
+  preDelete?: (page: import('@playwright/test').Page, id: number) => Promise<void>;
 }
 
 /** 创建 → 删除 → 详情 404 + 列表消失 双验证 */
@@ -61,7 +63,17 @@ async function createThenApiDelete(page: import('@playwright/test').Page, c: Del
     console.warn(`[31b-${c.label}] 列表回读异常: ${(e as Error).message}`);
   }
 
-  // 2) API 删除（真实后端 DELETE）
+  // 2) 删除前预处理（业务约束：如固定资产需先停用）
+  if (c.preDelete) {
+    try {
+      await c.preDelete(page, id);
+      console.log(`[31b-${c.label}] 删除前预处理完成`);
+    } catch (e) {
+      console.warn(`[31b-${c.label}] 删除前预处理失败: ${(e as Error).message}`);
+    }
+  }
+
+  // 3) API 删除（真实后端 DELETE）
   const delPath = c.deleteApi ? c.deleteApi(id) : `${c.createApi}/${id}`;
   let deleted = false;
   try {
@@ -116,7 +128,7 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
     { label: '会计科目', createApi: '/subjects', payload: { code: `P0SUB${TS}`, name: `P0科目${TS}`, level: 1, balance_direction: '借' } },
     { label: '角色', createApi: '/roles', payload: { name: `P0角色${TS}`, code: `P0ROLE${TS}`, description: 'P0角色描述' } },
     { label: '预算', createApi: '/budgets', payload: { item_name: `P0预算${TS}`, item_code: `P0-BUD-${TS}`, item_type: 'expense', budget_year: 2026, planned_amount: 50000, remark: 'P0预算备注' } },
-    { label: '固定资产', createApi: '/fixed-assets', payload: { asset_no: `P0-FA-${TS}`, asset_name: `P0资产${TS}`, asset_category: '设备', specification: 'P0资产规格', location: 'P0车间', original_value: 120000, useful_life: 10, depreciation_method: 'straight_line', purchase_date: '2026-01-01', remark: 'P0资产备注' } },
+    { label: '固定资产', createApi: '/fixed-assets', payload: { asset_no: `P0-FA-${TS}`, asset_name: `P0资产${TS}`, asset_category: '设备', specification: 'P0资产规格', location: 'P0车间', original_value: 120000, useful_life: 10, depreciation_method: 'straight_line', purchase_date: '2026-01-01', remark: 'P0资产备注' }, preDelete: async (page, id) => { await apiCall(page, 'PUT', `/fixed-assets/${id}`, { status: 'inactive' }); } },
     { label: 'CRM标签', createApi: '/crm/tags', payload: { name: `P0标签${TS}`, color: '#FF0000', category: 'P0类' } },
     { label: 'CRM回收规则', createApi: '/crm/recycle-rules', payload: { name: `P0回收规则${TS}`, days: 30, is_enabled: true } },
     { label: 'CRM池规则', createApi: '/crm/pool/rules', payload: { name: `P0池规则${TS}`, rule_type: 'no_follow_up', rule_value: 30, customer_type: 'all', notes: 'P0池规则备注' } },

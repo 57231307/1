@@ -45,7 +45,8 @@ export const TRAVERSAL_MODULES: TraversalModule[] = [
   { id: 'system-export-approvals', route: '/system/export-approvals', domain: 'system', tier: 'C', listApi: '/export-approvals', noCreate: true },
   { id: 'system-slow-query', route: '/system/slow-query', domain: 'system', tier: 'C', noCreate: true },
   { id: 'report-templates', route: '/report-templates', domain: 'system', tier: 'A', listApi: '/report-templates' },
-  { id: 'print-templates', route: '/print-templates', domain: 'system', tier: 'A', listApi: '/print-templates' },
+  // print-templates 为内置模板只读展示（后端无创建端点），新建断言跳过
+  { id: 'print-templates', route: '/print-templates', domain: 'system', tier: 'A', listApi: '/print-templates', noCreate: true },
   { id: 'api-gateway', route: '/api-gateway', domain: 'system', tier: 'C', noCreate: true },
   { id: 'system-update', route: '/system-update', domain: 'system', tier: 'C', noCreate: true },
   { id: 'system-profile', route: '/system/profile', domain: 'system', tier: 'C', noCreate: true },
