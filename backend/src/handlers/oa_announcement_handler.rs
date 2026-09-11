@@ -84,6 +84,7 @@ pub async fn publish(
         Some(event_svc) => {
             match resolve_audience(state.db.as_ref(), &announcement).await {
                 Ok(user_ids) if !user_ids.is_empty() => {
+                    let target_count = user_ids.len();
                     match event_svc
                         .send_system_announcement(
                             user_ids,
@@ -96,9 +97,9 @@ pub async fn publish(
                             tracing::info!(
                                 "OA 公告 {} 已推送通知给 {} 位用户",
                                 announcement.id,
-                                user_ids.len()
+                                target_count
                             );
-                            user_ids.len()
+                            target_count
                         }
                         Err(e) => {
                             tracing::warn!(

@@ -269,7 +269,7 @@ pub async fn submit_request(
 
         if !approver_ids.is_empty() {
             use crate::services::event_notification_service::NotificationPayload;
-            use crate::models::notification::{NotificationPriority, NotificationType};
+            use crate::models::notification::NotificationPriority;
             let payload = NotificationPayload {
                 user_ids: approver_ids.clone(),
                 title: format!("付款申请待审批：{}", request.request_no),
@@ -277,10 +277,9 @@ pub async fn submit_request(
                     "供应商 {} 的付款申请 {}，金额 {} 需要您审批",
                     supplier_name, request.request_no, request.request_amount
                 ),
-                notification_type: NotificationType::Internal,
                 priority: NotificationPriority::High,
                 business_type: Some("FINANCE".to_string()),
-                business_id: Some(request.id as i64),
+                business_id: Some(request.id),
                 action_url: Some(format!("/finance/payment-request/{}", request.id)),
             };
             if let Err(e) = event_service.notify_multiple_users(payload).await {
@@ -394,14 +393,14 @@ pub async fn reject_request(
 async fn fetch_approver_user_ids(db: &sea_orm::DatabaseConnection) -> Vec<i32> {
     use crate::utils::admin_checker::{ADMIN_ROLE_CODE, MANAGER_ROLE_CODE};
     use crate::models::{role, user};
-    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, sea_query::Cond};
 
     // 先查 admin/manager 角色 id
     let role_ids: Vec<i32> = role::Entity::find()
         .filter(
-            role::Column::Code
-                .eq(ADMIN_ROLE_CODE)
-                .or(role::Column::Code.eq(MANAGER_ROLE_CODE)),
+            Cond::any()
+                .add(role::Column::Code.eq(ADMIN_ROLE_CODE))
+                .add(role::Column::Code.eq(MANAGER_ROLE_CODE)),
         )
         .all(db)
         .await
