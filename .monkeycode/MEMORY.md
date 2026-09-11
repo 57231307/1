@@ -129,3 +129,6 @@
 - **推送冻结（IR，2026-09-07，2026-09-09 重申继续生效）**：git push 指令禁止生效，所有改动仅本地 commit；推送必须等用户明确授权后执行
 - **源代码修改冻结解除（IR，2026-09-09）**：用户已解除源代码修改冻结，修复计划（docs/plans/one-round-fix-plan-2026-09-09.md，10 commit）可开始实施；**推送继续冻结**——全部改动仅本地 commit，推送等用户明确授权
 - **文档归档规则（IR，2026-09-09）**：doto.md/bug.md 等任务文件过时即归档（用户确认），归档目录 .monkeycode/docs/archives/YYYY-MM-DD/，命名仿照 doto-YYYY-MM-DD-pre-cleanup.md；项目文档统一存放 .monkeycode/docs/（根目录 docs/ 已迁入），根目录只保留 README/CONTRIBUTING/LICENSE
+- **CI 失败修复汇报制（IR，2026-09-11）**：每轮 CI 修复完成后，必须向用户汇报：①本轮修了哪些问题（逐条列出）②每个问题的根因归属（后端代码 bug / 测试文件错误 / 测试配置错误 / 环境级 flaky / 测试基础设施错误）③为什么会出现 ④怎么修复的。禁止只报"已修复"不给归因。修复前必须拉取全部失败 job 的日志（annotations + report zip + md 数据逐测试解析），禁止只看第一个错误就修
+- **CI 失败日志分析方法（IR，2026-09-11）**：GitHub job log 只有 E2E-HEAD/TAIL 摘要（Playwright 输出被重定向到 reports/ 文件）；完整失败详情在 e2e-report-shard-N artifact 的 data/*.md 中（含每测试的 Name/Location/Expected/Received）；批量解析脚本需每分片刷新 git credential token（后台终端 token 会失效）
+- **CI 失败判责纪律（IR，2026-09-11，用户强调）**：测试失败后必须先判责——源代码错误修源代码，测试文件错误修测试文件，禁止混淆两者瞎改。判责依据：对照后端真实 DTO/路由/约束（grep 源码确认），而非猜测。修复前先回答"这是谁的问题"

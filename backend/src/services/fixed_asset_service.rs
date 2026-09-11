@@ -744,8 +744,12 @@ impl FixedAssetService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("固定资产不存在：{}", asset_id)))?;
 
-        if asset.status != master_data::INACTIVE {
-            return Err(AppError::validation("只能删除未使用状态的资产".to_string()));
+        if asset.status != master_data::INACTIVE
+            && asset.status != crate::models::status::fixed_asset::DISPOSED
+        {
+            return Err(AppError::validation(
+                "只能删除未使用或已处置状态的资产".to_string(),
+            ));
         }
 
         fixed_asset::Entity::delete_many()

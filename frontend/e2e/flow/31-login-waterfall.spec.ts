@@ -22,6 +22,11 @@ function authPath(url: string): string {
 }
 
 test.describe('P5.1 登录瀑布', () => {
+  // 关键：全局 storageState（playwright.config）让每个 test 自带登录 cookie，
+  // goto('/') 会被路由守卫重定向 Dashboard，登录表单永不出现。
+  // 本 describe 专门测登录页行为，必须清空登录态（第四轮 CI 37 分片 fill 超时根因）
+  test.use({ storageState: { cookies: [], origins: [] } });
+
   test('错密码一次点击不触发 refresh 瀑布', async ({ page }) => {
     const requests: string[] = [];
     page.on('request', (req) => {

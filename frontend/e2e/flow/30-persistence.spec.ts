@@ -98,17 +98,17 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     test.setTimeout(60_000);
     const name = `P0测试客户${TS}`;
     const payload = {
-      name,
-      customer_type: 'enterprise',
+      customer_name: name,  // 后端 DTO 字段名 customer_name（非 name）
+      customer_type: 'wholesale',  // 合法枚举（enterprise 非法）
       contact_person: 'P0联系人',
-      phone: '13900000000',
+      contact_phone: '13900000000',  // 后端 DTO 字段名 contact_phone（非 phone）
       contact_email: 'p0@e2e.test',
       address: 'P0测试地址1号',
       city: '上海',
       province: '上海市',
       country: '中国',
       postal_code: '200000',
-      credit_limit: 500000,
+      credit_limit: '500000',  // 后端 DTO 为 Option<String>（第四轮 CI 34 分片 422 修复）
       payment_terms: 30,
       tax_id: 'P0TAX' + TS,
       bank_name: 'P0测试银行',
@@ -122,24 +122,24 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     console.log(`[P0-客户] 创建成功 id=${id} name=${name}`);
     expect(id, '客户创建必须返回 id').toBeTruthy();
 
-    const list = await apiCallRaw<{ items?: Array<{ id: number; name?: string }> }>(
+    const list = await apiCallRaw<{ items?: Array<{ id: number; customer_name?: string }> }>(
       page, 'GET', `/crm/customers?page=1&page_size=200`
     );
     const items = list?.items ?? [];
     const found = items.find((i) => i.id === id);
     console.log(`[P0-客户] 列表回读：共 ${items.length} 条，找到 id=${id} → ${found ? '✅存在' : '❌不存在'}`);
     expect(found, '创建的客户必须出现在列表中').toBeTruthy();
-    expect(found!.name, `列表 name 应为 ${name}`).toBe(name);
+    expect(found!.customer_name, `列表 customer_name 应为 ${name}`).toBe(name);
 
-    const detail = await apiCallRaw<{ id: number; name?: string; customer_type?: string; contact_person?: string; phone?: string; contact_email?: string; address?: string; city?: string; province?: string; country?: string; postal_code?: string; credit_limit?: number; payment_terms?: number; tax_id?: string; bank_name?: string; bank_account?: string; status?: string; notes?: string }>(
+    const detail = await apiCallRaw<{ id: number; customer_name?: string; customer_type?: string; contact_person?: string; contact_phone?: string; contact_email?: string; address?: string; city?: string; province?: string; country?: string; postal_code?: string; credit_limit?: string; payment_terms?: number; tax_id?: string; bank_name?: string; bank_account?: string; status?: string; notes?: string }>(
       page, 'GET', `/crm/customers/${id}`
     );
-    console.log(`[P0-客户] 详情二次访问 → name=${detail?.name} type=${detail?.customer_type} contact=${detail?.contact_person} phone=${detail?.phone} email=${detail?.contact_email} city=${detail?.city} credit=${detail?.credit_limit} bank=${detail?.bank_name}`);
+    console.log(`[P0-客户] 详情二次访问 → name=${detail?.customer_name} type=${detail?.customer_type} contact=${detail?.contact_person} phone=${detail?.contact_phone} email=${detail?.contact_email} city=${detail?.city} credit=${detail?.credit_limit} bank=${detail?.bank_name}`);
     expect(detail?.id, '详情 id 应一致').toBe(id);
-    expect(detail?.name, '详情 name 应一致').toBe(name);
-    expect(detail?.customer_type, '详情 customer_type 应为 enterprise').toBe('enterprise');
+    expect(detail?.customer_name, '详情 customer_name 应一致').toBe(name);
+    expect(detail?.customer_type, '详情 customer_type 应为 wholesale').toBe('wholesale');
     expect(detail?.contact_person, '详情 contact_person 应为 P0联系人').toBe('P0联系人');
-    expect(detail?.phone, '详情 phone 应为 13900000000').toBe('13900000000');
+    expect(detail?.contact_phone, '详情 contact_phone 应为 13900000000').toBe('13900000000');
     expect(detail?.contact_email, '详情 contact_email 应一致').toBe('p0@e2e.test');
     expect(detail?.address, '详情 address 应一致').toBe('P0测试地址1号');
     expect(detail?.city, '详情 city 应为 上海').toBe('上海');

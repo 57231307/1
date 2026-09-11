@@ -2,8 +2,7 @@ import { request } from '@playwright/test';
 import { writeFileSync, mkdirSync } from 'fs';
 
 const API_BASE = process.env.API_BASE || 'http://localhost:8082';
-const API_PREFIX = '/api/v1/erp';
-// 分片专属账号：每个 CI runner（matrix.shard）独享，根除跨分片并发登录的 CSRF 互踢。
+const API_PREFIX = '/api/v1/erp';// 分片专属账号：每个 CI runner（matrix.shard）独享，根除跨分片并发登录的 CSRF 互踢。
 // 分片账号通过真实 UI（用户管理页面）创建，属于测试前置数据准备（ensureTestEntities 同级，
 // 不属于测试验证手段），UI 测试本身仍全部走真实用户操作。
 // 基础管理员（init 步骤创建的固定账号，用于创建分片账号）：
@@ -15,6 +14,41 @@ const SHARD_INDEX = process.env.E2E_SHARD_INDEX ?? '';
 const SHARD_USERNAME = SHARD_INDEX !== '' ? `e2e_admin_s${SHARD_INDEX}` : BASE_USERNAME;
 const SHARD_PASSWORD = BASE_PASSWORD;
 const STORAGE_STATE_PATH = 'e2e/.auth/storage-state.json';
+
+/**
+ * 带退避重试的 API 登录：50 分片并发启动时同账号登录会触发
+ * anti_brute_force 限流（429）。重试策略：指数退避，最多 6 次。
+ * 入参 ctx 为已创建的 request context；返回登录响应。
+ */
+async function loginWithRetry(
+  ctx: { post: (url: string, options: object) => Promise<{ ok: () => boolean; status: () => number; text: () => Promise<string> }> },
+  username: string,
+  password: string,
+): Promise<{ ok: () => boolean; status: () => number; text: () => Promise<string> }> {
+  for (let attempt = 1; attempt <= 6; attempt++) {
+    const resp = await ctx.post(`${API_PREFIX}/auth/login`, {
+      data: { username, password },
+    });
+    if (resp.ok() || resp.status() !== 429) {
+      if (!resp.ok()) {
+        const body = await resp.text().catch((e: unknown) => { console.warn(`[loginWithRetry] 响应体读取失败: ${(e as Error).message}`); return ''; });
+        console.warn(`[loginWithRetry] ${username} 登录失败 HTTP ${resp.status()}（attempt ${attempt}）: ${body.slice(0, 200)}`);
+      }
+      return resp;
+    }
+    // 429 限流：指数退避 1s/2s/4s/8s/16s
+    const wait = 1000 * Math.pow(2, attempt - 1);
+    console.warn(`[loginWithRetry] ${username} 登录 429 限流，attempt ${attempt}/6 退避 ${wait}ms`);
+    await new Promise((r) => setTimeout(r, wait));
+  }
+  // 最后一次重试
+  const lastResp = await ctx.post(`${API_PREFIX}/auth/login`, { data: { username, password } });
+  if (!lastResp.ok()) {
+    const body = await lastResp.text().catch((e: unknown) => { console.warn(`[loginWithRetry] 末次响应体读取失败: ${(e as Error).message}`); return ''; });
+    throw new Error(`[loginWithRetry] ${username} 登录 6 次重试后仍失败: HTTP ${lastResp.status()} ${body.slice(0, 300)}`);
+  }
+  return lastResp;
+}
 
 export default async function globalSetup() {
   // ---- 1. 分片账号不存在时，通过真实 UI 创建（e2e_admin 登录 → 用户管理页 → 新建用户）----
@@ -34,9 +68,7 @@ export default async function globalSetup() {
     },
   });
 
-  const resp = await ctx.post(`${API_PREFIX}/auth/login`, {
-    data: { username: SHARD_USERNAME, password: SHARD_PASSWORD },
-  });
+  const resp = await loginWithRetry(ctx, SHARD_USERNAME, SHARD_PASSWORD);
 
   if (!resp.ok()) {
     const body = await resp.text();
@@ -70,9 +102,7 @@ async function ensureShardUserViaUI(): Promise<void> {
       'X-Requested-With': 'XMLHttpRequest',
     },
   });
-  const loginResp = await loginCtx.post(`${API_PREFIX}/auth/login`, {
-    data: { username: BASE_USERNAME, password: BASE_PASSWORD },
-  });
+  const loginResp = await loginWithRetry(loginCtx, BASE_USERNAME, BASE_PASSWORD);
   if (!loginResp.ok()) {
     const body = await loginResp.text();
     await loginCtx.dispose();
@@ -149,9 +179,7 @@ async function ensureShardUserViaUI(): Promise<void> {
       'X-Requested-With': 'XMLHttpRequest',
     },
   });
-  const loginCheck = await checkCtx.post(`${API_PREFIX}/auth/login`, {
-    data: { username: SHARD_USERNAME, password: SHARD_PASSWORD },
-  });
+  const loginCheck = await loginWithRetry(checkCtx, SHARD_USERNAME, SHARD_PASSWORD);
   await checkCtx.dispose();
   if (!loginCheck.ok()) {
     const body = await loginCheck.text().catch((e) => { console.warn(`[ensureShardUserViaUI] 创建响应体读取失败: ${(e as Error).message}`); return ''; });
@@ -285,9 +313,7 @@ export async function ensureRoleUsers(): Promise<void> {
   });
 
   // 1. 基础管理员登录
-  const loginResp = await loginCtx.post(`${API_PREFIX}/auth/login`, {
-    data: { username: BASE_USERNAME, password: BASE_PASSWORD },
-  });
+  const loginResp = await loginWithRetry(loginCtx, BASE_USERNAME, BASE_PASSWORD);
   if (!loginResp.ok()) {
     await loginCtx.dispose();
     throw new Error(`ensureRoleUsers: ${BASE_USERNAME} 登录失败 HTTP ${loginResp.status()}`);

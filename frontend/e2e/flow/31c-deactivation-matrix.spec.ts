@@ -173,30 +173,41 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
     console.log(`[31c-用户] 创建成功 id=${id}`);
 
     let toggled = false;
+    let diag = '开始';
     try {
       // /system 页用户 Tab；已切 Tab 后跳过重新导航（safeGoto 会重置回默认 Tab）
       await page.goto(`${BASE_URL}/system`);
       await page.waitForTimeout(2500);
       const userTab = page.locator('.el-tabs__item:has-text("用户")').first();
-      if (await userTab.isVisible({ timeout: 5000 }).catch(() => false)) {
+      const tabVisible = await userTab.isVisible({ timeout: 5000 }).catch(() => false);
+      if (tabVisible) {
         await userTab.click();
         await page.waitForTimeout(2000);
         console.log('[31c-用户] 已切到用户 Tab');
         // keyword 搜索过滤（用户列表可能分页，直接搜索新建账号确保第一页可见）
         const keywordInput = page.locator('.filter-card input').first();
-        if (await keywordInput.isVisible({ timeout: 4000 }).catch(() => false)) {
+        const kwVisible = await keywordInput.isVisible({ timeout: 4000 }).catch(() => false);
+        if (kwVisible) {
           await keywordInput.fill(username);
           await keywordInput.press('Enter');
           await page.waitForTimeout(2000);
           console.log('[31c-用户] 已按用户名过滤列表');
+          diag += '；搜索OK';
+        } else {
+          diag += '；搜索框不可见';
         }
-        if (await openEditDialog(page, '/system', username, true)) {
+        const opened = await openEditDialog(page, '/system', username, true);
+        diag += `；openEditDialog=${opened}`;
+        if (opened) {
           toggled = await toggleStatusInDialog(page, '禁用', /确定|保存/);
+          diag += `；toggled=${toggled}`;
         }
       } else {
+        diag += '；用户Tab不可见';
         console.error('[31c-用户] 用户 Tab 不可见');
       }
     } catch (e) {
+      diag += `；异常:${(e as Error).message}`;
       console.error(`[31c-用户] UI 操作异常: ${(e as Error).message}`);
     }
     let activeAfter: unknown = null;
@@ -216,7 +227,7 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
       expect(activeAfter, `[31c-用户] UI 停用后 is_active 应为 false，实际 ${activeAfter}`).toBe(false);
     } else {
       console.warn('[31c-用户] UI 停用未完成（控件结构差异），已记录诊断日志');
-      expect(toggled, '[31c-用户] UI 编辑弹窗停用操作应可完成（失败见诊断日志）').toBe(true);
+      expect(toggled, `[31c-用户] UI 编辑弹窗停用操作应可完成，诊断链: ${diag}`).toBe(true);
     }
     try {
       await apiCall(page, 'DELETE', `/users/${id}`);

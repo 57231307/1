@@ -27,12 +27,13 @@ test.describe('P5.5 2FA TOTP', () => {
     // 2. 生成 TOTP
     const totpCode = generateTotp(secret);
 
-    // 3. enable
+    // 3. enable（保留真实错误到断言消息，便于 CI 诊断 enable 失败根因）
+    let enableErr: string | undefined;
     const enableResp = await apiCall(page, 'POST', '/auth/totp/enable', {
       secret,
       code: totpCode,
-    }).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
-    expect(enableResp !== null).toBeTruthy();
+    }).catch((e) => { enableErr = (e as Error).message; console.error(`[35-totp] enable 失败: ${enableErr}`); return null; });
+    expect(enableResp !== null, `[35-totp] enable 应成功（secret=${secret?.slice(0, 8)}… code=${totpCode}）: ${enableErr ?? 'enable 返回 null'}`).toBeTruthy();
 
     await assertPageHealthy(page, collector, { allowConsoleWarn: true });
   });
