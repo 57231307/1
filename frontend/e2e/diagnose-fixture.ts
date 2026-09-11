@@ -87,3 +87,6 @@ export const test = base.extend<{ diag: DiagSignals }>({
 });
 
 export { expect };
+
+// 重新导出 @playwright/test 的常用符号，供 spec 文件统一从 diagnose-fixture 导入
+export { devices, type Page, type Locator, type BrowserContext } from '@playwright/test';
