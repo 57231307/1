@@ -202,7 +202,7 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
       contact_person: 'P0供应商联系人',
       contact_phone: '13800000000', // 后端 DTO 字段名 contact_phone（非 phone）
       supplier_short_name: 'P0供简称',
-      credit_code: 'P0CR' + TS + '00000000X',
+      credit_code: 'P0CR' + TS + '00000X', // 后端验证 equal=18 位（P0CR4+TS8+00000X6=18）
       registered_address: 'P0注册地址',
       business_address: 'P0经营地址',
       legal_representative: 'P0法人',

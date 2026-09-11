@@ -16,6 +16,7 @@ use crate::models::user;
 use crate::models::status::master_data;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
+use crate::utils::sql_escape::safe_like_pattern;
 // V15 P0-S05：SoD 职责分离互斥校验
 use crate::models::role;
 use crate::models::role_conflict;
@@ -251,15 +252,33 @@ impl UserService {
         })
     }
 
-    /// 查询用户列表（分页）（# 参数；`page`: 页码（从0开始）；`page_size`: 每页数量；# 返回；`Ok((users, total))`: 用户列表和总数量）
+    /// 查询用户列表（分页）（# 参数；`page`: 页码（从0开始）；`page_size`: 每页数量；`keyword`: 模糊匹配用户名/邮箱/手机号；`status`: 1 启用 0 禁用；# 返回；`Ok((users, total))`: 用户列表和总数量）
     pub async fn list_users(
         &self,
         page: u64,
         page_size: u64,
+        keyword: Option<String>,
+        status: Option<i8>,
     ) -> Result<(Vec<user::Model>, u64), AppError> {
         use sea_orm::PaginatorTrait;
 
-        let paginator = user::Entity::find().paginate(self.db.as_ref(), page_size);
+        // keyword 模糊匹配用户名/邮箱/手机号（前端 UserTab 搜索框契约）
+        let mut select = user::Entity::find();
+        if let Some(kw) = keyword.as_deref().map(str::trim).filter(|k| !k.is_empty()) {
+            let pattern = safe_like_pattern(kw);
+            select = select.filter(
+                sea_orm::Condition::any()
+                    .add(user::Column::Username.like(&pattern))
+                    .add(user::Column::Email.like(&pattern))
+                    .add(user::Column::Phone.like(&pattern)),
+            );
+        }
+        // status: 1=启用 / 0=禁用（前端状态下拉契约）
+        if let Some(s) = status {
+            select = select.filter(user::Column::IsActive.eq(s != 0));
+        }
+
+        let paginator = select.paginate(self.db.as_ref(), page_size);
 
         // 使用统一分页辅助函数，并行执行分页查询与总数统计
         let (users, total) = paginate_with_total(paginator, page).await?;

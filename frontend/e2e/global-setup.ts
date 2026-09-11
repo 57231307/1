@@ -505,7 +505,9 @@ export async function ensureRoleUsers(): Promise<void> {
   const credentials: Record<string, { username: string; password: string }> = {};
   for (const [code, roleId] of roleCodeToId) {
     const username = `e2e_${code}`;
-    const password = DEFAULT_ROLE_PASSWORD;
+    // admin 角色映射到主管理员账号 e2e_admin（已存在，真实密码=BASE_PASSWORD）：
+    // 已存在分支不会重置密码，凭证必须写账号真实密码，否则 loginAsRole('admin') 必 401
+    const password = username === BASE_USERNAME ? BASE_PASSWORD : DEFAULT_ROLE_PASSWORD;
     const createResp = await requestWithCsrfRecovery(
       loginCtx,
       'post',

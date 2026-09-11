@@ -44,15 +44,15 @@ test.describe('P5.1 登录瀑布', () => {
     });
     await userInput.fill('e2e_admin');
     await page.locator('input[type="password"]').first().fill('WrongPassword123!');
-    // 勾选协议
-    const checkbox = page.locator('input[type="checkbox"], .el-checkbox');
+    // 勾选协议：Element Plus 的原生 input 透明隐藏，check() 会因不可见跳过 → 改点击可见的 label 根（真实用户行为）
+    const checkboxRoot = page.locator('.el-checkbox, label:has(input[type="checkbox"])').first();
     if (
-      await checkbox.isVisible().catch(e => {
+      await checkboxRoot.isVisible().catch(e => {
         console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
         return false;
       })
     ) {
-      await checkbox.check().catch(e => {
+      await checkboxRoot.click().catch(e => {
         console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
       });
     }

@@ -36,7 +36,8 @@ async function openEditDialog(
     await safeGoto(page, route);
     await page.waitForTimeout(1500);
   }
-  const rows = page.locator('.el-table__row');
+  // 只统计当前可见行：/system 页隐藏 Tab 的表格行仍渲染在 DOM（68 行假象），必须用 :visible 排除
+  const rows = page.locator('.el-table__row:visible');
   const count = await rows.count();
   console.log(`[31c] ${route} 列表 ${count} 行，查找 ${rowText}`);
   let target: import('@playwright/test').Locator | null = null;
@@ -244,7 +245,8 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
         await page.waitForTimeout(2000);
         console.log('[31c-用户] 已切到用户 Tab');
         // keyword 搜索过滤（用户列表可能分页，直接搜索新建账号确保第一页可见）
-        const keywordInput = page.locator('.filter-card input').first();
+        // 只匹配当前激活 Tab 内可见的搜索框（隐藏 Tab 的 filter-card input 会先被 first() 命中）
+        const keywordInput = page.locator('.filter-card input:visible').first();
         const kwVisible = await keywordInput.isVisible({ timeout: 4000 }).catch(() => false);
         if (kwVisible) {
           await keywordInput.fill(username);

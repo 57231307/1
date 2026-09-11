@@ -393,6 +393,13 @@ async fn check_account_lockout(
     username: &str,
     client_ip: &str,
 ) -> Result<(u64, u64), AppError> {
+    // 非生产环境跳过账号锁定检查（与 anti_brute_force/rate_limit_by_ip 策略对齐）：
+    // CI E2E 错密码测试 + watchdog 分片重跑会累积 FAILED 登录记录触发 30 分钟锁定，
+    // 导致后续分片全部 429（log_login 表按 IP/用户名累计）
+    if !crate::utils::config::is_production() {
+        return Ok((0, 0));
+    }
+
     use crate::models::log_login;
     use sea_orm::PaginatorTrait;
 

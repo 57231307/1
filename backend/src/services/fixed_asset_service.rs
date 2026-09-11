@@ -1,6 +1,8 @@
 use crate::models::fixed_asset;
 // V15 P1 17.8-D4：资产盘点模型
 use crate::models::{fixed_asset_count, fixed_asset_count_item};
+// 级联删除关联记录所需（处置/折旧明细）
+use crate::models::{fixed_asset_depreciation_record, fixed_asset_disposal};
 // V15 P1 17.8-D5/D6：资产减值测试 + 折旧政策变更
 use crate::models::{asset_impairment_test, depreciation_policy_change};
 // 批次 208 P2-5 修复（v12 复审）：硬编码 "active"/"inactive" 替换为 master_data 常量
@@ -751,6 +753,20 @@ impl FixedAssetService {
                 "只能删除未使用或已处置状态的资产".to_string(),
             ));
         }
+
+        // 级联清理关联记录（处置/折旧/盘点明细），避免 FK 约束导致 DATABASE_ERROR
+        fixed_asset_disposal::Entity::delete_many()
+            .filter(fixed_asset_disposal::Column::AssetId.eq(asset_id))
+            .exec(&txn)
+            .await?;
+        fixed_asset_depreciation_record::Entity::delete_many()
+            .filter(fixed_asset_depreciation_record::Column::AssetId.eq(asset_id))
+            .exec(&txn)
+            .await?;
+        fixed_asset_count_item::Entity::delete_many()
+            .filter(fixed_asset_count_item::Column::AssetId.eq(asset_id))
+            .exec(&txn)
+            .await?;
 
         fixed_asset::Entity::delete_many()
             .filter(fixed_asset::Column::Id.eq(asset_id))
