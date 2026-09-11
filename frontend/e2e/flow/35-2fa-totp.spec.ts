@@ -27,11 +27,10 @@ test.describe('P5.5 2FA TOTP', () => {
     // 2. 生成 TOTP
     const totpCode = generateTotp(secret);
 
-    // 3. enable（保留真实错误到断言消息，便于 CI 诊断 enable 失败根因）
+    // 3. enable（后端 TotpVerifyRequest { token }，字段名为 token 非 code）
     let enableErr: string | undefined;
     const enableResp = await apiCall(page, 'POST', '/auth/totp/enable', {
-      secret,
-      code: totpCode,
+      token: totpCode,
     }).catch(e => {
       enableErr = (e as Error).message;
       console.error(`[35-totp] enable 失败: ${enableErr}`);
@@ -56,10 +55,9 @@ test.describe('P5.5 2FA TOTP', () => {
       return;
     }
 
-    // 故意用错 code
+    // 故意用错 code（后端 TotpVerifyRequest { token }，字段名为 token）
     const enableResp = await apiCall(page, 'POST', '/auth/totp/enable', {
-      secret,
-      code: '000000',
+      token: '000000',
     }).catch(e => {
       console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
       return null;
