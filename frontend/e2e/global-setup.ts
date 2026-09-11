@@ -30,7 +30,7 @@ async function loginWithRetry(
   username: string,
   password: string
 ): Promise<{ ok: () => boolean; status: () => number; text: () => Promise<string> }> {
-  for (let attempt = 1; attempt <= 6; attempt++) {
+  for (let attempt = 1; attempt <= 8; attempt++) {
     const resp = await ctx.post(`${API_PREFIX}/auth/login`, {
       data: { username, password },
     });
@@ -46,9 +46,10 @@ async function loginWithRetry(
       }
       return resp;
     }
-    // 429 限流：指数退避 1s/2s/4s/8s/16s
-    const wait = 1000 * Math.pow(2, attempt - 1);
-    console.warn(`[loginWithRetry] ${username} 登录 429 限流，attempt ${attempt}/6 退避 ${wait}ms`);
+    // 429 限流：退避策略 5s/10s/20s/40s/60s/90s/120s/120s（覆盖 300s 限流窗口）
+    const waits = [5000, 10000, 20000, 40000, 60000, 90000, 120000, 120000];
+    const wait = waits[attempt - 1] ?? 120000;
+    console.warn(`[loginWithRetry] ${username} 登录 429 限流，attempt ${attempt}/8 退避 ${wait}ms`);
     await new Promise(r => setTimeout(r, wait));
   }
   // 最后一次重试
@@ -59,7 +60,7 @@ async function loginWithRetry(
       return '';
     });
     throw new Error(
-      `[loginWithRetry] ${username} 登录 6 次重试后仍失败: HTTP ${lastResp.status()} ${body.slice(0, 300)}`
+      `[loginWithRetry] ${username} 登录 8 次重试后仍失败: HTTP ${lastResp.status()} ${body.slice(0, 300)}`
     );
   }
   return lastResp;

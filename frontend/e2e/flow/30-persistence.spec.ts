@@ -197,10 +197,10 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     test.setTimeout(60_000);
     const name = `P0测试供应商${TS}`;
     const payload = {
-      name,
+      supplier_name: name, // 后端 DTO 字段名 supplier_name（非 name）
       supplier_type: 'material',
       contact_person: 'P0供应商联系人',
-      phone: '13800000000',
+      contact_phone: '13800000000', // 后端 DTO 字段名 contact_phone（非 phone）
       supplier_short_name: 'P0供简称',
       credit_code: 'P0CR' + TS + '00000000X',
       registered_address: 'P0注册地址',
@@ -218,7 +218,7 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     console.log(`[P0-供应商] 创建成功 id=${id} name=${name}`);
     expect(id, '供应商创建必须返回 id').toBeTruthy();
 
-    const list = await apiCallRaw<{ items?: Array<{ id: number; name?: string }> }>(
+    const list = await apiCallRaw<{ items?: Array<{ id: number; supplier_name?: string }> }>(
       page,
       'GET',
       `/purchase/suppliers?page=1&page_size=200`
@@ -229,13 +229,13 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
       `[P0-供应商] 列表回读：共 ${items.length} 条，找到 id=${id} → ${found ? '✅存在' : '❌不存在'}`
     );
     expect(found, '创建的供应商必须出现在列表中').toBeTruthy();
-    expect(found!.name, `列表 name 应为 ${name}`).toBe(name);
+    expect(found!.supplier_name, `列表 supplier_name 应为 ${name}`).toBe(name);
 
     const detail = await apiCallRaw<{
       id: number;
-      name?: string;
+      supplier_name?: string;
       supplier_type?: string;
-      phone?: string;
+      contact_phone?: string;
       supplier_short_name?: string;
       credit_code?: string;
       registered_address?: string;
@@ -244,10 +244,10 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
       taxpayer_type?: string;
     }>(page, 'GET', `/purchase/suppliers/${id}`);
     console.log(
-      `[P0-供应商] 详情二次访问 → name=${detail?.name} type=${detail?.supplier_type} short=${detail?.supplier_short_name} credit=${detail?.credit_code} legal=${detail?.legal_representative} taxpayer=${detail?.taxpayer_type}`
+      `[P0-供应商] 详情二次访问 → name=${detail?.supplier_name} type=${detail?.supplier_type} short=${detail?.supplier_short_name} credit=${detail?.credit_code} legal=${detail?.legal_representative} taxpayer=${detail?.taxpayer_type}`
     );
     expect(detail?.id, '详情 id 应一致').toBe(id);
-    expect(detail?.name, '详情 name 应一致').toBe(name);
+    expect(detail?.supplier_name, '详情 supplier_name 应一致').toBe(name);
     expect(detail?.supplier_type, '详情 supplier_type 应为 material').toBe('material');
     expect(detail?.supplier_short_name, '详情 supplier_short_name 应为 P0供简称').toBe('P0供简称');
     expect(detail?.legal_representative, '详情 legal_representative 应为 P0法人').toBe('P0法人');

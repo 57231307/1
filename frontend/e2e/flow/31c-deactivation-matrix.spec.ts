@@ -22,6 +22,9 @@ const API_PREFIX = '/api/v1/erp';
 const TS = Date.now().toString().slice(-8);
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 
+/** openEditDialog 失败原因（模块级，供测试诊断链引用） */
+let editFailReason = '';
+
 /** 在列表中按唯一文本找行 → 点编辑 → 等弹窗可见；skipNavigation=true 时跳过 goto（已在目标页且已切 Tab） */
 async function openEditDialog(
   page: import('@playwright/test').Page,
@@ -51,13 +54,15 @@ async function openEditDialog(
     }
   }
   if (!target) {
-    console.error(`[31c] 未找到目标行 ${rowText}`);
+    editFailReason = `未找到目标行 ${rowText}（列表${count}行）`;
+    console.error(`[31c] ${editFailReason}`);
     return false;
   }
   const editBtn = target.locator('button:has-text("编辑"), button:has-text("修改")').first();
   if (
     !(await editBtn.isVisible({ timeout: 5000 }).catch(e => {
-      console.warn(`[31c] 编辑按钮不可见: ${(e as Error).message}`);
+      editFailReason = `编辑按钮不可见: ${(e as Error).message}`;
+      console.warn(`[31c] ${editFailReason}`);
       return false;
     }))
   ) {
@@ -71,7 +76,8 @@ async function openEditDialog(
     .waitFor({ state: 'visible', timeout: 8000 })
     .then(() => true)
     .catch(e => {
-      console.warn(`[31c] 编辑弹窗未出现: ${(e as Error).message}`);
+      editFailReason = `编辑弹窗未出现: ${(e as Error).message}`;
+      console.warn(`[31c] ${editFailReason}`);
       return false;
     });
   if (visible) console.log('[31c] 编辑弹窗已打开');
@@ -250,7 +256,7 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
           diag += '；搜索框不可见';
         }
         const opened = await openEditDialog(page, '/system', username, true);
-        diag += `；openEditDialog=${opened}`;
+        diag += `；openEditDialog=${opened}${opened ? '' : `(${editFailReason})`}`;
         if (opened) {
           toggled = await toggleStatusInDialog(page, '禁用', /确定|保存/);
           diag += `；toggled=${toggled}`;
