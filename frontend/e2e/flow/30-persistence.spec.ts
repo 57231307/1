@@ -38,7 +38,8 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     const code = uniqueKey('P0-PRD-');
     const name = `P0测试产品${TS}`;
     const payload = {
-      code, name,
+      code,
+      name,
       category_id: 1,
       specification: 'P0测试规格100D',
       unit: '米',
@@ -65,21 +66,36 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     expect(id, '产品创建必须返回 id').toBeTruthy();
 
     // 列表回读
-    const list = await apiCallRaw<Array<{ id: number; code: string; name: string }> | { items?: Array<{ id: number; code: string; name: string }> }>(
-      page, 'GET', `/products?page=1&page_size=200`
-    );
+    const list = await apiCallRaw<
+      | Array<{ id: number; code: string; name: string }>
+      | { items?: Array<{ id: number; code: string; name: string }> }
+    >(page, 'GET', `/products?page=1&page_size=200`);
     const items = Array.isArray(list) ? list : (list?.items ?? []);
-    const found = items.find((i) => i.id === id);
-    console.log(`[P0-产品] 列表回读：共 ${items.length} 条，找到 id=${id} → ${found ? '✅存在' : '❌不存在'}`);
+    const found = items.find(i => i.id === id);
+    console.log(
+      `[P0-产品] 列表回读：共 ${items.length} 条，找到 id=${id} → ${found ? '✅存在' : '❌不存在'}`
+    );
     expect(found, '创建的产品必须出现在列表中').toBeTruthy();
     expect(found!.code, `列表 code 应为 ${code}`).toBe(code);
     expect(found!.name, `列表 name 应为 ${name}`).toBe(name);
 
     // 详情二次访问——逐字段比对
-    const detail = await apiCallRaw<{ id: number; code: string; name: string; unit?: string; specification?: string; standard_price?: number; cost_price?: number; description?: string; status?: string; product_type?: string; fabric_composition?: string }>(
-      page, 'GET', `/products/${id}`
+    const detail = await apiCallRaw<{
+      id: number;
+      code: string;
+      name: string;
+      unit?: string;
+      specification?: string;
+      standard_price?: number;
+      cost_price?: number;
+      description?: string;
+      status?: string;
+      product_type?: string;
+      fabric_composition?: string;
+    }>(page, 'GET', `/products/${id}`);
+    console.log(
+      `[P0-产品] 详情二次访问 → code=${detail?.code} name=${detail?.name} unit=${detail?.unit} spec=${detail?.specification} std_price=${detail?.standard_price} cost_price=${detail?.cost_price} type=${detail?.product_type}`
     );
-    console.log(`[P0-产品] 详情二次访问 → code=${detail?.code} name=${detail?.name} unit=${detail?.unit} spec=${detail?.specification} std_price=${detail?.standard_price} cost_price=${detail?.cost_price} type=${detail?.product_type}`);
     expect(detail?.id, '详情 id 应一致').toBe(id);
     expect(detail?.code, `详情 code 应为 ${code}`).toBe(code);
     expect(detail?.name, `详情 name 应为 ${name}`).toBe(name);
@@ -93,22 +109,22 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     console.log('[P0-产品] ✅ 全字段创建→回读→二次访问逐字段比对全通过');
   });
 
-  // ===== 2. 客户（全字段：name/customer_type/contact_person/phone/contact_email/address/city/province/country/postal_code/credit_limit/payment_terms/tax_id/bank_name/bank_account/status/notes） =====
+  // ===== 2. 客户（全字段：customer_name/customer_type/contact_person/contact_phone/contact_email/address/city/province/country/postal_code/credit_limit/payment_terms/tax_id/bank_name/bank_account/status/notes） =====
   test('客户：全字段填写→创建→列表回读→详情二次访问（逐字段比对）', async ({ page }) => {
     test.setTimeout(60_000);
     const name = `P0测试客户${TS}`;
     const payload = {
-      customer_name: name,  // 后端 DTO 字段名 customer_name（非 name）
-      customer_type: 'wholesale',  // 合法枚举（enterprise 非法）
+      customer_name: name, // 后端 DTO 字段名 customer_name（非 name）
+      customer_type: 'wholesale', // 合法枚举（enterprise 非法）
       contact_person: 'P0联系人',
-      contact_phone: '13900000000',  // 后端 DTO 字段名 contact_phone（非 phone）
+      contact_phone: '13900000000', // 后端 DTO 字段名 contact_phone（非 phone）
       contact_email: 'p0@e2e.test',
       address: 'P0测试地址1号',
       city: '上海',
       province: '上海市',
       country: '中国',
       postal_code: '200000',
-      credit_limit: '500000',  // 后端 DTO 为 Option<String>（第四轮 CI 34 分片 422 修复）
+      credit_limit: '500000', // 后端 DTO 为 Option<String>（第四轮 CI 34 分片 422 修复）
       payment_terms: 30,
       tax_id: 'P0TAX' + TS,
       bank_name: 'P0测试银行',
@@ -123,18 +139,41 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     expect(id, '客户创建必须返回 id').toBeTruthy();
 
     const list = await apiCallRaw<{ items?: Array<{ id: number; customer_name?: string }> }>(
-      page, 'GET', `/crm/customers?page=1&page_size=200`
+      page,
+      'GET',
+      `/crm/customers?page=1&page_size=200`
     );
     const items = list?.items ?? [];
-    const found = items.find((i) => i.id === id);
-    console.log(`[P0-客户] 列表回读：共 ${items.length} 条，找到 id=${id} → ${found ? '✅存在' : '❌不存在'}`);
+    const found = items.find(i => i.id === id);
+    console.log(
+      `[P0-客户] 列表回读：共 ${items.length} 条，找到 id=${id} → ${found ? '✅存在' : '❌不存在'}`
+    );
     expect(found, '创建的客户必须出现在列表中').toBeTruthy();
     expect(found!.customer_name, `列表 customer_name 应为 ${name}`).toBe(name);
 
-    const detail = await apiCallRaw<{ id: number; customer_name?: string; customer_type?: string; contact_person?: string; contact_phone?: string; contact_email?: string; address?: string; city?: string; province?: string; country?: string; postal_code?: string; credit_limit?: string; payment_terms?: number; tax_id?: string; bank_name?: string; bank_account?: string; status?: string; notes?: string }>(
-      page, 'GET', `/crm/customers/${id}`
+    const detail = await apiCallRaw<{
+      id: number;
+      customer_name?: string;
+      customer_type?: string;
+      contact_person?: string;
+      contact_phone?: string;
+      contact_email?: string;
+      address?: string;
+      city?: string;
+      province?: string;
+      country?: string;
+      postal_code?: string;
+      credit_limit?: string;
+      payment_terms?: number;
+      tax_id?: string;
+      bank_name?: string;
+      bank_account?: string;
+      status?: string;
+      notes?: string;
+    }>(page, 'GET', `/crm/customers/${id}`);
+    console.log(
+      `[P0-客户] 详情二次访问 → name=${detail?.customer_name} type=${detail?.customer_type} contact=${detail?.contact_person} phone=${detail?.contact_phone} email=${detail?.contact_email} city=${detail?.city} credit=${detail?.credit_limit} bank=${detail?.bank_name}`
     );
-    console.log(`[P0-客户] 详情二次访问 → name=${detail?.customer_name} type=${detail?.customer_type} contact=${detail?.contact_person} phone=${detail?.contact_phone} email=${detail?.contact_email} city=${detail?.city} credit=${detail?.credit_limit} bank=${detail?.bank_name}`);
     expect(detail?.id, '详情 id 应一致').toBe(id);
     expect(detail?.customer_name, '详情 customer_name 应一致').toBe(name);
     expect(detail?.customer_type, '详情 customer_type 应为 wholesale').toBe('wholesale');
@@ -180,18 +219,33 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     expect(id, '供应商创建必须返回 id').toBeTruthy();
 
     const list = await apiCallRaw<{ items?: Array<{ id: number; name?: string }> }>(
-      page, 'GET', `/purchase/suppliers?page=1&page_size=200`
+      page,
+      'GET',
+      `/purchase/suppliers?page=1&page_size=200`
     );
     const items = list?.items ?? [];
-    const found = items.find((i) => i.id === id);
-    console.log(`[P0-供应商] 列表回读：共 ${items.length} 条，找到 id=${id} → ${found ? '✅存在' : '❌不存在'}`);
+    const found = items.find(i => i.id === id);
+    console.log(
+      `[P0-供应商] 列表回读：共 ${items.length} 条，找到 id=${id} → ${found ? '✅存在' : '❌不存在'}`
+    );
     expect(found, '创建的供应商必须出现在列表中').toBeTruthy();
     expect(found!.name, `列表 name 应为 ${name}`).toBe(name);
 
-    const detail = await apiCallRaw<{ id: number; name?: string; supplier_type?: string; phone?: string; supplier_short_name?: string; credit_code?: string; registered_address?: string; business_address?: string; legal_representative?: string; taxpayer_type?: string }>(
-      page, 'GET', `/purchase/suppliers/${id}`
+    const detail = await apiCallRaw<{
+      id: number;
+      name?: string;
+      supplier_type?: string;
+      phone?: string;
+      supplier_short_name?: string;
+      credit_code?: string;
+      registered_address?: string;
+      business_address?: string;
+      legal_representative?: string;
+      taxpayer_type?: string;
+    }>(page, 'GET', `/purchase/suppliers/${id}`);
+    console.log(
+      `[P0-供应商] 详情二次访问 → name=${detail?.name} type=${detail?.supplier_type} short=${detail?.supplier_short_name} credit=${detail?.credit_code} legal=${detail?.legal_representative} taxpayer=${detail?.taxpayer_type}`
     );
-    console.log(`[P0-供应商] 详情二次访问 → name=${detail?.name} type=${detail?.supplier_type} short=${detail?.supplier_short_name} credit=${detail?.credit_code} legal=${detail?.legal_representative} taxpayer=${detail?.taxpayer_type}`);
     expect(detail?.id, '详情 id 应一致').toBe(id);
     expect(detail?.name, '详情 name 应一致').toBe(name);
     expect(detail?.supplier_type, '详情 supplier_type 应为 material').toBe('material');
@@ -207,7 +261,8 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     const code = uniqueKey('P0-WH-');
     const name = `P0测试仓库${TS}`;
     const payload = {
-      name, code,
+      name,
+      code,
       address: 'P0仓库地址A区',
       manager: 'P0仓管员',
       phone: '13700000000',
@@ -221,12 +276,23 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     console.log(`[P0-仓库] 创建成功 id=${id} code=${code}`);
     expect(id, '仓库创建必须返回 id').toBeTruthy();
 
-    const list = await apiCallRaw<{ items?: Array<{ id: number; code?: string; name?: string; address?: string; manager?: string; phone?: string; capacity?: number; warehouse_type?: string }> }>(
-      page, 'GET', `/warehouses?page=1&page_size=200`
-    );
+    const list = await apiCallRaw<{
+      items?: Array<{
+        id: number;
+        code?: string;
+        name?: string;
+        address?: string;
+        manager?: string;
+        phone?: string;
+        capacity?: number;
+        warehouse_type?: string;
+      }>;
+    }>(page, 'GET', `/warehouses?page=1&page_size=200`);
     const items = list?.items ?? [];
-    const found = items.find((i) => i.id === id);
-    console.log(`[P0-仓库] 列表回读（即二次访问）：共 ${items.length} 条，找到 id=${id} → ${found ? '✅存在' : '❌不存在'}`);
+    const found = items.find(i => i.id === id);
+    console.log(
+      `[P0-仓库] 列表回读（即二次访问）：共 ${items.length} 条，找到 id=${id} → ${found ? '✅存在' : '❌不存在'}`
+    );
     expect(found, '创建的仓库必须出现在列表中').toBeTruthy();
     expect(found!.code, `code 应为 ${code}`).toBe(code);
     expect(found!.name, `name 应为 ${name}`).toBe(name);
@@ -244,7 +310,9 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     const code = uniqueKey('P0-SUB-');
     const name = `P0测试科目${TS}`;
     const payload = {
-      code, name, level: 1,
+      code,
+      name,
+      level: 1,
       balance_direction: 'debit',
       assist_customer: true,
       assist_supplier: true,
@@ -257,20 +325,33 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     console.log(`[P0-科目] 创建成功 id=${id} code=${code}`);
     expect(id, '科目创建必须返回 id').toBeTruthy();
 
-    const list = await apiCallRaw<Array<{ id: number; code: string; name: string }> | { items?: Array<{ id: number; code: string; name: string }> }>(
-      page, 'GET', `/subjects?page=1&page_size=200`
-    );
+    const list = await apiCallRaw<
+      | Array<{ id: number; code: string; name: string }>
+      | { items?: Array<{ id: number; code: string; name: string }> }
+    >(page, 'GET', `/subjects?page=1&page_size=200`);
     const items = Array.isArray(list) ? list : (list?.items ?? []);
-    const found = items.find((i) => i.id === id);
-    console.log(`[P0-科目] 列表回读：共 ${items.length} 条，找到 id=${id} → ${found ? '✅存在' : '❌不存在'}`);
+    const found = items.find(i => i.id === id);
+    console.log(
+      `[P0-科目] 列表回读：共 ${items.length} 条，找到 id=${id} → ${found ? '✅存在' : '❌不存在'}`
+    );
     expect(found, '创建的科目必须出现在列表中').toBeTruthy();
     expect(found!.code, `code 应为 ${code}`).toBe(code);
     expect(found!.name, `name 应为 ${name}`).toBe(name);
 
-    const detail = await apiCallRaw<{ id: number; code?: string; name?: string; level?: number; balance_direction?: string; assist_customer?: boolean; assist_supplier?: boolean; assist_batch?: boolean; assist_color_no?: boolean }>(
-      page, 'GET', `/subjects/${id}`
+    const detail = await apiCallRaw<{
+      id: number;
+      code?: string;
+      name?: string;
+      level?: number;
+      balance_direction?: string;
+      assist_customer?: boolean;
+      assist_supplier?: boolean;
+      assist_batch?: boolean;
+      assist_color_no?: boolean;
+    }>(page, 'GET', `/subjects/${id}`);
+    console.log(
+      `[P0-科目] 详情二次访问 → code=${detail?.code} name=${detail?.name} level=${detail?.level} bal_dir=${detail?.balance_direction} cust=${detail?.assist_customer} sup=${detail?.assist_supplier} batch=${detail?.assist_batch}`
     );
-    console.log(`[P0-科目] 详情二次访问 → code=${detail?.code} name=${detail?.name} level=${detail?.level} bal_dir=${detail?.balance_direction} cust=${detail?.assist_customer} sup=${detail?.assist_supplier} batch=${detail?.assist_batch}`);
     expect(detail?.id, '详情 id 应一致').toBe(id);
     expect(detail?.code, '详情 code 应一致').toBe(code);
     expect(detail?.name, '详情 name 应一致').toBe(name);
@@ -293,23 +374,42 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
       shipping_address: 'P0收货地址',
       billing_address: 'P0账单地址',
       notes: 'P0销售订单备注',
-      items: [{ product_id: 1, quantity: '10', unit_price: '5', discount_percent: '2', tax_percent: '13', notes: 'P0明细备注', color_no: 'P0-COLOR' }],
+      items: [
+        {
+          product_id: 1,
+          quantity: '10',
+          unit_price: '5',
+          discount_percent: '2',
+          tax_percent: '13',
+          notes: 'P0明细备注',
+          color_no: 'P0-COLOR',
+        },
+      ],
       payment_terms: 'P0付款条件30天',
       remarks: 'P0订单备注',
       batch_no: 'P0-BATCH-' + TS,
     };
 
     const createResp = await apiCall<{ id?: number; order_no?: string; customer_id?: number }>(
-      page, 'POST', '/sales/orders', payload
+      page,
+      'POST',
+      '/sales/orders',
+      payload
     );
     const id = createResp.data?.id;
     console.log(`[P0-销售订单] 创建成功 id=${id} order_no=${createResp.data?.order_no}`);
     expect(id, '销售订单创建必须返回 id').toBeTruthy();
 
-    const detail = await apiCallRaw<{ id: number; order_no?: string; customer_id?: number; status?: string; items?: Array<Record<string, unknown>> }>(
-      page, 'GET', `/sales/orders/${id}`
+    const detail = await apiCallRaw<{
+      id: number;
+      order_no?: string;
+      customer_id?: number;
+      status?: string;
+      items?: Array<Record<string, unknown>>;
+    }>(page, 'GET', `/sales/orders/${id}`);
+    console.log(
+      `[P0-销售订单] 详情二次访问 → order_no=${detail?.order_no} customer_id=${detail?.customer_id} status=${detail?.status} items=${detail?.items?.length ?? 0} 条`
     );
-    console.log(`[P0-销售订单] 详情二次访问 → order_no=${detail?.order_no} customer_id=${detail?.customer_id} status=${detail?.status} items=${detail?.items?.length ?? 0} 条`);
     expect(detail?.id, '详情 id 应一致').toBe(id);
     expect(detail?.customer_id, `customer_id 应为 1`).toBe(1);
     expect(detail?.order_no, '详情应有 order_no').toBeTruthy();
@@ -341,16 +441,25 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     };
 
     const createResp = await apiCall<{ id?: number; order_no?: string }>(
-      page, 'POST', '/purchase/orders', payload
+      page,
+      'POST',
+      '/purchase/orders',
+      payload
     );
     const id = createResp.data?.id;
     console.log(`[P0-采购订单] 创建成功 id=${id}`);
     expect(id, '采购订单创建必须返回 id').toBeTruthy();
 
-    const detail = await apiCallRaw<{ id: number; order_no?: string; supplier_id?: number; status?: string; items?: Array<Record<string, unknown>> }>(
-      page, 'GET', `/purchase/orders/${id}`
+    const detail = await apiCallRaw<{
+      id: number;
+      order_no?: string;
+      supplier_id?: number;
+      status?: string;
+      items?: Array<Record<string, unknown>>;
+    }>(page, 'GET', `/purchase/orders/${id}`);
+    console.log(
+      `[P0-采购订单] 详情二次访问 → order_no=${detail?.order_no} supplier_id=${detail?.supplier_id} status=${detail?.status} items=${detail?.items?.length ?? 0} 条`
     );
-    console.log(`[P0-采购订单] 详情二次访问 → order_no=${detail?.order_no} supplier_id=${detail?.supplier_id} status=${detail?.status} items=${detail?.items?.length ?? 0} 条`);
     expect(detail?.id, '详情 id 应一致').toBe(id);
     expect(detail?.supplier_id, `supplier_id 应为 1`).toBe(1);
     expect(detail?.order_no, '详情应有 order_no').toBeTruthy();
@@ -374,10 +483,17 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     console.log(`[P0-BOM] 创建成功 id=${id}`);
     expect(id, 'BOM 创建必须返回 id').toBeTruthy();
 
-    const detail = await apiCallRaw<{ id: number; product_id?: number; version?: number; is_default?: boolean; remarks?: string; items?: Array<Record<string, unknown>> }>(
-      page, 'GET', `/boms/${id}`
+    const detail = await apiCallRaw<{
+      id: number;
+      product_id?: number;
+      version?: number;
+      is_default?: boolean;
+      remarks?: string;
+      items?: Array<Record<string, unknown>>;
+    }>(page, 'GET', `/boms/${id}`);
+    console.log(
+      `[P0-BOM] 详情二次访问 → product_id=${detail?.product_id} version=${detail?.version} is_default=${detail?.is_default} items=${detail?.items?.length ?? 0} 条`
     );
-    console.log(`[P0-BOM] 详情二次访问 → product_id=${detail?.product_id} version=${detail?.version} is_default=${detail?.is_default} items=${detail?.items?.length ?? 0} 条`);
     expect(detail?.id, '详情 id 应一致').toBe(id);
     expect(detail?.product_id, '详情 product_id 应为 1').toBe(1);
     expect(detail?.version, '详情 version 应为 1').toBe(1);
@@ -396,16 +512,19 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
 
     const subjectsResp = await apiCallRaw<
       Array<{ id: number; code: string }> | { items?: Array<{ id: number; code: string }> }
-    >(page, 'GET', '/subjects?page=1&page_size=50').catch((e) => {
+    >(page, 'GET', '/subjects?page=1&page_size=50').catch(e => {
       console.warn('[P0-凭证] 科目列表查询失败:', (e as Error).message);
       return { items: [] };
     });
     const subjectList = Array.isArray(subjectsResp) ? subjectsResp : (subjectsResp?.items ?? []);
     if (subjectList.length < 3) {
       console.log('[P0-凭证] 科目不足 3 个，跳过');
-      test.skip(); return;
+      test.skip();
+      return;
     }
-    const s1 = subjectList[0].code, s2 = subjectList[1 % subjectList.length].code, s3 = subjectList[2 % subjectList.length].code;
+    const s1 = subjectList[0].code,
+      s2 = subjectList[1 % subjectList.length].code,
+      s3 = subjectList[2 % subjectList.length].code;
 
     const payload = {
       voucher_date: voucherDate,
@@ -427,10 +546,16 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     console.log(`[P0-凭证] 创建成功 id=${id} type=general items=3条`);
     expect(id, '凭证创建必须返回 id').toBeTruthy();
 
-    const detail = await apiCallRaw<{ id: number; voucher_type?: string; voucher_date?: string; status?: string; items?: Array<Record<string, unknown>> }>(
-      page, 'GET', `/vouchers/${id}`
+    const detail = await apiCallRaw<{
+      id: number;
+      voucher_type?: string;
+      voucher_date?: string;
+      status?: string;
+      items?: Array<Record<string, unknown>>;
+    }>(page, 'GET', `/vouchers/${id}`);
+    console.log(
+      `[P0-凭证] 详情二次访问 → type=${detail?.voucher_type} date=${detail?.voucher_date} status=${detail?.status} items=${detail?.items?.length ?? 0} 条`
     );
-    console.log(`[P0-凭证] 详情二次访问 → type=${detail?.voucher_type} date=${detail?.voucher_date} status=${detail?.status} items=${detail?.items?.length ?? 0} 条`);
     expect(detail?.id, '详情 id 应一致').toBe(id);
     expect(detail?.voucher_type, '详情 voucher_type 应为 general').toBe('general');
     expect(detail?.items?.length ?? 0, '凭证应有 3 条明细').toBe(3);
@@ -463,27 +588,50 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
       moq: '100',
       lead_time_days: 30,
       customer_level: 'A',
-      items: [{ product_id: 1, unit: '米', quantity: '100', unit_price: '5', unit_price_with_tax: '5.65', notes: 'P0报价明细备注' }],
+      items: [
+        {
+          product_id: 1,
+          unit: '米',
+          quantity: '100',
+          unit_price: '5',
+          unit_price_with_tax: '5.65',
+          notes: 'P0报价明细备注',
+        },
+      ],
       remarks: `P0测试报价单${TS}`,
     };
 
     const createResp = await apiCall<{ id?: number; status?: string }>(
-      page, 'POST', '/quotations', payload
-    ).catch((e) => {
+      page,
+      'POST',
+      '/quotations',
+      payload
+    ).catch(e => {
       console.warn('[P0-报价单] 创建失败（可能需要前置数据）:', (e as Error).message);
       return null;
     });
     if (!createResp?.data?.id) {
       console.log('[P0-报价单] 创建失败，跳过');
-      test.skip(); return;
+      test.skip();
+      return;
     }
     const id = createResp.data.id;
     console.log(`[P0-报价单] 创建成功 id=${id} status=${createResp.data.status}`);
 
-    const detail = await apiCallRaw<{ id: number; customer_id?: number; quotation_date?: string; valid_until?: string; currency?: string; price_terms?: string; tax_rate?: string; status?: string; items?: Array<Record<string, unknown>> }>(
-      page, 'GET', `/quotations/${id}`
+    const detail = await apiCallRaw<{
+      id: number;
+      customer_id?: number;
+      quotation_date?: string;
+      valid_until?: string;
+      currency?: string;
+      price_terms?: string;
+      tax_rate?: string;
+      status?: string;
+      items?: Array<Record<string, unknown>>;
+    }>(page, 'GET', `/quotations/${id}`);
+    console.log(
+      `[P0-报价单] 详情二次访问 → customer_id=${detail?.customer_id} date=${detail?.quotation_date} valid=${detail?.valid_until} currency=${detail?.currency} price_terms=${detail?.price_terms} items=${detail?.items?.length ?? 0} 条`
     );
-    console.log(`[P0-报价单] 详情二次访问 → customer_id=${detail?.customer_id} date=${detail?.quotation_date} valid=${detail?.valid_until} currency=${detail?.currency} price_terms=${detail?.price_terms} items=${detail?.items?.length ?? 0} 条`);
     expect(detail?.id, '详情 id 应一致').toBe(id);
     expect(detail?.customer_id, '详情 customer_id 应为 1').toBe(1);
     expect(detail?.quotation_date, `详情 quotation_date 应为 ${qDate}`).toBe(qDate);

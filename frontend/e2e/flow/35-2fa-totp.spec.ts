@@ -32,8 +32,15 @@ test.describe('P5.5 2FA TOTP', () => {
     const enableResp = await apiCall(page, 'POST', '/auth/totp/enable', {
       secret,
       code: totpCode,
-    }).catch((e) => { enableErr = (e as Error).message; console.error(`[35-totp] enable 失败: ${enableErr}`); return null; });
-    expect(enableResp !== null, `[35-totp] enable 应成功（secret=${secret?.slice(0, 8)}… code=${totpCode}）: ${enableErr ?? 'enable 返回 null'}`).toBeTruthy();
+    }).catch(e => {
+      enableErr = (e as Error).message;
+      console.error(`[35-totp] enable 失败: ${enableErr}`);
+      return null;
+    });
+    expect(
+      enableResp !== null,
+      `[35-totp] enable 应成功（secret=${secret?.slice(0, 8)}… code=${totpCode}）: ${enableErr ?? 'enable 返回 null'}`
+    ).toBeTruthy();
 
     await assertPageHealthy(page, collector, { allowConsoleWarn: true });
   });
@@ -53,7 +60,10 @@ test.describe('P5.5 2FA TOTP', () => {
     const enableResp = await apiCall(page, 'POST', '/auth/totp/enable', {
       secret,
       code: '000000',
-    }).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
+    }).catch(e => {
+      console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
+      return null;
+    });
 
     // 应失败或返回错误
     expect(enableResp === null || enableResp?.error).toBeTruthy();

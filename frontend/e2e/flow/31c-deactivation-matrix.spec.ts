@@ -23,7 +23,12 @@ const TS = Date.now().toString().slice(-8);
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 
 /** 在列表中按唯一文本找行 → 点编辑 → 等弹窗可见；skipNavigation=true 时跳过 goto（已在目标页且已切 Tab） */
-async function openEditDialog(page: import('@playwright/test').Page, route: string, rowText: string, skipNavigation = false): Promise<boolean> {
+async function openEditDialog(
+  page: import('@playwright/test').Page,
+  route: string,
+  rowText: string,
+  skipNavigation = false
+): Promise<boolean> {
   if (!skipNavigation) {
     await safeGoto(page, route);
     await page.waitForTimeout(1500);
@@ -33,31 +38,57 @@ async function openEditDialog(page: import('@playwright/test').Page, route: stri
   console.log(`[31c] ${route} 列表 ${count} 行，查找 ${rowText}`);
   let target: import('@playwright/test').Locator | null = null;
   for (let i = 0; i < count; i++) {
-    const txt = await rows.nth(i).textContent().catch((e) => { console.warn(`[31c] 行文本读取失败: ${(e as Error).message}`); return ''; });
-    if (txt?.includes(rowText)) { target = rows.nth(i); break; }
+    const txt = await rows
+      .nth(i)
+      .textContent()
+      .catch(e => {
+        console.warn(`[31c] 行文本读取失败: ${(e as Error).message}`);
+        return '';
+      });
+    if (txt?.includes(rowText)) {
+      target = rows.nth(i);
+      break;
+    }
   }
   if (!target) {
     console.error(`[31c] 未找到目标行 ${rowText}`);
     return false;
   }
   const editBtn = target.locator('button:has-text("编辑"), button:has-text("修改")').first();
-  if (!(await editBtn.isVisible({ timeout: 5000 }).catch((e) => { console.warn(`[31c] 编辑按钮不可见: ${(e as Error).message}`); return false; }))) {
+  if (
+    !(await editBtn.isVisible({ timeout: 5000 }).catch(e => {
+      console.warn(`[31c] 编辑按钮不可见: ${(e as Error).message}`);
+      return false;
+    }))
+  ) {
     console.error(`[31c] ${route} 行内无编辑按钮`);
     return false;
   }
   await editBtn.click();
   console.log('[31c] 已点击编辑按钮');
   const dialog = page.locator('.el-dialog:visible').first();
-  const visible = await dialog.waitFor({ state: 'visible', timeout: 8000 }).then(() => true).catch((e) => { console.warn(`[31c] 编辑弹窗未出现: ${(e as Error).message}`); return false; });
+  const visible = await dialog
+    .waitFor({ state: 'visible', timeout: 8000 })
+    .then(() => true)
+    .catch(e => {
+      console.warn(`[31c] 编辑弹窗未出现: ${(e as Error).message}`);
+      return false;
+    });
   if (visible) console.log('[31c] 编辑弹窗已打开');
   return visible;
 }
 
 /** 在可见弹窗内切换状态控件（radio 文案或 switch），点击确定 */
-async function toggleStatusInDialog(page: import('@playwright/test').Page, inactiveText: string, confirmText: RegExp): Promise<boolean> {
+async function toggleStatusInDialog(
+  page: import('@playwright/test').Page,
+  inactiveText: string,
+  confirmText: RegExp
+): Promise<boolean> {
   const dialog = page.locator('.el-dialog:visible').first();
   // 优先 radio（label 文案匹配 inactiveText），其次行内 switch
-  const radio = dialog.locator(`.el-radio:has-text("${inactiveText}"), .el-radio-button:has-text("${inactiveText}")`).first();
+  const radio = dialog
+    .locator(`.el-radio:has-text("${inactiveText}"), .el-radio-button:has-text("${inactiveText}")`)
+    .first();
   const sw = dialog.locator('.el-switch').first();
   if (await radio.isVisible({ timeout: 3000 }).catch(() => false)) {
     await radio.click();
@@ -97,14 +128,24 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
     let id: number | undefined;
     try {
       const r = await apiCall<{ id?: number }>(page, 'POST', '/customers', {
-        customer_name: name, customer_code: `P0-DIS-${TS}`, contact_person: 'P0联系人', contact_phone: '13900000002',
-        contact_email: 'dis@test.com', address: 'P0地址', city: '杭州', customer_type: 'retail', notes: 'P0停用客户',
+        customer_name: name,
+        customer_code: `P0-DIS-${TS}`,
+        contact_person: 'P0联系人',
+        contact_phone: '13900000002',
+        contact_email: 'dis@test.com',
+        address: 'P0地址',
+        city: '杭州',
+        customer_type: 'retail',
+        notes: 'P0停用客户',
       });
       id = r?.data?.id;
     } catch (e) {
       console.error(`[31c-客户] 创建失败: ${(e as Error).message}`);
     }
-    if (!id) { test.skip(); return; }
+    if (!id) {
+      test.skip();
+      return;
+    }
     console.log(`[31c-客户] 创建成功 id=${id}`);
 
     let toggled = false;
@@ -130,12 +171,18 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
       console.warn(`[31c-客户] 回读异常: ${(e as Error).message}`);
     }
     if (toggled) {
-      expect(statusAfter, `[31c-客户] UI 停用后 API 回读 status 应为 inactive，实际 ${statusAfter}`).toBe('inactive');
+      expect(
+        statusAfter,
+        `[31c-客户] UI 停用后 API 回读 status 应为 inactive，实际 ${statusAfter}`
+      ).toBe('inactive');
       // 二次访问：UI 重新打开编辑弹窗验证回显
       let reopened = false;
       try {
         if (await openEditDialog(page, '/customer', name)) {
-          const checked = await page.locator('.el-dialog:visible .el-radio:has-text("停用")').first().getAttribute('class');
+          const checked = await page
+            .locator('.el-dialog:visible .el-radio:has-text("停用")')
+            .first()
+            .getAttribute('class');
           reopened = checked?.includes('is-checked') ?? false;
           console.log(`[31c-客户] 二次打开回显「停用」radio ${reopened ? '✅选中' : '❌未选中'}`);
           await page.keyboard.press('Escape');
@@ -163,13 +210,19 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
     let id: number | undefined;
     try {
       const r = await apiCall<{ id?: number }>(page, 'POST', '/users', {
-        username, password: 'P0Test!2026dE', email: `${username}@test.com`, phone: '13600000002',
+        username,
+        password: 'P0Test!2026dE',
+        email: `${username}@test.com`,
+        phone: '13600000002',
       });
       id = r?.data?.id;
     } catch (e) {
       console.error(`[31c-用户] 创建失败: ${(e as Error).message}`);
     }
-    if (!id) { test.skip(); return; }
+    if (!id) {
+      test.skip();
+      return;
+    }
     console.log(`[31c-用户] 创建成功 id=${id}`);
 
     let toggled = false;
@@ -224,7 +277,9 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
       console.warn(`[31c-用户] 回读异常: ${(e as Error).message}`);
     }
     if (toggled) {
-      expect(activeAfter, `[31c-用户] UI 停用后 is_active 应为 false，实际 ${activeAfter}`).toBe(false);
+      expect(activeAfter, `[31c-用户] UI 停用后 is_active 应为 false，实际 ${activeAfter}`).toBe(
+        false
+      );
     } else {
       console.warn('[31c-用户] UI 停用未完成（控件结构差异），已记录诊断日志');
       expect(toggled, `[31c-用户] UI 编辑弹窗停用操作应可完成，诊断链: ${diag}`).toBe(true);
@@ -243,14 +298,24 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
     let id: number | undefined;
     try {
       const r = await apiCall<{ id?: number }>(page, 'POST', '/products', {
-        name, code: `P0-DISP-${TS}`, category_id: 1, unit: '米', status: 'active', product_type: 'fabric',
-        standard_price: 10, cost_price: 5, description: 'P0停用产品',
+        name,
+        code: `P0-DISP-${TS}`,
+        category_id: 1,
+        unit: '米',
+        status: 'active',
+        product_type: 'fabric',
+        standard_price: 10,
+        cost_price: 5,
+        description: 'P0停用产品',
       });
       id = r?.data?.id;
     } catch (e) {
       console.error(`[31c-产品] 创建失败: ${(e as Error).message}`);
     }
-    if (!id) { test.skip(); return; }
+    if (!id) {
+      test.skip();
+      return;
+    }
     console.log(`[31c-产品] 创建成功 id=${id}`);
 
     let toggled = false;
@@ -286,7 +351,9 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
       console.warn(`[31c-产品] 回读异常: ${(e as Error).message}`);
     }
     if (toggled) {
-      expect(statusAfter, `[31c-产品] UI 停用后 status 应为 inactive，实际 ${statusAfter}`).toBe('inactive');
+      expect(statusAfter, `[31c-产品] UI 停用后 status 应为 inactive，实际 ${statusAfter}`).toBe(
+        'inactive'
+      );
     } else {
       console.warn('[31c-产品] UI 停用未完成（控件结构差异），已记录诊断日志');
       expect(toggled, '[31c-产品] UI 编辑弹窗停用操作应可完成（失败见诊断日志）').toBe(true);
@@ -304,12 +371,18 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
     const name = `P0停用部门${TS}`;
     let id: number | undefined;
     try {
-      const r = await apiCall<{ id?: number }>(page, 'POST', '/departments', { name, description: 'P0停用部门' });
+      const r = await apiCall<{ id?: number }>(page, 'POST', '/departments', {
+        name,
+        description: 'P0停用部门',
+      });
       id = r?.data?.id;
     } catch (e) {
       console.error(`[31c-部门] 创建失败: ${(e as Error).message}`);
     }
-    if (!id) { test.skip(); return; }
+    if (!id) {
+      test.skip();
+      return;
+    }
     console.log(`[31c-部门] 创建成功 id=${id}`);
 
     let toggled = false;
@@ -332,7 +405,10 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
       console.warn(`[31c-部门] 回读异常: ${(e as Error).message}`);
     }
     if (toggled) {
-      expect(String(statusAfter), `[31c-部门] UI 停用后 status 应为 0/false，实际 ${statusAfter}`).toMatch(/^(0|false)$/);
+      expect(
+        String(statusAfter),
+        `[31c-部门] UI 停用后 status 应为 0/false，实际 ${statusAfter}`
+      ).toMatch(/^(0|false)$/);
     } else {
       console.warn('[31c-部门] UI 停用未完成（控件结构差异），已记录诊断日志');
       expect(toggled, '[31c-部门] UI 编辑弹窗停用操作应可完成（失败见诊断日志）').toBe(true);
