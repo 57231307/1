@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { loginViaUI, apiCall, apiCallRaw } from './helpers';
 import { uiDeleteRow, uiToggleStatus } from './ui-helpers';
 
@@ -308,21 +308,21 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
   test('质检标准：API 创建→UI 删除→验证消失', async ({ page }) => {
     test.setTimeout(120_000);
     await createThenUiDelete(page, '质检标准', '/quality-standards',
-      { name: `P0待删标准${EXT_TS}`, standard_type: 'fabric' },
+      { standard_name: `P0待删标准${EXT_TS}`, standard_type: 'product' },
       '/quality-standards', `P0待删标准${EXT_TS}`);
   });
 
   test('销售合同：API 创建→UI 删除→验证消失', async ({ page }) => {
     test.setTimeout(120_000);
     await createThenUiDelete(page, '销售合同', '/sales/sales-contracts',
-      { contract_no: `P0-SC-${EXT_TS}`, customer_id: 1, contract_date: new Date().toISOString().slice(0, 10) },
+      { contract_no: `P0-SC-${EXT_TS}`, contract_name: `P0销售合同${EXT_TS}`, customer_id: 1, total_amount: 10000, delivery_date: new Date().toISOString().slice(0, 10) },
       '/sales-contract', `P0-SC-${EXT_TS}`);
   });
 
   test('采购合同：API 创建→UI 删除→验证消失', async ({ page }) => {
     test.setTimeout(120_000);
     await createThenUiDelete(page, '采购合同', '/purchase/purchase-contracts',
-      { contract_no: `P0-PC-${EXT_TS}`, supplier_id: 1, contract_date: new Date().toISOString().slice(0, 10) },
+      { contract_no: `P0-PC-${EXT_TS}`, contract_name: `P0采购合同${EXT_TS}`, supplier_id: 1, total_amount: 8000, delivery_date: new Date().toISOString().slice(0, 10) },
       '/purchase-contract', `P0-PC-${EXT_TS}`);
   });
 

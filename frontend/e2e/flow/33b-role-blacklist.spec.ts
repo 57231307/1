@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { loginAsRole } from './helpers';
 
 /**
@@ -56,15 +56,15 @@ test.describe('33b 角色黑名单（print/export/dye-recipe）', () => {
       console.log(`[33b] ✅ ${role} 打印黑名单生效 → 403`);
     });
 
-    test(`${role} 持 stock:export 权限码调用 /stock/export → 403`, async ({ page }) => {
+    test(`${role} 持 stock:export 权限码调用（/inventory/stock/export） /inventory/stock/export → 403`, async ({ page }) => {
       await loginAsRole(page, role);
 
       const resp = await page.request
-        .get(`${API_BASE}${API_PREFIX}/stock/export`)
+        .get(`${API_BASE}${API_PREFIX}/inventory/stock/export`)
         .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
-      if (!resp) throw new Error('网络错误: /stock/export');
+      if (!resp) throw new Error('网络错误: /inventory/stock/export');
 
-      // /stock/export 是非敏感导出：黑名单是唯一防线——403 即黑名单直接生效，
+      // /inventory/stock/export 是非敏感导出：黑名单是唯一防线——403 即黑名单直接生效，
       // 若 200 放行则 EXPORT_DENIED 黑名单失效（真缺陷）
       const status = resp.status();
       expect(
@@ -80,9 +80,9 @@ test.describe('33b 角色黑名单（print/export/dye-recipe）', () => {
     await loginAsRole(page, 'manager');
 
     const resp = await page.request
-      .get(`${API_BASE}${API_PREFIX}/dye-recipes/1/export`)
+      .get(`${API_BASE}${API_PREFIX}/production/dye-recipes/export`)
       .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
-    if (!resp) throw new Error('网络错误: /dye-recipes/1/export');
+    if (!resp) throw new Error('网络错误: /production/dye-recipes/export');
 
     const status = resp.status();
     if (status === 404) {

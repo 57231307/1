@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { loginViaUI, BASE_URL, apiCall, apiCallRaw, getCtx, ensureTestEntities } from './helpers';
 
 test.describe('前端状态显示与业务逻辑验证', () => {

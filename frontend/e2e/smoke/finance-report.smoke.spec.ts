@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { gotoWithRetry } from './_goto';
 
 test.describe('finance-report 页面冒烟测试', () => {

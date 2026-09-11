@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { loginViaUI, BASE_URL, getCtx } from './helpers';
 
 test.describe('核心业务流程真实 UI 交互验证', () => {

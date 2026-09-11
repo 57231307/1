@@ -1,4 +1,4 @@
-import { test, expect, devices, type Page } from '@playwright/test';
+import { test, expect, devices, type Page } from '../diagnose-fixture';
 import { loginViaUI } from './helpers';
 
 /**

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { loginViaUI } from '../flow/helpers';
 import { SENSITIVE_EXPORT_ENDPOINTS, NON_SENSITIVE_EXPORT_ENDPOINTS } from './endpoints.config';
 

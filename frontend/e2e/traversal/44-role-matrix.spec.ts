@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { loginAsRole, trackPageHealth, assertPageHealthy, getRoleCredential } from '../flow/helpers';
 import { TRAVERSAL_MODULES } from './modules.config';
 import {

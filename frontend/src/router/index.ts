@@ -76,6 +76,17 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '系统管理', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
+        path: 'system/oa-announcements',
+        name: 'SystemOaAnnouncements',
+        component: () => import('@/views/system/oa-announcements/index.vue'),
+        meta: {
+          title: 'OA公告管理',
+          icon: 'Bell',
+          permission: 'oa-announcements:read',
+          requiresAuth: true,
+        },
+      },
+      {
         path: 'system/audit-log',
         name: 'SystemAuditLog',
         component: () => import('@/views/system/audit-log/index.vue'),

@@ -60,6 +60,10 @@ pub async fn list(
 }
 
 /// POST /api/v1/erp/oa-announcements/:id/publish - 发布公告
+///
+/// 发布时联动站内通知：根据 visibility_scope 解析目标用户，
+/// 调用 EventNotificationService::send_system_announcement 批量推送。
+/// event_notification_service 未配置时仅更新状态，不阻断发布流程。
 pub async fn publish(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -75,10 +79,143 @@ pub async fn publish(
         announcement.title
     );
 
+    // 联动站内通知：解析目标用户并推送
+    let notified_count = match &state.event_notification_service {
+        Some(event_svc) => {
+            match resolve_audience(state.db.as_ref(), &announcement).await {
+                Ok(user_ids) if !user_ids.is_empty() => {
+                    match event_svc
+                        .send_system_announcement(
+                            user_ids,
+                            &announcement.title,
+                            &announcement.content,
+                        )
+                        .await
+                    {
+                        Ok(()) => {
+                            tracing::info!(
+                                "OA 公告 {} 已推送通知给 {} 位用户",
+                                announcement.id,
+                                user_ids.len()
+                            );
+                            user_ids.len()
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                "OA 公告 {} 通知推送失败（不阻断发布）: {}",
+                                announcement.id,
+                                e
+                            );
+                            0
+                        }
+                    }
+                }
+                Ok(_) => {
+                    tracing::warn!("OA 公告 {} 目标用户为空，跳过通知推送", announcement.id);
+                    0
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "OA 公告 {} 目标用户解析失败（不阻断发布）: {}",
+                        announcement.id,
+                        e
+                    );
+                    0
+                }
+            }
+        }
+        None => {
+            tracing::warn!("event_notification_service 未配置，OA 公告 {} 跳过通知推送", announcement.id);
+            0
+        }
+    };
+
+    let mut result = serde_json::to_value(&announcement)?;
+    if let Some(obj) = result.as_object_mut() {
+        obj.insert("notified_count".to_string(), serde_json::json!(notified_count));
+    }
+
     Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(announcement)?,
+        result,
         "公告已发布",
     )))
+}
+
+/// 根据 OA 公告的 visibility_scope 解析目标用户 id 列表
+async fn resolve_audience(
+    db: &sea_orm::DatabaseConnection,
+    announcement: &crate::models::oa_announcement::Model,
+) -> Result<Vec<i32>, AppError> {
+    use crate::models::user;
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+
+    match announcement.visibility_scope.as_str() {
+        "ALL" => {
+            let users = user::Entity::find().all(db).await?;
+            Ok(users.into_iter().map(|u| u.id).collect())
+        }
+        "CUSTOM" => {
+            let cfg = announcement.visible_scope_config.as_ref().ok_or_else(|| {
+                AppError::internal("visibility_scope=CUSTOM 但 visible_scope_config 为空")
+            })?;
+            let ids: Vec<i32> = cfg
+                .get("user_ids")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_i64().map(|n| n as i32))
+                        .collect()
+                })
+                .unwrap_or_default();
+            Ok(ids)
+        }
+        "DEPT" => {
+            let cfg = announcement.visible_scope_config.as_ref().ok_or_else(|| {
+                AppError::internal("visibility_scope=DEPT 但 visible_scope_config 为空")
+            })?;
+            let dept_ids: Vec<i32> = cfg
+                .get("department_ids")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_i64().map(|n| n as i32))
+                        .collect()
+                })
+                .unwrap_or_default();
+            if dept_ids.is_empty() {
+                return Ok(vec![]);
+            }
+            // 查这些部门下的用户（user.department_id IN dept_ids）
+            let users = user::Entity::find()
+                .filter(user::Column::DepartmentId.is_in(dept_ids))
+                .all(db)
+                .await?;
+            Ok(users.into_iter().map(|u| u.id).collect())
+        }
+        "ROLE" => {
+            let cfg = announcement.visible_scope_config.as_ref().ok_or_else(|| {
+                AppError::internal("visibility_scope=ROLE 但 visible_scope_config 为空")
+            })?;
+            let role_ids: Vec<i32> = cfg
+                .get("role_ids")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_i64().map(|n| n as i32))
+                        .collect()
+                })
+                .unwrap_or_default();
+            if role_ids.is_empty() {
+                return Ok(vec![]);
+            }
+            let users = user::Entity::find()
+                .filter(user::Column::RoleId.is_in(role_ids))
+                .all(db)
+                .await?;
+            Ok(users.into_iter().map(|u| u.id).collect())
+        }
+        _ => Ok(vec![]),
+    }
 }
 
 /// POST /api/v1/erp/oa-announcements/:id/archive - 归档公告

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 
 test.describe('login 页面冒烟测试', () => {
   test('页面加载 + 登录表单渲染', async ({ page }) => {

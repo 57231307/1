@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { loginViaUI, BASE_URL } from './helpers';
 
 // 表单校验真实 UI 交互（规则 2：禁止 catch 吞错，错误必须显式处理或传播）

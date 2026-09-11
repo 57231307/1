@@ -26,15 +26,16 @@
           :label="t('system.role.column.description')"
           min-width="200"
         />
+        <!-- 角色无启用/停用语义（后端 roles 表无 status 列），展示系统内置标识 -->
         <el-table-column
-          prop="status"
+          prop="is_system"
           :label="t('system.role.column.status')"
           width="80"
           align="center"
         >
           <template #default="{ row }">
-            <el-tag :type="row.status === 1 ? 'success' : 'info'" size="small">
-              {{ getStatusLabel(row.status) }}
+            <el-tag :type="row.is_system ? 'success' : 'info'" size="small">
+              {{ row.is_system ? t('system.role.status.system') : t('system.role.status.custom') }}
             </el-tag>
           </template>
         </el-table-column>
@@ -88,9 +89,6 @@
         <el-form-item :label="t('system.role.form.label.description')" prop="description">
           <el-input v-model="roleForm.description" type="textarea" :rows="3" />
         </el-form-item>
-        <el-form-item v-if="roleForm.id" :label="t('system.role.form.label.status')">
-          <el-switch v-model="roleForm.status" :active-value="1" :inactive-value="0" />
-        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="roleDialogVisible = false">{{
@@ -111,12 +109,11 @@
     >
       <el-card v-loading="permissionLoading">
         <el-tree
-          ref="permissionTreeRef"
           :data="permissionTree"
-          :props="{ label: 'name', children: 'children' }"
+          :props="{ label: 'label', children: 'children' }"
           show-checkbox
-          node-key="id"
-          :default-checked-keys="checkedPermissions"
+          node-key="key"
+          :default-checked-keys="checkedKeys"
           @check="handlePermissionCheck"
         />
       </el-card>
@@ -145,16 +142,13 @@ import {
   deleteRole as deleteRoleApi,
   getRolePermissions,
   assignPermission,
+  deletePermission,
   getPermissionList,
   type Role,
   type Permission,
 } from '@/api/role';
 
 const { t } = useI18n({ useScope: 'global' });
-
-// 状态标签映射（响应式）
-const getStatusLabel = (status: number): string =>
-  status === 1 ? t('system.role.status.enabled') : t('system.role.status.disabled');
 
 const roles = ref<Role[]>([]);
 const roleLoading = ref(false);
@@ -163,9 +157,12 @@ const fetchRoles = async () => {
   roleLoading.value = true;
   try {
     const res = await getRoleList();
-    // v11 批次 165 P2-1 修复：res.data as any 改为运行时安全访问
-    const d = res.data as { items?: Role[]; data?: Role[] } | Role[] | undefined;
-    roles.value = (Array.isArray(d) ? d : d?.items || d?.data || []) as Role[];
+    // 后端 list_roles 真实结构为 data.roles[]（RoleListResponse），兼容 items/data/裸数组形态
+    const d = res.data as
+      | { roles?: Role[]; items?: Role[]; data?: Role[] }
+      | Role[]
+      | undefined;
+    roles.value = (Array.isArray(d) ? d : d?.roles || d?.items || d?.data || []) as Role[];
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
     ElMessage.error(
@@ -186,7 +183,6 @@ const roleForm = reactive({
   name: '',
   code: '',
   description: '',
-  status: 1,
 });
 
 const roleRules: FormRules = {
@@ -202,7 +198,6 @@ const openRoleDialog = (row?: Role) => {
       name: row.name,
       code: row.code,
       description: row.description || '',
-      status: row.status,
     });
   } else {
     Object.assign(roleForm, {
@@ -210,7 +205,6 @@ const openRoleDialog = (row?: Role) => {
       name: '',
       code: '',
       description: '',
-      status: 1,
     });
   }
   roleDialogVisible.value = true;
@@ -225,7 +219,6 @@ const submitRole = async () => {
       await updateRole(roleForm.id, {
         name: roleForm.name,
         description: roleForm.description,
-        status: roleForm.status,
       });
       ElMessage.success(t('system.role.message.updateSuccess'));
     } else {
@@ -267,15 +260,26 @@ const deleteRole = async (row: Role) => {
   }
 };
 
-// 权限配置
+// 权限配置。
+// 后端契约（iam.rs roles 路由 + role_handler）：
+// - GET  /permissions            → 权限目录 [{id,resource_type,action,allowed}]（id 为目录合成 id，非关联行 id）
+// - GET  /roles/{id}/permissions → 角色权限关联行 [{id(关联行主键),resource_type,resource_id,action,allowed}]
+// - POST /roles/{id}/permissions → 单条赋权 {resource_type,action,allowed}（幂等 upsert，admin 专用）
+// - DELETE /roles/permissions/{id} → 按关联行 id 删除（系统内置角色拒绝）
+// 因此树节点以 `${resource_type}::${action}` 为主键，提交时做增量 diff：
+// 新增勾选项逐条 POST 赋权；取消勾选的既有授予逐条 DELETE 关联行。
 const permissionDialogVisible = ref(false);
-const permissionTreeRef = ref();
 const currentRoleId = ref(0);
 const currentRoleName = ref('');
 const permissionTree = ref<PermissionTreeNode[]>([]);
-const checkedPermissions = ref<number[]>([]);
+// 勾选的树节点 key（`${rt}::${action}`），提交时与既有授予做 diff
+const checkedKeys = ref<string[]>([]);
+// 角色当前权限关联行（key → {id: 关联行主键, allowed}），用于 diff 与取消勾选时删除
+const existingGrantRows = ref<Map<string, { id: number; allowed: boolean }>>(new Map());
 const permissionLoading = ref(false);
 const permissionSubmitLoading = ref(false);
+
+const permKey = (rt: string, action: string): string => `${rt}::${action}`;
 
 const openPermissionDialog = (row: Role) => {
   currentRoleId.value = row.id;
@@ -287,10 +291,21 @@ const openPermissionDialog = (row: Role) => {
 const fetchRolePermissions = async (roleId: number) => {
   permissionLoading.value = true;
   try {
-    const treeRes = await getPermissionList();
+    const [treeRes, roleRes] = await Promise.all([
+      getPermissionList(),
+      getRolePermissions(roleId),
+    ]);
     permissionTree.value = buildPermissionTree(treeRes.data || []);
-    const roleRes = await getRolePermissions(roleId);
-    checkedPermissions.value = (roleRes.data || []).map((p: Permission) => p.id);
+    const grantRows = (roleRes.data || []) as Permission[];
+    const map = new Map<string, { id: number; allowed: boolean }>();
+    const keys: string[] = [];
+    grantRows.forEach((p) => {
+      const k = permKey(p.resource_type, p.action);
+      map.set(k, { id: p.id, allowed: p.allowed });
+      if (p.allowed) keys.push(k);
+    });
+    existingGrantRows.value = map;
+    checkedKeys.value = keys;
   } catch (e) {
     const { logger } = await import('@/utils/logger');
     logger.error(`${t('system.role.message.fetchPermissionFailed')}:`, e);
@@ -299,40 +314,73 @@ const fetchRolePermissions = async (roleId: number) => {
   }
 };
 
-// v11 批次 165 P2-1 修复：any[] 改为 PermissionTreeNode[]
-interface PermissionTreeNode extends Permission {
+interface PermissionTreeNode {
+  key: string;
+  label: string;
   children: PermissionTreeNode[];
 }
 
+// 权限目录按 resource_type 分组为两层树（后端 /permissions 无 parent_id 层级）
 const buildPermissionTree = (perms: Permission[]): PermissionTreeNode[] => {
-  const map = new Map<number, PermissionTreeNode>();
-  const tree: PermissionTreeNode[] = [];
-  perms.forEach(p => map.set(p.id, { ...p, children: [] }));
-  perms.forEach(p => {
-    const node = map.get(p.id)!;
-    p.parent_id && map.has(p.parent_id)
-      ? map.get(p.parent_id)!.children.push(node)
-      : tree.push(node);
+  const groups = new Map<string, PermissionTreeNode>();
+  perms.forEach((p) => {
+    if (!p.resource_type || !p.action) return;
+    let g = groups.get(p.resource_type);
+    if (!g) {
+      g = { key: `group::${p.resource_type}`, label: p.resource_type, children: [] };
+      groups.set(p.resource_type, g);
+    }
+    g.children.push({
+      key: permKey(p.resource_type, p.action),
+      label: `${p.resource_type}:${p.action}${p.allowed ? '' : ' (denied)'}`,
+      children: [],
+    });
   });
-  return tree;
+  return Array.from(groups.values()).sort((a, b) => a.label.localeCompare(b.label));
 };
 
-// v11 批次 165 P2-1 修复：_: any, { checkedKeys }: any 改为具体类型
-const handlePermissionCheck = (_: unknown, { checkedKeys }: { checkedKeys: number[] }) => {
-  checkedPermissions.value = checkedKeys;
+const handlePermissionCheck = (_: unknown, { checkedKeys: keys }: { checkedKeys: unknown[] }) => {
+  checkedKeys.value = keys
+    .map((k) => String(k))
+    .filter((k) => !k.startsWith('group::'));
 };
 
 const submitPermissions = async () => {
   permissionSubmitLoading.value = true;
+  const wanted = new Set(checkedKeys.value);
+  const assignTasks: Array<Promise<unknown>> = [];
+  const removeTasks: Array<Promise<unknown>> = [];
+  // 勾选项：无关联行或既有行 allowed=false → 逐条 POST 单条赋权（幂等）
+  checkedKeys.value.forEach((k) => {
+    const existing = existingGrantRows.value.get(k);
+    if (existing === undefined || !existing.allowed) {
+      const sep = k.indexOf('::');
+      const resourceType = k.slice(0, sep);
+      const act = k.slice(sep + 2);
+      assignTasks.push(
+        assignPermission(currentRoleId.value, { resource_type: resourceType, action: act, allowed: true })
+      );
+    }
+  });
+  // 取消勾选的既有授予行：逐条 DELETE
+  existingGrantRows.value.forEach((row, k) => {
+    if (!wanted.has(k) && row.allowed) {
+      removeTasks.push(deletePermission(currentRoleId.value, row.id));
+    }
+  });
   try {
-    await assignPermission(currentRoleId.value, { permission_ids: checkedPermissions.value });
-    ElMessage.success(t('system.role.message.permissionSuccess'));
-    permissionDialogVisible.value = false;
-  } catch (e: unknown) {
-    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-    ElMessage.error(
-      (e instanceof Error ? e.message : String(e)) || t('system.role.message.permissionFailed')
-    );
+    const results = await Promise.allSettled([...assignTasks, ...removeTasks]);
+    const failed = results.filter((r) => r.status === 'rejected');
+    if (failed.length > 0) {
+      const first = failed[0] as PromiseRejectedResult;
+      ElMessage.error(
+        `${t('system.role.message.permissionFailed')}（${failed.length}/${results.length} ${t('system.role.message.permissionPartialFailed')}）: ` +
+          (first.reason instanceof Error ? first.reason.message : String(first.reason))
+      );
+    } else {
+      ElMessage.success(t('system.role.message.permissionSuccess'));
+      permissionDialogVisible.value = false;
+    }
   } finally {
     permissionSubmitLoading.value = false;
   }

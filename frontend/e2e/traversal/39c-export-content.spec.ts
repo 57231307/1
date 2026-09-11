@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import JSZip from 'jszip';
 import { loginViaUI, apiCallRaw } from '../flow/helpers';
 

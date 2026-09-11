@@ -34,7 +34,7 @@ type UiField =
  * 安全导航：处理 Vite 504 + page 被关闭的情况
  * 最多重试 3 次，每次检测 504 后等 5s 重新加载
  */
-async function safeGoto(page: Page, path: string): Promise<void> {
+export async function safeGoto(page: Page, path: string): Promise<void> {
   const url = `${BASE_URL}${path}`;
   // 整体 45s 上限：goto 自身 30s，防止 Vite 504 重试循环 + 页内 evaluate
   // 挂起拖垮整个 ensure（run 34041167918 exit 124 根因链）

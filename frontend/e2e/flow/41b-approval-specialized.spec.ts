@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { loginViaUI } from './helpers';
 
 /**
@@ -24,7 +24,7 @@ test.describe('P5.11b 专用审批流', () => {
   test('坏账核销双级审批链', async ({ page }) => {
     // 列表取一条待审 writeoff
     const list = await page.request
-      .get(`${API_BASE}${API_PREFIX}/writeoffs?page=1&page_size=5`)
+      .get(`${API_BASE}${API_PREFIX}/bad-debts/writeoffs?page=1&page_size=5`)
       .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     if (!list) throw new Error('网络错误');
     expect(list.status()).toBeLessThan(500);
@@ -44,14 +44,14 @@ test.describe('P5.11b 专用审批流', () => {
 
     // 一级：finance-approve
     const l1 = await page.request.post(
-      `${API_BASE}${API_PREFIX}/writeoffs/${pending.id}/finance-approve`,
+      `${API_BASE}${API_PREFIX}/bad-debts/writeoffs/${pending.id}/finance-approve`,
       { data: { comments: 'E2E 财务一级审批' }, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' } },
     ).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     if (l1) expect(l1.status()).toBeLessThan(500);
 
     // 二级：general-manager-approve
     const l2 = await page.request.post(
-      `${API_BASE}${API_PREFIX}/writeoffs/${pending.id}/general-manager-approve`,
+      `${API_BASE}${API_PREFIX}/bad-debts/writeoffs/${pending.id}/general-manager-approve`,
       { data: { comments: 'E2E 总经理二级审批' }, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' } },
     ).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     if (l2) expect(l2.status()).toBeLessThan(500);
@@ -105,7 +105,7 @@ test.describe('P5.11b 专用审批流', () => {
     }
 
     const resp = await page.request.post(
-      `${API_BASE}${API_PREFIX}/role-change-approvals/${pending.id}/approve`,
+      `${API_BASE}${API_PREFIX}/role-change-approvals/${pending.id}/approve-l1`,
       { data: { comments: 'E2E 角色变更审批' }, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' } },
     ).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     if (resp) expect(resp.status()).toBeLessThan(500);
@@ -140,7 +140,7 @@ test.describe('P5.11c BPM 引擎全流程', () => {
 
   test('流程实例审批链查询', async ({ page }) => {
     const list = await page.request
-      .get(`${API_BASE}${API_PREFIX}/bpm/instances?page=1&page_size=5`)
+      .get(`${API_BASE}${API_PREFIX}/bpm/monitor/instances?page=1&page_size=5`)
       .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     if (!list) throw new Error('网络错误');
     expect(list.status()).toBeLessThan(500);

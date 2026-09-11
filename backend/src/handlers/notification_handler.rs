@@ -6,6 +6,7 @@ use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::notification::{NotificationStatus, NotificationType};
 use crate::services::notification_service::NotificationService;
+use crate::utils::admin_checker::is_admin_role;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
@@ -205,5 +206,83 @@ pub async fn update_setting(
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(setting)?,
         "通知设置更新成功",
+    )))
+}
+
+/// 系统公告发送请求
+#[derive(Debug, Deserialize)]
+pub struct CreateAnnouncementRequest {
+    /// 目标用户 id 列表（非空）
+    pub user_ids: Vec<i32>,
+    /// 公告标题（1-100 字符）
+    pub title: String,
+    /// 公告内容（1-2000 字符）
+    pub content: String,
+}
+
+/// 系统公告发送结果
+#[derive(Debug, serde::Serialize)]
+pub struct AnnouncementResult {
+    /// 实际投递的用户数
+    pub delivered_count: usize,
+}
+
+/// 发送系统公告（仅管理员）：向指定用户列表广播 SYSTEM 类型通知
+pub async fn create_announcement(
+    auth: AuthContext,
+    State(state): State<AppState>,
+    Json(req): Json<CreateAnnouncementRequest>,
+) -> Result<Json<ApiResponse<AnnouncementResult>>, AppError> {
+    // 仅管理员可发公告（与用户管理同一 admin 判定）
+    let role_id = auth
+        .role_id
+        .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法发送系统公告"))?;
+    if !is_admin_role(&state.db, role_id).await {
+        return Err(AppError::permission_denied("系统公告仅限管理员发送"));
+    }
+
+    // 入参校验
+    let title = req.title.trim();
+    let content = req.content.trim();
+    if title.is_empty() {
+        return Err(AppError::validation("公告标题不能为空"));
+    }
+    if title.chars().count() > 100 {
+        return Err(AppError::validation("公告标题不能超过 100 字符"));
+    }
+    if content.is_empty() {
+        return Err(AppError::validation("公告内容不能为空"));
+    }
+    if content.chars().count() > 2000 {
+        return Err(AppError::validation("公告内容不能超过 2000 字符"));
+    }
+    if req.user_ids.is_empty() {
+        return Err(AppError::validation("目标用户列表不能为空"));
+    }
+    // 去重，避免同一用户重复投递
+    let mut user_ids = req.user_ids;
+    user_ids.sort_unstable();
+    user_ids.dedup();
+
+    let event_service = state.event_notification_service.clone().ok_or_else(|| {
+        AppError::internal("事件通知服务未启用，无法发送系统公告")
+    })?;
+
+    event_service
+        .send_system_announcement(user_ids.clone(), title, content)
+        .await?;
+
+    tracing::info!(
+        operator = %auth.username,
+        targets = user_ids.len(),
+        title = %title,
+        "系统公告发送成功"
+    );
+
+    Ok(Json(ApiResponse::success_with_message(
+        AnnouncementResult {
+            delivered_count: user_ids.len(),
+        },
+        "系统公告发送成功",
     )))
 }

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { loginViaUI, trackPageHealth, assertPageHealthy } from '../flow/helpers';
 import { TRAVERSAL_MODULES, type TraversalModule } from './modules.config';
 

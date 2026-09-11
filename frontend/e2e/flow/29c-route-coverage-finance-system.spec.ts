@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { loginViaUI, BASE_URL } from './helpers';
 
 test.describe('100% 前端路由 UI 交互全覆盖', () => {

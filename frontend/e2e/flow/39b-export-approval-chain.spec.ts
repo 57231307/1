@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { loginViaUI } from './helpers';
 
 /**
@@ -91,7 +91,7 @@ test.describe('P5.9b 敏感导出完整审批链', () => {
     const token = approved?.download_token;
     if (token) {
       const exportResp = await page.request
-        .get(`${API_BASE}${API_PREFIX}/customers/export?download_token=${token}`)
+        .get(`${API_BASE}${API_PREFIX}/crm/customers/export?download_token=${token}`)
         .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
       if (exportResp) {
         expect(exportResp.status(), '持有效令牌导出应 200').toBe(200);
@@ -99,7 +99,7 @@ test.describe('P5.9b 敏感导出完整审批链', () => {
 
       // 4. 令牌二次消费拒绝（download_count 上限/一次性）
       const secondResp = await page.request
-        .get(`${API_BASE}${API_PREFIX}/customers/export?download_token=${token}`)
+        .get(`${API_BASE}${API_PREFIX}/crm/customers/export?download_token=${token}`)
         .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
       if (secondResp) {
         expect(
@@ -157,7 +157,7 @@ test.describe('P5.9b 敏感导出完整审批链', () => {
   test('审批状态机：未审批申请直接导出 403（fail-closed 兜底）', async ({ page }) => {
     // pending 状态的申请其 token 为 null——直接带空/伪 token 导出被拒
     const resp = await page.request
-      .get(`${API_BASE}${API_PREFIX}/customers/export?download_token=not-a-real-token`)
+      .get(`${API_BASE}${API_PREFIX}/crm/customers/export?download_token=not-a-real-token`)
       .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
     if (resp) {
       expect(resp.status()).toBe(403);

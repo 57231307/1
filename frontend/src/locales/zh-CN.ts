@@ -7490,6 +7490,27 @@ export default {
         saveSuccess: '保存成功',
         saveFailed: '保存失败',
       },
+      announce: {
+        title: '系统公告',
+        label: {
+          title: '标题',
+          content: '内容',
+          recipients: '收件人',
+        },
+        placeholder: {
+          recipients: '选择目标用户',
+        },
+        button: {
+          send: '发送公告',
+        },
+        message: {
+          titleRequired: '请输入公告标题',
+          contentRequired: '请输入公告内容',
+          recipientsRequired: '请选择至少一位收件人',
+          sendSuccess: '公告已发送给 {count} 位用户',
+          sendFailed: '发送失败',
+        },
+      },
     },
     permission: {
       title: '权限管理',
@@ -7529,6 +7550,8 @@ export default {
       status: {
         enabled: '启用',
         disabled: '禁用',
+        system: '内置',
+        custom: '自定义',
       },
       dialog: {
         editTitle: '编辑角色',
@@ -7569,6 +7592,7 @@ export default {
         deleteFailed: '删除失败',
         permissionSuccess: '权限配置成功',
         permissionFailed: '配置失败',
+        permissionPartialFailed: '项失败',
         fetchPermissionFailed: '获取权限失败',
       },
     },
@@ -7647,6 +7671,54 @@ export default {
         deleteFailed: '删除失败',
         testSent: '测试请求已发送',
         testFailed: '测试失败',
+      },
+    },
+    oaAnnouncement: {
+      title: 'OA公告管理',
+      button: {
+        create: '新建公告',
+        edit: '编辑',
+        delete: '删除',
+        publish: '发布',
+        archive: '归档',
+        cancel: '取消',
+        confirm: '确定',
+      },
+      column: {
+        title: '标题',
+        type: '类型',
+        status: '状态',
+        scope: '可见范围',
+        publishDate: '发布日期',
+        createdAt: '创建时间',
+        action: '操作',
+      },
+      dialog: {
+        createTitle: '新建公告',
+        editTitle: '编辑公告',
+      },
+      form: {
+        label: {
+          title: '标题',
+          type: '类型',
+          content: '内容',
+          publishDate: '发布日期',
+          effectiveDate: '生效日期',
+          expiryDate: '过期日期',
+          scope: '可见范围',
+          remarks: '备注',
+          isTop: '置顶',
+        },
+      },
+      placeholder: {
+        status: '筛选状态',
+        type: '筛选类型',
+      },
+      message: {
+        fetchFailed: '获取列表失败',
+        createSuccess: '创建成功',
+        updateSuccess: '更新成功',
+        operationFailed: '操作失败',
       },
     },
   },

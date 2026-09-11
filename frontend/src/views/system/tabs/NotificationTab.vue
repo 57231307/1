@@ -56,6 +56,46 @@
         </el-form-item>
       </el-form>
     </el-card>
+
+    <!-- 系统公告发送（管理员，notifications:create 权限） -->
+    <el-card v-permission="'notifications:create'" shadow="hover" style="max-width: 600px; margin-top: 20px">
+      <template #header>{{ t('system.notification.announce.title') }}</template>
+      <el-form :model="announcementForm" label-width="100px">
+        <el-form-item :label="t('system.notification.announce.label.title')" required>
+          <el-input v-model="announcementForm.title" :maxlength="100" show-word-limit />
+        </el-form-item>
+        <el-form-item :label="t('system.notification.announce.label.content')" required>
+          <el-input
+            v-model="announcementForm.content"
+            type="textarea"
+            :rows="5"
+            :maxlength="2000"
+            show-word-limit
+          />
+        </el-form-item>
+        <el-form-item :label="t('system.notification.announce.label.recipients')" required>
+          <el-select
+            v-model="announcementForm.userIds"
+            multiple
+            filterable
+            :placeholder="t('system.notification.announce.placeholder.recipients')"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="u in userOptions"
+              :key="u.id"
+              :label="u.username"
+              :value="u.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :loading="announceSending" @click="sendAnnouncement">{{
+            t('system.notification.announce.button.send')
+          }}</el-button>
+        </el-form-item>
+      </el-form>
+    </el-card>
   </div>
 </template>
 
@@ -64,6 +104,8 @@ import { reactive, ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import { request } from '@/api/request';
+import { getUserList, type User } from '@/api/user';
+import { createAnnouncement } from '@/api/notification';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -119,7 +161,60 @@ const saveNotificationSetting = async () => {
 
 defineExpose({ refresh: fetchNotificationSetting });
 
+// ===== 系统公告发送 =====
+const userOptions = ref<User[]>([]);
+const announceSending = ref(false);
+const announcementForm = reactive({
+  title: '',
+  content: '',
+  userIds: [] as number[],
+});
+
+const fetchUserOptions = async () => {
+  try {
+    const res = await getUserList({ page: 1, page_size: 200 });
+    const d = res.data as { items?: User[]; list?: User[]; data?: User[] } | undefined;
+    userOptions.value = (d?.items || d?.list || d?.data || (Array.isArray(d) ? d : [])) as User[];
+  } catch {
+    // 非管理员无权限拉用户列表时静默
+  }
+};
+
+const sendAnnouncement = async () => {
+  if (!announcementForm.title.trim()) {
+    ElMessage.warning(t('system.notification.announce.message.titleRequired'));
+    return;
+  }
+  if (!announcementForm.content.trim()) {
+    ElMessage.warning(t('system.notification.announce.message.contentRequired'));
+    return;
+  }
+  if (announcementForm.userIds.length === 0) {
+    ElMessage.warning(t('system.notification.announce.message.recipientsRequired'));
+    return;
+  }
+  announceSending.value = true;
+  try {
+    const res = await createAnnouncement({
+      userIds: announcementForm.userIds,
+      title: announcementForm.title,
+      content: announcementForm.content,
+    });
+    const count = res.data?.deliveredCount ?? 0;
+    ElMessage.success(t('system.notification.announce.message.sendSuccess', { count }));
+    announcementForm.title = '';
+    announcementForm.content = '';
+    announcementForm.userIds = [];
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('system.notification.announce.message.sendFailed'));
+  } finally {
+    announceSending.value = false;
+  }
+};
+
 onMounted(() => {
   fetchNotificationSetting();
+  fetchUserOptions();
 });
 </script>

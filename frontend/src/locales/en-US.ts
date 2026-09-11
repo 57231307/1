@@ -7501,6 +7501,27 @@ export default {
         saveSuccess: 'Saved successfully',
         saveFailed: 'Save failed',
       },
+      announce: {
+        title: 'System Announcement',
+        label: {
+          title: 'Title',
+          content: 'Content',
+          recipients: 'Recipients',
+        },
+        placeholder: {
+          recipients: 'Select target users',
+        },
+        button: {
+          send: 'Send Announcement',
+        },
+        message: {
+          titleRequired: 'Please enter announcement title',
+          contentRequired: 'Please enter announcement content',
+          recipientsRequired: 'Please select at least one recipient',
+          sendSuccess: 'Announcement sent to {count} user(s)',
+          sendFailed: 'Send failed',
+        },
+      },
     },
     permission: {
       title: 'Permission Management',
@@ -7535,86 +7556,6 @@ export default {
         description: 'Description',
         status: 'Status',
         createdAt: 'Created At',
-        action: 'Action',
-      },
-      status: {
-        enabled: 'Enabled',
-        disabled: 'Disabled',
-      },
-      dialog: {
-        editTitle: 'Edit Role',
-        createTitle: 'New Role',
-        aria: 'Role edit dialog',
-      },
-      form: {
-        aria: 'Role info form',
-        label: {
-          name: 'Role Name',
-          code: 'Role Code',
-          description: 'Description',
-          status: 'Status',
-        },
-        button: {
-          cancel: 'Cancel',
-          confirm: 'Confirm',
-        },
-      },
-      permissionDialog: {
-        title: 'Permission Config - {name}',
-        aria: 'Role permission config dialog',
-        button: {
-          cancel: 'Cancel',
-          save: 'Save',
-        },
-      },
-      message: {
-        fetchFailed: 'Failed to fetch roles',
-        requiredName: 'Please enter role name',
-        requiredCode: 'Please enter role code',
-        updateSuccess: 'Updated successfully',
-        createSuccess: 'Created successfully',
-        operationFailed: 'Operation failed',
-        deleteConfirm: 'Are you sure to delete role "{name}"?',
-        deleteTitle: 'Delete Confirmation',
-        deleteSuccess: 'Deleted successfully',
-        deleteFailed: 'Delete failed',
-        permissionSuccess: 'Permission config saved successfully',
-        permissionFailed: 'Config failed',
-        fetchPermissionFailed: 'Failed to fetch permissions',
-      },
-    },
-    systemUpdate: {
-      title: 'System Update',
-      label: {
-        currentVersion: 'Current Version',
-        lastUpdate: 'Last Update',
-      },
-      button: {
-        check: 'Check Update',
-        apply: 'Apply Update',
-      },
-      message: {
-        upToDate: 'Already up to date',
-        checkFailed: 'Failed to check update',
-        updateSubmitted: 'Update submitted, service will restart',
-        updateFailed: 'Update failed',
-      },
-    },
-    webhook: {
-      title: 'Webhook Configuration',
-      button: {
-        create: 'New',
-        edit: 'Edit',
-        test: 'Test',
-        delete: 'Delete',
-      },
-      aria: {
-        list: 'Webhook list',
-      },
-      column: {
-        name: 'Name',
-        event: 'Event',
-        status: 'Status',
         action: 'Action',
       },
       status: {
@@ -7658,6 +7599,54 @@ export default {
         deleteFailed: 'Delete failed',
         testSent: 'Test request sent',
         testFailed: 'Test failed',
+      },
+    },
+    oaAnnouncement: {
+      title: 'OA Announcement Management',
+      button: {
+        create: 'New Announcement',
+        edit: 'Edit',
+        delete: 'Delete',
+        publish: 'Publish',
+        archive: 'Archive',
+        cancel: 'Cancel',
+        confirm: 'Confirm',
+      },
+      column: {
+        title: 'Title',
+        type: 'Type',
+        status: 'Status',
+        scope: 'Scope',
+        publishDate: 'Publish Date',
+        createdAt: 'Created At',
+        action: 'Action',
+      },
+      dialog: {
+        createTitle: 'New Announcement',
+        editTitle: 'Edit Announcement',
+      },
+      form: {
+        label: {
+          title: 'Title',
+          type: 'Type',
+          content: 'Content',
+          publishDate: 'Publish Date',
+          effectiveDate: 'Effective Date',
+          expiryDate: 'Expiry Date',
+          scope: 'Visibility Scope',
+          remarks: 'Remarks',
+          isTop: 'Top',
+        },
+      },
+      placeholder: {
+        status: 'Filter by status',
+        type: 'Filter by type',
+      },
+      message: {
+        fetchFailed: 'Failed to fetch list',
+        createSuccess: 'Created successfully',
+        updateSuccess: 'Updated successfully',
+        operationFailed: 'Operation failed',
       },
     },
   },

@@ -12,7 +12,7 @@
 //   5. 发放管理页面加载断言（等待核心组件渲染，V15 P0-F07：borrow→issue）
 // 同时对齐批次 28 P0-1 fail-secure 模式：凭据从环境变量注入，禁止硬编码 admin/admin123。
 
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './diagnose-fixture';
 
 /**
  * 被测系统基础地址
