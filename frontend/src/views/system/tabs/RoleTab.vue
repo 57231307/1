@@ -158,10 +158,7 @@ const fetchRoles = async () => {
   try {
     const res = await getRoleList();
     // 后端 list_roles 真实结构为 data.roles[]（RoleListResponse），兼容 items/data/裸数组形态
-    const d = res.data as
-      | { roles?: Role[]; items?: Role[]; data?: Role[] }
-      | Role[]
-      | undefined;
+    const d = res.data as { roles?: Role[]; items?: Role[]; data?: Role[] } | Role[] | undefined;
     roles.value = (Array.isArray(d) ? d : d?.roles || d?.items || d?.data || []) as Role[];
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
@@ -291,15 +288,12 @@ const openPermissionDialog = (row: Role) => {
 const fetchRolePermissions = async (roleId: number) => {
   permissionLoading.value = true;
   try {
-    const [treeRes, roleRes] = await Promise.all([
-      getPermissionList(),
-      getRolePermissions(roleId),
-    ]);
+    const [treeRes, roleRes] = await Promise.all([getPermissionList(), getRolePermissions(roleId)]);
     permissionTree.value = buildPermissionTree(treeRes.data || []);
     const grantRows = (roleRes.data || []) as Permission[];
     const map = new Map<string, { id: number; allowed: boolean }>();
     const keys: string[] = [];
-    grantRows.forEach((p) => {
+    grantRows.forEach(p => {
       const k = permKey(p.resource_type, p.action);
       map.set(k, { id: p.id, allowed: p.allowed });
       if (p.allowed) keys.push(k);
@@ -323,7 +317,7 @@ interface PermissionTreeNode {
 // 权限目录按 resource_type 分组为两层树（后端 /permissions 无 parent_id 层级）
 const buildPermissionTree = (perms: Permission[]): PermissionTreeNode[] => {
   const groups = new Map<string, PermissionTreeNode>();
-  perms.forEach((p) => {
+  perms.forEach(p => {
     if (!p.resource_type || !p.action) return;
     let g = groups.get(p.resource_type);
     if (!g) {
@@ -340,9 +334,7 @@ const buildPermissionTree = (perms: Permission[]): PermissionTreeNode[] => {
 };
 
 const handlePermissionCheck = (_: unknown, { checkedKeys: keys }: { checkedKeys: unknown[] }) => {
-  checkedKeys.value = keys
-    .map((k) => String(k))
-    .filter((k) => !k.startsWith('group::'));
+  checkedKeys.value = keys.map(k => String(k)).filter(k => !k.startsWith('group::'));
 };
 
 const submitPermissions = async () => {
@@ -351,14 +343,18 @@ const submitPermissions = async () => {
   const assignTasks: Array<Promise<unknown>> = [];
   const removeTasks: Array<Promise<unknown>> = [];
   // 勾选项：无关联行或既有行 allowed=false → 逐条 POST 单条赋权（幂等）
-  checkedKeys.value.forEach((k) => {
+  checkedKeys.value.forEach(k => {
     const existing = existingGrantRows.value.get(k);
     if (existing === undefined || !existing.allowed) {
       const sep = k.indexOf('::');
       const resourceType = k.slice(0, sep);
       const act = k.slice(sep + 2);
       assignTasks.push(
-        assignPermission(currentRoleId.value, { resource_type: resourceType, action: act, allowed: true })
+        assignPermission(currentRoleId.value, {
+          resource_type: resourceType,
+          action: act,
+          allowed: true,
+        })
       );
     }
   });
@@ -370,7 +366,7 @@ const submitPermissions = async () => {
   });
   try {
     const results = await Promise.allSettled([...assignTasks, ...removeTasks]);
-    const failed = results.filter((r) => r.status === 'rejected');
+    const failed = results.filter(r => r.status === 'rejected');
     if (failed.length > 0) {
       const first = failed[0] as PromiseRejectedResult;
       ElMessage.error(

@@ -58,7 +58,11 @@
     </el-card>
 
     <!-- 系统公告发送（管理员，notifications:create 权限） -->
-    <el-card v-permission="'notifications:create'" shadow="hover" style="max-width: 600px; margin-top: 20px">
+    <el-card
+      v-permission="'notifications:create'"
+      shadow="hover"
+      style="max-width: 600px; margin-top: 20px"
+    >
       <template #header>{{ t('system.notification.announce.title') }}</template>
       <el-form :model="announcementForm" label-width="100px">
         <el-form-item :label="t('system.notification.announce.label.title')" required>
@@ -81,12 +85,7 @@
             :placeholder="t('system.notification.announce.placeholder.recipients')"
             style="width: 100%"
           >
-            <el-option
-              v-for="u in userOptions"
-              :key="u.id"
-              :label="u.username"
-              :value="u.id"
-            />
+            <el-option v-for="u in userOptions" :key="u.id" :label="u.username" :value="u.id" />
           </el-select>
         </el-form-item>
         <el-form-item>

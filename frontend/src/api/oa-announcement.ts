@@ -15,7 +15,11 @@ export interface OaAnnouncement {
   attachments?: unknown;
   remarks?: string | null;
   visibility_scope: string;
-  visible_scope_config?: { user_ids?: number[]; department_ids?: number[]; role_ids?: number[] } | null;
+  visible_scope_config?: {
+    user_ids?: number[];
+    department_ids?: number[];
+    role_ids?: number[];
+  } | null;
   created_at?: string;
   updated_at?: string;
   notified_count?: number;
