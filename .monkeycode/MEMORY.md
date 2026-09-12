@@ -133,3 +133,6 @@
 - **CI 失败日志分析方法（IR，2026-09-11）**：GitHub job log 只有 E2E-HEAD/TAIL 摘要（Playwright 输出被重定向到 reports/ 文件）；完整失败详情在 e2e-report-shard-N artifact 的 data/*.md 中（含每测试的 Name/Location/Expected/Received）；批量解析脚本需每分片刷新 git credential token（后台终端 token 会失效）
 - **CI 失败判责纪律（IR，2026-09-11，用户强调）**：测试失败后必须先判责——源代码错误修源代码，测试文件错误修测试文件，禁止混淆两者瞎改。判责依据：对照后端真实 DTO/路由/约束（grep 源码确认），而非猜测。修复前先回答"这是谁的问题"
 - **推送前自审强制（IR，2026-09-11，用户强调）**：git push 前必须完成自审——逐文件检查修改正确性（字段名/类型/路径/枚举值对照后端真实 DTO）、vue-tsc 编译通过、prettier 格式通过。自审通过后才能推送。禁止"改完直接推"
+- **CI 日志 grep 精确模式（2026-09-12 排障经验）**：backend.log 里 grep "429" 会误匹配 trace_id/span_id 中的随机数字段（如 `span_id=6b5d4296...`），必须用 `grep -aE "状态: 429|status=429"` 精确模式；完整 backend.log 在 e2e-report-shard-N artifact 的 reports/ 目录下（此前误判"CI 未上传 backend.log"）
+- **后台终端 gh/git credential 限制（2026-09-12 环境知识）**：后台终端（sh）里 `git credential fill` 拿不到 token（TOKEN_LEN=0，credential helper 依赖交互 shell 环境），且 cargo 不在 PATH（需 `PATH=$PATH:/root/.cargo/bin`）。对策：前台取 token 写 `/tmp/gh_token.txt`（chmod 600），后台终端 `GH_TOKEN=$(cat /tmp/gh_token.txt)`
+- **/system 页隐藏 Tab DOM 假象（2026-09-12 测试知识）**：前端 /system 页多 Tab 共存，隐藏 Tab 的 .el-table__row 仍渲染在 DOM（E2E 遍历到 68 行假象）。测试定位行/搜索框必须用 `:visible` 伪类（`.el-table__row:visible`、`.filter-card input:visible`）；Element Plus checkbox 原生 input 透明隐藏，check() 会跳过，必须点击 .el-checkbox label 根
