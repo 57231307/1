@@ -9,6 +9,8 @@ export interface User {
   phone?: string;
   department_id?: number;
   department_name?: string;
+  // 后端 UserResponse.role_id (Option<i32>)
+  role_id?: number;
   role_ids?: number[];
   role_names?: string[];
   // 后端 UserResponse 序列化字段为 is_active (bool)，非 status 数字

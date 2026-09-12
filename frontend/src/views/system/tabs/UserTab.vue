@@ -330,6 +330,8 @@ const openUserDialog = (row?: User) => {
       phone: row.phone || '',
       email: row.email || '',
       department_id: row.department_id,
+      // role_id 必填且下拉始终渲染，缺回显会让编辑保存被校验拦截（PUT 不发出）
+      role_id: row.role_id,
       // 后端响应为 is_active (bool)，表单 switch 用 1/0
       status: row.is_active ? 1 : 0,
     });
