@@ -294,9 +294,10 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   if (ctx.departmentIds.length === 0) {
     try {
       ctx.departmentIds = await readEntityIds(page, '/departments', `${API_PREFIX}/departments`);
-    } catch (e) { console.warn(`[E2E] catch: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] catch: ${(e as Error).message}`);
       ctx.departmentIds = [];
-     }
+    }
   }
   if (ctx.departmentIds.length === 0) {
     const id = await uiCreateWithRetry(page, createDepartmentUI);
@@ -781,10 +782,13 @@ export async function apiCall<T = unknown>(
   path: string,
   body?: Record<string, unknown>
 ): Promise<ApiResponse<T>> {
-  let csrfToken = (await getCsrfToken(page).catch((e) => {
-    console.warn(`[apiCall] ${method} ${path} CSRF cookie 提取失败（未登录态）: ${(e as Error).message}`);
-    return null;
-  })) ?? '';
+  let csrfToken =
+    (await getCsrfToken(page).catch(e => {
+      console.warn(
+        `[apiCall] ${method} ${path} CSRF cookie 提取失败（未登录态）: ${(e as Error).message}`
+      );
+      return null;
+    })) ?? '';
   const url = `${API_BASE}${API_PREFIX}${path}`;
   const doFetch = async (token: string) => {
     return page.request.fetch(url, {
@@ -892,7 +896,9 @@ export async function apiCallExpectFail(
     json = JSON.parse(text);
   } catch {
     // IR 详细日志：非 JSON 响应必须可见（404 空响应/HTML 错误页等）
-    console.warn(`[apiCall] 非 JSON 响应 status=${response.status()} body 前 120 字符: ${text.slice(0, 120)}`);
+    console.warn(
+      `[apiCall] 非 JSON 响应 status=${response.status()} body 前 120 字符: ${text.slice(0, 120)}`
+    );
   }
   return { status: response.status(), code: json.code, message: json.message };
 }
@@ -919,7 +925,9 @@ export async function loginViaUI(
     if (hasToken && hasCsrf) {
       await page
         .goto(`${BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded', timeout: 30000 })
-        .catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+        .catch(e => {
+          console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+        });
       return;
     }
     console.warn(
@@ -956,7 +964,9 @@ export async function loginViaUI(
       // 设置 locale
       await page
         .evaluate(() => window.localStorage.setItem('bingxi.locale', 'zh-CN'))
-        .catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+        .catch(e => {
+          console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+        });
       await page.waitForTimeout(1000);
 
       // 尝试登录
@@ -996,7 +1006,10 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
     .locator('.el-checkbox input')
     .first()
     .isChecked()
-    .catch((e) => { console.warn('[loginViaUI] 复选框状态查询失败:', (e as Error).message); return false; });
+    .catch(e => {
+      console.warn('[loginViaUI] 复选框状态查询失败:', (e as Error).message);
+      return false;
+    });
   console.log(`复选框初始状态: checked=${isChecked}`);
   if (!isChecked) {
     // 点击视觉复选框区域（.el-checkbox__inner）
@@ -1006,7 +1019,10 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
       .locator('.el-checkbox input')
       .first()
       .isChecked()
-      .catch((e) => { console.warn('[loginViaUI] 复选框状态查询失败:', (e as Error).message); return false; });
+      .catch(e => {
+        console.warn('[loginViaUI] 复选框状态查询失败:', (e as Error).message);
+        return false;
+      });
     console.log(`点击 inner 后复选框状态: checked=${nowChecked}`);
     if (!nowChecked) {
       // fallback: 点击 label
@@ -1016,7 +1032,10 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
         .locator('.el-checkbox input')
         .first()
         .isChecked()
-        .catch((e) => { console.warn('[loginViaUI] 复选框状态查询失败:', (e as Error).message); return false; });
+        .catch(e => {
+          console.warn('[loginViaUI] 复选框状态查询失败:', (e as Error).message);
+          return false;
+        });
       console.log(`点击 label 后复选框状态: checked=${nowChecked}`);
     }
     if (!nowChecked) {
@@ -1037,7 +1056,10 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
   // 点击登录按钮
   const loginButton = page.locator('form button.el-button--primary').first();
   await loginButton.waitFor({ state: 'visible', timeout: 10_000 });
-  const isDisabled = await loginButton.isDisabled().catch((e) => { console.warn('[loginViaUI] 按钮状态查询失败:', (e as Error).message); return false; });
+  const isDisabled = await loginButton.isDisabled().catch(e => {
+    console.warn('[loginViaUI] 按钮状态查询失败:', (e as Error).message);
+    return false;
+  });
   console.log(`登录按钮 disabled: ${isDisabled}`);
 
   // IR 2026-09-03 详细日志：显式记录登录接口响应状态（成功/失败均打印），
@@ -1060,7 +1082,7 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
     const formErrors = await page
       .locator('.el-form-item__error')
       .allTextContents()
-      .catch((e) => {
+      .catch(e => {
         console.warn('[loginViaUI] 表单验证错误元素查询失败:', (e as Error).message);
         return [];
       });
@@ -1098,7 +1120,7 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
     const elMessages = await page
       .locator('.el-message__content')
       .allTextContents()
-      .catch((e) => {
+      .catch(e => {
         console.warn('[loginViaUI] toast 消息查询失败:', (e as Error).message);
         return [];
       });
@@ -1114,7 +1136,9 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
     // 强制关闭 page 释放挂起的网络请求/等待 promise（防 Playwright runner 挂起）
     // shard 15 历史挂起 55 分钟教训：waitForURL 的 promise 在后端无响应时永不 resolve，
     // 即使 timeout Error 抛出，page 挂起的 fetch 连接仍阻止 runner 退出
-    await page.close().catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+    await page.close().catch(e => {
+      console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+    });
     throw new Error(
       `UI 登录失败: 40s 内未离开 ${currentUrl}，登录接口状态 ${loginRespStatus || '未捕获'}，ElMessage: ${JSON.stringify(elMessages)}`
     );
@@ -1139,7 +1163,9 @@ async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string
 export async function loginAsRole(page: Page, role: string): Promise<void> {
   const cred = getRoleCredential(role);
   if (!cred) {
-    throw new Error(`E2E role credentials not found for role: ${role}（env E2E_${role.toUpperCase()}_USERNAME 与 role-credentials.json 均无）`);
+    throw new Error(
+      `E2E role credentials not found for role: ${role}（env E2E_${role.toUpperCase()}_USERNAME 与 role-credentials.json 均无）`
+    );
   }
   await loginViaUI(page, cred.username, cred.password);
 }
@@ -1218,7 +1244,10 @@ export async function createEntityOrSkip(
   try {
     return await createEntity(page, endpoint, data);
   } catch (e) {
-    console.warn(`[createEntityOrSkip] ${endpoint} 实体创建失败（降级为 skip）:`, (e as Error).message);
+    console.warn(
+      `[createEntityOrSkip] ${endpoint} 实体创建失败（降级为 skip）:`,
+      (e as Error).message
+    );
     return null;
   }
 }
@@ -1234,7 +1263,10 @@ export async function verifyStatusTransition(
     await apiCall(page, 'POST', `${endpoint}/${id}/${action}`);
   } catch (e) {
     // 状态机容忍：action 可能因已处于目标状态被拒（重跑幂等），显式记录
-    console.log(`[verifyStatusTransition] ${endpoint}/${id}/${action} 状态机拒绝（幂等容忍）:`, (e as Error).message);
+    console.log(
+      `[verifyStatusTransition] ${endpoint}/${id}/${action} 状态机拒绝（幂等容忍）:`,
+      (e as Error).message
+    );
   }
   const entity = await apiCallRaw<{ status: string }>(page, 'GET', `${endpoint}/${id}`);
   const status = (entity.status || '').toLowerCase();
@@ -1308,14 +1340,17 @@ export async function ensureStockInWarehouse(
   };
 
   // 1. 优先查指定仓库（用传入的仓库 ID，而非漂移的 ctx）
-  const inWarehouse = await listStock(preferredWarehouseId).catch((e) => {
-    console.warn(`[ensureStockInWarehouse] 指定仓库 ${preferredWarehouseId ?? '?'} 库存查询失败:`, (e as Error).message);
+  const inWarehouse = await listStock(preferredWarehouseId).catch(e => {
+    console.warn(
+      `[ensureStockInWarehouse] 指定仓库 ${preferredWarehouseId ?? '?'} 库存查询失败:`,
+      (e as Error).message
+    );
     return undefined;
   });
   if (inWarehouse) return inWarehouse;
 
   // 2. 任意仓库有该产品库存 → 直接用（以真实数据为准）
-  const anywhere = await listStock().catch((e) => {
+  const anywhere = await listStock().catch(e => {
     console.warn('[ensureStockInWarehouse] 全仓库库存查询失败:', (e as Error).message);
     return undefined;
   });
@@ -1331,7 +1366,7 @@ export async function ensureStockInWarehouse(
     quantity_meters: '10000',
     quantity_kg: '5000',
   });
-  const created = await listStock(preferredWarehouseId).catch((e) => {
+  const created = await listStock(preferredWarehouseId).catch(e => {
     console.warn('[ensureStockInWarehouse] 创建后库存查询失败:', (e as Error).message);
     return undefined;
   });
@@ -1412,7 +1447,10 @@ export async function verifyFrontendStatusDisplay(
   await page.waitForTimeout(2000);
   for (const text of statusTexts) {
     const el = page.getByText(text, { exact: false });
-    const visible = await el.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    const visible = await el.isVisible().catch(e => {
+      console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
+      return false;
+    });
     if (!visible) {
       // not all statuses may be present, just verify page loaded
     }
@@ -1477,7 +1515,9 @@ export async function verifySoDConflict(
 ): Promise<boolean> {
   // 后端无 /users/assign-role 端点；用户角色通过 PUT /users/{id} 的 role_id 字段分配（单角色）。
   // SoD 冲突由角色互斥规则（/roles/conflicts）在角色管理侧校验，此处模拟双角色分配必然失败 → 返回 true（存在冲突约束）。
-  console.log(`[verifySoDConflict] userId=${userId} 模拟双角色 ${roleA}+${roleB}（后端单角色模型，按存在冲突约束处理）`);
+  console.log(
+    `[verifySoDConflict] userId=${userId} 模拟双角色 ${roleA}+${roleB}（后端单角色模型，按存在冲突约束处理）`
+  );
   try {
     await apiCall(page, 'PUT', `/users/${userId}`, {
       role_id: roleA,
@@ -1487,9 +1527,10 @@ export async function verifySoDConflict(
       role_id: roleB,
     });
     return !(second.code === 200 || second.code === 0);
-  } catch (e) { console.warn(`[E2E] catch: ${(e as Error).message}`); 
+  } catch (e) {
+    console.warn(`[E2E] catch: ${(e as Error).message}`);
     return true;
-   }
+  }
 }
 
 export async function verifyBulkColorDeliveryBlock(
@@ -1548,7 +1589,10 @@ export async function verifyOutsourcingVoucher(
     );
     return vouchers.items?.[0] || null;
   } catch (e) {
-    console.warn(`[verifyOutsourcingVoucher] order=${orderId} type=${voucherType} 凭证查询失败:`, (e as Error).message);
+    console.warn(
+      `[verifyOutsourcingVoucher] order=${orderId} type=${voucherType} 凭证查询失败:`,
+      (e as Error).message
+    );
     return null;
   }
 }
@@ -1671,17 +1715,17 @@ export function trackPageHealth(page: Page): PageHealthCollector {
     serverErrors: [],
   };
 
-  page.on('pageerror', (error) => {
+  page.on('pageerror', error => {
     collector.pageErrors.push(error.message);
   });
 
-  page.on('console', (msg) => {
+  page.on('console', msg => {
     if (msg.type() === 'error') {
       collector.consoleErrors.push(msg.text());
     }
   });
 
-  page.on('response', (response) => {
+  page.on('response', response => {
     const status = response.status();
     if (status >= 500) {
       collector.serverErrors.push({ url: response.url(), status });
@@ -1697,37 +1741,36 @@ export function trackPageHealth(page: Page): PageHealthCollector {
 export async function assertPageHealthy(
   page: Page,
   collector: PageHealthCollector,
-  options?: { allowConsoleWarn?: boolean; whiteListPaths?: string[] },
+  options?: { allowConsoleWarn?: boolean; whiteListPaths?: string[] }
 ): Promise<void> {
   // 1. 零 pageerror
   if (collector.pageErrors.length > 0) {
-    throw new Error(
-      `页面存在未捕获错误: ${collector.pageErrors.slice(0, 5).join('; ')}`,
-    );
+    throw new Error(`页面存在未捕获错误: ${collector.pageErrors.slice(0, 5).join('; ')}`);
   }
 
   // 2. 零未捕获 console.error（warn 白名单可配）
   if (!options?.allowConsoleWarn && collector.consoleErrors.length > 0) {
-    throw new Error(
-      `控制台存在 error 输出: ${collector.consoleErrors.slice(0, 5).join('; ')}`,
-    );
+    throw new Error(`控制台存在 error 输出: ${collector.consoleErrors.slice(0, 5).join('; ')}`);
   }
 
   // 3. 零 5xx 响应（白名单路径可配）
   const whiteList = options?.whiteListPaths ?? [];
   const realServerErrors = collector.serverErrors.filter(
-    (e) => !whiteList.some((p) => e.url.includes(p)),
+    e => !whiteList.some(p => e.url.includes(p))
   );
   if (realServerErrors.length > 0) {
     throw new Error(
-      `存在 5xx 服务器错误: ${realServerErrors.slice(0, 5).map((e) => `${e.status} ${e.url}`).join('; ')}`,
+      `存在 5xx 服务器错误: ${realServerErrors
+        .slice(0, 5)
+        .map(e => `${e.status} ${e.url}`)
+        .join('; ')}`
     );
   }
 
   // 4. 主容器非白屏（innerText 长度阈值）
   const mainContent = await page.evaluate(() => {
     const main = document.querySelector('.app-container, .el-main, main, #app');
-    return main ? main.textContent?.trim().length ?? 0 : 0;
+    return main ? (main.textContent?.trim().length ?? 0) : 0;
   });
   if (mainContent < 10) {
     throw new Error(`页面主容器内容过少（${mainContent} 字符），疑似白屏`);
@@ -1737,16 +1780,11 @@ export async function assertPageHealthy(
 /**
  * 断言同一文案 toast 实例计数 ≤1
  */
-export async function expectSingleToast(
-  page: Page,
-  textPattern?: string | RegExp,
-): Promise<void> {
+export async function expectSingleToast(page: Page, textPattern?: string | RegExp): Promise<void> {
   const toasts = await page.locator('.el-message').all();
   let matching = toasts;
   if (textPattern) {
-    const pattern = typeof textPattern === 'string'
-      ? new RegExp(textPattern)
-      : textPattern;
+    const pattern = typeof textPattern === 'string' ? new RegExp(textPattern) : textPattern;
     const texts: string[] = [];
     for (const t of toasts) {
       const text = (await t.textContent()) ?? '';
@@ -1789,8 +1827,8 @@ export function generateTotp(secretBase32: string, windowOffset = 0): string {
   const counterBuffer = Buffer.alloc(8);
   counterBuffer.writeBigUInt64BE(BigInt(counter));
 
-  // HMAC-SHA1
-  const hmac = crypto.createHmac('sha1', key).update(counterBuffer).digest();
+  // HMAC-SHA256（后端 TotpService setup/verify 统一 Algorithm::SHA256，非 RFC 默认 SHA1）
+  const hmac = crypto.createHmac('sha256', key).update(counterBuffer).digest();
 
   // 动态截取
   const offset = hmac[hmac.length - 1] & 0x0f;
@@ -1831,19 +1869,22 @@ export function getRoleCredential(role: string): RoleCredential | null {
     // credential not found 而文件写入 37 角色——静默 catch 掩盖了根因）
     if (!existsSync(ROLE_CREDENTIALS_PATH)) {
       console.error(
-        `[getRoleCredential] 凭证文件不存在: ${ROLE_CREDENTIALS_PATH}（cwd=${process.cwd()}）`,
+        `[getRoleCredential] 凭证文件不存在: ${ROLE_CREDENTIALS_PATH}（cwd=${process.cwd()}）`
       );
       return null;
     }
-    const data = JSON.parse(
-      readFileSync(ROLE_CREDENTIALS_PATH, 'utf-8'),
-    ) as Record<string, RoleCredential>;
+    const data = JSON.parse(readFileSync(ROLE_CREDENTIALS_PATH, 'utf-8')) as Record<
+      string,
+      RoleCredential
+    >;
     const cred = data[role];
     if (!cred) {
       console.error(
-        `[getRoleCredential] 凭证文件存在但无角色 ${role}，可用键: ${Object.keys(data).slice(0, 8).join(',')}…共 ${Object.keys(data).length}`,
+        `[getRoleCredential] 凭证文件存在但无角色 ${role}，可用键: ${Object.keys(data).slice(0, 8).join(',')}…共 ${Object.keys(data).length}`
       );
-      console.error(`[getRoleCredential][诊断] 文件前 200 字符: ${JSON.stringify(data).slice(0, 200)}`);
+      console.error(
+        `[getRoleCredential][诊断] 文件前 200 字符: ${JSON.stringify(data).slice(0, 200)}`
+      );
     }
     return cred ?? null;
   } catch (e) {

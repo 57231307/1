@@ -264,7 +264,7 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
       name,
       code,
       address: 'P0仓库地址A区',
-      manager: 'P0仓管员',
+      // 后端 manager 字段语义为 manager_id（i32），发姓名会 400——E2E 不传（真实 UI 也不传该字段）
       phone: '13700000000',
       capacity: 10000,
       description: 'P0仓库描述——非必填项也全部填写',
@@ -282,7 +282,6 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
         code?: string;
         name?: string;
         address?: string;
-        manager?: string;
         phone?: string;
         capacity?: number;
         warehouse_type?: string;
@@ -297,7 +296,6 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     expect(found!.code, `code 应为 ${code}`).toBe(code);
     expect(found!.name, `name 应为 ${name}`).toBe(name);
     expect(found!.address, 'address 应为 P0仓库地址A区').toBe('P0仓库地址A区');
-    expect(found!.manager, 'manager 应为 P0仓管员').toBe('P0仓管员');
     expect(found!.phone, 'phone 应为 13700000000').toBe('13700000000');
     expect(found!.capacity, 'capacity 应为 10000').toBe(10000);
     expect(found!.warehouse_type, 'warehouse_type 应为 finished').toBe('finished');

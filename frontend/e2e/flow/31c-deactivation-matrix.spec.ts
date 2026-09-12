@@ -251,14 +251,34 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
         if (kwVisible) {
           await keywordInput.fill(username);
           await keywordInput.press('Enter');
-          await page.waitForTimeout(2000);
+          // 等待搜索结果行渲染（keyword 请求+表格重渲染需要时间，固定 2s 可能落在空窗期）
+          await page
+            .waitForFunction(() => document.querySelectorAll('.el-table__row:visible').length > 0, {
+              timeout: 10000,
+            })
+            .catch(() => {
+              console.warn('[31c-用户] 搜索后 10s 表格无可见行');
+            });
+          await page.waitForTimeout(500);
           console.log('[31c-用户] 已按用户名过滤列表');
           diag += '；搜索OK';
         } else {
           diag += '；搜索框不可见';
         }
         const opened = await openEditDialog(page, '/system', username, true);
-        diag += `；openEditDialog=${opened}${opened ? '' : `(${editFailReason})`}`;
+        if (!opened) {
+          // API 侧诊断：keyword 搜索在 API 层是否能查到（区分"数据缺失"与"UI 渲染问题"）
+          const apiSearch = await page.request
+            .get(`${API_BASE}${API_PREFIX}/users?page=1&page_size=20&keyword=${username}`)
+            .then(r => r.json().catch(() => null))
+            .catch(() => null);
+          const apiUsers = (apiSearch as { data?: { users?: Array<{ username?: string }> } } | null)
+            ?.data?.users;
+          const apiHit = apiUsers?.some(u => u.username === username);
+          diag += `；openEditDialog=${opened}(${editFailReason})；API回读命中=${apiHit}（${apiUsers?.length ?? 'err'}条）`;
+        } else {
+          diag += `；openEditDialog=${opened}`;
+        }
         if (opened) {
           toggled = await toggleStatusInDialog(page, '禁用', /确定|保存/);
           diag += `；toggled=${toggled}`;

@@ -44,17 +44,24 @@ test.describe('P5.1 登录瀑布', () => {
     });
     await userInput.fill('e2e_admin');
     await page.locator('input[type="password"]').first().fill('WrongPassword123!');
-    // 勾选协议：Element Plus 的原生 input 透明隐藏，check() 会因不可见跳过 → 改点击可见的 label 根（真实用户行为）
-    const checkboxRoot = page.locator('.el-checkbox, label:has(input[type="checkbox"])').first();
-    if (
-      await checkboxRoot.isVisible().catch(e => {
-        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
-        return false;
-      })
-    ) {
-      await checkboxRoot.click().catch(e => {
-        console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
-      });
+    // 勾选协议：点击视觉方块 .el-checkbox__inner（点击 label 中心会命中《用户协议》链接导致不勾选）
+    const cbInner = page.locator('.el-checkbox__inner').first();
+    const cbInput = page.locator('.el-checkbox input').first();
+    const cbVisible = await cbInner.isVisible().catch(() => false);
+    if (cbVisible) {
+      const checkedBefore = await cbInput.isChecked().catch(() => false);
+      if (!checkedBefore) {
+        await cbInner.click().catch(() => {});
+        await page.waitForTimeout(300);
+        const nowChecked = await cbInput.isChecked().catch(() => false);
+        if (!nowChecked) {
+          await page
+            .locator('.el-checkbox')
+            .first()
+            .click()
+            .catch(() => {});
+        }
+      }
     }
     await page.click('button[type="submit"], button:has-text("登录")');
 
