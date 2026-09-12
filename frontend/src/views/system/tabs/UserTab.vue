@@ -19,7 +19,7 @@
             v-model="userQuery.keyword"
             :placeholder="t('system.user.filter.keywordPlaceholder')"
             clearable
-            @keyup.enter="fetchUsers"
+            @keyup.enter="handleQuery"
           />
         </el-form-item>
         <el-form-item :label="t('system.user.filter.status')">

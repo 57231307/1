@@ -366,9 +366,28 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
   // ===== 6. 销售订单（全字段：customer_id/opportunity_id/required_date/status/shipping_address/billing_address/notes/items/payment_terms/remarks/batch_no + items 全字段） =====
   test('销售订单：全字段填写→创建→详情二次访问（逐字段比对）', async ({ page }) => {
     test.setTimeout(60_000);
+    // 前置：动态创建客户与产品（CI 库种子不保证 id=1 存在，写死 id 会"客户 1 不存在"BUSINESS_ERROR）
+    const cust = await apiCall<{ id?: number }>(page, 'POST', '/customers', {
+      customer_name: `P0订单客户${TS}`,
+      customer_type: 'retail',
+    }).catch(() => null);
+    const custId = cust?.data?.id;
+    const prod = await apiCall<{ id?: number }>(page, 'POST', '/products', {
+      name: `P0订单产品${TS}`,
+      code: uniqueKey('P0-PRD-'),
+      standard_price: 5,
+      status: 'active',
+    }).catch(() => null);
+    const prodId = prod?.data?.id;
+    if (!custId || !prodId) {
+      console.warn(`[P0-销售订单] 前置数据缺失（cust=${custId} prod=${prodId}），跳过`);
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
+      test.skip();
+      return;
+    }
     const orderDate = new Date().toISOString().slice(0, 10);
     const payload = {
-      customer_id: 1,
+      customer_id: custId,
       opportunity_id: null,
       required_date: '2026-12-31T00:00:00Z',
       shipping_address: 'P0收货地址',
@@ -376,7 +395,7 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
       notes: 'P0销售订单备注',
       items: [
         {
-          product_id: 1,
+          product_id: prodId,
           quantity: '10',
           unit_price: '5',
           discount_percent: '2',
