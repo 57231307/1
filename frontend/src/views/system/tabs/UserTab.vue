@@ -203,6 +203,8 @@ const {
 } = useTableApi<User>({
   url: '/users',
   defaultPageSize: 10,
+  // /users 响应 data 形如 { users: [...], total }（非 items/list 包装），必须显式指定 listKey
+  listKey: 'users',
   onError: (err: unknown) =>
     ElMessage.error(
       (err instanceof Error ? err.message : String(err)) || t('system.user.message.loadListFailed')

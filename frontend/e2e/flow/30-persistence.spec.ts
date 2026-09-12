@@ -282,6 +282,8 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
         code?: string;
         name?: string;
         address?: string;
+        // 列表响应序列化字段为 warehouse_code（warehouse model 列名），非 code
+        warehouse_code?: string;
         phone?: string;
         capacity?: number;
         warehouse_type?: string;
@@ -293,7 +295,7 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
       `[P0-仓库] 列表回读（即二次访问）：共 ${items.length} 条，找到 id=${id} → ${found ? '✅存在' : '❌不存在'}`
     );
     expect(found, '创建的仓库必须出现在列表中').toBeTruthy();
-    expect(found!.code, `code 应为 ${code}`).toBe(code);
+    expect(found!.warehouse_code, `warehouse_code 应为 ${code}`).toBe(code);
     expect(found!.name, `name 应为 ${name}`).toBe(name);
     expect(found!.address, 'address 应为 P0仓库地址A区').toBe('P0仓库地址A区');
     expect(found!.phone, 'phone 应为 13700000000').toBe('13700000000');

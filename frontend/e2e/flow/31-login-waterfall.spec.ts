@@ -29,11 +29,6 @@ test.describe('P5.1 登录瀑布', () => {
 
   test('错密码一次点击不触发 refresh 瀑布', async ({ page }) => {
     const requests: string[] = [];
-    page.on('request', req => {
-      if (req.url().includes('/auth/')) {
-        requests.push(authPath(req.url()));
-      }
-    });
 
     // 故意用错密码触发 401；safeGoto 处理 Vite 冷启动 504 Outdated Optimize Dep 重试
     await safeGoto(page, '/');
@@ -41,6 +36,14 @@ test.describe('P5.1 登录瀑布', () => {
     const userInput = page.locator('input[placeholder*="用户名"], input[name="username"]').first();
     await userInput.waitFor({ state: 'visible', timeout: 45000 }).catch(e => {
       console.warn(`[E2E] 登录表单未出现: ${(e as Error).message}`);
+    });
+    // 表单出现后再开始记录请求：app 启动瀑布（/auth/me、/auth/refresh 401 探测）
+    // 发生在表单渲染前/期间，与"点击登录是否触发 refresh"的断言无关，必须排除
+    await page.waitForTimeout(1500);
+    page.on('request', req => {
+      if (req.url().includes('/auth/')) {
+        requests.push(authPath(req.url()));
+      }
     });
     await userInput.fill('e2e_admin');
     await page.locator('input[type="password"]').first().fill('WrongPassword123!');
