@@ -11,7 +11,8 @@ export interface User {
   department_name?: string;
   role_ids?: number[];
   role_names?: string[];
-  status: number;
+  // 后端 UserResponse 序列化字段为 is_active (bool)，非 status 数字
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -34,7 +35,8 @@ export interface UserUpdateRequest {
   department_id?: number;
   // 后端 UpdateUserRequest.role_id 为 Option<i32>（单值，非数组）
   role_id?: number;
-  status?: number;
+  // 后端 UpdateUserRequest.status 为 "active"/"inactive" 字符串（非数字）
+  status?: string;
 }
 
 export interface ChangePasswordRequest {

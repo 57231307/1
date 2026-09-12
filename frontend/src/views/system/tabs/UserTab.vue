@@ -67,15 +67,15 @@
           </template>
         </el-table-column>
         <el-table-column
-          prop="status"
+          prop="is_active"
           :label="t('system.user.table.status')"
           width="80"
           align="center"
         >
           <template #default="{ row }">
-            <el-tag :type="row.status === 1 ? 'success' : 'info'" size="small">
+            <el-tag :type="row.is_active ? 'success' : 'info'" size="small">
               {{
-                row.status === 1 ? t('system.user.status.active') : t('system.user.status.inactive')
+                row.is_active ? t('system.user.status.active') : t('system.user.status.inactive')
               }}
             </el-tag>
           </template>
@@ -325,7 +325,8 @@ const openUserDialog = (row?: User) => {
       phone: row.phone || '',
       email: row.email || '',
       department_id: row.department_id,
-      status: row.status,
+      // 后端响应为 is_active (bool)，表单 switch 用 1/0
+      status: row.is_active ? 1 : 0,
     });
   } else {
     Object.assign(userForm, {
@@ -354,7 +355,8 @@ const submitUser = async () => {
         phone: userForm.phone,
         email: userForm.email,
         department_id: userForm.department_id,
-        status: userForm.status,
+        // 后端 UpdateUserRequest.status 为 "active"/"inactive" 字符串（非数字）
+        status: userForm.status === 1 ? 'active' : 'inactive',
       });
       ElMessage.success(t('settings.user.updateSuccess'));
     } else {
