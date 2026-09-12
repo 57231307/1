@@ -40,9 +40,9 @@ pub async fn validate_warehouse_for_piece_type<C: ConnectionTrait>(
         (Some("greige"), _) => reject(
             "胚布仓只能存放未染色、未做工艺的胚布，染色后/工艺后的成品请入成品仓".to_string(),
         ),
-        (Some("finished"), _) => reject(
-            "成品仓只能存放染色后或做工艺后的成品，未染色的生产匹请入胚布仓".to_string(),
-        ),
+        (Some("finished"), _) => {
+            reject("成品仓只能存放染色后或做工艺后的成品，未染色的生产匹请入胚布仓".to_string())
+        }
         _ => Ok(()),
     }
 }
@@ -240,7 +240,7 @@ pub async fn create_piece_from_outsourcing_receipt<C: ConnectionTrait>(
         (Some(_), None) => {
             return Err(AppError::business(
                 "染色外发的回仓单必须填写缸号（dye_lot_no）",
-            ))
+            ));
         }
         // 净布外发：无缸号存空串
         (None, _) => String::new(),
@@ -259,9 +259,7 @@ pub async fn create_piece_from_outsourcing_receipt<C: ConnectionTrait>(
         // 缸号档案 find_or_create：染色回仓是缸号的产生时机，档案缺失时自动补齐
         // （历史实现直接报错"未建档"，导致染色链路在无手工建档入口时完全走不通）
         let existing = crate::models::batch_dye_lot::Entity::find()
-            .filter(
-                crate::models::batch_dye_lot::Column::DyeLotNo.eq(lot_no),
-            )
+            .filter(crate::models::batch_dye_lot::Column::DyeLotNo.eq(lot_no))
             .one(db)
             .await?;
         let lot = match existing {
@@ -308,10 +306,7 @@ pub async fn create_piece_from_outsourcing_receipt<C: ConnectionTrait>(
             .and_then(|p| p.piece_seq)
             .map(|s| s + 1)
             .unwrap_or(1);
-        (
-            format!("{}-{:03}", lot_no, next_seq),
-            Some(next_seq),
-        )
+        (format!("{}-{:03}", lot_no, next_seq), Some(next_seq))
     } else {
         (format!("{}-P01", receipt_no), Some(1))
     };

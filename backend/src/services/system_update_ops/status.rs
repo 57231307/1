@@ -120,12 +120,9 @@ impl SystemUpdateService {
     }
 
     pub fn get_current_version(&self) -> String {
-        let version_file = self.app_dir.join("VERSION");
-        if version_file.exists() {
-            fs::read_to_string(&version_file).unwrap_or_else(|_| "1.0.0".to_string())
-        } else {
-            "1.0.0".to_string()
-        }
+        // 方案 C：编译期真实版本，消除对部署目录 VERSION 文件的依赖
+        // VERSION 文件仍作为更新包结构文件存在（apply.rs 包校验逻辑不动）
+        env!("CARGO_PKG_VERSION").to_string()
     }
 
     pub fn get_status(&self) -> UpdateStatus {

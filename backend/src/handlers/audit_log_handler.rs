@@ -76,6 +76,8 @@ pub struct AuditLogListQuery {
     pub keyword: Option<String>,
     pub page: Option<u64>,
     pub page_size: Option<u64>,
+    /// 敏感导出 fail-closed：导出审批令牌
+    pub download_token: Option<String>,
 }
 
 /// 列表返回项（前端展示用）
@@ -361,6 +363,12 @@ pub async fn export_audit_logs(
     // P0 8-5 修复：审计日志导出仅限 admin
     require_admin_role(&state, &auth).await?;
 
+    // 敏感导出 fail-closed：校验审批令牌
+    let approval =
+        crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
+            .enforce_export_download(query.download_token.as_deref(), "audit_log")
+            .await?;
+
     const EXPORT_LIMIT: u64 = 10000;
     let cond = build_audit_log_condition(&query);
     let logs = audit_log::Entity::find()
@@ -399,6 +407,11 @@ pub async fn export_audit_logs(
         &state, &auth, &query, logs_count, &file_hash, file_size, &headers,
     )
     .await;
+
+    // 敏感导出 fail-closed：记录令牌消费（用真实 file_hash + file_size）
+    let _ = crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
+        .record_download(approval.id, filename.clone(), file_size, file_hash)
+        .await;
 
     // 规则 3：导出统一使用 xlsx 格式，错误用 AppError 表达，成功返回 200 + xlsx 响应体
     Ok(xlsx_response(xlsx_bytes, &filename))

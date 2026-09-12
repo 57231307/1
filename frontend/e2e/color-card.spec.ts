@@ -12,7 +12,7 @@
 //   5. 发放管理页面加载断言（等待核心组件渲染，V15 P0-F07：borrow→issue）
 // 同时对齐批次 28 P0-1 fail-secure 模式：凭据从环境变量注入，禁止硬编码 admin/admin123。
 
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './diagnose-fixture';
 
 /**
  * 被测系统基础地址
@@ -129,11 +129,11 @@ test.describe('色卡仓储管理 E2E 业务流程', () => {
     try {
       await page.waitForSelector('text=基本信息', { state: 'visible', timeout: 30_000 });
       await expect(page.getByText('基本信息')).toBeVisible();
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       // 详情页可能因数据不存在显示"未找到"提示，也算业务流程正常
       const notFound = page.getByText(/未找到|不存在|404/);
       await expect(notFound).toBeVisible({ timeout: 15_000 });
-    }
+     }
   });
 
   test('色卡发放管理页面加载：等待核心组件渲染', async ({ page }) => {

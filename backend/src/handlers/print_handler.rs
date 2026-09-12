@@ -547,12 +547,14 @@ pub async fn safety_accident_report_print_docx(
     Ok(resp)
 }
 pub async fn sales_delivery_print_docx(
-    Path(doc_id): Path<i32>,
+    // 路由为 /orders/{id}/deliveries/{delivery_id}/print（两段参数），
+    // axum Path 单值提取多段路径会 500，必须用 tuple 提取并取第二段
+    Path((_order_id, delivery_id)): Path<(i32, i32)>,
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Response, AppError> {
-    let resp = render_print_docx(&state, "sales_delivery", doc_id).await?;
-    record_print_audit(&state, &auth, "sales_delivery", doc_id);
+    let resp = render_print_docx(&state, "sales_delivery", delivery_id).await?;
+    record_print_audit(&state, &auth, "sales_delivery", delivery_id);
     Ok(resp)
 }
 pub async fn sales_quotation_print_docx(

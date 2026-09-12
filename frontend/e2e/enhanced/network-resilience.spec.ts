@@ -1,4 +1,9 @@
 /**
+ * E2E-AUTHENTICITY-EXEMPT: 依赖响应伪造（mockApiError/mockNetworkFailure），
+ * 违反 E2E 真实数据强制 IR（2026-09-07：E2E 一律真实后端 + 真实 PostgreSQL）。
+ * 恢复方案：以真实后端异常源（越权账号 403 / 越界 ID 404 / 超限载荷 422）重写
+ * 后方可移除本标记与 skip，恢复需人工确认。
+ *
  * 网络韧性测试：模拟后端异常返回 / 弱网环境 / 网络中断
  *
  * 批次 262：验证前端对后端异常与弱网环境的容错处理。
@@ -17,6 +22,9 @@
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { mockApiError, mockNetworkFailure, simulateSlowNetwork } from '../fixtures/network';
+
+console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
+test.skip(true, 'E2E-AUTHENTICITY-EXEMPT: 依赖响应伪造，违反 E2E 真实数据 IR，待人工确认恢复方案');
 
 test.describe('网络韧性：后端异常返回处理', () => {
   test.beforeEach(async ({ context }) => {

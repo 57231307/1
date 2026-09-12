@@ -274,7 +274,10 @@ pub fn build_data_scope_sql(
                 let arr = Value::Array(
                     ArrayType::Int,
                     Some(Box::new(
-                        ctx.dept_ids.iter().map(|id| Value::Int(Some(*id))).collect(),
+                        ctx.dept_ids
+                            .iter()
+                            .map(|id| Value::Int(Some(*id)))
+                            .collect(),
                     )),
                 );
                 (

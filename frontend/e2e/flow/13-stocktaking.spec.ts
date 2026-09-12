@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import {
   loginViaUI,
   apiCall,
@@ -41,7 +41,8 @@ test.describe('库存盘点完整流程', () => {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/inventory/counts', countData);
       countId = result.data?.id!;
-    } catch {
+    } catch (e) {
+      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',
@@ -71,9 +72,9 @@ test.describe('库存盘点完整流程', () => {
       if (stockList.items && stockList.items.length > 0) {
         stockId = stockList.items?.[0].id;
       }
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       // 查询失败用默认 stock_id
-    }
+     }
 
     await apiCall(page, 'POST', `/inventory/counts/${countId}/record`, {
       items: [
@@ -128,7 +129,8 @@ test.describe('库存盘点完整流程', () => {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/inventory/counts', countData);
       countId = result.data?.id!;
-    } catch {
+    } catch (e) {
+      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',
@@ -173,7 +175,8 @@ test.describe('库存盘点完整流程', () => {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/inventory/counts', countData);
       countId = result.data?.id!;
-    } catch {
+    } catch (e) {
+      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',

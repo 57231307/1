@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import {
   loginViaUI,
   apiCall,
@@ -45,12 +45,13 @@ test.describe('面料单据专用字段全链路验证', () => {
         orderData
       );
       orderId = result.data?.id!;
-    } catch {
+    } catch (e) {
+      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',
         '/production/outsourcing-orders?page=1&page_size=1'
-      ).catch(() => ({ items: [] }));
+      ).catch((e) => { console.warn(`[E2E] 失败: ${(e as Error).message}`); return { items: [] }; });
       orderId = list.items?.[0]?.id;
     }
 
@@ -67,9 +68,9 @@ test.describe('面料单据专用字段全链路验证', () => {
           unit: '米',
           unit_cost: '5.00',
         });
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         // 明细添加可能失败
-      }
+       }
 
       // 查询订单详情
       const detail = await apiCallRaw<{
@@ -195,9 +196,10 @@ test.describe('面料单据专用字段全链路验证', () => {
 
     let voucherId: number;
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/vouchers', voucherData);
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/vouchers', voucherData);
       voucherId = result.data?.id!;
-    } catch {
+    } catch (e) {
+      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',
@@ -269,7 +271,8 @@ test.describe('面料单据专用字段全链路验证', () => {
         batchData
       );
       batchId = result.data?.id!;
-    } catch {
+    } catch (e) {
+      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',

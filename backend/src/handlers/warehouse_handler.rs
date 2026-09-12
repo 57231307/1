@@ -36,8 +36,11 @@ pub struct WarehouseListQuery {
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateWarehouseRequest {
+    // alias 对齐前端契约：前端 Warehouse 类型字段为 warehouse_name/warehouse_code
+    #[serde(alias = "warehouse_name")]
     #[validate(length(min = 1, max = 100, message = "仓库名称不能为空"))]
     pub name: Option<String>,
+    #[serde(alias = "warehouse_code")]
     #[validate(length(min = 1, max = 50, message = "仓库编码不能为空"))]
     pub code: Option<String>,
     pub address: Option<String>,

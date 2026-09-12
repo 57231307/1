@@ -2547,3 +2547,49 @@ locales + 脚本 + 测试：
 - [x] 07-fabric 生产匹/净布匹 dye_lot_no 断言 toBeNull → 空串（追溯列不可空后 DB 返回 ''）
 - [x] 21 系列创建失败 fast-fail（兜底旧单断言自建字段失真且掩盖根因）
 - [x] 大文件拆分负载均衡（29/10/28/21 → 17 文件，30 分片 min=10/max=23）
+
+---
+
+## 🔐 RLS 中间件缺陷修复 + dept 数据范围语义落地（2026-09-07/09，PR #939，merged 25ae95e）
+
+### 任务概述
+
+修复 RLS 机制缺陷并落地 dept 数据范围语义：迁移 m_rls_dept_domain（5 表 department_id 列+回填+索引+触发器+app_dept_ids() 函数+策略重写）、双 GUC 上下文（tokio task-local + sqlx 连接池钩子）、应用层条件构造对齐。16 个本地提交 squash 合并 main，CI 第八轮（run 34329740898）83 job 全绿（80 success + 3 skipped 为 main 专属 job 预期跳过）。
+
+### 已完成改动
+
+1. **RLS 注册顺序修复**（829c206）：rls_context_middleware 从 auth_chain 外侧移到 cors 之前（auth_chain 内层）
+2. **RLS 连接池钩子方案**（085202c）：tokio task-local（RlsGuc{user_id, dept_ids}）+ sqlx before_acquire/after_connect 池钩子，业务查询同一连接执行会话级 set_config
+3. **dept 语义 spec**（44bb7c0）：.monkeycode/specs/dept-data-scope-semantics/（EARS 需求 + 技术设计），三决策：D1 归属人部门动态 / D2 主+兼职+子部门 / D3 冗余列+触发器
+4. **dept 落地**（bf3ff65，30 文件）：迁移 5 表 department_id + 回填 + 索引 + 触发器 + app_dept_ids() STABLE + 5 表策略重写 + crm_lead 公海分支；AuthContext 增 dept_ids/dept_member_user_ids；data_scope.rs 修复 6 处 created_by=department_id 列错位既有 bug
+5. **关联性审查**（21a60f6）：7 项修复——非 RLS 表成员集合语义、raw SQL 单占位符、sales_orders WITH CHECK 补 user_id、公海行遮蔽、opportunity_status='pool' 死分支、5 处 IDOR 传 department_id、RLS 表 OR 组合对齐
+6. **遗留修复**（b671519）：get_user_dept_scope_cached 双集合单缓存（5min TTL DashMap）
+7. **触发器致命缺陷修复**（1b3556a）：拆 sync_data_department_by_owner（customers/crm_lead/crm_opportunity）与 sync_data_department_by_creator（suppliers/sales_orders），避免 NEW.owner_id 运行时报错
+8. **CI 七轮修复**（943c1c2/454f0ff/f58959c/c8c0a6e/1b3556a/4829bab/5e2e3ef）：ExprTrait 作用域、ActiveModel 补字段、AssertSqlSafe 路径、E0382 reborrow、RESET 拆两条独立 execute、query_one_raw 按值、Value::Null 归一化、doc lint、collapsible_if
+9. **setup-wizard E2E 根因修复**（5e2e3ef）：登录表单 agreedToTerms 协议复选框未勾选导致 validate 失败——补三层 fallback + submit 兜底
+10. **合并方式**：仓库禁用 merge commit（405），改用 squash；commit message 含三阶段交付摘要 + 部署 sequencing 提醒（先迁移后发版）
+
+### 关键技术点
+
+- RLS 策略谓词：NULL fail-open / 归属列=self / 公海-历史分支（customers owner_id=0、crm_lead lead_status='pool'、suppliers/sales_orders created_by IS NULL）/ department_id = ANY(app_dept_ids())
+- 应用层双语义：build_data_scope_condition（非 RLS 表，成员集合）与 build_department_scope_condition（RLS 表，self OR department_id IN）
+- sea-orm 2.0/sqlx 0.9 API 坑：AssertSqlSafe 包装、Expr::or/and 在 ExprTrait、Value::Array 双参、query_one_raw 按值、PG prepared statement 不允许多命令
+- tokio::task_local 包裹 next.run（中间件链同 task）；钩子回调在查询发起 task 内执行可读 task-local
+
+### CI 验证
+
+- run 34329740898：83 job = 80 success + 3 skipped（coverage 等 main 专属 job 在 PR 上预期跳过）+ 0 failed
+- PG 机制锚点 test_rls_guc_visible_in_same_pool_pg 保持 #[ignore]，CI 不跑 ignored，需手动验证
+
+---
+
+## 📚 文档治理（2026-09-09，本地 commit 不推送）
+
+### 已完成
+
+- README.md 全面更新：项目数据表（截至 2026-09-09 实测：后端 1,360 文件 ~294,000 行 / 249 测试文件 2,050 函数 / 前端 E2E 733 测试 218 spec / Release v2026.9.7.1357）、RBAC 章节补 PostgreSQL RLS 行级安全、迁移描述改为 7 域聚合 32 文件、E2E 分片描述修正为 34、docs 路径修正
+- doto.md 过时内容归档 → docs/archives/2026-09-09/doto-2026-09-09-pre-cleanup.md
+- bug.md（2026-08-14 审计报告，内容已过时）归档 → docs/archives/2026-09-09/bug-2026-08-14-audit-report.md
+- 根目录 docs/ 13 文件移动至 .monkeycode/docs/（RBAC 权限矩阵等），README 引用同步更新
+- 删除 生产服务器日志/（日志已清空仅剩脱敏说明，无保留价值）与 scan_long_fns.py（TECHNICAL_DEBT_REPORT.md 411 行引用同步清理）
+- 新冻结指令（IR）：源代码修改冻结（backend/frontend/.github/scripts 等一切代码），文档修改保留

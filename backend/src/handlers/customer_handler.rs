@@ -380,6 +380,8 @@ pub struct CustomerListQuery {
     pub status: Option<String>,
     pub customer_type: Option<String>,
     pub keyword: Option<String>,
+    /// 敏感导出 fail-closed：导出审批令牌（仅 export 端点校验）
+    pub download_token: Option<String>,
 }
 
 /// 获取数据权限过滤器；根据角色权限构建数据库层面的字段过滤器，将数据权限过滤下推到数据库层；参数 - `state`: 应用状态 - `auth`: 认证上下文 - `resource_type`: 资源类型（如 "customer"）；返回 返回数据权限过滤器
@@ -558,6 +560,12 @@ pub async fn export_customers(
     Query(query): Query<CustomerListQuery>,
     auth: AuthContext,
 ) -> Result<axum::response::Response, AppError> {
+    // 敏感导出 fail-closed：校验审批令牌
+    let approval =
+        crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
+            .enforce_export_download(query.download_token.as_deref(), "customer")
+            .await?;
+
     // V15 P0-S12：复用 list 逻辑，page_size 取上限 10000 防止单次导出过大
     let page_req = PageRequest {
         page: 1,
@@ -591,6 +599,15 @@ pub async fn export_customers(
         "customers_export_{}",
         chrono::Utc::now().format("%Y%m%d%H%M%S")
     );
+    // 敏感导出 fail-closed：记录令牌消费（流式导出用 filename + row_count 作逻辑标识）
+    let _ = crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
+        .record_download(
+            approval.id,
+            filename.clone(),
+            row_count as i64,
+            String::new(),
+        )
+        .await;
     record_customers_export_audit(&state, &auth, row_count);
     build_xlsx_response_with_watermark(&table, &filename, &watermark)
 }

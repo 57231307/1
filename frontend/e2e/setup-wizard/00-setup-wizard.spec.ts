@@ -121,7 +121,7 @@ test.describe.serial('引导页初始化真实链路（真实后端 + 真实 Pos
     page.on('response', async resp => {
       if (resp.url().includes('/init/test-database')) {
         dbTestStatus = resp.status();
-        dbTestBody = (await resp.text().catch(() => '')) || '';
+        dbTestBody = (await resp.text().catch((e) => { console.warn('[setup-wizard] 响应体读取失败:', (e as Error).message); return ''; })) || '';
         console.log(`[test-database] HTTP ${dbTestStatus}: ${dbTestBody.slice(0, 300)}`);
       }
     });
@@ -190,9 +190,9 @@ test.describe.serial('引导页初始化真实链路（真实后端 + 真实 Pos
       out = execSync(
         `PGPASSWORD=bingxi_test psql -h 127.0.0.1 -U bingxi -d ${ctx.db} -tAc "${sql}"`
       ).toString();
-    } catch {
+    } catch (e) { console.warn(`[E2E] catch: ${(e as Error).message}`); 
       out = execSync(`su postgres -c "psql -d ${ctx.db} -tAc \\"${sql}\\""`).toString();
-    }
+     }
     // boolean 输出全文 'true'（-tAc 不做缩写）；前缀校验用户名精确匹配
     expect(out.trim()).toBe(`${ctx.admin}|true`);
   });
@@ -269,17 +269,17 @@ test.describe.serial('引导页初始化真实链路（真实后端 + 真实 Pos
     // 校验失败 → 不发 login 请求 → waitForURL 超时（与 flow 主配置 loginViaUI
     // 的复选框三层 fallback 对齐）
     const checkboxInput = page.locator('.el-checkbox input').first();
-    const isChecked = await checkboxInput.isChecked().catch(() => false);
+    const isChecked = await checkboxInput.isChecked().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     if (!isChecked) {
       // 点击视觉复选框区域（.el-checkbox__inner）
       await page.locator('.el-checkbox__inner').first().click();
       await page.waitForTimeout(500);
-      let nowChecked = await checkboxInput.isChecked().catch(() => false);
+      let nowChecked = await checkboxInput.isChecked().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
       if (!nowChecked) {
         // fallback: 点击 label 区域
         await page.locator('.el-checkbox').first().click();
         await page.waitForTimeout(300);
-        nowChecked = await checkboxInput.isChecked().catch(() => false);
+        nowChecked = await checkboxInput.isChecked().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
       }
       if (!nowChecked) {
         // 最终 fallback: 直接设置 input checked 并触发 change 事件

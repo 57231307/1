@@ -26,16 +26,18 @@ test.describe('03 会计科目管理', () => {
     await page.getByLabel(/类别/).click();
     await page.getByRole('option').first().click();
     await page.getByRole('button', { name: /确认|保存|提交/ }).last().click();
-    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
+    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 }).catch((e) => {
+      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
+
       return null;
-    });
+        });
   });
 
   test('03-03 科目支持启用/停用切换', async ({ page }) => {
     await page.goto('/finance');
     await page.getByRole('tab', { name: /科目|会计科目/ }).click();
     const switchEl = page.locator('.el-switch').first();
-    if (await switchEl.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await switchEl.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
       await switchEl.click();
     }
   });

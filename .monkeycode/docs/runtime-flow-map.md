@@ -103,6 +103,7 @@ axum 语义：`.layer()` 调用顺序的逆序 = 请求执行顺序（后 layer 
 
 ### 3.5 RLS（middleware/rls_context.rs）
 
+<<<<<<< HEAD
 - 设计：已认证请求进入 handler 前绑定行级上下文，激活 PostgreSQL RLS；admin/data_scope=all 与未认证请求无上下文，策略 NULL 放行
 - 机制（2026-09-08 重设计，连接池钩子方案）：
   1. `rls_context_middleware` 把非 admin 用户的 user_id 写入 **tokio task-local**（`RLS_USER_ID`），包裹整个请求处理链（handler 及其全部查询同 task）
@@ -112,6 +113,12 @@ axum 语义：`.layer()` 调用顺序的逆序 = 请求执行顺序（后 layer 
 - 失败降级：钩子内 set_config/RESET 失败仅 warn/debug，连接照常借出（fail-open），不阻断业务
 - 旧实现缺陷（已修复）：中间件内 `execute_unprepared("SET LOCAL ...")` 在事务块外无效（PG 丢弃），且独立连接与全局池业务查询不保证同连接——RLS 从未激活，仅每请求两次无效池往返；同时原注册顺序（auth_chain 外侧）使 AuthContext 永远读不到（见 §2「RLS 注册位置说明」）
 - PG 机制锚点测试：`tests/rls_context_test.rs::test_rls_guc_visible_in_same_pool_pg`（#[ignore]，TEST_DATABASE_URL + `cargo test -- --ignored`；CI nextest 不跑 ignored，需手动/专项验证）
+=======
+- 设计：已认证请求进入 handler 前执行 `SET LOCAL app.user_id = <id>`，激活 PostgreSQL RLS；连接归还连接池后 LOCAL 自动失效
+- 实现：从 extensions 读 `AuthContext` → 拼 SQL 执行；失败时 warn 并回退应用层隔离（`DataPermissionService` 字段级过滤）
+- 装配（已修复，2026-09-08）：注册于 cors 之前、auth_chain 之内层，保证 auth 先注入 AuthContext（详见 §2「RLS 注册位置说明」）
+- **待复核疑点（未修复，2026-09-08）**：`SET LOCAL` 仅对「当前事务块」有效（PG 文档：事务块外执行只发 warning 无效）。sea-orm `execute_unprepared` 每次从连接池取独立连接、autocommit 单语句执行，SET 与 handler 的业务查询可能落在不同连接/不同隐式事务上——即使顺序修复，RLS 是否真正生效仍取决于连接池 LIFO 归还时序，存在「碰巧同连接才生效」的不确定性。若要让 RLS 可靠生效，需改为在**包裹整个请求的事务**内执行 SET LOCAL（sea-orm `begin()` + `set_local`，或改用 `SET SESSION` + 请求结束 RESET），属架构级改动，待决策。
+>>>>>>> ac303ef (docs: 新增运行时逻辑关系图谱 runtime-flow-map.md——启动顺序/中间件栈/auth 链/RLS/事件总线/状态机/前端守卫/风险清单)
 
 ---
 
@@ -222,6 +229,7 @@ Pinia stores（src/store/）：user / system / dashboard / inventory / fabric / 
 ## 8. 风险与待复核清单
 
 1. **RLS layer 顺序（已修复，2026-09-08）**（§2/§3.5）：原注册在 auth_chain 外侧，RLS 先于 auth 执行、`AuthContext` 未注入，`SET LOCAL` 静默跳过、PG RLS 从未激活；已移到 cors 之前（auth_chain 内层）。待 CI（PostgreSQL service）验证。
+<<<<<<< HEAD
 2. **RLS 事务/连接池有效性（已修复，2026-09-08）**（§3.5）：旧实现 `SET LOCAL` 事务外无效 + 独立连接与业务查询不保证同连接，RLS 从未激活。已重设计为「task-local + 连接池借出钩子」方案：钩子在业务查询的同一连接上执行会话级 `set_config`，无上下文借出时 RESET 清理残留；无泄漏、fail-open、零 service 层侵入。PG 机制锚点测试 `test_rls_guc_visible_in_same_pool_pg`（#[ignore]）待手动验证。
 3. **RLS 激活的功能回归风险（已修复——dept 语义落地，2026-09-08）**（§3.5）：RLS 策略 self 级与应用层 DataScope 三级粒度错位，经需求定义（.monkeycode/specs/dept-data-scope-semantics/requirements.md，三项决策：D1 数据部门=归属人部门动态 / D2 可见集合=主+兼职+子部门 / D3 冗余列+触发器维护）与技术设计（design.md）后落地实施：
    - **R3.1（高）dept 级锁出 → 已修复**：迁移 m_rls_dept_domain 给 5 表加冗余 `department_id` 列（触发器 sync_data_department 随 owner_id/created_by 自动维护），策略统一为四分支（NULL fail-open / self 匹配 / 公海-历史分支 / `department_id = ANY(app_dept_ids())`）；rls_context_middleware 构造 RlsGuc{user_id, dept_ids} 写 task-local，钩子单条 SQL 双 set_config；auth.rs 对 dept 用户预加载可见集合（get_user_dept_scope_ids_cached，5min TTL，部门变更主动失效）。
@@ -234,3 +242,9 @@ Pinia stores（src/store/）：user / system / dashboard / inventory / fabric / 
 4. **初始化模式面窄依赖**：Setup 模式仅 `/init/*` + INIT_TOKEN；deploy.sh 已自动生成 INIT_TOKEN，人工部署遗漏会导致 init 401。
 5. **CSRF 一次性消费**：多标签页并发依赖 `X-New-CSRF-Token` 恢复链路，若后端某路径未下发恢复头，前端只能重放一次。
 6. **permission fail-closed**：DB 抖动时全部非公开请求 403，属设计取舍，需在运维监控中区分。
+=======
+2. **RLS 事务/连接池有效性（新发现，待决策）**（§3.5）：`SET LOCAL` 仅对当前事务有效，sea-orm 独立连接 + autocommit 下 SET 与业务查询可能不同连接，RLS 激活依赖连接池 LIFO 归还时序。可靠修复需「包裹请求的事务」内执行 SET LOCAL 或改 `SET SESSION` + 请求结束 RESET，属架构级改动。
+3. **初始化模式面窄依赖**：Setup 模式仅 `/init/*` + INIT_TOKEN；deploy.sh 已自动生成 INIT_TOKEN，人工部署遗漏会导致 init 401。
+4. **CSRF 一次性消费**：多标签页并发依赖 `X-New-CSRF-Token` 恢复链路，若后端某路径未下发恢复头，前端只能重放一次。
+5. **permission fail-closed**：DB 抖动时全部非公开请求 403，属设计取舍，需在运维监控中区分。
+>>>>>>> ac303ef (docs: 新增运行时逻辑关系图谱 runtime-flow-map.md——启动顺序/中间件栈/auth 链/RLS/事件总线/状态机/前端守卫/风险清单)

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import {
   loginViaUI,
   apiCall,
@@ -142,7 +142,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       await detailBtn
         .waitFor({ state: 'visible', timeout: 3000 })
         .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const detailVisible = await detailBtn.isVisible().catch(() => false);
+      const detailVisible = await detailBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
       if (detailVisible) {
         await detailBtn.click();
         await page.waitForTimeout(2000);
@@ -153,7 +153,7 @@ test.describe('面料单据专用字段全链路验证', () => {
           .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
 
         // 验证详情中有面料相关文本
-        const detailText = await detailPanel.textContent().catch(() => '');
+        const detailText = await detailPanel.textContent().catch((e) => { console.warn(`[21a] 面料详情查询失败: ${(e as Error).message}`); return ''; });
         // 面料信息可能在详情中显示
         const fabricKeywords = ['色号', '缸号', '克重', '幅宽', '等级', '批次'];
         const hasFabricInfo = fabricKeywords.some(kw => detailText?.includes(kw));
@@ -188,7 +188,7 @@ test.describe('面料单据专用字段全链路验证', () => {
     await customerSelect
       .waitFor({ state: 'visible', timeout: 5000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const customerVisible = await customerSelect.isVisible().catch(() => false);
+    const customerVisible = await customerSelect.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     expect(customerVisible).toBe(true);
 
     // 验证明细行有产品选择列
@@ -198,14 +198,14 @@ test.describe('面料单据专用字段全链路验证', () => {
     await productSelect
       .waitFor({ state: 'visible', timeout: 5000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const productVisible = await productSelect.isVisible().catch(() => false);
+    const productVisible = await productSelect.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     // 检查表单是否有面料字段输入（色号/缸号/克重/幅宽）
     // 当前前端可能未显示这些字段
     const colorLabel = page.locator('.el-dialog:has-text("色号")').first();
     await colorLabel
       .waitFor({ state: 'visible', timeout: 3000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const colorLabelVisible = await colorLabel.isVisible().catch(() => false);
+    const colorLabelVisible = await colorLabel.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     // 记录色号字段是否在表单中（当前可能缺失）
 
     // 关闭弹窗

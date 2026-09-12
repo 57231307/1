@@ -27,9 +27,11 @@ test.describe('01 运单创建与发货', () => {
     await page.getByLabel(/司机电话/).fill('13800138000');
     await page.getByLabel(/运费/).fill('50');
     await page.getByRole('button', { name: /确认/ }).click();
-    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
+    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 }).catch((e) => {
+      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
+
       return null;
-    });
+        });
   });
 
   test('01-03 运单筛选功能可用', async ({ page }) => {

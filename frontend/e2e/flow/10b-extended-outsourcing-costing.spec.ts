@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import {
   loginViaUI,
   apiCall,
@@ -47,9 +47,9 @@ test.describe.serial('扩展: 委外凭证/成本归集/试算平衡', () => {
           '/cost?page=1&page_size=5'
         );
         expect(costs.items);
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         /* skip */
-      }
+       }
     }
   });
 
@@ -71,9 +71,9 @@ test.describe.serial('扩展: 委外凭证/成本归集/试算平衡', () => {
         '/financial-analysis?page=1&page_size=5'
       );
       expect(analyses.items);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 
   test('F2-5 验证财务报表', async ({ page }) => {
@@ -85,9 +85,9 @@ test.describe.serial('扩展: 委外凭证/成本归集/试算平衡', () => {
         '/finance/reports/balance-sheet'
       );
       expect(report);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
     try {
       const report = await apiCallRaw<Record<string, unknown>>(
         page,
@@ -95,8 +95,8 @@ test.describe.serial('扩展: 委外凭证/成本归集/试算平衡', () => {
         '/finance/reports/income-statement'
       );
       expect(report);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 });

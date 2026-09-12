@@ -126,4 +126,13 @@
 - **测试阶段每一步特别详细日志（IR，2026-09-03）**：E2E/CI 调试期间，每个关键步骤（登录、页面导航、表单填写、提交、响应、诊断输出）都必须输出显式详细日志（成功/失败均打印，含 URL/状态码/请求 payload 脱敏/响应 body/错误栈），禁止静默失败——任何一步无日志即视为流程黑盒，必须补日志后才能继续排查
 - **E2E 真实数据强制（IR，2026-09-07）**：E2E 测试禁止使用 mock（page.route/网络层拦截/假响应一律禁止），必须用真实后端 + 真实 PostgreSQL 数据链路验证；Setup 向导类测试用独立空库（如 bingxi_setup_test）真实执行迁移与初始化
 - **全程 CI 验证强制（IR，2026-09-07，重申）**：禁止本地编译、禁止本地启动服务做验证（含下载 Release 二进制本地运行）；真实链路验证一律通过 CI job 进行（如 ci-e2e-setup-wizard），本地仅做静态检查（esbuild/prettier/bash -n/yaml 校验）
-- **推送冻结（IR，2026-09-07）**：git push 指令禁止生效，所有改动仅本地 commit；推送必须等用户明确授权后执行
+- **推送冻结（IR，2026-09-07，2026-09-09 重申继续生效）**：git push 指令禁止生效，所有改动仅本地 commit；推送必须等用户明确授权后执行
+- **源代码修改冻结解除（IR，2026-09-09）**：用户已解除源代码修改冻结，修复计划（docs/plans/one-round-fix-plan-2026-09-09.md，10 commit）可开始实施；**推送继续冻结**——全部改动仅本地 commit，推送等用户明确授权
+- **文档归档规则（IR，2026-09-09）**：doto.md/bug.md 等任务文件过时即归档（用户确认），归档目录 .monkeycode/docs/archives/YYYY-MM-DD/，命名仿照 doto-YYYY-MM-DD-pre-cleanup.md；项目文档统一存放 .monkeycode/docs/（根目录 docs/ 已迁入），根目录只保留 README/CONTRIBUTING/LICENSE
+- **CI 失败修复汇报制（IR，2026-09-11）**：每轮 CI 修复完成后，必须向用户汇报：①本轮修了哪些问题（逐条列出）②每个问题的根因归属（后端代码 bug / 测试文件错误 / 测试配置错误 / 环境级 flaky / 测试基础设施错误）③为什么会出现 ④怎么修复的。禁止只报"已修复"不给归因。修复前必须拉取全部失败 job 的日志（annotations + report zip + md 数据逐测试解析），禁止只看第一个错误就修
+- **CI 失败日志分析方法（IR，2026-09-11）**：GitHub job log 只有 E2E-HEAD/TAIL 摘要（Playwright 输出被重定向到 reports/ 文件）；完整失败详情在 e2e-report-shard-N artifact 的 data/*.md 中（含每测试的 Name/Location/Expected/Received）；批量解析脚本需每分片刷新 git credential token（后台终端 token 会失效）
+- **CI 失败判责纪律（IR，2026-09-11，用户强调）**：测试失败后必须先判责——源代码错误修源代码，测试文件错误修测试文件，禁止混淆两者瞎改。判责依据：对照后端真实 DTO/路由/约束（grep 源码确认），而非猜测。修复前先回答"这是谁的问题"
+- **推送前自审强制（IR，2026-09-11，用户强调）**：git push 前必须完成自审——逐文件检查修改正确性（字段名/类型/路径/枚举值对照后端真实 DTO）、vue-tsc 编译通过、prettier 格式通过。自审通过后才能推送。禁止"改完直接推"
+- **CI 日志 grep 精确模式（2026-09-12 排障经验）**：backend.log 里 grep "429" 会误匹配 trace_id/span_id 中的随机数字段（如 `span_id=6b5d4296...`），必须用 `grep -aE "状态: 429|status=429"` 精确模式；完整 backend.log 在 e2e-report-shard-N artifact 的 reports/ 目录下（此前误判"CI 未上传 backend.log"）
+- **后台终端 gh/git credential 限制（2026-09-12 环境知识）**：后台终端（sh）里 `git credential fill` 拿不到 token（TOKEN_LEN=0，credential helper 依赖交互 shell 环境），且 cargo 不在 PATH（需 `PATH=$PATH:/root/.cargo/bin`）。对策：前台取 token 写 `/tmp/gh_token.txt`（chmod 600），后台终端 `GH_TOKEN=$(cat /tmp/gh_token.txt)`
+- **/system 页隐藏 Tab DOM 假象（2026-09-12 测试知识）**：前端 /system 页多 Tab 共存，隐藏 Tab 的 .el-table__row 仍渲染在 DOM（E2E 遍历到 68 行假象）。测试定位行/搜索框必须用 `:visible` 伪类（`.el-table__row:visible`、`.filter-card input:visible`）；Element Plus checkbox 原生 input 透明隐藏，check() 会跳过，必须点击 .el-checkbox label 根

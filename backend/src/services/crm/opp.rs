@@ -14,7 +14,7 @@ use crate::models::{crm_opportunity, customer, sales_order};
 // 批次 236 v13 P1-1：商机状态常量接入（规则 0）
 use crate::models::status::crm_opportunity as opp_status;
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{apply_department_scope, check_resource_owner, DataScopeContext};
+use crate::utils::data_scope::{DataScopeContext, apply_department_scope, check_resource_owner};
 use crate::utils::error::AppError;
 use crate::utils::xlsx_export::XlsxTable;
 use rust_decimal::Decimal;

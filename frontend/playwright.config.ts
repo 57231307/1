@@ -42,6 +42,8 @@ export default defineConfig({
     headless: true,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
+    // 诊断模式（用户指令：尽可能多获取测试日志便于错误分析，减少 CI 重跑次数）
+    video: 'retain-on-failure',
     // 浏览器语言设为中文（i18n 浏览器语言协商读 navigator.language，
     // Playwright 默认 en-US 导致页面英文渲染，E2E 中文文本断言全部失败）
     locale: 'zh-CN',
@@ -72,17 +74,15 @@ export default defineConfig({
     },
   ],
   // 项目级覆盖：smoke 可并行，flow 串行。
-  // testMatch 显式限定 flow/smoke：防止本地裸跑 `npx playwright test` 误拾取
-  // e2e/setup-wizard/（其 beforeAll 依赖 CI 专用环境，缺凭据文件会直接抛错）
-  // 与 e2e 根目录的历史独立 spec（由 e2e-batch.yml 单独管理）
+  // testMatch 扩全业务目录（P3.3）：purchase/sales/purchase-ext/quality/
+  // finance/crm/bpm/enhanced/traversal 去 mock 后全部进主 CI testMatch
+  // e2e/setup-wizard/ 仍由 playwright.setup-wizard.config.ts 单独运行
   projects: [
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
-      // e2e 根下的历史独立 spec（color-card/color-price/custom-order）归属
-      // 批次工作流 e2e-batch.yml（其命令无路径过滤依赖本配置拾取）；
-      // setup-wizard/ 仅由 playwright.setup-wizard.config.ts 运行
-      testMatch: /(^|\/)(flow|smoke|enhanced)\/.*\.spec\.ts|^[^/]*\.spec\.ts$/,
+      testMatch:
+        /(flow|smoke|enhanced|purchase|sales|purchase-ext|quality|finance|crm|bpm|traversal)\/.*\.spec\.ts|^[^/]*\.spec\.ts$/,
     },
     {
       name: 'firefox',
@@ -92,7 +92,8 @@ export default defineConfig({
     {
       name: 'webkit',
       use: { ...devices['Desktop Safari'] },
-      testMatch: /(^|\/)(flow|smoke|enhanced)\/.*\.spec\.ts|^[^/]*\.spec\.ts$/,
+      testMatch:
+        /(flow|smoke|enhanced|purchase|sales|purchase-ext|quality|finance|crm|bpm|traversal)\/.*\.spec\.ts|^[^/]*\.spec\.ts$/,
     },
   ],
 })
