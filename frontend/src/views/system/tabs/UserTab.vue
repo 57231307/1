@@ -301,8 +301,13 @@ const userRules: FormRules = {
     { min: 3, max: 20, message: t('system.user.validation.usernameLength'), trigger: 'blur' },
   ],
   password: [{ required: true, validator: validatePassword, trigger: 'blur' }],
+  // real_name 为幽灵字段：user 表无此列，后端不持久化也不返回——必填校验会导致编辑保存必败
   real_name: [
-    { required: true, message: t('system.user.validation.realNameRequired'), trigger: 'blur' },
+    {
+      required: false,
+      message: t('system.user.validation.realNameRequired'),
+      trigger: 'blur',
+    },
   ],
   email: [{ validator: validateEmail, trigger: 'blur' }],
   phone: [{ validator: validatePhone, trigger: 'blur' }],
@@ -321,7 +326,7 @@ const openUserDialog = (row?: User) => {
     Object.assign(userForm, {
       id: row.id,
       username: row.username,
-      real_name: row.real_name,
+      real_name: row.real_name ?? '',
       phone: row.phone || '',
       email: row.email || '',
       department_id: row.department_id,
