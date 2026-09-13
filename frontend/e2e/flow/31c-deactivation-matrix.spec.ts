@@ -126,7 +126,16 @@ async function toggleStatusInDialog(
       toggledOk = true;
     } else {
       // 第三优先：状态下拉（el-select + teleport 到 body 的下拉面板）
-      const statusSelect = dialog.locator('.el-select').first();
+      // 注意：部门页弹窗有多个 select（el-tree-select 上级部门在前），.first() 会误点
+      // 上级部门树选择器（其选项含历史"停用"部门名），必须按 label「状态」精确定位
+      let statusSelect = dialog
+        .locator('.el-form-item')
+        .filter({ hasText: /状态/ })
+        .locator('.el-select')
+        .first();
+      if ((await statusSelect.count()) === 0) {
+        statusSelect = dialog.locator('.el-select').last();
+      }
       const selectVisible = await statusSelect
         .waitFor({ state: 'visible', timeout: 4000 })
         .then(() => true)
@@ -205,7 +214,7 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
     let toggled = false;
     try {
       if (await openEditDialog(page, '/customer', name)) {
-        toggled = await toggleStatusInDialog(page, '停用', /确定|保存/);
+        toggled = await toggleStatusInDialog(page, '停用', /确定|确认|保存/);
       }
     } catch (e) {
       console.error(`[31c-客户] UI 操作异常: ${(e as Error).message}`);
@@ -335,7 +344,7 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
           diag += `；openEditDialog=${opened}`;
         }
         if (opened) {
-          toggled = await toggleStatusInDialog(page, '禁用', /确定|保存/);
+          toggled = await toggleStatusInDialog(page, '禁用', /确定|确认|保存/);
           diag += `；toggled=${toggled}`;
         }
       } else {
@@ -410,7 +419,7 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
         if (await sw.isVisible({ timeout: 3000 }).catch(() => false)) {
           await sw.click();
           console.log('[31c-产品] 已点击 is_active switch');
-          const confirmBtn = dialog.getByRole('button', { name: /确定|保存/ }).last();
+          const confirmBtn = dialog.getByRole('button', { name: /确定|确认|保存/ }).last();
           await confirmBtn.click();
           console.log('[31c-产品] 已点击确定保存');
           await page.waitForTimeout(2500);
@@ -471,7 +480,7 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
     let toggled = false;
     try {
       if (await openEditDialog(page, '/departments', name)) {
-        toggled = await toggleStatusInDialog(page, '停用', /确定|保存/);
+        toggled = await toggleStatusInDialog(page, '停用', /确定|确认|保存/);
       }
     } catch (e) {
       console.error(`[31c-部门] UI 操作异常: ${(e as Error).message}`);
