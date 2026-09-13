@@ -388,6 +388,25 @@ jobs:
           retention-days: 90
 
 # ==============================================================================
+# Job 3b: 前后端契约对齐检查（L7 防线）
+# ==============================================================================
+# 背景：department is_active/status、real_name、credit_code 等 18 轮 CI 修复中
+# 多起缺陷源于 TS interface 与 Rust DTO 字段漂移（serde 静默忽略幽灵字段）。
+# 本 job 静态比对核心资源契约，幽灵字段即阻塞——把"上线后撞见"提前到"提交即拦截"。
+# 存量已知漂移在 frontend/scripts/check-contract.mjs 的 ALLOWLIST 挂账，修复一条删一条。
+  ci-contract-align:
+    name: 📐 前后端契约对齐检查
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: ci-info
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: 运行契约对齐检查（纯 Node，无需安装依赖）
+        run: node frontend/scripts/check-contract.mjs
+
+# ==============================================================================
 # Job 4: Rust Clippy 检查（V15 Batch 485 baseline 机制 - clippy 专用）
 # ==============================================================================
 # V15 Batch 485 修订（第 6 轮 CI 后）：
