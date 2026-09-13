@@ -93,28 +93,44 @@ async function toggleStatusInDialog(
 ): Promise<boolean> {
   const dialog = page.locator('.el-dialog:visible').first();
   // 优先 radio（label 文案匹配 inactiveText），其次行内 switch
+  // 注意：isVisible() 是立即检查（timeout 参数被忽略），dialog 打开动画期间控件未到
+  // visible 态会误判"未找到"，必须用 waitFor 真等待
   const radio = dialog
     .locator(`.el-radio:has-text("${inactiveText}"), .el-radio-button:has-text("${inactiveText}")`)
     .first();
   const sw = dialog.locator('.el-switch').first();
-  if (await radio.isVisible({ timeout: 3000 }).catch(() => false)) {
+  const radioVisible = await radio
+    .waitFor({ state: 'visible', timeout: 4000 })
+    .then(() => true)
+    .catch(() => false);
+  if (radioVisible) {
     await radio.click();
     console.log(`[31c] 已点击 radio「${inactiveText}」`);
-  } else if (await sw.isVisible({ timeout: 3000 }).catch(() => false)) {
-    const before = await sw.getAttribute('class');
-    if (before?.includes('is-checked')) {
-      await sw.click(); // 开→关
-      console.log('[31c] switch 已从开启切为关闭');
-    } else {
-      console.warn('[31c] switch 初始为关闭（期望开启态），仍点击尝试');
-      await sw.click();
-    }
   } else {
-    console.error('[31c] 弹窗内未找到状态控件（radio/switch）');
-    return false;
+    const swVisible = await sw
+      .waitFor({ state: 'visible', timeout: 4000 })
+      .then(() => true)
+      .catch(() => false);
+    if (swVisible) {
+      const before = await sw.getAttribute('class');
+      if (before?.includes('is-checked')) {
+        await sw.click(); // 开→关
+        console.log('[31c] switch 已从开启切为关闭');
+      } else {
+        console.warn('[31c] switch 初始为关闭（期望开启态），仍点击尝试');
+        await sw.click();
+      }
+    } else {
+      console.error('[31c] 弹窗内未找到状态控件（radio/switch）');
+      return false;
+    }
   }
   const confirmBtn = dialog.getByRole('button', { name: confirmText }).last();
-  if (!(await confirmBtn.isVisible({ timeout: 3000 }).catch(() => false))) {
+  const confirmVisible = await confirmBtn
+    .waitFor({ state: 'visible', timeout: 4000 })
+    .then(() => true)
+    .catch(() => false);
+  if (!confirmVisible) {
     console.error('[31c] 弹窗确定按钮不可见');
     return false;
   }
