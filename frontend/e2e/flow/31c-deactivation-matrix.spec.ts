@@ -92,9 +92,10 @@ async function toggleStatusInDialog(
   confirmText: RegExp
 ): Promise<boolean> {
   const dialog = page.locator('.el-dialog:visible').first();
-  // 优先 radio（label 文案匹配 inactiveText），其次行内 switch
+  // 优先级：radio → switch → 状态下拉 el-select（如 /departments 页，选项文案"启用/禁用"）
   // 注意：isVisible() 是立即检查（timeout 参数被忽略），dialog 打开动画期间控件未到
   // visible 态会误判"未找到"，必须用 waitFor 真等待
+  const inactivePattern = /停用|禁用|关闭|inactive/i;
   const radio = dialog
     .locator(`.el-radio:has-text("${inactiveText}"), .el-radio-button:has-text("${inactiveText}")`)
     .first();
@@ -103,9 +104,11 @@ async function toggleStatusInDialog(
     .waitFor({ state: 'visible', timeout: 4000 })
     .then(() => true)
     .catch(() => false);
+  let toggledOk = false;
   if (radioVisible) {
     await radio.click();
     console.log(`[31c] 已点击 radio「${inactiveText}」`);
+    toggledOk = true;
   } else {
     const swVisible = await sw
       .waitFor({ state: 'visible', timeout: 4000 })
@@ -120,10 +123,38 @@ async function toggleStatusInDialog(
         console.warn('[31c] switch 初始为关闭（期望开启态），仍点击尝试');
         await sw.click();
       }
+      toggledOk = true;
     } else {
-      console.error('[31c] 弹窗内未找到状态控件（radio/switch）');
-      return false;
+      // 第三优先：状态下拉（el-select + teleport 到 body 的下拉面板）
+      const statusSelect = dialog.locator('.el-select').first();
+      const selectVisible = await statusSelect
+        .waitFor({ state: 'visible', timeout: 4000 })
+        .then(() => true)
+        .catch(() => false);
+      if (selectVisible) {
+        await statusSelect.click();
+        const option = page
+          .locator('.el-select-dropdown:visible .el-select-dropdown__item')
+          .filter({ hasText: inactivePattern })
+          .first();
+        const optionVisible = await option
+          .waitFor({ state: 'visible', timeout: 4000 })
+          .then(() => true)
+          .catch(() => false);
+        if (optionVisible) {
+          await option.click();
+          console.log('[31c] 已从状态下拉选择停用/禁用项');
+          toggledOk = true;
+        } else {
+          console.error('[31c] 下拉已打开但未找到停用/禁用选项');
+        }
+      } else {
+        console.error('[31c] 弹窗内未找到状态控件（radio/switch/select）');
+      }
     }
+  }
+  if (!toggledOk) {
+    return false;
   }
   const confirmBtn = dialog.getByRole('button', { name: confirmText }).last();
   const confirmVisible = await confirmBtn
