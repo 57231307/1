@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall } from './helpers';
+import { loginViaUI, apiCall, apiCallRaw } from './helpers';
 import { safeGoto } from './ui-helpers';
 
 /**
@@ -216,11 +216,19 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
     const username = `p0dis${TS}`;
     let id: number | undefined;
     try {
+      // 前置角色 id：编辑弹窗 role_id 必填，创建时不带则编辑回显 undefined → 校验拦截 → PUT 不发出
+      const rolesResp = await apiCallRaw<{ roles?: Array<{ id: number }> }>(
+        page,
+        'GET',
+        '/roles?page=1&page_size=1'
+      ).catch(() => null);
+      const roleId = rolesResp?.roles?.[0]?.id;
       const r = await apiCall<{ id?: number }>(page, 'POST', '/users', {
         username,
         password: 'P0Test!2026dE',
         email: `${username}@test.com`,
         phone: '13600000002',
+        role_id: roleId,
       });
       id = r?.data?.id;
     } catch (e) {
