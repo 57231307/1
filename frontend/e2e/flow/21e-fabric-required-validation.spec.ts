@@ -8,6 +8,7 @@ import {
   getCtx,
   BASE_URL,
   ensureTestEntities,
+  expectBadRequest,
 } from './helpers';
 
 test.describe('面料单据专用字段全链路验证', () => {
@@ -72,7 +73,7 @@ test.describe('面料单据专用字段全链路验证', () => {
     const result = await apiCallExpectFail(page, 'POST', '/purchase/receipts', receiptData);
 
     // 后端应拒绝（material_code 是必填）
-    expect(result.status >= 400).toBe(true);
+    expectBadRequest(result);
     expect(result.status < 500).toBe(true);
   });
 
@@ -98,7 +99,7 @@ test.describe('面料单据专用字段全链路验证', () => {
 
     const result = await apiCallExpectFail(page, 'POST', '/purchase/receipts', receiptData);
 
-    expect(result.status >= 400).toBe(true);
+    expectBadRequest(result);
     expect(result.status < 500).toBe(true);
   });
 
@@ -165,7 +166,10 @@ test.describe('面料单据专用字段全链路验证', () => {
       page,
       'GET',
       '/sales/orders?page=1&page_size=1'
-    ).catch((e) => { console.warn(`[E2E] 失败: ${(e as Error).message}`); return { items: [] }; });
+    ).catch(e => {
+      console.warn(`[E2E] 失败: ${(e as Error).message}`);
+      return { items: [] };
+    });
     if (soList.items?.length > 0) {
       const so = soList.items?.[0];
       // 销售订单可能有 color_no 字段
@@ -177,7 +181,10 @@ test.describe('面料单据专用字段全链路验证', () => {
       page,
       'GET',
       '/production/dye-recipes?page=1&page_size=1'
-    ).catch((e) => { console.warn(`[E2E] 失败: ${(e as Error).message}`); return { items: [] }; });
+    ).catch(e => {
+      console.warn(`[E2E] 失败: ${(e as Error).message}`);
+      return { items: [] };
+    });
     if (recipeList.items?.length > 0) {
       const recipe = recipeList.items?.[0];
       // 染色配方用 color_code
@@ -189,7 +196,10 @@ test.describe('面料单据专用字段全链路验证', () => {
       page,
       'GET',
       '/inventory/transfers?page=1&page_size=1'
-    ).catch((e) => { console.warn(`[E2E] 失败: ${(e as Error).message}`); return { items: [] }; });
+    ).catch(e => {
+      console.warn(`[E2E] 失败: ${(e as Error).message}`);
+      return { items: [] };
+    });
     if (transferList.items?.length > 0) {
       // 调拨明细可能有 color_no
       expect(true).toBe(true);
@@ -235,7 +245,10 @@ test.describe('面料单据专用字段全链路验证', () => {
     await newBtn
       .waitFor({ state: 'visible', timeout: 5000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const newBtnVisible = await newBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    const newBtnVisible = await newBtn.isVisible().catch(e => {
+      console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
+      return false;
+    });
     if (newBtnVisible) {
       await newBtn.click();
       await page.waitForTimeout(1000);
@@ -246,7 +259,10 @@ test.describe('面料单据专用字段全链路验证', () => {
         .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
 
       // 检查表单是否有色号/缸号/批次号字段
-      const dialogText = await dialog.textContent().catch((e) => { console.warn(`[E2E] 文本读取失败（返回空）: ${(e as Error).message}`); return ''; });
+      const dialogText = await dialog.textContent().catch(e => {
+        console.warn(`[E2E] 文本读取失败（返回空）: ${(e as Error).message}`);
+        return '';
+      });
       const hasColorNo = dialogText?.includes('色号');
       const hasDyeLotNo = dialogText?.includes('缸号');
       const hasBatchNo = dialogText?.includes('批次');

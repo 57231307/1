@@ -12,6 +12,7 @@ import {
   getCtx,
   genCode,
   ensureTestEntities,
+  expectBadRequest,
 } from './helpers';
 
 test.describe.serial('扩展: 定制订单全流程（打样→报价→客户确认→投产）', () => {
@@ -21,7 +22,6 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
   });
 
   test('C1-1 创建定制订单', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/custom-orders', {
@@ -49,15 +49,15 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
           '/custom-orders?page=1&page_size=1'
         );
         ctx.customOrderId = list.items?.[0]?.id;
-      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+      } catch (e) {
+        console.warn(`[E2E] //: ${(e as Error).message}`);
         /* skip */
-       }
+      }
     }
     expect(ctx.customOrderId).toBeDefined();
   });
 
   test('C1-2 验证定制订单 7 阶段状态机', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     if (!ctx.customOrderId) {
       console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
@@ -87,7 +87,6 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
   });
 
   test('C1-3 验证状态门校验（draft → dyeing 非法跳跃）', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     if (!ctx.customOrderId) {
       console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
@@ -102,11 +101,10 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
       `/custom-orders/${ctx.customOrderId}/advance`,
       { to_status: 'dyeing' }
     );
-    expect(result.status >= 400).toBe(true); // 非法转换应被拒
+    expectBadRequest(result); // 非法转换应被拒
   });
 
   test('C1-4 创建打样通知单（lab_dip_request）', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/production/lab-dip/requests', {
@@ -118,15 +116,15 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
         status: 'pending',
       });
       expect(result.data?.id).toBeDefined();
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       /* skip */
-     }
+    }
   });
 
   test('C1-5 验证打样状态机（pending → sampling → submitted → approved/rejected）', async ({
     page,
   }) => {
-    await loginViaUI(page);
     try {
       const list = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
         page,
@@ -140,13 +138,13 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
           status ?? '(missing-status)'
         );
       }
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       /* skip */
-     }
+    }
   });
 
   test('C1-6 验证打样小样状态机（pending → matched/not_matched/selected）', async ({ page }) => {
-    await loginViaUI(page);
     try {
       const list = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
         page,
@@ -160,13 +158,13 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
           status ?? '(missing-status)'
         );
       }
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       /* skip */
-     }
+    }
   });
 
   test('C1-7 验证大货批色 8 态状态机', async ({ page }) => {
-    await loginViaUI(page);
     try {
       const list = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
         page,
@@ -187,13 +185,13 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
           'scrapped',
         ]).toContain(status ?? '(missing-status)');
       }
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       /* skip */
-     }
+    }
   });
 
   test('C1-8 验证大货批色回修流程（rework → sampled）', async ({ page }) => {
-    await loginViaUI(page);
     try {
       const list = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
         page,
@@ -201,13 +199,13 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
         '/bulk-color-approvals?status=rework&page=1&page_size=5'
       );
       expect(list.items);
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       /* skip */
-     }
+    }
   });
 
   test('C1-9 验证坯布五维追溯链', async ({ page }) => {
-    await loginViaUI(page);
     try {
       const trace = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
@@ -223,14 +221,14 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
           '/business-trace?page=1&page_size=5'
         );
         expect(trace.items);
-      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+      } catch (e) {
+        console.warn(`[E2E] //: ${(e as Error).message}`);
         /* skip */
-       }
+      }
     }
   });
 
   test('C1-10 验证工艺跟踪大屏数据', async ({ page }) => {
-    await loginViaUI(page);
     try {
       const nodes = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
         page,
@@ -238,9 +236,10 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
         '/production/process-nodes?page=1&page_size=5'
       );
       expect(nodes.items);
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       /* skip */
-     }
+    }
     try {
       const logs = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
@@ -248,8 +247,9 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
         '/production/process-logs?page=1&page_size=5'
       );
       expect(logs.items);
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       /* skip */
-     }
+    }
   });
 });

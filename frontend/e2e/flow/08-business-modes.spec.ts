@@ -15,11 +15,13 @@ import {
 test.describe.serial('扩展: 业务模式测试（染整加工/来料加工/委外加工）', () => {
   test.beforeEach(async ({ page }) => {
     await loginViaUI(page);
+  });
+
+  test.beforeEach(async ({ page }) => {
     await ensureTestEntities(page);
   });
 
   test('M1-1 验证业务模式列表（6 种模式）', async ({ page }) => {
-    await loginViaUI(page);
     try {
       const modes = await apiCallRaw<{
         items: Array<{ mode_code: string; mode_name: string; mode_category: string }>;
@@ -48,14 +50,14 @@ test.describe.serial('扩展: 业务模式测试（染整加工/来料加工/委
           '/business-modes?page=1&page_size=20'
         );
         expect(modes.items);
-      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+      } catch (e) {
+        console.warn(`[E2E] //: ${(e as Error).message}`);
         /* skip */
-       }
+      }
     }
   });
 
   test('M1-2 验证染整加工模式流程链', async ({ page }) => {
-    await loginViaUI(page);
     const steps = await getProcessSteps(page, 'dyeing_processing');
     // 染整加工流程链：inventory_in → production → inventory_out → settlement
     expect(steps.length >= 0).toBeTruthy();
@@ -66,7 +68,6 @@ test.describe.serial('扩展: 业务模式测试（染整加工/来料加工/委
   });
 
   test('M1-3 验证来料加工模式（toll_processing）', async ({ page }) => {
-    await loginViaUI(page);
     const steps = await getProcessSteps(page, 'toll_processing');
     // 来料加工流程链：inventory_in → production → inventory_out → settlement
     expect(steps.length >= 0).toBeTruthy();
@@ -79,7 +80,6 @@ test.describe.serial('扩展: 业务模式测试（染整加工/来料加工/委
   });
 
   test('M1-4 创建委外加工订单', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     try {
       const result = await apiCall<{ id?: number }>(
@@ -98,13 +98,13 @@ test.describe.serial('扩展: 业务模式测试（染整加工/来料加工/委
         }
       );
       expect(result.data?.id).toBeDefined();
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       // 委外端点可能不同
-     }
+    }
   });
 
   test('M1-5 委外加工订单状态流转', async ({ page }) => {
-    await loginViaUI(page);
     try {
       const list = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
         page,
@@ -123,13 +123,13 @@ test.describe.serial('扩展: 业务模式测试（染整加工/来料加工/委
           'cancelled',
         ]).toContain(status ?? '(missing-status)');
       }
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       /* skip */
-     }
+    }
   });
 
   test('M1-6 验证委外加工模式规则', async ({ page }) => {
-    await loginViaUI(page);
     try {
       const rules = await apiCallRaw<{ items: Array<{ rule_code: string; rule_type: string }> }>(
         page,
@@ -137,20 +137,21 @@ test.describe.serial('扩展: 业务模式测试（染整加工/来料加工/委
         '/business-modes/rules?page=1&page_size=20'
       );
       expect(rules.items);
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       /* skip */
-     }
+    }
   });
 
   test('M1-7 验证业务模式快照（mode_snapshot）', async ({ page }) => {
-    await loginViaUI(page);
     try {
       const links = await apiCallRaw<{
         items: Array<{ document_type: string; mode_snapshot: string }>;
       }>(page, 'GET', '/business-mode-links?page=1&page_size=10');
       expect(links.items);
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       /* skip */
-     }
+    }
   });
 });

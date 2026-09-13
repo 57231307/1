@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall } from './helpers';
+import { loginViaUI, apiCall, tryCleanup } from './helpers';
 
 /**
  * P0 删除系统覆盖矩阵（2026-09-11 用户指令："需要系统覆盖所有需要删除/停用测试的功能"）
@@ -689,12 +689,12 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
       },
     });
     // 闭环：删除检验单
-    try {
-      await apiCall(page, 'DELETE', `/production/fabric-inspections/${inspectionId}`);
-      console.log(`[31b-疵点] 检验单 ${inspectionId} 清理删除 ✅`);
-    } catch (e) {
-      console.warn(`[31b-疵点] 检验单清理删除失败（被约束拒绝，记录）: ${(e as Error).message}`);
-    }
+    await tryCleanup(
+      page,
+      'DELETE',
+      `/production/fabric-inspections/${inspectionId}`,
+      '[31b-疵点]'
+    );
   });
 
   // ===== 工资率（依赖工艺路线先建，闭环删除）=====
@@ -736,12 +736,7 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
         remarks: 'P0工资率备注',
       },
     });
-    try {
-      await apiCall(page, 'DELETE', `/production/process-routes/${routeId}`);
-      console.log(`[31b-工资率] 工艺路线 ${routeId} 清理删除 ✅`);
-    } catch (e) {
-      console.warn(`[31b-工资率] 工艺路线清理删除失败（记录）: ${(e as Error).message}`);
-    }
+    await tryCleanup(page, 'DELETE', `/production/process-routes/${routeId}`, '[31b-工资率]');
   });
 
   // ===== 角色互斥（依赖两个角色先建，闭环删除）=====
@@ -810,12 +805,7 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
       [idA, codeA],
       [idB, codeB],
     ] as Array<[number, string]>) {
-      try {
-        await apiCall(page, 'DELETE', `/roles/${rid}`);
-        console.log(`[31b-角色互斥] 角色 ${code} 清理删除 ✅`);
-      } catch (e) {
-        console.warn(`[31b-角色互斥] 角色 ${code} 清理删除失败（记录）: ${(e as Error).message}`);
-      }
+      await tryCleanup(page, 'DELETE', `/roles/${rid}`, `[31b-角色互斥] ${code}`);
     }
   });
 
@@ -850,12 +840,7 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
         hidden_fields: null,
       },
     });
-    try {
-      await apiCall(page, 'DELETE', `/roles/${roleId}`);
-      console.log(`[31b-数据权限] 角色 ${roleId} 清理删除 ✅`);
-    } catch (e) {
-      console.warn(`[31b-数据权限] 角色清理删除失败（记录）: ${(e as Error).message}`);
-    }
+    await tryCleanup(page, 'DELETE', `/roles/${roleId}`, '[31b-数据权限]');
   });
 
   // ===== 通知（无 HTTP create 端点：用现有通知删除验证，无则 skip）=====

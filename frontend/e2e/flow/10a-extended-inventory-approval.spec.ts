@@ -15,8 +15,11 @@ import {
 } from './helpers';
 
 test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量', () => {
-  test('L1-1 验证库存预留机制（pending → locked → consumed）', async ({ page }) => {
+  test.beforeEach(async ({ page }) => {
     await loginViaUI(page);
+  });
+
+  test('L1-1 验证库存预留机制（pending → locked → consumed）', async ({ page }) => {
     try {
       const reservations = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
         page,
@@ -30,13 +33,13 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
           status ?? '(missing-status)'
         );
       }
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       /* skip */
-     }
+    }
   });
 
   test('L1-2 验证大货批色发货门禁（未审批阻断发货）', async ({ page }) => {
-    await loginViaUI(page);
     await ensureTestEntities(page);
     const ctx = getCtx();
     if (!ctx.salesOrderId) {
@@ -51,7 +54,6 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
   });
 
   test('L1-3 验证三单匹配（采购订单→入库单→应付单）', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     if (!ctx.purchaseOrderId) {
       console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
@@ -69,9 +71,10 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
         `/purchase/receipts?purchase_order_id=${ctx.purchaseOrderId}&page=1&page_size=5`
       );
       expect(receipts.items);
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       /* skip */
-     }
+    }
 
     // 验证入库单关联应付单
     try {
@@ -81,9 +84,10 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
         '/ap/invoices?page=1&page_size=5'
       );
       expect(apInvoices.items);
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       /* skip */
-     }
+    }
   });
 
   test('L1-4 验证双计量换算（米→公斤）', async () => {
@@ -98,7 +102,6 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
   });
 
   test('L1-6 验证库存盘点', async ({ page }) => {
-    await loginViaUI(page);
     try {
       const counts = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
         page,
@@ -112,13 +115,13 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
           status ?? '(missing-status)'
         );
       }
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       /* skip */
-     }
+    }
   });
 
   test('L1-7 验证库存调拨状态机', async ({ page }) => {
-    await loginViaUI(page);
     try {
       const transfers = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
         page,
@@ -132,13 +135,13 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
           status ?? '(missing-status)'
         );
       }
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       /* skip */
-     }
+    }
   });
 
   test('L1-8 验证库存调整状态机', async ({ page }) => {
-    await loginViaUI(page);
     try {
       const adjustments = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
         page,
@@ -150,13 +153,13 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
         const status = (adjustments.items?.[0].status || '').toLowerCase();
         expect(['pending', 'approved', 'rejected']).toContain(status ?? '(missing-status)');
       }
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       /* skip */
-     }
+    }
   });
 
   test('L1-9 验证匹号状态机', async ({ page }) => {
-    await loginViaUI(page);
     // 后端无匹号列表 API（匹号由色卡审批小样流程内部创建），改用缸号生命周期
     // 状态机日志（真实端点）验证状态数据可查询
     const ctx = getCtx();
@@ -169,7 +172,6 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
   });
 
   test('L1-10 验证低库存预警', async ({ page }) => {
-    await loginViaUI(page);
     try {
       const alerts = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
@@ -185,9 +187,10 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
           '/material-shortage?page=1&page_size=5'
         );
         expect(alerts.items);
-      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+      } catch (e) {
+        console.warn(`[E2E] //: ${(e as Error).message}`);
         /* skip */
-       }
+      }
     }
   });
 });

@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall } from './helpers';
+import { loginViaUI, apiCall, tryCleanup } from './helpers';
 import { safeGoto } from './ui-helpers';
 
 /**
@@ -17,9 +17,15 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 const TS = Date.now().toString().slice(-8);
 
 /** 查询当前用户未读通知 */
-async function getUnreadNotifications(page: import('@playwright/test').Page): Promise<{ id: number; title: string; content: string; businessType?: string; status?: string }[]> {
+async function getUnreadNotifications(
+  page: import('@playwright/test').Page
+): Promise<
+  { id: number; title: string; content: string; businessType?: string; status?: string }[]
+> {
   try {
-    const res = await page.request.get('http://localhost:8082/api/v1/erp/notifications/?status=unread&page=1&page_size=50');
+    const res = await page.request.get(
+      'http://localhost:8082/api/v1/erp/notifications/?status=unread&page=1&page_size=50'
+    );
     if (!res.ok()) return [];
     const body = await res.json();
     const items = body?.data?.items || body?.data?.data || body?.data || [];
@@ -29,7 +35,10 @@ async function getUnreadNotifications(page: import('@playwright/test').Page): Pr
   }
 }
 
-async function deleteNotification(page: import('@playwright/test').Page, id: number): Promise<void> {
+async function deleteNotification(
+  page: import('@playwright/test').Page,
+  id: number
+): Promise<void> {
   try {
     await page.request.delete(`http://localhost:8082/api/v1/erp/notifications/notification/${id}`);
     console.log(`[31e] 清理通知 id=${id} ✅`);
@@ -60,7 +69,10 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
     } catch (e) {
       console.error(`[31e-1] 创建失败: ${(e as Error).message}`);
     }
-    if (!id) { test.skip(); return; }
+    if (!id) {
+      test.skip();
+      return;
+    }
     console.log(`[31e-1] 创建成功 id=${id}`);
 
     // GET 回读
@@ -102,12 +114,7 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
     }
 
     // DELETE 清理
-    try {
-      await apiCall(page, 'DELETE', `/oa-announcements/${id}`);
-      console.log(`[31e-1] 清理删除 id=${id} ✅`);
-    } catch (e) {
-      console.warn(`[31e-1] 清理删除失败: ${(e as Error).message}`);
-    }
+    await tryCleanup(page, 'DELETE', `/oa-announcements/${id}`, '[31e-1]');
   });
 
   test('2. OA 公告发布联动通知：CUSTOM 范围→发布→通知产生验证', async ({ page }) => {
@@ -124,7 +131,10 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
     } catch (e) {
       console.warn(`[31e-2] 获取当前用户失败: ${(e as Error).message}`);
     }
-    if (!currentUserId) { test.skip(); return; }
+    if (!currentUserId) {
+      test.skip();
+      return;
+    }
 
     // 创建草稿公告（visibility_scope=CUSTOM, user_ids=[当前用户]）
     let announcementId: number | undefined;
@@ -143,7 +153,10 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
     } catch (e) {
       console.error(`[31e-2] 公告创建失败: ${(e as Error).message}`);
     }
-    if (!announcementId) { test.skip(); return; }
+    if (!announcementId) {
+      test.skip();
+      return;
+    }
     console.log(`[31e-2] 公告创建成功 id=${announcementId}`);
 
     const before = await getUnreadNotifications(page);
@@ -151,7 +164,9 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
     // 发布 → 联动通知
     let notifiedCount = 0;
     try {
-      const res = await page.request.post(`http://localhost:8082/api/v1/erp/oa-announcements/${announcementId}/publish`);
+      const res = await page.request.post(
+        `http://localhost:8082/api/v1/erp/oa-announcements/${announcementId}/publish`
+      );
       if (res.ok()) {
         const body = await res.json();
         notifiedCount = body?.data?.notified_count ?? 0;
@@ -165,13 +180,15 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
 
     await page.waitForTimeout(3000);
     const after = await getUnreadNotifications(page);
-    const newOnes = after.filter((n) => !before.some((b) => b.id === n.id));
-    const announcementNotif = newOnes.find((n) => n.title === title);
+    const newOnes = after.filter(n => !before.some(b => b.id === n.id));
+    const announcementNotif = newOnes.find(n => n.title === title);
     console.log(`[31e-2] 新增通知 ${newOnes.length} 条，匹配公告通知: ${!!announcementNotif}`);
 
     if (notifiedCount > 0 && announcementNotif) {
       expect(announcementNotif.title, '[31e-2] 通知标题应匹配公告标题').toBe(title);
-      expect(announcementNotif.content, '[31e-2] 通知内容应匹配公告内容').toBe('P0发布联动通知测试内容');
+      expect(announcementNotif.content, '[31e-2] 通知内容应匹配公告内容').toBe(
+        'P0发布联动通知测试内容'
+      );
       await deleteNotification(page, announcementNotif.id);
     } else {
       console.warn('[31e-2] 未找到联动通知（可能通知服务未配置）');
@@ -230,22 +247,31 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
     } catch (e) {
       console.warn(`[31e-4] 获取当前用户失败: ${(e as Error).message}`);
     }
-    if (!currentUserId) { test.skip(); return; }
+    if (!currentUserId) {
+      test.skip();
+      return;
+    }
 
     const title = `P0直发通知${TS}`;
     const before = await getUnreadNotifications(page);
 
     // 需要管理员权限
     try {
-      const res = await page.request.post('http://localhost:8082/api/v1/erp/notifications/announcement', {
-        data: { user_ids: [currentUserId], title, content: 'P0直发通知测试内容' },
-      });
+      const res = await page.request.post(
+        'http://localhost:8082/api/v1/erp/notifications/announcement',
+        {
+          data: { user_ids: [currentUserId], title, content: 'P0直发通知测试内容' },
+        }
+      );
       if (res.ok()) {
         const body = await res.json();
         console.log(`[31e-4] 公告发送成功 delivered_count=${body?.data?.delivered_count ?? 0}`);
       } else {
         console.warn(`[31e-4] 公告发送 HTTP ${res.status()}（可能非管理员）`);
-        if (res.status() === 403) { test.skip(); return; }
+        if (res.status() === 403) {
+          test.skip();
+          return;
+        }
       }
     } catch (e) {
       console.error(`[31e-4] 公告发送失败: ${(e as Error).message}`);
@@ -253,8 +279,8 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
 
     await page.waitForTimeout(2000);
     const after = await getUnreadNotifications(page);
-    const newOnes = after.filter((n) => !before.some((b) => b.id === n.id));
-    const directNotif = newOnes.find((n) => n.title === title);
+    const newOnes = after.filter(n => !before.some(b => b.id === n.id));
+    const directNotif = newOnes.find(n => n.title === title);
     console.log(`[31e-4] 新增通知 ${newOnes.length} 条，匹配直发通知: ${!!directNotif}`);
 
     if (directNotif) {
@@ -262,7 +288,9 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
 
       // 测试已读
       try {
-        const readRes = await page.request.post(`http://localhost:8082/api/v1/erp/notifications/notification/${directNotif.id}/read`);
+        const readRes = await page.request.post(
+          `http://localhost:8082/api/v1/erp/notifications/notification/${directNotif.id}/read`
+        );
         console.log(`[31e-4] 标记已读 HTTP ${readRes.status()}`);
       } catch (e) {
         console.warn(`[31e-4] 标记已读失败: ${(e as Error).message}`);
@@ -270,7 +298,7 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
 
       // 验证已读后 unread 列表不再包含
       const afterRead = await getUnreadNotifications(page);
-      const stillUnread = afterRead.find((n) => n.id === directNotif.id);
+      const stillUnread = afterRead.find(n => n.id === directNotif.id);
       expect(!stillUnread, '[31e-4] 已读后应不在 unread 列表').toBeTruthy();
 
       // 删除清理
@@ -286,8 +314,13 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
     try {
       const res = await page.request.get('http://localhost:8082/api/v1/erp/users/me');
       if (res.ok()) currentUserId = (await res.json())?.data?.id;
-    } catch { /* skip */ }
-    if (!currentUserId) { test.skip(); return; }
+    } catch {
+      /* skip */
+    }
+    if (!currentUserId) {
+      test.skip();
+      return;
+    }
 
     // 发 3 条通知
     const titles = [`P0-CRUD-1-${TS}`, `P0-CRUD-2-${TS}`, `P0-CRUD-3-${TS}`];
@@ -296,19 +329,23 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
         await page.request.post('http://localhost:8082/api/v1/erp/notifications/announcement', {
           data: { user_ids: [currentUserId], title: t, content: 'CRUD 测试' },
         });
-      } catch { /* 非管理员跳过 */ }
+      } catch {
+        /* 非管理员跳过 */
+      }
     }
     await page.waitForTimeout(2000);
 
     const list = await getUnreadNotifications(page);
-    const myNotifs = list.filter((n) => titles.includes(n.title));
+    const myNotifs = list.filter(n => titles.includes(n.title));
     console.log(`[31e-5] 发送 3 条，找到 ${myNotifs.length} 条匹配通知`);
 
     if (myNotifs.length >= 2) {
       // 单条已读
       const first = myNotifs[0];
       try {
-        const res = await page.request.post(`http://localhost:8082/api/v1/erp/notifications/notification/${first.id}/read`);
+        const res = await page.request.post(
+          `http://localhost:8082/api/v1/erp/notifications/notification/${first.id}/read`
+        );
         console.log(`[31e-5] 单条已读 HTTP ${res.status()}`);
       } catch (e) {
         console.warn(`[31e-5] 单条已读失败: ${(e as Error).message}`);
@@ -317,9 +354,12 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
       // 批量已读
       if (myNotifs.length >= 3) {
         try {
-          const res = await page.request.post('http://localhost:8082/api/v1/erp/notifications/batch-read', {
-            data: { ids: [myNotifs[1].id, myNotifs[2].id] },
-          });
+          const res = await page.request.post(
+            'http://localhost:8082/api/v1/erp/notifications/batch-read',
+            {
+              data: { ids: [myNotifs[1].id, myNotifs[2].id] },
+            }
+          );
           console.log(`[31e-5] 批量已读 HTTP ${res.status()}`);
         } catch (e) {
           console.warn(`[31e-5] 批量已读失败: ${(e as Error).message}`);
@@ -328,7 +368,9 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
 
       // 全部已读
       try {
-        const res = await page.request.post('http://localhost:8082/api/v1/erp/notifications/read-all');
+        const res = await page.request.post(
+          'http://localhost:8082/api/v1/erp/notifications/read-all'
+        );
         console.log(`[31e-5] 全部已读 HTTP ${res.status()}`);
       } catch (e) {
         console.warn(`[31e-5] 全部已读失败: ${(e as Error).message}`);
@@ -336,7 +378,7 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
 
       // 验证未读数为 0
       const afterAll = await getUnreadNotifications(page);
-      const stillUnread = afterAll.filter((n) => titles.includes(n.title));
+      const stillUnread = afterAll.filter(n => titles.includes(n.title));
       console.log(`[31e-5] 全部已读后仍未读: ${stillUnread.length}`);
       expect(stillUnread.length, '[31e-5] 全部已读后应无未读').toBe(0);
 

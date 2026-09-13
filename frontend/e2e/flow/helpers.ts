@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-import type { Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 // ESM 环境无 require（Playwright 原生 ESM 加载链），fs/crypto 必须静态导入；
 // 此前 require('fs')/require('crypto') 抛 "require is not defined" 导致
 // getRoleCredential 恒返 null（全角色 credentials not found）与 generateTotp 崩溃
@@ -1890,5 +1890,106 @@ export function getRoleCredential(role: string): RoleCredential | null {
   } catch (e) {
     console.error(`[getRoleCredential] 凭证文件读取异常: ${(e as Error).message}`);
     return null;
+  }
+}
+
+// ===========================================================================
+// 公共步骤原语（消除 spec 重复代码）
+// ===========================================================================
+
+/**
+ * 尽力执行清理操作（DELETE/PUT），失败仅告警不 rethrow
+ *
+ * 替代各 spec 中重复的:
+ *   try { await apiCall(page, 'DELETE', `/xxx/${id}`); } catch (e) { console.warn(...) }
+ */
+export async function tryCleanup(
+  page: Page,
+  method: 'DELETE' | 'PUT' | 'POST',
+  path: string,
+  label?: string
+): Promise<void> {
+  try {
+    await apiCall(page, method, path);
+  } catch (e) {
+    console.warn(`[cleanup] ${label ?? path} 失败: ${(e as Error).message}`);
+  }
+}
+
+/**
+ * 断言 API 响应被拒绝（权限 403）
+ *
+ * 替代各 spec 中重复的: expect(result.status).toBe(403)
+ */
+export function expectDenied(result: { status: number }, context = ''): void {
+  expect(result.status, context || '应返回 403 权限拒绝').toBe(403);
+}
+
+/**
+ * 断言 API 响应为业务错误（status >= 400）
+ *
+ * 替代各 spec 中重复的: expect(result.status >= 400).toBe(true)
+ */
+export function expectBadRequest(result: { status: number }, context = ''): void {
+  expect(result.status, context || '应返回 400+ 业务错误').toBeGreaterThanOrEqual(400);
+}
+
+/**
+ * 创建业务实体 → 执行回调 → finally DELETE 清理（编排级封装）
+ *
+ * 替代各 spec 中重复的"POST 创建 → 存 id → 测试 → finally DELETE"模式。
+ * 创建失败时自动尝试查找已有实体（兜底）。
+ *
+ * @param page        Playwright Page
+ * @param createPath  POST 创建路径
+ * @param createBody  请求体
+ * @param run         回调（参数为创建的 id）
+ * @param deletePath  清理路径模板（默认 `${createPath}/${id}`）
+ * @param findPath    兜底查找路径（GET，取第一条 id）
+ */
+export async function withEntity(
+  page: Page,
+  createPath: string,
+  createBody: Record<string, unknown>,
+  run: (id: number) => Promise<void>,
+  options?: {
+    deletePath?: (id: number) => string;
+    findPath?: string;
+    label?: string;
+  }
+): Promise<void> {
+  const label = options?.label ?? createPath;
+  let id: number | undefined;
+
+  try {
+    const result = await apiCall<{ id?: number }>(page, 'POST', createPath, createBody);
+    id = result?.data?.id;
+  } catch (e) {
+    console.warn(`[withEntity] ${label} 创建失败: ${(e as Error).message}`);
+    if (options?.findPath) {
+      try {
+        const list = await apiCallRaw<{ items?: Array<{ id: number }> }>(
+          page,
+          'GET',
+          options.findPath
+        );
+        id = list?.items?.[0]?.id;
+        console.log(`[withEntity] ${label} 兜底查找到 id=${id}`);
+      } catch (e2) {
+        console.warn(`[withEntity] ${label} 兜底查找也失败: ${(e2 as Error).message}`);
+      }
+    }
+  }
+
+  if (!id) {
+    console.warn(`[withEntity] ${label} 无可用 id，跳过回调`);
+    return;
+  }
+
+  try {
+    await run(id);
+  } finally {
+    const delPath = options?.deletePath ? options.deletePath(id) : `${createPath}/${id}`;
+    await tryCleanup(page, 'DELETE', delPath, label);
   }
 }

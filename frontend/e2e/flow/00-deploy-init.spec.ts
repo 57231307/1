@@ -23,7 +23,6 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
   });
 
   test('0-2 登录验证 + 权限验证', async ({ page }) => {
-    await loginViaUI(page);
     const me = await apiCallRaw<{ username: string; permissions: string[] }>(
       page,
       'GET',
@@ -35,7 +34,6 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
   });
 
   test('0-3 创建部门', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     for (const dept of [
       { name: genName('销售部'), code: genCode('DEPT-SALE'), sort_order: 1, is_active: true },
@@ -62,7 +60,6 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
   });
 
   test('0-4 创建仓库', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     for (const wh of [
       { name: genName('原料仓'), code: genCode('WH-RAW'), address: 'A区' },
@@ -88,7 +85,6 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
   });
 
   test('0-5 创建产品分类', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     for (const cat of [
       { name: genName('坯布类'), code: genCode('CAT-GREY'), is_active: true },
@@ -113,7 +109,6 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
   });
 
   test('0-6 创建产品 A（坯布，四级批次管理，完整面料规格）', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/products', {
@@ -148,7 +143,6 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
   });
 
   test('0-7 创建产品 B（成品布）', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/products', {
@@ -170,14 +164,14 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
         is_active: true,
       });
       if (result.data?.id) ctx.productIds.push(result.data.id);
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       // 产品可能已存在
-     }
+    }
     expect(ctx.productIds.length).toBeGreaterThanOrEqual(0);
   });
 
   test('0-8 创建色号 RED-001（产品 A 的红色色号）', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     const productId = ctx.productIds[0] || 1;
     try {
@@ -190,14 +184,14 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
       });
       if (result.data?.id) ctx.productColorIds.push(result.data.id);
       ctx.colorNos.push('RED-001');
-    } catch (e) { console.warn(`[E2E] catch: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] catch: ${(e as Error).message}`);
       ctx.colorNos.push('RED-001');
-     }
+    }
     expect(ctx.colorNos).toContain('RED-001');
   });
 
   test('0-9 创建色号 BLUE-001（产品 A 的蓝色色号）', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     const productId = ctx.productIds[0] || 1;
     try {
@@ -210,14 +204,14 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
       });
       if (result.data?.id) ctx.productColorIds.push(result.data.id);
       ctx.colorNos.push('BLUE-001');
-    } catch (e) { console.warn(`[E2E] catch: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] catch: ${(e as Error).message}`);
       ctx.colorNos.push('BLUE-001');
-     }
+    }
     expect(ctx.colorNos).toContain('BLUE-001');
   });
 
   test('0-10 创建供应商（含缸号映射）', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
@@ -239,7 +233,6 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
   });
 
   test('0-11 创建客户（含信用额度）', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
@@ -265,7 +258,6 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
   });
 
   test('0-12 创建会计科目', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     const subjects = [
       { code: '1001', name: '库存现金', level: 1, balance_direction: 'debit' },
@@ -279,15 +271,15 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
       try {
         const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/subjects', s);
         if (result.data?.id) ctx.accountSubjectIds.push(result.data.id);
-      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+      } catch (e) {
+        console.warn(`[E2E] //: ${(e as Error).message}`);
         // 已存在则跳过
-       }
+      }
     }
     expect(ctx.accountSubjectIds.length).toBeGreaterThanOrEqual(0);
   });
 
   test('0-13 创建色卡（RGB/CMYK/LAB 数值）', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/color-cards', {
@@ -305,7 +297,6 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
   });
 
   test('0-14 创建坯布（关联产品 + 双计量）', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     const dyeLotNo = genDyeLotNo();
     ctx.dyeLotNo = dyeLotNo;
@@ -341,15 +332,15 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
           '/greige-fabrics?page=1&page_size=1'
         );
         ctx.greigeFabricId = list.items?.[0]?.id;
-      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+      } catch (e) {
+        console.warn(`[E2E] //: ${(e as Error).message}`);
         // 跳过
-       }
+      }
     }
     expect(ctx.dyeLotNo).toBeTruthy();
   });
 
   test('0-15 基础数据验证', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
 
     const products = await apiCallRaw<{ items: unknown[] }>(

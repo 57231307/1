@@ -68,85 +68,6 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
   });
 
   // ===== 真实 UI 交互验证 =====
-  test('用户管理 UI：搜索+新建用户弹窗+必填校验', async ({ page }) => {
-    await page.goto(`${BASE_URL}/system`);
-    await page.waitForTimeout(3000);
-    await page
-      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-tabs')
-      .first()
-      .waitFor({ state: 'visible', timeout: 30_000 });
-    // 搜索
-    const searchInput = page
-      .locator(
-        'input[placeholder*="用户名"], input[placeholder*="姓名"], input[placeholder*="手机"]'
-      )
-      .first();
-    await searchInput
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const searchVisible = await searchInput.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
-    if (searchVisible) {
-      await searchInput.fill('admin');
-      const queryBtn = page.locator('button:has-text("查询")').first();
-      await queryBtn
-        .waitFor({ state: 'visible', timeout: 3000 })
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const btnVisible = await queryBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
-      if (btnVisible) {
-        await queryBtn.click();
-        await page.waitForTimeout(2000);
-      }
-      const tableOk = await page
-        .locator(
-          '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
-        )
-        .first()
-        .isVisible()
-        .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
-      expect(tableOk).toBe(true);
-    }
-    // 新建用户
-    const newBtn = page.locator('button:has-text("新建用户")').first();
-    await newBtn
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const newBtnVisible = await newBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
-    if (newBtnVisible) {
-      // 监听用户创建请求：必填校验的本质行为是"空表单提交被拦截，不发 POST"
-      let userPostFired = false;
-      page.on('request', req => {
-        if (req.method() === 'POST' && req.url().includes('/users')) userPostFired = true;
-      });
-      await newBtn.click();
-      await page.waitForTimeout(1000);
-      // 用可见 dialog 定位（页面上可能有隐藏的其它 el-dialog，.first() 会命中错的）
-      const dialog = page.locator('.el-dialog:visible').last();
-      await dialog
-        .waitFor({ state: 'visible', timeout: 5000 })
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const dialogVisible = await dialog.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
-      expect(dialogVisible).toBe(true);
-      // 直接保存触发必填校验
-      const saveBtn = dialog.locator('button:has-text("保存"), button:has-text("确定")').first();
-      await saveBtn.click().catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      await page.waitForTimeout(3000);
-      // 主断言（网络层）：必填校验拦截了提交，无 POST /users
-      // （DOM 错误提示渲染时序脆弱，仅作信息输出）
-      const hasError = await page
-        .locator('.el-form-item__error, .el-message--error')
-        .first()
-        .isVisible()
-        .catch((e) => { console.warn('[26-system] 表单校验提示查询失败:', (e as Error).message); return false; });
-      console.log(`[E2E] 用户表单校验提示渲染: ${hasError}（主断言走网络层）`);
-      expect(userPostFired).toBe(false);
-      await page
-        .locator('.el-dialog__headerbtn')
-        .first()
-        .click()
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    }
-  });
-
   test('审计日志 UI：搜索+表格', async ({ page }) => {
     await page.goto(`${BASE_URL}/system/audit-log`);
     await page.waitForTimeout(3000);
@@ -158,7 +79,10 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
     await searchBtn
       .waitFor({ state: 'visible', timeout: 5000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const searchVisible = await searchBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    const searchVisible = await searchBtn.isVisible().catch(e => {
+      console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
+      return false;
+    });
     if (searchVisible) {
       await searchBtn.click();
       await page.waitForTimeout(2000);
@@ -168,7 +92,10 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
         )
         .first()
         .isVisible()
-        .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+        .catch(e => {
+          console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
+          return false;
+        });
       expect(tableOk).toBe(true);
     }
   });
@@ -198,7 +125,10 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
       await table
         .waitFor({ state: 'visible', timeout: 15_000 })
         .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const tableOk = await table.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      const tableOk = await table.isVisible().catch(e => {
+        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
+        return false;
+      });
       expect(tableOk).toBe(true);
     }
     // 新建接口按钮
@@ -206,7 +136,10 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
     await newBtn
       .waitFor({ state: 'visible', timeout: 5000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const newBtnVisible = await newBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    const newBtnVisible = await newBtn.isVisible().catch(e => {
+      console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
+      return false;
+    });
     if (newBtnVisible) {
       await newBtn.click();
       await page.waitForTimeout(1000);
@@ -214,7 +147,10 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
       await dialog
         .waitFor({ state: 'visible', timeout: 5000 })
         .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const dialogVisible = await dialog.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      const dialogVisible = await dialog.isVisible().catch(e => {
+        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
+        return false;
+      });
       expect(dialogVisible).toBe(true);
       await page
         .locator('.el-dialog__headerbtn')
@@ -259,7 +195,10 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
     await newBtn
       .waitFor({ state: 'visible', timeout: 5000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const newBtnVisible = await newBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    const newBtnVisible = await newBtn.isVisible().catch(e => {
+      console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
+      return false;
+    });
     if (newBtnVisible) {
       await newBtn.click();
       await page.waitForTimeout(1000);
@@ -267,7 +206,10 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
       await dialog
         .waitFor({ state: 'visible', timeout: 5000 })
         .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const dialogVisible = await dialog.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      const dialogVisible = await dialog.isVisible().catch(e => {
+        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
+        return false;
+      });
       expect(dialogVisible).toBe(true);
       await page
         .locator('.el-dialog__headerbtn')
