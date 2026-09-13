@@ -2,6 +2,9 @@
 /* 命名空间：{module}.{section}.{key} */
 export default {
   common: {
+    copy: '复制',
+    copied: '已复制',
+    action: '操作',
     confirm: '确认',
     cancel: '取消',
     save: '保存',
@@ -10185,6 +10188,29 @@ export default {
       pageAriaLabel: '凭证管理',
     },
   },
+  exportApprovals: {
+    title: '导出审批',
+    placeholderStatus: '请选择状态',
+    placeholderResource: '请选择资源类型',
+    colResource: '资源类型',
+    colApplicant: '申请人',
+    colStatus: '状态',
+    colRows: '数据行数',
+    colCreatedAt: '申请时间',
+    colToken: '导出令牌',
+    approve: '通过',
+    reject: '驳回',
+    cancel: '撤销',
+    loadFailed: '加载导出审批列表失败',
+    confirmApprove: '确认通过该导出申请？通过后将生成一次性导出令牌',
+    approved: '已通过',
+    inputRejectReason: '请输入驳回原因',
+    rejected: '已驳回',
+    confirmCancel: '确认撤销该导出申请？',
+    cancelled: '已撤销',
+    copyFailed: '复制失败',
+  },
+
   financeReport: {
     index: {
       pageAriaLabel: '财务报表管理页面',
@@ -10192,6 +10218,7 @@ export default {
     reportListTab: {
       pageTitle: '财务报表',
       buttonExport: '导出',
+      unsupportedExportType: '不支持的导出类型',
       filterAriaLabel: '财务报表筛选表单',
       labelReportType: '报表类型',
       placeholderReportType: '选择报表类型',
