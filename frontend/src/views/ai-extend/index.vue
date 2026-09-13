@@ -42,11 +42,11 @@ onMounted(load);
 
 const applyRateText = computed(() => {
   if (!summary.value) return '—';
-  return `${(summary.value.process_optimization.apply_rate * 100).toFixed(1)}%`;
+  return `${((summary.value.process_optimization?.apply_rate ?? 0) * 100).toFixed(1)}%`;
 });
 const applyRateColor = computed(() => {
   if (!summary.value) return '#909399';
-  const r = summary.value.process_optimization.apply_rate;
+  const r = summary.value.process_optimization?.apply_rate ?? 0;
   if (r >= 0.6) return '#67c23a';
   if (r >= 0.3) return '#e6a23c';
   return '#f56c6c';
@@ -79,11 +79,11 @@ const applyRateColor = computed(() => {
       <el-col :span="6">
         <el-card shadow="hover" class="kpi-card">
           <div class="kpi-label">{{ $t('aiExtend.overview.kpiProcessHistory') }}</div>
-          <div class="kpi-value">{{ summary.process_optimization.total }}</div>
+          <div class="kpi-value">{{ summary.process_optimization?.total ?? 0 }}</div>
           <div class="kpi-extra">
             {{
               $t('aiExtend.overview.kpiKnnRecommended', {
-                n: summary.process_optimization.knn_recommended,
+                n: summary.process_optimization?.knn_recommended ?? 0,
               })
             }}
           </div>
@@ -94,16 +94,16 @@ const applyRateColor = computed(() => {
           <div class="kpi-label">{{ $t('aiExtend.overview.kpiApplyRate') }}</div>
           <div class="kpi-value" :style="{ color: applyRateColor }">{{ applyRateText }}</div>
           <div class="kpi-extra">
-            {{ $t('aiExtend.overview.kpiApplied', { n: summary.process_optimization.applied }) }}
+            {{ $t('aiExtend.overview.kpiApplied', { n: summary.process_optimization?.applied ?? 0 }) }}
           </div>
         </el-card>
       </el-col>
       <el-col :span="6">
         <el-card shadow="hover" class="kpi-card">
           <div class="kpi-label">{{ $t('aiExtend.overview.kpiQualityHistory') }}</div>
-          <div class="kpi-value">{{ summary.quality_prediction.total }}</div>
+          <div class="kpi-value">{{ summary.quality_prediction?.total ?? 0 }}</div>
           <div class="kpi-extra">
-            {{ $t('aiExtend.overview.kpiHighRisk', { n: summary.quality_prediction.high_risk }) }}
+            {{ $t('aiExtend.overview.kpiHighRisk', { n: summary.quality_prediction?.high_risk ?? 0 }) }}
           </div>
         </el-card>
       </el-col>
@@ -113,10 +113,10 @@ const applyRateColor = computed(() => {
           <div
             class="kpi-value"
             :style="{
-              color: summary.quality_prediction.unacknowledged > 0 ? '#f56c6c' : '#67c23a',
+              color: (summary.quality_prediction?.unacknowledged ?? 0) > 0 ? '#f56c6c' : '#67c23a',
             }"
           >
-            {{ summary.quality_prediction.unacknowledged }}
+            {{ summary.quality_prediction?.unacknowledged ?? 0 }}
           </div>
           <div class="kpi-extra">{{ $t('aiExtend.overview.kpiUnackHint') }}</div>
         </el-card>

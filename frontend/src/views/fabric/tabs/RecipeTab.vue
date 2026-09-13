@@ -117,7 +117,11 @@ const fetchRecipes = async () => {
   try {
     const { getDyeRecipeList } = await import('@/api/dye-recipe');
     const res = await getDyeRecipeList();
-    recipes.value = (res.data as DyeRecipe[] | undefined) || [];
+    // 响应形态兜底：数组或 { items } 分页包装（防 el-table r is not iterable 白屏）
+    const _p = res.data as unknown;
+    recipes.value = Array.isArray(_p)
+      ? _p
+      : ((_p as { items?: DyeRecipe[] })?.items ?? []);
   } catch (error) {
     const err = error as Error;
     logger.error(t('fabric.recipeTab.fetchFailed'), err.message);

@@ -384,10 +384,6 @@ const initPage = () => {
   loadTab(activeTab.value);
 };
 
-// 批次 280：组件 setup 阶段 useTableApi 已自动加载，但 email 页用 lazy-loader 按 tab 加载
-// 需要在首次进入 tab 时触发加载（lazy-loader 的 loadIfNot 会调用 fetchTemplates/fetchRecords）
-initPage();
-
 const fetchStatistics = async () => {
   try {
     const res = await getEmailStatistics();
@@ -398,6 +394,12 @@ const fetchStatistics = async () => {
     logger.error(t('email.index.messageFetchStatisticsFailed'), error);
   }
 };
+
+// 批次 280：组件 setup 阶段 useTableApi 已自动加载，但 email 页用 lazy-loader 按 tab 加载
+// 需要在首次进入 tab 时触发加载（lazy-loader 的 loadIfNot 会调用 fetchTemplates/fetchRecords）
+// TDZ 修复：initPage→loadTab 求值 tabLoaders 时引用 fetchStatistics，
+// 声明必须先于 initPage() 调用，否则生产构建抛 "Cannot access before initialization" 白屏
+initPage();
 
 const handleCreateTemplate = () => {
   isEditTemplate.value = false;

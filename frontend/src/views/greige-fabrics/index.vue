@@ -279,8 +279,12 @@ const loadGreigeFabrics = async () => {
   loading.value = true;
   try {
     const res = await getGreigeFabricList();
-    // v11 批次 181 P2-1 修复：API 返回 GreigeFabric[]，前端直接使用，无需类型转换
-    greigeList.value = res.data || [];
+    // 响应形态兜底：后端可能返回数组或 { items } 分页包装，非数组直塞 el-table
+    // 会触发 element-plus "r is not iterable"（updateAllSelected）白屏
+    const payload = res.data as unknown;
+    greigeList.value = Array.isArray(payload)
+      ? payload
+      : ((payload as { items?: GreigeFabric[] })?.items ?? []);
   } catch (error) {
     ElMessage.error(t('greigeFabrics.index.messageLoadListFailed'));
   } finally {
