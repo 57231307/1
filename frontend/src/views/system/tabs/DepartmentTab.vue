@@ -34,14 +34,14 @@
           align="center"
         />
         <el-table-column
-          prop="status"
+          prop="is_active"
           :label="t('system.department.column.status')"
           width="80"
           align="center"
         >
           <template #default="{ row }">
-            <el-tag :type="row.status === 1 ? 'success' : 'info'" size="small">
-              {{ getStatusLabel(row.status) }}
+            <el-tag :type="row.is_active ? 'success' : 'info'" size="small">
+              {{ getStatusLabel(row.is_active) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -104,7 +104,7 @@
           <el-input-number v-model="deptForm.sort_order" :min="0" />
         </el-form-item>
         <el-form-item :label="t('system.department.form.label.status')">
-          <el-switch v-model="deptForm.status" :active-value="1" :inactive-value="0" />
+          <el-switch v-model="deptForm.is_active" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -136,8 +136,8 @@ import {
 const { t } = useI18n({ useScope: 'global' });
 
 // 状态标签映射（响应式）
-const getStatusLabel = (status: number): string =>
-  status === 1 ? t('system.department.status.enabled') : t('system.department.status.disabled');
+const getStatusLabel = (isActive: boolean): string =>
+  isActive ? t('system.department.status.enabled') : t('system.department.status.disabled');
 
 const departments = ref<Department[]>([]);
 const deptLoading = ref(false);
@@ -171,7 +171,7 @@ const deptForm = reactive({
   code: '',
   parent_id: undefined as number | undefined,
   sort_order: 0,
-  status: 1,
+  is_active: true,
 });
 
 const deptRules: FormRules = {
@@ -188,7 +188,7 @@ const openDeptDialog = (row?: Department) => {
       code: row.code,
       parent_id: row.parent_id,
       sort_order: row.sort_order,
-      status: row.status,
+      is_active: row.is_active,
     });
   } else {
     Object.assign(deptForm, {
@@ -197,7 +197,7 @@ const openDeptDialog = (row?: Department) => {
       code: '',
       parent_id: undefined,
       sort_order: 0,
-      status: 1,
+      is_active: true,
     });
   }
   deptDialogVisible.value = true;
@@ -212,7 +212,7 @@ const submitDept = async () => {
       await updateDepartment(deptForm.id, {
         name: deptForm.name,
         sort_order: deptForm.sort_order,
-        status: deptForm.status,
+        is_active: deptForm.is_active,
       });
       ElMessage.success(t('system.department.message.updateSuccess'));
     } else {

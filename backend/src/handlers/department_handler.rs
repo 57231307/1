@@ -39,6 +39,8 @@ pub struct UpdateDepartmentRequest {
     pub description: Option<String>,
     pub parent_id: Option<i32>,
     pub manager_id: Option<i32>,
+    #[serde(alias = "status", alias = "is_active")]
+    pub is_active: Option<bool>,
 }
 
 crate::define_crud_handlers!(

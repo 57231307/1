@@ -490,17 +490,16 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
       const chk = await page.request.get(`${API_BASE}${API_PREFIX}/departments/${id}`);
       if (chk.ok()) {
         const body = await chk.json();
-        statusAfter = body?.data?.status;
-        console.log(`[31c-部门] API 回读 status=${statusAfter}`);
+        statusAfter = body?.data?.is_active;
+        console.log(`[31c-部门] API 回读 is_active=${statusAfter}`);
       }
     } catch (e) {
       console.warn(`[31c-部门] 回读异常: ${(e as Error).message}`);
     }
     if (toggled) {
-      expect(
-        String(statusAfter),
-        `[31c-部门] UI 停用后 status 应为 0/false，实际 ${statusAfter}`
-      ).toMatch(/^(0|false)$/);
+      expect(statusAfter, `[31c-部门] UI 停用后 is_active 应为 false，实际 ${statusAfter}`).toBe(
+        false
+      );
     } else {
       console.warn('[31c-部门] UI 停用未完成（控件结构差异），已记录诊断日志');
       expect(toggled, '[31c-部门] UI 编辑弹窗停用操作应可完成（失败见诊断日志）').toBe(true);

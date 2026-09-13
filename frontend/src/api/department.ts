@@ -9,7 +9,7 @@ export interface Department {
   manager_id?: number;
   manager_name?: string;
   sort_order: number;
-  status: number;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
   children?: Department[];
@@ -27,7 +27,7 @@ export interface DepartmentUpdateRequest {
   name?: string;
   manager_id?: number;
   sort_order?: number;
-  status?: number;
+  is_active?: boolean;
 }
 
 export function getDepartmentList(params?: QueryParams): Promise<ApiResponse<Department[]>> {
