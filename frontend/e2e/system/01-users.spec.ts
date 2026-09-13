@@ -30,9 +30,11 @@ test.describe('01 用户与角色', () => {
     await page.getByLabel(/用户名/).fill(`e2e_user_${Date.now()}`);
     await page.getByLabel(/姓名/).fill('E2E 测试用户');
     await page.getByRole('button', { name: /确认|保存|提交/ }).last().click();
-    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
+    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 }).catch((e) => {
+      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
+
       return null;
-    });
+        });
   });
 
   test('01-04 角色列表可正常加载', async ({ page }) => {

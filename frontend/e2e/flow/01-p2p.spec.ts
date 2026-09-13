@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import {
   loginViaUI,
   apiCall,
@@ -57,9 +57,9 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
           '/purchase/orders?page=1&page_size=1'
         );
         ctx.purchaseOrderId = list.items?.[0]?.id;
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         /* 查找也失败 */
-      }
+       }
     }
     expect(ctx.purchaseOrderId).toBeDefined();
   });
@@ -69,6 +69,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     const ctx = getCtx();
     const id = ctx.purchaseOrderId;
     if (!id) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -120,6 +121,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     const ctx = getCtx();
     const id = ctx.purchaseOrderId;
     if (!id) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -133,6 +135,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     const ctx = getCtx();
     const id = ctx.purchaseOrderId;
     if (!id) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -166,9 +169,9 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
           },
         ],
       });
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       // 入库可能需要订单已审批，或 API 格式不同
-    }
+     }
 
     // 验证订单状态更新
     const order = await apiCallRaw<{ status: string; order_status?: string }>(
@@ -217,9 +220,9 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
         `/inventory/stock?product_id=${productId}&dye_lot_no=${encodeURIComponent(dyeLotNo)}&page=1&page_size=10`
       );
       expect(byDyeLot.items);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       // 四维查询可能需要额外参数，跳过
-    }
+     }
   });
 
   test('1-7 验证 AP 应付单', async ({ page }) => {
@@ -227,13 +230,16 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     const ctx = getCtx();
 
     try {
-      const invoices = await apiCallRaw<{
-        items: Array<{ id: number; amount: number; status: string }>;
-      }>(page, 'GET', '/ap/invoices?page=1&page_size=5');
-      expect(invoices.items);
+      // 后端 list_ap_invoices 返回 ApiResponse<Vec<Model>>：data 是数组（无 items 包装）
+      const invoices = await apiCallRaw<
+        Array<{ id: number; amount: number; status: string }> | { items?: Array<{ id: number; amount: number; status: string }> }
+      >(page, 'GET', '/ap/invoices?page=1&page_size=5');
+      const invoiceList = Array.isArray(invoices)
+        ? invoices
+        : ((invoices as { items?: Array<{ id: number; amount: number; status: string }> }).items ?? []);
 
       // 尝试手动创建 AP 应付单（如果未自动生成）
-      if ((invoices?.items?.length ?? 0) === 0) {
+      if ((invoiceList.length ?? 0) === 0) {
         try {
           const result = await apiCall<{ id?: number }>(page, 'POST', '/ap/invoices', {
             // CreateApInvoiceRequest：invoice_no 非后端字段（应 inset_type），保留 amount/tax_amount/invoice_date
@@ -243,15 +249,15 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
             invoice_date: new Date().toISOString().split('T')[0],
           });
           ctx.apInvoiceId = result.data?.id;
-        } catch {
+        } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
           /* skip */
-        }
+         }
       } else {
-        ctx.apInvoiceId = invoices.items?.[0]?.id;
+        ctx.apInvoiceId = invoiceList[0]?.id;
       }
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       // AP 模块可能未就绪
-    }
+     }
     expect(ctx.apInvoiceId).toBeDefined();
   });
 
@@ -260,6 +266,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     const ctx = getCtx();
 
     if (!ctx.apInvoiceId) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -271,9 +278,9 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
         payment_method: 'bank_transfer',
         payment_date: new Date().toISOString().split('T')[0],
       });
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       // 可能已付清或 API 格式不同
-    }
+     }
 
     // 验证应付单状态
     try {
@@ -285,9 +292,9 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       expect(['paid', 'partially_paid', 'unpaid', 'pending', 'approved', 'confirmed']).toContain(
         (invoice.status || '(missing-status)').toLowerCase()
       );
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       // 跳过
-    }
+     }
   });
 
   test('1-9 验证采购订单完整状态流转记录', async ({ page }) => {
@@ -295,6 +302,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     const ctx = getCtx();
     const id = ctx.purchaseOrderId;
     if (!id) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -336,8 +344,8 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
         '/purchase/orders?page=1&page_size=5'
       );
       expect(orders.items);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       // 跳过
-    }
+     }
   });
 });

@@ -37,6 +37,20 @@ export interface UpdateSettingRequest {
   enableSms: boolean;
 }
 
+/** 系统公告发送请求（仅管理员） */
+export interface CreateAnnouncementRequest {
+  /** 目标用户 id 列表（非空，后端自动去重） */
+  userIds: number[];
+  /** 公告标题（1-100 字符） */
+  title: string;
+  /** 公告内容（1-2000 字符） */
+  content: string;
+}
+
+export interface AnnouncementResult {
+  deliveredCount: number;
+}
+
 export function getNotificationList(
   params?: NotificationQueryParams
 ): Promise<ApiResponse<{ items: Notification[]; total: number }>> {
@@ -75,6 +89,22 @@ export function updateSetting(
   data: UpdateSettingRequest
 ): Promise<ApiResponse<NotificationSetting>> {
   return request.put('/notifications/settings', data);
+}
+
+/**
+ * 发送系统公告（仅管理员）
+ *
+ * 向指定用户列表广播 SYSTEM 类型站内通知；后端按用户通知偏好过滤，
+ * 关闭内部消息的用户不会收到。
+ */
+export function createAnnouncement(
+  data: CreateAnnouncementRequest
+): Promise<ApiResponse<AnnouncementResult>> {
+  return request.post('/notifications/announcement', {
+    user_ids: data.userIds,
+    title: data.title,
+    content: data.content,
+  });
 }
 
 /** WebSocket 票据响应（v12 P1-4：一次性短时票据替代 URL query JWT） */

@@ -36,6 +36,18 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '登录' },
   },
   {
+    path: '/terms',
+    name: 'Terms',
+    component: () => import('@/views/legal/TermsView.vue'),
+    meta: { title: '用户协议', public: true },
+  },
+  {
+    path: '/privacy',
+    name: 'Privacy',
+    component: () => import('@/views/legal/PrivacyView.vue'),
+    meta: { title: '隐私政策', public: true },
+  },
+  {
     path: '/setup',
     name: 'Setup',
     component: () => import('@/views/Setup.vue'),
@@ -64,12 +76,34 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '系统管理', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
+        path: 'system/oa-announcements',
+        name: 'SystemOaAnnouncements',
+        component: () => import('@/views/system/oa-announcements/index.vue'),
+        meta: {
+          title: 'OA公告管理',
+          icon: 'Bell',
+          permission: 'oa-announcements:read',
+          requiresAuth: true,
+        },
+      },
+      {
         path: 'system/audit-log',
         name: 'SystemAuditLog',
         component: () => import('@/views/system/audit-log/index.vue'),
         meta: {
           title: '审计日志',
           icon: 'Setting',
+          permission: 'audit-logs:read',
+          requiresAuth: true,
+        },
+      },
+      {
+        path: 'system/export-approvals',
+        name: 'SystemExportApprovals',
+        component: () => import('@/views/system/ExportApprovals.vue'),
+        meta: {
+          title: '导出审批',
+          icon: 'Lock',
           permission: 'audit-logs:read',
           requiresAuth: true,
         },

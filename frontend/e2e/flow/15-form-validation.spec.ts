@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { loginViaUI, BASE_URL } from './helpers';
 
 // 表单校验真实 UI 交互（规则 2：禁止 catch 吞错，错误必须显式处理或传播）
@@ -47,7 +47,7 @@ test.describe('表单校验真实 UI 交互', () => {
       .first()
       .waitFor({ state: 'visible', timeout: 5000 })
       .then(() => true)
-      .catch(() => false);
+      .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     expect(hasError).toBe(true);
 
     // 关闭弹窗
@@ -94,7 +94,7 @@ test.describe('表单校验真实 UI 交互', () => {
       .first()
       .waitFor({ state: 'visible', timeout: 5000 })
       .then(() => true)
-      .catch(() => false);
+      .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     expect(hasError).toBe(true);
 
     const closeBtn = page.locator('.el-dialog__headerbtn').first();
@@ -136,7 +136,7 @@ test.describe('表单校验真实 UI 交互', () => {
       .first()
       .waitFor({ state: 'visible', timeout: 5000 })
       .then(() => true)
-      .catch(() => false);
+      .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     expect(hasError).toBe(true);
 
     const closeBtn = page.locator('.el-dialog__headerbtn').first();

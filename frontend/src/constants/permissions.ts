@@ -209,6 +209,16 @@ export const PERMISSIONS = {
   FINANCE_CREATE: 'finance:create',
   FINANCE_UPDATE: 'finance:update',
   FINANCE_DELETE: 'finance:delete',
+
+  // 消息通知（后端资源：notifications）
+  NOTIFICATION_READ: 'notifications:read',
+  NOTIFICATION_CREATE: 'notifications:create',
+
+  // OA 公告（后端资源：oa-announcements）
+  OA_ANNOUNCEMENT_READ: 'oa-announcements:read',
+  OA_ANNOUNCEMENT_CREATE: 'oa-announcements:create',
+  OA_ANNOUNCEMENT_UPDATE: 'oa-announcements:update',
+  OA_ANNOUNCEMENT_DELETE: 'oa-announcements:delete',
 } as const;
 
 // ============================================================================

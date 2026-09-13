@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { loginViaUI, BASE_URL } from './helpers';
 
 test.describe('100% 前端路由 UI 交互全覆盖', () => {
@@ -31,7 +31,7 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
     await table
       .waitFor({ state: 'visible', timeout: 10_000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const visible = await table.isVisible().catch(() => false);
+    const visible = await table.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     if (visible) {
       const headers = table.locator('th, .el-table-v2__header-cell');
       const count = await headers.count();
@@ -46,9 +46,9 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
     await btn
       .waitFor({ state: 'visible', timeout: 5000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const visible = await btn.isVisible().catch(() => false);
+    const visible = await btn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     if (visible) {
-      const disabled = await btn.isDisabled().catch(() => false);
+      const disabled = await btn.isDisabled().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
       expect(disabled).toBe(false);
       await btn.click();
       await page.waitForTimeout(1000);
@@ -56,7 +56,7 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
       const dialogVisible = await dialog
         .waitFor({ state: 'visible', timeout: 5000 })
         .then(() => true)
-        .catch(() => false);
+        .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
       if (dialogVisible) {
         await page
           .locator('.el-dialog__headerbtn')
@@ -77,7 +77,7 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
     await tab
       .waitFor({ state: 'visible', timeout: 15_000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const visible = await tab.isVisible().catch(() => false);
+    const visible = await tab.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     expect(visible).toBe(true);
   });
   test('应收对账增强 /ar-reconciliation/enhanced', async ({ page }) => {
@@ -94,7 +94,7 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
     await tab
       .waitFor({ state: 'visible', timeout: 15_000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const visible = await tab.isVisible().catch(() => false);
+    const visible = await tab.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     expect(visible).toBe(true);
   });
   test('财务分析 /financial-analysis', async ({ page }) => {
@@ -103,7 +103,7 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
     await card
       .waitFor({ state: 'visible', timeout: 15_000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const visible = await card.isVisible().catch(() => false);
+    const visible = await card.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     expect(visible).toBe(true);
   });
   test('交易管理 /trading', async ({ page }) => {
@@ -118,7 +118,7 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
     await tab
       .waitFor({ state: 'visible', timeout: 15_000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const visible = await tab.isVisible().catch(() => false);
+    const visible = await tab.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     expect(visible).toBe(true);
   });
   test('系统更新 /system-update', async ({ page }) => {
@@ -127,7 +127,7 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
     await card
       .waitFor({ state: 'visible', timeout: 15_000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const visible = await card.isVisible().catch(() => false);
+    const visible = await card.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     expect(visible).toBe(true);
   });
   test('个人信息 /system/profile', async ({ page }) => {
@@ -136,7 +136,7 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
     await form
       .waitFor({ state: 'visible', timeout: 15_000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const visible = await form.isVisible().catch(() => false);
+    const visible = await form.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     expect(visible).toBe(true);
   });
   test('慢查询 /system/slow-query', async ({ page }) => {
@@ -153,7 +153,7 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
     await card
       .waitFor({ state: 'visible', timeout: 15_000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const visible = await card.isVisible().catch(() => false);
+    const visible = await card.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     expect(visible).toBe(true);
   });
   test('报表中心 /report-templates', async ({ page }) => {
@@ -166,7 +166,7 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
     await card
       .waitFor({ state: 'visible', timeout: 15_000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const visible = await card.isVisible().catch(() => false);
+    const visible = await card.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     expect(visible).toBe(true);
   });
   test('双因素认证 /security/two-factor-setup', async ({ page }) => {
@@ -175,7 +175,7 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
     await card
       .waitFor({ state: 'visible', timeout: 15_000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const visible = await card.isVisible().catch(() => false);
+    const visible = await card.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     expect(visible).toBe(true);
   });
   test('主备隔离 /admin/failover', async ({ page }) => {
@@ -184,7 +184,7 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
     await card
       .waitFor({ state: 'visible', timeout: 15_000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const visible = await card.isVisible().catch(() => false);
+    const visible = await card.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     expect(visible).toBe(true);
   });
 });

@@ -19,7 +19,7 @@ use crate::models::status::master_data;
 use crate::services::customer_ops::types::CreateCustomerArgs;
 use crate::services::customer_service::CustomerService;
 use crate::utils::data_scope::{
-    apply_department_scope_with_pool, check_resource_owner, DataScopeContext,
+    DataScopeContext, apply_department_scope_with_pool, check_resource_owner,
 };
 use crate::utils::error::AppError;
 // P0-D03（Batch 488）：Redis 分布式缓存接入（get_customer 读穿透 + 写失效）

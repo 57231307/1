@@ -13,7 +13,7 @@ test.describe('生产计划 - 03 工单管理', () => {
     await page.goto('/production');
     await expect(page.locator('.el-table, .v2-table')).toBeVisible({ timeout: 30000 });
     const viewBtn = page.getByRole('link', { name: /查看/ }).first();
-    if (await viewBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await viewBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
       await viewBtn.click();
       await expect(page.locator('.el-dialog')).toBeVisible();
       await expect(page.getByText(/订单编号|产品名称|计划数量/)).toBeVisible();
@@ -25,12 +25,14 @@ test.describe('生产计划 - 03 工单管理', () => {
     await page.goto('/production');
     await expect(page.locator('.el-table, .v2-table')).toBeVisible({ timeout: 30000 });
     const deleteBtn = page.getByRole('link', { name: /删除/ }).first();
-    if (await deleteBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await deleteBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
       await deleteBtn.click();
       await page.getByRole('button', { name: /确定/ }).click();
-      await expect(page.getByText(/删除成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
+      await expect(page.getByText(/删除成功/)).toBeVisible({ timeout: 30000 }).catch((e) => {
+      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
+
         return null;
-      });
+          });
     }
   });
 

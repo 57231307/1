@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { loginViaUI, BASE_URL } from './helpers';
 
 test.describe('批量操作与弹窗确认', () => {
@@ -37,7 +37,7 @@ test.describe('批量操作与弹窗确认', () => {
       await batchApproveBtn
         .waitFor({ state: 'visible', timeout: 3000 })
         .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const batchBtnVisible = await batchApproveBtn.isVisible().catch(() => false);
+      const batchBtnVisible = await batchApproveBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
       if (batchBtnVisible) {
         await batchApproveBtn.click();
         await page.waitForTimeout(1000);
@@ -49,7 +49,7 @@ test.describe('批量操作与弹窗确认', () => {
         await confirmDialog
           .waitFor({ state: 'visible', timeout: 5000 })
           .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-        const dialogVisible = await confirmDialog.isVisible().catch(() => false);
+        const dialogVisible = await confirmDialog.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
         if (dialogVisible) {
           const confirmBtn = page
             .locator(
@@ -93,7 +93,7 @@ test.describe('批量操作与弹窗确认', () => {
     await deleteBtn
       .waitFor({ state: 'visible', timeout: 5000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const deleteVisible = await deleteBtn.isVisible().catch(() => false);
+    const deleteVisible = await deleteBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     if (deleteVisible) {
       await deleteBtn.click();
       await page.waitForTimeout(500);
@@ -103,7 +103,7 @@ test.describe('批量操作与弹窗确认', () => {
       await popconfirm
         .waitFor({ state: 'visible', timeout: 5000 })
         .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const popVisible = await popconfirm.isVisible().catch(() => false);
+      const popVisible = await popconfirm.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
       if (popVisible) {
         // 点击取消
         const cancelBtn = page
@@ -114,7 +114,7 @@ test.describe('批量操作与弹窗确认', () => {
         await cancelBtn
           .waitFor({ state: 'visible', timeout: 3000 })
           .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-        const cancelVisible = await cancelBtn.isVisible().catch(() => false);
+        const cancelVisible = await cancelBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
         if (cancelVisible) {
           await cancelBtn.click();
           await page.waitForTimeout(500);
@@ -123,7 +123,7 @@ test.describe('批量操作与弹窗确认', () => {
             .waitFor({ state: 'visible', timeout: 2000 })
             .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
 
-          const popStillVisible = await popconfirm.isVisible().catch(() => false);
+          const popStillVisible = await popconfirm.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
           expect(popStillVisible).toBe(false);
         }
       }
@@ -146,9 +146,9 @@ test.describe('批量操作与弹窗确认', () => {
     await exportBtn
       .waitFor({ state: 'visible', timeout: 5000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const exportVisible = await exportBtn.isVisible().catch(() => false);
+    const exportVisible = await exportBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     if (exportVisible) {
-      const downloadPromise = page.waitForEvent('download', { timeout: 5000 }).catch(() => null);
+      const downloadPromise = page.waitForEvent('download', { timeout: 5000 }).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
       await exportBtn.click();
       await page.waitForTimeout(1000);
 
@@ -189,7 +189,7 @@ test.describe('批量操作与弹窗确认', () => {
     await supplierSelect
       .waitFor({ state: 'visible', timeout: 5000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const selectVisible = await supplierSelect.isVisible().catch(() => false);
+    const selectVisible = await supplierSelect.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     if (selectVisible) {
       await supplierSelect.click();
       await page.waitForTimeout(500);

@@ -26,9 +26,11 @@ test.describe('01 客户管理', () => {
     await page.getByLabel(/电话/).fill('13800138000');
     await page.getByLabel(/邮箱/).fill('test@example.com');
     await page.getByRole('button', { name: /保存|确认|提交/ }).last().click();
-    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
+    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 }).catch((e) => {
+      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
+
       return null;
-    });
+        });
   });
 
   test('01-03 客户列表支持筛选', async ({ page }) => {

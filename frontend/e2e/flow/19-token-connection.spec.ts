@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import {
   loginViaUI,
   BASE_URL,
@@ -62,7 +62,7 @@ test.describe('后端连接状态与 Token 管理', () => {
       .locator('form, .el-form, .setup-container')
       .first()
       .isVisible()
-      .catch(() => false);
+      .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     expect(hasForm).toBe(true);
 
     await context.close();

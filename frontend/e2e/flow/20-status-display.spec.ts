@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { loginViaUI, BASE_URL, apiCall, apiCallRaw, getCtx, ensureTestEntities } from './helpers';
 
 test.describe('前端状态显示与业务逻辑验证', () => {
@@ -137,7 +137,7 @@ test.describe('前端状态显示与业务逻辑验证', () => {
     await newBtn
       .waitFor({ state: 'visible', timeout: 5000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const newBtnVisible = await newBtn.isVisible().catch(() => false);
+    const newBtnVisible = await newBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     expect(newBtnVisible).toBe(true);
   });
 
@@ -153,7 +153,7 @@ test.describe('前端状态显示与业务逻辑验证', () => {
     await table
       .waitFor({ state: 'visible', timeout: 15_000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const tableVisible = await table.isVisible().catch(() => false);
+    const tableVisible = await table.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     if (tableVisible) {
       const emptyBlock = page.locator('.el-table__empty-block, .el-table__empty-text, .el-empty');
       await emptyBlock
@@ -163,7 +163,7 @@ test.describe('前端状态显示与业务逻辑验证', () => {
       const emptyVisible = await emptyBlock
         .first()
         .isVisible()
-        .catch(() => false);
+        .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
       if (emptyVisible) {
         const emptyText = await emptyBlock.first().textContent();
         expect(emptyText).toBeTruthy();
@@ -182,7 +182,7 @@ test.describe('前端状态显示与业务逻辑验证', () => {
       .first()
       .waitFor({ state: 'visible', timeout: 3000 })
       .then(() => true)
-      .catch(() => false);
+      .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
 
     await page.waitForTimeout(2000);
 
@@ -190,7 +190,7 @@ test.describe('前端状态显示与业务逻辑验证', () => {
     await content
       .waitFor({ state: 'visible', timeout: 10_000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const contentVisible = await content.isVisible().catch(() => false);
+    const contentVisible = await content.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     expect(contentVisible).toBe(true);
   });
 
@@ -204,7 +204,7 @@ test.describe('前端状态显示与业务逻辑验证', () => {
     await body
       .waitFor({ state: 'visible', timeout: 10_000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const bodyVisible = await body.isVisible().catch(() => false);
+    const bodyVisible = await body.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     expect(bodyVisible).toBe(true);
 
     // 恢复宽屏
@@ -229,7 +229,7 @@ test.describe('前端状态显示与业务逻辑验证', () => {
     await searchBtn
       .waitFor({ state: 'visible', timeout: 3000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const searchVisible = await searchBtn.isVisible().catch(() => false);
+    const searchVisible = await searchBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     if (searchVisible) {
       await searchBtn.click();
       await page.waitForTimeout(500);
@@ -238,13 +238,13 @@ test.describe('前端状态显示与业务逻辑验证', () => {
       await message
         .waitFor({ state: 'visible', timeout: 2000 })
         .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const messageVisible = await message.isVisible().catch(() => false);
+      const messageVisible = await message.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
       if (messageVisible) {
         await page.waitForTimeout(4000);
         await message
           .waitFor({ state: 'visible', timeout: 1000 })
           .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-        const messageStillVisible = await message.isVisible().catch(() => false);
+        const messageStillVisible = await message.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
         expect(messageStillVisible).toBe(false);
       }
     }

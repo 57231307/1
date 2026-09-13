@@ -115,6 +115,9 @@
           <el-button @click="emit('openImport')">
             <el-icon><Upload /></el-icon>{{ t('product.productListTab.buttonImport') }}
           </el-button>
+          <el-button :loading="exporting" @click="handleExport">
+            <el-icon><Download /></el-icon>{{ t('common.export') }}
+          </el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -231,13 +234,22 @@ import { formatCurrency } from '@/utils';
 import { ref, reactive, watch, onMounted, defineEmits, defineExpose } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, Upload, Goods, CircleCheck, Collection, Money } from '@element-plus/icons-vue';
+import {
+  Plus,
+  Upload,
+  Download,
+  Goods,
+  CircleCheck,
+  Collection,
+  Money,
+} from '@element-plus/icons-vue';
 import {
   getProductCategoryList,
   deleteProduct,
   type Product,
   type ProductCategory,
 } from '@/api/product';
+import { exportFabrics } from '@/api/fabric';
 import { useTableApi } from '@/composables/useTableApi';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -352,6 +364,30 @@ const handleReset = () => {
   queryParams.value.category_id = undefined;
   queryParams.value.is_active = undefined;
   handleQuery();
+};
+
+const exporting = ref(false);
+// 产品列表导出：调 /products/export 下载 blob（与 dye-recipe 等页面统一模式）
+const handleExport = async () => {
+  if (exporting.value) return;
+  exporting.value = true;
+  try {
+    const res = await exportFabrics(queryParams.value as never);
+    const url = window.URL.createObjectURL(new Blob([res]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `products-${Date.now()}.xlsx`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    ElMessage.success(t('message.exportSuccess'));
+  } catch (error) {
+    ElMessage.error(t('message.exportFailed'));
+    console.error('[ProductListTab] 导出失败:', error);
+  } finally {
+    exporting.value = false;
+  }
 };
 
 const handleDelete = async (row: Product) => {

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import {
   loginViaUI,
   apiCall,
@@ -46,7 +46,8 @@ test.describe('采购退货完整流程', () => {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/returns', returnData);
       returnId = result.data?.id!;
-    } catch {
+    } catch (e) {
+      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',
@@ -113,7 +114,7 @@ test.describe('采购退货完整流程', () => {
       )
       .first()
       .isVisible()
-      .catch(() => false);
+      .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
     expect(tableVisible).toBe(true);
   });
 
@@ -150,7 +151,8 @@ test.describe('采购退货完整流程', () => {
         returnData
       );
       returnId = result.data?.id!;
-    } catch {
+    } catch (e) {
+      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',

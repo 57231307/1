@@ -18,7 +18,7 @@ use axum::{
     Json,
     extract::{Path, Query, State},
 };
-use sea_orm::EntityTrait;
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
@@ -102,6 +102,15 @@ pub async fn get_order(
     let data_scope_ctx = auth.to_data_scope_context();
     let order = service.get_order(id, Some(&data_scope_ctx)).await?;
     let mut order_json = serde_json::to_value(order)?;
+
+    // 装配明细行：PurchaseOrderDto 不含 items，但详情页/E2E 与下方数据权限
+    // 字段过滤逻辑都依赖响应携带 items 数组
+    let items = crate::models::purchase_order_item::Entity::find()
+        .filter(crate::models::purchase_order_item::Column::OrderId.eq(id))
+        .all(state.db.as_ref())
+        .await
+        .unwrap_or_default();
+    order_json["items"] = serde_json::to_value(items)?;
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {

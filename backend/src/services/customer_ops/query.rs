@@ -19,7 +19,7 @@ use crate::services::customer_ops::types::build_select_only_query;
 use crate::services::customer_service::CustomerService;
 use crate::utils::PaginatedResponse;
 use crate::utils::data_permission::DataPermissionFilter;
-use crate::utils::data_scope::{apply_department_scope_with_pool, DataScopeContext};
+use crate::utils::data_scope::{DataScopeContext, apply_department_scope_with_pool};
 use crate::utils::error::AppError;
 
 impl CustomerService {

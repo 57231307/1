@@ -358,10 +358,7 @@ impl DataPermissionService {
     /// 额外查一次 users 表。缓存 key=user_id，TTL 由 `DEPT_SCOPE_TTL_MINS`
     /// 控制（默认 5 分钟）。解析失败返回空集合（dept 用户退化为 self+公海，
     /// warn 日志）。
-    pub async fn get_user_dept_scope_cached(
-        &self,
-        user_id: i32,
-    ) -> (Vec<i32>, Vec<i32>) {
+    pub async fn get_user_dept_scope_cached(&self, user_id: i32) -> (Vec<i32>, Vec<i32>) {
         let ttl_secs = *DEPT_SCOPE_TTL_SECS;
         let now = Utc::now();
         let key = user_id;

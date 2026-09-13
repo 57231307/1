@@ -49,7 +49,7 @@ test.describe('RPA：表格数据提取（爬虫类）', () => {
 
     // 尝试翻到下一页
     const nextBtn = page.locator('.el-pagination .btn-next').first();
-    if (await nextBtn.isVisible().catch(() => false)) {
+    if (await nextBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
       await nextBtn.click();
       await waitForTableLoaded(page);
 
@@ -77,9 +77,11 @@ test.describe('RPA：表单自动化', () => {
     // mock 模式下页面可能无按钮，仅验证定位器不抛出
     await expect(newBtn)
       .toBeVisible({ timeout: 30_000 })
-      .catch(() => {
+      .catch((e) => {
+      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
+
         // mock 模式下按钮可能不存在，跳过断言
-      });
+          });
   });
 
   test('autoClickButton 工具函数可用', async ({ page }) => {
@@ -90,9 +92,9 @@ test.describe('RPA：表单自动化', () => {
     // mock 模式下按钮可能不存在，使用短超时
     try {
       await autoClickButton(page, '搜索', { timeout: 15_000 });
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       // 按钮不存在是允许的（mock 模式），验证函数可调用即可
-    }
+     }
   });
 });
 

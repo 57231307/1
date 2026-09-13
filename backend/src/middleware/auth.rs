@@ -325,8 +325,10 @@ pub async fn auth_middleware(
             let is_dept = auth_context
                 .data_scope
                 .as_deref()
-                .map(|s| crate::utils::data_scope::DataScope::parse_scope(s)
-                    == crate::utils::data_scope::DataScope::Dept)
+                .map(|s| {
+                    crate::utils::data_scope::DataScope::parse_scope(s)
+                        == crate::utils::data_scope::DataScope::Dept
+                })
                 .unwrap_or(false);
             if is_dept {
                 let dps = crate::services::data_permission_service::DataPermissionService::new(

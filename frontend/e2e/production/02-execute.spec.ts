@@ -13,12 +13,14 @@ test.describe('生产计划 - 02 生产执行', () => {
     await page.goto('/production');
     await expect(page.locator('.el-table, .v2-table')).toBeVisible({ timeout: 30000 });
     const startBtn = page.getByRole('link', { name: /开始生产/ }).first();
-    if (await startBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await startBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
       await startBtn.click();
       await page.getByRole('button', { name: /确定/ }).click();
-      await expect(page.getByText(/开始生产成功|状态更新成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
+      await expect(page.getByText(/开始生产成功|状态更新成功/)).toBeVisible({ timeout: 30000 }).catch((e) => {
+      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
+
         return null;
-      });
+          });
     }
   });
 
@@ -26,12 +28,14 @@ test.describe('生产计划 - 02 生产执行', () => {
     await page.goto('/production');
     await expect(page.locator('.el-table, .v2-table')).toBeVisible({ timeout: 30000 });
     const completeBtn = page.getByRole('link', { name: /完成生产/ }).first();
-    if (await completeBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await completeBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
       await completeBtn.click();
       await page.getByRole('button', { name: /确定/ }).click();
-      await expect(page.getByText(/完成成功|状态更新成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
+      await expect(page.getByText(/完成成功|状态更新成功/)).toBeVisible({ timeout: 30000 }).catch((e) => {
+      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
+
         return null;
-      });
+          });
     }
   });
 

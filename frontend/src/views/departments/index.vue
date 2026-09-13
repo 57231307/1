@@ -22,11 +22,11 @@
       </el-table-column>
       <el-table-column prop="manager_name" :label="t('departments.index.colManager')" />
       <el-table-column prop="sort_order" :label="t('departments.index.colSortOrder')" width="80" />
-      <el-table-column prop="status" :label="t('departments.index.colStatus')">
+      <el-table-column :label="t('departments.index.colStatus')">
         <template #default="{ row }">
-          <el-tag :type="row.status === 1 ? 'success' : 'danger'">
+          <el-tag :type="row.is_active ? 'success' : 'danger'">
             {{
-              row.status === 1
+              row.is_active
                 ? t('departments.index.optionEnabled')
                 : t('departments.index.optionDisabled')
             }}
@@ -100,13 +100,13 @@
         <el-form-item :label="t('departments.index.colSortOrder')" prop="sort_order">
           <el-input-number v-model="formData.sort_order" :min="0" />
         </el-form-item>
-        <el-form-item :label="t('departments.index.colStatus')" prop="status">
+        <el-form-item :label="t('departments.index.colStatus')" prop="is_active">
           <el-select
-            v-model="formData.status"
+            v-model="formData.is_active"
             :placeholder="t('departments.index.placeholderStatus')"
           >
-            <el-option :label="t('departments.index.optionEnabled')" :value="1" />
-            <el-option :label="t('departments.index.optionDisabled')" :value="0" />
+            <el-option :label="t('departments.index.optionEnabled')" :value="true" />
+            <el-option :label="t('departments.index.optionDisabled')" :value="false" />
           </el-select>
         </el-form-item>
       </el-form>
@@ -156,7 +156,7 @@ interface DeptFormData {
   parent_id: number | undefined;
   manager_name: string;
   sort_order: number;
-  status: number;
+  is_active: boolean;
 }
 
 const formData = reactive<DeptFormData>({
@@ -166,13 +166,13 @@ const formData = reactive<DeptFormData>({
   parent_id: undefined,
   manager_name: '',
   sort_order: 0,
-  status: 1,
+  is_active: true,
 });
 
 const formRules: FormRules = {
   name: [{ required: true, message: t('departments.index.ruleNameRequired'), trigger: 'blur' }],
   code: [{ required: true, message: t('departments.index.ruleCodeRequired'), trigger: 'blur' }],
-  status: [
+  is_active: [
     { required: true, message: t('departments.index.ruleStatusRequired'), trigger: 'change' },
   ],
 };
@@ -218,7 +218,7 @@ const handleCreate = () => {
     parent_id: undefined,
     manager_name: '',
     sort_order: 0,
-    status: 1,
+    is_active: true,
   });
   dialogVisible.value = true;
 };
@@ -232,7 +232,7 @@ const handleEdit = (row: Department) => {
     parent_id: row.parent_id,
     manager_name: row.manager_name,
     sort_order: row.sort_order || 0,
-    status: row.status,
+    is_active: row.is_active,
   });
   dialogVisible.value = true;
 };

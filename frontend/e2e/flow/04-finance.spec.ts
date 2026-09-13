@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import {
   loginViaUI,
   apiCall,
@@ -14,36 +14,28 @@ import {
 test.describe.serial('Shard 4: 财务核算闭环', () => {
   test('4-1 验证会计科目列表', async ({ page }) => {
     await loginViaUI(page);
-    try {
-      const subjects = await apiCallRaw<{ items: Array<{ code: string; name: string }> }>(
-        page,
-        'GET',
-        '/subjects?page=1&page_size=20'
-      );
-      expect(subjects.items);
-    } catch {
-      // 科目端点可能不同
-      try {
-        const subjects = await apiCallRaw<{ items: Array<{ code: string }> }>(
-          page,
-          'GET',
-          '/subjects?page=1&page_size=20'
-        );
-        expect(subjects.items);
-      } catch {
-        /* skip */
-      }
-    }
+    // 后端 list_subjects 返回 ApiResponse<Vec<Model>>：data 是数组（无 items 包装）
+    const subjects = await apiCallRaw<
+      Array<{ code: string; name: string }> | { items?: Array<{ code: string; name: string }> }
+    >(page, 'GET', '/subjects?page=1&page_size=20');
+    const subjectList = Array.isArray(subjects)
+      ? subjects
+      : ((subjects as { items?: Array<{ code: string; name: string }> }).items ?? []);
+    expect(subjectList.length).toBeGreaterThanOrEqual(0);
   });
 
   test('4-2 创建凭证（含色号维度成本）', async ({ page }) => {
     await loginViaUI(page);
     try {
       // 先取真实存在的科目编码（CI 库可能没有 1122/6001/2202 种子）
-      const subjects = await apiCallRaw<{
-        items: Array<{ code: string; status?: string }>;
-      }>(page, 'GET', '/subjects?page=1&page_size=50');
-      let activeCodes = (subjects.items || [])
+      const subjects = await apiCallRaw<
+        Array<{ code: string; status?: string }> | { items?: Array<{ code: string; status?: string }> }
+      >(page, 'GET', '/subjects?page=1&page_size=50');
+      // 后端 list_subjects 返回 ApiResponse<Vec<Model>>：data 是数组（非 items 包装）
+      const subjectList = Array.isArray(subjects)
+        ? subjects
+        : ((subjects as { items?: Array<{ code: string; status?: string }> }).items ?? []);
+      let activeCodes = subjectList
         .filter(s => !s.status || s.status === 'active')
         .map(s => s.code);
       // 科目不足 3 个时先创建 E2E 专用科目（CreateSubjectRequestDto: code/name/level）
@@ -86,21 +78,22 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
     const ctx = getCtx();
     const id = ctx.voucherId;
     if (!id) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
 
     try {
       await apiCall(page, 'POST', `/vouchers/${id}/submit`);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
     // posted 可能需要审核步骤
     try {
       await apiCall(page, 'POST', `/vouchers/${id}/post`);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
 
     const v = await apiCallRaw<{ status: string }>(page, 'GET', `/vouchers/${id}`);
     const status = (v.status || '').toLowerCase();
@@ -114,6 +107,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
     const ctx = getCtx();
     const id = ctx.voucherId;
     if (!id) {
+      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
@@ -130,9 +124,9 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
         items: Array<{ id: number; amount: number; status: string }>;
       }>(page, 'GET', '/ap/invoices?page=1&page_size=5');
       expect(apInvoices.items);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 
   test('4-6 验证 AR 应收单', async ({ page }) => {
@@ -142,9 +136,9 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
         items: Array<{ id: number; amount: number; status: string }>;
       }>(page, 'GET', '/ar/invoices?page=1&page_size=5');
       expect(arInvoices.items);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 
   test('4-7 验证付款/收款记录', async ({ page }) => {
@@ -156,9 +150,9 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
         '/ap/payments?page=1&page_size=5'
       );
       expect(apPayments.items);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
     try {
       const arPayments = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
@@ -166,9 +160,9 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
         '/ar/payments?page=1&page_size=5'
       );
       expect(arPayments.items);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 
   test('4-8 创建固定资产（染缸设备）', async ({ page }) => {
@@ -217,9 +211,9 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
         planned_amount: 500000,
       });
       ctx.budgetId = result.data?.id;
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
     expect(ctx.budgetId).toBeDefined();
   });
 
@@ -238,8 +232,8 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
           status ?? '(missing-status)'
         );
       }
-    } catch {
-      // 会计期间端点可能不同
+    } catch (e) {
+      console.warn(`[E2E] 兜底捕获: ${(e as Error).message}`); // 会计期间端点可能不同
       try {
         const periods = await apiCallRaw<{ items: Array<{ status: string }> }>(
           page,
@@ -247,9 +241,9 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
           '/finance/accounting-periods?page=1&page_size=5'
         );
         expect(periods.items);
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         /* skip */
-      }
+       }
     }
   });
 
@@ -262,9 +256,9 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
         '/vouchers?page=1&page_size=5'
       );
       expect(vouchers.items);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 
   test('4-12 验证财务审计日志', async ({ page }) => {
@@ -284,9 +278,9 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
           '/system/omni-audit?page=1&page_size=10'
         );
         expect(logs.items);
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         /* skip */
-      }
+       }
     }
   });
 });

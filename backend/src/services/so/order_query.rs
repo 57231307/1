@@ -13,7 +13,7 @@ use crate::models::dto::PageRequest;
 use crate::models::{sales_order, sales_order::Entity as SalesOrderEntity, sales_order_item};
 use crate::services::so::{SalesOrderDetail, SalesOrderItemDetail};
 use crate::utils::PaginatedResponse;
-use crate::utils::data_scope::{apply_department_scope, DataScopeContext};
+use crate::utils::data_scope::{DataScopeContext, apply_department_scope};
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 use sea_orm::{

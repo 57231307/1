@@ -660,7 +660,7 @@ impl ColorCardIssueService {
             .map(|c| c.id)
             .collect();
 
-        let mut q = query.clone();
+        let q = query.clone();
         // 若原查询已指定 customer_id，且不在 owned 列表中，返回空
         if let Some(req_cust) = q.customer_id {
             if !owned_customers.contains(&(req_cust as i32)) {
@@ -669,11 +669,6 @@ impl ColorCardIssueService {
         } else if owned_customers.is_empty() {
             // 无任何归属客户，返回空
             return Ok((Vec::new(), 0));
-        } else {
-            // 限定为归属客户集合（取第一个作为 IN 条件占位；为避免 SeaORM 复杂 IN，
-            // 改为循环过滤——简化为按 owner_id 关联查询）
-            // 此处通过逐一查询避免 IN 大列表，但为性能考虑改回 IN
-            let _ = &mut q; // 占位
         }
 
         // 直接执行带 customer_id IN (...) 的查询

@@ -451,7 +451,14 @@ impl VoucherService {
         // 保留凭证号用于日志
         let voucher_no = voucher.voucher_no.clone();
 
-        // 删除凭证（含审计日志）；分录由数据库 CASCADE 自动删除
+        // 先删分录：voucher_items 的 FK（fk_voucher_items_voucher）无 ON DELETE CASCADE，
+        // 直接删主表会 FK violation（DATABASE_ERROR）
+        voucher_item::Entity::delete_many()
+            .filter(voucher_item::Column::VoucherId.eq(id))
+            .exec(&txn)
+            .await?;
+
+        // 删除凭证（含审计日志）
         crate::services::audit_log_service::AuditLogService::delete_with_audit::<voucher::Entity, _>(
             &txn,
             "voucher",

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import {
   loginViaUI,
   apiCall,
@@ -35,9 +35,9 @@ test.describe.serial('扩展: 二级审批/BPM审批链/金额自适应', () => 
           status ?? '(missing-status)'
         );
       }
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 
   test('A1-2 验证 BPM 审批链', async ({ page }) => {
@@ -63,9 +63,9 @@ test.describe.serial('扩展: 二级审批/BPM审批链/金额自适应', () => 
           '/bpm/instances?page=1&page_size=5'
         );
         expect(instances.items);
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         /* skip */
-      }
+       }
     }
   });
 
@@ -84,9 +84,9 @@ test.describe.serial('扩展: 二级审批/BPM审批链/金额自适应', () => 
           status ?? '(missing-status)'
         );
       }
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 
   test('A1-4 验证金额自适应审批（报价单）', async ({ page }) => {
@@ -108,9 +108,9 @@ test.describe.serial('扩展: 二级审批/BPM审批链/金额自适应', () => 
         const status = result.data.status.toLowerCase();
         expect(['approved', 'draft', 'submitted', 'pending_approval']).toContain(status);
       }
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 
   test('A1-5 验证审批日志追溯', async ({ page }) => {
@@ -122,8 +122,8 @@ test.describe.serial('扩展: 二级审批/BPM审批链/金额自适应', () => 
         '/system/bpm/tasks?page=1&page_size=10'
       );
       expect(logs.items);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 });

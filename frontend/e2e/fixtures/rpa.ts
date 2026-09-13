@@ -229,9 +229,11 @@ export async function waitForTableLoaded(
     .locator(`${tableSelector} .el-table-v2__row, .el-empty, .el-table__empty-text`)
     .first()
     .waitFor({ state: 'attached', timeout: 30_000 })
-    .catch(() => {
+    .catch((e) => {
+      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
+
       // 超时不阻塞（可能是虚拟滚动未渲染）
-    });
+        });
 }
 
 /**

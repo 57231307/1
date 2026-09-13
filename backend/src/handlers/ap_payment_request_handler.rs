@@ -253,7 +253,7 @@ pub async fn submit_request(
     let service = ApPaymentRequestService::new(state.db.clone());
     let request = service.submit(id, auth.user_id).await?;
 
-    // 发送付款申请通知给审批人
+    // 发送付款申请通知给审批人（admin/manager 角色用户，而非提交人本人）
     if let Some(ref event_service) = state.event_notification_service {
         let supplier_name = if let Ok(Some(sup)) = supplier::Entity::find_by_id(request.supplier_id)
             .one(&*state.db)
@@ -264,18 +264,27 @@ pub async fn submit_request(
             String::new()
         };
 
-        // 批次 114 P1-6：通知发送失败改 warn 日志（原 `let _ =` 静默吞错）
-        if let Err(e) = event_service
-            .notify_payment_request(
-                auth.user_id,
-                &request.request_no,
-                &request.request_amount.to_string(),
-                &supplier_name,
-                request.id,
-            )
-            .await
-        {
-            tracing::warn!(error = %e, request_id = request.id, "付款申请提交通知发送失败");
+        // 查询所有 admin/manager 角色用户（付款审批人）
+        let approver_ids = fetch_approver_user_ids(&state.db).await;
+
+        if !approver_ids.is_empty() {
+            use crate::services::event_notification_service::NotificationPayload;
+            use crate::models::notification::NotificationPriority;
+            let payload = NotificationPayload {
+                user_ids: approver_ids.clone(),
+                title: format!("付款申请待审批：{}", request.request_no),
+                content: format!(
+                    "供应商 {} 的付款申请 {}，金额 {} 需要您审批",
+                    supplier_name, request.request_no, request.request_amount
+                ),
+                priority: NotificationPriority::High,
+                business_type: Some("FINANCE".to_string()),
+                business_id: Some(request.id),
+                action_url: Some(format!("/finance/payment-request/{}", request.id)),
+            };
+            if let Err(e) = event_service.notify_multiple_users(payload).await {
+                warn!(error = %e, request_id = request.id, "付款申请提交通知发送失败");
+            }
         }
     }
 
@@ -378,4 +387,35 @@ pub async fn reject_request(
         serde_json::to_value(request)?,
         "付款申请已拒绝",
     )))
+}
+
+/// 查询付款审批人：admin 和 manager 角色的活跃用户 id 列表
+async fn fetch_approver_user_ids(db: &sea_orm::DatabaseConnection) -> Vec<i32> {
+    use crate::utils::admin_checker::{ADMIN_ROLE_CODE, MANAGER_ROLE_CODE};
+    use crate::models::{role, user};
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, sea_query::Cond};
+
+    // 先查 admin/manager 角色 id
+    let role_ids: Vec<i32> = role::Entity::find()
+        .filter(
+            Cond::any()
+                .add(role::Column::Code.eq(ADMIN_ROLE_CODE))
+                .add(role::Column::Code.eq(MANAGER_ROLE_CODE)),
+        )
+        .all(db)
+        .await
+        .map(|roles| roles.into_iter().map(|r| r.id).collect())
+        .unwrap_or_default();
+
+    if role_ids.is_empty() {
+        return vec![];
+    }
+
+    // 查这些角色下的用户
+    user::Entity::find()
+        .filter(user::Column::RoleId.is_in(role_ids))
+        .all(db)
+        .await
+        .map(|users| users.into_iter().map(|u| u.id).collect())
+        .unwrap_or_default()
 }

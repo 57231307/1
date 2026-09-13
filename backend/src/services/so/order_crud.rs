@@ -287,12 +287,8 @@ impl SalesService {
             billing_address: sea_orm::ActiveValue::Set(request.billing_address.clone()),
             notes: sea_orm::ActiveValue::Set(request.notes.clone()),
             // 追溯列不可空（NOT NULL DEFAULT ''）：None 需写空串而非 NULL
-            batch_no: sea_orm::ActiveValue::Set(Some(
-                request.batch_no.clone().unwrap_or_default(),
-            )),
-            color_no: sea_orm::ActiveValue::Set(Some(
-                request.color_no.clone().unwrap_or_default(),
-            )),
+            batch_no: sea_orm::ActiveValue::Set(Some(request.batch_no.clone().unwrap_or_default())),
+            color_no: sea_orm::ActiveValue::Set(Some(request.color_no.clone().unwrap_or_default())),
             dye_lot_no: sea_orm::ActiveValue::Set(Some(
                 request.dye_lot_no.clone().unwrap_or_default(),
             )),

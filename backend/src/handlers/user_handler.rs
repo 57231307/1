@@ -277,6 +277,8 @@ pub async fn list_users(
         .list_users(
             params.page.unwrap_or(1).clamp(1, 1000),
             params.page_size.unwrap_or(20).clamp(1, 100),
+            params.keyword.clone(),
+            params.status,
         )
         .await?;
 
@@ -295,6 +297,8 @@ pub async fn list_users(
 pub struct ListUsersParams {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
+    pub keyword: Option<String>,
+    pub status: Option<i8>,
 }
 
 use axum::extract::Query;

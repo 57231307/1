@@ -21,8 +21,11 @@ interface RefreshTokenResponse {
 }
 
 export async function login(data: LoginRequest): Promise<LoginResponse> {
+  // _skipAuthRetry 必须置位：login 请求自身 401 时（密码错误）若进入 401 刷新分支，
+  // 会触发 refreshToken → refreshLockStatus 登录瀑布（5 请求连锁）
+  const cfg = { _skipAuthRetry: true } as Parameters<typeof request.post>[2];
   // 拦截器返回完整 ApiResponse 信封 {code,data,message}，业务数据在 data 字段
-  const res = await request.post<ApiResponse<LoginResponseWithCsrf>>('/auth/login', data);
+  const res = await request.post<ApiResponse<LoginResponseWithCsrf>>('/auth/login', data, cfg);
   const payload = res.data;
   if (!payload) {
     throw new Error('登录响应数据为空');

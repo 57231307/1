@@ -19,7 +19,7 @@
             v-model="userQuery.keyword"
             :placeholder="t('system.user.filter.keywordPlaceholder')"
             clearable
-            @keyup.enter="fetchUsers"
+            @keyup.enter="handleQuery"
           />
         </el-form-item>
         <el-form-item :label="t('system.user.filter.status')">
@@ -67,15 +67,15 @@
           </template>
         </el-table-column>
         <el-table-column
-          prop="status"
+          prop="is_active"
           :label="t('system.user.table.status')"
           width="80"
           align="center"
         >
           <template #default="{ row }">
-            <el-tag :type="row.status === 1 ? 'success' : 'info'" size="small">
+            <el-tag :type="row.is_active ? 'success' : 'info'" size="small">
               {{
-                row.status === 1 ? t('system.user.status.active') : t('system.user.status.inactive')
+                row.is_active ? t('system.user.status.active') : t('system.user.status.inactive')
               }}
             </el-tag>
           </template>
@@ -203,6 +203,8 @@ const {
 } = useTableApi<User>({
   url: '/users',
   defaultPageSize: 10,
+  // /users 响应 data 形如 { users: [...], total }（非 items/list 包装），必须显式指定 listKey
+  listKey: 'users',
   onError: (err: unknown) =>
     ElMessage.error(
       (err instanceof Error ? err.message : String(err)) || t('system.user.message.loadListFailed')
@@ -299,8 +301,13 @@ const userRules: FormRules = {
     { min: 3, max: 20, message: t('system.user.validation.usernameLength'), trigger: 'blur' },
   ],
   password: [{ required: true, validator: validatePassword, trigger: 'blur' }],
+  // real_name 为幽灵字段：user 表无此列，后端不持久化也不返回——必填校验会导致编辑保存必败
   real_name: [
-    { required: true, message: t('system.user.validation.realNameRequired'), trigger: 'blur' },
+    {
+      required: false,
+      message: t('system.user.validation.realNameRequired'),
+      trigger: 'blur',
+    },
   ],
   email: [{ validator: validateEmail, trigger: 'blur' }],
   phone: [{ validator: validatePhone, trigger: 'blur' }],
@@ -319,11 +326,14 @@ const openUserDialog = (row?: User) => {
     Object.assign(userForm, {
       id: row.id,
       username: row.username,
-      real_name: row.real_name,
+      real_name: row.real_name ?? '',
       phone: row.phone || '',
       email: row.email || '',
       department_id: row.department_id,
-      status: row.status,
+      // role_id 必填且下拉始终渲染，缺回显会让编辑保存被校验拦截（PUT 不发出）
+      role_id: row.role_id,
+      // 后端响应为 is_active (bool)，表单 switch 用 1/0
+      status: row.is_active ? 1 : 0,
     });
   } else {
     Object.assign(userForm, {
@@ -352,7 +362,8 @@ const submitUser = async () => {
         phone: userForm.phone,
         email: userForm.email,
         department_id: userForm.department_id,
-        status: userForm.status,
+        // 后端 UpdateUserRequest.status 为 "active"/"inactive" 字符串（非数字）
+        status: userForm.status === 1 ? 'active' : 'inactive',
       });
       ElMessage.success(t('settings.user.updateSuccess'));
     } else {

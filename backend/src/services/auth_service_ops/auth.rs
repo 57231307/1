@@ -154,9 +154,10 @@ impl AuthService {
     /// 并发闸门：同一时刻最多 8 个验证任务（见 ARGON2_VERIFY_GATE），超出排队等待，
     /// 防止登录峰值触发内存峰值（并发数 × 64MB）。
     pub async fn verify_password_async(password: String, hash: String) -> Result<bool, AuthError> {
-        let _permit = ARGON2_VERIFY_GATE.acquire().await.map_err(|e| {
-            AuthError::HashingError(format!("密码验证闸门已关闭: {}", e))
-        })?;
+        let _permit = ARGON2_VERIFY_GATE
+            .acquire()
+            .await
+            .map_err(|e| AuthError::HashingError(format!("密码验证闸门已关闭: {}", e)))?;
         tokio::task::spawn_blocking(move || Self::verify_password(&password, &hash))
             .await
             .map_err(|e| AuthError::HashingError(format!("spawn_blocking join 失败: {}", e)))?

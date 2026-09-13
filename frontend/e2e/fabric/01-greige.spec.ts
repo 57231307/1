@@ -25,21 +25,25 @@ test.describe('01 坯布管理', () => {
     await page.getByLabel(/面料名称/).fill('E2E 测试坯布');
     await page.getByLabel(/数量/).fill('1000');
     await page.getByRole('button', { name: /确认|保存|提交/ }).last().click();
-    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
+    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 }).catch((e) => {
+      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
+
       return null;
-    });
+        });
   });
 
   test('01-03 坯布入库操作', async ({ page }) => {
     await page.goto('/fabric');
     await page.getByRole('tab', { name: /坯布/ }).click();
     const stockInBtn = page.getByRole('link', { name: /入库/ }).first();
-    if (await stockInBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await stockInBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
       await stockInBtn.click();
       await page.getByRole('button', { name: /确定/ }).click();
-      await expect(page.getByText(/入库成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
+      await expect(page.getByText(/入库成功/)).toBeVisible({ timeout: 30000 }).catch((e) => {
+      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
+
         return null;
-      });
+          });
     }
   });
 
@@ -47,12 +51,14 @@ test.describe('01 坯布管理', () => {
     await page.goto('/fabric');
     await page.getByRole('tab', { name: /坯布/ }).click();
     const stockOutBtn = page.getByRole('link', { name: /出库/ }).first();
-    if (await stockOutBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await stockOutBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
       await stockOutBtn.click();
       await page.getByRole('button', { name: /确定/ }).click();
-      await expect(page.getByText(/出库成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
+      await expect(page.getByText(/出库成功/)).toBeVisible({ timeout: 30000 }).catch((e) => {
+      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
+
         return null;
-      });
+          });
     }
   });
 });

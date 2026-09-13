@@ -188,8 +188,7 @@ impl SalesService {
         let order_no = format!("SO{}", chrono::Utc::now().format("%Y%m%d%H%M%S"));
         let total_amount = Self::calculate_fabric_order_totals(&req.items);
 
-        let order =
-            Self::build_fabric_order_active_model(&req, order_no, total_amount, user_id);
+        let order = Self::build_fabric_order_active_model(&req, order_no, total_amount, user_id);
         let created_order = order
             .insert(&txn)
             .await

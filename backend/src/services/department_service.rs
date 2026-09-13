@@ -185,6 +185,10 @@ impl DepartmentService {
             dept.manager_id = Set(req.manager_id);
         }
 
+        if let Some(ia) = req.is_active {
+            dept.is_active = Set(ia);
+        }
+
         dept.updated_at = Set(Utc::now());
 
         let result = crate::services::audit_log_service::AuditLogService::update_with_audit(

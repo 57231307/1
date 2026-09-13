@@ -11,7 +11,7 @@
 //! - FromStr 反序列化契约（DB 存储值往返）
 
 use bingxi_backend::services::bulk_color_approval_service::{
-    evaluate_delta_e, ApprovalStatus, DeltaEResult,
+    ApprovalStatus, DeltaEResult, evaluate_delta_e,
 };
 use std::str::FromStr;
 

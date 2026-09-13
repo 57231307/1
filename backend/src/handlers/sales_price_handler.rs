@@ -28,6 +28,8 @@ pub struct SalesPriceQuery {
     pub status: Option<String>,
     pub page: Option<i64>,
     pub page_size: Option<i64>,
+    /// 敏感导出 fail-closed：导出审批令牌
+    pub download_token: Option<String>,
 }
 
 #[allow(dead_code, reason = "反序列化输入字段")]
@@ -294,6 +296,13 @@ pub async fn export_prices(
     auth: AuthContext,
     Query(query): Query<SalesPriceQuery>,
 ) -> Result<axum::response::Response, AppError> {
+    // 敏感导出 fail-closed：校验审批令牌（在 query 被 move 前提取）
+    let download_token = query.download_token.clone();
+    let approval =
+        crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
+            .enforce_export_download(download_token.as_deref(), "price_list")
+            .await?;
+
     let service = SalesPriceService::new(state.db.clone());
 
     // V15 P0-S12 修复（Batch 475d）：导出全量数据
@@ -320,6 +329,16 @@ pub async fn export_prices(
         chrono::Utc::now().format("%Y%m%d_%H%M%S")
     );
     record_prices_export_audit(&state, &auth, row_count, &filename);
+
+    // 敏感导出 fail-closed：记录令牌消费
+    let _ = crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
+        .record_download(
+            approval.id,
+            filename.clone(),
+            row_count as i64,
+            String::new(),
+        )
+        .await;
 
     // V15 P0-S15 修复（Batch 475d）：注入水印（操作员/导出时间/导出条数）
     let watermark = WatermarkConfig {

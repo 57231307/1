@@ -5,7 +5,7 @@
 // v8 复审 P0-3 修复（2026-06-30）：
 // 对齐批次 28 P0-1 fail-secure 模式，凭据从环境变量注入，禁止硬编码 admin/admin123。
 
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './diagnose-fixture';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:8080';
 

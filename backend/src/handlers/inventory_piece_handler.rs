@@ -100,14 +100,13 @@ pub async fn list_pieces(
 
     // 批量取仓库名（避免 N+1：逐条查询改为一次性收集仓库 ID 查询）
     let warehouse_ids: Vec<i32> = models.iter().map(|p| p.warehouse_id).collect();
-    let warehouses: std::collections::HashMap<i32, warehouse::Model> =
-        warehouse::Entity::find()
-            .filter(warehouse::Column::Id.is_in(warehouse_ids))
-            .all(state.db.as_ref())
-            .await?
-            .into_iter()
-            .map(|w| (w.id, w))
-            .collect();
+    let warehouses: std::collections::HashMap<i32, warehouse::Model> = warehouse::Entity::find()
+        .filter(warehouse::Column::Id.is_in(warehouse_ids))
+        .all(state.db.as_ref())
+        .await?
+        .into_iter()
+        .map(|w| (w.id, w))
+        .collect();
 
     let items: Vec<PieceResponse> = models
         .into_iter()

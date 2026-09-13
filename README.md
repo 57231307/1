@@ -37,33 +37,33 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 - **实时通信**：WebSocket 推送订单状态、库存预警、审批进度、仪表板更新
 - **自动化部署**：systemd 直部署 + CLI 工具（bingxi update）+ SHA256 校验
 - **BI 数据仓库**：多维分析 + 仪表板 + 报表引擎 + 订阅推送
-- **合规安全**：RBAC 权限矩阵 + 字段级权限 + 打印导出审计 + 二级审批 + 中国法律合规（劳动法/数据安全法/个人信息保护法）
+- **合规安全**：RBAC 权限矩阵 + 字段级权限 + PostgreSQL RLS 行级安全（dept 数据范围语义）+ 打印导出审计 + 二级审批 + 中国法律合规（劳动法/数据安全法/个人信息保护法）
 - **可观测性**：trace 链路 + Prometheus 指标 + 慢查询审计 + API 网关熔断 + 流复制故障转移
 
-**项目数据（截至 2026-08-21，九轮深挖审计封板）**：
+**项目数据（截至 2026-09-09，RLS dept 数据范围语义落地）**：
 
 | 指标 | 数值 |
 |------|------|
-| 后端 Rust 代码 | ~292,800 行（src + tests + migration 实测） |
-| 后端 Rust 文件 | 1,356 个（src 1,070 + tests 245 + migration 41） |
-| 后端 Handler | 165 个 |
+| 后端 Rust 代码 | ~294,000 行（src 247,234 + tests 32,721 + migration 14,104 实测） |
+| 后端 Rust 文件 | 1,360 个（src 1,070 + tests 249 + migration 41） |
+| 后端 Handler | 181 个 |
 | 后端 Service | 410 个（含 ops 子模块拆分文件） |
 | 后端 Model | 336 个 |
 | 后端 Route 模块 | 43 个 |
-| 后端 Middleware | 21 个 |
+| 后端 Middleware | 21 个（含 RLS 会话上下文中间件） |
 | 后端业务事件 | 34 种（事件总线 + Kafka + ES 刷新 + 幂等去重） |
 | 后端状态机 | 30+ 个（四种范式：DB规则表/枚举payload/utils纯函数/JSON图遍历） |
-| 后端集成测试 | 245 个文件 / 2,029 个测试函数 |
-| 后端迁移 | Rust 代码内联 SQL（raw string），`bingxi migrate run` 执行 |
+| 后端集成测试 | 249 个文件 / 2,050 个测试函数 |
+| 后端迁移 | 7 个业务域聚合迁移（system/business/sales_crm/production/finance/v15/rls_dept），Rust 代码内联 SQL，`bingxi migrate run` 执行 |
 | 后端基准测试 | 4 个 criterion 基准（染整成本/库存/凭证/工资） |
-| 前端 Vue 文件 | 376 个（~85,500 行） |
-| 前端 TS 文件 | 229 个（~51,100 行） |
-| 前端 Views 子模块 | 86 个 |
+| 前端 Vue 文件 | 376 个（~85,700 行） |
+| 前端 TS 文件 | 229 个（~51,200 行） |
+| 前端 Views 子模块 | 81 个 |
 | 前端 API 模块 | 96 个 |
 | 前端 i18n 翻译键 | 10,500+ 个 |
-| 前端 E2E 测试 | 519 个（116 冒烟 + 394 工作流 + 9 Setup 向导真实链路） |
+| 前端 E2E 测试 | 733 个 / 218 个 spec 文件（116 冒烟 + 394 工作流 + 9 Setup 向导真实链路 + 214 其他） |
 | Clippy Baseline | 4,274 行（185 条唯一警告） |
-| 最新版本 | 后端 2026.810.1 / 前端 2026.617.0001 |
+| 最新版本 | Release v2026.9.7.1357（后端 2026.810.1 / 前端 2026.617.0001） |
 | 安全漏洞存量 | 0（密钥泄露扫描工作区+git 历史：0 发现） |
 
 ---
@@ -115,6 +115,7 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 
 - **RBAC 数据模型**：角色 + 权限 + 用户多部门 + 字段级权限 + 权限委托
 - **权限矩阵**：14 类业务角色差异化权限 + 职责分离 SoD 校验 + is_system 滥用治理
+- **PostgreSQL RLS 行级安全**：数据库原生 Row Level Security + 会话级 GUC 上下文（tokio task-local + 连接池钩子自动注入）+ dept 数据范围语义（主部门+兼职部门+子部门动态展开）+ fail-closed 策略 + 应用层双语义条件对齐（成员集合/部门归属）
 - **打印导出审计**：端点合理性 + 角色权限矩阵 + 二级审批 + 文件水印 + 并发控制 + 合规定期审查
 - **安全防护**：JWT + refresh_token（2 天对齐）+ PUBLIC_PATHS 精确匹配 + Webhook payload 脱敏 + magic bytes 校验 + zip bomb 防护 + SSRF 防护 + 路径穿越防护
 - **法律合规**：中国法律法规 + 数据脱敏（手机/邮箱/身份证/银行卡）+ 成品文档格式（xlsx/docx）+ 纺织行业法律财税环保劳动
@@ -454,12 +455,12 @@ sudo journalctl -u bingxi-backend -f
 
 ### 权限与合规
 
-- [RBAC 权限矩阵](docs/rbac-permission-matrix.md) — 角色权限详细矩阵
+- [RBAC 权限矩阵](.monkeycode/docs/rbac-permission-matrix.md) — 角色权限详细矩阵
 - [面料行业调研](.monkeycode/docs/research/fabric-industry-research.md) — 13 章节真实业务调研
 
 ### 数据库与重构
 
-- 数据库迁移以 Rust 代码内联 SQL（raw string）方式实现，共 128 个迁移文件（通过 `bingxi migrate run` 执行）
+- 数据库迁移以 Rust 代码内联 SQL（raw string）方式实现，按 7 个业务域聚合（system/business/sales_crm/production/finance/v15/rls_dept），共 32 个迁移单元文件（通过 `bingxi migrate run` 执行）
 - [重构计划](.monkeycode/docs/refactoring/) — 重构任务清单
 
 ---
@@ -470,15 +471,16 @@ sudo journalctl -u bingxi-backend -f
 
 | 层级 | 数量 | 工具 | 覆盖范围 |
 |------|------|------|---------|
-| 后端集成测试 | 245 文件 / 2,023 函数 | cargo test + nextest | 服务层 + API 层 |
+| 后端集成测试 | 249 文件 / 2,050 函数 | cargo test + nextest | 服务层 + API 层 |
 | 前端 E2E 冒烟测试 | 116 | Playwright | 全部前端路由（1:1 映射） |
-| 前端 E2E 工作流测试 | 394 | Playwright | 45 个 spec 文件，业务闭环 + 匹号领域 + 响应式矩阵 |
+| 前端 E2E 工作流测试 | 394 | Playwright | 44 个 flow spec 文件，业务闭环 + 匹号领域 + 响应式矩阵 |
 | 前端 E2E 真实链路测试 | 9 | Playwright（零 mock） | Setup 向导初始化：空库 → UI 真实点击 → 完整模式 → 真实登录 |
+| 前端 E2E 其他覆盖 | 214 | Playwright | 58 个 spec 文件（smoke 之外各业务目录：AI/BPM/CRM/财务/库存/生产/采购/销售/质量/系统等） |
 | 性能基准 | 4 | criterion | 库存核算 / 凭证生成 / 染整成本归集 / 产量工资计算 |
 
 ### E2E 测试覆盖
 
-45 个 spec 文件（34 矩阵分片按 Playwright --shard=1/30 轮转执行），覆盖：
+218 个 spec 文件（34 矩阵分片按 Playwright --shard=x/34 轮转执行），核心工作流覆盖：
 
 | 类别 | spec 文件 | 覆盖内容 |
 |------|-----------|---------|
@@ -501,7 +503,7 @@ sudo journalctl -u bingxi-backend -f
 cd backend
 cargo test --all
 
-# 前端 E2E 测试（CI 为 34 矩阵分片按 --shard=x/30 轮转）
+# 前端 E2E 测试（CI 为 34 矩阵分片按 --shard=x/34 轮转）
 cd frontend
 npm run test:e2e
 

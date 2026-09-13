@@ -71,13 +71,13 @@
           <el-checkbox v-model="loginForm.agreedToTerms" size="default">
             <span class="terms-text">
               {{ $t('login.agreeTo') }}
-              <a href="#/terms" target="_blank" class="terms-link">{{
+              <router-link to="/terms" target="_blank" class="terms-link">{{
                 $t('login.userAgreement')
-              }}</a>
+              }}</router-link>
               {{ $t('login.and') }}
-              <a href="#/privacy" target="_blank" class="terms-link">{{
+              <router-link to="/privacy" target="_blank" class="terms-link">{{
                 $t('login.privacyPolicy')
-              }}</a>
+              }}</router-link>
             </span>
           </el-checkbox>
         </el-form-item>
@@ -231,21 +231,6 @@ const handleUsernameBlur = async () => {
 };
 
 /**
- * 登录失败时尝试检查锁定状态（响应 401 后由错误处理自动调用）
- */
-const refreshLockStatus = async () => {
-  if (!loginForm.username) return;
-  try {
-    const res = await checkLockStatus(loginForm.username);
-    if (res.data) {
-      applyLockStatus(res.data);
-    }
-  } catch (error) {
-    logger.warn(`${t('login.refreshLockStatusFailed')}:`, error);
-  }
-};
-
-/**
  * 批次 22 v5 P0-2 修复：安全重定向白名单校验
  *
  * 防止 Open Redirect 漏洞：登录跳转参数 redirect 若被攻击者构造为
@@ -314,8 +299,9 @@ async function handleLogin() {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
       const message = error instanceof Error ? error.message : String(error);
       ElMessage.error(message || t('login.failedFallback'));
-      // 登录失败后异步检查账号是否被锁定
-      refreshLockStatus();
+      // 登录瀑布修复：删除 catch 内 refreshLockStatus 调用
+      // 原因：login 401 → catch → refreshLockStatus → lock-status 401 → refreshLockStatus 循环
+      // lock-status 匿名预检已由后端 P1.2 修复，blur 预检保留即可
     } finally {
       loading.value = false;
     }

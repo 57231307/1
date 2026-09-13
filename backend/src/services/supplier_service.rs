@@ -1,6 +1,6 @@
 use crate::models::{supplier, supplier_contact, supplier_qualification};
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{apply_department_scope, check_resource_owner, DataScopeContext};
+use crate::utils::data_scope::{DataScopeContext, apply_department_scope, check_resource_owner};
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::pagination::paginate_with_total;
@@ -328,11 +328,7 @@ impl SupplierService {
         // supplier 表无 department_id，Dept 退化为 Self（按 created_by 校验）
         // P0-D03：缓存命中的 model 同样需要校验权限，防止越权读取缓存
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(
-                ctx,
-                supplier_model.created_by,
-                supplier_model.department_id,
-            ) {
+            if !check_resource_owner(ctx, supplier_model.created_by, supplier_model.department_id) {
                 return Err(AppError::permission_denied(format!(
                     "无权访问供应商 {}（数据范围限制）",
                     id
@@ -1005,6 +1001,8 @@ pub struct SupplierQueryParams {
     pub category_id: Option<i32>,
     pub is_processor: Option<bool>,
     pub processor_type: Option<String>,
+    /// 敏感导出 fail-closed：导出审批令牌
+    pub download_token: Option<String>,
 }
 
 /// batch-13 P2：供应商账户余额

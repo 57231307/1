@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import {
   loginViaUI,
   apiCall,
@@ -43,7 +43,8 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
         is_system: false,
       });
       getCtx().roleId = result.data?.id;
-    } catch {
+    } catch (e) {
+      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',
@@ -68,8 +69,8 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
         is_active: true,
       });
       if (result.data?.id) ctx.userIds.push(result.data.id);
-    } catch {
-      // 用户可能已存在
+    } catch (e) {
+      console.warn(`[E2E] 兜底捕获: ${(e as Error).message}`); // 用户可能已存在
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',
@@ -121,9 +122,9 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
           `/roles/${role.id}/permissions`
         );
         expect(perms.items);
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         // 权限端点可能不同，跳过
-      }
+       }
     }
   });
 
@@ -149,18 +150,18 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
       // 验证页面不崩溃
       const url = page.url();
       expect(url);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       // 页面可能路由不同
-    }
+     }
 
     // 访问销售订单列表页
     try {
       await page.goto('http://localhost:3000/sales/orders');
       await page.waitForTimeout(3000);
       expect(page.url());
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 
   test('6-9 验证 el-tag 状态颜色映射', async ({ page }) => {
@@ -170,12 +171,12 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
       await page.waitForTimeout(3000);
       // 检查页面是否有 el-tag 组件渲染
       const tags = page.locator('.el-tag');
-      const tagCount = await tags.count().catch(() => 0);
+      const tagCount = await tags.count().catch((e) => { console.warn(`[06] el-tag 计数失败: ${(e as Error).message}`); return 0; });
       // 页面可能有或没有 el-tag（取决于是否有数据）
       expect(tagCount >= 0);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       /* skip */
-    }
+     }
   });
 
   test('6-10 验证 CSRF 保护', async ({ page }) => {

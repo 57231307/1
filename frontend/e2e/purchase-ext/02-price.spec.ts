@@ -29,8 +29,10 @@ test.describe('02 采购价格', () => {
     await page.getByLabel(/生效日期/).fill('2026-08-01');
     await page.getByLabel(/到期日期/).fill('2027-08-01');
     await page.getByRole('button', { name: /确认|保存|提交/ }).last().click();
-    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
+    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 }).catch((e) => {
+      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
+
       return null;
-    });
+        });
   });
 });

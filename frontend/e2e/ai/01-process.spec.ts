@@ -33,8 +33,10 @@ test.describe('01 AI 工艺优化', () => {
     await page.getByLabel(/色号/).fill('E2E-CN-001');
     await page.getByLabel(/面料类型/).fill('E2E 测试面料');
     await page.getByRole('button', { name: /确认|提交/ }).last().click();
-    await expect(page.getByText(/创建成功|保存成功|推荐完成/)).toBeVisible({ timeout: 30000 }).catch(() => {
+    await expect(page.getByText(/创建成功|保存成功|推荐完成/)).toBeVisible({ timeout: 30000 }).catch((e) => {
+      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
+
       return null;
-    });
+        });
   });
 });

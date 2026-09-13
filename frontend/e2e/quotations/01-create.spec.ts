@@ -30,9 +30,11 @@ test.describe('01 报价单创建', () => {
     await page.getByLabel(/汇率/).fill('1');
     await page.getByLabel(/备注/).fill('E2E 测试报价单');
     await page.getByRole('button', { name: /保存草稿/ }).click();
-    await expect(page.getByText(/保存成功|创建成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
+    await expect(page.getByText(/保存成功|创建成功/)).toBeVisible({ timeout: 30000 }).catch((e) => {
+      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
+
       return null;
-    });
+        });
   });
 
   test('01-03 报价单列表可正常加载', async ({ page }) => {

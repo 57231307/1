@@ -408,7 +408,6 @@
 
 - **Clippy**：Rust 静态分析工具
 - **rg (ripgrep)**：代码搜索工具
-- **scan_long_fns.py**：自定义超长函数扫描工具
 - **GitHub Actions CI/CD**：自动化检查
 
 ### B. 参考资料

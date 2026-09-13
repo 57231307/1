@@ -427,11 +427,14 @@ pub fn data_permissions() -> Router<AppState> {
         )
 }
 
-/// 消息通知路由；注：main 上 notification_handler 未提供 `create_notification`
-/// / `update_notification`， 因此这两类路由暂不挂载，避免编译期 E0425。
+/// 消息通知路由；`POST /announcement` 为管理员系统公告（v16 补齐手动发通知能力）
 pub fn notifications() -> Router<AppState> {
     Router::new()
         .route("/", get(notification_handler::list_notifications))
+        .route(
+            "/announcement",
+            post(notification_handler::create_announcement),
+        )
         .route(
             "/notification/{id}",
             get(notification_handler::get_notification)

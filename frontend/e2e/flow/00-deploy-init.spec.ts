@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import {
   loginViaUI,
   apiCall,
@@ -48,7 +48,8 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
           r => r.id
         );
         ctx.departmentIds.push(id);
-      } catch {
+      } catch (e) {
+        console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
         const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
           page,
           'GET',
@@ -73,7 +74,8 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
           r => r.id
         );
         ctx.warehouseIds.push(id);
-      } catch {
+      } catch (e) {
+        console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
         const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
           page,
           'GET',
@@ -97,7 +99,8 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
           r => r.id
         );
         ctx.productCategoryIds.push(id);
-      } catch {
+      } catch (e) {
+        console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
         const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
           page,
           'GET',
@@ -132,7 +135,8 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
         is_active: true,
       });
       if (result.data?.id) ctx.productIds.push(result.data.id);
-    } catch {
+    } catch (e) {
+      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',
@@ -166,9 +170,9 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
         is_active: true,
       });
       if (result.data?.id) ctx.productIds.push(result.data.id);
-    } catch {
+    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
       // 产品可能已存在
-    }
+     }
     expect(ctx.productIds.length).toBeGreaterThanOrEqual(0);
   });
 
@@ -186,9 +190,9 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
       });
       if (result.data?.id) ctx.productColorIds.push(result.data.id);
       ctx.colorNos.push('RED-001');
-    } catch {
+    } catch (e) { console.warn(`[E2E] catch: ${(e as Error).message}`); 
       ctx.colorNos.push('RED-001');
-    }
+     }
     expect(ctx.colorNos).toContain('RED-001');
   });
 
@@ -206,9 +210,9 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
       });
       if (result.data?.id) ctx.productColorIds.push(result.data.id);
       ctx.colorNos.push('BLUE-001');
-    } catch {
+    } catch (e) { console.warn(`[E2E] catch: ${(e as Error).message}`); 
       ctx.colorNos.push('BLUE-001');
-    }
+     }
     expect(ctx.colorNos).toContain('BLUE-001');
   });
 
@@ -222,7 +226,8 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
         contacts: [{ contact_name: '联系人', mobile_phone: '13800000000', is_primary: true }],
       });
       ctx.supplierId = result.data?.id;
-    } catch {
+    } catch (e) {
+      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',
@@ -247,7 +252,8 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
         payment_terms: 30,
       });
       ctx.customerId = result.data?.id;
-    } catch {
+    } catch (e) {
+      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',
@@ -271,11 +277,11 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
     ];
     for (const s of subjects) {
       try {
-        const result = await apiCall<{ id?: number }>(page, 'POST', '/subjects', s);
+        const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/subjects', s);
         if (result.data?.id) ctx.accountSubjectIds.push(result.data.id);
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         // 已存在则跳过
-      }
+       }
     }
     expect(ctx.accountSubjectIds.length).toBeGreaterThanOrEqual(0);
   });
@@ -304,7 +310,7 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
     const dyeLotNo = genDyeLotNo();
     ctx.dyeLotNo = dyeLotNo;
     try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/greige-fabrics', {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/production/greige-fabrics', {
         fabric_no: genCode('GF'),
         fabric_name: genName('E2E坯布'),
         product_id: ctx.productIds[0] || 1,
@@ -326,8 +332,8 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
         is_active: true,
       });
       ctx.greigeFabricId = result.data?.id;
-    } catch {
-      // 坯布模块可能路由不同
+    } catch (e) {
+      console.warn(`[E2E] 兜底捕获: ${(e as Error).message}`); // 坯布模块可能路由不同
       try {
         const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
           page,
@@ -335,9 +341,9 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
           '/greige-fabrics?page=1&page_size=1'
         );
         ctx.greigeFabricId = list.items?.[0]?.id;
-      } catch {
+      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
         // 跳过
-      }
+       }
     }
     expect(ctx.dyeLotNo).toBeTruthy();
   });

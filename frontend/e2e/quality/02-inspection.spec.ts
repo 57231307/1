@@ -20,9 +20,11 @@ test.describe('02 检验记录与缺陷处理', () => {
     await page.getByLabel(/检验员/).fill('E2E 检验员');
     await page.getByLabel(/检验结果/).click();
     await page.getByRole('button', { name: /确认|保存|提交/ }).last().click();
-    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
+    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 }).catch((e) => {
+      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
+
       return null;
-    });
+        });
   });
 
   test('02-02 检验记录列表可正常加载', async ({ page }) => {
@@ -34,21 +36,25 @@ test.describe('02 检验记录与缺陷处理', () => {
   test('02-03 缺陷管理 Tab 可正常加载', async ({ page }) => {
     await page.goto('/quality');
     await page.getByRole('tab', { name: /缺陷/ }).click();
-    await expect(page.locator('table, .el-table')).toBeVisible({ timeout: 30000 }).catch(() => {
+    await expect(page.locator('table, .el-table')).toBeVisible({ timeout: 30000 }).catch((e) => {
+      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
+
       return null;
-    });
+        });
   });
 
   test('02-04 未处理缺陷可处理', async ({ page }) => {
     await page.goto('/quality');
     await page.getByRole('tab', { name: /缺陷/ }).click();
     const handleBtn = page.getByRole('link', { name: /处理/ }).first();
-    if (await handleBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await handleBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
       await handleBtn.click();
       await page.getByRole('button', { name: /确定/ }).click();
-      await expect(page.getByText(/处理成功/)).toBeVisible({ timeout: 30000 }).catch(() => {
+      await expect(page.getByText(/处理成功/)).toBeVisible({ timeout: 30000 }).catch((e) => {
+      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
+
         return null;
-      });
+          });
     }
   });
 });

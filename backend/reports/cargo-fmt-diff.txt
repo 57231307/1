@@ -1,17 +1,36 @@
-info: syncing channel updates for 1.94-x86_64-unknown-linux-gnu
-info: latest update on 2026-03-26 for version 1.94.1 (e408947bf 2026-03-25)
-info: downloading 5 components
-Diff in /home/runner/work/1/1/backend/tests/services_quotation_service_test.rs:297:
-     assert!(result.is_err());
-     let err = result.unwrap_err();
-     let msg = format!("{}", err);
--    assert!(msg.contains("报价单不存在") || msg.contains("not found") || msg.contains("不存在") || msg.contains("未找到"));
-+    assert!(
-+        msg.contains("报价单不存在")
-+            || msg.contains("not found")
-+            || msg.contains("不存在")
-+            || msg.contains("未找到")
-+    );
- }
- 
- // ============ update 状态机校验测试 ============
+Diff in /home/runner/work/1/1/backend/tests/handlers_system_update_authz_test.rs:119:
+ /// 场景 2：非 admin（role_id=999，mock fail-closed）调用 download_and_update → 403
+ #[tokio::test]
+ async fn test_system_update_non_admin_403_download() {
+-    let app = build_app(
+-        AppState::default(),
+-        make_auth(2, "e2e_cashier", Some(999)),
+-    );
++    let app = build_app(AppState::default(), make_auth(2, "e2e_cashier", Some(999)));
+     let resp = app
+         .oneshot(
+             Request::builder()
+Diff in /home/runner/work/1/1/backend/tests/handlers_system_update_authz_test.rs:151:
+ /// （axum extractor 顺序执行：auth 在 Json 前，auth 403 先于 body 解析；带合法 JSON 确保 422 不先触发）
+ #[tokio::test]
+ async fn test_system_update_non_admin_403_rollback() {
+-    let app = build_app(
+-        AppState::default(),
+-        make_auth(2, "e2e_cashier", Some(999)),
+-    );
++    let app = build_app(AppState::default(), make_auth(2, "e2e_cashier", Some(999)));
+     let resp = app
+         .oneshot(
+             Request::builder()
+Diff in /home/runner/work/1/1/backend/tests/handlers_system_update_authz_test.rs:199:
+ /// 场景 5：只读端点 current-version 无权限校验，登录态可达 → 200
+ #[tokio::test]
+ async fn test_system_update_version_readonly_200() {
+-    let app = build_app(
+-        AppState::default(),
+-        make_auth(1, "e2e_admin", Some(1)),
+-    );
++    let app = build_app(AppState::default(), make_auth(1, "e2e_admin", Some(1)));
+     let resp = app
+         .oneshot(
+             Request::builder()

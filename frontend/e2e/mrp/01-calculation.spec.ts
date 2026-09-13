@@ -18,18 +18,22 @@ test.describe('MRP 计算', () => {
   test('MRP 计算可执行', async ({ page }) => {
     await page.goto('/mrp');
     const calcBtn = page.getByRole('button', { name: /计算/ }).first();
-    if (await calcBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await calcBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
       await calcBtn.click();
-      await expect(page.getByText(/计算完成|计算中/)).toBeVisible({ timeout: 15000 }).catch(() => {
+      await expect(page.getByText(/计算完成|计算中/)).toBeVisible({ timeout: 15000 }).catch((e) => {
+      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
+
         return null;
-      });
+          });
     }
   });
 
   test('MRP 历史页面可正常加载', async ({ page }) => {
     await page.goto('/mrp/history');
-    await expect(page.locator('table, .el-table')).toBeVisible({ timeout: 30000 }).catch(() => {
+    await expect(page.locator('table, .el-table')).toBeVisible({ timeout: 30000 }).catch((e) => {
+      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
+
       return null;
-    });
+        });
   });
 });
