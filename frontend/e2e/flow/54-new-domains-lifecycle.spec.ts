@@ -15,7 +15,7 @@ import { findTableRow } from './ui-helpers';
 
 test.describe.serial('新域业务流转链', () => {
   test('质量 8D：启动 → 推进 D1（tagged enum step=d1_team）→ 列表状态变更', async ({ page }) => {
-    await loginViaUI(page, 'admin', 'Admin@123');
+    await loginViaUI(page);
     await page.goto(`${BASE_URL}/quality-8d`);
     await expect(page.locator('.page')).toBeVisible();
 
@@ -37,7 +37,7 @@ test.describe.serial('新域业务流转链', () => {
   });
 
   test('坏账：计提（period_year/period_month）→ 确认 → 冲销状态呈现', async ({ page }) => {
-    await loginViaUI(page, 'admin', 'Admin@123');
+    await loginViaUI(page);
     await page.goto(`${BASE_URL}/bad-debts`);
     await expect(page.locator('.page')).toBeVisible();
 
@@ -50,7 +50,7 @@ test.describe.serial('新域业务流转链', () => {
   });
 
   test('验布：定级（inspected_yards 必填）→ 关闭', async ({ page }) => {
-    await loginViaUI(page, 'admin', 'Admin@123');
+    await loginViaUI(page);
     await page.goto(`${BASE_URL}/fabric-inspections`);
     await expect(page.locator('.page')).toBeVisible();
 
@@ -68,7 +68,7 @@ test.describe.serial('新域业务流转链', () => {
   });
 
   test('社保：标记已缴（payment_date 必填）', async ({ page }) => {
-    await loginViaUI(page, 'admin', 'Admin@123');
+    await loginViaUI(page);
     await page.goto(`${BASE_URL}/social-insurance`);
     await expect(page.locator('.page')).toBeVisible();
 
@@ -88,7 +88,7 @@ test.describe.serial('新域业务流转链', () => {
   });
 
   test('委外：创建 → 发出 → 加工中 → 结算（无 body 状态操作链）', async ({ page }) => {
-    await loginViaUI(page, 'admin', 'Admin@123');
+    await loginViaUI(page);
     await page.goto(`${BASE_URL}/outsourcing`);
     await expect(page.locator('.page')).toBeVisible();
 
@@ -109,7 +109,7 @@ test.describe.serial('新域业务流转链', () => {
   });
 
   test('客户协作：合同签署（contract_id+signed_by_user_id）→ 列表呈现', async ({ page }) => {
-    await loginViaUI(page, 'admin', 'Admin@123');
+    await loginViaUI(page);
     await page.goto(`${BASE_URL}/customer-collab`);
     await expect(page.locator('.page')).toBeVisible();
 
