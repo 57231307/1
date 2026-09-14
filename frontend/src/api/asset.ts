@@ -134,10 +134,6 @@ export interface BudgetCreateRequest {
   }[];
 }
 
-export function getBudgetList(params?: QueryParams): Promise<ApiResponse<Budget[]>> {
-  return request.get('/budgets', { params });
-}
-
 export function getBudget(id: number): Promise<ApiResponse<Budget>> {
   return request.get(`/budgets/${id}`);
 }
@@ -153,28 +149,12 @@ export function updateBudget(
   return request.put(`/budgets/${id}`, data);
 }
 
-export function deleteBudget(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/budgets/${id}`);
-}
-
-export function approveBudget(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/budgets/${id}/approve`);
-}
-
 export function adjustBudget(data: {
   budget_id: number;
   adjustment_amount: number;
   reason: string;
 }): Promise<ApiResponse<void>> {
   return request.post('/budgets/adjust', data);
-}
-
-export function approveBudgetAdjustment(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/budgets/adjust/${id}/approve`);
-}
-
-export function rejectBudgetAdjustment(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/budgets/adjust/${id}/reject`);
 }
 
 export function rejectBudgetPlan(id: number, approvalComment?: string): Promise<ApiResponse<void>> {
@@ -190,3 +170,12 @@ export const batchDepreciateAssets = (data: {
   calculation_date: string;
   user_id: number;
 }) => request.post('/fixed-assets/batch-depreciate', data);
+
+// ===== 预算审批：统一出口（签名一致的重复实现收敛自 budget.ts）=====
+export {
+  getBudgetList,
+  deleteBudget,
+  approveBudget,
+  approveBudgetAdjustment,
+  rejectBudgetAdjustment,
+} from './budget';

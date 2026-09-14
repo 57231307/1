@@ -91,33 +91,6 @@ export interface UpdateSubscriptionRequest {
   active?: boolean;
 }
 
-export function getReportTemplateList(
-  params?: Record<string, unknown>
-): Promise<ApiResponse<PageResult<ReportTemplate>>> {
-  return request.get('/reports/enhanced/templates', { params });
-}
-
-export function getReportTemplate(id: number): Promise<ApiResponse<ReportTemplate>> {
-  return request.get(`/reports/enhanced/templates/${id}`);
-}
-
-export function createReportTemplate(
-  data: CreateTemplateRequest
-): Promise<ApiResponse<ReportTemplate>> {
-  return request.post('/reports/enhanced/templates', data);
-}
-
-export function updateReportTemplate(
-  id: number,
-  data: UpdateTemplateRequest
-): Promise<ApiResponse<ReportTemplate>> {
-  return request.put(`/reports/enhanced/templates/${id}`, data);
-}
-
-export function deleteReportTemplate(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/reports/enhanced/templates/${id}`);
-}
-
 export function getAvailableFields(templateType: string): Promise<ApiResponse<ReportField[]>> {
   return request.get(`/reports/enhanced/fields/${templateType}`);
 }
@@ -183,3 +156,12 @@ export function toggleSubscription(id: number): Promise<ApiResponse<ReportSubscr
 export function sendSubscriptionNow(id: number): Promise<ApiResponse<{ message: string }>> {
   return request.post(`/reports/enhanced/subscriptions/${id}/send`);
 }
+
+// ===== 报表模板 CRUD：统一出口（重复实现收敛自 report-templates.ts）=====
+export {
+  getReportTemplateList,
+  getReportTemplate,
+  createReportTemplate,
+  updateReportTemplate,
+  deleteReportTemplate,
+} from './report-templates';

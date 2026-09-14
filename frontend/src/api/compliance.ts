@@ -15,7 +15,6 @@ export interface CreatePollutionPermitPayload {
   [key: string]: unknown;
 }
 
-
 /** 获取排污许可证列表（后端返回 { items, total }） */
 export function getPollutionPermitList(params?: {
   permit_type?: string;

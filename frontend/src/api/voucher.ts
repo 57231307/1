@@ -1,4 +1,10 @@
 import { request } from './request';
+import {
+  getVoucherList as getVoucherListApi,
+  getVoucher as getVoucherApi,
+  deleteVoucher as deleteVoucherApi,
+  postVoucher as postVoucherApi,
+} from './finance';
 import type { ApiResponse, QueryParams } from '@/types/api';
 
 export interface VoucherEntry {
@@ -34,14 +40,6 @@ export interface VoucherEntity {
   posted_at?: string;
 }
 
-export function getVoucherList(params?: QueryParams): Promise<ApiResponse<VoucherEntity[]>> {
-  return request.get('/vouchers', { params });
-}
-
-export function getVoucher(id: number): Promise<ApiResponse<VoucherEntity>> {
-  return request.get(`/vouchers/${id}`);
-}
-
 export function createVoucher(data: Partial<VoucherEntity>): Promise<ApiResponse<VoucherEntity>> {
   return request.post('/vouchers', data);
 }
@@ -53,16 +51,8 @@ export function updateVoucher(
   return request.put(`/vouchers/${id}`, data);
 }
 
-export function deleteVoucher(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/vouchers/${id}`);
-}
-
 export function approveVoucher(id: number): Promise<ApiResponse<void>> {
   return request.post(`/vouchers/${id}/review`);
-}
-
-export function postVoucher(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/vouchers/${id}/post`);
 }
 
 export function unpostVoucher(id: number): Promise<ApiResponse<void>> {
@@ -75,4 +65,24 @@ export function getVoucherTypes(): Promise<ApiResponse<string[]>> {
 
 export function generateVoucherNo(): Promise<ApiResponse<{ voucher_no: string }>> {
   return request.get('/vouchers/generate-no');
+}
+
+// ===== 凭证基础操作：实现收敛至 finance.ts（原 voucher.ts 重复定义已删除）=====
+// 以下为类型适配包装：保留本域 VoucherEntity 类型契约，调用方零破坏
+export async function getVoucherList(params?: QueryParams): Promise<ApiResponse<VoucherEntity[]>> {
+  const res = await getVoucherListApi(params);
+  return res as unknown as ApiResponse<VoucherEntity[]>;
+}
+
+export async function getVoucher(id: number): Promise<ApiResponse<VoucherEntity>> {
+  const res = await getVoucherApi(id);
+  return res as unknown as ApiResponse<VoucherEntity>;
+}
+
+export function deleteVoucher(id: number): Promise<ApiResponse<void>> {
+  return deleteVoucherApi(id);
+}
+
+export function postVoucher(id: number): Promise<ApiResponse<void>> {
+  return postVoucherApi(id);
 }
