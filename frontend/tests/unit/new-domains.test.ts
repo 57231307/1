@@ -6,26 +6,16 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import {
-  BAD_DEBT_STATUS_LABEL,
-  COLLECTION_TASK_STATUS_LABEL,
-} from '@/api/bad-debt';
+import { BAD_DEBT_STATUS_LABEL, COLLECTION_TASK_STATUS_LABEL } from '@/api/bad-debt';
 import {
   advanceCustomOrder,
   createCustomOrder,
   getCustomOrderList,
   CUSTOM_ORDER_STATUS,
 } from '@/api/custom-order';
-import {
-  listOaAnnouncements,
-  publishOaAnnouncement,
-} from '@/api/oa-announcement';
-import {
-  INSPECTION_STATUS_LABEL,
-} from '@/api/fabric-inspection';
-import {
-  WAGE_RECORD_STATUS_LABEL,
-} from '@/api/wage';
+import { listOaAnnouncements, publishOaAnnouncement } from '@/api/oa-announcement';
+import { INSPECTION_STATUS_LABEL } from '@/api/fabric-inspection';
+import { WAGE_RECORD_STATUS_LABEL } from '@/api/wage';
 import { OUTSOURCING_STATUS_LABEL } from '@/api/outsourcing';
 import { QUALITY_8D_STAGES } from '@/api/quality-8d';
 
