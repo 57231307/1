@@ -1,5 +1,5 @@
 use chrono::Utc;
-use sea_query::Expr;
+use sea_orm::sea_query::Expr;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, NotSet, Order, PaginatorTrait,
     QueryFilter, QueryOrder, QuerySelect, Set,

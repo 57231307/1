@@ -10,7 +10,6 @@
 //! - 版本管理（仅已审核可建新版本，version+1，parent_recipe_id 关联）
 
 use rust_decimal::Decimal;
-use sea_orm::DatabaseConnection;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, DatabaseConnection, EntityTrait,
     Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
