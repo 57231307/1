@@ -15,14 +15,47 @@ export interface AccountingPeriodEntity {
 }
 
 export function getAccountingPeriodList(params?: Record<string, unknown>) {
-  return request.get('/finance/accounting-periods', { params });
+  return request.get<ApiResponse<AccountingPeriodDetail[]>>('/finance/accounting-periods', {
+    params,
+  });
 }
 
 export function getAccountingPeriod(id: number) {
-  return request.get(`/finance/accounting-periods/${id}`);
+  return request.get<ApiResponse<AccountingPeriodDetail>>(`/finance/accounting-periods/${id}`);
 }
 
 export function createAccountingPeriod(data: Partial<AccountingPeriodEntity>) {
+  return request.post('/finance/accounting-periods', data);
+}
+
+/**
+ * 创建期间请求（对齐后端 missing_handlers::CreateAccountingPeriodPayload）
+ * 路由：POST /api/v1/erp/finance/accounting-periods
+ */
+export interface CreateAccountingPeriodPayload {
+  /** 预算年度（必填） */
+  year: number;
+  /** 期间序号 1-12（必填） */
+  period: number;
+}
+
+/** 会计期间详情（对齐后端 missing_handlers::AccountingPeriodDto） */
+export interface AccountingPeriodDetail {
+  id: number;
+  year: number;
+  period: number;
+  period_name: string;
+  start_date: string;
+  end_date: string;
+  /** OPEN 可录入凭证 / CLOSED 已关账 */
+  status: 'OPEN' | 'CLOSED' | string;
+  closed_at: string | null;
+  closed_by: number | null;
+  created_at: string;
+}
+
+/** 按年度+期间序号创建会计期间（强类型封装） */
+export function createPeriodByYearPeriod(data: CreateAccountingPeriodPayload) {
   return request.post('/finance/accounting-periods', data);
 }
 

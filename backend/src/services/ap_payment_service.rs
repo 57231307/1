@@ -440,6 +440,7 @@ impl ApPaymentService {
     ) -> crate::services::voucher_service::VoucherItemRequest {
         crate::services::voucher_service::VoucherItemRequest {
             line_no: Some(1),
+            subject_id: None,
             subject_code: Some("2202".to_string()),
             subject_name: Some("应付账款".to_string()),
             debit: payment_amount,
@@ -470,6 +471,7 @@ impl ApPaymentService {
     ) -> crate::services::voucher_service::VoucherItemRequest {
         crate::services::voucher_service::VoucherItemRequest {
             line_no: Some(2),
+            subject_id: None,
             subject_code: Some(credit_code.to_string()),
             subject_name: Some(credit_name.to_string()),
             debit: Decimal::ZERO,

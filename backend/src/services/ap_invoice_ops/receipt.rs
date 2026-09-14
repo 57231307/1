@@ -184,6 +184,7 @@ impl ApInvoiceService {
     ) -> VoucherItemRequest {
         VoucherItemRequest {
             line_no: Some(1),
+            subject_id: None,
             subject_code: Some("1405".to_string()),
             subject_name: Some("库存商品".to_string()),
             debit: amount,
@@ -213,6 +214,7 @@ impl ApInvoiceService {
     ) -> VoucherItemRequest {
         VoucherItemRequest {
             line_no: Some(2),
+            subject_id: None,
             subject_code: Some("222101".to_string()),
             subject_name: Some("应交税费-应交增值税-进项税额".to_string()),
             debit: tax_amount,
@@ -242,6 +244,7 @@ impl ApInvoiceService {
     ) -> VoucherItemRequest {
         VoucherItemRequest {
             line_no: Some(2),
+            subject_id: None,
             subject_code: Some("2202".to_string()),
             subject_name: Some("应付账款".to_string()),
             debit: Decimal::ZERO,

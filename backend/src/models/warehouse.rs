@@ -16,6 +16,11 @@ pub struct Model {
     pub country: Option<String>,
     pub postal_code: Option<String>,
     pub phone: Option<String>,
+    /// 联系人（契约对齐：前端 Warehouse.contact_person「联系人」列与表单）
+    pub contact_person: Option<String>,
+    /// 默认仓库标志（契约对齐：前端 Warehouse.is_default「默认」列与开关；
+    /// 全局唯一默认仓库由 WarehouseService::create/update 保证）
+    pub is_default: bool,
     pub email: Option<String>,
     pub manager_id: Option<i32>,
     pub is_active: bool,

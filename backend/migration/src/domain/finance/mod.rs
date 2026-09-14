@@ -701,6 +701,11 @@ ALTER TABLE "suppliers" ADD COLUMN IF NOT EXISTS "taxpayer_type" VARCHAR(255);
 ALTER TABLE "suppliers" ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMPTZ;
 ALTER TABLE "suppliers" ADD COLUMN IF NOT EXISTS "updated_by" INTEGER;
 ALTER TABLE "suppliers" ADD COLUMN IF NOT EXISTS "website" VARCHAR(255);
+-- 前后端契约对齐：voucher_items 补 subject_id 列（前端 finance/voucher 两侧 VoucherEntry
+-- 均以科目 ID 提交分录，原表仅存 subject_code/subject_name，提交的科目 ID 被 serde 忽略）
+ALTER TABLE voucher_items ADD COLUMN IF NOT EXISTS subject_id INTEGER;
+COMMENT ON COLUMN "voucher_items"."subject_id" IS '科目 ID（契约对齐前端 VoucherEntry.subject_id/account_subject_id；NULL=历史分录仅存编码）';
+CREATE INDEX IF NOT EXISTS idx_voucher_items_subject ON voucher_items (subject_id);
 "#;
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;

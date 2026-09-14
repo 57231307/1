@@ -23,6 +23,7 @@ mod m0049_create_processed_events;
 mod m0050_create_event_dead_letters;
 mod m0051_add_piece_type_and_machine_no;
 mod m0052_add_piece_no_to_flow_documents;
+mod m0053_add_warehouse_contact_and_default;
 
 pub struct Migration;
 
@@ -122,6 +123,9 @@ impl MigrationTrait for Migration {
             .up(manager)
             .await?;
         m0052_add_piece_no_to_flow_documents::Migration
+            .up(manager)
+            .await?;
+        m0053_add_warehouse_contact_and_default::Migration
             .up(manager)
             .await?;
         let sql = r#"ALTER TABLE "api_keys" ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ;
@@ -425,6 +429,9 @@ ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "insurance_cost" DECIMAL
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
+        m0053_add_warehouse_contact_and_default::Migration
+            .down(manager)
+            .await?;
         m0052_add_piece_no_to_flow_documents::Migration
             .down(manager)
             .await?;

@@ -126,6 +126,50 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '财务管理', icon: 'Money', permission: 'finance:read', requiresAuth: true },
       },
       {
+        path: 'period-adjustments',
+        name: 'PeriodAdjustments',
+        component: () => import('@/views/period-adjustments/index.vue'),
+        meta: {
+          title: '期末调整',
+          icon: 'Money',
+          permission: 'finance:read',
+          requiresAuth: true,
+        },
+      },
+      {
+        path: 'budgets',
+        name: 'BudgetApprovals',
+        component: () => import('@/views/budgets/index.vue'),
+        meta: {
+          title: '预算审批',
+          icon: 'Money',
+          permission: 'finance:read',
+          requiresAuth: true,
+        },
+      },
+      {
+        path: 'invoice-details',
+        name: 'InvoiceDetails',
+        component: () => import('@/views/invoice-details/index.vue'),
+        meta: {
+          title: '发票审批',
+          icon: 'Tickets',
+          permission: 'finance:read',
+          requiresAuth: true,
+        },
+      },
+      {
+        path: 'periods',
+        name: 'AccountingPeriods',
+        component: () => import('@/views/periods/index.vue'),
+        meta: {
+          title: '会计期间',
+          icon: 'Calendar',
+          permission: 'finance:read',
+          requiresAuth: true,
+        },
+      },
+      {
         path: 'ap',
         name: 'AP',
         component: () => import('@/views/ap/index.vue'),

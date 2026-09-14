@@ -106,30 +106,35 @@ const MAPPING = [
   },
   { ts: 'DepartmentCreateRequest', rust: ['CreateDepartmentRequest'] },
   { ts: 'DepartmentUpdateRequest', rust: ['UpdateDepartmentRequest'] },
-  { ts: 'VoucherEntry', rust: ['voucher_item:Model', 'VoucherItemDto'] },
+  {
+    ts: 'VoucherEntry',
+    rust: ['voucher_item:Model', 'VoucherItemDto', 'VoucherItemResponseDto'],
+  },
 ];
 
 // ---------- 存量幽灵字段挂账清单（允许通过，新增字段不在清单内立即拦截） ----------
 // 修复一条删一条；新增契约漂移会直接 CI fail
-const ALLOWLIST = new Set([
-  // Department：前端「负责人」列后端 Model/TreeNode 均无此字段——部门负责人列恒空
-  'Department.manager_name',
-  // Warehouse：contact_person/is_default 前端声明但后端不接收不返回
-  'Warehouse.contact_person',
-  'Warehouse.is_default',
-  // Department 创建/更新：code/sort_order 提交被 serde 忽略（后端自动生成 code）
-  'DepartmentCreateRequest.code',
-  'DepartmentCreateRequest.sort_order',
-  'DepartmentUpdateRequest.sort_order',
-  // VoucherEntry：前端分录类型与后端 voucher_item:Model/VoucherItemDto 大面积漂移
-  'VoucherEntry.subject_id',
-  'VoucherEntry.account_subject_id',
-  'VoucherEntry.account_subject_code',
-  'VoucherEntry.account_subject_name',
-  'VoucherEntry.debit_amount',
-  'VoucherEntry.credit_amount',
-  'VoucherEntry.description',
-]);
+//
+// 2026-09-14 全部 13 项挂账已修复并移除（修复方式见 backend 对应文件）：
+//   - Department.manager_name        → models/department.rs 加 #[sea_orm(ignore)] 字段，
+//                                      department_service.rs list/get/create/tree 查 users 表填充
+//   - Warehouse.contact_person       → migration m0053 加列 + Model/DTO/Service 接入
+//   - Warehouse.is_default           → 同上（含默认仓库全局唯一互斥）
+//   - DepartmentCreateRequest.code   → CreateDepartmentRequest 补字段，create 优先使用
+//   - DepartmentCreateRequest.sort_order → 同上（默认 0）
+//   - DepartmentUpdateRequest.sort_order → UpdateDepartmentRequest 补字段，update 接入
+//   - VoucherEntry.subject_id / account_subject_id
+//                                    → voucher_items 表迁移加 subject_id 列（finance 域）；
+//                                      VoucherItemDto/VoucherItemRequest 补字段；
+//                                      create/update 按 ID 反查科目补全 code/name 落库
+//   - VoucherEntry.account_subject_code / account_subject_name
+//                                    → VoucherItemDto 加 serde alias（请求）；响应侧
+//                                      VoucherItemResponseDto 双命名序列化 + get_voucher
+//                                      返回 entries（VoucherDetailResponse flatten）
+//   - VoucherEntry.debit_amount / credit_amount / description
+//                                    → 请求侧 serde alias；响应侧双命名冗余字段
+// 所有字段均可在「TS 字段 vs Rust DTO/Model 字段存在性」上静态验证，无遗留挂账。
+const ALLOWLIST = new Set([]);
 
 const tsInterfaces = parseTsInterfaces(FRONTEND);
 const rustStructs = parseRustStructs(BACKEND);

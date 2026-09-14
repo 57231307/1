@@ -12,6 +12,7 @@ use tracing::{info, warn};
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::voucher;
+use crate::models::voucher_item;
 use crate::services::voucher_service::{
     CreateVoucherRequest, UpdateVoucherRequest, VoucherItemRequest, VoucherQueryParams,
     VoucherService,
@@ -51,15 +52,28 @@ pub struct CreateVoucherRequestDto {
     pub items: Vec<VoucherItemDto>,
 }
 
+/// 凭证分录请求 DTO
+///
+/// serde alias 对齐前端两套 VoucherEntry 契约（否则字段被 serde 静默忽略）：
+/// - finance.ts：subject_id / debit / credit / summary
+/// - voucher.ts：account_subject_id / debit_amount / credit_amount / description
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 
 pub struct VoucherItemDto {
     pub line_no: Option<i32>,
+    /// 科目 ID（前端以科目下拉框 id 提交；service 按 ID 反查科目补全 code/name）
+    #[serde(alias = "account_subject_id")]
+    pub subject_id: Option<i32>,
+    #[serde(alias = "account_subject_code")]
     pub subject_code: Option<String>,
+    #[serde(alias = "account_subject_name")]
     pub subject_name: Option<String>,
+    #[serde(alias = "debit_amount")]
     pub debit: Decimal,
+    #[serde(alias = "credit_amount")]
     pub credit: Decimal,
+    #[serde(alias = "description")]
     pub summary: Option<String>,
     pub assist_customer_id: Option<i32>,
     pub assist_supplier_id: Option<i32>,
@@ -74,6 +88,91 @@ pub struct VoucherItemDto {
     pub quantity_meters: Option<Decimal>,
     pub quantity_kg: Option<Decimal>,
     pub unit_price: Option<Decimal>,
+}
+
+/// 凭证分录响应 DTO（契约对齐：同时携带前端两套 VoucherEntry 命名）
+///
+/// - finance.ts 读取：subject_id / subject_code / subject_name / debit / credit / summary
+/// - voucher.ts 读取：account_subject_id / account_subject_code / account_subject_name
+///   / debit_amount / credit_amount / description
+/// 双命名为响应冗余字段，由 `From<voucher_item::Model>` 从同一数据源填充
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct VoucherItemResponseDto {
+    pub id: i32,
+    pub voucher_id: i32,
+    pub line_no: i32,
+    pub subject_id: Option<i32>,
+    pub subject_code: String,
+    pub subject_name: String,
+    pub account_subject_id: Option<i32>,
+    pub account_subject_code: String,
+    pub account_subject_name: String,
+    pub debit: Decimal,
+    pub credit: Decimal,
+    pub debit_amount: Decimal,
+    pub credit_amount: Decimal,
+    pub summary: Option<String>,
+    pub description: Option<String>,
+    pub assist_customer_id: Option<i32>,
+    pub assist_supplier_id: Option<i32>,
+    pub assist_department_id: Option<i32>,
+    pub assist_employee_id: Option<i32>,
+    pub assist_project_id: Option<i32>,
+    pub assist_batch_id: Option<i32>,
+    pub assist_color_no_id: Option<i32>,
+    pub assist_dye_lot_id: Option<i32>,
+    pub assist_grade: Option<String>,
+    pub assist_workshop_id: Option<i32>,
+    pub quantity_meters: Option<Decimal>,
+    pub quantity_kg: Option<Decimal>,
+    pub unit_price: Option<Decimal>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+impl From<voucher_item::Model> for VoucherItemResponseDto {
+    fn from(m: voucher_item::Model) -> Self {
+        Self {
+            id: m.id,
+            voucher_id: m.voucher_id,
+            line_no: m.line_no,
+            account_subject_id: m.subject_id,
+            account_subject_code: m.subject_code.clone(),
+            account_subject_name: m.subject_name.clone(),
+            subject_id: m.subject_id,
+            subject_code: m.subject_code,
+            subject_name: m.subject_name,
+            debit_amount: m.debit,
+            credit_amount: m.credit,
+            debit: m.debit,
+            credit: m.credit,
+            description: m.summary.clone(),
+            summary: m.summary,
+            assist_customer_id: m.assist_customer_id,
+            assist_supplier_id: m.assist_supplier_id,
+            assist_department_id: m.assist_department_id,
+            assist_employee_id: m.assist_employee_id,
+            assist_project_id: m.assist_project_id,
+            assist_batch_id: m.assist_batch_id,
+            assist_color_no_id: m.assist_color_no_id,
+            assist_dye_lot_id: m.assist_dye_lot_id,
+            assist_grade: m.assist_grade,
+            assist_workshop_id: m.assist_workshop_id,
+            quantity_meters: m.quantity_meters,
+            quantity_kg: m.quantity_kg,
+            unit_price: m.unit_price,
+            created_at: m.created_at,
+        }
+    }
+}
+
+/// 凭证详情响应（voucher 字段 flatten 至顶层，另附分录列表 entries）
+///
+/// 契约对齐：前端 VoucherEntity 期望顶层凭证字段 + entries: VoucherEntry[]
+#[derive(Debug, serde::Serialize)]
+pub struct VoucherDetailResponse {
+    #[serde(flatten)]
+    pub voucher: voucher::Model,
+    pub entries: Vec<VoucherItemResponseDto>,
 }
 
 /// 查询凭证列表
@@ -110,7 +209,7 @@ pub async fn get_voucher(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<voucher::Model>>, AppError> {
+) -> Result<Json<ApiResponse<VoucherDetailResponse>>, AppError> {
     info!("用户 {} 查询凭证详情 ID: {}", auth.username, id);
 
     let service = VoucherService::new(state.db.clone());
@@ -122,7 +221,13 @@ pub async fn get_voucher(
         auth.username, detail.voucher.voucher_no
     );
 
-    Ok(Json(ApiResponse::success(detail.voucher)))
+    // 契约对齐：响应顶层凭证字段（flatten）+ entries 分录列表
+    let response = VoucherDetailResponse {
+        voucher: detail.voucher,
+        entries: detail.items.into_iter().map(Into::into).collect(),
+    };
+
+    Ok(Json(ApiResponse::success(response)))
 }
 
 /// 创建凭证
@@ -144,6 +249,7 @@ pub async fn create_voucher(
         .into_iter()
         .map(|item| VoucherItemRequest {
             line_no: item.line_no,
+            subject_id: item.subject_id,
             subject_code: item.subject_code,
             subject_name: item.subject_name,
             debit: item.debit,
@@ -338,6 +444,7 @@ pub async fn update_voucher(
         v.into_iter()
             .map(|item| VoucherItemRequest {
                 line_no: item.line_no,
+                subject_id: item.subject_id,
                 subject_code: item.subject_code,
                 subject_name: item.subject_name,
                 debit: item.debit,
