@@ -403,6 +403,14 @@ export default {
     breadcrumb: {
       home: '首页',
     },
+    search: {
+      placeholder: '全局搜索（订单/客户/产品）',
+      salesOrders: '销售订单',
+      customers: '客户',
+      products: '产品',
+      noResult: '无匹配结果',
+      hint: '输入至少 2 个字符进行搜索',
+    },
     user: {
       defaultName: '未登录',
       profile: '个人中心',

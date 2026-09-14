@@ -401,6 +401,14 @@ export default {
     breadcrumb: {
       home: 'Home',
     },
+    search: {
+      placeholder: 'Global search (orders/customers/products)',
+      salesOrders: 'Sales Orders',
+      customers: 'Customers',
+      products: 'Products',
+      noResult: 'No results',
+      hint: 'Type at least 2 characters to search',
+    },
     user: {
       defaultName: 'Not Logged In',
       profile: 'Profile',

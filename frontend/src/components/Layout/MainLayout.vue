@@ -614,6 +614,8 @@
             }}</el-breadcrumb-item>
             <el-breadcrumb-item>{{ currentTitle }}</el-breadcrumb-item>
           </el-breadcrumb>
+          <!-- 全局搜索：真实接入后端 /search 端点（批次 104 SearchClient） -->
+          <GlobalSearch class="header-search" />
         </div>
         <div class="header-right">
           <!-- V15 P1-20-16 暗黑模式切换按钮（触屏尺寸 ≥ 44px，WCAG 2.5.5） -->
@@ -663,6 +665,7 @@
 </template>
 
 <script setup lang="ts">
+import GlobalSearch from './GlobalSearch.vue';
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
