@@ -220,10 +220,18 @@ export function useOlv() {
   /** 加载客户 */
   const fetchCustomers = async () => {
     try {
-      const res = await request.get<{ list?: Customer[] } | Customer[]>('/customers');
-      const d = res;
+      // 后端真实路由：GET /crm/customers（PaginatedResponse，业务数组在 data.items）
+      const res = await request.get<
+        | {
+            data?: { items?: Customer[]; list?: Customer[]; total?: number };
+          }
+        | Customer[]
+      >('/crm/customers');
+      const d = res as unknown as { data?: { items?: Customer[] } } & { list?: Customer[] };
       if (Array.isArray(d)) {
         customers.value = d;
+      } else if (d && typeof d === 'object' && 'items' in (d.data ?? {})) {
+        customers.value = d.data?.items || [];
       } else if (d && typeof d === 'object' && 'list' in d) {
         customers.value = d.list || [];
       } else {

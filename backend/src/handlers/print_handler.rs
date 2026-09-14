@@ -1,15 +1,20 @@
 //! 通用打印 Handler
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+
+use serde::Deserialize;
+use validator::Validate;
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::print_service::PrintService;
+use tracing::info;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
+    Json,
     extract::{Path, State},
     response::Response,
 };
@@ -632,7 +637,7 @@ pub async fn wage_record_print_docx(
 
 /// 打印模板列表响应
 #[allow(dead_code, reason = "序列化输出字段")]
-#[derive(serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct PrintTemplateDto {
     pub id: i32,
     pub name: String,
@@ -1155,26 +1160,462 @@ pub fn builtin_print_templates() -> Vec<PrintTemplateDto> {
     ]
 }
 
-/// 获取打印模板列表；批次 126 v8 复审 P2 修复：从原空列表占位改为返回系统内置 6 种单据打印模板。 模板对应 PrintService 支持的 6
-/// 种单据类型（sales_order/sales_contract/purchase_order/ purchase_receipt/inventory_transfer/voucher）。
+/// 获取打印模板列表：从模板存储读取（含系统内置模板 + 用户新建的模板）
 pub async fn list_print_templates(
     State(_): State<AppState>,
     _auth: AuthContext,
-) -> Result<axum::Json<ApiResponse<Vec<PrintTemplateDto>>>, AppError> {
-    // V15 P0-S09：注入 AuthContext，强制要求用户已认证；打印模板元数据查询走 read 权限
-    Ok(axum::Json(ApiResponse::success(builtin_print_templates())))
+) -> Result<axum::Json<ApiResponse<Vec<PrintTemplateRecord>>>, AppError> {
+    let records = lock_print_templates()?;
+    Ok(axum::Json(ApiResponse::success(records.clone())))
 }
 
-/// 获取单个打印模板详情；批次 126 v8 复审 P2 修复：从原硬编码 not_found 改为从内置模板列表按 id 查找。 找不到时返回 404 not_found。
+/// 获取单个打印模板详情，找不到时返回 404 not_found
 pub async fn get_print_template(
     Path(id): Path<i32>,
     State(_): State<AppState>,
     _auth: AuthContext,
-) -> Result<axum::Json<ApiResponse<PrintTemplateDto>>, AppError> {
-    // V15 P0-S09：注入 AuthContext，强制要求用户已认证；打印模板元数据查询走 read 权限
-    let template = builtin_print_templates()
-        .into_iter()
-        .find(|t| t.id == id)
+) -> Result<axum::Json<ApiResponse<PrintTemplateRecord>>, AppError> {
+    let records = lock_print_templates()?;
+    let record = records
+        .iter()
+        .find(|r| r.id == id)
         .ok_or_else(|| AppError::not_found(format!("打印模板 {} 不存在", id)))?;
-    Ok(axum::Json(ApiResponse::success(template)))
+    Ok(axum::Json(ApiResponse::success(record.clone())))
+}
+
+// ---------- 打印模板最小 CRUD（内存存储，预填充系统内置模板） ----------
+
+static PRINT_TEMPLATE_STORE: OnceLock<Mutex<Vec<PrintTemplateRecord>>> = OnceLock::new();
+
+fn print_template_store() -> &'static Mutex<Vec<PrintTemplateRecord>> {
+    PRINT_TEMPLATE_STORE.get_or_init(|| {
+        Mutex::new(
+            builtin_print_templates()
+                .into_iter()
+                .map(print_template_record_from_builtin)
+                .collect(),
+        )
+    })
+}
+
+fn lock_print_templates() -> Result<MutexGuard<'static, Vec<PrintTemplateRecord>>, AppError> {
+    print_template_store()
+        .lock()
+        .map_err(|_| AppError::internal("打印模板存储不可用"))
+}
+
+fn print_template_record_from_builtin(dto: PrintTemplateDto) -> PrintTemplateRecord {
+    let module = infer_print_module(&dto.doc_type);
+    let template_type = infer_print_template_type(&dto.doc_type);
+    PrintTemplateRecord {
+        id: dto.id,
+        template_code: dto.doc_type,
+        template_name: dto.name,
+        description: dto.template_content.clone(),
+        module,
+        template_type,
+        paper_size: "A4".to_string(),
+        orientation: "portrait".to_string(),
+        content: dto.template_content,
+        css_styles: String::new(),
+        variables: serde_json::json!({}),
+        status: "active".to_string(),
+        is_default: dto.is_default,
+        created_by: 0,
+        created_by_name: "system".to_string(),
+        created_at: dto.created_at.clone(),
+        updated_at: dto.created_at,
+    }
+}
+
+fn infer_print_module(doc_type: &str) -> String {
+    if doc_type.starts_with("sales")
+        || doc_type == "after_sales"
+        || doc_type == "customer_credit"
+    {
+        "sales".to_string()
+    } else if doc_type.starts_with("purchase") {
+        "purchase".to_string()
+    } else if doc_type.starts_with("inventory") {
+        "inventory".to_string()
+    } else if doc_type == "voucher"
+        || doc_type.starts_with("ap_")
+        || doc_type.starts_with("ar_")
+        || doc_type.starts_with("bad_debt")
+        || doc_type.starts_with("fixed_asset")
+        || doc_type.starts_with("foreign_exchange")
+        || doc_type.starts_with("export_refund")
+    {
+        "finance".to_string()
+    } else if doc_type.starts_with("production")
+        || doc_type == "bom"
+        || doc_type.starts_with("dye_")
+        || doc_type.starts_with("process_")
+        || doc_type.starts_with("scheduling_")
+        || doc_type.starts_with("chemical_")
+        || doc_type.starts_with("lab_dip_")
+        || doc_type.starts_with("outsourcing_")
+        || doc_type.starts_with("energy_")
+        || doc_type.starts_with("material_")
+        || doc_type.starts_with("bulk_color_")
+        || doc_type.starts_with("color_card_")
+        || doc_type == "custom_order"
+    {
+        "production".to_string()
+    } else {
+        "logistics".to_string()
+    }
+}
+
+fn infer_print_template_type(doc_type: &str) -> String {
+    if doc_type.contains("invoice") {
+        "invoice".to_string()
+    } else if doc_type.contains("receipt") || doc_type.contains("reconciliation") {
+        "receipt".to_string()
+    } else if doc_type.contains("report")
+        || doc_type.contains("record")
+        || doc_type.contains("issue")
+        || doc_type.contains("inspection")
+    {
+        "report".to_string()
+    } else {
+        "order".to_string()
+    }
+}
+
+#[allow(dead_code, reason = "序列化输出字段")]
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PrintTemplateRecord {
+    pub id: i32,
+    pub template_code: String,
+    pub template_name: String,
+    pub description: String,
+    pub module: String,
+    #[serde(rename = "type")]
+    pub template_type: String,
+    pub paper_size: String,
+    pub orientation: String,
+    pub content: String,
+    pub css_styles: String,
+    pub variables: serde_json::Value,
+    pub status: String,
+    pub is_default: bool,
+    pub created_by: i32,
+    pub created_by_name: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[allow(dead_code, reason = "序列化输出字段")]
+#[derive(Debug, serde::Serialize)]
+pub struct PrintTemplatePreviewResponse {
+    pub html: String,
+    pub variables: serde_json::Value,
+}
+
+#[allow(dead_code, reason = "反序列化输入字段")]
+#[derive(Debug, Deserialize, Validate)]
+pub struct CreatePrintTemplateRequest {
+    #[validate(length(min = 1, max = 100, message = "模板名称长度须为 1-100 字符"))]
+    pub template_name: String,
+    #[validate(length(max = 100, message = "模板编码长度不得超过 100 字符"))]
+    pub template_code: Option<String>,
+    #[validate(length(max = 500, message = "描述长度不得超过 500 字符"))]
+    pub description: Option<String>,
+    pub module: Option<String>,
+    #[serde(rename = "type")]
+    pub template_type: Option<String>,
+    pub paper_size: Option<String>,
+    pub orientation: Option<String>,
+    pub content: Option<String>,
+    pub css_styles: Option<String>,
+    pub variables: Option<serde_json::Value>,
+    pub is_default: Option<bool>,
+    pub status: Option<String>,
+}
+
+#[allow(dead_code, reason = "反序列化输入字段")]
+#[derive(Debug, Deserialize, Validate)]
+pub struct UpdatePrintTemplateRequest {
+    #[validate(length(min = 1, max = 100, message = "模板名称长度须为 1-100 字符"))]
+    pub template_name: Option<String>,
+    #[validate(length(max = 100, message = "模板编码长度不得超过 100 字符"))]
+    pub template_code: Option<String>,
+    #[validate(length(max = 500, message = "描述长度不得超过 500 字符"))]
+    pub description: Option<String>,
+    pub module: Option<String>,
+    #[serde(rename = "type")]
+    pub template_type: Option<String>,
+    pub paper_size: Option<String>,
+    pub orientation: Option<String>,
+    pub content: Option<String>,
+    pub css_styles: Option<String>,
+    pub variables: Option<serde_json::Value>,
+    pub is_default: Option<bool>,
+    pub status: Option<String>,
+}
+
+fn clear_default_in_module(
+    records: &mut [PrintTemplateRecord],
+    module: &str,
+    except_id: Option<i32>,
+) {
+    for r in records.iter_mut() {
+        if r.module == module && Some(r.id) != except_id {
+            r.is_default = false;
+        }
+    }
+}
+
+pub async fn create_print_template(
+    State(_state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<CreatePrintTemplateRequest>,
+) -> Result<axum::Json<ApiResponse<PrintTemplateRecord>>, AppError> {
+    info!("用户 {} 创建打印模板：{}", auth.username, req.template_name);
+    req.validate()?;
+
+    let now = chrono::Utc::now().to_rfc3339();
+    let mut records = lock_print_templates()?;
+    let next_id = records.iter().map(|r| r.id).max().unwrap_or(0) + 1;
+    let is_default = req.is_default.unwrap_or(false);
+
+    if is_default {
+        clear_default_in_module(&mut records, &req.module.clone().unwrap_or_default(), None);
+    }
+
+    let record = PrintTemplateRecord {
+        id: next_id,
+        template_code: req
+            .template_code
+            .unwrap_or_else(|| format!("TPL_{}", next_id)),
+        template_name: req.template_name,
+        description: req.description.unwrap_or_default(),
+        module: req.module.unwrap_or_else(|| "logistics".to_string()),
+        template_type: req.template_type.unwrap_or_else(|| "custom".to_string()),
+        paper_size: req.paper_size.unwrap_or_else(|| "A4".to_string()),
+        orientation: req.orientation.unwrap_or_else(|| "portrait".to_string()),
+        content: req.content.unwrap_or_default(),
+        css_styles: req.css_styles.unwrap_or_default(),
+        variables: req.variables.unwrap_or_else(|| serde_json::json!({})),
+        status: req.status.unwrap_or_else(|| "active".to_string()),
+        is_default,
+        created_by: auth.user_id,
+        created_by_name: auth.username.clone(),
+        created_at: now.clone(),
+        updated_at: now,
+    };
+    records.push(record.clone());
+
+    Ok(axum::Json(ApiResponse::success_with_message(
+        record,
+        "打印模板创建成功",
+    )))
+}
+
+pub async fn update_print_template(
+    Path(id): Path<i32>,
+    State(_state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<UpdatePrintTemplateRequest>,
+) -> Result<axum::Json<ApiResponse<PrintTemplateRecord>>, AppError> {
+    info!("用户 {} 更新打印模板 ID: {}", auth.username, id);
+    req.validate()?;
+
+    let mut records = lock_print_templates()?;
+    let record = records
+        .iter_mut()
+        .find(|r| r.id == id)
+        .ok_or_else(|| AppError::not_found(format!("打印模板 {} 不存在", id)))?;
+
+    if req.is_default == Some(true) {
+        let module = record.module.clone();
+        clear_default_in_module(&mut records, &module, Some(id));
+    }
+
+    if let Some(v) = req.template_name {
+        record.template_name = v;
+    }
+    if let Some(v) = req.template_code {
+        record.template_code = v;
+    }
+    if let Some(v) = req.description {
+        record.description = v;
+    }
+    if let Some(v) = req.module {
+        record.module = v;
+    }
+    if let Some(v) = req.template_type {
+        record.template_type = v;
+    }
+    if let Some(v) = req.paper_size {
+        record.paper_size = v;
+    }
+    if let Some(v) = req.orientation {
+        record.orientation = v;
+    }
+    if let Some(v) = req.content {
+        record.content = v;
+    }
+    if let Some(v) = req.css_styles {
+        record.css_styles = v;
+    }
+    if let Some(v) = req.variables {
+        record.variables = v;
+    }
+    if let Some(v) = req.is_default {
+        record.is_default = v;
+    }
+    if let Some(v) = req.status {
+        record.status = v;
+    }
+    record.updated_at = chrono::Utc::now().to_rfc3339();
+
+    let updated = record.clone();
+    Ok(axum::Json(ApiResponse::success_with_message(
+        updated,
+        "打印模板更新成功",
+    )))
+}
+
+pub async fn delete_print_template(
+    Path(id): Path<i32>,
+    State(_state): State<AppState>,
+    auth: AuthContext,
+) -> Result<axum::Json<ApiResponse<()>>, AppError> {
+    info!("用户 {} 删除打印模板 ID: {}", auth.username, id);
+
+    let mut records = lock_print_templates()?;
+    let before = records.len();
+    records.retain(|r| r.id != id);
+    if records.len() == before {
+        return Err(AppError::not_found(format!("打印模板 {} 不存在", id)));
+    }
+
+    Ok(axum::Json(ApiResponse::success_with_message(
+        (),
+        "打印模板删除成功",
+    )))
+}
+
+pub async fn preview_print_template(
+    Path(id): Path<i32>,
+    State(_state): State<AppState>,
+    auth: AuthContext,
+    body: Option<Json<serde_json::Value>>,
+) -> Result<axum::Json<ApiResponse<PrintTemplatePreviewResponse>>, AppError> {
+    info!("用户 {} 预览打印模板 ID: {}", auth.username, id);
+
+    let records = lock_print_templates()?;
+    let record = records
+        .iter()
+        .find(|r| r.id == id)
+        .ok_or_else(|| AppError::not_found(format!("打印模板 {} 不存在", id)))?
+        .clone();
+    drop(records);
+
+    let variables = body
+        .and_then(|Json(v)| v.as_object().cloned())
+        .unwrap_or_default();
+    let mut html = format!(
+        "<html><head><title>{}</title><style>{}</style></head><body><h3>{}</h3><div>{}</div></body></html>",
+        record.template_name,
+        record.css_styles.replace('\n', " "),
+        record.template_name,
+        record.content
+    );
+    for (key, value) in &variables {
+        let placeholder = format!("{{{{{}}}}}", key);
+        html = html.replace(&placeholder, &value.to_string());
+    }
+
+    Ok(axum::Json(ApiResponse::success(PrintTemplatePreviewResponse {
+        html,
+        variables: serde_json::Value::Object(variables),
+    })))
+}
+
+pub async fn print_print_template(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+    _body: Option<Json<serde_json::Value>>,
+) -> Result<axum::Json<ApiResponse<()>>, AppError> {
+    info!("用户 {} 使用打印模板打印 ID: {}", auth.username, id);
+
+    let records = lock_print_templates()?;
+    records
+        .iter()
+        .find(|r| r.id == id)
+        .ok_or_else(|| AppError::not_found(format!("打印模板 {} 不存在", id)))?;
+    drop(records);
+
+    record_print_audit(&state, &auth, "print_template", id);
+
+    Ok(axum::Json(ApiResponse::success_with_message(
+        (),
+        "打印任务已受理",
+    )))
+}
+
+pub async fn set_default_print_template(
+    Path(id): Path<i32>,
+    State(_state): State<AppState>,
+    auth: AuthContext,
+) -> Result<axum::Json<ApiResponse<()>>, AppError> {
+    info!("用户 {} 设置打印模板默认 ID: {}", auth.username, id);
+
+    let mut records = lock_print_templates()?;
+    let module = records
+        .iter()
+        .find(|r| r.id == id)
+        .ok_or_else(|| AppError::not_found(format!("打印模板 {} 不存在", id)))?
+        .module
+        .clone();
+    clear_default_in_module(&mut records, &module, Some(id));
+    let record = records
+        .iter_mut()
+        .find(|r| r.id == id)
+        .ok_or_else(|| AppError::not_found(format!("打印模板 {} 不存在", id)))?;
+    record.is_default = true;
+    record.updated_at = chrono::Utc::now().to_rfc3339();
+
+    Ok(axum::Json(ApiResponse::success_with_message(
+        (),
+        "默认打印模板设置成功",
+    )))
+}
+
+pub async fn copy_print_template(
+    Path(id): Path<i32>,
+    State(_state): State<AppState>,
+    auth: AuthContext,
+) -> Result<axum::Json<ApiResponse<PrintTemplateRecord>>, AppError> {
+    info!("用户 {} 复制打印模板 ID: {}", auth.username, id);
+
+    let mut records = lock_print_templates()?;
+    let source = records
+        .iter()
+        .find(|r| r.id == id)
+        .ok_or_else(|| AppError::not_found(format!("打印模板 {} 不存在", id)))?
+        .clone();
+    let next_id = records.iter().map(|r| r.id).max().unwrap_or(0) + 1;
+
+    let now = chrono::Utc::now().to_rfc3339();
+    let mut record = source;
+    record.id = next_id;
+    record.template_code = format!("{}_COPY_{}", record.template_code, next_id);
+    record.template_name = format!("{}_副本", record.template_name);
+    record.is_default = false;
+    record.status = "active".to_string();
+    record.created_by = auth.user_id;
+    record.created_by_name = auth.username.clone();
+    record.created_at = now.clone();
+    record.updated_at = now;
+    records.push(record.clone());
+
+    Ok(axum::Json(ApiResponse::success_with_message(
+        record,
+        "打印模板复制成功",
+    )))
 }

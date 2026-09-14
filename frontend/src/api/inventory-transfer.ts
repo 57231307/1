@@ -74,7 +74,7 @@ export function getTransferItems(id: number) {
 }
 
 export function createTransferItem(id: number, data: Partial<TransferItem>) {
-  return request.post(`/inventory/transfers/${id}`, data);
+  return request.post(`/inventory/transfers/${id}/items`, data);
 }
 
 export function updateTransferItem(itemId: number, data: Partial<TransferItem>) {

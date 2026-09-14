@@ -54,7 +54,7 @@ export interface AnnouncementResult {
 export function getNotificationList(
   params?: NotificationQueryParams
 ): Promise<ApiResponse<{ items: Notification[]; total: number }>> {
-  return request.get('/notifications/', { params });
+  return request.get('/notifications', { params });
 }
 
 export function getNotification(id: number): Promise<ApiResponse<Notification>> {

@@ -413,6 +413,50 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '生产计划', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
+        path: 'flow-cards',
+        name: 'FlowCards',
+        component: () => import('@/views/flow-cards/index.vue'),
+        meta: {
+          title: '流转卡管理',
+          icon: 'Tickets',
+          permission: 'inventory:read',
+          requiresAuth: true,
+        },
+      },
+      {
+        path: 'lab-dip',
+        name: 'LabDip',
+        component: () => import('@/views/lab-dip/index.vue'),
+        meta: {
+          title: '打样管理',
+          icon: 'Brush',
+          permission: 'inventory:read',
+          requiresAuth: true,
+        },
+      },
+      {
+        path: 'bulk-color-approval',
+        name: 'BulkColorApproval',
+        component: () => import('@/views/bulk-color-approval/index.vue'),
+        meta: {
+          title: '大货批色审批',
+          icon: 'Checked',
+          permission: 'inventory:read',
+          requiresAuth: true,
+        },
+      },
+      {
+        path: 'production-recipes',
+        name: 'ProductionRecipes',
+        component: () => import('@/views/production-recipes/index.vue'),
+        meta: {
+          title: '生产配方',
+          icon: 'Document',
+          permission: 'inventory:read',
+          requiresAuth: true,
+        },
+      },
+      {
         path: 'bom',
         name: 'Bom',
         component: () => import('@/views/bom/index.vue'),

@@ -65,8 +65,9 @@ export function deletePurchaseReceipt(id: number) {
   return request.delete<ApiResponse<void>>(`/purchase/receipts/${id}`);
 }
 
+// 后端真实端点：POST /purchase/receipts/{id}/confirm（purchase_receipt_handler::confirm_receipt）
 export function approvePurchaseReceipt(id: number) {
-  return request.patch<ApiResponse<PurchaseReceiptEntity>>(`/purchase/receipts/${id}/approve`);
+  return request.post<ApiResponse<PurchaseReceiptEntity>>(`/purchase/receipts/${id}/confirm`);
 }
 
 // 入库单明细响应载荷

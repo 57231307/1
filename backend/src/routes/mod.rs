@@ -231,6 +231,10 @@ fn quality_standards_routes() -> Router<AppState> {
             "/quality-standards/{id}/publish",
             post(quality_standard_handler::publish_standard),
         )
+        .route(
+            "/quality-standards/{id}/archive",
+            post(quality_standard_handler::archive_standard),
+        )
 }
 
 /// 用户中心路由（path 前缀 /user）
@@ -258,10 +262,31 @@ fn system_update_extra_routes() -> Router<AppState> {
 /// 打印模板路由（path 前缀 /print-templates）
 fn print_templates_routes() -> Router<AppState> {
     Router::new()
-        .route("/print-templates", get(print_handler::list_print_templates))
+        .route(
+            "/print-templates",
+            get(print_handler::list_print_templates).post(print_handler::create_print_template),
+        )
         .route(
             "/print-templates/{id}",
-            get(print_handler::get_print_template),
+            get(print_handler::get_print_template)
+                .put(print_handler::update_print_template)
+                .delete(print_handler::delete_print_template),
+        )
+        .route(
+            "/print-templates/{id}/preview",
+            post(print_handler::preview_print_template),
+        )
+        .route(
+            "/print-templates/{id}/print",
+            post(print_handler::print_print_template),
+        )
+        .route(
+            "/print-templates/{id}/set-default",
+            put(print_handler::set_default_print_template),
+        )
+        .route(
+            "/print-templates/{id}/copy",
+            post(print_handler::copy_print_template),
         )
 }
 
@@ -271,6 +296,17 @@ fn data_import_routes() -> Router<AppState> {
         .route(
             "/data-import/templates",
             get(import_export_handler::list_import_templates),
+        )
+        .route(
+            "/data-import/templates/{id}",
+            get(import_export_handler::get_import_template_by_id)
+                .put(import_export_handler::update_import_template)
+                .delete(import_export_handler::delete_import_template),
+        )
+        .route(
+            "/data-import/templates/{id}/download",
+            get(import_export_handler::download_import_template_by_id)
+                .post(import_export_handler::download_import_template_by_id),
         )
         .route(
             "/data-import/tasks",

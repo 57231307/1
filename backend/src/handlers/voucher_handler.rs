@@ -259,6 +259,27 @@ pub async fn post_voucher(
     )))
 }
 
+/// 凭证反过账（仅已过账凭证可反过账：状态回已审核 + 冲销科目余额）
+pub async fn unpost_voucher(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<voucher::Model>>, AppError> {
+    info!("用户 {} 凭证反过账 ID: {}", auth.username, id);
+
+    let service = VoucherService::new(state.db.clone());
+    let voucher = service.unpost(id, auth.user_id).await?;
+    info!(
+        "用户 {} 凭证反过账成功：{}",
+        auth.username, voucher.voucher_no
+    );
+
+    Ok(Json(ApiResponse::success_with_message(
+        voucher,
+        "凭证反过账成功",
+    )))
+}
+
 /// 获取凭证类型列表（v11 批次 155 P2-C：下沉到 VoucherService::available_voucher_types 静态配置化）
 pub async fn get_voucher_types()
 -> Json<ApiResponse<Vec<crate::services::voucher_service::VoucherTypeDefinition>>> {

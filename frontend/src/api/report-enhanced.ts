@@ -177,7 +177,7 @@ export function deleteSubscription(id: number): Promise<ApiResponse<void>> {
 }
 
 export function toggleSubscription(id: number): Promise<ApiResponse<ReportSubscription>> {
-  return request.put(`/reports/enhanced/subscriptions/${id}/toggle`);
+  return request.post(`/reports/enhanced/subscriptions/${id}/toggle`);
 }
 
 export function sendSubscriptionNow(id: number): Promise<ApiResponse<{ message: string }>> {

@@ -1,6 +1,9 @@
 // trading-contract.ts - 交易合同 API 桩（统一采购/销售合同）
 // 来源：拆分原 trading/index.vue 时统一接口调用而创建
-// 实际后端路由：/trading/purchase-contracts, /trading/sales-contracts
+// 后端真实路由：
+//   采购合同 /purchase/purchase-contracts（purchase.rs purchase_contracts()）
+//   销售合同 /sales/sales-contracts（sales.rs sales_contracts()）
+//   旧 /trading/* 域仅保留 5 个 GET 列表端点（analytics.rs trading()）
 import { request } from './request';
 import type { ApiResponse } from '@/types/api';
 
@@ -25,26 +28,41 @@ export const getTradingContractList = (params: ListTradingContractParams) => {
   return request.get<ApiResponse<TradingContract[]>>('/trading/sales-contracts');
 };
 
-export const getTradingContract = (id: number) =>
-  request.get<ApiResponse<TradingContract>>(`/trading/contracts/${id}`);
+export const getTradingContract = (id: number, type: 'purchase' | 'sales') =>
+  type === 'purchase'
+    ? request.get<ApiResponse<TradingContract>>(`/purchase/purchase-contracts/${id}`)
+    : request.get<ApiResponse<TradingContract>>(`/sales/sales-contracts/${id}`);
 
 export const createTradingContract = (
   data: Partial<TradingContract> & { type: 'purchase' | 'sales' }
 ) => {
   if (data.type === 'purchase') {
-    return request.post<ApiResponse<TradingContract>>('/trading/purchase-contracts', data);
+    return request.post<ApiResponse<TradingContract>>('/purchase/purchase-contracts', data);
   }
-  return request.post<ApiResponse<TradingContract>>('/trading/sales-contracts', data);
+  return request.post<ApiResponse<TradingContract>>('/sales/sales-contracts', data);
 };
 
-export const updateTradingContract = (id: number, data: Partial<TradingContract>) =>
-  request.put<ApiResponse<TradingContract>>(`/trading/contracts/${id}`, data);
+export const updateTradingContract = (
+  id: number,
+  data: Partial<TradingContract>,
+  type: 'purchase' | 'sales'
+) =>
+  type === 'purchase'
+    ? request.put<ApiResponse<TradingContract>>(`/purchase/purchase-contracts/${id}`, data)
+    : request.put<ApiResponse<TradingContract>>(`/sales/sales-contracts/${id}`, data);
 
-export const deleteTradingContract = (id: number) =>
-  request.delete<ApiResponse<null>>(`/trading/contracts/${id}`);
+export const deleteTradingContract = (id: number, type: 'purchase' | 'sales') =>
+  type === 'purchase'
+    ? request.delete<ApiResponse<null>>(`/purchase/purchase-contracts/${id}`)
+    : request.delete<ApiResponse<null>>(`/sales/sales-contracts/${id}`);
 
-export const approveTradingContract = (id: number) =>
-  request.post<ApiResponse<TradingContract>>(`/trading/contracts/${id}/approve`);
+export const approveTradingContract = (id: number, type: 'purchase' | 'sales') =>
+  type === 'purchase'
+    ? request.post<ApiResponse<TradingContract>>(`/purchase/purchase-contracts/${id}/approve`)
+    : request.post<ApiResponse<TradingContract>>(`/sales/sales-contracts/${id}/approve`);
 
-export const executeTradingContract = (id: number) =>
-  request.post<ApiResponse<TradingContract>>(`/trading/contracts/${id}/execute`);
+// 后端 execute 端点为 PUT（purchase.rs / sales.rs 的 execute_contract 均挂 put）
+export const executeTradingContract = (id: number, type: 'purchase' | 'sales') =>
+  type === 'purchase'
+    ? request.put<ApiResponse<TradingContract>>(`/purchase/purchase-contracts/${id}/execute`)
+    : request.put<ApiResponse<TradingContract>>(`/sales/sales-contracts/${id}/execute`);
