@@ -17,24 +17,23 @@ export function getCertificateDetail(id: number) {
   return request.get(`/export-inspections/certificates/${id}`);
 }
 
-// 出口退税
-export function getCustomsDeclarations(params?: Record<string, unknown>) {
-  return request.get('/export-refunds/customs-declarations', { params });
-}
-
+// 出口退税（端点方法对齐 routes/export_refund.rs）
 export function createCustomsDeclaration(data: Record<string, unknown>) {
   return request.post('/export-refunds/customs-declarations', data);
 }
 
-export function verifyDocuments(salesOrderId: number, data?: Record<string, unknown>) {
-  return request.post(
-    `/export-refunds/sales-orders/${salesOrderId}/documents-verification`,
-    data ?? {}
-  );
+export function verifyDocuments(salesOrderId: number, params?: Record<string, unknown>) {
+  return request.get(`/export-refunds/sales-orders/${salesOrderId}/documents-verification`, {
+    params,
+  });
 }
 
-export function getRefundCalculation(params: Record<string, unknown>) {
-  return request.get('/export-refunds/refund-calculation', { params });
+export function calculateRefund(data: Record<string, unknown>) {
+  return request.post('/export-refunds/refund-calculation', data);
+}
+
+export function generateRefundDeclaration(data: Record<string, unknown>) {
+  return request.post('/export-refunds/refund-declarations', data);
 }
 
 // 国际贸易术语

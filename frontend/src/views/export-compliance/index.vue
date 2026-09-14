@@ -55,16 +55,6 @@
           >
         </el-form>
         <pre v-if="refundResult" class="result-box">{{ refundResult }}</pre>
-        <el-table v-if="declarations.length" :data="declarations" border class="mt">
-          <el-table-column
-            v-for="col in declCols"
-            :key="col"
-            :prop="col"
-            :label="col.replace(/_/g, ' ')"
-            min-width="140"
-            show-overflow-tooltip
-          />
-        </el-table>
       </el-tab-pane>
 
       <!-- 贸易术语 -->
@@ -157,13 +147,12 @@ import { ElMessage } from 'element-plus';
 import {
   createCustomsDeclaration,
   createDischargeRecord,
-  getCustomsDeclarations,
   getDischargeRecords,
   getExportCertificates,
   getExportInspectionList,
   getIncotermUsageReport,
   getPriceComposition,
-  getRefundCalculation,
+  calculateRefund,
   getTaxDeclaration,
   verifyDocuments,
 } from '@/api/export-compliance';
@@ -208,9 +197,7 @@ function onPrintDoc(row: Record<string, unknown>) {
   window.open(`/api/v1/erp/export-inspections/${row.id}/print`, '_blank');
 }
 
-// 退税
-const declarations = ref<Array<Record<string, unknown>>>([]);
-const declCols = ref<string[]>([]);
+// 退税（后端仅提供创建/核验/试算/申报写端点，无报关单列表查询）
 const refundResult = ref('');
 const declDialogVisible = ref(false);
 const declForm = reactive({ sales_order_id: undefined as number | undefined, declaration_no: '' });
@@ -227,12 +214,6 @@ async function onCreateDeclaration() {
   });
   ElMessage.success('报关单已创建');
   declDialogVisible.value = false;
-  await loadDeclarations();
-}
-
-async function loadDeclarations() {
-  declarations.value = unwrapList(await getCustomsDeclarations());
-  declCols.value = objKeys(declarations.value, [], 7);
 }
 
 async function onVerifyDocs() {
@@ -249,7 +230,7 @@ async function onCalcRefund() {
     ElMessage.warning('请填写销售订单ID');
     return;
   }
-  const res = await getRefundCalculation({ sales_order_id: calcForm.sales_order_id });
+  const res = await calculateRefund({ sales_order_id: calcForm.sales_order_id });
   refundResult.value = JSON.stringify(res, null, 2);
 }
 
@@ -313,7 +294,6 @@ async function onGenDeclaration() {
 
 onMounted(() => {
   loadInspections();
-  loadDeclarations();
   loadDischarge();
 });
 </script>
