@@ -457,6 +457,29 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '生产计划', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
+        path: 'labor-contracts',
+        name: 'LaborContracts',
+        component: () => import('@/views/labor-contracts/index.vue'),
+        meta: { title: '劳动合同', icon: 'Postcard', permission: 'users:read', requiresAuth: true },
+      },
+      {
+        path: 'social-insurance',
+        name: 'SocialInsurance',
+        component: () => import('@/views/social-insurance/index.vue'),
+        meta: { title: '社保管理', icon: 'Umbrella', permission: 'users:read', requiresAuth: true },
+      },
+      {
+        path: 'occupational-health',
+        name: 'OccupationalHealth',
+        component: () => import('@/views/occupational-health/index.vue'),
+        meta: {
+          title: '职业健康',
+          icon: 'FirstAidKit',
+          permission: 'users:read',
+          requiresAuth: true,
+        },
+      },
+      {
         path: 'system-governance',
         name: 'SystemGovernance',
         component: () => import('@/views/system-governance/index.vue'),
