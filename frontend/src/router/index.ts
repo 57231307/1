@@ -457,6 +457,17 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '生产计划', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
+        path: 'customer-collab',
+        name: 'CustomerCollab',
+        component: () => import('@/views/customer-collab/index.vue'),
+        meta: {
+          title: '合同签署与客户协作',
+          icon: 'Stamp',
+          permission: 'customers:read',
+          requiresAuth: true,
+        },
+      },
+      {
         path: 'labor-contracts',
         name: 'LaborContracts',
         component: () => import('@/views/labor-contracts/index.vue'),
