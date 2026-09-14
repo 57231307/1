@@ -38,7 +38,7 @@ const PATROL_ROUTES: Array<{ path: string; name: string }> = [
   { path: '/fixed-assets', name: '固定资产' },
   { path: '/budget', name: '预算' },
   { path: '/system/audit-log', name: '审计日志' },
-]  { path: '/flow-cards', name: '流转卡管理' },
+  { path: '/flow-cards', name: '流转卡管理' },
   { path: '/lab-dip', name: '打样管理' },
   { path: '/bulk-color-approval', name: '大货批色审批' },
   { path: '/production-recipes', name: '生产配方' },

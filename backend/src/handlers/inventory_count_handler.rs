@@ -410,12 +410,8 @@ pub async fn update_count_item(
     Path(item_id): Path<i32>,
     Json(payload): Json<UpdateCountItemPayload>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let quantity = match payload.quantity_actual {
-        Some(q) => Some(q),
-        None => None,
-    };
     let updated = InventoryCountService::new(state.db.clone())
-        .update_count_item(item_id, quantity, payload.notes)
+        .update_count_item(item_id, payload.quantity_actual, payload.notes)
         .await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "id": updated.id,
