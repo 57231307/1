@@ -73,18 +73,21 @@
     </el-dialog>
 
     <el-dialog v-model="gradeVisible" title="验布定级" width="440">
-      <el-form :model="gradeForm" label-width="100px">
-        <el-form-item label="等级" required>
-          <el-select v-model="gradeForm.grade" class="w-full">
-            <el-option v-for="g in ['A', 'B', 'C', 'D']" :key="g" :label="g" :value="g" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="评分">
+      <el-form :model="gradeForm" label-width="120px">
+        <el-form-item label="检验码数" required>
           <el-input-number
-            v-model="gradeForm.score"
+            v-model="gradeForm.inspected_yards"
+            :min="0.01"
+            :precision="1"
+            class="w-full"
+          />
+        </el-form-item>
+        <el-form-item label="合格率 %">
+          <el-input-number
+            v-model="gradeForm.qualification_rate"
             :min="0"
             :max="100"
-            :precision="1"
+            :precision="2"
             class="w-full"
           />
         </el-form-item>
@@ -125,7 +128,11 @@ const form = reactive({
   total_length_m: undefined as number | undefined,
   remarks: '',
 });
-const gradeForm = reactive({ grade: 'A', score: 90, remarks: '' });
+const gradeForm = reactive({
+  inspected_yards: undefined as number | undefined,
+  qualification_rate: undefined as number | undefined,
+  remarks: '',
+});
 
 const unwrapList = (p: unknown): FabricInspection[] =>
   Array.isArray(p) ? p : ((p as { items?: FabricInspection[] })?.items ?? []);
@@ -168,20 +175,23 @@ async function onCreate() {
 
 function onGrade(row: FabricInspection) {
   gradingId.value = row.id;
-  gradeForm.grade = 'A';
-  gradeForm.score = 90;
+  gradeForm.inspected_yards = undefined;
+  gradeForm.qualification_rate = undefined;
   gradeForm.remarks = '';
   gradeVisible.value = true;
 }
 
 async function onGradeSubmit() {
   if (gradingId.value === null) return;
+  if (!gradeForm.inspected_yards) {
+    ElMessage.warning('请填写检验码数');
+    return;
+  }
   saving.value = true;
   try {
     await gradeFabricInspection(gradingId.value, {
-      grade: gradeForm.grade,
-      score: gradeForm.score,
-      remarks: gradeForm.remarks || undefined,
+      inspected_yards: gradeForm.inspected_yards,
+      qualification_rate: gradeForm.qualification_rate ?? undefined,
     });
     ElMessage.success('定级完成');
     gradeVisible.value = false;

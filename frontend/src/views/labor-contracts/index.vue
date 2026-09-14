@@ -205,8 +205,13 @@ function onEdit(row: LaborContract) {
 }
 
 async function onTerminate(row: LaborContract) {
-  const { value } = await ElMessageBox.prompt('解除原因', '解除合同');
-  await terminateLaborContract(row.id, { reason: value });
+  const { value: date } = await ElMessageBox.prompt('解除日期（YYYY-MM-DD）', '解除合同');
+  const { value: reason } = await ElMessageBox.prompt('解除原因', '解除合同');
+  if (!date || !reason) {
+    ElMessage.warning('请填写解除日期与原因');
+    return;
+  }
+  await terminateLaborContract(row.id, { termination_date: date, termination_reason: reason });
   ElMessage.success('已解除');
   await load();
 }

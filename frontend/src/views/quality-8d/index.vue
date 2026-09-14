@@ -19,8 +19,16 @@
         <el-table-column prop="created_at" label="创建时间" width="170" />
         <el-table-column label="操作" width="260" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="row.status !== 'closed'" size="small" type="primary" @click="onAdvance(row)">推进下一阶段</el-button>
-            <el-button v-if="row.status === 'd8'" size="small" type="success" @click="onClose(row)">关闭</el-button>
+            <el-button
+              v-if="row.status !== 'closed'"
+              size="small"
+              type="primary"
+              @click="onAdvance(row)"
+              >推进下一阶段</el-button
+            >
+            <el-button v-if="row.status === 'd8'" size="small" type="success" @click="onClose(row)"
+              >关闭</el-button
+            >
             <el-button size="small" @click="onPrint(row)">打印</el-button>
           </template>
         </el-table-column>
@@ -33,7 +41,12 @@
           <el-input-number v-model="form.quality_issue_id" :min="1" class="w-full" />
         </el-form-item>
         <el-form-item label="D0 计划说明">
-          <el-input v-model="form.plan" type="textarea" :rows="3" placeholder="准备阶段计划说明（可选）" />
+          <el-input
+            v-model="form.plan"
+            type="textarea"
+            :rows="3"
+            placeholder="准备阶段计划说明（可选）"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -67,7 +80,8 @@ const unwrapList = (p: unknown): Quality8dReport[] =>
   Array.isArray(p) ? p : ((p as { items?: Quality8dReport[] })?.items ?? []);
 
 const stageLabel = (s: string) => (s === 'closed' ? '已关闭' : s.toUpperCase());
-const stageTag = (s: string) => (s === 'closed' ? 'info' : s === 'not_started' ? 'warning' : 'primary');
+const stageTag = (s: string) =>
+  s === 'closed' ? 'info' : s === 'not_started' ? 'warning' : 'primary';
 
 async function load() {
   loading.value = true;
@@ -99,11 +113,58 @@ async function onStart() {
   }
 }
 
+// 每条推进边对应的必填字段采集（对齐 AdvanceStepPayload tagged enum）
+const STAGE_PROMPTS: Record<string, Array<{ key: string; label: string; placeholder?: string }>> = {
+  d0: [{ key: 'team_members', label: '团队成员（D1）' }],
+  d1: [{ key: 'problem_description', label: '问题描述（D2）' }],
+  d2: [{ key: 'interim_action', label: '临时遏制措施（D3）' }],
+  d3: [
+    { key: 'method', label: '根因分析方法（5why / fishbone）', placeholder: '5why' },
+    { key: 'detail', label: '根因分析详细过程（D4）' },
+    { key: 'summary', label: '根因总结' },
+  ],
+  d4: [
+    { key: 'permanent_action', label: '永久纠正措施（D5）' },
+    { key: 'action_owner', label: '措施责任人' },
+    { key: 'due_date', label: '计划完成日期（YYYY-MM-DD）' },
+  ],
+  d5: [{ key: 'verification_result', label: '效果验证结果（D6）' }],
+  d6: [{ key: 'prevention_action', label: '预防措施（D7）' }],
+  d7: [{ key: 'closure_summary', label: 'closure 总结表彰（D8）' }],
+};
+
 async function onAdvance(row: Quality8dReport) {
   const idx = QUALITY_8D_STAGES.indexOf(row.status as (typeof QUALITY_8D_STAGES)[number]);
   const next = QUALITY_8D_STAGES[Math.min(idx + 1, QUALITY_8D_STAGES.length - 2)];
-  await ElMessageBox.confirm(`确认推进到下一阶段 ${next.toUpperCase()}？`, '推进确认');
-  await advanceQuality8d(row.id, { to_stage: next });
+  const prompts = STAGE_PROMPTS[row.status] ?? [];
+  if (!prompts.length) {
+    ElMessage.warning(`阶段 ${row.status} 无可推进的边`);
+    return;
+  }
+  const values: Record<string, string> = {};
+  for (const f of prompts) {
+    const { value } = await ElMessageBox.prompt(
+      f.placeholder ? `${f.label}（如 ${f.placeholder}）` : f.label,
+      `推进到 ${next.toUpperCase()}`
+    );
+    values[f.key] = value;
+  }
+  // 组装 tagged payload：step 名与字段名对齐后端枚举变体
+  // 阶段名 → 后端枚举 step 名映射（d1_team / d2_problem / ...）
+  const STEP_NAMES: Record<string, string> = {
+    d0: 'd1_team',
+    d1: 'd2_problem',
+    d2: 'd3_interim',
+    d3: 'd4_root_cause',
+    d4: 'd5_permanent',
+    d5: 'd6_verify',
+    d6: 'd7_prevent',
+    d7: 'd8_recognize',
+  };
+  const payload = { step: STEP_NAMES[row.status] ?? next, ...values } as Parameters<
+    typeof advanceQuality8d
+  >[1];
+  await advanceQuality8d(row.id, payload);
   ElMessage.success('已推进');
   await load();
 }

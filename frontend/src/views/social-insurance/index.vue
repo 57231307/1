@@ -163,7 +163,14 @@ async function onCreate() {
 }
 
 async function onMarkPaid(row: SocialInsurance) {
-  await markInsurancePaid(row.id);
+  const { value } = await ElMessageBox.prompt('缴费日期（YYYY-MM-DD）', '标记已缴', {
+    inputValue: new Date().toISOString().slice(0, 10),
+  });
+  if (!value) {
+    ElMessage.warning('请填写缴费日期');
+    return;
+  }
+  await markInsurancePaid(row.id, { payment_date: value });
   ElMessage.success('已标记缴费');
   await load();
 }

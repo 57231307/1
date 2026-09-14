@@ -11,18 +11,43 @@
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column label="状态" width="110">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'confirmed' ? 'success' : row.status === 'reversed' ? 'info' : 'warning'">
+            <el-tag
+              :type="
+                row.status === 'confirmed'
+                  ? 'success'
+                  : row.status === 'reversed'
+                    ? 'info'
+                    : 'warning'
+              "
+            >
               {{ BAD_DEBT_STATUS_LABEL[row.status] ?? row.status }}
             </el-tag>
           </template>
         </el-table-column>
         <template v-for="col in debtExtraCols" :key="col.prop">
-          <el-table-column :prop="col.prop" :label="col.label" min-width="140" show-overflow-tooltip />
+          <el-table-column
+            :prop="col.prop"
+            :label="col.label"
+            min-width="140"
+            show-overflow-tooltip
+          />
         </template>
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="row.status === 'pending'" size="small" type="primary" @click="onConfirm(row)">确认</el-button>
-            <el-button v-if="row.status === 'confirmed'" size="small" type="warning" @click="onReverse(row)">冲销</el-button>
+            <el-button
+              v-if="row.status === 'pending'"
+              size="small"
+              type="primary"
+              @click="onConfirm(row)"
+              >确认</el-button
+            >
+            <el-button
+              v-if="row.status === 'confirmed'"
+              size="small"
+              type="warning"
+              @click="onReverse(row)"
+              >冲销</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
@@ -34,18 +59,43 @@
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column label="状态" width="110">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'cancelled' ? 'info' : row.status === 'completed' ? 'success' : 'primary'">
+            <el-tag
+              :type="
+                row.status === 'cancelled'
+                  ? 'info'
+                  : row.status === 'completed'
+                    ? 'success'
+                    : 'primary'
+              "
+            >
               {{ COLLECTION_TASK_STATUS_LABEL[row.status] ?? row.status }}
             </el-tag>
           </template>
         </el-table-column>
         <template v-for="col in taskExtraCols" :key="col.prop">
-          <el-table-column :prop="col.prop" :label="col.label" min-width="140" show-overflow-tooltip />
+          <el-table-column
+            :prop="col.prop"
+            :label="col.label"
+            min-width="140"
+            show-overflow-tooltip
+          />
         </template>
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="row.status !== 'cancelled' && row.status !== 'completed'" size="small" @click="onReassign(row)">转派</el-button>
-            <el-button v-if="row.status !== 'cancelled'" size="small" type="danger" plain @click="onCancelTask(row)">取消</el-button>
+            <el-button
+              v-if="row.status !== 'cancelled' && row.status !== 'completed'"
+              size="small"
+              @click="onReassign(row)"
+              >转派</el-button
+            >
+            <el-button
+              v-if="row.status !== 'cancelled'"
+              size="small"
+              type="danger"
+              plain
+              @click="onCancelTask(row)"
+              >取消</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
@@ -53,8 +103,16 @@
 
     <el-dialog v-model="provisionVisible" title="运行坏账计提" width="460">
       <el-form :model="provisionForm" label-width="120px">
-        <el-form-item label="账期" required>
-          <el-input v-model="provisionForm.period" placeholder="如 2026-08" />
+        <el-form-item label="计提年度" required>
+          <el-input-number
+            v-model="provisionForm.period_year"
+            :min="2000"
+            :max="2100"
+            class="w-full"
+          />
+        </el-form-item>
+        <el-form-item label="计提月份" required>
+          <el-input-number v-model="provisionForm.period_month" :min="1" :max="12" class="w-full" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -88,7 +146,10 @@ const loading = ref(false);
 const loadingTasks = ref(false);
 const saving = ref(false);
 const provisionVisible = ref(false);
-const provisionForm = reactive({ period: '' });
+const provisionForm = reactive({
+  period_year: new Date().getFullYear(),
+  period_month: new Date().getMonth() + 1,
+});
 
 const unwrapList = <T,>(p: unknown): T[] =>
   Array.isArray(p) ? p : ((p as { items?: T[] })?.items ?? []);
@@ -122,13 +183,12 @@ async function load() {
 }
 
 async function onProvision() {
-  if (!provisionForm.period) {
-    ElMessage.warning('请填写账期');
-    return;
-  }
   saving.value = true;
   try {
-    await runProvision({ period: provisionForm.period });
+    await runProvision({
+      period_year: provisionForm.period_year,
+      period_month: provisionForm.period_month,
+    });
     ElMessage.success('计提完成');
     provisionVisible.value = false;
     await load();
@@ -153,7 +213,7 @@ async function onReverse(row: BadDebt) {
 
 async function onReassign(row: CollectionTask) {
   const { value } = await ElMessageBox.prompt('请输入新负责人用户 ID', '转派任务');
-  await reassignCollectionTask(row.id, { assignee_id: Number(value) });
+  await reassignCollectionTask(row.id, { assigned_to: Number(value) });
   ElMessage.success('已转派');
   await load();
 }
