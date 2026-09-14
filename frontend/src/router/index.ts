@@ -413,6 +413,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '生产计划', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
+        path: 'export-compliance',
+        name: 'ExportCompliance',
+        component: () => import('@/views/export-compliance/index.vue'),
+        meta: { title: '外贸合规中心', icon: 'Ship', permission: 'sales:read', requiresAuth: true },
+      },
+      {
         path: 'wage',
         name: 'Wage',
         component: () => import('@/views/wage/index.vue'),
