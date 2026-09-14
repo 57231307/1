@@ -70,9 +70,7 @@ export interface TrackingEventPayload {
 
 /** 查询运单轨迹事件（GET /logistics-tracking/waybills/{id}/tracking-events） */
 export const getTrackingEvents = (waybillId: number) =>
-  request.get<ApiResponse<unknown[]>>(
-    `/logistics-tracking/waybills/${waybillId}/tracking-events`
-  );
+  request.get<ApiResponse<unknown[]>>(`/logistics-tracking/waybills/${waybillId}/tracking-events`);
 
 /** 记录运单轨迹事件（POST /logistics-tracking/waybills/{id}/tracking-events） */
 export const recordTrackingEvent = (waybillId: number, data: TrackingEventPayload) =>

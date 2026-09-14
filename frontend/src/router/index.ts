@@ -413,6 +413,23 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '生产计划', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
+        path: 'system-governance',
+        name: 'SystemGovernance',
+        component: () => import('@/views/system-governance/index.vue'),
+        meta: {
+          title: '系统治理中心',
+          icon: 'Setting',
+          permission: 'admin:read',
+          requiresAuth: true,
+        },
+      },
+      {
+        path: 'logistics',
+        name: 'Logistics',
+        component: () => import('@/views/logistics/index.vue'),
+        meta: { title: '物流跟踪', icon: 'Van', permission: 'inventory:read', requiresAuth: true },
+      },
+      {
         path: 'export-compliance',
         name: 'ExportCompliance',
         component: () => import('@/views/export-compliance/index.vue'),
