@@ -112,11 +112,7 @@ export function getOnlineDeviceCount() {
 
 /** 角色变更审批状态 */
 export type RoleChangeApprovalStatus =
-  | 'pending_l1'
-  | 'pending_l2'
-  | 'approved'
-  | 'rejected'
-  | 'cancelled';
+  'pending_l1' | 'pending_l2' | 'approved' | 'rejected' | 'cancelled';
 
 /** 角色变更类型（后端 ChangeType 枚举） */
 export type RoleChangeType = 'assign_role' | 'assign_permission' | 'remove_permission';

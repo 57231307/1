@@ -41,7 +41,12 @@
         <el-card shadow="never" class="mb">
           <div class="toolbar">
             <el-button type="primary" @click="declDialogVisible = true">新建报关单</el-button>
-            <el-input-number v-model="verifyOrderId" :min="1" placeholder="订单ID" style="width: 130px" />
+            <el-input-number
+              v-model="verifyOrderId"
+              :min="1"
+              placeholder="订单ID"
+              style="width: 130px"
+            />
             <el-button @click="onVerifyDocs">单证核验</el-button>
             <el-button plain @click="onCalcRefund">计算退税</el-button>
           </div>
@@ -124,10 +129,18 @@
         <el-form-item label="销售订单ID" required
           ><el-input-number v-model="declForm.sales_order_id" :min="1" class="w-full"
         /></el-form-item>
-        <el-form-item label="报关单号" required><el-input v-model="declForm.declaration_no" /></el-form-item>
-        <el-form-item label="出口日期" required><el-date-picker v-model="declForm.export_date" type="date" value-format="YYYY-MM-DD" /></el-form-item>
-        <el-form-item label="总金额" required><el-input-number v-model="declForm.total_amount" :min="0" :precision="2" /></el-form-item>
-        <el-form-item label="汇率"><el-input-number v-model="declForm.exchange_rate" :min="0" :precision="4" /></el-form-item>
+        <el-form-item label="报关单号" required
+          ><el-input v-model="declForm.declaration_no"
+        /></el-form-item>
+        <el-form-item label="出口日期" required
+          ><el-date-picker v-model="declForm.export_date" type="date" value-format="YYYY-MM-DD"
+        /></el-form-item>
+        <el-form-item label="总金额" required
+          ><el-input-number v-model="declForm.total_amount" :min="0" :precision="2"
+        /></el-form-item>
+        <el-form-item label="汇率"
+          ><el-input-number v-model="declForm.exchange_rate" :min="0" :precision="4"
+        /></el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="declDialogVisible = false">取消</el-button>

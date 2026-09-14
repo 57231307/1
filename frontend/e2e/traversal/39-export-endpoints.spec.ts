@@ -25,9 +25,10 @@ test.describe('P5.9 敏感导出 fail-closed 矩阵', () => {
 
   for (const { path, resource } of SENSITIVE_EXPORT_ENDPOINTS) {
     test(`FAIL-CLOSED ${path} [${resource}] 无 token 403`, async ({ page }) => {
-      const resp = await page.request
-        .get(`${API_BASE}${API_PREFIX}${path}`)
-        .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
+      const resp = await page.request.get(`${API_BASE}${API_PREFIX}${path}`).catch(e => {
+        console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
+        return null;
+      });
 
       if (!resp) throw new Error(`网络错误: ${path}`);
 
@@ -35,14 +36,17 @@ test.describe('P5.9 敏感导出 fail-closed 矩阵', () => {
       const status = resp.status();
       expect(
         [400, 401, 403].includes(status),
-        `${path} 无审批令牌应被拒绝（400/401/403，fail-closed），实际 ${status}`,
+        `${path} 无审批令牌应被拒绝（400/401/403，fail-closed），实际 ${status}`
       ).toBe(true);
     });
 
     test(`FAIL-CLOSED ${path} [${resource}] 伪造 token 403`, async ({ page }) => {
       const resp = await page.request
         .get(`${API_BASE}${API_PREFIX}${path}?download_token=fake-token-for-e2e-test`)
-        .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
+        .catch(e => {
+          console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
+          return null;
+        });
 
       if (!resp) throw new Error(`网络错误: ${path}`);
 
@@ -50,7 +54,7 @@ test.describe('P5.9 敏感导出 fail-closed 矩阵', () => {
       const status = resp.status();
       expect(
         [400, 401, 403].includes(status),
-        `${path} 伪造令牌应被拒绝（400/401/403，fail-closed），实际 ${status}`,
+        `${path} 伪造令牌应被拒绝（400/401/403，fail-closed），实际 ${status}`
       ).toBe(true);
     });
   }
@@ -63,9 +67,10 @@ test.describe('P5.9 非敏感导出矩阵', () => {
 
   for (const path of NON_SENSITIVE_EXPORT_ENDPOINTS) {
     test(`EXPORT ${path}`, async ({ page }) => {
-      const resp = await page.request
-        .get(`${API_BASE}${API_PREFIX}${path}`)
-        .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
+      const resp = await page.request.get(`${API_BASE}${API_PREFIX}${path}`).catch(e => {
+        console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
+        return null;
+      });
 
       if (!resp) throw new Error(`网络错误: ${path}`);
 

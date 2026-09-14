@@ -108,7 +108,12 @@ test.describe('成本核算完整流程', () => {
     expect(byBatch.items?.length).toBeGreaterThanOrEqual(0);
 
     // 验证审计日志
-    const auditLogged = await verifyAuditLog(page, 'CREATE', 'production', '/production/cost-collections');
+    const auditLogged = await verifyAuditLog(
+      page,
+      'CREATE',
+      'production',
+      '/production/cost-collections'
+    );
     expect(auditLogged).toBe(true);
   });
 
@@ -238,14 +243,22 @@ test.describe('成本核算完整流程', () => {
       };
 
       try {
-        const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/fixed-assets', assetData);
+        const result = await apiCall<{ id?: number }>(
+          page,
+          'POST',
+          '/finance/fixed-assets',
+          assetData
+        );
         const newAssetId = result.data?.id;
         if (newAssetId) {
           const depResult = await apiCall<{ depreciation_amount: string }>(
             page,
             'POST',
             `/fixed-assets/${newAssetId}/depreciate`
-          ).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
+          ).catch(e => {
+            console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
+            return null;
+          });
 
           if (depResult) {
             expect(parseFloat(String(depResult.data?.depreciation_amount || '0'))).toBeGreaterThan(
@@ -253,9 +266,10 @@ test.describe('成本核算完整流程', () => {
             );
           }
         }
-      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+      } catch (e) {
+        console.warn(`[E2E] //: ${(e as Error).message}`);
         // 创建可能因缺少必填字段失败
-       }
+      }
     }
   });
 
@@ -280,7 +294,10 @@ test.describe('成本核算完整流程', () => {
         total_budget: string;
         total_executed: string;
         execution_rate: string;
-      }>(page, 'GET', `/budgets/control/${budget.id}`).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
+      }>(page, 'GET', `/budgets/control/${budget.id}`).catch(e => {
+        console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
+        return null;
+      });
 
       if (control) {
         expect(parseFloat(control.total_budget)).toBeGreaterThanOrEqual(0);

@@ -114,7 +114,10 @@ test.describe('采购退货完整流程', () => {
       )
       .first()
       .isVisible()
-      .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      .catch(e => {
+        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
+        return false;
+      });
     expect(tableVisible).toBe(true);
   });
 

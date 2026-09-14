@@ -27,10 +27,16 @@ test.describe('列表交互与状态显示', () => {
 
     // 测试分页
     const pagination = page.locator('.el-pagination').first();
-    const paginationVisible = await pagination.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    const paginationVisible = await pagination.isVisible().catch(e => {
+      console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
+      return false;
+    });
     if (paginationVisible) {
       const page2 = pagination.locator('.el-pager .number:has-text("2")').first();
-      const page2Visible = await page2.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      const page2Visible = await page2.isVisible().catch(e => {
+        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
+        return false;
+      });
       if (page2Visible) {
         await page2.click();
         await page.waitForTimeout(2000);
@@ -59,11 +65,17 @@ test.describe('列表交互与状态显示', () => {
       .waitFor({ state: 'visible', timeout: 15_000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
 
-    const tableVisible = await table.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    const tableVisible = await table.isVisible().catch(e => {
+      console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
+      return false;
+    });
     await empty
       .waitFor({ state: 'visible', timeout: 5_000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const emptyVisible = await empty.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    const emptyVisible = await empty.isVisible().catch(e => {
+      console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
+      return false;
+    });
     expect(tableVisible || emptyVisible).toBe(true);
 
     if (tableVisible) {
@@ -84,12 +96,18 @@ test.describe('列表交互与状态显示', () => {
       .locator('.el-statistic, .el-card, [class*="stat"]')
       .first()
       .isVisible()
-      .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      .catch(e => {
+        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
+        return false;
+      });
     const hasChart = await page
       .locator('canvas, .echarts, [class*="chart"]')
       .first()
       .isVisible()
-      .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      .catch(e => {
+        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
+        return false;
+      });
     expect(hasStats || hasChart).toBe(true);
   });
 
@@ -108,7 +126,10 @@ test.describe('列表交互与状态显示', () => {
     await searchInput
       .waitFor({ state: 'visible', timeout: 5000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const searchVisible = await searchInput.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    const searchVisible = await searchInput.isVisible().catch(e => {
+      console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
+      return false;
+    });
     if (searchVisible) {
       await searchInput.fill('测试');
       await page.waitForTimeout(1000);
@@ -118,7 +139,10 @@ test.describe('列表交互与状态显示', () => {
       await searchBtn
         .waitFor({ state: 'visible', timeout: 3000 })
         .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const searchBtnVisible = await searchBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      const searchBtnVisible = await searchBtn.isVisible().catch(e => {
+        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
+        return false;
+      });
       if (searchBtnVisible) {
         await searchBtn.click();
         await page.waitForTimeout(2000);
@@ -130,7 +154,10 @@ test.describe('列表交互与状态显示', () => {
         )
         .first()
         .isVisible()
-        .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+        .catch(e => {
+          console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
+          return false;
+        });
       expect(tableStillVisible).toBe(true);
 
       await searchInput.clear();
@@ -151,14 +178,20 @@ test.describe('列表交互与状态显示', () => {
     const tabsVisible = await tabs
       .first()
       .isVisible()
-      .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      .catch(e => {
+        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
+        return false;
+      });
     if (tabsVisible) {
       // 点击第二个 tab
       const secondTab = page.locator('.el-tabs__item').nth(1);
       await secondTab
         .waitFor({ state: 'visible', timeout: 5000 })
         .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const secondTabVisible = await secondTab.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      const secondTabVisible = await secondTab.isVisible().catch(e => {
+        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
+        return false;
+      });
       if (secondTabVisible) {
         await secondTab.click();
         await page.waitForTimeout(2000);

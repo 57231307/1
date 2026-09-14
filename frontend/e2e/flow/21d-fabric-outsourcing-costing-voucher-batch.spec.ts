@@ -51,7 +51,10 @@ test.describe('面料单据专用字段全链路验证', () => {
         page,
         'GET',
         '/production/outsourcing-orders?page=1&page_size=1'
-      ).catch((e) => { console.warn(`[E2E] 失败: ${(e as Error).message}`); return { items: [] }; });
+      ).catch(e => {
+        console.warn(`[E2E] 失败: ${(e as Error).message}`);
+        return { items: [] };
+      });
       orderId = list.items?.[0]?.id;
     }
 
@@ -68,9 +71,10 @@ test.describe('面料单据专用字段全链路验证', () => {
           unit: '米',
           unit_cost: '5.00',
         });
-      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+      } catch (e) {
+        console.warn(`[E2E] //: ${(e as Error).message}`);
         // 明细添加可能失败
-       }
+      }
 
       // 查询订单详情
       const detail = await apiCallRaw<{

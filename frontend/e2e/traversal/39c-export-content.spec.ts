@@ -59,7 +59,10 @@ test.describe('39c 导出内容断言', () => {
     // ---- 2. 真实导出 ----
     const exportResp = await page.request
       .get(`${API_BASE}${API_PREFIX}/warehouses/export`)
-      .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
+      .catch(e => {
+        console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
+        return null;
+      });
     if (!exportResp) throw new Error('网络错误: /warehouses/export');
     const status = exportResp.status();
     console.log(`[39c] /warehouses/export → ${status}`);
@@ -86,14 +89,17 @@ test.describe('39c 导出内容断言', () => {
 
     // 列头断言：仓库名称/编码类中文表头应出现（sharedStrings 或内联）
     const hasHeader =
-      text.includes('仓库') || text.includes('名称') || text.includes('编码') || text.includes('code');
+      text.includes('仓库') ||
+      text.includes('名称') ||
+      text.includes('编码') ||
+      text.includes('code');
     expect(hasHeader, '导出应包含仓库相关列头').toBeTruthy();
 
     // 行数断言：导出数据行 ≥ 列表行数（列表分页 page_size=100，导出全量）
     if (listCount > 0) {
       expect(
         sheetRows,
-        `导出数据行 ${sheetRows} 应 ≥ 列表行数 ${listCount}（内容完整性）`,
+        `导出数据行 ${sheetRows} 应 ≥ 列表行数 ${listCount}（内容完整性）`
       ).toBeGreaterThanOrEqual(listCount);
     }
     // 名称内容匹配：列表第一条名称应出现在导出文本中
@@ -101,7 +107,7 @@ test.describe('39c 导出内容断言', () => {
     if (first?.name) {
       expect(
         text.includes(first.name),
-        `导出应包含列表首条名称 "${first.name}"（内容与源数据一致）`,
+        `导出应包含列表首条名称 "${first.name}"（内容与源数据一致）`
       ).toBeTruthy();
       console.log(`[39c] ✅ 内容匹配："${first.name}" 出现在导出文件`);
     }
@@ -126,7 +132,10 @@ test.describe('39c 导出内容断言', () => {
 
     const exportResp = await page.request
       .get(`${API_BASE}${API_PREFIX}/inventory/stock/export`)
-      .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
+      .catch(e => {
+        console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
+        return null;
+      });
     if (!exportResp) throw new Error('网络错误: /inventory/stock/export');
     const status = exportResp.status();
     console.log(`[39c] /stock/export → ${status}`);
@@ -144,16 +153,12 @@ test.describe('39c 导出内容断言', () => {
     console.log(`[39c] 库存 xlsx：${text.length}B / ${sheetRows} 行`);
 
     if (listCount > 0) {
-      expect(
-        sheetRows,
-        `导出行 ${sheetRows} 应 ≥ 列表行 ${listCount}`,
-      ).toBeGreaterThanOrEqual(listCount);
+      expect(sheetRows, `导出行 ${sheetRows} 应 ≥ 列表行 ${listCount}`).toBeGreaterThanOrEqual(
+        listCount
+      );
     }
     if (firstText) {
-      expect(
-        text.includes(firstText),
-        `导出应包含首条批号 ${firstText}（内容一致）`,
-      ).toBeTruthy();
+      expect(text.includes(firstText), `导出应包含首条批号 ${firstText}（内容一致）`).toBeTruthy();
       console.log(`[39c] ✅ 库存批号 ${firstText} 内容匹配`);
     }
   });

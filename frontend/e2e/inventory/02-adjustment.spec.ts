@@ -18,11 +18,13 @@ test.describe('库存管理 - 02 库存调整', () => {
     await page.getByLabel(/调整数量/).fill('50');
     await page.getByLabel(/原因/).fill('E2E 测试盘盈调整');
     await page.getByRole('button', { name: /确认/ }).click();
-    await expect(page.getByText(/成功|已提交|已创建/)).toBeVisible({ timeout: 30000 }).catch((e) => {
-      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
+    await expect(page.getByText(/成功|已提交|已创建/))
+      .toBeVisible({ timeout: 30000 })
+      .catch(e => {
+        console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
 
-      return null;
-        });
+        return null;
+      });
   });
 
   test('库存调整 - 盘亏', async ({ page }) => {
@@ -33,10 +35,12 @@ test.describe('库存管理 - 02 库存调整', () => {
     await page.getByLabel(/调整数量/).fill('30');
     await page.getByLabel(/原因/).fill('E2E 测试盘亏调整');
     await page.getByRole('button', { name: /确认/ }).click();
-    await expect(page.getByText(/成功|已提交|已创建/)).toBeVisible({ timeout: 30000 }).catch((e) => {
-      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
+    await expect(page.getByText(/成功|已提交|已创建/))
+      .toBeVisible({ timeout: 30000 })
+      .catch(e => {
+        console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
 
-      return null;
-        });
+        return null;
+      });
   });
 });

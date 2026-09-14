@@ -32,14 +32,21 @@
       <el-table v-loading="loading" :data="declarationList" border>
         <el-table-column prop="declaration_no" label="申报表编号" min-width="180" />
         <el-table-column label="所属期间" width="120" align="center">
-          <template #default="{ row }">{{ row.period_year }}-{{ String(row.period_month).padStart(2, '0') }}</template>
+          <template #default="{ row }"
+            >{{ row.period_year }}-{{ String(row.period_month).padStart(2, '0') }}</template
+          >
         </el-table-column>
         <el-table-column prop="declaration_date" label="申报日期" width="120" align="center" />
         <el-table-column prop="export_sales_amount" label="出口销售额" width="130" align="right" />
         <el-table-column prop="refund_rate" label="退税率" width="90" align="right">
           <template #default="{ row }">{{ formatPercent(row.refund_rate) }}</template>
         </el-table-column>
-        <el-table-column prop="refundable_vat_amount" label="免抵退税额" width="130" align="right" />
+        <el-table-column
+          prop="refundable_vat_amount"
+          label="免抵退税额"
+          width="130"
+          align="right"
+        />
         <el-table-column prop="actual_refund_amount" label="应退税额" width="130" align="right" />
         <el-table-column prop="documents_complete" label="单证齐全" width="100" align="center">
           <template #default="{ row }">
@@ -63,22 +70,56 @@
       </el-table>
     </el-card>
 
-    <el-dialog v-model="createVisible" title="生成退税申报表" width="520px" @close="resetCreateForm">
+    <el-dialog
+      v-model="createVisible"
+      title="生成退税申报表"
+      width="520px"
+      @close="resetCreateForm"
+    >
       <el-form ref="createFormRef" :model="createForm" :rules="createRules" label-width="120px">
         <el-form-item label="所属年份" prop="period_year">
-          <el-input-number v-model="createForm.period_year" :min="2000" :max="2100" :precision="0" style="width: 100%" />
+          <el-input-number
+            v-model="createForm.period_year"
+            :min="2000"
+            :max="2100"
+            :precision="0"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="所属月份" prop="period_month">
-          <el-input-number v-model="createForm.period_month" :min="1" :max="12" :precision="0" style="width: 100%" />
+          <el-input-number
+            v-model="createForm.period_month"
+            :min="1"
+            :max="12"
+            :precision="0"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="退税率" prop="refund_rate">
-          <el-input-number v-model="createForm.refund_rate" :min="0" :max="1" :precision="4" :step="0.01" style="width: 100%" />
+          <el-input-number
+            v-model="createForm.refund_rate"
+            :min="0"
+            :max="1"
+            :precision="4"
+            :step="0.01"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="进项税额" prop="input_vat_amount">
-          <el-input-number v-model="createForm.input_vat_amount" :min="0" :precision="2" style="width: 100%" />
+          <el-input-number
+            v-model="createForm.input_vat_amount"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="上期留抵税额" prop="carryforward_from_prev">
-          <el-input-number v-model="createForm.carryforward_from_prev" :min="0" :precision="2" style="width: 100%" />
+          <el-input-number
+            v-model="createForm.carryforward_from_prev"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -87,13 +128,28 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="declarationVisible" title="新建出口报关单" width="560px" @close="resetDeclarationForm">
-      <el-form ref="declarationFormRef" :model="declarationForm" :rules="declarationRules" label-width="120px">
+    <el-dialog
+      v-model="declarationVisible"
+      title="新建出口报关单"
+      width="560px"
+      @close="resetDeclarationForm"
+    >
+      <el-form
+        ref="declarationFormRef"
+        :model="declarationForm"
+        :rules="declarationRules"
+        label-width="120px"
+      >
         <el-form-item label="报关单号" prop="declaration_no">
           <el-input v-model="declarationForm.declaration_no" placeholder="必填" />
         </el-form-item>
         <el-form-item label="销售订单 ID" prop="sales_order_id">
-          <el-input-number v-model="declarationForm.sales_order_id" :min="1" :precision="0" style="width: 100%" />
+          <el-input-number
+            v-model="declarationForm.sales_order_id"
+            :min="1"
+            :precision="0"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="出口日期" prop="export_date">
           <el-date-picker
@@ -111,10 +167,20 @@
           <el-input v-model="declarationForm.currency_code" placeholder="如 USD" />
         </el-form-item>
         <el-form-item label="总金额" prop="total_amount">
-          <el-input-number v-model="declarationForm.total_amount" :min="0" :precision="2" style="width: 100%" />
+          <el-input-number
+            v-model="declarationForm.total_amount"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="汇率" prop="exchange_rate">
-          <el-input-number v-model="declarationForm.exchange_rate" :min="0" :precision="6" style="width: 100%" />
+          <el-input-number
+            v-model="declarationForm.exchange_rate"
+            :min="0"
+            :precision="6"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="海关编码" prop="customs_code">
           <el-input v-model="declarationForm.customs_code" />
@@ -125,33 +191,65 @@
       </el-form>
       <template #footer>
         <el-button @click="declarationVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="submitDeclaration">确定</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="submitDeclaration"
+          >确定</el-button
+        >
       </template>
     </el-dialog>
 
     <el-dialog v-model="calcVisible" title="免抵退税额试算" width="520px">
       <el-form :model="calcForm" label-width="120px">
         <el-form-item label="出口销售额">
-          <el-input-number v-model="calcForm.export_sales_amount" :min="0" :precision="2" style="width: 100%" />
+          <el-input-number
+            v-model="calcForm.export_sales_amount"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="退税率">
-          <el-input-number v-model="calcForm.refund_rate" :min="0" :max="1" :precision="4" :step="0.01" style="width: 100%" />
+          <el-input-number
+            v-model="calcForm.refund_rate"
+            :min="0"
+            :max="1"
+            :precision="4"
+            :step="0.01"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="进项税额">
-          <el-input-number v-model="calcForm.input_vat_amount" :min="0" :precision="2" style="width: 100%" />
+          <el-input-number
+            v-model="calcForm.input_vat_amount"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="上期留抵税额">
-          <el-input-number v-model="calcForm.carryforward_from_prev" :min="0" :precision="2" style="width: 100%" />
+          <el-input-number
+            v-model="calcForm.carryforward_from_prev"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="submitLoading" @click="submitCalc">计算</el-button>
         </el-form-item>
       </el-form>
       <el-descriptions v-if="calcResult" :column="2" border style="margin-top: 8px">
-        <el-descriptions-item label="免抵退税额">{{ calcResult.refundable_vat_amount }}</el-descriptions-item>
-        <el-descriptions-item label="应退税额">{{ calcResult.actual_refund_amount }}</el-descriptions-item>
-        <el-descriptions-item label="免抵税额">{{ calcResult.exempt_vat_amount }}</el-descriptions-item>
-        <el-descriptions-item label="结转下期">{{ calcResult.carryforward_amount }}</el-descriptions-item>
+        <el-descriptions-item label="免抵退税额">{{
+          calcResult.refundable_vat_amount
+        }}</el-descriptions-item>
+        <el-descriptions-item label="应退税额">{{
+          calcResult.actual_refund_amount
+        }}</el-descriptions-item>
+        <el-descriptions-item label="免抵税额">{{
+          calcResult.exempt_vat_amount
+        }}</el-descriptions-item>
+        <el-descriptions-item label="结转下期">{{
+          calcResult.carryforward_amount
+        }}</el-descriptions-item>
       </el-descriptions>
       <template #footer>
         <el-button @click="calcVisible = false">关闭</el-button>
@@ -282,7 +380,10 @@ const calcForm = reactive({
 /** 响应解包防御：兼容数组 / { items } / { list } 分页包装，避免 el-table "r is not iterable" */
 const unwrapList = (payload: unknown): ExportRefundDeclaration[] => {
   if (Array.isArray(payload)) return payload;
-  const paged = payload as { items?: ExportRefundDeclaration[]; list?: ExportRefundDeclaration[] } | null;
+  const paged = payload as {
+    items?: ExportRefundDeclaration[];
+    list?: ExportRefundDeclaration[];
+  } | null;
   return paged?.items ?? paged?.list ?? [];
 };
 

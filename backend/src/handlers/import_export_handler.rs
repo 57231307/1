@@ -722,7 +722,7 @@ pub async fn create_import_task_from_upload(
 
     let service = ImportExportService::new(state.db.clone());
     let task_id = service
-        .create_import_task(&import_type, 0, auth.user_id, Some(file_name), Some(template_id))
+        .create_import_task(&import_type, 0, auth.user_id, Some(file_name.clone()), Some(template_id))
         .await?;
 
     let task = import_task::Entity::find_by_id(task_id)

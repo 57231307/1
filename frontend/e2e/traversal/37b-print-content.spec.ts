@@ -85,12 +85,17 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
       test.skip();
       return;
     }
-    console.log(`[37b] 源单据：salesOrderId=${salesOrderId} orderNo=${orderNo ?? '(列表未返回单号)'}`);
+    console.log(
+      `[37b] 源单据：salesOrderId=${salesOrderId} orderNo=${orderNo ?? '(列表未返回单号)'}`
+    );
 
     // ---- 2. 真实打印请求（浏览器上下文 cookie + 真实后端）----
     const printResp = await page.request
       .get(`${API_BASE}${API_PREFIX}/sales/orders/${salesOrderId}/print`)
-      .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
+      .catch(e => {
+        console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
+        return null;
+      });
     if (!printResp) throw new Error(`网络错误: /sales/orders/${salesOrderId}/print`);
     const printStatus = printResp.status();
     console.log(`[37b] 打印请求 /sales/orders/${salesOrderId}/print → ${printStatus}`);
@@ -115,10 +120,7 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
     const zip = await JSZip.loadAsync(body);
     const docXml = await zip.file('word/document.xml')?.async('string');
     expect(docXml, 'docx 应包含 word/document.xml').toBeTruthy();
-    expect(
-      docXml!.length,
-      `document.xml 应非空，实际 ${docXml!.length}B`,
-    ).toBeGreaterThan(100);
+    expect(docXml!.length, `document.xml 应非空，实际 ${docXml!.length}B`).toBeGreaterThan(100);
     console.log(`[37b] document.xml 解包成功 ${docXml!.length}B`);
 
     if (orderNo) {
@@ -126,7 +128,7 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
       const unescaped = orderNo.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       expect(
         docXml!.includes(orderNo) || docXml!.includes(unescaped),
-        `打印文档应包含源单据号 ${orderNo}（内容匹配）`,
+        `打印文档应包含源单据号 ${orderNo}（内容匹配）`
       ).toBeTruthy();
       console.log(`[37b] ✅ 内容匹配：单据号 ${orderNo} 出现在 document.xml`);
     } else {
@@ -135,21 +137,28 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
 
     // ---- 4. 打印审计闭环：audit-logs 出现 PRINT 记录 ----
     const auditResp = await page.request
-      .get(
-        `${API_BASE}${API_PREFIX}/audit-logs?operation_type=PRINT&page=1&page_size=20`
-      )
-      .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
+      .get(`${API_BASE}${API_PREFIX}/audit-logs?operation_type=PRINT&page=1&page_size=20`)
+      .catch(e => {
+        console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
+        return null;
+      });
     if (!auditResp) throw new Error('网络错误: /audit-logs');
     expect(auditResp.status(), '审计列表应可查询（admin）').toBe(200);
     const auditJson = (await auditResp.json()) as ApiResponse<{
-      items: Array<{ id: number; operation_type?: string; action?: string; uri?: string; path?: string }>;
+      items: Array<{
+        id: number;
+        operation_type?: string;
+        action?: string;
+        uri?: string;
+        path?: string;
+      }>;
       total: number;
     }>;
     expect(auditJson.code, `审计查询业务码应 200，实际 ${auditJson.code}`).toBe(200);
     const printLogs = auditJson.data?.items ?? [];
     expect(
       printLogs.length,
-      `审计应存在 PRINT 记录（打印后闭环），实际 total=${auditJson.data?.total}`,
+      `审计应存在 PRINT 记录（打印后闭环），实际 total=${auditJson.data?.total}`
     ).toBeGreaterThan(0);
     const matched = printLogs.find(l => (l.uri ?? l.path ?? '').includes(String(salesOrderId)));
     console.log(
@@ -164,11 +173,9 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
     let voucherId: number | undefined;
     let voucherNo: string | undefined;
     try {
-      const vs = await apiCallRaw<{ items: Array<{ id: number; voucher_no?: string; no?: string }> }>(
-        page,
-        'GET',
-        '/vouchers?page=1&page_size=1'
-      );
+      const vs = await apiCallRaw<{
+        items: Array<{ id: number; voucher_no?: string; no?: string }>;
+      }>(page, 'GET', '/vouchers?page=1&page_size=1');
       voucherId = vs.items?.[0]?.id;
       voucherNo = vs.items?.[0]?.voucher_no ?? vs.items?.[0]?.no;
     } catch (e) {
@@ -187,7 +194,10 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
 
     const printResp = await page.request
       .get(`${API_BASE}${API_PREFIX}/vouchers/${voucherId}/print`)
-      .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
+      .catch(e => {
+        console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
+        return null;
+      });
     if (!printResp) throw new Error(`网络错误: /vouchers/${voucherId}/print`);
     const status = printResp.status();
     console.log(`[37b] 凭证打印 → ${status}`);
@@ -207,7 +217,7 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
     if (voucherNo) {
       expect(
         docXml!.includes(voucherNo),
-        `凭证文档应包含单据号 ${voucherNo}（内容匹配）`,
+        `凭证文档应包含单据号 ${voucherNo}（内容匹配）`
       ).toBeTruthy();
       console.log(`[37b] ✅ 凭证内容匹配：${voucherNo} 出现在 document.xml`);
     }

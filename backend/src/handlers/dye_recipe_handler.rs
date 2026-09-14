@@ -8,9 +8,7 @@ use axum::{
     Json,
     extract::{Path, Query, State},
 };
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
-};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 use serde::Deserialize;
 
 use crate::container::AppState;

@@ -118,9 +118,7 @@ const fetchBatches = async () => {
     const res = await getDyeBatchList();
     // 响应形态兜底：数组或 { items } 分页包装（防 el-table r is not iterable 白屏）
     const _p = res.data as unknown;
-    batches.value = Array.isArray(_p)
-      ? _p
-      : ((_p as { items?: DyeBatch[] })?.items ?? []);
+    batches.value = Array.isArray(_p) ? _p : ((_p as { items?: DyeBatch[] })?.items ?? []);
   } catch (error) {
     const err = error as Error;
     logger.error(t('fabric.dyeTab.fetchFailed'), err.message);

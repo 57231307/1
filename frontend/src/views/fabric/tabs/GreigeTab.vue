@@ -102,9 +102,7 @@ const fetchFabrics = async () => {
     const res = await getGreigeFabricList();
     // 响应形态兜底：数组或 { items } 分页包装（防 el-table r is not iterable 白屏）
     const _p = res.data as unknown;
-    fabrics.value = Array.isArray(_p)
-      ? _p
-      : ((_p as { items?: GreigeFabric[] })?.items ?? []);
+    fabrics.value = Array.isArray(_p) ? _p : ((_p as { items?: GreigeFabric[] })?.items ?? []);
   } catch (error) {
     const err = error as Error;
     logger.error(t('fabric.greigeTab.fetchFailed'), err.message);

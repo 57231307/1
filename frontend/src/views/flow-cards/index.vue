@@ -11,7 +11,12 @@
             style="width: 160px"
             @change="handleFilter"
           >
-            <el-option v-for="(label, key) in statusTextMap" :key="key" :label="label" :value="key" />
+            <el-option
+              v-for="(label, key) in statusTextMap"
+              :key="key"
+              :label="label"
+              :value="key"
+            />
           </el-select>
           <el-button type="primary" @click="handleCreate">新建流转卡</el-button>
         </div>
@@ -33,7 +38,12 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="planned_fabric_weight" label="计划重量(kg)" width="120" align="right">
+        <el-table-column
+          prop="planned_fabric_weight"
+          label="计划重量(kg)"
+          width="120"
+          align="right"
+        >
           <template #default="{ row }">{{ row.planned_fabric_weight ?? '-' }}</template>
         </el-table-column>
         <el-table-column prop="dye_lot_no" label="缸号" width="130">
@@ -89,7 +99,12 @@
           />
         </el-form-item>
         <el-form-item label="产品 ID" prop="product_id">
-          <el-input-number v-model="formData.product_id" :min="1" :precision="0" style="width: 100%" />
+          <el-input-number
+            v-model="formData.product_id"
+            :min="1"
+            :precision="0"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="产品名称" prop="product_name">
           <el-input v-model="formData.product_name" placeholder="选填" />
@@ -119,21 +134,35 @@
       <el-descriptions v-if="detailRow" :column="2" border>
         <el-descriptions-item label="流转卡号">{{ detailRow.card_no }}</el-descriptions-item>
         <el-descriptions-item label="条码">{{ detailRow.barcode }}</el-descriptions-item>
-        <el-descriptions-item label="生产订单 ID">{{ detailRow.production_order_id }}</el-descriptions-item>
+        <el-descriptions-item label="生产订单 ID">{{
+          detailRow.production_order_id
+        }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="statusTagMap[detailRow.status] ?? 'info'">
             {{ statusTextMap[detailRow.status] ?? detailRow.status }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="产品">{{ detailRow.product_name || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="产品">{{
+          detailRow.product_name || '-'
+        }}</el-descriptions-item>
         <el-descriptions-item label="色号">{{ detailRow.color_no || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="客户">{{ detailRow.customer_name || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="客户">{{
+          detailRow.customer_name || '-'
+        }}</el-descriptions-item>
         <el-descriptions-item label="缸号">{{ detailRow.dye_lot_no || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="计划重量(kg)">{{ detailRow.planned_fabric_weight ?? '-' }}</el-descriptions-item>
-        <el-descriptions-item label="实际重量(kg)">{{ detailRow.actual_fabric_weight ?? '-' }}</el-descriptions-item>
-        <el-descriptions-item label="当前工序序号">{{ detailRow.current_step_seq }}</el-descriptions-item>
+        <el-descriptions-item label="计划重量(kg)">{{
+          detailRow.planned_fabric_weight ?? '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="实际重量(kg)">{{
+          detailRow.actual_fabric_weight ?? '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="当前工序序号">{{
+          detailRow.current_step_seq
+        }}</el-descriptions-item>
         <el-descriptions-item label="创建时间">{{ detailRow.created_at }}</el-descriptions-item>
-        <el-descriptions-item label="染整要求" :span="2">{{ detailRow.dyeing_requirements || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="染整要求" :span="2">{{
+          detailRow.dyeing_requirements || '-'
+        }}</el-descriptions-item>
       </el-descriptions>
       <template #footer>
         <el-button @click="detailVisible = false">关闭</el-button>
@@ -176,17 +205,18 @@ const statusTextMap: Record<FlowCardStatus, string> = {
   terminated: '已终止',
 };
 
-const statusTagMap: Record<FlowCardStatus, 'info' | 'warning' | 'primary' | 'success' | 'danger'> = {
-  pending: 'info',
-  scheduled: 'warning',
-  preparing: 'warning',
-  dyeing: 'primary',
-  dyed: 'primary',
-  inspecting: 'warning',
-  completed: 'success',
-  shipped: 'success',
-  terminated: 'danger',
-};
+const statusTagMap: Record<FlowCardStatus, 'info' | 'warning' | 'primary' | 'success' | 'danger'> =
+  {
+    pending: 'info',
+    scheduled: 'warning',
+    preparing: 'warning',
+    dyeing: 'primary',
+    dyed: 'primary',
+    inspecting: 'warning',
+    completed: 'success',
+    shipped: 'success',
+    terminated: 'danger',
+  };
 
 interface StatusAction {
   key: string;
@@ -278,7 +308,8 @@ const loadList = async () => {
       status: queryStatus.value || undefined,
     });
     cardList.value = unwrapList(res.data);
-    total.value = res.data && !Array.isArray(res.data) ? (res.data.total ?? 0) : cardList.value.length;
+    total.value =
+      res.data && !Array.isArray(res.data) ? (res.data.total ?? 0) : cardList.value.length;
   } catch {
     ElMessage.error('加载流转卡列表失败');
   } finally {
@@ -291,7 +322,8 @@ const handleFilter = () => {
   loadList();
 };
 
-const getNextActions = (row: FlowCard): StatusAction[] => nextActionMap[row.status as FlowCardStatus] ?? [];
+const getNextActions = (row: FlowCard): StatusAction[] =>
+  nextActionMap[row.status as FlowCardStatus] ?? [];
 
 const runAction = async (action: StatusAction, row: FlowCard) => {
   try {
@@ -299,15 +331,23 @@ const runAction = async (action: StatusAction, row: FlowCard) => {
       const { value } = await ElMessageBox.prompt(
         `确认终止流转卡 ${row.card_no} 吗？可填写终止原因。`,
         '终止确认',
-        { confirmButtonText: '确认终止', cancelButtonText: '取消', inputPlaceholder: '终止原因（选填）' }
+        {
+          confirmButtonText: '确认终止',
+          cancelButtonText: '取消',
+          inputPlaceholder: '终止原因（选填）',
+        }
       );
       await terminateFlowCard(row.id, { reason: value || undefined });
     } else {
-      await ElMessageBox.confirm(`确认对流转卡 ${row.card_no} 执行「${action.label}」吗？`, '操作确认', {
-        confirmButtonText: '确认',
-        cancelButtonText: '取消',
-        type: 'warning',
-      });
+      await ElMessageBox.confirm(
+        `确认对流转卡 ${row.card_no} 执行「${action.label}」吗？`,
+        '操作确认',
+        {
+          confirmButtonText: '确认',
+          cancelButtonText: '取消',
+          type: 'warning',
+        }
+      );
       await actionRunners[action.key](row.id);
     }
     ElMessage.success(`操作成功：${action.label}`);

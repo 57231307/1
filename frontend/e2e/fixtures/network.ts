@@ -223,10 +223,7 @@ export class RequestObserver {
     body: string | null;
   }> = [];
 
-  constructor(
-    context: BrowserContext | Page,
-    urlPattern: string
-  ) {
+  constructor(context: BrowserContext | Page, urlPattern: string) {
     this.context = context;
     this.urlPattern = urlPattern;
   }
@@ -241,9 +238,10 @@ export class RequestObserver {
       let body: string | null = null;
       try {
         body = await response.text();
-      } catch (e) { console.warn(`[E2E] catch: ${(e as Error).message}`); 
+      } catch (e) {
+        console.warn(`[E2E] catch: ${(e as Error).message}`);
         body = null;
-       }
+      }
       this.requests.push({
         url: request.url(),
         method: request.method(),

@@ -94,7 +94,9 @@ const applyRateColor = computed(() => {
           <div class="kpi-label">{{ $t('aiExtend.overview.kpiApplyRate') }}</div>
           <div class="kpi-value" :style="{ color: applyRateColor }">{{ applyRateText }}</div>
           <div class="kpi-extra">
-            {{ $t('aiExtend.overview.kpiApplied', { n: summary.process_optimization?.applied ?? 0 }) }}
+            {{
+              $t('aiExtend.overview.kpiApplied', { n: summary.process_optimization?.applied ?? 0 })
+            }}
           </div>
         </el-card>
       </el-col>
@@ -103,7 +105,9 @@ const applyRateColor = computed(() => {
           <div class="kpi-label">{{ $t('aiExtend.overview.kpiQualityHistory') }}</div>
           <div class="kpi-value">{{ summary.quality_prediction?.total ?? 0 }}</div>
           <div class="kpi-extra">
-            {{ $t('aiExtend.overview.kpiHighRisk', { n: summary.quality_prediction?.high_risk ?? 0 }) }}
+            {{
+              $t('aiExtend.overview.kpiHighRisk', { n: summary.quality_prediction?.high_risk ?? 0 })
+            }}
           </div>
         </el-card>
       </el-col>

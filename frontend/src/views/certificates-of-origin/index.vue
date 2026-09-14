@@ -78,18 +78,34 @@
             {{ statusTextMap[detailRow.status] ?? detailRow.status }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="商检单 ID">{{ detailRow.inspection_id ?? '-' }}</el-descriptions-item>
-        <el-descriptions-item label="证书类型">{{ detailRow.certificate_type }}</el-descriptions-item>
+        <el-descriptions-item label="商检单 ID">{{
+          detailRow.inspection_id ?? '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="证书类型">{{
+          detailRow.certificate_type
+        }}</el-descriptions-item>
         <el-descriptions-item label="产品">{{ detailRow.product_name }}</el-descriptions-item>
         <el-descriptions-item label="HS编码">{{ detailRow.hs_code }}</el-descriptions-item>
         <el-descriptions-item label="原产国">{{ detailRow.origin_country }}</el-descriptions-item>
-        <el-descriptions-item label="目的国">{{ detailRow.destination_country }}</el-descriptions-item>
-        <el-descriptions-item label="数量">{{ detailRow.quantity }} {{ detailRow.unit }}</el-descriptions-item>
-        <el-descriptions-item label="发票金额">{{ detailRow.invoice_amount ?? '-' }}</el-descriptions-item>
+        <el-descriptions-item label="目的国">{{
+          detailRow.destination_country
+        }}</el-descriptions-item>
+        <el-descriptions-item label="数量"
+          >{{ detailRow.quantity }} {{ detailRow.unit }}</el-descriptions-item
+        >
+        <el-descriptions-item label="发票金额">{{
+          detailRow.invoice_amount ?? '-'
+        }}</el-descriptions-item>
         <el-descriptions-item label="签发日期">{{ detailRow.issue_date }}</el-descriptions-item>
-        <el-descriptions-item label="有效期至">{{ detailRow.expiry_date || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="备注" :span="2">{{ detailRow.remarks || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="创建时间" :span="2">{{ detailRow.created_at }}</el-descriptions-item>
+        <el-descriptions-item label="有效期至">{{
+          detailRow.expiry_date || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="备注" :span="2">{{
+          detailRow.remarks || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间" :span="2">{{
+          detailRow.created_at
+        }}</el-descriptions-item>
       </el-descriptions>
       <template #footer>
         <el-button @click="detailVisible = false">关闭</el-button>

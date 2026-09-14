@@ -15,6 +15,7 @@ use axum::{
 };
 use std::path::PathBuf;
 use tokio::fs;
+use serde::Deserialize;
 use validator::Validate;
 
 /// P0 7-2 修复：要求调用者具备 admin 角色，否则拒绝并记录审计日志。
@@ -579,6 +580,7 @@ pub async fn get_update_task_by_id(
     _auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    use sea_orm::EntityTrait;
     let task = system_update_task::Entity::find_by_id(id)
         .one(state.db.as_ref())
         .await?
@@ -596,7 +598,8 @@ pub async fn cancel_update_task(
     // 任务取消与下载/安装同属高危更新链路，保持 admin 校验一致
     require_admin_role(&state, &auth).await?;
 
-    use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+    use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+    use sea_orm::EntityTrait;
     let task = system_update_task::Entity::find_by_id(id)
         .one(state.db.as_ref())
         .await?

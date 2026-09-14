@@ -1423,15 +1423,20 @@ pub async fn update_print_template(
     req.validate()?;
 
     let mut records = lock_print_templates()?;
+    let module = records
+        .iter()
+        .find(|r| r.id == id)
+        .map(|r| r.module.clone())
+        .ok_or_else(|| AppError::not_found(format!("打印模板 {} 不存在", id)))?;
+
+    if req.is_default == Some(true) {
+        clear_default_in_module(&mut records, &module, Some(id));
+    }
+
     let record = records
         .iter_mut()
         .find(|r| r.id == id)
         .ok_or_else(|| AppError::not_found(format!("打印模板 {} 不存在", id)))?;
-
-    if req.is_default == Some(true) {
-        let module = record.module.clone();
-        clear_default_in_module(&mut records, &module, Some(id));
-    }
 
     if let Some(v) = req.template_name {
         record.template_name = v;

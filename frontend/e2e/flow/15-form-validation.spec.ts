@@ -47,7 +47,10 @@ test.describe('表单校验真实 UI 交互', () => {
       .first()
       .waitFor({ state: 'visible', timeout: 5000 })
       .then(() => true)
-      .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      .catch(e => {
+        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
+        return false;
+      });
     expect(hasError).toBe(true);
 
     // 关闭弹窗
@@ -94,7 +97,10 @@ test.describe('表单校验真实 UI 交互', () => {
       .first()
       .waitFor({ state: 'visible', timeout: 5000 })
       .then(() => true)
-      .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      .catch(e => {
+        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
+        return false;
+      });
     expect(hasError).toBe(true);
 
     const closeBtn = page.locator('.el-dialog__headerbtn').first();
@@ -136,7 +142,10 @@ test.describe('表单校验真实 UI 交互', () => {
       .first()
       .waitFor({ state: 'visible', timeout: 5000 })
       .then(() => true)
-      .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      .catch(e => {
+        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
+        return false;
+      });
     expect(hasError).toBe(true);
 
     const closeBtn = page.locator('.el-dialog__headerbtn').first();

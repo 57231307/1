@@ -12,7 +12,9 @@
         <el-table-column prop="order_type" label="类型" width="100" />
         <el-table-column label="状态" width="110">
           <template #default="{ row }">
-            <el-tag :type="statusTag(row.status)">{{ OUTSOURCING_STATUS_LABEL[row.status] ?? row.status }}</el-tag>
+            <el-tag :type="statusTag(row.status)">{{
+              OUTSOURCING_STATUS_LABEL[row.status] ?? row.status
+            }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="supplier_id" label="供应商ID" width="100" />
@@ -21,11 +23,43 @@
         <el-table-column prop="issue_quantity" label="发出数量" width="110" />
         <el-table-column label="操作" width="300" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="row.status === 'draft'" size="small" type="primary" @click="onIssue(row)">发出</el-button>
-            <el-button v-if="row.status === 'issued'" size="small" type="primary" @click="onProcess(row)">加工中</el-button>
-            <el-button v-if="row.status === 'processing'" size="small" type="success" @click="onSettle(row)">结算</el-button>
-            <el-button v-if="row.status === 'settled'" size="small" type="success" plain @click="onClose(row)">关闭</el-button>
-            <el-button v-if="row.status === 'draft'" size="small" type="danger" plain @click="onCancel(row)">取消</el-button>
+            <el-button
+              v-if="row.status === 'draft'"
+              size="small"
+              type="primary"
+              @click="onIssue(row)"
+              >发出</el-button
+            >
+            <el-button
+              v-if="row.status === 'issued'"
+              size="small"
+              type="primary"
+              @click="onProcess(row)"
+              >加工中</el-button
+            >
+            <el-button
+              v-if="row.status === 'processing'"
+              size="small"
+              type="success"
+              @click="onSettle(row)"
+              >结算</el-button
+            >
+            <el-button
+              v-if="row.status === 'settled'"
+              size="small"
+              type="success"
+              plain
+              @click="onClose(row)"
+              >关闭</el-button
+            >
+            <el-button
+              v-if="row.status === 'draft'"
+              size="small"
+              type="danger"
+              plain
+              @click="onCancel(row)"
+              >取消</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
@@ -47,13 +81,28 @@
           <el-input-number v-model="form.supplier_id" :min="1" class="w-full" />
         </el-form-item>
         <el-form-item label="发出日期" required>
-          <el-date-picker v-model="form.issue_date" type="date" value-format="YYYY-MM-DD" class="w-full" />
+          <el-date-picker
+            v-model="form.issue_date"
+            type="date"
+            value-format="YYYY-MM-DD"
+            class="w-full"
+          />
         </el-form-item>
         <el-form-item label="预计回厂">
-          <el-date-picker v-model="form.expected_return_date" type="date" value-format="YYYY-MM-DD" class="w-full" />
+          <el-date-picker
+            v-model="form.expected_return_date"
+            type="date"
+            value-format="YYYY-MM-DD"
+            class="w-full"
+          />
         </el-form-item>
         <el-form-item label="发出数量" required>
-          <el-input-number v-model="form.issue_quantity" :min="0.01" :precision="2" class="w-full" />
+          <el-input-number
+            v-model="form.issue_quantity"
+            :min="0.01"
+            :precision="2"
+            class="w-full"
+          />
         </el-form-item>
         <el-form-item label="单位">
           <el-input v-model="form.issue_unit" placeholder="kg / m" />
@@ -101,7 +150,14 @@ const unwrapList = (p: unknown): OutsourcingOrder[] =>
   Array.isArray(p) ? p : ((p as { items?: OutsourcingOrder[] })?.items ?? []);
 
 const statusTag = (s: string) =>
-  ({ draft: 'info', issued: 'primary', processing: 'warning', settled: 'success', closed: 'info', cancelled: 'danger' })[s] ?? 'info';
+  ({
+    draft: 'info',
+    issued: 'primary',
+    processing: 'warning',
+    settled: 'success',
+    closed: 'info',
+    cancelled: 'danger',
+  })[s] ?? 'info';
 
 async function load() {
   loading.value = true;
@@ -138,7 +194,12 @@ async function onCreate() {
   }
 }
 
-const act = async (row: OutsourcingOrder, fn: (id: number, d?: Record<string, unknown>) => Promise<unknown>, msg: string, prompt = false) => {
+const act = async (
+  row: OutsourcingOrder,
+  fn: (id: number, d?: Record<string, unknown>) => Promise<unknown>,
+  msg: string,
+  prompt = false
+) => {
   if (prompt) await ElMessageBox.confirm(`确认${msg}？`, '确认');
   await fn(row.id);
   ElMessage.success(msg + '成功');

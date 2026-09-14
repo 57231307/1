@@ -19,7 +19,12 @@
             style="width: 140px"
             @change="handleFilter"
           >
-            <el-option v-for="(label, key) in resultTextMap" :key="key" :label="label" :value="key" />
+            <el-option
+              v-for="(label, key) in resultTextMap"
+              :key="key"
+              :label="label"
+              :value="key"
+            />
           </el-select>
         </div>
       </div>
@@ -30,7 +35,12 @@
         <el-table-column prop="product_name" label="产品" min-width="130" show-overflow-tooltip />
         <el-table-column prop="hs_code" label="HS编码" width="120" />
         <el-table-column prop="inspection_type" label="商检类型" width="110" align="center" />
-        <el-table-column prop="inspection_agency" label="检验机构" min-width="130" show-overflow-tooltip />
+        <el-table-column
+          prop="inspection_agency"
+          label="检验机构"
+          min-width="130"
+          show-overflow-tooltip
+        />
         <el-table-column prop="inspection_date" label="商检日期" width="120" align="center" />
         <el-table-column prop="result" label="结果" width="100" align="center">
           <template #default="{ row }">
@@ -70,18 +80,38 @@
             {{ resultTextMap[detailRow.result] ?? detailRow.result }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="销售订单 ID">{{ detailRow.sales_order_id }}</el-descriptions-item>
-        <el-descriptions-item label="发货单 ID">{{ detailRow.delivery_id ?? '-' }}</el-descriptions-item>
+        <el-descriptions-item label="销售订单 ID">{{
+          detailRow.sales_order_id
+        }}</el-descriptions-item>
+        <el-descriptions-item label="发货单 ID">{{
+          detailRow.delivery_id ?? '-'
+        }}</el-descriptions-item>
         <el-descriptions-item label="产品">{{ detailRow.product_name }}</el-descriptions-item>
         <el-descriptions-item label="HS编码">{{ detailRow.hs_code }}</el-descriptions-item>
-        <el-descriptions-item label="商检类型">{{ detailRow.inspection_type }}</el-descriptions-item>
-        <el-descriptions-item label="检验机构">{{ detailRow.inspection_agency }}</el-descriptions-item>
-        <el-descriptions-item label="商检日期">{{ detailRow.inspection_date }}</el-descriptions-item>
-        <el-descriptions-item label="证书号">{{ detailRow.certificate_no || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="证书有效期">{{ detailRow.certificate_expiry || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="报告链接">{{ detailRow.report_url || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="备注" :span="2">{{ detailRow.remarks || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="创建时间" :span="2">{{ detailRow.created_at }}</el-descriptions-item>
+        <el-descriptions-item label="商检类型">{{
+          detailRow.inspection_type
+        }}</el-descriptions-item>
+        <el-descriptions-item label="检验机构">{{
+          detailRow.inspection_agency
+        }}</el-descriptions-item>
+        <el-descriptions-item label="商检日期">{{
+          detailRow.inspection_date
+        }}</el-descriptions-item>
+        <el-descriptions-item label="证书号">{{
+          detailRow.certificate_no || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="证书有效期">{{
+          detailRow.certificate_expiry || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="报告链接">{{
+          detailRow.report_url || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="备注" :span="2">{{
+          detailRow.remarks || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间" :span="2">{{
+          detailRow.created_at
+        }}</el-descriptions-item>
       </el-descriptions>
       <template #footer>
         <el-button @click="detailVisible = false">关闭</el-button>

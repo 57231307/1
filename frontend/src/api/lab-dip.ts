@@ -6,12 +6,7 @@ import type { ApiResponse, PaginatedResponse, QueryParams } from '@/types/api';
  * 后端状态机：pending→sampling→submitted→approved/rejected→completed；rejected 可 restart 回 sampling
  */
 export type LabDipRequestStatus =
-  | 'pending'
-  | 'sampling'
-  | 'submitted'
-  | 'approved'
-  | 'rejected'
-  | 'completed';
+  'pending' | 'sampling' | 'submitted' | 'approved' | 'rejected' | 'completed';
 
 export interface LabDipRequest {
   id: number;

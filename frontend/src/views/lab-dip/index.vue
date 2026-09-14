@@ -11,7 +11,12 @@
             style="width: 160px"
             @change="handleFilter"
           >
-            <el-option v-for="(label, key) in statusTextMap" :key="key" :label="label" :value="key" />
+            <el-option
+              v-for="(label, key) in statusTextMap"
+              :key="key"
+              :label="label"
+              :value="key"
+            />
           </el-select>
           <el-button type="primary" @click="handleCreate">新建打样通知</el-button>
         </div>
@@ -22,7 +27,12 @@
         <el-table-column prop="customer_color_no" label="客户色号" width="130">
           <template #default="{ row }">{{ row.customer_color_no || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="customer_color_name" label="客户色名" min-width="130" show-overflow-tooltip>
+        <el-table-column
+          prop="customer_color_name"
+          label="客户色名"
+          min-width="130"
+          show-overflow-tooltip
+        >
           <template #default="{ row }">{{ row.customer_color_name || '-' }}</template>
         </el-table-column>
         <el-table-column prop="light_source" label="主光源" width="100" align="center" />
@@ -75,7 +85,12 @@
     <el-dialog v-model="createVisible" title="新建打样通知" width="580px" @close="resetForm">
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="110px">
         <el-form-item label="客户 ID" prop="customer_id">
-          <el-input-number v-model="formData.customer_id" :min="1" :precision="0" style="width: 100%" />
+          <el-input-number
+            v-model="formData.customer_id"
+            :min="1"
+            :precision="0"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="客户色号" prop="customer_color_no">
           <el-input v-model="formData.customer_color_no" placeholder="选填" />
@@ -102,7 +117,13 @@
           </el-select>
         </el-form-item>
         <el-form-item label="打样版数" prop="sample_versions">
-          <el-input-number v-model="formData.sample_versions" :min="1" :max="8" :precision="0" style="width: 100%" />
+          <el-input-number
+            v-model="formData.sample_versions"
+            :min="1"
+            :max="8"
+            :precision="0"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="要求交期" prop="required_date">
           <el-date-picker
@@ -131,17 +152,33 @@
             {{ statusTextMap[detailRow.status] ?? detailRow.status }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="客户色号">{{ detailRow.customer_color_no || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="客户色名">{{ detailRow.customer_color_name || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="来样类型">{{ detailRow.sample_type || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="客户色号">{{
+          detailRow.customer_color_no || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="客户色名">{{
+          detailRow.customer_color_name || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="来样类型">{{
+          detailRow.sample_type || '-'
+        }}</el-descriptions-item>
         <el-descriptions-item label="主光源">{{ detailRow.light_source }}</el-descriptions-item>
-        <el-descriptions-item label="副光源">{{ detailRow.secondary_light_source || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="副光源">{{
+          detailRow.secondary_light_source || '-'
+        }}</el-descriptions-item>
         <el-descriptions-item label="版数">{{ detailRow.sample_versions }}</el-descriptions-item>
-        <el-descriptions-item label="坯布规格">{{ detailRow.fabric_spec || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="纤维成分">{{ detailRow.fabric_component || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="染料类别">{{ detailRow.dye_category || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="坯布规格">{{
+          detailRow.fabric_spec || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="纤维成分">{{
+          detailRow.fabric_component || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="染料类别">{{
+          detailRow.dye_category || '-'
+        }}</el-descriptions-item>
         <el-descriptions-item label="要求交期">{{ detailRow.required_date }}</el-descriptions-item>
-        <el-descriptions-item label="创建时间" :span="2">{{ detailRow.created_at }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间" :span="2">{{
+          detailRow.created_at
+        }}</el-descriptions-item>
       </el-descriptions>
       <template #footer>
         <el-button @click="detailVisible = false">关闭</el-button>
@@ -179,7 +216,10 @@ const statusTextMap: Record<LabDipRequestStatus, string> = {
   completed: '已完成',
 };
 
-const statusTagMap: Record<LabDipRequestStatus, 'info' | 'warning' | 'primary' | 'success' | 'danger'> = {
+const statusTagMap: Record<
+  LabDipRequestStatus,
+  'info' | 'warning' | 'primary' | 'success' | 'danger'
+> = {
   pending: 'info',
   sampling: 'warning',
   submitted: 'primary',
@@ -270,7 +310,8 @@ const loadList = async () => {
       status: queryStatus.value || undefined,
     });
     requestList.value = unwrapList(res.data);
-    total.value = res.data && !Array.isArray(res.data) ? (res.data.total ?? 0) : requestList.value.length;
+    total.value =
+      res.data && !Array.isArray(res.data) ? (res.data.total ?? 0) : requestList.value.length;
   } catch {
     ElMessage.error('加载打样通知列表失败');
   } finally {

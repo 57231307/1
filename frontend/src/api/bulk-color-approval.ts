@@ -130,9 +130,7 @@ export function scrapBulkColor(
   return request.post(`/bulk-color-approvals/${id}/scrap`, data);
 }
 
-export function getBulkColorApprovalHistory(
-  id: number
-): Promise<ApiResponse<unknown[]>> {
+export function getBulkColorApprovalHistory(id: number): Promise<ApiResponse<unknown[]>> {
   return request.get(`/bulk-color-approvals/${id}/history`);
 }
 
