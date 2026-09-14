@@ -2,6 +2,8 @@
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
+use crate::models::system_update_backup;
+use crate::models::system_update_task;
 use crate::models::system_version;
 use crate::services::system_update_service::{LocalRelease, SystemUpdateService, UpdateError};
 use crate::utils::admin_checker::is_admin_role;
@@ -12,9 +14,6 @@ use axum::{
     extract::{Multipart, Path, State},
 };
 use std::path::PathBuf;
-use std::sync::Mutex;
-use std::sync::atomic::{AtomicI32, Ordering};
-use std::sync::{MutexGuard, OnceLock};
 use tokio::fs;
 use validator::Validate;
 
@@ -431,41 +430,6 @@ pub async fn get_backup_versions() -> Json<ApiResponse<Vec<String>>> {
 // 对应前端 api/system-update.ts 的调用契约（UpdateTask / SystemBackup / SystemVersion）
 // ============================================================================
 
-/// 更新任务记录（内存存储，字段对齐前端 `UpdateTask` 结构）
-#[allow(dead_code, reason = "序列化输出字段")]
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct UpdateTaskRecord {
-    pub id: i32,
-    pub task_code: String,
-    pub from_version: String,
-    pub to_version: String,
-    pub status: String,
-    pub progress: u32,
-    pub error_message: String,
-    pub backup_path: String,
-    pub started_at: String,
-    pub completed_at: String,
-    pub created_by: i32,
-    pub created_by_name: String,
-    pub created_at: String,
-}
-
-/// 备份记录（内存存储，字段对齐前端 `SystemBackup` 结构）
-#[allow(dead_code, reason = "序列化输出字段")]
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct BackupRecord {
-    pub id: i32,
-    pub backup_code: String,
-    pub backup_type: String,
-    pub file_path: String,
-    pub file_size: u64,
-    pub description: String,
-    pub status: String,
-    pub created_by: i32,
-    pub created_by_name: String,
-    pub created_at: String,
-}
-
 /// 创建备份请求（对应前端 createSystemBackup 传 Partial<SystemBackup>）
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
@@ -477,59 +441,76 @@ pub struct CreateBackupRequest {
     pub description: Option<String>,
 }
 
-/// 更新任务内存存储（参照 import_export_handler 的 IMPORT_TEMPLATE_STORE 模式）
-static UPDATE_TASK_STORE: OnceLock<Mutex<Vec<UpdateTaskRecord>>> = OnceLock::new();
-/// 备份记录内存存储
-static BACKUP_STORE: OnceLock<Mutex<Vec<BackupRecord>>> = OnceLock::new();
-/// 任务 ID 自增序列
-static UPDATE_TASK_ID_SEQ: AtomicI32 = AtomicI32::new(0);
-/// 备份 ID 自增序列
-static BACKUP_ID_SEQ: AtomicI32 = AtomicI32::new(0);
-
-fn update_task_store() -> &'static Mutex<Vec<UpdateTaskRecord>> {
-    UPDATE_TASK_STORE.get_or_init(|| Mutex::new(Vec::new()))
-}
-
-fn backup_store() -> &'static Mutex<Vec<BackupRecord>> {
-    BACKUP_STORE.get_or_init(|| Mutex::new(Vec::new()))
-}
-
-fn lock_update_tasks() -> Result<MutexGuard<'static, Vec<UpdateTaskRecord>>, AppError> {
-    update_task_store()
-        .lock()
-        .map_err(|_| AppError::internal("更新任务存储不可用"))
-}
-
-/// 创建并登记一条更新任务记录（内存），返回克隆供响应使用
-fn push_update_task(
+/// 创建并登记一条更新任务记录（落库 system_update_tasks），返回前端契约 JSON
+async fn push_update_task(
+    state: &AppState,
     from_version: String,
     to_version: String,
+    task_type: &str,
     status: &str,
     progress: u32,
     auth: &AuthContext,
-) -> UpdateTaskRecord {
-    let id = UPDATE_TASK_ID_SEQ.fetch_add(1, Ordering::SeqCst) + 1;
-    let now = chrono::Utc::now().to_rfc3339();
-    let record = UpdateTaskRecord {
-        id,
-        task_code: format!("UT-{:06}", id),
-        from_version,
-        to_version,
-        status: status.to_string(),
-        progress,
-        error_message: String::new(),
-        backup_path: String::new(),
-        started_at: now.clone(),
-        completed_at: String::new(),
-        created_by: auth.user_id,
-        created_by_name: auth.username.clone(),
-        created_at: now,
+) -> Result<serde_json::Value, AppError> {
+    use sea_orm::{ActiveModelTrait, Set};
+    
+    use std::sync::atomic::{AtomicI32, Ordering};
+    static TASK_SEQ: AtomicI32 = AtomicI32::new(0);
+    let seq = TASK_SEQ.fetch_add(1, Ordering::SeqCst) + 1;
+    let now = chrono::Utc::now();
+    let model = system_update_task::ActiveModel {
+        task_code: Set(format!("UPD-{}-{:04}", now.format("%Y%m%d%H%M%S"), seq)),
+        task_type: Set(task_type.to_string()),
+        source_version: Set(from_version.clone()),
+        target_version: Set(to_version.clone()),
+        status: Set(status.to_string()),
+        progress: Set(progress as i32),
+        error_message: Set(None),
+        created_by: Set(auth.user_id),
+        created_by_name: Set(auth.username.clone()),
+        completed_at: Set(Some(now.into())),
+        created_at: Set(now.into()),
+        updated_at: Set(now.into()),
+        ..Default::default()
     };
-    if let Ok(mut guard) = update_task_store().lock() {
-        guard.push(record.clone());
-    }
-    record
+    let saved = model.insert(state.db.as_ref()).await?;
+    Ok(task_to_frontend_json(&saved))
 }
+
+/// system_update_task Model → 前端 `UpdateTask` 契约 JSON
+fn task_to_frontend_json(t: &system_update_task::Model) -> serde_json::Value {
+    serde_json::json!({
+        "id": t.id,
+        "task_code": t.task_code,
+        "from_version": t.source_version,
+        "to_version": t.target_version,
+        "status": t.status,
+        "progress": t.progress,
+        "error_message": t.error_message.clone().unwrap_or_default(),
+        "backup_path": "",
+        "started_at": t.created_at.to_rfc3339(),
+        "completed_at": t.completed_at.map(|c| c.to_rfc3339()).unwrap_or_default(),
+        "created_by": t.created_by,
+        "created_by_name": t.created_by_name,
+        "created_at": t.created_at.to_rfc3339(),
+    })
+}
+
+/// system_update_backup Model → 前端 `SystemBackup` 契约 JSON
+fn backup_to_frontend_json(b: &system_update_backup::Model) -> serde_json::Value {
+    serde_json::json!({
+        "id": b.id,
+        "backup_code": b.backup_code,
+        "backup_type": b.backup_type,
+        "file_path": b.file_path,
+        "file_size": b.file_size,
+        "description": b.description,
+        "status": b.status,
+        "created_by": b.created_by,
+        "created_by_name": b.created_by_name,
+        "created_at": b.created_at.to_rfc3339(),
+    })
+}
+
 
 /// 从 system_version 表按 ID 加载版本记录（供版本详情/下载/安装复用）
 async fn load_system_version(
@@ -564,63 +545,45 @@ fn system_version_to_frontend_json(v: &system_version::Model) -> serde_json::Val
 /// POST /api/v1/erp/system-update/backups - 创建系统备份任务（对应前端 api/system-update.ts createSystemBackup）
 /// 最小实现：生成备份任务记录（内存），异步标记备份完成状态
 pub async fn create_backup_task(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateBackupRequest>,
-) -> Result<Json<ApiResponse<BackupRecord>>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     req.validate()
         .map_err(|e| AppError::validation(e.to_string()))?;
 
-    let id = BACKUP_ID_SEQ.fetch_add(1, Ordering::SeqCst) + 1;
+    use sea_orm::{ActiveModelTrait, Set};
     let now = chrono::Utc::now();
-    let record = BackupRecord {
-        id,
-        backup_code: format!("BK-{}", now.format("%Y%m%d%H%M%S")),
-        backup_type: req
-            .backup_type
-            .unwrap_or_else(|| "full".to_string()),
-        file_path: String::new(),
-        file_size: 0,
-        description: req.description.unwrap_or_default(),
-        // 创建后进入 creating 状态，由下方异步任务标记完成
-        status: "creating".to_string(),
-        created_by: auth.user_id,
-        created_by_name: auth.username.clone(),
-        created_at: now.to_rfc3339(),
+    let backup = system_update_backup::ActiveModel {
+        backup_code: Set(format!("BK-{}", now.format("%Y%m%d%H%M%S"))),
+        backup_type: Set(req.backup_type.unwrap_or_else(|| "full".to_string())),
+        description: Set(req.description.unwrap_or_default()),
+        status: Set("completed".to_string()),
+        created_by: Set(auth.user_id),
+        created_by_name: Set(auth.username.clone()),
+        created_at: Set(now.into()),
+        updated_at: Set(now.into()),
+        ..Default::default()
     };
-
-    if let Ok(mut guard) = backup_store().lock() {
-        guard.push(record.clone());
-    }
-
-    // 异步标记备份完成（最小实现：登记后立即在后台任务中置为 completed）
-    let backup_id = record.id;
-    tokio::spawn(async move {
-        if let Ok(mut guard) = backup_store().lock() {
-            if let Some(r) = guard.iter_mut().find(|r| r.id == backup_id) {
-                r.status = "completed".to_string();
-            }
-        }
-    });
+    let saved = backup.insert(state.db.as_ref()).await?;
 
     Ok(Json(ApiResponse::success_with_message(
-        record,
+        backup_to_frontend_json(&saved),
         "备份任务已创建",
     )))
 }
 
 /// GET /api/v1/erp/system-update/tasks/{id} - 获取更新任务详情（对应前端 api/system-update.ts getUpdateTask）
 pub async fn get_update_task_by_id(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     _auth: AuthContext,
     Path(id): Path<i32>,
-) -> Result<Json<ApiResponse<UpdateTaskRecord>>, AppError> {
-    let task = lock_update_tasks()?
-        .iter()
-        .find(|t| t.id == id)
-        .cloned()
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let task = system_update_task::Entity::find_by_id(id)
+        .one(state.db.as_ref())
+        .await?
         .ok_or_else(|| AppError::not_found(format!("更新任务 {} 不存在", id)))?;
-    Ok(Json(ApiResponse::success(task)))
+    Ok(Json(ApiResponse::success(task_to_frontend_json(&task))))
 }
 
 /// POST /api/v1/erp/system-update/tasks/{id}/cancel - 取消更新任务（对应前端 api/system-update.ts cancelUpdateTask）
@@ -629,32 +592,31 @@ pub async fn cancel_update_task(
     State(state): State<AppState>,
     auth: AuthContext,
     Path(id): Path<i32>,
-) -> Result<Json<ApiResponse<UpdateTaskRecord>>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // 任务取消与下载/安装同属高危更新链路，保持 admin 校验一致
     require_admin_role(&state, &auth).await?;
 
-    let mut guard = lock_update_tasks()?;
-    let task = guard
-        .iter_mut()
-        .find(|t| t.id == id)
+    use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+    let task = system_update_task::Entity::find_by_id(id)
+        .one(state.db.as_ref())
+        .await?
         .ok_or_else(|| AppError::not_found(format!("更新任务 {} 不存在", id)))?;
 
-    if matches!(
-        task.status.as_str(),
-        "completed" | "failed" | "rolled_back"
-    ) {
+    if matches!(task.status.as_str(), "completed" | "failed" | "rolled_back") {
         return Err(AppError::business(format!(
             "更新任务 {} 已结束（状态：{}），无法取消",
             id, task.status
         )));
     }
 
-    task.status = "failed".to_string();
-    task.error_message = "任务已被用户取消".to_string();
-    task.completed_at = chrono::Utc::now().to_rfc3339();
-    let cancelled = task.clone();
+    let mut active: system_update_task::ActiveModel = task.into();
+    active.status = Set("failed".to_string());
+    active.error_message = Set(Some("任务已被用户取消".to_string()));
+    active.completed_at = Set(Some(chrono::Utc::now().into()));
+    active.updated_at = Set(chrono::Utc::now().into());
+    let cancelled = active.update(state.db.as_ref()).await?;
     Ok(Json(ApiResponse::success_with_message(
-        cancelled,
+        task_to_frontend_json(&cancelled),
         "更新任务已取消",
     )))
 }
@@ -678,19 +640,22 @@ pub async fn download_version_update(
     State(state): State<AppState>,
     auth: AuthContext,
     Path(version_id): Path<i32>,
-) -> Result<Json<ApiResponse<UpdateTaskRecord>>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // 与现有 download_and_update 一致：下载并应用更新属高危操作，仅 admin 可执行
     require_admin_role(&state, &auth).await?;
 
     let version = load_system_version(&state, version_id).await?;
     let service = SystemUpdateService::new();
     let task = push_update_task(
+        &state,
         service.get_current_version(),
         version.version,
+        "download",
         "downloaded",
         100,
         &auth,
-    );
+    )
+    .await?;
     Ok(Json(ApiResponse::success_with_message(
         task,
         "更新包下载任务已完成",
@@ -703,19 +668,22 @@ pub async fn install_version_update(
     State(state): State<AppState>,
     auth: AuthContext,
     Path(version_id): Path<i32>,
-) -> Result<Json<ApiResponse<UpdateTaskRecord>>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // 安装更新会替换二进制，属最高危操作，仅 admin 可执行
     require_admin_role(&state, &auth).await?;
 
     let version = load_system_version(&state, version_id).await?;
     let service = SystemUpdateService::new();
     let task = push_update_task(
+        &state,
         service.get_current_version(),
         version.version,
+        "install",
         "installing",
         0,
         &auth,
-    );
+    )
+    .await?;
     Ok(Json(ApiResponse::success_with_message(
         task,
         "版本安装任务已创建",

@@ -25,6 +25,7 @@ mod m0051_add_piece_type_and_machine_no;
 mod m0052_add_piece_no_to_flow_documents;
 mod m0053_add_warehouse_contact_and_default;
 mod m0054_add_import_task_file_fields;
+mod m0055_create_system_update_tables;
 
 pub struct Migration;
 
@@ -130,6 +131,9 @@ impl MigrationTrait for Migration {
             .up(manager)
             .await?;
         m0054_add_import_task_file_fields::Migration
+            .up(manager)
+            .await?;
+        m0055_create_system_update_tables::Migration
             .up(manager)
             .await?;
         let sql = r#"ALTER TABLE "api_keys" ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ;
@@ -433,6 +437,9 @@ ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "insurance_cost" DECIMAL
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
+        m0055_create_system_update_tables::Migration
+            .down(manager)
+            .await?;
         m0054_add_import_task_file_fields::Migration
             .down(manager)
             .await?;
