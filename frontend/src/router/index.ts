@@ -502,12 +502,6 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
-        path: 'logistics',
-        name: 'Logistics',
-        component: () => import('@/views/logistics/index.vue'),
-        meta: { title: '物流跟踪', icon: 'Van', permission: 'inventory:read', requiresAuth: true },
-      },
-      {
         path: 'export-compliance',
         name: 'ExportCompliance',
         component: () => import('@/views/export-compliance/index.vue'),

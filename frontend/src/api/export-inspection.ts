@@ -84,3 +84,13 @@ export function getExportInspectionPrintUrl(id: number): string {
 export function getCustomsDeclarationPrintUrl(id: number): string {
   return `${BASE_URL}/export-inspections/${id}/customs-declaration/print`;
 }
+
+/** 产地证列表（GET /{id}/certificates，裸 JSON） */
+export function getExportCertificates(inspectionId: number): Promise<{ items: unknown[]; total?: number }> {
+  return bareApi.get(`/${inspectionId}/certificates`).then((r) => r.data);
+}
+
+/** 产地证详情（GET /certificates/{id}，裸 JSON） */
+export function getCertificateDetail(id: number): Promise<unknown> {
+  return bareApi.get(`/certificates/${id}`).then((r) => r.data);
+}

@@ -38,10 +38,6 @@ export function getRoleRelationsBetween(roleA: string, roleB: string) {
   return request.get(`/role-relations/between/${roleA}/${roleB}`);
 }
 
-export function checkMutualExclusive(roleA: string, roleB: string) {
-  return request.get(`/role-relations/check-mutual-exclusive/${roleA}/${roleB}`);
-}
-
 export function getInheritedRoles(role: string) {
   return request.get(`/role-relations/inherited/${role}`);
 }
@@ -110,4 +106,140 @@ export function registerDevice(data: Record<string, unknown>) {
 
 export function getOnlineDeviceCount() {
   return request.get('/device-connections/online/count');
+}
+
+// ===== 角色变更审批（合并自 permission-admin.ts，状态机 pending_l1 → pending_l2 → approved/rejected/cancelled）=====
+
+/** 角色变更审批状态 */
+export type RoleChangeApprovalStatus =
+  | 'pending_l1'
+  | 'pending_l2'
+  | 'approved'
+  | 'rejected'
+  | 'cancelled';
+
+/** 角色变更类型（后端 ChangeType 枚举） */
+export type RoleChangeType = 'assign_role' | 'assign_permission' | 'remove_permission';
+
+export interface RoleChangeApproval {
+  id: number;
+  approval_no: string;
+  change_type: RoleChangeType | string;
+  target_user_id: number | null;
+  target_role_id: number;
+  target_role_code: string;
+  proposed_permission_id: number | null;
+  proposed_resource_type: string | null;
+  proposed_action: string | null;
+  proposed_allowed: boolean | null;
+  applicant_id: number;
+  applicant_username: string;
+  [key: string]: unknown;
+}
+
+export interface RoleChangeApprovalQuery {
+  page?: number;
+  page_size?: number;
+  status?: RoleChangeApprovalStatus | string;
+  change_type?: RoleChangeType | string;
+}
+
+export interface CreateRoleChangeApprovalPayload {
+  change_type: RoleChangeType | string;
+  target_user_id?: number;
+  target_role_id: number;
+  proposed_permission_id?: number;
+  proposed_resource_type?: string;
+  proposed_action?: string;
+  proposed_allowed?: boolean;
+  reason: string;
+}
+
+export interface ApproveRoleChangePayload {
+  opinion?: string;
+}
+
+export interface PermissionDelegation {
+  id: number;
+  delegator_id: number;
+  delegatee_id: number;
+  permission_codes?: string[];
+  status?: string;
+  [key: string]: unknown;
+}
+
+export interface CreatePermissionDelegationPayload {
+  delegatee_id: number;
+  permission_codes: string[];
+  start_date?: string;
+  end_date?: string;
+  reason?: string;
+}
+
+export function getRoleChangeApprovals(params?: RoleChangeApprovalQuery) {
+  return request.get('/role-change-approvals', { params });
+}
+
+export function getRoleChangeApproval(id: number) {
+  return request.get(`/role-change-approvals/${id}`);
+}
+
+export function createRoleChangeApproval(data: CreateRoleChangeApprovalPayload) {
+  return request.post('/role-change-approvals', data);
+}
+
+export function approveRoleChangeL1(id: number, data?: ApproveRoleChangePayload) {
+  return request.post(`/role-change-approvals/${id}/approve-l1`, data ?? {});
+}
+
+export function approveRoleChangeL2(id: number, data?: ApproveRoleChangePayload) {
+  return request.post(`/role-change-approvals/${id}/approve-l2`, data ?? {});
+}
+
+export function rejectRoleChangeApproval(id: number, data?: ApproveRoleChangePayload) {
+  return request.post(`/role-change-approvals/${id}/reject`, data ?? {});
+}
+
+export function cancelRoleChangeApproval(id: number) {
+  return request.post(`/role-change-approvals/${id}/cancel`);
+}
+
+export function createPermissionDelegation(data: CreatePermissionDelegationPayload) {
+  return request.post('/permission-delegations', data);
+}
+
+export function getRelationBetween(roleACode: string, roleBCode: string) {
+  return request.get(`/role-relations/between/${roleACode}/${roleBCode}`);
+}
+
+export function getInheritedRoleCodes(roleCode: string) {
+  return request.get(`/role-relations/inherited/${roleCode}`);
+}
+
+export function checkMutualExclusive(roleCode: string, data: { existing_role_codes: string[] }) {
+  return request.post(`/role-relations/check-mutual-exclusive/${roleCode}`, data);
+}
+
+// ===== 设备连接扩展（合并自 device-connection.ts）=====
+
+/** 设备连接状态：后端按 last_heartbeat_at 超时窗口判定 online/timeout/offline */
+export type DeviceConnectionStatus = 'online' | 'offline' | 'timeout';
+
+/** 设备类型（RegisterDeviceRequest.device_type） */
+export type DeviceType = 'pda' | 'industrial_terminal' | 'scanner' | 'other';
+
+export function getDeviceConnection(deviceId: string) {
+  return request.get(`/device-connections/${deviceId}`);
+}
+
+export function sendDeviceHeartbeat(deviceId: string, data?: Record<string, unknown>) {
+  return request.post(`/device-connections/${deviceId}/heartbeat`, data ?? {});
+}
+
+export function disconnectDevice(deviceId: string) {
+  return request.post(`/device-connections/${deviceId}/disconnect`);
+}
+
+export function cleanupTimeoutDevices() {
+  return request.post('/device-connections/cleanup-timeout');
 }

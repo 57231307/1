@@ -41,19 +41,12 @@
         <el-card shadow="never" class="mb">
           <div class="toolbar">
             <el-button type="primary" @click="declDialogVisible = true">新建报关单</el-button>
+            <el-input-number v-model="verifyOrderId" :min="1" placeholder="订单ID" style="width: 130px" />
             <el-button @click="onVerifyDocs">单证核验</el-button>
+            <el-button plain @click="onCalcRefund">计算退税</el-button>
           </div>
         </el-card>
-        <el-form inline label-width="90px">
-          <el-form-item label="销售订单ID"
-            ><el-input-number v-model="calcForm.sales_order_id" :min="1"
-          /></el-form-item>
-          <el-form-item
-            ><el-button type="primary" plain @click="onCalcRefund"
-              >计算退税</el-button
-            ></el-form-item
-          >
-        </el-form>
+
         <pre v-if="refundResult" class="result-box">{{ refundResult }}</pre>
       </el-tab-pane>
 
@@ -131,7 +124,10 @@
         <el-form-item label="销售订单ID" required
           ><el-input-number v-model="declForm.sales_order_id" :min="1" class="w-full"
         /></el-form-item>
-        <el-form-item label="报关单号"><el-input v-model="declForm.declaration_no" /></el-form-item>
+        <el-form-item label="报关单号" required><el-input v-model="declForm.declaration_no" /></el-form-item>
+        <el-form-item label="出口日期" required><el-date-picker v-model="declForm.export_date" type="date" value-format="YYYY-MM-DD" /></el-form-item>
+        <el-form-item label="总金额" required><el-input-number v-model="declForm.total_amount" :min="0" :precision="2" /></el-form-item>
+        <el-form-item label="汇率"><el-input-number v-model="declForm.exchange_rate" :min="0" :precision="4" /></el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="declDialogVisible = false">取消</el-button>
@@ -145,17 +141,22 @@
 import { onMounted, reactive, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import {
-  createCustomsDeclaration,
   createDischargeRecord,
   getDischargeRecords,
-  getExportCertificates,
-  getExportInspectionList,
   getIncotermUsageReport,
   getPriceComposition,
-  calculateRefund,
   getTaxDeclaration,
-  verifyDocuments,
 } from '@/api/export-compliance';
+import {
+  getExportCertificates,
+  getExportInspectionList,
+  getExportInspectionPrintUrl,
+} from '@/api/export-inspection';
+import {
+  calculateRefund,
+  createCustomsDeclaration,
+  verifyDocumentsCompleteness,
+} from '@/api/tax-rebate';
 
 const activeTab = ref('inspection');
 
@@ -194,43 +195,67 @@ async function onViewCertificates(row: Record<string, unknown>) {
 }
 
 function onPrintDoc(row: Record<string, unknown>) {
-  window.open(`/api/v1/erp/export-inspections/${row.id}/print`, '_blank');
+  window.open(getExportInspectionPrintUrl(row.id as number), '_blank');
 }
 
 // 退税（后端仅提供创建/核验/试算/申报写端点，无报关单列表查询）
 const refundResult = ref('');
 const declDialogVisible = ref(false);
-const declForm = reactive({ sales_order_id: undefined as number | undefined, declaration_no: '' });
-const calcForm = reactive({ sales_order_id: undefined as number | undefined });
+const declForm = reactive({
+  sales_order_id: undefined as number | undefined,
+  declaration_no: '',
+  export_date: '',
+  total_amount: undefined as number | undefined,
+  exchange_rate: 1,
+});
+const verifyOrderId = ref<number | undefined>();
+const calcForm = reactive({
+  export_sales_amount: undefined as number | undefined,
+  refund_rate: undefined as number | undefined,
+  input_vat_amount: undefined as number | undefined,
+  carryforward_from_prev: 0,
+});
 
 async function onCreateDeclaration() {
   if (!declForm.sales_order_id) {
     ElMessage.warning('请填写销售订单ID');
     return;
   }
+  if (!declForm.declaration_no || !declForm.export_date) {
+    ElMessage.warning('请填写报关单号与出口日期');
+    return;
+  }
   await createCustomsDeclaration({
+    declaration_no: declForm.declaration_no,
     sales_order_id: declForm.sales_order_id,
-    declaration_no: declForm.declaration_no || undefined,
+    export_date: declForm.export_date,
+    total_amount: Number(declForm.total_amount ?? 0),
+    exchange_rate: Number(declForm.exchange_rate ?? 1),
   });
   ElMessage.success('报关单已创建');
   declDialogVisible.value = false;
 }
 
 async function onVerifyDocs() {
-  if (!calcForm.sales_order_id) {
+  if (!verifyOrderId.value) {
     ElMessage.warning('请填写销售订单ID');
     return;
   }
-  const res = await verifyDocuments(calcForm.sales_order_id);
+  const res = await verifyDocumentsCompleteness(verifyOrderId.value);
   refundResult.value = JSON.stringify(res, null, 2);
 }
 
 async function onCalcRefund() {
-  if (!calcForm.sales_order_id) {
-    ElMessage.warning('请填写销售订单ID');
+  if (!calcForm.export_sales_amount || !calcForm.refund_rate) {
+    ElMessage.warning('请填写出口销售额与退税率');
     return;
   }
-  const res = await calculateRefund({ sales_order_id: calcForm.sales_order_id });
+  const res = await calculateRefund({
+    export_sales_amount: Number(calcForm.export_sales_amount ?? 0),
+    refund_rate: Number(calcForm.refund_rate ?? 0),
+    input_vat_amount: Number(calcForm.input_vat_amount ?? 0),
+    carryforward_from_prev: Number(calcForm.carryforward_from_prev ?? 0),
+  });
   refundResult.value = JSON.stringify(res, null, 2);
 }
 
