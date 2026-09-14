@@ -725,8 +725,8 @@
             }}</el-breadcrumb-item>
             <el-breadcrumb-item>{{ currentTitle }}</el-breadcrumb-item>
           </el-breadcrumb>
-          <!-- 全局搜索：真实接入后端 /search 端点（批次 104 SearchClient） -->
-          <GlobalSearch class="header-search" />
+          <!-- 全局搜索：真实接入后端 /search 端点（批次 104 SearchClient）；移动端隐藏防 header 溢出 -->
+          <GlobalSearch v-if="!isMobile" class="header-search" />
         </div>
         <div class="header-right">
           <!-- V15 P1-20-16 暗黑模式切换按钮（触屏尺寸 ≥ 44px，WCAG 2.5.5） -->
