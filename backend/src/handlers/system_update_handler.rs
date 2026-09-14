@@ -599,7 +599,6 @@ pub async fn cancel_update_task(
     require_admin_role(&state, &auth).await?;
 
     use sea_orm::{ActiveModelTrait, EntityTrait, Set};
-    use sea_orm::EntityTrait;
     let task = system_update_task::Entity::find_by_id(id)
         .one(state.db.as_ref())
         .await?
