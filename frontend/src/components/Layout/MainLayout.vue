@@ -119,7 +119,10 @@
           <el-menu-item v-if="canAccessMenu('/logistics')" role="menuitem" index="/logistics">{{
             t('layout.menu.logistics')
           }}</el-menu-item>
-        </el-sub-menu>
+                  <el-menu-item v-if="canAccessMenu('/chemicals')" role="menuitem" index="/chemicals">{{
+            t('layout.menu.chemicals')
+          }}</el-menu-item>
+</el-sub-menu>
 
         <el-sub-menu
           v-if="visibleSubMenu.sales"
@@ -171,7 +174,13 @@
           <el-menu-item v-if="canAccessMenu('/quotations')" role="menuitem" index="/quotations">{{
             t('layout.menu.quotations')
           }}</el-menu-item>
-        </el-sub-menu>
+                  <el-menu-item v-if="canAccessMenu('/custom-orders')" role="menuitem" index="/custom-orders">{{
+            t('layout.menu.customOrders')
+          }}</el-menu-item>
+          <el-menu-item v-if="canAccessMenu('/export-compliance')" role="menuitem" index="/export-compliance">{{
+            t('layout.menu.exportCompliance')
+          }}</el-menu-item>
+</el-sub-menu>
 
         <el-sub-menu
           v-if="visibleSubMenu.purchase"
@@ -232,7 +241,10 @@
             index="/purchase-return"
             >{{ t('layout.menu.purchaseReturn') }}</el-menu-item
           >
-        </el-sub-menu>
+                  <el-menu-item v-if="canAccessMenu('/supplier-enhanced')" role="menuitem" index="/supplier-enhanced">{{
+            t('layout.menu.supplierEnhanced')
+          }}</el-menu-item>
+</el-sub-menu>
 
         <el-sub-menu
           v-if="visibleSubMenu.crm"
@@ -266,7 +278,13 @@
             index="/crm/opportunities"
             >{{ t('layout.menu.crmOpportunities') }}</el-menu-item
           >
-        </el-sub-menu>
+                  <el-menu-item v-if="canAccessMenu('/crm-enhanced')" role="menuitem" index="/crm-enhanced">{{
+            t('layout.menu.crmEnhanced')
+          }}</el-menu-item>
+          <el-menu-item v-if="canAccessMenu('/customer-collab')" role="menuitem" index="/customer-collab">{{
+            t('layout.menu.customerCollab')
+          }}</el-menu-item>
+</el-sub-menu>
 
         <el-sub-menu
           v-if="visibleSubMenu.production"
@@ -324,7 +342,31 @@
           <el-menu-item v-if="canAccessMenu('/dye-batch')" role="menuitem" index="/dye-batch">{{
             t('layout.menu.dyeBatch')
           }}</el-menu-item>
-        </el-sub-menu>
+                  <el-menu-item v-if="canAccessMenu('/flow-cards')" role="menuitem" index="/flow-cards">{{
+            t('layout.menu.flowCards')
+          }}</el-menu-item>
+          <el-menu-item v-if="canAccessMenu('/lab-dip')" role="menuitem" index="/lab-dip">{{
+            t('layout.menu.labDip')
+          }}</el-menu-item>
+          <el-menu-item v-if="canAccessMenu('/bulk-color-approval')" role="menuitem" index="/bulk-color-approval">{{
+            t('layout.menu.bulkColorApproval')
+          }}</el-menu-item>
+          <el-menu-item v-if="canAccessMenu('/production-recipes')" role="menuitem" index="/production-recipes">{{
+            t('layout.menu.productionRecipes')
+          }}</el-menu-item>
+          <el-menu-item v-if="canAccessMenu('/quality-8d')" role="menuitem" index="/quality-8d">{{
+            t('layout.menu.quality8d')
+          }}</el-menu-item>
+          <el-menu-item v-if="canAccessMenu('/outsourcing')" role="menuitem" index="/outsourcing">{{
+            t('layout.menu.outsourcing')
+          }}</el-menu-item>
+          <el-menu-item v-if="canAccessMenu('/wage')" role="menuitem" index="/wage">{{
+            t('layout.menu.wage')
+          }}</el-menu-item>
+          <el-menu-item v-if="canAccessMenu('/fabric-inspections')" role="menuitem" index="/fabric-inspections">{{
+            t('layout.menu.fabricInspections')
+          }}</el-menu-item>
+</el-sub-menu>
 
         <el-sub-menu
           v-if="visibleSubMenu.finance"
@@ -418,7 +460,22 @@
             index="/bi/sales-analysis"
             >{{ t('layout.menu.biSalesAnalysis') }}</el-menu-item
           >
-        </el-sub-menu>
+                  <el-menu-item v-if="canAccessMenu('/bad-debts')" role="menuitem" index="/bad-debts">{{
+            t('layout.menu.badDebts')
+          }}</el-menu-item>
+          <el-menu-item v-if="canAccessMenu('/period-adjustments')" role="menuitem" index="/period-adjustments">{{
+            t('layout.menu.periodAdjustments')
+          }}</el-menu-item>
+          <el-menu-item v-if="canAccessMenu('/budgets')" role="menuitem" index="/budgets">{{
+            t('layout.menu.budgetApprovals')
+          }}</el-menu-item>
+          <el-menu-item v-if="canAccessMenu('/invoice-details')" role="menuitem" index="/invoice-details">{{
+            t('layout.menu.invoiceDetails')
+          }}</el-menu-item>
+          <el-menu-item v-if="canAccessMenu('/periods')" role="menuitem" index="/periods">{{
+            t('layout.menu.accountingPeriods')
+          }}</el-menu-item>
+</el-sub-menu>
 
         <el-sub-menu
           v-if="visibleSubMenu.workflow"
@@ -561,7 +618,19 @@
             index="/admin/failover"
             >{{ t('layout.menu.failover') }}</el-menu-item
           >
-        </el-sub-menu>
+                  <el-menu-item v-if="canAccessMenu('/system-governance')" role="menuitem" index="/system-governance">{{
+            t('layout.menu.systemGovernance')
+          }}</el-menu-item>
+          <el-menu-item v-if="canAccessMenu('/labor-contracts')" role="menuitem" index="/labor-contracts">{{
+            t('layout.menu.laborContracts')
+          }}</el-menu-item>
+          <el-menu-item v-if="canAccessMenu('/social-insurance')" role="menuitem" index="/social-insurance">{{
+            t('layout.menu.socialInsurance')
+          }}</el-menu-item>
+          <el-menu-item v-if="canAccessMenu('/occupational-health')" role="menuitem" index="/occupational-health">{{
+            t('layout.menu.occupationalHealth')
+          }}</el-menu-item>
+</el-sub-menu>
 
         <el-sub-menu
           v-if="visibleSubMenu.ai"
