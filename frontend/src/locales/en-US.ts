@@ -544,6 +544,7 @@ export default {
       aiQualityPrediction: 'AI Quality Prediction',
     },
     main: {
+      notifications: 'Notifications',
       breadcrumbAriaLabel: 'Breadcrumb navigation',
       userMenuAriaLabel: 'User menu',
       pageAriaLabel: 'Main layout container',

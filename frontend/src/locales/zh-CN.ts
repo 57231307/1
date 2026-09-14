@@ -546,6 +546,7 @@ export default {
       aiQualityPrediction: 'AI 质量预测',
     },
     main: {
+      notifications: '通知中心',
       breadcrumbAriaLabel: '面包屑导航',
       userMenuAriaLabel: '用户菜单',
       pageAriaLabel: '主布局容器',
