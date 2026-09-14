@@ -48,7 +48,9 @@ test.describe.serial('48 静默降级补偿断言（P2C/O2C 全链）', () => {
     CLEANUP.push({ path: `/purchase/orders/${poId}`, label: '[48-1] PO' });
     await apiCall(page, 'POST', `/purchase/orders/${poId}/submit`);
     await apiCall(page, 'POST', `/purchase/orders/${poId}/approve`);
-    // 2. 建收货单→确认
+    // 2. 建收货单→确认（CreatePurchaseReceiptRequest: order_id/supplier_id/receipt_date/
+    //    warehouse_id/department_id/items[{line_no,material_id,material_code,material_name,
+    //    quantity,quantity_alt}]——purchase_receipt_dto.rs:11-95）
     let receiptId: number | undefined;
     try {
       const receipt = await apiCall<{ id?: number; data?: { id?: number } }>(
@@ -56,19 +58,30 @@ test.describe.serial('48 静默降级补偿断言（P2C/O2C 全链）', () => {
         'POST',
         '/purchase/receipts',
         {
-          po_id: poId,
+          order_id: poId,
           supplier_id: ctx.supplierId || 1,
-          warehouse_id: ctx.warehouseIds?.[0] || 1,
           receipt_date: new Date().toISOString().slice(0, 10),
-          lines: [{ material_id: ctx.productIds?.[0] || 1, received_quantity: 10 }],
+          warehouse_id: ctx.warehouseIds?.[0] || 1,
+          department_id: ctx.departmentIds?.[0] || 1,
+          items: [
+            {
+              line_no: 1,
+              material_id: ctx.productIds?.[0] || 1,
+              material_code: `M48${Date.now().toString().slice(-6)}`,
+              material_name: '48补偿断言物料',
+              quantity: 10,
+              quantity_alt: 0,
+            },
+          ],
         }
       );
       receiptId = receipt?.data?.id;
     } catch (e) {
-      console.error('[48-1] 收货单创建请求失败（字段契约差异）:', (e as Error).message);
+      console.error('[48-1] 收货单创建请求失败:', (e as Error).message);
     }
-    test.skip(!receiptId, '收货单创建失败（请求字段契约需对照 handler）');
+    test.skip(!receiptId, '收货单创建失败');
     if (!receiptId) return;
+    CLEANUP.push({ path: `/purchase/receipts/${receiptId}`, label: '[48-1] 收货单' });
     const confirm = await apiCallExpectFail(
       page,
       'POST',
@@ -100,19 +113,20 @@ test.describe.serial('48 静默降级补偿断言（P2C/O2C 全链）', () => {
     CLEANUP.push({ path: `/sales/orders/${soId}`, label: '[48-2] SO' });
     await apiCall(page, 'POST', `/sales/orders/${soId}/submit`);
     await apiCall(page, 'POST', `/sales/orders/${soId}/approve`);
-    // 发货（端点字段 grep 确认；失败则 skip 并记录）
+    // 发货（ShipOrderRequest{order_id,warehouse_code,items[{product_id,quantity}]}——
+    // services/so/delivery.rs:37-61）
     let shipOk = false;
     try {
       await apiCall(page, 'POST', `/sales/orders/${soId}/ship`, {
-        warehouse_id: ctx.warehouseIds?.[0] || 1,
-        ship_date: new Date().toISOString().slice(0, 10),
-        lines: [{ material_id: ctx.productIds?.[0] || 1, shipped_quantity: 5 }],
+        order_id: soId,
+        warehouse_code: `WH-MAIN`,
+        items: [{ product_id: ctx.productIds?.[0] || 1, quantity: 5 }],
       });
       shipOk = true;
     } catch (e) {
-      console.error('[48-2] 发货请求失败（字段契约差异）:', (e as Error).message);
+      console.error('[48-2] 发货请求失败:', (e as Error).message);
     }
-    test.skip(!shipOk, '发货请求字段契约需对照 handler');
+    test.skip(!shipOk, '发货请求失败');
     // 补偿产物：凭证列表应含收入凭证（source_module=so 或摘要含订单号）
     const vouchers = await apiCall<{ items?: Array<Record<string, unknown>> }>(
       page,
