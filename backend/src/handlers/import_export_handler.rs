@@ -55,7 +55,7 @@ pub async fn import_excel(
 
     // 批次 127 v8 复审 P2 修复：导入前创建任务记录（status=running）
     let task_id = service
-        .create_import_task(&req.import_type, req.data.len() as u64, auth.user_id)
+        .create_import_task(&req.import_type, req.data.len() as u64, auth.user_id, None, None)
         .await?;
 
     let errors = ImportExportService::validate_import_data(&req.data, &template);
@@ -642,16 +642,16 @@ pub async fn download_import_template_by_id(
 // 对应前端 api/data-import.ts 的任务详情/取消/重试/错误日志调用
 // ============================================================================
 
-/// 将 import_task Model 映射为前端 `ImportTask` 期望的 JSON 结构（字段补齐：最小实现下
-/// template_id/file_name 等任务表未落库的字段以占位值返回）
+/// 将 import_task Model 映射为前端 `ImportTask` 期望的 JSON 结构
+/// （m0054 补列后 template_id/file_name 从任务表真实落库值读取）
 fn import_task_to_frontend_json(t: import_task::Model) -> serde_json::Value {
     let processed = t.imported_rows.max(0) + t.failed_rows.max(0);
     serde_json::json!({
         "id": t.id,
         "task_code": format!("IMP-{:06}", t.id),
-        "template_id": 0,
+        "template_id": t.template_id.unwrap_or(0),
         "template_name": t.import_type,
-        "file_name": "",
+        "file_name": t.file_name.clone().unwrap_or_default(),
         "file_path": "",
         "status": t.status,
         "total_rows": t.total_rows.max(0),
@@ -722,7 +722,7 @@ pub async fn create_import_task_from_upload(
 
     let service = ImportExportService::new(state.db.clone());
     let task_id = service
-        .create_import_task(&import_type, 0, auth.user_id)
+        .create_import_task(&import_type, 0, auth.user_id, Some(file_name), Some(template_id))
         .await?;
 
     let task = import_task::Entity::find_by_id(task_id)
