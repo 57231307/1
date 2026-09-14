@@ -1,37 +1,15 @@
 import { request } from './request';
-import type { ApiResponse, PaginatedResponse, QueryParams } from '@/types/api';
-
-/**
- * 工价方案状态（后端状态机）：draft → active → disabled
- */
-export type WageRateStatus = 'draft' | 'active' | 'disabled';
 
 export interface WageRate {
   id: number;
-  rate_no: string;
-  process_route_id: number;
-  route_code: string;
-  route_name: string;
-  wage_type: string;
-  piece_price: string | number;
-  time_price: string | number;
-  grade_a_ratio: string | number;
-  grade_b_ratio: string | number;
-  grade_c_ratio: string | number;
-  effective_date: string;
-  expiry_date: string | null;
-  workshop: string | null;
-  status: WageRateStatus;
-  remarks: string | null;
-  created_at: string;
-  updated_at: string;
+  status: string;
+  [key: string]: unknown;
 }
 
-export interface ListWageRatesQuery extends QueryParams {
-  route_code?: string;
-  process_route_id?: number;
-  workshop?: string;
-  status?: string;
+export interface WageRecord {
+  id: number;
+  status: string;
+  [key: string]: unknown;
 }
 
 export interface CreateWageRatePayload {
@@ -44,38 +22,34 @@ export interface CreateWageRatePayload {
   grade_c_ratio?: number;
   effective_date: string;
   expiry_date?: string;
-  workshop?: string;
-  remarks?: string;
 }
 
-/**
- * 工资记录状态（后端状态机）：draft → confirmed → paid；cancelled 为异常终止
- */
-export type WageRecordStatus = 'draft' | 'confirmed' | 'paid' | 'cancelled';
-
-export interface WageRecord {
-  id: number;
-  record_no: string;
-  period_start: string;
-  period_end: string;
-  workshop: string | null;
-  total_workers: number;
-  total_step_records: number;
-  total_qualified_quantity: string | number;
-  total_duration_minutes: number;
-  total_amount: string | number;
-  status: WageRecordStatus;
-  remarks: string | null;
-  created_at: string;
-  updated_at: string;
+export function getWageRateList(params?: Record<string, unknown>) {
+  return request.get('/wage-rates', { params });
 }
 
-export interface ListWageRecordsQuery extends QueryParams {
-  record_no?: string;
-  workshop?: string;
-  status?: string;
-  period_start?: string;
-  period_end?: string;
+export function createWageRate(data: CreateWageRatePayload) {
+  return request.post('/wage-rates', data);
+}
+
+export function updateWageRate(id: number, data: Partial<CreateWageRatePayload>) {
+  return request.put(`/wage-rates/${id}`, data);
+}
+
+export function deleteWageRate(id: number) {
+  return request.delete(`/wage-rates/${id}`);
+}
+
+export function activateWageRate(id: number) {
+  return request.post(`/wage-rates/${id}/activate`);
+}
+
+export function disableWageRate(id: number) {
+  return request.post(`/wage-rates/${id}/disable`);
+}
+
+export function getEffectiveWageRate(routeId: number, date: string) {
+  return request.get(`/wage-rates/effective/${routeId}`, { params: { date } });
 }
 
 export interface CreateWageRecordPayload {
@@ -85,59 +59,54 @@ export interface CreateWageRecordPayload {
   remarks?: string;
 }
 
-// ==================== 工价方案 ====================
-
-export function getWageRates(
-  params?: ListWageRatesQuery
-): Promise<ApiResponse<PaginatedResponse<WageRate>>> {
-  return request.get('/production/wage-rates', { params });
+export function getWageRecordList(params?: Record<string, unknown>) {
+  return request.get('/wage-records', { params });
 }
 
-export function createWageRate(data: CreateWageRatePayload): Promise<ApiResponse<WageRate>> {
-  return request.post('/production/wage-rates', data);
+export function createWageRecord(data: CreateWageRecordPayload) {
+  return request.post('/wage-records', data);
 }
 
-/** 启用工价（draft → active） */
-export function activateWageRate(id: number): Promise<ApiResponse<WageRate>> {
-  return request.post(`/production/wage-rates/${id}/activate`);
+export function updateWageRecord(id: number, data: { workshop?: string; remarks?: string }) {
+  return request.put(`/wage-records/${id}`, data);
 }
 
-/** 停用工价（active → disabled） */
-export function disableWageRate(id: number): Promise<ApiResponse<WageRate>> {
-  return request.post(`/production/wage-rates/${id}/disable`);
+export function deleteWageRecord(id: number) {
+  return request.delete(`/wage-records/${id}`);
 }
 
-// ==================== 工资记录 ====================
-
-export function getWageRecords(
-  params?: ListWageRecordsQuery
-): Promise<ApiResponse<PaginatedResponse<WageRecord>>> {
-  return request.get('/production/wage-records', { params });
+export function calculateWageRecord(id: number, data?: Record<string, unknown>) {
+  return request.post(`/wage-records/${id}/calculate`, data ?? {});
 }
 
-export function createWageRecord(data: CreateWageRecordPayload): Promise<ApiResponse<WageRecord>> {
-  return request.post('/production/wage-records', data);
+export function confirmWageRecord(id: number) {
+  return request.post(`/wage-records/${id}/confirm`);
 }
 
-/** 触发工资计算（draft 内，可重算） */
-export function calculateWage(
-  id: number,
-  recalculate?: boolean
-): Promise<ApiResponse<WageRecord>> {
-  return request.post(`/production/wage-records/${id}/calculate`, { recalculate });
+export function payWageRecord(id: number) {
+  return request.post(`/wage-records/${id}/pay`);
 }
 
-/** 确认工资记录（draft → confirmed） */
-export function confirmWageRecord(id: number): Promise<ApiResponse<WageRecord>> {
-  return request.post(`/production/wage-records/${id}/confirm`);
+export function cancelWageRecord(id: number) {
+  return request.post(`/wage-records/${id}/cancel`);
 }
 
-/** 发放工资（confirmed → paid） */
-export function payWageRecord(id: number): Promise<ApiResponse<WageRecord>> {
-  return request.post(`/production/wage-records/${id}/pay`);
+export function getWageRecordDetails(id: number) {
+  return request.get(`/wage-records/${id}/details`);
 }
 
-/** 取消工资记录 */
-export function cancelWageRecord(id: number): Promise<ApiResponse<WageRecord>> {
-  return request.post(`/production/wage-records/${id}/cancel`);
+export function exportWageRecordDetails(id: number) {
+  return request.get(`/wage-records/${id}/details/export`, { responseType: 'blob' });
 }
+
+export function getWageDetailsByWorker(workerId: number) {
+  return request.get(`/wage-details/by-worker/${workerId}`);
+}
+
+export const WAGE_RECORD_STATUS_LABEL: Record<string, string> = {
+  draft: '草稿',
+  calculated: '已核算',
+  confirmed: '已确认',
+  paid: '已发放',
+  cancelled: '已取消',
+};

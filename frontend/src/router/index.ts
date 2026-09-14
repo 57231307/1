@@ -413,10 +413,48 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '生产计划', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
+        path: 'wage',
+        name: 'Wage',
+        component: () => import('@/views/wage/index.vue'),
+        meta: {
+          title: '产量工资',
+          icon: 'Coin',
+          permission: 'production:read',
+          requiresAuth: true,
+        },
+      },
+      {
+        path: 'chemicals',
+        name: 'Chemicals',
+        component: () => import('@/views/chemicals/index.vue'),
+        meta: {
+          title: '染化料管理',
+          icon: 'Connection',
+          permission: 'inventory:read',
+          requiresAuth: true,
+        },
+      },
+      {
+        path: 'fabric-inspections',
+        name: 'FabricInspections',
+        component: () => import('@/views/fabric-inspections/index.vue'),
+        meta: {
+          title: '验布管理',
+          icon: 'Search',
+          permission: 'inventory:read',
+          requiresAuth: true,
+        },
+      },
+      {
         path: 'quality-8d',
         name: 'Quality8d',
         component: () => import('@/views/quality-8d/index.vue'),
-        meta: { title: '质量 8D', icon: 'Checked', permission: 'inventory:read', requiresAuth: true },
+        meta: {
+          title: '质量 8D',
+          icon: 'Checked',
+          permission: 'inventory:read',
+          requiresAuth: true,
+        },
       },
       {
         path: 'bad-debts',
