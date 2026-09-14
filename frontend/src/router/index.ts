@@ -413,6 +413,24 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '生产计划', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
+        path: 'quality-8d',
+        name: 'Quality8d',
+        component: () => import('@/views/quality-8d/index.vue'),
+        meta: { title: '质量 8D', icon: 'Checked', permission: 'inventory:read', requiresAuth: true },
+      },
+      {
+        path: 'bad-debts',
+        name: 'BadDebts',
+        component: () => import('@/views/bad-debts/index.vue'),
+        meta: { title: '坏账管理', icon: 'Money', permission: 'finance:read', requiresAuth: true },
+      },
+      {
+        path: 'outsourcing',
+        name: 'Outsourcing',
+        component: () => import('@/views/outsourcing/index.vue'),
+        meta: { title: '委外管理', icon: 'Box', permission: 'inventory:read', requiresAuth: true },
+      },
+      {
         path: 'flow-cards',
         name: 'FlowCards',
         component: () => import('@/views/flow-cards/index.vue'),
@@ -717,6 +735,30 @@ const routes: RouteRecordRaw[] = [
           title: '增强版应收对账',
           icon: 'Money',
           permission: 'finance:read',
+          requiresAuth: true,
+        },
+      },
+      // 新增路由 - CRM 高级分析
+      {
+        path: 'crm-enhanced',
+        name: 'CrmEnhanced',
+        component: () => import('@/views/crm/enhanced/index.vue'),
+        meta: {
+          title: 'CRM 高级分析',
+          icon: 'User',
+          permission: 'customers:read',
+          requiresAuth: true,
+        },
+      },
+      // 新增路由 - 供应商 360
+      {
+        path: 'supplier-enhanced',
+        name: 'SupplierEnhanced',
+        component: () => import('@/views/supplier/enhanced/index.vue'),
+        meta: {
+          title: '供应商 360',
+          icon: 'OfficeBuilding',
+          permission: 'suppliers:read',
           requiresAuth: true,
         },
       },

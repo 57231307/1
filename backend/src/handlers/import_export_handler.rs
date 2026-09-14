@@ -10,15 +10,19 @@
 
 use axum::{
     Json,
-    extract::{Path, Query, State},
+    extract::{Multipart, Path, Query, State},
 };
+use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use serde::Deserialize;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+use tracing::info;
 use validator::Validate;
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::audit_log::{OperationType, Severity};
+use crate::models::import_task;
+use crate::models::status::import_task as import_status;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::import_export_service::{ExportQuery, ImportExportService, ImportResult};
 use crate::utils::error::AppError;
@@ -631,4 +635,217 @@ pub async fn download_import_template_by_id(
         .map_err(|e| AppError::internal(format!("构建响应失败: {}", e)))?;
 
     Ok(response)
+}
+
+// ============================================================================
+// 数据导入任务生命周期（复用 import_tasks 表，models/import_task.rs）
+// 对应前端 api/data-import.ts 的任务详情/取消/重试/错误日志调用
+// ============================================================================
+
+/// 将 import_task Model 映射为前端 `ImportTask` 期望的 JSON 结构（字段补齐：最小实现下
+/// template_id/file_name 等任务表未落库的字段以占位值返回）
+fn import_task_to_frontend_json(t: import_task::Model) -> serde_json::Value {
+    let processed = t.imported_rows.max(0) + t.failed_rows.max(0);
+    serde_json::json!({
+        "id": t.id,
+        "task_code": format!("IMP-{:06}", t.id),
+        "template_id": 0,
+        "template_name": t.import_type,
+        "file_name": "",
+        "file_path": "",
+        "status": t.status,
+        "total_rows": t.total_rows.max(0),
+        "processed_rows": processed,
+        "success_rows": t.imported_rows.max(0),
+        "failed_rows": t.failed_rows.max(0),
+        "error_log": build_import_task_error_log(&t),
+        "created_by": t.user_id.unwrap_or(0),
+        "created_by_name": "",
+        "created_at": t.created_at.to_rfc3339(),
+        "completed_at": t.updated_at.to_rfc3339(),
+    })
+}
+
+/// 生成导入任务的错误日志说明文本（任务表无独立 error_log 字段，按统计聚合生成）
+fn build_import_task_error_log(t: &import_task::Model) -> String {
+    if t.failed_rows <= 0 {
+        String::new()
+    } else {
+        format!(
+            "导入类型 {}：共 {} 行，其中 {} 行失败；请修正数据后使用重试端点重新导入",
+            t.import_type,
+            t.total_rows.max(0),
+            t.failed_rows.max(0)
+        )
+    }
+}
+
+/// POST /api/v1/erp/data-import/tasks - 上传文件创建导入任务（对应前端 api/data-import.ts uploadImportFile）
+/// multipart 字段：file（文件，最小实现仅登记文件名，不做真实解析导入）+ template_id
+pub async fn create_import_task_from_upload(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    mut multipart: Multipart,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    info!("用户 {} 上传文件创建导入任务", auth.username);
+
+    let mut template_id: Option<i32> = None;
+    let mut file_name = String::new();
+
+    while let Some(field) = multipart.next_field().await.unwrap_or(None) {
+        match field.name() {
+            Some("template_id") => {
+                let text = field.text().await.unwrap_or_default();
+                template_id = text.trim().parse::<i32>().ok();
+            }
+            Some("file") => {
+                if let Some(name) = field.file_name() {
+                    file_name = name.to_string();
+                }
+                // 最小实现：丢弃文件内容，仅记录文件名（真实解析导入走 /import/excel 端点）
+            }
+            _ => {}
+        }
+    }
+
+    let template_id = template_id.ok_or_else(|| AppError::bad_request("缺少 template_id 字段"))?;
+
+    // 从内存模板存储定位模板，取其 import_type 作为任务的导入类型
+    let import_type = {
+        let records = lock_import_templates()?;
+        records
+            .iter()
+            .find(|r| r.id == template_id)
+            .map(|r| r.import_type.clone())
+            .ok_or_else(|| AppError::not_found(format!("导入模板 {} 不存在", template_id)))?
+    };
+
+    let service = ImportExportService::new(state.db.clone());
+    let task_id = service
+        .create_import_task(&import_type, 0, auth.user_id)
+        .await?;
+
+    let task = import_task::Entity::find_by_id(task_id)
+        .one(state.db.as_ref())
+        .await?
+        .ok_or_else(|| AppError::internal("导入任务记录创建后查询失败"))?;
+
+    info!(
+        "用户 {} 创建导入任务成功：ID={}，模板={}，文件={}",
+        auth.username, task_id, import_type, file_name
+    );
+
+    Ok(Json(ApiResponse::success_with_message(
+        import_task_to_frontend_json(task),
+        "导入任务已创建",
+    )))
+}
+
+/// GET /api/v1/erp/data-import/tasks/{id} - 获取导入任务详情（对应前端 api/data-import.ts getImportTask）
+pub async fn get_import_task_detail(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    info!("用户 {} 查询导入任务详情 ID={}", auth.username, id);
+
+    let task = import_task::Entity::find_by_id(id)
+        .one(state.db.as_ref())
+        .await?
+        .ok_or_else(|| AppError::not_found(format!("导入任务 {} 不存在", id)))?;
+
+    Ok(Json(ApiResponse::success(import_task_to_frontend_json(
+        task,
+    ))))
+}
+
+/// POST /api/v1/erp/data-import/tasks/{id}/cancel - 取消导入任务（对应前端 api/data-import.ts cancelImportTask）
+/// 仅运行中的任务可取消，取消后任务标记为 cancelled
+pub async fn cancel_import_task(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    info!("用户 {} 取消导入任务 ID={}", auth.username, id);
+
+    let task = import_task::Entity::find_by_id(id)
+        .one(state.db.as_ref())
+        .await?
+        .ok_or_else(|| AppError::not_found(format!("导入任务 {} 不存在", id)))?;
+
+    if task.status != import_status::RUNNING {
+        return Err(AppError::business(format!(
+            "导入任务 {} 当前状态为 {}，仅运行中的任务可取消",
+            id, task.status
+        )));
+    }
+
+    let mut active: import_task::ActiveModel = task.into();
+    active.status = Set(import_status::CANCELLED.to_string());
+    active.updated_at = Set(chrono::Utc::now().into());
+    let updated = active.update(state.db.as_ref()).await?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        import_task_to_frontend_json(updated),
+        "导入任务已取消",
+    )))
+}
+
+/// POST /api/v1/erp/data-import/tasks/{id}/retry - 重试导入任务（对应前端 api/data-import.ts retryImportTask）
+/// 仅失败/部分成功/已取消的任务可重试，重试后状态重置为 running
+pub async fn retry_import_task(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    info!("用户 {} 重试导入任务 ID={}", auth.username, id);
+
+    let task = import_task::Entity::find_by_id(id)
+        .one(state.db.as_ref())
+        .await?
+        .ok_or_else(|| AppError::not_found(format!("导入任务 {} 不存在", id)))?;
+
+    if matches!(
+        task.status.as_str(),
+        import_status::RUNNING | import_status::SUCCESS
+    ) {
+        return Err(AppError::business(format!(
+            "导入任务 {} 当前状态为 {}，仅失败/部分成功/已取消的任务可重试",
+            id, task.status
+        )));
+    }
+
+    let mut active: import_task::ActiveModel = task.into();
+    active.status = Set(import_status::RUNNING.to_string());
+    active.updated_at = Set(chrono::Utc::now().into());
+    let updated = active.update(state.db.as_ref()).await?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        import_task_to_frontend_json(updated),
+        "导入任务已重新开始",
+    )))
+}
+
+/// GET /api/v1/erp/data-import/tasks/{id}/error-log - 获取导入任务错误日志（对应前端 api/data-import.ts downloadErrorLog）
+/// 返回 JSON（前端以 blob 方式接收后可保存为日志文件）
+pub async fn get_import_task_error_log(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    info!("用户 {} 获取导入任务错误日志 ID={}", auth.username, id);
+
+    let task = import_task::Entity::find_by_id(id)
+        .one(state.db.as_ref())
+        .await?
+        .ok_or_else(|| AppError::not_found(format!("导入任务 {} 不存在", id)))?;
+
+    let error_log = build_import_task_error_log(&task);
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "task_id": task.id,
+        "task_code": format!("IMP-{:06}", task.id),
+        "status": task.status,
+        "filename": format!("import_task_{}_errors.log", task.id),
+        "content": error_log,
+    }))))
 }

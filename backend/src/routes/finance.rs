@@ -503,7 +503,9 @@ pub fn financial_analysis() -> Router<AppState> {
         )
         .route(
             "/financial-analysis/reports/{id}",
-            get(financial_analysis_handler::get_report),
+            get(financial_analysis_handler::get_report)
+                .put(financial_analysis_handler::update_report)
+                .delete(financial_analysis_handler::delete_report),
         )
         .route(
             "/financial-analysis/reports/{id}/execute",

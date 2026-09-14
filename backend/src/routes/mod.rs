@@ -255,7 +255,31 @@ fn system_update_extra_routes() -> Router<AppState> {
         )
         .route(
             "/system-update/backups",
-            get(system_update_handler::get_backup_versions),
+            get(system_update_handler::get_backup_versions)
+                .post(system_update_handler::create_backup_task),
+        )
+        // 更新任务详情/取消（对应前端 api/system-update.ts getUpdateTask / cancelUpdateTask）
+        .route(
+            "/system-update/tasks/{id}",
+            get(system_update_handler::get_update_task_by_id),
+        )
+        .route(
+            "/system-update/tasks/{id}/cancel",
+            post(system_update_handler::cancel_update_task),
+        )
+        // 版本详情/下载/安装（对应前端 api/system-update.ts getSystemVersion / downloadUpdate / installUpdate）
+        // 注意：versions 下三条路由共享同一 matchit 参数节点，参数名必须统一为 {versionId}
+        .route(
+            "/system-update/versions/{versionId}",
+            get(system_update_handler::get_system_version_by_id),
+        )
+        .route(
+            "/system-update/versions/{versionId}/download",
+            post(system_update_handler::download_version_update),
+        )
+        .route(
+            "/system-update/versions/{versionId}/install",
+            post(system_update_handler::install_version_update),
         )
 }
 
@@ -310,7 +334,25 @@ fn data_import_routes() -> Router<AppState> {
         )
         .route(
             "/data-import/tasks",
-            get(import_export_handler::list_import_tasks),
+            get(import_export_handler::list_import_tasks)
+                .post(import_export_handler::create_import_task_from_upload),
+        )
+        // 导入任务生命周期（对应前端 api/data-import.ts 任务详情/取消/重试/错误日志）
+        .route(
+            "/data-import/tasks/{id}",
+            get(import_export_handler::get_import_task_detail),
+        )
+        .route(
+            "/data-import/tasks/{id}/cancel",
+            post(import_export_handler::cancel_import_task),
+        )
+        .route(
+            "/data-import/tasks/{id}/retry",
+            post(import_export_handler::retry_import_task),
+        )
+        .route(
+            "/data-import/tasks/{id}/error-log",
+            get(import_export_handler::get_import_task_error_log),
         )
 }
 

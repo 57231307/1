@@ -54,3 +54,36 @@ export const updateLogistics = (id: number, data: Partial<LogisticsWaybill>) =>
 // D14 Batch 5b：原 logisticsApi.delete 转为风格 B 函数（删除运单）
 export const deleteLogistics = (id: number) =>
   request.delete<ApiResponse<void>>(`/inventory/logistics/${id}`);
+
+// ==================== 物流跟踪轨迹（/logistics-tracking 域） ====================
+
+/** 物流跟踪事件（对齐后端 TrackingEvent） */
+export interface TrackingEventPayload {
+  /** 事件发生时间（RFC3339，如 2026-01-01T08:00:00Z） */
+  event_time: string;
+  location?: string;
+  description: string;
+  /** 事件类型：pickup / in_transit / arrived / delivered 等 */
+  event_type: string;
+  data_source?: string;
+}
+
+/** 查询运单轨迹事件（GET /logistics-tracking/waybills/{id}/tracking-events） */
+export const getTrackingEvents = (waybillId: number) =>
+  request.get<ApiResponse<unknown[]>>(
+    `/logistics-tracking/waybills/${waybillId}/tracking-events`
+  );
+
+/** 记录运单轨迹事件（POST /logistics-tracking/waybills/{id}/tracking-events） */
+export const recordTrackingEvent = (waybillId: number, data: TrackingEventPayload) =>
+  request.post<ApiResponse<unknown>>(
+    `/logistics-tracking/waybills/${waybillId}/tracking-events`,
+    data
+  );
+
+/** 运单关联采购订单（POST /logistics-tracking/waybills/{id}/link-purchase-order） */
+export const linkPurchaseOrder = (waybillId: number, data: { po_id: number }) =>
+  request.post<ApiResponse<unknown>>(
+    `/logistics-tracking/waybills/${waybillId}/link-purchase-order`,
+    data
+  );

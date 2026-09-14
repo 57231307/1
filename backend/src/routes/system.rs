@@ -233,6 +233,13 @@ fn bpm_definition_routes() -> Router<AppState> {
             "/bpm/templates",
             get(bpm_definition_handler::list_templates),
         )
+        // BPM 模板详情/删除（对应前端 api/bpm-enhanced.ts getBpmTemplateById / deleteBpmTemplate）
+        // 参数名与下方 {template_id}/create 保持一致，避免 matchit 同位置参数名冲突
+        .route(
+            "/bpm/templates/{template_id}",
+            get(bpm_definition_handler::get_template)
+                .delete(bpm_definition_handler::delete_template),
+        )
         .route(
             "/bpm/templates/{template_id}/create",
             post(bpm_definition_handler::create_from_template),
