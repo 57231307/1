@@ -14,14 +14,33 @@ import { findTableRow } from './ui-helpers';
  */
 
 test.describe.serial('新域业务流转链', () => {
-  test('质量 8D：启动 → 推进 D1（tagged enum step=d1_team）→ 列表状态变更', async ({ page }) => {
+  test('质量 8D：定制单→上报质量问题→启动→推进 D1（tagged enum）', async ({ page }) => {
     await loginViaUI(page);
     await page.goto(`${BASE_URL}/quality-8d`);
     await expect(page.locator('.page')).toBeVisible();
 
+    // 前置：quality_issues 外键必须有真实记录——创建定制订单+上报质量问题（对就是对，
+    // 禁止假设种子 issueId=1 存在）
+    const co = await apiCall<{ id?: number }>(page, 'POST', '/custom-orders', {
+      customer_id: 1,
+      product_id: 1,
+      spec: 'E2E-8D-SPEC',
+      quantity: 10,
+      unit: 'm',
+    });
+    const coId = co?.data?.id;
+    expect(coId, '定制订单创建失败').toBeTruthy();
+    const issue = await apiCall<{ id?: number }>(
+      page,
+      'POST',
+      `/custom-orders/${coId}/issues`,
+      { issue_type: 'after_sales_reported', description: 'E2E 8D 前置质量问题' }
+    );
+    const issueId = issue?.data?.id;
+    expect(issueId, '质量问题创建失败').toBeTruthy();
+
     // 启动：StartEightDDto { quality_issue_id, plan? }
     await page.getByRole('button', { name: '启动 8D' }).click();
-    const issueId = 1; // 前置：系统中存在的质量问题 ID（CI 种子数据）
     await page.locator('.el-input-number input').first().fill(String(issueId));
     await page.getByRole('button', { name: '启动', exact: true }).click();
     await expect(page.locator('.el-message--success').first()).toBeVisible({ timeout: 8000 });
