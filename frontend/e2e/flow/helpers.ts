@@ -226,7 +226,13 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
       page,
       'POST',
       `/products/${ctx.productIds[0]}/colors`,
-      { color_no: `E2E-C${Date.now().toString().slice(-6)}`, color_name: 'E2E色号' }
+      {
+        color_no: `E2E-C${Date.now().toString().slice(-6)}`,
+        color_name: 'E2E色号',
+        // CreateProductColorRequest 必填：color_type/extra_cost
+        color_type: '纯色',
+        extra_cost: 0,
+      }
     );
     if (!created.data?.id) {
       throw new Error(`[ensureTestEntities] 色号创建失败: ${JSON.stringify(created)}`);
