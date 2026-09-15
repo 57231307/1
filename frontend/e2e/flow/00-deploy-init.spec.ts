@@ -201,6 +201,7 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
         color_name: '藏青',
         pantone_code: '19-3939C',
         color_type: '常规色',
+        extra_cost: 0,
         is_active: true,
       });
       if (result.data?.id) ctx.productColorIds.push(result.data.id);
