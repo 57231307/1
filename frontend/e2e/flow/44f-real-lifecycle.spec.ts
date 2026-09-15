@@ -57,7 +57,8 @@ test.describe.serial('44f 真实实体全流转链', () => {
     const dup = await apiCallExpectFail(page, 'POST', `/production/orders/${id}/submit`);
     expect(dup.status, 'PENDING_APPROVAL 二次提交应被拒').toBeGreaterThanOrEqual(400);
 
-    await apiCall(page, 'POST', `/production/orders/${id}/approve`);
+    // ApprovalRequest { approved: bool, opinion? } 必填（自审修复：缺 body 恒 400）
+    await apiCall(page, 'POST', `/production/orders/${id}/approve`, { approved: true });
     const st2 = await apiCall<{ status?: string }>(page, 'GET', `/production/orders/${id}`);
     expect(JSON.stringify(st2).toUpperCase()).toContain('APPROVED');
   });
@@ -325,7 +326,8 @@ test.describe.serial('44f 真实实体全流转链', () => {
     if (!id) return;
     CLEANUP.push({ path: `/production/dye-recipes/${id}`, label: '[44f-9] 配方' });
 
-    await apiCall(page, 'POST', `/production/dye-recipes/${id}/approve`);
+    // ApproveRecipeRequest { approved_by: i32 } 必填
+    await apiCall(page, 'POST', `/production/dye-recipes/${id}/approve`, { approved_by: 1 });
     const st1 = JSON.stringify(
       await apiCall(page, 'GET', `/production/dye-recipes/${id}`)
     ).toLowerCase();

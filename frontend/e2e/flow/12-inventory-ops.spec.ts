@@ -85,7 +85,8 @@ test.describe('库存调拨完整流程', () => {
     expect(created.status.toLowerCase()).toBe('draft');
 
     // 审批调拨
-    await apiCall(page, 'POST', `/inventory/transfers/${transferId}/approve`);
+    // ApproveTransferRequest { approved: bool, notes? } 必填
+    await apiCall(page, 'POST', `/inventory/transfers/${transferId}/approve`, { approved: true });
     const approved = await apiCallRaw<{ status: string }>(
       page,
       'GET',
