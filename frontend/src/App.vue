@@ -15,9 +15,15 @@ const { t } = useI18n({ useScope: 'global' });
 onMounted(() => {
   const preload = () => {
     // 常用路由懒加载模块预取（失败静默忽略）
-    import('./views/Dashboard.vue').catch(e => console.warn('[App] 预热 import 失败:', String(e).slice(0, 120)));
-    import('./views/custom-orders/list.vue').catch(e => console.warn('[App] 预热 import 失败:', String(e).slice(0, 120)));
-    import('./views/sales-contract/index.vue').catch(e => console.warn('[App] 预热 import 失败:', String(e).slice(0, 120)));
+    import('./views/Dashboard.vue').catch(e =>
+      console.warn('[App] 预热 import 失败:', String(e).slice(0, 120))
+    );
+    import('./views/custom-orders/list.vue').catch(e =>
+      console.warn('[App] 预热 import 失败:', String(e).slice(0, 120))
+    );
+    import('./views/sales-contract/index.vue').catch(e =>
+      console.warn('[App] 预热 import 失败:', String(e).slice(0, 120))
+    );
   };
   if (typeof requestIdleCallback === 'function') {
     requestIdleCallback(preload, { timeout: 3000 });
