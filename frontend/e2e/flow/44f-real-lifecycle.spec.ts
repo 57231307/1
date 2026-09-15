@@ -26,6 +26,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
   });
 
   test('44f-1 生产订单 DRAFT→PENDING_APPROVAL→APPROVED 全链+每步回读', async ({ page }) => {
+    await ensureTestEntities(page);
     const ctx = getCtx();
     const po = await apiCall<{ id?: number }>(page, 'POST', '/production/orders', {
       product_id: ctx.productIds?.[0] || 1,
@@ -55,6 +56,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
   });
 
   test('44f-2 流转卡 pending→scheduled→preparing→dyeing 全链+非法跳转', async ({ page }) => {
+    await ensureTestEntities(page);
     const ctx = getCtx();
     // 前置生产订单
     const porder = await apiCall<{ id?: number }>(page, 'POST', '/production/orders', {
@@ -104,6 +106,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
   });
 
   test('44f-3 库存调拨 pending→approved→ship→receive 全链', async ({ page }) => {
+    await ensureTestEntities(page);
     const ctx = getCtx();
     const tf = await apiCall<{ id?: number }>(page, 'POST', '/inventory/transfers', {
       from_warehouse_id: ctx.warehouseIds?.[0] || 1,
@@ -133,6 +136,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
   });
 
   test('44f-4 采购收货全链+确认幂等（真实字段）', async ({ page }) => {
+    await ensureTestEntities(page);
     const ctx = getCtx();
     const po = await apiCall<{ id?: number; data?: { items?: Array<{ id: number }> } }>(
       page,
@@ -186,6 +190,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
   });
 
   test('44f-5 销售发货全链+shipped 后修改被拒', async ({ page }) => {
+    await ensureTestEntities(page);
     const ctx = getCtx();
     const so = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
       customer_id: ctx.customerId || 1,
@@ -221,6 +226,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
   });
 
   test('44f-6 凭证全链：draft→submitted→reviewed→posted+终态全拒', async ({ page }) => {
+    await ensureTestEntities(page);
     const v = await apiCall<{ id?: number }>(page, 'POST', '/vouchers', {
       voucher_type: '记',
       voucher_date: new Date().toISOString().slice(0, 10),
@@ -255,6 +261,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
   });
 
   test('44f-7 大货处方 draft→approved→closed 终态拦截', async ({ page }) => {
+    await ensureTestEntities(page);
     const ctx = getCtx();
     const r = await apiCall<{ id?: number }>(page, 'POST', '/production/production-recipes', {
       recipe_no: `44F${Date.now().toString().slice(-6)}`,
@@ -273,6 +280,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
   });
 
   test('44f-8 打样通知单 pending→sampling→submitted→approved 全链', async ({ page }) => {
+    await ensureTestEntities(page);
     const ctx = getCtx();
     const r = await apiCall<{ id?: number }>(page, 'POST', '/production/lab-dip/requests', {
       customer_id: ctx.customerId || 1,
@@ -301,6 +309,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
   });
 
   test('44f-9 染色配方 draft→approved→disabled→恢复→approved 禁删', async ({ page }) => {
+    await ensureTestEntities(page);
     const r = await apiCall<{ id?: number }>(page, 'POST', '/production/dye-recipes', {
       recipe_name: `44f配方${Date.now().toString().slice(-6)}`,
       color_code: `44F${Date.now().toString().slice(-5)}`,

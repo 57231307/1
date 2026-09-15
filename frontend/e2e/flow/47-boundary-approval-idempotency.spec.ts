@@ -25,6 +25,7 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
   test('47-B1 汇率=0.01 拒绝（P0-1 历史缺陷回归防线 ap_invoice_service.rs:87-95）', async ({
     page,
   }) => {
+    await ensureTestEntities(page);
     const today = new Date().toISOString().slice(0, 10);
     const r001 = await apiCallExpectFail(page, 'POST', '/exchange-rates', {
       from_currency: 'USD',
@@ -37,6 +38,7 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
   });
 
   test('47-B2 汇率=0 拒绝（汇率必须 > 0）', async ({ page }) => {
+    await ensureTestEntities(page);
     const today = new Date().toISOString().slice(0, 10);
     const r0 = await apiCallExpectFail(page, 'POST', '/exchange-rates', {
       from_currency: 'USD',
@@ -52,6 +54,7 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
   test('47-A1 PO 审批后拒绝被拒（contract.rs:218-221 仅 PENDING_APPROVAL 可拒绝）', async ({
     page,
   }) => {
+    await ensureTestEntities(page);
     const { getCtx } = await import('./helpers');
     const ctx = getCtx();
     const po = await apiCall<{ id?: number }>(page, 'POST', '/purchase/orders', {
@@ -77,6 +80,7 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
   // ============ L5 幂等/唯一性 ============
 
   test('47-I1 用户名重复创建被拒（user_service.rs:90-103 先查后插）', async ({ page }) => {
+    await ensureTestEntities(page);
     const username = `47dup${genCode('U').slice(-6)}`;
     const { rolesResp } = await (async () => ({ rolesResp: null }))();
     // 前置角色
@@ -106,6 +110,7 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
   });
 
   test('47-I2 角色编码重复创建被拒（role_permission_service.rs:167-174）', async ({ page }) => {
+    await ensureTestEntities(page);
     const code = `47R${genCode('C').slice(-5)}`;
     const r1 = await apiCall<{ id?: number }>(page, 'POST', '/roles', {
       name: `47幂等角色${code}`,

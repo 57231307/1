@@ -6,10 +6,6 @@ import { expect, type Page } from '@playwright/test';
 import { existsSync, readFileSync } from 'fs';
 import * as nodeCrypto from 'crypto';
 import {
-  createWarehouseUI,
-  createDepartmentUI,
-  createSupplierUI,
-  createProductUI,
   createColorCardUI,
   createDyeBatchUI,
   createDyeRecipeUI,
@@ -132,14 +128,20 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     ctx.warehouseIds = [];
   }
   if (ctx.warehouseIds.length < 2) {
+    // API 创建（CreateWarehouseRequest：name/code 经 serde alias 兼容 warehouse_*）
     for (let i = ctx.warehouseIds.length; i < 2; i++) {
-      const id = await uiCreateWithRetry(page, createWarehouseUI);
-      if (id) {
-        ctx.warehouseIds.push(id);
-      } else {
-        console.error(
-          '[ensureTestEntities] 仓库 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）'
-        );
+      try {
+        const result = await apiCall<{ id?: number }>(page, 'POST', '/warehouses', {
+          name: `E2E仓库${Date.now().toString().slice(-6)}${i}`,
+          code: `E2E-W${Date.now().toString().slice(-6)}${i}`,
+        });
+        if (result.data?.id) {
+          ctx.warehouseIds.push(result.data.id);
+        } else {
+          console.error('[ensureTestEntities] 仓库 API 创建未返回 id:', JSON.stringify(result));
+        }
+      } catch (e) {
+        console.error('[ensureTestEntities] 仓库 API 创建失败:', (e as Error).message);
       }
     }
   }
@@ -176,13 +178,20 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   }
   if (ctx.productIds.length === 0) {
     // 先 UI 尝试一次（下拉交互脆弱：分类 select 点击后偶发不更新 v-model）
-    const uiId = await uiCreateWithRetry(page, createProductUI);
-    if (uiId) {
-      ctx.productIds.push(uiId);
-    } else {
-      console.warn(
-        '[ensureTestEntities] 产品 UI 创建失败，改用 API 兜底创建（保证后续流程不被阻塞）'
-      );
+    // API 创建（CreateProductRequest：code/name/category_id/unit）
+    try {
+      const catId = ctx.productCategoryIds?.[0];
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/products', {
+        code: `E2E-P${Date.now().toString().slice(-6)}`,
+        name: `E2E产品${Date.now().toString().slice(-6)}`,
+        unit: '米',
+        ...(catId ? { category_id: catId } : {}),
+      });
+      if (result.data?.id) {
+        ctx.productIds.push(result.data.id);
+      }
+    } catch (e) {
+      console.warn('[ensureTestEntities] 产品 API 创建失败:', (e as Error).message);
     }
     // API 兜底补齐到 3 个
     while (ctx.productIds.length < 3) {
@@ -233,10 +242,21 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     ctx.supplierId = undefined;
   }
   if (!ctx.supplierId) {
-    const id = await uiCreateWithRetry(page, createSupplierUI);
-    ctx.supplierId = id;
-    if (!id) {
-      console.warn('[ensureTestEntities] 供应商 UI 创建失败，改用 API 兜底创建');
+    // API 创建（CreateSupplierRequest：supplier_short_name min=2、credit_code equal=18）
+    try {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
+        supplier_name: `E2E供应商${Date.now().toString().slice(-6)}`,
+        supplier_short_name: 'E2E供',
+        contact_phone: '13800000001',
+      });
+      ctx.supplierId = result.data?.id;
+      if (!ctx.supplierId) {
+        console.error('[ensureTestEntities] 供应商 API 创建未返回 id:', JSON.stringify(result));
+      }
+    } catch (e) {
+      console.error('[ensureTestEntities] 供应商 API 创建失败:', (e as Error).message);
+    }
+    if (!ctx.supplierId) {
       try {
         const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
           supplier_name: `E2E供应商${Date.now().toString().slice(-6)}`,
@@ -300,13 +320,18 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     }
   }
   if (ctx.departmentIds.length === 0) {
-    const id = await uiCreateWithRetry(page, createDepartmentUI);
-    if (id) {
-      ctx.departmentIds.push(id);
-    } else {
-      console.error(
-        '[ensureTestEntities] 部门 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）'
-      );
+    try {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/departments', {
+        name: `E2E部门${Date.now().toString().slice(-6)}`,
+        code: `E2E-D${Date.now().toString().slice(-6)}`,
+      });
+      if (result.data?.id) {
+        ctx.departmentIds.push(result.data.id);
+      } else {
+        console.error('[ensureTestEntities] 部门 API 创建未返回 id:', JSON.stringify(result));
+      }
+    } catch (e) {
+      console.error('[ensureTestEntities] 部门 API 创建失败:', (e as Error).message);
     }
   }
 

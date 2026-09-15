@@ -936,19 +936,9 @@ export async function readEntityIds(
   listApiPath: string,
   limit = 10
 ): Promise<number[]> {
-  try {
-    await safeGoto(page, route);
-    const items = await waitListResponse(page, listApiPath, 20000);
-    const ids = items
-      .slice(0, limit)
-      .map(it => (it as Record<string, unknown>)?.id as number)
-      .filter((id): id is number => typeof id === 'number');
-    if (ids.length > 0) return ids;
-  } catch (e) {
-    console.warn(`[readEntityIds] ${route} 查找失败: ${(e as Error).message}`);
-  }
-  // 页面路径未命中列表响应时 API 直查兜底：防止误判"实体不存在"导致
-  // 每个测试都重复兜底创建（run 34067844812 产品 id 2,3→5,6→8,9→11,12 风暴）
+  // API 直查（唯一路径）：实体查询语义不变（查真实存在的实体列表），
+  // 但跳过 safeGoto 页面渲染等待——16 分片并发下 UI 渲染是 ensureTestEntities
+  // 超 420s 测试上限的根因，页面级覆盖由 46 崩溃巡检承担
   try {
     const resp = await page.request.get(listApiPath, {
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
@@ -957,9 +947,13 @@ export async function readEntityIds(
       console.warn(`[readEntityIds] ${listApiPath} 响应非 JSON:`, (e as Error).message);
       return {};
     })) as {
-      data?: { items?: Array<{ id?: number }>; list?: Array<{ id?: number }> };
+      data?:
+        { items?: Array<{ id?: number }>; list?: Array<{ id?: number }> } | Array<{ id?: number }>;
     };
-    const items = json?.data?.items ?? json?.data?.list ?? [];
+    const raw = json?.data;
+    const items = (Array.isArray(raw) ? raw : (raw?.items ?? raw?.list ?? [])) as Array<{
+      id?: number;
+    }>;
     return items
       .slice(0, limit)
       .map(it => it?.id as number)
